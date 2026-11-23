@@ -1302,6 +1302,8 @@ mod tests {
             artefacts: Some(ARTEFACTS),
             objects: None,
             inventory: None,
+            dict_ids: None,
+            artefact_hunt: None,
         }
     }
 
@@ -1734,6 +1736,8 @@ mod tests {
         };
         let context = Context {
             inventory: Some(&inventory),
+            dict_ids: None,
+            artefact_hunt: None,
             ..context(Some(&profiles))
         };
         player_tail(&block(state), &context)
@@ -1809,6 +1813,8 @@ mod tests {
         };
         let context = Context {
             inventory: Some(&inventory),
+            dict_ids: None,
+            artefact_hunt: None,
             ..context(Some(&profiles))
         };
         let read = PlayerState::read(&state, 1, None).unwrap();

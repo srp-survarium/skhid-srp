@@ -20,7 +20,8 @@
 //!   ours holding nothing (a battery carrier's once the battery drops: the
 //!   game then updates no bone) is posed from its ragdoll alone.
 //! - `on_post_bones`: the content's extra render bone follows Head while
-//!   worn, and the cosmetic headwear body after death;
+//!   worn, and the cosmetic headwear body once off (the killing headshot,
+//!   or a later shot into the corpse's head);
 //! - `on_render_bones`: ordinary 69-bone commands initialize the extra
 //!   render bone for the lobby, baking and other renderer callers.
 //!
@@ -36,7 +37,7 @@ use core::sync::atomic::{AtomicBool, Ordering};
 
 use ::ragdoll::corpse::{Corpse, CorpseHit, Corpses, Death, DeathKey, Drawn, Frame, MAX_PLACES, Seen, SlotId};
 use ::ragdoll::math::{Pose, Quat, Vec3, abs};
-use ::ragdoll::ragdoll::{Cause, GunShape, HeadwearShape, Knock, Level, Skeleton, StartReport, Sweep};
+use ::ragdoll::ragdoll::{Cause, GunShape, HeadwearShape, Knock, Level, Off, Skeleton, StartReport, Sweep};
 use ::ragdoll::shot::{Hit, Recent, Shot, ShotKey, ShotLog, impulse, knocked_back};
 use ::ragdoll::skeleton::{BONE_COUNT, BONES, PARTS, Part};
 
@@ -71,7 +72,8 @@ const LEVEL_MASK: u32 = 0x02 | 0x08 | 0x200;
 // ray_test takes them as u16
 const _: () = assert!(LEVEL_GROUP <= 0xFFFF && LEVEL_MASK <= 0xFFFF);
 /// The level's rays a frame, for all ragdolls (a ray is a few microseconds).
-const RAYS_A_FRAME: u32 = 160;
+/// (two an end of a moving body: under it and beside it.)
+const RAYS_A_FRAME: u32 = 320;
 const UP: Vec3 = Vec3::Y;
 /// The living hits kept between a frame's bullets and its step.
 const LIVING_HITS: usize = 32;
@@ -428,9 +430,10 @@ fn seen(
     let gun = (player.held() == Held::Item && crate::artefact_carry::gun_in_hands_at_death(player, thread))
         .then_some(GunShape::RIFLE);
     let mut death = Death::new(DeathKey(player.spawned()), Cause::Unknown, gun, stood_on);
-    if fatal == Some((death.key, headwear::FatalHit::Headshot)) {
-        death.headwear = headwear::of_player(player).map(|_| HeadwearShape);
-    }
+    // off with a fatal headshot; else on the head until a shot into the corpse's head
+    let headshot = fatal == Some((death.key, headwear::FatalHit::Headshot));
+    death.headwear = headwear::of_player(player)
+        .map(|_| if headshot { HeadwearShape::ShotOff } else { HeadwearShape::Worn });
     (death.hits, death.hit_count) = recent.of_death(now);
     death.load = load_of(player);
     death.velocity = if moving.known { moving.velocity } else { Vec3::ZERO };
@@ -469,13 +472,23 @@ pub fn on_step(ctx: &mut Context<'_>) -> Flow<NoExit> {
     let thread = ctx.thread();
     let world = GameWorld::at_after_move(ctx);
     let key = world.as_ref().and_then(crate::vostok::gun_cook::world_key);
-    let client = world.and_then(|world| world.network_client());
+    let client = world.as_ref().and_then(|world| world.network_client());
     let guns = STATE.with(thread, |state| {
         if state.world != key {
             state.world = key;
             state.corpses.reset();
         }
         step(state, client.as_ref(), thread);
+        // patch 196: the corpse shots told, played at the corpses as drawn here
+        if let Some(world) = &world {
+            let own = client.as_ref().map_or(crate::corpse_shot_dark::Own::Living, crate::corpse_shot_dark::Own::of);
+            crate::corpse_shot_dark::after_step(thread, world, state.time, own, |place, death| {
+                match state.corpses.place(usize::from(place.get())) {
+                    Corpse::Body { death: d, slot } if d == death => state.corpses.slot(slot).body().map(|b| b.skull()),
+                    Corpse::Alive | Corpse::Body { .. } | Corpse::Canned { .. } => None,
+                }
+            });
+        }
         // each place's dropped gun, for patch 85's drops drawn as their copies
         core::array::from_fn(|place| state.corpses.gun(place)
             .map(|(death, pose)| crate::weapon_pickup::DroppedGun { life: death.0, transform: matrix_of(pose) }))
@@ -490,11 +503,17 @@ fn step(state: &mut State, client: Option<&NetworkClient<'_>>, thread: &Thread) 
     let living = core::mem::replace(&mut state.shots.living, [None; LIVING_HITS]);
     // the pushes of the shots since the last step (the bullets' threads
     // are done: the simulation's move has returned)
+    let own_place = client.and_then(|client| client.local_place());
     for push in state.shots.pushes.iter_mut() {
-        if let Some(p) = push.take()
-            && let Some(knock) = state.corpses.push(p.place, p.death, p.part, p.point, p.impulse)
-            && (knock.push > SPIKE_PUSH || knock.speed > SPIKE_SPEED)
+        let Some(p) = push.take() else { continue };
+        let Some(knock) = state.corpses.push(p.place, p.death, p.part, p.point, p.impulse) else { continue };
+        // patch 196: the local player's own bullet in a corpse
+        if let Some(client) = client
+            && own_place == Some(p.round.shooter)
         {
+            crate::corpse_shot_dark::hit(thread, p.place, p.death, knock.age, client.places());
+        }
+        if knock.push > SPIKE_PUSH || knock.speed > SPIKE_SPEED {
             spike_of_push(&mut state.trace, thread, state.time, p.place, &p.round, &knock);
         }
     }
@@ -900,13 +919,17 @@ pub fn on_bones(ctx: &mut Context<'_>) -> Flow<NoExit> {
     Flow::Continue
 }
 
-/// The rendered accessory pose of the same death, in the player's model space.
+/// The rendered accessory pose of the same death, in the player's model space:
+/// off by a shot into the corpse, or by the killing headshot while the death
+/// is still one (a corrected event puts it back on the head).
 fn headwear_pose(state: &State, player: &Player<'_>) -> Option<[f32; 16]> {
     let (key, slot, _) = draw_of(state, player)?;
-    if *state.deaths.get(usize::from(player.place()))? != Some((key, headwear::FatalHit::Headshot)) {
+    let (pose, by) = state.corpses.slot(slot).body()?.headwear_pose()?;
+    if by == Off::Headshot
+        && *state.deaths.get(usize::from(player.place()))? != Some((key, headwear::FatalHit::Headshot))
+    {
         return None;
     }
-    let pose = state.corpses.slot(slot).body()?.headwear_pose()?;
     Some(matrix_of(pose_of(&player.transform())?.inverse().then(pose)))
 }
 

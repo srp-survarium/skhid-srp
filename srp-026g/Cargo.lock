@@ -84,6 +84,10 @@ name = "artefact-carry"
 version = "0.1.0"
 
 [[package]]
+name = "artefact-hunt-rule"
+version = "0.1.0"
+
+[[package]]
 name = "autocfg"
 version = "1.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -339,6 +343,14 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7360491ce676a36bf9bb3c56c1aa791658183a54d2744120f27285738d90465a"
 
 [[package]]
+name = "ffa-check-points"
+version = "0.1.0"
+dependencies = [
+ "binary-config-parser",
+ "mapdata",
+]
+
+[[package]]
 name = "foldhash"
 version = "0.1.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -514,6 +526,7 @@ dependencies = [
 name = "match-server"
 version = "0.1.0"
 dependencies = [
+ "artefact-hunt-rule",
  "crc32fast",
  "libc",
  "log",
@@ -525,6 +538,7 @@ dependencies = [
  "skhid-voice",
  "srp-validate",
  "survarium",
+ "technical-skills",
  "udp-transport",
  "voice-abi",
  "vostok",
@@ -869,9 +883,18 @@ name = "srp-validate"
 version = "0.1.0"
 dependencies = [
  "artefact-carry",
+ "artefact-hunt-rule",
  "survarium",
+ "technical-skills",
  "weapon-pickup",
  "world-frame",
+]
+
+[[package]]
+name = "stalker-ffa-points"
+version = "0.1.0"
+dependencies = [
+ "mapdata",
 ]
 
 [[package]]
@@ -891,6 +914,7 @@ name = "survarium"
 version = "0.1.0"
 dependencies = [
  "artefact-carry",
+ "artefact-hunt-rule",
  "binary-config-parser",
  "encoding_rs",
  "log",
@@ -899,8 +923,10 @@ dependencies = [
  "serde",
  "serde_json",
  "srp-validate",
+ "technical-skills",
  "udp-transport",
  "weapon-kit",
+ "weapon-modules",
  "weapon-pickup",
 ]
 
@@ -913,6 +939,13 @@ dependencies = [
  "proc-macro2",
  "quote",
  "unicode-ident",
+]
+
+[[package]]
+name = "technical-skills"
+version = "0.1.0"
+dependencies = [
+ "weapon-pickup",
 ]
 
 [[package]]
@@ -1006,6 +1039,10 @@ name = "weapon-kit"
 version = "0.1.0"
 
 [[package]]
+name = "weapon-modules"
+version = "0.1.0"
+
+[[package]]
 name = "weapon-pickup"
 version = "0.1.0"
 
@@ -1018,6 +1055,7 @@ dependencies = [
  "resources-db 0.1.0",
  "serde_json",
  "session",
+ "srp-validate",
  "survarium",
  "vostok",
 ]

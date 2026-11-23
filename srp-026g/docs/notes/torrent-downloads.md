@@ -10,8 +10,8 @@ corrections from the owner go here.
 - The hashes are in the `.torrent` and the magnet link themselves, so the bytes can come from
   anyone; they do not have to come from our servers.
 - Two ways to use it:
-  - their own client (qBittorrent, Transmission...) with the `.torrent` or the magnet of the
-    site's download page;
+  - their own client (qBittorrent, Transmission...) with the `.torrent` (in the ZIP, and the
+    site's `/torrent`);
   - the updater, when "Allow torrent" is ticked: a checkbox right on the launcher's main screen,
     at the left of its bottom panel (the owner, 2026-11-15: "no need for settings"; the
     original settings window, the gear, stays hidden). Off: the updater downloads as now, by
@@ -54,8 +54,8 @@ corrections from the owner go here.
   folder, which the torrent itself leaves out: it cannot hold its own hash). The ZIP is
   checked (its SHA-256 in `/api/client-files`), so the updater has the revision's `.torrent` with
   it. A ZIP without the file (an older one, `release/deploy`'s) means no torrent: HTTPS.
-- The site's download page shows the `.torrent` and the magnet (v1 and v2 hashes, name,
-  trackers) next to the ZIP, for people's own clients: the web server hands out the ZIP's file.
+- The site hands out the ZIP's `.torrent` at `/torrent`, for people's own clients. The home
+  page does not link it (the owner, 2026-11-22: `Skhid-get.bat` is there instead, below).
 - Seeding a new revision: the first players download by HTTPS (there are no peers yet), and every
   player with the launcher's "Allow torrent" on then shares what their updater has checked,
   including the files it got by HTTPS. That is one way a revision gets seeded; the others stay
@@ -104,7 +104,9 @@ corrections from the owner go here.
   More URLs: `release/add-mirror <name> <url>` (checked as for a patch; it makes the script again).
   Commit the three.
 - The site serves the script at `GET /Skhid-get.bat` and links it on the home page under the
-  ZIP's button, when the build has one.
+  ZIP's button, when the build has one, for whoever cannot get the ZIP (a browser that refuses
+  the download, an antivirus that removes it): "Can't download? Run Skhid-get.bat: it downloads
+  the whole game into a Survarium folder beside it."
 
 ## The updater
 
@@ -379,8 +381,3 @@ piece length (4 MiB) as above, the same trackers, no `skhid` signature (the scri
 script's pins, written by `build_torrent.py bootstrap`: `$InfoHash` (v1, 40 hex), `$PieceLength`,
 `$Trackers` (the UDP ones), `$Files` (each `Path`, `Size`, `Sha256`, `Pieces`: SHA-1 of each v1
 piece, its last one with the pad's zeros but the last file's, and `Urls`).
-
-**The site's home page** shows under the ZIP's button: "Or the whole game by BitTorrent:
-.torrent · magnet", the magnet being
-`magnet:?xt=urn:btih:<40 hex>&xt=urn:btmh:1220<64 hex>&dn=Survarium&tr=<tracker>...` (each value
-percent-encoded).

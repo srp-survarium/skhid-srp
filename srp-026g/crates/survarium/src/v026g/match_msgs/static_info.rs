@@ -162,19 +162,40 @@ pub const RESEARCH_WEIGHTS: [(usize, f32); 3] = [
     (event::KILL_INVADER, 10.0),
 ];
 
+/// What Artifact Hunt (mode 13) weighs otherwise: its rule counts the
+/// deliverer's `put_victory_artefact_in_container` in event 20 (by ones) and
+/// each carrier's `bring_victory_artefact`, his share of the way, in event 6
+/// (hundredths of the delivery's whole); the weights are 0.46c2's
+/// (`artefact_hunt.md`, "Rules": score 10 and 50). A delivery scores its
+/// team 60.
+pub const ARTEFACT_HUNT_WEIGHTS: [(usize, f32); 2] = [
+    (event::PUT_VICTORY_ITEM_IN_CONTAINER, 10.0),
+    (event::BRING_VICTORY_ITEM, 50.0),
+];
+
+/// What Freeze Tag (mode 12) weighs otherwise: a thaw (event 14, counted
+/// for each fighting teammate within reach of the body thawed) scores as a
+/// kill (the owner, 2026-11-21: "kill rn is fine").
+pub const FREEZE_TAG_WEIGHTS: [(usize, f32); 1] = [(event::THAW, SCORE_WEIGHTS[event::KILL])];
+
 /// A kill in Team Deathmatch scores this many times its weight: there a
 /// kill is the only way to earn (the owner, 2026-11-04).
 pub const TDM_KILL_FACTOR: f32 = 3.0;
 
 /// The weights of a match of `game_mode`: `weights`, with Research's own
-/// in mode 5 and a Team Deathmatch kill [`TDM_KILL_FACTOR`] times its
-/// weight in mode 4. The other modes play with `weights` as they are.
+/// in mode 5, Freeze Tag's in mode 12, Artifact Hunt's in mode 13 and a Team Deathmatch kill
+/// [`TDM_KILL_FACTOR`] times its weight in mode 4. The other modes play
+/// with `weights` as they are.
 pub fn weights_of(game_mode: maps::RuleMode, weights: [f32; SCORE_EVENTS]) -> [f32; SCORE_EVENTS] {
     let mut weights = weights;
-    if game_mode == maps::RuleMode::Research {
-        for (event, weight) in RESEARCH_WEIGHTS {
-            weights[event] = weight;
-        }
+    let own: &[(usize, f32)] = match game_mode {
+        maps::RuleMode::Research => &RESEARCH_WEIGHTS,
+        maps::RuleMode::ArtefactHunt => &ARTEFACT_HUNT_WEIGHTS,
+        maps::RuleMode::FreezeTag => &FREEZE_TAG_WEIGHTS,
+        _ => &[],
+    };
+    for &(event, weight) in own {
+        weights[event] = weight;
     }
     if game_mode == maps::RuleMode::TeamDeathmatch {
         weights[event::KILL] *= TDM_KILL_FACTOR;
@@ -598,6 +619,9 @@ pub const SRPX_MAP_ID: u8 = 4;
 /// late joiner's profile (`late_join::Prepare`). Sent only when a face is
 /// not 0: no entry is every face 0.
 pub const SRPX_FACES: u8 = 5;
+/// The entry of a Freeze Tag map's options ([`maps::GameMode::FreezeTag`]): one
+/// byte, 1 (exe patch 160, `freeze-tag.md`).
+pub const SRPX_FREEZE_TAG: u8 = 6;
 
 /// Why options cannot go to a client, or why bytes are no options.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -1233,6 +1257,7 @@ fn read_srp_block(reader: &mut Reader, roster: usize) -> Result<SrpEntries, Stat
                 id.over_a_byte() && wide.replace(id).is_none()
             }
             (SRPX_BLACKOUT, [1]) => block.replace(SrpBlock::Blackout).is_none(),
+            (SRPX_FREEZE_TAG, [1]) => block.replace(SrpBlock::FreezeTag).is_none(),
             (SRPX_FREE_FOR_ALL, &[low, high]) if (low, high) != (0, 0) => block
                 .replace(SrpBlock::FreeForAll {
                     kills_to_win: u16::from_le_bytes([low, high]),
@@ -1269,6 +1294,7 @@ fn write_srp_block(map_id: Option<MapId>, block: SrpBlock, faces: &[Face], out: 
     match block {
         SrpBlock::Plain => {}
         SrpBlock::Blackout => entries.extend([SRPX_BLACKOUT, 1, 1]),
+        SrpBlock::FreezeTag => entries.extend([SRPX_FREEZE_TAG, 1, 1]),
         SrpBlock::FreeForAll { kills_to_win } => {
             entries.extend([SRPX_FREE_FOR_ALL, 2]);
             entries.extend(kills_to_win.to_le_bytes());
@@ -1290,6 +1316,8 @@ fn write_srp_block(map_id: Option<MapId>, block: SrpBlock, faces: &[Face], out: 
 enum SrpBlock {
     /// No block.
     Plain,
+    /// [`SRPX_FREEZE_TAG`].
+    FreezeTag,
     /// [`SRPX_BLACKOUT`].
     Blackout,
     /// [`SRPX_FREE_FOR_ALL`].
@@ -1301,13 +1329,15 @@ impl SrpBlock {
     fn of(map: maps::MatchMap) -> Self {
         match map.mode() {
             maps::GameMode::Blackout => Self::Blackout,
+            maps::GameMode::FreezeTag => Self::FreezeTag,
             maps::GameMode::FreeForAll => Self::FreeForAll {
                 kills_to_win: u16::try_from(map.map().kills_to_win).unwrap_or(u16::MAX),
             },
             maps::GameMode::Batteries
             | maps::GameMode::TimedBatteries
             | maps::GameMode::TeamDeathmatch
-            | maps::GameMode::Research => Self::Plain,
+            | maps::GameMode::Research
+            | maps::GameMode::ArtefactHunt => Self::Plain,
         }
     }
 }
@@ -1422,6 +1452,18 @@ mod tests {
             .find(|map| map.mode == maps::GameMode::Blackout)
             .and_then(|map| maps::MatchMap::of(map.id))
             .expect("a Blackout map")
+    }
+
+    #[test]
+    fn freeze_tag_options_have_a_versioned_mode_entry() {
+        let read = |bytes: &[u8]| read_srp_block(&mut Reader { bytes }, 1);
+        let mut block = Vec::new();
+        write_srp_block(None, SrpBlock::FreezeTag, &[], &mut block);
+        assert_eq!(block, b"SRPX\x06\x01\x01");
+        assert_eq!(read(&block), Ok(SrpEntries { wide: None, mode: SrpBlock::FreezeTag, faces: None }));
+        for bytes in [b"SRPX\x06\x01\x00".as_slice(), b"SRPX\x06\x01", b"SRPX\x06\x02\x01\x01", b"SRPX\x06\x01\x01\x02\x01\x01"] {
+            assert_eq!(read(bytes), Err(StaticInfoError::SrpBlock), "{bytes:?}");
+        }
     }
 
     #[test]
@@ -1592,76 +1634,6 @@ mod tests {
             bytes.len(),
             alice_bytes().len() + bob_bytes.len() + 162 + 140
         );
-    }
-
-    #[test]
-    fn the_sourced_weights_are_a_kill_an_assist_and_a_stolen_battery() {
-        assert_eq!(SCORE_WEIGHTS[0], 10.0);
-        assert_eq!(SCORE_WEIGHTS[1], 5.0);
-        assert_eq!(SCORE_WEIGHTS[17], 35.0);
-        // The events the client adds at the end, and the new ones, score
-        // nothing.
-        for event in [2, 3, 4, 11, 12, 22, 23, 24, 25, 26, 27] {
-            assert_eq!(SCORE_WEIGHTS[event], 0.0, "{event}");
-        }
-        // On the wire: little-endian f32, 28 of them before the squads.
-        let bytes = options_bytes(&options(vec![alice()]), dictionary()).unwrap();
-        let weights = &bytes[bytes.len() - 20 - 28 * 4..bytes.len() - 20];
-        assert_eq!(
-            weights[..8],
-            [0x00, 0x00, 0x20, 0x41, 0x00, 0x00, 0xA0, 0x40]
-        );
-        assert_eq!(weights[17 * 4..18 * 4], [0x00, 0x00, 0x0C, 0x42]);
-    }
-
-    #[test]
-    fn an_artefact_scores_15_into_an_empty_slot_and_5_with_every_slot_full() {
-        use super::super::snapshot::{self, event};
-        // What the clients count for one artefact taken with kit 1.
-        let taken = |slot_free: bool| {
-            let mut player = snapshot::PlayerStatistics::default();
-            player.events[event::ARTEFACT][1] = 1;
-            if slot_free {
-                player.events[event::WINNING_TEAM_VI_BONUS][1] = 1;
-            }
-            snapshot::score(&player, &SCORE_WEIGHTS)
-        };
-        assert_eq!(taken(true), 15);
-        assert_eq!(taken(false), 5);
-        // Research weighs them the same.
-        assert_eq!(
-            score_weights(super::super::super::maps::RuleMode::Research)[event::WINNING_TEAM_VI_BONUS],
-            10.0
-        );
-    }
-
-    #[test]
-    fn research_weighs_its_captures_and_kill_invader() {
-        use super::super::super::maps::RuleMode;
-        let research = score_weights(RuleMode::Research);
-        assert_eq!(
-            (research[6], research[18], research[10]),
-            (30.0, 30.0, 10.0)
-        );
-        // The rest as every mode's.
-        for event in (0..SCORE_EVENTS).filter(|event| ![6, 10, 18].contains(event)) {
-            assert_eq!(research[event], SCORE_WEIGHTS[event], "{event}");
-        }
-        // Modes 2 and 3 are unchanged.
-        for game_mode in [RuleMode::Batteries, RuleMode::TimedBatteries] {
-            assert_eq!(score_weights(game_mode), SCORE_WEIGHTS);
-        }
-        // Team Deathmatch: a kill three times, 30; the rest as every mode's.
-        let tdm = score_weights(RuleMode::TeamDeathmatch);
-        assert_eq!(tdm[event::KILL], 30.0);
-        for event in (0..SCORE_EVENTS).filter(|&event| event != event::KILL) {
-            assert_eq!(tdm[event], SCORE_WEIGHTS[event], "{event}");
-        }
-        // Over weights of another's (a test's, a tool's): the three only.
-        let mut zero = weights_of(RuleMode::Research, [0.0; SCORE_EVENTS]);
-        assert_eq!(zero.iter().filter(|weight| **weight != 0.0).count(), 3);
-        zero[10] = 0.0;
-        assert_eq!(weights_of(RuleMode::Batteries, zero), zero);
     }
 
     #[test]

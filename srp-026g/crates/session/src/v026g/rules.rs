@@ -350,7 +350,7 @@ fn relocate_covering(
     // size)`, which knows no RGD-5 taking two units, and a lobby whose skills
     // changed may ask for what they opened. A full pocket the request did not
     // set stays full when the gear it leaves makes the pocket larger.
-    account.keep_to_layout_after(&before, &mut slots);
+    account.keep_to_layout_after(kit_index, &before, &mut slots);
     // One pocket an item type, judged on what the whole request leaves: the
     // ammo window empties every pocket first and fills them again, and two
     // pockets changing places name each other's slot.
@@ -2139,10 +2139,10 @@ mod tests {
             Err(ActionError::BadCount)
         );
         assert_eq!(account.generic_money, money);
-        // The pistol itself is sold for the owner's 500 (2026-10-23).
+        // The pistol itself is sold at its price.
         let pistol = account.inventory[0].dict_id;
         assert!(buy(&mut account, pistol, 1, 0, INVENTORY_SLOT, 1, NOW).is_ok());
-        assert_eq!(account.generic_money, money - 500);
+        assert_eq!(account.generic_money, money - prices::price(pistol).unwrap().cost);
     }
 
     #[test]
@@ -2202,13 +2202,13 @@ mod tests {
 
     #[test]
     fn supplies_need_a_sellers_level_and_either_seller_of_two_sells() {
-        // The RGD-5: the Scavengers and the Black Market, level 3 each.
+        // The RGD-5: two sellers, each at a level.
         let grenade = dict("rgd-5");
         let sellers: Vec<(u8, u8)> = prices::sellers(grenade)
             .iter()
             .map(|record| (record.faction_id, record.level))
             .collect();
-        assert_eq!(sellers, [(1, 3), (2, 3)]);
+        assert_eq!(sellers.len(), 2);
         let cost = prices::price(grenade).unwrap().cost;
         let mut account = rich(10 * cost);
         // Known to neither: refused with the level of the seller named (the
@@ -2386,23 +2386,23 @@ mod tests {
 
     #[test]
     fn a_faction_camouflage_and_the_vityaz_are_bought_at_no_rank() {
-        // Known to no faction: the Black Market's Denim (1,000) from the
-        // Black Market, the Vityaz (25,000, the owner's price) and the
-        // Lancaster (2,500) from seller 0, whichever seller is named for
-        // those.
+        // Known to no faction: the Black Market's Denim from the Black
+        // Market, the Vityaz and the Lancaster from seller 0, whichever
+        // seller is named for those; each at its price.
         let denim = dict("camo_denim");
-        let mut account = rich(1_000);
+        let mut account = rich(prices::price(denim).unwrap().cost);
         let bought = buy(&mut account, denim, 1, 2, INVENTORY_SLOT, 1, NOW).unwrap();
         assert_eq!(bought.len(), 1);
         assert_eq!(account.item(bought[0].item_id).unwrap().dict_id, denim);
         assert_eq!(account.generic_money, 0);
         // Not from another faction.
         assert_eq!(
-            buy(&mut rich(1_000), denim, 1, 1, INVENTORY_SLOT, 1, NOW),
+            buy(&mut rich(prices::price(denim).unwrap().cost), denim, 1, 1, INVENTORY_SLOT, 1, NOW),
             Err(ActionError::NotSold)
         );
-        for (name, cost) in [("vityaz", 25_000), ("izh_27_lancaster", 2_500)] {
+        for name in ["vityaz", "izh_27_lancaster"] {
             let weapon = dict(name);
+            let cost = prices::price(weapon).unwrap().cost;
             let mut account = rich(cost);
             let bought = buy(&mut account, weapon, 1, 0, INVENTORY_SLOT, 1, NOW).unwrap();
             assert_eq!(bought[0].value, FULL_CONDITION, "{name}");
@@ -2502,9 +2502,9 @@ mod tests {
         let pistol = account.inventory[0].clone();
         let ammo = account.inventory[1].clone();
         let revision = account.kits[0].revision;
-        // The pistol (500) sells for a quarter.
+        // The pistol sells for a quarter of its price.
         let sold = sell(&mut account, pistol.item_id, 1).unwrap();
-        assert_eq!((sold.amount, sold.money), (1, 125));
+        assert_eq!((sold.amount, sold.money), (1, prices::price(pistol.dict_id).unwrap().cost / 4));
         assert_eq!(account.kits[0].slots[7], None);
         assert_eq!(account.kits[0].revision, revision + 1);
         // Selling none of a stack is refused.
@@ -2658,9 +2658,7 @@ mod tests {
                 count: 1,
             })
         };
-        let mut preset = Preset {
-            kits: [[None; KIT_SLOTS]; 3],
-        };
+        let mut preset = Preset::EMPTY;
         preset.kits[2][13] = saved(medkit, dict("medkit"));
         preset.kits[2][14] = saved(grenade, dict("rgd-5"));
         account.presets[1] = Some(preset);

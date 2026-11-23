@@ -13,6 +13,9 @@
 // every skill with points in a row its branch unlocks. The bar above the trees counts the points,
 // so the level that has them, and what that level is in matches and hours (the server's levels
 // section). The build is kept in the address (#101.5,103.2) to share it.
+//
+// A player's skills (the stats page: the trees alone, their build given as data-build="101.5,103.2"):
+// drawn the same, tooltips too, and never changed; there is no bar.
 const box = document.querySelector(".skill-float");
 const docked = matchMedia("(max-width:560px)");
 let shown = null, touch = false;
@@ -38,6 +41,8 @@ for (const s of [...skills.values()].sort((a, b) => a.row - b.row || a.id - b.id
 const levels = document.querySelector(".levels")?.dataset ?? {};
 const lastLevel = Number(levels.max) || Infinity;
 const bar = document.querySelector(".skill-plan");
+const given = document.querySelector(".skill-trees").dataset.build;
+const fixed = given !== undefined;
 const lang = document.documentElement.lang || "en";
 const number = (n, digits = 0) => n.toLocaleString(lang, {minimumFractionDigits: digits, maximumFractionDigits: digits});
 
@@ -79,6 +84,7 @@ function stepped(s, step) {
 }
 
 function change(s, step) {
+  if (fixed) return;
   const taken = stepped(s, step);
   if (!taken) {
     // Refused: the disc shakes.
@@ -114,6 +120,7 @@ function draw() {
     const branch = skills.get(Number(section.querySelector(".skill").dataset.skill)).branch;
     section.querySelector(".skill-branch-points").textContent = spent.get(branch) ? number(spent.get(branch)) : "";
   }
+  if (!bar) return;
   bar.querySelector('[data-plan="points"]').textContent = number(points);
   bar.querySelector('[data-plan="level"]').textContent = number(points);
   bar.querySelector('[data-plan="reset"]').disabled = !points;
@@ -140,7 +147,7 @@ function show(skill) {
   box.querySelectorAll(".skill-now").forEach((line, i) => { if (i !== n - 1) line.remove(); });
   if (s.ranks) box.querySelector("b").insertAdjacentHTML("beforeend", ` <span class="skill-rank">${n} / ${s.ranks}</span>`);
   // A tapped skill's tooltip has its − and +.
-  const controls = skill.classList.contains("open") && s.ranks > 0;
+  const controls = !fixed && skill.classList.contains("open") && s.ranks > 0;
   box.classList.toggle("controls", controls);
   if (controls) {
     box.insertAdjacentHTML("beforeend", '<div class="skill-steps"><button type="button" data-step="-1">−</button>' +
@@ -198,16 +205,21 @@ addEventListener("scroll", () => { if (touch) hide(); else if (shown) show(shown
 document.addEventListener("keydown", event => {
   if (event.key === "Escape" && shown) { const skill = shown; hide(); skill.blur(); }
 });
-bar.querySelector('[data-plan="reset"]').addEventListener("click", () => {
-  build = new Map();
-  draw();
-  history.replaceState(null, "", location.pathname + location.search);
-});
-
-// A shared build (#101.5,103.2), when the server would take it.
-const shared = new Map(location.hash.slice(1).split(",").filter(Boolean).map(part => part.split(".").map(Number)));
-if (shared.size && [...shared].every(([id, n]) => skills.has(id) && n > 0) && valid(shared)) build = shared;
-const hint = bar.querySelector(".skill-plan-hint");
-if (matchMedia("(hover:none)").matches) hint.textContent = hint.dataset.touch;
-bar.hidden = false;
+const parsed = text => new Map(text.split(",").filter(Boolean).map(part => part.split(".").map(Number)));
+if (fixed) {
+  // A player's build is the server's own: as it is, but for a skill the tree no longer has.
+  build = new Map([...parsed(given)].filter(([id, n]) => skills.has(id) && n > 0));
+} else {
+  bar.querySelector('[data-plan="reset"]').addEventListener("click", () => {
+    build = new Map();
+    draw();
+    history.replaceState(null, "", location.pathname + location.search);
+  });
+  // A shared build (#101.5,103.2), when the server would take it.
+  const shared = parsed(location.hash.slice(1));
+  if (shared.size && [...shared].every(([id, n]) => skills.has(id) && n > 0) && valid(shared)) build = shared;
+  const hint = bar.querySelector(".skill-plan-hint");
+  if (matchMedia("(hover:none)").matches) hint.textContent = hint.dataset.touch;
+  bar.hidden = false;
+}
 draw();

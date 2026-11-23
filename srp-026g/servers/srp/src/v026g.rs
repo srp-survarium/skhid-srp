@@ -122,6 +122,7 @@ impl web_server::MatchCounter for RegistryHost {
             .into_iter()
             .map(|live| web_server::LiveMatch {
                 map_id: live.map_id,
+                kind: live.kind,
                 phase: phase(live.phase),
                 players: live.players,
                 played: live.played,
@@ -157,8 +158,7 @@ impl MatchHost for RegistryHost {
             // The game's own weights: the ones the rewards are counted
             // with (`rewards::Terms::at`).
             score_weights: None,
-            vs_bots: setup.vs_bots,
-            private: setup.private,
+            kind: setup.kind,
             room_minimum: setup.room_minimum,
         };
         let ticket = match pool {
@@ -244,6 +244,7 @@ pub fn match_result(result: matches::MatchResult) -> rewards::MatchResult {
         },
         winner: result.winner,
         team_points: result.team_points,
+        round_starts: result.round_starts,
         duration_ms: result.duration_ms,
         played_ms: result.played_ms,
         trusted_snapshot_ms: result.trusted_snapshot_ms,
@@ -272,6 +273,7 @@ pub fn match_result(result: matches::MatchResult) -> rewards::MatchResult {
                 longest_killstreak: player.longest_killstreak,
                 kit_changes: player.kit_changes,
                 supplies: player.supplies,
+                weapons: player.weapons,
             })
             .collect(),
     }
@@ -480,6 +482,9 @@ pub struct Stack {
     pub voice_addr: Option<SocketAddr>,
     /// `SRP_MIN_PATCH_REVISION`, which the web page says to the updater.
     pub min_patch_revision: u8,
+    /// The lobby's pools (`SRP_MATCH_MAPS`, `SRP_ROOMS_EXTRA_MAPS`), which
+    /// the wiki's modes page says the rooms offer.
+    pools: web_server::Pools,
     stop: Arc<AtomicBool>,
     /// The lobby's and the match server's threads: the ones [`Stack::stop`]
     /// waits for.
@@ -708,6 +713,10 @@ impl Stack {
             match_addr,
             voice_addr,
             min_patch_revision: options.lobby.min_patch_revision,
+            pools: web_server::Pools::new(
+                &options.lobby.maps,
+                &options.lobby.rooms.extra_maps,
+            ),
             stop,
             threads,
         })
@@ -730,6 +739,7 @@ impl Stack {
             min_patch_revision: self.min_patch_revision,
             replays: Some(self.replays.clone()),
             results: self.results.clone(),
+            pools: self.pools.clone(),
         }
     }
 

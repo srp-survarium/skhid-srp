@@ -2,6 +2,7 @@
 //! endpoint's shape (`docs/notes/match_history.md`), what is never served,
 //! and the refusals.
 
+use std::collections::BTreeMap;
 use std::sync::Arc;
 use std::time::Instant;
 
@@ -10,7 +11,7 @@ use session::v026g::account::Account;
 use session::v026g::clans::{Clan, Member, Rank, status};
 use session::v026g::persist::history::{
     Counters, Eligibility, GearSlot, KitItem, MatchInfo, MatchKind, MatchRecord, PlayerLine,
-    Outcome, PlayerRecord, Presence, Winner,
+    Outcome, PlayerRecord, Presence, WeaponCounts, Winner,
 };
 use session::v026g::replays::{ReplayId, Replays};
 use session::v026g::{GameAccounts, GameRepository, SqliteGameRepository};
@@ -118,6 +119,36 @@ fn kit(place: u8, held: &[(usize, &str)]) -> KitLine {
     }
 }
 
+/// What Alice's games counted of the AK in a match, and under no weapon.
+fn weapons() -> BTreeMap<u16, WeaponCounts> {
+    BTreeMap::from([
+        (
+            0,
+            WeaponCounts {
+                deaths: 1,
+                held_ms: 20_000,
+                ..WeaponCounts::default()
+            },
+        ),
+        (
+            dict_id("ak_74u"),
+            WeaponCounts {
+                kills: 14,
+                headshots: 3,
+                wall_kills: 2,
+                ricochet_kills: 1,
+                deaths: 5,
+                shots: 400,
+                hits: 100,
+                damage: 420_000,
+                kill_distance_dm: 4_380,
+                longest_kill_dm: 845,
+                held_ms: 700_000,
+            },
+        ),
+    ])
+}
+
 fn record(kind: MatchKind, ended_at: u64, alice: u32, bob: u32) -> MatchRecord {
     MatchRecord {
         replay_id: ReplayId::new(
@@ -143,6 +174,7 @@ fn record(kind: MatchKind, ended_at: u64, alice: u32, bob: u32) -> MatchRecord {
                     0,
                     &[(0, "bm_helmet_1"), (2, "bm_torso_4"), (7, "ak_74u")],
                 )],
+                weapons: weapons(),
             },
             PlayerRecord {
                 account_id: bob,
@@ -159,6 +191,7 @@ fn record(kind: MatchKind, ended_at: u64, alice: u32, bob: u32) -> MatchRecord {
                     ..line(1, 100, 6, 14)
                 },
                 kits: vec![kit(1, &[(7, "uzi")])],
+                weapons: BTreeMap::new(),
             },
         ],
     }
@@ -241,6 +274,7 @@ fn world(name: &str) -> World {
         min_patch_revision: 0,
         replays: None,
         results: Arc::new(session::v026g::rewards::Results::new()),
+        pools: crate::Pools::every_playable(),
     };
     World {
         dir,
@@ -304,7 +338,7 @@ const TOTALS: [&str; 20] = [
     "wins",
 ];
 
-const SUMMARY: [&str; 15] = [
+const SUMMARY: [&str; 16] = [
     "duration_s",
     "eligibility",
     "ended_at",
@@ -315,6 +349,7 @@ const SUMMARY: [&str; 15] = [
     "map_id",
     "map_key",
     "mode",
+    "mode_url",
     "players",
     "replay_id",
     "rules",
@@ -357,7 +392,7 @@ fn a_player_is_its_card_and_totals_of_public_matches() {
     let body = world.ok("/api/history/player?name=alice");
     assert_eq!(
         keys(&body),
-        ["experience", "level", "player", "rating", "totals"]
+        ["experience", "level", "names", "player", "rating", "skills", "totals"]
     );
     assert_eq!(body["player"]["id"], world.alice);
     assert_eq!(body["player"]["name"], "Alice");
@@ -482,7 +517,7 @@ fn a_match_row_has_the_kits_used_and_their_items() {
     assert_eq!(kits[0]["kills"], 14);
     let weapons = kits[0]["weapons"].as_array().unwrap();
     assert_eq!(weapons.len(), 1);
-    assert_eq!(keys(&weapons[0]), ["id", "key", "name", "slot"]);
+    assert_eq!(keys(&weapons[0]), ["icon", "id", "key", "name", "slot"]);
     assert_eq!(weapons[0]["slot"], 7);
     assert_eq!(weapons[0]["id"], dict_id("ak_74u"));
     assert!(
@@ -514,7 +549,7 @@ fn a_players_equipment_is_its_most_used_items() {
     let weapons = body["weapons"].as_array().unwrap();
     assert_eq!(weapons.len(), 1);
     // No kills or shots of an item: the game counts those by kit.
-    assert_eq!(keys(&weapons[0]), ["id", "key", "matches", "name"]);
+    assert_eq!(keys(&weapons[0]), ["icon", "id", "key", "matches", "name"]);
     assert_eq!(weapons[0]["key"], "ak_74u");
     assert_eq!(weapons[0]["id"], dict_id("ak_74u"));
     // Its three public matches: the private one and the bots' are not
@@ -534,6 +569,90 @@ fn a_players_equipment_is_its_most_used_items() {
         world.get("/api/history/player/equipment").0,
         "400 Bad Request"
     );
+}
+
+#[test]
+fn a_players_weapons_are_what_its_games_counted() {
+    let world = world("weapons");
+    let body = world.ok(&format!("/api/history/player/weapons?id={}", world.alice));
+    assert_eq!(keys(&body), ["by", "order", "weapons"]);
+    let weapons = body["weapons"].as_array().unwrap();
+    // The gun; not what was counted under no weapon.
+    assert_eq!(weapons.len(), 1);
+    assert_eq!(
+        keys(&weapons[0]),
+        [
+            "accuracy",
+            "damage",
+            "deaths",
+            "headshots",
+            "held_s",
+            "hits",
+            "icon",
+            "id",
+            "kd",
+            "key",
+            "kill_distance_m",
+            "kills",
+            "kills_per_minute",
+            "longest_kill_m",
+            "matches",
+            "name",
+            "ricochet_kills",
+            "shots",
+            "wall_kills",
+        ]
+    );
+    // Its three public matches added up: the private one and the bots'
+    // are not.
+    assert_eq!(
+        weapons[0],
+        json!({
+            "id": dict_id("ak_74u"), "key": "ak_74u", "name": weapons[0]["name"],
+            "icon": weapons[0]["icon"], "matches": 3, "kills": 42, "deaths": 15, "kd": 2.8,
+            "kills_per_minute": 1.2, "headshots": 9,
+            "wall_kills": 6, "ricochet_kills": 3, "shots": 1200, "hits": 300, "accuracy": 0.25,
+            "damage": 126.0, "kill_distance_m": 31.3, "longest_kill_m": 84.5, "held_s": 2100,
+        })
+    );
+    // Bob's games counted none.
+    let bob = world.ok(&format!("/api/history/player/weapons?id={}", world.bob));
+    assert_eq!(
+        bob,
+        json!({ "by": "kills", "order": "desc", "weapons": [] })
+    );
+    for by in [
+        "kills",
+        "kd",
+        "kills_per_minute",
+        "headshot_rate",
+        "accuracy",
+        "kill_distance",
+        "wall_kills",
+        "ricochet_kills",
+        "held",
+    ] {
+        let sorted = world.ok(&format!(
+            "/api/history/player/weapons?id={}&by={by}",
+            world.alice
+        ));
+        assert_eq!(sorted["by"], by);
+        let turned = world.ok(&format!(
+            "/api/history/player/weapons?id={}&by={by}&order=asc",
+            world.alice
+        ));
+        assert_eq!(turned["order"], "asc");
+        assert_eq!(sorted["weapons"].as_array().unwrap().len(), weapons.len());
+    }
+    assert_eq!(
+        world.get("/api/history/player/weapons?id=1&by=damage").0,
+        "400 Bad Request"
+    );
+    assert_eq!(
+        world.get("/api/history/player/weapons?id=1&limit=51").0,
+        "400 Bad Request"
+    );
+    assert_eq!(world.get("/api/history/player/weapons").0, "400 Bad Request");
 }
 
 #[test]
@@ -601,10 +720,36 @@ fn the_top_lists_leave_out_the_banned() {
     assert_eq!(keys(&players[0]), ["level", "player", "rating", "totals"]);
     assert_eq!(players[0]["player"]["name"], "Alice");
     assert_eq!(world.ok("/api/history/top")["by"], "rating");
+    assert_eq!(by_kills["order"], "desc");
+    assert_eq!((&by_kills["after"], &by_kills["more"]), (&json!(0), &json!(false)));
+    // A page at a time: the next one after the players already seen.
+    let first = world.ok("/api/history/top?by=kills&limit=1");
+    assert_eq!(first["more"], true);
+    let second = world.ok("/api/history/top?by=kills&limit=1&after=1");
+    assert_eq!((&second["after"], &second["more"]), (&json!(1), &json!(false)));
+    assert_eq!(second["players"], json!([players[1]]));
+    assert_eq!(
+        world.get("/api/history/top?after=10001").0,
+        "400 Bad Request"
+    );
+    // From the other end.
+    let fewest = world.ok("/api/history/top?by=kills&order=asc");
+    assert_eq!(fewest["order"], "asc");
+    assert_eq!(fewest["players"][0]["player"]["name"], "Bob");
+    assert_eq!(
+        world.get("/api/history/top?by=kills&order=up").0,
+        "400 Bad Request"
+    );
+    assert_eq!(world.ok("/api/history/clans?order=asc")["order"], "asc");
     // Too few matches yet for the average score's list.
     let by_average = world.ok("/api/history/top?by=score_avg");
     assert_eq!(by_average["by"], "score_avg");
     assert!(by_average["players"].as_array().unwrap().is_empty());
+    for key in ["win_rate", "kd", "headshot_rate"] {
+        let by_ratio = world.ok(&format!("/api/history/top?by={key}"));
+        assert_eq!(by_ratio["by"], key);
+        assert!(by_ratio["players"].as_array().unwrap().is_empty());
+    }
     assert_eq!(world.get("/api/history/top?by=artefacts").0, "400 Bad Request");
     let accurate = world.ok("/api/history/top?by=accuracy");
     assert_eq!(accurate["by"], "accuracy");
@@ -647,6 +792,11 @@ fn the_days_leaders_and_the_all_time_totals() {
     assert_eq!(keys(&kills[0]), ["player", "value"]);
     assert_eq!((&kills[0]["player"]["name"], &kills[0]["value"]), (&json!("Alice"), &json!(28)));
     assert_eq!(kills[1]["value"], 12);
+    // As many of each list as asked, five without a word.
+    let first = world.ok("/api/history/today?limit=1");
+    assert_eq!(first["leaders"]["kills"], json!([kills[0]]));
+    assert_eq!(world.ok("/api/history/today?limit=50")["leaders"], today["leaders"]);
+    assert_eq!(world.get("/api/history/today?limit=51").0, "400 Bad Request");
     // Bob won nothing today: not on that list.
     assert_eq!(today["leaders"]["wins"].as_array().unwrap().len(), 1);
     world.store.ban_account(
@@ -680,8 +830,7 @@ fn the_best_scores_are_of_the_period() {
         keys(&rows[0]),
         [
             "deaths", "ended_at", "kills", "level", "map", "map_icon", "map_key", "match", "mode",
-            "player", "rules",
-            "score"
+            "mode_url", "player", "rules", "score"
         ]
     );
     assert_eq!(rows[0]["score"], 310);
@@ -799,29 +948,62 @@ fn an_unknown_endpoint_is_not_found_and_no_database_no_history() {
 
 /// A made-up history for the local preview (`serve_wiki_preview`) and the
 /// page's browser check (`scripts/wiki/check_history.mjs`), in a new `srp.db`
-/// under `dir`: twelve players and Nova, who never played, two clans (RAD's
+/// under `dir`: twelve players and Nova, who never played, six clans (RAD's
 /// commander is Nova), and 23 public matches ending at `now`, written as srp
 /// writes them: one a free-for-all, one a draw, one too short to count;
-/// Yasen in the newest 15 only, with too few shots for the accuracy list;
-/// Dub leaves every fifth; one weapon is gone from the game data.
-pub(crate) fn preview(dir: &std::path::Path, now: u64) -> GameAccounts {
+/// Yasen in the newest 15 only, with too few shots for the accuracy list
+/// and no weapons counted;
+/// Dub leaves every fifth; one weapon is gone from the game data; Sheep was
+/// Baran, then Yahnia. The third has the longest name a player can choose
+/// (the game's sixteen letters) and the longest tag (six), in the widest
+/// capitals; the fifth's is as wide as the widest of the live server's
+/// (181 px with its tag); five more are named as players there are. With a
+/// `crowd`, as many more players, each with a few matches of today among
+/// themselves (newer than the 23), and Sheep with a dozen more names left:
+/// for looking at long lists.
+pub(crate) fn preview(dir: &std::path::Path, now: u64, crowd: u32) -> GameAccounts {
     const NAMES: [&str; 13] = [
-        "Sheep", "Volk", "Kvitka", "Lys", "Bars", "Grim", "Sova", "Taras", "Zhuk", "Orel", "Dub",
-        "Yasen", "Nova",
+        "Sheep",
+        "bugz_bunny_95_",
+        "ЩЮЖШЩЮЖШЩЮЖШЩЮЖШ",
+        "Lys",
+        "Длинноимённый_Сталкер",
+        "fess",
+        "Sova",
+        "Ataman",
+        "Lucia",
+        "Ŗàmzęś",
+        "Dub",
+        "Yasen",
+        "Nova",
     ];
     const FIRST: u32 = 1042;
     let mut repository = SqliteGameRepository::open_in(dir).unwrap();
+    // Sheep had two names before.
+    for name in ["Baran", "Yahnia"] {
+        repository.save(FIRST, &Account::new(name)).unwrap();
+    }
     for (index, name) in (0u16..).zip(NAMES) {
         let mut account = Account::new(name);
         account.rating = 1180 - 20 * index;
         if name != "Nova" {
             account.exp_total = 1_234_567 - 90_000 * u32::from(index);
         }
+        // Sheep's build, for its Skills tab.
+        if name == "Sheep" {
+            account.skills = vec![
+                (101, 5), (102, 3), (103, 3), (104, 2), (105, 3), (109, 1), (201, 3), (204, 3), (209, 2),
+            ];
+        }
         repository.save(FIRST + u32::from(index), &account).unwrap();
     }
     let clans = [
-        (7, "Skhid", "SKH", vec![0, 1, 4]),
+        (7, "Skhid", "SKH", vec![0, 4, 6]),
         (9, "Radianty", "RAD", vec![12, 3, 5]),
+        (11, "Shyroki", "ЩЮЖШЩЮ", vec![2]),
+        (13, "Dedki", "ДЕДКИ", vec![1]),
+        (15, "Bots", "BOTS", vec![8]),
+        (17, "Legion", "LEGION", vec![9]),
     ];
     for (id, name, tag, members) in &clans {
         repository
@@ -948,6 +1130,31 @@ pub(crate) fn preview(dir: &std::path::Path, now: u64) -> GameAccounts {
                         }],
                     });
                 }
+                // As the games would count it: a kit's gun has the kit's
+                // kills and shots, and the rest follows from them.
+                let mut weapons: BTreeMap<u16, WeaponCounts> = BTreeMap::new();
+                // Yasen's games counted none.
+                let counted = if k == 11 { &[][..] } else { &kits[..] };
+                for (nth, line) in counted.iter().enumerate() {
+                    let Some(gun) = line.items.iter().find(|item| item.slot.number() == 7) else {
+                        continue;
+                    };
+                    let counts = &line.counts;
+                    let longest = if counts.kills == 0 { 0 } else { 150 + random(900) };
+                    let nearer = counts.kills.saturating_sub(1) * (longest / 3);
+                    let of_gun = weapons.entry(gun.dict_id).or_default();
+                    of_gun.kills += counts.kills;
+                    of_gun.headshots += counts.headshots;
+                    of_gun.wall_kills += counts.kills / 6;
+                    of_gun.ricochet_kills += counts.kills / 9;
+                    of_gun.deaths += if nth == 0 { deaths - deaths / 3 } else { deaths / 3 };
+                    of_gun.shots += counts.shots;
+                    of_gun.hits += counts.hits;
+                    of_gun.damage += counts.hits * 2_300;
+                    of_gun.kill_distance_dm += longest + nearer;
+                    of_gun.longest_kill_dm = of_gun.longest_kill_dm.max(longest);
+                    of_gun.held_ms += 300_000 + 1_000 * random(300);
+                }
                 PlayerRecord {
                     account_id: FIRST + k,
                     clan_id: clan_of(k),
@@ -979,6 +1186,7 @@ pub(crate) fn preview(dir: &std::path::Path, now: u64) -> GameAccounts {
                         played_ms: if k == 10 && i % 5 == 0 { 300_000 } else { 780_000 },
                     },
                     kits,
+                    weapons,
                 }
             })
             .collect();
@@ -1041,6 +1249,90 @@ pub(crate) fn preview(dir: &std::path::Path, now: u64) -> GameAccounts {
         };
         repository.record_match(&record).unwrap();
     }
+    // The crowd: its own matches of today, sixteen a match, each of them in
+    // six or so, and a dozen more names Sheep left.
+    if crowd > 0 {
+        for nth in 0..12 {
+            let name = format!("Baran{nth:02}");
+            repository.save(FIRST, &Account::new(&name)).unwrap();
+        }
+        repository.save(FIRST, &Account::new("Sheep")).unwrap();
+        let mut sheep = Account::new("Sheep");
+        sheep.rating = 1180;
+        sheep.exp_total = 1_234_567;
+        repository.save(FIRST, &sheep).unwrap();
+    }
+    const CROWD_FIRST: u32 = FIRST + 100;
+    for index in 0..crowd {
+        let mut account = Account::new(&format!("Stalker{:03}", index + 1));
+        account.rating = 900 + (index * 37 % 400) as u16;
+        account.exp_total = 20_000 + 7_919 * index;
+        repository.save(CROWD_FIRST + index, &account).unwrap();
+    }
+    for i in 0..(crowd * 6).div_ceil(16) {
+        let winner = if random(2) == 0 {
+            Winner::FirstTeam
+        } else {
+            Winner::SecondTeam
+        };
+        let players = (0..16u32.min(crowd))
+            .map(|seat| {
+                let (kills, deaths) = (random(22), 1 + random(12));
+                let shots = 25 * kills + 15 * random(9) + 20;
+                let team = (seat % 2) as u8;
+                let won = (winner == Winner::FirstTeam) == (team == 0);
+                PlayerRecord {
+                    account_id: CROWD_FIRST + (i * 16 + seat * 7) % crowd,
+                    clan_id: None,
+                    line: PlayerLine {
+                        team,
+                        place: (seat / 2) as u8 + 1,
+                        seat: seat as u8,
+                        presence: Presence::Finished,
+                        outcome: if won { Outcome::Won } else { Outcome::Lost },
+                        rating: 1000,
+                        score: 60 + 25 * kills + random(90),
+                        kills,
+                        deaths,
+                        counters: Counters {
+                            assists: random(8),
+                            headshots: random(kills.max(1)),
+                            grenade_kills: random(2),
+                            melee_kills: 0,
+                            batteries: random(4),
+                            capture_hundredths: 0,
+                            artefacts: random(3),
+                            shots,
+                            hits: shots * (18 + 3 * random(7)) / 100,
+                        },
+                        played_ms: 600_000 + 1_000 * random(300) as u32,
+                    },
+                    kits: Vec::new(),
+                    weapons: BTreeMap::new(),
+                }
+            })
+            .collect();
+        let ended_at = now - 60 * u64::from(i + 1);
+        repository
+            .record_match(&MatchRecord {
+                replay_id: ReplayId::new(
+                    0x5E1B_0000 + i,
+                    std::time::UNIX_EPOCH + std::time::Duration::from_secs(ended_at - 900),
+                ),
+                kind: MatchKind::Public(Eligibility::Counted),
+                info: MatchInfo {
+                    ended_at,
+                    duration_ms: 700_000,
+                    map_id: map_of(GameMode::Batteries, i as usize),
+                    mode: LobbyMode::Plain(GameMode::Batteries),
+                    match_level: 12,
+                    winner,
+                    team_points: if winner == Winner::FirstTeam { [5, 3] } else { [2, 5] },
+                },
+                players,
+            })
+            .unwrap();
+    }
     GameAccounts::with_repository(Box::new(repository)).unwrap()
 }
 
@@ -1082,7 +1374,7 @@ pub(crate) fn preview_replays(dir: &std::path::Path) -> Replays {
 fn a_matchs_replay_is_asked_for_by_anyone() {
     let dir = std::env::temp_dir().join(format!("srp-web-history-replay-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&dir);
-    let accounts = preview(&dir, NOW);
+    let accounts = preview(&dir, NOW, 0);
     let replays = preview_replays(&dir);
     let ask = |target: &str, replays: Option<&Replays>| {
         let (path, query) = target.split_once('?').unwrap();
@@ -1117,7 +1409,7 @@ fn the_previews_history_is_served() {
         std::thread::current().id()
     ));
     let _ = std::fs::remove_dir_all(&dir);
-    let accounts = preview(&dir, NOW);
+    let accounts = preview(&dir, NOW, 0);
     let history = accounts.history().unwrap();
     let ask = |target: &str| {
         let (path, query) = target.split_once('?').unwrap_or((target, ""));
@@ -1169,7 +1461,7 @@ fn a_match_has_its_maps_picture_as_the_rooms_draw_it() {
     }
     let dir = std::env::temp_dir().join(format!("srp-web-history-map-picture-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&dir);
-    let accounts = preview(&dir, NOW);
+    let accounts = preview(&dir, NOW, 0);
     let endpoint = Endpoint::parse("/api/history/matches", "limit=50").unwrap();
     let answer = answer(&endpoint, accounts.history().unwrap(), None, &|_| false, Lang::En, NOW).unwrap();
     for played in answer["matches"].as_array().unwrap() {

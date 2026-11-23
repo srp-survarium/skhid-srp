@@ -155,7 +155,7 @@ Documents\Survarium\  user.cfg, replays, ... and survarium_launcher_<user>.log (
 
 ## Release impact
 
-- A new exe (patch 147, Rust arena: `arena_026g.lock.json`), a new updater and a new crash
+- A new exe (patch 147, Rust arena), a new updater and a new crash
   reporter: the next revision ships all three with the players' download (`release/release.sh`,
   the `skhid-release` skill). No server, content or `simulation_changes.tsv` change.
 - After it, a player's folder holds both: the old files from before, untouched, and the run files

@@ -237,8 +237,11 @@ fn a_room_counts_down_from_two_and_plays_the_card_voted_for() {
         "the vote's winner when it started"
     );
     assert_eq!(setup.players.len(), 2, "no bots");
-    assert!(!setup.vs_bots);
-    assert!(!setup.private, "no PIN: it pays");
+    assert_eq!(
+        setup.kind,
+        session::v026g::match_kind::MatchKind::Normal,
+        "no PIN: it pays"
+    );
     world.advance(Duration::from_secs(1));
     let playing = state(&mut world, alice);
     assert_eq!(header(&playing)[PHASE], "2");
@@ -1686,7 +1689,7 @@ fn a_member_who_cannot_go_into_the_match_is_told_why() {
 }
 
 #[test]
-fn a_used_up_match_roster_keeps_a_newcomer_in_the_room_for_the_next_match() {
+fn a_used_up_match_roster_queues_a_newcomer_for_the_next_match() {
     let mut world = World::new();
     let players = ["Alice", "Bob", "Carol", "Dave"].map(|name| world.connect(name));
     let key = create(
@@ -1710,13 +1713,15 @@ fn a_used_up_match_roster_keeps_a_newcomer_in_the_room_for_the_next_match() {
         .unwrap()
         .0;
     // Twenty lifetime places, but only twelve currently occupied (6 v 6).
-    // The room still has space, and its match cannot reuse the departed seats.
+    // The room has seats, and its match cannot reuse the departed places:
+    // sixteen late joiners came and went.
     {
         let running = world.core.matches.get_mut(&id).unwrap();
         for n in running.seats.len()..20 {
             running.seats.push((9000 + n as u32, (n % 2) as u8));
             running.strengths.push(session::Strength::ZERO);
             running.names.push(String::new());
+            world.core.rooms.seated_late(key, 9000 + n as u32, (n % 2) as u8);
         }
     }
     world.host.live.locked().insert(
@@ -1728,12 +1733,17 @@ fn a_used_up_match_roster_keeps_a_newcomer_in_the_room_for_the_next_match() {
     );
     world.host.admitting.locked().insert(ticket);
     let erin = world.connect("Erin");
+    // Play does not enter it: its queue. So does Join from the list.
     rows(&mut world, erin, ROOM_PLAY, 1);
-    assert_eq!(world.core.rooms.key_of(world.ids[erin].0), Some(key));
-    assert_eq!(join_row(&state(&mut world, erin)), Some("J;-1;7"));
+    assert_eq!(world.core.rooms.key_of(world.ids[erin].0), None);
+    assert_eq!(world.core.rooms.queue_place(world.ids[erin].0), Some((key, 1)));
+    let frank = world.connect("Frank");
+    rows(&mut world, frank, ROOM_JOIN_BASE + key, 1);
+    assert_eq!(world.core.rooms.key_of(world.ids[frank].0), None);
+    assert_eq!(world.core.rooms.queue_place(world.ids[frank].0), Some((key, 2)));
     world.advance(Duration::from_secs(20));
     assert!(sent_to_match(&world.take(erin)).is_none());
-    assert_eq!(world.core.rooms.key_of(world.ids[erin].0), Some(key));
+    assert_eq!(world.core.rooms.key_of(world.ids[erin].0), None);
     world.end_match(ticket, 0);
     for player in players {
         world.take(player);
@@ -2254,7 +2264,10 @@ fn a_private_rooms_owner_starts_its_match_with_one_three_or_five() {
         };
         assert_eq!([team(0), team(1)], sides, "{count}");
         assert_eq!(setup.room_minimum, Some(1));
-        assert!(setup.private);
+        assert_eq!(
+            setup.kind,
+            session::v026g::match_kind::MatchKind::PrivateRoom
+        );
 
         world.end_match(ticket, 0);
         world.advance(Duration::from_secs(2));
@@ -2451,7 +2464,7 @@ fn a_private_room_with_bots_fills_its_teams_with_them() {
         assert_eq!(on(false) + on(true), size, "team {side}: filled with bots");
     }
     // Paid as against bots (the owner's of 2026-11-05), not as a PIN room.
-    assert!(setup.vs_bots && !setup.private);
+    assert_eq!(setup.kind, session::v026g::match_kind::MatchKind::VsBots);
     let list = rows(&mut world, alice, ROOMS_LIST, 10);
     let row = list.iter().find(|row| row.starts_with(&format!("{key};"))).unwrap();
     assert_eq!(row.split(';').nth(8), Some("2"), "BOT in the list: {row}");
@@ -3087,4 +3100,36 @@ fn a_create_in_one_request_without_a_pin_or_malformed_is_refused() {
             .iter()
             .any(|decoded| matches!(decoded, Decoded::Friendship(FriendshipPush::Found { .. }))),
     );
+}
+
+/// The room list orders maps by build (the owner's of 2026-11-19), London
+/// (v0.32) and the reworked London (v0.42, a level of its own) after the 0.21
+/// maps and before 0.69 (2026-11-20), whatever order the pool has them in; a
+/// map's weathers stay day, evening, rain.
+#[test]
+fn the_room_list_puts_the_londons_between_the_021_and_069_maps() {
+    use maps::{Build, weather};
+    let entry = |id, level, weather| survarium::v026g::lobby::rooms::PoolEntry {
+        map_id: MapId::new(id),
+        level,
+        weather,
+        mode: 2,
+        extra: false,
+        bots: false,
+    };
+    let pool = vec![
+        (Build::V069, entry(270, 14, weather::DAY)),
+        (Build::V042, entry(290, 32, weather::DAY)),
+        (Build::V032, entry(276, 9, weather::RAIN)),
+        (Build::V021, entry(166, 10, weather::DAY)),
+        (Build::V032, entry(181, 9, weather::DAY)),
+        (Build::V026, entry(61, 1, weather::DAY)),
+        (Build::V032, entry(279, 9, weather::EVENING)),
+        (Build::Stalker, entry(200, 15, weather::DAY)),
+    ];
+    let order: Vec<u16> = crate::v026g::rooms::by_build(pool)
+        .iter()
+        .map(|entry| entry.map_id.get())
+        .collect();
+    assert_eq!(order, [61, 166, 181, 279, 276, 290, 270, 200]);
 }

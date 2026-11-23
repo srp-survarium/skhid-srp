@@ -4,6 +4,7 @@ package survarium.item
    import survarium.data.LocalizationData;
    import survarium.data.PropertiesDescriptor;
    import survarium.player.MatchEffects;
+   import survarium.upgrade.UpgradeWindow;
 
    // Read-only weapon stats from weapon-details-ui-1.json. These are not item
    // modifications and must never be added to an item's bonus/modifier sums.
@@ -37,7 +38,8 @@ package survarium.item
          details.damage = line(item.properties,DAMAGE);
          details.arp = line(item.properties,ARP);
          if(effects != null) details.base = copy(details.values);
-         details.applyWeaponModifiers(item.modifiers);
+         // held Alt, the fitted device and grip count as the weapon's rolls (UpgradeWindow.withFitted)
+         details.applyWeaponModifiers(effects == null ? item.modifiers : UpgradeWindow.withFitted(item));
          if(effects != null) for(var id:String in details.values) details.values[id] = effects.stat(item,int(id),details.values[id]);
          return details;
       }

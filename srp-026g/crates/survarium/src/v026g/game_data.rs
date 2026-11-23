@@ -867,6 +867,7 @@ fn init_with(data: GameData) -> Result<&'static GameData, GameDataError> {
     super::keeper::check(data)?;
     super::racket::check(data)?;
     super::cowboy::check(data)?;
+    super::roulette::check(data)?;
     log::info!(
         "game data: {} ({} gameplay and text files, {} projects; made of {}; {} patch(es) offered at \
          /patches)",
@@ -876,8 +877,9 @@ fn init_with(data: GameData) -> Result<&'static GameData, GameDataError> {
         data.made_of(),
         data.provenance.patches.len()
     );
-    // The scope pairs and why any variant was left out, in the log at start.
-    super::scopes::ScopeFits::shared();
+    // The modules table and its scope pairs, in the log at start.
+    super::weapon_modules::Modules::shared();
+    super::scopes::log_shared();
     Ok(data)
 }
 

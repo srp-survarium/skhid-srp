@@ -1,0 +1,14 @@
+# Patch 168: a part of a tick is asked what a tick is, and the speed a player
+# is said to have is a tick's (docs/notes/fall_damage.md, "A part of a tick:
+# its least walk and the speed read from it"). The sites are sites_026g.tsv's;
+# the logic is tick_parts.rs.
+name = "tick_parts"
+patch = 168
+
+[[hook]]
+site = "controller.idle_walk"
+handler = "on_idle_walk"
+
+[[hook]]
+site = "player.speed_measured"
+handler = "on_speed_measured"

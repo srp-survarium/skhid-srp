@@ -13,7 +13,8 @@ use super::loadouts::{self, AMMO_SLOTS, KitLayout, bot_gear::category};
 use super::match_msgs::static_info::{
     FULL_CONDITION, MatchItem, MatchKit, MatchProfile, Upgrade,
 };
-use super::scopes::{SCOPE_SLOT, ScopeFits};
+use super::scopes::SCOPE_SLOT;
+use super::weapon_modules::{Kind, Modules};
 use super::twist::STORE_LIVES;
 
 /// The gun every replaced one becomes, by its room's level (the owner, 2026-11-15: "also racket on
@@ -58,8 +59,8 @@ impl Gun {
 
 /// The sight every replaced gun wears, by its dictionary name: the shop's EOTech 552 (the owner,
 /// 2026-11-14: "also for ak-12, people should have eotech collimator set on replaced weapons";
-/// 2026-11-15 of the AK-74N: "and eotech collimator"), on the gun by the variant the game data
-/// makes for it (`fit_ak_12_eotech_552`, `fit_ak_74n_eotech_552`).
+/// 2026-11-15 of the AK-74N: "and eotech collimator"), on the gun as the modules table fits it
+/// (`super::scopes`).
 pub const SIGHT: &str = "shop_scope_eotech_552";
 
 /// The shot the other players hear of a silenced gun ([`item_params::ItemParams::shot_heard`]):
@@ -67,6 +68,7 @@ pub const SIGHT: &str = "shop_scope_eotech_552";
 /// (the Val, the MP7 with its silencer and its Legend, the ported Kriss Vector). The SR-3M, the
 /// 9A-91 and the MSBS fire loud shots of their own.
 pub const SILENCED_SHOT: &str = "weapons/val_m";
+
 
 /// The profile slots of the two weapons (`srp_validate::world::WEAPON_SLOTS`).
 const WEAPON_SLOTS: [usize; 2] = [7, 10];
@@ -81,16 +83,21 @@ pub struct Arms {
     /// (`required_bags`).
     clip: u16,
     clip_bags: u32,
-    /// The variant that shows [`SIGHT`] on the gun (`ScopeFits::variant`), when the game data has
-    /// one; without it the gun goes bare (the owner, 2026-11-14: the sight is behaviour, not
-    /// correctness, so nothing refuses data without it).
+    /// [`SIGHT`]'s dict id, what its record on the gun holds, when the gun takes it as its scope
+    /// (`Modules::kind`); without it the gun goes bare (the owner, 2026-11-14: the sight is
+    /// behaviour, not correctness, so nothing refuses data without it).
     sight: Option<u16>,
 }
 
 impl Arms {
+    /// The gun's dict id: what every replaced gun becomes.
+    pub fn gun(&self) -> u16 {
+        self.gun
+    }
+
     /// The data's `gun` and its ammo: an ammunition the dictionary pairs with it, which every ammo
-    /// slot takes, and its clip; and its [`SIGHT`]'s variant, if the data has it.
-    fn of(dictionary: &Dictionary, fits: &ScopeFits, gun: Gun) -> Result<Self, String> {
+    /// slot takes, and its clip; and its [`SIGHT`], if the data fits it to the gun.
+    fn of(dictionary: &Dictionary, modules: &Modules, gun: Gun) -> Result<Self, String> {
         let (name, ammo_name) = (gun.name(), gun.ammo());
         let gun = dictionary
             .item_named(name)
@@ -104,6 +111,9 @@ impl Arms {
         if !dictionary.compatible(gun, ammo) {
             return Err(format!("`{name}` does not fire `{ammo_name}`"));
         }
+        if !item_params::item_params(gun).is_some_and(|params| params.automatic) {
+            return Err(format!("`{name}` fires no automatic mode"));
+        }
         if let Some(slot) = AMMO_SLOTS.iter().find(|&&slot| !dictionary.fits(ammo, slot)) {
             return Err(format!("`{name}`'s ammo `{ammo_name}` does not fit ammo slot {slot}"));
         }
@@ -113,7 +123,8 @@ impl Arms {
             .ok_or_else(|| format!("`{name}`'s ammo `{ammo_name}` has no clip or ammo bags"))?;
         let sight = dictionary
             .item_named(SIGHT)
-            .and_then(|scope| fits.variant(gun, scope.dict_id));
+            .map(|scope| scope.dict_id)
+            .filter(|&scope| modules.kind(gun, scope) == Some(Kind::Scope));
         Ok(Self {
             gun,
             ammo,
@@ -135,7 +146,7 @@ impl Arms {
         static SHARED: [std::sync::OnceLock<Arms>; Gun::ALL.len()] =
             [const { std::sync::OnceLock::new() }; Gun::ALL.len()];
         *SHARED[gun as usize].get_or_init(|| {
-            Arms::of(Dictionary::shared(), ScopeFits::shared(), gun)
+            Arms::of(Dictionary::shared(), Modules::shared(), gun)
                 .expect("Racket's arms are in the data (racket::check)")
         })
     }
@@ -145,14 +156,26 @@ fn is_ammo(dict_id: u16) -> bool {
     item_params::item_params(dict_id).is_some_and(|params| params.class == ItemClass::Ammunition)
 }
 
+/// The rifle classes a Racket match plays automatic only (the owner, 2026-11-22: Racket's guns
+/// "should just be proper automatic weapons"; of "remove g3sg from it and replace with ak12" and
+/// "check that socom is not available too"): one of these with no automatic fire mode
+/// ([`item_params::ItemParams::automatic`]) is replaced, as a sniper rifle is. Shotguns and pistols
+/// stay as they are.
+pub const AUTOMATIC_CLASSES: [u8; 3] =
+    [category::ASSAULT_RIFLES, category::SMGS, category::MACHINE_GUNS];
+
 /// Whether Racket replaces the gun `dict_id`: a sniper rifle (its golden and premium copies are
-/// of their plain gun's category), or a gun whose shot is [`SILENCED_SHOT`].
+/// of their plain gun's category), a gun whose shot is [`SILENCED_SHOT`], or a rifle of
+/// [`AUTOMATIC_CLASSES`] that fires no automatic mode (the G3SG/1, the SOCOM 16, the SKS...).
 pub fn replaces(dictionary: &Dictionary, dict_id: u16) -> bool {
-    dictionary
-        .item(dict_id)
-        .is_some_and(|item| item.category == category::SNIPER_RIFLES)
-        || item_params::item_params(dict_id).and_then(|params| params.shot_heard)
-            == Some(SILENCED_SHOT)
+    let Some(item) = dictionary.item(dict_id) else {
+        return false;
+    };
+    let params = item_params::item_params(dict_id);
+    item.category == category::SNIPER_RIFLES
+        || params.and_then(|params| params.shot_heard) == Some(SILENCED_SHOT)
+        || (AUTOMATIC_CLASSES.contains(&item.category)
+            && params.is_some_and(|params| params.gun.is_some() && !params.automatic))
 }
 
 /// `profile` armed for Racket:
@@ -181,7 +204,7 @@ pub fn arm(profile: &mut MatchProfile, arms: &Arms) {
     let next_id = profile.items.iter().map(|item| item.instance_id).max().unwrap_or(0);
     let sight = arms
         .sight
-        .map_or_else(Vec::new, |variant| sight_records(variant, next_id.wrapping_add(2)));
+        .map_or_else(Vec::new, |sight| sight_records(sight, next_id.wrapping_add(2)));
     for &index in &replaced {
         let item = &mut profile.items[index];
         *item = MatchItem {
@@ -285,18 +308,22 @@ pub(super) fn free_bags(kit: &MatchKit, items: &[MatchItem]) -> u32 {
                 .then(|| u32::from(count).div_ceil(params.clip_size) * params.required_bags)
         })
         .sum();
-    KitLayout::new(&worn, &kit.modifiers)
+    let oxygen_tank = (0..kit.slots.len())
+        .filter_map(held)
+        .any(|(item, _)| loadouts::is_oxygen_tank(item.dict_id));
+    KitLayout::new(&worn, &kit.modifiers, oxygen_tank)
         .ammo_bags()
         .saturating_sub(taken)
 }
 
-/// The records that put the sight `variant` on a gun: a scope's ([`SCOPE_SLOT`]), packed as every
-/// weapon's records are (`weapon_kit::pack`), as an owned scope's reach a match. `id` is the scope
-/// item's: no item of the profile, as an owned scope is in no kit.
-fn sight_records(variant: u16, id: u32) -> Vec<Upgrade> {
+/// The records that put the sight (its dict id, what a scope's record holds) on a gun: a scope's
+/// ([`SCOPE_SLOT`]), packed as every weapon's records are (`weapon_kit::pack`), as an owned
+/// scope's reach a match. `id` is the scope item's: no item of the profile, as an owned scope is
+/// in no kit.
+fn sight_records(sight: u16, id: u32) -> Vec<Upgrade> {
     let scope = super::lobby::Upgrade {
         id,
-        a: u32::from(variant),
+        a: u32::from(sight),
         value: 0,
         param: SCOPE_SLOT,
     };
@@ -317,7 +344,7 @@ fn sight_records(variant: u16, id: u32) -> Vec<Upgrade> {
 pub fn check(data: &GameData) -> Result<(), GameDataError> {
     Gun::ALL
         .into_iter()
-        .try_for_each(|gun| Arms::of(Dictionary::shared(), ScopeFits::shared(), gun).map(drop))
+        .try_for_each(|gun| Arms::of(Dictionary::shared(), Modules::shared(), gun).map(drop))
         .map_err(|cause| GameDataError(format!("{}: Racket: {cause}", data.origin)))
 }
 
@@ -384,7 +411,7 @@ mod tests {
         assert_eq!(heard("ak_12"), Some("weapons/ak_12_m"));
         assert_eq!(heard("ammo_6.5x39"), None);
         check(super::super::game_data::shared()).unwrap();
-        let arms = Arms::of(dictionary, ScopeFits::shared(), Gun::Ak12).unwrap();
+        let arms = Arms::of(dictionary, Modules::shared(), Gun::Ak12).unwrap();
         assert_eq!((arms.gun, arms.ammo), (id("ak_12"), id("ammo_6.5x39")));
         // A magazine of 30 rounds, one ammo bag.
         assert_eq!((arms.clip, arms.clip_bags), (30, 1));
@@ -436,6 +463,24 @@ mod tests {
         assert_eq!(new.condition_or_stack, u32::from(rounds) * STORE_LIVES);
         // The ammo that left is out of the table: torso, two AK-12s' entries, grenades, the stack.
         assert_eq!(sniper.items.len(), before.items.len() - 1);
+    }
+
+    /// The sight is on a gun the modules table fits it to, by its own dict id; data without the
+    /// table, or whose table does not fit it to the gun, leaves the gun bare.
+    #[test]
+    fn the_sight_is_on_a_gun_the_modules_table_fits_it_to() {
+        use super::super::scopes::fixtures;
+        const EOTECH: u16 = 2109;
+        let data = fixtures::laid_over(&[(EOTECH, SIGHT, 9_000)], &[]);
+        let dictionary = fixtures::dictionary_of(&data);
+        let modules =
+            super::super::weapon_modules::fixtures::modules(&[(id("ak_12"), EOTECH, Kind::Scope)]);
+        assert_eq!(Arms::of(&dictionary, &modules, Gun::Ak12).unwrap().sight, Some(EOTECH));
+        assert_eq!(Arms::of(&dictionary, &modules, Gun::Ak74n).unwrap().sight, None);
+        assert_eq!(Arms::of(&dictionary, &Modules::NONE, Gun::Ak12).unwrap().sight, None);
+        let records = sight_records(EOTECH, 7);
+        assert_eq!(records.len(), 1);
+        assert_eq!((records[0].id, records[0].unknown_4, records[0].param), (7, EOTECH.into(), SCOPE_SLOT));
     }
 
     /// A level-10 room's: the sniper rifle an AK-74N (its EOTech when the data has the sight; the

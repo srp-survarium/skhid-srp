@@ -17,16 +17,13 @@ impl Web {
             return String::new();
         }
         let Ok(account_id) = target.strip_prefix('#').unwrap_or(target).parse::<u32>() else {
-            return lang.tr("Enter an account ID.", "Введіть ID акаунта.");
+            return lang.t("Enter an account ID.");
         };
         let Ok(nickname) = Nickname::parse(request.field("rename_name")) else {
-            return lang.tr(
-                "Invalid nickname: at least 3 characters, at most 63 UTF-8 bytes, no spaces or control characters.",
-                "Некоректний нік: щонайменше 3 символи, не більше 63 байтів UTF-8, без пробілів і керівних символів.",
-            );
+            return lang.t("Invalid nickname: at least 3 characters, at most 63 UTF-8 bytes, no spaces or control characters.");
         };
         let Some(reason) = clean_reason(request.field("rename_reason")) else {
-            return lang.tr("A reason is required.", "Потрібна причина.");
+            return lang.t("A reason is required.");
         };
         let renamed = match self
             .store
@@ -34,13 +31,10 @@ impl Web {
         {
             Ok(renamed) => renamed,
             Err(RenameError::Taken) => {
-                return lang.tr(
-                    "That nickname or a Cyrillic/Latin lookalike is already taken.",
-                    "Цей нік або його кириличний/латинський двійник уже зайнятий.",
-                );
+                return lang.t("That nickname or a Cyrillic/Latin lookalike is already taken.");
             }
             Err(RenameError::NoAccount) => {
-                return lang.tr("No such account ID.", "Такого ID акаунта немає.");
+                return lang.t("No such account ID.");
             }
             Err(RenameError::NotEnoughMoney) => unreachable!("administrator renames are free"),
         };
@@ -65,18 +59,7 @@ impl Web {
         game.lobby.account_changed(account_id);
         moderation::log_write(peer, "nickname ownership", &renamed.written);
         moderation::log_write(peer, "nickname audit and game copy", &audit);
-        lang.tr(
-            &format!(
-                "Account #{account_id} renamed: {} → {}.",
-                renamed.previous,
-                nickname.as_str()
-            ),
-            &format!(
-                "Акаунт #{account_id} перейменовано: {} → {}.",
-                renamed.previous,
-                nickname.as_str()
-            ),
-        ) + &moderation::written_note(lang, &renamed.written)
+        lang.tf("Account #{account_id} renamed: {0} → {1}.", &[("account_id", &account_id), ("0", &renamed.previous), ("1", &nickname.as_str())]) + &moderation::written_note(lang, &renamed.written)
             + &moderation::written_note(lang, &audit)
     }
 }
@@ -88,13 +71,10 @@ pub(crate) fn panel(lang: Lang) -> String {
          <label for=rename-name>{}</label><input id=rename-name name=rename_name maxlength=63>\
          <label for=rename-reason>{}</label><input id=rename-reason name=rename_reason maxlength=300>\
          <p><small>{}</small></p><button>{}</button></div>",
-        lang.tr("Account ID", "ID акаунта"),
-        lang.tr("New nickname", "Новий нік"),
-        lang.tr("Reason (admin history only)", "Причина (лише в історії адміністратора)"),
-        lang.tr(
-            "Changes the nickname immediately, free of charge. Login and progress stay the same. Duplicate and Cyrillic/Latin lookalike names are refused.",
-            "Змінює нік одразу й безкоштовно. Логін і прогрес зберігаються. Однакові ніки та кириличні/латинські двійники заборонені.",
-        ),
-        lang.tr("Rename", "Перейменувати"),
+        lang.t("Account ID"),
+        lang.t("New nickname"),
+        lang.t("Reason (admin history only)"),
+        lang.t("Changes the nickname immediately, free of charge. Login and progress stay the same. Duplicate and Cyrillic/Latin lookalike names are refused."),
+        lang.t("Rename"),
     )
 }

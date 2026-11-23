@@ -7,8 +7,8 @@
 //! simulation, so what is decided there is decided alike everywhere.
 //!
 //! A drug is a `survarium::medkit` (the one vtable MEDKIT_VTABLE, whatever
-//! folder its item's options are in); it heals when its data/influences
-//! names a pool. Its use is set_active's flag (+2B0h): set at
+//! folder its item's options are in); its data/influences are the pools it
+//! heals (`Effect`). Its use is set_active's flag (+2B0h): set at
 //! the press (medkit::action 0x33D700, which takes the unit then), through
 //! its use time (+2ACh counting down) and its active time (+2A8h counting
 //! down, healing each tick); medkit::tick ends it with set_active(0) when
@@ -18,6 +18,7 @@
 
 use super::context::Context;
 use super::hook::Thread;
+use super::medical::name_equal;
 use super::sync::Lock;
 use super::world::read;
 use crate::raw;
@@ -86,6 +87,10 @@ impl<'t> AppliedHit<'t> {
         }
     }
 
+    pub(super) fn victim(&self) -> raw::Player {
+        self.victim
+    }
+
     pub fn kind(&self) -> HitType {
         self.kind
     }
@@ -149,34 +154,77 @@ impl<'h> Iterator for DrugsInUse<'h> {
             };
             let Some(medkit) = drug else { continue };
             // SAFETY: as above.
-            let (active, influences) = unsafe { (read(medkit.active()), read(medkit.influences())) };
-            if active != 0 {
-                return Some(DrugInUse { medkit, effect: Effect::of(influences), thread: self.thread });
+            let in_use = unsafe { read(medkit.active()) != 0 };
+            if in_use {
+                return Some(DrugInUse { medkit, thread: self.thread });
             }
         }
         None
     }
 }
 
-/// What a drug does while active, from its data/influences.
+/// What a drug does while active, from its data/influences: the records
+/// (+280h, 14h each, the pool's name inline, what it heals a second at
+/// +10h) and their count (+288h; medkit::tick's loop, 0x33D8F5 / 0x33DA1B).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Effect {
-    /// It names pools it heals each tick (medkit, bandages, antitoxin).
+    /// It heals the body: the medkits and the bandages (the science medkit
+    /// the infection pool too).
     Heals,
+    /// Of its records, those that heal (an amount above 0) heal the
+    /// infection pool and nothing else: the antitoxin, one record or the
+    /// medkit template's seven kept at 0 beside it.
+    Antitoxin,
     /// It names none: its damage_protection is all it does (the painkiller).
     ProtectsOnly,
 }
 
+/// The pool of a record that heals.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Pool {
+    Infection,
+    Body,
+}
+
 impl Effect {
-    fn of(influences: u8) -> Effect {
-        if influences == 0 { Effect::ProtectsOnly } else { Effect::Heals }
+    /// Of `records` data/influences, `healing` the pools of those whose
+    /// amount is above 0.
+    fn of(records: u8, healing: impl Iterator<Item = Pool>) -> Effect {
+        let mut healing = healing.peekable();
+        if records == 0 {
+            Effect::ProtectsOnly
+        } else if healing.peek().is_some() && healing.all(|pool| pool == Pool::Infection) {
+            Effect::Antitoxin
+        } else {
+            Effect::Heals
+        }
+    }
+}
+
+/// A drug's effect, read from its records.
+///
+/// # Safety
+/// `medkit` is a live medkit (its vtable checked): it owns its declared
+/// array of healing records, each with its pool's name inline.
+pub(super) unsafe fn effect(medkit: raw::Medkit) -> Effect {
+    // SAFETY: the caller's.
+    unsafe {
+        let records = read(medkit.influences());
+        let healing = medkit.heals().into_iter().flat_map(|first| {
+            (0..usize::from(records))
+                .map(move |i| first.at(i))
+                .filter(|record| read(record.amount()) > 0.0)
+                .map(|record| {
+                    if name_equal(record.name(), c"infection".as_ptr().cast()) { Pool::Infection } else { Pool::Body }
+                })
+        });
+        Effect::of(records, healing)
     }
 }
 
 /// A drug its holder is using: in its use time or its active time.
 pub struct DrugInUse<'h> {
     medkit: raw::Medkit,
-    effect: Effect,
     thread: &'h Thread,
 }
 
@@ -188,7 +236,8 @@ static STOPPING: Lock<()> = Lock::new(());
 
 impl DrugInUse<'_> {
     pub fn effect(&self) -> Effect {
-        self.effect
+        // SAFETY: a medkit of its holder's slot, which owns its records.
+        unsafe { effect(self.medkit) }
     }
 
     /// The drug's item, for reading its records; `stop` is the one way to
@@ -238,8 +287,20 @@ mod tests {
 
     #[test]
     fn a_drug_without_influences_only_protects() {
-        assert_eq!(Effect::of(0), Effect::ProtectsOnly);
-        assert_eq!(Effect::of(1), Effect::Heals);
-        assert_eq!(Effect::of(7), Effect::Heals);
+        assert_eq!(Effect::of(0, [].into_iter()), Effect::ProtectsOnly);
+    }
+
+    #[test]
+    fn a_drug_that_heals_the_infection_pool_alone_is_the_antitoxin() {
+        use Pool::{Body, Infection};
+        // The live config's one record; the medkit template's seven at 0 beside it.
+        assert_eq!(Effect::of(1, [Infection].into_iter()), Effect::Antitoxin);
+        assert_eq!(Effect::of(8, [Infection].into_iter()), Effect::Antitoxin);
+        // The medkits and the bandages; the science medkit heals both.
+        assert_eq!(Effect::of(7, [Body; 7].into_iter()), Effect::Heals);
+        assert_eq!(Effect::of(8, [Body, Infection].into_iter()), Effect::Heals);
+        assert_eq!(Effect::of(8, [Infection, Body].into_iter()), Effect::Heals);
+        // Records that heal nothing: no antitoxin.
+        assert_eq!(Effect::of(7, [].into_iter()), Effect::Heals);
     }
 }

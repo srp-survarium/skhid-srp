@@ -17,7 +17,7 @@
 
 use super::context::{Context, Reg};
 use super::hook::Thread;
-use super::world::{floats, read};
+use super::world::{floats, read, Places};
 use crate::raw;
 
 /// A player's side, from his profile's team: one of a match's two teams, or
@@ -170,6 +170,14 @@ impl<'t> RespawnSelect<'t> {
                 unsafe { Some(floats::<3>(first.at(i).player()?.feet())) }
             })
         })
+    }
+
+    /// The places in the match now: the bits of the world core the tick
+    /// asks each place's player of (core_active_player 0x2D0AB0), the
+    /// world's, so every game counts alike. None without a core.
+    pub fn places_in_match(&self) -> Option<Places> {
+        // SAFETY: the rule's world core, alive for the hook; a plain value of it.
+        unsafe { Some(Places(read(self.rule.core()?.active_places()))) }
     }
 
     /// The team-2 group's size.

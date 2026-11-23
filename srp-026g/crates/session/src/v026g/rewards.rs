@@ -140,7 +140,7 @@
 //! The daily block is the day's double pay ([`super::bonus`]); the
 //! equipment block what the kit's items add (`items_rules::kit_bonuses`).
 
-use std::collections::{HashMap, VecDeque};
+use std::collections::{BTreeMap, HashMap, VecDeque};
 use std::num::NonZeroU32;
 use std::sync::{Arc, Mutex};
 
@@ -326,6 +326,9 @@ pub struct PlayerResult {
     /// not, the kit in use, and what is left of every item of its profile
     /// (`Supplies::left` adds a stack item up). `None`: not known.
     pub supplies: Option<survarium::v026g::match_msgs::players::Supplies>,
+    /// What it did with each weapon, in the last trusted snapshot (the
+    /// match server's `PlayerResult::weapons`); empty: not known.
+    pub weapons: Vec<survarium::v026g::match_msgs::snapshot::WeaponCounts>,
 }
 
 /// How a match ended (the match server's `MatchResult`).
@@ -350,6 +353,10 @@ pub struct MatchResult {
     /// Batteries home (modes 2, 3), tickets left (mode 4) or Research's
     /// points (mode 5).
     pub team_points: [u16; 2],
+    /// How often a round started again, respawning everyone with the kit's
+    /// load (Artifact Hunt, `artefact_hunt.md`, "Respawns"); 0 in the modes
+    /// without rounds.
+    pub round_starts: u16,
     pub duration_ms: u32,
     /// `None` if play never began.
     pub played_ms: Option<u32>,
@@ -687,21 +694,28 @@ fn report_key(match_id: u32) -> String {
 }
 
 /// Takes off the upgrade records of a kept report's items that the game data
-/// no longer has (a dict id of no item) or no longer fits (a scope variant
-/// that is not made for its item any more, `survarium::v026g::scopes`): a
-/// release that withdraws a scope pair leaves old results screens behind.
-/// Returns how many were taken off.
+/// no longer has (a dict id of no item) or no longer fits: a record of the
+/// scopes' category must hold a scope its item takes by the modules table
+/// (`survarium::v026g::scopes`). A release that withdraws a scope pair
+/// leaves old results screens behind, and a screen kept from before the
+/// scopes moved onto the table holds a retired variant's dict id, which no
+/// item takes (a report keeps no inventory to name its scope by). Returns
+/// how many were taken off.
 pub(crate) fn drop_stale_upgrades(report: &mut MatchReport) -> usize {
+    use survarium::v026g::scopes::SCOPE_CATEGORY;
+    use survarium::v026g::weapon_modules::{Kind, Modules};
     let dictionary = Dictionary::shared();
-    let scopes = survarium::v026g::scopes::ScopeFits::shared();
+    let modules = Modules::shared();
     let mut taken = 0;
     let mut clean = |item: &mut lobby::ItemDescr| {
         let host = item.dict_id;
         let before = item.upgrades.len();
         item.upgrades.retain(|record| {
             u16::try_from(record.a).ok().is_some_and(|dict_id| {
-                dictionary.item(dict_id).is_some()
-                    && (!scopes.is_variant(dict_id) || scopes.fits(host, dict_id))
+                dictionary.item(dict_id).is_some_and(|upgrade| {
+                    upgrade.category != SCOPE_CATEGORY
+                        || modules.kind(host, dict_id) == Some(Kind::Scope)
+                })
             })
         });
         taken += before - item.upgrades.len();
@@ -1834,6 +1848,7 @@ impl<'a> Shared<'a> {
                     played_ms: player.time_in_match_ms,
                 },
                 kits,
+                weapons: self.weapons(player),
             });
         }
         if players.is_empty() {
@@ -1894,6 +1909,34 @@ impl<'a> Shared<'a> {
             },
             players,
         })
+    }
+
+    /// What a player did with each weapon, as its games counted it, if the
+    /// result's numbers can be used.
+    fn weapons(&self, player: &PlayerResult) -> BTreeMap<u16, history::WeaponCounts> {
+        if !self.trusted {
+            return BTreeMap::new();
+        }
+        player
+            .weapons
+            .iter()
+            .map(|weapon| {
+                let counts = history::WeaponCounts {
+                    kills: u64::from(weapon.kills),
+                    headshots: u64::from(weapon.headshots),
+                    wall_kills: u64::from(weapon.wall_kills),
+                    ricochet_kills: u64::from(weapon.ricochet_kills),
+                    deaths: u64::from(weapon.deaths),
+                    shots: u64::from(weapon.shots),
+                    hits: u64::from(weapon.hits),
+                    damage: u64::from(weapon.damage),
+                    kill_distance_dm: u64::from(weapon.kill_distance_dm),
+                    longest_kill_dm: u64::from(weapon.longest_kill_dm),
+                    held_ms: u64::from(weapon.held_ms),
+                };
+                (weapon.dict_id, counts)
+            })
+            .collect()
     }
 
     /// A player's counters, if the result's numbers can be used.
@@ -2090,7 +2133,9 @@ impl<'a> Shared<'a> {
         let factor = self.points_factor();
         let mut lines = [[(0.0, Pay::NONE); KITS]; 3];
         for (event, counts) in events.iter().enumerate() {
-            let line = EVENT_LINES[event];
+            // Freeze Tag's thaw is in the kills' line and pays as a kill.
+            let thaw = self.result.mode == GameMode::FreezeTag && event == event::THAW;
+            let line = if thaw { EVENT_LINES[event::KILL] } else { EVENT_LINES[event] };
             // What one of the event pays. A kill and a help pay by the
             // event; an event of the activity line by its score, with the
             // weight the scoreboard counted it with. An event that scores
@@ -2099,6 +2144,7 @@ impl<'a> Shared<'a> {
             // events are the fixed part, added below.
             let each = match event {
                 event::KILL => self.terms.kill,
+                _ if thaw => self.terms.kill,
                 event::ASSIST | event::TEAMMATE_CURE | event::TEAMMATE_RESCUE => pay::HELP,
                 event::PARTICIPATING | event::WON => continue,
                 _ if line == ACTIVITY_LINE && weights[event] > 0.0 => {
@@ -2235,8 +2281,9 @@ impl<'a> Shared<'a> {
             let shots: Vec<u32> = (0..KITS)
                 .map(|kit| u32::from(events[event::BULLET_FIRE][kit]))
                 .collect();
-            let respawns =
-                total(&events, event::DEATH).saturating_add(u32::from(player.kit_changes));
+            let respawns = total(&events, event::DEATH)
+                .saturating_add(u32::from(player.kit_changes))
+                .saturating_add(u32::from(self.result.round_starts));
             reward.supplies_used =
                 super::autobuy::used(
                     account,
@@ -2336,7 +2383,11 @@ impl<'a> Shared<'a> {
             // armour, `items_rules::kit_bonuses`): the screen's "premium
             // items" column. [GUESS: the
             // three bytes are the percents.]
-            let gear = items_rules::kit_bonuses(account, kit);
+            // None in Roulette: its kits were not the account's.
+            let gear = match self.result.twist {
+                Some(Armed::Roulette(_)) => survarium::v026g::modifications::Bonuses::default(),
+                _ => items_rules::kit_bonuses(account, kit),
+            };
             let gear_reputation = match faction {
                 1..=4 => gear.reputation[usize::from(faction) - 1],
                 _ => 0.0,

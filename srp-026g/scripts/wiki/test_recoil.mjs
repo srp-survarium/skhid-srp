@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import './recoil.js';
 import './spread.js';
+import './motions.js';
 const raw = {rpm:650, magazine:30, recoil_power:.8, min_top_recoil:1.8, max_top_recoil:2,
   min_left_recoil:1.4,max_left_recoil:1.8,min_right_recoil:1.4,max_right_recoil:1.8,
   compensation_proportional_gain:5,compensation_integral_gain:10,compensation_derivational_gain:0};
@@ -98,4 +99,40 @@ if (process.argv[2]) {
     }
   }
   console.log(`PASS: ${Object.keys(data.weapons).length} released weapons parse and simulate, with spread and shake`);
+}
+// The shot clips' motions (motions.js): a curve is played once a shot, starts
+// and ends at rest, and a custom gun's peak scales it or takes the standard shape.
+{
+  const shot = {camera: {aimed: {up: [0, -1, -.5, 0], side: [0, .5, .25, 0]}}, gun: {back: [0, 30, 10, 0], up: [0, 1.2, .4, 0], side: [0, 0, 0, 0]}};
+  const motions = WeaponMotions.parse(shot), none = WeaponMotions.parse(undefined);
+  assert.equal(motions.camera.hip, null, 'no hip clip, no hip motion');
+  assert.deepEqual(WeaponMotions.parse({camera: {hip: {up: [0, 1], side: [0, 0]}}}).camera.aimed, {up: [0, 1], side: [0, 0]}, 'aimed is the hip clip unless another is given');
+  assert.deepEqual(WeaponMotions.cameraAt(motions, 'aimed', 0), {up: 0, side: 0}, 'a pass starts from rest');
+  // A bullet leaves along the eye of the step before its shot (steps end every 50 ms).
+  for (const [time, eye] of [[.05, 0], [.07, .05], [.1, .05], [.1206, .1], [.15, .1]]) assert.ok(Math.abs(WeaponMotions.eyeTime(time) - eye) < 1e-9, `the eye of a shot at ${time}`);
+  const burst = [{time: .05}, {time: .11}, {time: .17}];
+  assert.equal(WeaponMotions.phaseAt(burst, .06, .04), 1, 'no shot yet');
+  assert.ok(Math.abs(WeaponMotions.phaseAt(burst, .06, .1) - 5 / 6) < 1e-9, 'late in the first pass');
+  assert.deepEqual(WeaponMotions.cameraAtShot(motions, 'aimed', burst, .06, .05), {up: 0, side: 0}, 'the first bullet leaves from rest');
+  // the second shot, at 0.11: the eye of 0.10, 5/6 into the first pass, halfway down the curve's last third
+  const second = WeaponMotions.cameraAtShot(motions, 'aimed', burst, .06, .11);
+  assert.ok(Math.abs(second.up + .25) < 1e-9 && Math.abs(second.side - .125) < 1e-9, `the second takes the turn of the pass before (${JSON.stringify(second)})`);
+  assert.deepEqual(WeaponMotions.cameraAt(motions, 'aiming', 1 / 3), {up: -1, side: .5}, 'the aimed clip while aiming in');
+  assert.deepEqual(WeaponMotions.cameraAt(motions, 'hip', 1 / 3), {up: 0, side: 0});
+  assert.deepEqual(WeaponMotions.cameraAt(motions, 'aimed', 1), {up: 0, side: 0}, 'over with its pass');
+  assert.ok(Math.abs(WeaponMotions.gunAt(motions, 1 / 6).back - 15) < 1e-9, 'between two samples');
+  assert.deepEqual(WeaponMotions.gunAt(none, .3), {back: 0, up: 0, side: 0}, 'a build without the clips moves nothing');
+  assert.equal(WeaponMotions.peak(motions.camera.aimed, 'up'), -1);
+  assert.equal(WeaponMotions.parse({gun: {back: [0, 1], up: [0, NaN], side: [0, 0]}}).gun, null, 'a broken curve is no curve');
+  const same = WeaponMotions.custom(motions, {});
+  assert.deepEqual(same.gun, motions.gun, 'no custom value: the same curves');
+  const more = WeaponMotions.custom(motions, {camera: {up: -2}, gun: {back: 15, side: .5}});
+  assert.deepEqual(more.camera.aimed.up, [0, -2, -1, 0], 'its own shape, to the custom peak');
+  assert.deepEqual(more.gun.back, [0, 15, 5, 0]);
+  assert.equal(WeaponMotions.peak(more.gun, 'side'), .5, 'the standard shape where the weapon has none');
+  assert.equal(more.gun.side[0], 0);
+  assert.equal(more.gun.side.at(-1), 0);
+  assert.equal(more.camera.hip.up.length, 33, 'a custom camera motion from the hip too');
+  assert.equal(WeaponMotions.custom(none, {}).gun, null);
+  assert.equal(WeaponMotions.custom(motions, {gun: {back: 0, up: 0}}).gun, null, 'all zero: no motion');
 }

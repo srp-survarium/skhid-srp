@@ -200,6 +200,7 @@ fn world_with(accounts: GameAccounts) -> World {
             min_patch_revision: 0,
             replays: None,
             results: Arc::new(session::v026g::rewards::Results::new()),
+            pools: crate::Pools::every_playable(),
         }),
     };
     World {
@@ -261,54 +262,6 @@ fn get(path: &str) -> Request {
         method: "GET".into(),
         ..post(path, &[])
     }
-}
-
-#[test]
-fn the_exchange_page_says_there_is_no_gold() {
-    let world = world();
-    let id = world.player("fighter", "secret");
-    let silver = world.balance(id);
-    // The launcher's SHOP button: `/exchange?lang=<its code>`.
-    let shop = |code: &str| {
-        let mut request = get("/exchange");
-        request.target = format!("/exchange?lang={code}");
-        request.lang = Lang::pick(code, "");
-        world.web.route(&request, "t")
-    };
-    for (code, lang, text) in [
-        ("en", "en", "There is no gold any more"),
-        ("ua", "uk", "Золота більше немає"),
-        ("ru", "ru", "Золота больше нет"),
-        ("de", "de", "Gold gibt es nicht mehr"),
-        ("pl", "pl", "Złota już nie ma"),
-    ] {
-        let answer = shop(code);
-        assert_eq!(answer.status, "200 OK", "{code}");
-        assert!(
-            answer
-                .body
-                .contains(&format!("<section class=card lang={lang}>")),
-            "{code}"
-        );
-        assert!(answer.body.contains(text), "{code}: {}", answer.body);
-        assert!(answer.body.contains("href=\"/wiki?lang=") && !answer.body.contains("<form"));
-    }
-    // Without a code: the page's own language.
-    let mut browser = get("/exchange");
-    browser.lang = Lang::Uk;
-    assert!(world.web.route(&browser, "t").body.contains("Лише срібло"));
-    // A form sent as the old page sent it is a page that is not there, and
-    // changes nothing.
-    let sent = world.web.route(
-        &post(
-            "/exchange",
-            &[("user", "fighter"), ("password", "secret"), ("gold", "1")],
-        ),
-        "t",
-    );
-    assert_eq!(sent.status, "404 Not Found");
-    assert_eq!(world.balance(id), silver);
-    assert!(world.told.changed.locked().is_empty());
 }
 
 #[test]
@@ -620,7 +573,7 @@ fn public_stats_count_players_rooms_and_hosted_matches() {
     let stats = || world.web.route(&get("/api/stats"), "t");
     assert_eq!(
         stats().body,
-        r#"{"online":0,"registered":0,"matches":0,"rooms":0,"in_rooms":0,"queued":0,"last_match_ends_in":0}"#
+        r#"{"online":0,"registered":0,"matches":0,"rooms":0,"in_rooms":0,"queued":0,"last_match_ends_in":0,"normal_matches":0,"last_normal_match_ends_in":0}"#
     );
     let account = world.player("player-a", "test-password");
     let session = world.web.store.create_session(account);
@@ -630,7 +583,7 @@ fn public_stats_count_players_rooms_and_hosted_matches() {
     // Multiple connections for one account count once.
     assert_eq!(
         stats().body,
-        r#"{"online":1,"registered":1,"matches":0,"rooms":0,"in_rooms":0,"queued":0,"last_match_ends_in":0}"#
+        r#"{"online":1,"registered":1,"matches":0,"rooms":0,"in_rooms":0,"queued":0,"last_match_ends_in":0,"normal_matches":0,"last_normal_match_ends_in":0}"#
     );
     // The rooms as the lobby last counted them.
     world.web.store.set_room_counts(session::RoomCounts {
@@ -647,14 +600,14 @@ fn public_stats_count_players_rooms_and_hosted_matches() {
     assert_eq!(response.content_type.as_str(), "application/json");
     assert_eq!(
         response.body,
-        r#"{"online":1,"registered":1,"matches":2,"rooms":2,"in_rooms":3,"queued":1,"last_match_ends_in":0}"#
+        r#"{"online":1,"registered":1,"matches":2,"rooms":2,"in_rooms":3,"queued":1,"last_match_ends_in":0,"normal_matches":0,"last_normal_match_ends_in":0}"#
     );
     assert_eq!(world.web.store.match_count(), 0); // Use the host, not formed rosters.
     drop(hold);
     drop(second_hold);
     assert_eq!(
         stats().body,
-        r#"{"online":0,"registered":1,"matches":2,"rooms":2,"in_rooms":3,"queued":1,"last_match_ends_in":0}"#
+        r#"{"online":0,"registered":1,"matches":2,"rooms":2,"in_rooms":3,"queued":1,"last_match_ends_in":0,"normal_matches":0,"last_normal_match_ends_in":0}"#
     );
     assert_eq!(
         world.web.route(&post("/api/stats", &[]), "t").status,
@@ -669,6 +622,7 @@ fn public_stats_say_when_the_last_match_ends_at_the_latest() {
     let stats = || world.web.route(&get("/api/stats"), "t").body;
     let live = |phase, time_left: Option<Duration>| crate::LiveMatch {
         map_id: survarium::v026g::maps::MapId::new(117),
+        kind: crate::LiveKind::Normal,
         phase,
         players: [4, 3],
         played: None,
@@ -691,7 +645,7 @@ fn public_stats_say_when_the_last_match_ends_at_the_latest() {
     ];
     assert_eq!(
         stats(),
-        r#"{"online":0,"registered":0,"matches":3,"rooms":0,"in_rooms":0,"queued":0,"last_match_ends_in":300}"#
+        r#"{"online":0,"registered":0,"matches":3,"rooms":0,"in_rooms":0,"queued":0,"last_match_ends_in":300,"normal_matches":3,"last_normal_match_ends_in":300}"#
     );
     // One that has its result is about to go; one still loading has its
     // whole wait, countdown and match time ahead (5 + 20 + 900 s).
@@ -699,25 +653,66 @@ fn public_stats_say_when_the_last_match_ends_at_the_latest() {
         live(crate::LivePhase::Over, Some(Duration::ZERO)),
         live(crate::LivePhase::Playing, Some(Duration::from_secs(60))),
     ];
-    assert!(stats().ends_with(r#""last_match_ends_in":60}"#));
+    assert!(stats().contains(r#""last_match_ends_in":60,"#));
     world
         .told
         .live
         .locked()
         .push(live(crate::LivePhase::Gathering, None));
-    assert!(stats().ends_with(r#""last_match_ends_in":925}"#));
+    assert!(stats().contains(r#""last_match_ends_in":925,"#));
     // A map the client does not have: the time every playable mode has.
     *world.told.live.locked() = vec![crate::LiveMatch {
         map_id: survarium::v026g::maps::MapId::new(0),
         ..live(crate::LivePhase::Gathering, None)
     }];
-    assert!(stats().ends_with(r#""last_match_ends_in":925}"#));
+    assert!(stats().contains(r#""last_match_ends_in":925,"#));
     // Only an ended one: nothing to wait for.
     *world.told.live.locked() = vec![live(crate::LivePhase::Over, None)];
     assert_eq!(
         stats(),
-        r#"{"online":0,"registered":0,"matches":3,"rooms":0,"in_rooms":0,"queued":0,"last_match_ends_in":0}"#
+        r#"{"online":0,"registered":0,"matches":3,"rooms":0,"in_rooms":0,"queued":0,"last_match_ends_in":0,"normal_matches":1,"last_normal_match_ends_in":0}"#
     );
+}
+
+/// A release that ends the matches against bots and of private rooms
+/// waits for the normal ones alone: they are counted and timed apart.
+#[test]
+fn public_stats_say_the_normal_matches_apart() {
+    use crate::{LiveKind, LivePhase};
+    use std::time::Duration;
+    let world = world();
+    let stats = || world.web.route(&get("/api/stats"), "t").body;
+    let live = |kind, phase, left| crate::LiveMatch {
+        map_id: survarium::v026g::maps::MapId::new(117),
+        kind,
+        phase,
+        players: [4, 3],
+        played: None,
+        time_left: Some(Duration::from_secs(left)),
+        standing: None,
+    };
+    world
+        .told
+        .matches
+        .store(5, std::sync::atomic::Ordering::Relaxed);
+    *world.told.live.locked() = vec![
+        live(LiveKind::VsBots, LivePhase::Playing, 840),
+        live(LiveKind::Normal, LivePhase::Playing, 300),
+        live(LiveKind::PrivateRoom, LivePhase::Countdown, 900),
+        live(LiveKind::Normal, LivePhase::Over, 0),
+        live(LiveKind::Normal, LivePhase::Playing, 120),
+    ];
+    assert!(stats().ends_with(
+        r#""last_match_ends_in":900,"normal_matches":3,"last_normal_match_ends_in":300}"#
+    ));
+    // Only matches against bots and of private rooms: none to wait for.
+    *world.told.live.locked() = vec![
+        live(LiveKind::VsBots, LivePhase::Playing, 840),
+        live(LiveKind::PrivateRoom, LivePhase::Playing, 600),
+    ];
+    assert!(stats().ends_with(
+        r#""last_match_ends_in":840,"normal_matches":0,"last_normal_match_ends_in":0}"#
+    ));
 }
 
 #[test]
@@ -749,7 +744,7 @@ fn public_stats_http_has_json_headers_and_ignores_language() {
     assert!(headers.contains(&format!("\r\nContent-Length: {}\r\n", body.len())));
     assert_eq!(
         body,
-        r#"{"online":0,"registered":0,"matches":0,"rooms":0,"in_rooms":0,"queued":0,"last_match_ends_in":0}"#
+        r#"{"online":0,"registered":0,"matches":0,"rooms":0,"in_rooms":0,"queued":0,"last_match_ends_in":0,"normal_matches":0,"last_normal_match_ends_in":0}"#
     );
 }
 
@@ -766,6 +761,7 @@ fn the_launchers_page_and_its_fresh_numbers_come_with_the_launchers_policy() {
     // A Team Deathmatch on Rudnya in play.
     *world.told.live.locked() = vec![crate::LiveMatch {
         map_id: survarium::v026g::maps::MapId::new(117),
+        kind: crate::LiveKind::Normal,
         phase: crate::LivePhase::Playing,
         players: [4, 3],
         played: Some(Duration::from_secs(130)),
@@ -1040,7 +1036,7 @@ fn the_damage_calculator_is_a_026g_page_under_the_sites_header() {
     assert!(page.body.contains("<nav><a href=\"/?lang=en\">Home</a>"));
     assert!(
         page.body
-            .contains("<a class=lang href=\"?lang=uk\">Українська</a>")
+            .contains("<a href=\"?lang=uk\" lang=uk hreflang=uk>Українська</a>")
     );
     assert!(!page.body.contains("{{LANG}}") && !page.body.contains("<!--SITE-HEADER-->"));
     // Nothing inline runs and nothing is fetched from elsewhere.
@@ -1235,7 +1231,13 @@ fn the_stats_page_is_a_tab_of_its_own() {
         assert!(page.body.contains(&format!("<html lang=\"{code}\">")));
         assert!(page.body.contains(&format!("href=\"/stats?lang={code}\" aria-current=page")));
         assert!(!page.body.contains(&format!("href=\"/wiki?lang={code}\" aria-current=page")));
-        assert!(page.body.contains("<div id=stats>"));
+        assert!(page.body.contains("<div id=stats data-locale="));
+        // Its words are the server's, in the page's language, handed to the script as data.
+        let text = page.body.split_once("<script type=application/json id=stats-text>").unwrap().1;
+        let text = text.split_once("</script>").unwrap().0;
+        assert!(!text.contains('<'));
+        let leaders = if lang == Lang::Uk { "\"today\":\"Лідери дня\"" } else { "\"today\":\"Daily leaders\"" };
+        assert!(text.contains(leaders), "{text}");
         let script = page.body.split_once("<script src=\"").unwrap().1;
         let script = script.split_once("?v=").unwrap().0;
         assert!(crate::history::file(script).is_some_and(|(_, bytes)| !bytes.is_empty()));
@@ -1307,7 +1309,15 @@ fn serve_wiki_preview() {
     }
     let dir = std::env::temp_dir().join(format!("srp-wiki-preview-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&dir);
-    let mut world = world_with(crate::history::tests::preview(&dir, crate::unix_now()));
+    // SRP_PREVIEW_CROWD: that many more players in the history, for long lists.
+    let crowd = std::env::var("SRP_PREVIEW_CROWD")
+        .map(|text| text.parse().expect("SRP_PREVIEW_CROWD is a number of players"))
+        .unwrap_or(0);
+    let mut world = world_with(crate::history::tests::preview(
+        &dir,
+        crate::unix_now(),
+        crowd,
+    ));
     world.web.game.as_mut().unwrap().replays =
         Some(Arc::new(crate::history::tests::preview_replays(&dir)));
     // SRP_PREVIEW_PORT: another port, for two previews side by side.

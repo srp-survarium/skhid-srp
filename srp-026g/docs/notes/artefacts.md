@@ -26,6 +26,18 @@ Client patch 54 (README section 54, client_patch.md section 3.51) and the table
   (in their passive or active, container order); a fifth (Artifact Container) is never fired and
   stays ready, so its active adds nothing (and it gives no passive).
 - A copy on its cooldown or already active does nothing on that press; it is not fired later.
+- A press that fires a copy starts the cooldown of every other copy of that kind on its cooldown
+  again, the whole of it (the owner, 2026-11-22: "if you get new artifact, you can still activate
+  it, but this resets timer on other artis of the same type"). So a kind is used once a cooldown,
+  however many copies and whenever they were taken.
+  - The report (a player, revision 49): one Onyx taken and fired, then another taken and fired:
+    each cooled down on its own and the two were fired in turns, an Onyx twice as often (three or
+    four, three or four times).
+  - A copy still active is left as it is: it ends and cools down on its own, and the next press
+    that fires another starts its cooldown again.
+  - A press that fires nothing (every copy cooling or active) starts no cooldown again.
+  - Firing the copy that is ready first, while another has seconds left, costs that other its
+    whole cooldown: waiting for both fires them together.
 - The key of a copy that is not ready still fires the ready ones of its kind.
 - Different kinds have their own keys and cooldowns: Onyx, Spring and Lifebone fire on their own.
 - Every game of the match computes this the same way (the press is an input).
@@ -159,6 +171,8 @@ down) when you use artifact? Note that your vision should still be clear")
 - Version 13: the leg quarters one particle effect of view 2 each, without the point light and the
   haze (what the carrier saw is what everyone sees), no first-person twin; Forest Protection's smoke
   emitters' Rate and MaxParticles x1.5.
+- Version 15 (14 is the open #1586's): Forest Protection's first-person twin plays its smoke too,
+  beside the rays, at three quarters of the third person's rate (artefact-skills.md).
 - History: version 1 (a lighter copy) and version 2 (with `up_light`'s lights at x0.35) showed
   too little in the first person; version 3, the stock glow without the head, was tested by the
   owner and approved (2026-10-25: "this version is good"). Version 4 is the same files.

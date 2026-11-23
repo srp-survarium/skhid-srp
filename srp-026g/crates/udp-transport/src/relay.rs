@@ -11,9 +11,15 @@ use std::io::{self, Read};
 use std::net::{IpAddr, Ipv4Addr, SocketAddr, SocketAddrV4, TcpStream, UdpSocket};
 use std::time::Duration;
 
+/// The updater's route check (`client/updater/route`) starts with this. It is
+/// answered with exactly its own bytes and goes no further.
 pub const PROBE_PREFIX: &[u8] = b"SKHID-ROUTE-1:";
+/// The most of one login connection's check that is echoed: the updater's
+/// `PROBE_BYTES`.
+pub const PROBE_BYTES: u64 = 64 * 1024;
+/// A check's datagram: one of the game's size at most.
 pub fn is_probe(bytes: &[u8]) -> bool {
-    bytes.len() == PROBE_PREFIX.len() + 8 && bytes.starts_with(PROBE_PREFIX)
+    bytes.len() <= crate::MAX_DATAGRAM && bytes.starts_with(PROBE_PREFIX)
 }
 
 const SIGNATURE: &[u8; 12] = b"\r\n\r\n\0\r\nQUIT\n";
@@ -282,18 +288,17 @@ impl<'a> Datagrams<'a> {
             (0, Peer::direct(source))
         };
         let payload = &self.buffer[offset..len];
+        if is_probe(payload) {
+            // An answer that cannot be sent (a source port 0, no route back)
+            // is the prober's loss, never this socket's failure.
+            let _ = self.send_to(payload, peer);
+            return Err(dropped());
+        }
         if payload.len() > output.len() {
             return Err(dropped());
         }
         output[..payload.len()].copy_from_slice(payload);
-        let length = payload.len();
-        if is_probe(&output[..length]) {
-            // An answer that cannot be sent (a source port 0, no route back)
-            // is the prober's loss, never this socket's failure.
-            let _ = self.send_to(&output[..length], peer);
-            return Err(dropped());
-        }
-        Ok((length, peer))
+        Ok((payload.len(), peer))
     }
 
     /// `bytes` to `peer`, by the route it came by.
@@ -384,19 +389,24 @@ mod tests {
         let client = patient();
         let mut socket = Datagrams::new(&server, Relays::default()).unwrap();
         let mut probe = PROBE_PREFIX.to_vec();
-        probe.extend_from_slice(b"12345678");
+        probe.resize(crate::MAX_DATAGRAM, 7);
         client
             .send_to(&probe, server.local_addr().unwrap())
             .unwrap();
+        // Answered whole, whatever the size of the caller's buffer.
         let mut buffer = [0; 64];
         assert_eq!(
             socket.recv_from(&mut buffer).unwrap_err().kind(),
             io::ErrorKind::WouldBlock
         );
-        let (n, _) = client.recv_from(&mut buffer).unwrap();
-        assert_eq!(&buffer[..n], probe);
+        let mut answer = [0; 2048];
+        let (n, _) = client.recv_from(&mut answer).unwrap();
+        assert_eq!(&answer[..n], probe);
         assert!(socket.forwarders.is_empty());
-        assert!(!is_probe(&probe[..probe.len() - 1]));
+        assert!(is_probe(&probe[..22]));
+        assert!(!is_probe(&probe[1..]));
+        probe.push(7);
+        assert!(!is_probe(&probe));
     }
 
     #[test]

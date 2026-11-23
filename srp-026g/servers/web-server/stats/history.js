@@ -1,78 +1,44 @@
 // The stats page (servers/web-server/src/history.rs): public matches from the
 // match history's JSON (/api/history/..., docs/notes/match_history.md), asked
-// for as the page is viewed. The address says what it shows: ?player=<name>,
+// for as the page is viewed. The address says what it shows: ?id=<account>
+// (a player: its matches, or with ?tab=weapons its weapons, ?tab=skills its
+// skills; every link to a player is by the id, as a name can change;
+// ?player=<name>, the search's, finds one and becomes its id's address),
 // ?match=<number>, ?clan=<tag>, else the leaderboards (?board=, ?by=).
 // Each view is drawn once empty, in its final shape, then with its data, so
 // nothing moves while it loads; long lists grow by "Older matches".
 (() => {
   const root = document.getElementById('stats');
   if (!root) return;
-  const lang = document.documentElement.lang === 'uk' ? 'uk' : 'en';
-  const TEXT = {
-    en: {
-      stats: 'Stats', player: 'Player', clan: 'Clan', match: 'Match', matches: 'Matches', find: 'Find',
-      playerName: 'Player name', clanTag: 'Clan tag', matchNumber: 'Match number',
-      players: 'Players', clans: 'Clans', best: 'Best matches', latest: 'Latest matches',
-      hour: 'Hour', day: 'Day', rank: '#', level: 'Level', experience: 'Experience', rating: 'Rating',
-      wins: 'Wins', losses: 'Losses', winRate: 'Win rate', kills: 'Kills', deaths: 'Deaths', kd: 'K/D',
-      assists: 'Assists', score: 'Score', scoreAvg: 'Avg score', headshots: 'Headshots', grenadeKills: 'Grenade kills',
-      meleeKills: 'Melee kills', batteries: 'Batteries', captures: 'Captures', artefacts: 'Artefacts', members: 'Members', commander: 'Commander',
-      overall: 'Overall', inMatches: 'In matches', last30: 'Last 30 days', ended: 'Ended', duration: 'Duration',
-      map: 'Map', mode: 'Mode', result: 'Result', place: 'Place', team: 'Team', points: 'Points',
-      win: 'Win', loss: 'Loss', draw: 'Draw', left: 'Left', won: 'won', older: 'Older matches', hours: 'Hours played',
-      replay: 'Replay', replayPreparing: 'Preparing…', replayFile: 'Download',
-      replayNo: {incompatible: 'Recorded by an older game version', busy: 'Busy, try again in a minute', other: 'No replay'},
-      today: 'Daily leaders', allTime: 'All time', shots: 'Shots fired',
-      accuracy: 'Accuracy', weapons: 'Weapons', weapon: 'Weapon', armour: 'Armour', kit: 'Kit', favourites: 'Favourite equipment',
-      accuracyNote: '1000+ shots', averageNote: '20+ matches', headshotRate: 'HS %',
-      noMatches: 'No public matches yet.', noPlayer: 'No player with public matches named “{}”.', noClan: 'No clan tagged [{}].',
-      noMatch: 'No public match {}.', noHistory: 'This server keeps no match history.',
-      failed: 'Could not load the stats. Reload the page.', nobody: 'Nobody yet.',
-    },
-    uk: {
-      stats: 'Статистика', player: 'Гравець', clan: 'Клан', match: 'Матч', matches: 'Матчі', find: 'Знайти',
-      playerName: 'Ім’я гравця', clanTag: 'Тег клану', matchNumber: 'Номер матчу',
-      players: 'Гравці', clans: 'Клани', best: 'Найкращі матчі', latest: 'Останні матчі',
-      hour: 'Година', day: 'День', rank: '#', level: 'Рівень', experience: 'Досвід', rating: 'Рейтинг',
-      wins: 'Перемоги', losses: 'Поразки', winRate: 'Частка перемог', kills: 'Вбивства', deaths: 'Смерті', kd: 'В/С',
-      assists: 'Допомоги', score: 'Очки', scoreAvg: 'Сер. очки', headshots: 'У голову', grenadeKills: 'Гранатами',
-      meleeKills: 'Врукопаш', batteries: 'Батареї', captures: 'Захоплення', artefacts: 'Артефакти', members: 'Учасники', commander: 'Командир',
-      overall: 'Загалом', inMatches: 'У матчах', last30: 'Останні 30 днів', ended: 'Завершено', duration: 'Тривалість',
-      map: 'Мапа', mode: 'Режим', result: 'Результат', place: 'Місце', team: 'Команда', points: 'Бали',
-      win: 'Перемога', loss: 'Поразка', draw: 'Нічия', left: 'Вийшов', won: 'перемогла', older: 'Старіші матчі', hours: 'Годин у грі',
-      replay: 'Повтор', replayPreparing: 'Готуємо…', replayFile: 'Завантажити',
-      replayNo: {incompatible: 'Записано старішою версією гри', busy: 'Зайнято, спробуйте за хвилину', other: 'Повтору немає'},
-      today: 'Лідери дня', allTime: 'За весь час', shots: 'Постріли',
-      accuracy: 'Точність', weapons: 'Зброя', weapon: 'Зброя', armour: 'Броня', kit: 'Комплект', favourites: 'Улюблене спорядження',
-      accuracyNote: '1000+ пострілів', averageNote: '20+ матчів', headshotRate: 'У голову %',
-      noMatches: 'Публічних матчів ще немає.', noPlayer: 'Гравця з публічними матчами на ім’я «{}» немає.', noClan: 'Клану [{}] немає.',
-      noMatch: 'Публічного матчу {} немає.', noHistory: 'Цей сервер не зберігає історію матчів.',
-      failed: 'Не вдалося завантажити статистику. Оновіть сторінку.', nobody: 'Поки нікого.',
-    },
-  }[lang];
+  // The page's language: its links' and the names the API gives (the game's eleven). The page's
+  // own words (TEXT, by name) are the server's, in that language where the site has them, else in
+  // English: `written` is the one they are in, for the numbers and dates beside them.
+  const lang = document.documentElement.lang || 'en';
+  const written = root.dataset.locale || 'en';
+  const TEXT = JSON.parse(document.getElementById('stats-text').textContent);
   const PAGE = 15, TOP = 50;
   // An empty cell's text, so it has a line's height.
   const BLANK = '\u00a0';
   const BOARDS = {
-    players: ['rating', 'matches', 'wins', 'kills', 'score_avg', 'accuracy'],
+    players: ['rating', 'matches', 'wins', 'win_rate', 'kills', 'kd', 'score_avg', 'headshot_rate', 'accuracy'],
     clans: ['matches', 'wins', 'kills'],
     best: ['day', 'hour'],
     latest: [],
   };
-  const KEY_TEXT = {rating: 'rating', matches: 'matches', wins: 'wins', kills: 'kills', score_avg: 'scoreAvg',
-    accuracy: 'accuracy', day: 'day', hour: 'hour'};
-  // What a list by a key leaves out, said beside the keys.
-  const KEY_NOTE = {accuracy: 'accuracyNote', score_avg: 'averageNote'};
-  const numbers = new Intl.NumberFormat(lang, {maximumFractionDigits: 2});
-  const pair = new Intl.NumberFormat(lang, {minimumFractionDigits: 2, maximumFractionDigits: 2});
-  const percent = new Intl.NumberFormat(lang, {style: 'percent', maximumFractionDigits: 1});
-  const hours = new Intl.NumberFormat(lang, {minimumFractionDigits: 1, maximumFractionDigits: 1});
+  // What a list by a key leaves out, said beside the boards.
+  const KEY_NOTE = {accuracy: 'accuracyNote', score_avg: 'averageNote', win_rate: 'averageNote', kd: 'averageNote',
+    headshot_rate: 'averageNote'};
+  const numbers = new Intl.NumberFormat(written, {maximumFractionDigits: 2});
+  const pair = new Intl.NumberFormat(written, {minimumFractionDigits: 2, maximumFractionDigits: 2});
+  const percent = new Intl.NumberFormat(written, {style: 'percent', maximumFractionDigits: 1});
+  const hours = new Intl.NumberFormat(written, {minimumFractionDigits: 1, maximumFractionDigits: 1});
   // Accuracy in whole percents: shots count pellets and kits, not aimed bullets.
-  const whole = new Intl.NumberFormat(lang, {style: 'percent', maximumFractionDigits: 0});
-  const dates = new Intl.DateTimeFormat(lang, {dateStyle: 'medium', timeStyle: 'short'});
-  const day = new Intl.DateTimeFormat(lang, {dateStyle: 'medium'});
-  const dayThisYear = new Intl.DateTimeFormat(lang, {month: 'short', day: 'numeric'});
-  const time = new Intl.DateTimeFormat(lang, {timeStyle: 'short'});
+  const whole = new Intl.NumberFormat(written, {style: 'percent', maximumFractionDigits: 0});
+  const metres = new Intl.NumberFormat(written, {style: 'unit', unit: 'meter', maximumFractionDigits: 0});
+  const dates = new Intl.DateTimeFormat(written, {dateStyle: 'medium', timeStyle: 'short'});
+  const day = new Intl.DateTimeFormat(written, {dateStyle: 'medium'});
+  const dayThisYear = new Intl.DateTimeFormat(written, {month: 'short', day: 'numeric'});
+  const time = new Intl.DateTimeFormat(written, {timeStyle: 'short'});
   const query = new URLSearchParams(location.search);
   const asked = name => (query.get(name) || '').trim();
 
@@ -105,7 +71,7 @@
   const say = (template, value) => template.replace('{}', value);
   function playerLink(player) {
     return el('span', {}, player.clan ? [link({clan: player.clan.tag}, `[${player.clan.tag}]`), ' '] : [],
-      link({player: player.name}, player.name));
+      link({id: player.id}, player.name));
   }
 
   // A heading's look: the page's title, the line over it, the breadcrumb's last part.
@@ -130,11 +96,23 @@
   // column's `empty` gives its empty cell the shape of a full one). With
   // `open` (where a row leads: the stats' own parameters, or an address;
   // null for nowhere), a click anywhere on a row goes there, but on a link
-  // of its own or while text is selected.
-  function table(columns, rows, placeholder = PAGE, sorted = '', open = null) {
+  // of its own or while text is selected. With `sort` ({ask, up}), the
+  // heading of a column with a key is a button that asks for the list by
+  // it (`ask(key)`); `up`: the sorted one is smallest first.
+  function table(columns, rows, placeholder = PAGE, sorted = '', open = null, sort = null) {
     const body = el('tbody');
-    const head = el('thead', {}, el('tr', {}, columns.map(([label, , kind, key]) =>
-      el('th', {className: `${kind || ''}${key && key === sorted ? ' sorted' : ''}`, scope: 'col'}, label))));
+    const head = el('thead', {}, el('tr', {}, columns.map(([label, , kind, key]) => {
+      const th = el('th', {className: `${kind || ''}${key && key === sorted ? ' sorted' : ''}`, scope: 'col'}, label);
+      const up = Boolean(sort && sort.up);
+      if (key && key === sorted) th.setAttribute('aria-sort', up ? 'ascending' : 'descending');
+      if (key && key === sorted && up) th.classList.add('up');
+      if (sort && key) {
+        const button = el('button', {type: 'button'}, label);
+        button.addEventListener('click', () => sort.ask(key));
+        th.replaceChildren(button);
+      }
+      return th;
+    })));
     const wrap = el('div', {className: 'table-scroll'}, el('table', {className: 'stats-table'}, head, body));
     wrap.add = list => body.append(...list.map(row => {
       const to = open && open(row);
@@ -231,24 +209,74 @@
   // A player's most used weapons and armour (player/equipment), FAVOURITES
   // rows each, empty ones too, so its height is the same loading or not.
   const FAVOURITES = 5;
+  // An item's place in the wiki: a weapon's card, an armour piece's; none
+  // for one the game data no longer has.
+  const wiki = (page, anchor) => item => item.key ? `/wiki/${page}?${new URLSearchParams({lang})}#${anchor}${item.key}` : null;
+  const wikiWeapon = wiki('weapons', 'wpn_');
+  // An item's icon as the lobby draws it, beside its name (a link with
+  // `href`); an empty frame of its size while loading, in an empty row,
+  // and for an item without one.
+  const itemCell = (item, href) => el('span', {className: 'stats-item-cell'},
+    item && item.icon ? el('img', {className: 'stats-item', src: item.icon, alt: '', width: 54, height: 26, loading: 'lazy'})
+      : el('span', {className: 'stats-item'}),
+    item ? (href ? el('a', {href}, name(item.name)) : name(item.name)) : BLANK);
   function favourites(data) {
-    // An item's place in the wiki: a weapon's card, an armour piece's; none
-    // for one the game data no longer has.
-    const wiki = (page, anchor) => item => item.key ? `/wiki/${page}?${new URLSearchParams({lang})}#${anchor}${item.key}` : null;
     const list = (label, items, where) => {
-      const box = table([[label, item => where(item) ? el('a', {href: where(item)}, name(item.name)) : name(item.name), 'l'],
+      const box = table([[label, item => itemCell(item, where(item)), 'l', '', () => itemCell(null)],
         [TEXT.matches, item => n(item.matches)]], items, FAVOURITES, '', where);
       if (items) box.blank(FAVOURITES - items.length);
       return box;
     };
     return [el('h2', {className: 'stats-heading'}, TEXT.favourites),
-      el('div', {className: 'stats-favourites'}, list(TEXT.weapon, data && data.weapons, wiki('weapons', 'wpn_')), list(TEXT.armour, data && data.armour, wiki('equipment', '')))];
+      el('div', {className: 'stats-favourites'}, list(TEXT.weapon, data && data.weapons, wikiWeapon), list(TEXT.armour, data && data.armour, wiki('equipment', '')))];
+  }
+  // A player's weapons (player/weapons): what its games counted of each in
+  // its counted matches, sorted by the column whose heading was clicked
+  // (`?by=`; most kills first at first); K/D by the deaths with it in the
+  // hands. WEAPONS empty rows while loading, and without an `id` yet; a
+  // list sorted anew stays until the new one is here.
+  const WEAPONS = 5;
+  const WEAPON_KEYS = ['kills', 'kd', 'kills_per_minute', 'headshot_rate', 'accuracy', 'kill_distance', 'wall_kills', 'ricochet_kills', 'held'];
+  function weaponList(id) {
+    const columns = [[TEXT.weapon, item => itemCell(item, wikiWeapon(item)), 'l', '', () => itemCell(null)],
+      [TEXT.kills, item => n(item.kills), '', 'kills'], [TEXT.kd, item => kd(item.kd), '', 'kd'],
+      [TEXT.killsPerMinute, item => kd(item.kills_per_minute), '', 'kills_per_minute'], [TEXT.headshotRate, headshotRate, '', 'headshot_rate'],
+      [TEXT.accuracy, aim, '', 'accuracy'],
+      [TEXT.avgDistance, item => item.kill_distance_m === null ? '—' : metres.format(item.kill_distance_m), '', 'kill_distance'],
+      [TEXT.wallKills, item => n(item.wall_kills), '', 'wall_kills'], [TEXT.ricochetKills, item => n(item.ricochet_kills), '', 'ricochet_kills'],
+      [TEXT.hours, item => hours.format(item.held_s / 3600), '', 'held']];
+    let by = WEAPON_KEYS.includes(asked('by')) ? asked('by') : WEAPON_KEYS[0], up = asked('order') === 'asc', asking = 0;
+    const box = el('div', {className: 'stats-weapons'});
+    // A second click on the sorted heading: the smallest first, and back.
+    const sort = () => ({up, ask: key => {
+      up = key === by && !up;
+      by = key;
+      const url = new URL(location.href);
+      url.searchParams.set('by', by);
+      if (up) url.searchParams.set('order', 'asc'); else url.searchParams.delete('order');
+      history.replaceState(null, '', url);
+      keepLanguage();
+      load();
+    }});
+    function load() {
+      const mine = ++asking;
+      if (!box.firstChild || id === null) box.replaceChildren(table(columns, null, WEAPONS, by, null, sort()));
+      if (id !== null) api('player/weapons', {id, by, limit: TOP, ...(up ? {order: 'asc'} : {})}).then(data => {
+        if (mine !== asking) return;
+        const rows = data ? data.weapons : [];
+        box.replaceChildren(rows.length ? table(columns, rows, 0, by, wikiWeapon, sort()) : notice(TEXT.noWeapons));
+      }, error => { if (mine === asking) box.replaceChildren(notice(String(error))); });
+    }
+    load();
+    return box;
   }
   const matchLink = row => link({match: row.id}, `${row.id}`);
   // A map's name, leading to it in the wiki's Maps page in the match's mode;
   // plain for a map the game data no longer has.
   const mapAddress = row => `/wiki/maps?${new URLSearchParams({lang})}#${row.map_key}/${row.rules}`;
   const mapLink = row => row.map_key ? el('a', {href: mapAddress(row)}, row.map) : name(row.map);
+  // A mode's name, linked to its section on the wiki's Modes page.
+  const modeLink = row => row.mode_url ? el('a', {href: row.mode_url}, name(row.mode)) : name(row.mode);
   // A map's picture as the rooms draw it, beside its name and mode; an
   // empty frame of its size while loading, and for a map without one.
   // The picture leads where the name does.
@@ -261,7 +289,7 @@
     el('span', {}, row ? [mapLink(row), el('small', {className: 'stats-under'}, name(row.mode))] : twoLines()));
   // Where a click on a match's row goes, and on a player's.
   const openMatch = row => ({match: row.id});
-  const openPlayer = row => ({player: row.player.name});
+  const openPlayer = row => ({id: row.player.id});
   // The two teams' points; a free-for-all has none.
   const points = row => row.winner === 'free_for_all' ? '—' : row.team_points.map(n).join(' : ');
   // Two lines a match: the time under the day, the mode under the map.
@@ -295,10 +323,27 @@
       [TEXT.hours, totals ? hours.format(totals.played_s / 3600) : null]];
   }
 
-  async function playerView(name) {
-    heading(name, TEXT.player, TEXT.player);
+  // The names a player left, the last left first, each saying until when
+  // on a hover: the last FORMER_SHOWN, the rest behind a button that says
+  // how many they are.
+  const FORMER_SHOWN = 5;
+  function formerNames(names) {
+    if (!names.length) return '—';
+    const said = list => list.flatMap((former, i) => [i ? ', ' : '',
+      el('span', {title: say(TEXT.until, day.format(new Date(former.until * 1000)))}, former.name)]);
+    const box = el('span', {className: 'stats-names'}, said(names.slice(0, FORMER_SHOWN)));
+    if (names.length > FORMER_SHOWN) {
+      const rest = el('button', {type: 'button', className: 'quiet', ariaLabel: TEXT.formerNames}, `+${n(names.length - FORMER_SHOWN)}`);
+      rest.addEventListener('click', () => box.replaceChildren(...said(names)));
+      box.append(' ', rest);
+    }
+    return box;
+  }
+  // A player, by its account's id or by a name (`key`: {id} or {name}).
+  async function playerView(key) {
+    heading(key.name ?? TEXT.player, TEXT.player, TEXT.player);
     const head = (card, days) => panels(
-      [TEXT.overall, [[TEXT.level, card ? n(card.level) : null], [TEXT.experience, card ? n(card.experience) : null],
+      [TEXT.overall, [[TEXT.id, card ? String(card.player.id) : null], [TEXT.formerNames, card ? formerNames(card.names) : null], [TEXT.level, card ? n(card.level) : null], [TEXT.experience, card ? n(card.experience) : null],
         [TEXT.rating, card ? n(card.rating) : null],
         [TEXT.clan, card ? (card.player.clan ? link({clan: card.player.clan.tag}, `[${card.player.clan.tag}]`) : '—') : null], ...record(card && card.totals)]],
       [TEXT.inMatches, combat(card && card.totals)],
@@ -307,16 +352,69 @@
       [TEXT.score, row => n(row.score)], [TEXT.kills, row => n(row.kills)], [TEXT.deaths, row => n(row.deaths)],
       [TEXT.kd, row => kd(row.kd)], [TEXT.accuracy, aim], [TEXT.assists, row => n(row.assists)], [TEXT.headshotRate, headshotRate],
       [TEXT.rating, row => n(row.rating)]];
-    root.replaceChildren(head(null, null), ...favourites(null), el('h2', {className: 'stats-heading'}, TEXT.matches), table(columns, null));
+    // Its matches, its weapons or its skills, as ?tab= says; empty until
+    // the player's card is here.
+    const trees = document.getElementById('stats-skills');
+    const TABS = [['matches', TEXT.matches], ['weapons', TEXT.weapons], ...(trees ? [['skills', TEXT.skills]] : [])];
+    let tab = TABS.some(([value]) => value === asked('tab')) ? asked('tab') : 'matches', id = null, card = null;
+    const tabs = el('div', {className: 'slot-filter stats-tabs', role: 'group'});
+    const body = el('div');
+    // The skills: the wiki's trees (the page's template, src/skills.rs)
+    // under the wiki's own script, which draws the build the trees carry
+    // (the card's) and takes no change to it. The script looks for the
+    // trees once, as it starts: they stay in the page, hidden under
+    // another tab, and it starts when the card is here.
+    const skills = el('div', {className: 'stats-skills', hidden: true});
+    let script = null;
+    function drawSkills() {
+      if (!skills.firstChild) {
+        const made = trees.content.cloneNode(true);
+        script = made.querySelector('script');
+        script.remove();
+        skills.append(made);
+      }
+      if (card && script) {
+        skills.querySelector('.skill-trees').dataset.build = card.skills.map(([skill, points]) => `${skill}.${points}`).join(',');
+        skills.append(script);
+        script = null;
+      }
+    }
+    function show() {
+      for (const button of tabs.children) button.setAttribute('aria-pressed', String(button.dataset.tab === tab));
+      const url = new URL(location.href);
+      if (tab === 'matches') url.searchParams.delete('tab');
+      else url.searchParams.set('tab', tab);
+      if (tab !== 'weapons') for (const gone of ['by', 'order']) url.searchParams.delete(gone);
+      history.replaceState(null, '', url);
+      keepLanguage();
+      body.hidden = tab === 'skills';
+      skills.hidden = !body.hidden;
+      if (tab === 'skills') return drawSkills();
+      body.replaceChildren(tab === 'weapons' ? weaponList(id) : id === null ? table(columns, null)
+        : paged(columns, before => api('player/matches', {id, limit: PAGE, ...(before ? {before} : {})}), TEXT.noMatches, openMatch));
+    }
+    for (const [value, label] of TABS) {
+      const button = el('button', {type: 'button'}, label);
+      button.dataset.tab = value;
+      button.addEventListener('click', () => { tab = value; show(); });
+      tabs.append(button);
+    }
+    root.replaceChildren(head(null, null), ...favourites(null), tabs, body, skills);
+    show();
     // A player without a public match is not found, as an unknown name.
-    const card = await api('player', {name});
-    if (!card) return root.replaceChildren(notice(say(TEXT.noPlayer, name)), finder());
+    card = await api('player', key);
+    if (!card) return root.replaceChildren(notice(say(TEXT.noPlayer, key.name ?? key.id)), finder());
     heading(card.player.name, TEXT.player, TEXT.player);
+    // The address is the id's from here: the name can change.
+    const url = new URL(location.href);
+    url.searchParams.delete('player');
+    url.searchParams.set('id', card.player.id);
+    history.replaceState(null, '', url);
     const [days, equipment] = await Promise.all([api('player/days', {id: card.player.id, days: 30}).catch(() => null),
       api('player/equipment', {id: card.player.id, limit: FAVOURITES}).catch(() => null)]);
-    root.replaceChildren(head(card, days ? days.days : []), ...favourites(equipment || {weapons: [], armour: []}),
-      el('h2', {className: 'stats-heading'}, TEXT.matches),
-      paged(columns, before => api('player/matches', {id: card.player.id, limit: PAGE, ...(before ? {before} : {})}), TEXT.noMatches, openMatch));
+    id = card.player.id;
+    root.replaceChildren(head(card, days ? days.days : []), ...favourites(equipment || {weapons: [], armour: []}), tabs, body, skills);
+    show();
   }
 
   // A match's replay (replay): one Download. Pressed, the replay is asked
@@ -357,13 +455,29 @@
   const sidePoints = m => [el('span', {className: 'stats-side stats-team0'}, n(m.team_points[0])), ' : ',
     el('span', {className: 'stats-side stats-team1'}, n(m.team_points[1]))];
 
+  // A list that is whole in the page (`rows`; null while loading) and
+  // sorts there: by the column whose heading was clicked, the largest
+  // first, the smallest on a second click. A column's sixth piece is the
+  // number it sorts by; `key` and `up`: how the list comes.
+  function sortable(columns, rows, placeholder, open, key, up) {
+    const box = el('div');
+    const draw = () => {
+      const by = columns.find(column => column[3] === key)[5];
+      const sorted = rows && [...rows].sort((a, b) => (up ? 1 : -1) * (by(a) - by(b)));
+      box.replaceChildren(table(columns, sorted, placeholder, key, open,
+        {up, ask: asked => { up = asked === key && !up; key = asked; draw(); }}));
+    };
+    draw();
+    return box;
+  }
   async function matchView(id) {
     heading(`${TEXT.match} ${id}`, TEXT.match, `${TEXT.match} ${id}`);
-    const columns = [[TEXT.place, row => n(row.place)], [TEXT.player, playerKit, 'l', '', twoLines],
-      [TEXT.level, row => n(row.level)], [TEXT.score, row => n(row.score)], [TEXT.kills, row => n(row.kills)],
-      [TEXT.deaths, row => n(row.deaths)], [TEXT.kd, row => kd(row.kd)], [TEXT.accuracy, aim], [TEXT.assists, row => n(row.assists)],
-      [TEXT.headshotRate, headshotRate], [TEXT.grenadeKills, row => n(row.grenade_kills)],
-      [TEXT.meleeKills, row => n(row.melee_kills)], [TEXT.captures, row => n(row.captures)], [TEXT.rating, row => n(row.rating)]];
+    const of = (label, key, cell = row => n(row[key]), value = row => row[key]) => [label, cell, '', key, null, value];
+    const columns = [of(TEXT.place, 'place'), [TEXT.player, playerKit, 'l', '', twoLines],
+      of(TEXT.score, 'score'), of(TEXT.kills, 'kills'), of(TEXT.deaths, 'deaths'), of(TEXT.kd, 'kd', row => kd(row.kd)),
+      of(TEXT.accuracy, 'accuracy', aim, row => row.shots ? row.accuracy : -1), of(TEXT.assists, 'assists'),
+      of(TEXT.headshotRate, 'headshots', headshotRate, row => row.kills ? row.headshots / row.kills : -1),
+      of(TEXT.grenadeKills, 'grenade_kills'), of(TEXT.meleeKills, 'melee_kills'), of(TEXT.rating, 'rating')];
     const view = data => {
       const m = data && data.match;
       // A free-for-all: everyone its own side, one list by place.
@@ -372,15 +486,15 @@
         : free ? data.players.filter(row => row.outcome === 'won').map(row => row.player.name).join(', ') || '—'
         : m.winner === null ? '—' : el('span', {className: `stats-side stats-team${m.winner}`}, `${TEXT.team} ${m.winner + 1} ${TEXT.won}`);
       const teams = free
-        ? [[el('h2', {className: 'stats-heading'}, TEXT.players), table(columns, [...data.players].sort((a, b) => a.place - b.place), 0, '', openPlayer)]]
+        ? [[el('h2', {className: 'stats-heading'}, TEXT.players), sortable(columns, data.players, 0, openPlayer, 'place', true)]]
         : [0, 1].map(team => {
           const rows = data ? data.players.filter(row => row.team === team) : null;
           const title = `${TEXT.team} ${team + 1}${m ? ` · ${n(m.team_points[team])}` : ''}${m && m.winner === team ? ` · ${TEXT.win}` : ''}`;
-          return [el('h2', {className: `stats-heading stats-team stats-team${team}`}, title), table(columns, rows, 6, '', openPlayer)];
+          return [el('h2', {className: `stats-heading stats-team stats-team${team}`}, title), sortable(columns, rows, 6, openPlayer, 'place', true)];
         });
       return [panels([TEXT.match, [[TEXT.ended, m ? when(m.ended_at) : null], [TEXT.duration, m ? duration(m.duration_s) : null],
         [TEXT.map, el('span', {className: 'stats-map-cell'}, m ? mapLink(m) : BLANK, mapPicture(m))],
-        [TEXT.mode, m ? name(m.mode) : null]]],
+        [TEXT.mode, m ? modeLink(m) : null]]],
       [TEXT.result, [[TEXT.result, winner], [TEXT.points, m ? (free ? '—' : sidePoints(m)) : null],
         [TEXT.level, m ? n(m.level) : null], [TEXT.players, m ? n(m.players) : null],
         // Always there, so that nothing moves when the answer comes; a match without one has none.
@@ -402,7 +516,7 @@
     const matchColumns = [...MATCH_COLUMNS, [TEXT.points, points], [TEXT.players, row => n(row.players)]];
     const head = data => panels(
       [TEXT.clan, [[TEXT.level, data ? n(data.clan.level) : null], [TEXT.members, data ? n(data.clan.members) : null],
-        [TEXT.commander, data ? (data.clan.leader ? link({player: data.clan.leader.name}, data.clan.leader.name) : '—') : null],
+        [TEXT.commander, data ? (data.clan.leader ? link({id: data.clan.leader.id}, data.clan.leader.name) : '—') : null],
         ...record(data && data.totals)]],
       [TEXT.inMatches, combat(data && data.totals)]);
     root.replaceChildren(head(null), el('h2', {className: 'stats-heading'}, TEXT.members), table(memberColumns, null, 8));
@@ -430,19 +544,52 @@
   }
 
   // The landing's own (today, totals): the day's leaders, five short lists
-  // (the day is UTC's), and everything counted added up.
+  // (the day is UTC's), and everything counted added up. The lists open
+  // up: five each, twenty or fifty (`?leaders=`), all as long as the
+  // longest, five rows at least. Gone when the day cannot be read.
   const LEADERS = [['kills', 'kills'], ['assists', 'assists'], ['score', 'score'], ['wins', 'wins'], ['played_s', 'hours']];
-  const LEADERS_EACH = 5;
-  function leaders(data) {
+  const LEADER_SIZES = [5, 20, 50];
+  function leaders() {
     const value = (key, amount) => key === 'played_s' ? hours.format(amount / 3600) : n(amount);
-    return [el('h2', {className: 'stats-heading'}, TEXT.today),
-      el('div', {className: 'stats-leaders'}, LEADERS.map(([key, label]) => {
-        const rows = data && (data.leaders[key] || []).map((row, rank) => ({...row, rank}));
-        const box = table([[TEXT.rank, row => n(row.rank + 1)], [TEXT.player, row => playerLink(row.player), 'l'],
-          [TEXT[label], row => value(key, row.value)]], rows, LEADERS_EACH, '', openPlayer);
-        if (rows) box.blank(LEADERS_EACH - rows.length);
-        return box;
-      }))];
+    let size = LEADER_SIZES.includes(Number(asked('leaders'))) ? Number(asked('leaders')) : LEADER_SIZES[0], asking = 0;
+    const sizes = el('div', {className: 'slot-filter stats-sizes', role: 'group', ariaLabel: TEXT.today});
+    const lists = el('div', {className: 'stats-leaders'});
+    const box = el('div', {}, el('div', {className: 'stats-heading-row'}, el('h2', {className: 'stats-heading'}, TEXT.today), sizes), lists);
+    // A name too long for its list is cut short: whole in its title.
+    const named = player => { const name = playerLink(player); name.title = name.textContent; return name; };
+    const draw = data => {
+      const of = key => data && (data.leaders[key] || []).map((row, rank) => ({...row, rank}));
+      const longest = Math.max(LEADER_SIZES[0], ...LEADERS.map(([key]) => (of(key) || []).length));
+      lists.replaceChildren(...LEADERS.map(([key, label]) => {
+        const rows = of(key);
+        const list = table([[TEXT.rank, row => n(row.rank + 1)], [TEXT.player, row => named(row.player), 'l'],
+          [el('span', {className: 'stats-over'}, TEXT[label]), row => value(key, row.value)]], rows, longest, '', openPlayer);
+        if (rows) list.blank(longest - rows.length);
+        return list;
+      }));
+    };
+    // A list asked anew stays until the new one is here.
+    function load() {
+      const mine = ++asking;
+      for (const button of sizes.children) button.setAttribute('aria-pressed', String(Number(button.dataset.size) === size));
+      api('today', {limit: size}).then(data => { if (mine === asking) draw(data || {leaders: {}}); }, () => { if (mine === asking) box.replaceChildren(); });
+    }
+    for (const each of LEADER_SIZES) {
+      const button = el('button', {type: 'button'}, n(each));
+      button.dataset.size = each;
+      button.addEventListener('click', () => {
+        size = each;
+        const url = new URL(location.href);
+        if (size === LEADER_SIZES[0]) url.searchParams.delete('leaders'); else url.searchParams.set('leaders', size);
+        history.replaceState(null, '', url);
+        keepLanguage();
+        load();
+      });
+      sizes.append(button);
+    }
+    draw(null);
+    load();
+    return box;
   }
   // Everything added up: its heading, then one row in the tables' look.
   function allTime(data) {
@@ -457,15 +604,21 @@
     heading(TEXT.stats, document.getElementById('stats-eyebrow').textContent, '');
     let board = BOARDS[asked('board')] ? asked('board') : 'players';
     let key = BOARDS[board].includes(asked('by')) ? asked('by') : BOARDS[board][0];
+    // Smallest first: a second click on the sorted heading, and back.
+    let up = asked('order') === 'asc' && (board === 'players' || board === 'clans');
+    // How many pages of the players are open ("More players"): a sort
+    // shows as many again, another board starts over.
+    let pages = 1;
     const tabs = el('div', {className: 'slot-filter', role: 'group', ariaLabel: TEXT.stats});
     const keys = el('div', {className: 'slot-filter stats-keys', role: 'group'});
+    const note = el('small', {className: 'stats-note'});
     const body = el('div', {className: 'stats-board'});
     const playerColumns = [[TEXT.rank, (row, i) => n(i + 1)], [TEXT.player, row => playerLink(row.player), 'l'],
-      [TEXT.level, row => n(row.level)], [TEXT.rating, row => n(row.rating), '', 'rating'],
+      [TEXT.rating, row => n(row.rating), '', 'rating'],
       [TEXT.matches, row => n(row.totals.matches), '', 'matches'], [TEXT.wins, row => n(row.totals.wins), '', 'wins'],
-      [TEXT.winRate, row => rate(row.totals.win_rate)], [TEXT.kills, row => n(row.totals.kills), '', 'kills'],
-      [TEXT.kd, row => kd(row.totals.kd)], [TEXT.scoreAvg, row => n(row.totals.score_avg), '', 'score_avg'],
-      [TEXT.headshotRate, row => headshotRate(row.totals)], [TEXT.accuracy, row => aim(row.totals), '', 'accuracy']];
+      [TEXT.winRate, row => rate(row.totals.win_rate), '', 'win_rate'], [TEXT.kills, row => n(row.totals.kills), '', 'kills'],
+      [TEXT.kd, row => kd(row.totals.kd), '', 'kd'], [TEXT.scoreAvg, row => n(row.totals.score_avg), '', 'score_avg'],
+      [TEXT.headshotRate, row => headshotRate(row.totals), '', 'headshot_rate'], [TEXT.accuracy, row => aim(row.totals), '', 'accuracy']];
     const clanColumns = [[TEXT.rank, (row, i) => n(i + 1)], [TEXT.clan, row => link({clan: row.tag}, `[${row.tag}] ${row.name}`), 'l'],
       [TEXT.level, row => n(row.level)], [TEXT.members, row => n(row.members)],
       [TEXT.matches, row => n(row.totals.matches), '', 'matches'], [TEXT.wins, row => n(row.totals.wins), '', 'wins'],
@@ -482,30 +635,40 @@
     let shown = 0;
     async function draw() {
       const drawing = ++shown;
-      for (const button of tabs.children) button.setAttribute('aria-pressed', String(button.dataset.board === board));
-      keys.replaceChildren(...BOARDS[board].map(value => {
-        const button = el('button', {type: 'button'}, TEXT[KEY_TEXT[value]]);
+      for (const button of tabs.querySelectorAll('button')) button.setAttribute('aria-pressed', String(button.dataset.board === board));
+      // The best scores' periods are buttons of a row of their own; a list
+      // of players or clans sorts by its columns' headings.
+      note.textContent = KEY_NOTE[key] ? TEXT[KEY_NOTE[key]] : '';
+      keys.hidden = board !== 'best';
+      keys.replaceChildren(...(board === 'best' ? BOARDS.best : []).map(value => {
+        const button = el('button', {type: 'button'}, TEXT[value]);
         button.setAttribute('aria-pressed', String(value === key));
         button.addEventListener('click', () => { key = value; draw(); });
         return button;
-      }), ...(KEY_NOTE[key] ? [el('small', {className: 'stats-note'}, TEXT[KEY_NOTE[key]])] : []));
+      }));
       const url = new URL(location.href);
       url.searchParams.set('board', board);
       if (key) url.searchParams.set('by', key); else url.searchParams.delete('by');
+      if (up) url.searchParams.set('order', 'asc'); else url.searchParams.delete('order');
       history.replaceState(null, '', url);
       keepLanguage();
       if (board === 'latest') return body.replaceChildren(paged(latestColumns, before => api('matches', {limit: PAGE, ...(before ? {before} : {})}), TEXT.noMatches, openMatch));
       const [path, params, columns, list, size] = {
-        players: ['top', {by: key, limit: TOP}, playerColumns, data => data.players, TOP],
-        clans: ['clans', {by: key, limit: TOP}, clanColumns, data => data.clans, 20],
+        players: ['top', {by: key, limit: TOP, ...(up ? {order: 'asc'} : {})}, playerColumns, data => data.players, TOP],
+        clans: ['clans', {by: key, limit: TOP, ...(up ? {order: 'asc'} : {})}, clanColumns, data => data.clans, 20],
         best: ['best', {period: key}, bestColumns, data => data.rows, 20],
       }[board];
       const sorted = board === 'best' ? '' : key;
-      body.replaceChildren(table(ranked(columns), null, Math.min(size, body.rows || size), sorted));
-      let rows;
+      const sort = board === 'best' ? null : {up, ask: value => { up = value === key && !up; key = value; draw(); }};
+      body.replaceChildren(table(ranked(columns), null, pages > 1 ? body.rows : Math.min(size, body.rows || size), sorted, null, sort));
+      const rows = [];
+      let data;
       try {
-        const data = await api(path, params);
-        rows = data ? list(data) : [];
+        for (let page = 0; page < pages; page++) {
+          data = await api(path, page ? {...params, after: rows.length} : params);
+          rows.push(...(data ? list(data) : []));
+          if (drawing !== shown || !data || !data.more) break;
+        }
       } catch (error) {
         if (drawing === shown) body.replaceChildren(notice(String(error)));
         return;
@@ -513,31 +676,56 @@
       if (drawing !== shown) return;
       rows.forEach((row, i) => { row.rank = i; });
       body.rows = rows.length || 1;
-      body.replaceChildren(rows.length ? table(ranked(columns), rows, 0, sorted, {players: openPlayer, clans: row => ({clan: row.tag}), best: row => ({match: row.match})}[board]) : notice(TEXT.nobody));
+      // An empty list that sorts keeps its headings: the way to another.
+      const drawn = table(ranked(columns), rows, 0, sorted, {players: openPlayer, clans: row => ({clan: row.tag}), best: row => ({match: row.match})}[board], sort);
+      body.replaceChildren(...(rows.length ? [drawn] : sort ? [drawn, notice(TEXT.nobody)] : [notice(TEXT.nobody)]));
+      // The players go on past their first page: the next one under the
+      // list, in the same order, while one follows.
+      if (board !== 'players' || !data || !data.more) return;
+      const more = el('button', {type: 'button', className: 'quiet'}, TEXT.morePlayers);
+      more.addEventListener('click', async () => {
+        more.disabled = true;
+        let next;
+        try {
+          next = await api(path, {...params, after: rows.length});
+        } catch (error) {
+          return more.replaceWith(notice(String(error)));
+        }
+        if (drawing !== shown) return;
+        pages += 1;
+        const added = next ? next.players : [];
+        added.forEach((row, i) => { row.rank = rows.length + i; });
+        rows.push(...added);
+        drawn.add(added);
+        body.rows = rows.length;
+        if (next && next.more) more.disabled = false; else more.remove();
+      });
+      body.append(more);
     }
     for (const value of Object.keys(BOARDS)) {
       const button = el('button', {type: 'button'}, TEXT[value]);
       button.dataset.board = value;
-      button.addEventListener('click', () => { board = value; key = BOARDS[board][0] || ''; draw(); });
+      button.addEventListener('click', () => { board = value; key = BOARDS[board][0] || ''; up = false; pages = 1; draw(); });
       tabs.append(button);
     }
-    const today = el('div', {}, leaders(null)), all = el('div', {}, ...allTime(null));
+    tabs.append(note);
+    const today = leaders(), all = el('div', {}, ...allTime(null));
     root.replaceChildren(finder(), today, all, tabs, keys, body);
-    api('today', {}).then(data => today.replaceChildren(...leaders(data || {leaders: {}})), () => today.replaceChildren());
     api('totals', {}).then(data => data ? all.replaceChildren(...allTime(data)) : all.replaceChildren(), () => all.replaceChildren());
     draw();
   }
 
-  // The language link keeps what is shown.
+  // Each of the header's languages keeps what is shown.
   function keepLanguage() {
-    const language = document.querySelector('a.lang');
-    if (!language) return;
-    const other = new URL(language.href);
-    for (const [name, value] of new URLSearchParams(location.search)) if (name !== 'lang') other.searchParams.set(name, value);
-    language.href = other;
+    for (const language of document.querySelectorAll('.lang a')) {
+      const other = new URL(location.href);
+      other.searchParams.set('lang', new URL(language.href).searchParams.get('lang'));
+      language.href = other;
+    }
   }
   keepLanguage();
-  const view = asked('player') ? playerView(asked('player'))
+  const view = asked('id') ? playerView({id: asked('id')})
+    : asked('player') ? playerView({name: asked('player')})
     : asked('match') ? matchView(asked('match'))
     : asked('clan') ? clanView(asked('clan'))
     : boardsView();

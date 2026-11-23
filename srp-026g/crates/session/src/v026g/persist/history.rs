@@ -184,6 +184,81 @@ pub(super) const MIGRATION: &str = "
     CREATE INDEX g26_clan_members_by_account ON g26_clan_members (account_id);
     ";
 
+/// The schema step that adds what a player did with each weapon, as the
+/// games count it (exe patch 165). A match of before has none.
+pub(super) const WEAPONS_MIGRATION: &str = "
+    -- One row a weapon a player's games counted something of in the match
+    -- ([`WeaponCounts`]), by items_dict id; 0: no weapon known.
+    CREATE TABLE g26_match_weapons (
+        match_id         INTEGER NOT NULL REFERENCES g26_matches(id) ON DELETE CASCADE,
+        account_id       INTEGER NOT NULL,
+        dict_id          INTEGER NOT NULL,
+        kills            INTEGER NOT NULL,
+        headshots        INTEGER NOT NULL,
+        wall_kills       INTEGER NOT NULL,
+        ricochet_kills   INTEGER NOT NULL,
+        -- With it in the hands.
+        deaths           INTEGER NOT NULL,
+        shots            INTEGER NOT NULL,
+        hits             INTEGER NOT NULL,
+        -- In ten-thousandths of a pain pool.
+        damage           INTEGER NOT NULL,
+        -- The kills' distances added up, and the longest, in decimetres.
+        kill_distance_dm INTEGER NOT NULL,
+        longest_kill_dm  INTEGER NOT NULL,
+        held_ms          INTEGER NOT NULL,
+        PRIMARY KEY (match_id, account_id, dict_id)
+    ) WITHOUT ROWID;
+    -- The counted public matches added up by weapon (the longest kill: the
+    -- longest of them); `matches`: those with a row of it.
+    CREATE TABLE g26_player_weapons (
+        account_id       INTEGER NOT NULL,
+        dict_id          INTEGER NOT NULL,
+        matches          INTEGER NOT NULL,
+        kills            INTEGER NOT NULL,
+        headshots        INTEGER NOT NULL,
+        wall_kills       INTEGER NOT NULL,
+        ricochet_kills   INTEGER NOT NULL,
+        deaths           INTEGER NOT NULL,
+        shots            INTEGER NOT NULL,
+        hits             INTEGER NOT NULL,
+        damage           INTEGER NOT NULL,
+        kill_distance_dm INTEGER NOT NULL,
+        longest_kill_dm  INTEGER NOT NULL,
+        held_ms          INTEGER NOT NULL,
+        PRIMARY KEY (account_id, dict_id)
+    ) WITHOUT ROWID;
+    ";
+
+/// The schema step that lowers the average score list's bound from 20
+/// matches to [`SCORE_AVG_MIN_MATCHES`] (the owner, 2026-11-20): its partial
+/// index made anew, the same number.
+pub(super) const SCORE_AVG_BOUND_MIGRATION: &str = "
+    DROP INDEX g26_player_totals_score_avg;
+    CREATE INDEX g26_player_totals_score_avg ON g26_player_totals (CAST(score AS REAL) / matches)
+        WHERE matches >= 5;
+    ";
+
+/// The schema step that keeps the names an account leaves: a row each time
+/// its name changes, whoever changed it (a trigger of `g26_accounts`: no
+/// writer can forget it). The names of before the step are not known.
+pub(super) const NAMES_MIGRATION: &str = "
+    CREATE TABLE g26_account_names (
+        account_id INTEGER NOT NULL,
+        name       TEXT NOT NULL,
+        -- When the account took another (UTC seconds).
+        until      INTEGER NOT NULL,
+        PRIMARY KEY (account_id, until, name)
+    ) WITHOUT ROWID;
+    CREATE INDEX g26_account_names_by_name ON g26_account_names (name COLLATE NOCASE, until);
+    CREATE TRIGGER g26_account_names_keep AFTER UPDATE OF name ON g26_accounts
+    WHEN OLD.name <> NEW.name
+    BEGIN
+        INSERT OR IGNORE INTO g26_account_names (account_id, name, until)
+        VALUES (OLD.account_id, OLD.name, CAST(strftime('%s', 'now') AS INTEGER));
+    END;
+    ";
+
 /// Who could join a match.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum MatchKind {
@@ -403,9 +478,10 @@ pub struct Counters {
 /// is the same number).
 pub const ACCURACY_MIN_SHOTS: u64 = 1000;
 /// The fewest counted matches a player's totals need for the average score
-/// top list, so that one good match does not top it
-/// (`g26_player_totals_score_avg` is the same number).
-pub const SCORE_AVG_MIN_MATCHES: u64 = 20;
+/// top list and the other ratios', so that one good match does not top them
+/// (`g26_player_totals_score_avg` is the same number, as
+/// [`SCORE_AVG_BOUND_MIGRATION`] makes it).
+pub const SCORE_AVG_MIN_MATCHES: u64 = 5;
 
 /// What a kit's counters say of one match, or of the matches added up.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -486,6 +562,125 @@ pub struct ItemTotals {
     pub matches: u64,
 }
 
+/// What a player did with one weapon, as its games counted it (exe patch
+/// 165, `snapshot::WeaponCounts`): of one match, or of matches added up.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct WeaponCounts {
+    /// Enemies killed with it; of them, those by a headshot, by a bullet
+    /// that had pierced something, and by one that had bounced.
+    pub kills: u64,
+    pub headshots: u64,
+    pub wall_kills: u64,
+    pub ricochet_kills: u64,
+    /// The player's deaths with it in the hands.
+    pub deaths: u64,
+    /// Bullets fired with it and those that hit an enemy, a pellet each.
+    pub shots: u64,
+    pub hits: u64,
+    /// The pain its hits took off enemies, in ten-thousandths of a pain
+    /// pool.
+    pub damage: u64,
+    /// Its kills' distances added up, in decimetres.
+    pub kill_distance_dm: u64,
+    /// Its longest kill, in decimetres.
+    pub longest_kill_dm: u64,
+    /// How long it was in the hands of the player alive.
+    pub held_ms: u64,
+}
+
+impl WeaponCounts {
+    /// The counters in the order of [`WEAPON`].
+    fn values(&self) -> [u64; WEAPON_COLUMNS] {
+        [
+            self.kills,
+            self.headshots,
+            self.wall_kills,
+            self.ricochet_kills,
+            self.deaths,
+            self.shots,
+            self.hits,
+            self.damage,
+            self.kill_distance_dm,
+            self.longest_kill_dm,
+            self.held_ms,
+        ]
+    }
+
+    fn of_values(values: [u64; WEAPON_COLUMNS]) -> Self {
+        let [
+            kills,
+            headshots,
+            wall_kills,
+            ricochet_kills,
+            deaths,
+            shots,
+            hits,
+            damage,
+            kill_distance_dm,
+            longest_kill_dm,
+            held_ms,
+        ] = values;
+        Self {
+            kills,
+            headshots,
+            wall_kills,
+            ricochet_kills,
+            deaths,
+            shots,
+            hits,
+            damage,
+            kill_distance_dm,
+            longest_kill_dm,
+            held_ms,
+        }
+    }
+}
+
+/// What a player's weapons sort by, the largest first.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum WeaponRanking {
+    Kills,
+    /// Kills by the deaths with it in the hands.
+    Kd,
+    /// Kills by the time in the hands: a weapon never held comes last.
+    KillsPerMinute,
+    /// Headshots by kills, hits by shots, the kills' average distance: a
+    /// weapon without a kill (a shot) comes last.
+    HeadshotRate,
+    Accuracy,
+    KillDistance,
+    WallKills,
+    RicochetKills,
+    Held,
+}
+
+impl WeaponRanking {
+    /// The number it sorts by, of `g26_player_weapons`; NULL (the smallest)
+    /// where nothing divides.
+    fn order(self) -> &'static str {
+        match self {
+            Self::Kills => "kills",
+            Self::Kd => "CAST(kills AS REAL) / max(deaths, 1)",
+            Self::KillsPerMinute => "CAST(kills AS REAL) / nullif(held_ms, 0)",
+            Self::HeadshotRate => "CAST(headshots AS REAL) / nullif(kills, 0)",
+            Self::Accuracy => "CAST(hits AS REAL) / nullif(shots, 0)",
+            Self::KillDistance => "CAST(kill_distance_dm AS REAL) / nullif(kills, 0)",
+            Self::WallKills => "wall_kills",
+            Self::RicochetKills => "ricochet_kills",
+            Self::Held => "held_ms",
+        }
+    }
+}
+
+/// A weapon of a player's counted public matches added up.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct WeaponTotals {
+    pub dict_id: u16,
+    /// The matches its games counted something of it in.
+    pub matches: u64,
+    pub counts: WeaponCounts,
+}
+
 /// A player's line of one match.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct PlayerLine {
@@ -516,6 +711,9 @@ pub struct PlayerRecord {
     pub line: PlayerLine,
     /// The kits it used, by place.
     pub kits: Vec<KitLine>,
+    /// What it did with each weapon, by items_dict id (0: no weapon known);
+    /// empty when its games counted none.
+    pub weapons: BTreeMap<u16, WeaponCounts>,
 }
 
 /// What a match was, whoever played it.
@@ -576,6 +774,24 @@ impl TotalsKey {
     }
 }
 
+/// Which end of a sorted list comes first.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum Order {
+    /// The largest.
+    #[default]
+    Descending,
+    Ascending,
+}
+
+impl Order {
+    fn sql(self) -> &'static str {
+        match self {
+            Self::Descending => "DESC",
+            Self::Ascending => "ASC",
+        }
+    }
+}
+
 /// What the players' top list sorts by.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum PlayerRanking {
@@ -586,6 +802,11 @@ pub enum PlayerRanking {
     Accuracy,
     /// Score a match, of the players with [`SCORE_AVG_MIN_MATCHES`] or more.
     ScoreAvg,
+    /// Wins by matches, kills by deaths and headshots by kills, of the same
+    /// players.
+    WinRate,
+    Kd,
+    HeadshotRate,
 }
 
 /// A registered clan, as a player's tag links it.
@@ -603,6 +824,13 @@ pub struct Named {
     pub clan: Option<ClanRef>,
 }
 
+/// A name an account had, and when it took another.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct FormerName {
+    pub name: String,
+    pub until: u64,
+}
+
 /// A player's card: who it is now and its totals.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PlayerCard {
@@ -610,6 +838,8 @@ pub struct PlayerCard {
     pub level: u8,
     pub experience: u32,
     pub rating: u16,
+    /// `(skill id, points)` of the skills it has points in, as it took them.
+    pub skills: Vec<(u16, u8)>,
     pub totals: Totals,
 }
 
@@ -658,6 +888,14 @@ pub struct TopPlayer {
     pub level: u8,
     pub rating: u16,
     pub totals: Totals,
+}
+
+/// A page of the players' top list.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct TopPage {
+    pub players: Vec<TopPlayer>,
+    /// Whether the list goes on after them.
+    pub more: bool,
 }
 
 /// One line of the best single-match scores.
@@ -797,6 +1035,12 @@ pub(super) fn record(
             ],
         )?;
         record_kits(&transaction, match_id, player)?;
+        record_weapons(
+            &transaction,
+            match_id,
+            player,
+            counted == Some(Eligibility::Counted),
+        )?;
         match counted {
             None => {}
             Some(Eligibility::Counted) => {
@@ -919,6 +1163,69 @@ fn record_kits(
                     item.slot.number(),
                     item.dict_id
                 ],
+            )?;
+        }
+    }
+    Ok(())
+}
+
+/// The counters of a [`WeaponCounts`], as both weapon tables name them
+/// ([`WEAPON_COLUMNS`] of them, [`WeaponCounts::values`]' order).
+const WEAPON: &str = "kills, headshots, wall_kills, ricochet_kills, deaths, shots, hits, damage,
+     kill_distance_dm, longest_kill_dm, held_ms";
+const WEAPON_COLUMNS: usize = 11;
+
+/// Writes what `player` did with each weapon in the match `match_id`, and
+/// adds it to the player's weapons when the match is `counted`.
+fn record_weapons(
+    transaction: &Transaction,
+    match_id: i64,
+    player: &PlayerRecord,
+    counted: bool,
+) -> Result<(), PersistError> {
+    for (&dict_id, counts) in &player.weapons {
+        let [a, b, c, d, e, f, g, h, i, j, k] = counts
+            .values()
+            .map(|value| value.min(i64::MAX as u64) as i64);
+        transaction.execute(
+            &format!(
+                "INSERT INTO g26_match_weapons (match_id, account_id, dict_id, {WEAPON})
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14)"
+            ),
+            params![
+                match_id,
+                player.account_id,
+                dict_id,
+                a,
+                b,
+                c,
+                d,
+                e,
+                f,
+                g,
+                h,
+                i,
+                j,
+                k
+            ],
+        )?;
+        if counted {
+            transaction.execute(
+                &format!(
+                    "INSERT INTO g26_player_weapons (account_id, dict_id, matches, {WEAPON})
+                     VALUES (?1, ?2, 1, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)
+                     ON CONFLICT(account_id, dict_id) DO UPDATE SET
+                         matches = matches + 1, kills = kills + excluded.kills,
+                         headshots = headshots + excluded.headshots,
+                         wall_kills = wall_kills + excluded.wall_kills,
+                         ricochet_kills = ricochet_kills + excluded.ricochet_kills,
+                         deaths = deaths + excluded.deaths, shots = shots + excluded.shots,
+                         hits = hits + excluded.hits, damage = damage + excluded.damage,
+                         kill_distance_dm = kill_distance_dm + excluded.kill_distance_dm,
+                         longest_kill_dm = max(longest_kill_dm, excluded.longest_kill_dm),
+                         held_ms = held_ms + excluded.held_ms"
+                ),
+                params![player.account_id, dict_id, a, b, c, d, e, f, g, h, i, j, k],
             )?;
         }
     }
@@ -1089,6 +1396,11 @@ fn bad(what: &str, text: &str) -> rusqlite::Error {
     )
 }
 
+/// A name of `g26_account_names n` the site may say: none an administrator
+/// took from the account.
+const SAID: &str = "NOT EXISTS (SELECT 1 FROM g26_admin_actions x
+     WHERE x.account_id = n.account_id AND x.kind = 'nickname' AND x.before = n.name)";
+
 fn u64_at(row: &Row, index: usize) -> rusqlite::Result<u64> {
     Ok(row.get::<_, Option<i64>>(index)?.unwrap_or(0).max(0) as u64)
 }
@@ -1205,6 +1517,8 @@ pub struct MatchHistory {
 impl MatchHistory {
     /// The most rows a list gives.
     pub const MAX_ROWS: usize = 50;
+    /// The most players a page of the top list may come after.
+    pub const MAX_AFTER: usize = 10_000;
     /// The most rows a list that a `keep` filters (`top`, `best`) reads to
     /// find its [`Self::MAX_ROWS`]: the ones `keep` leaves out (the banned,
     /// which the accounts' store knows) are read past.
@@ -1246,10 +1560,11 @@ impl MatchHistory {
 
     /// The account with this in-game name (Latin letters in any case), of
     /// those with a public match: a name is most often still the login, so
-    /// no other account is ever found.
+    /// no other account is ever found. With no account of the name now,
+    /// the one that left it last ([`Self::former_names`]).
     pub fn account_by_name(&self, name: &str) -> Result<Option<u32>, PersistError> {
-        Ok(self
-            .reader()
+        let connection = self.reader();
+        let now = connection
             .query_row(
                 "SELECT a.account_id FROM g26_accounts a
                  JOIN g26_player_totals t ON t.account_id = a.account_id
@@ -1258,14 +1573,63 @@ impl MatchHistory {
                 [name],
                 |row| row.get(0),
             )
+            .optional()?;
+        if now.is_some() {
+            return Ok(now);
+        }
+        Ok(connection
+            .query_row(
+                &format!(
+                    "SELECT n.account_id FROM g26_account_names n
+                     JOIN g26_player_totals t ON t.account_id = n.account_id
+                     WHERE n.name = ?1 COLLATE NOCASE AND {SAID}
+                     ORDER BY n.until DESC, n.account_id LIMIT 1"
+                ),
+                [name],
+                |row| row.get(0),
+            )
             .optional()?)
+    }
+
+    /// The names the account left that the site may say, the last left
+    /// first, at most `limit`: not one an administrator took from it (the
+    /// audit trail's `nickname` rows), which was taken for a reason, nor
+    /// the one it has again now.
+    pub fn former_names(
+        &self,
+        account_id: u32,
+        limit: usize,
+    ) -> Result<Vec<FormerName>, PersistError> {
+        let connection = self.reader();
+        let mut statement = connection.prepare_cached(&format!(
+            "SELECT n.name, MAX(n.until) FROM g26_account_names n
+             WHERE n.account_id = ?1 AND {SAID}
+                 AND n.name <> (SELECT a.name FROM g26_accounts a WHERE a.account_id = ?1)
+             GROUP BY n.name ORDER BY MAX(n.until) DESC, n.name LIMIT ?2"
+        ))?;
+        let names = statement
+            .query_map(params![account_id, bounded(limit)], |row| {
+                Ok(FormerName {
+                    name: row.get(0)?,
+                    until: u64_at(row, 1)?,
+                })
+            })?
+            .collect::<rusqlite::Result<_>>()?;
+        Ok(names)
     }
 
     /// The account's card; `None` for no account or one without a public
     /// match (its name is most often still the login).
     pub fn player(&self, account_id: u32) -> Result<Option<PlayerCard>, PersistError> {
-        Ok(self
-            .reader()
+        let connection = self.reader();
+        let skills = connection
+            .prepare_cached(
+                "SELECT skill_id, points FROM g26_skills
+                 WHERE account_id = ?1 AND points > 0 ORDER BY seq",
+            )?
+            .query_map([account_id], |row| Ok((row.get(0)?, row.get(1)?)))?
+            .collect::<rusqlite::Result<_>>()?;
+        Ok(connection
             .query_row(
                 &format!(
                     "SELECT {NAMED}, a.exp_total, a.rating, {TOTALS}
@@ -1281,6 +1645,7 @@ impl MatchHistory {
                         level: level_of(experience),
                         experience,
                         rating: row.get(5)?,
+                        skills,
                         totals: totals_at(row, 6)?,
                     })
                 },
@@ -1348,6 +1713,41 @@ impl MatchHistory {
             weapons: of(Gear::Weapon)?,
             armour: of(Gear::Armour)?,
         })
+    }
+
+    /// The weapons the account fired or killed with in its counted public
+    /// matches, by `by` in `order` (then most kills), at most `limit`.
+    /// Not what the games counted under no weapon (dict id 0), nor an item
+    /// only held.
+    pub fn player_weapons(
+        &self,
+        account_id: u32,
+        by: WeaponRanking,
+        order: Order,
+        limit: usize,
+    ) -> Result<Vec<WeaponTotals>, PersistError> {
+        let connection = self.reader();
+        let mut statement = connection.prepare_cached(&format!(
+            "SELECT dict_id, matches, {WEAPON} FROM g26_player_weapons
+             WHERE account_id = ?1 AND dict_id != 0 AND (kills > 0 OR shots > 0)
+             ORDER BY {} {}, kills DESC, shots DESC, dict_id LIMIT ?2",
+            by.order(),
+            order.sql()
+        ))?;
+        let weapons = statement
+            .query_map(params![account_id, bounded(limit)], |row| {
+                let mut values = [0; WEAPON_COLUMNS];
+                for (index, value) in values.iter_mut().enumerate() {
+                    *value = u64_at(row, 2 + index)?;
+                }
+                Ok(WeaponTotals {
+                    dict_id: row.get(0)?,
+                    matches: u64_at(row, 1)?,
+                    counts: WeaponCounts::of_values(values),
+                })
+            })?
+            .collect::<rusqlite::Result<_>>()?;
+        Ok(weapons)
     }
 
     /// The account's counted public matches that ended at `since` or
@@ -1455,25 +1855,37 @@ impl MatchHistory {
         Ok(Some((summary, rows.collect::<Result<_, _>>()?)))
     }
 
-    /// The top `limit` players by `by`, of those with a counted public
-    /// match and that `keep` keeps (it is asked of each in order until enough,
-    /// of the first [`MatchHistory::MAX_READ`]).
+    /// The `limit` players after the first `after` (at most
+    /// [`MatchHistory::MAX_AFTER`]) by `by` in `order`, of those with a
+    /// counted public match and that `keep` keeps (it is asked of each in
+    /// order until enough, of [`MatchHistory::MAX_READ`] past `after`), and
+    /// whether one more follows.
     pub fn top(
         &self,
         by: PlayerRanking,
+        order: Order,
+        after: usize,
         limit: usize,
         keep: &dyn Fn(u32) -> bool,
-    ) -> Result<Vec<TopPlayer>, PersistError> {
+    ) -> Result<TopPage, PersistError> {
         let connection = self.reader();
-        let mut statement = connection.prepare_cached(&top_query(by))?;
-        let mut rows = statement.query([MatchHistory::MAX_READ as i64])?;
+        let mut statement = connection.prepare_cached(&top_query(by, order))?;
+        let after = after.min(MatchHistory::MAX_AFTER);
+        let mut rows = statement.query([(after + MatchHistory::MAX_READ) as i64])?;
+        let (limit, mut passed, mut more) = (bounded(limit) as usize, 0, false);
         let mut top = Vec::new();
-        while top.len() < bounded(limit) as usize
-            && let Some(row) = rows.next()?
-        {
+        while let Some(row) = rows.next()? {
             let player = named_at(row, 0)?;
             if !keep(player.account_id) {
                 continue;
+            }
+            if passed < after {
+                passed += 1;
+                continue;
+            }
+            if top.len() == limit {
+                more = true;
+                break;
             }
             top.push(TopPlayer {
                 player,
@@ -1482,7 +1894,7 @@ impl MatchHistory {
                 totals: totals_at(row, 6)?,
             });
         }
-        Ok(top)
+        Ok(TopPage { players: top, more })
     }
 
     /// The best `limit` single-match scores of counted public matches that
@@ -1579,7 +1991,12 @@ impl MatchHistory {
     }
 
     /// The top `limit` registered clans by `by`.
-    pub fn clans(&self, by: TotalsKey, limit: usize) -> Result<Vec<ClanLine>, PersistError> {
+    pub fn clans(
+        &self,
+        by: TotalsKey,
+        order: Order,
+        limit: usize,
+    ) -> Result<Vec<ClanLine>, PersistError> {
         let connection = self.reader();
         let mut statement = connection.prepare_cached(&format!(
             "SELECT c.clan_id, c.name, c.tag, c.experience,
@@ -1588,8 +2005,9 @@ impl MatchHistory {
                  {TOTALS}
              FROM g26_clan_totals t JOIN g26_clans c ON c.clan_id = t.clan_id
              WHERE c.registered != 0
-             ORDER BY t.{} DESC, t.clan_id LIMIT ?1",
-            by.column()
+             ORDER BY t.{} {}, t.clan_id LIMIT ?1",
+            by.column(),
+            order.sql()
         ))?;
         let rows = statement.query_map([bounded(limit)], clan_line)?;
         Ok(rows.collect::<Result<_, _>>()?)
@@ -1669,24 +2087,39 @@ fn clan_line(row: &Row) -> rusqlite::Result<ClanLine> {
 /// [`MatchHistory::top`]'s query by `by`. Accuracy and the average score
 /// read their partial indexes (`g26_player_totals_accuracy`,
 /// `g26_player_totals_score_avg`): the expressions and the bounds are the
-/// migration's, word for word.
-fn top_query(by: PlayerRanking) -> String {
-    let (filter, order) = match by {
-        PlayerRanking::Rating => (
-            "WHERE t.matches > 0".to_owned(),
-            "a.rating DESC, a.account_id".to_owned(),
-        ),
-        PlayerRanking::Totals(key) => (
-            "WHERE t.matches > 0".to_owned(),
-            format!("t.{} DESC, t.account_id", key.column()),
-        ),
+/// migration's, word for word. The other ratios sort the players with
+/// their matches: a few thousand rows at most.
+fn top_query(by: PlayerRanking, order: Order) -> String {
+    let averaged = format!("WHERE t.matches >= {SCORE_AVG_MIN_MATCHES}");
+    let played = "WHERE t.matches > 0".to_owned();
+    // What is left out, the number sorted by, and what parts equal ones.
+    let (filter, number, tie) = match by {
+        PlayerRanking::Rating => (played, "a.rating".to_owned(), "a.account_id"),
+        PlayerRanking::Totals(key) => (played, format!("t.{}", key.column()), "t.account_id"),
         PlayerRanking::Accuracy => (
             format!("WHERE t.shots >= {ACCURACY_MIN_SHOTS}"),
-            "CAST(t.hits AS REAL) / t.shots DESC, t.account_id".to_owned(),
+            "CAST(t.hits AS REAL) / t.shots".to_owned(),
+            "t.account_id",
         ),
         PlayerRanking::ScoreAvg => (
-            format!("WHERE t.matches >= {SCORE_AVG_MIN_MATCHES}"),
-            "CAST(t.score AS REAL) / t.matches DESC, t.account_id".to_owned(),
+            averaged,
+            "CAST(t.score AS REAL) / t.matches".to_owned(),
+            "t.account_id",
+        ),
+        PlayerRanking::WinRate => (
+            averaged,
+            "CAST(t.wins AS REAL) / t.matches".to_owned(),
+            "t.account_id",
+        ),
+        PlayerRanking::Kd => (
+            averaged,
+            "CAST(t.kills AS REAL) / max(t.deaths, 1)".to_owned(),
+            "t.account_id",
+        ),
+        PlayerRanking::HeadshotRate => (
+            averaged,
+            "CAST(t.headshots AS REAL) / max(t.kills, 1)".to_owned(),
+            "t.account_id",
         ),
     };
     format!(
@@ -1694,7 +2127,8 @@ fn top_query(by: PlayerRanking) -> String {
          FROM g26_player_totals t JOIN g26_accounts a ON a.account_id = t.account_id
          {CLAN_JOIN}
          {filter}
-         ORDER BY {order} LIMIT ?1"
+         ORDER BY {number} {}, {tie} LIMIT ?1",
+        order.sql()
     )
 }
 
@@ -1729,6 +2163,7 @@ mod tests {
     use crate::persist::DB_FILE;
     use crate::v026g::account::Account;
     use crate::v026g::clans::{Clan, Member};
+    use crate::v026g::moderation::AdminAction;
     use survarium::v026g::maps::GameMode;
 
     struct TempDir(std::path::PathBuf);
@@ -1812,6 +2247,52 @@ mod tests {
         }
     }
 
+    /// A grenade (dict 400): it kills, and fires no bullet.
+    const GRENADE: u16 = 400;
+
+    /// A player's weapons of a match: the AK with `shots` bullets, the
+    /// pistol, and what its games counted under no weapon.
+    fn weapons(kills: u64, shots: u64) -> BTreeMap<u16, WeaponCounts> {
+        BTreeMap::from([
+            (
+                0,
+                WeaponCounts {
+                    deaths: 2,
+                    hits: 2,
+                    damage: 5_000,
+                    held_ms: 50_000,
+                    ..WeaponCounts::default()
+                },
+            ),
+            (
+                PISTOL,
+                WeaponCounts {
+                    kills: 4,
+                    shots: 20,
+                    hits: 8,
+                    held_ms: 100_000,
+                    ..WeaponCounts::default()
+                },
+            ),
+            (
+                AK,
+                WeaponCounts {
+                    kills,
+                    headshots: 2,
+                    wall_kills: 1,
+                    ricochet_kills: 1,
+                    deaths: 4,
+                    shots,
+                    hits: 30,
+                    damage: 95_000,
+                    kill_distance_dm: 2_500,
+                    longest_kill_dm: 620,
+                    held_ms: 400_000,
+                },
+            ),
+        ])
+    }
+
     /// A public match that counts.
     const PUBLIC: MatchKind = MatchKind::Public(Eligibility::Counted);
 
@@ -1843,12 +2324,14 @@ mod tests {
                         kit(0, 10, &[(0, HELMET), (7, AK), (10, PISTOL)]),
                         kit(2, 4, &[(7, PISTOL)]),
                     ],
+                    weapons: weapons(10, 80),
                 },
                 PlayerRecord {
                     account_id: 11,
                     clan_id: None,
                     line: line(1, 1, 100, 6, 14),
                     kits: vec![kit(1, 6, &[(7, AK)])],
+                    weapons: BTreeMap::new(),
                 },
             ],
         }
@@ -1859,6 +2342,7 @@ mod tests {
         let mut repository = SqliteGameRepository::open(&dir.db()).unwrap();
         let mut alice = Account::new("Alice");
         alice.rating = 150;
+        alice.skills = vec![(103, 2), (101, 5)];
         repository.save(10, &alice).unwrap();
         repository.save(11, &Account::new("Bob")).unwrap();
         repository
@@ -1891,24 +2375,30 @@ mod tests {
             .position(|step| *step == MIGRATION)
             .expect("the step is in the list");
         {
-            let mut repository = SqliteGameRepository::open(&dir.db()).unwrap();
-            repository.save(10, &Account::new("Alice")).unwrap();
             let connection = Connection::open(dir.db()).unwrap();
-            // Back to the step before: the history's tables gone.
             connection
                 .execute_batch(
-                    "DROP TABLE g26_match_kit_items; DROP TABLE g26_match_kits;
-                     DROP TABLE g26_player_items; DROP TABLE g26_match_players;
-                     DROP TABLE g26_matches;
-                     DROP TABLE g26_player_totals; DROP TABLE g26_clan_totals;
-                     DROP INDEX g26_accounts_by_name; DROP INDEX g26_accounts_by_rating;
-                     DROP INDEX g26_clan_members_by_account;",
+                    "CREATE TABLE g26_meta (key TEXT PRIMARY KEY, value INTEGER NOT NULL);",
                 )
                 .unwrap();
+            for earlier in &MIGRATIONS[..own] {
+                connection.execute_batch(earlier).unwrap();
+            }
             connection
                 .execute(
-                    "UPDATE g26_meta SET value = ?1 WHERE key = 'schema'",
+                    "INSERT INTO g26_meta (key, value) VALUES ('schema', ?1)",
                     [own as i64],
+                )
+                .unwrap();
+            // The columns of the first step; the later ones have defaults.
+            connection
+                .execute(
+                    "INSERT INTO g26_accounts (
+                        account_id, name, clan_tag, generic_money, premium_money, premium_until,
+                        exp_total, quest_faction, rating, rating_before, active_kit, autobuy,
+                        next_item_id, next_quest_instance, tutorial_step, tutorial_done
+                     ) VALUES (10, 'Alice', '', 777, 0, 0, 0, 0, 1000, 1000, 1, 0, 1, 1, 0, 0)",
+                    [],
                 )
                 .unwrap();
         }
@@ -1928,6 +2418,159 @@ mod tests {
             2
         );
         assert_eq!(history.favourites(10, 10).unwrap().weapons.len(), 2);
+        assert_eq!(history.player_weapons(10, WeaponRanking::Kills, Order::Descending, 10).unwrap().len(), 2);
+    }
+
+    #[test]
+    fn a_players_weapons_add_up_over_its_counted_public_matches() {
+        let dir = TempDir::new("weapons");
+        let (mut repository, history) = repository(&dir);
+        repository.record_match(&record(PUBLIC, 100)).unwrap();
+        // A longer kill with the AK, and a grenade's (one kill, no shot).
+        let mut second = record(PUBLIC, 200);
+        let alice = &mut second.players[0].weapons;
+        alice.get_mut(&AK).unwrap().longest_kill_dm = 900;
+        alice.remove(&PISTOL);
+        alice.insert(
+            GRENADE,
+            WeaponCounts {
+                kills: 1,
+                ..WeaponCounts::default()
+            },
+        );
+        // An item only held.
+        alice.insert(
+            HELMET,
+            WeaponCounts {
+                held_ms: 4_000,
+                ..WeaponCounts::default()
+            },
+        );
+        repository.record_match(&second).unwrap();
+        // Kept, never added up.
+        for kind in [
+            MatchKind::Private,
+            MatchKind::VsBots,
+            MatchKind::Public(Eligibility::Short),
+        ] {
+            repository.record_match(&record(kind, 300)).unwrap();
+        }
+        let first = weapons(10, 80);
+        assert_eq!(
+            history.player_weapons(10, WeaponRanking::Kills, Order::Descending, 10).unwrap(),
+            [
+                WeaponTotals {
+                    dict_id: AK,
+                    matches: 2,
+                    counts: WeaponCounts {
+                        kills: 20,
+                        headshots: 4,
+                        wall_kills: 2,
+                        ricochet_kills: 2,
+                        deaths: 8,
+                        shots: 160,
+                        hits: 60,
+                        damage: 190_000,
+                        kill_distance_dm: 5_000,
+                        longest_kill_dm: 900,
+                        held_ms: 800_000,
+                    },
+                },
+                WeaponTotals {
+                    dict_id: PISTOL,
+                    matches: 1,
+                    counts: first[&PISTOL],
+                },
+                WeaponTotals {
+                    dict_id: GRENADE,
+                    matches: 1,
+                    counts: WeaponCounts {
+                        kills: 1,
+                        ..WeaponCounts::default()
+                    },
+                },
+            ]
+        );
+        assert_eq!(
+            history
+                .player_weapons(10, WeaponRanking::Kills, Order::Descending, 1)
+                .unwrap()
+                .len(),
+            1
+        );
+        assert!(
+            history
+                .player_weapons(99, WeaponRanking::Kills, Order::Descending, 10)
+                .unwrap()
+                .is_empty()
+        );
+        // By any of its numbers, the largest first.
+        let number = |by: WeaponRanking, counts: &WeaponCounts| -> f64 {
+            let ratio = |of: u64, by: u64| {
+                if by == 0 {
+                    -1.0
+                } else {
+                    of as f64 / by as f64
+                }
+            };
+            match by {
+                WeaponRanking::Kills => counts.kills as f64,
+                WeaponRanking::Kd => ratio(counts.kills, counts.deaths.max(1)),
+                WeaponRanking::KillsPerMinute => ratio(counts.kills, counts.held_ms),
+                WeaponRanking::HeadshotRate => ratio(counts.headshots, counts.kills),
+                WeaponRanking::Accuracy => ratio(counts.hits, counts.shots),
+                WeaponRanking::KillDistance => ratio(counts.kill_distance_dm, counts.kills),
+                WeaponRanking::WallKills => counts.wall_kills as f64,
+                WeaponRanking::RicochetKills => counts.ricochet_kills as f64,
+                WeaponRanking::Held => counts.held_ms as f64,
+            }
+        };
+        for by in [
+            WeaponRanking::Kills,
+            WeaponRanking::Kd,
+            WeaponRanking::KillsPerMinute,
+            WeaponRanking::HeadshotRate,
+            WeaponRanking::Accuracy,
+            WeaponRanking::KillDistance,
+            WeaponRanking::WallKills,
+            WeaponRanking::RicochetKills,
+            WeaponRanking::Held,
+        ] {
+            let listed = history
+                .player_weapons(10, by, Order::Descending, 10)
+                .unwrap();
+            let turned = history
+                .player_weapons(10, by, Order::Ascending, 10)
+                .unwrap();
+            assert_eq!(turned.len(), listed.len());
+            assert!(
+                turned
+                    .windows(2)
+                    .all(|pair| number(by, &pair[0].counts) <= number(by, &pair[1].counts)),
+                "{by:?} from the other end: {turned:?}"
+            );
+            assert_eq!(listed.len(), 3, "{by:?}");
+            assert!(
+                listed
+                    .windows(2)
+                    .all(|pair| number(by, &pair[0].counts) >= number(by, &pair[1].counts)),
+                "{by:?}: {listed:?}"
+            );
+        }
+        let rows = |table: &str, account_id: u32| -> i64 {
+            history
+                .reader()
+                .query_row(
+                    &format!("SELECT COUNT(*) FROM {table} WHERE account_id = ?1"),
+                    [account_id],
+                    |row| row.get(0),
+                )
+                .unwrap()
+        };
+        // Three weapons and no weapon in four matches, four in the second.
+        assert_eq!(rows("g26_match_weapons", 10), 3 * 4 + 4);
+        // The same with what was counted under no weapon, and the item held.
+        assert_eq!(rows("g26_player_weapons", 10), 5);
     }
 
     #[test]
@@ -1968,19 +2611,19 @@ mod tests {
         let everything = |_| true;
         assert!(
             history
-                .top(PlayerRanking::Totals(TotalsKey::Kills), 10, &everything)
-                .unwrap()
+                .top(PlayerRanking::Totals(TotalsKey::Kills), Order::Descending, 0, 10, &everything)
+                .unwrap().players
                 .is_empty()
         );
         assert!(
             history
-                .top(PlayerRanking::Rating, 10, &everything)
-                .unwrap()
+                .top(PlayerRanking::Rating, Order::Descending, 0, 10, &everything)
+                .unwrap().players
                 .is_empty()
         );
         assert!(history.best(0, 10, &everything).unwrap().is_empty());
         assert!(history.player_days(10, 0).unwrap().is_empty());
-        assert!(history.clans(TotalsKey::Matches, 10).unwrap().is_empty());
+        assert!(history.clans(TotalsKey::Matches, Order::Descending, 10).unwrap().is_empty());
         assert_eq!(history.favourites(10, 10).unwrap(), Favourites::default());
         // The next one counts.
         repository.record_match(&record(PUBLIC, 200)).unwrap();
@@ -2064,6 +2707,7 @@ mod tests {
                     clan_id: None,
                     line: line(0, 1, 1000 + u64::from(account_id), 50, 0),
                     kits: Vec::new(),
+                    weapons: BTreeMap::new(),
                 }
             })
             .collect();
@@ -2073,9 +2717,19 @@ mod tests {
             top.into_iter().map(|top| top.player.name).collect()
         };
         let by_score = PlayerRanking::Totals(TotalsKey::Kills);
-        let top = |limit| names(history.top(by_score, limit, &keep).unwrap());
+        let top = |limit| names(history.top(by_score, Order::Descending, 0, limit, &keep).unwrap().players);
         assert_eq!(top(10), ["Alice", "Bob"]);
         assert_eq!(top(1), ["Alice"]);
+        // A page says whether the list goes on; the next one starts after it.
+        let page = |after| {
+            let page = history
+                .top(by_score, Order::Descending, after, 1, &keep)
+                .unwrap();
+            (names(page.players), page.more)
+        };
+        assert_eq!(page(0), (vec!["Alice".to_owned()], true));
+        assert_eq!(page(1), (vec!["Bob".to_owned()], false));
+        assert_eq!(page(2), (Vec::new(), false));
         let best: Vec<String> = history
             .best(0, 10, &keep)
             .unwrap()
@@ -2085,7 +2739,7 @@ mod tests {
         assert_eq!(best, ["Alice", "Bob"]);
         // Unfiltered, the banned fill the list.
         assert_eq!(
-            history.top(by_score, 100, &|_| true).unwrap().len(),
+            history.top(by_score, Order::Descending, 0, 100, &|_| true).unwrap().players.len(),
             MatchHistory::MAX_ROWS
         );
     }
@@ -2107,8 +2761,8 @@ mod tests {
         }
         let top = |history: &MatchHistory| -> Vec<String> {
             history
-                .top(PlayerRanking::Accuracy, 10, &|_| true)
-                .unwrap()
+                .top(PlayerRanking::Accuracy, Order::Descending, 0, 10, &|_| true)
+                .unwrap().players
                 .into_iter()
                 .map(|top| top.player.name)
                 .collect()
@@ -2117,8 +2771,8 @@ mod tests {
         repository.record_match(&played).unwrap();
         repository.record_match(&played).unwrap();
         assert_eq!(top(&history), ["Alice", "Bob"]);
-        let accurate = history.top(PlayerRanking::Accuracy, 1, &|id| id != 10)
-            .unwrap();
+        let accurate = history.top(PlayerRanking::Accuracy, Order::Descending, 0, 1, &|id| id != 10)
+            .unwrap().players;
         assert_eq!(accurate[0].player.name, "Bob");
         assert_eq!(accurate[0].totals.matches, 10, "a match is kept once");
     }
@@ -2152,6 +2806,7 @@ mod tests {
             })
         );
         assert_eq!(card.rating, 150);
+        assert_eq!(card.skills, [(103, 2), (101, 5)]);
         assert_eq!(
             card.totals,
             Totals {
@@ -2335,21 +2990,21 @@ mod tests {
         let dir = TempDir::new("top");
         let (mut repository, history) = repository(&dir);
         repository.record_match(&record(PUBLIC, 100)).unwrap();
-        let by_kills = history.top(PlayerRanking::Totals(TotalsKey::Kills), 10, &|_| true)
-            .unwrap();
+        let by_kills = history.top(PlayerRanking::Totals(TotalsKey::Kills), Order::Descending, 0, 10, &|_| true)
+            .unwrap().players;
         let names: Vec<&str> = by_kills
             .iter()
             .map(|top| top.player.name.as_str())
             .collect();
         assert_eq!(names, ["Alice", "Bob"]);
-        let by_rating = history.top(PlayerRanking::Rating, 10, &|id| id != 10)
-            .unwrap();
+        let by_rating = history.top(PlayerRanking::Rating, Order::Descending, 0, 10, &|id| id != 10)
+            .unwrap().players;
         assert_eq!(by_rating.len(), 1);
         assert_eq!(by_rating[0].player.name, "Bob");
         assert_eq!(
             history
-                .top(PlayerRanking::Rating, 1, &|_| true)
-                .unwrap()
+                .top(PlayerRanking::Rating, Order::Descending, 0, 1, &|_| true)
+                .unwrap().players
                 .len(),
             1
         );
@@ -2371,7 +3026,7 @@ mod tests {
         repository
             .record_match(&record(MatchKind::Private, 200))
             .unwrap();
-        let clans = history.clans(TotalsKey::Matches, 10).unwrap();
+        let clans = history.clans(TotalsKey::Matches, Order::Descending, 10).unwrap();
         assert_eq!(clans.len(), 1);
         assert_eq!(
             (clans[0].tag.as_str(), clans[0].level, clans[0].members),
@@ -2454,6 +3109,7 @@ mod tests {
             clan_id: Some(7),
             line,
             kits: Vec::new(),
+            weapons: BTreeMap::new(),
         };
         let with = |winner, players: Vec<PlayerRecord>| {
             let mut played = record(PUBLIC, 100);
@@ -2466,6 +3122,7 @@ mod tests {
             clan_id: None,
             line: line(team, 1, 100, 6, 14),
             kits: Vec::new(),
+            weapons: BTreeMap::new(),
         };
         for played in [
             // Three members on the winning team: one match, one win.
@@ -2541,7 +3198,7 @@ mod tests {
         );
         // The list of clans and the clan's matches agree with the card.
         assert_eq!(
-            history.clans(TotalsKey::Matches, 10).unwrap()[0].totals,
+            history.clans(TotalsKey::Matches, Order::Descending, 10).unwrap()[0].totals,
             totals
         );
         let listed = history.matches(None, 50, Some(7)).unwrap();
@@ -2701,11 +3358,80 @@ mod tests {
             (PlayerRanking::Accuracy, "g26_player_totals_accuracy"),
             (PlayerRanking::ScoreAvg, "g26_player_totals_score_avg"),
         ] {
-            let plan = plan_of(&dir, &top_query(by), [10]);
+            let plan = plan_of(&dir, &top_query(by, Order::Descending), [10]);
             assert!(plan.contains(&format!("SCAN t USING INDEX {index}")), "{plan}");
             // Only the ties are sorted further, by account.
             assert!(!plan.contains("USE TEMP B-TREE FOR ORDER BY"), "{plan}");
         }
+    }
+
+    #[test]
+    fn the_names_an_account_leaves_are_kept() {
+        let dir = TempDir::new("names");
+        let (mut repository, history) = repository(&dir);
+        repository.record_match(&record(PUBLIC, 1_000)).unwrap();
+        let names = |history: &MatchHistory| -> Vec<String> {
+            history
+                .former_names(10, 10)
+                .unwrap()
+                .into_iter()
+                .map(|former| former.name)
+                .collect()
+        };
+        // Saved as it is: no name left.
+        repository.save(10, &Account::new("Alice")).unwrap();
+        assert!(names(&history).is_empty());
+        repository.save(10, &Account::new("Alisa")).unwrap();
+        let left = history.former_names(10, 10).unwrap();
+        assert_eq!(names(&history), ["Alice"]);
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_secs();
+        assert!(left[0].until <= now && left[0].until + 60 > now, "{left:?}");
+        // Found by the name it left, while nobody has it now.
+        assert_eq!(history.account_by_name("alice").unwrap(), Some(10));
+        assert_eq!(history.account_by_name("Alisa").unwrap(), Some(10));
+        repository.save(11, &Account::new("Alice")).unwrap();
+        assert_eq!(history.account_by_name("Alice").unwrap(), Some(11));
+        assert_eq!(names(&history), ["Alice"]);
+        assert_eq!(
+            history.former_names(11, 10).unwrap()[0].name,
+            "Bob",
+            "each account its own"
+        );
+        // A name an administrator took from it is not said, nor found by.
+        let mut renamed = Account::new("Alina");
+        renamed.rating = 150;
+        repository
+            .save_admin(
+                10,
+                Some(&renamed),
+                &[AdminAction {
+                    at: now,
+                    admin: "127.0.0.1".to_owned(),
+                    account_id: 10,
+                    account: "Alina".to_owned(),
+                    kind: "nickname".to_owned(),
+                    change: "nickname changed".to_owned(),
+                    reason: "test".to_owned(),
+                    before: "Alisa".to_owned(),
+                    after: "Alina".to_owned(),
+                }],
+            )
+            .unwrap();
+        assert_eq!(names(&history), ["Alice"]);
+        assert_eq!(history.account_by_name("Alisa").unwrap(), None);
+        assert_eq!(history.former_names(99, 10).unwrap(), []);
+        // A name taken again is the name now, not one left.
+        repository.save(11, &Account::new("Bob")).unwrap();
+        let left: Vec<String> = history
+            .former_names(11, 10)
+            .unwrap()
+            .into_iter()
+            .map(|former| former.name)
+            .collect();
+        assert_eq!(left, ["Alice"]);
     }
 
     #[test]
@@ -2714,8 +3440,8 @@ mod tests {
         let (mut repository, history) = repository(&dir);
         let top = |history: &MatchHistory| -> Vec<String> {
             history
-                .top(PlayerRanking::ScoreAvg, 10, &|_| true)
-                .unwrap()
+                .top(PlayerRanking::ScoreAvg, Order::Descending, 0, 10, &|_| true)
+                .unwrap().players
                 .into_iter()
                 .map(|top| top.player.name)
                 .collect()
@@ -2726,5 +3452,26 @@ mod tests {
         assert!(top(&history).is_empty(), "one match short");
         repository.record_match(&record(PUBLIC, 9_000)).unwrap();
         assert_eq!(top(&history), ["Alice", "Bob"]);
+        // The other ratios list the same players, the better first.
+        for by in [
+            PlayerRanking::WinRate,
+            PlayerRanking::Kd,
+            PlayerRanking::HeadshotRate,
+        ] {
+            let listed = history.top(by, Order::Descending, 0, 10, &|_| true).unwrap().players;
+            assert_eq!(listed.len(), 2, "{by:?}");
+            let names = |listed: &[TopPlayer]| -> Vec<String> {
+                listed.iter().map(|top| top.player.name.clone()).collect()
+            };
+            let mut turned = history.top(by, Order::Ascending, 0, 10, &|_| true).unwrap().players;
+            turned.reverse();
+            assert_eq!(names(&turned), names(&listed), "{by:?} from the other end");
+            let of = |totals: &Totals| match by {
+                PlayerRanking::WinRate => totals.wins as f64 / totals.matches as f64,
+                PlayerRanking::Kd => totals.kills as f64 / totals.deaths.max(1) as f64,
+                _ => totals.counters.headshots as f64 / totals.kills.max(1) as f64,
+            };
+            assert!(of(&listed[0].totals) >= of(&listed[1].totals), "{by:?}");
+        }
     }
 }

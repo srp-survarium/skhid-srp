@@ -33,7 +33,11 @@ Edits (edits.json):
                     each key path (`parameters/arp`) taken out of every matching file that has it: its
                     table's later records move down in place, the count drops by 1; a key no matching
                     file has is refused
-  "replace_string": [{"files", "from", "to"}]          every string value equal to `from`, appended
+  "replace_string": [{"files", "from", "to"}]          every string value equal to `from`, appended: every
+                                                       key's (a gun's `skeleton` too, when it names the same
+                                                       path as its `model`); one key's is set_string
+  "set_string":     [{"file", "path", "from", "to"}]   the one text at `path`: `from` must be the live
+                                                       value (a stale base is refused), `to` appended
   "edit_text":      [{"file", "path", "from", "to"}]   in one text (UTF-8, as the localization tables
                                                        keep it), its one `from` becomes `to`
   "add_entry":      [{"files", "list", "after", "like", "values", "only_if", "expected_files"}]
@@ -122,6 +126,16 @@ Edits (edits.json):
                                                        collision); the later entries move down in place, the
                                                        count drops by 1. Applied last: the paths of the edits
                                                        above are the live file's
+  "sort_entries":   [{"file", "list", "key"}]          the entries of the indexed table `list` in ascending
+                                                       order of their number `key` (equal ones keep their
+                                                       order), the records moved in place; applied after
+                                                       remove_entry, on a list no other edit of the file
+                                                       touches. The game's items_dict reader
+                                                       (items_dictionary_cook::on_configs_loaded 0x2C8FC2)
+                                                       logs "old items dictionary format" for each id lower
+                                                       than the one before it, then sorts the table itself
+  "remove_lines":   [{"file", "lines"}]                a text file (startup.cfg) without those lines, each
+                                                       one of its lines exactly once; the rest byte for byte
   "add_event_channel": [{"file", "from", "add"}]       an animation clip (`.b-spline`, not a config): `from`
                                                        is its live event channels, `add` one more after them,
                                                        each {"name", "type", "knots", "domains"}; the bone
@@ -363,6 +377,19 @@ def replace_string(buf, frm, to):
             REC.pack_into(buf, off, noff, i, c, t, len(to.encode()) + 1)
             n += 1
     return n
+
+
+def set_string(buf, path, frm, to):
+    """The text at `path`: `frm`, the live value (a stale base is refused), becomes `to`, appended.
+    Nothing else changes, other keys holding the same text neither."""
+    off = find(buf, path)
+    d, i, c, t, cnt = rec(buf, off)
+    if t != T_STR:
+        raise ValueError('%s is not a text' % path)
+    old = bytes(buf[d:d + cnt - 1]).decode()
+    if old != frm:
+        raise ValueError('%s is %r, not %r: the base is not the live data' % (path, old, frm))
+    REC.pack_into(buf, off, append(buf, to.encode() + b'\0'), i, c, t, len(to.encode()) + 1)
 
 
 def edit_text(buf, path, frm, to):
@@ -752,11 +779,13 @@ def single(v):
 
 def pierce_kept(pierce, armor):
     """What a wall of material `armor` leaves of a bullet of piercing `pierce` (its damage, speed and
-    piercing are all multiplied by it; 0 stops it), as survarium::bullet::try_pierce 0x32D960 computes
-    it in single precision: t = clamp((P - A) / A, 0, 1), 1 when A is 0; 1 - (1 - t)^2. No thickness
-    and no angle: every wall of the material alike."""
-    t = 1.0 if armor == 0 else min(1.0, max(0.0, single(single(pierce - armor) / armor)))
-    return single(1 - single(single(1 - t) * single(1 - t)))
+    piercing are all multiplied by it; 0 or less stops it), as survarium::bullet::try_pierce 0x32D960
+    computes it with exe patch 175, in single precision: 1 - (A / P)^2, 1 when A is 0. No thickness
+    and no angle: every wall of the material alike. Asked only of a bullet the wall lets through."""
+    if armor == 0:
+        return 1.0
+    q = single(armor / pierce)
+    return single(1 - single(q * q))
 
 
 def pierce_lines(read, paths, spec):
@@ -1315,7 +1344,11 @@ STATS = {
             'resources': 'mode/parameters/resources_count',
             'restore_mul': 'mode/parameters/restore_multiplier',
             'loading_screen': 'mode/ui/loading_screen_id', 'icon': 'mode/ui/icon',
+            # srp's key: the build lists show the map under, where its project's prefix does not say it
+            # (v032, v042: the two Londons; survarium maps::Build)
+            'build': 'mode/srp_build',
         },
+        'add': {'build'},
         'match': {'match_s', 'countdown_s', 'respawn_s', 'wait_s', 'wait_players', 'tickets', 'spawn_points', 'batteries',
                   'battery_spawn_s', 'battery_spawn_var_s', 'capture_award', 'capture_reach',
                   'capture_half_height', 'resources', 'restore_mul'},
@@ -1355,8 +1388,9 @@ STATS = {
             'level': 'parameters/item_level', 'mm_level': 'parameters/match_making_level',
             'rarity': 'parameters/base_rarity_level', 'mods': 'parameters/available_modifications_mask',
             # built-in bonuses, a column a kind: the modification's id; an item's default list is kept
-            # in this order (sort_built_ins), the card's lines too: what it carries (ammo bags first),
-            # then the body, the gun, the rest
+            # in this order (sort_built_ins), the lobby card's one order of its lines (flash/lobby_menu/
+            # tables/survarium/data/BonusOrder.tsv): what it carries (ammo bags first), then the body,
+            # the gun, the rest
             'ammo_bags': default_modification(105),
             'pockets': default_modification(103),
             'slot_size': default_modification(117),
@@ -1891,6 +1925,50 @@ def remove_entry(buf, path, where):
     d, i, crc, t, cnt = rec(buf, lst)
     REC.pack_into(buf, lst, d, i, crc, t, cnt - 1)
     return at
+
+
+def sort_entries(buf, path, key):
+    """The entries of the indexed table `path` in ascending order of their number `key` (a stable
+    sort), their records moved in place in the table's own array. Returns the new index of each
+    entry by its old one; an entry without the key as a number is refused."""
+    lst = find(buf, path)
+    if rec(buf, lst)[3] != T_INDEXED:
+        raise ValueError('%s is not an indexed table' % path)
+    kids = children(buf, lst)
+    keys = []
+    for i, e in enumerate(kids):
+        k = child(buf, e, key) if rec(buf, e)[3] == T_NAMED else None
+        if k is None or rec(buf, k)[3] not in (T_INT, T_FLOAT):
+            raise ValueError('%s[%d] has no number %s' % (path, i, key))
+        keys.append(as_number(rec(buf, k)[3], rec(buf, k)[0] & 0xffffffff))
+    order = sorted(range(len(kids)), key=keys.__getitem__)
+    records = [bytes(buf[e:e + 24]) for e in kids]
+    moved = [0] * len(kids)
+    for dst, src in enumerate(order):
+        buf[kids[dst]:kids[dst] + 24] = records[src]
+        moved[src] = dst
+    return moved
+
+
+def remove_lines(source, lines):
+    """A text file (startup.cfg: a console command a line, CRLF) without `lines`, each a whole line
+    of it exactly once (its end not included); every other byte stays."""
+    kept = source.splitlines(keepends=True)
+    for line in lines:
+        at = [i for i, have in enumerate(kept) if have.rstrip(b'\r\n') == line.encode()]
+        if len(at) != 1:
+            raise ValueError('%d lines are %r, not 1: the base is not the live data' % (len(at), line))
+        del kept[at[0]]
+    return bytearray(b''.join(kept))
+
+
+def resorted(path, lst, moved):
+    """A path of the file before the table `lst` was sorted (`moved`: sort_entries'), after it."""
+    head = lst + '['
+    if not path.startswith(head):
+        return path
+    k, rest = path[len(head):].split(']', 1)
+    return '%s%d]%s' % (head, moved[int(k)], rest)
 
 
 def add_item(buf, path, where, key, value):
@@ -2464,6 +2542,9 @@ def main():
     for e in edits.get('edit_text', []):
         edit_text(buf(e['file']), e['path'], e['from'], e['to'])
         allowed.setdefault(e['file'], set()).add('/' + e['path'])
+    for e in edits.get('set_string', []):
+        set_string(buf(e['file']), e['path'], e['from'], e['to'])
+        allowed.setdefault(e['file'], set()).add('/' + e['path'])
     for e in edits.get('rename_key', []):
         n = 0
         for p in sorted(fnmatch.filter(list(files) + list(copies), e['files'])):
@@ -2662,6 +2743,21 @@ def main():
         if any(unshifted(a, lst, at) is None for a in added.get(e['file'], ())):
             sys.exit('remove_entry: %s[%d] is an entry this list adds' % (lst, at))
         added[e['file']] = [unshifted(a, lst, at) for a in added.get(e['file'], ())]
+    resorts = {}
+    for e in edits.get('sort_entries', []):
+        lst = '/' + e['list']
+        touched = [q for q in list(allowed.get(e['file'], ())) + list(remade.get(e['file'], ()))
+                   + list(added.get(e['file'], ())) + list(grown.get(e['file'], {}))
+                   + [lst2 for lst2, _ in dropped.get(e['file'], ())] + [lst2 for lst2, _ in shifts.get(e['file'], ())]
+                   + ['/' + q2 for q2 in removed.get(e['file'], {})]
+                   if q == lst or q.startswith(lst + '[')]
+        if touched:
+            sys.exit('sort_entries: %s of %s is edited too (%s): sort a list nothing else edits'
+                     % (lst, e['file'], touched[0]))
+        moved = sort_entries(buf(e['file']), e['list'], e['key'])
+        resorts.setdefault(e['file'], []).append((lst, moved))
+        print('sort %s by %s: %d of %d entries moved' % (e['list'], e['key'],
+                                                          sum(new != old for old, new in enumerate(moved)), len(moved)))
     clips = {}  # animation clips: not configs, so add_event_channel reads them back itself
     for e in edits.get('retime_reload', []):
         paths = sorted(fnmatch.filter(files, e['files']))
@@ -2739,6 +2835,18 @@ def main():
                 sys.exit('%s: %s' % (p, why))
             print('runtime vegetation %s: %d -> %d bytes; positions/normals unchanged' %
                   (p, len(source), len(vegetation[p])))
+    for e in edits.get('remove_lines', []):
+        p = e['file']
+        if p in bufs or p in clips or p in vegetation:
+            sys.exit('remove_lines: %s is edited otherwise too' % p)
+        if p not in files:
+            sys.exit('%s: not in the live folder' % p)
+        source = open(files[p], 'rb').read()
+        try:
+            clips[p] = remove_lines(source, e['lines'])
+        except ValueError as why:
+            sys.exit('%s: %s' % (p, why))
+        print('lines out of %s: %s' % (p, ', '.join(e['lines'])))
 
     for e in edits.get('require_headwear_bind', []):
         source = open(files[e['file']], 'rb').read()
@@ -2796,6 +2904,8 @@ def main():
             old = {shifted(q, lst, at): v for q, v in old.items()}
         for lst, at in dropped.get(p, ()):
             old = {unshifted(q, lst, at): v for q, v in old.items() if unshifted(q, lst, at) is not None}
+        for lst, moved in resorts.get(p, ()):
+            old = {resorted(q, lst, moved): v for q, v in old.items()}
         for lst, values in removed.get(p, {}).items():
             # A copied entry has no path in the original file. Compare with its
             # table just before removals, then follow any removed parent entries.

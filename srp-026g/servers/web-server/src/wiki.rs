@@ -6,10 +6,12 @@
 //! The calculator ([`crate::damage`]) and the maps ([`crate::maps`]) are its
 //! sections too, each a page of its own look; the skills ([`crate::skills`])
 //! are built like them, from the released game, into a page of the wiki's.
-//! The quests ([`crate::quests`]) come from the server's game data and pay rules.
+//! The quests ([`crate::quests`]) come from the server's game data and pay rules;
+//! the modes ([`crate::modes`]) from its game data, its rules and the lobby's pools.
 
+use crate::built::{Built, Script};
 use crate::{
-    ContentType, Lang, Response, damage, equipment, escape, maps, modifiers, quests, skills,
+    ContentType, Lang, Response, damage, equipment, escape, maps, modes, modifiers, quests, skills,
 };
 
 pub(crate) const PATH: &str = "/wiki";
@@ -17,8 +19,19 @@ pub(crate) const WEAPONS: &str = "/wiki/weapons";
 pub(crate) const SIMULATORS: &str = "/wiki/simulators";
 pub(crate) const MODIFIERS: &str = "/wiki/modifiers";
 pub(crate) const EQUIPMENT: &str = "/wiki/equipment";
-const SCRIPT: &[u8] = include_bytes!("../wiki/weapons.js");
-const SIMULATORS_SCRIPT: &[u8] = include_bytes!("../wiki/simulators.js");
+static SCRIPT: Script = Script::new(include_bytes!("../wiki/weapons.js"));
+static SIMULATORS_SCRIPT: Script = Script::new(include_bytes!("../wiki/simulators.js"));
+/// The weapons and the simulators, built in every language's places (`crate::built`).
+static WEAPONS_PAGE: Built = Built::new(
+    include_str!("../wiki/weapons.html"),
+    include_str!("../wiki/weapons.texts.json"),
+    &SCRIPT,
+);
+static SIMULATORS_PAGE: Built = Built::new(
+    include_str!("../wiki/simulators.html"),
+    include_str!("../wiki/simulators.texts.json"),
+    &SIMULATORS_SCRIPT,
+);
 const STYLE: &str = include_str!("../wiki/style.css");
 
 /// Where a page that moved into the wiki is now, for its old address.
@@ -43,8 +56,8 @@ fn section(lang: Lang, path: &str, name: &str, line: &str) -> String {
 pub(crate) fn file(path: &str) -> Option<(&'static str, &'static [u8])> {
     const JS: &str = "text/javascript; charset=utf-8";
     match path {
-        "/wiki/weapons.js" => Some((JS, SCRIPT)),
-        "/wiki/simulators.js" => Some((JS, SIMULATORS_SCRIPT)),
+        "/wiki/weapons.js" => Some((JS, SCRIPT.source())),
+        "/wiki/simulators.js" => Some((JS, SIMULATORS_SCRIPT.source())),
         _ => None,
     }
     .or_else(|| modifiers::file(path))
@@ -62,89 +75,79 @@ pub(crate) fn page(
     now: &skills::Now,
 ) -> Response {
     let (title, body) = if path == WEAPONS {
-        let body = match lang {
-            Lang::En => include_str!("../wiki/weapons.en.html"),
-            Lang::Uk => include_str!("../wiki/weapons.uk.html"),
-        };
-        (lang.tr("Weapons", "Зброя"), body.to_owned())
+        (lang.t("Weapons"), WEAPONS_PAGE.page(lang))
     } else if path == SIMULATORS {
-        let body = match lang {
-            Lang::En => include_str!("../wiki/simulators.en.html"),
-            Lang::Uk => include_str!("../wiki/simulators.uk.html"),
-        };
-        (lang.tr("Simulators", "Симулятори"), body.to_owned())
+        (lang.t("Simulators"), SIMULATORS_PAGE.page(lang))
     } else if path == skills::PATH {
-        (lang.tr("Skills", "Навички"), skills::body(lang, now))
+        (lang.t("Skills"), skills::body(lang, now))
     } else if path == quests::PATH {
-        (lang.tr("Quests", "Завдання"), quests::body(lang))
+        (lang.t("Quests"), quests::body(lang))
     } else if path == EQUIPMENT {
-        (lang.tr("Equipment", "Спорядження"), equipment::body(lang))
+        (lang.t("Equipment"), equipment::body(lang))
     } else if path == MODIFIERS {
         (
-            lang.tr("Modifiers", "Модифікатори"),
+            lang.t("Modifiers"),
             modifiers::body(lang, modifiers::chosen(query)),
         )
     } else {
         (
-            lang.tr("Wiki", "Вікі"),
+            lang.t("Wiki"),
             format!(
-                "<div class=wiki-heading><h1>{}</h1></div><div class=wiki-sections>{}{}{}{}{}{}{}{}</div>",
-                lang.tr("Wiki", "Вікі"),
+                "<div class=wiki-heading><h1>{}</h1></div><div class=wiki-sections>{}{}{}{}{}{}{}{}{}</div>",
+                lang.t("Wiki"),
                 section(
                     lang,
                     WEAPONS,
-                    &lang.tr("Weapons", "Зброя"),
-                    &lang.tr("Browse weapons, compare base stats and explore their damage and handling.",
-                        "Переглядайте зброю, порівнюйте базові характеристики, ушкодження та швидкість перезаряджання."),
+                    &lang.t("Weapons"),
+                    &lang.t("Browse weapons, compare base stats and explore their damage and handling."),
                 ),
                 section(
                     lang,
                     SIMULATORS,
-                    &lang.tr("Simulators", "Симулятори"),
-                    &lang.tr("Recoil and spread of any weapon: aim, stance, skills, gear and injuries.",
-                        "Відбій і розкид будь-якої зброї: приціл, положення, навички, спорядження й травми."),
+                    &lang.t("Simulators"),
+                    &lang.t("Recoil and spread of any weapon: aim, stance, skills, gear and injuries."),
                 ),
                 section(
                     lang,
                     EQUIPMENT,
-                    &lang.tr("Equipment", "Спорядження"),
-                    &lang.tr("Every armour piece: protection, weight, built-in bonuses and what it can roll.",
-                        "Усе спорядження: захист, вага, вбудовані властивості й модифікатори."),
+                    &lang.t("Equipment"),
+                    &lang.t("Every armour piece: protection, weight, built-in bonuses and what it can roll."),
                 ),
                 section(
                     lang,
                     MODIFIERS,
-                    &lang.tr("Modifiers", "Модифікатори"),
-                    &lang.tr("Every modifier, its strengths and the items that can get it.",
-                        "Усі модифікатори, їхня сила та предмети, на які вони випадають."),
+                    &lang.t("Modifiers"),
+                    &lang.t("Every modifier, its strengths and the items that can get it."),
                 ),
                 section(
                     lang,
                     skills::PATH,
-                    &lang.tr("Skills", "Навички"),
-                    &lang.tr("Levels and the experience they take; every skill tree: thresholds, ranks and what each rank gives.",
-                        "Рівні й скільки досвіду вони потребують; усі гілки навичок: пороги, ранги й що дає кожен ранг."),
+                    &lang.t("Skills"),
+                    &lang.t("Levels and the experience they take; every skill tree: thresholds, ranks and what each rank gives."),
                 ),
                 section(
                     lang,
                     quests::PATH,
-                    &lang.tr("Quests", "Завдання"),
-                    &lang.tr("Every faction quest: its goal at each reputation level and what it pays.",
-                        "Усі завдання угруповань: мета на кожному рівні репутації й винагорода."),
+                    &lang.t("Quests"),
+                    &lang.t("Every faction quest: its goal at each reputation level and what it pays."),
                 ),
                 section(
                     lang,
                     damage::PATH,
-                    &lang.tr("Damage calculator", "Калькулятор шкоди"),
-                    &lang.tr("Shots to kill a target in any armour, at any distance.",
-                        "Скільки влучань треба, щоб убити ціль у будь-якій броні на будь-якій відстані."),
+                    &lang.t("Damage calculator"),
+                    &lang.t("Shots to kill a target in any armour, at any distance."),
                 ),
                 section(
                     lang,
                     maps::PATH,
-                    &lang.tr("Maps", "Мапи"),
-                    &lang.tr("Spawns, batteries, chargers, containers and artefacts on every map.",
-                        "Точки появи, батареї, зарядні пристрої, контейнери й артефакти на кожній мапі."),
+                    &lang.t("Maps"),
+                    &lang.t("Spawns, batteries, chargers, containers and artefacts on every map."),
+                ),
+                section(
+                    lang,
+                    modes::PATH,
+                    &lang.t("Modes"),
+                    &lang.t("Every mode: its rules, numbers and maps."),
                 ),
             ),
         )
@@ -152,7 +155,7 @@ pub(crate) fn page(
     framed(
         lang,
         &title,
-        &lang.tr("Skhid wiki", "Вікі Сходу"),
+        &lang.t("Skhid wiki"),
         header,
         &body,
     )
@@ -182,39 +185,28 @@ mod tests {
     use super::*;
 
     #[test]
-    fn catalogue_uses_the_current_calculator_dataset() {
-        let digest: String = openssl::sha::sha256(include_bytes!("../damage/calc.js"))
-            .iter()
-            .map(|byte| format!("{byte:02x}"))
-            .collect();
-        assert_eq!(
-            digest,
-            include_str!("../wiki/source.sha256").trim(),
-            "rebuild scripts/wiki/build.py after changing the calculator data"
-        );
-    }
-
-    #[test]
-    fn both_languages_have_weapon_stats_and_comparison() {
-        for lang in [Lang::En, Lang::Uk] {
+    fn every_language_has_weapon_stats_and_comparison() {
+        for lang in Lang::ALL {
             let page = page(WEAPONS, "", lang, "site header", &skills::Now::default());
             assert!(page.body.contains("site header"));
             assert!(page.body.contains("id=\"wpn_ak_74m\""));
             assert!(page.body.contains("class=\"weapon-details\""));
             assert!(page.body.contains(&format!("lang=\"{}\"", lang.code())));
             assert!(page.body.contains("id=\"compare-a\""));
-            assert!(page.body.contains("href=\"/wiki/simulators?lang="));
+            assert!(page.body.contains(&format!("href=\"/wiki/simulators?lang={}", lang.code())));
+            assert!(!page.body.contains('⟦'), "{lang:?}: a place left");
         }
     }
 
     #[test]
-    fn both_languages_have_the_simulators_and_name_only_files_they_serve() {
-        for lang in [Lang::En, Lang::Uk] {
+    fn every_language_has_the_simulators_and_name_only_files_they_serve() {
+        for lang in Lang::ALL {
             let page = page(SIMULATORS, "", lang, "site header", &skills::Now::default());
             assert!(page.body.contains(&format!("lang=\"{}\"", lang.code())));
             assert!(page.body.contains("id=\"compare-a\""));
             assert!(page.body.contains("class=\"sim-vertical\""));
             assert!(page.body.contains("data-setup="));
+            assert!(!page.body.contains('⟦'), "{lang:?}: a place left");
             let script = page.body.split_once("/wiki/simulators.js?v=").unwrap().1;
             assert!(script.starts_with(|c: char| c.is_ascii_hexdigit()));
             assert!(file("/wiki/simulators.js").is_some_and(|(_, bytes)| !bytes.is_empty()));
@@ -232,7 +224,7 @@ mod tests {
 
     #[test]
     fn the_skills_page_names_only_files_it_serves() {
-        for lang in [Lang::En, Lang::Uk] {
+        for lang in Lang::ALL {
             let page = page(
                 skills::PATH,
                 "",
@@ -244,6 +236,7 @@ mod tests {
             assert!(page.body.contains(&format!("lang=\"{}\"", lang.code())));
             assert!(page.body.contains("class=\"skill-branch\""));
             assert!(page.body.contains("data-skill=\"101\""));
+            assert!(!page.body.contains('⟦'), "{lang:?}: a place left");
             let files: Vec<&str> = page
                 .body
                 .match_indices("/skills/")

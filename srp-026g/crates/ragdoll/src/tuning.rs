@@ -22,6 +22,10 @@ pub const NECK_DECAY: f32 = 0.3; // 464c 0.25
 /// The arms' (shoulders, elbows).
 pub const ARM_STIFFNESS: f32 = 40.0;
 pub const ARM_DECAY: f32 = 0.2;
+/// The fingers let go of what the hand held (the gun's grip at the death)
+/// over this long, s; no longer than a body takes to settle, so a settled
+/// hand is loose.
+pub const FINGERS_LOOSE_TIME: f32 = 0.35;
 /// A hit limb's side decays this much faster (its decay times this).
 pub const HIT_SIDE_DECAY: f32 = 0.55;
 /// A hit this strong (N s) takes `HIT_WEAKENING` of every muscle's

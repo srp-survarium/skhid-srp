@@ -17,7 +17,16 @@ EDIT = Path(__file__).resolve().parents[1] / 'content-edit/content_edit.py'
 spec = importlib.util.spec_from_file_location('content_edit', EDIT)
 c = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(c)
+spec = importlib.util.spec_from_file_location('probe_light', Path(__file__).with_name('probe_light.py'))
+probe_light = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(probe_light)
 
+# The prefixes a fixture model has: stock, and the ports' own copies of the models (a port imports a
+# model under its namespace where its materials or settings differ from players'; the London ports'
+# lamps are such copies, the same meshes).
+PORT_PREFIXES = ('', 'ported/v011e/', 'ported/v021d/', 'ported/v032a/', 'ported/v044a/')
+# The London ports' fixtures, beside the stock ones the older ports never had.
+LONDON_PREFIXES = ('ported/v032a/', 'ported/v044a/')
 BASE_REPLACEMENTS = {
     'props/light/lamp_on': 'props/light/srp_lamp_broken',
     'props/light/plafon_lamp_on': 'props/light/srp_plafon_lamp_broken',
@@ -32,7 +41,7 @@ BASE_REPLACEMENTS = {
 }
 REPLACEMENTS = {
     prefix + intact: broken if '/srp_' in broken else prefix + broken
-    for prefix in ('', 'ported/v011e/', 'ported/v021d/')
+    for prefix in PORT_PREFIXES
     for intact, broken in BASE_REPLACEMENTS.items()
 } | {
     # Fluorescent fixtures with their tubes in the model, stock only (v0.11's
@@ -45,7 +54,7 @@ REPLACEMENTS = {
 # Lit tubes that are models of their own (Vector, level_09: fx/lamp2 and its
 # two flicker variants, three tubes in a tubeless lamp_midle_04 housing).
 # A broken fixture hides them; nothing replaces them.
-TUBE_GLASS = {'fx/lamp2', 'fx/lamp2_bad', 'fx/lamp2_good'}
+TUBE_GLASS = {prefix + 'fx/' + tube for prefix in ('',) + LONDON_PREFIXES for tube in ('lamp2', 'lamp2_bad', 'lamp2_good')}
 # Kerosene lamps (London, Tarakanovsky Fort, level_04, and the 0.21 ports'
 # copies of the models: Fort and Chemical Plant v0.21): a frame that stays,
 # standing, hung on a rope or nailed to a wall; its lit glass, a model of its
@@ -55,7 +64,7 @@ TUBE_GLASS = {'fx/lamp2', 'fx/lamp2_bad', 'fx/lamp2_good'}
 # The chain lamp (ceiling_group_chain_lamp) has its glass in its own mesh,
 # the oil lamp (stand_group_oil_lamp) is never lit, a torch has no glass:
 # scenery all three.
-LANTERN_PREFIXES = ('', 'ported/v011e/', 'ported/v021d/')
+LANTERN_PREFIXES = PORT_PREFIXES
 LANTERN_GLASS = {prefix + 'props/light/' + model + '_glass_emit' for prefix in LANTERN_PREFIXES
                  for model in ('stand_group_batlamp', 'wall_group_nailed_batlamp')}
 FLAME, FLAME_REACH = 'fx/lights/oil_lamp', 0.4
@@ -63,7 +72,7 @@ GLASS = TUBE_GLASS | LANTERN_GLASS
 # Housings that stay when their glass breaks. A housing belongs to a fixture
 # (its bounds, so a shot into the housing breaks the glass) only together
 # with glass; on its own it is scenery.
-HOUSINGS = {'props/light/lamp_midle_04'} | {glass.removesuffix('_glass_emit') for glass in LANTERN_GLASS}
+HOUSINGS = {prefix + 'props/light/lamp_midle_04' for prefix in ('',) + LONDON_PREFIXES} | {glass.removesuffix('_glass_emit') for glass in LANTERN_GLASS}
 PARTS = REPLACEMENTS.keys() | GLASS | HOUSINGS
 # Fluorescent glass: a model's tubes are its glass, not its housing or frame.
 # The local height of the tubes' axis in the models that hold them (the
@@ -82,7 +91,7 @@ TUBES = TUBE_Y.keys() | {'lamp2', 'lamp2_bad', 'lamp2_good'}
 # beside it (Vector's 0.6 m from the lamp, level_05's up to 2.4 m, two at one
 # lamp), among the rooms' grey and coloured fills. A red one that near is the
 # lamp's, and goes out with it.
-LIT_ALARMS = {prefix + 'props/light/alarm_red_light' for prefix in ('', 'ported/v011e/', 'ported/v021d/')}
+LIT_ALARMS = {prefix + 'props/light/alarm_red_light' for prefix in PORT_PREFIXES}
 ALARM_GLOW_REACH = 2.5
 LEGACY_CONE = 'ported/v011e/editor/cone'
 CONE_APEX = (0.0, -0.009467163123190403, 0.0)
@@ -184,10 +193,12 @@ def close(a, b):
     return a == b
 
 
-def author(path, data, bounds, break_material, effect_material):
+def author(path, data, bounds, break_material, effect_material, cubemap=None, days=None):
     """A project's lamp edits. A project a pack made from a lamp-carrying day (London's and the
     0.21 maps' rain and evening) has the day's broken models and table already: its fixtures are
-    authored over them, and the table is replaced only where this rule now binds otherwise."""
+    authored over them, and the table is replaced only where this rule now binds otherwise.
+    `cubemap(probe)` is a probe's irradiance cube map (probe_light.py); `days` gathers each
+    level's day split for its other weathers (main authors a level's day projects first)."""
     root = tree(data)
     carried = root.get('srp_lamps')
     visuals = root.get('render_visuals', [])
@@ -233,6 +244,25 @@ def author(path, data, bounds, break_material, effect_material):
             near = nearest(light['position'], FLAME_REACH, lanterns)
             if near is not None:
                 flames[near].append(light)
+    # The room probes a lamp's light is baked into, and what each keeps
+    # once the lamp is broken (probe_light.py); a weather's split falls back
+    # on its level's day.
+    days = {} if days is None else days
+    level, weather = Path(path).parts[-3], Path(path).parts[-2].rsplit('_', 1)[0]
+    probes, lamp_light = probe_light.lamp_probes(
+        [o for o in root.get('client_objects', []) if o.get('game_object_type') == 'environment_probe'],
+        [(i, light) for i, own in enumerate(lights) for light in own], cubemap,
+        None if weather == 'day' else days.get(level))
+    if weather == 'day':
+        days.setdefault(level, lamp_light)
+    # The fill lights (ambient lights) inside a lamp's room probe are its
+    # room's baked light too: they go out with it (the nearest lamp's).
+    for light in root.get('client_objects', []):
+        if light.get('game_object_type') != 'ambient_light' or any(light in g for g in glows):
+            continue
+        rooms = [i for i, own in probes.items() if any(probe_light.holds(p, light['position']) for p, _ in own)]
+        if rooms:
+            glows[min(rooms, key=lambda i: math.dist(centers[i], light['position']))].append(light)
     placements, result = [], bytearray(data)
     for i, v in enumerate(visuals):
         legacy = v.get('visual_name') == LEGACY_CONE
@@ -333,6 +363,10 @@ def author(path, data, bounds, break_material, effect_material):
                 rows[f'lamp{i:03d}'][table] = {
                     f'{key}{j}': dict(zip(('x', 'y', 'z'), o['position']), name=o['full_name'])
                     for j, o in enumerate(objects)}
+        if probes.get(i):
+            rows[f'lamp{i:03d}']['probes'] = {
+                f'probe{j}': dict(zip(('x', 'y', 'z'), probe['position']), name=probe['full_name'], keeps=keeps)
+                for j, (probe, keeps) in enumerate(probes[i])}
     value = {'version': 3, 'break_material': break_material, 'effect_material': effect_material, 'lamps': rows}
     if carried is not None and close(carried, value):
         return [], [], None
@@ -346,14 +380,15 @@ def check_built(path, data):
     its row's bounds; broken: that lamp's broken model, placed as it; cone: a
     light shaft), each light position is exactly one light of the map, each
     ambient light position exactly one ambient light and each particle
-    position exactly one particle object (what the client binds; a later edit
-    list or a map-editor save can move them)."""
+    position exactly one particle object, each probe position exactly one
+    environment probe (what the client binds; a later edit list or a
+    map-editor save can move them)."""
     root = tree(data)
     if 'srp_lamps' not in root:
         return []
     visuals = root.get('render_visuals', [])
     placed = {kind: [o['position'] for o in root.get('client_objects', []) if o.get('game_object_type') == kind]
-              for kind in ('light', 'ambient_light', 'particle')}
+              for kind in ('light', 'ambient_light', 'particle', 'environment_probe')}
     problems = []
     for name, row in root['srp_lamps']['lamps'].items():
         def visual(key):
@@ -380,7 +415,8 @@ def check_built(path, data):
             if not all(row['min_' + a] - 1e-3 <= row[f'glass_{end}_{a}'] <= row['max_' + a] + 1e-3 for a in 'xyz'):
                 problems.append(f'{path}: {name}: its glass line leaves its bounds')
         for table, kind, what in (('lights', 'light', 'lights'), ('ambient_lights', 'ambient_light', 'ambient lights'),
-                                  ('particles', 'particle', 'particles')):
+                                  ('particles', 'particle', 'particles'),
+                                  ('probes', 'environment_probe', 'environment probes')):
             for key, light in row.get(table, {}).items():
                 found = sum(p == [light['x'], light['y'], light['z']] for p in placed[kind])
                 if found != 1:
@@ -412,17 +448,26 @@ def main():
             for name in ('glass', 'bullet')}
     if any(len(ids) != 1 for ids in live.values()):
         raise ValueError('expected one live glass and one live bullet material in the authoring game data')
+    def cubemap(probe):
+        for tree in (args.stock, args.projects):
+            path = tree / 'textures' / f"{probe['texture']}_diffuse.dds"
+            if path.is_file():
+                return path
+        raise FileNotFoundError(f"{probe['full_name']}: no {probe['texture']}_diffuse.dds in --stock or --projects")
     edits = {'_about': 'Breakable lamps: one bullet breaks the fixture, removes its linked lights and cones '
-             "(a lit alarm lamp's red ambient glow and a kerosene lamp's flame too), "
+             "(a lit alarm lamp's red ambient glow and a kerosene lamp's flame too; the room probe a tube lamp lights "
+             'keeps only its share without the lamp, probe_light.py), '
              'and displays the broken model. Source authored by scripts/breakable-lamps/make_edits.py '
              'from manifest-base projects and Research. Explicit indices refer to the final render_visuals '
              'after these additions. Bulb bounds use stock geometry and placed rotation/scale. '
              'Legacy cones start at the emitter: their full-opacity material exposes offsets '
              'hidden by the 0.26 material. Stock and v0.21 placements stay unchanged.',
              'set_entry': [], 'add_entry': [], 'add_value': []}
-    for p in projects:
+    days = {}
+    # A level's day projects first: its other weathers' probes use the day's split.
+    for p in sorted(projects, key=lambda p: (p.parts[-3], not p.parts[-2].startswith('day_'), p.parts[-2])):
         placements, adds, spec = author(str(p.relative_to(args.projects)), p.read_bytes(), bounds,
-                                        live['glass'][0], live['bullet'][0])
+                                        live['glass'][0], live['bullet'][0], cubemap, days)
         if spec:
             if spec.pop('replaces'):
                 edits.setdefault('remove_key', []).append({'files': spec['files'][0], 'keys': ['srp_lamps']})
@@ -432,7 +477,8 @@ def main():
             print(f'{p.parts[-3]}/{p.parts[-2]}: {len(rows)} lamps, '
                   f'{sum(len(r["lights"]) for r in rows.values())} lights, '
                   f'{sum(len(r.get("ambient_lights", {})) for r in rows.values())} ambient lights, '
-                  f'{sum(len(r.get("particles", {})) for r in rows.values())} flames')
+                  f'{sum(len(r.get("particles", {})) for r in rows.values())} flames, '
+                  f'{sum(len(r.get("probes", {})) for r in rows.values())} probes')
     args.out.write_text(json.dumps(edits, indent=2, ensure_ascii=False) + '\n')
 
 

@@ -42,8 +42,11 @@ pub mod vostok;
 
 pub mod ragdoll;
 pub mod blackout;
+pub mod artefact_hunt;
+pub mod round_countdown;
 mod artefact_carry;
 pub mod suicide_key;
+pub mod camera_walls;
 pub mod bake_async;
 
 pub mod text_input;
@@ -58,12 +61,23 @@ pub mod camera_sweep;
 pub mod lamps;
 pub mod artefact_score;
 pub mod battery_progress;
+pub mod weapon_stats;
 
 pub mod hud_options;
+// patch 167: no white hit marker through walls
+pub mod hit_marker_walls;
+// patch 191: a kill made in a re-simulation keeps its kill marker
+pub mod kill_cross;
+// patch 169: the forward effects draw as 0.44a5's
+pub mod forward_effects;
+// patch 183: the g-buffer's parallax constants as 0.44a5 sets them
+pub mod parallax_uv;
 // patch 147: every run's logs in files of their own
 pub mod run_logs;
 pub mod tab_cursor;
 pub mod scaleform_capture;
+// patch 176: SKHID_CAPTURE's run, poses to pictures
+pub mod capture;
 pub mod map_names;
 pub mod world_check;
 pub mod weapon_kit;
@@ -72,7 +86,16 @@ pub mod music;
 pub mod game_volume;
 pub mod sound_voices;
 pub mod drug_interrupt;
+// patch 177: a hit breaks the victim's breath hold
+pub mod breath_hit;
+// patch 196: a shot into a corpse, 0.21's death sound and the dead player in the dark
+pub mod corpse_shot_dark;
+// patch 179: a shot ends the shooter's protection
+pub mod shot_protection;
+// patch 194: the grenade markers tell a smoke and a toxic smoke apart
+pub mod grenade_icons;
 pub mod footsteps;
+pub mod zone_guards;
 // patch 153: a step on a walker-only floor finds its ground
 pub mod step_ground;
 
@@ -81,6 +104,12 @@ pub mod weapon_pickup;
 pub mod medical_skills;
 pub mod artefact_skills;
 pub mod artefact_keeper;
+pub mod artefact_courier;
+pub mod technical_skills;
+pub mod technical_sharp_ears;
+pub mod technical_return_to_sender;
+pub mod technical_dead_man;
+pub mod technical_smoke;
 
 pub mod hand_kill;
 pub mod trap_stock_hit;
@@ -109,9 +138,18 @@ pub mod voice;
 pub mod ban_time;
 pub mod sign_in_cipher;
 pub mod controller_position;
+pub mod tick_parts;
+pub mod profile_kit;
+pub mod use_prompt;
 pub mod use_scan;
 pub mod unplayed_match;
 pub mod texture_streaming;
+// patch 182: a streamed texture with no free slot of its size takes a smaller one
+pub mod texture_pool;
+// patch 190: the hi-Z occlusion no longer drops probes and ambient lights, nor lights for a frame
+pub mod light_occlusion;
+// patch 193: material_pair takes an id past its table as the default material
+pub mod material_bounds;
 pub mod animation_math;
 pub mod replay_keys;
 // patch 152: two keys save the game's picture as a PNG
@@ -126,9 +164,14 @@ pub mod collision_view;
 pub mod console_paste;
 // patch 158: the first-person eye stays out of the level's surfaces
 pub mod head_clearance;
+// patch 172: the aimed view is aligned to the gun's idle pose
+pub mod aim_pose;
+// patch 174: the engine's log without the lines that tell nothing
+pub mod quiet_log;
 
 pub mod replay_file;
 pub mod free_for_all;
+pub mod freeze_tag;
 // patch 143: the battery carrier's hit
 pub mod battery_hit;
 // patch 150: the game shares by BitTorrent in the login screen and the lobby
@@ -136,5 +179,9 @@ pub mod lobby_seeding;
 // patch 159: the console's output scrolls
 pub mod console_scroll;
 pub mod v021d_render;
+// patch 178: the ported Londons' deferred composition is 0.44a5's
+pub mod composition_v044a;
 pub mod faces;
 pub mod geometry_share;
+// patch 161: a weapon's scope, eye, left hand and shells where its fitted modules put them
+pub mod attachments;

@@ -112,6 +112,9 @@
 
 /// Anti-AFK: a player without input for three minutes of play is removed.
 mod afk;
+/// A player's Artifact Hunt deliveries pay within a match's own and a
+/// combat-adjusted allowance (`artefact_hunt.md`, "srp").
+mod artefact_hunt_cap;
 /// A player's battery events pay at most N times per kind, N the map's
 /// batteries (the owner's rule against farming them).
 mod battery_cap;
@@ -236,7 +239,7 @@ pub(crate) struct Timing {
     /// way before the sync starts over (`SRP_ENTRY_STATE_SECONDS`). A game
     /// that plays is resynced within the 1.75 s of the client's own table.
     pub entry_state: Duration,
-    /// A match against the server's bots ([`MatchSetup::vs_bots`]) whose
+    /// A match against the server's bots ([`MatchSetup::kind`]) whose
     /// only player has been asked for its world this long and sent none
     /// is over (`SRP_PVB_STALL_S`): its bots see the world through that
     /// player's uploads alone.

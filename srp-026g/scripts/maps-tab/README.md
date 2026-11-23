@@ -9,6 +9,7 @@ points, each kind toggled on its own:
   its batteries come out of them, so it has no battery spawns to show);
 - the teams' battery containers;
 - Research's three units (mode 5), lettered A to C;
+- Artifact Hunt's artefact spawns and the teams' bases (mode 13);
 - the teams' ammo stashes (resupply zones);
 - artefact spawns, one toggle per artefact.
 
@@ -70,10 +71,11 @@ What comes from where:
 
 | what | where in the game data |
 |---|---|
-| maps, modes, names | `maps_dict` ids whose `gameplay/game_modes/` config is mode 2 to 5 or 8 (Free for All) and whose project exists (the server's rule, `crates/survarium/src/v026g/maps.rs`); names from the localization. A map played in one mode alone (the STALKER ports, in Free for All) has that one mode |
+| maps, modes, names | `maps_dict` ids whose `gameplay/game_modes/` config is mode 2 to 5, 8 (Free for All), 12 (Freeze Tag) or 13 (Artifact Hunt) and whose project exists (the server's rule, `crates/survarium/src/v026g/maps.rs`); names from the localization. A map played in one mode alone (the STALKER ports, in Free for All) has that one mode |
 | respawn points, battery spawns, chargers, containers | the project's `server_objects`, shown only where the mode's `rules` read them (88 gather, 89 timed with chargers); a container where its collision zone is (its own position can be a pivot far off: level_04, level_06 and four more) |
 | Free for All's spawns | of its own project (`<weather>_8`, a copy of Team Deathmatch's), the team-2 respawn points alone: each player spawns there and nowhere else (exe patch 142, `docs/notes/ffa.md`). The two teams' points the copy keeps are not shown. The page draws a mode with no team's spawn as one kind: one colour, one swatch, no team in the tooltip |
 | Research units | the mode config's `parameters.capture_zones` (`cp_id`, `position`), shown where the mode's `rules` have Research's (480; `docs/notes/research_mode.md`) |
+| Artifact Hunt's artefact spawns and bases | the mode config's `artefact_hunt.spawners[].position` and `.bases[] {team, position}`, shown where the mode's `rules` have Artifact Hunt's (481; `docs/notes/artefact_hunt.md`); the artefact drawn as the HUD's minimap draws it lying (`ArtefactMinimapPoint`: an orb in its pale gold), a base as the HUD's `Base` by team |
 | ammo stashes | `client_objects`: each `resupply_zone`'s collision zone, by team |
 | marker icons | `hud.swf` `Minimap._icons` (`PlayerBlue`, `Base`, `SpawnIcon`, `ResupplyIcon`), as SVG (FFDec), with each one's lightness and opacity so the page paints them in one blue and one red; the battery: the kill feed's battery icon without its burst (the game's electrobox mesh, `models/weapons/electrobox.skinned_model/render/electrobox_s/converted_model`, in three-quarter view), traced as a vector SVG by `scripts/kill-feed-icons/make_battery_icon.py` (the owner, 2026-11-15: "we can use the same icon on website (without strike)") |
 | spawn facing | the respawn point's rotation: yaw = y, or pi - y when x and z are pi; forward (-sin yaw, cos yaw) in x/z (on every map the points face the enemy's side) |
@@ -87,7 +89,8 @@ A map without a render stops the build. Render it first, add it to
 The build also stops in these cases, rather than guess:
 
 - the weathers of one map and mode hold different objects;
-- the modes of one map hold different artefact spawns.
+- the modes of one map hold different artefact spawns;
+- the configs of one map's Artifact Hunt hold different artefact spawns or bases.
 
 `--work <dir>` keeps the extracted files between runs while you work on the
 page. `--allow-missing-renders` is for the same purpose: a map without a

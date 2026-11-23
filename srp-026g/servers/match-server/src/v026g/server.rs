@@ -572,12 +572,13 @@ impl Server {
                     },
                     winner: None,
                     team_points: [0, 0],
+                    round_starts: 0,
                     duration_ms: 0,
                     played_ms: None,
                     trusted_snapshot_ms: None,
                     trusted_by: 0,
-                    vs_bots: formed.vs_bots,
-                    private: formed.private,
+                    vs_bots: formed.kind.vs_bots(),
+                    private: formed.kind.private(),
                     players: formed
                         .places
                         .iter()
@@ -601,6 +602,7 @@ impl Server {
                             longest_killstreak: 0,
                             kit_changes: 0,
                             supplies: None,
+                            weapons: Vec::new(),
                         })
                         .collect(),
                 });

@@ -28,4 +28,6 @@ ITEMS	16	grenade	filter_grenade	GRENADES
 UPGRADES	18	decal	filter_decal	DECALS
 UPGRADES	19	camo	filter_camo	CAMOUFLAGES
 UPGRADES	20	vouchers	filter_vouchers	VOUCHERS
-UPGRADES	13	scope	filter_scope	SCOPES
+UPGRADES	21	scope	filter_scope	SCOPES
+UPGRADES	22	muzzle	st_srp_muzzle_slot	MUZZLE_DEVICES
+UPGRADES	23	grip	st_srp_grip_slot	GRIPS
