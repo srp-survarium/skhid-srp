@@ -645,6 +645,7 @@ matrix:
     call base                       ; edi = the state
     mov dword [edi+READY], 1        ; the window's weapon is at the bench
     call middle
+    call hide_parked
     lea eax, [ebp+MATRIX]
     ; rows (v * M): rotY(spin) * rotZ(tilt), then the middle of the model
     ; at SPOT
@@ -734,32 +735,8 @@ middle:
     jne .done
     xor ebx, ebx                    ; 1: the table's middle at BIND_MIDDLE
     ; a weapon whose box does not serve: MIDDLES, by the items_dict id of the
-    ; record the character's player holds (all inside the character, every
-    ; index checked: the character's current copy, its kit's weapon 1, or 2
-    ; without a 1, as patch 32's find_kit)
-    mov eax, [ebp+CHARACTER]        ; is_table checked it
-    movzx ecx, byte [eax+SHOWN_COPY]
-    cmp ecx, 3
-    jae .model
-    imul ecx, ecx, COPY_SIZE
-    lea ecx, [eax+ecx+COPIES]       ; the copy
-    movzx edx, byte [eax+SHOWN_KIT]
-    cmp edx, 3
-    jae .model
-    cmp dl, [ecx+KITS]
-    jae .model
-    imul edx, edx, KIT_SIZE
-    movzx eax, word [ecx+edx+KIT+WEAPON_1]
-    cmp ax, -1
-    jne .held
-    movzx eax, word [ecx+edx+KIT+WEAPON_2]
-.held:
-    cmp eax, MAX_ITEMS
-    jae .model
-    cmp al, [ecx+ITEMS]
-    jae .model
-    imul eax, eax, ITEM_SIZE
-    movzx eax, word [ecx+eax+ITEM_TABLE+4]
+    ; record the character's player holds
+    call held_id
     lea edx, [edi+CONST(middles)]
 .find:
     movzx ecx, word [edx]
@@ -847,6 +824,111 @@ middle:
     movups [edi+MIDDLE], xmm0
     xor eax, eax
     mov [edi+MIDDLE+12], eax
+.done:
+    popad
+    ret
+
+; eax = the items_dict id of the record the character's player was built
+; from, 0 for none (all inside the character, every index checked: the
+; character's current copy, its kit's weapon 1, or 2 without a 1, as patch
+; 32's find_kit). ebp = mt_draw's frame (is_table checked its character).
+; Keeps every other register.
+held_id:
+    push ecx
+    push edx
+    mov eax, [ebp+CHARACTER]
+    movzx ecx, byte [eax+SHOWN_COPY]
+    cmp ecx, 3
+    jae .none
+    imul ecx, ecx, COPY_SIZE
+    lea ecx, [eax+ecx+COPIES]       ; the copy
+    movzx edx, byte [eax+SHOWN_KIT]
+    cmp edx, 3
+    jae .none
+    cmp dl, [ecx+KITS]
+    jae .none
+    imul edx, edx, KIT_SIZE
+    movzx eax, word [ecx+edx+KIT+WEAPON_1]
+    cmp ax, -1
+    jne .held
+    movzx eax, word [ecx+edx+KIT+WEAPON_2]
+.held:
+    cmp eax, MAX_ITEMS
+    jae .none
+    cmp al, [ecx+ITEMS]
+    jae .none
+    imul eax, eax, ITEM_SIZE
+    movzx eax, word [ecx+eax+ITEM_TABLE+4]
+    jmp .end
+.none:
+    xor eax, eax
+.end:
+    pop edx
+    pop ecx
+    ret
+
+; The reload parts the weapon's 3rd-view idle parks where the hand holds the
+; gun (round 9, 2026-11-08): in the hand they are hidden by it, at the bench
+; they showed (the Benelli's and the MP-153's shell beside the grip, the
+; Winchester's cartridge at the wrist, the SKS's clip through its thumbhole,
+; the vz. 58's, VSS's, Val's and SR-3M's second magazine on the first).
+; PARKED by the items_dict id of the record: a mask of the model's bones; each
+; one of the frame's bones (below its count) loses rows 0..2, so its vertices
+; fall on one point and nothing of it is drawn. Not while the character
+; makes its player (a refresh, a window over a weapon's: the record may be
+; the next weapon's, the bones the old one's; its parts may show for those
+; frames). edi = the state, ebx = the player, ebp = mt_draw's frame; after
+; middle (bone 1 is never parked).
+; Keeps every register.
+hide_parked:
+    pushad
+    mov eax, [ebp+CHARACTER]        ; while the character makes its player the record may be the
+    cmp dword [eax+BUILDING], -1    ; next one's (+D2B5h at once, +D2B4h at on_player_ready) and the
+    jne .done                       ; weapon drawn the old one: no mask then (as middle's measure)
+    cmp byte [eax+BUILD_AGAIN], 0
+    jne .done
+    mov esi, [ebx+HELD]
+    test esi, esi
+    jz .done
+    lea eax, [edi + WEAPON_VTABLE - STATE]
+    cmp [esi], eax
+    jne .done
+    call held_id
+    lea edx, [edi+CONST(parked)]
+.find:
+    movzx ecx, word [edx]
+    test ecx, ecx
+    jz .done
+    add edx, 6
+    cmp ecx, eax
+    jne .find
+    mov edx, [edx-4]                ; the mask
+    mov esi, [ebp+BONES]
+    test esi, esi
+    jz .done
+    mov ecx, [ebp+BONE_COUNT]
+    cmp ecx, 32
+    jbe .count
+    mov ecx, 32
+.count:
+    xor eax, eax
+    xor ebx, ebx                    ; the bone
+.bone:
+    cmp ebx, ecx
+    jae .done
+    bt edx, ebx
+    jnc .next
+    mov edi, ebx
+    shl edi, 6
+    add edi, esi
+    push ecx
+    mov ecx, 12                     ; rows 0..2 (48 bytes); row 3, its place, kept
+    cld
+    rep stosd
+    pop ecx
+.next:
+    inc ebx
+    jmp .bone
 .done:
     popad
     ret
@@ -1086,4 +1168,26 @@ middles:          GUN 12, 5, -2, 240     ; toz_122 (weapons/toz_122)
                   GUN 2244, -5, -31, 21  ; vepr_premium (weapons/vepr_camo/vepr_camo)
                   GUN 2249, 15, -4, 270  ; rem_700_premium (weapons/rem_700_camo_st)
                   GUN 2251, 0, -31, 276  ; izh_27_lancaster_premium_2 (weapons/izh_27_lancaster_camo/izh_27_lancaster_camo_st)
+                  dw 0
+; PARKED: the weapons whose 3rd-view idle parks reload parts where the hand
+; holds the gun, visible at the bench (client_patch.md section 3.42, round 9):
+; items_dict id, the mask of their bones (render/bind_pose order, the same in
+; every scope variant of the model). 6 bytes each: the id a word, the mask a
+; dword.
+%macro PARK 2
+    dw %1
+    dd %2
+%endmacro
+parked:           PARK 90, 0x40          ; winchester_1894: bn_patron
+                  PARK 109, 0x361FC      ; sks: bn_oboima, bn_patron01..10
+                  PARK 110, 0x80         ; mp_153 (weapons/mp153/mp153): patron
+                  PARK 125, 0x80         ; benelli_m4 (weapons/benelli_m4/benelli_m4): patron
+                  PARK 307, 0x100        ; val: magazin3
+                  PARK 308, 0x100        ; vss: magazin2
+                  PARK 309, 0x100        ; sr3m: magazin3
+                  PARK 335, 0x100        ; vss_premium (weapons/vss/vss): magazin2
+                  PARK 336, 0x100        ; sr3m_premium (weapons/sr3m/sr3m): magazin3
+                  PARK 2213, 0x0C        ; vz58: patron2nd, magazin2nd
+                  PARK 2246, 0x361FC     ; sks_premium (weapons/sks_camo/sks_camo)
+                  PARK 2247, 0x361FC     ; sks_premium_2 (weapons/sks_camo/sks_camo_st)
                   dw 0
