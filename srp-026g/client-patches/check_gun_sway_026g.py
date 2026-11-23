@@ -11,7 +11,7 @@ On check_head_clearance_026g's rig, in the original and in the built exe:
 - update_camera for two frames 16 ms apart, the eyes turned 2 degrees to the
   right between them, then the same stretch of process_hands_ik: the
   Weapon bone is swung about the Item bone's place to the left by this file's
-  own arithmetic of the arms' lag behind the smoothed way (0.870 degrees), every other bone and the
+  own arithmetic of the arms' lag behind the smoothed way (1.503 degrees), every other bone and the
   registers the original's; the view of the second frame is the original's
   (the view does not lag);
 - fully aimed, in the third person and with another item in hand: the bones
@@ -32,7 +32,7 @@ WEAPON_VTABLE, WEAPON_CORE_VTABLE = 0xA04174, 0xA11094
 CONTROLLER, BONES, HOLDER, SKELETON, NAMES, WEAPON = (rig.HEAP + 0x28000 + 0x800 * n for n in (0, 1, 2, 3, 5, 8))
 FRAME, ARGS = rig.STACK + 0x6000, rig.STACK + 0x7000
 NAMED = ("object_movement", "Root", "Weapon", "Item")
-SMOOTHING, ARMS_LAG, SWAY = 25.0, 20.0, 1.6
+SMOOTHING, ARMS_LAG, SWAY, MOST = 25.0, 20.0, 3.0, math.radians(19.0)
 failed = 0
 
 ROOT = (1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0.0, 0.9, 0.0, 1)
@@ -138,7 +138,8 @@ def main():
     check(o_view == s_view and o_cam == s_cam, "the turn's frame: the view and the registers the original's (the view does not lag)")
     smooth = turn * min(0.016 * SMOOTHING, 1.0)
     arms = smooth * min(min(0.016, 1 / 30) * ARMS_LAG, 1.0)
-    behind = (arms - smooth) * SWAY                       # behind the smoothed way
+    lag = (arms - smooth) * SWAY                          # behind the smoothed way
+    behind = lag / (1 + abs(lag) / MOST)                  # bent under the most
     want = struct.unpack("<16f", struct.pack("<16f", *swung(GUN, EYE, behind, 0.0)))
     s_bones, s_regs = stock.solve()
     o_bones, o_regs = ours.solve()

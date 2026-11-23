@@ -292,3 +292,15 @@ smooth curve", "weapon should lag a bit more when turning". Two faults, and the 
 
 `SKHID_SWAY_LOG` writes a line a frame (its length, the eye's way, the gun behind it, whose eye),
 for the next "not smooth".
+
+The owner's sixth play, with the frame log on: "still bad with fast camera movements", "i would
+expect its degree of freedom to be bigger", "like in bodycam", "now it is just a few degrees here
+and there", "the gun should have way more freedom of motion, current cone is very small and doesn't
+feel very well in game, especially with faster movement", "i would expect its radius to be twice as
+large, but the best one is in bodycam". The log (7994 frames, 13 ms each, the eye's way smooth frame
+by frame, never an eye another hook gave): in a turn of 500 degrees a second the gun sat at the
+stop of 7 degrees for the whole turn and five frames past its end, then came back. So:
+- no stop: a lag of x is drawn as x / (1 + |x| / most), the most being the bodycam fork's hip
+  range, 19 degrees across and 19 up and down;
+- three times the arms' lag behind the smoothed way: about 4.5 degrees behind at 60 degrees a
+  second, 9 at 200, 14 at 500.

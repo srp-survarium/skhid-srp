@@ -26,8 +26,9 @@
 //! eye's way of each frame (not the player's yaw and look pitch, which the
 //! simulation moves a step at a time: a gun after them moves in jerks, the
 //! owner: "weapons lost smooth movement") smoothed at `CONTROL_SMOOTHING`,
-//! the arms after it at `ARMS_LAG`; `SWAY` of it is shown, at most `MOST`, and less the further
-//! the sight is raised (none fully aimed: the sights stay true).
+//! the arms after it at `ARMS_LAG`; `SWAY` of it is shown, coming up to
+//! `MOST` without a stop, and less the further the sight is raised (none
+//! fully aimed: the sights stay true).
 //!
 //! The owner's plays, 2026-11-23: "weapons don't have momentum when turn",
 //! then, of a view that followed the gun as that reference's camera does:
@@ -45,7 +46,7 @@
 
 #![forbid(unsafe_code)]
 
-use ragdoll::math::{Vec3, atan2, clamp, min, sin_cos, sqrt};
+use ragdoll::math::{Vec3, abs, atan2, clamp, min, sin_cos, sqrt};
 
 use crate::affine::{inverse, product};
 use crate::muzzle_shots::{self, Shake};
@@ -68,10 +69,17 @@ const LONGEST_LAG_STEP: f32 = 1.0 / 30.0;
 const LONGEST_FRAME: f32 = 0.4;
 /// The share of the arms' lag behind the smoothed way that the gun is drawn
 /// behind the view by (the owner, of 1.0: "weapon should lag a bit more
-/// when turning").
-const SWAY: f32 = 1.6;
-/// The most the gun is drawn behind the view.
-const MOST: Look = Look { yaw: 7.0 * DEGREE, pitch: 4.5 * DEGREE };
+/// when turning"; of 1.6 under a stop at 7 degrees: "i would expect its
+/// degree of freedom to be bigger", "like in bodycam", "now it is just a
+/// few degrees here and there").
+const SWAY: f32 = 3.0;
+/// What the gun's lag comes up to on the fastest turn, never reaching it: a
+/// lag of x is drawn as x / (1 + |x| / MOST). A hard stop at 7 degrees held
+/// the gun there through a fast turn and for frames after it (the owner:
+/// "still bad with fast camera movements"; "the gun should have way more
+/// freedom of motion, current cone is very small", "the best one is in
+/// bodycam": its fork's hip range, 19 degrees each way).
+const MOST: Look = Look { yaw: 19.0 * DEGREE, pitch: 19.0 * DEGREE };
 
 /// A direction, or a pair of angles about the two axes (rad): `yaw` about the
 /// world's up (growing to the right), `pitch` up from the level.
@@ -135,10 +143,8 @@ impl Arms {
     /// it (the owner: "still not smooth").
     fn behind(&self, raised: f32) -> Look {
         let share = SWAY * (1.0 - if raised.is_finite() { clamp(raised, 0.0, 1.0) } else { 1.0 });
-        Look {
-            yaw: clamp(turn(self.arms.yaw - self.smooth.yaw) * share, -MOST.yaw, MOST.yaw),
-            pitch: clamp((self.arms.pitch - self.smooth.pitch) * share, -MOST.pitch, MOST.pitch),
-        }
+        let bent = |lag: f32, most: f32| lag / (1.0 + abs(lag) / most);
+        Look { yaw: bent(turn(self.arms.yaw - self.smooth.yaw) * share, MOST.yaw), pitch: bent((self.arms.pitch - self.smooth.pitch) * share, MOST.pitch) }
     }
 }
 
@@ -371,7 +377,7 @@ mod tests {
                 most = most.max((uneven.behind(0.0).yaw - before).abs());
             }
         }
-        // the frames differ by 1.6 degrees of the eye's way; the gun's place by a tenth of that
+        // the frames differ by 1.6 degrees of the eye's way; the gun's place by a fraction of that
         assert!(most < 0.17 * SWAY * DEGREE, "{}", most / DEGREE);
         assert!((uneven.behind(0.0).yaw - even.behind(0.0).yaw).abs() < 0.2 * SWAY * DEGREE);
     }
@@ -381,23 +387,43 @@ mod tests {
         // 60 degrees a second to the right: behind, to the left; steady after a moment
         let turn = turning(arms(), 60.0 * DEGREE, 60);
         let behind = turn.behind(0.0);
-        assert!(behind.yaw < -1.5 * DEGREE && behind.yaw > -MOST.yaw && behind.pitch == 0.0, "{behind:?}");
+        assert!(behind.yaw < -3.0 * DEGREE && behind.yaw > -MOST.yaw && behind.pitch == 0.0, "{behind:?}");
         assert!((turning(turn, 60.0 * DEGREE, 30).behind(0.0).yaw - behind.yaw).abs() < 0.05 * DEGREE);
-        // the arms' lag behind the smoothed way (at 60 frames a second, 33 ms of the turn)
-        assert!((behind.yaw + SWAY * 60.0 * DEGREE * 0.0333).abs() < 0.1 * SWAY * DEGREE, "{behind:?}");
+        // the arms' lag behind the smoothed way (at 60 frames a second, 33 ms of the turn), under the limit's bend
+        let lag = SWAY * 60.0 * DEGREE * 0.0333;
+        assert!((behind.yaw + lag / (1.0 + lag / MOST.yaw)).abs() < 0.2 * DEGREE, "{behind:?}");
         let stopped = turning(turn, 0.0, 30);
-        assert!(stopped.behind(0.0).yaw.abs() < 0.01 * DEGREE, "{:?}", stopped.behind(0.0));
+        assert!(stopped.behind(0.0).yaw.abs() < 0.02 * DEGREE, "{:?}", stopped.behind(0.0));
     }
 
     #[test]
-    fn the_gun_is_never_more_than_the_most_behind_and_not_at_all_fully_aimed() {
-        let fast = turning(arms(), 400.0 * DEGREE, 30);
-        assert_eq!(fast.behind(0.0).yaw, -MOST.yaw);
+    fn a_fast_turn_bends_the_lag_under_the_most_and_lets_it_go_at_once() {
+        let fast = turning(arms(), 500.0 * DEGREE, 30);
+        let behind = fast.behind(0.0).yaw;
+        assert!(behind > -MOST.yaw && behind < -0.6 * MOST.yaw, "{}", behind / DEGREE);
+        // no stop to stay at: the first frame after the turn the gun is already coming back, each frame a little
+        let mut last = behind;
+        let mut after = fast;
+        for _ in 0..12 {
+            after = turning(after, 0.0, 1);
+            let now = after.behind(0.0).yaw;
+            assert!(now > last && now - last < 3.5 * DEGREE, "{} {}", last / DEGREE, now / DEGREE);
+            last = now;
+        }
         assert_eq!(fast.behind(1.0), Look::NONE);
         assert_eq!(fast.behind(f32::NAN), Look::NONE);
-        assert!((fast.behind(0.5).yaw + MOST.yaw).abs() < 1e-6, "still past the most at half the share");
-        let slow = turning(arms(), 30.0 * DEGREE, 60);
-        assert!((slow.behind(0.5).yaw - 0.5 * slow.behind(0.0).yaw).abs() < 1e-6);
+        let slow = turning(arms(), 10.0 * DEGREE, 60);
+        assert!((slow.behind(0.5).yaw / slow.behind(0.0).yaw - 0.5).abs() < 0.03, "half the share, nearly half the lag");
+    }
+
+    #[test]
+    fn the_gun_trails_a_look_up_or_down_too_under_its_own_most() {
+        let mut arms = arms();
+        for _ in 0..12 {
+            arms = arms.stepped(Look { yaw: arms.control.yaw, pitch: arms.control.pitch + 200.0 * DEGREE * FRAME }, FRAME, arms.at + 16);
+        }
+        let behind = arms.behind(0.0);
+        assert!(behind.yaw == 0.0 && behind.pitch < -4.0 * DEGREE && behind.pitch > -MOST.pitch, "{behind:?}");
     }
 
     #[test]
