@@ -1051,8 +1051,6 @@ pub struct Motor {
     cast_line: Option<String>,
     /// [T1] The log line of the last try a line-up hold spent ([`Self::take_line_hold_line`]).
     line_hold_line: Option<String>,
-    /// [rest at the run-up] The run-up point a bail-out backed to and its log line ([`Self::take_rest_back_line`]).
-    rest_back_line: Option<(Vec3, String)>,
     /// [press forecast] The last forecast press, followed for its line ([`Self::cast_watch_tick`]).
     cast_watch: Option<CastWatch>,
     /// [press forecast] What the last forecast press's watch makes of this tick ([`Self::cast_watch_tick`]).
@@ -1357,9 +1355,6 @@ struct PressCast {
     rests: Vec<Vec3>,
     /// This try's plans so far, for its nav line ([`Self::note`]).
     notes: String,
-    /// [rest at the run-up] The motor's tick this try backed off to the link's run-up point from a bail-out off the lock
-    /// ([`Motor::cast_back_to_rest`]): once a try.
-    backed: Option<u32>,
 }
 
 impl PressCast {
@@ -1468,9 +1463,6 @@ struct CastLink {
     may_press: bool,
     /// What the keys do after the landing step: let go where the landing is held ([`Ahead::let_go`]).
     after: super::body::AfterLanding,
-    /// [rest at the run-up] The link's run-up point, m before the take-off along the line: the motor's back-off point (the stored
-    /// press's lead and walk-up, or the forecast's run-up where it is clear).
-    rest_from: f32,
 }
 
 impl CastLink {
@@ -2170,7 +2162,6 @@ impl Motor {
             cast: None,
             cast_line: None,
             line_hold_line: None,
-            rest_back_line: None,
             cast_watch: None,
             watch_now: WatchNow::Off,
             held_up: None,
@@ -3831,7 +3822,6 @@ impl Motor {
                     in_the_air,
                     may_press: !pose.no_jump && !self.carrying && jump.pressed.is_none_or(|at| self.since(at) >= JUMP_AGAIN_S.max(CARRY_S)),
                     after: if let_go { super::body::AfterLanding::Hold } else { super::body::AfterLanding::WalkOn },
-                    rest_from: run_up,
                 };
                 Some(self.cast_tick(&mut jump, &link, pose, flyer))
             }
@@ -4102,7 +4092,6 @@ impl Motor {
                 why: None,
                 rests: Vec::new(),
                 notes: String::new(),
-                backed: None,
             },
         };
         if cast.tries != jump.tries {
@@ -4111,46 +4100,10 @@ impl Motor {
             cast.state = CastState::Approach;
             cast.why = None;
             cast.notes.clear();
-            cast.backed = None;
         }
         let keys = self.cast_step(&mut cast, jump, link, pose, &body, flyer);
         self.cast = Some(cast);
         keys
-    }
-
-    /// [rest at the run-up] A walk-in's bail-out off the lock (`why`): the body first came onto the press's line this near the
-    /// take-off, off its side or its way, so it would come to rest where the bail hit, at or past the take-off, and ask a rest
-    /// press with no walk-up there (B-batt-m7-s3's bot 15 on d0a561773: its locks first reached 0.78 to -0.10 m out, 0.07-0.26 m
-    /// off the line and 0.05-1.96 rad off its way; its rests at -0.12 to 0.41 m landed none of their flights). Once a try, a body
-    /// farther than [`AT_RUN_UP_M`] from the link's run-up point backs off to it ([`JumpTry::back`], no try spent) and comes in
-    /// again from there; the stored presses fly from that point (in the exe, rig_real_v3: the pocket's Slow and stand presses
-    /// from their run-up points land and stay). Returns whether it backed.
-    fn cast_back_to_rest(&mut self, cast: &mut PressCast, jump: &mut JumpTry, link: &CastLink, body: &Estimate, why: &str) -> bool {
-        let rest = Vec3::new(link.line_from.x - link.way[0] * link.rest_from, link.take_off.y, link.line_from.z - link.way[1] * link.rest_from);
-        let off = rest.distance_xz(body.feet);
-        if cast.backed.is_some() || off <= AT_RUN_UP_M {
-            return false;
-        }
-        cast.backed = Some(self.clock);
-        // The plan's deadline counts from the lock reached again.
-        cast.since = None;
-        jump.back = true;
-        press_casts::count(press_casts::Slot::BackToRest);
-        let before = link.before(body.feet);
-        cast.note(&format!("bail-out {why} at {before:.2} m out, {off:.2} m from the run-up point {:.2} m out: backed to it", link.rest_from));
-        self.rest_back_line = Some((
-            rest,
-            format!(
-                "press forecast: backed to the run-up point ({:.2}, {:.2}, {:.2}), {:.2} m before the take-off, from a bail-out {why} at {before:.2} m out, {:.2} m off the line; take-off ({:.2}, {:.2}, {:.2}) landing ({:.2}, {:.2}, {:.2})",
-                rest.x, rest.y, rest.z, link.rest_from, link.side, link.take_off.x, link.take_off.y, link.take_off.z, link.landing.x, link.landing.y, link.landing.z
-            ),
-        ));
-        true
-    }
-
-    /// [rest at the run-up] The run-up point a bail-out backed to since the last call, and its nav line ([`Self::cast_back_to_rest`]).
-    pub fn take_rest_back_line(&mut self) -> Option<(Vec3, String)> {
-        self.rest_back_line.take()
     }
 
     /// [`Self::cast_tick`]'s transition: from the cast's state and this tick's body, its next state and the keys.
@@ -4199,16 +4152,9 @@ impl Motor {
                 }
             }
             CastState::Approach if link.side > LOCK_SIDE_M || wrap(yaw_of(link.way) - pose.yaw).abs() > LOCK_YAW_RAD => {
-                if !bail {
-                    (CastState::Approach, line)
-                } else if self.cast_back_to_rest(cast, jump, link, body, "off the lock") {
-                    (CastState::Approach, CastKeys::Approach)
-                } else {
-                    (CastState::Stopping, CastKeys::Stand)
-                }
+                if bail { (CastState::Stopping, CastKeys::Stand) } else { (CastState::Approach, line) }
             }
             CastState::Approach => match flyer.chain(body, link.gait.keys(), link.chain_ticks(before)) {
-                None if bail && self.cast_back_to_rest(cast, jump, link, body, "no chain") => (CastState::Approach, CastKeys::Approach),
                 None if bail => (CastState::Stopping, CastKeys::Stand),
                 None => (CastState::Approach, line),
                 Some(chain) => match Plan::new(self.clock, Ask::Moving { zone: link.zone, gait: link.gait }, press_casts::chained_with(chain), |p| link.before(p)) {
@@ -6071,12 +6017,9 @@ pub mod press_casts {
         /// [sprint pass] A tick a sprint walk-in's keys kept their sprint through a walking jump's lining up
         /// ([`super::Motor::lined_keys`]).
         SprintKept,
-        /// [rest at the run-up] A walk-in's bail-out off the lock backed off to the link's run-up point
-        /// ([`super::Motor::cast_back_to_rest`]).
-        BackToRest,
     }
 
-    pub const SLOTS: [Slot; 26] = [
+    pub const SLOTS: [Slot; 25] = [
         Slot::Planned,
         Slot::NoZone,
         Slot::Flights,
@@ -6102,10 +6045,9 @@ pub mod press_casts {
         Slot::SprintPressed,
         Slot::SprintNoRun,
         Slot::SprintKept,
-        Slot::BackToRest,
     ];
 
-    static COUNTS: [AtomicU64; 26] = [const { AtomicU64::new(0) }; 26];
+    static COUNTS: [AtomicU64; 25] = [const { AtomicU64::new(0) }; 25];
 
     /// Since the last match end ([`take_match`]): the chains and the flights.
     static MATCH: [AtomicU64; 2] = [const { AtomicU64::new(0) }; 2];
