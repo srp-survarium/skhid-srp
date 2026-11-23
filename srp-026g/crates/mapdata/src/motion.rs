@@ -73,6 +73,29 @@ impl Walker for Client<'_> {
     }
 }
 
+/// [body physics S5a] A grid pass's own world: its collision with its own settings (`grid::Body::controller`: the caster by
+/// `exe_collision`), so the builder's bodies step as its passes' controllers did.
+#[derive(Clone, Copy)]
+pub struct Pass<'w> {
+    pub world: &'w Collision,
+    pub settings: &'w Settings,
+}
+
+impl Walker for Pass<'_> {
+    fn step(&self, c: &mut Controller, input: TickInput) -> StepNotes {
+        c.tick(self.world, DT, self.settings, input)
+    }
+
+    fn fly(&self, c: &mut Controller, flying: &mut Flying, heading: (f32, f32), air: (f32, f32)) -> FlightStep {
+        flying.step(self.world, self.settings, c, heading, air)
+    }
+}
+
+/// [body physics S5a] The yaw a body faces along the flat unit `heading` (x, z): [`forward`]'s inverse.
+pub fn yaw_of(heading: (f32, f32)) -> f32 {
+    (-heading.0).atan2(heading.1)
+}
+
 /// The input's action bits the body reads (`apply_new_input` 0x2D86E0's key word; the server's `drive::key`).
 pub mod keys {
     pub const FORWARD: u32 = 0x1;
@@ -407,6 +430,20 @@ impl ClientBody {
     /// A body whose controller is `controller`, at rest in its blend, with no input yet.
     pub fn of(controller: Controller, yaw: f32) -> Self {
         Self { controller, blend: WalkBlend::still(), moving: Input { keys: 0, yaw }, walk_yaw: yaw, phase: Phase::Ground }
+    }
+
+    /// [body physics S5a] A body whose flight's landing step has just been flown with `controller`, facing `yaw`: in the landing
+    /// substate ([`Phase::Landing`]), its next step at the flight's last travel `travel` whatever its input, then the blend of `keys`
+    /// from it, as [`Self::tick`] leaves a body on its landing step (the builder's flights, `jump::fly_as`).
+    pub fn landed(controller: Controller, yaw: f32, travel: f32, keys: u32) -> Self {
+        let clip = clip_of(keys);
+        Self {
+            controller,
+            blend: WalkBlend::at([travel, 0.0], clip),
+            moving: Input { keys, yaw },
+            walk_yaw: yaw,
+            phase: Phase::Landing { travel, clip },
+        }
     }
 
     /// A world's body: the controller it saved (`Controller::deserialized`, the client's own state: crouched where it is), the

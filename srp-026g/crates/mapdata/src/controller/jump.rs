@@ -317,18 +317,24 @@ pub fn fly_as(
     while !flying.landed() {
         steps.push(flying.step(world, s, c, heading, air));
     }
-    let last_travel = flying.last_travel();
-    let way = Vec3::new(heading.0, 0.0, heading.1);
+    // [body physics S5a] The ground steps are the client's body's ([`crate::motion::ClientBody::landed`]): one step at the flight's
+    // last travel whatever the keys, then the keys' blend from it (let go: none; held: forward, and the sprint for a sprint press),
+    // the flight's cap its walk cap.
+    use crate::motion::{self, ClientBody, Input, Kin, Pass};
+    let held = match press {
+        _ if !keys.held_after => 0,
+        Press::Sprint { .. } => motion::keys::FORWARD | motion::keys::SPRINT,
+        Press::Walk { .. } => motion::keys::FORWARD,
+    };
+    let yaw = motion::yaw_of(heading);
+    let kin = Kin { level: cap / WALK_CAP_MS, legs_broken: false };
+    let mut body = ClientBody::landed(*c, yaw, flying.last_travel(), held);
+    let pass = Pass { world, settings: s };
     for m in 1..=ground_steps {
-        let ramp = m.min(6) as f32 / 6.0;
-        let speed = match press {
-            _ if !keys.held_after => last_travel * (1.0 - ramp),
-            Press::Sprint { .. } => cap,
-            Press::Walk { .. } => last_travel + (cap - last_travel) * ramp,
-        };
-        walk_step(c, world, s, way * (speed * DT), false);
-        steps.push(FlightStep { n: landing + m, feet: c.feet(), in_jump: c.jumping, on_ground: c.on_ground(s) });
+        let tick = body.tick(&pass, kin, Input { keys: held, yaw });
+        steps.push(FlightStep { n: landing + m, feet: tick.feet, in_jump: tick.in_jump, on_ground: tick.on_ground });
     }
+    *c = *body.controller();
     steps
 }
 
