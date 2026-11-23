@@ -46,6 +46,7 @@ package
    import survarium.controls.PlayerProfileBase;
    import survarium.controls.PlayerRowMenu;
    import survarium.controls.ForcedView;
+   import survarium.modes.ArtefactHuntLook;
    import survarium.modes.ArtefactHuntRow;
    import survarium.modes.ArtefactHuntState;
    import survarium.modes.FfaProgress;
@@ -1825,6 +1826,7 @@ package
          _gameType = type;
          this._freezeContext = null;
          this._freezeWasFrozen = false;
+         this.roundFade.show(0);
          if(type != 12)
          {
             this.showFrozen(FrozenPlaces.NONE);
@@ -1884,11 +1886,13 @@ package
          this.set_game_progress(own,other);
       }
 
-      // Status: 0 playing; 1/2/3 match win/loss/draw; 4/5/6 round win/loss/draw.
-      // thaw: the thaw time in ms (THAW_MS); the bar shows progress of it. thawsIn: the frozen
-      // player's time left to the auto-thaw (ms).
-      public function freeze_tag_update(frozen:uint, progress:uint, status:uint, remaining:uint, thaw:uint, thawsIn:uint) : void
+      // Status: 0 playing; 1/2/3 match win/loss/draw; 4/5/6 round win/loss/draw (its 3 s); 7 the
+      // round's fade, 8 its countdown (Artifact Hunt's restart, its phase ids): remaining ms of
+      // whole. thaw: the thaw time in ms (THAW_MS); the bar shows progress of it. thawsIn: the
+      // frozen player's time left to the auto-thaw (ms).
+      public function freeze_tag_update(frozen:uint, progress:uint, status:uint, remaining:uint, thaw:uint, thawsIn:uint, whole:uint = 0) : void
       {
+         this.roundFade.show(RoundFade.blackOf(status,Math.max(0,whole - remaining),whole));
          // The last freeze also ends a round; it still gets the freeze cue.
          var isFrozen:Boolean = frozen != 0;
          if(isFrozen && !this._freezeWasFrozen)
@@ -1897,14 +1901,16 @@ package
          var text:String;
          if(status >= 1 && status <= 3)
             text = LocalizationData.getName(status == 1 ? "st_srp_hud_freeze_win" : status == 2 ? "st_srp_hud_freeze_lose" : "st_srp_hud_freeze_draw");
-         else if(status >= 4)
+         else if(status == ArtefactHuntState.COUNTDOWN)
+            text = LocalizationData.getName("st_final_countdown") + " " + ArtefactHuntLook.clock(remaining);
+         else if(status >= 4 && status <= 6)
             text = LocalizationData.format(status == 4 ? "st_srp_hud_freeze_round_win" : status == 5 ? "st_srp_hud_freeze_round_lose" : "st_srp_hud_freeze_round_draw", String(Math.ceil(remaining / 1000)));
          else if(isFrozen)
             text = LocalizationData.format("st_srp_hud_freeze_frozen", freezeClock(thawsIn));
          else
             text = LocalizationData.getName(progress > 0 ? "st_srp_hud_freeze_thawing" : "st_srp_hud_freeze_help");
          // Let native pickup/use prompts own the widget during ordinary play.
-         this._freezeContext = isFrozen || progress > 0 || status != 0
+         this._freezeContext = status != ArtefactHuntState.FADE && (isFrozen || progress > 0 || status != 0)
             ? {text:text,value:status == 0 ? Math.floor(progress * 100 / thaw) : 0,visible:true} : null;
          this.refresh_context();
       }

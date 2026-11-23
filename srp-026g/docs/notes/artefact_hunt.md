@@ -31,13 +31,20 @@ the mode. This note is the specification: the rules below are 0.46c2's; where 0.
 - **Delivery:** the use key on one's own team's base container while carrying. No put time. The
   team scores 1.
 - **Rounds** (the owner, 2026-11-21: with one base a team, the mode is played in rounds, as
-  0.46c2). A delivery ends the round:
-  1. 3 s (`time_before_new_round`): play goes on, nobody respawns; the hud counts "Round restarts in".
-  2. If a team has 5, the match ends here.
-  3. 1 s: the screen fades; every player, alive or dead, is set to respawn.
-  4. 5 s (`round_countdown_time`): everyone stands at his team's spawns, frozen.
-  5. The next round: the 50 to 70 s wait again.
-  The scores and the match time carry over.
+  0.46c2). A delivery ends the round; the scores and the match time carry over.
+- **A round's end and the next round,** the same in Artifact Hunt and Freeze Tag by one code
+  (`artefact_hunt_rule::Restart`, the exe's `round_countdown::respawn_tick`; the owner,
+  2026-11-23: "I expect the round to end exactly in the same manner in both"):
+  1. 3 s (`time_before_new_round`): play goes on, nobody respawns; the hud counts them down.
+  2. If that was the match point, the match ends here (the rule's end, which the match server
+     takes as it is).
+  3. 1 s: the screen fades; at its end every player, alive or dead, respawns at his team's spawns
+     (a round start: a life of everyone).
+  4. 5 s (`round_countdown_time`): everyone stands at his team's spawns, his input held: the match
+     start's countdown (the warmup camera, patch 31's kits; a kit switch is a life).
+  5. The next round.
+  A player who enters in any of them spawns at his entry (freeze-tag.md, "No place out of the
+  world"); before the fade's end, it respawns him with everyone.
 - **No new round** with less than 90 s of match time left (`time_needed_to_continue_match`): the
   match ends (scores differ) or goes to sudden death (equal).
 - **Respawn in a round:** in waves every 15 s (`respawn_time`) counted from the match start, never
@@ -257,9 +264,9 @@ says what of this design is built, and what turned out otherwise).
   states 1 and 2 only, and `rule_completed` (0x318360, true in state 3 after `match_time`) is read by
   nothing in the client (modes_maps.md 11, correction). So the rule goes on by itself: sudden death
   and rounds past 900 s need no native change.
-- **A round** is `Round::Hunt` (0.46c2's states 2 to 5); a delivery ends it: `Round::Brought` 3 s
-  (state 6), `Round::Fade` 1 s (state 7), `Round::Countdown` 5 s (state 8), then a new hunt with the
-  50 to 70 s wait. Each state's time counts from the step that entered it, as 0.46c2's state
+- **A round** is `Round::Hunt` (0.46c2's states 2 to 5); a delivery ends it: `Round::Restart`, the
+  shared `Restart` (Freeze Tag's too): `Decided` 3 s (state 6), `Fade` 1 s (state 7), `Countdown`
+  5 s (state 8), then a new hunt with the 50 to 70 s wait. Each state's time counts from the step that entered it, as 0.46c2's state
   machine (its `initialize` keeps the start, 0x7B0BA0; one transition a step).
 - **What follows a delivery** (`After`): decided once, at the delivery (the specification's one
   departure: 0.46c2 tests the time again 3 s later, 0x785CF0): a team at `score`, or the scores
@@ -329,7 +336,8 @@ The native respawn rule (91) keeps its points and its spawn; four things are ask
     points; one without a free point the next step (the native +50 ms), inside the countdown;
   - `Native` otherwise.
   The site is `respawn.tick` (`survarium::respawn_tick_frame`), one row shared with Freeze Tag:
-  its handler is order 0, this one order 1, both before the native compare of the places' times.
+  its handler is order 0, this one order 1, both before the native compare of the places' times,
+  and both the one path `round_countdown::respawn_tick` (the kit switches, then `Spawning`).
 - **What a round start resets** is what a respawn after a death resets, for everyone, and nothing
   else (PROVEN, `base_player::initialize` 0x2DAC00, the spawn's): alive, no pending death, the
   input zero (+32Ch, +330h, 0x2DAC8D..0x2DAC99), the damage model (`damage_model::reset` 0x2E5290:
@@ -661,7 +669,7 @@ The code is `client_patch.md` "Artifact Hunt (patch 171)"; checked by `check_art
     should run there"): for the Fade and the Countdown the rule makes the core's time state 4
     (`HuntWorld::set_round_countdown`, in its tick and its deserialize, after the time rule's);
     the state, its setter and the camera test are `vostok::round_countdown` and the patch module
-    `round_countdown`, shared with Freeze Tag's pause and restart since the merge (`freeze-tag.md`
+    `round_countdown`, shared with Freeze Tag's rounds (the same restart since 2026-11-23) (`freeze-tag.md`
     "With Artifact Hunt"); `time_rule.camera_state` (0x267AE6) gives the client time rule's camera test the countdown's 2
     while it is 4, so the native 0x27B1A0 switches to the warmup camera and back, and patch 31's
     kits show by +1F1C60h as before the start. The time rule's own state, start and end are

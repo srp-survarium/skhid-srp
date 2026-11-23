@@ -503,7 +503,7 @@ A thaw counts as a kill.	Розморожування зараховується
 A frozen player thaws by himself after {0}.	Заморожений гравець розморожується сам через {0}.
 A team's last fighter shows on the enemies' map.	Останнього бійця команди видно на карті суперників.
 Freeze the whole enemy team to win the round.	Заморозьте всю команду суперника, щоб виграти раунд.
-{0} s pause between rounds, then everyone respawns.	{0} с паузи між раундами, потім усі відроджуються.
+{0} s after a round ends, then everyone respawns and waits {1} s at the spawns.	{0} с після кінця раунду, потім усі відроджуються і чекають {1} с на точках появи.
 First to {0} rounds wins.	Перемагає перша команда, що виграє {0} раундів.
 Time limit {0}: an unfinished series is a draw.	Ліміт часу {0}: незавершена серія — нічия.
 One artefact at a time, {0}–{1} s into a round.	Один артефакт за раз, через {0}–{1} с після початку раунду.

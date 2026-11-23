@@ -264,6 +264,13 @@ impl Team {
         }
     }
 
+    pub const fn other(self) -> Team {
+        match self {
+            Team::First => Team::Second,
+            Team::Second => Team::First,
+        }
+    }
+
     /// A team, or 2 for neither (`rules::DRAW` in the server).
     pub const fn or_neither(byte: u8) -> Option<Option<Team>> {
         match byte {

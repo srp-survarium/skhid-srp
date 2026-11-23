@@ -25,7 +25,7 @@ use core::ffi::CStr;
 
 use artefact_hunt_rule::{
     Action, After, ArtefactView, BaseDef, Cue, Event, Hud, Line, Message, Params, Place, Position, RawParams,
-    RawShape, Reason, Rule, Shift, Spawner, Spawning, SuddenShown, Team, Time, View, Viewer, MAX_SHAPES, MAX_SPAWNERS,
+    RawShape, Reason, Rule, Shift, Spawner, SuddenShown, Team, Time, View, Viewer, MAX_SHAPES, MAX_SPAWNERS,
     PLAYERS, REACH, along,
 };
 
@@ -553,32 +553,23 @@ pub fn on_respawn_tick(ctx: &mut Context<'_>) -> Flow<NoExit> {
 
 fn respawn_tick(ctx: &mut Context<'_>) -> Flow<NoExit> {
     let Some(tick) = RespawnTick::at(ctx) else { return Flow::Continue };
-    let Some(world) = tick.world().map(|world| world.key()) else { return Flow::Continue };
-    let Some(hunt) = hunt_in(ctx.thread(), world) else { return Flow::Continue };
-    // A round about to start: patch 31's kit switch (its state test leaves a
-    // round's countdown to this tick), each a life for supplies, counted.
-    if hunt.state.round_countdown() {
-        let world_now = tick.world();
-        for place in (0..PLAYERS as u8).filter_map(Place::new) {
-            if tick.switch_kit(place.get()) {
-                HUNT.with(ctx.thread(), |hunt| {
-                    if let (Some(hunt), Some(world)) = (hunt.as_mut(), world_now.as_ref()) {
-                        step(world, hunt, Event::KitSwitched { place });
-                    }
-                });
-                if hunt_log(ctx.thread()) {
-                    log::line(&[Piece::Text("artefact_hunt: tick "), Piece::Dec(tick.time()), Piece::Text(" game "),
-                                Piece::Dec(crate::vostok::gun_cook::process_id()), Piece::Text(": place "),
-                                Piece::Dec(u32::from(place.get())), Piece::Text(" switches kit in the round countdown")]);
-                }
+    let Some(world) = tick.world() else { return Flow::Continue };
+    let Some(hunt) = hunt_in(ctx.thread(), world.key()) else { return Flow::Continue };
+    let spawning = hunt.state.spawning(Time::from_ms(tick.time()));
+    // Patch 31's state test leaves a round's countdown to this tick.
+    crate::round_countdown::respawn_tick(&tick, hunt.state.round_countdown(), spawning, 0, |place| {
+        let Some(place) = Place::new(place) else { return };
+        HUNT.with(ctx.thread(), |hunt| {
+            if let Some(hunt) = hunt.as_mut() {
+                step(&world, hunt, Event::KitSwitched { place });
             }
+        });
+        if hunt_log(ctx.thread()) {
+            log::line(&[Piece::Text("artefact_hunt: tick "), Piece::Dec(tick.time()), Piece::Text(" game "),
+                        Piece::Dec(crate::vostok::gun_cook::process_id()), Piece::Text(": place "),
+                        Piece::Dec(u32::from(place.get())), Piece::Text(" switches kit in the round countdown")]);
         }
-    }
-    match hunt.state.spawning(Time::from_ms(tick.time())) {
-        Spawning::Native => {}
-        Spawning::Held => tick.hold_due(),
-        Spawning::Everyone => tick.everyone_now(),
-    }
+    });
     Flow::Continue
 }
 
