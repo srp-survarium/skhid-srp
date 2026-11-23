@@ -25,6 +25,9 @@ performance counter is a clock of ours (1000 ticks a second).
   pivot puts the eye at it.
 - An orbit going on: a wall that comes has the eye in front of it at once,
   one that goes lets it out by 1 - e^(-3 t) of the way in t s.
+- An orbit that turns: a second ray, where its way will be 0.3 s on at the
+  turn since the last frame; a wall only that ray meets pulls the eye in by
+  1 - e^(-10 t) of what it would need, on the way of this frame.
 - The first person (0) and a spectator (4): the view is the original's (the
   eyes' transform), no ray of the orbit's (patch 158's own, from under the eye,
   with nothing in its way).
@@ -55,7 +58,7 @@ SP = STACK + 0x8000
 REGS = (UC_X86_REG_EAX, UC_X86_REG_EBX, UC_X86_REG_ECX, UC_X86_REG_EDX, UC_X86_REG_ESI, UC_X86_REG_EDI,
         UC_X86_REG_EBP, UC_X86_REG_ESP)
 STEADY = dict(zip(REGS[:7], (0x0A0A0A0A, 0x0B0B0B0B, 0x0C0C0C0C, 0x0D0D0D0D, 0x05050505, 0x0E0E0E0E, 0x0019FF00)))
-MARGIN, UP, OUT_RATE = 0.2, 1.4, 3.0
+MARGIN, UP, IN_RATE, OUT_RATE, LEAD = 0.2, 1.4, 10.0, 3.0, 0.3
 
 # the player: turned 30 degrees about up, its feet at (100, 5, -50)
 C, S = math.cos(math.radians(30)), math.sin(math.radians(30))
@@ -129,7 +132,8 @@ class Game:
 
     def ray_test(self, emu, *_):
         """bullet_physics_world::ray_test (thiscall, `ret 20h`): the wall, a
-        plane through `point` facing `normal`, or nothing."""
+        plane through `point` facing `normal`, or nothing; `wall` a function
+        gives each ray of the frame (0 the first) its own."""
         esp = emu.reg_read(UC_X86_REG_ESP)
         ret, result, origin, direction = (self.u32(esp + 4 * i) for i in range(4))
         length = struct.unpack("<f", emu.mem_read(esp + 16, 4))[0]
@@ -137,8 +141,9 @@ class Game:
         o, d = self.floats(origin, 3), self.floats(direction, 3)
         self.rays.append((emu.reg_read(UC_X86_REG_ECX), o, d, length, group & 0xFFFF, mask & 0xFFFF, delegate))
         emu.mem_write(result, bytes(0x28))
-        if self.wall is not None:
-            point, normal = self.wall
+        wall = self.wall(len(self.rays) - 1) if callable(self.wall) else self.wall
+        if wall is not None:
+            point, normal = wall
             t = dot(sub(point, o), normal) / dot(d, normal)
             if 0 <= t <= length:
                 hit = tuple(a + b * t for a, b in zip(o, d))
@@ -148,7 +153,7 @@ class Game:
         emu.reg_write(UC_X86_REG_ESP, esp + 4 + 0x20)
         emu.reg_write(UC_X86_REG_EIP, ret)
 
-    def update_camera(self, mode, physics=PHYSICS, wall=None, ms=None):
+    def update_camera(self, mode, physics=PHYSICS, wall=None, ms=None, yaw=0.7):
         """A frame at `ms` (16 ms after the last by default): (the handler's
         view at camera_director::apply, the registers there, the rays)."""
         emu = self.emu
@@ -161,7 +166,7 @@ class Game:
         emu.mem_write(PLAYER + 0x40C, struct.pack("<16f", *TRANSFORM))
         emu.mem_write(PLAYER + 0x44C, struct.pack("<16f", *EYES))
         self.u32(HANDLER + 0x358, mode)
-        emu.mem_write(HANDLER + 0x34C, struct.pack("<3f", 0.7, -0.3, 3.0))   # yaw, pitch, distance
+        emu.mem_write(HANDLER + 0x34C, struct.pack("<3f", yaw, -0.3, 3.0))   # yaw, pitch, distance
         self.wall, self.rays = wall, []
         emu.mem_write(SP, struct.pack("<2I", DONE, PLAYER))
         for reg, value in STEADY.items():
@@ -242,6 +247,26 @@ def main():
     for n in range(200):
         o_view, _, _ = ours.update_camera(3)
     check(o_view == s_view, "after a while with nothing in the way: the original's view again, bit for bit")
+
+    # the orbit turns (0.01 rad of yaw in 10 ms): a second ray where its way will be in 0.3 s
+    t_view, _, _ = stock.update_camera(3, yaw=0.71)
+    turned = unit(sub(t_view[12:15], PIVOT))
+    ahead = unit(tuple(w + (w - v) * (LEAD / 0.01) for w, v in zip(turned, way)))
+    there = (tuple(p + a * 1.5 for p, a in zip(PIVOT, ahead)), tuple(-a for a in ahead))
+    ours.update_camera(3, ms=9000)
+    o_view, o_regs, rays = ours.update_camera(3, wall=lambda n: there if n == 1 else None, ms=9010, yaw=0.71)
+    pulled = (distance - (1.5 - MARGIN)) * (1 - math.exp(-IN_RATE * 0.01))
+    check(len(rays) == 2 and math.dist(rays[0][2], turned) < 1e-4 and math.dist(rays[1][2], ahead) < 1e-3
+          and rays[1][3:] == rays[0][3:] and math.dist(rays[1][1], PIVOT) < 1e-4,
+          "a turning orbit: a second ray from the pivot, where the way will be in 0.3 s, as long, the same filter")
+    check(abs(eye_out(o_view) - (distance - pulled)) < 1e-3
+          and math.dist(unit(sub(o_view[12:15], PIVOT)), turned) < 1e-4 and o_view[:12] == t_view[:12],
+          f"a wall only that ray meets: the eye {pulled:.3f} m in after 10 ms (1 - e^-0.1 of the pull it would need)")
+    o_view, _, rays = ours.update_camera(3, ms=9020, yaw=0.71)
+    check(len(rays) == 1 and eye_out(o_view) > distance - pulled, "the turn ends: one ray again, the eye on its way out")
+    for n in range(200):
+        o_view, _, _ = ours.update_camera(3, yaw=0.71)
+    check(o_view == t_view, "and the original's view again, bit for bit")
 
     for mode in (0, 4):
         s_view, s_regs, _ = stock.update_camera(mode)

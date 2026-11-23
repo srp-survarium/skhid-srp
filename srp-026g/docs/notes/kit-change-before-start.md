@@ -43,8 +43,10 @@ README patch 31, `client_patch.md` section 3.29; the server: `TimelimitRule::bef
   - the camera stays on the player's side of the level (patch 132, the owner, 2026-11-09:
     "quite often it is inside textures", "camera | thin wall | character"): the eye 0.2 m in
     front of the first wall between the pivot and it, the distance the wheel set kept; it
-    goes in at once (2026-11-23: eased in, "camera can briefly clip outside still") and back
-    out smoothly ("I wish the transition was more smooth");
+    is never shown behind that wall (2026-11-23: only eased in, "camera can briefly clip
+    outside still"), goes in smoothly from before the turn reaches a wall (a second ray 0.3 s
+    ahead of the turn: "start smoothing a bit earlier") and back out smoothly ("I wish the
+    transition was more smooth");
   - on the death screen: patch 46's free look (`death-camera.md`), the wheel nothing;
   - a button pressed while the cursor is shown (a drag, a pick on the death screen) and still
     held when the cursor goes (the start, the respawn) does nothing, held or let go: no
