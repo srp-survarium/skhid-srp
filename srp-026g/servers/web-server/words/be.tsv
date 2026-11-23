@@ -407,6 +407,7 @@ Win rate	Працэнт перамог
 Kills	Забойствы
 Deaths	Смерці
 K/D	K/D
+Kills/min	Забойстваў/хв
 Assists	Дапамога
 Score	Ачкі	stats
 Avg score	Сяр. ачкі
@@ -502,7 +503,7 @@ A thaw counts as a kill.	Размарозка залічваецца як заб
 A frozen player thaws by himself after {0}.	Замарожаны гулец размарожваецца сам праз {0}.
 A team's last fighter shows on the enemies' map.	Апошняга байца каманды відаць на карце супернікаў.
 Freeze the whole enemy team to win the round.	Замарозьце ўсю каманду суперніка, каб выйграць раўнд.
-{0} s pause between rounds, then everyone respawns.	{0} с паўзы паміж раўндамі, потым усе адраджаюцца.
+{0} s after a round ends, then everyone respawns and waits {1} s at the spawns.	{0} с пасля канца раўнда, потым усе адраджаюцца і чакаюць {1} с на пунктах з'яўлення.
 First to {0} rounds wins.	Перамагае першая каманда, што выйграе {0} раўндаў.
 Time limit {0}: an unfinished series is a draw.	Ліміт часу {0}: незавершаная серыя — нічыя.
 One artefact at a time, {0}–{1} s into a round.	Адзін артэфакт за раз, праз {0}–{1} с ад пачатку раўнда.

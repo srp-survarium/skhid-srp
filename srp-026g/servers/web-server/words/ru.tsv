@@ -407,6 +407,7 @@ Win rate	Процент побед
 Kills	Убийства
 Deaths	Смерти
 K/D	K/D
+Kills/min	Убийств/мин
 Assists	Помощь
 Score	Очки	stats
 Avg score	Ср. очки
@@ -502,7 +503,7 @@ A thaw counts as a kill.	Разморозка засчитывается как 
 A frozen player thaws by himself after {0}.	Замороженный игрок размораживается сам через {0}.
 A team's last fighter shows on the enemies' map.	Последнего бойца команды видно на карте противников.
 Freeze the whole enemy team to win the round.	Заморозьте всю команду противника, чтобы выиграть раунд.
-{0} s pause between rounds, then everyone respawns.	{0} с паузы между раундами, затем все возрождаются.
+{0} s after a round ends, then everyone respawns and waits {1} s at the spawns.	{0} с после конца раунда, затем все возрождаются и ждут {1} с на точках появления.
 First to {0} rounds wins.	Побеждает первая команда, выигравшая {0} раундов.
 Time limit {0}: an unfinished series is a draw.	Лимит времени {0}: незавершённая серия — ничья.
 One artefact at a time, {0}–{1} s into a round.	Один артефакт за раз, через {0}–{1} с после начала раунда.

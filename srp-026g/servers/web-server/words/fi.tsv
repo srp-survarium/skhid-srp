@@ -2,6 +2,7 @@
 Wiki	Wiki
 Maps	Kartat
 Skhid wiki	Skhid-wiki
+Kills/min	Tapot/min
 Modes	Pelimuodot
 Every mode: its rules, numbers and maps.	Jokainen pelimuoto: säännöt, luvut ja kartat.
 Versions	Muunnelmat
@@ -38,7 +39,7 @@ A thaw counts as a kill.	Sulatus lasketaan tapoksi.
 A frozen player thaws by himself after {0}.	Jäätynyt pelaaja sulaa itsestään {0} jälkeen.
 A team's last fighter shows on the enemies' map.	Joukkueen viimeinen taistelija näkyy vastustajien kartalla.
 Freeze the whole enemy team to win the round.	Jäädytä koko vastajoukkue voittaaksesi erän.
-{0} s pause between rounds, then everyone respawns.	{0} s tauko erien välillä, sitten kaikki syntyvät uudelleen.
+{0} s after a round ends, then everyone respawns and waits {1} s at the spawns.	{0} s erän päätyttyä, sitten kaikki syntyvät uudelleen ja odottavat {1} s syntymispisteillä.
 First to {0} rounds wins.	Ensimmäinen joukkue, joka voittaa {0} erää, voittaa.
 Time limit {0}: an unfinished series is a draw.	Aikaraja {0}: kesken jäänyt sarja on tasapeli.
 One artefact at a time, {0}–{1} s into a round.	Yksi artefakti kerrallaan, {0}–{1} s erän alusta.

@@ -424,7 +424,9 @@ The order, as it runs:
    `selftest.log` in the run's work folder), while the rest of this step
    runs; its result is waited for last, before the go: a failed check stops
    the release there like any failure of this step (the patch's fix is a
-   PR, then a new run; `--no-selftest`: none, see above). It is the release's check of the exe's general rules (no byte
+   PR, then a new run; `--no-selftest`: none, see above), and so does an exe whose arena (`.srpx`) is not the
+   one the self-test linked (its `arena sha256` line against build-zip's `exe.sha256`; the record keeps that
+   hash beside the exe's). It is the release's check of the exe's general rules (no byte
    changed undeclared, no relocation or branch into a rewritten byte, every
    hooked function's ABI, every branch target known): nobody runs it by hand
    before a release, and it is not a check of each PR. The checks of `deploy`

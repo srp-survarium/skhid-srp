@@ -5,6 +5,8 @@
 //! own index of a bone is found by name at run time (the arena), so this
 //! order is ours only.
 
+use crate::math::Quat;
+
 /// The bones (69, `object_movement`, the root-motion entry, left out) and
 /// each one's parent, by index in this table.
 pub const BONES: [(&str, Option<u8>); BONE_COUNT] = [
@@ -131,6 +133,38 @@ pub const WEAPON: Bone = Bone(66);
 /// The camera's bone: player+44Ch is it times the player's transform
 /// (`computed_head_transform` 0x2DA4B0).
 pub const ITEM: Bone = Bone(68);
+
+/// A loose hand's fingers (nothing held, no muscle): each joint's turn on
+/// its parent, the splines' Euler angles in rad, the knuckle first. Both
+/// hands' finger bones are laid out alike (a curl is +Z), so one table
+/// serves both. The spread of the knuckles and the thumb are the open
+/// palm's of the artefact carry (`scripts/artefact-carry/pose.json`); the
+/// curls are a resting hand's, more toward the little finger.
+const LOOSE_FINGERS: [(&str, [[f32; 3]; 3]); 5] = [
+    ("Thumb", [[1.5, -0.65, 0.45], [0.0, 0.0, 0.35], [0.0, 0.0, 0.25]]),
+    ("Index", [[0.02, -0.06, 0.45], [0.0, 0.0, 0.65], [0.0, 0.0, 0.35]]),
+    ("Middle", [[-0.03, -0.05, 0.5], [0.0, 0.0, 0.7], [0.0, 0.0, 0.4]]),
+    ("Ring", [[-0.07, -0.02, 0.55], [0.0, 0.0, 0.75], [0.0, 0.0, 0.4]]),
+    ("Pinky", [[-0.12, 0.0, 0.6], [0.0, 0.0, 0.8], [0.0, 0.0, 0.45]]),
+];
+
+impl Bone {
+    /// A finger joint's turn on its parent in a loose hand; None for a bone
+    /// that is no finger joint.
+    pub fn loose_finger(self) -> Option<Quat> {
+        let name = self.name();
+        let finger = name.strip_prefix("Left").or_else(|| name.strip_prefix("Right"))?;
+        let (finger, joint) = finger.split_at(finger.len().checked_sub(1)?);
+        let joint = match joint {
+            "1" => 0,
+            "2" => 1,
+            "3" => 2,
+            _ => return None,
+        };
+        let (_, joints) = LOOSE_FINGERS.iter().find(|(name, _)| *name == finger)?;
+        Some(Quat::from_spline_euler(joints[joint]))
+    }
+}
 
 /// The ragdoll's eleven bodies. Hands go with the forearms, feet with the
 /// shins, the neck with the head.
@@ -297,6 +331,18 @@ pub fn adjacent(a: Part, b: Part) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_thirty_finger_joints_have_a_loose_turn_and_no_other_bone() {
+        let loose = |i: usize| Bone(i as u8).loose_finger().is_some();
+        assert_eq!((0..BONE_COUNT).filter(|&i| loose(i)).count(), 30);
+        for (i, (name, parent)) in BONES.iter().enumerate() {
+            let finger = ["Thumb", "Index", "Middle", "Ring", "Pinky"].iter().any(|f| name.contains(f));
+            assert_eq!(loose(i), finger, "{name}");
+            // a finger joint hangs on its hand or on the joint before it
+            assert!(!finger || parent.is_some_and(|p| BONES[p as usize].0.ends_with("Hand") || loose(p as usize)), "{name}");
+        }
+    }
 
     #[test]
     fn the_table_is_parent_before_child_and_the_constants_name_their_bones() {

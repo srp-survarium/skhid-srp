@@ -442,7 +442,7 @@ models of their own: asked for by the weapon cook's own query, and put in the sc
 
 Done, 2026-11-20:
 
-- **The arena is linked with patch 161** (`arena_026g.lock.json`).
+- **The arena is linked with patch 161**.
 - **`check_attachments_026g.py` passes** (`tools/check attachments`; 39 cases in the build and
   the original): the table's way in; the cook's requests; the callback's records and fingers; the
   parts in the scene; the left hand; the shells; the release; a weapon without any of it. What it
@@ -725,7 +725,7 @@ Unfit::NoGun | Unfit::Refused(Refusal)    Refusal is resolve's own: NoFit, NoSlo
 | Files | Owner |
 |---|---|
 | `crates/weapon-modules/**` (the format, `resolve`) | core |
-| `client-patches/rust/patches/src/attachments.rs`, `attachments.toml`, `vostok/attachments.rs`; the `attachments.*` rows of `sites_026g.tsv`, `fields_026g.tsv`, `engine_026g.tsv`; the generated files; `arena_026g.lock.json`; `check_attachments_026g.py` | core |
+| `client-patches/rust/patches/src/attachments.rs`, `attachments.toml`, `vostok/attachments.rs`; the `attachments.*` rows of `sites_026g.tsv`, `fields_026g.tsv`, `engine_026g.tsv`; `check_attachments_026g.py` | core |
 | `crates/survarium/src/v026g/weapon_modules.rs` | core |
 | `crates/survarium/src/v026g/modifications.rs`, `crates/session/src/v026g/items_rules.rs` (where an upgrade's slot and an attach are decided) | core for slots 4 and 5; then the scopes lane alone, for the scope's branch |
 | `flash/lobby_menu/**` (the Attachments window) | core |

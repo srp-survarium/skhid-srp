@@ -220,3 +220,11 @@ vtable	slot	va	class	base	basis
 0x00a16f88	0x18	0x0031d0d0	survarium::breath_state_shortbreathing	vostok::ai::fsm_state	observed: initialize_logic 0x31D51C; is_ready_for_transition, the penalty at 1.0
 0x00a16f88	0x1c	0x0031d0a0	survarium::breath_state_shortbreathing	vostok::ai::fsm_state	observed: its tick (dispersion, dt)
 0x00a16084	0x24	0x00316be0	survarium::player_respawn_rule_core	survarium::game_match_rule_base	observed: each rule's slot +24h, called by game_world_core::on_player_left_match (0x2D2141)
+0x009fb3dc	0x34	0x002dbe50	survarium::player	vostok::collision::game_object	observed: subscribe_to_actions, called by damage_zone_core::on_objects_entered 0x31995C and its reactivation 0x319F06
+0x009fb3dc	0x38	0x002dbe90	survarium::player	vostok::collision::game_object	observed: unsubscribe_from_actions, called by damage_zone_core::on_objects_left 0x319800 and deactivate 0x319DA1
+0x00a165cc	0x3c	0x003198d0	survarium::damage_zone_core	survarium::collision_sensor	observed: on_objects_entered, called by collision_sensor::notify_and_add_incoming_objects 0x307E11
+0x00a165cc	0x40	0x00319a10	survarium::damage_zone_core	survarium::collision_sensor	observed: erases lost (expired) objects from the inside list without unsubscribing them, called by collision_sensor::remove_loosed_ptrs 0x307BDE
+0x00a165cc	0x44	0x00319780	survarium::damage_zone_core	survarium::collision_sensor	observed: on_objects_left, called by notify_and_erase_left_objects 0x307D72 and notify_and_erase_just_removed_objects 0x307B3E
+0x00a0b8a4	0x3c	0x003198d0	survarium::damage_zone	survarium::collision_sensor	observed: the client damage_zone sensor's on_objects_entered (damage_zone_core's)
+0x00a0b8a4	0x40	0x00319a10	survarium::damage_zone	survarium::collision_sensor	observed: its erase of lost objects (damage_zone_core's)
+0x00a0b8a4	0x44	0x00319780	survarium::damage_zone	survarium::collision_sensor	observed: its on_objects_left (damage_zone_core's)
