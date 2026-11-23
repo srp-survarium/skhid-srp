@@ -187,6 +187,7 @@ release's. The "Result" row is the build of the revision named in it.
 | `rust/patches/src/zone_guards.rs`, `src/zone_guards.toml`, `src/vostok/zone_guard.rs` | Patch 192: a damage zone and the players it holds out of step no longer move memory (`../docs/notes/client_patch.md` 3.102): two lohooks at the stock game's two unchecked finds, `zones.unsubscribe_find` 0x2DBEAA (base_player::unsubscribe_from_actions: a subscriber not there memmoved -4 bytes) and `zones.left_find` 0x319811 (damage_zone_core::on_objects_left: an object not in the inside list popped its last entry); each skips the erase of what is not there and logs a line; `check_zone_guards_026g.py` |
 | `rust/patches/src/use_prompt.rs`, `src/use_prompt.toml`, `src/vostok/use_prompt.rs`, `check_use_prompt_026g.py` | Patch 195: a use's progress bar ends with the use (`../docs/notes/client_patch.md` 3.101): one lohook at set_using_progress_message's start (`use_prompt.progress`, 0x23A430) writes 0 to the ui's last prompt key (+334h), so set_using_info_message gives the next prompt again; the hud alone; its check runs both functions in both exes on a made-up hud (needs Unicorn) |
 | `rust/patches/src/profile_kit.rs`, `src/profile_kit.toml`, `src/vostok/profile_kit.rs`, `check_profile_kit_026g.py` | Patch 199: the lobby is given the kit it shows whole, in one call (`../docs/notes/client_patch.md` 3.104): lobby_menu::on_profile_changed's root.fill_player_profile_items (`lobby_menu.profile_items`, 0x222A07) is not made, and at its root.update_profile_slots_count (`lobby_menu.profile_counts`, 0x222CA1) the items value gets `item_slots` and `artifact_slots` and is given in its place; the lobby alone; its check runs both sites in both exes (needs Unicorn) |
+| `rust/patches/src/mouse_acquire.rs`, `src/mouse_acquire.toml`, `src/vostok/mouse_device.rs`, `check_mouse_acquire_026g.py` | Patch 202: a line in `srp_patches.<run>.log` when the game cannot take the mouse, with the reason, and one when it has it again (`../docs/notes/client_patch.md` 3.106): three lohooks in mouse::execute (`mouse.read` 0x3B96DE, `mouse.read_failed` 0x3B9704, `mouse.acquire_join` 0x3B97E8) keep the poll's last outcome and log a change only: the failed Acquire's or read's code (dinput.h's name, hex), the device's level (exclusive or not) and the window in front (GetForegroundWindow against the device's); a log line only; its check runs execute whole in both exes, the device stubbed (needs Unicorn) |
 | `rust/patches/src/material_bounds.rs`, `src/material_bounds.toml`, `src/vostok/material.rs` | Patch 193: game_material_manager::material_pair (0x306D50) takes an id past its 128 material slots as the default material's, the answer it gives an empty slot, instead of reading past its tables (`../docs/notes/footsteps.md`, "Material ids past the table"): one lohook at its start (`material_pair.entry`), every caller's pair through it; the patch log says so at the 1st, 10th, 100th, .. of a run |
 | `rust/patches/src/constant_upload.toml`, `constant_upload_026g.asm`, `check_constant_upload_026g.py` | Patch 134: shader constants cost the render thread less, the same bytes on the GPU: shader_constant_buffer::set_memory (0x11B5A0) copies 16 bytes at a time, not one, and update (0x3DDFD0) maps a buffer only when its bytes differ from the ones it last uploaded (four `code` hooks); its check runs set_memory on 4000 made-up cases in both exes (every register, XMM0..7 and the memory alike), the constructor, and 150 draws over four buffers with a model of the device context (the GPU's bytes after every update alike) (needs Unicorn) |
 | `rust/patches/src/replay_map.rs`, `src/replay_map.toml`, `src/vostok/ui.rs` (`GameWorldUi::at_enemy_ids`), `check_replay_map_026g.py` | Patch 135: a replay shows every enemy, spotted or not (`../docs/notes/replay-map.md`): its dot (update_minimap_players' spotted test, 0x239505), its marker and red name with Alt (render_name's, 0x1F2B50), the icons movie told `root.srp_show_enemies` before initialize_match's enemy list (0x235709); a replay known by the game's network client's class (`vostok::world::Playback`), no state of its own; its check runs the three sites in both exes (needs Unicorn) |
@@ -6822,6 +6823,26 @@ with one of the patterns 20..39, `weapon_pickup::corpse_shot`), which every game
 player's view: the hud movie's `root.set_dead_black`, and patch 144's Game share 0. No new site:
 patch 76's, 78's and 144's, `player_icons.update_start`, `game.clear_resources` and
 `resources.query_done`. Nothing a match computes. Checked: its transition's test; not run in a game.
+
+## A line when the game cannot take the mouse (patch 202, unreleased)
+
+A player on revision 72 could not aim in matches (his inputs had no mouse rotation, fire or aim;
+the menus worked) until he restarted his PC. The game takes the mouse with DirectInput, in a
+match exclusive and foreground; when it cannot (Acquire refused) or cannot read it, every poll
+is empty and nothing is logged.
+
+Patch 202 writes one line to the patches' log each time that changes, never per poll:
+
+```text
+srp: mouse: cannot take the mouse: DIERR_OTHERAPPHASPRIO (0x80070005), exclusive, another window in front
+srp: mouse: cannot read the mouse: 0x80001234, non-exclusive, the game in front
+srp: mouse: taken again
+```
+
+The code (dinput.h's name when it has one), the level the device is set to, and which window is
+in front: the game's, another, or none. A log line only: nothing a match computes. Checked with
+`check_mouse_acquire_026g.py` (Unicorn; `tools/check mouse-acquire`); not run in a game. The
+addresses: `../docs/notes/client_patch.md` 3.106.
 
 ## The kit shown, in one call (patch 199, unreleased)
 
