@@ -4908,6 +4908,15 @@ makes every voice again; this patch does the same for 0.26g.
   buffers queued again in order (a flushed one, which the game makes at every detach_voice and a
   dead or stopped engine never ends, is ended by the rebuild itself and never played again), the
   game's pointers unchanged.
+- A stopped voice is flushed only after the processing pass running ends (the engine callback
+  counts the passes). Wine's XAudio2 (FAudio 26.02, Wine 11.8) lets the voice's locks go around
+  each voice callback while it decodes. detach_voice's Stop and FlushSourceBuffers, run during
+  that time, empty the buffer list under the pass. The pass then reads the next of a null list
+  (`xaudio2_7.dll+0xE8DD`, read of 0x2C), and XAudio2's thread dies: no game sound from then on,
+  and "can't allocate sound_instance_proxy" in the log (the owner's game, 2026-11-20 and 11-22).
+  A pass that starts after the Stop does not mix the voice. The wait is a quarter second at most;
+  after that the flush goes ahead as before and the log says so. The rebuild stops the old
+  sources and waits for the running pass the same way before it destroys them.
 
 New engine-function rows: `engine_xaudio2_create` (0x5A640, cdecl), `engine_process_sound_orders`
 (0x59DD0, stdcall), the imports `engine_co_create_instance` (the delay-loaded slot 0xAF0064),

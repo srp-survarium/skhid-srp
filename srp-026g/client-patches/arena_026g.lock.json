@@ -2,7 +2,7 @@
   "generated": "by link_026g.py --write from patch_026g.py's ARENA and its sources: do not edit",
   "va": "0xa42d000",
   "size": 1709772,
-  "sha256": "414382dc0e0034ce4ac5f13ce1fab1d7e0feef1e0efaf19a02827cf9df25873e",
+  "sha256": "50298241bfc187bb5f144d4d52e9aacfbc54ffddb9f87dee2c91caad4735a36d",
   "blocks": {
     "bullet_bounds.code": {
       "kind": "code",
@@ -72,12 +72,12 @@
     "audio_device.code": {
       "kind": "code",
       "va": "0xa43e000",
-      "size": 11908
+      "size": 12196
     },
     "audio_device.state": {
       "kind": "state",
-      "va": "0xa440e90",
-      "size": 6336
+      "va": "0xa440fb0",
+      "size": 6352
     },
     "patches.code": {
       "kind": "code",
@@ -129,7 +129,7 @@
     "SRP_DIAGNOSTICS": "0xa4f2d90",
     "_RNvNtNtCsgEaDafe65MU_7patches6vostok8gun_cook12cooked_entry": "0xa443000",
     "__rodata_ambient_021_code": "0xa5ce6b0",
-    "__rodata_audio_device_code": "0xa44080b",
+    "__rodata_audio_device_code": "0xa4408f8",
     "__rodata_detail_code": "0xa5ce369",
     "__rodata_hide_ui_code": "0xa43a1e2",
     "__rodata_kill_feed_code": "0xa43d178",
@@ -139,14 +139,14 @@
     "__rodata_research_code": "0xa432ee1",
     "__rodata_weight_ui_code": "0xa42e592",
     "__rodata_world_sections_code": "0xa5cd03f",
-    "ad_alloc": "0xa440660",
-    "ad_free": "0xa44068c",
-    "ad_frequency": "0xa440740",
-    "ad_log": "0xa440771",
-    "ad_mm_enumerator": "0xa4406e0",
-    "ad_now": "0xa44070f",
-    "ad_tick": "0xa44054b",
-    "ad_xaudio2_create": "0xa4406bd",
+    "ad_alloc": "0xa44074d",
+    "ad_free": "0xa440779",
+    "ad_frequency": "0xa44082d",
+    "ad_log": "0xa44085e",
+    "ad_mm_enumerator": "0xa4407cd",
+    "ad_now": "0xa4407fc",
+    "ad_tick": "0xa440638",
+    "ad_xaudio2_create": "0xa4407aa",
     "aim_pose_on_aim_alignment": "0xa4e7850",
     "ambient_021_insert": "0xa5ce645",
     "ambient_021_insert_hook": "0xa5ce4c0",
@@ -245,8 +245,8 @@
     "attachments_on_scope_dict": "0xa4e9021",
     "attachments_on_scope_result": "0xa4e9088",
     "attachments_on_shells": "0xa4e93ee",
-    "audio_device_create": "0xa4403f6",
-    "audio_device_orders": "0xa4407dd",
+    "audio_device_create": "0xa4404e3",
+    "audio_device_orders": "0xa4408ca",
     "bake_async_on_dispatched": "0xa4e969e",
     "bake_async_on_exit": "0xa4e9755",
     "bake_async_on_frame": "0xa4e96f9",
