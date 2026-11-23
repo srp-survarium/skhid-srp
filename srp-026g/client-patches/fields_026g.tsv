@@ -1858,6 +1858,8 @@ vostok::render::scene_view	foreground_first	0xC4B8	u32	the first of the frame's 
 vostok::render::scene_view	foreground_end	0xC4BC	u32	past the last of the frame's first-person models (the vector's end)
 vostok::render::scene_view	lit_first	0x44A0	u32	the first of its forward-lit surfaces, the world's and the first-person ones (a vector of render_surface_instance pointers; stage_lights::render_forward_lighting 0x192D5C..0x192D7C walks +44A0h..+44A4h of the context's scene view, a first-person one when its owner's +114h is set, 0x192DC4)
 vostok::render::scene_view	lit_end	0x44A4	u32	past the last of its forward-lit surfaces (the vector's end)
+vostok::render::scene_view	opaque_first	0x84AC	u32	the first of its G-buffer surfaces, the world's and the first-person ones (a vector of render_surface_instance pointers; stage_gbuffer::execute copies +84ACh..+84B0h, 0x177AA4..0x177AD4, and render_models 0x1773C0 draws a first-person one, its owner's +114h set, in its foreground call, 0x177BE9 with 1)
+vostok::render::scene_view	opaque_end	0x84B0	u32	past the last of its G-buffer surfaces (the vector's end)
 vostok::render::scene_view	size	0x1DE40	size	scene_view_cook::translate_query allocates 1DE40h bytes for one (0x137EC4) and constructs it there (0x15DF00)
 vostok::render::environment_properties	rain_u_scale	0x1D0	f32	rain_u_scale (the scene view's +2E8h: its environment at +118h)
 vostok::render::render_output_window	references	0xD0	u32	its resource count: a reference's copy adds 1 (draw_scene 0x1F85B); the last one let go destroys it through its cook
@@ -1870,6 +1872,7 @@ vostok::render::output_window_configuration	windowed	0x11	u8	windowed (1) or ful
 vostok::render::output_window_configuration	size	0x14	size	render_output_window_cook::translate_query's local (0x138039..0x138065): five words, the last two bytes the flags
 vostok::render::render_call_frame	view_ref	0xC	ptr<vostok::render::scene_view_ref>	renderer::render's third argument at its start (by the site's ESP): the scene-view reference it draws (0x13D0AE)
 vostok::render::stage_forward	context	0x4	ptr<vostok::render::renderer_context>	the forward stage's renderer context (execute_foreground 0x1AB76D: [esi+4], its +119Ch targets, +4170h scene view at 0x1AB81D)
+vostok::render::stage_gbuffer	context	0x4	ptr<vostok::render::renderer_context>	the G-buffer stage's renderer context (execute 0x177AA1: [ebx+4], its +4170h scene view at 0x177AA4)
 vostok::render::image	options_global	0x2260498	obj<vostok::render::options_slot>	the render options' global, the struct every stage reads (stage_visibility::execute_stage 0x1B6A2B, renderer::render 0x13D383)
 vostok::render::options_slot	options	0x0	ptr<vostok::render::render_options>	the render options (options::register_console_commands 0x3CD870 names them; opt+X in renderer-026g.md)
 vostok::render::render_options	hiz_occlusion	0x12D	u8	the hi-Z occlusion on: stage_visibility::execute_stage asks the last query's answers and sends a new one only then (0x1B6A32), and leaves out a model whose stored answer is occluded (+61h, 0x1B6A98)

@@ -18,13 +18,13 @@
 
 #![forbid(unsafe_code)]
 
-use core::sync::atomic::{AtomicBool, Ordering};
+use core::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 
 use crate::vostok::log::{self, Piece};
 use crate::vostok::renderer::get_environment;
 use crate::hud_options;
 use crate::pip_lens;
-use crate::vostok::second_view::{self, Disc, Frame, GpuClock, Keep, Lens, LensPlace, MainView, Marks, ModelId, ReadError, Put, ScopeSite, ScopeWeapon, Scoped, SecondView, Stage, UnknownModel, RING};
+use crate::vostok::second_view::{self, Disc, Frame, GpuClock, Keep, Lens, LensPlace, MainView, Marks, ModelId, ReadError, Put, ScopeSite, ScopeWeapon, Scoped, SecondView, Stage, Stage22, UnknownModel, RING};
 use crate::vostok::{
     trig, Context, Flow, Lock, NoExit, OrigRenderFlashUi, PipScopesOnPresentExit, PipScopesOnScopeBodyExit,
     PipScopesOnScopeCulledBodyExit, PipScopesOnScopeOpticExit, PipScopesOnScopeShowExit, PipScopesOnScopeSwapExit, PipScopesOnUnmoveExit, Reg, Thread,
@@ -140,6 +140,9 @@ static SEEN_AIM: Lock<Option<(ModelId, u32)>> = Lock::new(None);
 /// SKHID_PIP_LOG=picture: the log, and the second view's picture copied into the
 /// frame's top right corner while the lens is drawn.
 static PICTURE_ON: AtomicBool = AtomicBool::new(false);
+
+/// The second view's passes with a lens, for one log line of its lists.
+static SECOND_SEEN: AtomicU32 = AtomicU32::new(0);
 
 /// A log line of the lens's, built in place.
 struct Note {
@@ -282,6 +285,10 @@ struct Clock {
     /// The frame's second view was drawn (its GPU interval begun).
     second_this_frame: bool,
     last_present: Option<f64>,
+    /// The frame's Present began (its end is renderer::render's end, `render.unmove`).
+    present_started: Option<f64>,
+    /// The game's thread's last scene draw.
+    last_game: Option<f64>,
     sums: Sums,
     /// GPU reads that failed, logged up to 8.
     misses: u32,
@@ -290,6 +297,11 @@ struct Clock {
 #[derive(Clone, Copy, Default)]
 struct Sums {
     frames: u32,
+    /// The frame's Present, its call to its return: a wait for the display shows here.
+    present: f64,
+    /// The game's thread, from one scene's draw to the next.
+    game: f64,
+    game_frames: u32,
     second_cpu: f64,
     main_cpu: f64,
     interval: f64,
@@ -305,8 +317,10 @@ static CLOCK: Lock<Clock> = Lock::new(Clock {
     main_started: None,
     second_this_frame: false,
     last_present: None,
+    present_started: None,
+    last_game: None,
     misses: 0,
-    sums: Sums { frames: 0, second_cpu: 0.0, main_cpu: 0.0, interval: 0.0, gpu_frames: 0, second_gpu: 0.0, main_gpu: 0.0 },
+    sums: Sums { frames: 0, present: 0.0, game: 0.0, game_frames: 0, second_cpu: 0.0, main_cpu: 0.0, interval: 0.0, gpu_frames: 0, second_gpu: 0.0, main_gpu: 0.0 },
 });
 
 fn timed(probe: Probe) -> bool {
@@ -444,6 +458,15 @@ pub fn on_zoom(ctx: &mut Context<'_>) -> Flow<NoExit> {
 pub fn on_draw(ctx: &mut Context<'_>) -> Flow<NoExit> {
     let thread = ctx.thread();
     let mut probe = read_probe(thread);
+    if timed(probe) {
+        let now = second_view::cpu_ms(thread);
+        CLOCK.with(thread, |clock| {
+            if let Some(last) = clock.last_game.replace(now) {
+                clock.sums.game += now - last;
+                clock.sums.game_frames += 1;
+            }
+        });
+    }
     let scoped = SCOPED.with(thread, Option::take);
     // nothing made before the first aim through a magnified optic
     if matches!(probe, Probe::Off) && scoped.is_some() && hud_options::pip_scopes_on(thread) {
@@ -725,6 +748,7 @@ fn tick(clock: &mut Clock, second: bool, now: f64) {
     if let Some(started) = clock.main_started.take() {
         clock.sums.main_cpu += now - started;
     }
+    clock.present_started = Some(now);
     if let Some(last) = clock.last_present.replace(now) {
         clock.sums.interval += now - last;
         clock.sums.frames += 1;
@@ -778,6 +802,10 @@ fn report(sums: &Sums) {
         Piece::Dec(sums.frames),
         Piece::Text(", us a frame: interval "),
         Piece::Dec(us(sums.interval, sums.frames)),
+        Piece::Text(", present "),
+        Piece::Dec(us(sums.present, sums.frames)),
+        Piece::Text(", game thread "),
+        Piece::Dec(us(sums.game, sums.game_frames)),
         Piece::Text(", main cpu "),
         Piece::Dec(us(sums.main_cpu, sums.frames)),
         Piece::Text(" gpu "),
@@ -794,7 +822,16 @@ fn report(sums: &Sums) {
 
 /// renderer::render's end: the scene's moved models are the frame's own
 /// draw's to forget (its motion vectors and shadow caches), never ours.
-pub fn on_unmove(_: &mut Context<'_>) -> Flow<PipScopesOnUnmoveExit> {
+pub fn on_unmove(ctx: &mut Context<'_>) -> Flow<PipScopesOnUnmoveExit> {
+    let thread = ctx.thread();
+    if !SECOND_PASS.load(Ordering::Relaxed) && timed(PROBE.with(thread, |probe| *probe)) {
+        let now = second_view::cpu_ms(thread);
+        CLOCK.with(thread, |clock| {
+            if let Some(started) = clock.present_started.take() {
+                clock.sums.present += now - started;
+            }
+        });
+    }
     if SECOND_PASS.load(Ordering::Relaxed) { Flow::Exit(PipScopesOnUnmoveExit::Kept) } else { Flow::Continue }
 }
 
@@ -805,7 +842,16 @@ pub fn on_foreground(ctx: &mut Context<'_>) -> Flow<NoExit> {
     match (SECOND_PASS.load(Ordering::Relaxed), aimed) {
         (true, Some(aimed)) => {
             let except = LENS_SURFACE.with(ctx.thread(), |kept| *kept);
-            second_view::filter_foreground(ctx, Keep::Only { model: aimed, except });
+            let filtered = second_view::filter_foreground(ctx, Stage22::Forward, Keep::Only { model: aimed, except });
+            if SECOND_SEEN.fetch_add(1, Ordering::Relaxed) == 30 {
+                let mut note = Note::new("pip: second view's first-person lists (forward stage): forward");
+                note.dec(filtered.foreground.0).text(" -> ").dec(filtered.foreground.1).text(", lit ").dec(filtered.lit.0).text(" -> ").dec(filtered.lit.1);
+                note.text(" (").dec(filtered.lit_first_person).text(" first-person, of owners");
+                for owner in filtered.owners.iter().filter(|&&o| o != 0) {
+                    note.text(" ").hex(*owner);
+                }
+                note.text(")").send();
+            }
         }
         (true, None) => second_view::drop_foreground(ctx),
         (false, Some(aimed)) => {
@@ -832,7 +878,7 @@ pub fn on_foreground(ctx: &mut Context<'_>) -> Flow<NoExit> {
             if disc.is_none() && frame >= 30 {
                 refuse(thread, aimed);
             }
-            second_view::filter_foreground(ctx, Keep::AllBut(aimed));
+            let _ = second_view::filter_foreground(ctx, Stage22::Forward, Keep::AllBut(aimed));
         }
         (false, None) => SEEN_AIM.with(ctx.thread(), |seen| *seen = None),
     }
@@ -885,6 +931,31 @@ fn log_surfaces(ctx: &Context<'_>, aimed: ModelId, camera: Option<([f32; 16], [f
             .send(),
         None => Note::new("pip: aim: no surface of the aimed model on the eye's axis: no lens").send(),
     }
+}
+
+/// stage_gbuffer::execute before it copies its list: the same first-person
+/// surfaces left out of the G-buffer (the guns', hands' and optics' opaque
+/// ones are drawn there) as at the foreground stage.
+pub fn on_gbuffer(ctx: &mut Context<'_>) -> Flow<NoExit> {
+    let thread = ctx.thread();
+    let Some(aimed) = AIMED.with(thread, |aimed| *aimed) else {
+        return Flow::Continue;
+    };
+    if SECOND_PASS.load(Ordering::Relaxed) {
+        let except = LENS_SURFACE.with(thread, |kept| *kept);
+        let filtered = second_view::filter_foreground(ctx, Stage22::Gbuffer, Keep::Only { model: aimed, except });
+        if SECOND_SEEN.load(Ordering::Relaxed) == 30 {
+            let mut note = Note::new("pip: second view's G-buffer list ");
+            note.dec(filtered.lit.0).text(" -> ").dec(filtered.lit.1).text(" (").dec(filtered.lit_first_person).text(" first-person, of owners");
+            for owner in filtered.owners.iter().filter(|&&o| o != 0) {
+                note.text(" ").hex(*owner);
+            }
+            note.text(")").send();
+        }
+    } else {
+        let _ = second_view::filter_foreground(ctx, Stage22::Gbuffer, Keep::AllBut(aimed));
+    }
+    Flow::Continue
 }
 
 fn lens_on(thread: &Thread) -> bool {

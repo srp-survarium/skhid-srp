@@ -43,6 +43,11 @@ handler = "on_unmove"
 site = "forward.execute_foreground"
 handler = "on_foreground"
 
+# the G-buffer's first-person surfaces, as the foreground's
+[[hook]]
+site = "gbuffer.models"
+handler = "on_gbuffer"
+
 # update_camera's zoom: the held optic, when magnified
 [[hook]]
 site = "camera.zoom"

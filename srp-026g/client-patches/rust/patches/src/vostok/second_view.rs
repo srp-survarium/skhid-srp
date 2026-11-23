@@ -830,7 +830,25 @@ pub enum Keep {
 /// forward-lit list (+44A0h, stage_lights' foreground pass, which draws the
 /// guns, hands and optics); the world's entries of that list stay (drawn
 /// before, in slot 16). A static model's surfaces are its records.
-pub fn filter_foreground(ctx: &Context<'_>, keep: Keep) {
+/// What a filter left: each list's entries before and after, the lit list's
+/// first-person ones before, and up to 8 of their owners (for the log).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct Filtered {
+    pub foreground: (u32, u32),
+    pub lit: (u32, u32),
+    pub lit_first_person: u32,
+    pub owners: [u32; 8],
+}
+
+/// Where a filter runs: the forward stage's foreground (its two lists),
+/// or the G-buffer stage before it copies its list.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Stage22 {
+    Forward,
+    Gbuffer,
+}
+
+pub fn filter_foreground(ctx: &Context<'_>, at: Stage22, keep: Keep) -> Filtered {
     let (Keep::Only { model, .. } | Keep::AllBut(model)) = keep;
     // SAFETY: the context is this site's: ECX the forward stage on the
     // render thread, its scene view the drawn one; the model alive (see
@@ -839,11 +857,16 @@ pub fn filter_foreground(ctx: &Context<'_>, keep: Keep) {
     // lists' ends rewritten within begin..end (the visibility stage fills
     // them again next frame).
     unsafe {
-        let Some((first, count)) = surfaces(model) else { return };
+        let mut filtered = Filtered::default();
+        let Some((first, count)) = surfaces(model) else { return filtered };
         let first = first.address();
         let past = first + count as u32 * raw::RenderSurfaceInstance::SIZE as u32;
-        let Some(view) = raw::site::forward_execute_foreground::stage(ctx).and_then(|s| s.context()).and_then(|c| c.scene_view()) else {
-            return;
+        let context = match at {
+            Stage22::Forward => raw::site::forward_execute_foreground::stage(ctx).and_then(|s| s.context()),
+            Stage22::Gbuffer => raw::site::gbuffer_models::stage(ctx).and_then(|s| s.context()),
+        };
+        let Some(view) = context.and_then(|c| c.scene_view()) else {
+            return filtered;
         };
         let stays = |surface: u32| {
             let ours = (first..past).contains(&surface);
@@ -852,8 +875,29 @@ pub fn filter_foreground(ctx: &Context<'_>, keep: Keep) {
                 Keep::AllBut(_) => !ours,
             }
         };
-        compact(view.foreground_first(), view.foreground_end(), stays);
-        compact(view.lit_first(), view.lit_end(), |surface| !first_person(surface) || stays(surface));
+        let (first_word, end_word) = match at {
+            Stage22::Forward => {
+                filtered.foreground = compact(view.foreground_first(), view.foreground_end(), stays);
+                (view.lit_first(), view.lit_end())
+            }
+            Stage22::Gbuffer => (view.opaque_first(), view.opaque_end()),
+        };
+        let mut owners = 0;
+        let mut seen = 0;
+        filtered.lit = compact(first_word, end_word, |surface| {
+            if !first_person(surface) {
+                return true;
+            }
+            seen += 1;
+            let owner = (surface as usize as *const u8).add(0x3C).cast::<u32>().read();
+            if owners < 8 && !filtered.owners[..owners].contains(&owner) {
+                filtered.owners[owners] = owner;
+                owners += 1;
+            }
+            stays(surface)
+        });
+        filtered.lit_first_person = seen;
+        filtered
     }
 }
 
@@ -873,11 +917,11 @@ unsafe fn first_person(surface: u32) -> bool {
 ///
 /// # Safety
 /// The two words are a live vector's begin and end, the render thread's.
-unsafe fn compact(first: *mut u32, end: *mut u32, stays: impl Fn(u32) -> bool) {
+unsafe fn compact(first: *mut u32, end: *mut u32, mut stays: impl FnMut(u32) -> bool) -> (u32, u32) {
     unsafe {
         let (begin, past) = (*first as usize as *mut u32, *end as usize as *mut u32);
         if begin.is_null() || past < begin {
-            return;
+            return (0, 0);
         }
         let mut kept = begin;
         let mut at = begin;
@@ -890,6 +934,7 @@ unsafe fn compact(first: *mut u32, end: *mut u32, stays: impl Fn(u32) -> bool) {
             at = at.add(1);
         }
         *end = kept as usize as u32;
+        (past.offset_from(begin) as u32, kept.offset_from(begin) as u32)
     }
 }
 
