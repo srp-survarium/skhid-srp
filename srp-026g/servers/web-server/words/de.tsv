@@ -683,3 +683,15 @@ Speed	Tempo
 bullet	Kugel
 sight	Visier
 hit	Treffer
+
+# The wiki's skills (a page built at a release: scripts/site-texts)
+Points	Punkte	skills
+matches	Matches	skills
+h	Std.	unit
+Tap a skill, then + or −.	Tippe auf eine Fähigkeit, dann auf + oder −.
+Click a skill to add a rank, right-click to take one back.	Klick fügt einen Rang hinzu, Rechtsklick nimmt einen zurück.
+{n} point	{n} Punkt	one
+{n} points	{n} Punkte	few
+{n} points	{n} Punkte	many
+Maximum:	Maximum:
+or	oder	skill

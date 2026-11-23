@@ -683,3 +683,15 @@ Speed	Sebesség
 bullet	lövedék
 sight	irányzék
 hit	találat
+
+# The wiki's skills (a page built at a release: scripts/site-texts)
+Points	Pontok	skills
+matches	meccs	skills
+h	ó	unit
+Tap a skill, then + or −.	Koppints egy képességre, majd a + vagy − gombra.
+Click a skill to add a rank, right-click to take one back.	Kattintás: egy fokozattal több, jobb kattintás: eggyel kevesebb.
+{n} point	{n} pont	one
+{n} points	{n} pont	few
+{n} points	{n} pont	many
+Maximum:	Maximum:
+or	vagy	skill

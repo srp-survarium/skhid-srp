@@ -683,3 +683,15 @@ Speed	Brzina
 bullet	metak
 sight	nišan
 hit	pogodak
+
+# The wiki's skills (a page built at a release: scripts/site-texts)
+Points	Poeni	skills
+matches	mečeva	skills
+h	č	unit
+Tap a skill, then + or −.	Dodirnite veštinu, pa + ili −.
+Click a skill to add a rank, right-click to take one back.	Klik dodaje rang, desni klik ga oduzima.
+{n} point	{n} poen	one
+{n} points	{n} poena	few
+{n} points	{n} poena	many
+Maximum:	Maksimum:
+or	ili	skill
