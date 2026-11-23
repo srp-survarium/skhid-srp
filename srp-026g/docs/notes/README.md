@@ -45,6 +45,7 @@ given), LIKELY or GUESS.
 | [weapons-046.md](weapons-046.md) | Weapons from 0.46c2 (packs weapons-046, weapons-046-camo; release 41, batches 2 and 2b): the MP5, SVU, L85A2, Fort-401, Jackhammer and five pistols, balanced around their live peers (the table), their default parts baked in, the muzzle data for the muzzle step |
 | [decals-069d.md](decals-069d.md) | The 0.69d decals (34 flags, Herbs, Clover ornament, Horseshoe, Jarilo; ten more in version 2: seven premium decals and three badges) and the Steam camouflage: ids 1824-1862 and 1884-1893, prices, icon cells, the pack |
 | [kosovo-decals.md](kosovo-decals.md) | The Flag of Kosovo and the Coat of arms of Kosovo decals (1894, 1895): from the official files, in 0.69d's styles; the pack |
+| [snufkin-decals.md](snufkin-decals.md) | The Snufkin and Snufkin sitting decals (1896, 1897): cut out of the 1990 anime, printed on cloth, not sold; the pack |
 | [match.md](match.md) | Match protocol: lockstep, handshake, message ids, snapshot and hash, time sync, input rules |
 | [world_frame_check.md](world_frame_check.md) | A world no game could load (its frame against the game's fixed buffers): refused by the match server and by the game itself (exe patch 87), one shared crate (`world-frame`) |
 | [transport.md](transport.md) | The UDP transport that matches **and now the lobby** use: header, acks, per-id lengths, multipart |
