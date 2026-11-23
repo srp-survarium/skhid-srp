@@ -3448,9 +3448,15 @@ mod tests {
                 }
             }
         }
-        let low = Crossing { edge: Vec3::ZERO, leg: Cost::ZERO, leg_out: Cost::ZERO, at_per_s: Cost::ZERO, routed: true, walk_m: 1.0 };
-        let why = low.refusal(&Budget::raw(0.1), FIXTURE, None).unwrap();
-        assert!(why.starts_with("a routed crossing at health 0.100"), "{why}");
+        // [zone start gate] A routed crossing is not begun with a pool it takes from under the start health, and that is
+        // named first; one that takes nothing from the low pool is not held by the gate (the reserve's own rule decides it).
+        let routed = |leg: Cost| Crossing { edge: Vec3::ZERO, leg, leg_out: leg, at_per_s: Cost::ZERO, routed: true, walk_m: 1.0 };
+        let body = routed(Cost { body: 0.05, ..Cost::ZERO });
+        let why = body.refusal(&Budget::raw(0.1), FIXTURE, None).unwrap();
+        assert!(why.starts_with("a routed crossing: body pool 0.100 under"), "{why}");
+        let infection = routed(Cost { infection: 0.05, ..Cost::ZERO });
+        let why = infection.refusal(&Budget::raw(0.1), FIXTURE, None);
+        assert!(why.as_deref().is_none_or(|w| !w.starts_with("a routed crossing")), "{why:?}");
     }
     use crate::v026g::bots::plays::tests::Scenario;
     use crate::v026g::bots::tactics::Tactics;
