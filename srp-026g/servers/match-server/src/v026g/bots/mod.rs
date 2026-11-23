@@ -108,6 +108,7 @@ pub mod stamina;
 pub mod stock;
 pub mod stuck;
 pub mod switch_log;
+pub mod switch_take;
 pub mod tactics;
 pub mod team;
 pub mod threat;

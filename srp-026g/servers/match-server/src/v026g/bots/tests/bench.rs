@@ -1408,6 +1408,7 @@ pub(crate) fn real_bot_cost() {
             // in their sensor: PROVEN, `hit_objects` 0x319AF0, s4-effects
             // `notes-effects.md` 1.3): off, the bench decides as before.
             let zone_damage = bench_settings().var("SRP_BENCH_ZONE_DAMAGE").is_ok_and(|v| v == "1");
+            let anomaly_energy = bench_settings().var("SRP_BENCH_ANOMALY_ENERGY").is_ok_and(|v| v == "1");
             game.zone_routed = bots.match_wide_tuning().hazard.zone_pools == super::tuning::ZonePools::Routed;
             // The client's zone rule (a hit at the body's place in the zone, the interval included; bots in live lose exactly
             // that): on unless `SRP_BENCH_ZONE_INTENSITY=0` (the flat full hit the stand-in had).
@@ -1472,6 +1473,33 @@ pub(crate) fn real_bot_cost() {
                         if let Some(listed) = game.fields.world_due(game.tick) {
                             bots.fields_given(&listed, game.tick);
                             game.fields.sample_shut(world.grid.len());
+                        }
+                    }
+                    // [anomaly batteries] `SRP_BENCH_ANOMALY_ENERGY=1`: the bodies moving in an energy core's zones raise its energy.
+                    if anomaly_energy && let Some(tactics) = bots.tactics.as_mut() {
+                        let mut actions: Vec<(usize, f32)> = Vec::new();
+                        if let Some(anomalies) = tactics.hazards.anomalies() {
+                            for body in game.bodies.iter().filter(|b| b.alive && b.step_m > 1e-4) {
+                                let Some(node) = game.world.grid.locate(body.feet, 1.0) else {
+                                    continue;
+                                };
+                                let mut cores: Vec<usize> = Vec::new();
+                                for zone in inside.zones_at(node) {
+                                    if let Some(core) = anomalies.energy_core(zone.zone)
+                                        && !cores.contains(&core.index())
+                                    {
+                                        cores.push(core.index());
+                                        let rise = core.rise();
+                                        let sprint = body.keys & crate::v026g::drive::key::SPRINT != 0;
+                                        actions.push((core.index(), if sprint { rise.sprint } else { rise.run }));
+                                    }
+                                }
+                            }
+                        }
+                        if let Some(anomalies) = tactics.hazards.anomalies_mut() {
+                            for (core, per_s) in actions {
+                                anomalies.on_player_action(core, per_s, TICK_MS as f32 / 1000.0);
+                            }
                         }
                     }
                     if let Some(tactics) = bots.tactics.as_ref() {

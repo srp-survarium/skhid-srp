@@ -405,10 +405,14 @@ pub enum Kind {
     /// [N1b] A search due while only the kept controller read the body in the air, the reckoning on the ground: searched, as
     /// N1 did not before (`drive.rs`, [`kept_only_air_line`]). A kind of its own, so it never holds back a fall's line.
     InAir,
+    /// [anomaly batteries] A battery inside an energy core's zones (`switch_take`): each decision on its take (taken by rule
+    /// (a) or (b), or refused, with the forecast), the take begun, left early and walked out. Not capped: the bench's proof
+    /// reads every one.
+    ZoneTake,
 }
 
 /// How many kinds of line there are ([`Kind`]).
-const KINDS: usize = 20;
+const KINDS: usize = 21;
 
 /// [owner-5] At most this many lines of a kind per bot per match (the first ones; the rest are counted into the last): the
 /// owner-5 kinds fire on events that can repeat all match (a battery refused at every poll, a role offered and refused
@@ -431,8 +435,14 @@ impl NavLog {
     /// A line of `kind` at `time`: kept for the next poll, or held back (counted) within [`EVERY_MS`] of the last one. The
     /// owner-5 kinds also stop at [`MAX_PER_KIND`] a match.
     pub fn push(&mut self, kind: Kind, time: u32, text: String) {
-        let capped = !matches!(kind, Kind::Jump | Kind::Fall | Kind::Drift | Kind::Press);
+        let capped = !matches!(kind, Kind::Jump | Kind::Fall | Kind::Drift | Kind::Press | Kind::ZoneTake);
         if capped && self.written[kind as usize] >= MAX_PER_KIND {
+            return;
+        }
+        // [anomaly batteries] Every line of a zone take is its own event: none is held.
+        if kind == Kind::ZoneTake {
+            self.written[kind as usize] += 1;
+            self.pending.push((time, text));
             return;
         }
         // [press forecast] A try's lines (spent, pressed, landed) can come within the limit of each other; each is the try's own,
@@ -458,7 +468,7 @@ impl NavLog {
     /// [fix-lip] Whether a line of `kind` at `time` would be written now ([`Self::push`]'s limits): a line costly to make is made only
     /// then; one not due is still counted held by [`Self::push`] (its text unused).
     pub fn due(&self, kind: Kind, time: u32) -> bool {
-        if kind == Kind::Press {
+        if matches!(kind, Kind::Press | Kind::ZoneTake) {
             return true;
         }
         let capped = !matches!(kind, Kind::Jump | Kind::Fall | Kind::Drift);

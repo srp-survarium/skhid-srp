@@ -141,7 +141,7 @@ const USE_SEEN_WAIT_MS: u32 = 3_000;
 /// after it; a fire press while carrying drops the battery in the game
 /// (0x2D8E73..0x2D8EC8, PROVEN). In the bench's traces every fire drop
 /// left was 0.45-0.85 s after a take. GUESS: the worlds' 2 s.
-const TAKE_HOLD_FIRE_MS: u32 = 2_000;
+pub(super) const TAKE_HOLD_FIRE_MS: u32 = 2_000;
 /// A carrier letting go of its battery presses again (fire, which drops it
 /// as the drop key does: 0x2D8E73..0x2D8EC8, PROVEN) if the view still
 /// shows it carried this long after: past the worlds' lag. GUESS.
@@ -713,6 +713,11 @@ pub mod take_counts {
 /// sees it ([`Ctx::exposed_to`], the take's own rule for fighting first). What it reads is the bot's own: its play, its
 /// feet, the battery the team knows lying there, the enemies it sees.
 pub fn finishing(state: &State, target: TargetRef, cx: &Ctx) -> bool {
+    // [anomaly batteries] A take inside an energy core's zones is finished by its own walk out: no other play takes the bot
+    // inside, where its way out is the take's.
+    if matches!(state, State::ZoneTake(_)) {
+        return true;
+    }
     let num = |name| cx.num(PlayKind::Collect, name);
     let unpressed = match state {
         State::Fetch => true,
@@ -1676,7 +1681,6 @@ impl Ctx<'_> {
     /// Why a battery lying at `at` may not be taken ([`Ctx::can_take`]),
     /// the first reason found; `None`: it may.
     pub fn take_block(&self, at: Vec3) -> Option<&'static str> {
-        let num = |name| self.num(PlayKind::Collect, name);
         // [F4] The map's objective contract: a spawner's battery no proven way in and out leads to is not offered.
         if let Some(why) = contract_refusal(self, at) {
             return Some(why);
@@ -1697,6 +1701,13 @@ impl Ctx<'_> {
         // bot's health bears it.
         let stand = if self.needs_crossing(stand) {
             let Some(crossing) = self.crossing(at) else {
+                // [anomaly batteries] A stand in an energy core's zones that switch: by its own way in, if a rule lets it.
+                if super::zone_take::in_core(self, at) {
+                    return match super::zone_take::decide(self, at, false) {
+                        Ok(plan) => self.take_block_from(at, self.tactics.world.grid.position(plan.way[0])),
+                        Err(why) => Some(why),
+                    };
+                }
                 return Some("no crossing to its zone");
             };
             let budget = self.budget();
@@ -1729,6 +1740,13 @@ impl Ctx<'_> {
         } else {
             stand
         };
+        self.take_block_from(at, stand)
+    }
+
+    /// [`Self::take_block`]'s tests past the zones, for the battery lying at `at` taken from `stand` (or a crossing's dry
+    /// edge, or a zone take's entry).
+    fn take_block_from(&self, at: Vec3, stand: Vec3) -> Option<&'static str> {
+        let num = |name| self.num(PlayKind::Collect, name);
         // [row 9] Within the use's reach of the eye no way is needed: the client takes on the press with the ray on the box
         // (0x2D88B1, 0x2D84C0), from wherever the body stands. The route tests refused 28 batteries to bots 0-2 m from
         // them in the 16 own-play matches of 2026-11-18 ("no way to its stand lately").
@@ -2152,6 +2170,8 @@ pub enum State {
         /// [take.on_the_move] Where its first press is.
         first: FirstPress,
     },
+    /// [anomaly batteries] A take inside an energy core's zones that switch, by its own way in and out (`zone_take`).
+    ZoneTake(super::zone_take::Take),
     /// Home with the battery; `via`: the points of a safer way home along
     /// a human route (`way_home`), chosen at the first step.
     Bring {
@@ -2309,6 +2329,26 @@ pub fn step(state: &mut State, target: TargetRef, cx: &Ctx, _rng: &mut Rng) -> S
                         routed = crossing.routed;
                         Some(crossing.edge)
                     }
+                    // [anomaly batteries] In an energy core's zones that switch: to the way's dry entry, then the take's own walk.
+                    None if super::zone_take::in_core(cx, at) => {
+                        let plan = match super::zone_take::decide(cx, at, true) {
+                            Ok(plan) => plan,
+                            Err(why) => {
+                                super::zone_take::fetch_ended(cx, at, why);
+                                return Step::Failed("no way to it");
+                            }
+                        };
+                        let entry = cx.tactics.world.grid.position(plan.way[0]);
+                        if cx.me.feet.distance_xz(entry) <= num("reach_m") && (cx.me.feet.y - entry.y).abs() < 1.5 {
+                            *state = State::ZoneTake(super::zone_take::Take::begin(cx, at, plan));
+                            return step(state, target, cx, _rng);
+                        }
+                        if !cx.can_go(entry) {
+                            super::zone_take::fetch_ended(cx, at, "no way to the entry (Ctx::can_go)");
+                            return Step::Failed("no way to it");
+                        }
+                        return Step::Continue(Intent::to(entry, cx.pace_toward(entry)).within(0.0));
+                    }
                     _ => return Step::Failed("no way to it"),
                 }
             } else {
@@ -2438,6 +2478,13 @@ pub fn step(state: &mut State, target: TargetRef, cx: &Ctx, _rng: &mut Rng) -> S
                 (step, _) => step,
             }
         }
+        State::ZoneTake(take) => match super::zone_take::step(take, target, cx) {
+            super::zone_take::Next::Step(step) => step,
+            super::zone_take::Next::Bring => {
+                *state = State::Bring { via: None };
+                step(state, target, cx, _rng)
+            }
+        },
         State::Bring { via } => {
             if cx.me.carrying.is_none() {
                 return Step::Done(carry_ended(cx, target, "brought home"));

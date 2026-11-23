@@ -820,6 +820,11 @@ impl Hazards {
         self.zones_at(node).any(|zone| zone.activity.active(time)) || self.live.on_at(node, time)
     }
 
+    /// [anomaly batteries] What the live fields at `node` take a second under `armour` (none: the raw hit in the body pool).
+    pub fn live_cost_per_s(&self, node: NodeId, armour: Option<&ZoneArmour>) -> Cost {
+        self.live.cost_per_s(node, armour)
+    }
+
     /// The zones' hit a second at `node` while they are on, summed
     /// ([`Hazard::hit_per_s`]); 0 on a floor no zone marks.
     pub fn hit_per_s(&self, node: NodeId) -> f32 {
@@ -1020,6 +1025,12 @@ impl Hazards {
         }
         self.anomalies = Some(anomalies);
         self.refresh();
+    }
+
+    /// [anomaly batteries] The cores, to change (the bench's stand-in game raises their energy as bodies move).
+    #[cfg(test)]
+    pub fn anomalies_mut(&mut self) -> Option<&mut Anomalies> {
+        self.anomalies.as_mut()
     }
 
     pub fn anomalies(&self) -> Option<&Anomalies> {

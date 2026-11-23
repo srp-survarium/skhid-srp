@@ -54,6 +54,7 @@ pub mod station;
 pub mod trade;
 pub mod trap_spot;
 pub mod watch;
+pub mod zone_take;
 
 use mapdata::Vec3;
 use serde::{Deserialize, Serialize};

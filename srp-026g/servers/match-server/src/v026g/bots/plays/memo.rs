@@ -143,9 +143,27 @@ pub struct Memo {
     stands: OnceLock<UseStands>,
     /// [take.zone_look] A dry floor to look at a zone spawner's spot from, by the spot ([`Memo::zone_look`]).
     zone_looks: QueryMemo<(u32, u32, u32), Option<Vec3>>,
+    /// [anomaly batteries] The way into a battery's stand inside an energy core's zones, by the stand's floor and the side
+    /// ([`Memo::zone_way`]).
+    zone_ways: QueryMemo<(mapdata::NodeId, i32), Option<std::sync::Arc<Vec<mapdata::NodeId>>>>,
 }
 
 impl Memo {
+    /// [anomaly batteries] [`crate::v026g::bots::switch_take::way_in`], kept: worked out once a match for each stand and side
+    /// while the zones stay what they are.
+    pub fn zone_way(
+        &self,
+        tactics: &Tactics,
+        core: crate::v026g::bots::anomalies::EnergyCore,
+        side: i32,
+        stand: mapdata::NodeId,
+    ) -> Option<std::sync::Arc<Vec<mapdata::NodeId>>> {
+        self.zone_ways.get(zones_stamp(&tactics.hazards), (stand, side), || {
+            crate::v026g::bots::switch_take::way_in(tactics, core, side, stand, crate::v026g::bots::switch_take::WAY_WITHIN_M)
+                .map(std::sync::Arc::new)
+        })
+    }
+
     /// [`crossing_to`], kept: the same answer, worked out once a match for
     /// each stand, side and stop while the zones stay what they are.
     pub fn crossing(

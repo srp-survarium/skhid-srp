@@ -289,22 +289,22 @@ fn searched_entry_by_maps(
 
 /// [CPU] A value by floor, none till it is set: [`searched_entry`]'s prices, ways back and floor prices. Zeroed memory
 /// (the allocator's own: only the floors a search reaches are touched) and a bit a floor for "set".
-struct ByFloor<T> {
+pub(super) struct ByFloor<T> {
     value: Vec<T>,
     set: Vec<u64>,
 }
 
 impl<T: Copy + Default> ByFloor<T> {
-    fn new(floors: usize) -> Self {
+    pub(super) fn new(floors: usize) -> Self {
         Self { value: vec![T::default(); floors], set: vec![0; floors.div_ceil(64)] }
     }
 
-    fn get(&self, node: NodeId) -> Option<T> {
+    pub(super) fn get(&self, node: NodeId) -> Option<T> {
         let n = node as usize;
         (self.set[n / 64] >> (n % 64) & 1 != 0).then(|| self.value[n])
     }
 
-    fn set(&mut self, node: NodeId, value: T) {
+    pub(super) fn set(&mut self, node: NodeId, value: T) {
         let n = node as usize;
         self.set[n / 64] |= 1 << (n % 64);
         self.value[n] = value;
