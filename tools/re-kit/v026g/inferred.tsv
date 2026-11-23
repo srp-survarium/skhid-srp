@@ -3729,3 +3729,10 @@ va	status	ref_021d	name
 0x0023c750	inferred-medium		survarium::game_world_ui::place_object_icon [descriptive]
 0x002d3700	inferred-medium		survarium::game_world_core::drop_world_events_after
 0x00391a20	inferred-medium		vostok::animation::animation_player::compute_bone_matrix [descriptive]
+0x002f1220	inferred-high	0x001d2772	survarium::player_input::is_sprinting
+0x002fbce0	inferred-medium		survarium::weapon_user_animations_selector::sprint_to_on_site_predicate [descriptive]
+0x002fbd50	inferred-medium		survarium::weapon_user_animations_selector::sprint_to_run_predicate [descriptive]
+0x002e3d30	inferred-medium	0x001e4b40	survarium::weapon_core::fire_AE_pred
+0x002e4170	inferred-medium	0x001e4ed2	survarium::weapon_core::is_going_to_sprint
+0x002d6510	inferred-medium	0x001d2791	survarium::player_input::get_move_direction
+0x00336a90	inferred-medium		survarium::player_logic_stand_sprint_state::is_ready_for_transition

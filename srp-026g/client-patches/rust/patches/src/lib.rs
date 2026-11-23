@@ -169,8 +169,10 @@ pub mod aim_pose;
 pub mod affine;
 // patch 200: a shot leaves the gun's muzzle, the way the gun looks
 pub mod muzzle_shots;
-// patch 197: the drawn camera trails the aim (a prototype, SKHID_CAMERA_TRAIL)
+// patch 197: the drawn camera apart from the aim (the kick's share, the gun turns first)
 pub mod camera_trail;
+// patch 201: a shot in a sprint
+pub mod sprint_fire;
 // patch 174: the engine's log without the lines that tell nothing
 pub mod quiet_log;
 

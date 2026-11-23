@@ -1,0 +1,29 @@
+# Patch 201: a shot in a sprint (sprint_fire.rs; docs/notes/muzzle-shots.md).
+# Only the decisions: the sites and the handlers.
+name = "sprint_fire"
+patch = 201
+
+# is_trying_to_sprint: the sprint's speed and stamina
+[[hook]]
+site = "sprint.keys_speed"
+handler = "on_speed_keys"
+
+# sprint_predicate: the posture machine
+[[hook]]
+site = "sprint.keys_posture"
+handler = "on_posture_keys"
+
+# player_input::is_sprinting: a sprint's jump
+[[hook]]
+site = "sprint.keys_jump"
+handler = "on_jump_keys"
+
+# weapon_core's fire predicate at its wait for the sprint's clip
+[[hook]]
+site = "weapon.fire_wait"
+handler = "on_fire_wait"
+
+# weapon_core::can_sprint at its weapon state's test
+[[hook]]
+site = "weapon.can_sprint"
+handler = "on_can_sprint"

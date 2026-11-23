@@ -145,7 +145,9 @@ impl Blend {
 
 impl Kinematics {
     /// Whether the keys sprint (SPRINT and FORWARD, none of BACK, FIRE,
-    /// CROUCH, AIM).
+    /// CROUCH, AIM). The bots' own rule: they let SPRINT go as they fire.
+    /// Since exe patch 201 the game itself keeps a sprint under FIRE (a
+    /// fire begun in a sprint: `docs/notes/muzzle-shots.md`).
     pub fn sprints(keys: u32) -> bool {
         keys & key::SPRINT != 0
             && keys & key::FORWARD != 0

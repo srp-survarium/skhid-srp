@@ -159,6 +159,38 @@ degrees across and 5 up off the gun from the hip, 3 and 2 fully aimed (the hands
 first-person rig, not re-posed for a view far off the gun); the roll is the reference's 8 degrees
 at 375 degrees a second of turn, at the fork's share of 0.43.
 
+## A shot in a sprint (patch 201)
+
 Asked in the same play: "you should also be able to shoot while sprinting, it is just that weapon
 is not looking straight", "so shots will land where muzzle looks". The second is the rule as
-built. The first is the game's own: a trigger pressed ends the sprint (to do).
+built. The first was the game's own, in three places of the simulation (read in the exe;
+`private/scope-shot-045/muzzle-shots/sprint-fire/FINDINGS.txt` has the listings):
+
+- **A trigger ends the sprint.** `player_input::is_sprinting` is inlined three times (the speed
+  and the stamina, 0x2FC207; the posture machine, 0x2FBCAA; a sprint's jump, 0x2F1231): SPRINT
+  and FORWARD, and none of BACK, FIRE and CROUCH (`test eax,122h`).
+- **The weapon waits for the sprint's clip.** There is no sprint state of the weapon: a sprinting
+  player's is idle. Its fire predicate (0x2E3CB0) refuses while the weapon's +5ECh (the sprint
+  clip to wait for: 0, 2 or 4 once the sprint posture selects its clips, 6 again when the last one
+  has ended out of a sprint) is not 6.
+- **A fire state ends any sprint.** `weapon_core::can_sprint` (0x2E3A10) takes the idle state, and
+  a melee while +5ECh is not 6.
+
+Patch 201 (`sprint_fire.rs`), as a melee already is: the three key tests refuse BACK and CROUCH
+only; the fire predicate goes on past its wait while the user's posture is the sprint (after a
+sprint it waits as before); `can_sprint` takes the fire state while a sprint's clip is selected,
+so a fire begun in a sprint keeps it and one begun outside starts none. A match plays out
+otherwise: a row in `simulation_changes.tsv`. `check_sprint_fire_026g.py` (`tools/check
+sprint-fire`) runs the five tests in both exes.
+
+Not done, and not seen in a game:
+- **The hands.** The fire states' clip pair (0x30E800, 0x30F830) always brings its fire hands
+  clip, so in a sprint the gun likely comes up to the fire pose over sprinting legs. Keeping the
+  sprint's arms (the owner's "weapon is not looking straight") means answering as the idle state
+  does in a sprint (no hands), and then the gun's fire clip, which runs in the hands clip's time,
+  needs a speed of its own: not established.
+- Aim, a reload and a grenade still wait for the sprint's end; a jump is refused while the fire
+  state runs; a bolt or pump gun's chambering ends the sprint.
+- The bots let SPRINT go as they fire (`bots/mod.rs`), so they never do it.
+- No world of a game with it was checked (`world-check`, `world-drift`): nothing new is written,
+  but a sprint posture with a fire state is a pair no recorded world has.
