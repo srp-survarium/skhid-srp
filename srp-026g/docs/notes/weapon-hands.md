@@ -105,6 +105,40 @@ resource-porter #51 and #47), it is on the gun, 0.0/0.0 mm median. The bake was 
 it pairs the donor's names (`pm/reload_empty` with `reload_empty`), and the port rebuilt with the
 slot pairing makes every hands clip of weapons-046 byte for byte.
 
+## The pistols' melee and grenade (weapons-046@15)
+
+A player's report (2026-11-16, the Glock 17; the others too): in a sprint the gun-stock hit shows
+the arm with a broken elbow. The five 0.46c2 pistols play their templates' (APS, Fort-17) melee
+and grenade clips, 0.26g's `tt33/.../hands_only/kick`, `kick_sprint` (a full clip: it plays in
+place of the body, as the sprint does) and `grenade/grenade_swing`, `_throw`, `_idle`. Those
+states have no gun clips of their own: `weapon_core_melee_state::weapon_and_hands_expression`
+(0x310B10) and `weapon_core_throw_grenade_state`'s (0x33A6A0) take the gun's part from the idle
+state they keep (+154h, +178h; read so from the calls, the object not traced to its constructor), so the gun plays its idle. 0.26g's pistol clips hold the gun 20 cm
+further out than the `Weapon` bone, 0.46c2's on it; the tt33 clips put the right hand where the
+TT-33's grip is, 20 cm ahead of these guns' grip, and the IK pulls the arm onto it.
+
+`hand-contact` now measures those clips too (a state without gun clips against the idle's, a full
+clip as it plays). The port (`hands::regrip`) gives each pistol its own copies, `<clip>_<gun>`,
+with the `Weapon` bone moved in its own frame by what puts the gun's right contact bone (its
+grip: 201 mm and 1.1 degrees from the APS's in the gun) where the template's is. The hands and
+every other curve stay. Only where the stances differ (the pistols): the rifles' grips are 8 to
+106 mm from their templates' by their shapes, left to the IK as before.
+
+Median mm, left/right, the same for the Glock 17, CZ 75, MP-443, Beretta 93R and Colt M1911,
+before -> after, and the stock APS, Fort-17 and TT-33 with the same clips:
+
+| clip | before | after | stock |
+|---|---|---|---|
+| kick | 247.6/207.9 | 291.1/22.0 | 291.1/22.0 |
+| kick_sprint | 632.7/207.7 | 678.8/22.0 | 678.8/22.0 |
+| grenade_swing | 300.7/340.3 | 127.5/434.8 | 127.5/434.8 |
+| grenade_throw | 301.6/447.4 | 138.3/353.8 | 138.3/353.8 |
+| grenade_idle | 301.6/532.4 | 138.3/606.6 | 138.3/606.6 |
+
+On the stock pistols too the left hand lets go in the kick and is off the gun in the sprint's
+and the grenade's clips, and the right is 22 mm from the grip in the kick (the clips' own).
+Every other file of @15 is @14's.
+
 ## Not done, not seen
 
 - Nobody has looked at it in the game. The open question is the third view and whether 0.26g's
