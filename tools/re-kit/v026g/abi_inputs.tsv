@@ -6749,3 +6749,11 @@ va	name	location	role	basis
 0x002d43b0	survarium::game_world_core::new_world_event	EAX	the core's world events (core+12740h)	observed
 0x00233770	survarium::game_world_ui::on_kill_cross_event	entry ESP+4	&game_world+564h, the last kill-cross time ([+4] the game_world_ui); a sealed event of any type writes its time (+24h) there (0x2337FA..0x233804), so a kill a re-simulation makes at or before an event already walked is never shown	observed
 0x00233770	survarium::game_world_ui::on_kill_cross_event	entry ESP+8	sealed (bool): the event is at or below the walker's bound	observed
+0x003a19f0	vostok::animation::mixing::n_ary_tree::tick	entry ESP+4	the tree (animation player +E100h, its reference added by animation_player::tick 0x3917F8); not null	observed
+0x003a19f0	vostok::animation::mixing::n_ary_tree::tick	entry ESP+8	the time in ms (animation_player::tick's argument)	observed
+0x003a19f0	vostok::animation::mixing::n_ary_tree::tick	entry ESP+0Ch	&the first subscribed channel (animation player +E108h)	observed
+0x003a19f0	vostok::animation::mixing::n_ary_tree::tick	entry ESP+10h	&callbacks_are_actual (animation player +E116h)	observed
+0x00391be0	vostok::animation::animation_player::reset	EAX	the animation player (base_player::initialize: player+750h)	observed
+0x00392370	vostok::animation::animation_player::tree_actual_time	ECX	the animation player	observed
+0x003923c0	vostok::animation::animation_player::has_animations	ECX	the animation player	observed
+0x002474a0	survarium::player::mt_draw	byte [EBX+33Ch] at 0x24751C	alive: when 0, the animation player (+750h) is ticked to +324h (0x247543) if tree_actual_time 0x392370 is below it; no test of the tree (+E850h), which a player never spawned does not have	observed
