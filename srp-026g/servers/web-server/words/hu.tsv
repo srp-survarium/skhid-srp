@@ -923,3 +923,30 @@ Healing	Gyógyulás
 Previous shot	Előző lövés
 Next shot	Következő lövés
 Damage calculator	Survarium sebzéskalkulátor	title
+# The wiki's artefacts (src/artefacts.rs)
+Every artefact: what it gives carried and fired, how copies stack, where it is found.	Minden artefaktum: mit ad hordva és aktiválva, hogyan adódnak össze a példányok, hol található.
+Artefact	Artefaktum
+Passive	Passzív
+Active	Aktív
+Active time	Hatásidő
+Cooldown	Újratöltés
+Skill	Képesség
+Rules	Szabályok
+Movement speed	Mozgási sebesség
+Stamina regeneration	Energia-visszatöltődés
+Stamina use	Energiafogyasztás
+Slowdown from hits	Lassulás találatoktól
+Against	Ellen
+Body parts	Testrészek
+Penetration	Átütés
+Health	Életerő
+Cures injuries	Sérüléseket gyógyít
+Regeneration	Regeneráció
+Regeneration delay	Regeneráció késleltetése
+Regenerates up to	Regenerálódik eddig
+HP	ÉP	unit
+Carried in a container: passive. A death leaves them in that kit.	Tárolóban: passzív. Halál után abban a felszerelésben maradnak.
+A key fires every ready copy of its kind and restarts the cooldown of the ones still cooling.	Egy gomb a fajtája minden kész példányát aktiválja, és újraindítja a még töltődők újratöltését.
+Copies of a kind add up (Onyx's passive multiplies); at most 4 count.	Egy fajta példányai összeadódnak (az Ónix passzívja szorzódik); legfeljebb 4 számít.
+Spring's and Larkspur's actives add to the passive; Onyx's replaces it.	A Rugó és a Szarkaláb aktívja hozzáadódik a passzívhoz; az Ónixé felváltja azt.
+Onyx fired together: one reduction, 1 s longer per extra copy.	Együtt aktivált Ónixok: egy csökkentés, minden további példányért 1 mp-cel tovább.

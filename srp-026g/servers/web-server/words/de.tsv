@@ -923,3 +923,30 @@ Healing	Heilung
 Previous shot	Vorheriger Schuss
 Next shot	Nächster Schuss
 Damage calculator	Survarium-Schadensrechner	title
+# The wiki's artefacts (src/artefacts.rs)
+Every artefact: what it gives carried and fired, how copies stack, where it is found.	Jedes Artefakt: was es getragen und aktiviert gibt, wie sich Kopien stapeln, wo es zu finden ist.
+Artefact	Artefakt
+Passive	Passiv
+Active	Aktiv
+Active time	Wirkdauer
+Cooldown	Abklingzeit
+Skill	Fähigkeit
+Rules	Regeln
+Movement speed	Laufgeschwindigkeit
+Stamina regeneration	Ausdauerregeneration
+Stamina use	Ausdauerverbrauch
+Slowdown from hits	Verlangsamung durch Treffer
+Against	Gegen
+Body parts	Körperteile
+Penetration	Durchschlag
+Health	Gesundheit
+Cures injuries	Heilt Verletzungen
+Regeneration	Regeneration
+Regeneration delay	Regenerationsverzögerung
+Regenerates up to	Regeneriert bis
+HP	LP	unit
+Carried in a container: passive. A death leaves them in that kit.	Im Behälter: Passiv. Nach dem Tod bleiben sie in diesem Kit.
+A key fires every ready copy of its kind and restarts the cooldown of the ones still cooling.	Eine Taste aktiviert jede bereite Kopie ihrer Art und startet die Abklingzeit der noch abklingenden neu.
+Copies of a kind add up (Onyx's passive multiplies); at most 4 count.	Kopien einer Art addieren sich (das Passiv von Onyx multipliziert sich); höchstens 4 zählen.
+Spring's and Larkspur's actives add to the passive; Onyx's replaces it.	Das Aktiv von Feder und Lebknochen kommt zum Passiv hinzu; das von Onyx ersetzt es.
+Onyx fired together: one reduction, 1 s longer per extra copy.	Zusammen aktivierte Onyx: eine Verringerung, je weitere Kopie 1 s länger.
