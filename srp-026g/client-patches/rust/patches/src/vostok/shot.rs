@@ -1,9 +1,10 @@
-//! A shot at `weapon.shot_origin` (sites_026g.tsv): weapon_core::instant_fire
-//! 0x2E23A0 has copied its user's eyes' transform into its frame and is about
-//! to take the bullet's direction and start from that copy. The site is in a
+//! A gun in its user's hands as the simulation has it, and a shot of it at
+//! `weapon.shot_origin` (sites_026g.tsv): weapon_core::instant_fire 0x2E23A0
+//! has copied its user's eyes' transform into its frame and is about to take
+//! the bullet's direction and start from that copy. The site is in a
 //! simulation step (the animation event `shoot`), for every player of the
-//! world, so everything read here is the simulation's own state: the same in
-//! every game at that step.
+//! world, so everything a [`HeldGun`] reads is the simulation's own state:
+//! the same in every game at that step.
 //!
 //! The gun's pose is what the drawing makes of the same state for the
 //! shooter's own view (update_bones_matrices 0x2FF600, process_hands_ik
@@ -21,12 +22,17 @@ use super::context::Context;
 use super::world::{Player, floats, read, write_floats};
 use crate::raw;
 
-/// The shot being fired: the gun and what it leaves from.
-pub struct Shot<'c> {
+/// A client weapon held by a player whose animations are mixed.
+pub struct HeldGun<'c> {
     weapon: raw::Weapon,
     user: raw::Player,
-    eye: raw::Float4x4,
     player: Player<'c>,
+}
+
+/// The shot being fired: the gun and what it leaves from.
+pub struct Shot<'c> {
+    gun: HeldGun<'c>,
+    eye: raw::Float4x4,
     site: PhantomData<&'c ()>,
 }
 
@@ -56,7 +62,38 @@ impl<'c> Shot<'c> {
             }
             let user = weapon.user()?;
             user.animation_tree()?;
-            Some(Shot { weapon, user, eye, player: Player::of(ctx, Some(user))?, site: PhantomData })
+            Some(Shot { gun: HeldGun { weapon, user, player: Player::of(ctx, Some(user))? }, eye, site: PhantomData })
+        }
+    }
+
+    pub fn gun(&self) -> &HeldGun<'c> {
+        &self.gun
+    }
+
+    /// What the shot leaves from, in place of the eyes' copy: a transform
+    /// laid out as it (rows right, up, forward, place).
+    pub fn leave_from(&mut self, from: [f32; 16]) {
+        // SAFETY: the copy in instant_fire's frame, 16 floats, read after
+        // the site only (0x2E245C, 0x2E250F) on this thread.
+        unsafe { write_floats(self.eye.value(), from) }
+    }
+}
+
+impl<'c> HeldGun<'c> {
+    /// The client weapon `player` holds, on the thread the simulation runs
+    /// on (the tree's reference count is a plain one: animation_player
+    /// 0x391A4A); none for anything else in its hands, or with no tree.
+    pub fn of(player: Player<'c>) -> Option<HeldGun<'c>> {
+        // SAFETY: the live player's held item: an item's first dword is its
+        // vtable, and the client weapon's interface there is the weapon
+        // itself (its vtable +70h returns `this`, 0x246380).
+        unsafe {
+            let item = player.this.held_item()?;
+            if read(item.vtable()) != raw::image::WEAPON_VTABLE {
+                return None;
+            }
+            player.this.animation_tree()?;
+            Some(HeldGun { weapon: item.weapon(), user: player.this, player })
         }
     }
 
@@ -106,22 +143,12 @@ impl<'c> Shot<'c> {
         unsafe { self.located(self.weapon.barrel_locator()) }
     }
 
-    /// Whether the level stops a shot between two places of the world (the
-    /// collision bullets hit).
-    pub fn blocked(&self, from: Vec3, to: Vec3) -> bool {
-        let way = to - from;
-        let Some(along) = way.direction() else { return false };
-        self.player.physics_world().is_some_and(|world| {
-            world.shot_ray_test_past([from.x, from.y, from.z], [along.x, along.y, along.z], way.length(), |_| false).is_some()
-        })
-    }
-
-    /// What the shot leaves from, in place of the eyes' copy: a transform
-    /// laid out as it (rows right, up, forward, place).
-    pub fn leave_from(&mut self, from: [f32; 16]) {
-        // SAFETY: the copy in instant_fire's frame, 16 floats, read after
-        // the site only (0x2E245C, 0x2E250F) on this thread.
-        unsafe { write_floats(self.eye.value(), from) }
+    /// Where the level first stops a shot from `from` along the unit
+    /// `along` within `range` (the collision bullets hit).
+    pub fn first_met(&self, from: Vec3, along: Vec3, range: f32) -> Option<Vec3> {
+        let world = self.player.physics_world()?;
+        let hit = world.shot_ray_test_past([from.x, from.y, from.z], [along.x, along.y, along.z], range, |_| false)?;
+        Some(Vec3::new(hit.point[0], hit.point[1], hit.point[2]))
     }
 
     /// # Safety

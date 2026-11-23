@@ -2584,6 +2584,26 @@ package
          this.crosshair.y = y / this.scaleFactor;
       }
       
+      // Exe patch 200: the crosshair where the own player's gun looks, in parts
+      // of the screen's width and height from its top left (bullets leave the
+      // muzzle, not the screen's centre). 0.5, 0.5 is the centre's own pixel,
+      // as the layout puts it.
+      public function srp_crosshair_at(x:Number, y:Number) : void
+      {
+         if(!stage)
+         {
+            return;
+         }
+         if(x == 0.5 && y == 0.5)
+         {
+            this.crosshair.x = (int(stage.stageWidth / 2) + 0.5) / this.scaleFactor;
+            this.crosshair.y = (int(stage.stageHeight / 2) + 0.5) / this.scaleFactor;
+            return;
+         }
+         this.crosshair.x = x * stage.stageWidth / this.scaleFactor;
+         this.crosshair.y = y * stage.stageHeight / this.scaleFactor;
+      }
+      
       protected function sortEffects() : void
       {
          this.effectsDepth.sortOn("depth",Array.DESCENDING);

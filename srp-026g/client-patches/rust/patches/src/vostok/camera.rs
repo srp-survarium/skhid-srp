@@ -116,6 +116,13 @@ impl<'t> Director<'t> {
         Some(Director { this, _thread: ctx.thread() })
     }
 
+    /// The camera's transform the game gave it (rows right, up, forward and
+    /// its place).
+    pub fn view(&self) -> [f32; 16] {
+        // SAFETY: the director's 16 floats at +4h, alive for the hook.
+        unsafe { floats(self.this.view()) }
+    }
+
     /// The projection the game gave it, a row-vector 4x4.
     pub fn projection(&self) -> [f32; 16] {
         // SAFETY: the director's 16 floats at +44h, alive for the hook.

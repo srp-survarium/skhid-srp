@@ -23,42 +23,149 @@
 //! The spread, the kick and the bullets are the game's, from that transform.
 //! Every game computes it for every player from the simulation's own state,
 //! so a match plays out otherwise than before: simulation_changes.tsv.
+//!
+//! The screen's centre is then no longer where a shot goes, so the HUD's
+//! crosshair is put where the own player's gun looks: after each frame's
+//! simulation (`game_world.after_move`) the place the shot's line first
+//! meets the level, or `SIGHT_RANGE` along it, is kept; the frame's camera
+//! (`camera.apply`) puts it on the screen, and the HUD movie is told
+//! (`player_icons.update_start`, `srp_crosshair_at`) when it moves. Drawing
+//! only.
 
 #![forbid(unsafe_code)]
 
 use ragdoll::math::{Quat, Vec3};
 
 use crate::affine::{inverse, product, row, with_row};
-use crate::vostok::shot::Shot;
-use crate::vostok::{Context, Flow, NoExit};
+use crate::vostok::camera::Director;
+use crate::vostok::shot::{HeldGun, Shot};
+use crate::vostok::world::GameWorld;
+use crate::vostok::{Context, Flow, GameWorldUi, Lock, NoExit};
+
+/// How far along the gun's look the crosshair is put when the level stops
+/// nothing nearer (m).
+const SIGHT_RANGE: f32 = 150.0;
 
 /// instant_fire after its copy of the eyes' transform, before the spread.
 pub fn on_shot(ctx: &mut Context<'_>) -> Flow<NoExit> {
     if let Some(mut shot) = Shot::at(ctx)
-        && let Some(from) = from_the_gun(&shot)
+        && let Some(leaving) = Leaving::of(shot.gun())
     {
-        shot.leave_from(from);
+        shot.leave_from(shot_from(&leaving.eye, leaving.place, leaving.along));
     }
     Flow::Continue
 }
 
-/// What the shot leaves from; none (the eyes' copy stays) for a gun or a
-/// user whose pose cannot be made.
-fn from_the_gun(shot: &Shot<'_>) -> Option<[f32; 16]> {
-    let rig = Rig {
-        world: shot.world(),
-        hand: shot.user_bone("Weapon")?,
-        eye: shot.user_bone("Item")?,
-        aim_offset: shot.aim_offset(),
-        aim: shot.aim()?.0,
-        barrel: shot.barrel()?.0,
-        raised: shot.raised(),
-    };
-    let pose = rig.pose()?;
-    let muzzle = pose.muzzle()?;
-    let eye = row(&pose.eye, 3);
-    let place = if shot.blocked(eye, muzzle.place) { eye } else { muzzle.place };
-    Some(shot_from(&pose.eye, place, muzzle.along))
+/// What a shot of a held gun leaves from: a place and a way, and the eyes'
+/// transform they are laid out by.
+#[derive(Clone, Copy, Debug, PartialEq)]
+struct Leaving {
+    eye: [f32; 16],
+    place: Vec3,
+    along: Vec3,
+}
+
+impl Leaving {
+    /// None (the eyes' copy stays) for a gun or a user whose pose cannot be
+    /// made.
+    fn of(gun: &HeldGun<'_>) -> Option<Leaving> {
+        let rig = Rig {
+            world: gun.world(),
+            hand: gun.user_bone("Weapon")?,
+            eye: gun.user_bone("Item")?,
+            aim_offset: gun.aim_offset(),
+            aim: gun.aim()?.0,
+            barrel: gun.barrel()?.0,
+            raised: gun.raised(),
+        };
+        let pose = rig.pose()?;
+        let muzzle = pose.muzzle()?;
+        let eye = row(&pose.eye, 3);
+        let reach = muzzle.place - eye;
+        let walled = reach.direction().is_some_and(|toward| gun.first_met(eye, toward, reach.length()).is_some());
+        Some(Leaving { eye: pose.eye, place: if walled { eye } else { muzzle.place }, along: muzzle.along })
+    }
+}
+
+/// The crosshair between the frame's passes.
+#[derive(Clone, Copy, Debug, PartialEq)]
+struct Crosshair {
+    /// Where the own player's gun looks, in the world; none with no gun in
+    /// its hands (the crosshair is the game's, at the centre).
+    looked: Option<Vec3>,
+    /// The frame's camera: its transform (rows right, up, forward, place)
+    /// and its projection.
+    camera: Option<([f32; 16], [f32; 16])>,
+    told: Told,
+}
+
+/// What the HUD movie was last told.
+#[derive(Clone, Copy, Debug, PartialEq)]
+enum Told {
+    Nothing,
+    /// The movie `movie`: the crosshair at these parts of the screen.
+    At { movie: usize, x: f32, y: f32 },
+}
+
+/// The simulation's thread writes the look, the frame's the rest.
+static CROSSHAIR: Lock<Crosshair> = Lock::new(Crosshair { looked: None, camera: None, told: Told::Nothing });
+
+/// The screen's centre.
+const CENTRE: (f32, f32) = (0.5, 0.5);
+
+/// game_world::tick after the simulation's move: where the own player's gun
+/// looks now.
+pub fn on_after_move(ctx: &mut Context<'_>) -> Flow<NoExit> {
+    let looked = GameWorld::at_after_move(ctx)
+        .and_then(|world| world.network_client()?.local_player())
+        .filter(|player| player.alive())
+        .and_then(HeldGun::of)
+        .and_then(|gun| {
+            let leaving = Leaving::of(&gun)?;
+            Some(gun.first_met(leaving.place, leaving.along, SIGHT_RANGE).unwrap_or(leaving.place + leaving.along * SIGHT_RANGE))
+        });
+    CROSSHAIR.with(ctx.thread(), |crosshair| crosshair.looked = looked);
+    Flow::Continue
+}
+
+/// base_game_scene::apply_camera: the camera the frame is drawn from.
+pub fn on_camera(ctx: &mut Context<'_>) -> Flow<NoExit> {
+    let camera = Director::at_apply(ctx).map(|director| (director.view(), director.projection()));
+    CROSSHAIR.with(ctx.thread(), |crosshair| crosshair.camera = camera);
+    Flow::Continue
+}
+
+/// update_player_icons' start, every frame of a match: the HUD movie told
+/// where its crosshair is, when that changed.
+pub fn on_hud(ctx: &mut Context<'_>) -> Flow<NoExit> {
+    let Some(movie) = GameWorldUi::at_update_icons(ctx).and_then(|ui| ui.hud_movie()) else { return Flow::Continue };
+    let (told, wanted) = CROSSHAIR.with(ctx.thread(), |crosshair| {
+        let (x, y) = crosshair.looked.zip(crosshair.camera).and_then(|(place, (view, projection))| on_screen(&view, &projection, place)).unwrap_or(CENTRE);
+        (crosshair.told, Told::At { movie: movie.id(), x, y })
+    });
+    if told != wanted
+        && let Told::At { x, y, .. } = wanted
+        && movie.invoke_numbers(c"root.srp_crosshair_at", &[f64::from(x), f64::from(y)])
+    {
+        CROSSHAIR.with(ctx.thread(), |crosshair| crosshair.told = wanted);
+    }
+    Flow::Continue
+}
+
+/// Where a place of the world is on the screen, in parts of its width and
+/// its height from the top left, through a camera's transform and its
+/// projection (D3D's, rows; its jitter left out); none for a place not
+/// ahead of the camera.
+fn on_screen(view: &[f32; 16], projection: &[f32; 16], place: Vec3) -> Option<(f32, f32)> {
+    let from = place - row(view, 3);
+    let (x, y, z) = (from.dot(row(view, 0)), from.dot(row(view, 1)), from.dot(row(view, 2)));
+    let depth = z * projection[11] + projection[15];
+    if depth.is_nan() || depth <= 1e-4 {
+        return None;
+    }
+    let across = (x * projection[0] + y * projection[4]) / depth;
+    let up = (x * projection[1] + y * projection[5]) / depth;
+    (across.is_finite() && up.is_finite()).then_some((0.5 + 0.5 * across, 0.5 - 0.5 * up))
 }
 
 /// A half turn about the up (rotation_y(pi)): the game's between a locator
@@ -247,6 +354,31 @@ mod tests {
 
     fn near(a: &[f32; 16], b: &[f32; 16]) -> bool {
         a.iter().zip(b).all(|(a, b)| (a - b).abs() < 1e-5)
+    }
+
+    /// A projection of 90 degrees up and down on a screen twice as wide as
+    /// high: x by 0.5, y by 1, the depth the place's own.
+    const WIDE: [f32; 16] = [0.5, 0., 0., 0., 0., 1., 0., 0., 0., 0., 1., 1., 0., 0., -0.1, 0.];
+
+    #[test]
+    fn a_place_ahead_is_at_the_screens_centre() {
+        let camera = at(3.0, 2.0, 1.0);
+        assert_eq!(on_screen(&camera, &WIDE, Vec3::new(3.0, 2.0, 11.0)), Some((0.5, 0.5)));
+    }
+
+    #[test]
+    fn a_place_right_and_up_is_right_and_up_on_the_screen() {
+        let camera = at(3.0, 2.0, 1.0);
+        // 5 right and 5 up at 10 ahead: half the half-width's half, half the half-height
+        let (x, y) = on_screen(&camera, &WIDE, Vec3::new(8.0, 7.0, 11.0)).unwrap();
+        assert!((x - 0.625).abs() < 1e-6 && (y - 0.25).abs() < 1e-6, "{x} {y}");
+    }
+
+    #[test]
+    fn a_place_behind_the_camera_is_nowhere_on_it() {
+        let camera = at(3.0, 2.0, 1.0);
+        assert_eq!(on_screen(&camera, &WIDE, Vec3::new(3.0, 2.0, -4.0)), None);
+        assert_eq!(on_screen(&camera, &WIDE, Vec3::new(3.0, 2.0, 1.0)), None);
     }
 
     fn pose(raised: f32) -> Pose {
