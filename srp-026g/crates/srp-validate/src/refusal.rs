@@ -225,6 +225,8 @@ pub enum Reason {
     /// with one that does not read.
     NoSpawnHistory,
     NoFreezeTagRule,
+    /// Freeze Tag's restart deadline or end against the world's time.
+    FreezeTagTime,
     /// A place's last spawn names a point past the map's team-2 group.
     SpawnPointPast {
         place: usize,
@@ -671,6 +673,7 @@ impl fmt::Display for Reason {
             Reason::NoResearchRule => f.write_str("no research rule"),
             Reason::NoSpawnHistory => f.write_str("no free-for-all spawn history"),
             Reason::NoFreezeTagRule => f.write_str("invalid Freeze Tag state"),
+            Reason::FreezeTagTime => f.write_str("the Freeze Tag rule's time is not of the world's"),
             Reason::SpawnPointPast {
                 place,
                 point,

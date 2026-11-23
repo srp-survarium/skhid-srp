@@ -176,7 +176,7 @@ impl Match {
 
     fn clock(&self) -> Clock {
         match self.round() {
-            Round::Hunt { clock, .. } | Round::Countdown { clock, .. } => clock,
+            Round::Hunt { clock, .. } | Round::Restart(Restart::Countdown { next: clock, .. }) => clock,
             other => panic!("no clock: {other:?}"),
         }
     }
@@ -260,14 +260,14 @@ impl Match {
     /// Runs through a delivery's 3 s, the fade and the countdown, to the
     /// next round's hunt; the step the round started at.
     fn next_round(&mut self) -> u32 {
-        let Round::Brought { .. } = self.round() else {
+        let Round::Restart(Restart::Decided { .. }) = self.round() else {
             panic!("{:?}", self.round())
         };
-        while matches!(self.round(), Round::Brought { .. } | Round::Fade { .. }) {
+        while matches!(self.round(), Round::Restart(Restart::Decided { .. }) | Round::Restart(Restart::Fade { .. })) {
             self.step();
         }
         let started = self.now;
-        while matches!(self.round(), Round::Countdown { .. }) {
+        while matches!(self.round(), Round::Restart(Restart::Countdown { .. })) {
             self.step();
         }
         started
@@ -285,7 +285,7 @@ impl Match {
         game.rule = Rule {
             score,
             // every delivery before was followed by its round
-            round_starts: u16::from(score[0]) + u16::from(score[1]),
+            lives: Lives::new(u16::from(score[0]) + u16::from(score[1]), [0; PLAYERS]),
             stage: Stage::Play(Play {
                 start: t(START),
                 round: Round::Hunt {
@@ -709,9 +709,9 @@ fn a_delivery_ends_the_round_3_s_then_a_fade_then_a_frozen_countdown() {
     // 1. 3 s: play goes on, nobody respawns, "Round restarts in".
     assert_eq!(
         game.round(),
-        Round::Brought {
+        Round::Restart(Restart::Decided {
             until: t(delivered + 3000)
-        }
+        })
     );
     assert_eq!(game.rule.artefact(&game.params), ArtefactView::Nowhere);
     let hud = game.rule.hud(&game.params, t(delivered + 1000));
@@ -729,10 +729,10 @@ fn a_delivery_ends_the_round_3_s_then_a_fade_then_a_frozen_countdown() {
     // 3. the 1 s fade: still held; at its end everyone respawns.
     assert_eq!(
         game.round(),
-        Round::Fade {
+        Round::Restart(Restart::Fade {
             until: t(delivered + 4000),
-            sudden: None
-        }
+            next: None
+        })
     );
     assert_eq!(game.rule.hud(&game.params, t(game.now)).phase, Phase::Fade);
     while game.now < delivered + 3950 {
@@ -743,10 +743,10 @@ fn a_delivery_ends_the_round_3_s_then_a_fade_then_a_frozen_countdown() {
     // 4. the 5 s countdown, everyone frozen, the respawns their own again.
     assert_eq!(
         game.round(),
-        Round::Countdown {
+        Round::Restart(Restart::Countdown {
             until: t(delivered + 9000),
-            clock: Clock::Regular
-        }
+            next: Clock::Regular
+        })
     );
     let hud = game.rule.hud(&game.params, t(game.now + 1000));
     assert_eq!(
@@ -793,10 +793,10 @@ fn respawns_are_held_from_the_delivery_to_the_round_start() {
     // holds, one over gives everyone.
     let mut game = Match::started(1);
     game.point_for(0);
-    while matches!(game.round(), Round::Brought { .. }) {
+    while matches!(game.round(), Round::Restart(Restart::Decided { .. })) {
         game.step();
     }
-    let Round::Fade { until, .. } = game.round() else {
+    let Round::Restart(Restart::Fade { until, .. }) = game.round() else {
         panic!()
     };
     assert_eq!(game.rule.spawning(t(until.ms() - 1)), Spawning::Held);
@@ -1003,22 +1003,22 @@ fn a_late_delivery_that_equalises_plays_a_round_in_sudden_death() {
         );
         // Armed is not on: the 3 s are of the match time.
         assert!(game.rule.respawns());
-        while matches!(game.round(), Round::Brought { .. }) {
+        while matches!(game.round(), Round::Restart(Restart::Decided { .. })) {
             game.step();
         }
         // On from the fade: deaths get no time, its fallen are not counted.
         assert_eq!(
             game.round(),
-            Round::Fade {
+            Round::Restart(Restart::Fade {
                 until: t(delivered + 4000),
-                sudden: Some(from)
-            }
+                next: Some(from)
+            })
         );
         assert!(!game.rule.respawns() && game.respawn().is_none());
         game.die(0, 1.0);
         assert_eq!(game.rule.standing(Team::Zero).len(), 4);
         // Everyone respawns at the fade's end; the countdown counts the fallen.
-        while matches!(game.round(), Round::Fade { .. }) {
+        while matches!(game.round(), Round::Restart(Restart::Fade { .. })) {
             assert_ne!(game.step(), Spawning::Native);
         }
         assert!(game.rule.frozen());
@@ -1114,6 +1114,35 @@ fn respawns_come_in_waves_of_15_s_never_sooner_than_7_s() {
     let mut over = Match::at_time(1, 899_950, [1, 0]);
     over.step();
     assert_eq!(over.respawn(), None);
+}
+
+#[test]
+fn the_hud_counts_to_the_wave_a_death_now_would_wait_for() {
+    let mut game = Match::started(1);
+    let wave = |game: &Match, at: u32| game.rule.hud(&game.params, t(START + at)).wave;
+    let left = |game: &Match, at: u32| wave(game, at).map(|wave| (wave.left_ms, wave.total_ms));
+    assert_eq!(Rule::new(1).hud(&game.params, t(5)).wave, None, "before the start");
+    assert_eq!(left(&game, 0), Some((15_000, 15_000)));
+    assert_eq!(left(&game, 14_999), Some((1, 15_000)));
+    assert_eq!(left(&game, 15_000), Some((15_000, 15_000)), "this step's wave has come");
+    assert_eq!(left(&game, 21_500), Some((8_500, 15_000)));
+    // The shown wave is the one a death at least 7 s before it gets.
+    let death = 21_500 - 7_000;
+    let at = game.rule.respawn_at(&game.params, t(START + death), Shift::NONE).unwrap();
+    assert_eq!(at.ms() - START, 30_000);
+    // None in a round's restart (respawns held), back with the next hunt.
+    game.point_for(0);
+    assert_eq!(wave(&game, game.now - START), None, "the 3 s after a delivery");
+    game.next_round();
+    let passed = game.now - START;
+    assert_eq!(left(&game, passed), Some((15_000 - passed % 15_000, 15_000)));
+    // None in sudden death and once over.
+    let mut game = Match::at_time(1, 899_900, [2, 2]);
+    game.run_to(900_000);
+    assert_eq!(wave(&game, 900_000), None, "sudden death");
+    let mut game = Match::at_time(1, 899_900, [1, 0]);
+    game.run_to(900_000);
+    assert_eq!(wave(&game, 900_000), None, "over");
 }
 
 #[test]
@@ -1461,9 +1490,9 @@ fn an_event_may_be_a_step_older_than_the_last_tick() {
     });
     assert_eq!(
         game.round(),
-        Round::Brought {
+        Round::Restart(Restart::Decided {
             until: t(game.now - TICK + 3000)
-        }
+        })
     );
 }
 
@@ -1595,7 +1624,7 @@ fn the_wire_is_parsed_and_never_trusted() {
         Err(WireError::Score)
     );
     // The fade and the countdown: a clock and a time.
-    while matches!(game.round(), Round::Brought { .. }) {
+    while matches!(game.round(), Round::Restart(Restart::Decided { .. })) {
         game.step();
     }
     let fade = bytes_of(&game.rule);
@@ -1605,7 +1634,7 @@ fn the_wire_is_parsed_and_never_trusted() {
         (0, 0),
         "its round still to start"
     );
-    while matches!(game.round(), Round::Fade { .. }) {
+    while matches!(game.round(), Round::Restart(Restart::Fade { .. })) {
         game.step();
     }
     let countdown = bytes_of(&game.rule);
@@ -1657,7 +1686,7 @@ fn the_wire_is_parsed_and_never_trusted() {
     // A fade in sudden death has its start and no fallen.
     let mut game = Match::at_time(1, 850_000, [0, 1]);
     game.point_for(0);
-    while matches!(game.round(), Round::Brought { .. }) {
+    while matches!(game.round(), Round::Restart(Restart::Decided { .. })) {
         game.step();
     }
     let fade = bytes_of(&game.rule);

@@ -3,6 +3,7 @@ package survarium.player
    import survarium.constants.ItemCategory;
    import survarium.constants.PlayerModifier;
    import survarium.constants.ProfileSlot;
+   import survarium.controls.PlayerInfo;
    import survarium.data.LocalizationData;
    import survarium.item.ModificationRolls;
 
@@ -213,7 +214,7 @@ package survarium.player
          }
          if(tank(item))
          {
-            if(rank(442) > 0) skillLine(lines,"st_srp_technical_last_gasp",1.1,true);
+            if(rank(442) > 0) skillLine(lines,"st_srp_technical_oxygen_rush",1.1,true);
          }
          return lines;
       }
@@ -229,7 +230,8 @@ package survarium.player
       // Depth adds to a kit that wears it (1031 "Item slots", icon 3, prop 10; 1171 pocket size,
       // icon 17, prop 117); Steady Breath's sway (the boosters' "Sight sway", icon 39, prop 125)
       // and dispersion (1070's accuracy, icon 7, prop 101), -10 % a rank; Deep Breaths' sprint
-      // energy (1160's "Energy costs", icon 16, prop 116), -20/-30/-40 %.
+      // energy (1160's "Energy costs", icon 16, prop 116), -20/-30/-40 %; Tank Container's
+      // artefact container (1040's "Artifact slots", icon 4, prop 9).
       public static function tankBonuses(item:Object) : Array
       {
          var bonuses:Array = [];
@@ -246,6 +248,7 @@ package survarium.player
          }
          var deep:int = LocalPlayerProfile.technicalRank(431);
          if(deep > 0) bonuses.push({icon:16,prop_id:116,value:[0,-0.2,-0.3,-0.4][deep]});
+         if(PlayerInfo.tankContainer) bonuses.push({icon:4,prop_id:9,value:1});
          return bonuses;
       }
 

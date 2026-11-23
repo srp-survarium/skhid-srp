@@ -2761,6 +2761,10 @@ st_srp_loadout_sell_and	 und
 st_srp_loadout_sell_item	%1$s
 st_srp_loadout_sell_many	Wird in Loadout %1$s genutzt. Trotzdem verkaufen?
 st_srp_loadout_sell_one	Wird in Loadout %1$s genutzt. Trotzdem verkaufen?
+st_srp_loadout_slot_skill	Platz: %1$s
+st_srp_loadout_slot_to_container	Rechtsklick: Artefaktbehälter
+st_srp_loadout_slot_to_pocket	Rechtsklick: Tasche
+st_srp_loadout_slot_to_weapon	Rechtsklick: zweite Waffe
 st_srp_loadout_title	Loadout
 st_srp_loadout_unfit	nicht spielbar
 st_srp_lobby_basement	Keller
@@ -3082,17 +3086,19 @@ st_srp_technical_432_description	Nach deinem Tod lässt du mit der Wurftaste ein
 st_srp_technical_432_name	Totmannschalter
 st_srp_technical_433_description	Deine Fallen, auf die geschossen wurde, öffnen sich wieder nach:
 st_srp_technical_433_name	Nachspannen
-st_srp_technical_441_description	Dein Rauch ist leicht grün und vergiftet Gegner darin; eine Sauerstoffflasche schützt. In eine Tasche passen nur halb so viele Rauchgranaten. Giftschaden:
+st_srp_technical_441_description	Dein Rauch ist leicht grün und vergiftet Gegner darin; eine Sauerstoffflasche schützt. Eine Rauchgranate belegt 1,5 Taschenplätze. Giftschaden:
 st_srp_technical_441_name	Giftrauch
-st_srp_technical_442_description	Wenn deine Sauerstoffflasche leer ist: +10% Tempo für 20 s und volle Energie.
-st_srp_technical_442_name	Letzter Atemzug
+st_srp_technical_442_description	Nach je 20 s ununterbrochener Nutzung der Sauerstoffflasche und wenn sie leer ist: +10% Tempo für 20 s und volle Energie.
+st_srp_technical_442_name	Sauerstoffschub
 st_srp_technical_443_description	Ein Kill mit deiner Granate gibt dir eine Granate zurück.
 st_srp_technical_443_name	Plünderer
-st_srp_technical_444_description	Deine Falle bricht dem Gefangenen die Beine. In eine Tasche passen nur halb so viele Fallen.
+st_srp_technical_444_description	Deine Falle bricht dem Gefangenen die Beine. Eine Falle belegt 1,5 Taschenplätze.
 st_srp_technical_444_name	Bärenfalle
+st_srp_technical_445_description	Mit Sauerstoffflasche im Set: ein Artefaktbehälter mehr.
+st_srp_technical_445_name	Flaschenbehälter
 st_srp_technical_disarm_speed	Entschärfungstempo
 st_srp_technical_friendly_blast	Schaden durch eigene Granaten
-st_srp_technical_last_gasp	Tempo, wenn die Flasche leer ist
+st_srp_technical_oxygen_rush	Tempo nach 20 s Flasche und am Ende
 st_srp_technical_per_second	 pro Sekunde
 st_srp_technical_pocket_size	 Taschengröße
 st_srp_technical_pockets	 Taschen

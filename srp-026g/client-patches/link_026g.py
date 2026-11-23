@@ -2,13 +2,15 @@
 """The arena's linker: `.srpx` built from its patches' C and NASM sources
 (client_patch.md section 0.3, README "The arena").
 
-    python link_026g.py --write
-        links patch_026g.py's ARENA from its sources and writes
-        arena_026g.lock.json: the linked arena's SHA-256, its blocks and
-        symbols, and what built it
-    python link_026g.py --check
-        says whether the lock is what the sources give here (the self-test
-        and every build compare the same)
+    python link_026g.py
+        links patch_026g.py's ARENA from its sources: each block's VA and
+        size, the arena's SHA-256 and what built it
+    python link_026g.py --symbols
+        every global symbol's VA (two trees' outputs diffed: what moved)
+    python link_026g.py --generate
+        only writes the generated sources (patch_026g.py's
+        generate_sources, which every link runs first): for cargo and
+        rust-analyzer in rust/ without a build
     python link_026g.py --sizes
         each block's bytes, pages and languages, each Rust patch's bytes
         (its module's symbols), and the arena against its limit
@@ -39,10 +41,9 @@ defines or one defined twice (ld); a block with nothing in it; an arena past
 its limit. CC, LD and NASM (or NASM_DIR, the folder of nasm) name other tools
 than `cc`, `ld` and `nasm`; `nix develop ./srp-026g` has them.
 
-The lock: the arena is built from source by every build (the self-test's,
-the release's), and the bytes must be the lock's: a change of a source is
-followed by `--write` (and the lock's diff shows what moved), and an
-unexpected change (another compiler, another NASM) stops the build.
+The arena is built from source by every build (the self-test's, the
+release's); a release records its SHA-256 and stops when the arena of the
+exe it ships is not the one its self-test ran on (release/release.sh).
 
 A local build takes what rustc made of a crate before from
 ~/.cache/skhid-arena when nothing it was made from changed ("the cache of
@@ -58,12 +59,10 @@ import re
 import shutil
 import struct
 import subprocess
-import sys
 import tempfile
 import time
 
 HERE = Path(__file__).resolve().parent
-LOCK = HERE / "arena_026g.lock.json"
 KINDS = ("code", "data", "state")
 # What gcc gets for a C source (Research's flags since patch 53).
 CFLAGS = ["-m32", "-Os", "-std=c11", "-ffreestanding", "-fno-pic", "-fno-builtin", "-fno-stack-protector",
@@ -342,7 +341,7 @@ def source_digest(source):
 # What rustc gets for a Rust crate (`Cargo.toml` source), and for the `core`
 # it is built against: the game's i686, no position-independent code, size
 # first, aborts, one codegen unit, no debug information, the paths in the
-# bytes made relative (the lock does not depend on the folder). No cargo:
+# bytes made relative (they do not depend on the folder). No cargo:
 # `-Zbuild-std` resolves the whole standard library's workspace (proc_macro's
 # crates.io dependencies among them), which needs the network or a warm cache;
 # rustc alone builds `core` from the toolchain's rust-src, offline.
@@ -390,7 +389,7 @@ def rustc(tools, args, what, env_extra=None):
 # The Rust crates are most of a build's time (fat LTO, one codegen unit: 23 s
 # of a 28 s build), and most builds change none of them. What rustc made is
 # kept by what it was made from, for every worktree (the bytes do not depend
-# on the folder: the lock already demands that): ~/.cache/skhid-arena, or
+# on the folder): ~/.cache/skhid-arena, or
 # SRP_ARENA_CACHE's folder; SRP_ARENA_CACHE=off builds everything from source,
 # as the release and the self-test do. A kept output is taken only when
 # rustc, its flags, the crates it links (by their bytes), every file rustc
@@ -730,37 +729,6 @@ def block_bytes(linked, name):
     return linked.image[block.va - linked.va:block.va - linked.va + block.size]
 
 
-# ---- the lock ------------------------------------------------------------
-
-def lock_of(linked):
-    return {"generated": "by link_026g.py --write from patch_026g.py's ARENA and its sources: do not edit",
-            "va": f"{linked.va:#x}", "size": linked.size, "sha256": linked.sha256,
-            "blocks": {b.name: {"kind": b.kind, "va": f"{b.va:#x}", "size": b.size} for b in linked.blocks.values()},
-            "symbols": {name: f"{value:#x}" for name, value in linked.symbols.items()},
-            "built_with": linked.built_with}
-
-
-def lock_differs(linked, kept):
-    """None when `kept` (a lock) is the linked arena's; else why not."""
-    if kept is None:
-        return "there is no lock"
-    mine = lock_of(linked)
-    if all(kept.get(k) == mine[k] for k in ("va", "size", "sha256", "blocks", "symbols")):
-        return None
-    blocks = sorted({n for n in set(mine["blocks"]) | set(kept.get("blocks", {}))
-                     if mine["blocks"].get(n) != kept.get("blocks", {}).get(n)})
-    return (f"the linked arena is {mine['sha256']} ({mine['size']:#x} bytes), the lock's {kept.get('sha256')}"
-            + (f"; blocks that differ: {', '.join(blocks)}" if blocks else "")
-            + f"; built here with {mine['built_with']}, the lock with {kept.get('built_with')}")
-
-
-def read_lock(path=LOCK):
-    try:
-        return json.loads(Path(path).read_text())
-    except FileNotFoundError:
-        return None
-
-
 def rust_path(name):
     """The path of a Rust symbol (legacy mangling, `_ZN` .. `E`, the hash
     left out): ["patches", "suicide_key", "hook"]; [name] when unmangled."""
@@ -827,28 +795,24 @@ def main():
     import argparse
     import patch_026g as base
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("--write", action="store_true")
-    parser.add_argument("--check", action="store_true")
-    parser.add_argument("--sizes", action="store_true")
+    what = parser.add_mutually_exclusive_group()
+    for option in ("--symbols", "--generate", "--sizes"):
+        what.add_argument(option, action="store_true")
     args = parser.parse_args()
-    if args.write + args.check + args.sizes != 1:
-        parser.error("--write, --check or --sizes")
-    try:
-        linked = link(base.ARENA, base.ARENA_VA, base.ARENA_LIMIT)
-    except LinkError as error:
-        sys.exit(f"link_026g: {error}")
+    if args.generate:
+        base.generate_sources()
+        return
+    linked = base.arena()
     if args.sizes:
         print(sizes_text(base.ARENA, linked, base.ARENA_LIMIT, base.RUST_PATCHES))
-        return
-    for block in linked.blocks.values():
-        print(f"  {block.name:<16} {block.kind:<5} {block.va:#x} {block.size:#7x} bytes")
-    if args.write:
-        LOCK.write_text(json.dumps(lock_of(linked), indent=2) + "\n", newline="\n")
-        print(f"{LOCK.name}: {linked.size:#x} bytes at {linked.va:#x}, SHA-256 {linked.sha256}")
-        return
-    why = lock_differs(linked, read_lock())
-    print(f"{LOCK.name}: " + ("current" if why is None else f"NOT what the sources give here: {why}"))
-    raise SystemExit(0 if why is None else 1)
+    elif args.symbols:
+        for name, va in linked.symbols.items():
+            print(f"{va:#x} {name}")
+    else:
+        for block in linked.blocks.values():
+            print(f"  {block.name:<16} {block.kind:<5} {block.va:#x} {block.size:#7x} bytes")
+        print(f"the arena: {linked.size:#x} bytes at {linked.va:#x}, SHA-256 {linked.sha256}; built with "
+              + ", ".join(linked.built_with.values()))
 
 
 if __name__ == "__main__":

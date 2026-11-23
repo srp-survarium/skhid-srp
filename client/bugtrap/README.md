@@ -17,13 +17,13 @@ or a failure message. Long folders use middle ellipsis. It uses static text
 without scrollbars; only the crash details (see Crash details) can be
 selected. The layout follows the original C++
 `IDD_SIMPLE_DLG`: an explicit 8-point Tahoma font with smoothing, white message panel, thin divider,
-and gray footer with Open Discord, Copy and Close buttons. The panel is taller to fit
+and gray footer with Open Discord, Open folder, Copy and Close buttons. The panel is taller to fit
 the dump details; the original Mail and More controls are omitted. The original
 green beetle icon (`vostok/sources/BugTrap/res/Bug.ico`) is embedded in the DLL
 and used in both the message panel and the localized Survarium window title.
-Both button labels are centered horizontally and vertically. Open Discord uses
-the same measured character advances for painting, avoiding the caption offset
-seen under Wine.
+All button labels are centered horizontally and vertically. Open Discord and
+Open folder use the same measured character advances for painting, avoiding
+the caption offset seen under Wine.
 
 Open Discord opens [SRP Discord](https://discord.gg/QUmJg3gBhg) in the default
 browser, only when clicked. The dialog tells the player to find the named file
@@ -31,6 +31,18 @@ in the displayed folder and send it to **#bugreports**. This applies to both a
 ZIP and a raw dump kept after compression failed. If saving failed, it asks
 them to describe the crash in that channel instead. A browser-launch failure
 shows the invite address and manual instructions.
+
+Open folder, only when clicked, shows the saved file (the ZIP, the raw dump
+kept when compression failed, the text report when no dump was saved, or a
+full dump's report) selected in its folder, the game's or the temporary one:
+`explorer.exe /select,"<path>"` from the Windows folder, through
+`ShellExecuteW` (already imported for the browser link). Explorer runs as a
+process of its own, so a slow shell cannot hold the dialog. If it cannot be
+started, the folder is opened alone; if that fails too, nothing else happens.
+Without a file (saving failed, or a full dump with no report) the button is
+not there and Copy takes its place. Under Wine (11.8 Staging) Wine's own
+explorer window opens the folder, letters outside ASCII included, with the
+file listed; it does not call the Linux file manager.
 
 The whole dialog (title, status, file/folder labels, instructions, buttons and
 errors) is localized in English, Russian, Ukrainian, German and Polish. It
@@ -173,7 +185,7 @@ All file and folder calls of this DLL are the Windows wide (W) calls.
 Nothing is uploaded automatically. Email/upload entry points fail with
 `ERROR_NOT_SUPPORTED`, and legacy support destinations are discarded. The DLL
 imports `kernel32.dll`, `user32.dll`, `gdi32.dll`, `shell32.dll` (for the browser
-link and the Documents folder of the start-up notice), and `ntdll.dll` and
+link, Open folder and the Documents folder of the start-up notice), and `ntdll.dll` and
 `api-ms-win-core-synch-l1-2-0.dll` (the standard library's), no C runtime DLL; it loads `dbghelp.dll` by absolute path from beside the EXE or the Windows
 system directory when capturing a dump.
 
@@ -556,7 +568,11 @@ partial report, failed save, a capture refused as an antivirus refuses it
 Cyrillic and Polish letters, failed browser launch and failed dialog creation,
 plus automatic locale selection with absent or conflicting game-language options.
 It measures text against control bounds, checks translated labels
-and buttons, and intercepts the browser call so no browser or network is used.
+and buttons and that the footer's buttons stand in one row without overlapping,
+and intercepts the browser and Explorer calls so no browser, Explorer or network
+is used. It clicks Open folder and checks that Explorer is asked to select the
+file the dialog names (with Explorer refused, browser-failure, that the folder
+alone is opened), and that the button is absent when there is no file.
 In each, it presses Copy and reads the clipboard back (the code block, no
 log lines), and checks the text report beside the dump, or in its place.
 An optional second argument saves dialog screenshots as BMPs for inspection.
@@ -671,6 +687,13 @@ Run on 2026-11-15 for the runs' logs (Linux, Wine 11.8 Staging, the probes
 built with Nix's MinGW g++): `check_logs.py` and `check_report.py` pass,
 `check_abi.py` passes, and so do the host tests (`sanitize_tests.rs`,
 `run_name_tests.rs`); the other checks were not run again.
+
+Run on 2026-11-22 for Open folder (Linux, Wine Staging 11.8, an Xorg dummy
+display with openbox; `ui_probe.exe` built with MinGW g++): `check_abi.py` and
+`check_localization.py` (62 dialogs) pass; the other checks were not run again.
+By hand, the same `ShellExecuteW` call under Wine returned at once (33, in
+6 ms) and Wine's explorer window showed the folder `Игра-Żółw` with the ZIP
+listed (not highlighted); no Linux program was started.
 
 Run on 2026-10-21 (Linux, Wine, Xvfb), the build with the standard library
 and the C runtime linked in, the C++ probes built with `clang-cl` against the

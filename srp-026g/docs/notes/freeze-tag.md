@@ -59,43 +59,44 @@ three). No artifact rescue in this version (owner, 2026-11-17).
   a player alone farms nothing and still gets a new round (the owner,
   2026-11-22: alone in a room he stayed frozen, no round came). Nobody
   entered on either side: nothing ends.
-- The final win ends the match: no pause, no countdown and no respawn after
-  it, and the match server ends it 2 s after the snapshot that has it
-  (`FREEZE_TAG_END_DELAY_MS`, the other modes' end delay is 3 s), so the last
-  freeze is seen before the results (the owner, 2026-11-22: "after a second
-  or two").
+- **A round's end and the next round,** the same in Artifact Hunt and Freeze Tag by one code
+  (`artefact_hunt_rule::Restart`, the exe's `round_countdown::respawn_tick`; the owner,
+  2026-11-23: "I expect the round to end exactly in the same manner in both"):
+  1. 3 s (`time_before_new_round`): play goes on, nobody respawns; the hud counts them down.
+  2. If that was the match point, the match ends here (the rule's end, which the match server
+     takes as it is).
+  3. 1 s: the screen fades; at its end every player, alive or dead, respawns at his team's spawns
+     (a round start: a life of everyone).
+  4. 5 s (`round_countdown_time`): everyone stands at his team's spawns, his input held: the match
+     start's countdown (the warmup camera, patch 31's kits; a kit switch is a life).
+  5. The next round.
+  A player who enters in any of them spawns at his entry (freeze-tag.md, "No place out of the
+  world"); before the fade's end, it respawns him with everyone.
+- In Freeze Tag's 3 s the frozen stay frozen and held, everyone else moves on, shoots and uses
+  his items (the owner, 2026-11-22: "when one team in freeze tag wins a round it shouldn't stop
+  moving", "only frozen people do"); no thaw progresses and no auto-thaw clock runs. A drawn
+  round restarts the same way, with no point. The match point is a fifth round win. The
+  match server takes a team at five as the winner from that round's 3 s on, so a time limit
+  that ends the match in them is still its win.
 - The existing match time limit still applies. If it expires before either
   team reaches five wins, the unfinished series is a draw.
-- Between rounds the pause lasts 5 seconds. Only the frozen stop in it: everyone
-  else moves on, his own camera, weapons and input his (the owner, 2026-11-22:
-  "when one team in freeze tag wins a round it shouldn't stop moving", "only
-  frozen people do"); no thaw progresses and no auto-thaw clock runs in it.
-  Then every
-  present place is due at one step of the native respawn rule, which takes
-  each out and spawns it at its team's points with its kit's load, the
-  living as the frozen. The rule waits for delayed native spawns before
-  opening the next round.
-- The pause and the restart play the match start's countdown, as Artifact
-  Hunt's round does, with its code (the owner, 2026-11-21: "reswapn logic
-  should be the same one as in arthunt"; "With Artifact Hunt" below): the
-  warmup camera (drag to turn, wheel to zoom) and patch 31's kits, so a
-  player can pick another kit; the restart spawns him in it. Only a frozen
-  local player sees it: one who moves on keeps his camera and has no kits
-  to pick in the pause (`freeze_tag::countdown_view` at the client's camera
-  test, `time_rule.camera_state`).
 - A disconnect cannot clear a frozen place. A new place starts on its first
   spawn in a round. Everyone who enters spawns at once, at his team's points,
-  in every phase: in the pause he moves on as the others who are not frozen,
-  after the match he is held with everyone, and the restart spawns him again
-  with the round. A frozen player
+  in every phase: after a round he moves on as the others who are not
+  frozen, and the fade's end spawns him again with the round. A frozen player
   who leaves and comes back appears at his team's points, frozen there until
   a teammate or the auto-thaw thaws him: rejoining is no way out of a freeze
   (the release manager's pick, 2026-11-22). Absent players are excluded
   when a new round starts. ("No place out of the world" below says why an
   entry is never held.)
 - The HUD reuses the stock TDM score bars (full at `WINS`, which the patch
-  passes to `freeze_tag_score`), collection progress (its bar the progress
-  of `THAW_MS`, which the patch passes to `freeze_tag_update`)
+  passes to `freeze_tag_score`; their native source, the hud state's team
+  points +90h/+92h, which no Freeze Tag rule fills and nothing clears at a
+  new match, the patch writes from the rule every frame, so the last match's
+  score no longer shows: the owner, 2026-11-22, "freeze tag counter doesn't
+  reset after prev game"), collection progress (its bar the progress
+  of `THAW_MS`, which the patch passes to `freeze_tag_update`; a round's 3 s its line, the fade
+  and the countdown Artifact Hunt's `RoundFade` and "Awaiting match start" with the time left)
   widget and blocked-hit UI sound. Its texts are `st_srp_hud_freeze_*`: the
   content compile gives the hud movie only `st_srp_hud_*` keys. A frozen player's name over his head
   keeps his name and is drawn ice blue (the owner, 2026-11-21: "his name
@@ -144,18 +145,29 @@ on a project whose team spawns are Free for All's 47 points for both teams
 ## State and native lifecycle
 
 `srp-validate::world::freeze` owns the deterministic transition and codec.
-The rule saves 149 bytes after the native respawn state: version (2), phase,
-two scores, a 16-bit intermission countdown, round result, twenty
-seven-byte player records (waiting/fighting/frozen with team, thaw time
-(u16), auto-thaw time left (u32, 1 ms to 120 s, a frozen record's only)),
-then the round starts (u16): the restarts after the match's first, each of
-which spawns everyone with the kit's load, a double wipe's replay too. The
-parser checks the closed domains, roster extent, phase/score agreement,
-round result and the restarts against the rounds ended: every one ended (a
-win in the scores, or a draw) was restarted but the one between rounds or
-the match's last, so the draws they leave are not negative, and are one at
-least between rounds after a draw; in Restarting the round's restart is
-counted. Rollback and late join restore progress, round score and the count.
+The rule saves 191 bytes after the native respawn state: version (3), phase
+(0 play, 1 the 3 s after a round, 2 the fade, 3 the countdown, 4 the match
+over), two scores, the ended round (1 or 2 a team's, 3 a draw; the match's
+winner once over), a time (u32: the restart part's deadline, the match's end;
+0 in play), the round starts (u16: the fades' ends after the match's first, a
+double wipe's replay too), each place's kit switches in a round's countdown
+(u16 x20), then twenty seven-byte player records (waiting/fighting/frozen
+with team, thaw time (u16), auto-thaw time left (u32, 1 ms to 120 s, a frozen
+record's only)). The round starts and the kit switches are
+`artefact_hunt_rule::Lives`, Artifact Hunt's own. The parser checks the
+closed domains, roster extent (no record nor kit switch past the match's
+places), phase/score agreement (a team at five only in its last round's 3 s
+or over), the ended round against the records (unchanged from the round's
+end to the fade's end; every record waiting in the countdown) and the round
+starts against the rounds ended: every one ended (a win in the scores, or a
+draw) was restarted but the one whose fade has not ended and the match's
+last, so the draws they leave are not negative, and one at least in a
+draw's restart. Against the world's time (the timelimit's, `rules::
+freeze_tag_fault`): a restart part's deadline is after it by its whole
+length at most, the match's end at it or before. Version 2 (revision 71's
+5 s pause and its Restarting) is not read: its worlds are the rule before
+this one. Rollback and late join restore progress, round score and the
+counts.
 
 The match server pays lives by it: `MatchResult::round_starts` (the field
 and its use in `rewards.rs` as Artifact Hunt's branch adds them) is the
@@ -166,7 +178,10 @@ charges the kits' reloads.
 The three native hooks are declared in `sites_026g.tsv`:
 
 - `2DAA60` (`freeze.player_tick`), `base_player::tick`: a frozen player's
-  clock advances, but the deferred death callback and tick are skipped
+  clock advances, the gun in hand's too (its `m_last_tick_time` +5A4h: its
+  first tick after a thaw stepped the whole freeze at once, and the recoil's
+  spring, 0x331A50, pinned the kick of a shot fired before the freeze at -1
+  for seconds: the view moved by itself after a thaw, the owner 2026-11-22), but the deferred death callback and tick are skipped
   through the native `ret 4` at `2DAB69`. Lethal hits already set
   `pending_death` (+33Dh), which also prevents further damage in `hit_impl`.
 - `2D86E0` (`carry.input`, patch 78's site, order 0 before its handler at 1):
@@ -175,21 +190,24 @@ The three native hooks are declared in `sites_026g.tsv`:
   native "nothing new". Patch 78's take and use never see it.
 - `316826` (`respawn.tick`, order 0; Artifact Hunt's handler is 1), after
   the respawn tick's prologue and patch 31's kit-change jump, before the tick
-  reads any place's time: advance the rule, then do what
-  `FreezeTag::schedule` says with the places' native times. In play
-  (`CancelFrozen`) a frozen body's death respawn is cancelled and every other
-  place keeps its native time, so a late arrival's first spawn (its entry
-  time) runs. Between rounds and after the match (`CancelAll`) no body keeps
-  a time: not the round's last frozen body's death respawn (which the hud
-  showed as "respawn in 8 seconds", its `respawn_time`, counting while the 5 s
-  pause ran: the owner, 2026-11-22); the restart spawns everyone, the
-  match's end nobody. No cancel touches an entering place (its current
-  player out of the world: `vostok::freeze::Seat::Entering`): its entry
-  spawn runs in every phase. The step that ends the pause makes every place
-  with a current player due at this step (`Actions::Restart`); then
-  (`Native`) the tick's own `31697F..3169BE` takes each out and spawns it,
-  and a place without a free point retries 50 ms later (`3169D8`). No
-  synthetic deaths.
+  reads any place's time: Artifact Hunt's path
+  (`round_countdown::respawn_tick`, with the rule as it stood before this
+  step): in a round's countdown patch 31's kit switch where the player
+  stands (`FreezeTag::kit_switched`, a life); the places
+  `FreezeTag::voided` names lose their native time: every frozen or lethal
+  body, whose death queued a respawn (the hud showed it as "respawn in 8
+  seconds": the owner, 2026-11-22), so only a round's start spawns one; then
+  `FreezeTag::spawning`: the 3 s and the fade hold a place due, the fade's
+  end makes every place with a current player due at this step, and the
+  tick's own `31697F..3169BE` takes each out and spawns it. A frozen body
+  without a free point at that step is not tried again: the native 50 ms
+  retry (`3169D8`) is voided with the other lethal bodies' times, so it stays
+  where it is, frozen, and starts the new round frozen (a teammate or the
+  auto-thaw thaws it); it takes a team with more players than free points at
+  that step, which the mode's maps are not meant to have (the owner,
+  2026-11-23: "it is fine since we don't support too little spawns"). No void or
+  hold touches an entering place (`RespawnTick::void`, `hold_due`): its entry
+  spawn runs in every phase. Then the rule's step. No synthetic deaths.
 
 The typed `vostok::freeze` boundary uses generated fields and engine calls.
 Thaw calls the same `damage_model::reset` (`2E5290`, EDI receiver, stack time,
@@ -296,6 +314,22 @@ copies (`fx/artifacts/<name>_ice`, constant_emissive (0.62, 0.88, 1.0) x
 half its intensity: the owner's pick of the previews' variants ("a is good",
 2026-11-21). Spring's own files are unchanged.
 
+It covers the whole body (the owner, 2026-11-23: "just make the glow cover the
+whole body, not just legs"). Almost every emitter of the Spring glow is
+body-shaped (an animated domain: points on chosen bones), and the engine takes
+those bones from the skeleton the play is given. The first build played it with
+two empty attachments, so every such emitter started at the matrix's origin and
+the glow was a small light at the feet. It is now played as the effects'
+presenter plays a living player's Spring glow (`particle_game_effect_presenter::
+play_effect` 0x2AC290): with the frozen player's hit model (+498h, the
+`collision::animated_object`) and his model (+F290h, the
+`render::skeleton_model_instance` that `particle_engine::get_bone_matrix` reads)
+as `scene_renderer::play_particle_system`'s (0x22660) last two arguments (the
+0.21d PDB's signature). The play holds them, and a later move changes only the
+matrix, so each place's glow remembers the player object it was played on and is
+played again on another one (`GLOWING`). `tools/check freeze-native` checks the
+play's attachments, the move and the removal.
+
 The thaw shrinks it (the owner: "would be nice if the glow was reducing as the
 player was unfrozen", "so others could deem the freeze state by look"; of the
 first build's four strengths swapped a quarter at a time: "it just disappears a
@@ -313,7 +347,9 @@ spawned and alive, through the matrix each frame, so the cloud's spread and
 motion scale at once; a world-space emitter (`distortion`) takes it only at a
 particle's birth. A sprite's size is added after the matrix (view-aligned,
 `input.size`), so the sprites keep their size, and the point light keeps its
-intensity: the glow gathers to the body's middle rather than dims. The
+intensity: the glow gathers to the body's middle rather than dims. On his
+bones, a particle is born on the body at whatever the scale; whether the cloud
+still gathers to the middle through the thaw is to be seen in a match. The
 pack's `human_frozen_70`, `_40` and `_15` and their materials are no longer
 played (to drop from the pack in its next version).
 
@@ -350,52 +386,32 @@ options' tag 6, Artifact Hunt's from its rule of the world):
 
 Taken from Artifact Hunt, and why:
 
-- **Held, then everyone due at once.** Freeze Tag cancelled only frozen
-  bodies' times, so a player who entered during the five-second pause
-  spawned into it, was held there, and was taken out and spawned again five
-  seconds later; one who entered after the match spawned into a finished
-  match. Holding every place that falls due between rounds and after the
-  match (Artifact Hunt's `Held`) spawns each once, with the round; since
-  2026-11-22 Freeze Tag cancels every time there instead (`CancelAll`), so
-  no respawn countdown shows in the pause or after the match. Neither holds
-  an entry any more ("No place out of the world"). The
-  restart itself was already the same as Artifact Hunt's `Everyone`: every
-  present place made due at the step, the native tick removing and spawning
-  them.
+- **Held, then everyone due at once** (Artifact Hunt's `Spawning`): what falls due in a round's
+  3 s and its fade is held, the fade's end makes every present place due at the step, the native
+  tick removing and spawning them; a frozen or lethal body's own native time is void in every phase
+  (`FreezeTag::voided`), so no respawn countdown shows for it. Neither holds an entry ("No place
+  out of the world").
 - **The input at set_input's entry.** Freeze Tag dropped a held body's input
   at 0x2D86EE, after patch 78's handler at the entry, which still took an
   artefact (from the ground or a teammate's kit) on a frozen player's Use.
   At the entry, before patch 78, with Artifact Hunt's `held` exit, nothing
   of a held input is applied; the separate `freeze.input` site is gone.
+- **A round's end and start** (since 2026-11-23, the owner: "is this exactly the same code that
+  runs for arthunt?", "consistency is paramount"): Artifact Hunt's restart, one machine
+  (`artefact_hunt_rule::Restart`: its parts, its transition, what it says of the spawns, the
+  input hold and the round's countdown; `Lives`: the round starts and the countdown's kit
+  switches) and one exe path (`round_countdown::respawn_tick` over `RespawnTick`'s
+  `switch_kit`, `void`, `hold_due`, `everyone_now`; `round_countdown::set` for the core's
+  time state 4, which the client time rule's camera test reads as the match start's countdown:
+  everyone's warmup camera, whose input holds, and patch 31's kits). Freeze Tag keeps what is its
+  own: what decides a round, the frozen (held, their native respawns void), the thaw.
 
-- **A round's countdown** (`vostok::round_countdown`, the shared patch
-  module `round_countdown` with its hook `time_rule.camera_state` at
-  0x267AE6). While `FreezeTag::round_countdown()` (the pause and the
-  restart: `Between`, `Restarting`) the rule's tick makes the core's time
-  state 4 (`round_countdown::set`, written only over a 3 or a 4), and 3
-  again when the round opens or the match ends. The client time rule's
-  camera test then sees the match start's countdown: the native switch
-  0x27B1A0 gives everyone the warmup camera, patch 31's kit view shows the
-  kits, and the player's camera comes back as the round opens. Patch 31
-  switches no kit in a 4; a kit picked in the pause is the place's next kit,
-  which the restart's spawn makes current (spawn_player 0x316DE3), so it
-  needs no switch of its own and no life more than the restart's. Freeze
-  Tag's own readers of the state take 3 and 4 alike as play (the rule's
-  tick, the hold, the glow); its frozen camera leaves the countdown to the
-  native camera. The tick sets it in list 0, before the places' ticks and
-  the time rule's; a world loaded between rounds (a late join, a rollback)
-  shows 3 until its first tick, which sets it again.
-  Artifact Hunt's countdown comes after its restart, with its own in-place
-  switch (`RespawnTick::switch_kit`, a life each); Freeze Tag's pause comes
-  before it, so the restart's spawn is the switch.
-
-Kept as Freeze Tag's own: cancelling a frozen body's death respawn while a
-round is played (a thawed player must not be respawned by the death's old
-time), the hold of the frozen players' ticks in the pause (Artifact Hunt holds
-only the input in its countdown; until 2026-11-22 Freeze Tag held everyone's),
-and the wait for every frozen body's spawn before the next round opens (a body
-still frozen would otherwise freeze again at once; a player who moved on in
-the pause and had no free point is spawned 50 ms into the round).
+Freeze Tag's own pause before it (5 s in which only the frozen saw the countdown, then the
+restart at once, the round waiting for every spawn; the final win ending the match at once and
+the server 2 s after it) is gone: the 3 s, the fade and the countdown are Artifact Hunt's for
+everyone, and the match ends at its rule's end as Artifact Hunt's. A frozen body that gets no
+free spawn point at the round start is not tried again: it starts the new round frozen where it
+was (above, `respawn.tick`).
 
 ## Validation
 

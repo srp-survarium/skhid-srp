@@ -254,17 +254,18 @@ What a player did with each weapon in its counted public matches, as its games c
 (`g26_player_weapons`): the weapons it fired or killed with (a grenade or a trap that killed is
 one), the largest `by` first, or the smallest with `order=asc` (ties: more kills, more shots,
 then the lower id), at most `limit`
-(1..50, default 50). `by`: `kills` (the default), `kd`, `headshot_rate`, `accuracy`,
+(1..50, default 50). `by`: `kills` (the default), `kd`, `kills_per_minute`, `headshot_rate`, `accuracy`,
 `kill_distance` (the average), `wall_kills`, `ricochet_kills`, `held`; a weapon without a kill
-(a shot) is the smallest by a ratio of them. `id`, `key`, `name` and `icon` are the item's, as in `player/equipment`. `deaths` are the player's
-with it in the hands, and `kd` is by them; `damage` is in enemies' whole pain pools;
+(a shot, time in the hands) is the smallest by a ratio of them. `id`, `key`, `name` and `icon` are the item's, as in `player/equipment`. `deaths` are the player's
+with it in the hands, and `kd` is by them; `kills_per_minute` is by the time in the hands,
+two decimals (`null` never held); `damage` is in enemies' whole pain pools;
 `kill_distance_m` is the kills' average (`null` without a kill), `longest_kill_m` the longest;
 `held_s` the time in the hands. An account whose games counted none has an empty list, as an
 unknown one.
 
 ```json
 {"by":"kills","order":"desc","weapons":[{"id":155,"key":"ak_74m","name":"AK-74M","matches":40,"kills":310,"deaths":190,
-             "kd":1.63,"headshots":62,"wall_kills":14,"ricochet_kills":2,"shots":9800,"hits":2900,
+             "kd":1.63,"kills_per_minute":0.87,"headshots":62,"wall_kills":14,"ricochet_kills":2,"shots":9800,"hits":2900,
              "accuracy":0.296,"damage":402.5,"kill_distance_m":31.3,"longest_kill_m":84.5,
              "held_s":21400}]}
 ```
