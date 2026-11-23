@@ -131,12 +131,15 @@ pub struct Estimate {
     /// [`Self::fall`] and [`Self::kept`] are read off it; [`Self::arc`] holds only a side or back jump's clip, during which it is
     /// none. None with [`ReckoningBody::Lattice`], before the first world and for the press forecast's copies (S4).
     pub client: Option<client_body::ClientBody>,
+    /// [body physics S3] A forward press the client's body takes after its next step (the keys of the input that pressed it): its
+    /// input stream runs one input behind the estimate's ticks, as a world shows the body ([`client_steps`]).
+    pub client_due: Option<u32>,
 }
 
 impl Estimate {
     /// [body physics S3] Whether the body is in a jump: a clip under way, or the client's body flying a forward jump.
     pub fn in_jump(&self) -> bool {
-        self.arc.is_some() || self.client.is_some_and(|c| c.flying())
+        self.arc.is_some() || self.client.is_some_and(|c| c.flying()) || self.client_due.is_some()
     }
 }
 
@@ -650,6 +653,7 @@ impl Estimate {
             step_creep: Creep::Unknown,
             landing_walk: None,
             client: None,
+            client_due: None,
         }
     }
 
@@ -678,6 +682,7 @@ impl Estimate {
             step_creep: Creep::Unknown,
             landing_walk: None,
             client: None,
+            client_due: None,
         }
     }
 }
@@ -1827,6 +1832,33 @@ impl BodyTrack {
             })
             .flatten();
         self.last_error = reckoned.map(|reckoned| reckoned.distance_xz(feet));
+        // [body physics S3, diagnosis] Each world against the reckoning at its tick: the world's speed and the reckoned one into the
+        // same tick, the level, the keys, the error along and across the world's move (bench only, `SRP_BENCH_RECKON_LOG`).
+        #[cfg(test)]
+        if std::env::var_os("SRP_BENCH_RECKON_LOG").is_some()
+            && let (Some(reckoned), Some(before)) = (reckoned, self.trail.iter().find(|r| r.time + TICK_MS == fix.time).map(|r| r.feet))
+            && let Some(at) = self.trail.iter().find(|r| r.time == fix.time).map(|r| r.feet)
+            && let Some(last) = self.fix.as_ref().and_then(|last| last.feet)
+        {
+            let moved = Vec3::new(feet.x - last.x, 0.0, feet.z - last.z);
+            let len = moved.x.hypot(moved.z);
+            let err = Vec3::new(reckoned.x - feet.x, 0.0, reckoned.z - feet.z);
+            let (along, across) = if len > 1e-3 {
+                ((err.x * moved.x + err.z * moved.z) / len, (err.z * moved.x - err.x * moved.z) / len)
+            } else {
+                (0.0, 0.0)
+            };
+            eprintln!(
+                "RECKON world {} moved {len:.3} along {along:+.3} across {across:+.3} speed world {:.3} reckoned {:.3} level {:.4} legs {:.3} keys {:#x} client {}",
+                fix.time,
+                fix.speed.unwrap_or(-1.0),
+                at.distance_xz(before) / TICK_S,
+                self.level_at(fix.time, kin),
+                self.legs.unwrap_or(1.0),
+                fix.keys,
+                self.estimate.is_some_and(|e| e.client.is_some())
+            );
+        }
         // The way reckoned from the world before to this one's tick, step
         // by step (a turning body's way is longer than its displacement).
         let before = self
@@ -2029,6 +2061,7 @@ impl BodyTrack {
             step_creep: creep_at_fix,
             landing_walk: None,
             client: None,
+            client_due: None,
         };
         if kin.step_input == StepInput::Previous
             && estimate.step.is_some()
@@ -2053,7 +2086,7 @@ impl BodyTrack {
         if kin.reckoning_body == ReckoningBody::Client
             && let Some(grid) = grid.filter(|grid| grid.has_client_walker())
         {
-            estimate.client = self.client_at(&fix, feet, kin, level, grid, &mut estimate.arc);
+            estimate.client = self.client_at(&fix, feet, (kin, level), grid, (&mut estimate.arc, &mut estimate.client_due));
             if let Some(body) = estimate.client {
                 let down = -body.controller().velocity.y;
                 estimate.kept = Some(KeptBody { controller: *body.controller(), feet: body.feet(), airborne: false });
@@ -2105,25 +2138,42 @@ impl BodyTrack {
 const CLIENT_INPUTS_BEFORE: usize = 12;
 
 impl BodyTrack {
-    /// [body physics S3] The client's body at the world `fix` (feet `feet`): its controller block with the inputs up to the world's
+    /// [body physics S3] The client's body at the world `fix` (feet `feet`): its controller block with the inputs before the world's
     /// own (`client_body::ClientBody::from_saved`: the walk blend replayed from them, oldest first; each input's yaw is the world's
-    /// less the turns sent after it), else put down at the feet. A jump the world shows under way ([`Self::arc_at`]'s clip in `arc`)
-    /// pressed forward by this body is resumed in it at its step (`ClientBody::resume_jump`), the clip dropped; a side or back one
-    /// keeps the clip, and the body is none until the clip lands ([`client_walks`]).
-    fn client_at(&self, fix: &Fix, feet: Vec3, kin: &Kinematics, level: f32, grid: &WalkGrid, arc: &mut Option<Jump>) -> Option<client_body::ClientBody> {
+    /// less the turns sent after it; the world's own input moves the next step, [`client_steps`]), else put down at the feet. A jump
+    /// the world shows under way ([`Self::arc_at`]'s clip in `arc`) pressed forward by this body is resumed in it at its step
+    /// (`ClientBody::resume_jump`), or left waiting in `due` when the world is the press's own; the clip is dropped. A side or back
+    /// one keeps the clip, and the body is none until the clip lands ([`client_walks`]).
+    fn client_at(
+        &self,
+        fix: &Fix,
+        feet: Vec3,
+        (kin, level): (&Kinematics, f32),
+        grid: &WalkGrid,
+        (arc, due): (&mut Option<Jump>, &mut Option<u32>),
+    ) -> Option<client_body::ClientBody> {
         let taken: Vec<Tick> = self.ticks.iter().filter(|tick| tick.time <= fix.time).map(|tick| self.as_taken(*tick, kin)).collect();
         let legs_broken = taken.last().is_some_and(|tick| tick.time == fix.time && tick.legs_broken);
         let ck = client_body::Kin { level, legs_broken };
         let mut body = match fix.controller.as_ref() {
             Some(saved) => {
+                // The world's body is before the step input W - 50 moves ([`client_steps`]): the inputs up to that one, oldest first,
+                // each one's yaw the world's less the turns of the inputs after it (input W's own too).
                 let mut inputs = Vec::with_capacity(CLIENT_INPUTS_BEFORE);
                 let mut yaw = fix.yaw;
-                for tick in taken.iter().rev().take(CLIENT_INPUTS_BEFORE) {
+                for tick in taken.iter().rev() {
+                    if tick.time == fix.time {
+                        yaw -= tick.turn.0;
+                        continue;
+                    }
+                    if inputs.len() == CLIENT_INPUTS_BEFORE {
+                        break;
+                    }
                     inputs.push(client_body::Input { keys: tick.keys, yaw: wrap(yaw) });
                     yaw -= tick.turn.0;
                 }
                 if inputs.is_empty() {
-                    inputs.push(client_body::Input { keys: fix.keys, yaw: wrap(fix.yaw) });
+                    inputs.push(client_body::Input { keys: 0, yaw: wrap(yaw) });
                 }
                 inputs.reverse();
                 client_body::ClientBody::from_saved(saved, &inputs, ck)
@@ -2143,11 +2193,18 @@ impl BodyTrack {
                 .map(|(at, before)| at.distance_xz(before) / TICK_S)
                 .or(fix.speed)
                 .unwrap_or(0.0);
+            // The flight's first step is the one after the press's own (`client_steps`: the input pressing at P is taken by the step
+            // the world at P + 50 is after): at a world W, (W - P) / 50 - 1 of its steps are flown; at the press's own world, none yet,
+            // and the press waits for the body's next step.
             let walker = super::client_walker::GridWalker(grid);
-            let steps_done = fix.time.saturating_sub(pressed) / TICK_MS;
-            let leg = (mapdata::controller::jump::Leg::Left, mapdata::controller::jump::SPRINT_FIRST_AIR_FRAMES[0]);
-            body.resume_jump(&walker, (press, speed), ck, leg, steps_done).ok()?;
             *arc = None;
+            match fix.time.saturating_sub(pressed) / TICK_MS {
+                0 => *due = Some(press),
+                ticks => {
+                    let leg = (mapdata::controller::jump::Leg::Left, mapdata::controller::jump::SPRINT_FIRST_AIR_FRAMES[0]);
+                    body.resume_jump(&walker, (press, speed), ck, leg, ticks - 1).ok()?;
+                }
+            }
         }
         Some(body)
     }
@@ -2552,18 +2609,12 @@ fn advance(
             // it, the short one does not).
             let span = (steps * TICK_MS) as f32 / 1000.0;
             let moved = [(at.feet.x - started.x) / span, (at.feet.z - started.z) / span];
-            // [body physics S3] The client's body flies a forward press itself (from the next step); a side or back one goes to the
-            // clip below, and the body is put down anew where the clip lands ([`client_walks`]).
-            if client_walker.is_some()
-                && let Some(mut body) = at.client
-            {
-                let ck = client_body::Kin { level, legs_broken: tick.legs_broken };
-                let (leg, frame) = (mapdata::controller::jump::Leg::Left, mapdata::controller::jump::SPRINT_FIRST_AIR_FRAMES[0]);
-                if body.press_forward(tick.keys, moved[0].hypot(moved[1]), ck, leg, frame).is_ok() {
-                    if role == Role::Reckoning {
-                        flown_jumps::count(if client_body::sprints(tick.keys) { flown_jumps::Kind::Sprint } else { flown_jumps::Kind::Short });
-                    }
-                    at.client = Some(body);
+            // [body physics S3] The client's body flies a forward press itself: after its next step, which takes this input
+            // ([`client_steps`], one input behind the ticks); a side or back one goes to the clip below, and the body is put down
+            // anew where the clip lands ([`client_walks`]).
+            if client_walker.is_some() && at.client.is_some() {
+                if super::jump_arc::Direction::of(tick.keys) == super::jump_arc::Direction::Forward {
+                    at.client_due = Some(tick.keys);
                     return finish(at, tick, kin, event);
                 }
                 at.client = None;
@@ -2646,9 +2697,14 @@ fn client_walks<'g>(at: &Estimate, kin: &Kinematics, role: Role, grid: Option<&'
     grid.filter(|grid| kin.reckoning_body == ReckoningBody::Client && steps_it && at.arc.is_none() && grid.has_client_walker())
 }
 
-/// [body physics S3] `steps` steps of the client's body (`client_body::ClientBody::tick` on the grid's client walker, with the tick's
-/// keys as taken and its yaw after its turn: the body moves by the input before and is capped by this one): the controller owns the
-/// feet. A body without one yet is put down at the feet ([`client_body::ClientBody::placed`]). The rest of the estimate is read off
+/// [body physics S3] `steps` steps of the client's body (`client_body::ClientBody::tick` on the grid's client walker): the controller
+/// owns the feet. Its input stream runs one input behind the estimate's ticks, as a world shows the body: a world at W carries the
+/// body before the step that input W - 50 moves (the client's walk tick moves the step ending at t by input t - 50; the bench's
+/// stand-in records its world before its tick's movement; the reckoning before S3 took input W - 50 for the step after a world,
+/// [`StepInput::Previous`]). So each step takes the estimate's last input (its keys as taken and its yaw after its turn), and a stall's
+/// further steps the same, as the client holds an input. A forward press waiting ([`Estimate::client_due`]) is taken after these
+/// steps, at the last step's move (the press tick's own step, as the stand-in's deferred press).
+/// The feet. A body without one yet is put down at the feet ([`client_body::ClientBody::placed`]). The rest of the estimate is read off
 /// it: the feet, the last step's move, the floor `locate` names, a fall ([`CLIENT_FALLING_MS`]), and for the press forecast (S4) its
 /// controller as the kept one and its move as the blend.
 fn client_steps(at: &mut Estimate, tick: Tick, level: f32, grid: &WalkGrid, steps: u32, role: Role) {
@@ -2662,17 +2718,23 @@ fn client_steps(at: &mut Estimate, tick: Tick, level: f32, grid: &WalkGrid, step
     };
     let walker = super::client_walker::GridWalker(grid);
     let ck = client_body::Kin { level, legs_broken: tick.legs_broken };
-    let now = client_body::Input { keys: tick.keys, yaw: wrap(at.yaw + tick.turn.0) };
+    let now = client_body::Input { keys: at.keys, yaw: at.yaw };
     let mut before = at.feet;
     let mut last = None;
     for _ in 0..steps {
         before = body.feet();
         last = Some(body.tick(&walker, ck, now));
     }
-    timer.stop(role.clock());
     let Some(t) = last else { return };
     at.feet = t.feet;
     at.velocity = [(t.feet.x - before.x) / TICK_S, (t.feet.z - before.z) / TICK_S];
+    if let Some(keys) = at.client_due.take() {
+        let (leg, frame) = (mapdata::controller::jump::Leg::Left, mapdata::controller::jump::SPRINT_FIRST_AIR_FRAMES[0]);
+        if body.press_forward(keys, at.velocity[0].hypot(at.velocity[1]), ck, leg, frame).is_ok() && role == Role::Reckoning {
+            flown_jumps::count(if client_body::sprints(keys) { flown_jumps::Kind::Sprint } else { flown_jumps::Kind::Short });
+        }
+    }
+    timer.stop(role.clock());
     at.node = grid.locate(t.feet, LOCATE_M).or(at.node);
     let down = -body.controller().velocity.y;
     at.fall = if !t.in_jump && !body.flying() && down > CLIENT_FALLING_MS { Fall::Falling { speed: down } } else { Fall::Ground };
@@ -5496,6 +5558,8 @@ pub(super) mod tests {
         let walker = super::super::client_walker::GridWalker(&grid);
         let mut body = client_body::ClientBody::placed(feet, wrap(yaw));
         let mut now_yaw = wrap(yaw);
+        // The reckoning's body takes each tick's input on the step after it (its stream one input behind, as a world shows the body).
+        let mut before = client_body::Input { keys: 0, yaw: wrap(yaw) };
         for k in 1..=60u32 {
             let keys = match k {
                 1..=10 => key::FORWARD,
@@ -5507,7 +5571,8 @@ pub(super) mod tests {
             let turn = if (20..30).contains(&k) { 0.03 } else { 0.0 };
             track.decided(k * 50, keys, (turn, 0.0), 0.0, &kin, Some(&grid));
             now_yaw = wrap(now_yaw + turn);
-            let t = body.tick(&walker, client_body::Kin { level: 1.0, legs_broken: false }, client_body::Input { keys, yaw: now_yaw });
+            let t = body.tick(&walker, client_body::Kin { level: 1.0, legs_broken: false }, before);
+            before = client_body::Input { keys, yaw: now_yaw };
             let at = track.estimate().unwrap();
             assert_eq!(at.feet, t.feet, "tick {k}: the reckoning {:?}, the client's body {:?}", at.feet, t.feet);
         }
@@ -5547,7 +5612,7 @@ pub(super) mod tests {
     }
 
     /// [body physics S3] A world inside a forward flight (its controller block mid-air) resumes the client body's flight at its step:
-    /// the body lands where the unbroken reckoning lands, to the bit.
+    /// the body lands where the unbroken reckoning lands.
     #[test]
     fn a_world_inside_a_flight_resumes_it() {
         let triangles = floor(0.0, 0.0, 20.0, 10.0, 0.0).to_vec();
@@ -5574,7 +5639,9 @@ pub(super) mod tests {
         };
         let whole = run(None);
         for world_at in [650, 800, 950] {
-            assert_eq!(run(Some(world_at)), whole, "a world at {world_at}");
+            // Within 0.1 mm: the world's body has its walk blend replayed from the inputs before it, not the live body's own.
+            let resumed = run(Some(world_at));
+            assert!((resumed - whole).length() < 1e-4, "a world at {world_at}: {resumed:?} against {whole:?}");
         }
     }
 }
