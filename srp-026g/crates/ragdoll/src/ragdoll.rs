@@ -296,6 +296,9 @@ enum Link {
     Gun { offset: Pose },
     /// Kept where its parent puts it (the pose relative to the parent at the death).
     Parent { parent: Bone, local: Pose },
+    /// A finger joint: on its parent as `held` at the death (the grip of
+    /// what the hand held), turning to `loose` as the hand lets go.
+    Finger { parent: Bone, held: Pose, loose: Quat },
     /// Kept where it was at the death (the root).
     Fixed { pose: Pose },
 }
@@ -309,8 +312,9 @@ pub struct Rig {
 }
 
 impl Rig {
-    /// The drawn skeleton of bodies at `parts` and the gun at `gun`.
-    pub fn draw(&self, parts: &PartPoses, gun: Option<Pose>, out: &mut Skeleton) {
+    /// The drawn skeleton of bodies at `parts` and the gun at `gun`, the
+    /// fingers `loose` of the way (0 to 1) from their grip to a loose hand.
+    fn draw(&self, parts: &PartPoses, gun: Option<Pose>, loose: f32, out: &mut Skeleton) {
         for i in 0..BONE_COUNT {
             out[i] = match self.links[i] {
                 Link::Part { part, offset } => parts[part.index()].then(offset),
@@ -319,6 +323,9 @@ impl Rig {
                     None => out[ROOT.index()],
                 },
                 Link::Parent { parent, local } => out[parent.index()].then(local),
+                Link::Finger { parent, held, loose: turn } => {
+                    out[parent.index()].then(Pose::new(held.rotation.nlerp(turn, loose), held.position))
+                }
                 Link::Fixed { pose } => pose,
             };
         }
@@ -606,11 +613,15 @@ impl Ragdoll {
             if matches!(links[i], Link::Part { .. } | Link::Gun { .. }) {
                 continue;
             }
-            links[i] = match Bone(i as u8).parent() {
-                Some(parent) => Link::Parent {
-                    parent,
-                    local: now[parent.index()].inverse().then(now[i]),
-                },
+            let bone = Bone(i as u8);
+            links[i] = match bone.parent() {
+                Some(parent) => {
+                    let local = now[parent.index()].inverse().then(now[i]);
+                    match bone.loose_finger() {
+                        Some(loose) => Link::Finger { parent, held: local, loose },
+                        None => Link::Parent { parent, local },
+                    }
+                }
                 None => Link::Fixed { pose: now[i] },
             };
         }
@@ -851,6 +862,15 @@ impl Ragdoll {
             }
             Cause::Unknown => {}
         }
+    }
+
+    /// The drawn skeleton now: every bone from the bodies and the gun, the
+    /// fingers let go of their grip over `FINGERS_LOOSE_TIME` from the death
+    /// (eased, once: they are no bodies and never swing).
+    pub fn draw(&self, out: &mut Skeleton) {
+        let (parts, gun) = self.poses();
+        let t = clamp(self.age / tuning::FINGERS_LOOSE_TIME, 0.0, 1.0);
+        self.rig.draw(&parts, gun, t * t * (3.0 - 2.0 * t), out);
     }
 
     /// The parts' poses and the gun's now.
