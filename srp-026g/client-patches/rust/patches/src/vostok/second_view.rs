@@ -1039,10 +1039,6 @@ pub fn set_stage(_: &Thread, stage: Stage, on: bool) -> bool {
     }
 }
 
-/// A surface sphere larger than this is not an eyepiece (a record whose
-/// sphere is not placed yet holds FLT_MAX).
-const MOST_LENS: f32 = 0.25;
-
 /// The aimed model's glass: every 0.69 optic's `scope_lense_1p_s` is a
 /// fan of 60 triangles about its centre (the pack's meshes, checked for the
 /// ten rifle scopes), its vertex and index counts these; the reticle's,
@@ -1057,36 +1053,7 @@ unsafe fn mesh_of(record: raw::RenderSurfaceInstance) -> Option<(u32, u32)> {
     unsafe { record.surface().map(|s| (*s.vertex_count(), *s.index_count())) }
 }
 
-/// The lens on the frame's screen: its centre and radii in clip space, and
-/// the surface record it is (an address: the second view leaves it out).
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub struct LensPlace {
-    pub centre: [f32; 2],
-    pub radius: [f32; 2],
-    pub surface: u32,
-}
 
-/// The aimed model's glass on the frame's screen, at `forward.execute_foreground`
-/// (the frame's draw, the model's spheres placed this frame, world space):
-/// its record of [`GLASS_MESH`], its bound sphere (a flat disc's: its
-/// radius the disc's) projected with the frame's `view` and `projection`.
-/// None before the renderer placed it, or for a model without one.
-pub fn lens_on_screen(model: ModelId, view: &[f32; 16], projection: &[f32; 16]) -> Option<LensPlace> {
-    // SAFETY: the model alive (see ModelId) on the render thread, its
-    // records its own; each sphere four floats at the record's +10h.
-    unsafe {
-        let (first, count) = surfaces(model)?;
-        let record = (0..count).map(|index| first.at(index)).find(|&record| mesh_of(record) == Some(GLASS_MESH))?;
-        let sphere = record.sphere();
-        let (c, r) = ([sphere.read(), sphere.add(1).read(), sphere.add(2).read()], sphere.add(3).read());
-        let v: [f32; 3] = core::array::from_fn(|k| c[0] * view[k] + c[1] * view[4 + k] + c[2] * view[8 + k] + view[12 + k]);
-        if v[2] <= 0.0 || !(0.001..=MOST_LENS).contains(&r) {
-            return None;
-        }
-        let (x, y) = (v[0] * projection[0] + v[2] * projection[8], v[1] * projection[5] + v[2] * projection[9]);
-        Some(LensPlace { centre: [x / v[2], y / v[2]], radius: [r * projection[0] / v[2], r * projection[5] / v[2]], surface: record.address() })
-    }
-}
 
 /// One of an aimed model's surfaces as the lens's log shows it: its bound
 /// sphere's radius and centre (as stored, and in the frame's view space),
@@ -1099,8 +1066,6 @@ pub struct SurfaceSeen {
     pub placed: Option<[f32; 3]>,
     /// Its mesh's vertex and index counts.
     pub mesh: Option<(u32, u32)>,
-    /// The sphere's centre in the model's own space (by its world matrix).
-    pub local: Option<[f32; 3]>,
 }
 
 /// The most surfaces the log shows.
@@ -1109,7 +1074,7 @@ pub const SEEN: usize = 24;
 /// The aimed model's surfaces as the lens reads them, at `forward.execute_foreground`.
 pub fn surfaces_seen(model: ModelId, view: &[f32; 16]) -> ([SurfaceSeen; SEEN], usize) {
     let mut seen = [SurfaceSeen::default(); SEEN];
-    // SAFETY: as lens_on_screen's; the matrix pointer the record's own, 16 floats or null.
+    // SAFETY: the model alive (see ModelId) on the render thread, its records its own; each sphere four floats at +10h, the matrix pointer the record's own, 16 floats or null.
     unsafe {
         let Some((first, count)) = surfaces(model) else { return (seen, 0) };
         for (index, slot) in seen.iter_mut().enumerate().take(count) {
@@ -1123,7 +1088,6 @@ pub fn surfaces_seen(model: ModelId, view: &[f32; 16]) -> ([SurfaceSeen; SEEN], 
                 in_view: core::array::from_fn(|k| c[0] * view[k] + c[1] * view[4 + k] + c[2] * view[8 + k] + view[12 + k]),
                 placed: (!matrix.is_null()).then(|| [matrix.add(12).read(), matrix.add(13).read(), matrix.add(14).read()]),
                 mesh: mesh_of(record),
-                local: (!matrix.is_null()).then(|| transform_point(&invert_affine(&read16(matrix)), c)),
             };
         }
         (seen, count.min(SEEN))
@@ -1341,26 +1305,6 @@ pub fn lists_holding(ctx: &Context<'_>, model: ModelId) -> ([(u32, u32, u32); 12
     (found, count)
 }
 
-/// Diagnostics: a model's record `index` and the first 32 words of its render surface.
-pub fn record_words(model: ModelId, index: usize) -> Option<([u32; 25], [u32; 32])> {
-    // SAFETY: the model alive (see ModelId), its records its own; the surface
-    // read only when readable.
-    unsafe {
-        let (first, count) = surfaces(model)?;
-        if index >= count {
-            return None;
-        }
-        let record = first.at(index);
-        let at = record.address() as usize as *const u32;
-        let words: [u32; 25] = core::array::from_fn(|k| at.add(k).read());
-        let surface = words[0x38 / 4] as usize;
-        if surface == 0 || !super::memory::all_readable(surface, surface + 128) {
-            return Some((words, [0; 32]));
-        }
-        let s = surface as *const u32;
-        Some((words, core::array::from_fn(|k| s.add(k).read())))
-    }
-}
 
 /// The inverse of an affine row-vector transform (rows right, up, forward,
 /// place): a camera's view matrix, a model's world-to-model one.
@@ -1556,7 +1500,7 @@ pub fn rounds_across(points: &mut [[f32; 3]], on: [f32; 3], along: [f32; 3]) -> 
 /// A model's surface records as the lens searches them: each one's record.
 pub fn records(model: ModelId) -> ([Option<raw::RenderSurfaceInstance>; SEEN], usize) {
     let mut out = [None; SEEN];
-    // SAFETY: as lens_on_screen's.
+    // SAFETY: the model alive (see ModelId) on the render thread, its records its own.
     unsafe {
         let Some((first, count)) = surfaces(model) else { return (out, 0) };
         for (index, slot) in out.iter_mut().enumerate().take(count) {
@@ -1568,7 +1512,7 @@ pub fn records(model: ModelId) -> ([Option<raw::RenderSurfaceInstance>; SEEN], u
 
 /// The aimed model's glass record (its [`GLASS_MESH`]).
 pub fn glass_record(model: ModelId) -> Option<raw::RenderSurfaceInstance> {
-    // SAFETY: as lens_on_screen's.
+    // SAFETY: the model alive (see ModelId) on the render thread, its records its own.
     unsafe {
         let (first, count) = surfaces(model)?;
         (0..count).map(|index| first.at(index)).find(|&record| mesh_of(record) == Some(GLASS_MESH))

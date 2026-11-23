@@ -118,22 +118,20 @@ the frame's draw, CPU    3.4 .. 4.8       3.0 .. 3.6   2.8 .. 3.4   3.3 .. 3.7  
   the projection apply_camera set is replaced, for the draw and for the scene's copy the interface
   projects with. The zoom field itself (the camera's +94h) is the game's and is never written, so
   the mouse sensitivity, which scales with it, is today's for the same optic.
-- **The lens's place** is the aimed model's glass on the frame's screen, each frame: of that model's
-  surface records (behind the pointer at +298h of a static instance; at +62D4h of a skeleton one) the
-  one whose render surface has 61 vertices and 180 indices (+10h, +14h of a static render surface):
-  every 0.69 optic's `scope_lense_1p_s` is a fan of 60 triangles about its centre (the pack's
-  meshes, the ten rifle scopes), and no reticle, red dot or body of theirs has those counts. The
-  record's bound sphere (world space, +10h; a flat disc's, so its radius the disc's) projected with
-  the frame's own view and projection (`second_view::lens_on_screen`, at
-  `forward.execute_foreground`) is the disc. A first rule, the smallest sphere of at least 8 mm on
-  the eye's axis, took the PSO-1's reticle (10 mm) for its glass (18 mm): seen headless. The glass
-  sits in the real optic's eyepiece (the Hyperon's: 18.6 mm of radius, 90 mm from the eye at full
-  aim; the PSO-1's 18 mm at 67 mm, inside its long eyecup), so the disc is the eyepiece's opening. A
-  record's sphere is placed by the renderer a frame or two after the model enters the scene (before,
-  it holds FLT_MAX): no lens those frames. **An aimed model with no such glass placed in 30 frames of
-  an aim is refused**: today's scope for that optic for the rest of the run, one log line naming it
-  (the log's surface lines give each surface's counts). An aimed model of another class than static
-  or skeleton: today's scope, one log line.
+- **The lens's place** is the real optic's rear glass as the frame draws it (round 4, section 10):
+  its round in the idle model's own space, found once per optic from the meshes, placed each frame
+  by the idle model's world matrix (a record's +50h, the matrix the renderer draws it with) and the
+  drawn scene view's own view and projection (+3ACh, +42Ch, read at `render.begin` of the frame's
+  draw: the game's thread runs ahead of the render thread, so a camera kept from the game's thread is
+  the next frame's). The round: the aimed model's glass (the record of 61 vertices and 180 indices,
+  every 0.69 optic's `scope_lense_1p_s`: its fan read back from the GPU gives its centre, normal and
+  radius) gives the optic's axis; of the idle model's surfaces (up to 512 vertices each, read back
+  the same way: a staging copy of the res_buffer's part of its pool buffer, once) the flat rounds
+  across that axis (a ring of points in one plane, centred on the axis) are the glasses, and the one
+  nearest the eye is the rear glass. An idle model with no such round (an optic without its own glass
+  mesh): the aimed glass in its place, one log line. A glass not read: today's scope for that optic,
+  one log line. The renderer's bound sphere of a flat round is its box's, the radius times the root
+  of 2: the round-3 disc, from that sphere, was 41 % too large.
 - **The second view's camera is the aim itself**, the eyes' transform (the player's +44Ch, bone
   Item), read at update_camera, not the frame's camera: a bullet takes its start and its direction
   from it (weapon_core::instant_fire copies its 16 dwords at 0x2E2440..0x2E2453 and hands them to
@@ -156,13 +154,16 @@ the frame's draw, CPU    3.4 .. 4.8       3.0 .. 3.6   2.8 .. 3.4   3.3 .. 3.7  
 - **Zoom steps:** none in 0.26g. An optic has one `fov_factor` (the exe's only optic zoom key; no
   step, range or zoom key of an optic is read: its strings are `fov_factor`, `aim_zoom_factor` and
   the free camera's `cam_zoom_in/out`); the Leupold 3-7's item has 0.25 like every full scope.
-- **The picture's size follows the lens:** 512 pixels square while the lens is up to about 560
-  pixels across on the screen, else a 1024 one (made at the first such lens, kept after).
-- **The lens's picture** is drawn over the frame as a disc, after the frame's post-process and before
-  the interface (`render.flash_ui`), with its own two shaders (`pip_lens.hlsl`), every Direct3D state
-  it sets put back; its edge alpha-blended by each pixel's share inside the circle (no stair-steps),
-  its rim darkened over its outer 8 %. Not depth-tested: at full aim nothing is in front of the
-  eyepiece's glass.
+- **The picture's size follows the lens:** the smallest of 512, 768 and 1024 pixels square at least
+  as wide as the lens on the screen (512 until a lens is measured), each made at its first need and
+  kept; the aim and timing lines print the one drawn.
+- **The lens's picture** is drawn over the frame after its post-process and before the interface
+  (`render.flash_ui`), with its own two shaders (`pip_lens.hlsl`): a quad in the glass's plane
+  projected with the frame's projection (an ellipse when the glass is seen at an angle), the picture
+  mapped in screen space about the glass's centre (the reticle at the glass's centre), its edge
+  alpha-blended by each pixel's share inside the round, its rim darkened over its outer 8 %, every
+  Direct3D state it sets put back. Not depth-tested (section 10: the frame's `$user$position` holds
+  no comparable depth for first-person surfaces).
 - **Exposure:** the second view adapts its own eye to its picture, as any view does (section 1).
 
 ## 4. The setting
@@ -223,8 +224,8 @@ and no cascades of its own     0.5 .. 0.8   0.9 .. 1.1       -        ms GPU
 
 ## 7. Not done
 
-- **Depth:** the disc is not depth-tested against what is in front of the eyepiece (at full aim
-  nothing is).
+- **Depth:** the disc is not depth-tested; what of the optic is in front of its rear glass does not
+  cover it (at full aim nothing is; while moving the near rim of a long eyecup may, section 10).
 - Local lights' shadow faces and the remaining passes run at full quality in the second view.
 - **Memory:** the second view's window holds a full set of targets at its size (512: about 30 MB,
   1024: about 120 MB of video memory, LIKELY, from `create_targets` formats), made at the first aim
@@ -288,8 +289,8 @@ lens on, aimed (r_gpu_sync skipped)    8.9 ms           1.0 ms CPU     12.5 ms
 ## 9. Round 3 (exe `pip-scopes-3`, 2026-11-23 12:17) and the handoff for `pip-scopes-4`
 
 Standing still the lens works (the owner's `2026-11-23-12-18-49.png`: one real gun and optic, the
-zoomed picture with its reticle filling the eyepiece, the world at uro_fov). Four things are open;
-none is fixed in the branch yet (head 5f81e9d9d plus this section).
+zoomed picture with its reticle filling the eyepiece, the world at uro_fov). Round 4 (section 10) took
+up each item.
 
 **1. The lens leaves the eyepiece while the player moves** (`12-19-36.png`, AK-74M + Leupold 3-7:
 the disc about one radius right of the real optic's ring; its picture, reticle centred, is fine).

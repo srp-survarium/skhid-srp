@@ -284,6 +284,11 @@ fn turn_off_switches(thread: &Thread) {
 /// scene view's at its draw's start), for the lens's place on its screen.
 static DRAWN_CAMERA: Lock<Option<([f32; 16], [f32; 16])>> = Lock::new(None);
 
+/// Diagnostics: the camera's place the game's thread last queued a frame with,
+/// against the one the render thread draws (how far the game's thread runs ahead).
+static QUEUED_PLACE: Lock<Option<[f32; 3]>> = Lock::new(None);
+static DRAWS: AtomicU32 = AtomicU32::new(0);
+
 /// The lens this frame: the real optic's rear glass as the frame draws it.
 #[derive(Clone, Copy, Debug, PartialEq)]
 struct Placed {
@@ -518,6 +523,7 @@ pub fn on_draw(ctx: &mut Context<'_>) -> Flow<NoExit> {
         CLOCK.with(thread, |clock| clock.sums.sleeping += 1);
     }
     let (camera, projection) = (frame.camera(), frame.projection());
+    QUEUED_PLACE.with(thread, |kept| *kept = Some([camera[12], camera[13], camera[14]]));
     let view = invert_affine(&camera);
     let main = frame.main_view();
     set_frame_fov(thread, &projection);
@@ -630,6 +636,14 @@ pub fn on_render_begin(ctx: &mut Context<'_>) -> Flow<NoExit> {
     } else {
         let camera = second_view::drawn_camera(ctx);
         DRAWN_CAMERA.with(thread, |kept| *kept = camera);
+        if LOG_ON.load(Ordering::Relaxed) && AIMED.with(thread, |aimed| aimed.is_some()) && DRAWS.fetch_add(1, Ordering::Relaxed) % 60 == 0 {
+            let queued = QUEUED_PLACE.with(thread, |kept| *kept);
+            if let (Some((view, _)), Some(queued)) = (camera, queued) {
+                let drawn = invert_affine(&view);
+                let apart = second_view::norm([drawn[12] - queued[0], drawn[13] - queued[1], drawn[14] - queued[2]]);
+                Note::new("pip: the drawn camera is (mm) from the one the game's thread queued last:").milli(apart).send();
+            }
+        }
     }
     let second = drawn.is_some();
     SECOND_PASS.store(second, Ordering::Relaxed);
@@ -979,9 +993,6 @@ pub fn on_foreground(ctx: &mut Context<'_>) -> Flow<NoExit> {
             if frame == 0 || frame == 30 {
                 log_surfaces(ctx, aimed, camera, disc);
             }
-            if frame % 30 == 0 && frame <= 900 {
-                log_places(thread, aimed, camera, frame);
-            }
             // its spheres are placed a frame or two after it enters the scene
             if disc.is_none() && frame >= 30 {
                 refuse(thread, aimed, "no lens placed in 30 frames of an aim");
@@ -1235,44 +1246,6 @@ mod tests {
 }
 
 
-/// Diagnostics: where the aimed and idle models' records are this frame (view space, mm).
-fn log_places(thread: &Thread, aimed: ModelId, camera: Option<([f32; 16], [f32; 16])>, frame: u32) {
-    if !LOG_ON.load(Ordering::Relaxed) {
-        return;
-    }
-    let Some((view, _)) = camera else { return };
-    for (name, model) in [("aimed", Some(aimed)), ("idle", IDLE.with(thread, |idle| *idle))] {
-        let Some(model) = model else { continue };
-        let (seen, count) = second_view::surfaces_seen(model, &view);
-        for (index, surface) in seen.iter().take(count).enumerate() {
-            let mut note = Note::new("pip: place f");
-            note.dec(frame).text(" ").text(name).text(" ").dec(index as u32);
-            if let Some((v, i)) = surface.mesh {
-                note.text(" mesh ").dec(v).text("/").dec(i);
-            }
-            note.text(" r").milli(surface.radius).text(" sphere in view").point(surface.in_view);
-            if let Some(at) = surface.placed {
-                note.text(" matrix in view").point(second_view::transform_point(&view, at));
-            }
-            if let Some(local) = surface.local {
-                note.text(" local").point(local);
-            }
-            note.send();
-            if frame == 30 && let Some((words, surface_words)) = second_view::record_words(model, index) {
-                let mut note = Note::new("pip:   record");
-                for word in words {
-                    note.text(" ").hex(word);
-                }
-                note.send();
-                let mut note = Note::new("pip:   its surface");
-                for word in surface_words {
-                    note.text(" ").hex(word);
-                }
-                note.send();
-            }
-        }
-    }
-}
 
 /// The probe's lens: a flat disc at the frame's centre, the probe's size.
 fn probe_disc(aspect: f32, rim: [f32; 2]) -> Disc {
