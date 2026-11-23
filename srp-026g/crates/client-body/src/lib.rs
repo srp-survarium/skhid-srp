@@ -365,7 +365,7 @@ pub struct Unported;
 
 /// The client's body: its kept controller (the only owner of its feet), the mixer's walk, the input the next step moves by and the
 /// yaw it turns by, and a forward jump under way.
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq)]
 pub struct ClientBody {
     controller: Controller,
     blend: WalkBlend,
@@ -533,6 +533,33 @@ impl ClientBody {
         let cap = jump::WALK_CAP_MS * kin.level;
         let press = if sprints(keys) && speed >= cap { Press::Sprint { speed, leg, first_air_frame } } else { Press::Walk { speed } };
         self.jump = Some(Flying::new(press, Flight { cap, dy: 0.0 }));
+        Ok(())
+    }
+
+    /// A forward jump pressed `steps_done` steps ago and still under way, for a body made from a world inside it
+    /// ([`Self::from_saved`] keeps the world's controller, mid-flight as the client has it): the press as [`Self::press_forward`]
+    /// takes it, its flight already flown `steps_done` steps. A flight's step input is its press's and its step number's alone (the
+    /// clip's root motion, `jump()` and `end_jump()` at fixed steps), so those steps are flown on a copy of the controller, which is
+    /// dropped; the body's own controller is not stepped. A side or back press is [`Unported`].
+    pub fn resume_jump(
+        &mut self,
+        world: &impl Walker,
+        press: (u32, f32),
+        kin: Kin,
+        (leg, first_air_frame): (Leg, f32),
+        steps_done: u32,
+    ) -> Result<(), Unported> {
+        self.press_forward(press.0, press.1, kin, leg, first_air_frame)?;
+        if let Some(flying) = self.jump.as_mut() {
+            let mut scratch = self.controller;
+            let f = forward(self.moving.yaw);
+            for _ in 0..steps_done {
+                world.fly(&mut scratch, flying, (f[0], f[1]), (0.0, 0.0));
+            }
+            if flying.landed() {
+                self.jump = None;
+            }
+        }
         Ok(())
     }
 
@@ -767,6 +794,35 @@ mod tests {
         assert!(end.z > start.z + 2.0, "{end:?}");
         assert!(verdict::lands_on(&ticks, start, Vec3::new(end.x, 0.0, end.z)), "lands where it ended");
         assert!(!verdict::lands_on(&ticks, start, Vec3::new(end.x, 2.0, end.z + 5.0)), "not on a top 2 m up and 5 m on");
+    }
+
+    /// A flight resumed from a world inside it ([`ClientBody::resume_jump`]) flies on exactly as the flight it was cut from: the same
+    /// feet to the bit on every step to the landing and after, for a short and a sprint jump cut at each step.
+    #[test]
+    fn a_resumed_flight_flies_on_as_the_unbroken_one() {
+        let floor = floor();
+        let world = Client { world: &floor };
+        for (keys, speed, landing) in [(keys::FORWARD, 2.0, 17u32), (keys::FORWARD | keys::SPRINT, 5.5, 19)] {
+            let start = ClientBody::at_rest(&world, Vec3::new(0.0, 0.0, -10.0), 0.0).expect("rests");
+            let input = Input { keys, yaw: 0.0 };
+            for cut in 1..landing {
+                let mut whole = start;
+                whole.press_forward(keys, speed, Kin::CLIENT, Leg::Left, 6.57).expect("forward");
+                for _ in 0..cut {
+                    whole.tick(&world, Kin::CLIENT, input);
+                }
+                // A world at the cut: its controller block and its inputs before, the flight resumed.
+                let saved = whole.save();
+                let mut resumed = ClientBody::from_saved(&saved, &[input, input], Kin::CLIENT);
+                resumed.blend = whole.blend;
+                resumed.resume_jump(&world, (keys, speed), Kin::CLIENT, (Leg::Left, 6.57), cut).expect("forward");
+                assert_eq!(resumed.flying(), whole.flying(), "keys {keys:#x} cut {cut}");
+                for step in 0..24 {
+                    let (a, b) = (whole.tick(&world, Kin::CLIENT, input), resumed.tick(&world, Kin::CLIENT, input));
+                    assert_eq!((a.feet, a.in_jump, a.on_ground), (b.feet, b.in_jump, b.on_ground), "keys {keys:#x} cut {cut} step {step}");
+                }
+            }
+        }
     }
 
     /// A side press is not flown (its clip is not ported).
