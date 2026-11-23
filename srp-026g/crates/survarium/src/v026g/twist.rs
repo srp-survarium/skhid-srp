@@ -5,65 +5,72 @@
 //! third of what is left); the rooms' vote draws one for its free-for-all cards
 //! (`session::v026g::rooms`), and the lobby names it by its own mode number.
 
+use super::cowboy::Variation;
 use super::maps::{GameMode, MapMode, MatchMap};
 use super::match_msgs::static_info::MatchProfile;
+use super::racket::Gun;
+use super::roulette::{Band, Hand};
 
-/// The shares of a free-for-all card's draw ([`Plays::draw`]): the plain mode's and each twist's,
-/// in hundredths. Cowboy rare (the owner, 2026-11-14: "cowboy version should be rare with only
-/// 10% chance"), Racket as often as the plain mode (my pick).
-pub const SHARES: [(Option<Twist>, u32); 3] =
-    [(None, 45), (Some(Twist::Racket), 45), (Some(Twist::Cowboy), 10)];
-
-/// What a free-for-all card of the rooms' vote may play: the plain mode, one twist, or more of
-/// them, never none. A room's are the ones its pool holds on the card's map: the create window
-/// ticks each twist as a mode of its own; the server's rooms have them all.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct Plays {
-    /// Bit `i`: [`SHARES`]' `i`th is in; never 0.
-    bits: u8,
+/// What a free-for-all card of a server's room plays, as its share draws it ([`draw`]): the plain
+/// mode or a twist, armed for the room by [`draw`].
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum Pick {
+    Plain,
+    Racket,
+    Cowboy(Variation),
+    Roulette,
 }
 
-impl Plays {
-    /// The plain mode and every twist: a server's room's draw (`SHARES` as they are).
-    pub const ALL: Self = Self {
-        bits: (1 << SHARES.len()) - 1,
-    };
+/// The shares of a free-for-all card's draw ([`draw`]), in hundredths (the owner, 2026-11-22):
+/// plain 30, Racket 30, Roulette 30, Saloon (Winchester) 5, Saloon 5 (the Colt alone). Before:
+/// plain 40, Racket 40, Roulette 10 (my pick, the same day); plain 50 and Racket 40 without
+/// Roulette; the Winchester 15 from 2026-11-15 ("winchester should become 5% again on FFA"), Saloon
+/// 10 at first ("cowboy version should be rare with only 10% chance"). Racket's gun is its room's
+/// (`racket`, `Gun::of_room`), Roulette's band one its room allows (`roulette::Band::draw`).
+pub const SHARES: [(Pick, u32); 5] = [
+    (Pick::Plain, 30),
+    (Pick::Racket, 30),
+    (Pick::Roulette, 30),
+    (Pick::Cowboy(Variation::WinchesterAndColt), 5),
+    (Pick::Cowboy(Variation::Colt), 5),
+];
 
-    /// The plays of `plays`; none of them: none.
-    pub fn of(plays: impl IntoIterator<Item = Option<Twist>>) -> Option<Self> {
-        let bits = plays.into_iter().fold(0, |bits, play| {
-            bits | SHARES
-                .iter()
-                .position(|&(each, _)| each == play)
-                .map_or(0, |at| 1 << at)
-        });
-        (bits != 0).then_some(Self { bits })
-    }
-
-    fn shares(self) -> impl Iterator<Item = (Option<Twist>, u32)> {
-        SHARES
-            .into_iter()
-            .enumerate()
-            .filter(move |&(at, _)| self.bits >> at & 1 == 1)
-            .map(|(_, share)| share)
-    }
-
-    /// The sum of its shares: what a draw's roll is below.
-    pub fn total(self) -> u32 {
-        self.shares().map(|(_, share)| share).sum()
-    }
-
-    /// What a card plays, for a roll below [`Self::total`]: each of its plays for its share.
-    pub fn draw(self, roll: u32) -> Option<Twist> {
-        let mut roll = roll % self.total();
-        for (play, share) in self.shares() {
-            if roll < share {
-                return play;
-            }
-            roll -= share;
+/// What a free-for-all card of a server's room of `max_level` plays on `map`, drawn after it: the
+/// plain mode and each twist by its [`SHARES`], armed for the room (Racket with the room's gun,
+/// `racket::Gun::of_room`; Roulette with a band the room allows and a hand of it, dealt with the
+/// same rolls). On a map played with a twist only ([`MapMode::twists_only`]) the twists alone, by
+/// their shares (the plain mode's taken out, so the map comes as often as any, always twisted);
+/// Roulette only in a room that allows a band ([`Band::allowed`]). `below(n)` is a roll below `n`.
+/// A private room's never draws: its free-for-all is plain, and its pool has no such map
+/// (`session::v026g::rooms`).
+pub fn draw(map: MatchMap, max_level: u8, below: &mut impl FnMut(usize) -> usize) -> Played {
+    let banded = Band::allowed(max_level).next().is_some();
+    let drawn = SHARES.iter().filter(|&&(pick, _)| match pick {
+        Pick::Plain => !map.map().twists_only,
+        Pick::Roulette => banded,
+        Pick::Racket | Pick::Cowboy(_) => true,
+    });
+    let total: u32 = drawn.clone().map(|(_, share)| share).sum();
+    let mut roll = below(total as usize) as u32 % total;
+    let mut picked = Pick::Plain;
+    for &(pick, share) in drawn {
+        if roll < share {
+            picked = pick;
+            break;
         }
-        unreachable!("a roll is below the shares' sum")
+        roll -= share;
     }
+    let armed = match picked {
+        Pick::Plain => None,
+        Pick::Racket => Some(Armed::Racket(Gun::of_room(max_level))),
+        Pick::Cowboy(variation) => Some(Armed::Cowboy(variation)),
+        Pick::Roulette => {
+            Band::draw(max_level, below).map(|band| Armed::Roulette(Hand::deal(band, below)))
+        }
+    };
+    armed
+        .and_then(|twist| Played::twisted(map, twist))
+        .unwrap_or(Played::plain(map))
 }
 
 /// The lives a twist's ammo lasts: its stack's store is a kit's rounds this many times. The game
@@ -72,47 +79,156 @@ impl Plays {
 /// would last one life. More than any match has: 15:00 with a 5 s respawn is 180.
 pub const STORE_LIVES: u32 = 1_000;
 
-/// What a twist does to the kits.
+/// What a twist does to the kits. What a match of it arms, and its mode in the lobby, is an
+/// [`Armed`].
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum Twist {
-    /// Every sniper rifle and silenced gun an AK-12 ([`super::racket`]).
+    /// Every sniper rifle and silenced gun an AK-12, or an AK-74N in a level-10 room
+    /// ([`super::racket`]).
     Racket,
-    /// Every kit a Colt Python alone ([`super::cowboy`]); "Saloon" in the lobby.
+    /// Every kit a Winchester 1894 and a Colt Python, or a Colt Python alone
+    /// ([`super::cowboy`]); "Saloon (Winchester)" and "Saloon" in the lobby.
     Cowboy,
+    /// Every kit one of a hand of three, the same for every player, of a level band its room
+    /// allows ([`super::roulette`]); "FFA: Roulette" in the lobby, whatever the band.
+    Roulette,
 }
 
-impl Twist {
-    /// Every twist.
-    pub const ALL: [Self; 2] = [Self::Racket, Self::Cowboy];
+/// A twist as its match arms the kits: Cowboy's with its variation, Roulette's with its hand,
+/// drawn with the card ([`deal`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum Armed {
+    /// [`Twist::Racket`] with its room's gun.
+    Racket(Gun),
+    /// [`Twist::Cowboy`] in one of its variations.
+    Cowboy(Variation),
+    /// [`Twist::Roulette`] with its hand.
+    Roulette(Hand),
+}
 
-    /// Its number in the lobby: the rooms' cards, rows and banners, the matches' list. After every
-    /// mode's ([`GameMode::lobby_number`]: 7 is Scarcity's, 8 Free for All's).
+impl Armed {
+    /// The twist it is of.
+    pub const fn twist(self) -> Twist {
+        match self {
+            Self::Racket(_) => Twist::Racket,
+            Self::Cowboy(_) => Twist::Cowboy,
+            Self::Roulette(_) => Twist::Roulette,
+        }
+    }
+
+    /// Its number in the lobby ([`LobbyMode::number`]).
     pub const fn lobby_number(self) -> u8 {
+        LobbyMode::of(GameMode::FreeForAll, Some(self)).number()
+    }
+
+    /// The stacks it gives, which its match never charges (`session::v026g::autobuy`): nobody's,
+    /// though an account may own the same kind. Roulette's: every stack of its hand.
+    pub fn gives(self) -> Vec<u16> {
         match self {
-            Self::Racket => 9,
-            Self::Cowboy => 10,
+            Self::Racket(gun) => vec![super::racket::Arms::shared(gun).ammo],
+            Self::Cowboy(variation) => super::cowboy::Guns::shared().ammo(variation),
+            Self::Roulette(hand) => hand.stacks(),
         }
     }
 
-    /// The ammo the twist gives, which a match of it never charges (`session::v026g::autobuy`):
-    /// nobody's, though an account may own the same kind.
-    pub fn gives(self) -> u16 {
-        match self {
-            Self::Racket => super::racket::Arms::shared().ammo,
-            Self::Cowboy => super::cowboy::Revolver::shared().ammo,
-        }
-    }
-
-    /// The twist of a lobby number.
-    pub fn of_lobby_number(number: u8) -> Option<Self> {
-        Self::ALL.into_iter().find(|twist| twist.lobby_number() == number)
-    }
-
-    /// `profile`'s kits as the twist arms them.
+    /// `profile`'s kits as it arms them.
     pub fn arm(self, profile: &mut MatchProfile) {
         match self {
-            Self::Racket => super::racket::arm(profile, &super::racket::Arms::shared()),
-            Self::Cowboy => super::cowboy::arm(profile, &super::cowboy::Revolver::shared()),
+            Self::Racket(gun) => super::racket::arm(profile, &super::racket::Arms::shared(gun)),
+            Self::Cowboy(variation) => {
+                super::cowboy::arm(profile, &super::cowboy::Guns::shared(), variation)
+            }
+            Self::Roulette(hand) => super::roulette::arm(profile, &hand),
+        }
+    }
+}
+
+/// What the lobby calls the mode of a match: a mode's own, or a free-for-all's twist as it arms
+/// (the rooms' cards, rows and banners, the matches' list, the history).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum LobbyMode {
+    Plain(GameMode),
+    Racket,
+    Cowboy(Variation),
+    Roulette(Band),
+}
+
+impl LobbyMode {
+    /// Every one.
+    pub const ALL: [Self; 14] = [
+        Self::Plain(GameMode::Batteries),
+        Self::Plain(GameMode::TimedBatteries),
+        Self::Plain(GameMode::TeamDeathmatch),
+        Self::Plain(GameMode::Research),
+        Self::Plain(GameMode::FreeForAll),
+        Self::Plain(GameMode::Blackout),
+        Self::Plain(GameMode::FreezeTag),
+        Self::Plain(GameMode::ArtefactHunt),
+        Self::Racket,
+        Self::Cowboy(Variation::Colt),
+        Self::Cowboy(Variation::WinchesterAndColt),
+        Self::Roulette(Band::Low),
+        Self::Roulette(Band::Mid),
+        Self::Roulette(Band::High),
+    ];
+
+    /// A match of `mode` with `twist`.
+    pub const fn of(mode: GameMode, twist: Option<Armed>) -> Self {
+        match twist {
+            None => Self::Plain(mode),
+            Some(Armed::Racket(_)) => Self::Racket,
+            Some(Armed::Cowboy(variation)) => Self::Cowboy(variation),
+            Some(Armed::Roulette(hand)) => Self::Roulette(hand.band()),
+        }
+    }
+
+    /// Its number in the lobby. A twist's is after every mode's ([`GameMode::lobby_number`]: 7 is
+    /// Scarcity's, 8 Free for All's); Saloon's by its variation (the owner, 2026-11-15: "make it
+    /// visible in names", "so people know what they get and can vote based on this"); Roulette's by
+    /// its band, after Freeze Tag's 12 and Artifact Hunt's 13.
+    pub const fn number(self) -> u8 {
+        match self {
+            Self::Plain(mode) => mode.lobby_number(),
+            Self::Racket => 9,
+            Self::Cowboy(Variation::Colt) => 10,
+            Self::Cowboy(Variation::WinchesterAndColt) => 11,
+            Self::Roulette(Band::Low) => 14,
+            Self::Roulette(Band::Mid) => 15,
+            Self::Roulette(Band::High) => 16,
+        }
+    }
+
+    /// The one of a lobby number.
+    pub fn of_number(number: u8) -> Option<Self> {
+        Self::ALL.into_iter().find(|mode| mode.number() == number)
+    }
+
+    /// The mode whose map and rules it plays: a twist's is the free-for-all.
+    pub const fn mode(self) -> GameMode {
+        match self {
+            Self::Plain(mode) => mode,
+            Self::Racket | Self::Cowboy(_) | Self::Roulette(_) => GameMode::FreeForAll,
+        }
+    }
+
+    /// The key of its name in the game's texts: the one the rooms name it by
+    /// (`RoomsText.as`, `MODES`; a test holds the two together).
+    pub const fn name_key(self) -> &'static str {
+        match self {
+            Self::Plain(GameMode::Batteries) => "st_srp_mode_protective_device",
+            Self::Plain(GameMode::TimedBatteries) => "st_srp_mode_chargers",
+            Self::Plain(GameMode::TeamDeathmatch) => "st_srp_mode_team_deathmatch",
+            Self::Plain(GameMode::Research) => "st_srp_mode_research",
+            Self::Plain(GameMode::Blackout) => "st_srp_mode_blackout",
+            Self::Plain(GameMode::FreeForAll) => "st_srp_mode_free_for_all",
+            Self::Plain(GameMode::FreezeTag) => "st_srp_mode_freeze_tag",
+            Self::Plain(GameMode::ArtefactHunt) => "st_srp_mode_artefact_hunt",
+            Self::Racket => "st_srp_mode_racket",
+            Self::Cowboy(Variation::Colt) => "st_srp_mode_cowboy",
+            Self::Cowboy(Variation::WinchesterAndColt) => "st_srp_mode_cowboy_winchester",
+            Self::Roulette(Band::Low) => "st_srp_mode_roulette_low",
+            Self::Roulette(Band::Mid) => "st_srp_mode_roulette_mid",
+            Self::Roulette(Band::High) => "st_srp_mode_roulette_high",
         }
     }
 }
@@ -122,7 +238,7 @@ impl Twist {
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Played {
     map: MatchMap,
-    twist: Option<Twist>,
+    twist: Option<Armed>,
 }
 
 impl Played {
@@ -132,7 +248,7 @@ impl Played {
     }
 
     /// `map` with `twist`, if it is a free-for-all's.
-    pub fn twisted(map: MatchMap, twist: Twist) -> Option<Self> {
+    pub fn twisted(map: MatchMap, twist: Armed) -> Option<Self> {
         (map.mode() == GameMode::FreeForAll).then_some(Self {
             map,
             twist: Some(twist),
@@ -155,13 +271,18 @@ impl Played {
     }
 
     pub fn twist(self) -> Option<Twist> {
+        self.twist.map(Armed::twist)
+    }
+
+    /// The twist as it arms the kits: Cowboy's with its variation.
+    pub fn armed(self) -> Option<Armed> {
         self.twist
     }
 
     /// Its number in the lobby: the twist's, else the mode's.
     pub fn lobby_number(self) -> u8 {
         self.twist
-            .map_or_else(|| self.mode().lobby_number(), Twist::lobby_number)
+            .map_or_else(|| self.mode().lobby_number(), Armed::lobby_number)
     }
 
     /// `profile`'s kits for the match: the twist's arms, or as they are.
@@ -177,33 +298,81 @@ mod tests {
     use super::super::maps::{self, playable_in};
     use super::*;
 
+    /// The rooms name each mode by the same key (`RoomsText.as`, `MODES`): the site's names and
+    /// the game's cannot part.
+    #[test]
+    fn the_lobby_modes_are_named_as_the_rooms_name_them() {
+        let rooms = include_str!("../../../../flash/lobby_menu/src/survarium/rooms/RoomsText.as");
+        let modes = rooms.split_once("MODES:Object = {").unwrap().1;
+        let modes = modes.split_once("};").unwrap().0;
+        let mut named: Vec<(u8, &str)> = modes
+            .lines()
+            .filter_map(|line| line.trim().strip_prefix('"'))
+            .map(|line| {
+                let (number, key) = line.split_once("\": \"").unwrap();
+                (number.parse().unwrap(), key.trim_end_matches(',').trim_end_matches('"'))
+            })
+            .collect();
+        named.sort_unstable();
+        let mut own: Vec<(u8, &str)> = LobbyMode::ALL
+            .iter()
+            .map(|mode| (mode.number(), mode.name_key()))
+            .collect();
+        own.sort_unstable();
+        assert_eq!(own, named);
+        for mode in LobbyMode::ALL {
+            assert_eq!(LobbyMode::of_number(mode.number()), Some(mode));
+        }
+        assert_eq!(LobbyMode::of_number(7), None);
+    }
+
     #[test]
     fn a_twist_is_a_free_for_alls_alone() {
         for map in maps::playable() {
             let played = MatchMap::of(map.id).unwrap();
-            let twisted = Played::twisted(played, Twist::Racket);
+            let twisted = Played::twisted(played, Armed::Racket(Gun::Ak12));
             assert_eq!(twisted.is_some(), map.mode == GameMode::FreeForAll, "{}", map.id);
             assert_eq!(Played::plain(played).lobby_number(), map.mode.lobby_number());
         }
-        let ffa = playable_in(GameMode::FreeForAll).next().unwrap();
-        let racket = Played::twisted(MatchMap::of(ffa.id).unwrap(), Twist::Racket).unwrap();
+        let ffa = playable_in(GameMode::FreeForAll).find(|map| !map.twists_only).unwrap();
+        let racket = Armed::Racket(Gun::Ak12);
+        let racket = Played::twisted(MatchMap::of(ffa.id).unwrap(), racket).unwrap();
         assert_eq!((racket.lobby_number(), racket.mode()), (9, GameMode::FreeForAll));
-        // Every roll below the shares' sum: each its share; of fewer plays, each of them its own.
-        let drawn = |plays: Plays, twist| (0..plays.total()).filter(|&roll| plays.draw(roll) == twist).count();
-        for (twist, share) in SHARES {
-            assert_eq!(drawn(Plays::ALL, twist), share as usize);
+        // Every first roll below the shares' sum, the later ones (a Roulette's band and hand) 0:
+        // what each card plays, by its lobby number.
+        let rolls = |map: MatchMap, max_level: u8| {
+            let mut total = 0;
+            draw(map, max_level, &mut |below| {
+                total = total.max(below);
+                0
+            });
+            (0..total).map(move |roll| {
+                let mut first = Some(roll);
+                draw(map, max_level, &mut |_| first.take().unwrap_or(0)).lobby_number()
+            })
+        };
+        let plain = MatchMap::of(ffa.id).unwrap();
+        let count = |map, max_level, number| rolls(map, max_level).filter(|&n| n == number).count();
+        // 30 / 30 / 30 / 5 / 5, Roulette's band the room's first (`below` 0), Racket by the gun.
+        assert_eq!(rolls(plain, 15).count(), 100);
+        assert_eq!((count(plain, 15, 8), count(plain, 15, 9)), (30, 30));
+        assert_eq!((count(plain, 15, 14), count(plain, 15, 11), count(plain, 15, 10)), (30, 5, 5));
+        // A room that allows no band: no Roulette, the rest as before.
+        assert_eq!((rolls(plain, 4).count(), count(plain, 4, 14)), (70, 0));
+        // Racket in a level-10 room: the AK-74N.
+        let racket = draw(plain, 10, &mut |n| if n == 100 { 30 } else { 0 }).armed();
+        assert_eq!(racket, Some(Armed::Racket(Gun::Ak74n)));
+        // A map played with a twist only: the twists alone, Roulette's too.
+        for map in playable_in(GameMode::FreeForAll).filter(|map| map.twists_only) {
+            let map = MatchMap::of(map.id).unwrap();
+            assert_eq!(rolls(map, 15).count(), 70);
+            assert_eq!((count(map, 15, 8), count(map, 15, 14)), (0, 30));
         }
-        let rare = Plays::of([Some(Twist::Racket), Some(Twist::Cowboy)]).unwrap();
-        assert_eq!((rare.total(), drawn(rare, None), drawn(rare, Some(Twist::Cowboy))), (55, 0, 10));
-        let plain = Plays::of([None, None]).unwrap();
-        assert_eq!((plain.total(), drawn(plain, None)), (45, 45));
-        assert_eq!(Plays::of([None, Some(Twist::Racket), Some(Twist::Cowboy)]), Some(Plays::ALL));
-        assert_eq!(Plays::of([]), None);
-        // No twist shares a number with a mode (nor with Scarcity's 7, not on main).
-        for twist in Twist::ALL {
-            assert_eq!(GameMode::of_lobby_number(twist.lobby_number()), None);
-            assert_ne!(twist.lobby_number(), 7);
-            assert_eq!(Twist::of_lobby_number(twist.lobby_number()), Some(twist));
+        // Each twist as it arms its own number; none a mode's (nor Scarcity's 7, not on main).
+        for number in [9, 10, 11, 14, 15, 16] {
+            let mode = LobbyMode::of_number(number).unwrap();
+            assert_eq!(mode.mode(), GameMode::FreeForAll, "{number}");
+            assert_eq!(GameMode::of_lobby_number(number), None);
         }
     }
 }

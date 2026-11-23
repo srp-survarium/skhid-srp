@@ -3,17 +3,13 @@
 our patches call, whatever registers, stack slots and cleanup the game's
 compiler (LTO) gave the real one.
 
-    python engine_026g.py --write
-        writes engine_026g.h (the C declarations), engine_026g.inc (their
-        externs for NASM patches), engine_026g.rs (their declarations for
-        Rust with C's types: research_arena's), raw_026g.rs (the Rust
-        patches' `raw` layer: the declarations typed by the kinds'
-        handles, fields_026g.tsv's kinds and fields, sites_026g.tsv's
-        `holds`) and engine_026g.asm (the thunks and the direct functions'
-        addresses, the arena's block engine.code: link_026g.py links it)
-    python engine_026g.py --check
-        says whether those five files are what engine_026g.tsv and the
-        re-kit rows give here (the self-test runs the same)
+Every link writes (patch_026g.py's generate_sources; never committed)
+engine_026g.h (the C declarations), engine_026g.inc (their externs for NASM
+patches), engine_026g.rs (their declarations for Rust with C's types:
+research_arena's), raw_026g.rs (the Rust patches' `raw` layer: the
+declarations typed by the kinds' handles, fields_026g.tsv's kinds and fields,
+sites_026g.tsv's `holds`) and engine_026g.asm (the thunks and the direct
+functions' addresses, the arena's block engine.code).
 
 The library's functions are engine_026g.tsv's rows (in any order: each is a
 global symbol of its own, which the link resolves for every caller):
@@ -94,11 +90,9 @@ NASM includes engine_026g.inc and does `push ... / call engine_... / add esp,
 4n`; the link puts each call's address in. check_engine_026g.py proves each
 thunk against the rows and the original exe (the self-test runs it).
 """
-import argparse
 import csv
 from pathlib import Path
 import re
-import sys
 import tempfile
 
 import link_026g as linker
@@ -183,26 +177,41 @@ def rows_of(va, abi=None, inputs=None):
     abi = read_tsv(REKIT / "abi.tsv") if abi is None else abi
     inputs = read_tsv(REKIT / "abi_inputs.tsv") if inputs is None else inputs
     out = {"locations": set(), "cleanups": set(), "results": set(), "names": set(), "roles": {}}
-    for row in abi:
-        if int(row["va"], 16) == va:
-            out["names"].add(row["name"])
-            for cleanup in re.split(r"[ ,;/]+", row["ret_cleanup"].strip()):
-                if cleanup and not cleanup.isdigit():
-                    raise Refused(f"{va:#x}: ret_cleanup {row['ret_cleanup']!r} is no number of bytes")
-                if cleanup:
-                    out["cleanups"].add(int(cleanup))
-            if result_of(row["result"]):
-                out["results"].add(result_of(row["result"]))
-    for row in inputs:
-        if int(row["va"], 16) == va:
-            out["names"].add(row["name"])
-            if " at 0x" in row["location"]:
-                continue                     # a register inside the function (a site's), no input
+    for row in by_va(abi).get(va, ()):
+        out["names"].add(row["name"])
+        for cleanup in re.split(r"[ ,;/]+", row["ret_cleanup"].strip()):
+            if cleanup and not cleanup.isdigit():
+                raise Refused(f"{va:#x}: ret_cleanup {row['ret_cleanup']!r} is no number of bytes")
+            if cleanup:
+                out["cleanups"].add(int(cleanup))
+        if result_of(row["result"]):
+            out["results"].add(result_of(row["result"]))
+    for row in by_va(inputs).get(va, ()):
+        out["names"].add(row["name"])
+        if " at 0x" in row["location"]:
+            continue                     # a register inside the function (a site's), no input
 
-            out["locations"].add(location(row["location"]))
-            out["roles"].setdefault(location(row["location"]), []).append(row["role"])
+        out["locations"].add(location(row["location"]))
+        out["roles"].setdefault(location(row["location"]), []).append(row["role"])
     out["names"].discard("")
     return out
+
+
+_BY_VA = []                              # [(a table's rows, {VA: its rows in order})], the last few tables
+
+
+def by_va(rows):
+    """{VA: [row]} of a re-kit table's rows (the list itself, read once: a
+    build asks for 800 functions' rows of 9,000)."""
+    for known, index in _BY_VA:
+        if known is rows and sum(map(len, index.values())) == len(rows):
+            return index
+    index = {}
+    for row in rows:
+        index.setdefault(int(row["va"], 16), []).append(row)
+    _BY_VA.append((rows, index))
+    del _BY_VA[:-4]
+    return index
 
 
 def parse_prototype(text):
@@ -364,8 +373,9 @@ def com_method(row, name, params, ret, vostok):
     if not match:
         raise Refused(f"{name}: a COM method's va {row['va']!r} is <Interface>+<slot> (ID3D11DeviceContext+0x3c)")
     interface, slot = match.group(1), number(match.group(2))
-    if slot % 4 or not 12 <= slot < 0x400:
-        raise Refused(f"{name}: {row['va']}: a method's slot is a multiple of 4, past IUnknown's three, under 0x400")
+    if slot % 4 or not 8 <= slot < 0x400:
+        raise Refused(f"{name}: {row['va']}: a method's slot is a multiple of 4, Release (8) or past IUnknown's three, "
+                      "under 0x400")
     if name != row["symbol"] or not re.fullmatch(r"engine_[a-z0-9_]+", name):
         raise Refused(f"{row['symbol']}: the prototype names {name}; a symbol is engine_<what>")
     if row["arguments"].strip() != "-":
@@ -873,32 +883,5 @@ def outputs(spec=None, abi=None, inputs=None, vtables=None):
             RUST: rust_text(fs).encode(), RAW: raw_text(fs, fields()).encode()}
 
 
-def stale():
-    """The files that are not what the rows give ([] when all are current)."""
-    return [path.name for path, content in outputs().items()
-            if not path.exists() or path.read_bytes() != content]
-
-
-def main():
-    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("--write", action="store_true")
-    parser.add_argument("--check", action="store_true")
-    args = parser.parse_args()
-    if args.write == args.check:
-        parser.error("--write or --check")
-    try:
-        files = outputs()
-    except Refused as error:
-        sys.exit(f"engine_026g.tsv: {error}")
-    if args.write:
-        for path, content in files.items():
-            path.write_bytes(content)
-        print(f"{ASM.name}: {len(functions())} functions (link_026g.py --write links them into the arena)")
-        return
-    bad = [path.name for path, content in files.items() if not path.exists() or path.read_bytes() != content]
-    print("engine_026g: " + ("current" if not bad else "NOT what the rows give: " + ", ".join(bad)))
-    raise SystemExit(1 if bad else 0)
-
-
 if __name__ == "__main__":
-    main()
+    raise SystemExit(f"{__file__}: its files are written by every build (python link_026g.py --generate)")

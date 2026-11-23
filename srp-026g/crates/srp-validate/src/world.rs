@@ -2,6 +2,7 @@
 mod bullets;
 mod effects;
 mod frame;
+pub mod freeze;
 mod objects;
 pub use bullets::{Bullet, BulletFault, Bullets, Lamps, WeaponSlot, bullets};
 pub use effects::{
@@ -25,7 +26,8 @@ pub use inventory::{
 };
 mod player_tail;
 pub use player_tail::{
-    ArtefactSlots, BatteryAnimation, BatteryMotion, BatteryState, CarriedBattery, Head, HitEffect,
+    ArtefactSlots, BatteryAnimation, BatteryMotion, BatteryState, BatteryStrike, CarriedBattery,
+    Head, HitEffect,
     HitEmitter, MAX_HIT_EFFECTS, MAX_PLAYER_EFFECTS,
     InventoryHeader, PlayerState, Stamina, player_head, player_tail,
 };
@@ -38,6 +40,7 @@ pub use weapon::{
 };
 mod rules;
 mod statistics;
+mod weapons;
 use crate::{KITS, Part, Reason, Refusal, mode};
 pub use frame::{Block, Frame, PLAYER_STATE_CAP, Section, frame};
 pub use rules::{
@@ -49,6 +52,12 @@ pub use statistics::{
     BatteryStatus, ByPlace, EVENTS, Events, LastTaker, OwnerTeam, PlayerStatistics, Statistics, Tail,
     Winner, statistics,
 };
+pub use weapons::{Decimetres, DictId, Killing, PlaceWeapons, TICK_MS, Totals, WEAPONS, WeaponCounts, Weapons};
+/// The weapons block alone: what a game writes ([`weapons::encode`]) and
+/// loads after the statistics' tail.
+pub mod weapon_block {
+    pub use super::weapons::{Fault, MAX_BLOCK, VERSION, encode};
+}
 
 /// Native weapon and ammo slot ordering.
 pub const PLAYER_FIELDS_AT: usize = 2 + weapon_pickup::Record::BYTES;
@@ -96,6 +105,15 @@ pub struct Context<'a> {
     /// it a player's state is read to its exact end ([`Inventory`]);
     /// without it the walk stops at the inventory header.
     pub inventory: Option<&'a Inventory<'a>>,
+    /// The items dictionary's dict ids, rising, when known: what a weapon
+    /// counted in the statistics (exe patch 165) is one of. A game counts
+    /// under its own items' ids and reads them nowhere: it leaves it `None`.
+    pub dict_ids: Option<&'a [u16]>,
+    /// Mode 13: the map's Artifact Hunt parameters, which its rule's bytes
+    /// are read with (the game: its rule's own; the server: the mode
+    /// config's, `Params::parse`). A world of mode 13 without them is
+    /// refused: its rule cannot be read.
+    pub artefact_hunt: Option<&'a artefact_hunt_rule::Params>,
 }
 
 /// What a world's player block is checked against.
@@ -192,8 +210,27 @@ pub fn validate_frame(frame: &Frame<'_>, context: &Context<'_>) -> Result<(), Re
     statistics(&frame.statistics(), context)?;
     objects(&frame.objects(), context)?;
     rules(&frame.rules(), context)?;
+    artefact_hunt(frame, context)?;
     physics(&frame.physics())?;
     effects(&frame.effects())
+}
+
+/// Mode 13: the statistics' standing is the rule's
+/// ([`rules::artefact_hunt_standing`]). The two sections are each read
+/// again (the checks before took them whole); nothing in other modes.
+pub fn artefact_hunt(frame: &Frame<'_>, context: &Context<'_>) -> Result<(), Refusal> {
+    if context.game_mode != mode::ARTEFACT_HUNT {
+        return Ok(());
+    }
+    let section = frame.statistics();
+    let tail = statistics::Statistics::read(&section, context.places, battery_records(context))?.tail();
+    let read = Rules::read(&frame.rules(), context)?;
+    match read.mode_rule() {
+        ModeRule::ArtefactHunt(rule) if !rules::artefact_hunt_standing(rule, &tail) => Err(
+            Refusal::new(Part::Statistics, section.at, Reason::ArtefactHuntStanding),
+        ),
+        _ => Ok(()),
+    }
 }
 
 /// Parse a body and validate its supported semantic sections.

@@ -24,7 +24,8 @@
 //!      (`respawns + 1` times the most a kit's slots hold of the item: a
 //!      life takes at most its slots' counts out of the store, 0x2FCC4A;
 //!      a respawn is a death or a kit change before play began, which the
-//!      games of patch 31 make a respawn in place);
+//!      games of patch 31 make a respawn in place, and in Artifact Hunt a
+//!      round start, which respawns everyone);
 //!    - for ammo, never more than the bullets the statistics counted
 //!      (event 22), except buckshot, whose round flies as ten bullets (its
 //!      config's `buckshot: 10`) while it is not known whether the counter
@@ -55,7 +56,7 @@ use survarium::v026g::item_params::{item_params, shop_unit};
 use survarium::v026g::lobby::{SpentMoney, limits};
 use survarium::v026g::match_msgs::players::Supplies;
 use survarium::v026g::prices;
-use survarium::v026g::twist::Twist;
+use survarium::v026g::twist::Armed;
 
 use super::account::Account;
 
@@ -141,10 +142,10 @@ fn used_by_counters(account: &Account, shots: &[u32], buckshot: Option<u16>) -> 
 /// id, units)`. `supplies` is the player's block of the last trusted
 /// snapshot, `shots[kit]` the bullets its counters say each kit fired,
 /// `respawns` how often it began a new life: its deaths and its kit
-/// changes before play began, `twist` the twist the match armed its kits
+/// changes before play began (and an Artifact Hunt's round starts), `twist` the twist the match armed its kits
 /// with: then they were not the account's, without a block the counters
 /// prove nothing of its stacks, and the ammo the twist gives
-/// ([`Twist::gives`]) is nobody's, never charged though the account owns
+/// ([`Armed::gives`]) is nobody's, never charged though the account owns
 /// that kind too. Call it before the match's pay or
 /// drop changes a stack. See the module.
 pub fn used(
@@ -152,8 +153,12 @@ pub fn used(
     supplies: Option<&Supplies>,
     shots: &[u32],
     respawns: u32,
-    twist: Option<Twist>,
+    twist: Option<Armed>,
 ) -> Vec<(u16, u32)> {
+    // Roulette's kits held nothing of the account's (`survarium::v026g::roulette`).
+    if matches!(twist, Some(Armed::Roulette(_))) {
+        return Vec::new();
+    }
     let dictionary = Dictionary::shared();
     let buckshot = dictionary.item_named(BUCKSHOT).map(|item| item.dict_id);
     let block = supplies.filter(|supplies| !supplies.alive || supplies.inventory_read);
@@ -179,8 +184,8 @@ pub fn used(
         None if twist.is_some() => Vec::new(),
         None => used_by_counters(account, shots, buckshot),
     };
-    if let Some(given) = twist.map(Twist::gives) {
-        used.retain(|&(dict_id, _)| dict_id != given);
+    if let Some(given) = twist.map(Armed::gives) {
+        used.retain(|(dict_id, _)| !given.contains(dict_id));
     }
     // Never more than the account owns.
     for (dict_id, units) in &mut used {
@@ -258,6 +263,8 @@ pub fn settle(account: &mut Account, used: &[(u16, u32)]) -> Settled {
 mod tests {
     use super::*;
     use crate::v026g::account::KitSlot;
+    use survarium::v026g::cowboy::Variation;
+    use survarium::v026g::racket::Gun;
     use survarium::v026g::lobby::FULL_CONDITION;
     use survarium::v026g::lobby::client_model::{Client, Decoded};
     use survarium::v026g::match_msgs::players::ItemLeft;
@@ -430,7 +437,7 @@ mod tests {
         // Without the block the fallback, the kit's counter, charges the 300.
         assert_eq!(used(&account, None, &[300, 0, 0], 0, None), [(rounds, 300)]);
         // Not in a twisted match: its kits were not the account's.
-        assert_eq!(used(&account, None, &[300, 0, 0], 0, Some(Twist::Racket)), []);
+        assert_eq!(used(&account, None, &[300, 0, 0], 0, Some(Armed::Racket(Gun::Ak12))), []);
     }
 
     /// A twisted match never charges the ammo its twist gave, though the
@@ -439,7 +446,8 @@ mod tests {
     #[test]
     fn the_ammo_a_twist_gives_is_never_charged() {
         let (mut account, _, _) = rifleman(300);
-        let given = Twist::Cowboy.gives();
+        let colt = Armed::Cowboy(Variation::Colt);
+        let given = colt.gives()[0];
         let own = account.add_item(given, 200);
         account.kits[1].slots[9] = Some(KitSlot {
             item_id: own,
@@ -452,7 +460,7 @@ mod tests {
             [(rounds, 30), (given, 30)]
         );
         assert_eq!(
-            used(&account, Some(&supplies), &[30, 0, 0], 0, Some(Twist::Cowboy)),
+            used(&account, Some(&supplies), &[30, 0, 0], 0, Some(colt)),
             [(rounds, 30)]
         );
     }
@@ -481,20 +489,21 @@ mod tests {
         let (mut account, _, ammo) = rifleman(300);
         account.generic_money = 1_000;
         let rounds = dict("ammo_5.45x39_7n6m");
-        // 45 used: two clips of 30 at 30 silver (its `base_cost`).
+        let clip = survarium::v026g::prices::price(rounds).unwrap().cost;
+        // 45 used: two clips of 30.
         let settled = settle(&mut account, &[(rounds, 45)]);
         assert_eq!(settled.bought, [(rounds, 60)]);
         assert_eq!(settled.spent.autobuy_ammo, [(60, rounds)]);
         assert!(settled.spent.autobuy_consumables.is_empty());
         assert_eq!(account.item(ammo).unwrap().condition_or_stack, 315);
-        assert_eq!(account.generic_money, 940);
+        assert_eq!(account.generic_money, 1_000 - 2 * clip);
         // Silver for one clip only.
-        account.generic_money = 50;
+        account.generic_money = clip + clip / 2;
         let settled = settle(&mut account, &[(rounds, 90)]);
         assert_eq!(settled.bought, [(rounds, 30)]);
         assert_eq!(settled.spent.autobuy_ammo, [(30, rounds)]);
         assert_eq!(account.item(ammo).unwrap().condition_or_stack, 255);
-        assert_eq!(account.generic_money, 20);
+        assert_eq!(account.generic_money, clip / 2);
         // No silver: nothing bought, nothing listed.
         account.generic_money = 0;
         let settled = settle(&mut account, &[(rounds, 30)]);
@@ -518,7 +527,7 @@ mod tests {
         assert_eq!(settled.bought, [(rounds, 30)]);
         assert_eq!(account.item(ammo).unwrap().condition_or_stack, 300);
         assert_eq!(account.item(kits).unwrap().condition_or_stack, 3);
-        assert_eq!(account.generic_money, 970);
+        assert_eq!(account.generic_money, 1_000 - survarium::v026g::prices::price(rounds).unwrap().cost);
     }
 
     #[test]

@@ -13,6 +13,92 @@ use super::parse::Reader;
 use super::world::read;
 use crate::raw;
 
+/// The bytes `reader` has not read: from its cursor to its end; none when the
+/// cursor is outside its bytes.
+///
+/// # Safety
+/// `reader` is a live reader of a message, its bytes alive for `'a`.
+pub(super) unsafe fn unread<'a>(reader: raw::BufferReader) -> Reader<'a> {
+    // SAFETY: the caller's.
+    let (begin, cursor, size) = unsafe { (reader.begin(), reader.cursor(), *reader.size()) };
+    let (first, at) = (begin as usize, cursor as usize);
+    let end = first.wrapping_add(size as usize);
+    if cursor.is_null() || at < first || at > end || end < first {
+        return Reader::new(&[]);
+    }
+    // SAFETY: begin..begin+size are the message's bytes, alive for 'a, and
+    // cursor..end lies inside them.
+    unsafe { Reader::of_memory(cursor, end - at) }
+}
+
+/// A maps_dict id: the map and mode a match names. The options' byte holds
+/// one up to 255, or the low byte of a wider one whose whole id srp's block
+/// gives (patch 154 keeps it in the options' +577B8h, `map_id`).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct MapId(u16);
+
+impl MapId {
+    pub const fn new(id: u16) -> Self {
+        Self(id)
+    }
+
+    pub const fn get(self) -> u16 {
+        self.0
+    }
+
+    pub const fn low_byte(self) -> u8 {
+        self.0.to_le_bytes()[0]
+    }
+
+    /// Whether the options' byte cannot hold it.
+    pub const fn over_a_byte(self) -> bool {
+        self.0 > u8::MAX as u16
+    }
+}
+
+impl From<u8> for MapId {
+    fn from(id: u8) -> Self {
+        Self(u16::from(id))
+    }
+}
+
+/// The map id every reader of `options` takes (+577B8h): what patch 154
+/// wrote at their read, a u16 in a u32.
+///
+/// # Safety
+/// `options` are alive on the hook's thread.
+pub(in crate::vostok) unsafe fn map_id_of(options: raw::MatchOptions) -> MapId {
+    // SAFETY: the caller's; a plain value of the options.
+    MapId::new(unsafe { read(options.map_id()) } as u16)
+}
+
+/// A match's places: the options hold room for 20, whatever the roster.
+pub const PLACES: usize = 20;
+
+/// Where the places of a match's options are: a profile at one of them is
+/// that place's (a player object's profile is its place in the options;
+/// initialize_match 0x234EEF: place i at the options + i x 45FCh), any
+/// other profile is none of the match's.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Places {
+    first: u32,
+}
+
+impl Places {
+    /// The places whose first is at `first`.
+    pub const fn at(first: u32) -> Places {
+        Places { first }
+    }
+
+    /// The place whose profile is at `address`, if it is one of these.
+    pub fn place_of(self, address: u32) -> Option<usize> {
+        let size = raw::MatchPlace::SIZE as u32;
+        let offset = address.checked_sub(self.first)?;
+        let place = (offset / size) as usize;
+        (offset % size == 0 && place < PLACES).then_some(place)
+    }
+}
+
 /// The options just read and the reader they were read from (its cursor
 /// where the options end).
 pub struct OptionsRead<'t> {
@@ -48,15 +134,14 @@ impl<'t> OptionsRead<'t> {
     /// cursor to its end; none when the cursor is outside its bytes.
     pub fn rest(&self) -> Reader<'t> {
         // SAFETY: a live reader, for the hook.
-        let (begin, cursor, size) = unsafe { (self.reader.begin(), self.reader.cursor(), *self.reader.size()) };
-        let (first, at) = (begin as usize, cursor as usize);
-        let end = first.wrapping_add(size as usize);
-        if cursor.is_null() || at < first || at > end || end < first {
-            return Reader::new(&[]);
-        }
-        // SAFETY: begin..begin+size are the message's bytes, alive for the hook,
-        // and cursor..end lies inside them.
-        unsafe { Reader::of_memory(cursor, end - at) }
+        unsafe { unread(self.reader) }
+    }
+
+    /// Where these options' places are.
+    pub fn place_array(&self) -> Places {
+        // SAFETY: the options are alive for the hook; only the address of
+        // their first place is taken.
+        Places::at(unsafe { self.options.first_place() }.address())
     }
 
     /// The match's places' count: the roster the rules and the hud state are
@@ -66,13 +151,27 @@ impl<'t> OptionsRead<'t> {
         unsafe { read(self.options.places()) }
     }
 
+    /// The options' map byte (+577B4h): the map id, or its low byte.
+    pub fn map_byte(&self) -> u8 {
+        // SAFETY: the options are alive for the hook; a plain value of theirs.
+        unsafe { read(self.options.map()) }
+    }
+
+    /// Patch 154: the map id every reader of the options takes from now on
+    /// (+577B8h, the game's "match maker id", logged only).
+    pub fn set_map_id(&mut self, id: MapId) {
+        // SAFETY: the options are alive for the hook; the field is a plain u32
+        // nothing else writes.
+        unsafe { *self.options.map_id() = u32::from(id.get()) }
+    }
+
     /// What names the match, for the crash report's breadcrumbs.
     pub fn context(&self, blackout: bool) -> Match {
         // SAFETY: the options are alive for the hook; plain values of theirs.
         unsafe {
             Match {
                 id: read(self.options.seed()),
-                map: read(self.options.map()),
+                map: map_id_of(self.options),
                 places: read(self.options.places()),
                 level: read(self.options.level()),
                 blackout,

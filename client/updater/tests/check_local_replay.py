@@ -5,6 +5,7 @@ Run after build.sh: python tests/check_local_replay.py --wine /path/to/wine
 Uses only a stand-in game. Keeps its temporary directory as evidence.
 """
 import argparse
+import getpass
 import hashlib
 import http.server
 import json
@@ -33,15 +34,15 @@ def main():
     x86 = game / 'binaries' / 'x86'
     x86.mkdir(parents=True)
     updater = x86 / 'updater_skhid.exe'
-    fake = here / 'fake_exe/target/i686-win7-windows-msvc/release/fake-exe.exe'
-    shutil.copy2(here.parent / 'exe/target/i686-win7-windows-msvc/release/updater_skhid.exe', updater)
+    fake = here / 'fake_exe/target/i686-pc-windows-msvc/release/fake-exe.exe'
+    shutil.copy2(here.parent / 'exe/target/i686-pc-windows-msvc/release/updater_skhid.exe', updater)
     shutil.copy2(fake, x86 / 'survarium_skhid.exe')
     (x86 / 'updater_skhid.patches').write_text('{}')
     status = x86 / 'updater_skhid.patches.status'
     status.write_text('ready\r\n')
     started = x86 / 'survarium_skhid.exe.started.txt'
     def log():
-        return run_logs.read(x86).decode('utf-8', 'replace')
+        return run_logs.read(game / 'logs').decode('utf-8', 'replace')
 
     def win(path):
         return 'Z:' + str(path).replace('/', '\\')
@@ -152,6 +153,14 @@ def main():
     finally:
         server.shutdown()
         server.server_close()
+    # The updater keeps the player's route in Documents\survarium: a folder of
+    # the test's own, never the one Wine links to this user's home.
+    documents = root / 'prefix' / 'drive_c' / 'users' / getpass.getuser() / 'Documents'
+    if documents.is_symlink():
+        documents.unlink()
+    (documents / 'survarium').mkdir(parents=True, exist_ok=True)
+    import relay_play
+    relay_play.check(run, updater, x86, started, log, win, documents / 'survarium')
     assert hashlib.sha256(file.read_bytes()).hexdigest() == digest
     (root / 'result.json').write_text(json.dumps({'passed': True, 'updater_sha256':
         hashlib.sha256(updater.read_bytes()).hexdigest()}, indent=2) + '\n')

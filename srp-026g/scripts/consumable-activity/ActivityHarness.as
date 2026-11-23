@@ -38,6 +38,20 @@ package {
    return {slot_id:1, icon_row:18, icon_column:1, count:count, enabled:enabled,
            hotkey:"4", timer:artifact ? 12 : 0, cooldown:0, is_artefact:artifact};
   }
+  // An oxygen tank (icon cell 6, id 13) with `seconds` of air, as the game fills its slot.
+  private function tank(seconds:uint):Object {
+   return {slot_id:1, icon_row:14, icon_column:1, count:1, enabled:true,
+           hotkey:"4", timer:seconds, cooldown:0, is_artefact:false};
+  }
+  private static const SPRING_BLUE:uint = 0x0066FF;
+  private var normal:uint;
+  private function timerColour(expected:uint):void {
+   try {
+    var renderer:Object = slots.slots_list.getRendererAt(0);
+    if(renderer.count_timer.textColor != expected) throw new Error("countdown colour " + renderer.count_timer.textColor.toString(16) + " expected " + expected.toString(16));
+    trace("ACTIVITY countdown colour " + expected.toString(16));
+   } catch(err:Error) { failures.push("frame " + frame + ": " + err); }
+  }
   private function check(seconds:String, activation:Boolean, length:uint=1):void {
    try {
     if(slots.slots_list.dataProvider.length != length) throw new Error("slot count");
@@ -135,7 +149,13 @@ package {
     case 260: check("01",false); slots.setActivity(1,0,0,0); break;
     case 270: check("",false); red(false); slots.setActivity(1,3,0,0); slots.clean(); break;
     case 280: check("",false,0); slots.fillSlot(item(1,true)); break;
-    case 290: check("",false); red(false); finish(null); break;
+    case 290: check("",false); red(false); slots.fillSlot(tank(45)); break;
+    // Patch 180: phase 4, an oxygen tank whose Oxygen Rush runs, draws its native
+    // countdown in Spring's blue; the rest of the slot and the next ticks as before.
+    case 300: check("45",false); normal = slots.slots_list.getRendererAt(0).count_timer.textColor; if(normal == SPRING_BLUE) failures.push("the countdown is blue already"); slots.setActivity(1,4,0,0); break;
+    case 310: check("45",false); timerColour(SPRING_BLUE); slots.fillSlot(tank(44)); break;
+    case 320: check("44",false); timerColour(SPRING_BLUE); slots.setActivity(1,0,0,0); break;
+    case 330: check("44",false); timerColour(normal); finish(null); break;
    }
   }
   private function finish(error:String):void {

@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
 # check.sh <hud.swf> [work dir]: the hud's talking list (VoiceSpeakers) in Ruffle on a
 # private CPU-only virtual display (lavapipe, never the GPU), by VoiceSpeakersHarness.as: a
-# teammate's speaker blue, an opponent's pale red, a side change redrawn, a fade. Screenshots into
-# the work dir: talking.png (the whole 1280x720), talking-list.png (the list, 3x). Exits 0 when it
-# says pass; prints its lines. A work dir given is kept.
+# teammate's speaker blue, an opponent's pale red, a side change redrawn, a fade, names that
+# are methods of Object. Screenshots into the work dir: talking.png (the whole 1280x720),
+# talking-list.png (the list, 3x). Exits 0 when it says pass; prints its lines. A work dir given
+# is kept.
 set -euo pipefail
 here=$(dirname "$(readlink -f "$0")")
 hud=$(readlink -f "$1")

@@ -28,6 +28,8 @@ use crate::raw;
 
 /// A hud sound's playback mode (play 0x5ABA0's first argument).
 const LOOPED: u32 = 1;
+/// Once (the game's own hud sounds, 0x23F6F0).
+const ONCE: u32 = 0;
 /// A scene's fade state: fading in (process_fade 0x5C061).
 const FADING_IN: u32 = 1;
 /// The bytes of a track path, its zero too (a game path is shorter).
@@ -73,6 +75,39 @@ impl SoundUser {
             raw::engine_play_voice(Some(proxy), LOOPED, null(), null());
             Some(Voice(proxy))
         }
+    }
+}
+
+impl super::world::GameWorld<'_> {
+    /// `emitter` played once at `at`, a point sound of the world's scene
+    /// (game_world::play_sound 0x25B940, what a bullet's hit sound comes to):
+    /// heard as far as its spl_preset carries.
+    pub fn play_sound_at(&self, emitter: &Emitter, at: super::geometry::WorldPoint) {
+        let slot = emitter.0.address();
+        // SAFETY: the live game world, on the game's thread (its own sounds
+        // play there); play_sound takes a reference of the emitter for the
+        // call, the proxy it makes its own; the point is three f32.
+        unsafe { raw::engine_world_play_sound(Some(self.this), &slot, at.coordinates().as_ptr()) }
+    }
+}
+
+/// `emitter` played once as a hud sound in the game world's scene (its
+/// +94h), as the game's own hud sounds (damage_sound_effect 0x23F676..
+/// 0x23F6F8: emit_hud_sound, then the proxy's play in mode 0): its voice,
+/// which stops when let go; None when no proxy is free or the world has no
+/// scene.
+pub(in crate::vostok) fn play_once(world: raw::GameWorld, _: &Thread, emitter: &Emitter) -> Option<Voice> {
+    // SAFETY: the live game world's scene and its game's sound world's
+    // logic user, on the game's thread; emit fills `out` with a proxy of
+    // one reference (the Voice's).
+    unsafe {
+        let mut scene = Some(world.sound_scene()?);
+        let user = world.game()?.sound_world()?.logic_user()?;
+        let mut out = None;
+        raw::engine_emit_hud_sound(Some(emitter.0), &mut scene, Some(user), &mut out);
+        let proxy = out?;
+        raw::engine_play_voice(Some(proxy), ONCE, null(), null());
+        Some(Voice(proxy))
     }
 }
 
@@ -124,6 +159,11 @@ impl Emitter {
     /// `emitter` holds a reference that is now this Emitter's.
     pub(super) unsafe fn owning(emitter: raw::SoundEmitter) -> Emitter {
         Emitter(emitter)
+    }
+
+    /// Its handle, for a play call of another vostok module (the reference stays this Emitter's).
+    pub(super) fn handle(&self) -> raw::SoundEmitter {
+        self.0
     }
 }
 

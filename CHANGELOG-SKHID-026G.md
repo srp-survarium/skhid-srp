@@ -9,6 +9,364 @@ release that made it what it is now.
 
 ---
 
+## 23 Nov, 04:20 — TODO: the owner's words (update required)
+
+<!-- Revision 72 (026g-rev72), released 2026-11-23 04:20 UTC. To be worded for players; what it shipped: -->
+
+- TODO: #2438 Courier: the dead kit's artefacts found in its slots (they never moved)
+- TODO: #2439 Freeze Tag: only the frozen stop in the pause between rounds
+- TODO: #2443 Modes page: fewer lines (rooms, Roulette)
+- TODO: #2440 Artifact Container: a kit's slot made a pocket again by a click
+- TODO: #2468 Patch 101: a foot step in a state with no foot material is dropped (crash in step_manager::on_step)
+- TODO: #2469 Patch 193: material_pair takes an id past its 128 materials as the default (no read past its tables)
+- TODO: #2474 Stats: a weapon's kills per minute
+- TODO: #2472 Updater: a patch download that broke off goes on from its bytes
+- TODO: #2473 Updater: a slow address is left for the fastest one, from the bytes on disk
+- TODO: #2478 Artifact Hunt: the next respawn wave beside the match time
+- TODO: #2479 The score bars start from the match's own score (Freeze Tag, and every mode at a match's start)
+- TODO: #2422 The ported maps' ambient occlusion at native strength (ported-maps-ao-1, london-v042@7, london-v032@4)
+- TODO: #2490 Patch 195: a use's progress bar ends with the use (stuck "Progress" bar after a death)
+- TODO: #2451 Patch 192: a damage zone and its players out of step no longer move memory
+- TODO: #2455 Freeze Tag: the pause's countdown with the kits, and no view drift after a thaw
+- TODO: #2477 Technical skills: Last Gasp becomes Oxygen Rush, after 20 s of tank use and at its run-out (simulation and world-format change)
+- TODO: #2493 Technical skills: a Bear Trap trap takes 1.5 pocket units, three in five (simulation change)
+- TODO: #2495 Crash reporter: an Open folder button that shows the saved report
+- TODO: #2494 Stats: the leaders' names are not cut
+- TODO: #2475 Grenade markers: teammates' smoke and toxic smoke get their own marks (patch 194)
+- TODO: #2480 Technical skills: Tank Container (445), an artifact container with an oxygen tank (simulation change)
+- TODO: #2496 London (v0.32): the red team's spawns at the owner's picks, facing the way out
+- TODO: #2476 Deep Pockets and Supply Pocket: a kit's pocket made the second weapon slot again by a click
+- TODO: #2491 Training Camp: the team project as day_tdm, a name the client loads (map 212 crash)
+- TODO: #2442 Patch 191: a kill made in a re-simulation keeps its kill marker
+- TODO: #2444 Patch 100: flush a stopped voice only after the running processing pass (Wine sound loss)
+- TODO: #1576 Patch 132: the camera before the start stays out of the walls
+- TODO: #2500 Technical skills: a Toxic Smoke grenade takes 1.5 pocket units (simulation change)
+- TODO: #2505 Freeze Tag: the frozen glow covers the whole body
+- TODO: #2507 Freeze Tag's rounds end and start as Artifact Hunt's, by its code
+- TODO: #2509 Rooms: the big-pool draft test sized from the pool's pieces (fails on main)
+- TODO: #2508 Ragdoll death camera: stay in the head, out of walls
+- TODO: #2512 Client patches: generated files are made by the build, not committed
+- TODO: #2513 Ragdoll: the fingers let go of the grip
+- TODO: #2514 tools/test-build: a part whose build failed is FAILED, and copies nothing
+- TODO: #2518 Freeze Tag: a player's saved tag by its state, not team + 2 (srp-validate's clippy)
+- TODO: #2454 Site words: Russian and Belarusian
+- TODO: #2520 Generated files: the exe's inputs in one place, builds without an arena need no toolchain
+- TODO: #2452 Site words: Polish, Czech, Croatian, Serbian
+- TODO: #2453 Site words: German, Finnish, Hungarian
+- TODO: #2521 Crash reporter: keeps the newest ten crashes' files
+- TODO: #2377 Artifact Hunt: the same box on every base (artefact-hunt-maps@2)
+- TODO: #2522 Site words: every language must have every text (the test names what is missing)
+- TODO: #2523 Freeze Tag: the rule's saved bytes at their documented places (the writer shifted every field since #2507)
+- TODO: #2519 Patch 196: a shot into a corpse plays 0.21's death sound there and puts its player in the dark
+- TODO: #2527 Web server: the history tests expect a match's mode_url
+- TODO: #2528 World round trip: the four codec sites of patches 115 and 122 named with their checks
+- TODO: #2529 Patches crate: Clippy clean again, and its own check row
+- TODO: #1554 AGENTS.md: a clear safe/unsafe boundary, and work holistically
+- TODO: #2533 Rudnya (v0.69) @5: smoothness maps drawn as maps, the blends' own numbers, 0.69d's cut of a blend by its second layer
+- TODO: #2096 Free for All: with few players, respawn near someone (30 m away first)
+- TODO: #2536 Patch 83: the taskbar goes under a fullscreen game after Alt+Tab (Windows)
+- TODO: #2531 vostok-layout: compare with the released map as it is since revision 57
+- TODO: #2539 Updater tests: play_skhid.bat without a language, and the patch suite in updater-replays
+- TODO: #2532 build-content's callers: the step API of #2355 and #2382
+- TODO: #2526 Squads: a squad made in a room brings its new mate in
+- TODO: #2524 re-kit: the animation player's tree and mt_draw's tick of a not alive player
+- TODO: #2541 The FFA point checkers join the srp workspace: no lock of their own to go stale
+- TODO: #2516 Ragdoll: a shot into a corpse's head takes its helmet off
+- TODO: #2542 Wiki simulators: a shot's three motions (recoil, camera wobble, gun kick), the view from the side and a custom gun
+- TODO: #2545 stats-page: the stats page's browser check in tools/check
+- TODO: #2546 v021d-weather: the day-source export by rule, the donor from its db, lamps with cube maps, the listed lighting pack
+- TODO: #2547 Wiki weapons and simulators in every language (built pages filled at request time)
+
+## 22 Nov, 13:29 — TODO: the owner's words (update required)
+
+<!-- Revision 71 (026g-rev71), released 2026-11-22 13:29 UTC. To be worded for players; what it shipped: -->
+
+- TODO: #2431 FFA Roulette: its name does not show its level band
+- TODO: #2432 Release: --end-bot-and-private-matches waits for the normal matches only
+- TODO: #2434 Freeze Tag: the last one standing is shown only with two teammates frozen
+- TODO: #2435 Freeze Tag and Artifact Hunt: an entering place always spawns at its entry (the rejoin crash)
+- TODO: #2436 H&K G3SG/1: a 10-round magazine, more recoil, less stopping force
+- TODO: #2437 Freeze Tag: frozen teammates ice blue on the maps and over heads
+
+## 22 Nov, 10:52 — TODO: the owner's words (update required)
+
+<!-- Revision 70 (026g-rev70), released 2026-11-22 10:52 UTC. To be worded for players; what it shipped: -->
+
+- TODO: #2430 Freeze Tag: the HUD gets all six values; 1 v 1 players off each other's map
+
+## 22 Nov, 09:46 — TODO: the owner's words (update required)
+
+<!-- Revision 69 (026g-rev69), released 2026-11-22 09:46 UTC. To be worded for players; what it shipped: -->
+
+- TODO: #2318 Antitoxin: a hit no longer stops it, and it lasts 15 s
+- TODO: #2320 Stats: boards sort by their headings, no Level, item icons in the favourites
+- TODO: #2316 Decals on the STK2 jackets, trousers and exoskeleton bodies
+- TODO: #2308 Site: the game's eleven languages; its names in each, a picker in the header
+- TODO: #2309 Site: its own words in per-language files (English in the code, the rest in words/)
+- TODO: #2312 Per-weapon counts: client patch 165, the world's block, the match result
+- TODO: #2313 Per-weapon stats: the history's tables, the API and a player's Weapons list
+- TODO: #2323 Stats: leaders to 20 or 50, players past fifty, averages from 5 matches, match teams sort, the account's id
+- TODO: #2324 Stats: name history (kept names, on the player's page, found by search)
+- TODO: #2325 Patch 166: a part of a tick moves a body at rest
+- TODO: #2327 A bake used and not saved is not listed
+- TODO: #2329 Patch 167: no white hit marker for a hit through a wall
+- TODO: #2330 Artefact tree: Courier (534), the dead kit's artefacts come along to the next kit
+- TODO: #2331 Tests: no data-repeat tests
+- TODO: #2340 Patch 169: the forward effects draw as 0.44a5's
+- TODO: #2334 build-content: the battery rule's unchecked reads (walker twins, each place's collision_geometries) are present in every map project
+- TODO: #2350 Rudnya (v0.69) @4: the map through 0.69d's own data, and 0.69d's metering (three-maps-021-lighting@10)
+- TODO: #2332 A part of a tick walks, and says a player's speed, as a whole tick does (patch 168)
+- TODO: #2294 Shots in sights and scopes as 0.45a6 shows them: the aim aligned to the idle pose (patch 172), 0.45a6's fire clips (shot-kick-045@1)
+- TODO: #2347 World corpus: retired/, for recordings main's content no longer matches
+- TODO: #2351 Faster builds: the exe in 5 s, the dev shell in 0.2 s, quicker movies; tools/dev and tools/test-build
+- TODO: #2352 Patch 173: armour penetration does not fall with distance
+- TODO: #2355 build-content: steps cached by the bytes they read; --delta-from micro-patches for local tests
+- TODO: #2354 Console and logs without the lines that tell nothing (patch 174)
+- TODO: #2358 Patch 175: every wall costs a bullet something, k = 1 - (A / P)^2
+- TODO: #2356 Captures straight into a map: srp-map-sur, patch 176 (SKHID_CAPTURE), capture.py
+- TODO: #2359 Patch 167: white hit marker through glass, foliage and cloth (armour 0 is not a wall)
+- TODO: #2307 Weapon attachments: scopes, muzzle devices and grips as one system after 0.69d's modules
+- TODO: #2360 Wiki: drop the calculator hash test
+- TODO: #2361 Patch 177: a hit that takes health breaks the breath hold
+- TODO: #2357 Station in Free for All, spawns by the spawn rule
+- TODO: #2293 London is "London (v0.32)"; the lists show the 0.32 and 0.42 Londons after the 0.21 maps
+- TODO: #2346 London (v0.42): 0.44a5's reworked London as a map of its own (maps 290-298), with patch 169's forward effects
+- TODO: #2349 London (v0.32): the live London's maps play 0.32a4's own projects, with the owner's spawns, picks and breakable lamps
+- TODO: #2363 Freeze Tag (mode 12) and Artifact Hunt (mode 13)
+- TODO: #2364 FFA: Saloon (Winchester) back to 5 %
+- TODO: #2365 Rooms: an open room whose match has no place left is full; its newcomers queue
+- TODO: #2362 Lobby: attachment filters with their own icons, Appearance in the weapon menu, attachment stats as bonus lines and in Alt
+- TODO: #2367 Freeze Tag and Artifact Hunt on every team map
+- TODO: #2366 Patch 178: the ported Londons' grass lit through by the sun, as in 0.44a5 and 0.32a4
+- TODO: #2370 build-content --delta-from: the server game data on a large delta too
+- TODO: #2369 Training Camp: Team Deathmatch and Freeze Tag, every team from the Free for All points
+- TODO: #2371 Artifact Hunt's London configs name their build (srp_build): main's server refused its game data
+- TODO: #2372 Research: School's second layout (maps 500-502)
+- TODO: #2373 Patch 179: a shot ends the shooter's protection
+- TODO: #2374 Rooms: a pool of 512 entries (333 maps cut at 256 dropped both Londons and every map after the 0.21 ones)
+- TODO: #2376 Artifact Hunt: the hunt forgotten when its match's scene is left
+- TODO: #2375 Research, School's layout B: cover at the three units
+- TODO: #2378 Patch 182: a streamed texture with no free slot of its size takes a smaller one
+- TODO: #2380 The technical tree: the fourth skills tab (exe patch 180)
+- TODO: #2382 build-content: a lobby code edit rebuilds in seconds with --delta-from
+- TODO: #2379 Distance detail: sun shadows follow High and Maximum
+- TODO: #2383 Forest Protection: its smoke in the carrier's own first-person view too
+- TODO: #2385 London (v0.42) version 2: the donor's own switch sets, the rain's empty texture left out
+- TODO: #2384 Research, School's layout B: the two halls' cover
+- TODO: #2386 Freeze Tag: frozen players' names ice blue in the Tab list
+- TODO: #2390 Military Warehouses: Free for All with a twist only
+- TODO: #2389 Patch 54: a press that fires an artefact restarts its kind's cooling copies' cooldown
+- TODO: #2381 FFA: Roulette, everyone the same random hand of three kits from one level band
+- TODO: #2387 Fire Station: the west roof ramp drawn as planks (stalker-maps-2@5)
+- TODO: #2396 Patch 182: texture_pool's log line no longer overflows its pieces
+- TODO: #2395 Release: new patches also go to Dropbox, its address before the patches server's
+- TODO: #2399 Medical tree: own icons for the drug skills and Additional Medicine
+- TODO: #2398 Brazilian Portuguese: the game's twelfth language, and the site's
+- TODO: #2401 Roulette: one gun a kit, and a pistol hand now and then
+- TODO: #2403 Rooms: every vote card draws from the whole pool, one free-for-all at most
+- TODO: #2402 Site: drop the equipment page's intro texts and "small" from the home page
+- TODO: #2404 Site: Skhid-get.bat under the download button, no .torrent and magnet links
+- TODO: #2391 Launcher patch 17: a download says which file of how many, "(5/69)"
+- TODO: #2407 Freeze Tag: a team frozen whole with nobody on the other side draws
+- TODO: #2409 Release lists: every patch and the game's archive get their Dropbox address
+- TODO: #2388 London (v0.42) version 4: the donor's programs of every pass; sets without programs take the nearest players' set
+- TODO: #2394 tools/test-patch: a test patch of only the changed files, in a minute
+- TODO: #2392 The Room: camp @21, lit by rule from 0.69d's own data (lighting @11)
+- TODO: #2397 Patch 183: the g-buffer's parallax constants as 0.44a5 sets them
+- TODO: #2393 London (v0.32) version 2: the donor's own switch sets, missing textures and windless meshes by rule
+- TODO: #2405 London (v0.42)@5, London (v0.32)@3: London's profile on the rain too
+- TODO: #2400 Lamps: a broken tube lamp's room probe keeps only its share without the lamp
+- TODO: #2411 mode-maps/make.py: stable Freeze Tag and Artifact Hunt ids (ids.tsv)
+- TODO: #2410 Tactical reload for the Vikhr, SR-2M, UMP-45, AEK-919K, PPSh, Vepr and SVU-A (pack tactical-clips-rebased-069@1)
+- TODO: #2412 Lamps: a dimmed room probe is never darker than the rooms beside it
+- TODO: #2414 London (v0.42): the battery mode on London's own spread of batteries
+- TODO: #2416 Lamps: a weather's probe takes the day's lamp light out wherever light is left
+- TODO: #2417 Drop the ammo top-up script: it was never run and will not be
+- TODO: #2419 Skhid-get.bat: the bootstrap of the rev68 updater, built
+- TODO: #2418 Patch 190: the hi-Z occlusion no longer drops probes and ambient lights, nor lights for a frame
+- TODO: #2421 Wiki: Modes page (every mode and the FFA versions on one page)
+- TODO: #2423 Wiki modes: no map lists; the match page's mode links to it
+- TODO: #2408 Freeze Tag: thaw in 4 s, auto-thaw after 2 min, last one fighting on the map
+- TODO: #2424 Wiki modes: Freeze Tag's auto-thaw and last fighter (#2408)
+- TODO: #2425 Release 69 content: London (v0.42)@6, the Room as live, compare's server flag
+- TODO: #2426 Stats: a player's skills, and player links by account id
+- TODO: #2427 Release 69: the exe patches' self-test passes on main
+- TODO: #2428 release.sh: the new patch's row is the one upload-patch published
+
+## 20 Nov, 16:57 — TODO: the owner's words (update required)
+
+<!-- Revision 68 (026g-rev68), released 2026-11-20 16:57 UTC. To be worded for players; what it shipped: -->
+
+- TODO: #2258 Medical tree: the antitoxin's skills (Sharp Eye, Second Wind, Concentration)
+- TODO: #2259 Rooms: maps by build (0.26, 0.11, 0.21, 0.69, STALKER)
+- TODO: #2264 London evening's vine bushes: their dried-leaves material set, as 0.31a2
+- TODO: #2269 London rain's sand over stones blended as 0.31a2 (sand_base_alpha_vc)
+- TODO: #2263 Rooms: the create window starts with the last room's PIN typed
+- TODO: #2272 Rooms: a private room is made by one request
+- TODO: #2262 Rooms: a leave that ends the match still takes its member out of the room
+- TODO: #2090 Lamps: a lit alarm lamp's red ambient light goes out with it
+- TODO: #2092 Lamps: lit kerosene lamps break, their flame goes out
+- TODO: #2094 London's campfires burn
+- TODO: #2097 London's and Vector's lighting: three environment probe fixes
+- TODO: #2270 re-kit: decal priority sort; 0.31a2's decal stage matches
+- TODO: #2275 Lamps: kerosene lamps break on every map (Fort and Chemical Plant v0.21)
+- TODO: #1588 Notes: DXVK's performance settings and why each stays at its default
+- TODO: #549 Docs: distinguish London spawn-protection times by mode
+- TODO: #1581 Add the Rust client transition plan and work log
+- TODO: #1583 Notes: fullscreen refresh rate and DXVK's fullscreen exits
+- TODO: #1112 Notes: the scopes work's handoff (paused 2026-11-02)
+- TODO: #1274 docs: 0.69 pixel-correct shooting and backport assessment
+- TODO: #1578 Notes: the OLTA resolve runs; why the Radar glass bricks show rows
+- TODO: #468 docs: retail 0.69d0 netcode, prediction and hit feedback
+- TODO: #472 docs: porting 0.69's netcode to 0.26g and srp (feasibility, phases, tick length)
+- TODO: #467 Notes: retail Research markers and the stock artefact glow (folds #378, #379)
+- TODO: #1835 Patch 146 notes: the partial sort and push_heap copies; one re-kit name for 0x1603B0
+- TODO: #2072 re-kit: grass_cook::on_layers_loaded and its stack per grass instance
+- TODO: #355 re-kit: pain regenerates through damage_model::tick (item regeneration bonus applies)
+- TODO: #2298 Match history in srp.db, its API and the Stats tab (/stats)
+- TODO: #2290 Updater and launcher: the relay route (auto / on / off), and why the server is not reached
+- TODO: #2299 Stats: the day's leaders and the all-time totals
+- TODO: #1544 Face choice: each account's face, chosen in the lobby, drawn by every game
+- TODO: #2300 Stats: a match's map with the rooms' own picture of it
+- TODO: #2301 Sign-in screen: no VPN advice when the server can't be reached
+- TODO: #2303 Face choice: a stray file removed, a lost choice asked again
+- TODO: #2302 Stats: all time as the other tables, fewer lines; the header's short tagline
+- TODO: #2304 Stats: a match's replay from its page
+- TODO: #2305 Stats: a map's picture leads to the map, as its name does
+- TODO: #2306 Relay: the site's name on the relay is playskhid.link
+
+## 19 Nov, 14:50 — TODO: the owner's words (update required)
+
+<!-- Revision 67 (026g-rev67), released 2026-11-19 14:50 UTC. To be worded for players; what it shipped: -->
+
+- TODO: #2178 Chemical Plant v0.21: day, rain and evening
+- TODO: #2213 London in rain and evening: maps 276-281 (pack london-weathers@3)
+- TODO: #2224 London's probes as 0.31a2: reflection-only windows, specular 1.2, box projection per probe, authored shapes
+- TODO: #2235 London's cupboards wood-brown, as in 0.31a2 (pack london-textures@1)
+- TODO: #2236 London drawn with its own build's tone curve (three-maps-021-lighting@9)
+- TODO: #2210 Relay: peers are identified by address and route
+- TODO: #2253 Content: Flag of Kosovo and Coat of arms of Kosovo decals
+
+## 18 Nov, 19:54 — TODO: the owner's words (update required)
+
+<!-- Revision 66 (026g-rev66), released 2026-11-18 19:54 UTC. To be worded for players; what it shipped: -->
+
+- TODO: #2159 Record revision 64 test patch baseline
+- TODO: #2162 Publish torrent downloader with tracker and peer diagnostics
+- TODO: #2163 Add automatic regional relay fallback with native UDP forwarding
+- TODO: #2164 Relay: a probe, a reset sign-in or an idle client no longer takes the service down
+- TODO: #2165 Patch 150: the game shares by BitTorrent in matches too
+- TODO: #2166 Black Market Medkit: heals in 1 s (2 s to activate as before)
+- TODO: #2167 Patch 58: kit keys pick nothing for 1 s after the kits appear
+- TODO: #2168 Chemical Plant v0.11: a picture of its own
+- TODO: #2170 The five 0.21 maps in day, rain and evening, drawn the 0.21 way
+- TODO: #2171 Patch 158: the eye's ray goes through leaves
+- TODO: #2169 Relay: the site under the relay's own name (playskhid.link)
+- TODO: #1543 Patch 122: room for 32 particle effects in each presenter, no entry past a full list (crash at 0x2ACC7F)
+- TODO: #2172 Patch 158, reviewed: the leaves' ray keeps its own filter; a surface under a leaf is met
+- TODO: #2174 simulation_changes.tsv: one next row for the two pending changes
+
+## 17 Nov, 16:28 — TODO: the owner's words (update required)
+
+<!-- Revision 64 (026g-rev64), released 2026-11-17 16:28 UTC. To be worded for players; what it shipped: -->
+
+- TODO: #2142 AKMSU optics stay on the gun: weapons-069@19, scope-fits@13
+- TODO: #2143 Patch 157: Ctrl+V pastes into the console's line
+- TODO: #2145 Patch 156: collision fill (translucent surfaces) and room for 131072 lines
+- TODO: #2144 Patch 125: the game sends its code blocks that are no module
+- TODO: #2150 Updater: with torrent on, don't wait on an unreachable site; HTTPS whenever it answers
+- TODO: #2151 Vostok v0.21: no sky seam where the mountains meet the terrain
+- TODO: #2146 Patch 107: the console types the keyboard layout's text, as the chat
+- TODO: #2148 Patch 158: the first-person eye stays out of the level's surfaces
+- TODO: #2152 Wiki: Simulators section (recoil and spread by aim, stance, skills, gloves, arms)
+- TODO: #2149 Patch 159: the console's output scrolls
+- TODO: #2153 Patch 85: a bullet record whose shooter has no gun in its slot is not made
+- TODO: #2141 Run logs in game\logs; the old ones deleted
+- TODO: #2154 Add Croatian game localization
+- TODO: #2157 Port three 0.21 maps and preserve original lighting across five day maps
+- TODO: #2158 Use the patch server by default for releases
+
+## 17 Nov, 00:33 — TODO: the owner's words (update required)
+
+<!-- Revision 63 (026g-rev63), released 2026-11-17 00:33 UTC. To be worded for players; what it shipped: -->
+
+- TODO: #2139 Tab list, names only: long names no longer cut
+- TODO: #2138 Mamayev Kurgan: the tunnel top open to players
+- TODO: #2130 Patch 156: console command `collision` draws the level's collision geometry
+
+## 16 Nov, 14:53 — TODO: the owner's words (update required)
+
+<!-- Revision 62 (026g-rev62), released 2026-11-16 14:53 UTC. To be worded for players; what it shipped: -->
+
+- TODO: #2093 Patch 151: a gun-stock hit disarms a trap
+- TODO: #2107 Voice: two push-to-talk keys, the radio's (team) and the 10 m voice's (everyone near)
+- TODO: #2108 Voice: steadier sound (quiet microphones raised, a limiter that turns the mix down, a deeper capture queue, Opus FEC)
+- TODO: #2111 Voice: the listener's game brings every speaker to one loudness
+- TODO: #2113 Patch 152: F11 saves a screenshot, F12 one without the interface
+- TODO: #2112 Voice: "Microphone sensitivity" is gone (the listeners' games level every speaker)
+- TODO: #1841 Torrent downloads: signed torrent in the ZIP, the site's links, the bootstrap, the updater's BitTorrent by libtorrent
+- TODO: #2115 Voice: a wall between two players makes the 10 m voice quieter and dull
+- TODO: #2117 Rank badges: end-game price ladder (Alpha 100M)
+- TODO: #2118 Voice: the nearby voice falls to nothing at 12 m
+- TODO: #1846 Battery hit: strike with a carried battery (ram and shove)
+- TODO: #1860 STALKER maps: Fire Station in Free for All (Dark Valley, Vehicle Station, Sports Center held)
+- TODO: #2119 London Free for All spawns at the owner's picks
+- TODO: #2121 Patch 153: a step in water wades (pack water-steps)
+- TODO: #2123 Fire Station Free for All spawns at the owner's picks
+- TODO: #2124 Snow-20: vest, pants and gloves match the Sniper set
+- TODO: #2125 Step sounds: dry leaves step as the default step, as 0.69d
+- TODO: #2128 Patch 153: a step finds what the capsule rests on (thin walkways, rails)
+- TODO: #2131 Patch 153: a step on a miss sounds on what the capsule touched, as 0.69d
+- TODO: #2132 Release: the torrents' signing public keys (live and test)
+- TODO: #2133 Chemical Plant Free for All spawns at the owner's picks
+- TODO: #2135 Dev shell: the Microsoft libraries' hash as Microsoft serves them now
+
+## 15 Nov, 21:20 — TODO: the owner's words (update required)
+
+<!-- Revision 61 (026g-rev61), released 2026-11-15 21:20 UTC. To be worded for players; what it shipped: -->
+
+- TODO: #2078 Winchester 1894: damage 0.94, two body hits through every armour
+- TODO: #2079 Training Camp: no map theme
+- TODO: #2083 Training Camp: its bonfires burn (the game's own fire zone)
+- TODO: #2080 Shop: "Hide owned" remembered with the account
+- TODO: #2084 Training Camp minimap: the three trucks in their gateways
+- TODO: #2085 Training Camp Free for All at the owner's 47 picks; the map test's counts brought to the data
+- TODO: #2086 Vostok Free for All: a spawn on the checkpoint's roof, and roofs walkers stand on
+- TODO: #2095 Complete 0.69 scope coverage and fix attachment alignment
+
+## 15 Nov, 16:26 — TODO: the owner's words (update required)
+
+<!-- Revision 60 (026g-rev60), released 2026-11-15 16:26 UTC. To be worded for players; what it shipped: -->
+
+- TODO: #1714 Patch 70: the baked textures' folder holds 3 GiB, the list grows, the oldest let go first
+- TODO: #1849 Artefact tree: row V at 17 points
+- TODO: #1865 Read a target shown with its clan tag as the player
+- TODO: #1848 Rooms: any public queue of three opens another room
+- TODO: #1876 Voice: take a seat's datagrams from its network, not only its exact IP
+- TODO: #1844 Keep every item's built-in bonuses in one order, ammo bags first
+- TODO: #1871 Free for All: Experimental Pool, School and Vostok (with its ports) spawns at the owner's picks
+- TODO: #1877 Freedom suit: hip-fire accuracy in place of stamina regeneration
+- TODO: #1908 Free for All: Mamayev Kurgan (native and v0.21) spawns at the owner's picks
+- TODO: #1851 Voice: the whole mix 6 dB louder before its limiter
+- TODO: #1887 Patch 144: the Settings' Game slider lowers the game's sounds, not the music or the voice chat
+- TODO: #1924 Free for all: choose from a map's whole team-2 group, up to 128 points
+- TODO: #1920 Free for all: never respawn at one of the last two points
+- TODO: #1967 Settings: hit marker list (All, Kill marker only, Hidden)
+- TODO: #1964 Every run's logs in files of their own (patch 147, updater, crash reporter)
+- TODO: #2021 Voice: opponents within 10 m hear the plain voice in every mode
+- TODO: #2022 Hit marker list: Kill marker only shows the whole kill marker
+- TODO: #1999 Patch 148: an empty shot is not logged
+- TODO: #2056 Voice: an opponent's speaker in the talking list is pale red
+- TODO: #2060 Voice list: a name never a key of an object
+- TODO: #2061 Rooms: "(owner)" only in a private room
+- TODO: #2055 Updater: PLAY stays off under 5 GB free on the Documents drive
+- TODO: #1854 Winchester and Colt level 10 and pricier; Saloon 20 % in two variations; Racket's AK-74N in level-10 rooms; no twists in private rooms
+- TODO: #2063 Rooms: each card picks a map, then its weather (every map alike)
+- TODO: #2067 Drop Windows 7: client programs on i686-pc-windows-msvc
+- TODO: #2066 FFA: Saloon (Winchester) by name, Saloon 5 / Winchester 15; STALKER maps last in the create window
+- TODO: #2071 Rooms: each card draws its mode, map and weather from pools (no mode or map twice)
+- TODO: #2075 Racket: clips of the gun's own ammo unless the kit already holds that ammo
+
 ## 14 Nov, 15:39 — TODO: the owner's words (update required)
 
 <!-- Revision 59 (026g-rev59), released 2026-11-14 15:39 UTC. To be worded for players; what it shipped: -->

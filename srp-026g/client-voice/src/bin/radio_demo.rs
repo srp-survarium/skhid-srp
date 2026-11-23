@@ -1,6 +1,9 @@
 //! A WAV through the real codec/jitter/radio path, without devices or a server
 //! (the left ear of the mix: near, as decoded; far, the radio).
-use skhid_voice::{Core, Encoder, FRAME, Hearing, RATE, wire::Message};
+use skhid_voice::{
+    Core, Encoder, FRAME, Hearing, RATE,
+    wire::{Channel, Message},
+};
 use std::{error::Error, fs};
 fn read_wav(path: &str) -> Result<Vec<i16>, Box<dyn Error>> {
     let b = fs::read(path)?;
@@ -66,7 +69,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     }
     let input = read_wav(&args[1])?;
     let frames = input.len().div_ceil(FRAME);
-    let far = u32::from(args[3] == "far");
+    let channel = if args[3] == "far" { Channel::Radio } else { Channel::Near };
     let mut encoder = Encoder::new()?;
     let mut core = Core::new()?;
     let mut output = Vec::with_capacity(frames * FRAME + RATE * 2);
@@ -74,6 +77,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         &Message::RelayStart {
             slot: 0,
             utt: 1,
+            channel,
             ms: 0,
         },
         0,
@@ -96,6 +100,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                 &Message::RelayAudio {
                     slot: 0,
                     utt: 1,
+                    channel,
                     seq: (tick / 2) as u16,
                     frames: pair,
                 },
@@ -113,7 +118,7 @@ fn main() -> Result<(), Box<dyn Error>> {
             );
         }
         output.extend(
-            core.mix(1., &Hearing::radio(far), now)
+            core.mix(1., &Hearing::UNITY, now)
                 .map(|[left, _]| left),
         );
     }

@@ -1,5 +1,5 @@
 ; Patch 149: a key per item type uses it (the rules: ../docs/notes/item-hotkeys.md;
-; client_patch.md section 3.82). The arena's block item_hotkeys.data: the game's
+; client_patch.md section 3.105). The arena's block item_hotkeys.data: the game's
 ; action table again, its 60 rows and sixteen more: a row per item type a key
 ; can use, and two for a group's first ready item (the next artefact, the next
 ; medkit).
@@ -14,9 +14,15 @@
 ; (0x207AD0: `bind <action> <key>`, user.cfg's lines and the options' accept).
 ; Everything else reads a row through the binder's description pointer
 ; (get_binded_action 0x207D50: +4 the id, +8 the kinds, +0Ch the toggle).
-; `actions` below is that table: the game's 60 rows in their order (one
-; changed: `artefact`'s default key is H, patch 78's carry key; the game's row
-; has none), then the sixteen. patch_026g.py's ITEM_HOTKEYS_TABLE_REFS,
+; `actions` below is that table: the game's 60 rows in their order, five
+; changed by other patches (their rows here, the game's no longer read):
+; `artefact`'s default key is H (patch 78's carry key; the game's row has
+; none); 19h is hide_interface with F9, 1Ah and 1Bh screenshot and
+; screenshot_no_ui with F11 and F12 (patch 152, the game's toggle_replay_ui,
+; torch and night_vision; ../docs/notes/screenshots.md); 37h is ptt_nearby,
+; kind 8 (patch 66's 10 m voice, the game's debug serialize_player_state;
+; ../docs/notes/voice-chat.md); their names are hide_ui_026g.asm's. Then the
+; sixteen. patch_026g.py's ITEM_HOTKEYS_TABLE_REFS,
 ; ITEM_HOTKEYS_TABLE_END and ITEM_HOTKEYS_TABLE_COUNTS point the four
 ; functions at it.
 ;
@@ -31,6 +37,7 @@
 ; them in Options, Controls (patch 62's `controls`, hide_ui_026g.asm).
 BITS 32
 global actions                     ; the action table, 76 rows (patch_026g.py's ITEM_HOTKEYS_TABLE_REFS)
+extern hide_interface_action, screenshot_action, screenshot_no_ui_action, ptt_nearby_action   ; hide_ui_026g.asm
 
 ; A row: its name, id, kinds, toggle and default key's name (0: none).
 %macro ACTION 5
@@ -62,9 +69,9 @@ actions:                           ; the game's 60 rows (0xA74AF0), in their ord
     ACTION 0x9FDF58, 0x16, 5, 0, 0x000000    ; cam_zoom_out, none
     ACTION 0x9FDF4C, 0x17, 5, 0, 0x9FDF48    ; next_player, kF6
     ACTION 0x9FDF3C, 0x18, 5, 0, 0x9FDF38    ; prev_player, kF5
-    ACTION 0x9FDF24, 0x19, 5, 0, 0x9FDF1C    ; toggle_replay_ui, kF11
-    ACTION 0x9FDF14, 0x1A, 5, 0, 0x000000    ; torch, none
-    ACTION 0x9FDF04, 0x1B, 5, 0, 0x000000    ; night_vision, none
+    ACTION hide_interface_action, 0x19, 5, 0, 0x9FDC1C    ; hide_interface, kF9 (patch 62's; the game's toggle_replay_ui, kF11)
+    ACTION screenshot_action, 0x1A, 5, 0, 0x9FDF1C    ; screenshot, kF11 (patch 152; the game's torch, none)
+    ACTION screenshot_no_ui_action, 0x1B, 5, 0, 0x9FDB60    ; screenshot_no_ui, kF12 (patch 152; the game's night_vision, none)
     ACTION 0x9FDEF4, 0x1C, 5, 0, 0x000000    ; show_detector, none
     ACTION 0x9FDEEC, 0x1D, 5, 0, 0x9FDEE8    ; wpn_1, k1
     ACTION 0x9FDEE0, 0x1E, 5, 0, 0x9FDEDC    ; wpn_2, k2
@@ -80,7 +87,7 @@ actions:                           ; the game's 60 rows (0xA74AF0), in their ord
     ACTION 0x9FDE30, 0x29, 5, 1, 0x9FDE28    ; wpn_aim_toggle, mouse3
     ACTION 0x9FDE18, 0x2A, 4, 0, 0x9FE004    ; delay_breath, kLSHIFT
     ACTION 0x9FA79C, 0x34, 5, 0, 0x9FDE10    ; pause, kPAUSE
-    ACTION 0x9FDDF8, 0x37, 5, 0, 0x9FDDF4    ; serialize_player_state, kO
+    ACTION ptt_nearby_action, 0x37, 8, 0, 0x9FDDF4    ; ptt_nearby, kind 8, kO (patch 66's 10 m voice; the game's serialize_player_state, kinds 5)
     ACTION 0x9FDDD8, 0x38, 5, 0, 0x9FDDD4    ; deserialize_player_state, kP
     ACTION 0x9FDDC8, 0x39, 5, 0, 0x9FDDC4    ; quick_use_1, k3
     ACTION 0x9FDDB8, 0x3A, 5, 0, 0x9FDDB4    ; quick_use_2, k4

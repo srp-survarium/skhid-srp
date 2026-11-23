@@ -24,6 +24,8 @@ import make_client_026g as overlay
 # The programs that open connections to the Skhid hosts: the ones VPN.txt
 # and Skhid-network-setup.cmd name.
 PROGRAMS = ('launcher_skhid.exe', 'survarium_skhid.exe', 'updater_skhid.exe')
+# The one the network setup lets in (it shares by BitTorrent).
+SHARER = 'updater_skhid.exe'
 WINE = shutil.which('wine')
 
 
@@ -53,7 +55,7 @@ POWERSHELL = shutil.which('powershell') if os.name == 'nt' else shutil.which('pw
 
 # A program that writes down how it was started (client/updater/tests).
 STAND_IN = Path(overlay.HERE, '..', '..', 'client', 'updater', 'tests', 'fake_exe', 'target',
-                'i686-win7-windows-msvc', 'release', 'fake-exe.exe').resolve()
+                'i686-pc-windows-msvc', 'release', 'fake-exe.exe').resolve()
 
 
 class ReleaseTests(unittest.TestCase):
@@ -87,6 +89,8 @@ class ReleaseTests(unittest.TestCase):
         updater = bytearray(dll)
         updater[86:88] = (0x0102).to_bytes(2, 'little')
         self.updater.write_bytes(updater + b"<requestedExecutionLevel level='asInvoker' uiAccess='false'/>")
+        # skhid_torrent.dll beside it, with the functions the updater asks for.
+        (self.root / 'skhid_torrent.dll').write_bytes(bytes(dll) + b''.join(name + b'\0' for name in overlay.TORRENT_EXPORTS))
         # DXVK's release archive, a stand-in with its two DLLs, and its pins
         # (build() gives the builder these in place of the real ones).
         self.dxvk_dlls = {name: b'MZ dxvk fixture ' + name.encode() for name in overlay.DXVK_DLLS}
@@ -105,7 +109,7 @@ class ReleaseTests(unittest.TestCase):
             'game/resources/ssl/survarium_login_server.crt'}
         self.names = self.without_launcher | {
             'game/binaries/x86/launcher_skhid.exe', 'game/binaries/x86/updater_skhid.exe',
-            'game/binaries/x86/7zr.exe',
+            'game/binaries/x86/7zr.exe', 'game/binaries/x86/skhid_torrent.dll',
             *(f'game/binaries/x86/dxvk/{name}' for name in ('d3d8.dll', 'd3d9.dll', 'd3d10core.dll', 'd3d11.dll', 'dxgi.dll')),
             'game/binaries/x86/updater_skhid.url', 'Skhid.bat', 'Skhid-without-updater.bat', 'Skhid.sh',
             'Skhid.command',
@@ -127,6 +131,34 @@ class ReleaseTests(unittest.TestCase):
                 overlay.main()
         self.assertEqual(self.exe.read_bytes(), b'original fixture')
         return patcher.call_args, messages.getvalue()
+
+    def test_relay_packages_route_config_and_uses_updater_for_play(self):
+        output = self.root / 'relay'
+        self.build(output, '--relay=203.0.113.8:2234')
+        config = output / 'game/binaries/x86/updater_skhid.relay'
+        self.assertEqual(config.read_text(), 'release.example:2234\n203.0.113.8:2234\n')
+        self.assertEqual(self.launcher.call_args.kwargs, dict(
+            site='https://release.example', game_exe='updater_skhid.exe',
+            arguments='play -minimum_resources_memory_size=768'))
+        self.assertIn(b'start "" updater_skhid.exe play ',
+                      (output / 'game/binaries/x86/play_skhid.bat').read_bytes())
+        for name in (overlay.LINUX_LAUNCHER, overlay.MAC_LAUNCHER):
+            self.assertIn(b'updater_skhid.exe play', (output / name).read_bytes())
+        # A provider that blocks the server: the launcher's "Relay" row, in
+        # the README and on the launcher's own page; no VPN advice.
+        readme = (output / 'README.txt').read_text(encoding='utf-8')
+        self.assertIn("set Relay, at the launcher's bottom left,", readme)
+        self.assertNotIn('VPN', readme)
+        page = (output / 'game/binaries/x86/launcher_skhid/index-en.html').read_text(encoding='utf-8')
+        self.assertIn('set Relay, at the bottom left, to auto.', page)
+        self.assertNotIn('VPN', page)
+
+    def test_relay_refuses_incompatible_ports_and_no_updater(self):
+        for index, options in enumerate((['--relay=203.0.113.8:1234'],
+                                        ['--relay=203.0.113.8:2234', '--no-launcher'],
+                                        ['--relay=203.0.113.8:2234', '--cert-only'])):
+            with self.assertRaises(SystemExit):
+                self.build(self.root / str(index), *options)
 
     def test_scripts_pass_no_language(self):
         output = self.root / 'default'
@@ -617,11 +649,12 @@ class ReleaseTests(unittest.TestCase):
         if os.name != 'nt':
             x86 = 'Z:' + x86.replace('/', '\\')
         top_windows = x86.rsplit('\\game\\', 1)[0]
-        # Out only, TCP and UDP: nothing comes in.
-        rules = [(program, protocol) for program in PROGRAMS for protocol in ('TCP', 'UDP')]
+        # Out, TCP and UDP; in, the updater alone (TCP: it shares by BitTorrent).
+        rules = [(program, protocol, 'out') for program in PROGRAMS for protocol in ('TCP', 'UDP')]
+        rules.append((SHARER, 'TCP', 'in'))
 
-        def delete(program, protocol):
-            return f'[dry-run] netsh advfirewall firewall delete rule name="Skhid {program} {protocol} out"'
+        def delete(program, protocol, direction):
+            return f'[dry-run] netsh advfirewall firewall delete rule name="Skhid {program} {protocol} {direction}"'
 
         def commands(lines):
             return [line for line in lines if line.startswith('[dry-run] ') and 'elevate:' not in line]
@@ -658,15 +691,21 @@ class ReleaseTests(unittest.TestCase):
         for program in PROGRAMS:
             self.assertIn(said(f'Брандмауэр: {program} разрешены исходящие соединения (TCP и UDP)',
                                f'Firewall: {program} is allowed outgoing connections (TCP and UDP)'), added)
+        self.assertIn(said(f'Брандмауэр: {SHARER} разрешены входящие соединения TCP (BitTorrent)',
+                           f'Firewall: {SHARER} is allowed incoming TCP connections (BitTorrent)'), added)
         expected = []
-        for program, protocol in rules:
-            expected += [delete(program, protocol),
-                         f'[dry-run] netsh advfirewall firewall add rule name="Skhid {program} {protocol} out" '
-                         f'dir=out action=allow program="{x86}\\{program}" protocol={protocol} enable=yes '
+        for program, protocol, direction in rules:
+            expected += [delete(program, protocol, direction),
+                         f'[dry-run] netsh advfirewall firewall add rule name="Skhid {program} {protocol} {direction}" '
+                         f'dir={direction} action=allow program="{x86}\\{program}" protocol={protocol} enable=yes '
                          f'profile=any']
         expected += ['[dry-run] look for firewall rules that block the three programs']
         shown(commands(added), expected)
-        self.assertNotIn(' dir=in ', '\n'.join(added))
+        # In: the updater's program alone, every port (the launcher's setting).
+        inward = [line for line in added if ' dir=in ' in line]
+        self.assertEqual(len(inward), 1, '\n'.join(added))
+        self.assertIn(f'\\{SHARER}" protocol=TCP', inward[0])
+        self.assertNotIn('localport', inward[0])
         # The command line the elevation starts cmd.exe with, and that run.
         elevate = [line for line in added if 'elevate:' in line]
         shown(elevate, [f'[dry-run] elevate: cmd.exe /d /c ""{top_windows}\\Skhid-network-setup.cmd" '
@@ -678,7 +717,7 @@ class ReleaseTests(unittest.TestCase):
         # Every rule is removed by its name before it is added: a second run
         # adds none twice.
         self.assertEqual(setup('--dry-run'), added)
-        # --undo: the same six rules.
+        # --undo: the same seven rules.
         undone = setup('--dry-run', '--undo')
         shown(commands(undone), [delete(*rule) for rule in rules])
         shown([line for line in undone if 'elevate:' in line],
@@ -688,18 +727,20 @@ class ReleaseTests(unittest.TestCase):
             elevated = self.elevated([line for line in undone if 'elevate:' in line][0], locale, ui)
             self.assertEqual(commands(elevated), commands(undone), '\n'.join(elevated))
 
-        # The Defender exclusion: game\binaries\x86 alone, never the folder
-        # above it; then the files Defender deleted.
+        # The Defender exclusions: game\binaries\x86 and game\torrent alone,
+        # never the folder above them; then the files Defender deleted.
         added = defender('--dry-run')
         self.assertIn(said('Исключение Skhid в Microsoft Defender', 'Skhid exclusion in Microsoft Defender'), added)
         shown([line for line in added if line.startswith(folder)], [f'{folder}"{top_windows}"'])
+        torrent = f'{top_windows}\\game\\torrent'
         expected = [f'[dry-run] powershell Add-MpPreference -ExclusionPath "{x86}"',
+                    f'[dry-run] powershell Add-MpPreference -ExclusionPath "{torrent}"',
                     f'[dry-run] write "{top_windows}\\Skhid-network-setup.defender":'] + restore(site)
         shown(commands(added), expected)
-        # What the marker would hold: the path as it is, by the line that
-        # writes it.
+        # What the marker would hold: the paths as they are, by the line
+        # that writes it.
         writes = next(i for i, line in enumerate(added) if line.startswith('[dry-run] write '))
-        shown(added[writes + 1:writes + 2], [x86])
+        shown(added[writes + 1:writes + 3], [x86, torrent])
         elevate = [line for line in added if 'elevate:' in line]
         shown(elevate, [f'[dry-run] elevate: cmd.exe /d /c ""{top_windows}\\Skhid-defender-setup.cmd" '
                         '--elevated --dry-run"'])
@@ -729,7 +770,7 @@ class ReleaseTests(unittest.TestCase):
         self.assertIn(pointer, setup('--dry-run', '--undo'))
         undone = defender('--dry-run', '--undo')
         shown(commands(undone),
-              [f'[dry-run] powershell Remove-MpPreference -ExclusionPath (the path in "{top_windows}'
+              [f'[dry-run] powershell Remove-MpPreference -ExclusionPath (each path in "{top_windows}'
                '\\Skhid-network-setup.defender")',
                f'[dry-run] delete "{top_windows}\\Skhid-network-setup.defender"'])
         if faithful:
@@ -760,7 +801,7 @@ class ReleaseTests(unittest.TestCase):
                       setup('--defender-yes'))
         # Without the updater's address, the server is skhid.link.
         exe.write_bytes(kept)
-        shown(commands(defender('--dry-run'))[2:], restore('https://skhid.link'))
+        shown(commands(defender('--dry-run'))[3:], restore('https://skhid.link'))
         # An address the updater would not take either (plain http elsewhere
         # than to this computer): skhid.link. (Once per Windows: it is not the
         # folder's.)
@@ -772,7 +813,7 @@ class ReleaseTests(unittest.TestCase):
                                   ('http://127.0.0.1:8080', 'http://127.0.0.1:8080'),
                                   ('https://other.example:8443', 'https://other.example:8443')):
                 url.write_bytes(written.encode() + b'\r\n')
-                shown(commands(defender('--dry-run'))[2:], restore(used))
+                shown(commands(defender('--dry-run'))[3:], restore(used))
 
     def powershell_of(self, word):
         """The PowerShell code of the shipped Defender script's powershell
@@ -789,16 +830,19 @@ class ReleaseTests(unittest.TestCase):
 
     @unittest.skipUnless(POWERSHELL, 'PowerShell (pwsh elsewhere than on Windows)')
     def test_the_defender_marker_keeps_every_letter(self):
-        """The marker of the exclusion, written by the add's PowerShell and
+        """The marker of the exclusions, written by the add's PowerShell and
         read by the undo's, with stand-ins for the Defender cmdlets (no
-        exclusion is made): a path's every letter, Ukrainian and Polish too,
-        which code page 866 has not; and a marker of the earlier script
-        (#453: the path in 866 and a line end) still read. What the undo says
-        is Russian on a Russian Windows (SKHID_RU), English on another."""
+        exclusion is made): the two folders a line each, a path's every
+        letter, Ukrainian and Polish too, which code page 866 has not; a
+        marker of an earlier run kept, a folder excluded already left alone;
+        and a marker of the earlier script (#453: the path in 866 and a line
+        end) still read. What the undo says is Russian on a Russian Windows
+        (SKHID_RU), English on another."""
         add, remove = self.powershell_of('Add-MpPreference'), self.powershell_of('Remove-MpPreference')
         stand_ins = (
             "$log = $env:SKHID_TEST_LOG; $utf8 = [Text.UTF8Encoding]::new($false); "
-            "function Get-MpPreference { [CmdletBinding()] param() [pscustomobject]@{ ExclusionPath = @() } }; "
+            "function Get-MpPreference { [CmdletBinding()] param() "
+            "[pscustomobject]@{ ExclusionPath = @(([string]$env:SKHID_TEST_HAD).Split([char]124) | Where-Object { $_ }) } }; "
             "function Add-MpPreference { [CmdletBinding()] param([string]$ExclusionPath) "
             "[IO.File]::AppendAllText($log, 'add|' + $ExclusionPath + [char]10, $utf8) }; "
             "function Remove-MpPreference { [CmdletBinding()] param([string]$ExclusionPath) "
@@ -806,9 +850,9 @@ class ReleaseTests(unittest.TestCase):
             "[IO.File]::AppendAllText($log, 'remove|' + $ExclusionPath + [char]10, $utf8) }; ")
         marker, log = self.root / 'marker.defender', self.root / 'defender.log'
 
-        def run(code, path, refuse=False, locale='en_US.UTF-8'):
-            env = dict(os.environ, SKHID_EXCLUDED=path, SKHID_MARKER=str(marker), SKHID_TEST_LOG=str(log),
-                       LANG=locale, LC_ALL=locale)
+        def run(code, path, refuse=False, locale='en_US.UTF-8', had=''):
+            env = dict(os.environ, SKHID_EXCLUDED=path, SKHID_TORRENT=torrent_of(path), SKHID_MARKER=str(marker),
+                       SKHID_TEST_LOG=str(log), SKHID_TEST_HAD=had, LANG=locale, LC_ALL=locale)
             env.pop('SKHID_TEST_REFUSE', None)
             if refuse:
                 env['SKHID_TEST_REFUSE'] = '1'
@@ -820,6 +864,14 @@ class ReleaseTests(unittest.TestCase):
             said = done.stdout.decode('oem' if os.name == 'nt' else 'utf-8', 'replace')
             return done.returncode, said.strip()
 
+        def torrent_of(path):
+            return path.removesuffix('binaries\\x86') + 'torrent'
+
+        def marked():
+            data = marker.read_bytes()
+            self.assertTrue(data.startswith(b'\xef\xbb\xbf'), data)
+            return data[3:].decode().splitlines()
+
         paths = ('C:\\Users\\Віталій\\Ігри & Fun!\\Survarium\\game\\binaries\\x86',
                  'D:\\Gry\\Café Łódź (x86)\\Survarium\\game\\binaries\\x86',
                  'C:\\Игры\\Мои игры! & (x86)\\Survarium\\game\\binaries\\x86')
@@ -828,22 +880,35 @@ class ReleaseTests(unittest.TestCase):
                 with self.subTest(locale=locale, path=path):
                     log.unlink(missing_ok=True)
                     marker.unlink(missing_ok=True)
+                    both = [path, torrent_of(path)]
                     self.assertEqual(run(add, path, locale=locale), (0, ''))
-                    self.assertEqual(marker.read_bytes(), b'\xef\xbb\xbf' + path.encode())
+                    self.assertEqual(marked(), both)
                     rc, said = run(remove, path, locale=locale)
                     self.assertEqual(rc, 0, said)
                     if os.name != 'nt':
-                        self.assertEqual(said, f'Defender: исключение "{path}" удалено.' if locale.startswith('ru')
-                                         else f'Defender: the exclusion "{path}" is removed.')
-                    self.assertEqual(log.read_text(encoding='utf-8').splitlines(), [f'add|{path}', f'remove|{path}'])
+                        self.assertEqual(said.splitlines(),
+                                         [f'Defender: исключение "{p}" удалено.' if locale.startswith('ru')
+                                          else f'Defender: the exclusion "{p}" is removed.' for p in both])
+                    self.assertEqual(log.read_text(encoding='utf-8').splitlines(),
+                                     [f'add|{p}' for p in both] + [f'remove|{p}' for p in both])
                     # Refused: said, and the marker stays (the script deletes
                     # it only after a removal).
                     rc, said = run(remove, path, refuse=True, locale=locale)
                     self.assertEqual(rc, 1, said)
                     if os.name != 'nt':
-                        self.assertEqual(said, f'Defender: исключение "{path}" удалить не удалось.'
-                                         if locale.startswith('ru')
-                                         else f'Defender: the exclusion "{path}" could not be removed.')
+                        self.assertEqual(said.splitlines(),
+                                         [f'Defender: исключение "{p}" удалить не удалось.' if locale.startswith('ru')
+                                          else f'Defender: the exclusion "{p}" could not be removed.' for p in both])
+                    # An earlier run's marker, game\binaries\x86 excluded: only
+                    # game\torrent added, the marker keeps both; both
+                    # excluded: nothing changed (3).
+                    log.unlink()
+                    marker.write_bytes(b'\xef\xbb\xbf' + path.encode())
+                    self.assertEqual(run(add, path, locale=locale, had=path), (0, ''))
+                    self.assertEqual(log.read_text(encoding='utf-8').splitlines(), [f'add|{both[1]}'])
+                    self.assertEqual(marked(), both)
+                    self.assertEqual(run(add, path, locale=locale, had='|'.join(both))[0], 3)
+                    marker.unlink()
             # The earlier script's marker: code page 866, a line end.
             path = paths[2]
             log.unlink(missing_ok=True)
@@ -1074,13 +1139,19 @@ class ReleaseTests(unittest.TestCase):
         (x86 / 'updater_skhid.log').write_bytes(b'2026-11-02 10:00:00 patches: GET https://user:pa55@files.example/x\n'
                                                 b'2026-11-02 10:00:01 ok\n')
         (x86 / 'srp_patches.log').write_bytes(b'pid 7 pickup: refused, no drop to take\r\n')
-        # Each run's logs, named by its start (a second part of the patches' log too).
+        # Each run's logs, named by its start (a second part of the patches' log too), in game\logs
+        # with Skhid.sh's; one an older updater did not move, beside the exe.
         runs = {'documents/Survarium.2026-11-15_14-03-07.log': b'core <info>\t[14:03:07.000]\tstarted\r\n',
-                'game-x86/updater_skhid.2026-11-15_14-03-05.log': b'2026-11-15 14:03:05 ok\r\n',
-                'game-x86/srp_patches.2026-11-15_14-03-07.log': b'srp: a run\r\n',
-                'game-x86/srp_patches.2026-11-15_14-03-07_2.log': b'srp: its next part\r\n'}
+                'game-logs/updater_skhid.2026-11-15_14-03-05.log': b'2026-11-15 14:03:05 ok\r\n',
+                'game-logs/srp_patches.2026-11-15_14-03-07.log': b'srp: a run\r\n',
+                'game-logs/srp_patches.2026-11-15_14-03-07_2.log': b'srp: its next part\r\n',
+                'game-logs/skhid-wine.log': b'Wine runtime: wine-11.8\n',
+                'game-x86/srp_patches.2026-11-14_10-00-00.log': b'srp: an older run\r\n'}
+        places = {'documents': own, 'game-logs': top / 'game' / 'logs', 'game-x86': x86}
+        places['game-logs'].mkdir()
         for entry, data in runs.items():
-            ((own if entry.startswith('documents/') else x86) / entry.split('/', 1)[1]).write_bytes(data)
+            place, name = entry.split('/', 1)
+            (places[place] / name).write_bytes(data)
         (x86 / 'srp_patches.old.log').write_bytes(b'not a run')
         (x86 / 'SRP-crash-20261102-1.txt').write_bytes(b'Exception: 0xC0000005\r\n')
         (x86 / 'SRP-crash-20261102-1.dmp').write_bytes(b'MDMP dump-secret')
@@ -1267,6 +1338,7 @@ class ReleaseTests(unittest.TestCase):
         for ui in ('ru', 'en'):
             if ui == 'ru':
                 firewall = [f'Брандмауэр: {program} разрешены исходящие соединения (TCP и UDP)' for program in PROGRAMS]
+                firewall.append(f'Брандмауэр: {SHARER} разрешены входящие соединения TCP (BitTorrent)')
                 scripts = (
                     (overlay.NETWORK_SETUP, 'Для правил брандмауэра нужны права администратора. Сейчас Windows',
                      'настроил брандмауэр.', 'Брандмауэр:',
@@ -1282,6 +1354,7 @@ class ReleaseTests(unittest.TestCase):
                 not_admin = 'Ничего не изменено: у этого окна нет прав администратора.'
             else:
                 firewall = [f'Firewall: {program} is allowed outgoing connections (TCP and UDP)' for program in PROGRAMS]
+                firewall.append(f'Firewall: {SHARER} is allowed incoming TCP connections (BitTorrent)')
                 scripts = (
                     (overlay.NETWORK_SETUP, 'The firewall rules need administrator rights. Windows will now ask',
                      'sets up the firewall.', 'Firewall:',

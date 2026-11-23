@@ -8,6 +8,7 @@ package survarium.controls
    import scaleform.clik.data.DataProvider;
    import scaleform.clik.events.ListEvent;
    import survarium.constants.TeamSide;
+   import survarium.modes.FrozenPlaces;
    
    public class PlayerList extends MovieClip
    {
@@ -35,6 +36,14 @@ package survarium.controls
       // byClanAndName), filling the left column before continuing on the right.
       // Other modes keep each team in its own column.
       private var _ranked:Boolean = false;
+
+      // Artifact Hunt (HUD.artefact_hunt_update): the carrier's place (a row's id), -1 none; his row
+      // is marked (PlayerListRenderer).
+      private var _carrier:int = -1;
+
+      // Freeze Tag (HUD.freeze_tag_rows): a frozen place's row (its id the place) has his name in the
+      // ice blue (PlayerListRenderer).
+      private var _frozen:FrozenPlaces = FrozenPlaces.NONE;
 
       // PlayerListz's authored lists each fit ten 30 px rows (twenty match places).
       private static const COLUMN_ROWS:int = 10;
@@ -92,6 +101,62 @@ package survarium.controls
             this.splitTeams();
             this.populateTeams();
          }
+      }
+
+      public function get carrier() : int
+      {
+         return this._carrier;
+      }
+
+      // A change draws the rows again.
+      public function set carrier(value:int) : void
+      {
+         if(value == this._carrier)
+         {
+            return;
+         }
+         _carrier = value;
+         this.redrawRows();
+      }
+
+      public function isFrozen(place:int) : Boolean
+      {
+         return this._frozen.has(place);
+      }
+
+      // A change draws the rows again.
+      public function set frozen(places:FrozenPlaces) : void
+      {
+         if(places == this._frozen)
+         {
+            return;
+         }
+         _frozen = places;
+         this.redrawRows();
+      }
+
+      private function redrawRows() : void
+      {
+         for each(var column:DataProvider in [this._team1DP,this._team2DP])
+         {
+            if(column)
+            {
+               column.invalidate();
+            }
+         }
+      }
+
+      // The name of a place's row, null for none.
+      public function nameOf(place:int) : String
+      {
+         for each(var row:Object in this._players)
+         {
+            if(row.id == place)
+            {
+               return row.name;
+            }
+         }
+         return null;
       }
 
       public function get ranked() : Boolean

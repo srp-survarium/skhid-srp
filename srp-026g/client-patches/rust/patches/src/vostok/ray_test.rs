@@ -165,6 +165,18 @@ impl Body<'_> {
     }
 }
 
+/// Whether a ray result's object is a living player's hit model (a
+/// bt_animated_rigid_body of material actor), not the level or another
+/// hittable thing.
+///
+/// # Safety
+/// `object` is a ray result's, alive (the physics world's, on its thread).
+pub unsafe fn living_body(object: raw::HitObject) -> bool {
+    // SAFETY: its material read only once its vtable says it is a hit
+    // model's body.
+    unsafe { read(object.vtable()) == raw::image::ANIMATED_BODY_VTABLE && read(object.body().material()) == ACTOR }
+}
+
 /// The bullet's ray at `bullet.ray_traced`, its result the patch's to decide.
 pub struct RayTest<'t> {
     bullet: raw::Bullet,
@@ -267,11 +279,7 @@ impl<'t> RayTest<'t> {
         // material read only once its vtable says it is a hit model's body.
         unsafe {
             let Some(object) = self.result.object() else { return Struck::Nothing };
-            if read(object.vtable()) == raw::image::ANIMATED_BODY_VTABLE && read(object.body().material()) == ACTOR {
-                Struck::Body(BodyId(object.address()))
-            } else {
-                Struck::Level
-            }
+            if living_body(object) { Struck::Body(BodyId(object.address())) } else { Struck::Level }
         }
     }
 

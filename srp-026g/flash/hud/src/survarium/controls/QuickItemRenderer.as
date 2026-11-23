@@ -11,6 +11,7 @@ package survarium.controls
    import scaleform.clik.data.ListData;
    import scaleform.clik.interfaces.IListItemRenderer;
    import survarium.Util;
+   import survarium.constants.Colors;
    import survarium.core.Icon;
    
    public class QuickItemRenderer extends DragSlot implements IListItemRenderer
@@ -61,6 +62,9 @@ package survarium.controls
       protected var _lastId:int = -1;
       
       protected var _bitmapColored:Boolean = true;
+      
+      // The countdown's own colour (the movie's), and Spring's blue while a tank's Oxygen Rush runs.
+      private var _timerColor:uint;
       
       public function QuickItemRenderer()
       {
@@ -296,6 +300,7 @@ package survarium.controls
                if(sec != 0)
                {
                   this.count_timer.text = Util.getZeroString(sec);
+                  this.count_timer.textColor = _data.activityPhase == QuickSlots.ACTIVITY_BOOSTED ? Colors.SPEED_BOOST : this._timerColor;
                   this.timerBack.visible = true;
                   trace("contentContainer::check_glow",contentContainer,contentContainer.currentFrame,this._lastTimer,sec,this._lastId,_data.icon_id);
                   if(_data.is_artefact && contentContainer && (contentContainer.currentFrame < 11 || contentContainer.currentFrame == 20))
@@ -439,6 +444,7 @@ package survarium.controls
          this.count.defaultTextFormat = this.count.getTextFormat();
          this.keyBind.defaultTextFormat = this.keyBind.getTextFormat();
          this.count_timer.defaultTextFormat = this.count_timer.getTextFormat();
+         this._timerColor = uint(this.count_timer.defaultTextFormat.color);
       }
       
       override protected function setState(state:String) : void

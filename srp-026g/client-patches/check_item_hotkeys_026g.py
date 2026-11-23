@@ -9,14 +9,16 @@ Requires Python `unicorn`. The exe's sections are loaded as they are, the
 arena with them; check_hide_ui_026g.py's and check_blackout_026g.py's
 harnesses. The game's own code runs:
 
-- the action table: the build's `actions` is the game's 60 rows (artefact's
-  default key kH, patch 78's), then the sixteen (4Ah..59h); id_to_action_name
+- the action table: the build's `actions` is the game's 60 rows (the rows
+  other patches change: artefact's default key kH, patch 78's;
+  hide_interface kF9, screenshot kF11 and screenshot_no_ui kF12, patch 152's;
+  ptt_nearby of kind 8, patch 66's), then the sixteen (4Ah..59h); id_to_action_name
   (0x2079D0) and action_name_to_ptr (0x207AD0) answer every row of the build,
   the game's as the original;
 - the key binder's bindings, 60h of them: the game's init allocates the
   binder 60h x 0Ch + 4 bytes (0x1EA265; the original 364h); its construction
   (0x207540 to 0x207573) clears the 60h, gives every id the original gives a
-  description the same row's bytes (artefact's key aside) and the sixteen
+  description the same row's bytes (the changed rows aside) and the sixteen
   their rows, 48h, 49h and 58h.. none, and puts the game after the bindings,
   nothing past it; the binder's bind (0x207DC0, `use_onyx kF5` and
   `use_oxygen_tank kF6` as user.cfg's lines have them) makes them those
@@ -26,7 +28,7 @@ harnesses. The game's own code runs:
   from 57h (bind_key's pass over the bindings); unbind (0x207FF0) clears
   4Ah's key; an unbind of an unknown name clears binding 49h's, inside the
   build's binder (past the original's); the options (game_options 0x2013A0,
-  0x201F20): a key set for 4Ah is kept in the 43rd row and the accept runs
+  0x201F20): a key set for 4Ah is kept in the 46th row and the accept runs
   `bind use_onyx kF5`;
 - the input: process_first_person_mode (0x241250 to its `ret 8`, no keyboard
   look) on a made-up handler whose game world's network client's local
@@ -58,6 +60,19 @@ import check_blackout_026g as blackout
 
 GAME_TABLE, GAME_ROWS, ROWS = base.ITEM_HOTKEYS_TABLE, base.ITEM_HOTKEYS_GAME_ROWS, base.ITEM_HOTKEYS_ROWS
 ARTEFACT, KH = 0x23, 0x9FDCA8                       # patch 78's carry key, "kH"
+KF9, KF11, KF12 = 0x9FDC1C, 0x9FDF1C, 0x9FDB60      # patch 152's keys' names
+
+
+def built_row(row):
+    """The build's row of a game's row {name, id, kinds, toggle, default key}:
+    the rows other patches change (patches 78, 152 and 66), the others as
+    they are."""
+    name = base.arena().symbols
+    return {ARTEFACT: lambda r: r[:4] + (KH,),
+            0x19: lambda r: (name["hide_interface_action"],) + r[1:4] + (KF9,),
+            0x1A: lambda r: (name["screenshot_action"],) + r[1:4] + (KF11,),
+            0x1B: lambda r: (name["screenshot_no_ui_action"],) + r[1:4] + (KF12,),
+            0x37: lambda r: (name["ptt_nearby_action"], 0x37, 8) + r[3:]}.get(row[1], lambda r: r)(row)
 CONSTRUCT, CONSTRUCTED = 0x207540, 0x207573         # the binder's construction: its rows into the bindings
 ID_TO_NAME, NAME_TO_PTR, GET_BOUND = 0x2079D0, 0x207AD0, 0x207D50
 BUILDER = 0x241250                                  # process_first_person_mode (handler, keyboard look), ret 8
@@ -303,11 +318,12 @@ def main():
     game = [row(stock, GAME_TABLE + 20 * i) for i in range(GAME_ROWS)]
     moved = [row(patched, actions + 20 * i) for i in range(ROWS)]
     named = lambda run, r: (run.string(r[0]),) + r[1:]
-    want = [named(stock, r[:4] + (KH,) if r[1] == ARTEFACT else r) for r in game] \
+    want = [named(patched, built_row(r)) for r in game] \
         + [(name, action, 5, 0, 0) for name, action, _ in KEYS] + [(name, action, 5, 0, 0) for name, action in GROUPS]
     report([named(patched, r) for r in moved] == want
            and game == [row(patched, GAME_TABLE + 20 * i) for i in range(GAME_ROWS)],
-           f"`actions` ({actions:#x}): the game's {GAME_ROWS} rows (artefact's default key kH), then the sixteen "
+           f"`actions` ({actions:#x}): the game's {GAME_ROWS} rows (artefact kH, hide_interface kF9, screenshot kF11, "
+           "screenshot_no_ui kF12, ptt_nearby kind 8), then the sixteen "
            "(4Ah..59h, kinds 5, no toggle, no default key); the game's table unchanged in the build")
 
     print(f"the key binder's bindings: {BINDINGS:#x} (the game's 48h; 0x1EA265, 0x207540, 0x207D50, 0x207DC0, "
@@ -325,7 +341,7 @@ def main():
         if not x:
             return not y
         want = row(stock, x)
-        return y and row(patched, y) == (want[:4] + (KH,) if action == ARTEFACT else want)
+        return y and row(patched, y) == built_row(want)
     report(all(same(i, x, y) for i, (x, y) in enumerate(zip(a[:0x48], b)))
            and all(b[action] == at[action] for action in new) and not any(b[0x48:0x4A]) and not any(b[0x5A:])
            and all(actions <= y < actions + 20 * ROWS for y in b if y)

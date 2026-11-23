@@ -5,7 +5,10 @@
 use artefact_carry::{ArtefactId, Place, Refused};
 use artefact_carry::carry::{self, Carry, CarryKey, Event, KeyPress, QuickSlot, Token};
 use ragdoll::math::Vec3;
-use crate::vostok::{Action, KeyboardAction, Context, Flow, InputHandler, Lock, GameCell, NoExit, ActionMask, Thread};
+use crate::vostok::{Action, ArtefactCarryOnInputExit, KeyboardAction, Context, Flow, InputHandler, Lock, GameCell, NoExit, ActionMask, Thread};
+
+/// The Drop key's bit (action 36h, the input builder 0x242118).
+const DROP: u32 = 1 << 22;
 use crate::vostok::carry_runtime::{self as native, ArtefactClass, ArtefactDraw, HiddenWeapons, Key};
 use crate::vostok::inventory::ContainerSpace;
 use crate::vostok::draw::{self, DrawnBones};
@@ -57,10 +60,13 @@ fn event(player: &Player<'_>, ctx: &Context<'_>, event: Event) {
 
 /// Called on every set_input, including inputs for which native early-out
 /// skips its copy. Command and Use edge detection therefore sees releases.
-pub fn on_input(ctx: &mut Context<'_>) -> Flow<NoExit> {
+pub fn on_input(ctx: &mut Context<'_>) -> Flow<ArtefactCarryOnInputExit> {
     let Some(player) = native::player(ctx, native::PlayerSite::Input) else { return Flow::Continue };
     let Some((now, actions)) = native::incoming(ctx) else { return Flow::Continue };
     let before = machine(&player, ctx);
+    // Artifact Hunt (patch 171) first: its take or delivery has the use key's press.
+    let hunt = crate::artefact_hunt::input(&player, now.0, before.use_pressed(actions),
+                                           before.pressed(actions, DROP));
     let allowed = player.carry_allowed();
     if !allowed {
         event(&player, ctx, Event::Gone);
@@ -68,6 +74,10 @@ pub fn on_input(ctx: &mut Context<'_>) -> Flow<NoExit> {
     let artefact = QuickSlot::from_actions(actions).filter(|_| allowed)
         .and_then(|slot| player.inventory()?.quick_artefact(slot));
     event(&player, ctx, Event::Input { now, actions, artefact });
+    if hunt == crate::artefact_hunt::Input::Used {
+        consume_use(&player, ctx);
+        return Flow::Continue;
+    }
     // Use is ours only when a take happens; otherwise the game has it
     // (a battery, a trap, a native pickup).
     if before.use_pressed(actions) {
@@ -138,6 +148,8 @@ pub fn on_ground_load(ctx: &mut Context<'_>) -> Flow<NoExit> {
 pub fn on_filter(ctx: &mut Context<'_>) -> Flow<NoExit> {
     if let Some(player) = native::player(ctx, native::PlayerSite::Filter) {
         crate::weapon_pickup::on_filter(&player, ctx.thread());
+        // Patch 196: a corpse shot told, for the death its victim is dead of now.
+        crate::corpse_shot_dark::on_filter(&player, ctx.thread());
         if player.carry_key().is_some() {
             player.carry_filter(machine(&player, ctx).filtered());
         }
@@ -212,19 +224,35 @@ pub fn on_input_end(ctx: &mut Context<'_>) -> Flow<NoExit> {
         let encoded = chord.step(actions, key.is_down());
         CHORD.set(ctx.thread(), chord);
         handler.set_actions(ActionMask::from_bits(encoded));
+        // Patch 180: Use's press on an offered live enemy grenade is its throw-back (patch 85 then
+        // sees Use consumed).
+        crate::technical_return_to_sender::on_input_end(&mut handler, ctx.thread());
         // Patch 85: Use's press on a dropped gun is sent as its pickup.
         crate::weapon_pickup::on_input_end(&mut handler, ctx.thread());
+        // Patch 196: a shot into a corpse told in an input free of keys and commands.
+        crate::corpse_shot_dark::on_input_end(&mut handler, ctx.thread());
     }
     Flow::Continue
 }
 
 pub fn on_hud(ctx: &Context<'_>) {
     // Patch 78's: shown only when Use would take (otherwise the native hint stays).
-    // Patch 78's own targets first, then patch 85's dropped gun.
+    // Artifact Hunt's artefact first (the owner: "picking up arti should take
+    // a priority over weapon"): while Use would take it or put it in, nothing
+    // here is aimed or shown, so no gun pickup goes into the input (Use stays
+    // Use, which the hunt takes at carry.input in every game) and the hunt's
+    // prompt is the one shown. Then patch 180's live enemy grenade (it is about
+    // to explode), then patch 78's own targets, then patch 85's gun.
     let local = native::local_player(ctx);
-    let carry = local.as_ref().is_some_and(|p| target(p, ctx).is_some() || ground_target(p).is_some());
-    let gun = crate::weapon_pickup::aim(ctx, local.as_ref().filter(|_| !carry));
-    let visible = carry || gun.is_some();
+    if local.as_ref().is_some_and(crate::artefact_hunt::offers) {
+        crate::weapon_pickup::aim(ctx, None);
+        HINT.set(ctx.thread(), None);
+        return;
+    }
+    let grenade = crate::technical_return_to_sender::aim(ctx, local.as_ref());
+    let carry = grenade.is_none() && local.as_ref().is_some_and(|p| target(p, ctx).is_some() || ground_target(p).is_some());
+    let gun = crate::weapon_pickup::aim(ctx, local.as_ref().filter(|_| !carry && grenade.is_none()));
+    let visible = grenade.is_some() || carry || gun.is_some();
     let Some(ui) = crate::vostok::GameWorldUi::at_update_icons(ctx) else { return };
     if let Some(movie) = ui.hud_movie() {
         let previous = HINT.get(ctx.thread());
@@ -233,15 +261,20 @@ pub fn on_hud(ctx: &Context<'_>) {
         // the movie, even if the world target itself did not change.
         if !visible && previous.is_none_or(|(id, shown)| id != movie.id() || !shown) { return; }
         let mut text = [0u8; 0x200];
-        let shown = match gun {
-            _ if carry => movie.invoke_text(c"root.show_artefact_offer", c"st_artefact_take_teammate"),
-            Some(crate::weapon_pickup::Prompt::Take(name)) => {
-                let name = if name.get().is_empty() { c"" } else { ui.translate(name.get(), &mut text) };
-                movie.invoke_strings(c"root.show_artefact_offer", &[c"st_weapon_pick_up", name])
+        let shown = if let Some(crate::technical_return_to_sender::Prompt(name)) = &grenade {
+            let name = if name.get().is_empty() { c"" } else { ui.translate(name.get(), &mut text) };
+            movie.invoke_strings(c"root.show_artefact_offer", &[c"st_weapon_pick_up", name])
+        } else {
+            match gun {
+                _ if carry => movie.invoke_text(c"root.show_artefact_offer", c"st_artefact_take_teammate"),
+                Some(crate::weapon_pickup::Prompt::Take(name)) => {
+                    let name = if name.get().is_empty() { c"" } else { ui.translate(name.get(), &mut text) };
+                    movie.invoke_strings(c"root.show_artefact_offer", &[c"st_weapon_pick_up", name])
+                }
+                // Why it cannot be taken (none is silent).
+                Some(crate::weapon_pickup::Prompt::Cannot(key)) => movie.invoke_text(c"root.show_artefact_offer", key),
+                None => movie.invoke_text(c"root.show_artefact_offer", c""),
             }
-            // Why it cannot be taken (none is silent).
-            Some(crate::weapon_pickup::Prompt::Cannot(key)) => movie.invoke_text(c"root.show_artefact_offer", key),
-            None => movie.invoke_text(c"root.show_artefact_offer", c""),
         };
         if shown { HINT.set(ctx.thread(), next); }
     }

@@ -1,0 +1,16 @@
+# the rifle scopes' texts, in 0.26g's six localization tables (names as the sold scopes', zoom in the name)
+key	english	german	original	polish	russian	ukrainian
+st_shop_scope_ncstar_4_name	NcSTAR 4 collimator	NcSTAR 4 Kollimator	Коллиматор NcSTAR 4	Kolimator NcSTAR 4	Коллиматор NcSTAR 4	Коліматор NcSTAR 4
+st_shop_scope_ncstar_4_description	Red dot sight for fast aiming.	Rotpunktvisier für schnelles Zielen.	Коллиматорный прицел для быстрого прицеливания.	Celownik kolimatorowy do szybkiego celowania.	Коллиматорный прицел для быстрого прицеливания.	Коліматорний приціл для швидкого прицілювання.
+st_shop_scope_eotech_xps2_name	EOTech XPS2 collimator	EOTech XPS2 Kollimator	Коллиматор EOTech XPS2	Kolimator EOTech XPS2	Коллиматор EOTech XPS2	Коліматор EOTech XPS2
+st_shop_scope_eotech_xps2_description	Red dot sight for fast aiming.	Rotpunktvisier für schnelles Zielen.	Коллиматорный прицел для быстрого прицеливания.	Celownik kolimatorowy do szybkiego celowania.	Коллиматорный прицел для быстрого прицеливания.	Коліматорний приціл для швидкого прицілювання.
+st_shop_scope_belomo_pk01_name	PK-01VI collimator, x2	PK-01VI Kollimator, x2	Коллиматор ПК-01ВИ, x2	Kolimator PK-01VI, x2	Коллиматор ПК-01ВИ, x2	Коліматор ПК-01ВІ, x2
+st_shop_scope_belomo_pk01_description	Red dot sight with x2 magnification.	Rotpunktvisier mit Vergrößerung x2.	Коллиматорный прицел с двукратным увеличением.	Celownik kolimatorowy o powiększeniu 2x.	Коллиматорный прицел с двукратным увеличением.	Коліматорний приціл із двократним збільшенням.
+st_shop_scope_hensoldt_rsas_name	RSA-S collimator, x2	RSA-S Kollimator, x2	Коллиматор RSA-S, x2	Kolimator RSA-S, x2	Коллиматор RSA-S, x2	Коліматор RSA-S, x2
+st_shop_scope_hensoldt_rsas_description	Red dot sight with x2 magnification.	Rotpunktvisier mit Vergrößerung x2.	Коллиматорный прицел с двукратным увеличением.	Celownik kolimatorowy o powiększeniu 2x.	Коллиматорный прицел с двукратным увеличением.	Коліматорний приціл із двократним збільшенням.
+st_shop_scope_aperture_name	Aperture optical sight, x3	Aperture optisches Visier, x3	Оптический прицел Aperture, x3	Celownik optyczny Aperture, x3	Оптический прицел Aperture, x3	Оптичний приціл Aperture, x3
+st_shop_scope_aperture_description	Scope with x3 magnification	Zielfernrohr mit Vergrößerung x3	Трехкратный оптический прицел	Celownik optyczny o powiększeniu 3x	Трехкратный оптический прицел	Трикратний оптичний приціл
+st_shop_scope_acog_ta01_name	TA01 optical sight, x4	TA01 optisches Visier, x4	Оптический прицел TA01, x4	Celownik optyczny TA01, x4	Оптический прицел TA01, x4	Оптичний приціл TA01, x4
+st_shop_scope_acog_ta01_description	Scope with x4 magnification	Zielfernrohr mit Vergrößerung x4	Четырехкратный оптический прицел	Celownik optyczny o powiększeniu 4x	Четырехкратный оптический прицел	Чотирикратний оптичний приціл
+st_shop_scope_leupold_3_7_name	Leupold 3-7 optical sight, x6	Leupold 3-7 optisches Visier, x6	Оптический прицел Leupold 3-7, x6	Celownik optyczny Leupold 3-7, x6	Оптический прицел Leupold 3-7, x6	Оптичний приціл Leupold 3-7, x6
+st_shop_scope_leupold_3_7_description	Scope with x6 magnification	Zielfernrohr mit Vergrößerung x6	Шестикратный оптический прицел	Celownik optyczny o powiększeniu 6x	Шестикратный оптический прицел	Шестикратний оптичний приціл

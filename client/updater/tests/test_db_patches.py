@@ -171,7 +171,7 @@ class WineTest(unittest.TestCase):
             self.offer(files)
         elif not self.site.archive:
             self.offer(self.bundle())
-        command, env = windows([self.exe(), "check", "quiet"])
+        command, env = windows([self.exe(), "check", "quiet", "direct"])
         return subprocess.run(command, cwd=self.x86, env=env, timeout=300,
                               stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode
 
@@ -179,7 +179,7 @@ class WineTest(unittest.TestCase):
         """`check quiet`, not waited for."""
         if not self.site.archive:
             self.offer(self.bundle())
-        command, env = windows([self.exe(), "check", "quiet"])
+        command, env = windows([self.exe(), "check", "quiet", "direct"])
         return subprocess.Popen(command, cwd=self.x86, env=env,
                                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
@@ -235,7 +235,7 @@ class WineTest(unittest.TestCase):
         started = os.path.join(self.x86, "survarium_skhid.exe.started.txt")
         if os.path.exists(started):
             os.remove(started)
-        self.write(f"{X86}/play_skhid.bat", builder.bat("srp.example:1234", "english", True))
+        self.write(f"{X86}/play_skhid.bat", builder.bat("srp.example:1234", True))
         command, env = windows(["cmd", "/c", "play_skhid.bat"])
         code = subprocess.run(command, cwd=self.x86, env=env, timeout=120,
                               stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
@@ -483,6 +483,27 @@ class PatchTest(WineTest):
         kept = json.loads(self.read(f"{X86}/updater_skhid.patches"))
         self.assertEqual(kept["patch_14"]["urls"], self.site.patch_urls[14])
         self.assertEqual(self.run_ready(), 0)
+
+    def test_a_slow_address_is_left_for_a_faster_one_from_the_bytes_on_disk(self):
+        # 120 MB at 512 KB/s from the first address: after 30 s the second
+        # is sampled, going on from the bytes on disk, and gives the rest.
+        patches = self.make_patches(14, size=120 << 20)
+        slow, fast = self.two_sites()
+        for site in (slow, fast):
+            site.patches.update(patches)
+        slow.patch_slow = 0.125
+        self.site.patch_urls = {14: [f"{slow.url}/store/patch_14", f"{fast.url}/store/patch_14"]}
+        self.assertEqual(self.run_updater(), 0, self.log())
+        self.assert_patches(patches)
+        self.assertEqual(slow.patch_ranges_asked, [(14, None)])
+        [(_, asked)] = fast.patch_ranges_asked
+        at = int(asked[len("bytes="):-1])
+        self.assertGreater(at, 10 << 20)
+        log = self.log()
+        self.assertIn("patches: resources.db.patch_14: 127.0.0.1 (address 1): ", log)
+        self.assertIn("KB/s over 30 s, ", log)
+        self.assertIn(f": goes on at 127.0.0.1 (address 2) from byte {at}, to sample it", log)
+        self.assertIn(f"address 2 of 2, {fast.url}/store/patch_14 (try 1 of 2): asking, from byte {at}", log)
 
     def test_a_web_page_in_the_place_of_the_file_moves_on_to_the_next_address(self):
         patches = self.make_patches(14)
@@ -810,6 +831,51 @@ class PatchTest(WineTest):
         self.assertEqual(self.run_updater(), 0, self.log())
         self.assert_patches(patches)
 
+    def part_name(self, n, data):
+        return f"game/.skhid-patch_{n}.{sha256(data)}.part"
+
+    def test_a_download_that_broke_off_goes_on_from_its_bytes(self):
+        patches = self.make_patches(14, size=1_000_000)
+        part = self.part_name(14, patches[14])
+        # Broken off at byte 300000: the bytes stay in the part, which the
+        # game and the patch files' rules do not take; the second round
+        # goes on from them.
+        self.site.patch_cut[14] = 300_000
+        self.assertEqual(self.run_updater(), 1)
+        self.assertEqual(self.site.patch_ranges_asked, [(14, None), (14, "bytes=300000-")])
+        self.assertEqual(self.read(part), patches[14][:300_000])
+        self.assertIn("(try 2 of 2): asking, from byte 300000", self.log())
+        self.assertEqual(self.patch_files(), {})
+        self.assertEqual(self.run_ready(), 1)
+        # The next start goes on from them too, and puts the whole in place.
+        self.site.patch_cut.clear()
+        self.site.patch_ranges_asked.clear()
+        mark = self.log_size()
+        self.assertEqual(self.run_updater(), 0, self.log())
+        self.assertEqual(self.site.patch_ranges_asked, [(14, "bytes=300000-")])
+        self.assertIn("300000 bytes of it kept from before: gone on from", self.log_since(mark))
+        self.assert_patches(patches)
+        self.assertFalse(self.exists(part))
+        # A server that gives no part: the whole file again, from byte 0.
+        self.write(self.patch_name(14), b"damaged")
+        self.write(part, patches[14][:300_000])
+        self.site.patch_ranges = False
+        self.site.patch_ranges_asked.clear()
+        self.assertEqual(self.run_updater(), 0, self.log())
+        self.assertEqual(self.site.patch_ranges_asked, [(14, "bytes=300000-")])
+        self.assert_patches(patches)
+        self.site.patch_ranges = True
+        # A new file for patch 14: the old one's part is dropped, and a part
+        # longer than the file (a 416) is deleted and fetched from byte 0.
+        new = self.make_patches(14, size=500_000)
+        self.write(part, patches[14][:300_000])
+        self.write(self.part_name(14, new[14]), b"x" * 600_000)
+        self.site.patch_ranges_asked.clear()
+        self.assertEqual(self.run_updater(), 0, self.log())
+        self.assertEqual(self.site.patch_ranges_asked, [(14, "bytes=600000-"), (14, None)])
+        self.assert_patches(new)
+        self.assertEqual([name for name in os.listdir(self.path("game")) if name.startswith(".skhid-patch_")], [])
+
     def test_a_damaged_file_the_server_spoils_too_is_not_left_in_place(self):
         patches = self.make_patches(14)
         self.assertEqual(self.run_updater(), 0, self.log())
@@ -1055,7 +1121,8 @@ class PatchTest(WineTest):
         # An antivirus that scans the new file before it is renamed into
         # place: the rename waits for it.
         patches = self.make_patches(14, size=32 << 20)
-        scanner = Holder(self, "game/resources.db.patch_14.skhid-part", wait=False)
+        part = self.part_name(14, patches[14])
+        scanner = Holder(self, part, wait=False)
         updater = self.start_updater()
         until = time.time() + 120
         while updater.poll() is None and time.time() < until:
@@ -1065,7 +1132,7 @@ class PatchTest(WineTest):
         self.assertEqual(updater.wait(120), 0, self.log())
         self.assertTrue(scanner.holding(), "the stand-in never got hold of the download")
         log = self.log()
-        self.assertIn("resources.db.patch_14.skhid-part cannot be renamed now", log)
+        self.assertIn(f"{os.path.basename(part)} cannot be renamed now", log)
         self.assertIn("try 1 of 6: another program holds it", log)
         self.assert_patches(patches)
         self.assertEqual(self.status(), "ready\r\n")

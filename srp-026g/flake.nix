@@ -25,8 +25,10 @@
       rust = pkgs.rust-bin.nightly.latest.default.override {
         extensions = [ "rust-src" "rustfmt" "clippy" "rust-analyzer" ];
         # The Rust exe patches (client-patches/rust) are tested and linted for
-        # the game's i686, never the host's x86_64 (rust_patches.md).
-        targets = [ "i686-unknown-linux-gnu" ];
+        # the game's i686, never the host's x86_64 (rust_patches.md). The
+        # players' Windows programs (client/bugtrap, client/updater,
+        # client-voice) are built for i686-pc-windows-msvc.
+        targets = [ "i686-unknown-linux-gnu" "i686-pc-windows-msvc" ];
       };
 
       # The players' Windows programs (client/bugtrap, client/updater) are
@@ -44,7 +46,7 @@
         SSL_CERT_FILE = "${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt";
         outputHashMode = "recursive";
         outputHashAlgo = "sha256";
-        outputHash = "sha256-F4ErAyoePkNwxGseI36VfaoPnFfvfje0Ldnekrzlg/8=";
+        outputHash = "sha256-6zcZRikmlQJDIIfxHqC4jgBkvJcPxvr089AfDjoEElQ=";
         # (This file has CRLF line ends; bash takes none.)
         buildCommand = builtins.replaceStrings [ "\r" ] [ "" ] (''
           xwin --accept-license --log-level warn --http-retry 3 --timeout 600s \
@@ -66,7 +68,7 @@
       # NASM 2.16.03 for the exe patches' arena (client-patches/link_026g.py
       # links it from source at every build, the release's too): NASM 3
       # assembles `jmp near` to a label as a two-byte short jump, so the
-      # arena's bytes, locked in arena_026g.lock.json, come from 2.16.
+      # arena's bytes come from 2.16.
       nasm216 = pkgs.nasm.overrideAttrs (old: {
         version = "2.16.03";
         src = pkgs.fetchurl {
@@ -137,6 +139,8 @@
       # The portable Rust core has no registry dependencies. This hermetic
       # check runs the same tests as cargo test -p skhid-voice, plus builds
       # the WAV listening tool; the real relay test lives in match-server.
+      skhidTorrent = import ../client/updater/torrent-dll { inherit pkgs; };
+
       voiceLoopback = pkgs.stdenv.mkDerivation {
         name = "skhid-voice-loopback";
         src = ./client-voice;
@@ -160,6 +164,11 @@
       packages.${system} = {
         voice-opus = voiceOpusMsvc;
         skhid-voice-smoke = skhidVoiceSmoke;
+        # skhid_torrent.dll (beside updater_skhid.exe: its BitTorrent) and
+        # skhid-dht (the release puts its DHT item with it):
+        # client/updater/torrent-dll.
+        skhid-torrent-dll = skhidTorrent.dll;
+        skhid-dht = skhidTorrent.dht;
       };
 
       checks.${system}.voice-loopback = voiceLoopback;

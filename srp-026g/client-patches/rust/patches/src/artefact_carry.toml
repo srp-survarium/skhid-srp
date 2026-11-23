@@ -8,6 +8,7 @@ handler = "on_weapon_hide"
 [[hook]]
 site = "carry.input"
 handler = "on_input"
+order = 1
 
 [[hook]]
 site = "carry.filter"

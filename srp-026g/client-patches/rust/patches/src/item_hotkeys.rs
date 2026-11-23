@@ -1,5 +1,5 @@
 //! Patch 149: a key per item type uses it (the rules: docs/notes/item-hotkeys.md;
-//! client_patch.md section 3.82).
+//! client_patch.md section 3.105).
 //!
 //! Sixteen actions of the moved action table (item_hotkeys_026g.asm), one per
 //! item type and two for a group (the next artefact, the next medkit: the

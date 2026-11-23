@@ -1,0 +1,925 @@
+# The site's own words in Serbian (Latin) (README.md here): English as in the code, Serbian (Latin). A text without a row is shown in English.
+Head	Glava
+Face	Lice
+Chest	Grudi
+Back	Leđa
+Arms	Ruke
+Hands	Šake
+Legs	Noge
+Feet	Stopala
+Bullets	Meci
+Melee	Bliska borba
+Explosions	Eksplozije
+Fire	Vatra
+Radiation	Radijacija
+Electricity	Struja
+Toxins	Toksini
+Armour	Oklop
+Isolation	Izolacija
+Protection	Zaštita
+Level	Nivo
+Faction	Frakcija
+Matchmaking level	Nivo meča
+Also takes	Zauzima i
+Oxygen	Kiseonik
+Gas filter	Gasni filter
+{0}: hits up to {1} stopped, the rest ×{2}	{0}: pogoci do {1} zaustavljeni, ostatak ×{2}
+Fatal headshot	Smrtonosni pogodak u glavu
+flies off	odleti
+About it	O predmetu
+premium	premijum
+level	nivo
+Weight	Težina
+Details	Detalji
+Its modifiers	Njegovi modifikatori
+Slot	Mesto
+All	Sve
+Find	Pronađi
+Search by name…	Pretraga po nazivu…
+All factions	Sve frakcije
+Level from	Nivo od
+to	do
+Sort by	Sortiraj po
+Name	Naziv
+Weight: low to high	Težina: od najmanje
+Armour: high to low	Oklop: od najvećeg
+Isolation: high to low	Izolacija: od najveće
+Group	Grupiši
+No groups	Bez grupa
+By set	Po setu
+By slot	Po mestu
+Wiki	Viki
+Equipment	Oprema
+Equipment reference	Pregled opreme
+pieces	predmeta
+Nothing matches.	Ništa ne odgovara.
+Stats	Statistika
+Public matches	Javni mečevi
+The stats need JavaScript.	Statistici je potreban JavaScript.
+Skhid	Skhid
+mode {0}	režim {0}
+No match is being played now.	Trenutno se ne igra nijedan meč.
+waiting	čekanje
+starting	početak
+just now	upravo sada
+{minutes} min ago	pre {minutes} min
+&le; {minutes} min	&le; {minutes} min
+{0} v {1}	{0} na {1}
+and {more} more	i još {more}
+Match	Meč
+Players	Igrači
+Started	Početak
+Time left	Preostalo
+Score	Rezultat
+No battle has been fought yet. Be the first.	Još nije odigrana nijedna borba. Budite prvi.
+Player	Igrač
+Rating	Rejting
+online	na mreži
+rooms	soba
+in rooms	u sobama
+matches now	mečeva sada
+players	igrača
+battles fought	odigranih borbi
+clans	klanova
+Maintenance: the server is down	Održavanje: server je isključen
+Maintenance in {minutes} min	Održavanje za {minutes} min
+On the server now	Sada na serveru
+Since the server opened	Od otvaranja servera
+TEST SERVER	TEST SERVER
+Unofficial community server. Not affiliated with or endorsed by Vostok Games. Survarium is a trademark of its owners. An early test: accounts and progress can be reset at any time.	Nezvanični server zajednice. Nije povezan sa kompanijom Vostok Games niti ga ona podržava. Survarium je zaštitni znak svojih vlasnika. Rano testiranje: nalozi i napredak mogu biti resetovani u bilo kom trenutku.
+Top 10 players	10 najboljih igrača
+Matches now	Mečevi sada
+Skhid &middot; Survarium <i>0.26g</i> community server	Skhid &middot; server zajednice za Survarium <i>0.26g</i>
+Legal notice	Pravno obaveštenje
+Not found.	Nije pronađeno.
+Too many wrong tokens; wait a minute.	Previše pogrešnih tokena; sačekajte minut.
+Wrong token.	Pogrešan token.
+No such user.	Nema takvog korisnika.
+Silver and gold are whole numbers, + or -, or empty.	Srebro i zlato su celi brojevi, + ili -, ili prazno.
+{user}: now {silver_now} silver and {gold_now} gold.	{user}: sada {silver_now} srebra i {gold_now} zlata.
+New accounts are taken again.	Novi nalozi se ponovo primaju.
+New accounts are refused; existing players sign in as before.	Novi nalozi se ne primaju; postojeći igrači se prijavljuju kao i ranije.
+Maintenance cancelled.	Održavanje je otkazano.
+No maintenance was planned.	Održavanje nije bilo zakazano.
+Minutes: a whole number from 1 to {MAX_MAINTENANCE_MINUTES}.	Minuti: ceo broj od 1 do {MAX_MAINTENANCE_MINUTES}.
+Maintenance starts in {minutes} min, at {0} UTC.	Održavanje počinje za {minutes} min, u {0} UTC.
+for {hours} h	na {hours} h
+for good	zauvek
+Address {net} banned {how_long}; {kicked} session(s) ended.	Adresa {net} blokirana {how_long}; završene sesije: {kicked}.
+No such user or address. A name several accounts share needs the user name they sign in with.	Nema takvog korisnika ni adrese. Za ime koje deli više naloga unesite korisničko ime kojim se prijavljuje.
+{target} banned {how_long}; {kicked} session(s) ended.	{target} blokiran {how_long}; završene sesije: {kicked}.
+ Its address {net} too ({more} more session(s) ended).	 I njegova adresa {net} (još završenih sesija: {more}).
+ Its address is not known, so no address was banned.	 Njegova adresa nije poznata, pa nijedna adresa nije blokirana.
+Address {net} unbanned.	Adresa {net} odblokirana.
+{net} was not banned (a range is lifted as it was banned).	{net} nije bila blokirana (opseg se skida onakav kakav je blokiran).
+No such user or address.	Nema takvog korisnika ni adrese.
+{target} unbanned.	{target} odblokiran.
+{target} was not banned.	{target} nije bio blokiran.
+ Its address {ip} too.	 I njegova adresa {ip}.
+The players' server:	Server za igrače:
+Test server.	Test server.
+Changes are tried here before they reach the players: it can restart at any moment, and accounts and progress here can be reset.	Ovde se isprobavaju izmene pre nego što stignu do igrača: server može da se restartuje u bilo kom trenutku, a nalozi i napredak ovde mogu biti resetovani.
+Damage calculator	Kalkulator štete
+Maps	Mape
+TEST	TEST
+Home	Početna
+Community server, unofficial. Not affiliated with or endorsed by Vostok Games. Survarium is a trademark of its owners.	Nezvanični server zajednice. Nije povezan sa kompanijom Vostok Games niti ga ona podržava. Survarium je zaštitni znak svojih vlasnika.
+“Game files removed by antivirus: …”	„Antivirus je uklonio datoteke igre: …“
+Run <code>Skhid-defender-setup.cmd</code>.	Pokrenite <code>Skhid-defender-setup.cmd</code>.
+“Download failed: …”	„Preuzimanje nije uspelo: …“
+Start <code>Skhid.bat</code> again. Still failing? Run <code>Skhid-without-updater.bat</code>: it downloads the game and its updates without the launcher, then starts it.	Ponovo pokrenite <code>Skhid.bat</code>. I dalje ne radi? Pokrenite <code>Skhid-without-updater.bat</code>: preuzima igru i njena ažuriranja bez pokretača, a zatim je pokreće.
+“No connection: …”	„Nema veze: …“
+Run <code>Skhid-network-setup.cmd</code>.	Pokrenite <code>Skhid-network-setup.cmd</code>.
+“Blocked on this network: …”	„Blokirano na ovoj mreži: …“
+Your provider blocks our server. The launcher has already switched to our relay, a way around the block (<b>Relay: auto</b>, bottom left). Just press <b>Retry</b>.	Vaš provajder blokira naš server. Pokretač se već sam prebacio na naš relej, koji zaobilazi blokadu (<b>Relay: auto</b>, dole levo). Samo pritisnite <b>Pokušaj ponovo</b>.
+Nothing works.	Ništa ne radi.
+Run <code>Skhid-collect-logs.cmd</code> and send the zip it makes to us on Discord: <a href="https://discord.gg/QUmJg3gBhg">discord.gg/QUmJg3gBhg</a>.	Pokrenite <code>Skhid-collect-logs.cmd</code> i pošaljite nam zip koji napravi na Discordu: <a href="https://discord.gg/QUmJg3gBhg">discord.gg/QUmJg3gBhg</a>.
+Q:	P:
+A:	O:
+If something goes wrong	Ako nešto pođe naopako
+Download the files	Preuzmi datoteke
+Download the game	Preuzmi igru
+The download link is coming soon.	Link za preuzimanje stiže uskoro.
+Can't download? Run {script}: it downloads the whole game into a Survarium folder beside it.	Ne možete da preuzmete? Pokrenite {script}: preuzima celu igru u folder Survarium pored sebe.
+Get the game	Nabavi igru
+The link is coming soon.	Link stiže uskoro.
+Get the original Survarium 0.26g (build 2777) and unpack it.	Nabavite originalni Survarium 0.26g (build 2777) i raspakujte ga.
+Maintenance.	Održavanje.
+The server is down for maintenance.	Server je isključen zbog održavanja.
+The game closes in {minutes} min; Play is locked in the last 30.	Igra se zatvara za {minutes} min; u poslednjih 30 min „Igraj“ je zaključano.
+New registrations are closed for now. Existing players can sign in and play.	Nove registracije su zasad zatvorene. Postojeći igrači mogu da se prijave i igraju.
+players online	igrača na mreži
+registered	registrovano
+Run <code>Skhid.bat</code> and press <b>PLAY</b>. The first start downloads the game.	Pokrenite <code>Skhid.bat</code> i pritisnite <b>PLAY</b>. Prvo pokretanje preuzima igru.
+Run <code>Skhid.bat</code> and press <b>PLAY</b>.	Pokrenite <code>Skhid.bat</code> i pritisnite <b>PLAY</b>.
+Windows warns about an unknown publisher? Let it run.<br>Linux: <code>bash Skhid.sh launcher</code>, see <code>LINUX.txt</code>.	Windows upozorava na nepoznatog izdavača? Dozvolite pokretanje.<br>Linux: <code>bash Skhid.sh launcher</code>, pogledajte <code>LINUX.txt</code>.
+Windows warns about an unknown publisher? Let it run.<br>Linux: <code>bash Skhid.sh</code>, see <code>LINUX.txt</code>.	Windows upozorava na nepoznatog izdavača? Dozvolite pokretanje.<br>Linux: <code>bash Skhid.sh</code>, pogledajte <code>LINUX.txt</code>.
+Run <code>play_skhid.bat</code> in <code>game\\binaries\\x86</code>.	Pokrenite <code>play_skhid.bat</code> u folderu <code>game\\binaries\\x86</code>.
+Start it with this command line:	Pokrenite igru ovom komandom:
+english	english
+server address	adresa servera
+language: english, russian, ukrainian	jezik: english, russian, ukrainian
+Skhid (Ukrainian for “east”) is a community server that lets the Survarium {version} client sign in, trade, form squads and play matches again.	Skhid (ukrajinski „istok“) je server zajednice na kom klijent Survarium {version} ponovo može da se prijavi, trguje, okuplja odrede i igra mečeve.
+Project Discord: <a href="https://discord.gg/pxywZfaxRQ">discord.gg/pxywZfaxRQ</a>	Discord projekta: <a href="https://discord.gg/pxywZfaxRQ">discord.gg/pxywZfaxRQ</a>
+Early test server.	Rani test server.
+It has bugs and may not work fully. Your progress, items and accounts can be lost or reset at any time, and the server may be stopped at any time. By playing you accept this.	Ima grešaka i možda neće raditi u potpunosti. Vaš napredak, predmeti i nalozi mogu biti izgubljeni ili resetovani u bilo kom trenutku, a server može biti zaustavljen u bilo kom trenutku. Igranjem to prihvatate.
+How to play	Kako igrati
+Download our files and unpack them into an empty folder (e.g. D:\\Survarium). <b>You do this only once.</b>	Preuzmite naše datoteke i raspakujte ih u prazan folder (npr. D:\\Survarium). <b>Ovo radite samo jednom.</b>
+Download our files and unpack them into the game's folder, the one with the <code>game</code> folder, replacing files. <b>You do this only once.</b>	Preuzmite naše datoteke i raspakujte ih u folder igre, onaj sa folderom <code>game</code>, uz zamenu datoteka. <b>Ovo radite samo jednom.</b>
+Download our files and unpack them over the game's <code>game</code> folder.	Preuzmite naše datoteke i raspakujte ih preko foldera <code>game</code> igre.
+Download the patched game and unpack it.	Preuzmite izmenjenu igru i raspakujte je.
+Sign in with any name and password: a new name registers itself. Remember the password.	Prijavite se bilo kojim imenom i lozinkom: novo ime se samo registruje. Zapamtite lozinku.
+New accounts are taken.	Novi nalozi se primaju.
+Stop new registrations	Zaustavi nove registracije
+New accounts are refused for now.	Novi nalozi se zasad ne primaju.
+Take new registrations	Primaj nove registracije
+Shown once the token is right.	Prikazuje se kada je token ispravan.
+Password	Lozinka
+User name	Korisničko ime
+Silver, + or -	Srebro, + ili -
+Gold, + or -	Zlato, + ili -
+Change	Promeni
+Admin	Administrator
+Token	Token
+Money	Novac
+Ban	Ban
+Unban	Skidanje bana
+Bans	Banovi
+Maintenance	Održavanje
+Signups	Registracije
+User name, or an address or range (1.2.3.4, 1.2.3.0/24)	Korisničko ime, adresa ili opseg (1.2.3.4, 1.2.3.0/24)
+Hours (empty: for good)	Sati (prazno: zauvek)
+Reason (only admins see it)	Razlog (vide ga samo administratori)
+Also ban the address it last signed in from	Blokiraj i adresu sa koje se poslednji put prijavio
+Ban	Blokiraj	button
+User name, or an address or range	Korisničko ime, adresa ili opseg
+Also lift the ban of its last address	Odblokiraj i njegovu poslednju adresu
+Unban	Odblokiraj	button
+Refresh	Osveži
+Existing players keep signing in and playing either way. Registration is open by default; a restart goes back to that (or to SRP_REGISTRATION=closed).	Postojeći igrači se u svakom slučaju i dalje prijavljuju i igraju. Registracija je podrazumevano otvorena; restart je vraća na to (ili na SRP_REGISTRATION=closed).
+Starts in (minutes)	Počinje za (minuta)
+Players see the minutes left from 60 on, cannot press Play from 30, and the game closes at 0. Restarting srp cancels it.	Igrači vide preostale minute od 60, od 30 ne mogu da pritisnu „Igraj“, a na 0 igra se zatvara. Restart srp-a to otkazuje.
+Plan	Zakaži
+Cancel	Otkaži
+Account	Nalog
+Give item	Daj predmet
+Take items	Oduzmi predmete
+Text	Tekst
+Mute chat	Utišaj ćaskanje
+Rename	Preimenuj
+Shown now:	Sada se prikazuje:
+No text is shown.	Ne prikazuje se nikakav tekst.
+Set the level (0 to {0})	Postavi nivo (0 do {0})
+Experience, + or -	Iskustvo, + ili -
+Faction (1 to 4)	Frakcija (1 do 4)
+Reputation with it, + or -	Ugled kod nje, + ili -
+Empty fields change nothing. An open game is sent the account again.	Prazna polja ništa ne menjaju. Otvorena igra ponovo dobija nalog.
+Item: its id in the 0.26g dictionary, or its exact name	Predmet: njegov id u rečniku 0.26g ili tačan naziv
+Count (rounds for ammo; up to 8 of anything else)	Količina (meci za municiju; do 8 za sve ostalo)
+Give	Daj
+First line	Prvi red
+Second line	Drugi red
+Everyone in the lobby sees it, and whoever signs in, until it is cleared or srp restarts.	Vide ga svi u lobiju i svako ko se prijavi, dok se ne ukloni ili se srp ne restartuje.
+Show	Prikaži
+Clear	Ukloni
+No maintenance is planned.	Održavanje nije zakazano.
+Maintenance has started: the game closes for everyone who signs in.	Održavanje je počelo: igra se zatvara svakome ko se prijavi.
+Hours: a whole number up to {MAX_BAN_HOURS}, or empty for good.	Sati: ceo broj do {MAX_BAN_HOURS} ili prazno za zauvek.
+until {at} UTC	do {at} UTC
+None.	Nema.
+Accounts	Nalozi
+Until	Do
+Reason	Razlog
+Last address	Poslednja adresa
+Addresses	Adrese
+Address	Adresa
+Chat mutes	Utišana ćaskanja
+ The database was busy: srp's saver writes it within seconds (the history below is shown next time).	 Baza podataka je bila zauzeta: srp će to upisati za nekoliko sekundi (istorija ispod biće prikazana sledeći put).
+ Error: the change stands in memory only: the database refused it ({error}). srp retries the write; check its log.	 Greška: izmena je samo u memoriji: baza podataka ju je odbila ({error}). srp ponavlja upis; proverite njegov log.
+No 0.26g account has that id.	Nijedan nalog 0.26g nema taj id.
+More than one account has that character name: type its user name or #id.	To ime lika ima više od jednog naloga: unesite korisničko ime ili #id.
+Silver is a whole number, + or -, or empty.	Srebro je ceo broj, + ili -, ili prazno.
+{0}: silver {1} → {2} ({3}).	{0}: srebro {1} → {2} ({3}).
+Type the silver to add (+) or take (-). The balance is below.	Unesite srebro za dodavanje (+) ili oduzimanje (-). Stanje je ispod.
+Nothing would change: the account has none of it left to take.	Ništa se ne bi promenilo: nalog više nema ništa za oduzimanje.
+A reason is required: nothing was changed.	Razlog je obavezan: ništa nije promenjeno.
+The account changed since the preview, or the fields did: nothing was changed. Check the new preview below and apply again.	Nalog ili polja su se promenili od pregleda: ništa nije promenjeno. Proverite novi pregled ispod i primenite ponovo.
+Check the change below; type a reason to apply it.	Proverite izmenu ispod; unesite razlog da biste je primenili.
+Check the change below, then press Apply. Nothing is changed until then.	Proverite izmenu ispod, zatim pritisnite „Primeni“. Do tada se ništa ne menja.
+Type the account: its user name, its character name, or #id.	Unesite nalog: korisničko ime, ime lika ili #id.
+Units are a whole number above 0, or empty for all of it.	Jedinice su ceo broj veći od 0 ili prazno za sve.
+Tick the items to take (and the units of a stack, or all of it), type a reason, then press Preview.	Označite predmete za oduzimanje (i broj jedinica gomile ili celu), unesite razlog, zatim pritisnite „Pregledaj“.
+{0}: {1} item(s) taken.	{0}: oduzeti predmeti: {1}.
+The items or the choice changed since the preview: nothing was changed. Check the new preview below and apply again.	Predmeti ili izbor su se promenili od pregleda: ništa nije promenjeno. Proverite novi pregled ispod i primenite ponovo.
+Check what would be taken below; type a reason to apply it.	Proverite ispod šta bi bilo oduzeto; unesite razlog da biste primenili.
+Check what would be taken below, then press Apply. Nothing is changed until then.	Proverite ispod šta bi bilo oduzeto, zatim pritisnite „Primeni“. Do tada se ništa ne menja.
+A reason is required: the player is told it.	Razlog je obavezan: igrač će ga videti.
+{name}'s chat muted {0}.	Ćaskanje igrača {name} utišano {0}.
+{name}'s chat was not muted.	Ćaskanje igrača {name} nije bilo utišano.
+{name}'s chat unmuted.	Ćaskanje igrača {name} je ponovo uključeno.
+Account: user name or character name	Nalog: korisničko ime ili ime lika
+Reason (the player is told it)	Razlog (igrač će ga videti)
+Nobody gets its chat lines, on any channel; it gets "muted for &lt;reason&gt;" (or "muted until &lt;time&gt; UTC: &lt;reason&gt;") back instead. Unmute needs the account only.	Niko ne dobija njegove poruke, ni na jednom kanalu; umesto toga on dobija nazad "muted for &lt;razlog&gt;" (ili "muted until &lt;vreme&gt; UTC: &lt;razlog&gt;"). Za uklanjanje utišavanja dovoljan je nalog.
+Mute	Utišaj
+Unmute	Ukloni utišavanje
+This preview was used already or is older than 10 minutes: nothing was changed. Check the new preview below and apply again.	Ovaj pregled je već iskorišćen ili je stariji od 10 minuta: ništa nije promenjeno. Proverite novi pregled ispod i primenite ponovo.
+No item was ticked.	Nijedan predmet nije označen.
+At most {0} items at once.	Najviše {0} predmeta odjednom.
+The account has no item {item_id} now (sold or taken meanwhile): nothing was changed. Check the list again.	Nalog sada nema predmet {item_id} (u međuvremenu prodat ili oduzet): ništa nije promenjeno. Ponovo proverite spisak.
+Item {item_id} is named twice.	Predmet {item_id} je naveden dvaput.
+0 units of item {item_id}: leave it empty for all of it.	0 jedinica predmeta {item_id}: ostavite prazno za sve.
+yes: its game is sent the change at once	da: igra odmah dobija izmenu
+no: it sees the change at its next sign-in	ne: izmenu će videti pri sledećoj prijavi
+User name	Ime za prijavu	sign-in
+Character	Lik
+Account id	Id naloga
+ID	ID
+Earlier names	Ranija imena
+until {}	do {}
+In the game now	Sada u igri
+Earlier moderation of this account	Ranija moderacija ovog naloga
+not shown ({error})	nije prikazano ({error})
+none	nema
+What	Šta
+Change	Izmena	what
+; {0} asked, never below 0	; traženo {0}, nikad ispod 0
+Apply to {0}	Primeni na {0}
+Done	Gotovo
+Preview	Pregled
+Silver	Srebro
+Account: user name, character name or #id	Nalog: korisničko ime, ime lika ili #id
+Reason (required; only admins see it)	Razlog (obavezan; vide ga samo administratori)
+Preview shows the balance before and after; nothing changes until Apply. A balance never goes below 0. An open game shows the change at once.	Pregled prikazuje stanje pre i posle; ništa se ne menja do „Primeni“. Stanje nikad ne pada ispod 0. Otvorena igra odmah prikazuje izmenu.
+Preview	Pregledaj	button
+the item	predmet
+all {0} units	svih {0} kom.
+{0} of {1} units ({2} left)	{0} od {1} kom. (ostaje {2})
+taken off its kits	skinuto sa kompleta
+Apply: take them from {0}	Primeni: oduzmi ih nalogu {0}
+Taken	Oduzeto
+Would be taken	Biće oduzeto
+Item	Predmet
+Item id	Id predmeta
+Kits	Kompleti
+{0} units	{0} kom.
+all	sve
+cosmetic {id}	kozmetika {id}
+Items	Predmeti
+Tick what to take. A stack takes the units typed, or all of it when empty. Kit * is the one it plays.	Označite šta oduzeti. Iz gomile se oduzima uneti broj jedinica ili cela gomila ako je prazno. Komplet * je onaj kojim igra.
+Dict id	Id u rečniku
+Units / condition	Jedinice / stanje
+Worn	Nošeno
+Modifications	Modifikacije
+First the list, then a preview of what is taken; nothing changes until Apply. A worn item is taken off every kit, as when it is sold. An open game shows the change at once.	Prvo spisak, zatim pregled onoga što se oduzima; ništa se ne menja do „Primeni“. Nošeni predmet se skida sa svih kompleta, kao pri prodaji. Otvorena igra odmah prikazuje izmenu.
+List / preview	Spisak / pregled
+(premium)	(premijum)
+{0} of {1}	{0} od {1}
+Choose an item…	Izaberite predmet…
+By item	Po predmetu
+level {0}	nivo {0}
+Can roll	Može dobiti
+Comes with	Ugrađeno
+Modifiers	Modifikatori
+An item rolls up to three modifiers, each of a different kind. The stronger, the rarer.	Predmet dobija do tri modifikatora, svaki druge vrste. Što jači, to ređi.
+Weapons	Oružje
+Strengths from common to rare.	Jačine od uobičajene do retke.
+Built into some items	Ugrađeni u neke predmete
+These never roll.	Ovi se nikad ne dobijaju nasumično.
+No account signs in with that user name (character names are not looked up).	Nijedan nalog se ne prijavljuje tim korisničkim imenom (imena likova se ne pretražuju).
+Type the user name the player signs in with.	Unesite korisničko ime kojim se igrač prijavljuje.
+Check the account below, then press the reset button.	Proverite nalog ispod, zatim pritisnite dugme za resetovanje.
+That user name now means another account: nothing was changed. Check it below.	To korisničko ime sada označava drugi nalog: ništa nije promenjeno. Proverite ga ispod.
+The password of {login} is cleared; {ended} session(s) ended. Their next sign-in, with any password, sets the new one.	Lozinka naloga {login} je obrisana; završene sesije: {ended}. Sledeća prijava, sa bilo kojom lozinkom, postavlja novu.
+The password of {login} is cleared; {ended} session(s) ended. The database was busy: srp's saver writes it within seconds. Their next sign-in, with any password, sets the new one.	Lozinka naloga {login} je obrisana; završene sesije: {ended}. Baza podataka je bila zauzeta: srp će to upisati za nekoliko sekundi. Sledeća prijava, sa bilo kojom lozinkom, postavlja novu.
+Error: the password of {login} is cleared and {ended} session(s) ended, but only in memory: the database was not written ({error}). srp retries the write; check its log before the player signs in.	Greška: lozinka naloga {login} je obrisana i završene sesije: {ended}, ali samo u memoriji: baza podataka nije upisana ({error}). srp ponavlja upis; proverite njegov log pre nego što se igrač prijavi.
+not since srp started	ne od pokretanja srp-a
+unknown	nepoznato
+yes: its game is signed out	da: igra se odjavljuje
+no	ne
+Last sign-in	Poslednja prijava
+Signed in now	Sada prijavljen
+Reset the password of {0}	Resetuj lozinku naloga {0}
+User name the player signs in with (not the character name)	Korisničko ime kojim se igrač prijavljuje (ne ime lika)
+Clears the password: the player's next sign-in, with any password, sets it as the new one (owner's decision, 2026-10-18). Whoever signs in first takes it, so reset when the player is ready to sign in. A game signed in with the account is signed out. Case does not matter.	Briše lozinku: sledeća prijava igrača, sa bilo kojom lozinkom, postavlja je kao novu (odluka vlasnika, 2026-10-18). Ko se prvi prijavi, taj je postavlja, pa resetujte kada je igrač spreman da se prijavi. Igra prijavljena ovim nalogom se odjavljuje. Velika i mala slova nisu bitna.
+Quests	Zadaci
+Pay by match level	Plata po nivou meča
+Enter an account ID.	Unesite ID naloga.
+Invalid nickname: at least 3 characters, at most 63 UTF-8 bytes, no spaces or control characters.	Neispravan nadimak: najmanje 3 znaka, najviše 63 bajta UTF-8, bez razmaka i kontrolnih znakova.
+A reason is required.	Razlog je obavezan.
+That nickname or a Cyrillic/Latin lookalike is already taken.	Taj nadimak ili njegov ćirilični/latinični dvojnik je već zauzet.
+No such account ID.	Nema naloga sa tim ID-om.
+Account #{account_id} renamed: {0} → {1}.	Nalog #{account_id} preimenovan: {0} → {1}.
+Account ID	ID naloga
+New nickname	Novi nadimak
+Reason (admin history only)	Razlog (samo u administratorskoj istoriji)
+Changes the nickname immediately, free of charge. Login and progress stay the same. Duplicate and Cyrillic/Latin lookalike names are refused.	Menja nadimak odmah i besplatno. Prijava i napredak ostaju isti. Duplikati i ćirilični/latinični dvojnici se odbijaju.
+Levels	Nivoi
+This level	Ovaj nivo
+Total	Ukupno
+Matches	Mečevi
+Hours	Sati
+Total experience by level	Ukupno iskustvo po nivou
+That account has not signed in to the 0.26g lobby yet: it has nothing to change.	Taj nalog se još nije prijavio u lobi 0.26g: nema šta da se menja.
+Experience and reputation are whole numbers, + or -; the level is 0 to {MAX_LEVEL}; the faction is 1 to 4.	Iskustvo i ugled su celi brojevi, + ili -; nivo je od 0 do {MAX_LEVEL}; frakcija od 1 do 4.
+That level is under the skill points the account has spent; reset its skills in the game first.	Taj nivo je ispod potrošenih poena veština; prvo resetujte veštine u igri.
+{user}: level {level_now} ({exp_now} experience).	{user}: nivo {level_now} ({exp_now} iskustva).
+ Reputation with faction {faction}: {points}.	 Ugled kod frakcije {faction}: {points}.
+No such item in the 0.26g dictionary (give its id or its exact name).	Nema takvog predmeta u rečniku 0.26g (navedite id ili tačan naziv).
+The count for this item is 1 to {most}.	Količina za ovaj predmet je od 1 do {most}.
+That stack would overflow.	Ta gomila bi se prepunila.
+{user}: given {count} of {0} (id {1}).	{user}: dato {count} × {0} (id {1}).
+The text is cleared.	Tekst je uklonjen.
+Each line is at most {MAX_TEXT_LEN} bytes (a Cyrillic letter is 2) with no control characters.	Svaki red ima najviše {MAX_TEXT_LEN} bajtova (ćirilično slovo su 2), bez kontrolnih znakova.
+The text is shown to everyone in the lobby, and to who signs in, until cleared.	Tekst vide svi u lobiju i oni koji se prijave, dok se ne ukloni.
+Simulators	Simulatori
+Skills	Veštine
+Browse weapons, compare base stats and explore their damage and handling.	Pregledajte oružje, uporedite osnovne osobine i istražite štetu i rukovanje.
+Recoil and spread of any weapon: aim, stance, skills, gear and injuries.	Trzaj i rasipanje bilo kog oružja: nišanjenje, stav, veštine, oprema i povrede.
+Every armour piece: protection, weight, built-in bonuses and what it can roll.	Svaki komad opreme: zaštita, težina, ugrađeni bonusi i šta može da dobije.
+Every modifier, its strengths and the items that can get it.	Svaki modifikator, njegove jačine i predmeti koji ga mogu dobiti.
+Levels and the experience they take; every skill tree: thresholds, ranks and what each rank gives.	Nivoi i iskustvo koje traže; svako stablo veština: pragovi, rangovi i šta daje svaki rang.
+Every faction quest: its goal at each reputation level and what it pays.	Svaki zadatak frakcije: cilj na svakom nivou ugleda i nagrada.
+Shots to kill a target in any armour, at any distance.	Koliko pogodaka treba da se ubije meta u bilo kom oklopu, na bilo kojoj udaljenosti.
+Spawns, batteries, chargers, containers and artefacts on every map.	Mesta pojavljivanja, baterije, punjači, kontejneri i artefakti na svakoj mapi.
+Skhid wiki	Skhid viki
+Skhid · Survarium {version} community server	Skhid · server zajednice za Survarium {version}
+Skhid · Survarium {version} TEST server	Skhid · TEST server za Survarium {version}
+COMMUNITY SERVER FOR SURVARIUM	SERVER ZAJEDNICE ZA SURVARIUM
+TEST SERVER FOR SURVARIUM	TEST SERVER ZA SURVARIUM
+{text} is not an item id: nothing was changed.	{text} nije id predmeta: ništa nije promenjeno.
+Exp	Isk.	formula
+Total	Ukupno	formula
+Experience gives levels, and every level gives one skill point.	Iskustvo donosi nivoe, a svaki nivo donosi jedan poen veština.
+Clan	Klan
+Matches	Mečevi	stats
+Player name	Ime igrača
+Clan tag	Oznaka klana
+Match number	Broj meča
+Clans	Klanovi
+Best matches	Najbolji mečevi
+Latest matches	Poslednji mečevi
+Hour	Sat
+Day	Dan
+Experience	Iskustvo
+Wins	Pobede
+Losses	Porazi
+Win rate	Procenat pobeda
+Kills	Ubistva
+Deaths	Smrti
+K/D	K/D
+Kills/min	Ubistva/min
+Assists	Asistencije
+Score	Rezultat	stats
+Avg score	Prosečan rezultat
+Headshots	U glavu
+Grenade kills	Granatom
+Melee kills	Bliska borba
+Batteries	Baterije
+Captures	Zauzimanja
+Artefacts	Artefakti
+Members	Članovi
+Commander	Komandant
+Overall	Ukupno
+In matches	U mečevima
+Last 30 days	Poslednjih 30 dana
+Ended	Završen
+Duration	Trajanje
+Map	Mapa
+Mode	Režim
+Result	Ishod
+Place	Mesto
+Team	Tim
+Points	Poeni
+Win	Pobeda
+Loss	Poraz
+Draw	Nerešeno
+Left	Izašao
+won	je pobedio
+More players	Još igrača
+Older matches	Stariji mečevi
+Hours played	Odigrani sati
+Replay	Snimak
+Preparing…	Priprema…
+Download	Preuzmi
+Recorded by an older game version	Snimljeno starijom verzijom igre
+Busy, try again in a minute	Zauzeto, pokušajte za minut
+No replay	Nema snimka
+Daily leaders	Najbolji dana
+All time	Svih vremena
+Shots fired	Ispaljeni meci
+Accuracy	Preciznost
+Weapon	Oružje
+Kit	Komplet
+Favourite equipment	Omiljena oprema
+1000+ shots	1000+ hitaca
+5+ matches	5+ mečeva
+HS %	U glavu %
+Avg distance	Prosečna udaljenost
+Through walls	Kroz zidove
+Ricochets	Rikošetom
+No weapons counted yet.	Još nije prebrojano nijedno oružje.
+No public matches yet.	Još nema javnih mečeva.
+No player with public matches named “{}”.	Nema igrača sa javnim mečevima po imenu „{}“.
+No clan tagged [{}].	Nema klana sa oznakom [{}].
+No public match {}.	Nema javnog meča {}.
+This server keeps no match history.	Ovaj server ne čuva istoriju mečeva.
+Could not load the stats. Reload the page.	Statistika nije mogla da se učita. Ponovo učitajte stranicu.
+Nobody yet.	Još niko.
+
+# The wiki's modes (src/modes.rs).
+Modes	Režimi
+Every mode: its rules, numbers and maps.	Svaki režim: pravila, brojevi i mape.
+Versions	Varijante
+Public rooms only	Samo javne sobe
+Private rooms only	Samo privatne sobe
+Not offered now	Trenutno se ne nudi
+Respawn after {0} s.	Ponovno oživljavanje posle {0} s.
+Batteries lie on the map.	Baterije leže na mapi.
+Carry them to your team's container.	Nosite ih do kontejnera svog tima.
+First to {0} batteries wins.	Pobeđuje prvi tim sa {0} baterija.
+Time limit {0}: more batteries wins.	Vremensko ograničenje {0}: pobeđuje više baterija.
+Batteries come out of {0} active chargers.	Baterije izlaze iz {0} aktivnih punjača.
+A new battery every {0} s, give or take {1} s.	Nova baterija na svakih {0} s, plus-minus {1} s.
+Protective device rules: batteries, no chargers.	Pravila zaštitnog uređaja: baterije, bez punjača.
+No interface: no ammo, health, crosshair or minimap.	Bez interfejsa: bez municije, zdravlja, nišana i mini-mape.
+Teammates' markers stay; enemies have none.	Oznake saigrača ostaju; neprijatelji ih nemaju.
+Hold Tab for ammo, body state, the clock and the team list.	Držite Tab: municija, stanje tela, vreme i spisak tima.
+Each team has {0} tickets.	Svaki tim ima {0} tiketa.
+A death costs one ticket; a teamkill costs none.	Smrt košta jedan tiket; ubistvo saigrača nijedan.
+Out of tickets, a team stops respawning and loses when its last player dies.	Bez tiketa tim više ne oživljava i gubi kada padne njegov poslednji igrač.
+Time limit {0}: more tickets wins.	Vremensko ograničenje {0}: pobeđuje više tiketa.
+Capture research units: be inside with no enemy there.	Zauzimajte istraživačke jedinice: budite unutra bez neprijatelja.
+Owned units earn points; more units, faster.	Zauzete jedinice donose poene; više jedinica, brže.
+First to {0} points wins.	Pobeđuje prvi tim sa {0} poena.
+Time limit {0}: more points wins.	Vremensko ograničenje {0}: pobeđuje više poena.
+Every player for himself.	Svako za sebe.
+First to {0} kills wins.	Pobeđuje prvi sa {0} ubistava.
+Time limit {0}: most kills wins.	Vremensko ograničenje {0}: pobeđuje najviše ubistava.
+Public rooms: each FFA card draws a version.	Javne sobe: svaka FFA karta izvlači varijantu.
+Private rooms: plain FFA only.	Privatne sobe: samo obični FFA.
+A lethal hit freezes you in place.	Smrtonosni pogodak te zamrzava na mestu.
+A teammate within {0} m thaws you in {1} s.	Saigrač na manje od {0} m te odmrzava za {1} s.
+A thaw counts as a kill.	Odmrzavanje se računa kao ubistvo.
+A frozen player thaws by himself after {0}.	Zamrznuti igrač se sam odmrzne posle {0}.
+A team's last fighter shows on the enemies' map.	Poslednji borac tima vidi se na mapi protivnika.
+Freeze the whole enemy team to win the round.	Zamrznite ceo protivnički tim da biste dobili rundu.
+{0} s after a round ends, then everyone respawns and waits {1} s at the spawns.	{0} s posle kraja runde, zatim svi oživljavaju i čekaju {1} s na mestima pojavljivanja.
+First to {0} rounds wins.	Pobeđuje prvi tim sa {0} dobijenih rundi.
+Time limit {0}: an unfinished series is a draw.	Vremensko ograničenje {0}: nezavršena serija je nerešena.
+One artefact at a time, {0}–{1} s into a round.	Jedan artefakt odjednom, {0}–{1} s od početka runde.
+Bring it to your own base: 1 point, and the round ends.	Donesite ga u svoju bazu: 1 poen, i runda se završava.
+The carrier is slower and seen by everyone.	Nosilac je sporiji i svi ga vide.
+Respawn in waves every {0} s.	Oživljavanje u talasima na svakih {0} s.
+Time limit {0}: the higher score wins; a tie plays {1} of sudden death without respawns.	Vremensko ograničenje {0}: pobeđuje veći rezultat; kod nerešenog {1} iznenadne smrti bez oživljavanja.
+Sniper rifles, silenced guns and guns without automatic fire are replaced.	Snajperske puške, oružje sa prigušivačem i oružje bez automatske paljbe se zamenjuju.
+Rooms up to level {0}: {1}.	Sobe do nivoa {0}: {1}.
+Other rooms: {0}.	Ostale sobe: {0}.
+Sight: {0}.	Nišan: {0}.
+Every kit: {0} only.	Svaki komplet: samo {0}.
+Every kit: {0} and {1}.	Svaki komplet: {0} i {1}.
+Everyone plays the same {0} random kits.	Svi igraju iste {0} nasumične komplete.
+Level bands: {0}.	Opsezi nivoa: {0}.
+A room draws bands up to its level.	Soba izvlači opsege do svog nivoa.
+Each kit a gun of another class, with random bonuses and attachments.	U svakom kompletu oružje druge klase, sa nasumičnim bonusima i dodacima.
+{0} % of deals: pistols only.	{0} % deljenja: samo pištolji.
+Plain FFA: {0} % of FFA cards.	Obični FFA: {0} % FFA karata.
+{0} % of FFA cards.	{0} % FFA karata.
+FFA: Roulette	FFA: Rulet
+
+# The wiki's weapons and simulators (pages built at a release: scripts/site-texts)
+Search weapons	Pretraga oružja
+No weapons match.	Nije pronađeno nijedno oružje.
+lvl {n}	niv. {n}
+Search…	Pretraga…
+Search items	Pretraga predmeta
+No items match.	Nije pronađen nijedan predmet.
+s	s	unit
+Search rounds	Pretraga municije
+No rounds match.	Nije pronađena municija.
+shots	hici
+up	nagore
+side	u stranu
+spread	rasipanje
+Play	Pusti
+Pause	Pauza
+Recoil and spread	Trzaj i rasipanje
+Weapon {side}	Oružje {side}
+Choose a weapon…	Izaberite oružje…
+Round	Metak
+Clear	Očisti	list
+Choose a weapon; a second one to compare.	Izaberite oružje; drugo za poređenje.
+Aim	Nišanjenje
+From the hip	Sa boka
+Aiming in	Ulazak u nišanjenje
+Fully aimed	Potpuno nišanjenje
+Stance	Stav
+Standing	Stojeći
+Walking	Hodanje
+Crouching	Čučanj
+Crouch-walking	Hodanje u čučnju
+Sprinting	Sprint
+Jumping	Skok
+Broken arms	Slomljene ruke
+Spread from the hip {v} per rank, sprinting and jumping included. Not while aiming.	Rasipanje sa boka {v} po rangu, uključujući sprint i skok. Ne važi pri nišanjenju.
+No effect fully aimed.	Ne deluje pri potpunom nišanjenju.
+Spread while walking {v} per rank, from the hip or aiming in. Not crouch-walking.	Rasipanje pri hodanju {v} po rangu, sa boka ili pri ulasku u nišanjenje. Ne važi pri hodanju u čučnju.
+Spread from broken arms {v} per rank.	Rasipanje zbog slomljenih ruku {v} po rangu.
+This weapon's kick ranges, up and sideways. Not the camera shake.	Opsezi trzaja ovog oružja, nagore i u stranu. Bez podrhtavanja kamere.
+The stance's spread and each shot's. No effect sprinting, jumping or fully aimed.	Rasipanje od stava i od svakog hica. Ne deluje pri sprintu, skoku ni potpunom nišanjenju.
+Each shot's kick with any weapon: up, sideways and the camera shake.	Trzaj svakog hica iz bilo kog oružja: nagore, u stranu i podrhtavanje kamere.
+Base	Osnovno
+A shot	Po hicu
+At most	Najviše
+Vertical kick	Vertikalni trzaj
+game units	jedinice igre
+Horizontal kick	Horizontalni trzaj
+Trigger	Okidač
+Hold	Drži
+Click, {n} a second	Klik, {n} u sekundi
+Sample seed	Seme uzorka
+Spread	Rasipanje
+degrees	stepeni
+Last shot	Poslednji hitac
+Reset	Resetuj
+Timeline	Vremenska linija
+Crosshair	Nišan
+degrees of view	stepeni vidnog polja
+Target	Meta
+None	Nema
+Enemy at {m} m	Neprijatelj na {m} m
+Recoil parameters are unavailable for this selection.	Parametri trzaja nisu dostupni za ovaj izbor.
+Rounds	Municija
+Sniper rifle	Snajperska puška
+Submachine gun	Automat
+Pistol	Pištolj
+Shotgun	Sačmarica
+Assault rifle	Jurišna puška
+Machine gun	Mitraljez
+Skhid revision {revision}	Skhid, revizija {revision}
+Stat	Osobina
+Better	Bolje
+Worse	Lošije
+weapons	kom. oružja	count
+Compare weapons or expand a row for damage, handling, accuracy, recoil and aim sway.	Uporedite oružje ili otvorite red za štetu, rukovanje, preciznost, trzaj i ljuljanje nišana.
+Values with the chosen round, the weapon’s standard one first. Upgrades and character bonuses are not included. The game’s card shows the highest damage and the highest penetration among all the weapon’s rounds.	Vrednosti sa izabranim metkom, prvo sa standardnim za to oružje. Modifikacije i bonusi lika nisu uračunati. Kartica u igri prikazuje najveću štetu i najveću probojnost među svim mecima oružja.
+Find a weapon	Pronađi oružje
+Weapon class	Klasa oružja
+All classes	Sve klase
+Damage: high to low	Šteta: od najveće
+Fire rate: high to low	Brzina paljbe: od najveće
+Compare weapons	Poređenje oružja
+Only differences	Samo razlike
+Color better / worse values	Označi bolje / lošije vrednosti
+Recoil and spread →	Trzaj i rasipanje →
+Choose two weapons to compare. Equal values and neutral traits keep their normal color.	Izaberite dva oružja za poređenje. Jednake vrednosti i neutralne osobine zadržavaju uobičajenu boju.
+No differences in the displayed stats.	Nema razlika u prikazanim osobinama.
+m	m	unit
+kg	kg	unit
+Single shot	Pojedinačna paljba
+Damage & range	Šteta i domet
+Damage	Šteta
+Armor penetration	Probojnost oklopa
+Full damage up to	Puna šteta do
+Minimum damage from	Minimalna šteta od
+Minimum damage retained	Zadržana minimalna šteta
+Stopping power	Zaustavna moć
+Stamina damage	Šteta izdržljivosti
+Firing & handling	Paljba i rukovanje
+rpm	met./min	unit
+Fire rate	Brzina paljbe
+Magazine capacity	Kapacitet okvira
+Reload time	Vreme punjenja
+Aim time	Vreme nišanjenja
+Draw time	Vreme vađenja
+Holster time	Vreme odlaganja
+Movement speed modifier	Modifikator brzine kretanja
+Base aim zoom	Osnovno uvećanje
+Fire modes	Režimi paljbe
+Accuracy & spread	Preciznost i rasipanje
+Spread values use the game's own units. Growth and recovery parameters are shown without a better/worse rating.	Vrednosti rasipanja su u jedinicama same igre. Parametri rasta i oporavka prikazani su bez ocene „bolje/lošije“.
+Base dispersion	Osnovno rasipanje
+Hip-fire spread multiplier	Množilac rasipanja sa boka
+Spread added per shot	Rasipanje po hicu
+Spread limit	Granica rasipanja
+Spread growth parameter	Parametar rasta rasipanja
+Spread recovery parameter	Parametar oporavka preciznosti
+Recoil	Trzaj
+Base kick in game units, not degrees. Horizontal kick is right minus left; variability is its standard deviation. These do not describe an entire burst.	Osnovni trzaj u jedinicama igre, ne u stepenima. Horizontalni trzaj je desni minus levi; kolebanje je njegova standardna devijacija. Ovo ne opisuje ceo rafal.
+Base vertical kick range	Opseg osnovnog vertikalnog trzaja
+Horizontal kick range	Opseg horizontalnog trzaja
+Horizontal kick variability	Kolebanje horizontalnog trzaja
+Horizontal bias (− left / + right)	Horizontalni pomak (− levo / + desno)
+Recoil accumulation exponent	Eksponent nagomilavanja trzaja
+Recovery response (P)	Odziv oporavka (P)
+Recovery accumulation (I)	Nagomilavanje oporavka (I)
+Recovery damping (D)	Prigušenje oporavka (D)
+Aim sway	Ljuljanje nišana
+Horizontal sway	Vodoravno ljuljanje
+Vertical sway	Uspravno ljuljanje
+Aim sway period	Period ljuljanja nišana
+Magazine	Okvir
+Set as weapon A	Postavi kao oružje A
+Set as weapon B	Postavi kao oružje B
+Automatic	Automatska paljba
+{m}-round burst	Rafal od {m}
+pellets	sačmi
+No weapons match. Try another name or class.	Nije pronađeno nijedno oružje. Probajte drugi naziv ili klasu.
+
+# The wiki's simulators: the shot's motions and the custom gun (pages built at a release: scripts/site-texts)
+Left	Levo	direction
+Right	Desno	direction
+Back	Nazad	direction
+where it aims as the shot moves it	gde nišani pod dejstvom hica
+from the side, the bullet from the eye along the view	sa strane: metak od oka duž pogleda
+custom	sopstveno
+Up	Gore
+Side	U stranu
+Rate	Tempo
+Power	Stepen
+Camera wobble	Njihanje kamere
+Gun kick	Trzaj oružja
+Custom gun	Sopstveno oružje
+Speed	Brzina
+bullet	metak
+sight	nišan
+hit	pogodak
+
+# The wiki's skills (a page built at a release: scripts/site-texts)
+Points	Poeni	skills
+matches	mečeva	skills
+h	č	unit
+Tap a skill, then + or −.	Dodirnite veštinu, pa + ili −.
+Click a skill to add a rank, right-click to take one back.	Klik dodaje rang, desni klik ga oduzima.
+{n} point	{n} poen	one
+{n} points	{n} poena	few
+{n} points	{n} poena	many
+Maximum:	Maksimum:
+or	ili	skill
+
+# The Maps tab (a page built at a release: scripts/site-texts)
+Player spawns	Mesta pojavljivanja
+Battery spawns	Pojavljivanje baterija
+Chargers	Punjači
+Containers	Kontejneri
+Research units	Istraživačke jedinice
+Ammo stashes	Dopuna municije
+Survarium maps	Mape Survarium
+chargers	punjači
+Minimap	Minimapa
+From above	Odozgo
+{n} active	aktivnih: {n}
+{n} batteries to win.	Baterija za pobedu: {n}.
+team {n}	tim {n}
+any team	bilo koji tim
+Ammo stash	Dopuna municije
+Container	Kontejner
+Battery spawn	Pojavljivanje baterije
+Charger	Punjač
+Research unit	Istraživačka jedinica
+Spawn	Pojavljivanje
+Glow of the Forest	Sjaj Šume
+Bases	Baze
+Base	Baza	hunt
+
+# The damage calculator (a page built at a release: scripts/site-texts)
+Feet	Stopala	parts
+m/s	m/s	unit
+HP/s	HP/s	unit
+active	aktivan
+passive	pasivan
+Damage ×{damage}, penetration ×{pierce}, before armour: lower penetration makes the armour stop more.	Šteta ×{damage}, probojnost ×{pierce}, pre oklopa: uz manju probojnost oklop zaustavlja više.
+{drug}: {pool} takes ×{k} for {s} s after use ({delay} s to kick in).	{drug}: {pool} prima ×{k} tokom {s} s posle upotrebe (deluje posle {delay} s).
+Inside an anomaly: damage ×{k}, before armour.	U anomaliji: šteta ×{k}, pre oklopa.
+This weapon takes no damage bonuses.	Ovo oružje ne prima bonuse štete.
+Come with the weapon; cannot be changed.	Dolaze sa oružjem; ne mogu se menjati.
+An item holds at most 3 modifications. Bonuses on one stat add up before they apply.	Predmet ima najviše 3 modifikacije. Bonusi na istu osobinu se sabiraju pre primene.
+This item takes no armour bonuses.	Ovaj predmet ne prima bonuse oklopa.
+Nothing worn covers the {part}.	Ništa od opreme ne štiti: {part}.
+Drugs	Preparati
+Assault rifles	Jurišne puške
+Submachine guns	Automati
+Shotguns	Sačmarice
+Bolt-action & sniper rifles	Repetirke i snajperske puške
+Pistols & revolvers	Pištolji i revolveri
+Helmet	Šlem
+Mask	Maska
+Jacket	Jakna
+Gloves	Rukavice
+Trousers	Pantalone
+Boots	Čizme
+Backpack	Ranac
+Chest & neck	Grudi i vrat
+Right arm	Desna ruka
+Left arm	Leva ruka
+Right hand	Desna šaka
+Left hand	Leva šaka
+Right leg	Desna noga
+Left leg	Leva noga
+Right foot	Desno stopalo
+Left foot	Levo stopalo
+Body	Trup
+Pain	Bol
+Infection	Infekcija
+death	smrt
+bleeding	krvarenje
+concussion	kontuzija
+hand injury	povreda šake
+leg injury	povreda noge
+infection	infekcija
+blindness	slepilo
+Search	Pretraga
+— none —	— nema —
+nothing worn	ništa nije obučeno
+back	pozadi
+front	spreda
+after shot	posle hica
+of	od
+dead	mrtav
+Glass	Staklo
+Car	Automobil
+Plywood	Šperploča
+Tinplate	Lim
+Brick, steel	Cigla, čelik
+Concrete	Beton
+Stone	Kamen
+<none>	<nema>
+armour	oklop
+{n} left	ostaje {n}
+damage	šteta
+penetration	probojnost
+full damage to	puna šteta do
+minimum from	minimum od
+minimum	minimum
+muzzle	početna brzina
+rate	brzina paljbe
+magazine	okvir
+Gets through: k {k}, D {D} · P {P}.	Probija: k {k}, D {D} · P {P}.
+Does not get through: penetration {P}, armour {A}.	Ne probija: probojnost {P}, oklop {A}.
+here	ovde
+not here	ne ovde
+taken by {item}	zauzeto: {item}
+Covers the {part}.	Štiti: {part}.
+Does not cover the {part}.	Ne štiti: {part}.
+Click to aim at the {part}.	Kliknite da nišanite: {part}.
+aim at the {part}	nišanite: {part}
+Full damage at this range.	Puna šteta na ovoj udaljenosti.
+Fully fallen off: minimum damage.	Potpuno opala: minimalna šteta.
+Falling off: {share} of the way from minimum to full.	Opada: {share} puta od minimuma do pune.
+Orange band: damage falls from {from} m to {to} m.	Narandžasta traka: šteta opada od {from} m do {to} m.
+per shot (all pellets)	po hicu (sve sačme)
+per hit	po pogotku
+{pool} damage {per}	{pool}: šteta {per}
+of {n} {pool} left	od preostalih {n} ({pool})
+of {n} {pool}	od {n} ({pool})
+Hits to kill	Pogodaka za ubistvo
+dies when {pool} reaches 0	gine kada {pool} padne na 0
+this shot cannot kill	ovaj hitac ne može da ubije
+Time to kill	Vreme za ubistvo
+every shot lands, no reload	svi hici pogađaju, bez ponovnog punjenja
+Leaves the barrel	Izlazi iz cevi
+Weapon damage × ammo <code>k_damage</code>, weapon pierce × ammo <code>k_arp</code>.	Šteta oružja × <code>k_damage</code> municije, probojnost oružja × <code>k_arp</code> municije.
+Each of the {n} pellets carries this.	Isto važi za svaku od {n} sačmi.
+Flies {m} m	Leti {m} m
+Speed {v0} → {v} m/s. Damage slides from full ({full}) to minimum ({min}) by speed between {from} and {to} m: here {share}. Penetration stays.	Brzina {v0} → {v} m/s. Šteta klizi od pune ({full}) do minimalne ({min}) prema brzini između {from} i {to} m: ovde {share}. Probojnost ostaje ista.
+Through {wall}	Kroz: {wall}
+stopped	zaustavljeno
+Penetration {P}, armour {A}. Damage, penetration and speed × k; then damage no higher than at {v} m/s.	Probojnost {P}, oklop {A}. Šteta, probojnost i brzina × k; zatim šteta ne veća nego pri {v} m/s.
+Penetration {P} is not above armour {A}: the bullet stops.	Probojnost {P} nije veća od oklopa {A}: metak se zaustavlja.
+No armour here, the full amount goes in.	Ovde nema oklopa: prolazi sve.
+Armour {A} is not above penetration {P}: nothing is stopped.	Oklop {A} nije veći od probojnosti {P}: ništa se ne zaustavlja.
+Armour exceeds penetration by a full 100: the bullet does nothing.	Oklop je veći od probojnosti za punih 100: metak ne čini ništa.
+Armour {A} − penetration {P} = {gap}% of the damage is stopped.	Oklop {A} − probojnost {P} = zaustavlja se {gap}% štete.
+Hits {part}	Pogađa: {part}
+Every hit anywhere also drains the shared pain pool. Pain at 0 kills.	Svaki pogodak bilo gde takođe umanjuje zajednički bol. Bol na 0 ubija.
+Body at 0 kills.	Trup na 0 ubija.
+Head holds only 40: at 0 it kills, below 20 it concusses.	Glava ima samo 40: na 0 ubija, ispod 20 izaziva kontuziju.
+Limbs do not kill by themselves: an empty limb injures, the pain it carries can kill.	Udovi sami ne ubijaju: prazan ud se povređuje, a bol koji nosi može da ubije.
+Second chance	Druga šansa
+The skill leaves the target alive once.	Veština jednom ostavlja metu u životu.
+× {n} pellets	× {n} sačmi
+Each pellet is its own bullet: when several land, their damage adds up.	Svaka sačma je zaseban metak: kada ih pogodi više, šteta se sabira.
+kills	ubija
+breaks	lomi
+below	ispod
+empty	na nuli
+movement	kretanje
+shot	hitac
+Damage over distance	Šteta po udaljenosti
+after armour	posle oklopa
+Body part	Deo tela
+Stopped	Zaustavljeno
+Limb	Ud
+Also	Takođe
+injury	povreda
+best ammo	najbolja municija
+default ammo	standardna municija
+Ammo	Municija
+Pen. here	Probojn. ovde
+Damage / hit	Šteta / pog.
+RPM	Met./min
+Bullet	Metak
+D, P = weapon × ammo, D falling with distance	D, P = oružje × municija, D opada s udaljenošću
+{n} pellets	{n} sačmi
+Wall	Zid
+P ≤ A: the bullet stays in the wall · else D, P × (1 − (A / P)²)	P ≤ A: metak ostaje u zidu · inače D, P × (1 − (A / P)²)
+stays in the wall	ostaje u zidu
+each	svaki
+rank	rang
+inside an anomaly	u anomaliji
+D × (1 − (armour − P) / 100)	D × (1 − (oklop − P) / 100)
+{part}, armour {A} − P {P}	{part}, oklop {A} − P {P}
+Pools	Rezerve
+chest, back → body · head, face → head · leg, foot → leg · arm, hand → hand	grudi, leđa → trup · glava, lice → glava · noga, stopalo → noga · ruka, šaka → šaka
+× 1 chest, head, arms · 0.9 legs · 0.8 hands, feet	× 1 grudi, glava, ruke · 0.9 noge · 0.8 šake, stopala
+Death	Smrt
+body, head or pain at 0	trup, glava ili bol na 0
+{n} hits	pogodaka: {n}
+at 0	na 0
+does not kill	ne ubija
+wall armour	oklop zida
+One bullet through several parts: each pool loses only its biggest hit, not the sum (hands 40 + 40, chest 35 → pain −40, not −115).	Jedan metak kroz više delova: svaka rezerva gubi samo svoj najveći pogodak, a ne zbir (šake 40 + 40, grudi 35 → bol −40, a ne −115).
+full	potpuno
+fixed	leči
+{s} s without hits	{s} s bez pogodaka
+By itself	Samo od sebe
+ends after {s} s without hits	prolazi posle {s} s bez pogodaka
+carried	u slotu
+activated	aktiviran
+at once, every {s} s	odmah, svakih {s} s
+{delay} s after use, for {s} s	{delay} s posle upotrebe, tokom {s} s
+stops at {n}	do {n}
+From empty to full	Od nule do punog
+Leg or hand	Noga ili šaka
+No Larkspur	Bez Živokosti
+Starts	Počinje
+Legs, hands	Noge, šake
+Broken leg, hand	Slomljena noga, šaka
+Top-down view of	Pogled odozgo:
+<b>{m} m</b> ({across} across, {sign}{height} height). Click again to start over.	<b>{m} m</b> ({across} vodoravno, {sign}{height} visina). Kliknite ponovo da počnete iz početka.
+Now click the target.	Sada kliknite metu.
+Click the shooter, then the target.	Kliknite strelca, zatim metu.
+Orange ring: full damage to {from} m; dashed: minimum from {to} m.	Narandžasti krug: puna šteta do {from} m; isprekidani: minimum od {to} m.
+health shown ×100 (body 100, head 40)	zdravlje prikazano ×100 (trup 100, glava 40)
+Shooter	Strelac
+fires	puca
+Distance to target	Udaljenost do mete
+Wall in front of the target	Zid ispred mete
+Weapon bonuses	Bonusi oružja
+— — HIT — →	— — POGODAK — →
+takes the hit	prima pogodak
+Current pain	Trenutni bol
+Pain the target already carries from earlier hits. It drains back to none at 10 a second once 8 s pass without a hit.	Bol koji meta već ima od ranijih pogodaka. Opada do nule za 10 u sekundi kada prođe 8 s bez pogotka.
+Armour bonuses	Bonusi oklopa
+Artefacts, drugs & skills	Artefakti, preparati i veštine
+Measure on a map	Izmeri na mapi
+Clear points	Obriši tačke
+bullet before armour	metak pre oklopa
+after this armour	posle ovog oklopa
+Every body part, this shot	Svi delovi tela, ovaj hitac
+Every weapon against this target	Svako oružje protiv ove mete
+Same distance, wall, body part, armour and target effects. Each gun uses its best ammo for this target unless you pick "default ammo". Click a row to load that gun.	Ista udaljenost, zid, deo tela, oklop i efekti na meti. Svako oružje koristi najbolju municiju za ovu metu, osim ako ne izaberete „standardna municija“. Kliknite red da učitate to oružje.
+Formula	Formula
+Healing	Lečenje
+Previous shot	Prethodni hitac
+Next shot	Sledeći hitac
+Damage calculator	Kalkulator štete Survarium	title

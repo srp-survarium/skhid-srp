@@ -507,6 +507,9 @@ fn kit_choices_before_play_are_counted_for_the_result() {
     bench.run(300);
     bench.clients[1].profile_input(0);
     bench.run(300);
+    // Client patch 180's Dead Man's Switch is a profile input too, but no kit choice.
+    bench.clients[1].profile_input(technical_skills::dead_mans_switch::INPUT);
+    bench.run(300);
     bench.run_long(20_000);
     assert_eq!(bench.game().rule_state(), state::IN_PROCESS);
     // In play a choice is for the next life, as it always was.
@@ -3616,6 +3619,7 @@ fn the_registry_says_how_a_match_stands_while_it_runs() {
         LiveMatch {
             match_id: bench.match_id,
             map_id: MAP_TDM,
+            kind: session::v026g::match_kind::MatchKind::Normal,
             phase: LivePhase::Gathering,
             players: [2, 1],
             present: 0b111,
@@ -3744,6 +3748,40 @@ fn the_registry_says_a_match_with_its_result_is_over() {
 }
 
 #[test]
+fn a_trusted_worlds_weapon_counts_are_the_results() {
+    use survarium::v026g::dictionary::Dictionary;
+    use survarium::v026g::match_msgs::snapshot::WeaponCounts;
+    let rifle = Dictionary::shared().items[0].dict_id;
+    let mut bench = Bench::new(2, MAP_BATTERIES, Settings::default());
+    bench.join_all();
+    settle(&mut bench);
+    bench.run_long(130_000);
+    let at = bench.clock() / 50 * 50 + 100;
+    let killer = WeaponCounts {
+        dict_id: rifle,
+        kills: 2,
+        wall_kills: 1,
+        kill_distance_dm: 700,
+        longest_kill_dm: 450,
+        held_ms: 60_000,
+        ..WeaponCounts::default()
+    };
+    let victim = WeaponCounts { deaths: 2, ..WeaponCounts::default() };
+    for client in &mut bench.clients {
+        client.sim.points_from = Some((at, [10, 0]));
+        client.sim.kills_from = Some((at, 2));
+        client.sim.weapons_from = Some((at, vec![vec![killer], vec![victim]]));
+    }
+    assert!(bench.until(12_000, |bench| {
+        bench.clients.iter().all(|client| client.closed)
+    }));
+    let result = bench.results.try_recv().expect("a result");
+    assert_eq!(result.players[0].weapons, [killer]);
+    assert_eq!(result.players[1].weapons, [victim]);
+    bench.assert_no_faults();
+}
+
+#[test]
 fn repeated_kill_payment_limit_preserves_the_match_result_statistics() {
     let mut bench = Bench::new(2, MAP_BATTERIES, Settings::default());
     bench.join_all();
@@ -3766,5 +3804,30 @@ fn repeated_kill_payment_limit_preserves_the_match_result_statistics() {
         10
     );
     assert_eq!(player.score, 230);
+    bench.assert_no_faults();
+}
+
+/// Client patch 180: a throw-back (Return to Sender) from a player none of
+/// whose kits has the skill is relayed to nobody, as the client never sends
+/// one (`technical_skills::throw_back::sane`).
+#[test]
+fn a_throw_back_without_the_skill_goes_to_nobody() {
+    let mut bench = Bench::new(3, MAP_BATTERIES, Settings::default());
+    bench.join_all();
+    settle(&mut bench);
+    let good = bench.clients[0].input(50, 0x21);
+    bench.run(100);
+    let forged = PlayerInput {
+        time: WireTime::tick(bench.clients[0].clock() + 50),
+        rotation: [0; 4],
+        actions: technical_skills::throw_back::encode(0x21),
+    };
+    bench.clients[0].send_input(forged);
+    bench.run(100);
+    assert_eq!(discards(&bench.clients[0]), [forged.time]);
+    assert_eq!(bench.game().inputs_refused(0), 1);
+    for other in [1, 2] {
+        assert_eq!(bench.clients[other].relays_of(0), [good]);
+    }
     bench.assert_no_faults();
 }

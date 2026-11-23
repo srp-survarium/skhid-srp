@@ -41,6 +41,10 @@ package survarium.constants
       
       public static const READY:uint = 7959153;
       
+      // A speed boost's blue: the Spring artefact's activation glow (fx/artifacts/human_spring's
+      // light, 0, 0.40, 1). Oxygen Rush's countdown (the owner, 2026-11-23: "since both are for speed").
+      public static const SPEED_BOOST:uint = 0x0066FF;
+
       public static const GREEN_DIFF:uint = 8890390;
       
       public static const RED_DIFF:uint = 9834254;

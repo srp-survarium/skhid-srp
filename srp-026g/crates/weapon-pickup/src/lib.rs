@@ -5,6 +5,8 @@
 //! - the pickup command an input carries ([`command`], [`encode`]): patch
 //!   78's marker bit 29 with a pattern of two or more quick-use bits, which
 //!   patch 78 already reads as no carry command and keeps from the game;
+//!   patch 196's corpse shot the same way, with the next 20 patterns
+//!   ([`corpse_shot`], [`encode_corpse_shot`]);
 //! - the server's check of it and the client's twin ([`allowed`],
 //!   [`sane`]): the client never sends what the server would drop;
 //! - a drop, open until it is taken, the place's until its player dies
@@ -109,12 +111,13 @@ impl Ms {
     }
 }
 
-/// The 20 six-bit patterns with two or more bits set, in increasing order:
-/// place n's pickup command carries the nth.
-const PATTERNS: [u8; PLACES as usize] = {
-    let mut out = [0u8; PLACES as usize];
+/// The 40 six-bit patterns with two or more bits set, in increasing order:
+/// place n's pickup command carries the nth, place n's corpse shot the
+/// (20 + n)th.
+const PATTERNS: [u8; 2 * PLACES as usize] = {
+    let mut out = [0u8; 2 * PLACES as usize];
     let (mut n, mut value) = (0usize, 0u8);
-    while n < PLACES as usize {
+    while n < out.len() {
         if value.count_ones() >= 2 {
             out[n] = value;
             n += 1;
@@ -124,16 +127,21 @@ const PATTERNS: [u8; PLACES as usize] = {
     out
 };
 
-/// The place an input's action mask asks to take the gun of, if any: the
-/// marker with one of the 20 patterns. A single quick bit is patch 78's
-/// carry command; any other pattern (two inputs OR-merged into one node)
-/// asks for nothing.
-pub fn command(actions: u32) -> Option<Place> {
+/// The ordinal of an input's pattern, if it carries the marker and one of
+/// [`PATTERNS`]. A single quick bit is patch 78's carry command; any other
+/// pattern (two inputs OR-merged into one node, patch 180's throw-back)
+/// is none of these.
+fn ordinal(actions: u32) -> Option<u8> {
     if actions & CHORD == 0 {
         return None;
     }
     let quick = ((actions & QUICK) >> 14) as u8;
-    PATTERNS.iter().position(|&p| p == quick).map(|n| Place(n as u8))
+    PATTERNS.iter().position(|&p| p == quick).map(|n| n as u8)
+}
+
+/// The place an input's action mask asks to take the gun of, if any.
+pub fn command(actions: u32) -> Option<Place> {
+    ordinal(actions).and_then(|n| (n < PLACES).then_some(Place(n)))
 }
 
 /// The input builder's mask asking for `target`'s gun: the marker and its
@@ -142,19 +150,33 @@ pub fn encode(actions: u32, target: Place) -> u32 {
     (actions & !(QUICK | USE)) | CHORD | (u32::from(PATTERNS[usize::from(target.0)]) << 14)
 }
 
+/// The place whose corpse the sender's bullet met, as the sender's game
+/// draws it (client patch 196, `docs/notes/corpse-shot-dark.md`), if the
+/// input says so. The simulation reads nothing of it.
+pub fn corpse_shot(actions: u32) -> Option<Place> {
+    ordinal(actions).and_then(|n| n.checked_sub(PLACES)).map(Place)
+}
+
+/// The input builder's mask telling of a shot into `victim`'s corpse: the
+/// marker and its pattern in place of the quick bits (the sender's input
+/// has none: it waits for one), every other action kept.
+pub fn encode_corpse_shot(actions: u32, victim: Place) -> u32 {
+    (actions & !QUICK) | CHORD | (u32::from(PATTERNS[usize::from(PLACES + victim.0)]) << 14)
+}
+
 /// The server's check, which the client applies before it sends: a pickup
-/// names a place of the match, the sender's own too (its own drop: the
-/// owner, 2026-11-05).
+/// or a corpse shot names a place of the match, the sender's own too (its
+/// own drop: the owner, 2026-11-05).
 pub fn allowed(target: Place, places: u8) -> bool {
     target.0 < places
 }
 
-/// Whether the server relays an input with these actions: no
-/// pickup, or an [`allowed`] one. The server drops any other as it drops an
-/// input with an impossible rotation (its owner told to drop it too), and the
-/// client never makes one.
+/// Whether the server relays an input with these actions: no pickup and no
+/// corpse shot, or an [`allowed`] one. The server drops any other as it
+/// drops an input with an impossible rotation (its owner told to drop it
+/// too), and the client never makes one.
 pub fn sane(actions: u32, places: u8) -> bool {
-    command(actions).is_none_or(|target| allowed(target, places))
+    command(actions).or(corpse_shot(actions)).is_none_or(|target| allowed(target, places))
 }
 
 /// A player's own drop: the gun it held at its death (the owner,

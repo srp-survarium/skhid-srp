@@ -42,6 +42,9 @@ package player_icons_fla
 
       // srp_show_enemies' state, for the layer frame 1 makes.
       public var enemiesShown:Boolean = false;
+
+      // srp_show_carriers' state, for the layer frame 1 makes.
+      public var carriersShown:Boolean = false;
       
       public function MainTimeline()
       {
@@ -84,13 +87,29 @@ package player_icons_fla
          this.applyForced();
       }
 
+      // Artifact Hunt (its exe patch, told with the enemy list at each match's start; false another
+      // mode; docs/notes/artefact_hunt.md "The carrier"): an enemy's marker and name shown while he
+      // carries the artefact (the game's carrier mark, modifier_visible), the mark the artefact's
+      // instead of the battery's box. Kept for frame 1's layer when told before it.
+      public function srp_show_carriers(shown:Boolean) : void
+      {
+         this.carriersShown = shown;
+         this.applyForced();
+      }
+
       private function applyForced() : void
       {
          if(this.iconControl)
          {
             this.iconControl.enemiesShown = this.enemiesShown;
             this.iconControl.objectsHidden = this.objectsForced;
+            this.iconControl.carriersShown = this.carriersShown;
          }
+      }
+
+      public function freeze_tag_markers(mask:uint) : void
+      {
+         this.iconControl.freezeMarkers(mask);
       }
 
       public function create_player_icon(id:uint, kind:uint = 0, baseScale:Number = 1) : void

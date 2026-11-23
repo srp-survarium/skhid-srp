@@ -61,7 +61,7 @@ the next).
   movie change. Others, replays and games without the patch play the relayed bits. The same
   reasoning as patch 34 (`client_patch.md` 3.32).
 
-## How (exe patch 149; `client_patch.md` 3.82)
+## How (exe patch 149; `client_patch.md` 3.105)
 
 - **The action table moved** into the arena (`item_hotkeys_026g.asm`): the game's 60 rows and
   the fourteen. The game's table ends where the key names begin, so it cannot grow in place.

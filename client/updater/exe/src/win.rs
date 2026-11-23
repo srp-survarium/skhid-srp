@@ -19,7 +19,7 @@ use windows_sys::Win32::Storage::FileSystem::{
     FILE_SHARE_WRITE, FindClose, FindFirstFileW, FindNextFileW, FlushFileBuffers,
     GetDiskFreeSpaceExW, GetFileAttributesW, GetFileInformationByHandle, GetFileSizeEx,
     INVALID_FILE_ATTRIBUTES, MOVEFILE_REPLACE_EXISTING, MoveFileExW, OPEN_ALWAYS, OPEN_EXISTING,
-    ReadFile, SetFilePointerEx, WIN32_FIND_DATAW, WriteFile,
+    ReadFile, SetEndOfFile, SetFilePointerEx, WIN32_FIND_DATAW, WriteFile,
 };
 use windows_sys::Win32::System::Diagnostics::Debug::{
     FORMAT_MESSAGE_FROM_SYSTEM, FORMAT_MESSAGE_IGNORE_INSERTS, FormatMessageW,
@@ -562,6 +562,28 @@ impl File {
         open(path, GENERIC_READ | GENERIC_WRITE, 0, CREATE_ALWAYS).map(Self)
     }
 
+    /// A download of `from` bytes kept, to go on from: a new file when
+    /// `from` is 0, else the one there, by this program alone, at byte
+    /// `from` (`http::get_file_into`).
+    pub fn download(path: &str, from: u64) -> Result<Self, Code> {
+        if from == 0 {
+            return Self::create(path);
+        }
+        let file = Self::exclusive(path)?;
+        file.seek(from)?;
+        Ok(file)
+    }
+
+    /// Ends the file at byte `at` (and moves there): what was after it is
+    /// gone.
+    pub fn cut(&self, at: u64) -> Result<(), Code> {
+        self.seek(at)?;
+        if unsafe { SetEndOfFile(self.0.0) } == 0 {
+            return Err(last_error());
+        }
+        Ok(())
+    }
+
     pub fn size(&self) -> Result<u64, Code> {
         let mut size = 0_i64;
         if unsafe { GetFileSizeEx(self.0.0, &mut size) } == 0 {
@@ -667,10 +689,9 @@ pub fn list_with_times(folder: &str, pattern: &str) -> Vec<(String, u64)> {
     out
 }
 
-/// The game's language, which its Settings and the launcher's menu keep
-/// (`localization` of `<Documents>\survarium\user.cfg`, the folder the game
-/// takes: CSIDL_PERSONAL), as a number of `replay::LANGUAGES`; read only.
-pub fn game_language() -> Option<u32> {
+/// The player's Documents folder, the one the game keeps its settings and
+/// baked textures in (CSIDL_PERSONAL).
+pub fn documents() -> Option<String> {
     use windows_sys::Win32::UI::Shell::SHGetFolderPathW;
     const CSIDL_PERSONAL: i32 = 5;
     let mut folder = [0_u16; 260];
@@ -679,8 +700,19 @@ pub fn game_language() -> Option<u32> {
         return None;
     }
     let end = folder.iter().position(|&unit| unit == 0)?;
-    let path = alloc::format!("{}\\survarium\\user.cfg", from_wide(&folder[..end]));
-    updater_logic::replay::language_of_user_cfg(&read_file(&path, 1 << 16).ok()?)
+    Some(from_wide(&folder[..end]))
+}
+
+/// The game's `<documents>\survarium\user.cfg`, as the launcher reads it
+/// (64 KiB at most); read only.
+fn user_cfg(documents: &str) -> Option<Vec<u8>> {
+    read_file(&alloc::format!("{documents}\\survarium\\user.cfg"), 1 << 16).ok()
+}
+
+/// The game's language, which its Settings and the launcher's menu keep
+/// (`localization` of user.cfg), as a number of `replay::LANGUAGES`.
+pub fn game_language(documents: &str) -> Option<u32> {
+    updater_logic::replay::language_of_user_cfg(&user_cfg(documents)?)
 }
 
 /// Whether the game, which reads its command line as ANSI text
@@ -915,4 +947,14 @@ pub fn run_wait(
         return Err(last_error());
     }
     Ok(code)
+}
+
+/// The launcher's "Allow torrent" in user.cfg (`updater_logic::user_cfg`).
+/// Off until the launcher's one-time reset of the original game's default
+/// `on` (launcher patch 15), so a line the player never chose is never taken.
+pub fn launcher_torrent_allowed() -> bool {
+    documents().is_some_and(|documents| {
+        let reset = alloc::format!("{documents}\\survarium\\{}", updater_logic::user_cfg::RESET_FILE);
+        exists(&reset) && user_cfg(&documents).is_some_and(|text| updater_logic::user_cfg::torrent_allowed(&text))
+    })
 }

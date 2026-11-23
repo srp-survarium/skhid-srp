@@ -1,0 +1,209 @@
+{
+ "_about": "<live folder> holds every project of the ported maps at its game path, as the content build has them where the list's row is (every mode's copy made). <level prefix>: the levels the list covers (default v011e_ v021d_); London (v0.32) and (v0.42) get the rule from resource-porter's near_build.",
+ "set": [
+  {
+   "file": "projects/v011e_level_03/day_2/client_project",
+   "path": "client_objects[0]/properties/ao_saturation",
+   "from": 1.5,
+   "to": 1.0
+  },
+  {
+   "file": "projects/v011e_level_03/day_4/client_project",
+   "path": "client_objects[0]/properties/ao_saturation",
+   "from": 1.5,
+   "to": 1.0
+  },
+  {
+   "file": "projects/v011e_level_03/day_5/client_project",
+   "path": "client_objects[0]/properties/ao_saturation",
+   "from": 1.5,
+   "to": 1.0
+  },
+  {
+   "file": "projects/v011e_level_03/day_8/client_project",
+   "path": "client_objects[0]/properties/ao_saturation",
+   "from": 1.5,
+   "to": 1.0
+  },
+  {
+   "file": "projects/v011e_level_03/day_ah/client_project",
+   "path": "client_objects[0]/properties/ao_saturation",
+   "from": 1.5,
+   "to": 1.0
+  },
+  {
+   "file": "projects/v011e_level_04/day_2/client_project",
+   "path": "client_objects[98]/properties/ao_saturation",
+   "from": 1.3,
+   "to": 1.0
+  },
+  {
+   "file": "projects/v011e_level_04/day_4/client_project",
+   "path": "client_objects[96]/properties/ao_saturation",
+   "from": 1.3,
+   "to": 1.0
+  },
+  {
+   "file": "projects/v011e_level_04/day_8/client_project",
+   "path": "client_objects[96]/properties/ao_saturation",
+   "from": 1.3,
+   "to": 1.0
+  },
+  {
+   "file": "projects/v011e_level_04/day_ah/client_project",
+   "path": "client_objects[96]/properties/ao_saturation",
+   "from": 1.3,
+   "to": 1.0
+  },
+  {
+   "file": "projects/v021d_level_01/day_2/client_project",
+   "path": "client_objects[74]/properties/ao_saturation",
+   "from": 1.3,
+   "to": 1.0
+  },
+  {
+   "file": "projects/v021d_level_01/day_4/client_project",
+   "path": "client_objects[74]/properties/ao_saturation",
+   "from": 1.3,
+   "to": 1.0
+  },
+  {
+   "file": "projects/v021d_level_01/day_ah/client_project",
+   "path": "client_objects[74]/properties/ao_saturation",
+   "from": 1.3,
+   "to": 1.0
+  },
+  {
+   "file": "projects/v021d_level_01/rain_2/client_project",
+   "path": "client_objects[238]/properties/ao_saturation",
+   "from": 1.5,
+   "to": 1.0
+  },
+  {
+   "file": "projects/v021d_level_01/rain_4/client_project",
+   "path": "client_objects[232]/properties/ao_saturation",
+   "from": 1.5,
+   "to": 1.0
+  },
+  {
+   "file": "projects/v021d_level_01/rain_ah/client_project",
+   "path": "client_objects[232]/properties/ao_saturation",
+   "from": 1.5,
+   "to": 1.0
+  },
+  {
+   "file": "projects/v021d_level_02/rain_2/client_project",
+   "path": "client_objects[162]/properties/ao_saturation",
+   "from": 1.5,
+   "to": 1.0
+  },
+  {
+   "file": "projects/v021d_level_02/rain_4/client_project",
+   "path": "client_objects[156]/properties/ao_saturation",
+   "from": 1.5,
+   "to": 1.0
+  },
+  {
+   "file": "projects/v021d_level_02/rain_ah/client_project",
+   "path": "client_objects[156]/properties/ao_saturation",
+   "from": 1.5,
+   "to": 1.0
+  },
+  {
+   "file": "projects/v021d_level_03/rain_2/client_project",
+   "path": "client_objects[342]/properties/ao_saturation",
+   "from": 1.5,
+   "to": 1.0
+  },
+  {
+   "file": "projects/v021d_level_03/rain_4/client_project",
+   "path": "client_objects[336]/properties/ao_saturation",
+   "from": 1.5,
+   "to": 1.0
+  },
+  {
+   "file": "projects/v021d_level_03/rain_ah/client_project",
+   "path": "client_objects[336]/properties/ao_saturation",
+   "from": 1.5,
+   "to": 1.0
+  },
+  {
+   "file": "projects/v021d_level_04/rain_2/client_project",
+   "path": "client_objects[140]/properties/ao_saturation",
+   "from": 1.5,
+   "to": 1.0
+  },
+  {
+   "file": "projects/v021d_level_04/rain_4/client_project",
+   "path": "client_objects[134]/properties/ao_saturation",
+   "from": 1.5,
+   "to": 1.0
+  },
+  {
+   "file": "projects/v021d_level_04/rain_ah/client_project",
+   "path": "client_objects[134]/properties/ao_saturation",
+   "from": 1.5,
+   "to": 1.0
+  },
+  {
+   "file": "projects/v021d_level_05/day_2/client_project",
+   "path": "client_objects[64]/properties/ao_saturation",
+   "from": 1.3,
+   "to": 1.0
+  },
+  {
+   "file": "projects/v021d_level_05/day_4/client_project",
+   "path": "client_objects[64]/properties/ao_saturation",
+   "from": 1.3,
+   "to": 1.0
+  },
+  {
+   "file": "projects/v021d_level_05/day_8/client_project",
+   "path": "client_objects[64]/properties/ao_saturation",
+   "from": 1.3,
+   "to": 1.0
+  },
+  {
+   "file": "projects/v021d_level_05/day_ah/client_project",
+   "path": "client_objects[64]/properties/ao_saturation",
+   "from": 1.3,
+   "to": 1.0
+  },
+  {
+   "file": "projects/v021d_level_05/rain_2/client_project",
+   "path": "client_objects[164]/properties/ao_saturation",
+   "from": 1.5,
+   "to": 1.0
+  },
+  {
+   "file": "projects/v021d_level_05/rain_4/client_project",
+   "path": "client_objects[158]/properties/ao_saturation",
+   "from": 1.5,
+   "to": 1.0
+  },
+  {
+   "file": "projects/v021d_level_05/rain_ah/client_project",
+   "path": "client_objects[158]/properties/ao_saturation",
+   "from": 1.5,
+   "to": 1.0
+  },
+  {
+   "file": "projects/v021d_level_06/rain_2/client_project",
+   "path": "client_objects[159]/properties/ao_saturation",
+   "from": 1.5,
+   "to": 1.0
+  },
+  {
+   "file": "projects/v021d_level_06/rain_4/client_project",
+   "path": "client_objects[157]/properties/ao_saturation",
+   "from": 1.5,
+   "to": 1.0
+  },
+  {
+   "file": "projects/v021d_level_06/rain_ah/client_project",
+   "path": "client_objects[157]/properties/ao_saturation",
+   "from": 1.5,
+   "to": 1.0
+  }
+ ]
+}

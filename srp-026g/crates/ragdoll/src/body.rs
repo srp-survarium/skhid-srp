@@ -21,6 +21,10 @@ impl Capsule {
     }
 }
 
+/// A body's planes: under its two ends, then beside them; plane `i` is end
+/// `i % 2`'s.
+pub const CONTACTS: usize = 4;
+
 /// What a capsule end touches of the level: the plane of its last query,
 /// kept for the substeps of a frame and the frames after while the end
 /// does not move away from it. Each end has its own (a body lying across a
@@ -44,8 +48,10 @@ pub struct Body {
     /// The inverse of the diagonal inertia in the body's frame.
     pub inverse_inertia: Vec3,
     pub shape: Capsule,
-    /// The planes under the capsule's two ends ([`Capsule::ends`]' order).
-    pub contacts: [Contact; 2],
+    /// The planes of the capsule's two ends ([`Capsule::ends`]' order):
+    /// under each, then beside each (a wall the end moves toward: the ray
+    /// down never meets a wall beside the end, and a head slid into it).
+    pub contacts: [Contact; CONTACTS],
 }
 
 impl Body {
@@ -66,7 +72,7 @@ impl Body {
             inverse_mass: 1.0 / mass,
             inverse_inertia: Vec3::new(1.0 / axial, 1.0 / across, 1.0 / across),
             shape,
-            contacts: [Contact::Free; 2],
+            contacts: [Contact::Free; CONTACTS],
         }
     }
 

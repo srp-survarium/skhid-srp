@@ -1,0 +1,16 @@
+# Patch 194: the markers over thrown grenades tell a smoke and a toxic smoke apart
+# (docs/notes/grenade-icons.md). The logic is grenade_icons.rs and vostok/grenade_icons.rs.
+name = "grenade_icons"
+patch = 194
+
+# player::st_draw's sensor gives a teammate's grenade a marker: its kind told on a change.
+[[hook]]
+site = "grenade_icons.sensed"
+handler = "on_sensed"
+
+# initialize_match before it makes the match's markers (every grenade marker a frag's again), after
+# the replay's and Artifact Hunt's handlers (orders 1, 2).
+[[hook]]
+site = "player_icons.enemy_ids"
+handler = "on_markers_made"
+order = 3

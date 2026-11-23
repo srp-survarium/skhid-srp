@@ -223,7 +223,6 @@ package survarium.buttons
             {
                this.hoverSprite.visible = false;
             }
-            _data.resize = Boolean(maxValue > 1);
             trace("slr_update_data",_data.name,_data.enabled,currentValue,maxValue,this._complete);
             this.skillProgressIndicator.maximum = maxValue;
             this.skillProgressIndicator.value = currentValue;

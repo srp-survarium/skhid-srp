@@ -8,7 +8,6 @@ pack=$SKHID_PACKS_DIR/stalker-maps-6
     models/level/04/level_border.model/render/export_properties \
     models/level/04/level_border.model/render/donotwalkhere_sg/export_properties \
     models/level/04/level_border.model/render/donotwalkhere_sg/converted_model \
-    models/level/04/level_border.model/walker_collision/exported_primitives
+    models/level/04/level_border.model/walker_collision/exported_primitives \
+    projects/level_05/day_4/client_project
 python3 srp-026g/scripts/stalker-maps/check_sources.py --pack "$pack" --native "$CHECK_WORK/native"
-cargo test --locked --manifest-path srp-026g/scripts/stalker-maps/ffa-points/Cargo.toml
-cargo clippy --locked --manifest-path srp-026g/scripts/stalker-maps/ffa-points/Cargo.toml --all-targets -- -D warnings

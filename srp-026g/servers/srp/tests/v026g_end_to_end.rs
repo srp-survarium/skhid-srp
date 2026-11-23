@@ -56,7 +56,7 @@ use survarium::v026g::match_msgs::{ServerMessage, TICK_MS};
 use survarium::v026g::prices;
 
 /// Team Deathmatch on level_01 (`maps_dict` id 117).
-const MAP: u8 = 117;
+const MAP: survarium::v026g::maps::MapId = survarium::v026g::maps::MapId::new(117);
 /// The longest any one step may take.
 const SOON: Duration = Duration::from_secs(10);
 /// From Play by two players to their room's match: its vote (15 s), the
@@ -173,6 +173,8 @@ struct Game {
     lobby_socket: UdpSocket,
     lobby: TestClient,
     in_match: Option<(SocketAddr, UdpSocket, MatchClient)>,
+    /// The address its sockets are on (`127.0.0.1` but in the relay's test).
+    local: std::net::IpAddr,
     /// The `Match id` of the last static info it took: a game keeps it
     /// until it is started again, whatever became of the match.
     static_id: u32,
@@ -182,7 +184,11 @@ struct Game {
 }
 
 fn socket() -> UdpSocket {
-    let socket = UdpSocket::bind("127.0.0.1:0").expect("a free port");
+    socket_on([127, 0, 0, 1].into())
+}
+
+fn socket_on(local: std::net::IpAddr) -> UdpSocket {
+    let socket = UdpSocket::bind((local, 0)).expect("a free port");
     socket.set_nonblocking(true).unwrap();
     socket
 }
@@ -216,6 +222,47 @@ impl Game {
             lobby_socket: socket(),
             lobby,
             in_match: None,
+            local: [127, 0, 0, 1].into(),
+            static_id: NO_STATIC_ID,
+            hashed: 0,
+            started: Instant::now(),
+        }
+    }
+
+    /// Signed in as [`Game::signed_in`] does, its sockets on `local`, at
+    /// the login server `login` (srp's, or a relay's): the lobby it is told
+    /// is `lobby`.
+    fn signed_in_at(
+        name: &'static str,
+        password: &str,
+        local: std::net::Ipv4Addr,
+        login: SocketAddr,
+        lobby: SocketAddr,
+    ) -> Self {
+        let revision = survarium::v026g::match_msgs::late_join::PATCH_REVISION;
+        let stream = socket2::Socket::new(socket2::Domain::IPV4, socket2::Type::STREAM, None)
+            .expect("a TCP socket");
+        stream
+            .bind(&SocketAddr::from((local, 0)).into())
+            .expect("its own address");
+        stream
+            .connect_timeout(&login.into(), Duration::from_secs(5))
+            .expect("the login server");
+        let reply = srp::bot::sign_in_over(stream.into(), test_key().public(), name, password, revision)
+            .unwrap();
+        let (session, lobby_addr) = accepted(&reply);
+        assert_eq!(lobby_addr, lobby, "the lobby {name} is sent to");
+        let mut client = TestClient::new();
+        client.sign_in(session, true);
+        Self {
+            name,
+            revision,
+            session,
+            lobby_addr,
+            lobby_socket: socket_on(local.into()),
+            lobby: client,
+            in_match: None,
+            local: local.into(),
             static_id: NO_STATIC_ID,
             hashed: 0,
             started: Instant::now(),
@@ -258,7 +305,7 @@ impl Game {
         client.no_hashes = true;
         client.connect();
         self.hashed = 0;
-        self.in_match = Some((server, socket(), client));
+        self.in_match = Some((server, socket_on(self.local), client));
     }
 
     /// Send what is due on both links and take what has come.
@@ -1189,6 +1236,7 @@ fn a_wrong_password_is_refused_and_a_player_alone_waits_in_a_room() {
             lobby_socket: socket(),
             lobby: TestClient::new(),
             in_match: None,
+            local: [127, 0, 0, 1].into(),
             static_id: NO_STATIC_ID,
             hashed: 0,
             started: Instant::now(),
@@ -1231,11 +1279,11 @@ struct BotRun {
 
 impl BotRun {
     fn start(stack: &Stack, name: &str, once: bool) -> Self {
-        Self::start_with(stack, name, once, false)
+        Self::start_with(stack, name, once, None)
     }
 
     /// With `drive`: the bot sends the inputs of its script (`srp::drive`).
-    fn start_with(stack: &Stack, name: &str, once: bool, drive: bool) -> Self {
+    fn start_with(stack: &Stack, name: &str, once: bool, drive: Option<srp::drive::Script>) -> Self {
         let lines = Arc::new(Mutex::new(Vec::new()));
         let stop = Arc::new(AtomicBool::new(false));
         let config = srp::bot::Config {
@@ -1247,6 +1295,7 @@ impl BotRun {
             kit: None,
             drive,
             revision: survarium::v026g::match_msgs::late_join::PATCH_REVISION,
+            suicide_after: None,
         };
         let print: srp::bot::Print = {
             let lines = lines.clone();
@@ -1498,7 +1547,7 @@ fn a_driving_bot_s_inputs_reach_the_player_s_game_in_time() {
     use srp::drive::key;
     let dir = temp_dir("bot-drive");
     let stack = start_with_bots(&dir, &["bot-1"]);
-    let bot = BotRun::start_with(&stack, "bot-1", true, true);
+    let bot = BotRun::start_with(&stack, "bot-1", true, Some(srp::drive::Script::Stage0));
     let (mut solo, _match_id, places, _teams) = solo_and_bot_into_a_match(&stack, &bot);
     let bot_place = places[1];
     assert!(bot.said("drives: the script starts").is_some());
@@ -1750,7 +1799,7 @@ fn a_player_against_the_servers_bots_plays_a_match_to_the_results() {
     assert!(rows.iter().any(|row| row.0 == "117;1;4;5"), "{rows:?}");
     assert_eq!(rows.iter().filter(|row| row.0.ends_with(";8;5")).count(), 8, "{rows:?}");
 
-    let start = pvb_choice_start(6, MAP);
+    let start = pvb_choice_start(6, MAP).expect("a bot map");
     solo.ask(request::ranking(start, 1));
     until(&mut [&mut solo], SOON, "the choice", |games| {
         reserved_rows(games[0], start).is_some()
@@ -1833,5 +1882,154 @@ fn a_player_against_the_servers_bots_plays_a_match_to_the_results() {
     until(&mut [&mut solo], SOON, "the match closed", |_| {
         !stack.registry.is_open(match_id) && stack.store.match_count() == 0
     });
+    stack.stop();
+}
+
+// ------------------------------------------------------------- the relay
+
+/// Four consecutive free ports, `login` to `login + 3`, on both addresses
+/// (srp's and the relay's): the native relay forwards the login port and
+/// the three after it.
+fn four_ports(addresses: [std::net::Ipv4Addr; 2]) -> u16 {
+    for _ in 0..200 {
+        let first = std::net::TcpListener::bind("127.0.0.1:0")
+            .and_then(|listener| listener.local_addr())
+            .expect("a free port")
+            .port();
+        if first > 65530 {
+            continue;
+        }
+        let free = addresses.iter().all(|&ip| {
+            (first..first + 4).all(|port| {
+                std::net::TcpListener::bind((ip, port)).is_ok() && UdpSocket::bind((ip, port)).is_ok()
+            })
+        });
+        if free {
+            return first;
+        }
+    }
+    panic!("no four free ports in a row");
+}
+
+/// A running `srp-relay` (the native relay players reach): stopped with it.
+struct NativeRelay(std::process::Child);
+
+impl Drop for NativeRelay {
+    fn drop(&mut self) {
+        let _ = self.0.kill();
+        let _ = self.0.wait();
+    }
+}
+
+/// A direct game and a relayed one, through the real native relay, sign in,
+/// take the lobby, are put in one match and play it: each is known by its
+/// own address and the route it came by, and answered by that route.
+/// srp's tunnel address for the relay is 127.0.0.1 (where the relay's
+/// sockets come from on this machine), the relay's public address 127.0.0.2,
+/// the direct game on 127.0.0.3, the relayed one on 127.0.0.4. Needs the
+/// relay's binary in `SKHID_NATIVE_RELAY` (`tools/check regional-relay`
+/// builds it); without it, it says so and passes.
+#[test]
+fn a_direct_and_a_relayed_game_play_one_match_each_by_its_own_route() {
+    let Some(relay_binary) = std::env::var_os("SKHID_NATIVE_RELAY") else {
+        eprintln!("SKHID_NATIVE_RELAY is not set: the relay's end-to-end test did not run");
+        return;
+    };
+    let (srp_ip, relay_ip) = ([127, 0, 0, 1].into(), std::net::Ipv4Addr::new(127, 0, 0, 2));
+    let (direct_ip, relayed_ip) = ([127, 0, 0, 3].into(), [127, 0, 0, 4].into());
+    let login = four_ports([srp_ip, relay_ip]);
+    let dir = temp_dir("relay");
+    let stack = start_with(&dir, &[], |options| {
+        options.login_bind = format!("127.0.0.1:{login}");
+        options.lobby.bind = format!("127.0.0.1:{}", login + 1);
+        options.match_bind = format!("127.0.0.1:{}", login + 2);
+        options.relays = Ok(udp_transport::relay::Relays::parse("127.0.0.1=127.0.0.2").unwrap());
+    });
+    let mut relay = std::process::Command::new(relay_binary)
+        .args(["--public", "127.0.0.2", "--backend", "127.0.0.1", "--bind", "127.0.0.2"])
+        .args(["--login-port", &login.to_string()])
+        .stderr(std::process::Stdio::piped())
+        .spawn()
+        .expect("the native relay");
+    let mut said = String::new();
+    std::io::BufRead::read_line(
+        &mut std::io::BufReader::new(relay.stderr.take().unwrap()),
+        &mut said,
+    )
+    .unwrap();
+    assert!(said.starts_with("ready:"), "the relay said {said:?}");
+    let _relay = NativeRelay(relay);
+
+    let at = |ip: std::net::Ipv4Addr, port: u16| SocketAddr::from((ip, port));
+    let mut near = Game::signed_in_at(
+        "E2eNear",
+        "near-password-1",
+        direct_ip,
+        stack.login_addr,
+        stack.lobby_addr,
+    );
+    let mut far = Game::signed_in_at(
+        "E2eFar",
+        "far-password-2",
+        relayed_ip,
+        at(relay_ip, login),
+        at(relay_ip, login + 1),
+    );
+    // The sign-ins are each the game's own address, not the relay's.
+    for (name, ip) in [("E2eNear", direct_ip), ("E2eFar", relayed_ip)] {
+        let account = stack.store.account(account_id(&stack, name)).unwrap();
+        assert_eq!(account.locked().last_ip, Some(std::net::IpAddr::V4(ip)), "{name}");
+    }
+    until(&mut [&mut near, &mut far], SOON, "the sign-in pushes", |games| {
+        games.iter().all(|game| in_lobby(game))
+    });
+    near.take();
+    far.take();
+    near.ask(request::play(1));
+    far.ask(request::play(1));
+    until(&mut [&mut near, &mut far], ROOM_MATCH, "connect_to_match", |games| {
+        games
+            .iter()
+            .all(|game| game.has(|message| matches!(message, Decoded::ConnectToMatch { .. })))
+    });
+    // Each is sent to the match server by its own route.
+    let host_of = |game: &Game| {
+        game.find(|message| match message {
+            Decoded::ConnectToMatch { host, port, .. } => Some((host.clone(), *port)),
+            _ => None,
+        })
+        .unwrap()
+    };
+    assert_eq!(host_of(&near), ("127.0.0.1".to_owned(), login + 2));
+    assert_eq!(host_of(&far), ("127.0.0.2".to_owned(), login + 2));
+    near.connect_to_match(at(srp_ip, login + 2));
+    far.connect_to_match(at(relay_ip, login + 2));
+    until(&mut [&mut near, &mut far], SOON, "the static info", |games| {
+        games.iter().all(|game| game.of_match().model.options.is_some())
+    });
+    let places: Vec<u8> = [&near, &far]
+        .iter()
+        .map(|game| game.of_match().model.local_index.expect("its own place"))
+        .collect();
+    near.of_match_mut().ready();
+    far.of_match_mut().ready();
+    until(&mut [&mut near, &mut far], SOON, "both in the match", |games| {
+        games.iter().all(|game| {
+            let client = game.of_match();
+            let mut entered = client.entered();
+            entered.sort_unstable();
+            client.model.is_synced() && entered == [0, 1]
+        })
+    });
+    run_for(&mut [&mut near, &mut far], Duration::from_millis(2_600));
+    let from_near = near.of_match_mut().input(100, 0x8000_0021);
+    let from_far = far.of_match_mut().input(100, 0x40);
+    until(&mut [&mut near, &mut far], SOON, "the inputs relayed", |games| {
+        games[1].of_match().relays_of(places[0]) == [from_near]
+            && games[0].of_match().relays_of(places[1]) == [from_far]
+    });
+    near.assert_clean();
+    far.assert_clean();
+    drop(_relay);
     stack.stop();
 }

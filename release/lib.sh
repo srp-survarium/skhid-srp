@@ -24,6 +24,69 @@ QUICK_MARK=QUICK-BUILD
 STOCK_DB_SHA256=c74078be702d17113b9ca23f59aa2b0087238481e7f01fb793620d51d875492c
 # The players' exe in the ZIP.
 ZIP_EXE=game/binaries/x86/survarium_skhid.exe
+# The release's Ed25519 key, which signs every revision's torrent
+# (release/make-signing-key, srp-026g/docs/notes/torrent-downloads.md): its
+# file beside release.env (private/release/, mode 600, never committed, never
+# printed), its public key committed as SIGNING_PUB (64 hex digits), which the
+# updater is built with. The test environment has its own pair
+# (torrent-signing-test.pem, release/signing-test.pub; make-signing-key
+# --test): its updater is built with that public key (SKHID_TEST_PUBLIC_KEY),
+# so a test torrent is never trusted by a player's updater.
+# signing_pub [live|test]: the committed public key's path in a checkout.
+signing_pub() {
+    case ${1:-live} in
+    live) printf '%s\n' release/signing.pub ;;
+    test) printf '%s\n' release/signing-test.pub ;;
+    *) die "signing_pub: $1" ;;
+    esac
+}
+# shellcheck disable=SC2034 # used by the scripts that source this
+SIGNING_PUB=release/signing.pub
+# signing_key [live|test]: the private key's file.
+signing_key() {
+    load_env
+    case ${1:-live} in
+    live) printf '%s\n' "$(dirname "$RELEASE_ENV")/torrent-signing.pem" ;;
+    test) printf '%s\n' "$(dirname "$RELEASE_ENV")/torrent-signing-test.pem" ;;
+    *) die "signing_key: $1" ;;
+    esac
+}
+# public_hex <openssl> <private key file>: its public key, 64 hex digits
+# (the DER of an Ed25519 public key ends with its 32 bytes, RFC 8410).
+public_hex() {
+    "$1" pkey -in "$2" -pubout -outform DER | tail -c 32 | od -An -v -tx1 | tr -d ' \n'
+}
+# The bootstrap (srp-026g/docs/notes/torrent-downloads.md, "Bootstrap"): the
+# list of its three files in the form of the offered-patch list (their URLs in
+# the order the script tries them after the peers), its torrent and the
+# script made of them, all three committed (release/build-bootstrap; more
+# URLs: release/add-mirror <name> <url>).
+BOOTSTRAP_LIST=release/bootstrap.tsv
+BOOTSTRAP_TORRENT=release/bootstrap.torrent
+BOOTSTRAP_SCRIPT=srp-026g/servers/web-server/bootstrap/Skhid-get.bat
+# shellcheck disable=SC2034 # used by the scripts that source this
+BOOTSTRAP_FILES=(game/binaries/x86/7zr.exe game/binaries/x86/skhid_torrent.dll game/binaries/x86/updater_skhid.exe)
+# The script again from the torrent and the list (and with <path> <source>
+# pairs, the torrent again from those files first).
+render_bootstrap() {
+    local files=()
+    while (($#)); do files+=(--file "$1" "$2"); shift 2; done
+    mkdir -p "$ROOT/${BOOTSTRAP_SCRIPT%/*}"
+    python -I "$ROOT/release/build_torrent.py" bootstrap --torrent "$ROOT/$BOOTSTRAP_TORRENT" "${files[@]}" \
+        --list "$ROOT/$BOOTSTRAP_LIST" --body "$ROOT/release/bootstrap.ps1" --out "$ROOT/$BOOTSTRAP_SCRIPT"
+}
+# The openssl program: this system's, or nixpkgs'.
+openssl_program() {
+    if command -v openssl; then return 0; fi
+    printf '%s/bin/openssl\n' "$(nix_build nixpkgs#openssl.bin openssl)"
+}
+# <installable> <name>: its store path, built with an out-link in the scripts'
+# cache, so that the garbage collector keeps it.
+nix_build() {
+    local link=${XDG_CACHE_HOME:-$HOME/.cache}/skhid-release/gc-roots/$2
+    mkdir -p "${link%/*}"
+    nix build --out-link "$link" --print-out-paths "$1" | head -n 1
+}
 # The original game's archive (build 2777): its row of release/game.tsv
 # (GAME_ROW), offered at /game; client/updater/logic/src/game.rs pins it.
 GAME_NAME=survarium-026g.7z
@@ -117,6 +180,23 @@ http_get() {
     curl -sS --max-time "${HTTP_TIMEOUT:-600}" -o "$2" -w '%{http_code}' "$1" || true
 }
 
+# Whether a new patch also goes to Dropbox (release/dropbox-upload), by
+# release.env (load_env first): `on` with the account there (or an access
+# token given), `off` with SKHID_DROPBOX=off, said on purpose. Neither: it
+# was forgotten, nothing is printed, and upload-patch and release.sh stop
+# with DROPBOX_FORGOTTEN: a patch without its Dropbox address leaves the
+# players whose providers cut the patches server without the content.
+dropbox_setting() {
+    if [[ ${SKHID_DROPBOX:-} == off ]]; then
+        echo off
+    elif [[ -n ${SKHID_DROPBOX_TOKEN:-} ]] ||
+        [[ -n ${SKHID_DROPBOX_APP_KEY:-} && -n ${SKHID_DROPBOX_APP_SECRET:-} && -n ${SKHID_DROPBOX_REFRESH_TOKEN:-} ]]; then
+        echo on
+    fi
+}
+# shellcheck disable=SC2034 # used by the scripts that source this
+DROPBOX_FORGOTTEN="no Dropbox account in release.env: a new patch must go to Dropbox too. Set SKHID_DROPBOX_APP_KEY and SKHID_DROPBOX_APP_SECRET there and run release/dropbox-upload --login (once); or say SKHID_DROPBOX=off there to release without, on purpose"
+
 # The most URLs a patch may have (the players' updater takes up to 8).
 MAX_PATCH_URLS=8
 
@@ -161,11 +241,14 @@ URL_CACHE=${XDG_CACHE_HOME:-$HOME/.cache}/skhid-release/patch-urls.checked
 # how it was checked (`downloaded`, `as checked before`, `by its first
 # bytes`).
 URL_PROBLEM='' CHECKED=''
-# The start of a patch and of a 7z archive, as od -tx1 writes it.
-PATCH_START=6c6974746c652d656e6469616e SEVENZIP_START=377abcaf271c
+# The start of a patch and of a 7z archive, as od -tx1 writes it; URL_START:
+# another (a program's, MZ: the bootstrap's files).
+PATCH_START=6c6974746c652d656e6469616e SEVENZIP_START=377abcaf271c URL_START=''
+# shellcheck disable=SC2034 # used by the scripts that source this
+PROGRAM_START=4d5a
 # shellcheck disable=SC2034 # CHECKED: the callers read it
 check_patch_url() {
-    local url=$1 sha=$2 size=$3 dir=$4 full=${5:-} out head status type total got start=$PATCH_START
+    local url=$1 sha=$2 size=$3 dir=$4 full=${5:-} out head status type total got start=${URL_START:-$PATCH_START}
     out=$dir/url-check.$$ head=$dir/url-check.$$.head
     URL_PROBLEM='' CHECKED=''
     if [[ -n $GAME_ROW && $sha == "$(cut -d' ' -f2 <<<"$GAME_ROW")" ]]; then start=$SEVENZIP_START; fi
@@ -333,12 +416,14 @@ python() {
 # Runs a script of the checkout <src>'s srp-026g/client-patches
 # (make_client_026g.py, patch_026g.py, ...) with the arguments after <src>,
 # in that checkout's dev shell: its python3, and the gcc, GNU ld and NASM
-# 2.16 the exe's arena is linked with (link_026g.py; the bytes must be
-# arena_026g.lock.json's). Nothing of this machine's PATH is needed but nix.
+# 2.16 the exe's arena is linked with (link_026g.py). Nothing of this
+# machine's PATH is needed but nix.
+# A release builds the arena's Rust from source (SRP_ARENA_CACHE=off): what
+# local builds keep of it (link_026g.py's cache) is not what players get.
 client_patches_python() {
     local src=$1
     shift
-    (cd "$src/srp-026g/client-patches" && nix develop "$src/srp-026g" -c python3 "$@")
+    (cd "$src/srp-026g/client-patches" && SRP_ARENA_CACHE=off nix develop "$src/srp-026g" -c python3 "$@")
 }
 
 # The exe patches' self-test (srp-026g/client-patches/selftest_026g.py) of
@@ -400,6 +485,25 @@ exe_revision() {
 # The revision of the exe in a ZIP (<scratch> holds it), or `unknown`.
 zip_revision() {
     if zip_extract "$1" "$ZIP_EXE" "$2"; then exe_revision "$2"; else printf 'unknown\n'; fi
+}
+
+# The SHA-256 of an exe's arena: the bytes of its `.srpx` (patch_026g.py's
+# add_arena), what link_026g.py and the self-test print of the arena they
+# link. Fails when the exe has no `.srpx`.
+exe_arena_sha256() {
+    python -I -c '
+import hashlib, struct, sys
+data = open(sys.argv[1], "rb").read()
+pe = struct.unpack_from("<I", data, 0x3C)[0]
+count, optional = struct.unpack_from("<H", data, pe + 6)[0], struct.unpack_from("<H", data, pe + 20)[0]
+for at in range(pe + 24 + optional, pe + 24 + optional + 40 * count, 40):
+    name, size, _, _, raw = struct.unpack_from("<8sIIII", data, at)
+    if name == b".srpx\0\0\0":
+        print(hashlib.sha256(data[raw:raw + size]).hexdigest())
+        break
+else:
+    sys.exit(f"{sys.argv[1]}: no .srpx")
+' "$1"
 }
 
 # The patches a players' survarium_skhid.exe requires at its start (patch 49,
@@ -530,8 +634,9 @@ on_patches() { ssh "$PATCHES_SSH" "$1" <"${2:-/dev/null}"; }
 # The offered-patch list (use_patches first), a committed file: one patch a
 # line, `<name> <sha256> <size> <urls>` with tabs between, in revision order;
 # `#` starts a comment. <urls> is the patch's URLs, one space apart, in the
-# order the players' updater tries them (Google Drive's first, the owner's
-# rule; the patches server's among them, always), 1 to 8, none twice. The server data is built of exactly these
+# order the players' updater tries them (Google Drive's, Dropbox's, the
+# patches server's, archive.org's: the owner's rule; the patches server's
+# among them, always), 1 to 8, none twice. The server data is built of exactly these
 # and /patches offers exactly these; a file on the patches server that is
 # not in it is offered to no one. And release/game.tsv ($GAME_LIST), the
 # row of the game's archive in the same form ($GAME_NAME, any host first):
@@ -1416,6 +1521,10 @@ swap_server() {
         write_on live "cd $D && tar -xf $REL/src.tar && rm -rf $REL/src"
         SWAP_DONE+=("main's source unpacked into $TARGET_DIR")
     fi
+    # From the restart on, srp may hand out the ZIP and its signed torrent, if
+    # only for a moment: this revision's number never names other files
+    # again, rolled back or not (release.sh's preflight reads this).
+    ((DRY_RUN)) || on_target "touch $REL_DIR/served" || die "$REL_DIR/served (the mark that this revision may go out) could not be written"
     write_on live "$(restart_command)"
     SWAP_DONE+=("srp26 made anew")
     write_on live "cd $D && id=\$($TARGET_COMPOSE ps -aq srp26 | head -n 1) && docker inspect -f '{{.Image}}' \"\$id\" > $REL/image.new"

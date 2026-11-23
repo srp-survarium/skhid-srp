@@ -80,8 +80,8 @@ number from the game data, the rules as the client's hit code applies them. Buil
   Concrete). One wall. Each group is materials of `game_materials/game.materials` with one `armor`
   (read from the data; a group whose materials differ stops the build).
 - The wall's rule is the game's (`bullet::try_pierce` 0x32D960, `update_bullet_position`
-  0x32EE90): k = 1 − (1 − clamp((P − A) / A, 0, 1))², 1 for A = 0; k ≤ 0 stops the bullet ("does
-  not get through", one line). Else damage, penetration and speed × k, then damage and penetration
+  0x32EE90; exe patch 175): k = 1 − (A / P)², 1 for A = 0; k ≤ 0 (P ≤ A) stops the bullet ("does
+  not get through", one line). Else damage, penetration and speed × k, then damage
   no higher than the falloff gives at the slower speed. Every result (doll, tables, chart) is
   behind the wall; the formula section has it as one step.
 - Not modelled: ricochets, the wall's deflection, explosions, anomalies.

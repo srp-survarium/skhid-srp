@@ -40,6 +40,7 @@ pub mod extras;
 pub mod items_rules;
 pub mod known;
 pub mod level_stats;
+pub mod match_kind;
 pub mod matches_now;
 pub mod matchmaking;
 pub mod mode_intro;
@@ -135,6 +136,8 @@ pub struct GameAccounts {
     /// A new account wears the starter kits
     /// ([`tutorial::signup_grant_with`]); off only in tests ([`Self::set_starter_kit`]).
     starter_kit: AtomicBool,
+    /// The match history as the site reads it; `None` kept in memory.
+    history: Option<persist::history::MatchHistory>,
 }
 
 impl Default for GameAccounts {
@@ -157,6 +160,7 @@ impl GameAccounts {
             flush_hooks: Mutex::new(Vec::new()),
             pending_actions: Mutex::new(Vec::new()),
             starter_kit: AtomicBool::new(true),
+            history: None,
         }
     }
 
@@ -173,6 +177,7 @@ impl GameAccounts {
         let loaded = repository.load_all()?;
         let clans = repository.load_clans()?;
         let results = repository.load_results()?;
+        let history = repository.history()?;
         let mut lacking = known::Lacking::default();
         for (account_id, account) in &loaded {
             lacking.account(*account_id, account);
@@ -194,6 +199,17 @@ impl GameAccounts {
         let mut dirty = HashSet::new();
         for (account_id, mut account) in loaded {
             let kept = account.clone();
+            // Saved up to release 68: a scope's record held a variant's dict
+            // id. Each takes its scope's own, before the repairs judge it.
+            let rewritten = items_rules::scope_records_to_own_ids(&mut account);
+            let migrated = (rewritten > 0).then(|| {
+                log::info!(
+                    "0.26g account {account_id}: {rewritten} scope record(s) now hold their \
+                     scope's own dict id (the scope variants are retired)"
+                );
+                dirty.insert(account_id);
+                account.clone()
+            });
             // Kits saved before the covered-slots rule: said once, apart.
             let uncovered = account.uncover_kits();
             if uncovered > 0 {
@@ -212,7 +228,8 @@ impl GameAccounts {
             }
             if account.repair() || uncovered > 0 || merged > 0 {
                 log::warn!("0.26g account {account_id} was not consistent; repaired");
-                for (host, record, why) in items_rules::upgrades_taken_off(&kept, &account) {
+                let before = migrated.as_ref().unwrap_or(&kept);
+                for (host, record, why) in items_rules::upgrades_taken_off(before, &account) {
                     log::warn!(
                         "0.26g account {account_id}: upgrade {} (dict id {}, slot {}) taken off \
                          item {host}: {why}",
@@ -237,6 +254,7 @@ impl GameAccounts {
             flush_hooks: Mutex::new(Vec::new()),
             pending_actions: Mutex::new(Vec::new()),
             starter_kit: AtomicBool::new(true),
+            history,
         })
     }
 
@@ -273,6 +291,12 @@ impl GameAccounts {
     /// The clans and clan teams.
     pub fn clans(&self) -> &clans::Clans {
         &self.clans
+    }
+
+    /// The match history for the site ([`persist::history`]); `None` for a
+    /// store kept in memory.
+    pub fn history(&self) -> Option<&persist::history::MatchHistory> {
+        self.history.as_ref()
     }
 
     /// The account with this id, if it has 0.26g state.

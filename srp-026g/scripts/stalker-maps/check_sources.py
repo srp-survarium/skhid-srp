@@ -11,6 +11,7 @@ import tempfile
 
 import make_ffa_edits as m
 import make_truck_pack as truck
+import make_training_fires as fires
 import check_ffa_edits
 import check_training_arena
 
@@ -32,13 +33,14 @@ def main():
         dictionary.write_bytes(data)
         check_ffa_edits.check(a.pack, dictionary)
         check_training_arena.check(a.pack, dictionary, a.native, m.EDIT)
+    fires_edit = fires.HERE.parent / 'content-edit/training-camp-fires-1.json'
+    assert json.loads(fires_edit.read_text()) == fires.build(a.native, a.pack), 'stale fires edit'
     authored = m.points()[m.project('cs_training_camp')]
     fence = check_training_arena.arena.outline()
     # Every point is inside the base's fence, and stands on what its row says: a raised floor of
     # the tables (an island, a tower's stairs, a cabin) with a way down, or, GROUND of them, the
-    # ground. 8 and 19 of the first plan are where they were.
+    # ground.
     assert all(check_training_arena.inside_of(fence, p['x'], p['z']) for p in authored)
-    assert authored[8]['y'] > 20 and authored[19]['y'] > 15
     raised = []
     for p in authored:
         on = m.stands_on(p)

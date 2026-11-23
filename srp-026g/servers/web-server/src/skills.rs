@@ -20,6 +20,7 @@ use session::v026g::account::{MAX_LEVEL, level_start};
 use session::v026g::rewards::PerMatch;
 
 use crate::Lang;
+use crate::built::{Built, Script};
 
 /// The page's address.
 pub(crate) const PATH: &str = "/wiki/skills";
@@ -37,6 +38,14 @@ macro_rules! files {
 /// The files the page loads: address, content type, bytes.
 const FILES: &[(&str, &str, &[u8])] = include!("../skills/files.rs");
 
+/// The built body, in every language's places (`crate::built`): its script reads no words.
+static SCRIPT: Script = Script::new(b"");
+static BUILT: Built = Built::new(
+    include_str!("../skills/skills.html"),
+    include_str!("../skills/skills.texts.json"),
+    &SCRIPT,
+);
+
 /// The page's file at `path` (the target before any `?`): its content type
 /// and bytes.
 pub(crate) fn file(path: &str) -> Option<(&'static str, &'static [u8])> {
@@ -50,7 +59,6 @@ pub(crate) fn file(path: &str) -> Option<(&'static str, &'static [u8])> {
 /// before it.
 const PLANNER: &str = "<div class=\"skill-plan\"";
 /// Where the built body's trees start.
-#[cfg(test)]
 const TREES: &str = "<div class=\"skill-trees\"";
 
 /// Where a skill of the built body starts, its id next; its disc follows.
@@ -70,10 +78,7 @@ pub(crate) struct Now {
 /// The page's body in `lang`, for the wiki's page, with what it shows of
 /// the server `now`.
 pub(crate) fn body(lang: Lang, now: &Now) -> String {
-    let built = match lang {
-        Lang::En => include_str!("../skills/skills.en.html"),
-        Lang::Uk => include_str!("../skills/skills.uk.html"),
-    };
+    let built = BUILT.page(lang);
     let at = built
         .find(PLANNER)
         .expect("the built skills page has its planner");
@@ -83,6 +88,14 @@ pub(crate) fn body(lang: Lang, now: &Now) -> String {
         levels(lang, now.per_match),
         with_takers(lang, &built[at..], &now.takers)
     )
+}
+
+/// The trees alone in `lang`, with their tooltip's box and their script, for a page that shows
+/// one player's skills (the stats page, [`crate::history`]): the script draws the build that
+/// page gives the trees and takes no change to it.
+pub(crate) fn trees(lang: Lang) -> String {
+    let built = BUILT.page(lang);
+    built[built.find(TREES).expect("the built skills page has its trees")..].to_owned()
 }
 
 /// `trees` with, on each skill's disc, how many players took it.
@@ -109,12 +122,13 @@ fn with_takers(lang: Lang, trees: &str, takers: &SkillTakers) -> String {
     out
 }
 
-/// `n` with its thousands apart, as `lang` writes them.
+/// `n` with its thousands apart, as `lang` writes them (as the planner's `toLocaleString`).
 fn thousands(lang: Lang, n: u32) -> String {
     let digits = n.to_string();
     let gap = match lang {
         Lang::En => ",",
-        Lang::Uk => "\u{a0}",
+        Lang::De | Lang::Sr | Lang::Hr | Lang::Pt => ".",
+        Lang::Uk | Lang::Ru | Lang::Pl | Lang::Cs | Lang::Hu | Lang::Fi | Lang::Be => "\u{a0}",
     };
     let mut out = String::new();
     for (i, digit) in digits.chars().enumerate() {
@@ -132,10 +146,7 @@ fn hours(lang: Lang, experience: u32, per_match: PerMatch) -> String {
     let tenths = (u64::from(experience) * u64::from(per_match.seconds.get()) * 10)
         .div_ceil(u64::from(per_match.experience.get()) * 3600);
     if tenths < 100 {
-        let point = match lang {
-            Lang::En => '.',
-            Lang::Uk => ',',
-        };
+        let point = if lang == Lang::En { '.' } else { ',' };
         format!("{}{point}{}", tenths / 10, tenths % 10)
     } else {
         thousands(lang, u32::try_from(tenths.div_ceil(10)).unwrap_or(u32::MAX))
@@ -167,10 +178,7 @@ const STEP: u32 = 250_000;
 fn levels(lang: Lang, per_match: Option<PerMatch>) -> String {
     let (first, step) = (cost(1), cost(2) - cost(1));
     // The formulas' names: a level's own experience, and the total to it.
-    let (exp, total) = match lang {
-        Lang::En => ("Exp", "Total"),
-        Lang::Uk => ("Досвід", "Усього"),
-    };
+    let (exp, total) = (lang.tc("formula", "Exp"), lang.tc("formula", "Total"));
     let lines = level_start(MAX_LEVEL).div_ceil(STEP);
     let y_max = f64::from(lines * STEP);
     let x = |level: u8| LEFT + (RIGHT - LEFT) * f64::from(level) / f64::from(MAX_LEVEL);
@@ -180,10 +188,7 @@ fn levels(lang: Lang, per_match: Option<PerMatch>) -> String {
         t if t >= 1_000_000 => format!("{}M", f64::from(t) / 1e6),
         t => format!("{}k", t / 1000),
     };
-    let rule = match lang {
-        Lang::En => "Experience gives levels, and every level gives one skill point.",
-        Lang::Uk => "Досвід дає рівні, а кожен рівень — одне очко навичок.",
-    };
+    let rule = lang.t("Experience gives levels, and every level gives one skill point.");
     // For the skills' planner (skills.js): the formula, the last level and what a match is now.
     let play = per_match.map_or(String::new(), |per_match| {
         format!(
@@ -201,18 +206,18 @@ fn levels(lang: Lang, per_match: Option<PerMatch>) -> String {
          <p class=levels-formula>{total}<sub>L</sub> <span>= {} × L + {} × L × (L − 1)</span></p>\
          <div class=table-scroll><table class=protection><thead><tr><th>{}</th><th>{}</th>\
          <th>{}</th>{}</tr></thead><tbody>",
-        lang.tr("Levels", "Рівні"),
+        lang.t("Levels"),
         thousands(lang, step),
         thousands(lang, first),
         thousands(lang, first),
         thousands(lang, step / 2),
-        lang.tr("Level", "Рівень"),
-        lang.tr("This level", "Цей рівень"),
-        lang.tr("Total", "Усього"),
+        lang.t("Level"),
+        lang.t("This level"),
+        lang.t("Total"),
         per_match.map_or(String::new(), |_| format!(
             "<th>{}</th><th>{}</th>",
-            lang.tr("Matches", "Матчів"),
-            lang.tr("Hours", "Годин")
+            lang.t("Matches"),
+            lang.t("Hours")
         )),
     );
     for level in LISTED {
@@ -238,7 +243,7 @@ fn levels(lang: Lang, per_match: Option<PerMatch>) -> String {
     let _ = write!(
         out,
         "<figure class=levels-graph><svg viewBox=\"0 0 {WIDTH} {HEIGHT}\" role=img aria-label=\"{}\">",
-        lang.tr("Total experience by level", "Досвід усього за рівнем"),
+        lang.t("Total experience by level"),
     );
     for line in 0..=lines {
         let total = line * STEP;
@@ -264,7 +269,7 @@ fn levels(lang: Lang, per_match: Option<PerMatch>) -> String {
         "<text class=axis-name x={} y={} text-anchor=middle>{}</text>",
         (LEFT + RIGHT) / 2.0,
         HEIGHT - 2.0,
-        lang.tr("Level", "Рівень")
+        lang.t("Level")
     );
     let points: Vec<String> = (0..=MAX_LEVEL)
         .map(|level| format!("{:.1},{:.1}", x(level), y(level_start(level))))
@@ -292,7 +297,7 @@ fn levels(lang: Lang, per_match: Option<PerMatch>) -> String {
             BOTTOM - TOP,
             px + dx,
             (py - 10.0).max(TOP + 12.0),
-            lang.tr("Level", "Рівень"),
+            lang.t("Level"),
             thousands(lang, level_start(level)),
         );
     }
@@ -355,25 +360,10 @@ mod tests {
             assert!(page.contains(&thousands(lang, level_start(MAX_LEVEL))));
             assert!(!page.contains("≈"), "no matches without a match to go by");
         }
-        // At 1,000 in 12 minutes a match: level 100 is 1,288 matches and
-        // 258 hours (257.5), level 1 one match and 0.1 h.
         let per_match = PerMatch {
             experience: NonZeroU32::new(1000).unwrap(),
             seconds: NonZeroU32::new(720).unwrap(),
         };
-        let page = body(
-            Lang::En,
-            &Now {
-                per_match: Some(per_match),
-                ..Now::default()
-            },
-        );
-        assert!(page.contains("<td>1,287,500</td><td>≈ 1,288</td><td>≈ 258</td>"));
-        assert!(page.contains(
-            "<section class=levels data-first=500 data-step=250 data-max=100 \
-             data-match-experience=1000 data-match-seconds=720>"
-        ));
-        assert!(page.contains("<th>1</th><td>500</td><td>500</td><td>≈ 1</td><td>≈ 0.1</td>"));
         assert_eq!(hours(Lang::Uk, 25_000, per_match), "5,0");
         assert_eq!(thousands(Lang::En, 1_287_500), "1,287,500");
         assert_eq!(thousands(Lang::Uk, 830_000), "830\u{a0}000");

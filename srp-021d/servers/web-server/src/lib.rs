@@ -1283,8 +1283,8 @@ fn home(lang: Lang, stats: Stats) -> String {
         "<section class=card><h1>{}</h1><p>{}</p><p>{}</p><p class=note><b>{}</b> {}</p>{stats}</section> <section class=card><h2>{}</h2><ol> {original}<li>{}<div class=dl>{download}{hash}</div></li> <li>{}<pre>survarium.exe -localization={} -client={}</pre>{}</li> <li>{}</li></ol></section> <section class=card><h2>{}</h2><ul class=rules>{rules}</ul></section> <p><a class=button href=\"/exchange?lang={}\">{}</a></p>",
         lang.tr("Skhid", "Схід"),
         lang.tr(
-            "Skhid (Ukrainian for \u{201c}east\u{201d}) is a small community server that lets the Survarium 0.21d client sign in, trade, form squads and play matches again.",
-            "Схід \u{2014} невеликий ком'юніті сервер, на якому клієнт Survarium 0.21d знову може входити, торгувати, збирати загони й грати матчі."
+            "Skhid (Ukrainian for \u{201c}east\u{201d}) is a community server that lets the Survarium 0.21d client sign in, trade, form squads and play matches again.",
+            "Схід \u{2014} ком'юніті сервер, на якому клієнт Survarium 0.21d знову може входити, торгувати, збирати загони й грати матчі."
         ),
         lang.tr(
             "Built on the open source project SRP (Survarium Restoration Project), which gave this server its start: <a href=\"https://github.com/srp-survarium/srp\">github.com/srp-survarium/srp</a>.",

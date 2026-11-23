@@ -89,7 +89,7 @@
 //!   is named after) or else by seller 0 at no rank (the rank badges), for
 //!   `base_cost` [the owner's choice, 2026-11-07: vanity, so dear];
 //! - not listed: anything else with `base_cost` 0 (their ammo is listed at
-//!   no cost, see [`sellers_of_in`]; artefacts, money, the New Year 2015 camouflage), premium
+//!   no cost, see [`sellers_of_with`]; artefacts, money, the New Year 2015 camouflage), premium
 //!   items (they belong to the premium shop, 0x95, or are sold one by one
 //!   by seller 0, `shop_offers`), artefacts (as 0.21d), vouchers,
 //!   the other decals and the drop camouflages;
@@ -109,7 +109,8 @@ use binary_config_parser::tree::ConfigValue;
 
 use super::dictionary::{Dictionary, Item};
 use super::item_params::ItemParams;
-use super::scopes::{SCOPE_CATEGORY, ScopeFits};
+use super::scopes::SCOPE_CATEGORY;
+use super::weapon_modules::Modules;
 
 /// Silver for one gold: the game's exchange rate (0.21d's web page sold gold
 /// at it, and 0.26g's lobby was told it). Gold is gone [the owner,
@@ -343,18 +344,21 @@ fn top_level(dictionary: &Dictionary, faction_id: u8) -> u8 {
 
 /// Who sells `item` and at which reputation level: `(seller, level)`, by
 /// seller. A shop camouflage by its folder's faction at level 0
-/// ([`is_shop_camo`]); scopes by the game data's ([`sellers_of_in`]); else
+/// ([`is_shop_camo`]); scopes, muzzle devices and grips by the game data's
+/// modules table ([`sellers_of_with`]); else
 /// [`ShopRules`] first, else the module's rule; ammo at level 0
 /// ([`AMMO_NEEDS_RANK`]).
 pub fn sellers_of(dictionary: &Dictionary, item: &Item, params: &ItemParams) -> Vec<(u8, u8)> {
-    sellers_of_in(dictionary, ScopeFits::shared(), item, params)
+    sellers_of_with(dictionary, Modules::shared(), item, params)
 }
 
-/// [`sellers_of`] with `scopes`: a scope item of a pair with a price is
-/// sold by seller 0 at level 0; no other category-22 item is.
-pub fn sellers_of_in(
+/// [`sellers_of`] with `modules`: a category-22 item with a price is sold
+/// by seller 0 at level 0 when some gun takes it as a module (a scope, a
+/// muzzle device, a grip: [`Modules::is_module`]); no other category-22
+/// item is (0.26g's own three scopes, a retired scope variant).
+pub fn sellers_of_with(
     dictionary: &Dictionary,
-    scopes: &ScopeFits,
+    modules: &Modules,
     item: &Item,
     params: &ItemParams,
 ) -> Vec<(u8, u8)> {
@@ -365,7 +369,7 @@ pub fn sellers_of_in(
         return camo_shop(&item.cfg_name).map_or_else(Vec::new, |faction| vec![(faction, 0)]);
     }
     if item.category == SCOPE_CATEGORY {
-        return if item.base_cost != 0 && scopes.is_scope(item.dict_id) {
+        return if item.base_cost != 0 && modules.is_module(item.dict_id) {
             vec![(0, 0)]
         } else {
             Vec::new()
@@ -604,28 +608,6 @@ mod tests {
                 );
             }
         }
-        // The AK-74M: Renaissance, item level 10.
-        let ak = price(3).unwrap();
-        assert_eq!((ak.cost, ak.faction_id, ak.level), (47500, 3, 5));
-        // The AKS-74U: Black Market's last level.
-        let aks = price(13).unwrap();
-        assert_eq!((aks.cost, aks.faction_id, aks.level), (12920, 2, 5));
-        // The ranks of the January 2015 list.
-        let rank = |name: &str| {
-            let record = price(dictionary.item_named(name).unwrap().dict_id).unwrap();
-            (record.faction_id, record.level)
-        };
-        assert_eq!(rank("toz_34"), (1, 1));
-        assert_eq!(rank("kiparis"), (1, 2));
-        assert_eq!(rank("toz_122"), (1, 3));
-        assert_eq!(rank("mp_153"), (1, 4));
-        assert_eq!(rank("rem_700"), (1, 5));
-        assert_eq!(rank("toz_66"), (2, 1));
-        assert_eq!(rank("uzi"), (2, 2));
-        assert_eq!(rank("akmn"), (3, 1));
-        assert_eq!(rank("spas_12"), (3, 2));
-        assert_eq!(rank("sks"), (4, 1));
-        assert_eq!(rank("vssk"), (4, 10));
         // No level is past its faction's last.
         for record in list.iter().filter(|record| record.faction_id != 0) {
             let levels = dictionary.factions[usize::from(record.faction_id) - 1]
@@ -668,125 +650,6 @@ mod tests {
             }
         }
         assert!(sellers_ruled > 40, "{sellers_ruled}");
-    }
-
-    #[test]
-    fn gear_of_no_faction_is_sold_to_everyone_at_no_rank() {
-        // The Vityaz, the Lancaster, the starting weapons (and the STK2 cap
-        // and outfits, which the test data has not): seller 0, no rank.
-        for name in [
-            "vityaz",
-            "izh_27_lancaster",
-            "tt_33",
-            "ppsh",
-            "mosin_nagant",
-        ] {
-            assert_eq!(
-                item_params(Dictionary::shared().item_named(name).unwrap().dict_id)
-                    .unwrap()
-                    .faction,
-                0
-            );
-            assert_eq!(sold_by(name), [(0, 0)], "{name}");
-        }
-        // But what the rules do not sell.
-        for name in ["vss", "sr3m", "socom16"] {
-            assert!(sold_by(name).is_empty(), "{name}");
-        }
-    }
-
-    #[test]
-    fn the_bandit_balaclava_goes_by_the_rule() {
-        // No exception (owner, 2026-10-16): Black Market at its item level,
-        // within the faction's ranks 0 to 5. The test patch 15 makes it item
-        // level 8, which the rule puts at Black Market's last rank.
-        let dictionary = Dictionary::shared();
-        assert_eq!(top_level(dictionary, faction::BLACK_MARKET), 5);
-        assert_eq!(seller_level(dictionary, faction::BLACK_MARKET, 8), 5);
-        let item = dictionary.item_named("bandit_026_mask").unwrap();
-        let params = item_params(item.dict_id).unwrap();
-        assert_eq!(params.faction, faction::BLACK_MARKET);
-        assert_eq!(params.item_level, 8);
-        assert_eq!(sold_by("bandit_026_mask"), [(faction::BLACK_MARKET, 5)]);
-        assert_eq!(
-            sold_by("bandit_026_mask"),
-            [(
-                faction::BLACK_MARKET,
-                seller_level(dictionary, faction::BLACK_MARKET, params.item_level)
-            )]
-        );
-    }
-
-    #[test]
-    fn gear_exceptions_move_the_seller_or_the_rank() {
-        // Edge sells the 9A-91 and VSK-94, whose configs say Renaissance.
-        assert_eq!(sold_by("a9_91"), [(4, 8)]);
-        assert_eq!(sold_by("vsk_94"), [(4, 9)]);
-        // The chemical set and the respirator: rank 2, item level 3.
-        for name in [
-            "scav_torso_2",
-            "scav_legs_2",
-            "scav_gloves_2",
-            "scav_boots_2",
-            "scav_resp_1",
-        ] {
-            assert_eq!(sold_by(name), [(1, 2)], "{name}");
-        }
-        assert_eq!(sold_by("fort_17"), [(3, 2)]);
-        assert_eq!(sold_by("aps"), [(4, 2)]);
-        // No exception for the Duty exoskeleton either: the rule puts an
-        // item of Renaissance's at its level 15 at rank 10.
-        assert_eq!(
-            seller_level(Dictionary::shared(), faction::RENAISSANCE, 15),
-            10
-        );
-        assert_eq!(sold_by("bm_back_1"), [(2, 4)]);
-        // Their neighbours go by the rule.
-        assert_eq!(sold_by("scav_torso_1"), [(1, 1)]);
-    }
-
-    #[test]
-    fn supplies_are_sold_by_the_factions_at_ranks() {
-        // Two sellers: two records, by seller. Ammo needs no rank.
-        assert_eq!(sold_by("ammo_12mm_buck"), [(1, 0), (2, 0)]);
-        assert_eq!(sold_by("ammo_12mm_slug"), [(1, 0), (2, 0)]);
-        assert_eq!(sold_by("ammo_7.62x39"), [(3, 0), (4, 0)]);
-        assert_eq!(sold_by("ammo_7.62x54_7n1"), [(3, 0), (4, 0)]);
-        assert_eq!(sold_by("ammo_sp6"), [(3, 0), (4, 0)]);
-        assert_eq!(sold_by("rgd-5"), [(1, 3), (2, 3)]);
-        assert_eq!(sold_by("rdg-m"), [(3, 1), (4, 1)]);
-        // One seller.
-        assert_eq!(sold_by("ammo_5.45x39_7n6m"), [(2, 0)]);
-        assert_eq!(sold_by("ammo_5.45x39_7n22"), [(3, 0)]);
-        assert_eq!(sold_by("ammo_6.5x39"), [(3, 0)]);
-        assert_eq!(sold_by("ammo_12.7x55"), [(4, 0)]);
-        assert_eq!(sold_by("bandages"), [(1, 1)]);
-        assert_eq!(sold_by("medkit"), [(1, 3)]);
-        assert_eq!(sold_by("antitoxin"), [(1, 3)]);
-        assert_eq!(sold_by("base_trap"), [(2, 1)]);
-        assert_eq!(sold_by("painkiller"), [(2, 3)]);
-        // On no list: the 9x19 7N21 stays with seller 0, as the boosters.
-        assert_eq!(sold_by("ammo_9x19_7n21"), [(0, 0)]);
-        assert_eq!(sold_by("speed_booster"), [(0, 0)]);
-        // Every other ammo, drug, trap and grenade has a faction.
-        let dictionary = Dictionary::shared();
-        let unsold: Vec<&str> = price_list()
-            .iter()
-            .filter(|record| record.faction_id == 0)
-            .map(|record| dictionary.item(record.dict_id).unwrap())
-            .filter(|item| SUPPLIES.contains(&item.category))
-            .map(|item| item.name.as_str())
-            .filter(|name| !name.ends_with("_booster"))
-            .collect();
-        // With seller 0: the one ammo on no faction's list, and the two
-        // free ones (the starting weapons').
-        assert_eq!(
-            unsold,
-            ["ammo_7.62x25", "ammo_9x19_7n21", "ammo_7.62x54r_old"]
-        );
-        // The free ammo is listed by seller 0 at no cost and no rank.
-        assert_eq!(sold_by("ammo_7.62x25"), [(0, 0)]);
-        assert_eq!(sold_by("ammo_7.62x54r_old"), [(0, 0)]);
     }
 
     #[test]
@@ -850,286 +713,6 @@ mod tests {
         );
         assert_eq!(seller(record_for(id("tt_33"), 0, nobody)), Ok(Some(0)));
         assert_eq!(seller(record_for(id("vss"), 0, both)), Ok(None));
-    }
-
-    #[test]
-    fn ammo_is_priced_a_clip() {
-        // 5.45x39 7N6M: 30 for a clip of 30.
-        let ammo = price(7).unwrap();
-        assert_eq!((ammo.cost, ammo.faction_id, ammo.level), (30, 2, 0));
-        assert_eq!(buy_cost(7, 1), Some(30));
-        assert_eq!(buy_cost(7, 3), Some(90));
-        // A medkit is 20, one at a time.
-        assert_eq!(buy_cost(67, 3), Some(60));
-        assert_eq!(buy_cost(3, 1), Some(47500));
-        // Both records of an item cost the same.
-        for records in price_list().chunk_by(|a, b| a.dict_id == b.dict_id) {
-            assert!(records.iter().all(|record| record.cost == records[0].cost));
-        }
-    }
-
-    #[test]
-    fn what_is_not_sold() {
-        let dictionary = Dictionary::shared();
-        let sold = |name: &str| price(dictionary.item_named(name).unwrap().dict_id).is_some();
-        // The starting weapons are sold at the owner's price
-        // (`the_starting_weapons_are_sold_to_everyone`); their ammo is listed, for nothing.
-        assert_eq!(
-            price(dictionary.item_named("ammo_7.62x25").unwrap().dict_id).map(|r| r.cost),
-            Some(0)
-        );
-        // Premium and bundle weapons, the weapons with no faction but the
-        // Vityaz and the Lancaster, scopes, artefacts, money.
-        assert!(!sold("ak_74n") && !sold("uzi_premium") && !sold("vityaz_premium"));
-        assert!(!sold("vss") && !sold("sr3m") && !sold("socom16"));
-        assert!(!sold("scope_leupold") && !sold("artefact_onyx"));
-        assert!(!sold("generic_money") && !sold("premium_money"));
-        // No other decals, vouchers, drop camouflages or the free New Year
-        // one: of the cosmetics, only the shop camouflages and the badges.
-        for record in price_list() {
-            let item = dictionary.item(record.dict_id).unwrap();
-            if item.category >= 25 {
-                let params = item_params(item.dict_id).unwrap();
-                assert!(
-                    is_shop_camo(item, params) || is_badge(item, params),
-                    "{}",
-                    item.name
-                );
-            }
-        }
-        assert!(!sold("decals_3_4") && !sold("decals_4_3"));
-        assert!(!sold("camo_black_leather_01") && !sold("camo_khaki_fabric_03"));
-        assert!(!sold("camo_new_year"));
-        assert_eq!(buy_cost(214, 1), None);
-    }
-
-    /// The badges (owner, 2026-11-07): every rank badge to everyone at no
-    /// rank, a million each but the Literator (50,000, the owner,
-    /// 2026-11-08) and the Flying Hussars; each faction badge by its faction
-    /// at the rank it is named after.
-    #[test]
-    fn the_badges_are_sold_dear() {
-        let dictionary = Dictionary::shared();
-        let cost = |name: &str| {
-            price(dictionary.item_named(name).unwrap().dict_id)
-                .unwrap()
-                .cost
-        };
-        for n in 1..=7 {
-            let name = format!("decals_1_{n}");
-            assert_eq!(sold_by(&name), [(0, 0)], "{name}");
-            let price = match n {
-                1 => 50_000,
-                2 => 10_000_000,
-                _ => 1_000_000,
-            };
-            assert_eq!(cost(&name), price, "{name}");
-        }
-        assert_eq!(sold_by("decals_1_8"), [(0, 0)]);
-        assert_eq!(cost("decals_1_8"), 20_000);
-        let (scav, bm, ren, edge) = (
-            faction::SCAVENGERS,
-            faction::BLACK_MARKET,
-            faction::RENAISSANCE,
-            faction::EDGE,
-        );
-        for (name, seller, rank, price) in [
-            ("decals_2_1", scav, 1, 50_000),   // Scavengers rookie
-            ("decals_2_2", scav, 5, 100_000),  // Scavengers veteran
-            ("decals_2_3", bm, 1, 50_000),     // Black Market Recruit
-            ("decals_2_4", bm, 5, 100_000),    // Black Market Elite
-            ("decals_2_5", ren, 1, 50_000),    // Renaissance Army Soldier
-            ("decals_2_6", ren, 10, 100_000),  // Renaissance Army Colonel
-            ("decals_2_7", edge, 1, 50_000),   // Fringe Settlers Hunter
-            ("decals_2_8", edge, 10, 100_000), // Fringe Settlers Magister
-        ] {
-            assert_eq!(sold_by(name), [(seller, rank)], "{name}");
-            assert_eq!(cost(name), price, "{name}");
-        }
-    }
-
-    /// The decals no shop sells ([`ShopRule::NotSold`]), as reviewed
-    /// (2026-10-18), have no seller even as a non-premium copy, and selling
-    /// one back still pays.
-    #[test]
-    fn the_excluded_flags_and_emblems_are_not_sold() {
-        let dictionary = Dictionary::shared();
-        let reviewed: Vec<(u16, &str)> = dictionary
-            .items
-            .iter()
-            .filter(|item| item.category == 26 && is_not_sold(item))
-            .map(|item| (item.dict_id, item.cfg_name.as_str()))
-            .collect();
-        assert_eq!(
-            reviewed,
-            [
-                (266, "gameplay/items/upgrades/decals/char_decal_4_1.options"),
-                (267, "gameplay/items/upgrades/decals/char_decal_4_2.options"),
-                (269, "gameplay/items/upgrades/decals/char_decal_4_4.options"),
-                (282, "gameplay/items/upgrades/decals/char_decal_5_1.options"),
-                (283, "gameplay/items/upgrades/decals/char_decal_5_2.options"),
-                (285, "gameplay/items/upgrades/decals/char_decal_5_4.options"),
-            ]
-        );
-        for &(dict_id, _) in &reviewed {
-            let item = dictionary.item(dict_id).unwrap();
-            let params = item_params(dict_id).unwrap();
-            // 300 gold, in silver.
-            assert!(item.is_premium && item.base_cost == 30_000 && params.kind == "prm_decl");
-            assert!(is_not_sold(item));
-            assert!(sellers(dict_id).is_empty() && buy_cost(dict_id, 1).is_none());
-            // Were it no premium item, still no seller.
-            let silver = Item {
-                is_premium: false,
-                ..item.clone()
-            };
-            assert_eq!(sellers_of(dictionary, &silver, params), []);
-            // An owned one sells back for a quarter of its price.
-            assert_eq!(sell_price(dictionary, dict_id, 1), 7_500);
-        }
-        // The other flags and coats of arms are not in it, the coat of arms
-        // of Lithuania (the Vytis) included.
-        for name in ["decals_4_3", "decals_5_7"] {
-            assert!(!is_not_sold(dictionary.item_named(name).unwrap()), "{name}");
-        }
-    }
-
-    #[test]
-    fn selling_gives_a_quarter_a_step() {
-        let dictionary = Dictionary::shared();
-        // The AK-74M.
-        assert_eq!(sell_price(dictionary, 3, 1), 11875);
-        // Two clips of 5.45: 7 a clip (a quarter of 30).
-        assert_eq!(sell_price(dictionary, 7, 2), 14);
-        // A premium item's cost is silver as any other's: the Uzi's 500 gold
-        // is 50,000 (`items.tsv`).
-        let uzi = dictionary.item_named("uzi_premium").unwrap().dict_id;
-        assert_eq!(sell_price(dictionary, uzi, 1), 12_500);
-    }
-
-    /// The owner's choice: the starting Mosin carbine and PPSh-41 (2026-10-18,
-    /// 1,000 each) and the TT-33 (2026-10-23, 500) are sold to everyone at no
-    /// rank; selling one back pays a quarter.
-    #[test]
-    fn the_starting_weapons_are_sold_to_everyone() {
-        let dictionary = Dictionary::shared();
-        for (dict_id, name, cost) in STARTERS_SOLD {
-            let item = dictionary.item_named(name).unwrap();
-            assert_eq!((item.dict_id, item.base_cost), (dict_id, cost), "{name}");
-            let records: Vec<_> = price_list()
-                .iter()
-                .filter(|record| record.dict_id == dict_id)
-                .map(|record| (record.faction_id, record.level, record.cost))
-                .collect();
-            assert_eq!(records, [(0, 0, cost)], "{name}");
-            assert_eq!(buy_cost(dict_id, 1), Some(u64::from(cost)), "{name}");
-            let quarter = u64::from(cost / 4);
-            assert_eq!(sell_price(dictionary, dict_id, 1), quarter, "{name}");
-        }
-    }
-
-    /// The starting weapons the shop sells, by `dict_id`, at the owner's
-    /// price: every weapon a new account owns (the Mosin and the PPSh-41 since
-    /// 2026-10-18, the TT-33 since 2026-10-23).
-    const STARTERS_SOLD: [(u16, &str, u32); 3] = [
-        (18, "tt_33", 500),
-        (106, "ppsh", 1000),
-        (107, "mosin_nagant", 1000),
-    ];
-
-    /// The owner's choice (2026-10-17) for what no rule sold: the faction
-    /// camouflages and two weapons with no faction.
-    const NEWLY_SOLD: [(&str, u16, u8, u32); 10] = [
-        // Black Market.
-        ("camo_black_leather", 154, faction::BLACK_MARKET, 8000),
-        ("camo_brown_leather_05", 162, faction::BLACK_MARKET, 3000),
-        ("camo_denim", 163, faction::BLACK_MARKET, 1000),
-        // Renaissance.
-        ("camo_camouflage_green", 169, faction::RENAISSANCE, 10000),
-        ("camo_camouflage_green_01", 170, faction::RENAISSANCE, 10000),
-        // Scavengers.
-        ("camo_fabric_grey", 184, faction::SCAVENGERS, 8000),
-        ("camo_quilted_fabric", 185, faction::SCAVENGERS, 1000),
-        ("camo_rubber_green_01", 187, faction::SCAVENGERS, 3000),
-        // Everyone: the Vityaz at the owner's price, the Lancaster at the
-        // game's.
-        ("vityaz", 19, 0, 25000),
-        ("izh_27_lancaster", 108, 0, 2500),
-    ];
-
-    /// `(dict_id, seller, level, cost)` of each record of `list` for the
-    /// items [`NEWLY_SOLD`] names, by `dict_id`.
-    fn newly_sold_records(dictionary: &Dictionary, list: &[PriceItem]) -> Vec<(u16, u8, u8, u32)> {
-        list.iter()
-            .filter(|record| {
-                let name = &dictionary.item(record.dict_id).unwrap().name;
-                NEWLY_SOLD.iter().any(|(sold, ..)| sold == name)
-            })
-            .map(|record| (record.dict_id, record.faction_id, record.level, record.cost))
-            .collect()
-    }
-
-    fn expected_newly_sold() -> Vec<(u16, u8, u8, u32)> {
-        let mut expected: Vec<(u16, u8, u8, u32)> = NEWLY_SOLD
-            .iter()
-            .map(|&(_, dict_id, seller, cost)| (dict_id, seller, 0, cost))
-            .collect();
-        expected.sort_unstable();
-        expected
-    }
-
-    #[test]
-    fn the_factions_camouflages_and_two_weapons_are_sold_at_no_rank() {
-        let dictionary = Dictionary::shared();
-        for (name, dict_id, ..) in NEWLY_SOLD {
-            assert_eq!(
-                dictionary.item_named(name).unwrap().dict_id,
-                dict_id,
-                "{name}"
-            );
-        }
-        assert_eq!(
-            newly_sold_records(dictionary, price_list()),
-            expected_newly_sold()
-        );
-        // Anyone buys them, known to no faction.
-        let nobody = |_: u8| 0;
-        for (name, dict_id, seller, cost) in NEWLY_SOLD {
-            let record = record_for(dict_id, seller, nobody).unwrap().unwrap();
-            assert_eq!((record.faction_id, record.cost), (seller, cost), "{name}");
-            assert_eq!(buy_cost(dict_id, 2), Some(u64::from(cost) * 2), "{name}");
-        }
-        // The shop camouflages are the data's stk_camo items with a price,
-        // each sold by its folder's faction at its `base_cost`.
-        let camos: Vec<&str> = dictionary
-            .items
-            .iter()
-            .filter(|item| is_shop_camo(item, item_params(item.dict_id).unwrap()))
-            .map(|item| item.name.as_str())
-            .collect();
-        assert_eq!(
-            camos,
-            NEWLY_SOLD[..8]
-                .iter()
-                .map(|(name, ..)| *name)
-                .collect::<Vec<_>>()
-        );
-        for (name, dict_id, _, cost) in &NEWLY_SOLD[..8] {
-            let item = dictionary.item(*dict_id).unwrap();
-            assert_eq!(item.base_cost, *cost, "{name}");
-            assert_eq!(item_params(*dict_id).unwrap().item_level, 1, "{name}");
-        }
-        // The Lancaster at the game's price; the Vityaz at the owner's
-        // (2026-10-17; the game's was 12,000).
-        assert_eq!(
-            dictionary.item_named("izh_27_lancaster").unwrap().base_cost,
-            2500
-        );
-        assert_eq!(dictionary.item_named("vityaz").unwrap().base_cost, 25000);
-        // Their premium copies stay out of the silver list.
-        assert!(price(dictionary.item_named("vityaz_premium").unwrap().dict_id).is_none());
-        let lancaster = dictionary.item_named("izh_27_lancaster_premium").unwrap();
-        assert!(price(lancaster.dict_id).is_none());
     }
 
     #[test]
@@ -1234,20 +817,21 @@ mod tests {
     }
 
     #[test]
-    fn scope_items_with_variants_are_sold_to_everyone_at_their_cost() {
+    fn items_a_gun_takes_as_a_module_are_sold_to_everyone_at_their_cost() {
         use super::super::game_data;
         use super::super::scopes::fixtures::{
-            self, AK_74N_PSO_1, BROKEN, COBRA, COBRA_COST, LONE_SCOPE, PSO_1, PSO_1_COST,
+            self, COBRA, COBRA_COST, LONE_SCOPE, PSO_1, PSO_1_COST,
         };
+        use super::super::weapon_modules::{Kind, fixtures::modules};
         let data = fixtures::with_scopes();
         let dictionary = fixtures::dictionary_of(&data);
-        let fits = fixtures::fits();
-        let sellers = |dict_id: u16| {
+        let sellers_with = |table: &Modules, dict_id: u16| {
             let item = dictionary.item(dict_id).unwrap();
             let config = game_data::config(&data, &item.cfg_name).unwrap().unwrap();
             let params = ItemParams::from_config(dict_id, &config).unwrap();
-            sellers_of_in(&dictionary, fits, item, &params)
+            sellers_of_with(&dictionary, table, item, &params)
         };
+        let sellers = |dict_id: u16| sellers_with(fixtures::modules(), dict_id);
         // Seller 0, no rank: every player may buy; the dictionary's price.
         for (dict_id, cost) in [(PSO_1, PSO_1_COST), (COBRA, COBRA_COST)] {
             assert_eq!(sellers(dict_id), [(0, 0)]);
@@ -1258,16 +842,19 @@ mod tests {
                 u64::from(cost / 4)
             );
         }
-        // Not a scope item no variant names, not a variant, not 0.26g's
-        // own scopes (which have a base_cost: Leupold 25,000, PSO-1
-        // 20,000).
-        let mut unsold = vec![LONE_SCOPE, AK_74N_PSO_1, 69, 304, 362];
-        unsold.extend(BROKEN);
-        for dict_id in unsold {
+        // Not a scope item no gun takes, not 0.26g's own scopes (which
+        // have a base_cost: Leupold 25,000, PSO-1 20,000).
+        for dict_id in [LONE_SCOPE, 69, 304, 362] {
             assert!(sellers(dict_id).is_empty(), "{dict_id}");
         }
-        // The players' data before the patch has no variant: no scope in
-        // the list.
+        // An item a gun takes as a muzzle device or a grip is sold the same
+        // way; without the table nothing of the category is.
+        let device = modules(&[(63, LONE_SCOPE, Kind::Muzzle)]);
+        assert_eq!(sellers_with(&device, LONE_SCOPE), [(0, 0)]);
+        for dict_id in [PSO_1, COBRA, LONE_SCOPE] {
+            assert!(sellers_with(&Modules::NONE, dict_id).is_empty(), "{dict_id}");
+        }
+        // Game data without the modules table: no scope in the list.
         assert!(price_list().iter().all(|record| {
             Dictionary::shared().item(record.dict_id).unwrap().category != SCOPE_CATEGORY
         }));

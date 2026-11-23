@@ -33,6 +33,14 @@ impl ScoreEvent {
     /// A death, and a suicide (counted for the place's kit at the time).
     pub const DEATH: ScoreEvent = ScoreEvent(2);
     pub const SUICIDE: ScoreEvent = ScoreEvent(3);
+    /// Freeze Tag's thaw (patch 160), one for each fighting teammate within
+    /// reach of the body thawed, in the silent kill's number: the game
+    /// counts it nowhere (on_player_killed 0x2F4EB0 no longer does); srp
+    /// scores and pays it as a kill.
+    pub const THAW: ScoreEvent = ScoreEvent(14);
+    /// A battery (or, patch 171, the hunt's artefact) put into its
+    /// team's container: one byte on the wire, by ones.
+    pub const PUT_VICTORY_ITEM_IN_CONTAINER: ScoreEvent = ScoreEvent(20);
 }
 
 /// The deaths and suicides the match's statistics count for `place`, in every kit; 0 for a place

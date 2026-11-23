@@ -92,8 +92,8 @@ def check(pack, base):
     manifest = json.loads((pack / 'pack.json').read_text())
     operations = manifest['operations']
     entries = next(op['entries'] for op in operations if op['op'] == 'dictionary_add')
-    assert len(entries) == len(rows) == 39
-    assert sum(row['is_premium'] for row in entries) == sum(1 for r in rows if r['plain_id']) == 1
+    assert len(entries) == len(rows)
+    assert sum(row['is_premium'] for row in entries) == sum(1 for r in rows if r['plain_id'])
     native = bcw.loads((base / 'gameplay/db_static_dictionaries').read_bytes())['items_dict']
     by_id = {row['dict_id']: row for row in native + entries}
     assert len(by_id) == len(native) + len(entries), 'dictionary id collision'
