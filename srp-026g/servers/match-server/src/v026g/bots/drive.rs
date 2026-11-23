@@ -712,6 +712,8 @@ fn drive_tick_inner(
         known_at: me.known_at,
         seen_at: me.seen_at,
     };
+    // [body physics] The reckoned body up the route jump watched (the log's word only).
+    bot.jump_reckoned(me.known_at, me.feet, bot.footing == motor::Footing::Ground);
     if bot
         .jump_watch
         .as_ref()
@@ -2846,6 +2848,8 @@ pub(super) struct JumpWatch {
     pub(super) from: Vec3,
     pub(super) route: Option<RoutePress>,
     pub(super) up: Option<u32>,
+    /// [body physics] The first tick the bot's own reckoned body stood up the route jump on the ground ([`Bot::jump_reckoned`]).
+    pub(super) up_reckoned: Option<u32>,
     pub(super) landed: Option<(u32, Landed)>,
 }
 
@@ -2866,8 +2870,10 @@ impl Bot {
             return;
         };
         if let Some(route) = watch.route {
-            let outcome =
-                super::nav_log::JumpOutcome::of(route.landing.y - route.take_off.y, watch.up.is_some(), watch.landed.is_some(), then);
+            // [body physics] Up by a world, or by the bot's own reckoned body on the ground: the worlds come seconds apart, and a body
+            // that landed up and walked on before the next one was never seen up by a world.
+            let up = watch.up.is_some() || watch.up_reckoned.is_some();
+            let outcome = super::nav_log::JumpOutcome::of(route.landing.y - route.take_off.y, up, watch.landed.is_some(), then);
             let line = super::nav_log::jump_line(outcome, route.take_off, route.landing, route.tries, time.saturating_sub(watch.at), then);
             // [A386 R83/R94] An aimed press says its aim, so each is seen made or not.
             let line = if route.aim.is_straight() {
@@ -2877,6 +2883,13 @@ impl Bot {
             };
             // [F3] A jump that missed its landing says the body at its press against the stored window (decides nothing).
             let line = if outcome.missed() { format!("{line}; {}", route.state.text()) } else { line };
+            // [body physics] A jump seen up by the reckoning and by no world says so.
+            let line = match (outcome, watch.up, watch.up_reckoned) {
+                (super::nav_log::JumpOutcome::Up, None, Some(at)) => {
+                    format!("{line}; up by the reckoning only, {} ms after the press", at.saturating_sub(watch.at))
+                }
+                _ => line,
+            };
             // [fix-lip] A jump down seen only on its landing's floor says so.
             let line = match watch.landed {
                 Some((_, Landed::Floor { off_m })) => format!("{line}; seen on the landing's floor {off_m:.1} m from it"),
@@ -2894,8 +2907,23 @@ impl Bot {
             if let Some(route) = watch.route {
                 line["try"] = route.tries.into();
                 line["up_ms"] = watch.up.map(|up| up.saturating_sub(watch.at)).into();
+                line["up_reckoned_ms"] = watch.up_reckoned.map(|up| up.saturating_sub(watch.at)).into();
             }
             self.traced.push(line);
+        }
+    }
+
+    /// [body physics] The bot's own reckoned body at `feet` at `time`, on the ground or not: up the route jump watched, if it stands
+    /// up it on the ground ([`motor::is_up`]). The log's word only.
+    pub(super) fn jump_reckoned(&mut self, time: u32, feet: Vec3, on_ground: bool) {
+        if let Some(watch) = self.jump_watch.as_mut()
+            && let Some(route) = watch.route
+            && time > watch.at
+            && on_ground
+            && watch.up_reckoned.is_none()
+            && motor::is_up(feet, route.take_off, route.landing)
+        {
+            watch.up_reckoned = Some(time);
         }
     }
 
@@ -3072,6 +3100,7 @@ pub(super) fn jumping(bot: &mut Bot, keys: u32, by: Option<&'static str>, feet: 
             from: feet,
             route,
             up: None,
+            up_reckoned: None,
             landed: None,
         });
     }

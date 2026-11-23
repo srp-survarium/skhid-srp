@@ -102,3 +102,43 @@ pub(crate) fn a_jump_lets_the_trigger_go_and_is_traced() {
     // Not tracing: watched, no line.
     assert!(bot.traced.is_empty() && bot.jump_watch.is_some());
 }
+
+/// [body physics] A route jump's watch is up when the bot's own reckoned body stands up the link on the ground, though no world (2 s
+/// apart on the bench) showed it there: the log's line says "up by the reckoning only". The body over the landing in the air is not
+/// up; with neither, the jump is short.
+#[test]
+pub(crate) fn a_route_jump_up_by_the_reckoning_is_up_in_the_log() {
+    use super::motor::{PressState, RoutePress};
+    let tuning = Tuning::default();
+    let (take_off, landing) = (Vec3::new(0.0, 0.0, 0.0), Vec3::new(0.5, 1.08, 0.0));
+    let route = RoutePress {
+        take_off,
+        landing,
+        tries: 1,
+        before: 0.1,
+        facing: 0.0,
+        sprint_gate: None,
+        aim: super::path::PressAim::STRAIGHT,
+        state: PressState { lead_m: 0.1, flown_lead_m: None, side_m: 0.0, turn_rad: 0.0, above_m: 0.0, along_ms: 0.0, window: None },
+    };
+    let watched = |bot: &mut Bot| {
+        bot.jump_watch = Some(JumpWatch { by: "route", at: 1_000, from: take_off, route: Some(route), up: None, up_reckoned: None, landed: None });
+    };
+    let mut bot = Bot::new(1, 0, 0, Some("support"), &tuning);
+    watched(&mut bot);
+    bot.jump_reckoned(1_500, Vec3::new(0.6, 1.3, 0.0), false);
+    assert_eq!(bot.jump_watch.and_then(|w| w.up_reckoned), None, "over the landing in the air is not up");
+    bot.jump_reckoned(1_900, Vec3::new(0.7, 1.08, 0.0), true);
+    bot.jump_reckoned(2_000, Vec3::new(0.9, 1.08, 0.0), true);
+    assert_eq!(bot.jump_watch.and_then(|w| w.up_reckoned), Some(1_900), "the first tick up on the ground");
+    bot.jump_followed(4_000, Some(Vec3::new(3.0, 0.0, 0.0)), "went on");
+    let lines = bot.nav_log.take();
+    assert!(lines.iter().any(|(_, l)| l.starts_with("nav: route jump up:") && l.contains("up by the reckoning only, 900 ms after the press")), "{lines:?}");
+
+    let mut bot = Bot::new(1, 0, 0, Some("support"), &tuning);
+    watched(&mut bot);
+    bot.jump_reckoned(1_900, Vec3::new(0.1, 0.0, 0.0), true);
+    bot.jump_followed(4_000, Some(Vec3::new(0.1, 0.0, 0.0)), "went on");
+    let lines = bot.nav_log.take();
+    assert!(lines.iter().any(|(_, l)| l.starts_with("nav: route jump short:") && !l.contains("by the reckoning")), "{lines:?}");
+}
