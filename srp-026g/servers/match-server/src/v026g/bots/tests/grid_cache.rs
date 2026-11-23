@@ -119,10 +119,15 @@ pub(super) fn world(
         digest.finish()
     };
     // [incremental grids PR 5] The job memo (`SRP_BENCH_GRID_MEMO`, off by default): its segments under the cache's `memo/`, a
-    // folder a world ([`World::memo_global`]). A grid built with it is named apart (`bench-grid-memo-`) until the memo's byte
-    // proof passes: a memo build never lands under a full build's name.
+    // folder a world ([`World::memo_global`]). A grid that read the memo (`use`, `verify`) is named apart (`bench-grid-memo-`)
+    // until the memo's byte proof passes: a memo build never lands under a full build's name. A `write-only` build reads none of
+    // it (every job runs, the memo only stores): it is a full build and keeps the full build's name, so a round built
+    // write-only fills the memo and is read by every later run.
     let memo_mode = memo_mode();
-    let named = if memo_mode == Mode::Off { "bench-grid" } else { "bench-grid-memo" };
+    let named = match memo_mode {
+        Mode::Off | Mode::WriteOnly => "bench-grid",
+        Mode::Use | Mode::Verify { .. } => "bench-grid-memo",
+    };
     let (grid, grid_made) = cache.read_or_build(
         format!("{named}-{}-{grid_key:016x}.bin", mapdata::source::short(mapdata::source::SRC_GRID)),
         |path| WalkGrid::read(path, grid_key, body),
