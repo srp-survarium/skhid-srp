@@ -72,8 +72,8 @@ va	name	location	role	basis
 0x00022660	vostok::render::scene_renderer::play_particle_system	stack+12	by-value particle resource pointer slot copied then released	inferred
 0x00022660	vostok::render::scene_renderer::play_particle_system	stack+16	first matrix source forwarded to two-buffer command	inferred
 0x00022660	vostok::render::scene_renderer::play_particle_system	stack+20	second matrix source forwarded to two-buffer command	inferred
-0x00022660	vostok::render::scene_renderer::play_particle_system	stack+24	first attachment resource reference captured for play command; exact type unasserted	inferred
-0x00022660	vostok::render::scene_renderer::play_particle_system	stack+28	second attachment resource reference captured for play command; exact type unasserted	inferred
+0x00022660	vostok::render::scene_renderer::play_particle_system	stack+24	the animated object a body-shaped emitter follows: a resource_ptr<collision::animated_object> slot (0.21d PDB signature), 0 none; particle_game_effect_presenter::play_effect gives a player's +498h (0x2AC29D)	observed
+0x00022660	vostok::render::scene_renderer::play_particle_system	stack+28	the skeleton a body-shaped (animated domain) emitter takes its bones from: a resource_ptr<render::skeleton_model_instance> slot (0.21d PDB signature; particle_engine::get_bone_matrix's), 0 none (the emitters start at the matrix's origin); play_effect gives a player's model +F290h (0x2AC291)	observed
 0x00022860	vostok::render::scene_renderer::stop_particle_system	stack+4	scene_renderer receiver	inferred
 0x00022860	vostok::render::scene_renderer::stop_particle_system	stack+8	scene resource reference	inferred
 0x00022860	vostok::render::scene_renderer::stop_particle_system	stack+12	particle resource reference	inferred
@@ -6744,3 +6744,4 @@ va	name	location	role	basis
 0x0023bea0	survarium::game_world_ui::set_hud_icon_type	entry ESP+4	the ui (the game_world_ui)	observed
 0x0023bea0	survarium::game_world_ui::set_hud_icon_type	entry ESP+8	the icon id, a byte (movzx at 0x23BEEA)	observed
 0x0023bea0	survarium::game_world_ui::set_hud_icon_type	entry ESP+12	the type, a byte (movzx at 0x23BF1D): the icon's frame - 1 (initialize_match: 0 a grenade, 1 a trap, 0Dh a battery)	observed
+0x002ac290	survarium::particle_game_effect_presenter::play_effect	EAX	the owner player: plays the effect at his simulated transform (his +118h interface's slot 28h, 0x1F17C0: +40Ch) twice, with his hit model (+498h) and model (+F290h) as the play's attachments	observed

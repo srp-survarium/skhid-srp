@@ -6556,7 +6556,8 @@ A frozen player's name is drawn ice blue in the player icons movie (his own
 colour back on thaw; `tools/check freeze-names`), and each game draws the
 frozen glow `fx/artifacts/human_frozen` (pack freeze-tag-glow: the Spring
 activation glow in ice blue, fainter) on his body as scene particles from the
-world's state, never in the simulation, shrinking to 15 % of its size as a
+world's state, never in the simulation, on his skeleton (his hit model and model, as
+the effects' presenter plays a living player's glow, 0x2AC290), shrinking to 15 % of its size as a
 teammate thaws him (`game_world.after_move`, order 6, and `game_world.deactivate`, order 4).
 The shared world parser owns the versioned round state, including scores,
 frozen places and progress. See [the rules and native lifecycle](../docs/notes/freeze-tag.md).

@@ -185,7 +185,7 @@ pub fn on_player_tick(ctx: &mut Context<'_>) -> Flow<FreezeTagOnPlayerTickExit> 
 // ---- the frozen glow -----------------------------------------------------
 
 /// The frozen glow's particle system (pack freeze-tag-glow: the Spring activation glow in ice blue,
-/// fainter; docs/notes/freeze-tag.md "The frozen glow").
+/// fainter; docs/notes/freeze-tag.md "The frozen glow"), played on the frozen body's skeleton.
 const GLOW_PARTICLE: &core::ffi::CStr = c"fx/artifacts/human_frozen";
 /// The glow's size at the end of the thaw, of its full size.
 const THAWED_SIZE: f32 = 0.15;
@@ -222,8 +222,8 @@ enum Load {
     Missing,
 }
 static GLOW: GameCell<Load> = GameCell::new(Load::Unasked);
-/// Whether this game has the glow of each place in the scene.
-static GLOWING: GameCell<[bool; PLAYERS]> = GameCell::new([false; PLAYERS]);
+/// The body each place's glow is in the scene on, in this game (none: not in the scene).
+static GLOWING: GameCell<[Option<vostok::freeze::BodyId>; PLAYERS]> = GameCell::new([None; PLAYERS]);
 
 /// Each frame after the simulation's move, this game draws the glow itself on every frozen body of
 /// a match in play, at the size its thaw progress gives, from the world's rule state (so every
@@ -238,7 +238,7 @@ fn draw_glow(thread: &vostok::Thread, world: &vostok::world::GameWorld<'_>) {
         Match::Other => None,
     };
     let shown = GLOWING.get(thread);
-    if state.is_none() && !shown.contains(&true) {
+    if state.is_none() && shown.iter().all(Option::is_none) {
         return;
     }
     let particles = match GLOW.get(thread) {
@@ -252,7 +252,7 @@ fn draw_glow(thread: &vostok::Thread, world: &vostok::world::GameWorld<'_>) {
     };
     let Some(scene) = vostok::freeze::GlowScene::of(world, thread) else { return };
     let in_play = scene.in_play();
-    let mut now = [false; PLAYERS];
+    let mut now = [None; PLAYERS];
     for (place, (was, next)) in Place::all().zip(shown.into_iter().zip(now.iter_mut())) {
         let target = state
             .filter(|_| in_play)
@@ -261,15 +261,20 @@ fn draw_glow(thread: &vostok::Thread, world: &vostok::world::GameWorld<'_>) {
                 Player::Waiting | Player::Fighting(_) => None,
             })
             .zip(scene.body(place))
-            .map(|(progress, body)| glow_at(body, progress));
+            .map(|(progress, body)| (glow_at(body.transform, progress), body));
         let particle = particles[place.index()];
         match (was, target) {
-            (true, Some(at)) => scene.move_to(particle, &at),
-            (false, Some(at)) => scene.play(particle, &at),
-            (true, None) => scene.stop(particle),
-            (false, None) => {}
+            (Some(on), Some((at, body))) if on == body.id() => scene.move_to(particle, &at),
+            (Some(_), Some((at, body))) => {
+                // Another player object of the place: the glow follows his bones.
+                scene.stop(particle);
+                scene.play(particle, &at, body);
+            }
+            (None, Some((at, body))) => scene.play(particle, &at, body),
+            (Some(_), None) => scene.stop(particle),
+            (None, None) => {}
         }
-        *next = target.is_some();
+        *next = target.map(|(_, body)| body.id());
     }
     GLOWING.set(thread, now);
 }
@@ -296,12 +301,12 @@ pub fn on_deactivate(ctx: &mut Context<'_>) -> Flow<NoExit> {
         && let Some(scene) = vostok::freeze::GlowScene::of(&world, thread)
     {
         for (particle, shown) in particles.into_iter().zip(shown) {
-            if shown {
+            if shown.is_some() {
                 scene.stop(particle);
             }
         }
     }
-    GLOWING.set(thread, [false; PLAYERS]);
+    GLOWING.set(thread, [None; PLAYERS]);
     Flow::Continue
 }
 

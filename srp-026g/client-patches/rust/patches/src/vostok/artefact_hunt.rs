@@ -864,7 +864,7 @@ impl<'t> ArtefactScene<'t> {
     /// `particle` played at `matrix`.
     pub fn play_at(&self, particle: super::resources::KeptParticle, matrix: &[f32; 16]) {
         // SAFETY: as play.
-        unsafe { self.scene.play_particle(particle.0, matrix) }
+        unsafe { self.scene.play_particle(particle.0, matrix, super::carry_runtime::Bones::NONE) }
     }
     /// The model at `at`, added or moved there.
     pub fn show(&self, model: super::resources::KeptModel, at: [f32; 3]) {
@@ -883,7 +883,7 @@ impl<'t> ArtefactScene<'t> {
     }
     pub fn play(&self, particle: super::resources::KeptParticle, at: [f32; 3]) {
         // SAFETY: a particle system kept for the process; the live scene.
-        unsafe { self.scene.play_particle(particle.0, &placed(at)) }
+        unsafe { self.scene.play_particle(particle.0, &placed(at), super::carry_runtime::Bones::NONE) }
     }
     pub fn stop(&self, particle: super::resources::KeptParticle) {
         // SAFETY: as play.
