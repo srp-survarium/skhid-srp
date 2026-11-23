@@ -19,6 +19,7 @@ candidate=${candidates[0]}
 python3 srp-026g/scripts/v011e-vostok-anomalies/check_release.py \
     --tool "$(game_data_bin)" "${layers[@]}" --candidate "$candidate" \
     --packs "$SKHID_PACKS_DIR" --work "$CHECK_WORK/comparison"
-cargo run --quiet --release --manifest-path srp-026g/Cargo.toml -p mapdata \
+# The dev shell's toolchain (a C linker for build scripts), as every cargo check.
+nix develop ./srp-026g -c cargo run --quiet --release --manifest-path srp-026g/Cargo.toml -p mapdata \
     --example check_vostok_batteries -- "${layers[@]}" --patch "$candidate" \
     --research-config gameplay/game_modes/v011e_level_03_day_5.options
