@@ -148,6 +148,17 @@ the kick the weapon keeps turns the gun in the hands, not the eye alone, so a bu
 muzzle carries the recoil from the hip as it does fully aimed. Nothing had to be added to the
 simulation for it.
 
+**Which of the recoil's clips move the gun** (the stock clips' tracks, read with the sight
+alignment's clip reader): `recoil_vert` and `recoil_horiz` turn the Weapon bone (6.8 and 5.5
+degrees over the clip) as well as the eye's bone Item (3.6 and 4.7), so the top and the side kick
+are the gun's. `camerashake_v2`, the shake that plays while firing from the hip (the recoil's
+third axis weights it: at most about 1 degree of the eye), turns Item, the arms and the hands and
+**not the Weapon bone**. The game's bullet took it with the eye; a bullet from the barrel does not,
+while the view still shakes. So from the hip a shot is up to about a degree steadier than the
+game's was, inside a spread of five degrees and more. Not put on the gun yet: it means reading the
+shake's weight and frame from the weapon's recoil state and its clip's turn at a shot (and, drawn,
+taking it off the view and giving it to the gun).
+
 With the bullet following the gun, the kick is the gun's motion and the eye need not take all of
 it. Patch 197 draws it so: of the lift the kick gives the eye the view takes 40 % (`KICK_SHOWN`, a
 first value: the owner, asked, "we will iterate on this"), from the hip too; the gun stays on the
