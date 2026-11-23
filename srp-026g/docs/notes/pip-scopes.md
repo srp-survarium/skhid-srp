@@ -442,3 +442,17 @@ field stop at the rim tied to the magnification, and the picture's exposure take
 Left out: their objective-mounted camera and off-axis projection (ours stays the eyes' aim, where
 shots go), their near-plane fitting (the second view leaves the first-person models out), their
 stamping of TAA and distortion masks (the disc is drawn after the frame's post-process).
+
+**6. Open: the frame's motion blur smears the eyes' weapon while strafing with the lens** (found after
+`pip-scopes-4` was built; the round-4 `move1`/`move2` pairs show it: the optic's ring pale and
+translucent, the handguard streaked or blocky). The patch's, not the rig's: the same strafe with the
+option off and iron sights (`irons-ak74m`, the gun in view) keeps the gun dark and sharp; the lens with
+`r_motion_blur_quality 0` (`noblur-leupold`) keeps the gun and ring dark and sharp too. So the
+first-person surfaces get wrong motion vectors in the frame while the lens is on (standing they are
+right: no motion). Not found which state: candidates are a per-model previous matrix rolled by the
+second view's draw as well as the frame's (two renderer::render calls a frame), or the first-person
+projection the motion pass uses (0x13E010 copies a projection at +4F58h of the renderer object,
+perhaps the zoomed one, against the unzoomed one the lens gives the frame). Next: trace
+accumulate_motion_vectors (0x1B1B50) for the first-person lists (+84ACh, +494h) and what previous
+matrix and projection it reads; a stopgap is the frame's motion blur off while the lens is drawn
+(opt+E4h, not traced how the post-process reads it).
