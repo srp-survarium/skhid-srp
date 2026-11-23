@@ -670,7 +670,7 @@ Left	Balra	direction
 Right	Jobbra	direction
 Back	Hátra	direction
 where it aims as the shot moves it	hová céloz a lövés hatására
-from the side, the bullet from the eye along the view	oldalról: a lövedék a szemtől a nézés mentén
+from the side, the bullet from the gun along its line	oldalról: a lövedék a fegyvertől, annak vonala mentén
 custom	saját
 Up	Fel
 Side	Oldalra
@@ -680,8 +680,8 @@ Camera wobble	Kameraremegés
 Gun kick	Fegyverrúgás
 Custom gun	Saját fegyver
 Speed	Sebesség
-bullet	lövedék
-sight	irányzék
+screen	képernyő
+gun	fegyver
 hit	találat
 
 # The wiki's skills (a page built at a release: scripts/site-texts)

@@ -101,6 +101,9 @@ class Game:
             emu.mem_map(at, 0x10000, UC_PROT_ALL)
         self.u32(THREAD_SLOT, STUBS + 0x80)
         emu.mem_write(STUBS + 0x80, b"\xB8\x01\x00\x00\x00\xC3")
+        # GetEnvironmentVariableA (patch 197's SKHID_CAMERA_TRAIL, read at the same site): unset
+        self.u32(0x8701B4, STUBS + 0xC0)
+        emu.mem_write(STUBS + 0xC0, bytes.fromhex("31c0c20c00"))
         # GetTickCount, for patch 133's handler after ours at the site (it keeps the view it reads)
         self.u32(TICK_SLOT, STUBS + 0xB0)
         emu.mem_write(STUBS + 0xB0, b"\x31\xC0\xC3")

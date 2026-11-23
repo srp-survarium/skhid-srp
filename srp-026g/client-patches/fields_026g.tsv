@@ -24,6 +24,7 @@ vostok::animation::skeleton	bone_count	0x108	u32	the bones' count, object_moveme
 vostok::animation::skeleton	bones	0x110	obj<vostok::animation::skeleton_bone>	the bones' array, 1Ch a bone (add_bone 0x3ACDA0)
 vostok::animation::skeleton_bone	name	0x0	ptr<u8>	the bone's name (a C string)
 vostok::animation::skeleton_bone	parent	0x4	ptr<vostok::animation::skeleton_bone>	the parent bone's record (the array's first for the root's children)
+vostok::animation::skeleton_bone	children	0x8	ptr<vostok::animation::skeleton_bone>	its first child's record; the first record's (object_movement's) is the first bone a matrix array holds: a locator's bone index and an array's slot are a record's index less that one's
 vostok::animation::skeleton_bone	size	0x1C	size	a bone's record: 1Ch bytes, the next one's after it (add_bone 0x3ACDA0)
 survarium::hit_model	body	0x12C	ptr<vostok::physics::bt_animated_rigid_body>	the hit model's body in the physics world (a bt_animated_rigid_body; activate_physics 0x2D9930)
 vostok::physics::hit_object	vtable	0x0	u32	its vtable: ANIMATED_BODY_VTABLE for a bt_animated_rigid_body (its ctor 0x70E70 writes it)
@@ -1532,6 +1533,10 @@ survarium::weapon_ready_frame	weapon	0xC	ptr<survarium::weapon>	its third: the w
 survarium::weapon_delete_frame	resource	0x4	ptr<survarium::weapon_resource>	weapon_cook::delete_resource 0x24B190's argument (by ESP at its entry): the weapon's +10h, or 0
 survarium::weapon_resource	weapon	-0x10	obj<survarium::weapon>	the weapon the resource base is in (delete_resource's `add edi,-10h`, 0x24B19B)
 survarium::weapon_locator	size	0x64	size	a locator record (render_model::get_locator 0x1585B0 copies 19h dwords): the weapon's three, the hand IK's sixteen
+survarium::weapon	aim_progress	0x5FC	f32	the aim's progress, 0 from the hip to 1 fully aimed (the aim interpolator's value: process_hands_ik reads it at 0x295A2x and blends the Weapon bone by it; get_dispersed_bullet_direction 0x2E1D50 tests it for exactly 1)
+survarium::weapon	vtable	0x0	u32	its vtable: WEAPON_VTABLE (0xA04174) for the client's weapon, whose locators and aim offset (+6A0h and on) a bare weapon_core (0xA11094) has not
+survarium::weapon	skeleton	0x590	ptr<vostok::animation::skeleton>	the gun's own skeleton (weapon_core::get_skeleton 0x2435F0, vtable +40h): its bones are mixed over it in its user's tree, the weapon the animated object (weapon_core::compute_bones_matrices 0x2E2F50)
+survarium::weapon	aim_offset	0x6A0	f32	translate(0, 0, aim_offset) or the identity, a row-vector 4x4 (16 f32): written once by weapon_cook::allocate_weapon (0x24A904), read by calculate_aim_alignment (0x244D49) as the matrix before rotation_y(pi) and the aim locator
 survarium::weapon	aim_locator	0x7A8	obj<survarium::weapon_locator>	the aim's locator (load_weapon 0x243B16 reads the model's `aim`, or copies the scope's, 0x243B28): calculate_aim_alignment's (0x244D5B) and no other code's
 survarium::weapon	left_hand_locators	0x1A20	obj<survarium::weapon_locator>	hand_to_weapon_ik_solver's records of the left hand, eight of 64h (the object at weapon+1820h, built in place by allocate_weapon 0x24A7DF; its solver +200h, hand 0): 0..3 the idle, reload, reload pivot and lobby locators for the first view, 4..7 for the third (set_weapon_locators 0x392AE0; record = target + 4 * (not first view), 0x392E91; no check of a record's bone, 0x392EA3)
 survarium::weapon	left_fingers	0x20F0	obj<vostok::animation::finger_set>	fingers_to_weapon_corrector's sets of the left hand, four of 3C0h (the object's corrector +8D0h, hand 0): idle, reload, reload pivot, lobby (set_weapon_model 0x390620)
@@ -1753,6 +1758,7 @@ survarium::weapon_core	user	0x594	ptr<survarium::weapon_user>	its user: the hold
 survarium::weapon_user	place	0x4	u8	its player's place (player + 114h)
 survarium::medical_hit	time	0x3C	u32	the hit's simulation time, ms (hit_info +3Ch: base_player::hit's first argument, 0x2D9B72; body_part::hit stores it as the pool's last hit, 0x32A29B)
 survarium::hands_ik_frame	weapon	0x1C	ptr<survarium::weapon>	ESP+1Ch at hands_ik.aim_alignment (0x295AA5): the held item as a weapon (its vtable +70h at 0x295A07, kept at 0x295A09; never 0 here, the je at 0x295A0F)
+survarium::hands_ik_aligned_frame	weapon	0x18	ptr<survarium::weapon>	ESP+18h at hands_ik.aligned (0x295AB2): the weapon of hands_ik_frame, the alignment call's one stack argument popped (ret 4)
 survarium::weapon	state	0x330	ptr<survarium::weapon_state>	the state it is in (selected_animations 0x2E10CD calls its vtable +20h for the item's and the hands' expression)
 survarium::weapon_state	id	0x124	u32	which state it is, the base constructor's second argument (0x31EB22): 1 show, 2 hide, 3 idle (the three idle classes: 0x30D412, 0x30F0C3, 0x30F923), 4 reload, 5 fire, 6 chamber a round, 7 and 8 a grenade's, 9 the preview's
 survarium::player	animation_tree	0xE850	ptr<vostok::animation::n_ary_tree>	its animation player's (+750h) mixing tree (+E100h: animation_player::compute_bones_matrices 0x391AF0, update_bones_matrices 0x2FF60F); 0 with nothing playing
@@ -1839,3 +1845,4 @@ survarium::game_world_ui	team_one_points	0xB6	u16	the hud state's +92h: team 1's
 survarium::player	ui	0xF480	ptr<survarium::game_world_ui>	the hud (player::st_draw reads it for the followed player: set_stamina 0x247000, show_grenade_icons 0x2471F2)
 vostok::collision::game_object	grenade	-0x1C	obj<survarium::grenade_core>	a thrown grenade's body user is its +1Ch (throw_grenade 0x303C5C: lea eax,[esi+1Ch] into the body +0Ch; its vtable 0xA046E0 +0Ch, as_grenade 0x248AC0, is sub ecx,1Ch / mov eax,ecx): the grenade 1Ch before it, only for a user whose as_grenade (vtable +0Ch) answered it, as player::st_draw's sensor asks (0x2470F1)
 survarium::world_event	kind	0x18	u32	the event's type: 0 a kill (generate_killed_event, 0x2DA3A8), 1 a victory item's user (0x300B4A, 0x301004), 2 a hit (generate_hit_event, 0x2DA054); game_world_core::new_world_event 0x2D43B0 makes the node, the world's list from core+12744h
+survarium::weapon	kick_top	0x478	f32	the recoil's top kick, in look-pitch units (the recoil calculator's y: the calculator is the weapon's +468h, its x and y at +0Ch; +474h the side kick, computed_backward_recoil_time 0x2E387F): weapon_core::look_pitch 0x2E0F6C adds it to its user's look pitch (+48Ch) and clamps the sum to -1..1

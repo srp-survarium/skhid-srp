@@ -1,0 +1,13 @@
+# Patch 197, a prototype: the drawn camera trails the aim, when
+# SKHID_CAMERA_TRAIL is set (camera_trail.rs). Only the decisions: the site
+# and the handler, after the head clearance's eye.
+name = "camera_trail"
+patch = 197
+# the sight's progress, and the gun's kick shown while aimed
+uses = ["aim_pose"]
+
+# update_camera's join: EAX the eye transform the view gets
+[[hook]]
+site = "camera.eye"
+handler = "on_eye"
+order = 3

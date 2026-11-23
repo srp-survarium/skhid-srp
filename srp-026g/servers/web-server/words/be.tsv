@@ -670,7 +670,7 @@ Left	Улева	direction
 Right	Управа	direction
 Back	Назад	direction
 where it aims as the shot moves it	куды цэліцца пад дзеяннем стрэлу
-from the side, the bullet from the eye along the view	збоку: куля ад вока ўздоўж позірку
+from the side, the bullet from the gun along its line	збоку: куля ад зброі ўздоўж яе лініі
 custom	сваё
 Up	Уверх
 Side	Убок
@@ -680,8 +680,8 @@ Camera wobble	Хістанне камеры
 Gun kick	Штуршок зброі
 Custom gun	Свая зброя
 Speed	Хуткасць
-bullet	куля
-sight	прыцэл
+screen	экран
+gun	зброя
 hit	трапленне
 
 # The wiki's skills (a page built at a release: scripts/site-texts)

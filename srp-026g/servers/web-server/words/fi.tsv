@@ -670,7 +670,7 @@ Left	Vasemmalle	direction
 Right	Oikealle	direction
 Back	Taakse	direction
 where it aims as the shot moves it	mihin se tähtää laukauksen liikuttamana
-from the side, the bullet from the eye along the view	sivulta: luoti silmästä katseen suuntaan
+from the side, the bullet from the gun along its line	sivulta: luoti aseesta sen linjaa pitkin
 custom	oma
 Up	Ylös
 Side	Sivulle
@@ -680,8 +680,8 @@ Camera wobble	Kameran heilunta
 Gun kick	Aseen potku
 Custom gun	Oma ase
 Speed	Nopeus
-bullet	luoti
-sight	tähtäin
+screen	näyttö
+gun	ase
 hit	osuma
 
 # The wiki's skills (a page built at a release: scripts/site-texts)

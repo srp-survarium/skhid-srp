@@ -104,6 +104,9 @@ class Game:
             emu.mem_map(at, 0x10000, UC_PROT_ALL)
         self.u32(THREAD_SLOT, STUBS + 0x80)
         emu.mem_write(STUBS + 0x80, b"\xB8\x01\x00\x00\x00\xC3")
+        # GetEnvironmentVariableA (patch 197's SKHID_CAMERA_TRAIL, read at the same site): unset
+        self.u32(0x8701B4, STUBS + 0xC0)
+        emu.mem_write(STUBS + 0xC0, bytes.fromhex("31c0c20c00"))
         # QueryPerformanceCounter / Frequency (stdcall 1): our clock, 1000 ticks a second
         for slot, stub, hook in ((QPC_SLOT, STUBS + 0x90, self.counter), (QPF_SLOT, STUBS + 0xA0, self.frequency)):
             self.u32(slot, stub)

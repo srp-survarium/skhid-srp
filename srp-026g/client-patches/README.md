@@ -196,6 +196,8 @@ release's. The "Result" row is the build of the revision named in it.
 | `rust/patches/src/console_paste.rs`, `src/console_paste.toml`, `src/vostok/text_edit.rs`, `src/vostok/clipboard.rs`, `check_console_paste_026g.py` | Patch 157: Ctrl+V (and Shift+Insert) pastes the clipboard's first line at the caret of the console's line (`../docs/notes/console-paste.md`): a lohook at the engine's stub `ui_text_edit::paste_from_clipboard` (0x3482C0); printable ASCII only, cut to the line's max length; its check makes a text edit with the game's own code and takes every key through its bindings in both exes (needs Unicorn) |
 | `rust/patches/src/head_clearance.rs`, `src/head_clearance.toml`, `src/vostok/camera.rs` (`given_eye`), `check_head_clearance_026g.py` | Patch 158: the first-person eye stays out of the level's surfaces (`../docs/notes/head-clearance.md`): a lohook at update_camera's eye (`camera.eye`, 0x1F3643, after the ragdoll's), for a living player's own eye in modes 0 and 4: one ray from 0.4 m under the eye over the body's axis to 0.12 m past the eye against the level's shot collision; a hit puts the view's eye 0.12 m short of it at once, eased back at 6/s; the view alone, nothing a match computes; its check runs update_camera in both exes (needs Unicorn) |
 | `rust/patches/src/aim_pose.rs`, `src/aim_pose.toml`, `src/vostok/aim.rs`, `check_aim_pose_026g.py` | Patch 172: the aimed view is aligned to the gun's idle pose, as 0.45a6's (`../docs/notes/aim-pose.md`): a lohook in process_hands_ik before its calculate_aim_alignment (`hands_ik.aim_alignment`, 0x295AA5) moves the weapon's aim locator from its bone into the model at the idle pose, the first aimed frame the idle clip alone poses the gun; a fire clip's kick of that bone is then seen in sights and scopes; drawing only, nothing a match computes |
+| `rust/patches/src/camera_trail.rs`, `src/camera_trail.toml`, `src/vostok/camera.rs` (`eye_fov_factor`) | Patch 197: the weapon's kick is the gun's (the drawn view takes 40 % of the lift the kick gives the eye; `src/vostok/shot.rs` `free_kick_lift`); and, a prototype off unless `SKHID_CAMERA_TRAIL` is set: while the sight is raised the drawn view trails the aim inside a dead zone, and the aimed gun's sights stay on the aim with a share of its clip's kick back (`aim_pose::Kick::Back`). Drawing only. |
+| `rust/patches/src/muzzle_shots.rs`, `src/muzzle_shots.toml`, `src/vostok/shot.rs`, `src/affine.rs`, `check_muzzle_shots_026g.py` | Patch 200: a shot leaves the gun's muzzle, the way the gun looks (`../docs/notes/muzzle-shots.md`): a lohook in instant_fire after its copy of the eye (`weapon.shot_origin`); the HUD's crosshair where the own player's gun looks (`game_world.after_move`, `camera.apply`, `player_icons.update_start`). A simulation change. |
 | `rust/patches/src/quiet_log.rs`, `src/quiet_log.toml`, `src/vostok/game_log.rs` | Patch 174: the engine's log (and the console, which shows it) without the engine's lines that tell nothing: a lohook at logging::log_message's start returns at once for seven known formats (README, "The engine's log without the lines that tell nothing") |
 | `audio_device_026g.c`, `audio_device_026g.h`, `audio_device_engine_026g.c`, `test_audio_device_026g.c` | Patch 100: the sound follows the audio output device (XAudio2's engine and voices proxied, made again on the default device after a lost device or a new default); the test runs the core on i686 under the sanitizers against a made-up XAudio2 that keeps its rules (no Unicorn) |
 | `rust/patches/src/sound_voices.rs`, `src/sound_voices.toml`, `src/vostok/voices.rs`, `check_sound_voices_026g.py` | Patch 96: shots no longer go silent under heavy fire (`../docs/notes/sound_voices.md`): the game world's sound scene has 1024 sound instances and propagators (`SOUND_POOLS`, game_world::load 0x1F8DB6/0x1F8DBD), and a sound refused a voice takes the voice of the quietest one playing when that one is less than half as loud (a lohook after create_sound_voice, 0x5CAB0), and the source voice walk is bounded to one pass (`sound_voices_026g.asm`, 0x5E5E7, 0x631D9, 0x59F8E); the check runs the voice loop from that site on made-up scenes with a model of the world's voice pool, and the self-test's `test_sound_pools` (needs Unicorn) |
@@ -6359,6 +6361,64 @@ the idle clip alone poses the gun, and again on each later one; the game's own a
 that, as 0.45a6 reads the idle pose it keeps from a weapon's creation. At rest nothing moves. Drawing only: the recoil, the
 shot and the worlds are the game's. `check_aim_pose_026g.py` (`tools/check aim-pose`) runs the
 site through the game's own alignment in both exes. Not run in a game on Windows.
+
+Right after the alignment's call (`hands_ik.aligned`, 0x295AB2) the weapon's own locator is put
+back in its record, on its bone. The record was otherwise different in the shooter's own game
+(posed, on no bone) and in everyone else's (the model's): nothing read it but the drawing, until
+patch 200's simulation did. The simulation's steps and a frame's drawing never overlap
+(game_world::tick: the move, then mt_draw's tasks and the wait for them).
+
+## A shot leaves the gun's muzzle (patch 200, unreleased)
+
+The owner, 2026-11-23: "Bullets leave the barrel, not the eye. Full simulation of where the weapon
+looks, there shots go" (`../docs/notes/muzzle-shots.md`, `../docs/notes/client_patch.md` section
+3.104). instant_fire (0x2E23A0) copies its user's eyes' transform and takes a shot's direction
+and every pellet's start from the copy. A lohook after the copy (`weapon.shot_origin`, 0x2E2456)
+replaces it with the gun's: the fire point's place on the gun as the simulation poses it at the
+shot's time (the user's Weapon bone half-turned, the aim's alignment by the aim's progress, the
+gun's bones from its user's tree), looking along the barrel always; from the eye when the level
+stands between the eye and the muzzle. Every game computes
+it for every player from the simulation's own state: a row in `simulation_changes.tsv`.
+
+The HUD's crosshair is put where the own player's gun looks (the hud movie's `srp_crosshair_at`).
+
+`check_muzzle_shots_026g.py` (`tools/check muzzle-shots`) runs instant_fire from its copy to its
+call of get_dispersed_bullet_direction in both exes, the bone function and the ray stood in for:
+the hip, full aim, half raised, a wall, and the cases left as the original's bit for bit. Not run
+in a played game: the crosshair on a screen and two games in step are unseen. A recorded match was
+played back headless with it (768 shots, no crash; fully aimed the way a median 0.27 degrees from the
+game's old copy of the eye, from the hip 1.39; `../docs/notes/muzzle-shots.md`). The built
+exe's shot was run under Unicorn on three real matches' full memory (`../docs/notes/muzzle-shots.md`):
+of twenty-five held guns twenty-four leave the muzzle along the barrel (0.05 mm, 0.01 degrees
+from the note's arithmetic, the level's own ray test run) and one, the level between its eye and
+its muzzle, the eye.
+
+The way is the barrel's own axis always (the owner: "the rule is being closest to bodycam as
+possible, which means full direction gun simulation"): fully aimed it is the models' 0 to 0.6
+degrees off the sights' line, and a gun not brought up (a sprint's pose: 54 degrees and more off the
+view, measured on three real matches' memory, `../docs/notes/muzzle-shots.md`) shoots where it
+points. Held ready from the hip a gun is 0.5 to 2.4 degrees off the view. The server's bots turn
+their view by the measured line when they fire from the hip.
+
+## The kick is the gun's; the drawn view trails the aim (patch 197, unreleased)
+
+Two things drawn apart from the aim at update_camera's eye; the second a prototype, off unless the
+game is started with `SKHID_CAMERA_TRAIL` set. With that switch, while the sight is raised the view
+drawn turns after the aim instead of with it (still within 0.8 degrees across and 0.55 up, never
+more than 3 and 2 behind, the zones times the view's zoom and the aim's progress): the gun and its
+sights, which hang on the aim, move over a calm screen. With the switch the aimed gun's sights stay
+on the aim and 35 % of its clip's kick back along the view is left (patch 172's site).
+
+The recoil on top of patch 200's shots from the gun, always on: the weapon's kick is the gun's.
+The game adds the kick (the weapon's +478h) to the look pitch, which turns the eye, the hands and
+the gun together (`weapon_core::look_pitch` 0x2E0F60). The view takes 40 % of the lift the kick
+gives the eye, from the hip too; the gun, on the aim, rises over the screen and comes back as
+the kick is pulled down or returns, and the bullet goes where the gun looks. Not while the scope's
+own view is on. The kick's numbers, the shots and the eye the simulation keeps are untouched.
+
+Drawing only. Its own tests; `check_head_clearance_026g.py` and `check_camera_walls_026g.py` run
+update_camera with its hook in the path (a player with no kick: the view and the registers the
+original's). Never run in a game.
 
 ## Scrolling the console (patch 159, unreleased)
 

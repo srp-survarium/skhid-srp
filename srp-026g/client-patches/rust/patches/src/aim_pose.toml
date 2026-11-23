@@ -9,3 +9,8 @@ patch = 172
 [[hook]]
 site = "hands_ik.aim_alignment"
 handler = "on_aim_alignment"
+
+# right after that call: the weapon's own locator back in its record
+[[hook]]
+site = "hands_ik.aligned"
+handler = "on_aligned"

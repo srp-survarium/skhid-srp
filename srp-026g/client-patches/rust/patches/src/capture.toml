@@ -16,6 +16,8 @@ order = 4
 [[hook]]
 site = "camera.apply"
 handler = "on_camera"
+# before patch 200's reading of the frame's camera (order 1)
+order = 0
 
 # the frame's scene before the interface, after patch 152's (order 1): the
 # pose's picture

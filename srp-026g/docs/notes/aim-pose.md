@@ -39,6 +39,13 @@ is `shot-kick-045.md`.
 - **Iron sights too,** as in 0.45a6: on those ten guns the body now kicks under the eye, as every
   stock gun's does.
 
+## The weapon's own record
+
+- **Put back after each alignment.** The locator is posed for the alignment's call alone: right
+  after it (`hands_ik.aligned`) the record is the weapon's own again, on its bone. The simulation
+  reads it (patch 200, `muzzle-shots.md`), and a record posed in the shooter's own game alone
+  would have set that game apart from the others.
+
 ## What it does not change
 
 - **Drawing only.** The locator is read by `calculate_aim_alignment` alone and is not in a world;

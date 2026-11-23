@@ -9,26 +9,26 @@ process_hands_ik (0x2959D0) is entered at its aimed branch's last two
 instructions before calculate_aim_alignment (0x295AA5: the site), as the
 game reaches them: the Item bone's matrix pushed, the weapon in its frame,
 ECX the gun's bones. The game's own calculate_aim_alignment, calculate_locator
-and matrix code run; a run stops at the call's return (0x295AB2), the
-alignment in its frame (ESI).
+and matrix code run; a run stops past the call's return and its site
+(0x295AB2, `hands_ik.aligned`: 0x295AB8), the alignment in its frame (ESI).
 
 The weapon: its aim locator on bone 1 (as a ported gun's, on `offset`), an
 aim offset of -0.11 m, a user whose mixing tree holds the animations given.
 
 - Its idle clip alone poses the gun (the idle state, one animation of this
-  gun in the tree, others' beside it): the locator is moved into the model at
-  that pose (locator x bone, bone FFFFh) and the alignment is the original's.
+  gun in the tree, others' beside it): the alignment is the original's, made
+  from the locator in the model at that pose.
 - After that, a fire clip's kick of the bone: the alignment is the one the
   original gives for the idle bones (the kick is not followed); the original
   follows it.
 - A pose taken while the bone was off rest (a world that says idle with a
-  kicked bone): the next idle frame poses the locator again, at rest.
-- Not the idle state, a second animation of the gun (a clip fading), none of
-  the gun's, no tree, no user: the locator untouched, the alignment the
-  original's bit for bit.
-- A model's own locator on no bone, on a weapon made where a posed one was:
-  untouched.
-In every run the registers at the return are the original's.
+  kicked bone): the next idle frame takes it again, at rest.
+- A gun never seen at rest (each in a game of its own): not the idle state,
+  a second animation of the gun (a clip fading), none of the gun's, no tree,
+  no user: the alignment the original's bit for bit.
+- A model's own locator on no bone: the alignment the original's.
+After every run the weapon's locator record is the original's bit for bit
+(the simulation reads it, patch 200) and the registers are the original's.
 """
 import math
 import os
@@ -43,8 +43,9 @@ if len(sys.argv) > 1:
     os.environ.setdefault("SRP_026G_EXE", sys.argv[1])    # a span hook's bytes (patch_026g.RUST_HOOKS)
 import patch_026g as base
 
-SITE, RETURNED = 0x295AA5, 0x295AB2
+SITE, ALIGNED, RETURNED = 0x295AA5, 0x295AB2, 0x295AB8
 SPAN = bytes.fromhex("8b44241c8d742424")                  # mov eax,[esp+1Ch] / lea esi,[esp+24h]
+ALIGNED_SPAN = bytes.fromhex("f30f1044240c")              # movss xmm0,[esp+0Ch]
 THREAD_SLOT = 0x870118
 HEAP, STUBS, STACK = 0x30000000, 0x31000000, 0x32000000
 WEAPON, STATE, USER, TREE, RECORDS, NODES, BONES, ITEM, OTHER = (HEAP + 0x1000 * n for n in (0, 2, 3, 0x13, 0x14, 0x16, 0x17, 0x18, 0x19))
@@ -160,13 +161,15 @@ def main():
     built = bytes(built)
     linked = base.arena()
     installs = {h[0]: h for h in base.rust_hooks(original)}
-    va, old, symbol, opcode = installs[SITE]
-    at = base.file_offset(va)
-    new = base.hook_bytes(linked.symbols[symbol], va, old, 0, opcode)
-    check(opcode == 0xE9 and old == SPAN and original[at:at + 8] == SPAN and built[at:at + len(new)] == new,
-          f"{va:#x}: {old.hex()} in the original, `jmp {symbol}` here")
+    for site, span in ((SITE, SPAN), (ALIGNED, ALIGNED_SPAN)):
+        va, old, symbol, opcode = installs[site]
+        at = base.file_offset(va)
+        new = base.hook_bytes(linked.symbols[symbol], va, old, 0, opcode)
+        check(opcode == 0xE9 and old == span and original[at:at + len(span)] == span and built[at:at + len(new)] == new,
+              f"{va:#x}: {old.hex()} in the original, `jmp {symbol}` here")
 
     stock, ours = Game(original), Game(built)
+    own = (struct.unpack("<16f", struct.pack("<16f", *LOCATOR)), 1)
 
     def both(pose, **weapon):
         stock.weapon(**weapon)
@@ -176,33 +179,27 @@ def main():
     # the idle clip alone: the locator goes into the model at the idle pose
     (s_out, s_regs), (o_out, o_regs) = both(IDLE_BONE, animations=(OTHER, WEAPON, OTHER))
     check(s_regs[UC_X86_REG_EIP] == RETURNED and o_regs == s_regs, "the idle gun: both return, the registers the original's")
-    place, bone = ours.locator()
-    check(bone == NO_BONE and near(place, product(LOCATOR, IDLE_BONE)),
-          "the idle gun: the locator on no bone, at locator x the idle bone")
-    check(stock.locator() == (struct.unpack("<16f", struct.pack("<16f", *LOCATOR)), 1), "the original leaves its locator")
+    check(stock.locator() == own and ours.locator() == own, "the idle gun: the locator record the weapon's own after the frame, in both")
     check(near(o_out, s_out), "the idle gun: the alignment is the original's")
     idle_out = s_out
 
     # then a shot: the bone kicked, the fire state, the fire clip and the fading idle one
     for game in (stock, ours):
         game.u32(STATE + 0x124, FIRE)
-    posed = ours.locator()
     (s_out, s_regs), (o_out, o_regs) = stock.align(KICKED_BONE), ours.align(KICKED_BONE)
-    check(o_regs == s_regs and ours.locator() == posed, "a shot after it: the registers the original's, the locator kept")
+    check(o_regs == s_regs and ours.locator() == own, "a shot after it: the registers the original's, the locator record the weapon's own")
     check(near(o_out, idle_out), "a shot after it: the alignment is the idle pose's (the kick is not followed)")
     moved = math.dist(s_out[12:15], idle_out[12:15])
     check(0.015 < moved < 0.03, f"the original follows the kick ({moved * 1000:.1f} mm)")
 
     # a pose taken off rest (a world that says idle with the bone kicked) is taken again at rest
-    ours.weapon()
-    ours.align(KICKED_BONE)
-    check(ours.locator()[1] == NO_BONE and near(ours.locator()[0], product(LOCATOR, KICKED_BONE)),
-          "a world not at rest: the locator posed off rest")
+    (s_out, _), (o_out, _) = both(KICKED_BONE)
+    check(near(o_out, s_out) and ours.locator() == own, "a world not at rest: the pose taken off rest (the original's alignment there)")
     o_out, _ = ours.align(IDLE_BONE)
-    check(near(ours.locator()[0], product(LOCATOR, IDLE_BONE)) and near(o_out, idle_out),
-          "the next idle frame: posed again at rest, the alignment the idle pose's")
+    check(near(o_out, idle_out) and ours.locator() == own, "the next idle frame: taken again at rest, the alignment the idle pose's")
 
-    # nothing else poses a locator (the last: a later weapon at the posed one's address, its locator its model's)
+    # a gun never seen at rest keeps the original's alignment (each in a game of its own: the patch
+    # keeps the last gun's idle pose for its record), and a model's own locator on no bone is left
     for what, weapon in (("the fire state", dict(state=FIRE)),
                          ("a second animation of the gun (a clip fading)", dict(animations=(WEAPON, WEAPON))),
                          ("no animation of the gun", dict(animations=(OTHER,))),
@@ -210,6 +207,7 @@ def main():
                          ("no tree", dict(tree=False)),
                          ("no user", dict(user=False)),
                          ("a locator on no bone", dict(bone=NO_BONE))):
+        ours = Game(built)
         (s_out, s_regs), (o_out, o_regs) = both(KICKED_BONE, **weapon)
         check(o_out == s_out and o_regs == s_regs and ours.locator() == stock.locator(),
               f"{what}: the locator untouched, the alignment and the registers the original's bit for bit")
