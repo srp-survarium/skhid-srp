@@ -827,9 +827,9 @@ pub fn neighbour_flights_for(
 /// top's edge before the ground steps climb the rest), and the flight's last step, when the body is on the ground on every step
 /// from the landing on (it stays: A385-FORMAT §1); None when it never lands so or leaves the ground after (it skims).
 pub fn landing_and_rest(steps: &[FlightStep], on: impl Fn(&FlightStep) -> bool) -> Option<(FlightStep, FlightStep)> {
-    let first_air = steps.iter().position(|f| f.in_jump)?;
-    let landing = first_air + steps[first_air..].iter().position(|f| !f.in_jump && f.on_ground && on(f))?;
-    steps[landing..].iter().all(|f| f.on_ground).then(|| (steps[landing], steps[steps.len() - 1]))
+    // [body physics S5a] The one landing rule ([`crate::motion::verdict::landing`]).
+    let landing = crate::motion::verdict::landing(steps, |f| f.in_jump, |f| f.on_ground, on)?;
+    Some((steps[landing], steps[steps.len() - 1]))
 }
 
 /// [A385] A press's share (A385-FORMAT §2): of its [`NEIGHBOURS`] neighbours, how many land (`lands` holds for each of the

@@ -730,12 +730,17 @@ pub mod verdict {
     /// Whether a flight from `take_off` lands on `landing`: every step from the first on the ground after its first jump step is on
     /// the ground (it does not skim), and its last step is [`up`] on the link.
     pub fn lands_on(ticks: &[Tick], take_off: Vec3, landing: Vec3) -> bool {
-        let Some(first_air) = ticks.iter().position(|t| t.in_jump) else { return false };
-        let Some(down) = ticks[first_air..].iter().position(|t| !t.in_jump && t.on_ground).map(|i| i + first_air) else { return false };
-        if !ticks[down..].iter().all(|t| t.on_ground) {
-            return false;
-        }
-        up(ticks[ticks.len() - 1].feet, take_off, landing)
+        self::landing(ticks, |t| t.in_jump, |t| t.on_ground, |_| true).is_some() && up(ticks[ticks.len() - 1].feet, take_off, landing)
+    }
+
+    /// [body physics S5a] The step a flight lands on, by its index in `steps`: the first after its first jump step (`in_jump`)
+    /// that is out of the jump, on the ground (`on_ground`) and on the floor `on` asks for; None when it never lands, or when a step
+    /// from it on is off the ground (a skim). The one landing rule: [`lands_on`] (any floor) and the builder's flights
+    /// (`jump::landing_and_rest`, each pass's own floor).
+    pub fn landing<T>(steps: &[T], in_jump: impl Fn(&T) -> bool, on_ground: impl Fn(&T) -> bool, on: impl Fn(&T) -> bool) -> Option<usize> {
+        let first_air = steps.iter().position(&in_jump)?;
+        let down = first_air + steps[first_air..].iter().position(|t| !in_jump(t) && on_ground(t) && on(t))?;
+        steps[down..].iter().all(&on_ground).then_some(down)
     }
 }
 
