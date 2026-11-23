@@ -185,11 +185,10 @@ fn lines(lang: Lang, effects: &Effects) -> (Vec<Line>, Vec<Line>) {
                 }
                 whom.push((lang.t("Body parts"), names.join(", ")));
             }
-            let mut carried = whom.clone();
+            // The active protects the same hits: said once, in the passive.
+            let mut carried = whom;
             carried.extend(onyx_lines(lang, *passive));
-            let mut fired = whom;
-            fired.extend(onyx_lines(lang, *active));
-            (carried, fired)
+            (carried, onyx_lines(lang, *active))
         }
         Effects::Lifebone {
             regeneration,
@@ -326,8 +325,15 @@ fn spawns() -> BTreeMap<(maps::Build, &'static str), (&'static str, Vec<Kind>)> 
     found
 }
 
-/// The items with built-in bonuses to artefacts (the Artifact-master's cooldown and search
-/// time): a line each.
+/// The item modifiers that change an artefact's own numbers: its cooldown (modifier 38) and
+/// active time (39).
+const ARTEFACT_TIMES: [&str; 2] = [
+    "parameters/artefact_cooldown_modifier",
+    "parameters/artefact_duration_modifier",
+];
+
+/// The items with built-in bonuses to artefacts' times (the Artifact-master's cooldown): a
+/// line each.
 fn item_lines(lang: Lang) -> Vec<String> {
     Dictionary::shared()
         .items
@@ -339,7 +345,7 @@ fn item_lines(lang: Lang) -> Vec<String> {
                     modification
                         .modifiers
                         .iter()
-                        .any(|modifier| modifier.path.starts_with("parameters/artefact_"))
+                        .any(|modifier| ARTEFACT_TIMES.contains(&modifier.path.as_str()))
                 })
                 .map(|(modification, property)| {
                     format!(
