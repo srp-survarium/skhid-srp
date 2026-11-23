@@ -184,6 +184,18 @@ pub fn next_try(language: u32, seconds: u32) -> String {
     }
 }
 
+/// The box of PLAY's own check of the routes, when the launcher's found
+/// none before (`crate::route::Found`): it closes itself.
+pub fn checking(language: u32) -> &'static str {
+    match language {
+        1 => "Проверка соединения с сервером...\nИгра запустится сама.",
+        2 => "Перевірка з'єднання з сервером...\nГра запуститься сама.",
+        3 => "Die Verbindung zum Server wird geprüft...\nDas Spiel startet von selbst.",
+        4 => "Sprawdzanie połączenia z serwerem...\nGra uruchomi się sama.",
+        _ => "Checking the connection to the server...\nThe game starts by itself.",
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

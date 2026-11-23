@@ -23,9 +23,9 @@ Checks:
 - the button's making (0x1AEA8..0x1AEEA): VK's control at 28, 46, 20 by 20
   in the bottom panel, with its three pictures (the gear's), its click
   0x1BD3C; hidden (SW_HIDE) until a view came, else shown;
-- the bottom panel's text: none while hidden; "Relay: auto" (1 and 4),
-  "Relay: auto (off)" (2), "Relay: auto (on)" (3), "Relay: on" (5), "Relay:
-  off" (6), 25 pixels right of the button and 1 below its top, in the
+- the bottom panel's text: none while hidden; "Auto: checking..." (1),
+  "Auto: direct" (2), "Auto: via relay" (3), "Auto: no answer" (4), "Relay:
+  on" (5), "Relay: off" (6), 25 pixels right of the button and 1 below its top, in the
   launcher's language (Russian, Ukrainian, German, Polish; English for the
   game's other languages);
 - a click (the button's window procedure, WM_LBUTTONDOWN): a menu of the
@@ -59,13 +59,18 @@ LANGUAGE_GLOBAL = 0x4819C
 BOX_WINDOW, PARENT, TOOLTIP = 0x991, 0x445, 0x5551
 RECT = (28, 46, 48, 66)
 BUTTON_RECT = (300, 600, 320, 620)      # the button's window on the screen
-# The row's text by the view: auto (1 probing, 4 no answer), auto (off), auto (on), on, off.
-LABELS = {'en': ('Relay: auto', 'Relay: auto (off)', 'Relay: auto (on)', 'Relay: on', 'Relay: off'),
-          'ru': ('Релей: авто', 'Релей: авто (выкл)', 'Релей: авто (вкл)', 'Релей: вкл', 'Релей: выкл'),
-          'uk': ('Релей: авто', 'Релей: авто (вимк)', 'Релей: авто (увімк)', 'Релей: увімк', 'Релей: вимк'),
-          'de': ('Relay: auto', 'Relay: auto (aus)', 'Relay: auto (an)', 'Relay: an', 'Relay: aus'),
-          'pl': ('Relay: auto', 'Relay: auto (wył.)', 'Relay: auto (wł.)', 'Relay: wł.', 'Relay: wył.')}
-LABEL_OF_VIEW = {1: 0, 2: 1, 3: 2, 4: 0, 5: 3, 6: 4}
+# The row's text by the view: auto checking, direct, via the relay, no answer; on; off.
+LABELS = {'en': ('Auto: checking...', 'Auto: direct', 'Auto: via relay', 'Auto: no answer', 'Relay: on',
+                 'Relay: off'),
+          'ru': ('Авто: проверка...', 'Авто: напрямую', 'Авто: через релей', 'Авто: нет ответа', 'Релей: вкл',
+                 'Релей: выкл'),
+          'uk': ('Авто: перевірка...', 'Авто: напряму', 'Авто: через релей', 'Авто: без відповіді', 'Релей: увімк',
+                 'Релей: вимк'),
+          'de': ('Auto: prüfe...', 'Auto: direkt', 'Auto: über Relay', 'Auto: keine Antwort', 'Relay: an',
+                 'Relay: aus'),
+          'pl': ('Auto: sprawdzam...', 'Auto: bezpośrednio', 'Auto: przez relay', 'Auto: brak odpowiedzi',
+                 'Relay: wł.', 'Relay: wył.')}
+LABEL_OF_VIEW = {view: view - 1 for view in range(1, 7)}
 # The menu's rows: auto, on, off.
 ROWS = {'en': ('Auto: only when blocked', 'On: always through the relay', 'Off: never'),
         'ru': ('Авто: только при блокировке', 'Вкл: всегда через релей', 'Выкл: никогда'),
@@ -74,7 +79,7 @@ ROWS = {'en': ('Auto: only when blocked', 'On: always through the relay', 'Off: 
         'pl': ('Auto: tylko przy blokadzie', 'Wł.: zawsze przez relay', 'Wył.: nigdy')}
 # The game's languages (launcher_languages_026g.inc order) -> the row's.
 BY_INDEX = {0: 'en', 1: 'uk', 2: 'ru', 3: 'de', 4: 'pl', 5: 'en', 6: 'en'}
-NOW_EN = ['auto, checking...', 'auto: direct.', 'auto: through the relay (higher ping): direct did not answer.',
+NOW_EN = ['auto: checking the connection...', 'auto: direct.', 'auto: through the relay (higher ping): direct did not answer.',
           'auto: the server does not answer.', 'on: through the relay.', 'off: direct.']
 RESTART = {'en': 'The server is restarting. Next try in {} s.',
            'ru': 'Сервер перезапускается. Повтор через {} с.',

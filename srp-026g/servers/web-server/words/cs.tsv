@@ -131,7 +131,7 @@ Start <code>Skhid.bat</code> again. Still failing? Run <code>Skhid-without-updat
 “No connection: …”	„Žádné připojení: …“
 Run <code>Skhid-network-setup.cmd</code>.	Spusťte <code>Skhid-network-setup.cmd</code>.
 “Blocked on this network: …”	„V této síti blokováno: …“
-Your provider blocks our server. The launcher has already switched to our relay, a way around the block (<b>Relay: auto</b>, bottom left). Just press <b>Retry</b>.	Váš poskytovatel blokuje náš server. Launcher už sám přepnul na náš relay, který blokování obchází (<b>Relay: auto</b>, vlevo dole). Stačí stisknout <b>Opakovat</b>.
+Your provider blocks our server. The launcher has already switched to our relay, a way around the block (<b>Auto: via relay</b>, bottom left). Just press <b>Retry</b>.	Váš poskytovatel blokuje náš server. Launcher už sám přepnul na náš relay, který blokování obchází (<b>Auto: via relay</b>, vlevo dole). Stačí stisknout <b>Opakovat</b>.
 Nothing works.	Nic nefunguje.
 Run <code>Skhid-collect-logs.cmd</code> and send the zip it makes to us on Discord: <a href="https://discord.gg/QUmJg3gBhg">discord.gg/QUmJg3gBhg</a>.	Spusťte <code>Skhid-collect-logs.cmd</code> a pošlete nám vytvořený zip na Discord: <a href="https://discord.gg/QUmJg3gBhg">discord.gg/QUmJg3gBhg</a>.
 Q:	Otázka:

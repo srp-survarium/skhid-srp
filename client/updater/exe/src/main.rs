@@ -66,10 +66,11 @@ use updater_logic::url::{self, Url};
 use updater_logic::zip;
 use windows_sys::Win32::System::Environment::GetCommandLineW;
 use windows_sys::Win32::System::Threading::{ExitProcess, GetCurrentThreadId};
+use windows_sys::Win32::Foundation::HWND;
 use windows_sys::Win32::UI::WindowsAndMessaging::{
-    FindWindowW, GetWindowThreadProcessId, IDRETRY, MB_ICONERROR, MB_ICONWARNING, MB_OK, MB_RETRYCANCEL,
-    MB_SETFOREGROUND, MB_TOPMOST, MESSAGEBOX_RESULT, MESSAGEBOX_STYLE, MessageBoxW, PostMessageW,
-    SetDlgItemTextW, WM_COMMAND,
+    FindWindowW, GetWindowThreadProcessId, IDOK, IDRETRY, MB_ICONERROR, MB_ICONINFORMATION, MB_ICONWARNING,
+    MB_OK, MB_RETRYCANCEL, MB_SETFOREGROUND, MB_TOPMOST, MESSAGEBOX_RESULT, MESSAGEBOX_STYLE, MessageBoxW,
+    PostMessageW, SetDlgItemTextW, WM_COMMAND,
 };
 
 use crate::http::HttpError;
@@ -227,10 +228,36 @@ impl Session {
         if let Some(choice) = save {
             route::set(choice);
         }
-        if probe {
-            route.probing = Some(route::probe(route.config));
-        }
+        // A check the row no longer asks for (a pick since) ends unshown.
+        route.probing = probe.then(|| route::probe(route.config));
         self.send(ToLauncher::Route(shown));
+    }
+
+    /// PLAY comes on. In Automatic with no route found yet (`route::found`)
+    /// it waits, off, for the row's check, which the row shows ("Auto:
+    /// checking..."); with one, PLAY starts by it, and a check still running
+    /// saves its route for the next game.
+    fn play_on(&mut self) {
+        let waits = |route: &RouteBox| {
+            route.probing.is_some() && route.shown == Shown::Automatic(None) && route::found().is_none()
+        };
+        if self.route.as_ref().is_some_and(waits) {
+            log!("route: none found yet: PLAY waits for the check");
+            while self.route.as_ref().is_some_and(|route| route.probing.is_some()) && self.pump() {
+                win::sleep(50);
+            }
+        }
+        self.state(state::LATEST);
+    }
+
+    /// The row's check still running when the updater ends (the launcher
+    /// closes at PLAY) is let finish, so that what it finds is saved for
+    /// the next game.
+    fn finish_check(&mut self) {
+        if let Some(probing) = self.route.as_mut().and_then(|route| route.probing.take()) {
+            log!("route: the check goes on to its end");
+            let _ = probing.recv();
+        }
     }
 
     /// The direct route is blocked while the relay answers: the row turns
@@ -477,19 +504,11 @@ const RESTART_WAIT_S: u8 = 5;
 /// Retry. `true`: Retry, the player's or its own.
 fn waiting_box(caption: &str, message: &str, language: Option<u32>, back: impl Fn() -> bool + Sync) -> bool {
     use core::sync::atomic::{AtomicBool, Ordering};
-    /// A message box's window class, and its text's control.
-    const DIALOG: &str = "#32770";
+    /// A message box's text's control.
     const TEXT: i32 = 0xFFFF;
     let language = language.unwrap_or(0);
     let text = |seconds: u8| format!("{message}\n{}", next_try(language, seconds.into()));
-    let title = win::wide(caption);
-    let owner = unsafe { GetCurrentThreadId() };
-    // This thread's box with that title, once it is shown.
-    let shown = || {
-        let window = unsafe { FindWindowW(win::wide(DIALOG).as_ptr(), title.as_ptr()) };
-        let ours = !window.is_null() && unsafe { GetWindowThreadProcessId(window, core::ptr::null_mut()) } == owner;
-        ours.then_some(window)
-    };
+    let shown = own_box(caption);
     let closed = AtomicBool::new(false);
     std::thread::scope(|scope| {
         scope.spawn(|| {
@@ -520,6 +539,53 @@ fn waiting_box(caption: &str, message: &str, language: Option<u32>, back: impl F
         let answer = show_box(caption, &text(RESTART_WAIT_S), MB_RETRYCANCEL | MB_ICONWARNING);
         closed.store(true, Ordering::Relaxed);
         answer == IDRETRY
+    })
+}
+
+/// This thread's box titled `caption`, once it is shown: asked from another
+/// thread.
+fn own_box(caption: &str) -> impl Fn() -> Option<HWND> + Sync {
+    /// A message box's window class.
+    const DIALOG: &str = "#32770";
+    let (dialog, title) = (win::wide(DIALOG), win::wide(caption));
+    let owner = unsafe { GetCurrentThreadId() };
+    move || {
+        let window = unsafe { FindWindowW(dialog.as_ptr(), title.as_ptr()) };
+        let ours = !window.is_null() && unsafe { GetWindowThreadProcessId(window, core::ptr::null_mut()) } == owner;
+        ours.then_some(window)
+    }
+}
+
+/// A box that says what runs while `work` runs, and closes itself at its
+/// end; closed sooner by the player, the work goes on to its end all the
+/// same. No silent wait: PLAY's check of the routes when none was found
+/// before (`play::answering`).
+fn working_box<T: Send>(caption: &str, message: &str, work: impl FnOnce() -> T + Send) -> T {
+    use core::sync::atomic::{AtomicBool, Ordering};
+    let shown = own_box(caption);
+    let (done, closed) = (AtomicBool::new(false), AtomicBool::new(false));
+    std::thread::scope(|scope| {
+        let worker = scope.spawn(|| {
+            let result = work();
+            done.store(true, Ordering::Relaxed);
+            result
+        });
+        // The box closed once the work is done, also when it ended before
+        // the box was up.
+        scope.spawn(|| {
+            while !closed.load(Ordering::Relaxed) {
+                if done.load(Ordering::Relaxed)
+                    && let Some(window) = shown()
+                {
+                    unsafe { PostMessageW(window, WM_COMMAND, IDOK as usize, 0) };
+                    return;
+                }
+                win::sleep(50);
+            }
+        });
+        show_box(caption, message, MB_OK | MB_ICONINFORMATION);
+        closed.store(true, Ordering::Relaxed);
+        worker.join().unwrap_or_else(|panic| std::panic::resume_unwind(panic))
     })
 }
 
@@ -1546,6 +1612,11 @@ fn run() -> u32 {
     if session.pipe.is_some() && !options.copy {
         match play::config() {
             Ok(Some(config)) => {
+                // The check runs beside the update, so that PLAY need not wait
+                // on one; the last game's direct link lost tells it first.
+                if route::choice() == routing::Choice::Automatic {
+                    route::last_game(config, &layout.logs_dir);
+                }
                 session.route = Some(RouteBox { config, shown: Shown::Direct, probing: None });
                 session.route(None);
             }
@@ -1575,6 +1646,7 @@ fn run() -> u32 {
         }
     };
     session.leave();
+    session.finish_check();
     log!("exit {code}");
     code
 }
@@ -1745,7 +1817,7 @@ fn pass(session: &mut Session, layout: &Layout, look: patches::Look, product: Op
             if session.named_file {
                 session.state(state::CHECKING);
             }
-            session.state(state::LATEST);
+            session.play_on();
             (exit::OK, true)
         }
         Done::Installed { restart: true, .. } => match product {
@@ -1765,7 +1837,7 @@ fn pass(session: &mut Session, layout: &Layout, look: patches::Look, product: Op
         Done::Installed { restart: false, .. } => {
             // "Checking" clears the launcher's file name line.
             session.state(state::CHECKING);
-            session.state(state::LATEST);
+            session.play_on();
             (exit::OK, true)
         }
         Done::Offline(message) => {
@@ -1776,7 +1848,7 @@ fn pass(session: &mut Session, layout: &Layout, look: patches::Look, product: Op
             if !said {
                 session.tell(&message);
             }
-            session.state(state::LATEST);
+            session.play_on();
             (exit::OK, true)
         }
         Done::Stopped => {
@@ -1856,7 +1928,7 @@ fn finish_by_new(session: &mut Session, layout: &Layout) -> u32 {
             log!("the new updater ended with {code}");
             if code == exit::OK {
                 session.state(state::CHECKING);
-                session.state(state::LATEST);
+                session.play_on();
             } else if session.pipe.is_some() {
                 session.state(state::ERROR);
             }

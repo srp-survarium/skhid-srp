@@ -1,9 +1,10 @@
 //! PLAY's route selection runs in the updater, before creating the game.
 //! No driver, administrator access, credentials, or game-memory hooks.
-use crate::{exit, install::Layout, log, message_box, patches, retry_box, route, waiting_box, win};
+use crate::text::TITLE;
+use crate::{exit, install::Layout, log, message_box, patches, retry_box, route, waiting_box, win, working_box};
 use relay_client::{Config, Selection};
-use updater_logic::diagnosis::{Diagnosis, Via};
-use updater_logic::route::Choice;
+use updater_logic::diagnosis::{self, Diagnosis, Via};
+use updater_logic::route::{Choice, Learned};
 
 pub(crate) fn config() -> Result<Option<&'static Config>, &'static str> {
     static CONFIG: std::sync::OnceLock<Result<Option<Config>, String>> = std::sync::OnceLock::new();
@@ -82,13 +83,13 @@ fn launch(arguments: &[String], wait: bool, quiet: bool) -> Result<(), Ended> {
         .iter()
         .any(|a| a.starts_with("-server=") || a.starts_with("-match_replay="));
     if !explicit && let Some(config) = config()? {
+        let language = win::documents().as_deref().and_then(win::game_language);
         let address = loop {
-            let selection = match answering(config) {
+            let selection = match answering(config, quiet, language) {
                 Ok(address) => break address,
                 Err(selection) => selection,
             };
             let diagnosis = route::diagnose_game(config, &selection);
-            let language = win::documents().as_deref().and_then(win::game_language);
             let (caption, message) = route::words(diagnosis, language);
             let again = match diagnosis {
                 // The row turns to auto: the relay answers, so on through
@@ -128,32 +129,44 @@ fn launch(arguments: &[String], wait: bool, quiet: bool) -> Result<(), Ended> {
     Ok(())
 }
 
-/// PLAY's route by the player's choice: the relay unprobed; direct, or
-/// (Automatic) the relay when the direct route failed its check
-/// (`route::check`). `Err`: what the check found when that is no route of
-/// the choice's (`route::diagnose_game` tells why).
-fn answering(config: &Config) -> Result<String, Selection> {
-    let choice = route::choice();
-    if choice == Choice::Relay {
-        let address = config.relay.address();
-        log::log!("play: the relay {address}, as chosen");
-        return Ok(address);
-    }
-    let selection = route::check(config, "play");
-    match (choice, &selection) {
-        (_, Selection::Direct(address)) => {
-            log::log!("play: direct route {address} answered TCP, lobby UDP and match UDP");
-            route::set_played(Via::Direct);
-            Ok(address.to_string())
-        }
-        (Choice::Automatic, Selection::Relay(address)) => {
-            log::log!("play: direct route unavailable; using relay {address}");
-            route::set_played(Via::Relay);
-            Ok(address.to_string())
-        }
-        _ => {
-            log::log!("play: no route by {}: {selection:?}", choice.word());
-            Err(selection)
-        }
+/// PLAY's route by the player's choice, at once: the relay; direct (the
+/// launcher's check turns the choice to Automatic on a block); Automatic,
+/// the route found (`route::found`: the launcher's check, or a lost direct
+/// link). Only with none found does PLAY check, in a box that says so
+/// (`quiet`: none). `Err`: that check found no route (`route::diagnose_game`
+/// tells why).
+fn answering(config: &Config, quiet: bool, language: Option<u32>) -> Result<String, Selection> {
+    let address = |via| match via {
+        Via::Direct => config.direct.address(),
+        Via::Relay => config.relay.address(),
+    };
+    let (via, why) = match route::choice() {
+        Choice::Relay => (Via::Relay, "chosen"),
+        Choice::Direct => (Via::Direct, "chosen"),
+        Choice::Automatic => match route::found() {
+            Some(found) => {
+                route::learn(Learned::Played);
+                (found.via(), found.word())
+            }
+            None => return checked(config, quiet, language),
+        },
+    };
+    let address = address(via);
+    log::log!("play: {via:?} {address} ({why}), unchecked");
+    Ok(address)
+}
+
+/// PLAY's own check of the routes, in Automatic with none found before.
+fn checked(config: &Config, quiet: bool, language: Option<u32>) -> Result<String, Selection> {
+    log::log!("play: no route found yet: PLAY checks");
+    let check = || route::check(config, "play");
+    let selection = if quiet {
+        check()
+    } else {
+        working_box(TITLE, diagnosis::checking(language.unwrap_or(0)), check)
+    };
+    match selection {
+        Selection::Direct(address) | Selection::Relay(address) => Ok(address.to_string()),
+        Selection::Unreachable => Err(selection),
     }
 }

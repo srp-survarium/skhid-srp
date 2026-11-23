@@ -19,16 +19,19 @@ The player picks the route in the launcher's "Relay" row (auto, on, off:
 Automatic, the relay, direct; `client/updater/README.md`, "The route"); a player who never
 picked has Automatic in Russia (the Windows region) and direct elsewhere;
 direct found blocked while the relay answers becomes Automatic by itself.
-Automatic fallback runs before PLAY starts the game. With `updater_skhid.relay`
-installed and Automatic, the updater probes direct login TCP and lobby/match UDP concurrently,
-in rounds, and tries the relay only when no round answers whole (3 rounds when
-nothing answers, 5 when a part does, one more after a game played direct; 35 s
-at most; `client/updater/README.md`, "The check"): through the relay the ping
-is higher, so one lost packet must not choose it. Each probe carries 64 KiB
-each way within its 5 s round (login TCP one stream, lobby and match UDP 130
-datagrams of 508 bytes, missing ones sent again), since some providers cut a
-flow to foreign hosting after its first tens of KB: a small echo would pass and
-the game then fail. The server echoes exactly what it got, as it gets it (a
+Automatic fallback is decided when the launcher opens, beside the update, and
+PLAY starts at once by the route found (`client/updater/README.md`, "The
+route"). With `updater_skhid.relay` installed, the updater probes direct login
+TCP and lobby/match UDP concurrently, in rounds, and tries the relay only when
+no round answers whole (3 rounds when nothing answers, 5 when a part does, one
+more after direct was found last; a few seconds; `client/updater/README.md`,
+"The check"): through the relay the ping is higher, so one lost packet must not
+choose it. Each probe carries 64 KiB each way (login TCP one stream, lobby and
+match UDP 130 datagrams of 508 bytes, missing ones sent again), and fails once
+its flow has not moved for a second, since some providers cut a flow to
+foreign hosting after its first tens of KB: a small echo would pass and the
+game then fail. A game that lost its direct link on the way gives the next
+game the relay. The server echoes exactly what it got, as it gets it (a
 login connection up to 64 KiB, a datagram that starts `SKHID-ROUTE-1:` up to
 508 bytes), without creating an account, session or match. The relay's
 per-address budgets carry the burst. A successful route is passed as

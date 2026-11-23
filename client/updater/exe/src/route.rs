@@ -4,8 +4,9 @@
 //! first time decided by the Windows region and saved at once (so that it is
 //! the player's from then on, shown and changed in the launcher's "Relay" row), and
 //! changed only by that row or a block found ([`set`]). Beside it, the
-//! route PLAY last started a game by after its check
-//! (`launcher_skhid.route_played`, [`played`]): the next check's evidence.
+//! route PLAY starts the next game by in Automatic
+//! (`launcher_skhid.route_found`, [`found`]): what the launcher's check
+//! found, or the relay after a game that lost its direct link ([`learn`]).
 
 use alloc::format;
 use alloc::string::String;
@@ -17,7 +18,9 @@ use std::time::Duration;
 
 use relay_client::{Config, Selection};
 use updater_logic::diagnosis::{Diagnosis, Internet, Reach, Via, diagnose};
-use updater_logic::route::{self as routing, CHOICE_FILE, Choice, Event, PLAYED_FILE, Probed, Shown};
+use updater_logic::route::{
+    self as routing, CHOICE_FILE, Choice, Event, FOUND_FILE, Found, LastGame, Learned, Probed, Shown,
+};
 use updater_logic::url::Url;
 
 use crate::log::log;
@@ -79,42 +82,89 @@ fn save(folder: Option<&str>, choice: Choice) {
     }
 }
 
-/// The route PLAY last started a game by after its check.
-pub fn played() -> Option<Via> {
-    let text = win::read_file(&format!("{}\\{PLAYED_FILE}", folder()?), 64).ok()?;
-    routing::played(&text)
+/// Held while [`FOUND_FILE`] is read and written, by the row's check and
+/// the main thread.
+static FOUND: Mutex<()> = Mutex::new(());
+
+/// The route PLAY starts the next game by in Automatic.
+pub fn found() -> Option<Found> {
+    let text = win::read_file(&format!("{}\\{FOUND_FILE}", folder()?), 64).ok()?;
+    Found::parse(&text)
 }
 
-/// PLAY starts a game by `via`, which its check found.
-pub fn set_played(via: Via) {
-    if played() == Some(via) {
-        return;
-    }
-    let word = routing::played_word(via);
+/// What tells the next game's route (`Found::learn`), saved when it
+/// changes it. The route found after.
+pub fn learn(learned: Learned) -> Option<Found> {
+    let _held = FOUND.lock().unwrap_or_else(|e| e.into_inner());
+    let before = found();
+    let after = Found::learn(before, learned);
+    let Some(next) = after.filter(|&next| Some(next) != before) else {
+        return after;
+    };
+    let word = next.word();
     let Some(folder) = folder() else {
-        log!("route: no Documents folder: played {word} not saved");
-        return;
+        log!("route: no Documents folder: found {word} not saved");
+        return after;
     };
     let written = win::create_folders(&folder)
-        .and_then(|()| win::write_file(&format!("{folder}\\{PLAYED_FILE}"), format!("{word}\r\n").as_bytes()));
+        .and_then(|()| win::write_file(&format!("{folder}\\{FOUND_FILE}"), format!("{word}\r\n").as_bytes()));
     match written {
-        Ok(()) => log!("route: played {word} saved"),
-        Err(code) => log!("route: played {word} not saved: {}", win::error_text(code)),
+        Ok(()) => log!("route: found {word} saved ({learned:?})"),
+        Err(code) => log!("route: found {word} not saved: {}", win::error_text(code)),
     }
+    after
 }
 
-/// The check of the routes (`relay_client::select`), with the last game's
-/// route as its evidence; `who` asked, for the log, which gets every round
-/// and each probe that failed.
+/// The check of the routes (`relay_client::select`), with the route found
+/// last as its evidence; what it finds is kept for PLAY ([`learn`]). `who`
+/// asked, for the log, which gets every round and each probe that failed.
 pub fn check(config: &Config, who: &str) -> Selection {
-    let last = played();
-    let report = relay_client::select(config, last);
+    let last = found();
+    let started = std::time::Instant::now();
+    let report = relay_client::select(config, last.map(Found::via));
     log!(
-        "{who}: route check (last game {}): {report} -> {:?}",
-        last.map_or("none", routing::played_word),
-        report.selection
+        "{who}: route check (found before: {}): {report} -> {:?} in {} ms",
+        last.map_or("none", Found::word),
+        report.selection,
+        started.elapsed().as_millis()
     );
+    match report.selection {
+        Selection::Direct(_) => _ = learn(Learned::Checked(Via::Direct)),
+        Selection::Relay(_) => _ = learn(Learned::Checked(Via::Relay)),
+        Selection::Unreachable => {}
+    }
     report.selection
+}
+
+/// The newest game's engine log (`game\logs\Survarium_<user>.<stamp>.log`)
+/// read for its route: a direct link it lost on the way gives the next game
+/// the relay ([`Learned::Lost`]).
+pub fn last_game(config: &Config, logs: &str) {
+    let Ok(relay) = config.relay.host().parse() else { return };
+    let newest = std::fs::read_dir(logs).ok().and_then(|entries| {
+        entries
+            .flatten()
+            .filter(|entry| {
+                let name = entry.file_name();
+                let name = name.to_string_lossy();
+                name.starts_with("Survarium_") && name.ends_with(".log")
+            })
+            .filter_map(|entry| Some((entry.metadata().ok()?.modified().ok()?, entry.path())))
+            .max()
+    });
+    let Some((_, path)) = newest else { return };
+    let text = match std::fs::read(&path) {
+        Ok(text) => text,
+        Err(error) => {
+            log!("route: the last game's log {} not read: {error}", path.display());
+            return;
+        }
+    };
+    let game = routing::last_game(&text, relay);
+    log!("route: the last game ({}): {game:?}", path.display());
+    if game == (LastGame::Direct { lost: true }) {
+        learn(Learned::Lost);
+    }
 }
 
 /// Whether the game's ports answer now by the player's route: one round,
@@ -135,7 +185,8 @@ fn region() -> i32 {
     unsafe { GetUserGeoID(GEOCLASS_NATION) }
 }
 
-/// The probe of PLAY's route, in a thread of its own: what the row shows.
+/// The check of the routes in a thread of its own, for the row (what it
+/// shows) and for PLAY (what it saves).
 pub fn probe(config: &'static Config) -> mpsc::Receiver<Probed> {
     let (send, receive) = mpsc::channel();
     std::thread::spawn(move || {

@@ -19,6 +19,7 @@ PLAY, and the game was refused at its sign-in ("You're using an outdated
 version of the game.").
 """
 
+import getpass
 import os
 import struct
 import sys
@@ -26,6 +27,7 @@ import time
 import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import relay_play  # noqa: E402
 import test_db_patches as wine  # noqa: E402
 from test_db_patches import X86, sha256, windows, windows_path  # noqa: E402
 
@@ -340,6 +342,121 @@ class GateTest(wine.WineTest):
         self.assert_patches({27: self.patch_data(27)})
         self.assertEqual(self.status(), "ready\r\n")
         self.assertEqual(self.run_ready(), 0, self.log())
+
+
+class RouteTest(wine.WineTest):
+    """The check of the routes when the launcher opens (`README.md`, "The
+    route"), in a download with a relay: the row's views (message 0A), the
+    route found for PLAY (launcher_skhid.route_found) and PLAY's state."""
+
+    ROUTE = 0x0A
+    release = GateTest.release
+    patch_data = staticmethod(GateTest.patch_data)
+
+    def setUp(self):
+        wine.WineTest.setUp(self)
+        self.launched = []
+        self.launcher_bytes = self.fake + b"launcher"
+        self.write(f"{X86}/launcher_skhid.exe", self.launcher_bytes)
+        self.routes = relay_play.Routes()
+        self.addCleanup(self.routes.close)
+        self.write(f"{X86}/updater_skhid.relay", self.routes.config().encode())
+        # Documents\survarium of the prefix, never the home folder Wine links it to.
+        documents = os.path.join(wine.PREFIX, "drive_c", "users", getpass.getuser(), "Documents") \
+            if wine.PREFIX else os.path.join(os.environ["USERPROFILE"], "Documents")
+        if os.path.islink(documents):
+            os.unlink(documents)
+        self.survarium = os.path.join(documents, "survarium")
+        os.makedirs(self.survarium, exist_ok=True)
+        for name in ("launcher_skhid.route", "launcher_skhid.route_found"):
+            self.addCleanup(self.saved, name, None)
+        self.release(26, 26, least=26)
+
+    def tearDown(self):
+        for launched in self.launched:
+            launched.close()
+        wine.WineTest.tearDown(self)
+
+    def saved(self, name, text=False):
+        """The file's text; with `text`, written first (`None`: removed)."""
+        path = os.path.join(self.survarium, name)
+        if text is None:
+            if os.path.exists(path):
+                os.remove(path)
+        elif text:
+            with open(path, "w", newline="") as file:
+                file.write(text)
+        return open(path).read() if os.path.exists(path) else None
+
+    def views(self, launched):
+        """The row's views and PLAY's "latest", in the order said."""
+        return [("view", frame[1]) if frame[0] == self.ROUTE else "latest"
+                for frame in launched.said()
+                if frame[0] == self.ROUTE or (frame[0] == 0x02 and frame[1] == LATEST)]
+
+    def found(self, word, launched, seconds=30):
+        launched.wait_for(lambda: self.saved("launcher_skhid.route_found") == f"{word}\r\n", seconds,
+                          f"found {word}")
+
+    def test_with_nothing_found_play_waits_for_the_check_which_the_row_shows(self):
+        self.saved("launcher_skhid.route", "automatic\r\n")
+        self.routes.udp[0].clear()
+        launched = Launched(self)
+        launched.wait_for_state(LATEST)
+        # Checking, then through the relay; PLAY only after.
+        self.assertEqual(self.views(launched), [("view", 1), ("view", 3), "latest"])
+        self.assertEqual(self.saved("launcher_skhid.route_found"), "relay\r\n")
+        self.assertIn("route: none found yet: PLAY waits for the check", self.log())
+
+    def test_with_a_route_found_play_does_not_wait_and_the_check_saves_its_route(self):
+        self.saved("launcher_skhid.route", "automatic\r\n")
+        self.saved("launcher_skhid.route_found", "direct\r\n")
+        # Six rounds of a second (found direct: one more): PLAY is on before.
+        self.routes.udp[0].clear()
+        launched = Launched(self)
+        launched.wait_for_state(LATEST)
+        self.found("relay", launched)
+        launched.wait_for(lambda: ("view", 3) in self.views(launched), 10, "view 3")
+        self.assertEqual(self.views(launched), [("view", 1), "latest", ("view", 3)])
+        self.assertNotIn("PLAY waits", self.log())
+
+    def test_the_check_still_running_when_the_launcher_closes_saves_its_route(self):
+        self.saved("launcher_skhid.route", "automatic\r\n")
+        self.saved("launcher_skhid.route_found", "direct\r\n")
+        self.routes.udp[0].clear()
+        launched = Launched(self)
+        launched.wait_for_state(LATEST)
+        # PLAY: the launcher closes; the updater ends after the check.
+        launched.close()
+        self.assertEqual(launched.ended(), 0)
+        self.assertEqual(self.saved("launcher_skhid.route_found"), "relay\r\n")
+        self.assertIn("route: the check goes on to its end", self.log())
+
+    def test_a_direct_link_lost_in_the_last_game_gives_the_next_game_the_relay(self):
+        self.saved("launcher_skhid.route", "automatic\r\n")
+        self.saved("launcher_skhid.route_found", "direct\r\n")
+        lobby = f"connecting from 0.0.0.0:36213 to 127.0.0.1:{self.routes.port + 1}"
+        self.write("game/logs/Survarium_test.2026-11-23_10-00-00.log",
+                   ("game <info>\t[10:00:01.000]\tLOBBY: try reconnect\r\n"
+                    f"network_core <info>\t[10:00:01.001]\t{lobby}\r\n"
+                    "network_core <Warning>\t[10:20:00.000]\tclient [client] disconnected by timeout (5.1s)(10.2s)\r\n"
+                    f"network_core <info>\t[10:20:00.100]\t{lobby}\r\n").encode())
+        launched = Launched(self)
+        launched.wait_for_state(LATEST)
+        launched.wait_for(lambda: ("view", 2) in self.views(launched), 10, "view 2")
+        # The check finds direct whole; the next game goes through the relay all the same.
+        self.assertIn("Direct { lost: true }", self.log())
+        self.assertEqual(self.saved("launcher_skhid.route_found"), "direct-lost\r\n")
+
+    def test_direct_found_blocked_turns_the_row_to_automatic_through_the_relay(self):
+        self.saved("launcher_skhid.route", "direct\r\n")
+        self.routes.udp[0].clear()
+        launched = Launched(self)
+        launched.wait_for_state(LATEST)
+        self.found("relay", launched)
+        launched.wait_for(lambda: ("view", 3) in self.views(launched), 10, "view 3")
+        self.assertEqual([view for view in self.views(launched) if view != "latest"], [("view", 6), ("view", 3)])
+        self.assertEqual(self.saved("launcher_skhid.route"), "automatic\r\n")
 
 
 if __name__ == "__main__":

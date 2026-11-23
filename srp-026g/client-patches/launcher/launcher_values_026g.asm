@@ -1374,9 +1374,10 @@ torrent_click:
 ; "Relay" (patch 16; README.md there has the sites): VK's control, out of
 ; sight since patch 8, is a button under "Allow torrent" with the settings
 ; gear's pictures (the launcher's own, off its top panel since patch 8), and
-; beside it a text painted into the panel as that box's is: "Relay: auto",
-; "Relay: on", "Relay: off", and in auto what the probe picked, "Relay: auto
-; (on)" or "(off)". Three states, so no tick box (the owner, 2026-11-20). The
+; beside it a text painted into the panel as that box's is: "Relay: on",
+; "Relay: off", and in auto what the updater's check does or found, "Auto:
+; checking...", "Auto: direct", "Auto: via relay", "Auto: no answer". Three
+; states, so no tick box (the owner, 2026-11-20). The
 ; updater owns the route (client/updater, updater_logic::route): its message
 ; 0A says what the row shows (RELAY_VIEW: 1 auto probing, 2 auto direct, 3
 ; auto relay, 4 auto neither, 5 on, 6 off). A click on the button opens a
@@ -1949,13 +1950,15 @@ relay_langids:  dw 0x0409, 0x0419, 0x0422, 0x0407, 0x0415
 
 ; The texts, every language of the launcher's own (English for the others).
 ; Short: the row's in the panel left of the status line (x 200), the widest
-; ("Релей: авто (увімк)") about 140 pixels from x 53.
+; (19 Cyrillic letters, "Авто: без відповіді") about 140 pixels from x 53.
+; In auto the row says what the updater's check does or found: checking,
+; direct, through the relay, no answer (the owner, 2026-11-23: no silent wait).
         align   4, db 0
-relay_labels:   dd lbl_en_auto, lbl_en_auto_off, lbl_en_auto_on, lbl_en_auto, lbl_en_on, lbl_en_off
-                dd lbl_ru_auto, lbl_ru_auto_off, lbl_ru_auto_on, lbl_ru_auto, lbl_ru_on, lbl_ru_off
-                dd lbl_ru_auto, lbl_uk_auto_off, lbl_uk_auto_on, lbl_ru_auto, lbl_uk_on, lbl_uk_off
-                dd lbl_en_auto, lbl_de_auto_off, lbl_de_auto_on, lbl_en_auto, lbl_de_on, lbl_de_off
-                dd lbl_en_auto, lbl_pl_auto_off, lbl_pl_auto_on, lbl_en_auto, lbl_pl_on, lbl_pl_off
+relay_labels:   dd lbl_en_checking, lbl_en_direct, lbl_en_relayed, lbl_en_none, lbl_en_on, lbl_en_off
+                dd lbl_ru_checking, lbl_ru_direct, lbl_ru_relayed, lbl_ru_none, lbl_ru_on, lbl_ru_off
+                dd lbl_uk_checking, lbl_uk_direct, lbl_ru_relayed, lbl_uk_none, lbl_uk_on, lbl_uk_off
+                dd lbl_de_checking, lbl_de_direct, lbl_de_relayed, lbl_de_none, lbl_de_on, lbl_de_off
+                dd lbl_pl_checking, lbl_pl_direct, lbl_pl_relayed, lbl_pl_none, lbl_pl_on, lbl_pl_off
 relay_rows:     dd row_en_auto, row_en_on, row_en_off
                 dd row_ru_auto, row_ru_on, row_ru_off
                 dd row_uk_auto, row_uk_on, row_uk_off
@@ -1970,26 +1973,33 @@ relay_now:      dd now_en_1, now_en_2, now_en_3, now_en_4, now_en_5, now_en_6
                 dd now_de_1, now_de_2, now_de_3, now_de_4, now_de_5, now_de_6
                 dd now_pl_1, now_pl_2, now_pl_3, now_pl_4, now_pl_5, now_pl_6
 
-lbl_en_auto:     dw __utf16__('Relay: auto'), 0
-lbl_en_auto_off: dw __utf16__('Relay: auto (off)'), 0
-lbl_en_auto_on:  dw __utf16__('Relay: auto (on)'), 0
+lbl_en_checking: dw __utf16__('Auto: checking...'), 0
+lbl_en_direct:   dw __utf16__('Auto: direct'), 0
+lbl_en_relayed:  dw __utf16__('Auto: via relay'), 0
+lbl_en_none:     dw __utf16__('Auto: no answer'), 0
 lbl_en_on:       dw __utf16__('Relay: on'), 0
 lbl_en_off:      dw __utf16__('Relay: off'), 0
-lbl_ru_auto:     dw __utf16__('Релей: авто'), 0
-lbl_ru_auto_off: dw __utf16__('Релей: авто (выкл)'), 0
-lbl_ru_auto_on:  dw __utf16__('Релей: авто (вкл)'), 0
+lbl_ru_checking: dw __utf16__('Авто: проверка...'), 0
+lbl_ru_direct:   dw __utf16__('Авто: напрямую'), 0
+lbl_ru_relayed:  dw __utf16__('Авто: через релей'), 0
+lbl_ru_none:     dw __utf16__('Авто: нет ответа'), 0
 lbl_ru_on:       dw __utf16__('Релей: вкл'), 0
 lbl_ru_off:      dw __utf16__('Релей: выкл'), 0
-lbl_uk_auto_off: dw __utf16__('Релей: авто (вимк)'), 0
-lbl_uk_auto_on:  dw __utf16__('Релей: авто (увімк)'), 0
+lbl_uk_checking: dw __utf16__('Авто: перевірка...'), 0
+lbl_uk_direct:   dw __utf16__('Авто: напряму'), 0
+lbl_uk_none:     dw __utf16__('Авто: без відповіді'), 0
 lbl_uk_on:       dw __utf16__('Релей: увімк'), 0
 lbl_uk_off:      dw __utf16__('Релей: вимк'), 0
-lbl_de_auto_off: dw __utf16__('Relay: auto (aus)'), 0
-lbl_de_auto_on:  dw __utf16__('Relay: auto (an)'), 0
+lbl_de_checking: dw __utf16__('Auto: prüfe...'), 0
+lbl_de_direct:   dw __utf16__('Auto: direkt'), 0
+lbl_de_relayed:  dw __utf16__('Auto: über Relay'), 0
+lbl_de_none:     dw __utf16__('Auto: keine Antwort'), 0
 lbl_de_on:       dw __utf16__('Relay: an'), 0
 lbl_de_off:      dw __utf16__('Relay: aus'), 0
-lbl_pl_auto_off: dw __utf16__('Relay: auto (wył.)'), 0
-lbl_pl_auto_on:  dw __utf16__('Relay: auto (wł.)'), 0
+lbl_pl_checking: dw __utf16__('Auto: sprawdzam...'), 0
+lbl_pl_direct:   dw __utf16__('Auto: bezpośrednio'), 0
+lbl_pl_relayed:  dw __utf16__('Auto: przez relay'), 0
+lbl_pl_none:     dw __utf16__('Auto: brak odpowiedzi'), 0
 lbl_pl_on:       dw __utf16__('Relay: wł.'), 0
 lbl_pl_off:      dw __utf16__('Relay: wył.'), 0
 
@@ -2023,31 +2033,31 @@ tip_uk: dw __utf16__(`Релей — другий сервер: він пере�
 tip_de: dw __utf16__(`Das Relay ist ein zweiter Server, der dein Spiel weiterleitet, wenn dein Anbieter unseren sperrt.\r\nAuto: über das Relay nur, wenn der direkte Weg gesperrt ist.\r\nAn: immer über das Relay (höherer Ping).\r\nAus: nie.\r\nKlicke auf das Zahnrad, um zu wählen.\r\n\r\nJetzt: `), 0
 tip_pl: dw __utf16__(`Relay to drugi serwer, który przekazuje twoją grę, gdy dostawca blokuje nasz.\r\nAuto: przez relay tylko wtedy, gdy droga bezpośrednia jest zablokowana.\r\nWł.: zawsze przez relay (wyższy ping).\r\nWył.: nigdy.\r\nKliknij koło zębate, aby wybrać.\r\n\r\nTeraz: `), 0
 
-now_en_1:       dw __utf16__('auto, checking...'), 0
+now_en_1:       dw __utf16__('auto: checking the connection...'), 0
 now_en_2:       dw __utf16__('auto: direct.'), 0
 now_en_3:       dw __utf16__('auto: through the relay (higher ping): direct did not answer.'), 0
 now_en_4:       dw __utf16__('auto: the server does not answer.'), 0
 now_en_5:       dw __utf16__('on: through the relay.'), 0
 now_en_6:       dw __utf16__('off: direct.'), 0
-now_ru_1:       dw __utf16__('авто, проверка...'), 0
+now_ru_1:       dw __utf16__('авто: проверка соединения...'), 0
 now_ru_2:       dw __utf16__('авто: напрямую.'), 0
 now_ru_3:       dw __utf16__('авто: через релей (пинг выше): напрямую ответа нет.'), 0
 now_ru_4:       dw __utf16__('авто: сервер не отвечает.'), 0
 now_ru_5:       dw __utf16__('вкл: через релей.'), 0
 now_ru_6:       dw __utf16__('выкл: напрямую.'), 0
-now_uk_1:       dw __utf16__('авто, перевірка...'), 0
+now_uk_1:       dw __utf16__('авто: перевірка з’єднання...'), 0
 now_uk_2:       dw __utf16__('авто: напряму.'), 0
 now_uk_3:       dw __utf16__('авто: через релей (пінг вищий): напряму відповіді немає.'), 0
 now_uk_4:       dw __utf16__('авто: сервер не відповідає.'), 0
 now_uk_5:       dw __utf16__('увімк: через релей.'), 0
 now_uk_6:       dw __utf16__('вимк: напряму.'), 0
-now_de_1:       dw __utf16__('Auto, prüfe...'), 0
+now_de_1:       dw __utf16__('Auto: prüfe die Verbindung...'), 0
 now_de_2:       dw __utf16__('Auto: direkt.'), 0
 now_de_3:       dw __utf16__('Auto: über das Relay (höherer Ping): direkt keine Antwort.'), 0
 now_de_4:       dw __utf16__('Auto: der Server antwortet nicht.'), 0
 now_de_5:       dw __utf16__('An: über das Relay.'), 0
 now_de_6:       dw __utf16__('Aus: direkt.'), 0
-now_pl_1:       dw __utf16__('auto, sprawdzam...'), 0
+now_pl_1:       dw __utf16__('auto: sprawdzam połączenie...'), 0
 now_pl_2:       dw __utf16__('auto: bezpośrednio.'), 0
 now_pl_3:       dw __utf16__('auto: przez relay (wyższy ping): bezpośrednio brak odpowiedzi.'), 0
 now_pl_4:       dw __utf16__('auto: serwer nie odpowiada.'), 0

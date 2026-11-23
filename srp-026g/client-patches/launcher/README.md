@@ -786,21 +786,24 @@ shows; the launcher only shows it and passes the pick on.
   gear's pictures (the launcher's own art: PNG 308, under the pointer 309,
   pressed 310; its settings gear left the top panel with patch 8) at 28, 46
   of the panel, and beside it, at 53, 47, in the torrent box's font, the
-  state: "Relay: auto", "Relay: on", "Relay: off", and in auto what the
-  probe picked, "Relay: auto (on)" or "Relay: auto (off)". Five languages
-  ("Релей: авто (вкл)", "Релей: авто (увімк)", "Relay: auto (an)", "Relay:
-  auto (wł.)"; Ukrainian, the widest, about 140 pixels, ends before the
-  status line at x 200). Hidden until the updater says what it shows:
-  without `updater_skhid.relay`, or with an older updater, there is no row.
-  A tooltip (comctl32's, 30 s) says in a few lines what the relay is, the
-  three choices, and what the row is now (in auto, the route the probe
-  picked, or that it is checking). It says what the relay costs: "On:
-  always through the relay (higher ping)", and for auto on the relay "auto:
-  through the relay (higher ping): direct did not answer."
+  state: "Relay: on", "Relay: off", and in auto what the updater's check
+  (run when the launcher opens, so that PLAY never waits on one) does or
+  found: "Auto: checking...", "Auto: direct", "Auto: via relay", "Auto: no
+  answer" (the owner, 2026-11-23: a wait the player cannot see is no good;
+  until then "Relay: auto", "auto (on)", "auto (off)"). Five languages
+  ("Авто: через релей", "Авто: без відповіді", "Auto: über Relay", "Auto:
+  brak odpowiedzi"; Ukrainian's 19 letters, the widest, about 140 pixels,
+  end before the status line at x 200). Hidden until the updater says what
+  it shows: without `updater_skhid.relay`, or with an older updater, there
+  is no row. A tooltip (comctl32's, 30 s) says in a few lines what the
+  relay is, the three choices, and what the row is now (in auto, the route
+  the check found, or that it is checking the connection). It says what the
+  relay costs: "On: always through the relay (higher ping)", and for auto
+  on the relay "auto: through the relay (higher ping): direct did not
+  answer."
 - **The views** (message `0A <view>` of the updater, its one byte
-  `updater_logic::route::Shown::byte`): 1 auto, probing; 2 auto, direct
-  ("auto (off)"); 3 auto, the relay ("auto (on)"); 4 auto, neither answered;
-  5 on; 6 off. The original launcher's dispatch ignored 0A..0D (their table
+  `updater_logic::route::Shown::byte`): 1 auto, checking; 2 auto, direct;
+  3 auto, the relay; 4 auto, neither answered; 5 on; 6 off. The original launcher's dispatch ignored 0A..0D (their table
   entries are the handlers' end, 0x16093): 0A's (0x160C2, a relocated dword)
   is now `route_message`; any other byte is ignored, and an older launcher
   ignores the message altogether.

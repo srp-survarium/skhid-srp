@@ -132,7 +132,7 @@ one.
 | `updater_skhid.exe check quiet` | a script | No box either. Exit code 0: done or nothing to do; 1: failed (the reason is in the log) |
 | `updater_skhid.exe check ... torrent` / `direct` | `Skhid-get.bat` (`check torrent`), the tests (`direct`) | `check` takes torrent as the word says, else as the launcher keeps its "Allow torrent": user.cfg's `enable_torrent_seeding on` (`<Documents>\survarium\user.cfg`, as the language), taken only once the launcher's one-time reset is done (`launcher_skhid.torrent_reset` beside user.cfg, launcher patch 15); else off |
 | `updater_skhid.exe ready` (`quiet`: no box) | `play_skhid.bat`, `play_skhid.sh` before they start the game | Reads only: no lock, no server, nothing written but the log. Exit code 1 (and a box that says to start the launcher) when the last patch step did not end `ready` (a new overlay since, too), or the patch files are not now what its list says (one missing, damaged, or one more; looked at with the quick check); else 0 |
-| `updater_skhid.exe play [<game options>]` (`quiet`: no box; `wait`: stays until the game ends, exit code 1 when it ended with an error) | the launcher's PLAY and the play scripts (`wait quiet`), in a download with `updater_skhid.relay` | Starts the game on the player's route ("The route" below): the relay, unprobed; direct, probed; Automatic: the server itself when it answers, else the relay (`srp-026g/deploy/relay/README.md`). A round of a route answers when its login TCP, lobby UDP and match UDP each echo 64 KiB each way within 5 s (`route/src/lib.rs` `PROBE_BYTES`, `ROUND`; "The check" below): some providers cut a flow to foreign hosting after its first tens of KB. A route that does not answer is told apart in a box with Retry (no internet, the server offline, the relay down); blocked here while the relay answers, the launcher's row turns to auto and Retry goes through the relay (`quiet`: at once); a server that restarts is probed every 5 s while its box counts the seconds, and the game starts by itself once it answers. With `-server=` or `-match_replay=` among the options, or no `updater_skhid.relay`, the game is started as given. Exit code 1 when the route does not answer or the patches are not ready |
+| `updater_skhid.exe play [<game options>]` (`quiet`: no box; `wait`: stays until the game ends, exit code 1 when it ended with an error) | the launcher's PLAY and the play scripts (`wait quiet`), in a download with `updater_skhid.relay` | Starts the game at once on the player's route ("The route" below), unchecked: the relay; direct; Automatic, the route found (`launcher_skhid.route_found`: what the launcher's check found when it opened, or the relay for one game after a game lost its direct link) (`srp-026g/deploy/relay/README.md`). Only in Automatic with no route found yet does PLAY check the routes itself ("The check" below: seconds), in a box that says so and closes itself ("Checking the connection to the server...", in the launcher's language; `quiet`: no box). A check that finds no route is told apart in a box with Retry (no internet, the server offline, the relay down); blocked here while the relay answers, the launcher's row turns to auto and Retry goes through the relay (`quiet`: at once); a server that restarts is probed every 5 s while its box counts the seconds, and the game starts by itself once it answers. With `-server=` or `-match_replay=` among the options, or no `updater_skhid.relay`, the game is started as given. Exit code 1 when the route does not answer or the patches are not ready |
 | `updater_skhid.exe replay <id> <token> <sha256> <size>` | the patched game (patch revision 14) | "Watch replay": fetches one replay and starts a second game that plays it (below). A problem is a message box |
 | `updater_skhid.exe replay <id> <token> <sha256> <size> quiet` | the tests | The same with no window at all: the problem is in the log and the exit code (1) |
 | `"<exe>" seed \\.\pipe\skhid_seed-<pid>` | the patched game, started by the launcher with "Allow torrent" on: from its login screen on, matches too | Shares the folder's revision torrent until the game closes its pipe (the game's end); answers the game's stats switch. No window, no box, no lock, nothing fetched or installed; its own run logs, in `updater_skhid.seed-logs\` ("BitTorrent" below). Anything after `seed` but the game's pipe: exit code 1 |
@@ -271,20 +271,45 @@ launcher crashed at PLAY a minute later.
 In a download with a relay (`updater_skhid.relay`), the player's route is
 one of three (`logic/src/route.rs`, `exe/src/route.rs`, the one owner):
 
-- **Automatic**: PLAY checks the server's own login and lobby/match ports
-  and starts the game there when they answer, and through the relay only
-  when the direct route fails its check ("The check" below); the
-  updater's HTTPS asks the site directly, then through the relay's CONNECT
-  service (the way that answered last first).
+- **Automatic**: the updater checks the server's own login and lobby/match
+  ports when the launcher opens, beside the update, and PLAY starts the
+  game there when they answered, and through the relay only when the direct
+  route failed its check ("The check" below); the updater's HTTPS asks the
+  site directly, then through the relay's CONNECT service (the way that
+  answered last first).
 - **Relay**: PLAY starts the game through the relay, unprobed; HTTPS goes
   through the relay only.
-- **Direct**: never the relay. PLAY probes (a direct route that does not
-  answer is told why).
+- **Direct**: never the relay. PLAY starts the game directly; the check runs
+  when the launcher opens all the same, for a block.
 
-Found blocked (the direct route does not answer, the relay does:
-"Blocked on this network"), the choice moves to Automatic by itself,
-saved: the launcher's row reads "Relay: auto (on)" from then on, as the
-message says, and the player's to change.
+Found blocked (the direct route does not answer, the relay does: the
+launcher's check, or "Blocked on this network" of the update or of PLAY's
+own check), the choice moves to Automatic by itself, saved: the launcher's
+row reads "Auto: via relay" from then on, and the player's to change.
+
+**PLAY never waits on the launcher's check.** What a check found is kept for
+PLAY in `<Documents>\survarium\launcher_skhid.route_found` (one word,
+`logic/src/route.rs` `Found`, one transition `Found::learn`): `direct`,
+`relay`, or `direct-lost`. PLAY in Automatic starts by it at once, also
+while a check still runs (the route that worked last time); that check's
+route is saved for the next game (the updater, its launcher closed at
+PLAY, ends only once its check has: a few seconds). With none found yet (the
+first start after this updater, or Documents not writable) the launcher's
+PLAY stays off until the check has found one, the row saying "Auto:
+checking..." meanwhile (the update itself mostly takes longer); a PLAY
+started some other way (the play scripts) checks itself, in its box.
+
+**A direct link lost in a game.** When the launcher opens in Automatic, the
+updater reads the newest game's engine log (`game\logs\Survarium_<user>.<stamp>.log`,
+`route::last_game`): a game that connected to another address than the
+relay's and whose link timed out on the way (`disconnected by timeout`, the
+lobby's, then its reconnects; `close_current_match
+[disconnected_by_connection_lost]`, the match's) makes the next game go
+through the relay (`direct-lost`), whatever a check finds of the direct
+route meanwhile: the check had found it whole before that game too. That
+one game through the relay ends it: the next check decides again. A server
+that restarts mid-game (a release) ends links the same way, so after one
+the next game goes through the relay too.
 
 It is kept in `<Documents>\survarium\launcher_skhid.route` (one word:
 `automatic`, `relay`, `direct`; the Windows user's, as user.cfg). Before
@@ -295,16 +320,17 @@ saves it at once, so that from then on it is the player's. Under Wine the
 region is the prefix's (`HKCU\Control Panel\International\Geo`), the United
 States unless set: Direct.
 
-The launcher shows it in its "Relay" row (launcher patch 16): "Relay: auto",
-"on" or "off", and in auto what the probe picked, "auto (on)" or "auto
-(off)"; three states in words, not a tick box, which has two. The updater
-sends `0A <view>` at its start (Automatic: "probing", then what the probe
-found, in a thread of its own); a click on the row's gear opens a menu of
-the three, and on its pick (`22`, `23`, `24`: auto, on, off) the updater
-saves the choice, says the new view and runs the update again by it. One
-function, `route::Shown::on`, takes what the row shows and what happened (a
-pick, a probe's end, a block found) to what it shows next, the choice to
-save and whether to probe.
+The launcher shows it in its "Relay" row (launcher patch 16): "Relay: on",
+"Relay: off", and in auto what the check does or found: "Auto: checking...",
+"Auto: direct", "Auto: via relay", "Auto: no answer" (in the launcher's five
+languages); three states in words, not a tick box, which has two. The
+updater sends `0A <view>` at its start (Automatic: checking, then what the
+check found, in a thread of its own); a click on the row's gear opens a
+menu of the three, and on its pick (`22`, `23`, `24`: auto, on, off) the
+updater saves the choice, says the new view and runs the update again by
+it. One function, `route::Shown::on`, takes what the row shows and what
+happened (a pick, a check's end, a block found) to what it shows next, the
+choice to save and whether to check; a pick drops a check still running.
 
 **The check** (`logic/src/route.rs` `Check`, the one rule; the probes in
 `route/src/lib.rs`). Through the relay the game's ping is higher (about 60 ms
@@ -312,41 +338,54 @@ measured on 2026-11-20), and the route holds for the whole game, so the
 relay is taken only when the direct route really fails. A round is the three
 probes together (login TCP, lobby UDP, match UDP), each carrying 64 KiB each
 way (`PROBE_BYTES`: a provider that cuts a flow after its first tens of KB
-fails it), 5 s at most (`ROUND`: some 200 KB each way, 1.6 s at 1 Mbit/s,
-with time to send again what was lost; a UDP probe's missing datagrams are
-sent again every 0.5 s); the direct route's next round starts no sooner than
-5 s after the one before, so its rounds are spread over the seconds.
+fails it). A probe fails once its flow has not moved for 1 s (`STALL`: no
+connection, no byte or datagram of the echo more; a UDP probe's missing
+datagrams are sent again every 0.5 s), and a flow that still moves has 5 s
+(`ROUND`: some 200 KB each way, 1.6 s at 1 Mbit/s). So a block, silent or
+cutting a flow after some KB, is known in about a second, not at a round's
+end. The direct route's next round starts no sooner than 1 s after the one
+before (`SPREAD`), so a refused one is not asked again at once.
 
 - Any round whose three probes all answer: direct, at once (the usual case:
-  one round, as long as the answers take).
-- Nothing of the direct route answers: 3 rounds (15 s), then the relay.
+  one round, as long as the answers take: well under a second on a normal
+  link).
+- Nothing of the direct route answers: 3 rounds, then the relay.
 - A probe of it answered in a round where another was lost or cut (the
   login TCP, say, and a UDP probe not): packets lost on the way, or a block
-  of a part, and more rounds tell which: 5 rounds (25 s), then the relay. A
-  block that passes TCP and drops or cuts UDP still ends at the relay.
-- The last game played direct: one more round (4, or 6).
+  of a part, and more rounds tell which: 5 rounds, then the relay. A block
+  that passes TCP and drops or cuts UDP still ends at the relay.
+- Direct found last (`route_found`): one more round (4, or 6).
 - The relay has one round: it answers whole, or neither route does.
 
-At most 6 rounds of the direct route and the relay's one: 35 s. The
-server's name is asked of DNS once for a check: a slow answer is waited for
-by the next round, not asked anew.
+How long a check takes (on loopback in `route/src/lib.rs`'s tests, a second
+more allowed there; a real link adds its round trips):
 
-The route PLAY starts a game by after a check is kept beside the choice, in
-`<Documents>\survarium\launcher_skhid.route_played` (one word: `direct` or
-`relay`; written when it changes; not written for the relay chosen, which
-is not checked). It is the next check's evidence (the one more round after
-`direct`), never a shortcut past it.
+| The direct route | The check | PLAY waits |
+|---|---|---|
+| answers whole | 1 round: the echo's time, well under 1 s | nothing |
+| refused (port closed, no network) | 3 rounds 1 s apart, then the relay: about 2 s | nothing |
+| silent (dropped, no answer) | 3 rounds of 1 s, then the relay: about 3 s (4 s after direct found last) | nothing |
+| every flow cut after some KB | as silent, once each has stalled: about 3 s | nothing |
+| login TCP passes, UDP dropped or cut | 5 rounds of about 1 s, then the relay: about 5 s (6 s after direct found last) | nothing |
+| a slow link whose echo moves but never completes | up to 5 s a round: 35 s at most (6 rounds and the relay's) | nothing |
+| any, with no route found yet | as above | the launcher's PLAY comes on with the check's end, the row saying "Auto: checking..."; a PLAY of the scripts checks itself, its box saying so |
+
+The relay's own round is as fast as its answer. The server's name is asked
+of DNS once for a check (1 s a round: a slow answer is waited for by the
+next round, not asked anew).
 
 The log has every check, of PLAY and of the launcher's row (`route:`), with
-each round and each probe that failed:
+each round and each probe that failed, and what PLAY started by:
 
 ```
-play: route check (last game direct): direct in 1 round: (1) answered -> Direct(203.0.113.5:8010)
-play: route check (last game direct): direct in 4 rounds: (1) login TCP TimedOut, lobby UDP TimedOut, match UDP TimedOut; (2) ...; (4) ...; relay: answered -> Relay(203.0.113.8:8010)
-play: route check (last game none): direct in 2 rounds: (1) login TCP ok, lobby UDP TimedOut, match UDP ok; (2) answered -> Direct(203.0.113.5:8010)
+route: the last game (...\game\logs\Survarium_x.2026-11-23_10-00-00.log): Direct { lost: false }
+route: route check (found before: direct): direct in 1 round: (1) answered -> Direct(203.0.113.5:8010) in 84 ms
+route: route check (found before: relay): direct in 3 rounds: (1) login TCP TimedOut, lobby UDP TimedOut, match UDP TimedOut; (2) ...; (3) ...; relay: answered -> Relay(203.0.113.8:8010) in 3112 ms
+route: found relay saved (Checked(Relay))
+play: Relay 203.0.113.8:8010 (relay), unchecked
 ```
 
-A box that waits for a server that restarts asks one round every few
+A box that waits for a server that restarts (PLAY's own check's) asks one round every few
 seconds; the check runs when it goes on.
 
 A request through the relay is one of a WinHTTP session opened with the
@@ -397,7 +436,7 @@ update is tried again) and the row is never told to change:
 | nothing | no relay; PC online | No connection: a firewall may block the game (`Skhid-network-setup.cmd`) |
 | the site (the relay was the route) | nothing | The relay does not answer: set "Relay" to auto or off |
 
-PLAY's probe (the game's login and lobby/match ports) goes through the same
+PLAY's own check (the game's login and lobby/match ports) goes through the same
 function, a site that answers but game ports that do not counting as "the
 site only": blocked when the relay's ports answer, else no connection.
 

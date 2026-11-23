@@ -1,24 +1,28 @@
 //! The player's route to the game servers, in a download with a relay
 //! (`updater_skhid.relay`, `srp-026g/deploy/relay/README.md`): the launcher's
-//! "Relay" row (launcher patch 16: "Relay: auto", "on", "off", and a menu of
-//! the three) shows it and changes it, the updater keeps it (`<Documents>\survarium\launcher_skhid.route`, beside user.cfg:
-//! the Windows user's, as the language) and PLAY and the updater's HTTPS
-//! follow it.
+//! "Relay" row (launcher patch 16: "Relay: on", "off", in auto what the
+//! check does or found, and a menu of the three) shows it and changes it,
+//! the updater keeps it (`<Documents>\survarium\launcher_skhid.route`, beside
+//! user.cfg: the Windows user's, as the language) and PLAY and the updater's
+//! HTTPS follow it.
 //!
-//! PLAY's check of the routes ([`Check`]) takes the relay only when the
-//! direct route really fails: several rounds of its probes over a few
-//! seconds, more once a part of it has answered (loss, not a block), one more
-//! when the last game played direct ([`PLAYED_FILE`]).
+//! The check of the routes ([`Check`]) runs when the launcher opens, beside
+//! the update, and takes the relay only when the direct route really fails:
+//! several short rounds of its probes, more once a part of it has answered
+//! (loss, not a block), one more when direct was found last. What it found
+//! is kept ([`FOUND_FILE`], [`Found`]), and PLAY in Automatic starts by that
+//! at once: PLAY never waits on a check of the launcher's.
+
+use core::net::Ipv4Addr;
 
 use crate::diagnosis::Via;
 
 /// Beside user.cfg: the player's [`Choice`], one word.
 pub const CHOICE_FILE: &str = "launcher_skhid.route";
 
-/// Beside [`CHOICE_FILE`]: the route PLAY last started a game by after its
-/// check ([`played`]), one word. Evidence for the next check, never a
-/// shortcut past it.
-pub const PLAYED_FILE: &str = "launcher_skhid.route_played";
+/// Beside [`CHOICE_FILE`]: the route PLAY starts the next game by in
+/// Automatic ([`Found`]), one word.
+pub const FOUND_FILE: &str = "launcher_skhid.route_found";
 
 /// Rounds of the direct route's probes that a check runs while nothing of
 /// it answers.
@@ -27,27 +31,130 @@ pub const SILENT_ROUNDS: u8 = 3;
 /// TCP, say, while a UDP probe was lost): packets are lost on the way, or a
 /// part is blocked, and only more rounds tell which.
 pub const HEARD_ROUNDS: u8 = 2;
-/// One more round when the last game played direct.
+/// One more round when direct was found last.
 pub const PLAYED_ROUNDS: u8 = 1;
 
 fn first_word(text: &[u8]) -> Option<&[u8]> {
     text.split(|&byte| byte <= b' ').find(|word| !word.is_empty())
 }
 
-/// [`PLAYED_FILE`]'s text: its first word.
-pub fn played(text: &[u8]) -> Option<Via> {
-    match first_word(text)? {
-        b"direct" => Some(Via::Direct),
-        b"relay" => Some(Via::Relay),
-        _ => None,
+/// The route PLAY starts the next game by in Automatic: what the last check
+/// found, or what the last game showed of the direct route.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Found {
+    /// The direct route answered whole.
+    Direct,
+    /// The direct route failed its rounds and the relay answered whole.
+    Relay,
+    /// A game played direct lost its connection on the way: the next game
+    /// goes through the relay, whatever a check finds meanwhile (the direct
+    /// route answered that game's check too).
+    DirectLost,
+}
+
+/// What tells the next game's route.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Learned {
+    /// A check found this route whole (the relay: the direct route failed).
+    Checked(Via),
+    /// The last game played direct and lost its connection ([`last_game`]).
+    Lost,
+    /// PLAY started a game by [`Found::via`].
+    Played,
+}
+
+impl Found {
+    /// [`FOUND_FILE`]'s text: its first word.
+    pub fn parse(text: &[u8]) -> Option<Self> {
+        match first_word(text)? {
+            b"direct" => Some(Self::Direct),
+            b"relay" => Some(Self::Relay),
+            b"direct-lost" => Some(Self::DirectLost),
+            _ => None,
+        }
+    }
+
+    pub fn word(self) -> &'static str {
+        match self {
+            Self::Direct => "direct",
+            Self::Relay => "relay",
+            Self::DirectLost => "direct-lost",
+        }
+    }
+
+    /// The route PLAY starts a game by.
+    pub fn via(self) -> Via {
+        match self {
+            Self::Direct => Via::Direct,
+            Self::Relay | Self::DirectLost => Via::Relay,
+        }
+    }
+
+    /// The one transition. A check's route is kept, except that a direct
+    /// route lost in a game is not taken back by a check until a game has
+    /// gone through the relay.
+    pub fn learn(found: Option<Self>, learned: Learned) -> Option<Self> {
+        match (found, learned) {
+            (_, Learned::Lost) => Some(Self::DirectLost),
+            (Some(Self::DirectLost), Learned::Checked(Via::Direct)) => Some(Self::DirectLost),
+            (_, Learned::Checked(Via::Direct)) => Some(Self::Direct),
+            (_, Learned::Checked(Via::Relay)) => Some(Self::Relay),
+            (Some(Self::DirectLost), Learned::Played) => Some(Self::Relay),
+            (found, Learned::Played) => found,
+        }
     }
 }
 
-pub fn played_word(via: Via) -> &'static str {
-    match via {
-        Via::Direct => "direct",
-        Via::Relay => "relay",
+/// What a game's engine log (`game\logs\Survarium_<user>.<stamp>.log`, game
+/// patch 147) shows of its route.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum LastGame {
+    /// It connected to no server (a replay, a game closed at once).
+    Unconnected,
+    /// Its servers were the relay's address.
+    Relayed,
+    /// It connected to another address than the relay's; `lost`: a link of
+    /// it timed out on the way (the lobby's, then reconnecting, or the
+    /// match's).
+    Direct { lost: bool },
+}
+
+/// The engine's lines: each connection the game opens (login's lobby and
+/// match addresses, by the route the game came by), and a link that ended
+/// unasked.
+const CONNECTING: &[u8] = b"connecting from ";
+const LOST: [&[u8]; 3] = [
+    b"disconnected by timeout",
+    b"close_current_match [disconnected_by_connection_lost]",
+    b"close_current_match [disconnected_on_expired_multipacket_ordered_message]",
+];
+
+/// The last game's route by its engine log, `relay` the relay's address.
+pub fn last_game(log: &[u8], relay: Ipv4Addr) -> LastGame {
+    let (mut direct, mut relayed, mut lost) = (false, false, false);
+    for line in log.split(|&byte| byte == b'\n') {
+        if let Some(at) = find(line, CONNECTING) {
+            // "connecting from 0.0.0.0:54264 to 64.176.67.220:1235"
+            let target = line[at..].split(|&byte| byte == b' ').nth(4).unwrap_or_default();
+            let host = target.split(|&byte| byte == b':').next().unwrap_or_default();
+            match core::str::from_utf8(host).ok().and_then(|host| host.parse::<Ipv4Addr>().ok()) {
+                Some(address) if address == relay => relayed = true,
+                Some(_) => direct = true,
+                None => {}
+            }
+        } else if LOST.iter().any(|text| find(line, text).is_some()) {
+            lost = true;
+        }
     }
+    match (direct, relayed) {
+        (true, _) => LastGame::Direct { lost },
+        (false, true) => LastGame::Relayed,
+        (false, false) => LastGame::Unconnected,
+    }
+}
+
+fn find(line: &[u8], text: &[u8]) -> Option<usize> {
+    line.windows(text.len()).position(|window| window == text)
 }
 
 /// Windows' GeoID of Russia (`GetUserGeoID(GEOCLASS_NATION)`), where
@@ -141,7 +248,7 @@ pub enum Heard {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Check {
     /// `rounds` of the direct route have run, none answered whole. `last`:
-    /// the route the last game played by.
+    /// the route found last ([`Found::via`]).
     Direct { rounds: u8, heard: Heard, last: Option<Via> },
     /// The direct route failed its rounds.
     Relay,
@@ -171,7 +278,7 @@ impl Check {
     /// The one transition. Any round of the direct route that answers
     /// whole is direct, at once. While none does, its rounds go on:
     /// [`SILENT_ROUNDS`], [`HEARD_ROUNDS`] more once a part of it has
-    /// answered, [`PLAYED_ROUNDS`] more when the last game played direct.
+    /// answered, [`PLAYED_ROUNDS`] more when direct was found last.
     /// Then the relay's one round decides.
     pub fn on(self, round: Round) -> Next {
         match (self, round) {
@@ -191,8 +298,9 @@ impl Check {
 }
 
 /// What the launcher's row shows: the choice and, in [`Choice::Automatic`],
-/// the route the probe picked (`None` while it runs): "Relay: on", "off",
-/// "auto", "auto (on)", "auto (off)".
+/// the route the check found (`None` while it runs): "Relay: on", "Relay:
+/// off", "Auto: checking...", "Auto: direct", "Auto: via relay", "Auto: no
+/// answer".
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Shown {
     Automatic(Option<Probed>),
@@ -223,9 +331,14 @@ pub struct Step {
 }
 
 impl Shown {
-    /// The row at the start, for the saved choice.
+    /// The row at the start, for the saved choice. Direct is checked too,
+    /// for a block (the row shows "off" meanwhile): found, it turns to
+    /// Automatic before PLAY is pressed.
     pub fn start(choice: Choice) -> Step {
-        Self::step(choice, None)
+        Step {
+            probe: choice != Choice::Relay,
+            ..Self::step(choice, None)
+        }
     }
 
     fn step(choice: Choice, save: Option<Choice>) -> Step {
@@ -249,11 +362,11 @@ impl Shown {
         }
     }
 
-    /// The one transition. A probe that ends after the player picked
-    /// another row than Automatic is dropped; one that ends after they came
-    /// back is taken (it is a few seconds old at most). A block moves the
-    /// choice to Automatic, whose probe then picks the relay: saved and
-    /// shown as a pick, the player's to change.
+    /// The one transition. A probe's end is the one the row last asked for
+    /// (a pick drops one still running: `Step::probe` false). A block moves
+    /// the choice to Automatic, through the relay: saved and shown as a
+    /// pick, the player's to change. The check of Direct at the start finds
+    /// one when it ends at the relay; a block the update finds is checked.
     pub fn on(self, event: Event) -> Step {
         match (self, event) {
             (_, Event::Chosen(choice)) => Self::step(choice, Some(choice)),
@@ -261,6 +374,11 @@ impl Shown {
             (Self::Automatic(None), Event::Probed(probed)) => Step {
                 shown: Self::Automatic(Some(probed)),
                 save: None,
+                probe: false,
+            },
+            (Self::Direct, Event::Probed(Probed::Relay)) => Step {
+                shown: Self::Automatic(Some(Probed::Relay)),
+                save: Some(Choice::Automatic),
                 probe: false,
             },
             (shown, Event::Probed(_)) => Step {
@@ -355,14 +473,14 @@ mod tests {
     }
 
     #[test]
-    fn a_game_played_direct_gives_the_direct_route_one_more_round() {
+    fn direct_found_last_gives_the_direct_route_one_more_round() {
         use Round::*;
         let direct = Some(Via::Direct);
         assert_eq!(check(direct, &[Silent, Silent, Silent, Answered]), (Probed::Direct, 4, 0));
         assert_eq!(check(direct, &[Silent, Silent, Silent, Silent, Answered]), (Probed::Relay, 4, 1));
         assert_eq!(check(direct, &[Partly, Partly, Partly, Partly, Partly, Answered]), (Probed::Direct, 6, 0));
         assert_eq!(check(direct, &[Partly, Partly, Partly, Partly, Partly, Partly, Answered]), (Probed::Relay, 6, 1));
-        // Not after one that played through the relay, nor before any.
+        // Not after the relay was found, nor before anything was.
         for last in [None, Some(Via::Relay)] {
             assert_eq!(check(last, &[Silent, Silent, Silent, Answered]), (Probed::Relay, 3, 1));
         }
@@ -391,21 +509,61 @@ mod tests {
     }
 
     #[test]
-    fn the_played_route_is_one_word() {
-        for via in [Via::Direct, Via::Relay] {
-            assert_eq!(played(played_word(via).as_bytes()), Some(via));
-            assert_eq!(played(alloc::format!("{}\r\n", played_word(via)).as_bytes()), Some(via));
+    fn the_found_route_is_one_word() {
+        for found in [Found::Direct, Found::Relay, Found::DirectLost] {
+            assert_eq!(Found::parse(found.word().as_bytes()), Some(found));
+            assert_eq!(Found::parse(alloc::format!("{}\r\n", found.word()).as_bytes()), Some(found));
         }
-        for bad in ["", "\r\n", "Direct", "automatic", "relays"] {
-            assert_eq!(played(bad.as_bytes()), None, "{bad}");
+        for bad in ["", "\r\n", "Direct", "automatic", "relays", "direct-lost-"] {
+            assert_eq!(Found::parse(bad.as_bytes()), None, "{bad}");
         }
+    }
+
+    #[test]
+    fn a_direct_route_lost_in_a_game_gives_one_game_through_the_relay() {
+        use Learned::*;
+        let learn = |found, steps: &[Learned]| steps.iter().fold(found, |found, &step| Found::learn(found, step));
+        // A check's route is kept, and PLAY starts by it.
+        assert_eq!(learn(None, &[Checked(Via::Direct)]), Some(Found::Direct));
+        assert_eq!(learn(Some(Found::Direct), &[Checked(Via::Relay), Played]), Some(Found::Relay));
+        assert_eq!(learn(Some(Found::Relay), &[Checked(Via::Direct), Played]), Some(Found::Direct));
+        assert_eq!(learn(None, &[Played]), None);
+        // Lost on the way: a check that finds direct whole again does not take
+        // it back; the game after it goes through the relay; then checks rule.
+        let lost = learn(Some(Found::Direct), &[Lost, Checked(Via::Direct)]);
+        assert_eq!((lost, lost.map(Found::via)), (Some(Found::DirectLost), Some(Via::Relay)));
+        assert_eq!(learn(lost, &[Played]), Some(Found::Relay));
+        assert_eq!(learn(lost, &[Played, Checked(Via::Direct)]), Some(Found::Direct));
+        assert_eq!(learn(lost, &[Checked(Via::Relay)]), Some(Found::Relay));
+    }
+
+    #[test]
+    fn the_last_game_s_route_and_a_lost_link_are_read_from_its_log() {
+        let relay = Ipv4Addr::new(203, 0, 113, 8);
+        let lobby = |to: &str| alloc::format!("network_core <info>\t[11:33:41.943]\tconnecting from 0.0.0.0:36213 to {to}\r\n");
+        let start = alloc::format!("game <info>\t[11:33:41.940]\tLOBBY: try reconnect\r\n{}", lobby("64.176.67.220:1235"));
+        let timeout = "network_core <Warning>\t[14:29:00.042]\tclient [client] disconnected by timeout (19.069s)(24.164s)\r\n";
+        let lost_match = "game <ERROR>\t[11:06:41.000]\tnetwork_client::close_current_match [disconnected_by_connection_lost]\r\n";
+        let left = "game <ERROR>\t[11:06:41.000]\tnetwork_client::close_current_match [disconnected_by_initiator]\r\n";
+        let game = |lines: &[&str]| last_game(lines.concat().as_bytes(), relay);
+        assert_eq!(game(&[]), LastGame::Unconnected);
+        assert_eq!(game(&[timeout]), LastGame::Unconnected);
+        assert_eq!(game(&[&start, left]), LastGame::Direct { lost: false });
+        assert_eq!(game(&[&start, timeout, &start]), LastGame::Direct { lost: true });
+        assert_eq!(game(&[&start, lost_match]), LastGame::Direct { lost: true });
+        let relayed = lobby("203.0.113.8:1235");
+        assert_eq!(game(&[&relayed, timeout, &relayed]), LastGame::Relayed);
+        // A name or a cut line is no address.
+        assert_eq!(game(&[&lobby("skhid.link:1235"), &lobby("")]), LastGame::Unconnected);
     }
 
     #[test]
     fn a_pick_is_shown_and_saved_and_automatic_probes() {
         let start = Shown::start(Choice::Automatic);
         assert_eq!(start, Step { shown: Shown::Automatic(None), save: None, probe: true });
-        assert_eq!(Shown::start(Choice::Direct), Step { shown: Shown::Direct, save: None, probe: false });
+        // Direct is checked at the start too (for a block); the relay is not.
+        assert_eq!(Shown::start(Choice::Direct), Step { shown: Shown::Direct, save: None, probe: true });
+        assert_eq!(Shown::start(Choice::Relay), Step { shown: Shown::Relay, save: None, probe: false });
         for from in [Shown::Automatic(Some(Probed::Direct)), Shown::Relay, Shown::Direct] {
             for (choice, shown, probe) in [
                 (Choice::Relay, Shown::Relay, false),
@@ -427,10 +585,22 @@ mod tests {
         for probed in [Probed::Direct, Probed::Relay, Probed::Neither] {
             let step = Shown::Automatic(None).on(Event::Probed(probed));
             assert_eq!(step, Step { shown: Shown::Automatic(Some(probed)), save: None, probe: false });
-            for shown in [Shown::Relay, Shown::Direct, Shown::Automatic(Some(Probed::Relay))] {
+            for shown in [Shown::Relay, Shown::Automatic(Some(Probed::Relay))] {
                 assert_eq!(shown.on(Event::Probed(probed)), Step { shown, save: None, probe: false });
             }
         }
+    }
+
+    #[test]
+    fn direct_checked_at_the_start_turns_to_automatic_on_a_block_only() {
+        for probed in [Probed::Direct, Probed::Neither] {
+            let shown = Shown::Direct;
+            assert_eq!(shown.on(Event::Probed(probed)), Step { shown, save: None, probe: false });
+        }
+        assert_eq!(
+            Shown::Direct.on(Event::Probed(Probed::Relay)),
+            Step { shown: Shown::Automatic(Some(Probed::Relay)), save: Some(Choice::Automatic), probe: false }
+        );
     }
 
     #[test]
