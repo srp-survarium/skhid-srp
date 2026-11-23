@@ -1469,7 +1469,7 @@ fn drive_tick_inner(
                 let unshut_landings = tuning
                     .unstick
                     .drop_shut_last_resort
-                    .then(|| stuck::without_drops(&landings))
+                    .then(|| bot.stuck.last_resort(&landings))
                     .flatten();
                 let hard_with = |landings, trap_filter: fn(&Bot, Vec<stuck::Shut>, Option<NodeId>) -> RouteFilter| {
                     let mut hard = trap_filter(bot, landings, grid.locate(me.feet, 1.5));
