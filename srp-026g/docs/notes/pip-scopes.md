@@ -107,7 +107,9 @@ the frame's draw, CPU    3.4 .. 4.8       3.0 .. 3.6   2.8 .. 3.4   3.3 .. 3.7  
   centre, the camera's axis: the second view's centre, so the reticle's centre is the shot's.
 - **The lens** is that picture drawn over the frame as a disc at the screen's centre, after the
   frame's post-process and before the interface (`render.flash_ui`), with its own two shaders, every
-  Direct3D state it sets put back. Its rim darkens over its outer 8 %. Drawn after the TAA, it has
+  Direct3D state it sets put back. Its rim darkens over its outer 8 %. The draw is PROVEN in a game without a scope:
+  `SKHID_PIP_PROBE=disc` draws the probe's picture this way (`private/renders/pip-probe/fire-station-*-lens-disc.png`;
+  a thousand frames, the interface drawn after it each frame, no fault). Drawn after the TAA, it has
   no ghost of the last frame's picture while turning (the TAA blends half of the last frame where
   nothing moves, and a lens drawn as a surface of the gun would be such a place).
 - **Magnification:** the target in the lens is as large as in today's scoped view; around the lens

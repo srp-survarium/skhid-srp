@@ -6,7 +6,8 @@
 //!   each frame, before the frame, from the frame's camera with a quarter of
 //!   its field of view, into a square window of that size, and copied into
 //!   the frame's top right corner; frame times logged;
-//! - `time`: only the frame times logged.
+//! - `time`: only the frame times logged;
+//! - `disc`: 512, drawn at the centre as the lens is (its draw seen without a scope).
 //!
 //! The draws are queued on the game's thread (`game.draw_scene`); the
 //! render thread knows the second view's draw by its scene view
@@ -48,6 +49,8 @@ const RIM_DARKNESS: f32 = 0.2;
 enum Use {
     /// Every frame, from the frame's camera, its picture in the corner.
     Probe,
+    /// The same, drawn as the lens is (`disc`): the lens's draw seen without a scope.
+    ProbeLens,
     /// While a magnified optic is aimed: its lens.
     Scopes,
 }
@@ -72,6 +75,7 @@ fn asked(probe: &[u8], scopes: &[u8]) -> Asked {
     match (size(scopes), probe, size(probe)) {
         (Some(size), _, _) => Asked::Second(Use::Scopes, size),
         (None, _, Some(size)) => Asked::Second(Use::Probe, size),
+        (None, b"disc", None) => Asked::Second(Use::ProbeLens, 512),
         (None, b"time", None) => Asked::Timing,
         _ => Asked::Off,
     }
@@ -297,7 +301,7 @@ pub fn on_draw(ctx: &mut Context<'_>) -> Flow<NoExit> {
     let view = invert_affine(&camera);
     let main = frame.main_view();
     let drawn = match used {
-        Use::Probe => {
+        Use::Probe | Use::ProbeLens => {
             frame.draw_second(&second, &view, &narrowed(&projection, ZOOM), &view, &projection);
             None
         }
@@ -418,7 +422,7 @@ pub fn on_interface(ctx: &mut Context<'_>) -> Flow<NoExit> {
         Probe::Made { second, used: Use::Probe, .. } => {
             second_view::composite(ctx, &second, MARGIN);
         }
-        Probe::Made { second, used: Use::Scopes, .. } if LENS_DUE.swap(false, Ordering::Relaxed) => {
+        Probe::Made { second, used: Use::Scopes | Use::ProbeLens, .. } if LENS_DUE.swap(false, Ordering::Relaxed) => {
             LENS.with(thread, |lens| {
                 let lens = match lens {
                     LensState::Unmade => {
