@@ -20,9 +20,13 @@ main.wiki { max-width: 1160px; gap: 0; margin-top: 28px }
 .weapon-title { display:grid; gap:5px; min-width:0 }
 .weapon-title strong { font:700 1.2rem/1.15 var(--display); overflow-wrap:anywhere }
 .weapon-title>span { color:var(--ink-3); font-size:.76rem }
-.quick-stats { margin:0; display:grid; grid-template-columns:repeat(4,1fr); gap:12px }
-.quick-stats dt { font:700 .66rem var(--display); text-transform:uppercase; color:var(--ink-3); letter-spacing:.06em; margin-bottom:5px }
-.quick-stats dd { margin:0; font:.95rem var(--data); white-space:nowrap }
+/* The same tracks in every row, whatever its texts (minmax(0,…): no column grows with its
+   content), sized for the widest header and value of any weapon in any language at 1440 px
+   (damage "20 × 10 Schrotkugeln", fire rate "СКОРОСТРЕЛЬНОСТЬ"); narrower, a text wraps in its
+   column. */
+.quick-stats { margin:0; display:grid; grid-template-columns:minmax(0,2.6fr) minmax(0,1.2fr) minmax(0,.9fr) minmax(0,.9fr); gap:12px }
+.quick-stats dt { font:700 .66rem var(--display); text-transform:uppercase; color:var(--ink-3); letter-spacing:.06em; margin-bottom:5px; overflow-wrap:break-word; hyphens:auto }
+.quick-stats dd { margin:0; font:.95rem var(--data); overflow-wrap:break-word }
 .quick-stats small { display:block; font:.62rem var(--body); margin-top:2px }
 .expand-label { color:var(--accent); font-size:.75rem; text-align:right }
 .expand-label>span { font:1.25rem var(--body); display:inline-block; margin-left:6px }
@@ -226,7 +230,7 @@ main.wiki { max-width: 1160px; gap: 0; margin-top: 28px }
 .slot-filter button:focus-visible { outline:2px solid var(--accent); outline-offset:2px }
 .slot-filter .glyph { width:34px; height:18px }
 .gear-tools { grid-template-columns:repeat(auto-fit,minmax(150px,1fr)) }
-.gear .quick-stats { grid-template-columns:repeat(3,1fr) }
+.gear .quick-stats { grid-template-columns:repeat(3,minmax(0,1fr)) }
 .gear-group { margin:22px 0 8px; font-size:1.1rem; border-bottom:1px solid var(--rule); padding-bottom:4px }
 .table-scroll { overflow-x:auto }
 .protection { border-collapse:collapse; font:.82rem var(--data); width:100% }

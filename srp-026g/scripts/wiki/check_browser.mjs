@@ -164,6 +164,50 @@ try {
   await navigate('/wiki/weapons#wpn_vityaz');
   await evaluate("document.querySelector('#wpn_vityaz-round-btn').click();document.querySelector('#wpn_vityaz-round-ammo_9x19p_7n31').click()");
   assert.equal(await evaluate("new URL(document.querySelector('#wpn_vityaz .weapon-simulate a').href).search"), '?lang=en&a=wpn_vityaz&ra=ammo_9x19p_7n31');
+  // The list's quick stats are the same columns in every row, whatever a language makes of
+  // them: Russian (the longest headers) and German (the longest damage, "× 10 Schrotkugeln"),
+  // each column's left edge one, and no text past its column, wide and on a phone.
+  for (const [width, height] of [[1440, 1000], [390, 844]]) {
+    await send('browsingContext.setViewport', {context, viewport: {width, height}, devicePixelRatio: 1});
+    for (const lang of ['ru', 'de']) {
+      await navigate(`/wiki/weapons?lang=${lang}`);
+      const columns = JSON.parse(await evaluate(`JSON.stringify((() => {
+        const lefts = [], over = [];
+        for (const dl of document.querySelectorAll('#weapon-list .quick-stats')) [...dl.children].forEach((cell, k) => {
+          const box = cell.getBoundingClientRect();
+          (lefts[k] ??= new Set()).add(Math.round(box.left));
+          for (const part of cell.children) if (part.getBoundingClientRect().right > box.right + 1) over.push(part.textContent);
+        });
+        return {lefts: lefts.map(set => set.size), over};
+      })())`));
+      assert.deepEqual(columns.lefts, [1, 1, 1, 1], `${lang} at ${width} px: one left edge a column`);
+      assert.deepEqual(columns.over, [], `${lang} at ${width} px: nothing past its column`);
+    }
+  }
+  await send('browsingContext.setViewport', {context, viewport: {width: 1440, height: 1000}, devicePixelRatio: 1});
+  // In Russian too (the words the server fills in): the list's search, class and sort, the
+  // chooser's words, and the simulators' play.
+  await navigate('/wiki/weapons?lang=ru');
+  await evaluate("window.pageErrors=[];addEventListener('error',event=>pageErrors.push(event.message))");
+  assert.equal(await evaluate("document.querySelector('h1').textContent"), 'Оружие');
+  await evaluate("document.querySelector('#weapon-search').value='АК74М';document.querySelector('#weapon-search').dispatchEvent(new Event('input'))");
+  assert.equal(await evaluate(`${visible}.length`), 1, 'search by the Russian name');
+  const russianClass = await evaluate("document.querySelector('#weapon-class').options[1].value");
+  await evaluate(`document.querySelector('#weapon-search').value='';document.querySelector('#weapon-class').value=${JSON.stringify(russianClass)};document.querySelector('#weapon-class').dispatchEvent(new Event('change'))`);
+  assert.ok(await evaluate(`${visible}.length`) >= 1);
+  assert.equal(await evaluate(`${visible}.every(e=>e.dataset.class===${JSON.stringify(russianClass)})`), true, 'class filter, Russian');
+  assert.ok(/[А-Яа-я]/.test(russianClass), `a Russian class: ${russianClass}`);
+  await evaluate("document.querySelector('#compare-a-btn').click()");
+  assert.equal(await evaluate("document.querySelector('#compare-a-list').closest('.wpick-pop').querySelector('.wpick-search').placeholder"), 'Поиск…');
+  await navigate('/wiki/simulators?lang=ru&a=wpn_ak_74m');
+  await evaluate("window.pageErrors=[];addEventListener('error',event=>pageErrors.push(event.message))");
+  const playLabel = await evaluate("document.querySelector('#recoil-sim .sim-play').textContent");
+  await evaluate("document.querySelector('#recoil-sim .sim-play').click()");
+  await evaluate('new Promise(r=>setTimeout(r,300))');
+  assert.notEqual(await evaluate("document.querySelector('#recoil-sim .sim-play').textContent"), playLabel, 'play turns to pause, Russian');
+  assert.ok(Number(await evaluate("document.querySelector('#recoil-sim .sim-time').value")) > 0, 'play advances, Russian');
+  assert.ok(/[А-Яа-я]/.test(await evaluate("document.querySelector('#recoil-sim .sim-legend').textContent")), 'the legend in Russian');
+  assert.equal(await evaluate("JSON.stringify(window.pageErrors)"), '[]', 'no script errors, Russian');
   // The simulators: one or two weapons' recoil and spread.
   const sim = selector => `document.querySelector('#recoil-sim ${selector}')`;
   const choose = (selector, value) => evaluate(`{const s=${sim(selector)};s.value='${value}';s.dispatchEvent(new Event('change'))}`);
@@ -401,7 +445,7 @@ try {
   await send('browsingContext.setViewport', {context, viewport: {width:390,height:844}, devicePixelRatio:1});
   assert.equal(await evaluate('document.documentElement.scrollWidth <= innerWidth'), true, 'equipment fits mobile');
   await screenshot('equipment-mobile-uk');
-  console.log(`PASS: ${total} weapons; image choosers/search/keyboard/mobile, catalogue, full stat comparison, equality/neutral colors, same weapon, simulators: recoil step/scrub/reset, spread by aim, stance, skills, gloves and arms, recoil modifications, help lines (hover, keyboard, tap), EN/UK, 360 px and CSP.`);
+  console.log(`PASS: ${total} weapons; image choosers/search/keyboard/mobile, catalogue, full stat comparison, equality/neutral colors, same weapon, simulators: recoil step/scrub/reset, spread by aim, stance, skills, gloves and arms, recoil modifications, help lines (hover, keyboard, tap), EN/UK/RU, the list's columns in RU/DE, 360 px and CSP.`);
   await send('session.end');
 } finally {
   await send('session.end').catch(() => {});
