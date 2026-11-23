@@ -784,7 +784,6 @@ impl WalkGrid {
             linked.extend(wide.off[off..].iter().take_while(|o| o.from == a).map(|o| o.to));
             linked
         };
-        let way = rim_way;
         // [C2 rows 11/12] A plain Jump link's own top is no link yet for its flight: the flown link may replace it.
         let plain: Vec<bool> =
             todo.iter().map(|&(a, b, d)| self.flown_jump(wide, a as usize, d) && wide.links[a as usize][d] == b).collect();
@@ -804,21 +803,9 @@ impl WalkGrid {
             .filter(|((_, p), _)| p.made.is_empty() && p.near)
             .map(|((&t, p), &plain)| (t, plain, p.under))
             .collect();
-        let aimed = super::controlled::parallel(&near, |&((a, b, d), plain, line_under)| {
-            // [C2 rows 11/12] As in the flights above: a plain Jump link's own top is no link yet.
-            let mut linked = linked(a);
-            if plain {
-                linked.retain(|&n| n != b);
-            }
-            let lands = |st: &[FlightStep]| self.rim_lands_on(st, a, &linked);
-            let sweep = self.best_aimed(world, s, a, b, way(d), &lands, kits);
-            // [item 10] Neither the line's presses nor the aimed ones made it, or [item 10b] the aimed press made it at share 0
-            // (one exact press no neighbour backs: a bot's press error fails it), and a let-go sprint came to rest under the
-            // top: the held sprints (`Kind::SprintHeld`).
-            let held = (sweep.made.is_none_or(|m| m.share == Share::landed(0)) && (line_under || sweep.under))
-                .then(|| self.best_held(world, s, a, b, way(d), &lands, kits));
-            (sweep, held)
-        });
+        // [incremental grids PR 6] Through the job memo (site `rim.aimed`, [`rim_aimed_job`]), as the line's flights above; with
+        // the memo off (the default), `parallel` over the same job.
+        let aimed = self.fly_rim_aimed(world, s, &near, kits, &linked, memo);
         let mut stats = RimStats { tried: todo.len(), aimed_tried: near.len(), ..RimStats::default() };
         let aimed_of: std::collections::HashMap<(u32, u32), Made> = near
             .iter()
@@ -1170,6 +1157,152 @@ impl WalkGrid {
     }
 }
 
+/// [incremental grids PR 6] What `fly_rim_todo` keeps of a jump's aimed and held sweeps: the aimed sweep, and the held one
+/// (its press, its flights) where it was flown.
+pub(super) type AimedAndHeld = (AimedSweep, Option<(Option<Made>, usize)>);
+
+/// [incremental grids PR 6] One job of the rim aimed site: a jump no press on the line made, one of whose line flights came
+/// near its top ([`RimPress::near`]): the jump (take-off `a`, top `b`, way `d`), whether it is a plain Jump link's own top,
+/// whether a let-go sprint of the line's presses came to rest under the top ([`RimPress::under`], the held sweep's bound), the
+/// floors `a` has a link to already (less `b` for a plain Jump link), and the digest of the floors in its window.
+#[derive(Clone, Debug)]
+pub(super) struct RimAimedItem {
+    a: NodeId,
+    b: NodeId,
+    d: usize,
+    plain: bool,
+    line_under: bool,
+    linked: Vec<NodeId>,
+    window: u128,
+}
+
+crate::memo_ctx! {
+    /// [incremental grids PR 6] The rim aimed site's context: the walk caps, the reach and the window (hashed), and the grid,
+    /// the world and the tick's settings, read through the items' windows and the memo's global inputs.
+    pub(super) struct RimAimedCtx<'a> {
+        kits: Kits,
+        reach_m: f32,
+        window_cells: i64,
+    } through {
+        grid: &'a WalkGrid,
+        world: &'a Collision,
+        s: &'a Settings,
+    }
+}
+
+/// [incremental grids PR 6] A rim aimed job's result: the aimed sweep ([`WalkGrid::best_aimed`]), the held sweep where it was
+/// flown ([`WalkGrid::best_held`]: the press, the flights), and how far from the take-off their flights went (the window's
+/// check).
+#[derive(Clone, Debug, Default)]
+pub(super) struct RimAimedOut {
+    sweep: AimedSweep,
+    held: Option<(Option<Made>, usize)>,
+    reach_m: f32,
+}
+
+/// [incremental grids PR 6] The rim aimed site's key of a job: its floors by their stable ids, its way, the plain-top and
+/// under flags, the floors it has links to, and its window.
+fn rim_aimed_key(_: &RimAimedCtx<'_>, ids: &StableIds, item: &RimAimedItem) -> u128 {
+    let mut d = Digest128::default();
+    ids.id(item.a).feed(&mut d);
+    ids.id(item.b).feed(&mut d);
+    d.u64(item.d as u64);
+    item.plain.feed(&mut d);
+    item.line_under.feed(&mut d);
+    d.u64(item.linked.len() as u64);
+    for &n in &item.linked {
+        ids.id(n).feed(&mut d);
+    }
+    d.u128(item.window);
+    d.finish()
+}
+
+/// [incremental grids PR 6] The rim aimed site's job, as `fly_rim_todo` flew it: the aimed sweep from `a` toward `b`, then
+/// [item 10] the held sprints (`Kind::SprintHeld`) where neither the line's presses nor the aimed ones made the jump, or
+/// [item 10b] the aimed press made it at share 0 (one exact press no neighbour backs: a bot's press error fails it), and a
+/// let-go sprint came to rest under the top; and the farthest any step of their flights went from the take-off.
+fn rim_aimed_job(ctx: &RimAimedCtx<'_>, item: &RimAimedItem) -> RimAimedOut {
+    let grid = ctx.grid;
+    let takeoff = grid.position(item.a);
+    let reach = std::cell::Cell::new(0.0f32);
+    let lands = |st: &[FlightStep]| {
+        for f in st {
+            reach.set(reach.get().max(f.feet.distance_xz(takeoff)));
+        }
+        grid.rim_lands_on(st, item.a, &item.linked)
+    };
+    let way = rim_way(item.d);
+    let sweep = grid.best_aimed(ctx.world, ctx.s, item.a, item.b, way, &lands, ctx.kits);
+    let held = (sweep.made.is_none_or(|m| m.share == Share::landed(0)) && (item.line_under || sweep.under))
+        .then(|| grid.best_held(ctx.world, ctx.s, item.a, item.b, way, &lands, ctx.kits));
+    RimAimedOut { sweep, held, reach_m: reach.get() }
+}
+
+impl WalkGrid {
+    /// [incremental grids PR 6] `fly_rim_todo`'s aimed and held sweeps through the memo's site `rim.aimed`
+    /// ([`rim_aimed_job`]), each result at its jump's place. With the memo on, a press point or a flight past
+    /// [`RIM_LINE_REACH_M`] stops the build, as for the line's flights ([`Self::fly_rim_line`]).
+    pub(super) fn fly_rim_aimed(
+        &self,
+        world: &Collision,
+        s: &Settings,
+        near: &[((u32, u32, usize), bool, bool)],
+        kits: Kits,
+        linked: &impl Fn(NodeId) -> Vec<NodeId>,
+        memo: &mut Memo,
+    ) -> Vec<AimedAndHeld> {
+        let on = memo.mode() != Mode::Off;
+        let reach_m = RIM_LINE_REACH_M;
+        let window_cells = ((reach_m + self.body.radius + OWN_TOP_FLAT_M + self.cell) / self.cell).ceil() as i64;
+        let windows = on.then(|| Windows::of_floors(self));
+        let items: Vec<RimAimedItem> = near
+            .iter()
+            .map(|&((a, b, d), plain, line_under)| {
+                // [C2 rows 11/12] As in the line's flights: a plain Jump link's own top is no link yet.
+                let mut linked = linked(a);
+                if plain {
+                    linked.retain(|&n| n != b);
+                }
+                let window = windows.as_ref().map_or(0, |w| w.around(self.cell_of[a as usize] as usize, window_cells));
+                RimAimedItem { a, b, d, plain, line_under, linked, window }
+            })
+            .collect();
+        if on {
+            // The press points: either sweep's last lead, the neighbours' lead and side about it, and the widest aim's side.
+            let n = jump::neighbourhood();
+            let aim_m = AIMS
+                .iter()
+                .map(|&(side, turn)| Aim::new(side, turn).expect("an aim in range").side_m().abs())
+                .fold(0.0f32, f32::max);
+            let press_m = AIMED_LEADS.iter().chain(&HELD_LEADS).copied().fold(0.0f32, f32::max)
+                + n.iter().map(|n| n.lead.abs()).fold(0.0f32, f32::max)
+                + n.iter().map(|n| n.side.abs()).fold(0.0f32, f32::max)
+                + aim_m;
+            assert!(
+                press_m <= reach_m,
+                "memo: ERROR site rim.aimed: a press point {press_m} m from its take-off, past the window's {reach_m} m"
+            );
+        }
+        let ctx = RimAimedCtx { kits, reach_m, window_cells, grid: self, world, s };
+        let site = Site { id: "rim.aimed", source: crate::source::site("rim.aimed") };
+        let out = memo.run(site, self, &ctx, &items, rim_aimed_key, rim_aimed_job);
+        if on {
+            let farthest = out.iter().map(|o| o.reach_m).fold(0.0f32, f32::max);
+            eprintln!(
+                "memo: rim.aimed: {} jumps, the farthest flight {farthest:.2} m from its take-off (window {reach_m} m, \
+                 {window_cells} cells)",
+                out.len()
+            );
+            assert!(
+                farthest <= reach_m,
+                "memo: ERROR site rim.aimed: a flight went {farthest} m from its take-off, past the window's {reach_m} m \
+                 (RIM_LINE_REACH_M)"
+            );
+        }
+        out.into_iter().map(|o| (o.sweep, o.held)).collect()
+    }
+}
+
 /// [incremental grids PR 5] The memo's codecs of the rim line site's results: every field, the floors by their stable ids.
 impl MemoCodec for Made {
     const TAG: u32 = 0x4d41_4401;
@@ -1229,6 +1362,44 @@ impl MemoCodec for RimLineOut {
     }
     fn decode(input: &mut Codec<'_>) -> Option<Self> {
         Some(RimLineOut { press: RimPress::decode(input)?, reach_m: input.f32()? })
+    }
+}
+
+/// [incremental grids PR 6] The rim aimed site's results: every field.
+impl MemoCodec for AimedSweep {
+    const TAG: u32 = 0x5241_5301;
+    fn encode(&self, out: &mut Codec<'_>) {
+        self.made.encode(out);
+        out.put_u32(u32::try_from(self.flights).expect("a sweep's flights fit 32 bits"));
+        self.under.encode(out);
+    }
+    fn decode(input: &mut Codec<'_>) -> Option<Self> {
+        Some(AimedSweep { made: Option::<Made>::decode(input)?, flights: input.u32()? as usize, under: bool::decode(input)? })
+    }
+}
+
+impl MemoCodec for RimAimedOut {
+    const TAG: u32 = 0x5241_4f01;
+    fn encode(&self, out: &mut Codec<'_>) {
+        self.sweep.encode(out);
+        match self.held {
+            None => out.put_u8(0),
+            Some((made, flights)) => {
+                out.put_u8(1);
+                made.encode(out);
+                out.put_u32(u32::try_from(flights).expect("a sweep's flights fit 32 bits"));
+            }
+        }
+        out.put_f32(self.reach_m);
+    }
+    fn decode(input: &mut Codec<'_>) -> Option<Self> {
+        let sweep = AimedSweep::decode(input)?;
+        let held = match input.u8()? {
+            0 => None,
+            1 => Some((Option::<Made>::decode(input)?, input.u32()? as usize)),
+            _ => return None,
+        };
+        Some(RimAimedOut { sweep, held, reach_m: input.f32()? })
     }
 }
 
@@ -1622,10 +1793,11 @@ mod tests {
         assert!(!up_off, "no rim jumps: no gap link reaches 1.10 m");
     }
 
-    /// [incremental grids PR 5] The rim line site through the memo builds the full build's grid, byte for byte
-    /// ([`WalkGrid::digest_full`]) and in memory (every field of every off link: the file keeps a walking press's share as a
-    /// count only, so equal bytes alone would not show a lost share bit): a memo written by one build (`write-only`), taken whole by the next (`use`: every job a hit),
-    /// and run again and compared at every hit (`verify=1`), on the 1.30 m top the rim jumps get onto.
+    /// [incremental grids PR 5, PR 6] The rim sites through the memo (`rim.line`, `rim.aimed`) build the full build's grid, byte
+    /// for byte ([`WalkGrid::digest_full`]) and in memory (every field of every off link: the file keeps a walking press's share
+    /// as a count only, so equal bytes alone would not show a lost share bit): a memo written by one build (`write-only`), taken
+    /// whole by the next (`use`: every job of every site a hit), and run again and compared at every hit (`verify=1`), on the
+    /// 1.30 m top the rim jumps get onto.
     #[test]
     fn a_rim_line_memo_build_is_the_full_build() {
         let b = body(true);
@@ -1646,17 +1818,27 @@ mod tests {
             assert_eq!(grid.off_links(), &full_off[..], "{what}: the off links in memory, every field");
         };
         let site = |memo: &Memo| memo.stats.iter().find(|s| s.site == "rim.line").cloned().expect("the rim line site ran");
+        // Every call of every site (`fly_rim_todo` runs twice: the rim jumps, the landing carry).
+        let all = |memo: &Memo, what: &str, ok: &dyn Fn(&crate::grid::memo::SiteStats) -> bool| {
+            assert!(memo.stats.iter().any(|s| s.site == "rim.aimed"), "{what}: the rim aimed site ran");
+            for s in &memo.stats {
+                assert!(ok(s), "{what}: {s:?}");
+            }
+        };
         let mut written = Memo::new(Mode::WriteOnly, dir.clone(), 7);
         same(build(&mut written), "write-only");
         let w = site(&written);
         assert!(w.items > 0 && w.written == w.items, "{w:?}");
+        all(&written, "write-only", &|s| s.written == s.items && s.hits == 0);
         let mut used = Memo::new(Mode::Use, dir.clone(), 7);
         same(build(&mut used), "use");
         let u = site(&used);
         assert!(u.hits == u.items && u.misses == 0 && u.errors == 0, "{u:?}");
+        all(&used, "use", &|s| s.hits == s.items && s.misses == 0 && s.errors == 0);
         let mut verified = Memo::new(Mode::Verify { per_million: 1_000_000 }, dir.clone(), 7);
         same(build(&mut verified), "verify=1");
         assert_eq!(site(&verified).verified, u.items);
+        all(&verified, "verify=1", &|s| s.verified == s.items && s.errors == 0);
         let mut other_world = Memo::new(Mode::Use, dir.clone(), 8);
         same(build(&mut other_world), "another world's global inputs");
         assert_eq!(site(&other_world).hits, 0, "a key of another world takes nothing");
@@ -1700,5 +1882,42 @@ mod tests {
         let back = RimLineOut::decode(&mut r).expect("reads back");
         assert!(r.done());
         assert_eq!(format!("{back:?}"), format!("{out:?}"));
+    }
+
+    /// [incremental grids PR 6] A rim aimed result reads back as it was written: the sweep with and without a press, the held
+    /// sweep flown with and without one and not flown, the flags and the reach; the shares' masks are not the lowest bits (a
+    /// walking press's too), which the memo keeps whole.
+    #[test]
+    fn a_rim_aimed_result_reads_back() {
+        let (grid, _, _) = onto(1.30, true);
+        let ids = StableIds::of(&grid).expect("stable floor names");
+        let lead = PressLead::from_metres(1.2);
+        let scattered = Share::landed(3).with_bits(0b1010_0001).expect("three bits of the neighbourhood");
+        let made = |i: usize, press: Takeoff| Made {
+            to: (i * 7 % grid.len()) as NodeId,
+            press,
+            share: scattered,
+            walk: i.is_multiple_of(2).then_some((PressLead::from_metres(0.6), Share::landed(2).with_bits(0b0100_0100).expect("two bits"))),
+            aim: Aim::new(4, -2).expect("an aim in range"),
+            walker_lands: i % 2 == 1,
+        };
+        let outs = [
+            RimAimedOut { sweep: AimedSweep { made: Some(made(0, Takeoff::Sprint(lead))), flights: 4_321, under: true }, held: None, reach_m: 7.5 },
+            RimAimedOut {
+                sweep: AimedSweep { made: None, flights: 17, under: false },
+                held: Some((Some(made(1, Takeoff::SprintHeld(lead))), 99)),
+                reach_m: 3.25,
+            },
+            RimAimedOut { sweep: AimedSweep { made: Some(made(2, Takeoff::Press(lead))), flights: 0, under: false }, held: Some((None, 5)), reach_m: 0.0 },
+        ];
+        for out in outs {
+            let mut w = Codec::writer(&ids);
+            out.encode(&mut w);
+            let bytes = w.into_bytes();
+            let mut r = Codec::reader(&ids, &bytes);
+            let back = RimAimedOut::decode(&mut r).expect("reads back");
+            assert!(r.done());
+            assert_eq!(format!("{back:?}"), format!("{out:?}"));
+        }
     }
 }
