@@ -86,37 +86,49 @@ Each one a decision; the owner's are marked, the rest are the port's and open to
 - **Maps:** the nine stock levels in their weathers, as 0.46c2 has them (`level_0N/<w>_7` or
   `<w>_ah`; its `_v1`.. variants are other layouts of the same maps and are left out).
   Every other team map (the owner, 2026-11-21: "let's add artifact hunt to all other non FFA-only
-  maps too"), which 0.46c2 never had, takes its own battery mode's: the artefact's spawn points
-  are its battery spawners' items, lifted by `drop_lift`; a team's base the stock maps' box
-  (`item/storage_device/box_atlant8c`, its render visual and collision as artefact-hunt-1's projects
-  have them; the owner, 2026-11-23: "you should use exactly the same prop for storing artifact") at
-  its battery container's place and turn, its foot on the floor the container stood on (the
-  container and the props by it give way), its use shape the box itself (make_pack's `BOX_HALF` x
-  `BOX_HEIGHT`), on a copy of the map's Team Deathmatch project (its spawns, but one a box stands on:
-  Rudnya v0.69's `team2/respawn/4/respawn_point(124)`, where its container stood; each base checked
-  on its own team's side). Concrete stands under the boxes are parked for later (the owner,
-  2026-11-23: "with slabs we will work later"; the research is in PR #2377's history). Pack `artefact-hunt-maps` (the configs)
-  and `artefact-hunt-maps-1.json` (projects, maps_dict 327-350), both made by
-  `scripts/mode-maps/make.py` (each map's id kept in its `ids.tsv`: a new map's is the next free one). Rudnya v0.69 too: 0.46c2's Rudnya points are for 0.26's geometry,
-  its bases where the battery containers stand anyway. London likewise since it plays 0.32a4's
-  projects (`london-v032-1`): maps 324-326 keep their ids and play configs of v0.32's own battery
-  mode on copies of its Team Deathmatch projects (`artefact_hunt/v032a_level_09_<weather>_ah`);
-  artefact-hunt-1's London configs and `level_09/<weather>_ah` projects are no row's.
+  maps too") is a version of one of these levels, made in another build (its project
+  `vNNNx_level_MM`: the donor's own level number, the same place in every build), and takes that
+  level's Artifact Hunt (the owner, 2026-11-23, of the battery spawners and containers they took
+  before: "not where batteries are", "there should be spawns for them in original data somewhere").
+  No build has Artifact Hunt on these maps themselves: 0.27d, 0.28, 0.31a2, 0.32a4 and 0.21d have no
+  mode, 0.45a6 only a test config; 0.46c2 and 0.69d have it on levels 01-09 alone, with the same
+  points (0.69d's `level_0N/day_ah` = 0.46c2's but four spawn points of level 03 and one of 06;
+  0.69d's `_v1`.. layouts differ more), and 0.69d's Rudnya is the one Rudnya v0.69 is ported from.
+  So each map takes artefact-hunt-1's points of its level (0.46c2's, `moves.tsv` applied): the
+  artefact's spawn points and the two bases, in the map's frame (`frame_offset`: the offset most of
+  the stock map's models stand at in the ported one; every map shares 40 to 96 % of its stock
+  level's models in place, Mamayev Kurgan v0.21 lying 7.277 m lower), each checked on the map's
+  floors with make_pack's fit report (`floors.py`, the map's `mapdata-dump`): a box's foot on the
+  floor under it; a box or a spawn point that does not fit at the nearest place it does (said in
+  the pack's notes: three boxes and four spawn points, 0.49 to 1.00 m). A base is
+  the stock maps' box (`item/storage_device/box_atlant8c`, its render visual and collision as
+  artefact-hunt-1's projects have them; the owner, 2026-11-23: "you should use exactly the same prop
+  for storing artifact"), its use shape the box itself (make_pack's `BOX_HALF` x `BOX_HEIGHT`), on
+  a copy of the map's Team Deathmatch project (its spawns, but one a box stands on: Rudnya v0.69's
+  `team2/respawn/4/respawn_point(124)`; each base checked on its own team's side). A map no stock
+  level's Artifact Hunt fits would get none (there is none). Concrete stands under the boxes are
+  parked for later (the owner, 2026-11-23: "with slabs we will work later"; the research is in PR
+  #2377's history). Pack `artefact-hunt-maps` (the configs) and `artefact-hunt-maps-1.json`
+  (projects, maps_dict 327-350), both made by `scripts/mode-maps/make.py` (each map's id kept in
+  its `ids.tsv`: a new map's is the next free one). London plays 0.32a4's projects
+  (`london-v032-1`): maps 324-326 keep their ids and play configs of level 09's points on copies of
+  v0.32's Team Deathmatch projects (`artefact_hunt/v032a_level_09_<weather>_ah`); artefact-hunt-1's
+  London configs and `level_09/<weather>_ah` projects are no row's.
 
-  | level | map | weathers | Freeze Tag | Artifact Hunt |
-  |---|---|---|---|---|
-  | 1-8 | the stock maps (8: day, evening, prerain) | 3 | 114 (Rudnya day), 400-422 | 300-323 (0.46c2) |
-  | 9 | London (v0.32) | 3 | 423-425 | 324-326 |
-  | 10 | Vostok Radar Station v0.21 | 3 | 426-428 | 327-329 |
-  | 11 | Mamayev Kurgan v0.21 | 3 | 429-431 | 330-332 |
-  | 12 | Chemical Plant v0.11 | day | 432 | 333 |
-  | 13 | Vostok Radar Station v0.11 | day | 433 | 334 |
-  | 14 | Rudnya v0.69 | day | 434 | 335 |
-  | 25 | School v0.21 | 3 | 435-437 | 336-338 |
-  | 26 | Tarakanovsky Fort v0.21 | 3 | 438-440 | 339-341 |
-  | 29 | Rudnya v0.21 | 3 | 441-443 | 342-344 |
-  | 31 | Chemical Plant v0.21 | 3 | 444-446 | 345-347 |
-  | 32 | London v0.42 | 3 | 447-449 | 348-350 |
+  | level | map | weathers | Freeze Tag | Artifact Hunt | its points |
+  |---|---|---|---|---|---|
+  | 1-8 | the stock maps (8: day, evening, prerain) | 3 | 114 (Rudnya day), 400-422 | 300-323 | 0.46c2's |
+  | 9 | London (v0.32) | 3 | 423-425 | 324-326 | level 09's |
+  | 10 | Vostok Radar Station v0.21 | 3 | 426-428 | 327-329 | level 03's |
+  | 11 | Mamayev Kurgan v0.21 | 3 | 429-431 | 330-332 | level 06's, 7.277 m lower |
+  | 12 | Chemical Plant v0.11 | day | 432 | 333 | level 04's |
+  | 13 | Vostok Radar Station v0.11 | day | 433 | 334 | level 03's |
+  | 14 | Rudnya v0.69 | day | 434 | 335 | level 01's |
+  | 25 | School v0.21 | 3 | 435-437 | 336-338 | level 02's |
+  | 26 | Tarakanovsky Fort v0.21 | 3 | 438-440 | 339-341 | level 05's |
+  | 29 | Rudnya v0.21 | 3 | 441-443 | 342-344 | level 01's |
+  | 31 | Chemical Plant v0.21 | 3 | 444-446 | 345-347 | level 04's |
+  | 32 | London v0.42 | 3 | 447-449 | 348-350 | level 09's |
 - **A mode config a map** (`mode.mode` 13, `mode.rules [93, 91, 481, 94]`; "The exe" says why) with
   0.46c2's `mode.parameters` under their own names, and the map's mode data in world space. What
   reads each key:
