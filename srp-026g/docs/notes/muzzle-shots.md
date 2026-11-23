@@ -33,8 +33,12 @@ where no sight is looked through.
 
 ## What follows from it
 
-- **From the hip the centre of the screen is not the bullet.** The HUD's crosshair has to show
-  where the barrel looks (to do, with the HUD movie).
+- **From the hip the centre of the screen is not the bullet.** The HUD's crosshair is put where
+  the own player's gun looks: the place its shot's line first meets the level (150 m along it
+  otherwise), through the frame's camera (the hud movie's `srp_crosshair_at`). Drawing only.
+- **The gun is posed at the shot's own time.** The game's copy was the eye of the step before (up
+  to 50 ms old), which in a burst carried the hands clip's camera turn of the pass before (the
+  H&K 416, the M4A1: up to 0.67 degrees). Those bullets now go where the sights show.
 - **Bots** fire from the hip (`key::FIRE` alone, `bots/aimpoint.rs`) and aim their view: their
   shots now go where their gun looks. Their aim has to take the gun's line (to do).
 - **Replays** of games before the revision that ships this play out otherwise: a row in
