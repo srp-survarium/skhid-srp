@@ -18,6 +18,9 @@ import os
 import re
 import sys
 
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "released-game"))
+from game_maps import ARTEFACT_HINT  # noqa: E402
+
 source, target = sys.argv[1], sys.argv[2]
 shot_motions = json.load(open(sys.argv[3], encoding="utf-8")) if len(sys.argv) > 3 else {}
 
@@ -77,7 +80,6 @@ LANGUAGES = {"uk": "ukrainian", "ru": "russian", "de": "german", "pl": "polish",
 strings_in = {code: load(f"localization__{folder}__localization.json")["strings"]
               if os.path.exists(os.path.join(source, f"localization__{folder}__localization.json")) else {}
               for code, folder in LANGUAGES.items()}
-strings_uk = strings_in["uk"]
 
 
 def text(key):
@@ -88,10 +90,6 @@ def text_in(code, key):
     """The string in language `code`, or None where the game has none."""
     value = strings_in[code].get(key, "").strip()
     return value or None
-
-
-def text_uk(key):
-    return text_in("uk", key)
 
 
 def texts(field, key):
@@ -252,7 +250,8 @@ for file in files("gameplay__items__artefacts__"):
         **ui(cfg),
         "name": text(cfg["ui_desc"]["text_descriptions"]["name"]) if cfg["ui_desc"]["text_descriptions"]["name"] in strings
         else pickup_name(key, strings, r"\s*(.+?) artifact\.") or key,
-        "name_uk": text_uk(cfg["ui_desc"]["text_descriptions"]["name"]) or pickup_name(key, strings_uk, r"\s*Артефакт (.+?)\."),
+        **{f"name_{c}": text_in(c, cfg["ui_desc"]["text_descriptions"]["name"])
+           or pickup_name(key, strings_in[c], r"\s*" + ARTEFACT_HINT[c]) for c in LANGUAGES},
         "cooldown_s": r(d.get("cooldown_sec", 0)),
         "passive": {k: r(v) for k, v in (d.get("passive") or {}).items()},
         "active": {k: r(v) if not isinstance(v, (dict, list)) else v for k, v in (d.get("active") or {}).items()},
@@ -261,9 +260,9 @@ for file in files("gameplay__items__artefacts__"):
         # What the game says of it: at the pickup (its passive) and at the
         # activation ("%s": the active's seconds).
         "pickup_hint": text(d["pickup_hint"]) if d.get("pickup_hint") in strings else None,
-        "pickup_hint_uk": text_uk(d.get("pickup_hint", "")),
+        **texts("pickup_hint", d.get("pickup_hint", "")),
         "activation_hint": text(d["activation_hint"]) if d.get("activation_hint") in strings else None,
-        "activation_hint_uk": text_uk(d.get("activation_hint", "")),
+        **texts("activation_hint", d.get("activation_hint", "")),
     }
     if artefacts[key]["active"].get("duration") is not None:
         artefacts[key]["active"]["duration_s"] = artefacts[key]["active"]["duration"]
@@ -431,11 +430,12 @@ for s in skills_tree:
         step = float(re.search(r"\d+(?:\.\d+)?", printed).group(0))
         postfix = s["ui"].get("postfix", "")
         skills[SKILLS[s["id"]]] = {
-            "id": s["id"], "name": text(s["ui"]["name"]), "name_uk": text_uk(s["ui"]["name"]), "ranks": s["levels_amount"],
+            "id": s["id"], "name": text(s["ui"]["name"]), **texts("name", s["ui"]["name"]), "ranks": s["levels_amount"],
             "step": r(step / 100 if postfix == "st_percent_postfix" else step),
-            "description": text(s["ui"]["description"]), "description_uk": text_uk(s["ui"]["description"]),
+            "description": text(s["ui"]["description"]), **texts("description", s["ui"]["description"]),
             # The postfix as the game has it (" s", "%"): its own space or none.
-            "rank": printed + strings.get(postfix, "").rstrip(), "rank_uk": printed + strings_uk.get(postfix, "").rstrip() if strings_uk.get(postfix) else None}
+            "rank": printed + strings.get(postfix, "").rstrip(),
+            **{f"rank_{c}": printed + strings_in[c][postfix].rstrip() if strings_in[c].get(postfix) else None for c in LANGUAGES}}
 recovery = {"gear": gear, "boosters": boosters}
 
 for table in (weapons, armour):
@@ -448,27 +448,28 @@ for table in (weapons, armour):
 # Walls a bullet goes through (survarium::bullet::try_pierce 0x32D960): the
 # player's picks, each a group of materials of game_materials/game.materials
 # that share one `armor`, in its order; named as retail names materials where
-# they fit. The armour is the game's; a group whose materials differ stops the build.
+# they fit (in the page's words: ui.js WALLS). The armour is the game's; a group whose materials
+# differ stops the build.
 WALL_GROUPS = (
-    ("Glass", "Скло", ("glass", "glass_car", "foliage_deciduous", "foliage_coniferous", "cloth", "plastic", "paper")),
-    ("Car", "Автомобіль", ("metal_car", "metal_gas_tank")),
-    ("Plywood", "Фанера", ("wood_thin", "glass_hard", "rubber")),
-    ("Tinplate", "Бляха", ("metall_thin", "schiefer")),
-    ("Brick, steel", "Цегла, сталь", ("brick", "metall_thick", "wood_tree")),
-    ("Concrete", "Бетон", ("concrete",)),
-    ("Stone", "Камінь", ("stone",)),
+    ("Glass", ("glass", "glass_car", "foliage_deciduous", "foliage_coniferous", "cloth", "plastic", "paper")),
+    ("Car", ("metal_car", "metal_gas_tank")),
+    ("Plywood", ("wood_thin", "glass_hard", "rubber")),
+    ("Tinplate", ("metall_thin", "schiefer")),
+    ("Brick, steel", ("brick", "metall_thick", "wood_tree")),
+    ("Concrete", ("concrete",)),
+    ("Stone", ("stone",)),
 )
 materials = {m["name"]: m for m in load("game_materials__game.materials.json")["materials"] if not m.get("deleted")}
 walls = []
-for name, name_uk, members in WALL_GROUPS:
+for name, members in WALL_GROUPS:
     armor = {r(materials[m]["physic"]["armor"]) for m in members}
     if len(armor) != 1:
         sys.exit(f"wall {name!r}: its materials' armor differs: {sorted(armor)}")
-    walls.append({"name": name, "name_uk": name_uk, "armor": armor.pop(), "materials": list(members)})
+    walls.append({"name": name, "armor": armor.pop(), "materials": list(members)})
 walls.sort(key=lambda w: w["armor"])
 
 # Map names (st_<level>_name), for the map picker.
-level_names = {k.removeprefix("st_").removesuffix("_name"): {"en": v.strip(), "uk": text_uk(k)}
+level_names = {k.removeprefix("st_").removesuffix("_name"): {"en": v.strip(), **{c: text_in(c, k) for c in LANGUAGES}}
                for k, v in strings.items() if k.startswith("st_level_") and k.endswith("_name")}
 
 # The wiki's simulators (scripts/wiki/spread.js, recoil.js): the player's

@@ -75,7 +75,10 @@ class Texts:
         return self._place({"game": complete(by_code)})
 
     def markup(self, by_code):
-        """HTML the build made in each language (of the game's texts, escaped), as it is."""
+        """HTML the build made in each language (of the game's texts, escaped), as it is;
+        nothing where it is empty in every one."""
+        if not any(by_code.values()):
+            return ""
         return self._place({"html": complete(by_code)})
 
     def attribute_json(self, value):

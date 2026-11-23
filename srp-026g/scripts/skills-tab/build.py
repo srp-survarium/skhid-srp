@@ -36,7 +36,8 @@ are the page's hover, locked and excluded states; its skillProgressIndicator
 `angleStep` apart) is drawn for every number of ranks taken (its frames
 `filled` below the rank, `empty` above it), for the planner.
 
-Writes <out>/skills.<lang>.html (the wiki page's body, the server adds the
+Writes <out>/skills.html and skills.texts.json (the wiki page's body in every language,
+scripts/site-texts; the server fills it in and adds the
 site's header), <out>/icons/<id>.webp, <out>/skills.js (the tooltip: hover, taps, keys;
 placed out of the page's flow; and the planner: ranks taken by clicks, the
 points and the level they need), <out>/files.rs (those files, for the
@@ -64,13 +65,13 @@ HERE = Path(__file__).resolve().parent
 SRP = HERE.parents[1]
 sys.path.insert(0, str(SRP / "scripts" / "released-game"))
 sys.path.insert(0, str(SRP.parent / "tools" / "actionscript"))
+sys.path.insert(0, str(SRP / "scripts" / "site-texts"))
 from released import LIST, die, extract, offered, write_built_from  # noqa: E402
+from texts import CODES, DICTIONARIES, LANG, Texts  # noqa: E402
 from game_maps import load  # noqa: E402
 import swf  # noqa: E402
 
-WANTED = ["gameplay/skills/skills_tree.options", "localization/english/localization",
-          "localization/ukrainian/localization", "flash_movies/lobby_menu.swf"]
-LANGS = {"en": "english", "uk": "ukrainian"}
+WANTED = ["gameplay/skills/skills_tree.options", *DICTIONARIES, "flash_movies/lobby_menu.swf"]
 # The tabs' names, by branch: the exe's table (fill_character_data, 0x224828).
 BRANCHES = ("st_shooting_skills_label", "st_physical_skills_label", "st_survival_skills_label",
             "st_engineering_skills_label", "st_anomaly_skills_label")
@@ -79,22 +80,15 @@ NUMERALS = ("I", "II", "III", "IV", "V", "VI")
 SITE = "/skills"
 ICON_SIZE = 128
 TYPES = {"webp": "image/webp", "js": "text/javascript; charset=utf-8"}
-# The page's own words; the rest is the game's.
+# The page's own words (the site's, site-texts); the rest is the game's. The planner's
+# (skills.js): the points a build spends, the level that has them, and what the level is in
+# matches and hours at what a match is now (the server's levels section).
 WORDS = {
-    "title": ("Skills", "Навички"),
-    "wiki": ("Wiki", "Вікі"),
-    "or": ("or", "або"),
-    "max": ("Maximum:", "Максимум:"),
-    # The planner (skills.js): the points a build spends, the level that has them, and what the
-    # level is in matches and hours at what a match is now (the server's levels section).
-    "spent": ("Points", "Очки"),
-    "level": ("Level", "Рівень"),
-    "matches": ("matches", "матчів"),
-    "hours": ("h", "год"),
-    "reset": ("Reset", "Скинути"),
-    "hint": ("Click a skill to add a rank, right-click to take one back.",
-             "Клік додає ранг, правий клік забирає."),
-    "hint-touch": ("Tap a skill, then + or −.", "Торкніться навички, потім + або −."),
+    "title": ("Skills", ""), "wiki": ("Wiki", ""), "or": ("or", "skill"), "max": ("Maximum:", ""),
+    "spent": ("Points", "skills"), "level": ("Level", ""), "matches": ("matches", "skills"),
+    "hours": ("h", "unit"), "reset": ("Reset", ""),
+    "hint": ("Click a skill to add a rank, right-click to take one back.", ""),
+    "hint-touch": ("Tap a skill, then + or −.", ""),
 }
 # The lobby's skill renderer, and its sprites for the states: hovered, locked (its tier not
 # reached), excluded (another skill excluding it is hovered).
@@ -111,15 +105,6 @@ PLACE_OBJECT2, PLACE_OBJECT3, REMOVE_OBJECT, REMOVE_OBJECT2, SHOW_FRAME, DEFINE_
 
 def version(blob):
     return hashlib.sha256(blob).hexdigest()[:12]
-
-
-def points(lang, n):
-    """`n` skill points, in words."""
-    if lang == "en":
-        return f"{n} point" + ("" if n == 1 else "s")
-    tens, ones = n % 100, n % 10
-    word = "очко" if ones == 1 and tens != 11 else "очки" if 2 <= ones <= 4 and not 12 <= tens <= 14 else "очок"
-    return f"{n} {word}"
 
 
 def sprite_frames(tags, sprite):
@@ -364,29 +349,28 @@ def current(skill, text):
             for r in range(1, ranks + 1)]
 
 
-def markup(said):
-    """Game text as HTML: the markup (<green>) as the movie's stylesheet draws it."""
-    said = html.escape(said.strip())
+def markup(said, after=False):
+    """Game text as HTML: the markup (<green>) as the movie's stylesheet draws it. `after`:
+    text that follows another on its line (its leading space kept)."""
+    said = html.escape(said.rstrip() if after else said.strip())
     said = said.replace("&lt;green&gt;", '<span class="skill-value">').replace("&lt;/green&gt;", "</span>")
     said = re.sub(r"&lt;/?\w+&gt;", "", said).replace("\n", "<br>")
     # A value stays on its label's line.
     return re.sub(r'\s*<span class="skill-value">\s*', '&nbsp;<span class="skill-value">', said)
 
 
-def tooltip(skill, text, maximum):
+def tooltip(skill, text):
     """The tooltip's text as HTML: the lobby's line for a rank as fill_skills_properties writes
     it (description + d[0][0] + postfix + d[0][2]; no "Current value": the page has no player),
-    then, for a skill of several ranks, its value at the last rank (d[last][0] + postfix +
-    d[last][2], the lobby's text at full rank) after `maximum`; the markup (<green>) as the
-    movie's stylesheet draws it."""
+    and, for a skill of several ranks, its value at the last rank (d[last][0] + postfix +
+    d[last][2], the lobby's text at full rank), for the page to put after its "Maximum:"; the
+    markup (<green>) as the movie's stylesheet draws it."""
     said = text(skill["description"])
-    if skill["postfix"]:
-        postfix = text(skill["postfix"])
-        line = lambda d: str(d[0]) + postfix + str(d[2])
-        said += line(skill["rows"][0])
-        if skill["ranks"] > 1:
-            said += "\n" + maximum + line(skill["rows"][-1])
-    return markup(said)
+    if not skill["postfix"]:
+        return markup(said), None
+    postfix = text(skill["postfix"])
+    line = lambda d: str(d[0]) + postfix + str(d[2])
+    return markup(said + line(skill["rows"][0])), markup(line(skill["rows"][-1]), after=True) if skill["ranks"] > 1 else None
 
 
 def skills_of(raw):
@@ -411,27 +395,35 @@ def skills_of(raw):
     return tree
 
 
-def page(lang, tree, texts, urls, overlays, disc, script_url, branch_icons):
-    """The wiki page's body in `lang`."""
-    i = 0 if lang == "en" else 1
+def page(tree, texts, urls, overlays, disc, script_url, branch_icons):
+    """The wiki page's body, one for every language (site-texts): its words the site's, the
+    game's texts each language's."""
+    tx = Texts()
 
-    def text(key):
-        found = texts[lang].get(key, texts["en"].get(key))
-        if found is None:
-            die(f"{key}: in no localization")
-        return found
+    def game(make):
+        """`make(text)` in each language, `text(key)` that language's game text of `key`."""
+        def text_in(code):
+            def text(key):
+                found = texts[code].get(key, texts["en"].get(key))
+                if found is None:
+                    die(f"{key}: in no localization")
+                return found
+            return text
+        return {code: make(text_in(code)) for code in CODES}
 
-    word = lambda key: WORDS[key][i]
-    esc = html.escape
+    def word(key):
+        english, context = WORDS[key]
+        return tx.t(english, context)
+
     columns = max(s["column"] for s in tree)
-    out = [f'<p class="breadcrumb"><a href="/wiki?lang={lang}">{word("wiki")}</a> / {word("title")}</p>',
+    out = [f'<p class="breadcrumb"><a href="/wiki?lang={LANG}">{word("wiki")}</a> / {word("title")}</p>',
            f'<div class="wiki-heading"><div><h1>{word("title")}</h1></div></div>',
            # The planner's bar (skills.js fills it; without the script it stays hidden).
            f'<div class="skill-plan" hidden><span class="skill-plan-sum"><span>{word("spent")} <b data-plan="points">0</b></span>'
            f'<span>{word("level")} <b data-plan="level">0</b></span>'
            f'<span data-plan="play" data-matches="{word("matches")}" data-hours="{word("hours")}"></span></span>'
            f'<button type="button" data-plan="reset">{word("reset")}</button>'
-           f'<span class="skill-plan-hint" data-touch="{esc(word("hint-touch"))}">{word("hint")}</span></div>',
+           f'<span class="skill-plan-hint" data-touch="{word("hint-touch")}">{word("hint")}</span></div>',
            f'<div class="skill-trees" style="--disc:{disc:.4f}">']
     # The exclusions: hovering a skill locks what it excludes in red, as the lobby does.
     # (A hovered skill with a mouse; an opened one, tapped; a focused one, keyboard.)
@@ -450,20 +442,24 @@ def page(lang, tree, texts, urls, overlays, disc, script_url, branch_icons):
         # A tier's threshold: the least any of its skills needs; a skill that
         # needs more than the branch's other ranks add up to is out of reach.
         needs = {t: min(s["needs"] for s in skills if s["tier"] == t) for t in tiers}
-        out.append(f'<section class="skill-branch"><h2><span class="glyph" style="--icon:url(\'{branch_icons[branch]}\')" aria-hidden="true"></span>{esc(text(BRANCHES[branch]))}<span class="skill-branch-points"></span></h2>'
+        branch_name = tx.game(game(lambda text: text(BRANCHES[branch])))
+        out.append(f'<section class="skill-branch"><h2><span class="glyph" style="--icon:url(\'{branch_icons[branch]}\')" aria-hidden="true"></span>{branch_name}<span class="skill-branch-points"></span></h2>'
                    f'<div class="skill-grid" style="--columns:{columns}">')
         for t in tiers:
-            out.append(f'<div class="skill-tier" style="grid-row:{t}"><b>{NUMERALS[t - 1]}</b> · {points(lang, needs[t])}</div>')
+            out.append(f'<div class="skill-tier" style="grid-row:{t}"><b>{NUMERALS[t - 1]}</b> · {tx.plural("{n} point", "{n} points", needs[t])}</div>')
         for s in skills:
-            name = text(s["name"])
+            name = tx.game(game(lambda text: text(s["name"])))
             reach = sum(o["ranks"] for o in skills if o is not s and o["needs"] < s["needs"])
             locked = s["needs"] > reach
             # PerkTipRenderer: the name, a line, the text; one line unless the skill has one rank.
             wrap = " wrap" if s["ranks"] <= 1 else ""
             # The tooltip, and for the planner the "Current value" of each rank (skills.js
             # shows the one of the ranks taken).
-            now = "".join(f'<p class="skill-now">{line}</p>' for line in current(s, text))
-            tip = f'<div class="skill-tip{wrap}"><b>{esc(name)}</b><p>{tooltip(s, text, word("max"))}</p>{now}</div>'
+            now = tx.markup(game(lambda text: "".join(f'<p class="skill-now">{line}</p>' for line in current(s, text))))
+            said = tx.markup(game(lambda text: tooltip(s, text)[0]))
+            if s["postfix"] and s["ranks"] > 1:
+                said += "<br>" + word("max") + tx.markup(game(lambda text: tooltip(s, text)[1]))
+            tip = f'<div class="skill-tip{wrap}"><b>{name}</b><p>{said}</p>{now}</div>'
             badge = f'<span class="skill-or">{word("or")}</span>' if s["excludes"] else ""
             # The planner's rules (skills.js): ranks, the branch points its row needs, its row
             # (the walk's order), the skills it excludes; the indicator of each number of ranks taken.
@@ -479,11 +475,11 @@ def page(lang, tree, texts, urls, overlays, disc, script_url, branch_icons):
                 f'<span class="skill-disc"><img src="{urls[s["id"]]}" alt="" loading="lazy">'
                 f'{overlay("over")}{overlay("lock")}{overlay("lock-red") if s["id"] in excluded else ""}'
                 f'{pips}{badge}</span>'
-                f'<span class="skill-name">{esc(name)}</span>{tip}</div>')
+                f'<span class="skill-name">{name}</span>{tip}</div>')
         out.append("</div></section>")
     out.append('</div>\n<div class="skill-float" role="tooltip" hidden></div>')
     out.append(f'<script src="{script_url}" defer></script>')
-    return "\n".join(out) + "\n"
+    return "\n".join(out) + "\n", tx
 
 
 def main():
@@ -509,14 +505,15 @@ def main():
         for sub in ("script", "art"):
             shutil.rmtree(work / sub, ignore_errors=True)
         tree = skills_of(raw)
-        texts = {lang: load(raw, f"localization/{name}/localization")["strings"] for lang, name in LANGS.items()}
+        texts = {code: load(raw, path)["strings"] for code, path in zip(CODES, DICTIONARIES)}
         shutil.rmtree(out, ignore_errors=True)
         out.mkdir(parents=True)
         urls, overlays, disc, branch_icons = icons(args, raw, work, tree, out)
     shutil.copy(HERE / "skills.js", out / "skills.js")
     script_url = f"{SITE}/skills.js?v={version((out / 'skills.js').read_bytes())}"
-    for lang in LANGS:
-        (out / f"skills.{lang}.html").write_text(page(lang, tree, texts, urls, overlays, disc, script_url, branch_icons))
+    markup, texts = page(tree, texts, urls, overlays, disc, script_url, branch_icons)
+    (out / "skills.html").write_text(markup)
+    texts.write(out / "skills.texts.json")
     served = ["skills.js"] + [f"icons/{f.name}" for f in sorted((out / "icons").iterdir())]
     (out / "files.rs").write_text(
         "// Built by srp-026g/scripts/skills-tab/build.py; do not edit. The files the skills page names.\n"

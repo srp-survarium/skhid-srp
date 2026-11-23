@@ -159,14 +159,6 @@ enum Lang {
     Pt,
 }
 
-/// A language the skills page, built at a release (`release/build-site`), is
-/// written in.
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
-enum Written {
-    En,
-    Uk,
-}
-
 impl Lang {
     const ALL: [Self; 12] = [
         Self::En,
@@ -259,15 +251,6 @@ impl Lang {
             Self::Be => Language::Belarusian,
             Self::Hr => Language::Croatian,
             Self::Pt => Language::Portuguese,
-        }
-    }
-
-    /// The language a page built at a release is given in: Ukrainian for
-    /// Ukrainian, English for every other.
-    fn written(self) -> Written {
-        match self {
-            Self::Uk => Written::Uk,
-            _ => Written::En,
         }
     }
 
@@ -3048,8 +3031,6 @@ mod tests {
         for lang in Lang::ALL {
             assert_eq!(Lang::of_code(lang.code()), Some(lang));
             assert_eq!(lang.game() as usize, Lang::ALL.iter().position(|l| *l == lang).unwrap());
-            // The site's own words: Ukrainian's alone are Ukrainian.
-            assert_eq!(lang.written() == Written::Uk, lang == Lang::Uk);
         }
         // The header offers every other language, each by its own name.
         let (header, _) = site_header(Lang::Pl, true, false, None, "/");

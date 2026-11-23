@@ -72,12 +72,7 @@
   // How far (0 to 1) `time` is into the pass of the clips the series' last
   // shot started; 1 before its first shot and once the pass is over.
   function passAt(series, time) {
-    let last = -1;
-    for (const event of series.events) {
-      if (event.time > time + 1e-9) break;
-      last = event.time;
-    }
-    return last < 0 ? 1 : (time - last) / series.interval;
+    return WeaponMotions.phaseAt(series.events, series.interval, time);
   }
   // The view at `time`, where a bullet would leave: with `layers.recoil` the
   // kick between its 50 ms frames and the shake at its own moment (its clip
@@ -186,9 +181,12 @@
       const distance = Number(find('.sim-target').value) || 0, body = distance ? bodyDegrees(distance) : 0;
       // The aim (kick and shake), each bullet's hit and the spread around the
       // aim, in degrees of view: the view holds them all.
+      // A bullet's hit: the view at its shot, the camera's clip as the step
+      // before the shot left the eye (motions.js), and its own tilt in the spread.
       const hit = (series, event) => {
         const point = viewAt(series, event.time, on);
-        return {side: point.side + event.bullet.side, up: point.up + event.bullet.up};
+        const eye = on.camera ? WeaponMotions.cameraAtShot(series.motions, series.aim, series.events, series.interval, event.time) : {side: 0, up: 0};
+        return {side: point.side + eye.side + event.bullet.side, up: point.up + eye.up + event.bullet.up};
       };
       // The path drawn every 1/240 s, fine enough for the shake and a clip's pass.
       const steps = series => Array.from({length: Math.floor(series.duration * 240) + 1}, (_, i) => i / 240);
