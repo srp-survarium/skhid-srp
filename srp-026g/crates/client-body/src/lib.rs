@@ -674,23 +674,31 @@ pub mod verdict {
             && ticks.windows(2).rev().take(n).all(|w| w[1].on_ground && (w[1].feet - w[0].feet).length() < STILL_M)
     }
 
+    /// A landing's rest may lie this far under the landing point, at most, m (and at least [`UP_MIN_M`], half the rise between).
+    pub const UP_UNDER_M: f32 = 0.35;
+    /// ... at least this far, m.
+    pub const UP_MIN_M: f32 = 0.1;
+
+    /// Whether feet `feet` are up on a link from `take_off` to `landing`: past half the way, within [`LANDS_FLAT_M`] flat of the
+    /// landing and no lower than `landing.y - min(UP_UNDER_M, max(rise / 2, UP_MIN_M))`. The one verdict of a press's rest: the
+    /// motor's `is_up`, the press forecast's and [`lands_on`]'s end.
+    pub fn up(feet: Vec3, take_off: Vec3, landing: Vec3) -> bool {
+        let (dx, dz) = (landing.x - take_off.x, landing.z - take_off.z);
+        let past = (feet.x - take_off.x) * dx + (feet.z - take_off.z) * dz >= 0.5 * (dx * dx + dz * dz);
+        let rise = landing.y - take_off.y;
+        past && Vec3::new(feet.x - landing.x, 0.0, feet.z - landing.z).length() <= LANDS_FLAT_M
+            && feet.y >= landing.y - UP_UNDER_M.min((0.5 * rise).max(UP_MIN_M))
+    }
+
     /// Whether a flight from `take_off` lands on `landing`: every step from the first on the ground after its first jump step is on
-    /// the ground (it does not skim), and its last step is past half the way, within [`LANDS_FLAT_M`] flat of the landing and no
-    /// lower than `landing.y - min(0.35, max(rise / 2, 0.1))`.
+    /// the ground (it does not skim), and its last step is [`up`] on the link.
     pub fn lands_on(ticks: &[Tick], take_off: Vec3, landing: Vec3) -> bool {
         let Some(first_air) = ticks.iter().position(|t| t.in_jump) else { return false };
         let Some(down) = ticks[first_air..].iter().position(|t| !t.in_jump && t.on_ground).map(|i| i + first_air) else { return false };
         if !ticks[down..].iter().all(|t| t.on_ground) {
             return false;
         }
-        let end = ticks[ticks.len() - 1].feet;
-        let (dx, dz) = (landing.x - take_off.x, landing.z - take_off.z);
-        let span = dx.hypot(dz);
-        let along = if span > 1e-6 { ((end.x - take_off.x) * dx + (end.z - take_off.z) * dz) / span } else { 0.0 };
-        let rise = landing.y - take_off.y;
-        along >= span / 2.0
-            && Vec3::new(end.x - landing.x, 0.0, end.z - landing.z).length() <= LANDS_FLAT_M
-            && end.y >= landing.y - 0.35f32.min((rise / 2.0).max(0.1))
+        up(ticks[ticks.len() - 1].feet, take_off, landing)
     }
 }
 

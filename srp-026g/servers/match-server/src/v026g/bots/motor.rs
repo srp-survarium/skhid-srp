@@ -890,6 +890,8 @@ const CARRY_S: f32 = 0.85;
 /// jump's rise), within [`UP_NEAR_M`] of it across: up the ledge, metres.
 pub const UP_M: f32 = 0.35;
 const UP_NEAR_M: f32 = 1.5;
+// [body physics S4] The one verdict ([`is_up`]): the motor's numbers are the shared model's.
+const _: () = assert!(UP_NEAR_M == client_body::verdict::LANDS_FLAT_M && UP_M == client_body::verdict::UP_UNDER_M);
 /// A jump is pressed at most this many times while it does not get the body
 /// up; then the motor gives up on it ([`Walked::JumpFailed`]). In the
 /// owner's matches a jump that did not get up at once got up at the next
@@ -5451,11 +5453,8 @@ fn walk_joined(grid: &mapdata::WalkGrid, from: mapdata::NodeId, to: mapdata::Nod
 }
 
 pub fn is_up(feet: Vec3, take_off: Vec3, landing: Vec3) -> bool {
-    let rise = landing.y - take_off.y;
-    let (dx, dz) = (landing.x - take_off.x, landing.z - take_off.z);
-    let past = (feet.x - take_off.x) * dx + (feet.z - take_off.z) * dz >= 0.5 * (dx * dx + dz * dz);
-    past && feet.distance_xz(landing) <= UP_NEAR_M
-        && feet.y >= landing.y - UP_M.min((0.5 * rise).max(0.1))
+    // [body physics S4] The one verdict: the shared model's (`UP_NEAR_M` and `UP_M` are its `LANDS_FLAT_M` and `UP_UNDER_M`).
+    client_body::verdict::up(feet, take_off, landing)
 }
 
 /// Whether feet stand on a jump's landing: within [`UP_NEAR_M`] of it across and within [`UP_M`] of its floor's height either
