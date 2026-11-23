@@ -880,13 +880,27 @@ impl JumpCounts {
                 missed_pre.add(run, "missed", place, k0);
                 // [A318] Each missed jump's spot, for comparing arms (fx-zones' missed-jump split).
                 let r = &run.recs[place][k0];
+                // [body physics S3] With the bot's side at the stall's first sample, so every miss can be classed.
+                let p = |v: Option<Vec3>| v.map_or("-".to_owned(), |v| format!("({:.2}, {:.2}, {:.2})", v.x, v.y, v.z));
                 eprintln!(
-                    "owner-test missed jump: place {place} t {} feet {:.2} {:.2} {:.2} yaw {:.2}",
+                    "owner-test missed jump: place {place} t {} feet {:.2} {:.2} {:.2} yaw {:.2}; reckoned {} next {} try {} walk {} why {:#x} route {} guard {} watch {:?} keys {:#x}",
                     run.time_of(k0),
                     r.feet.x,
                     r.feet.y,
                     r.feet.z,
-                    r.yaw
+                    r.yaw,
+                    p(r.reckoned),
+                    p(r.next),
+                    r.jump_try.map_or("-".to_owned(), |(a, b, n, pressed)| format!(
+                        "({:.2}, {:.2}, {:.2})->({:.2}, {:.2}, {:.2}) tries {n} pressed {pressed}",
+                        a.x, a.y, a.z, b.x, b.y, b.z
+                    )),
+                    r.walk,
+                    r.why,
+                    r.has_route,
+                    r.guard,
+                    r.watch,
+                    r.keys
                 );
             }
         }

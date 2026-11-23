@@ -204,6 +204,10 @@ struct Rec {
     /// The lip guard's watch ([`LipWatchKind`]) and why it said the keys fall (`Bot::bench_guard_why`): the stuck episodes' print.
     watch: LipWatchKind,
     guard_why: u8,
+    /// [body physics S3] On a sample (once a second): the bot's reckoned feet, its route's next point, the motor's route jump try.
+    reckoned: Option<Vec3>,
+    next: Option<Vec3>,
+    jump_try: Option<(Vec3, Vec3, u32, bool)>,
 }
 
 /// [`crate::v026g::bots::drive::LipWatch`] without its data, for the record.

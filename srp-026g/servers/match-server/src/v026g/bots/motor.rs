@@ -2137,6 +2137,12 @@ const DROP_AIM_PAST_M: f32 = 0.05;
 const DROP_AIM_LONG_TICKS: u32 = 40;
 
 impl Motor {
+    /// [body physics S3] The bench's missed-jump note: the route jump being made (take-off, landing, tries, pressed), if any.
+    #[cfg(test)]
+    pub(crate) fn bench_jump_try(&self) -> Option<(Vec3, Vec3, u32, bool)> {
+        self.jump_try.map(|t| (t.take_off, t.landing, t.tries, t.pressed.is_some()))
+    }
+
     pub fn new(feel: Feel, rng: &mut Rng) -> Self {
         Self {
             feel,

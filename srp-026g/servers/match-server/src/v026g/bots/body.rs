@@ -722,6 +722,17 @@ pub fn stays_up(at: &Estimate, keys: u32, turn: f32, stop: &Stop) -> bool {
         if falls(at.feet) {
             return false;
         }
+        // [body physics S3] The client's body off the ground with no walker ground within a step under it falls, onto the floor under
+        // it ([`kept_off_ground`], the reckoning's walk-off rule before S3): its first ticks sink 0.05 m each, so within the
+        // forecast its feet alone would not show the fall (a body gliding 0.37 m past a 2 m top's edge was 0.27 m down at the
+        // forecast's end).
+        if at.client.is_some()
+            && at.kept.is_some_and(|kept| kept.airborne())
+            && let KeptOff::Left(_, landing) = kept_off_ground(grid, at.feet, top)
+            && falls(landing)
+        {
+            return false;
+        }
         // The body is not exactly where it is reckoned (a world's lateness, a ping's jitter): the same stop
         // from [`Stop::margin`] further on along its way must not fall either ([`MarginEdge`]: at the lattice's edge, or the body's).
         let speed = at.velocity[0].hypot(at.velocity[1]);
@@ -2717,7 +2728,18 @@ fn client_steps(at: &mut Estimate, tick: Tick, level: f32, grid: &WalkGrid, step
         Some(body) => body,
         None => {
             kept_clock::anew(role.clock());
-            put_down(grid, at.feet, at.yaw, level)
+            // An estimate made from a view (the lip guard's stop forecast): the kept controller it carries where it stands at the
+            // feet (else one put down there), walking at the estimate's own velocity, not from rest. From rest a brake at 3.5-5 m/s
+            // looked held where the body glides over: S3's third gate, tdm-m6's gap take-off at (-23.2, 37.5, 141.9), braked at
+            // margin 0.18 m in three seeds and over the edge each time.
+            let controller = match at.kept {
+                Some(kept) if kept.feet.distance_xz(at.feet) <= KEPT_SAME_M => kept.controller,
+                _ => *put_down(grid, at.feet, at.yaw, level).controller(),
+            };
+            let [fx, fz] = super::kin::forward(at.yaw);
+            let walk = [at.velocity[0] * fx + at.velocity[1] * fz, -at.velocity[0] * fz + at.velocity[1] * fx];
+            let input = client_body::Input { keys: at.keys, yaw: at.yaw };
+            client_body::ClientBody::walking(controller, input, walk, client_body::clip_of(at.keys))
         }
     };
     let walker = super::client_walker::GridWalker(grid);
@@ -5650,5 +5672,27 @@ pub(super) mod tests {
             let resumed = run(Some(world_at));
             assert!((resumed - whole).length() < 1e-4, "a world at {world_at}: {resumed:?} against {whole:?}");
         }
+    }
+
+    /// [body physics S3] The lip guard's stop forecast from a view (no client body, its kept controller and its velocity) plays the
+    /// client body walking at that velocity, not from rest: a body 0.7 m short of a 2 m top's edge at 5 m/s let go glides over it, the
+    /// same body at rest stays up (S3's third gate: tdm-m6's gap take-off braked at margin 0.18 m in three seeds, over each time).
+    #[test]
+    fn a_stop_forecast_from_a_view_keeps_the_bodys_speed() {
+        let mut triangles: Vec<Triangle> = floor(0.0, 0.0, 20.0, 10.0, 0.0).to_vec();
+        triangles.extend(floor(0.0, 0.0, 10.1, 10.0, 2.0));
+        let grid = WalkGrid::build(&triangles, [0.0, 0.0, 20.0, 10.0], 0.25, Body::default()).with_client_walker(&triangles);
+        let kin = Kinematics::default();
+        let stop = Stop { kin: &kin, level: 1.0, grid: &grid, planned: &[], hold: 2, margin: 0.0 };
+        let feet = Vec3::new(9.4, 2.0, 5.0);
+        let view = |speed: f32| Estimate {
+            velocity: [speed, 0.0],
+            keys: if speed > 0.0 { key::FORWARD | key::SPRINT } else { 0 },
+            node: grid.locate(feet, 1.5),
+            ..Estimate::at_rest(feet, -std::f32::consts::FRAC_PI_2)
+        };
+        assert!(view(5.0).client.is_none() && view(5.0).kept.is_none(), "a view's estimate");
+        assert!(!stays_up(&view(5.0), 0, 0.0, &stop), "at 5 m/s let go 0.7 m short of the edge: over it");
+        assert!(stays_up(&view(0.0), 0, 0.0, &stop), "at rest: up");
     }
 }
