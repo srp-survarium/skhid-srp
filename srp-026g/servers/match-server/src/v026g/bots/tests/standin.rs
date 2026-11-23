@@ -1381,7 +1381,7 @@ impl Game {
                 let (leg, frame) = (mapdata::controller::jump::Leg::Left, mapdata::controller::jump::SPRINT_FIRST_AIR_FRAMES[0]);
                 if client.press_forward(keys, body.step_m / TICK_S, kin, leg, frame).is_ok() {
                     super::standin_jump::client_moves::count(super::standin_jump::client_moves::Kind::Flown);
-                    body.client_press = Some((tick, body.feet, keys, body.yaw, body.step_m / TICK_S));
+                    body.client_press = Some((at, body.feet, keys, body.yaw, body.step_m / TICK_S));
                     continue;
                 }
                 super::standin_jump::client_moves::count(super::standin_jump::client_moves::Kind::Clip);
@@ -1636,12 +1636,21 @@ impl Game {
                         body.client_air = t.in_jump || falling;
                         if !client.flying()
                             && let Some((at, from, press_keys, yaw, speed)) = body.client_press.take()
-                            && super::bench_settings().flag("SRP_BENCH_STAND_IN_JUMP_LOG")
                         {
-                            eprintln!(
-                                "stand-in client jump: place {place} pressed {at} at ({:.3}, {:.3}, {:.3}) keys {press_keys:#x} yaw {yaw:.4} speed {speed:.3}; down {tick} at ({:.3}, {:.3}, {:.3}), on the ground {}",
-                                from.x, from.y, from.z, t.feet.x, t.feet.y, t.feet.z, t.on_ground
-                            );
+                            // [body physics S2] The flight's end is the jump's landing for the tallies, as a clip's
+                            // (`standin_jump::Landing`: the press's tick, where it came down, the kind; its fall speed when it is not
+                            // on the ground, as a clip's free fall).
+                            let sprint = client_body::sprints(press_keys) && speed >= mapdata::controller::jump::WALK_CAP_MS * kin.level;
+                            let fall_v = (!t.on_ground).then(|| (-client.controller().velocity.y).max(0.0));
+                            let way = if sprint { standin_climb::Way::SprintJump } else { standin_climb::Way::ShortJump };
+                            self.climbs.note(way, tick, place, body.team, from, t.feet);
+                            self.landings.push(super::standin_jump::Landing { place, at, to: t.feet, sprint, fall_v });
+                            if super::bench_settings().flag("SRP_BENCH_STAND_IN_JUMP_LOG") {
+                                eprintln!(
+                                    "stand-in client jump: place {place} pressed {at} at ({:.3}, {:.3}, {:.3}) keys {press_keys:#x} yaw {yaw:.4} speed {speed:.3}; down {tick} at ({:.3}, {:.3}, {:.3}), on the ground {}",
+                                    from.x, from.y, from.z, t.feet.x, t.feet.y, t.feet.z, t.on_ground
+                                );
+                            }
                         }
                         body.feet = t.feet;
                         body.node = grid.locate(t.feet, CLIENT_LOCATE_M).or(Some(node));
