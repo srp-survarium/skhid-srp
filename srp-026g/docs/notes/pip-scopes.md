@@ -284,3 +284,69 @@ lens on, aimed (r_gpu_sync skipped)    8.9 ms           1.0 ms CPU     12.5 ms
   (`render.unmove`); the frame's own draw keeps its wait, so a frame ends synchronised as today
   (r_gpu_sync 0 is a setting the engine supports). Headless, the wait is the frame's Present's again
   with the lens. Whether this was all of the owner's 75 Hz is for the next play test's timing lines.
+
+## 9. Round 3 (exe `pip-scopes-3`, 2026-11-23 12:17) and the handoff for `pip-scopes-4`
+
+Standing still the lens works (the owner's `2026-11-23-12-18-49.png`: one real gun and optic, the
+zoomed picture with its reticle filling the eyepiece, the world at uro_fov). Four things are open;
+none is fixed in the branch yet (head 5f81e9d9d plus this section).
+
+**1. The lens leaves the eyepiece while the player moves** (`12-19-36.png`, AK-74M + Leupold 3-7:
+the disc about one radius right of the real optic's ring; its picture, reticle centred, is fine).
+The disc is placed from the aimed model's glass record (its world sphere, read at the frame's
+`forward.execute_foreground`), a model the lens puts in the scene and moves itself at
+`scope_draw.optic` with the weapon's +660h, as weapon::draw moves the idle optic in the same call.
+So the two should coincide; they do not while moving. The log of that round has the aimed glass at
+`in view (13 -1 87)` and `(15 -1 87)` mm when moving and `(0 0 ...)` when still. Not found yet which
+of these it is: the aimed model's sphere a frame late (placed by its own update command, which may
+run after the second view's draw and before or after the frame's visibility), or the frame drawing
+the first-person models with a camera other than the scene's +0Ch that `FRAME_CAMERA` keeps.
+**Next:** place the disc from the real optic as this frame draws it: the idle optic's world matrix
+(a static instance's +14Ch) times the aimed glass's model-space centre (the aimed model's own +14Ch
+inverted times its sphere's centre: the two models share the frame of the optic's slot), read at the
+frame's forward stage; log both models' records in view at the aim's frames 0 and 30 to see which
+lags. Then look at it headless while moving: `srp-map-sur --hold` needs a strafe (`sur_convert::of_map`
+pushes one input at `aim_ms`, AIM 0x80; add inputs alternating AIM|LEFT 0x4 and AIM|RIGHT 0x8 every
+second after it) and capture `eyes` poses during it.
+
+**2. "Circle in circle" on the PSO-1** (`12-20-20.png`): inside the lens a smaller faceted circle,
+darker and clearer, with the chevron; the rest of the lens pale. The owner's setup mounts content
+test patches `resources.db.patch_74` and `_75` (PR #2558): the idle optics' `scope_lense_3p_s` (front
+and rear glass, one surface) on a new blended, see-through material
+`weapons/modules_069/scope_lense_3p_glass` (`forward_lighting_no_distort`). The rig ran with
+`patch_74` only. LIKELY: that material is on a list the second view's filter does not cover (the
+filter covers the G-buffer +84ACh, forward +0C4B8h and forward-lit +44A0h lists), so the second view
+looking down the tube draws the optic's own tinted discs; or the frame draws the rear glass over the
+disc. **Next:** run the rig with both patches (`--content` each, linked from the setup's game folder,
+never written), find the list (dump each scene-view list's first-person owners at the second pass, as
+`foreground_seen` does for one), make the filter total for the eyes' weapon, and check the 13 optics.
+
+**3. The frame rate: no display wait found; the render thread is busy.** The owner's timing lines
+(`srp_patches.2026-11-23_12-17-35.log`): unaimed `interval 6.4, present 2.0, main cpu 4.3` ms; aimed
+(lens drawn) `interval 10.2..13.5, present 0.1..5.4, main cpu 5.9..7.6, second cpu 2.5..4.4` ms, and
+`render thread between draws` 0.05..0.1 ms: the render thread never waits for the game (and the game
+thread's interval equals the render's: it waits for the render thread). Every aimed window adds up:
+main CPU + second CPU + present = the interval. So the cost is the render thread's work:
+- the second view's CPU, 2.5 to 4.4 ms: **its picture was the 1024 one**: `second view made, 1024
+  (a large lens)` came right after the 512 one, because `LENS_SIZE` starts at 0.45 half heights
+  and 0.45 x 1440 = 648 px is over the 563 px threshold before any lens was measured; the aim lines'
+  `its picture 512 px square` prints the constant `SCOPE_SIZE`, not the picture used (a log fault).
+  The Leupold 3-7's lens is 0.47 half heights, 677 px at 1440p. **Next:** a 768 picture between,
+  the threshold measured from the lens itself, and the log printing the picture drawn;
+- the frame's own CPU grows 1.6 to 3.3 ms with the lens (not found why: the lens's draw at
+  `render.flash_ui` and the list filters are cheap; LIKELY DXVK's command stream backing up behind
+  the second view's draw, which now has no GPU wait of its own);
+- `present` includes the frame's r_gpu_sync wait (0x13DDCC..0x13DE5F lies between the Present and
+  `render.unmove`). A site after the Present returns is in `sites_026g.tsv` (`render.present_done`,
+  0x13DD4B, no hook yet): hooked, it splits the Present from the GPU wait.
+Some aimed windows sit at exactly 13.34 ms (four in a row), others at 10.2..10.4: when the work is
+over a refresh, it lands on the display's 74.96 Hz. The rig cannot show this: its X11 display paces
+every frame at about 75 Hz with or without the lens.
+
+**4. The off-centre lens at an aim's first frame** (`lens at (clip) 139 -26`, `154 -31`, against
+`0 0` 30 frames later) is the scope's view coming on at the aim's change point (~0.82) while the gun
+still moves to the eye: the glass is really there then (seen headless too: `(0.18, -0.10)` at frame
+0). With item 1 open, a moving player shows the same offset all the time.
+
+The owner's comment on the match start's orbit camera ("it is just glass you don't see markers",
+"nor it is magnifying") is open with the coordinator: nothing done.
