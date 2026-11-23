@@ -1564,6 +1564,8 @@ mod tests {
                     row,
                     levels: vec![Vec::new(); levels_amount.into()],
                     unknown_modifiers: Vec::new(),
+                    name: String::new(),
+                    description: String::new(),
                 },
             )
             .collect();

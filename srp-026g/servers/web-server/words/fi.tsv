@@ -923,3 +923,30 @@ Healing	Parannus
 Previous shot	Edellinen laukaus
 Next shot	Seuraava laukaus
 Damage calculator	Survariumin vahinkolaskuri	title
+# The wiki's artefacts (src/artefacts.rs)
+Every artefact: what it gives carried and fired, how copies stack, where it is found.	Jokainen artefakti: mitä se antaa kannettuna ja aktivoituna, miten kappaleet pinoutuvat, mistä sen löytää.
+Artefact	Artefakti
+Passive	Passiivinen
+Active	Aktiivinen
+Active time	Vaikutusaika
+Cooldown	Latausaika
+Skill	Taito
+Rules	Säännöt
+Movement speed	Liikkumisnopeus
+Stamina regeneration	Energian palautuminen
+Stamina use	Energian kulutus
+Slowdown from hits	Osumien hidastus
+Against	Vastaan
+Body parts	Ruumiinosat
+Penetration	Läpäisy
+Health	Terveys
+Cures injuries	Parantaa vammat
+Regeneration	Palautuminen
+Regeneration delay	Palautumisen viive
+Regenerates up to	Palautuu enintään
+HP	HP	unit
+Carried in a container: passive. A death leaves them in that kit.	Säiliössä: passiivi. Kuoleman jälkeen ne jäävät siihen varustukseen.
+A key fires every ready copy of its kind and restarts the cooldown of the ones still cooling.	Näppäin aktivoi jokaisen valmiin saman lajin kappaleen ja käynnistää uudelleen vielä latautuvien latausajan.
+Copies of a kind add up (Onyx's passive multiplies); at most 4 count.	Saman lajin kappaleet lasketaan yhteen (Onyksin passiivi kertautuu); enintään 4 lasketaan.
+Spring's and Larkspur's actives add to the passive; Onyx's replaces it.	Jousen ja Ritarinkannuksen aktiivi lisätään passiiviin; Onyksin korvaa sen.
+Onyx fired together: one reduction, 1 s longer per extra copy.	Yhdessä aktivoidut Onyksit: yksi vähennys, 1 s pidempään jokaista lisäkappaletta kohden.

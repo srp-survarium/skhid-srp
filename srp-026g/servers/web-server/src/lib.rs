@@ -42,6 +42,7 @@
 //! [`run_026g`] the 0.26g one ([`v026g`]: the 0.26g accounts, the lobby told
 //! of every change, `-server=`). `srp` starts the 0.26g one.
 
+mod artefacts;
 mod built;
 mod damage;
 mod equipment;
@@ -862,6 +863,7 @@ impl Web {
                     | wiki::SIMULATORS
                     | wiki::MODIFIERS
                     | wiki::EQUIPMENT
+                    | artefacts::PATH
                     | skills::PATH
                     | quests::PATH
                     | modes::PATH
@@ -1175,6 +1177,7 @@ impl Web {
                     | wiki::SIMULATORS
                     | wiki::MODIFIERS
                     | wiki::EQUIPMENT
+                    | artefacts::PATH
                     | skills::PATH
                     | quests::PATH
                     | modes::PATH) => {
