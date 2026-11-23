@@ -478,14 +478,16 @@ impl ClientBody {
     /// One 50 ms step of the body with the input stamped at its end (`now`): the walk ([`Self::walk_of`]), then the controller's
     /// step with `now`'s crouch key and sprint flag (`apply_new_input` writes them before the step; `step_forward_impl` 0x7D33D
     /// reads +204h). A forward jump under way flies its own step instead ([`Flying::step`]: the clip's root motion and the air
-    /// control of `now`'s keys).
+    /// control of `now`'s keys, heading by the input before).
     pub fn tick(&mut self, world: &impl Walker, kin: Kin, now: Input) -> Tick {
         let (walk, blend) = self.walk_of(now, kin);
         let (notes, walk) = match self.jump.as_mut() {
             Some(flying) => {
                 let sign = |a: u32, b: u32| i8::from(now.keys & a != 0) - i8::from(now.keys & b != 0);
                 let air = Flying::air_of(flying.press(), sign(keys::FORWARD, keys::BACK), sign(keys::RIGHT, keys::LEFT));
-                let f = forward(now.yaw);
+                // The step's heading is the yaw after the input before it (`apply_rotation` 0x2D8AD0 turns the body by an input
+                // only after the step it ends: rig rule 7, 1,392 of 1,392 air steps, as `bots::body::FlownJump::step` takes it).
+                let f = forward(self.moving.yaw);
                 let step: FlightStep = world.fly(&mut self.controller, flying, (f[0], f[1]), air);
                 let landed = flying.landed();
                 if landed {

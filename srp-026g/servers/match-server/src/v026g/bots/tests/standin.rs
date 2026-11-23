@@ -392,6 +392,13 @@ pub(crate) struct Body {
     /// [body physics S2] The shared model's body (`SRP_BENCH_STAND_IN_BODY=client`, [`standin_jump::stand_in_client_body`]): its kept
     /// controller owns the feet, their height included. None until the body's first step after a spawn.
     pub(crate) client: Option<client_body::ClientBody>,
+    /// [body physics S2] A shared-model body is in the air (in a jump, or falling: see [`Body::in_air`]) after its last step.
+    pub(crate) client_air: bool,
+    /// [body physics S2] Where a shared-model body last left the ground not in a jump (a walk off an edge): the route tallies read
+    /// it as a walk-off's edge until the body is down again.
+    pub(crate) client_fall_from: Option<Vec3>,
+    /// [body physics S2] The forward press a shared-model body is flying (its tick, feet, keys, yaw and speed), for the jump log.
+    pub(crate) client_press: Option<(u32, Vec3, u32, f32, f32)>,
     /// The tick its walk last went down past a ledge's edge with no drop link ahead ([`standin_jump::past_edge`]): the falls
     /// probe tells such a fall from one down a drop link.
     pub(crate) past_edge_down: Option<u32>,
@@ -441,6 +448,12 @@ impl Body {
     /// [legs] The legs' `leg_damage` wounds at `now` as the client counts them, by the bots' own port of the rule
     /// (`legs::LegDamage`): one leg wounded refuses the sprint and the jump, both the move too (crouched, a move key still
     /// moves: F42).
+    /// [body physics S2] Whether the body is in the air at `tick`, for the tallies: a clip flight or the old stand-in's air window, or a
+    /// shared-model body in a jump or falling ([`Body::client_air`]).
+    pub(crate) fn in_air(&self, tick: u32) -> bool {
+        self.flight.is_some() || self.air_until > tick || self.client_air
+    }
+
     pub(crate) fn leg_damage(&self, now: u32) -> super::super::legs::LegDamage {
         let ends: Vec<u32> = self.leg_wounds.iter().flatten().copied().collect();
         super::super::legs::LegDamage::of(&ends, now)
@@ -529,6 +542,11 @@ pub(crate) const STAND_IN_STAGGER_MS: u32 = 500;
 /// [body physics S2] How far from a shared-model body's feet its node is looked for, m (the reckoning's `LOCATE_M`): the lattice only
 /// names where the body is; a body in the air keeps the node it had.
 const CLIENT_LOCATE_M: f32 = 1.5;
+
+/// [body physics S2] A shared-model body not in a jump counts as falling (in the air, for the tallies) while its controller goes down
+/// faster than this, m/s: `on_ground_max_vertical_speed` (2.0, the step's own limit past which `step_down` stops snapping a body down,
+/// `controller::tick::Settings::LIVE`), so a walk down a slope or a stair is not a fall. A tally rule, not the client's.
+const CLIENT_FALLING_MS: f32 = 2.0;
 
 /// The stand-in game.
 pub(crate) struct Game {
@@ -958,6 +976,9 @@ impl Game {
             lift_since: None,
             kept: None,
             client: None,
+            client_air: false,
+            client_fall_from: None,
+            client_press: None,
             past_edge_down: None,
             slide_mps: None,
             legs: [0.5; 2],
@@ -1167,6 +1188,9 @@ impl Game {
         body.stagger.reset();
         body.flight = None;
         body.client = None;
+        body.client_air = false;
+        body.client_fall_from = None;
+        body.client_press = None;
         body.step_m = 0.0;
         body.step_vec = Vec3::ZERO;
         body.zone_spell = None;
@@ -1352,6 +1376,7 @@ impl Game {
                 let (leg, frame) = (mapdata::controller::jump::Leg::Left, mapdata::controller::jump::SPRINT_FIRST_AIR_FRAMES[0]);
                 if client.press_forward(keys, body.step_m / TICK_S, kin, leg, frame).is_ok() {
                     super::standin_jump::client_moves::count(super::standin_jump::client_moves::Kind::Flown);
+                    body.client_press = Some((tick, body.feet, keys, body.yaw, body.step_m / TICK_S));
                     continue;
                 }
                 super::standin_jump::client_moves::count(super::standin_jump::client_moves::Kind::Clip);
@@ -1594,6 +1619,22 @@ impl Game {
                     } else {
                         super::standin_jump::client_moves::count(super::standin_jump::client_moves::Kind::Stepped);
                         self.climbs.note(standin_climb::Way::Walk, tick, place, body.team, body.feet, t.feet);
+                        let falling = !t.in_jump && client.controller().velocity.y < -CLIENT_FALLING_MS;
+                        body.client_fall_from = match (falling, body.client_fall_from) {
+                            (true, None) => Some(body.feet),
+                            (true, edge) => edge,
+                            (false, _) => None,
+                        };
+                        body.client_air = t.in_jump || falling;
+                        if !client.flying()
+                            && let Some((at, from, press_keys, yaw, speed)) = body.client_press.take()
+                            && super::bench_settings().flag("SRP_BENCH_STAND_IN_JUMP_LOG")
+                        {
+                            eprintln!(
+                                "stand-in client jump: place {place} pressed {at} at ({:.3}, {:.3}, {:.3}) keys {press_keys:#x} yaw {yaw:.4} speed {speed:.3}; down {tick} at ({:.3}, {:.3}, {:.3}), on the ground {}",
+                                from.x, from.y, from.z, t.feet.x, t.feet.y, t.feet.z, t.on_ground
+                            );
+                        }
                         body.feet = t.feet;
                         body.node = grid.locate(t.feet, CLIENT_LOCATE_M).or(Some(node));
                         if let Some(stood) = standing.get_mut(place) {
@@ -3266,7 +3307,10 @@ impl Game {
             .map(|body| {
                 // [body physics S2] A shared-model body's world carries its controller block, as the client's does (`serialize`
                 // 0x7F7F0, which the reckoning deserializes: `game/driven.rs`), and its fall speed.
-                let saved = body.client.filter(|_| body.alive && body.flight.is_none()).map(|c| c.save());
+                let saved = body
+                    .client
+                    .filter(|_| body.alive && body.flight.is_none() && super::standin_jump::stand_in_world_controller())
+                    .map(|c| c.save());
                 Fix { fall: saved.map(|s| -s.velocity.y), controller: saved, gates: None, jump: None,
                 time: self.tick,
                 alive: body.alive,

@@ -270,6 +270,13 @@ pub(crate) fn stand_in_client_body() -> bool {
     *TUNED.get_or_init(|| super::bench_settings().var("SRP_BENCH_STAND_IN_BODY").as_deref() != Ok("lattice"))
 }
 
+/// [body physics S2] Whether a shared-model body's world carries its controller block (`SRP_BENCH_STAND_IN_WORLD_CONTROLLER`, default
+/// on, as the client's worlds do).
+pub(crate) fn stand_in_world_controller() -> bool {
+    static TUNED: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    *TUNED.get_or_init(|| super::bench_settings().var("SRP_BENCH_STAND_IN_WORLD_CONTROLLER").as_deref() != Ok("off"))
+}
+
 /// [body physics S2] The walk grid's client walker as the shared model's world: its walk tick and flight step (`WalkGrid::kept_tick`,
 /// `WalkGrid::kept_fly_step`: the game's shapes, the grid body's controller settings, the client's with `exe_collision`).
 pub(crate) struct GridWalker<'g>(pub(crate) &'g mapdata::WalkGrid);

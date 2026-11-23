@@ -141,7 +141,7 @@ fn drive_on(world: Arc<World>, level: u8, start: Vec3, goal: Vec3, until: u32) -
             .is_some_and(|node| world.grid.in_pocket(node));
         // Out on the ground: a jump's top beside the rim (the honest
         // stand-in's body in the air) is near a rim floor, not out.
-        if seen.out_ms.is_none() && !in_pocket && game.bodies[0].flight.is_none() {
+        if seen.out_ms.is_none() && !in_pocket && !game.bodies[0].in_air(game.tick) {
             seen.out_ms = Some(clock);
         }
         if seen.arrived_ms.is_none() && feet.distance_xz(goal) <= 1.5 {

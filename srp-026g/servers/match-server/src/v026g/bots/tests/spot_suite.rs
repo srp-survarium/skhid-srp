@@ -1095,7 +1095,7 @@ impl TickTrace {
     /// The stand-in body after a tick (`flew`: in a flight before it).
     fn tick(&mut self, body: &super::standin::Body, tick: u32, flew: bool) {
         use std::fmt::Write as _;
-        let flying = body.flight.is_some();
+        let flying = body.flight.is_some() || body.client_air;
         let on_ground = !flying && !body.kept.as_ref().is_some_and(|kept| kept.airborne());
         let f = body.feet;
         let _ = writeln!(
@@ -1183,7 +1183,7 @@ fn walk(world: &Arc<World>, project: &str, leg: &Leg, limit_ms: u32, seed: u32, 
             for bot in bots.bots.iter().flatten() {
                 game.kits[bot.place] = bot.reflex.arms();
             }
-            let flew = game.bodies[0].flight.is_some();
+            let flew = game.bodies[0].flight.is_some() || game.bodies[0].client_air;
             game.step();
             let body = &game.bodies[0];
             if let Some(trace) = trace.as_deref_mut() {

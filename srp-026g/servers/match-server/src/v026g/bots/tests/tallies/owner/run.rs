@@ -213,7 +213,7 @@ impl Run {
             speed: body.step_m / TICK_S,
             calm: body.keys & (key::AIM | key::FIRE) == 0 && !enemy_near,
             carrying: body.carrying.is_some(),
-            air: body.flight.is_some() || body.air_until > tick,
+            air: body.in_air(tick),
             play,
             hold,
             travel,
