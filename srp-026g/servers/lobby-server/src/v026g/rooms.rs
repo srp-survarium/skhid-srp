@@ -347,6 +347,28 @@ impl Core<'_> {
             .then(|| (mate, matchmaking::gear_level(&account, unix)))
     }
 
+    /// A squad just made (`2A 02`) by a commander that is in a room: its new
+    /// mate, while free ([`Self::room_mate`]), comes in beside it, as into a
+    /// room the commander makes, and into the room's match by the late join
+    /// when one is played. Nothing else would take it there: the soldier
+    /// joins no room on its own, and the commander, in its room already,
+    /// presses no Play or Join.
+    pub(super) fn room_squad_made(&mut self, who: &Who) {
+        let Some(key) = self.rooms.key_of(who.account_id) else {
+            return;
+        };
+        let Some(mate) = self.room_mate(who.account_id) else {
+            return;
+        };
+        match self.rooms.bring_mate(who.account_id, mate, key) {
+            Ok(()) => log::info!("{}: its new squad mate comes into its room {key}", who.name),
+            Err(refused) => log::info!(
+                "{}: its new squad mate stays out of room {key} ({refused:?})",
+                who.name
+            ),
+        }
+    }
+
     /// A squad member that is not its commander: it goes into no room on
     /// its own (no Play, Join, Queue, room made or switch; code 17), only
     /// with its commander's (the owner's of 2026-10-31). Leaving its room,
