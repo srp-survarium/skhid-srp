@@ -2655,13 +2655,8 @@ fn drive_tick_inner(
     // body seldom jumps: 9 route jumps of 12 pressed crouched did in the
     // owner's matches, 6 unstick jumps of 23, against 149 of 159 standing;
     // `player_bots_stuck.md` §8.9), and no sprint.
-    if bot.motor.lining_up() {
-        decision.keys &= !key::CROUCH;
-        // A sprint jump is run up to at a sprint: `Feel::band_jump_gate`.
-        if !bot.motor.keeps_sprint() {
-            decision.keys &= !key::SPRINT;
-        }
-    }
+    // A sprint jump is run up to at a sprint (`Feel::band_jump_gate`), and a forecast press's sprint walk-in too (`Motor::lined_keys`).
+    decision.keys = bot.motor.lined_keys(decision.keys);
     bot.key_tick.after(super::key_sources::Stage::LiningUp, decision.keys);
     if decision.keys & key::QUICK[0] != 0 {
         bot.features.stock.medkits_used = bot.features.stock.medkits_used.saturating_add(1);

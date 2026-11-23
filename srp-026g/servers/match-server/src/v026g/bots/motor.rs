@@ -2378,10 +2378,34 @@ impl Motor {
         self.jump_line = None;
     }
 
-    /// Whether this tick's lining up for a jump keeps the sprint (a sprint ledge under [`Feel::band_jump_gate`]): the
-    /// driver lets go of it for a walking jump's lining up, but a sprint jump is run up to at a sprint.
+    /// Whether this tick's lining up for a jump keeps the sprint (a sprint ledge under [`Feel::band_jump_gate`], or [sprint
+    /// pass] a forecast press's sprint walk-in this tick): the driver lets go of it for a walking jump's lining up, but a sprint
+    /// jump is run up to at a sprint.
     pub fn keeps_sprint(&self) -> bool {
         self.lining == Lining::Sprint
+    }
+
+    /// The keys a lining up lets through ([`Self::lining_up`]): no crouch (a crouched body seldom jumps: 9 route jumps of 12
+    /// pressed crouched did in the owner's matches, 6 unstick jumps of 23, against 149 of 159 standing; `player_bots_stuck.md`
+    /// §8.9), and no sprint unless the lining keeps it ([`Self::keeps_sprint`]). The drive's one rule for it, after every other
+    /// stage: a forecast press's plan is flown with the keys this lets through, so its chain and the body's keys stay one.
+    pub fn lined_keys(&self, keys: u32) -> u32 {
+        match self.lining {
+            Lining::No => keys,
+            Lining::Walk => keys & !(key::CROUCH | key::SPRINT),
+            Lining::Sprint => keys & !key::CROUCH,
+        }
+    }
+
+    /// [sprint pass] This tick's keys are a forecast press's sprint walk-in (its line, its plan's chain or its press): the lining
+    /// keeps the sprint ([`Self::lined_keys`]). The forecast presses gap and rim links alone, never a sprint link, so the lining
+    /// was a walking jump's and the drive let the sprint go: the plan, flown with forward and the sprint, had the body off its
+    /// chain on its first tick, every time (the combined checks of 2026-11-23: 55 sprint plans, none pressed).
+    fn keep_cast_sprint(&mut self) {
+        if self.lining == Lining::Walk {
+            press_casts::count(press_casts::Slot::SprintKept);
+        }
+        self.lining = Lining::Sprint;
     }
 
     /// Seconds since the tick `at` of this motor's clock.
@@ -2815,6 +2839,9 @@ impl Motor {
                 Some(CastKeys::Walk(gait) | CastKeys::Press(gait)) => {
                     self.sprinting = gait == CastGait::Sprint;
                     keys = gait.keys() | (keys & key::JUMP);
+                    if gait == CastGait::Sprint {
+                        self.keep_cast_sprint();
+                    }
                 }
                 Some(CastKeys::Stand | CastKeys::Hold) => {
                     self.sprinting = false;
@@ -2823,6 +2850,7 @@ impl Motor {
                 Some(CastKeys::Line(CastGait::Sprint)) if keys & key::FORWARD != 0 => {
                     self.sprinting = true;
                     keys |= key::SPRINT;
+                    self.keep_cast_sprint();
                 }
                 Some(CastKeys::Approach | CastKeys::Line(_)) | None => {}
             }
@@ -5979,9 +6007,12 @@ pub mod press_casts {
         SprintPressed,
         /// … no run from it, learned for the link (later tries walk in at the cap).
         SprintNoRun,
+        /// [sprint pass] A tick a sprint walk-in's keys kept their sprint through a walking jump's lining up
+        /// ([`super::Motor::lined_keys`]).
+        SprintKept,
     }
 
-    pub const SLOTS: [Slot; 24] = [
+    pub const SLOTS: [Slot; 25] = [
         Slot::Planned,
         Slot::NoZone,
         Slot::Flights,
@@ -6006,9 +6037,10 @@ pub mod press_casts {
         Slot::SprintPlanned,
         Slot::SprintPressed,
         Slot::SprintNoRun,
+        Slot::SprintKept,
     ];
 
-    static COUNTS: [AtomicU64; 24] = [const { AtomicU64::new(0) }; 24];
+    static COUNTS: [AtomicU64; 25] = [const { AtomicU64::new(0) }; 25];
 
     /// Since the last match end ([`take_match`]): the chains and the flights.
     static MATCH: [AtomicU64; 2] = [const { AtomicU64::new(0) }; 2];
@@ -9892,7 +9924,8 @@ mod tests {
                 return (Some((b.feet, speed)), ends);
             }
             let played = if stub.sprints { key::FORWARD | key::SPRINT } else { key::FORWARD };
-            stub.body = stub.step(&stub.body, decision.keys & played, decision.turn.0);
+            // The drive's lining rule after the motor (`drive_tick_inner`): the body plays what it lets through.
+            stub.body = stub.step(&stub.body, motor.lined_keys(decision.keys) & played, decision.turn.0);
         }
         (None, ends)
     }
