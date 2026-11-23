@@ -49,6 +49,30 @@ pub const DT: f32 = jump::DT;
 /// with `Body::exe_collision` (`grid.rs` `Body::controller`).
 pub const SETTINGS: Settings = Settings { wall_normal: WallNormal::Rays, ..Settings::LIVE };
 
+/// The world a body walks in: one walk tick of its controller ([`Controller::tick`], 50 ms, the client's settings) and one step of a
+/// forward jump ([`Flying::step`]). [`Client`] is the game's collision with [`SETTINGS`]; a layer that holds its world elsewhere (the
+/// walk grid's client walker) gives its own, with the same settings.
+pub trait Walker {
+    fn step(&self, c: &mut Controller, input: TickInput) -> StepNotes;
+    fn fly(&self, c: &mut Controller, flying: &mut Flying, heading: (f32, f32), air: (f32, f32)) -> FlightStep;
+}
+
+/// The game's collision walked with the client's settings ([`SETTINGS`]).
+#[derive(Clone, Copy)]
+pub struct Client<'w> {
+    pub world: &'w Collision,
+}
+
+impl Walker for Client<'_> {
+    fn step(&self, c: &mut Controller, input: TickInput) -> StepNotes {
+        c.tick(self.world, DT, &SETTINGS, input)
+    }
+
+    fn fly(&self, c: &mut Controller, flying: &mut Flying, heading: (f32, f32), air: (f32, f32)) -> FlightStep {
+        flying.step(self.world, &SETTINGS, c, heading, air)
+    }
+}
+
 /// The input's action bits the body reads (`apply_new_input` 0x2D86E0's key word; the server's `drive::key`).
 pub mod keys {
     pub const FORWARD: u32 = 0x1;
@@ -354,6 +378,18 @@ pub struct ClientBody {
     jump: Option<Flying>,
 }
 
+impl std::fmt::Debug for ClientBody {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ClientBody")
+            .field("controller", &self.controller)
+            .field("blend", &self.blend)
+            .field("moving", &self.moving)
+            .field("walk_yaw", &self.walk_yaw)
+            .field("flying", &self.jump.is_some())
+            .finish()
+    }
+}
+
 impl ClientBody {
     /// A body whose controller is `controller`, at rest in its blend, with no input yet.
     pub fn of(controller: Controller, yaw: f32) -> Self {
@@ -374,18 +410,25 @@ impl ClientBody {
         body
     }
 
+    /// A body put on the floor point `feet` as [`Self::at_rest`] puts it (a standing controller [`PUT_OVER_M`] over it, one small
+    /// downward speed), not yet come to rest: its own steps settle it.
+    pub fn placed(feet: Vec3, yaw: f32) -> Self {
+        let mut c = Controller::standing_at(feet + Vec3::new(0.0, PUT_OVER_M, 0.0));
+        c.velocity = Vec3::new(0.0, -0.01, 0.0);
+        Self::of(c, yaw)
+    }
+
     /// A body come to rest on the floor point `feet` (`rest_floors::settle`'s rule, 52 of 53 against the exe rig): a standing
     /// controller 5 mm over it, one small downward speed (so `can_skip_player_step` 0x7C7E0 does not skip the first step), then
     /// steps with no walk until it has been on the ground for [`verdict::STILL_STEPS`] steps running, each moving under
     /// [`verdict::STILL_M`]. None when it has not in [`REST_STEPS_MAX`] steps.
-    pub fn at_rest(world: &Collision, feet: Vec3, yaw: f32) -> Option<Self> {
-        let mut c = Controller::standing_at(feet + Vec3::new(0.0, PUT_OVER_M, 0.0));
-        c.velocity = Vec3::new(0.0, -0.01, 0.0);
+    pub fn at_rest(world: &impl Walker, feet: Vec3, yaw: f32) -> Option<Self> {
+        let mut c = Self::placed(feet, yaw).controller;
         let mut still = 0;
         for _ in 0..REST_STEPS_MAX {
             let before = c.feet();
             let input = TickInput { walk: Vec3::ZERO, air_control: Vec3::ZERO, crouch: CrouchInput::Tested { key: false, legs_broken: false }, sprinting: false };
-            c.tick(world, DT, &SETTINGS, input);
+            world.step(&mut c, input);
             still = if c.on_ground(&SETTINGS) && (c.feet() - before).length() < verdict::STILL_M { still + 1 } else { 0 };
             if still >= verdict::STILL_STEPS {
                 return Some(Self::of(c, yaw));
@@ -435,15 +478,17 @@ impl ClientBody {
     /// One 50 ms step of the body with the input stamped at its end (`now`): the walk ([`Self::walk_of`]), then the controller's
     /// step with `now`'s crouch key and sprint flag (`apply_new_input` writes them before the step; `step_forward_impl` 0x7D33D
     /// reads +204h). A forward jump under way flies its own step instead ([`Flying::step`]: the clip's root motion and the air
-    /// control of `now`'s keys).
-    pub fn tick(&mut self, world: &Collision, kin: Kin, now: Input) -> Tick {
+    /// control of `now`'s keys, heading by the input before).
+    pub fn tick(&mut self, world: &impl Walker, kin: Kin, now: Input) -> Tick {
         let (walk, blend) = self.walk_of(now, kin);
         let (notes, walk) = match self.jump.as_mut() {
             Some(flying) => {
                 let sign = |a: u32, b: u32| i8::from(now.keys & a != 0) - i8::from(now.keys & b != 0);
                 let air = Flying::air_of(flying.press(), sign(keys::FORWARD, keys::BACK), sign(keys::RIGHT, keys::LEFT));
-                let f = forward(now.yaw);
-                let step: FlightStep = flying.step(world, &SETTINGS, &mut self.controller, (f[0], f[1]), air);
+                // The step's heading is the yaw after the input before it (`apply_rotation` 0x2D8AD0 turns the body by an input
+                // only after the step it ends: rig rule 7, 1,392 of 1,392 air steps, as `bots::body::FlownJump::step` takes it).
+                let f = forward(self.moving.yaw);
+                let step: FlightStep = world.fly(&mut self.controller, flying, (f[0], f[1]), air);
                 let landed = flying.landed();
                 if landed {
                     // The ground walk goes on from the clip's last travel (`jump::fly_as`'s ground steps).
@@ -462,7 +507,7 @@ impl ClientBody {
                     crouch: CrouchInput::Tested { key: now.keys & keys::CROUCH != 0, legs_broken: kin.legs_broken },
                     sprinting: sprints(now.keys),
                 };
-                (self.controller.tick(world, DT, &SETTINGS, input), walk)
+                (world.step(&mut self.controller, input), walk)
             }
         };
         self.walk_yaw = self.moving.yaw;
@@ -524,7 +569,7 @@ pub struct RunIn {
 
 impl RunIn {
     /// The run-in played from `body` (at rest): each step's [`Tick`], the run-in's first. Err when the press is unported.
-    pub fn play(self, world: &Collision, mut body: ClientBody, kin: Kin) -> Result<Vec<Tick>, Unported> {
+    pub fn play(self, world: &impl Walker, mut body: ClientBody, kin: Kin) -> Result<Vec<Tick>, Unported> {
         let (held, steps) = match self.gait {
             RunGait::Walk { ramp } => (keys::FORWARD, ramp),
             RunGait::Sprint { steps, .. } => (keys::FORWARD | keys::SPRINT, steps),
@@ -679,7 +724,8 @@ mod tests {
     /// (its keys move the step after), then k / 6 of the walk cap a step, along its yaw.
     #[test]
     fn a_body_at_rest_walks_off_by_the_blend() {
-        let world = floor();
+        let floor = floor();
+        let world = Client { world: &floor };
         let mut body = ClientBody::at_rest(&world, Vec3::new(0.0, 0.0, 0.0), 0.0).expect("it rests on a flat floor");
         assert!(body.feet().y.abs() < 1e-3, "{:?}", body.feet());
         let input = Input { keys: keys::FORWARD, yaw: 0.0 };
@@ -699,7 +745,8 @@ mod tests {
     /// A body saved and made again from its block stands where it stood, with the same flags.
     #[test]
     fn a_saved_body_comes_back_where_it_was() {
-        let world = floor();
+        let floor = floor();
+        let world = Client { world: &floor };
         let body = ClientBody::at_rest(&world, Vec3::new(1.0, 0.0, 2.0), 0.3).expect("rests");
         let saved = body.save();
         let back = ClientBody::from_saved(&saved, &[Input { keys: 0, yaw: 0.3 }], Kin::CLIENT);
@@ -710,7 +757,8 @@ mod tests {
     /// A short jump run in on a flat floor lands, stays and rests: the flight's own verdicts.
     #[test]
     fn a_run_in_on_a_flat_floor_lands_and_rests() {
-        let world = floor();
+        let floor = floor();
+        let world = Client { world: &floor };
         let body = ClientBody::at_rest(&world, Vec3::new(0.0, 0.0, -10.0), 0.0).expect("rests");
         let start = body.feet();
         let ticks = RunIn { gait: RunGait::Walk { ramp: 6 }, yaw: 0.0 }.play(&world, body, Kin::CLIENT).expect("forward");
@@ -724,7 +772,8 @@ mod tests {
     /// A side press is not flown (its clip is not ported).
     #[test]
     fn a_side_press_is_unported() {
-        let world = floor();
+        let floor = floor();
+        let world = Client { world: &floor };
         let mut body = ClientBody::at_rest(&world, Vec3::ZERO, 0.0).expect("rests");
         assert_eq!(body.press_forward(keys::LEFT, 2.0, Kin::CLIENT, Leg::Left, 6.57), Err(Unported));
         assert!(!body.flying());

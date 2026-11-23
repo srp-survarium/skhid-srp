@@ -58,7 +58,7 @@ impl Topic for ShotHeights {
             let first = first_of_run(self.last[fact.shooter], fact.tick);
             self.last[fact.shooter] = Some(fact.tick);
             let Some((target, distance, _)) = fact.target else { continue };
-            let in_air = game.bodies.get(target).is_some_and(|t| t.air_until > fact.tick || t.flight.is_some());
+            let in_air = game.bodies.get(target).is_some_and(|t| t.in_air(fact.tick));
             let stance = match fact.offset.map(|o| o.stance) {
                 _ if in_air => 2,
                 Some(Stance::Crouched) => 1,

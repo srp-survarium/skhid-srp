@@ -67,7 +67,7 @@ fn rows_of_game(game: &Game, tick: u32, before: &[Vec3], inserted: &[u32]) -> Ve
         .iter()
         .enumerate()
         .map(|(place, body)| {
-            let jumping = body.flight.is_some() || body.air_until > tick;
+            let jumping = body.in_air(tick);
             let moved = body.feet - before[place];
             Row {
                 time: tick,

@@ -224,7 +224,13 @@ impl RouteTally {
             // A walk-off's fall is told where it lands, from the edge; any other in the tick it drops a metre or more. Whether
             // the route dropped there is asked at the edge, of the route it walked off by (A271: the route is planned again in
             // the air, and 186 of the 196 falls the walk-off turned unplanned were drops the one-tick arm counted planned there).
-            let walk_off = body.flight.as_ref().filter(|f| body.alive && f.carry != [0.0; 2]).map(|f| f.from);
+            // [body physics S2] A shared-model body's walk-off: its fall's edge (`Body::client_fall_from`).
+            let walk_off = body
+                .flight
+                .as_ref()
+                .filter(|f| body.alive && f.carry != [0.0; 2])
+                .map(|f| f.from)
+                .or(body.client_fall_from.filter(|_| body.alive));
             let (from, planned_at_edge) = match (walk_off, run.walk_off_from[place]) {
                 (Some(edge), None) => {
                     run.walk_off_from[place] = Some((edge, drops_at(edge, true)));

@@ -33,7 +33,7 @@ src/v026g/bots/body.rs	fall_step	3
 src/v026g/bots/body.rs	kept_controller_at	2
 src/v026g/bots/body.rs	kept_controller_saved	1
 src/v026g/bots/body.rs	kept_fly_step	1
-src/v026g/bots/body.rs	kept_off_ground	3
+src/v026g/bots/body.rs	kept_off_ground	2
 src/v026g/bots/body.rs	kept_step	1
 src/v026g/bots/body.rs	kept_tick	2
 src/v026g/bots/body.rs	slide_capped	1

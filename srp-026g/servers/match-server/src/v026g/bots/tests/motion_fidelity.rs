@@ -71,6 +71,10 @@ const MAPDATA: &str = "../../crates/mapdata/src/";
 /// The shared model of the client's body (the `client-body` crate): the one place the entry points are called from once the layers move.
 const SHARED_MODEL: &str = "../../crates/client-body/src";
 
+/// A line that hands the shared model its world (an `impl client_body::Walker` for a layer's own world, e.g. the walk grid's client
+/// walker) carries this marker: its calls are the shared model's steps, not a layer's copy.
+const WORLD_ADAPTER: &str = "// [the shared model's world]";
+
 /// The source trees the guard reads, from this crate's manifest folder.
 const TREES: &[&str] = &["src", "../../crates/mapdata/src"];
 
@@ -126,7 +130,7 @@ fn count_calls() -> BTreeMap<(String, String), usize> {
         }
         for line in text.lines() {
             let trimmed = line.trim_start();
-            if trimmed.starts_with("//") {
+            if trimmed.starts_with("//") || line.contains(WORLD_ADAPTER) {
                 continue;
             }
             for &(name, scope) in ENTRY_POINTS {
