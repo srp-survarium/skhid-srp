@@ -6394,6 +6394,11 @@ of twenty-five held guns twenty-four leave the muzzle along the barrel (0.05 mm,
 from the note's arithmetic, the level's own ray test run) and one, the level between its eye and
 its muzzle, the eye.
 
+The recoil's clips are the gun's: the top and the side kick turn the Weapon bone themselves; the
+hip shake (camerashake_v2, weighted by the recoil's z) turns the eye and not the gun, so the gun
+held from the hip is turned by what the shake adds to the eye, computed with the engine's own bone
+computer cut under the shake's layer (0x3B1910, 0x3B28D0, 0x3B1AB0).
+
 The way is the barrel's own axis always (the owner: "the rule is being closest to bodycam as
 possible, which means full direction gun simulation"): fully aimed it is the models' 0 to 0.6
 degrees off the sights' line, and a gun not brought up (a sprint's pose: 54 degrees and more off the

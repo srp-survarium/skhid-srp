@@ -3736,3 +3736,6 @@ va	status	ref_021d	name
 0x002e4170	inferred-medium	0x001e4ed2	survarium::weapon_core::is_going_to_sprint
 0x002d6510	inferred-medium	0x001d2791	survarium::player_input::get_move_direction
 0x00336a90	inferred-medium		survarium::player_logic_stand_sprint_state::is_ready_for_transition
+0x003b0b00	inferred-high		vostok::animation::mixing::n_ary_tree_weight_calculator::visit [animation node]
+0x002e4380	inferred-high		survarium::weapon_core::weight_calculator [descriptive]
+0x00395d70	inferred-high		boost::function<resource_ptr(u32)>::operator() [descriptive]

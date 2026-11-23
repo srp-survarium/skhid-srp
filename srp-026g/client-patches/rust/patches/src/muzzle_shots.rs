@@ -17,6 +17,12 @@
 //! - a wall between the eye and the muzzle keeps the shot at the eye: no
 //!   bullet starts beyond what the barrel pokes through.
 //!
+//! The recoil's three clips are the gun's: the top and the side kick turn the
+//! Weapon bone themselves; the hip shake (camerashake_v2, weighted by the
+//! recoil's z) turns the eye, the arms and the hands only, so the gun held
+//! from the hip is turned by what that shake adds to the eye
+//! (`HeldGun::eye_shake`), as the game's bullet was with the eye.
+//!
 //! The gun is posed at the shot's own time (the tree's, inside the animation
 //! event), where the game's copy is the eye of the step before: a burst's
 //! bullets no longer take the hands clip's camera turn of the pass before.
@@ -44,7 +50,7 @@
 
 use ragdoll::math::{Quat, Vec3, atan2};
 
-use crate::affine::{inverse, product, row, with_row};
+use crate::affine::{IDENTITY, inverse, product, row, with_row};
 use crate::vostok::camera::Director;
 use crate::vostok::log::{self, Piece::{self, Dec, Text}};
 use crate::vostok::shot::{HeldGun, Shot};
@@ -125,6 +131,7 @@ impl Leaving {
             aim: gun.aim()?.0,
             barrel: gun.barrel()?.0,
             raised: gun.raised(),
+            shake: gun.eye_shake().unwrap_or((IDENTITY, IDENTITY)),
         };
         let pose = rig.pose()?;
         let muzzle = pose.muzzle()?;
@@ -252,6 +259,9 @@ pub struct Rig {
     pub barrel: [f32; 16],
     /// The aim's progress.
     pub raised: f32,
+    /// What the hip shake adds to the eye (the eye without it, and with it:
+    /// the eye twice for none).
+    pub shake: ([f32; 16], [f32; 16]),
 }
 
 impl Rig {
@@ -260,7 +270,10 @@ impl Rig {
     /// is the eye, process_hands_ik's alignment; between them by the
     /// sight's raising. None for an aim that flattens space.
     pub fn pose(&self) -> Option<Pose> {
-        let hip = product(&HALF_TURN, &self.hand);
+        // From the hip the gun takes the shake the eye has: the clip turns the
+        // eye, the arms and the hands, and the bullet went with the eye.
+        let shaken = product(&inverse(&self.shake.0)?, &self.shake.1);
+        let hip = product(&product(&HALF_TURN, &self.hand), &shaken);
         let sight = product(&product(&self.aim_offset, &HALF_TURN), &self.aim);
         let aimed = product(&inverse(&sight)?, &self.eye);
         let held = blend(&hip, &aimed, self.raised);
@@ -362,6 +375,7 @@ mod tests {
             aim: product(&HALF_TURN, &at(0.0, 0.05, 0.0)),
             barrel: barrel(),
             raised,
+            shake: (IDENTITY, IDENTITY),
         }
     }
 
@@ -403,6 +417,23 @@ mod tests {
         let s = core::f32::consts::FRAC_1_SQRT_2;
         assert!(near(&half, &[s, 0., -s, 0., 0., 1., 0., 0., s, 0., s, 0., 1.0, 0.0, 0.0, 1.]), "{half:?}");
         assert_eq!((blend(&IDENTITY, &quarter, 0.0), blend(&IDENTITY, &quarter, 1.0)), (IDENTITY, quarter));
+    }
+
+    #[test]
+    fn from_the_hip_the_gun_takes_the_shake_the_eye_has() {
+        // the eye without the shake, and with it: turned a little about the up and moved
+        let (sine, cosine) = (0.012f32, (1.0f32 - 0.012 * 0.012).sqrt());
+        let cut = at(0.0, 1.6, 0.1);
+        let full = [cosine, 0., -sine, 0., 0., 1., 0., 0., sine, 0., cosine, 0., 0.004, 1.6, 0.1, 1.];
+        let shaken = Rig { shake: (cut, full), ..rig(0.0) };
+        let (still, moved) = (rig(0.0).pose().unwrap(), shaken.pose().unwrap());
+        // the gun turned as the eye was: its forward by the same angle
+        let turn = |pose: &Pose| row(&pose.gun, 2);
+        assert!((turn(&moved).cross(turn(&still)).length() - sine).abs() < 1e-5, "{:?} {:?}", turn(&moved), turn(&still));
+        // fully aimed the gun is laid on the eye, which has the shake already: the shake's pair changes nothing
+        assert!(near(&Rig { shake: (cut, full), ..rig(1.0) }.pose().unwrap().gun, &rig(1.0).pose().unwrap().gun));
+        // no shake: the pair is the same eye twice
+        assert!(near(&Rig { shake: (full, full), ..rig(0.0) }.pose().unwrap().gun, &still.gun));
     }
 
     #[test]

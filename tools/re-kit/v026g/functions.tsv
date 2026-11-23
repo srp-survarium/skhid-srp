@@ -2503,3 +2503,8 @@ va	status	ref_021d	name
 0x002f85b0	observed		survarium::usable_object::use_finalize
 0x003cfe20	reviewed		vostok::render::res_render_output::goto_fullscreen
 0x003cfe80	reviewed	0x00274fc2	vostok::render::res_render_output::minimize
+0x003b1910	reviewed	0x0025fd86	vostok::animation::bone_matrices_computer::bone_matrices_computer
+0x003b1ab0	reviewed	0x0025fe77	vostok::animation::bone_matrices_computer::~bone_matrices_computer
+0x003b23a0	reviewed	0x002605c2	vostok::animation::bone_matrices_computer::computed_local_bone_matrix
+0x003b28d0	reviewed	0x00260844	vostok::animation::bone_matrices_computer::computed_bone_matrix
+0x003b2050	reviewed	0x0026022f	vostok::animation::bone_matrices_computer::computed_local_bone_transform

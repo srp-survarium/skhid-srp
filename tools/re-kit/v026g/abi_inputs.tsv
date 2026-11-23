@@ -6768,3 +6768,20 @@ va	name	location	role	basis
 0x00391a20	vostok::animation::animation_player::compute_bone_matrix [descriptive]	entry ESP+8	the skeleton whose record it is ([player+408h] at 0x2DA4D8; a held item's own)	observed
 0x00391a20	vostok::animation::animation_player::compute_bone_matrix [descriptive]	entry ESP+0xC	the animated object whose animations of the tree are mixed: the player (0x2DA4C5), or the item it holds	observed
 0x00391a20	vostok::animation::animation_player::compute_bone_matrix [descriptive]	entry ESP+0x10	the clips' resolver, a boost::function's address: an empty one (its first dword 0) takes each animation's own clip (0x2DA4CB)	observed
+0x003b1910	vostok::animation::bone_matrices_computer::bone_matrices_computer	ECX	the animation states (tree +10h)	observed
+0x003b1910	vostok::animation::bone_matrices_computer::bone_matrices_computer	EAX	their count (tree +20h)	observed
+0x003b1910	vostok::animation::bone_matrices_computer::bone_matrices_computer	entry ESP+4	the computer, 18h bytes (written +00h..+14h)	observed
+0x003b1910	vostok::animation::bone_matrices_computer::bone_matrices_computer	entry ESP+8	the animated object	observed
+0x003b1910	vostok::animation::bone_matrices_computer::bone_matrices_computer	entry ESP+0xC	the skeleton	observed
+0x003b1910	vostok::animation::bone_matrices_computer::bone_matrices_computer	entry ESP+0x10	the clips' resolver (a boost::function; first dword 0: each interval's own clip)	observed
+0x003b28d0	vostok::animation::bone_matrices_computer::computed_bone_matrix	ECX	the computer	observed
+0x003b28d0	vostok::animation::bone_matrices_computer::computed_bone_matrix	entry ESP+4	out matrix, 16 floats	observed
+0x003b28d0	vostok::animation::bone_matrices_computer::computed_bone_matrix	entry ESP+8	the bone's record	observed
+0x003b28d0	vostok::animation::bone_matrices_computer::computed_bone_matrix	entry ESP+0xC	bone mask pointer, 0 = the bone's own (compute_bone_matrix passes 0)	observed
+0x003b28d0	vostok::animation::bone_matrices_computer::computed_bone_matrix	entry ESP+0x10	flag byte (compute_bone_matrix passes 0)	observed
+0x003b1ab0	vostok::animation::bone_matrices_computer::~bone_matrices_computer	EAX	the computer	observed
+0x003b0b00	vostok::animation::mixing::n_ary_tree_weight_calculator::visit [animation node]	ECX	the weight calculator (+10h time ms, +14h weight)	observed
+0x003b0b00	vostok::animation::mixing::n_ary_tree_weight_calculator::visit [animation node]	entry ESP+4	the animation node	observed
+0x00395d70	boost::function<resource_ptr(u32)>::operator() [descriptive]	EAX	the boost::function	observed
+0x00395d70	boost::function<resource_ptr(u32)>::operator() [descriptive]	entry ESP+4	&result (resource_ptr)	observed
+0x00395d70	boost::function<resource_ptr(u32)>::operator() [descriptive]	entry ESP+8	the animation id (interval +8)	observed

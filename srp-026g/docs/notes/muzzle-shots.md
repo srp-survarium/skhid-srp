@@ -154,10 +154,25 @@ degrees over the clip) as well as the eye's bone Item (3.6 and 4.7), so the top 
 are the gun's. `camerashake_v2`, the shake that plays while firing from the hip (the recoil's
 third axis weights it: at most about 1 degree of the eye), turns Item, the arms and the hands and
 **not the Weapon bone**. The game's bullet took it with the eye; a bullet from the barrel does not,
-while the view still shakes. So from the hip a shot is up to about a degree steadier than the
-game's was, inside a spread of five degrees and more. Not put on the gun yet: it means reading the
-shake's weight and frame from the weapon's recoil state and its clip's turn at a shot (and, drawn,
-taking it off the view and giving it to the gun).
+while the view still shakes. Left so, a shot from the hip would be up to about a degree steadier than the game's was.
+
+**The shake is put on the gun** (patch 200, `HeldGun::eye_shake`). Its weight is the recoil's z
+(the weapon's +47Ch), read by the shake's weight calculator (0x2E39B0) at each tick of the tree
+and kept in the animation's state (+68h), with its time (+6Ch); its node is the one whose weight
+delegate is that function, in layer 5 (+54h), the highest of the user's. The engine's bone
+computer mixes a bone's layers in order up to its layer count (+10h): made as
+`compute_bone_matrix` makes it (0x3B1910), with that count cut to the shake's layer, it gives the
+eye without the shake (0x3B28D0), bit for bit what the engine gives with the shake's weight 0. The
+gun held from the hip is turned by the eye with the shake in the frame of the eye without it;
+fully aimed the gun is laid on the eye, which has it. Nothing is turned with no shake playing, or
+in a tree unlike every one seen (another animation of the user in that layer or above).
+`private/scope-shot-045/muzzle-shots/hip-shake/FINDINGS.txt` has the listings. Run on two real
+matches' memory with the built exe (`dump_shot.py`): 25 held guns, no run failed; 24 shots as
+without it (no shake playing, or fully aimed), one player firing from the hip with a live shake
+has it on his shot (0.27 degrees, 4 mm).
+
+Not done: drawn, the view still has the shake and the gun not (the crosshair, which is the shot's
+line, shows it).
 
 With the bullet following the gun, the kick is the gun's motion and the eye need not take all of
 it. Patch 197 draws it so: of the lift the kick gives the eye the view takes 40 % (`KICK_SHOWN`, a

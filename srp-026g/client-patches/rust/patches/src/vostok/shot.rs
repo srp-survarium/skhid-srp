@@ -137,6 +137,54 @@ impl<'c> HeldGun<'c> {
         }
     }
 
+    /// What the hip shake adds to the user's eye now: the eye (bone Item) as
+    /// the tree mixes it, in the frame of the eye mixed without the shake
+    /// (row vectors: the inverse of the one times the other). The shake is
+    /// camerashake_v2, the recoil's third clip, weighted by the weapon's
+    /// recoil z: it turns the eye, the arms and the hands and not the Weapon
+    /// bone. None with no shake playing, and when the tree is not as every
+    /// one seen (another animation of the user in the shake's layer or over
+    /// it).
+    pub fn eye_shake(&self) -> Option<([f32; 16], [f32; 16])> {
+        // SAFETY: the live player's tree, its animation states and their
+        // nodes, on the simulation's thread inside an animation event (as
+        // `bone`); the bone computer is the engine's own, made, asked and
+        // dropped as compute_bone_matrix does (0x391A5D..0x391AB0), with its
+        // layers cut to under the shake's (computed_local_bone_matrix
+        // 0x3B23A0 composes layers 0 to that count).
+        unsafe {
+            let tree = self.user.animation_tree()?;
+            let (states, count) = (tree.animations()?, read(tree.animation_count()) as usize);
+            let own = self.user.address();
+            let mut shake = None;
+            for n in 0..count {
+                let state = states.at(n);
+                let node = state.node()?;
+                if read(node.weight_calculator_fn()) == raw::image::SHAKE_WEIGHT && read(state.weight()) != 0.0 {
+                    shake = Some((n, read(node.layer())));
+                }
+            }
+            let (shaken, layer) = shake?;
+            for n in (0..count).filter(|n| *n != shaken) {
+                let node = states.at(n).node()?;
+                if read(node.animated_object()) == own && read(node.layer()) >= layer {
+                    return None;
+                }
+            }
+            let skeleton = self.user.core_skeleton()?;
+            let item = named(skeleton, "Item")?;
+            let full = self.bone(skeleton, item, own);
+            let mut computer = [0u32; 6];
+            let mut cut = [0.0f32; 16];
+            raw::engine_bone_computer_new(states.address() as usize as *const c_void, count as u32, computer.as_mut_ptr().cast::<c_void>(),
+                                          own as usize as *const c_void, Some(skeleton), OWN_CLIPS.as_ptr().cast::<c_void>());
+            computer[4] = layer;
+            raw::engine_bone_computer_matrix(computer.as_ptr().cast::<c_void>(), cut.as_mut_ptr(), Some(item), core::ptr::null(), 0);
+            raw::engine_bone_computer_drop(computer.as_mut_ptr().cast::<c_void>());
+            Some((cut, full))
+        }
+    }
+
     /// The aim's offset: a move along the view before the aim's locator
     /// (calculate_aim_alignment 0x244D49).
     pub fn aim_offset(&self) -> [f32; 16] {

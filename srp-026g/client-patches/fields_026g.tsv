@@ -1854,3 +1854,10 @@ survarium::hands_controller	player	0x1F8	ptr<survarium::player>	the holder (proc
 survarium::hands_ik_arguments	bones	0xC	ptr<vostok::float4x4>	process_hands_ik's second argument (EBP+0Ch): the holder's bones' matrices of this frame, 40h each from the skeleton's first child (the Weapon bone's written at 0x295AFA)
 survarium::hands_ik_arguments	skeleton	0x14	ptr<survarium::skeleton_holder>	its fourth (EBP+14h): what holds the skeleton those matrices are of (0x295A38)
 survarium::skeleton_holder	skeleton	0x0	ptr<vostok::animation::skeleton>	the skeleton (0x295A3B)
+vostok::animation::animation_state	weight	0x68	f32	its weight, written by n_ary_tree::tick's weight pass (0x3B0B00); 0: left out of the mix (0x3B20D4)
+vostok::animation::animation_node	weight_calculator_fn	0x14	u32	its weight delegate's function (called with the tick's time at 0x3B0B35); only the hip shake has one: 0x2E39B0, its this (+10h) the weapon
+vostok::animation::animation_node	layer	0x54	u32	m_additivity_priority, the bone code's layer (0x3B1965, 0x3B20E9): recoil_horiz 2, recoil_vert 3, the hip shake 5
+vostok::animation::bone_matrices_computer	layers	0x10	u32	m_layers_count: the layers computed_local_bone_matrix 0x3B23A0 composes (the constructor's: the highest layer + 1, 0x3B1A9D)
+vostok::animation::bone_matrices_computer	size	0x18	size	18h bytes: object, skeleton, states, count, layers, overweighting (0x3B1910)
+survarium::weapon	shake	0x47C	f32	the recoil calculator's z (+468h's +14h): the hip shake's weight, 0 to 1, read by 0x2E39B0 at each tree tick
+survarium::image	shake_weight	0x2E39B0	u32	weapon_core's weight calculator of the hip shake's lexeme (get_camera_shake_lexeme 0x2E13A0; float thiscall(u32 time), the recoil's z while its user lives): an animation node's +14h equal to it tells the shake
