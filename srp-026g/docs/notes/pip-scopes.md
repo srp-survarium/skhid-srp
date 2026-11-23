@@ -492,7 +492,7 @@ lights, particles and rain keep their split, which adds up to the frame).
 others: the sunlit wall grey in the lens while today's scope shows it bright at the same moment). With
 1 fixed it is gone in the rig (AK-74U + ACOG strafing: the lens 0.8 of today's scope's brightness, as
 standing, item 2 of section 10). Not the sun's cascades: the second view fitting its own
-(`SKHID_PIP_CASCADES=own`, diagnostics) gives the same picture.
+(a diagnostic switch tried in round 5, since removed) gave the same picture.
 
 **4. The game thread runs ahead in his game (PROVEN).** His log: `the drawn camera is (mm) from the one
 the game's thread queued last: 0, 6, 15, 26, 0` while moving: round 3's offset of the disc was the

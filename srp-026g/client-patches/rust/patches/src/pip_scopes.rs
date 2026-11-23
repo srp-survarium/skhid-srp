@@ -152,10 +152,6 @@ static SEEN_AIM: Lock<Option<(ModelId, u32)>> = Lock::new(None);
 /// frame's top right corner while the lens is drawn.
 static PICTURE_ON: AtomicBool = AtomicBool::new(false);
 
-/// Diagnostics (`SKHID_PIP_CASCADES=own`): the second view fits its own sun
-/// shadow cascades instead of reading the frame's.
-static OWN_CASCADES: AtomicBool = AtomicBool::new(false);
-
 /// The second view's passes with a lens, for one log line of its lists.
 static SECOND_SEEN: AtomicU32 = AtomicU32::new(0);
 
@@ -278,14 +274,7 @@ fn turn_off_switches(thread: &Thread) {
         ambient_occlusion: second_view::set_stage(thread, Stage::AmbientOcclusion, false),
         reflections: second_view::set_stage(thread, Stage::Reflections, false),
         // the frame's cascades of the last draw, from the same eye, cover the second view's narrower frustum
-        sun_shadows: {
-            let own = OWN_CASCADES.load(Ordering::Relaxed);
-            let was = second_view::set_stage(thread, Stage::SunShadows, own);
-            if own {
-                second_view::set_stage(thread, Stage::SunShadows, was);
-            }
-            was
-        },
+        sun_shadows: second_view::set_stage(thread, Stage::SunShadows, false),
         eye_reset: second_view::eye_reset(thread, Some(false)),
     };
     KEPT.with(thread, |slot| *slot = Some(kept));
@@ -530,9 +519,6 @@ fn read_probe(thread: &Thread) -> Probe {
             let lc = get_environment(thread, c"SKHID_PIP_LOG", &mut c);
             LOG_ON.store(matches!(&c[..lc], b"on" | b"picture"), Ordering::Relaxed);
             PICTURE_ON.store(&c[..lc] == b"picture", Ordering::Relaxed);
-            let mut d = [0u8; 8];
-            let ld = get_environment(thread, c"SKHID_PIP_CASCADES", &mut d);
-            OWN_CASCADES.store(&d[..ld] == b"own", Ordering::Relaxed);
             *probe = match asked(&a[..la], &b[..lb]) {
                 Asked::Off => Probe::Off,
                 Asked::Timing => Probe::Timing,
@@ -753,17 +739,12 @@ pub fn on_render_begin(ctx: &mut Context<'_>) -> Flow<NoExit> {
     } else {
         let camera = second_view::drawn_camera(ctx);
         DRAWN_CAMERA.with(thread, |kept| *kept = camera);
-        if LOG_ON.load(Ordering::Relaxed) && AIMED.with(thread, |aimed| aimed.is_some()) && DRAWS.fetch_add(1, Ordering::Relaxed) % 60 < 3 {
+        if LOG_ON.load(Ordering::Relaxed) && AIMED.with(thread, |aimed| aimed.is_some()) && DRAWS.fetch_add(1, Ordering::Relaxed) % 60 == 0 {
             let queued = QUEUED_PLACE.with(thread, |kept| *kept);
-            if let (Some((view, projection)), Some(queued)) = (camera, queued) {
+            if let (Some((view, _)), Some(queued)) = (camera, queued) {
                 let drawn = invert_affine(&view);
                 let apart = second_view::norm([drawn[12] - queued[0], drawn[13] - queued[1], drawn[14] - queued[2]]);
-                Note::new("pip: the drawn camera is (mm) from the one the game's thread queued last:")
-                    .milli(apart)
-                    .text(", its projection's offsets (1e-5)")
-                    .milli(projection[8] * 1e5)
-                    .milli(projection[9] * 1e5)
-                    .send();
+                Note::new("pip: the drawn camera is (mm) from the one the game's thread queued last:").milli(apart).send();
             }
         }
     }
