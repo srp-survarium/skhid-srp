@@ -1112,7 +1112,7 @@ pub mod damage_zone_fixes {
         OutPriced,
         OutNone,
         /// A crossing found whose price at the zones' intensity (`HazardTuning::zone_intensity`) is under 99 % of its price
-        /// at the full hit: the fix changed the price (counted by pricing it both ways).
+        /// at the full hit: the fix changed the price (counted by pricing it both ways, only while [`comparing_full`]).
         CrossingCheaper,
         /// An escort offered for a carrier by the old rule and refused by `escort_reach` (the post on his line is a goal no
         /// walk of the escort reaches, or the escort stands in such a pocket), once a carrier and a bot a 2 s.
@@ -1166,6 +1166,20 @@ pub mod damage_zone_fixes {
         static COUNTS: RefCell<Counts> = const { RefCell::new([[0; N]; 2]) };
         static TEAM: Cell<u8> = const { Cell::new(0) };
         static ONCE: RefCell<std::collections::HashSet<(u8, usize, u32, u32)>> = RefCell::new(std::collections::HashSet::new());
+        static COMPARE_FULL: Cell<bool> = const { Cell::new(false) };
+    }
+
+    /// [CPU] Whether a crossing found is priced a second time at the zones' full hit for [`Ev::CrossingCheaper`]
+    /// (`plays::memo`): off unless the bench's `SRP_BENCH_CROSSING_CHEAPER` turns it on for its thread. The second pricing is
+    /// test-only work the live server never does: it was half of the bench's crossing CPU on Mamayev Kurgan's batteries
+    /// (7.0 of 14.6 ms a second, the gate bench of 2026-11-23, batt m6 s3), counted in the commander's time.
+    pub fn comparing_full() -> bool {
+        COMPARE_FULL.get()
+    }
+
+    /// Turns [`comparing_full`] on or off for this thread (one bench match).
+    pub fn compare_full(on: bool) {
+        COMPARE_FULL.set(on);
     }
 
     /// `ask` with the events it counts filed under `team`.

@@ -1307,6 +1307,7 @@ pub(crate) fn real_bot_cost() {
             let threat_spent_before = threat::spents();
             let mut raids = RaidTally::default();
             let mut events = BenchEvents::open(level, mode.number(), per_team);
+            crate::v026g::bots::hazards::damage_zone_fixes::compare_full(bench_settings().flag("SRP_BENCH_CROSSING_CHEAPER"));
             events.containers(&game);
             let mut carry = CarryTally::new(format!("{project}-{per_team}v{per_team}"));
             let mut routes = RouteTally::start(game.bodies.len());
