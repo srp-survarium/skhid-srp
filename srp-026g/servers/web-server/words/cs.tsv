@@ -731,7 +731,7 @@ Damage ×{damage}, penetration ×{pierce}, before armour: lower penetration make
 {drug}: {pool} takes ×{k} for {s} s after use ({delay} s to kick in).	{drug}: {pool} dostává ×{k} po dobu {s} s po použití (účinek za {delay} s).
 Inside an anomaly: damage ×{k}, before armour.	V anomálii: poškození ×{k}, před ochranou.
 This weapon takes no damage bonuses.	Tato zbraň nemůže mít bonusy k poškození.
-Come with the weapon; cannot be changed.	Patří ke zbrani; nelze je změnit.
+Comes with the weapon; cannot be changed.	Patří ke zbrani; nelze jej změnit.
 An item holds at most 3 modifications. Bonuses on one stat add up before they apply.	Předmět má nejvýš 3 modifikace. Bonusy k jednomu parametru se před použitím sečtou.
 This item takes no armour bonuses.	Tento předmět nemůže mít bonusy k ochraně.
 Nothing worn covers the {part}.	Nic z vybavení nechrání: {part}.

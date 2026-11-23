@@ -92,6 +92,14 @@ data["skill_icons"] = {str(s["id"]): uri(os.path.join(skill_icons, f"{s['id']}.w
                        if os.path.isfile(os.path.join(skill_icons, f"{s['id']}.webp"))}
 data["mod_icons"] = {name.removeprefix("mod_icon_").removesuffix(".png"): uri(os.path.join(assets, "mod_icons", name), "image/png")
                      for name in os.listdir(os.path.join(assets, "mod_icons"))}
+# assets/mod_icons are cells of lobby_menu.swf's LobbyMenu_ModifierIcons
+# (character 3279, 38 px, column-major): one for each the page shows.
+recovery = data.get("recovery") or {}
+shown = {m["icon"] for m in data["mods"].values()} | {(recovery.get("gear") or {}).get("icon")} \
+    | {line.get("icon") for b in (recovery.get("boosters") or {}).values() for line in b["card"]}
+missing = sorted(str(i) for i in shown - {None} if str(i) not in data["mod_icons"])
+if missing:
+    sys.exit(f"no assets/mod_icons/mod_icon_<n>.png for modification icons {', '.join(missing)}")
 # Top-down maps: the scale and heights go in the page, the images ship beside
 # it as maps/<key>.webp and load when a map is picked.
 with open(os.path.join(assets, "maps", "maps.json"), encoding="utf-8") as f:

@@ -731,7 +731,7 @@ Damage ×{damage}, penetration ×{pierce}, before armour: lower penetration make
 {drug}: {pool} takes ×{k} for {s} s after use ({delay} s to kick in).	{drug}: {pool} ottaa ×{k} vahinkoa {s} s ajan käytön jälkeen (vaikutus alkaa {delay} s:n päästä).
 Inside an anomaly: damage ×{k}, before armour.	Anomalian sisällä: vahinko ×{k}, ennen panssaria.
 This weapon takes no damage bonuses.	Tähän aseeseen ei saa vahinkobonuksia.
-Come with the weapon; cannot be changed.	Tulevat aseen mukana; ei voi muuttaa.
+Comes with the weapon; cannot be changed.	Tulee aseen mukana; ei voi muuttaa.
 An item holds at most 3 modifications. Bonuses on one stat add up before they apply.	Esineessä on enintään 3 muokkausta. Saman arvon bonukset lasketaan yhteen ennen kuin ne vaikuttavat.
 This item takes no armour bonuses.	Tähän esineeseen ei saa panssaribonuksia.
 Nothing worn covers the {part}.	Mikään varuste ei suojaa: {part}.
