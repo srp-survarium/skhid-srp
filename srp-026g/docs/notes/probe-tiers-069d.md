@@ -130,10 +130,28 @@ light; its reflections' composition was not read).
   compile +83h (7), +0E4h (11), +142h (7), +262h (9), +315h (7), +33Dh (5), +406h (5) at 0x18A720,
   0x18B770, 0x18C7C0, 0x18D810. In Native and outside a round every handler returns `Continue`.
 
+## Other maps: dead code
+
+- **The content.** Two quick content builds of revision 72's manifest, one with main's
+  rudnya-069d@7 and three-maps-021-lighting@14, one with this change's map and lighting packs,
+  each mounted over the live patches 12 to 71 (`srp-game-data files`, every file as the game
+  mounts it, 227 446): 31 files differ, the six `projects/v069d_level_01/*/client_project`, the 24
+  new `environment_probe_tier_{weight,damp,light}.ps` programs and `shaders/masks`. The masks'
+  diff is 18 added leaves, the three new families' rows (the stock probe family's six macros
+  each); every existing family's row is the same. A family's key is made from its own row (looked
+  up by its name), so a row added for a new family selects nothing for an existing one, as
+  composition_v044a.ps's row did (patch 178).
+- **The data.** Every project of both contents (278 with probes) read for a probe radius below 0:
+  stock level_07's `indoor(28)` (-0.4, 18 projects) and Rudnya's six projects (62 each); and for
+  the scene marker: only Rudnya's six projects carry 33000 to 33999 (33001).
+- **What an unmarked scene executes.** See "What every frame of every map runs" above: three
+  pass-through handlers per probe, six more techniques compiled per box effect at load, none of
+  them selected.
+
 ## Checked
 
-See the PR and the report of 2026-11-23 for the captures (before/after on the reports page, the kept
-poses, and the identity of unmarked maps with and without the patch and the content).
+The captures (patch 176, the scene clock held by the capture's `clock` line, so two builds can be
+compared byte for byte): see the PR and the report of 2026-11-23.
 
 ## Limits
 
