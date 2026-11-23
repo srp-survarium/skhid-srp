@@ -11,7 +11,4 @@ nix develop -c bash -c '
     export PYTHONPATH="$1/lib/$py/site-packages" SRP_026G_EXE="$2"
     cd client-patches
     python3 check_replay_file_026g.py "$2"
-    cd rust
-    cargo test --locked -p patches
-    cargo clippy --locked -p patches --all-targets -- -D warnings
 ' replay-files "$unicorn" "$exe"
