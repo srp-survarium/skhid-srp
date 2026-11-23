@@ -348,6 +348,9 @@ pub(crate) struct Body {
     /// How the pitch unit relates to the elevation the shots and the eye go along (`SRP_BENCH_PITCH_SCALE`).
     pub(crate) scale: PitchScale,
     pub(crate) blend: Blend,
+    /// [landing walk] A flown jump just landed, its travel (m/s): the next tick still walks at it whatever its keys (the client's
+    /// landing substate), as the reckoning's `Estimate::landing_walk`.
+    pub(crate) landing_walk: Option<f32>,
     pub(crate) keys: u32,
     /// [A318] With `kin.step_input = previous` (the client's order, fx-review A336): the keys and yaw (after its turn) of the input
     /// before `keys`, which move the body on this tick; none on its first tick of a life (then `keys` and `yaw`).
@@ -952,6 +955,7 @@ impl Game {
             pitch: 0.0,
             scale: pitch_scale(),
             blend: Blend::default(),
+            landing_walk: None,
             keys: 0,
             held: None,
             jump_due: None,
@@ -1177,6 +1181,7 @@ impl Game {
         };
         body.pitch = 0.0;
         body.blend = Blend::default();
+        body.landing_walk = None;
         body.held = None;
         body.jump_due = None;
         body.health = 1.0;
@@ -1539,9 +1544,12 @@ impl Game {
                 && body.flight.is_none()
                 && !body.client.is_some_and(|c| c.flying())
                 && tick >= body.air_until;
-            let local = body
-                .blend
-                .tick_mixed(self.kin.target_local(keys, level), self.kin.blend_ticks, super::standin_jump::stand_in_mixer());
+            // [landing walk] The tick after a flown jump's landing walks at the jump's travel, its keys aside.
+            let target = match body.landing_walk.take() {
+                Some(travel) => [travel, 0.0],
+                None => self.kin.target_local(keys, level),
+            };
+            let local = body.blend.tick_mixed(target, self.kin.blend_ticks, super::standin_jump::stand_in_mixer());
             // [A364 P11] The client's step cap (`max_speed` 0x2DC010 in 0x2D9060: the sprint's 5.0 x F in the sprint state, else the
             // walk's 3.5 x F), not in a jump: a change of F (a stagger, a released sprint) reaches a gait at its cap at once, and the
             // 0.3 s blend only the gaits under it and the way back (PROVEN, `docs/notes/stagger_and_legs.md`: walking forward 0.664 of

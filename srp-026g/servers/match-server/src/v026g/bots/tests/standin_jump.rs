@@ -1191,11 +1191,16 @@ pub(crate) fn fly(
                 body.flight = Some(f);
                 return None;
             }
-            FlownStep::Last { feet, landed: on_ground, after, vertical } => {
+            FlownStep::Last { feet, landed: on_ground, after, vertical, travel } => {
+                // The client's walk after the landing resumes from the jump's own travel, straight ahead (the reckoning's rule
+                // in `body::advance`; recorded: exactness's `landing-walk-check-v2`), not from the blend the keys held through
+                // the flight would have reached.
+                body.blend = Blend::at([travel, 0.0]);
+                body.landing_walk = Some(travel);
                 let under = grid.locate(feet, 1.5).unwrap_or(node);
                 if controller_jumps::log() {
                     eprintln!(
-                        "stand-in jump: place {place} pressed {} ms ago from ({:.2}, {:.2}, {:.2}) at {:.2} m/s: {} at ({:.2}, {:.2}, {:.2}), vertical {vertical:.2} m/s",
+                        "stand-in jump: place {place} pressed {} ms ago from ({:.2}, {:.2}, {:.2}) at {:.2} m/s: {} at ({:.2}, {:.2}, {:.2}), vertical {vertical:.2} m/s, walk on from the jump's travel {travel:.2} m/s",
                         tick.saturating_sub(f.at),
                         f.from.x,
                         f.from.y,
