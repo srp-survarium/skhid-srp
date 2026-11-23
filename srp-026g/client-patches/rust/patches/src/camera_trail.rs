@@ -16,9 +16,13 @@
 //! don't have momentum when turn", "bodycam should have perfected the
 //! technique"). Bodycam's camera motion, as its reproduction in the STALKER
 //! bodycam fork has it (bodycam_reference/camera.cpp, `CameraMotion::Update`):
-//! the control (here: where the view rests) is smoothed; the arms follow the
-//! smoothed control quickly and the camera slowly, the faster the faster the
-//! turn; a turn rolls the view. There the arms carry the gun behind the
+//! the control (here: where the player's input aims, and nothing else: the
+//! weapon's kick, and what the clips add to the eye, the steps' bob, the
+//! breath and a shot's wobble, move the view as they did before the follow,
+//! the owner: "camera is bobbling", "the weapon also throws the camera") is
+//! smoothed; the arms
+//! follow the smoothed control quickly and the camera slowly, the faster the
+//! faster the turn; a turn rolls the view. There the arms carry the gun behind the
 //! control; here the gun stays on the aim, so the mouse moves it at once and
 //! a bullet goes where it points, and the view is drawn as far from the gun
 //! as that camera is from those arms. So on a slow turn the gun swings ahead
@@ -161,17 +165,21 @@ pub fn on_eye(ctx: &mut Context<'_>) -> Flow<NoExit> {
         FOLLOW.set(thread, None);
         return Flow::Continue;
     };
-    let rest = rested(aim, shot::free_kick_lift(player));
+    let lift = shot::free_kick_lift(player);
+    let rest = rested(aim, lift);
+    // What the follow follows: the input's aim alone.
+    let (yaw, pitch) = shot::input_aim(player);
+    let control = Look { yaw: turn(yaw % core::f32::consts::TAU), pitch };
     let raised = aim_pose::take_aim_progress(thread);
     let most = most(if raised.is_finite() { clamp(raised, 0.0, 1.0) } else { 0.0 });
     let now = clock::milliseconds(thread);
     let rig = match FOLLOW.get(thread) {
         Some(rig) if rig.player == player.id() => match now.wrapping_sub(rig.at) as f32 / 1000.0 {
-            dt if dt > LONGEST_FRAME => Rig::on(player.id(), rest, now),
-            dt if dt > 0.0 => rig.stepped(rest, dt, most, now),
+            dt if dt > LONGEST_FRAME => Rig::on(player.id(), control, now),
+            dt if dt > 0.0 => rig.stepped(control, dt, most, now),
             _ => rig,
         },
-        _ => Rig::on(player.id(), rest, now),
+        _ => Rig::on(player.id(), control, now),
     };
     FOLLOW.set(thread, Some(rig));
     let look = Look { yaw: turn(rest.yaw + rig.off.yaw), pitch: rest.pitch + rig.off.pitch };

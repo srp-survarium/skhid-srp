@@ -230,6 +230,16 @@ pub fn free_kick_lift(player: Player<'_>) -> f32 {
     }
 }
 
+/// Where `player`'s input aims, without its weapon's kick and without what
+/// its clips add (the steps' bob, the breath): the yaw (rad, growing to the
+/// right: the player's +490h grows to the left, apply_rotation 0x2D8AE2) and
+/// the eye's pitch of its look pitch (rad, up).
+pub fn input_aim(player: Player<'_>) -> (f32, f32) {
+    // SAFETY: the live player's own floats.
+    let (yaw, look) = unsafe { (read(player.this.yaw()), read(player.this.look_pitch())) };
+    (-yaw, eye_pitch(look))
+}
+
 /// Whether the scope's own view of the gun in `player`'s hands is on: the
 /// optic's picture is the screen (the weapon's +181Eh, weapon::tick 0x244B26).
 pub fn scope_view(player: Player<'_>) -> bool {
