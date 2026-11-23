@@ -299,3 +299,7 @@ def launcher_table():
     if len(set(codes)) != len(codes) or any(not re.fullmatch(r'[a-z]{2}', code) for code in codes):
         raise ValueError('every language has its own two-letter code')
     return '\n'.join(lines)
+
+
+if __name__ == "__main__":
+    raise SystemExit(f"{__file__}: its files are written by every build (python link_026g.py --generate)")

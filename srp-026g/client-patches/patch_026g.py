@@ -3214,12 +3214,12 @@ def our_ranges(data, writes):
     return ours + [(va, va + len(new)) for va, old, new in writes if is_cave(old) or va == HASH_MISMATCH_VA]
 
 
-def arena_data_ranges(linked=None):
-    """[(lo, hi)] of the data and state blocks of the arena `linked` (ARENA's
-    when None): no code is there, so an address of one the game is given (a
-    table it reads) is data, not an install."""
-    linked = arena() if linked is None else linked
-    return [(b.va, b.va + b.size) for b in linked.blocks.values() if b.kind != "code"]
+def arena_data_ranges(linked):
+    """[(lo, hi)] of the data and state blocks of the arena `linked` (none
+    without one): no code is there, so an address of one the game is given
+    (a table it reads) is data, not an install."""
+    blocks = linked.blocks.values() if linked is not None else ()
+    return [(b.va, b.va + b.size) for b in blocks if b.kind != "code"]
 
 
 def installs_of(data, writes):
@@ -3227,9 +3227,10 @@ def installs_of(data, writes):
     function build() made the game call, found at any offset of any write
     into the game's sections: a `call` (E8) or `jmp` (E9) rel32 to our code,
     any other 4 bytes that name our code ("pointer": a slot, a delegate, a
-    `push imm32`, a `mov imm32`), and a body replaced in place ("body")."""
+    `push imm32`, a `mov imm32`), and a body replaced in place ("body").
+    The arena is the last build's (BUILT_ARENA)."""
     ours = our_ranges(data, writes)
-    data_blocks = arena_data_ranges()
+    data_blocks = arena_data_ranges(BUILT_ARENA[0])
     inside = lambda target: any(lo <= target < hi for lo, hi in ours) \
         and not any(lo <= target < hi for lo, hi in data_blocks)
     out = {}
@@ -3525,6 +3526,8 @@ def data_file_offset(va):
 # Every write of build() into the original's sections: (VA, the original's
 # bytes, the new ones), in order. audit_installs reads it.
 WRITES = []
+# The arena build() linked (None: a build without one).
+BUILT_ARENA = [None]
 
 # The one place build() writes (docs/notes/rust_patches.md, "The build"):
 # every write into the original's bytes (an install, a data or constant
@@ -3905,10 +3908,11 @@ def add_code_section(data, name, va, code, characteristics):
 
 def build(*args, **kwargs):
     """build_image() with every write recorded by apply() (APPLIED, its
-    owners and spans, overlaps refused); APPLIED and WRITES stay this build's
-    after it returns."""
+    owners and spans, overlaps refused); APPLIED, WRITES and BUILT_ARENA stay
+    this build's after it returns."""
     WRITES.clear()
     APPLIED.clear()
+    BUILT_ARENA[0] = None
     _BUILDING[0] = True
     try:
         return build_image(*args, **kwargs)
@@ -4449,6 +4453,7 @@ def build_image(original, mode, code=None, server=None, late_join=None, revision
         # 68's weapon_kit_preview_apply (UPGRADE_PREVIEW_KIT_APPLY; 0 without it).
         generate_sources(original)
         linked = arena(arena_blocks) if arena_blocks != () else None
+        BUILT_ARENA[0] = linked
         upgrade_preview = with_kit_apply(upgrade_preview, linked)
         weapon_camo = with_bake_name(weapon_camo, bake_name_at, linked)
         upgrade_preview_state = late_join_state_va(late_join) + UPGRADE_PREVIEW_STATE_OFFSET
