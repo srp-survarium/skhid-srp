@@ -245,12 +245,6 @@ pub struct FlightStep {
     pub on_ground: bool,
 }
 
-/// One walk-branch step with the crouch tested and the key up (the rig's `tick_walk`).
-fn walk_step(c: &mut Controller, world: &Collision, s: &Settings, walk: Vec3, sprinting: bool) {
-    let input = TickInput { walk, air_control: Vec3::ZERO, crouch: CrouchInput::Tested { key: false, legs_broken: false }, sprinting };
-    c.tick(world, DT, s, input);
-}
-
 /// [A385] How high over the press point's height a run-up's body is put before it comes down (the client's body's rest, [`played_run_up`]): the ground at the
 /// run-up's start may be lower than the take-off (a sloped approach), and a body put at the take-off's height there would run
 /// in the air (owner-5 `a385-lost-links-client-truth.md` §2.1: Mamayev Kurgan R94, a walking press at 1.0 m pressed with the
@@ -521,7 +515,7 @@ fn played_run_up(world: &Collision, s: &Settings, press_at: Vec3, heading: (f32,
     let c = *body.controller();
     let f = c.feet();
     (flat(f - press_at).length() <= 0.1 && (f.y - press_at.y).abs() <= 0.35 && !c.jumping && c.on_ground(s))
-        .then_some(RunUp { body: c, speed: v })
+        .then_some(RunUp { body: c, speed: v, played: body })
 }
 
 /// How a run-up ended ([`run_up`]).
@@ -530,6 +524,9 @@ pub struct RunUp {
     pub body: Controller,
     /// Its last step's horizontal speed, m/s (the press's `m_linear_horizontal_speed`).
     pub speed: f32,
+    /// [body physics S5a] The client's body it was played with ([`played_run_up`]; its controller is [`Self::body`]): its walk's
+    /// blend and input, for a walk that goes on from it ([`climb_flight`]).
+    pub played: crate::motion::ClientBody,
 }
 
 /// The run-up ending at `press_at` (feet) along `heading` at `speed` m/s (sprinting or not): a body put down 3.5 + 4 steps'
@@ -565,7 +562,7 @@ pub fn run_and_fly(world: &Collision, s: &Settings, press_at: Vec3, heading: (f3
         Gait::Walk => (WALK_CAP_MS, false),
         Gait::Sprint { .. } => (SPRINT_MS, true),
     };
-    let RunUp { body: mut c, speed: v } = run_up(world, s, press_at, heading, speed, sprinting)?;
+    let RunUp { body: mut c, speed: v, .. } = run_up(world, s, press_at, heading, speed, sprinting)?;
     let press = match gait {
         Gait::Sprint { leg, first_air_frame } if v >= WALK_CAP_MS => Press::Sprint { speed: v, leg, first_air_frame },
         _ => Press::Walk { speed: v },
@@ -731,16 +728,19 @@ pub fn climb_flight(world: &Collision, s: &Settings, takeoff: Vec3, way: (f32, f
     let (c, sn) = (n.turn.cos(), n.turn.sin());
     let heading = (way.0 * c - way.1 * sn, way.0 * sn + way.1 * c);
     let at = press_point(takeoff, way, lead, n);
-    let RunUp { body: mut b, .. } = run_up(world, s, at, heading, flight.sprint_ms(), true)?;
-    let step = Vec3::new(heading.0, 0.0, heading.1) * (flight.sprint_ms() * DT);
+    // [body physics S5a] The run-up's own client body sprints on (forward and the sprint held): its blend and cap, not a constant
+    // walk vector.
+    use crate::motion::{self, Input, Kin, Pass};
+    let RunUp { played: mut body, .. } = run_up(world, s, at, heading, flight.sprint_ms(), true)?;
+    let (pass, yaw) = (Pass { world, settings: s }, motion::yaw_of(heading));
+    let kin = Kin { level: flight.cap / WALK_CAP_MS, legs_broken: false };
+    let keys = motion::keys::FORWARD | motion::keys::SPRINT;
     let mut steps = Vec::new();
     let mut up = 0;
     for k in 0..CLIMB_STEPS_MAX {
-        walk_step(&mut b, world, s, step, true);
-        let feet = b.feet();
-        let on_ground = b.on_ground(s);
-        steps.push(FlightStep { n: k, feet, in_jump: b.jumping, on_ground });
-        up = if on_ground && feet.y > takeoff.y + s.step_height { up + 1 } else { 0 };
+        let t = body.tick(&pass, kin, Input { keys, yaw });
+        steps.push(FlightStep { n: k, feet: t.feet, in_jump: t.in_jump, on_ground: t.on_ground });
+        up = if t.on_ground && t.feet.y > takeoff.y + s.step_height { up + 1 } else { 0 };
         if up == 2 {
             break;
         }
@@ -791,12 +791,12 @@ pub fn neighbour_flights_for(
     let at = press_point(takeoff, way, lead, n);
     match kind {
         Kind::Walk => {
-            let RunUp { body: mut b, speed } = run_up(world, s, at, heading, flight.cap, false)?;
+            let RunUp { body: mut b, speed, .. } = run_up(world, s, at, heading, flight.cap, false)?;
             Some(vec![fly_as(world, s, &mut b, heading, Press::Walk { speed }, STAY_KEYS, ground_steps, flight)])
         }
         Kind::Climb => climb_flight(world, s, takeoff, way, lead, n, kits).map(|st| vec![st]),
         Kind::Slow(steps) => {
-            let RunUp { body: mut b, speed } = run_up_slow(world, s, at, heading, flight.cap, steps)?;
+            let RunUp { body: mut b, speed, .. } = run_up_slow(world, s, at, heading, flight.cap, steps)?;
             Some(vec![fly_as(world, s, &mut b, heading, Press::Walk { speed }, STAY_KEYS, ground_steps, flight)])
         }
         Kind::Sprint | Kind::SprintHeld => {
@@ -1035,7 +1035,7 @@ mod tests {
             };
             let Some(r) = rig.get(w[1]) else { continue };
             rows += 1;
-            let Some(RunUp { body: mut c, speed: v }) = start else {
+            let Some(RunUp { body: mut c, speed: v, .. }) = start else {
                 if r[6] == "no_run_up" {
                     same_mm += 1;
                     same_cm += 1;
