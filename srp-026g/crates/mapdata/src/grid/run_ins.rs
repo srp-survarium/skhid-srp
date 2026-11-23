@@ -10,9 +10,19 @@ use crate::controller::jump::{self, Neighbour};
 use crate::controller::tick::Settings;
 use crate::controller::Collision;
 
+/// What the stored run-ins' pass found ([`WalkGrid::record_run_ins`]): the stored presses with a run-up whose run-up, played again
+/// from the link as stored, ended where it should and where it did not (counted, the link left as it is), and those links.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct RunInStats {
+    pub replayed: usize,
+    pub not_replayed: usize,
+    /// The links of [`Self::not_replayed`]: take-off and landing, and whether it was the walking press.
+    pub not_replayed_links: Vec<(crate::Vec3, crate::Vec3, bool)>,
+}
+
 impl WalkGrid {
     /// The stored run-ins of every off link ([`Self::run_ins`]), played in `world` with the settings `s`.
-    pub(super) fn record_run_ins(&mut self, world: &Collision, s: &Settings) {
+    pub(super) fn record_run_ins(&mut self, world: &Collision, s: &Settings) -> RunInStats {
         let cap = jump::WALK_CAP_MS;
         let links: Vec<(OffLink, crate::Vec3, crate::Vec3)> =
             self.off.iter().map(|l| (*l, self.position(l.from), self.position(l.to))).collect();
@@ -23,6 +33,22 @@ impl WalkGrid {
             let walk = l.walk.and_then(|(lead, _)| press_moving(world, s, from, way, Takeoff::Press(lead), own(0.0, 0.0), cap));
             main.unwrap_or(NO_RUN_IN) | (walk.unwrap_or(NO_RUN_IN) << 8)
         });
+        let mut stats = RunInStats::default();
+        for (&(l, from, to), &r) in links.iter().zip(&self.run_ins) {
+            let has = |press: Takeoff| matches!(press, Takeoff::Press(_) | Takeoff::Sprint(_) | Takeoff::SprintHeld(_) | Takeoff::Slow { .. });
+            for (walk, pressed, steps) in [(false, has(l.press), r & 0xFF), (true, l.walk.is_some(), r >> 8)] {
+                if !pressed {
+                    continue;
+                }
+                if steps == NO_RUN_IN {
+                    stats.not_replayed += 1;
+                    stats.not_replayed_links.push((from, to, walk));
+                } else {
+                    stats.replayed += 1;
+                }
+            }
+        }
+        stats
     }
 }
 

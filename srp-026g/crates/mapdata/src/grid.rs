@@ -1626,6 +1626,8 @@ pub struct BuildStats {
     pub rim: rim::RimStats,
     /// [body physics S5b] What R1 did to the off links ([`r1`]).
     pub r1: r1::R1Stats,
+    /// [body physics S5b] The stored run-ins' replays ([`run_ins`]).
+    pub run_ins: run_ins::RunInStats,
     /// [S4] The Jump links the landing carry rule took away ([`Body::landing_carry`]), flown as rim jumps
     /// ([`WalkGrid::fly_rim_todo`]): `tried` of them, the made by press.
     pub carry_flown: rim::RimStats,
@@ -2160,7 +2162,7 @@ impl WalkGrid {
         clock.lap("line tops");
         // [body physics S5b] The stored run-ins: each stored press's run-up played again from the link as stored.
         if let Some(world) = world.filter(|_| !grid.off.is_empty()) {
-            grid.record_run_ins(world, &s);
+            stats.run_ins = grid.record_run_ins(world, &s);
         }
         clock.lap("run-ins");
         grid.mark_no_exit(walls.as_ref().filter(|_| body.pocket_exits_walled));
