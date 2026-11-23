@@ -155,6 +155,7 @@ release's. The "Result" row is the build of the revision named in it.
 | `rust/patches/src/use_scan.rs`, `src/use_scan/rule.rs`, `src/use_scan.toml`, `src/vostok/use_scan.rs`, `check_use_scan_026g.py` | Patch 23 and the use scan it lives in: `base_player::detect_usable_object` (0x2D84C0) whole in Rust, a lohook at its start leaving by its `ret 8` (section 23); the rule (`rule.rs`) is pure, the game's calls `vostok`'s; patch 85 asks it whether Use is the game's |
 | `rust/patches/src/subtick_hits.rs`, `src/subtick_hits.toml`, `src/vostok/ray_test.rs`, `check_subtick_hits_026g.py` | Patch 103: a bullet meets a player where he stood at the ms it crossed him, not where the 50 ms step left him (`../docs/notes/subtick_bullet_hits.md`); one lohook first in `bullet.ray_traced`'s chain; its check runs the game's own ray test (ray_test, rayTest, rayTestSingle) in both exes on made-up bodies (needs Unicorn) |
 | `rust/patches/src/input_check.rs`, `src/input_check.toml`, `src/vostok/input.rs`, `check_input_check_026g.py` | Patch 99: a world takes no player input whose rotation no client makes (a NaN, an infinity, 1024 radians or more), as 0.27d's change_input refuses one: a lohook at change_input<player_input>'s start (0x1FAB50); its check runs that start on made-up inputs, the original beside (needs Unicorn) |
+| `rust/patches/src/camera_walls.rs`, `src/camera_walls.toml`, `src/vostok/camera.rs` (`Orbit`), `check_camera_walls_026g.py` | Patch 132: the orbit camera (the warmup's before the start) stays on the player's side of the level, in front of the first wall between the pivot and the eye, smoothly: a lohook after update_camera's view update (0x1F3650); its check runs update_camera from its start, the original beside, ray_test a stand-in (needs Unicorn) |
 | `check_mouse_buttons_026g.py` | Patch 102 (`MOUSE_BUTTONS` in `patch_026g.py`): a side mouse button (mouse4..mouse8) is no left click in the lobby, login, options and match menus; its check runs the five handlers in both exes (needs Unicorn) |
 | `rust/patches/src/mouse_pitch.rs`, `src/mouse_pitch.toml`, `src/vostok/mouse.rs`, `check_mouse_pitch_026g.py` | Patch 112: the mouse look's pitch with 16:9's h/w at every window while "Lock vertical sensitivity" is ticked, 1:1 at the vertical slider's value when unticked (user.cfg's `srp_mouse_vertical_locked`, `srp_mouse_vertical`); a lohook at on_mouse_move's pitch step, the two variables, the Settings' calls and the death camera's entry; its check runs on_mouse_move in both exes at 4:3 to 32:9, off and on, and the Settings' calls (needs Unicorn) |
 | `rust/patches/src/footsteps.rs`, `src/footsteps.toml`, `src/vostok/footstep.rs`, `check_footsteps_026g.py` | Patch 101: a footstep that only a re-simulation makes (another player's late input) is heard instead of dropped; one lohook in on_player_sound_event's time test; and a foot step in a logic state with no foot material (movement 0: on site, dead) is dropped at on_foot_step's read of it (0x2A6545), which read the word before the boots' table (a rev71 crash in step_manager::on_step); its check runs the handler in both exes (needs Unicorn) |
@@ -5956,6 +5957,41 @@ snapshot, nothing called and no lock taken: the resources (managed) allocator's 
 and Scaleform's heaps (the Flash UI) by name, with what each holds and uses. Nothing a match computes. Details: `../docs/notes/memory-profile.md`. Checked with
 `check_memory_profile_026g.py` (Unicorn) and the patch crate's tests.
 
+## The camera before the start stays out of the walls (patch 132, unreleased)
+
+Before the start the camera orbits the player (patch 31: a drag turns it, the wheel brings it
+nearer or further, 1.5 to 4.6 m). The game places it without looking at the level
+(update_inverted_view 0x2422B0), so at many spawns of many maps it was inside a wall, or on the far
+side of a thin one, and the player saw the wall's inside or the room behind it. The lobby's camera
+has always had a ray for this (0x2844D0); the match's orbit had none.
+
+**The patch** (the Rust patch `camera_walls`, one lohook, `sites_026g.tsv` `camera.viewed`, first of its handlers): after
+update_camera's view update (0x1F3650), in the orbit modes only (not the first person, not a
+spectator), a ray goes from the pivot (the player's place raised 1.4 m) toward the eye with the
+lobby camera's filter (the level's collision that bullets hit). Its hit gives the pull the eye
+wants: in from the orbit to 0.2 m in front of the hit (the near plane is 0.05 m), at the pivot when
+the wall is nearer than that. The eye is never shown behind that wall: a pull short of what it
+needs is made up at once (only eased in, the eye was behind it for a few frames: the owner,
+2026-11-23). So that this seldom has to happen, the pull starts early and goes in smoothly: while
+the orbit turns, a second ray goes where its way will be 0.3 s on at the turn since the last frame
+(31 degrees off at most), and the pull that wall would need is wanted already, approached by
+1 - e^(-10 t) of the way in t s (95 % in 0.3 s). Back out the pull goes by 1 - e^(-3 t) (in 1 s),
+so that a ray leaving a bar or a branch of the detailed meshes does not throw the eye out again
+(the owner, 2026-11-09). A new orbit (the warmup's first frame) starts at the pull it needs. The
+pull is taken from the
+wheel's distance, which is kept, so the wheel moves the eye at once as before. Nothing in the way:
+the game's view, untouched. Nothing a match computes. `../docs/notes/client_patch.md` section 3.103
+has the evidence.
+
+Checked: `check_camera_walls_026g.py` runs update_camera from its start in both exes, a frame a
+call (the game's own orbit code; ray_test a plane or nothing, the performance counter a clock of
+its own): no wall, the original's view and registers bit for bit, one ray; a new orbit with a wall,
+the eye at once in front of it with the original's turn; a wall that comes in an orbit, the eye in
+front of it at once; one that goes, the eye out by the rate above, and the original's view again
+once the wall has gone; a turning orbit, the second ray where the way will be, and a wall only it
+meets pulling the eye in by the rate above; the first person, a spectator and a player without a
+physics world, the original's. Run in a game (the owner, 2026-11-23: eased in, "almost good", the
+eye briefly behind a wall; the ray ahead since).
 ## Texture streaming's bookkeeping in Rust (patch 137, unreleased)
 
 Two functions the render thread runs every frame took about 8 % of it in the profiles of the owner's live
