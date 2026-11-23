@@ -409,6 +409,46 @@ clients and every joiner crashed while place 19 held the gun.
   garbage (0xFA) and a null kit player (read of 10Ch at 0x2FFF87). A world
   of rev47's clients with such a gun stays unloadable.
 
+## Late joins reading a pick in the wrong shape (reports of 2026-11-16..11-21)
+
+Five crash reports (rev62..68), each while the joiner read a picker's state:
+body_part_parameters::deserialize's affects_count assert (0x32B0A8) or a
+read of 10Ch in inventory_item::deserialize (0x2FFF87). The dumps hold the
+reader's stream: in each the slot's bytes are another shape than the
+joiner's gun reads.
+
+- **What decides the shape.** weapon_core::deserialize (0x2E3490) reads
+  past the chamber byte only while its own weapon has a user (+8h,
+  0x2E35B1): the ammo switch, recoil, dispersion, aim, breath, sprint, auto
+  reload, the logic state and the portable object. A holstered gun has none
+  in every game (the native switch's deactivate(1) clears it, 0x2E2EE0), so
+  its state ends at the chamber byte; the reader set_users only the held
+  object, before the inventory (0x2DB67B).
+- **A fresh pick kept its user** (11-18, 11-20; rev68's 11-21 the same
+  path): the install of a late joiner's cook set_user'd and initialized it
+  and left the user. The picks were holstered in the worlds (11-20, place 2:
+  slot 7's gun ends at 0x1CF, slot 8's stack, 30 rounds, at 0x1D0; the
+  dump's gun has user = place 2's player, held is another object), so the
+  joiner read slot 8's bytes as slot 7's in-hand fields and asserted 0.27 s
+  on. Now the install clears the user as deactivate(1) does
+  (`pickup::holstered`, 0x2E2EAC..0x2E2EE0) after the initialize, which
+  needs it (0x2E2B88); weapon_core::set_user(0) is no way to do it (the
+  controller's set_user reads user+408h, 0x2985E5).
+- **A stale user re-installed** (11-16 18:11, rev62): that fresh install,
+  then a removal at the countdown's end put the gun away not held (a forget
+  only, no deactivate), and a resync's record re-installed it with no
+  weapon call, user still set; slot 7 holstered in the world (its stack at
+  0xEB). A re-install of a gun not held now clears its user too.
+- **The gun not made** (11-16 17:13, rev62): the cook was not made in the
+  2 s before the load nor in the reader's 2 s; the record's pick was not
+  installed and the own gun (no user) read place 3's held pick: slot 8's
+  count (CCh 0Dh) then place 0Dh kit 0Dh, a null kit player. Now a world
+  whose named guns are not all made by the deadline is not loaded
+  (`Prepared::NotReady`, world_check discards it and a new one comes); the
+  cooks go on, kept on the client's own clock (`Lies::Ended` at its time,
+  not 0, which after_move freed at once on a running client), and the next
+  world takes them. A failed cook is no idle copy (it is cooked again).
+
 ## The switch: holster, then draw (option (b), exp/pickup-holster-b, built, not run in a game)
 
 The owner (2026-11-01): a pickup is a normal weapon switch, the gun in hands

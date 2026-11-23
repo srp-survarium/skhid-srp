@@ -641,3 +641,10 @@ pub fn world_time(world: &super::world::GameWorld<'_>) -> Option<u32> {
     // SAFETY: the site's game world, its match and core, alive for the hook.
     unsafe { Some(read(world.this.pvp_match()?.core().time())) }
 }
+
+/// [`world_time`] of the network client's match (the same core): at a
+/// world's load, the time this client was at before it.
+pub fn client_time(client: &super::world::NetworkClient<'_>) -> Option<u32> {
+    // SAFETY: the client's live match and its world core, alive for the hook.
+    unsafe { Some(read(client.this.pvp_match()?.core().time())) }
+}

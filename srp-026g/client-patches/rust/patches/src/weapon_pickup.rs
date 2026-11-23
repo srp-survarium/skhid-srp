@@ -675,7 +675,8 @@ fn let_go(thread: &Thread, world: Option<WorldKey>, player: PlayerId, slot: Weap
     let this = Taken { picker: player, slot, pick };
     let idle_drops = CACHE.with(thread, |cache| {
         // A copy holding a gun other than its own is no gun of its recipe.
-        let flat = || cache.iter().flatten().filter(|e| !native::stray(thread, e.gun.id(), e.recipe.slot));
+        let flat = || cache.iter().flatten()
+            .filter(|e| !native::stray(thread, e.gun.id(), e.recipe.slot) && may_be_made(thread, e.gun.id()));
         // The copy this very pick had (let go, or back in its drop: a
         // rollback undoing its switch or its pickup), on every client the
         // copy its command took.
@@ -721,10 +722,21 @@ const NAMED: usize = 3 * PLACES as usize;
 /// installed, between simulation updates, as at any frame's dispatch.
 /// A named pick is one the reader keeps (the place's player holds it, or has
 /// it pending, as the record says) or takes from the idle copies of its recipe
-/// (in a drop or let go); the rest of each recipe is cooked.
-pub fn before_world_load(load: &WorldLoad<'_>, frame: &Frame<'_>) {
+/// (in a drop or let go, made or cooking); the rest of each recipe is cooked.
+///
+/// A world whose named guns are not all made by the deadline is not loaded
+/// ([`Prepared::NotReady`]: world_check discards it, a new one is asked for):
+/// the native inventory reader would read the slot's bytes into the own gun,
+/// whose shape differs (the 2026-11-16 report: place 3's held pick read as
+/// its own holstered gun, the next item's place byte 0x0D, a read of 10Ch at
+/// 0x2FFF87). The cooks go on and the next world finds them.
+pub fn before_world_load(load: &WorldLoad<'_>, frame: &Frame<'_>) -> Prepared {
     let thread = load.thread();
     let client = load.network_client();
+    // The client's own clock: a copy cooked here and not taken by this load
+    // (a world not loaded) outlives it KEEP_GONE_MS on the clock after_move
+    // reads, until the next world.
+    let now = Ms(gun_cook::client_time(&client).unwrap_or(0));
     if let Some(current) = client.match_id() {
         forget_other_matches(thread, current);
     }
@@ -772,8 +784,10 @@ pub fn before_world_load(load: &WorldLoad<'_>, frame: &Frame<'_>) {
             }
         }
     }
-    let mut asked = [None; NAMED];
+    // The copies the readers will take: those asked for here, and idle ones still cooking.
+    let mut needed = [None; NAMED];
     let mut n = 0;
+    let mut unasked = false;
     for (k, recipe) in named.iter().enumerate() {
         let Some(recipe) = *recipe else { continue };
         // Each recipe once, at its first: how many it is named, how many idle copies there are.
@@ -782,14 +796,31 @@ pub fn before_world_load(load: &WorldLoad<'_>, frame: &Frame<'_>) {
         }
         let wanted = named.iter().filter(|&&r| r == Some(recipe)).count();
         // An open drop's copy is not idle: it stays its drop's (the dead
-        // holder of a picked gun names the same recipe).
-        let idle = CACHE.with(thread, |cache| cache.iter().flatten()
-            .filter(|e| e.recipe == recipe && !native::stray(thread, e.gun.id(), recipe.slot) && match e.at {
-                At::Drop(d) => !(d.lies == Lies::Current && open[usize::from(d.place.get())]),
-                At::LetGo { .. } => true,
-                _ => false,
-            }).count());
-        if wanted <= idle {
+        // holder of a picked gun names the same recipe). A failed cook is no copy.
+        let mut idle = [None; NAMED];
+        let found = CACHE.with(thread, |cache| {
+            let copies = cache.iter().flatten()
+                .filter(|e| e.recipe == recipe && !native::stray(thread, e.gun.id(), recipe.slot)
+                    && may_be_made(thread, e.gun.id()) && match e.at {
+                        At::Drop(d) => !(d.lies == Lies::Current && open[usize::from(d.place.get())]),
+                        At::LetGo { .. } => true,
+                        _ => false,
+                    });
+            let mut found = 0;
+            for (room, e) in idle.iter_mut().zip(copies) {
+                *room = Some(e.gun.id());
+                found += 1;
+            }
+            found
+        });
+        for id in idle.iter().flatten().take(wanted) {
+            if matches!(gun_cook::cooked(thread, *id), Cooked::Cooking { .. })
+                && let Some(room) = needed.get_mut(n) {
+                *room = Some((*id, recipe));
+                n += 1;
+            }
+        }
+        if wanted <= found {
             continue;
         }
         let Some(donor) = client.kit_player(recipe.place, recipe.kit)
@@ -798,30 +829,58 @@ pub fn before_world_load(load: &WorldLoad<'_>, frame: &Frame<'_>) {
                                                                  will not install it)")]);
             continue;
         };
-        for _ in idle..wanted {
-            let from = DropOf { place: recipe.place, body: donor.id(), life: None, lies: Lies::Ended { at: Ms(0) } };
+        for _ in found..wanted {
+            let from = DropOf { place: recipe.place, body: donor.id(), life: None, lies: Lies::Ended { at: now } };
             log_recipe("a world to load names", recipe, &[Text(", which this client has no idle copy of: cooked before \
                                                                  the load")]);
-            if let (Some(id), Some(room)) = (ask(&donor, thread, recipe, At::Drop(from)), asked.get_mut(n)) {
-                *room = Some((id, recipe));
-                n += 1;
+            match ask(&donor, thread, recipe, At::Drop(from)) {
+                Some(id) => if let Some(room) = needed.get_mut(n) {
+                    *room = Some((id, recipe));
+                    n += 1;
+                },
+                None => unasked = true,
             }
         }
     }
-    if n == 0 && dropped == 0 {
-        return;
+    if n == 0 && dropped == 0 && !unasked {
+        return Prepared::Ready;
     }
     // One deadline for them all: the 0xE8 handler is held at most
     // WAIT_CAP_MS however many guns the world names (the server drops a
     // silent peer after 10 s).
     let deadline = Deadline::from_now(thread);
-    for (id, recipe) in asked.iter().flatten().chain(drops.iter().flatten()) {
+    let mut ready = !unasked;
+    for (id, recipe) in needed.iter().flatten() {
         if let Err(refused) = wait_for(thread, *id, *recipe, Dispatch::BeforeLoad, deadline) {
+            ready = false;
             log_recipe("NOT made before the world's load:", *recipe, &[
-                Text(" ("), Text(refused.text()), Text("; the record's reader waits for it, refused while a player \
-                                                           was made since the last move)")]);
+                Text(" ("), Text(refused.text()), Text("; the world is not loaded, a new one is asked for)")]);
         }
     }
+    // An open drop's gun is the pickup's, not the reader's: the world loads without it.
+    for (id, recipe) in drops.iter().flatten() {
+        if let Err(refused) = wait_for(thread, *id, *recipe, Dispatch::BeforeLoad, deadline) {
+            log_recipe("NOT made before the world's load:", *recipe, &[
+                Text(" ("), Text(refused.text()), Text("; an open drop's gun, its pickup waits for it)")]);
+        }
+    }
+    if ready { Prepared::Ready } else { Prepared::NotReady }
+}
+
+/// Whether a world's records can be read as they are ([`before_world_load`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Prepared {
+    /// Every gun its records name that the readers install is made here.
+    Ready,
+    /// One is not (still cooking at the deadline, its cook failed or could
+    /// not be asked for): the world is not loaded, a new one is asked for.
+    NotReady,
+}
+
+/// Whether a copy is or will be a gun: made, or cooking (a failed cook, or
+/// one given back, never is).
+fn may_be_made(thread: &Thread, id: CookId) -> bool {
+    matches!(gun_cook::cooked(thread, id), Cooked::Made { .. } | Cooked::Cooking { .. })
 }
 
 /// `pickup.remove` (base_player::remove's entry): the removal of the
