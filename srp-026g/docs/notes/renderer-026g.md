@@ -639,7 +639,7 @@ ABGR: red in the low byte, green in bits 8..15, blue in bits 16..23, extracted
 at 0x29094F..0x2909BC; linearized with pow 2.2 at insert 0x2909C0), `intensity` (clamped >= 0), `attenuation_power`,
 `dot_normal`, `affect_specular` (default 0), `geometry` (0 sphere, 1 box), `side_width`
 (default 0.1, 0x921948), `smart_attenuation`. Render light: +44h location, +50h colour, +5Ch
-intensity, +60h attenuation power, +64h radius, +68h side width, +6Ch geometry, +71h dot_normal,
+intensity, +60h radius, +64h attenuation power (its bits as the object has them: 0x290856, set_properties 0x1C4745, cb0[12].w at 0x181AEF), +68h side width, +6Ch geometry, +71h dot_normal,
 +72h smart_attenuation, +73h affect_specular. PROVEN.
 
 The visible list (scene_view+1CD24h) is split by intensity (0x1858E0): lights with intensity <= 1
