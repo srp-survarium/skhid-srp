@@ -409,13 +409,6 @@ impl ClientBody {
         Self { controller, blend: WalkBlend::still(), moving: Input { keys: 0, yaw }, walk_yaw: yaw, phase: Phase::Ground }
     }
 
-    /// A body whose controller is `controller`, already walking at `walk` (m/s, in its own frame: ahead, left) in `clip` with
-    /// `input` the last input taken: for a forecast from a body known only by its controller and its velocity (a view), not
-    /// from rest.
-    pub fn walking(controller: Controller, input: Input, walk: Local, clip: Clip) -> Self {
-        Self { controller, blend: WalkBlend::at(walk, clip), moving: input, walk_yaw: input.yaw, phase: Phase::Ground }
-    }
-
     /// A world's body: the controller it saved (`Controller::deserialized`, the client's own state: crouched where it is), the
     /// mixer replayed from the inputs before it (oldest first; the last is the world's own input, which moves the step after it).
     /// A jump the world shows under way is not replayed: its flight is the caller's.
