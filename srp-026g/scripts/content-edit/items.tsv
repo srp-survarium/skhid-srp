@@ -603,6 +603,8 @@ items	name	base_cost	premium	like	start
 1893	decals_1_11	50000	false		
 1894	decals_4_76	30000	true		
 1895	decals_5_43	30000	true		
+1896	decals_4_77	0	true		
+1897	decals_4_78	0	true		
 1901	fit_pso1_gip	0	false		
 1902	fit_pso1_rem	0	false		
 1903	fit_pso1_mosin	0	false		
