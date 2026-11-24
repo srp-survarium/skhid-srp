@@ -192,6 +192,8 @@ pub struct Hopeless {
 pub enum HopelessWhy {
     /// Every exit of its pocket tried (`escape.rs`).
     Pocket,
+    /// [shut pocket] In a pocket proven shut, which its escape gave up on at once (`escape::Trapped::shut`): no way out at all.
+    ShutPocket(mapdata::PocketId),
     /// Caught again and again at this spot.
     Ladder(Vec3),
 }
@@ -675,7 +677,7 @@ impl Stuck {
             .filter(|trapped| trapped.gave_up && trapped.since >= life_from)
             .map(|trapped| Hopeless {
                 since: trapped.since,
-                why: HopelessWhy::Pocket,
+                why: trapped.shut.map_or(HopelessWhy::Pocket, HopelessWhy::ShutPocket),
             });
         let ladder = self
             .spots
@@ -1292,19 +1294,23 @@ impl Facts {
         let Some(hopeless_ms) = self.hopeless.map(|h| self.now.saturating_sub(h.since)) else {
             return Some(SelfKillRefusal::NotHopeless);
         };
+        // [shut pocket] A bot in a pocket proven shut goes after `shut_pocket_kill_ms`: no fight and no time of the match makes
+        // a way out of it (the owner, 2026-11-24). The rest of the rules hold as for any hopeless bot.
+        let shut = rule.shut_pocket_kill_ms.filter(|_| self.hopeless.is_some_and(|h| matches!(h.why, HopelessWhy::ShutPocket(_))));
+        let after = shut.unwrap_or(after);
         // The quiet rule, or [A302] its waiver for a bot hopeless that much longer that no hit has come to lately.
         let loud = rule
             .suicide_loud
             .is_some_and(|loud| hopeless_ms >= after.saturating_add(loud.after_ms) && self.hit_quiet_ms >= loud.hit_quiet_ms);
         if hopeless_ms < after {
             Some(SelfKillRefusal::HopelessShort)
-        } else if !(self.quiet_ms >= rule.suicide_quiet_ms || loud) {
+        } else if shut.is_none() && !(self.quiet_ms >= rule.suicide_quiet_ms || loud) {
             Some(SelfKillRefusal::Fight)
         } else if self.carrying {
             Some(SelfKillRefusal::Carrying)
         } else if self.life_ms < rule.suicide_life_ms {
             Some(SelfKillRefusal::LifeYoung)
-        } else if self.match_ms < rule.suicide_match_ms {
+        } else if shut.is_none() && self.match_ms < rule.suicide_match_ms {
             Some(SelfKillRefusal::MatchYoung)
         } else if self.tickets.is_some_and(|t| t <= rule.suicide_min_tickets) {
             Some(SelfKillRefusal::Tickets)
@@ -2436,6 +2442,30 @@ mod tests {
             self_kill_step(state, facts, &rule()),
             (SelfKill::Sent { tries: 1, .. }, Some(SelfKillAct::Send { again: false }))
         )
+    }
+
+    /// [shut pocket] The owner's rule of 2026-11-24: a bot in a pocket proven shut goes 10 s after its escape gave up, with
+    /// an enemy sensed or hit just now and the match young (Vector Laboratory batteries' pit: 77 s and 90 s before); the rest
+    /// of the rules hold; a plain pocket still waits its 60 s and the quiet; off (`shut_pocket_kill_ms` none), it waits too.
+    #[test]
+    fn a_bot_in_a_proven_shut_pocket_kills_itself_after_10_s_in_a_fight_too() {
+        let shut = |since| Facts {
+            now: 60_000,
+            hopeless: Some(Hopeless { since, why: HopelessWhy::ShutPocket(176_493) }),
+            quiet_ms: 0,
+            hit_quiet_ms: 0,
+            match_ms: 60_000,
+            life_ms: 58_000,
+            ..facts()
+        };
+        assert!(sends(SelfKill::Ready, &shut(50_000)), "10 s in a shut pocket, an enemy near, the match 60 s old");
+        assert_eq!(shut(50_001).refusal(&rule(), false), Some(SelfKillRefusal::HopelessShort), "9.999 s");
+        assert_eq!(Facts { carrying: true, ..shut(50_000) }.refusal(&rule(), false), Some(SelfKillRefusal::Carrying));
+        assert_eq!(Facts { life_ms: 19_999, ..shut(50_000) }.refusal(&rule(), false), Some(SelfKillRefusal::LifeYoung));
+        let plain = Facts { hopeless: Some(Hopeless { since: 50_000, why: HopelessWhy::Pocket }), ..shut(50_000) };
+        assert_eq!(plain.refusal(&rule(), false), Some(SelfKillRefusal::HopelessShort), "a plain pocket waits its 60 s");
+        let off = UnstickTuning { shut_pocket_kill_ms: None, ..rule() };
+        assert_eq!(shut(50_000).refusal(&off, false), Some(SelfKillRefusal::HopelessShort), "off: as any pocket");
     }
 
     /// The owner's rule: 60 s of nothing left to try, no enemy or hit in

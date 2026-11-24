@@ -261,6 +261,7 @@
     "link_made": false,
     "progress_ms": null,
     "suicide_after_ms": null,
+    "shut_pocket_kill_ms": null,
     "suicide_loud": null,
     "unknown_meant_needs_keys": false
   },
