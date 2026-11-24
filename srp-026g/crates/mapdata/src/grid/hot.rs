@@ -488,6 +488,8 @@ impl HotOpen {
     #[inline]
     fn hot_pop(&mut self) -> Option<Entry> {
         if let Some(std::cmp::Reverse(key)) = self.side.pop() {
+            // The side heap's keys are below `last`, and every bucket's at or above it: this pop is the least key.
+            debug_assert!(key < self.last, "a side key {key:#x} at or above the last {:#x}", self.last);
             return Some(Open::entry_of(key));
         }
         if self.buckets[0].is_empty() {
@@ -503,6 +505,33 @@ impl HotOpen {
             self.buckets[b] = keys;
         }
         self.buckets[0].pop().map(Open::entry_of)
+    }
+
+    /// Its invariants, for the tests (the unit tests after every push and pop, the real-map searches after every slice):
+    /// every side key is below `last`, and so below every key in the buckets, which are at or above it; each bucket holds
+    /// only the keys of its bit; bucket 0 holds `last` alone. The first broken one, if any.
+    #[doc(hidden)]
+    pub fn hot_open_check(&self) -> Result<(), String> {
+        if let Some(&std::cmp::Reverse(top)) = self.side.iter().max()
+            && top >= self.last
+        {
+            return Err(format!("a side key {top:#x} at or above the last {:#x}", self.last));
+        }
+        let least = self.buckets.iter().flatten().min().copied();
+        if let (Some(least), Some(&std::cmp::Reverse(top))) = (least, self.side.iter().max())
+            && top >= least
+        {
+            return Err(format!("a side key {top:#x} at or above the bucket minimum {least:#x}"));
+        }
+        for (b, keys) in self.buckets.iter().enumerate() {
+            if let Some(&key) = keys.iter().find(|&&key| key < self.last || self.hot_bucket(key) != b) {
+                return Err(format!("key {key:#x} in bucket {b}, last {:#x}", self.last));
+            }
+        }
+        if self.buckets[0].len() > 1 {
+            return Err(format!("{} keys equal to the last", self.buckets[0].len()));
+        }
+        Ok(())
     }
 
     /// The bytes it holds.
@@ -618,6 +647,7 @@ mod tests {
                         (plain.step(&grid, allowed, weight, &mut i1), fast.step_hot(&grid, &hot, &mut queue, allowed, weight, &mut i2))
                     };
                     assert_eq!(r1, r2, "round {round}: {a} -> {b}");
+                    queue.hot_open_check().unwrap();
                     assert_eq!((i1, plain.expanded()), (i2, fast.expanded()));
                     assert_eq!(plain.partial(&grid), fast.partial(&grid));
                     if r1.is_some() {
@@ -662,6 +692,7 @@ mod tests {
                     let r1 = plain.step(&regions, &grid, allowed, region_ok, |_| 1.0, &mut i1);
                     let r2 = fast.step_hot(&regions, &grid, &hot, &mut queue, allowed, region_ok, |_| 1.0, &mut i2);
                     assert_eq!(r1, r2, "round {round}: {a} -> {b}");
+                    queue.hot_open_check().unwrap();
                     assert_eq!((i1, plain.expanded()), (i2, fast.expanded()));
                     assert_eq!(plain.partial(&grid), fast.partial(&grid));
                     if r1.is_some() {
@@ -703,8 +734,15 @@ mod tests {
                         heap.push(Entry(cost, node));
                         radix.hot_push(Entry(cost, node));
                     }
+                    radix.hot_open_check().unwrap();
                 } else {
+                    let least = radix.buckets.iter().flatten().min().copied();
+                    let side = radix.side.peek().map(|r| r.0);
                     let (a, b) = (heap.pop(), radix.hot_pop());
+                    // A key the side heap gave is below every bucket's.
+                    if let (Some(s), Some(least)) = (side, least) {
+                        assert!(s < least, "side {s:#x} bucket minimum {least:#x}");
+                    }
                     assert_eq!(a.map(|e| (e.0.to_bits(), e.1)), b.map(|e| (e.0.to_bits(), e.1)));
                     if let Some(Entry(c, _)) = a {
                         base = base.max(c);

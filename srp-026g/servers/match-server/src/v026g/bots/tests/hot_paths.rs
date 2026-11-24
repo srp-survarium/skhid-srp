@@ -190,6 +190,8 @@ fn hot_paths_route_search_on_real_maps() {
                         search.step(&regions, grid, |_| true, |_| true, |_| 1.0, &mut iters)
                     };
                     slices += 1;
+                    // The radix open list's invariants after every slice of a real search (the side keys below the buckets').
+                    queue.hot_open_check().unwrap_or_else(|why| panic!("the open list after slice {slices}: {why}"));
                     if let Some(found) = step {
                         break found;
                     }
