@@ -349,7 +349,7 @@ impl WalkGrid {
         // off (the default), `parallel` over the same job. Each end's gap bottom ([`Self::clip_gap_bottom`]) and links are
         // read here, into the job's item.
         let on = memo.mode() != Mode::Off;
-        let reach_m = GAP_FLOWN_REACH_M;
+        let reach_m = self.flight_reach_m();
         let window_cells = ((reach_m + self.body.radius + self.cell) / self.cell).ceil() as i64;
         let windows = on.then(|| Windows::of_floors(self));
         let items: Vec<GapFlownItem> = groups
@@ -523,10 +523,6 @@ impl WalkGrid {
     }
 }
 
-/// [incremental grids PR 7] How far from its take-off a flown gap's job may read the ground, m: its press points and every
-/// step of its flights, as [`super::rim::RIM_LINE_REACH_M`] (the same flights: a jump's air steps and its steps on the
-/// ground). With the memo on, a job past it stops the build ([`WalkGrid::fly_gap_groups`]).
-pub const GAP_FLOWN_REACH_M: f32 = 10.0;
 
 /// [incremental grids PR 7] One take-off of a flown gap group's job: the gap (take-off `a`, the far floor `b`, way `d`, the
 /// height a landing must be over, the first cell on a landing may be in), the floors `a` has a link to already (its sides: a
@@ -673,7 +669,7 @@ fn better(line: Option<(u8, Vec<Made>)>, aimed: Option<(u8, Vec<Made>)>) -> Opti
 
 impl WalkGrid {
     /// [incremental grids PR 7] `gap_links_flown`'s groups through the memo's site `gap.flown` ([`gap_flown_job`]), each
-    /// result at its group's place. With the memo on, a press point or a flight past [`GAP_FLOWN_REACH_M`] stops the build:
+    /// result at its group's place. With the memo on, a press point or a flight past [`WalkGrid::flight_reach_m`] stops the build:
     /// its window would not hold every floor its job read.
     #[allow(clippy::too_many_arguments)]
     fn fly_gap_groups(
@@ -688,7 +684,7 @@ impl WalkGrid {
         memo: &mut Memo,
     ) -> Vec<GapFlownOut> {
         let on = memo.mode() != Mode::Off;
-        let reach_m = GAP_FLOWN_REACH_M;
+        let reach_m = self.flight_reach_m();
         let window_cells = ((reach_m + self.body.radius + self.cell) / self.cell).ceil() as i64;
         let windows = on.then(|| Windows::of_floors(self));
         let items: Vec<GapFlownItem> = groups
@@ -742,7 +738,7 @@ fn report_reach(site: &str, reaches: impl Iterator<Item = f32>, groups: usize, r
     );
     assert!(
         farthest <= reach_m,
-        "memo: ERROR site {site}: a flight went {farthest} m from its take-off, past the window's {reach_m} m (GAP_FLOWN_REACH_M)"
+        "memo: ERROR site {site}: a flight went {farthest} m from its take-off, past the window's {reach_m} m (WalkGrid::flight_reach_m)"
     );
 }
 
@@ -1082,6 +1078,33 @@ mod tests {
         let mut walled = top.clone();
         walled.extend(face_x(6.0, 2.0, 4.0));
         assert!(!reaches(&walled), "a wall on the top between them");
+    }
+
+    /// [body physics S5a fix] The farthest flight the passes fly fits the memo's window ([`WalkGrid::flight_reach_m`]): every
+    /// neighbour (the fastest kit's among them) of the sprint at the longest lead, every variant, off a 6 m edge onto the
+    /// ground below, flying on to the ground ([`WalkGrid::fall_ground`]): every step within the window of its take-off.
+    #[test]
+    fn the_farthest_scoring_flight_fits_the_memo_window() {
+        let mut t = quad(0.0, 14.0, 0.0).to_vec();
+        t.extend(quad(0.0, 6.0, 6.0));
+        t.extend(face_x(6.0, 0.0, 6.0));
+        let fastest = 3.941;
+        let body = Body { gap_flights: true, exe_collision: true, start_witness: true, max_jump: STANDING_JUMP_M, fastest_walk_cap: fastest, ..Body::client() };
+        let g = WalkGrid::build_with_links(&t, AREA, 0.25, body, OffMeshLinks::Gaps);
+        let (caster, s) = body.controller();
+        let world = Collision::build(&t).with_caster(caster);
+        let takeoff = g.position(g.locate(Vec3::new(5.6, 6.0, 5.0), 0.3).expect("a take-off"));
+        let (kits, reach) = (Kits { body: jump::WALK_CAP_MS, fastest }, g.flight_reach_m());
+        let (mut farthest, mut lowest) = (0.0f32, f32::MAX);
+        for n in jump::neighbourhood() {
+            let flights = jump::neighbour_flights_for(&world, &s, takeoff, (1.0, 0.0), jump::Kind::Sprint, 1.6, n, kits, g.fall_ground()).expect("a run-up");
+            for f in flights.iter().flatten() {
+                farthest = farthest.max(f.feet.distance_xz(takeoff));
+                lowest = lowest.min(f.feet.y);
+            }
+        }
+        assert!(lowest < 0.1, "the flights fall on to the ground 6 m below: the lowest step {lowest} m");
+        assert!(farthest <= reach, "the farthest step {farthest} m, the window {reach} m");
     }
 
     /// [S4] A deck 2 m up ending at a railing 0.25 m thick, its top 1.0 m over the deck, with a roof 1.0 m under the deck past it

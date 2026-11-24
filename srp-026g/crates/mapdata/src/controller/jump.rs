@@ -29,13 +29,13 @@ use crate::math::Vec3;
 /// A step, seconds (the game's physics step).
 pub const DT: f32 = 0.05;
 /// `air_control_speed` (player+304h, `default.player`: 1.0), m/s.
-const AIR_CONTROL_MS: f32 = 1.0;
+pub const AIR_CONTROL_MS: f32 = 1.0;
 /// The short jump's first air step and its landing step (PROVEN, `notes-link-walk.md` §2).
 const SHORT_TAKEOFF_N: u32 = 4;
 const SHORT_LANDING_N: u32 = 16;
 /// The sprint jump's (the same).
 const SPRINT_TAKEOFF_N: u32 = 6;
-const SPRINT_LANDING_N: u32 = 18;
+pub const SPRINT_LANDING_N: u32 = 18;
 /// Clip frames a step (30 a second, 50 ms).
 const FRAMES_PER_STEP: f64 = 1.5;
 /// `jump_on_site_landing` for the forward short jump (the loader's table order, read by index: 0x337280).
