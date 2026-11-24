@@ -307,8 +307,8 @@ pub fn fly_as(
 pub enum Ground {
     /// This many ground steps ([`STAY_STEPS`]).
     Steps(u32),
-    /// [`STAY_STEPS`] ground steps; a body still off the ground at the last of them flies on until it has been on the ground
-    /// [`STAY_STEPS`] steps running, to [`fall_on_steps`]`(drop)` in all: `drop` m the deepest fall a pass may land after. The
+    /// [`STAY_STEPS`] ground steps; a body not down at the last of them (off the ground, or on it but moving: sliding off a slope)
+    /// flies on until it has been on the ground and still [`STAY_STEPS`] steps running, to [`fall_on_steps`]`(drop)` in all: `drop` m the deepest fall a pass may land after. The
     /// client ends a jump on the clip's clock, not on ground contact, and a body off a deep edge falls on after it ([jump down],
     /// [`neighbour_flights_for`]): a flight cut at [`STAY_STEPS`] while still falling reads as no landing. A flight down by then
     /// runs exactly [`STAY_STEPS`], as [`Ground::Steps`]`(STAY_STEPS)` does.
@@ -347,13 +347,16 @@ fn landed_until(world: &Collision, s: &Settings, c: &mut Controller, heading: (f
     let kin = Kin { level: cap / WALK_CAP_MS, legs_broken: false };
     let mut body = ClientBody::landed(*c, yaw, travel, keys);
     let pass = Pass { world, settings: s };
-    let mut down = 0;
+    let (mut down, mut last) = (0, c.feet());
     for m in 1..=max.max(STAY_STEPS) {
         let tick = body.tick(&pass, kin, Input { keys, yaw });
         steps.push(FlightStep { n: landing + m, feet: tick.feet, in_jump: tick.in_jump, on_ground: tick.on_ground });
-        down = if tick.on_ground { down + 1 } else { 0 };
-        // On the ground at the cut: as `Steps(STAY_STEPS)`. Off it: on until down `STAY_STEPS` steps running.
-        if (m == STAY_STEPS && tick.on_ground) || (m > STAY_STEPS && down >= STAY_STEPS) {
+        // Down: on the ground and still ([`crate::motion::verdict::STILL_M`]); a body on a slope it slides off is not.
+        let still = tick.on_ground && (tick.feet - last).length() < crate::motion::verdict::STILL_M;
+        last = tick.feet;
+        down = if still { down + 1 } else { 0 };
+        // Down at the cut: as `Steps(STAY_STEPS)`. Else on until down `STAY_STEPS` steps running.
+        if (m == STAY_STEPS && still) || (m > STAY_STEPS && down >= STAY_STEPS) {
             break;
         }
     }
@@ -991,6 +994,29 @@ mod tests {
         let rim = ledge(1.0);
         let up = |ground: Ground| neighbour_flights_for(&rim, &s, Vec3::new(4.5, 0.0, 0.0), (1.0, 0.0), Kind::Sprint, 1.0, own, kits, ground);
         assert_eq!(up(Ground::Steps(STAY_STEPS)), up(fall), "a rim press onto a top");
+    }
+
+    /// [body physics S5a fix] A body on the ground at the [`STAY_STEPS`] cut but sliding (a steep ramp under the fall off a 6 m
+    /// edge) is not down: [`Ground::FallOn`] flies it on until it is on the ground and still, below the ramp.
+    #[test]
+    fn a_flight_sliding_off_a_slope_at_the_cut_flies_on_until_still() {
+        let s = crate::Body { exe_collision: true, start_witness: true, ..crate::Body::client() }.controller().1;
+        let kits = Kits { body: WALK_CAP_MS, fastest: WALK_CAP_MS };
+        let mut tris = Vec::new();
+        quad(&mut tris, Vec3::new(-5.0, 0.0, -3.0), Vec3::new(-5.0, 0.0, 3.0), Vec3::new(5.0, 0.0, 3.0), Vec3::new(5.0, 0.0, -3.0));
+        quad(&mut tris, Vec3::new(5.0, 6.0, -3.0), Vec3::new(5.0, 6.0, 3.0), Vec3::new(12.0, 6.0, 3.0), Vec3::new(12.0, 6.0, -3.0));
+        quad(&mut tris, Vec3::new(5.0, 0.0, -3.0), Vec3::new(5.0, 6.0, -3.0), Vec3::new(5.0, 6.0, 3.0), Vec3::new(5.0, 0.0, 3.0));
+        quad(&mut tris, Vec3::new(1.0, 0.0, -3.0), Vec3::new(1.0, 0.0, 3.0), Vec3::new(2.5, 3.0, 3.0), Vec3::new(2.5, 3.0, -3.0));
+        let (caster, _) = crate::Body { exe_collision: true, start_witness: true, ..crate::Body::client() }.controller();
+        let world = Collision::build(&tris).with_caster(caster);
+        let flights = neighbour_flights_for(&world, &s, Vec3::new(5.5, 6.0, 0.0), (-1.0, 0.0), Kind::Sprint, 1.0, neighbourhood()[0], kits, Ground::FallOn { drop: 7.0 })
+            .expect("a run-up");
+        for st in &flights {
+            let last = st.last().expect("steps");
+            assert!(last.on_ground && last.feet.y < 0.05, "down on the ground below the ramp: {last:?}");
+            let tail = &st[st.len() - STAY_STEPS as usize..];
+            assert!(tail.windows(2).all(|w| (w[1].feet - w[0].feet).length() < crate::motion::verdict::STILL_M), "still at the end");
+        }
     }
 
     /// [A385] A run-up whose start is over a lower level (a floor at 0 from x `edge` to 6, a level 3 m lower before it): the
