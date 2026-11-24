@@ -906,6 +906,8 @@ pub struct Planning {
     weighted: bool,
     /// [CPU] Its floor test's answers so far ([`FloorTests`]).
     tested: FloorTests,
+    /// [CPU hot paths] Its open list, a radix heap ([`mapdata::grid::HotOpen`]), kept across slices.
+    queue: mapdata::grid::HotOpen,
     #[cfg(test)]
     us: f64,
     #[cfg(test)]
@@ -955,6 +957,7 @@ pub fn plan_start(
                 search,
                 weighted: weight.is_some(),
                 tested: FloorTests::new(grid.len()),
+                queue: mapdata::grid::HotOpen::hot_open_empty(),
                 #[cfg(test)]
                 us: started.elapsed().as_secs_f64() * 1e6,
                 #[cfg(test)]
@@ -1024,8 +1027,8 @@ impl Planning {
         let allowed = self.tested.kept(&allowed);
         // The plain search keeps its own loop (no call through the weight).
         let ended = match weight {
-            Some(w) => self.search.step_hot(regions, grid, hot, &allowed, region_ok, w, iters),
-            None => self.search.step_hot(regions, grid, hot, &allowed, region_ok, |_| 1.0, iters),
+            Some(w) => self.search.step_hot(regions, grid, hot, &mut self.queue, &allowed, region_ok, w, iters),
+            None => self.search.step_hot(regions, grid, hot, &mut self.queue, &allowed, region_ok, |_| 1.0, iters),
         };
         #[cfg(test)]
         {

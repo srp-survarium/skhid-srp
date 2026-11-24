@@ -337,13 +337,17 @@ impl WalkGrid {
 }
 
 impl SlicedSearch {
-    /// [`Self::step`] by `hot`'s lookups ([`WalkGrid::links_back_hot`], [`WalkGrid::link_cost_hot`]): the same floors in
-    /// the same order, the same costs, the same answer. `hot` must be `grid`'s ([`HotIndex::hot_fits`]). copy-of:
-    /// `SlicedSearch::step` (the copy guard: match-server `hot_paths.rs`).
+    /// [`Self::step`] by `hot`'s lookups ([`WalkGrid::links_back_hot`], [`WalkGrid::link_cost_hot`]), its open list in
+    /// `queue` ([`HotOpen`]): the same floors in the same order, the same costs, the same answer. `hot` must be `grid`'s
+    /// ([`HotIndex::hot_fits`]); `queue` is this search's for its life (a fresh search's start entry is moved into it at its
+    /// first step, and what it held before is dropped). copy-of: `SlicedSearch::step` (the copy guard: match-server
+    /// `hot_paths.rs`).
+    #[allow(clippy::too_many_arguments)]
     pub fn step_hot(
         &mut self,
         grid: &WalkGrid,
         hot: &HotIndex,
+        queue: &mut HotOpen,
         allowed: impl Fn(NodeId) -> bool,
         weight: impl Fn(NodeId) -> f32,
         iters: &mut usize,
@@ -372,11 +376,20 @@ impl SlicedSearch {
         let reach = *reach;
         let max_rise = reach.max_rise();
         let (from, to, goal, seen, closed) = (*from, *to, *goal, *seen, *closed);
+        // A fresh search has its start entry in the scratch's list ([`WalkGrid::start_search_reaching`]); this step never
+        // pushes there, so a list with an entry is a new search's.
+        if !open.keys.is_empty() {
+            queue.hot_clear();
+            while let Some(entry) = open.pop() {
+                queue.hot_push(entry);
+            }
+        }
+        let open = queue;
         loop {
             if *iters == 0 {
                 return None;
             }
-            let Some(Entry(f, u)) = open.pop() else {
+            let Some(Entry(f, u)) = open.hot_pop() else {
                 return Some(Search::NoWay);
             };
             if mark[u as usize] == closed {
@@ -418,10 +431,112 @@ impl SlicedSearch {
                     mark[v as usize] = seen;
                     cost[v as usize] = c;
                     back[v as usize] = way_back;
-                    open.push(Entry(c + grid.position(v).distance_xz(goal), v));
+                    open.hot_push(Entry(c + grid.position(v).distance_xz(goal), v));
                 }
             }
         }
+    }
+}
+
+/// A search's open list for [`SlicedSearch::step_hot`]: a radix heap of [`Open`]'s keys (the cost's `total_cmp` order in the
+/// high half, the floor in the low), with a small binary heap beside it for a key below the last one taken out.
+///
+/// The keys are unique (a floor is pushed again only at a lower cost), so every correct priority queue pops the same
+/// sequence, [`Open`]'s with it. A radix heap needs each key pushed at or above the last one popped (Ahuja, Mehlhorn,
+/// Orlin and Tarjan 1990); A* keys can fall below it (the float sums' rounding, the floor's tie-break), so those go to the
+/// side heap, which pops first: its keys are below the last popped, and so below every key in the buckets.
+#[derive(Debug)]
+pub struct HotOpen {
+    /// The last key taken out of the buckets.
+    last: u64,
+    /// Bucket `b` holds the keys whose highest bit differing from `last` is bit `b - 1` (bucket 0: `last` itself).
+    buckets: [Vec<u64>; 65],
+    /// The keys pushed below `last`, a min-heap.
+    side: std::collections::BinaryHeap<std::cmp::Reverse<u64>>,
+}
+
+impl HotOpen {
+    /// Empty. (No `Default` impl: a trait impl's methods are reached by their names, and `default` is called in the grid
+    /// builder's source, so an impl here would name every built grid anew, `mapdata-srchash`.)
+    pub fn hot_open_empty() -> Self {
+        Self { last: 0, buckets: std::array::from_fn(|_| Vec::new()), side: std::collections::BinaryHeap::new() }
+    }
+
+    #[inline]
+    fn hot_bucket(&self, key: u64) -> usize {
+        64 - (key ^ self.last).leading_zeros() as usize
+    }
+
+    /// Empty, the buckets' memory kept.
+    pub fn hot_clear(&mut self) {
+        self.last = 0;
+        self.buckets.iter_mut().for_each(Vec::clear);
+        self.side.clear();
+    }
+
+    #[inline]
+    fn hot_push(&mut self, Entry(cost, node): Entry) {
+        let key = u64::from(Open::order_bits(cost)) << 32 | u64::from(node);
+        if key < self.last {
+            self.side.push(std::cmp::Reverse(key));
+        } else {
+            let b = self.hot_bucket(key);
+            self.buckets[b].push(key);
+        }
+    }
+
+    #[inline]
+    fn hot_pop(&mut self) -> Option<Entry> {
+        if let Some(std::cmp::Reverse(key)) = self.side.pop() {
+            // The side heap's keys are below `last`, and every bucket's at or above it: this pop is the least key.
+            debug_assert!(key < self.last, "a side key {key:#x} at or above the last {:#x}", self.last);
+            return Some(Open::entry_of(key));
+        }
+        if self.buckets[0].is_empty() {
+            let b = (1..65).find(|&b| !self.buckets[b].is_empty())?;
+            let mut keys = std::mem::take(&mut self.buckets[b]);
+            self.last = *keys.iter().min().expect("a bucket with keys");
+            for &key in &keys {
+                let to = self.hot_bucket(key);
+                self.buckets[to].push(key);
+            }
+            // Its memory back for the next keys of that bucket.
+            keys.clear();
+            self.buckets[b] = keys;
+        }
+        self.buckets[0].pop().map(Open::entry_of)
+    }
+
+    /// Its invariants, for the tests (the unit tests after every push and pop, the real-map searches after every slice):
+    /// every side key is below `last`, and so below every key in the buckets, which are at or above it; each bucket holds
+    /// only the keys of its bit; bucket 0 holds `last` alone. The first broken one, if any.
+    #[doc(hidden)]
+    pub fn hot_open_check(&self) -> Result<(), String> {
+        if let Some(&std::cmp::Reverse(top)) = self.side.iter().max()
+            && top >= self.last
+        {
+            return Err(format!("a side key {top:#x} at or above the last {:#x}", self.last));
+        }
+        let least = self.buckets.iter().flatten().min().copied();
+        if let (Some(least), Some(&std::cmp::Reverse(top))) = (least, self.side.iter().max())
+            && top >= least
+        {
+            return Err(format!("a side key {top:#x} at or above the bucket minimum {least:#x}"));
+        }
+        for (b, keys) in self.buckets.iter().enumerate() {
+            if let Some(&key) = keys.iter().find(|&&key| key < self.last || self.hot_bucket(key) != b) {
+                return Err(format!("key {key:#x} in bucket {b}, last {:#x}", self.last));
+            }
+        }
+        if self.buckets[0].len() > 1 {
+            return Err(format!("{} keys equal to the last", self.buckets[0].len()));
+        }
+        Ok(())
+    }
+
+    /// The bytes it holds.
+    pub fn hot_open_bytes(&self) -> usize {
+        self.buckets.iter().map(|b| b.capacity() * 8).sum::<usize>() + self.side.capacity() * 8
     }
 }
 
@@ -523,14 +638,16 @@ mod tests {
                     continue;
                 };
                 let slice = 1 + (next() % 40) as usize;
+                let mut queue = HotOpen::hot_open_empty();
                 loop {
                     let (mut i1, mut i2) = (slice, slice);
                     let (r1, r2) = if round % 3 == 0 {
-                        (plain.step(&grid, allowed, |_| 1.0, &mut i1), fast.step_hot(&grid, &hot, allowed, |_| 1.0, &mut i2))
+                        (plain.step(&grid, allowed, |_| 1.0, &mut i1), fast.step_hot(&grid, &hot, &mut queue, allowed, |_| 1.0, &mut i2))
                     } else {
-                        (plain.step(&grid, allowed, weight, &mut i1), fast.step_hot(&grid, &hot, allowed, weight, &mut i2))
+                        (plain.step(&grid, allowed, weight, &mut i1), fast.step_hot(&grid, &hot, &mut queue, allowed, weight, &mut i2))
                     };
                     assert_eq!(r1, r2, "round {round}: {a} -> {b}");
+                    queue.hot_open_check().unwrap();
                     assert_eq!((i1, plain.expanded()), (i2, fast.expanded()));
                     assert_eq!(plain.partial(&grid), fast.partial(&grid));
                     if r1.is_some() {
@@ -569,11 +686,13 @@ mod tests {
                     continue;
                 };
                 let slice = 1 + (next() % 50) as usize;
+                let mut queue = HotOpen::hot_open_empty();
                 loop {
                     let (mut i1, mut i2) = (slice, slice);
                     let r1 = plain.step(&regions, &grid, allowed, region_ok, |_| 1.0, &mut i1);
-                    let r2 = fast.step_hot(&regions, &grid, &hot, allowed, region_ok, |_| 1.0, &mut i2);
+                    let r2 = fast.step_hot(&regions, &grid, &hot, &mut queue, allowed, region_ok, |_| 1.0, &mut i2);
                     assert_eq!(r1, r2, "round {round}: {a} -> {b}");
+                    queue.hot_open_check().unwrap();
                     assert_eq!((i1, plain.expanded()), (i2, fast.expanded()));
                     assert_eq!(plain.partial(&grid), fast.partial(&grid));
                     if r1.is_some() {
@@ -583,6 +702,58 @@ mod tests {
                 }
             }
             assert!(ended > 50);
+        }
+    }
+
+    /// The radix open list pops what the 4-ary one pops, entry for entry, on random push and pop streams whose keys fall
+    /// below the last popped too, with equal costs (the floor breaking the tie) and the special floats.
+    #[test]
+    fn the_radix_open_list_pops_as_the_heap() {
+        let mut rng = 0x0123_4567_89ab_cdefu64;
+        let mut next = || {
+            rng ^= rng << 13;
+            rng ^= rng >> 7;
+            rng ^= rng << 17;
+            rng
+        };
+        let specials = [0.0f32, -0.0, f32::MIN_POSITIVE, 1e-40, f32::INFINITY, 1.0, 1.0 + f32::EPSILON];
+        for round in 0..300u32 {
+            let (mut heap, mut radix) = (Open::default(), HotOpen::hot_open_empty());
+            let mut base = (next() % 1000) as f32;
+            let mut used = std::collections::HashSet::new();
+            for _ in 0..2000 {
+                if next() % 3 != 0 {
+                    // Mostly rising costs, now and then below the last popped (the A* keys' rounding).
+                    let cost = match next() % 10 {
+                        0 => specials[(next() % specials.len() as u64) as usize],
+                        1 => base - (next() % 5) as f32 * 0.25,
+                        _ => base + (next() % 400) as f32 * 0.0625,
+                    };
+                    let node = (next() % 64) as u32 + round;
+                    if used.insert((cost.to_bits(), node)) {
+                        heap.push(Entry(cost, node));
+                        radix.hot_push(Entry(cost, node));
+                    }
+                    radix.hot_open_check().unwrap();
+                } else {
+                    let least = radix.buckets.iter().flatten().min().copied();
+                    let side = radix.side.peek().map(|r| r.0);
+                    let (a, b) = (heap.pop(), radix.hot_pop());
+                    // A key the side heap gave is below every bucket's.
+                    if let (Some(s), Some(least)) = (side, least) {
+                        assert!(s < least, "side {s:#x} bucket minimum {least:#x}");
+                    }
+                    assert_eq!(a.map(|e| (e.0.to_bits(), e.1)), b.map(|e| (e.0.to_bits(), e.1)));
+                    if let Some(Entry(c, _)) = a {
+                        base = base.max(c);
+                    }
+                }
+            }
+            while let Some(a) = heap.pop() {
+                let b = radix.hot_pop().unwrap();
+                assert_eq!((a.0.to_bits(), a.1), (b.0.to_bits(), b.1));
+            }
+            assert!(radix.hot_pop().is_none());
         }
     }
 }

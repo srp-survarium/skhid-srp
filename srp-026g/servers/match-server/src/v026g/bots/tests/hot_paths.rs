@@ -181,14 +181,17 @@ fn hot_paths_route_search_on_real_maps() {
                     continue;
                 };
                 let mut slices = 0u32;
+                let mut queue = mapdata::grid::HotOpen::hot_open_empty();
                 let found = loop {
                     let mut iters = 200;
                     let step = if hot_step {
-                        search.step_hot(&regions, grid, &hot, |_| true, |_| true, |_| 1.0, &mut iters)
+                        search.step_hot(&regions, grid, &hot, &mut queue, |_| true, |_| true, |_| 1.0, &mut iters)
                     } else {
                         search.step(&regions, grid, |_| true, |_| true, |_| 1.0, &mut iters)
                     };
                     slices += 1;
+                    // The radix open list's invariants after every slice of a real search (the side keys below the buckets').
+                    queue.hot_open_check().unwrap_or_else(|why| panic!("the open list after slice {slices}: {why}"));
                     if let Some(found) = step {
                         break found;
                     }
