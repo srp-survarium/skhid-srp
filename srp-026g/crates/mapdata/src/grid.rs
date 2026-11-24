@@ -2091,12 +2091,12 @@ impl WalkGrid {
         if body.drop_check {
             let failing = if body.drop_lands {
                 let world = world.expect("a world");
-                let (cut, reaim, lips, mut walked, deep_kept, deep_also) = grid.landing_drops(&wide, world, seeds, spawns);
+                let (cut, reaim, lips, mut walked, deep_kept, deep_also) = grid.landing_drops(&wide, world);
                 stats.drops_past_harmless_cut = deep_kept;
                 clock.lap("landing drops");
                 let held;
                 (walked.walk_offs, walked.walk_offs_reaimed, walked.walk_offs_unlanded, walked.walk_offs_released, held, walked.walk_offs_blocked) =
-                    grid.walk_off_links(&mut wide, world, seeds, spawns);
+                    grid.walk_off_links(&mut wide, world);
                 clock.lap("walk-off links");
                 walked.releases_held_thin += held;
                 stats.drops_walked = walked;
