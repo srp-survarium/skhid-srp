@@ -96,6 +96,7 @@ const HOT_COPIES: &[(&str, &str, &str)] = &[
     ("HotIndex::hot_off_link", "WalkGrid::off_link", "10687070e348a2917b1c0dd212af720a"),
     ("SlicedSearch::step_hot", "SlicedSearch::step", "0baa0f061f25ae8d4f1d44405f2d942f"),
     ("RouteSearch::step_hot", "RouteSearch::step", "438b3865ba552fad4fd3062c32a2070e"),
+    ("HotIndex::hot_links", "WalkGrid::links", "593c33755eb61fba569fe7b8796c28b3"),
 ];
 
 #[test]

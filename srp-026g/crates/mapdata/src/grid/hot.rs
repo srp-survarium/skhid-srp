@@ -149,6 +149,9 @@ impl HotIndex {
             if plain != grid.links_back_hot(self, u).collect::<Vec<_>>() {
                 return Err(format!("links back of {u}"));
             }
+            if grid.links(u).collect::<Vec<_>>() != self.hot_links(grid, u).collect::<Vec<_>>() {
+                return Err(format!("links of {u}"));
+            }
             if grid.off_out(u) != self.hot_off_out(grid, u) || grid.off_into(u) != self.hot_off_into(grid, u) {
                 return Err(format!("off-mesh slices of {u}"));
             }
@@ -205,7 +208,7 @@ impl HotIndex {
 impl HotIndex {
     /// [`WalkGrid::links`] by these lookups: the same links in the same order, the floor's column and row read from `ik`
     /// (as [`WalkGrid::position`] reads them) and its off-mesh links by rank. `grid` must be this index's
-    /// ([`Self::hot_fits`]).
+    /// ([`Self::hot_fits`]). copy-of: `WalkGrid::links` (the copy guard: match-server `hot_paths.rs`).
     #[inline]
     pub fn hot_links<'g>(&'g self, grid: &'g WalkGrid, node: NodeId) -> impl Iterator<Item = (NodeId, LinkKind)> + 'g {
         let a = node as usize;
