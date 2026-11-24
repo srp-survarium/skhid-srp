@@ -1449,7 +1449,11 @@ impl Bots {
                 _ => None,
             };
             let target = bot.assignment.as_ref().and_then(|a| cx.point_of(a.target));
-            if cx.view.objective().is_actor(me)
+            if bot.running.as_ref().is_some_and(plays::Running::in_zone_take) {
+                // [anomaly batteries] A take inside an energy core's zones walks out by its own way first (its straight steps
+                // are no route the shut-goal tests read).
+                commits.push((bot.place, team::Commit::ZoneWalk));
+            } else if cx.view.objective().is_actor(me)
                 || goal_shut(&bot.intent, me, &bot.no_way_to, now)
                 || goal.into_iter().chain(target).any(|at| cx.no_way_lately(at))
             {

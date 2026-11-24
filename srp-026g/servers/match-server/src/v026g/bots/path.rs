@@ -903,6 +903,8 @@ pub struct Planning {
     /// Set once, at its start: [`Self::resume`] reads the weight it is given
     /// only then.
     weighted: bool,
+    /// [CPU] Its floor test's answers so far ([`FloorTests`]).
+    tested: FloorTests,
     #[cfg(test)]
     us: f64,
     #[cfg(test)]
@@ -950,6 +952,7 @@ pub fn plan_start(
             let mut planning = Planning {
                 search,
                 weighted: weight.is_some(),
+                tested: FloorTests::new(grid.len()),
                 #[cfg(test)]
                 us: started.elapsed().as_secs_f64() * 1e6,
                 #[cfg(test)]
@@ -961,6 +964,38 @@ pub fn plan_start(
                 Some(route) => Ok(route),
                 None => Err(planning),
             }
+        }
+    }
+}
+
+/// [CPU] A search's floor test (`allowed`), asked once a floor for the search's life: two bits a floor (asked, open). The
+/// grid's search tests a floor at every link into it until it is closed (`mapdata::SlicedSearch::step`), several times a
+/// floor with the same answer, and the bots' tests (`Tactics::route_floor_open`: the hazards, the spawn areas, the
+/// filter's shut landings and floors) were a fifth of the searches' CPU (16-26 % on the gate bench's maps of 2026-11-23).
+/// The answers are the test's own: a search's `allowed` lets through the same floors at every slice ([`plan_start`]), so
+/// a kept answer is the one it would give again.
+struct FloorTests(Box<[std::cell::Cell<u64>]>);
+
+impl FloorTests {
+    /// None asked yet, for a grid of `floors` floors.
+    fn new(floors: usize) -> Self {
+        Self((0..floors.div_ceil(32)).map(|_| std::cell::Cell::new(0)).collect())
+    }
+
+    /// `allowed`, with each floor's answer kept the first time it is asked (a floor past the grid's, asked each time).
+    fn kept<'a>(&'a self, allowed: &'a impl Fn(NodeId) -> bool) -> impl Fn(NodeId) -> bool + 'a {
+        move |node| {
+            let Some(word) = self.0.get(node as usize / 32) else {
+                return allowed(node);
+            };
+            let shift = (node % 32) * 2;
+            let bits = word.get() >> shift;
+            if bits & 1 != 0 {
+                return bits & 2 != 0;
+            }
+            let open = allowed(node);
+            word.set(word.get() | (1 | u64::from(open) << 1) << shift);
+            open
         }
     }
 }
@@ -982,6 +1017,7 @@ impl Planning {
         let weight = self.weighted.then_some(weight);
         #[cfg(test)]
         let (started, started_cpu) = (std::time::Instant::now(), super::cpu_time::thread());
+        let allowed = self.tested.kept(&allowed);
         // The plain search keeps its own loop (no call through the weight).
         let ended = match weight {
             Some(w) => self.search.step(regions, grid, &allowed, region_ok, w, iters),
@@ -2519,6 +2555,74 @@ impl Route {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// [CPU] A search's floor test is asked once a floor and answers as the test does, a floor past the grid each time.
+    #[test]
+    fn a_kept_floor_test_asks_each_floor_once_and_answers_as_it() {
+        let calls = std::cell::Cell::new(0);
+        let allowed = |n: NodeId| {
+            calls.set(calls.get() + 1);
+            !n.is_multiple_of(3)
+        };
+        let tested = FloorTests::new(100);
+        let kept = tested.kept(&allowed);
+        for _ in 0..3 {
+            for n in 0..140 {
+                assert_eq!(kept(n), !n.is_multiple_of(3), "floor {n}");
+            }
+        }
+        // The table holds 128 floors (100 rounded up to whole words): those once each, the 12 past it each time.
+        assert_eq!(calls.get(), 128 + 12 * 3);
+    }
+
+    /// [CPU] A sliced search with its floor test kept ([`plan_start`], [`Planning::resume`]) gives the route the grid's
+    /// search gives with the test asked at every link, and asks each floor at most once.
+    #[test]
+    fn a_sliced_search_with_its_floor_test_kept_is_the_plain_search() {
+        let world = crate::v026g::bots::tactics::tests::field();
+        let grid = &world.grid;
+        let regions = Regions::build(grid, None);
+        // A strip shut across the field's open half, with a gap: the way bends through it.
+        let shut = |n: NodeId| {
+            let at = grid.position(n);
+            (55.0..57.0).contains(&at.x) && at.z > 4.0
+        };
+        let asked = std::cell::RefCell::new(std::collections::HashMap::<NodeId, u32>::new());
+        let allowed = |n: NodeId| {
+            *asked.borrow_mut().entry(n).or_default() += 1;
+            !shut(n)
+        };
+        let (from, to) = (grid.locate(Vec3::new(5.0, 0.0, 10.0), 1.0).unwrap(), grid.locate(Vec3::new(75.0, 0.0, 12.0), 1.0).unwrap());
+        // Sliced: 200 floors a slice.
+        let mut iters = 200;
+        let mut sliced = plan_start(grid, &regions, from, to, allowed, |_| true, mapdata::Reach::FULL, None, &mut iters);
+        let mut slices = 1;
+        let route = loop {
+            match sliced {
+                Ok(route) => break route,
+                Err(mut planning) => {
+                    let mut iters = 200;
+                    match planning.resume(grid, &regions, allowed, |_| true, &|_| 1.0, &mut iters) {
+                        Some(route) => break route,
+                        None => sliced = Err(planning),
+                    }
+                    slices += 1;
+                }
+            }
+        }
+        .expect("a way through the gap");
+        assert!(slices > 2, "{slices} slices");
+        // Each floor asked once by the search; the start of the search and the pull ask their own few again.
+        let most = asked.borrow().values().copied().max().unwrap();
+        assert!(most <= 3, "a floor asked {most} times");
+        // The grid's search with the test asked at every link, pulled the same way.
+        let plain = |n: NodeId| !shut(n);
+        let mut search = regions.start_route_search_reaching(grid, from, to, plain, |_| true, usize::MAX, mapdata::Reach::FULL).ok().unwrap();
+        let mut all = usize::MAX;
+        let (found, _) = search.step(&regions, grid, plain, |_| true, |_| 1.0, &mut all).unwrap();
+        let reference = finish(grid, found, plain, None).unwrap();
+        assert_eq!(format!("{:?}", route.points), format!("{:?}", reference.points));
+    }
 
     /// [face] A low leg past a riser's top is not crouched for before the climb: the riser is climbed standing; from its top on
     /// the low leg is crouched for as before.

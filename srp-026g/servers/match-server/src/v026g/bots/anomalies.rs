@@ -211,13 +211,18 @@ impl Sim {
 
     /// The state `select_state` (0x31BA90) takes when none holds it.
     fn pick(&self) -> Option<usize> {
+        self.pick_at(self.energy)
+    }
+
+    /// [`Self::pick`] at `energy`.
+    fn pick_at(&self, energy: f32) -> Option<usize> {
         if self.states.is_empty() {
             return None;
         }
         Some(
             self.states
                 .iter()
-                .position(|s| s.enabled && !s.triggered && self.energy >= s.threshold)
+                .position(|s| s.enabled && !s.triggered && energy >= s.threshold)
                 .unwrap_or(0),
         )
     }
@@ -435,6 +440,104 @@ pub struct Core {
     synced_at: Option<u32>,
     /// Energy one body adds a second at most.
     per_second: f32,
+    /// [anomaly batteries] Energy one body adds a second by its move ([`Rise`]).
+    rise: Rise,
+    /// [anomaly batteries] Energy an artefact container's use adds at once (`energy_af_container_use`,
+    /// `generic_anomaly_core::on_artefact_container_use` 0x33BCD0).
+    container_use: f32,
+    /// [anomaly batteries] `energy_maximum`: the energy's clamp when over 0.
+    maximum: f32,
+}
+
+/// [anomaly batteries] The energy a body moving in a core's zones adds a second, by its move: the core's `energy_on_walk`,
+/// `energy_on_run` and `energy_on_sprint`. Each player tick `base_player::notify_actions_subscribers` (0x2D95B0) tells the
+/// cores the body is in its action (sprint when the controller sprints; else, when the body moves, walk or run) with the
+/// tick's time in seconds (ms x 0.001, 0x91A8F0), and `generic_anomaly_core::on_player_action` (0x33BB50) adds the action's
+/// value times it (the loader 0x33BD50 reads the keys into the fields its jump table 0x33BCB0 reads). A body that stands adds
+/// nothing.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct Rise {
+    pub walk: f32,
+    pub run: f32,
+    pub sprint: f32,
+}
+
+/// [anomaly batteries] An energy core as a forecast reads it ([`Anomalies::energy_core`]): its energy now, its fall and the
+/// rise a body adds, and which zones each energy switches on (`select_state`'s pick).
+#[derive(Clone, Copy, Debug)]
+pub struct EnergyCore<'a> {
+    anomalies: &'a Anomalies,
+    core: usize,
+}
+
+impl EnergyCore<'_> {
+    /// The core's `full_name`.
+    pub fn name(&self) -> &str {
+        &self.anomalies.cores[self.core].name
+    }
+
+    /// Its energy now (the simulation's, set from every checked world).
+    pub fn energy(&self) -> f32 {
+        self.anomalies.cores[self.core].sim.energy
+    }
+
+    /// What it loses a second (`energy_decrease_speed`; each 50 ms tick takes its share, `Sim::step`).
+    pub fn decrease_per_s(&self) -> f32 {
+        let sim = &self.anomalies.cores[self.core].sim;
+        if sim.energy_enabled { sim.decrease } else { 0.0 }
+    }
+
+    /// What one body moving in its zones adds a second.
+    pub fn rise(&self) -> Rise {
+        self.anomalies.cores[self.core].rise
+    }
+
+    /// Its `energy_maximum`: the energy is clamped to it when it is over 0 (`on_player_action` 0x33BB50).
+    pub fn maximum(&self) -> f32 {
+        self.anomalies.cores[self.core].maximum
+    }
+
+    /// Its index among the map's cores.
+    pub fn index(&self) -> usize {
+        self.core
+    }
+
+    /// What an artefact container's use adds at once (`energy_af_container_use`).
+    pub fn container_use(&self) -> f32 {
+        self.anomalies.cores[self.core].container_use
+    }
+
+    /// The state the core is in at `energy` (`select_state`), as the worlds number them (highest threshold first).
+    pub fn state_at(&self, energy: f32) -> Option<usize> {
+        self.anomalies.cores[self.core].sim.pick_at(energy)
+    }
+
+    /// That state's threshold.
+    pub fn threshold(&self, state: usize) -> Option<f32> {
+        self.anomalies.cores[self.core].sim.states.get(state).map(|s| s.threshold)
+    }
+
+    /// Whether the map's zone `zone` is on while the core is at `energy`: a zone of the state the energy picks, in an
+    /// enabled group that keeps all its zones on.
+    pub fn zone_on_at(&self, zone: usize, energy: f32) -> bool {
+        let sim = &self.anomalies.cores[self.core].sim;
+        let Some(state) = sim.pick_at(energy) else {
+            return false;
+        };
+        self.anomalies.slots.get(zone).is_some_and(|slots| {
+            slots.iter().any(|slot| {
+                slot.core == self.core && slot.state == state && {
+                    let group = &sim.states[slot.state].groups[slot.group];
+                    group.enabled && group.keep_all
+                }
+            })
+        })
+    }
+
+    /// Whether `zone` is one of this core's.
+    pub fn has_zone(&self, zone: usize) -> bool {
+        self.anomalies.slots.get(zone).is_some_and(|slots| slots.iter().any(|slot| slot.core == self.core))
+    }
 }
 
 impl Core {
@@ -614,6 +717,9 @@ impl Anomalies {
                 sim,
                 synced_at: None,
                 per_second: e.on_walk.max(e.on_run).max(e.on_sprint),
+                rise: Rise { walk: e.on_walk, run: e.on_run, sprint: e.on_sprint },
+                container_use: e.on_af_container_use,
+                maximum: e.maximum,
             });
         }
         let mut anomalies = Self {
@@ -642,6 +748,27 @@ impl Anomalies {
 
     /// The cores run to `match_ms` (the match clock, the worlds' time).
     /// The clock never goes back.
+    /// [anomaly batteries] A body's move in core `core`'s zones over `seconds`, adding `per_s` a second
+    /// (`generic_anomaly_core::on_player_action` 0x33BB50: `energy += field[action] x seconds`, clamped to `energy_maximum`
+    /// when that is over 0, only with `energy_enabled`). The bench's stand-in game (`SRP_BENCH_ANOMALY_ENERGY`): live, every
+    /// world sets the energy the client's bodies raised.
+    #[cfg(test)]
+    pub fn on_player_action(&mut self, core: usize, per_s: f32, seconds: f32) {
+        let Core { sim, maximum, .. } = &mut self.cores[core];
+        if sim.energy_enabled {
+            sim.energy += per_s * seconds;
+            if *maximum > 0.0 {
+                sim.energy = sim.energy.min(*maximum);
+            }
+        }
+    }
+
+    /// [anomaly batteries] Core `core`'s energy set to `energy` (tests: a world's sync sets it so).
+    #[cfg(test)]
+    pub fn set_energy(&mut self, core: usize, energy: f32) {
+        self.cores[core].sim.energy = energy;
+    }
+
     pub fn advance(&mut self, match_ms: u32) {
         if match_ms <= self.now {
             return;
@@ -791,6 +918,13 @@ impl Anomalies {
     /// The prediction for `zone`, if a core drives it.
     pub fn schedule(&self, zone: usize) -> Option<&Schedule> {
         self.schedules.get(zone)?.as_ref()
+    }
+
+    /// [anomaly batteries] The energy core that switches the map's zone `zone`, if one does ([`Control::Energy`]).
+    pub fn energy_core(&self, zone: usize) -> Option<EnergyCore<'_>> {
+        matches!(self.control(zone), Control::Energy { .. })
+            .then(|| self.slots.get(zone)?.first().map(|slot| EnergyCore { anomalies: self, core: slot.core }))
+            .flatten()
     }
 
     /// How `zone`'s activity is decided.
@@ -1152,7 +1286,7 @@ pub(super) mod tests {
 
     /// A cloud like level_02's fruit: states by energy 0 / 20 / 1000, a
     /// zone each (keep-all), energy falling 25 a second.
-    fn cloud() -> Anomaly {
+    pub fn cloud() -> Anomaly {
         let state = |threshold: f32, zone: &str| AnomalyState {
             enabled: true,
             threshold,

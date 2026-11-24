@@ -141,7 +141,10 @@ pub fn clear_first(
         Some(_) => None,
         None => nearest,
     };
+    // [anomaly batteries] Nor a walk on a zone's floor by the play's choice (`Intent::zone_ok`: a crossing's or a zone take's
+    // walk in): a wait there stands in the zone's hit; the take's own forecast and give-up decide.
     let gated = cx.me.carrying.is_none()
+        && !intent.zone_ok
         && !matches!(kind, PlayKind::Heal | PlayKind::Retreat | PlayKind::Breach)
         && breach::role_in(&cx.team.breaches, cx.me.place).is_none();
     let walking_in = |spot: Vec3| match intent.go {
