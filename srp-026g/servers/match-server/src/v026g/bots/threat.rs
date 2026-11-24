@@ -3827,7 +3827,7 @@ mod tests {
         // A route kept to that room never steps into the lane.
         let filter = crate::v026g::bots::route_filter::RouteFilter::open()
             .keeping_to(std::sync::Arc::new(round), { let of = regions.clone(); std::sync::Arc::new(move |n| of.of(n)) });
-        let route = crate::v026g::bots::path::plan_in(grid, &regions, a, b, |n| filter.floor_open(grid, n), |r| filter.region_open(r)).unwrap();
+        let route = crate::v026g::bots::path::plan_in(grid, &regions, &mapdata::grid::HotIndex::for_grid(grid), a, b, |n| filter.floor_open(grid, n), |r| filter.region_open(r)).unwrap();
         assert!(route.points().iter().all(|p| !covered.exposed_at(grid, p.at)), "{route:?}");
     }
 

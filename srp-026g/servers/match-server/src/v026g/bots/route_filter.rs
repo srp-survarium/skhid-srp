@@ -546,6 +546,7 @@ mod tests {
         let covered = Arc::new(Covered::build(strip.clone(), regions.len(), Arc::new(move |n| of.of(n))));
         let (a, b) = (Vec3::new(5.0, 0.0, 10.0), Vec3::new(38.0, 0.0, 10.0));
         let (na, nb) = (grid.locate(a, 1.5).unwrap(), grid.locate(b, 1.5).unwrap());
+        let hot = mapdata::grid::HotIndex::for_grid(grid);
         // A covered floor far from both ends: the middle of the strip's region
         // nearest (25, 10).
         let mid = |r: u32| grid.position(regions.middle(r));
@@ -568,6 +569,7 @@ mod tests {
             crate::v026g::bots::path::plan_start(
                 grid,
                 &regions,
+                &hot,
                 na,
                 nb,
                 |n| filter.floor_open(grid, n),
