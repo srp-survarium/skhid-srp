@@ -544,9 +544,16 @@ impl WalkGrid {
     }
 }
 
-/// [body physics S5a fix] How long the rim pass's scoring flights run after the landing step: [`jump::STAY_STEPS`] ground
-/// steps, as before (its jumps go up onto a top, where a body is down by then; the gap pass's fall on, [`jump::Ground::FallOn`]).
-pub(super) const RIM_GROUND: jump::Ground = jump::Ground::Steps(jump::STAY_STEPS);
+impl WalkGrid {
+    /// [body physics S5a fix] How long every pass's scoring flights run after the landing step (the rim jumps, the gap links,
+    /// the drop check's jumps down): on until the body is down ([`jump::Ground::FallOn`]), to a fall of the body's
+    /// [`super::Body::max_drop`] from a jump's apex ([`super::Body::max_jump`] over the take-off). Cut at [`jump::STAY_STEPS`], a
+    /// flight off a deep edge still falling read as no landing (Chemical Plant batteries (20.12, 10.17, 29.12): 5 of a sprint
+    /// press's 6 variants of a 3.4 m drop were still in the air); a flight down by then flies the same steps as before.
+    pub(super) fn fall_ground(&self) -> jump::Ground {
+        jump::Ground::FallOn { drop: self.body.max_drop + self.body.max_jump }
+    }
+}
 
 /// [F1] How far across from the link's landing floor a flight may rest and still have landed on the link's own top, m:
 /// [`NEAR_FLAT_M`], the sweep's own bound of "near the top". A neighbour of a press rests a little aside of the press's own
@@ -936,7 +943,7 @@ impl WalkGrid {
             let (p, q) = (self.position(a), self.position(b));
             let len = p.distance_xz(q).max(1e-4);
             let linked = linked(a);
-            self.best_press(world, s, a, b, ((q.x - p.x) / len, (q.z - p.z) / len), leads, |st| self.rim_lands_on(st, a, &linked), kits, RIM_GROUND)
+            self.best_press(world, s, a, b, ((q.x - p.x) / len, (q.z - p.z) / len), leads, |st| self.rim_lands_on(st, a, &linked), kits, self.fall_ground())
         });
         let mut moved = 0;
         // [retarget] Only a press onto the link's own landing: this flight's line is the one from the standing floor to it, which
@@ -992,7 +999,7 @@ impl WalkGrid {
         let flown = super::controlled::parallel(&todo, |&(a, b, d)| {
             let (di, dk) = DIRS[d];
             let l = ((di * di + dk * dk) as f32).sqrt();
-            self.best_press(world, s, a, b, (di as f32 / l, dk as f32 / l), &leads, |st| self.riser_lands_on(st, b), kits, RIM_GROUND)
+            self.best_press(world, s, a, b, (di as f32 / l, dk as f32 / l), &leads, |st| self.riser_lands_on(st, b), kits, self.fall_ground())
         });
         stats.risers += todo.len();
         for (&(a, b, _), p) in todo.iter().zip(&flown) {
@@ -1089,7 +1096,7 @@ fn rim_line_job(ctx: &RimLineCtx<'_>, item: &RimLineItem) -> RimLineOut {
         }
         grid.rim_lands_on(st, item.a, &item.linked)
     };
-    let press = grid.best_press(ctx.world, ctx.s, item.a, item.b, rim_way(item.d), &ctx.leads, lands, ctx.kits, RIM_GROUND);
+    let press = grid.best_press(ctx.world, ctx.s, item.a, item.b, rim_way(item.d), &ctx.leads, lands, ctx.kits, grid.fall_ground());
     RimLineOut { press, reach_m: reach.get() }
 }
 
@@ -1240,9 +1247,9 @@ fn rim_aimed_job(ctx: &RimAimedCtx<'_>, item: &RimAimedItem) -> RimAimedOut {
         grid.rim_lands_on(st, item.a, &item.linked)
     };
     let way = rim_way(item.d);
-    let sweep = grid.best_aimed(ctx.world, ctx.s, item.a, item.b, way, &lands, ctx.kits, RIM_GROUND);
+    let sweep = grid.best_aimed(ctx.world, ctx.s, item.a, item.b, way, &lands, ctx.kits, grid.fall_ground());
     let held = (sweep.made.is_none_or(|m| m.share == Share::landed(0)) && (item.line_under || sweep.under))
-        .then(|| grid.best_held(ctx.world, ctx.s, item.a, item.b, way, &lands, ctx.kits, RIM_GROUND));
+        .then(|| grid.best_held(ctx.world, ctx.s, item.a, item.b, way, &lands, ctx.kits, grid.fall_ground()));
     RimAimedOut { sweep, held, reach_m: reach.get() }
 }
 

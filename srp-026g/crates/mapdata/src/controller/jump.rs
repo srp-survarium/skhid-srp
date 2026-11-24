@@ -303,24 +303,27 @@ pub fn fly_as(
 
 /// [body physics S5a fix] How long a scoring flight runs after its landing step (the clip's `end_jump`): a fixed count of ground
 /// steps, or on until the body is down ([`Ground::FallOn`]).
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Ground {
-    /// This many ground steps ([`STAY_STEPS`] for a scoring flight; [jump down]'s longer count).
+    /// This many ground steps ([`STAY_STEPS`]).
     Steps(u32),
     /// [`STAY_STEPS`] ground steps; a body still off the ground at the last of them flies on until it has been on the ground
-    /// [`STAY_STEPS`] steps running, to [`FALL_ON_STEPS_MAX`] in all. The client ends a jump on the clip's clock, not on ground contact, and a body off a deep
-    /// edge falls on after it ([jump down], [`neighbour_flights_for`]): a flight cut at [`STAY_STEPS`] while still falling reads
-    /// as no landing. A flight down by then runs exactly [`STAY_STEPS`], as [`Ground::Steps`]`(STAY_STEPS)` does.
-    FallOn,
+    /// [`STAY_STEPS`] steps running, to [`fall_on_steps`]`(drop)` in all: `drop` m the deepest fall a pass may land after. The
+    /// client ends a jump on the clip's clock, not on ground contact, and a body off a deep edge falls on after it ([jump down],
+    /// [`neighbour_flights_for`]): a flight cut at [`STAY_STEPS`] while still falling reads as no landing. A flight down by then
+    /// runs exactly [`STAY_STEPS`], as [`Ground::Steps`]`(STAY_STEPS)` does.
+    FallOn { drop: f32 },
 }
 
-/// [body physics S5a fix] The most ground steps a [`Ground::FallOn`] flight runs: [`STAY_STEPS`] and the drop pass's walk-off
-/// landing time (`drop_check`'s 40 steps, 2 s: a fall from about 20 m).
-pub const FALL_ON_STEPS_MAX: u32 = STAY_STEPS + 40;
+/// [body physics S5a fix] The most ground steps a [`Ground::FallOn`] flight runs: [`STAY_STEPS`], the steps a fall of `drop` m from
+/// rest takes under `gravity` (the body's, [`Controller::gravity`]), and one.
+pub fn fall_on_steps(drop: f32, gravity: f32) -> u32 {
+    STAY_STEPS + ((2.0 * drop.max(0.0) / gravity).sqrt() / DT).ceil() as u32 + 1
+}
 
-/// [body physics S5a fix] [`fly_as`] with the ground steps of [`Ground::FallOn`] ([`landed_until`]).
+/// [body physics S5a fix] [`fly_as`] with the ground steps of [`Ground::FallOn`], to `max` ([`landed_until`]).
 #[allow(clippy::too_many_arguments)]
-pub fn fly_falling(world: &Collision, s: &Settings, c: &mut Controller, heading: (f32, f32), press: Press, keys: Keys, flight: Flight) -> Vec<FlightStep> {
+pub fn fly_falling(world: &Collision, s: &Settings, c: &mut Controller, heading: (f32, f32), press: Press, keys: Keys, flight: Flight, max: u32) -> Vec<FlightStep> {
     let cap = flight.cap;
     let mut flying = Flying::new(press, flight);
     let landing = press.landing_n();
@@ -330,22 +333,22 @@ pub fn fly_falling(world: &Collision, s: &Settings, c: &mut Controller, heading:
         steps.push(flying.step(world, s, c, heading, air));
     }
     let held = if keys.held_after { crate::motion::keys::FORWARD } else { 0 };
-    landed_until(world, s, c, heading, cap, flying.last_travel(), held, landing, &mut steps);
+    landed_until(world, s, c, heading, cap, flying.last_travel(), held, landing, max, &mut steps);
     steps
 }
 
 /// [body physics S5a fix] The ground steps of [`Ground::FallOn`] after a flight's landing step, as [`landed_steps`] flies them
 /// with `keys` held throughout: [`STAY_STEPS`]; with the body still off the ground at the last of them, on until it has been on
-/// the ground [`STAY_STEPS`] steps running, to [`FALL_ON_STEPS_MAX`].
+/// the ground [`STAY_STEPS`] steps running, to `max`.
 #[allow(clippy::too_many_arguments)]
-fn landed_until(world: &Collision, s: &Settings, c: &mut Controller, heading: (f32, f32), cap: f32, travel: f32, keys: u32, landing: u32, steps: &mut Vec<FlightStep>) {
+fn landed_until(world: &Collision, s: &Settings, c: &mut Controller, heading: (f32, f32), cap: f32, travel: f32, keys: u32, landing: u32, max: u32, steps: &mut Vec<FlightStep>) {
     use crate::motion::{self, ClientBody, Input, Kin, Pass};
     let yaw = motion::yaw_of(heading);
     let kin = Kin { level: cap / WALK_CAP_MS, legs_broken: false };
     let mut body = ClientBody::landed(*c, yaw, travel, keys);
     let pass = Pass { world, settings: s };
     let mut down = 0;
-    for m in 1..=FALL_ON_STEPS_MAX {
+    for m in 1..=max.max(STAY_STEPS) {
         let tick = body.tick(&pass, kin, Input { keys, yaw });
         steps.push(FlightStep { n: landing + m, feet: tick.feet, in_jump: tick.in_jump, on_ground: tick.on_ground });
         down = if tick.on_ground { down + 1 } else { 0 };
@@ -844,7 +847,7 @@ pub fn neighbour_flights_for(
 ) -> Option<Vec<Vec<FlightStep>>> {
     let fly = |b: &mut Controller, heading: (f32, f32), press: Press, flight: Flight| match ground {
         Ground::Steps(n) => fly_as(world, s, b, heading, press, STAY_KEYS, n, flight),
-        Ground::FallOn => fly_falling(world, s, b, heading, press, STAY_KEYS, flight),
+        Ground::FallOn { drop } => fly_falling(world, s, b, heading, press, STAY_KEYS, flight, fall_on_steps(drop, b.gravity)),
     };
     let flight = Flight { cap: if n.fastest { kits.fastest } else { kits.body }, dy: n.dy };
     let (c, sn) = (n.turn.cos(), n.turn.sin());
@@ -962,16 +965,32 @@ mod tests {
         };
         let cut = fly(&deep, takeoff, Kind::Sprint, 1.0, Ground::Steps(STAY_STEPS));
         assert!(cut.iter().any(|st| !st.last().expect("steps").on_ground), "cut at STAY_STEPS, a variant is still falling");
-        for st in &fly(&deep, takeoff, Kind::Sprint, 1.0, Ground::FallOn) {
+        let fall = Ground::FallOn { drop: 7.0 };
+        for st in &fly(&deep, takeoff, Kind::Sprint, 1.0, fall) {
             let last = st.last().expect("steps");
             assert!(st[st.len() - STAY_STEPS as usize..].iter().all(|f| f.on_ground), "{last:?}");
             assert!(last.feet.y.abs() < 0.05, "down on the ground below: {last:?}");
             assert!(landing_and_rest(st, |f| f.feet.y.abs() < 0.05).is_some(), "it lands and stays");
-            assert!(st.len() <= (Press::Sprint { speed: 5.0, leg: Leg::Left, first_air_frame: 7.0 }.landing_n() + FALL_ON_STEPS_MAX) as usize + 1);
+            assert!(st.len() <= (Press::Sprint { speed: 5.0, leg: Leg::Left, first_air_frame: 7.0 }.landing_n() + fall_on_steps(7.0, 9.8)) as usize + 1);
         }
         let low = ledge(0.5);
         let at = Vec3::new(5.5, 0.5, 0.0);
-        assert_eq!(fly(&low, at, Kind::Walk, 0.5, Ground::Steps(STAY_STEPS)), fly(&low, at, Kind::Walk, 0.5, Ground::FallOn));
+        assert_eq!(fly(&low, at, Kind::Walk, 0.5, Ground::Steps(STAY_STEPS)), fly(&low, at, Kind::Walk, 0.5, fall));
+        // A shallow gap, level tops 1 m apart (the block's top at 0.5 over x 5..12 from a top at 0.5 over x < 4): unchanged.
+        let mut tris = Vec::new();
+        quad(&mut tris, Vec3::new(-5.0, 0.5, -3.0), Vec3::new(-5.0, 0.5, 3.0), Vec3::new(4.0, 0.5, 3.0), Vec3::new(4.0, 0.5, -3.0));
+        quad(&mut tris, Vec3::new(4.0, -2.0, -3.0), Vec3::new(4.0, -2.0, 3.0), Vec3::new(5.0, -2.0, 3.0), Vec3::new(5.0, -2.0, -3.0));
+        quad(&mut tris, Vec3::new(5.0, 0.5, -3.0), Vec3::new(5.0, 0.5, 3.0), Vec3::new(12.0, 0.5, 3.0), Vec3::new(12.0, 0.5, -3.0));
+        let (caster, _) = crate::Body { exe_collision: true, start_witness: true, ..crate::Body::client() }.controller();
+        let gap = Collision::build(&tris).with_caster(caster);
+        let at = Vec3::new(5.5, 0.5, 0.0);
+        for kind in [Kind::Walk, Kind::Sprint] {
+            assert_eq!(fly(&gap, at, kind, 1.0, Ground::Steps(STAY_STEPS)), fly(&gap, at, kind, 1.0, fall), "{kind:?} over a shallow gap");
+        }
+        // A rim press up onto a 1 m top from the ground before it (way (1, 0), the top's face at x 5): unchanged.
+        let rim = ledge(1.0);
+        let up = |ground: Ground| neighbour_flights_for(&rim, &s, Vec3::new(4.5, 0.0, 0.0), (1.0, 0.0), Kind::Sprint, 1.0, own, kits, ground);
+        assert_eq!(up(Ground::Steps(STAY_STEPS)), up(fall), "a rim press onto a top");
     }
 
     /// [A385] A run-up whose start is over a lower level (a floor at 0 from x `edge` to 6, a level 3 m lower before it): the

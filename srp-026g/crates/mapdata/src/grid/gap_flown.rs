@@ -620,7 +620,7 @@ fn gap_flown_job(ctx: &GapFlownCtx<'_>, item: &GapFlownItem) -> GapFlownOut {
     for (i, e) in item.ends.iter().enumerate() {
         out.tried += 1;
         let super::rim::RimPress { made, flights, near: close, .. } =
-            grid.best_press(ctx.world, ctx.s, e.a, e.b, way(e), &ctx.leads, |st| lands(e, st), ctx.kits, GAP_GROUND);
+            grid.best_press(ctx.world, ctx.s, e.a, e.b, way(e), &ctx.leads, |st| lands(e, st), ctx.kits, grid.fall_ground());
         out.flights += flights;
         let i = u8::try_from(i).expect("a group's ends fit a byte");
         if made.iter().any(lands_whole) {
@@ -639,7 +639,7 @@ fn gap_flown_job(ctx: &GapFlownCtx<'_>, item: &GapFlownItem) -> GapFlownOut {
     // from the first such end; the better share kept ([`better`]).
     if let Some(i) = near.or(partial.as_ref().map(|&(i, _)| i)) {
         let e = &item.ends[usize::from(i)];
-        let sweep = grid.best_aimed(ctx.world, ctx.s, e.a, e.b, way(e), &|st| lands(e, st), ctx.kits, GAP_GROUND);
+        let sweep = grid.best_aimed(ctx.world, ctx.s, e.a, e.b, way(e), &|st| lands(e, st), ctx.kits, grid.fall_ground());
         out.flights += sweep.flights;
         out.aimed = Some(sweep.flights);
         out.made = better(partial, sweep.made.map(|m| (i, vec![m])));
@@ -649,11 +649,6 @@ fn gap_flown_job(ctx: &GapFlownCtx<'_>, item: &GapFlownItem) -> GapFlownOut {
     out.reach_m = reach.get();
     out
 }
-
-/// [body physics S5a fix] How long the gap pass's scoring flights run after the landing step: on until the body is down
-/// ([`jump::Ground::FallOn`]). Cut at [`jump::STAY_STEPS`], a flight off a deep edge still falling read as no landing (Chemical
-/// Plant batteries (20.12, 10.17, 29.12): 5 of a sprint press's 6 variants of a 3.4 m drop were still in the air).
-const GAP_GROUND: jump::Ground = jump::Ground::FallOn;
 
 /// [body physics S5a fix] Whether a made press lands in every variant the motor can play: its own flight's neighbour (the first of
 /// [`jump::neighbourhood`], bit 0 of its share's mask), which lands only when every variant of it does. Only such a press makes a
@@ -783,7 +778,7 @@ fn gap_clip_job(ctx: &GapFlownCtx<'_>, item: &GapFlownItem) -> GapClipOut {
             }
             grid.gap_lands_on(st, e.a, DIRS[e.d], &e.linked, e.over, e.past)
         };
-        let p = grid.best_press(ctx.world, ctx.s, e.a, e.b, way, &ctx.leads, lands, ctx.kits, GAP_GROUND);
+        let p = grid.best_press(ctx.world, ctx.s, e.a, e.b, way, &ctx.leads, lands, ctx.kits, grid.fall_ground());
         out.flights += p.flights;
         let i = u8::try_from(i).expect("a group's ends fit a byte");
         // [body physics S5a fix] As the flown gaps ([`gap_flown_job`]): the line's presses make the end only when one lands in
@@ -792,7 +787,7 @@ fn gap_clip_job(ctx: &GapFlownCtx<'_>, item: &GapFlownItem) -> GapClipOut {
         let made = if p.made.iter().any(lands_whole) {
             Some((i, p.made))
         } else if p.near || !p.made.is_empty() {
-            let sweep = grid.best_aimed(ctx.world, ctx.s, e.a, e.b, way, &lands, ctx.kits, GAP_GROUND);
+            let sweep = grid.best_aimed(ctx.world, ctx.s, e.a, e.b, way, &lands, ctx.kits, grid.fall_ground());
             out.flights += sweep.flights;
             better((!p.made.is_empty()).then_some((i, p.made)), sweep.made.map(|m| (i, vec![m])))
         } else {
