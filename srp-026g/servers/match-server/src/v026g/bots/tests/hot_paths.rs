@@ -245,3 +245,45 @@ fn hot_items_are_outside_the_grid_and_sight_keys() {
     }
     assert!(reached.is_empty(), "runtime-only items inside a key (rename them):\n  {}", reached.join("\n  "));
 }
+
+/// The spot plays' walk-up search (`Tactics::walk_up_from`) by the base's lookups against the plain one on the real maps:
+/// the same sets (and so the same cap cut), and what each costs.
+#[test]
+#[ignore = "a measurement and check on real maps; needs SRP_MAPDATA_DIR"]
+fn hot_paths_walk_up_on_real_maps() {
+    let Some(dir) = super::real_maps::dir() else {
+        eprintln!("skipping: SRP_MAPDATA_DIR is not set");
+        return;
+    };
+    for project in maps() {
+        let world = world_of(&dir, &project);
+        let t = Tactics::new(world.clone(), Tuning::default().hazard.margin_m.get());
+        let grid = &world.grid;
+        let n = grid.len() as u64;
+        let mut rng = Rng(0x51_7cc1_b727_220a ^ n);
+        let points: Vec<(Vec3, f32)> = (0..200)
+            .map(|i| (grid.position((rng.next() % n) as NodeId), [20.0, 32.0, 45.0, 65.0][i % 4]))
+            .collect();
+        let run = |hot: bool| {
+            let started = std::time::Instant::now();
+            let sets: Vec<_> = points.iter().map(|&(p, r)| t.walk_up_both(p, r, hot)).collect();
+            (sets, started.elapsed().as_secs_f64())
+        };
+        let (plain, _) = run(false);
+        let (fast, _) = run(true);
+        assert!(plain == fast, "{project}: the walk-up sets");
+        let mut times = [0.0f64; 2];
+        for _ in 0..2 {
+            times[0] += run(false).1;
+            times[1] += run(true).1;
+        }
+        let floors: usize = plain.iter().map(|(_, c)| c).sum();
+        eprintln!(
+            "HOT walk-up {project}: {} sets, {floors} floors, plain {:.1} ms, hot {:.1} ms ({:.1} % less), equal sets",
+            points.len(),
+            times[0] * 1e3 / 2.0,
+            times[1] * 1e3 / 2.0,
+            100.0 * (1.0 - times[1] / times[0])
+        );
+    }
+}

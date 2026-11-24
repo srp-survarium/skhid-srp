@@ -2985,7 +2985,8 @@ impl Tactics {
             if count >= WALK_UP_MAX_FLOORS {
                 break;
             }
-            for (v, kind) in grid.links(u) {
+            // [CPU hot paths] `grid.links` by the base's load-time lookups: the same links in the same order.
+            for (v, kind) in self.base.hot.hot_links(grid, u) {
                 if kind == LinkKind::Walk
                     && !seen.contains(v)
                     && grid.position(v).distance_xz(around) <= radius
@@ -2997,6 +2998,42 @@ impl Tactics {
             }
         }
         seen
+    }
+
+    /// [CPU hot paths] [`Self::walk_up_from`] as it was before the base's lookups (`grid.links`), and the new one, uncached:
+    /// for the tests and the measurement (`tests/hot_paths.rs`).
+    #[cfg(test)]
+    pub(super) fn walk_up_both(&self, around: Vec3, radius: f32, hot: bool) -> (Vec<u64>, usize) {
+        if hot {
+            let set = self.walk_up_from(around, radius);
+            let count = set.0.iter().map(|w| w.count_ones() as usize).sum();
+            return (set.0, count);
+        }
+        use mapdata::LinkKind;
+        let grid = &self.world.grid;
+        let mut seen = WalkUp::new(grid.len());
+        let Some(start) = grid.locate(around, LOCATE_M) else {
+            return (seen.0, 0);
+        };
+        let mut queue = vec![start];
+        let mut count = 1usize;
+        seen.insert(start);
+        let mut head = 0;
+        while head < queue.len() {
+            let u = queue[head];
+            head += 1;
+            if count >= WALK_UP_MAX_FLOORS {
+                break;
+            }
+            for (v, kind) in grid.links(u) {
+                if kind == LinkKind::Walk && !seen.contains(v) && grid.position(v).distance_xz(around) <= radius {
+                    seen.insert(v);
+                    count += 1;
+                    queue.push(v);
+                }
+            }
+        }
+        (seen.0, count)
     }
 
     /// The set [`Self::walk_up_from`] was before the bit set and the kept
