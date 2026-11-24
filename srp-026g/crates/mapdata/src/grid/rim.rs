@@ -177,6 +177,9 @@ pub const NEAR_FLAT_M: f32 = 1.0;
 #[derive(Clone, Debug, Default)]
 pub(super) struct RimPress {
     pub(super) made: Vec<Made>,
+    /// [body physics S5b] L1: the links to the other tops the jumps land and stay on ([`WalkGrid::best_press_with`]), apart from
+    /// step 2's [`Self::made`]: the gap passes judge a group by step 2's floors alone.
+    pub(super) others: Vec<Made>,
     pub(super) flights: usize,
     pub(super) near: bool,
     /// [item 10] Whether a let-go sprint flight came to rest on the ground under the top: within the client's step
@@ -536,11 +539,38 @@ impl WalkGrid {
         if let Some(c) = floor_of(&climbs).filter(|c| !floors.contains(c) && !climbs.iter().any(|l| floors.contains(&l.to))) {
             floors.push(c);
         }
-        let made = floors
-            .into_iter()
-            .map(|to| Made { aim, ..press_onto(&flown, &landings, to, &|g| self.own_top(to, g), &lands, &fly, &mut flights) })
+        let made: Vec<Made> = floors
+            .iter()
+            .map(|&to| Made { aim, ..press_onto(&flown, &landings, to, &|g| self.own_top(to, g), &lands, &fly, &mut flights) })
             .collect();
-        RimPress { made, flights, near, under }
+        // [body physics S5b] L1: a link to every other top the jumps land and stay on, not one floor a group. Step 2 takes `b` when
+        // any jump lands on it; with the flights flown on to the rest a few presses reach a far floor that a walk covers, and the
+        // top every other press lands and stays on got no link (Cologne TDM (45.32, 36.39, 20.12): Slow 0.4/0.5 reach b 1.8 m
+        // lower, Slow 0/0.1 land on (46.32, 33.77, 19.12) and stay there in the exe; the walk round then dropped the b link and
+        // left none). Each other top (by [`Self::own_top`], so a variant that rocked a cell over is the same top) is scored by its
+        // one best press (the most variants landing on it, then the gait rank, then the lead), and makes a link when that press's
+        // own flights all land and stay on it (its share's bit 0): the thinning prunes what a walk covers.
+        let own_variants = |l: &Landing| {
+            flown.iter().find(|(k, ld, _)| *k == l.kind && ld.to_bits() == l.lead.to_bits()).map_or(0, |(.., f)| f.iter().filter(|&&g| g == Some(l.to)).count())
+        };
+        let mut others: Vec<&Landing> = jumps.iter().copied().filter(|l| !floors.iter().any(|&t| self.own_top(t, l.to))).collect();
+        others.sort_by(|p, q| {
+            own_variants(q).cmp(&own_variants(p)).then(rank(p.kind).cmp(&rank(q.kind))).then(p.lead.total_cmp(&q.lead)).then(p.to.cmp(&q.to))
+        });
+        let mut tops: Vec<NodeId> = Vec::new();
+        let mut other_made: Vec<Made> = Vec::new();
+        for l in others {
+            if tops.iter().any(|&t| self.own_top(t, l.to)) {
+                continue;
+            }
+            tops.push(l.to);
+            let one = [*l];
+            let m = press_onto(&flown, &one, l.to, &|g| self.own_top(l.to, g), &lands, &fly, &mut flights);
+            if m.share.mask().is_some_and(|k| k.lands(0)) {
+                other_made.push(Made { aim, ..m });
+            }
+        }
+        RimPress { made, others: other_made, flights, near, under }
     }
 }
 
@@ -902,7 +932,7 @@ impl WalkGrid {
             if p.made.is_empty() && aimed.is_none() {
                 none.push((a, b));
             }
-            for &Made { to, press, share, walk, aim, .. } in p.made.iter().chain(aimed.as_ref()) {
+            for &Made { to, press, share, walk, aim, .. } in p.made.iter().chain(aimed.as_ref()).chain(&p.others) {
                 match press {
                     Takeoff::Press(_) => stats.walked += 1,
                     Takeoff::Slow { .. } => stats.slowed += 1,
@@ -1368,9 +1398,10 @@ impl MemoCodec for Made {
 }
 
 impl MemoCodec for RimPress {
-    const TAG: u32 = 0x5250_5201;
+    const TAG: u32 = 0x5250_5202;
     fn encode(&self, out: &mut Codec<'_>) {
         self.made.encode(out);
+        self.others.encode(out);
         out.put_u32(u32::try_from(self.flights).expect("a press's flights fit 32 bits"));
         self.near.encode(out);
         self.under.encode(out);
@@ -1378,6 +1409,7 @@ impl MemoCodec for RimPress {
     fn decode(input: &mut Codec<'_>) -> Option<Self> {
         Some(RimPress {
             made: Vec::<Made>::decode(input)?,
+            others: Vec::<Made>::decode(input)?,
             flights: input.u32()? as usize,
             near: bool::decode(input)?,
             under: bool::decode(input)?,
@@ -1952,7 +1984,8 @@ mod tests {
                 walker_lands: i % 2 == 1,
             })
             .collect();
-        let out = RimLineOut { press: RimPress { made, flights: 123_456, near: true, under: false }, reach_m: 6.25 };
+        let others = made.iter().rev().take(2).copied().collect();
+        let out = RimLineOut { press: RimPress { made, others, flights: 123_456, near: true, under: false }, reach_m: 6.25 };
         let mut w = Codec::writer(&ids);
         out.encode(&mut w);
         let bytes = w.into_bytes();
