@@ -657,7 +657,8 @@ impl RouteSearch {
 
 impl RouteSearch {
     /// [CPU hot paths] [`Self::step`] by `hot`'s lookups ([`SlicedSearch::step_hot`]): the same stages, floors, order and
-    /// answer. `hot` must be `grid`'s ([`crate::grid::HotIndex::hot_fits`]).
+    /// answer. `hot` must be `grid`'s ([`crate::grid::HotIndex::hot_fits`]). copy-of: `RouteSearch::step` (the copy guard:
+    /// match-server `hot_paths.rs`).
     #[allow(clippy::too_many_arguments)]
     pub fn step_hot(
         &mut self,

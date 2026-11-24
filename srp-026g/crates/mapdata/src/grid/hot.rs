@@ -135,6 +135,36 @@ impl HotIndex {
         self.riser.ranked_bytes() + self.marked.ranked_bytes() + self.off_out.ranked_bytes() + self.off_into.ranked_bytes()
     }
 
+    /// Every floor's lookups by this index against the grid's own: `links_back`, the off-mesh slices out of and onto it,
+    /// and for each of its links the riser, the marked walk and the off-mesh link. The floors and links checked, or the
+    /// first difference. For the drift tests on the real maps (match-server `hot_paths.rs`).
+    #[doc(hidden)]
+    pub fn hot_check_grid(&self, grid: &WalkGrid) -> Result<(usize, usize), String> {
+        if !self.hot_fits(grid) {
+            return Err(format!("an index of {} floors for a grid of {}", self.floors, grid.len()));
+        }
+        let mut links = 0;
+        for u in 0..grid.len() as NodeId {
+            let plain: Vec<_> = grid.links_back(u).collect();
+            if plain != grid.links_back_hot(self, u).collect::<Vec<_>>() {
+                return Err(format!("links back of {u}"));
+            }
+            if grid.off_out(u) != self.hot_off_out(grid, u) || grid.off_into(u) != self.hot_off_into(grid, u) {
+                return Err(format!("off-mesh slices of {u}"));
+            }
+            for (v, _, _) in plain {
+                if grid.riser(u, v) != self.hot_riser(grid, u, v)
+                    || grid.walk_marked(u, v) != self.hot_walk_marked(grid, u, v)
+                    || grid.off_link(u, v) != self.hot_off_link(grid, u, v)
+                {
+                    return Err(format!("the lookups of {u} -> {v}"));
+                }
+                links += 1;
+            }
+        }
+        Ok((grid.len(), links))
+    }
+
     /// [`WalkGrid::riser`]: the grid's own search, for a floor some riser leaves only.
     #[inline]
     fn hot_riser(&self, grid: &WalkGrid, a: NodeId, b: NodeId) -> Option<Riser> {
@@ -165,7 +195,7 @@ impl HotIndex {
         &grid.off_in[self.off_into.ranked_range(node)]
     }
 
-    /// [`WalkGrid::off_link`].
+    /// [`WalkGrid::off_link`]. copy-of: `WalkGrid::off_link` (the copy guard: match-server `hot_paths.rs`).
     #[inline]
     fn hot_off_link(&self, grid: &WalkGrid, from: NodeId, to: NodeId) -> Option<OffLink> {
         self.hot_off_out(grid, from).iter().find(|l| l.to == to).copied()
@@ -174,7 +204,7 @@ impl HotIndex {
 
 impl WalkGrid {
     /// [`Self::links_back`] by `hot`'s lookups, the floor's column and row read from `ik` (as [`Self::position`] reads them)
-    /// instead of worked out from its cell.
+    /// instead of worked out from its cell. copy-of: `WalkGrid::links_back` (the copy guard: match-server `hot_paths.rs`).
     #[inline]
     fn links_back_hot<'a>(&'a self, hot: &'a HotIndex, node: NodeId) -> impl Iterator<Item = (NodeId, LinkKind, u16)> + 'a {
         let a = node as usize;
@@ -202,7 +232,8 @@ impl WalkGrid {
             }))
     }
 
-    /// [`Self::link_cost_reaching`] by `hot`'s lookups: the same expressions in the same order.
+    /// [`Self::link_cost_reaching`] by `hot`'s lookups: the same expressions in the same order. copy-of:
+    /// `WalkGrid::link_cost_reaching` (the copy guard: match-server `hot_paths.rs`).
     pub fn link_cost_hot(&self, hot: &HotIndex, from: NodeId, to: NodeId, kind: LinkKind, reach: Reach) -> f32 {
         if !self.plans(from, to) {
             return f32::INFINITY;
@@ -287,7 +318,8 @@ impl WalkGrid {
 
 impl SlicedSearch {
     /// [`Self::step`] by `hot`'s lookups ([`WalkGrid::links_back_hot`], [`WalkGrid::link_cost_hot`]): the same floors in
-    /// the same order, the same costs, the same answer. `hot` must be `grid`'s ([`HotIndex::hot_fits`]).
+    /// the same order, the same costs, the same answer. `hot` must be `grid`'s ([`HotIndex::hot_fits`]). copy-of:
+    /// `SlicedSearch::step` (the copy guard: match-server `hot_paths.rs`).
     pub fn step_hot(
         &mut self,
         grid: &WalkGrid,

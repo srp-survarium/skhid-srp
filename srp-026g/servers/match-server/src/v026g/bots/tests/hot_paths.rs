@@ -39,6 +39,90 @@ fn world_of(dir: &std::path::Path, project: &str) -> Arc<World> {
     Arc::new(super::grid_cache::world(map, map_file, mapdata::CELL, t.grid_body(), t.off_mesh_links(), extras))
 }
 
+/// Every map of the bench: levels 1-8, batteries (day 2) and Team Deathmatch (day 4).
+fn all_maps() -> Vec<String> {
+    (1..=8).flat_map(|level| [2, 4].map(|day| format!("level_{level:02}/day_{day}"))).collect()
+}
+
+/// [CPU hot paths, the drift guard] On every map: the index's size, and every floor's lookups and every link's price by
+/// the runtime copies (`mapdata::grid::hot`) against the originals, for each reach the bots search with; a difference fails.
+#[test]
+#[ignore = "a check and a measurement on all 16 real maps; needs SRP_MAPDATA_DIR"]
+fn hot_paths_index_on_all_maps() {
+    let Some(dir) = super::real_maps::dir() else {
+        eprintln!("skipping: SRP_MAPDATA_DIR is not set");
+        return;
+    };
+    let mut largest = 0;
+    for project in all_maps() {
+        let world = world_of(&dir, &project);
+        let grid = &world.grid;
+        let started = std::time::Instant::now();
+        let hot = HotIndex::for_grid(grid);
+        let build_ms = started.elapsed().as_secs_f64() * 1e3;
+        largest = largest.max(hot.hot_bytes());
+        let (floors, links) = hot.hot_check_grid(grid).unwrap_or_else(|why| panic!("{project}: {why}"));
+        let mut priced = 0u64;
+        for u in 0..grid.len() as NodeId {
+            for (v, kind) in grid.links(u) {
+                for reach in reaches() {
+                    let (a, b) = (grid.link_cost_reaching(u, v, kind, reach), grid.link_cost_hot(&hot, u, v, kind, reach));
+                    assert_eq!(a.to_bits(), b.to_bits(), "{project}: {u} -> {v} {kind:?} {reach:?}");
+                    priced += 1;
+                }
+            }
+        }
+        let _ = mapdata::take_falls_closed();
+        eprintln!(
+            "HOT index {project}: floors {floors}, {:.2} MB ({} bytes), built in {build_ms:.1} ms; lookups equal on {floors} floors \
+             and {links} links; {priced} prices equal ({} reaches)",
+            hot.hot_bytes() as f64 / 1e6,
+            hot.hot_bytes(),
+            reaches().len()
+        );
+    }
+    eprintln!("HOT index: the largest {:.2} MB", largest as f64 / 1e6);
+    assert!(largest < 5_000_000, "the index is over 5 MB a map: {largest} bytes");
+}
+
+/// [CPU hot paths, the copy guard] The runtime copies in `mapdata::grid::hot` (and `RouteSearch::step_hot`) each follow an
+/// original inside the grid key, which they cannot call (`copy-of:` in their docs). Each original's tokens (no comments,
+/// no docs: `mapdata-srchash`'s units) are held to the digest they had when their copy was last checked against them: an
+/// original changed without its copy fails here. Then make the change in the copy too, run `hot_paths_index_on_all_maps`
+/// and `hot_paths_route_search_on_real_maps`, and put the new digest printed below in [`HOT_COPIES`].
+const HOT_COPIES: &[(&str, &str, &str)] = &[
+    ("WalkGrid::link_cost_hot", "WalkGrid::link_cost_reaching", "ca5771ab36318403b4663a22489b4862"),
+    ("WalkGrid::links_back_hot", "WalkGrid::links_back", "b3317aaaaa3c60250a35d782fa962d65"),
+    ("HotIndex::hot_off_link", "WalkGrid::off_link", "10687070e348a2917b1c0dd212af720a"),
+    ("SlicedSearch::step_hot", "SlicedSearch::step", "0baa0f061f25ae8d4f1d44405f2d942f"),
+    ("RouteSearch::step_hot", "RouteSearch::step", "438b3865ba552fad4fd3062c32a2070e"),
+];
+
+#[test]
+fn hot_copies_follow_their_originals() {
+    let workspace = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let source = mapdata_srchash::mapdata_source(&workspace).expect("mapdata's source parses");
+    let mut changed = Vec::new();
+    for &(copy, original, want) in HOT_COPIES {
+        let units: Vec<_> = source.units.iter().filter(|u| u.names.iter().any(|n| n == original)).collect();
+        assert_eq!(units.len(), 1, "{original}: {} items of that name in mapdata", units.len());
+        let copies = source.units.iter().filter(|u| u.names.iter().any(|n| n == copy)).count();
+        assert_eq!(copies, 1, "{copy}: {copies} items of that name in mapdata");
+        let mut hash = mapdata_srchash::Hash128::default();
+        hash.str(&units[0].text);
+        let got = format!("{:032x}", hash.finish());
+        if got != want {
+            changed.push(format!("(\"{copy}\", \"{original}\", \"{got}\"),"));
+        }
+    }
+    assert!(
+        changed.is_empty(),
+        "originals changed since their runtime copies were checked against them: change each copy too, run the real-map \
+         checks (hot_paths_index_on_all_maps, hot_paths_route_search_on_real_maps), then put these rows in HOT_COPIES:\n  {}",
+        changed.join("\n  ")
+    );
+}
+
 /// A xorshift: the same pairs every run.
 struct Rng(u64);
 
@@ -75,28 +159,7 @@ fn hot_paths_route_search_on_real_maps() {
         let world = world_of(&dir, &project);
         let grid = &world.grid;
         let regions = Regions::build(grid, None);
-        let started = std::time::Instant::now();
         let hot = HotIndex::for_grid(grid);
-        let build_ms = started.elapsed().as_secs_f64() * 1e3;
-        eprintln!(
-            "HOT {project}: floors {}, index {:.2} MB ({} bytes), built in {build_ms:.1} ms",
-            grid.len(),
-            hot.hot_bytes() as f64 / 1e6,
-            hot.hot_bytes()
-        );
-        // Every link, priced by both, for every reach: equal to the bit.
-        let mut links = 0u64;
-        for u in 0..grid.len() as NodeId {
-            for (v, kind) in grid.links(u) {
-                for reach in reaches() {
-                    let (a, b) = (grid.link_cost_reaching(u, v, kind, reach), grid.link_cost_hot(&hot, u, v, kind, reach));
-                    assert_eq!(a.to_bits(), b.to_bits(), "{project}: {u} -> {v} {kind:?} {reach:?}");
-                }
-                links += 1;
-            }
-        }
-        let _ = mapdata::take_falls_closed();
-        eprintln!("HOT {project}: {links} links priced equal by both, for {} reaches", reaches().len());
         // Searches from random floors to random floors within 60 m, by the regions' route search as the bots run it,
         // in slices of 200 floors: the same answers, stages and floors, then the time of each.
         let n = grid.len() as u64;
