@@ -656,15 +656,16 @@ impl RouteSearch {
 }
 
 impl RouteSearch {
-    /// [CPU hot paths] [`Self::step`] by `hot`'s lookups ([`SlicedSearch::step_hot`]): the same stages, floors, order and
-    /// answer. `hot` must be `grid`'s ([`crate::grid::HotIndex::hot_fits`]). copy-of: `RouteSearch::step` (the copy guard:
-    /// match-server `hot_paths.rs`).
+    /// [CPU hot paths] [`Self::step`] by `hot`'s lookups and the open list `queue` ([`SlicedSearch::step_hot`]): the same
+    /// stages, floors, order and answer. `hot` must be `grid`'s ([`crate::grid::HotIndex::hot_fits`]), and `queue` this
+    /// search's for its life. copy-of: `RouteSearch::step` (the copy guard: match-server `hot_paths.rs`).
     #[allow(clippy::too_many_arguments)]
     pub fn step_hot(
         &mut self,
         regions: &Regions,
         grid: &WalkGrid,
         hot: &crate::grid::HotIndex,
+        queue: &mut crate::grid::HotOpen,
         allowed: impl Fn(NodeId) -> bool,
         region_ok: impl Fn(u32) -> bool,
         weight: impl Fn(NodeId) -> f32,
@@ -675,12 +676,13 @@ impl RouteSearch {
                 return Some((Search::NoWay, self.stage));
             };
             let found = if self.stage == Stage::Whole {
-                search.step_hot(grid, hot, &allowed, &weight, iters)?
+                search.step_hot(grid, hot, queue, &allowed, &weight, iters)?
             } else {
                 let inside = &self.inside;
                 search.step_hot(
                     grid,
                     hot,
+                    queue,
                     |v| {
                         let r = regions.of(v) as usize;
                         inside[r / 64] & (1 << (r % 64)) != 0 && allowed(v)

@@ -181,10 +181,11 @@ fn hot_paths_route_search_on_real_maps() {
                     continue;
                 };
                 let mut slices = 0u32;
+                let mut queue = mapdata::grid::HotOpen::hot_open_empty();
                 let found = loop {
                     let mut iters = 200;
                     let step = if hot_step {
-                        search.step_hot(&regions, grid, &hot, |_| true, |_| true, |_| 1.0, &mut iters)
+                        search.step_hot(&regions, grid, &hot, &mut queue, |_| true, |_| true, |_| 1.0, &mut iters)
                     } else {
                         search.step(&regions, grid, |_| true, |_| true, |_| 1.0, &mut iters)
                     };
