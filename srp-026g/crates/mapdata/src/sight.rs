@@ -596,7 +596,7 @@ impl RayTree {
     /// [CPU hot paths] Whether some triangle meets the ray between `min_t` and `max_t` (both excluded): [`Self::walk`] with
     /// every triangle accepted and the first hit ending it (`any_hit`), without the calls through `accept` and `found`. The
     /// same nodes in the same order, the same slab and triangle tests; the walk's `max_t` never narrowed before it ends, as
-    /// the first hit ends it there.
+    /// the first hit ends it there. copy-of: `RayTree::walk` (the copy guard: match-server `hot_sight.rs`).
     fn hit_any_hot(&self, origin: Vec3, dir: Vec3, min_t: f32, max_t: f32) -> bool {
         if self.nodes.is_empty() || !origin.is_finite() || !dir.is_finite() {
             return false;
