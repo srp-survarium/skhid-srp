@@ -149,6 +149,9 @@ impl HotIndex {
             if plain != grid.links_back_hot(self, u).collect::<Vec<_>>() {
                 return Err(format!("links back of {u}"));
             }
+            if grid.links(u).collect::<Vec<_>>() != self.hot_links(grid, u).collect::<Vec<_>>() {
+                return Err(format!("links of {u}"));
+            }
             if grid.off_out(u) != self.hot_off_out(grid, u) || grid.off_into(u) != self.hot_off_into(grid, u) {
                 return Err(format!("off-mesh slices of {u}"));
             }
@@ -199,6 +202,23 @@ impl HotIndex {
     #[inline]
     fn hot_off_link(&self, grid: &WalkGrid, from: NodeId, to: NodeId) -> Option<OffLink> {
         self.hot_off_out(grid, from).iter().find(|l| l.to == to).copied()
+    }
+}
+
+impl HotIndex {
+    /// [`WalkGrid::links`] by these lookups: the same links in the same order, the floor's column and row read from `ik`
+    /// (as [`WalkGrid::position`] reads them) and its off-mesh links by rank. `grid` must be this index's
+    /// ([`Self::hot_fits`]). copy-of: `WalkGrid::links` (the copy guard: match-server `hot_paths.rs`).
+    #[inline]
+    pub fn hot_links<'g>(&'g self, grid: &'g WalkGrid, node: NodeId) -> impl Iterator<Item = (NodeId, LinkKind)> + 'g {
+        let a = node as usize;
+        let (i, k) = match grid.ik.get(a) {
+            Some(&[i, k]) => (i32::from(i), i32::from(k)),
+            None => grid.cell_xz(grid.cell_of[a] as usize),
+        };
+        (0..8)
+            .filter_map(move |d| grid.link_of(a, d, i, k))
+            .chain(self.hot_off_out(grid, node).iter().map(|l| (l.to, l.kind)))
     }
 }
 
@@ -430,6 +450,7 @@ mod tests {
             let plain: Vec<_> = grid.links_back(u).collect();
             let fast: Vec<_> = grid.links_back_hot(&hot, u).collect();
             assert_eq!(plain, fast, "links back of {u}");
+            assert_eq!(grid.links(u).collect::<Vec<_>>(), hot.hot_links(grid, u).collect::<Vec<_>>(), "links of {u}");
             assert_eq!(grid.off_out(u), hot.hot_off_out(grid, u), "off out of {u}");
             assert_eq!(grid.off_into(u), hot.hot_off_into(grid, u), "off into of {u}");
             for (v, kind, _) in plain {
