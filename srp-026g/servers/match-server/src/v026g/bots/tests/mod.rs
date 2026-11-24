@@ -73,6 +73,7 @@ mod eye;
 mod false_walls;
 mod fights;
 mod fix_gap;
+mod hot_paths;
 mod flank_build;
 mod flight_look;
 mod grid_cache;

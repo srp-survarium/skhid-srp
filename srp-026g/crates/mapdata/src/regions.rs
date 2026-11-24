@@ -655,6 +655,63 @@ impl RouteSearch {
     }
 }
 
+impl RouteSearch {
+    /// [CPU hot paths] [`Self::step`] by `hot`'s lookups ([`SlicedSearch::step_hot`]): the same stages, floors, order and
+    /// answer. `hot` must be `grid`'s ([`crate::grid::HotIndex::hot_fits`]). copy-of: `RouteSearch::step` (the copy guard:
+    /// match-server `hot_paths.rs`).
+    #[allow(clippy::too_many_arguments)]
+    pub fn step_hot(
+        &mut self,
+        regions: &Regions,
+        grid: &WalkGrid,
+        hot: &crate::grid::HotIndex,
+        allowed: impl Fn(NodeId) -> bool,
+        region_ok: impl Fn(u32) -> bool,
+        weight: impl Fn(NodeId) -> f32,
+        iters: &mut usize,
+    ) -> Option<(Search, Stage)> {
+        loop {
+            let Some(search) = self.search.as_mut() else {
+                return Some((Search::NoWay, self.stage));
+            };
+            let found = if self.stage == Stage::Whole {
+                search.step_hot(grid, hot, &allowed, &weight, iters)?
+            } else {
+                let inside = &self.inside;
+                search.step_hot(
+                    grid,
+                    hot,
+                    |v| {
+                        let r = regions.of(v) as usize;
+                        inside[r / 64] & (1 << (r % 64)) != 0 && allowed(v)
+                    },
+                    &weight,
+                    iters,
+                )?
+            };
+            self.expanded += search.expanded();
+            if self.stage == Stage::Whole || matches!(found, Search::Found(_)) {
+                self.search = None;
+                return Some((found, self.stage));
+            }
+            // Not in this corridor: wider, then the whole grid.
+            let next = if self.stage == Stage::Corridor {
+                self.stage = Stage::Widened;
+                self.widen(regions, grid, WIDE_RINGS, &region_ok)
+            } else {
+                self.stage = Stage::Whole;
+                self.search = None;
+                grid.start_search_reaching(self.from, self.to, self.budget, self.reach)
+                    .map(|search| self.search = Some(search))
+                    .map_err(|done| (done, Stage::Whole))
+            };
+            if let Err(done) = next {
+                return Some(done);
+            }
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
