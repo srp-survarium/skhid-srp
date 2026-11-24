@@ -1,6 +1,6 @@
-# Survarium Restoration Project: servers for three game versions
+# Survarium Restoration Project: servers for four game versions
 
-Server side of the old online shooter Survarium, written in Rust, for three
+Server side of the old online shooter Survarium, written in Rust, for four
 builds of the original game client. Each build speaks its own network
 protocol, so each has a server of its own.
 
@@ -10,13 +10,14 @@ is where this code began. Not affiliated with or endorsed by Vostok Games;
 Survarium is a trademark of its owners. The game itself is not in this
 repository.
 
-## The three versions
+## The four versions
 
 | Folder | Game build | What it is | State |
 |---|---|---|---|
 | [`srp-0100b/`](srp-0100b/) | 0.100b (early 2013) | Server-authoritative matches: the server runs combat, spawns, batteries and traps | Works locally; not hosted |
 | [`srp-021d/`](srp-021d/) | 0.21d, build 2010 (April 2014) | Lockstep matches: clients simulate, the server relays inputs and compares world hashes | Hosted on skhid.link from 2026-10-10 to 2026-10-12; not hosted now |
 | [`srp-026g/`](srp-026g/) | 0.26g, build 2777 (January 2015) | Still lockstep, but a new protocol at every layer (the lobby runs over UDP); items, clans, premium shop | Live on [skhid.link](https://skhid.link) (also 026g.skhid.link) since 2026-10-12; a test server on [test.skhid.link](https://test.skhid.link) |
+| [`srp-069d/`](srp-069d/) | 0.69d, the last Steam build (February 2022) | Skhid (Схід) 0.69d server: see [`srp-069d/README.md`](srp-069d/README.md) | Not hosted yet; anyone can run one |
 
 Each folder is a complete Rust workspace that builds and tests by itself.
 `srp-026g` began as a copy of `srp-021d` and still holds the 0.21d code beside
