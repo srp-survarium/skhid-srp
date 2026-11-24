@@ -213,6 +213,20 @@ impl<'t> Player<'t> {
     }
 }
 
+/// Pregame spawns, the round-wide respawn and countdown kit switches run
+/// under a countdown. During active play only an entering place can spawn.
+/// The tick and input hooks already hold a lethal body before the next
+/// rule step folds it into the ordinary, rescuable frozen state.
+pub fn freeze_spawn_in_play(ctx: &Context<'_>) {
+    // SAFETY: the site's ESI is the live, newly inserted player.
+    let Some(player) = (unsafe { raw::site::courier_spawned::player(ctx) }) else { return };
+    // SAFETY: the player's world lives for the spawn callback.
+    if unsafe { player.world_core().is_some_and(|core| Play::of(core) == Play::InProcess) } {
+        // SAFETY: the simulation thread has finished initializing this player.
+        unsafe { player.pending_death().write(1) };
+    }
+}
+
 pub struct World<'t> {
     core: raw::CoreWorld,
     time: u32,
@@ -390,27 +404,27 @@ pub struct BodyId(super::carry_runtime::Bones);
 /// another tick): the game world's scene, and the frozen bodies' matrices from the world.
 pub struct GlowScene<'t> {
     scene: super::carry_runtime::Scene,
-    core: raw::CoreWorld,
+    core: Option<raw::CoreWorld>,
     _thread: &'t Thread,
 }
 impl<'t> GlowScene<'t> {
-    /// At the game world's frame (after its move) or as it is left; None outside a match.
+    /// The scene remains available for cleanup after the match core is gone.
     pub fn of(world: &super::world::GameWorld<'t>, thread: &'t Thread) -> Option<Self> {
         // SAFETY: the live game world of the hook, its renderer, scene and match core.
         unsafe {
             let scene = super::carry_runtime::Scene::of_world(world.this)?;
-            let core = world.this.pvp_match()?.core();
+            let core = world.this.pvp_match().map(|pvp| pvp.core());
             Some(Self { scene, core, _thread: thread })
         }
     }
     /// Whether the match is in play (a round's countdown too): the glow shows only then.
     pub fn in_play(&self) -> bool {
         // SAFETY: the live core of the hook's world.
-        unsafe { Play::of(self.core).in_play() }
+        unsafe { self.core.is_some_and(|core| Play::of(core).in_play()) }
     }
     /// The body at `place`, inserted and alive.
     pub fn body(&self, place: Place) -> Option<FrozenBody> {
-        let player = player_at(self.core, place)?;
+        let player = player_at(self.core?, place)?;
         // SAFETY: the roster's current player of the place, live for the hook.
         unsafe {
             if read(player.inserted()) == 0 || read(player.alive()) == 0 {

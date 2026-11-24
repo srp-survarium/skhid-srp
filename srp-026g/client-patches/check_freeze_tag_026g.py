@@ -137,15 +137,15 @@ class Run(ffa.Run):
         self.thaws.append((emu.reg_read(UC_X86_REG_EDI), self.read(sp + 4)))
         self.leave(emu, 4)
 
-    def start(self, payload=FREEZE):
+    def start(self, payload=FREEZE, teams=(0, 0, 1)):
         assert self.static_info(payload)[0]
         self.rule([])
         self.word(ffa.RULE + 0x134, ffa.CORE)
-        self.word(ffa.CORE + 0x1845C, ffa.CORE + 0x18464 + 3 * 48)
-        self.word(ffa.CORE + 0x18FD8, 7)
+        self.word(ffa.CORE + 0x1845C, ffa.CORE + 0x18464 + len(teams) * 48)
+        self.word(ffa.CORE + 0x18FD8, (1 << len(teams)) - 1)
         self.word(ffa.CORE + 0x18FE4, 3)
         self.word(ffa.CORE + 0x18FA8, STATS)
-        for i, team in enumerate([0, 0, 1]):
+        for i, team in enumerate(teams):
             p = ffa.player(i)
             self.make_player(i, team, i, (float(i), 0.0, 0.0))
             self.word(p + 0x120, ffa.CORE)
@@ -153,6 +153,18 @@ class Run(ffa.Run):
             self.word(p + 0x2E0, ffa.DATA + 0xC000 + 0x100 * i)
             self.emu.mem_write(p + 0x33C, b"\x01\x00\x00\x01")
         self.thaws.clear()
+
+    def spawned(self, place):
+        # The end of the native spawn, after it installed a fresh, living kit.
+        self.emu.mem_write(ffa.player(place) + 0x33C, b"\x01\x00\x00\x01")
+        self.run(0x316EAB, (0x316EB0,), CAMERA_STACK + 0xFE000,
+                 {**hide.GAME, UC_X86_REG_ESI: ffa.player(place), UC_X86_REG_EBX: place})
+        assert self.stopped == 0x316EB0
+
+    def enemy_on_map(self, place):
+        self.run(0x239505, (0x23950D, 0x23951B), CAMERA_STACK + 0xFE000,
+                 {**hide.GAME, UC_X86_REG_EAX: ffa.player(place), UC_X86_REG_ESI: 0})
+        return self.stopped == 0x23951B
 
     def out_of_world(self, place):
         """The place in the match, its player out of the world: it entered (or came back) and
@@ -186,7 +198,8 @@ class Run(ffa.Run):
         self.tick(decided + 4000, 1000)
         assert self.state()[PHASE] == 3 and self.times() == [decided + 4000] * 3
         for i in range(3):
-            self.emu.mem_write(ffa.player(i) + 0x33D, b"\0")
+            self.spawned(i)
+            assert self.read(ffa.player(i) + 0x33D, 1)[0] == 0
         self.tick(decided + 9000, 5000)
         assert self.state()[PHASE] == 0
 
@@ -459,7 +472,8 @@ def main():
     r.word(ffa.player(0) + 0xF290, model)
     r.word(CAMERA_INPUT + 0x358, 2)
     # asked once, at the first frame of a Freeze Tag match above, never answered until now
-    assert [paths for paths, _, _ in r.queries] == [[("fx/artifacts/human_frozen", 61)] * 20], r.queries
+    glow = ("fx/artifacts/human_frozen", 61)
+    assert [paths for paths, _, _ in r.queries if glow in paths] == [[glow] * 20], r.queries
     tag = 2                              # the particles' query word (resources.rs PARTICLES_WORD)
     answer = GLOW + 0x220000
     r.word(answer + 0x38, 20)
@@ -488,6 +502,31 @@ def main():
     assert r.particles == [("remove", systems[0])], r.particles
     print("ok the frozen glow is played on the frozen body's hit model and model (his bones), moved with him, "
           "removed out of play")
+
+    # No last frame outside play. Both a normal finish and a disconnect must remove the
+    # instances, even when the match core has already been detached from the render scene.
+    for finish in (True, False):
+        r.start()
+        for place in (0, 1):
+            r.lethal(place)
+        r.tick(50)
+        r.particles.clear()
+        r.camera()
+        assert [event[:2] for event in r.particles] == [("play", systems[0]), ("play", systems[1])]
+        r.particles.clear()
+        if finish:
+            r.run(0x1F96F0, (0x1F96F9,), sp, {**hide.GAME, UC_X86_REG_EAX: ffa.UI_WORLD})
+            r.camera()  # Even a frame still showing the old rule must leave the glow off.
+        r.word(ffa.UI_WORLD + 0x4D4C, 0)
+        r.run(0x1F9520, (0x1F9525,), sp, {**hide.GAME, UC_X86_REG_ECX: ffa.UI_WORLD})
+        assert r.particles == [("remove", systems[0]), ("remove", systems[1])], r.particles
+        assert len(r.serialize()) == len(plain), "the departed world's Freeze Tag rule was discarded"
+        r.word(ffa.UI_WORLD + 0x4D4C, ffa.PVP)
+        r.start(PLAIN)
+        r.particles.clear()
+        r.camera()
+        assert not r.particles
+    print("ok all halos removed once at finish or disconnect, including after core detachment and on scene reuse")
 
     # The gun in hand keeps the clock while held: its first tick after a thaw no longer steps the
     # whole freeze at once (the owner, 2026-11-22: "after unfreezing there are problems with mouse").
@@ -568,6 +607,32 @@ def main():
     r.tick(200)
     assert r.state()[RECORDS] == 3, "back in the world, frozen there"
     print("ok a frozen player who comes back spawns at his entry and stays frozen")
+
+    # Place 3 joins an active round in a previously unused slot. The actual spawn hook
+    # takes effect before the next rule tick. The two frozen teammates leave 1 visible.
+    r.start(teams=(0, 0, 1, 0))
+    r.out_of_world(3)
+    r.lethal(0)
+    r.tick(50)
+    assert not r.enemy_on_map(1)
+    r.spawned(3)
+    assert r.input(3) and r.player_tick(3, 50)
+    r.tick(100)
+    assert r.state()[RECORDS + 3 * 7] == 3 and r.enemy_on_map(1)
+    saved = r.serialize()
+    r.deserialize(saved)
+    assert r.enemy_on_map(1)
+    for time in range(150, 4100, 50):
+        r.tick(time)
+    assert not r.input(3) and not r.enemy_on_map(1), "a teammate thawed the arrival"
+    for clock in (2, 4):  # Pregame and round respawns, including countdown kit changes.
+        r.word(ffa.CORE + 0x18FE4, clock)
+        r.spawned(3)
+        assert r.read(ffa.player(3) + 0x33D, 1)[0] == 0
+    r.start(PLAIN)
+    r.spawned(0)
+    assert not r.input(0)
+    print("ok late entry frozen on spawn, last fighter on map through restore, teammate rescue, normal countdown spawns")
 
     # Why: what the game does to a player put in with link 0 that was out of the world (a world
     # load's 0x2D2D51) when it is next taken out with 1 (the restart's 0x3169A0, the leave handler's

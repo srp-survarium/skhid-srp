@@ -80,15 +80,14 @@ three). No artifact rescue in this version (owner, 2026-11-17).
   that ends the match in them is still its win.
 - The existing match time limit still applies. If it expires before either
   team reaches five wins, the unfinished series is a draw.
-- A disconnect cannot clear a frozen place. A new place starts on its first
-  spawn in a round. Everyone who enters spawns at once, at his team's points,
-  in every phase: after a round he moves on as the others who are not
-  frozen, and the fade's end spawns him again with the round. A frozen player
-  who leaves and comes back appears at his team's points, frozen there until
-  a teammate or the auto-thaw thaws him: rejoining is no way out of a freeze
-  (the release manager's pick, 2026-11-22). Absent players are excluded
-  when a new round starts. ("No place out of the world" below says why an
-  entry is never held.)
+- Players who join or rejoin during play spawn frozen at their team's spawn,
+  even in a previously unused roster place. A teammate can thaw them there.
+  The ordinary auto-thaw and next round's respawn also apply. The spawn
+  epilogue (`courier.spawned`, 0x316EAB) sets the body's pending-death byte
+  after the new kit has been inserted and before its first input or tick.
+  The match's initial spawns and the round respawns and kit switches during
+  the countdown start normally. See “No place out of the world” below for
+  why the entry itself must run.
 - The HUD reuses the stock TDM score bars (full at `WINS`, which the patch
   passes to `freeze_tag_score`; their native source, the hud state's team
   points +90h/+92h, which no Freeze Tag rule fills and nothing clears at a
@@ -361,9 +360,11 @@ frame hook, order 6) the game plays, moves (`update_particle_system_instance`
 0x22B30, on the body's simulated transform, scaled as above) and stops one instance a place in
 the world's scene, from the world's rule state: every frozen body of a match in
 play, at its progress's size, so every game, a rollback and a late join
-show the same. It stops at the thaw, the round's restart, the match's end and
-another match, and everything of it leaves the scene with the world
-(`game_world.deactivate`, order 4). Each of the 20 places has an instance of
+show the same. It stops at the thaw, the round's restart and the match's end.
+The match-finish hook removes the instances before unload (0x1F972F).
+Deactivation also removes them on exit. Cleanup uses the scene renderer
+because unload clears the world's match pointer at 0x1F8B64 before the
+switch to the lobby. Each of the 20 places has an instance of
 its own (a scene plays an instance once): 20 systems in one query at the
 first frame of a Freeze Tag match. The frozen player's camera is the orbit
 around his own body, so he sees the same particles; there is no first-person
@@ -415,6 +416,14 @@ was (above, `respawn.tick`).
 
 ## Validation
 
+The native regression (`tools/check freeze-native`) ran both match finish
+and disconnect with two active halos. Each removed both instances
+once, including when deactivation saw a detached core. The same client then
+started an ordinary match with no halos. A separate case spawned a late
+joiner into a fresh slot, checked input was held immediately, restored the
+snapshot, and exercised the enemy minimap hook before and after a teammate
+thawed the joiner. These cases ran under Unicorn.
+
 Played by the owner in three local tests on 2026-11-21 (three windows,
 Rudnya day; the matches record into the world corpus):
 
@@ -439,9 +448,6 @@ Open:
   came in too (the result has the match's count, not his), as in Artifact
   Hunt: his ceiling counts lives he did not have (what he is charged is
   still what his stacks lost, under it).
-- Late joiners spawn into the round in play; waiting for the next round (with
-  something to watch meanwhile, e.g. the frozen orbit camera around a living
-  teammate) is a possible later change.
 - Auto-thaw after 2 minutes, a stop gap (the owner, 2026-11-22). Planned
   instead: when a team is down to its last unfrozen player, a 1-minute
   timer starts (not in 1 v 1 or 2 v 1); its outcome still to design.

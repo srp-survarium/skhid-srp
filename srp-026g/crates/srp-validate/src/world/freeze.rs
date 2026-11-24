@@ -24,8 +24,7 @@ const RECORD: usize = 7;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Player {
-    /// Not seen in this round yet: a late arrival, everyone at a round's
-    /// start; he fights from his first spawn.
+    /// No body seen in this round yet. A mid-round spawn arrives lethal.
     Waiting,
     Fighting(Team),
     Frozen {
@@ -302,6 +301,11 @@ impl FreezeTag {
                     *player = Player::frozen(team);
                 }
                 (Player::Waiting, Body::Present { team, .. }) => *player = Player::Fighting(team),
+                // A returning player may occupy a different roster place. The
+                // frozen body belongs to its current team for rescues and the map.
+                (Player::Frozen { team: previous, .. }, Body::Present { team, .. }) if team != previous => {
+                    *player = Player::frozen(team);
+                }
                 // Leaving cannot erase a freeze. Nor can reconnecting turn
                 // a retained frozen place back into a fighting player: he
                 // comes back at his team's spawn, frozen there until a
@@ -1047,6 +1051,22 @@ mod tests {
         b[1] = body(Team::First, 10.0, Condition::Lethal);
         g.step(&b, &BLIND, 50);
         assert!(!(0..4).any(|n| g.s.last_standing(place(n))));
+    }
+
+    #[test]
+    fn a_reused_frozen_place_counts_for_its_new_team() {
+        let mut bodies = fighting();
+        bodies[2] = body(Team::First, 20.0, Condition::Lethal);
+        bodies[3] = body(Team::Second, 20.0, Condition::Lethal);
+        let mut g = Game::new();
+        g.step(&bodies, &BLIND, 50);
+        assert!(!g.s.last_standing(place(1)));
+        bodies[2] = body(Team::Second, 10.0, Condition::Lethal);
+        g.step(&bodies, &BLIND, 50);
+        assert!(g.s.last_standing(place(1)));
+        assert_eq!(g.read_back(), g.s);
+        assert_eq!(thawed(g.step(&bodies, &VISIBLE, THAW_MS)), 1 << 2);
+        assert_eq!(g.s.player(place(2)), Player::Fighting(Team::Second));
     }
 
     #[test]

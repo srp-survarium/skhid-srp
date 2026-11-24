@@ -40,6 +40,9 @@ const TAG_FREEZE_TAG: u8 = 6;
 fn options(ctx: &Context<'_>, options: Option<OptionsRead<'_>>) {
     CAMERA.set(ctx.thread(), vostok::freeze::Camera::Native);
     let on = options.is_some_and(|options| freeze_tag_in(options.rest()));
+    if on && matches!(GLOWING.get(ctx.thread()), Halos::Closed) {
+        GLOWING.set(ctx.thread(), Halos::Open([None; PLAYERS]));
+    }
     MATCH.set(
         ctx.thread(),
         if on {
@@ -55,6 +58,14 @@ pub fn on_static_info(ctx: &mut Context<'_>) -> Flow<NoExit> {
 }
 pub fn on_replay_options(ctx: &mut Context<'_>) -> Flow<NoExit> {
     options(ctx, OptionsRead::at_replay(ctx));
+    Flow::Continue
+}
+/// The respawn rule has installed the new kit and reset its health. An entrant
+/// in a round in play must be held from the first input and player tick.
+pub fn on_spawned(ctx: &mut Context<'_>) -> Flow<NoExit> {
+    if active(ctx.thread()) {
+        vostok::freeze::freeze_spawn_in_play(ctx);
+    }
     Flow::Continue
 }
 pub fn on_tick(ctx: &mut Context<'_>) -> Flow<NoExit> {
@@ -209,7 +220,12 @@ enum Load {
 }
 static GLOW: GameCell<Load> = GameCell::new(Load::Unasked);
 /// The body each place's glow is in the scene on, in this game (none: not in the scene).
-static GLOWING: GameCell<[Option<vostok::freeze::BodyId>; PLAYERS]> = GameCell::new([None; PLAYERS]);
+#[derive(Clone, Copy)]
+enum Halos {
+    Closed,
+    Open([Option<vostok::freeze::BodyId>; PLAYERS]),
+}
+static GLOWING: GameCell<Halos> = GameCell::new(Halos::Closed);
 
 /// Each frame after the simulation's move, this game draws the glow itself on every frozen body of
 /// a match in play, at the size its thaw progress gives, from the world's rule state (so every
@@ -223,25 +239,24 @@ fn draw_glow(thread: &vostok::Thread, world: &vostok::world::GameWorld<'_>) {
         Match::Freeze(state) => Some(state),
         Match::Other => None,
     };
-    let shown = GLOWING.get(thread);
+    let Halos::Open(shown) = GLOWING.get(thread) else { return };
     if state.is_none() && shown.iter().all(Option::is_none) {
         return;
     }
     let particles = match GLOW.get(thread) {
         Load::Unasked => {
-            resources::query_particles(thread, &[GLOW_PARTICLE; PLAYERS], crate::vostok::freeze_tag_on_loaded_entry());
             GLOW.set(thread, Load::Asked);
+            resources::query_particles(thread, &[GLOW_PARTICLE; PLAYERS], crate::vostok::freeze_tag_on_loaded_entry());
             return;
         }
         Load::Ready(particles) => particles,
         Load::Asked | Load::Missing => return,
     };
     let Some(scene) = vostok::freeze::GlowScene::of(world, thread) else { return };
-    let in_play = scene.in_play();
+    let state = state.filter(|rule| !rule.complete() && scene.in_play());
     let mut now = [None; PLAYERS];
     for (place, (was, next)) in Place::all().zip(shown.into_iter().zip(now.iter_mut())) {
         let target = state
-            .filter(|_| in_play)
             .and_then(|state| match state.player(place) {
                 Player::Frozen { progress, .. } => Some(progress.millis()),
                 Player::Waiting | Player::Fighting(_) => None,
@@ -262,7 +277,7 @@ fn draw_glow(thread: &vostok::Thread, world: &vostok::world::GameWorld<'_>) {
         }
         *next = target.map(|(_, body)| body.id());
     }
-    GLOWING.set(thread, now);
+    GLOWING.set(thread, Halos::Open(now));
 }
 
 /// The glow's query came back (on the game's thread).
@@ -278,21 +293,31 @@ pub fn on_loaded(results: QueryResults<'_>, tag: QueryTag) {
     }
 }
 
-/// game_world::on_deactivate: the match's scene is left; no glow of ours in it.
-pub fn on_deactivate(ctx: &mut Context<'_>) -> Flow<NoExit> {
-    let thread = ctx.thread();
-    let shown = GLOWING.get(thread);
-    if let Load::Ready(particles) = GLOW.get(thread)
-        && let Some(world) = vostok::world::GameWorld::at_deactivate(ctx)
-        && let Some(scene) = vostok::freeze::GlowScene::of(&world, thread)
-    {
-        for (particle, shown) in particles.into_iter().zip(shown) {
-            if shown.is_some() {
+/// The renderer's scene can outlive its match core. Remove every instance
+/// even if there was no final frame and the core has already been detached.
+fn close_halos(thread: &vostok::Thread, world: Option<vostok::world::GameWorld<'_>>) {
+    let Halos::Open(shown) = GLOWING.get(thread) else { return };
+    if shown.iter().any(Option::is_some) {
+        let Load::Ready(particles) = GLOW.get(thread) else { return };
+        let Some(scene) = world.as_ref().and_then(|world| vostok::freeze::GlowScene::of(world, thread)) else { return };
+        for (particle, body) in particles.into_iter().zip(shown) {
+            if body.is_some() {
                 scene.stop(particle);
             }
         }
     }
-    GLOWING.set(thread, [None; PLAYERS]);
+    GLOWING.set(thread, Halos::Closed);
+}
+
+pub fn on_finish(ctx: &mut Context<'_>) -> Flow<NoExit> {
+    close_halos(ctx.thread(), vostok::world::GameWorld::at_finish(ctx));
+    Flow::Continue
+}
+
+pub fn on_deactivate(ctx: &mut Context<'_>) -> Flow<NoExit> {
+    close_halos(ctx.thread(), vostok::world::GameWorld::at_deactivate(ctx));
+    MATCH.set(ctx.thread(), Match::Other);
+    CAMERA.set(ctx.thread(), vostok::freeze::Camera::Native);
     Flow::Continue
 }
 
