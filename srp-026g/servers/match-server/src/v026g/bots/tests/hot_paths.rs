@@ -215,3 +215,33 @@ fn hot_paths_route_search_on_real_maps() {
         );
     }
 }
+
+/// [CPU hot paths, the key guard] The runtime-only items (every item of `crates/mapdata/src/grid/hot.rs` (the index, the copies, the open list) and `RouteSearch::step_hot`) are reached by none of the grid's, the sight tree's or
+/// the memo sites' roots (`mapdata-srchash`'s closures, the ones `SRC_GRID`, `SRC_SIGHT` and the memo digests are taken
+/// over), so no edit of theirs names the built grids anew. A new item named like a reached one, or a trait impl whose method
+/// name the builder calls (`impl Default`: `default`), is reached and fails here; give it a name of its own.
+#[test]
+fn hot_items_are_outside_the_grid_and_sight_keys() {
+    let workspace = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let source = mapdata_srchash::mapdata_source(&workspace).expect("mapdata's source parses");
+    let file: Option<&str> = Some("crates/mapdata/src/grid/hot.rs");
+    let names: &[&str] = &["RouteSearch::step_hot"];
+    let ours = |u: &mapdata_srchash::Unit| file.is_some_and(|f| u.file == f) || u.names.iter().any(|n| names.contains(&n.as_str()));
+    assert!(source.units.iter().any(ours), "no runtime-only items found: the test looks in the wrong place");
+    let mut sets: Vec<(&str, Vec<&str>)> =
+        vec![("grid", mapdata_srchash::GRID_ROOTS.to_vec()), ("sight", mapdata_srchash::SIGHT_ROOTS.to_vec())];
+    for &(site, roots) in mapdata_srchash::MEMO_SITES {
+        sets.push((site, roots.to_vec()));
+    }
+    let mut reached = Vec::new();
+    for (key, roots) in sets {
+        for i in source.closure(&roots).unwrap_or_else(|why| panic!("{key}: {why}")) {
+            let unit = &source.units[i];
+            if ours(unit) {
+                let chain = source.why(&roots, &unit.names[0]).ok().flatten().unwrap_or_default().join(" ");
+                reached.push(format!("{key}: {} ({chain})", unit.names.join(" / ")));
+            }
+        }
+    }
+    assert!(reached.is_empty(), "runtime-only items inside a key (rename them):\n  {}", reached.join("\n  "));
+}
