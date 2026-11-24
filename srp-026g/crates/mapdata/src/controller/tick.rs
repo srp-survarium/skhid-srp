@@ -100,6 +100,9 @@ impl Settings {
     };
 }
 
+/// The controller's gravity, m/s² (+0x2C708, the value [`Controller`]'s constructor sets).
+pub const GRAVITY_MS2: f32 = 9.8;
+
 /// One body's controller state (the fields of `bullet_character_controller` the walk tick reads and writes).
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Controller {
@@ -403,7 +406,7 @@ impl Controller {
             standing,
             crouching: (0.76, 1.1),
             tick: 0.05,
-            gravity: 9.8,
+            gravity: GRAVITY_MS2,
             jumping: false,
             input_crouch: false,
             want_crouch: false,

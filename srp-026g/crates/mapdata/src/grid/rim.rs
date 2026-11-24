@@ -390,8 +390,9 @@ impl WalkGrid {
         leads: &[f32],
         lands: impl Fn(&[FlightStep]) -> Option<NodeId>,
         kits: Kits,
+        ground: jump::Ground,
     ) -> RimPress {
-        self.best_press_with(world, s, a, b, way, &presses(leads), Aim::STRAIGHT, lands, kits)
+        self.best_press_with(world, s, a, b, way, &presses(leads), Aim::STRAIGHT, lands, kits, ground)
     }
 
     /// [R83] The best aimed press from `a` toward `b` along `way` (`R83-FORMAT.md`): the walk and the sprint at [`AIMED_LEADS`] at
@@ -407,6 +408,7 @@ impl WalkGrid {
         way: (f32, f32),
         lands: &impl Fn(&[FlightStep]) -> Option<NodeId>,
         kits: Kits,
+        ground: jump::Ground,
     ) -> AimedSweep {
         let presses = [(Kind::Walk, AIMED_LEADS.to_vec()), (Kind::Sprint, AIMED_LEADS.to_vec())];
         let mut flights = 0;
@@ -414,7 +416,7 @@ impl WalkGrid {
         let mut best: Option<Made> = None;
         for (side, turn) in AIMS {
             let aim = Aim::new(side, turn).expect("an aim in range");
-            let p = self.best_press_with(world, s, a, b, way, &presses, aim, lands, kits);
+            let p = self.best_press_with(world, s, a, b, way, &presses, aim, lands, kits, ground);
             flights += p.flights;
             under |= p.under;
             if let Some(m) = p.made.into_iter().next().filter(|m| best.is_none_or(|b| m.share.rank() > b.share.rank())) {
@@ -438,13 +440,14 @@ impl WalkGrid {
         way: (f32, f32),
         lands: &impl Fn(&[FlightStep]) -> Option<NodeId>,
         kits: Kits,
+        ground: jump::Ground,
     ) -> (Option<Made>, usize) {
         let presses = [(Kind::SprintHeld, HELD_LEADS.to_vec())];
         let mut flights = 0;
         let mut best: Option<Made> = None;
         let aims = std::iter::once(Aim::STRAIGHT).chain(AIMS.iter().map(|&(side, turn)| Aim::new(side, turn).expect("an aim in range")));
         for aim in aims {
-            let p = self.best_press_with(world, s, a, b, way, &presses, aim, lands, kits);
+            let p = self.best_press_with(world, s, a, b, way, &presses, aim, lands, kits, ground);
             flights += p.flights;
             if let Some(m) = p.made.into_iter().next().filter(|m| best.is_none_or(|b| m.share.rank() > b.share.rank())) {
                 best = Some(m);
@@ -468,6 +471,7 @@ impl WalkGrid {
         aim: Aim,
         lands: impl Fn(&[FlightStep]) -> Option<NodeId>,
         kits: Kits,
+        ground: jump::Ground,
     ) -> RimPress {
         let takeoff = self.position(a);
         let own = jump::neighbourhood()[0];
@@ -485,7 +489,7 @@ impl WalkGrid {
             if self.floor_under(at).is_some_and(|f| !self.can_stand(f)) {
                 return None;
             }
-            jump::neighbour_flights(world, s, takeoff, way, kind, lead, n, kits)
+            jump::neighbour_flights_for(world, s, takeoff, way, kind, lead, n, kits, ground)
         };
         // Step 1: every press at the press itself: the floors its flights land on (one, or one per sprint variant).
         let mut flown: Vec<(Kind, f32, Vec<Option<NodeId>>)> = Vec::new();
@@ -537,6 +541,39 @@ impl WalkGrid {
             .map(|to| Made { aim, ..press_onto(&flown, &landings, to, &|g| self.own_top(to, g), &lands, &fly, &mut flights) })
             .collect();
         RimPress { made, flights, near, under }
+    }
+}
+
+impl WalkGrid {
+    /// [body physics S5a fix] How long every pass's scoring flights run after the landing step (the rim jumps, the gap links,
+    /// the drop check's jumps down): on until the body is down ([`jump::Ground::FallOn`]), to a fall of the body's
+    /// [`super::Body::max_drop`] from a jump's apex ([`super::Body::max_jump`] over the take-off). Cut at [`jump::STAY_STEPS`], a
+    /// flight off a deep edge still falling read as no landing (Chemical Plant batteries (20.12, 10.17, 29.12): 5 of a sprint
+    /// press's 6 variants of a 3.4 m drop were still in the air); a flight down by then flies the same steps as before.
+    pub(super) fn fall_ground(&self) -> jump::Ground {
+        jump::Ground::FallOn { drop: self.body.max_drop + self.body.max_jump }
+    }
+
+    /// [body physics S5a fix] How far from its take-off a scoring flight's job may read the ground, m (the memo windows of the rim
+    /// and gap sites; with the memo on, a job past it stops the build): its press point at the farthest (the longest lead of the
+    /// line's, the aimed and the held presses, the neighbours' farthest lead and side, the widest aim's side) and the fastest
+    /// flight's travel over its longest run (the sprint at the fastest kit's cap and the air control, over a sprint jump's air
+    /// steps and the most ground steps a flight runs: fly-to-ground's bound, [`Self::fall_ground`], or the held sprint's steps;
+    /// and one). From the flights' own bounds, so a flight cannot pass it (was 10 m fixed, past which fly-to-ground's flights
+    /// went).
+    pub(super) fn flight_reach_m(&self) -> f32 {
+        let n = jump::neighbourhood();
+        let aim_m = AIMS.iter().map(|&(side, turn)| Aim::new(side, turn).expect("an aim in range").side_m().abs()).fold(0.0f32, f32::max);
+        let lead = gap_leads().into_iter().chain(AIMED_LEADS).chain(HELD_LEADS).fold(0.0f32, f32::max);
+        let press_m = lead + n.iter().map(|n| n.lead.abs()).fold(0.0f32, f32::max) + n.iter().map(|n| n.side.abs()).fold(0.0f32, f32::max) + aim_m;
+        let ground = match self.fall_ground() {
+            jump::Ground::FallOn { drop } => jump::fall_on_steps(drop, crate::controller::tick::GRAVITY_MS2),
+            jump::Ground::Steps(steps) => steps,
+        };
+        let steps = jump::SPRINT_LANDING_N + ground.max(jump::HELD_STEPS + jump::STAY_STEPS) + 1;
+        let cap = self.body.fastest_walk_cap.max(jump::WALK_CAP_MS);
+        let speed = jump::SPRINT_MS * cap / jump::WALK_CAP_MS + jump::AIR_CONTROL_MS;
+        press_m + speed * steps as f32 * jump::DT
     }
 }
 
@@ -928,7 +965,7 @@ impl WalkGrid {
             let (p, q) = (self.position(a), self.position(b));
             let len = p.distance_xz(q).max(1e-4);
             let linked = linked(a);
-            self.best_press(world, s, a, b, ((q.x - p.x) / len, (q.z - p.z) / len), leads, |st| self.rim_lands_on(st, a, &linked), kits)
+            self.best_press(world, s, a, b, ((q.x - p.x) / len, (q.z - p.z) / len), leads, |st| self.rim_lands_on(st, a, &linked), kits, self.fall_ground())
         });
         let mut moved = 0;
         // [retarget] Only a press onto the link's own landing: this flight's line is the one from the standing floor to it, which
@@ -984,7 +1021,7 @@ impl WalkGrid {
         let flown = super::controlled::parallel(&todo, |&(a, b, d)| {
             let (di, dk) = DIRS[d];
             let l = ((di * di + dk * dk) as f32).sqrt();
-            self.best_press(world, s, a, b, (di as f32 / l, dk as f32 / l), &leads, |st| self.riser_lands_on(st, b), kits)
+            self.best_press(world, s, a, b, (di as f32 / l, dk as f32 / l), &leads, |st| self.riser_lands_on(st, b), kits, self.fall_ground())
         });
         stats.risers += todo.len();
         for (&(a, b, _), p) in todo.iter().zip(&flown) {
@@ -1010,12 +1047,6 @@ impl WalkGrid {
     }
 }
 
-/// [incremental grids PR 5] How far from its take-off a rim line job may read the ground, m: its press points (the last lead,
-/// and the neighbours' lead and side about it) and every step of its flights. With the memo on, a job past it stops the build
-/// ([`WalkGrid::fly_rim_line`]): its window would not hold every floor it read. The flights' own lengths bound it (18 steps in
-/// the air for a sprint jump and [`jump::STAY_STEPS`] on the ground, 50 ms each); each memo build logs the farthest flight,
-/// so the bound can be brought nearer from data.
-pub const RIM_LINE_REACH_M: f32 = 10.0;
 
 /// [incremental grids PR 5] One job of the rim line site: the jump (take-off `a`, top `b`, way `d`), whether it is a plain
 /// Jump link's own top ([C2 rows 11/12]), the floors `a` has a link to already (a landing there makes no link; less `b` for a
@@ -1081,7 +1112,7 @@ fn rim_line_job(ctx: &RimLineCtx<'_>, item: &RimLineItem) -> RimLineOut {
         }
         grid.rim_lands_on(st, item.a, &item.linked)
     };
-    let press = grid.best_press(ctx.world, ctx.s, item.a, item.b, rim_way(item.d), &ctx.leads, lands, ctx.kits);
+    let press = grid.best_press(ctx.world, ctx.s, item.a, item.b, rim_way(item.d), &ctx.leads, lands, ctx.kits, grid.fall_ground());
     RimLineOut { press, reach_m: reach.get() }
 }
 
@@ -1094,7 +1125,7 @@ fn rim_way(d: usize) -> (f32, f32) {
 
 impl WalkGrid {
     /// [incremental grids PR 5] `fly_rim_todo`'s line flights through the memo's site `rim.line` ([`rim_line_job`]), each
-    /// result at its jump's place. With the memo on, a press point or a flight past [`RIM_LINE_REACH_M`] stops the build: its
+    /// result at its jump's place. With the memo on, a press point or a flight past [`WalkGrid::flight_reach_m`] stops the build: its
     /// window would not hold every floor its job read, and a stored result could outlive a change there.
     #[allow(clippy::too_many_arguments)]
     pub(super) fn fly_rim_line(
@@ -1111,7 +1142,7 @@ impl WalkGrid {
         let on = memo.mode() != Mode::Off;
         // The window: the reach, then a landing's floor ([`Self::floor_under`]: the body's radius about the feet) and its own
         // top ([`OWN_TOP_FLAT_M`] about it), and a cell for the feet's place in theirs.
-        let reach_m = RIM_LINE_REACH_M;
+        let reach_m = self.flight_reach_m();
         let window_cells = ((reach_m + self.body.radius + OWN_TOP_FLAT_M + self.cell) / self.cell).ceil() as i64;
         let windows = on.then(|| Windows::of_floors(self));
         let items: Vec<RimLineItem> = todo
@@ -1150,7 +1181,7 @@ impl WalkGrid {
             assert!(
                 farthest <= reach_m,
                 "memo: ERROR site rim.line: a flight went {farthest} m from its take-off, past the window's {reach_m} m \
-                 (RIM_LINE_REACH_M)"
+                 (WalkGrid::flight_reach_m)"
             );
         }
         out.into_iter().map(|o| o.press).collect()
@@ -1232,16 +1263,16 @@ fn rim_aimed_job(ctx: &RimAimedCtx<'_>, item: &RimAimedItem) -> RimAimedOut {
         grid.rim_lands_on(st, item.a, &item.linked)
     };
     let way = rim_way(item.d);
-    let sweep = grid.best_aimed(ctx.world, ctx.s, item.a, item.b, way, &lands, ctx.kits);
+    let sweep = grid.best_aimed(ctx.world, ctx.s, item.a, item.b, way, &lands, ctx.kits, grid.fall_ground());
     let held = (sweep.made.is_none_or(|m| m.share == Share::landed(0)) && (item.line_under || sweep.under))
-        .then(|| grid.best_held(ctx.world, ctx.s, item.a, item.b, way, &lands, ctx.kits));
+        .then(|| grid.best_held(ctx.world, ctx.s, item.a, item.b, way, &lands, ctx.kits, grid.fall_ground()));
     RimAimedOut { sweep, held, reach_m: reach.get() }
 }
 
 impl WalkGrid {
     /// [incremental grids PR 6] `fly_rim_todo`'s aimed and held sweeps through the memo's site `rim.aimed`
     /// ([`rim_aimed_job`]), each result at its jump's place. With the memo on, a press point or a flight past
-    /// [`RIM_LINE_REACH_M`] stops the build, as for the line's flights ([`Self::fly_rim_line`]).
+    /// [`WalkGrid::flight_reach_m`] stops the build, as for the line's flights ([`Self::fly_rim_line`]).
     pub(super) fn fly_rim_aimed(
         &self,
         world: &Collision,
@@ -1252,7 +1283,7 @@ impl WalkGrid {
         memo: &mut Memo,
     ) -> Vec<AimedAndHeld> {
         let on = memo.mode() != Mode::Off;
-        let reach_m = RIM_LINE_REACH_M;
+        let reach_m = self.flight_reach_m();
         let window_cells = ((reach_m + self.body.radius + OWN_TOP_FLAT_M + self.cell) / self.cell).ceil() as i64;
         let windows = on.then(|| Windows::of_floors(self));
         let items: Vec<RimAimedItem> = near
@@ -1296,7 +1327,7 @@ impl WalkGrid {
             assert!(
                 farthest <= reach_m,
                 "memo: ERROR site rim.aimed: a flight went {farthest} m from its take-off, past the window's {reach_m} m \
-                 (RIM_LINE_REACH_M)"
+                 (WalkGrid::flight_reach_m)"
             );
         }
         out.into_iter().map(|o| (o.sweep, o.held)).collect()

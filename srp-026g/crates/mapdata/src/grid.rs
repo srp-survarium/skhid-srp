@@ -3581,6 +3581,10 @@ impl WalkGrid {
             if let Some(m) = l.share.mask() {
                 digest.u32(0x4d41_0000 | u32::from(m.bits()));
             }
+            // [body physics S5a] A walking press's flown mask (the file had its count only: `share_masks`).
+            if let Some(m) = l.walk.and_then(|(_, share)| share.mask()) {
+                digest.u32(0x574d_0000 | u32::from(m.bits()));
+            }
         }
         // [A347] A grid with no walled exits digests as before there were any.
         if !self.walled_exits.is_empty() {
@@ -3971,13 +3975,16 @@ impl WalkGrid {
     }
 
     /// [F1b] The flown shares' neighbourhood masks in the file's order: each off link's ([`gap::Share::mask_bits`], 0 when not
-    /// flown), then each riser's; none when no share is flown (a grid with none writes as before).
+    /// flown), then each riser's, then [body physics S5a] each off link's walking press's (0: none, or not flown); none when no
+    /// share is flown (a grid with none writes as before).
     fn share_masks(&self) -> Vec<u16> {
-        let flown = self.off.iter().any(|l| l.share.flown().is_some()) || !self.riser.is_empty();
+        let flown = self.off.iter().any(|l| l.share.flown().is_some() || l.walk.is_some_and(|(_, share)| share.flown().is_some()))
+            || !self.riser.is_empty();
         if !flown {
             return Vec::new();
         }
-        self.off.iter().map(|l| l.share.mask_bits()).chain(self.riser.iter().map(|&(_, _, r)| r.share().mask_bits())).collect()
+        let walking = self.off.iter().map(|l| l.walk.map_or(0, |(_, share)| share.mask_bits()));
+        self.off.iter().map(|l| l.share.mask_bits()).chain(self.riser.iter().map(|&(_, _, r)| r.share().mask_bits())).chain(walking).collect()
     }
 
     /// [F1b] Gives the off links' and the risers' shares read from their records' counts the masks table's bits
@@ -3990,15 +3997,28 @@ impl WalkGrid {
                 false => Err("flown shares with no masks table".into()),
             };
         }
-        if masks.len() != self.off.len() + self.riser.len() {
-            return Err(format!("{} share masks for {} off links and {} risers", masks.len(), self.off.len(), self.riser.len()));
-        }
-        let (off, riser) = masks.split_at(self.off.len());
+        // [body physics S5a] With the walking presses' part, or without it (a grid written before: their counts' low bits).
+        let (off_n, riser_n) = (self.off.len(), self.riser.len());
+        let walking = match masks.len() {
+            n if n == off_n + riser_n => None,
+            n if n == 2 * off_n + riser_n => Some(&masks[off_n + riser_n..]),
+            n => return Err(format!("{n} share masks for {off_n} off links and {riser_n} risers")),
+        };
+        let (off, riser) = masks[..off_n + riser_n].split_at(off_n);
         for (i, (l, &bits)) in self.off.iter_mut().zip(off).enumerate() {
             l.share = l.share.with_bits(bits).ok_or_else(|| format!("off link {i}: mask {bits:#06x} against {:?}", l.share))?;
         }
         for (i, (r, &bits)) in self.riser.iter_mut().zip(riser).enumerate() {
             r.2 = r.2.with_bits(bits).ok_or_else(|| format!("riser {i}: mask {bits:#06x} against {:?}", r.2))?;
+        }
+        for (i, (l, &bits)) in self.off.iter_mut().zip(walking.unwrap_or_default()).enumerate() {
+            match l.walk.as_mut() {
+                Some((_, share)) => {
+                    *share = share.with_bits(bits).ok_or_else(|| format!("off link {i}: walking mask {bits:#06x} against {share:?}"))?;
+                }
+                None if bits == 0 => {}
+                None => return Err(format!("off link {i}: walking mask {bits:#06x} with no walking press")),
+            }
         }
         Ok(())
     }
@@ -6321,6 +6341,39 @@ pub(crate) mod tests {
         // Cut short.
         std::fs::write(&path, &bytes[..bytes.len() / 2]).unwrap();
         assert!(WalkGrid::read(&path, 7, Body::default()).is_err());
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    /// [body physics S5a] A written grid's off links read back equal in every field: a sprint link's walking press's mask (not the
+    /// first n neighbours of its count) included, and the answer digest takes it.
+    #[test]
+    fn off_links_read_back_with_their_walking_masks() {
+        let dir = std::env::temp_dir().join(format!("srp-grid-walk-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join(crate::built::grid_file_name(7));
+        let mut grid = two_rooms();
+        let mask = |bits: u16| gap::Share::of_mask(gap::Mask::of_bits(bits).unwrap());
+        let lead = gap::PressLead::from_metres(0.6);
+        grid.off = vec![OffLink {
+            from: 0,
+            to: 1,
+            kind: LinkKind::GapJump,
+            press: gap::Takeoff::Sprint(lead),
+            share: mask(0b0000_0110_0000_0101),
+            walk: Some((gap::PressLead::from_metres(0.3), mask(0b0010_1000_0001_0001))),
+            aim: gap::Aim::STRAIGHT,
+            way: None,
+        }];
+        grid.flags[0] |= OFF_OUT;
+        grid.flags[1] |= OFF_IN;
+        assert_eq!(grid.off_links_problem(), None);
+        grid.write(&path, 7).unwrap();
+        let read = WalkGrid::read(&path, 7, Body::default()).unwrap();
+        assert_eq!(read.off, grid.off, "every field of the off links, the walking mask too");
+        assert_eq!(read.digest(), grid.digest());
+        let before = grid.digest();
+        grid.off[0].walk = Some((gap::PressLead::from_metres(0.3), gap::Share::landed(4)));
+        assert_ne!(grid.digest(), before, "the digest takes the walking mask, not only its count");
         let _ = std::fs::remove_dir_all(dir);
     }
 

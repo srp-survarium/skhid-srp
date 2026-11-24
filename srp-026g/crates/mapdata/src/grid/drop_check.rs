@@ -1093,11 +1093,10 @@ impl WalkGrid {
         let n = ((GAP_PRESS_MAX_M - GAP_PRESS_MIN_M) / GAP_PRESS_STEP_M).round() as usize;
         // The floor every flight of a press (one, or one per sprint variant) rests on, if one: a sprint press lands only when
         // every variant does (A385-FORMAT §1, rule (b)), here on one floor.
-        // [jump down] Flown on after the clip's `end_jump` for as long as a walk-off's landing may take ([`LAND_STEPS`]): off an
-        // edge about 3 m high the body is still in the air at the clip's last ground step ([`jump::STAY_STEPS`]).
-        let ground_steps = jump::STAY_STEPS + LAND_STEPS as u32;
+        // [jump down] Flown on after the clip's `end_jump` until the body is down (every pass's rule, [`Self::fall_ground`]): off
+        // an edge about 3 m high the body is still in the air at the clip's last ground step ([`jump::STAY_STEPS`]).
         let rests = |kind: jump::Kind, lead: f32, n: jump::Neighbour| -> Option<u32> {
-            let flights = jump::neighbour_flights_for(world, s, from, way, kind, lead, n, kits, ground_steps)?;
+            let flights = jump::neighbour_flights_for(world, s, from, way, kind, lead, n, kits, self.fall_ground())?;
             let floors: Vec<Option<u32>> = flights
                 .iter()
                 .map(|st| jump::landing_and_rest(st, |f| below(f.feet).is_some()).and_then(|(_, rest)| below(rest.feet)))

@@ -29,13 +29,13 @@ use crate::math::Vec3;
 /// A step, seconds (the game's physics step).
 pub const DT: f32 = 0.05;
 /// `air_control_speed` (player+304h, `default.player`: 1.0), m/s.
-const AIR_CONTROL_MS: f32 = 1.0;
+pub const AIR_CONTROL_MS: f32 = 1.0;
 /// The short jump's first air step and its landing step (PROVEN, `notes-link-walk.md` §2).
 const SHORT_TAKEOFF_N: u32 = 4;
 const SHORT_LANDING_N: u32 = 16;
 /// The sprint jump's (the same).
 const SPRINT_TAKEOFF_N: u32 = 6;
-const SPRINT_LANDING_N: u32 = 18;
+pub const SPRINT_LANDING_N: u32 = 18;
 /// Clip frames a step (30 a second, 50 ms).
 const FRAMES_PER_STEP: f64 = 1.5;
 /// `jump_on_site_landing` for the forward short jump (the loader's table order, read by index: 0x337280).
@@ -245,35 +245,11 @@ pub struct FlightStep {
     pub on_ground: bool,
 }
 
-/// One walk-branch step with the crouch tested and the key up (the rig's `tick_walk`).
-fn walk_step(c: &mut Controller, world: &Collision, s: &Settings, walk: Vec3, sprinting: bool) {
-    let input = TickInput { walk, air_control: Vec3::ZERO, crouch: CrouchInput::Tested { key: false, legs_broken: false }, sprinting };
-    c.tick(world, DT, s, input);
-}
-
-/// [A385] How high over the press point's height a run-up's body is put before it comes down ([`settle`]): the ground at the
+/// [A385] How high over the press point's height a run-up's body is put before it comes down (the client's body's rest, [`played_run_up`]): the ground at the
 /// run-up's start may be lower than the take-off (a sloped approach), and a body put at the take-off's height there would run
 /// in the air (owner-5 `a385-lost-links-client-truth.md` §2.1: Mamayev Kurgan R94, a walking press at 1.0 m pressed with the
 /// feet at 28.34 over ground at 28.01). The same height as owner-5's `start_real`.
 const RUN_UP_DROP_M: f32 = 0.6;
-
-/// [A385] The steps a body put down is given to come to rest ([`settle`]): 2 s, the 0.6 m fall takes 7.
-const SETTLE_STEPS_MAX: u32 = 40;
-
-/// A body put down comes to rest: steps with no walk (a small downward speed at the first, so no step is skipped,
-/// `can_skip_player_step`) until it is on the ground and its feet move under a millimetre in a step. False when it has not
-/// in [`SETTLE_STEPS_MAX`] steps.
-fn settle(c: &mut Controller, world: &Collision, s: &Settings) -> bool {
-    c.velocity = Vec3::new(0.0, -0.01, 0.0);
-    for _ in 0..SETTLE_STEPS_MAX {
-        let before = c.feet();
-        walk_step(c, world, s, Vec3::ZERO, false);
-        if c.on_ground(s) && (c.feet() - before).length() < 1e-3 {
-            return true;
-        }
-    }
-    false
-}
 
 /// The keys of a flight ([`fly`]).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -317,19 +293,107 @@ pub fn fly_as(
     while !flying.landed() {
         steps.push(flying.step(world, s, c, heading, air));
     }
-    let last_travel = flying.last_travel();
-    let way = Vec3::new(heading.0, 0.0, heading.1);
-    for m in 1..=ground_steps {
-        let ramp = m.min(6) as f32 / 6.0;
-        let speed = match press {
-            _ if !keys.held_after => last_travel * (1.0 - ramp),
-            Press::Sprint { .. } => cap,
-            Press::Walk { .. } => last_travel + (cap - last_travel) * ramp,
-        };
-        walk_step(c, world, s, way * (speed * DT), false);
-        steps.push(FlightStep { n: landing + m, feet: c.feet(), in_jump: c.jumping, on_ground: c.on_ground(s) });
-    }
+    // [body physics S5a] The ground steps are the client's body's ([`landed_steps`]): one step at the flight's last travel whatever
+    // the keys, then the keys' blend from it (let go: none; held: forward; the sprint state is down through a sprint jump's landing,
+    // owner-5 `owner-5-sprint-after-landing-20261115.md` §1, so a held sprint walks at the walk cap), the flight's cap its walk cap.
+    let held = if keys.held_after { crate::motion::keys::FORWARD } else { 0 };
+    landed_steps(world, s, c, heading, cap, flying.last_travel(), &[(held, ground_steps)], landing, &mut steps);
     steps
+}
+
+/// [body physics S5a fix] How long a scoring flight runs after its landing step (the clip's `end_jump`): a fixed count of ground
+/// steps, or on until the body is down ([`Ground::FallOn`]).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum Ground {
+    /// This many ground steps ([`STAY_STEPS`]).
+    Steps(u32),
+    /// [`STAY_STEPS`] ground steps; a body not down at the last of them (off the ground, or on it but moving: sliding off a slope)
+    /// flies on until it has been on the ground and still [`STAY_STEPS`] steps running, to [`fall_on_steps`]`(drop)` in all: `drop` m the deepest fall a pass may land after. The
+    /// client ends a jump on the clip's clock, not on ground contact, and a body off a deep edge falls on after it ([jump down],
+    /// [`neighbour_flights_for`]): a flight cut at [`STAY_STEPS`] while still falling reads as no landing. A flight down by then
+    /// runs exactly [`STAY_STEPS`], as [`Ground::Steps`]`(STAY_STEPS)` does.
+    FallOn { drop: f32 },
+}
+
+/// [body physics S5a fix] The most ground steps a [`Ground::FallOn`] flight runs: [`STAY_STEPS`], the steps a fall of `drop` m from
+/// rest takes under `gravity` (the body's, [`Controller::gravity`]), and one.
+pub fn fall_on_steps(drop: f32, gravity: f32) -> u32 {
+    STAY_STEPS + ((2.0 * drop.max(0.0) / gravity).sqrt() / DT).ceil() as u32 + 1
+}
+
+/// [body physics S5a fix] [`fly_as`] with the ground steps of [`Ground::FallOn`], to `max` ([`landed_until`]).
+#[allow(clippy::too_many_arguments)]
+pub fn fly_falling(world: &Collision, s: &Settings, c: &mut Controller, heading: (f32, f32), press: Press, keys: Keys, flight: Flight, max: u32) -> Vec<FlightStep> {
+    let cap = flight.cap;
+    let mut flying = Flying::new(press, flight);
+    let landing = press.landing_n();
+    let mut steps = Vec::with_capacity((landing + STAY_STEPS) as usize + 1);
+    let air = Flying::air_of(press, i8::from(keys.air_forward), 0);
+    while !flying.landed() {
+        steps.push(flying.step(world, s, c, heading, air));
+    }
+    let held = if keys.held_after { crate::motion::keys::FORWARD } else { 0 };
+    landed_until(world, s, c, heading, cap, flying.last_travel(), held, landing, max, &mut steps);
+    steps
+}
+
+/// [body physics S5a fix] The ground steps of [`Ground::FallOn`] after a flight's landing step, as [`landed_steps`] flies them
+/// with `keys` held throughout: [`STAY_STEPS`]; with the body still off the ground at the last of them, on until it has been on
+/// the ground [`STAY_STEPS`] steps running, to `max`.
+#[allow(clippy::too_many_arguments)]
+fn landed_until(world: &Collision, s: &Settings, c: &mut Controller, heading: (f32, f32), cap: f32, travel: f32, keys: u32, landing: u32, max: u32, steps: &mut Vec<FlightStep>) {
+    use crate::motion::{self, ClientBody, Input, Kin, Pass};
+    let yaw = motion::yaw_of(heading);
+    let kin = Kin { level: cap / WALK_CAP_MS, legs_broken: false };
+    let mut body = ClientBody::landed(*c, yaw, travel, keys);
+    let pass = Pass { world, settings: s };
+    let (mut down, mut last) = (0, c.feet());
+    for m in 1..=max.max(STAY_STEPS) {
+        let tick = body.tick(&pass, kin, Input { keys, yaw });
+        steps.push(FlightStep { n: landing + m, feet: tick.feet, in_jump: tick.in_jump, on_ground: tick.on_ground });
+        // Down: on the ground and still ([`crate::motion::verdict::STILL_M`]); a body on a slope it slides off is not.
+        let still = tick.on_ground && (tick.feet - last).length() < crate::motion::verdict::STILL_M;
+        last = tick.feet;
+        down = if still { down + 1 } else { 0 };
+        // Down at the cut: as `Steps(STAY_STEPS)`. Else on until down `STAY_STEPS` steps running.
+        if (m == STAY_STEPS && still) || (m > STAY_STEPS && down >= STAY_STEPS) {
+            break;
+        }
+    }
+    *c = *body.controller();
+}
+
+/// [body physics S5a] The ground steps after a flight's landing step, flown with the controller `c` facing along `heading`: the
+/// client's body in its landing substate ([`crate::motion::ClientBody::landed`], its last travel `travel`) ticked with each `(keys,
+/// steps)` of `script` in turn, at the walk cap `cap`; each step pushed onto `steps` numbered on from `landing`, `c` left where they
+/// end.
+#[allow(clippy::too_many_arguments)]
+fn landed_steps(
+    world: &Collision,
+    s: &Settings,
+    c: &mut Controller,
+    heading: (f32, f32),
+    cap: f32,
+    travel: f32,
+    script: &[(u32, u32)],
+    landing: u32,
+    steps: &mut Vec<FlightStep>,
+) {
+    use crate::motion::{self, ClientBody, Input, Kin, Pass};
+    let yaw = motion::yaw_of(heading);
+    let kin = Kin { level: cap / WALK_CAP_MS, legs_broken: false };
+    let first = script.first().map_or(0, |&(keys, _)| keys);
+    let mut body = ClientBody::landed(*c, yaw, travel, first);
+    let pass = Pass { world, settings: s };
+    let mut m = 0;
+    for &(keys, n) in script {
+        for _ in 0..n {
+            m += 1;
+            let tick = body.tick(&pass, kin, Input { keys, yaw });
+            steps.push(FlightStep { n: landing + m, feet: tick.feet, in_jump: tick.in_jump, on_ground: tick.on_ground });
+        }
+    }
+    *c = *body.controller();
 }
 
 /// [A388 step 3] A jump flown one step at a time ([`fly_as`] is a loop over it): each step's heading and air control are the caller's
@@ -432,23 +496,88 @@ pub const SLOW_STEPS_MAX: u8 = 5;
 /// puts it, [`RUN_UP_DROP_M`] over and come to rest) and walked up `steps` steps toward `cap` (k / 6 of it at step k); 0 steps
 /// is a standing jump. None as [`run_up`].
 pub fn run_up_slow(world: &Collision, s: &Settings, press_at: Vec3, heading: (f32, f32), cap: f32, steps: u8) -> Option<RunUp> {
+    // [body physics S5a] The client's body's walk-up ([`played_run_up`]): `steps` moving steps with forward held, at the cap.
+    played_run_up(world, s, press_at, heading, cap, crate::motion::keys::FORWARD, u32::from(steps))
+}
+
+/// [body physics S5a] How far the client's body walks up from rest on a flat open floor (`moving` steps with `keys` held after the
+/// keys' first input step, at the walk cap `cap`, with the settings `s`): the start of a run-up to a press point, measured by playing
+/// it (DESIGN §3.3: no formula). None when no body comes to rest on that floor.
+fn walk_up_length(s: &Settings, keys: u32, moving: u32, cap: f32) -> Option<f32> {
+    use crate::motion::{self, ClientBody, Input, Kin, Pass};
+    static FLAT: std::sync::OnceLock<Collision> = std::sync::OnceLock::new();
+    let world = FLAT.get_or_init(|| {
+        let (a, b, c, d) = (Vec3::new(-100.0, 0.0, -100.0), Vec3::new(100.0, 0.0, -100.0), Vec3::new(100.0, 0.0, 100.0), Vec3::new(-100.0, 0.0, 100.0));
+        let walker = crate::WalkerBehaviour::BySlope;
+        let tris = [crate::project::Triangle { v: [a, b, c], walker }, crate::project::Triangle { v: [a, c, d], walker }];
+        Collision::build(&tris).with_caster(crate::controller::Caster::Bullet(crate::controller::StartOverlap::FaceWitness))
+    });
+    let pass = Pass { world, settings: s };
+    let yaw = motion::yaw_of((1.0, 0.0));
+    let kin = Kin { level: cap / WALK_CAP_MS, legs_broken: false };
+    let mut body = ClientBody::at_rest(&pass, Vec3::ZERO, yaw)?;
+    let start = body.feet();
+    if moving > 0 {
+        for _ in 0..=moving {
+            body.tick(&pass, kin, Input { keys, yaw });
+        }
+    }
+    let f = body.feet();
+    Some(Vec3::new(f.x - start.x, 0.0, f.z - start.z).length())
+}
+
+/// [body physics S5a] A run-up played by the client's body ([`crate::motion::ClientBody`]) to the press point `press_at` along
+/// `heading`, `moving` steps with `keys` held at the walk cap `cap`: a body put as the builder puts one (a clear start
+/// [`RUN_UP_DROP_M`] over the press point's height) comes to rest as the client's body does
+/// ([`crate::motion::verdict::STILL_STEPS`] still steps), then the keys go down (their first input step does not move: the order
+/// in a frame) and `moving` steps move. Where it starts is measured by playing the same walk-up from the press point itself. None
+/// when either comes to no rest or the run-up does not end within 0.1 m across and 0.35 m in height of `press_at`, on the ground.
+fn played_run_up(world: &Collision, s: &Settings, press_at: Vec3, heading: (f32, f32), cap: f32, keys: u32, moving: u32) -> Option<RunUp> {
     use crate::grid::controlled::{body_at, Stance, WalkStart};
+    use crate::motion::{self, verdict, ClientBody, Input, Kin, Pass};
     let way = Vec3::new(heading.0, 0.0, heading.1);
     let flat = |v: Vec3| Vec3::new(v.x, 0.0, v.z);
-    let start = press_at - way * blend_steps_m(cap, steps);
-    let mut c = body_at(world, WalkStart::Clear, Stance::Standing, Vec3::new(start.x, press_at.y + RUN_UP_DROP_M, start.z));
-    if !settle(&mut c, world, s) {
-        return None;
-    }
-    let mut v = 0.0;
-    for k in 1..=steps {
-        let before = c.origin;
-        walk_step(&mut c, world, s, way * (cap * DT * f32::from(k) / 6.0), false);
-        v = flat(c.origin - before).length() / DT;
-    }
+    let yaw = motion::yaw_of(heading);
+    let kin = Kin { level: cap / WALK_CAP_MS, legs_broken: false };
+    let pass = Pass { world, settings: s };
+    // The body put at `start` and come to rest, then walked up: where it ends and its last step's flat speed.
+    let walked = |start: Vec3| -> Option<(ClientBody, f32)> {
+        let mut c = body_at(world, WalkStart::Clear, Stance::Standing, Vec3::new(start.x, press_at.y + RUN_UP_DROP_M, start.z));
+        // One small downward speed, so the client's step skip (`can_skip_player_step` 0x7C7E0: no speed, no input) does not hold
+        // the body where it was put (as `ClientBody::at_rest`).
+        c.velocity = Vec3::new(0.0, -0.01, 0.0);
+        let mut body = ClientBody::of(c, yaw);
+        let mut still = 0;
+        let mut last = body.feet();
+        for _ in 0..motion::REST_STEPS_MAX {
+            let t = body.tick(&pass, kin, Input { keys: 0, yaw });
+            still = if t.on_ground && (t.feet - last).length() < verdict::STILL_M { still + 1 } else { 0 };
+            last = t.feet;
+            if still >= verdict::STILL_STEPS {
+                break;
+            }
+        }
+        if still < verdict::STILL_STEPS {
+            return None;
+        }
+        let mut v = 0.0;
+        if moving > 0 {
+            body.tick(&pass, kin, Input { keys, yaw });
+            let mut last = body.feet();
+            for _ in 0..moving {
+                let f = body.tick(&pass, kin, Input { keys, yaw }).feet;
+                v = flat(f - last).length() / DT;
+                last = f;
+            }
+        }
+        Some((body, v))
+    };
+    let back = walk_up_length(s, keys, moving, cap)?;
+    let (body, v) = walked(press_at - way * back)?;
+    let c = *body.controller();
     let f = c.feet();
     (flat(f - press_at).length() <= 0.1 && (f.y - press_at.y).abs() <= 0.35 && !c.jumping && c.on_ground(s))
-        .then_some(RunUp { body: c, speed: v })
+        .then_some(RunUp { body: c, speed: v, played: body })
 }
 
 /// How a run-up ended ([`run_up`]).
@@ -457,39 +586,22 @@ pub struct RunUp {
     pub body: Controller,
     /// Its last step's horizontal speed, m/s (the press's `m_linear_horizontal_speed`).
     pub speed: f32,
+    /// [body physics S5a] The client's body it was played with ([`played_run_up`]; its controller is [`Self::body`]): its walk's
+    /// blend and input, for a walk that goes on from it ([`climb_flight`]).
+    pub played: crate::motion::ClientBody,
 }
 
 /// The run-up ending at `press_at` (feet) along `heading` at `speed` m/s (sprinting or not): a body put down 3.5 + 4 steps'
-/// travel back, [`RUN_UP_DROP_M`] over `press_at`'s height, come to rest on the ground there ([`settle`]), walked up to speed
+/// travel back, [`RUN_UP_DROP_M`] over `press_at`'s height, come to rest on the ground there ([`played_run_up`]), walked up to speed
 /// over 6 steps (the 0.3 s blend) then 4 steady steps; else with no steady steps. None when no run-up ends within 0.1 m across
 /// and 0.35 m in height of `press_at`, on the ground. (A385: no longer two steps at speed from 2 steps' travel back, which no
 /// client's body does, owner-5 §2.1; nor from a body still coming down.)
 pub fn run_up(world: &Collision, s: &Settings, press_at: Vec3, heading: (f32, f32), speed: f32, sprinting: bool) -> Option<RunUp> {
-    use crate::grid::controlled::{body_at, Stance, WalkStart};
-    let way = Vec3::new(heading.0, 0.0, heading.1);
-    let flat = |v: Vec3| Vec3::new(v.x, 0.0, v.z);
-    let ok = |c: &Controller| {
-        let f = c.feet();
-        flat(f - press_at).length() <= 0.1 && (f.y - press_at.y).abs() <= 0.35 && !c.jumping && c.on_ground(s)
-    };
-    let put = |back: f32| {
-        let start = press_at - way * back;
-        let mut c = body_at(world, WalkStart::Clear, Stance::Standing, Vec3::new(start.x, press_at.y + RUN_UP_DROP_M, start.z));
-        settle(&mut c, world, s).then_some(c)
-    };
-    for steady in [4u32, 0] {
-        let Some(mut c) = put(speed * DT * (3.5 + steady as f32)) else { continue };
-        let mut v = 0.0;
-        for k in 1..=(6 + steady) {
-            let before = c.origin;
-            walk_step(&mut c, world, s, way * (speed * DT * (k.min(6) as f32) / 6.0), sprinting);
-            v = flat(c.origin - before).length() / DT;
-        }
-        if ok(&c) {
-            return Some(RunUp { body: c, speed: v });
-        }
-    }
-    None
+    // [body physics S5a] The client's body's walk-up ([`played_run_up`]): 6 + 4 steady moving steps, else 6, with forward (and the
+    // sprint) held; a sprint run-up's cap is the walk cap of the sprint's speed (the client's body sprints at SPRINT_MS x level).
+    use crate::motion::keys;
+    let (held, cap) = if sprinting { (keys::FORWARD | keys::SPRINT, speed * WALK_CAP_MS / SPRINT_MS) } else { (keys::FORWARD, speed) };
+    [4u32, 0].into_iter().find_map(|steady| played_run_up(world, s, press_at, heading, cap, held, 6 + steady))
 }
 
 /// The gait of a run-up jump: a walk (the short jump) or a sprint (the sprint jump off `leg`, its first air step ending at
@@ -512,7 +624,7 @@ pub fn run_and_fly(world: &Collision, s: &Settings, press_at: Vec3, heading: (f3
         Gait::Walk => (WALK_CAP_MS, false),
         Gait::Sprint { .. } => (SPRINT_MS, true),
     };
-    let RunUp { body: mut c, speed: v } = run_up(world, s, press_at, heading, speed, sprinting)?;
+    let RunUp { body: mut c, speed: v, .. } = run_up(world, s, press_at, heading, speed, sprinting)?;
     let press = match gait {
         Gait::Sprint { leg, first_air_frame } if v >= WALK_CAP_MS => Press::Sprint { speed: v, leg, first_air_frame },
         _ => Press::Walk { speed: v },
@@ -569,22 +681,9 @@ pub fn held_flight(world: &Collision, s: &Settings, b: &mut Controller, heading:
     while !flying.landed() {
         steps.push(flying.step(world, s, b, heading, air));
     }
-    let last_travel = flying.last_travel();
-    let way = Vec3::new(heading.0, 0.0, heading.1);
-    let mut held = last_travel;
-    for m in 1..=HELD_STEPS {
-        held = match press {
-            Press::Sprint { .. } => cap,
-            Press::Walk { .. } => last_travel + (cap - last_travel) * (m.min(6) as f32 / 6.0),
-        };
-        walk_step(b, world, s, way * (held * DT), false);
-        steps.push(FlightStep { n: landing + m, feet: b.feet(), in_jump: b.jumping, on_ground: b.on_ground(s) });
-    }
-    for m in 1..=STAY_STEPS {
-        let speed = held * (1.0 - m.min(6) as f32 / 6.0);
-        walk_step(b, world, s, way * (speed * DT), false);
-        steps.push(FlightStep { n: landing + HELD_STEPS + m, feet: b.feet(), in_jump: b.jumping, on_ground: b.on_ground(s) });
-    }
+    // [body physics S5a] The client's body's ground steps ([`landed_steps`]): forward held, then let go.
+    let script = [(crate::motion::keys::FORWARD, HELD_STEPS), (0, STAY_STEPS)];
+    landed_steps(world, s, b, heading, cap, flying.last_travel(), &script, landing, &mut steps);
     steps
 }
 
@@ -691,16 +790,19 @@ pub fn climb_flight(world: &Collision, s: &Settings, takeoff: Vec3, way: (f32, f
     let (c, sn) = (n.turn.cos(), n.turn.sin());
     let heading = (way.0 * c - way.1 * sn, way.0 * sn + way.1 * c);
     let at = press_point(takeoff, way, lead, n);
-    let RunUp { body: mut b, .. } = run_up(world, s, at, heading, flight.sprint_ms(), true)?;
-    let step = Vec3::new(heading.0, 0.0, heading.1) * (flight.sprint_ms() * DT);
+    // [body physics S5a] The run-up's own client body sprints on (forward and the sprint held): its blend and cap, not a constant
+    // walk vector.
+    use crate::motion::{self, Input, Kin, Pass};
+    let RunUp { played: mut body, .. } = run_up(world, s, at, heading, flight.sprint_ms(), true)?;
+    let (pass, yaw) = (Pass { world, settings: s }, motion::yaw_of(heading));
+    let kin = Kin { level: flight.cap / WALK_CAP_MS, legs_broken: false };
+    let keys = motion::keys::FORWARD | motion::keys::SPRINT;
     let mut steps = Vec::new();
     let mut up = 0;
     for k in 0..CLIMB_STEPS_MAX {
-        walk_step(&mut b, world, s, step, true);
-        let feet = b.feet();
-        let on_ground = b.on_ground(s);
-        steps.push(FlightStep { n: k, feet, in_jump: b.jumping, on_ground });
-        up = if on_ground && feet.y > takeoff.y + s.step_height { up + 1 } else { 0 };
+        let t = body.tick(&pass, kin, Input { keys, yaw });
+        steps.push(FlightStep { n: k, feet: t.feet, in_jump: t.in_jump, on_ground: t.on_ground });
+        up = if t.on_ground && t.feet.y > takeoff.y + s.step_height { up + 1 } else { 0 };
         if up == 2 {
             break;
         }
@@ -723,10 +825,11 @@ pub fn neighbour_flights(
     n: Neighbour,
     kits: Kits,
 ) -> Option<Vec<Vec<FlightStep>>> {
-    neighbour_flights_for(world, s, takeoff, way, kind, lead, n, kits, STAY_STEPS)
+    neighbour_flights_for(world, s, takeoff, way, kind, lead, n, kits, Ground::Steps(STAY_STEPS))
 }
 
-/// [jump down] [`neighbour_flights`] with `ground_steps` steps after the landing step instead of [`STAY_STEPS`]: a jump off an
+/// [jump down] [`neighbour_flights`] with `ground` steps after the landing step instead of [`STAY_STEPS`] ([body physics S5a
+/// fix] a count, or on until the body is down, [`Ground`]): a jump off an
 /// edge high enough that the body is still in the air at the clip's `end_jump` falls on for them. The client ends the jump on
 /// the clip's clock, not on ground contact (`end_jump` 0x7F050's callers are the landing states' `initialize` 0x3421F4,
 /// 0x344104 and the stand-jump state's `finalize` 0x3373BB, each moved to by the clip's end; `on_ground` 0x7EF90 is read only
@@ -743,21 +846,25 @@ pub fn neighbour_flights_for(
     lead: f32,
     n: Neighbour,
     kits: Kits,
-    ground_steps: u32,
+    ground: Ground,
 ) -> Option<Vec<Vec<FlightStep>>> {
+    let fly = |b: &mut Controller, heading: (f32, f32), press: Press, flight: Flight| match ground {
+        Ground::Steps(n) => fly_as(world, s, b, heading, press, STAY_KEYS, n, flight),
+        Ground::FallOn { drop } => fly_falling(world, s, b, heading, press, STAY_KEYS, flight, fall_on_steps(drop, b.gravity)),
+    };
     let flight = Flight { cap: if n.fastest { kits.fastest } else { kits.body }, dy: n.dy };
     let (c, sn) = (n.turn.cos(), n.turn.sin());
     let heading = (way.0 * c - way.1 * sn, way.0 * sn + way.1 * c);
     let at = press_point(takeoff, way, lead, n);
     match kind {
         Kind::Walk => {
-            let RunUp { body: mut b, speed } = run_up(world, s, at, heading, flight.cap, false)?;
-            Some(vec![fly_as(world, s, &mut b, heading, Press::Walk { speed }, STAY_KEYS, ground_steps, flight)])
+            let RunUp { body: mut b, speed, .. } = run_up(world, s, at, heading, flight.cap, false)?;
+            Some(vec![fly(&mut b, heading, Press::Walk { speed }, flight)])
         }
         Kind::Climb => climb_flight(world, s, takeoff, way, lead, n, kits).map(|st| vec![st]),
         Kind::Slow(steps) => {
-            let RunUp { body: mut b, speed } = run_up_slow(world, s, at, heading, flight.cap, steps)?;
-            Some(vec![fly_as(world, s, &mut b, heading, Press::Walk { speed }, STAY_KEYS, ground_steps, flight)])
+            let RunUp { body: mut b, speed, .. } = run_up_slow(world, s, at, heading, flight.cap, steps)?;
+            Some(vec![fly(&mut b, heading, Press::Walk { speed }, flight)])
         }
         Kind::Sprint | Kind::SprintHeld => {
             let run = run_up(world, s, at, heading, flight.sprint_ms(), true)?;
@@ -773,7 +880,7 @@ pub fn neighbour_flights_for(
                         if kind == Kind::SprintHeld {
                             held_flight(world, s, &mut b, heading, press, flight)
                         } else {
-                            fly_as(world, s, &mut b, heading, press, STAY_KEYS, ground_steps, flight)
+                            fly(&mut b, heading, press, flight)
                         }
                     })
                     .collect(),
@@ -787,9 +894,9 @@ pub fn neighbour_flights_for(
 /// top's edge before the ground steps climb the rest), and the flight's last step, when the body is on the ground on every step
 /// from the landing on (it stays: A385-FORMAT §1); None when it never lands so or leaves the ground after (it skims).
 pub fn landing_and_rest(steps: &[FlightStep], on: impl Fn(&FlightStep) -> bool) -> Option<(FlightStep, FlightStep)> {
-    let first_air = steps.iter().position(|f| f.in_jump)?;
-    let landing = first_air + steps[first_air..].iter().position(|f| !f.in_jump && f.on_ground && on(f))?;
-    steps[landing..].iter().all(|f| f.on_ground).then(|| (steps[landing], steps[steps.len() - 1]))
+    // [body physics S5a] The one landing rule ([`crate::motion::verdict::landing`]).
+    let landing = crate::motion::verdict::landing(steps, |f| f.in_jump, |f| f.on_ground, on)?;
+    Some((steps[landing], steps[steps.len() - 1]))
 }
 
 /// [A385] A press's share (A385-FORMAT §2): of its [`NEIGHBOURS`] neighbours, how many land (`lands` holds for each of the
@@ -846,6 +953,72 @@ mod tests {
         Collision::build(&tris).with_caster(caster)
     }
 
+    /// [body physics S5a fix] A sprint jump off a 6 m edge is still in the air at the [`STAY_STEPS`] cut: cut there, a flight
+    /// ends off the ground (it reads as no landing); with [`Ground::FallOn`] every variant falls on to the ground below and stays
+    /// [`STAY_STEPS`] steps on it. A jump down by the cut (off a 0.5 m edge) flies the same steps either way, bit for bit.
+    #[test]
+    fn a_scoring_flight_off_a_deep_edge_falls_on_to_the_ground() {
+        let s = crate::Body { exe_collision: true, start_witness: true, ..crate::Body::client() }.controller().1;
+        let kits = Kits { body: WALK_CAP_MS, fastest: WALK_CAP_MS };
+        let own = neighbourhood()[0];
+        let deep = ledge(6.0);
+        let takeoff = Vec3::new(5.5, 6.0, 0.0);
+        let fly = |world: &Collision, at: Vec3, kind: Kind, lead: f32, ground: Ground| {
+            neighbour_flights_for(world, &s, at, (-1.0, 0.0), kind, lead, own, kits, ground).expect("a run-up")
+        };
+        let cut = fly(&deep, takeoff, Kind::Sprint, 1.0, Ground::Steps(STAY_STEPS));
+        assert!(cut.iter().any(|st| !st.last().expect("steps").on_ground), "cut at STAY_STEPS, a variant is still falling");
+        let fall = Ground::FallOn { drop: 7.0 };
+        for st in &fly(&deep, takeoff, Kind::Sprint, 1.0, fall) {
+            let last = st.last().expect("steps");
+            assert!(st[st.len() - STAY_STEPS as usize..].iter().all(|f| f.on_ground), "{last:?}");
+            assert!(last.feet.y.abs() < 0.05, "down on the ground below: {last:?}");
+            assert!(landing_and_rest(st, |f| f.feet.y.abs() < 0.05).is_some(), "it lands and stays");
+            assert!(st.len() <= (Press::Sprint { speed: 5.0, leg: Leg::Left, first_air_frame: 7.0 }.landing_n() + fall_on_steps(7.0, 9.8)) as usize + 1);
+        }
+        let low = ledge(0.5);
+        let at = Vec3::new(5.5, 0.5, 0.0);
+        assert_eq!(fly(&low, at, Kind::Walk, 0.5, Ground::Steps(STAY_STEPS)), fly(&low, at, Kind::Walk, 0.5, fall));
+        // A shallow gap, level tops 1 m apart (the block's top at 0.5 over x 5..12 from a top at 0.5 over x < 4): unchanged.
+        let mut tris = Vec::new();
+        quad(&mut tris, Vec3::new(-5.0, 0.5, -3.0), Vec3::new(-5.0, 0.5, 3.0), Vec3::new(4.0, 0.5, 3.0), Vec3::new(4.0, 0.5, -3.0));
+        quad(&mut tris, Vec3::new(4.0, -2.0, -3.0), Vec3::new(4.0, -2.0, 3.0), Vec3::new(5.0, -2.0, 3.0), Vec3::new(5.0, -2.0, -3.0));
+        quad(&mut tris, Vec3::new(5.0, 0.5, -3.0), Vec3::new(5.0, 0.5, 3.0), Vec3::new(12.0, 0.5, 3.0), Vec3::new(12.0, 0.5, -3.0));
+        let (caster, _) = crate::Body { exe_collision: true, start_witness: true, ..crate::Body::client() }.controller();
+        let gap = Collision::build(&tris).with_caster(caster);
+        let at = Vec3::new(5.5, 0.5, 0.0);
+        for kind in [Kind::Walk, Kind::Sprint] {
+            assert_eq!(fly(&gap, at, kind, 1.0, Ground::Steps(STAY_STEPS)), fly(&gap, at, kind, 1.0, fall), "{kind:?} over a shallow gap");
+        }
+        // A rim press up onto a 1 m top from the ground before it (way (1, 0), the top's face at x 5): unchanged.
+        let rim = ledge(1.0);
+        let up = |ground: Ground| neighbour_flights_for(&rim, &s, Vec3::new(4.5, 0.0, 0.0), (1.0, 0.0), Kind::Sprint, 1.0, own, kits, ground);
+        assert_eq!(up(Ground::Steps(STAY_STEPS)), up(fall), "a rim press onto a top");
+    }
+
+    /// [body physics S5a fix] A body on the ground at the [`STAY_STEPS`] cut but sliding (a steep ramp under the fall off a 6 m
+    /// edge) is not down: [`Ground::FallOn`] flies it on until it is on the ground and still, below the ramp.
+    #[test]
+    fn a_flight_sliding_off_a_slope_at_the_cut_flies_on_until_still() {
+        let s = crate::Body { exe_collision: true, start_witness: true, ..crate::Body::client() }.controller().1;
+        let kits = Kits { body: WALK_CAP_MS, fastest: WALK_CAP_MS };
+        let mut tris = Vec::new();
+        quad(&mut tris, Vec3::new(-5.0, 0.0, -3.0), Vec3::new(-5.0, 0.0, 3.0), Vec3::new(5.0, 0.0, 3.0), Vec3::new(5.0, 0.0, -3.0));
+        quad(&mut tris, Vec3::new(5.0, 6.0, -3.0), Vec3::new(5.0, 6.0, 3.0), Vec3::new(12.0, 6.0, 3.0), Vec3::new(12.0, 6.0, -3.0));
+        quad(&mut tris, Vec3::new(5.0, 0.0, -3.0), Vec3::new(5.0, 6.0, -3.0), Vec3::new(5.0, 6.0, 3.0), Vec3::new(5.0, 0.0, 3.0));
+        quad(&mut tris, Vec3::new(1.0, 0.0, -3.0), Vec3::new(1.0, 0.0, 3.0), Vec3::new(2.5, 3.0, 3.0), Vec3::new(2.5, 3.0, -3.0));
+        let (caster, _) = crate::Body { exe_collision: true, start_witness: true, ..crate::Body::client() }.controller();
+        let world = Collision::build(&tris).with_caster(caster);
+        let flights = neighbour_flights_for(&world, &s, Vec3::new(5.5, 6.0, 0.0), (-1.0, 0.0), Kind::Sprint, 1.0, neighbourhood()[0], kits, Ground::FallOn { drop: 7.0 })
+            .expect("a run-up");
+        for st in &flights {
+            let last = st.last().expect("steps");
+            assert!(last.on_ground && last.feet.y < 0.05, "down on the ground below the ramp: {last:?}");
+            let tail = &st[st.len() - STAY_STEPS as usize..];
+            assert!(tail.windows(2).all(|w| (w[1].feet - w[0].feet).length() < crate::motion::verdict::STILL_M), "still at the end");
+        }
+    }
+
     /// [A385] A run-up whose start is over a lower level (a floor at 0 from x `edge` to 6, a level 3 m lower before it): the
     /// body put there comes to rest on the lower level and does not reach the press point on the take-off's floor, so no press
     /// is flown from a level the take-off is not on (owner-5 `mamayev-1808-lost-floors.md` §5.3: a sweep tool with no test at the
@@ -888,17 +1061,14 @@ mod tests {
     /// Whether a jump pressed `d` m before the face of a `top` ledge with `press`, run up 2 m, stands on the top 4 ground steps
     /// after the landing step.
     fn lands(top: f32, d: f32, gait: Option<Gait>) -> bool {
-        use crate::grid::controlled::{body_at, Stance, WalkStart};
         let world = ledge(top);
         let s = settings();
         let at = Vec3::new(5.0 - d, 0.0, 0.0);
         let steps = match gait {
             Some(g) => run_and_fly(&world, &s, at, (1.0, 0.0), g, 10),
-            None => {
-                let mut c = body_at(&world, WalkStart::Clear, Stance::Standing, at);
-                settle(&mut c, &world, &s);
-                Some(fly(&world, &s, &mut c, (1.0, 0.0), Press::Walk { speed: 0.0 }, Keys::BOT, 10))
-            }
+            // A standing body: a run-up of no steps (put and come to rest at the point).
+            None => played_run_up(&world, &s, at, (1.0, 0.0), WALK_CAP_MS, 0, 0)
+                .map(|mut r| fly(&world, &s, &mut r.body, (1.0, 0.0), Press::Walk { speed: 0.0 }, Keys::BOT, 10)),
         };
         steps.is_some_and(|steps| {
             let end = steps.last().unwrap().feet;
@@ -957,7 +1127,6 @@ mod tests {
     #[test]
     #[ignore]
     fn compare_with_the_rig() {
-        use crate::grid::controlled::{body_at, Stance, WalkStart};
         let var = |k: &str| std::env::var(k).unwrap_or_else(|_| panic!("set {k}"));
         let map = crate::MapData::from_bytes(&std::fs::read(var("RIG_MAP")).unwrap()).unwrap();
         // `RIG_WORLD=walker`: the map's walker triangles with the grid's caster (the world the grid's checks run on).
@@ -993,17 +1162,13 @@ mod tests {
             let leg = if w[8] == "l" { Leg::Left } else { Leg::Right };
             let keys = Keys { air_forward: w[10] == "fwd", held_after: w[11] == "held" };
             let start = match w[7] {
-                "stand" => {
-                    let mut c = body_at(&world, WalkStart::Clear, Stance::Standing, feet);
-                    settle(&mut c, &world, &s);
-                    Some(RunUp { body: c, speed: 0.0 })
-                }
+                "stand" => played_run_up(&world, &s, feet, heading, WALK_CAP_MS, 0, 0),
                 "walk" => run_up(&world, &s, feet, heading, WALK_CAP_MS, false),
                 _ => run_up(&world, &s, feet, heading, 5.0, true),
             };
             let Some(r) = rig.get(w[1]) else { continue };
             rows += 1;
-            let Some(RunUp { body: mut c, speed: v }) = start else {
+            let Some(RunUp { body: mut c, speed: v, .. }) = start else {
                 if r[6] == "no_run_up" {
                     same_mm += 1;
                     same_cm += 1;
