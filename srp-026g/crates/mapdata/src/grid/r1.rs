@@ -147,6 +147,12 @@ impl WalkGrid {
         let mut best: Option<(u8, u8, Kind, f32, u16)> = None;
         for kind in kinds {
             for lead in TAKE_OFF_LEADS {
+                // [body physics S5c] Only a press the grid's file holds: a walking press at lead 0 is none (its 0 cm
+                // reads back as a walk-off, `Takeoff::from_centimetres`; the lowest is `PRESS_LEAD_LOWEST_M`). Rudnya batteries'
+                // S5c grid had such a re-press, (-49.82, 26.87, 24.60) -> (-49.32, 27.81, 25.10), and its file was refused.
+                if !press_of(kind, lead).is_valid() {
+                    continue;
+                }
                 let Some((_, run_in)) = press_run_in(press_of(kind, lead), s) else { continue };
                 if self.press_side(l.from, l.to, way, lead, 0.0, run_in, first, to) != Side::TakeOff || !lands(kind, lead, own) {
                     continue;
@@ -242,6 +248,21 @@ fn walk_reaches(grid: &WalkGrid, first: &[u32], to: &[u32], from: u32, goal: u32
 
 #[cfg(test)]
 mod tests {
+
+    /// [body physics S5c] Every press R1's take-off check may store is one the grid's file holds: lead 0 is left out for the
+    /// walking press (stored, it would read back as a walk-off), and kept for the slow and the sprint ones.
+    #[test]
+    fn the_take_off_check_stores_only_presses_the_file_holds() {
+        let kinds = [Kind::Walk, Kind::Slow(0), Kind::Slow(5), Kind::Sprint];
+        let tried: Vec<Takeoff> =
+            kinds.iter().flat_map(|&k| TAKE_OFF_LEADS.iter().map(move |&lead| press_of(k, lead))).filter(|p| p.is_valid()).collect();
+        assert!(tried.iter().all(|p| p.is_valid()));
+        assert!(!press_of(Kind::Walk, 0.0).is_valid(), "a walking press at 0 reads back as a walk-off");
+        assert!(press_of(Kind::Sprint, 0.0).is_valid(), "a sprint press keeps its bit");
+        assert!(press_of(Kind::Slow(0), 0.0).is_valid());
+        assert!(press_of(Kind::Walk, 0.1).is_valid());
+    }
+
     use super::*;
     use crate::grid::gap::GridWay;
     use crate::grid::{Body, LinkKind, OffMeshLinks};
