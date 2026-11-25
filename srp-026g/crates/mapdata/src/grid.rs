@@ -1488,8 +1488,8 @@ pub struct WalkGrid {
     /// [`Self::pull_tight`]): derived, set after the grid is built or read. In neither the file nor the digest. None without it.
     pull_hold: Option<f32>,
     /// [A334] Whether a route's pulled legs are walked by the client's walker ([`Self::with_pull_walk`],
-    /// [`Self::pull_walk_fails`]): derived, set after the grid is built or read. In neither the file nor the digest.
-    /// The grid's own number for [`Self::pull_walk_fails`]'s cache (unique in the process), when it is set.
+    /// [`Self::pull_walk_verdict`]): derived, set after the grid is built or read. In neither the file nor the digest.
+    /// The grid's own number for [`Self::pull_walk_verdict`]'s cache (unique in the process), when it is set.
     pull_walk: Option<u64>,
 }
 
@@ -5111,13 +5111,23 @@ impl WalkGrid {
                 }
             }
             match next {
-                Some((v, ni, nk)) if allowed(v) || v == b => {
+                // [bot traps, ledge line-up] A riser (a Walk link a sprint or a jump climbs: [`Self::riser`], or rising
+                // [`Body::walked_step`] or more) or a marked walk ([`Self::walk_marked`]) is no walk: a line over it is not walked
+                // straight, so the pull and the look-ahead stop at its foot.
+                Some((v, ni, nk)) if (allowed(v) || v == b) && !self.climbed_not_walked(node as NodeId, v) => {
                     (node, i, k) = (v as usize, ni, nk);
                 }
                 _ => return false,
             }
         }
         node == b as usize
+    }
+
+    /// [bot traps, ledge line-up] Whether the Walk link `a` -> `b` is one no walk crosses: a riser ([`Self::riser`], or rising
+    /// [`Body::walked_step`] or more: a sprint or a jump climbs it) or a marked walk ([`Self::walk_marked`]: the client's tick
+    /// does not walk it).
+    pub fn climbed_not_walked(&self, a: NodeId, b: NodeId) -> bool {
+        self.height[b as usize] - self.height[a as usize] >= self.body.walked_step() || self.riser_of(a, b).is_some() || self.walk_marked(a, b)
     }
 
     /// [`Self::links`], each with the way back from the floor it reaches
@@ -7463,6 +7473,50 @@ pub(crate) mod tests {
         let mut ledge = floor(0.0, 0.0, 10.0, 10.0, 3.0).to_vec();
         ledge.extend(floor(10.0, 0.0, 24.0, 10.0, 0.0));
         assert_eq!(edge_drop(&ledge, 3.0), (true, true));
+    }
+
+    /// [bot traps, ledge line-up] A line over a 0.3 m step is walked straight; over the same Walk link marked
+    /// ([`WalkGrid::walk_marked`]) or in the risers' table ([`WalkGrid::riser`]) it is not: the pull and the look-ahead stop at
+    /// its foot.
+    #[test]
+    fn a_straight_line_stops_at_a_marked_walk_and_at_a_riser() {
+        let mut tris = floor(0.0, 0.0, 5.0, 10.0, 0.0).to_vec();
+        tris.extend(floor(5.0, 0.0, 10.0, 10.0, 0.3));
+        tris.extend(wall_x(5.0, 0.0, 10.0, 0.3));
+        let build = || WalkGrid::build(&tris, AREA, 0.25, Body::client());
+        let grid = build();
+        let at = |p: Vec3| grid.locate(p, 0.05).unwrap();
+        let (from, to) = (at(Vec3::new(3.875, 0.0, 5.125)), at(Vec3::new(6.125, 0.3, 5.125)));
+        let (low, top) = (at(Vec3::new(4.875, 0.0, 5.125)), at(Vec3::new(5.125, 0.3, 5.125)));
+        assert!(grid.walks_straight(from, to, 10.0, |_| true));
+        assert!(!grid.climbed_not_walked(low, top));
+        let mut marked = build();
+        marked.walk_marked = vec![(low, top)];
+        assert!(marked.climbed_not_walked(low, top));
+        assert!(!marked.walks_straight(from, to, 10.0, |_| true));
+        let mut riser = build();
+        riser.riser = vec![(low, top, Riser::NoPress)];
+        assert!(!riser.walks_straight(from, to, 10.0, |_| true));
+    }
+
+    /// [A334] A pulled leg past this thread's walk budget is [`PullWalk::Unknown`], not walked; with budget it is walked and the
+    /// answer kept, so a later look-up past the budget has it.
+    #[test]
+    fn a_pulled_leg_past_the_walk_budget_is_unknown() {
+        use super::controlled::{set_pull_walk_budget, PullWalk};
+        let mut tris = floor(0.0, 0.0, 5.0, 10.0, 0.0).to_vec();
+        tris.extend(floor(5.0, 0.0, 10.0, 10.0, 0.3));
+        tris.extend(wall_x(5.0, 0.0, 10.0, 0.3));
+        let grid = WalkGrid::build(&tris, AREA, 0.25, Body::client()).with_client_walker(&tris).with_pull_walk();
+        let at = |p: Vec3| grid.locate(p, 0.05).unwrap();
+        let (from, to) = (at(Vec3::new(3.875, 0.0, 5.125)), at(Vec3::new(6.125, 0.3, 5.125)));
+        set_pull_walk_budget(0);
+        assert_eq!(grid.pull_walk_verdict(from, to), PullWalk::Unknown);
+        set_pull_walk_budget(1_000);
+        let known = grid.pull_walk_verdict(from, to);
+        assert_ne!(known, PullWalk::Unknown);
+        set_pull_walk_budget(0);
+        assert_eq!(grid.pull_walk_verdict(from, to), known);
     }
 
     /// [A364 C2 rows 1, 38] With the clients' numbers a vertical riser up to the step (0.80) is a Walk link both ways (a
