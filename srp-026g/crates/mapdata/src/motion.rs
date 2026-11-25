@@ -35,6 +35,10 @@
 //! - the aim change's two nested rate ramps (they need the weapon's aim time);
 //! - side and back jumps (their clips are not ported: [`Unported`]).
 
+pub mod flights;
+pub mod place;
+pub mod rest;
+
 use crate::controller::Collision;
 use crate::controller::jump::{self, Flight, FlightStep, Flying, Leg, Press};
 use crate::controller::speed;

@@ -55,7 +55,7 @@ impl WalkGrid {
             }
             let (a, b) = (self.position(l.from), self.position(l.to));
             let n = Neighbour { lead: 0.0, side: l.aim.side_m(), turn: l.aim.turn_rad(), dy: 0.0, fastest: false };
-            let flights = jump::neighbour_flights_for(world, s, a, l.press_way(a, b), kind, lead.metres(), n, kits, self.fall_ground());
+            let flights = crate::motion::flights::press_flights(world, s, a, l.press_way(a, b), kind, lead.metres(), n, kits, self.fall_ground());
             // A press whose run-up does not fit here is not judged (43 in the census): it stays.
             Some(flights.is_none_or(|flights| {
                 flights.iter().any(|steps| {
