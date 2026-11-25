@@ -541,7 +541,7 @@ impl JumpArc {
         let body = grid.body();
         let (radius, height) = (body.radius, body.stand_height);
         if let Phase::Fall { speed } = self.phase {
-            // The client's fall, one rule with the reckoning's ([`DropFall::Client`](super::kin::DropFall::Client)).
+            // The client's fall, one rule with the reckoning's (`body::client_fall_tick`).
             let (speed, drop) = client_fall_tick(speed);
             let y = feet.y - drop;
             if let Some((top, node)) = perch_over(grid, walls, Vec3::new(feet.x, y, feet.z), feet.y, radius) {

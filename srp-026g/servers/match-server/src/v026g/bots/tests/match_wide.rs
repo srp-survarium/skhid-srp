@@ -162,7 +162,7 @@ fn the_defaults_and_all_off_differ_in_these_match_wide_keys() {
 }
 
 /// The match-wide keys all_off.json sets apart from the defaults (pinned by the test above).
-const ALL_OFF_MATCH_WIDE: [&str; 24] = [
+const ALL_OFF_MATCH_WIDE: [&str; 22] = [
     "grid.client_controller",
     "grid.crouch_floors",
     "grid.drop_room_walk_faces",
@@ -174,8 +174,6 @@ const ALL_OFF_MATCH_WIDE: [&str; 24] = [
     "grid.landing_carry",
     "grid.ramp_faces",
     "grid.walk_off_lips",
-    "kin.edge",
-    "kin.margin_edge",
     "kin.slope_speed",
     "kin.walk_bridges",
     "hazard.artefact_know",

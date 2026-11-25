@@ -5120,34 +5120,26 @@ mod tests {
         assert_eq!(lip_guard(&grid, &walks_off, &away, 0.0, key::FORWARD, &[], HOLD), LipGuard::Safe);
     }
 
-    /// A sprint at a rim is stopped before it, never doomed. With the stop forecast's margin at the lattice's edge it is slowed to a
-    /// walk or a creep first, and the walk goes on where a slower one stops short. With the margin at the body's edge (the default
-    /// since A93), which falls later, the sprint is safe further on and then braked: 5 m/s on the slab is safe to 54.5 m and braked
-    /// from 55.3 m (the rim at 56), with no walk that stays up in between.
+    /// A sprint at a rim is stopped before it, never doomed: with the stop forecast's margin at the body's edge (A93), which falls
+    /// late, the sprint is safe further on and then braked: 5 m/s on the slab is safe to 54.5 m and braked from 55.3 m (the rim at
+    /// 56), with no walk that stays up in between.
     #[test]
     fn a_sprint_at_a_rim_is_stopped_before_it() {
         let world = slab();
         let toward = -std::f32::consts::FRAC_PI_2;
         let keys = key::FORWARD | key::SPRINT;
-        for margin_edge in [kin::MarginEdge::Body, kin::MarginEdge::Lattice] {
-            let kin = kin::Kinematics { margin_edge, ..kin::Kinematics::default() };
-            let mut slowed = 0;
-            let mut seen = Vec::new();
-            for x in [53.5f32, 54.0, 54.5, 55.0, 55.3, 55.5, 55.7] {
-                let me = on_the_slab(x, toward, 5.0);
-                let guard = lip_guard(&world.grid, &kin, &me, 0.0, keys, &[], HOLD);
-                seen.push((x, guard));
-                if let LipGuard::Swapped(k) = guard {
-                    assert_eq!(k & key::SPRINT, 0, "{margin_edge:?} {x}: {k:#x}");
-                    slowed += u32::from(k & key::FORWARD != 0);
-                }
-            }
-            assert!(!seen.iter().any(|&(_, guard)| guard == LipGuard::Doomed), "{margin_edge:?}: {seen:?}");
-            assert!(seen.iter().any(|&(_, guard)| matches!(guard, LipGuard::Braked(_) | LipGuard::Swapped(_))), "{margin_edge:?}: {seen:?}");
-            if margin_edge == kin::MarginEdge::Lattice {
-                assert!(slowed > 0, "{margin_edge:?}: {seen:?}");
+        let kin = kin::Kinematics::default();
+        let mut seen = Vec::new();
+        for x in [53.5f32, 54.0, 54.5, 55.0, 55.3, 55.5, 55.7] {
+            let me = on_the_slab(x, toward, 5.0);
+            let guard = lip_guard(&world.grid, &kin, &me, 0.0, keys, &[], HOLD);
+            seen.push((x, guard));
+            if let LipGuard::Swapped(k) = guard {
+                assert_eq!(k & key::SPRINT, 0, "{x}: {k:#x}");
             }
         }
+        assert!(!seen.iter().any(|&(_, guard)| guard == LipGuard::Doomed), "{seen:?}");
+        assert!(seen.iter().any(|&(_, guard)| matches!(guard, LipGuard::Braked(_) | LipGuard::Swapped(_))), "{seen:?}");
     }
 
     /// [`Feel::lip_guard_full`], the key-less tick: a body at a rim that has let go of its keys glides on over it, and only the
@@ -5187,34 +5179,27 @@ mod tests {
         assert_eq!((wider > 0, narrower), (true, 0), "wider {wider} narrower {narrower}");
     }
 
-    /// [`kin::MarginEdge`]: a walk along the rim on the slab's last floor (its centre 0.125 m inside the rim) stays up, the body held
-    /// by the client's edge. With the margin at the lattice's edge the full guard's sides hold it (the side 0.3 m out is past the
-    /// cell's boundary, where its margin falls at once), and the plain guard holds a body reckoned past the boundary for its own
-    /// margin. With the margin at the body's edge both walk on (the full guard still holds a body whose side is past the support),
-    /// and a walk toward the rim is stopped as before.
+    /// The stop forecast's margin at the body's edge: a walk along the rim on the slab's last floor (its centre 0.125 m inside the
+    /// rim) stays up, the body held by the client's edge, with the full guard and the plain one (the full guard still holds a body
+    /// whose side is past the support), and a walk toward the rim is stopped.
     #[test]
-    fn a_walk_along_a_rim_is_held_only_with_the_margin_at_the_lattices_edge() {
+    fn a_walk_along_a_rim_is_not_held_with_the_margin_at_the_bodys_edge() {
         let world = slab();
         let grid = &world.grid;
         let body = kin::Kinematics::default();
-        let lattice = kin::Kinematics { margin_edge: kin::MarginEdge::Lattice, ..body.clone() };
-        assert_eq!((body.edge, body.margin_edge), (kin::Edge::Controller, kin::MarginEdge::Body), "the defaults (A93, A388 step 2)");
+        assert_eq!(body.edge, kin::Edge::Controller, "the default (A388 step 2)");
         let held = |guard: LipGuard| matches!(guard, LipGuard::Swapped(_) | LipGuard::Braked(_) | LipGuard::Doomed);
         let walk = |kin: &kin::Kinematics, x: f32, yaw: f32, full: bool| lip_guard_with(grid, kin, &on_the_slab(x, yaw, 3.5), 0.0, key::FORWARD, &[], HOLD, full, None, body::RECKONING_M);
-        // Along the rim on its last floor: the sides.
-        assert!(held(walk(&lattice, 55.875, 0.0, true)), "held for a side");
-        assert_eq!(walk(&lattice, 55.875, 0.0, false), LipGuard::Safe, "the plain guard has no sides");
+        // Along the rim on its last floor.
         assert_eq!(walk(&body, 55.875, 0.0, true), LipGuard::Safe);
-        // Reckoned 0.1 m past the boundary (within the support): its own margin.
-        assert!(held(walk(&lattice, 56.1, 0.0, false)), "held for its own margin");
+        // Reckoned 0.1 m past the boundary (within the support).
         assert_eq!(walk(&body, 56.1, 0.0, false), LipGuard::Safe);
         // There a reckoning's error further out is past the support (0.225 + 0.3 > `SUPPORT_M`): the full guard holds it still.
         assert!(held(walk(&body, 56.1, 0.0, true)));
-        // Toward the rim: stopped either way.
+        // Toward the rim: stopped.
         let toward = -std::f32::consts::FRAC_PI_2;
         for full in [false, true] {
             assert!(held(walk(&body, 55.4, toward, full)), "{full}");
-            assert!(held(walk(&lattice, 55.4, toward, full)), "{full}");
         }
     }
 
