@@ -513,6 +513,8 @@ pub struct Bot {
     fight_hit_ms: Option<u32>,
     /// The last jump, until what followed it is traced.
     jump_watch: Option<JumpWatch>,
+    /// [jump start] The bot's reckoned feet at its last ticks (time, feet), newest first: a route press's start speed for the log.
+    reckoned_recent: [Option<(u32, Vec3)>; 3],
     /// [S7] The crouched climb under way, for its log line ([`drive::crouch_climb_watch`]): (take-off, top, crouched at).
     crouch_climb: Option<(Vec3, Vec3, u32)>,
     /// [F42] A creep under way (both legs broken, the crouch key with move keys): where and when it began
@@ -770,6 +772,7 @@ impl Bot {
             hit_kind: hit_kind::HitKind::default(),
             fight_hit_ms: None,
             jump_watch: None,
+            reckoned_recent: [None; 3],
             crouch_climb: None,
             creep: None,
             reckoned_kept: None,

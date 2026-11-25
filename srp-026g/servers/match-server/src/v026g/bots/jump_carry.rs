@@ -14,13 +14,13 @@
 //!
 //! So the carry is keyed on the press (the keys the bot sent), not on any reckoned place, and is applied to the tick's final keys
 //! (`drive_tick`): from the press to the clip's end the keys are forward (and the sprint as pressed), no back, side or crouch key
-//! and no other jump; the view stays within [`super::motor::JUMP_FACING`] of the jump's way (the reflex may aim inside that
-//! cone, the trigger and the aim keys stay theirs). One state, one transition ([`JumpCarry::next`]).
+//! and no other jump; the view stays on the jump's way, the way it was pressed along ([jump start]: a decision that fires, the
+//! reflex's, may aim within [`super::motor::JUMP_FACING`] of it; the trigger and the aim keys stay theirs). One state, one transition ([`JumpCarry::next`]).
 
 use super::encode::Decision;
 use super::jump_arc::Clip;
 use super::kin::{TICK_S, wrap, yaw_of};
-use super::motor::JUMP_FACING;
+use super::motor::{JUMP_FACING, RoutePress};
 use crate::v026g::drive::key;
 
 /// The keys a carry takes off the tick's keys: every way but forward, the crouch, the sprint (put back as it was at the press).
@@ -51,13 +51,23 @@ pub struct Carried {
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Press {
     pub time: u32,
-    /// Take-off to landing, map (x, z).
+    /// The way the jump was pressed along, map (x, z) ([`Press::of_route`]).
     pub way: [f32; 2],
     /// The keys and the ground speed at the press (they pick the clip, [`Clip::of`]).
     pub keys: u32,
     pub speed: f32,
     /// Ticks the jump key is held after this one before the weapon lets the jump go (`Bot::jump_hold`).
     pub held_ticks: u32,
+}
+
+impl Press {
+    /// [jump start] The route press `route` that went out at `time` with `keys`, the ground speed `speed` and `held_ticks`: its way is
+    /// the one the press was flown along ([`RoutePress::way`]), not the take-off-to-landing line. For a press aimed off the link's
+    /// line, or along a grid way off that line, they differ (level_06 TDM's (56.35, 28.13, 101.38) -> (53.85, 29.07, 97.88): flown
+    /// along (0, -1) turned -0.2 rad, its landing 35 deg off; the carry's cone turned the view 0.22 rad off the flight at the press).
+    pub fn of_route(time: u32, route: &RoutePress, keys: u32, speed: f32, held_ticks: u32) -> Self {
+        Self { time, way: route.way, keys, speed, held_ticks }
+    }
 }
 
 /// The jump's length from the press to the end of its air phase, ms: its last air step ([`Clip::air_end_ms`]: the take-off frame at
@@ -108,11 +118,35 @@ impl JumpCarry {
         }
         let jump = if time <= carried.press_until { decision.keys & key::JUMP } else { 0 };
         let keys = (decision.keys & !(TAKEN | key::JUMP)) | carried.keys | jump;
-        // The view after the turn, kept within the facing cone of the way.
-        let off = wrap(yaw + decision.turn.0 - carried.way).clamp(-JUMP_FACING, JUMP_FACING);
+        // The view after the turn, kept on the way, or within the facing cone of it for a decision that fires ([`aim_cone`]).
+        let off = Self::off(carried, yaw, decision);
         let turn = wrap(carried.way + off - yaw);
         Decision { keys, turn: (turn, decision.turn.1) }
     }
+
+    /// [jump start] How far a decision that fires (the reflex's aim) turns the carried view off the way at `time`, within the cone
+    /// ([`aim_cone`]): Some for a turn off it (the log's line), None for a view held on it or no carry.
+    pub fn fired_off(&self, time: u32, yaw: f32, decision: Decision) -> Option<f32> {
+        let Self::Carried(carried) = *self else {
+            return None;
+        };
+        let off = Self::off(carried, yaw, decision);
+        (time < carried.until && decision.keys & key::FIRE != 0 && off.abs() > 1e-3).then_some(off)
+    }
+
+    /// The carried view's offset from the way after the decision's turn, clamped to the decision's cone.
+    fn off(carried: Carried, yaw: f32, decision: Decision) -> f32 {
+        let cone = aim_cone(decision);
+        wrap(yaw + decision.turn.0 - carried.way).clamp(-cone, cone)
+    }
+}
+
+/// [jump start] How far off the carried way a decision may turn the view: the facing cone ([`JUMP_FACING`]) for one that fires (the
+/// reflex aims inside it), none for any other. The client's air control follows the view (`get_air_control_vector` 0x2D7990), and
+/// the grid flew the press with the heading held through the air: level_06 TDM's (56.35, 28.13, 101.38) -> (53.85, 29.07, 97.88),
+/// its view turned 0.2 rad toward the route's next point in the air, came down 0.4 m aside, off the top's edge; held, it lands.
+pub fn aim_cone(decision: Decision) -> f32 {
+    if decision.keys & key::FIRE != 0 { JUMP_FACING } else { 0.0 }
 }
 
 #[cfg(test)]
@@ -142,8 +176,8 @@ mod tests {
         let held = carry.hold(1_300, way, broken);
         assert_eq!(held.keys, key::FORWARD | key::FIRE | key::AIM);
         assert!((held.turn.0 - JUMP_FACING).abs() < 1e-5 && held.turn.1 == 0.1, "{:?}", held.turn);
-        let small = carry.hold(1_300, way, Decision { keys: key::FORWARD, turn: (-0.05, 0.0) });
-        assert!((small.turn.0 + 0.05).abs() < 1e-5, "a turn inside the cone stays: {:?}", small.turn);
+        let small = carry.hold(1_300, way, Decision { keys: key::FORWARD | key::FIRE, turn: (-0.05, 0.0) });
+        assert!((small.turn.0 + 0.05).abs() < 1e-5, "a firing turn inside the cone stays: {:?}", small.turn);
         assert_eq!(carry.next(1_850, None), JumpCarry::Free);
         assert_eq!(carry.hold(1_850, way, broken), broken, "after the clip the keys are the walk's");
     }
@@ -168,5 +202,56 @@ mod tests {
         let d = Decision { keys: key::SPRINT | key::RIGHT, turn: (0.0, 0.0) };
         assert_eq!(sprint.hold(100, 0.0, d).keys, key::FORWARD | key::SPRINT);
         assert_eq!(walk.hold(100, 0.0, d).keys, key::FORWARD);
+    }
+
+    /// [jump start] A route press's carry holds the view on the way the press was flown along, not the take-off-to-landing line: the
+    /// level_06 TDM press flown along (0, -1) turned -0.2 rad to a landing 35 deg off keeps its view at the press; held to the
+    /// landing's line, the cone turned it off the flight.
+    #[test]
+    fn a_route_press_is_carried_along_the_way_it_was_flown() {
+        use super::super::motor::{PressState, RoutePress};
+        let (sin, cos) = (-0.2f32).sin_cos();
+        let flown = [sin, -cos];
+        let route = RoutePress {
+            take_off: mapdata::Vec3::new(56.35, 28.13, 101.38),
+            landing: mapdata::Vec3::new(53.85, 29.07, 97.88),
+            tries: 1,
+            before: 0.1,
+            facing: 0.0,
+            sprint_gate: None,
+            aim: super::super::path::PressAim::new(3, -4).expect("an aim"),
+            way: flown,
+            state: PressState { lead_m: 0.1, flown_lead_m: Some(0.1), side_m: 0.0, turn_rad: 0.0, above_m: 0.0, along_ms: 4.8, window: None },
+        };
+        let keys = key::FORWARD | key::SPRINT | key::JUMP;
+        let p = Press::of_route(1_000, &route, keys, 4.8, 0);
+        assert_eq!(p.way, flown, "the flown way, not the landing's line");
+        let carry = JumpCarry::Free.next(1_000, Some(p));
+        let view = yaw_of(flown);
+        let held = carry.hold(1_000, view, Decision { keys, turn: (0.0, 0.0) });
+        assert!(held.turn.0.abs() < 1e-5, "the view pressed along the flight stays: {:?}", held.turn);
+        let landing_line = Press { way: [route.landing.x - route.take_off.x, route.landing.z - route.take_off.z], ..p };
+        let old = JumpCarry::Free.next(1_000, Some(landing_line)).hold(1_000, view, Decision { keys, turn: (0.0, 0.0) });
+        assert!(old.turn.0.abs() > 0.15, "held to the landing's line the view turns off the flight: {:?}", old.turn);
+    }
+
+    /// [jump start] In the air the carried view stays on the flown way: a turn of a decision that does not fire (the motor steering at
+    /// the route's next point) is held to none, and one that fires (the reflex's aim) turns within the facing cone, which
+    /// [`JumpCarry::fired_off`] reports for the log.
+    #[test]
+    fn the_carried_view_holds_the_way_unless_the_decision_fires() {
+        let carry = JumpCarry::Free.next(1_000, Some(press(key::FORWARD | key::SPRINT | key::JUMP, 4.9)));
+        let way = yaw_of([1.0, 0.0]);
+        let steer = Decision { keys: key::FORWARD, turn: (0.15, 0.0) };
+        let held = carry.hold(1_300, way, steer);
+        assert!(held.turn.0.abs() < 1e-6, "a steering turn is held on the way: {:?}", held.turn);
+        assert_eq!(carry.fired_off(1_300, way, steer), None);
+        let fire = Decision { keys: key::FORWARD | key::FIRE, turn: (0.15, 0.0) };
+        let aimed = carry.hold(1_300, way, fire);
+        assert!((aimed.turn.0 - 0.15).abs() < 1e-5, "a firing turn inside the cone stays: {:?}", aimed.turn);
+        assert!(carry.fired_off(1_300, way, fire).is_some_and(|off| (off - 0.15).abs() < 1e-5));
+        let wide = carry.hold(1_300, way, Decision { keys: key::FORWARD | key::FIRE, turn: (0.5, 0.0) });
+        assert!((wide.turn.0 - JUMP_FACING).abs() < 1e-5, "and within the cone only: {:?}", wide.turn);
+        assert_eq!(carry.fired_off(5_000, way, fire), None, "after the clip, no carry");
     }
 }

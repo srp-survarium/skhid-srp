@@ -448,14 +448,22 @@ pub(super) fn drive_tick(
             .jump_watch
             .filter(|watch| watch.at == time && watch.by == "route")
             .and_then(|watch| watch.route)
-            .map(|route| jump_carry::Press {
-                time,
-                way: [route.landing.x - route.take_off.x, route.landing.z - route.take_off.z],
-                keys: decision.keys,
-                speed: me.speed(),
-                held_ticks: bot.jump_hold,
-            });
+            .map(|route| jump_carry::Press::of_route(time, &route, decision.keys, me.speed(), bot.jump_hold));
         bot.carry = bot.carry.next(time, press);
+        // [jump start] The reflex's aim turning the carried view off the flown way in the air (decision-neutral): once a press.
+        if let Some(off) = bot.carry.fired_off(time, me.yaw, decision)
+            && let Some(watch) = bot.jump_watch.filter(|watch| watch.by == "route")
+        {
+            let line = format!(
+                "{}jump carry: the reflex's aim turns the view {off:+.2} rad off the flown way in the air at ({:.2}, {:.2}, {:.2}), {} ms after the press",
+                super::nav_log::PREFIX,
+                me.feet.x,
+                me.feet.y,
+                me.feet.z,
+                time.saturating_sub(watch.at)
+            );
+            bot.nav_log.push_once(super::nav_log::Kind::Jump, super::nav_log::key(("carry fired", watch.at)), time, line);
+        }
         decision = bot.carry.hold(time, me.yaw, decision);
     } else {
         bot.carry = jump_carry::JumpCarry::Free;
@@ -2851,6 +2859,9 @@ pub(super) struct JumpWatch {
     /// [body physics] The first tick the bot's own reckoned body stood up the route jump on the ground ([`Bot::jump_reckoned`]).
     pub(super) up_reckoned: Option<u32>,
     pub(super) landed: Option<(u32, Landed)>,
+    /// [jump start] The reckoned move of the step ending a tick before the press (m/s; player+334h when the jump state starts), once
+    /// the bot's reckoned feet at the two ticks before the press are known ([`Bot::jump_reckoned`]): the log's line says it.
+    pub(super) start: Option<f32>,
 }
 
 /// [fix-lip] How a world showed a route jump down's feet on its landing.
@@ -2890,6 +2901,11 @@ impl Bot {
                 }
                 _ => line,
             };
+            // [jump start] The speed the jump's kind was read from: the reckoned step ending a tick before the press.
+            let line = match watch.start {
+                Some(v) => format!("{line}; jump start {v:.2} m/s (the reckoned step ending at {})", watch.at.saturating_sub(survarium::v026g::match_msgs::TICK_MS)),
+                None => line,
+            };
             // [fix-lip] A jump down seen only on its landing's floor says so.
             let line = match watch.landed {
                 Some((_, Landed::Floor { off_m })) => format!("{line}; seen on the landing's floor {off_m:.1} m from it"),
@@ -2916,6 +2932,19 @@ impl Bot {
     /// [body physics] The bot's own reckoned body at `feet` at `time`, on the ground or not: up the route jump watched, if it stands
     /// up it on the ground ([`motor::is_up`]). The log's word only.
     pub(super) fn jump_reckoned(&mut self, time: u32, feet: Vec3, on_ground: bool) {
+        // [jump start] The reckoned feet of the last ticks, for the press's start speed (decision-neutral).
+        self.reckoned_recent.rotate_right(1);
+        self.reckoned_recent[0] = Some((time, feet));
+        if let Some(watch) = self.jump_watch.as_mut()
+            && watch.route.is_some()
+            && watch.start.is_none()
+        {
+            let at = |t: u32| self.reckoned_recent.iter().flatten().find(|r| r.0 == t).map(|r| r.1);
+            let (one, two) = (watch.at.saturating_sub(survarium::v026g::match_msgs::TICK_MS), watch.at.saturating_sub(2 * survarium::v026g::match_msgs::TICK_MS));
+            if let (Some(a), Some(b)) = (at(one), at(two)) {
+                watch.start = Some(a.distance_xz(b) / super::kin::TICK_S);
+            }
+        }
         if let Some(watch) = self.jump_watch.as_mut()
             && let Some(route) = watch.route
             && time > watch.at
@@ -3102,6 +3131,7 @@ pub(super) fn jumping(bot: &mut Bot, keys: u32, by: Option<&'static str>, feet: 
             up: None,
             up_reckoned: None,
             landed: None,
+            start: None,
         });
     }
     if bot.jump_hold == 0 {
