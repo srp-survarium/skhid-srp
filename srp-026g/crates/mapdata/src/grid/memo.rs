@@ -236,6 +236,7 @@ impl MemoInput for super::Body {
             jump_air_steps,
             share0_drop,
             rim_walk_on,
+            walk_gait,
         } = *self;
         digest.str(b"step");
         step.feed(digest);
@@ -331,6 +332,8 @@ impl MemoInput for super::Body {
         share0_drop.feed(digest);
         digest.str(b"rim_walk_on");
         rim_walk_on.feed(digest);
+        digest.str(b"walk_gait");
+        walk_gait.feed(digest);
     }
 }
 

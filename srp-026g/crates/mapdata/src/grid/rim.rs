@@ -1105,6 +1105,17 @@ impl WalkGrid {
         (before.on_ground && last.on_ground && !steps.iter().any(|f| f.in_jump)).then(|| self.floor_under(last.feet)).flatten()
     }
 
+    /// [bot traps, ledge line-up] The press up the low riser `a` -> `b` (way `d`) that [`Self::fly_risers`] would fly for a riser
+    /// ([`Self::best_press`] over the gap leads, landing on the top: [`Self::riser_lands_on`]), for [`super::walk_gait`]; None when no
+    /// press lands.
+    pub(super) fn walk_gait_press(&self, world: &Collision, s: &Settings, a: NodeId, b: NodeId, d: usize) -> Option<Riser> {
+        let (di, dk) = DIRS[d];
+        let l = ((di * di + dk * dk) as f32).sqrt();
+        let kits = Kits { body: jump::WALK_CAP_MS, fastest: self.body.fastest_walk_cap };
+        let p = self.best_press(world, s, a, b, (di as f32 / l, dk as f32 / l), &gap_leads(), |st| self.riser_lands_on(st, b), kits, self.fall_ground());
+        p.made.first().map(|m| Riser::Pressed { press: m.press, share: m.share })
+    }
+
     /// [A385 rule (d)] The risers' presses ([`Riser`]): every Walk link rising [`super::Body::walked_step`] or more, flown over the rim jumps' presses ([`Self::best_press`], landing on the
     /// riser's top, [`Self::riser_lands_on`]) into `wide.riser`, sorted; `stats` counts them.
     pub(super) fn fly_risers(&self, wide: &mut Wide, world: &Collision, s: &Settings, stats: &mut RimStats) {
