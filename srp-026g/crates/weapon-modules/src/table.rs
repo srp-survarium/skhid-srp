@@ -9,7 +9,7 @@
 //! guns       84  dict u16, bones u16, aim bone u16, fits-of gun u16,
 //!                spans: slots, poses, stock, carriers, fits,
 //!                text: the bare body's model,
-//!                the gun's own eye (0.69d's `body_aim`): bone u16,
+//!                the composed model's eye (fallback without a BodyAim slot): bone u16,
 //!                offset 12 x f32
 //! gun slots  51  slot u8, bone u16, offset 12 x f32
 //! poses      50  bone u16, the bone's matrix in the gun's aimed idle pose
@@ -557,11 +557,10 @@ impl<'t> Gun<'t> {
         self.aim_bone
     }
 
-    /// The gun's own eye, where its body has it with nothing on it (0.69d's
-    /// `body_aim` slot): the plane an open sight's eye stays in
-    /// ([`crate::AttachEye::InGunPlane`]).
+    /// Retail's resolved body_aim slot, expressed on the shipped rig. A table
+    /// without that slot supplies the version 3 gun header's native eye.
     pub fn body_aim(&self) -> Placement {
-        self.body_aim
+        self.slot(SlotId::BodyAim).unwrap_or(self.body_aim)
     }
 
     /// Its own slots, each where its locator is.

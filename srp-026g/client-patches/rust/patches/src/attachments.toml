@@ -65,3 +65,28 @@ handler = "on_shells"
 [[hook]]
 site = "attachments.release"
 handler = "on_release"
+
+[[hook]]
+site = "game.tick"
+handler = "on_view_frame"
+order = 7
+
+[[hook]]
+site = "weapon_view.camera"
+handler = "on_view_camera"
+
+[[hook]]
+site = "weapon_view.submit"
+handler = "on_view_submit"
+
+[[hook]]
+site = "weapon_view.begin"
+handler = "on_view_begin"
+
+[[hook]]
+site = "weapon_view.end"
+handler = "on_view_end"
+
+[[hook]]
+site = "weapon_view.foreground"
+handler = "on_foreground"

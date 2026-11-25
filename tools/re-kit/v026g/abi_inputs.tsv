@@ -6778,3 +6778,9 @@ va	name	location	role	basis
 0x003b9680	vostok::input::platform::mouse::execute	EAX at 0x3B9704	GetDeviceState's failed HRESULT, neither DIERR_NOTACQUIRED nor DIERR_INPUTLOST (the poll's read or the one after an Acquire); patch 202's site mouse.read_failed	observed
 0x003b9800	vostok::input::platform::mouse::set_exclusive [descriptive]	ECX	the platform mouse	observed
 0x003b9800	vostok::input::platform::mouse::set_exclusive [descriptive]	entry ESP+4	exclusive (a byte), kept at +34h: not 0, the device's level DISCL_EXCLUSIVE | DISCL_FOREGROUND (5), 0 DISCL_NONEXCLUSIVE | DISCL_FOREGROUND (6) (0x3B9833..0x3B983A); the window +24h	observed
+0x00020310	vostok::render::functor_with_big_buffer_to_copy_command<draw_scene_params>::ctor	EDI	freshly allocated command, 0xB8 bytes at 0x1F8A9	observed
+0x00020310	vostok::render::functor_with_big_buffer_to_copy_command<draw_scene_params>::ctor	ECX	allocator of the command (base_command +4)	observed
+0x00020310	vostok::render::functor_with_big_buffer_to_copy_command<draw_scene_params>::ctor	stack+4	on_execute bound to draw_scene_impl	observed
+0x00020310	vostok::render::functor_with_big_buffer_to_copy_command<draw_scene_params>::ctor	stack+8	draw_scene_params to copy at +98h	observed
+0x00020310	vostok::render::functor_with_big_buffer_to_copy_command<draw_scene_params>::ctor	stack+0xC	on_defer_execution	observed
+0x00028460	vostok::render::functor_with_big_buffer_to_copy_command<draw_scene_params>::execute	ECX	command, vtable 0x9DC800 slot zero. Passes its inline payload +98h to its +58h functor.	observed

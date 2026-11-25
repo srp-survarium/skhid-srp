@@ -23,7 +23,7 @@ pub struct GunSource {
     pub fits_of: Option<usize>,
     /// Its bare body's model.
     pub bare: String,
-    /// Its own eye (0.69d's `body_aim`): its locator's bone and offset.
+    /// The composed model's native eye. The resolved BodyAim slot takes precedence when present.
     pub body_aim: (u16, Affine),
     /// Its slots: the slot, its locator's bone and offset.
     pub slots: Vec<(SlotId, u16, Affine)>,

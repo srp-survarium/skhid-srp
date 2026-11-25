@@ -223,6 +223,80 @@ Not in the table yet: the crate's change (a flag on an attach's eye, table versi
   module wins when two override one slot.
 
 
+## Why the EOTech looks small on the A-545 (2026-11-25)
+
+Two differences add up. The first is the distance from the camera to the optic.
+The 0.69d0 A-545 and the shipped remodel both put the long rail at local z = −0.25013 m
+on the offset bone. Both EOTechs use that rail directly. The porter's version 3 gun record
+takes its `body_aim` from the **live** model's `aim` locator. Its z on the root bone is
++0.3140 m. Retail takes it from its own model's `aim` at +0.1771 m. The plane intersection
+therefore puts our eye 13.7 cm farther behind either sight. The porter's `eye line` check
+projects the reference onto the closest point to our eye on that line. Moving the eye along
+the line can pass both this check and the reticle centring check.
+
+| A-545, camera to reticle | Retail 0.69d0 | Shipped 0.26g remodel |
+|---|---:|---:|
+| EOTech 552 | 39.46 cm | 53.16 cm |
+| EOTech XPS2 | 42.85 cm | 56.55 cm |
+
+Measured in bind pose from each model's `render/export_properties` and `render/bind_pose`.
+Use the optic's `aim` on the rail as the reticle position and intersect its sight line with
+the corresponding gun's eye plane. On the shipped side these distances also agree with
+`weapon-modules@3`'s aimed-idle `centres[].ahead` within 0.1 mm. Of 33 gun records with
+a directly mounted 552 and both slots on the gun, the A-545 alone puts the bind-pose eye
+more than 5 cm farther back than retail. Seventeen put it more than 5 cm closer, including
+the M4A1 (20.78 cm in retail, 7.99 cm here). A single per-optic offset cannot restore both.
+
+The second difference is the first-person projection. The 0.69d0 first-person camera controller
+builds two perspective matrices. The world follows the view setting and the current sight zoom
+(both EOTechs have `aim_zoom_factor = 1.2`). The weapon uses a fixed 65° vertical field of view
+multiplied by the interpolation from `weapon_fov_factor` to `aimed_weapon_fov_factor` over the aim.
+The A-545 goes from 1 to 0.5, giving **32.5°** at full aim regardless of the world FOV setting.
+The same aimed factor occurs on 84 of the 103 gun item rows in `scripts/remodel-069/items.tsv`.
+Examples of other factors are 0.35 on the SKS, 0.4 on the Remington 870 and 0.65 on the Jackhammer.
+
+In revision 73 both shipped shop EOTechs have `data/fov_factor = 0.8` (their files in
+`resources.db.patch_69`). At the default `uro_fov = 65`, the aimed world FOV is **52°**.
+The 0.26g foreground pass (0x13E010, identical in the stock and revision 73 executables)
+copies that projection and changes its depth terms. The weapon and reticle therefore also use
+52°. At equal viewport height and reticle size, projected width varies as
+`1 / (distance × tan(vertical FOV / 2))`. The two measured differences predict a retail
+ring about **2.25× as wide for the 552** and **2.21× for the XPS2** on the A-545. These are
+geometry estimates at default settings, without a matched retail gameplay capture.
+
+The shipped v3 table already has both locators. Its gun header holds the composed mesh’s
+native eye and its ordinary slots hold the donor’s resolved `BodyAim` on the shipped rig.
+Patch 161 now uses that slot for every `InGunPlane` eye. Older tables without the slot use
+the header. Comparing both resolvers on the shipped table gives 770 changed eyes among
+835 open-sight fits. All 413 `Own` fits retain their eye placement. The corrected
+aimed-idle distances for the A-545 are 39.459 cm and 42.852 cm, and for the M4A1
+20.781 cm and 24.185 cm (552, then XPS2).
+
+The shared `srp_weapon_views` dictionary holds both factors for every gun id. This
+keeps the weapon config entry count within its existing bound, including the premium
+Remington 700 already at 565 entries. Check every source pair with
+`scripts/weapon-modules/view_profiles.py --retail-leaves <game.leaves>`.
+The client copies the profiles when the items dictionary loads. In first person the
+camera samples the weapon’s aim progress. The matching scene draw command carries
+its own lens to the render thread. Each foreground pass replaces the two scale
+terms of its private projection matrix, retaining aspect, jitter and depth. Other
+scene views and guns without a profile use their original projection. The attachments
+Unicorn check runs two queued frames through the patched executable, including
+a different view, a missing profile and the restoration after the draw.
+
+Measured in local matches with the EOTech 552, at 1280×720 and `uro_fov 65`.
+Ring diameter is measured across its red band, excluding the centre dot and the four
+cardinal marks. The retail column is the geometric prediction from the 0.69d0 assets
+and camera code, relative to revision 73.
+
+| Gun | Revision 73 | Corrected client | Measured change | Retail prediction |
+|---|---:|---:|---:|---:|
+| A-545 | 8.6 px | 19.7 px | 2.28× | 2.25× |
+| M4A1 | 56.9 px | 37.1 px | 0.65× | 0.64× |
+
+The A-545 with the XPS2 was also aimed in a local match on the final executable.
+Its ring measured 18.0 px across at the same resolution.
+
 ## State, 2026-11-21 (06:00)
 
 | Part | Where | State |

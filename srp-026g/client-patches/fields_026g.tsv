@@ -1859,3 +1859,11 @@ vostok::input::mouse	window	0x24	u32	the window (HWND) its DirectInput device's 
 vostok::input::mouse	exclusive	0x34	u8	set_exclusive's (0x3B9800) argument, kept at 0x3B9808: not 0, the device's level is DISCL_EXCLUSIVE | DISCL_FOREGROUND (5); 0, DISCL_NONEXCLUSIVE | DISCL_FOREGROUND (6, 0x3B9833..0x3B983A); the ctor's is 0 (0x3B9535) and level 6 (0x3B9533)
 vostok::input::mouse_lock	mouse	-0x30	obj<vostok::input::mouse>	the mouse whose spin lock (+30h) this is: mouse::execute keeps the lock's address in EBP from 0x3B9695 (lea ebp,[esi+30h]) to its returns
 survarium::image	mouse_vtable	0xA25518	u32	vostok::input::platform::mouse's vtable (its ctor 0x3B94F0 writes it at 0x3B94FC)
+survarium::weapon	aim_progress	0x5FC	f32	update_camera's interpolation between hip and aimed zoom at 0x1F350F
+survarium::game_world	camera_scene_view	0x8	ptr<vostok::render::scene_view>	the referenced scene view handed to set_view_matrix at 0x23DE84
+vostok::render::weapon_draw_command	view	0x9C	ptr<vostok::render::scene_view>	the second reference in draw_scene_params at command+98h (0x2034D, 0x20500)
+vostok::render::weapon_draw_command	weapon_focal_y	0x14	f32	patch 161 in base_command's cache-line padding between flags +10h/+11h and frame id +54h (ctor 0x20310)
+vostok::render::weapon_draw_params	command	-0x98	obj<vostok::render::weapon_draw_command>	inline params of the queued draw command, passed by its execute thunk 0x28460
+vostok::render::foreground_frame	projection_x	0x28	f32	first diagonal element of foreground_begin's private stack copy of the projection
+vostok::render::foreground_frame	projection_y	0x3C	f32	second diagonal element of the same projection (element 5)
+vostok::query_result	binary_config	0x0	ptr<vostok::binary_config>	the unmanaged config of a class 1Fh request (first result of items_dictionary_cook at 0x2C8AF5)

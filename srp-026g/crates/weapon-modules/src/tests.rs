@@ -344,7 +344,11 @@ fn a_grip_swaps_the_forend() {
 /// one sets the eye; an optic alters both and sets its own.
 #[test]
 fn a_scope_folds_the_sights() {
-    let bytes = encode(&source()).unwrap();
+    let mut data = source();
+    let hk = data.guns.iter_mut().find(|g| g.dict == HK416).unwrap();
+    let donor_eye = Affine::translation(0.0, 0.1, 0.17);
+    hk.slots.push((S::BodyAim, OFFSET_BONE, donor_eye));
+    let bytes = encode(&data).unwrap();
     let table = Table::parse(&bytes).unwrap();
     with(&table, HK416, Wanted { scope: dict(EOTECH), ..Wanted::default() }, |bare| {
         assert_eq!(models(&bare), ["hk416_a5_rear_ironsight_off", "hk416_a5_front_ironsight_off", "hk416a5_i05x28_muzzlebrake"]);
@@ -362,7 +366,7 @@ fn a_scope_folds_the_sights() {
         let (own, eye) = (on_offset(locator(39)).child(&locator(14)), bare.eye.unwrap().placed(EyeAnchor::Optic));
         assert_eq!((eye.bone, eye.offset.x, eye.offset.y, eye.offset.z), (own.bone, own.offset.x, own.offset.y, own.offset.z));
         let frame = |at: &Placement| locator_frame(&Affine::IDENTITY, at, &pose()[1].1, &Affine::IDENTITY);
-        let gun_eye = Placement { bone: BoneIndex(OFFSET_BONE), offset: BODY_AIM };
+        let gun_eye = Placement { bone: BoneIndex(OFFSET_BONE), offset: donor_eye };
         let (line, moved, plane) = (frame(&own), frame(&eye), frame(&gun_eye));
         let off = |a: [f32; 3], b: [f32; 3]| [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
         let dot = |a: [f32; 3], b: [f32; 3]| a[0] * b[0] + a[1] * b[1] + a[2] * b[2];

@@ -81,7 +81,9 @@ SKELETON_INSTANCE, GAME_ALLOCATOR = 0x9F0F24, 0x1F1D9C4
 T_INT, T_TABLE, T_STRING = 1, 3, 5
 BARREL, SCOPE, AIM, FRAME, HAND_RECORDS, FINGER_SETS = 0x6E0, 0x744, 0x7A8, 0x660, 0x1A20, 0x20F0
 
-ENDS = (DICT_QUERY_END, DICT_CONFIGS_END, COOK_WEAPON, ASKED_END, READY_END, LOADED_END, DRAW_END, CULLED_END,
+VIEW_CAMERA, VIEW_SUBMIT, VIEW_BEGIN, VIEW_END, FOREGROUND = 0x1F3505, 0x1F8F7, 0x1F796, 0x1F7BA, 0x13E0C2
+VIEW_ENDS = (VIEW_CAMERA + 6, VIEW_SUBMIT + 6, VIEW_BEGIN + 8, VIEW_END + 6, FOREGROUND + 7)
+ENDS = VIEW_ENDS + (DICT_QUERY_END, DICT_CONFIGS_END, COOK_WEAPON, ASKED_END, READY_END, LOADED_END, DRAW_END, CULLED_END,
         HIDDEN_END, HANDS_END, FINGERS_VIEW_END, SHELLS_END, RELEASE_END, SCOPE_RESULT_END, SCOPE_RESULT_SCOPED)
 
 # The scope items of the made-up dictionary: the sample's PSO-1 and EOTech.
@@ -340,12 +342,13 @@ class Run:
         requests, count = self.emu.reg_read(UC_X86_REG_EAX), self.emu.reg_read(UC_X86_REG_ECX)
         return [(bytes(self.text(self.u32(requests + 8 * n))), self.u32(requests + 8 * n + 4)) for n in range(count)]
 
-    def dictionary_configs(self, count, table):
+    def dictionary_configs(self, count, table, dictionary=0):
         """The dictionary cook's callback at its entry, its query's results
         `count` and the sixth's managed resource holding `table` (None: 0).
         The resource: its reference count, its node's pin count."""
         queries = self.block(0x50 + 0x2E0 * 6)
         self.u32(queries + 0x38, count)
+        self.u32(queries + 0x12C, dictionary)
         resource = node = 0
         if table is not None:
             resource, node = self.block(0xF0), self.block(0x34 + len(table))
@@ -526,6 +529,60 @@ class Run:
         return self.floats(out)
 
 
+def weapon_projection(exe, patched, report):
+    """Run the camera, command handoff and foreground hooks as one path.
+    Two frames are submitted before either is drawn, as on a busy renderer.
+    """
+    r = Run(exe)
+    player, weapon, world, entry, config = [r.block(n) for n in (0xF480, 0x620, 0x10, 0x118, 0x10C)]
+    r.u32(player + 0xF474, world)
+    r.u32(world + 8, 0x1234)
+    r.u32(weapon + 0x26C, entry)
+    r.u32(entry, 220)
+    pair = r.block(8)
+    r.put_floats(pair, (1.0, 0.5))
+    row = r.table({"gun": r.node(T_INT, 220), "fov": r.node(6, pair, 8)})
+    # The native iteration sees the row inline in its parent's child array.
+    profiles = r.node(T_TABLE, row, 1)
+    r.u32(config + 0x108, r.table({"srp_weapon_views": profiles}))
+    r.dictionary_configs(5, None, config)
+    world_projection = [1.125, 0, 0, 0, 0, 2, 0, 0, 0.001, -0.002, 1.01, 1, 0, 0, -0.1, 0]
+
+    def sample(progress):
+        r.put_floats(weapon + 0x5FC, [progress])
+        r.run(VIEW_CAMERA, VIEW_ENDS, STACK, eax=weapon, ebx=player)
+
+    def submit(view):
+        command = r.block(0xB8)
+        r.u32(command + 0x9C, view)
+        r.run(VIEW_SUBMIT, VIEW_ENDS, STACK, eax=command, ebx=RENDERER)
+        return command
+
+    def project():
+        r.put_floats(STACK + 0x28, world_projection)
+        r.run(FOREGROUND, VIEW_ENDS, STACK)
+        return r.floats(STACK + 0x28)
+
+    sample(1.0)
+    aimed = submit(0x1234)
+    other_view = submit(0x5678)
+    sample(0.5)
+    moving = submit(0x1234)
+    r.u32(entry, 999)
+    sample(1.0)
+    legacy = submit(0x1234)
+
+    for command, angle in [(aimed, 32.5), (other_view, None), (moving, 48.75), (legacy, None)]:
+        r.run(VIEW_BEGIN, VIEW_ENDS, STACK, esi=command + 0x98)
+        expected = world_projection.copy()
+        if patched and angle:
+            expected[5] = 1.0 / math.tan(math.radians(angle) / 2)
+            expected[0] = world_projection[0] / world_projection[5] * expected[5]
+        report(close(project(), expected), f"foreground draw, queued angle {angle}, patched={patched}")
+        r.run(VIEW_END, VIEW_ENDS, STACK)
+        report(close(project(), world_projection), "original projection outside that draw")
+
+
 def main():
     if len(sys.argv) != 2:
         sys.exit(__doc__)
@@ -541,6 +598,9 @@ def main():
         nonlocal failed
         failed += not ok
         print(f"  {'ok' if ok else 'FAIL'}  {text}")
+
+    for data, patched in [(original, False), (built, True)]:
+        weapon_projection(data, patched, report)
 
     def with_table(data=built):
         run = Run(data)
