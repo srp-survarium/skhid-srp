@@ -2079,7 +2079,7 @@ impl WalkGrid {
         }
         clock.lap("slip landings");
         if body.client_controller {
-            let (controlled, failing) = grid.controlled_links(&mut wide, triangles, shapes);
+            let (controlled, failing) = grid.controlled_links(&mut wide, triangles, shapes, memo);
             stats.controlled = controlled;
             clock.lap("walk check");
             // The walk links the client's body does not walk go, but none that is a floor's only way in from the seeds and spawns
@@ -2102,7 +2102,7 @@ impl WalkGrid {
         // [bot traps, ledge line-up] The low risers no walk gets up: a riser where a press lands, else marked. After the walk
         // check (its cut and its marks, which it sets whole) and the risers' flight (with the rim jumps' presses).
         if let Some(world) = world.filter(|_| body.walk_gait && body.rim_jumps && gaps) {
-            stats.walk_gait = grid.walk_gait_links(&mut wide, world, &s);
+            stats.walk_gait = grid.walk_gait_links(&mut wide, world, &s, memo);
         }
         clock.lap("low risers (walk gait)");
         drop(solids);

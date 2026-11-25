@@ -1108,11 +1108,19 @@ impl WalkGrid {
     /// [bot traps, ledge line-up] The press up the low riser `a` -> `b` (way `d`) that [`Self::fly_risers`] would fly for a riser
     /// ([`Self::best_press`] over the gap leads, landing on the top: [`Self::riser_lands_on`]), for [`super::walk_gait`]; None when no
     /// press lands.
-    pub(super) fn walk_gait_press(&self, world: &Collision, s: &Settings, a: NodeId, b: NodeId, d: usize) -> Option<Riser> {
+    /// [body physics S6c] `reach`: the farthest any step of its flights went from the take-off (the memo window's check).
+    pub(super) fn walk_gait_press(&self, world: &Collision, s: &Settings, a: NodeId, b: NodeId, d: usize, reach: &std::cell::Cell<f32>) -> Option<Riser> {
         let (di, dk) = DIRS[d];
         let l = ((di * di + dk * dk) as f32).sqrt();
         let kits = Kits { body: jump::WALK_CAP_MS, fastest: self.body.fastest_walk_cap };
-        let p = self.best_press(world, s, a, b, (di as f32 / l, dk as f32 / l), &gap_leads(), |st| self.riser_lands_on(st, b), kits, self.fall_ground());
+        let takeoff = self.position(a);
+        let lands = |st: &[FlightStep]| {
+            for f in st {
+                reach.set(reach.get().max(f.feet.distance_xz(takeoff)));
+            }
+            self.riser_lands_on(st, b)
+        };
+        let p = self.best_press(world, s, a, b, (di as f32 / l, dk as f32 / l), &gap_leads(), lands, kits, self.fall_ground());
         p.made.first().map(|m| Riser::Pressed { press: m.press, share: m.share })
     }
 
