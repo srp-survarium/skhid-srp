@@ -296,6 +296,33 @@ fn register_host(name: &core::ffi::CStr) -> Option<raw::ConstantHost> {
     }
 }
 
+struct BakeCoordinates(raw::ConstantHost);
+
+// SAFETY: the backend owns the host for its lifetime. Only the render thread
+// writes its value, after applying the material for the current surface.
+unsafe impl Send for BakeCoordinates {}
+
+static BAKE_COORDINATES: Lock<Option<BakeCoordinates>> = Lock::new(None);
+
+pub fn register_bake_coordinates(ctx: &Context<'_>) {
+    let host = register_host(c"srp_weapon_bake_channels").map(BakeCoordinates);
+    BAKE_COORDINATES.with(ctx.thread(), |slot| *slot = host);
+}
+
+pub fn set_bake_coordinates(ctx: &Context<'_>) {
+    use raw::site::gbuffer_bake_coordinates as site;
+    let Some(host) = BAKE_COORDINATES.with(ctx.thread(), |slot| slot.as_ref().map(|h| h.0)) else { return };
+    // SAFETY: render_models has a live instance and backend across this
+    // draw. Its four override slots, in D/N/F/S order, are the ones it
+    // just used for t_base, t_normal, t_fresnel and t_roughness.
+    unsafe {
+        let (Some(surface), Some(backend)) = (site::surface(ctx), site::backend(ctx)) else { return };
+        let channels: [f32; 4] =
+            core::array::from_fn(|i| if surface.textures().at(i).texture().is_some() { 1.0 } else { 0.0 });
+        raw::engine_set_ps_constant(Some(host), Some(backend), channels.as_ptr());
+    }
+}
+
 /// Registers the four hosts at `composition.constructed`.
 pub fn register_composition_lighting(ctx: &Context<'_>) {
     let [a, b, c, d] = COMPOSITION_HOST_NAMES.map(register_host);
