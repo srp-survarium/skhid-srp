@@ -1279,6 +1279,12 @@ impl WalkGrid {
                 if plain {
                     linked.retain(|&n| n != b);
                 }
+                // [rule A fix] A jump from back down a slope lands up from the edge, under its take-off: the take-off itself may
+                // be a step over the edge, and a flight back down onto it no link (it made a GapJump from a floor to itself,
+                // which a grid's read refuses). A jump from its edge's own height lands over its take-off: nothing to add.
+                if base < self.height[a as usize] {
+                    linked.push(a);
+                }
                 let window = windows.as_ref().map_or(0, |w| w.around(self.cell_of[a as usize] as usize, window_cells));
                 RimLineItem { a, b, d, plain, base, linked, window }
             })
@@ -1426,6 +1432,10 @@ impl WalkGrid {
                 let mut linked = linked(a);
                 if plain {
                     linked.retain(|&n| n != b);
+                }
+                // [rule A fix] As the line's flights: the take-off is no landing for a jump from back down a slope.
+                if base < self.height[a as usize] {
+                    linked.push(a);
                 }
                 let window = windows.as_ref().map_or(0, |w| w.around(self.cell_of[a as usize] as usize, window_cells));
                 RimAimedItem { a, b, d, plain, line_under, base, linked, window }
