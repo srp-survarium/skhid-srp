@@ -243,7 +243,13 @@ impl Source {
                     let there = &self.units[next];
                     let other = crate_of(&there.file);
                     let open = other == here || (exact && !own_has) || self.globs.contains(&(here.to_owned(), other.to_owned()));
-                    match (open, there.owner.as_deref()) {
+                    // A method reached by a plain name (a method call, a generic `T::name`) runs only on a value of its type, and
+                    // every value of a type of the source is made by code naming it (its constructor, a signature, a field):
+                    // it waits for its own type, in its own crate too. Its type's own name (a trait impl's unit by its type) and an
+                    // exact path reach it at once.
+                    let by_type_name = there.owner.as_deref() == Some(by.as_str());
+                    let gated = !exact && !by_type_name && there.owner.as_deref().is_some_and(|t| defined.contains(&(other, t)));
+                    match (open && !gated, there.owner.as_deref()) {
                         (true, _) => reach(next, (at, by.clone()), &mut queue, &mut from),
                         (false, Some(t)) => {
                             // Its own crate's type of that name, else (an impl for another crate's type) any crate's.
@@ -369,7 +375,8 @@ impl Source {
                     names.push(name);
                 }
             }
-            return self.push_tokens(file, names, imp.to_token_stream(), Some(&ty));
+            let bound = pattern_bindings(|v| syn::visit::Visit::visit_item_impl(v, imp));
+            return self.push_tokens(file, names, imp.to_token_stream(), Some(&ty), bound);
         }
         for inner in &imp.items {
             if test_only(impl_item_attrs(inner)) {
@@ -381,7 +388,8 @@ impl Source {
             };
             let mut tokens = head.clone();
             inner.to_tokens(&mut tokens);
-            self.push_tokens(file, names, tokens, Some(&ty))?;
+            let bound = pattern_bindings(|v| syn::visit::Visit::visit_impl_item(v, inner));
+            self.push_tokens(file, names, tokens, Some(&ty), bound)?;
         }
         Ok(())
     }
@@ -394,14 +402,22 @@ impl Source {
     }
 
     fn push(&mut self, file: &str, names: Vec<String>, item: &syn::Item, in_type: Option<&str>) -> Result<(), String> {
-        self.push_tokens(file, names, item.to_token_stream(), in_type)
+        let bound = pattern_bindings(|v| syn::visit::Visit::visit_item(v, item));
+        self.push_tokens(file, names, item.to_token_stream(), in_type, bound)
     }
 
-    fn push_tokens(&mut self, file: &str, names: Vec<String>, tokens: TokenStream, in_type: Option<&str>) -> Result<(), String> {
+    fn push_tokens(
+        &mut self,
+        file: &str,
+        names: Vec<String>,
+        tokens: TokenStream,
+        in_type: Option<&str>,
+        bound: BTreeSet<String>,
+    ) -> Result<(), String> {
         let tokens = clean(tokens);
         let mut refs = BTreeSet::new();
         let mut included = Vec::new();
-        let mut locals = BTreeSet::new();
+        let mut locals = bound;
         collect_bindings(&tokens, &mut locals);
         collect_refs(&tokens, in_type, &locals, &mut refs, &mut included, file)?;
         let mut text = tokens.to_string();
@@ -833,6 +849,30 @@ fn collect_refs(
         }
     }
     Ok(())
+}
+
+/// The shorthand fields of a unit's struct patterns (`let Body { rest_floors, .. } = b`, `|Gap { a, b, .. }|`, a match arm's):
+/// each binds a local of its name and names no item. (A struct literal's shorthand `Foo { x }` is the expression `x`: not here.)
+fn pattern_bindings(visit: impl FnOnce(&mut PatternBindings)) -> BTreeSet<String> {
+    let mut v = PatternBindings::default();
+    visit(&mut v);
+    v.0
+}
+
+#[derive(Default)]
+struct PatternBindings(BTreeSet<String>);
+
+impl<'ast> syn::visit::Visit<'ast> for PatternBindings {
+    fn visit_pat_struct(&mut self, p: &'ast syn::PatStruct) {
+        for field in &p.fields {
+            if field.colon_token.is_none()
+                && let syn::Member::Named(name) = &field.member
+            {
+                self.0.insert(name.to_string());
+            }
+        }
+        syn::visit::visit_pat_struct(self, p);
+    }
 }
 
 /// The names a unit binds, at every depth: `name: T` (a parameter, a struct pattern's field) and `let name`, `let mut name`.

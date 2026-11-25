@@ -10,4 +10,4 @@ workspace = true
 # The source's items and tokens: comments are not tokens, doc comments are attributes the digest leaves out.
 proc-macro2 = { workspace = true }
 quote = { workspace = true }
-syn = { workspace = true }
+syn = { workspace = true, features = ["visit"] }
