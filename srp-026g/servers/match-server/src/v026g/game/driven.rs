@@ -335,6 +335,10 @@ impl Walkers {
             for (place, armour) in armours.into_iter().enumerate() {
                 walkers.bots.set_zone_armour(place, armour);
             }
+            // [crossing prewarm] Every kit's armour: the crossings a bot can ask all match are made at map load.
+            for (place, profile) in formed.profiles.iter().enumerate() {
+                walkers.bots.set_kit_armours(place, (0..profile.kits.len()).map(|kit| zone_armour_of(profile, kit)).collect());
+            }
             walkers.bots.set_speed_levels(&speed_levels);
             for (place, candidates) in speed_candidates.into_iter().enumerate() {
                 if let Some(candidates) = candidates {
