@@ -501,8 +501,11 @@ impl Collision {
     /// questions still read the placed triangles ([`MapData::walker_triangles`]; a primitive's are its drawn
     /// stand-in). `None` for a map without the game's shapes (a file older than format 6).
     pub fn build_exe(map: &MapData) -> Option<Self> {
-        let solids = solids::Solids::build(map)?;
-        Some(Self { sweeps: Sweeps::Solids(Box::new(solids)), ..Self::build(&map.walker_triangles()) })
+        // [srchash oracle] The shapes' code, for the coverage check of the memo's `world` digest (`crate::coverage`).
+        crate::coverage::window("world", || {
+            let solids = solids::Solids::build(map)?;
+            Some(Self { sweeps: Sweeps::Solids(Box::new(solids)), ..Self::build(&map.walker_triangles()) })
+        })
     }
 
     fn split(faces: &mut [Face], first: usize, end: usize, nodes: &mut Vec<Node>) -> usize {

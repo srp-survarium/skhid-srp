@@ -635,6 +635,11 @@ impl BulletMesh {
 
     /// The sight tree, with each triangle's armor.
     pub fn build_tree(&self) -> RayTree {
+        // [srchash oracle] The sight tree's code, for the coverage check of its digest (`crate::coverage`).
+        crate::coverage::window("sight", || self.build_tree_inner())
+    }
+
+    fn build_tree_inner(&self) -> RayTree {
         RayTree::from_armored_corners(
             self.triangles
                 .iter()

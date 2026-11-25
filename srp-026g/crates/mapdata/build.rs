@@ -17,6 +17,8 @@ fn main() {
     }
     println!("cargo:rerun-if-env-changed=CARGO_ENCODED_RUSTFLAGS");
     println!("cargo:rerun-if-env-changed=RUSTFLAGS");
+    // [srchash oracle] The coverage build's cfg (`src/coverage.rs`).
+    println!("cargo::rustc-check-cfg=cfg(srp_coverage)");
     let out = PathBuf::from(std::env::var("OUT_DIR").expect("cargo sets OUT_DIR")).join("source_digests.rs");
     let text = format!(
         "/// The digest of every item of the crate (and the crates it uses), and the outside inputs.\n\

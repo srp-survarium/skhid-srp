@@ -652,7 +652,8 @@ impl Memo {
         let Some(ids) = ids else {
             stats.misses = items.len();
             self.stats.push(stats);
-            return super::controlled::parallel(items, |item| job(ctx, item));
+            // [srchash oracle] The site's jobs, for the coverage check of its digest (`crate::coverage`).
+            return crate::coverage::window(site.id, || super::controlled::parallel(items, |item| job(ctx, item)));
         };
         // The site's part of every key.
         let mut head = Digest128::default();
