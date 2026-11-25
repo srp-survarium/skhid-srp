@@ -984,6 +984,26 @@ impl Hazards {
         if self.live.set_of(node) != 0 {
             return None;
         }
+        self.baked_gate_end(node, time)
+    }
+
+    /// [bot traps] Why [`Self::gate_end`] gives no gate at `node` at `time`, for the log, with the soonest switch the boards
+    /// know there ([`Self::next_switch`]); none when it gives one.
+    pub fn no_gate_why(&self, node: NodeId, time: u32) -> Option<(&'static str, Option<u32>)> {
+        let why = if self.live.set_of(node) != 0 {
+            if self.live.allowed_for(node, time, self.pass_ms) { "a live field, off now" } else { "a live field, on now" }
+        } else if self.baked_gate_end(node, time).is_some() {
+            return None;
+        } else if self.zones_at(node).any(|zone| !matches!(zone.activity, Activity::Spans(_))) {
+            "a zone with no schedule (on all match, or not predicted)"
+        } else {
+            "a zone whose span runs past the prediction"
+        };
+        Some((why, self.next_switch(node)))
+    }
+
+    /// [`Self::gate_end`] by the baked zones alone.
+    fn baked_gate_end(&self, node: NodeId, time: u32) -> Option<u32> {
         if self.allowed(node, time) {
             return Some(time);
         }

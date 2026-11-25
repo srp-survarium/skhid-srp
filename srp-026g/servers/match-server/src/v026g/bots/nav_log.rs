@@ -412,10 +412,12 @@ pub enum Kind {
     /// [bot traps] A goal put on cool-down by an exhaustive failed search, and the cool-down's end: run out, or the bot
     /// elsewhere (`unreachable.rs`).
     Unreachable,
+    /// [bot traps] A battery left before its take: its carrier would have no way home from its stand (`carrier_home.rs`).
+    CarrierHome,
 }
 
 /// How many kinds of line there are ([`Kind`]).
-const KINDS: usize = 22;
+const KINDS: usize = 23;
 
 /// [owner-5] At most this many lines of a kind per bot per match (the first ones; the rest are counted into the last): the
 /// owner-5 kinds fire on events that can repeat all match (a battery refused at every poll, a role offered and refused

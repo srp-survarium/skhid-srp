@@ -974,6 +974,43 @@ pub fn plan_start(
     }
 }
 
+/// [bot traps] Whether [`plan_start`]'s search, run to its end, finds a way: the search alone. No route is made of it, so
+/// none is pulled straight (a pull spends the thread's walk ticks, `mapdata::set_pull_walk_budget`, which the poll's routes
+/// share: a check that pulled its route changed other bots' routes), and no end is left for the log's line ([`last_end`]).
+/// The plain search (no weight): a weight changes which way is found, never whether one is. Counted as a search for the
+/// bench.
+#[allow(clippy::too_many_arguments)]
+pub fn way_exists(
+    grid: &WalkGrid,
+    regions: &Regions,
+    hot: &mapdata::grid::HotIndex,
+    from: NodeId,
+    to: NodeId,
+    allowed: impl Fn(NodeId) -> bool,
+    region_ok: impl Fn(u32) -> bool,
+    reach: mapdata::Reach,
+) -> bool {
+    #[cfg(test)]
+    let (started, started_cpu) = (std::time::Instant::now(), super::cpu_time::thread());
+    let (found, _stage, _expanded) =
+        match regions.start_route_search_reaching(grid, from, to, &allowed, &region_ok, usize::MAX, reach) {
+            Err((found, stage)) => (found, stage, 0),
+            Ok(mut search) => {
+                let tested = FloorTests::new(grid.len());
+                let allowed = tested.kept(&allowed);
+                let mut queue = mapdata::grid::HotOpen::hot_open_empty();
+                let mut iters = usize::MAX;
+                let (found, stage) = search
+                    .step_hot(regions, grid, hot, &mut queue, &allowed, region_ok, |_| 1.0, &mut iters)
+                    .expect("an unbounded search ends");
+                (found, stage, search.expanded() as u64)
+            }
+        };
+    #[cfg(test)]
+    count(&found, _stage, started.elapsed().as_secs_f64() * 1e6, spent(started_cpu), _expanded, 1);
+    matches!(found, Search::Found(_))
+}
+
 /// [CPU] A search's floor test (`allowed`), asked once a floor for the search's life: two bits a floor (asked, open). The
 /// grid's search tests a floor at every link into it until it is closed (`mapdata::SlicedSearch::step`), several times a
 /// floor with the same answer, and the bots' tests (`Tactics::route_floor_open`: the hazards, the spawn areas, the
