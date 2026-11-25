@@ -16,6 +16,7 @@
 use mapdata::regions::Stage;
 use mapdata::regions::{Regions, RouteSearch};
 use mapdata::{LinkKind, NodeId, Search, Vec3, WalkGrid};
+use mapdata::grid::controlled::PullWalk;
 
 /// A straight line is not tried farther than this (metres): the check
 /// walks every cell of it.
@@ -1328,6 +1329,28 @@ pub mod past_drop {
 /// only where no other way goes), for the server's log ([`take_marked_walk_routes`]).
 static MARKED_WALK_ROUTES: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
 
+/// [A334] The pulled legs held back since the last call because the poll's walk budget was spent ([`PullWalk::Unknown`]),
+/// for the server's log ([`take_pull_walk_unknown`]).
+static PULL_WALK_UNKNOWN: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+
+/// [A334] The pulled legs held back unwalked since the last call, the count set back to 0.
+pub fn take_pull_walk_unknown() -> u64 {
+    PULL_WALK_UNKNOWN.swap(0, std::sync::atomic::Ordering::Relaxed)
+}
+
+/// [A334] Whether a pull takes a leg back a floor: unless the client's walk tick is known to walk it. A leg the poll's walk
+/// budget left unwalked is counted ([`take_pull_walk_unknown`]).
+fn pull_back(verdict: PullWalk) -> bool {
+    match verdict {
+        PullWalk::Walks => false,
+        PullWalk::Fails => true,
+        PullWalk::Unknown => {
+            PULL_WALK_UNKNOWN.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+            true
+        }
+    }
+}
+
 /// [marked walk] The routes that took a marked walk since the last call, the count set back to 0.
 pub fn take_marked_walk_routes() -> u64 {
     MARKED_WALK_ROUTES.swap(0, std::sync::atomic::Ordering::Relaxed)
@@ -1590,7 +1613,7 @@ fn pull_straight(
             j += 1;
         }
         // [A334] A leg the client's walk tick does not walk is pulled back, a floor at a time, to one it walks or to the next
-        // floor of the path (a grid link): `grid.pull_walk`, the grid's extra ([`WalkGrid::pull_walk_fails`]). With the
+        // floor of the path (a grid link): `grid.pull_walk`, the grid's extra ([`WalkGrid::pull_walk_verdict`]). With the
         // client-tick stand-in 93 % of the routes stuck were on pulled legs over several cells (fx-zones' route-stuck table).
         // Only a leg the client could be stopped on is walked: one whose path floors (the search's, which the leg replaces)
         // include a floor nearer a wall than the client's body holds (the grid's clearance table) or a step over
@@ -1603,7 +1626,8 @@ fn pull_straight(
         // A risky leg longer than [`PULL_WALK_LEG_M`] is first shortened to it (no walk): one walk test is then a bounded
         // number of client ticks, and a failed leg a bounded number of tests (the CPU spikes of long legs).
         let long = |i: usize, j: usize| grid.position(nodes[i]).distance_xz(grid.position(nodes[j])) > PULL_WALK_LEG_M;
-        while j > i + 1 && grid.pull_walk() && risky(i, j) && (long(i, j) || grid.pull_walk_fails(nodes[i], nodes[j])) {
+        // A leg the budget left unwalked ([`PullWalk::Unknown`]) is not taken straight either: pulled back as a failing one.
+        while j > i + 1 && grid.pull_walk() && risky(i, j) && (long(i, j) || pull_back(grid.pull_walk_verdict(nodes[i], nodes[j]))) {
             j -= 1;
         }
         let from = i;
@@ -1684,7 +1708,7 @@ pub(crate) fn top_depth(grid: &WalkGrid, a: NodeId, b: NodeId) -> f32 {
 }
 
 /// [A334] A step between two path floors over this, metres, makes a pulled leg one the client's walk tick checks
-/// ([`WalkGrid::pull_walk_fails`]): under it the floors are level (a cell's own floor reads within a few centimetres).
+/// ([`WalkGrid::pull_walk_verdict`]): under it the floors are level (a cell's own floor reads within a few centimetres).
 const PULL_WALK_LEVEL_M: f32 = 0.1;
 
 /// [A334] A risky pulled leg is at most this long, metres: Detour's crowd checks a path's visibility only this near
