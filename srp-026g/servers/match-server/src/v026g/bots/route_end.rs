@@ -127,8 +127,6 @@ impl Bot {
         {
             life.route.get_or_insert(now);
         }
-        #[cfg(not(any(test, feature = "jump-test")))]
-        let _ = now;
         // [A395a] A route planned on a walk out of a zone's floors is its search's way out (`Tactics::route_shut_ahead`).
         if route.is_some()
             && let Some(walk) = self.zone_walk.as_mut()
@@ -136,6 +134,11 @@ impl Bot {
             walk.route = super::tactics::WalkRoute::Planned;
         }
         self.route = route;
+        // [bot traps] A route the own-trap check took at the guard's contact is held there, as the fallback search's
+        // (`traps::own_trap_route_within`).
+        if self.features.traps.taken_at_contact.take().is_some() && self.route.is_some() {
+            super::traps::mark_fallback(self, now);
+        }
     }
 
     #[cfg(any(test, feature = "jump-test"))]
