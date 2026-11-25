@@ -85,6 +85,7 @@ mod exact;
 mod open;
 mod rim;
 mod r1;
+mod share0;
 mod run_ins;
 mod wall_give_back;
 /// [CPU hot paths] The route search's lookups made at load time, for the bots ([`hot::HotIndex`]): outside the grid key.
@@ -421,6 +422,18 @@ pub struct Body {
     /// height), farther than any jump of the game (A364's traces: 20 of 20 jumps end at their twelfth air step). A build input:
     /// in the key when set.
     pub jump_air_steps: bool,
+    /// [body physics S5d] Whether the share-0 sprint links whose own stored press, flown on until the body is down, rests on its
+    /// landing in no sprint variant go ([`share0`]): the variant (the supporting leg, the first air frame) is not the bot's to
+    /// choose. Off: kept as stored (1,378 of 11,620 on the S5c grids, level_06 TDM's P3 falls 4.3 m in all six in the exe). A
+    /// build input: in the key when set.
+    pub share0_drop: bool,
+    /// [body physics S5d] Whether the rim jumps are also searched from floors up to [`rim::WALK_ON_CELLS`] cells back along a
+    /// way down a slope to its edge (rule A, [`rim`]'s `edges_up`): a top the edge's own press does not reach (more than
+    /// [`rim::WALK_ON_EDGE_RISE_M`] over the last floor walked) and at most [`rim::WALK_ON_RISE_M`] over the take-off. Off: only
+    /// from a floor whose side has no link (Tarakanovsky TDM's ramp onto the wall top at (-60.88, 7.61, -0.34): the ramp's
+    /// floors 0.6-0.8 m under it land in all six sprint variants in the exe, its edge 1.3 m under lands none; 5 human groups
+    /// went round 35-37 m). A build input: in the key when set.
+    pub rim_walk_on: bool,
 }
 
 /// How the floors a body's radius from walls are taken away.
@@ -515,6 +528,8 @@ impl Body {
             fall_stops_on_solids: false,
             walk_every_link: false,
             jump_air_steps: false,
+            share0_drop: false,
+            rim_walk_on: false,
         }
     }
 }
@@ -633,6 +648,8 @@ impl Default for Body {
             fall_stops_on_solids: false,
             walk_every_link: false,
             jump_air_steps: false,
+            share0_drop: false,
+            rim_walk_on: false,
         }
     }
 }
@@ -1629,6 +1646,8 @@ pub struct BuildStats {
     pub rim: rim::RimStats,
     /// [body physics S5b] What R1 did to the off links ([`r1`]).
     pub r1: r1::R1Stats,
+    /// [body physics S5d] The share-0 sprint links flown again ([`Body::share0_drop`]).
+    pub share0: share0::Share0Stats,
     /// [body physics S5b] The stored run-ins' replays ([`run_ins`]).
     pub run_ins: run_ins::RunInStats,
     /// [S4] The Jump links the landing carry rule took away ([`Body::landing_carry`]), flown as rim jumps
@@ -2123,6 +2142,11 @@ impl WalkGrid {
             stats.r1 = grid.take_off_side_presses(&mut wide, world, &s);
         }
         clock.lap("R1 (take-off side)");
+        // [body physics S5d] The share-0 sprint links no variant rests on the landing of, before the reach flood.
+        if let Some(world) = world.filter(|_| gaps && body.share0_drop && !wide.off.is_empty()) {
+            stats.share0 = grid.drop_unlanded_share0(&mut wide, world, &s);
+        }
+        clock.lap("share-0 drop");
         stats.floors_after_erosion = grid.len();
         grid.keep_reached(&mut wide, seeds);
         clock.lap("keep reached");

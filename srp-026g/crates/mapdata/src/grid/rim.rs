@@ -342,8 +342,9 @@ impl WalkGrid {
     /// landed on, then walked off its far end by a straight walk); and on the floor the body is on, whichever of the top it is
     /// (Vector Laboratory's (-23.72, 23.18, -22.0): a jump meant for the floor at 23.49 stops on the one at 23.18 beside it), any
     /// floor up from the take-off (Vector Laboratory's (-45.35, 25.61, 4.93), 0.88 m over the take-off at 24.73: no fixed height).
-    fn rim_lands_on(&self, steps: &[FlightStep], a: NodeId, linked: &[NodeId]) -> Option<NodeId> {
-        let up = self.height[a as usize] + self.body.step;
+    /// [rule A] Up from `base`: the take-off's height, or the edge's for a jump from back down a slope ([`Self::rim_base`]).
+    fn rim_lands_on(&self, steps: &[FlightStep], base: f32, linked: &[NodeId]) -> Option<NodeId> {
+        let up = base + self.body.step;
         let onto = |feet: Vec3| self.floor_under(feet).filter(|&g| self.height[g as usize] > up && !linked.contains(&g));
         if !steps.iter().any(|f| f.in_jump) {
             return self.climb_end(steps).filter(|&g| self.height[g as usize] > up && !linked.contains(&g));
@@ -755,48 +756,116 @@ pub(super) fn gap_leads() -> Vec<f32> {
 /// the search; each link is flown.
 pub const RIM_GAP_ACROSS_M: f32 = 2.65 - gap::GAP_PRESS_MIN_M + 0.38;
 
+/// [body physics S5d, rule A] How many floors a rim jump's take-off may be back from its edge along a way down a slope
+/// ([`super::Body::rim_walk_on`]): each walked by a Walk link along the way and lower than the last by [`WALK_ON_DROP_M`].
+/// Tarakanovsky TDM's ramp (0.12 m a cell): its floors one and two back from the edge land onto the wall top, the edge does not.
+/// Only bounds the search; each link is flown.
+pub const WALK_ON_CELLS: usize = 3;
+/// [rule A] A floor walked on is lower than the one before by at least this, m: a way down to the edge (a level floor's edge is
+/// the plain search's).
+pub const WALK_ON_DROP_M: f32 = 0.05;
+/// [rule A] The top rises more than this over the last floor walked, m: the edge's own press is marginal there (from the
+/// ramp's edge, 1.30 m under the top, no press lands).
+pub const WALK_ON_EDGE_RISE_M: f32 = 1.0;
+/// [rule A] … and no more than this over the take-off, m: a sprint's apex (1.35, the clip) less the room a top a run down to
+/// it is jumped onto needs (from 0.61-0.84 m under, all six variants land in the exe). Only bounds the search.
+pub const WALK_ON_RISE_M: f32 = 1.3;
+
 impl WalkGrid {
     /// The edges up from each floor (A364 C2 rows 11/12, S1): along each way whose side has no link up (none, or a drop), across
     /// cells with no floor within a step of it, the first cell no farther than [`RIM_GAP_ACROSS_M`] with a floor rising more
     /// than `low` and no more than `high` (a floor higher than `high` is a wall and ends the search), as (from, to, way); none
     /// where `from` has an off-mesh link to `to` already.
+    /// [body physics S5d, rule A] With [`super::Body::rim_walk_on`], also from a floor whose side has a Walk link down a slope
+    /// to the edge ([`Self::walked_on`]): across the cells past a floor walked on, the first floor rising more than
+    /// [`WALK_ON_EDGE_RISE_M`] (and a step) over that floor and no more than [`WALK_ON_RISE_M`] over the take-off.
     fn edges_up(&self, wide: &Wide, solids: &super::Solids, low: f32, high: f32) -> Vec<(u32, u32, usize)> {
-        let step = self.body.step;
         let mut todo: Vec<(u32, u32, usize)> = Vec::new();
+        let mut push = |a: usize, b: u32, d: usize| {
+            if wide.off.binary_search_by_key(&(a as u32, b), |l| (l.from, l.to)).is_err() {
+                todo.push((a as u32, b, d));
+            }
+        };
         for a in 0..self.height.len() {
             let ha = self.height[a];
-            let (i, k) = self.cell_xz(self.cell_of[a] as usize);
-            for (d, &(di, dk)) in DIRS.iter().enumerate() {
-                let stride = self.cell * ((di * di + dk * dk) as f32).sqrt();
-                if wide.links[a][d] != NONE && wide.kinds[a][d] != LinkKind::Drop && !self.flown_jump(wide, a, d) {
+            for d in 0..DIRS.len() {
+                if wide.links[a][d] == NONE || wide.kinds[a][d] == LinkKind::Drop || self.flown_jump(wide, a, d) {
+                    if let Some(b) = self.top_across(solids, a, d, ha, |y| y - ha > low && y - ha <= high, high) {
+                        push(a, b, d);
+                    }
                     continue;
                 }
-                let mut g = 1;
-                while g as f32 * stride <= RIM_GAP_ACROSS_M + 1e-4 {
-                    let Some(cell) = self.cell_index(i + g * di, k + g * dk) else { break };
-                    let floors = self.start[cell]..self.start[cell + 1];
-                    if let Some(b) = floors.clone().find(|&f| {
-                        let rise = self.height[f as usize] - ha;
-                        rise > low && rise <= high
-                    }) {
-                        if wide.off.binary_search_by_key(&(a as u32, b), |l| (l.from, l.to)).is_err() {
-                            todo.push((a as u32, b, d));
-                        }
+                // [rule A] From the floors walked on down to the edge, the first that finds a top.
+                for e in self.walked_on(wide, a, d) {
+                    let he = self.height[e as usize];
+                    let over = WALK_ON_EDGE_RISE_M.max(self.body.step);
+                    if let Some(b) = self.top_across(solids, e as usize, d, he, |y| y - he > over && y - ha <= WALK_ON_RISE_M, high) {
+                        push(a, b, d);
                         break;
                     }
-                    // A floor within a step goes on (no gap), one higher than the reach is a wall: either ends the search. [row 31]
-                    // Not a floor overhead with room under it (`gap_flown`'s `overhead`): a deck the jump passes beneath.
-                    if floors.clone().any(|f| {
-                        let rise = self.height[f as usize] - ha;
-                        rise.abs() <= step || (rise > high && !self.overhead(solids, cell, f, ha, high))
-                    }) {
-                        break;
-                    }
-                    g += 1;
                 }
             }
         }
         todo
+    }
+
+    /// Across the cells past `from` along `d` with no floor within a step of `h`, the first cell no farther than
+    /// [`RIM_GAP_ACROSS_M`] holding a floor whose height `takes`: that floor. A floor within a step of `h`, or one higher than
+    /// `high` over it, ends the search (no gap; a wall). [row 31] Not a floor overhead with room under it (`gap_flown`'s
+    /// `overhead`): a deck the jump passes beneath.
+    fn top_across(&self, solids: &super::Solids, from: usize, d: usize, h: f32, takes: impl Fn(f32) -> bool, high: f32) -> Option<u32> {
+        let step = self.body.step;
+        let (i, k) = self.cell_xz(self.cell_of[from] as usize);
+        let (di, dk) = DIRS[d];
+        let stride = self.cell * ((di * di + dk * dk) as f32).sqrt();
+        let mut g = 1;
+        while g as f32 * stride <= RIM_GAP_ACROSS_M + 1e-4 {
+            let cell = self.cell_index(i + g * di, k + g * dk)?;
+            let floors = self.start[cell]..self.start[cell + 1];
+            if let Some(b) = floors.clone().find(|&f| takes(self.height[f as usize])) {
+                return Some(b);
+            }
+            if floors.clone().any(|f| {
+                let rise = self.height[f as usize] - h;
+                rise.abs() <= step || (rise > high && !self.overhead(solids, cell, f, h, high))
+            }) {
+                return None;
+            }
+            g += 1;
+        }
+        None
+    }
+
+    /// [body physics S5d, rule A] The floors walked on from `a` along `d` down to an edge ([`super::Body::rim_walk_on`]): up to
+    /// [`WALK_ON_CELLS`], each by a Walk link along `d` and lower than the one before by [`WALK_ON_DROP_M`]. None without the
+    /// switch.
+    fn walked_on(&self, wide: &Wide, a: usize, d: usize) -> Vec<u32> {
+        let mut out = Vec::new();
+        if !self.body.rim_walk_on {
+            return out;
+        }
+        let mut e = a;
+        for _ in 0..WALK_ON_CELLS {
+            let n = wide.links[e][d];
+            if n == NONE || wide.kinds[e][d] != LinkKind::Walk || self.height[e] - self.height[n as usize] < WALK_ON_DROP_M {
+                break;
+            }
+            e = n as usize;
+            out.push(n);
+        }
+        out
+    }
+
+    /// [rule A] The height a rim jump from `a` along `d` to `b` lands up from ([`Self::rim_lands_on`]): the take-off's, or for a
+    /// jump from back down a slope ([`Self::walked_on`]) the lowest floor walked on more than a step under `b`: the edge the jump
+    /// is pressed over.
+    pub(super) fn rim_base(&self, wide: &Wide, a: u32, b: u32, d: usize) -> f32 {
+        let hb = self.height[b as usize];
+        self.walked_on(wide, a as usize, d)
+            .into_iter()
+            .map(|e| self.height[e as usize])
+            .filter(|&he| hb - he > self.body.step)
+            .fold(self.height[a as usize], f32::min)
     }
 
     /// [C2 rows 11/12, S2] Whether `a`'s side `d` is a plain Jump link: flown as a rim jump too. Over
@@ -857,18 +926,21 @@ impl WalkGrid {
         // [incremental grids PR 5] The line's flights through the job memo (site `rim.line`, [`rim_line_job`]): each jump's item
         // carries what the job reads of the links (the floors `a` links to, less a plain Jump link's own top) and the digest of
         // the floors in its window; with the memo off (the default), `parallel` over the same job.
-        let flown = self.fly_rim_line(world, s, &todo, &plain, &leads, kits, &linked, memo);
+        // [rule A] The height each jump's presses land up from: the take-off's, or the edge's down a slope.
+        let bases: Vec<f32> = todo.iter().map(|&(a, b, d)| self.rim_base(wide, a, b, d)).collect();
+        let flown = self.fly_rim_line(world, s, &todo, &plain, &bases, &leads, kits, &linked, memo);
         // [R83] The aimed presses (`R83-FORMAT.md`, the bounded sweep): at the jumps no press on the line made, one of whose
         // flights came near the top, the walk and the sprint at [`AIMED_LEADS`] at each of [`AIMS`]; the best share wins.
         // [item 10] With whether a let-go sprint of the line's presses came to rest under the top (the held sweep's bound with
         // the aimed sweep's: Rudnya day 2's rest is the line's sprint at 1.6 m, a lead the aimed sweep does not fly; owner-5
         // `owner-5-pr1980-review-20261115.md` §3).
-        let near: Vec<((u32, u32, usize), bool, bool)> = todo
+        let near: Vec<((u32, u32, usize), bool, bool, f32)> = todo
             .iter()
             .zip(&flown)
             .zip(&plain)
-            .filter(|((_, p), _)| p.made.is_empty() && p.near)
-            .map(|((&t, p), &plain)| (t, plain, p.under))
+            .zip(&bases)
+            .filter(|(((_, p), _), _)| p.made.is_empty() && p.near)
+            .map(|(((&t, p), &plain), &base)| (t, plain, p.under, base))
             .collect();
         // [incremental grids PR 6] Through the job memo (site `rim.aimed`, [`rim_aimed_job`]), as the line's flights above; with
         // the memo off (the default), `parallel` over the same job.
@@ -877,7 +949,7 @@ impl WalkGrid {
         let aimed_of: std::collections::HashMap<(u32, u32), Made> = near
             .iter()
             .zip(&aimed)
-            .filter_map(|(&((a, b, _), _, _), (sweep, held))| aimed_or_held(sweep.made, held.and_then(|(m, _)| m)).map(|m| ((a, b), m)))
+            .filter_map(|(&((a, b, _), _, _, _), (sweep, held))| aimed_or_held(sweep.made, held.and_then(|(m, _)| m)).map(|m| ((a, b), m)))
             .collect();
         stats.aimed_made = aimed.iter().filter(|(sweep, _)| sweep.made.is_some()).count();
         stats.aimed_flights = aimed.iter().map(|(sweep, _)| sweep.flights).sum();
@@ -995,7 +1067,7 @@ impl WalkGrid {
             let (p, q) = (self.position(a), self.position(b));
             let len = p.distance_xz(q).max(1e-4);
             let linked = linked(a);
-            self.best_press(world, s, a, b, ((q.x - p.x) / len, (q.z - p.z) / len), leads, |st| self.rim_lands_on(st, a, &linked), kits, self.fall_ground())
+            self.best_press(world, s, a, b, ((q.x - p.x) / len, (q.z - p.z) / len), leads, |st| self.rim_lands_on(st, self.height[a as usize], &linked), kits, self.fall_ground())
         });
         let mut moved = 0;
         // [retarget] Only a press onto the link's own landing: this flight's line is the one from the standing floor to it, which
@@ -1087,6 +1159,8 @@ pub(super) struct RimLineItem {
     b: NodeId,
     d: usize,
     plain: bool,
+    /// [rule A] The height its presses land up from ([`WalkGrid::rim_base`]).
+    base: f32,
     linked: Vec<NodeId>,
     window: u128,
 }
@@ -1122,6 +1196,7 @@ fn rim_line_key(_: &RimLineCtx<'_>, ids: &StableIds, item: &RimLineItem) -> u128
     ids.id(item.b).feed(&mut d);
     d.u64(item.d as u64);
     item.plain.feed(&mut d);
+    d.u32(item.base.to_bits());
     d.u64(item.linked.len() as u64);
     for &n in &item.linked {
         ids.id(n).feed(&mut d);
@@ -1140,7 +1215,7 @@ fn rim_line_job(ctx: &RimLineCtx<'_>, item: &RimLineItem) -> RimLineOut {
         for f in st {
             reach.set(reach.get().max(f.feet.distance_xz(takeoff)));
         }
-        grid.rim_lands_on(st, item.a, &item.linked)
+        grid.rim_lands_on(st, item.base, &item.linked)
     };
     let press = grid.best_press(ctx.world, ctx.s, item.a, item.b, rim_way(item.d), &ctx.leads, lands, ctx.kits, grid.fall_ground());
     RimLineOut { press, reach_m: reach.get() }
@@ -1164,6 +1239,7 @@ impl WalkGrid {
         s: &Settings,
         todo: &[(u32, u32, usize)],
         plain: &[bool],
+        bases: &[f32],
         leads: &[f32],
         kits: Kits,
         linked: &impl Fn(NodeId) -> Vec<NodeId>,
@@ -1178,13 +1254,14 @@ impl WalkGrid {
         let items: Vec<RimLineItem> = todo
             .iter()
             .zip(plain)
-            .map(|(&(a, b, d), &plain)| {
+            .zip(bases)
+            .map(|((&(a, b, d), &plain), &base)| {
                 let mut linked = linked(a);
                 if plain {
                     linked.retain(|&n| n != b);
                 }
                 let window = windows.as_ref().map_or(0, |w| w.around(self.cell_of[a as usize] as usize, window_cells));
-                RimLineItem { a, b, d, plain, linked, window }
+                RimLineItem { a, b, d, plain, base, linked, window }
             })
             .collect();
         if on {
@@ -1233,6 +1310,8 @@ pub(super) struct RimAimedItem {
     d: usize,
     plain: bool,
     line_under: bool,
+    /// [rule A] The height its presses land up from ([`WalkGrid::rim_base`]).
+    base: f32,
     linked: Vec<NodeId>,
     window: u128,
 }
@@ -1270,6 +1349,7 @@ fn rim_aimed_key(_: &RimAimedCtx<'_>, ids: &StableIds, item: &RimAimedItem) -> u
     d.u64(item.d as u64);
     item.plain.feed(&mut d);
     item.line_under.feed(&mut d);
+    d.u32(item.base.to_bits());
     d.u64(item.linked.len() as u64);
     for &n in &item.linked {
         ids.id(n).feed(&mut d);
@@ -1290,7 +1370,7 @@ fn rim_aimed_job(ctx: &RimAimedCtx<'_>, item: &RimAimedItem) -> RimAimedOut {
         for f in st {
             reach.set(reach.get().max(f.feet.distance_xz(takeoff)));
         }
-        grid.rim_lands_on(st, item.a, &item.linked)
+        grid.rim_lands_on(st, item.base, &item.linked)
     };
     let way = rim_way(item.d);
     let sweep = grid.best_aimed(ctx.world, ctx.s, item.a, item.b, way, &lands, ctx.kits, grid.fall_ground());
@@ -1307,7 +1387,7 @@ impl WalkGrid {
         &self,
         world: &Collision,
         s: &Settings,
-        near: &[((u32, u32, usize), bool, bool)],
+        near: &[((u32, u32, usize), bool, bool, f32)],
         kits: Kits,
         linked: &impl Fn(NodeId) -> Vec<NodeId>,
         memo: &mut Memo,
@@ -1318,14 +1398,14 @@ impl WalkGrid {
         let windows = on.then(|| Windows::of_floors(self));
         let items: Vec<RimAimedItem> = near
             .iter()
-            .map(|&((a, b, d), plain, line_under)| {
+            .map(|&((a, b, d), plain, line_under, base)| {
                 // [C2 rows 11/12] As in the line's flights: a plain Jump link's own top is no link yet.
                 let mut linked = linked(a);
                 if plain {
                     linked.retain(|&n| n != b);
                 }
                 let window = windows.as_ref().map_or(0, |w| w.around(self.cell_of[a as usize] as usize, window_cells));
-                RimAimedItem { a, b, d, plain, line_under, linked, window }
+                RimAimedItem { a, b, d, plain, line_under, base, linked, window }
             })
             .collect();
         if on {
@@ -1493,6 +1573,39 @@ mod tests {
         let (grid, stats) = WalkGrid::build_kept_with_links(&tris, [-2.0, 0.0, 12.0, 6.0], 0.25, b, &start, &start, OffMeshLinks::Gaps);
         let up = grid.locate(Vec3::new(9.0, top, 3.0), 0.3).is_some_and(|n| grid.reached(n));
         (grid, stats.rim, up)
+    }
+
+    /// [body physics S5d, rule A] A ramp down along +x to an edge at x 2 (1.1 m over 4 m: 0.07 m a cell), a 1 m gap (its floor
+    /// 3 m down) and a top 1.3 m over the edge (Tarakanovsky TDM's ramp onto the wall top: from its edge 1.30 m under the top no
+    /// press lands, from 0.61-0.84 m under all six sprint variants land in the exe): the grid, its rim stats, the edge's height,
+    /// and whether the top is reached.
+    fn down_a_ramp(rim_walk_on: bool) -> (WalkGrid, RimStats, f32, bool) {
+        let b = Body { rim_walk_on, ..body(true) };
+        let (edge, top) = (0.0, 1.3);
+        let mut tris = Vec::new();
+        quad(&mut tris, Vec3::new(-2.0, edge + 1.1, 0.0), Vec3::new(-2.0, edge + 1.1, 6.0), Vec3::new(2.0, edge, 6.0), Vec3::new(2.0, edge, 0.0));
+        quad(&mut tris, Vec3::new(-6.0, edge + 1.1, 0.0), Vec3::new(-6.0, edge + 1.1, 6.0), Vec3::new(-2.0, edge + 1.1, 6.0), Vec3::new(-2.0, edge + 1.1, 0.0));
+        quad(&mut tris, Vec3::new(2.0, edge, 0.0), Vec3::new(2.0, -3.0, 0.0), Vec3::new(2.0, -3.0, 6.0), Vec3::new(2.0, edge, 6.0));
+        quad(&mut tris, Vec3::new(2.0, -3.0, 0.0), Vec3::new(2.0, -3.0, 6.0), Vec3::new(3.0, -3.0, 6.0), Vec3::new(3.0, -3.0, 0.0));
+        quad(&mut tris, Vec3::new(3.0, -3.0, 0.0), Vec3::new(3.0, top, 0.0), Vec3::new(3.0, top, 6.0), Vec3::new(3.0, -3.0, 6.0));
+        quad(&mut tris, Vec3::new(3.0, top, 0.0), Vec3::new(3.0, top, 6.0), Vec3::new(10.0, top, 6.0), Vec3::new(10.0, top, 0.0));
+        let start = [Vec3::new(-4.0, edge + 1.1, 3.0)];
+        let (grid, stats) = WalkGrid::build_kept_with_links(&tris, [-6.0, 0.0, 10.0, 6.0], 0.25, b, &start, &start, OffMeshLinks::Gaps);
+        let up = grid.locate(Vec3::new(7.0, top, 3.0), 0.3).is_some_and(|n| grid.reached(n));
+        (grid, stats.rim, edge, up)
+    }
+
+    /// [body physics S5d, rule A] With `rim_walk_on` the rim jumps are searched from the floors back down the ramp: a link onto
+    /// the top is made from a floor over the edge's own (walked on to it), its presses landing up from the edge, and the top is
+    /// reached; without it no rim link starts back up the ramp.
+    #[test]
+    fn a_rim_jump_is_searched_from_back_down_a_slope_to_its_edge() {
+        let (grid, rim, edge, up) = down_a_ramp(true);
+        let back = |g: &WalkGrid| g.off_links().iter().filter(|l| l.kind == LinkKind::GapJump && g.position(l.from).y > edge + 0.1).count();
+        assert!(back(&grid) > 0 && up, "{rim:?}");
+        let (grid_off, rim_off, _, _) = down_a_ramp(false);
+        assert_eq!(back(&grid_off), 0, "{rim_off:?}");
+        assert!(rim.tried > rim_off.tried, "{rim:?} {rim_off:?}");
     }
 
     /// [body physics S5b] Every stored rim press with a run-up has its stored run-in (`WalkGrid::run_in_of`, RunIn::of): the gait of
