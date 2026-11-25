@@ -15,6 +15,7 @@ mod exact;
 mod falls;
 mod fields;
 mod flights;
+mod overlaps;
 mod passes;
 mod pockets;
 mod probe;
@@ -176,6 +177,7 @@ fn topics(bodies: usize) -> Vec<Box<dyn RouteTopic>> {
         Box::new(flights::Flights::new(bodies)),
         escape_floors(),
         open_walks(),
+        Box::new(overlaps::Overlaps::default()),
     ]
 }
 
