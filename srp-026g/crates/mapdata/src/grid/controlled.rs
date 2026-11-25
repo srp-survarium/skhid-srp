@@ -281,7 +281,7 @@ fn out_of_faces_of(world: &Collision, feet: Vec3, height: f32) -> Vec3 {
 pub fn walk_share(world: &Collision, s: &Settings, start: WalkStart, from: Vec3, to: Vec3) -> (f32, bool) {
     // [body physics S6b] The client's body walked by its keys ([`walk_on`]), going through `from` in its steady walk
     // ([`walking_at`]), as the direct walk at full speed did and a body walking a route does.
-    let mut b = walking_at(world, s, start, from, yaw_toward(from, to));
+    let mut b = walking_at(world, start, from, yaw_toward(from, to));
     match walk_on(world, s, &mut b, Stance::Standing, from, to, 0, AT_HEIGHT_M) {
         // A low ceiling: the client slides under it or crouches: not a stall the pass knows.
         Walked::Ceiling => (1.0, false),
@@ -375,55 +375,44 @@ fn way_along(from: Vec3, to: Vec3, feet: Vec3) -> f32 {
     Vec3::new(feet.x - from.x, 0.0, feet.z - from.z).dot(flat) / (length * length)
 }
 
-/// [body physics S6b] The walk check's body at `feet` in `stance`: placed where a body in that stance can be ([`body_at`]), facing
-/// `yaw`, and come to rest as the client's body does (the velocity a hair down, so the client's step skip, `can_skip_player_step`
-/// 0x7C7E0, does not hold it where it was put; no keys, the crouch key held when crouched; still [`motion::verdict::STILL_STEPS`]
-/// steps). The exe rig on 32 walk feeds (S6b-0): a body put by [`body_at`] 3.7 cm over its floor at speed 0 and handed keys at once
-/// is held in the air by the port's skip and stepped down by the exe's tick, and the two part from there; from a rested body they
-/// do not. A body that does not come to rest in [`motion::REST_STEPS_MAX`] steps is walked from where it is.
-pub fn rested_at(world: &Collision, s: &Settings, start: WalkStart, stance: Stance, feet: Vec3, yaw: f32) -> ClientBody {
+/// [body physics S6b] The walk check's body at `feet` in `stance`, facing `yaw`: placed where a body in that stance can be
+/// ([`body_at`]) with the put's one small downward speed, as the game puts a body (and the exe rig's put writes it): without it
+/// the client's step skip (`can_skip_player_step` 0x7C7E0: no walk, no speed) holds a body put up to 3.7 cm over its floor where
+/// it was put on the keys' first step (the blend's, which does not move), where the exe's tick steps it down; 13 of S6b-0's 32
+/// key-walk feeds parted from the exe there. It is walked at once, as the exe rig's feeds are: a body left to come to rest first
+/// slides off a take-off no body stands on (S6b-0 v5, level_05 day 4: 679 of 838 links the rest failed, down to 4.7 m) that a
+/// walk from it crosses.
+pub fn put_at(world: &Collision, start: WalkStart, stance: Stance, feet: Vec3, yaw: f32) -> ClientBody {
     let mut c = body_at(world, start, stance, feet);
     c.velocity = Vec3::new(0.0, -0.01, 0.0);
-    let pass = Pass { world, settings: s };
-    let mut body = ClientBody::of(c, yaw);
-    let keys = stance_keys(stance, false);
-    let (mut still, mut last) = (0, body.feet());
-    for _ in 0..motion::REST_STEPS_MAX {
-        let t = body.tick(&pass, Kin::CLIENT, Input { keys, yaw });
-        still = if t.on_ground && (t.feet - last).length() < motion::verdict::STILL_M { still + 1 } else { 0 };
-        last = t.feet;
-        if still >= motion::verdict::STILL_STEPS {
-            break;
-        }
-    }
-    body
-}
-
-/// [body physics S6b] How many forward inputs a walking body's blend is replayed with ([`walking_at`]): the blend is at its target
-/// after six steps (`WalkBlend`, `BLEND_STEPS`), and two more.
-const WALKING_INPUTS: usize = 8;
-
-/// [body physics S6b] The walk check's standing body at `feet` already walking forward toward `yaw` in its steady walk: come to
-/// rest there ([`rested_at`]), then its blend replayed with [`WALKING_INPUTS`] forward inputs ([`ClientBody::from_saved`], the
-/// world's body: its walk at full weight, the next step moving by the forward key). A crack is crossed by a body that comes to it
-/// walking: one started from rest at a floor's centre 0.25-0.5 m before a 1.0 m gap blends up to 1-2 m/s by the edge and drops
-/// into it, where the client walks level gaps to 1.79 m (A364 C2 row 52).
-pub fn walking_at(world: &Collision, s: &Settings, start: WalkStart, feet: Vec3, yaw: f32) -> ClientBody {
-    let rested = rested_at(world, s, start, Stance::Standing, feet, yaw);
-    let forward = [Input { keys: motion::keys::FORWARD, yaw }; WALKING_INPUTS];
-    ClientBody::from_saved(&rested.save(), &forward, Kin::CLIENT)
+    ClientBody::of(c, yaw)
 }
 
 /// [body physics S6b] The keys of a walk check's body in `stance`: the crouch key when crouched (as [`body_at`] holds it), and the
-/// forward key when `walking`.
-fn stance_keys(stance: Stance, walking: bool) -> u32 {
-    (if walking { motion::keys::FORWARD } else { 0 }) | if stance == Stance::Crouched { motion::keys::CROUCH } else { 0 }
+/// forward key.
+fn stance_keys(stance: Stance) -> u32 {
+    motion::keys::FORWARD | if stance == Stance::Crouched { motion::keys::CROUCH } else { 0 }
 }
 
 /// [body physics S6b] How far past the far floor a walk check's body aims, m: a body at speed re-aimed at the floor itself, with the
 /// client's one-step turn lag (the walk turns by the input before), circles it at 3.5 m/s on a 0.25 m link (S6b-0's chained walks);
 /// aimed past it, it walks through.
 pub const AIM_PAST_M: f32 = 0.5;
+
+/// [body physics S6b] How many forward inputs a walking body's blend is replayed with ([`walking_at`]): the blend is at its target
+/// after six steps (`WalkBlend`, `BLEND_STEPS`), and two more.
+const WALKING_INPUTS: usize = 8;
+
+/// [body physics S6b] The walk check's standing body at `feet` already walking forward toward `yaw` in its steady walk: put
+/// there ([`put_at`]), then its blend replayed with [`WALKING_INPUTS`] forward inputs ([`ClientBody::from_saved`], the
+/// world's body: its walk at full weight, the next step moving by the forward key). A crack is crossed by a body that comes to it
+/// walking: one started from rest at a floor's centre 0.25-0.5 m before a 1.0 m gap blends up to 1-2 m/s by the edge and drops
+/// into it, where the client walks level gaps to 1.79 m (A364 C2 row 52).
+pub fn walking_at(world: &Collision, start: WalkStart, feet: Vec3, yaw: f32) -> ClientBody {
+    let put = put_at(world, start, Stance::Standing, feet, yaw);
+    let forward = [Input { keys: motion::keys::FORWARD, yaw }; WALKING_INPUTS];
+    ClientBody::from_saved(&put.save(), &forward, Kin::CLIENT)
+}
 
 /// The walk check's body `b` (a [`ClientBody`]) walked from where it is toward `to` (feet) by the client's keys: the forward key
 /// (and the crouch key in `stance`) with the yaw toward a point [`AIM_PAST_M`] past `to` along `from` -> `to`, for the ticks the
@@ -445,7 +434,7 @@ pub fn walk_on(world: &Collision, s: &Settings, b: &mut ClientBody, stance: Stan
     let leg = length.max(b.feet().distance_xz(to));
     let ticks = (leg / (mps * 0.05)).ceil() as usize + 2 + spare;
     let pass = Pass { world, settings: s };
-    let keys = stance_keys(stance, true);
+    let keys = stance_keys(stance);
     let aim = to + dir * AIM_PAST_M;
     let at = |feet: Vec3| {
         let rel = Vec3::new(feet.x - to.x, 0.0, feet.z - to.z);
@@ -505,7 +494,7 @@ fn walks_on_to_level(world: &Collision, s: &Settings, b: &mut ClientBody, stance
     let aim = Vec3::new(to.x + dir.x * ON_PAST_M, to.y, to.z + dir.z * ON_PAST_M);
     let ticks = (ON_PAST_M / (stance_mps(stance) * 0.05)).ceil() as usize + SPARE_TICKS;
     let pass = Pass { world, settings: s };
-    let keys = stance_keys(stance, true);
+    let keys = stance_keys(stance);
     let level_at = |f: Vec3| (f.y - to.y).abs() <= AT_HEIGHT_M && Vec3::new(f.x - to.x, 0.0, f.z - to.z).dot(dir) >= -AT_FLAT_M;
     for _ in 0..ticks {
         let feet = b.feet();
@@ -1121,7 +1110,7 @@ impl WalkGrid {
         for off in STARTS {
             let (from, to) = (pa + side * off, pb + side * off);
             let yaw = yaw_toward(from, to);
-            let mut c = rested_at(world, s, start, stance, from, yaw);
+            let mut c = put_at(world, start, stance, from, yaw);
             let mut centre = walk_on(world, s, &mut c, stance, from, to, SPARE_TICKS, self.body.step);
             let mut only_crouched = false;
             // A standing body refused under a low ceiling is walked again crouched; and, [`Body::walk_ceiling_stalls`] (whose
@@ -1136,7 +1125,7 @@ impl WalkGrid {
                 Walked::At | Walked::AtEnd(_) => false,
             };
             if retry && stance == Stance::Standing {
-                let mut c = rested_at(world, s, start, Stance::Crouched, from, yaw);
+                let mut c = put_at(world, start, Stance::Crouched, from, yaw);
                 let low = walk_on(world, s, &mut c, Stance::Crouched, from, to, SPARE_TICKS, self.body.step);
                 only_crouched = matches!(low, Walked::At | Walked::AtEnd(_));
                 // A crouched walk that does not arrive leaves the standing answer (its share prices a cut).
@@ -1157,7 +1146,7 @@ impl WalkGrid {
             }
             let chained = before.is_none_or(|q| {
                 let from_q = self.position(q as NodeId) + side * off;
-                let mut c = rested_at(world, s, start, line, from_q, yaw_toward(from_q, from));
+                let mut c = put_at(world, start, line, from_q, yaw_toward(from_q, from));
                 // The link before failing is its own check's; from where it leaves the body this one says nothing. [body physics
                 // S6b] The body goes on into this link as it left the one before: its blend and speed carried.
                 !matches!(walk_on(world, s, &mut c, line, from_q, from, SPARE_TICKS, self.body.step), Walked::At | Walked::AtEnd(_))
@@ -1530,7 +1519,7 @@ mod tests {
             let from = Vec3::new(x - ux * back, floor, z - uz * back);
             let to = Vec3::new(x + ux * ahead, top, z + uz * ahead);
             let walk = |stance: Stance| {
-                let mut b = rested_at(&world, &s, WalkStart::Clear, stance, from, yaw_toward(from, to));
+                let mut b = put_at(&world, WalkStart::Clear, stance, from, yaw_toward(from, to));
                 walk_on(&world, &s, &mut b, stance, from, to, SPARE_TICKS, 0.8)
             };
             assert!(matches!(walk(Stance::Standing), Walked::Short(_)), "({x}, {z}) standing: {:?}", walk(Stance::Standing));
