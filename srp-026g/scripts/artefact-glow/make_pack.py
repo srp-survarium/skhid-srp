@@ -112,7 +112,7 @@ import sys
 import zlib
 
 PACK_ID = 'artefact-glow'
-VERSION = '16'
+VERSION = '17'
 # kind -> (effect config, particle system); the stock files, by sha256.
 KINDS = {
     'lifebone': 'fx/artifacts/human_zhivokost',
@@ -797,9 +797,14 @@ def main():
         operations.append({'op': 'add_file', 'path': f'particles/{fp_system}.particle'})
         # the stock child is the stock effect, value for value
         assert sort_key(get(effect, 'effect/effects')[1][0]) == sort_key(get(parse(stock[effect_path]), 'effect'))
-        for tier in range(1, 5):
-            # Scale every emitter, including the source of the body light.
-            weakened = smoke_scaled(particle, 0.8 ** tier, names=None)
+        # Each visibly distinct 8-bit intensity gets one pooled resource.
+        previous = 255
+        for tier in range(1, 29):
+            intensity = round(255 * 0.8 ** tier)
+            if intensity == previous:
+                continue
+            previous = intensity
+            weakened = smoke_scaled(particle, intensity / 255, names=None)
             name = f'{system}_wear_{tier}'
             variants = {
                 f'gameplay/effects/effect_artefact_{kind}_wear_{tier}.options': forest_effect(parse(stock[effect_path]), name),
@@ -856,7 +861,7 @@ def main():
         'id': PACK_ID,
         'version': VERSION,
         'target_build': '0.26g',
-        'description': "Four worn activation variants per kind with progressive emission rates. The artefacts' glow seen by their carrier: each effect_artefact_<kind> a composite of the "
+        'description': "Progressively weaker activation glows at each distinct 8-bit intensity. The artefacts' glow seen by their carrier: each effect_artefact_<kind> a composite of the "
                        'stock third-person particle effect and a first-person one (view 0) playing '
                        'fx/artifacts/human_<kind>_fp: the stock particle system, its point lights and haze '
                        'included, with Head, Face and Neck off in every emitter\'s animated domain; and '

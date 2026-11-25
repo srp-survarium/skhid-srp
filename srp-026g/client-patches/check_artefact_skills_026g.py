@@ -1261,49 +1261,56 @@ def check_wear(data):
     m = Match(data)
     g = m.g
     item = m.spring(PLAYER, 3)
-    for uses, power in enumerate((1, .8, .64, .512, .4096), 1):
+    # Install the stub for the engine's byte writer. The outer writer normally
+    # supplies the state byte immediately after our optional prefix.
+    save(m, item)
+    writer = g.block(0x20)
+    for uses in range(1, 36):
+        power = .8 ** (uses - 1)
         g.call(0x313300, (1, 1000 * uses), ecx=item)
         assert g.read(item + 0x280) == 4
-        assert g.emu.mem_read(item + 0x27f, 1)[0] == uses
+        assert int.from_bytes(g.emu.mem_read(item + 0x286, 2), 'little') == uses
         g.call(0x313300, (0, 1000 * uses), ecx=item)
         g.call(0x313300, (1, 1000 * uses + 1), ecx=item)
-        assert g.emu.mem_read(item + 0x27f, 1)[0] == uses
-        remaining = power * .8 if uses < 5 else 0
+        assert int.from_bytes(g.emu.mem_read(item + 0x286, 2), 'little') == uses
+        remaining = power * .8
         close(m.getter(4), 1 + .05 * remaining + .1 * power)
         # Native writer's state local, then the loader's dispatch and a second save.
         for state in (4, 3, 5, 6):
-            g.step(0x3136a3, 5, eax=state, esi=item)
-            wire = g.emu.mem_read(STACK - 0x100 + 0x1f, 1)[0]
-            assert wire == (uses << 3) | state
-            restored = g.block(0x400)
-            g.step(0x3137a0, 6, eax=wire, ebx=restored)
+            m.saved.clear()
+            g.step(0x3136a3, 5, eax=state, esi=item, edi=writer)
+            wire = bytes(m.saved) + bytes(g.emu.mem_read(STACK - 0x100 + 0x1f, 1))
+            assert wire == (bytes([(uses << 3) | state]) if uses < 32 else b'\xff' + uses.to_bytes(2, 'little') + bytes([state]))
+            restored, reader, tail = g.block(0x400), g.block(12), g.block(4)
+            g.emu.mem_write(tail, wire[1:] + b'\x00')
+            for off, value in ((0, tail), (4, tail), (8, len(wire) - 1)):
+                g.word(reader + off, value)
+            g.step(0x3137a0, 6, eax=wire[0], ebx=restored, edi=reader)
             assert g.read(restored + 0x280) == state
-            g.step(0x3136a3, 5, eax=state, esi=restored)
-            assert g.emu.mem_read(STACK - 0x100 + 0x1f, 1)[0] == wire
+            assert int.from_bytes(g.emu.mem_read(restored + 0x286, 2), 'little') == uses
+            assert g.read(reader + 4) == tail + len(wire) - 1
         g.call(0x311970, ecx=item)
         g.word(item + 0x280, 3)
         g.word(item + 0x28c, 500)
         g.call(0x313300, (1, 1000 * uses + 10), ecx=item)
-        assert g.emu.mem_read(item + 0x27f, 1)[0] == uses
+        assert int.from_bytes(g.emu.mem_read(item + 0x286, 2), 'little') == uses
         g.word(item + 0x28c, 0)
         close(m.getter(4), 1 + .05 * remaining)
-    g.call(0x313300, (1, 6000), ecx=item)
-    assert g.read(item + 0x280) == 3 and g.emu.mem_read(item + 0x27f, 1)[0] == 5
     g.step(0x3134c0, 7, eax=item)
-    assert g.emu.mem_read(item + 0x27f, 1)[0] == 0
-    # A different copy has its own wear. A spent key still fires a fresh sibling.
-    g.emu.mem_write(item + 0x27f, bytes([5]))
+    assert g.emu.mem_read(item + 0x286, 2) == bytes(2)
+    # A very worn copy and a fresh sibling both fire and each advances independently.
+    g.emu.mem_write(item + 0x286, (255).to_bytes(2, 'little'))
     fresh = m.spring(PLAYER, 3)
     g.word(fresh, g.read(item))
-    g.call(ACTION, (1, 7000), ecx=item)
-    assert g.read(fresh + 0x280) == 4 and g.emu.mem_read(fresh + 0x27f, 1)[0] == 1
-    assert g.read(item + 0x280) == 3 and g.emu.mem_read(item + 0x27f, 1)[0] == 5
+    g.call(ACTION, (1, 40000), ecx=item)
+    assert g.read(fresh + 0x280) == 4 and g.emu.mem_read(fresh + 0x286, 2) == bytes([1, 0])
+    assert g.read(item + 0x280) == 4 and g.emu.mem_read(item + 0x286, 2) == bytes([0, 1])
     # A worn Onyx scales the benefit (damage prevented), including its absorb cap.
-    for uses in range(1, 6):
+    for uses in range(1, 12):
         m = Match(data)
         stone = onyx(m, PLAYER, 3)
         full = native_protect(m, stone, 4, 7, 100.0, .4)
-        m.g.emu.mem_write(stone + 0x27f, bytes([uses]))
+        m.g.emu.mem_write(stone + 0x286, uses.to_bytes(2, 'little'))
         have = native_protect(m, stone, 4, 7, 100.0, .4)
         for before, after, actual in zip((100.0, .4), full, have):
             close(actual, before + (after - before) * .8 ** (uses - 1))
@@ -1314,15 +1321,15 @@ def check_wear(data):
     g.word(DM, g.read(PLAYER + 0x2E0))
     g.ranks(1 << 20, 43)
     bone = m.artefact(PLAYER, LIFEBONE_ACTIVE, 3)
-    g.emu.mem_write(bone + 0x27f, bytes([4]))
+    g.emu.mem_write(bone + 0x286, bytes([8, 0]))
     for at in (PLAYER, ally):
         for pool in g.pools[at].values():
             g.word(pool + 0xa0, bits(g.float(pool + 0x9c) / 2))
     g.call(ACTION, (1, 1234), ecx=bone)
     for at in (PLAYER, ally):
         for pool in g.pools[at].values():
-            close(g.float(pool + 0xa0), g.float(pool + 0x9c) * (.5 + .5 * .4096))
-    print('Five real Spring activations, passive and active strength, ignored presses, spent, spawn and codec: PASS')
+            close(g.float(pool + 0xa0), g.float(pool + 0x9c) * (.5 + .5 * .8 ** 8))
+    print('35 real Spring activations, progressive passive and active strength, ignored presses, spawn and compact/extended codec: PASS')
 
 
 def main():

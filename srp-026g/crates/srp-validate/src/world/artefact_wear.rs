@@ -1,88 +1,55 @@
 //! Successful activations of one combat artefact since its anomaly spawn.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-#[repr(u8)]
-pub enum ArtefactWear {
-    #[default]
-    Fresh,
-    Once,
-    Twice,
-    ThreeUses,
-    FourUses,
-    Spent,
-}
+pub struct ArtefactWear(u16);
 
 impl ArtefactWear {
-    pub fn new(uses: u8) -> Option<Self> {
-        Some(match uses {
-            0 => Self::Fresh,
-            1 => Self::Once,
-            2 => Self::Twice,
-            3 => Self::ThreeUses,
-            4 => Self::FourUses,
-            5 => Self::Spent,
-            _ => return None,
-        })
-    }
+    pub const FRESH: Self = Self(0);
+    /// Reserved low state 7. Followed by the little-endian count and native state.
+    pub const EXTENDED: u8 = 0xff;
 
-    pub fn uses(self) -> u8 { self as u8 }
+    pub fn new(uses: u16) -> Self { Self(uses) }
+    pub fn uses(self) -> u16 { self.0 }
 
-    pub fn after_use(self) -> Self {
-        match self {
-            Self::Fresh => Self::Once,
-            Self::Once => Self::Twice,
-            Self::Twice => Self::ThreeUses,
-            Self::ThreeUses => Self::FourUses,
-            Self::FourUses | Self::Spent => Self::Spent,
-        }
-    }
+    pub fn after_use(self) -> Self { Self(self.0.saturating_add(1)) }
 
-    /// The last activation uses the strength it had before paying for that use.
-    /// Active snapshots from before wear have full strength.
-    pub fn firing(self) -> Self {
-        match self {
-            Self::Fresh | Self::Once => Self::Fresh,
-            Self::Twice => Self::Once,
-            Self::ThreeUses => Self::Twice,
-            Self::FourUses => Self::ThreeUses,
-            Self::Spent => Self::FourUses,
-        }
-    }
+    /// The activation in progress uses the power from before it was paid for.
+    pub fn firing(self) -> Self { Self(self.0.saturating_sub(1)) }
 
     pub fn power(self) -> f32 {
-        match self {
-            Self::Fresh => 1.0,
-            Self::Once => 0.8,
-            Self::Twice => 0.64,
-            Self::ThreeUses => 0.512,
-            Self::FourUses => 0.4096,
-            Self::Spent => 0.0,
+        let mut exponent = self.0;
+        let mut power = 1.0_f64;
+        let mut factor = 0.8_f64;
+        while exponent != 0 {
+            if exponent & 1 != 0 { power *= factor; }
+            exponent >>= 1;
+            factor *= factor;
         }
+        // Preserve a positive multiplier even below the game's float precision.
+        (power as f32).max(f32::from_bits(1))
     }
 
-    pub fn percent(self) -> u32 { (self.power() * 100.0 + 0.5) as u32 }
-
-    pub fn unpack(byte: u8) -> Option<(u8, Self)> {
-        Some((byte & 7, Self::new(byte >> 3)?))
+    /// Existing worlds encode a small count directly above the three state bits.
+    pub fn inline(self, state: u8) -> Option<u8> {
+        (self.0 < 32).then_some(((self.0 as u8) << 3) | state)
     }
 
-    pub fn pack(self, state: u8) -> u8 { self.uses() << 3 | state }
+    pub fn from_inline(byte: u8) -> (u8, Self) { (byte & 7, Self(u16::from(byte >> 3))) }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     #[test]
-    fn each_activation_keeps_its_own_strength() {
-        let mut wear = ArtefactWear::Fresh;
-        for percent in [100, 80, 64, 51, 41] {
-            assert_eq!(wear.percent(), percent);
-            wear = wear.after_use();
-            assert_eq!(wear.firing().percent(), percent);
-            for state in 0..=6 {
-                assert_eq!(ArtefactWear::unpack(wear.pack(state)), Some((state, wear)));
-            }
+    fn continues_across_five_uses_and_the_inline_wire_limit() {
+        let mut wear = ArtefactWear::FRESH;
+        for uses in 0..512 {
+            let next = wear.after_use();
+            assert_eq!(next.firing(), wear);
+            let expected = (0.8_f64.powi(uses) as f32).max(f32::from_bits(1));
+            assert_eq!(wear.power(), expected);
+            assert_eq!(wear.inline(4).map(ArtefactWear::from_inline), (uses < 32).then_some((4, wear)));
+            wear = next;
         }
-        assert_eq!(wear.after_use().percent(), 0);
-        assert_eq!(ArtefactWear::unpack(6 << 3), None);
+        assert!(ArtefactWear::new(u16::MAX).after_use().power() > 0.0);
     }
 }

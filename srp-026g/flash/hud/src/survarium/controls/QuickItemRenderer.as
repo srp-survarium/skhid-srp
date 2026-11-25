@@ -287,8 +287,7 @@ package survarium.controls
                }
                if(_data.wearPower != undefined && _data.is_artefact)
                {
-                  var power:String = _data.wearPower == 0 ? LocalizationData.getName("st_srp_hud_artefact_spent") : _data.wearPower + "%";
-                  this.count.text = _data.previousPower ? _data.previousPower + "% → " + power : power;
+                  this.count.text = _data.previousPower ? _data.previousPower + " → " + _data.wearPower : _data.wearPower;
                }
                else if(_data.count > 1 && _data.enabled)
                {

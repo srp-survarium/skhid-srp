@@ -38,10 +38,16 @@ package survarium.controls
       private var _nativeSlots:Array = [];
       private var _activities:Array = [];
 
-      public function takeWearHint(slot:uint, phase:uint, power:uint, id:uint) : Boolean
+      public static function powerLabel(uses:uint) : String
+      {
+         var percent:Number = 100 * Math.pow(0.8,uses);
+         return percent < 1 ? "<1%" : Math.round(percent) + "%";
+      }
+
+      public function takeWearHint(slot:uint, phase:uint, uses:uint, id:uint) : Boolean
       {
          var old:Object = _activities[slot];
-         if(_wearHintShown || phase != ACTIVITY_WEAR || !old || old.phase != phase || old.id != id || old.power <= power) return false;
+         if(_wearHintShown || phase != ACTIVITY_WEAR || !old || old.phase != phase || old.id != id || old.uses >= uses) return false;
          _wearHintShown = true;
          return true;
       }
@@ -55,11 +61,12 @@ package survarium.controls
          if(phase == ACTIVITY_WEAR)
          {
             var now:int = getTimer();
-            var changed:Boolean = old && old.phase == phase && old.id == duration && old.power > remaining;
-            var same:Boolean = old && old.phase == phase && old.id == duration && old.power == remaining;
+            var changed:Boolean = old && old.phase == phase && old.id == duration && old.uses < remaining;
+            var same:Boolean = old && old.phase == phase && old.id == duration && old.uses == remaining;
             if(same && (!old.previous || now - old.since < 1200)) return false;
-            _activities[slot] = {phase:phase, power:remaining, id:duration,
-               previous:changed ? old.power : 0, since:now};
+            var label:String = powerLabel(remaining);
+            _activities[slot] = {phase:phase, uses:remaining, power:label, id:duration,
+               previous:changed && label != old.power ? old.power : null, since:now};
             return _nativeSlots[slot] ? renderSlot(presentation(_nativeSlots[slot])) : false;
          }
          if(old && old.phase == phase && old.seconds == seconds && old.activation == activation) return false;

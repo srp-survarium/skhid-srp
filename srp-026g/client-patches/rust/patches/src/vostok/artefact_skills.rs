@@ -115,14 +115,8 @@ struct Own {
 fn own(player: raw::Player, kind: Kind) -> impl Iterator<Item = Own> {
     carried(player)
         .filter(move |copy| copy.kind == kind && copy.state != State::Other)
-        .scan(0, |count, copy| {
-            // A spent copy occupies its container, but only its final active
-            // still contributes to the four copies that can affect the player.
-            let contributes = copy.state == State::Active || wear(copy.at) != ArtefactWear::Spent;
-            let counts = contributes && Room::counts_own(*count);
-            *count += usize::from(contributes);
-            Some(Own { copy, counts })
-        })
+        .enumerate()
+        .map(|(index, copy)| Own { copy, counts: Room::counts_own(index) })
 }
 
 /// The player whose inventory holds `artefact`; none for one in no inventory.
@@ -186,7 +180,7 @@ pub fn fire(ctx: &Context<'_>) {
         let Some(frame) = site::frame(ctx) else {
             return;
         };
-        if frame.artefact().is_some_and(|item| uncounted(item) || wear(item) == ArtefactWear::Spent) {
+        if frame.artefact().is_some_and(uncounted) {
             *frame.fires() = 0;
         }
     }
@@ -483,7 +477,7 @@ fn shared(roster: Roster<'_>, recipient: Player<'_>, kind: Kind) -> (Shared, Sha
         }
         let passive = resonance.is_some_and(|reach| carrier.distance_squared(recipient) <= reach);
         for copy in own(carrier.get(), kind).filter(|own| own.counts).map(|own| own.copy) {
-            if passive && wear(copy.at) != ArtefactWear::Spent && kind.gives(Phase::Passive, copy.state) {
+            if passive && kind.gives(Phase::Passive, copy.state) {
                 passives.offer(copy.at);
             }
             if cascade && kind.gives(Phase::Active, copy.state) && reached(roster.thread, copy.at).contains(place) {
@@ -508,7 +502,7 @@ impl super::world::Player<'_> {
             return Copies::default();
         };
         Copies::of(|kind| {
-            let own = own(self.this, kind).filter(|own| own.counts && wear(own.copy.at) != ArtefactWear::Spent && kind.gives(Phase::Passive, own.copy.state)).count();
+            let own = own(self.this, kind).filter(|own| own.counts && kind.gives(Phase::Passive, own.copy.state)).count();
             let (passives, _) = shared(roster, recipient, kind);
             (own, passives.iter().count())
         })
@@ -570,7 +564,7 @@ struct SpringNodes {
 impl SpringNodes {
     fn changed(own: Own) -> Option<Self> {
         let wear = wear(own.copy.at);
-        if own.counts && wear == ArtefactWear::Fresh { return None; }
+        if own.counts && wear == ArtefactWear::FRESH { return None; }
         let (passive, active) = spring_phase_nodes(own.copy.at);
         let power = if own.counts { [wear.power(), wear.firing().power()] } else { [0.0; 2] };
         Some(Self { passive, active, power })
@@ -874,8 +868,8 @@ pub fn shared_regeneration(ctx: &mut Context<'_>) {
 
 
 pub(super) fn wear(item: raw::Artefact) -> ArtefactWear {
-    // SAFETY: the live artefact base owns the initialized wear byte.
-    ArtefactWear::new(unsafe { *item.uses_spent() }).unwrap_or(ArtefactWear::Spent)
+    // SAFETY: the live artefact base owns the initialized use count.
+    ArtefactWear::new(unsafe { *item.uses_spent() })
 }
 
 fn set_wear(item: raw::Artefact, wear: ArtefactWear) {
@@ -886,31 +880,43 @@ fn set_wear(item: raw::Artefact, wear: ArtefactWear) {
 pub fn wear_init(ctx: &mut Context<'_>) {
     // SAFETY: the site holds the live artefact base.
     if let Some(item) = unsafe { raw::site::artefact_wear_init::item(ctx) } {
-        set_wear(item, ArtefactWear::Fresh);
+        set_wear(item, ArtefactWear::FRESH);
     }
 }
 
 pub fn wear_spawn(ctx: &mut Context<'_>) {
     // SAFETY: the site holds the live artefact base.
     if let Some(item) = unsafe { raw::site::artefact_wear_spawn::item(ctx) } {
-        set_wear(item, ArtefactWear::Fresh);
+        set_wear(item, ArtefactWear::FRESH);
     }
 }
 
 pub fn wear_save(ctx: &mut Context<'_>) {
-    // SAFETY: the site holds the live artefact base.
-    if let Some(item) = unsafe { raw::site::artefact_wear_save::item(ctx) } {
-        ctx.set_reg8(Reg::Eax, wear(item).pack(ctx.reg(Reg::Eax) as u8));
+    use raw::site::artefact_wear_save as site;
+    // SAFETY: the serializer holds this live artefact and the writer for its state.
+    let (Some(item), Some(writer)) = (unsafe { site::item(ctx) }, unsafe { site::writer(ctx) }) else { return };
+    let wear = wear(item);
+    let state = ctx.reg(Reg::Eax) as u8;
+    if let Some(byte) = wear.inline(state) {
+        ctx.set_reg8(Reg::Eax, byte);
+    } else {
+        let [lo, hi] = wear.uses().to_le_bytes();
+        super::carry_runtime::write_bytes(writer, &[ArtefactWear::EXTENDED, lo, hi]);
+        // The native writer appends the ordinary state byte after the extension.
     }
 }
 
 pub fn wear_load(ctx: &mut Context<'_>) {
-    // SAFETY: the site holds the live artefact base.
-    if let Some(item) = unsafe { raw::site::artefact_wear_load::item(ctx) } {
-        let (state, wear) = ArtefactWear::unpack(ctx.reg(Reg::Eax) as u8).unwrap_or((0, ArtefactWear::Fresh));
-        set_wear(item, wear);
-        ctx.set_reg(Reg::Eax, u32::from(state));
-    }
+    use raw::site::artefact_wear_load as site;
+    // SAFETY: the deserializer holds the live artefact and its reader just after the first byte.
+    let Some(item) = (unsafe { site::item(ctx) }) else { return };
+    let byte = ctx.reg(Reg::Eax) as u8;
+    let (state, wear) = if byte == ArtefactWear::EXTENDED {
+        let Some([lo, hi, state]) = (unsafe { site::reader(ctx) }).and_then(super::carry_runtime::read_bytes) else { return };
+        (state, ArtefactWear::new(u16::from_le_bytes([lo, hi])))
+    } else { ArtefactWear::from_inline(byte) };
+    set_wear(item, wear);
+    ctx.set_reg(Reg::Eax, u32::from(state));
 }
 
 pub fn wear_use(ctx: &mut Context<'_>) {

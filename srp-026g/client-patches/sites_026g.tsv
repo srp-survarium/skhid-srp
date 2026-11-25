@@ -461,8 +461,8 @@ mouse.read_failed	0x3B9704	lohook	-	5	-	lock=EBP:vostok::input::mouse_lock resul
 mouse.acquire_join	0x3B97E8	lohook	-	5	-	lock=EBP:vostok::input::mouse_lock esi=ESI:u32 result=EAX:u32	mouse::execute's return with no mouse input after its re-Acquire (vtable+1Ch, 0x3B971A) or after its "mouse device is lost" line (xor eax,eax / xchg [ebp+0],eax: the lock released): from the failed Acquire (the jl at 0x3B971E) ESI is the mouse (EBP - 30h) and EAX Acquire's HRESULT; from the line's paths (0x3B97DD, 0x3B97E3) ESI is the device (0x3B9724) or the line's frame (0x3B97DF) and EAX no HRESULT
 artefact.wear_init	0x313005	lohook	-	6	-	item=ESI:survarium::artefact	Constructor initializes the registry ID.
 artefact.wear_spawn	0x3134C0	lohook	-	7	-	item=EAX:survarium::artefact	on_spawned resets a pooled artefact before growing.
-artefact.wear_save	0x3136A3	lohook	-	5	-	item=ESI:survarium::artefact	AL is the state byte about to be written to the stream.
-artefact.wear_load	0x3137A0	lohook	-	6	-	item=EBX:survarium::artefact	EAX is the wire byte before the native state dispatch.
+artefact.wear_save	0x3136A3	lohook	-	5	-	item=ESI:survarium::artefact writer=EDI:vostok::buffer_writer	AL is the state byte about to be written to the stream.
+artefact.wear_load	0x3137A0	lohook	-	6	-	item=EBX:survarium::artefact reader=EDI:vostok::buffer_reader	EAX is the wire byte before the native state dispatch.
 artefact.wear_use	0x31331C	lohook	-	8	-	item=ESI:survarium::artefact	Accepted native action immediately before enable_active, heal and glow.
 artefact.onyx_passive	0x312C10	lohook	-	8	done@0x312CB9	item=ECX:survarium::artefact frame=ESP:survarium::onyx_hit_args	protect after hit type and first active copy selection.
 artefact.onyx_active	0x312C47	lohook	-	6	done@0x312CB9	item=ECX:survarium::artefact frame=ESP:survarium::onyx_hit_args	protect after hit type and first active copy selection.

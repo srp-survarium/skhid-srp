@@ -1859,7 +1859,7 @@ vostok::input::mouse	window	0x24	u32	the window (HWND) its DirectInput device's 
 vostok::input::mouse	exclusive	0x34	u8	set_exclusive's (0x3B9800) argument, kept at 0x3B9808: not 0, the device's level is DISCL_EXCLUSIVE | DISCL_FOREGROUND (5); 0, DISCL_NONEXCLUSIVE | DISCL_FOREGROUND (6, 0x3B9833..0x3B983A); the ctor's is 0 (0x3B9535) and level 6 (0x3B9533)
 vostok::input::mouse_lock	mouse	-0x30	obj<vostok::input::mouse>	the mouse whose spin lock (+30h) this is: mouse::execute keeps the lock's address in EBP from 0x3B9695 (lea ebp,[esi+30h]) to its returns
 survarium::image	mouse_vtable	0xA25518	u32	vostok::input::platform::mouse's vtable (its ctor 0x3B94F0 writes it at 0x3B94FC)
-survarium::artefact	uses_spent	0x27F	u8	Combat artefact wear in alignment padding between registry ID and m_state, initialized at construction and anomaly spawn.
+survarium::artefact	uses_spent	0x286	u16	Combat artefact wear in alignment padding between the byte container ID (+284h) and aligned spawn timer (+288h), initialized at construction and anomaly spawn.
 survarium::onyx_hit_args	damage	0x8	ptr<survarium::damage_cell>	protect argument 2, writable damage.
 survarium::onyx_hit_args	piercing	0xC	ptr<survarium::damage_cell>	protect argument 3, writable piercing.
 survarium::regen_args	tick	0x4	ptr<survarium::regen_tick>	regeneration_modifier first argument.

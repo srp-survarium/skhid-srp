@@ -45,21 +45,22 @@ Client patch 54 (README section 54, client_patch.md section 3.51) and the table
 ## Wear from activation
 
 Each combat artefact starts at full power. A successful activation spends one use of that copy.
-The five activations have 100%, 80%, 64%, 51.2% and 40.96% of their initial strength. The passive
-drops to the next tier immediately, including while the active runs. After the fifth activation
-the passive is zero. The fifth active finishes normally and later presses spend nothing. Spent
-copies can be replaced. An anomaly spawning a new copy restores full power. Passing a copy to
+Each activation retains 80% of the previous one's strength. Uses five through ten deliver
+40.96%, 32.77%, 26.21%, 20.97%, 16.78% and 13.42% of full power. The passive drops to the
+next tier immediately, including while the active runs. The copy stays usable whenever its
+normal cooldown ends. An anomaly spawning a new copy restores full power. Passing a copy to
 another kit or player preserves its wear.
 
 Spring scales its bonuses, Onyx the damage and piercing it would prevent, and Larkspur the
 missing health it would restore. Larkspur still clears injuries on each successful activation.
 Resonance and Cascade use the source copy's power. Each worn activation plays a particle effect
-with the same fraction of the original emission rate in both views, including its light emitter.
+with its emission scaled to the nearest 8-bit intensity in both views, including its light emitter.
 
-The quick slot shows passive and next-use power rounded to the nearest percent. It briefly shows
-the change on use and labels a depleted copy Spent. Each match gives a hint on the first drop.
-Wear is stored on the artefact at +27Fh and in bits 3..7 of its saved state byte. Legacy snapshots
-with zero high bits decode at full strength. The simulation-change entry gates replay playback.
+The quick slot shows passive and next-use power rounded to the nearest percent, and shows
+`<1%` below one percent. It briefly shows the change on use. Each match gives a hint on the
+first drop. The count lives at +286h and permits further activations even at the native counter's
+maximum. Counts below 32 use bits 3..7 of the saved state byte. Larger counts use FF followed by
+the little-endian 16-bit count and the native state. Legacy snapshots decode at full strength. The simulation-change entry gates replay playback.
 
 ## Spring
 

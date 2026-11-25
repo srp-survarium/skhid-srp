@@ -199,7 +199,6 @@ impl<'t> Inventory<'t> {
             let class = if let QuickPlace::Container(_) = place {
                 let artefact = item.artefact();
                 ItemClass::Artefact(ready(read(artefact.state()) == 3 && read(artefact.cooldown_left()) == 0
-                    && super::artefact_skills::wear(artefact) != srp_validate::world::ArtefactWear::Spent
                     && !super::artefact_skills::uncounted(artefact)))
             } else {
                 match read(item.vtable()) {

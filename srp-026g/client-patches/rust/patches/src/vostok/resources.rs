@@ -164,7 +164,7 @@ pub struct ArrivedAssets {
 }
 
 /// The most game effects one query asks for.
-pub const EFFECTS_MOST: usize = 25;
+pub const EFFECTS_MOST: usize = 13 + 3 * 23;
 
 /// The game effect resources a query asked for, in its order, each kept for
 /// the process (None: that one failed, or past the query's requests).

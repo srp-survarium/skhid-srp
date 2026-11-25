@@ -85,7 +85,7 @@ def on_query(g, emu):
     emu.reg_write(UC_X86_REG_ESP, esp + 4)
 
 
-NAMES += [f"artefact_{kind}_wear_{tier}" for kind in ("spring", "lifebone", "onyx") for tier in range(1, 5)]
+NAMES += [f"artefact_{kind}_wear_{tier}" for kind in ("spring", "lifebone", "onyx") for tier in (*range(1, 22), 24, 28)]
 
 def asked_and_kept(g):
     """The one query: the thirteen effects, class 109 each, tag 1, no user data; its callback
@@ -180,10 +180,12 @@ def check(data):
         g.word(item, vt)
         g.word(vt + 0x80, enable)
         g.word(item + 0x290, resource)
-        for uses in range(1, 6):
-            g.emu.mem_write(item + 0x27f, bytes([uses]))
+        for uses in (*range(1, 36), 256, 65535):
+            g.emu.mem_write(item + 0x286, uses.to_bytes(2, "little"))
             g.step(0x313359, 6, ebx=item)
-            expect = resource if uses == 1 else resources[13 + 4 * row + uses - 2]
+            level = round(255 * .8 ** (uses - 1))
+            levels = list(dict.fromkeys(round(255 * .8 ** tier) for tier in range(1, 29)))
+            expect = resource if uses == 1 else resources[13 + len(levels) * row + levels.index(level)]
             assert g.emu.reg_read(UC_X86_REG_ESI) == expect
     print("Forest glow: the glow effects asked once at the first tick (forest_protection and the "
           "leg quarters, class 109, tag 1), each kept when they arrive: PASS")

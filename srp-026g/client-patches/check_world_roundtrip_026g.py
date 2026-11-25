@@ -147,7 +147,7 @@ OWN_CHECKS = {
                    "check_weapon_stats_026g.py (the game's own serialize and deserialize: a load gives the table "
                    "back, the next world is the one loaded; a world without it is written back without it)",
     (0x2F5C83, 7): "weapon_stats.load: as weapon_stats.save",
-    (0x3136A3, 5): "artefact.wear_save: check_artefact_skills_026g.py check_wear round-trips all five wear tiers",
+    (0x3136A3, 5): "artefact.wear_save: check_artefact_skills_026g.py check_wear round-trips compact and extended wear counts",
     (0x3137A0, 6): "artefact.wear_load: as artefact.wear_save",
     (0x313735, 6): "carry.ground_save: a dropped artefact's 20 bytes in the objects section (no decoder locates "
                    "them); check_artefact_carry_026g.py (state 6's 20 bytes saved, then loaded); and patch 109's "

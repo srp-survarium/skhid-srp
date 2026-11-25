@@ -85,7 +85,7 @@ impl Shown {
             Self::InUse(Course::Active { remaining, duration }) => [2, remaining.0, duration.0],
             Self::Interrupted => [3, 0, 0],
             Self::Boosted => [4, 0, 0],
-            Self::Artefact { id, wear } => [5, wear.percent(), u32::from(id)],
+            Self::Artefact { id, wear } => [5, u32::from(wear.uses()), u32::from(id)],
         }
     }
 }

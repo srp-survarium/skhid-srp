@@ -2712,7 +2712,6 @@ st_srp_hit_markers_kill	Samo oznaka ubistva
 st_srp_hud_add_friend	Dodaj u prijatelje
 st_srp_hud_artefact_hunt_carrying	Nosite artefakt
 st_srp_hud_artefact_hunt_sudden_death	Iznenadna smrt
-st_srp_hud_artefact_spent	Iscrpljen
 st_srp_hud_artefact_wear	Artefakt je oslabio. Snaga pasivnog efekta i sledeće aktivacije iznosi %1$s.
 st_srp_hud_blackout_intro	Zamračenje: donesi baterije do uređaja svog tima. Interfejs i oznake pogodaka su skriveni radi uživljavanja. Drži Tab: municija, zdravlje, čet; posle smrti — izbor opreme.
 st_srp_hud_blackout_start	Zamračenje\nDonesi baterije do uređaja svog tima.\nInterfejs i oznake pogodaka su skriveni. Drži Tab da vidiš municiju i zdravlje.

@@ -66,7 +66,18 @@ const EFFECTS: [LegEffect; 13] = [
     LegEffect::Quarter { kind: Kind::Onyx, nth: 3 },
     LegEffect::Quarter { kind: Kind::Onyx, nth: 4 },
 ];
-const NAMES: [&CStr; 25] = [
+// The glow is rendered at 8-bit intensity. Counts 21..23 round to 2/255,
+// 24..27 to 1/255 and all later uses to zero. Combat keeps its float power.
+const GLOW_LEVELS: usize = 23;
+const WORN_COUNT: usize = 3 * GLOW_LEVELS;
+const fn glow_name(bytes: &'static [u8]) -> &'static CStr {
+    match CStr::from_bytes_with_nul(bytes) {
+        Ok(name) => name,
+        Err(_) => panic!("invalid glow resource name"),
+    }
+}
+macro_rules! glow_names {
+    ($($level:literal),+) => { [
     c"forest_protection",
     c"artefact_leg_spring_1",
     c"artefact_leg_spring_2",
@@ -80,26 +91,26 @@ const NAMES: [&CStr; 25] = [
     c"artefact_leg_onyx_2",
     c"artefact_leg_onyx_3",
     c"artefact_leg_onyx_4",
-    c"artefact_spring_wear_1",
-    c"artefact_spring_wear_2",
-    c"artefact_spring_wear_3",
-    c"artefact_spring_wear_4",
-    c"artefact_lifebone_wear_1",
-    c"artefact_lifebone_wear_2",
-    c"artefact_lifebone_wear_3",
-    c"artefact_lifebone_wear_4",
-    c"artefact_onyx_wear_1",
-    c"artefact_onyx_wear_2",
-    c"artefact_onyx_wear_3",
-    c"artefact_onyx_wear_4",
-];
-
-static WORN: GameCell<[Option<KeptEffect>; 12]> = GameCell::new([None; 12]);
+        $(glow_name(concat!("artefact_spring_wear_", $level, "\0").as_bytes()),)+
+        $(glow_name(concat!("artefact_lifebone_wear_", $level, "\0").as_bytes()),)+
+        $(glow_name(concat!("artefact_onyx_wear_", $level, "\0").as_bytes()),)+
+    ] };
+}
+const NAMES: [&CStr; 13 + WORN_COUNT] = glow_names!(
+    1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 24, 28
+);
+static WORN: GameCell<[Option<KeptEffect>; WORN_COUNT]> = GameCell::new([None; WORN_COUNT]);
 
 pub(crate) fn worn_glow(thread: &Thread, kind: Kind, wear: srp_validate::world::ArtefactWear) -> Option<KeptEffect> {
-    let tier = usize::from(wear.firing().uses()).checked_sub(1)?;
-    let base = match kind { Kind::Spring => 0, Kind::Lifebone => 4, Kind::Onyx => 8 };
-    WORN.get(thread)[base + tier]
+    let level = match wear.firing().uses() {
+        0 => return None,
+        uses @ 1..=21 => usize::from(uses) - 1,
+        22..=23 => 20,
+        24..=27 => 21,
+        _ => 22,
+    };
+    let row = match kind { Kind::Spring => 0, Kind::Lifebone => 1, Kind::Onyx => 2 };
+    WORN.get(thread)[row * GLOW_LEVELS + level]
 }
 
 /// Whether this game shows the leg quarters (the owner, 2026-11-07): only to a local player whose

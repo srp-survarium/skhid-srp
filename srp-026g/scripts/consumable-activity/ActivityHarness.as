@@ -155,19 +155,22 @@ package {
     case 300: check("45",false); normal = slots.slots_list.getRendererAt(0).count_timer.textColor; if(normal == SPRING_BLUE) failures.push("the countdown is blue already"); slots.setActivity(1,4,0,0); break;
     case 310: check("45",false); timerColour(SPRING_BLUE); slots.fillSlot(tank(44)); break;
     case 320: check("44",false); timerColour(SPRING_BLUE); slots.setActivity(1,0,0,0); break;
-    case 330: check("44",false); timerColour(normal); slots.fillSlot(item(1,true,true)); slots.setActivity(1,5,100,7); break;
+    case 330: check("44",false); timerColour(normal); slots.fillSlot(item(1,true,true)); slots.setActivity(1,5,0,7); break;
     case 340:
      if(slots.slots_list.getRendererAt(0).count.text != "100%") failures.push("fresh artifact power");
-     if(!slots.takeWearHint(1,5,80,7)) failures.push("missing first wear hint");
-     slots.setActivity(1,5,80,7); break;
+     if(!slots.takeWearHint(1,5,1,7)) failures.push("missing first wear hint");
+     slots.setActivity(1,5,1,7); break;
     case 342:
      var label:Object = slots.slots_list.getRendererAt(0).count;
      if(label.textWidth + 4 > label.width) failures.push("clipped wear label: " + label.textWidth + " / " + label.width);
      if(label.text != "100% → 80%") failures.push("wear transition");
-     if(slots.takeWearHint(1,5,64,7)) failures.push("repeated wear hint");
-     check("12",false); slots.setActivity(1,5,41,9); break;
+     if(slots.takeWearHint(1,5,2,7)) failures.push("repeated wear hint");
+     check("12",false); slots.setActivity(1,5,4,9); break;
     case 350:
      if(slots.slots_list.getRendererAt(0).count.text != "41%") failures.push("replacement artifact power");
+     slots.setActivity(1,5,21,8); break;
+    case 355:
+     if(slots.slots_list.getRendererAt(0).count.text != "<1%") failures.push("low artifact power");
      slots.setActivity(1,0,0,0); slots.fillSlot(item(2,true)); break;
     case 360:
      if(slots.slots_list.getRendererAt(0).count.text != "x2") failures.push("stale artifact power");
