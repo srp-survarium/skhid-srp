@@ -26,6 +26,8 @@ use crate::controller::tick::{Controller, Settings, TickInput};
 use crate::controller::speed;
 use crate::controller::{Capsule, Collision, Shape};
 use crate::motion::{self, ClientBody, Input, Kin, Pass};
+use super::memo::{Codec, Memo, MemoCodec, MemoInput, Mode, Site, StableIds, Windows};
+use crate::digest::Digest128;
 
 /// The walk speed the controller is driven at, m/s (a run's root motion; over the client's 3 m/s floor).
 pub const WALK_MPS: f32 = 3.5;
@@ -102,6 +104,72 @@ struct LinkWalk {
     /// [`Body::walk_ceiling_stalls`]: how many of the passing lines arrived only crouched (the standing body refused under a low
     /// ceiling, walked again crouched).
     crouched: usize,
+}
+
+/// [body physics S6c] The walk check's results as the memo stores them: every field.
+impl MemoCodec for LinkWalk {
+    const TAG: u32 = 0x574c_4b01;
+    fn encode(&self, out: &mut Codec<'_>) {
+        self.passes.encode(out);
+        out.put_f32(self.share);
+        self.chain_failed.encode(out);
+        out.put_u32(u32::try_from(self.refused).expect("a link's lines fit 32 bits"));
+        out.put_u32(u32::try_from(self.crouched).expect("a link's lines fit 32 bits"));
+    }
+    fn decode(input: &mut Codec<'_>) -> Option<Self> {
+        Some(LinkWalk {
+            passes: bool::decode(input)?,
+            share: input.f32()?,
+            chain_failed: bool::decode(input)?,
+            refused: input.u32()? as usize,
+            crouched: input.u32()? as usize,
+        })
+    }
+}
+
+/// [body physics S6c] One job of the walk check's memo site `walk.link` ([`walk_link_job`]): the link's floors (from `a` to `b`,
+/// and `before`, the floor of the Walk link into `a` along the same way, the chained walk's start) and the digest of the floors in
+/// its window ([`Windows::of_floors`], [`WALK_LINK_WINDOW_CELLS`] about `a`'s cell). The job reads the grid only through those
+/// floors' places and rooms ([`WalkGrid::position`], [`WalkGrid::stance`]); the world, the body and the tick's settings are the
+/// memo's global inputs.
+#[derive(Clone, Debug)]
+pub(super) struct WalkLinkItem {
+    a: NodeId,
+    b: NodeId,
+    before: Option<NodeId>,
+    window: u128,
+}
+
+/// [body physics S6c] The cells about the take-off's cell a walk check's window holds: the link's floors are its own and its
+/// neighbours' ([`DIRS`] is one cell over), checked as the items are made.
+const WALK_LINK_WINDOW_CELLS: i64 = 1;
+
+crate::memo_ctx! {
+    /// [body physics S6c] The walk check site's context: the window (hashed), and the grid, the world, the tick's settings and the
+    /// start (the body's, [`Body::walk_start`]), read through the items' windows and the memo's global inputs.
+    pub(super) struct WalkLinkCtx<'a> {
+        window_cells: i64,
+    } through {
+        grid: &'a WalkGrid,
+        world: &'a Collision,
+        s: &'a Settings,
+        start: WalkStart,
+    }
+}
+
+/// [body physics S6c] The walk check site's key of a job: its floors by their stable ids and its window.
+fn walk_link_key(_: &WalkLinkCtx<'_>, ids: &StableIds, item: &WalkLinkItem) -> u128 {
+    let mut d = Digest128::default();
+    ids.id(item.a).feed(&mut d);
+    ids.id(item.b).feed(&mut d);
+    item.before.map(|q| ids.id(q)).feed(&mut d);
+    d.u128(item.window);
+    d.finish()
+}
+
+/// [body physics S6c] The walk check site's job: [`WalkGrid::walk_link_floors`] of the item's floors.
+fn walk_link_job(ctx: &WalkLinkCtx<'_>, item: &WalkLinkItem) -> LinkWalk {
+    ctx.grid.walk_link_floors(ctx.world, ctx.s, ctx.start, item.a as usize, item.b as usize, item.before.map(|q| q as usize))
 }
 
 /// [2c] A face no body walks on within this of a floor's capsule makes its links walked ([`Body::walk_every_link`]), m: the
@@ -745,6 +813,7 @@ impl WalkGrid {
         wide: &mut Wide,
         triangles: &[Triangle],
         shapes: Option<&Collision>,
+        memo: &mut Memo,
     ) -> (ControlledStats, Vec<(u32, usize, f32)>) {
         let body = self.body;
         let (caster, s) = body.controller();
@@ -861,7 +930,7 @@ impl WalkGrid {
         }
         wide.off.sort_by_key(|l| (l.from, l.to));
         if body.walk_every_link {
-            let (stats, failing, held, mut crouch) = self.walk_every_link(wide, world, s, start, stats);
+            let (stats, failing, held, mut crouch) = self.walk_every_link(wide, world, s, start, stats, memo);
             // The risers with no walking way round stay, marked (the caller marks the cut's kept ones beside them).
             wide.marked = held;
             crouch.sort_unstable();
@@ -911,6 +980,7 @@ impl WalkGrid {
         s: &Settings,
         start: WalkStart,
         mut stats: ControlledStats,
+        memo: &mut Memo,
     ) -> (ControlledStats, Vec<(u32, usize, f32)>, Held, Crouched) {
         let n = self.height.len();
         let floors: Vec<usize> = (0..n).collect();
@@ -933,7 +1003,7 @@ impl WalkGrid {
         }
         stats.checks = checks.len();
         stats.checks_crouched = checks.iter().filter(|&&(a, d)| self.stance(a, wide.links[a][d] as usize) == Stance::Crouched).count();
-        let walked = parallel(&checks, |&(a, d)| self.walk_link(wide, world, s, start, a, d));
+        let walked = self.walk_links_memo(wide, world, s, start, &checks, memo);
         // [`Body::walk_ceiling_stalls`]: the passing links two of whose lines arrived only crouched: a route crosses them crouched.
         let crouch: Vec<(u32, u32)> = if self.body.walk_ceiling_stalls {
             checks
@@ -1037,6 +1107,45 @@ impl WalkGrid {
         wide.marked.dedup();
     }
 
+    /// [body physics S6c] The walk checks of `checks` (a floor and a direction each, [`Self::walk_link`]) through the memo's site
+    /// `walk.link` ([`walk_link_job`]), each result at its check's place. With the memo on, a link's floor outside the window of
+    /// its take-off's cell stops the build: the window would not hold every floor its job read.
+    fn walk_links_memo(
+        &self,
+        wide: &Wide,
+        world: &Collision,
+        s: &Settings,
+        start: WalkStart,
+        checks: &[(usize, usize)],
+        memo: &mut Memo,
+    ) -> Vec<LinkWalk> {
+        let on = memo.mode() != Mode::Off;
+        let windows = on.then(|| Windows::of_floors(self));
+        let nx = self.nx.max(1) as i64;
+        let within = |a: usize, n: usize| {
+            let (ca, cn) = (self.cell_of[a] as i64, self.cell_of[n] as i64);
+            (ca % nx - cn % nx).abs() <= WALK_LINK_WINDOW_CELLS && (ca / nx - cn / nx).abs() <= WALK_LINK_WINDOW_CELLS
+        };
+        let items: Vec<WalkLinkItem> = checks
+            .iter()
+            .map(|&(a, d)| {
+                let (b, before) = Self::link_floors(wide, a, d);
+                if on {
+                    assert!(
+                        within(a, b) && before.is_none_or(|q| within(a, q)),
+                        "memo: ERROR site walk.link: a floor of the link {a} -> {b} (before {before:?}) outside its window of \
+                         {WALK_LINK_WINDOW_CELLS} cells"
+                    );
+                }
+                let window = windows.as_ref().map_or(0, |w| w.around(self.cell_of[a] as usize, WALK_LINK_WINDOW_CELLS));
+                WalkLinkItem { a: a as NodeId, b: b as NodeId, before: before.map(|q| q as NodeId), window }
+            })
+            .collect();
+        let ctx = WalkLinkCtx { window_cells: WALK_LINK_WINDOW_CELLS, grid: self, world, s, start };
+        let site = Site { id: "walk.link", source: crate::source::site("walk.link") };
+        memo.run(site, self, &ctx, &items, walk_link_key, walk_link_job)
+    }
+
     /// [2c] Whether a walking way leads from `a` to `b` within [`ROUND_HOPS`] links without the links `cut` (Walk links only).
     fn walk_way_round(&self, wide: &Wide, a: u32, b: u32, cut: &std::collections::HashSet<(u32, u32)>) -> bool {
         let mut seen = std::collections::HashSet::from([a]);
@@ -1088,6 +1197,13 @@ impl WalkGrid {
     /// the walks that got 90 % of the way and did not arrive within 0.2 m, 178,181 of 182,878 stood 0.2-0.8 m over the far
     /// floor, a few hundred higher; asking for 0.2 m cut 52,383 links, 17 times the old check's 3,031.
     fn walk_link(&self, wide: &Wide, world: &Collision, s: &Settings, start: WalkStart, a: usize, d: usize) -> LinkWalk {
+        let (b, before) = Self::link_floors(wide, a, d);
+        self.walk_link_floors(world, s, start, a, b, before)
+    }
+
+    /// [body physics S6c] The floors [`Self::walk_link`] walks for the link out of `a` along `d`: its far floor, and the floor of the
+    /// Walk link into `a` along the same way (the chained walk's start), when `a`'s link back along it is that link's reverse.
+    fn link_floors(wide: &Wide, a: usize, d: usize) -> (usize, Option<usize>) {
         let b = wide.links[a][d] as usize;
         let back = wide.links[a][d ^ 1];
         let before = (back != NONE
@@ -1095,6 +1211,12 @@ impl WalkGrid {
             && wide.links[back as usize][d] == a as u32
             && wide.kinds[back as usize][d] == LinkKind::Walk)
             .then_some(back as usize);
+        (b, before)
+    }
+
+    /// [body physics S6c] [`Self::walk_link`] of the link from `a` to `b`, `before` the chained walk's start: it reads the grid
+    /// only through these floors' places and rooms (the memo site `walk.link`'s window).
+    fn walk_link_floors(&self, world: &Collision, s: &Settings, start: WalkStart, a: usize, b: usize, before: Option<usize>) -> LinkWalk {
         let stance = match before {
             Some(q) if self.stance(q, a) == Stance::Crouched => Stance::Crouched,
             _ => self.stance(a, b),

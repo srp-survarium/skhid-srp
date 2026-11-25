@@ -57,6 +57,8 @@ pub const MEMO_SITES: &[(&str, &[&str])] = &[
     ("rim.aimed", &["rim_aimed_job", "rim_aimed_key", "RimAimedOut", "RimAimedItem", "RimAimedCtx", "Windows::of_floors", "Memo::run"]),
     ("gap.flown", &["gap_flown_job", "gap_flown_key", "GapFlownOut", "GapFlownItem", "GapEnd", "GapFlownCtx", "Windows::of_floors", "Memo::run"]),
     ("gap.clip", &["gap_clip_job", "gap_clip_key", "GapClipOut", "GapFlownItem", "GapEnd", "GapFlownCtx", "Windows::of_floors", "Memo::run"]),
+    ("walk.link", &["walk_link_job", "walk_link_key", "LinkWalk", "WalkLinkItem", "WalkLinkCtx", "Windows::of_floors", "Memo::run"]),
+    ("walk.gait", &["walk_gait_job", "walk_gait_key", "WalkGaitOut", "GaitVerdict", "WalkGaitItem", "WalkGaitCtx", "Windows::of_floors", "Memo::run"]),
 ];
 
 /// A 128-bit digest of bytes, eight a word whatever the writes' sizes, the count last. Two lanes of the word mixer
