@@ -284,7 +284,7 @@ pub fn sweep_ties() -> SweepTies {
     SweepTies { sweeps: n(0), one_mesh: n(1), same_object_parts: n(2), across_objects: n(3), faces: n(4), same_object_unordered: n(5) }
 }
 
-/// [L36] Where the sweeps' compound-child cull (`Solids::sweep_each`: a child offered only where its box in the compound's
+/// [L36] Where the sweeps' compound-child cull (`Solids::sweep_within`: a child offered only where its box in the compound's
 /// child tree meets the cast's volume, as the exe's `collideTV`) parted from the test it replaced (the child's world box
 /// against the padded swept box). Totals of this process, for the logs: no decision reads them.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -581,22 +581,36 @@ impl Collision {
 
     /// [`Self::sweep`] for any shape.
     pub fn sweep_shape(&self, shape: Shape, by: Vec3, keep: impl Fn(&Face) -> bool) -> Option<Contact> {
-        let mut best: Option<Contact> = None;
-        self.sweep_each(shape, by, |c| {
-            if keep_surface(&keep, c) && best.is_none_or(|b| c.replaces(&b)) {
-                best = Some(c);
-            }
-        });
-        best
+        self.sweep_closest(shape, Way::By(by), |c| keep_surface(&keep, *c))
     }
 
     /// [`Self::sweep_shape`] to the end's origin `to` as the exe's caller gives it ([`Way::To`]).
     pub fn sweep_shape_to(&self, shape: Shape, to: Vec3, keep: impl Fn(&Face) -> bool) -> Option<Contact> {
+        self.sweep_closest(shape, Way::To(to), |c| keep_surface(&keep, *c))
+    }
+
+    /// The closest contact `accept` takes of [`Self::sweep_each_to`]'s ([`Contact::replaces`] over them in their order).
+    /// `accept` is asked of the contacts at or under the closest one taken so far (no later one past it could replace it).
+    pub fn sweep_closest_to(&self, shape: Shape, to: Vec3, accept: impl FnMut(&Contact) -> bool) -> Option<Contact> {
+        self.sweep_closest(shape, Way::To(to), accept)
+    }
+
+    /// [bot CPU] [`Self::sweep_each_to`] whose casts give up past a bound: `each` answers each contact with the fraction past
+    /// which no later contact matters to it ([`Solids::sweep_within`]); every contact at or under it is handed on, in order.
+    pub fn sweep_each_to_within(&self, shape: Shape, to: Vec3, each: impl FnMut(Contact) -> f32) {
+        self.sweep_way_within(shape, Way::To(to), each);
+    }
+
+    /// [bot CPU] The closest accepted contact. A cast past the closest accepted so far gives up there ([`Solids::sweep_within`]):
+    /// a contact past it would not replace it ([`Contact::replaces`] needs a fraction at or under the kept one's), so the
+    /// answer is the full sweep's; `accept` is not asked of the contacts past it.
+    fn sweep_closest(&self, shape: Shape, way: Way, mut accept: impl FnMut(&Contact) -> bool) -> Option<Contact> {
         let mut best: Option<Contact> = None;
-        self.sweep_way(shape, Way::To(to), |c| {
-            if keep_surface(&keep, c) && best.is_none_or(|b| c.replaces(&b)) {
+        self.sweep_way_within(shape, way, |c| {
+            if accept(&c) && best.is_none_or(|b| c.replaces(&b)) {
                 best = Some(c);
             }
+            best.map_or(1.0, |b| b.t)
         });
         best
     }
@@ -614,6 +628,15 @@ impl Collision {
     }
 
     fn sweep_way(&self, shape: Shape, way: Way, mut each: impl FnMut(Contact)) {
+        self.sweep_way_within(shape, way, |c| {
+            each(c);
+            1.0
+        });
+    }
+
+    /// [`Self::sweep_way`] with the bound of [`Solids::sweep_within`] (`each` answers the fraction past which no later
+    /// contact matters to it). Faces are cast whole.
+    fn sweep_way_within(&self, shape: Shape, way: Way, mut each: impl FnMut(Contact) -> f32) {
         let by = way.by(shape);
         if let Way::To(to) = way
             && cast_origin(shape) + by != to
@@ -629,7 +652,7 @@ impl Collision {
         let caster = match &self.sweeps {
             Sweeps::Faces(caster) => *caster,
             Sweeps::Solids(solids) => {
-                solids.sweep_each(shape, way, &mut each);
+                solids.sweep_within(shape, way, &mut each);
                 ties.flush();
                 return;
             }
@@ -652,7 +675,7 @@ impl Collision {
                 Caster::Exe => advance_exe(shape, by, face),
             };
             if let Some(Touch { t, point, normal }) = touch {
-                each(Contact { t, point, normal, on: Surface::Face { walker: face.walker, normal: face.normal }, object: None, part: None, rank: None, child: None });
+                let _ = each(Contact { t, point, normal, on: Surface::Face { walker: face.walker, normal: face.normal }, object: None, part: None, rank: None, child: None });
             }
         });
         ties.flush();

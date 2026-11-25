@@ -104,6 +104,10 @@ pub enum Miss {
     Receding,
     /// 0xB966B: lambda went over 1: the way ends first.
     PastTheEnd,
+    /// [bot CPU] Not the exe's: lambda went over the caller's bound ([`time_of_impact_within`]) before the contact. Lambda
+    /// only grows (a step that does not grow it is [`Miss::NoProgress`]), so the hit it could still end in is past the
+    /// bound too.
+    PastTheBound,
     /// 0xB9677: lambda went under 0.
     BeforeTheStart,
     /// 0xB9686: lambda is not past the last one.
@@ -338,6 +342,20 @@ pub fn time_of_impact<B: ShapeB>(
     transform_b: &Transform,
     allowed_penetration: f32,
 ) -> Toi {
+    time_of_impact_within(cast, other, margin_b, transform_b, allowed_penetration, ONE)
+}
+
+/// [bot CPU] [`time_of_impact`] that gives up ([`Miss::PastTheBound`]) once lambda is over `upto`: for a caller that keeps
+/// only a hit at or under `upto` (the closest one so far), the same answer for each hit it keeps. At `upto` 1 (or over) it
+/// is [`time_of_impact`] step for step.
+pub fn time_of_impact_within<B: ShapeB>(
+    cast: &Cast,
+    other: &B,
+    margin_b: f32,
+    transform_b: &Transform,
+    allowed_penetration: f32,
+    upto: f32,
+) -> Toi {
     // 0x72EB0 (0xB934D for A, 0xB9370 for B), timeStep 1; B's from and to are both `transform_b`.
     let lin_a = linear_velocity(cast.by, TIME_STEP);
     let lin_b = linear_velocity(way(transform_b.origin, transform_b.origin), TIME_STEP);
@@ -374,6 +392,9 @@ pub fn time_of_impact<B: ShapeB>(
         lambda += dist / p;
         if lambda > ONE {
             return Toi::Miss(Miss::PastTheEnd);
+        }
+        if lambda > upto {
+            return Toi::Miss(Miss::PastTheBound);
         }
         if 0.0 > lambda {
             return Toi::Miss(Miss::BeforeTheStart);
@@ -414,7 +435,21 @@ pub fn cast_triangle(
     allowed_penetration: f32,
     hit_fraction: f32,
 ) -> CastEnd {
-    let (fraction, n, point) = match time_of_impact(cast, triangle, margin, transform, allowed_penetration) {
+    cast_triangle_within(cast, triangle, margin, transform, allowed_penetration, hit_fraction, ONE)
+}
+
+/// [bot CPU] [`cast_triangle`] whose cast gives up past `upto` ([`time_of_impact_within`]): every hit at or under `upto`
+/// as [`cast_triangle`] reports it, none over.
+pub fn cast_triangle_within(
+    cast: &Cast,
+    triangle: &Triangle,
+    margin: f32,
+    transform: &Transform,
+    allowed_penetration: f32,
+    hit_fraction: f32,
+    upto: f32,
+) -> CastEnd {
+    let (fraction, n, point) = match time_of_impact_within(cast, triangle, margin, transform, allowed_penetration, upto) {
         Toi::Hit { fraction, normal, point } => (fraction, normal, point),
         Toi::Miss(_) => return CastEnd::Miss,
     };
@@ -443,7 +478,21 @@ pub fn cast_convex<B: ShapeB>(
     allowed_penetration: f32,
     closest_fraction: f32,
 ) -> CastEnd {
-    let (fraction, n, point) = match time_of_impact(cast, other, margin, transform, allowed_penetration) {
+    cast_convex_within(cast, other, margin, transform, allowed_penetration, closest_fraction, ONE)
+}
+
+/// [bot CPU] [`cast_convex`] whose cast gives up past `upto` ([`time_of_impact_within`]): every hit at or under `upto` as
+/// [`cast_convex`] reports it, none over.
+pub fn cast_convex_within<B: ShapeB>(
+    cast: &Cast,
+    other: &B,
+    margin: f32,
+    transform: &Transform,
+    allowed_penetration: f32,
+    closest_fraction: f32,
+    upto: f32,
+) -> CastEnd {
+    let (fraction, n, point) = match time_of_impact_within(cast, other, margin, transform, allowed_penetration, upto) {
         Toi::Hit { fraction, normal, point } => (fraction, normal, point),
         Toi::Miss(_) => return CastEnd::Miss,
     };
