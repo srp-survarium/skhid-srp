@@ -3730,6 +3730,9 @@ impl WalkGrid {
     /// Writes the grid to `path` as the grid of `key` ([`crate::built`],
     /// [`crate::grid_key`]).
     pub fn write(&self, path: &std::path::Path, key: u64) -> Result<(), Error> {
+        // [rule A fix] A grid its reader would refuse ([`Self::check`]: a link from a floor to itself, the round of 184643926)
+        // is not written: the build that made it fails, not every run that reads it.
+        self.check().map_err(|why| Error(format!("{}: not written, its reader would refuse it: {why}", path.display())))?;
         built::write(path, built::GRID_MAGIC, key, self.digest(), |out| self.write_body(out))
     }
 
