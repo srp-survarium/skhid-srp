@@ -711,6 +711,11 @@ impl Bots {
                 let retried =
                     super::drive::NoWayRetries { stuck_spots: filter.has_soft(), reach: filter.reach(), ..Default::default() };
                 super::drive::no_way_line(bot, tactics, (Some(from), Some(to)), pending.goal, last_end, retried, (time, side, objective));
+                // [bot traps] An exhaustive failure (no budget cut it short): the goal on cool-down for this bot while it stays
+                // where the search could walk from.
+                if last_end.is_some_and(path::SearchEnd::exhaustive) {
+                    super::unreachable::note(bot, tactics, pending.goal, from, time);
+                }
             }
             if kept {
                 bot.features.crossing.long_kept = Some((pending.goal, time + crossing::LONG_RETRY_MS));

@@ -430,7 +430,7 @@ fn threat_tick(
             let Some(me) = view.place(place).filter(|p| p.alive) else {
                 return false;
             };
-            let no_way = team_no_way(&bot.no_way_to, team_stuck);
+            let no_way = team_no_way(bot, team_stuck, now);
             let cx = Ctx {
                 now,
                 view,
@@ -1390,7 +1390,7 @@ impl Bots {
             let Some(me) = view.place(bot.place).filter(|p| p.alive) else {
                 continue;
             };
-            let no_way = team_no_way(&bot.no_way_to, &state.features.stuck.no_way_to);
+            let no_way = team_no_way(bot, &state.features.stuck.no_way_to, now);
             let cx = Ctx {
                 now,
                 view,
@@ -1665,7 +1665,7 @@ impl Bots {
             bot.give_way(assignment.kind, now);
             // (Per start: a claim made by an earlier start of this pass is seen by the next.)
             let state = &self.teams[usize::from(team)];
-            let no_way = team_no_way(&bot.no_way_to, &state.features.stuck.no_way_to);
+            let no_way = team_no_way(bot, &state.features.stuck.no_way_to, now);
             let cx = Ctx {
                 now,
                 view,
@@ -1883,8 +1883,9 @@ fn bot_facts<'a>(
     }
 }
 
-pub(super) fn team_no_way(own: &[(Vec3, u32)], team: &[(Vec3, u32)]) -> Vec<(Vec3, u32)> {
-    own.iter().chain(team).copied().collect()
+/// The bot's own no-way goals ([bot traps] with those on its cool-down, `unreachable.rs`) and its team's.
+pub(super) fn team_no_way(bot: &Bot, team: &[(Vec3, u32)], now: u32) -> Vec<(Vec3, u32)> {
+    bot.no_way_to.iter().copied().chain(bot.unreachable.no_way_view(now)).chain(team.iter().copied()).collect()
 }
 
 /// [fix-team push, second taker] The escape of a carrier at `from` to our container `home` (`push::Escape::of`): its way the
