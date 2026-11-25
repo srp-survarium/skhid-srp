@@ -36,6 +36,7 @@ pub mod artefact_know;
 pub mod body;
 pub mod breach;
 pub mod camp_flank;
+pub mod carrier_home;
 pub mod cheats;
 #[cfg(any(test, feature = "client-test"))]
 pub mod client_tests;

@@ -787,8 +787,38 @@ pub const WRONG_FLOOR: &str = "no way down to its floor";
 /// Whether a play that failed for `why` sets its target aside however long
 /// it had run: it proved the target out of reach for now.
 pub fn fails_aside(why: &str) -> bool {
-    why == WRONG_FLOOR
+    why == WRONG_FLOOR || why == NO_WAY_HOME_FROM_IT
 }
+
+/// [bot traps] The forecast of a carry from `stand` home (`Tactics::carrier_forecast`), the battery taken at the soonest the bot
+/// gets there (`hazards::arrival`), at the body's forward walk (a carrier walks, `Kinematics::walk`), its waits within the
+/// carrier's gate wait (`home_gate_max_ms`; none, no wait); the way searched when `search`. None with no container of ours, or
+/// no way searched and `search` false.
+fn carry_forecast(cx: &Ctx, stand: Vec3, search: bool) -> Option<crate::v026g::bots::carrier_home::Forecast> {
+    let home = cx.view.container_of(cx.me.team)?.at;
+    let taken = crate::v026g::bots::hazards::arrival(cx.now, (stand - cx.me.feet).length());
+    let max_hold_ms = cx.tuning.unstick.home_gate_max_ms.unwrap_or(0);
+    cx.tactics.carrier_forecast(stand, home, taken, cx.bot.side, cx.tuning.kin.walk[0], max_hold_ms, search)
+}
+
+/// [bot traps] The line of a forecast for the battery at `at` taken from `stand`, asked `when` (the fetch, the take): one a
+/// battery, verdict and 10 s.
+fn forecast_line(cx: &Ctx, at: Vec3, stand: Vec3, forecast: &crate::v026g::bots::carrier_home::Forecast, when: &str) {
+    use crate::v026g::bots::carrier_home::Forecast;
+    let what = if forecast.refused() { format!("left at the {when}") } else { format!("taken at the {when}") };
+    let kind = match forecast {
+        Forecast::Open { detour: false, .. } => "open",
+        Forecast::Open { detour: true, .. } => "round",
+        Forecast::Hold { .. } => "hold",
+        Forecast::Refuse { .. } => "refuse",
+    };
+    let key = crate::v026g::bots::nav_log::key(("carrier home", (at.x * 4.0) as i32, (at.z * 4.0) as i32, kind, when, cx.now / 10_000));
+    let line = crate::v026g::bots::carrier_home::line(&what, at, stand, forecast, cx.now);
+    cx.lines.push(crate::v026g::bots::nav_log::Kind::CarrierHome, Some(key), line);
+}
+
+/// [bot traps] A battery its carrier would have no way home from (`carrier_home.rs`): left as long as a goal no way leads to.
+pub const NO_WAY_HOME_FROM_IT: &str = "no way home from it for its carrier";
 
 /// The time the walk to `to` needs when it is a storey off the bot's floor
 /// ([`Ctx::storey_walk_dist`], at [`CROSS_MPS`]), ms: a stand's clock
@@ -2112,6 +2142,17 @@ impl Strand {
             .unstick
             .home_gate_max_ms
             .and_then(|max| {
+                // [bot traps] The carrier's own forecast from where it stands (its reach, the schedule as it gets to each floor):
+                // a zone on its way that the schedule opens within the wait is its gate.
+                // A carrier standing at the zone itself holds wherever the drive walks it off the zone's floors (the forecast's
+                // dry floor before the shut one is the take's rule, not the carrier's).
+                use crate::v026g::bots::carrier_home::Forecast;
+                let own = cx.tactics.carrier_forecast(cx.me.feet, home, cx.now, cx.bot.side, cx.tuning.kin.walk[0], max, true);
+                if let Some(Forecast::Hold { opens, .. } | Forecast::Refuse { opens: Some(opens), .. }) = own
+                    && opens.saturating_sub(cx.now) <= max
+                {
+                    return Some(Self::Gate { opens });
+                }
                 let opens = cx.tactics.gate_opens(cx.me.feet, home, cx.now, cx.bot.side)?;
                 (opens.saturating_sub(cx.now) <= max).then_some(Self::Gate { opens })
             })
@@ -2355,6 +2396,18 @@ pub fn step(state: &mut State, target: TargetRef, cx: &Ctx, _rng: &mut Rng) -> S
                 None
             };
             let _ = routed;
+            // [bot traps] Taken from its plain stand (not a crossing's edge, not a zone take's walk in, whose rules weigh the
+            // zones): the forecast of its carry home (`carrier_home.rs`), asked before the walk in (a stand the side's floors
+            // shut off from home may shut the taker in too). Taken when the way is open or a zone on it opens within the
+            // carrier's wait, left when no way home opens; a line for each verdict.
+            if crossing.is_none()
+                && let Some(forecast) = carry_forecast(cx, stand, true)
+            {
+                forecast_line(cx, at, stand, &forecast, "fetch");
+                if forecast.refused() {
+                    return Step::Failed(NO_WAY_HOME_FROM_IT);
+                }
+            }
             let stand = crossing.unwrap_or(stand);
             // Or every way in crosses a hazard (a battery ringed by fire):
             // the search said so, and the bot does something else. [row 9] Not within the use's reach: no way is needed.
@@ -2366,6 +2419,18 @@ pub fn step(state: &mut State, target: TargetRef, cx: &Ctx, _rng: &mut Rng) -> S
             // Within reach across and not over the stand's floor
             // (`over_goal`, the motor's rule for a route's end).
             let near = cx.me.feet.distance_xz(stand) <= num("reach_m");
+            // [bot traps] At the take itself (in reach, or the walk in's press due): the forecast again, from now (the take may
+            // come seconds after the fetch's: a wait out of a known man's sight, a press missed). Over the way the fetch
+            // searched: no search here.
+            if crossing.is_none()
+                && (pressed || near || meets_from_fetch(cx, at, stand))
+                && let Some(forecast) = carry_forecast(cx, stand, false)
+            {
+                forecast_line(cx, at, stand, &forecast, "take");
+                if forecast.refused() {
+                    return Step::Failed(NO_WAY_HOME_FROM_IT);
+                }
+            }
             if pressed || (near && !over_goal(cx, stand)) {
                 #[cfg(test)]
                 if routed {
@@ -2506,6 +2571,39 @@ pub fn step(state: &mut State, target: TargetRef, cx: &Ctx, _rng: &mut Rng) -> S
                         tally(cx, Ev::HomeGateMs, u64::from(opens - cx.now));
                     }
                 }
+                // [bot traps] The carrier's line: a hold for the schedule's opening, or a wait to the bound.
+                let (key, words) = match strand {
+                    Strand::Gate { opens } => (
+                        ("gate", opens / 1_000),
+                        format!("holds for the schedule: a zone shuts its way home, open in {:.1} s", f64::from(opens - cx.now) / 1_000.0),
+                    ),
+                    _ => {
+                        // Why no gate: the first floor of the way the schedule does not open, and the soonest switch known there.
+                        let why = match cx.tactics.gate_walk(cx.me.feet, home, cx.now, cx.bot.side) {
+                            Err(crate::v026g::bots::tactics::NoGate::At { at, why, next_switch: next }) => format!(
+                                " ({why} at {}{})",
+                                crate::v026g::bots::nav_log::at(at),
+                                next.map_or(String::new(), |n| format!(", next switch in {:.1} s", f64::from(n.saturating_sub(cx.now)) / 1_000.0))
+                            ),
+                            Err(crate::v026g::bots::tactics::NoGate::NoWay) => " (no way over the side's floors at all)".to_owned(),
+                            Ok(opens) if opens > cx.now => format!(" (a gate in {:.1} s, past the wait)", f64::from(opens - cx.now) / 1_000.0),
+                            Ok(_) => " (no floor of the way shut now)".to_owned(),
+                        };
+                        // And the carrier's own way from where it stands (its reach, the floors open all match, the schedule).
+                        let max_hold_ms = cx.tuning.unstick.home_gate_max_ms.unwrap_or(0);
+                        let own = cx
+                            .tactics
+                            .carrier_forecast(cx.me.feet, home, cx.now, cx.bot.side, cx.tuning.kin.walk[0], max_hold_ms, true)
+                            .map_or("no floor under it".to_owned(), |f| f.words(cx.now));
+                        let why = format!("{why}; the carrier's forecast from here: {own}");
+                        (
+                            ("bound", cx.now / 10_000),
+                            format!("no gate ahead{why}: waits {:.1} s for a way home, then lets go", f64::from(wait_ms) / 1_000.0),
+                        )
+                    }
+                };
+                let line = format!("carrier home: carrier at {} {words} at {:.1} s", crate::v026g::bots::nav_log::at(cx.me.feet), f64::from(cx.now) / 1_000.0);
+                cx.lines.push(crate::v026g::bots::nav_log::Kind::CarrierHome, Some(crate::v026g::bots::nav_log::key(("carrier hold", key))), line);
                 *state = State::Stranded(strand);
                 return step(state, target, cx, _rng);
             }
@@ -2584,6 +2682,13 @@ pub fn step(state: &mut State, target: TargetRef, cx: &Ctx, _rng: &mut Rng) -> S
             let Some(home) = home else {
                 return Step::Failed("no container of ours");
             };
+            // [bot traps] A gate the schedule opens later: held still on its floor (the drive walks it off a zone's floors) until
+            // then, no search for the way home meanwhile; at its time the way is searched again.
+            if let Strand::Gate { opens } = *strand
+                && cx.now < opens
+            {
+                return Step::Continue(Intent::stay().hold_fire());
+            }
             // A way found (no search fails any more), or no bound set any more: back to the way home.
             let Some(wait_ms) = cx.tuning.unstick.home_no_way_ms.filter(|_| no_way_home(cx, home)) else {
                 #[cfg(test)]
@@ -5212,6 +5317,73 @@ mod tests {
         );
     }
 
+    /// [bot traps] A battery whose carrier would have no way home from its stand (a zone on all match closes round the team's
+    /// container, shutting its floors to the side's routes) is left at the fetch, before the walk in (set aside: the
+    /// candidates' test itself asks no forecast); with the container's floors open the take begins. Each verdict leaves its
+    /// line.
+    #[test]
+    fn a_fetch_leaves_a_battery_its_carrier_has_no_way_home_from() {
+        let fetch = |shut_home: bool| {
+            let mut s = Scenario::field(Mode::Batteries);
+            let world = crate::v026g::bots::tactics::tests::field_with(|map| {
+                if shut_home {
+                    map.zones.push(Zone {
+                        kind: ZoneKind::Damage,
+                        name: "toxic".into(),
+                        team: -1,
+                        position: Vec3::new(12.0, 0.0, 30.0),
+                        protection: None,
+                        damage_type: "toxic".into(),
+                        damage: None,
+                        shapes: vec![Shape {
+                            kind: ShapeKind::Sphere,
+                            center: Vec3::new(12.0, 1.0, 30.0),
+                            rotation: Rotation::IDENTITY,
+                            half: Vec3::new(4.0, 4.0, 4.0),
+                        }],
+                    });
+                }
+            });
+            s.tactics = Tactics::new(world, 1.0);
+            s.bot(0, 0, Vec3::new(24.2, 0.0, 12.0));
+            let at = Vec3::new(25.0, 0.0, 12.0);
+            s.battery(BatteryState::Free(at));
+            let target = TargetRef::Battery(0);
+            s.current = Some((PlayKind::Collect, target, s.view.clock));
+            let mut rng = Rng::new(1);
+            let cx = s.cx(0);
+            let mut state = start(target, &cx, &mut rng);
+            let stepped = step(&mut state, target, &cx, &mut rng);
+            let lines: Vec<String> = cx
+                .lines
+                .take()
+                .into_iter()
+                .filter(|(kind, _, _)| *kind == crate::v026g::bots::nav_log::Kind::CarrierHome)
+                .map(|(_, _, text)| text)
+                .collect();
+            (stepped, cx.take_block(at), lines)
+        };
+        let (stepped, block, lines) = fetch(true);
+        assert_eq!(stepped, Step::Failed(NO_WAY_HOME_FROM_IT));
+        assert!(fails_aside(NO_WAY_HOME_FROM_IT));
+        assert_eq!(block, None);
+        assert!(
+            lines.len() == 1 && lines[0].contains(" left at the fetch ") && lines[0].contains("no way home over the floors open all match"),
+            "{lines:?}"
+        );
+        let (stepped, block, lines) = fetch(false);
+        assert!(matches!(stepped, Step::Continue(_)), "{stepped:?}");
+        assert_eq!(block, None);
+        // Asked at the fetch and again at the take (the bot stands in reach): open both times.
+        assert!(
+            lines.len() == 2
+                && lines[0].contains(" taken at the fetch ")
+                && lines[1].contains(" taken at the take ")
+                && lines.iter().all(|l| l.contains("open all the way")),
+            "{lines:?}"
+        );
+    }
+
     /// The field with `solids` (walls 3 m high, `body::tests::wall_x`),
     /// a battery at (25, 0, 12) (the battery cheat on) and the bot of team
     /// 0 at `feet`.
@@ -6077,7 +6249,7 @@ mod tests {
     }
 
     /// A carrier whose way home zones that switch shut (a gate) waits for the schedule to open it, not the bound of a no-way: `Strand::Gate`, its end the opening
-    /// the schedule gives; a way found after it leaves the wait; a gate that stays shut goes on to the bound (`Missed`); and a gate too far off, or the switch off,
+    /// the schedule gives, held still to it ([bot traps]: no search meanwhile); a way found after it leaves the wait; a gate that stays shut goes on to the bound (`Missed`); and a gate too far off, or the switch off,
     /// is the bound's from the start.
     #[test]
     fn a_carrier_whose_way_home_is_a_gate_waits_for_the_schedule_not_the_bound() {
@@ -6144,12 +6316,13 @@ mod tests {
         step(&mut state, target, &s.cx(0), &mut rng);
         assert_eq!(state, State::Stranded(Strand::Gate { opens: 40_000 }));
         assert_eq!((n(dzf::Ev::HomeGate), n(dzf::Ev::HomeGateMs)), (1, 30_000));
-        // Past the bound of a no-way (20 s from standing), still inside the gate's time: it keeps waiting.
+        // Past the bound of a no-way (20 s from standing), still inside the gate's time: it keeps waiting, held still (no walk
+        // home, so no search for it, until the gate's time).
         s.view.clock = 35_000;
         failed(&mut s);
         let still = step(&mut state, target, &s.cx(0), &mut rng);
         assert_eq!(state, State::Stranded(Strand::Gate { opens: 40_000 }));
-        assert!(matches!(&still, Step::Continue(i) if matches!(i.go, Go::To { .. })), "{still:?}");
+        assert!(matches!(&still, Step::Continue(i) if i.go == Go::Stay && !i.fire), "{still:?}");
         // The gate's time and its grace past, a search failing after it: the gate is missed, and the bound runs from there.
         s.view.clock = 45_000;
         failed(&mut s);
