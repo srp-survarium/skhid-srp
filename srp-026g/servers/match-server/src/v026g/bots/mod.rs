@@ -1206,6 +1206,9 @@ pub struct Bots {
     /// The plays' kept answers about these tactics (`plays::memo`), made
     /// anew with them.
     memo: plays::memo::Memo,
+    /// [crossing prewarm] Each place's kits' armours against zones ([`Self::set_kit_armours`]): what its crossings can be
+    /// asked with all match, made at map load ([`Self::prewarm_crossings`]).
+    kit_armours: Vec<Vec<std::sync::Arc<zone_cost::ZoneArmour>>>,
     teams: [TeamState; 2],
     bots: Vec<Option<Bot>>,
     trace: Trace,
@@ -1296,6 +1299,7 @@ impl Bots {
             bases: Vec::new(),
             base_counts: (0, 0),
             memo: Default::default(),
+            kit_armours: Vec::new(),
             teams: [team_state(tunings.of(0)), team_state(tunings.of(1))],
             bots,
             trace,
@@ -1584,7 +1588,50 @@ impl Bots {
         let summary = if late > 0 { format!("{summary}; {late} bots spawned before the map, sides read now") } else { summary };
         self.tactics = Some(tactics);
         self.memo = Default::default();
-        summary
+        match self.prewarm_crossings() {
+            Some(made) if made.stands > 0 => format!(
+                "{summary}; crossing entries made at load: {} searches ({} ways) for {} stands, {} sides, {} armour and rule pairs in {:.1} ms",
+                made.searches, made.found, made.stands, made.sides, made.asks, made.ms
+            ),
+            _ => summary,
+        }
+    }
+
+    /// [crossing prewarm] Every armour a place's kits wear against zones (the profile's kits, in order): a bot changes kit only
+    /// among these (`Bot::pick_kit`), so its crossings are asked with one of them or its present armour.
+    pub fn set_kit_armours(&mut self, place: Place, armours: Vec<zone_cost::ZoneArmour>) {
+        if self.kit_armours.len() <= place {
+            self.kit_armours.resize(place + 1, Vec::new());
+        }
+        self.kit_armours[place] = armours.into_iter().map(std::sync::Arc::new).collect();
+    }
+
+    /// [crossing prewarm] The routed crossings' entry searches made at map load ([`plays::memo::Memo::prewarm_entries`]) for each
+    /// (armour, rule) this match's bots can ask: each bot's present armour and its kits', under its team's rule; the armour none
+    /// where its team's `hazard.zone_pools` is raw (`Ctx::zone_armour`). None without the tactics.
+    fn prewarm_crossings(&self) -> Option<plays::memo::EntryPrewarm> {
+        let tactics = self.tactics.as_ref()?;
+        let radius = tactics.world.grid.body().radius;
+        let mut asks: Vec<(Option<std::sync::Arc<zone_cost::ZoneArmour>>, plays::memo::RoutedRule)> = Vec::new();
+        let mut keys: Vec<(u64, plays::memo::RoutedRule)> = Vec::new();
+        for (place, bot) in self.bots.iter().enumerate() {
+            let Some(bot) = bot else { continue };
+            let tuning = self.tunings.of(bot.team);
+            let rule = plays::memo::RoutedRule::of(&tuning.hazard, radius);
+            let kits = self.kit_armours.get(place).map_or(&[][..], Vec::as_slice);
+            for armour in std::iter::once(&bot.features.crossing.armour).chain(kits) {
+                let armour = match tuning.hazard.zone_pools {
+                    tuning::ZonePools::Raw => None,
+                    tuning::ZonePools::Routed => Some(armour.clone()),
+                };
+                let key = (armour.as_deref().map_or(0, zone_cost::ZoneArmour::key), rule);
+                if !keys.contains(&key) {
+                    keys.push(key);
+                    asks.push((armour, rule));
+                }
+            }
+        }
+        Some(self.memo.prewarm_entries(tactics, &asks))
     }
 
     /// The human routes of the match's map and mode (play 17), from
@@ -2662,6 +2709,12 @@ impl Bots {
         // [A388 step 2b] The lip guard's forecasts this match: asked anew, and the same ask's answer used again.
         let (asked, reused) = self.bots.iter().flatten().fold((0u64, 0u64), |(a, r), bot| (a + u64::from(bot.lip_memo.asked), r + u64::from(bot.lip_memo.reused)));
         lines.push(format!("{}lip guard forecasts this match: asked {asked}, the same ask's answer used again {reused}", nav_log::PREFIX));
+        // [crossing prewarm] The routed crossings' entry searches asked in play, and of them searched then (not made at load).
+        let (entry_asks, entry_searches) = self.memo.entry_counts();
+        lines.push(format!(
+            "{}crossing entries this match: asked in play {entry_asks}, searched then {entry_searches} (the rest made at map load)",
+            nav_log::PREFIX
+        ));
         // [A388 (e) gap 16] The reckoning's steps the client's legs crouched (both broken, the key up).
         lines.push(format!(
             "{}kept controller steps crouched by both legs broken with the crouch key up since the last match end (every match on this server): {}",
