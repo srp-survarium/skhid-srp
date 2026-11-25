@@ -60,8 +60,11 @@ fn a_qualified_path_reaches_only_its_own_module() {
     let names: BTreeSet<&str> = reached.iter().flat_map(|&u| s.units[u].names.iter().map(String::as_str)).collect();
     assert!(names.contains("built::write"), "{names:?}");
     assert!(!names.contains("RayTree::write"), "`built::write` is not RayTree's: {names:?}");
-    // A plain call reaches every item of its name.
+    // [R2] A method call reaches a method only once the code has the method's type: never on a type it does not name.
     let s = source(&[("src/a.rs", "fn f(t: &T) { t.write() }"), ("src/sight.rs", SIGHT), ("src/built.rs", BUILT)]);
+    let reached = s.closure(&["f"]).unwrap();
+    assert!(!reached.iter().any(|&u| s.units[u].names.iter().any(|n| n == "RayTree::write")));
+    let s = source(&[("src/a.rs", "fn f(t: &crate::sight::RayTree) { t.write() }"), ("src/sight.rs", SIGHT), ("src/built.rs", BUILT)]);
     let reached = s.closure(&["f"]).unwrap();
     assert!(reached.iter().any(|&u| s.units[u].names.iter().any(|n| n == "RayTree::write")));
 }
@@ -174,7 +177,212 @@ fn bindings_fields_and_foreign_paths_reach_nothing() {
     // A call does reach, plain or through this source's type.
     assert!(reaches("pub fn f(g: G) -> u32 { g.height() }").contains("G::height"));
     assert!(reaches("pub fn f() -> u32 { G::new() }").contains("G::new"));
-    assert!(reaches("pub fn f<T>() -> u32 { T::build() }").contains("G::build"), "a generic parameter's call");
+    // [R2] A generic parameter's call reaches a type's method once the code names the type (where the parameter is chosen).
+    assert!(!reaches("pub fn f<T>() -> u32 { T::build() }").contains("G::build"), "no code names G");
+    assert!(
+        reaches("pub fn f() -> u32 { g::<crate::g::G>() } fn g<T>() -> u32 { T::build() }").contains("G::build"),
+        "a generic parameter's call, its type named by the caller"
+    );
+}
+
+/// The names of the items `roots` reach in `files`.
+fn reached_names(files: &[(&str, &str)], roots: &[&str]) -> BTreeSet<String> {
+    let s = source(files);
+    s.closure(roots).unwrap().iter().flat_map(|&u| s.units[u].names.clone()).collect()
+}
+
+#[test]
+fn r1_a_pattern_s_shorthand_binds_a_local_and_a_literal_s_names_an_item() {
+    let a = "pub struct B { pub rest: u32 }
+        pub fn f(b: B) -> u32 { let B { rest } = b; rest }
+        pub fn m(b: Option<B>) -> u32 { match b { Some(B { rest }) => rest, None => 0 } }
+        pub fn rest() -> u32 { 9 }
+        #[allow(non_upper_case_globals)] pub const width: u32 = 4;
+        pub struct C { pub width: u32 }
+        pub fn g() -> C { C { width } }";
+    assert!(!reached_names(&[("src/a.rs", a)], &["f"]).contains("a::rest"), "a let pattern's shorthand");
+    assert!(!reached_names(&[("src/a.rs", a)], &["m"]).contains("a::rest"), "a match arm's shorthand");
+    assert!(reached_names(&[("src/a.rs", a)], &["g"]).contains("a::width"), "a literal's shorthand is its expression");
+}
+
+#[test]
+fn r2_a_method_waits_for_its_type_and_a_trait_impl_comes_with_it() {
+    let a = "pub struct A; impl A { pub fn go(&self) -> u32 { 1 } }
+        pub struct Z; impl Z { pub fn go(&self) -> u32 { 2 } }
+        pub fn h(x: impl Fn() -> A) -> u32 { x().go() }
+        pub struct V(u32);
+        impl std::ops::Add for V { type Output = V; fn add(self, o: V) -> V { added(); o } }
+        impl Drop for V { fn drop(&mut self) { dropped() } }
+        fn added() {} fn dropped() {}
+        pub fn sum(a: V, b: V) -> V { a + b }";
+    let names = reached_names(&[("src/a.rs", a)], &["h"]);
+    assert!(names.contains("A::go") && !names.contains("Z::go"), "an unknown receiver: the methods of the types named: {names:?}");
+    let names = reached_names(&[("src/a.rs", a)], &["sum"]);
+    assert!(names.contains("a::added") && names.contains("a::dropped"), "an operator and a drop name no method: {names:?}");
+}
+
+#[test]
+fn r3_a_free_item_s_plain_name_resolves_in_its_module_s_scope() {
+    let files = [
+        ("src/lib.rs", "pub mod a; pub mod b; pub mod c; pub mod p; pub mod d;"),
+        ("src/a.rs", "pub fn row() -> u32 { 1 }"),
+        ("src/b.rs", "pub fn row() -> u32 { 2 } pub fn f() -> u32 { row() }"),
+        ("src/c.rs", "use crate::a::row; pub fn g() -> u32 { row() }"),
+        ("src/p.rs", "pub mod q; pub fn col() -> u32 { 3 }"),
+        ("src/p/q.rs", "use super::*; pub fn k() -> u32 { col() }"),
+        ("src/d.rs", "pub fn n() -> u32 { let row = || 4; row() } pub fn m() -> u32 { col() }"),
+    ];
+    let units = |root: &str| {
+        let s = source(&files);
+        s.closure(&[root]).unwrap().iter().map(|&u| s.units[u].file.clone()).collect::<BTreeSet<String>>()
+    };
+    assert!(units("f").contains("src/b.rs") && !units("f").contains("src/a.rs"), "its own module's");
+    assert!(units("g").contains("src/a.rs") && !units("g").contains("src/b.rs"), "through its use");
+    assert!(units("k").contains("src/p.rs"), "through a glob of its parent");
+    assert!(!units("n").contains("src/a.rs") && !units("n").contains("src/b.rs"), "a local closure of the name");
+    assert!(units("m").contains("src/p.rs"), "no item in scope: every item of the name (as before)");
+    let s = source(&files);
+    let _ = s.closure(&["m"]).unwrap();
+    assert!(s.unplaced.borrow().iter().any(|n| n == "col in d"), "and the report names it: {:?}", s.unplaced.borrow());
+}
+
+#[test]
+fn r4_a_method_call_on_a_known_receiver_reaches_that_type_s_methods() {
+    let a = "pub struct W; impl W { pub fn hit(&self) -> u32 { 1 } }
+        pub struct X; impl X { pub fn hit(&self) -> u32 { 2 } }
+        pub fn make() -> X { X }
+        pub struct G { w: W, b: Box<W> }
+        pub trait T { fn hit2(&self) -> u32 { by_default() } }
+        fn by_default() -> u32 { 5 }
+        impl T for W {}
+        impl G {
+            pub fn on_field(&self) -> u32 { let _x: X = make(); self.w.hit() }
+            pub fn on_box(&self) -> u32 { let _x: X = make(); self.b.hit() }
+            pub fn on_default(&self) -> u32 { self.w.hit2() }
+        }
+        pub fn typed(w: &W) -> u32 { let _x: X = make(); w.hit() }
+        pub fn rebound(w: &W) -> u32 { let w = make(); w.hit() }";
+    let names = |root: &str| reached_names(&[("src/a.rs", a)], &[root]);
+    assert!(names("G::on_field").contains("W::hit") && !names("G::on_field").contains("X::hit"), "self.field: its type's");
+    assert!(names("typed").contains("W::hit") && !names("typed").contains("X::hit"), "a typed parameter: its type's");
+    assert!(names("G::on_box").contains("W::hit") && names("G::on_box").contains("X::hit"), "a field's type not known: as R2");
+    assert!(names("rebound").contains("X::hit"), "a name bound twice has no one type");
+    assert!(names("G::on_default").contains("a::by_default"), "a trait's default method");
+}
+
+#[test]
+fn inert_attributes_move_no_key_and_track_caller_does() {
+    let base = grid(GRID);
+    assert_eq!(grid(&GRID.replace("fn helper(", "#[inline]\n#[allow(dead_code)]\nfn helper(")), base);
+    assert_eq!(grid(&GRID.replace("fn helper(", "#[must_use]\n#[cold]\nfn helper(")), base);
+    assert_ne!(grid(&GRID.replace("fn helper(", "#[track_caller]\nfn helper(")), base);
+}
+
+#[test]
+fn coverage_only_items_reach_nothing_and_move_no_key() {
+    // A `#[cfg(srp_coverage)]` item (the oracle's windows) is in no build a key names: its method calls on an untyped
+    // receiver (`FLAG.load(..)`) must not widen the closure, nor an edit of it move a key.
+    let a = "pub struct Map; impl Map { pub fn load() -> Map { Map } }
+        pub struct W; impl W { pub fn run(&self) -> u32 { window(|| 1) } }
+        pub fn root(m: &Map) -> u32 { let w = W; w.run() }
+        #[cfg(not(srp_coverage))]
+        pub fn window(f: impl FnOnce() -> u32) -> u32 { f() }
+        #[cfg(srp_coverage)]
+        static FLAG: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+        #[cfg(srp_coverage)]
+        pub fn window(f: impl FnOnce() -> u32) -> u32 { FLAG.load(std::sync::atomic::Ordering::SeqCst); f() }";
+    let names = |text: &str| -> (BTreeSet<String>, u128) {
+        let files: Vec<(String, String)> = vec![("src/a.rs".to_owned(), text.to_owned())];
+        let s = Source::parse_with(&files, None, Resolution::Scoped).unwrap();
+        let c = s.closure(&["root"]).unwrap();
+        (c.iter().flat_map(|&u| s.units[u].names.clone()).collect(), s.digest(&c, 0))
+    };
+    let (reached, key) = names(a);
+    assert!(reached.contains("window") && reached.contains("W::run"), "{reached:?}");
+    assert!(!reached.contains("Map::load"), "{reached:?}");
+    assert_eq!(names(&a.replace("SeqCst); f()", "Relaxed); f()")).1, key);
+}
+
+#[test]
+fn why_agrees_with_the_closure() {
+    let files = [("src/grid.rs", GRID), ("src/built.rs", BUILT), ("src/sight.rs", SIGHT)];
+    let s = source(&files);
+    let reached = s.closure(&["WalkGrid::build"]).unwrap();
+    for (at, unit) in s.units.iter().enumerate() {
+        let Some(name) = unit.names.iter().find(|n| s.by_name.get(*n).is_some_and(|v| v.len() == 1)) else { continue };
+        let why = s.why(&["WalkGrid::build"], name).unwrap();
+        assert_eq!(why.is_some(), reached.contains(&at), "{name}");
+    }
+}
+
+#[test]
+fn the_legacy_resolver_reaches_every_item_of_a_name() {
+    let a = "pub struct A; impl A { pub fn go(&self) -> u32 { 1 } }
+        pub struct Z; impl Z { pub fn go(&self) -> u32 { 2 } }
+        pub fn f(a: &A) -> u32 { a.go() }";
+    let files: Vec<(String, String)> = vec![("src/a.rs".to_owned(), a.to_owned())];
+    let legacy = Source::parse_with(&files, None, Resolution::Legacy).unwrap();
+    let names: BTreeSet<String> = legacy.closure(&["f"]).unwrap().iter().flat_map(|&u| legacy.units[u].names.clone()).collect();
+    assert!(names.contains("Z::go"), "{names:?}");
+}
+
+/// The real tree's `mapdata` files (this crate's workspace).
+fn real_files() -> (std::path::PathBuf, Vec<(String, String)>) {
+    let ws = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let files = crate_files(&ws, "crates/mapdata").unwrap();
+    (ws, files)
+}
+
+/// Every digest of `files` (grid, sight, each memo site's), with no outside part.
+fn real_digests(ws: &Path, files: &[(String, String)]) -> BTreeMap<&'static str, u128> {
+    let s = Source::parse_in(files, Some(ws)).unwrap();
+    digest_roots().into_iter().map(|(what, roots)| (what, s.digest(&s.closure(roots).unwrap(), 0))).collect()
+}
+
+#[test]
+fn a_builder_change_no_site_runs_moves_no_site_s_key() {
+    let (ws, files) = real_files();
+    let base = real_digests(&ws, &files);
+    let controlled = "crates/mapdata/src/grid/controlled.rs";
+    let text = &files.iter().find(|(p, _)| p == controlled).unwrap().1;
+    // A new function of the builder no site calls, and a test of its own: as the bridge pass's `walked_bridge` was.
+    let mut changed = files.clone();
+    changed.iter_mut().find(|(p, _)| p == controlled).unwrap().1 = format!(
+        "{text}\npub(super) fn walked_over(x: u32) -> u32 {{ x + 1 }}\n#[cfg(test)]\nmod more_tests {{ #[test] fn t() {{ assert_eq!(super::walked_over(1), 2); }} }}\n"
+    );
+    let after = real_digests(&ws, &changed);
+    for (what, d) in &base {
+        assert_eq!(after[what], *d, "{what}");
+    }
+}
+
+#[test]
+fn an_item_s_edit_moves_exactly_the_digests_whose_closure_holds_it() {
+    let (ws, files) = real_files();
+    let s = Source::parse_in(&files, Some(&ws)).unwrap();
+    let base = real_digests(&ws, &files);
+    // (file, the item's name): each edited by one more statement at the start of its body (a token change).
+    let edits = [
+        ("crates/mapdata/src/grid/rim.rs", "rim_aimed_job"),
+        ("crates/mapdata/src/controller.rs", "Collision::build_exe"),
+        ("crates/mapdata/src/grid/controlled.rs", "WalkGrid::controlled_links"),
+    ];
+    for (file, name) in edits {
+        let unit = s.by_name[name].iter().copied().find(|&u| s.units[u].file == file).unwrap_or_else(|| panic!("{name}"));
+        let text = &files.iter().find(|(p, _)| p == file).unwrap().1;
+        let short = name.rsplit("::").next().unwrap();
+        let at = [format!("fn {short}("), format!("fn {short}<")].iter().find_map(|sig| text.find(sig.as_str())).unwrap_or_else(|| panic!("{name}"));
+        let open = at + text[at..].find('{').unwrap();
+        let mut changed_text = text.clone();
+        changed_text.insert_str(open + 1, " let _ = 0u8; ");
+        let changed: Vec<(String, String)> =
+            files.iter().map(|(p, t)| (p.clone(), if p == file { changed_text.clone() } else { t.clone() })).collect();
+        let after = real_digests(&ws, &changed);
+        for (what, roots) in digest_roots() {
+            let holds = s.closure(roots).unwrap().contains(&unit);
+            assert_eq!(after[what] != base[what], holds, "{name} in {what}'s closure: {holds}");
+        }
+    }
 }
 
 #[test]

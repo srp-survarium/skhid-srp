@@ -40,6 +40,7 @@ pub mod built;
 pub mod bullet;
 mod config;
 pub mod controller;
+pub(crate) mod coverage;
 pub mod digest;
 /// [incremental grids] The source digests of this build (`build.rs`, `mapdata-srchash`): [`source::SRC_GRID`] names a built grid's
 /// source, [`source::SRC_SIGHT`] a sight tree's, [`source::SRC_ALL`] the crate's. Taken from the tokens the builds reach, at
@@ -470,6 +471,18 @@ impl World {
     /// [incremental grids PR 5] [`Self::map_grid_with_stats`] with the job memo `memo` ([`WalkGrid::build_kept_memo`]). Its
     /// global inputs ([`grid::memo::Memo::new`]) are [`Self::memo_global`]'s of the same map, body and links.
     pub fn map_grid_memo(
+        map: &MapData,
+        walker: &[Triangle],
+        cell: f32,
+        body: Body,
+        links: OffMeshLinks,
+        memo: &mut grid::memo::Memo,
+    ) -> (WalkGrid, BuildStats) {
+        // [srchash oracle] The grid's code, for the coverage check of its digest (`coverage`).
+        coverage::grid(|| Self::map_grid_memo_inner(map, walker, cell, body, links, memo))
+    }
+
+    fn map_grid_memo_inner(
         map: &MapData,
         walker: &[Triangle],
         cell: f32,

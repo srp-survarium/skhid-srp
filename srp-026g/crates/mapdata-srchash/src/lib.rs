@@ -3,13 +3,28 @@
 //! tree (the same code, so the two agree).
 //!
 //! A digest covers what can change a build's output, and nothing else:
-//! - the tokens of the items a root reaches, with no comments, no doc comments (`#[doc]` attributes), no `#[cfg(test)]` or
-//!   `#[test]` items and no `src/bin`, so a comment, a doc or a test edit changes no digest;
-//! - the items reached are found by name, not by type ([`Source::closure`]): an item reaches every item named by one of its
-//!   identifiers, a `q::name` path only the items of `q` (a type's own methods, a module's own items) where `q` has such an item
-//!   ([`Source::resolve`]: none for a path through a type or module the source does not have, `Vec::new`). Names that clash
-//!   only add items; a trait impl and its methods are reached by the type's name and by the methods' names. A binding or a
-//!   field (`name: T`, `let name`, `.name` not called) and a declaration's own name reach nothing;
+//! - the tokens of the items a root reaches, with no comments, no doc comments, no inert attributes (lint levels, inlining hints,
+//!   `#[cold]`, `#[must_use]`, rustfmt's: they change no value the code computes; `#[track_caller]` stays), no `#[cfg(test)]`,
+//!   `#[test]` or `#[cfg(srp_coverage)]` items (the coverage oracle's build, whose `--cfg` gives it keys of its own) and no
+//!   `src/bin`, so a comment, a doc, a lint or a test edit changes no digest;
+//! - the items reached are found by name as rustc resolves it, narrowed where the code shows which item a name is
+//!   ([`Source::closure`], [`Resolution::Scoped`]), and as wide as before where it does not:
+//!   - a `q::name` path reaches only the items of `q` (a type's own methods, a module's own items) where `q` has such an item
+//!     ([`Source::resolve`]: none for a path through a type or module the source does not have, `Vec::new`);
+//!   - [R3] a free item's plain name (a function, a type, a constant) resolves in its module's scope: the module's own items,
+//!     its `use`s, the modules it glob-imports; a name that scope does not place reaches every item of the name, as before, and
+//!     the report lists it; a macro's names resolve anywhere (where it is called);
+//!   - [R4] a method call on a receiver of known type (`self`, a binding bound once with a written type, a field of either)
+//!     reaches that type's methods (inherent and trait impls'), the traits that declare the name and the impls for types the
+//!     source does not define; [R2] any other method call reaches a method only once the walk has reached its type: a method runs
+//!     on a value of its type, made only by code that names the type. A trait impl comes with its type (an operator, a `Drop`, a
+//!     `for` loop names no method);
+//!   - [R1] a binding, a field and a struct pattern's shorthand (`name: T`, `let name`, `.name` not called, `let B { name } =`)
+//!     and a declaration's own name reach nothing.
+//!
+//!   The coverage oracle (`coverage_oracle.py`, `mapdata/src/coverage.rs`) checks on a real build that every function a
+//!   digest's part executes is in its closure. `--diff` names the items that moved a key, `--dropped` what the scoped resolution
+//!   leaves out of each closure against the old one ([`Resolution::Legacy`]);
 //! - `mapdata`'s own source only, as the cache's fingerprint before: the workspace crates it uses (`survarium`, `resources-db`,
 //!   `binary-config-parser`) read the map file, whose output the grid's and the tree's keys hold. Followed by name they reach
 //!   every grid through `survarium`'s content tables (its `include_str!`s), and a content edit would rebuild every grid
@@ -106,6 +121,9 @@ impl Hash128 {
 enum Ref {
     Plain(String),
     Qualified(String, String),
+    /// A method call on a receiver of a known type: the receiver's type (`self`'s, a typed binding's), the fields read off it in
+    /// order (`self.grid.world`: `grid`, `world`), the method's name.
+    Method(String, Vec<String>, String),
 }
 
 /// One item of the source (a function, a method, a type with its trait impls' units, a const, a `use`, a macro...).
@@ -122,6 +140,14 @@ pub struct Unit {
     owner: Option<String>,
     /// The type a struct, enum, union, trait or type alias defines.
     defines: Option<String>,
+    /// Its module (`rim` for `grid/rim.rs`, an inline `mod`'s name, `crate` for the root): where its plain names are resolved.
+    module: String,
+    /// A `macro_rules!` macro: its plain names resolve where it is called, so anywhere in the crate.
+    macro_rules: bool,
+    /// The names it binds (parameters, `let`, pattern shorthands): a plain name with no item in scope that it binds is the local.
+    locals: BTreeSet<String>,
+    /// Its first and last line in its file (1-based), for the coverage oracle ([`spans_report`]).
+    pub lines: Option<(usize, usize)>,
 }
 
 /// The units waiting for a type, by (crate, type): (from, unit, the name it was reached by).
@@ -132,9 +158,23 @@ fn crate_of(file: &str) -> &str {
     file.strip_prefix("crates/").and_then(|rest| rest.split('/').next()).unwrap_or("")
 }
 
+/// How plain names resolve.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum Resolution {
+    /// [R1-R4] A pattern's shorthand binds a local; a method waits for its type; a free item's plain name in its module's scope;
+    /// a method call on a receiver of known type to that type's methods. The digests' resolver.
+    #[default]
+    Scoped,
+    /// The resolver before R1-R4 (every plain name crate-wide): kept only to list what the scoped one leaves out
+    /// ([`dropped_report`]), never for a digest.
+    Legacy,
+}
+
 /// A crate's (or several crates') units, by name.
 #[derive(Default)]
 pub struct Source {
+    /// How its plain names resolve.
+    pub resolution: Resolution,
     pub units: Vec<Unit>,
     by_name: HashMap<String, Vec<usize>>,
     /// The modules the source has (files and inline `mod`s): a `module::name` path whose module has no `name` item still
@@ -146,6 +186,21 @@ pub struct Source {
     root: Option<PathBuf>,
     /// (crate, crate it globs from): `use other::path::*` in a crate lets its plain names reach any item of `other`.
     globs: BTreeSet<(String, String)>,
+    /// Each module's parent (`rim` -> `grid`), from the files and the inline `mod`s.
+    parents: HashMap<String, String>,
+    /// Each module's glob imports as written (`super`, `self`, `crate` or a module's name), resolved in [`Self::index`].
+    module_globs_raw: Vec<(String, String)>,
+    /// Each module's glob-imported modules, transitively.
+    in_scope: HashMap<String, BTreeSet<String>>,
+    /// The module of the items [`Self::items`] is pushing.
+    current_module: String,
+    /// The plain names the module view did not place (resolved crate-wide, as before), for the report.
+    pub unplaced: std::cell::RefCell<BTreeSet<String>>,
+    /// Each struct's named fields' types (the last path segment, references stripped), by the struct's name; a name two structs
+    /// have is in [`Self::ambiguous`] instead.
+    fields: HashMap<String, HashMap<String, String>>,
+    /// Struct names defined more than once: their fields are no receiver's type.
+    ambiguous: BTreeSet<String>,
 }
 
 impl Source {
@@ -157,6 +212,11 @@ impl Source {
     /// As [`Self::parse`], an `include_str!`/`include_bytes!` file read from `root` (the workspace) and its bytes' digest put in
     /// the item that includes it.
     pub fn parse_in(files: &[(String, String)], root: Option<&Path>) -> Result<Self, String> {
+        Self::parse_with(files, root, Resolution::Scoped)
+    }
+
+    /// As [`Self::parse_in`], resolving plain names by `resolution`.
+    pub fn parse_with(files: &[(String, String)], root: Option<&Path>, resolution: Resolution) -> Result<Self, String> {
         let mut parsed = Vec::new();
         let mut test_files = BTreeSet::new();
         for (path, text) in files {
@@ -166,7 +226,7 @@ impl Source {
             scan_test_mods(&file.items, &children, &mut test_files);
             parsed.push((path.clone(), module, file));
         }
-        let mut source = Source { root: root.map(Path::to_path_buf), ..Source::default() };
+        let mut source = Source { root: root.map(Path::to_path_buf), resolution, ..Source::default() };
         for (path, module, file) in &parsed {
             // A test module's file, or a file under its folder (its own modules).
             let under_test = test_files.contains(path)
@@ -175,6 +235,7 @@ impl Source {
             if under_test {
                 continue;
             }
+            source.parents.entry(module.clone()).or_insert_with(|| parent_module(path));
             source.items(path, module, None, &file.items)?;
         }
         source.index();
@@ -183,6 +244,26 @@ impl Source {
 
     fn index(&mut self) {
         self.by_name.clear();
+        let mut direct: HashMap<String, BTreeSet<String>> = HashMap::new();
+        for (module, target) in &self.module_globs_raw {
+            let to = match target.as_str() {
+                "super" => self.parents.get(module).cloned().unwrap_or_else(|| "crate".to_owned()),
+                "self" => module.clone(),
+                other => other.to_owned(),
+            };
+            direct.entry(module.clone()).or_default().insert(to);
+        }
+        self.in_scope.clear();
+        for module in direct.keys() {
+            let mut seen = BTreeSet::new();
+            let mut todo: Vec<String> = direct[module].iter().cloned().collect();
+            while let Some(m) = todo.pop() {
+                if seen.insert(m.clone()) {
+                    todo.extend(direct.get(&m).into_iter().flatten().cloned());
+                }
+            }
+            self.in_scope.insert(module.clone(), seen);
+        }
         let defined: BTreeSet<&str> = self.units.iter().filter_map(|u| u.defines.as_deref()).collect();
         for (at, unit) in self.units.iter().enumerate() {
             for name in &unit.names {
@@ -235,7 +316,8 @@ impl Source {
             }
             let here = crate_of(&unit.file);
             for r in &unit.refs {
-                let Some((found, by, exact)) = self.resolve(r) else { continue };
+                let Some((found, by, exact)) = self.resolve_from(r, unit) else { continue };
+                let found = &found;
                 // An exact path (`Reader::str`) reaches another crate's item of that path only where the unit's own crate has
                 // none.
                 let own_has = found.iter().any(|&u| crate_of(&self.units[u].file) == here);
@@ -243,7 +325,16 @@ impl Source {
                     let there = &self.units[next];
                     let other = crate_of(&there.file);
                     let open = other == here || (exact && !own_has) || self.globs.contains(&(here.to_owned(), other.to_owned()));
-                    match (open, there.owner.as_deref()) {
+                    // A method reached by a plain name (a method call, a generic `T::name`) runs only on a value of its type, and
+                    // every value of a type of the source is made by code naming it (its constructor, a signature, a field):
+                    // it waits for its own type, in its own crate too. Its type's own name (a trait impl's unit by its type) and an
+                    // exact path reach it at once.
+                    let by_type_name = there.owner.as_deref() == Some(by.as_str());
+                    let gated = self.resolution == Resolution::Scoped
+                        && !exact
+                        && !by_type_name
+                        && there.owner.as_deref().is_some_and(|t| defined.contains(&(other, t)));
+                    match (open && !gated, there.owner.as_deref()) {
                         (true, _) => reach(next, (at, by.clone()), &mut queue, &mut from),
                         (false, Some(t)) => {
                             // Its own crate's type of that name, else (an impl for another crate's type) any crate's.
@@ -268,6 +359,13 @@ impl Source {
 
     fn items(&mut self, file: &str, module: &str, in_type: Option<&str>, items: &[syn::Item]) -> Result<(), String> {
         self.modules.insert(module.to_owned());
+        let outer = std::mem::replace(&mut self.current_module, module.to_owned());
+        let result = self.items_in(file, module, in_type, items);
+        self.current_module = outer;
+        result
+    }
+
+    fn items_in(&mut self, file: &str, module: &str, in_type: Option<&str>, items: &[syn::Item]) -> Result<(), String> {
         for item in items {
             if test_only(attrs_of(item)) {
                 continue;
@@ -283,7 +381,19 @@ impl Source {
                 syn::Item::Fn(f) => self.push(file, named(&f.sig.ident), item, in_type)?,
                 syn::Item::Const(c) => self.push(file, named(&c.ident), item, in_type)?,
                 syn::Item::Static(s) => self.push(file, named(&s.ident), item, in_type)?,
-                syn::Item::Struct(s) => self.push_type(file, named(&s.ident), item, &s.ident)?,
+                syn::Item::Struct(s) => {
+                    let name = s.ident.to_string();
+                    if self.fields.contains_key(&name) {
+                        self.ambiguous.insert(name.clone());
+                    }
+                    let fields = s
+                        .fields
+                        .iter()
+                        .filter_map(|f| Some((f.ident.as_ref()?.to_string(), type_name(&f.ty)?)))
+                        .collect();
+                    self.fields.insert(name, fields);
+                    self.push_type(file, named(&s.ident), item, &s.ident)?;
+                }
                 syn::Item::Enum(e) => self.push_type(file, named(&e.ident), item, &e.ident)?,
                 syn::Item::Union(u) => self.push_type(file, named(&u.ident), item, &u.ident)?,
                 syn::Item::Type(t) => self.push_type(file, named(&t.ident), item, &t.ident)?,
@@ -305,6 +415,9 @@ impl Source {
                         None => declared_names(&m.mac.tokens),
                     };
                     self.push(file, names, item, in_type)?;
+                    if m.mac.path.is_ident("macro_rules") {
+                        self.units.last_mut().expect("just pushed").macro_rules = true;
+                    }
                 }
                 syn::Item::Use(u) => {
                     // One unit a name it brings, reaching what its path names: a long `pub use` list is no hub that reaches
@@ -313,6 +426,9 @@ impl Source {
                     use_leaves(&u.tree, &mut Vec::new(), &mut leaves);
                     if let Some(first) = glob_root(&u.tree) {
                         self.globs.insert((crate_of(file).to_owned(), first.replace('_', "-")));
+                    }
+                    for target in glob_targets(&u.tree) {
+                        self.module_globs_raw.push((module.to_owned(), target));
                     }
                     for (name, path) in leaves {
                         let refs: BTreeSet<Ref> = match path.as_slice() {
@@ -330,6 +446,10 @@ impl Source {
                             refs,
                             owner: None,
                             defines: None,
+                            module: module.to_owned(),
+                            macro_rules: false,
+                            locals: BTreeSet::new(),
+                            lines: token_lines(&item.to_token_stream()),
                         });
                     }
                 }
@@ -338,6 +458,7 @@ impl Source {
                         return Err(format!("{file}: `#[path]` on mod {}: not followed", m.ident));
                     }
                     if let Some((_, inner)) = &m.content {
+                        self.parents.insert(m.ident.to_string(), module.to_owned());
                         self.items(file, &m.ident.to_string(), in_type, inner)?;
                     }
                 }
@@ -369,7 +490,9 @@ impl Source {
                     names.push(name);
                 }
             }
-            return self.push_tokens(file, names, imp.to_token_stream(), Some(&ty));
+            let bound = bindings(|v| syn::visit::Visit::visit_item_impl(v, imp));
+            let lines = token_lines(&imp.to_token_stream());
+            return self.push_tokens(file, names, imp.to_token_stream(), Some(&ty), bound, lines);
         }
         for inner in &imp.items {
             if test_only(impl_item_attrs(inner)) {
@@ -381,7 +504,12 @@ impl Source {
             };
             let mut tokens = head.clone();
             inner.to_tokens(&mut tokens);
-            self.push_tokens(file, names, tokens, Some(&ty))?;
+            let bound = bindings(|v| {
+                syn::visit::Visit::visit_generics(v, &imp.generics);
+                syn::visit::Visit::visit_impl_item(v, inner);
+            });
+            let lines = token_lines(&inner.to_token_stream());
+            self.push_tokens(file, names, tokens, Some(&ty), bound, lines)?;
         }
         Ok(())
     }
@@ -394,16 +522,28 @@ impl Source {
     }
 
     fn push(&mut self, file: &str, names: Vec<String>, item: &syn::Item, in_type: Option<&str>) -> Result<(), String> {
-        self.push_tokens(file, names, item.to_token_stream(), in_type)
+        let bound = bindings(|v| syn::visit::Visit::visit_item(v, item));
+        let lines = token_lines(&item.to_token_stream());
+        self.push_tokens(file, names, item.to_token_stream(), in_type, bound, lines)
     }
 
-    fn push_tokens(&mut self, file: &str, names: Vec<String>, tokens: TokenStream, in_type: Option<&str>) -> Result<(), String> {
+    fn push_tokens(
+        &mut self,
+        file: &str,
+        names: Vec<String>,
+        tokens: TokenStream,
+        in_type: Option<&str>,
+        bound: Bindings,
+        lines: Option<(usize, usize)>,
+    ) -> Result<(), String> {
         let tokens = clean(tokens);
         let mut refs = BTreeSet::new();
         let mut included = Vec::new();
-        let mut locals = BTreeSet::new();
+        let typed = bound.typed_once();
+        let mut locals = if self.resolution == Resolution::Scoped { bound.shorthand } else { BTreeSet::new() };
         collect_bindings(&tokens, &mut locals);
-        collect_refs(&tokens, in_type, &locals, &mut refs, &mut included, file)?;
+        let scope = Scope { in_type, locals: &locals, typed: &typed };
+        collect_refs(&tokens, &scope, &mut refs, &mut included, file)?;
         let mut text = tokens.to_string();
         for path in included {
             let Some(root) = &self.root else {
@@ -415,7 +555,18 @@ impl Source {
             hash.bytes(&bytes);
             let _ = write!(text, " /* {at} {:032x} */", hash.finish());
         }
-        self.units.push(Unit { file: file.to_owned(), names, text, refs, owner: in_type.map(str::to_owned), defines: None });
+        self.units.push(Unit {
+            file: file.to_owned(),
+            names,
+            text,
+            refs,
+            owner: in_type.map(str::to_owned),
+            defines: None,
+            module: self.current_module.clone(),
+            macro_rules: false,
+            locals,
+            lines,
+        });
         Ok(())
     }
 
@@ -427,9 +578,79 @@ impl Source {
     /// The units a reference reaches, the name it reached them by, and whether by an exact path: `q::name` where the source has
     /// it; else, when `q` is this source's (a module, a type, `crate`/`super`/`self`/`Self`, or a generic parameter: one or two
     /// letters, the first a capital), every `name`; else (`Vec::new`, `std::mem::take`) none.
+    /// [`Self::resolve`] from `unit`: a plain name of a free item in the unit's module scope (the module's items, its uses,
+    /// its glob imports'); a method (reached by its type) or a macro anywhere; a unit's own local where no item is in scope;
+    /// else crate-wide, as before (counted in [`Self::unplaced`]).
+    fn resolve_from(&self, r: &Ref, unit: &Unit) -> Option<(Vec<usize>, String, bool)> {
+        if self.resolution == Resolution::Legacy {
+            return self.resolve(r).map(|(found, by, exact)| (found.clone(), by, exact));
+        }
+        if let Ref::Method(ty, fields, name) = r {
+            if let Some(found) = self.method_of(ty, fields, name) {
+                return Some((found, format!("{ty}::{name}"), true));
+            }
+            return self.resolve_from(&Ref::Plain(name.clone()), unit);
+        }
+        let (found, by, exact) = self.resolve(r)?;
+        if exact || !matches!(r, Ref::Plain(_)) || unit.macro_rules {
+            return Some((found.clone(), by, exact));
+        }
+        let here = crate_of(&unit.file);
+        let scope = self.in_scope.get(&unit.module);
+        let placed: Vec<usize> = found
+            .iter()
+            .copied()
+            .filter(|&c| {
+                let u = &self.units[c];
+                crate_of(&u.file) != here
+                    || u.owner.is_some()
+                    || u.macro_rules
+                    || u.module == unit.module
+                    || scope.is_some_and(|s| s.contains(&u.module))
+            })
+            .collect();
+        if !placed.is_empty() {
+            return Some((placed, by, exact));
+        }
+        if unit.locals.contains(&by) {
+            return None;
+        }
+        self.unplaced.borrow_mut().insert(format!("{} in {}", by, unit.module));
+        Some((found.clone(), by, exact))
+    }
+
+    /// [R4] The units a method call on a receiver of type `ty` (then `fields` read off it) may run: the receiver type's units
+    /// named `T::name` (its inherent method, its trait impls'), the traits that declare `name` (a default method) and the impls
+    /// for types the source does not define (blanket, foreign). None when a field is not found, a type is not one struct of the
+    /// source, or the type has no `T::name` unit (a method of its `Deref` target, say): the plain resolution then.
+    fn method_of(&self, ty: &str, fields: &[String], name: &str) -> Option<Vec<usize>> {
+        let mut t = ty.to_owned();
+        for f in fields {
+            if self.ambiguous.contains(&t) {
+                return None;
+            }
+            t = self.fields.get(&t)?.get(f)?.clone();
+        }
+        if self.ambiguous.contains(&t) {
+            return None;
+        }
+        let own = self.by_name.get(&format!("{t}::{name}"))?;
+        let defined: BTreeSet<&str> = self.units.iter().filter_map(|u| u.defines.as_deref()).collect();
+        let mut found = own.clone();
+        for &u in self.by_name.get(name).into_iter().flatten() {
+            let unit = &self.units[u];
+            let trait_declaring = unit.owner.is_none() && unit.defines.is_some();
+            let foreign_impl = unit.owner.as_deref().is_some_and(|o| !defined.contains(o));
+            if (trait_declaring || foreign_impl) && !found.contains(&u) {
+                found.push(u);
+            }
+        }
+        Some(found)
+    }
+
     fn resolve(&self, r: &Ref) -> Option<(&Vec<usize>, String, bool)> {
         match r {
-            Ref::Plain(name) => self.by_name.get(name).map(|u| (u, name.clone(), false)),
+            Ref::Plain(name) | Ref::Method(_, _, name) => self.by_name.get(name).map(|u| (u, name.clone(), false)),
             Ref::Qualified(q, name) => {
                 let key = format!("{q}::{name}");
                 if let Some(units) = self.by_name.get(&key) {
@@ -571,11 +792,14 @@ fn attrs_of(item: &syn::Item) -> &[syn::Attribute] {
     }
 }
 
-/// `#[test]`, or `#[cfg(test)]` exactly (a `cfg(all(test, ..))` is kept: never fewer items, only more).
+/// `#[test]`, `#[cfg(test)]` exactly, or `#[cfg(srp_coverage)]` exactly (a `cfg(all(test, ..))` is kept: never fewer items, only
+/// more). `srp_coverage` is the coverage oracle's own build (`mapdata/src/coverage.rs`): its code is in no other build, and a
+/// build that has it has its own keys (its `--cfg` is in every digest, [`outside`]).
 fn test_only(attrs: &[syn::Attribute]) -> bool {
     attrs.iter().any(|a| {
         a.path().is_ident("test")
-            || (a.path().is_ident("cfg") && matches!(&a.meta, syn::Meta::List(list) if list.tokens.to_string() == "test"))
+            || (a.path().is_ident("cfg")
+                && matches!(&a.meta, syn::Meta::List(list) if matches!(list.tokens.to_string().as_str(), "test" | "srp_coverage")))
     })
 }
 
@@ -650,6 +874,31 @@ fn use_leaves(tree: &syn::UseTree, path: &mut Vec<String>, out: &mut Vec<(String
     }
 }
 
+/// The modules a `use` glob-imports, as written: the segment before each `*` (`super`, `self`, `crate`, a module's name).
+fn glob_targets(tree: &syn::UseTree) -> Vec<String> {
+    fn walk(tree: &syn::UseTree, last: Option<&str>, out: &mut Vec<String>) {
+        match tree {
+            syn::UseTree::Path(p) => walk(&p.tree, Some(&p.ident.to_string()), out),
+            syn::UseTree::Group(g) => g.items.iter().for_each(|t| walk(t, last, out)),
+            syn::UseTree::Glob(_) => out.extend(last.map(str::to_owned)),
+            _ => {}
+        }
+    }
+    let mut out = Vec::new();
+    walk(tree, None, &mut out);
+    out
+}
+
+/// A file's module's parent: the folder's module (`grid` for `src/grid/rim.rs`), `crate` for a file in `src`.
+fn parent_module(path: &str) -> String {
+    let p = Path::new(path);
+    let dir = if p.file_stem().and_then(|s| s.to_str()) == Some("mod") { p.parent().and_then(Path::parent) } else { p.parent() };
+    match dir.and_then(|d| d.file_name()).and_then(|s| s.to_str()) {
+        Some("src") | None => "crate".to_owned(),
+        Some(name) => name.to_owned(),
+    }
+}
+
 /// The first segment of a `use` path that ends in a glob (`use survarium::v026g::*`: `survarium`).
 fn glob_root(tree: &syn::UseTree) -> Option<String> {
     fn has_glob(tree: &syn::UseTree) -> bool {
@@ -699,6 +948,38 @@ fn declared_names(tokens: &TokenStream) -> Vec<String> {
 }
 
 /// The tokens without doc attributes (`#[doc = ..]`, `#![doc = ..]`), at every depth.
+/// The first and last line `tokens` span (none for tokens with no place, as a macro's).
+fn token_lines(tokens: &TokenStream) -> Option<(usize, usize)> {
+    let mut span: Option<(usize, usize)> = None;
+    let mut add = |s: proc_macro2::Span| {
+        let (a, b) = (s.start().line, s.end().line);
+        if a > 0 {
+            span = Some(span.map_or((a, b), |(lo, hi)| (lo.min(a), hi.max(b))));
+        }
+    };
+    fn walk(tokens: &TokenStream, add: &mut impl FnMut(proc_macro2::Span)) {
+        for t in tokens.clone() {
+            match t {
+                TokenTree::Group(g) => {
+                    add(g.span_open());
+                    add(g.span_close());
+                    walk(&g.stream(), add);
+                }
+                other => add(other.span()),
+            }
+        }
+    }
+    walk(tokens, &mut add);
+    span
+}
+
+/// An attribute that changes no value the code computes: a doc comment, a lint level, an inlining hint, `#[cold]`, `#[must_use]`,
+/// a rustfmt directive. The digest leaves it out, so adding or moving one moves no key. (`#[track_caller]` stays: code can read
+/// its caller's place.)
+fn inert_attribute(name: &str) -> bool {
+    matches!(name, "doc" | "allow" | "expect" | "warn" | "deny" | "inline" | "cold" | "must_use" | "rustfmt")
+}
+
 fn clean(tokens: TokenStream) -> TokenStream {
     let trees: Vec<TokenTree> = tokens.into_iter().collect();
     let mut out = Vec::with_capacity(trees.len());
@@ -711,7 +992,7 @@ fn clean(tokens: TokenStream) -> TokenStream {
             let at = i + 1 + usize::from(bang);
             if let Some(TokenTree::Group(g)) = trees.get(at)
                 && g.delimiter() == Delimiter::Bracket
-                && matches!(g.stream().into_iter().next(), Some(TokenTree::Ident(id)) if id == "doc")
+                && matches!(g.stream().into_iter().next(), Some(TokenTree::Ident(id)) if inert_attribute(&id.to_string()))
             {
                 i = at + 1;
                 continue;
@@ -734,14 +1015,8 @@ fn clean(tokens: TokenStream) -> TokenStream {
 /// of `include_str!("..")` and `include_bytes!("..")` (a literal path) go to `included`; `env!` of cargo's own `CARGO_*`
 /// variables and the `include!` of the build's own `OUT_DIR` file (these digests) are names; any other `include!`, `env!` or
 /// `option_env!`, or an include of a path that is not a literal, is an error.
-fn collect_refs(
-    tokens: &TokenStream,
-    in_type: Option<&str>,
-    locals: &BTreeSet<String>,
-    out: &mut BTreeSet<Ref>,
-    included: &mut Vec<String>,
-    file: &str,
-) -> Result<(), String> {
+fn collect_refs(tokens: &TokenStream, scope: &Scope<'_>, out: &mut BTreeSet<Ref>, included: &mut Vec<String>, file: &str) -> Result<(), String> {
+    let (in_type, locals) = (scope.in_type, scope.locals);
     let trees: Vec<TokenTree> = tokens.clone().into_iter().collect();
     for (i, tree) in trees.iter().enumerate() {
         match tree {
@@ -753,7 +1028,7 @@ fn collect_refs(
                             (trees.get(i.wrapping_sub(1)), trees.get(i.wrapping_sub(2))),
                             (Some(TokenTree::Punct(b)), Some(TokenTree::Punct(h))) if b.as_char() == '!' && h.as_char() == '#'
                         )) => {}
-            TokenTree::Group(g) => collect_refs(&g.stream(), in_type, locals, out, included, file)?,
+            TokenTree::Group(g) => collect_refs(&g.stream(), scope, out, included, file)?,
             TokenTree::Ident(id) => {
                 let name = id.to_string();
                 // A declaration's own name (`fn write`) names nothing it uses: a unit reaching every item of its own name would
@@ -820,6 +1095,11 @@ fn collect_refs(
                     (true, Some(TokenTree::Ident(q))) => Some(q.to_string()),
                     _ => None,
                 };
+                // [R4] A method call on a receiver whose type is known: `self.m(`, `binding.m(`, `x.field.field.m(`.
+                if dot_before && called && let Some((ty, fields)) = receiver(&trees, i, scope) {
+                    out.insert(Ref::Method(ty, fields, name));
+                    continue;
+                }
                 out.insert(match qualifier {
                     Some(q) if q == "Self" => match in_type {
                         Some(ty) => Ref::Qualified(ty.to_owned(), name),
@@ -833,6 +1113,97 @@ fn collect_refs(
         }
     }
     Ok(())
+}
+
+/// What a unit binds, from its syntax tree.
+fn bindings(visit: impl FnOnce(&mut Bindings)) -> Bindings {
+    let mut v = Bindings::default();
+    visit(&mut v);
+    v
+}
+
+/// A unit's bindings: [R1] the shorthand fields of its struct patterns (`let Body { rest_floors, .. } = b`, `|Gap { a, .. }|`, a
+/// match arm's), each binding a local of its name and naming no item (a struct literal's shorthand `Foo { x }` is the expression
+/// `x`: not here); [R4] the types written for its bindings (`grid: &WalkGrid`, `let w: Windows`), how often each name is bound
+/// (any pattern), and its generic parameters.
+#[derive(Default)]
+struct Bindings {
+    shorthand: BTreeSet<String>,
+    typed: HashMap<String, String>,
+    bound: HashMap<String, usize>,
+    generics: BTreeSet<String>,
+}
+
+impl Bindings {
+    /// [R4] The bindings bound once with a written type that is not a generic parameter: their type is every use's.
+    fn typed_once(&self) -> HashMap<String, String> {
+        self.typed
+            .iter()
+            .filter(|(name, ty)| self.bound.get(*name) == Some(&1) && !self.generics.contains(*ty))
+            .map(|(n, t)| (n.clone(), t.clone()))
+            .collect()
+    }
+}
+
+impl<'ast> syn::visit::Visit<'ast> for Bindings {
+    fn visit_pat_struct(&mut self, p: &'ast syn::PatStruct) {
+        for field in &p.fields {
+            if field.colon_token.is_none()
+                && let syn::Member::Named(name) = &field.member
+            {
+                self.shorthand.insert(name.to_string());
+                *self.bound.entry(name.to_string()).or_default() += 1;
+            }
+        }
+        syn::visit::visit_pat_struct(self, p);
+    }
+    fn visit_pat_ident(&mut self, p: &'ast syn::PatIdent) {
+        *self.bound.entry(p.ident.to_string()).or_default() += 1;
+        syn::visit::visit_pat_ident(self, p);
+    }
+    fn visit_pat_type(&mut self, p: &'ast syn::PatType) {
+        if let syn::Pat::Ident(id) = &*p.pat
+            && let Some(ty) = type_name(&p.ty)
+        {
+            self.typed.insert(id.ident.to_string(), ty);
+        }
+        syn::visit::visit_pat_type(self, p);
+    }
+    fn visit_type_param(&mut self, p: &'ast syn::TypeParam) {
+        self.generics.insert(p.ident.to_string());
+        syn::visit::visit_type_param(self, p);
+    }
+}
+
+/// What [`collect_refs`] knows of the unit it reads: its impl's type (`Self`), its locals, its typed bindings.
+struct Scope<'a> {
+    in_type: Option<&'a str>,
+    locals: &'a BTreeSet<String>,
+    typed: &'a HashMap<String, String>,
+}
+
+/// [R4] The receiver of the method call named at `trees[at]` (after a `.`), when its type is known: `self` (the impl's type) or a
+/// typed binding bound once, then the fields read off it (`self.grid.world.m(`: (`Self`'s type, [`grid`, `world`])). None for
+/// any other receiver (a call's result, an index, a path, a parenthesised expression).
+fn receiver(trees: &[TokenTree], at: usize, scope: &Scope<'_>) -> Option<(String, Vec<String>)> {
+    let mut fields = Vec::new();
+    let mut i = at.checked_sub(2)?;
+    loop {
+        let TokenTree::Ident(id) = &trees[i] else { return None };
+        let dot_before = i >= 1 && matches!(&trees[i - 1], TokenTree::Punct(p) if p.as_char() == '.');
+        if !dot_before {
+            // The chain's head: not a path's segment, not a field of something else.
+            if i >= 1 && matches!(&trees[i - 1], TokenTree::Punct(p) if p.as_char() == ':') {
+                return None;
+            }
+            let name = id.to_string();
+            let ty = if name == "self" { scope.in_type?.to_owned() } else { scope.typed.get(&name)?.clone() };
+            fields.reverse();
+            return Some((ty, fields));
+        }
+        fields.push(id.to_string());
+        i = i.checked_sub(2)?;
+    }
 }
 
 /// The names a unit binds, at every depth: `name: T` (a parameter, a struct pattern's field) and `let name`, `let mut name`.
@@ -1107,6 +1478,12 @@ pub fn mapdata_digests(workspace: &Path, cfgs: &[String]) -> Result<Digests, Str
     for (id, roots) in MEMO_SITES {
         sites.push(((*id).to_owned(), digest_of(id, roots)?));
     }
+    let unplaced = source.unplaced.borrow();
+    let _ = writeln!(report, "unplaced plain names (resolved crate-wide): {}", unplaced.len());
+    for name in unplaced.iter() {
+        let _ = writeln!(report, "  unplaced {name}");
+    }
+    drop(unplaced);
     let all = source.digest(&source.everything(), outside_digest);
     let mut inputs: Vec<String> = dirs.iter().flat_map(|d| [format!("{d}/src"), format!("{d}/Cargo.toml")]).collect();
     inputs.extend(files);
@@ -1132,6 +1509,88 @@ fn crate_dirs(workspace: &Path) -> Result<Vec<String>, String> {
 }
 
 /// `mapdata`'s source as the digests read it (the bin's `--why`).
+/// Every digest's roots: `grid`, `sight`, then each memo site's.
+pub fn digest_roots() -> Vec<(&'static str, &'static [&'static str])> {
+    [("grid", GRID_ROOTS), ("sight", SIGHT_ROOTS)].into_iter().chain(MEMO_SITES.iter().copied()).collect()
+}
+
+/// A unit's name for a report: its file and its first name.
+fn unit_label(u: &Unit) -> String {
+    format!("{}\t{}", u.file, u.names.first().map_or("?", String::as_str))
+}
+
+/// Per digest, the items it reaches whose text differs between `a` and `b` (changed), and those only one tree's closure has:
+/// why a key moved (`mapdata-srchash <tree A> --diff <tree B>`). An item is named by its file and first name.
+pub fn diff_report(a: &Source, b: &Source) -> Result<String, String> {
+    let mut out = String::new();
+    for (what, roots) in digest_roots() {
+        let texts = |s: &Source| -> Result<BTreeMap<String, Vec<String>>, String> {
+            let mut m: BTreeMap<String, Vec<String>> = BTreeMap::new();
+            for u in s.closure(roots)? {
+                m.entry(unit_label(&s.units[u])).or_default().push(s.units[u].text.clone());
+            }
+            Ok(m)
+        };
+        let (ta, tb) = (texts(a)?, texts(b)?);
+        let mut lines = Vec::new();
+        for (label, text) in &tb {
+            match ta.get(label) {
+                None => lines.push(format!("  added   {label}")),
+                Some(old) if old != text => lines.push(format!("  changed {label}")),
+                Some(_) => {}
+            }
+        }
+        lines.extend(ta.keys().filter(|l| !tb.contains_key(*l)).map(|l| format!("  removed {l}")));
+        let _ = writeln!(out, "{what}: {} of its items differ", lines.len());
+        for l in lines {
+            let _ = writeln!(out, "{l}");
+        }
+    }
+    Ok(out)
+}
+
+/// Per digest, the items the legacy resolver reaches and the scoped one does not, sorted by file: what R1-R4 leave out of each
+/// key, for review (`mapdata-srchash <tree> --dropped`).
+pub fn dropped_report(workspace: &Path) -> Result<String, String> {
+    let files = crate_files(workspace, "crates/mapdata")?;
+    let scoped = Source::parse_with(&files, Some(workspace), Resolution::Scoped)?;
+    let legacy = Source::parse_with(&files, Some(workspace), Resolution::Legacy)?;
+    let mut out = String::new();
+    for (what, roots) in digest_roots() {
+        let keep: BTreeSet<String> = scoped.closure(roots)?.iter().map(|&u| unit_label(&scoped.units[u])).collect();
+        let old: BTreeSet<String> = legacy.closure(roots)?.iter().map(|&u| unit_label(&legacy.units[u])).collect();
+        let dropped: Vec<&String> = old.iter().filter(|l| !keep.contains(*l)).collect();
+        let added: Vec<&String> = keep.iter().filter(|l| !old.contains(*l)).collect();
+        let _ = writeln!(out, "{what}: legacy {} items, scoped {}, dropped {}, added {}", old.len(), keep.len(), dropped.len(), added.len());
+        for l in dropped {
+            let _ = writeln!(out, "  dropped {l}");
+        }
+        for l in added {
+            let _ = writeln!(out, "  added   {l}");
+        }
+    }
+    Ok(out)
+}
+
+/// Every unit of the tree's `mapdata`: its file, first and last line, first name, and the digests whose closure holds it
+/// (comma-separated, `-` for none), tab-separated, for the coverage oracle (`mapdata-srchash <tree> --spans`).
+pub fn spans_report(workspace: &Path) -> Result<String, String> {
+    let s = mapdata_source(workspace)?;
+    let mut holders: Vec<Vec<&str>> = vec![Vec::new(); s.units.len()];
+    for (what, roots) in digest_roots() {
+        for u in s.closure(roots)? {
+            holders[u].push(what);
+        }
+    }
+    let mut out = String::new();
+    for (u, unit) in s.units.iter().enumerate() {
+        let (a, b) = unit.lines.unwrap_or((0, 0));
+        let held = if holders[u].is_empty() { "-".to_owned() } else { holders[u].join(",") };
+        let _ = writeln!(out, "{}\t{a}\t{b}\t{}\t{held}", unit.file, unit.names.first().map_or("?", String::as_str));
+    }
+    Ok(out)
+}
+
 pub fn mapdata_source(workspace: &Path) -> Result<Source, String> {
     Source::parse_in(&crate_files(workspace, "crates/mapdata")?, Some(workspace))
 }
