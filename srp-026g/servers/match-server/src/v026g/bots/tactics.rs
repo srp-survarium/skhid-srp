@@ -2238,9 +2238,9 @@ impl Tactics {
         // [hazard.leave_islands] A dry island is no way out: the search goes on over it to the floors the spawns reach.
         let island = self.island_test();
         let skipped = std::cell::Cell::new(false);
-        let search = |open: &dyn Fn(NodeId) -> bool| {
-            let mut seen = std::collections::HashSet::from([from]);
-            let mut queue = std::collections::VecDeque::from([(from, 0.0f32)]);
+        let search = |open: &dyn Fn(NodeId) -> bool| EscapeScratch::with(grid.len(), from, |seen, queue| {
+            // [bot CPU] The floors seen by a stamp a floor and the queue's buffer, kept between calls ([`EscapeScratch`]): the same
+            // floors in the same order as the fresh set and queue each call had (a bot borne in a zone asks every tick).
             let mut first: Option<f32> = None;
             // The ways out, each with the way to it.
             let mut outs: Vec<(NodeId, f32)> = Vec::new();
@@ -2274,7 +2274,7 @@ impl Tactics {
                 }
             }
             (outs, capped)
-        };
+        });
         let mut ceiling = match self.escape {
             super::tuning::EscapeRule::UnderStartZone => start_hit,
             super::tuning::EscapeRule::Nearest => f32::INFINITY,
@@ -3611,6 +3611,74 @@ impl EscapeEnd {
             Self::FieldPastSearch => Some("zone way out from the exit field: the zone is wider than the search reaches"),
             Self::FieldNoneFound => Some("zone way out from the exit field: the search found none"),
         }
+    }
+}
+
+/// [bot CPU] [`Tactics::escape`]'s search state kept between calls on a thread: a stamp a floor for the floors seen (a floor is seen
+/// when its stamp is this call's) and the queue's buffer. A call's set and queue answer as the fresh `HashSet` and `VecDeque` did: the
+/// same floors inserted, in the same order, and the same count.
+struct EscapeScratch {
+    stamps: Vec<u32>,
+    stamp: u32,
+    queue: std::collections::VecDeque<(NodeId, f32)>,
+}
+
+/// The floors one search has seen ([`EscapeScratch`]).
+struct EscapeSeen<'a> {
+    stamps: &'a mut [u32],
+    stamp: u32,
+    len: usize,
+}
+
+impl EscapeSeen<'_> {
+    /// Marks `node` seen: true when it was not yet (`HashSet::insert`).
+    fn insert(&mut self, node: NodeId) -> bool {
+        let slot = &mut self.stamps[node as usize];
+        if *slot == self.stamp {
+            return false;
+        }
+        *slot = self.stamp;
+        self.len += 1;
+        true
+    }
+
+    /// How many floors are seen (`HashSet::len`).
+    fn len(&self) -> usize {
+        self.len
+    }
+}
+
+thread_local! {
+    static ESCAPE_SCRATCH: std::cell::RefCell<EscapeScratch> =
+        const { std::cell::RefCell::new(EscapeScratch { stamps: Vec::new(), stamp: 0, queue: std::collections::VecDeque::new() }) };
+}
+
+impl EscapeScratch {
+    /// Runs `search` with a set holding only `from` and a queue holding only `(from, 0)`, on a grid of `floors` floors.
+    fn with<R>(
+        floors: usize,
+        from: NodeId,
+        search: impl FnOnce(&mut EscapeSeen<'_>, &mut std::collections::VecDeque<(NodeId, f32)>) -> R,
+    ) -> R {
+        ESCAPE_SCRATCH.with(|cell| {
+            let mut guard = cell.borrow_mut();
+            let scratch = &mut *guard;
+            if scratch.stamps.len() != floors {
+                scratch.stamps = vec![0; floors];
+                scratch.stamp = 0;
+            }
+            // A new stamp a call; at the wrap every floor is cleared once.
+            scratch.stamp = scratch.stamp.wrapping_add(1);
+            if scratch.stamp == 0 {
+                scratch.stamps.fill(0);
+                scratch.stamp = 1;
+            }
+            scratch.queue.clear();
+            scratch.queue.push_back((from, 0.0));
+            let mut seen = EscapeSeen { stamps: &mut scratch.stamps, stamp: scratch.stamp, len: 0 };
+            seen.insert(from);
+            search(&mut seen, &mut scratch.queue)
+        })
     }
 }
 
