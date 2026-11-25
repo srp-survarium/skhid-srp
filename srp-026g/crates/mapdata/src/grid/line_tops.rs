@@ -18,13 +18,13 @@
 //! - standing room over the floor (the grid's ceiling at least a standing body over it), and two measuring steps wide at
 //!   least;
 //! - held: the client's walk tick stands a body set on the centre line and on each edge of the top
-//!   ([`super::rest_floors::settle`]: standing, 5 mm over the point, no push; it comes down and rests within
+//!   ([`crate::motion::rest::settled_at`]: standing, 5 mm over the point, no push; it comes down and rests within
 //!   [`super::wall_give_back::STAND_MOVED_M`] of the put across and of the top in height). A top held only at its centre (a
 //!   post, a round rail) gets no line.
 //!
 //! The floors of one top are one segment ([`LineTop::segment`]): those joined by Walk links.
 
-use super::rest_floors::{settle, Settle};
+use crate::motion::rest::{settled_at, Settle};
 use super::wall_give_back::STAND_MOVED_M;
 use super::*;
 use crate::controller::tick::Settings;
@@ -265,7 +265,7 @@ impl WalkGrid {
                 return None;
             }
             // Held at the centre line and at each edge.
-            let stands = |p: Vec3| match settle(world, s, p) {
+            let stands = |p: Vec3| match settled_at(world, s, p) {
                 Settle::Rests { put, at } => (at.x - put.x).hypot(at.z - put.z) < STAND_MOVED_M && (at.y - p.y).abs() < STAND_MOVED_M,
                 Settle::Jammed | Settle::Moving => false,
             };

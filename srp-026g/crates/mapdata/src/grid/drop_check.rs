@@ -23,7 +23,8 @@
 //! run-up, and reached neither landing (exe_walkoff_point_v2 on rig_real_v3, 84 and 55 runs).
 
 use super::{DIRS, LIP_DROP_M, LinkKind, NONE, SEED_M, SPAWN_M, Triangle, Vec3, WalkGrid, Wide};
-use super::controlled::{STARTS, Stance, WalkStart, body_at, out_of_walls, parallel};
+use super::controlled::{STARTS, Stance, WalkStart, out_of_walls, parallel};
+use crate::motion::place;
 use super::gap_flown::THIN_TOP_M;
 use super::gap::{GAP_PRESS_MAX_M, GAP_PRESS_MIN_M, GAP_PRESS_STEP_M, GridWay, PressLead, RELEASE_AT_MAX_M, Share, Takeoff};
 use crate::controller::{jump, Collision, Shape};
@@ -132,7 +133,7 @@ pub(super) fn follows(world: &Collision, s: &Settings, from: Vec3, to: Vec3) -> 
 /// landing under a deck that goes on, a rim the erosion took. A body that cannot move from its start at all (a start boxed in by
 /// walls, every move refused) says nothing of the drop: that line follows (fx-bench's second score: level_07's shallow steps).
 fn follows_line(world: &Collision, s: &Settings, from: Vec3, to: Vec3) -> bool {
-    let mut body = Controller::standing_at(from);
+    let mut body = place::standing(from);
     let down = left_take_off(from.y, to.y);
     let gone = |feet: Vec3| feet.y <= down;
     let mut moved = 0.0f32;
@@ -229,7 +230,7 @@ pub enum DropWalk {
     NoMove,
 }
 
-/// [feed 67] [`super::Body::drop_lands`]: the client's body set standing at `from` ([`body_at`]) walks at 3.5 m/s at `to`,
+/// [feed 67] [`super::Body::drop_lands`]: the client's body set standing at `from` ([`place::body`]) walks at 3.5 m/s at `to`,
 /// re-aimed each 50 ms step, and on along the link's line once within [`WALK_ON_WITHIN_M`] of it, as a bot walks on to its next
 /// node; the exactness session's walk of the Drop links (`private/grid/rig/link-walk`, `kinds.rs` `drop_one`, FINDINGS-FEED-exactness
 /// 2026-11-12 09:56Z), its leave rule ([`left_take_off`]) and its arrival.
@@ -246,7 +247,7 @@ pub const CROUCH_MPS: f32 = 2.5;
 
 /// [A389] [`walk_drop`] in `stance` at `speed` m/s (the crouch key held throughout for [`Stance::Crouched`]).
 pub fn walk_drop_as(world: &Collision, s: &Settings, start: WalkStart, stance: Stance, speed: f32, from: Vec3, to: Vec3) -> DropWalk {
-    let mut c = body_at(world, start, stance, from);
+    let mut c = place::body(world, start, stance, from);
     let key = stance == Stance::Crouched;
     let first = c.feet();
     let down = left_take_off(from.y, to.y);
@@ -309,7 +310,7 @@ pub fn walk_drop_as(world: &Collision, s: &Settings, start: WalkStart, stance: S
 /// [`DropWalk::LandsAt`] with the rest's feet and the landings counted, [`DropWalk::Unsettled`], [`DropWalk::Held`] or
 /// [`DropWalk::NoMove`] as [`walk_drop_as`]; never [`DropWalk::Arrives`] (the caller judges the rest against the link's own top).
 pub fn walk_off_rest(world: &Collision, s: &Settings, start: WalkStart, stance: Stance, speed: f32, from: Vec3, to: Vec3) -> DropWalk {
-    let mut c = body_at(world, start, stance, from);
+    let mut c = place::body(world, start, stance, from);
     let key = stance == Stance::Crouched;
     let first = c.feet();
     let down = left_take_off(from.y, to.y);
@@ -368,7 +369,7 @@ pub fn walk_off_rest(world: &Collision, s: &Settings, start: WalkStart, stance: 
 /// blend ([`STOP_STEPS`]) along the way it had, then nothing. Its feet [`LAND_STEPS`] steps after the blend when it stands then
 /// (on the ground, no jump), else `None`. A bot that stops on a landing, or turns there, does so.
 pub fn stop_at_drop(world: &Collision, s: &Settings, start: WalkStart, from: Vec3, to: Vec3) -> Option<Vec3> {
-    let mut c = body_at(world, start, Stance::Standing, from);
+    let mut c = place::body(world, start, Stance::Standing, from);
     let step = WALK_MPS * LAND_DT;
     let len = flat(from, to).max(1e-4);
     let mut way = Vec3::new((to.x - from.x) / len, 0.0, (to.z - from.z) / len);
@@ -410,7 +411,7 @@ const RELEASE_LEFT_M: f32 = 0.005;
 /// way at the end of that last held step; None when the body never leaves within [`LEAVE_STEPS`] or the release would be past
 /// [`RELEASE_AT_MAX_M`].
 pub fn release_point(world: &Collision, s: &Settings, start: WalkStart, stance: Stance, speed: f32, from: Vec3, way: Vec3) -> Option<f32> {
-    let mut c = body_at(world, start, stance, from);
+    let mut c = place::body(world, start, stance, from);
     let key = stance == Stance::Crouched;
     let top = c.feet();
     let input = TickInput {
@@ -443,7 +444,7 @@ fn along(c: &Controller, from: Vec3, way: Vec3) -> f32 {
 /// landing at `to_y`) when it stands then; None when it stays on the top or is still falling.
 #[allow(clippy::too_many_arguments)]
 pub fn released_rest(world: &Collision, s: &Settings, start: WalkStart, stance: Stance, speed: f32, from: Vec3, way: Vec3, at: f32, to_y: f32) -> Option<Vec3> {
-    let mut c = body_at(world, start, stance, from);
+    let mut c = place::body(world, start, stance, from);
     let key = stance == Stance::Crouched;
     let down = left_take_off(from.y, to_y);
     let step = speed * LAND_DT;
@@ -1108,7 +1109,7 @@ impl WalkGrid {
         // [jump down] Flown on after the clip's `end_jump` until the body is down (every pass's rule, [`Self::fall_ground`]): off
         // an edge about 3 m high the body is still in the air at the clip's last ground step ([`jump::STAY_STEPS`]).
         let rests = |kind: jump::Kind, lead: f32, n: jump::Neighbour| -> Option<u32> {
-            let flights = jump::neighbour_flights_for(world, s, from, way, kind, lead, n, kits, self.fall_ground())?;
+            let flights = crate::motion::flights::press_flights(world, s, from, way, kind, lead, n, kits, self.fall_ground())?;
             let floors: Vec<Option<u32>> = flights
                 .iter()
                 .map(|st| jump::landing_and_rest(st, |f| below(f.feet).is_some()).and_then(|(_, rest)| below(rest.feet)))
@@ -1248,7 +1249,7 @@ mod tests {
                     tris.push(t([d, e, f]));
                     let world = Collision::build(&tris);
                     let s = Settings::LIVE;
-                    let mut c = body_at(&world, WalkStart::Clear, Stance::Standing, Vec3::new(4.5, 0.0, 5.0));
+                    let mut c = place::body(&world, WalkStart::Clear, Stance::Standing, Vec3::new(4.5, 0.0, 5.0));
                     let mut top = 0.0f32;
                     for _ in 0..600 {
                         let input = TickInput {
@@ -1406,7 +1407,7 @@ mod tests {
         // [S6] A 1 m drop lands at the speed `step_down` 0x7E1B0 gives a fall from rest: 0.05 m a tick while slower than
         // 2 m/s (five ticks, 0.25 m), then the speed's own step, gaining 0.49 m/s every tick throughout; the tick that
         // starts at 4.41 m/s is the one that reaches 1 m down (0.887 m before it).
-        let c = body_at(&world, start, Stance::Standing, from);
+        let c = place::body(&world, start, Stance::Standing, from);
         assert_eq!(speed, fall_from_rest_lands_at(1.0, &s, c.gravity, c.tick), "{speed}");
         assert_eq!(walk_drop(&world, &s, start, from, Vec3::new(0.25, 1.0, 0.0)), DropWalk::Arrives);
 
@@ -1463,7 +1464,7 @@ mod tests {
         let walk = walk_drop(&world, &s, start, from, aim);
         let DropWalk::LandsAt(feet, landed) = walk else { panic!("{walk:?}") };
         assert!((feet.y - foot).abs() < 0.01 && feet.x > foot_x, "on the ground at the face's foot: {feet:?}");
-        let c = body_at(&world, start, Stance::Standing, from);
+        let c = place::body(&world, start, Stance::Standing, from);
         let (gain, face) = (c.gravity * c.tick, landed.all.most);
         assert!((face / gain - 25.0).abs() < 1e-3, "the face's landing at a tick's starting speed: {landed:?}");
         let ground = landed.all.also.expect("the ground's landing hurts too");

@@ -145,7 +145,7 @@ fn walk_lines(world: &Collision, s: &Settings, start: WalkStart, from: Vec3, to:
 /// A floor's feet moved flat out of the faces the client's body would overlap there: the grid keeps floors 0.3175 m from a wall,
 /// the body's move test holds 0.42 m (the cylinder and its margin, over the step), and the client never stands inside a wall (its
 /// world pushes a body out: `bullet_physics_world::recover_from_penetrations`). At most [`OUT_OF_WALLS_M`] in all.
-pub(super) fn out_of_walls(world: &Collision, feet: Vec3) -> Vec3 {
+pub(crate) fn out_of_walls(world: &Collision, feet: Vec3) -> Vec3 {
     let mut at = feet;
     let mut moved = 0.0f32;
     for _ in 0..4 {

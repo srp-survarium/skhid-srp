@@ -68,9 +68,11 @@ const ENTRY_POINTS: &[(&str, &str)] = &[
 
 /// The `mapdata` crate's sources, from this crate's manifest folder.
 const MAPDATA: &str = "../../crates/mapdata/src/";
-/// The shared model of the client's body (`mapdata::motion`, re-exported by the `client-body` crate): the one place the entry points
-/// are called from once the layers move.
-const SHARED_MODEL: &str = "../../crates/mapdata/src/motion.rs";
+/// The shared model of the client's body (`mapdata::motion` with its submodules, re-exported by the `client-body` crate, and the
+/// client's controller it steps, `mapdata::controller::tick`): the one place the entry points are called from once the layers
+/// move. Path prefixes of the files, from this crate's manifest folder.
+const SHARED_MODEL: &[&str] =
+    &["../../crates/mapdata/src/motion.rs", "../../crates/mapdata/src/motion/", "../../crates/mapdata/src/controller/tick.rs"];
 
 /// A line that hands the shared model its world (an `impl client_body::Walker` for a layer's own world, e.g. the walk grid's client
 /// walker) carries this marker: its calls are the shared model's steps, not a layer's copy.
@@ -126,7 +128,7 @@ fn count_calls() -> BTreeMap<(String, String), usize> {
         let text = std::fs::read_to_string(&file).unwrap_or_else(|e| panic!("{}: {e}", file.display()));
         let rel = file.strip_prefix(root).unwrap_or(&file).to_string_lossy().replace('\\', "/");
         // This file names the entry points; it calls none of them. The shared model (the `client-body` crate) is where they belong.
-        if rel.ends_with("bots/tests/motion_fidelity.rs") || rel.starts_with(SHARED_MODEL) {
+        if rel.ends_with("bots/tests/motion_fidelity.rs") || SHARED_MODEL.iter().any(|m| rel.starts_with(m)) {
             continue;
         }
         for line in text.lines() {

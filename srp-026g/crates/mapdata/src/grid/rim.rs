@@ -11,7 +11,7 @@
 //! The presses (A385-FORMAT, `private/pvb-343-check/nav-builder2-20261112/A385-FORMAT.md`, signed by nav-motor and nav-builder,
 //! the client claims VERIFIED by exactness 2026-11-14): the short jump from the walk at the body's cap and the sprint jump from
 //! the sprint (all [`jump::sprint_variants`]: the leg and the prepare's phase are the client's, so a sprint press lands only when
-//! every variant does), each from the exactness rig's run-up ([`jump::run_up`]) and pressed at each of the gap links' leads
+//! every variant does), each from the exactness rig's run-up ([`crate::motion::flights::run_up_to`]) and pressed at each of the gap links' leads
 //! ([`gap_leads`], the built file's range) before the take-off floor's centre, the keys let go at the landing. A press lands
 //! when the body lands on a floor up from the take-off ([`WalkGrid::rim_lands_on`]) and stays there. Of the presses that land, the
 //! link carries the one whose neighbourhood ([`jump::neighbourhood`]: the motor's measured spread of lead, side and heading,
@@ -371,7 +371,7 @@ impl WalkGrid {
     /// before the take-off) and both gaits (A385-FORMAT §3), and the flights flown; `lands` is the floor a flight lands and
     /// stays on ([`Self::rim_lands_on`], [`Self::riser_lands_on`]):
     ///
-    /// 1. each (gait, lead) is flown ([`jump::neighbour_flights`] at the press itself): the floors its flights land on;
+    /// 1. each (gait, lead) is flown ([`crate::motion::flights::press_flights_stay`] at the press itself): the floors its flights land on;
     /// 2. the link goes to `b` when some jump lands there, else to the floor the most jumps land on (re-targeted: the link
     ///    goes where the body lands), the lowest id on a tie; [S1] the sprint climbs compete on that floor when one lands
     ///    there, else make a second link to their own floor, chosen the same way among them;
@@ -462,7 +462,7 @@ impl WalkGrid {
 
     /// [`Self::best_press`] over `presses` (each kind with its leads), every press and neighbour aimed by `aim` ([R83]: its
     /// press point moved `aim`'s side to the way's right and its heading turned by `aim`'s turn, [`jump::press_point`],
-    /// [`jump::neighbour_flights`]).
+    /// [`crate::motion::flights::press_flights_stay`]).
     #[allow(clippy::too_many_arguments)]
     pub(super) fn best_press_with(
         &self,
@@ -493,7 +493,7 @@ impl WalkGrid {
             if self.floor_under(at).is_some_and(|f| !self.can_stand(f)) {
                 return None;
             }
-            jump::neighbour_flights_for(world, s, takeoff, way, kind, lead, n, kits, ground)
+            crate::motion::flights::press_flights(world, s, takeoff, way, kind, lead, n, kits, ground)
         };
         // Step 1: every press at the press itself: the floors its flights land on (one, or one per sprint variant).
         let mut flown: Vec<(Kind, f32, Vec<Option<NodeId>>)> = Vec::new();
@@ -1983,7 +1983,7 @@ mod tests {
         for (kind, leads) in presses(&gap_leads()) {
             for lead in leads {
                 for (i, n) in jump::neighbourhood().into_iter().enumerate() {
-                    let Some(fl) = jump::neighbour_flights(&world, &s, from, way, kind, lead, n, kits) else {
+                    let Some(fl) = crate::motion::flights::press_flights_stay(&world, &s, from, way, kind, lead, n, kits) else {
                         println!("{kind:?} lead {lead:.1} n{i}: no run-up");
                         continue;
                     };
