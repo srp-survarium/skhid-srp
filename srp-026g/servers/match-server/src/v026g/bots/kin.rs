@@ -76,16 +76,8 @@ pub struct Kinematics {
     pub jump_snap: JumpSnap,
     /// Where the reckoned body falls off a ledge ([`Edge`]).
     pub edge: Edge,
-    /// [A318] How the reckoned body comes down a drop ([`DropFall`]).
-    pub drop_fall: DropFall,
     /// [A318] Which input's keys and yaw move the reckoned body on a step ([`StepInput`]).
     pub step_input: StepInput,
-    /// [A318] How far a reckoned step up goes ([`ClientStep`]).
-    pub client_step: ClientStep,
-    /// [A388 step 2b] Whose ground steps the lip guard's stop forecast (`body::stays_up`) plays ([`ForecastStep`]).
-    pub forecast_step: ForecastStep,
-    /// [A318] The speed a world's falling body starts its reckoned fall at ([`FixFall`]).
-    pub fix_fall: FixFall,
     /// [A269c] What a route adds to the cost of a walk onto a floor near an open side (with [`Edge::ClientWalksOff`], the grid's
     /// table of open sides), times the walk's own: the route keeps a body's width in from an edge the capsule walks off where the
     /// floor allows (`RouteFilter::weighing_open_sides`). 2 makes a cell's walk there cost 0.75 m, as a deep fall's edge does
@@ -93,8 +85,6 @@ pub struct Kinematics {
     pub open_edge_cost: f32,
     /// Where the reckoned body comes down off a ledge whose drop is an off-mesh walk-off ([`WalkOffLanding`]).
     pub walk_off_landing: WalkOffLanding,
-    /// Where the stop forecast's margin falls off a ledge ([`MarginEdge`]).
-    pub margin_edge: MarginEdge,
     /// Which floor a world's feet are put on ([`FixFloor`]).
     pub fix_floor: FixFloor,
     /// How a view's pitch unit relates to its elevation ([`PitchScale`]): the unit is 60.0 degrees up and 67.48 down
@@ -143,8 +133,6 @@ pub struct Kinematics {
     pub jump_arc: bool,
     /// [A388 step 3] What flies a jump the reckoning presses with [`Self::jump_arc`] ([`JumpFlight`]).
     pub jump_flight: JumpFlight,
-    /// [body physics S3] What moves the reckoned body ([`ReckoningBody`]).
-    pub reckoning_body: ReckoningBody,
 }
 
 /// [A313] The terms of the client's movement speed factor `F = max(0, 1 + S4)` the reckoned body moves by
@@ -375,42 +363,37 @@ pub enum JumpSnap {
     Never,
 }
 
-/// Where the reckoned body (and the lip guard's forecast) falls off a ledge.
+/// Where the reckoned body (and the lip guard's forecast) falls off a ledge. On the grid's floors the body is held as the client's
+/// capsule: until [`super::body::SUPPORT_M`] past the centre of the floor it stands on, so a body that stays up at a ledge is not
+/// reckoned fallen (`body::slide_supported_by`, LIKELY, the live samples at lips). The lattice's own edge (the cell boundary) and
+/// that hold alone are gone (body physics S6a).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Edge {
-    /// At the grid's cell boundary, 0.125 m past the last floor cell's centre (the lattice's picture, the bots' reckoning
-    /// before the client edge).
-    Lattice,
-    /// As the client's capsule: held until [`super::body::SUPPORT_M`] past the centre of the floor it stands on, so a
-    /// body that stays up at a ledge is not reckoned fallen (`body::slide_supported`, LIKELY, the live samples at lips).
-    #[default]
-    Client,
-    /// [`Self::Client`], and over an open side of its floor (`WalkGrid::open_toward`: no link that way, no floor of its level
+    /// The grid's hold, and over an open side of its floor (`WalkGrid::open_toward`: no link that way, no floor of its level
     /// beside, no wall) the body goes on as the client's capsule does: on while a floor of its level holds it within
     /// [`super::body::SUPPORT_M`], then straight down onto the floor under it (`body::walk_off_open`; `step_down` 0x7E1B0, PROVEN,
-    /// the stand-in's `past_edge`). [`Self::Client`] holds it there as at a wall, since it moves a body past its floor only toward
-    /// a drop link or along a lip: the reckoning stood while the body walked on, and the lip guard's stop forecast never fell, so
-    /// the guard let keys walk the body off. A269: every entry into the Vector Laboratory middle pit (a 5.3 m edge, deeper than
-    /// the harmless drop: no link) and into the Tarakanovsky Fort shut pocket at (-8, -20) (a walkway edge 1.7 m over it, no link)
-    /// was over such an edge. The lip guard also watches the floors near an open side. Needs the grids' table of open sides
-    /// ([`crate::v026g::bots::tuning::Tuning::needs_open_sides`]); a grid without it is [`Self::Client`]. Not the default: in
-    /// A269's bench (160 pairs) falls off the route went -28 % (past open sides -46 %), but the guard changed the keys on 9.5 % of the
-    /// ticks (0.5 % with [`Self::Client`]) in runs of 1-2 ticks, flipping 3 times a second, and stuck cases went +48 %, kills -13 %:
-    /// it waits for a guard that holds its brake.
+    /// the stand-in's `past_edge`). The grid's hold alone keeps it there as at a wall, since it moves a body past its floor only
+    /// toward a drop link or along a lip: the reckoning stood while the body walked on, and the lip guard's stop forecast never
+    /// fell, so the guard let keys walk the body off. A269: every entry into the Vector Laboratory middle pit (a 5.3 m edge, deeper
+    /// than the harmless drop: no link) and into the Tarakanovsky Fort shut pocket at (-8, -20) (a walkway edge 1.7 m over it, no
+    /// link) was over such an edge. The lip guard also watches the floors near an open side. Needs the grids' table of open sides
+    /// ([`crate::v026g::bots::tuning::Tuning::needs_open_sides`]); a grid without it holds as the grid. Not the default: in A269's
+    /// bench (160 pairs) falls off the route went -28 % (past open sides -46 %), but the guard changed the keys on 9.5 % of the
+    /// ticks (0.5 % without) in runs of 1-2 ticks, flipping 3 times a second, and stuck cases went +48 %, kills -13 %: it waits for
+    /// a guard that holds its brake. Kept as a switch: the maps' grid build reads it (`needs_open_sides`).
     ClientWalksOff,
-    /// [A388 step 2] [`Self::Client`] on the grid's floors, and with [`ClientStep::Kept`] the body leaves its floor where its kept
-    /// controller leaves the ground (`step_down` 0x7E1B0 finds no ground within the step under the capsule, port
-    /// `mapdata::controller::tick`): its feet go on to the controller's and come down on the floor under them (`body::kept_off_ground`).
-    /// [`Self::Client`] holds the body up to [`super::body::SUPPORT_M`] past its floor's centre, past where the client's capsule rolls
-    /// off the walker's rim: falls report R4, 66 of 110 fall notes, the model's walk-off a median
-    /// 0.26 m / 0.3 s after the client's (the recording's client tick makes 54 of the 66; the exe's tick at the two largest spots
-    /// leaves where the recorded bodies did). The lip guard's stop forecast (`body::stays_up`) keeps [`Self::Client`]'s edge: the
-    /// forecast plays no kept controller.
+    /// [A388 step 2] The grid's hold on its floors, and the body leaves its floor where its kept controller leaves the ground
+    /// (`step_down` 0x7E1B0 finds no ground within the step under the capsule, port `mapdata::controller::tick`): its feet go on to
+    /// the controller's and come down on the floor under them (`body::kept_off_ground`). The grid's hold keeps the body up to
+    /// [`super::body::SUPPORT_M`] past its floor's centre, past where the client's capsule rolls off the walker's rim: falls report
+    /// R4, 66 of 110 fall notes, the model's walk-off a median 0.26 m / 0.3 s after the client's (the recording's client tick makes
+    /// 54 of the 66; the exe's tick at the two largest spots leaves where the recorded bodies did). The default.
+    #[default]
     Controller,
 }
 
-/// [POCKETS (b)] Where the reckoned body ([`Edge::Client`]) comes down when it goes off a ledge whose drop is an off-mesh walk-off
+/// [POCKETS (b)] Where the reckoned body comes down when it goes off a ledge whose drop is an off-mesh walk-off
 /// (`GapDrop`, `gap::Takeoff::WalkOff`): a flight kept only where bodies at every one of `gap::WALK_OFF_SPEEDS` (3.0-5.1 m/s, PROVEN
 /// J0 g2a) come down on its landing, which lies cells out from the edge.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
@@ -430,24 +413,6 @@ pub enum WalkOffLanding {
     BySpeed,
 }
 
-/// Where the stop forecast's margin (`body::stays_up`: the same stop from [`super::body::RECKONING_M`] further on along the body's
-/// way, for a body not exactly where it is reckoned) falls off a ledge.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum MarginEdge {
-    /// At the grid's cell boundary ([`Edge::Lattice`]) whatever [`Kinematics::edge`] is: with [`Edge::Client`] the forecast moves
-    /// the body up to [`super::body::SUPPORT_M`] past its floor's centre, past the cell's boundary, and the margin from there falls at
-    /// once, whichever way the body goes. A body walking along a lip on its last floor is held by the full lip guard's sides
-    /// (`Feel::lip_guard_full`: the same walk [`super::body::RECKONING_M`] to the side) every tick, and by its own margin once it is
-    /// reckoned past the boundary: of the 3,705 ticks the guard held a walk in the bench's stuck episodes at lips, 2,031 (55 %) were
-    /// held for a side only, the rest for the walk itself; with `edge = lattice` and no sides, 680, all for the walk (A205, 16 runs).
-    Lattice,
-    /// As the body itself ([`Kinematics::edge`]): the margin is the forecast's body a little further on, so it falls where that
-    /// body would. The default (A93's final sweep: the five A93 candidates on against the defaults, both teams, 576 pairs: stuck -5.2 %, kills +1.5 %, every guard level but A123's gap_failed_above, +45 % at paired z +1.8, in a few Vector Laboratory and Chemical Plant matches).
-    #[default]
-    Body,
-}
-
 /// Which floor of the walk grid the reckoning puts a world's feet on (`body::BodyTrack::fixed`), the floor it moves the body on from.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -455,7 +420,7 @@ pub enum FixFloor {
     /// The nearest floor from 1 m over the feet to 2.5 m under them (`WalkGrid::locate`): a world that shows the body in the air
     /// in front of a wall puts it on the floor over the wall's top when that is nearer than its own. School, the r1 stuck spot
     /// (A196, live): a jump against the facade, shown 0.68 m up, put the reckoned body on the top behind it, 0.59 m over the feet;
-    /// with [`Edge::Client`] it walked on there for a second (2-3 m off) while the body fell back.
+    /// with the client edge it walked on there for a second (2-3 m off) while the body fell back.
     Nearest,
     /// The nearest floor at most [`FIX_ABOVE_M`] over the feet, else the nearest: feet are on their floor or over it.
     Under,
@@ -543,14 +508,9 @@ impl Default for Kinematics {
             wall_slide: WallSlide::Round,
             jump_snap: JumpSnap::ByKeys,
             edge: Edge::Controller,
-            drop_fall: DropFall::Client,
             step_input: StepInput::Previous,
-            client_step: ClientStep::Kept,
-            forecast_step: ForecastStep::Kept,
-            fix_fall: FixFall::World,
             open_edge_cost: 0.0,
             walk_off_landing: WalkOffLanding::BySpeed,
-            margin_edge: MarginEdge::Body,
             fix_floor: FixFloor::UnderInAir,
             pitch_scale: PitchScale::Client,
             slope_speed: SlopeSpeed::RampsGrade,
@@ -558,7 +518,6 @@ impl Default for Kinematics {
             walk_bridges: true,
             jump_arc: true,
             jump_flight: JumpFlight::Controller,
-            reckoning_body: ReckoningBody::Client,
             speed_terms: SpeedTerms::LegsStagger,
             speed_cap: SpeedCap::Client,
             level_read: LevelRead::Settled,
@@ -664,39 +623,6 @@ pub enum StepInput {
     Previous,
 }
 
-/// [A318] Where a reckoned step the grid finds hard goes: by the grid's slide, or by the client's own walk tick. The grid's slide
-/// tries a few fixed turns and keeps cos of the turn (`WallSlide`), where the client keeps a slide's whole length within 30 degrees
-/// of a wall and less beyond (fx-review A338; on the grid's coarse tries that law alone lost, 2.67 -> 2.80 %, a318/wall-slide-client).
-/// And the client's walk tick loses flat speed on a step up (`step_up`
-/// 0x7C900 lifts the capsule, the move sweep then meets the riser): on the client tests' step_up ticks the client-walk reference's
-/// body moved at 0.93 of its keys' speed for a rise under 0.1 m, 0.74 for 0.1-0.3 m, 0.33 for 0.3-0.5 m (walk ticks 1.00); the
-/// reckoning moved at 0.98 / 0.85 / 0.94 (fx-zones' `step_up_speed.py`).
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum ClientStep {
-    /// The grid's slide alone (and [`SlopeSpeed`]): as it was until A364 P9. On the bench world of #1446 (the store's grid tables
-    /// in the bench), [`Self::Client`]'s harm was worse (16 TDM pairs: jumps failed +36 %, stuck s +26 %, routes stuck +17 %).
-    Grid,
-    /// A reckoned step the grid has rising (more than `body::STEP_UP_RISE_M`) or ending short of where it was asked to go (a wall, a
-    /// corner: `body::CLIENT_BLOCKED_M`) goes where the client's own walk tick takes the body from the same feet
-    /// (`WalkGrid::client_step`, the port of `player_step`: step up, the move sweep's slide, step down); the grid then walks to that
-    /// point. Needs the grid's walker (`WalkGrid::with_client_walker`), else as [`Self::Grid`]. The detectors that read the
-    /// reckoning against the worlds keep the grid's step where the client's tick held it short (`body::GridExtra`: the stuck
-    /// watch, #1444; the hop).
-    Client,
-    /// [A364 P9] Every reckoned ground step is the client's walk tick of ONE controller kept per body across ticks
-    /// (`mapdata::controller::tick::Controller::tick`, #1663: carried so, a traced body is the game's to the bit in 42 of 50 chains
-    /// of up to 17 s, its origin within 1 cm in 96.9 % of 8,993 steps, never 10 cm off: `docs/notes/exactness_rig.md` 3f), handed
-    /// the blend's displacement, the crouch key of the input it moves by and the sprint state of the newest; the grid then walks
-    /// to its feet, as with [`Self::Client`]. Made at the feet when the reckoning starts and set anew wherever something else
-    /// placed the feet (a world's fix, a jump, a fall: `body::KEPT_SAME_M`). Needs the grid's walker, else as [`Self::Grid`].
-    /// The default (correctness, `tuning::KEPT_RIGHT`): on the owner's 14 recordings the reckoned worlds over 0.2 m off went
-    /// 6.13 % -> 3.54 %; the step costs 10-20 us on the grid's walker (about 65,000 steps for 8 matches of 180 s: under 1 ms a
-    /// second a match).
-    #[default]
-    Kept,
-}
-
 /// [A388 step 3] What flies a jump the reckoning presses ([`Kinematics::jump_arc`]).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -713,73 +639,6 @@ pub enum JumpFlight {
     /// way, keep the clip ([`Self::Clip`]): the flyer has only the forward jump. The default (correctness, `tuning::KEPT_RIGHT`).
     #[default]
     Controller,
-}
-
-/// [body physics S3] What moves the reckoned body (the reckoning's steps, and the stop forecasts' that step as it does).
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum ReckoningBody {
-    /// The walk grid's lattice with the kept controller's flat step, the grid's floors for the height, the reckoning's own falls
-    /// and the `FlownJump` flight (the reckoning before body physics S3).
-    Lattice,
-    /// The client's body (`client_body::ClientBody`, the model the bench's stand-in moves by since S2): a world's controller block
-    /// and inputs, the client's walk blend, the controller's step owning the feet (falls and edges its own), a forward jump flown
-    /// by the same body (resumed when a world shows it under way); the grid only names the floor (`locate`). A side or back press
-    /// keeps the clip ([`JumpFlight`]: those clips are not ported). The default (correctness, `tuning::KEPT_RIGHT`): one model
-    /// for the stand-in and the reckoning.
-    #[default]
-    Client,
-}
-
-/// [A388 step 2b] Whose ground steps the lip guard's stop forecast (`body::stays_up`) plays.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum ForecastStep {
-    /// The grid's alone: the forecast's body is held to `body::SUPPORT_M` past its floor's centre ([`Edge::Client`]'s edge) while
-    /// the reckoned body ([`Edge::Controller`]) has left it, so the guard lets keys walk the body off where the client's capsule
-    /// rolls off the rim and the forecast's does not (A388 exe review: the 0.26 m / 0.3 s gap of the falls report R4).
-    Grid,
-    /// As the reckoning with [`ClientStep::Kept`]: each forecast ground step is a kept controller's (made at the forecast's feet),
-    /// and with [`Edge::Controller`] the forecast's body leaves its floor where that controller leaves the ground with no client
-    /// ground under its feet (`body::kept_off_ground`). The default (correctness, `tuning::KEPT_RIGHT`). Its cost is a controller
-    /// tick a forecast tick on a lip's floors only: the match-end line counts the forecast's steps and time apart.
-    #[default]
-    Kept,
-}
-
-/// [A318] How the reckoned body (`BodyTrack`, not the lip guard's stop forecast) comes down when its floor drops more than a step
-/// under it (a drop link's landing, a walk-off under the edge, a world in the air over its floor).
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum DropFall {
-    /// On the floor below at once (as it was).
-    Snap,
-    /// As the client's capsule: its height falls from where it left under gravity (`step_down` 0x7E1B0, PROVEN: with no ground
-    /// within the step under it, the velocity takes `g * min(dt, tick)` down each step and moves it by the speed it had, g = 9.8,
-    /// `fall_params.gravity`) until it is on the floor below. Its floor and its way across are as with [`Self::Snap`].
-    Gravity,
-    /// [A318] [`Self::Gravity`] with the client's slow start (`step_down` 0x7E1B0, PROVEN by fx-gear-2's read and probe; port
-    /// `mapdata::controller::tick`, `player_step` reads the speed at the tick's start, then `step_down`): while the speed down at
-    /// the tick's start is under `on_ground_max_vertical_speed` (2.0 m/s, `startup.cfg`) the body goes down by
-    /// `additional_down_speed` (0.05 m a tick, `startup.cfg`), else by the speed at the tick's start (`(v + a dt).y * tick`, `a`
-    /// the slope's slide: none in the air); the speed takes `g * tick` after the move either way. From rest: five ticks of 0.05 m,
-    /// then 2.45 m/s, 2.94 m/s, ...
-    #[default]
-    Client,
-}
-
-/// [A318] The speed a world's body that is going down starts its reckoned fall at. The world carries the controller's own velocity
-/// (`fall_and_slide_velocity`, in the map's frame); the reckoning restarted a falling body at rest at every world fix, so a body
-/// caught 1.5 m into a drop fell its first ticks slow again (fx-gear-2's L06 slope cluster: 61 of 94 tail misses start 0.1 m+ in
-/// the air).
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum FixFall {
-    /// The reckoning's own speed, else rest, and only a body more than a step over its floor (as it was).
-    Rest,
-    /// The world's own vertical speed, a body going down a little over its floor too.
-    #[default]
-    World,
 }
 
 /// [A318] The blend a world's fix starts the reckoning with.

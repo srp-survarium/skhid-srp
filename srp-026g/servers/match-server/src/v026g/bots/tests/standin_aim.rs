@@ -28,7 +28,8 @@
 //! [A318] His movement model is pinned the same way (`camper_human_kin.json`, a whole `kin` section, with its own key test): his
 //! brain reckons his own body like a bot's, so with the build's `kin` defaults a bot switch put to an A/B moved the human as well
 //! (#1450's default `client_step = client` made him reckon by the client's walk tick, and two harm runs met two different
-//! humans). The file is the kin of the build it was written in, with `client_step = grid`.
+//! humans). The file is the kin of the build it was written in, with `client_step = grid` (body physics S6a removed that switch,
+//! `forecast_step`, `reckoning_body = lattice` and the `client` edge: he reckons by the client's body now, as the bots).
 //!
 //! [A318] And his grid (`camper_human_grid.json`, a whole `grid` section, with its key test): his route rules read it, so a grid
 //! READ switch in an A/B leaves his routes alone. The graph he plans on is the match's one world, built by the arm's grid: a
@@ -168,11 +169,6 @@ mod tests {
         assert_eq!(human.grid, human_grid());
         assert_ne!(arm.grid, human.grid, "the arm's flip is a grid change");
         assert_eq!(human.grid_body(), Tuning { grid: human_grid(), ..Tuning::default() }.grid_body());
-    }
-
-    #[test]
-    fn the_camper_reckons_by_the_grid_whatever_the_default() {
-        assert_eq!(human_kin().client_step, crate::v026g::bots::kin::ClientStep::Grid);
     }
 
     #[test]
