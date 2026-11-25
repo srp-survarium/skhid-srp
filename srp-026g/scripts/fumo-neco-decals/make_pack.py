@@ -40,7 +40,7 @@ def main():
         items.append({'dict_id': dict_id, 'rc': rc, 'icon': icon, 'cutout': filename,
                       'names': {lang: table[key] for lang, table in names.items()}})
         cutouts[filename] = (HERE / 'cutouts' / filename).read_bytes()
-    cloth.build(args.out, None, cutouts, stock, items, 'fumo-neco-decals', '1',
+    cloth.build(args.out, None, cutouts, stock, items, 'fumo-neco-decals', '2',
                 'Bottled fumo, Snail fumo, Just fumo fumo and Neco-Arc (2672–2675), give-only cloth decals',
                 ['Artwork credits and sources: srp-026g/scripts/fumo-neco-decals/README.md'])
 
