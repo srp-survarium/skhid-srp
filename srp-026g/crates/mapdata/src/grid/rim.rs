@@ -934,7 +934,7 @@ impl WalkGrid {
         // [item 10] With whether a let-go sprint of the line's presses came to rest under the top (the held sweep's bound with
         // the aimed sweep's: Rudnya day 2's rest is the line's sprint at 1.6 m, a lead the aimed sweep does not fly; owner-5
         // `owner-5-pr1980-review-20261115.md` §3).
-        let near: Vec<((u32, u32, usize), bool, bool, f32)> = todo
+        let near: Vec<NearJump> = todo
             .iter()
             .zip(&flown)
             .zip(&plain)
@@ -1297,6 +1297,10 @@ impl WalkGrid {
 
 /// [incremental grids PR 6] What `fly_rim_todo` keeps of a jump's aimed and held sweeps: the aimed sweep, and the held one
 /// (its press, its flights) where it was flown.
+/// [R83] A jump the aimed sweep flies: the jump (take-off, top, way), whether it is a plain Jump link's own top, whether a
+/// let-go sprint of the line's presses came to rest under the top, and [rule A] the height its presses land up from.
+pub(super) type NearJump = ((u32, u32, usize), bool, bool, f32);
+
 pub(super) type AimedAndHeld = (AimedSweep, Option<(Option<Made>, usize)>);
 
 /// [incremental grids PR 6] One job of the rim aimed site: a jump no press on the line made, one of whose line flights came
@@ -1387,7 +1391,7 @@ impl WalkGrid {
         &self,
         world: &Collision,
         s: &Settings,
-        near: &[((u32, u32, usize), bool, bool, f32)],
+        near: &[NearJump],
         kits: Kits,
         linked: &impl Fn(NodeId) -> Vec<NodeId>,
         memo: &mut Memo,
