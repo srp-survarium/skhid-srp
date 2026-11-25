@@ -2709,6 +2709,12 @@ impl Bots {
         // [A388 step 2b] The lip guard's forecasts this match: asked anew, and the same ask's answer used again.
         let (asked, reused) = self.bots.iter().flatten().fold((0u64, 0u64), |(a, r), bot| (a + u64::from(bot.lip_memo.asked), r + u64::from(bot.lip_memo.reused)));
         lines.push(format!("{}lip guard forecasts this match: asked {asked}, the same ask's answer used again {reused}", nav_log::PREFIX));
+        // [M2] The replacement key sets the lip guard did not play again within one ask.
+        lines.push(format!(
+            "{}lip guard key sets not played again within an ask since the last match end (every match on this server): {}",
+            nav_log::PREFIX,
+            drive::lip_repeats::take()
+        ));
         // [crossing prewarm] The routed crossings' entry searches asked in play, and of them searched then (not made at load).
         let (entry_asks, entry_searches) = self.memo.entry_counts();
         lines.push(format!(
