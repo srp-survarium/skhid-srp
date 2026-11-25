@@ -122,6 +122,12 @@ pub struct Unit {
     owner: Option<String>,
     /// The type a struct, enum, union, trait or type alias defines.
     defines: Option<String>,
+    /// Its module (`rim` for `grid/rim.rs`, an inline `mod`'s name, `crate` for the root): where its plain names are resolved.
+    module: String,
+    /// A `macro_rules!` macro: its plain names resolve where it is called, so anywhere in the crate.
+    macro_rules: bool,
+    /// The names it binds (parameters, `let`, pattern shorthands): a plain name with no item in scope that it binds is the local.
+    locals: BTreeSet<String>,
 }
 
 /// The units waiting for a type, by (crate, type): (from, unit, the name it was reached by).
@@ -146,6 +152,16 @@ pub struct Source {
     root: Option<PathBuf>,
     /// (crate, crate it globs from): `use other::path::*` in a crate lets its plain names reach any item of `other`.
     globs: BTreeSet<(String, String)>,
+    /// Each module's parent (`rim` -> `grid`), from the files and the inline `mod`s.
+    parents: HashMap<String, String>,
+    /// Each module's glob imports as written (`super`, `self`, `crate` or a module's name), resolved in [`Self::index`].
+    module_globs_raw: Vec<(String, String)>,
+    /// Each module's glob-imported modules, transitively.
+    in_scope: HashMap<String, BTreeSet<String>>,
+    /// The module of the items [`Self::items`] is pushing.
+    current_module: String,
+    /// The plain names the module view did not place (resolved crate-wide, as before), for the report.
+    pub unplaced: std::cell::RefCell<BTreeSet<String>>,
 }
 
 impl Source {
@@ -175,6 +191,7 @@ impl Source {
             if under_test {
                 continue;
             }
+            source.parents.entry(module.clone()).or_insert_with(|| parent_module(path));
             source.items(path, module, None, &file.items)?;
         }
         source.index();
@@ -183,6 +200,26 @@ impl Source {
 
     fn index(&mut self) {
         self.by_name.clear();
+        let mut direct: HashMap<String, BTreeSet<String>> = HashMap::new();
+        for (module, target) in &self.module_globs_raw {
+            let to = match target.as_str() {
+                "super" => self.parents.get(module).cloned().unwrap_or_else(|| "crate".to_owned()),
+                "self" => module.clone(),
+                other => other.to_owned(),
+            };
+            direct.entry(module.clone()).or_default().insert(to);
+        }
+        self.in_scope.clear();
+        for module in direct.keys() {
+            let mut seen = BTreeSet::new();
+            let mut todo: Vec<String> = direct[module].iter().cloned().collect();
+            while let Some(m) = todo.pop() {
+                if seen.insert(m.clone()) {
+                    todo.extend(direct.get(&m).into_iter().flatten().cloned());
+                }
+            }
+            self.in_scope.insert(module.clone(), seen);
+        }
         let defined: BTreeSet<&str> = self.units.iter().filter_map(|u| u.defines.as_deref()).collect();
         for (at, unit) in self.units.iter().enumerate() {
             for name in &unit.names {
@@ -235,7 +272,8 @@ impl Source {
             }
             let here = crate_of(&unit.file);
             for r in &unit.refs {
-                let Some((found, by, exact)) = self.resolve(r) else { continue };
+                let Some((found, by, exact)) = self.resolve_from(r, unit) else { continue };
+                let found = &found;
                 // An exact path (`Reader::str`) reaches another crate's item of that path only where the unit's own crate has
                 // none.
                 let own_has = found.iter().any(|&u| crate_of(&self.units[u].file) == here);
@@ -274,6 +312,13 @@ impl Source {
 
     fn items(&mut self, file: &str, module: &str, in_type: Option<&str>, items: &[syn::Item]) -> Result<(), String> {
         self.modules.insert(module.to_owned());
+        let outer = std::mem::replace(&mut self.current_module, module.to_owned());
+        let result = self.items_in(file, module, in_type, items);
+        self.current_module = outer;
+        result
+    }
+
+    fn items_in(&mut self, file: &str, module: &str, in_type: Option<&str>, items: &[syn::Item]) -> Result<(), String> {
         for item in items {
             if test_only(attrs_of(item)) {
                 continue;
@@ -311,6 +356,9 @@ impl Source {
                         None => declared_names(&m.mac.tokens),
                     };
                     self.push(file, names, item, in_type)?;
+                    if m.mac.path.is_ident("macro_rules") {
+                        self.units.last_mut().expect("just pushed").macro_rules = true;
+                    }
                 }
                 syn::Item::Use(u) => {
                     // One unit a name it brings, reaching what its path names: a long `pub use` list is no hub that reaches
@@ -319,6 +367,9 @@ impl Source {
                     use_leaves(&u.tree, &mut Vec::new(), &mut leaves);
                     if let Some(first) = glob_root(&u.tree) {
                         self.globs.insert((crate_of(file).to_owned(), first.replace('_', "-")));
+                    }
+                    for target in glob_targets(&u.tree) {
+                        self.module_globs_raw.push((module.to_owned(), target));
                     }
                     for (name, path) in leaves {
                         let refs: BTreeSet<Ref> = match path.as_slice() {
@@ -336,6 +387,9 @@ impl Source {
                             refs,
                             owner: None,
                             defines: None,
+                            module: module.to_owned(),
+                            macro_rules: false,
+                            locals: BTreeSet::new(),
                         });
                     }
                 }
@@ -344,6 +398,7 @@ impl Source {
                         return Err(format!("{file}: `#[path]` on mod {}: not followed", m.ident));
                     }
                     if let Some((_, inner)) = &m.content {
+                        self.parents.insert(m.ident.to_string(), module.to_owned());
                         self.items(file, &m.ident.to_string(), in_type, inner)?;
                     }
                 }
@@ -431,7 +486,17 @@ impl Source {
             hash.bytes(&bytes);
             let _ = write!(text, " /* {at} {:032x} */", hash.finish());
         }
-        self.units.push(Unit { file: file.to_owned(), names, text, refs, owner: in_type.map(str::to_owned), defines: None });
+        self.units.push(Unit {
+            file: file.to_owned(),
+            names,
+            text,
+            refs,
+            owner: in_type.map(str::to_owned),
+            defines: None,
+            module: self.current_module.clone(),
+            macro_rules: false,
+            locals,
+        });
         Ok(())
     }
 
@@ -443,6 +508,38 @@ impl Source {
     /// The units a reference reaches, the name it reached them by, and whether by an exact path: `q::name` where the source has
     /// it; else, when `q` is this source's (a module, a type, `crate`/`super`/`self`/`Self`, or a generic parameter: one or two
     /// letters, the first a capital), every `name`; else (`Vec::new`, `std::mem::take`) none.
+    /// [`Self::resolve`] from `unit`: a plain name of a free item in the unit's module scope (the module's items, its uses,
+    /// its glob imports'); a method (reached by its type) or a macro anywhere; a unit's own local where no item is in scope;
+    /// else crate-wide, as before (counted in [`Self::unplaced`]).
+    fn resolve_from(&self, r: &Ref, unit: &Unit) -> Option<(Vec<usize>, String, bool)> {
+        let (found, by, exact) = self.resolve(r)?;
+        if exact || !matches!(r, Ref::Plain(_)) || unit.macro_rules {
+            return Some((found.clone(), by, exact));
+        }
+        let here = crate_of(&unit.file);
+        let scope = self.in_scope.get(&unit.module);
+        let placed: Vec<usize> = found
+            .iter()
+            .copied()
+            .filter(|&c| {
+                let u = &self.units[c];
+                crate_of(&u.file) != here
+                    || u.owner.is_some()
+                    || u.macro_rules
+                    || u.module == unit.module
+                    || scope.is_some_and(|s| s.contains(&u.module))
+            })
+            .collect();
+        if !placed.is_empty() {
+            return Some((placed, by, exact));
+        }
+        if unit.locals.contains(&by) {
+            return None;
+        }
+        self.unplaced.borrow_mut().insert(format!("{} in {}", by, unit.module));
+        Some((found.clone(), by, exact))
+    }
+
     fn resolve(&self, r: &Ref) -> Option<(&Vec<usize>, String, bool)> {
         match r {
             Ref::Plain(name) => self.by_name.get(name).map(|u| (u, name.clone(), false)),
@@ -663,6 +760,31 @@ fn use_leaves(tree: &syn::UseTree, path: &mut Vec<String>, out: &mut Vec<(String
         }
         syn::UseTree::Group(g) => g.items.iter().for_each(|t| use_leaves(t, path, out)),
         syn::UseTree::Glob(_) => {}
+    }
+}
+
+/// The modules a `use` glob-imports, as written: the segment before each `*` (`super`, `self`, `crate`, a module's name).
+fn glob_targets(tree: &syn::UseTree) -> Vec<String> {
+    fn walk(tree: &syn::UseTree, last: Option<&str>, out: &mut Vec<String>) {
+        match tree {
+            syn::UseTree::Path(p) => walk(&p.tree, Some(&p.ident.to_string()), out),
+            syn::UseTree::Group(g) => g.items.iter().for_each(|t| walk(t, last, out)),
+            syn::UseTree::Glob(_) => out.extend(last.map(str::to_owned)),
+            _ => {}
+        }
+    }
+    let mut out = Vec::new();
+    walk(tree, None, &mut out);
+    out
+}
+
+/// A file's module's parent: the folder's module (`grid` for `src/grid/rim.rs`), `crate` for a file in `src`.
+fn parent_module(path: &str) -> String {
+    let p = Path::new(path);
+    let dir = if p.file_stem().and_then(|s| s.to_str()) == Some("mod") { p.parent().and_then(Path::parent) } else { p.parent() };
+    match dir.and_then(|d| d.file_name()).and_then(|s| s.to_str()) {
+        Some("src") | None => "crate".to_owned(),
+        Some(name) => name.to_owned(),
     }
 }
 
@@ -1147,6 +1269,12 @@ pub fn mapdata_digests(workspace: &Path, cfgs: &[String]) -> Result<Digests, Str
     for (id, roots) in MEMO_SITES {
         sites.push(((*id).to_owned(), digest_of(id, roots)?));
     }
+    let unplaced = source.unplaced.borrow();
+    let _ = writeln!(report, "unplaced plain names (resolved crate-wide): {}", unplaced.len());
+    for name in unplaced.iter() {
+        let _ = writeln!(report, "  unplaced {name}");
+    }
+    drop(unplaced);
     let all = source.digest(&source.everything(), outside_digest);
     let mut inputs: Vec<String> = dirs.iter().flat_map(|d| [format!("{d}/src"), format!("{d}/Cargo.toml")]).collect();
     inputs.extend(files);
