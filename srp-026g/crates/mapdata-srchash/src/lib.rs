@@ -141,9 +141,23 @@ fn crate_of(file: &str) -> &str {
     file.strip_prefix("crates/").and_then(|rest| rest.split('/').next()).unwrap_or("")
 }
 
+/// How plain names resolve.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum Resolution {
+    /// [R1-R4] A pattern's shorthand binds a local; a method waits for its type; a free item's plain name in its module's scope;
+    /// a method call on a receiver of known type to that type's methods. The digests' resolver.
+    #[default]
+    Scoped,
+    /// The resolver before R1-R4 (every plain name crate-wide): kept only to list what the scoped one leaves out
+    /// ([`dropped_report`]), never for a digest.
+    Legacy,
+}
+
 /// A crate's (or several crates') units, by name.
 #[derive(Default)]
 pub struct Source {
+    /// How its plain names resolve.
+    pub resolution: Resolution,
     pub units: Vec<Unit>,
     by_name: HashMap<String, Vec<usize>>,
     /// The modules the source has (files and inline `mod`s): a `module::name` path whose module has no `name` item still
@@ -181,6 +195,11 @@ impl Source {
     /// As [`Self::parse`], an `include_str!`/`include_bytes!` file read from `root` (the workspace) and its bytes' digest put in
     /// the item that includes it.
     pub fn parse_in(files: &[(String, String)], root: Option<&Path>) -> Result<Self, String> {
+        Self::parse_with(files, root, Resolution::Scoped)
+    }
+
+    /// As [`Self::parse_in`], resolving plain names by `resolution`.
+    pub fn parse_with(files: &[(String, String)], root: Option<&Path>, resolution: Resolution) -> Result<Self, String> {
         let mut parsed = Vec::new();
         let mut test_files = BTreeSet::new();
         for (path, text) in files {
@@ -190,7 +209,7 @@ impl Source {
             scan_test_mods(&file.items, &children, &mut test_files);
             parsed.push((path.clone(), module, file));
         }
-        let mut source = Source { root: root.map(Path::to_path_buf), ..Source::default() };
+        let mut source = Source { root: root.map(Path::to_path_buf), resolution, ..Source::default() };
         for (path, module, file) in &parsed {
             // A test module's file, or a file under its folder (its own modules).
             let under_test = test_files.contains(path)
@@ -294,7 +313,10 @@ impl Source {
                     // it waits for its own type, in its own crate too. Its type's own name (a trait impl's unit by its type) and an
                     // exact path reach it at once.
                     let by_type_name = there.owner.as_deref() == Some(by.as_str());
-                    let gated = !exact && !by_type_name && there.owner.as_deref().is_some_and(|t| defined.contains(&(other, t)));
+                    let gated = self.resolution == Resolution::Scoped
+                        && !exact
+                        && !by_type_name
+                        && there.owner.as_deref().is_some_and(|t| defined.contains(&(other, t)));
                     match (open && !gated, there.owner.as_deref()) {
                         (true, _) => reach(next, (at, by.clone()), &mut queue, &mut from),
                         (false, Some(t)) => {
@@ -496,7 +518,7 @@ impl Source {
         let mut refs = BTreeSet::new();
         let mut included = Vec::new();
         let typed = bound.typed_once();
-        let mut locals = bound.shorthand;
+        let mut locals = if self.resolution == Resolution::Scoped { bound.shorthand } else { BTreeSet::new() };
         collect_bindings(&tokens, &mut locals);
         let scope = Scope { in_type, locals: &locals, typed: &typed };
         collect_refs(&tokens, &scope, &mut refs, &mut included, file)?;
@@ -537,6 +559,9 @@ impl Source {
     /// its glob imports'); a method (reached by its type) or a macro anywhere; a unit's own local where no item is in scope;
     /// else crate-wide, as before (counted in [`Self::unplaced`]).
     fn resolve_from(&self, r: &Ref, unit: &Unit) -> Option<(Vec<usize>, String, bool)> {
+        if self.resolution == Resolution::Legacy {
+            return self.resolve(r).map(|(found, by, exact)| (found.clone(), by, exact));
+        }
         if let Ref::Method(ty, fields, name) = r {
             if let Some(found) = self.method_of(ty, fields, name) {
                 return Some((found, format!("{ty}::{name}"), true));
@@ -897,6 +922,13 @@ fn declared_names(tokens: &TokenStream) -> Vec<String> {
 }
 
 /// The tokens without doc attributes (`#[doc = ..]`, `#![doc = ..]`), at every depth.
+/// An attribute that changes no value the code computes: a doc comment, a lint level, an inlining hint, `#[cold]`, `#[must_use]`,
+/// a rustfmt directive. The digest leaves it out, so adding or moving one moves no key. (`#[track_caller]` stays: code can read
+/// its caller's place.)
+fn inert_attribute(name: &str) -> bool {
+    matches!(name, "doc" | "allow" | "expect" | "warn" | "deny" | "inline" | "cold" | "must_use" | "rustfmt")
+}
+
 fn clean(tokens: TokenStream) -> TokenStream {
     let trees: Vec<TokenTree> = tokens.into_iter().collect();
     let mut out = Vec::with_capacity(trees.len());
@@ -909,7 +941,7 @@ fn clean(tokens: TokenStream) -> TokenStream {
             let at = i + 1 + usize::from(bang);
             if let Some(TokenTree::Group(g)) = trees.get(at)
                 && g.delimiter() == Delimiter::Bracket
-                && matches!(g.stream().into_iter().next(), Some(TokenTree::Ident(id)) if id == "doc")
+                && matches!(g.stream().into_iter().next(), Some(TokenTree::Ident(id)) if inert_attribute(&id.to_string()))
             {
                 i = at + 1;
                 continue;
@@ -1426,6 +1458,69 @@ fn crate_dirs(workspace: &Path) -> Result<Vec<String>, String> {
 }
 
 /// `mapdata`'s source as the digests read it (the bin's `--why`).
+/// Every digest's roots: `grid`, `sight`, then each memo site's.
+pub fn digest_roots() -> Vec<(&'static str, &'static [&'static str])> {
+    [("grid", GRID_ROOTS), ("sight", SIGHT_ROOTS)].into_iter().chain(MEMO_SITES.iter().copied()).collect()
+}
+
+/// A unit's name for a report: its file and its first name.
+fn unit_label(u: &Unit) -> String {
+    format!("{}\t{}", u.file, u.names.first().map_or("?", String::as_str))
+}
+
+/// Per digest, the items it reaches whose text differs between `a` and `b` (changed), and those only one tree's closure has:
+/// why a key moved (`mapdata-srchash <tree A> --diff <tree B>`). An item is named by its file and first name.
+pub fn diff_report(a: &Source, b: &Source) -> Result<String, String> {
+    let mut out = String::new();
+    for (what, roots) in digest_roots() {
+        let texts = |s: &Source| -> Result<BTreeMap<String, Vec<String>>, String> {
+            let mut m: BTreeMap<String, Vec<String>> = BTreeMap::new();
+            for u in s.closure(roots)? {
+                m.entry(unit_label(&s.units[u])).or_default().push(s.units[u].text.clone());
+            }
+            Ok(m)
+        };
+        let (ta, tb) = (texts(a)?, texts(b)?);
+        let mut lines = Vec::new();
+        for (label, text) in &tb {
+            match ta.get(label) {
+                None => lines.push(format!("  added   {label}")),
+                Some(old) if old != text => lines.push(format!("  changed {label}")),
+                Some(_) => {}
+            }
+        }
+        lines.extend(ta.keys().filter(|l| !tb.contains_key(*l)).map(|l| format!("  removed {l}")));
+        let _ = writeln!(out, "{what}: {} of its items differ", lines.len());
+        for l in lines {
+            let _ = writeln!(out, "{l}");
+        }
+    }
+    Ok(out)
+}
+
+/// Per digest, the items the legacy resolver reaches and the scoped one does not, sorted by file: what R1-R4 leave out of each
+/// key, for review (`mapdata-srchash <tree> --dropped`).
+pub fn dropped_report(workspace: &Path) -> Result<String, String> {
+    let files = crate_files(workspace, "crates/mapdata")?;
+    let scoped = Source::parse_with(&files, Some(workspace), Resolution::Scoped)?;
+    let legacy = Source::parse_with(&files, Some(workspace), Resolution::Legacy)?;
+    let mut out = String::new();
+    for (what, roots) in digest_roots() {
+        let keep: BTreeSet<String> = scoped.closure(roots)?.iter().map(|&u| unit_label(&scoped.units[u])).collect();
+        let old: BTreeSet<String> = legacy.closure(roots)?.iter().map(|&u| unit_label(&legacy.units[u])).collect();
+        let dropped: Vec<&String> = old.iter().filter(|l| !keep.contains(*l)).collect();
+        let added: Vec<&String> = keep.iter().filter(|l| !old.contains(*l)).collect();
+        let _ = writeln!(out, "{what}: legacy {} items, scoped {}, dropped {}, added {}", old.len(), keep.len(), dropped.len(), added.len());
+        for l in dropped {
+            let _ = writeln!(out, "  dropped {l}");
+        }
+        for l in added {
+            let _ = writeln!(out, "  added   {l}");
+        }
+    }
+    Ok(out)
+}
+
 pub fn mapdata_source(workspace: &Path) -> Result<Source, String> {
     Source::parse_in(&crate_files(workspace, "crates/mapdata")?, Some(workspace))
 }

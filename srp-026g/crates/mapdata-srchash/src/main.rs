@@ -6,6 +6,8 @@
 //!
 //! `SRC_ALL`, `SRC_GRID`, `SRC_SIGHT` (32 hex digits each), the 16-digit names the bench's grid cache gives its files, then the
 //! report (each root's items by file). The `--cfg` rustflags are read from the environment as a build reads them.
+//! `--why <root> <name>`, `--wide <root>`, `--diff <other srp-026g folder>` (why a key moved) and `--dropped` (what the scoped
+//! resolver leaves out of each key) print reports instead.
 
 use std::path::Path;
 use std::process::ExitCode;
@@ -15,8 +17,24 @@ fn main() -> ExitCode {
         eprintln!("usage: mapdata-srchash <srp-026g folder>");
         return ExitCode::from(2);
     };
-    // `--why <root> <name>`: how the root reaches the name; `--wide <root>`: the root's widest plain names.
+    // `--why <root> <name>`: how the root reaches the name; `--wide <root>`: the root's widest plain names; `--diff <other tree>`:
+    // per digest, the reached items whose text differs; `--dropped`: per digest, what the scoped resolver leaves out of the
+    // legacy one's closure.
     let args: Vec<String> = std::env::args().collect();
+    if let [_, _, flag] = args.as_slice()
+        && flag == "--dropped"
+    {
+        return match mapdata_srchash::dropped_report(Path::new(&workspace)) {
+            Ok(report) => {
+                print!("{report}");
+                ExitCode::SUCCESS
+            }
+            Err(e) => {
+                eprintln!("error: {e}");
+                ExitCode::FAILURE
+            }
+        };
+    }
     if let [_, _, flag, root, rest @ ..] = args.as_slice() {
         let source = match mapdata_srchash::mapdata_source(Path::new(&workspace)) {
             Ok(s) => s,
@@ -31,6 +49,13 @@ fn main() -> ExitCode {
                 Ok(None) => println!("{root} does not reach {target}"),
                 Err(e) => eprintln!("error: {e}"),
             },
+            ("--diff", []) => match mapdata_srchash::mapdata_source(Path::new(root.as_str())) {
+                Ok(other) => match mapdata_srchash::diff_report(&source, &other) {
+                    Ok(report) => print!("{report}"),
+                    Err(e) => eprintln!("error: {e}"),
+                },
+                Err(e) => eprintln!("error: {e}"),
+            },
             ("--wide", []) => match source.closure(&[root]) {
                 Ok(reached) => {
                     for (name, units, uses) in source.widest_names(&reached, 40) {
@@ -39,7 +64,7 @@ fn main() -> ExitCode {
                 }
                 Err(e) => eprintln!("error: {e}"),
             },
-            _ => eprintln!("usage: mapdata-srchash <srp-026g folder> [--why <root> <name> | --wide <root>]"),
+            _ => eprintln!("usage: mapdata-srchash <srp-026g folder> [--why <root> <name> | --wide <root> | --diff <other srp-026g folder> | --dropped]"),
         }
         return ExitCode::SUCCESS;
     }
