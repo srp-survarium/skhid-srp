@@ -23,7 +23,8 @@
 use super::controlled::walk_share;
 use super::rim::Riser;
 use super::{LinkKind, WalkGrid, Wide, DIRS, NONE};
-use crate::controller::tick::{Controller, CrouchInput, Settings, TickInput};
+use crate::controller::tick::{Controller, Settings};
+use crate::motion::{self, ClientBody, Input, Kin, Pass};
 use crate::controller::Collision;
 use crate::math::Vec3;
 
@@ -31,12 +32,8 @@ use crate::math::Vec3;
 pub const RISE_M: f32 = super::controlled::CUT_RISE_M;
 /// The exe's walk: the ticks the body stands to settle first …
 pub const SETTLE_TICKS: usize = 20;
-/// … the ticks it walks …
+/// … and the ticks it walks.
 pub const WALK_TICKS: usize = 40;
-/// … at this speed, m/s (`default.player`'s `movement_speed` standing forward) …
-pub const WALK_MPS: f32 = super::controlled::WALK_MPS;
-/// … blended up from rest over this many ticks (the client's walk start: n/6 of the speed on its n-th tick).
-pub const BLEND_TICKS: usize = 6;
 /// It gets onto the top when its feet come within this of the top's height, m …
 pub const ONTO_DY_M: f32 = 0.15;
 /// … and this of its centre across, m.
@@ -58,30 +55,29 @@ pub struct WalkGaitStats {
 }
 
 /// Whether a body put at `from` (feet) and settled ([`SETTLE_TICKS`]: the velocity a hair down first, as the exe rig's settle
-/// writes it), then walked toward `to` for [`WALK_TICKS`] ticks at [`WALK_MPS`] blended up over [`BLEND_TICKS`], gets onto `to`'s
-/// floor at any walk tick: its feet within [`ONTO_DY_M`] of `to`'s height and [`ONTO_FLAT_M`] across.
+/// writes it), then walked toward `to` for [`WALK_TICKS`] ticks, gets onto `to`'s floor at any walk tick: its feet within
+/// [`ONTO_DY_M`] of `to`'s height and [`ONTO_FLAT_M`] across. [body physics S6b] The body is the client's ([`ClientBody`]): the
+/// settle with no keys, the walk with the forward key and the yaw along the way, its speed the client's blend from rest (the keys'
+/// first step does not move, then up over six ticks). On the 57 links of the module's note it gives the direct walk's verdict
+/// on every one (S6b-0, `s6b0-gaitfeed`).
 pub fn exe_walk(world: &Collision, s: &Settings, from: Vec3, to: Vec3) -> bool {
     let flat = Vec3::new(to.x - from.x, 0.0, to.z - from.z);
     let length = flat.length();
     if length < 1e-4 {
         return true;
     }
-    let dir = flat * (1.0 / length);
+    let yaw = motion::yaw_of((flat.x / length, flat.z / length));
     let mut c = Controller::standing_at(from);
     c.velocity = Vec3::new(0.0, -0.01, 0.0);
-    let still = TickInput { walk: Vec3::ZERO, air_control: Vec3::ZERO, crouch: CrouchInput::Tested { key: false, legs_broken: false }, sprinting: false };
+    let pass = Pass { world, settings: s };
+    let mut b = ClientBody::of(c, yaw);
     for _ in 0..SETTLE_TICKS {
-        c.tick(world, 0.05, s, still);
+        b.tick(&pass, Kin::CLIENT, Input { keys: 0, yaw });
     }
-    for n in 1..=WALK_TICKS {
-        let speed = WALK_MPS * n.min(BLEND_TICKS) as f32 / BLEND_TICKS as f32;
-        c.tick(world, 0.05, s, TickInput { walk: dir * (speed * 0.05), ..still });
-        let feet = c.feet();
-        if (feet.y - to.y).abs() <= ONTO_DY_M && feet.distance_xz(to) <= ONTO_FLAT_M {
-            return true;
-        }
-    }
-    false
+    (0..WALK_TICKS).any(|_| {
+        let feet = b.tick(&pass, Kin::CLIENT, Input { keys: motion::keys::FORWARD, yaw }).feet;
+        (feet.y - to.y).abs() <= ONTO_DY_M && feet.distance_xz(to) <= ONTO_FLAT_M
+    })
 }
 
 /// A link's verdict ([`WalkGrid::walk_gait_links`]).
