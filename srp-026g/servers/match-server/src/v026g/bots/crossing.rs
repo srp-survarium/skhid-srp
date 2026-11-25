@@ -471,22 +471,31 @@ pub fn escape_borne(
     body: &CrossBody,
     spent: &[mapdata::Vec3],
 ) -> (Option<Route>, Option<String>) {
-    let kept = tactics.escape(from, goal, time, side, objective, hard);
+    // [zone exit clear] A way out from the exit field leaves its line ([`super::tactics::EscapeEnd::field_line`]).
+    let field = |end: super::tactics::EscapeEnd, line: Option<String>| match (end.field_line(), line) {
+        (Some(field), Some(line)) => Some(format!("{line}; {field}")),
+        (Some(field), None) => Some(field.to_string()),
+        (None, line) => line,
+    };
+    let kept = tactics.escape_way(from, goal, time, side, objective, hard);
     let cost = |route: &Route| hurt(tactics, route, 0.0, route.length(), body.armour());
-    if kept.as_ref().is_some_and(|route| body.leaves(cost(route))) {
-        return (kept, None);
+    if let Some((route, end)) = kept.as_ref().filter(|(route, _)| body.leaves(cost(route))) {
+        return (Some(route.clone()), field(*end, None));
     }
-    let any = tactics.escape(from, goal, time, side, objective, &hard.landings_opened(spent));
+    let any = tactics.escape_way(from, goal, time, side, objective, &hard.landings_opened(spent));
     match any {
-        Some(any)
+        Some((any, end))
             if body.leaves(cost(&any))
-                || kept.as_ref().is_none_or(|kept| body.tightest_left(cost(&any)) > body.tightest_left(cost(kept))) =>
+                || kept.as_ref().is_none_or(|(kept, _)| body.tightest_left(cost(&any)) > body.tightest_left(cost(kept))) =>
         {
             let why = if kept.is_some() { "the way out keeping off shut landings leaves too little" } else { "no way out keeping off shut landings" };
             let line = priced_line("zone way out over a shut landing", why, cost(&any), body, any.length());
-            (Some(any), Some(line))
+            (Some(any), field(end, Some(line)))
         }
-        _ => (kept, None),
+        _ => match kept {
+            Some((kept, end)) => (Some(kept), field(end, None)),
+            None => (None, None),
+        },
     }
 }
 

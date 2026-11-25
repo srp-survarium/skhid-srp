@@ -424,7 +424,7 @@ impl Default for Feel {
             corner: 0.6,
             sway: 0.025,
             sway_period_s: 3.7,
-            arrive_m: 0.6,
+            arrive_m: ARRIVE_M,
             look_every_s: (0.8, 2.2),
             look_turn: 1.1,
             hop_behind_m: 1.0,
@@ -916,6 +916,9 @@ pub(super) const TRY_KEPT_S: f32 = 10.0;
 /// jump it last pressed, on its floor, and not up, has it still under that
 /// jump: the route is looked at from that jump's leg again, metres.
 const UNDER_JUMP_M: f32 = 1.5;
+/// [`Feel::arrive_m`] as the bots' feel has it: a route's end is reached this near, metres. A way out of a zone ends clear
+/// of it by more ([`super::tactics::EXIT_CLEAR_M`]).
+pub const ARRIVE_M: f32 = 0.6;
 /// A route's end higher than the feet by more than this is not arrived at
 /// (the end up a ledge: it is jumped to), metres.
 pub(super) const ARRIVE_BELOW_M: f32 = 0.5;
