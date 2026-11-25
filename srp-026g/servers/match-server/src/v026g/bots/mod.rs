@@ -390,6 +390,8 @@ pub struct Bot {
     lip_watch: drive::LipWatch,
     /// [A388 step 2b] The lip guard's last forecast and what it was asked ([`drive::LipMemo`]).
     lip_memo: drive::LipMemo,
+    /// [route reuse] Its last route search that found its way, with every answer it read (`path::KeptWay`).
+    kept_way: Option<path::KeptWay>,
     /// The bench's stood line (`real_bot_cost`): whether the reflex had the
     /// legs at its last motor tick (a fight, not a route missing), and the
     /// poll clock of that tick (a play taken after it has had no motor
@@ -699,6 +701,7 @@ impl Bot {
             held_choke: None,
             lip_watch: drive::LipWatch::default(),
             lip_memo: drive::LipMemo::default(),
+            kept_way: None,
             #[cfg(test)]
             bench_legs: false,
             #[cfg(any(test, feature = "client-test"))]
@@ -2716,6 +2719,8 @@ impl Bots {
             nav_log::PREFIX,
             drive::lip_repeats::take()
         ));
+        // [route reuse] The searches the rest of a bot's kept way answered, and why the others were searched.
+        lines.push(format!("{}{}", nav_log::PREFIX, path::reuse_counts::take_line()));
         // [crossing prewarm] The routed crossings' entry searches asked in play, and of them searched then (not made at load).
         let (entry_asks, entry_searches) = self.memo.entry_counts();
         lines.push(format!(

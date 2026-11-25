@@ -1623,7 +1623,8 @@ fn drive_tick_inner(
                 } else if there {
                     None
                 } else if let Some((from, to)) = ends {
-                    match tactics.start_route(from, to, time, side, objective, &filter, floors) {
+                    // [route reuse] The bot's own last way to this goal, its rest from here when nothing it read changed.
+                    match tactics.start_route_kept(&mut bot.kept_way, from, to, time, side, objective, &filter, floors) {
                         Ok(None) if avoiding => {
                             match tactics.start_route(
                                 from,

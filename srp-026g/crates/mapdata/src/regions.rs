@@ -602,6 +602,13 @@ impl RouteSearch {
         self.expanded + self.search.as_ref().map_or(0, SlicedSearch::expanded)
     }
 
+    /// [route reuse] The regions its floors' search is (or was, once it ended) kept inside, a bit a region
+    /// (`region / 64`, `1 << region % 64`): the corridor and its rings at [`Stage::Corridor`] and [`Stage::Widened`]; none
+    /// at [`Stage::Whole`], which searches every floor.
+    pub fn kept_inside(&self) -> Option<&[u64]> {
+        (self.stage != Stage::Whole).then_some(self.inside.as_slice())
+    }
+
     /// The stage's way so far ([`SlicedSearch::partial`]): over floors its
     /// filter lets through. `grid` is the one searched.
     pub fn partial(&self, grid: &WalkGrid) -> Option<crate::grid::Path> {
