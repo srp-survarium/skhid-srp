@@ -1,10 +1,9 @@
 # [body physics] The known callers of the body-motion entry points (motion_fidelity.rs, ENTRY_POINTS): file, entry point, calls.
 # Written by `SRP_MOTION_COPIES_WRITE=1 cargo test -p match-server no_new_body_physics_copies`; it may only shrink.
-../../crates/mapdata/src/grid/controlled.rs	body_at	4
+../../crates/mapdata/src/grid/controlled.rs	body_at	1
 ../../crates/mapdata/src/grid/controlled.rs	client_step	1
 ../../crates/mapdata/src/grid/controlled.rs	deserialized	1
-../../crates/mapdata/src/grid/controlled.rs	standing_at	5
-../../crates/mapdata/src/grid/controlled.rs	walk_on_at	6
+../../crates/mapdata/src/grid/controlled.rs	standing_at	4
 ../../crates/mapdata/src/grid/walk_gait.rs	standing_at	1
 src/v026g/bots/body.rs	client_fall_tick	1
 src/v026g/bots/body.rs	fall_step	3
