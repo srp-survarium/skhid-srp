@@ -364,6 +364,38 @@ mod tests {
         }
     }
 
+    /// [body physics S6c] The walk gait's whole job through the memo, its press path too: on a 1.2 m step the walk check's test
+    /// and the exe's walk do not get up, so the risers' flight is flown (exe_walk, walk_gait_press, best_press, riser_lands_on);
+    /// written, used and verified, the memo gives the job's own verdict.
+    #[test]
+    fn the_walk_gait_press_path_through_the_memo_is_the_job() {
+        use crate::grid::memo::{Memo, Mode};
+        let tris = step(1.2);
+        let start = [Vec3::new(1.0, 0.0, 3.0)];
+        let (grid, _) = WalkGrid::build_kept_with_links(&tris, [-2.0, 0.0, 12.0, 6.0], 0.25, body(), &start, &start, OffMeshLinks::Gaps);
+        let (a, b) = (grid.locate(Vec3::new(4.4, 0.0, 3.1), 0.6).expect("a floor before the step"), grid.locate(Vec3::new(5.6, 1.2, 3.1), 0.6).expect("a floor on its top"));
+        let d = DIRS.iter().position(|&dir| dir == (1, 0)).expect("the +x way");
+        let (caster, s) = grid.body.controller();
+        let world = Collision::build(&tris).with_caster(caster);
+        let start = grid.body.walk_start();
+        let todo = [(a, b, d)];
+        let full = grid.walk_gait_memo(&world, &s, start, &todo, &mut Memo::off());
+        assert!(matches!(full[0], GaitVerdict::Pressed(_) | GaitVerdict::Unwalked), "the press path ran: {full:?}");
+        let dir = std::env::temp_dir().join(format!("srp-memo-walk-gait-press-{}", std::process::id()));
+        for (mode, what) in [(Mode::WriteOnly, "write-only"), (Mode::Use, "use"), (Mode::Verify { per_million: 1_000_000 }, "verify=1")] {
+            let mut memo = Memo::new(mode, dir.clone(), 17);
+            assert_eq!(grid.walk_gait_memo(&world, &s, start, &todo, &mut memo), full, "{what}");
+            let site = memo.stats.iter().find(|st| st.site == "walk.gait").expect("the site ran");
+            let ok = match mode {
+                Mode::WriteOnly => site.written == 1,
+                Mode::Use => site.hits == 1 && site.errors == 0,
+                _ => site.verified == 1 && site.errors == 0,
+            };
+            assert!(ok, "{what}: {site:?}");
+        }
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
     /// A low riser in the risers' table (what the pass stores where a press lands) is climbed by a sprint or a jump.
     #[test]
     fn a_low_riser_in_the_risers_table_is_sprint_or_jump() {
