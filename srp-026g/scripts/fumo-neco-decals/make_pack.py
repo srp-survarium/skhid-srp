@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build the four Cirno and Neco-Arc decals using Snufkin's stock 4_41 cloth.
+"""Build the Bottled fumo and Neco-Arc decals using Snufkin's stock 4_41 cloth.
 
 Pass --stock the extracted 0.26g flag files and --out a new pack folder.
 The RGBA cutouts are the pack's art sources. See README.md for credits.
@@ -17,8 +17,6 @@ spec.loader.exec_module(cloth)
 # Dictionary id, decal resource, atlas cell, cutout.
 ITEMS = (
     (2672, '4_79', (1, 21), 'bottled-fumo.png'),
-    (2673, '4_80', (1, 22), 'snail-fumo.png'),
-    (2674, '4_81', (1, 23), 'just-fumo.png'),
     (2675, '4_82', (1, 24), 'neco-arc.png'),
 )
 
@@ -40,8 +38,8 @@ def main():
         items.append({'dict_id': dict_id, 'rc': rc, 'icon': icon, 'cutout': filename,
                       'names': {lang: table[key] for lang, table in names.items()}})
         cutouts[filename] = (HERE / 'cutouts' / filename).read_bytes()
-    cloth.build(args.out, None, cutouts, stock, items, 'fumo-neco-decals', '2',
-                'Bottled fumo, Snail fumo, Just fumo fumo and Neco-Arc (2672–2675), give-only cloth decals',
+    cloth.build(args.out, None, cutouts, stock, items, 'fumo-neco-decals', '3',
+                'Bottled fumo (2672) and Neco-Arc (2675), give-only cloth decals',
                 ['Artwork credits and sources: srp-026g/scripts/fumo-neco-decals/README.md'])
 
 
