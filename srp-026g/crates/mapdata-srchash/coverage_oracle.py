@@ -11,7 +11,8 @@ with what `mapdata-srchash` puts in each digest (`--spans`).
 The profile files are named `<n>-<label>[.grid].profraw` (`coverage.rs`): a digest's files are those of its label (a memo site's
 id, `world`, `sight`); the grid's are every `.grid` file. For each digest that has files: its executed mapdata functions (count
 > 0), each placed in the innermost srchash unit whose lines hold its first line, must be units of that digest's closure. A
-function no unit holds is an error too (srchash would not see a change to it). Exit 1 on any.
+function no unit holds is an error too (srchash would not see a change to it). Exit 1 on any. The windows' own code
+(`coverage.rs`, `#[cfg(srp_coverage)]`, in no digest: only this build has it, with keys of its own) is left out.
 """
 import argparse
 import json
@@ -19,6 +20,9 @@ import pathlib
 import subprocess
 import sys
 from collections import defaultdict
+
+# The coverage windows themselves (`#[cfg(srp_coverage)]`): no digest holds them.
+INSTRUMENT = "crates/mapdata/src/coverage.rs"
 
 
 def units_of(spans_path):
@@ -53,7 +57,7 @@ def executed(binary, profdata, llvm_cov):
             continue
         own = [r for r in f["regions"] if r[5] == 0] or f["regions"]
         file = mapdata_file(f["filenames"][own[0][5]])
-        if file is not None:
+        if file is not None and file != INSTRUMENT:
             seen.add((file, min(r[0] for r in own), f["name"]))
     return seen
 

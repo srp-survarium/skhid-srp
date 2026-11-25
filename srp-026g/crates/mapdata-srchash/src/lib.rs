@@ -4,8 +4,9 @@
 //!
 //! A digest covers what can change a build's output, and nothing else:
 //! - the tokens of the items a root reaches, with no comments, no doc comments, no inert attributes (lint levels, inlining hints,
-//!   `#[cold]`, `#[must_use]`, rustfmt's: they change no value the code computes; `#[track_caller]` stays), no `#[cfg(test)]` or
-//!   `#[test]` items and no `src/bin`, so a comment, a doc, a lint or a test edit changes no digest;
+//!   `#[cold]`, `#[must_use]`, rustfmt's: they change no value the code computes; `#[track_caller]` stays), no `#[cfg(test)]`,
+//!   `#[test]` or `#[cfg(srp_coverage)]` items (the coverage oracle's build, whose `--cfg` gives it keys of its own) and no
+//!   `src/bin`, so a comment, a doc, a lint or a test edit changes no digest;
 //! - the items reached are found by name as rustc resolves it, narrowed where the code shows which item a name is
 //!   ([`Source::closure`], [`Resolution::Scoped`]), and as wide as before where it does not:
 //!   - a `q::name` path reaches only the items of `q` (a type's own methods, a module's own items) where `q` has such an item
@@ -791,11 +792,14 @@ fn attrs_of(item: &syn::Item) -> &[syn::Attribute] {
     }
 }
 
-/// `#[test]`, or `#[cfg(test)]` exactly (a `cfg(all(test, ..))` is kept: never fewer items, only more).
+/// `#[test]`, `#[cfg(test)]` exactly, or `#[cfg(srp_coverage)]` exactly (a `cfg(all(test, ..))` is kept: never fewer items, only
+/// more). `srp_coverage` is the coverage oracle's own build (`mapdata/src/coverage.rs`): its code is in no other build, and a
+/// build that has it has its own keys (its `--cfg` is in every digest, [`outside`]).
 fn test_only(attrs: &[syn::Attribute]) -> bool {
     attrs.iter().any(|a| {
         a.path().is_ident("test")
-            || (a.path().is_ident("cfg") && matches!(&a.meta, syn::Meta::List(list) if list.tokens.to_string() == "test"))
+            || (a.path().is_ident("cfg")
+                && matches!(&a.meta, syn::Meta::List(list) if matches!(list.tokens.to_string().as_str(), "test" | "srp_coverage")))
     })
 }
 
