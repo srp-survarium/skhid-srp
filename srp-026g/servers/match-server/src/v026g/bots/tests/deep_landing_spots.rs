@@ -3,6 +3,8 @@
 //!
 //! - School batteries, human crossing 13314: the 8.99 m walk-off (-3.30, 26.09, 106.97) -> (-5.55, 17.10, 106.72), lost when
 //!   the way within the harmless fall went first (#2319), is back beside it.
+//! - Rudnya batteries, human crossing 4837 (body physics S5c): the full-share Slow 0.6 jump onto the human's landing top is kept
+//!   beside L1's link onto the top 1.25 m across (the gap links' per-metre key keeps a jump link to each landing top).
 //!
 //! ```text
 //! SRP_MAPDATA_DIR=<dir> SRP_GAME_DATA=<server-game-data.db> cargo test -p match-server --release deep_landing_spots -- --ignored --nocapture
@@ -52,4 +54,27 @@ fn schools_deep_walk_off_of_crossing_13314_is_kept() {
     let link = link.expect("the 8.99 m walk-off of crossing 13314");
     assert_eq!(link.kind, mapdata::LinkKind::GapDrop);
     assert!(grid.link_cost(a, link.to, link.kind) > (grid.position(a) - grid.position(link.to)).length(), "priced by the fall's damage");
+}
+
+/// [body physics S5c] Rudnya batteries, human crossing 4837: the full-share Slow 0.6 jump (-42.57, 26.45, 9.35) ->
+/// (-43.07, 26.51, 9.35) is kept beside L1's Press onto the top 1.25 m across (-44.07, 26.55, 8.60): the gap links' per-metre key
+/// keeps a jump link to each landing top, so the human's landing floor has a way in again.
+#[test]
+#[ignore = "a per-spot test on the real mapdata; needs SRP_MAPDATA_DIR and SRP_GAME_DATA"]
+fn rudnyas_jump_of_crossing_4837_keeps_both_landing_tops() {
+    let Some(dir) = super::real_maps::dir() else {
+        eprintln!("skipping: SRP_MAPDATA_DIR is not set");
+        return;
+    };
+    let _ = survarium::v026g::game_data::init();
+    let (from, own, other) = (Vec3::new(-42.57, 26.45, 9.35), Vec3::new(-43.07, 26.51, 9.35), Vec3::new(-44.07, 26.55, 8.60));
+    let (grid, _) = boxed(&dir, "level_01/day_2", from, &[from, own]);
+    let a = grid.locate(from, NEAR_M).expect("the take-off's floor");
+    let onto = |p: Vec3| grid.off_links().iter().find(|l| l.from == a && (grid.position(l.to) - p).length() < NEAR_M).copied();
+    let (to_own, to_other) = (onto(own), onto(other));
+    eprintln!("GAPTOP 4837 {:?}: own {to_own:?} other {to_other:?}", grid.position(a));
+    let link = to_own.expect("the Slow 0.6 onto the human's landing top");
+    assert_eq!(link.kind, mapdata::LinkKind::GapJump);
+    assert!(link.share.mask().is_some_and(|m| m.lands(0)), "its own flights land: {link:?}");
+    assert!(to_other.is_some(), "L1's link onto the other top is kept too");
 }

@@ -613,17 +613,22 @@ fn gap_flown_job(ctx: &GapFlownCtx<'_>, item: &GapFlownItem) -> GapFlownOut {
     let mut near: Option<u8> = None;
     // [body physics S5a fix] The first end whose line presses landed only partly (no press in every variant), and those presses.
     let mut partial: Option<(u8, Vec<Made>)> = None;
+    // [body physics S5b] L1: each end's links to its other tops ([`super::rim::RimPress::others`]), linked with the end that makes
+    // the group, after the whole-press test and [`better`] judged step 2's floors.
+    let mut others_of: Vec<Vec<Made>> = Vec::new();
     for (i, e) in item.ends.iter().enumerate() {
         out.tried += 1;
-        let super::rim::RimPress { made, flights, near: close, .. } =
+        let super::rim::RimPress { mut made, others, flights, near: close, .. } =
             grid.best_press(ctx.world, ctx.s, e.a, e.b, way(e), &ctx.leads, |st| lands(e, st), ctx.kits, grid.fall_ground());
         out.flights += flights;
         let i = u8::try_from(i).expect("a group's ends fit a byte");
         if made.iter().any(lands_whole) {
+            made.extend(others);
             out.made = Some((i, made));
             out.reach_m = reach.get();
             return out;
         }
+        others_of.push(others);
         if !made.is_empty() && partial.is_none() {
             partial = Some((i, made));
         }
@@ -641,6 +646,9 @@ fn gap_flown_job(ctx: &GapFlownCtx<'_>, item: &GapFlownItem) -> GapFlownOut {
         out.made = better(partial, sweep.made.map(|m| (i, vec![m])));
     } else {
         out.made = partial;
+    }
+    if let Some((i, made)) = out.made.as_mut() {
+        made.extend(others_of[usize::from(*i)].iter().copied());
     }
     out.reach_m = reach.get();
     out
@@ -777,6 +785,8 @@ fn gap_clip_job(ctx: &GapFlownCtx<'_>, item: &GapFlownItem) -> GapClipOut {
         let p = grid.best_press(ctx.world, ctx.s, e.a, e.b, way, &ctx.leads, lands, ctx.kits, grid.fall_ground());
         out.flights += p.flights;
         let i = u8::try_from(i).expect("a group's ends fit a byte");
+        // [body physics S5b] L1: this end's other tops, linked when this end makes the group ([`gap_flown_job`]).
+        let others = p.others;
         // [body physics S5a fix] As the flown gaps ([`gap_flown_job`]): the line's presses make the end only when one lands in
         // every variant ([`lands_whole`]); else, where a flight came near or a line press landed partly, the aimed presses too,
         // the better share kept ([`better`]).
@@ -789,8 +799,9 @@ fn gap_clip_job(ctx: &GapFlownCtx<'_>, item: &GapFlownItem) -> GapClipOut {
         } else {
             None
         };
-        if made.is_some() {
-            out.made = made;
+        if let Some((end, mut made)) = made {
+            made.extend(others);
+            out.made = Some((end, made));
             break;
         }
     }
@@ -1078,6 +1089,36 @@ mod tests {
         let mut walled = top.clone();
         walled.extend(face_x(6.0, 2.0, 4.0));
         assert!(!reaches(&walled), "a wall on the top between them");
+    }
+
+    /// [body physics S5b] L1: a link to every top the jumps land and stay on. On flat ground, a `lands` that puts each flight on
+    /// the far floor `b` when it rests more than 3 m on from the take-off, else on a near floor `n` 2 m on (Cologne TDM's
+    /// (45.32, 36.39, 20.12): the long presses reach `b`, the short ones land on the near top and stay). Step 2 links `b`; the
+    /// near top gets its own link (`others`) from its best press, whose own flights all rest there. Where every flight rests
+    /// on `b`'s top, no other link is made (the press of before).
+    #[test]
+    fn every_top_the_presses_land_and_stay_on_gets_a_link() {
+        let t = quad(0.0, 14.0, 0.0).to_vec();
+        let body = Body { gap_flights: true, exe_collision: true, start_witness: true, max_jump: STANDING_JUMP_M, ..Body::client() };
+        let g = WalkGrid::build_with_links(&t, AREA, 0.25, body, OffMeshLinks::None);
+        let (caster, s) = body.controller();
+        let world = Collision::build(&t).with_caster(caster);
+        let at = |x: f32| g.locate(Vec3::new(x, 0.0, 5.0), 0.3).expect("a floor");
+        let (a, near, far) = (at(2.0), at(4.0), at(12.0));
+        let takeoff = g.position(a);
+        let kits = Kits { body: jump::WALK_CAP_MS, fastest: jump::WALK_CAP_MS };
+        let split = |st: &[FlightStep]| st.last().map(|f| if f.feet.x - takeoff.x > 3.0 { far } else { near });
+        // The jumps alone (no sprint climb: on flat ground it runs on and stops near, a second step-2 floor of its own).
+        let near_leads: Vec<f32> = (0..=4).map(|i| 0.1 * i as f32).collect();
+        let presses = [(jump::Kind::Walk, gap_leads()), (jump::Kind::Sprint, gap_leads()), (jump::Kind::Slow(0), near_leads)];
+        let p = g.best_press_with(&world, &s, a, far, (1.0, 0.0), &presses, Aim::STRAIGHT, split, kits, g.fall_ground());
+        assert_eq!(p.made.first().map(|m| m.to), Some(far), "step 2 links b, which some press reaches");
+        let other = p.others.iter().find(|m| m.to == near).unwrap_or_else(|| panic!("the near top gets its own link: near {near} far {far} {p:?}"));
+        assert!(lands_whole(other), "its press's own flights all land and stay there: {other:?}");
+        let all_far = |_: &[FlightStep]| Some(far);
+        let q = g.best_press_with(&world, &s, a, far, (1.0, 0.0), &presses, Aim::STRAIGHT, all_far, kits, g.fall_ground());
+        assert!(q.others.is_empty(), "one top: no other link");
+        assert_eq!(q.made.len(), 1);
     }
 
     /// [body physics S5a fix] The farthest flight the passes fly fits the memo's window ([`WalkGrid::flight_reach_m`]): every

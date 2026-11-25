@@ -177,6 +177,9 @@ pub const NEAR_FLAT_M: f32 = 1.0;
 #[derive(Clone, Debug, Default)]
 pub(super) struct RimPress {
     pub(super) made: Vec<Made>,
+    /// [body physics S5b] L1: the links to the other tops the jumps land and stay on ([`WalkGrid::best_press_with`]), apart from
+    /// step 2's [`Self::made`]: the gap passes judge a group by step 2's floors alone.
+    pub(super) others: Vec<Made>,
     pub(super) flights: usize,
     pub(super) near: bool,
     /// [item 10] Whether a let-go sprint flight came to rest on the ground under the top: within the client's step
@@ -536,11 +539,38 @@ impl WalkGrid {
         if let Some(c) = floor_of(&climbs).filter(|c| !floors.contains(c) && !climbs.iter().any(|l| floors.contains(&l.to))) {
             floors.push(c);
         }
-        let made = floors
-            .into_iter()
-            .map(|to| Made { aim, ..press_onto(&flown, &landings, to, &|g| self.own_top(to, g), &lands, &fly, &mut flights) })
+        let made: Vec<Made> = floors
+            .iter()
+            .map(|&to| Made { aim, ..press_onto(&flown, &landings, to, &|g| self.own_top(to, g), &lands, &fly, &mut flights) })
             .collect();
-        RimPress { made, flights, near, under }
+        // [body physics S5b] L1: a link to every other top the jumps land and stay on, not one floor a group. Step 2 takes `b` when
+        // any jump lands on it; with the flights flown on to the rest a few presses reach a far floor that a walk covers, and the
+        // top every other press lands and stays on got no link (Cologne TDM (45.32, 36.39, 20.12): Slow 0.4/0.5 reach b 1.8 m
+        // lower, Slow 0/0.1 land on (46.32, 33.77, 19.12) and stay there in the exe; the walk round then dropped the b link and
+        // left none). Each other top (by [`Self::own_top`], so a variant that rocked a cell over is the same top) is scored by its
+        // one best press (the most variants landing on it, then the gait rank, then the lead), and makes a link when that press's
+        // own flights all land and stay on it (its share's bit 0): the thinning prunes what a walk covers.
+        let own_variants = |l: &Landing| {
+            flown.iter().find(|(k, ld, _)| *k == l.kind && ld.to_bits() == l.lead.to_bits()).map_or(0, |(.., f)| f.iter().filter(|&&g| g == Some(l.to)).count())
+        };
+        let mut others: Vec<&Landing> = jumps.iter().copied().filter(|l| !floors.iter().any(|&t| self.own_top(t, l.to))).collect();
+        others.sort_by(|p, q| {
+            own_variants(q).cmp(&own_variants(p)).then(rank(p.kind).cmp(&rank(q.kind))).then(p.lead.total_cmp(&q.lead)).then(p.to.cmp(&q.to))
+        });
+        let mut tops: Vec<NodeId> = Vec::new();
+        let mut other_made: Vec<Made> = Vec::new();
+        for l in others {
+            if tops.iter().any(|&t| self.own_top(t, l.to)) {
+                continue;
+            }
+            tops.push(l.to);
+            let one = [*l];
+            let m = press_onto(&flown, &one, l.to, &|g| self.own_top(l.to, g), &lands, &fly, &mut flights);
+            if m.share.mask().is_some_and(|k| k.lands(0)) {
+                other_made.push(Made { aim, ..m });
+            }
+        }
+        RimPress { made, others: other_made, flights, near, under }
     }
 }
 
@@ -902,7 +932,7 @@ impl WalkGrid {
             if p.made.is_empty() && aimed.is_none() {
                 none.push((a, b));
             }
-            for &Made { to, press, share, walk, aim, .. } in p.made.iter().chain(aimed.as_ref()) {
+            for &Made { to, press, share, walk, aim, .. } in p.made.iter().chain(aimed.as_ref()).chain(&p.others) {
                 match press {
                     Takeoff::Press(_) => stats.walked += 1,
                     Takeoff::Slow { .. } => stats.slowed += 1,
@@ -1368,9 +1398,10 @@ impl MemoCodec for Made {
 }
 
 impl MemoCodec for RimPress {
-    const TAG: u32 = 0x5250_5201;
+    const TAG: u32 = 0x5250_5202;
     fn encode(&self, out: &mut Codec<'_>) {
         self.made.encode(out);
+        self.others.encode(out);
         out.put_u32(u32::try_from(self.flights).expect("a press's flights fit 32 bits"));
         self.near.encode(out);
         self.under.encode(out);
@@ -1378,6 +1409,7 @@ impl MemoCodec for RimPress {
     fn decode(input: &mut Codec<'_>) -> Option<Self> {
         Some(RimPress {
             made: Vec::<Made>::decode(input)?,
+            others: Vec::<Made>::decode(input)?,
             flights: input.u32()? as usize,
             near: bool::decode(input)?,
             under: bool::decode(input)?,
@@ -1461,6 +1493,53 @@ mod tests {
         let (grid, stats) = WalkGrid::build_kept_with_links(&tris, [-2.0, 0.0, 12.0, 6.0], 0.25, b, &start, &start, OffMeshLinks::Gaps);
         let up = grid.locate(Vec3::new(9.0, top, 3.0), 0.3).is_some_and(|n| grid.reached(n));
         (grid, stats.rim, up)
+    }
+
+    /// [body physics S5b] Every stored rim press with a run-up has its stored run-in (`WalkGrid::run_in_of`, RunIn::of): the gait of
+    /// its stored press, the moving steps its own run-up plays again, the stored lead and aim; the file keeps them, every field.
+    #[test]
+    fn a_stored_press_has_the_run_in_it_was_flown_with() {
+        use crate::motion::RunGait;
+        for top in [1.30, 1.40] {
+            let (grid, _, _) = onto(top, true);
+            assert_eq!(grid.run_ins.len(), grid.off.len(), "{top}: one run-in a link");
+            let (caster, s) = body(true).controller();
+            let mut tris = Vec::new();
+            quad(&mut tris, Vec3::new(-2.0, 0.0, 0.0), Vec3::new(-2.0, 0.0, 6.0), Vec3::new(5.0, 0.0, 6.0), Vec3::new(5.0, 0.0, 0.0));
+            quad(&mut tris, Vec3::new(5.0, top, 0.0), Vec3::new(5.0, top, 6.0), Vec3::new(12.0, top, 6.0), Vec3::new(12.0, top, 0.0));
+            quad(&mut tris, Vec3::new(5.0, 0.0, 0.0), Vec3::new(5.0, top, 0.0), Vec3::new(5.0, top, 6.0), Vec3::new(5.0, 0.0, 6.0));
+            let world = crate::controller::Collision::build(&tris).with_caster(caster);
+            let mut with_run_in = 0;
+            for l in grid.off_links() {
+                let Some(run_in) = grid.run_in_of(l, false) else {
+                    assert!(matches!(l.press, Takeoff::Climb | Takeoff::WalkOff | Takeoff::WalkOffCrouched | Takeoff::Release { .. }), "{top}: {l:?}");
+                    continue;
+                };
+                with_run_in += 1;
+                let own = Neighbour { lead: 0.0, side: l.aim.side_m(), turn: l.aim.turn_rad(), dy: 0.0, fastest: false };
+                let way = l.press_way(grid.position(l.from), grid.position(l.to));
+                let moving = super::super::run_ins::press_moving(&world, &s, grid.position(l.from), way, l.press, own, jump::WALK_CAP_MS)
+                    .expect("its run-up plays again");
+                let (gait_ok, lead) = match (l.press, run_in.gait) {
+                    (Takeoff::Press(lead), RunGait::Walk { ramp }) | (Takeoff::Slow { lead, .. }, RunGait::Walk { ramp }) => (ramp == u32::from(moving), lead),
+                    (Takeoff::Sprint(lead) | Takeoff::SprintHeld(lead), RunGait::Sprint { steps, .. }) => (steps == u32::from(moving), lead),
+                    _ => (false, PressLead::from_metres(0.0)),
+                };
+                assert!(gait_ok, "{top}: {l:?} {run_in:?} moving {moving}");
+                assert_eq!((run_in.lead, run_in.side), (lead.metres(), l.aim.side_m()), "{top}: {l:?}");
+            }
+            assert!(with_run_in > 0, "{top}: some stored press has a run-up");
+            let path = std::env::temp_dir().join(format!("srp-runin-{}-{top}.bin", std::process::id()));
+            grid.write(&path, 11).unwrap();
+            let back = WalkGrid::read(&path, 11, body(true)).unwrap();
+            std::fs::remove_file(&path).ok();
+            assert_eq!(back.run_ins, grid.run_ins, "{top}: the file keeps them");
+            for l in grid.off_links() {
+                assert_eq!(back.run_in_of(l, false), grid.run_in_of(l, false), "{top}: {l:?}");
+                assert_eq!(back.run_in_of(l, true), grid.run_in_of(l, true), "{top}: {l:?}");
+            }
+            assert_eq!(back.digest(), grid.digest());
+        }
     }
 
     /// A 1.30 m top (over the sprint jump's lowest top, 1.28) and a 1.40 m one are got onto by some client press: rim jumps are
@@ -1905,7 +1984,8 @@ mod tests {
                 walker_lands: i % 2 == 1,
             })
             .collect();
-        let out = RimLineOut { press: RimPress { made, flights: 123_456, near: true, under: false }, reach_m: 6.25 };
+        let others = made.iter().rev().take(2).copied().collect();
+        let out = RimLineOut { press: RimPress { made, others, flights: 123_456, near: true, under: false }, reach_m: 6.25 };
         let mut w = Codec::writer(&ids);
         out.encode(&mut w);
         let bytes = w.into_bytes();
