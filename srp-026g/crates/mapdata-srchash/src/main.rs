@@ -22,9 +22,14 @@ fn main() -> ExitCode {
     // legacy one's closure.
     let args: Vec<String> = std::env::args().collect();
     if let [_, _, flag] = args.as_slice()
-        && flag == "--dropped"
+        && (flag == "--dropped" || flag == "--spans")
     {
-        return match mapdata_srchash::dropped_report(Path::new(&workspace)) {
+        let report = if flag == "--dropped" {
+            mapdata_srchash::dropped_report(Path::new(&workspace))
+        } else {
+            mapdata_srchash::spans_report(Path::new(&workspace))
+        };
+        return match report {
             Ok(report) => {
                 print!("{report}");
                 ExitCode::SUCCESS
@@ -64,7 +69,7 @@ fn main() -> ExitCode {
                 }
                 Err(e) => eprintln!("error: {e}"),
             },
-            _ => eprintln!("usage: mapdata-srchash <srp-026g folder> [--why <root> <name> | --wide <root> | --diff <other srp-026g folder> | --dropped]"),
+            _ => eprintln!("usage: mapdata-srchash <srp-026g folder> [--why <root> <name> | --wide <root> | --diff <other srp-026g folder> | --dropped | --spans]"),
         }
         return ExitCode::SUCCESS;
     }

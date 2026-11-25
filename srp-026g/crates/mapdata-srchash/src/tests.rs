@@ -314,21 +314,6 @@ fn real_digests(ws: &Path, files: &[(String, String)]) -> BTreeMap<&'static str,
     digest_roots().into_iter().map(|(what, roots)| (what, s.digest(&s.closure(roots).unwrap(), 0))).collect()
 }
 
-/// `files` with `old` replaced by `new` once in `path`.
-fn edited(files: &[(String, String)], path: &str, old: &str, new: &str) -> Vec<(String, String)> {
-    files
-        .iter()
-        .map(|(p, t)| {
-            if p == path {
-                assert_eq!(t.matches(old).count(), 1, "{path}: {old}");
-                (p.clone(), t.replacen(old, new, 1))
-            } else {
-                (p.clone(), t.clone())
-            }
-        })
-        .collect()
-}
-
 #[test]
 fn a_builder_change_no_site_runs_moves_no_site_s_key() {
     let (ws, files) = real_files();

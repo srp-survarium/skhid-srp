@@ -131,6 +131,8 @@ pub struct Unit {
     macro_rules: bool,
     /// The names it binds (parameters, `let`, pattern shorthands): a plain name with no item in scope that it binds is the local.
     locals: BTreeSet<String>,
+    /// Its first and last line in its file (1-based), for the coverage oracle ([`spans_report`]).
+    pub lines: Option<(usize, usize)>,
 }
 
 /// The units waiting for a type, by (crate, type): (from, unit, the name it was reached by).
@@ -432,6 +434,7 @@ impl Source {
                             module: module.to_owned(),
                             macro_rules: false,
                             locals: BTreeSet::new(),
+                            lines: token_lines(&item.to_token_stream()),
                         });
                     }
                 }
@@ -473,7 +476,8 @@ impl Source {
                 }
             }
             let bound = bindings(|v| syn::visit::Visit::visit_item_impl(v, imp));
-            return self.push_tokens(file, names, imp.to_token_stream(), Some(&ty), bound);
+            let lines = token_lines(&imp.to_token_stream());
+            return self.push_tokens(file, names, imp.to_token_stream(), Some(&ty), bound, lines);
         }
         for inner in &imp.items {
             if test_only(impl_item_attrs(inner)) {
@@ -489,7 +493,8 @@ impl Source {
                 syn::visit::Visit::visit_generics(v, &imp.generics);
                 syn::visit::Visit::visit_impl_item(v, inner);
             });
-            self.push_tokens(file, names, tokens, Some(&ty), bound)?;
+            let lines = token_lines(&inner.to_token_stream());
+            self.push_tokens(file, names, tokens, Some(&ty), bound, lines)?;
         }
         Ok(())
     }
@@ -503,7 +508,8 @@ impl Source {
 
     fn push(&mut self, file: &str, names: Vec<String>, item: &syn::Item, in_type: Option<&str>) -> Result<(), String> {
         let bound = bindings(|v| syn::visit::Visit::visit_item(v, item));
-        self.push_tokens(file, names, item.to_token_stream(), in_type, bound)
+        let lines = token_lines(&item.to_token_stream());
+        self.push_tokens(file, names, item.to_token_stream(), in_type, bound, lines)
     }
 
     fn push_tokens(
@@ -513,6 +519,7 @@ impl Source {
         tokens: TokenStream,
         in_type: Option<&str>,
         bound: Bindings,
+        lines: Option<(usize, usize)>,
     ) -> Result<(), String> {
         let tokens = clean(tokens);
         let mut refs = BTreeSet::new();
@@ -543,6 +550,7 @@ impl Source {
             module: self.current_module.clone(),
             macro_rules: false,
             locals,
+            lines,
         });
         Ok(())
     }
@@ -922,6 +930,31 @@ fn declared_names(tokens: &TokenStream) -> Vec<String> {
 }
 
 /// The tokens without doc attributes (`#[doc = ..]`, `#![doc = ..]`), at every depth.
+/// The first and last line `tokens` span (none for tokens with no place, as a macro's).
+fn token_lines(tokens: &TokenStream) -> Option<(usize, usize)> {
+    let mut span: Option<(usize, usize)> = None;
+    let mut add = |s: proc_macro2::Span| {
+        let (a, b) = (s.start().line, s.end().line);
+        if a > 0 {
+            span = Some(span.map_or((a, b), |(lo, hi)| (lo.min(a), hi.max(b))));
+        }
+    };
+    fn walk(tokens: &TokenStream, add: &mut impl FnMut(proc_macro2::Span)) {
+        for t in tokens.clone() {
+            match t {
+                TokenTree::Group(g) => {
+                    add(g.span_open());
+                    add(g.span_close());
+                    walk(&g.stream(), add);
+                }
+                other => add(other.span()),
+            }
+        }
+    }
+    walk(tokens, &mut add);
+    span
+}
+
 /// An attribute that changes no value the code computes: a doc comment, a lint level, an inlining hint, `#[cold]`, `#[must_use]`,
 /// a rustfmt directive. The digest leaves it out, so adding or moving one moves no key. (`#[track_caller]` stays: code can read
 /// its caller's place.)
@@ -1517,6 +1550,25 @@ pub fn dropped_report(workspace: &Path) -> Result<String, String> {
         for l in added {
             let _ = writeln!(out, "  added   {l}");
         }
+    }
+    Ok(out)
+}
+
+/// Every unit of the tree's `mapdata`: its file, first and last line, first name, and the digests whose closure holds it
+/// (comma-separated, `-` for none), tab-separated, for the coverage oracle (`mapdata-srchash <tree> --spans`).
+pub fn spans_report(workspace: &Path) -> Result<String, String> {
+    let s = mapdata_source(workspace)?;
+    let mut holders: Vec<Vec<&str>> = vec![Vec::new(); s.units.len()];
+    for (what, roots) in digest_roots() {
+        for u in s.closure(roots)? {
+            holders[u].push(what);
+        }
+    }
+    let mut out = String::new();
+    for (u, unit) in s.units.iter().enumerate() {
+        let (a, b) = unit.lines.unwrap_or((0, 0));
+        let held = if holders[u].is_empty() { "-".to_owned() } else { holders[u].join(",") };
+        let _ = writeln!(out, "{}\t{a}\t{b}\t{}\t{held}", unit.file, unit.names.first().map_or("?", String::as_str));
     }
     Ok(out)
 }
