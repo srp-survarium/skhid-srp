@@ -1987,6 +1987,27 @@ pub fn keeps_clear(points: &[Vec3], discs: &[Vec3], from: Vec3, reach: f32) -> b
     route_keeps_clear(points, discs, from, None, reach)
 }
 
+/// [bot traps] Whether every leg of `points` that [`route_keeps_clear`] refuses (walked from `from` to `goal`, at `reach`) joins a
+/// disc's floor to another: one end within [`OTHER_FLOOR_M`] of the trap's height, the other not (a climb or a drop beside it).
+/// The search's field shuts a floor by its own height, so such a leg's far end is open to it while the leg is refused here; a
+/// leg on the trap's own floor is one the field would have kept off. False when nothing is refused.
+fn refused_legs_cross_floors(points: &[Vec3], discs: &[Vec3], from: Vec3, goal: Vec3, reach: f32) -> bool {
+    let mut refused = false;
+    for disc in discs {
+        let need = clearance_leaving(from.distance_xz(*disc), reach).min(clearance_for(goal.distance_xz(*disc), reach));
+        let near = |p: Vec3| (p.y - disc.y).abs() < OTHER_FLOOR_M;
+        for leg in points.windows(2) {
+            if (near(leg[0]) || near(leg[1])) && off_route_m(leg, *disc) < need {
+                if near(leg[0]) && near(leg[1]) {
+                    return false;
+                }
+                refused = true;
+            }
+        }
+    }
+    refused
+}
+
 /// [#2081] The nearest `points` may come to a disc, for an end `at` metres from it ([`keeps_clear`]'s rule).
 fn clearance_for(at: f32, reach: f32) -> f32 {
     if at >= reach { reach - CLEAR_SLACK_M } else { (at - mapdata::CELL).max(INSIDE_FLOOR_M).min(reach) }
@@ -2075,26 +2096,27 @@ pub(super) fn own_trap_route_within(
     {
         let points = route_points(&route, feet, f32::MAX);
         let end = route.point_at(route.length());
+        // The disc the rule refuses the route by (the first that fails it), not the nearest across the ground over all.
         let (disc, pass) = field
             .discs()
             .iter()
+            .find(|d| !route_keeps_clear(&points, std::slice::from_ref(*d), feet, Some(route.end()), reach))
             .map(|d| (*d, off_route_m(&points, *d)))
-            .min_by(|a, b| a.1.total_cmp(&b.1))
             .unwrap_or((feet, f32::MAX));
-        // The waypoint leg nearest the trap: its ends' heights against the trap's, a jump or not, its ends' floors shut or open.
-        let leg = route
-            .points()
+        // The leg of the checked polyline the rule refuses (an end within `OTHER_FLOOR_M` of the trap's height, nearer than the
+        // clearance it needs): its pass, its ends' heights against the trap's, and that clearance.
+        let need = clearance_leaving(feet.distance_xz(disc), reach).min(clearance_for(route.end().distance_xz(disc), reach));
+        let near = |p: Vec3| (p.y - disc.y).abs() < OTHER_FLOOR_M;
+        let leg = points
             .windows(2)
-            .min_by(|x, y| off_route_m(&[x[0].at, x[1].at], disc).total_cmp(&off_route_m(&[y[0].at, y[1].at], disc)))
+            .find(|w| (near(w[0]) || near(w[1])) && off_route_m(w, disc) < need)
             .map_or("-".to_string(), |w| {
                 format!(
-                    "leg {:.2} m, ends y {:+.2}/{:+.2} from the trap, {}, floors {}/{}",
-                    off_route_m(&[w[0].at, w[1].at], disc),
-                    w[0].at.y - disc.y,
-                    w[1].at.y - disc.y,
-                    if w[1].jump.is_some() { "a jump" } else { "a walk" },
-                    if field.open(w[0].node) { "open" } else { "shut" },
-                    if field.open(w[1].node) { "open" } else { "shut" }
+                    "refused leg ({:.1}, {:.1}, {:.1})->({:.1}, {:.1}, {:.1}) passes {:.2} m, ends y {:+.2}/{:+.2} from the trap, needs {need:.2} m",
+                    w[0].x, w[0].y, w[0].z, w[1].x, w[1].y, w[1].z,
+                    off_route_m(w, disc),
+                    w[0].y - disc.y,
+                    w[1].y - disc.y
                 )
             });
         eprintln!(
@@ -2108,6 +2130,28 @@ pub(super) fn own_trap_route_within(
             disc.y,
             disc.z
         );
+    }
+    // [bot traps] A route the search gave whose every leg nearer than the clearance joins the trap's floor to another
+    // ([`refused_legs_cross_floors`]: the search's field shuts floors by their own height, so it let the far end's floors through
+    // and a search again gives the same way), and that keeps the guard's contact ([`FALLBACK_REACH_M`]), is taken at that
+    // contact, as the fallback search's way is (marked as the fallback's when it is set, `Bot::set_route`). The bench's tdm-m7-s2 at d2993ba6d: 4 bots refused the one climb
+    // out of a low spot (1.21 m from a team trap) 285 times; batt-m7-s2: a drop to a battery 1.34 m from one, 31 times.
+    let points = route_points(&route, feet, f32::MAX);
+    if within.is_none()
+        && refused_legs_cross_floors(&points, field.discs(), feet, route.end(), reach)
+        && route_keeps_clear(&points, field.discs(), feet, Some(route.end()), FALLBACK_REACH_M)
+    {
+        let pass = field.discs().iter().map(|d| off_route_m(&points, *d)).fold(f32::INFINITY, f32::min);
+        own_trap_note(
+            bot,
+            now,
+            format!(
+                "a route of {:.1} m taken at the guard's contact ({FALLBACK_REACH_M:.2} m): the search gave no way at {reach:.2} m; it passes an own trap {pass:.2} m off",
+                route.length()
+            ),
+        );
+        bot.features.traps.taken_at_contact = Some(now);
+        return Some(route);
     }
     own_trap_note(bot, now, format!("a route of {:.1} m refused: it passes an own trap nearer than {reach:.2} m", route.length()));
     let out = step_out(&field, feet, |to| tactics.clear_step_for(feet, to, now, bot.side, objective), &tactics.world.grid);
@@ -4034,6 +4078,9 @@ pub struct BotState {
     pub fallback: Option<FallbackRoute>,
     pub fallback_pending: Option<Vec3>,
     pub fallback_field: Option<(Arc<TrapField>, Arc<TrapField>)>,
+    /// [bot traps] When the route check last took a search's route at the guard's contact ([`own_trap_route_within`]): the route set
+    /// next is marked as the fallback's (`Bot::set_route` takes it, set or not).
+    pub taken_at_contact: Option<u32>,
     /// [#2081 v6 measure] The bench's: the look in hand ([`placing`]).
     #[cfg(test)]
     pub look_ctx: Option<placing::Ctx>,
@@ -5006,6 +5053,7 @@ mod tests {
             .route_nodes(from, to, 0, Some(0), false, &filter_within(&bot, &narrow, Vec::new(), Some(from)))
             .expect("a way past the trap at the guard's contact");
         assert!(own_trap_route(&mut bot, feet, Some(way.clone()), 1_000, &s.tactics, false).is_none(), "the clearance refuses it");
+        assert_eq!(bot.features.traps.taken_at_contact, None, "a leg on the trap's floor is no floor crossing");
         let kept = own_trap_route_within(&mut bot, feet, Some(way), 1_000, &s.tactics, false, Some(FALLBACK_REACH_M)).expect("kept at the fallback's reach");
         assert!(off_route_m(&route_points(&kept, feet, f32::MAX), trap) >= FALLBACK_REACH_M - CLEAR_SLACK_M);
         // keep_off: the marked route stands; the same route unmarked is dropped.
@@ -5037,6 +5085,46 @@ mod tests {
             guard_own_traps(&mut bot, super::super::key::FORWARD, 0.0, &at, &tuning, grid, |_| true, 2_000 + 50 * k);
         }
         assert!(bot.route.is_some() && on_fallback(&bot), "held 1 s at rest, the fallback's route is not ended");
+    }
+
+    /// [bot traps] A route whose one leg nearer than the clearance climbs from the trap's floor to one 1.08 m up beside it (the
+    /// bench's tdm-m7-s2 at d2993ba6d: the one climb out of a low spot, 1.21 m from a team trap, refused 285 times) is taken at the
+    /// guard's contact and, once set, held there as the fallback's; the same leg on the trap's own floor is refused.
+    #[test]
+    fn a_climb_beside_an_own_trap_nearer_than_the_clearance_is_taken_at_its_contact() {
+        use crate::v026g::bots::path::{Route, Waypoint};
+        use crate::v026g::bots::trap_know::TrapList;
+        let mut s = Scenario::field(Mode::TeamDeathmatch);
+        let trap = Vec3::new(20.0, 0.0, 20.0);
+        let feet = Vec3::new(21.5, 0.0, 14.0);
+        s.bot(0, 0, feet);
+        let tuning = crate::v026g::bots::tuning::Tuning::default();
+        let keep = tuning.traps.keep_off.expect("keep_off is on by default");
+        let mut list = TrapList::default();
+        list.promise(0, trap, 500);
+        let grid = &s.tactics.world.grid;
+        let mut bot = Bot::new(1, 0, 0, None, &tuning);
+        bot.features.traps.field = Arc::new(TrapField::of_ringed_within(&list, grid, 0.0, keep.hard_m));
+        let waypoint = |x: f32, y: f32, z: f32| Waypoint { at: Vec3::new(x, y, z), node: 0, jump: None, low: false };
+        // Up the trap's floor 1.5 m off it, then a climb of 1.08 m passing 1.21 m off, then on along the upper floor.
+        let route = |top: f32| {
+            Route::new(vec![
+                waypoint(21.5, 0.0, 14.0),
+                waypoint(21.5, 0.0, 20.6),
+                waypoint(20.5, top, 21.1),
+                waypoint(20.5, top, 28.0),
+            ])
+        };
+        let goal = Vec3::new(20.5, 1.08, 28.0);
+        let taken = own_trap_route(&mut bot, feet, Some(route(1.08)), 1_000, &s.tactics, false).expect("taken at the contact");
+        assert_eq!(bot.features.traps.taken_at_contact, Some(1_000));
+        assert!(bot.features.traps.notes.iter().any(|n| n.1.contains("taken at the guard's contact")), "{:?}", bot.features.traps.notes);
+        bot.set_route(Some((taken, goal)), 1_000);
+        assert!(on_fallback(&bot) && bot.features.traps.taken_at_contact.is_none(), "held as the fallback's, the mark spent");
+        bot.route = None;
+        bot.features.traps.fallback = None;
+        assert!(own_trap_route(&mut bot, feet, Some(route(0.0)), 2_000, &s.tactics, false).is_none(), "on the trap's floor: refused");
+        assert_eq!(bot.features.traps.taken_at_contact, None);
     }
 
     /// [#2081] A body standing 0.70 m from its own trap (nearer than the inside floor, 0.85 m) always finds a way out: the search
