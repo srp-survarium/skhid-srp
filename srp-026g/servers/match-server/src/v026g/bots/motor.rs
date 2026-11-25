@@ -1726,6 +1726,10 @@ pub struct RoutePress {
     pub sprint_gate: Option<SprintGate>,
     /// [A386 R83/R94] The press's aim off the link's line ([`PressAim`]; the log's line says it when not straight).
     pub aim: PressAim,
+    /// [jump start] The way the press was lined up and pressed along (map x/z, unit): the flight's heading, the link's press way
+    /// turned by its aim ([`aimed_line`]); the take-off to landing line only for a straight press along its own line. The jump's
+    /// carry holds the view on it (`jump_carry`).
+    pub way: [f32; 2],
     /// [F3] The body at the press, against the window the grid flew (the log's line of a jump that missed).
     pub state: PressState,
 }
@@ -4858,6 +4862,7 @@ impl Motor {
             facing: still,
             sprint_gate,
             aim: ahead.leap.aim(),
+            way: ahead.way,
             state: PressState {
                 lead_m: ahead.before - along.max(0.0) * TICK_S,
                 flown_lead_m: match ahead.leap {

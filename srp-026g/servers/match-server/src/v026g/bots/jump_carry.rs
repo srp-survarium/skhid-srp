@@ -20,7 +20,7 @@
 use super::encode::Decision;
 use super::jump_arc::Clip;
 use super::kin::{TICK_S, wrap, yaw_of};
-use super::motor::JUMP_FACING;
+use super::motor::{JUMP_FACING, RoutePress};
 use crate::v026g::drive::key;
 
 /// The keys a carry takes off the tick's keys: every way but forward, the crouch, the sprint (put back as it was at the press).
@@ -51,13 +51,23 @@ pub struct Carried {
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Press {
     pub time: u32,
-    /// Take-off to landing, map (x, z).
+    /// The way the jump was pressed along, map (x, z) ([`Press::of_route`]).
     pub way: [f32; 2],
     /// The keys and the ground speed at the press (they pick the clip, [`Clip::of`]).
     pub keys: u32,
     pub speed: f32,
     /// Ticks the jump key is held after this one before the weapon lets the jump go (`Bot::jump_hold`).
     pub held_ticks: u32,
+}
+
+impl Press {
+    /// [jump start] The route press `route` that went out at `time` with `keys`, the ground speed `speed` and `held_ticks`: its way is
+    /// the one the press was flown along ([`RoutePress::way`]), not the take-off-to-landing line. For a press aimed off the link's
+    /// line, or along a grid way off that line, they differ (level_06 TDM's (56.35, 28.13, 101.38) -> (53.85, 29.07, 97.88): flown
+    /// along (0, -1) turned -0.2 rad, its landing 35 deg off; the carry's cone turned the view 0.22 rad off the flight at the press).
+    pub fn of_route(time: u32, route: &RoutePress, keys: u32, speed: f32, held_ticks: u32) -> Self {
+        Self { time, way: route.way, keys, speed, held_ticks }
+    }
 }
 
 /// The jump's length from the press to the end of its air phase, ms: its last air step ([`Clip::air_end_ms`]: the take-off frame at
@@ -168,5 +178,36 @@ mod tests {
         let d = Decision { keys: key::SPRINT | key::RIGHT, turn: (0.0, 0.0) };
         assert_eq!(sprint.hold(100, 0.0, d).keys, key::FORWARD | key::SPRINT);
         assert_eq!(walk.hold(100, 0.0, d).keys, key::FORWARD);
+    }
+
+    /// [jump start] A route press's carry holds the view on the way the press was flown along, not the take-off-to-landing line: the
+    /// level_06 TDM press flown along (0, -1) turned -0.2 rad to a landing 35 deg off keeps its view at the press; held to the
+    /// landing's line, the cone turned it off the flight.
+    #[test]
+    fn a_route_press_is_carried_along_the_way_it_was_flown() {
+        use super::super::motor::{PressState, RoutePress};
+        let (sin, cos) = (-0.2f32).sin_cos();
+        let flown = [sin, -cos];
+        let route = RoutePress {
+            take_off: mapdata::Vec3::new(56.35, 28.13, 101.38),
+            landing: mapdata::Vec3::new(53.85, 29.07, 97.88),
+            tries: 1,
+            before: 0.1,
+            facing: 0.0,
+            sprint_gate: None,
+            aim: super::super::path::PressAim::new(3, -4).expect("an aim"),
+            way: flown,
+            state: PressState { lead_m: 0.1, flown_lead_m: Some(0.1), side_m: 0.0, turn_rad: 0.0, above_m: 0.0, along_ms: 4.8, window: None },
+        };
+        let keys = key::FORWARD | key::SPRINT | key::JUMP;
+        let p = Press::of_route(1_000, &route, keys, 4.8, 0);
+        assert_eq!(p.way, flown, "the flown way, not the landing's line");
+        let carry = JumpCarry::Free.next(1_000, Some(p));
+        let view = yaw_of(flown);
+        let held = carry.hold(1_000, view, Decision { keys, turn: (0.0, 0.0) });
+        assert!(held.turn.0.abs() < 1e-5, "the view pressed along the flight stays: {:?}", held.turn);
+        let landing_line = Press { way: [route.landing.x - route.take_off.x, route.landing.z - route.take_off.z], ..p };
+        let old = JumpCarry::Free.next(1_000, Some(landing_line)).hold(1_000, view, Decision { keys, turn: (0.0, 0.0) });
+        assert!(old.turn.0.abs() > 0.15, "held to the landing's line the view turns off the flight: {:?}", old.turn);
     }
 }
