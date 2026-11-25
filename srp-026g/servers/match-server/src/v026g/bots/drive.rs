@@ -450,6 +450,20 @@ pub(super) fn drive_tick(
             .and_then(|watch| watch.route)
             .map(|route| jump_carry::Press::of_route(time, &route, decision.keys, me.speed(), bot.jump_hold));
         bot.carry = bot.carry.next(time, press);
+        // [jump start] The reflex's aim turning the carried view off the flown way in the air (decision-neutral): once a press.
+        if let Some(off) = bot.carry.fired_off(time, me.yaw, decision)
+            && let Some(watch) = bot.jump_watch.filter(|watch| watch.by == "route")
+        {
+            let line = format!(
+                "{}jump carry: the reflex's aim turns the view {off:+.2} rad off the flown way in the air at ({:.2}, {:.2}, {:.2}), {} ms after the press",
+                super::nav_log::PREFIX,
+                me.feet.x,
+                me.feet.y,
+                me.feet.z,
+                time.saturating_sub(watch.at)
+            );
+            bot.nav_log.push_once(super::nav_log::Kind::Jump, super::nav_log::key(("carry fired", watch.at)), time, line);
+        }
         decision = bot.carry.hold(time, me.yaw, decision);
     } else {
         bot.carry = jump_carry::JumpCarry::Free;
