@@ -380,6 +380,9 @@ pub struct Tick {
     pub landing: Option<LandingGround>,
     /// The flat walk the step asked for (m over the step, map frame).
     pub walk: [f32; 2],
+    /// [body physics S6b] The step was refused because the body could not straighten under something (`StepNotes::ceiling`): the
+    /// builder's walk check reads it as a refusal under a low ceiling.
+    pub ceiling: bool,
 }
 
 /// A press the body cannot fly: its clip is not ported (a side or back jump).
@@ -576,6 +579,7 @@ impl ClientBody {
             in_jump: self.controller.jumping,
             landing: notes.landing,
             walk,
+            ceiling: notes.ceiling,
         }
     }
 
