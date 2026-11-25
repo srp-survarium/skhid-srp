@@ -106,6 +106,9 @@ impl Hash128 {
 enum Ref {
     Plain(String),
     Qualified(String, String),
+    /// A method call on a receiver of a known type: the receiver's type (`self`'s, a typed binding's), the fields read off it in
+    /// order (`self.grid.world`: `grid`, `world`), the method's name.
+    Method(String, Vec<String>, String),
 }
 
 /// One item of the source (a function, a method, a type with its trait impls' units, a const, a `use`, a macro...).
@@ -162,6 +165,11 @@ pub struct Source {
     current_module: String,
     /// The plain names the module view did not place (resolved crate-wide, as before), for the report.
     pub unplaced: std::cell::RefCell<BTreeSet<String>>,
+    /// Each struct's named fields' types (the last path segment, references stripped), by the struct's name; a name two structs
+    /// have is in [`Self::ambiguous`] instead.
+    fields: HashMap<String, HashMap<String, String>>,
+    /// Struct names defined more than once: their fields are no receiver's type.
+    ambiguous: BTreeSet<String>,
 }
 
 impl Source {
@@ -334,7 +342,19 @@ impl Source {
                 syn::Item::Fn(f) => self.push(file, named(&f.sig.ident), item, in_type)?,
                 syn::Item::Const(c) => self.push(file, named(&c.ident), item, in_type)?,
                 syn::Item::Static(s) => self.push(file, named(&s.ident), item, in_type)?,
-                syn::Item::Struct(s) => self.push_type(file, named(&s.ident), item, &s.ident)?,
+                syn::Item::Struct(s) => {
+                    let name = s.ident.to_string();
+                    if self.fields.contains_key(&name) {
+                        self.ambiguous.insert(name.clone());
+                    }
+                    let fields = s
+                        .fields
+                        .iter()
+                        .filter_map(|f| Some((f.ident.as_ref()?.to_string(), type_name(&f.ty)?)))
+                        .collect();
+                    self.fields.insert(name, fields);
+                    self.push_type(file, named(&s.ident), item, &s.ident)?;
+                }
                 syn::Item::Enum(e) => self.push_type(file, named(&e.ident), item, &e.ident)?,
                 syn::Item::Union(u) => self.push_type(file, named(&u.ident), item, &u.ident)?,
                 syn::Item::Type(t) => self.push_type(file, named(&t.ident), item, &t.ident)?,
@@ -430,7 +450,7 @@ impl Source {
                     names.push(name);
                 }
             }
-            let bound = pattern_bindings(|v| syn::visit::Visit::visit_item_impl(v, imp));
+            let bound = bindings(|v| syn::visit::Visit::visit_item_impl(v, imp));
             return self.push_tokens(file, names, imp.to_token_stream(), Some(&ty), bound);
         }
         for inner in &imp.items {
@@ -443,7 +463,10 @@ impl Source {
             };
             let mut tokens = head.clone();
             inner.to_tokens(&mut tokens);
-            let bound = pattern_bindings(|v| syn::visit::Visit::visit_impl_item(v, inner));
+            let bound = bindings(|v| {
+                syn::visit::Visit::visit_generics(v, &imp.generics);
+                syn::visit::Visit::visit_impl_item(v, inner);
+            });
             self.push_tokens(file, names, tokens, Some(&ty), bound)?;
         }
         Ok(())
@@ -457,7 +480,7 @@ impl Source {
     }
 
     fn push(&mut self, file: &str, names: Vec<String>, item: &syn::Item, in_type: Option<&str>) -> Result<(), String> {
-        let bound = pattern_bindings(|v| syn::visit::Visit::visit_item(v, item));
+        let bound = bindings(|v| syn::visit::Visit::visit_item(v, item));
         self.push_tokens(file, names, item.to_token_stream(), in_type, bound)
     }
 
@@ -467,14 +490,16 @@ impl Source {
         names: Vec<String>,
         tokens: TokenStream,
         in_type: Option<&str>,
-        bound: BTreeSet<String>,
+        bound: Bindings,
     ) -> Result<(), String> {
         let tokens = clean(tokens);
         let mut refs = BTreeSet::new();
         let mut included = Vec::new();
-        let mut locals = bound;
+        let typed = bound.typed_once();
+        let mut locals = bound.shorthand;
         collect_bindings(&tokens, &mut locals);
-        collect_refs(&tokens, in_type, &locals, &mut refs, &mut included, file)?;
+        let scope = Scope { in_type, locals: &locals, typed: &typed };
+        collect_refs(&tokens, &scope, &mut refs, &mut included, file)?;
         let mut text = tokens.to_string();
         for path in included {
             let Some(root) = &self.root else {
@@ -512,6 +537,12 @@ impl Source {
     /// its glob imports'); a method (reached by its type) or a macro anywhere; a unit's own local where no item is in scope;
     /// else crate-wide, as before (counted in [`Self::unplaced`]).
     fn resolve_from(&self, r: &Ref, unit: &Unit) -> Option<(Vec<usize>, String, bool)> {
+        if let Ref::Method(ty, fields, name) = r {
+            if let Some(found) = self.method_of(ty, fields, name) {
+                return Some((found, format!("{ty}::{name}"), true));
+            }
+            return self.resolve_from(&Ref::Plain(name.clone()), unit);
+        }
         let (found, by, exact) = self.resolve(r)?;
         if exact || !matches!(r, Ref::Plain(_)) || unit.macro_rules {
             return Some((found.clone(), by, exact));
@@ -540,9 +571,38 @@ impl Source {
         Some((found.clone(), by, exact))
     }
 
+    /// [R4] The units a method call on a receiver of type `ty` (then `fields` read off it) may run: the receiver type's units
+    /// named `T::name` (its inherent method, its trait impls'), the traits that declare `name` (a default method) and the impls
+    /// for types the source does not define (blanket, foreign). None when a field is not found, a type is not one struct of the
+    /// source, or the type has no `T::name` unit (a method of its `Deref` target, say): the plain resolution then.
+    fn method_of(&self, ty: &str, fields: &[String], name: &str) -> Option<Vec<usize>> {
+        let mut t = ty.to_owned();
+        for f in fields {
+            if self.ambiguous.contains(&t) {
+                return None;
+            }
+            t = self.fields.get(&t)?.get(f)?.clone();
+        }
+        if self.ambiguous.contains(&t) {
+            return None;
+        }
+        let own = self.by_name.get(&format!("{t}::{name}"))?;
+        let defined: BTreeSet<&str> = self.units.iter().filter_map(|u| u.defines.as_deref()).collect();
+        let mut found = own.clone();
+        for &u in self.by_name.get(name).into_iter().flatten() {
+            let unit = &self.units[u];
+            let trait_declaring = unit.owner.is_none() && unit.defines.is_some();
+            let foreign_impl = unit.owner.as_deref().is_some_and(|o| !defined.contains(o));
+            if (trait_declaring || foreign_impl) && !found.contains(&u) {
+                found.push(u);
+            }
+        }
+        Some(found)
+    }
+
     fn resolve(&self, r: &Ref) -> Option<(&Vec<usize>, String, bool)> {
         match r {
-            Ref::Plain(name) => self.by_name.get(name).map(|u| (u, name.clone(), false)),
+            Ref::Plain(name) | Ref::Method(_, _, name) => self.by_name.get(name).map(|u| (u, name.clone(), false)),
             Ref::Qualified(q, name) => {
                 let key = format!("{q}::{name}");
                 if let Some(units) = self.by_name.get(&key) {
@@ -872,14 +932,8 @@ fn clean(tokens: TokenStream) -> TokenStream {
 /// of `include_str!("..")` and `include_bytes!("..")` (a literal path) go to `included`; `env!` of cargo's own `CARGO_*`
 /// variables and the `include!` of the build's own `OUT_DIR` file (these digests) are names; any other `include!`, `env!` or
 /// `option_env!`, or an include of a path that is not a literal, is an error.
-fn collect_refs(
-    tokens: &TokenStream,
-    in_type: Option<&str>,
-    locals: &BTreeSet<String>,
-    out: &mut BTreeSet<Ref>,
-    included: &mut Vec<String>,
-    file: &str,
-) -> Result<(), String> {
+fn collect_refs(tokens: &TokenStream, scope: &Scope<'_>, out: &mut BTreeSet<Ref>, included: &mut Vec<String>, file: &str) -> Result<(), String> {
+    let (in_type, locals) = (scope.in_type, scope.locals);
     let trees: Vec<TokenTree> = tokens.clone().into_iter().collect();
     for (i, tree) in trees.iter().enumerate() {
         match tree {
@@ -891,7 +945,7 @@ fn collect_refs(
                             (trees.get(i.wrapping_sub(1)), trees.get(i.wrapping_sub(2))),
                             (Some(TokenTree::Punct(b)), Some(TokenTree::Punct(h))) if b.as_char() == '!' && h.as_char() == '#'
                         )) => {}
-            TokenTree::Group(g) => collect_refs(&g.stream(), in_type, locals, out, included, file)?,
+            TokenTree::Group(g) => collect_refs(&g.stream(), scope, out, included, file)?,
             TokenTree::Ident(id) => {
                 let name = id.to_string();
                 // A declaration's own name (`fn write`) names nothing it uses: a unit reaching every item of its own name would
@@ -958,6 +1012,11 @@ fn collect_refs(
                     (true, Some(TokenTree::Ident(q))) => Some(q.to_string()),
                     _ => None,
                 };
+                // [R4] A method call on a receiver whose type is known: `self.m(`, `binding.m(`, `x.field.field.m(`.
+                if dot_before && called && let Some((ty, fields)) = receiver(&trees, i, scope) {
+                    out.insert(Ref::Method(ty, fields, name));
+                    continue;
+                }
                 out.insert(match qualifier {
                     Some(q) if q == "Self" => match in_type {
                         Some(ty) => Ref::Qualified(ty.to_owned(), name),
@@ -973,27 +1032,94 @@ fn collect_refs(
     Ok(())
 }
 
-/// The shorthand fields of a unit's struct patterns (`let Body { rest_floors, .. } = b`, `|Gap { a, b, .. }|`, a match arm's):
-/// each binds a local of its name and names no item. (A struct literal's shorthand `Foo { x }` is the expression `x`: not here.)
-fn pattern_bindings(visit: impl FnOnce(&mut PatternBindings)) -> BTreeSet<String> {
-    let mut v = PatternBindings::default();
+/// What a unit binds, from its syntax tree.
+fn bindings(visit: impl FnOnce(&mut Bindings)) -> Bindings {
+    let mut v = Bindings::default();
     visit(&mut v);
-    v.0
+    v
 }
 
+/// A unit's bindings: [R1] the shorthand fields of its struct patterns (`let Body { rest_floors, .. } = b`, `|Gap { a, .. }|`, a
+/// match arm's), each binding a local of its name and naming no item (a struct literal's shorthand `Foo { x }` is the expression
+/// `x`: not here); [R4] the types written for its bindings (`grid: &WalkGrid`, `let w: Windows`), how often each name is bound
+/// (any pattern), and its generic parameters.
 #[derive(Default)]
-struct PatternBindings(BTreeSet<String>);
+struct Bindings {
+    shorthand: BTreeSet<String>,
+    typed: HashMap<String, String>,
+    bound: HashMap<String, usize>,
+    generics: BTreeSet<String>,
+}
 
-impl<'ast> syn::visit::Visit<'ast> for PatternBindings {
+impl Bindings {
+    /// [R4] The bindings bound once with a written type that is not a generic parameter: their type is every use's.
+    fn typed_once(&self) -> HashMap<String, String> {
+        self.typed
+            .iter()
+            .filter(|(name, ty)| self.bound.get(*name) == Some(&1) && !self.generics.contains(*ty))
+            .map(|(n, t)| (n.clone(), t.clone()))
+            .collect()
+    }
+}
+
+impl<'ast> syn::visit::Visit<'ast> for Bindings {
     fn visit_pat_struct(&mut self, p: &'ast syn::PatStruct) {
         for field in &p.fields {
             if field.colon_token.is_none()
                 && let syn::Member::Named(name) = &field.member
             {
-                self.0.insert(name.to_string());
+                self.shorthand.insert(name.to_string());
+                *self.bound.entry(name.to_string()).or_default() += 1;
             }
         }
         syn::visit::visit_pat_struct(self, p);
+    }
+    fn visit_pat_ident(&mut self, p: &'ast syn::PatIdent) {
+        *self.bound.entry(p.ident.to_string()).or_default() += 1;
+        syn::visit::visit_pat_ident(self, p);
+    }
+    fn visit_pat_type(&mut self, p: &'ast syn::PatType) {
+        if let syn::Pat::Ident(id) = &*p.pat
+            && let Some(ty) = type_name(&p.ty)
+        {
+            self.typed.insert(id.ident.to_string(), ty);
+        }
+        syn::visit::visit_pat_type(self, p);
+    }
+    fn visit_type_param(&mut self, p: &'ast syn::TypeParam) {
+        self.generics.insert(p.ident.to_string());
+        syn::visit::visit_type_param(self, p);
+    }
+}
+
+/// What [`collect_refs`] knows of the unit it reads: its impl's type (`Self`), its locals, its typed bindings.
+struct Scope<'a> {
+    in_type: Option<&'a str>,
+    locals: &'a BTreeSet<String>,
+    typed: &'a HashMap<String, String>,
+}
+
+/// [R4] The receiver of the method call named at `trees[at]` (after a `.`), when its type is known: `self` (the impl's type) or a
+/// typed binding bound once, then the fields read off it (`self.grid.world.m(`: (`Self`'s type, [`grid`, `world`])). None for
+/// any other receiver (a call's result, an index, a path, a parenthesised expression).
+fn receiver(trees: &[TokenTree], at: usize, scope: &Scope<'_>) -> Option<(String, Vec<String>)> {
+    let mut fields = Vec::new();
+    let mut i = at.checked_sub(2)?;
+    loop {
+        let TokenTree::Ident(id) = &trees[i] else { return None };
+        let dot_before = i >= 1 && matches!(&trees[i - 1], TokenTree::Punct(p) if p.as_char() == '.');
+        if !dot_before {
+            // The chain's head: not a path's segment, not a field of something else.
+            if i >= 1 && matches!(&trees[i - 1], TokenTree::Punct(p) if p.as_char() == ':') {
+                return None;
+            }
+            let name = id.to_string();
+            let ty = if name == "self" { scope.in_type?.to_owned() } else { scope.typed.get(&name)?.clone() };
+            fields.reverse();
+            return Some((ty, fields));
+        }
+        fields.push(id.to_string());
+        i = i.checked_sub(2)?;
     }
 }
 
