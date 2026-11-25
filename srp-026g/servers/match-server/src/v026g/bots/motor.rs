@@ -487,7 +487,7 @@ pub struct Pose {
     /// The floor under the body as the grid has it, for [`Feel::sprint_turns`] (read by the driver only with it on).
     pub floor: Floor,
     /// [A318] How far the grid's steps would have taken the reckoning past where the client's walk tick held it since the last
-    /// world (`BodyTrack::held_short_since_fix`; zero under `kin.client_step = grid`): the hop's "behind" ([`Motor::stalled`]).
+    /// world (`BodyTrack::held_short_since_fix`; zero without the grid's walker): the hop's "behind" ([`Motor::stalled`]).
     pub held_short_m: f32,
     /// [A386] The body's own walk cap ([`WalkCap`]): the speed the client's sprint jump asks of the press.
     pub walk_cap: WalkCap,
@@ -5239,9 +5239,9 @@ impl Motor {
         let Some(&(_, before)) = self.trail.back() else {
             return false;
         };
-        // [A318] Under `kin.client_step = client` the reckoning is held where the body is (a step the grid walks up and the
-        // client's walk tick does not), so no world puts it back: the grid's steps it was held short of since the last world
-        // are the same "behind" (zero under `grid`, where this is as it was).
+        // [A318] The kept controller holds the reckoning where the body is (a step the grid walks up and the client's walk tick
+        // does not), so no world puts it back: the grid's steps it was held short of since the last world are the same "behind"
+        // (zero without the grid's walker, where this is as it was).
         let behind = ((before.x - feet.x) * self.way[0] + (before.z - feet.z) * self.way[1]).max(held_short_m);
         if behind < self.feel.hop_behind_m {
             return false;

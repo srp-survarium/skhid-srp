@@ -114,8 +114,6 @@
     "on": false
   },
   "kin": {
-    "edge": "lattice",
-    "margin_edge": "lattice",
     "slope_speed": "planar",
     "walk_bridges": false
   },
