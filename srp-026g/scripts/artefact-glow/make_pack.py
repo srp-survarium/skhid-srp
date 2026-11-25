@@ -112,7 +112,7 @@ import sys
 import zlib
 
 PACK_ID = 'artefact-glow'
-VERSION = '15'
+VERSION = '16'
 # kind -> (effect config, particle system); the stock files, by sha256.
 KINDS = {
     'lifebone': 'fx/artifacts/human_zhivokost',
@@ -415,18 +415,18 @@ def forest_twin(forest):
     return smoke_scaled(keep_emitters(forest, lambda e: emitter_name(e) in FOREST_FIRST_PERSON), FIRST_PERSON_SMOKE)
 
 
-def smoke_scaled(tree, k):
+def smoke_scaled(tree, k, names=FOREST_SMOKE):
     """`tree` with each FOREST_SMOKE emitter's Rate curve and MaxParticles (rounded up) times `k`,
     and its Rate's data source (which no other emitter uses) too."""
     lod = dict(tree[1])['LOD 0']
     children, sources = [], set()
     for g, e in dict(lod[1])['children'][1]:
-        if emitter_name(e) in FOREST_SMOKE:
+        if names is None or emitter_name(e) in names:
             e, source = rate_times(e, k)
             sources.add(source)
         children.append((g, e))
     users = [dict(dict(dict(e[1])['properties'][1])['Rate'][1])['selected_source'][1] for _, e in children]
-    assert all(users.count(s) == 1 for s in sources), 'a smoke Rate source another emitter shares'
+    assert names is None or all(users.count(s) == 1 for s in sources), 'a smoke Rate source another emitter shares'
     lod = (T_NAMED, [(n, (T_NAMED, children) if n == 'children' else c) for n, c in lod[1]])
     data = (T_NAMED, [(n, (T_NAMED, [(f, (T_NAMED, [(m, rate_scaled(x, k) if m == 'source' else x)
                                                      for m, x in c[1]]) if f in sources else c) for f, c in kinds[1]])
@@ -797,6 +797,19 @@ def main():
         operations.append({'op': 'add_file', 'path': f'particles/{fp_system}.particle'})
         # the stock child is the stock effect, value for value
         assert sort_key(get(effect, 'effect/effects')[1][0]) == sort_key(get(parse(stock[effect_path]), 'effect'))
+        for tier in range(1, 5):
+            # Scale every emitter, including the source of the body light.
+            weakened = smoke_scaled(particle, 0.8 ** tier, names=None)
+            name = f'{system}_wear_{tier}'
+            variants = {
+                f'gameplay/effects/effect_artefact_{kind}_wear_{tier}.options': forest_effect(parse(stock[effect_path]), name),
+                f'particles/{name}.particle': weakened,
+                f'particles/{name}_fp.particle': first_person_particle(weakened),
+            }
+            for path, tree in variants.items():
+                files[path] = serialize(tree)
+                assert sort_key(parse(files[path])) == sort_key(tree), path
+                operations.append({'op': 'add_file', 'path': path})
     # Forest Protection's glow: its effect, its particle system and the grey materials.
     onyx = parse(stock[f'particles/{KINDS[FOREST_FROM]}.particle'])
     forest = forest_particle(onyx)
@@ -843,7 +856,7 @@ def main():
         'id': PACK_ID,
         'version': VERSION,
         'target_build': '0.26g',
-        'description': "the artefacts' glow seen by their carrier: each effect_artefact_<kind> a composite of the "
+        'description': "Four worn activation variants per kind with progressive emission rates. The artefacts' glow seen by their carrier: each effect_artefact_<kind> a composite of the "
                        'stock third-person particle effect and a first-person one (view 0) playing '
                        'fx/artifacts/human_<kind>_fp: the stock particle system, its point lights and haze '
                        'included, with Head, Face and Neck off in every emitter\'s animated domain; and '

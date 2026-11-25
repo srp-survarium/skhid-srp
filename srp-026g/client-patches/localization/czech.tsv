@@ -1776,7 +1776,7 @@ st_on_spawn_victory_artefact	Artefakt se objevil
 st_on_spawn_victory_item	Baterie je nabitá! Dones ji na svou základnu.
 st_one_handed	Vedlejší
 st_online_store	Koupit zlato
-st_onyx_activation_hint	Onyx aktivován! Na %s s snižuje poškození a průbojnost příchozích střel o 75%.
+st_onyx_activation_hint	Onyx aktivován! Po dobu %s s mají nepřátelské střely nižší poškození a průbojnost.
 st_onyx_pickup_hint	Artefakt Onyx. Snižuje poškození a průbojnost střel zasahujících hráče o 5%.
 st_open	Otevřít
 st_options_2taa	2xTAA
@@ -2381,7 +2381,7 @@ st_special_offer	Speciální nabídka
 st_speed_booster_description	Energetický nápoj s kofeinem a taurinem. Povzbuzuje a stimuluje centrální nervový systém.
 st_speed_booster_name	Energetický nápoj Tornado
 st_spot_action	Označit nepřítele
-st_spring_activation_hint	Pružina aktivována! Rychlost pohybu a míření +10%. Rychlejší obnova výdrže! Střely tě nezpomalí!
+st_spring_activation_hint	Pružina aktivována! Rychleji se pohybuješ, míříš a obnovuješ energii. Zásahy tě méně zpomalují.
 st_spring_pickup_hint	Artefakt Pružina. Zvyšuje rychlost pohybu a míření o 5%.
 st_sprint_action	Sprint (držet)
 st_sprint_toggle_action	Sprint 
@@ -2712,6 +2712,8 @@ st_srp_hit_markers_kill	Jen ukazatel zabití
 st_srp_hud_add_friend	Přidat do přátel
 st_srp_hud_artefact_hunt_carrying	Neseš artefakt
 st_srp_hud_artefact_hunt_sudden_death	Náhlá smrt
+st_srp_hud_artefact_spent	Vyčerpán
+st_srp_hud_artefact_wear	Artefakt zeslábl. Síla pasivního účinku a příští aktivace je %1$s.
 st_srp_hud_blackout_intro	Blackout: noste baterie k zařízení svého týmu. Rozhraní a ukazatele zásahů jsou skryté pro větší vtažení do hry. Podržte Tab: munice, zdraví, chat; po smrti výběr výbavy.
 st_srp_hud_blackout_start	Blackout\nNoste baterie k zařízení svého týmu.\nRozhraní a ukazatele zásahů jsou skryté. Podržte Tab pro zobrazení munice a zdraví.
 st_srp_hud_freeze_draw	Remíza

@@ -66,7 +66,7 @@ const EFFECTS: [LegEffect; 13] = [
     LegEffect::Quarter { kind: Kind::Onyx, nth: 3 },
     LegEffect::Quarter { kind: Kind::Onyx, nth: 4 },
 ];
-const NAMES: [&CStr; 13] = [
+const NAMES: [&CStr; 25] = [
     c"forest_protection",
     c"artefact_leg_spring_1",
     c"artefact_leg_spring_2",
@@ -80,7 +80,27 @@ const NAMES: [&CStr; 13] = [
     c"artefact_leg_onyx_2",
     c"artefact_leg_onyx_3",
     c"artefact_leg_onyx_4",
+    c"artefact_spring_wear_1",
+    c"artefact_spring_wear_2",
+    c"artefact_spring_wear_3",
+    c"artefact_spring_wear_4",
+    c"artefact_lifebone_wear_1",
+    c"artefact_lifebone_wear_2",
+    c"artefact_lifebone_wear_3",
+    c"artefact_lifebone_wear_4",
+    c"artefact_onyx_wear_1",
+    c"artefact_onyx_wear_2",
+    c"artefact_onyx_wear_3",
+    c"artefact_onyx_wear_4",
 ];
+
+static WORN: GameCell<[Option<KeptEffect>; 12]> = GameCell::new([None; 12]);
+
+pub(crate) fn worn_glow(thread: &Thread, kind: Kind, wear: srp_validate::world::ArtefactWear) -> Option<KeptEffect> {
+    let tier = usize::from(wear.firing().uses()).checked_sub(1)?;
+    let base = match kind { Kind::Spring => 0, Kind::Lifebone => 4, Kind::Onyx => 8 };
+    WORN.get(thread)[base + tier]
+}
 
 /// Whether this game shows the leg quarters (the owner, 2026-11-07): only to a local player whose
 /// current kit has Artifact Sight (513, its own quarters too), to everyone's game without a local
@@ -240,7 +260,7 @@ pub fn on_tick(ctx: &mut Context<'_>) -> Flow<NoExit> {
     LOAD.set(thread, load);
     match action {
         Action::Ask => {
-            log::line(&[Text("forest_glow: the glows' 13 game effects asked for (none plays until they arrive)")]);
+            log::line(&[Text("forest_glow: the glows' game effects asked for (none plays until they arrive)")]);
             resources::query_effects(thread, &NAMES, crate::vostok::forest_glow_on_loaded_entry());
         }
         Action::Show(kept) => {
@@ -260,7 +280,10 @@ pub fn on_tick(ctx: &mut Context<'_>) -> Flow<NoExit> {
 pub fn on_loaded(results: QueryResults<'_>, tag: QueryTag) {
     let thread = results.thread();
     let arrived = match results.arrived(tag) {
-        Arrived::Effects(kept) => kept.all(),
+        Arrived::Effects(kept) => {
+            WORN.set(thread, core::array::from_fn(|index| kept.get(13 + index)));
+            kept.all()
+        },
         // this callback is only the glow's query's
         Arrived::Bus(_) | Arrived::Track(..) | Arrived::Particles(_) | Arrived::Assets(_) => return,
     };
@@ -270,7 +293,7 @@ pub fn on_loaded(results: QueryResults<'_>, tag: QueryTag) {
         Action::Report => {
             log::line(&[Text("forest_glow: a game effect of the glows did not load; no glow this session")]);
         }
-        Action::Arrived => log::line(&[Text("forest_glow: the glows' 13 game effects arrived")]),
+        Action::Arrived => log::line(&[Text("forest_glow: the glows' game effects arrived")]),
         _ => {}
     }
 }

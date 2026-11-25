@@ -147,6 +147,10 @@ impl<'t> Inventory<'t> {
     fn quick_place(&self, quick: QuickSlot) -> Option<QuickPlace> {
         // SAFETY: native lookup, verified ABI; it only reads this inventory.
         let slot = unsafe { raw::engine_quick_inventory_slot(Some(self.this), u32::from(quick.get())) };
+        self.place_of_slot(slot)
+    }
+
+    fn place_of_slot(&self, slot: u32) -> Option<QuickPlace> {
         if slot == u32::from(SLOTS) {
             return None;
         }
@@ -165,6 +169,14 @@ impl<'t> Inventory<'t> {
         });
         // SAFETY: one of this live inventory's 23 slots (+10Ch + 4 x slot).
         container.or_else(|| (slot < u32::from(SLOTS)).then(|| QuickPlace::Slot(unsafe { self.this.slots().at(slot as usize) })))
+    }
+
+    pub(super) fn slot_wear(&self, slot: u32) -> Option<(u8, srp_validate::world::ArtefactWear)> {
+        let QuickPlace::Container(index) = self.place_of_slot(slot)? else { return None };
+        let item = self.item_in(index)?;
+        super::artefact_skills::kind_of(item)?;
+        // SAFETY: the live container holds this registered artefact.
+        Some((unsafe { *item.id() }, super::artefact_skills::wear(item)))
     }
 
     /// The item quick-use ordinal `quick` holds, as the hud shows it
@@ -187,6 +199,7 @@ impl<'t> Inventory<'t> {
             let class = if let QuickPlace::Container(_) = place {
                 let artefact = item.artefact();
                 ItemClass::Artefact(ready(read(artefact.state()) == 3 && read(artefact.cooldown_left()) == 0
+                    && super::artefact_skills::wear(artefact) != srp_validate::world::ArtefactWear::Spent
                     && !super::artefact_skills::uncounted(artefact)))
             } else {
                 match read(item.vtable()) {

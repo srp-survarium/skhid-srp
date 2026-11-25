@@ -320,6 +320,11 @@ pub struct OnyxProtection {
 }
 
 impl OnyxProtection {
+    pub fn at_power(self, power: f32, damage: f32, piercing: f32) -> (f32, f32) {
+        let (d, p) = self.protect(damage, piercing);
+        if power == 1.0 { (d, p) } else { (damage + (d - damage) * power, piercing + (p - piercing) * power) }
+    }
+
     /// A hit's (damage, piercing) after it: the passive (D + a) x m; the active
     /// D - min(absorb, D - (D + a) x m); the piercing (P + a) x m either way.
     pub fn protect(self, damage: f32, piercing: f32) -> (f32, f32) {
@@ -358,6 +363,17 @@ pub struct LifeboneRegeneration {
 }
 
 impl LifeboneRegeneration {
+    pub fn at_power(self, tick: Regeneration, power: f32) -> Regeneration {
+        if power == 0.0 { return tick; }
+        let full = self.apply(tick);
+        if power == 1.0 { return full; }
+        Regeneration {
+            rate: tick.rate + (full.rate - tick.rate) * power,
+            limit: tick.limit + (full.limit - tick.limit) * power,
+            delay_ms: (tick.delay_ms as f32 + (full.delay_ms as f32 - tick.delay_ms as f32) * power) as u32,
+        }
+    }
+
     pub fn apply(self, tick: Regeneration) -> Regeneration {
         // As the callback: the delay as an unsigned float, each step a float, truncated to 64
         // bits (fistp, rounding toward 0) of which the low 32 are kept (a negative wraps).
@@ -556,6 +572,59 @@ pub fn on_larkspur(ctx: &mut Context<'_>) -> Flow<NoExit> {
 /// Spring II, patch 54's entry at a Spring's passive link: its reload nodes' values.
 pub fn on_spring_reload(ctx: &mut Context<'_>) -> Flow<NoExit> {
     artefact_skills::spring_reload(ctx);
+    Flow::Continue
+}
+
+pub fn on_wear_init(ctx: &mut Context<'_>) -> Flow<NoExit> {
+    artefact_skills::wear_init(ctx);
+    Flow::Continue
+}
+
+pub fn on_wear_spawn(ctx: &mut Context<'_>) -> Flow<NoExit> {
+    artefact_skills::wear_spawn(ctx);
+    Flow::Continue
+}
+
+pub fn on_wear_save(ctx: &mut Context<'_>) -> Flow<NoExit> {
+    artefact_skills::wear_save(ctx);
+    Flow::Continue
+}
+
+pub fn on_wear_load(ctx: &mut Context<'_>) -> Flow<NoExit> {
+    artefact_skills::wear_load(ctx);
+    Flow::Continue
+}
+
+pub fn on_wear_use(ctx: &mut Context<'_>) -> Flow<NoExit> {
+    artefact_skills::wear_use(ctx);
+    Flow::Continue
+}
+
+pub fn on_onyx_passive(ctx: &mut Context<'_>) -> Flow<crate::vostok::ArtefactSkillsOnOnyxPassiveExit> {
+    if artefact_skills::onyx_passive(ctx) { Flow::Exit(crate::vostok::ArtefactSkillsOnOnyxPassiveExit::Done) } else { Flow::Continue }
+}
+
+pub fn on_onyx_active(ctx: &mut Context<'_>) -> Flow<crate::vostok::ArtefactSkillsOnOnyxActiveExit> {
+    if artefact_skills::onyx_active(ctx) { Flow::Exit(crate::vostok::ArtefactSkillsOnOnyxActiveExit::Done) } else { Flow::Continue }
+}
+
+pub fn on_heal_amount(ctx: &mut Context<'_>) -> Flow<NoExit> {
+    artefact_skills::heal_amount(ctx);
+    Flow::Continue
+}
+
+pub fn on_wear_glow(ctx: &mut Context<'_>) -> Flow<crate::vostok::ArtefactSkillsOnWearGlowExit> {
+    if artefact_skills::wear_glow(ctx) { Flow::Exit(crate::vostok::ArtefactSkillsOnWearGlowExit::Selected) }
+    else { Flow::Continue }
+}
+
+pub fn on_fall(ctx: &mut Context<'_>) -> Flow<NoExit> {
+    artefact_skills::fall(ctx);
+    Flow::Continue
+}
+
+pub fn on_fatal_fall(ctx: &mut Context<'_>) -> Flow<NoExit> {
+    artefact_skills::fatal_fall(ctx);
     Flow::Continue
 }
 

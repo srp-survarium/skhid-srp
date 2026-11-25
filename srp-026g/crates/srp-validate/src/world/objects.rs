@@ -99,7 +99,8 @@
 //!                        three kits with a player object
 //!   when that kit has a player: u8 m_slot_id, its inventory slot, an
 //!                        artefact slot 13..18 ([`ArtefactSlot`])
-//!   u8   m_state         0 free, 1 spawning in a container, 2 ready in
+//!   u8   wear << 3 | m_state (wear counts successful activations, 0..=5)
+//!                        0 free, 1 spawning in a container, 2 ready in
 //!                        it, 3 taken, 4 active, 5 (below); no other
 //!   1, 2: u8 m_container_id; 1: u32 m_time_left_to_spawn
 //!   else: u32 m_time_left_to_cool
@@ -1214,6 +1215,7 @@ impl StateByte {
 /// active, its core's own.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct ArtefactBase {
+    wear: super::ArtefactWear,
     amount: u16,
     owner: Option<Owner>,
     state: ArtefactState,
@@ -1265,8 +1267,16 @@ impl ArtefactBase {
         let cooling = |reader: &mut Reader| -> Result<(u32, u32), ObjectFault> {
             Ok((reader.u32()?, reader.u32()?))
         };
+        let (state_byte, wear) = byte(reader, "artefact m_state", |value| {
+            let (state, wear) = super::ArtefactWear::unpack(value)?;
+            let state = StateByte::of(state)?;
+            if matches!(state, StateByte::Spawning | StateByte::Ready) && wear != super::ArtefactWear::Fresh {
+                return None;
+            }
+            Some((state, wear))
+        })?;
         let (state, last_activation_time_ms) =
-            match byte(reader, "artefact m_state", StateByte::of)? {
+            match state_byte {
                 StateByte::Free => {
                     let (time_left_to_cool, last) = cooling(reader)?;
                     (ArtefactState::Free { time_left_to_cool }, last)
@@ -1310,11 +1320,14 @@ impl ArtefactBase {
             };
         Ok(Self {
             amount,
+            wear,
             owner,
             state,
             last_activation_time_ms,
         })
     }
+
+    pub fn wear(&self) -> super::ArtefactWear { self.wear }
 
     /// `m_amount`.
     pub fn amount(&self) -> u16 {
@@ -2167,6 +2180,8 @@ mod tests {
             (artefact + 4, 19, "m_slot_id"),
             (artefact + 4, 200, "m_slot_id"),
             (artefact + 5, 6, "artefact m_state"),
+            (artefact + 5, 3 | 6 << 3, "artefact m_state"),
+            (artefact + 5, 1 | 1 << 3, "artefact m_state"),
         ] {
             assert_eq!(field(&LIST, &mutate(offset, byte)), Some(name), "{name}");
         }

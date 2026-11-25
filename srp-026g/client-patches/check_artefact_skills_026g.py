@@ -908,7 +908,7 @@ def check_active_cap(data):
     assert press(m4, four, 0) == [4] * 4
     want = sums(m4)
     for index, value in zip(SPRING_LISTS + [20, 2], want):
-        close(value, max(0.0, 1 + spring_sum(index, 4, 4)))
+        close(value, max(0.0, 1 + spring_sum(index, 4 * .8, 4)))
     for at in (0, 4):
         m, five = springs_match([3] * 5)
         assert press(m, five, at) == [4, 4, 4, 4, 3], ('Spring', at)
@@ -957,7 +957,7 @@ def check_active_cap(data):
             m.spring(at, state)
         have = sums(m)
         for index, value in zip(SPRING_LISTS + [20, 2], have):
-            close(value, max(0.0, 1 + spring_sum(index, own, own + shared)))
+            close(value, max(0.0, 1 + spring_sum(index, own * .8, own + shared)))
         outcomes.append(('Cascade', own, shared))
 
     # A carrier shares only its copies that count for it: five Springs, the fifth active (loaded
@@ -1257,6 +1257,74 @@ def check_cascade_seconds(data):
           "another kind, a teammate out of reach then, or an enemy: PASS")
 
 
+def check_wear(data):
+    m = Match(data)
+    g = m.g
+    item = m.spring(PLAYER, 3)
+    for uses, power in enumerate((1, .8, .64, .512, .4096), 1):
+        g.call(0x313300, (1, 1000 * uses), ecx=item)
+        assert g.read(item + 0x280) == 4
+        assert g.emu.mem_read(item + 0x27f, 1)[0] == uses
+        g.call(0x313300, (0, 1000 * uses), ecx=item)
+        g.call(0x313300, (1, 1000 * uses + 1), ecx=item)
+        assert g.emu.mem_read(item + 0x27f, 1)[0] == uses
+        remaining = power * .8 if uses < 5 else 0
+        close(m.getter(4), 1 + .05 * remaining + .1 * power)
+        # Native writer's state local, then the loader's dispatch and a second save.
+        for state in (4, 3, 5, 6):
+            g.step(0x3136a3, 5, eax=state, esi=item)
+            wire = g.emu.mem_read(STACK - 0x100 + 0x1f, 1)[0]
+            assert wire == (uses << 3) | state
+            restored = g.block(0x400)
+            g.step(0x3137a0, 6, eax=wire, ebx=restored)
+            assert g.read(restored + 0x280) == state
+            g.step(0x3136a3, 5, eax=state, esi=restored)
+            assert g.emu.mem_read(STACK - 0x100 + 0x1f, 1)[0] == wire
+        g.call(0x311970, ecx=item)
+        g.word(item + 0x280, 3)
+        g.word(item + 0x28c, 500)
+        g.call(0x313300, (1, 1000 * uses + 10), ecx=item)
+        assert g.emu.mem_read(item + 0x27f, 1)[0] == uses
+        g.word(item + 0x28c, 0)
+        close(m.getter(4), 1 + .05 * remaining)
+    g.call(0x313300, (1, 6000), ecx=item)
+    assert g.read(item + 0x280) == 3 and g.emu.mem_read(item + 0x27f, 1)[0] == 5
+    g.step(0x3134c0, 7, eax=item)
+    assert g.emu.mem_read(item + 0x27f, 1)[0] == 0
+    # A different copy has its own wear. A spent key still fires a fresh sibling.
+    g.emu.mem_write(item + 0x27f, bytes([5]))
+    fresh = m.spring(PLAYER, 3)
+    g.word(fresh, g.read(item))
+    g.call(ACTION, (1, 7000), ecx=item)
+    assert g.read(fresh + 0x280) == 4 and g.emu.mem_read(fresh + 0x27f, 1)[0] == 1
+    assert g.read(item + 0x280) == 3 and g.emu.mem_read(item + 0x27f, 1)[0] == 5
+    # A worn Onyx scales the benefit (damage prevented), including its absorb cap.
+    for uses in range(1, 6):
+        m = Match(data)
+        stone = onyx(m, PLAYER, 3)
+        full = native_protect(m, stone, 4, 7, 100.0, .4)
+        m.g.emu.mem_write(stone + 0x27f, bytes([uses]))
+        have = native_protect(m, stone, 4, 7, 100.0, .4)
+        for before, after, actual in zip((100.0, .4), full, have):
+            close(actual, before + (after - before) * .8 ** (uses - 1))
+    # Both the holder and a Cascade recipient regain the same fraction of each pool's deficit.
+    m = Match(data)
+    g = m.g
+    ally = m.player(1, 0, (1., 0., 0.))
+    g.word(DM, g.read(PLAYER + 0x2E0))
+    g.ranks(1 << 20, 43)
+    bone = m.artefact(PLAYER, LIFEBONE_ACTIVE, 3)
+    g.emu.mem_write(bone + 0x27f, bytes([4]))
+    for at in (PLAYER, ally):
+        for pool in g.pools[at].values():
+            g.word(pool + 0xa0, bits(g.float(pool + 0x9c) / 2))
+    g.call(ACTION, (1, 1234), ecx=bone)
+    for at in (PLAYER, ally):
+        for pool in g.pools[at].values():
+            close(g.float(pool + 0xa0), g.float(pool + 0x9c) * (.5 + .5 * .4096))
+    print('Five real Spring activations, passive and active strength, ignored presses, spent, spawn and codec: PASS')
+
+
 def main():
     original = open(sys.argv[1], 'rb').read()
     patched, _ = base.build(original, 'section', open(base.default_bin('section'), 'rb').read(), None,
@@ -1264,6 +1332,7 @@ def main():
     assert check_resistance(patched, 0) == check_resistance(patched, 2)
     assert check_onyx(patched, 0) == check_onyx(patched, 2)
     assert check_larkspur(patched, 0) == check_larkspur(patched, 2)
+    check_wear(patched)
     check_spring(patched)
     print('Artefact skills: identical outcomes on two kits: PASS')
     check_resonance_springs(patched)

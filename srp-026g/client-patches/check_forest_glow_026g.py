@@ -85,6 +85,8 @@ def on_query(g, emu):
     emu.reg_write(UC_X86_REG_ESP, esp + 4)
 
 
+NAMES += [f"artefact_{kind}_wear_{tier}" for kind in ("spring", "lifebone", "onyx") for tier in range(1, 5)]
+
 def asked_and_kept(g):
     """The one query: the thirteen effects, class 109 each, tag 1, no user data; its callback
     through the game's invoker with a resource each (results 2E0h apart): one reference kept on
@@ -92,7 +94,7 @@ def asked_and_kept(g):
     assert len(g.queries) == 1, g.queries
     paths, count, function, user = g.queries[0]
     vtable, _entry, word = struct.unpack_from("<I4xII", function)
-    assert paths == [(name, 109) for name in NAMES] and count == 13 and user == 0, g.queries
+    assert paths == [(name, 109) for name in NAMES] and count == len(NAMES) and user == 0, g.queries
     assert (vtable, word) == (FUNCTION_VTABLE | 1, 1)
     resources = [g.effect_resource() for _ in NAMES]
     results = g.block(0x12C + 0x2E0 * len(NAMES))
@@ -170,8 +172,20 @@ def check(data):
     # The first tick asks for the effects; nothing plays before they arrive.
     assert g.tick(PLAYER) == []
     assert g.tick(g.other) == [] and len(g.queries) == 1, "asked once"
-    resource = asked_and_kept(g)[0]
-    print("Forest glow: the thirteen effects asked once at the first tick (forest_protection and the "
+    resources = asked_and_kept(g)
+    resource = resources[0]
+    # Activation and late-join reconstruction both enter this resource selection.
+    for row, enable in enumerate((0x3118D0, 0x312250, 0x3128C0)):
+        item, vt = g.block(0x1000), g.block(0x100)
+        g.word(item, vt)
+        g.word(vt + 0x80, enable)
+        g.word(item + 0x290, resource)
+        for uses in range(1, 6):
+            g.emu.mem_write(item + 0x27f, bytes([uses]))
+            g.step(0x313359, 6, ebx=item)
+            expect = resource if uses == 1 else resources[13 + 4 * row + uses - 2]
+            assert g.emu.reg_read(UC_X86_REG_ESI) == expect
+    print("Forest glow: the glow effects asked once at the first tick (forest_protection and the "
           "leg quarters, class 109, tag 1), each kept when they arrive: PASS")
 
     # The trigger and the clock: both kits, two places, ranks 0 and 1, zones 0 and 1, alive or dead.
@@ -222,7 +236,7 @@ def check(data):
     g.word(query + 0xFC, 0)
     for name, initial, expected in (("forest_protection", 1, 20), ("forest_protection", 30, 30),
                                     ("artefact_lifebone", 1, 20), ("artefact_leg_onyx_3", 1, 20), ("forest_protection_x", 1, 1),
-                                    ("forest", 1, 1), ("artefact_onyx", 1, 20), ("artefact_rattle", 1, 1)):
+                                    ("forest", 1, 1), ("artefact_onyx", 1, 20), ("artefact_onyx_wear_4", 1, 20), ("artefact_rattle", 1, 1)):
         g.emu.mem_write(fallback, name.encode() + b"\0")
         g.step(CAPACITY, 5, ebx=query, esi=initial)
         assert g.emu.reg_read(UC_X86_REG_ESI) == expected, (name, initial)

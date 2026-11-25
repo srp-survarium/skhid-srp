@@ -164,4 +164,20 @@ def main():
     assert r.update(False, 0, 0) == [off]
     print('ok another item with the same word: no blue')
 
+    # The native lookup returns the container address relative to the fixed slots.
+    r.word(PLAYER + 0x10c, INVENTORY)
+    container = DATA + 0xe000
+    r.word(INVENTORY + 0x168, container)
+    r.emu.mem_write(INVENTORY + 0x16c, bytes([1]))
+    r.word(container, ITEM2)
+    r.word(ITEM2, DATA + 0xf000)
+    r.word(DATA + 0xf080, 0x3128c0)
+    index = (container - INVENTORY - 0x10c) // 4
+    for uses, percent in enumerate((100, 80, 64, 51, 41, 0)):
+        r.emu.mem_write(ITEM2 + 0x27e, bytes([17, uses]))
+        assert r.update(False, 0, 0, index=index) == [(1, 5, percent, 17)]
+    r.word(container, 0)
+    assert r.update(False, 0, 0, index=index) == [off]
+    print('ok native artefact container: remaining power on all six tiers, then cleared on replacement')
+
 if __name__ == '__main__': main()
