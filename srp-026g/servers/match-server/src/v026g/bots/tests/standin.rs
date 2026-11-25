@@ -400,8 +400,9 @@ pub(crate) struct Body {
     /// [body physics S2] Where a shared-model body last left the ground not in a jump (a walk off an edge): the route tallies read
     /// it as a walk-off's edge until the body is down again.
     pub(crate) client_fall_from: Option<Vec3>,
-    /// [body physics S2] The forward press a shared-model body is flying (its tick, feet, keys, yaw and speed), for the jump log.
-    pub(crate) client_press: Option<(u32, Vec3, u32, f32, f32)>,
+    /// [body physics S2] The forward press a shared-model body is flying (its tick, feet, keys, yaw and speed), for the jump log;
+    /// [jump start] the speed read (the step ending a tick before the press) and the press tick's own step's, m/s.
+    pub(crate) client_press: Option<(u32, Vec3, u32, f32, f32, f32)>,
     /// The tick its walk last went down past a ledge's edge with no drop link ahead ([`standin_jump::past_edge`]): the falls
     /// probe tells such a fall from one down a drop link.
     pub(crate) past_edge_down: Option<u32>,
@@ -1370,7 +1371,11 @@ impl Game {
                 continue;
             }
             // [body physics S2] A forward press of a shared-model body flies by that body (the client's flight, from where the press
-            // tick's step left it, with the press tick's own step as its speed); a side or back press goes on to the clip below.
+            // tick's step left it); a side or back press goes on to the clip below.
+            // [jump start] Its speed is `speed`, the move of the step ending a tick before the press (player+334h when
+            // `player_logic_stand_jump_state::initialize` 0x337040 reads it at 0x33705A): the jump state is in force for the press
+            // tick's own step (its sprint flag is down), so that step is not the one read. The census of 116 traced jumps
+            // (`notes-jump-state.md` §8.3): that step gives the traced kind in 116 of 116, the press tick's own step in 114.
             if super::standin_jump::stand_in_client_body()
                 && self.world.grid.has_client_walker()
                 && let Some(client) = body.client.as_mut()
@@ -1379,9 +1384,9 @@ impl Game {
                 let level = if body.carrying.is_some() { 0.95 } else { 1.0 } * body.speed_level;
                 let kin = client_body::Kin { level, legs_broken: false };
                 let (leg, frame) = (mapdata::controller::jump::Leg::Left, mapdata::controller::jump::SPRINT_FIRST_AIR_FRAMES[0]);
-                if client.press_forward(keys, body.step_m / TICK_S, kin, leg, frame).is_ok() {
+                if client.press_forward(keys, speed, kin, leg, frame).is_ok() {
                     super::standin_jump::client_moves::count(super::standin_jump::client_moves::Kind::Flown);
-                    body.client_press = Some((at, body.feet, keys, body.yaw, body.step_m / TICK_S));
+                    body.client_press = Some((at, body.feet, keys, body.yaw, speed, body.step_m / TICK_S));
                     continue;
                 }
                 super::standin_jump::client_moves::count(super::standin_jump::client_moves::Kind::Clip);
@@ -1403,15 +1408,15 @@ impl Game {
                 // [A364] The press tick's last move (player +0x334): the short jump's carry.
                 speed,
                 // [stand-in jump] The client's own flight from where the press tick's walk left the body (the reckoning's press, after
-                // that tick's step): its kept controller, the press's keys, and the last move that walk made (player +0x334 when the
-                // jump starts: `body.step_m` is the press tick's step here, where `speed` is the step before it; the reckoning's
-                // `FlownJump::pressed` reads the press tick's step too).
+                // that tick's step): its kept controller, the press's keys, and player+334h when the jump state starts ([jump start]:
+                // `speed`, the step ending a tick before the press, not `body.step_m`, the press tick's own step; the reckoning's
+                // `FlownJump::pressed` reads the same step).
                 flown: super::standin_jump::controller_flight(
                     &self.world.grid,
                     body.kept,
                     body.feet,
                     keys,
-                    body.step_m / TICK_S,
+                    speed,
                     if body.carrying.is_some() { 0.95 } else { 1.0 } * body.speed_level,
                     may_sprint,
                 ),
@@ -1635,7 +1640,7 @@ impl Game {
                         };
                         body.client_air = t.in_jump || falling;
                         if !client.flying()
-                            && let Some((at, from, press_keys, yaw, speed)) = body.client_press.take()
+                            && let Some((at, from, press_keys, yaw, speed, own_step)) = body.client_press.take()
                         {
                             // [body physics S2] The flight's end is the jump's landing for the tallies, as a clip's
                             // (`standin_jump::Landing`: the press's tick, where it came down, the kind; its fall speed when it is not
@@ -1647,8 +1652,8 @@ impl Game {
                             self.landings.push(super::standin_jump::Landing { place, at, to: t.feet, sprint, fall_v });
                             if super::bench_settings().flag("SRP_BENCH_STAND_IN_JUMP_LOG") {
                                 eprintln!(
-                                    "stand-in client jump: place {place} pressed {at} at ({:.3}, {:.3}, {:.3}) keys {press_keys:#x} yaw {yaw:.4} speed {speed:.3}; down {tick} at ({:.3}, {:.3}, {:.3}), on the ground {}",
-                                    from.x, from.y, from.z, t.feet.x, t.feet.y, t.feet.z, t.on_ground
+                                    "stand-in client jump: place {place} pressed {at} at ({:.3}, {:.3}, {:.3}) keys {press_keys:#x} yaw {yaw:.4} speed {speed:.3} (the step ending {}; the press tick's own step {own_step:.3}); down {tick} at ({:.3}, {:.3}, {:.3}), on the ground {}",
+                                    from.x, from.y, from.z, at.saturating_sub(TICK_MS), t.feet.x, t.feet.y, t.feet.z, t.on_ground
                                 );
                             }
                         }
