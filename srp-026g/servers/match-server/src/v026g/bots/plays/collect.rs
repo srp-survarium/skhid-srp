@@ -6471,6 +6471,7 @@ mod tests {
             Some(Trapped {
                 since,
                 gave_up: false,
+                shut: None,
             }),
         );
         s.current = Some((PlayKind::Collect, target, since));
@@ -6484,6 +6485,7 @@ mod tests {
             Some(Trapped {
                 since,
                 gave_up: true,
+                shut: None,
             }),
         );
         let bring = s

@@ -87,6 +87,9 @@ mod rim;
 mod r1;
 mod run_ins;
 mod wall_give_back;
+/// [CPU hot paths] The route search's lookups made at load time, for the bots ([`hot::HotIndex`]): outside the grid key.
+mod hot;
+pub use hot::{HotIndex, HotOpen};
 /// g, m/s^2 (`fall_params.gravity` 9.8, PROVEN).
 const GRAVITY: f32 = 9.8;
 /// A flight looks this many cells on for its landing ([`WalkGrid::flight_fall`]).

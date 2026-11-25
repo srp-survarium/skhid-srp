@@ -1420,6 +1420,20 @@ pub(super) fn self_kill(due: &Due, bot: &mut Bot, state: &mut TeamState, notes: 
     #[cfg(test)]
     bot.stuck.drop_watch_self_kill();
     let (since, why) = facts.hopeless.map_or((now, String::new()), |h| (h.since, format!("{:?}", h.why)));
+    // [shut pocket] Its own line: the pocket and how long it stood there.
+    if let Some(stuck::Hopeless { why: stuck::HopelessWhy::ShutPocket(pocket), .. }) = facts.hopeless {
+        bot.note(
+            notes,
+            now,
+            format!(
+                "self_kill{}: shut pocket {pocket} for {} s at {:?}",
+                if again { " again" } else { "" },
+                now.saturating_sub(since) / 1_000,
+                me.feet.to_array(),
+            ),
+        );
+        return;
+    }
     bot.note(
         notes,
         now,

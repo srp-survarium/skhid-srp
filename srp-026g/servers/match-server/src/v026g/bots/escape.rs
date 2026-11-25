@@ -77,6 +77,9 @@ pub struct Trapped {
     pub since: u32,
     /// Every exit it may take was tried: it stays, aiming.
     pub gave_up: bool,
+    /// [shut pocket] The pocket when it is proven shut: no link leads out of it (a pocket), no jump either, walled ones too
+    /// ([`WalkGrid::pocket_exits`] empty, [`WalkGrid::in_shut_pocket`]), and the team learned none ([`Board::worked`]).
+    pub shut: Option<PocketId>,
 }
 
 /// A bot's escape from its pocket (in `Stuck`).
@@ -90,6 +93,8 @@ pub struct Escape {
     at: usize,
     trying: Option<u32>,
     gave_up: bool,
+    /// [shut pocket] [`Trapped::shut`].
+    shut: Option<PocketId>,
     /// The last tick seen, and the time spent unable to jump since the
     /// first (added to [`GIVE_UP_MS`]).
     last: u32,
@@ -110,6 +115,7 @@ impl Escape {
         Trapped {
             since: self.since,
             gave_up: self.gave_up,
+            shut: self.shut,
         }
     }
 
@@ -490,6 +496,8 @@ fn step(
                 at: 0,
                 trying: None,
                 gave_up: false,
+                shut: (grid.in_shut_pocket(node) && grid.pocket_exits(node).is_empty() && board.worked(team, pocket).is_empty())
+                    .then_some(pocket),
                 last: time,
                 held: 0,
                 #[cfg(test)]

@@ -173,6 +173,9 @@ pub struct TacticsBase {
     /// spawn areas), so [`Tactics::allowed`] is the same on every floor of
     /// a region (`mapdata::regions`).
     regions: Regions,
+    /// [CPU hot paths] The grid's route-search lookups ([`mapdata::grid::HotIndex`]), made with the base, once for the map,
+    /// off the match loop, not stored with it: the bots' searches read them ([`path::plan_start`]).
+    hot: mapdata::grid::HotIndex,
     /// Per floor, a bit: a walk from a spawn gets there (any link, every
     /// zone off). A goal on any other floor (a roof one only drops from, a
     /// shelf's top past the jump) has no way from where bots are.
@@ -661,6 +664,7 @@ impl TacticsBase {
             }
         }
         let regions = Regions::build(grid, Some(&labels));
+        let hot = mapdata::grid::HotIndex::for_grid(grid);
         // Only the spawn areas are read from here on: the zones' set is
         // the hazards' own.
         let spawn_areas = labels.iter().map(|&label| label as u8).collect();
@@ -677,6 +681,7 @@ impl TacticsBase {
             exits: Vec::new(),
             spawn_areas,
             regions,
+            hot,
             walkable,
             progress,
         };
@@ -801,6 +806,7 @@ impl TacticsBase {
                 let progress = progress::Progress::build(&world.grid, &regions, &world.map.spawns);
                 let walker_walls = super::body::walker_walls(&world);
                 let contract = objective_contract(&world);
+                let hot = mapdata::grid::HotIndex::for_grid(&world.grid);
                 Ok(Self {
                     walker_walls,
                     contract,
@@ -809,6 +815,7 @@ impl TacticsBase {
                     exits,
                     spawn_areas,
                     regions,
+                    hot,
                     walkable,
                     progress,
                 })
@@ -831,6 +838,7 @@ impl TacticsBase {
             + self.hazards.marks().memory_bytes()
             + self.spawn_areas.len()
             + self.regions.memory_bytes()
+            + self.hot.hot_bytes()
             + self.walkable.len() * 8
             + self
                 .exits
@@ -1601,6 +1609,7 @@ impl Tactics {
         path::plan_start(
             grid,
             &self.base.regions,
+            &self.base.hot,
             start,
             goal,
             |node| self.route_floor_open(node, time, side, objective, at, filter, &legs),
@@ -1686,6 +1695,7 @@ impl Tactics {
         planning.resume(
             grid,
             &self.base.regions,
+            &self.base.hot,
             |node| self.route_floor_open(node, time, side, objective, at, filter, &legs),
             |region| self.route_region_open(region, time, side, objective, at, filter, &legs),
             &weight,
@@ -1717,6 +1727,7 @@ impl Tactics {
         path::plan_start(
             &self.world.grid,
             &self.base.regions,
+            &self.base.hot,
             start,
             goal,
             |node| self.crossing_allowed(node, time, side, objective, at, &hard, &crossable),
@@ -1745,6 +1756,7 @@ impl Tactics {
         planning.resume(
             &self.world.grid,
             &self.base.regions,
+            &self.base.hot,
             |node| self.crossing_allowed(node, time, side, objective, at, &hard, &crossable),
             |region| self.spawn_ok(self.base.regions.middle(region), side, objective),
             &|_| 1.0,
@@ -2973,7 +2985,8 @@ impl Tactics {
             if count >= WALK_UP_MAX_FLOORS {
                 break;
             }
-            for (v, kind) in grid.links(u) {
+            // [CPU hot paths] `grid.links` by the base's load-time lookups: the same links in the same order.
+            for (v, kind) in self.base.hot.hot_links(grid, u) {
                 if kind == LinkKind::Walk
                     && !seen.contains(v)
                     && grid.position(v).distance_xz(around) <= radius
@@ -2985,6 +2998,42 @@ impl Tactics {
             }
         }
         seen
+    }
+
+    /// [CPU hot paths] [`Self::walk_up_from`] as it was before the base's lookups (`grid.links`), and the new one, uncached:
+    /// for the tests and the measurement (`tests/hot_paths.rs`).
+    #[cfg(test)]
+    pub(super) fn walk_up_both(&self, around: Vec3, radius: f32, hot: bool) -> (Vec<u64>, usize) {
+        if hot {
+            let set = self.walk_up_from(around, radius);
+            let count = set.0.iter().map(|w| w.count_ones() as usize).sum();
+            return (set.0, count);
+        }
+        use mapdata::LinkKind;
+        let grid = &self.world.grid;
+        let mut seen = WalkUp::new(grid.len());
+        let Some(start) = grid.locate(around, LOCATE_M) else {
+            return (seen.0, 0);
+        };
+        let mut queue = vec![start];
+        let mut count = 1usize;
+        seen.insert(start);
+        let mut head = 0;
+        while head < queue.len() {
+            let u = queue[head];
+            head += 1;
+            if count >= WALK_UP_MAX_FLOORS {
+                break;
+            }
+            for (v, kind) in grid.links(u) {
+                if kind == LinkKind::Walk && !seen.contains(v) && grid.position(v).distance_xz(around) <= radius {
+                    seen.insert(v);
+                    count += 1;
+                    queue.push(v);
+                }
+            }
+        }
+        (seen.0, count)
     }
 
     /// The set [`Self::walk_up_from`] was before the bit set and the kept

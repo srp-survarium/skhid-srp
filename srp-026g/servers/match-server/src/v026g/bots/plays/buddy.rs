@@ -393,11 +393,11 @@ mod tests {
         let offers_buddy = |s: &Scenario| s.candidates(2).iter().any(|c| c.kind == PlayKind::Buddy);
         let mut s = pair(40.0);
         let since = s.view.clock;
-        s.tactics.escapes.set_trapped_for_test(2, Some(Trapped { since, gave_up: true }));
+        s.tactics.escapes.set_trapped_for_test(2, Some(Trapped { since, gave_up: true, shut: None }));
         assert!(offers_buddy(&s), "switch off: the old offer");
         s.tuning.think.shut_in_gate = true;
         assert!(!offers_buddy(&s), "given up: no offer");
-        s.tactics.escapes.set_trapped_for_test(2, Some(Trapped { since, gave_up: false }));
+        s.tactics.escapes.set_trapped_for_test(2, Some(Trapped { since, gave_up: false, shut: None }));
         assert!(offers_buddy(&s), "still trying: offered");
         s.tactics.escapes.set_trapped_for_test(2, None);
         assert!(offers_buddy(&s), "free: offered");

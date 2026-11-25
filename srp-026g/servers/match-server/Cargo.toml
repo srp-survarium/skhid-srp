@@ -41,6 +41,9 @@ client-body = { path = "../../crates/client-body" }
 libc = { workspace = true }
 
 [dev-dependencies]
+# [CPU hot paths] mapdata's items by their tokens, for the copy guard of the bots' runtime copies of mapdata's search
+# (`bots::tests::hot_paths::hot_copies_follow_their_originals`).
+mapdata-srchash = { path = "../../crates/mapdata-srchash" }
 # Sessions without a sign-in, for the tests (`SessionStore::create_session`).
 session = { workspace = true, features = ["test-support"] }
 # A patched copy of the game data (`GameData::laid_over`, `weapons::fixtures`) for the

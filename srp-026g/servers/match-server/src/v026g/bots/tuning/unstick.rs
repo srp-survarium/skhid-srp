@@ -25,6 +25,11 @@ pub struct UnstickTuning {
     /// Cologne match 0x151faf3d, player 6 pinned 135 s at (38.4, 33.7, 28.2), its body within 0.49 m through 24 ladder steps;
     /// the self-kill never came, as a heard or told enemy was in its tracks every few seconds (the map's middle).
     pub suicide_loud: Option<SuicideLoud>,
+    /// [shut pocket] A bot whose escape gave up in a pocket proven shut (no link and no jump out, none its team learned:
+    /// `stuck::HopelessWhy::ShutPocket`) kills itself this long after, ms, an enemy sensed or not, the match young or not;
+    /// none: it waits as any hopeless bot ([`Self::suicide_after_ms`]). The owner's 10 s (2026-11-24): in Vector Laboratory
+    /// batteries' pit two bots stood 77 s and 90 s, the quiet rule holding them while enemies were near.
+    pub shut_pocket_kill_ms: Option<u32>,
     /// … at most once a bot in this long, ms, and this many a team in a
     /// minute. Owner: one a bot in 3 minutes, two a team a minute.
     pub suicide_bot_gap_ms: u32,
@@ -200,6 +205,7 @@ impl Default for UnstickTuning {
             suicide_life_ms: 20_000,
             suicide_match_ms: 120_000,
             suicide_loud: Some(SuicideLoud::default()),
+            shut_pocket_kill_ms: Some(10_000),
             suicide_bot_gap_ms: 180_000,
             suicide_team_per_min: 2,
             suicide_min_tickets: 5,

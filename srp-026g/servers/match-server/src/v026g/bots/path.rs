@@ -882,13 +882,14 @@ pub fn plan_where_reaching(
 pub fn plan_in(
     grid: &WalkGrid,
     regions: &Regions,
+    hot: &mapdata::grid::HotIndex,
     from: NodeId,
     to: NodeId,
     allowed: impl Fn(NodeId) -> bool,
     region_ok: impl Fn(u32) -> bool,
 ) -> Option<Route> {
     let mut iters = usize::MAX;
-    match plan_start(grid, regions, from, to, allowed, region_ok, mapdata::Reach::FULL, None, &mut iters) {
+    match plan_start(grid, regions, hot, from, to, allowed, region_ok, mapdata::Reach::FULL, None, &mut iters) {
         Ok(route) => route,
         Err(_) => unreachable!("an unbounded search ends"),
     }
@@ -905,6 +906,8 @@ pub struct Planning {
     weighted: bool,
     /// [CPU] Its floor test's answers so far ([`FloorTests`]).
     tested: FloorTests,
+    /// [CPU hot paths] Its open list, a radix heap ([`mapdata::grid::HotOpen`]), kept across slices.
+    queue: mapdata::grid::HotOpen,
     #[cfg(test)]
     us: f64,
     #[cfg(test)]
@@ -924,6 +927,7 @@ pub struct Planning {
 pub fn plan_start(
     grid: &WalkGrid,
     regions: &Regions,
+    hot: &mapdata::grid::HotIndex,
     from: NodeId,
     to: NodeId,
     allowed: impl Fn(NodeId) -> bool,
@@ -953,6 +957,7 @@ pub fn plan_start(
                 search,
                 weighted: weight.is_some(),
                 tested: FloorTests::new(grid.len()),
+                queue: mapdata::grid::HotOpen::hot_open_empty(),
                 #[cfg(test)]
                 us: started.elapsed().as_secs_f64() * 1e6,
                 #[cfg(test)]
@@ -960,7 +965,7 @@ pub fn plan_start(
                 #[cfg(test)]
                 slices: 0,
             };
-            match planning.resume(grid, regions, allowed, region_ok, weight.unwrap_or(&|_| 1.0), iters) {
+            match planning.resume(grid, regions, hot, allowed, region_ok, weight.unwrap_or(&|_| 1.0), iters) {
                 Some(route) => Ok(route),
                 None => Err(planning),
             }
@@ -1005,10 +1010,12 @@ impl Planning {
     /// route, or none, once the search ends; `None` while it goes on.
     /// `weight`: the filter's (`RouteFilter::weight`), read only by a search
     /// that started weighed, so a plain search stays plain whatever it is.
+    #[allow(clippy::too_many_arguments)]
     pub fn resume(
         &mut self,
         grid: &WalkGrid,
         regions: &Regions,
+        hot: &mapdata::grid::HotIndex,
         allowed: impl Fn(NodeId) -> bool,
         region_ok: impl Fn(u32) -> bool,
         weight: &dyn Fn(NodeId) -> f32,
@@ -1020,8 +1027,8 @@ impl Planning {
         let allowed = self.tested.kept(&allowed);
         // The plain search keeps its own loop (no call through the weight).
         let ended = match weight {
-            Some(w) => self.search.step(regions, grid, &allowed, region_ok, w, iters),
-            None => self.search.step(regions, grid, &allowed, region_ok, |_| 1.0, iters),
+            Some(w) => self.search.step_hot(regions, grid, hot, &mut self.queue, &allowed, region_ok, w, iters),
+            None => self.search.step_hot(regions, grid, hot, &mut self.queue, &allowed, region_ok, |_| 1.0, iters),
         };
         #[cfg(test)]
         {
@@ -2595,14 +2602,15 @@ mod tests {
         let (from, to) = (grid.locate(Vec3::new(5.0, 0.0, 10.0), 1.0).unwrap(), grid.locate(Vec3::new(75.0, 0.0, 12.0), 1.0).unwrap());
         // Sliced: 200 floors a slice.
         let mut iters = 200;
-        let mut sliced = plan_start(grid, &regions, from, to, allowed, |_| true, mapdata::Reach::FULL, None, &mut iters);
+        let hot = mapdata::grid::HotIndex::for_grid(grid);
+        let mut sliced = plan_start(grid, &regions, &hot, from, to, allowed, |_| true, mapdata::Reach::FULL, None, &mut iters);
         let mut slices = 1;
         let route = loop {
             match sliced {
                 Ok(route) => break route,
                 Err(mut planning) => {
                     let mut iters = 200;
-                    match planning.resume(grid, &regions, allowed, |_| true, &|_| 1.0, &mut iters) {
+                    match planning.resume(grid, &regions, &hot, allowed, |_| true, &|_| 1.0, &mut iters) {
                         Some(route) => break route,
                         None => sliced = Err(planning),
                     }

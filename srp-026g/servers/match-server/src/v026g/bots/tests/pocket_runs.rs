@@ -454,6 +454,25 @@ fn a_bot_shut_in_a_pit_kills_itself_after_the_minute_and_comes_back() {
     );
 }
 
+/// [shut pocket] The pit is a pocket the grid proves shut (no link and no jump out): the bot that gave up in it kills
+/// itself `shut_pocket_kill_ms` (10 s) after, not the minute, says so with the pocket, and comes back out of it.
+#[test]
+fn a_bot_shut_in_a_proven_shut_pocket_kills_itself_after_10_s() {
+    let mut tuning = Tuning::all_off();
+    tuning.unstick.suicide_after_ms = Some(60_000);
+    tuning.unstick.shut_pocket_kill_ms = Some(10_000);
+    // The bot is put in the pit at its life's start: no young-life wait, to see the 10 s alone.
+    tuning.unstick.suicide_life_ms = 0;
+    let PitRun { died, back, said, end, world, .. } = run_pit(tuning, 40_000);
+    eprintln!("died {died:?} back {back:?} said {said:?}");
+    assert_eq!(died.len(), 1, "once: {died:?}");
+    assert!((10_000..=14_000).contains(&died[0]), "10 s after it gave up: {died:?}");
+    assert_eq!(said.len(), 1, "{said:?}");
+    assert!(said[0].starts_with("self_kill: shut pocket ") && said[0].contains(" for 10 s at "), "{said:?}");
+    assert_eq!(back.len(), 1, "it came back: {back:?}");
+    assert!(world.grid.locate(end, 1.0).is_some_and(|n| !world.grid.in_pocket(n)), "{end:?}");
+}
+
 /// With the setting at 0 (the default, the switch off) the same bot stands in the pit to the end.
 #[test]
 fn with_the_setting_at_zero_a_bot_in_a_pit_stays_there() {

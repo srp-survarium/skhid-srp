@@ -337,7 +337,7 @@ impl RayTree {
         if length <= 0.02 {
             return true;
         }
-        !self.any_hit(a, d * (1.0 / length), 0.01, length - 0.01)
+        !self.hit_any_hot(a, d * (1.0 / length), 0.01, length - 0.01)
     }
 
     /// The distance to the first hit along `dir` (unit) within `max_t`.
@@ -495,6 +495,7 @@ impl RayTree {
         best
     }
 
+    /// [`Self::visible`]'s test before [`Self::hit_any_hot`]: the reference the tests hold it to.
     fn any_hit(&self, origin: Vec3, dir: Vec3, min_t: f32, max_t: f32) -> bool {
         let mut hit = false;
         self.walk(origin, dir, min_t, max_t, &|_| true, &mut |_, _| {
@@ -559,6 +560,21 @@ impl RayTree {
         false
     }
 
+    /// [CPU hot paths] [`Self::visible`] as it was before [`Self::hit_any_hot`]: by [`Self::walk`] (for tests and the
+    /// measurement).
+    #[doc(hidden)]
+    pub fn visible_by_walk(&self, a: Vec3, b: Vec3) -> bool {
+        let d = b - a;
+        let length = d.length();
+        if !length.is_finite() {
+            return false;
+        }
+        if length <= 0.02 {
+            return true;
+        }
+        !self.any_hit(a, d * (1.0 / length), 0.01, length - 0.01)
+    }
+
     /// [`Self::visible`] by testing every triangle (for tests).
     #[doc(hidden)]
     pub fn visible_every_triangle(&self, a: Vec3, b: Vec3) -> bool {
@@ -575,6 +591,45 @@ impl RayTree {
             .triangles
             .iter()
             .any(|tri| ray_triangle(a, dir, tri).is_some_and(|t| t > 0.01 && t < length - 0.01))
+    }
+
+    /// [CPU hot paths] Whether some triangle meets the ray between `min_t` and `max_t` (both excluded): [`Self::walk`] with
+    /// every triangle accepted and the first hit ending it (`any_hit`), without the calls through `accept` and `found`. The
+    /// same nodes in the same order, the same slab and triangle tests; the walk's `max_t` never narrowed before it ends, as
+    /// the first hit ends it there. copy-of: `RayTree::walk` (the copy guard: match-server `hot_sight.rs`).
+    fn hit_any_hot(&self, origin: Vec3, dir: Vec3, min_t: f32, max_t: f32) -> bool {
+        if self.nodes.is_empty() || !origin.is_finite() || !dir.is_finite() {
+            return false;
+        }
+        let inv = Vec3::new(1.0 / dir.x, 1.0 / dir.y, 1.0 / dir.z);
+        let mut stack = [0u32; STACK];
+        let mut top = 1;
+        while top > 0 {
+            top -= 1;
+            let index = stack[top] as usize;
+            let node = &self.nodes[index];
+            if !slab(origin, inv, node.min, node.max, min_t, max_t) {
+                continue;
+            }
+            if node.count > 0 {
+                let first = node.first_or_right as usize;
+                for tri in &self.triangles[first..first + node.count as usize] {
+                    if let Some(t) = ray_triangle(origin, dir, tri)
+                        && t > min_t
+                        && t < max_t
+                    {
+                        return true;
+                    }
+                }
+            } else if top + 2 <= STACK {
+                let (left, right) = (index as u32 + 1, node.right() as u32);
+                let (near, far) = if dir.axis(node.axis()) < 0.0 { (right, left) } else { (left, right) };
+                stack[top] = far;
+                stack[top + 1] = near;
+                top += 2;
+            }
+        }
+        false
     }
 
     /// Visits hits nearer than the best so far; `found(t, triangle's index)`
@@ -808,6 +863,54 @@ mod tests {
         let (a, b) = (Vec3::new(-1.0, 0.0, 0.0), Vec3::new(1.0, 0.0, 0.0));
         let (c, d) = (Vec3::new(1.0, 2.0, 0.0), Vec3::new(-1.0, 2.0, 0.0));
         [[a, b, c], [a, c, d]]
+    }
+
+    /// [CPU hot paths] The monomorphic any-hit gives the walk's answer for random rays through random triangle soups, the
+    /// rays grazing edges and corners and starting on faces too.
+    #[test]
+    fn the_hot_any_hit_answers_as_the_walk() {
+        let mut rng = 0x2545_f491_4f6c_dd1du64;
+        let mut next = || {
+            rng ^= rng << 13;
+            rng ^= rng >> 7;
+            rng ^= rng << 17;
+            (rng >> 40) as f32 / (1u64 << 24) as f32
+        };
+        let (mut hits, mut misses) = (0, 0);
+        for round in 0..40 {
+            let count = 1 + round * 7;
+            let corners: Vec<[Vec3; 3]> = (0..count)
+                .map(|_| {
+                    let c = Vec3::new(next() * 20.0, next() * 6.0, next() * 20.0);
+                    let mut r = |s: f32| Vec3::new((next() - 0.5) * s, (next() - 0.5) * s, (next() - 0.5) * s);
+                    [c + r(3.0), c + r(3.0), c + r(3.0)]
+                })
+                .collect();
+            let tree = RayTree::from_corners(corners.iter().copied());
+            for _ in 0..400 {
+                // Half the rays aim at a triangle's corner or edge.
+                let a = Vec3::new(next() * 24.0 - 2.0, next() * 8.0 - 1.0, next() * 24.0 - 2.0);
+                let b = if next() < 0.5 {
+                    let t = &corners[(next() * count as f32) as usize % count];
+                    let w = next();
+                    t[0] + (t[1] - t[0]) * w
+                } else {
+                    Vec3::new(next() * 24.0 - 2.0, next() * 8.0 - 1.0, next() * 24.0 - 2.0)
+                };
+                let d = b - a;
+                let length = d.length();
+                if length.is_nan() || length <= 0.02 {
+                    continue;
+                }
+                let dir = d * (1.0 / length);
+                for (lo, hi) in [(0.01, length - 0.01), (0.0, length), (0.5 * length, length + 1.0)] {
+                    let want = tree.any_hit(a, dir, lo, hi);
+                    assert_eq!(tree.hit_any_hot(a, dir, lo, hi), want, "{a:?} -> {b:?} ({lo}, {hi})");
+                    if want { hits += 1 } else { misses += 1 }
+                }
+            }
+        }
+        assert!(hits > 1000 && misses > 1000, "{hits} {misses}");
     }
 
     #[test]
