@@ -279,6 +279,31 @@ fn inert_attributes_move_no_key_and_track_caller_does() {
 }
 
 #[test]
+fn coverage_only_items_reach_nothing_and_move_no_key() {
+    // A `#[cfg(srp_coverage)]` item (the oracle's windows) is in no build a key names: its method calls on an untyped
+    // receiver (`FLAG.load(..)`) must not widen the closure, nor an edit of it move a key.
+    let a = "pub struct Map; impl Map { pub fn load() -> Map { Map } }
+        pub struct W; impl W { pub fn run(&self) -> u32 { window(|| 1) } }
+        pub fn root(m: &Map) -> u32 { let w = W; w.run() }
+        #[cfg(not(srp_coverage))]
+        pub fn window(f: impl FnOnce() -> u32) -> u32 { f() }
+        #[cfg(srp_coverage)]
+        static FLAG: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+        #[cfg(srp_coverage)]
+        pub fn window(f: impl FnOnce() -> u32) -> u32 { FLAG.load(std::sync::atomic::Ordering::SeqCst); f() }";
+    let names = |text: &str| -> (BTreeSet<String>, u128) {
+        let files: Vec<(String, String)> = vec![("src/a.rs".to_owned(), text.to_owned())];
+        let s = Source::parse_with(&files, None, Resolution::Scoped).unwrap();
+        let c = s.closure(&["root"]).unwrap();
+        (c.iter().flat_map(|&u| s.units[u].names.clone()).collect(), s.digest(&c, 0))
+    };
+    let (reached, key) = names(a);
+    assert!(reached.contains("window") && reached.contains("W::run"), "{reached:?}");
+    assert!(!reached.contains("Map::load"), "{reached:?}");
+    assert_eq!(names(&a.replace("SeqCst); f()", "Relaxed); f()")).1, key);
+}
+
+#[test]
 fn why_agrees_with_the_closure() {
     let files = [("src/grid.rs", GRID), ("src/built.rs", BUILT), ("src/sight.rs", SIGHT)];
     let s = source(&files);
