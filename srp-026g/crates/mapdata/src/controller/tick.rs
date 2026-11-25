@@ -736,18 +736,15 @@ impl Controller {
         let end = from + by;
         let by = end - from;
         let r = self.dims.0;
-        let mut best: Option<Contact> = None;
-        world.sweep_each_to(self.capsule_at(from), end, |c| {
+        let best = world.sweep_closest_to(self.capsule_at(from), end, |c| {
             if axis {
                 let at = from + by * c.t;
                 let (hx, hz) = (c.point.x - at.x, c.point.z - at.z);
                 if !(hx * hx + hz * hz < r * r - 1e-5) && c.normal.y.abs() < 0.001 {
-                    return;
+                    return false;
                 }
             }
-            if best.is_none_or(|b| c.replaces(&b)) {
-                best = Some(c);
-            }
+            true
         });
         best.map(|c| (c.t, c.normal))
     }
@@ -877,20 +874,15 @@ impl Controller {
             (dir.z * q.z + dir.y * q.y) + q.x * dir.x > 0.0
         };
         let callback = |shape: Shape, own: Vec3, end: Vec3| -> Option<(f32, Vec3, Vec3)> {
-            let mut best: Option<Contact> = None;
-            world.sweep_each_to(shape, end, |c| {
+            let best = world.sweep_closest_to(shape, end, |c| {
                 if c.t == 0.0 {
                     let kept = ahead(c.point, from);
                     if own != from && kept != ahead(c.point, own) {
                         super::count_top_check_parting(super::TopCheckParting::FractionZero);
                     }
-                    if !kept {
-                        return;
-                    }
+                    return kept;
                 }
-                if best.is_none_or(|b| c.replaces(&b)) {
-                    best = Some(c);
-                }
+                true
             });
             let c = best?;
             let k = (UP.z * c.normal.z + UP.y * c.normal.y) + UP.x * c.normal.x;
@@ -1000,9 +992,6 @@ impl Controller {
         // The callback's floor limit (+90h): the start's height along up less the swept capsule's half height along its up
         // axis, made once before the sweep (0x85103..0x85125, the constructor 0x842E0 stores it at 0x843D4).
         let floor = ((UP.y * from.y + UP.z * from.z) + UP.x * from.x) - hh;
-        let mut hits: Vec<Contact> = Vec::new();
-        world.sweep_each_to(self.capsule_at(from), end, |c| hits.push(c));
-        hits.sort_by(|a, b| a.t.total_cmp(&b.t));
         let taken = |c: &Contact| {
             let at = from + by * c.t;
             // A hit point over the floor limit is dropped (0x84451..0x84484: `up . point > +90h`), the limit as it was at the
@@ -1015,6 +1004,18 @@ impl Controller {
             let hz = c.point.z - at.z;
             hx * hx + hz * hz < r * r - 1e-5 || !(c.normal.y.abs() < 0.001)
         };
+        // [bot CPU] Every hit at or under the nearest taken one so far: the walk below stops at the first hit past the nearest
+        // taken one (`c.t > k.t`), so a hit past a taken one is never read and its cast may give up there.
+        let mut hits: Vec<Contact> = Vec::new();
+        let mut upto = 1.0f32;
+        world.sweep_each_to_within(self.capsule_at(from), end, |c| {
+            if c.t < upto && taken(&c) {
+                upto = c.t;
+            }
+            hits.push(c);
+            upto
+        });
+        hits.sort_by(|a, b| a.t.total_cmp(&b.t));
         // The nearest hit the callback takes; [L36] at its fraction a later triangle of the same mesh query instead
         // ([`Contact::replaces`]).
         let mut kept: Option<Contact> = None;
@@ -1162,20 +1163,14 @@ impl Controller {
         let end = from + UP * rise;
         // With up = (0, 1, 0) both wrappers' sums give these bits: the other terms are signed zeros.
         let floor = from.y + hh;
-        let mut best: Option<Contact> = None;
-        world.sweep_each_to(self.capsule_at(from), end, |c| {
+        let best = world.sweep_closest_to(self.capsule_at(from), end, |c| {
             if floor > c.point.y {
-                return;
+                return false;
             }
             // The point less the start, less its part along up: (dz² + dy²) + dx² with dy a zero.
             let (hx, hz) = (c.point.x - from.x, c.point.z - from.z);
             let s = (hz * hz + hx * hx).sqrt();
-            if TINY > (s - r).abs() || !(r > s) {
-                return;
-            }
-            if best.is_none_or(|b| c.replaces(&b)) {
-                best = Some(c);
-            }
+            !(TINY > (s - r).abs() || !(r > s))
         });
         best.map(|c| c.normal)
     }
