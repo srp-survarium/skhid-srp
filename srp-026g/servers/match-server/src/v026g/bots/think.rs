@@ -225,7 +225,10 @@ impl Bots {
                         // [CPU] The bench's split of the ticks' time (`bench_cpu`): timing only.
                         #[cfg(test)]
                         let drive_span = super::bench_cpu::Span::begin();
+                        // [bot traps] A goal the drive's own search failed to reach to the end this tick goes on cool-down.
+                        path::mark_ends();
                         let decision = drive_tick(bot, &me, view, tactics, &tuning, time, searching, press);
+                        unreachable::after_drive(bot, &me, tactics, path::end_since_mark(), time);
                         #[cfg(test)]
                         drive_span.end(super::bench_cpu::Part::Drive);
                         #[cfg(test)]
@@ -1471,6 +1474,19 @@ pub(super) fn decide(
         bot.intent = Intent::stay();
         return None;
     };
+    // [bot traps] Its goals on cool-down (`unreachable.rs`): those whose cool-down ran out or that it stands away from go, each
+    // with its line; the rest join its own no-way goals for the play.
+    if !bot.unreachable.is_empty() {
+        let region = tactics.world.grid.locate(me.feet, unreachable::STAND_M).map(|n| tactics.regions().of(n));
+        for (goal, why) in bot.unreachable.release(region, now) {
+            bot.nav_log.push(nav_log::Kind::Unreachable, now, unreachable::released_line(goal, why, now));
+        }
+    }
+    let no_way_to: std::borrow::Cow<[(Vec3, u32)]> = if bot.unreachable.is_empty() {
+        std::borrow::Cow::Borrowed(&bot.no_way_to)
+    } else {
+        bot.no_way_to.iter().copied().chain(bot.unreachable.no_way_view(now)).collect()
+    };
     let target = bot
         .assignment
         .as_ref()
@@ -1493,7 +1509,7 @@ pub(super) fn decide(
             pantry: &bot.features.stock.pantry,
             pools: bot.features.stock.pools,
             zone_armour: &bot.features.crossing.armour,
-            no_way_to: &bot.no_way_to,
+            no_way_to: &no_way_to,
             set_aside: &bot.features.memory.set_aside,
             failed_stands: &bot.features.memory.failed_stands,
             world_feet: bot.world_feet,
@@ -1562,10 +1578,16 @@ pub(super) fn decide(
         // Its goal one its own search proved no way to lately: the play
         // is left, set aside while the proof holds, for the commander to
         // choose again (not stood at the goal, searched every 500 ms).
-        Step::Continue(intent) if goal_shut(&intent, me, &bot.no_way_to, now) => {
+        Step::Continue(intent) if goal_shut(&intent, me, &no_way_to, now) => {
+            // [bot traps] Set aside while the proof holds, or only while its cool-down does when that alone shut it.
+            let until = match intent.go {
+                Go::To { at, .. } if !goal_shut(&intent, me, &bot.no_way_to, now) => bot.unreachable.until(at, now),
+                _ => None,
+            }
+            .unwrap_or(now + NO_WAY_KEEP_MS);
             if let Some(a) = bot.assignment.as_ref() {
                 bot.features.memory.set_aside.retain(|&(_, _, until)| until > now);
-                bot.features.memory.set_aside.push((a.kind, a.target, now + NO_WAY_KEEP_MS));
+                bot.features.memory.set_aside.push((a.kind, a.target, until));
                 take_ended(tuning, state, bot, a.kind, a.target, plays::collect::TakeEnd::NoWay, now, notes);
             }
             bot.end_play(now, "no way to its goal", notes);

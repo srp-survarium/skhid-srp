@@ -949,6 +949,7 @@ pub fn plan_start(
             // Answered before a floor was searched: the regions (or the goal's links in) rule the way out.
             if ended.is_none() {
                 LAST_END.with(|e| e.set(Some(SearchEnd::Regions)));
+                END_SINCE_MARK.with(|e| e.set(Some(SearchEnd::Regions)));
             }
             Ok(ended)
         }
@@ -1086,6 +1087,12 @@ impl SearchEnd {
         }
     }
 
+    /// [bot traps] Every floor the search's filter lets through from its start was tried, or the regions answered at once: the
+    /// same search from there ends the same.
+    pub fn exhaustive(self) -> bool {
+        matches!(self, Self::NoWay | Self::Regions)
+    }
+
     pub fn word(self) -> &'static str {
         match self {
             Self::Found => "found",
@@ -1098,6 +1105,18 @@ impl SearchEnd {
 
 thread_local! {
     static LAST_END: std::cell::Cell<Option<SearchEnd>> = const { std::cell::Cell::new(None) };
+    /// [bot traps] The same, kept apart from [`LAST_END`] (whose readers take it): [`mark_ends`], [`end_since_mark`].
+    static END_SINCE_MARK: std::cell::Cell<Option<SearchEnd>> = const { std::cell::Cell::new(None) };
+}
+
+/// [bot traps] Forgets the searches ended so far on this thread: [`end_since_mark`] reads only those that end after.
+pub fn mark_ends() {
+    END_SINCE_MARK.with(|e| e.set(None));
+}
+
+/// [bot traps] How the last route search that ended on this thread since [`mark_ends`] ended (none: none ended).
+pub fn end_since_mark() -> Option<SearchEnd> {
+    END_SINCE_MARK.with(std::cell::Cell::take)
 }
 
 /// [owner-5] How the last route search on this thread ended ([`SearchEnd`]), taken (the next read is the next search's).
@@ -1115,6 +1134,7 @@ fn finish(
     weight: Option<&dyn Fn(NodeId) -> f32>,
 ) -> Option<Route> {
     LAST_END.with(|e| e.set(Some(SearchEnd::of(&found))));
+    END_SINCE_MARK.with(|e| e.set(Some(SearchEnd::of(&found))));
     match (found, weight) {
         (Search::Found(path), None) => Some(pull(grid, path, allowed)),
         (Search::Found(path), Some(w)) => {
