@@ -143,6 +143,15 @@ pub(super) fn world(
                 }
             }
             // [incremental grids] Where the build's time went: per pass and per `parallel` call (`mapdata::grid::timing`).
+            // [body physics S5b] R1's counts and the stored run-ins' replays, a line a build; each press whose run-up did not replay.
+            let (r1, run_ins) = (stats.r1, &stats.run_ins);
+            eprintln!(
+                "  grid cache: R1 across {} walk_kept {} re_pressed {} dropped {}; run-ins replayed {} not {}",
+                r1.across, r1.walk_kept, r1.re_pressed, r1.dropped, run_ins.replayed, run_ins.not_replayed
+            );
+            for (from, to, walk) in &run_ins.not_replayed_links {
+                eprintln!("  grid cache: run-in not replayed: {from:?} -> {to:?} walk {walk}");
+            }
             for line in stats.timing.table().lines() {
                 eprintln!("  grid cache: build time: {line}");
             }

@@ -180,3 +180,73 @@ pub(crate) fn a_bot_leaves_a_play_whose_goal_it_proved_no_way_to_and_takes_anoth
     );
     assert_ne!((next_kind, next_target), (kind, target));
 }
+
+/// [bot traps] A goal its own exhaustive search failed to reach, with no proof for the team (`unreachable.rs`), is left at the
+/// next think as a proved one is: the bot walks to another goal within a second, and a play left for it is set aside only
+/// for the cool-down's rest, not the proof's 20 s.
+#[test]
+pub(crate) fn a_bot_leaves_a_goal_on_cool_down_and_sets_its_play_aside_for_the_cool_down() {
+    let world = soak_world();
+    let teams = [0u8, 1];
+    let mut bots = Bots::new(
+        0x51A7,
+        survarium::v026g::maps::RuleMode::TeamDeathmatch,
+        0,
+        &teams,
+        &[true, false],
+        &[None, None],
+        Arc::new(Tuning::default()),
+        Trace::none(0),
+    );
+    bots.map_ready(world.clone());
+    let mut game = Game::new(world.clone(), &teams, 7, None, None);
+    bots.entered(0, true, 0);
+    let (mut clock, mut next_world) = (0, 1_000);
+    // (noted at, the play, its goal), and when its goal moved off it.
+    let mut noted: Option<(u32, PlayKind, plays::TargetRef, Vec3)> = None;
+    let mut moved_at = None;
+    while clock < 20_000 && moved_at.is_none() {
+        clock += 25;
+        while game.tick + TICK_MS <= clock {
+            game.step();
+        }
+        if clock >= next_world {
+            next_world += 1_000;
+            if let Some((_, fixes, health, facts)) = game.world_at(clock / TICK_MS * TICK_MS - 300) {
+                for (place, (fix, health)) in fixes.into_iter().zip(health).enumerate() {
+                    bots.fixed(place, fix, Some(health));
+                }
+                bots.facts(facts);
+            }
+        }
+        let (made, _) = bots.poll(Clock { clock, time_left_s: 600.0, total_s: 900.0, playing: true });
+        for made in made {
+            let r = made.input.rotation;
+            let turn = (half_value(u16::from_le_bytes([r[0], r[1]])), half_value(u16::from_le_bytes([r[2], r[3]])));
+            game.inputs[made.place].push_back((made.time, made.input.actions, turn, None, Arms::fallback().primary.0));
+        }
+        let tactics = bots.tactics.as_ref().expect("tactics");
+        let bot = bots.bots[0].as_mut().expect("bot 0");
+        match (noted, &bot.intent.go) {
+            (None, &Go::To { at, .. }) if bot.route.is_some() => {
+                let (Some(a), Some((feet, _))) = (bot.assignment.as_ref(), bot.world_feet) else { continue };
+                let Some(from) = tactics.world.grid.locate(feet, 1.5) else { continue };
+                bot.unreachable.note(at, tactics.regions_reached(from), clock);
+                noted = Some((clock, a.kind, a.target, at));
+            }
+            (Some((_, _, _, goal)), go) if !matches!(*go, Go::To { at, .. } if at.distance_xz(goal) <= REPLAN_MOVED_M) => {
+                moved_at = Some(clock);
+            }
+            _ => {}
+        }
+    }
+    let (at, kind, target, goal) = noted.expect("a play with a goal");
+    let moved_at = moved_at.unwrap_or_else(|| panic!("{kind:?} {target:?}: the goal {goal:?} kept"));
+    assert!(moved_at - at <= 1_000, "left {} ms after the note", moved_at - at);
+    let bot = bots.bots[0].as_ref().expect("bot 0");
+    assert!(
+        bot.features.memory.set_aside.iter().all(|&(k, t, until)| (k, t) != (kind, target) || until <= at + unreachable::COOL_DOWN_MS),
+        "{:?}",
+        bot.features.memory.set_aside
+    );
+}

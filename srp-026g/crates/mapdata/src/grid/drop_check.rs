@@ -597,12 +597,13 @@ impl DeepLanding {
 }
 
 impl WalkGrid {
-    /// [feed 67] The Drop links out of a floor a body gets to from the seeds or a spawn, as (take-off, direction, from, to).
-    fn reached_drops(&self, wide: &Wide, seeds: &[Vec3], spawns: &[Vec3]) -> Vec<(u32, usize, Vec3, Vec3)> {
+    /// [feed 67] Every Drop link, as (take-off, direction, from, to). [body physics S5b] Every one, not only those out of a floor
+    /// reached from the seeds or a spawn at this point: a deck reached only through links the earlier passes moved kept its plain
+    /// Drops to the floor under its edge, unchecked (the S5a gates: walk-offs 1.5 m from the client body's rest, Rudnya batteries
+    /// (71.70, 20.16, 138.47)). A floor no seed reaches in the end goes with [`super::WalkGrid::keep_reached`] anyway.
+    fn all_drops(&self, wide: &Wide) -> Vec<(u32, usize, Vec3, Vec3)> {
         let n = self.height.len();
-        let reached = self.reached_floors(wide, seeds, spawns);
         (0..n)
-            .filter(|&a| reached[a])
             .flat_map(|a| {
                 (0..DIRS.len()).filter_map(move |d| {
                     let b = wide.links[a][d];
@@ -642,14 +643,22 @@ impl WalkGrid {
     /// to cut it by; counted). [A1b] One the walk-off at release takes down ([`Verdict::Released`]) carries that press and share.
     /// Returns (walked, re-aimed, standing on no floor, released, held off a thin top, [blocked walk-offs] removed: no client way
     /// goes down there, [`Verdict::Blocked`]).
-    pub(super) fn walk_off_links(&self, wide: &mut Wide, world: &Collision, seeds: &[Vec3], spawns: &[Vec3]) -> (usize, usize, usize, usize, usize, usize) {
-        let reached = self.reached_floors(wide, seeds, spawns);
-        let todo: Vec<usize> = (0..wide.off.len())
-            .filter(|&i| {
-                let l = wide.off[i];
-                l.press == super::gap::Takeoff::WalkOff && reached[l.from as usize]
-            })
-            .collect();
+    /// [body physics S5c] The kind of a walk-off the drop check moved onto `to`: a GapDrop when it lands more than a step lower
+    /// (the gap links' own rule, [`LinkKind::GapDrop`]), else its own. A gap pass's level walk-off (a GapJump) re-aimed onto a
+    /// floor far under it kept its kind, and the route priced and closed it as no fall ([`WalkGrid::link_cost_reaching`] takes the
+    /// fall of Drop and GapDrop links only): Cologne (-81.76, 30.31, 10.88) -> (-80.51, 18.52, 9.63), 11.8 m, a GapJump; S5b's
+    /// every walk-off made 1,129 such links over 2 m on Cologne batteries (125 before).
+    fn walked_off_kind(&self, from: u32, to: u32, kind: LinkKind) -> LinkKind {
+        if kind == LinkKind::GapJump && self.height[from as usize] - self.height[to as usize] > self.body.step {
+            LinkKind::GapDrop
+        } else {
+            kind
+        }
+    }
+
+    pub(super) fn walk_off_links(&self, wide: &mut Wide, world: &Collision) -> (usize, usize, usize, usize, usize, usize) {
+        // [body physics S5b] Every walk-off, as every Drop ([`Self::all_drops`]).
+        let todo: Vec<usize> = (0..wide.off.len()).filter(|&i| wide.off[i].press == super::gap::Takeoff::WalkOff).collect();
         if todo.is_empty() {
             return (0, 0, 0, 0, 0, 0);
         }
@@ -672,6 +681,7 @@ impl WalkGrid {
                         // [retarget] Pressed along the walk-off's own line: its way, kept where the landing moves.
                         let way = wide.off[i].way.or_else(|| self.grid_way_of(from, to));
                         wide.off[i].to = b;
+                        wide.off[i].kind = self.walked_off_kind(from, b, wide.off[i].kind);
                         wide.off[i].way = way;
                         wide.off[i].press = press;
                         wide.off[i].share = share;
@@ -688,6 +698,7 @@ impl WalkGrid {
                             _ => None,
                         };
                         wide.off[i].to = b;
+                        wide.off[i].kind = self.walked_off_kind(from, b, wide.off[i].kind);
                         moved += 1;
                     }
                 }
@@ -710,7 +721,7 @@ impl WalkGrid {
         (todo.len(), moved, none, released, held, removed)
     }
 
-    /// [feed 67] [`super::Body::drop_lands`]: every Drop link out of a reached floor walked by the client's body to its landing
+    /// [feed 67] [`super::Body::drop_lands`]: every Drop link ([`Self::all_drops`]) walked by the client's body to its landing
     /// ([`walk_drop`], on the three [`STARTS`] lines across it). A link is kept when a line arrives (or a line's body cannot
     /// move). When none does and a line's body comes to stand on another floor lower than the take-off, and the body walked at
     /// that floor arrives there, the link is re-aimed at it; else it is cut. Returns the links to cut (take-off, direction,
@@ -725,10 +736,8 @@ impl WalkGrid {
         &self,
         wide: &Wide,
         world: &Collision,
-        seeds: &[Vec3],
-        spawns: &[Vec3],
     ) -> (Cuts, Reaims, Lips, DropStats, Vec<(Vec3, Vec3)>, DeepAlso) {
-        let links = self.reached_drops(wide, seeds, spawns);
+        let links = self.all_drops(wide);
         let mut stats = DropStats { walked: links.len(), ..DropStats::default() };
         if links.is_empty() {
             return (Vec::new(), Vec::new(), Vec::new(), stats, Vec::new(), Vec::new());
@@ -1092,7 +1101,10 @@ impl WalkGrid {
         };
         let n = ((GAP_PRESS_MAX_M - GAP_PRESS_MIN_M) / GAP_PRESS_STEP_M).round() as usize;
         // The floor every flight of a press (one, or one per sprint variant) rests on, if one: a sprint press lands only when
-        // every variant does (A385-FORMAT §1, rule (b)), here on one floor.
+        // every variant does (A385-FORMAT §1, rule (b)), here on one top: [body physics S5b] the first variant's floor, every
+        // other variant on its top ([`WalkGrid::own_top`]). One floor node was too narrow once the flights fly on to the rest:
+        // a variant rocks a cell over first (Cologne TDM (-57.68, 33.24, 16.38): Sprint 1.2's variant 4 rests 0.25 m across and
+        // 0.24 m up from the others; in the exe every variant rests there and stays).
         // [jump down] Flown on after the clip's `end_jump` until the body is down (every pass's rule, [`Self::fall_ground`]): off
         // an edge about 3 m high the body is still in the air at the clip's last ground step ([`jump::STAY_STEPS`]).
         let rests = |kind: jump::Kind, lead: f32, n: jump::Neighbour| -> Option<u32> {
@@ -1101,7 +1113,7 @@ impl WalkGrid {
                 .iter()
                 .map(|st| jump::landing_and_rest(st, |f| below(f.feet).is_some()).and_then(|(_, rest)| below(rest.feet)))
                 .collect();
-            floors.first().copied().flatten().filter(|&b| floors.iter().all(|&f| f == Some(b)))
+            floors.first().copied().flatten().filter(|&b| floors.iter().all(|&f| f.is_some_and(|g| self.own_top(b, g))))
         };
         for kind in [jump::Kind::Walk, jump::Kind::Sprint] {
             for i in 0..=n {
@@ -1109,7 +1121,7 @@ impl WalkGrid {
                 let Some(b) = rests(kind, lead, own) else { continue };
                 let mut bits: u16 = 0;
                 for (k, nb) in jump::neighbourhood().into_iter().enumerate() {
-                    let lands = k == 0 || rests(kind, lead, nb) == Some(b);
+                    let lands = k == 0 || rests(kind, lead, nb).is_some_and(|g| self.own_top(b, g));
                     bits |= u16::from(lands) << k;
                 }
                 let share = Share::of_mask(super::gap::Mask::of_bits(bits).expect("a bit a neighbour"));
@@ -1631,6 +1643,35 @@ mod tests {
         }
         let world = Collision::build(&tris);
         assert!(follows(&world, &Settings::LIVE, Vec3::new(-0.25, 2.0, 0.0), Vec3::new(0.25, 0.0, 0.0)));
+    }
+
+    /// [body physics S5c] A walk-off the drop check moves onto a floor more than a step under its take-off is a GapDrop (priced
+    /// and closed by its fall), whatever kind it had; one onto a floor within a step keeps its kind.
+    #[test]
+    fn a_walk_off_moved_onto_a_floor_far_below_is_a_gap_drop() {
+        let mut tris = Vec::new();
+        tris.extend(quad(0.0, 12.0, 0.0, 10.0, 0.0));
+        tris.extend(quad(0.0, 5.0, 0.0, 10.0, 3.0));
+        let grid = WalkGrid::build(&tris, [0.0, 0.0, 12.0, 10.0], 0.25, super::super::Body::default());
+        let at = |x: f32, y: f32| grid.locate(Vec3::new(x, y, 5.0), 0.3).expect("a floor");
+        let (deck, ground, deck_edge) = (at(4.0, 3.0), at(8.0, 0.0), at(4.5, 3.0));
+        assert_eq!(grid.walked_off_kind(deck, ground, LinkKind::GapJump), LinkKind::GapDrop);
+        assert_eq!(grid.walked_off_kind(deck, deck_edge, LinkKind::GapJump), LinkKind::GapJump);
+        assert_eq!(grid.walked_off_kind(deck, ground, LinkKind::GapDrop), LinkKind::GapDrop);
+    }
+
+    /// [body physics S5b] The drop check walks every Drop link, out of a floor no seed reaches at that point too: a deck 3 m up
+    /// with no way onto it, the seeds on the ground; its edge's Drops are walked (before, only the Drops out of reached floors
+    /// were, and a deck reached only through links an earlier pass moved kept its Drops unchecked).
+    #[test]
+    fn the_drop_check_walks_the_drops_out_of_a_floor_no_seed_reaches() {
+        let mut tris = Vec::new();
+        tris.extend(quad(0.0, 12.0, 0.0, 10.0, 0.0));
+        tris.extend(quad(0.0, 5.0, 0.0, 10.0, 3.0));
+        let body = super::super::Body { drop_check: true, drop_lands: true, held_floors: true, ..super::super::Body::client() };
+        let seeds = [Vec3::new(9.0, 0.0, 5.0)];
+        let (_, stats) = WalkGrid::build_kept_with_stats(&tris, [0.0, 0.0, 12.0, 10.0], 0.25, body, &seeds, &[]);
+        assert!(stats.drops_walked.walked > 0, "the deck's Drops are walked: {:?}", stats.drops_walked);
     }
 
     /// [D2] A deck with a ledge 1 m under its edge, 0.6 m wide, over the ground 5.6 m under the deck (past the harmless fall,

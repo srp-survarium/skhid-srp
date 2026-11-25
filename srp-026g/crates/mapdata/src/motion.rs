@@ -650,9 +650,20 @@ pub enum RunGait {
 pub struct RunIn {
     pub gait: RunGait,
     pub yaw: f32,
+    /// [body physics S5b] The press point, m before the take-off along its way ([`Self::press_point`]).
+    pub lead: f32,
+    /// … and m to the way's right.
+    pub side: f32,
 }
 
 impl RunIn {
+    /// [body physics S5b] The press point of a take-off at `take_off` (its floor's centre): [`Self::lead`] back along the way the
+    /// run-in faces before any turn (`way`, flat unit) and [`Self::side`] to its right (`jump::press_point`'s rule).
+    pub fn press_point(&self, take_off: Vec3, way: (f32, f32)) -> Vec3 {
+        let right = (way.1, -way.0);
+        Vec3::new(take_off.x - way.0 * self.lead + right.0 * self.side, take_off.y, take_off.z - way.1 * self.lead + right.1 * self.side)
+    }
+
     /// The run-in played from `body` (at rest): each step's [`Tick`], the run-in's first. Err when the press is unported.
     pub fn play(self, world: &impl Walker, mut body: ClientBody, kin: Kin) -> Result<Vec<Tick>, Unported> {
         let (held, steps) = match self.gait {
@@ -859,7 +870,7 @@ mod tests {
         let world = Client { world: &floor };
         let body = ClientBody::at_rest(&world, Vec3::new(0.0, 0.0, -10.0), 0.0).expect("rests");
         let start = body.feet();
-        let ticks = RunIn { gait: RunGait::Walk { ramp: 6 }, yaw: 0.0 }.play(&world, body, Kin::CLIENT).expect("forward");
+        let ticks = RunIn { gait: RunGait::Walk { ramp: 6 }, yaw: 0.0, lead: 0.0, side: 0.0 }.play(&world, body, Kin::CLIENT).expect("forward");
         assert!(ticks.iter().any(|t| t.in_jump), "it jumped");
         let end = ticks[ticks.len() - 1].feet;
         assert!(end.z > start.z + 2.0, "{end:?}");

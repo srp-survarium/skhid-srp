@@ -2087,11 +2087,40 @@ impl WalkGrid {
         found
     }
 
+    /// [body physics S5c] The per-metre key of [`Self::thin_gap_links`] (one a metre of edge, direction and level), for a jump one a
+    /// landing top (a drop stays one a key): a link is left out only where one kept under its key lands on its own top ([`Self::own_top`]). L1 links a group's
+    /// other tops ([`super::rim::RimPress::others`]); a top at the landing's level along the same way had the key of the group's
+    /// own link, and the first of the two in `found`'s order was kept alone (Rudnya batteries, human crossing 4837: the Slow 0.6
+    /// onto (-43.07, 26.51, 9.35), every variant landing, went for an L1 Press onto (-44.07, 26.55, 8.60) 1.25 m across, and that
+    /// floor was left with no way in).
+    fn one_a_key_and_top(&self, found: &mut Vec<(OffLink, usize)>) {
+        let mut seen: std::collections::HashMap<(i32, i32, i32, usize, i32), Vec<NodeId>> = std::collections::HashMap::new();
+        found.retain(|&(link, d)| {
+            let (p, q) = (self.position(link.from), self.position(link.to));
+            let tops = seen
+                .entry((
+                    p.x.floor() as i32,
+                    p.z.floor() as i32,
+                    (2.0 * p.y).round() as i32,
+                    if link.kind == LinkKind::GapDrop { usize::MAX } else { d },
+                    (2.0 * q.y).round() as i32,
+                ))
+                .or_default();
+            // A drop stays one a metre of edge and level whatever its landing (walked off before pressed: where a walk-off
+            // lands, a jump overshoots).
+            if tops.iter().any(|&t| link.kind == LinkKind::GapDrop || self.own_top(t, link.to)) {
+                return false;
+            }
+            tops.push(link.to);
+            true
+        });
+    }
+
     /// The gap links `found` (each with its way) kept and thinned (module documentation), sorted by take-off then landing.
     pub(super) fn thin_gap_links(&self, wide: &Wide, mut found: Vec<(OffLink, usize)>, stats: &mut GapStats) -> Vec<OffLink> {
         let n = self.len();
         // One a metre of edge, direction and level (the first, in floor
-        // order); a drop one a metre of edge and level whatever its way,
+        // order) and landing top ([`Self::one_a_key_and_top`]); a drop one a metre of edge and level whatever its way,
         // walked off before pressed (J0: where a walk-off lands, a jump
         // overshoots).
         // [A389] A press flown by the client's jump (it has a share) before the clip pass's in its group: the clip's is kept only
@@ -2102,17 +2131,7 @@ impl WalkGrid {
             Takeoff::Press(_) | Takeoff::Slow { .. } => 2,
             Takeoff::Sprint(_) | Takeoff::SprintHeld(_) | Takeoff::Climb => 3,
         });
-        let mut seen = std::collections::HashSet::new();
-        found.retain(|&(link, d)| {
-            let (p, q) = (self.position(link.from), self.position(link.to));
-            seen.insert((
-                p.x.floor() as i32,
-                p.z.floor() as i32,
-                (2.0 * p.y).round() as i32,
-                if link.kind == LinkKind::GapDrop { usize::MAX } else { d },
-                (2.0 * q.y).round() as i32,
-            ))
-        });
+        self.one_a_key_and_top(&mut found);
         stats.sampled = found.len();
         // Only those that save a walk round.
         let mut cost = vec![f32::INFINITY; n];
@@ -2840,6 +2859,40 @@ mod tests {
     /// Whether a link that is no sprint jump lands past `x`.
     fn walked_past(grid: &WalkGrid, x: f32) -> bool {
         grid.off_links().iter().any(|l| !matches!(l.press, Takeoff::Sprint(_)) && grid.position(l.to).x > x)
+    }
+
+    /// [body physics S5c] The per-metre key keeps one jump link a landing top (human crossing 4837's take-off), a drop one a key:
+    /// of three links from one
+    /// floor along one way to one level, the two onto tops 1.25 m apart are both kept (the group's own and an L1 link), the one a
+    /// quarter metre from a kept landing (on its top) is left out.
+    #[test]
+    fn the_per_metre_key_keeps_a_link_to_each_landing_top() {
+        let grid = WalkGrid::build_with_links(&quad(0.0, 0.0, 10.0, 10.0, 0.0), [0.0, 0.0, 10.0, 10.0], 0.25, Body::default(), OffMeshLinks::None);
+        let at = |x: f32, z: f32| grid.locate(Vec3::new(x, 0.0, z), 0.2).expect("a floor");
+        let link = |to| OffLink {
+            from: at(2.125, 5.125),
+            to,
+            kind: LinkKind::GapJump,
+            press: Takeoff::Slow { lead: PressLead::from_metres(0.6), steps: 0 },
+            share: Share::FULL,
+            walk: None,
+            aim: Aim::STRAIGHT,
+            way: None,
+        };
+        let (own, other, beside) = (at(4.125, 5.125), at(5.125, 5.875), at(4.375, 5.125));
+        let mut found = vec![(link(own), 2), (link(other), 2), (link(beside), 2)];
+        grid.one_a_key_and_top(&mut found);
+        let kept: Vec<NodeId> = found.iter().map(|(l, _)| l.to).collect();
+        assert_eq!(kept, vec![own, other], "one link a top: {:?} {:?}", grid.position(own), grid.position(other));
+        // Another way is another key.
+        let mut found = vec![(link(own), 2), (link(beside), 3)];
+        grid.one_a_key_and_top(&mut found);
+        assert_eq!(found.len(), 2);
+        // A drop stays one a key whatever its landing top or way.
+        let drop = |to| OffLink { kind: LinkKind::GapDrop, press: Takeoff::WalkOff, share: Share::UNFLOWN, ..link(to) };
+        let mut found = vec![(drop(own), 2), (drop(other), 3)];
+        grid.one_a_key_and_top(&mut found);
+        assert_eq!(found.iter().map(|(l, _)| l.to).collect::<Vec<_>>(), vec![own]);
     }
 
     /// Wider than the walking clip carries: no walking way across (the

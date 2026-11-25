@@ -2246,10 +2246,13 @@ impl BodyTrack {
             if super::jump_arc::Direction::of(press) != super::jump_arc::Direction::Forward {
                 return None;
             }
-            // The press's speed: the reckoned move into the press tick (the client's player+334h), else the world's.
+            // The press's speed (the client's player+334h when the jump state starts): [jump start] the reckoned move of the step
+            // ending a tick before the press (the decided tick before the press's), not the press tick's own step, which the jump
+            // state already holds (`initialize` 0x337040 reads +334h at 0x33705A; the census of 116 traced jumps,
+            // `notes-jump-state.md` §8.3: that step gives the traced kind in 116 of 116); else the world's.
             let speed = self
-                .reckoned_at(pressed)
-                .zip(self.reckoned_at(pressed.saturating_sub(TICK_MS)))
+                .reckoned_at(pressed.saturating_sub(TICK_MS))
+                .zip(self.reckoned_at(pressed.saturating_sub(2 * TICK_MS)))
                 .map(|(at, before)| at.distance_xz(before) / TICK_S)
                 .or(fix.speed)
                 .unwrap_or(0.0);
@@ -2764,7 +2767,9 @@ fn client_walks<'g>(at: &Estimate, kin: &Kinematics, role: Role, grid: Option<&'
 /// stand-in records its world before its tick's movement; the reckoning before S3 took input W - 50 for the step after a world,
 /// [`StepInput::Previous`]). So each step takes the estimate's last input (its keys as taken and its yaw after its turn), and a stall's
 /// further steps the same, as the client holds an input. A forward press waiting ([`Estimate::client_due`]) is taken after these
-/// steps, at the last step's move (the press tick's own step, as the stand-in's deferred press).
+/// steps, at the move of the step before them ([jump start]: player+334h as the jump state reads it, the step ending a tick before
+/// the press; the press tick's own step, these steps' first, is the jump state's already: `initialize` 0x337040 at 0x33705A, the
+/// census of 116 traced jumps in `notes-jump-state.md` §8.3).
 /// The feet. A body without one yet is put down at the feet ([`client_body::ClientBody::placed`]). The rest of the estimate is read off
 /// it: the feet, the last step's move, the floor `locate` names, a fall ([`CLIENT_FALLING_MS`]), and for the press forecast (S4) its
 /// controller as the kept one and its move as the blend.
@@ -2780,6 +2785,8 @@ fn client_steps(at: &mut Estimate, tick: Tick, level: f32, grid: &WalkGrid, step
     let walker = super::client_walker::GridWalker(grid);
     let ck = client_body::Kin { level, legs_broken: tick.legs_broken };
     let now = client_body::Input { keys: at.keys, yaw: at.yaw };
+    // [jump start] The move of the step before these: a waiting press's speed.
+    let press_move = at.velocity[0].hypot(at.velocity[1]);
     let mut before = at.feet;
     let mut last = None;
     for _ in 0..steps {
@@ -2790,7 +2797,7 @@ fn client_steps(at: &mut Estimate, tick: Tick, level: f32, grid: &WalkGrid, step
     at.feet = t.feet;
     at.velocity = [(t.feet.x - before.x) / TICK_S, (t.feet.z - before.z) / TICK_S];
     if let Some(ClientPress { keys, leg, first_air_frame }) = at.client_due.take()
-        && body.press_forward(keys, at.velocity[0].hypot(at.velocity[1]), ck, leg, first_air_frame).is_ok()
+        && body.press_forward(keys, press_move, ck, leg, first_air_frame).is_ok()
         && role == Role::Reckoning
     {
         flown_jumps::count(if client_body::sprints(keys) { flown_jumps::Kind::Sprint } else { flown_jumps::Kind::Short });
@@ -5763,6 +5770,37 @@ pub(super) mod tests {
             landed += u32::from(matches!(outcome, PressOutcome::Lands { .. }));
         }
         assert!(landed > 0 && landed < 20, "some timings land and some do not: {landed} of 20");
+    }
+
+    /// [jump start] A forward press of the client's body reads player+334h as the jump state does: the move of the step before the
+    /// press tick's own (`initialize` 0x337040 at 0x33705A; the census of 116 traced jumps, `notes-jump-state.md` §8.3), not the
+    /// press tick's own step. Two bodies alike but for the step before (4.9 m/s, at the sprint; 1.0 m/s) pressing the sprint jump:
+    /// the first flies the sprint jump and the second the short one, so they come down apart; reading the press tick's own step
+    /// (the same for both) flew them alike.
+    #[test]
+    fn a_client_press_reads_the_step_before_the_press_ticks_own() {
+        let triangles: Vec<Triangle> = floor(0.0, 0.0, 20.0, 10.0, 0.0).to_vec();
+        let grid = WalkGrid::build(&triangles, [0.0, 0.0, 20.0, 10.0], 0.25, Body::default()).with_client_walker(&triangles);
+        let kin = Kinematics { jump_arc: true, ..Kinematics::default() };
+        let mut track = BodyTrack::default();
+        track.fixed(fix(0, Vec3::new(3.0, 0.0, 5.0), -std::f32::consts::FRAC_PI_2), &kin, Some(&grid));
+        track.decided(50, 0, (0.0, 0.0), 0.0, &kin, Some(&grid));
+        let rest = *track.estimate().unwrap();
+        assert!(rest.client.is_some(), "the client's body");
+        let tick = |at: &Estimate, keys: u32| Tick { time: at.time + TICK_MS, keys, turn: (0.0, 0.0), kick: 0.0, jump: JumpGate::Open, legs_broken: false };
+        let sprint = key::FORWARD | key::SPRINT;
+        let flown = |before: f32| {
+            let mut at = Estimate { velocity: [before, 0.0], keys: sprint, client_due: Some(ClientPress::of(sprint)), ..rest };
+            let t = tick(&at, sprint);
+            client_steps(&mut at, t, 1.0, &grid, 1, Role::Reckoning);
+            assert!(at.client.is_some_and(|c| c.flying()), "{before} m/s: the press is flown");
+            for _ in 0..30 {
+                at = advance(at, tick(&at, key::FORWARD), &kin, 1.0, Some(&grid), None, Role::Reckoning, false);
+            }
+            at.feet
+        };
+        let (fast, slow) = (flown(4.9), flown(1.0));
+        assert!(fast.x > slow.x + 0.5, "the sprint jump from the step before goes on past the short one: {fast:?} {slow:?}");
     }
 
     /// [body physics S4] A press lands only if the client's body is up where it comes down: on a two-step riser a standing press comes

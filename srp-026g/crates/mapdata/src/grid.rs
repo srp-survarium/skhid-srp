@@ -84,6 +84,8 @@ pub mod drop_check;
 mod exact;
 mod open;
 mod rim;
+mod r1;
+mod run_ins;
 mod wall_give_back;
 /// [CPU hot paths] The route search's lookups made at load time, for the bots ([`hot::HotIndex`]): outside the grid key.
 mod hot;
@@ -106,6 +108,9 @@ pub mod timing;
 pub use gap::{Aim, GapStats, GridWay, Mask, OffLink, OffMeshLinks, PressLead, Share, SpeedBand, TakeoffWindow};
 pub use rim::{Riser, LAND_HEIGHT_M};
 pub use line_tops::{LineTop, TopFace, ACROSS_WAYS, MEASURE_STEP_M};
+
+/// [body physics S5b] A stored run-in's steps for no run-in ([`WalkGrid::run_in`]).
+pub const NO_RUN_IN: u16 = 0xFF;
 pub use wall_give_back::{give_back_stands, GiveBackStands, STAND_MOVED_M};
 use gap::gap_cost;
 
@@ -1438,6 +1443,10 @@ pub struct WalkGrid {
     /// [S3] The line floors on held thin tops ([`Self::line_top`], `line_tops`), sorted by floor. In the file (after the drop
     /// landing speeds) and the digest. Empty without the gap flights.
     line_tops: Vec<(NodeId, line_tops::LineTop)>,
+    /// [body physics S5b] The stored run-ins ([`Self::run_in`]): per off link, in [`Self::off`]'s order, the moving steps its
+    /// press's run-up played (low byte) and its walking press's (high byte), [`NO_RUN_IN`] for none. In the file (after the masks)
+    /// and the digest. Empty when not recorded.
+    run_ins: Vec<u16>,
     /// Per node, its distance to the nearest wall the capsule meets, in [`clearance::CLEARANCE_STEP_M`] steps ([`Self::wall_clearance`]):
     /// made by [`Self::with_wall_clearance`] after the grid is built or read, from the map's triangles. In neither the file nor the
     /// digest. Empty without it.
@@ -1618,6 +1627,10 @@ pub struct BuildStats {
     pub controlled: controlled::ControlledStats,
     /// [A364 C2 rows 11/12] The rim jumps' flights ([`Body::rim_jumps`]).
     pub rim: rim::RimStats,
+    /// [body physics S5b] What R1 did to the off links ([`r1`]).
+    pub r1: r1::R1Stats,
+    /// [body physics S5b] The stored run-ins' replays ([`run_ins`]).
+    pub run_ins: run_ins::RunInStats,
     /// [S4] The Jump links the landing carry rule took away ([`Body::landing_carry`]), flown as rim jumps
     /// ([`WalkGrid::fly_rim_todo`]): `tried` of them, the made by press.
     pub carry_flown: rim::RimStats,
@@ -1931,6 +1944,7 @@ impl WalkGrid {
             held_taken: Vec::new(),
             drop_speed: Vec::new(),
             line_tops: Vec::new(),
+            run_ins: Vec::new(),
             clearance: Vec::new(),
             open: Vec::new(),
             walker: None,
@@ -2080,12 +2094,12 @@ impl WalkGrid {
         if body.drop_check {
             let failing = if body.drop_lands {
                 let world = world.expect("a world");
-                let (cut, reaim, lips, mut walked, deep_kept, deep_also) = grid.landing_drops(&wide, world, seeds, spawns);
+                let (cut, reaim, lips, mut walked, deep_kept, deep_also) = grid.landing_drops(&wide, world);
                 stats.drops_past_harmless_cut = deep_kept;
                 clock.lap("landing drops");
                 let held;
                 (walked.walk_offs, walked.walk_offs_reaimed, walked.walk_offs_unlanded, walked.walk_offs_released, held, walked.walk_offs_blocked) =
-                    grid.walk_off_links(&mut wide, world, seeds, spawns);
+                    grid.walk_off_links(&mut wide, world);
                 clock.lap("walk-off links");
                 walked.releases_held_thin += held;
                 stats.drops_walked = walked;
@@ -2104,6 +2118,11 @@ impl WalkGrid {
             (stats.drops_unfollowed, stats.drops_unfollowed_kept) = grid.cut_keeping_reach(&mut wide, failing, seeds, spawns, true, false);
         }
         clock.lap("drop check's cut (reach)");
+        // [body physics S5b] R1: each stored press's P on the take-off's side, before the reach flood (it drops and re-presses links).
+        if let Some(world) = world.filter(|_| gaps && !wide.off.is_empty()) {
+            stats.r1 = grid.take_off_side_presses(&mut wide, world, &s);
+        }
+        clock.lap("R1 (take-off side)");
         stats.floors_after_erosion = grid.len();
         grid.keep_reached(&mut wide, seeds);
         clock.lap("keep reached");
@@ -2144,6 +2163,11 @@ impl WalkGrid {
             grid.line_tops = grid.line_tops_of(&thin_tops, triangles, world, &s);
         }
         clock.lap("line tops");
+        // [body physics S5b] The stored run-ins: each stored press's run-up played again from the link as stored.
+        if let Some(world) = world.filter(|_| !grid.off.is_empty()) {
+            stats.run_ins = grid.record_run_ins(world, &s);
+        }
+        clock.lap("run-ins");
         grid.mark_no_exit(walls.as_ref().filter(|_| body.pocket_exits_walled));
         // [A347] The exits a body cannot take, left out of the escape's tries.
         if body.exits_in_reach
@@ -3622,6 +3646,13 @@ impl WalkGrid {
                 digest.u32(u32::from(v.centimetres()));
             }
         }
+        // [body physics S5b] A grid with no stored run-ins digests as before there were any.
+        if !self.run_ins.is_empty() {
+            digest.len(self.run_ins.len());
+            for &r in &self.run_ins {
+                digest.u32(0x5249_0000 | u32::from(r));
+            }
+        }
         // [S3] A grid with no line tops digests as before there were any.
         if !self.line_tops.is_empty() {
             digest.len(self.line_tops.len());
@@ -3704,7 +3735,7 @@ impl WalkGrid {
                 && self.walk_marked.is_empty()
                 && self.walk_crouched.is_empty()
                 && self.riser.is_empty()
-                && self.drop_lips.is_empty() && self.held_taken.is_empty() && self.drop_speed.is_empty() && self.line_tops.is_empty() && masks.is_empty()
+                && self.drop_lips.is_empty() && self.held_taken.is_empty() && self.drop_speed.is_empty() && self.line_tops.is_empty() && masks.is_empty() && self.run_ins.is_empty()
             {
                 return Ok(());
             }
@@ -3725,12 +3756,12 @@ impl WalkGrid {
                 bytes
             })?;
             // [A304] The ramp slopes, when the grid has them (an empty table before the walled exits).
-            if self.ramp.is_empty() && self.walled_exits.is_empty() && self.walk_marked.is_empty() && self.walk_crouched.is_empty() && self.riser.is_empty() && self.drop_lips.is_empty() && self.held_taken.is_empty() && self.drop_speed.is_empty() && self.line_tops.is_empty() && masks.is_empty() {
+            if self.ramp.is_empty() && self.walled_exits.is_empty() && self.walk_marked.is_empty() && self.walk_crouched.is_empty() && self.riser.is_empty() && self.drop_lips.is_empty() && self.held_taken.is_empty() && self.drop_speed.is_empty() && self.line_tops.is_empty() && masks.is_empty() && self.run_ins.is_empty() {
                 return Ok(());
             }
             out.plain(&self.ramp, |&v| [v])?;
             // [A347] The walled exits, when the grid has them (an empty table before the marked walks).
-            if self.walled_exits.is_empty() && self.walk_marked.is_empty() && self.walk_crouched.is_empty() && self.riser.is_empty() && self.drop_lips.is_empty() && self.held_taken.is_empty() && self.drop_speed.is_empty() && self.line_tops.is_empty() && masks.is_empty() {
+            if self.walled_exits.is_empty() && self.walk_marked.is_empty() && self.walk_crouched.is_empty() && self.riser.is_empty() && self.drop_lips.is_empty() && self.held_taken.is_empty() && self.drop_speed.is_empty() && self.line_tops.is_empty() && masks.is_empty() && self.run_ins.is_empty() {
                 return Ok(());
             }
             let pair = |&(a, b): &(NodeId, NodeId)| {
@@ -3741,17 +3772,17 @@ impl WalkGrid {
             };
             out.plain(&self.walled_exits, pair)?;
             // [2c] The marked walks, when the grid has them (an empty table before the crouched walks).
-            if self.walk_marked.is_empty() && self.walk_crouched.is_empty() && self.riser.is_empty() && self.drop_lips.is_empty() && self.held_taken.is_empty() && self.drop_speed.is_empty() && self.line_tops.is_empty() && masks.is_empty() {
+            if self.walk_marked.is_empty() && self.walk_crouched.is_empty() && self.riser.is_empty() && self.drop_lips.is_empty() && self.held_taken.is_empty() && self.drop_speed.is_empty() && self.line_tops.is_empty() && masks.is_empty() && self.run_ins.is_empty() {
                 return Ok(());
             }
             out.plain(&self.walk_marked, pair)?;
             // [`Body::walk_ceiling_stalls`] The crouched walks, when the grid has them.
-            if self.walk_crouched.is_empty() && self.riser.is_empty() && self.drop_lips.is_empty() && self.held_taken.is_empty() && self.drop_speed.is_empty() && self.line_tops.is_empty() && masks.is_empty() {
+            if self.walk_crouched.is_empty() && self.riser.is_empty() && self.drop_lips.is_empty() && self.held_taken.is_empty() && self.drop_speed.is_empty() && self.line_tops.is_empty() && masks.is_empty() && self.run_ins.is_empty() {
                 return Ok(());
             }
             out.plain(&self.walk_crouched, pair)?;
             // [A385 rule (d)] The risers' presses, when the grid has them: from, to, press (as an off-mesh link's), share, a zero.
-            if self.riser.is_empty() && self.drop_lips.is_empty() && self.held_taken.is_empty() && self.drop_speed.is_empty() && self.line_tops.is_empty() && masks.is_empty() {
+            if self.riser.is_empty() && self.drop_lips.is_empty() && self.held_taken.is_empty() && self.drop_speed.is_empty() && self.line_tops.is_empty() && masks.is_empty() && self.run_ins.is_empty() {
                 return Ok(());
             }
             out.plain(&self.riser, |&(a, b, r)| {
@@ -3764,12 +3795,12 @@ impl WalkGrid {
                 bytes
             })?;
             // [A377] The lips by where the body stops, when the grid has them.
-            if self.drop_lips.is_empty() && self.held_taken.is_empty() && self.drop_speed.is_empty() && self.line_tops.is_empty() && masks.is_empty() {
+            if self.drop_lips.is_empty() && self.held_taken.is_empty() && self.drop_speed.is_empty() && self.line_tops.is_empty() && masks.is_empty() && self.run_ins.is_empty() {
                 return Ok(());
             }
             out.plain(&self.drop_lips, pair)?;
             // [A389] The floors `held_floors` took, as feet, when the grid has them (a log's only: not in the digest).
-            if self.held_taken.is_empty() && self.drop_speed.is_empty() && self.line_tops.is_empty() && masks.is_empty() {
+            if self.held_taken.is_empty() && self.drop_speed.is_empty() && self.line_tops.is_empty() && masks.is_empty() && self.run_ins.is_empty() {
                 return Ok(());
             }
             out.plain(&self.held_taken, |p| {
@@ -3780,7 +3811,7 @@ impl WalkGrid {
                 bytes
             })?;
             // [S6] The held floors' drops' landing speeds, when the grid has them: from, to, cm/s.
-            if self.drop_speed.is_empty() && self.line_tops.is_empty() && masks.is_empty() {
+            if self.drop_speed.is_empty() && self.line_tops.is_empty() && masks.is_empty() && self.run_ins.is_empty() {
                 return Ok(());
             }
             out.plain(&self.drop_speed, |&(a, b, v)| {
@@ -3791,15 +3822,20 @@ impl WalkGrid {
                 bytes
             })?;
             // [S3] The line tops, when the grid has them.
-            if self.line_tops.is_empty() && masks.is_empty() {
+            if self.line_tops.is_empty() && masks.is_empty() && self.run_ins.is_empty() {
                 return Ok(());
             }
             out.plain(&self.line_tops, |(f, t)| line_tops::LineTop::bytes(*f, t))?;
             // [F1b] The flown shares' neighbourhood masks ([`Self::share_masks`]), when any share is flown.
-            if masks.is_empty() {
+            if masks.is_empty() && self.run_ins.is_empty() {
                 return Ok(());
             }
-            out.plain(&masks, |m| m.to_le_bytes())
+            out.plain(&masks, |m| m.to_le_bytes())?;
+            // [body physics S5b] The stored run-ins' steps ([`Self::run_in`]), when recorded.
+            if self.run_ins.is_empty() {
+                return Ok(());
+            }
+            out.plain(&self.run_ins, |r| r.to_le_bytes())
         }
     }
 
@@ -3958,6 +3994,7 @@ impl WalkGrid {
                         })?
                     },
                     line_tops: if input.ends() { Vec::new() } else { input.plain(line_tops::LineTop::from_bytes)? },
+                    run_ins: Vec::new(),
                     clearance: Vec::new(),
                     open: Vec::new(),
                     walker: None,
@@ -3968,6 +4005,12 @@ impl WalkGrid {
                 let masks: Vec<u16> = if input.ends() { Vec::new() } else { input.plain(u16::from_le_bytes)? };
                 let mut grid = grid;
                 grid.set_share_masks(&masks)?;
+                // [body physics S5b] The stored run-ins, when the file has them: one for each off link.
+                let run_ins: Vec<u16> = if input.ends() { Vec::new() } else { input.plain(u16::from_le_bytes)? };
+                if !run_ins.is_empty() && run_ins.len() != grid.off.len() {
+                    return Err(format!("{} run-ins for {} off links", run_ins.len(), grid.off.len()));
+                }
+                grid.run_ins = run_ins;
                 grid.check()?;
                 grid.body = build;
                 grid.warm();
@@ -3975,6 +4018,42 @@ impl WalkGrid {
             },
             Self::digest,
         )
+    }
+
+    /// [body physics S5b] The run-in of off link `i`'s own press (`walk`: its walking press instead), as it was flown and stored
+    /// (RunIn::of, DESIGN §3.3a): the gait from the stored press (a walk press or a slow press walks up its stored moving steps; a
+    /// sprint press sprints them), facing the press's way turned by its aim, its lead and its aim's side. None when the run-ins are
+    /// not recorded, or the press has no run-up (a walk-off, a release, a climb).
+    pub fn run_in(&self, i: usize, walk: bool) -> Option<crate::motion::RunIn> {
+        use crate::motion::{RunGait, RunIn};
+        let l = self.off.get(i)?;
+        let steps = *self.run_ins.get(i)?;
+        let moving = if walk { steps >> 8 } else { steps & 0xFF };
+        if moving == NO_RUN_IN {
+            return None;
+        }
+        let moving = u32::from(moving);
+        let (gait, lead) = match (walk, l.press, l.walk) {
+            (true, _, Some((lead, _))) => (RunGait::Walk { ramp: moving }, lead.metres()),
+            (true, _, None) => return None,
+            (false, gap::Takeoff::Press(lead), _) | (false, gap::Takeoff::Slow { lead, .. }, _) => (RunGait::Walk { ramp: moving }, lead.metres()),
+            (false, gap::Takeoff::Sprint(lead) | gap::Takeoff::SprintHeld(lead), _) => {
+                let (leg, first_air_frame) = (crate::controller::jump::Leg::Left, crate::controller::jump::SPRINT_FIRST_AIR_FRAMES[0]);
+                (RunGait::Sprint { steps: moving, leg, first_air_frame }, lead.metres())
+            }
+            (false, _, _) => return None,
+        };
+        let way = l.press_way(self.position(l.from), self.position(l.to));
+        let aim = if walk { gap::Aim::STRAIGHT } else { l.aim };
+        let (c, s) = (aim.turn_rad().cos(), aim.turn_rad().sin());
+        let heading = (way.0 * c - way.1 * s, way.0 * s + way.1 * c);
+        Some(RunIn { gait, yaw: crate::motion::yaw_of(heading), lead, side: aim.side_m() })
+    }
+
+    /// [body physics S5b] [`Self::run_in`] of the stored off link `link` (found by its floors: one link a pair).
+    pub fn run_in_of(&self, link: &OffLink, walk: bool) -> Option<crate::motion::RunIn> {
+        let i = self.off.binary_search_by(|l| (l.from, l.to).cmp(&(link.from, link.to))).ok()?;
+        self.run_in(i, walk)
     }
 
     /// [F1b] The flown shares' neighbourhood masks in the file's order: each off link's ([`gap::Share::mask_bits`], 0 when not
@@ -4391,10 +4470,10 @@ impl WalkGrid {
         self.flags[node as usize] & (REACHED | RETURNS) == REACHED
     }
 
-    /// Marks the floors of the pockets with no way out ([`NO_EXIT`]). A
-    /// pocket of more than [`POCKET_EXIT_FLOORS`] floors is never marked:
-    /// [`Self::pocket_exits`] looks at that many, so an exit past them
-    /// would go unseen.
+    /// Marks the floors of the pockets with no way out ([`NO_EXIT`]). [body physics S5c] Whatever the pocket's size: one of more
+    /// than [`POCKET_EXIT_FLOORS`] floors (which [`Self::pocket_exits`] does not look through) has its exits looked for on every
+    /// floor here. Before, it was never marked, and a bot in it got no shut-pocket handling (Vector Laboratory: ~5,600 floors
+    /// a mode of pits past the limit, the m7 pit's kind; the escape found no exit and the bot waited out the minute).
     ///
     /// With `walls` ([`Body::pocket_exits_walled`]) only the exits a body can take count ([`Self::exit_takes`]).
     fn mark_no_exit(&mut self, walls: Option<&exact::Walls>) {
@@ -4405,7 +4484,8 @@ impl WalkGrid {
         let shut: std::collections::HashSet<PocketId> = floors
             .into_iter()
             .filter(|&(p, n)| {
-                n <= POCKET_EXIT_FLOORS && self.pocket_exits(p).iter().all(|exit| walls.is_some_and(|walls| !self.exit_takes(exit, walls)))
+                let limit = if n <= POCKET_EXIT_FLOORS { POCKET_EXIT_FLOORS } else { usize::MAX };
+                self.pocket_exits_within(p, limit).iter().all(|exit| walls.is_some_and(|walls| !self.exit_takes(exit, walls)))
             })
             .map(|(p, _)| p)
             .collect();
@@ -4576,6 +4656,17 @@ impl WalkGrid {
     /// [`ExitJump::Sprint`] one takes a sprint run-up and no battery, a
     /// [`ExitJump::Steep`] one none yet.
     pub fn pocket_exits(&self, from: NodeId) -> Vec<PocketExit> {
+        self.pocket_exits_within(from, POCKET_EXIT_FLOORS)
+    }
+
+    /// [body physics S5c] [`Self::pocket_exits`] looked for on every floor of the pocket, whatever its size: what
+    /// [`Self::in_shut_pocket`] is marked by ([`Self::mark_no_exit`]).
+    pub fn pocket_exits_all(&self, from: NodeId) -> Vec<PocketExit> {
+        self.pocket_exits_within(from, usize::MAX)
+    }
+
+    /// [`Self::pocket_exits`], looking at `limit` of the pocket's floors at most (every one: [`usize::MAX`]).
+    fn pocket_exits_within(&self, from: NodeId, limit: usize) -> Vec<PocketExit> {
         let Some(pocket) = self.pocket_of(from) else {
             return Vec::new();
         };
@@ -4587,7 +4678,7 @@ impl WalkGrid {
         let r = POCKET_EXIT_ACROSS_M;
         while let Some(a) = queue.pop_front() {
             looked += 1;
-            if looked > POCKET_EXIT_FLOORS {
+            if looked > limit {
                 break;
             }
             let at = self.position(a);
@@ -6380,6 +6471,38 @@ pub(crate) mod tests {
         let _ = std::fs::remove_dir_all(dir);
     }
 
+    /// [body physics S5b] A link the bridge pass walks ([`controlled::walked_bridge`]) reads back from its file: an aimed sprint
+    /// walked over leaves no aimed walk-off, which the reader refuses (Cologne, both modes: the whole grid refused).
+    #[test]
+    fn an_aimed_link_walked_as_a_bridge_reads_back() {
+        let dir = std::env::temp_dir().join(format!("srp-grid-bridge-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join(crate::built::grid_file_name(7));
+        let mut grid = two_rooms();
+        let aimed = OffLink {
+            from: 0,
+            to: 1,
+            kind: LinkKind::GapJump,
+            press: gap::Takeoff::Sprint(gap::PressLead::from_metres(0.6)),
+            share: gap::Share::of_mask(gap::Mask::of_bits(0b1_1110_0110_0001).unwrap()),
+            walk: None,
+            aim: gap::Aim::new(-6, -6).unwrap(),
+            way: None,
+        };
+        grid.off = vec![controlled::walked_bridge(aimed)];
+        grid.flags[0] |= OFF_OUT;
+        grid.flags[1] |= OFF_IN;
+        grid.write(&path, 7).unwrap();
+        let read = WalkGrid::read(&path, 7, Body::default()).unwrap();
+        assert_eq!(read.off, grid.off);
+        assert_eq!((read.off[0].press, read.off[0].aim), (gap::Takeoff::WalkOff, gap::Aim::STRAIGHT));
+        // The walk-off as the pass left it before: refused.
+        grid.off[0].aim = aimed.aim;
+        grid.write(&path, 7).unwrap();
+        assert!(WalkGrid::read(&path, 7, Body::default()).is_err());
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
     /// [incremental grids] `digest_full` is the digest of the file's bytes between its header and its end mark: equal for two
     /// builds, changed by any stored table, the log-only ones too.
     #[test]
@@ -6637,6 +6760,53 @@ pub(crate) mod tests {
             &spawn,
             &spawn,
         )
+    }
+
+    /// [body physics S5c] A pit 1.6 m deep and 14 m square (about 3,100 floors, past [`POCKET_EXIT_FLOORS`]): no way out, so
+    /// it is shut whatever its size (before, a pocket past the limit was never marked). With a ledge 1.2 m up on its far side,
+    /// past the floors [`WalkGrid::pocket_exits`] looks at from the near corner, it has a way out and is not shut.
+    #[test]
+    fn a_pocket_past_the_exit_look_is_shut_when_it_has_no_way_out() {
+        let build = |ledge: bool| {
+            let y = -1.6;
+            let (x0, x1, z0, z1) = (8.0, 22.0, 3.0, 17.0);
+            let mut tris: Vec<Triangle> = Vec::new();
+            tris.extend(floor(0.0, 0.0, x0, 20.0, 0.0));
+            tris.extend(floor(x1, 0.0, 30.0, 20.0, 0.0));
+            tris.extend(floor(x0, 0.0, x1, z0, 0.0));
+            tris.extend(floor(x0, z1, x1, 20.0, 0.0));
+            tris.extend(floor(x0, z0, x1, z1, y));
+            if ledge {
+                // A step 0.4 m under the yard along the far side: 1.2 m up from the pit, a standing exit onto it, and from it
+                // up to the yard.
+                tris.extend(floor(x1 - 1.0, z0, x1, z1, -0.4));
+            }
+            let walker = WalkerBehaviour::BySlope;
+            let mut wall = |a: (f32, f32), b: (f32, f32), low: f32| {
+                let (p, q) = (Vec3::new(a.0, low, a.1), Vec3::new(b.0, low, b.1));
+                let (r, s) = (Vec3::new(b.0, 0.0, b.1), Vec3::new(a.0, 0.0, a.1));
+                tris.push(Triangle { v: [p, q, r], walker });
+                tris.push(Triangle { v: [p, r, s], walker });
+            };
+            wall((x0, z0), (x1, z0), y);
+            wall((x0, z1), (x1, z1), y);
+            wall((x0, z0), (x0, z1), y);
+            wall((x1, z0), (x1, z1), y);
+            let spawn = [Vec3::new(2.0, 0.0, 10.0)];
+            WalkGrid::build_kept(&tris, [0.0, 0.0, 30.0, 20.0], 0.25, Body::default(), &spawn, &spawn)
+        };
+        let grid = build(false);
+        let bottom = grid.locate(Vec3::new(9.0, -1.6, 4.0), 0.3).unwrap();
+        let pocket = grid.pocket_of(bottom).expect("a pocket");
+        assert!(grid.pocket_floors(pocket).count() > POCKET_EXIT_FLOORS, "{}", grid.pocket_floors(pocket).count());
+        assert!(grid.pocket_exits_all(bottom).is_empty());
+        assert!(grid.in_shut_pocket(bottom), "no way out: shut whatever its size");
+        let grid = build(true);
+        let bottom = grid.locate(Vec3::new(9.0, -1.6, 4.0), 0.3).unwrap();
+        if grid.pocket_of(bottom).is_some() {
+            assert!(!grid.pocket_exits_all(bottom).is_empty(), "the ledge is a way out");
+            assert!(!grid.in_shut_pocket(bottom), "a way out past the look: not shut");
+        }
     }
 
     /// A pit 1.6 m deep is a pocket with no way out; its rim is marked and

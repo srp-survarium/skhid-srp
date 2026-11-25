@@ -503,7 +503,7 @@ pub fn run_up_slow(world: &Collision, s: &Settings, press_at: Vec3, heading: (f3
 /// [body physics S5a] How far the client's body walks up from rest on a flat open floor (`moving` steps with `keys` held after the
 /// keys' first input step, at the walk cap `cap`, with the settings `s`): the start of a run-up to a press point, measured by playing
 /// it (DESIGN §3.3: no formula). None when no body comes to rest on that floor.
-fn walk_up_length(s: &Settings, keys: u32, moving: u32, cap: f32) -> Option<f32> {
+pub(crate) fn walk_up_length(s: &Settings, keys: u32, moving: u32, cap: f32) -> Option<f32> {
     use crate::motion::{self, ClientBody, Input, Kin, Pass};
     static FLAT: std::sync::OnceLock<Collision> = std::sync::OnceLock::new();
     let world = FLAT.get_or_init(|| {
@@ -577,7 +577,7 @@ fn played_run_up(world: &Collision, s: &Settings, press_at: Vec3, heading: (f32,
     let c = *body.controller();
     let f = c.feet();
     (flat(f - press_at).length() <= 0.1 && (f.y - press_at.y).abs() <= 0.35 && !c.jumping && c.on_ground(s))
-        .then_some(RunUp { body: c, speed: v, played: body })
+        .then_some(RunUp { body: c, speed: v, played: body, moving })
 }
 
 /// How a run-up ended ([`run_up`]).
@@ -589,6 +589,9 @@ pub struct RunUp {
     /// [body physics S5a] The client's body it was played with ([`played_run_up`]; its controller is [`Self::body`]): its walk's
     /// blend and input, for a walk that goes on from it ([`climb_flight`]).
     pub played: crate::motion::ClientBody,
+    /// [body physics S5b] The moving steps its walk-up played (a slow press's k; a walk or sprint run-up's 6 + its steady steps):
+    /// the stored run-in's ([`crate::motion::RunIn`], `WalkGrid::run_in`).
+    pub moving: u32,
 }
 
 /// The run-up ending at `press_at` (feet) along `heading` at `speed` m/s (sprinting or not): a body put down 3.5 + 4 steps'

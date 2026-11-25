@@ -36,6 +36,7 @@ pub mod artefact_know;
 pub mod body;
 pub mod breach;
 pub mod camp_flank;
+pub mod carrier_home;
 pub mod cheats;
 #[cfg(any(test, feature = "client-test"))]
 pub mod client_tests;
@@ -117,6 +118,7 @@ pub mod trap_know;
 pub mod trap_react;
 pub mod traps;
 pub mod tuning;
+pub mod unreachable;
 pub mod view;
 pub mod view_schedule;
 pub mod walk_off;
@@ -373,6 +375,8 @@ pub struct Bot {
     /// ([`NO_WAY_KEEP_MS`]): a battery ringed by fire is not fetched again
     /// and again, standing.
     no_way_to: Vec<(Vec3, u32)>,
+    /// [bot traps] Goals its own exhaustive searches failed to reach from where it stands, on cool-down (`unreachable.rs`).
+    unreachable: unreachable::UnreachableGoals,
     /// [take.world_stand] The feet the latest world put its body at, and that world's time (alive; `body::Fix`), set before
     /// each think: a take presses at a stand only where the world, not only the reckoning, has the body.
     world_feet: Option<(Vec3, u32)>,
@@ -509,6 +513,8 @@ pub struct Bot {
     fight_hit_ms: Option<u32>,
     /// The last jump, until what followed it is traced.
     jump_watch: Option<JumpWatch>,
+    /// [jump start] The bot's reckoned feet at its last ticks (time, feet), newest first: a route press's start speed for the log.
+    reckoned_recent: [Option<(u32, Vec3)>; 3],
     /// [S7] The crouched climb under way, for its log line ([`drive::crouch_climb_watch`]): (take-off, top, crouched at).
     crouch_climb: Option<(Vec3, Vec3, u32)>,
     /// [F42] A creep under way (both legs broken, the crouch key with move keys): where and when it began
@@ -687,6 +693,7 @@ impl Bot {
             route_end: None,
             no_way: None,
             no_way_to: Vec::new(),
+            unreachable: Default::default(),
             world_feet: None,
             use_pressed: None,
             held_choke: None,
@@ -765,6 +772,7 @@ impl Bot {
             hit_kind: hit_kind::HitKind::default(),
             fight_hit_ms: None,
             jump_watch: None,
+            reckoned_recent: [None; 3],
             crouch_climb: None,
             creep: None,
             reckoned_kept: None,
@@ -1085,6 +1093,8 @@ impl Bot {
         self.route = None;
         self.intent = Intent::stay();
         self.stuck.reset();
+        // [bot traps] A new life stands elsewhere: its goals are tried again.
+        self.unreachable.clear();
         self.self_kill = stuck::SelfKill::default();
         self.unstick = None;
         // A death on zone floors ends the walk over them without a note of a way out.

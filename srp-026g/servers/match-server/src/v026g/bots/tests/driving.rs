@@ -119,10 +119,11 @@ pub(crate) fn a_route_jump_up_by_the_reckoning_is_up_in_the_log() {
         facing: 0.0,
         sprint_gate: None,
         aim: super::path::PressAim::STRAIGHT,
+        way: [1.0, 0.0],
         state: PressState { lead_m: 0.1, flown_lead_m: None, side_m: 0.0, turn_rad: 0.0, above_m: 0.0, along_ms: 0.0, window: None },
     };
     let watched = |bot: &mut Bot| {
-        bot.jump_watch = Some(JumpWatch { by: "route", at: 1_000, from: take_off, route: Some(route), up: None, up_reckoned: None, landed: None });
+        bot.jump_watch = Some(JumpWatch { by: "route", at: 1_000, from: take_off, route: Some(route), up: None, up_reckoned: None, landed: None, start: None });
     };
     let mut bot = Bot::new(1, 0, 0, Some("support"), &tuning);
     watched(&mut bot);
