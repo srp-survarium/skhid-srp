@@ -731,7 +731,7 @@ Damage ×{damage}, penetration ×{pierce}, before armour: lower penetration make
 {drug}: {pool} takes ×{k} for {s} s after use ({delay} s to kick in).	{drug}: {pool} ×{k} sebzést kap a használat után {s} mp-ig ({delay} mp múlva hat).
 Inside an anomaly: damage ×{k}, before armour.	Anomálián belül: sebzés ×{k}, a páncél előtt.
 This weapon takes no damage bonuses.	Ez a fegyver nem kaphat sebzésbónuszt.
-Come with the weapon; cannot be changed.	A fegyverrel járnak; nem módosíthatók.
+Comes with the weapon; cannot be changed.	A fegyverrel jár; nem módosítható.
 An item holds at most 3 modifications. Bonuses on one stat add up before they apply.	Egy tárgyon legfeljebb 3 módosítás lehet. Az egy jellemzőre szóló bónuszok előbb összeadódnak.
 This item takes no armour bonuses.	Ez a tárgy nem kaphat páncélbónuszt.
 Nothing worn covers the {part}.	Semmilyen viselt tárgy nem védi: {part}.

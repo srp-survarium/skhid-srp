@@ -1,0 +1,18 @@
+[package]
+name = "lobby-server"
+version.workspace = true
+edition.workspace = true
+description = "0.69d lobby: UDP loop per peer, login pushes, profile, shop, workshop, factions, small answers, social basics"
+
+[dependencies]
+accounts = { workspace = true }
+game-data = { workspace = true }
+protocol = { workspace = true }
+udp-transport = { workspace = true }
+log = { workspace = true }
+rand = { workspace = true }
+world-host-proto = { workspace = true }
+
+[dev-dependencies]
+tempfile = "3.10"
+serde_json = { workspace = true }

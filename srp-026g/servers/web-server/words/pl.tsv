@@ -731,7 +731,7 @@ Damage ×{damage}, penetration ×{pierce}, before armour: lower penetration make
 {drug}: {pool} takes ×{k} for {s} s after use ({delay} s to kick in).	{drug}: {pool} otrzymuje ×{k} przez {s} s po użyciu (działa po {delay} s).
 Inside an anomaly: damage ×{k}, before armour.	W anomalii: obrażenia ×{k}, przed pancerzem.
 This weapon takes no damage bonuses.	Ta broń nie ma bonusów obrażeń.
-Come with the weapon; cannot be changed.	Należą do broni; nie można ich zmienić.
+Comes with the weapon; cannot be changed.	Należy do broni; nie można go zmienić.
 An item holds at most 3 modifications. Bonuses on one stat add up before they apply.	Przedmiot ma najwyżej 3 modyfikacje. Bonusy do jednego parametru sumują się przed zastosowaniem.
 This item takes no armour bonuses.	Ten przedmiot nie ma bonusów pancerza.
 Nothing worn covers the {part}.	Żaden noszony przedmiot nie chroni: {part}.

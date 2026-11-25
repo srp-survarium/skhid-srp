@@ -731,7 +731,7 @@ Damage ×{damage}, penetration ×{pierce}, before armour: lower penetration make
 {drug}: {pool} takes ×{k} for {s} s after use ({delay} s to kick in).	{drug}: {pool} prima ×{k} tokom {s} s posle upotrebe (deluje posle {delay} s).
 Inside an anomaly: damage ×{k}, before armour.	U anomaliji: šteta ×{k}, pre oklopa.
 This weapon takes no damage bonuses.	Ovo oružje ne prima bonuse štete.
-Come with the weapon; cannot be changed.	Dolaze sa oružjem; ne mogu se menjati.
+Comes with the weapon; cannot be changed.	Dolazi sa oružjem; ne može se menjati.
 An item holds at most 3 modifications. Bonuses on one stat add up before they apply.	Predmet ima najviše 3 modifikacije. Bonusi na istu osobinu se sabiraju pre primene.
 This item takes no armour bonuses.	Ovaj predmet ne prima bonuse oklopa.
 Nothing worn covers the {part}.	Ništa od opreme ne štiti: {part}.

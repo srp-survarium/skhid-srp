@@ -128,33 +128,27 @@ def specular(diffuse_4_41, smap_4_41):
 
 
 def icon(diffuse):
-    """The lobby icon: the picture's box, as tall as the cell, centred."""
+    """The lobby icon: the picture's box fitted within the cell, centred."""
     image = Image.fromarray(np.clip(np.round(diffuse), 0, 255).astype(np.uint8), 'RGBA')
     image = image.crop(image.getchannel('A').point(lambda a: 255 if a > 128 else 0).getbbox())
-    w = max(1, round(image.width * CELL / image.height))
-    image = image.resize((w, CELL), Image.Resampling.LANCZOS)
+    scale = CELL / max(image.size)
+    w, h = (max(1, round(d * scale)) for d in image.size)
+    image = image.resize((w, h), Image.Resampling.LANCZOS)
     square = Image.new('RGBA', (CELL, CELL), (0, 0, 0, 0))
-    square.paste(image, ((CELL - w) // 2, 0))
+    square.paste(image, ((CELL - w) // 2, (CELL - h) // 2))
     return square
 
 
-def main():
-    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument('--cutouts', required=True, type=Path)
-    parser.add_argument('--stock', required=True, type=Path)
-    parser.add_argument('--out', required=True, type=Path)
-    parser.add_argument('--preview', type=Path)
-    args = parser.parse_args()
-    if args.out.exists():
-        sys.exit(f'{args.out}: already there; the pack goes in a new folder')
-    cutouts = kosovo.read_inputs(args.cutouts, CUTOUTS, '--cutouts')
-    stock = kosovo.read_inputs(args.stock, STOCK, '--stock')
+def build(out, preview, cutouts, stock, items, pack_id, version, description, notes):
+    if out.exists():
+        sys.exit(f'{out}: already there; the pack goes in a new folder')
     like = {role: kosovo.Dds(stock[T + '4_41' + role + '.dds']) for role in ('', '_nmap', '_smap')}
     nmap = cloth(like['_nmap'].pixels('RGBA'))
     smap = specular(like[''].pixels('RGBA'), like['_smap'].pixels('RGB'))
 
     files, icons, made = {}, [], {}
-    for item in ITEMS:
+    items = [item.copy() for item in items]
+    for item in items:
         rc = item['rc']
         item.update(kind='flag', name='decals_' + rc, config=DECAL_CONFIGS + f'char_decal_{rc}.options',
                     modification=200000 + 100 * int(rc.split('_')[0]) + int(rc.split('_')[1]),
@@ -174,41 +168,55 @@ def main():
     operations = [{'op': 'add_file', 'path': path} for path in files if not path.startswith('icons/')]
     operations.append({'op': 'dictionary_add', 'table': 'items_dict', 'entries': [
         {'base_cost': 0, 'cfg_name': item['config'], 'dict_id': item['dict_id'], 'is_premium': True,
-         'is_stack': False, 'item_category': 26, 'name': item['name']} for item in ITEMS]})
+         'is_stack': False, 'item_category': 26, 'name': item['name']} for item in items]})
     for language in LANGUAGES:
         operations.append({'op': 'localization_add', 'languages': [language],
-                           'strings': {item['key']: decals_069d.porter_text(item['names'][language]) for item in ITEMS}})
+                           'strings': {item['key']: decals_069d.porter_text(item['names'][language]) for item in items}})
     operations.append({'op': 'atlas_icons_add', 'swf': ATLAS, 'symbol': 'LobbyMenu_DecalsIcons', 'icons': icons})
     pack = {
         'format_version': 1,
-        'id': PACK_ID,
-        'version': VERSION,
+        'id': pack_id,
+        'version': version,
         'target_build': '0.26g',
-        'description': 'Snufkin and Snufkin sitting (1896, 1897), from frames of the 1990 Moomin anime, printed '
-                       'on cloth as 0.26g\'s flags; not sold (srp-026g/docs/notes/snufkin-decals.md)',
+        'description': description,
         'operations': operations,
-        'server': {'items': [{'dict_id': item['dict_id']} for item in ITEMS]},
-        'notes': [
-            'made by srp-026g/scripts/snufkin-decals/make_pack.py from the cutouts of the two frames and 0.26g\'s '
-            'flag 4_41 (its cloth, specular, fresnel map and .options)',
-            'item configs: 0.26g char_decal_4_41 with the modification id, texture, icon cell and name key',
-        ] + [f'{item["dict_id"]} {item["name"]}: {item["names"]["english"]}' for item in ITEMS],
+        'server': {'items': [{'dict_id': item['dict_id']} for item in items]},
+        'notes': notes + [f'{item["dict_id"]} {item["name"]}: {item["names"]["english"]}' for item in items],
     }
     for path, data in files.items():
-        target = args.out / (path if path.startswith('icons/') else 'files/' + path)
+        target = out / (path if path.startswith('icons/') else 'files/' + path)
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_bytes(data)
-    (args.out / 'pack.json').write_text(json.dumps(pack, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
-    if args.preview:
-        args.preview.mkdir(parents=True, exist_ok=True)
+    (out / 'pack.json').write_text(json.dumps(pack, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
+    if preview:
+        preview.mkdir(parents=True, exist_ok=True)
         for rc, maps in made.items():
             for role, pixels in maps.items():
                 view = pixels[..., 3] if role == '_nmap' else pixels   # the normal map's x
                 mode = 'L' if view.ndim == 2 else ('RGBA' if view.shape[2] == 4 else 'RGB')
-                Image.fromarray(np.clip(np.round(view), 0, 255).astype(np.uint8), mode).save(args.preview / f'{rc}{role}.png')
-    digest = kosovo.sha256((args.out / 'pack.json').read_bytes())
-    print(f'{args.out}: {len(files) - len(icons)} files, {len(icons)} icons, pack.json sha256 {digest}')
-    print(f'manifest row: pack\t{PACK_ID}@{VERSION}\t{digest}\t{pack["description"]}')
+                Image.fromarray(np.clip(np.round(view), 0, 255).astype(np.uint8), mode).save(preview / f'{rc}{role}.png')
+    digest = kosovo.sha256((out / 'pack.json').read_bytes())
+    print(f'{out}: {len(files) - len(icons)} files, {len(icons)} icons, pack.json sha256 {digest}')
+    print(f'manifest row: pack\t{pack_id}@{version}\t{digest}\t{pack["description"]}')
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument('--cutouts', required=True, type=Path)
+    parser.add_argument('--stock', required=True, type=Path)
+    parser.add_argument('--out', required=True, type=Path)
+    parser.add_argument('--preview', type=Path)
+    args = parser.parse_args()
+    cutouts = kosovo.read_inputs(args.cutouts, CUTOUTS, '--cutouts')
+    stock = kosovo.read_inputs(args.stock, STOCK, '--stock')
+    description = ('Snufkin and Snufkin sitting (1896, 1897), from frames of the 1990 Moomin anime, printed '
+                   "on cloth as 0.26g's flags; not sold (srp-026g/docs/notes/snufkin-decals.md)")
+    notes = [
+        'made by srp-026g/scripts/snufkin-decals/make_pack.py from the cutouts of the two frames and 0.26g'
+        "'s flag 4_41 (its cloth, specular, fresnel map and .options)",
+        'item configs: 0.26g char_decal_4_41 with the modification id, texture, icon cell and name key',
+    ]
+    build(args.out, args.preview, cutouts, stock, ITEMS, PACK_ID, VERSION, description, notes)
 
 
 if __name__ == '__main__':

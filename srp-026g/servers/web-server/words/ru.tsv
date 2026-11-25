@@ -731,7 +731,7 @@ Damage ×{damage}, penetration ×{pierce}, before armour: lower penetration make
 {drug}: {pool} takes ×{k} for {s} s after use ({delay} s to kick in).	{drug}: {pool} получает ×{k} в течение {s} с после применения (действует через {delay} с).
 Inside an anomaly: damage ×{k}, before armour.	В аномалии: урон ×{k}, до брони.
 This weapon takes no damage bonuses.	У этого оружия нет бонусов урона.
-Come with the weapon; cannot be changed.	Идут вместе с оружием; изменить нельзя.
+Comes with the weapon; cannot be changed.	Идёт вместе с оружием; изменить нельзя.
 An item holds at most 3 modifications. Bonuses on one stat add up before they apply.	На предмете не больше 3 модификаций. Бонусы к одной характеристике складываются до применения.
 This item takes no armour bonuses.	У этого предмета нет бонусов брони.
 Nothing worn covers the {part}.	Ничто из надетого не защищает: {part}.

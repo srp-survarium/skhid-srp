@@ -185,3 +185,22 @@ receiving game itself (patch 87), with the same code (`srp-validate`'s typed vie
   `release/build-content` lists every key). A local one (`--slow`, `--delta-from`) is for what
   `tools/test-patch` cannot make (a pack's composed operations: tables, `config_set`, icons); a
   release builds the whole patch with `--full`.
+
+## srp-069d (Skhid for Survarium 0.69d)
+
+`srp-069d/` is a server for the unmodified Survarium 0.69d client (`srp-069d/README.md`). The rules above
+for srp-026g's exe patches, content and revisions do not apply to it.
+
+- It is a separate Rust workspace with its own toolchain: `srp-069d/flake.nix` (the dev shell,
+  `nix develop ./srp-069d`) and `srp-069d/rust-toolchain.toml` (the release's Rust, read by rustup).
+  Build and test it from that folder, never with srp-026g's shell or target.
+- Test with `tools/check`: `srp-069d:cargo` (`cargo test --workspace -- --test-threads=2`) and
+  `srp-069d:check-public`. Tests that need game tables read them from `SRP_TEST_DATA` (else
+  `srp-069d/data/`, ignored by git) and skip without them; set `SRP_REQUIRE_TEST_DATA=1` with the tables
+  to make a skip a failure, and run with `--no-cache` then (the tables are not in the check's key).
+- No game files and no game code in the repository: the server reads them from the operator's own game
+  install. `srp-069d/scripts/check-public.sh` must stay clean (no local paths, private notes or
+  references, decision notes, addresses, keys or game data).
+- Releases are made with `srp-069d/scripts/release.sh` on an older glibc distribution (Debian 12,
+  Ubuntu 22.04), outside a Nix shell, so the binaries run on newer ones; there is no GitHub Actions
+  build.
