@@ -643,6 +643,19 @@ impl WalkGrid {
     /// to cut it by; counted). [A1b] One the walk-off at release takes down ([`Verdict::Released`]) carries that press and share.
     /// Returns (walked, re-aimed, standing on no floor, released, held off a thin top, [blocked walk-offs] removed: no client way
     /// goes down there, [`Verdict::Blocked`]).
+    /// [body physics S5c] The kind of a walk-off the drop check moved onto `to`: a GapDrop when it lands more than a step lower
+    /// (the gap links' own rule, [`LinkKind::GapDrop`]), else its own. A gap pass's level walk-off (a GapJump) re-aimed onto a
+    /// floor far under it kept its kind, and the route priced and closed it as no fall ([`WalkGrid::link_cost_reaching`] takes the
+    /// fall of Drop and GapDrop links only): Cologne (-81.76, 30.31, 10.88) -> (-80.51, 18.52, 9.63), 11.8 m, a GapJump; S5b's
+    /// every walk-off made 1,129 such links over 2 m on Cologne batteries (125 before).
+    fn walked_off_kind(&self, from: u32, to: u32, kind: LinkKind) -> LinkKind {
+        if kind == LinkKind::GapJump && self.height[from as usize] - self.height[to as usize] > self.body.step {
+            LinkKind::GapDrop
+        } else {
+            kind
+        }
+    }
+
     pub(super) fn walk_off_links(&self, wide: &mut Wide, world: &Collision) -> (usize, usize, usize, usize, usize, usize) {
         // [body physics S5b] Every walk-off, as every Drop ([`Self::all_drops`]).
         let todo: Vec<usize> = (0..wide.off.len()).filter(|&i| wide.off[i].press == super::gap::Takeoff::WalkOff).collect();
@@ -668,6 +681,7 @@ impl WalkGrid {
                         // [retarget] Pressed along the walk-off's own line: its way, kept where the landing moves.
                         let way = wide.off[i].way.or_else(|| self.grid_way_of(from, to));
                         wide.off[i].to = b;
+                        wide.off[i].kind = self.walked_off_kind(from, b, wide.off[i].kind);
                         wide.off[i].way = way;
                         wide.off[i].press = press;
                         wide.off[i].share = share;
@@ -684,6 +698,7 @@ impl WalkGrid {
                             _ => None,
                         };
                         wide.off[i].to = b;
+                        wide.off[i].kind = self.walked_off_kind(from, b, wide.off[i].kind);
                         moved += 1;
                     }
                 }
@@ -1628,6 +1643,21 @@ mod tests {
         }
         let world = Collision::build(&tris);
         assert!(follows(&world, &Settings::LIVE, Vec3::new(-0.25, 2.0, 0.0), Vec3::new(0.25, 0.0, 0.0)));
+    }
+
+    /// [body physics S5c] A walk-off the drop check moves onto a floor more than a step under its take-off is a GapDrop (priced
+    /// and closed by its fall), whatever kind it had; one onto a floor within a step keeps its kind.
+    #[test]
+    fn a_walk_off_moved_onto_a_floor_far_below_is_a_gap_drop() {
+        let mut tris = Vec::new();
+        tris.extend(quad(0.0, 12.0, 0.0, 10.0, 0.0));
+        tris.extend(quad(0.0, 5.0, 0.0, 10.0, 3.0));
+        let grid = WalkGrid::build(&tris, [0.0, 0.0, 12.0, 10.0], 0.25, super::super::Body::default());
+        let at = |x: f32, y: f32| grid.locate(Vec3::new(x, y, 5.0), 0.3).expect("a floor");
+        let (deck, ground, deck_edge) = (at(4.0, 3.0), at(8.0, 0.0), at(4.5, 3.0));
+        assert_eq!(grid.walked_off_kind(deck, ground, LinkKind::GapJump), LinkKind::GapDrop);
+        assert_eq!(grid.walked_off_kind(deck, deck_edge, LinkKind::GapJump), LinkKind::GapJump);
+        assert_eq!(grid.walked_off_kind(deck, ground, LinkKind::GapDrop), LinkKind::GapDrop);
     }
 
     /// [body physics S5b] The drop check walks every Drop link, out of a floor no seed reaches at that point too: a deck 3 m up
