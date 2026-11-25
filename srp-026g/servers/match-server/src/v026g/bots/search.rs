@@ -573,7 +573,14 @@ impl Bots {
                 floors,
             )
         } else {
-            tactics.resume_route(
+            // [route reuse] A way it finds is the bot's kept way.
+            let mut no_bot = None;
+            let kept = match self.bots.get_mut(pending.place).and_then(Option::as_mut) {
+                Some(bot) => &mut bot.kept_way,
+                None => &mut no_bot,
+            };
+            tactics.resume_route_kept(
+                kept,
                 &mut pending.planning,
                 pending.ends,
                 time,

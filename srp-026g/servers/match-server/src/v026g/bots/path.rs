@@ -900,6 +900,9 @@ pub fn plan_in(
 /// queries: it goes on in [`Planning::resume`].
 pub struct Planning {
     search: RouteSearch,
+    /// [route reuse] Its goal and what the body takes of the links: a [`KeptWay`]'s key.
+    to: NodeId,
+    reach: mapdata::Reach,
     /// Its floors are weighed (a cost search, `RouteFilter::weight`): its
     /// route is pulled straight over floors of weight 1 only ([`finish`]).
     /// Set once, at its start: [`Self::resume`] reads the weight it is given
@@ -907,6 +910,8 @@ pub struct Planning {
     weighted: bool,
     /// [CPU] Its floor test's answers so far ([`FloorTests`]).
     tested: FloorTests,
+    /// [route reuse] Its region test's answers so far, kept the same way (two bits a region), from its start's corridor on.
+    regions_tested: FloorTests,
     /// [CPU hot paths] Its open list, a radix heap ([`mapdata::grid::HotOpen`]), kept across slices.
     queue: mapdata::grid::HotOpen,
     #[cfg(test)]
@@ -937,9 +942,53 @@ pub fn plan_start(
     weight: Option<&dyn Fn(NodeId) -> f32>,
     iters: &mut usize,
 ) -> Result<Option<Route>, Planning> {
+    plan_start_with(grid, regions, hot, from, to, allowed, region_ok, reach, weight, iters, false).0
+}
+
+/// [route reuse] [`plan_start`], and the search's [`KeptWay`] when it ends here with a way (none when it ends without one,
+/// is answered by the regions before a floor is searched, or goes on: [`Planning::resume_keeping`] keeps it then).
+#[allow(clippy::result_large_err, clippy::too_many_arguments, clippy::type_complexity)]
+pub fn plan_start_keeping(
+    grid: &WalkGrid,
+    regions: &Regions,
+    hot: &mapdata::grid::HotIndex,
+    from: NodeId,
+    to: NodeId,
+    allowed: impl Fn(NodeId) -> bool,
+    region_ok: impl Fn(u32) -> bool,
+    reach: mapdata::Reach,
+    weight: Option<&dyn Fn(NodeId) -> f32>,
+    iters: &mut usize,
+) -> (Result<Option<Route>, Planning>, Option<KeptWay>) {
+    plan_start_with(grid, regions, hot, from, to, allowed, region_ok, reach, weight, iters, true)
+}
+
+/// [`plan_start`] and [`plan_start_keeping`]: the answers are asked through the search's own kept tests from its start
+/// (the same answers: each test gives one floor or region the same answer for the search's life), so a way it finds can be
+/// kept with every answer it read (`keep`).
+#[allow(clippy::result_large_err, clippy::too_many_arguments, clippy::type_complexity)]
+fn plan_start_with(
+    grid: &WalkGrid,
+    regions: &Regions,
+    hot: &mapdata::grid::HotIndex,
+    from: NodeId,
+    to: NodeId,
+    allowed: impl Fn(NodeId) -> bool,
+    region_ok: impl Fn(u32) -> bool,
+    reach: mapdata::Reach,
+    weight: Option<&dyn Fn(NodeId) -> f32>,
+    iters: &mut usize,
+    keep: bool,
+) -> (Result<Option<Route>, Planning>, Option<KeptWay>) {
     #[cfg(test)]
     let (started, started_cpu) = (std::time::Instant::now(), super::cpu_time::thread());
-    match regions.start_route_search_reaching(grid, from, to, &allowed, &region_ok, usize::MAX, reach) {
+    let tested = FloorTests::new(grid.len());
+    let regions_tested = FloorTests::new(regions.len());
+    let started_search = {
+        let (kept_allowed, kept_region) = (tested.kept(&allowed), regions_tested.kept(&region_ok));
+        regions.start_route_search_reaching(grid, from, to, kept_allowed, kept_region, usize::MAX, reach)
+    };
+    match started_search {
         Err((found, _stage)) => {
             #[cfg(test)]
             {
@@ -952,13 +1001,16 @@ pub fn plan_start(
                 LAST_END.with(|e| e.set(Some(SearchEnd::Regions)));
                 END_SINCE_MARK.with(|e| e.set(Some(SearchEnd::Regions)));
             }
-            Ok(ended)
+            (Ok(ended), None)
         }
         Ok(search) => {
             let mut planning = Planning {
                 search,
+                to,
+                reach,
                 weighted: weight.is_some(),
-                tested: FloorTests::new(grid.len()),
+                tested,
+                regions_tested,
                 queue: mapdata::grid::HotOpen::hot_open_empty(),
                 #[cfg(test)]
                 us: started.elapsed().as_secs_f64() * 1e6,
@@ -967,9 +1019,9 @@ pub fn plan_start(
                 #[cfg(test)]
                 slices: 0,
             };
-            match planning.resume(grid, regions, hot, allowed, region_ok, weight.unwrap_or(&|_| 1.0), iters) {
-                Some(route) => Ok(route),
-                None => Err(planning),
+            match planning.resume_with(grid, regions, hot, allowed, region_ok, weight.unwrap_or(&|_| 1.0), iters, keep) {
+                Some((route, kept)) => (Ok(route), kept),
+                None => (Err(planning), None),
             }
         }
     }
@@ -1026,6 +1078,22 @@ impl FloorTests {
         Self((0..floors.div_ceil(32)).map(|_| std::cell::Cell::new(0)).collect())
     }
 
+    /// [route reuse] Every floor asked, and its answer, in floor order.
+    fn asked(&self) -> impl Iterator<Item = (NodeId, bool)> + '_ {
+        self.0.iter().enumerate().filter(|(_, word)| word.get() != 0).flat_map(|(at, word)| {
+            let bits = word.get();
+            (0..32u32).filter_map(move |k| {
+                let b = bits >> (k * 2);
+                (b & 1 != 0).then_some((at as u32 * 32 + k, b & 2 != 0))
+            })
+        })
+    }
+
+    /// [route reuse] Whether `ask` gives every floor asked the answer it was given.
+    fn same(&self, ask: impl Fn(NodeId) -> bool) -> bool {
+        self.asked().all(|(node, open)| ask(node) == open)
+    }
+
     /// `allowed`, with each floor's answer kept the first time it is asked (a floor past the grid's, asked each time).
     fn kept<'a>(&'a self, allowed: &'a impl Fn(NodeId) -> bool) -> impl Fn(NodeId) -> bool + 'a {
         move |node| {
@@ -1060,10 +1128,41 @@ impl Planning {
         weight: &dyn Fn(NodeId) -> f32,
         iters: &mut usize,
     ) -> Option<Option<Route>> {
+        self.resume_with(grid, regions, hot, allowed, region_ok, weight, iters, false).map(|(route, _)| route)
+    }
+
+    /// [route reuse] [`Self::resume`], and the search's [`KeptWay`] when it ends with a way.
+    #[allow(clippy::too_many_arguments)]
+    pub fn resume_keeping(
+        &mut self,
+        grid: &WalkGrid,
+        regions: &Regions,
+        hot: &mapdata::grid::HotIndex,
+        allowed: impl Fn(NodeId) -> bool,
+        region_ok: impl Fn(u32) -> bool,
+        weight: &dyn Fn(NodeId) -> f32,
+        iters: &mut usize,
+    ) -> Option<(Option<Route>, Option<KeptWay>)> {
+        self.resume_with(grid, regions, hot, allowed, region_ok, weight, iters, true)
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn resume_with(
+        &mut self,
+        grid: &WalkGrid,
+        regions: &Regions,
+        hot: &mapdata::grid::HotIndex,
+        allowed: impl Fn(NodeId) -> bool,
+        region_ok: impl Fn(u32) -> bool,
+        weight: &dyn Fn(NodeId) -> f32,
+        iters: &mut usize,
+        keep: bool,
+    ) -> Option<(Option<Route>, Option<KeptWay>)> {
         let weight = self.weighted.then_some(weight);
         #[cfg(test)]
         let (started, started_cpu) = (std::time::Instant::now(), super::cpu_time::thread());
         let allowed = self.tested.kept(&allowed);
+        let region_ok = self.regions_tested.kept(&region_ok);
         // The plain search keeps its own loop (no call through the weight).
         let ended = match weight {
             Some(w) => self.search.step_hot(regions, grid, hot, &mut self.queue, &allowed, region_ok, w, iters),
@@ -1085,7 +1184,33 @@ impl Planning {
             self.search.expanded() as u64,
             self.slices,
         );
-        Some(finish(grid, found, allowed, weight))
+        let way = match (&found, keep) {
+            (Search::Found(path), true) => Some(path.clone()),
+            _ => None,
+        };
+        let route = finish(grid, found, allowed, weight);
+        Some((route, way.map(|path| self.kept_way(path, weight))))
+    }
+
+    /// [route reuse] The ended search's way with every answer it read: its floor and region tests' answers (taken out: the
+    /// search is over), the weights of the open floors it asked (a weighed search), and the regions it searched inside.
+    fn kept_way(&mut self, path: mapdata::Path, weight: Option<&dyn Fn(NodeId) -> f32>) -> KeptWay {
+        let floors = std::mem::replace(&mut self.tested, FloorTests::new(0));
+        let regions = std::mem::replace(&mut self.regions_tested, FloorTests::new(0));
+        let weights = weight.map_or_else(Vec::new, |w| {
+            floors.asked().filter(|&(_, open)| open).map(|(node, _)| (node, w(node).to_bits())).collect()
+        });
+        KeptWay {
+            to: self.to,
+            reach: self.reach,
+            weighted: self.weighted,
+            inside: self.search.kept_inside().map(<[u64]>::to_vec),
+            floors,
+            regions,
+            weights,
+            path,
+            expanded: self.search.expanded(),
+        }
     }
 
     /// Floors expanded so far.
@@ -1099,6 +1224,147 @@ impl Planning {
     pub fn partial(&self, grid: &WalkGrid, allowed: impl Fn(NodeId) -> bool) -> Option<Route> {
         let path = self.search.partial(grid)?;
         (path.nodes.len() >= 2).then(|| pull(grid, path, allowed))
+    }
+}
+
+/// [route reuse] A bot's last route search that found its way, with every answer it read ([`Planning::kept_way`]): the floor
+/// and region tests' answers, the weights of the open floors it asked, the regions its floors' search was kept inside, and
+/// its way (the grid's path, before the pull).
+///
+/// Its use ([`Self::reuse`]): a later search toward the same goal from a floor of that way, every answer asked again with the
+/// later search's own tests and found the same, takes the rest of the way from there (pulled anew). The way's cost:
+/// - The kept search was an A* with an admissible heuristic over these answers, so no way from its start costs less than
+///   its way's, inside the floors it searched (A*'s own proof: every way leaves the floors it expanded through a floor it
+///   asked, whose `g + h` was at least the cost found). So no way from a floor of the way costs less than the rest of it.
+/// - Kept inside a corridor ([`RouteSearch::kept_inside`]), the rest is taken only when the later search's own corridor
+///   lies inside the kept one and holds every floor of the rest: the later search's first stage would then find a way of
+///   the same cost (the rest is one it may take, and none cheaper lies inside the kept corridor). The same cost; its ties
+///   may pick another way of it.
+/// - Kept from the whole grid ([`mapdata::regions::Stage::Whole`]), the rest costs the least of any way from there, no more
+///   than a fresh search's (whose corridor may hold a dearer one).
+pub struct KeptWay {
+    to: NodeId,
+    reach: mapdata::Reach,
+    weighted: bool,
+    inside: Option<Vec<u64>>,
+    floors: FloorTests,
+    regions: FloorTests,
+    /// The weight of each open floor asked (its bits), floor order.
+    weights: Vec<(NodeId, u32)>,
+    path: mapdata::Path,
+    /// The floors the kept search expanded: what a reuse did not search again (the match-end line).
+    expanded: usize,
+}
+
+/// [route reuse] Why a kept way was not taken ([`KeptWay::reuse`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ReuseMiss {
+    /// Another goal, body reach, or a weighed search for a plain one (or the other way).
+    Other,
+    /// The start is no floor of the way's (or is its goal).
+    OffPath,
+    /// A floor's, a region's or a weight's answer is not the one the kept search read.
+    Answers,
+    /// The later search's corridor is not inside the kept one, or does not hold every floor of the rest.
+    Corridor,
+}
+
+impl KeptWay {
+    /// The rest of the kept way from `from` toward `to` (pulled anew, [`finish`]), for a search with these tests, if every
+    /// answer the kept search read is theirs too ([`KeptWay`]); the kept search's floors expanded with it. None of the
+    /// tests' answers is kept: they are asked again at every use.
+    #[allow(clippy::too_many_arguments)]
+    pub fn reuse(
+        &self,
+        grid: &WalkGrid,
+        regions: &Regions,
+        from: NodeId,
+        to: NodeId,
+        reach: mapdata::Reach,
+        weight: Option<&dyn Fn(NodeId) -> f32>,
+        allowed: impl Fn(NodeId) -> bool,
+        region_ok: impl Fn(u32) -> bool,
+    ) -> Result<(Route, usize, bool), ReuseMiss> {
+        if to != self.to || reach != self.reach || weight.is_some() != self.weighted {
+            return Err(ReuseMiss::Other);
+        }
+        let Some(at) = self.path.nodes.iter().position(|&node| node == from) else {
+            return Err(ReuseMiss::OffPath);
+        };
+        if at + 1 >= self.path.nodes.len() {
+            return Err(ReuseMiss::OffPath);
+        }
+        // The rest's floors first (a closed one ends it at once), then every answer.
+        let rest = &self.path.nodes[at..];
+        if !rest.iter().all(|&node| allowed(node))
+            || !self.floors.same(&allowed)
+            || !self.regions.same(&region_ok)
+            || weight.is_some_and(|w| self.weights.iter().any(|&(node, bits)| w(node).to_bits() != bits))
+        {
+            return Err(ReuseMiss::Answers);
+        }
+        if let Some(kept) = &self.inside {
+            let Ok(search) = regions.start_route_search_reaching(grid, from, to, &allowed, region_ok, usize::MAX, reach) else {
+                return Err(ReuseMiss::Corridor);
+            };
+            let Some(now) = search.kept_inside() else {
+                return Err(ReuseMiss::Corridor);
+            };
+            let holds = |bits: &[u64], region: u32| bits.get(region as usize / 64).is_some_and(|w| w & (1 << (region % 64)) != 0);
+            let inside = now.len() == kept.len() && now.iter().zip(kept).all(|(n, k)| n & !k == 0);
+            if !inside || !rest.iter().all(|&node| holds(now, regions.of(node))) {
+                return Err(ReuseMiss::Corridor);
+            }
+        }
+        let mut kinds = self.path.kinds[at..].to_vec();
+        kinds[0] = LinkKind::Walk;
+        // The cost is the kept way's whole (no more than the rest's; read by no decision: `pull` reads the floors and kinds).
+        let path = mapdata::Path { nodes: rest.to_vec(), kinds, cost: self.path.cost };
+        let route = finish(grid, Search::Found(path), allowed, weight).expect("a found way gives a route");
+        Ok((route, self.expanded, self.inside.is_none()))
+    }
+}
+
+/// [route reuse] The kept ways asked, taken and missed, every match on this server since the last match end (the match-end
+/// line, `Bots::drift_report`).
+pub mod reuse_counts {
+    use std::sync::atomic::{AtomicU64, Ordering};
+
+    use super::ReuseMiss;
+
+    /// Taken kept from the whole grid, taken kept in a corridor; missed: other, off the way, answers, corridor; the kept
+    /// searches' floors not searched again.
+    static COUNTS: [AtomicU64; 7] = [const { AtomicU64::new(0) }; 7];
+
+    pub fn taken(whole: bool, floors: usize) {
+        COUNTS[usize::from(!whole)].fetch_add(1, Ordering::Relaxed);
+        COUNTS[6].fetch_add(floors as u64, Ordering::Relaxed);
+    }
+
+    pub fn missed(miss: ReuseMiss) {
+        let at = match miss {
+            ReuseMiss::Other => 2,
+            ReuseMiss::OffPath => 3,
+            ReuseMiss::Answers => 4,
+            ReuseMiss::Corridor => 5,
+        };
+        COUNTS[at].fetch_add(1, Ordering::Relaxed);
+    }
+
+    /// The line's words, and the counts zeroed.
+    pub fn take_line() -> String {
+        let c: Vec<u64> = COUNTS.iter().map(|c| c.swap(0, Ordering::Relaxed)).collect();
+        format!(
+            "route searches answered by the rest of the bot's kept way since the last match end (every match on this server): {} (kept from the whole grid {}, in a corridor {}; the kept searches' floors not searched again {}); not taken: another goal or body {}, start off the way {}, an answer changed {}, corridor not inside {}",
+            c[0] + c[1],
+            c[0],
+            c[1],
+            c[6],
+            c[2],
+            c[3],
+            c[4],
+            c[5]
+        )
     }
 }
 
@@ -2781,6 +3047,90 @@ mod tests {
         let (found, _) = search.step(&regions, grid, plain, |_| true, |_| 1.0, &mut all).unwrap();
         let reference = finish(grid, found, plain, None).unwrap();
         assert_eq!(format!("{:?}", route.points), format!("{:?}", reference.points));
+    }
+
+    /// [route reuse] The rest of a kept way from a floor of it costs what a fresh search from there finds, while every answer
+    /// is the same; a changed answer, a start off the way and another goal each search again, and say why.
+    ///
+    /// Two ways on a field with a shut strip: one short of the strip, which the fresh search finds in its first corridor (its
+    /// own start's rest is taken), and one across the field round the strip's gap, which it finds only in the widened stage (the rest is refused from
+    /// every floor whose plain corridor does not hold it: a fresh search from there would search that corridor first). Both
+    /// stages are the fresh search's own, on the same input.
+    #[test]
+    fn a_kept_ways_rest_costs_what_a_fresh_search_finds() {
+        let world = crate::v026g::bots::tactics::tests::field();
+        let grid = &world.grid;
+        let regions = Regions::build(grid, None);
+        let hot = mapdata::grid::HotIndex::for_grid(grid);
+        let shut = |n: NodeId| {
+            let at = grid.position(n);
+            (55.0..57.0).contains(&at.x) && at.z > 4.0
+        };
+        let allowed = |n: NodeId| !shut(n);
+        let floor = |x: f32, z: f32| grid.locate(Vec3::new(x, 0.0, z), 1.0).unwrap();
+        let fresh = |from: NodeId, to: NodeId| {
+            let mut search = regions.start_route_search_reaching(grid, from, to, allowed, |_| true, usize::MAX, mapdata::Reach::FULL).ok().unwrap();
+            let mut all = usize::MAX;
+            match search.step(&regions, grid, allowed, |_| true, |_| 1.0, &mut all) {
+                Some((Search::Found(path), stage)) => (path, stage),
+                _ => panic!("a fresh way from {from} to {to}"),
+            }
+        };
+        let cost_of = |path: &[NodeId], kinds: &[LinkKind]| -> f32 {
+            path.windows(2).zip(&kinds[1..]).map(|(w, &kind)| grid.link_cost(w[0], w[1], kind)).sum()
+        };
+        for ((from, to), stage) in [
+            ((floor(5.0, 15.0), floor(40.0, 12.0)), mapdata::regions::Stage::Corridor),
+            ((floor(5.0, 10.0), floor(75.0, 12.0)), mapdata::regions::Stage::Widened),
+        ] {
+            let mut iters = usize::MAX;
+            let (found, kept) = plan_start_keeping(grid, &regions, &hot, from, to, allowed, |_| true, mapdata::Reach::FULL, None, &mut iters);
+            assert!(found.ok().flatten().is_some(), "a way through the gap");
+            let kept = kept.expect("its way kept");
+            let nodes = kept.path.nodes.clone();
+            // The fresh search on the same input: its stage, and the kept way is its way.
+            let (own, own_stage) = fresh(from, to);
+            assert_eq!(own_stage, stage, "{from} -> {to}");
+            assert_eq!(own.nodes, nodes, "{from} -> {to}: the kept way is the fresh search's");
+            let mut taken = 0;
+            for at in 0..nodes.len() - 1 {
+                let start = nodes[at];
+                match kept.reuse(grid, &regions, start, to, mapdata::Reach::FULL, None, allowed, |_| true) {
+                    Ok((route, floors, _)) => {
+                        taken += 1;
+                        assert_eq!(floors, kept.expanded);
+                        assert!(route.length() > 0.0);
+                        let rest = cost_of(&nodes[at..], &kept.path.kinds[at..]);
+                        let (path, _) = fresh(start, to);
+                        assert!((rest - path.cost).abs() < 1e-3, "from floor {at} of the way: the rest {rest}, a fresh search {}", path.cost);
+                    }
+                    Err(ReuseMiss::Corridor) => {
+                        // Refused: the fresh search from there searches a corridor first that does not hold the rest.
+                        assert!(kept.inside.is_some(), "floor {at}: a whole-grid kept way refused for a corridor");
+                        if stage == mapdata::regions::Stage::Corridor {
+                            assert!(at > 0, "{from} -> {to}: its own start refused");
+                        }
+                    }
+                    Err(miss) => panic!("floor {at} of the way: {miss:?}"),
+                }
+            }
+            if stage == mapdata::regions::Stage::Corridor {
+                assert!(taken >= 1, "{from} -> {to}: none taken");
+            }
+            let mid = nodes[nodes.len() / 2];
+            // A floor the kept search asked now shut (one off its way: the way itself is still open).
+            let asked_off = kept.floors.asked().map(|(n, _)| n).find(|n| !nodes.contains(n) && !shut(*n)).unwrap();
+            let changed = |n: NodeId| allowed(n) && n != asked_off;
+            assert_eq!(kept.reuse(grid, &regions, mid, to, mapdata::Reach::FULL, None, changed, |_| true).err(), Some(ReuseMiss::Answers));
+            let off = (0..grid.len() as NodeId).find(|n| !nodes.contains(n) && allowed(*n)).unwrap();
+            assert_eq!(kept.reuse(grid, &regions, off, to, mapdata::Reach::FULL, None, allowed, |_| true).err(), Some(ReuseMiss::OffPath));
+            assert_eq!(kept.reuse(grid, &regions, mid, from, mapdata::Reach::FULL, None, allowed, |_| true).err(), Some(ReuseMiss::Other));
+            let weight = |_: NodeId| 1.0f32;
+            assert_eq!(
+                kept.reuse(grid, &regions, mid, to, mapdata::Reach::FULL, Some(&weight), allowed, |_| true).err(),
+                Some(ReuseMiss::Other)
+            );
+        }
     }
 
     /// [face] A low leg past a riser's top is not crouched for before the climb: the riser is climbed standing; from its top on

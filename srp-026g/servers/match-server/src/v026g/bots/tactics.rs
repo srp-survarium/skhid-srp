@@ -1947,6 +1947,87 @@ impl Tactics {
         )
     }
 
+    /// [route reuse] [`Self::start_route`] for a bot with its kept way (`kept`, [`path::KeptWay`]): the rest of it when every
+    /// answer it read is this search's too, else the search, whose way, once found here, is kept in its place.
+    #[allow(clippy::too_many_arguments)]
+    #[allow(clippy::result_large_err)]
+    pub fn start_route_kept(
+        &self,
+        kept: &mut Option<path::KeptWay>,
+        start: NodeId,
+        goal: NodeId,
+        time: u32,
+        side: Option<i32>,
+        objective: bool,
+        filter: &RouteFilter,
+        iters: &mut usize,
+    ) -> Result<Option<Route>, path::Planning> {
+        let grid = &self.world.grid;
+        let at = grid.position(start);
+        let weight = |node| filter.weight(grid, node);
+        let weighed = filter.weighs().then_some(&weight as &dyn Fn(NodeId) -> f32);
+        let legs = self.band_legs(start, goal);
+        let allowed = |node| self.route_floor_open(node, time, side, objective, at, filter, &legs);
+        let region_ok = |region| self.route_region_open(region, time, side, objective, at, filter, &legs);
+        if let Some(way) = kept.as_ref() {
+            match way.reuse(grid, &self.base.regions, start, goal, filter.reach(), weighed, allowed, region_ok) {
+                Ok((route, floors, whole)) => {
+                    path::reuse_counts::taken(whole, floors);
+                    return Ok(Some(route));
+                }
+                Err(miss) => path::reuse_counts::missed(miss),
+            }
+        }
+        let (found, way) = path::plan_start_keeping(
+            grid,
+            &self.base.regions,
+            &self.base.hot,
+            start,
+            goal,
+            allowed,
+            region_ok,
+            filter.reach(),
+            weighed,
+            iters,
+        );
+        if let Some(way) = way {
+            *kept = Some(way);
+        }
+        found
+    }
+
+    /// [route reuse] [`Self::resume_route`] for a bot with its kept way: a way the search finds is kept in its place.
+    #[allow(clippy::too_many_arguments)]
+    pub fn resume_route_kept(
+        &self,
+        kept: &mut Option<path::KeptWay>,
+        planning: &mut path::Planning,
+        (start, goal): (NodeId, NodeId),
+        time: u32,
+        side: Option<i32>,
+        objective: bool,
+        filter: &RouteFilter,
+        iters: &mut usize,
+    ) -> Option<Option<Route>> {
+        let grid = &self.world.grid;
+        let at = grid.position(start);
+        let weight = |node| filter.weight(grid, node);
+        let legs = self.band_legs(start, goal);
+        let (route, way) = planning.resume_keeping(
+            grid,
+            &self.base.regions,
+            &self.base.hot,
+            |node| self.route_floor_open(node, time, side, objective, at, filter, &legs),
+            |region| self.route_region_open(region, time, side, objective, at, filter, &legs),
+            &weight,
+            iters,
+        )?;
+        if let Some(way) = way {
+            *kept = Some(way);
+        }
+        Some(route)
+    }
+
     /// A plain route's floor test ([`Self::start_route`], [`Self::resume_route`], [`Self::partial_route`]):
     /// [`Self::allowed_from`], or a floor of its band legs ([`Self::band_legs`]) off another side's spawn area; and open
     /// by `filter`.
