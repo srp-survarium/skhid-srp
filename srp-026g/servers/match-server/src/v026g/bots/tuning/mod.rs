@@ -571,6 +571,7 @@ pub(super) const KEPT_RIGHT: &[&str] = &[
     "/grid/rim_walk_on",
     "/grid/run_ups_after_erosion",
     "/grid/share0_drop",
+    "/grid/walk_gait",
     "/grid/slip_landings",
     "/grid/start_witness",
     "/grid/steep_walk_base",
