@@ -3,9 +3,9 @@
 //! `crates/mapdata-srchash/coverage_oracle.py`).
 //!
 //! Only a build with `--cfg srp_coverage` and `-C instrument-coverage` has them, and only with `SRP_COVERAGE_DIR` set: each
-//! window boundary writes the counters of the segment it ends to `<dir>/<n>-<label>.profraw` and clears them. A window's own
-//! segments carry its label (a memo site's id, `world`, `sight`); the build's other segments are `between`, and what ran before
-//! the grid's build `pre`. The grid's code is every segment from its start to its end. Without the cfg, a window is its call.
+//! window boundary writes the counters of the segment it ends to `<dir>/<n>-<label>[.grid].profraw` and clears them. A window's
+//! own segments carry its label (a memo site's id, `world`, `sight`), any other segment `between`; `.grid` marks a segment of
+//! the grid's build, whose code is every such segment. Without the cfg, a window is its call.
 
 /// Runs `f` as a window labelled `name` (a memo site's jobs, the shapes' build, the sight tree's).
 #[cfg(not(srp_coverage))]
@@ -14,12 +14,16 @@ pub(crate) fn window<R>(_name: &str, f: impl FnOnce() -> R) -> R {
     f()
 }
 
-/// Runs `f`, the grid's whole build: the segment before it is `pre`, its own segments `between` or a window's.
+/// Runs `f`, the grid's whole build: its segments are marked `.grid`.
 #[cfg(not(srp_coverage))]
 #[inline(always)]
 pub(crate) fn grid<R>(f: impl FnOnce() -> R) -> R {
     f()
 }
+
+/// Whether the grid's build runs (its segments are marked `.grid`).
+#[cfg(srp_coverage)]
+static IN_GRID: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 
 #[cfg(srp_coverage)]
 pub(crate) fn window<R>(name: &str, f: impl FnOnce() -> R) -> R {
@@ -31,9 +35,12 @@ pub(crate) fn window<R>(name: &str, f: impl FnOnce() -> R) -> R {
 
 #[cfg(srp_coverage)]
 pub(crate) fn grid<R>(f: impl FnOnce() -> R) -> R {
-    boundary("pre");
+    use std::sync::atomic::Ordering;
+    boundary("between");
+    IN_GRID.store(true, Ordering::SeqCst);
     let r = f();
     boundary("between");
+    IN_GRID.store(false, Ordering::SeqCst);
     r
 }
 
@@ -49,7 +56,8 @@ fn boundary(label: &str) {
     }
     let Some(dir) = std::env::var_os("SRP_COVERAGE_DIR") else { return };
     let n = NEXT.fetch_add(1, Ordering::SeqCst);
-    let path = std::path::Path::new(&dir).join(format!("{n:04}-{label}.profraw"));
+    let grid = if IN_GRID.load(Ordering::SeqCst) { ".grid" } else { "" };
+    let path = std::path::Path::new(&dir).join(format!("{n:04}-{label}{grid}.profraw"));
     // The runtime keeps the name's pointer: each name is leaked (a few bytes a boundary, in a coverage build only).
     let leak = |p: std::path::PathBuf| std::ffi::CString::new(p.to_string_lossy().into_owned()).expect("a path without a NUL").into_raw();
     let rest = std::path::Path::new(&dir).join("rest-%p.profraw");
