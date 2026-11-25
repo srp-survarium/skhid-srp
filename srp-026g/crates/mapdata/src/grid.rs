@@ -4470,10 +4470,10 @@ impl WalkGrid {
         self.flags[node as usize] & (REACHED | RETURNS) == REACHED
     }
 
-    /// Marks the floors of the pockets with no way out ([`NO_EXIT`]). A
-    /// pocket of more than [`POCKET_EXIT_FLOORS`] floors is never marked:
-    /// [`Self::pocket_exits`] looks at that many, so an exit past them
-    /// would go unseen.
+    /// Marks the floors of the pockets with no way out ([`NO_EXIT`]). [body physics S5c] Whatever the pocket's size: one of more
+    /// than [`POCKET_EXIT_FLOORS`] floors (which [`Self::pocket_exits`] does not look through) has its exits looked for on every
+    /// floor here. Before, it was never marked, and a bot in it got no shut-pocket handling (Vector Laboratory: ~5,600 floors
+    /// a mode of pits past the limit, the m7 pit's kind; the escape found no exit and the bot waited out the minute).
     ///
     /// With `walls` ([`Body::pocket_exits_walled`]) only the exits a body can take count ([`Self::exit_takes`]).
     fn mark_no_exit(&mut self, walls: Option<&exact::Walls>) {
@@ -4484,7 +4484,8 @@ impl WalkGrid {
         let shut: std::collections::HashSet<PocketId> = floors
             .into_iter()
             .filter(|&(p, n)| {
-                n <= POCKET_EXIT_FLOORS && self.pocket_exits(p).iter().all(|exit| walls.is_some_and(|walls| !self.exit_takes(exit, walls)))
+                let limit = if n <= POCKET_EXIT_FLOORS { POCKET_EXIT_FLOORS } else { usize::MAX };
+                self.pocket_exits_within(p, limit).iter().all(|exit| walls.is_some_and(|walls| !self.exit_takes(exit, walls)))
             })
             .map(|(p, _)| p)
             .collect();
@@ -4655,6 +4656,17 @@ impl WalkGrid {
     /// [`ExitJump::Sprint`] one takes a sprint run-up and no battery, a
     /// [`ExitJump::Steep`] one none yet.
     pub fn pocket_exits(&self, from: NodeId) -> Vec<PocketExit> {
+        self.pocket_exits_within(from, POCKET_EXIT_FLOORS)
+    }
+
+    /// [body physics S5c] [`Self::pocket_exits`] looked for on every floor of the pocket, whatever its size: what
+    /// [`Self::in_shut_pocket`] is marked by ([`Self::mark_no_exit`]).
+    pub fn pocket_exits_all(&self, from: NodeId) -> Vec<PocketExit> {
+        self.pocket_exits_within(from, usize::MAX)
+    }
+
+    /// [`Self::pocket_exits`], looking at `limit` of the pocket's floors at most (every one: [`usize::MAX`]).
+    fn pocket_exits_within(&self, from: NodeId, limit: usize) -> Vec<PocketExit> {
         let Some(pocket) = self.pocket_of(from) else {
             return Vec::new();
         };
@@ -4666,7 +4678,7 @@ impl WalkGrid {
         let r = POCKET_EXIT_ACROSS_M;
         while let Some(a) = queue.pop_front() {
             looked += 1;
-            if looked > POCKET_EXIT_FLOORS {
+            if looked > limit {
                 break;
             }
             let at = self.position(a);
@@ -6748,6 +6760,53 @@ pub(crate) mod tests {
             &spawn,
             &spawn,
         )
+    }
+
+    /// [body physics S5c] A pit 1.6 m deep and 14 m square (about 3,100 floors, past [`POCKET_EXIT_FLOORS`]): no way out, so
+    /// it is shut whatever its size (before, a pocket past the limit was never marked). With a ledge 1.2 m up on its far side,
+    /// past the floors [`WalkGrid::pocket_exits`] looks at from the near corner, it has a way out and is not shut.
+    #[test]
+    fn a_pocket_past_the_exit_look_is_shut_when_it_has_no_way_out() {
+        let build = |ledge: bool| {
+            let y = -1.6;
+            let (x0, x1, z0, z1) = (8.0, 22.0, 3.0, 17.0);
+            let mut tris: Vec<Triangle> = Vec::new();
+            tris.extend(floor(0.0, 0.0, x0, 20.0, 0.0));
+            tris.extend(floor(x1, 0.0, 30.0, 20.0, 0.0));
+            tris.extend(floor(x0, 0.0, x1, z0, 0.0));
+            tris.extend(floor(x0, z1, x1, 20.0, 0.0));
+            tris.extend(floor(x0, z0, x1, z1, y));
+            if ledge {
+                // A step 0.4 m under the yard along the far side: 1.2 m up from the pit, a standing exit onto it, and from it
+                // up to the yard.
+                tris.extend(floor(x1 - 1.0, z0, x1, z1, -0.4));
+            }
+            let walker = WalkerBehaviour::BySlope;
+            let mut wall = |a: (f32, f32), b: (f32, f32), low: f32| {
+                let (p, q) = (Vec3::new(a.0, low, a.1), Vec3::new(b.0, low, b.1));
+                let (r, s) = (Vec3::new(b.0, 0.0, b.1), Vec3::new(a.0, 0.0, a.1));
+                tris.push(Triangle { v: [p, q, r], walker });
+                tris.push(Triangle { v: [p, r, s], walker });
+            };
+            wall((x0, z0), (x1, z0), y);
+            wall((x0, z1), (x1, z1), y);
+            wall((x0, z0), (x0, z1), y);
+            wall((x1, z0), (x1, z1), y);
+            let spawn = [Vec3::new(2.0, 0.0, 10.0)];
+            WalkGrid::build_kept(&tris, [0.0, 0.0, 30.0, 20.0], 0.25, Body::default(), &spawn, &spawn)
+        };
+        let grid = build(false);
+        let bottom = grid.locate(Vec3::new(9.0, -1.6, 4.0), 0.3).unwrap();
+        let pocket = grid.pocket_of(bottom).expect("a pocket");
+        assert!(grid.pocket_floors(pocket).count() > POCKET_EXIT_FLOORS, "{}", grid.pocket_floors(pocket).count());
+        assert!(grid.pocket_exits_all(bottom).is_empty());
+        assert!(grid.in_shut_pocket(bottom), "no way out: shut whatever its size");
+        let grid = build(true);
+        let bottom = grid.locate(Vec3::new(9.0, -1.6, 4.0), 0.3).unwrap();
+        if grid.pocket_of(bottom).is_some() {
+            assert!(!grid.pocket_exits_all(bottom).is_empty(), "the ledge is a way out");
+            assert!(!grid.in_shut_pocket(bottom), "a way out past the look: not shut");
+        }
     }
 
     /// A pit 1.6 m deep is a pocket with no way out; its rim is marked and

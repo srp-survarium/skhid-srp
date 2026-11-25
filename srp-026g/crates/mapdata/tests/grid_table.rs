@@ -18,7 +18,6 @@
 //! reads the same on a grid of any build; the grid's own marks
 //! ([`WalkGrid::in_pocket`]) must agree.
 
-use mapdata::grid::POCKET_EXIT_FLOORS;
 use mapdata::{Body, ExitJump, MapData, NodeId, Vec3, WalkGrid};
 
 /// A spawn's floor, as the bots' tactics find it (`walkable_from_spawns`).
@@ -239,7 +238,8 @@ fn table_row(map: &MapData, grid: &WalkGrid) -> Row {
         }
         row.pocket_floors += members.len();
         let lowest = members.iter().copied().min().unwrap();
-        let surest = grid.pocket_exits(lowest).iter().map(|e| e.jump).min();
+        // [body physics S5c] Every floor of the pocket looked at, as `WalkGrid::mark_no_exit` does whatever its size.
+        let surest = grid.pocket_exits_all(lowest).iter().map(|e| e.jump).min();
         let (class, name) = match surest {
             Some(ExitJump::Standing) => (0, "standing"),
             Some(ExitJump::Sprint) => (1, "sprint"),
@@ -247,14 +247,6 @@ fn table_row(map: &MapData, grid: &WalkGrid) -> Row {
             None => (3, "none"),
         };
         row.pockets_by_exit[class] += 1;
-        // Under the exits' look, or an exit past it goes unseen and the
-        // pocket is not marked (`WalkGrid::mark_no_exit`): raise it.
-        assert!(
-            class != 3 || members.len() <= POCKET_EXIT_FLOORS,
-            "{}: a pocket of {} floors with no exit seen",
-            map.project,
-            members.len()
-        );
         row.pocket_list
             .push((grid.position(lowest), members.len(), name));
         for &a in &members {
