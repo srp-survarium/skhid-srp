@@ -19,7 +19,7 @@ use mapdata::stands::{EYE_CROUCHED, EYE_STANDING, GUESSED_EYE_CROUCHED, GUESSED_
 use mapdata::{UsePose, UseStand, UseStands, Vec3};
 
 use super::Ctx;
-use super::collect::{Crossing, crossing_to, routed_crossing_to};
+use super::collect::{Crossing, crossing_to, routed_crossing_via};
 use crate::v026g::bots::hazards::HurtTest;
 use crate::v026g::bots::tuning::RouteCrossing;
 
@@ -120,6 +120,17 @@ impl<K: Eq + Hash, V: Clone> QueryMemo<K, V> {
     }
 }
 
+/// [crossing prewarm] `ask` with the bench's damage-zone counters left as they were (tests); `ask` elsewhere.
+#[cfg(test)]
+fn quiet<R>(ask: impl FnOnce() -> R) -> R {
+    crate::v026g::bots::hazards::damage_zone_fixes::quietly(ask)
+}
+
+#[cfg(not(test))]
+fn quiet<R>(ask: impl FnOnce() -> R) -> R {
+    ask()
+}
+
 /// A crossing's question: the stand's x, y, z bits, the side, the stop's
 /// bits, the armour it is worked out with (`ZoneArmour::key`; 0: none), and whether a route over
 /// the zones' floors answers where no straight walk does (`HazardTuning::route_crossing`, `total_crossing`).
@@ -146,9 +157,134 @@ pub struct Memo {
     /// [anomaly batteries] The way into a battery's stand inside an energy core's zones, by the stand's floor and the side
     /// ([`Memo::zone_way`]).
     zone_ways: QueryMemo<(mapdata::NodeId, i32), Option<std::sync::Arc<Vec<mapdata::NodeId>>>>,
+    /// [crossing prewarm] A routed crossing's entry search ([`Memo::entry`]): made at map load for the battery spawners'
+    /// stands ([`Memo::prewarm_entries`]), else at the first ask.
+    entries: QueryMemo<EntryKey, Option<std::sync::Arc<Vec<mapdata::NodeId>>>>,
+    /// [crossing prewarm] [`Memo::entry`]'s asks in play, and of them the searches made then (not kept from the load).
+    entry_asks: std::sync::atomic::AtomicU32,
+    entry_searches: std::sync::atomic::AtomicU32,
+}
+
+/// [crossing prewarm] A routed crossing's entry search ([`crate::v026g::bots::zone_search::cheapest_entry`]): the side's spawn floor,
+/// the stand's floor, the side, the armour's key (`ZoneArmour::key`; 0: none) and the hurt rule. Everything its price reads but
+/// the zones, which the stamp holds.
+type EntryKey = (mapdata::NodeId, mapdata::NodeId, i32, u64, HurtTest);
+
+/// [crossing prewarm] What [`Memo::prewarm_entries`] made, for the map's log line.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct EntryPrewarm {
+    /// The battery spawners' stands that need a crossing.
+    pub stands: usize,
+    /// The (armour, rule) pairs asked, and the map's sides.
+    pub asks: usize,
+    pub sides: usize,
+    /// Entry searches made, and of them ways found.
+    pub searches: usize,
+    pub found: usize,
+    pub ms: f32,
 }
 
 impl Memo {
+    /// [crossing prewarm] [`crate::v026g::bots::zone_search::cheapest_entry`] from the floor `from` (the side's spawn) to the stand's
+    /// floor `goal` for a body of side `side`, priced as a routed crossing's leg is (`Hazards::leg_cost_per_s` under `armour` and
+    /// `hurt`), within [`super::collect::ENTRY_WITHIN_M`]: kept while the zones stay what they are. The same answer as the search's.
+    pub fn entry(
+        &self,
+        tactics: &Tactics,
+        from: mapdata::NodeId,
+        goal: mapdata::NodeId,
+        side: i32,
+        armour: Option<&ZoneArmour>,
+        hurt: HurtTest,
+    ) -> Option<std::sync::Arc<Vec<mapdata::NodeId>>> {
+        use std::sync::atomic::Ordering;
+        self.entry_asks.fetch_add(1, Ordering::Relaxed);
+        self.entry_made(tactics, (from, goal, side, armour.map_or(0, ZoneArmour::key), hurt), armour, || {
+            self.entry_searches.fetch_add(1, Ordering::Relaxed);
+        })
+        .0
+    }
+
+    /// [`Self::entry`] for `key` (its armour `armour`): the answer, and whether the search ran (`searched` called).
+    fn entry_made(
+        &self,
+        tactics: &Tactics,
+        key: EntryKey,
+        armour: Option<&ZoneArmour>,
+        searched: impl FnOnce(),
+    ) -> (Option<std::sync::Arc<Vec<mapdata::NodeId>>>, bool) {
+        let ran = std::cell::Cell::new(false);
+        let (from, goal, side, _, hurt) = key;
+        let answer = self.entries.get(zones_stamp(&tactics.hazards), key, || {
+            ran.set(true);
+            searched();
+            let grid = &tactics.world.grid;
+            let leg_per_s = |node| tactics.hazards.leg_cost_per_s(grid, node, armour, hurt).most();
+            crate::v026g::bots::zone_search::cheapest_entry(tactics, from, goal, Some(side), leg_per_s, super::collect::ENTRY_WITHIN_M)
+                .map(std::sync::Arc::new)
+        });
+        (answer, ran.get())
+    }
+
+    /// [crossing prewarm] [`Self::entry`]'s asks in play and the searches made then (the rest were kept from the load).
+    pub fn entry_counts(&self) -> (u32, u32) {
+        use std::sync::atomic::Ordering;
+        (self.entry_asks.load(Ordering::Relaxed), self.entry_searches.load(Ordering::Relaxed))
+    }
+
+    /// [crossing prewarm] The routed crossings' entry searches ([`Self::entry`]) made now, off the match's ticks, for every battery
+    /// spawner's stand (`Tactics::stand_to_take` of its item) that needs a crossing ([`super::collect::needs_crossing_at`]) and that
+    /// no straight walk crosses to ([`crossing_to`], from the spawner's item: the play's own test before a routed one), for each of
+    /// the map's sides and each (armour, rule) in `asks` whose rule routes crossings. A battery the worlds show where its spawner put
+    /// it asks the same floors, side, armour and rule: its first commander pass reads the kept way (Vostok batteries: 0.45-0.56 s
+    /// at 2 s, the first pass's entry searches). Another ask still searches, as before: the answers are the search's either way.
+    pub fn prewarm_entries(&self, tactics: &Tactics, asks: &[(Option<std::sync::Arc<ZoneArmour>>, RoutedRule)]) -> EntryPrewarm {
+        let started = std::time::Instant::now();
+        let grid = &tactics.world.grid;
+        let mut sides: Vec<i32> = Vec::new();
+        for spawn in &tactics.world.map.spawns {
+            if !sides.contains(&spawn.team) {
+                sides.push(spawn.team);
+            }
+        }
+        let mut out = EntryPrewarm { asks: asks.len(), sides: sides.len(), ..EntryPrewarm::default() };
+        for spawner in &tactics.world.map.battery_spawners {
+            let Some(stand) = tactics.stand_to_take(spawner.item) else {
+                continue;
+            };
+            if !super::collect::needs_crossing_at(tactics, stand) {
+                continue;
+            }
+            out.stands += 1;
+            let stop_m = super::collect::stop_short(stand, spawner.item);
+            let Some(goal) = grid.locate(stand, 3.0) else {
+                continue;
+            };
+            for &side in &sides {
+                let Some(from) = tactics.world.map.spawns.iter().find(|p| p.team == side).and_then(|p| grid.locate(p.position, 3.0)) else {
+                    continue;
+                };
+                for (armour, rule) in asks {
+                    if rule.route == RouteCrossing::Off {
+                        continue;
+                    }
+                    let armour = armour.as_deref();
+                    let straight = quiet(|| crossing_to(tactics, stand, Some(side), stop_m, armour, rule.hurt));
+                    if straight.is_some() {
+                        continue;
+                    }
+                    let key = (from, goal, side, armour.map_or(0, ZoneArmour::key), rule.hurt);
+                    let (way, searched) = self.entry_made(tactics, key, armour, || {});
+                    if searched {
+                        out.searches += 1;
+                        out.found += usize::from(way.is_some());
+                    }
+                }
+            }
+        }
+        out.ms = started.elapsed().as_secs_f32() * 1000.0;
+        out
+    }
     /// [anomaly batteries] [`crate::v026g::bots::switch_take::way_in`], kept: worked out once a match for each stand and side
     /// while the zones stay what they are.
     pub fn zone_way(
@@ -187,7 +323,7 @@ impl Memo {
         );
         self.crossings.get(zones_stamp(&tactics.hazards), key, || {
             let found = crossing_to(tactics, to, side, stop_m, armour, routed.hurt)
-                .or_else(|| routed_crossing_to(tactics, to, side, stop_m, armour, routed));
+                .or_else(|| routed_crossing_via(tactics, Some(self), to, side, stop_m, armour, routed));
             #[cfg(test)]
             {
                 use crate::v026g::bots::hazards::damage_zone_fixes::{Ev, count};
@@ -203,7 +339,7 @@ impl Memo {
                             let full = RoutedRule { hurt: HurtTest { by_intensity: false, ..routed.hurt }, ..routed };
                             let at_full = crate::v026g::bots::hazards::damage_zone_fixes::quietly(|| {
                                 crossing_to(tactics, to, side, stop_m, armour, full.hurt)
-                                    .or_else(|| routed_crossing_to(tactics, to, side, stop_m, armour, full))
+                                    .or_else(|| super::collect::routed_crossing_to(tactics, to, side, stop_m, armour, full))
                             });
                             if at_full.is_some_and(|f| c.cost().most() < 0.99 * f.cost().most()) {
                                 count(Ev::CrossingCheaper);
