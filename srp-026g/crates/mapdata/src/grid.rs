@@ -6456,6 +6456,38 @@ pub(crate) mod tests {
         let _ = std::fs::remove_dir_all(dir);
     }
 
+    /// [body physics S5b] A link the bridge pass walks ([`controlled::walked_bridge`]) reads back from its file: an aimed sprint
+    /// walked over leaves no aimed walk-off, which the reader refuses (Cologne, both modes: the whole grid refused).
+    #[test]
+    fn an_aimed_link_walked_as_a_bridge_reads_back() {
+        let dir = std::env::temp_dir().join(format!("srp-grid-bridge-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join(crate::built::grid_file_name(7));
+        let mut grid = two_rooms();
+        let aimed = OffLink {
+            from: 0,
+            to: 1,
+            kind: LinkKind::GapJump,
+            press: gap::Takeoff::Sprint(gap::PressLead::from_metres(0.6)),
+            share: gap::Share::of_mask(gap::Mask::of_bits(0b1_1110_0110_0001).unwrap()),
+            walk: None,
+            aim: gap::Aim::new(-6, -6).unwrap(),
+            way: None,
+        };
+        grid.off = vec![controlled::walked_bridge(aimed)];
+        grid.flags[0] |= OFF_OUT;
+        grid.flags[1] |= OFF_IN;
+        grid.write(&path, 7).unwrap();
+        let read = WalkGrid::read(&path, 7, Body::default()).unwrap();
+        assert_eq!(read.off, grid.off);
+        assert_eq!((read.off[0].press, read.off[0].aim), (gap::Takeoff::WalkOff, gap::Aim::STRAIGHT));
+        // The walk-off as the pass left it before: refused.
+        grid.off[0].aim = aimed.aim;
+        grid.write(&path, 7).unwrap();
+        assert!(WalkGrid::read(&path, 7, Body::default()).is_err());
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
     /// [incremental grids] `digest_full` is the digest of the file's bytes between its header and its end mark: equal for two
     /// builds, changed by any stored table, the log-only ones too.
     #[test]

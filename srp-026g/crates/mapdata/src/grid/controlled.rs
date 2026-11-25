@@ -476,6 +476,13 @@ pub fn client_step(world: &Collision, s: &Settings, start: WalkStart, feet: Vec3
 /// [incremental grids] Called on a thread whose build's clock runs ([`super::timing`]), the call is recorded there by its place in
 /// the source (`#[track_caller]`): its items, its jobs' summed and longest seconds, its wall seconds.
 #[track_caller]
+/// A jump link the controller walks over (a bridge): walked off, on the line. [body physics S5b] An aimed press's aim goes with it:
+/// only a press is aimed (the file's reader refuses an aim on any other, `WalkGrid::read`), and an aimed sprint across a gap a
+/// walk crosses (Cologne, L1's links to every top) left an aimed walk-off that refused the map's whole grid on load.
+pub(super) fn walked_bridge(l: OffLink) -> OffLink {
+    OffLink { press: Takeoff::WalkOff, aim: super::gap::Aim::STRAIGHT, ..l }
+}
+
 pub(super) fn parallel<T: Sync, R: Send + Default + Clone>(items: &[T], job: impl Fn(&T) -> R + Sync) -> Vec<R> {
     let site = std::panic::Location::caller();
     let timed = super::timing::running();
@@ -785,7 +792,7 @@ impl WalkGrid {
             old.iter().map(|&i| (wide.off[i].from, wide.off[i].to)).chain(new.iter().copied()).collect();
         for &i in &old {
             if self.bridge_run(&all, wide.off[i].from, wide.off[i].to) >= BRIDGE_MIN_RUN {
-                wide.off[i].press = Takeoff::WalkOff;
+                wide.off[i] = walked_bridge(wide.off[i]);
                 stats.bridges_walked += 1;
             } else {
                 stats.bridges_narrow += 1;
