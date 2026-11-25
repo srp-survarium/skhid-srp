@@ -3,13 +3,27 @@
 //! tree (the same code, so the two agree).
 //!
 //! A digest covers what can change a build's output, and nothing else:
-//! - the tokens of the items a root reaches, with no comments, no doc comments (`#[doc]` attributes), no `#[cfg(test)]` or
-//!   `#[test]` items and no `src/bin`, so a comment, a doc or a test edit changes no digest;
-//! - the items reached are found by name, not by type ([`Source::closure`]): an item reaches every item named by one of its
-//!   identifiers, a `q::name` path only the items of `q` (a type's own methods, a module's own items) where `q` has such an item
-//!   ([`Source::resolve`]: none for a path through a type or module the source does not have, `Vec::new`). Names that clash
-//!   only add items; a trait impl and its methods are reached by the type's name and by the methods' names. A binding or a
-//!   field (`name: T`, `let name`, `.name` not called) and a declaration's own name reach nothing;
+//! - the tokens of the items a root reaches, with no comments, no doc comments, no inert attributes (lint levels, inlining hints,
+//!   `#[cold]`, `#[must_use]`, rustfmt's: they change no value the code computes; `#[track_caller]` stays), no `#[cfg(test)]` or
+//!   `#[test]` items and no `src/bin`, so a comment, a doc, a lint or a test edit changes no digest;
+//! - the items reached are found by name as rustc resolves it, narrowed where the code shows which item a name is
+//!   ([`Source::closure`], [`Resolution::Scoped`]), and as wide as before where it does not:
+//!   - a `q::name` path reaches only the items of `q` (a type's own methods, a module's own items) where `q` has such an item
+//!     ([`Source::resolve`]: none for a path through a type or module the source does not have, `Vec::new`);
+//!   - [R3] a free item's plain name (a function, a type, a constant) resolves in its module's scope: the module's own items,
+//!     its `use`s, the modules it glob-imports; a name that scope does not place reaches every item of the name, as before, and
+//!     the report lists it; a macro's names resolve anywhere (where it is called);
+//!   - [R4] a method call on a receiver of known type (`self`, a binding bound once with a written type, a field of either)
+//!     reaches that type's methods (inherent and trait impls'), the traits that declare the name and the impls for types the
+//!     source does not define; [R2] any other method call reaches a method only once the walk has reached its type: a method runs
+//!     on a value of its type, made only by code that names the type. A trait impl comes with its type (an operator, a `Drop`, a
+//!     `for` loop names no method);
+//!   - [R1] a binding, a field and a struct pattern's shorthand (`name: T`, `let name`, `.name` not called, `let B { name } =`)
+//!     and a declaration's own name reach nothing.
+//!
+//!   The coverage oracle (`coverage_oracle.py`, `mapdata/src/coverage.rs`) checks on a real build that every function a
+//!   digest's part executes is in its closure. `--diff` names the items that moved a key, `--dropped` what the scoped resolution
+//!   leaves out of each closure against the old one ([`Resolution::Legacy`]);
 //! - `mapdata`'s own source only, as the cache's fingerprint before: the workspace crates it uses (`survarium`, `resources-db`,
 //!   `binary-config-parser`) read the map file, whose output the grid's and the tree's keys hold. Followed by name they reach
 //!   every grid through `survarium`'s content tables (its `include_str!`s), and a content edit would rebuild every grid
