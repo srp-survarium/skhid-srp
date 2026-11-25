@@ -288,6 +288,13 @@ fn table_row(map: &MapData, grid: &WalkGrid) -> Row {
             _ => row.objectives_unreached += 1,
         }
     }
+    // [body physics S5c] No spawn's or objective's floor is in a shut pocket: shut means no exit in the full look, so one there is
+    // a missing exit, and a bot there would kill itself ([`WalkGrid::pocket_exits_all`]).
+    let shut_spawns: Vec<Vec3> = spawns.iter().filter(|&&s| grid.in_shut_pocket(s)).map(|&s| grid.position(s)).collect();
+    assert!(shut_spawns.is_empty(), "{}: spawns in a shut pocket: {shut_spawns:?}", map.project);
+    let shut_objectives: Vec<&(&'static str, Vec3, &'static str)> =
+        row.objective_list.iter().filter(|(_, _, why)| *why == "in a shut pocket").collect();
+    assert!(shut_objectives.is_empty(), "{}: objectives in a shut pocket: {shut_objectives:?}", map.project);
     // The grid's own marks agree.
     for a in 0..n as NodeId {
         assert_eq!(
