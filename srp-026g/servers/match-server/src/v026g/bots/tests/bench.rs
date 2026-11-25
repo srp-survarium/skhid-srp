@@ -2852,10 +2852,8 @@ pub(crate) fn real_bot_cost() {
             // [A416] The view schedule.
             let view = crate::v026g::bots::view_schedule::counts::counts();
             eprintln!("view schedule so far: glances begun {}, cut at their most {}, look ticks held on the course {}", view[0], view[1], view[2]);
-            let (ground, hard, client, moved) = crate::v026g::bots::body::client_steps::all();
-            eprintln!(
-                "client_step so far: reckoned ground steps {ground}, hard {hard}, client steps {client}, moved otherwise {moved}"
-            );
+            let (ground, client, moved) = crate::v026g::bots::body::client_steps::all();
+            eprintln!("client_step so far: reckoned ground steps {ground}, client steps {client}, moved otherwise {moved}");
             let (kept, kept_ns) = crate::v026g::bots::body::client_steps::kept_all();
             eprintln!("kept_step so far: steps {kept}, ns {kept_ns}, ns a step {}", kept_ns.checked_div(kept).unwrap_or(0));
         }
@@ -3301,11 +3299,11 @@ mod tuning_tests {
     fn a_one_sided_run_is_refused_when_its_sides_differ_in_a_match_wide_key() {
         let apart = settings(&[
             ("SRP_BENCH_ONE_SIDE", "1"),
-            ("SRP_BENCH_SIDE1_TUNING", r#"{"think": {"search_queue": "first_come"}, "kin": {"margin_edge": "lattice"}}"#),
+            ("SRP_BENCH_SIDE1_TUNING", r#"{"think": {"search_queue": "first_come"}, "kin": {"slope_speed": "planar"}}"#),
         ]);
         let refusal = one_sided_refusal(&apart).expect("refused");
         assert!(refusal.contains("think.search_queue (team 0 \"fair\", team 1 \"first_come\")"), "{refusal}");
-        assert!(refusal.contains("kin.margin_edge"), "{refusal}");
+        assert!(refusal.contains("kin.slope_speed"), "{refusal}");
         assert!(refusal.contains("2 match-wide key(s)"), "{refusal}");
         let per_team = settings(&[("SRP_BENCH_ONE_SIDE", "1"), ("SRP_BENCH_SIDE1_TUNING", r#"{"think": {"stamina": false}}"#)]);
         assert_eq!(one_sided_refusal(&per_team), None);

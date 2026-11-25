@@ -42,5 +42,8 @@
   "jump_air_steps": true,
   "wall_clear_pull": false,
   "pull_walk": false,
-  "walker_shapes": false
+  "walker_shapes": false,
+  "share0_drop": false,
+  "rim_walk_on": false,
+  "walk_gait": false
 }

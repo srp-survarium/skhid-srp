@@ -139,7 +139,7 @@ impl WalkGrid {
         let way = (dx / len, dz / len);
         let lands = |kind: Kind, lead: f32, n: Neighbour| {
             // [body physics S5a fix] Flown to the ground as every pass's flights ([`WalkGrid::fall_ground`]).
-            jump::neighbour_flights_for(world, s, a, way, kind, lead, n, kits, self.fall_ground())
+            crate::motion::flights::press_flights(world, s, a, way, kind, lead, n, kits, self.fall_ground())
                 .is_some_and(|flights| !flights.is_empty() && flights.iter().all(|f| rests_on_landing(f, a, b)))
         };
         let own = jump::neighbourhood()[0];
