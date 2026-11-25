@@ -231,6 +231,8 @@ pub struct Tactics {
     /// [`Self::walk_up_set`]'s sets, the latest [`WALK_UP_KEPT`]: they depend
     /// on the map alone and the point asked.
     walk_ups: std::sync::Mutex<Vec<(WalkUpKey, Arc<WalkUp>)>>,
+    /// [bot traps] [`Self::regions_reached`]'s sets by start region, the latest [`REACHED_KEPT`]: they depend on the map alone.
+    reached: std::sync::Mutex<Vec<(u32, Arc<Vec<u64>>)>>,
     /// [`Self::exit_of`]'s field, once made.
     exit_field: std::sync::Mutex<Option<ExitField>>,
     /// The teams' escapes from pockets that worked, and their trapped bots
@@ -414,6 +416,8 @@ type KeptSpots = (u64, u32, Arc<Vec<Vec3>>);
 /// How many of [`Tactics::walk_up_set`]'s sets are kept (each is a bit a floor of the
 /// grid, a few hundred KB on the biggest map).
 const WALK_UP_KEPT: usize = 32;
+/// [bot traps] [`Tactics::regions_reached`]'s sets kept.
+const REACHED_KEPT: usize = 32;
 
 /// The point and radius a [`WalkUp`] was made for, as bits.
 type WalkUpKey = [u32; 4];
@@ -997,6 +1001,7 @@ impl Tactics {
             walks: Default::default(),
             spot_lists: Default::default(),
             walk_ups: Default::default(),
+            reached: Default::default(),
             exit_field: Default::default(),
             escapes: Default::default(),
             escape: super::tuning::EscapeRule::UnderStartZone,
@@ -1512,6 +1517,36 @@ impl Tactics {
     /// The regions the routes go by.
     pub fn regions(&self) -> &Regions {
         &self.base.regions
+    }
+
+    /// [bot traps] The regions reached from floor `from`'s region by the regions' links, a bit a region: a superset of the
+    /// floors any search from `from` can walk to (`unreachable.rs`'s part of the grid). Kept by region: it depends on the map
+    /// alone.
+    pub fn regions_reached(&self, from: NodeId) -> Arc<Vec<u64>> {
+        let regions = self.regions();
+        let start = regions.of(from);
+        let mut kept = self.reached.lock().unwrap_or_else(|e| e.into_inner());
+        if let Some((_, set)) = kept.iter().find(|(r, _)| *r == start) {
+            return set.clone();
+        }
+        let mut seen = vec![0u64; regions.len().div_ceil(64)];
+        let mut queue = vec![start];
+        seen[start as usize / 64] |= 1 << (start % 64);
+        while let Some(r) = queue.pop() {
+            for &(to, _) in regions.out(r) {
+                let (word, bit) = (to as usize / 64, 1u64 << (to % 64));
+                if seen[word] & bit == 0 {
+                    seen[word] |= bit;
+                    queue.push(to);
+                }
+            }
+        }
+        let set = Arc::new(seen);
+        if kept.len() >= REACHED_KEPT {
+            kept.remove(0);
+        }
+        kept.push((start, set.clone()));
+        set
     }
 
     /// The route from `from` to `to` for a body of map side `side`, off
