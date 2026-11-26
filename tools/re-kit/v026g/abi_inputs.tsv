@@ -2244,6 +2244,7 @@ va	name	location	role	basis
 0x001f28e0	survarium::player::on_player_death	entry ESP+4	passed on as ECX to 0x23F430	observed
 0x001f3480	survarium::player::update_camera	entry ESP+4	the viewed player: input handler +F470h (1F348D); mode +358h must be 0 or 4; held object +128h, cast_weapon via vtable+70h, scope +1808h and aim blend +5FCh (1F34BD..1F350F)	observed
 0x001f3480	survarium::player::update_camera	EAX at 0x1F3643	the eye transform given to the view's update (0x2422B0, 0x1F364B): &player+44Ch (0x1F356E, 0x1F35A5, the first person) or the third person's copy [ESP+10h]; EBX the player	observed
+0x001f3480	survarium::player::update_camera	the handler's +94h, +8Ch on the gun path	zoom 1 + (f - 1) x aim (0x1F351B) and near plane (1 + (n - 1) x aim) x 0.05 (0x9CC878, 0x1F3566): f, n the optic's fov_factor +114h and near_plane_factor +118h, or the weapon's own +5B4h (1 / parameters/aim_zoom_factor) and +5B8h (1.0); aim the progress +5FCh	observed
 0x001f37a0	survarium::player::set_head_visibility	ESI	the player	observed
 0x001f37a0	survarium::player::set_head_visibility	entry ESP+4	visible (byte; mt_draw gives 0 for the local player in modes 0 and 4, dead too): its models 0, 5, 6, 7 get 3, else 2	observed
 0x001f3de0	vostok::network_core::buffer_writer::w<unsigned char>	EAX	integer value pointer	observed
@@ -2495,8 +2496,8 @@ va	name	location	role	basis
 0x00244a40		entry ESP+12		auto
 0x00244a40		entry ESP+8		auto
 0x00244a40		entry ESP+4		auto
-0x00244ab0		ECX		auto
-0x00244ab0		entry ESP+4		auto
+0x00244ab0	survarium::weapon::tick	ECX	the client weapon: weapon_core::tick on it (0x244AB8), then for its user's first view of the local player (+F4E3h 0, place +114h the network client's local player's, 0x244AC0..0x244AF7) with an optic (+1808h) the scope view +181Eh: aimed (+5E8h) set once the progress +5FCh reaches the optic's change_scope_factor +110h (0x244B26), not aimed cleared below it (0x244B54); so the world's +181Eh (serialize 0x244A14) is the local player's own tick's	observed
+0x00244ab0	survarium::weapon::tick	entry ESP+4	the tick's time, ms, passed on to weapon_core::tick (0x244AB5)	observed
 0x00244b60	survarium::weapon::add_aimed_rifle_scope_to_scene	ESI	weapon	inferred
 0x00244b60	survarium::weapon::add_aimed_rifle_scope_to_scene	EDI	scene_reference	inferred
 0x00244c50	survarium::weapon::remove_aimed_rifle_scope_from_scene	ESI	weapon	inferred
@@ -4904,6 +4905,7 @@ va	name	location	role	basis
 0x002fdf50	survarium::inventory::check_resupply	entry ESP+8	player_profile	observed
 0x0030ab40	survarium::weapon_core::load_config_parameters	entry ESP+4	retained binary config resource (released before return)	observed
 0x0030ab40	survarium::weapon_core::load_config_parameters	entry ESP+8	weapon active-object base	observed
+0x0030ab40	survarium::weapon_core::load_config_parameters	weapon +5B4h, +5B8h	written: 1 / parameters/aim_zoom_factor (0x30AB94) and 1.0 (0x30AB9C), update_camera's factors with no optic	observed
 0x000e5c20	vostok::resources::query_resources_and_wait	EAX	parameters (query_parameters, 64h bytes); synchronous through callback completion	observed
 0x00102cd0	vostok::resources::find_cook_by_class	EDI	class identifier, below native registry capacity 206h	observed
 0x00108a00	vostok::resources::query_result::consider_with_name_registry	entry ESP+4	query_result (class id +84h; request path +F8h)	observed
