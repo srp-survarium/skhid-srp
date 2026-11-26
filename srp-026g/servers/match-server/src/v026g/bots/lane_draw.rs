@@ -28,33 +28,60 @@
 //! - **Danger wins.** L2 is a candidate only within `band` of L1's cost and, when the bot knows a held shooter's lanes, through no
 //!   more of their covered regions than L1 (metres of links into covered regions); the drive's detour round a lane then runs on
 //!   whichever was drawn, as on any route. A replan for danger (a held shooter's lane ahead, a zone shut ahead, a crossing given
-//!   up) is the plain search, and the hold turns to L1 for the goal.
-//! - **The draw.** Weights as Roam's `draw_route`: L1 1, L2 its place in the band (1 at L1's cost, 0 at the band's edge: a dearer
-//!   lane is drawn less, and one at the cap no more than one past it), each times Roam's `friend_factor` per teammate whose walk on
-//!   that lane ended lately (within Roam's `fresh_s`, or who died on it) and divided by it per teammate walking it now ([`odds`]):
-//!   the lanes spread across walks and lives, and bots walking at the same time keep to one lane, in each other's cover. The draw's number is the life's own for
-//!   the walk's 15 m start and end cells (`Bot::life_key`): the same walk in one life draws the same, the next life draws anew.
-//! - **The walk keeps its lane.** The decision is held for the goal ([`LaneHold`]): a replan for a goal moved within `away_m` keeps
-//!   L2's shut regions (its way searched again on the regions from where the bot is) or L1, and draws nothing.
+//!   up) is the plain search, and the hold turns to L1 for the walk.
+//! - **No more leaps.** L2 is a candidate only through no more leap links than L1 ([`RegionWay::leaps`]: a region link's cost over
+//!   its middles' distance is its kind's penalty, a drop's or a jump's), and its route is over the cap when it takes more jumps than
+//!   L1's links ([`Cap`]): a second lane asks no more jumps, gaps or drops of the body than the first (v65: L2's stuck per 100
+//!   starts 87-104 s against L1's 55-71 s from the same draws, its route-jump part 37.6 against 7.3 in TDM at 1.15).
+//! - **L1 the cheaper.** When L2 costs less than L1 between the walk's own ends (the regions rank the ways from their end regions'
+//!   middles; 3 % of v65's two-lane draws), the two swap and the second lane is searched again off the new L1: the cap, the odds and
+//!   the shut regions are measured from the cheaper lane.
+//! - **Cover first.** More teammates on one lane now than on the other: the bot takes that lane, in their cover ([`cover`]; a
+//!   teammate is on a lane by its walk's claim, or by its body within `away_m` of the lane's own stretch). Equal, or none: the
+//!   draw by cost, times Roam's `death_factor` per teammate who died walking that lane within Roam's `fresh_s` ([`odds`]). (v65 C,
+//!   from the same draws: a bot that left the lane its mates walked died unturned in 5.3 % of starts, one that went with them 3.6 %;
+//!   Roam's weights changed only 593 of 5,081 draws and left a mate at ratio 1.12 a quarter of the time.)
+//! - **The odds' scale apart from the cap.** A lane within `scale` of L1's cost weighs its place there (1 at L1's cost, 0 at the
+//!   scale); past it and within the cap (`band`), the live humans' share of legs there against their first 5 % ([`PAST_SCALE`]).
+//!   The draw's number is the life's own for the walk's 15 m goal cell (`Bot::life_key`): the same walk in one life draws the same,
+//!   the next life draws anew.
+//! - **One draw a walk.** The decision is held for the walk ([`LaneHold`]) until its route ends for good: arrived, a new play, the
+//!   play's end, no goal or no way (`Bot::end_route`, [`ends_walk`]), or a new life. A replan in between, for any goal, keeps L2's
+//!   shut regions (its way searched again on the regions from where the bot is to the goal now) or L1, and draws nothing (v65 C:
+//!   303 of 1,763 L2 draws were drawn again within one play when the goal moved over 15 m, 173 of them lost L2 with three quarters
+//!   of the way left).
 //! - **The trace.** One nav line a long walk ([`line`]): the play, the goal, C1, C2 and their ratio, the teammates on each lane, the
 //!   odds and the number drawn, the lane walked (rank 1 or 2) and its cost; or why there is one lane only.
 //!
 //! Roam keeps its human-route draw (its walks are not drawn here), and a carrier's walk home is a race (not drawn).
 //!
 //! The values ([`LaneDrawTuning`]) are measures, not fits: `long_m` is the lane test's long leg; `away_m` and `ends_m` the C2
-//! probe's; `band` where the live humans' lanes off their cheapest thin out (per 5 % of cost: 870, 658, 529 legs to +15 %, then 295
-//! and about 300 a 5 % on to +30 %; 27,255 legs, 2,712 recordings). The teammate weight and window are Roam's own.
+//! probe's; `scale` where the live humans' lanes off their cheapest thin out (per 5 % of cost: 870, 658, 529 legs to +15 %, then 295
+//! and about 300 a 5 % on to +30 %; 27,255 legs, 2,712 recordings), and `band` the cap (+15 %, or +30 % where the humans' legs
+//! hold their share). The death weight and window are Roam's own.
 
 use std::sync::Arc;
 
 use mapdata::{NodeId, Vec3};
 
+use super::route_end::RouteEnd;
 use super::tactics::Tactics;
 use super::tuning::LaneDrawTuning;
 use super::view::Place;
 
-/// The lane test's cell, m: the draw's number is the life's own for the walk's start and end cells.
+/// The lane test's cell, m: the draw's number is the life's own for the walk's goal cell.
 const CELL_M: f32 = 15.0;
+
+/// The weight of a lane past the odds' scale and within the cap, against L1's 1: the live humans' legs 15-20 % off their cheapest
+/// (295) over those within 5 % (870), of 27,255 legs ([module](self)).
+pub const PAST_SCALE: f32 = 295.0 / 870.0;
+
+/// Whether a route ending ends the walk, and with it the walk's lane ([`LaneHold`]): the walk got there, or its play or goal is
+/// gone. Every other ending (a replan, the body off the route, a failed or refused jump, no progress, a trap, an escape, the
+/// reckoning) is the same walk going on.
+pub fn ends_walk(why: RouteEnd) -> bool {
+    matches!(why, RouteEnd::Arrived | RouteEnd::NewAssignment | RouteEnd::EndPlay | RouteEnd::NoGoal | RouteEnd::NoWay | RouteEnd::NewLife)
+}
 
 /// A way on the regions' graph: its regions in order, from the start's to the goal's, each with the cost of the link into it (the
 /// start's 0), and its cost.
@@ -86,6 +113,16 @@ impl RegionWay {
             2 => self.cost - leg(at(0), at(1)) + leg(from, to),
             _ => self.cost - leg(at(0), at(1)) + leg(from, at(1)) - leg(at(n - 2), at(n - 1)) + leg(at(n - 2), to),
         }
+    }
+
+    /// Its leap links: those whose cost is over the distance between the two regions' middles by half the smallest leap kind's
+    /// penalty or more (a link's cost is that distance plus its kind's penalty, `mapdata::regions`: 0 for a walk, a drop's or a
+    /// jump's otherwise).
+    pub fn leaps(&self, tactics: &Tactics) -> u32 {
+        let (grid, regions) = (&tactics.world.grid, tactics.regions());
+        let at = |r: u32| grid.position(regions.middle(r));
+        let least = mapdata::grid::LinkKind::Drop.penalty() / 2.0;
+        self.regions.windows(2).filter(|w| w[1].1 - (at(w[1].0) - at(w[0].0)).length() >= least).count() as u32
     }
 
     /// Metres of its links into regions `covered` gives true for.
@@ -207,36 +244,48 @@ fn walks(theirs: &[Vec3], stretches: [&[Vec3]; 2], away: f32) -> Option<usize> {
     }
 }
 
-/// The teammates on each of a walk's two lanes ([`TeamLanes::mates_on`]): those walking it now (a long walk under way), and those
-/// whose walk on it ended lately (within Roam's `fresh_s`).
+/// The teammates on each of a walk's two lanes ([`TeamLanes::mates_on`]): those on it now (alive, walking it or standing on its own
+/// stretch), and those who died walking it lately (within Roam's `fresh_s` of their death).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct Mates {
     pub now: [u32; 2],
-    pub lately: [u32; 2],
+    pub died: [u32; 2],
 }
 
-/// The draw's odds of L2 (`ratio` its cost over L1's, within `band`), with the teammates on each lane and Roam's `friend` factor.
-/// L1 weighs 1 and L2 its place in the band, each times `friend` per teammate whose walk on it ended lately and divided by it per
-/// teammate walking it now: across walks and lives the lanes spread (a lane just walked is drawn less), and bots walking at the
-/// same time keep to one lane, in each other's cover (v59 and v61: with the factor against both, side hits on walkers with no
-/// teammate within 30 m that ended in an unturned death rose 44 -> 72, unturned deaths with a teammate's line to the killer fell
-/// from 26-29 % to 22 %).
-pub fn odds(ratio: f32, band: f32, mates: Mates, friend: f32) -> f32 {
-    let place = ((band - ratio) / (band - 1.0)).clamp(0.0, 1.0);
-    let weight = |lane: usize| friend.powi(mates.lately[lane] as i32 - mates.now[lane] as i32);
+/// The lane the teammates now on the walk's lanes give a bot ([`Mates::now`]): the one more of them are on, in their cover; none
+/// when as many are on each (or none on either), and the cost draws.
+pub fn cover(mates: Mates) -> Option<bool> {
+    match mates.now[1].cmp(&mates.now[0]) {
+        std::cmp::Ordering::Greater => Some(true),
+        std::cmp::Ordering::Less => Some(false),
+        std::cmp::Ordering::Equal => None,
+    }
+}
+
+/// The draw's odds of L2 (`ratio` its cost over L1's) with no teammate's cover to keep to: L1 weighs 1 and L2 its place within
+/// `scale` (1 at L1's cost, 0 at the scale), or [`PAST_SCALE`] past it and within the cap `band`, nothing past the cap; each times
+/// Roam's `death` factor per teammate who died walking it lately (`died`).
+pub fn odds(ratio: f32, scale: f32, band: f32, died: [u32; 2], death: f32) -> f32 {
+    let place = if ratio <= scale {
+        ((scale - ratio) / (scale - 1.0)).clamp(0.0, 1.0)
+    } else if ratio <= band {
+        PAST_SCALE
+    } else {
+        0.0
+    };
+    let weight = |lane: usize| death.powi(died[lane] as i32);
     let (w1, w2) = (weight(0), place * weight(1));
     if w1 + w2 > 0.0 { w2 / (w1 + w2) } else { 0.0 }
 }
 
-/// The life's number for a walk from `from` to `to` (in [0, 1)): one per life and pair of 15 m cells.
-pub fn number(life_key: u64, from: Vec3, to: Vec3) -> f32 {
-    let cell = |p: Vec3| ((p.x / CELL_M).floor() as i32 as u32 as u64, (p.z / CELL_M).floor() as i32 as u32 as u64);
-    let ((fx, fz), (tx, tz)) = (cell(from), cell(to));
-    let walk = ((fx << 48) ^ (fz << 32) ^ (tx << 16) ^ tz).wrapping_mul(0xD1B5_4A32_D192_ED03);
+/// The life's number for a walk to `goal` (in [0, 1)): one per life and 15 m goal cell.
+pub fn number(life_key: u64, goal: Vec3) -> f32 {
+    let cell = |v: f32| (v / CELL_M).floor() as i32 as u32 as u64;
+    let walk = ((cell(goal.x) << 32) ^ cell(goal.z)).wrapping_mul(0xD1B5_4A32_D192_ED03);
     super::rng::Rng::new(life_key ^ walk).unit()
 }
 
-/// A bot's lane for its goal, held while the goal stays within `away_m` (a feature of the bot's, reset at a new life).
+/// A bot's lane for its walk, held until the walk ends ([`ends_walk`]; a feature of the bot's, reset at a new life).
 #[derive(Clone, Debug, Default)]
 pub struct LaneHold {
     held: Option<Held>,
@@ -244,25 +293,40 @@ pub struct LaneHold {
 
 #[derive(Clone, Debug)]
 struct Held {
-    /// The goal the walk was drawn for (moved with the goal while held).
+    /// The goal the walk goes to now (moved with each replan).
     goal: Vec3,
     /// What was drawn: L1 (none), or L2.
     lane: Option<Second>,
 }
 
-/// A held L2: the regions it keeps out of, and the longest its route may be ([`Room::cap_m`]).
+/// A held L2: the regions it keeps out of, and its route's cap.
 #[derive(Clone, Debug)]
 struct Second {
     shut: Arc<Vec<bool>>,
-    cap_m: f32,
+    cap: Cap,
 }
 
-/// Where the floors' search of an L2 walk keeps to: the room of its way on the regions (`RouteFilter::keeping_to`), and the longest
-/// its route may be: the band times L1's cost on the regions (the true cost's cap: a route over it is not walked).
+/// The most an L2 route may ask, against L1 on the regions: its length at most `metres` (the band times L1's cost: the true
+/// cost's cap), its jumps no more than L1's leap links (`leaps`, [`RegionWay::leaps`]). A route over either is not walked.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Cap {
+    pub metres: f32,
+    pub leaps: u32,
+}
+
+impl Cap {
+    /// Whether a route of `length` m and `jumps` jumps is over it.
+    pub fn over(&self, length: f32, jumps: u32) -> bool {
+        length > self.metres || jumps > self.leaps
+    }
+}
+
+/// Where the floors' search of an L2 walk keeps to: the room of its way on the regions (`RouteFilter::keeping_to`), and its route's
+/// cap.
 #[derive(Clone, Debug)]
 pub struct Room {
     pub regions: Arc<Vec<bool>>,
-    pub cap_m: f32,
+    pub cap: Cap,
 }
 
 /// What a replan does with the lane ([`LaneHold::replan`]).
@@ -281,41 +345,53 @@ impl super::features::Feature for LaneHold {
 }
 
 impl LaneHold {
-    /// A replan for `goal`: a draw for a goal it holds no lane for (or none within `away_m` of it); else the held lane, its goal
-    /// moved to `goal`. A replan for danger (`danger`) holds L1 for the goal and draws nothing.
-    pub fn replan(&mut self, goal: Vec3, away_m: f32, danger: bool) -> Replan {
+    /// A replan for `goal`: a draw for a new walk; else the walk's held lane, its goal moved to `goal`. A replan for danger
+    /// (`danger`) holds L1 for the walk and draws nothing.
+    pub fn replan(&mut self, goal: Vec3, danger: bool) -> Replan {
         match self.held.as_mut() {
-            Some(held) if held.goal.distance_xz(goal) <= away_m => {
+            Some(held) => {
                 held.goal = goal;
                 if danger {
                     held.lane = None;
                 }
                 Replan::Held(held.lane.as_ref().map(|second| second.shut.clone()))
             }
-            _ if danger => {
+            None if danger => {
                 self.held = Some(Held { goal, lane: None });
                 Replan::Held(None)
             }
-            _ => Replan::Draw,
+            None => Replan::Draw,
         }
     }
 
-    /// The walk to `goal` was drawn: L1 (`lane` none) or L2 (the regions it keeps out of, and its route's cap, m).
-    pub fn drawn(&mut self, goal: Vec3, lane: Option<(Arc<Vec<bool>>, f32)>) {
-        self.held = Some(Held { goal, lane: lane.map(|(shut, cap_m)| Second { shut, cap_m }) });
+    /// The walk to `goal` was drawn: L1 (`lane` none) or L2 (the regions it keeps out of, and its route's cap).
+    pub fn drawn(&mut self, goal: Vec3, lane: Option<(Arc<Vec<bool>>, Cap)>) {
+        self.held = Some(Held { goal, lane: lane.map(|(shut, cap)| Second { shut, cap }) });
+    }
+
+    /// The route ended for `why`: the walk's lane goes with the walk ([`ends_walk`]).
+    pub fn route_ended(&mut self, why: RouteEnd) {
+        if ends_walk(why) {
+            self.held = None;
+        }
+    }
+
+    /// Whether it walks a held walk now, and on L2.
+    pub fn walking(&self) -> Option<bool> {
+        self.held.as_ref().map(|held| held.lane.is_some())
     }
 
     /// A held L2's room from where the bot is now: its route's cap from there.
-    pub fn capped(&mut self, cap_m: f32) {
+    pub fn capped(&mut self, cap: Cap) {
         if let Some(second) = self.held.as_mut().and_then(|held| held.lane.as_mut()) {
-            second.cap_m = cap_m;
+            second.cap = cap;
         }
     }
 
-    /// The cap of a held L2's route (`length`, m, to a goal within `away_m` of `goal`) when the route is over it.
-    pub fn over_cap(&self, goal: Vec3, length: f32, away_m: f32) -> Option<f32> {
+    /// The cap of a held L2's route (`length` m, `jumps` jumps, to a goal within `away_m` of the walk's) when the route is over it.
+    pub fn over_cap(&self, goal: Vec3, length: f32, jumps: u32, away_m: f32) -> Option<Cap> {
         let held = self.held.as_ref().filter(|held| held.goal.distance_xz(goal) <= away_m)?;
-        held.lane.as_ref().map(|second| second.cap_m).filter(|&cap| length > cap)
+        held.lane.as_ref().map(|second| second.cap).filter(|cap| cap.over(length, jumps))
     }
 
     /// Whether it holds L2 for a goal within `away_m` of `goal`.
@@ -323,7 +399,7 @@ impl LaneHold {
         self.held.as_ref().is_some_and(|held| held.lane.is_some() && held.goal.distance_xz(goal) <= away_m)
     }
 
-    /// The held L2 had no way (a region link the body's reach refuses): L1 for the goal from now.
+    /// The held L2 had no way (a region link the body's reach refuses), or its route was over the cap: L1 for the walk from now.
     pub fn drop_lane(&mut self) {
         if let Some(held) = self.held.as_mut() {
             held.lane = None;
@@ -331,7 +407,7 @@ impl LaneHold {
     }
 }
 
-/// A team's lanes walked now or lately (a feature of the team's): one claim a bot, its latest long walk's lane.
+/// A team's lanes walked now, and walked by teammates who died on them lately (a feature of the team's).
 #[derive(Clone, Debug, Default)]
 pub struct TeamLanes {
     claims: Vec<Claim>,
@@ -340,60 +416,70 @@ pub struct TeamLanes {
 #[derive(Clone, Debug)]
 struct Claim {
     who: Place,
-    goal: Vec3,
-    points: Vec<Vec3>,
-    /// When it was claimed (the walk's draw).
-    claimed: u32,
-    /// When the walk ended (its route gone or for another goal), none while under way.
-    ended: Option<u32>,
+    /// The walk's two lanes' points (L2's empty for a walk of one lane).
+    lanes: Arc<[Vec<Vec3>; 2]>,
+    /// Whether it walks L2.
+    second: bool,
+    /// When its walker was first seen dead with the walk under way.
+    died: Option<u32>,
+}
+
+impl Claim {
+    fn points(&self) -> &[Vec3] {
+        &self.lanes[usize::from(self.second)]
+    }
 }
 
 impl TeamLanes {
-    /// `who`'s route now goes to `goal` (none: it has no route): its claim ends at `time` when that is not the claim's walk
-    /// (within `away_m` of its goal); claims ended more than `keep_ms` ago are dropped.
-    pub fn walking(&mut self, who: Place, goal: Option<Vec3>, away_m: f32, time: u32, keep_ms: u32) {
-        for claim in self.claims.iter_mut().filter(|c| c.who == who && c.ended.is_none()) {
-            if goal.is_none_or(|g| g.distance_xz(claim.goal) > away_m) {
-                claim.ended = Some(time);
+    /// `who`'s walk at `time` (`walking`: a walk held, and whether on L2; none: no walk), with `alive` the team's living bodies: its
+    /// claim follows the walk's lane, or goes with the walk; a claim under way whose walker is not alive died then; a death is kept
+    /// `keep_ms`.
+    pub fn walking(&mut self, who: Place, walking: Option<bool>, time: u32, keep_ms: u32, alive: impl Fn(Place) -> bool) {
+        for claim in self.claims.iter_mut().filter(|c| c.died.is_none()) {
+            if claim.who != who && !alive(claim.who) {
+                claim.died = Some(time);
             }
         }
-        self.claims.retain(|c| c.ended.is_none_or(|end| time <= end.saturating_add(keep_ms)));
-    }
-
-    /// `who` walks `points` to `goal` from `time` (its claim before is replaced).
-    pub fn claim(&mut self, who: Place, goal: Vec3, points: Vec<Vec3>, time: u32) {
-        self.claims.retain(|c| c.who != who);
-        self.claims.push(Claim { who, goal, points, claimed: time, ended: None });
-    }
-
-    /// `who`'s walk under way goes on to `goal` (a held lane's goal moved).
-    pub fn regoal(&mut self, who: Place, goal: Vec3) {
-        if let Some(claim) = self.claims.iter_mut().find(|c| c.who == who && c.ended.is_none()) {
-            claim.goal = goal;
+        match walking {
+            Some(second) => {
+                for claim in self.claims.iter_mut().filter(|c| c.who == who && c.died.is_none()) {
+                    claim.second = second;
+                }
+            }
+            None => self.claims.retain(|c| c.who != who || c.died.is_some()),
         }
+        self.claims.retain(|c| c.died.is_none_or(|died| time <= died.saturating_add(keep_ms)));
     }
 
-    /// The teammates (not `who`) on each of two lanes ([`walks`] by their own stretches): walking it now (a claim under way of one
-    /// `alive`), or lately (one ended within `keep_ms` of `time`; a walk under way whose walker died counts as ended lately for
-    /// `keep_ms` after it was claimed).
-    pub fn mates_on(&self, who: Place, stretches: [&[Vec3]; 2], away_m: f32, time: u32, keep_ms: u32, alive: impl Fn(Place) -> bool) -> Mates {
+    /// `who` walks `lanes` (`second`: on L2) from now (its claim under way before is replaced).
+    pub fn claim(&mut self, who: Place, lanes: Arc<[Vec<Vec3>; 2]>, second: bool) {
+        self.claims.retain(|c| c.who != who || c.died.is_some());
+        self.claims.push(Claim { who, lanes, second, died: None });
+    }
+
+    /// The teammates (not `who`) on each of two lanes (their own stretches): now, each living one of `bodies` (place, feet) by its
+    /// walk's claim ([`walks`]), or with none on either, by its body within `away_m` of one stretch and not the other; died, each
+    /// claim whose walker died within `keep_ms` of `time`.
+    pub fn mates_on(&self, who: Place, stretches: [&[Vec3]; 2], away_m: f32, time: u32, keep_ms: u32, bodies: &[(Place, Vec3)]) -> Mates {
         let mut mates = Mates::default();
-        for claim in self.claims.iter().filter(|c| c.who != who) {
-            let Some(lane) = walks(&claim.points, stretches, away_m) else {
-                continue;
+        for &(mate, feet) in bodies.iter().filter(|&&(mate, _)| mate != who) {
+            let claimed = self.claims.iter().find(|c| c.who == mate && c.died.is_none()).and_then(|c| walks(c.points(), stretches, away_m));
+            let on = |s: &[Vec3]| s.iter().any(|p| p.distance_xz(feet) < away_m);
+            let body = match (on(stretches[0]), on(stretches[1])) {
+                (true, false) => Some(0),
+                (false, true) => Some(1),
+                _ => None,
             };
-            match claim.ended {
-                None if alive(claim.who) => mates.now[lane] += 1,
-                None => {
-                    if time <= claim.claimed.saturating_add(keep_ms) {
-                        mates.lately[lane] += 1;
-                    }
-                }
-                Some(end) => {
-                    if time <= end.saturating_add(keep_ms) {
-                        mates.lately[lane] += 1;
-                    }
-                }
+            if let Some(lane) = claimed.or(body) {
+                mates.now[lane] += 1;
+            }
+        }
+        for claim in self.claims.iter().filter(|c| c.who != who) {
+            if let Some(died) = claim.died
+                && time <= died.saturating_add(keep_ms)
+                && let Some(lane) = walks(claim.points(), stretches, away_m)
+            {
+                mates.died[lane] += 1;
             }
         }
         mates
@@ -403,10 +489,11 @@ impl TeamLanes {
 /// The draw's verdict on a long walk, for its line and the walk.
 #[derive(Clone, Debug)]
 pub enum Verdict {
-    /// No second lane: why (no room off the ends, no way, over the band, more exposed).
+    /// No second lane: why (no room off the ends, no way, over the band, more exposed, more leaps).
     One(&'static str),
-    /// Two lanes: L2's cost, the teammates on each, the odds of L2 and the number drawn; `second` when L2 was drawn.
-    Two { c2: f32, mates: Mates, odds: f32, number: f32, second: bool },
+    /// Two lanes: L2's cost, the teammates on each; the lane their cover gave (`cover`), or the odds of L2 and the number drawn;
+    /// `second` when L2 was taken; `swapped` when the regions' ranking was swapped (L1 the cheaper between the walk's ends).
+    Two { c2: f32, mates: Mates, cover: bool, odds: f32, number: f32, second: bool, swapped: bool },
 }
 
 /// Why a walk has no second lane ([`Verdict::One`]).
@@ -414,24 +501,28 @@ const NO_ROOM: &str = "no room off the ends";
 const NO_WAY: &str = "no way";
 const OVER_BAND: &str = "over the band";
 const MORE_EXPOSED: &str = "more exposed";
+const MORE_LEAPS: &str = "more leaps";
 
 /// The nav line of a drawn walk: `nav: lane draw: <play> to (x, z): C1 m, <verdict>`.
 pub fn line(play: impl std::fmt::Debug, goal: Vec3, c1: f32, verdict: &Verdict) -> String {
     let head = format!("{}lane draw: {play:?} to ({:.1}, {:.1}): C1 {c1:.1} m", super::nav_log::PREFIX, goal.x, goal.z);
     match verdict {
         Verdict::One(why) => format!("{head}, one lane ({why}), walks L1"),
-        Verdict::Two { c2, mates, odds, number, second } => format!(
-            "{head}, C2 {c2:.1} m ({:.3}), mates now L1 {} L2 {}, lately L1 {} L2 {}, p(L2) {odds:.3}, drew {:.3}: walks {} (rank {}), {:.1} m",
-            c2 / c1.max(0.1),
-            mates.now[0],
-            mates.now[1],
-            mates.lately[0],
-            mates.lately[1],
-            number,
-            if *second { "L2" } else { "L1" },
-            if *second { 2 } else { 1 },
-            if *second { *c2 } else { c1 },
-        ),
+        Verdict::Two { c2, mates, cover, odds, number, second, swapped } => {
+            let how = if *cover { "with the mates".to_string() } else { format!("p(L2) {odds:.3}, drew {number:.3}") };
+            format!(
+                "{head}, C2 {c2:.1} m ({:.3}){}, mates now L1 {} L2 {}, died L1 {} L2 {}, {how}: walks {} (rank {}), {:.1} m",
+                c2 / c1.max(0.1),
+                if *swapped { ", swapped" } else { "" },
+                mates.now[0],
+                mates.now[1],
+                mates.died[0],
+                mates.died[1],
+                if *second { "L2" } else { "L1" },
+                if *second { 2 } else { 1 },
+                if *second { *c2 } else { c1 },
+            )
+        }
     }
 }
 
@@ -445,9 +536,9 @@ pub(super) struct Walk<'a> {
     pub open: &'a dyn Fn(u32) -> bool,
 }
 
-/// A new walk's lane ([module](self)): L1 and L2 on the regions, one drawn, held for the goal, claimed for the team and logged
+/// A new walk's lane ([module](self)): L1 and L2 on the regions, one taken, held for the walk, claimed for the team and logged
 /// (a walk not over `set.long_m` on the regions, or with no way there: L1 held, no line). The room the floors' search keeps to:
-/// L2's when drawn, else none (the plain search).
+/// L2's when taken, else none (the plain search).
 #[allow(clippy::too_many_arguments)]
 pub(super) fn draw(
     bot: &mut super::Bot,
@@ -470,62 +561,87 @@ pub(super) fn draw(
             (first, c1)
         })
         .filter(|&(_, c1)| c1 > set.long_m.get());
-    let Some((first, c1)) = first else {
+    let Some((mut first, mut c1)) = first else {
         bot.features.lane.drawn(walk.goal, None);
         return None;
     };
     let num = |name| tuning.number(super::plays::PlayKind::Roam, name);
-    let (friend, keep_ms) = (num("friend_factor"), (num("fresh_s") * 1000.0) as u32);
-    let points1 = first.points(tactics);
+    let (death, keep_ms) = (num("death_factor"), (num("fresh_s") * 1000.0) as u32);
+    // The second way off a first's points: its cost between the ends and the regions it keeps out of.
+    let second_of = |points: &[Vec3]| {
+        let shut = shut_near(tactics, points, ends, set).ok_or(NO_ROOM)?;
+        let way = region_way(tactics, from, to, |r| !shut[r as usize] && (walk.open)(r)).ok_or(NO_WAY)?;
+        let c2 = way.cost_between(tactics, ends[0], ends[1]);
+        Ok::<_, &'static str>((way, c2, shut))
+    };
+    let mut points1 = first.points(tactics);
+    let mut second = second_of(&points1);
+    // L1 the cheaper between the walk's ends: the regions' ranking from the end regions' middles swapped, the second way searched
+    // again off the new first.
+    let mut swapped = false;
+    if let Ok((way, c2, _)) = &second
+        && *c2 < c1
+    {
+        (first, c1) = (way.clone(), *c2);
+        points1 = first.points(tactics);
+        second = second_of(&points1);
+        swapped = true;
+    }
     // Metres of a way's links into the regions the team's held shooters see (none known: 0).
     let exposed = |way: &RegionWay| {
         if tuning.threat.spots && !bot.threat.is_empty() { way.into_covered(|r| bot.threat.region(r)) } else { 0.0 }
     };
-    let second = shut_near(tactics, &points1, ends, set).ok_or(NO_ROOM).and_then(|shut| {
-        let way = region_way(tactics, from, to, |r| !shut[r as usize] && (walk.open)(r)).ok_or(NO_WAY)?;
-        let c2 = way.cost_between(tactics, ends[0], ends[1]);
+    let leaps1 = first.leaps(tactics);
+    let second = second.and_then(|(way, c2, shut)| {
         if c2 > band * c1 {
             Err(OVER_BAND)
         } else if exposed(&way) > exposed(&first) {
             Err(MORE_EXPOSED)
+        } else if way.leaps(tactics) > leaps1 {
+            Err(MORE_LEAPS)
         } else {
             Ok((way, c2, shut))
         }
     });
     let play = bot.assignment.as_ref().map(|a| a.kind);
-    let (verdict, lane) = match second {
-        Err(why) => (Verdict::One(why), None),
+    let (verdict, lane, lanes_walked) = match second {
+        Err(why) => (Verdict::One(why), None, Arc::new([points1, Vec::new()])),
         Ok((way, c2, shut)) => {
             let points2 = way.points(tactics);
             let stretches = [own_stretch(&points1, &points2, away), own_stretch(&points2, &points1, away)];
-            let team = me.team;
-            let alive = |who: Place| view.team(team).any(|p| p.place == who);
-            let mates = lanes.mates_on(bot.place, [&stretches[0], &stretches[1]], away, walk.time, keep_ms, alive);
-            let odds = odds(c2 / c1.max(0.1), band, mates, friend);
-            let number = number(bot.life_key, me.feet, walk.goal);
-            let second = number < odds;
-            let verdict = Verdict::Two { c2, mates, odds, number, second };
-            (verdict, second.then_some((way, points2, shut)))
+            let bodies: Vec<(Place, Vec3)> = view.team(me.team).map(|p| (p.place, p.feet)).collect();
+            let mates = lanes.mates_on(bot.place, [&stretches[0], &stretches[1]], away, walk.time, keep_ms, &bodies);
+            let (number, covered) = (number(bot.life_key, walk.goal), cover(mates));
+            let (odds, second) = match covered {
+                Some(second) => (if second { 1.0 } else { 0.0 }, second),
+                None => {
+                    let odds = odds(c2 / c1.max(0.1), set.scale.get(), band, mates.died, death);
+                    (odds, number < odds)
+                }
+            };
+            let verdict = Verdict::Two { c2, mates, cover: covered.is_some(), odds, number, second, swapped };
+            (verdict, second.then_some((way, shut)), Arc::new([points1, points2]))
         }
     };
     bot.nav_log.push(super::nav_log::Kind::Lane, walk.time, line(play, walk.goal, c1, &verdict));
+    let cap = Cap { metres: band * c1, leaps: leaps1 };
     match lane {
-        Some((way, points, shut)) => {
-            let room = Room { regions: room(tactics, &way, &shut, walk.open), cap_m: band * c1 };
-            bot.features.lane.drawn(walk.goal, Some((shut, room.cap_m)));
-            lanes.claim(bot.place, walk.goal, points, walk.time);
+        Some((way, shut)) => {
+            let room = Room { regions: room(tactics, &way, &shut, walk.open), cap };
+            bot.features.lane.drawn(walk.goal, Some((shut, cap)));
+            lanes.claim(bot.place, lanes_walked, true);
             Some(room)
         }
         None => {
             bot.features.lane.drawn(walk.goal, None);
-            lanes.claim(bot.place, walk.goal, points1, walk.time);
+            lanes.claim(bot.place, lanes_walked, false);
             None
         }
     }
 }
 
-/// A held L2's room from where the bot is now (`walk.ends`): its way on the regions kept out of `shut`, its cap `band` times L1's cost
-/// from there; none with no way there.
+/// A held L2's room from where the bot is now (`walk.ends`) to the walk's goal now: its way on the regions kept out of `shut`, its
+/// cap from L1 there; none with no way there.
 pub(super) fn held_room(tactics: &Tactics, shut: &[bool], band: f32, walk: &Walk<'_>) -> Option<Room> {
     let regions = tactics.regions();
     let (from, to) = (regions.of(walk.ends.0), regions.of(walk.ends.1));
@@ -534,12 +650,25 @@ pub(super) fn held_room(tactics: &Tactics, shut: &[bool], band: f32, walk: &Walk
     let way = region_way(tactics, from, to, open)?;
     let grid = &tactics.world.grid;
     let c1 = first.cost_between(tactics, grid.position(walk.ends.0), grid.position(walk.ends.1));
-    Some(Room { regions: room(tactics, &way, shut, walk.open), cap_m: band * c1 })
+    Some(Room { regions: room(tactics, &way, shut, walk.open), cap: Cap { metres: band * c1, leaps: first.leaps(tactics) } })
 }
 
-/// The nav line of an L2 route over its cap: `nav: lane draw: L2 to (x, z) over its cap: L m against C m, walks L1`.
-pub fn over_cap_line(goal: Vec3, length: f32, cap_m: f32) -> String {
-    format!("{}lane draw: L2 to ({:.1}, {:.1}) over its cap: {length:.1} m against {cap_m:.1} m, walks L1", super::nav_log::PREFIX, goal.x, goal.z)
+/// The jumps of a route: its waypoints reached by a jump.
+pub fn jumps(route: &super::path::Route) -> u32 {
+    route.points().iter().filter(|w| w.jump.is_some()).count() as u32
+}
+
+/// The nav line of an L2 route over its cap: `nav: lane draw: L2 to (x, z) over its cap: L m against C m, J jumps against K leaps,
+/// walks L1`.
+pub fn over_cap_line(goal: Vec3, length: f32, jumps: u32, cap: Cap) -> String {
+    format!(
+        "{}lane draw: L2 to ({:.1}, {:.1}) over its cap: {length:.1} m against {:.1} m, {jumps} jumps against {} leaps, walks L1",
+        super::nav_log::PREFIX,
+        goal.x,
+        goal.z,
+        cap.metres,
+        cap.leaps
+    )
 }
 
 #[cfg(test)]
@@ -547,92 +676,119 @@ mod tests {
     use super::*;
 
     #[test]
-    fn the_odds_fall_with_cost_and_turn_from_mates() {
-        let none = Mates::default();
-        // Equal cost and no mates: even. At the band's edge: L1 always.
-        assert!((odds(1.0, 1.15, none, 0.6) - 0.5).abs() < 1e-6);
-        assert_eq!(odds(1.15, 1.15, none, 0.6), 0.0);
-        assert_eq!(odds(1.3, 1.15, none, 0.6), 0.0, "past the band: never");
-        // Halfway: L2 weighs 0.5 against 1.
-        assert!((odds(1.075, 1.15, none, 0.6) - 1.0 / 3.0).abs() < 1e-5);
-        // A mate's walk on L1 ended lately makes L2 likelier, one on L2 less.
-        let alone = odds(1.05, 1.15, none, 0.6);
-        let lately = |l1, l2| Mates { now: [0, 0], lately: [l1, l2] };
-        assert!(odds(1.05, 1.15, lately(1, 0), 0.6) > alone && odds(1.05, 1.15, lately(0, 1), 0.6) < alone);
-        assert!((odds(1.05, 1.15, lately(1, 1), 0.6) - alone).abs() < 1e-6, "one on each: as alone");
-        // A mate walking L1 now makes L1 likelier (its cover), one walking L2 now L2; now and lately on one lane cancel.
-        let now = |l1, l2| Mates { now: [l1, l2], lately: [0, 0] };
-        assert!(odds(1.05, 1.15, now(1, 0), 0.6) < alone && odds(1.05, 1.15, now(0, 1), 0.6) > alone);
-        assert!((odds(1.05, 1.15, Mates { now: [1, 0], lately: [1, 0] }, 0.6) - alone).abs() < 1e-6);
-        // Past the band no mate draws L2.
-        assert_eq!(odds(1.2, 1.15, now(0, 3), 0.6), 0.0);
+    fn the_odds_fall_with_cost_and_deaths_and_keep_the_scale_apart_from_the_cap() {
+        let none = [0, 0];
+        // Equal cost: even. At the scale's edge: L1 always, with the cap there too.
+        assert!((odds(1.0, 1.15, 1.15, none, 0.4) - 0.5).abs() < 1e-6);
+        assert_eq!(odds(1.15, 1.15, 1.15, none, 0.4), 0.0);
+        assert_eq!(odds(1.2, 1.15, 1.15, none, 0.4), 0.0, "past the cap: never");
+        // Halfway in the scale: L2 weighs 0.5 against 1, whatever the cap.
+        assert!((odds(1.075, 1.15, 1.15, none, 0.4) - 1.0 / 3.0).abs() < 1e-5);
+        assert!((odds(1.075, 1.15, 1.3, none, 0.4) - 1.0 / 3.0).abs() < 1e-5, "the cap leaves the scale's odds");
+        // Past the scale and within the cap: the humans' share there.
+        let past = PAST_SCALE / (1.0 + PAST_SCALE);
+        assert!((odds(1.2, 1.15, 1.3, none, 0.4) - past).abs() < 1e-6 && (odds(1.3, 1.15, 1.3, none, 0.4) - past).abs() < 1e-6);
+        assert_eq!(odds(1.31, 1.15, 1.3, none, 0.4), 0.0);
+        // A mate who died on L1 makes L2 likelier, one on L2 less; one on each: as none.
+        let alone = odds(1.05, 1.15, 1.15, none, 0.4);
+        assert!(odds(1.05, 1.15, 1.15, [1, 0], 0.4) > alone && odds(1.05, 1.15, 1.15, [0, 1], 0.4) < alone);
+        assert!((odds(1.05, 1.15, 1.15, [1, 1], 0.4) - alone).abs() < 1e-6);
+    }
+
+    #[test]
+    fn the_mates_on_a_lane_now_give_it_and_equal_counts_draw() {
+        let m = |now: [u32; 2]| Mates { now, died: [0, 0] };
+        assert_eq!(cover(m([0, 0])), None);
+        assert_eq!(cover(m([1, 1])), None);
+        assert_eq!(cover(m([1, 0])), Some(false));
+        assert_eq!(cover(m([1, 2])), Some(true));
+        // Deaths do not give a lane: they weigh the draw.
+        assert_eq!(cover(Mates { now: [0, 0], died: [3, 0] }), None);
     }
 
     #[test]
     fn a_life_draws_one_number_a_walk() {
-        let (a, b) = (Vec3::new(10.0, 0.0, 10.0), Vec3::new(200.0, 0.0, 50.0));
-        let n = number(7, a, b);
+        let b = Vec3::new(200.0, 0.0, 50.0);
+        let n = number(7, b);
         assert!((0.0..1.0).contains(&n));
-        assert_eq!(n, number(7, a + Vec3::new(1.0, 0.0, 1.0), b), "the same cells: the same number");
-        assert_ne!(n, number(8, a, b), "another life");
-        assert_ne!(n, number(7, b, a), "the way back");
+        assert_eq!(n, number(7, b + Vec3::new(1.0, 0.0, 1.0)), "the same goal cell: the same number");
+        assert_ne!(n, number(8, b), "another life");
+        assert_ne!(n, number(7, Vec3::new(10.0, 0.0, 10.0)), "another goal");
         // Spread: the numbers of many lives are about uniform.
-        let below = (0..1000u64).filter(|&k| number(k.wrapping_mul(0x9E37_79B9_7F4A_7C15), a, b) < 0.5).count();
+        let below = (0..1000u64).filter(|&k| number(k.wrapping_mul(0x9E37_79B9_7F4A_7C15), b) < 0.5).count();
         assert!((400..600).contains(&below), "{below}");
     }
 
     #[test]
-    fn a_held_lane_stays_with_its_goal_and_danger_turns_it_to_l1() {
+    fn a_held_lane_lasts_the_walk_and_danger_turns_it_to_l1() {
         let mut hold = LaneHold::default();
         let goal = Vec3::new(100.0, 0.0, 0.0);
-        assert!(matches!(hold.replan(goal, 15.0, false), Replan::Draw));
+        assert!(matches!(hold.replan(goal, false), Replan::Draw));
+        assert_eq!(hold.walking(), None);
         let shut = Arc::new(vec![true, false]);
-        hold.drawn(goal, Some((shut.clone(), 115.0)));
-        // The goal moves a little: L2 held, no draw.
-        let moved = goal + Vec3::new(5.0, 0.0, 0.0);
-        assert!(matches!(hold.replan(moved, 15.0, false), Replan::Held(Some(_))));
-        // It moves on, within reach of the last: still held.
-        assert!(matches!(hold.replan(moved + Vec3::new(12.0, 0.0, 0.0), 15.0, false), Replan::Held(Some(_))));
-        // Danger: L1 for the goal, kept after.
-        assert!(matches!(hold.replan(moved + Vec3::new(12.0, 0.0, 0.0), 15.0, true), Replan::Held(None)));
-        assert!(matches!(hold.replan(moved + Vec3::new(12.0, 0.0, 0.0), 15.0, false), Replan::Held(None)));
-        // A far goal: a new draw.
-        assert!(matches!(hold.replan(Vec3::new(0.0, 0.0, 100.0), 15.0, false), Replan::Draw));
+        hold.drawn(goal, Some((shut.clone(), Cap { metres: 115.0, leaps: 0 })));
+        assert_eq!(hold.walking(), Some(true));
+        // The goal moves, a little or far: L2 held, no draw.
+        assert!(matches!(hold.replan(goal + Vec3::new(5.0, 0.0, 0.0), false), Replan::Held(Some(_))));
+        assert!(matches!(hold.replan(Vec3::new(0.0, 0.0, 100.0), false), Replan::Held(Some(_))));
+        // Endings of the same walk keep it.
+        for why in [RouteEnd::Replanned, RouteEnd::Off, RouteEnd::JumpFailed, RouteEnd::NoProgress, RouteEnd::TrapAhead] {
+            hold.route_ended(why);
+            assert_eq!(hold.walking(), Some(true), "{why:?}");
+        }
+        // Danger: L1 for the walk, kept after.
+        assert!(matches!(hold.replan(goal, true), Replan::Held(None)));
+        assert!(matches!(hold.replan(goal, false), Replan::Held(None)));
+        assert_eq!(hold.walking(), Some(false));
+        // The walk ends: a new draw.
+        for why in [RouteEnd::Arrived, RouteEnd::NewAssignment, RouteEnd::EndPlay, RouteEnd::NoGoal, RouteEnd::NoWay] {
+            let mut held = hold.clone();
+            held.route_ended(why);
+            assert!(matches!(held.replan(goal, false), Replan::Draw), "{why:?}");
+        }
         // A danger replan with no lane held: L1, held.
         let mut fresh = LaneHold::default();
-        assert!(matches!(fresh.replan(goal, 15.0, true), Replan::Held(None)));
-        assert!(matches!(fresh.replan(goal, 15.0, false), Replan::Held(None)));
+        assert!(matches!(fresh.replan(goal, true), Replan::Held(None)));
+        assert!(matches!(fresh.replan(goal, false), Replan::Held(None)));
     }
 
-    /// Two lanes from (0, 0) to (100, 0): L1 straight, L2 by z 40 from x 20 to 80. A mate is counted on the lane it walks: now while
-    /// under way and alive; lately once its walk ended, for the window; lately for the window after its claim once it died walking.
+    /// Two lanes from (0, 0) to (100, 0): L1 straight, L2 by z 40 from x 20 to 80. A living mate is on the lane its walk's claim
+    /// walks, else on the stretch its body stands on; one who died walking a lane counts on it for the window after the death.
     #[test]
-    fn mates_are_counted_on_the_lane_they_walk_now_or_lately() {
+    fn mates_are_counted_on_the_lane_they_walk_or_stand_on_and_by_their_deaths() {
         let line = |z: f32| (0..=50).map(|k| Vec3::new(k as f32 * 2.0, 0.0, if (10..=40).contains(&k) { z } else { 0.0 })).collect::<Vec<_>>();
         let (l1, l2) = (line(0.0), line(40.0));
         let (s1, s2) = (own_stretch(&l1, &l2, 15.0), own_stretch(&l2, &l1, 15.0));
         assert!(!s1.is_empty() && !s2.is_empty());
+        let both = Arc::new([l1.clone(), l2.clone()]);
         let mut lanes = TeamLanes::default();
-        let goal = Vec3::new(100.0, 0.0, 0.0);
-        lanes.claim(1, goal, l1.clone(), 0);
-        lanes.claim(2, goal, l2.clone(), 0);
-        lanes.claim(3, goal, l2.clone(), 0);
-        let all = |_| true;
-        let m = |now: [u32; 2], lately: [u32; 2]| Mates { now, lately };
-        assert_eq!(lanes.mates_on(0, [&s1, &s2], 15.0, 0, 15_000, all), m([1, 2], [0, 0]));
-        assert_eq!(lanes.mates_on(2, [&s1, &s2], 15.0, 0, 15_000, all), m([1, 1], [0, 0]), "not its own");
-        // Mate 3 dead with its walk under way: lately, till 15 s after its claim.
-        assert_eq!(lanes.mates_on(0, [&s1, &s2], 15.0, 15_000, 15_000, |p| p != 3), m([1, 1], [0, 1]));
-        assert_eq!(lanes.mates_on(0, [&s1, &s2], 15.0, 15_001, 15_000, |p| p != 3), m([1, 1], [0, 0]));
-        // Mate 1's walk ends at 1 s: lately till 16 s, then dropped.
-        lanes.walking(1, None, 15.0, 1_000, 15_000);
-        assert_eq!(lanes.mates_on(0, [&s1, &s2], 15.0, 16_000, 15_000, all), m([0, 2], [1, 0]));
-        lanes.walking(0, None, 15.0, 16_001, 15_000);
-        assert_eq!(lanes.mates_on(0, [&s1, &s2], 15.0, 16_001, 15_000, all), m([0, 2], [0, 0]), "ended past the window: dropped");
-        // A walk whose goal moved within reach goes on.
-        lanes.regoal(2, Vec3::new(105.0, 0.0, 0.0));
-        lanes.walking(2, Some(Vec3::new(108.0, 0.0, 0.0)), 15.0, 17_000, 15_000);
-        assert_eq!(lanes.mates_on(0, [&s1, &s2], 15.0, 40_000, 15_000, all), m([0, 2], [0, 0]));
+        lanes.claim(1, both.clone(), false);
+        lanes.claim(2, both.clone(), true);
+        lanes.claim(3, both.clone(), true);
+        let start = Vec3::ZERO;
+        let bodies = |places: &[Place]| places.iter().map(|&p| (p, start)).collect::<Vec<_>>();
+        let m = |now: [u32; 2], died: [u32; 2]| Mates { now, died };
+        let s = [&s1[..], &s2[..]];
+        assert_eq!(lanes.mates_on(0, s, 15.0, 0, 15_000, &bodies(&[0, 1, 2, 3])), m([1, 2], [0, 0]));
+        assert_eq!(lanes.mates_on(2, s, 15.0, 0, 15_000, &bodies(&[0, 1, 2, 3])), m([1, 1], [0, 0]), "not its own");
+        // Mate 3 dies at 2 s (seen by a teammate's tick): died on L2 till 17 s, then dropped.
+        lanes.walking(0, None, 2_000, 15_000, |p| p != 3);
+        assert_eq!(lanes.mates_on(0, s, 15.0, 17_000, 15_000, &bodies(&[0, 1, 2])), m([1, 1], [0, 1]));
+        lanes.walking(0, None, 17_001, 15_000, |_| true);
+        assert_eq!(lanes.mates_on(0, s, 15.0, 17_001, 15_000, &bodies(&[0, 1, 2])), m([1, 1], [0, 0]));
+        // Its next life's claim does not wipe a death.
+        lanes.walking(0, None, 18_000, 15_000, |p| p != 2);
+        lanes.claim(2, both.clone(), false);
+        assert_eq!(lanes.mates_on(0, s, 15.0, 18_000, 15_000, &bodies(&[0, 1, 2])), m([2, 0], [0, 1]));
+        // Mate 1's walk ends: by its body now, on L1's own stretch, on L2's, or at the shared start (none).
+        lanes.walking(1, None, 19_000, 15_000, |_| true);
+        let on = |feet: Vec3| lanes.mates_on(0, s, 15.0, 19_000, 15_000, &[(1, feet)]);
+        assert_eq!(on(Vec3::new(50.0, 0.0, 2.0)), m([1, 0], [0, 1]));
+        assert_eq!(on(Vec3::new(50.0, 0.0, 38.0)), m([0, 1], [0, 1]));
+        assert_eq!(on(start), m([0, 0], [0, 1]));
+        // A walk turned to L1 counts on L1.
+        lanes.walking(2, Some(false), 19_000, 15_000, |_| true);
+        assert_eq!(lanes.mates_on(0, s, 15.0, 19_000, 15_000, &bodies(&[2])), m([1, 0], [0, 1]));
         // A lane along neither stretch: no one's.
         assert_eq!(walks(&line(-60.0)[20..=30], [&s1, &s2], 15.0), None);
     }
@@ -640,19 +796,24 @@ mod tests {
     #[test]
     fn the_line_names_the_lanes_and_the_draw() {
         let goal = Vec3::new(1.0, 0.0, 2.0);
-        let two = Verdict::Two { c2: 110.0, mates: Mates { now: [1, 0], lately: [0, 2] }, odds: 0.4, number: 0.2, second: true };
+        let mates = Mates { now: [1, 1], died: [0, 2] };
+        let two = Verdict::Two { c2: 110.0, mates, cover: false, odds: 0.4, number: 0.2, second: true, swapped: false };
         let text = line("Collect", goal, 100.0, &two);
         assert!(
-            text.starts_with("nav: lane draw: \"Collect\" to (1.0, 2.0): C1 100.0 m, C2 110.0 m (1.100), mates now L1 1 L2 0, lately L1 0 L2 2"),
+            text.starts_with("nav: lane draw: \"Collect\" to (1.0, 2.0): C1 100.0 m, C2 110.0 m (1.100), mates now L1 1 L2 1, died L1 0 L2 2"),
             "{text}"
         );
         assert!(text.ends_with("p(L2) 0.400, drew 0.200: walks L2 (rank 2), 110.0 m"), "{text}");
-        assert!(line("Cut", goal, 80.0, &Verdict::One(NO_WAY)).ends_with("one lane (no way), walks L1"));
+        let mates = Mates { now: [2, 0], died: [0, 0] };
+        let cover = Verdict::Two { c2: 98.0, mates, cover: true, odds: 0.0, number: 0.2, second: false, swapped: true };
+        let text = line("Collect", goal, 100.0, &cover);
+        assert!(text.contains("C2 98.0 m (0.980), swapped, mates now L1 2 L2 0") && text.ends_with("with the mates: walks L1 (rank 1), 100.0 m"), "{text}");
+        assert!(line("Cut", goal, 80.0, &Verdict::One(MORE_LEAPS)).ends_with("one lane (more leaps), walks L1"));
     }
 
     /// On the test field (80 by 40 m, a wall at x 40 from z 0 to 25): the regions' way from (10, 10) to (70, 10) goes by the gap
-    /// above the wall, its cost no less than the straight distance; with the regions near it shut (the ends' 25 m open) there is no
-    /// second way, and a held lane's room is none; with nothing shut the room holds the way's regions.
+    /// above the wall, its cost no less than the straight distance and with no leap; with the regions near it shut (the ends' 25 m
+    /// open) there is no second way, and a held lane's room is none; with nothing shut the room holds the way's regions.
     #[test]
     fn the_second_way_keeps_off_the_first_and_the_field_has_one_gap() {
         let world = crate::v026g::bots::tactics::tests::field_with(|_| {});
@@ -666,6 +827,7 @@ mod tests {
         assert!(way.cost >= grid.position(a).distance_xz(grid.position(b)), "{}", way.cost);
         assert_eq!(way.regions.first().map(|r| r.0), Some(regions.of(a)));
         assert_eq!(way.regions.last().map(|r| r.0), Some(regions.of(b)));
+        assert_eq!(way.leaps(&tactics), 0, "a flat field: walk links only");
         let set = LaneDrawTuning::default();
         let ends = [grid.position(a), grid.position(b)];
         // Between the walk's own ends: no shorter than the straight line, and the way's own cost when the ends are its end
@@ -684,25 +846,48 @@ mod tests {
         assert!(held_room(&tactics, &shut, 1.15, &walk).is_none());
         let room = held_room(&tactics, &vec![false; regions.len()], 1.15, &walk).unwrap();
         assert!(way.regions.iter().all(|&(r, _)| room.regions[r as usize]));
-        assert!((room.cap_m - 1.15 * between).abs() < 1e-3, "nothing shut: L2 is L1, the cap the band on its cost between the ends");
+        assert!((room.cap.metres - 1.15 * between).abs() < 1e-3, "nothing shut: L2 is L1, the cap the band on its cost between the ends");
+        assert_eq!(room.cap.leaps, 0);
         // The walk is all ends: no room for a second lane.
         assert!(shut_near(&tactics, &points[..2], [points[0], points[1]], &set).is_none());
     }
 
+    /// A way's leap links are those whose cost is over its middles' distance by a drop's half penalty or more.
     #[test]
-    fn a_held_second_lane_is_known_for_its_goal() {
+    fn a_way_counts_its_leap_links_by_their_penalty() {
+        let world = crate::v026g::bots::tactics::tests::field_with(|_| {});
+        let tactics = Tactics::new(world, 1.0);
+        let grid = &tactics.world.grid;
+        let (a, b) = (grid.locate(Vec3::new(10.0, 0.0, 10.0), 1.5).unwrap(), grid.locate(Vec3::new(70.0, 0.0, 10.0), 1.5).unwrap());
+        let regions = tactics.regions();
+        let mut way = region_way(&tactics, regions.of(a), regions.of(b), |_| true).unwrap();
+        assert!(way.regions.len() >= 3);
+        let drop = mapdata::grid::LinkKind::Drop.penalty();
+        way.regions[1].1 += drop;
+        assert_eq!(way.leaps(&tactics), 1, "a drop's penalty");
+        way.regions[2].1 += drop / 2.0 - 0.01;
+        assert_eq!(way.leaps(&tactics), 1, "under half a drop's penalty: a walk");
+        way.regions[2].1 += 0.02;
+        assert_eq!(way.leaps(&tactics), 2);
+    }
+
+    #[test]
+    fn a_held_second_lane_is_known_for_its_goal_and_capped_by_length_and_jumps() {
         let mut hold = LaneHold::default();
         let goal = Vec3::new(100.0, 0.0, 0.0);
         assert!(!hold.second_for(goal, 15.0));
-        hold.drawn(goal, Some((Arc::new(vec![true]), 115.0)));
+        let cap = Cap { metres: 115.0, leaps: 1 };
+        hold.drawn(goal, Some((Arc::new(vec![true]), cap)));
         assert!(hold.second_for(goal + Vec3::new(10.0, 0.0, 0.0), 15.0) && !hold.second_for(Vec3::ZERO, 15.0));
-        // Its cap: a route over it is named, one within it not; the cap from where the bot is now replaces it.
-        assert_eq!(hold.over_cap(goal, 120.0, 15.0), Some(115.0));
-        assert_eq!(hold.over_cap(goal, 110.0, 15.0), None);
-        assert_eq!(hold.over_cap(Vec3::ZERO, 120.0, 15.0), None, "another goal");
-        hold.capped(90.0);
-        assert_eq!(hold.over_cap(goal, 100.0, 15.0), Some(90.0));
-        assert!(over_cap_line(goal, 100.0, 90.0).ends_with("lane draw: L2 to (100.0, 0.0) over its cap: 100.0 m against 90.0 m, walks L1"));
+        // Its cap: a route over it, by length or by jumps, is named; one within it not; the cap from where the bot is now replaces it.
+        assert_eq!(hold.over_cap(goal, 120.0, 0, 15.0), Some(cap));
+        assert_eq!(hold.over_cap(goal, 110.0, 2, 15.0), Some(cap));
+        assert_eq!(hold.over_cap(goal, 110.0, 1, 15.0), None);
+        assert_eq!(hold.over_cap(Vec3::ZERO, 120.0, 0, 15.0), None, "another goal");
+        let near = Cap { metres: 90.0, leaps: 0 };
+        hold.capped(near);
+        assert_eq!(hold.over_cap(goal, 100.0, 0, 15.0), Some(near));
+        assert!(over_cap_line(goal, 100.0, 1, near).ends_with("lane draw: L2 to (100.0, 0.0) over its cap: 100.0 m against 90.0 m, 1 jumps against 0 leaps, walks L1"));
         hold.drop_lane();
         assert!(!hold.second_for(goal, 15.0));
     }
