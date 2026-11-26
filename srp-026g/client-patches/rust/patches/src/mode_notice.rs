@@ -1,4 +1,4 @@
-//! Patch 213: a mode's notice (Blackout's, Freeze Tag's: the hud's
+//! Patch 214: a mode's notice (Blackout's, Freeze Tag's: the hud's
 //! `ModeNotice`, under the match timer) only in each account's first three
 //! matches of the mode (docs/notes/mode_introductions.md).
 //!

@@ -206,7 +206,7 @@ fn the_faces_entry_is_a_face_a_place_of_the_roster() {
     }
 }
 
-/// Each place's mode notice (`mode_introductions.md`, patch 213): srp's
+/// Each place's mode notice (`mode_introductions.md`, patch 214): srp's
 /// entry `{7, roster, 0 or 1 a place}`, after the entry of a mode with a
 /// notice, as the server writes it in every match of such a mode. The
 /// clients' check refuses it on another mode, of another length than the

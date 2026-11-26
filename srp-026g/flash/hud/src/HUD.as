@@ -705,7 +705,7 @@ package
          addEventListener(Event.ENTER_FRAME,this.onIntroductionFrame);
       }
 
-      // Exe patch 213, at each match's start after reset: whether this match shows its mode's notice
+      // Exe patch 214, at each match's start after reset: whether this match shows its mode's notice
       // (the account's first three matches of the mode; never in a replay). Until told, a notice waits.
       public function mode_notice(shown:Boolean) : void
       {

@@ -410,7 +410,7 @@ match timer, as Blackout's (`ModeNotice`, `mode_introductions.md` "HUD notice
 follow-up"): through the countdown and 10 s after play starts, 10 s from
 readiness for a late joiner, begun by `set_game_type(12)` at every match start
 (Blackout's unforce no longer resets another mode's notice: `ModeNotice.cancel`).
-Only in each account's first three Freeze Tag matches, never in a replay (exe patch 213,
+Only in each account's first three Freeze Tag matches, never in a replay (exe patch 214,
 `mode_introductions.md` "Each account's first three matches of a mode").
 Its text, `st_srp_hud_freeze_start` in the twelve dictionaries, English:
 

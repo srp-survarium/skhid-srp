@@ -66,7 +66,7 @@ distinguish teams… this is the new battery mode". The owner's changes of 2026-
   same match. See [mode introductions](mode_introductions.md) for copy, protocol and checks.
   Superseded the same day by the HUD notice; the server side was removed on 2026-11-26, and the
   same day the HUD notice was limited to each account's first three Blackout matches again (exe
-  patch 213, the lobby's count; never in a replay).
+  patch 214, the lobby's count; never in a replay).
 - **The use prompt and its progress, always** (the owner, 2026-11-02: "picking up artifact and
   refilling ammo should have ui in blackout"): the prompt at what the player can use (an artefact
   container, an ammo stash) and the bar filling while it is used (the search, the refill), as in a

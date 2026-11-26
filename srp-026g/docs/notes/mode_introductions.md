@@ -37,7 +37,7 @@ the owner decided on 2026-11-03.
   others (`late_join::Prepare`) has no such entry. The strict readers
   (`static_info::read_srp_block`, `srp_validate::messages::options`) know the
   entry, and Freeze Tag's `{6, 1, 1}` in the latter.
-- **In the game:** exe patch 213 (`client-patches/rust/patches/src/mode_notice.rs`)
+- **In the game:** exe patch 214 (`client-patches/rust/patches/src/mode_notice.rs`)
   keeps the entry at the options' reads (a match's and a replay's), and at
   `player_icons.enemy_ids` (initialize_match, after the hud's `root.reset` and
   before the match's first frame) tells the hud `root.mode_notice(shown)`:
@@ -48,7 +48,7 @@ the owner decided on 2026-11-03.
   then "shown" or "skipped"; the first word stays until the next `reset`). A
   notice begun (Blackout's unforce, `set_game_type(12)`) waits for the word as
   it waits for the time and the texts, and shows only on "shown". `cancel`
-  ends a mode's notice and keeps the word. A movie without exe patch 213 is
+  ends a mode's notice and keeps the word. A movie without exe patch 214 is
   never told and shows no notice: the hud and the exe ship together.
 - Ship the server, the exe and the hud movie together.
 

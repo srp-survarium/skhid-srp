@@ -20,7 +20,7 @@
 //! reader is at the two calls of `match_options::deserialize`, 0x27B928 and
 //! 0x1F096C), tag 3 a free-for-all's kill target, tag 4 a map id over a
 //! byte (patch 154), tag 5 the players' faces (`face-choice.md`), tag 6
-//! Freeze Tag (patch 160), tag 7 each place's mode notice (patch 213,
+//! Freeze Tag (patch 160), tag 7 each place's mode notice (patch 214,
 //! `mode_introductions.md`); tag 1 is kept for team damage (#370).
 //!
 //! The client checks nothing of this: a string, a kit or an item too many
@@ -659,7 +659,7 @@ pub const SRPX_FACES: u8 = 5;
 /// The entry of a Freeze Tag map's options ([`maps::GameMode::FreezeTag`]): one
 /// byte, 1 (exe patch 160, `freeze-tag.md`).
 pub const SRPX_FREEZE_TAG: u8 = 6;
-/// The notices entry (exe patch 213, `mode_introductions.md`): one byte a
+/// The notices entry (exe patch 214, `mode_introductions.md`): one byte a
 /// place, 1 when the place's own hud shows the mode's notice, else 0. Sent
 /// in every match of a mode that has a notice ([`maps::GameMode::notice`]),
 /// in no other: a game that finds none (an older server) shows it.
@@ -1288,7 +1288,7 @@ struct SrpEntries {
 }
 
 /// srp's block after the options or a late joiner's profile, if any: as
-/// patches 65, 142, 154, 213 and the faces patch read it, but strict (an
+/// patches 65, 142, 154, 214 and the faces patch read it, but strict (an
 /// unknown tag, a tag twice or a short entry is refused, so a test sees it;
 /// so is a faces or notices entry of another length than the `roster` (1
 /// for a late joiner), a faces entry of none but face 0, a notice byte
@@ -1578,7 +1578,7 @@ mod tests {
         }
     }
 
-    /// Each place's mode notice (tag 7, exe patch 213): in every match of a
+    /// Each place's mode notice (tag 7, exe patch 214): in every match of a
     /// mode with a notice, a byte a place; in no other, whatever the
     /// profiles say. A late joiner's profile never has the entry.
     #[test]

@@ -9,7 +9,7 @@ package survarium.modes
 
    // HUD-local lifetime: joining an old match still gets a full reading interval.
    // Native countdown updates cannot clear this separate label.
-   // Shown only when the match's word says so (root.mode_notice, exe patch 213, told after the hud's
+   // Shown only when the match's word says so (root.mode_notice, exe patch 214, told after the hud's
    // reset at each match's start: the account's first three matches of the mode,
    // docs/notes/mode_introductions.md); a notice begun waits for it.
    public class ModeNotice extends Sprite

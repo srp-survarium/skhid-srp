@@ -254,7 +254,7 @@ package
             var text:Function = function(key:String, seconds:String = null):String {
                return seconds == null ? data[key] : String(data[key]).split("%1$s").join(seconds);
             };
-            // As the game: reset, then patch 213's word (here: shown), then the mode and the time.
+            // As the game: reset, then patch 214's word (here: shown), then the mode and the time.
             var match:Function = function(word:* = true):void {
                hud.reset();
                if(word != null) hud.mode_notice(word);

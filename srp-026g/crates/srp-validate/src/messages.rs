@@ -474,7 +474,7 @@ pub fn options(bytes: &[u8], dictionary: &dyn Dictionary) -> Result<u8, Refusal>
     // a free-for-all (its kill target), for a map id over a byte (patch
     // 154: the whole id, the options' byte its low byte), for the roster's
     // faces when one is not face 0 (the faces patch), for a Freeze Tag match
-    // (patch 160) and for the places' mode notices (patch 213).
+    // (patch 160) and for the places' mode notices (patch 214).
     // Keep this in sync with static_info::read_srp_block on the server.
     let mut wide = None;
     if !reader.is_done() {
