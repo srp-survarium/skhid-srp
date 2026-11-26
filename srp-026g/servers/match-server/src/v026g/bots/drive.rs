@@ -4594,6 +4594,7 @@ fn end_pincer(bot: &mut Bot, lanes: &mut lane_draw::TeamLanes, time: u32, line: 
 /// Every step on the log, and a walk that ended under way with its reason.
 fn pincer_tick(bot: &mut Bot, me: &PlaceView, view: &MatchView, tactics: &Tactics, tuning: &Tuning, lanes: &mut lane_draw::TeamLanes, time: u32) {
     use super::pincer::{self, Phase, Pincer, Shared};
+    let grid = &tactics.world.grid;
     let fighting = bot.reflex.target().is_some();
     if lanes.claimed(bot.place) {
         let ahead = bot.route.as_mut().map(|(route, _)| {
@@ -4655,10 +4656,12 @@ fn pincer_tick(bot: &mut Bot, me: &PlaceView, view: &MatchView, tactics: &Tactic
             {
                 let len = route.length();
                 let points: Vec<Vec3> = route.points().iter().map(|w| w.at).collect();
-                let on = pincer::stage_on(&points, |a, b| tactics.sees(a, b));
+                // Off a held shooter's cover too (the lane draw's exposure, `threat::Covered`).
+                let covered = |p: Vec3| tuning.threat.spots && bot.threat.exposed_at(grid, p);
+                let on = pincer::stage_on(&points, |a, b| tactics.sees(a, b), covered);
                 bot.nav_log.push(super::nav_log::Kind::Lane, time, pincer::lines::stage(p.mate, on, len));
                 if on.is_none() {
-                    end_pincer(bot, lanes, time, &pincer::lines::alone(p.mate, "no stage: its route in the goal's sight all the way"));
+                    end_pincer(bot, lanes, time, &pincer::lines::alone(p.mate, "no stage: its route in the goal's sight or a held shooter's cover"));
                     return;
                 }
                 stage = on.map(|(at, _)| at);
@@ -4682,7 +4685,12 @@ fn pincer_tick(bot: &mut Bot, me: &PlaceView, view: &MatchView, tactics: &Tactic
             }
         }
         Phase::Staged { .. } => {
-            if let Some((why, held)) = bot.reflex.take_pincer_end() {
+            // Its stage under a held shooter's cover since it staged: it lets go.
+            if tuning.threat.spots && bot.threat.exposed_at(grid, me.feet) {
+                bot.reflex.release_pincer(time);
+                let _ = bot.reflex.take_pincer_end();
+                end_pincer(bot, lanes, time, &pincer::lines::exposed(p.mate, me.feet));
+            } else if let Some((why, held)) = bot.reflex.take_pincer_end() {
                 end_pincer(bot, lanes, time, &pincer::lines::ended(p.mate, why, held));
             } else if matches!(mate, Shared::Go | Shared::Gone) || view.time_left_s * 1000.0 <= pincer::HOLD_CAP_MS as f32 {
                 bot.reflex.release_pincer(time);

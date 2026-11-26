@@ -17,7 +17,9 @@
 //!   not pass. Its caps are the lane draw's (the band on its own L1's cost, no more leaps than L1's). Checked before the pairing: a
 //!   refusal moves nobody. Over the caps, or no such lane, the walk goes as the lane draw has it.
 //! - **The stage** ([`stage_on`]): each walker's own route's last point out of its goal's sight (an eye over the route, an eye over
-//!   the goal; [`EYE_M`]), found again for each new route. A route in sight all the way has none: that walker goes in alone.
+//!   the goal; [`EYE_M`]) and off the ground its team's held shooters cover (`threat::Covered::exposed_at`, the lane draw's own
+//!   exposure: a stage out of the objective's sight is not out of another shooter's), found again for each new route. A route with
+//!   no such point has none: that walker goes in alone. A hold whose stage comes under a held shooter's cover lets go.
 //! - **The plays held.** While a pincer is under way the commander holds both walkers' plays as a started play is held
 //!   (`team::Commit::Held`): against every candidate but a named interrupter (`team::interrupts`), and only while the play is still a
 //!   candidate (its objective there). On the way it breaks at a hit, a fight nearer than its stage, or the round's last
@@ -104,9 +106,10 @@ pub fn bearing_in(from: Vec3, centre: Vec3) -> f32 {
 }
 
 /// The stage on a route of `points` (its corners, from the walker to its goal, the last): walked back from the goal in steps of
-/// [`SIGHT_STEP_M`], the first point from whose eye the goal's eye is not seen (`sees`, eyes [`EYE_M`] over the feet), with the
-/// metres from it to the goal along the route. None when the goal is seen from the whole route (or the route has no length).
-pub fn stage_on(points: &[Vec3], mut sees: impl FnMut(Vec3, Vec3) -> bool) -> Option<(Vec3, f32)> {
+/// [`SIGHT_STEP_M`], the first point from whose eye the goal's eye is not seen (`sees`, eyes [`EYE_M`] over the feet) and that is not
+/// `exposed` (its feet), with the metres from it to the goal along the route. None when there is no such point (or the route has no
+/// length).
+pub fn stage_on(points: &[Vec3], mut sees: impl FnMut(Vec3, Vec3) -> bool, mut exposed: impl FnMut(Vec3) -> bool) -> Option<(Vec3, f32)> {
     let goal = *points.last()?;
     let eye = |p: Vec3| p + Vec3::new(0.0, EYE_M, 0.0);
     let mut back = 0.0;
@@ -117,7 +120,7 @@ pub fn stage_on(points: &[Vec3], mut sees: impl FnMut(Vec3, Vec3) -> bool) -> Op
         for k in 1..=n {
             let s = len * k as f32 / n as f32;
             let p = b + (a - b) * (s / len.max(1e-6));
-            if !sees(eye(p), eye(goal)) {
+            if !sees(eye(p), eye(goal)) && !exposed(p) {
                 return Some((p, back + s));
             }
         }
@@ -206,6 +209,11 @@ pub mod lines {
         }
     }
 
+    /// A hold let go: its stage came under a held shooter's cover.
+    pub fn exposed(mate: Place, stage: Vec3) -> String {
+        format!("{PREFIX}pincer: hold ended (its stage ({:.1}, {:.1}) under a held shooter's cover), b{mate}", stage.x, stage.z)
+    }
+
     pub fn staged(stage: Vec3) -> String {
         format!("{PREFIX}pincer: staged at ({:.1}, {:.1}), holds", stage.x, stage.z)
     }
@@ -272,22 +280,31 @@ mod tests {
 
     /// A route east to (30, 0, 0), then north to (30, 0, 10): the goal is seen only from x 25 on (a wall); the stage is the first
     /// point back from the goal out of its sight, a 1 m step past x 25 (x 24), 16 m before the goal along the route; none when seen
-    /// all the way.
+    /// all the way; off a held shooter's cover, further back; none when covered wherever the goal is not seen.
     #[test]
     fn the_stage_is_the_last_point_of_its_route_out_of_the_goals_sight() {
         let points = [Vec3::new(0.0, 0.0, 0.0), Vec3::new(30.0, 0.0, 0.0), Vec3::new(30.0, 0.0, 10.0)];
         let seen_from_25 = |a: Vec3, _: Vec3| a.x >= 25.0;
-        let (at, m) = stage_on(&points, seen_from_25).unwrap();
+        let open = |_: Vec3| false;
+        let (at, m) = stage_on(&points, seen_from_25, open).unwrap();
         assert!((24.0..25.0).contains(&at.x) && at.z == 0.0, "{at:?}");
         assert!((m - (10.0 + (30.0 - at.x))).abs() < 1e-3, "{m}");
-        assert!(stage_on(&points, |_, _| true).is_none(), "in sight all the way");
-        assert!(stage_on(&points[..1], |_, _| false).is_none(), "no length");
+        assert!(stage_on(&points, |_, _| true, open).is_none(), "in sight all the way");
+        assert!(stage_on(&points[..1], |_, _| false, open).is_none(), "no length");
+        // A held shooter covers x 20-24.9: the stage is further back, out of his cover too; covered all the way back, none.
+        let (at, _) = stage_on(&points, seen_from_25, |p: Vec3| (20.0..25.0).contains(&p.x)).unwrap();
+        assert!((19.0..20.0).contains(&at.x), "{at:?}");
+        assert!(stage_on(&points, seen_from_25, |p: Vec3| p.x < 25.0).is_none(), "covered wherever the goal is not seen");
         // The eyes are over the feet.
         let mut asked = Vec::new();
-        let _ = stage_on(&points[1..], |a, b| {
-            asked.push((a.y, b.y));
-            false
-        });
+        let _ = stage_on(
+            &points[1..],
+            |a, b| {
+                asked.push((a.y, b.y));
+                false
+            },
+            open,
+        );
         assert_eq!(asked[0], (EYE_M, EYE_M));
     }
 }
