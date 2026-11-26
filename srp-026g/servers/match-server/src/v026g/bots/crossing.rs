@@ -75,6 +75,8 @@ pub struct Second {
     pub body: CrossBody,
     /// [no-way crossing] Asked by [`wanted_past_shuts`].
     pub past_shuts: bool,
+    /// [bot traps] How the plain search ended, put back once the crossing is chosen ([`path::EndsKept`]).
+    pub plain_ends: super::path::EndsKept,
 }
 
 /// [zone price] The body a crossing is weighed for: its zone budget (`zone_cost::Budget`: the pools that kill and the

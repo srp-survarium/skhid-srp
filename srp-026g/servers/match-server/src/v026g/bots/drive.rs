@@ -1603,6 +1603,11 @@ fn drive_tick_inner(
                     if let Some(line) = line {
                         bot.nav_log.push(super::nav_log::Kind::Route, time, line);
                     }
+                    // [bot traps] No way out from a floor it may not stand on: no goal is reached from there, the drive's proof of its
+                    // no-way (`unreachable::after_drive`).
+                    if route.is_none() && ends.is_some() {
+                        path::mark_no_exit();
+                    }
                     // [zones] Out of the same zones toward the same goal
                     // twice lately: the way there keeps going into them;
                     // the goal is given up for the play to choose again.
@@ -1951,6 +1956,8 @@ fn drive_tick_inner(
                     if past_shuts {
                         crossing::past_shuts::count(crossing::past_shuts::ASKED);
                     }
+                    // [bot traps] The plain search's end stays the proof of a no-way: a crossing found and refused is not it.
+                    let plain_ends = path::ends_kept();
                     match crossing::start(
                         tactics, from, to, time, side, objective, &cross_body, &hard, floors,
                     )
@@ -2006,10 +2013,12 @@ fn drive_tick_inner(
                                     plain,
                                     body: cross_body.clone(),
                                     past_shuts,
+                                    plain_ends,
                                 },
                             ));
                         }
                     }
+                    plain_ends.put_back();
                 }
                 if let (Some((planning, second)), Some(ends)) = (second, ends) {
                     // It goes on at the next polls; the plain route (a long

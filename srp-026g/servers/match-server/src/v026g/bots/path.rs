@@ -1114,6 +1114,9 @@ pub enum SearchEnd {
     Budget,
     /// Answered without a floor searched: the regions, or no allowed floor links into the goal.
     Regions,
+    /// [bot traps] Out of a floor it may not stand on, no way out: the escape's flood found none and the zones' exit field has none
+    /// from the floor (`Tactics::escape_way`), so no goal is reached from there ([`mark_no_exit`]).
+    NoExit,
 }
 
 impl SearchEnd {
@@ -1128,7 +1131,7 @@ impl SearchEnd {
     /// [bot traps] Every floor the search's filter lets through from its start was tried, or the regions answered at once: the
     /// same search from there ends the same.
     pub fn exhaustive(self) -> bool {
-        matches!(self, Self::NoWay | Self::Regions)
+        matches!(self, Self::NoWay | Self::Regions | Self::NoExit)
     }
 
     pub fn word(self) -> &'static str {
@@ -1137,6 +1140,7 @@ impl SearchEnd {
             Self::NoWay => "no way over the allowed floors",
             Self::Budget => "the search's budget ran out",
             Self::Regions => "the regions rule it out",
+            Self::NoExit => "no way out of the zones from its floor",
         }
     }
 }
@@ -1155,6 +1159,35 @@ pub fn mark_ends() {
 /// [bot traps] How the last route search that ended on this thread since [`mark_ends`] ended (none: none ended).
 pub fn end_since_mark() -> Option<SearchEnd> {
     END_SINCE_MARK.with(std::cell::Cell::take)
+}
+
+/// [bot traps] The escape found no way out of the floor the bot may not stand on ([`SearchEnd::NoExit`]): the drive's proof for
+/// [`end_since_mark`], as a search's end would be.
+pub fn mark_no_exit() {
+    END_SINCE_MARK.with(|e| e.set(Some(SearchEnd::NoExit)));
+}
+
+/// [bot traps] How the searches so far on this thread ended ([`last_end`], [`end_since_mark`]), kept by [`ends_kept`] while a
+/// crossing's search runs and put back by [`EndsKept::put_back`]: a crossing found and refused is not the plain search's
+/// failure, which stays the proof of a no-way (the plain search's own end: exhaustive or not).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[must_use]
+pub struct EndsKept {
+    last: Option<SearchEnd>,
+    marked: Option<SearchEnd>,
+}
+
+/// [bot traps] The ends so far, kept (read, not taken): [`EndsKept`].
+pub fn ends_kept() -> EndsKept {
+    EndsKept { last: LAST_END.with(std::cell::Cell::get), marked: END_SINCE_MARK.with(std::cell::Cell::get) }
+}
+
+impl EndsKept {
+    /// Puts the kept ends back: the searches since read as not run.
+    pub fn put_back(self) {
+        LAST_END.with(|e| e.set(self.last));
+        END_SINCE_MARK.with(|e| e.set(self.marked));
+    }
 }
 
 /// [owner-5] How the last route search on this thread ended ([`SearchEnd`]), taken (the next read is the next search's).
@@ -3806,5 +3839,35 @@ mod tests {
                 let _ = Stage::Corridor;
             }
         }
+    }
+
+    /// [bot traps] A crossing's search after a plain one that failed to the end leaves the plain one's end as the proof
+    /// (`EndsKept`), and an escape with no way out is its own exhaustive proof (`mark_no_exit`).
+    #[test]
+    fn the_plain_search_end_stays_the_proof_across_a_crossing_and_no_exit_is_exhaustive() {
+        mark_ends();
+        LAST_END.with(|e| e.set(Some(SearchEnd::NoWay)));
+        END_SINCE_MARK.with(|e| e.set(Some(SearchEnd::NoWay)));
+        let plain = ends_kept();
+        LAST_END.with(|e| e.set(Some(SearchEnd::Found)));
+        END_SINCE_MARK.with(|e| e.set(Some(SearchEnd::Found)));
+        plain.put_back();
+        assert_eq!(end_since_mark(), Some(SearchEnd::NoWay));
+        assert_eq!(last_end(), Some(SearchEnd::NoWay));
+
+        // A plain search that ran out of budget stays not exhaustive, whatever the crossing found.
+        mark_ends();
+        END_SINCE_MARK.with(|e| e.set(Some(SearchEnd::Budget)));
+        let plain = ends_kept();
+        END_SINCE_MARK.with(|e| e.set(Some(SearchEnd::NoWay)));
+        plain.put_back();
+        assert!(!end_since_mark().is_some_and(SearchEnd::exhaustive));
+
+        mark_ends();
+        mark_no_exit();
+        let end = end_since_mark();
+        assert_eq!(end, Some(SearchEnd::NoExit));
+        assert!(end.is_some_and(SearchEnd::exhaustive));
+        assert_eq!(last_end(), None, "the escape's proof is not a search's end for the log's line");
     }
 }

@@ -625,6 +625,8 @@ impl Bots {
                 objective,
                 &filter,
             );
+            // [bot traps] The plain search's end, from the poll it ended in, stays the proof of a no-way.
+            second.plain_ends.put_back();
             past_shuts_taken = past_shuts && route.is_some();
             past_shuts_nothing = past_shuts && route.is_none();
         } else {
@@ -661,6 +663,8 @@ impl Bots {
                 if past_shuts {
                     crossing::past_shuts::count(crossing::past_shuts::ASKED);
                 }
+                // [bot traps] The plain search's end stays the proof of a no-way: a crossing found and refused is not it.
+                let plain_ends = path::ends_kept();
                 match crossing::start(
                     tactics, from, to, time, side, objective, &body, &filter, floors,
                 ) {
@@ -685,6 +689,7 @@ impl Bots {
                         );
                         past_shuts_taken = past_shuts && route.is_some();
                         past_shuts_nothing = past_shuts && route.is_none();
+                        plain_ends.put_back();
                     }
                     Err(planning) => {
                         pending.planning = planning;
@@ -692,6 +697,7 @@ impl Bots {
                             plain: route,
                             body,
                             past_shuts,
+                            plain_ends,
                         });
                         grant.leave_under_way(pending);
                         return;
@@ -713,8 +719,8 @@ impl Bots {
                 super::drive::no_way_line(bot, tactics, (Some(from), Some(to)), pending.goal, last_end, retried, (time, side, objective));
                 // [bot traps] An exhaustive failure (no budget cut it short): the goal on cool-down for this bot while it stays
                 // where the search could walk from.
-                if last_end.is_some_and(path::SearchEnd::exhaustive) {
-                    super::unreachable::note(bot, tactics, pending.goal, from, time);
+                if let Some(end) = last_end.filter(|end| end.exhaustive()) {
+                    super::unreachable::note(bot, tactics, pending.goal, from, end, time);
                 }
             }
             if kept {
