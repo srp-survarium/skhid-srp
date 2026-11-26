@@ -2944,9 +2944,16 @@ impl Motor {
 
     /// [A1b] Whether the body was let go at a walk-off's release and is not yet down and still ([`super::walk_off::WalkOff::LetGo`]),
     /// or [item 10] is in a held sprint's held steps ([`Stay::Held`]), or [press forecast] is held for a world after a forecast
-    /// press ([`Self::press_hold`]): the lip guard, the landing brake and the stuck and progress watches leave it be.
+    /// press ([`Self::press_hold`]), or [utd] is settling after a gap or rim link's let-go landing ([`Stay::Settling`]): the lip
+    /// guard, the landing brake and the stuck and progress watches leave it be. A let-go landing stays as the grid flew it (the
+    /// builder's flight, exe = port, A385-FORMAT §1); the guard's glide forecast braked it toward the take-off instead (the back
+    /// key) and walked it off the top's near edge: v54's UP_THEN_DOWN presses replayed by their own keys, 28 of 44 that got up came
+    /// back down, with no move keys from the landing on all 44 stay (port; rig_real_v3 the same).
     pub fn letting_go(&self) -> bool {
-        matches!(self.walk_off, super::walk_off::WalkOff::LetGo { .. }) || self.holding_landing() || self.press_hold()
+        matches!(self.walk_off, super::walk_off::WalkOff::LetGo { .. })
+            || self.holding_landing()
+            || self.press_hold()
+            || matches!(self.stay, Stay::Settling)
     }
 
     /// [A1b] The log line of the last walk-off at release that ended, once.
@@ -8607,15 +8614,20 @@ mod tests {
             motor.walk(&mut route, &pose(0.5, 0.3, 3.5, Footing::Air), 5.0, |_| true);
             motor.clock += 1;
             let (landed, _) = motor.walk(&mut route, &pose(3.0, -1.7, 2.0, Footing::Ground), 5.0, |_| true);
+            // [utd] While it lets go the lip guard, the landing brake and the watches leave it be (`Motor::letting_go`).
+            let settling = motor.letting_go();
             motor.clock += 1;
             let (rest, _) = motor.walk(&mut route, &pose(3.1, -1.7, 0.0, Footing::Ground), 5.0, |_| true);
-            (landed.keys, rest.keys)
+            (landed.keys, rest.keys, settling, motor.letting_go())
         };
         let moves = key::FORWARD | key::BACK | key::LEFT | key::RIGHT | key::SPRINT;
-        let (landed, rest) = run(false);
+        let (landed, rest, settling, after) = run(false);
         assert_eq!(landed & moves, 0, "let go on landing: {landed:#x}");
+        assert!(settling, "the let-go landing is left be");
         assert_ne!(rest & moves, 0, "at rest: walks on: {rest:#x}");
-        let (landed, _) = run(true);
+        assert!(!after, "at rest it is the walk's again");
+        let (landed, _, settling, _) = run(true);
+        assert!(!settling, "walked on along the top: the guard judges the walk");
         assert_ne!(landed & moves, 0, "the route goes on on the top: walked on: {landed:#x}");
     }
 
