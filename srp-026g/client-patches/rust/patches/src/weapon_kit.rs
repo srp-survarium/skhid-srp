@@ -12,7 +12,8 @@
 //! - `on_flash_upgrade` (the lobby's upgrades to Flash): a kit record's
 //!   object gets `kit_own` (its own slot) and `kit_camo`, `kit_muzzle`,
 //!   `kit_grip`, `kit_second` (the dict ids it names, 0 none) and
-//!   `kit_side` (the second sight's side, 0 left, 1 right), which the lobby
+//!   `kit_side` (the second sight's side, 0 left, 1 right) and `kit_mount`
+//!   (the scope's way onto the gun, 0 the first), which the lobby
 //!   movie's UpgradeWindow.kitUpgrades makes slots of;
 //! - `on_attached_pair` (setup_inventory_data): each dict id a kit names
 //!   marks the inventory's item of that dict id (the lowest item id not
@@ -43,8 +44,8 @@ pub fn on_query(ctx: &mut Context<'_>) -> Flow<NoExit> {
 
 /// The members a kit record's object gets: its own slot, then the dict id
 /// it names for each of the camouflage, the muzzle device, the grip and the
-/// second sight, and the second sight's side.
-pub fn kit_members(kit: &Kit) -> [(&'static core::ffi::CStr, u32); 6] {
+/// second sight, the second sight's side and the scope's way.
+pub fn kit_members(kit: &Kit) -> [(&'static core::ffi::CStr, u32); 7] {
     let named = |slot| kit.named().find(|(named, _)| *named == slot).map_or(0, |(_, dict)| u32::from(dict.get()));
     let side = u32::from(kit.side() == weapon_kit::Side::Right);
     [
@@ -54,6 +55,7 @@ pub fn kit_members(kit: &Kit) -> [(&'static core::ffi::CStr, u32); 6] {
         (c"kit_grip", named(KitSlot::Grip)),
         (c"kit_second", named(KitSlot::SecondSight)),
         (c"kit_side", side),
+        (c"kit_mount", u32::from(kit.mount().index())),
     ]
 }
 
@@ -153,13 +155,13 @@ mod tests {
         let kit = Kit::of(&record(3, 362, MAGIC | 3 << 48 | 2301 << 32 | 900, 3)).unwrap().unwrap();
         assert_eq!(
             kit_members(&kit).map(|(name, value)| (name.to_str().unwrap(), value)),
-            [("kit_own", 3), ("kit_camo", 900), ("kit_muzzle", 0), ("kit_grip", 2301), ("kit_second", 0), ("kit_side", 0)]
+            [("kit_own", 3), ("kit_camo", 900), ("kit_muzzle", 0), ("kit_grip", 2301), ("kit_second", 0), ("kit_side", 0), ("kit_mount", 0)]
         );
-        // a wide kit: the second sight on the right
-        let wide = Kit::of(&record(3, 362, 0xA8 << 56 | 1 << 55 | 3 << 48 | 2112 << 36 | 900, 3)).unwrap().unwrap();
+        // a wide kit: the second sight on the right, the scope on its second way
+        let wide = Kit::of(&record(3, 362, 0xA8 << 56 | 1 << 55 | 1 << 52 | 3 << 48 | 2112 << 36 | 900, 3)).unwrap().unwrap();
         assert_eq!(
             kit_members(&wide).map(|(name, value)| (name.to_str().unwrap(), value)),
-            [("kit_own", 3), ("kit_camo", 900), ("kit_muzzle", 0), ("kit_grip", 0), ("kit_second", 2112), ("kit_side", 1)]
+            [("kit_own", 3), ("kit_camo", 900), ("kit_muzzle", 0), ("kit_grip", 0), ("kit_second", 2112), ("kit_side", 1), ("kit_mount", 1)]
         );
     }
 }

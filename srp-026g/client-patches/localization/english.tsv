@@ -4393,6 +4393,10 @@ st_srp_shop_not_owned	Hide owned
 st_srp_shop_not_owned_hint	Show only the items you do not own
 st_srp_side_left	Left
 st_srp_side_right	Right
+st_srp_mount_receiver	Receiver
+st_srp_mount_handguard	Handguard
+st_srp_mount_barrel	Barrel
+st_srp_mount_gas_tube	Gas tube
 st_srp_skills	Skills
 st_srp_speed_label	Speed
 st_srp_speed_title	Movement speed: %1$s

@@ -4393,6 +4393,10 @@ st_srp_shop_not_owned	Ocultar adquiridos
 st_srp_shop_not_owned_hint	Mostrar só os itens que você não tem
 st_srp_side_left	Esquerda
 st_srp_side_right	Direita
+st_srp_mount_receiver	Receptor
+st_srp_mount_handguard	Guarda-mão
+st_srp_mount_barrel	Cano
+st_srp_mount_gas_tube	Tubo de gás
 st_srp_skills	Habilidades
 st_srp_speed_label	Velocidade
 st_srp_speed_title	Velocidade: %1$s

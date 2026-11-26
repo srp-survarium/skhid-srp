@@ -4393,6 +4393,10 @@ st_srp_shop_not_owned	Piilota omistetut
 st_srp_shop_not_owned_hint	Näytä vain esineet, joita sinulla ei ole
 st_srp_side_left	Vasen
 st_srp_side_right	Oikea
+st_srp_mount_receiver	Runko
+st_srp_mount_handguard	Etutukki
+st_srp_mount_barrel	Piippu
+st_srp_mount_gas_tube	Kaasuputki
 st_srp_skills	Taidot
 st_srp_speed_label	Nopeus
 st_srp_speed_title	Liikkumisnopeus: %1$s

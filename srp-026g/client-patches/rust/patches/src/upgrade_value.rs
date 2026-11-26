@@ -3,26 +3,29 @@
 //! request the decal editor's accept sends (`docs/notes/client_patch.md`
 //! 3.111). The Attachments window calls it when the player puts a weapon's
 //! second sight on its other side (UpgradeWindow.onSideButton, SightPlace:
-//! 0 left, 1 right); the server checks the side against what the weapon
-//! holds (session `items_rules::place_upgrade_with`) and sends the account
-//! after it, so the movie shows the side the server holds.
+//! 0 left, 1 right) or its scope on another of its ways onto the gun
+//! (UpgradeWindow.onMountButton, ScopeMounts: 0 the first); the server checks
+//! the value against what the weapon holds (session
+//! `items_rules::place_upgrade_with`) and sends the account after it, so the
+//! movie shows the side and the way the server holds.
 //!
 //! The one hook is `upgrade_value.toml`'s, at the start of the lobby movie's
 //! every call (`lobby.callback`, lobby_menu::scaleform_callback 0x28C2C0):
 //! this method is ours, taken whatever it holds (the menu's own dispatch
 //! knows no such name); every other call goes on to the game.
 //!
-//! The call is parsed at the boundary: the value is a [`Side`] (anything
-//! else: nothing sent, one line in the patches' log, once a run), the host
-//! and the upgrade are items of the account's inventory, and the host's
-//! records are a weapon kit whose second sight is that upgrade (its item, or
-//! the dict id its kit names): else nothing is sent. The client's copy of
-//! the host then holds the new side (the kit packed again), as the lobby will
-//! after the request. Nothing a match computes.
+//! The call is parsed at the boundary: the host and the upgrade are items of
+//! the account's inventory, the host's records are a weapon kit whose scope
+//! (its item) or second sight (its item, or the dict id its kit names) is
+//! that upgrade, and the value is that slot's: a [`Side`] or a [`Mount`]
+//! (another value: nothing sent, one line in the patches' log, once a run).
+//! Else nothing is sent. The client's copy of the host then holds the new
+//! value (the kit packed again), as the lobby will after the request.
+//! Nothing a match computes.
 
 #![forbid(unsafe_code)]
 
-use weapon_kit::{Held, Logical, Side, Slot, Wire};
+use weapon_kit::{Held, Logical, Mount, Side, Slot, Wire};
 
 use crate::vostok::log::{self, Piece};
 use crate::vostok::{Context, Flow, GameCell, LobbyCall, LobbyItem, Reg, Thread, UpgradeValueOnLobbyCallExit};
@@ -35,7 +38,7 @@ const METHOD: &[u8] = b"srp_set_upgrade_value";
 struct Request {
     host: u32,
     upgrade: u32,
-    side: Side,
+    value: u32,
 }
 
 /// Why nothing was sent.
@@ -43,19 +46,20 @@ struct Request {
 enum Refusal {
     /// The three arguments are not whole numbers.
     Arguments,
-    /// The value is no side (0 left, 1 right).
-    NotASide(u32),
+    /// The value is not the upgrade's slot's: no side (0 left, 1 right) of a
+    /// second sight, no way (0 to 3) of a scope.
+    NoValue(u32),
     /// No lobby client to send with.
     NoLobby,
     /// The host or the upgrade is not an item of the account's inventory.
     NotOwned,
-    /// The host's records are no weapon kit with a second sight.
-    NoSecondSight,
-    /// The host's second sight is another item.
-    OtherSight,
+    /// The host's records are no weapon kit.
+    NoKit,
+    /// The upgrade is neither the host's scope nor its second sight.
+    NotHeld,
 }
 
-/// Whether the line of a value that is no side was written this run.
+/// Whether the line of a value that is not its slot's was written this run.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum SideLine {
     Unsaid,
@@ -74,34 +78,40 @@ static SIDE_LINE: GameCell<SideLine> = GameCell::new(SideLine::Unsaid);
 /// The three arguments as a request.
 fn request(host: Option<u32>, upgrade: Option<u32>, value: Option<u32>) -> Result<Request, Refusal> {
     let (Some(host), Some(upgrade), Some(value)) = (host, upgrade, value) else { return Err(Refusal::Arguments) };
-    let side = Side::of_value(u64::from(value)).ok_or(Refusal::NotASide(value))?;
-    Ok(Request { host, upgrade, side })
+    Ok(Request { host, upgrade, value })
 }
 
-/// The host's records with its second sight, `upgrade`, at `side`: what the
-/// lobby holds after the request.
-fn placed(host: &LobbyItem, upgrade: &LobbyItem, side: Side) -> Result<Wire, Refusal> {
-    let records = host.records.ok_or(Refusal::NoSecondSight)?;
-    let mut logical = Logical::unpack(records.as_slice()).map_err(|_| Refusal::NoSecondSight)?;
-    let held = logical.get(Slot::SecondSight).ok_or(Refusal::NoSecondSight)?;
-    if !held.is(upgrade.id, u32::from(upgrade.dict)) {
-        return Err(Refusal::OtherSight);
+/// The host's records with `upgrade`, its scope or its second sight, given
+/// `value` as that slot's way or side, and the record value: what the lobby
+/// holds after the request. The scope is asked first: it is the kit's own
+/// item, where a second sight of the same optic is named by its dict id.
+fn placed(host: &LobbyItem, upgrade: &LobbyItem, value: u32) -> Result<(Wire, u64), Refusal> {
+    let records = host.records.ok_or(Refusal::NoKit)?;
+    let mut logical = Logical::unpack(records.as_slice()).map_err(|_| Refusal::NoKit)?;
+    let (slot, held) = [Slot::Scope, Slot::SecondSight]
+        .into_iter()
+        .find_map(|slot| Some((slot, logical.get(slot).filter(|held| held.is(upgrade.id, u32::from(upgrade.dict)))?)))
+        .ok_or(Refusal::NotHeld)?;
+    let value = match slot {
+        Slot::Scope => Mount::of_value(u64::from(value)).map(Mount::value),
+        _ => Side::of_value(u64::from(value)).map(Side::value),
     }
+    .ok_or(Refusal::NoValue(value))?;
     let moved = match held {
-        Held::Item { id, dict, .. } => Held::Item { id, dict, value: side.value() },
-        Held::Named(dict, _) => Held::Named(dict, side.value()),
+        Held::Item { id, dict, .. } => Held::Item { id, dict, value },
+        Held::Named(dict, _) => Held::Named(dict, value),
     };
-    logical.set(Slot::SecondSight, Some(moved));
-    Ok(logical.pack())
+    logical.set(slot, Some(moved));
+    Ok((logical.pack(), value))
 }
 
-/// The call's request sent; the client's copy given the new side.
+/// The call's request sent; the client's copy given the new value.
 fn send(call: &LobbyCall<'_>, request: Request) -> Result<(), Refusal> {
     let inventory = call.inventory().ok_or(Refusal::NoLobby)?;
     let host = inventory.item(request.host).ok_or(Refusal::NotOwned)?;
     let upgrade = inventory.item(request.upgrade).ok_or(Refusal::NotOwned)?;
-    let records = placed(&host, &upgrade, request.side)?;
-    if inventory.place_upgrade(request.host, request.upgrade, request.side.value(), &records).is_err() {
+    let (records, value) = placed(&host, &upgrade, request.value)?;
+    if inventory.place_upgrade(request.host, request.upgrade, value, &records).is_err() {
         log::line(&[Piece::Text("upgrade_value: sent, the client's copy of "), Piece::Dec(request.host),
                     Piece::Text(" left to the account")]);
     }
@@ -111,13 +121,13 @@ fn send(call: &LobbyCall<'_>, request: Request) -> Result<(), Refusal> {
 fn say(thread: &Thread, refusal: Refusal, call: (Option<u32>, Option<u32>)) {
     let (host, upgrade) = (call.0.unwrap_or(0), call.1.unwrap_or(0));
     match refusal {
-        Refusal::NotASide(value) => {
+        Refusal::NoValue(value) => {
             let (next, line) = SIDE_LINE.get(thread).refused();
             SIDE_LINE.set(thread, next);
             if line {
                 log::line(&[Piece::Text("upgrade_value: srp_set_upgrade_value("), Piece::Dec(host), Piece::Text(", "),
                             Piece::Dec(upgrade), Piece::Text(", "), Piece::Dec(value),
-                            Piece::Text("): the value is no side (0 left, 1 right), nothing sent (said once)")]);
+                            Piece::Text("): the value is not its slot's (a second sight's side 0 or 1, a scope's way 0 to 3), nothing sent (said once)")]);
             }
         }
         other => {
@@ -125,8 +135,8 @@ fn say(thread: &Thread, refusal: Refusal, call: (Option<u32>, Option<u32>)) {
                 Refusal::Arguments => "the arguments are no ids and value",
                 Refusal::NoLobby => "no lobby client",
                 Refusal::NotOwned => "the host or the upgrade is no item of the inventory",
-                Refusal::NoSecondSight => "the host holds no second sight",
-                _ => "the host's second sight is another item",
+                Refusal::NoKit => "the host holds no weapon kit",
+                _ => "the upgrade is neither the host's scope nor its second sight",
             };
             log::refusal(thread, &[Piece::Text("upgrade_value: "), Piece::Dec(host), Piece::Text(" "),
                                    Piece::Dec(upgrade), Piece::Text(": "), Piece::Text(why), Piece::Text(", nothing sent")]);
@@ -178,10 +188,8 @@ mod tests {
     }
 
     #[test]
-    fn the_value_is_a_side() {
-        assert_eq!(request(Some(1), Some(2), Some(0)), Ok(Request { host: 1, upgrade: 2, side: Side::Left }));
-        assert_eq!(request(Some(1), Some(2), Some(1)), Ok(Request { host: 1, upgrade: 2, side: Side::Right }));
-        assert_eq!(request(Some(1), Some(2), Some(2)), Err(Refusal::NotASide(2)));
+    fn the_arguments_are_numbers() {
+        assert_eq!(request(Some(1), Some(2), Some(7)), Ok(Request { host: 1, upgrade: 2, value: 7 }));
         assert_eq!(request(Some(1), None, Some(1)), Err(Refusal::Arguments));
     }
 
@@ -189,10 +197,11 @@ mod tests {
     fn a_second_sight_alone_heads_its_kit() {
         let mut logical = Logical::new();
         logical.put_second_sight(SIGHT_ITEM, u32::from(OPTIC), Side::Left);
-        let records = placed(&weapon(&logical), &item(SIGHT_ITEM, OPTIC, &[]), Side::Right).unwrap();
+        let (records, value) = placed(&weapon(&logical), &item(SIGHT_ITEM, OPTIC, &[]), 1).unwrap();
         let held = Logical::unpack(records.as_slice()).unwrap().get(Slot::SecondSight).unwrap();
-        assert_eq!(held.value(), 1);
+        assert_eq!((held.value(), value), (1, 1));
         assert_eq!(records.as_slice()[0].id, SIGHT_ITEM);
+        assert_eq!(placed(&weapon(&logical), &item(SIGHT_ITEM, OPTIC, &[]), 2), Err(Refusal::NoValue(2)));
     }
 
     #[test]
@@ -201,19 +210,32 @@ mod tests {
         logical.put(Slot::Scope, SCOPE_ITEM, u32::from(OPTIC));
         logical.put_second_sight(SIGHT_ITEM, u32::from(RED_DOT), Side::Right);
         let host = weapon(&logical);
-        let records = placed(&host, &item(SIGHT_ITEM, RED_DOT, &[]), Side::Left).unwrap();
+        let (records, _) = placed(&host, &item(SIGHT_ITEM, RED_DOT, &[]), 0).unwrap();
         let unpacked = Logical::unpack(records.as_slice()).unwrap();
         assert_eq!(unpacked.get(Slot::SecondSight).unwrap().value(), 0);
         assert_eq!(unpacked.get(Slot::Scope), Logical::unpack(host.records.unwrap().as_slice()).unwrap().get(Slot::Scope));
-        assert_eq!(placed(&host, &item(SIGHT_ITEM, OPTIC, &[]), Side::Left), Err(Refusal::OtherSight));
-        assert_eq!(placed(&host, &item(SCOPE_ITEM, OPTIC, &[]), Side::Left), Err(Refusal::OtherSight));
+        assert_eq!(placed(&host, &item(SIGHT_ITEM, OPTIC, &[]), 0), Err(Refusal::NotHeld));
     }
 
     #[test]
-    fn no_second_sight_no_request() {
+    fn a_scope_takes_another_way() {
         let mut logical = Logical::new();
         logical.put(Slot::Scope, SCOPE_ITEM, u32::from(OPTIC));
-        assert_eq!(placed(&weapon(&logical), &item(SCOPE_ITEM, OPTIC, &[]), Side::Left), Err(Refusal::NoSecondSight));
-        assert_eq!(placed(&item(5, 9, &[]), &item(SIGHT_ITEM, OPTIC, &[]), Side::Left), Err(Refusal::NoSecondSight));
+        logical.put_second_sight(SIGHT_ITEM, u32::from(RED_DOT), Side::Right);
+        let host = weapon(&logical);
+        // the scope's item: its way, the second sight as it was
+        let (records, value) = placed(&host, &item(SCOPE_ITEM, OPTIC, &[]), 1).unwrap();
+        let unpacked = Logical::unpack(records.as_slice()).unwrap();
+        assert_eq!((unpacked.get(Slot::Scope).unwrap().value(), value), (1, 1));
+        assert_eq!(unpacked.get(Slot::SecondSight).unwrap().value(), 1);
+        assert_eq!(placed(&host, &item(SCOPE_ITEM, OPTIC, &[]), 4), Err(Refusal::NoValue(4)));
+    }
+
+    #[test]
+    fn no_kit_no_request() {
+        let mut logical = Logical::new();
+        logical.put(Slot::Muzzle, SCOPE_ITEM, u32::from(OPTIC));
+        assert_eq!(placed(&weapon(&logical), &item(SIGHT_ITEM, OPTIC, &[]), 0), Err(Refusal::NotHeld));
+        assert_eq!(placed(&item(5, 9, &[]), &item(SIGHT_ITEM, OPTIC, &[]), 0), Err(Refusal::NoKit));
     }
 }

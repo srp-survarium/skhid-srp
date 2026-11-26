@@ -4393,6 +4393,10 @@ st_srp_shop_not_owned	Meglévők elrejtése
 st_srp_shop_not_owned_hint	Csak a még nem birtokolt tárgyak mutatása
 st_srp_side_left	Bal
 st_srp_side_right	Jobb
+st_srp_mount_receiver	Zártok
+st_srp_mount_handguard	Kézvédő
+st_srp_mount_barrel	Cső
+st_srp_mount_gas_tube	Gázcső
 st_srp_skills	Képességek
 st_srp_speed_label	Sebesség
 st_srp_speed_title	Mozgási sebesség: %1$s

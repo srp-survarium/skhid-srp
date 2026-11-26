@@ -4393,6 +4393,10 @@ st_srp_shop_not_owned	Sakrij posjedovane
 st_srp_shop_not_owned_hint	Prikaži samo predmete koje ne posjedujete
 st_srp_side_left	Lijevo
 st_srp_side_right	Desno
+st_srp_mount_receiver	Sanduk
+st_srp_mount_handguard	Obloga
+st_srp_mount_barrel	Cijev
+st_srp_mount_gas_tube	Plinska cijev
 st_srp_skills	Vještine
 st_srp_speed_label	Brzina
 st_srp_speed_title	Brzina kretanja: %1$s
