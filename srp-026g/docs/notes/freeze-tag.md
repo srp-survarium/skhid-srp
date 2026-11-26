@@ -39,18 +39,39 @@ three). No artifact rescue in this version (owner, 2026-11-17).
   no thaw, a teammate's or the auto-thaw, takes it back or changes it.
 - A team's last one fighting, every teammate of his frozen and two of
   them at least, while a round is in play, is on the other team's minimap
-  and Tab map at all times, until a teammate of his is thawed or the round
-  ends (the owner, 2026-11-22: "last member is always shown on the map").
+  and Tab map (the owner, 2026-11-22: "last member is always shown on the
+  map") from 15 s after his team was down to him, until a teammate of his is
+  thawed or the round ends (the owner, 2026-11-26: "the last person should
+  only be seen after 15 seconds, with a clear timer visible for everyone").
   So only in a team of three or more (its players in the rule state,
   fighting or frozen): nobody is shown by it in 1 v 1, 2 v 1 (either side)
   or 2 v 2 (the owner, 2026-11-22: "when 1vs1 we see each other on the
   map, bad", "2vs1 should also not show", and asked whether the
-  two-player side's last one stays hidden too: "yes"). The game's own
-  spotted-enemy path: `minimap.enemy_spotted` (update_minimap_players'
-  test of an enemy's spotted time, 0x239505) lists his dot as a spotted
-  enemy's, as Artifact Hunt's carrier and a replay's enemies; from the rule
-  state (`FreezeTag::last_standing`) each frame, the same in every game,
-  nothing simulated. No marker over his head.
+  two-player side's last one stays hidden too: "yes").
+  - **The 15 s** count from the step his team was down to him, which the
+    rule keeps (`FreezeTag::last_since`, version 4; the owner chose the exact
+    count, 2026-11-26): the step a team goes from two fighting or more to one
+    with two frozen at least. A teammate who leaves is no longer fighting
+    (his place stays frozen), so his leave is that step; a frozen arrival
+    that makes the second frozen teammate is that step too, so the whole
+    15 s are always counted down. A thaw (he is no longer last), his freeze
+    and the round's end clear it; the next time the team is down to one
+    counts afresh. The same in every game, a late joiner's and a resynced
+    one's too: it is in the world.
+  - **The countdown, for everyone** (both teams, a spectator and a replay
+    following a player): under the match timer, in the mode notice's style,
+    "Last enemy revealed in 12 s" for the other team, "You are revealed in
+    12 s" for him and "Your last teammate is revealed in 12 s" for his frozen
+    teammates; at 0 "... revealed on the map" for 3 s, then nothing. Both
+    sides down to one at once: both lines.
+  - The game's own spotted-enemy path: `minimap.enemy_spotted`
+    (update_minimap_players' test of an enemy's spotted time, 0x239505) lists
+    his dot as a spotted enemy's, as Artifact Hunt's carrier and a replay's
+    enemies, from the rule state and the match's time, the same in every
+    game, nothing simulated. No marker over his head. His dot is a red mark
+    on the Tab map at any distance and on the corner minimap within its
+    circle ("The last fighter's mark" below): a listed enemy's own icon draws
+    nothing.
 - Freezing the entire opposing team awards one round. Simultaneous wipes
   award neither team a point and replay the round. A place that left stays
   frozen, so a team whose players all left counts as frozen.
@@ -148,7 +169,7 @@ on a project whose team spawns are Free for All's 47 points for both teams
 ## State and native lifecycle
 
 `srp-validate::world::freeze` owns the deterministic transition and codec.
-The rule saves 191 bytes after the native respawn state: version (3), phase
+The rule saves 201 bytes after the native respawn state: version (4), phase
 (0 play, 1 the 3 s after a round, 2 the fade, 3 the countdown, 4 the match
 over), two scores, the ended round (1 or 2 a team's, 3 a draw; the match's
 winner once over), a time (u32: the restart part's deadline, the match's end;
@@ -156,7 +177,8 @@ winner once over), a time (u32: the restart part's deadline, the match's end;
 double wipe's replay too), each place's kit switches in a round's countdown
 (u16 x20), then twenty seven-byte player records (waiting/fighting/frozen
 with team, thaw time (u16), auto-thaw time left (u32, 1 ms to 120 s, a frozen
-record's only)). The round starts and the kit switches are
+record's only)), then each team's down-to-one step (a tag, 0 none or 1, and
+a u32 world time, 0 with none; the first team's first). The round starts and the kit switches are
 `artefact_hunt_rule::Lives`, Artifact Hunt's own. The parser checks the
 closed domains, roster extent (no record nor kit switch past the match's
 places), phase/score agreement (a team at five only in its last round's 3 s
@@ -167,9 +189,15 @@ draw) was restarted but the one whose fade has not ended and the match's
 last, so the draws they leave are not negative, and one at least in a
 draw's restart. Against the world's time (the timelimit's, `rules::
 freeze_tag_fault`): a restart part's deadline is after it by its whole
-length at most, the match's end at it or before. Version 2 (revision 71's
-5 s pause and its Restarting) is not read: its worlds are the rule before
-this one. Rollback and late join restore progress, round score and the
+length at most, the match's end at it or before, a down-to-one step at it or
+before. A down-to-one step is there exactly while its team is down to one.
+Version 3 (191 bytes, no down-to-one steps) is read, with none: a team down to
+one gets its step at the next step. A world's rule is found from the respawn
+block's end (`FreezeTag::read_back`): version 3's length first (a version 4
+rule's byte there is its round starts' high byte, never 3 in a match), then
+version 4's; the game reads the version byte first and then the rest
+(`freeze_tag::load_rule`). Version 2 (revision 71's 5 s pause and its
+Restarting) is not read: its worlds are the rule before this one. Rollback and late join restore progress, round score and the
 counts.
 
 The match server pays lives by it: `MatchResult::round_starts` (the field
@@ -309,6 +337,75 @@ them is an event or a message with a name and a side from the exe, no place
 (`on_player_killed` 0x237C70; `srp_voice_talking`): a frozen state there would
 need the exe to send the place, or names matched to the Tab list's rows, and
 the kill feed's victim is the one just frozen anyway.
+
+**The last fighter's mark.** The owner (2026-11-26), over many live matches:
+some players saw the enemy team's last fighter on the map and others did not;
+"only the UI map when tabbing doesn't have a red mark". The cause: the exe lists
+him (update_minimap_players 0x239420: in the world +33Fh, alive +33Ch, another
+team, then `minimap.enemy_spotted` 0x239505, whose hook `freeze_tag::on_enemy`
+takes the shown exit 0x23951B; his position from +118h's vtable +28h), and the
+hud makes his dot (`PlayerRed`) on both maps, but `PlayerRed` draws nothing:
+its symbol (sprite 6) has twelve frames and nothing placed in any, in the stock
+0.26g hud (resources.db) as in patch 22's, where `PlayerBlue` (sprite 52) has its
+glyph in each. The game's developers shipped it so; no Skhid change emptied it
+and no note of the owner's asks for it. So no listed enemy, spotted or not, had
+a dot on either map; a player saw where he was only by his red name on the Tab
+map, with Alt held or "Names on map" on (`PlayerRed.nameColor`, patches 82 and
+83). Nothing else hides him: the listing tests only the place in the world and
+alive, his team and the hook (no team count of the exe's own, no phase test),
+and the rule's count is the rule state's (fighting or frozen; a place that left
+stays frozen, so it counts), in play only. The Tab map (`MineMinimapTab`, sprite
+478) has no mask: a dot shows at any distance. The corner minimap (`SrvMinimap`,
+sprite 899) clips its map and players to a circle (its `minimap` sprite 896's
+mask at depth 1); only objectives (`MinimapObjectBasix`) are pinned to its edge
+at 105 px (`Minimap.update_objects`).
+
+- `freeze_tag::on_hud` finds each frame of a Freeze Tag match the places
+  revealed at the match's time (`FreezeTag::revealed`: 15 s after the step his
+  team was down to him) and keeps them for that frame's listing (on_enemy);
+  from the viewer's entry on, with the other calls, it tells the hud
+  `root.freeze_tag_revealed(mask)` (bit n: place n, both teams', whoever is
+  viewed), which the hud reads into a `RevealedPlaces`, and the countdown,
+  `root.freeze_tag_reveal(own, ownLeft, enemy, enemyLeft)` (whose: 1 the
+  viewer, 2 his last teammate, 3 the enemy's last one; the ms left, 0
+  revealed, sent 3 s after that), which `RevealNotice` shows under the timer
+  (under the mode notice while it shows).
+- `HUD.showRevealed` gives the places to the Tab map, and to the corner
+  minimap while `HUD.REVEALED_ON_MINIMAP` (the owner, 2026-11-26: "minimap can
+  show too"; the one switch, false for the Tab map alone). `Minimap` marks the
+  dot of a listed enemy (another team than the local player's) whose place is
+  in it: `MinimapObjectPlayer.revealed`, a `RevealedMark` under it, a red dot
+  (0xFF0000, the game's enemy red) 12 px across with a dark edge; his name
+  (Alt) over it, red. On the corner minimap it shows within the circle and is
+  clipped beyond it, as every dot there. A teammate's place in the mask is never
+  marked, a spotted enemy keeps his empty icon, the mark goes at mask 0 (a thaw,
+  the round's end), another mode and a new match. A Tab map held marks him when
+  it shows again.
+- Checks: `cargo:srp-validate` (the step's transitions: down to one, the 15 s,
+  a thaw, his freeze and the round's end, a leave, a frozen arrival; the
+  version 4 bytes and version 3's read). `freeze-native` (Unicorn): the step
+  saved in the world (and loaded again), every viewer's countdown (him, a
+  frozen teammate, the other team), no listing at 0x239505 and no mask before
+  15 s, both from 15 s, the notice's 3 s, a thaw ending it, a team of two never.
+  `freeze-names` (Ruffle, both sizes): his dot listed draws nothing until
+  revealed; revealed, a red mark at least 8 px on the screen and red there on
+  the Tab map far from the local player and near him, on the corner minimap
+  (red near him); a teammate's bit and a listed enemy not revealed unmarked;
+  his name over the mark; revealed while the Tab list is closed, marked when
+  it shows; none after mask 0, in another mode and a new match; in every
+  language the mode notice and the countdown's lines under the timer.
+
+**The mode notice.** A Freeze Tag match shows how the mode works under the
+match timer, as Blackout's (`ModeNotice`, `mode_introductions.md` "HUD notice
+follow-up"): through the countdown and 10 s after play starts, 10 s from
+readiness for a late joiner, begun by `set_game_type(12)` at every match start
+(Blackout's unforce no longer resets another mode's notice: `ModeNotice.cancel`).
+Its text, `st_srp_hud_freeze_start` in the twelve dictionaries, English:
+
+> Freeze Tag
+> A lethal hit freezes. Freeze the whole enemy team to win the round.
+> Stand within 2 m of a frozen teammate for 4 s to thaw them; alone, they thaw after 2 min.
+> First team to 5 round wins takes the match; at the time limit, the team ahead wins.
 
 **The frozen glow.** `fx/artifacts/human_frozen` (content pack
 `freeze-tag-glow`, `scripts/freeze-tag-glow/make_pack.py`): the stock Spring

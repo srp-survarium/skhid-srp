@@ -3019,10 +3019,17 @@ st_srp_hud_freeze_draw	Döntetlen
 st_srp_hud_freeze_frozen	Megfagyva (%1$s)
 st_srp_hud_freeze_help	Fagyaszd meg az összes ellenfelet. Az első 5 kört megnyerő csapat győz. Állj 4 másodpercig egy fagyott csapattárs 2 méteres körzetében a kiolvasztásához.
 st_srp_hud_freeze_lose	Vereség — az ellenfél öt kört nyert.
+st_srp_hud_freeze_reveal_enemy	Az utolsó ellenfél %1$s mp múlva lelepleződik
+st_srp_hud_freeze_reveal_self	%1$s mp múlva lelepleződsz
+st_srp_hud_freeze_reveal_teammate	Utolsó csapattársad %1$s mp múlva lelepleződik
+st_srp_hud_freeze_revealed_enemy	Az utolsó ellenfél látszik a térképen
+st_srp_hud_freeze_revealed_self	Látszol a térképen
+st_srp_hud_freeze_revealed_teammate	Utolsó csapattársad látszik a térképen
 st_srp_hud_freeze_round_draw	Döntetlen. Újrakezdés: %1$s mp.
 st_srp_hud_freeze_round_lose	Elvesztett kör. Következő: %1$s mp.
 st_srp_hud_freeze_round_win	Megnyert kör. Következő: %1$s mp.
 st_srp_hud_freeze_standing	Harcban: saját csapat %1$s — ellenfelek %2$s
+st_srp_hud_freeze_start	Fagyasztó fogó\nA halálos találat megfagyaszt. Fagyaszd meg a teljes ellenfél csapatot a kör megnyeréséhez.\nÁllj 4 mp-ig egy fagyott csapattárs 2 méteres körzetében a kiolvasztásához; magától 2 perc után olvad ki.\nAz első 5 kört megnyerő csapat győz; ha lejár az idő, a vezető csapat nyer.
 st_srp_hud_freeze_thawing	Csapattárs kiolvasztása…
 st_srp_hud_freeze_win	Győzelem — öt megnyert kör.
 st_srp_hud_friend_not_sent	A barátkérelem nincs elküldve

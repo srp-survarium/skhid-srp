@@ -33,6 +33,10 @@ The Ruffle harness covers late joins, countdown expiry, repeated callbacks,
 reset, placement and every language. Native multiplayer play remains to be
 confirmed.
 
+Freeze Tag (2026-11-26) has its notice the same way: `set_game_type(12)` begins it
+(`st_srp_hud_freeze_start`, all twelve dictionaries; `freeze-tag.md`, "The mode
+notice"), and Blackout's unforce cancels only Blackout's (`ModeNotice.cancel`).
+
 ## Original implementation (superseded HUD behavior)
 
 The owner approved Blackout onboarding on 2026-11-03: a localized chat explanation,

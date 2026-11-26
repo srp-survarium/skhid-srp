@@ -3019,10 +3019,17 @@ st_srp_hud_freeze_draw	Remíza
 st_srp_hud_freeze_frozen	Zmrazen (%1$s)
 st_srp_hud_freeze_help	Zmraz všechny soupeře. Vyhrává první tým s 5 vítěznými koly. Stůj 4 sekundy do 2 m od zmrazeného spoluhráče, aby rozmrzl.
 st_srp_hud_freeze_lose	Porážka — soupeři vyhráli pět kol.
+st_srp_hud_freeze_reveal_enemy	Poslední soupeř bude odhalen za %1$s s
+st_srp_hud_freeze_reveal_self	Budeš odhalen za %1$s s
+st_srp_hud_freeze_reveal_teammate	Tvůj poslední spoluhráč bude odhalen za %1$s s
+st_srp_hud_freeze_revealed_enemy	Poslední soupeř odhalen na mapě
+st_srp_hud_freeze_revealed_self	Jsi odhalen na mapě
+st_srp_hud_freeze_revealed_teammate	Tvůj poslední spoluhráč je odhalen na mapě
 st_srp_hud_freeze_round_draw	Remíza. Nové kolo za %1$s s.
 st_srp_hud_freeze_round_lose	Prohrané kolo. Další za %1$s s.
 st_srp_hud_freeze_round_win	Vyhrané kolo. Další za %1$s s.
 st_srp_hud_freeze_standing	V boji: váš tým %1$s — soupeři %2$s
+st_srp_hud_freeze_start	Zmrazování\nSmrtelný zásah zmrazí. Zmraz celý nepřátelský tým a vyhraj kolo.\nStůj 4 s do 2 m od zmrazeného spoluhráče, aby rozmrzl; sám rozmrzne po 2 min.\nVyhrává první tým s 5 vítěznými koly; po vypršení času vyhrává tým, který vede.
 st_srp_hud_freeze_thawing	Rozmrazování spoluhráče…
 st_srp_hud_freeze_win	Vítězství — pět vyhraných kol.
 st_srp_hud_friend_not_sent	Žádost o přátelství nebyla odeslána

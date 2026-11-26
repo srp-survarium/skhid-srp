@@ -3019,10 +3019,17 @@ st_srp_hud_freeze_draw	Empate
 st_srp_hud_freeze_frozen	Congelado (%1$s)
 st_srp_hud_freeze_help	Congele todos os adversários. A primeira equipe a vencer 5 rodadas ganha. Fique a até 2 m de um aliado congelado por 4 segundos para descongelá-lo.
 st_srp_hud_freeze_lose	Derrota — os adversários venceram cinco rodadas.
+st_srp_hud_freeze_reveal_enemy	Último adversário revelado em %1$s s
+st_srp_hud_freeze_reveal_self	Você será revelado em %1$s s
+st_srp_hud_freeze_reveal_teammate	Seu último aliado será revelado em %1$s s
+st_srp_hud_freeze_revealed_enemy	Último adversário revelado no mapa
+st_srp_hud_freeze_revealed_self	Você está revelado no mapa
+st_srp_hud_freeze_revealed_teammate	Seu último aliado está revelado no mapa
 st_srp_hud_freeze_round_draw	Rodada empatada. Reiniciando em %1$s s.
 st_srp_hud_freeze_round_lose	Rodada perdida. Próxima rodada em %1$s s.
 st_srp_hud_freeze_round_win	Rodada vencida. Próxima rodada em %1$s s.
 st_srp_hud_freeze_standing	Em combate: sua equipe %1$s — adversários %2$s
+st_srp_hud_freeze_start	Pique-Congela\nUm acerto letal congela. Congele toda a equipe adversária para vencer a rodada.\nFique a até 2 m de um aliado congelado por 4 s para descongelá-lo; sozinho, ele descongela após 2 min.\nA primeira equipe a vencer 5 rodadas ganha; se o tempo acabar, vence a equipe que estiver na frente.
 st_srp_hud_freeze_thawing	Descongelando aliado…
 st_srp_hud_freeze_win	Vitória — cinco rodadas vencidas.
 st_srp_hud_friend_not_sent	Pedido de amizade não enviado

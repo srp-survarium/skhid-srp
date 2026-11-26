@@ -49,19 +49,27 @@ package survarium.modes
          visible = false;
       }
 
+      // Reset only while it is `mode`'s notice: another mode's goes on (Blackout unforced at a Freeze
+      // Tag match's start, another game type after Freeze Tag's).
+      public function cancel(mode:String) : void
+      {
+         if(_state.mode == mode)
+            reset();
+      }
+
       public function update(now:int, ready:Boolean, countdown:Boolean) : void
       {
          if(_state.kind == "waiting" && ready && ModeIntroText.ready(_state.mode))
          {
             label.text = ModeIntroText.start(_state.mode);
-            _state = countdown ? {kind:"countdown"} : {kind:"showing",until:now + DISPLAY_MS};
+            _state = countdown ? {kind:"countdown",mode:_state.mode} : {kind:"showing",mode:_state.mode,until:now + DISPLAY_MS};
             visible = true;
          }
          if(_state.kind == "countdown" && !countdown)
-            _state = {kind:"showing",until:now + DISPLAY_MS};
+            _state = {kind:"showing",mode:_state.mode,until:now + DISPLAY_MS};
          if(_state.kind == "showing" && int(now - _state.until) >= 0)
          {
-            _state = {kind:"finished"};
+            _state = {kind:"finished",mode:_state.mode};
             visible = false;
          }
       }
