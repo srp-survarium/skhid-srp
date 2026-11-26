@@ -8,7 +8,8 @@
 //! What it does, at the start of a walk to a new goal (the drive's search when the bot holds no lane for the goal):
 //! - **The lanes, on the regions' graph** (HPA*'s abstract level: the regions of 8 m blocks and their links, a few thousand on a
 //!   map). L1 is the least-cost way between the start's and the goal's regions, its cost the links' (metres between the regions'
-//!   middles plus the link kinds' penalties). When it is longer than [`LaneDrawTuning::long_m`], L2 is the least-cost way with the
+//!   middles plus the link kinds' penalties), counted between the walk's own ends ([`RegionWay::cost_between`]: the end regions'
+//!   middles lie up to half a block off them). When it is longer than [`LaneDrawTuning::long_m`], L2 is the least-cost way with the
 //!   regions near L1 shut: a region whose middle lies within `away_m` of L1's, but within `ends_m` of the walk's ends, where both
 //!   lanes start and end (the C2 probe's rule, by region). Both see only the regions the plain search may enter (the hazards,
 //!   the spawn areas, the filter's regions).
@@ -19,8 +20,10 @@
 //!   filter: its stuck spots, traps, shut landings, zones and reach all hold, so L2 is a way the plain search would take were L1
 //!   shut. No way in the room (a region link the body's reach refuses): the plain search, and L1 for the goal.
 //! - **The true cost's cap.** The room's route is walked only when its length is within `band` times L1's cost on the regions
-//!   ([`Room::cap_m`]; the regions' L1 cost is the floors' route's within -3.4 % and +3.6 % at the quartiles, 1.002 at the
-//!   median, on the probe's 147 long walks); over it, the plain search and L1 (a nav line says so). On the probe the routes
+//!   ([`Room::cap_m`]; between the walk's ends the regions' L1 cost is the floors' route's within -1.1 % and +4.1 % at the
+//!   quartiles, -6.5 % and +7.4 % at p5 and p95, on the probe's 146 long walks, against -3.4 % and +3.6 %, -9.2 % and +9.8 %
+//!   counted from the end regions' middles); over it, the plain search and L1 (a nav line says so). On the probe 5 of 49 L2s in
+//!   the band are over their cap (8 of 48 from the middles; 1 of them in the band on the floors, 4 before), and the routes
 //!   walked are at most +15.6 % on the floors' L1.
 //! - **Danger wins.** L2 is a candidate only within `band` of L1's cost and, when the bot knows a held shooter's lanes, through no
 //!   more of their covered regions than L1 (metres of links into covered regions); the drive's detour round a lane then runs on
@@ -65,6 +68,23 @@ impl RegionWay {
     pub fn points(&self, tactics: &Tactics) -> Vec<Vec3> {
         let (grid, regions) = (&tactics.world.grid, tactics.regions());
         self.regions.iter().map(|&(r, _)| grid.position(regions.middle(r))).collect()
+    }
+
+    /// Its cost from the walk's own ends `from` and `to` rather than from its end regions' middles: the geometry of its first and last
+    /// links (middle to middle) replaced by the legs from `from` to the second region's middle and from the last but one's to `to`, the
+    /// links' kind penalties kept (one region: `from` to `to`; one link: its geometry `from` to `to`). The regions' cost counts the end
+    /// regions' middles, up to half a block off the walk's ends at each; the floors' route starts and ends at the ends.
+    pub fn cost_between(&self, tactics: &Tactics, from: Vec3, to: Vec3) -> f32 {
+        let (grid, regions) = (&tactics.world.grid, tactics.regions());
+        let at = |k: usize| grid.position(regions.middle(self.regions[k].0));
+        let leg = |a: Vec3, b: Vec3| (b - a).length();
+        let n = self.regions.len();
+        match n {
+            0 => 0.0,
+            1 => leg(from, to),
+            2 => self.cost - leg(at(0), at(1)) + leg(from, to),
+            _ => self.cost - leg(at(0), at(1)) + leg(from, at(1)) - leg(at(n - 2), at(n - 1)) + leg(at(n - 2), to),
+        }
     }
 
     /// Metres of its links into regions `covered` gives true for.
@@ -415,40 +435,45 @@ pub(super) fn draw(
     let (grid, regions) = (&tactics.world.grid, tactics.regions());
     let (away, band) = (set.away_m.get(), set.band.get());
     let (from, to) = (regions.of(walk.ends.0), regions.of(walk.ends.1));
-    let first = region_way(tactics, from, to, walk.open).filter(|first| first.cost > set.long_m.get());
-    let Some(first) = first else {
+    let ends = [grid.position(walk.ends.0), grid.position(walk.ends.1)];
+    // The ways' costs between the walk's own ends (`RegionWay::cost_between`).
+    let first = region_way(tactics, from, to, walk.open)
+        .map(|first| {
+            let c1 = first.cost_between(tactics, ends[0], ends[1]);
+            (first, c1)
+        })
+        .filter(|&(_, c1)| c1 > set.long_m.get());
+    let Some((first, c1)) = first else {
         bot.features.lane.drawn(walk.goal, None);
         return None;
     };
     let num = |name| tuning.number(super::plays::PlayKind::Roam, name);
     let (friend, keep_ms) = (num("friend_factor"), (num("fresh_s") * 1000.0) as u32);
-    let c1 = first.cost;
     let points1 = first.points(tactics);
-    let ends = [grid.position(walk.ends.0), grid.position(walk.ends.1)];
     // Metres of a way's links into the regions the team's held shooters see (none known: 0).
     let exposed = |way: &RegionWay| {
         if tuning.threat.spots && !bot.threat.is_empty() { way.into_covered(|r| bot.threat.region(r)) } else { 0.0 }
     };
     let second = shut_near(tactics, &points1, ends, set).ok_or(NO_ROOM).and_then(|shut| {
         let way = region_way(tactics, from, to, |r| !shut[r as usize] && (walk.open)(r)).ok_or(NO_WAY)?;
-        if way.cost > band * c1 {
+        let c2 = way.cost_between(tactics, ends[0], ends[1]);
+        if c2 > band * c1 {
             Err(OVER_BAND)
         } else if exposed(&way) > exposed(&first) {
             Err(MORE_EXPOSED)
         } else {
-            Ok((way, shut))
+            Ok((way, c2, shut))
         }
     });
     let play = bot.assignment.as_ref().map(|a| a.kind);
     let (verdict, lane) = match second {
         Err(why) => (Verdict::One(why), None),
-        Ok((way, shut)) => {
+        Ok((way, c2, shut)) => {
             let points2 = way.points(tactics);
             let stretches = [own_stretch(&points1, &points2, away), own_stretch(&points2, &points1, away)];
             let team = me.team;
             let alive = |who: Place| view.team(team).any(|p| p.place == who);
             let mates = lanes.mates_on(bot.place, [&stretches[0], &stretches[1]], away, walk.time, keep_ms, alive);
-            let c2 = way.cost;
             let odds = odds(c2 / c1.max(0.1), band, mates, friend);
             let number = number(bot.life_key, me.feet, walk.goal);
             let second = number < odds;
@@ -480,7 +505,9 @@ pub(super) fn held_room(tactics: &Tactics, shut: &[bool], band: f32, walk: &Walk
     let first = region_way(tactics, from, to, walk.open)?;
     let open = |r: u32| !shut.get(r as usize).copied().unwrap_or(false) && (walk.open)(r);
     let way = region_way(tactics, from, to, open)?;
-    Some(Room { regions: room(tactics, &way, shut, walk.open), cap_m: band * first.cost })
+    let grid = &tactics.world.grid;
+    let c1 = first.cost_between(tactics, grid.position(walk.ends.0), grid.position(walk.ends.1));
+    Some(Room { regions: room(tactics, &way, shut, walk.open), cap_m: band * c1 })
 }
 
 /// The nav line of an L2 route over its cap: `nav: lane draw: L2 to (x, z) over its cap: L m against C m, walks L1`.
@@ -599,6 +626,14 @@ mod tests {
         assert_eq!(way.regions.last().map(|r| r.0), Some(regions.of(b)));
         let set = LaneDrawTuning::default();
         let ends = [grid.position(a), grid.position(b)];
+        // Between the walk's own ends: no shorter than the straight line, and the way's own cost when the ends are its end
+        // regions' middles; one region is the straight leg, one link its kind's penalty on the straight leg.
+        let between = way.cost_between(&tactics, ends[0], ends[1]);
+        assert!(between >= ends[0].distance_xz(ends[1]) && between < way.cost + 2.0 * 8.0, "{between} {}", way.cost);
+        let middles = [grid.position(regions.middle(regions.of(a))), grid.position(regions.middle(regions.of(b)))];
+        assert!((way.cost_between(&tactics, middles[0], middles[1]) - way.cost).abs() < 1e-3);
+        let one = RegionWay { regions: vec![(regions.of(a), 0.0)], cost: 0.0 };
+        assert!((one.cost_between(&tactics, ends[0], ends[1]) - (ends[1] - ends[0]).length()).abs() < 1e-4);
         let shut = shut_near(&tactics, &points, ends, &set).unwrap();
         assert!(shut.iter().any(|&s| s));
         assert!(region_way(&tactics, regions.of(a), regions.of(b), |r| !shut[r as usize]).is_none(), "one gap");
@@ -607,7 +642,7 @@ mod tests {
         assert!(held_room(&tactics, &shut, 1.15, &walk).is_none());
         let room = held_room(&tactics, &vec![false; regions.len()], 1.15, &walk).unwrap();
         assert!(way.regions.iter().all(|&(r, _)| room.regions[r as usize]));
-        assert!((room.cap_m - 1.15 * way.cost).abs() < 1e-3, "nothing shut: L2 is L1, the cap the band on it");
+        assert!((room.cap_m - 1.15 * between).abs() < 1e-3, "nothing shut: L2 is L1, the cap the band on its cost between the ends");
         // The walk is all ends: no room for a second lane.
         assert!(shut_near(&tactics, &points[..2], [points[0], points[1]], &set).is_none());
     }
