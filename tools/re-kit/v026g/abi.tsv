@@ -2848,3 +2848,5 @@ va	name	source	ret_cleanup	result
 0x00391c40	vostok::animation::animation_player::subscribe_event_channel	manual	20	
 0x003921a0	vostok::animation::animation_player::unsubscribe_event_channel	manual	8	
 0x00246200	boost::detail::function::function_obj_invoker1<bind_t<callback_return_type, mf1<..., animation_end_aware_state, animation_callback_params&>>>::invoke [descriptive]	manual	0	EAX: the member function's result
+0x001f36d0	survarium::player::apply_new_input	manual	8	no result; the client player's override: copies the input into its input handler (+F470h, when its state +358h is 0 or 2), then base_player::apply_new_input (0x1F372C, return 0x1F3731)
+0x002d8ee0	survarium::base_player::tick_animations	manual	8	no result; ticks the animation player (+750h) and the stamina (player_stamina::tick at 0x2D8FC2) to its second argument

@@ -951,3 +951,27 @@ A key fires every ready copy of its kind and restarts the cooldown of the ones s
 Copies of a kind add up (Onyx's passive multiplies); at most 4 count.	Kopie jednego rodzaju sumują się (pasyw Onyksu się mnoży); liczą się najwyżej 4.
 Spring's and Larkspur's actives add to the passive; Onyx's replaces it.	Aktywacja Sprężyny i Żywokostu dodaje się do pasywu; Onyksu — zastępuje go.
 Onyx fired together: one reduction, 1 s longer per extra copy.	Onyksy aktywowane razem: jedno zmniejszenie, o 1 s dłużej za każdą dodatkową kopię.
+
+# The maps' anomalies (scripts/maps-tab/ui.js)
+Anomalies	Anomalie
+Anomaly	Anomalia
+Artefacts come from the anomalies. Each anomaly puts one of its artefacts into one of its free containers, one per time window, until its maximum lies uncollected; a pickup starts the window again. It gives only those of its artefacts that no player is carrying. Point at an anomaly or an artefact (or tap it) for its numbers.	Artefakty pochodzą z anomalii. Każda anomalia wkłada jeden ze swoich artefaktów do jednego ze swoich wolnych kontenerów, po jednym na okno czasowe, aż leży jej maksimum niezebranych; podniesienie artefaktu zaczyna okno od nowa. Daje tylko te swoje artefakty, których nie niesie żaden gracz. Wskaż anomalię lub artefakt (albo go dotknij), by zobaczyć jej liczby.
+{s} s	{s} s
+{a}–{b} s	{a}–{b} s
+Holds	Zawiera
+First one	Pierwszy
+Then every	Potem co
+Chance	Szansa
+Max uncollected	Maks. niezebranych
+Search	Przeszukanie	artefact
+Zones switch every	Strefy zmieniają się co
+After a pickup the next one comes {next} later; that container stays empty for {cooldown}.	Po podniesieniu następny pojawi się za {next}; ten kontener zostaje pusty przez {cooldown}.
+Its own zone does no damage.	Jej własna strefa nie zadaje obrażeń.
+Searching a container takes {search}; after a pickup it stays empty for {cooldown}.	Przeszukanie kontenera trwa {search}; po podniesieniu zostaje on pusty przez {cooldown}.
+After a pickup the next one comes {next} later.	Po podniesieniu następny pojawi się za {next}.
+whole body	całe ciało
+{n} % a hit, at most every {t}	{n} % na trafienie, najwyżej co {t}
+deadly	śmiertelnie
+{n} % a second	{n} % na sekundę
+Damage is a share of each body part's health, before armour.	Obrażenia to część zdrowia każdej części ciała, przed pancerzem.
+It gives no artefacts.	Nie daje artefaktów.

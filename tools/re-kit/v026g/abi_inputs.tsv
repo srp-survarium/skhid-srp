@@ -6794,3 +6794,10 @@ va	name	location	role	basis
 0x00391c40	vostok::animation::animation_player::subscribe_event_channel	entry ESP+20	a flag dword, the record's +24h (0x390E09; 0 from every caller)	observed
 0x00246200	boost::detail::function::function_obj_invoker1<bind_t<callback_return_type, mf1<..., animation_end_aware_state, animation_callback_params&>>>::invoke [descriptive]	entry ESP+4	the functor's buffer: [0] the member function, [4] + [8] its this (0x246208..0x24620F)	observed
 0x00246200	boost::detail::function::function_obj_invoker1<bind_t<callback_return_type, mf1<..., animation_end_aware_state, animation_callback_params&>>>::invoke [descriptive]	entry ESP+8	the animation_callback_params, pushed for the member function (0x24620B)	observed
+0x001f36d0	survarium::player::apply_new_input	ECX	the player	observed
+0x001f36d0	survarium::player::apply_new_input	entry ESP+4	simulation time (passed on as apply_new_input's)	observed
+0x001f36d0	survarium::player::apply_new_input	entry ESP+8	the input	observed
+0x002d8ee0	survarium::base_player::tick_animations	EAX	the player	observed
+0x002d8ee0	survarium::base_player::tick_animations	entry ESP+4	the previous tick time: base_player::tick's old +324h (0x2DAAD3), apply_new_input's +324h (0x2D89F7)	observed
+0x002d8ee0	survarium::base_player::tick_animations	entry ESP+8	the time it ticks to: the step's (base_player::tick, return 0x2DAAE0) or the input's own (apply_new_input 0x2D8A01, return 0x2D8A06)	observed
+0x001f3070	survarium::player::render_model	ESI	the player: nothing drawn unless its models are in (+F4E0h) and its render instance ([+F290h]+108h) is in the scene (+10Dh); the transform +F4A0h when +F49Ch is set, else the simulated one +40Ch (0x1F30E2..0x1F30F1)	observed

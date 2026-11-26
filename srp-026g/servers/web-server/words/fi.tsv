@@ -951,3 +951,27 @@ A key fires every ready copy of its kind and restarts the cooldown of the ones s
 Copies of a kind add up (Onyx's passive multiplies); at most 4 count.	Saman lajin kappaleet lasketaan yhteen (Onyksin passiivi kertautuu); enintään 4 lasketaan.
 Spring's and Larkspur's actives add to the passive; Onyx's replaces it.	Jousen ja Ritarinkannuksen aktiivi lisätään passiiviin; Onyksin korvaa sen.
 Onyx fired together: one reduction, 1 s longer per extra copy.	Yhdessä aktivoidut Onyksit: yksi vähennys, 1 s pidempään jokaista lisäkappaletta kohden.
+
+# The maps' anomalies (scripts/maps-tab/ui.js)
+Anomalies	Anomaliat
+Anomaly	Anomalia
+Artefacts come from the anomalies. Each anomaly puts one of its artefacts into one of its free containers, one per time window, until its maximum lies uncollected; a pickup starts the window again. It gives only those of its artefacts that no player is carrying. Point at an anomaly or an artefact (or tap it) for its numbers.	Artefaktit tulevat anomalioista. Kukin anomalia laittaa yhden artefakteistaan yhteen vapaista säiliöistään, yhden aikaikkunaa kohden, kunnes sen enimmäismäärä on keräämättä; poiminta aloittaa ikkunan alusta. Se antaa vain ne artefaktinsa, joita kukaan pelaaja ei kanna. Osoita anomaliaa tai artefaktia (tai napauta sitä) nähdäksesi sen luvut.
+{s} s	{s} s
+{a}–{b} s	{a}–{b} s
+Holds	Sisältää
+First one	Ensimmäinen
+Then every	Sitten joka
+Chance	Mahdollisuus
+Max uncollected	Enintään keräämättä
+Search	Etsintä	artefact
+Zones switch every	Vyöhykkeet vaihtuvat joka
+After a pickup the next one comes {next} later; that container stays empty for {cooldown}.	Poiminnan jälkeen seuraava tulee {next} kuluttua; säiliö pysyy tyhjänä {cooldown}.
+Its own zone does no damage.	Sen oma vyöhyke ei vahingoita.
+Searching a container takes {search}; after a pickup it stays empty for {cooldown}.	Säiliön etsintä kestää {search}; poiminnan jälkeen se pysyy tyhjänä {cooldown}.
+After a pickup the next one comes {next} later.	Poiminnan jälkeen seuraava tulee {next} kuluttua.
+whole body	koko keho
+{n} % a hit, at most every {t}	{n} % osumalta, enintään {t} välein
+deadly	tappava
+{n} % a second	{n} % sekunnissa
+Damage is a share of each body part's health, before armour.	Vahinko on osuus kunkin ruumiinosan terveydestä, ennen panssaria.
+It gives no artefacts.	Se ei anna artefakteja.

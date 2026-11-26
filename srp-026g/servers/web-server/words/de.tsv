@@ -951,3 +951,27 @@ A key fires every ready copy of its kind and restarts the cooldown of the ones s
 Copies of a kind add up (Onyx's passive multiplies); at most 4 count.	Kopien einer Art addieren sich (das Passiv von Onyx multipliziert sich); höchstens 4 zählen.
 Spring's and Larkspur's actives add to the passive; Onyx's replaces it.	Das Aktiv von Feder und Lebknochen kommt zum Passiv hinzu; das von Onyx ersetzt es.
 Onyx fired together: one reduction, 1 s longer per extra copy.	Zusammen aktivierte Onyx: eine Verringerung, je weitere Kopie 1 s länger.
+
+# The maps' anomalies (scripts/maps-tab/ui.js)
+Anomalies	Anomalien
+Anomaly	Anomalie
+Artefacts come from the anomalies. Each anomaly puts one of its artefacts into one of its free containers, one per time window, until its maximum lies uncollected; a pickup starts the window again. It gives only those of its artefacts that no player is carrying. Point at an anomaly or an artefact (or tap it) for its numbers.	Artefakte kommen aus den Anomalien. Jede Anomalie legt eins ihrer Artefakte in einen ihrer freien Container, eins pro Zeitfenster, bis ihr Maximum ungesammelt daliegt; ein Aufheben startet das Fenster neu. Sie gibt nur die ihrer Artefakte, die kein Spieler trägt. Zeige auf eine Anomalie oder ein Artefakt (oder tippe darauf), um ihre Zahlen zu sehen.
+{s} s	{s} s
+{a}–{b} s	{a}–{b} s
+Holds	Enthält
+First one	Erstes
+Then every	Dann alle
+Chance	Chance
+Max uncollected	Max. ungesammelt
+Search	Suche	artefact
+Zones switch every	Zonen wechseln alle
+After a pickup the next one comes {next} later; that container stays empty for {cooldown}.	Nach dem Aufheben kommt das nächste nach {next}; dieser Container bleibt {cooldown} leer.
+Its own zone does no damage.	Ihre eigene Zone richtet keinen Schaden an.
+Searching a container takes {search}; after a pickup it stays empty for {cooldown}.	Das Durchsuchen eines Containers dauert {search}; nach dem Aufheben bleibt er {cooldown} leer.
+After a pickup the next one comes {next} later.	Nach dem Aufheben kommt das nächste nach {next}.
+whole body	ganzer Körper
+{n} % a hit, at most every {t}	{n} % pro Treffer, höchstens alle {t}
+deadly	tödlich
+{n} % a second	{n} % pro Sekunde
+Damage is a share of each body part's health, before armour.	Schaden ist ein Anteil der Gesundheit jedes Körperteils, vor der Rüstung.
+It gives no artefacts.	Sie gibt keine Artefakte.
