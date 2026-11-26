@@ -2547,3 +2547,5 @@ va	status	ref_021d	name
 0x002346e0	reviewed		survarium::game_world_ui::set_localization_data
 0x00286260	reviewed		survarium::lobby_menu::set_localization_data
 0x00220a00	reviewed		survarium::lobby_menu::update_ui
+0x001b1840	reviewed		vostok::render::stage_postprocess::is_not_motion_vector_surface [descriptive]
+0x000396c0	reviewed	0x0002a30a	vostok::collision::loose_oct_tree::unmove_all
