@@ -4215,6 +4215,10 @@ st_srp_mode_roulette_high	FFA: Рулетка
 st_srp_mode_roulette_low	FFA: Рулетка
 st_srp_mode_roulette_mid	FFA: Рулетка
 st_srp_mode_team_deathmatch	Командный бой
+st_srp_mount_barrel	Ствол
+st_srp_mount_gas_tube	Газоотвод
+st_srp_mount_handguard	Цевьё
+st_srp_mount_receiver	Коробка
 st_srp_mouse_lock_option	Зафиксировать вертикальную чувствительность
 st_srp_mouse_vertical_option	Вертикальная чувствительность
 st_srp_muzzle_slot	Дульная насадка
@@ -4393,10 +4397,6 @@ st_srp_shop_not_owned	Скрыть имеющиеся
 st_srp_shop_not_owned_hint	Показывать только то, чего у вас нет
 st_srp_side_left	Слева
 st_srp_side_right	Справа
-st_srp_mount_receiver	Коробка
-st_srp_mount_handguard	Цевьё
-st_srp_mount_barrel	Ствол
-st_srp_mount_gas_tube	Газоотвод
 st_srp_skills	Навыки
 st_srp_speed_label	Скорость
 st_srp_speed_title	Скорость движения: %1$s

@@ -4215,6 +4215,10 @@ st_srp_mode_roulette_high	FFA: Ruletka
 st_srp_mode_roulette_low	FFA: Ruletka
 st_srp_mode_roulette_mid	FFA: Ruletka
 st_srp_mode_team_deathmatch	Walka drużynowa
+st_srp_mount_barrel	Lufa
+st_srp_mount_gas_tube	Rura gazowa
+st_srp_mount_handguard	Łoże
+st_srp_mount_receiver	Komora
 st_srp_mouse_lock_option	Zablokuj czułość pionową
 st_srp_mouse_vertical_option	Czułość pionowa
 st_srp_muzzle_slot	Nasadka lufy
@@ -4393,10 +4397,6 @@ st_srp_shop_not_owned	Ukryj posiadane
 st_srp_shop_not_owned_hint	Pokazuj tylko przedmioty, których nie masz
 st_srp_side_left	Lewa
 st_srp_side_right	Prawa
-st_srp_mount_receiver	Komora
-st_srp_mount_handguard	Łoże
-st_srp_mount_barrel	Lufa
-st_srp_mount_gas_tube	Rura gazowa
 st_srp_skills	Umiejętności
 st_srp_speed_label	Szybkość
 st_srp_speed_title	Szybkość ruchu: %1$s

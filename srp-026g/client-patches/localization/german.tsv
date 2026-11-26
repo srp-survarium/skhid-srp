@@ -4215,6 +4215,10 @@ st_srp_mode_roulette_high	FFA: Roulette
 st_srp_mode_roulette_low	FFA: Roulette
 st_srp_mode_roulette_mid	FFA: Roulette
 st_srp_mode_team_deathmatch	Kommandokampf
+st_srp_mount_barrel	Lauf
+st_srp_mount_gas_tube	Gasrohr
+st_srp_mount_handguard	Handschutz
+st_srp_mount_receiver	Gehäuse
 st_srp_mouse_lock_option	Vertikale Empfindlichkeit koppeln
 st_srp_mouse_vertical_option	Vertikale Empfindlichkeit
 st_srp_muzzle_slot	Mündungsaufsatz
@@ -4393,10 +4397,6 @@ st_srp_shop_not_owned	Besitz ausblenden
 st_srp_shop_not_owned_hint	Nur Gegenstände zeigen, die du nicht besitzt
 st_srp_side_left	Links
 st_srp_side_right	Rechts
-st_srp_mount_receiver	Gehäuse
-st_srp_mount_handguard	Handschutz
-st_srp_mount_barrel	Lauf
-st_srp_mount_gas_tube	Gasrohr
 st_srp_skills	Fähigkeiten
 st_srp_speed_label	Tempo
 st_srp_speed_title	Bewegungstempo: %1$s
