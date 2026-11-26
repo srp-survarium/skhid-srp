@@ -719,8 +719,8 @@ Unfit::NoGun | Unfit::Refused(Refusal)    Refusal is resolve's own: NoFit, NoSlo
   after it, or with this one if it is ready first.
 - **The remodel bodies' camouflage masks** are made inside the attachments pack, by the mask maker
   main has today over `scripts/remodel-069/camo.tsv`: every gun gets a remodel body, so without them
-  every owned camouflage would change with this PR. The one-rule masks of #2314 (parked) remake them
-  when that lands, as every other gun's. Open until the next pack version is built.
+  every owned camouflage would change with this PR. #2314 remade them (weapon-modules@8, masks
+  only): each texture's parts as 0.69d0's painted versions paint them (weapon-camo.md).
 
 **Who owns which file**
 

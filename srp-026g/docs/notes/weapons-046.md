@@ -54,6 +54,9 @@ balances "around the current balance".
   the pack `weapons-046-camo` (`scripts/weapons-046/camo.tsv`), on the parts `weapon_camo.py`
   suggests: there is no premium copy to learn the painted parts from, so the picker
   (`scripts/weapon-camo`) chooses others when the owner wants.
+  Since `remodel-069-1` the ten configs draw their 0.69d0 remodels, whose masks are pack
+  weapon-modules' (`scripts/remodel-069/camo.tsv`): no live gun draws these textures, and `camo.tsv`
+  follows `weapon_camo.py`'s rule without the pack being made again (weapon-camo.md).
 - **Kill feed:** the guns' own kill-log icons (0.46c2's 75, 77 to 80, 82 to 84; the Glock's 95 from
   0.69d0, as 0.46c2 gave it the APS's; the Colt M1911's 99, drawn from its lobby cell, as no build has
   one: 0.46c2 gives it the PM's 16, 0.69d0 the CZ 75's 82), in the hud and the lobby's tooltips; the

@@ -16,12 +16,14 @@
 #      every gun and fit against 0.69d0 is in <work folder>/bundle/modules-069d.json, and a failure
 #      is printed;
 #   3. the camouflage masks (_aoac, client patch 44) of the textures the whole bodies draw, into the
-#      bundle: ../weapons-069/camo_rows.py's rows less the textures players have a mask for (an
-#      earlier port's stands), by ../weapon-camo/weapon_camo.py --bare-masks with
-#      ../remodel-069/parts.tsv (the cartridges and the MP7's glowing dots stay plain; every other
-#      texture takes the maker's suggestion, its large parts). ../remodel-069/camo.tsv is the full
-#      build's rows: when it is not, the pack is made of the bundle's rows all the same, the new
-#      table is left in <work folder>/masks/camo.tsv to commit, and the build fails at its end;
+#      bundle: ../remodel-069/camo.tsv, whose textures and surfaces must be ../weapons-069/camo_rows.py's
+#      rows less the textures players have a mask for (an earlier port's stands; its 0.69d0 columns
+#      are ../weapon-camo/references.py's), by ../weapon-camo/weapon_camo.py --bare-masks, its rule
+#      with ../remodel-069/parts.tsv's picks (the review of 2026-11-26: each texture's parts as its
+#      painted versions paint them, ../weapon-camo/README.md) and 0.69d0's weapon textures
+#      (<work folder>/v069, extracted once). When the bundle's rows are not the table's, the new
+#      rows are left in <work folder>/masks/camo.tsv (references.py --write fills their 0.69d0
+#      columns), and the build stops;
 #   4. vostok-port pack from-bundle against the same files; the build's record
 #      (bundle/modules-069d.json) is kept in the pack's folder.
 # With 0.69d0 items named: those guns alone (a quick pack for a local test; its id says so; a mask
@@ -82,19 +84,23 @@ done | grep '_aoac\.dds$' | sort -u >"$masks/players.aoac"
     python3 -I "$here/../weapons-069/camo_rows.py" "$work/bundle" | tail -n +2 \
         | awk -F'\t' 'NR == FNR { have[$1] = 1; next } !(("textures/" $1 "_aoac.dds") in have)' "$masks/players.aoac" -
 } >"$masks/camo.tsv"
+if ((${#only[@]} == 0)) && ! diff <(grep -v '^#' "$masks/camo.tsv" | cut -f1,3) \
+        <(grep -v '^#' "$here/../remodel-069/camo.tsv" | cut -f1,3) >"$masks/camo.diff"; then
+    echo "../remodel-069/camo.tsv's textures and surfaces are not the bundle's ($masks/camo.diff):" \
+        "$masks/camo.tsv, with references.py --write" >&2
+    exit 1
+fi
+((${#only[@]})) || cp "$here/../remodel-069/camo.tsv" "$masks/camo.tsv"
 cp "$here/../remodel-069/parts.tsv" "$masks/parts.tsv"
+[[ -d $work/v069 ]] || "$survey" extract-bundle --db "$split" --prefix textures/weapons/ --output "$work/v069" >/dev/null
 cp -as "$(realpath "$work/bundle/overlay")/." "$masks/game/"
 options=textures/character/human/black_market_01/black_market_01_torso_aoac.options
 "$port" extract --db "$SKHID_STOCK_DB" --path "$options" --output "$masks/game/$options" >/dev/null
 python3 -I "$here/../weapon-camo/weapon_camo.py" "$masks/camo.tsv" "$masks/game" "$masks/game" "$masks/out" \
-    --bare-masks >"$masks/camo.log"
+    --bare-masks --v069 "$work/v069/overlay" >"$masks/camo.log"
 rm -r "$masks/game"
 python3 -I "$here/masks.py" "$masks/out" "$work/bundle"
 "$port" pack from-bundle --base-db "$SKHID_STOCK_DB" "${bases[@]}" --bundle "$work/bundle" \
     --output "$pack" --id "$id" --version "$version" >/dev/null
 cp "$work/bundle/modules-069d.json" "$pack/modules-069d.json"
 echo "$id@$version: $(sha256sum "$pack/pack.json" | cut -d' ' -f1)"
-if ((${#only[@]} == 0)) && ! diff "$masks/camo.tsv" "$here/../remodel-069/camo.tsv" >"$masks/camo.diff"; then
-    echo "../remodel-069/camo.tsv is not the bundle's ($masks/camo.diff): commit $masks/camo.tsv as it" >&2
-    exit 1
-fi

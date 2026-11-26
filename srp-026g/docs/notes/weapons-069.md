@@ -192,5 +192,10 @@ as the core writes every ported gun's.
 ## Not in this pack
 
 - Scope fit variants (`fitn_*`): no scope takes these guns yet.
-- The weapon kit's records (#893, not merged). The camouflage masks paint each texture's large
-  parts (weapon_camo.py's suggestion, no premium to read them from), not yet picked by the owner.
+- The weapon kit's records (#893, not merged). The camouflage masks are `weapon_camo.py`'s rule with
+  the picks of the review of 2026-11-26 (`parts.tsv`: each part as 0.69d0's painted versions paint
+  it) since weapons-069-camo@5 (weapon-camo.md; @3, the last released, each texture's large parts;
+  @4 was never released). The guns are drawn as their remodels (remodel-069.md), which draw these
+  textures; so do the AKMN's (its magazine and grip) and the PPSh's. The bake takes a weapon's
+  first 8 LOD0 surfaces (patch 44, #973 open for 16): the AKMSU's bolt, fire selector and wooden
+  grip (its 9th to 11th) stay plain whatever their masks say.

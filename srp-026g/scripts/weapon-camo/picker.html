@@ -42,8 +42,8 @@ textarea { width: 100%; height: 90px; font: 12px/1.3 ui-monospace, monospace; ba
     <select id="camoSel" title="camouflage"></select>
     <select id="modelSel" title="the weapon shown in 3D"></select>
     <label><input type="checkbox" id="premium"> premium texture</label>
-    <button id="reset" title="the parts in parts.tsv, or the suggestion when it has none">Reset</button>
-    <button id="suggest" title="the large parts (the premium's, when there is one)">Suggestion</button>
+    <button id="reset" title="the rule with the picks of parts.tsv">Reset</button>
+    <button id="suggest" title="the parts the rule paints">Rule</button>
     <button id="clear">None</button>
   </div>
   <div class="note">Click a part on the texture or on the weapon to paint it or leave it bare. Drag the weapon to turn it, wheel to zoom, right-drag to move. Grey surfaces take no camouflage. Picks are kept in this browser; copy the lines below into <code>parts.tsv</code>.</div>
@@ -134,9 +134,17 @@ async function draw() {
   render3d();
 }
 
+// a texture's line: its picks over the rule (the suggestion), +point painted, -point bare; no points: plain
+function picks(g) {
+  const rule = new Set(g.suggested), num = (a, b) => a - b;
+  if (!g.chosen.size) return [];
+  return [...g.chosen].filter(id => !rule.has(id)).sort(num).map(id => '+' + g.points[id])
+    .concat(g.suggested.filter(id => !g.chosen.has(id)).sort(num).map(id => '-' + g.points[id]));
+}
 function lines() {
-  return ['# texture\tthe painted parts: a UV point on each (weapon_camo.py --picker)'].concat(guns.filter(g => g.edited || g.from_file).map(g =>
-    g.texture + '\t' + [...g.chosen].sort((a, b) => a - b).map(id => g.points[id]).join(' '))).join('\n') + '\n';
+  return ['# texture\tthe hand picks over the rule: a UV point on each part, +painted -bare (weapon_camo.py --picker)']
+    .concat(guns.filter(g => (g.edited || g.from_file) && (picks(g).length || !g.chosen.size && g.suggested.length))
+      .map(g => g.texture + '\t' + picks(g).join(' '))).join('\n') + '\n';
 }
 
 function save() {

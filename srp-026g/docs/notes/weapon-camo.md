@@ -5,20 +5,41 @@ where the premium (camouflaged) weapons have their paint; the tooling to do that
 
 ## Rules
 
-- **Which weapons.** Every weapon (all 83 weapon configs, pistols and 0.29a3 ports included):
-  91 textures, 111 `_aoac` files with the premium copies (`scripts/weapon-camo/guns.tsv`,
-  `scripts/content-edit/weapon-camo-1.json`). Not their barrels, sights, suppressors and
-  attachments when those have textures of their own, nor the 12-gauge shell, the SV-98's net or
-  the premium-only `_camo` textures.
-- **Where the paint goes.** On some parts of a weapon, never the whole: the parts (UV islands)
-  `scripts/weapon-camo/parts.tsv` names, chosen by hand in the picker page (all 91 textures,
-  2026-10-21: 22 by the owner, the rest after them): the body (receiver, covers, handguard,
-  stock, grip, magazine); not barrels, muzzles, sights, rails, bolts, triggers, pins, nor a
-  magazine inside a pistol's grip. A weapon without a line there gets the suggestion: the large parts its premium painted (each at least 2 % of the
-  texture's parts: receiver, covers, handguard, stock, magazine); with no premium (65 textures),
-  the large parts, which can take in a barrel (the TOZ-66's): pick those before a release. Small parts (triggers, bolts,
-  pins, sights, screws) stay bare. Most premiums were repainted as a whole, so "where the premium
-  painted" alone would cover nearly the whole weapon (97 % of the AK-12's parts).
+- **Which weapons.** Every weapon (all 103 weapon configs). Since `remodel-069-1` each draws its
+  0.69d0 remodel (remodel-069.md), and the masks that count are those of the remodels' textures:
+  237, in pack weapon-modules (`scripts/remodel-069/camo.tsv`, 205) and pack weapons-069-camo
+  (`scripts/weapons-069/camo.tsv`, the 32 textures the six weapons-069 guns brought, which the
+  AKMN's and the PPSh's remodels draw too). The earlier models' tables (`scripts/weapon-camo/guns.tsv`,
+  weapons-031's and weapons-046's) are of textures no live gun draws. A fitted scope, device, grip
+  or second sight is a model of its own, not a surface of the gun: plain under a camouflage. The
+  scope variants are retired. The bake paints a weapon's first 8 LOD0 surfaces (patch 44, #973):
+  the AKMSU's bolt, selector and grip, the HK416's magazine, the SCAR-H's front sight and the
+  Glock 17's back cap stay plain. Not barrels, sights, suppressors and attachments with textures of
+  their own, nor the cartridges.
+- **Where the paint goes.** On a weapon's body, all of its outside: receiver, covers, slide,
+  handguard, stock, grip, magazine; not on what stays bare metal on a painted gun: barrels, gas
+  tubes, bolts, rods, small parts (triggers, pins, screws, sight blades). The owner: parts of a
+  weapon, never the whole texture (2026-10-20); every gun on all its outside (2026-10-21); "many
+  guns are not fully camoed where they should" (2026-11-20). The survey of that day, every gun
+  rendered with its masks: bare were the AK-74M's handguard, the Beretta 93R's and the CZ-75's
+  slides, the receivers of the Remington 870 and the MP-153, the RPK's and the Valmet's handguards,
+  five magazines and a grip with no mask at all, much of the ported guns (their "large parts"
+  guess); painted were barrels (the AK-74M's, the Mauser's). Since then one rule for every gun
+  decides part by part (a UV island), from the model and 0.69d0's files
+  (`scripts/weapon-camo/README.md`, `weapon_camo.py` `choose()`): what 0.69d0's metalness map of
+  the same UVs calls no metal (polymer, wood) is painted; of the metal a rod (a tube under 1.4 cm)
+  never, a slim tube (a suppressor) and a small part only where a painted version of the weapon
+  (0.69d0's hand-painted textures, our premiums) paints it, the rest always. 0.69d0 has no
+  camouflage on weapons and no masks of its own. `parts.tsv` holds the hand picks over the rule,
+  the last resort. The owner, 2026-11-26, of the rule alone: "in some cases what we have now is
+  better"; the reference is where the game's own camouflaged versions paint. The review of that day
+  (`scripts/weapon-camo/README.md`) measured every remodel texture against its painted versions and
+  took, per texture, the better of the masks players had and the rule's, then the parts the
+  painted version decides; its choices are the `parts.tsv` picks (67 % agreement with the painted
+  versions before, 82 % by the rule, 95 % chosen). A painted part is shaded against its own bright level, so a
+  black receiver takes the camouflage as brightly as tan furniture beside it.
+  New masks need no new bake name: a release whose patch has a texture deletes every player's
+  baked folder once (patch 70, `bake_cache/inputs.rs`).
 - **Which camouflage.** Any camouflage item (category 25) that goes on armour; one at a time.
 - **Slot.** [srp] A weapon's camouflage is in upgrade slot 2: slot 3 holds its scope, 0 its decal
   (`WEAPON_CAMO_SLOT`, `modifications::camo_slot`). A scope and a camouflage are worn together.

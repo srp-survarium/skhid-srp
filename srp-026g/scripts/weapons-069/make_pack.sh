@@ -15,11 +15,13 @@
 #      composed over: the stock resources.db and the manifest's base patches (with each gun's
 #      lobby icon: 0.69d0's own, levelled);
 #   2. vostok-port pack from-bundle against the same files;
-#   3. the camouflage masks (_aoac, client patch 44) of camo.tsv (camo_rows.py writes it from the
-#      bundle; checked) by ../weapon-camo/weapon_camo.py --pack --bare-masks: parts.tsv leaves the
-#      cartridges and the loose shell plain, and each still gets a mask (one that paints nothing), so
-#      every surface of a camouflaged gun finds its _aoac. The configs take the camouflage by the
-#      edit list weapon-camo-069-1.json.
+#   3. the camouflage masks (_aoac, client patch 44) of camo.tsv (camo_rows.py writes its textures
+#      and surfaces from the bundle, checked; ../weapon-camo/references.py its 0.69d0 columns) by
+#      ../weapon-camo/weapon_camo.py --pack --bare-masks, its rule: parts.tsv leaves the cartridges
+#      and the loose shell plain, and each still gets a mask (one that paints nothing), so every
+#      surface of a camouflaged gun finds its _aoac. $SKHID_V069: 0.69d0's weapon files
+#      (../weapon-camo/README.md). The configs take the camouflage by the edit list
+#      weapon-camo-069-1.json.
 # Needs cargo (nix-shell -p cargo rustc gcc zlib), Python with numpy and Pillow (weapon_camo.py), magick (the
 # porter's texture encoder). Writes <work folder> (new) and the pack folders (new).
 set -euo pipefail
@@ -29,6 +31,7 @@ root=$(cd "$here/../../.." && pwd)
 porter=$(cd "$1" && pwd) donor=$(realpath "$2") work=$3 version=$4 camo_version=$5
 shift 5
 : "${SKHID_STOCK_DB:?the stock resources.db}" "${SKHID_PACKS_DIR:?the packs folder}"
+: "${SKHID_V069:?the 0.69d0 weapon files, ../weapon-camo/README.md}"
 pack=$SKHID_PACKS_DIR/weapons-069-$version camo=$SKHID_PACKS_DIR/weapons-069-camo-$camo_version
 [[ ! -e $work && ! -e $pack && ! -e $camo ]] || { echo "$work, $pack or $camo is already there" >&2; exit 1; }
 mkdir -p "$work"
@@ -56,13 +59,16 @@ fi
     --output "$pack" --id weapons-069 --version "$version"
 # Camouflage masks: weapon_camo.py reads the bundle's models and textures and the stock _aoac
 # options it copies.
-python3 -I "$here/camo_rows.py" "$work/bundle" | diff - "$here/camo.tsv" \
-    || { echo "camo.tsv is not the bundle's (camo_rows.py)" >&2; exit 1; }
+# camo.tsv's textures are the bundle's, each row's surfaces first the bundle's and then the remodels'
+# that draw it (references.py adds them: the AKMN's and the PPSh's remodels draw some of these).
+diff <(python3 -I "$here/camo_rows.py" "$work/bundle" | grep -v '^#' | cut -f1,3) \
+    <(grep -v '^#' "$here/camo.tsv" | cut -f1,3 | sed -E 's/(,weapons\/remodel_069\/[^,]*)+$//') \
+    || { echo "camo.tsv's textures and surfaces are not the bundle's (camo_rows.py)" >&2; exit 1; }
 mkdir -p "$work/camo/textures/character/human/black_market_01"
 cp -as "$(realpath "$work/bundle/overlay")/." "$work/camo/"
 options=textures/character/human/black_market_01/black_market_01_torso_aoac.options
 "$port" extract --db "$SKHID_STOCK_DB" --path "$options" --output "$work/camo/$options" >/dev/null
 python3 -I "$root/srp-026g/scripts/weapon-camo/weapon_camo.py" "$here/camo.tsv" "$work/camo" "$work/camo" \
-    "$camo" --pack "weapons-069-camo@$camo_version" --bare-masks
+    "$camo" --pack "weapons-069-camo@$camo_version" --bare-masks --v069 "$SKHID_V069"
 echo "weapons-069@$version: $(sha256sum "$pack/pack.json" | cut -d' ' -f1)"
 echo "weapons-069-camo@$camo_version: $(sha256sum "$camo/pack.json" | cut -d' ' -f1)"

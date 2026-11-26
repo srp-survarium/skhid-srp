@@ -65,10 +65,10 @@ dark stock; the premiums in 0.69d0's camouflages.
 
 ## Not yet
 
-- Camouflage masks (`_aoac`) of the remodels' textures: `remodel-069/camo.tsv` and `parts.tsv` are those
-  of 2026-11-07 (96 guns) and no mask pack is built for this pack. To make again by the rule of
-  `fix/weapon-camo-coverage` once it is merged (`references.py --write`, `--v069`). Parts drawn
-  separately stay plain under a camouflage (the owner's decision for now).
+- Camouflage masks (`_aoac`) of the remodels' textures: made inside the pack (`make_pack.sh` step 3) from
+  `remodel-069/camo.tsv` (0.69d0's painted versions and metalness maps by `references.py`) and
+  `parts.tsv` (the review of 2026-11-26, `scripts/weapon-camo/README.md`): weapon-modules@8. Parts drawn
+  separately (a fitted module) stay plain under a camouflage (the owner's decision for now).
 - Device items, their texts, icons, prices and shot effects; the scope items' models on the new origin.
 - `release/build-content` was not run with the pack and its edit lists.
 - 1.7 GB.
