@@ -58,12 +58,17 @@ three). No artifact rescue in this version (owner, 2026-11-17).
     and the round's end clear it; the next time the team is down to one
     counts afresh. The same in every game, a late joiner's and a resynced
     one's too: it is in the world.
-  - **The countdown, for everyone** (both teams, a spectator and a replay
-    following a player): under the match timer, in the mode notice's style,
-    "Last enemy revealed in 12 s" for the other team, "You are revealed in
-    12 s" for him and "Your last teammate is revealed in 12 s" for his frozen
-    teammates; at 0 "... revealed on the map" for 3 s, then nothing. Both
-    sides down to one at once: both lines.
+  - **A popup, for everyone** (both teams, a spectator and a replay
+    following a player; the owner, 2026-11-26: "no need for it to be a timer,
+    it should be a small popup for a few seconds"): when his team goes down to
+    him, the game's short message (`set_parameterized_message`, small, 30%
+    down the screen) for 4 s, "Last enemy revealed in 15 s" for the other team,
+    "You are revealed in 15 s" for him and "Your last teammate is revealed in
+    15 s" for his frozen teammates; the seconds left at that moment, rounded
+    (a late joiner's or a resynced game's real number); no countdown after
+    it. When he is revealed, "... revealed on the map" for 3 s. Both sides
+    down to one in the same frame: both lines. (#2671's first version counted
+    down under the timer.)
   - The game's own spotted-enemy path: `minimap.enemy_spotted`
     (update_minimap_players' test of an enemy's spotted time, 0x239505) lists
     his dot as a spotted enemy's, as Artifact Hunt's carrier and a replay's
@@ -368,8 +373,9 @@ at 105 px (`Minimap.update_objects`).
   viewed), which the hud reads into a `RevealedPlaces`, and the countdown,
   `root.freeze_tag_reveal(own, ownLeft, enemy, enemyLeft)` (whose: 1 the
   viewer, 2 his last teammate, 3 the enemy's last one; the ms left, 0
-  revealed, sent 3 s after that), which `RevealNotice` shows under the timer
-  (under the mode notice while it shows).
+  revealed, sent 3 s after that), from which `RevealNotice` makes the popups:
+  one when a side starts counting or is revealed (its phase changes), none in
+  the frames between; a new match and another mode forget the sides.
 - `HUD.showRevealed` gives the places to the Tab map, and to the corner
   minimap while `HUD.REVEALED_ON_MINIMAP` (the owner, 2026-11-26: "minimap can
   show too"; the one switch, false for the Tab map alone). `Minimap` marks the
@@ -384,7 +390,7 @@ at 105 px (`Minimap.update_objects`).
 - Checks: `cargo:srp-validate` (the step's transitions: down to one, the 15 s,
   a thaw, his freeze and the round's end, a leave, a frozen arrival; the
   version 4 bytes and version 3's read). `freeze-native` (Unicorn): the step
-  saved in the world (and loaded again), every viewer's countdown (him, a
+  saved in the world (and loaded again), every viewer's reveal told (him, a
   frozen teammate, the other team), no listing at 0x239505 and no mask before
   15 s, both from 15 s, the notice's 3 s, a thaw ending it, a team of two never.
   `freeze-names` (Ruffle, both sizes): his dot listed draws nothing until
@@ -393,7 +399,11 @@ at 105 px (`Minimap.update_objects`).
   (red near him); a teammate's bit and a listed enemy not revealed unmarked;
   his name over the mark; revealed while the Tab list is closed, marked when
   it shows; none after mask 0, in another mode and a new match; in every
-  language the mode notice and the countdown's lines under the timer.
+  language the mode notice under the timer and the reveal's popups: one with
+  the seconds then, rounded (a late join's 7), unchanged by the next frames'
+  times, both sides' lines at once, "revealed" for the side revealed, the
+  sides forgotten in another mode and a new match; told each frame as the
+  exe does, shown at 3 s and gone at 6 s.
 
 **The mode notice.** A Freeze Tag match shows how the mode works under the
 match timer, as Blackout's (`ModeNotice`, `mode_introductions.md` "HUD notice

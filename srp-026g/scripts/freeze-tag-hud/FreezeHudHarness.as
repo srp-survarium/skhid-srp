@@ -8,6 +8,7 @@ package
    import flash.geom.Rectangle;
    import flash.text.TextField;
    import flash.utils.getQualifiedClassName;
+   import flash.utils.getTimer;
 
    // Freeze Tag's frozen teammates in the hud movie (docs/notes/freeze-tag.md, "The frozen name"), its
    // own root fed as the game feeds it: a match of mode 12 (the map, the local player's team, the
@@ -26,7 +27,9 @@ package
    //   on the corner minimap by HUD.REVEALED_ON_MINIMAP; a teammate's bit and a spotted enemy unmarked;
    //   marked when a held Tab map shows; none at mask 0, in another mode or a new match;
    // - in every language: Freeze Tag's mode notice under the timer and root.freeze_tag_reveal's
-   //   countdown under it (each side's line, its seconds rounded up, then "revealed", then none).
+   //   popups (the game's short message): one when a side starts counting, its seconds then rounded
+   //   (a late joiner's real number), no countdown after it, one when he is revealed; both sides at
+   //   once both lines; gone after its few seconds.
    // "FREEZE SHOT maps" for check.sh's screenshot; ends with "FREEZE RESULT pass" or "... fail: ...".
    public class FreezeHudHarness extends Sprite
    {
@@ -42,6 +45,10 @@ package
       // The enemy team's last one fighting (FreezeTag::last_standing): listed by the exe unspotted, far from
       // the local player (beyond the corner minimap's circle).
       private static const LAST:int = 11;
+      // The timed popup (phase 4): its text, when it was told.
+      private var popupFirst:String;
+      private var popupStart:int;
+      private var popupSeenAt3:Boolean = false;
 
       public function FreezeHudHarness()
       {
@@ -220,13 +227,25 @@ package
             .setData(HarnessText.DATA[language]);
       }
 
-      // Freeze Tag's mode notice (set_game_type 12) and the reveal's countdown for everyone
-      // (freeze_tag_reveal), in every language: under the timer, the countdown under the notice, its
-      // seconds rounded up, each side's line, then "revealed", then nothing.
+      // The game's short message (set_parameterized_message), the reveal's popup: its text, and
+      // whether it shows.
+      private function popup() : String
+      {
+         return String(hud.contextInfo3.mc_text.contextText.text).split("\r").join("\n");
+      }
+
+      private function popupShown() : Boolean
+      {
+         return hud.contextInfo3.visible && hud.contextInfo3.parent != null;
+      }
+
+      // Freeze Tag's mode notice (set_game_type 12) and the reveal's popups for everyone
+      // (freeze_tag_reveal, told each frame), in every language: a side that starts counting gives
+      // one popup with its seconds left then, rounded; the frames after it change nothing (no
+      // countdown); a side revealed gives "... revealed on the map".
       private function notices() : void
       {
          var mode:* = childOf("survarium.modes::ModeNotice");
-         var reveal:* = childOf("survarium.modes::RevealNotice");
          var screen:Rectangle = new Rectangle(0,0,stage.stageWidth,stage.stageHeight);
          for each(var language:String in HarnessText.LANGUAGES)
          {
@@ -235,44 +254,69 @@ package
             var text:Function = function(key:String, seconds:String = null):String {
                return seconds == null ? data[key] : String(data[key]).split("%1$s").join(seconds);
             };
-            hud.reset();
-            hud.set_game_type(12);
-            hud.force_interface_hidden(false);
-            hud.set_match_time("09:59");
+            var match:Function = function():void {
+               hud.reset();
+               hud.set_game_type(12);
+               hud.force_interface_hidden(false);
+               hud.set_match_time("09:59");
+            };
+            match();
             check(mode != null && mode.visible && mode.label.text.split("\r").join("\n") == data["st_srp_hud_freeze_start"],
                language + ": Freeze Tag's notice under the timer, Blackout's unforce leaves it");
             check(mode.label.textHeight < 200 && screen.containsRect(mode.getBounds(stage)),language + ": the notice fits");
-            hud.freeze_tag_reveal(0,0,3,12000);
-            var line:String = reveal == null ? "" : reveal.label.text;
-            check(reveal != null && reveal.visible && line == text("st_srp_hud_freeze_reveal_enemy","12"),
-               language + ": the hunters' countdown: " + line);
-            check(reveal.getBounds(stage).top >= mode.getBounds(stage).bottom && screen.containsRect(reveal.getBounds(stage)),
-               language + ": the countdown under the notice, on the screen");
-            hud.freeze_tag_reveal(1,11001,0,0);
-            check(reveal.label.text == text("st_srp_hud_freeze_reveal_self","12"),language + ": the last one's own countdown, rounded up");
-            hud.freeze_tag_reveal(2,500,0,0);
-            check(reveal.label.text == text("st_srp_hud_freeze_reveal_teammate","1"),language + ": his frozen teammates' countdown");
+            // The hunters: one popup, its seconds then; the next frames' times change nothing.
+            hud.freeze_tag_reveal(0,0,3,14980);
+            check(popupShown() && popup() == text("st_srp_hud_freeze_reveal_enemy","15"),
+               language + ": the hunters' popup: " + popup());
+            var shown:Rectangle = hud.contextInfo3.mc_text.contextText.getBounds(stage);
+            check(screen.containsRect(shown) && !shown.intersects(mode.label.getBounds(stage)),
+               language + ": the popup on the screen, clear of the mode notice");
+            hud.freeze_tag_reveal(0,0,3,13900);
+            hud.freeze_tag_reveal(0,0,3,9000);
+            check(popup() == text("st_srp_hud_freeze_reveal_enemy","15"),language + ": no countdown: " + popup());
+            // A late joiner (or a resynced game): his real seconds, rounded.
+            match();
+            hud.freeze_tag_reveal(1,7400,0,0);
+            check(popupShown() && popup() == text("st_srp_hud_freeze_reveal_self","7"),language + ": the last one's own popup, a late join: " + popup());
+            match();
+            hud.freeze_tag_reveal(2,14600,0,0);
+            check(popup() == text("st_srp_hud_freeze_reveal_teammate","15"),language + ": his frozen teammates' popup");
+            // Both sides down to one in the same frame: both lines, fitting.
+            match();
             hud.freeze_tag_reveal(2,500,3,15000);
-            check(reveal.label.text.split("\r").join("\n") == text("st_srp_hud_freeze_reveal_teammate","1") + "\n" +
-               text("st_srp_hud_freeze_reveal_enemy","15") && reveal.label.textHeight < 120,
-               language + ": both sides down to one: both lines, fitting");
+            check(popup() == text("st_srp_hud_freeze_reveal_teammate","1") + "\n" + text("st_srp_hud_freeze_reveal_enemy","15") &&
+               hud.contextInfo3.mc_text.contextText.numLines == 2 && screen.containsRect(hud.contextInfo3.mc_text.contextText.getBounds(stage)),
+               language + ": both sides at once: both lines, on the screen");
+            // Revealed: one popup for the side revealed; the side still counting tells nothing new.
+            hud.freeze_tag_reveal(2,0,3,14000);
+            check(popupShown() && popup() == text("st_srp_hud_freeze_revealed_teammate"),language + ": your teammate is revealed");
             hud.freeze_tag_reveal(0,0,3,0);
-            check(reveal.visible && reveal.label.text == text("st_srp_hud_freeze_revealed_enemy"),language + ": revealed");
-            hud.freeze_tag_reveal(1,0,0,0);
-            check(reveal.label.text == text("st_srp_hud_freeze_revealed_self"),language + ": you are revealed");
-            hud.freeze_tag_reveal(2,0,0,0);
-            check(reveal.label.text == text("st_srp_hud_freeze_revealed_teammate"),language + ": your teammate is revealed");
+            check(popup() == text("st_srp_hud_freeze_revealed_enemy"),language + ": the last enemy revealed");
             hud.freeze_tag_reveal(0,0,0,0);
-            check(!reveal.visible,language + ": nothing after it (a thaw, the notice's 3 s over)");
+            check(popup() == text("st_srp_hud_freeze_revealed_enemy"),language + ": nothing new after it");
+            match();
+            hud.freeze_tag_reveal(1,0,0,0);
+            check(popup() == text("st_srp_hud_freeze_revealed_self"),language + ": you are revealed");
          }
          setLanguage("english");
-         hud.freeze_tag_reveal(0,0,3,12000);
-         hud.set_game_type(1);
-         check(!reveal.visible && !mode.visible,"another mode: no countdown, no Freeze Tag notice");
+         var english:Object = HarnessText.DATA["english"];
+         // Another mode and a new match forget the sides: the next count is a popup again.
          hud.set_game_type(12);
          hud.freeze_tag_reveal(0,0,3,12000);
+         hud.set_game_type(1);
+         hud.set_game_type(12);
+         hud.freeze_tag_reveal(0,0,3,9000);
+         check(popup() == String(english.st_srp_hud_freeze_reveal_enemy).split("%1$s").join("9"),"another mode: the sides forgotten");
          hud.reset();
-         check(!reveal.visible,"a new match: no countdown");
+         hud.set_game_type(12);
+         hud.freeze_tag_reveal(0,0,3,8000);
+         check(popup() == String(english.st_srp_hud_freeze_reveal_enemy).split("%1$s").join("8"),"a new match: the sides forgotten");
+         // The popup's few seconds, told each frame as the exe does (timed in phase 4).
+         hud.reset();
+         hud.set_game_type(12);
+         popupFirst = String(english.st_srp_hud_freeze_reveal_enemy).split("%1$s").join("15");
+         popupStart = getTimer();
+         hud.freeze_tag_reveal(0,0,3,15000);
       }
 
       private function maps() : Array
@@ -352,7 +396,7 @@ package
                hud.update_players(near);
                revealedShown("revealed, near the local player",true);
                hud.update_players(players());
-               // The screenshot: the mode notice and the hunters' countdown under the timer.
+               // The screenshot: the mode notice and the hunters' popup.
                hud.set_match_time("09:45");
                hud.freeze_tag_reveal(0,0,3,12000);
                phase = 1;
@@ -456,6 +500,23 @@ package
                hud.show_artefact_offer("");
                hud.show_profiles_selector(false);
                notices();
+               phase = 4;
+               return;
+            }
+            if(phase == 4)
+            {
+               // As the exe: the same side told each frame, its ms left falling.
+               var elapsed:int = getTimer() - popupStart;
+               hud.freeze_tag_reveal(0,0,3,Math.max(1,15000 - elapsed));
+               if(popupShown() && popup() != popupFirst)
+               {
+                  check(false,"the popup's text changed while shown (a countdown): " + popup());
+                  popupFirst = popup();
+               }
+               if(elapsed >= 3000 && elapsed < 3500 && popupShown()) popupSeenAt3 = true;
+               if(elapsed < 6000) return;
+               check(popupSeenAt3,"the popup still shown 3 s after it");
+               check(!popupShown(),"the popup gone after its few seconds (4 s and its fade)");
                trace("FREEZE RESULT " + (failures.length ? "fail: " + failures.join("; ") : "pass"));
                phase = 3;
             }
