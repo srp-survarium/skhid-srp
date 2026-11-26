@@ -329,7 +329,6 @@ impl Running {
 /// One player as the log's "sides" and "late join" lines have it: what it
 /// counts for and the parts of that, at the match's equipment level
 /// `at`, and `, strong` at the end for a strong one (`level_stats::STRONG`).
-/// `scripts/balance-refit` reads these.
 fn counted_player(account: &Account, counts: f64, strength: Strength, gear: u8, at: u8) -> String {
     let there = account.level_stats.at(at);
     let strong = if strength >= level_stats::STRONG {
@@ -684,7 +683,7 @@ impl Core<'_> {
     /// Players the match server took into a running match (`joined`: each
     /// with its team and what it counted for): the lobby's roster of the
     /// match grows by them, the map is one more each has played, and the
-    /// log has the "late join" line (`scripts/balance-refit` reads it) with
+    /// log has the "late join" line with
     /// the sides as `placement` has them.
     pub(super) fn seated_late(
         &mut self,

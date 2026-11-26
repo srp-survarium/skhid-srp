@@ -263,7 +263,7 @@ Patches:
   death that completed the rule left it set and the replay of that death
   was skipped: one dead player of the team that was out stayed in the alive
   mask, the server saw a player alive and the match ran to the time limit
-  (match.md section 28). The `jnz` at 0x3160F1 becomes six nops, as the
+  (match.md section 37). The `jnz` at 0x3160F1 becomes six nops, as the
   battery rule's does;
 - the resources.db file table's signature is not checked (patch revision
   12, client_patch.md section 0.1): verify_sign's call of verify_sign_impl
@@ -960,7 +960,7 @@ GATHER = (GATHER_EVENTS, GATHER_LOCK)
 # alive mask) -> the jnz becomes nops, as for the battery rule above. The
 # completion time is not serialized (the constructor's 0x31601D is the only
 # write of -1), so a rollback over the death that completed the rule keeps
-# it, and the replay of that death is skipped (match.md section 28).
+# it, and the replay of that death is skipped (match.md section 37).
 TDM_DEATHS = (0x3160F1, bytes.fromhex("0f85e6000000"), b"\x90" * 6)
 
 # camouflage_decal_texture_type_baker_cook::check_loaded_baked_texture
@@ -1490,7 +1490,8 @@ READ_ORDER_SHA256 = "3c49ddd03438f137bbf3ec844d41ed3c4247d6d815595f1d494a515e112
 #   ctor clears it at 0x1F1BFB, nothing else writes it): set, the player is
 #   drawn for the decal editor, its skeleton in the bind pose (mt_draw
 #   0x2474A0 at 0x2476F8: the T-pose) and its held item 10 m under it
-#   (0x24778F), with another transform (insert 0x1F30E2). The six bytes are
+#   (0x24778F), with another transform (render_model 0x1F3070, at
+#   0x1F30E2). The six bytes are
 #   a call of weapon_draw_026g.asm's player_mode (WEAPON_DRAW_OFFSET of
 #   `.srp`, in the first page after the forward effect's scrolling) and a
 #   nop: 0 while a weapon is shown (the state's mode), the window's mode
@@ -2232,8 +2233,8 @@ PREGAME_PROGRESS = (PREGAME_PROGRESS_VA, bytes.fromhex("e9f4000000"),
 # `st_fov_option` in all five languages, and names its console variable by
 # `mov eax,offset "fov"` (0x262930; "fov" at 0xA0659C, read nowhere else).
 # No console variable is called "fov", so the slider was never shown (the
-# menu has no instance of it either: fov_slider_026g.py adds one to
-# main_menu.swf). `uro_fov` (float at 0xA6FA28, 65.0, saved in user.cfg; the
+# menu has no instance of it either; main_menu's own Gameplay slider is
+# flash/main_menu/src/SrpFieldOfView.as). `uro_fov` (float at 0xA6FA28, 65.0, saved in user.cfg; the
 # console variable at 0xAA6510, its name "uro_fov" at 0xA281D0) is
 # registered with the range 0 to 100 and read by nothing. Option 7 stays the
 # original's, dead: the Gameplay tab's slider (exe patch 83, `uro_fov` in

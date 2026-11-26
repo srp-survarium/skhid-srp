@@ -1785,7 +1785,8 @@ entire dirty tree, game resources or the owner's unrelated work.
 
 ## 2026-11-03 — Startup arena allocation on older Wine
 
-Separate from T1–T8: implemented Rust `startup_memory` (patch 78) in the
+Separate from T1–T8: implemented Rust `startup_memory` (not yet merged; its patch number is
+assigned when it lands) in the
 existing arena, with generated bindings/hook entry and an exclusive retry
 owner. After both native attempts fail, it decreases resource requests by
 64 MiB per attempt down to the configured minimum. Success consumes the

@@ -672,7 +672,7 @@ Not looked at: whether the two "not traced" event types 2 and 3 reach the event 
 - A member failed alone is rejected to the lobby as before (`take_rejected_joins`), its game, if connected, put out; **its place is still installed by every game**, as a place whose player left (a roster grows only at its end, so a place left out would stop the places after it). Only a place a game failed to install (`Status::Failed`) stops installing and fails the whole group, as before.
 - A match admits no new group while an admission of it is pending (`admitting`). Until 2026-10-19 one that had failed counted as pending for ever, and the match took no more late joiners: §33.
 
-## 28. A Team Deathmatch that does not end when a team is out (added 2026-10-15)
+## 37. A Team Deathmatch that does not end when a team is out (added 2026-10-15)
 
 Mode 4. Found from the live logs and the saved worlds of 2026-10-14/15; tools: `cargo run -p match-server --example tdm_alive -- <dir of snapshots> <map id>` (the tdm rule of each snapshot: tickets, alive mask, respawn queue, kills:deaths) and `--example tdm_blocks` (the alive flag of each player block; the item count of a profile is guessed, so only a verdict that all candidates share counts).
 
