@@ -512,6 +512,8 @@ st_camo_atlas_aubergine_crosscheck	Auberginen-Kreuzkaro
 st_camo_atlas_aubergine_kasuri	Auberginen-Kasuri
 st_camo_atlas_aubergine_screenprint	Auberginen-Siebdruck
 st_camo_atlas_aubergine_watercolor	Auberginen-Aquarell
+st_camo_atlas_balkan_dpm	Balkan-DPM
+st_camo_atlas_balkan_splinter	Balkansplitter
 st_camo_atlas_basalt_shard	Basaltscherbe
 st_camo_atlas_birch_leaf	Birkenblatt
 st_camo_atlas_black_ice	Glatteis
@@ -658,7 +660,9 @@ st_camo_atlas_maritime_terrazzo	Marine-Terrazzo
 st_camo_atlas_maritime_wave_fan	Marine-Wellenfächer
 st_camo_atlas_maritime_wax_resist	Marine-Batik
 st_camo_atlas_mauve_static	Malvenrauschen
+st_camo_atlas_mm_14	MM-14
 st_camo_atlas_mulberry_cloud	Maulbeerwolke
+st_camo_atlas_nfp_blue	NFP-Blau
 st_camo_atlas_night_grid	Nachtraster
 st_camo_atlas_night_silk	Nachtseide
 st_camo_atlas_ochre_cut	Ocker-Schnitt
@@ -687,7 +691,6 @@ st_camo_atlas_pewter_cloud_hex	Zinn-Wolkenwabe
 st_camo_atlas_pewter_cut_paper	Zinn-Scherenschnitt
 st_camo_atlas_pewter_fishbone	Zinn-Fischgrat
 st_camo_atlas_pewter_reed_stripe	Zinn-Schilfstreifen
-st_camo_atlas_pixel_steppe	Pixelsteppe
 st_camo_atlas_polar_mesh	Polargeflecht
 st_camo_atlas_porcelain_tide	Porzellanflut
 st_camo_atlas_quarry	Steinbruch
@@ -743,6 +746,7 @@ st_camo_atlas_sundown_terrazzo	Abendrot-Terrazzo
 st_camo_atlas_sundown_wave_fan	Abendrot-Wellenfächer
 st_camo_atlas_three_color_desert	Dreifarben-Wüste
 st_camo_atlas_tidal_pixel	Gezeitenpixel
+st_camo_atlas_tropentarn	Tropentarn
 st_camo_atlas_ultramarine_agate	Ultramarin-Achat
 st_camo_atlas_ultramarine_beadwork	Ultramarin-Perlenstickerei
 st_camo_atlas_ultramarine_broken_grid	Ultramarin-Bruchraster

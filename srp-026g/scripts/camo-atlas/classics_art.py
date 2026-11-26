@@ -4,24 +4,24 @@
 python3 classics_art.py fetch DIR                 download the swatches below into DIR
 python3 classics_art.py build --sources DIR [--out DIR]
 
-Swatch rows crop a square of a public-domain, CC0 or otherwise free swatch from Wikimedia
-Commons (SWATCHES: the file, its licence and the exact bytes used, by sha256) and make it
-periodic with a minimum-cost seam on the wrapped edges. Study rows are drawn from the seeds
-in this file and read no file. classics/SOURCES.txt says where each one comes from.
+Swatch rows crop a square of a free swatch from Wikimedia Commons (SWATCHES: the file, its
+licence and the exact bytes used, by sha256), evening out a photograph's lighting where asked,
+and make it periodic with a minimum-cost seam on the wrapped edges. Study rows are drawn from
+the seeds in this file and read no file. classics/SOURCES.txt says where each one comes from.
+One swatch replaces an older tile of initial/ and is written there (INITIAL), keeping its item.
 Pillow, NumPy and SciPy; with NumPy 2.4.4, Pillow 13.0.0 and SciPy 1.17.1 it reproduces
-classics/*.webp byte for byte. Catalog order is part of the game dictionary.
+classics/*.webp and initial/mm-14.webp byte for byte. Catalog order is part of the game dictionary.
 """
 import argparse
 import csv
 import hashlib
-import math
 import time
 import urllib.request
 from pathlib import Path
 
 import numpy as np
 from PIL import Image, ImageDraw
-from scipy.ndimage import map_coordinates
+from scipy.ndimage import gaussian_filter, map_coordinates
 
 HERE = Path(__file__).resolve().parent
 SIZE = 768
@@ -30,10 +30,10 @@ COMMONS = 'https://commons.wikimedia.org/wiki/File:'
 # name: (Commons file, download (the original or a standard thumbnail), its sha256, licence, author)
 SWATCHES = {
     'lizard': ('French_Lizard_Pattern_Swatch_from_the_1950s.png',
-               'https://upload.wikimedia.org/wikipedia/commons/thumb/c/c0/French_Lizard_Pattern_Swatch_from_the_1950s.png/3840px-French_Lizard_Pattern_Swatch_from_the_1950s.png',
+               'https://thumb.wikimedia.org/wikipedia/commons/thumb/c/c0/French_Lizard_Pattern_Swatch_from_the_1950s.png/3840px-French_Lizard_Pattern_Swatch_from_the_1950s.png',
                '509994ed27ced6b3a775cc415f0ee8c298809698f1e444cbd7b57c81eafba31d', 'CC0', 'VoltigeurFR'),
     'erdl': ('Brown-dominant_%22highland%22_ERDL_camouflage_pattern_swatch.svg',
-             'https://upload.wikimedia.org/wikipedia/commons/thumb/a/a0/Brown-dominant_%22highland%22_ERDL_camouflage_pattern_swatch.svg/3840px-Brown-dominant_%22highland%22_ERDL_camouflage_pattern_swatch.svg.png',
+             'https://thumb.wikimedia.org/wikipedia/commons/thumb/a/a0/Brown-dominant_%22highland%22_ERDL_camouflage_pattern_swatch.svg/3840px-Brown-dominant_%22highland%22_ERDL_camouflage_pattern_swatch.svg.png',
              '81c7eb807ce57aa500241f26e2cefd4fe35163fbe8e1df4a111622e902a69fae', 'public domain (U.S. Government work)',
              'Illegitimate Barrister'),
     'dcu': ('DCU_camo_swatch.png',
@@ -41,7 +41,7 @@ SWATCHES = {
             'f992a0dc395116e626d7ea214296ffd61870872e0ab17eec153055813caadf4c', 'public domain (U.S. Government work)',
             'Illegitimate Barrister'),
     'brush': ('Phase_I_All-Over_Brush_Urban_Camo_Close-Up_Swatch.png',
-              'https://upload.wikimedia.org/wikipedia/commons/thumb/6/6c/Phase_I_All-Over_Brush_Urban_Camo_Close-Up_Swatch.png/1280px-Phase_I_All-Over_Brush_Urban_Camo_Close-Up_Swatch.png',
+              'https://thumb.wikimedia.org/wikipedia/commons/thumb/6/6c/Phase_I_All-Over_Brush_Urban_Camo_Close-Up_Swatch.png/1280px-Phase_I_All-Over_Brush_Urban_Camo_Close-Up_Swatch.png',
               'a79a871defdae8dfe603529c3781a6dddb8b7d0def8071a8243a982b60aa5e2b', 'public domain (U.S. Government work)',
               'SergeantSelfExplanatory'),
     'cce': ('Bariolage_Centre-Europe.png',
@@ -53,6 +53,26 @@ SWATCHES = {
     'hu2015': ('2015M.png',
                'https://upload.wikimedia.org/wikipedia/commons/4/4e/2015M.png',
                '371316112e21753557e804e750af2631a64720c2540c6c9bc97b7a03dbe067f4', 'CC0', 'Shotya'),
+    'mm14': ('MM14.jpg',
+             'https://upload.wikimedia.org/wikipedia/commons/c/cd/MM14.jpg',
+             '2355623bc74b08cf21ba632c9003dcc5b1488a3a39bedb045a227633ded42017', 'CC BY-SA 4.0',
+             'Lucas Cavalcante Mesquita'),
+    'rhodesian': ('Rhodesian_Brushstroke_pattern.jpg',
+                  'https://upload.wikimedia.org/wikipedia/commons/1/19/Rhodesian_Brushstroke_pattern.jpg',
+                  '4b1657794e12f6fe9c810bde0e38fcdea09a8ca4d847f058808b55ecc88b277d', 'CC BY-SA 3.0', 'Katangais'),
+    'tropentarn': ('Tropentarn_Fabric_(cropped_2).jpg',
+                   'https://thumb.wikimedia.org/wikipedia/commons/thumb/2/2d/Tropentarn_Fabric_%28cropped_2%29.jpg/1920px-Tropentarn_Fabric_%28cropped_2%29.jpg',
+                   'c754c6d27774b12d7b3c1e5b0fe3d16e5661cdb25f6ab67a1aca013d922e8c2d', 'CC BY-SA 4.0', 'Murchison-Eye'),
+    'bgdpm': ('Bulgarian_M2003_DPM_camouflage.jpg',
+              'https://thumb.wikimedia.org/wikipedia/commons/thumb/c/c3/Bulgarian_M2003_DPM_camouflage.jpg/3840px-Bulgarian_M2003_DPM_camouflage.jpg',
+              '8e9eee6572ab15f4eb0eb5b851c23c74971cd5ec87c5a6d0e2d7e0271b72ca74', 'CC BY-SA 4.0', 'Spektov'),
+    'bgsplinter': ('Bulgarian_Splinter_camouflage.jpg',
+                   'https://thumb.wikimedia.org/wikipedia/commons/thumb/2/2a/Bulgarian_Splinter_camouflage.jpg/3840px-Bulgarian_Splinter_camouflage.jpg',
+                   '8c5393f2ffe5d562c49ff7363311c10452982f29402c5170616261269dc308ee', 'CC BY-SA 4.0', 'Spektov'),
+    'nfpblue': ('M19_NFP_Blue_-_Dutch_pattern.jpg',
+                'https://upload.wikimedia.org/wikipedia/commons/9/9a/M19_NFP_Blue_-_Dutch_pattern.jpg',
+                '67d2731157410be98125e41fe9161fc16f78008131bbe1e013f62c6fff74e3c8', 'CC BY-SA 4.0',
+                'Ministerie van Defensie (Netherlands)'),
 }
 
 
@@ -94,13 +114,18 @@ def periodic(crop, n):
     return wrap_columns(rows.transpose(1, 0, 2), n).transpose(1, 0, 2)
 
 
-def swatch(sources, name, x, y, n, overlap, repeats=False):
+def swatch(sources, name, x, y, n, overlap, repeats=False, light=0):
     file, _, digest, _, _ = SWATCHES[name]
     data = (sources / name).read_bytes()
     if hashlib.sha256(data).hexdigest() != digest:
         raise ValueError(f'{sources / name}: not the expected {file}')
     with Image.open(sources / name) as image:
         pixels = np.asarray(image.convert('RGB'))
+    if light:
+        # A photograph: divide out its broad light and shade (a blur of light radius) at constant mean.
+        values = pixels.astype(np.float32)
+        shade = gaussian_filter(values.mean(2), light, mode='reflect')
+        pixels = np.clip(np.rint(values * (shade.mean() / shade)[:, :, None]), 0, 255).astype(np.uint8)
     span = n + overlap
     if repeats:
         # The swatch is itself a repeat: the crop may run over its edges.
@@ -137,42 +162,6 @@ def polygon(draw, points, ink):
             moved = points + (dx, dy)
             if moved[:, 0].max() >= 0 and moved[:, 0].min() <= N and moved[:, 1].max() >= 0 and moved[:, 1].min() <= N:
                 draw.polygon([tuple(p) for p in moved], fill=ink)
-
-
-def brushstroke(rng):
-    """Green, then brown dry-brush strokes on a diagonal over a sand ground."""
-    image = Image.new('L', (N, N), 0)
-    draw = ImageDraw.Draw(image)
-    for ink, count in ((1, 16), (2, 13)):
-        for _ in range(count):
-            cx, cy = rng.uniform(0, N, 2)
-            angle = math.radians(-32 + rng.normal(0, 9))
-            length = rng.uniform(.30, .52) * N
-            width = rng.uniform(.045, .085) * N
-            ux, uy = math.cos(angle), math.sin(angle)
-            bend = rng.normal(0, .05) * N
-            wobble = rng.normal(0, 1, 6)
-            t = np.linspace(-.5, .5, 40)
-            profile = np.sin(np.pi * (t + .5)) ** .45
-            left, right = [], []
-            for i, ti in enumerate(t):
-                px = cx + ux * ti * length - uy * bend * (ti ** 2 * 4 - 1)
-                py = cy + uy * ti * length + ux * bend * (ti ** 2 * 4 - 1)
-                w = width * profile[i] * (1 + .18 * math.sin(7 * ti + wobble[0]) + .1 * math.sin(17 * ti + wobble[1]))
-                jl, jr = rng.normal(0, .05 * width, 2)
-                left.append((px - uy * (w + jl), py + ux * (w + jl)))
-                right.append((px + uy * (w + jr), py - ux * (w + jr)))
-            polygon(draw, left + right[::-1], ink)
-            for end in (-1, 1):
-                for _ in range(rng.integers(5, 10)):
-                    off = rng.uniform(-.8, .8) * width
-                    s0, s1 = end * length * .42, end * length * rng.uniform(.5, .68)
-                    th = rng.uniform(.04, .12) * width
-                    a0 = (cx + ux * s0 - uy * off, cy + uy * s0 + ux * off)
-                    off1 = off + rng.normal(0, .1 * width)
-                    a1 = (cx + ux * s1 - uy * off1, cy + uy * s1 + ux * off1)
-                    polygon(draw, [(a0[0] - uy * th, a0[1] + ux * th), a1, (a0[0] + uy * th, a0[1] - ux * th)], ink)
-    return np.asarray(image)
 
 
 def frogskin(rng):
@@ -264,8 +253,8 @@ ROWS = [
      'Interlocking leaf shapes in ochre, olive and brown with pale veins, from the Hungarian 2015M swatch.',
      ('swatch', 'hu2015', 0, 0, 960, 140)),
     ('brushstroke', 'Brushstroke', 'Brushstroke',
-     'Diagonal green and brown dry-brush strokes on sand. An original study of the Rhodesian pattern.',
-     ('study', brushstroke, 'C5A57A 4A5A30 6B4527', 11)),
+     'Diagonal green and brown dry-brush strokes on sand, from a Rhodesian brushstroke swatch.',
+     ('swatch', 'rhodesian', 0, 0, 600, 90)),
     ('frogskin', 'Frogskin', 'Frogskin',
      'Rounded spots in olive, brown, forest and black on pale green. An original study of the 1940s spot patterns.',
      ('study', frogskin, 'A9AD84 6E7445 7B5A3B 3E4A2C 2A2A22', 5)),
@@ -278,6 +267,23 @@ ROWS = [
     ('leibermuster', 'Leibermuster', 'Squiggle',
      'Green and red-brown patches, black squiggles and pale flecks on buff. An original study of the 1945 German pattern.',
      ('study', leiber, 'C2B994 667346 8A5A3E 24231F E3DDC8', 45)),
+    ('tropentarn', 'Tropentarn', 'Desert Fleck',
+     'Brown, green and sand flecks on a pale khaki ground, from a German Tropentarn fabric photograph.',
+     ('swatch', 'tropentarn', 576, 0, 1150, 150, False, 150)),
+    ('balkan-dpm', 'Balkan DPM', 'Disruptive Pattern',
+     'Interlocking brush shapes in brown, olive, grey, navy and cream, from the Bulgarian M2003 DPM.',
+     ('swatch', 'bgdpm', 1792, 768, 1800, 240, False, 150)),
+    ('balkan-splinter', 'Balkan Splinter', 'Splinter Rain',
+     'Grey and plum splinters over a beige ground with rain marks, from the Bulgarian splinter pattern.',
+     ('swatch', 'bgsplinter', 1792, 704, 1800, 240)),
+    ('nfp-blue', 'NFP Blue', 'Mottle',
+     'Fine navy and slate mottling, from the Dutch M19 NFP Blue pattern.',
+     ('swatch', 'nfpblue', 0, 0, 740, 90)),
+]
+
+# Rows that keep an item of initial/ (its place in initial/catalog.tsv) with a swatch in place of a study.
+INITIAL = [
+    ('mm-14', ('swatch', 'mm14', 0, 192, 640, 96)),
 ]
 
 
@@ -287,7 +293,7 @@ def palette(image):
     return ' '.join('#' + bytes(colors[i]).hex().upper() for count, i in sorted(quant.getcolors(), reverse=True))
 
 
-def build(sources, out):
+def build(sources, out, initial):
     out.mkdir(parents=True, exist_ok=True)
     rows = []
     for slug, name, family, description, how in ROWS:
@@ -302,6 +308,10 @@ def build(sources, out):
         image.save(out / (slug + '.webp'), quality=94, method=4)
         rows.append((slug, name, family, description, url, label, palette(image)))
         print(slug, flush=True)
+    for slug, how in INITIAL:
+        image = swatch(sources, *how[1:])
+        image.save(initial / (slug + '.webp'), quality=94, method=4)
+        print(f'{slug} (initial/, palette {palette(image)})', flush=True)
     with (out / 'catalog.tsv').open('w', encoding='utf-8', newline='') as stream:
         writer = csv.writer(stream, delimiter='\t', lineterminator='\n')
         writer.writerow(('slug', 'name', 'family', 'description', 'source_url', 'source_label', 'palette'))
@@ -330,11 +340,12 @@ def main():
     make = commands.add_parser('build')
     make.add_argument('--sources', required=True, type=Path)
     make.add_argument('--out', type=Path, default=HERE / 'classics')
+    make.add_argument('--initial', type=Path, default=HERE / 'initial')
     args = parser.parse_args()
     if args.command == 'fetch':
         fetch(args.dir)
     else:
-        build(args.sources, args.out)
+        build(args.sources, args.out, args.initial)
 
 
 if __name__ == '__main__':

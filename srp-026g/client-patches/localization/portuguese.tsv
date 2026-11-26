@@ -512,6 +512,8 @@ st_camo_atlas_aubergine_crosscheck	Xadrez cruzado berinjela
 st_camo_atlas_aubergine_kasuri	Kasuri berinjela
 st_camo_atlas_aubergine_screenprint	Serigrafia berinjela
 st_camo_atlas_aubergine_watercolor	Aquarela berinjela
+st_camo_atlas_balkan_dpm	DPM balcânico
+st_camo_atlas_balkan_splinter	Estilhaços balcânicos
 st_camo_atlas_basalt_shard	Estilhaço de basalto
 st_camo_atlas_birch_leaf	Folha de bétula
 st_camo_atlas_black_ice	Gelo negro
@@ -658,7 +660,9 @@ st_camo_atlas_maritime_terrazzo	Granilite marítimo
 st_camo_atlas_maritime_wave_fan	Leque de ondas marítimo
 st_camo_atlas_maritime_wax_resist	Batique marítimo
 st_camo_atlas_mauve_static	Estática malva
+st_camo_atlas_mm_14	MM-14
 st_camo_atlas_mulberry_cloud	Nuvem amora
+st_camo_atlas_nfp_blue	NFP azul
 st_camo_atlas_night_grid	Grade noturna
 st_camo_atlas_night_silk	Seda noturna
 st_camo_atlas_ochre_cut	Recorte ocre
@@ -687,7 +691,6 @@ st_camo_atlas_pewter_cloud_hex	Nuvem hexagonal estanho
 st_camo_atlas_pewter_cut_paper	Papel recortado estanho
 st_camo_atlas_pewter_fishbone	Espinha de peixe estanho
 st_camo_atlas_pewter_reed_stripe	Listra de junco estanho
-st_camo_atlas_pixel_steppe	Estepe pixelada
 st_camo_atlas_polar_mesh	Malha polar
 st_camo_atlas_porcelain_tide	Maré de porcelana
 st_camo_atlas_quarry	Pedreira
@@ -743,6 +746,7 @@ st_camo_atlas_sundown_terrazzo	Granilite do poente
 st_camo_atlas_sundown_wave_fan	Leque de ondas do poente
 st_camo_atlas_three_color_desert	Deserto tricolor
 st_camo_atlas_tidal_pixel	Pixel de maré
+st_camo_atlas_tropentarn	Tropentarn
 st_camo_atlas_ultramarine_agate	Ágata ultramar
 st_camo_atlas_ultramarine_beadwork	Bordado de miçanga ultramar
 st_camo_atlas_ultramarine_broken_grid	Grade quebrada ultramar

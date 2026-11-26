@@ -512,6 +512,8 @@ st_camo_atlas_aubergine_crosscheck	Lilkové křížové káro
 st_camo_atlas_aubergine_kasuri	Lilkové kasuri
 st_camo_atlas_aubergine_screenprint	Lilkový sítotisk
 st_camo_atlas_aubergine_watercolor	Lilkový akvarel
+st_camo_atlas_balkan_dpm	Balkánský DPM
+st_camo_atlas_balkan_splinter	Balkánské střepy
 st_camo_atlas_basalt_shard	Čedičový střep
 st_camo_atlas_birch_leaf	Březový list
 st_camo_atlas_black_ice	Náledí
@@ -658,7 +660,9 @@ st_camo_atlas_maritime_terrazzo	Mořské teraco
 st_camo_atlas_maritime_wave_fan	Mořský vějíř vln
 st_camo_atlas_maritime_wax_resist	Mořská batika
 st_camo_atlas_mauve_static	Lila šum
+st_camo_atlas_mm_14	MM-14
 st_camo_atlas_mulberry_cloud	Morušový mrak
+st_camo_atlas_nfp_blue	Modrý NFP
 st_camo_atlas_night_grid	Noční mřížka
 st_camo_atlas_night_silk	Noční hedvábí
 st_camo_atlas_ochre_cut	Okrová vystřihovánka
@@ -687,7 +691,6 @@ st_camo_atlas_pewter_cloud_hex	Cínové oblačné plástve
 st_camo_atlas_pewter_cut_paper	Cínová vystřihovánka
 st_camo_atlas_pewter_fishbone	Cínová rybí kost
 st_camo_atlas_pewter_reed_stripe	Cínový rákosový pruh
-st_camo_atlas_pixel_steppe	Pixelová step
 st_camo_atlas_polar_mesh	Polární síťka
 st_camo_atlas_porcelain_tide	Porcelánový příliv
 st_camo_atlas_quarry	Lom
@@ -743,6 +746,7 @@ st_camo_atlas_sundown_terrazzo	Teraco soumraku
 st_camo_atlas_sundown_wave_fan	Vějíř vln soumraku
 st_camo_atlas_three_color_desert	Tříbarevná poušť
 st_camo_atlas_tidal_pixel	Přílivový pixel
+st_camo_atlas_tropentarn	Tropentarn
 st_camo_atlas_ultramarine_agate	Ultramarínový achát
 st_camo_atlas_ultramarine_beadwork	Ultramarínové korálky
 st_camo_atlas_ultramarine_broken_grid	Ultramarínová lomená mřížka

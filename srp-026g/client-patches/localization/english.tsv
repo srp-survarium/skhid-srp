@@ -512,6 +512,8 @@ st_camo_atlas_aubergine_crosscheck	Aubergine Crosscheck
 st_camo_atlas_aubergine_kasuri	Aubergine Kasuri
 st_camo_atlas_aubergine_screenprint	Aubergine Screenprint
 st_camo_atlas_aubergine_watercolor	Aubergine Watercolor
+st_camo_atlas_balkan_dpm	Balkan DPM
+st_camo_atlas_balkan_splinter	Balkan Splinter
 st_camo_atlas_basalt_shard	Basalt Shard
 st_camo_atlas_birch_leaf	Birch Leaf
 st_camo_atlas_black_ice	Black Ice
@@ -658,7 +660,9 @@ st_camo_atlas_maritime_terrazzo	Maritime Terrazzo
 st_camo_atlas_maritime_wave_fan	Maritime Wave Fan
 st_camo_atlas_maritime_wax_resist	Maritime Wax Resist
 st_camo_atlas_mauve_static	Mauve Static
+st_camo_atlas_mm_14	MM-14
 st_camo_atlas_mulberry_cloud	Mulberry Cloud
+st_camo_atlas_nfp_blue	NFP Blue
 st_camo_atlas_night_grid	Night Grid
 st_camo_atlas_night_silk	Night Silk
 st_camo_atlas_ochre_cut	Ochre Cut
@@ -687,7 +691,6 @@ st_camo_atlas_pewter_cloud_hex	Pewter Cloud Hex
 st_camo_atlas_pewter_cut_paper	Pewter Cut Paper
 st_camo_atlas_pewter_fishbone	Pewter Fishbone
 st_camo_atlas_pewter_reed_stripe	Pewter Reed Stripe
-st_camo_atlas_pixel_steppe	Pixel Steppe
 st_camo_atlas_polar_mesh	Polar Mesh
 st_camo_atlas_porcelain_tide	Porcelain Tide
 st_camo_atlas_quarry	Quarry
@@ -743,6 +746,7 @@ st_camo_atlas_sundown_terrazzo	Sundown Terrazzo
 st_camo_atlas_sundown_wave_fan	Sundown Wave Fan
 st_camo_atlas_three_color_desert	Three-Color Desert
 st_camo_atlas_tidal_pixel	Tidal Pixel
+st_camo_atlas_tropentarn	Tropentarn
 st_camo_atlas_ultramarine_agate	Ultramarine Agate
 st_camo_atlas_ultramarine_beadwork	Ultramarine Beadwork
 st_camo_atlas_ultramarine_broken_grid	Ultramarine Broken Grid

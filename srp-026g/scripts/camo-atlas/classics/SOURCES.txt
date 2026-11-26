@@ -1,18 +1,26 @@
-The 12 tiles of this folder (classics/catalog.tsv) are drawn by classics_art.py: seven
-are cut from free swatches of real camouflage patterns, five are original procedural studies of
-classic patterns. classics_art.py fetch downloads the swatches and checks each one's sha256;
-classics_art.py build then reproduces every WebP here byte for byte (checked 2026-11-26 with
-NumPy 2.4.4, Pillow 13.0.0 and SciPy 1.17.1).
+The 16 tiles of this folder (classics/catalog.tsv) and initial/mm-14.webp are drawn by
+classics_art.py: 13 are cut from free swatches of real camouflage patterns, four are original
+procedural studies of classic patterns. classics_art.py fetch downloads the swatches and checks
+each one's sha256; classics_art.py build then reproduces every WebP byte for byte (checked
+2026-11-26 with NumPy 2.4.4, Pillow 13.0.0 and SciPy 1.17.1).
 
-Swatches, all from Wikimedia Commons (the page is each catalog row's source_url):
+Each swatch tile is a modified copy of its source: cropped, its lighting evened out where
+the source is a photograph (tropentarn, balkan-dpm), made seamless and scaled to 768 px. A
+crop is made periodic by replacing a strip at its left and top edges with the pixels that
+followed the crop in the swatch, cut along the path of least colour difference, so the tile's
+edges meet as the swatch's own did. Centre Europe and the desert swatch are themselves
+repeats, and their crops run over the swatch's edges.
+
+
+Public domain and CC0 swatches (Wikimedia Commons; the page is each catalog row's source_url)
 
   lizard.webp              French_Lizard_Pattern_Swatch_from_the_1950s.png, by VoltigeurFR,
                            CC0 1.0 (the 3840 px standard thumbnail of the 11202 px original)
-  erdl-highland.webp       Brown-dominant "highland" ERDL camouflage pattern swatch.svg, uploaded by
-                           Illegitimate Barrister: public domain, a U.S. Government design
+  erdl-highland.webp       Brown-dominant "highland" ERDL camouflage pattern swatch.svg, uploaded
+                           by Illegitimate Barrister: public domain, a U.S. Government design
                            (Engineer Research and Development Laboratories); 3840 px rendering
-  three-color-desert.webp  DCU_camo_swatch.png, uploaded by Illegitimate Barrister: public domain, the U.S.
-                           Army's three-colour desert pattern; the original file
+  three-color-desert.webp  DCU_camo_swatch.png, uploaded by Illegitimate Barrister: public domain,
+                           the U.S. Army's three-colour desert pattern; the original file
   urban-brush.webp         Phase_I_All-Over_Brush_Urban_Camo_Close-Up_Swatch.png, uploaded by
                            SergeantSelfExplanatory: public domain, a U.S. Army photograph (from a
                            briefing on its 2002 Universal Camouflage for the Future Warrior trial)
@@ -31,24 +39,59 @@ its own in the United States.
 CC0 1.0: https://creativecommons.org/publicdomain/zero/1.0/
 A work of the U.S. Government is in the public domain in the United States (17 U.S.C. 105).
 
-The three CC0 drawings render current national patterns: the French Army's Centre Europe (CCE)
-and Bariolage multi-environnement (BME), and the Hungarian Defence Forces' 2015M. The uploaders
-dedicated their drawings to the public domain; whether the armies claim a design right in the
-patterns themselves is not stated on those pages. The project owner decides whether to ship them.
 
-Each crop is made periodic by replacing a strip at its left and top edges with the pixels that
-followed the crop in the swatch, cut along the path of least colour difference, so the tile's
-edges meet as the swatch's own did. Centre Europe and the desert swatch are themselves repeats,
-and their crops run over the swatch's edges.
+CC BY-SA swatches: credits
 
-Studies (brushstroke, frogskin, alpenflage, klmk, leibermuster): drawn from the seeds and
-palettes in classics_art.py; they read no image. Each recalls a classic family (the Rhodesian
-brushstroke, the 1940s U.S. spot patterns, the Swiss TAZ 83, the Soviet KLMK, the 1945 German
-Leibermuster) without copying a swatch of it. They were written on 2026-11-26 by a coding agent,
-like initial/; no licence has been stated for them yet, as for initial/.
+  initial/mm-14.webp       "MM14" by Lucas Cavalcante Mesquita,
+                           https://commons.wikimedia.org/wiki/File:MM14.jpg,
+                           CC BY-SA 4.0; modified: cropped, made seamless, scaled
+  brushstroke.webp         "Rhodesian Brushstroke pattern" by Katangais,
+                           https://commons.wikimedia.org/wiki/File:Rhodesian_Brushstroke_pattern.jpg,
+                           CC BY-SA 3.0; modified: cropped, made seamless, scaled
+  tropentarn.webp          "Tropentarn Fabric (cropped 2)" by Murchison-Eye,
+                           https://commons.wikimedia.org/wiki/File:Tropentarn_Fabric_(cropped_2).jpg,
+                           CC BY-SA 4.0; modified: cropped, lighting evened out, made seamless, scaled
+  balkan-dpm.webp          "Bulgarian M2003 DPM camouflage" by Spektov,
+                           https://commons.wikimedia.org/wiki/File:Bulgarian_M2003_DPM_camouflage.jpg,
+                           CC BY-SA 4.0; modified: cropped, lighting evened out, made seamless, scaled
+  balkan-splinter.webp     "Bulgarian Splinter camouflage" by Spektov,
+                           https://commons.wikimedia.org/wiki/File:Bulgarian_Splinter_camouflage.jpg,
+                           CC BY-SA 4.0; modified: cropped, made seamless, scaled
+  nfp-blue.webp            "M19 NFP Blue - Dutch pattern", Ministerie van Defensie (Netherlands),
+                           from https://www.defensie.nl/onderwerpen/materieel/kleding-en-uitrusting/camouflagepatronen,
+                           https://commons.wikimedia.org/wiki/File:M19_NFP_Blue_-_Dutch_pattern.jpg,
+                           CC BY-SA 4.0 on Commons (defensie.nl lets its images be used freely with
+                           the credit "ministerie van Defensie" and a note of any change);
+                           modified: cropped, made seamless, scaled
+
+CC BY-SA 4.0: https://creativecommons.org/licenses/by-sa/4.0/
+CC BY-SA 3.0: https://creativecommons.org/licenses/by-sa/3.0/
+
+These textures are adaptations, and each is licensed as its source: the five from CC BY-SA 4.0
+sources under CC BY-SA 4.0, or, as CC BY-SA 4.0 permits for adaptations, under the GNU GPL v3
+(this repository's licence); brushstroke.webp under CC BY-SA 3.0 only, since CC BY-SA 3.0 is not
+compatible with the GPL. Each credit above applies wherever the texture goes, including the
+game's archive built from it.
+
+The CC0 drawings and the CC BY-SA swatches render national patterns (France's CCE and BME,
+Hungary's 2015M, Ukraine's MM-14, Germany's Tropentarn, Bulgaria's DPM and splinter, the
+Netherlands' NFP). The licences cover the drawings and photographs; whether an army claims a
+design right in its pattern is not stated on those pages. The project owner accepted that.
+
+
+Studies (frogskin, alpenflage, klmk, leibermuster): drawn from the seeds and palettes in
+classics_art.py; they read no image. Each recalls a classic family (the 1940s U.S. spot patterns,
+the Swiss TAZ 83, the Soviet KLMK, the 1945 German Leibermuster) without copying a swatch of
+it. They were written on 2026-11-26 by a coding agent, like initial/; no licence has been stated
+for them yet, as for initial/. brushstroke.webp was such a study until the real Rhodesian
+swatch above took its place under the same item.
+
 
 Looked at and left out: SnowyCocoon's free packs (every motif is already in art/), ShareTextures
 (its "CC0" adds use and redistribution limits), Megabyte Games' Chromatic Camouflage (CC BY 4.0,
-disclosed as AI-assisted), CC BY-SA swatches, photographs of folded garments, recolours of a
-pattern chosen here (ERDL lowland, M81, CCE Daguet, Alpin and Montagne, BME variants), and
-restricted designs (MARPAT, CADPAT, MultiCam and OCP, commercial hunting patterns).
+disclosed as AI-assisted), photographs of folded garments or blurred ones, recolours of a
+pattern chosen here (ERDL lowland, M81, CCE Daguet, Alpin and Montagne, BME variants, NFP
+green and multitone), a second flecktarn (Japanese) beside the stock game's, Waffen-SS patterns,
+and restricted designs (MARPAT, CADPAT, MultiCam and OCP, commercial hunting patterns).
+MM-25: the Ministry of Defence of Ukraine has not published the pattern, and its fabric and
+garment specifications set colours by an approved physical sample, with no picture of it.

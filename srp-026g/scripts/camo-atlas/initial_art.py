@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
-"""Draw the 14 tiles of initial/ (768 x 768 WebP) from seeded noise and the palettes below.
+"""Draw 13 of the 14 tiles of initial/ (768 x 768 WebP) from seeded noise and the palettes below.
 
 python3 initial_art.py [--out DIR]   (default: initial/ beside this script)
 Pillow and NumPy. No input files: every shape comes from the seeds in this file. Written
 2026-11-25 for the camouflage gallery and kept here so the tiles can be regenerated; with
-NumPy 2.4.4 and Pillow 12.2.0 (as made) or 13.0.0 it reproduces initial/*.webp byte for byte.
+NumPy 2.4.4 and Pillow 12.2.0 (as made) or 13.0.0 it reproduces them byte for byte. The 14th,
+mm-14.webp, is a swatch of the real MM-14 drawn by classics_art.py; it replaced this script's MM-14
+study (Pixel Steppe) on 2026-11-26.
 """
 import argparse
 import numpy as np
@@ -143,16 +145,12 @@ rows=[
 ("ember-leaf","8E6040 BD8C50 AD6342 593F3D",ember),
 ("tidal-pixel","577B78 789B93 506672 35495A",tidal),
 ("violet-splinter","7F7284 ADA1A6 695F76 4B4059",lambda:angular(873,5))]
-def steppe():
-    u=np.floor(X*82)/82; v=np.floor(Y*82)/82
-    a=organic(579,u,v,5,5)+.32*field(101,19,21,u,v)
-    b=organic(433,u,v,6,6)+.19*field(43,23,20,u,v)
-    return np.select([a>.95,b>.62,((a>.08)&(b<.15)),((b>-.13)&(a<.3))],[4,3,2,1],0)
 def mosaic():
     u=X+.07*field(810,4,3); v=Y+.05*field(523,4,4)
     a=organic(251,u,v,5,9); b=organic(216,u,v,6,8); c=organic(211,u,v,8,10); d=organic(226,u,v,8,11)
     return np.select([a>.89,b>.53,c>.39,d>.26],[4,3,2,1],0)
-rows.extend([("pixel-steppe","B7A98B A39D7D 85896B 706F56 625D50",steppe),("field-mosaic","9A9473 B0A388 837F5B 6D6E4F 635948",mosaic)])
+# Row 12 was the MM-14 study; its place stays empty so each tile keeps its grain seed (i).
+rows.extend([None,("field-mosaic","9A9473 B0A388 837F5B 6D6E4F 635948",mosaic)])
 
 
 def main():
@@ -160,7 +158,10 @@ def main():
     parser.add_argument('--out',type=Path,default=Path(__file__).resolve().parent/'initial')
     out=parser.parse_args().out
     out.mkdir(parents=True,exist_ok=True)
-    for i,(name,palette,fn) in enumerate(rows):
+    for i,row in enumerate(rows):
+        if row is None:
+            continue
+        name,palette,fn=row
         p=np.array([[int(c[k:k+2],16) for k in (0,2,4)] for c in palette.split()],dtype='float32')
         color=p[fn()]
         # Subtle print mottling, periodic over each tile. No pre-lit bevels or shadows.

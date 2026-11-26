@@ -512,6 +512,8 @@ st_camo_atlas_aubergine_crosscheck	Padlizsánlila keresztkocka
 st_camo_atlas_aubergine_kasuri	Padlizsánlila kasuri
 st_camo_atlas_aubergine_screenprint	Padlizsánlila szitanyomat
 st_camo_atlas_aubergine_watercolor	Padlizsánlila akvarell
+st_camo_atlas_balkan_dpm	Balkáni DPM
+st_camo_atlas_balkan_splinter	Balkáni szilánkok
 st_camo_atlas_basalt_shard	Bazaltszilánk
 st_camo_atlas_birch_leaf	Nyírfalevél
 st_camo_atlas_black_ice	Fekete jég
@@ -658,7 +660,9 @@ st_camo_atlas_maritime_terrazzo	Tengeri terrazzo
 st_camo_atlas_maritime_wave_fan	Tengeri hullámlegyező
 st_camo_atlas_maritime_wax_resist	Tengeri batik
 st_camo_atlas_mauve_static	Mályvaszínű zaj
+st_camo_atlas_mm_14	MM-14
 st_camo_atlas_mulberry_cloud	Szederfelhő
+st_camo_atlas_nfp_blue	Kék NFP
 st_camo_atlas_night_grid	Éjszakai rács
 st_camo_atlas_night_silk	Éjselyem
 st_camo_atlas_ochre_cut	Okker kivágás
@@ -687,7 +691,6 @@ st_camo_atlas_pewter_cloud_hex	Ónszürke felhőméhsejt
 st_camo_atlas_pewter_cut_paper	Ónszürke papírkivágás
 st_camo_atlas_pewter_fishbone	Ónszürke halszálka
 st_camo_atlas_pewter_reed_stripe	Ónszürke nádcsík
-st_camo_atlas_pixel_steppe	Pixelsztyepp
 st_camo_atlas_polar_mesh	Sarki háló
 st_camo_atlas_porcelain_tide	Porcelándagály
 st_camo_atlas_quarry	Kőfejtő
@@ -743,6 +746,7 @@ st_camo_atlas_sundown_terrazzo	Alkonyi terrazzo
 st_camo_atlas_sundown_wave_fan	Alkonyi hullámlegyező
 st_camo_atlas_three_color_desert	Háromszínű sivatag
 st_camo_atlas_tidal_pixel	Árapálypixel
+st_camo_atlas_tropentarn	Tropentarn
 st_camo_atlas_ultramarine_agate	Ultramarinkék achát
 st_camo_atlas_ultramarine_beadwork	Ultramarinkék gyöngyhímzés
 st_camo_atlas_ultramarine_broken_grid	Ultramarinkék tört rács

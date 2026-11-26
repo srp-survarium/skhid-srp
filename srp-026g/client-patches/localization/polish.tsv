@@ -512,6 +512,8 @@ st_camo_atlas_aubergine_crosscheck	Bakłażanowa krzyżowa krata
 st_camo_atlas_aubergine_kasuri	Bakłażanowe kasuri
 st_camo_atlas_aubergine_screenprint	Bakłażanowy sitodruk
 st_camo_atlas_aubergine_watercolor	Bakłażanowa akwarela
+st_camo_atlas_balkan_dpm	Bałkański DPM
+st_camo_atlas_balkan_splinter	Bałkańskie odłamki
 st_camo_atlas_basalt_shard	Bazaltowy odłamek
 st_camo_atlas_birch_leaf	Brzozowy liść
 st_camo_atlas_black_ice	Gołoledź
@@ -658,7 +660,9 @@ st_camo_atlas_maritime_terrazzo	Morskie lastryko
 st_camo_atlas_maritime_wave_fan	Morski wachlarz fal
 st_camo_atlas_maritime_wax_resist	Morski batik
 st_camo_atlas_mauve_static	Liliowe zakłócenia
+st_camo_atlas_mm_14	MM-14
 st_camo_atlas_mulberry_cloud	Morwowa chmura
+st_camo_atlas_nfp_blue	Niebieski NFP
 st_camo_atlas_night_grid	Nocna siatka
 st_camo_atlas_night_silk	Nocny jedwab
 st_camo_atlas_ochre_cut	Ochrowa wycinanka
@@ -687,7 +691,6 @@ st_camo_atlas_pewter_cloud_hex	Cynowe sześciokątne chmury
 st_camo_atlas_pewter_cut_paper	Cynowa wycinanka
 st_camo_atlas_pewter_fishbone	Cynowa jodełka
 st_camo_atlas_pewter_reed_stripe	Cynowy trzcinowy pas
-st_camo_atlas_pixel_steppe	Pikselowy step
 st_camo_atlas_polar_mesh	Polarna siatka
 st_camo_atlas_porcelain_tide	Porcelanowy przypływ
 st_camo_atlas_quarry	Kamieniołom
@@ -743,6 +746,7 @@ st_camo_atlas_sundown_terrazzo	Lastryko zmierzchu
 st_camo_atlas_sundown_wave_fan	Wachlarz fal zmierzchu
 st_camo_atlas_three_color_desert	Trójbarwna pustynia
 st_camo_atlas_tidal_pixel	Pływowy piksel
+st_camo_atlas_tropentarn	Tropentarn
 st_camo_atlas_ultramarine_agate	Ultramarynowy agat
 st_camo_atlas_ultramarine_beadwork	Ultramarynowe koraliki
 st_camo_atlas_ultramarine_broken_grid	Ultramarynowa łamana siatka

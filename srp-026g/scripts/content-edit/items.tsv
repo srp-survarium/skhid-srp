@@ -939,7 +939,7 @@ items	name	base_cost	premium	like	start
 2809	camo_atlas_ember_leaf	1	false		
 2810	camo_atlas_tidal_pixel	1	false		
 2811	camo_atlas_violet_splinter	1	false		
-2812	camo_atlas_pixel_steppe	1	false		
+2812	camo_atlas_mm_14	1	false		
 2813	camo_atlas_field_mosaic	1	false		
 2814	camo_atlas_porcelain_tide	1	false		
 2815	camo_atlas_orchid_static	1	false		
@@ -1238,3 +1238,7 @@ items	name	base_cost	premium	like	start
 3108	camo_atlas_alpenflage	1	false		
 3109	camo_atlas_klmk	1	false		
 3110	camo_atlas_leibermuster	1	false		
+3111	camo_atlas_tropentarn	1	false		
+3112	camo_atlas_balkan_dpm	1	false		
+3113	camo_atlas_balkan_splinter	1	false		
+3114	camo_atlas_nfp_blue	1	false		

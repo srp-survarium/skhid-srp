@@ -512,6 +512,8 @@ st_camo_atlas_aubergine_crosscheck	Баклажанавая скрыжавана
 st_camo_atlas_aubergine_kasuri	Баклажанавае касуры
 st_camo_atlas_aubergine_screenprint	Баклажанавая шаўкаграфія
 st_camo_atlas_aubergine_watercolor	Баклажанавая акварэль
+st_camo_atlas_balkan_dpm	Балканскі DPM
+st_camo_atlas_balkan_splinter	Балканскія асколкі
 st_camo_atlas_basalt_shard	Базальтавы асколак
 st_camo_atlas_birch_leaf	Бярозавы ліст
 st_camo_atlas_black_ice	Галалёд
@@ -658,7 +660,9 @@ st_camo_atlas_maritime_terrazzo	Марское тэраца
 st_camo_atlas_maritime_wave_fan	Марскі веер хваль
 st_camo_atlas_maritime_wax_resist	Марскі батык
 st_camo_atlas_mauve_static	Бэзавыя перашкоды
+st_camo_atlas_mm_14	ММ-14
 st_camo_atlas_mulberry_cloud	Тутавае воблака
+st_camo_atlas_nfp_blue	Сіні NFP
 st_camo_atlas_night_grid	Начная сетка
 st_camo_atlas_night_silk	Начны шоўк
 st_camo_atlas_ochre_cut	Охрыстая аплікацыя
@@ -687,7 +691,6 @@ st_camo_atlas_pewter_cloud_hex	Алавяныя аблачныя соты
 st_camo_atlas_pewter_cut_paper	Алавяная аплікацыя
 st_camo_atlas_pewter_fishbone	Алавяная ялінка
 st_camo_atlas_pewter_reed_stripe	Алавяная чаротавая паласа
-st_camo_atlas_pixel_steppe	Піксельны стэп
 st_camo_atlas_polar_mesh	Палярная сетка
 st_camo_atlas_porcelain_tide	Фарфоравы прыліў
 st_camo_atlas_quarry	Кар'ер
@@ -743,6 +746,7 @@ st_camo_atlas_sundown_terrazzo	Тэраца змяркання
 st_camo_atlas_sundown_wave_fan	Веер хваль змяркання
 st_camo_atlas_three_color_desert	Трохколерная пустыня
 st_camo_atlas_tidal_pixel	Прыліўны піксель
+st_camo_atlas_tropentarn	Тропентарн
 st_camo_atlas_ultramarine_agate	Ультрамарынавы агат
 st_camo_atlas_ultramarine_beadwork	Ультрамарынавы бісер
 st_camo_atlas_ultramarine_broken_grid	Ультрамарынавая ламаная сетка
