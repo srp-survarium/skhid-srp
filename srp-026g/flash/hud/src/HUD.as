@@ -713,7 +713,7 @@ package
          if(forced)
             this._modeNotice.begin("blackout");
          else
-            this._modeNotice.reset();
+            this._modeNotice.cancel("blackout");
          this.followModeNotice();
          this.set_pregame(this._pregameText);
       }
@@ -1847,6 +1847,11 @@ package
             this.showFrozen(FrozenPlaces.NONE);
             this.showRevealed(RevealedPlaces.NONE);
             this._revealNotice.reset();
+            this._modeNotice.cancel("freeze_tag");
+         }
+         else
+         {
+            this._modeNotice.begin("freeze_tag");
          }
          this.refresh_context();
          this.researchUnits.visible = type == this.GAME_MODE_RESEARCH;

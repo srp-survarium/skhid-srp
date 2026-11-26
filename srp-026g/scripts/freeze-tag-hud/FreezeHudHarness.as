@@ -25,7 +25,8 @@ package
    //   root.freeze_tag_revealed names him; then a red mark on the Tab map (on the screen, red there) and
    //   on the corner minimap by HUD.REVEALED_ON_MINIMAP; a teammate's bit and a spotted enemy unmarked;
    //   marked when a held Tab map shows; none at mask 0, in another mode or a new match;
-   // - in every language: root.freeze_tag_reveal's countdown under the timer (each side's line, its seconds rounded up, then "revealed", then none).
+   // - in every language: Freeze Tag's mode notice under the timer and root.freeze_tag_reveal's
+   //   countdown under it (each side's line, its seconds rounded up, then "revealed", then none).
    // "FREEZE SHOT maps" for check.sh's screenshot; ends with "FREEZE RESULT pass" or "... fail: ...".
    public class FreezeHudHarness extends Sprite
    {
@@ -219,10 +220,12 @@ package
             .setData(HarnessText.DATA[language]);
       }
 
-      // The reveal's countdown for everyone (freeze_tag_reveal), in every language: under the timer, its
+      // Freeze Tag's mode notice (set_game_type 12) and the reveal's countdown for everyone
+      // (freeze_tag_reveal), in every language: under the timer, the countdown under the notice, its
       // seconds rounded up, each side's line, then "revealed", then nothing.
       private function notices() : void
       {
+         var mode:* = childOf("survarium.modes::ModeNotice");
          var reveal:* = childOf("survarium.modes::RevealNotice");
          var screen:Rectangle = new Rectangle(0,0,stage.stageWidth,stage.stageHeight);
          for each(var language:String in HarnessText.LANGUAGES)
@@ -236,12 +239,15 @@ package
             hud.set_game_type(12);
             hud.force_interface_hidden(false);
             hud.set_match_time("09:59");
+            check(mode != null && mode.visible && mode.label.text.split("\r").join("\n") == data["st_srp_hud_freeze_start"],
+               language + ": Freeze Tag's notice under the timer, Blackout's unforce leaves it");
+            check(mode.label.textHeight < 200 && screen.containsRect(mode.getBounds(stage)),language + ": the notice fits");
             hud.freeze_tag_reveal(0,0,3,12000);
             var line:String = reveal == null ? "" : reveal.label.text;
             check(reveal != null && reveal.visible && line == text("st_srp_hud_freeze_reveal_enemy","12"),
                language + ": the hunters' countdown: " + line);
-            check(reveal.getBounds(stage).top >= hud.progress_indicator.match_time_2_tdm.getBounds(stage).bottom && screen.containsRect(reveal.getBounds(stage)),
-               language + ": the countdown under the timer, on the screen");
+            check(reveal.getBounds(stage).top >= mode.getBounds(stage).bottom && screen.containsRect(reveal.getBounds(stage)),
+               language + ": the countdown under the notice, on the screen");
             hud.freeze_tag_reveal(1,11001,0,0);
             check(reveal.label.text == text("st_srp_hud_freeze_reveal_self","12"),language + ": the last one's own countdown, rounded up");
             hud.freeze_tag_reveal(2,500,0,0);
@@ -262,7 +268,7 @@ package
          setLanguage("english");
          hud.freeze_tag_reveal(0,0,3,12000);
          hud.set_game_type(1);
-         check(!reveal.visible,"another mode: no countdown");
+         check(!reveal.visible && !mode.visible,"another mode: no countdown, no Freeze Tag notice");
          hud.set_game_type(12);
          hud.freeze_tag_reveal(0,0,3,12000);
          hud.reset();
@@ -346,7 +352,7 @@ package
                hud.update_players(near);
                revealedShown("revealed, near the local player",true);
                hud.update_players(players());
-               // The screenshot: the hunters' countdown under the timer.
+               // The screenshot: the mode notice and the hunters' countdown under the timer.
                hud.set_match_time("09:45");
                hud.freeze_tag_reveal(0,0,3,12000);
                phase = 1;

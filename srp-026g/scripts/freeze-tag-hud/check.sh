@@ -6,7 +6,7 @@
 #   With FREEZE_BACKGROUND (an image of the game's screen) the tags are drawn over it, else over a sky
 #   and ground drawn by the harness;
 # - FreezeHudHarness.as: the hud movie's minimap, Tab map and Tab list, the last one fighting's mark and
-#   his reveal's countdown (every language's texts: HarnessText.as,
+#   his reveal's countdown, Freeze Tag's mode notice (every language's texts: HarnessText.as,
 #   localization-check/harness_text.py), freeze-maps-<w>x<h>.png.
 # The two movies' ice blue must be the same. Exits 0 when every run says pass; prints their lines. A
 # work dir given is kept. Java and Flex from private/actionscript/tools.json

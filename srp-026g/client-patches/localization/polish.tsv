@@ -3029,6 +3029,7 @@ st_srp_hud_freeze_round_draw	Remis. Powtórka za %1$s s.
 st_srp_hud_freeze_round_lose	Runda przegrana. Następna za %1$s s.
 st_srp_hud_freeze_round_win	Runda wygrana. Następna za %1$s s.
 st_srp_hud_freeze_standing	W walce: twój zespół %1$s — przeciwnicy %2$s
+st_srp_hud_freeze_start	Zamrażanie\nŚmiertelne trafienie zamraża. Zamroź całą drużynę przeciwnika, aby wygrać rundę.\nStój 4 s do 2 m od zamrożonego sojusznika, aby go odmrozić; sam odmarza po 2 min.\nWygrywa drużyna, która pierwsza wygra 5 rund; gdy skończy się czas, wygrywa prowadząca.
 st_srp_hud_freeze_thawing	Odmrażanie sojusznika…
 st_srp_hud_freeze_win	Zwycięstwo — pięć wygranych rund.
 st_srp_hud_friend_not_sent	Zaproszenie do znajomych nie zostało wysłane

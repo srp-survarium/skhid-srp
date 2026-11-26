@@ -394,6 +394,18 @@ at 105 px (`Minimap.update_objects`).
   it shows; none after mask 0, in another mode and a new match; in every
   language the mode notice and the countdown's lines under the timer.
 
+**The mode notice.** A Freeze Tag match shows how the mode works under the
+match timer, as Blackout's (`ModeNotice`, `mode_introductions.md` "HUD notice
+follow-up"): through the countdown and 10 s after play starts, 10 s from
+readiness for a late joiner, begun by `set_game_type(12)` at every match start
+(Blackout's unforce no longer resets another mode's notice: `ModeNotice.cancel`).
+Its text, `st_srp_hud_freeze_start` in the twelve dictionaries, English:
+
+> Freeze Tag
+> A lethal hit freezes. Freeze the whole enemy team to win the round.
+> Stand within 2 m of a frozen teammate for 4 s to thaw them; alone, they thaw after 2 min.
+> First team to 5 round wins takes the match; at the time limit, the team ahead wins.
+
 **The frozen glow.** `fx/artifacts/human_frozen` (content pack
 `freeze-tag-glow`, `scripts/freeze-tag-glow/make_pack.py`): the stock Spring
 glow `fx/artifacts/human_spring` with its three blue materials drawn with ice
