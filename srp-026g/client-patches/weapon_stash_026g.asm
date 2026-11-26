@@ -8,7 +8,7 @@
 ;     game lets it into (items_dictionary::can_move_item_to_slot, slots 0..6),
 ;     in the decal pose the window gives the character (armour_*: patch 32's
 ;     start, exit and setup_profile hooks come here first, then go on to it).
-; At STASH_OFFSET of `.srpw`, after the weapon camouflage's code; its state
+; At WEAPON_STASH_OFFSET (patch_026g.py) of `.srpw`, after the weapon camouflage's code; its state
 ; at +0Ch of patch 32's.
 ;   nasm -f bin -DCAVE=0xA42A360 -DSTATE=0xA428E00 -DPREVIEW=0xA427E50 weapon_stash_026g.asm -o weapon_stash_026g.section.bin
 ;
