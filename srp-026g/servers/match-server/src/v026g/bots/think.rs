@@ -1501,6 +1501,7 @@ pub(super) fn decide(
             weapon: bot.weapon(weapons, tuning),
             weapons,
             side: bot.side,
+            may_trap: bot.features.traps.habit.may_plan(&tuning.traps).is_ok(),
             current: bot.assignment.as_ref().map(|a| (a.kind, a.target, a.since)),
             last_ran: &bot.last_ran,
             partner: bot.partner,

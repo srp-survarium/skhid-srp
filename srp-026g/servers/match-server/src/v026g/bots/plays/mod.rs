@@ -536,6 +536,9 @@ pub struct BotFacts<'a> {
     /// Nothing left to fire ([`super::reflex::Reflex::dry`]): it takes no
     /// play that seeks a fight ([`PlayKind::seeks_fight`]).
     pub dry: bool,
+    /// [bot traps T3] Whether its trap habit may plan a trap now (`traps::Habit::may_plan`: a trap left, its life's not spent,
+    /// not placing one): the camper trap job's play is offered only to such a bot (`trap_spot::candidates`).
+    pub may_trap: bool,
     /// Its weapon 1's ammo and what a resupply could bring it to
     /// ([`Input::Ammo`], `resupply`).
     pub ammo: super::guns::Ammo,
