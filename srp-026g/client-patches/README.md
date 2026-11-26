@@ -7024,6 +7024,7 @@ keys out ("Press Y while aiming", "press F9"), right only for the default keys.
   fault); every placeholder of the dictionaries is an action of the build. The artefact carry's
   Ruffle harness (`tools/check artefact-carry`) shows every language's prompts with Use on E, on F
   and unbound, a shown prompt following new texts at once. Not played in the game.
+
 ## The world of a tick (patch 211, unreleased)
 
 For the match server's desync capture (`../docs/notes/desync_capture.md`): the moment the games'
