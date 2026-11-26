@@ -1056,3 +1056,30 @@ fn a_frame_over_another_on_its_bone() {
     }
     assert!(was.frame_over(&Placement { bone: BoneIndex(0), ..now }).is_none());
 }
+
+/// The blend of two eyes on one bone: whole at 0 and 1, half way turned
+/// half the angle about the axis between, the place half way; different
+/// bones or a scaled offset: none.
+#[test]
+fn an_eye_turns_toward_another() {
+    let turn = |angle: f32| {
+        let (s, c) = angle.sin_cos();
+        // a turn about z (the line of sight): rows x, y
+        Affine { x: [c, s, 0.0], y: [-s, c, 0.0], z: [0.0, 0.0, 1.0], t: [0.0, 0.0, 0.0] }
+    };
+    let main = on_offset(Affine { t: [0.0, 0.1, -0.2], ..turn(0.0) });
+    let side = on_offset(Affine { t: [0.05, 0.05, -0.2], ..turn(core::f32::consts::FRAC_PI_4) });
+    let at = |t| main.toward(&side, t).unwrap();
+    assert!(near(&at(0.0).offset, &main.offset) && near(&at(1.0).offset, &side.offset));
+    // half way: the normalised blend of two turns about one axis is the half turn exactly
+    let half = at(0.5);
+    assert!(near(&half.offset, &Affine { t: [0.025, 0.075, -0.2], ..turn(core::f32::consts::FRAC_PI_8) }));
+    assert!(main.toward(&Placement { bone: BoneIndex(0), ..side }, 0.5).is_none());
+    let scaled = on_offset(Affine { x: [2.0, 0.0, 0.0], ..Affine::IDENTITY });
+    assert!(main.toward(&scaled, 0.5).is_none());
+    // the other way round the long arc is never taken
+    let back = on_offset(turn(-3.0));
+    let far = on_offset(turn(3.0));
+    let mid = back.toward(&far, 0.5).unwrap().offset;
+    assert!(mid.x[0] < -0.98, "{mid:?}");
+}
