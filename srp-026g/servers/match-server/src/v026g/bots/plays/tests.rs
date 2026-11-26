@@ -37,6 +37,8 @@ pub struct Scenario {
     /// makes it anew.
     pub memo: super::memo::Memo,
     pub side: Option<i32>,
+    /// [bot traps T3] `BotFacts::may_trap`.
+    pub may_trap: bool,
     pub current: Option<(PlayKind, TargetRef, u32)>,
     /// The slot `run` starts the play with (the assignment's).
     pub slot: Option<SlotKey>,
@@ -145,6 +147,7 @@ impl Scenario {
             tuning,
             memo: Default::default(),
             side: Some(0),
+            may_trap: false,
             current: None,
             slot: None,
             last_ran: Vec::new(),
@@ -320,6 +323,7 @@ impl Scenario {
                 }),
                 weapons: &self.weapons,
                 side: self.side,
+                may_trap: self.may_trap,
                 current: self.current,
                 last_ran: &self.last_ran,
                 partner: self.partner,

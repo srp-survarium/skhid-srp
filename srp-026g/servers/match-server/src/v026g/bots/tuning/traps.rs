@@ -394,7 +394,10 @@ pub struct CamperJob {
     /// The way in: points every `step_m` from `near_m` to `far_m` before the place along the way from his side's spawns; the
     /// first his eye there does not see (for the placer's crouched eye) is the one trapped. Live, the human traps on a killing
     /// holder's way in lay a median 15.6 m from his place (P25 5.8, P75 22.1, n 83; `docs/notes/bear_traps.md`): the 6-20 m
-    /// range holds that median and the middle half's near end.
+    /// range holds that median and the middle half's near end. [bot traps T4] `far_m` 27 m, the human traps' P90 (26.9 m): of
+    /// 2,083 benched places with a way, a point out of his sight both ways lay within 18 m for 59.9 %, within 27 m for 78.5 %
+    /// (+31 % points). DATA-SOURCED (the live human traps record), not from a game value: no game value sets how far back along
+    /// his way a trap should lie.
     pub near_m: f32,
     pub far_m: f32,
     pub step_m: f32,
@@ -415,7 +418,7 @@ pub struct CamperJob {
 
 impl Default for CamperJob {
     fn default() -> Self {
-        Self { near_m: 6.0, far_m: 20.0, step_m: 3.0, max_walk_m: 22.75, give_up_s: 45.0, within_m: 1.5, friend_m: 4.0 }
+        Self { near_m: 6.0, far_m: 27.0, step_m: 3.0, max_walk_m: 22.75, give_up_s: 45.0, within_m: 1.5, friend_m: 4.0 }
     }
 }
 
