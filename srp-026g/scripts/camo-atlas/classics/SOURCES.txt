@@ -85,9 +85,9 @@ MM-25
                            https://mod.gov.ua/en/news/mo-d-clarifies-in-response-to-service-members-requests-trial-batches-of-clothing-and-gear-featuring-a-new-camouflage-pattern-will-be-procured
                            (the image
                            https://mod.gov.ua/assets/34-p-camo-04aug-ws01-eng-704d2c5d84.webp),
-                           Ukrainian Ministry of Defence, 4 Aug 2025; cropped inside the disc, two
-                           small printed marks painted out, lighting evened out, made seamless,
-                           scaled
+                           Ukrainian Ministry of Defence, 4 Aug 2025; stitched at the picture's own
+                           scale from 16 crops inside the disc, clear of three small printed marks,
+                           into a seamless 512 px tile (classics_art.py quilt())
 
 
 CC BY and CC BY-SA swatches: credits

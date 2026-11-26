@@ -11,9 +11,10 @@ wrapped edges; a swatch that is itself a seamless tile is used whole (a row with
 artists/: camouflage textures drawn by artists (ARTIST_ROWS), seamless tiles used whole or cropped
 the same way. classics/SOURCES.txt and artists/SOURCES.txt say where each one comes from.
 A source may be a member of an archive ('name::member'): a ZIP, or a 7z read with the 7z tool.
-One swatch replaces an older tile of initial/ and is written there (INITIAL), keeping its item.
+Two swatches replace older tiles of initial/ and are written there (INITIAL), keeping their items;
+MM-25's is stitched from crops of its picture at the picture's own scale (quilt()).
 Pillow, NumPy and SciPy (and 7z for one archive); with NumPy 2.4.4, Pillow 13.0.0 and SciPy 1.17.1
-it reproduces classics/*.webp, artists/*.webp and initial/mm-14.webp byte for byte. Each row's id
+it reproduces classics/*.webp, artists/*.webp, initial/mm-14.webp and initial/mm-25.webp byte for byte. Each row's id
 is its item in the game dictionary.
 """
 import argparse
@@ -28,7 +29,7 @@ from pathlib import Path
 
 import numpy as np
 from PIL import Image
-from scipy.ndimage import binary_dilation, distance_transform_edt, gaussian_filter, median_filter
+from scipy.ndimage import gaussian_filter
 
 HERE = Path(__file__).resolve().parent
 SIZE = 768
@@ -346,18 +347,62 @@ def source_pixels(sources, ref):
         return np.asarray(image.convert('RGB'))
 
 
-def clear_marks(pixels, boxes):
-    """Paint out small printed marks: in each (x0, y0, x1, y1) box, the pixels that stand out from
-    their neighbourhood (a 9 px median) take the colour of the nearest pixel that does not, softened."""
-    out = pixels.copy()
-    for x0, y0, x1, y1 in boxes:
-        box = out[y0:y1, x0:x1].astype(np.float32)
-        luma = box.mean(2)
-        mask = binary_dilation(np.abs(luma - median_filter(luma, 9)) > 10, iterations=2)
-        _, (rows, cols) = distance_transform_edt(mask, return_indices=True)
-        soft = gaussian_filter(box[rows, cols], (1.5, 1.5, 0))
-        out[y0:y1, x0:x1] = np.clip(np.rint(np.where(mask[:, :, None], soft, box)), 0, 255).astype(np.uint8)
-    return out
+def quilt(pixels, disc, avoid, side, block, overlap, seed, step=4, pool=.04):
+    """A side x side tile that wraps on both axes, stitched from block x block crops of a round picture.
+
+    disc: (cx, cy, r), the circle the crops stay inside; avoid: (x0, y0, x1, y1) boxes no crop may
+    touch (with 4 px to spare). Blocks are laid on a grid of side / (block - overlap) per axis, the
+    last row and column overlapping the first. Each takes, at random among the 4% best, a crop whose
+    overlaps with what is already laid differ least (crops near ones already used count worse); it is
+    cut in along the least-difference path through each overlap and feathered over about 2 px."""
+    cx, cy, r = disc
+    src = pixels.astype(np.float32)
+    rows, cols = np.mgrid[:src.shape[0], :src.shape[1]]
+    valid = (cols - cx) ** 2 + (rows - cy) ** 2 <= r ** 2
+    for x0, y0, x1, y1 in avoid:
+        valid[y0 - 4:y1 + 4, x0 - 4:x1 + 4] = False
+    spots = [(x, y) for y in range(int(cy - r), int(cy + r) - block, step)
+             for x in range(int(cx - r), int(cx + r) - block, step) if valid[y:y + block, x:x + block].all()]
+    stride = block - overlap
+    count = side // stride
+    if count * stride != side:
+        raise ValueError('the tile side must be a whole number of strides')
+    rng = np.random.default_rng(seed)
+    out = np.zeros((side, side, 3), np.float32)
+    laid = np.zeros((side, side), bool)
+    used = []
+    for j in range(count):
+        for i in range(count):
+            ys = (j * stride + np.arange(block)) % side
+            xs = (i * stride + np.arange(block)) % side
+            old = out[np.ix_(ys, xs)]
+            seen = laid[np.ix_(ys, xs)]
+            costs = []
+            for x, y in spots:
+                crop = src[y:y + block, x:x + block]
+                cost = (((crop - old) ** 2).sum(2) * seen).sum() / max(seen.sum(), 1)
+                near = sum(1 for ux, uy in used if abs(ux - x) < block * .6 and abs(uy - y) < block * .6)
+                costs.append(cost * (1 + .6 * near))
+            costs = np.array(costs)
+            pick = np.flatnonzero(costs <= np.quantile(costs, pool)) if seen.any() else np.arange(len(spots))
+            x, y = spots[rng.choice(pick)]
+            used.append((x, y))
+            crop = src[y:y + block, x:x + block]
+            diff = ((crop - old) ** 2).sum(2)
+            take = np.ones((block, block), bool)
+            span = np.arange(block)
+            if seen[:, :overlap].all():
+                take &= span[None, :] > seam(diff[:, :overlap].astype(np.float64))[:, None]
+            if seen[:, block - overlap:].all():
+                take &= span[None, :] < (block - overlap + seam(diff[:, block - overlap:].astype(np.float64)))[:, None]
+            if seen[:overlap, :].all():
+                take &= span[:, None] > seam(diff[:overlap, :].T.astype(np.float64))[None, :]
+            if seen[block - overlap:, :].all():
+                take &= span[:, None] < (block - overlap + seam(diff[block - overlap:, :].T.astype(np.float64)))[None, :]
+            alpha = np.where(seen, gaussian_filter(take.astype(np.float32), 2.0), 1.0)[:, :, None]
+            out[np.ix_(ys, xs)] = alpha * crop + (1 - alpha) * old
+            laid[np.ix_(ys, xs)] = True
+    return np.clip(np.rint(out), 0, 255).astype(np.uint8)
 
 
 def cut(sources, how):
@@ -367,14 +412,13 @@ def cut(sources, how):
     return swatch(sources, *how)
 
 
-def swatch(sources, name, x=None, y=None, n=None, overlap=None, repeats=False, light=0, *, marks=(), area=None):
-    """marks: boxes of printed marks to paint out first; area: (x0, y0, x1, y1) of the swatch to
-    keep before the lighting is evened out (x and y are then within it)."""
+def swatch(sources, name, x=None, y=None, n=None, overlap=None, repeats=False, light=0, *, stitch=None):
+    """stitch: quilt()'s options, for a tile stitched from crops at the swatch's own scale, kept at
+    its own size when that is at least 512 px (the game's camouflage textures), else scaled to 512."""
     pixels = source_pixels(sources, name)
-    if marks:
-        pixels = clear_marks(pixels, marks)
-    if area:
-        pixels = pixels[area[1]:area[3], area[0]:area[2]]
+    if stitch:
+        tile = Image.fromarray(quilt(pixels, **stitch))
+        return tile if tile.width >= 512 else tile.resize((512, 512), Image.Resampling.LANCZOS)
     if x is None:
         # A seamless tile: used whole (its largest square from the top left).
         side = min(pixels.shape[:2])
@@ -655,9 +699,12 @@ ARTIST_ROWS = [
 # Rows of initial/catalog.tsv whose tile is a swatch made here (it replaced a study under the same item).
 INITIAL = [
     (2812, 'mm-14', ('mm14', 0, 192, 640, 96)),
-    # The square inside the disc, left of a printed mark at its right edge; two other marks painted out.
-    (2813, 'mm-25', ('mm25', 0, 0, 312, 64, False, 50,
-                     {'marks': ((1428, 456, 1480, 490), (1320, 669, 1349, 693)), 'area': (1270, 354, 1646, 730)})),
+    # Stitched at the disc's own scale (512 px, one source pixel per texel of the game's 512 px texture)
+    # from 192 px crops inside the disc (r 284 of its 304, inside the pale rim), none touching the three
+    # small printed marks.
+    (2813, 'mm-25', ('mm25', {'stitch': {'disc': (1464.5, 548.5, 284),
+                                         'avoid': ((1428, 456, 1480, 490), (1320, 669, 1349, 693), (1644, 458, 1680, 498)),
+                                         'side': 512, 'block': 192, 'overlap': 64, 'seed': 4}})),
 ]
 
 
