@@ -259,7 +259,7 @@ impl<'t> AttachedPairs<'t> {
             let count = self.frame.inventory_end()?.index_from(begin)?;
             (0..count)
                 .map(|i| begin.at(i))
-                .filter(|item| *item.dict() == dict && *item.id() != 0 && !taken.contains(item.id()))
+                .filter(|item| *item.dict() == dict && *item.id() != 0 && !taken.contains(&*item.id()))
                 .map(|item| *item.id())
                 .min()
         }
