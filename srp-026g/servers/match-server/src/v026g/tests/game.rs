@@ -1460,6 +1460,44 @@ fn a_player_back_in_the_match_enters_for_the_others_first() {
     bench.assert_no_faults();
 }
 
+/// A game started anew that connects to its place before the server saw the
+/// old one go (no 0xE0, no closed link, inside the client timeout): the old
+/// link is replaced, and the others are sent its leave, then its entry again
+/// at a later tick. Every game's rules see the leave first (an Artifact Hunt
+/// carrier lets go of the artefact there, patch 171's slot 9), as for the
+/// 0xE0, the closed link and the timeout (the tests before).
+#[test]
+fn a_new_connection_for_a_live_place_is_its_leave_then_its_entry() {
+    let mut bench = Bench::new(2, MAP_BATTERIES, Settings::default());
+    bench.join_all();
+    settle(&mut bench);
+    assert_eq!(bench.stages(), "LL");
+
+    bench.restart(1);
+    bench.clients[1].connect();
+    assert!(bench.until(1_000, |bench| bench.clients[1].model.options.is_some()));
+    bench.clients[1].ready();
+    let roster = |client: &Client| {
+        let mut changes = client.got(|message| match message {
+            ServerMessage::PlayerEntered { tick, player: 1 } => Some((true, *tick)),
+            ServerMessage::PlayerLeft { tick, player: 1 } => Some((false, *tick)),
+            _ => None,
+        });
+        changes.dedup();
+        changes
+    };
+    assert!(bench.until(2_000, |bench| roster(&bench.clients[0]).len() == 3));
+    let changes = roster(&bench.clients[0]);
+    let [(true, entered), (false, left), (true, again)] = changes[..] else {
+        panic!("{changes:?}");
+    };
+    // Ticks are a byte of the 50 ms grid: in order, a step apart at least.
+    assert!(left.wrapping_sub(entered) > 0 && again.wrapping_sub(left) > 0 && again.wrapping_sub(left) < 128,
+        "{changes:?}");
+    assert!(bench.until(10_000, |bench| bench.stages() == "LL"));
+    bench.assert_no_faults();
+}
+
 /// Live, 2026-10-15: a player back in was put 306 ms behind the match clock
 /// (its snapshot + `SYNC_LEAD_MS`) while the other games had its player
 /// since its entry; its inputs of the first second came 250-400 ms late,
