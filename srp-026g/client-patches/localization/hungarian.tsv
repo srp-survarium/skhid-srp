@@ -4015,7 +4015,6 @@ st_srp_hit_markers_kill	Csak ölésjelző
 st_srp_hud_add_friend	Hozzáadás a barátokhoz
 st_srp_hud_artefact_hunt_carrying	Nálad van az artefaktum
 st_srp_hud_artefact_hunt_sudden_death	Hirtelen halál
-st_srp_hud_artefact_wear	Az ereklye meggyengült. A passzív hatás és a következő aktiválás ereje %1$s.
 st_srp_hud_blackout_intro	Blackout: vigyél akkumulátorokat a csapatod készülékéhez. A beleélés érdekében nincs HUD és találatjelzés. Tartsd nyomva a Tabot: lőszer, életerő, csevegés; halál után felszerelésválasztás.
 st_srp_hud_blackout_start	Blackout\nVigyél akkumulátorokat a csapatod készülékéhez.\nA HUD és a találatjelzések rejtve vannak. Tartsd nyomva a Tabot a lőszer és az életerő megtekintéséhez.
 st_srp_hud_freeze_draw	Döntetlen
@@ -4032,7 +4031,7 @@ st_srp_hud_freeze_round_draw	Döntetlen. Újrakezdés: %1$s mp.
 st_srp_hud_freeze_round_lose	Elvesztett kör. Következő: %1$s mp.
 st_srp_hud_freeze_round_win	Megnyert kör. Következő: %1$s mp.
 st_srp_hud_freeze_standing	Harcban: saját csapat %1$s — ellenfelek %2$s
-st_srp_hud_freeze_start	Fagyasztó fogó\nA halálos találat megfagyaszt. Fagyaszd meg a teljes ellenfél csapatot a kör megnyeréséhez.\nÁllj 4 mp-ig egy fagyott csapattárs 2 méteres körzetében a kiolvasztásához; magától 2 perc után olvad ki.\nAz első 5 kört megnyerő csapat győz; ha lejár az idő, a vezető csapat nyer.
+st_srp_hud_freeze_start	Fagyasztó fogó\nA halálos találat megfagyaszt. Fagyaszd meg a teljes ellenfél csapatot a kör megnyeréséhez.\nÁllj egy fagyott csapattárs mellé a kiolvasztásához.\nAz a csapat nyer, amelyik elsőként nyer 5 kört.
 st_srp_hud_freeze_thawing	Csapattárs kiolvasztása…
 st_srp_hud_freeze_win	Győzelem — öt megnyert kör.
 st_srp_hud_friend_not_sent	A barátkérelem nincs elküldve

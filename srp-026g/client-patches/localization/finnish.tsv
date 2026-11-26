@@ -4015,7 +4015,6 @@ st_srp_hit_markers_kill	Vain tappomerkki
 st_srp_hud_add_friend	Lisää kaveriksi
 st_srp_hud_artefact_hunt_carrying	Kannat artefaktia
 st_srp_hud_artefact_hunt_sudden_death	Äkkikuolema
-st_srp_hud_artefact_wear	Artefakti heikkeni. Passiivisen vaikutuksen ja seuraavan aktivoinnin teho on %1$s.
 st_srp_hud_blackout_intro	Blackout: tuo akkuja joukkueesi laitteelle. Käyttöliittymä ja osumamerkit on piilotettu eläytymisen vuoksi. Pidä Tab pohjassa: ammukset, terveys, chat; kuolleena varustesarjan valinta.
 st_srp_hud_blackout_start	Blackout\nTuo akkuja joukkueesi laitteelle.\nKäyttöliittymä ja osumamerkit on piilotettu. Pidä Tab pohjassa nähdäksesi ammukset ja terveyden.
 st_srp_hud_freeze_draw	Tasapeli
@@ -4032,7 +4031,7 @@ st_srp_hud_freeze_round_draw	Tasapeli. Uusi erä %1$s s kuluttua.
 st_srp_hud_freeze_round_lose	Erä hävitty. Seuraava %1$s s kuluttua.
 st_srp_hud_freeze_round_win	Erä voitettu. Seuraava %1$s s kuluttua.
 st_srp_hud_freeze_standing	Taistelussa: oma joukkue %1$s — vastustajat %2$s
-st_srp_hud_freeze_start	Jäädytys\nTappava osuma jäädyttää. Jäädytä koko vastustajajoukkue voittaaksesi erän.\nSeiso 4 s enintään 2 metrin päässä jäätyneestä joukkuetoverista sulattaaksesi hänet; itsestään hän sulaa 2 minuutissa.\nEnsimmäinen 5 erää voittanut joukkue voittaa; kun aika loppuu, johdossa oleva voittaa.
+st_srp_hud_freeze_start	Jäädytys\nTappava osuma jäädyttää. Jäädytä koko vastustajajoukkue voittaaksesi erän.\nSeiso jäätyneen joukkuetoverin vieressä sulattaaksesi hänet.\nEnsimmäinen 5 erää voittanut joukkue voittaa.
 st_srp_hud_freeze_thawing	Joukkuetoveria sulatetaan…
 st_srp_hud_freeze_win	Voitto — viisi erävoittoa.
 st_srp_hud_friend_not_sent	Kaveripyyntöä ei lähetetty

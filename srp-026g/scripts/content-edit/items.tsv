@@ -603,8 +603,8 @@ items	name	base_cost	premium	like	start
 1893	decals_1_11	50000	false		
 1894	decals_4_76	30000	true		
 1895	decals_5_43	30000	true		
-1896	decals_4_77	0	true		
-1897	decals_4_78	0	true		
+1896	decals_4_77	10000000	true		
+1897	decals_4_78	10000000	true		
 1901	fit_pso1_gip	0	false		
 1902	fit_pso1_rem	0	false		
 1903	fit_pso1_mosin	0	false		
@@ -925,8 +925,8 @@ items	name	base_cost	premium	like	start
 2666	srp_grip_mauser_m712_foregrip	6000	false		
 2668	srp_grip_pkp_pecheneg_foregrip	6000	false		
 2671	srp_grip_troy_modular_foregrip	6000	false		
-2672	decals_4_79	0	true		
-2675	decals_4_82	0	true		
+2672	decals_4_79	10000000	true		
+2675	decals_4_82	10000000	true		
 2676	srp_second_sight	0	false		
 2800	camo_atlas_rust_tiger	1	false		
 2801	camo_atlas_frost_splinter	1	false		

@@ -4015,7 +4015,6 @@ st_srp_hit_markers_kill	Nur Abschussanzeige
 st_srp_hud_add_friend	Freunden hinzufügen
 st_srp_hud_artefact_hunt_carrying	Du trägst das Artefakt
 st_srp_hud_artefact_hunt_sudden_death	Sudden Death
-st_srp_hud_artefact_wear	Artefakt geschwächt. Passiver Effekt und nächste Aktivierung haben %1$s Stärke.
 st_srp_hud_blackout_intro	Blackout: Bringe Batterien zum Gerät deines Teams. HUD und Trefferanzeigen sind für mehr Immersion ausgeblendet. Halte Tab für Munition, Gesundheit und Chat sowie die Ausrüstungswahl nach dem Tod.
 st_srp_hud_blackout_start	Blackout\nBringe Batterien zum Gerät deines Teams.\nHUD und Trefferanzeigen sind ausgeblendet. Halte Tab, um Munition und Gesundheit zu sehen.
 st_srp_hud_freeze_draw	Unentschieden
@@ -4032,7 +4031,7 @@ st_srp_hud_freeze_round_draw	Unentschieden. Neustart in %1$s s.
 st_srp_hud_freeze_round_lose	Runde verloren. Nächste Runde in %1$s s.
 st_srp_hud_freeze_round_win	Runde gewonnen. Nächste Runde in %1$s s.
 st_srp_hud_freeze_standing	Im Kampf: dein Team %1$s — Gegner %2$s
-st_srp_hud_freeze_start	Fang den Frost\nEin tödlicher Treffer friert ein. Friere das ganze gegnerische Team ein, um die Runde zu gewinnen.\nBleibe 4 s innerhalb von 2 m eines eingefrorenen Teammitglieds, um es aufzutauen; allein taut es nach 2 min auf.\nDas erste Team mit 5 Rundensiegen gewinnt; endet die Zeit, gewinnt das führende Team.
+st_srp_hud_freeze_start	Fang den Frost\nEin tödlicher Treffer friert ein. Friere das ganze gegnerische Team ein, um die Runde zu gewinnen.\nStell dich neben ein eingefrorenes Teammitglied, um es aufzutauen.\nDas Team, das zuerst 5 Runden gewinnt, gewinnt.
 st_srp_hud_freeze_thawing	Teammitglied wird aufgetaut…
 st_srp_hud_freeze_win	Sieg — fünf Runden gewonnen.
 st_srp_hud_friend_not_sent	Freundschaftsanfrage nicht gesendet

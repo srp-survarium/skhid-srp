@@ -1679,9 +1679,9 @@ def test_artefacts(original, image, before):
              for language, *_ in LANGUAGES]
     check('text = text.split("%s").join(String(Math.ceil(time / 1000)));' in hud_source.split(
               "public function set_parameterized_message(")[1].split("public function")[0]
-          and len(hints) == len(LANGUAGES) and all(h.count("%s") == 1 and "75" in h for h in hints),
-          "the hud's set_parameterized_message writes a message's %s as its time on screen in seconds, and the "
-          "all Onyx activation hints say 75 % for %s")
+          and len(hints) == len(LANGUAGES) and all(h.count("%s") == 1 for h in hints),
+          "the hud's set_parameterized_message writes a message's %s as its time on screen in seconds, and "
+          "every language's Onyx activation hint has one %s, that time (its strength wears, #2689: no number)")
 
 
 def test_match_keys(original, image, before):

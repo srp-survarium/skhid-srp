@@ -190,17 +190,29 @@ pub(crate) fn lowered(ctx: &Context<'_>, gun: HeldGun) -> HeldGun {
     }
 }
 
-/// `sights.scope_view`: while the second sight is shown (at the tick's
-/// time: the byte is the world's) the main optic is not looked through.
+/// Whether the main optic is looked through in `view` at the aim's
+/// `progress`: the game's rule (the progress past the optic's
+/// `change_scope`) over the switch's effective aim, on the main sight. So a
+/// switch takes the optic's overlay off on the way out and puts it back on
+/// the way in as an aim-in does, never half way with the gun still turned.
+fn looked_through(view: &View, progress: f32, change_scope: f32) -> bool {
+    view.shown() == Sight::Main && view.effective_aim(progress) >= change_scope
+}
+
+/// `sights.scope_view` (at the tick's time: the byte is the world's):
+/// settled on the main sight, the game's rule; else the scope view off
+/// unless [`looked_through`].
 pub fn on_scope_view(ctx: &mut Context<'_>) -> Flow<AttachmentsOnScopeViewExit> {
     let Some(mut gun) = SightedGun::at_scope_view(ctx) else { return Flow::Continue };
-    match gun.view_at_tick().map(|view| view.shown()) {
-        Some(Sight::Second) => {
-            gun.clear_scope_view();
-            Flow::Exit(AttachmentsOnScopeViewExit::Decided)
-        }
-        Some(Sight::Main) | None => Flow::Continue,
+    let (Some(view), Some(change_scope)) = (gun.view_at_tick(), gun.change_scope_factor()) else {
+        return Flow::Continue;
+    };
+    let settled_on_main = view.from == Sight::Main && view.to == Sight::Main;
+    if settled_on_main || looked_through(&view, gun.progress(), change_scope) {
+        return Flow::Continue;
     }
+    gun.clear_scope_view();
+    Flow::Exit(AttachmentsOnScopeViewExit::Decided)
 }
 
 /// `attachments.draw`, a first-person gun with an aimed part: the second
@@ -264,6 +276,16 @@ mod tests {
         assert_eq!((fov, near), main.at(0.7));
         assert!(Factors::parse(0.0, 0.5).is_none() && Factors::parse(0.5, 1.5).is_none());
         assert_eq!(Factors::parse(0.8, 0.5), Some(Factors::new(0.8, 0.5)));
+    }
+
+    #[test]
+    fn the_optic_is_looked_through_only_as_an_aim_in_reaches_it() {
+        let through = |from, to, s| looked_through(&view(from, to, s), 1.0, 0.9);
+        assert!(through(Sight::Main, Sight::Second, 0.05), "on the way out, before the aim is lowered past it");
+        assert!(!through(Sight::Main, Sight::Second, 0.2), "on the way out, lowered");
+        assert!(!through(Sight::Second, Sight::Second, 0.0));
+        assert!(!through(Sight::Second, Sight::Main, 0.6), "back past half way, the gun still turned");
+        assert!(through(Sight::Second, Sight::Main, 0.95), "back, the aim raised past it");
     }
 
     #[test]
