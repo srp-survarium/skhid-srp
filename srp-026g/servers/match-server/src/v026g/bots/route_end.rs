@@ -108,6 +108,10 @@ impl Bot {
     /// Puts `route` in place of its route (the old one, if any, ends as
     /// [`RouteEnd::Replanned`]).
     pub(super) fn set_route(&mut self, route: Option<(Route, Vec3)>, now: u32) {
+        #[cfg(test)]
+        if route.is_some() && super::intent_counts::stale() {
+            super::intent_counts::count(super::intent_counts::ROUTES);
+        }
         if self.route.is_some() {
             self.motor.link_route_ended(RouteEnd::Replanned as usize);
             self.route_ended(RouteEnd::Replanned, now);

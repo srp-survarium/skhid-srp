@@ -117,6 +117,7 @@ mod standin_capsule;
 mod standin_climb;
 mod standin_client_body;
 mod standin_damage;
+mod stale_intent;
 pub(crate) mod standin_fields;
 mod standin_grenade;
 mod standin_heal;
