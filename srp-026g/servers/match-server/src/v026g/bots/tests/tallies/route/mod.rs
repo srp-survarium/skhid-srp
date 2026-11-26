@@ -115,6 +115,7 @@ fn topics(bodies: usize) -> Vec<Box<dyn RouteTopic>> {
         shut_flights(),
         soft_noways(),
         never_open(),
+        reach(),
         Box::new(pockets::Pockets::new(bodies)),
         Box::new(exact::ExactFalls::new(bodies)),
         motor(),

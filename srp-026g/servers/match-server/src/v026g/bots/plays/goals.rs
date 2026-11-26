@@ -286,6 +286,12 @@ impl Ctx<'_> {
     pub fn can_go(&self, at: Vec3) -> bool {
         self.reachable(at, false) && !self.no_way_lately(at)
     }
+
+    /// [`Self::can_go`] for a goal the bot then walks to bound for their base (`Intent::into_base`, Raid's): no way ever is
+    /// asked with the spawn rule off, as its search does.
+    pub fn can_go_into_base(&self, at: Vec3) -> bool {
+        self.reachable_walking(at, false, true) && !self.no_way_lately(at)
+    }
 }
 
 /// The spots a hold may pick from, with the humans' perches first for a share
@@ -847,6 +853,27 @@ mod tests {
         s.view.places[carrier].carrying = None;
         s.view.places[carrier].spawned = now;
         assert!(!moves(&mut s, PlayKind::Crossfire), "a new life");
+    }
+
+    /// [bot traps] A spot reached only through the other side's spawn area is not reachable for this side and is for the other;
+    /// one behind a zone on all match stays reachable as before (a crossing may take the bot there); bound for their base (Raid's
+    /// walk) the spawn rule is off.
+    #[test]
+    fn a_spot_past_the_other_sides_spawn_area_is_not_reachable_for_this_side() {
+        let mut solids = crate::v026g::bots::body::tests::wall_x(60.0, 0.0, 14.0).to_vec();
+        solids.extend(crate::v026g::bots::body::tests::wall_x(60.0, 16.0, 40.0));
+        let world = crate::v026g::bots::tactics::tests::field_with_solids(&solids, |_| {});
+        let past = Vec3::new(62.0, 0.0, 38.0);
+        let mut s = Scenario::field(Mode::Batteries);
+        s.tactics = crate::v026g::bots::tactics::Tactics::new(world, 1.0);
+        s.bot(0, 0, Vec3::new(20.0, 0.0, 30.0));
+        assert!(!s.cx(0).reachable(past, false), "side 0: only through side 1's spawn area");
+        assert!(!s.cx(0).can_go(past));
+        assert!(s.cx(0).can_go_into_base(past), "bound for their base");
+        s.side = Some(1);
+        s.view.places.clear();
+        s.bot(0, 1, Vec3::new(70.0, 0.0, 30.0));
+        assert!(s.cx(0).reachable(past, false), "side 1: its own spawn area");
     }
 
     #[test]

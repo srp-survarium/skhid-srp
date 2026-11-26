@@ -749,17 +749,76 @@ pub fn homes_of(map: &mapdata::project::MapData, side: Option<i32>) -> Option<(V
     Some((centre(true)?, centre(false)?))
 }
 
-/// [A318, fx-gear-2; A324] The way back to a held `spot` from `home` (a floor of his side's spawns): the way searched between them
-/// (open floors, as anyone walks it), and on it one point every `step_m` from `near_m` to `far_m` before the spot, nearest first.
-/// None when either end has no floor or no way joins them.
-pub fn approach_points(tactics: &super::tactics::Tactics, home: Vec3, spot: Vec3, j: &super::tuning::CamperJob, now: u32) -> Vec<Vec3> {
+/// [bot traps] Why a held place gets no way-in point ([`way_in`]): the camper job's note says it, the bench counts it.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum NoWayIn {
+    /// The place (or his home) on no floor (`path::goal_floor`).
+    NoFloor,
+    /// No way from his spawn even with every zone off ([`super::tactics::WayTo::Never`]): a shut pocket, a floor no planned link
+    /// enters, one past a ledge only dropped from. No search asked.
+    Never,
+    /// A way only across zones on all match ([`super::tactics::WayTo::CrossingOnly`]): his place on or behind one. No search asked.
+    BehindFixedZone,
+    /// The regions give a way, the search with the zones that switch off found none.
+    NoRoute,
+    /// His way of `way_m` metres is shorter than `near_m`.
+    TooShort { way_m: f32 },
+    /// Every point on his way of `way_m` metres was in a spawn area, or in his sight (`in_spawn` of them in a spawn area).
+    AllRefused { way_m: f32, points: usize, in_spawn: usize },
+}
+
+impl NoWayIn {
+    /// The camper job's note's words.
+    fn words(&self) -> String {
+        match *self {
+            Self::NoFloor => "held place on no floor".to_string(),
+            Self::Never => "no planned way to his place from his spawn (a pocket, or a floor no link enters)".to_string(),
+            Self::BehindFixedZone => "his place is on or behind a zone on all match".to_string(),
+            Self::NoRoute => "no way to his place with the zones that switch off".to_string(),
+            Self::TooShort { way_m } => format!("way of {way_m:.0} m, shorter than the nearest point"),
+            Self::AllRefused { way_m, points, in_spawn } if in_spawn == points => {
+                format!("way of {way_m:.0} m, every point in a spawn area")
+            }
+            Self::AllRefused { way_m, in_spawn: 0, .. } => format!("way of {way_m:.0} m, every point in his sight"),
+            Self::AllRefused { way_m, points, in_spawn } => {
+                format!("way of {way_m:.0} m, every point in his sight ({} of {points}) or a spawn area ({in_spawn})", points - in_spawn)
+            }
+        }
+    }
+
+    /// [`camper`]'s count of it (test builds).
+    #[cfg(test)]
+    fn count_kind(&self) -> usize {
+        match *self {
+            Self::NoFloor => camper::NO_FLOOR,
+            Self::Never | Self::BehindFixedZone | Self::NoRoute => camper::NO_ROUTE,
+            Self::TooShort { .. } => camper::TOO_SHORT,
+            Self::AllRefused { points, in_spawn, .. } if in_spawn == points => camper::IN_SPAWN,
+            Self::AllRefused { .. } => camper::ALL_SEEN,
+        }
+    }
+}
+
+/// [A318, fx-gear-2; A324; bot traps] The way back to a held `spot` from `home` (a floor of his side's spawns), as a body walks it
+/// at a time not known yet ([`super::tactics::Tactics::route_all_match`]: the zones that switch off, those on all match shut).
+/// Asked only where a way may be ([`super::tactics::Tactics::reach`] from home, side none as anyone walks it): a place no way
+/// leads to is told at once, with no search.
+pub fn approach_way(tactics: &super::tactics::Tactics, home: Vec3, spot: Vec3) -> Result<super::path::Route, NoWayIn> {
+    use super::tactics::WayTo;
     let grid = &tactics.world.grid;
     let (Some(from), Some(to)) = (super::path::goal_floor(grid, home), super::path::goal_floor(grid, spot)) else {
-        return Vec::new();
+        return Err(NoWayIn::NoFloor);
     };
-    let Some(route) = tactics.route_nodes(from, to, now, None, false, &RouteFilter::open()) else {
-        return Vec::new();
-    };
+    match tactics.reach(from, None, false).way(to) {
+        WayTo::Never => return Err(NoWayIn::Never),
+        WayTo::CrossingOnly => return Err(NoWayIn::BehindFixedZone),
+        WayTo::Plain => {}
+    }
+    tactics.route_all_match(from, to, None).ok_or(NoWayIn::NoRoute)
+}
+
+/// On `route`, one point every `step_m` from `near_m` to `far_m` before its end, nearest first.
+fn points_before_end(route: &super::path::Route, j: &super::tuning::CamperJob) -> Vec<Vec3> {
     let length = route.length();
     let mut points = Vec::new();
     let mut back = j.near_m;
@@ -770,13 +829,31 @@ pub fn approach_points(tactics: &super::tactics::Tactics, home: Vec3, spot: Vec3
     points
 }
 
+/// [A318, fx-gear-2; A324] The way back to a held `spot` from `home` ([`approach_way`]), and on it one point every `step_m` from
+/// `near_m` to `far_m` before the spot, nearest first. None when either end has no floor or no way joins them.
+pub fn approach_points(tactics: &super::tactics::Tactics, home: Vec3, spot: Vec3, j: &super::tuning::CamperJob) -> Vec<Vec3> {
+    approach_way(tactics, home, spot).map_or(Vec::new(), |route| points_before_end(&route, j))
+}
+
 /// [A324] The way-in point of a place `held`: the first point of his way there from `home`, `near_m`..`far_m` before it, out of
 /// his sight both ways for a placer crouched there ([`out_of_his_sight`]: the `TrapSpot` play stays on it crouched), and in no
-/// side's spawn area (his side's has no way for the walk, the team's own is no place for a trap).
-fn way_in(tactics: &super::tactics::Tactics, home: Vec3, held: Vec3, j: &super::tuning::CamperJob, now: u32) -> Option<Vec3> {
-    approach_points(tactics, home, held, j, now)
-        .into_iter()
-        .find(|p| !tactics.in_spawn_area(*p, None) && out_of_his_sight(&tactics.world.sight, held, *p))
+/// side's spawn area (his side's has no way for the walk, the team's own is no place for a trap). Else why there is none.
+fn way_in(tactics: &super::tactics::Tactics, home: Vec3, held: Vec3, j: &super::tuning::CamperJob) -> Result<Vec3, NoWayIn> {
+    let route = approach_way(tactics, home, held)?;
+    let way_m = route.length();
+    let points = points_before_end(&route, j);
+    if points.is_empty() {
+        return Err(NoWayIn::TooShort { way_m });
+    }
+    let mut in_spawn = 0;
+    for &p in &points {
+        if tactics.in_spawn_area(p, None) {
+            in_spawn += 1;
+        } else if out_of_his_sight(&tactics.world.sight, held, p) {
+            return Ok(p);
+        }
+    }
+    Err(NoWayIn::AllRefused { way_m, points: points.len(), in_spawn })
 }
 
 /// The eye over the feet of a body moving crouched (`view::eye_height`: any speed over the still class's).
@@ -971,8 +1048,8 @@ pub(super) fn camper_tick(
             continue;
         }
         let kind = if line.battery.is_some() { CamperTrapKind::Battery } else { CamperTrapKind::Job };
-        match nearest_home(line.at).and_then(|home| way_in(tactics, home, line.at, &j, now)) {
-            Some(at) => {
+        match nearest_home(line.at).ok_or(NoWayIn::NoFloor).and_then(|home| way_in(tactics, home, line.at, &j)) {
+            Ok(at) => {
                 knowledge.camper_traps.push(CamperTrap {
                     spot: line.id,
                     shooter: line.shooter,
@@ -993,11 +1070,14 @@ pub(super) fn camper_tick(
                 );
                 said.push(format!("team {team}: {:?} {} held by player {} at {}: his way in at {} wants a trap", kind, line.id, line.shooter, xyz(line.at), xyz(at)));
             }
-            None => {
+            Err(why) => {
                 knowledge.camper_no_way.push(line.id);
                 #[cfg(test)]
-                camper::count(team, camper::NO_WAY);
-                said.push(format!("team {team}: {:?} {} held by player {} at {}: no way in out of his sight", kind, line.id, line.shooter, xyz(line.at)));
+                {
+                    camper::count(team, camper::NO_WAY);
+                    camper::count(team, why.count_kind());
+                }
+                said.push(format!("team {team}: {:?} {} held by player {} at {}: no way in: {}", kind, line.id, line.shooter, xyz(line.at), why.words()));
             }
         }
     }
@@ -1097,12 +1177,20 @@ pub mod camper {
     pub const SEEN_OTHER_STANDING: usize = 23;
     /// A trapped point whose trap is gone (fired, disarmed, a promise unconfirmed): open again.
     pub const TRAP_GONE: usize = 24;
-    pub const N: usize = 25;
+    /// [bot traps] The places with no way in (`NO_WAY`) by why (`NoWayIn`): no floor; no route (no way ever, behind a zone on all
+    /// match, or none found); a way too short; every point in a spawn area; every point in his sight (or some in a spawn area).
+    pub const NO_FLOOR: usize = 25;
+    pub const NO_ROUTE: usize = 26;
+    pub const TOO_SHORT: usize = 27;
+    pub const IN_SPAWN: usize = 28;
+    pub const ALL_SEEN: usize = 29;
+    pub const N: usize = 30;
     pub const NAMES: [&str; N] = [
         "noted_job", "noted_battery", "dropped", "no_way", "no_placer_ticks", "sent", "gave_up", "placed",
         "gave_up_dead", "gave_up_not_playing", "gave_up_far", "gave_up_at", "think_walking", "think_gate", "think_no_look",
         "think_no_spot", "think_waited", "think_planned", "think_planned_else", "think_job_over", "seen_camper_crouched",
-        "seen_camper_standing", "seen_other_crouched", "seen_other_standing", "trap_gone",
+        "seen_camper_standing", "seen_other_crouched", "seen_other_standing", "trap_gone", "no_way_no_floor", "no_way_no_route",
+        "no_way_too_short", "no_way_in_spawn", "no_way_all_seen",
     ];
     static TEAM: [[AtomicU64; N]; 2] = [const { [const { AtomicU64::new(0) }; N] }; 2];
     /// The gate's refusals of a sent bot at its point, in `gates::of` order from Play on.
@@ -5822,7 +5910,7 @@ mod tests {
         let s = Scenario::field(Mode::TeamDeathmatch);
         let j = crate::v026g::bots::tuning::CamperJob::default();
         let (home, spot) = (Vec3::new(10.0, 0.0, 10.0), Vec3::new(50.0, 0.0, 10.0));
-        let points = approach_points(&s.tactics, home, spot, &j, 1_000);
+        let points = approach_points(&s.tactics, home, spot, &j);
         assert_eq!(points.len(), 5, "{points:?}");
         for (k, at) in points.iter().enumerate() {
             let d = at.distance_xz(spot);
@@ -5830,7 +5918,38 @@ mod tests {
             assert!((d - want).abs() < 1.5, "point {k} {at:?}: {d} m from the spot, want about {want}");
             assert!(at.x < spot.x, "on home's side: {at:?}");
         }
-        assert!(approach_points(&s.tactics, Vec3::new(46.0, 0.0, 10.0), spot, &j, 1_000).is_empty());
+        assert!(approach_points(&s.tactics, Vec3::new(46.0, 0.0, 10.0), spot, &j).is_empty());
+    }
+
+    /// [bot traps] A held place in a zone on all match, one on no floor: told why at once, with no route search; one with a way
+    /// gives its way.
+    #[test]
+    fn a_held_place_with_no_way_is_told_why_with_no_search() {
+        let world = crate::v026g::bots::tactics::tests::field_with(|map| {
+            map.zones.push(mapdata::Zone {
+                kind: mapdata::ZoneKind::Damage,
+                name: "core".into(),
+                team: -1,
+                position: Vec3::new(20.0, 1.0, 33.0),
+                protection: None,
+                damage_type: "electric".into(),
+                damage: None,
+                shapes: vec![mapdata::Shape {
+                    kind: mapdata::ShapeKind::Box,
+                    center: Vec3::new(20.0, 1.0, 33.0),
+                    rotation: mapdata::Rotation::IDENTITY,
+                    half: Vec3::new(3.0, 1.0, 3.0),
+                }],
+            });
+        });
+        let tactics = crate::v026g::bots::tactics::Tactics::new(world, 1.0);
+        let home = Vec3::new(75.0, 0.0, 10.0);
+        let searches = super::super::path::searches().searches;
+        assert_eq!(approach_way(&tactics, home, Vec3::new(20.0, 0.0, 33.0)).err(), Some(NoWayIn::BehindFixedZone));
+        assert_eq!(approach_way(&tactics, home, Vec3::new(1_000.0, 0.0, 1_000.0)).err(), Some(NoWayIn::NoFloor));
+        assert_eq!(super::super::path::searches().searches, searches, "no route search");
+        assert!(approach_way(&tactics, home, Vec3::new(30.0, 0.0, 35.0)).is_ok());
+        assert_eq!(NoWayIn::BehindFixedZone.words(), "his place is on or behind a zone on all match");
     }
 
     /// [A324] The camper job's points: a K2 job's spot and a battery hold each get their way in, out of his sight (here past

@@ -372,12 +372,14 @@ const ROUTE_PACE_MPS: f32 = 2.0;
 const ROUTE_SPARE_MS: u32 = 15_000;
 
 /// Whether this bot has a flank for a job's flanker role on `line`: it runs that flank already, the held spot is a known
-/// camp spot with routes (`threat.camp_flank`), or the side's flank spots round it are not empty. The role's offer asks it,
-/// and [fix-team 1] the staffing asks it of each mate before it gives the role (`threat::JobTeam::spot`).
+/// camp spot with routes (`threat.camp_flank`), or one of the side's flank spots round it is one this bot can go to
+/// ([`Ctx::can_go`]: [bot traps] a spot behind a zone on all match or past the other side's spawn area sent mate after mate to
+/// fail at once, tdm-m1-s2: six bots in 7 s on one spot). The role's offer asks it, and [fix-team 1] the staffing asks it of
+/// each mate before it gives the role (`threat::JobTeam::spot`).
 pub fn job_spot(cx: &Ctx, line: &crate::v026g::bots::threat::HeldLine) -> bool {
     matches!(cx.bot.current, Some((PlayKind::Flank, TargetRef::ThreatSpot(id), _)) if id == line.id)
         || camp_spot_of(cx, line).is_some()
-        || !job_flank_spots(cx, line).is_empty()
+        || job_flank_spots(cx, line).iter().any(|&at| cx.can_go(at))
 }
 
 /// [A320 `threat.camp_flank`] The known camp spot of the other side the job's held spot is on (within its match radius,
@@ -731,10 +733,12 @@ const JOB_SPOTS_KEEP_MS: u32 = 15_000;
 /// reached by a way point hidden from him; none, a wait.
 fn round(cx: &Ctx, him: Vec3, facing: [f32; 2], spots: &[Vec3], rng: &mut Rng) -> State {
     let num = |name| cx.num(PlayKind::Flank, name);
-    // The nearest of the good ones: a flank is quick.
+    // The nearest of the good ones this bot can go to ([bot traps] the side's kept list is the side's, the test each bot's
+    // own): a flank is quick.
     let spot = spots
         .iter()
         .copied()
+        .filter(|&at| cx.can_go(at))
         .min_by(|a, b| a.distance_xz(cx.me.feet).total_cmp(&b.distance_xz(cx.me.feet)));
     let Some(spot) = spot else {
         return wait(cx, rng);

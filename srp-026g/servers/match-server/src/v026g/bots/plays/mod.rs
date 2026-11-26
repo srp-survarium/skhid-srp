@@ -643,6 +643,9 @@ pub struct Ctx<'a> {
     pub offers: std::cell::RefCell<Vec<(super::threat::Role, super::threat::Offer)>>,
 }
 
+/// [bot traps] The nav lines' key of [`Ctx::never_a_way`]'s refusals, with the goal's region in the low bits.
+const REACH_LINE_KEY: u64 = 0x7265_6163_0000_0000;
+
 impl Ctx<'_> {
     /// This bot in a pocket with its goal out of it, escaping or given up
     /// (`escape.rs`).
@@ -825,7 +828,16 @@ impl Ctx<'_> {
     /// or a floor that zones on all match close round (a pocket of toxic
     /// ground: the search's answer, made here for the whole match,
     /// `Tactics::past_fixed_zones`).
+    ///
+    /// [bot traps] And a way may ever lead there: a goal with no way from this bot's floor for its side even with every zone
+    /// off ([`Tactics::reach`], `WayTo::Never`) is refused (a spot past the other side's spawn area, a shut pocket's floor).
     pub fn reachable(&self, at: Vec3, objective: bool) -> bool {
+        self.reachable_walking(at, objective, objective)
+    }
+
+    /// [`Self::reachable`], its zone and spawn tests for `objective`, for a goal the bot then walks to bound for their base
+    /// when `walk_objective` (`Intent::into_base`: the spawn rule off for the way).
+    pub fn reachable_walking(&self, at: Vec3, objective: bool, walk_objective: bool) -> bool {
         let grid = &self.tactics.world.grid;
         let Some(goal) = grid.locate(at, 3.0) else {
             return false;
@@ -846,6 +858,9 @@ impl Ctx<'_> {
         {
             return false;
         }
+        if self.never_a_way(start, goal, walk_objective) {
+            return false;
+        }
         let past = |b| self.tactics.past_fixed_zones(b);
         // [A395a] A goal on the margin's band is entered by the band's shortest walk in (`Tactics::band_way`).
         let way_in = self.tactics.band_way(goal, crate::v026g::bots::tactics::BandEnd::In);
@@ -855,6 +870,36 @@ impl Ctx<'_> {
                     || self.tactics.allowed(b, self.now, self.bot.side, objective)
                     || way_in.as_ref().is_some_and(|way| way.contains(&b))
             })
+    }
+
+    /// [bot traps] Whether no way leads from `start` (with no floor under the feet, the side's own spawn) to `goal` for this bot's
+    /// side, even with every zone off ([`Tactics::reach`]): a nav line once a goal region says so.
+    fn never_a_way(&self, start: Option<mapdata::NodeId>, goal: mapdata::NodeId, objective: bool) -> bool {
+        let tactics = self.tactics;
+        let grid = &tactics.world.grid;
+        let from = start.or_else(|| {
+            tactics.world.map.spawns.iter().filter(|s| Some(s.team) == self.bot.side).find_map(|s| grid.locate(s.position, 1.5))
+        });
+        let Some(from) = from else {
+            return false;
+        };
+        let never = tactics.reach(from, self.bot.side, objective).way(goal) == crate::v026g::bots::tactics::WayTo::Never;
+        if never {
+            #[cfg(test)]
+            crate::v026g::bots::tactics::reach_counts::count(crate::v026g::bots::tactics::reach_counts::REFUSED_NEVER);
+            use crate::v026g::bots::nav_log;
+            let region = tactics.regions().of(goal);
+            self.lines.push(
+                nav_log::Kind::Route,
+                Some(REACH_LINE_KEY | u64::from(region)),
+                format!(
+                    "{}goal refused: no way for this side from here even with every zone open (goal at {})",
+                    nav_log::PREFIX,
+                    nav_log::at(grid.position(goal))
+                ),
+            );
+        }
+        never
     }
 
     /// Whether no way leads to a battery lying at `at` all match, for any

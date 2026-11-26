@@ -268,6 +268,8 @@ pub struct Tactics {
     soft_noways: std::sync::Mutex<SoftNoWays>,
     /// [bot traps] [`Self::regions_reached`]'s sets by start region, the latest [`REACHED_KEPT`]: they depend on the map alone.
     reached: std::sync::Mutex<Vec<(u32, Arc<Vec<u64>>)>>,
+    /// [bot traps] [`Self::reach`]'s sets, by strongly joined part of the regions, side and objective.
+    reaches: std::sync::Mutex<ReachKept>,
     /// [bot traps] [`Self::carrier_static_way`]'s ways (`carrier_home.rs`).
     carrier_ways: std::sync::Mutex<super::carrier_home::Ways>,
     /// [bot traps] The carrier forecasts' searches for a way round a shut floor (`carrier_home::Rounds`).
@@ -474,6 +476,96 @@ pub enum NoGate {
 /// [bot traps] [`Tactics::regions_reached`]'s sets kept.
 const REACHED_KEPT: usize = 32;
 
+/// [bot traps] [`Tactics::reach`]'s sets kept (a match's bots stand in a few strongly joined parts of the regions a side).
+const REACHES_KEPT: usize = 64;
+
+/// [bot traps] How a goal is reached from a start for a side ([`ReachFrom::way`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum WayTo {
+    /// No chain of planned links from the start to the goal off the other sides' spawn areas, with every zone off: no route
+    /// search and no crossing ever finds one (both keep to planned links and the spawn rule; time, filters and the body's reach
+    /// only shut more).
+    Never,
+    /// A way only across floors zones on all match mark ([`Hazards::fixed_at`]): a crossing's.
+    CrossingOnly,
+    /// A way with the zones that switch counted off and those on all match shut.
+    Plain,
+}
+
+/// [bot traps] The regions a start's region reaches for a side and objective, a bit a region ([`Tactics::reach`]): `open`
+/// entering only regions off the other sides' spawn areas (`Tactics::spawn_ok` on the region's middle: a region's floors share
+/// their label, the spawn areas and the zones), `dry` those that no zone on all match marks too; and the regions that reach
+/// `root` back by each rule, so that a start of the same strongly joined part (by both rules) reads the same sets.
+struct ReachSets {
+    side: Option<i32>,
+    objective: bool,
+    root: u32,
+    open: Vec<u64>,
+    open_back: Vec<u64>,
+    dry: Vec<u64>,
+    dry_back: Vec<u64>,
+}
+
+impl ReachSets {
+    /// Whether a start in region `r` reads these sets: the root's own, or one that the root reaches and that reaches the root
+    /// back by both rules (each set from `r` is then the root's).
+    fn holds(&self, r: u32, side: Option<i32>, objective: bool) -> bool {
+        self.side == side
+            && self.objective == objective
+            && (r == self.root
+                || (region_bit(&self.open, r)
+                    && region_bit(&self.open_back, r)
+                    && region_bit(&self.dry, r)
+                    && region_bit(&self.dry_back, r)))
+    }
+}
+
+/// [bot traps] [`Tactics::reach`]'s kept sets and the zones on all match they were made for.
+#[derive(Default)]
+struct ReachKept {
+    fixed: Vec<bool>,
+    sets: Vec<Arc<ReachSets>>,
+}
+
+/// Whether region `r`'s bit is set in `bits`.
+fn region_bit(bits: &[u64], r: u32) -> bool {
+    bits.get(r as usize / 64).is_some_and(|word| word >> (r % 64) & 1 == 1)
+}
+
+/// [bot traps] A start's reach for a side ([`Tactics::reach`]): asks of its goals.
+pub struct ReachFrom<'a> {
+    tactics: &'a Tactics,
+    sets: Arc<ReachSets>,
+    /// The start's grid pocket (`WalkGrid::pocket_of`).
+    pocket: Option<mapdata::grid::PocketId>,
+}
+
+impl ReachFrom<'_> {
+    /// How `goal` is reached from the start. A goal in a shut pocket the start is not in is entered by no planned link
+    /// (`WalkGrid::plans`). Else, by the regions: the goal is in a set when its region is, or a floor of the set links into it by a
+    /// planned link (a search lets the goal in whatever its own floor), and for `dry` also when the band's walk in starts from
+    /// one (`Tactics::band_way_from`: a route may walk a goal's band legs).
+    pub fn way(&self, goal: NodeId) -> WayTo {
+        let tactics = self.tactics;
+        let (grid, regions) = (&tactics.world.grid, &tactics.base.regions);
+        if grid.in_shut_pocket(goal) && grid.pocket_of(goal) != self.pocket {
+            return WayTo::Never;
+        }
+        let inside = |set: &[u64]| {
+            region_bit(set, regions.of(goal)) || grid.entered_from(goal, |b| grid.plans(b, goal) && region_bit(set, regions.of(b)))
+        };
+        if !inside(&self.sets.open) {
+            return WayTo::Never;
+        }
+        let dry = &self.sets.dry;
+        if inside(dry) || tactics.band_way_from(goal, |b| region_bit(dry, regions.of(b))) {
+            WayTo::Plain
+        } else {
+            WayTo::CrossingOnly
+        }
+    }
+}
+
 /// [route shut] The bench's count of the route checks ([`Tactics::route_shut_ahead`]) that looked over a jump or drop leg by
 /// its take-off and landing (test builds; logging only).
 #[cfg(test)]
@@ -670,6 +762,23 @@ pub(crate) mod never_open_counts {
         COUNTS[what].fetch_add(n, Relaxed);
     }
     pub fn counts() -> [u64; 4] {
+        std::array::from_fn(|k| COUNTS[k].load(Relaxed))
+    }
+}
+
+/// [bot traps] The bench's counts of [`Tactics::reach`] (test builds; logging only): its sets made (four region floods) and
+/// read again, and the goals [`Ctx::reachable`](super::plays::Ctx::reachable) refused as [`WayTo::Never`].
+#[cfg(test)]
+pub(crate) mod reach_counts {
+    use std::sync::atomic::{AtomicU64, Ordering::Relaxed};
+    pub const FLOODS: usize = 0;
+    pub const HITS: usize = 1;
+    pub const REFUSED_NEVER: usize = 2;
+    static COUNTS: [AtomicU64; 3] = [const { AtomicU64::new(0) }; 3];
+    pub fn count(what: usize) {
+        COUNTS[what].fetch_add(1, Relaxed);
+    }
+    pub fn counts() -> [u64; 3] {
         std::array::from_fn(|k| COUNTS[k].load(Relaxed))
     }
 }
@@ -1480,6 +1589,7 @@ impl Tactics {
             never_open: Default::default(),
             soft_noways: Default::default(),
             reached: Default::default(),
+            reaches: Default::default(),
             carrier_ways: Default::default(),
             carrier_rounds: Default::default(),
             exit_field: Default::default(),
@@ -2017,6 +2127,110 @@ impl Tactics {
         }
         kept.push((start, set.clone()));
         set
+    }
+
+    /// [bot traps] The reach of floor `start` for a body of map side `side` (bound for their base if `objective`): which goals a
+    /// route or a crossing may ever get to from there ([`ReachFrom::way`]). Made on the regions, a few thousand: four floods of them
+    /// (forward and back, by the spawn rule alone and with the zones on all match shut) once a strongly joined part, side and
+    /// objective; then a bit test a goal. Made again when the zones on all match change.
+    ///
+    /// Exact: a region's floors share one label and reach each other, and regions link where a planned floor link does
+    /// (`mapdata::regions`); the start's whole region is let in where a search lets in its floor only. So the sets may only be
+    /// too wide: [`WayTo::Never`] is never said of a goal a search or a crossing reaches.
+    pub fn reach(&self, start: NodeId, side: Option<i32>, objective: bool) -> ReachFrom<'_> {
+        let regions = &self.base.regions;
+        let root = regions.of(start);
+        let sets = {
+            let mut kept = self.reaches.lock().unwrap_or_else(|e| e.into_inner());
+            let same_fixed = kept.fixed.len() == self.hazards.zones.len()
+                && kept.fixed.iter().zip(&self.hazards.zones).all(|(&fixed, zone)| fixed != zone.switches());
+            if !same_fixed {
+                kept.sets.clear();
+                kept.fixed = self.hazards.fixed_zones();
+            }
+            match kept.sets.iter().find(|s| s.holds(root, side, objective)) {
+                Some(sets) => {
+                    #[cfg(test)]
+                    reach_counts::count(reach_counts::HITS);
+                    sets.clone()
+                }
+                None => {
+                    #[cfg(test)]
+                    reach_counts::count(reach_counts::FLOODS);
+                    let open = |r: u32| self.spawn_ok(regions.middle(r), side, objective);
+                    let dry = |r: u32| open(r) && !self.hazards.fixed_at(regions.middle(r));
+                    let sets = Arc::new(ReachSets {
+                        side,
+                        objective,
+                        root,
+                        open: self.region_flood(root, &open, false),
+                        open_back: self.region_flood(root, &open, true),
+                        dry: self.region_flood(root, &dry, false),
+                        dry_back: self.region_flood(root, &dry, true),
+                    });
+                    if kept.sets.len() >= REACHES_KEPT {
+                        kept.sets.remove(0);
+                    }
+                    kept.sets.push(sets.clone());
+                    sets
+                }
+            }
+        };
+        ReachFrom { tactics: self, sets, pocket: self.world.grid.pocket_of(start) }
+    }
+
+    /// [bot traps] The regions `root` reaches entering only regions `enters` lets in (`back`: the regions that reach `root`
+    /// so, every region after the first let in, `root` too), a bit a region; `root` is in either.
+    fn region_flood(&self, root: u32, enters: &dyn Fn(u32) -> bool, back: bool) -> Vec<u64> {
+        let regions = &self.base.regions;
+        let mut seen = vec![0u64; regions.len().div_ceil(64)];
+        seen[root as usize / 64] |= 1 << (root % 64);
+        let mut queue = Vec::new();
+        if !back || enters(root) {
+            queue.push(root);
+        }
+        while let Some(a) = queue.pop() {
+            let next: Box<dyn Iterator<Item = u32>> =
+                if back { Box::new(regions.into(a).iter().copied()) } else { Box::new(regions.out(a).iter().map(|&(b, _)| b)) };
+            for b in next {
+                let (word, bit) = (b as usize / 64, 1u64 << (b % 64));
+                if seen[word] & bit != 0 {
+                    continue;
+                }
+                // Forward a region is marked only when entered; back it is marked as a start (which needs no entry) and
+                // gone on from only when entered.
+                if back {
+                    seen[word] |= bit;
+                    if enters(b) {
+                        queue.push(b);
+                    }
+                } else if enters(b) {
+                    seen[word] |= bit;
+                    queue.push(b);
+                }
+            }
+        }
+        seen
+    }
+
+    /// [bot traps] The route from `start` to `goal` for a body of map side `side` with the zones that switch counted off and
+    /// those on all match shut (but for the floors of the band legs, `Self::band_legs`), off the other sides' spawn areas: the
+    /// way a body walks at a time not known yet (the camper trap job's way in to a held place, for his next walk there).
+    pub fn route_all_match(&self, start: NodeId, goal: NodeId, side: Option<i32>) -> Option<Route> {
+        let regions = &self.base.regions;
+        let legs = self.band_legs(start, goal);
+        path::plan_in(
+            &self.world.grid,
+            regions,
+            &self.base.hot,
+            start,
+            goal,
+            |node| (!self.hazards.fixed_at(node) || legs.has(node)) && self.spawn_ok(node, side, false),
+            |region| {
+                let middle = regions.middle(region);
+                (!self.hazards.fixed_at(middle) && self.spawn_ok(middle, side, false)) || legs.crosses(regions, region)
+            },
+        )
     }
 
     /// The route from `from` to `to` for a body of map side `side`, off
