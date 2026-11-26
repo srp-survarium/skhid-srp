@@ -75,19 +75,23 @@ three). No artifact rescue in this version (owner, 2026-11-17).
 - In Freeze Tag's 3 s the frozen stay frozen and held, everyone else moves on, shoots and uses
   his items (the owner, 2026-11-22: "when one team in freeze tag wins a round it shouldn't stop
   moving", "only frozen people do"); no thaw progresses and no auto-thaw clock runs. A drawn
-  round restarts the same way, with no point. The match point is a fifth round win. The
-  match server takes a team at five as the winner from that round's 3 s on, so a time limit
-  that ends the match in them is still its win.
-- The existing match time limit still applies. If it expires before either
-  team reaches five wins, the unfinished series is a draw.
-- Players who join or rejoin during play spawn frozen at their team's spawn,
-  even in a previously unused roster place. A teammate can thaw them there.
-  The ordinary auto-thaw and next round's respawn also apply. The spawn
-  epilogue (`courier.spawned`, 0x316EAB) sets the body's pending-death byte
-  after the new kit has been inserted and before its first input or tick.
-  The match's initial spawns and the round respawns and kit switches during
-  the countdown start normally. See “No place out of the world” below for
-  why the entry itself must run.
+  round restarts the same way, with no point. The match point is a fifth round win.
+- The existing match time limit still applies. When it ends the match, in any phase, the team
+  with more round wins wins it, even ones draw (the owner, 2026-11-26: "when the timer ends, the
+  team with the most points wins"): `FreezeTag::leader`, which the game writes as the
+  statistics' leader (`m_winner_team`, 2 when even) every step as every mode's rule keeps its
+  leader, the hud shows as the match won, lost or drawn, and the match server takes as the
+  match's winner (`Decoded::standing`). A team at five leads, so a match won is its win too.
+- A player who enters while a round is in play (the rule's Playing: a late arrival, a player
+  who comes back, in a place new to the match or not) spawns frozen at his team's points, for a
+  teammate or the auto-thaw to thaw: the spawn's end (`courier.spawned`, 0x316EAB, after the new
+  kit is inserted and its health reset) makes the body lethal, so the hold has it from its first
+  input and tick and the rule's next step freezes it. On a team with nobody in it too, which
+  then has entered with nobody fighting, so the other team wins the round (the owner,
+  2026-11-26: as intended). Not before play (the rule is not stepped in the match start's
+  countdown), nor in a round's 3 s, fade and countdown or after the match: an arrival then moves
+  on as the others not frozen, and the round's respawns and the countdown's kit switches start
+  as they are. "No place out of the world" below says why the entry itself always runs.
 - The HUD reuses the stock TDM score bars (full at `WINS`, which the patch
   passes to `freeze_tag_score`; their native source, the hud state's team
   points +90h/+92h, which no Freeze Tag rule fills and nothing clears at a
@@ -360,11 +364,13 @@ frame hook, order 6) the game plays, moves (`update_particle_system_instance`
 0x22B30, on the body's simulated transform, scaled as above) and stops one instance a place in
 the world's scene, from the world's rule state: every frozen body of a match in
 play, at its progress's size, so every game, a rollback and a late join
-show the same. It stops at the thaw, the round's restart and the match's end.
-The match-finish hook removes the instances before unload (0x1F972F).
-Deactivation also removes them on exit. Cleanup uses the scene renderer
-because unload clears the world's match pointer at 0x1F8B64 before the
-switch to the lobby. Each of the 20 places has an instance of
+show the same. It stops at the thaw, the round's restart and the match's end. The match's
+end (`game_world.finish`, on_finish_match 0x1F96F0, before its unload) and its scene left
+(`game_world.deactivate`, order 4) take every instance this game played out of the scene, through
+the scene renderer alone (the unload clears the world's match pointer, 0x1F8B64, before the
+switch to the lobby), and close the glow until a Freeze Tag match's options open it again: so no
+body of a match is stopped or moved in the next one's scene, a scene missing at the exit too.
+Each of the 20 places has an instance of
 its own (a scene plays an instance once): 20 systems in one query at the
 first frame of a Freeze Tag match. The frozen player's camera is the orbit
 around his own body, so he sees the same particles; there is no first-person
@@ -416,13 +422,14 @@ was (above, `respawn.tick`).
 
 ## Validation
 
-The native regression (`tools/check freeze-native`) ran both match finish
-and disconnect with two active halos. Each removed both instances
-once, including when deactivation saw a detached core. The same client then
-started an ordinary match with no halos. A separate case spawned a late
-joiner into a fresh slot, checked input was held immediately, restored the
-snapshot, and exercised the enemy minimap hook before and after a teammate
-thawed the joiner. These cases ran under Unicorn.
+`tools/check freeze-native` (Unicorn), for the match lifecycle (#2627): the glow of two frozen
+bodies taken out of the scene once at the match's end and at its scene left with the core
+detached, none with no scene, and the next Freeze Tag match's scene given no stop or move of the
+last one's bodies, its first freeze a fresh play; an arrival in a round in play (a place new to
+the match) held at once, frozen at the next step and thawed by a teammate, an arrival on an empty
+team frozen and the other team's round; a spawn before play, in a countdown, in the 3 s after a
+round, after the match and in another mode left as it is; the time limit's win, loss and draw on
+the hud and the statistics' leader by round wins. Not played in a game.
 
 Played by the owner in three local tests on 2026-11-21 (three windows,
 Rudnya day; the matches record into the world corpus):

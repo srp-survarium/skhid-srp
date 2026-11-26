@@ -213,10 +213,11 @@ impl<'t> Player<'t> {
     }
 }
 
-/// Pregame spawns, the round-wide respawn and countdown kit switches run
-/// under a countdown. During active play only an entering place can spawn.
-/// The tick and input hooks already hold a lethal body before the next
-/// rule step folds it into the ordinary, rescuable frozen state.
+/// At `courier.spawned` (the spawn's end, its kit installed and its health
+/// reset), in a round the rule plays: the new body lethal, so the tick and
+/// input hooks hold it from its first frame and the rule's next step freezes
+/// it. Not before play (the match start's countdown, whose spawns and kit
+/// switches the rule, not stepped yet, cannot tell apart).
 pub fn freeze_spawn_in_play(ctx: &Context<'_>) {
     // SAFETY: the site's ESI is the live, newly inserted player.
     let Some(player) = (unsafe { raw::site::courier_spawned::player(ctx) }) else { return };
@@ -324,13 +325,15 @@ impl<'t> World<'t> {
             player.actions().write(0);
         }
     }
-    pub fn publish(&mut self, points: [u16; 2], winner: Option<Team>) {
+    /// The statistics' tail: the round wins and the leader (`m_winner_team`, 2 when even), as every
+    /// mode's rule keeps its leader there.
+    pub fn publish(&mut self, points: [u16; 2], leader: Option<Team>) {
         // SAFETY: the core owns this statistics handler throughout play.
         unsafe {
             let stats = self.core.statistics().expect("a playing world's statistics");
             stats.team_zero_points().write(points[0]);
             stats.team_one_points().write(points[1]);
-            stats.winner().write(winner.map_or(2, |team| team.index() as u8));
+            stats.winner().write(leader.map_or(2, |team| team.index() as u8));
         }
     }
 }

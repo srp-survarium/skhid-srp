@@ -24,7 +24,9 @@ const RECORD: usize = 7;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Player {
-    /// No body seen in this round yet. A mid-round spawn arrives lethal.
+    /// Not seen in this round yet: everyone at a round's start, who fights
+    /// from his first spawn. A place that enters while a round is in play
+    /// spawns lethal (the exe's spawn hook), so it is frozen at its first step.
     Waiting,
     Fighting(Team),
     Frozen {
@@ -145,6 +147,18 @@ impl FreezeTag {
     }
     pub fn complete(&self) -> bool {
         self.winner().is_some()
+    }
+    /// The team with more round wins, none while even: the statistics' leader,
+    /// and the match's winner when the time limit ends it (the owner,
+    /// 2026-11-26: "when the timer ends, the team with the most points wins").
+    /// A match won at [`WINS`] has its winner as leader.
+    pub fn leader(&self) -> Option<Team> {
+        let [first, second] = self.score;
+        match first.cmp(&second) {
+            core::cmp::Ordering::Greater => Some(Team::First),
+            core::cmp::Ordering::Less => Some(Team::Second),
+            core::cmp::Ordering::Equal => None,
+        }
     }
     /// When the match ended: the end of the time after its last round.
     pub fn finished_at(&self) -> Option<Time> {
@@ -301,11 +315,6 @@ impl FreezeTag {
                     *player = Player::frozen(team);
                 }
                 (Player::Waiting, Body::Present { team, .. }) => *player = Player::Fighting(team),
-                // A returning player may occupy a different roster place. The
-                // frozen body belongs to its current team for rescues and the map.
-                (Player::Frozen { team: previous, .. }, Body::Present { team, .. }) if team != previous => {
-                    *player = Player::frozen(team);
-                }
                 // Leaving cannot erase a freeze. Nor can reconnecting turn
                 // a retained frozen place back into a fighting player: he
                 // comes back at his team's spawn, frozen there until a
@@ -687,6 +696,35 @@ mod tests {
         g.step(&[Body::Absent; PLAYERS], &VISIBLE, 50);
         assert_eq!(g.s.phase(), Phase::Playing);
     }
+    /// An arrival in a round in play spawns frozen (lethal), on an empty team
+    /// too: that team has entered with nobody fighting, so the other team wins
+    /// the round (the owner, 2026-11-26: as intended).
+    #[test]
+    fn an_arrival_on_an_empty_team_is_frozen_and_loses_the_round() {
+        let mut b = [Body::Absent; PLAYERS];
+        b[0] = body(Team::First, 0.0, Condition::Fighting);
+        let mut g = Game::new();
+        g.step(&b, &VISIBLE, 50);
+        assert_eq!(g.s.phase(), Phase::Playing, "1 v 0: nothing ends");
+        b[1] = body(Team::Second, 10.0, Condition::Lethal);
+        g.step(&b, &VISIBLE, 50);
+        assert!(matches!(g.s.phase(), Phase::Restart { ended: RoundEnd::Won(Team::First), .. }));
+        assert_eq!((g.s.points(), g.s.leader()), ([1, 0], Some(Team::First)));
+    }
+    /// The leader is by round wins, even none.
+    #[test]
+    fn the_leader_has_more_round_wins() {
+        let mut g = Game::new();
+        assert_eq!(g.s.leader(), None);
+        let mut b = match_bodies();
+        b[2] = body(Team::Second, 1.0, Condition::Lethal);
+        g.step(&b, &VISIBLE, 50);
+        assert_eq!(g.s.leader(), Some(Team::First));
+        g.s.score = [2, 3];
+        assert_eq!(g.s.leader(), Some(Team::Second));
+        g.s.score = [3, 3];
+        assert_eq!(g.s.leader(), None);
+    }
     /// Every field non-zero and of its own value: `read(bytes())` gives the state back, and each
     /// field is at its place in the layout (since #2507 the writer had moved every field after
     /// the first a byte on per field before it, and only the round trips of whole states showed it).
@@ -1051,22 +1089,6 @@ mod tests {
         b[1] = body(Team::First, 10.0, Condition::Lethal);
         g.step(&b, &BLIND, 50);
         assert!(!(0..4).any(|n| g.s.last_standing(place(n))));
-    }
-
-    #[test]
-    fn a_reused_frozen_place_counts_for_its_new_team() {
-        let mut bodies = fighting();
-        bodies[2] = body(Team::First, 20.0, Condition::Lethal);
-        bodies[3] = body(Team::Second, 20.0, Condition::Lethal);
-        let mut g = Game::new();
-        g.step(&bodies, &BLIND, 50);
-        assert!(!g.s.last_standing(place(1)));
-        bodies[2] = body(Team::Second, 10.0, Condition::Lethal);
-        g.step(&bodies, &BLIND, 50);
-        assert!(g.s.last_standing(place(1)));
-        assert_eq!(g.read_back(), g.s);
-        assert_eq!(thawed(g.step(&bodies, &VISIBLE, THAW_MS)), 1 << 2);
-        assert_eq!(g.s.player(place(2)), Player::Fighting(Team::Second));
     }
 
     #[test]
