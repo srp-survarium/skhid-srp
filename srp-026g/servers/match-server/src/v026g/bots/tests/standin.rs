@@ -1723,9 +1723,9 @@ impl Game {
                         slide_capped(grid, node, body.feet, target, client_step(grid))
                     };
                     // [A318] A step the lattice has rising or blocked goes as far as the client's own walk tick takes the body
-                    // (`WalkGrid::client_step`), the lattice walking to that point: the reckoning's rule (`kin.client_step`).
+                    // (`WalkGrid::client_step`), the lattice walking to that point: the old reckoning's rule (`kin.client_step = client`).
                     // [A364 P9] With `kept`, every ground step is the client's own controller kept across the body's steps (the
-                    // reckoning's `ClientStep::Kept`): the lattice walks to where it ends.
+                    // reckoning's kept controller): the lattice walks to where it ends.
                     // [stand-in fidelity] The kept controller's step that left the ground for a floor below ([`body::KeptOff::Left`]):
                     // where it ended and its own rise, for a walk-off that falls by it (`SRP_BENCH_STAND_IN_KEPT_FALL`).
                     let mut kept_left: Option<Vec3> = None;

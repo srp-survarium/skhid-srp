@@ -1,6 +1,6 @@
 //! [A318] Where the client's walk tick holds a body walking up to a route jump's take-off (a grid `Jump` link: up a ledge higher
 //! than a step), against the motor's press distance (`motor::PRESS_M` past `JUMP_LEAD_S` at the body's speed). A body the client
-//! holds at the ledge's face stands still, so it presses only within `PRESS_M` of the take-off; under `kin.client_step = client`
+//! holds at the ledge's face stands still, so it presses only within `PRESS_M` of the take-off; under the old `kin.client_step = client`
 //! the reckoned body is held where the client holds it. A lab: per map, every Jump link's held distance before the take-off.
 //!
 //! ```text

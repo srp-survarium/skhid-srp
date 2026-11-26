@@ -260,8 +260,8 @@ pub(crate) fn stand_in_step_input() -> crate::v026g::bots::kin::StepInput {
 }
 
 /// [A364 P9] Whether every ground step of the stand-in's walk is the client's own controller kept across the body's steps
-/// (`SRP_BENCH_STAND_IN_CLIENT_STEP`: `kept`, the default since #1681's bench; `tuning` with the bench tuning's
-/// `kin.client_step = kept`): the bench's world walks as the client's body (the port is the game's feet on 99.5 % of 221,000 traced
+/// (`SRP_BENCH_STAND_IN_CLIENT_STEP`: `kept`, the default since #1681's bench; `tuning`, the reckoning's kept
+/// controller): the bench's world walks as the client's body (the port is the game's feet on 99.5 % of 221,000 traced
 /// steps), so a reckoning is judged against the client and not against the lattice. `on` and `off` are the older worlds.
 /// [body physics S2] Whether the stand-in's bodies move by the shared model of the client's body (`SRP_BENCH_STAND_IN_BODY`, default
 /// `client`; `lattice` the stand-in before S2). Needs the grid's client walker; a grid without it moves as before.
@@ -310,19 +310,19 @@ pub(crate) fn stand_in_kept() -> bool {
     static TUNED: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
     *TUNED.get_or_init(|| match super::bench_settings().var("SRP_BENCH_STAND_IN_CLIENT_STEP").as_deref() {
         Ok("on" | "off") => false,
-        Ok("tuning") => super::bench::bench_tuning().kin.client_step == crate::v026g::bots::kin::ClientStep::Kept,
+        // `tuning`: the reckoning's rule, the kept controller (its only one since body physics S6a).
         _ => true,
     })
 }
 
 /// [A318] Whether the stand-in's walk takes the client's walk tick where the lattice has a step rising or blocked
 /// (`SRP_BENCH_STAND_IN_CLIENT_STEP=on`; the default is now [`stand_in_kept`]'s, which comes first); `off` the lattice alone;
-/// `tuning` as the bench tuning's `kin.client_step` (the reckoning's rule).
+/// `tuning` the reckoning's rule ([`stand_in_kept`]'s).
 pub(crate) fn stand_in_client_step() -> bool {
     static TUNED: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
     *TUNED.get_or_init(|| match super::bench_settings().var("SRP_BENCH_STAND_IN_CLIENT_STEP").as_deref() {
-        Ok("off") => false,
-        Ok("tuning") => super::bench::bench_tuning().kin.client_step == crate::v026g::bots::kin::ClientStep::Client,
+        // `tuning`: the reckoning has no client-step rule since body physics S6a ([`stand_in_kept`] takes it).
+        Ok("off" | "tuning") => false,
         _ => true,
     })
 }
