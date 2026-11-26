@@ -110,6 +110,7 @@ use survarium::v026g::match_msgs::snapshot::{self, Rules, Standing, Statistics, 
 use survarium::v026g::match_msgs::upload::{Pushed, Reassembler, Upload};
 use survarium::v026g::match_msgs::{
     ClientMessage, FORCED_MISMATCH, Generation, PlayerInput, ServerMessage, TICK_MS, TimeReply,
+    UploadWanted,
     WireTime, clock as game_clock, parse_client, tick_byte, tick_time,
 };
 use udp_transport::{Event, SendError, Transport};
@@ -625,6 +626,17 @@ enum Wanted {
     Look(WrongWorld),
 }
 
+impl Wanted {
+    /// What its 0xF6 asks for: a tick's world only for the desync capture of a
+    /// game that answers one.
+    fn request(self) -> UploadWanted {
+        match self {
+            Wanted::Look(WrongWorld::Capture(wanted)) => wanted,
+            Wanted::Vote(_) | Wanted::Look(WrongWorld::Resync) => UploadWanted::Horizon,
+        }
+    }
+}
+
 /// A request for a game's world that went and is not answered yet.
 #[derive(Clone, Copy, Debug)]
 struct Asked {
@@ -642,8 +654,8 @@ enum WrongWorld {
     Resync,
     /// Its game is of one side of a split, asked for at its first
     /// disagreeing report (`desync_capture`): saved with the other side's
-    /// world and what differs.
-    Capture,
+    /// world and what differs. Asked for the split's tick, or the horizon's.
+    Capture(UploadWanted),
 }
 
 /// A client whose hashes disagree with the right ones, in a row.
@@ -736,6 +748,10 @@ struct Peer {
     next_ping: Instant,
     /// It uploaded a snapshot, so it answers 0xF6.
     patched: bool,
+    /// Its 0xD8 said it answers 0xF6 for a tick from the worlds it hashed
+    /// (patch 211, `srp_validate::messages::EXACT_WORLDS`): the desync
+    /// capture asks it for the split's own tick.
+    exact_worlds: bool,
     resources_loaded: bool,
     installed_roster: usize,
     preparing: Option<LoadingProfile>,
@@ -1422,6 +1438,7 @@ impl Game {
             ping: None,
             next_ping: now,
             patched: false,
+            exact_worlds: false,
             resources_loaded: false,
             installed_roster: 0,
             preparing: None,
@@ -1519,6 +1536,13 @@ impl Game {
     pub(super) fn enable_world_receipts(&mut self, index: usize) {
         if let Some(peer) = self.peers.get_mut(index).and_then(Option::as_mut) {
             peer.world_receipts.enable();
+        }
+    }
+
+    /// The game at `index` answers an upload request for a tick.
+    pub(super) fn enable_exact_worlds(&mut self, index: usize) {
+        if let Some(peer) = self.peers.get_mut(index).and_then(Option::as_mut) {
+            peer.exact_worlds = true;
         }
     }
 
@@ -2563,7 +2587,7 @@ impl Game {
             if peer.stage != Stage::Live {
                 continue;
             }
-            send(peer, &ServerMessage::UploadRequest);
+            send(peer, &ServerMessage::UploadRequest(wanted.request()));
             peer.asked = Some(Asked {
                 at: now,
                 clock,
@@ -2598,7 +2622,7 @@ impl Game {
             return;
         }
         peer.wrong_worlds += 1;
-        send(peer, &ServerMessage::UploadRequest);
+        send(peer, &ServerMessage::UploadRequest(UploadWanted::Horizon));
         peer.asked = Some(Asked {
             at: now,
             clock,
@@ -4061,7 +4085,7 @@ impl Game {
             // of step (`ask_wrong_world`), or for the desync capture.
             match why {
                 WrongWorld::Resync => self.wrong_world_uploaded(index, clock, &snapshot),
-                WrongWorld::Capture => self.capture_world(index, snapshot),
+                WrongWorld::Capture(_) => self.capture_world(index, snapshot),
             }
             return;
         }

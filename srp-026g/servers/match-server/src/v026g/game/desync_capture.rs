@@ -36,6 +36,10 @@ const ASK_REACH: Duration = Duration::from_millis(500);
 /// latest, whatever came (an upload takes well under a second; a full
 /// packet pool, a world refused or a game gone sends none).
 const CAPTURE_WAIT: Duration = Duration::from_secs(4);
+/// ... and this long after it at the soonest: the reports of the split's tick
+/// from the games of longer links come in meanwhile, and the sides it
+/// names are all of them.
+const SIDES_WAIT: Duration = Duration::from_secs(1);
 /// The latest reports' lags kept for each game (`ReportLags`).
 const LAGS_KEPT: usize = 20;
 /// The folder of the captures under `SRP_SNAPSHOT_DIR`.
@@ -154,9 +158,37 @@ struct Side {
     /// What it reported for the split's tick.
     crc: u32,
     round_trip: u32,
-    /// The tick its request was timed for, if it was.
-    aimed: Option<u32>,
     world: Option<Snapshot>,
+}
+
+/// How the two worlds were asked for.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Asking {
+    /// Both games answer a request for a tick (patch 211): each was asked for
+    /// the split's first tick, which it gives from the worlds it hashed, or
+    /// its event-horizon world when it no longer holds that tick.
+    Tick(u32),
+    /// For their event-horizon worlds, the requests timed so that both give
+    /// the same tick (`aim_tick`): the tick, or `None` when no timing was
+    /// known and both went at once.
+    Aimed(Option<u32>),
+}
+
+impl Asking {
+    fn word(self) -> &'static str {
+        match self {
+            Asking::Tick(_) => "tick",
+            Asking::Aimed(_) => "aimed",
+        }
+    }
+
+    /// The tick the worlds were asked for or timed for.
+    fn tick(self) -> Option<u32> {
+        match self {
+            Asking::Tick(tick) => Some(tick),
+            Asking::Aimed(tick) => tick,
+        }
+    }
 }
 
 /// A capture whose worlds are on their way.
@@ -167,6 +199,7 @@ struct Pending {
     seen_at: u32,
     groups: Vec<Group>,
     sides: [Side; 2],
+    asking: Asking,
     asked: Instant,
 }
 
@@ -271,26 +304,41 @@ impl Game {
             return;
         };
         let clock = self.clock(now);
-        let offset = |index: usize| {
-            let peer = self.peers[index].as_ref()?;
-            match peer.upload_offset {
-                Some((low, high)) => Some((low + high) / 2),
-                None => peer.report_lags.upload_offset(peer.round_trip),
+        let exact = [a, b].iter().all(|index| {
+            self.peers[*index]
+                .as_ref()
+                .is_some_and(|peer| peer.exact_worlds)
+        });
+        // Both answer a request for a tick: the split's first, at once (each
+        // holds the worlds it hashed of the last 1.6 s). Else their horizon's,
+        // timed for one tick.
+        let (asking, times) = if exact {
+            (Asking::Tick(self.split_start(first)), vec![clock, clock])
+        } else {
+            let offset = |index: usize| {
+                let peer = self.peers[index].as_ref()?;
+                match peer.upload_offset {
+                    Some((low, high)) => Some((low + high) / 2),
+                    None => peer.report_lags.upload_offset(peer.round_trip),
+                }
+            };
+            let aimed = [offset(a), offset(b)]
+                .into_iter()
+                .collect::<Option<Vec<i64>>>()
+                .and_then(|middles| aim_tick(clock, &middles, None));
+            match aimed {
+                Some((target, times)) => (Asking::Aimed(Some(target)), times),
+                None => (Asking::Aimed(None), vec![clock, clock]),
             }
         };
-        let aimed = [offset(a), offset(b)]
-            .into_iter()
-            .collect::<Option<Vec<i64>>>()
-            .and_then(|middles| aim_tick(clock, &middles, None));
-        let (target, times) = match aimed {
-            Some((target, times)) => (Some(target), times),
-            None => (None, vec![clock, clock]),
+        let wanted = match asking {
+            Asking::Tick(tick) => UploadWanted::Tick(WireTime::tick(tick).tick),
+            Asking::Aimed(_) => UploadWanted::Horizon,
         };
         let side = |index: usize, crc: u32| Side {
             index,
             crc,
             round_trip: self.peers[index].as_ref().map_or(0, |peer| peer.round_trip),
-            aimed: target,
             world: None,
         };
         self.captures.taken += 1;
@@ -300,11 +348,12 @@ impl Game {
             seen_at: clock,
             groups,
             sides: [side(a, crc_a), side(b, crc_b)],
+            asking,
             asked: now,
         };
         log::debug!(
             "Match {:#x}: desync capture {}: players {a} and {b} are asked for their worlds (at \
-             {times:?}, for tick {target:?}, clock {clock})",
+             {times:?}, {asking:?}, clock {clock})",
             self.id,
             pending.number
         );
@@ -313,7 +362,7 @@ impl Game {
         self.captures.episode.handled();
         for (index, at) in [a, b].into_iter().zip(times) {
             if let Some(peer) = self.peers[index].as_mut() {
-                peer.ask_at = Some((at, Wanted::Look(WrongWorld::Capture)));
+                peer.ask_at = Some((at, Wanted::Look(WrongWorld::Capture(wanted))));
             }
         }
         self.send_requests(now);
@@ -328,20 +377,16 @@ impl Game {
             return;
         };
         side.world = Some(snapshot);
-        if pending.sides.iter().all(|side| side.world.is_some()) {
-            self.finish_capture();
-        }
     }
 
-    /// The capture's worlds are written once [`CAPTURE_WAIT`] is over,
-    /// whatever came.
+    /// The capture is written once both worlds came and [`SIDES_WAIT`] is
+    /// over, or once [`CAPTURE_WAIT`] is, whatever came.
     pub(super) fn check_capture(&mut self, now: Instant) {
-        if self
-            .captures
-            .pending
-            .as_ref()
-            .is_some_and(|pending| now.saturating_duration_since(pending.asked) >= CAPTURE_WAIT)
-        {
+        if self.captures.pending.as_ref().is_some_and(|pending| {
+            let waited = now.saturating_duration_since(pending.asked);
+            let came = pending.sides.iter().all(|side| side.world.is_some());
+            waited >= CAPTURE_WAIT || (came && waited >= SIDES_WAIT)
+        }) {
             self.finish_capture();
         }
     }
@@ -355,6 +400,12 @@ impl Game {
                 .iter()
                 .any(|side| side.index == index && side.world.is_none())
         })
+    }
+
+    /// Whether a capture is still to be written.
+    #[cfg(test)]
+    pub fn capture_pending(&self) -> bool {
+        self.captures.pending.is_some()
     }
 
     /// The captures asked for in this match.
@@ -442,6 +493,13 @@ impl Game {
         } else {
             ", NOT the same tick"
         };
+        let how = match pending.asking {
+            Asking::Tick(tick) if summary.exact => format!(" (asked for {tick} ms: exact)"),
+            Asking::Tick(tick) => {
+                format!(" (asked for {tick} ms: NOT given, a horizon's world instead)")
+            }
+            Asking::Aimed(_) => " (their horizons' worlds, timed for one tick)".to_owned(),
+        };
         let first = match &diff {
             Some(diff) => diff
                 .first_field()
@@ -456,7 +514,7 @@ impl Game {
             None => String::new(),
         };
         log::warn!(
-            "Match {:#x}: desync capture {} at {split} ms (seen {} ms): groups {}; worlds {}{gap}{same}; \
+            "Match {:#x}: desync capture {} at {split} ms (seen {} ms): groups {}; worlds {}{how}{gap}{same}; \
              {first}{files}",
             self.id,
             pending.number,
@@ -480,6 +538,14 @@ struct Summary {
     /// The match clock then.
     seen_at_ms: u32,
     groups: Vec<GroupSummary>,
+    /// How the worlds were asked for: `tick` (both games answer a request
+    /// for a tick, patch 211: each asked for `asked_tick`, the split's first)
+    /// or `aimed` (their event-horizon worlds, the requests timed for
+    /// `asked_tick`, `null` when no timing was known).
+    asked: &'static str,
+    asked_tick: Option<u32>,
+    /// Both worlds are of the split's first tick.
+    exact: bool,
     worlds: Vec<WorldSummary>,
     /// How far past `split_tick` the worlds are (the later one).
     after_split_ms: Option<u32>,
@@ -501,7 +567,6 @@ struct WorldSummary {
     /// The CRC its game reported for the split's tick.
     reported: String,
     round_trip_ms: u32,
-    aimed_tick: Option<u32>,
     tick: Option<u32>,
     crc: Option<String>,
     file: Option<String>,
@@ -515,12 +580,18 @@ impl Summary {
             .map(|side| side.world.as_ref().map(|world| world.time))
             .collect();
         let same_tick = ticks[0].is_some() && ticks[0] == ticks[1];
+        let exact = ticks
+            .iter()
+            .all(|tick| tick.is_some() && *tick == Some(split));
         Summary {
             match_id: format!("{id:#x}"),
             capture: pending.number,
             split_tick: split,
             first_seen_tick: pending.first,
             seen_at_ms: pending.seen_at,
+            asked: pending.asking.word(),
+            asked_tick: pending.asking.tick(),
+            exact,
             groups: pending
                 .groups
                 .iter()
@@ -536,7 +607,6 @@ impl Summary {
                     place: side.index,
                     reported: format!("{:08x}", side.crc),
                     round_trip_ms: side.round_trip,
-                    aimed_tick: side.aimed,
                     tick: side.world.as_ref().map(|world| world.time),
                     crc: side
                         .world

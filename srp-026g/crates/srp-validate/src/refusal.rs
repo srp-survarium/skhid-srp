@@ -494,6 +494,10 @@ pub enum Reason {
     SnapshotFlag {
         flag: u8,
     },
+    /// 0xF6 of two bytes whose first is not 1 (`messages::UploadRequest`).
+    UploadRequestForm {
+        first: u8,
+    },
 
     // 0xE4's options.
     OptionsTooLarge {
@@ -915,6 +919,9 @@ impl fmt::Display for Reason {
             ),
             Reason::SnapshotFlag { flag } => {
                 write!(f, "a compressed flag of {flag:#04x}, not 0 or 1")
+            }
+            Reason::UploadRequestForm { first } => {
+                write!(f, "an upload request of form {first:#04x}, not 1")
             }
             Reason::OptionsTooLarge { len } => {
                 write!(f, "{len} bytes, over the client's 0x578a0")

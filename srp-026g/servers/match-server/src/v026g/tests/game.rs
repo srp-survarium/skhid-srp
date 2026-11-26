@@ -3054,7 +3054,7 @@ fn a_player_out_of_step_is_asked_for_its_world_ahead_of_its_resync() {
             .iter()
             .rev()
             .take(20)
-            .any(|message| matches!(message, ServerMessage::UploadRequest)),
+            .any(|message| matches!(message, ServerMessage::UploadRequest(_))),
         "{:?}",
         &client.taken[set_time.saturating_sub(5)..=set_time]
     );

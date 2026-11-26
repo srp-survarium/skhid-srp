@@ -1921,3 +1921,5 @@ survarium::weapon	own_near_plane_factor	0x5B8	f32	1.0 (load_config_parameters 0x
 survarium::player_input_handler	near_plane	0x8C	f32	the camera's near plane, m: update_camera writes 0.05 x the aimed weapon's factor (0x1F3566; 0.05 with no gun 0x1F359D and in the other modes 0x1F35D6), the projection reads it (0x242900)
 survarium::near_plane_unit	value	0x0	f32	0.05, the near plane update_camera scales (mulss at 0x1F355E); also the tick's 0.05 s elsewhere: read, never written
 survarium::image	near_plane_unit	0x9CC878	obj<survarium::near_plane_unit>	update_camera's near plane at a factor of 1 (0x1F355E, 0x1F3595, 0x1F35CE; .rdata)
+survarium::world_hash_frame	data	-0x10	ptr<u8>	game_state_history_item::hash's mutable_buffer {allocator -14h, data -10h, capacity -0Ch, size -8h} by EBP (0x32518A..0x3251A4): the bytes the serialize wrote (patch 98: 0xF000 of them at most)
+survarium::world_hash_frame	size	-0x8	u32	the bytes the serialize wrote: the world, whose CRC hash() makes of them (0x325207..0x32520D)

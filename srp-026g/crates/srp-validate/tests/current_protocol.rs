@@ -222,7 +222,7 @@ fn every_action_bit_is_allowed_but_a_nan_turn_is_not() {
 
 #[test]
 fn current_emitted_messages_and_late_join_headers_are_accepted() {
-    use survarium::v026g::match_msgs::{PlayerInput, ServerMessage as M, WireTime, late_join};
+    use survarium::v026g::match_msgs::{PlayerInput, ServerMessage as M, UploadWanted, WireTime, late_join};
     let tick = WireTime::tick(5000);
     let precise = WireTime::precise(5049);
     let mut messages = vec![
@@ -233,7 +233,8 @@ fn current_emitted_messages_and_late_join_headers_are_accepted() {
         M::PlayerLeft { tick: 4, player: 19 },
         M::ProfileInputRelay { tick: 3, player: 19, value: 2 },
         M::MoveProfileInput { from_tick: 3, to_tick: 4 },
-        M::DiscardProfileInput { tick: 3 }, M::UploadRequest,
+        M::DiscardProfileInput { tick: 3 }, M::UploadRequest(UploadWanted::Horizon),
+        M::UploadRequest(UploadWanted::Tick(77)),
     ];
     for time in [tick, precise] {
         messages.extend([

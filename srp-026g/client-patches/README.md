@@ -163,6 +163,7 @@ release's. The "Result" row is the build of the revision named in it.
 | `rust/patches/src/footsteps.rs`, `src/footsteps.toml`, `src/vostok/footstep.rs`, `check_footsteps_026g.py` | Patch 101: a footstep that only a re-simulation makes (another player's late input) is heard instead of dropped; one lohook in on_player_sound_event's time test; and a foot step in a logic state with no foot material (movement 0: on site, dead) is dropped at on_foot_step's read of it (0x2A6545), which read the word before the boots' table (a rev71 crash in step_manager::on_step); its check runs the handler in both exes (needs Unicorn) |
 | `rust/patches/src/step_ground.rs`, `src/step_ground.toml`, `src/vostok/step.rs`, `check_step_ground_026g.py` | Patch 153: a step whose ground ray meets nothing (a walker-only floor: a wagon's top, a loading station, a wall top) finds what the body stands on, as 0.69d does (`../docs/notes/footsteps.md`, "Silent ground"), and a step in water wades (the pack `water-steps`' surfaces, "Wading"); one lohook after `on_step`'s ray (`step.ground`); `vostok::step::play` plays a step of a material at a point through `on_step` for another patch; `SKHID_STEP_LOG=on` logs every step; its check runs `on_step` in both exes (needs Unicorn) |
 | `rust/patches/src/sync_log.rs`, `src/sync_log.toml`, `src/vostok/desync.rs`, `check_sync_log_026g.py` | Patch 210: the sync log (`../docs/notes/sync-log.md`), the owner's diagnostic, off unless the game's environment has `SKHID_SYNC_LOG=on`: a line in the run's patch log for each input applied off the 50 ms grid (`carry.input`, order -1), each animation and stamina tick an input makes off the grid or a step makes from an off-grid time (`sync.animations`, tick_animations' entry 0x2D8EE0) and each world the server sends (`sync.world_load`, game_world_core::deserialize's entry 0x2D2770, which also names the load a replay is after); in Freeze Tag, once a second while the rule shows an enemy of the viewer on the map, whether update_minimap_players tested him (`minimap.enemy_spotted`, order -1) and listed him (`sync.minimap_listed`, 0x23951B) and how far he is; at most 20 lines a second of game time; it only reads, its check runs the three sites beside the original (registers and memory the same, off and on) |
+| `rust/patches/src/exact_world.rs`, `src/exact_world.toml`, `src/vostok/exact_world.rs`, `check_exact_world_026g.py` | Patch 211: the world of a tick, for the match server's desync capture (`../docs/notes/desync_capture.md`): every world `game_state_history_item::hash` serializes (`world_hash.serialized`, 0x3251DC) kept in a ring of the last 32 ticks (640 KiB of `patches.state`); an upload request (0xF6) of 1 and a tick (`upload_request.case`, the dispatcher's case 0xF6 0x27A4F4, before the snapshot upload's request hook) uploads the ring's world of that tick with the snapshot upload's chunks, anything else goes on to the snapshot upload as before; the game says so in its 0xD8 (0x86/0x87, `late_join_026g.asm` connect_capability); its check runs both sites beside the original |
 | `rust/patches/src/keyboard_layout.rs`, `src/keyboard_layout.toml`, `src/vostok/keyboard_layout.rs`, `check_keyboard_layout_026g.py` | Patch 107: chat and console text follow the keyboard layout the window was last told of (under Wine the engine's logic thread never got it; the console typed key names, `c` for every key of a Cyrillic layout under Wine's Wayland driver); seven lohooks, in message_processor's two layout messages and its request's focus check, after translate_text's GetKeyboardLayout(0), in the console's show and hide, and at the console's typed character (the keyboard's translate_text, as the chat's); its check runs message_processor, translate_text, the console's show and hide and insert_char_action::execute in both exes (needs Unicorn) |
 | `rust/patches/src/key_remap.rs`, `src/key_remap.toml`, `src/vostok/keyboard.rs` (`KeyEvents`, `KeyMoves`), `src/vostok/system.rs`, `check_key_remap_026g.py` | Patch 110: the keys a desktop moves (xkb `caps:swapescape`, `ctrl:nocaps`) are moved in the game under Wine's Wayland driver, whose DirectInput codes are the physical keys'; one lohook in keyboard::execute after GetDeviceData moves each event's function key to the one the told layout names it; its check runs execute whole in both exes (needs Unicorn) |
 | `rust/patches/src/hud_cursor.rs`, `src/hud_cursor.toml`, `src/vostok/hud_input.rs` (`MenuChange`, `CursorMovie`), `check_hud_cursor_026g.py` | Patch 113: the hud's kits and cursor start over at each match (the last match's pick stayed on the kits' tab), and the main menu covers the hud's cursor (Esc over the kits left it drawn under the menu's); five lohooks, at initialize_match's start, show_cursor's show and hide and game_options' activate and deactivate; its check runs each from the game's code on a made-up game, the original beside (needs Unicorn) |
@@ -6974,3 +6975,34 @@ makes from an off-grid time, and each world the server sends is a line of the ru
 replay after which load; 20 lines a second of game time at most. In Freeze Tag, once a second while the rule shows an enemy of the
 viewer on the map, a line says whether the minimap tested and listed him, and how far he is. It only reads (`tools/check sync-log`:
 the three sites' registers and memory the original's, off and on); off, a hook tests one cell.
+
+## The world of a tick (patch 211, unreleased)
+
+For the match server's desync capture (`../docs/notes/desync_capture.md`): the moment the games'
+hash reports disagree, the server asks a game of each side for its world of that very tick. The
+snapshot upload answers a request with the world of the moment, the event horizon's, the oldest the
+game keeps, so the tick a report names is gone by the time the request comes. Now:
+
+- every world `game_state_history_item::hash` (0x325150) serializes goes, the moment it is
+  serialized (`world_hash.serialized`, 0x3251DC, after the call 0x324BE0 at 0x3251D7), into a ring
+  of the last 32 ticks (about 1.6 s): 640 KiB of `patches.state`, taken with the image, never
+  allocated; a tick serialized again (a rollback changed it) keeps its newest world; a world that
+  does not fit at the pool's end goes to its start, and the worlds whose room it takes go. Ten of the
+  largest worlds a game makes (0xF000 bytes) fit, about 32 of a full match's (20 KB);
+- an upload request (0xF6) of 1 and a tick (`srp_validate::messages::UploadRequest`) uploads the
+  ring's world of that tick, in the snapshot upload's chunks (`u32 time, u16 offset, u16 total`,
+  480 bytes at most, flag 0x40 cleared; the packet pool's room for every chunk asked first), at the
+  dispatcher's case 0xF6 (`upload_request.case`, 0x27A4F4, its exit the case's end 0x27A5AB);
+- anything else (srp's one byte, a tick the ring does not hold, no room in the packet pool, a
+  connection not in the live match) goes on to the snapshot upload exactly as before;
+- the game says it answers so in its 0xD8: `late_join_026g.asm`'s `connect_capability` sends 0x86
+  (0x87 with `-debug_hash_mismatch`) where it sent 0x82, the bit 0x04
+  (`srp_validate::messages::EXACT_WORLDS`). An earlier game refuses a 0xF6 of two bytes (the message
+  check), so the server sends one only to a game that said so, and asks the others as before.
+
+Nothing the game simulates, hashes or uploads otherwise changes: the hash hook only copies the bytes
+hash() made. `tools/check exact-world` runs both sites beside the original exe (Unicorn): the hash
+site's registers and memory the original's for worlds of 19 123 to 0xF000 bytes; a request for a held
+tick uploads that tick's world byte for byte (42, 128 and 40 chunks); one byte, a tick not held, a pool
+too full, two bytes not 1 and a connection state other than 2 reach the snapshot upload's request hook
+with the registers and memory the original's, and nothing is sent.
