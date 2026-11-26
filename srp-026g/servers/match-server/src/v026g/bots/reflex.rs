@@ -15111,10 +15111,6 @@ mod tests {
             }
             facing(&mut me, chest);
             let o = reflex.tick(&me, sit.view, &memory, now, true, &aim, 0.5, &mut rng);
-            if std::env::var_os("SRP_TEST_WALKED_DUEL").is_some() {
-                let rounds = reflex.hands().held().rounds;
-                eprintln!("{now} keys {:#x} fire {} rounds {rounds} cover {:?} legs {:?} at {:?}", o.keys, o.fire, reflex.cover, o.legs.map(|l| (l.why, l.run)), me.feet);
-            }
             // The trigger is told as the fire key (the reflex gives it apart from its keys).
             out.push((now, o.keys | if o.fire { key::FIRE } else { 0 }, o.legs.map(|l| l.why), o.look_at.is_some(), me.feet));
             if let Some(legs) = o.legs.filter(|l| l.why == LegsWhy::BreakSight) {
