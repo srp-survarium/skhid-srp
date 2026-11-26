@@ -1057,6 +1057,11 @@ pub struct Motor {
     cast: Option<PressCast>,
     /// [press forecast] The log line of its last press or spent try ([`Self::take_cast_line`]).
     cast_line: Option<String>,
+    /// [due hold] A flown gap or rim press that was due by its lead and held by another gate of the due test ([`DueHeld`]):
+    /// counted until it is pressed, then its log line ([`Self::take_due_line`]). Logging only.
+    due_held: Option<DueHeld>,
+    /// [due hold] The log line of the last such press ([`Self::take_due_line`]).
+    due_line: Option<String>,
     /// [T1] The log line of the last try a line-up hold spent ([`Self::take_line_hold_line`]).
     line_hold_line: Option<String>,
     /// [press forecast] The last forecast press, followed for its line ([`Self::cast_watch_tick`]).
@@ -1570,6 +1575,40 @@ enum PressHeld {
     LatePress,
     /// [A364 P6] A walk that would not carry the jump: a back-off.
     WalkReach,
+}
+
+/// [due hold] A flown gap or rim press ([`Leap::Gap`], [`Leap::SprintGap`]) due by its lead ([`press_due`]) and held by another
+/// term of the due test, for the log only (v54's UP_THEN_DOWN presses: four walking presses flown with a 0.6-1.2 m lead were
+/// pressed at the take-off, 2.2-3.8 m/s, and came down short; the trace did not say what held them): the take-off, the lead,
+/// how far before the take-off the press was first held so, the ticks each term held it (not lined, not going, not walking,
+/// not facing its way, resting), from which motor tick.
+#[derive(Clone, Copy, Debug, PartialEq)]
+struct DueHeld {
+    take_off: Vec3,
+    lead: f32,
+    first_before: f32,
+    since: u32,
+    ticks: [u32; DUE_GATES.len()],
+}
+
+/// [due hold] The due test's terms other than the lead, in the order the test reads them ([`DueHeld::ticks`]).
+const DUE_GATES: [&str; 5] = ["not lined", "not going", "not walking", "not facing", "resting"];
+
+impl DueHeld {
+    /// The log line of the press that ends the hold: pressed `before` m before the take-off at `speed` m/s, motor tick `now`.
+    fn line(&self, before: f32, speed: f32, now: u32) -> String {
+        let gates: Vec<String> = DUE_GATES.iter().zip(self.ticks).filter(|&(_, n)| n > 0).map(|(g, n)| format!("{g} {n}")).collect();
+        format!(
+            "nav: gap press due at its lead {:.2} m held {} ticks ({}) from {:.2} m before its take-off {}; pressed at {:.2} m, {:.2} m/s",
+            self.lead,
+            now.saturating_sub(self.since),
+            gates.join(", "),
+            self.first_before,
+            super::nav_log::at(self.take_off),
+            before,
+            speed
+        )
+    }
 }
 
 /// [spot suite] TEST ONLY: the term of [`Motor::jump_key`]'s due test that held the press ([`PressHeld::NotDue`]).
@@ -2179,6 +2218,8 @@ impl Motor {
             over_end: None,
             cast: None,
             cast_line: None,
+            due_held: None,
+            due_line: None,
             line_hold_line: None,
             cast_watch: None,
             watch_now: WatchNow::Off,
@@ -4722,6 +4763,32 @@ impl Motor {
             if near && rested && ahead.at_press_point() && !ahead.out_of_reach(most) {
                 self.hold_tick(&mut jump);
             }
+            // [due hold] A flown gap press due by its lead, held by another term: which, for the log (decision-neutral).
+            if near && !forecast {
+                let lead = match ahead.leap {
+                    Leap::Gap(GapPress { lead, .. }) | Leap::SprintGap(SprintPress { lead, .. }) => Some(lead.metres()),
+                    _ => None,
+                };
+                if let Some(lead) = lead {
+                    let gate = if !ahead.lined {
+                        0
+                    } else if !ahead.going {
+                        1
+                    } else if !self.walking {
+                        2
+                    } else if still > facing {
+                        3
+                    } else {
+                        4
+                    };
+                    let mut held = match self.due_held {
+                        Some(h) if h.take_off == jump.take_off => h,
+                        _ => DueHeld { take_off: jump.take_off, lead, first_before: ahead.before, since: self.clock, ticks: [0; DUE_GATES.len()] },
+                    };
+                    held.ticks[gate] += 1;
+                    self.due_held = Some(held);
+                }
+            }
             #[cfg(test)]
             self.bench_hold(PressHeld::NotDue(if !ahead.lined {
                 DueTerm::NotLined
@@ -4959,7 +5026,17 @@ impl Motor {
             sprint_gaps::pressed(speed);
             sprint_gaps::sprint_held(self.sprinting);
         }
+        // [due hold] The press that ends a hold of its own take-off: its line (decision-neutral).
+        if let Some(held) = self.due_held.take().filter(|h| h.take_off == jump.take_off) {
+            self.due_line = Some(held.line(ahead.before, speed, self.clock));
+        }
         key::JUMP
+    }
+
+    /// [due hold] The log line of the last flown gap press that was due by its lead and held by another term, once
+    /// ([`DueHeld`]).
+    pub fn take_due_line(&mut self) -> Option<String> {
+        self.due_line.take()
     }
 
     /// A world showed the body still under the jump it last pressed (on the
@@ -8629,6 +8706,17 @@ mod tests {
         let (landed, _, settling, _) = run(true);
         assert!(!settling, "walked on along the top: the guard judges the walk");
         assert_ne!(landed & moves, 0, "the route goes on on the top: walked on: {landed:#x}");
+    }
+
+    /// [due hold] A flown gap press held past its lead by the due test's other terms is told once at its press: its lead, the
+    /// ticks it was held and by which terms, where it was first due and where it went (logging only).
+    #[test]
+    fn a_gap_press_held_past_its_lead_is_told_at_its_press() {
+        let held = DueHeld { take_off: Vec3::new(15.0, 2.0, 26.5), lead: 1.2, first_before: 1.25, since: 100, ticks: [0, 0, 0, 7, 2] };
+        let line = held.line(0.05, 2.16, 109);
+        assert!(line.contains("due at its lead 1.20 m held 9 ticks (not facing 7, resting 2)"), "{line}");
+        assert!(line.contains("from 1.25 m before its take-off") && line.contains("pressed at 0.05 m, 2.16 m/s"), "{line}");
+        assert!(!line.contains("not lined"), "a term that held no tick is not named: {line}");
     }
 
     /// [A386 R83/R94] An aimed press is lined up on the flight's own line: the point `lead` back from [`aimed_line`]'s origin is
