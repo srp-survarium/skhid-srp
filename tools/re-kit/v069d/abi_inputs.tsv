@@ -27,6 +27,14 @@ va	name	location	role	basis
 0x20022e610	survarium::base_player::root_transform_at	RCX	player	observed
 0x20022e610	survarium::base_player::root_transform_at	RDX	output float4x4	observed
 0x20022e610	survarium::base_player::root_transform_at	R8D	u32 grid time in ms	observed
+0x2002c2d70	survarium::first_person_view_camera_controller::update_camera	RCX	first-person view camera controller (player at +8, camera at +0x10)	observed
+0x2006cc8a0	survarium::weapon::effective_aim_progress	RCX	weapon	observed
+0x2006cdb40	survarium::weapon::current_camera_fov_factor	RCX	weapon	observed
+0x2005a91b0	vostok::math::create_perspective_projection	RCX	output float4x4	observed
+0x2005a91b0	vostok::math::create_perspective_projection	XMM1	vertical field of view in radians	observed
+0x2005a91b0	vostok::math::create_perspective_projection	XMM2	viewport width divided by height	observed
+0x2005a91b0	vostok::math::create_perspective_projection	XMM3	near plane distance	observed
+0x2005a91b0	vostok::math::create_perspective_projection	entry RSP+28h	far plane distance	observed
 0x20038ebb0	survarium::weapon_core_reload_state_base::on_user_may_shoot_event	RCX	the reload state	observed
 0x20038ebb0	survarium::weapon_core_reload_state_base::on_user_may_shoot_event	RDX	the animation_callback_params: +0 the object, +8 the clip, +30h the domain, +34h handled	observed
 0x2006d6c50	survarium::weapon_core::load_magazine	RCX	the weapon	observed

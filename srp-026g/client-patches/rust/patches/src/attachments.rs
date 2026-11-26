@@ -37,6 +37,9 @@
 
 #![forbid(unsafe_code)]
 
+pub(crate) mod view;
+pub use view::{on_foreground, on_view_begin, on_view_camera, on_view_end, on_view_frame, on_view_no_gun, on_view_submit};
+
 use weapon_modules::{Bare, EyeAnchor, Gun, Hand, Loadout, Placement, resolve};
 
 use crate::vostok::attachments::{self, Cook, FingerCorrector, HandSet, Leaving, Named, Records};
@@ -84,6 +87,7 @@ pub fn on_dictionary_requests(ctx: &mut Context<'_>) -> Flow<NoExit> {
 
 /// items_dictionary_cook::on_configs_loaded's entry (0x2C8AA0).
 pub fn on_dictionary_configs(ctx: &mut Context<'_>) -> Flow<NoExit> {
+    crate::vostok::weapon_view::load_profiles(ctx);
     if let Err(why) = attachments::arrived(ctx) {
         attachments::refused(why);
     }
