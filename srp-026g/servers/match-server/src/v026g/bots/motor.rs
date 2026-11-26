@@ -2006,6 +2006,12 @@ enum FlownOff {
     Lead,
     /// The feet farther than [`FlownWindow::SIDE_M`] off the jump's line.
     Side,
+    /// [utd] A press at the walk cap (`jump::Kind::Walk`, [`WalkPress::Cap`]: the short jump from the walk-up's end) at a speed
+    /// along the way under the walk-up's step 5 (5 / 6 of the body's cap, `jump::run_up_slow`'s k / 6 at step k): a slower
+    /// press is another jump than the one flown, the slow press's counterpart of [`Self::Fast`]. v54's UP_THEN_DOWN presses
+    /// replayed in the client's body (rig_real_v3 the same): four gap links flown at the cap, pressed at 2.2-2.9 m/s after the
+    /// line-up held them (the due-hold probe: "not lined" in 26 of 27 such holds), came down short.
+    Slow,
 }
 
 /// [A386] Whether this press of `ahead`'s link is off the flown one ([`FlownOff`]); None for a press as flown, and for a link
@@ -2030,6 +2036,7 @@ fn flown_press_off(ahead: &Ahead, pose: &Pose, along: f32) -> Option<FlownOff> {
     }
     match ahead.leap {
         Leap::Gap(GapPress { walk: WalkPress::Slow(k), .. }) if along >= f32::from(k + 1) / 6.0 * pose.walk_cap.ms() => Some(FlownOff::Fast),
+        Leap::Gap(GapPress { walk: WalkPress::Cap, .. }) if along < 5.0 / 6.0 * pose.walk_cap.ms() => Some(FlownOff::Slow),
         _ => None,
     }
 }
@@ -2125,14 +2132,14 @@ pub(super) enum CapPressOff {
 pub mod flown_presses {
     use std::sync::atomic::{AtomicU64, Ordering};
 
-    static COUNTS: [AtomicU64; 4] = [const { AtomicU64::new(0) }; 4];
+    static COUNTS: [AtomicU64; 5] = [const { AtomicU64::new(0) }; 5];
 
     pub(super) fn off(why: super::FlownOff) {
         COUNTS[why as usize].fetch_add(1, Ordering::Relaxed);
     }
 
-    /// Off the height, too fast, off the lead, off the line.
-    pub fn counts() -> [u64; 4] {
+    /// Off the height, too fast, off the lead, off the line, too slow.
+    pub fn counts() -> [u64; 5] {
         std::array::from_fn(|k| COUNTS[k].load(Ordering::Relaxed))
     }
 }
@@ -3865,10 +3872,13 @@ impl Motor {
             slow_rests::let_go_early();
         }
         let stand = (at_rest_point || stops_near) && jump.walk_up == WalkUp::ToRest;
-        // [A386] A gap or rim link's landing stays as flown ([`Stay`]) unless the route's next corner is on the same top: a walk
-        // on within a step of the landing's height.
-        let let_go = matches!(leap, Leap::Gap(_) | Leap::SprintGap(_))
-            && points.get(k + 1).is_none_or(|next| next.jump.is_some() || (next.at.y - landing.y).abs() > mapdata::Body::client().step);
+        // [A386] A route jump's landing stays ([`Stay`]): the move keys let go from its first ground step until the body is at
+        // rest, then the route's walk goes on. [utd] Every route jump, the route's next corner on the same top or not: v54's
+        // UP_THEN_DOWN presses replayed in the client's body by their own keys (rig_real_v3 the same on every step), 44 got up
+        // and 28 of them came back down with the walk on at once and the lip guard braking it (the back key toward the take-off);
+        // with no move keys from the landing on, all 44 stay; with the forward key held, 23 come down. Before, only a gap or rim
+        // link whose route went on off the top let go.
+        let let_go = true;
         // [press forecast] This tick's keys by the forecast ([`Self::cast_tick`]); the slow press's rest box and walk-up are not used.
         let cast = match (flyer, cast_zone) {
             (Some(flyer), Some((zone, lock_from, cap, gait, pace))) => {
@@ -8667,7 +8677,7 @@ mod tests {
     /// ground the move keys and the sprint are let go until it is at rest, then the walk goes on. A route going on on the same
     /// top is walked on at once.
     #[test]
-    fn a_gap_links_landing_lets_go_until_at_rest_unless_the_route_goes_on_on_its_top() {
+    fn a_route_jumps_landing_lets_go_until_at_rest_then_walks_on() {
         let walk = Leap::Gap(GapPress { lead: mapdata::PressLead::from_metres(0.5), walk: WalkPress::Cap, share: mapdata::Share::FULL, aim: PressAim::STRAIGHT, way: None });
         let run = |route_on_top: bool| {
             let p = |x: f32, y: f32, jump: Option<Leap>| Waypoint { at: Vec3::new(x, y, 0.0), node: 0, jump, low: false };
@@ -8698,14 +8708,15 @@ mod tests {
             (landed.keys, rest.keys, settling, motor.letting_go())
         };
         let moves = key::FORWARD | key::BACK | key::LEFT | key::RIGHT | key::SPRINT;
-        let (landed, rest, settling, after) = run(false);
-        assert_eq!(landed & moves, 0, "let go on landing: {landed:#x}");
-        assert!(settling, "the let-go landing is left be");
-        assert_ne!(rest & moves, 0, "at rest: walks on: {rest:#x}");
-        assert!(!after, "at rest it is the walk's again");
-        let (landed, _, settling, _) = run(true);
-        assert!(!settling, "walked on along the top: the guard judges the walk");
-        assert_ne!(landed & moves, 0, "the route goes on on the top: walked on: {landed:#x}");
+        // [utd] The same with the route going on along the landing's top: let go until at rest, then walked on (v54's replays:
+        // walked on at once and braked by the lip guard, 28 of 44 came back down; let go, all 44 stay).
+        for route_on_top in [false, true] {
+            let (landed, rest, settling, after) = run(route_on_top);
+            assert_eq!(landed & moves, 0, "let go on landing (route on top {route_on_top}): {landed:#x}");
+            assert!(settling, "the let-go landing is left be (route on top {route_on_top})");
+            assert_ne!(rest & moves, 0, "at rest: walks on (route on top {route_on_top}): {rest:#x}");
+            assert!(!after, "at rest it is the walk's again (route on top {route_on_top})");
+        }
     }
 
     /// [due hold] A flown gap press held past its lead by the due test's other terms is told once at its press: its lead, the
@@ -8798,13 +8809,14 @@ mod tests {
         assert_eq!(flown_press_off(&ahead(0.17, 0.0), &pose, 0.0), Some(FlownOff::Lead));
         assert_eq!(flown_press_off(&ahead(0.64, 0.0), &pose, 0.0), Some(FlownOff::Lead));
         assert_eq!(flown_press_off(&ahead(0.4, 0.2), &pose, 0.0), Some(FlownOff::Side));
-        // A walking press: the jump's first step starts a step's travel on (0.5 m now at 2 m/s: 0.4 m).
+        // A walking press at the cap: the jump's first step starts a step's travel on (0.575 m now at 3.5 m/s: 0.4 m).
         let walking = |before: f32| Ahead {
             leap: Leap::Gap(GapPress { lead: mapdata::PressLead::from_metres(0.4), walk: WalkPress::Cap, share: mapdata::Share::landed(14), aim: PressAim::STRAIGHT, way: None }),
             ..ahead(before, 0.0)
         };
-        assert_eq!(flown_press_off(&walking(0.5), &pose, 2.0), None);
-        assert_eq!(flown_press_off(&walking(0.1), &pose, 2.0), Some(FlownOff::Lead), "arrived past its lead");
+        let cap = pose.walk_cap.ms();
+        assert_eq!(flown_press_off(&walking(0.4 + cap * TICK_S), &pose, cap), None);
+        assert_eq!(flown_press_off(&walking(0.1), &pose, cap), Some(FlownOff::Lead), "arrived past its lead");
         // Not flown: not asked.
         let ledge = Ahead { leap: Leap::Ledge, ..ahead(0.0, 0.5) };
         assert_eq!(flown_press_off(&ledge, &pose, 0.0), None);
@@ -8846,6 +8858,12 @@ mod tests {
         // A standing jump: under 1 / 6 of the cap.
         assert_eq!(flown_press_off(&ahead(slow(0, flown), 0.0), &pose, 0.2), None);
         assert_eq!(flown_press_off(&ahead(slow(0, flown), 0.0), &pose, 2.8), Some(FlownOff::Fast));
+        // [utd] A press flown at the cap: at the walk-up's end, not under its step 5 (5 / 6 of the cap).
+        let cap = Leap::Gap(GapPress { lead: mapdata::PressLead::from_metres(0.1), walk: WalkPress::Cap, share: flown, aim: PressAim::STRAIGHT, way: None });
+        let cap_ms = pose.walk_cap.ms();
+        assert_eq!(flown_press_off(&ahead(cap, 0.0), &pose, cap_ms), None);
+        assert_eq!(flown_press_off(&ahead(cap, 0.0), &pose, 5.0 / 6.0 * cap_ms), None);
+        assert_eq!(flown_press_off(&ahead(cap, 0.0), &pose, 2.2), Some(FlownOff::Slow), "v54's 2.2-2.9 m/s presses of cap links");
         // The feet 0.57 m under the take-off: no flight starts there.
         assert_eq!(flown_press_off(&ahead(slow(2, flown), 0.57), &pose, 1.0), Some(FlownOff::Height));
         // Not flown: not asked.
