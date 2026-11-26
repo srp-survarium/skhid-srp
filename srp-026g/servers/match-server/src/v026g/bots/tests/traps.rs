@@ -50,6 +50,8 @@ pub(super) fn run_on(
         game.bodies[place].feet = at;
     }
     bots.entered(0, true, 0);
+    // The enemy human (place 1) is in the match: the team's trap lanes are the humans' (`traps.lanes = facing`).
+    bots.entered(1, true, 0);
     if let Some(kit) = kit {
         bots.bots[0].as_mut().unwrap().features.traps.habit = Habit::carry(kit);
     }

@@ -234,14 +234,25 @@ pub(crate) fn out_of_walls(world: &Collision, feet: Vec3) -> Vec3 {
     at
 }
 
+/// [A334] What [`WalkGrid::pull_walk_verdict`] knows of a pulled leg.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum PullWalk {
+    /// The client's walk tick walks it (or the switch is off).
+    Walks,
+    /// It does not.
+    Fails,
+    /// Not walked now: this thread's budget is spent ([`set_pull_walk_budget`]). A pull does not take the leg straight.
+    Unknown,
+}
+
 thread_local! {
-    /// [A334] [`WalkGrid::pull_walk_fails`]'s answers by (the grid's number, from, to): a pure function of that grid's floors,
+    /// [A334] [`WalkGrid::pull_walk_verdict`]'s answers by (the grid's number, from, to): a pure function of that grid's floors,
     /// walker and body, so caching changes no answer. Cleared at [`PULL_WALKS_MAX`] entries.
     static PULL_WALKS: std::cell::RefCell<std::collections::HashMap<(u64, NodeId, NodeId), bool>> =
         std::cell::RefCell::new(std::collections::HashMap::new());
 }
 
-/// [A334] This thread's budget of walk ticks for [`WalkGrid::pull_walk_fails`]: set by the bots' poll each tick
+/// [A334] This thread's budget of walk ticks for [`WalkGrid::pull_walk_verdict`]: set by the bots' poll each tick
 /// ([`set_pull_walk_budget`]), so the worst tick's walk work is bounded (a long route's pull back ran hundreds of walks of
 /// up to 68 ticks each in one poll: 13 s). Empty until first set: a walk outside a poll is not run.
 #[derive(Clone, Copy, Default)]
@@ -686,7 +697,7 @@ impl WalkGrid {
         self
     }
 
-    /// [A334] The grid with the routes' pulled legs walked by the client's walker ([`Self::pull_walk_fails`]); it needs the
+    /// [A334] The grid with the routes' pulled legs walked by the client's walker ([`Self::pull_walk_verdict`]); it needs the
     /// walker ([`Self::with_client_walker`]), and without it nothing fails.
     pub fn with_pull_walk(mut self) -> Self {
         static NEXT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
@@ -699,23 +710,26 @@ impl WalkGrid {
         self.pull_walk.is_some()
     }
 
-    /// [A334] Whether a route's straight leg from floor `a` to floor `b` is one the client's walk tick does not walk: the
-    /// controller pass's walk test ([`walk_share`]: a standing body from `a`'s centre at the walk speed, with the exe's
-    /// collision rules) with the grid's walker. False without [`Self::with_pull_walk`] or the walker.
-    pub fn pull_walk_fails(&self, a: NodeId, b: NodeId) -> bool {
-        let (Some(id), Some(world)) = (self.pull_walk, self.walker.as_deref()) else { return false };
+    /// [A334] Whether the client's walk tick walks a route's straight leg from floor `a` to floor `b`: the controller pass's walk
+    /// test ([`walk_share`]: a standing body from `a`'s centre at the walk speed, with the exe's collision rules) with the grid's
+    /// walker ([`PullWalk`]). [`PullWalk::Walks`] without [`Self::with_pull_walk`] or the walker (the switch off); [`PullWalk::Unknown`]
+    /// past this thread's budget ([`set_pull_walk_budget`]): the leg is not walked now and nothing is kept, so a later pull walks it.
+    /// Before, a leg past the budget read as walked, and a route could keep a leg the client does not walk (level_06 day 4's
+    /// (62.03, 33.59, 120.24) -> (62.10, 34.10, 120.62): the bots held forward 4 s and more, the exe's tick gets up at neither the
+    /// walk nor the sprint; the budget is 40 ticks a poll for all bots of the match).
+    pub fn pull_walk_verdict(&self, a: NodeId, b: NodeId) -> PullWalk {
+        let (Some(id), Some(world)) = (self.pull_walk, self.walker.as_deref()) else { return PullWalk::Walks };
         // The answer is the floors' own (the walker and the body are the grid's): kept per thread by the grid's number and the
         // floors, so a leg pulled again (most are: the same ways are planned again and again) costs a look-up.
         let key = (id, a, b);
-        if let Some(known) = PULL_WALKS.with(|c| c.borrow().get(&key).copied()) {
-            return known;
+        if let Some(fails) = PULL_WALKS.with(|c| c.borrow().get(&key).copied()) {
+            return if fails { PullWalk::Fails } else { PullWalk::Walks };
         }
-        // The walk's ticks at most (as [`walk_share`] counts them), taken from this thread's budget up front: past the budget
-        // the leg is not walked now (it walks, as with the switch off) and nothing is kept, so a later pull walks it.
+        // The walk's ticks at most (as [`walk_share`] counts them), taken from this thread's budget up front.
         let (pa, pb) = (self.position(a), self.position(b));
         let ticks = (Vec3::new(pb.x - pa.x, 0.0, pb.z - pa.z).length() / (WALK_MPS * 0.05)).ceil() as u32 + 2;
         if !take_pull_walk(ticks) {
-            return false;
+            return PullWalk::Unknown;
         }
         let (_, s) = self.body.controller();
         let fails = !walk_share(world, &s, self.body.walk_start(), pa, pb).1;
@@ -726,7 +740,7 @@ impl WalkGrid {
             }
             c.insert(key, fails);
         });
-        fails
+        if fails { PullWalk::Fails } else { PullWalk::Walks }
     }
 
     /// [A318] The heap [`Self::with_client_walker`] keeps, bytes (0 without it).
