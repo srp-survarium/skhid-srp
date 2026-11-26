@@ -274,6 +274,24 @@ impl BlockTally {
         }
         self.onview[place] = ep;
         self.reloads.tick(place, me.gun.class(), me.team, me.alive, seen.is_some(), fired, bot.reflex.reload_note(), now);
+        // [fight rows by cause] The reload's split by cause: the nearest living enemy, and a line between one within the
+        // owner tally's reach and the bot (either way, as its `reloads_in_line`).
+        let enemies = || game.bodies.iter().filter(|b| b.alive && b.team != me.team);
+        let reload_seen = fight_tally::ReloadSeen {
+            alive: me.alive,
+            enemy_m: enemies().map(|b| b.feet.distance_xz(me.feet)).min_by(f32::total_cmp),
+            cover: bot.reflex.cover_state(),
+            crouched: me.keys & key::CROUCH != 0,
+            moving: me.keys & (key::FORWARD | key::BACK | key::LEFT | key::RIGHT) != 0,
+        };
+        let line = || {
+            enemies().filter(|b| b.feet.distance_xz(me.feet) <= owner::RELOAD_LINE_M).any(|b| {
+                game.world.sight.visible(eye, Game::chest(b)) || game.world.sight.visible(Game::eye(b), Game::chest(me))
+            })
+        };
+        if let Some(row) = self.reloads.case(place, me.gun.class(), now, bot.reflex.reload_note(), reload_seen, line) {
+            events.line(row);
+        }
         self.reloads.looped(place, me.gun.class(), me.team, bot.reflex.loop_end());
     }
 
