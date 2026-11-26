@@ -1,0 +1,21 @@
+# Patch 210: the sync log, SKHID_SYNC_LOG=on (docs/notes/sync-log.md): a line for each input
+# applied, and each animation (and stamina) tick made, at a time off the 50 ms grid, and each
+# world the server sends. It only reads. The sites are sites_026g.tsv's; the reads vostok/desync.rs.
+name = "sync_log"
+patch = 210
+
+# apply_new_input's entry, before Freeze Tag's held exit (0) and patch 78's carry (1)
+[[hook]]
+site = "carry.input"
+handler = "on_input"
+order = -1
+
+# base_player::tick_animations' entry (0x2D8EE0): it ticks the stamina too
+[[hook]]
+site = "sync.animations"
+handler = "on_tick"
+
+# game_world_core::deserialize's entry (0x2D2770): which load a replay is after
+[[hook]]
+site = "sync.world_load"
+handler = "on_world_load"

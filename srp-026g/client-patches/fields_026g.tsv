@@ -240,6 +240,8 @@ survarium::player	need_to_select_animations	0x33E	u8	m_need_to_select_animations
 survarium::keyboard_action_frame	state	0x10	u32	on_keyboard_action's third argument (ebp+10h), 0.10b input::enum_keyboard_action: 1 down, 2 up, 3 hold (pushed as 0 down 0x23FEA4, 1 up 0x23FF0C, 2 hold 0x23FED8)
 survarium::input_entry_frame	time	0x4	u32	set_input entry first stack argument
 survarium::input_entry_frame	input	0x8	ptr<survarium::native_player_input>	set_input entry second stack argument, immutable eight-byte input
+survarium::input_entry_frame	return_address	0x0	u32	set_input entry return address: 0x1F3731 when player::set_input (0x1F36D0, the only call) made the call
+survarium::input_entry_frame	set_input_return	0x10	u32	where player::set_input (0x1F36D0) returns, when the entry return address is 0x1F3731: past the pushed time, input and set_input's saved ESI (0x1F36DF)
 survarium::native_player_input	actions	0x4	u32	input angles followed by action mask
 survarium::base_player_ctor_frame	player	0x4	u32	base_player constructor first argument; destination
 survarium::game_world	scene	0x4	obj<vostok::scene_reference>	retained render scene, artefact client update 0x25FDA6
@@ -1874,3 +1876,18 @@ vostok::animation::member_bind	adjust	0x4	u32	the member pointer's this adjustme
 vostok::animation::member_bind	object	0x8	u32	the object the function is called on, as an address (the state, 0x30DA8C)
 vostok::animation::event_resource	resource	0x0	u32	a subscription's resource pointer slot (subscribe_event_channel's fourth argument; every caller's is null, 0x30DACA)
 vostok::animation::event_resource	size	0x4	size	one pointer
+survarium::tick_animations_frame	return_address	0x0	u32	base_player::tick_animations (0x2D8EE0) entry return address: 0x2DAAE0 from base_player::tick, 0x2D8A06 from apply_new_input
+survarium::tick_animations_frame	previous	0x4	u32	tick_animations entry first stack argument: the player's last tick time (+324h)
+survarium::tick_animations_frame	now	0x8	u32	tick_animations entry second stack argument: the time it ticks the animations and the stamina (0x2D8FC2) to
+survarium::world_load_frame	return_address	0x0	u32	game_world_core::deserialize (0x2D2770) entry return address: 0x2D2FF5 and 0x2D357F game_world_core::move, 0x2D0FBE the server's world (0x2D0B70), 0x325296 and 0x325305 load_history_state
+survarium::world_load_frame	core	0x4	ptr<survarium::core_world>	deserialize entry first stack argument: the world core
+survarium::world_load_frame	item	0x8	ptr<survarium::history_item>	deserialize entry second stack argument: the history item (state) it loads
+survarium::history_item	time	0xC0BB0	u32	game_state_history_item's time (move 0x2D3568, deserialize 0x324DA0)
+survarium::image	set_input_applied	0x1F3731	u8	player::set_input's return from its call of base_player::apply_new_input (0x1F372C, the only call of it)
+survarium::image	input_ticked	0x2D8A06	u8	base_player::apply_new_input's return from its call of tick_animations (0x2D8A01: the input's time)
+survarium::image	step_ticked	0x2DAAE0	u8	base_player::tick's return from its call of tick_animations (0x2DAADB)
+survarium::image	rollback_loaded	0x2D2FF5	u8	game_world_core::move's return from deserialize (0x2D2FF0): a state loaded for an input of a past tick
+survarium::image	frame_loaded	0x2D357F	u8	game_world_core::move's return from deserialize (0x2D357A): the newest state loaded again before a frame's step
+survarium::image	server_world_loaded	0x2D0FBE	u8	game_world_core::deserialize (0x2D0B70, the server's world, 0xE8)'s return from deserialize (0x2D0FB9)
+survarium::image	history_loaded	0x325296	u8	load_history_state (0x325270)'s return from deserialize (0x325291)
+survarium::image	history_loaded_again	0x325305	u8	load_history_state (0x325270)'s return from deserialize (0x325300)

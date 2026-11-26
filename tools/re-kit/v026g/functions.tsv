@@ -2526,3 +2526,5 @@ va	status	ref_021d	name
 0x00252f90	reviewed		survarium::weapon_sound_events_handler_state<survarium::double_barreled_weapon_core_reload_state>::initialize
 0x00253090	reviewed		survarium::weapon_sound_events_handler_state<survarium::double_barreled_weapon_core_reload_state>::finalize
 0x002530d0	reviewed		survarium::weapon_sound_events_handler_state<survarium::double_barreled_weapon_core_reload_state>::deserialize
+0x001f36d0	observed	0x001575e1	survarium::player::apply_new_input
+0x002d8ee0	observed	0x001d48b8	survarium::base_player::tick_animations
