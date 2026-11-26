@@ -412,3 +412,37 @@ put on armor and pants, not balaclavas".
   - the Novice's jeans' grown waist repeats the denim below it (4 % of the map's texels): a decal
     put at the very waistline, under a jacket's hem, shows mirrored above it;
   - no camouflage: its bake needs the `_aoac` mask beside the diffuse map.
+
+## Decals under the loner's hood (2026-11-26)
+
+The owner: "decals are just layered on top, while the original would put decals under hoods
+(which lie on the back, for example)".
+
+- **How a decal finds its surface** (the exe; `tools/re-kit/v026g/abi_inputs.tsv`, 0x1307B0):
+  the baker's occlusion puts a camera at the decal matrix's origin (the clicked point 0.75 m
+  outside along the decal's forward), orthographic, near 0.01, far 1.5 m, and draws one
+  geometry into its depth map: the baked surface instance's own (0x12F5B0, called at 0x130CA7).
+  `bake_decal_accumulate.ps` then paints, in that surface's UV space, each texel inside the box
+  whose depth is within 0.01 of the map's: the first layer of the item's first surface
+  (`part_name`) the box meets. The accumulate has no mask and no normal test, and the
+  composition (`bake_decal_composition.ps`, the `_aoac` permutations too) blends the decal by its
+  own alpha alone. An item's `additional_models` are neither in the depth map nor baked: a decal
+  goes on the garment under them, and they cover it (a stock vest's straps, pouches and fur; the
+  exoskeleton bodies' back unit, frame and sign; the Novice's belt kit; the bandit's straps).
+- **The loner's jacket (1873)** had its hood, lying on the upper back, in its `torso` surface:
+  one island of the map (149 triangles, 89 vertices, uv 0.22..0.77 x 0.27..0.54), every one of
+  its 27 seam points welded to the vest's back, the collar and the shoulders, with no back under
+  it. A decal on the upper back met the hood first and was painted on it, over everything (the
+  pictures: before and after, the pack's PR). The other STK2 pieces that take decals have no
+  hood: the bandit's, the Novice's and the exoskeletons' overlapping parts are additional models
+  already, or pockets of the garment itself, as a stock vest's.
+- **The pack** `stk2-hood-decals@1` (`scripts/stk2-hood-decals/make_pack.py`, after
+  `stk2-loner`): in each of the jacket's three models the hood is a surface of its own, `hood`
+  (the jacket's material), and an additional model of the jacket in its four tables; in `torso`
+  the hood's triangles stay as a lining, each vertex moved into the hood along its normal by
+  min(2.5 cm, its distance from the seam), so the jacket stays closed and a decal's box meets the
+  lining under the hood. The lining's texels are the hood's, which no other triangle of `torso`
+  uses, and the hood draws the jacket's unbaked map: what is painted there shows nowhere. Every
+  other vertex, UV and file is the live one.
+- **What it costs:** the hood, an additional model now, wears no camouflage (stk2-camo's mask
+  covers the rest of the jacket as before) and no decal, as a stock vest's straps.
