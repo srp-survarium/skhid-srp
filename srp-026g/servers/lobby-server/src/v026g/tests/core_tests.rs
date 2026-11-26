@@ -2860,6 +2860,7 @@ mod faces_tests;
 mod feedback_tests;
 mod gear_tests;
 mod items_tests;
+mod mode_notice_tests;
 mod patch_check_tests;
 mod presets_tests;
 mod pvb_tests;

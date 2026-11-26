@@ -217,6 +217,50 @@ impl GameMode {
         Self::Blackout,
         Self::ArtefactHunt,
     ];
+
+    /// The notice the hud introduces it with under the match timer, if any
+    /// (`docs/notes/mode_introductions.md`): shown in each account's first
+    /// three matches of the mode.
+    pub const fn notice(self) -> Option<ModeNotice> {
+        match self {
+            Self::Blackout => Some(ModeNotice::Blackout),
+            Self::FreezeTag => Some(ModeNotice::FreezeTag),
+            Self::Batteries
+            | Self::TimedBatteries
+            | Self::TeamDeathmatch
+            | Self::Research
+            | Self::FreeForAll
+            | Self::ArtefactHunt => None,
+        }
+    }
+}
+
+/// A mode the hud introduces with a notice (`ModeNotice.as`,
+/// `docs/notes/mode_introductions.md`), each counted apart for an account:
+/// its first three matches of the mode show it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum ModeNotice {
+    Blackout,
+    FreezeTag,
+}
+
+impl ModeNotice {
+    /// Every one.
+    pub const ALL: [Self; 2] = [Self::Blackout, Self::FreezeTag];
+
+    /// Its name where it is kept (`g26_mode_introductions.mode`), as the
+    /// hud names it (`ModeIntroText`).
+    pub const fn key(self) -> &'static str {
+        match self {
+            Self::Blackout => "blackout",
+            Self::FreezeTag => "freeze_tag",
+        }
+    }
+
+    /// The one of a [`Self::key`].
+    pub fn of_key(key: &str) -> Option<Self> {
+        Self::ALL.into_iter().find(|mode| mode.key() == key)
+    }
 }
 
 /// A config's rules with no variant.

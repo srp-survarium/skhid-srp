@@ -201,6 +201,9 @@ pub struct Account {
     /// The settings of the last room it made by hand, its create window's
     /// start ([`super::room_settings`]); none before its first.
     pub room_settings: Option<super::room_settings::RoomSettings>,
+    /// Its matches of each mode the hud introduces with a notice, up to
+    /// three: its first three of a mode show it ([`super::mode_intro`]).
+    pub mode_introductions: super::mode_intro::Introductions,
     /// The matches whose results screen it used a drop card on, sorted,
     /// of those whose reports are kept: one card a match
     /// ([`super::rewards::Results::use_drop_card`]). Kept with the account,
@@ -342,6 +345,7 @@ impl Account {
             extras: Default::default(),
             map_plays: Vec::new(),
             room_settings: None,
+            mode_introductions: Default::default(),
             drop_cards: Vec::new(),
             presets: [None; super::presets::PRESETS],
             active_preset: super::presets::FIRST_PRESET,

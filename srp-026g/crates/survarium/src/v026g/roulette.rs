@@ -832,6 +832,7 @@ mod tests {
                     items: Vec::new(),
                     squad: 0,
                     face: crate::v026g::faces::Face::DEFAULT,
+                    notice: crate::v026g::match_msgs::static_info::Notice::Skipped,
                 };
                 arm(&mut profile, &hand);
                 static_info::check_sent(0, &profile, dictionary).unwrap();

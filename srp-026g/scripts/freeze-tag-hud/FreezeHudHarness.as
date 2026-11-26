@@ -254,8 +254,10 @@ package
             var text:Function = function(key:String, seconds:String = null):String {
                return seconds == null ? data[key] : String(data[key]).split("%1$s").join(seconds);
             };
-            var match:Function = function():void {
+            // As the game: reset, then patch 213's word (here: shown), then the mode and the time.
+            var match:Function = function(word:* = true):void {
                hud.reset();
+               if(word != null) hud.mode_notice(word);
                hud.set_game_type(12);
                hud.force_interface_hidden(false);
                hud.set_match_time("09:59");
@@ -264,6 +266,34 @@ package
             check(mode != null && mode.visible && mode.label.text.split("\r").join("\n") == data["st_srp_hud_freeze_start"],
                language + ": Freeze Tag's notice under the timer, Blackout's unforce leaves it");
             check(mode.label.textHeight < 200 && screen.containsRect(mode.getBounds(stage)),language + ": the notice fits");
+            // The word says no (the account's fourth match of the mode, a replay): no notice, the
+            // time ticking on; a later word changes nothing until the next reset.
+            match(false);
+            hud.set_match_time("09:58");
+            check(!mode.visible,language + ": told no, Freeze Tag's notice hidden");
+            hud.mode_notice(true);
+            hud.set_match_time("09:57");
+            check(!mode.visible,language + ": the match's first word stays");
+            // No word yet: the notice waits for it, then shows.
+            match(null);
+            check(!mode.visible,language + ": no word yet, no notice");
+            hud.mode_notice(true);
+            hud.set_match_time("09:58");
+            check(mode.visible,language + ": the word comes, the notice shows");
+            // Blackout's the same: told no, hidden; told yes, its own text.
+            hud.reset();
+            hud.mode_notice(false);
+            hud.force_interface_hidden(true);
+            hud.set_match_time("09:59");
+            check(!mode.visible,language + ": told no, Blackout's notice hidden");
+            hud.reset();
+            hud.mode_notice(true);
+            hud.force_interface_hidden(true);
+            hud.set_match_time("09:59");
+            check(mode.visible && mode.label.text.split("\r").join("\n") == data["st_srp_hud_blackout_start"],
+               language + ": told yes, Blackout's notice");
+            hud.force_interface_hidden(false);
+            match();
             // The hunters: one popup, its seconds then; the next frames' times change nothing.
             hud.freeze_tag_reveal(0,0,3,14980);
             check(popupShown() && popup() == text("st_srp_hud_freeze_reveal_enemy","15"),

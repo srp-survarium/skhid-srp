@@ -1,5 +1,72 @@
 # Mode introductions
 
+## Each account's first three matches of a mode (2026-11-26, not released)
+
+The owner: "I feel like the Blackout message is shown to everyone always, not
+only the first 3 matches." It was: since the HUD notice (below) replaced the
+chat request, nothing limited it, and Freeze Tag's notice came the same way.
+Now a mode's notice (Blackout's, Freeze Tag's, any later mode's) is shown in
+each account's first three matches of that mode, every mode counted apart, as
+the owner decided on 2026-11-03.
+
+- **The count.** `session::v026g::mode_intro::Introductions`, kept with the
+  account: for each mode with a notice (`maps::GameMode::notice`,
+  `maps::ModeNotice`), the matches of it the account was put in, up to three
+  (`Seen`: none, once, twice, thrice). It is migration 13's table
+  `g26_mode_introductions(account_id, mode, shown)`, read and written again
+  (`persist::mode_intro`); no new migration. `shown` is the count; the rows
+  revision 45's HUD wrote (`blackout`, the notices it asked for) read the same
+  way. An account with no row of a mode has had none. The match history was
+  not used: the lobby holds accounts in memory and saves them, and the history
+  is the site's, read on its own connections.
+- **The decision**, when the lobby makes a match (`play::launch`, once the map
+  is chosen) and when it takes a late joiner (`rooms`): each place's
+  `MatchProfile::notice` is `Shown` while its account has had fewer than
+  three matches of the mode, else `Skipped` (a server's bot: `Skipped`).
+- **The count goes up** once the match server has the match: for every seat
+  of a match made (any kind: public, private, against bots), and for a late
+  joiner as it is seated (`play::seated_late`; one that left and came again
+  as a new place counts once, as its map play does). A late joiner's match
+  counts as any other.
+- **To the game:** srp's block after the options carries the notices entry
+  (tag 7, `static_info::SRPX_NOTICES`): a byte a place, 1 shown, 0 not, in every
+  match of a mode with a notice and in no other. The options are the match's,
+  the same for every client (so each game can see the others' bytes; nothing
+  else follows from them); a late joiner's client gets the grown roster's
+  options with its own place's byte. The late joiner's profile sent to the
+  others (`late_join::Prepare`) has no such entry. The strict readers
+  (`static_info::read_srp_block`, `srp_validate::messages::options`) know the
+  entry, and Freeze Tag's `{6, 1, 1}` in the latter.
+- **In the game:** exe patch 213 (`client-patches/rust/patches/src/mode_notice.rs`)
+  keeps the entry at the options' reads (a match's and a replay's), and at
+  `player_icons.enemy_ids` (initialize_match, after the hud's `root.reset` and
+  before the match's first frame) tells the hud `root.mode_notice(shown)`:
+  shown in a match when the entry marks the local place (the options'
+  `is_local` profile), or when the options have no entry (an older server:
+  shown, as before); never in a replay, whatever its options say.
+- **In the hud:** `ModeNotice` keeps the match's word ("unknown" until told,
+  then "shown" or "skipped"; the first word stays until the next `reset`). A
+  notice begun (Blackout's unforce, `set_game_type(12)`) waits for the word as
+  it waits for the time and the texts, and shows only on "shown". `cancel`
+  ends a mode's notice and keeps the word. A movie without exe patch 213 is
+  never told and shows no notice: the hud and the exe ship together.
+- Ship the server, the exe and the hud movie together.
+
+Tests (under `nix develop`): `cargo test -p session mode_intro` (the first
+three of each mode, the fourth and later not, each mode apart; the counts
+across a database reopen); `cargo test -p lobby-server mode_notice` (two
+accounts' Blackout matches made by the lobby: the first three `Shown`, the
+fourth `Skipped`; Team Deathmatch none and not counted; a late joiner's three
+matches counted, its fourth `Skipped`); `cargo test -p survarium static_info`
+and `-p srp-validate --test current_protocol` (the entry written, read back
+and refused when malformed or on a mode without a notice); the patches crate's
+`mode_notice` tests (the entry read among the others; a replay never shows);
+the hud in `scripts/freeze-tag-hud/` (`freeze-names`: told no, Freeze Tag's
+and Blackout's notices stay hidden; no word yet, the notice waits and shows
+when told yes; a later word does not change the first). The test data has no
+Freeze Tag map: the lobby test plays Freeze Tag's matches only with one.
+Not played in a native match yet.
+
 ## The server side removed (2026-11-26)
 
 The lobby no longer answers `#mode-intro:` requests, and the account's
@@ -7,9 +74,9 @@ allowances (`session::v026g::mode_intro`) and their Ruffle harness
 (`scripts/mode-intro/`) are gone: no shipped HUD has sent the request since
 revision 46 (the HUD notice below replaced it the same day it shipped in
 revision 45). Schema migration 13 still creates `g26_mode_introductions`, so the
-numbering stays; nothing reads or writes it. The HUD's `ModeIntroduction` class
-and `GameChat.addIntroduction` remain in the movie's source, unused. What
-follows is the history.
+numbering stays (the count above uses it again). The HUD's `ModeIntroduction`
+class and `GameChat.addIntroduction` remain in the movie's source, unused.
+What follows is the history.
 
 ## HUD notice follow-up (2026-11-03, not released)
 

@@ -9,10 +9,15 @@ package survarium.modes
 
    // HUD-local lifetime: joining an old match still gets a full reading interval.
    // Native countdown updates cannot clear this separate label.
+   // Shown only when the match's word says so (root.mode_notice, exe patch 213, told after the hud's
+   // reset at each match's start: the account's first three matches of the mode,
+   // docs/notes/mode_introductions.md); a notice begun waits for it.
    public class ModeNotice extends Sprite
    {
       public static const DISPLAY_MS:int = 10000;
       private var _state:Object = {kind:"inactive"};
+      // This match's word: "unknown" until told, then "shown" or "skipped" until the next reset.
+      private var _word:String = "unknown";
       public var label:TextField = new TextField();
       public var layoutData:LayoutData;
 
@@ -42,7 +47,21 @@ package survarium.modes
             _state = {kind:"waiting",mode:mode};
       }
 
+      // A new match: no notice, and no word yet.
       public function reset() : void
+      {
+         _word = "unknown";
+         stop();
+      }
+
+      // The match's word, once (a late join's rebuild tells it again: the same).
+      public function tell(shown:Boolean) : void
+      {
+         if(_word == "unknown")
+            _word = shown ? "shown" : "skipped";
+      }
+
+      private function stop() : void
       {
          _state = {kind:"inactive"};
          label.text = "";
@@ -54,12 +73,12 @@ package survarium.modes
       public function cancel(mode:String) : void
       {
          if(_state.mode == mode)
-            reset();
+            stop();
       }
 
       public function update(now:int, ready:Boolean, countdown:Boolean) : void
       {
-         if(_state.kind == "waiting" && ready && ModeIntroText.ready(_state.mode))
+         if(_state.kind == "waiting" && ready && _word == "shown" && ModeIntroText.ready(_state.mode))
          {
             label.text = ModeIntroText.start(_state.mode);
             _state = countdown ? {kind:"countdown",mode:_state.mode} : {kind:"showing",mode:_state.mode,until:now + DISPLAY_MS};
