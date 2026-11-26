@@ -1438,7 +1438,7 @@ fn drive_tick_inner(
             // than L1's leap links): not walked; L1 for the walk, planned at the next tick.
             let found = match (found, tuning.spacing.lane_draw) {
                 (Some((goal, Some(way), crossed)), Some(set)) => {
-                    let jumps = lane_draw::jumps(&way);
+                    let jumps = lane_draw::route_leaps(&way, &tactics.world.grid);
                     match bot.features.lane.over_cap(goal, way.length(), jumps, set.away_m.get()) {
                         Some(cap) => {
                             bot.nav_log.push(super::nav_log::Kind::Lane, time, lane_draw::over_cap_line(goal, way.length(), jumps, cap));
@@ -1748,9 +1748,9 @@ fn drive_tick_inner(
                 let over_cap = lane_room
                     .as_ref()
                     .zip(route.as_ref())
-                    .filter(|(room, way)| room.cap.over(way.length(), lane_draw::jumps(way)));
+                    .filter(|(room, way)| room.cap.over(way.length(), lane_draw::route_leaps(way, &tactics.world.grid)));
                 if let Some((room, way)) = over_cap {
-                    let line = lane_draw::over_cap_line(at, way.length(), lane_draw::jumps(way), room.cap);
+                    let line = lane_draw::over_cap_line(at, way.length(), lane_draw::route_leaps(way, &tactics.world.grid), room.cap);
                     bot.nav_log.push(super::nav_log::Kind::Lane, time, line);
                 }
                 if let (Some(plain), Some((from, to))) = (plain_filter, ends)

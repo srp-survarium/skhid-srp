@@ -964,20 +964,16 @@ mod tests {
         }
     }
 
-    /// [lane draw] The band (the cap) and the odds' scale are cost ratios over 1 (the odds divide by the scale's excess), and a patch
-    /// sets the band alone: the bench's C arm, `{"spacing": {"lane_draw": {"band": 1.3}}}`, keeps the draw's other values, the
-    /// scale among them.
+    /// [lane draw] The band is a cost ratio over 1, and a patch sets it alone: the bench's C arm,
+    /// `{"spacing": {"lane_draw": {"band": 1.3}}}`, keeps the draw's other values.
     #[test]
     fn the_lane_draw_band_is_over_one_and_a_patch_sets_it_alone() {
         let mut tuning = Tuning::default();
         tuning.spacing.lane_draw = Some(LaneDrawTuning { band: Positive::of(1.0), ..LaneDrawTuning::default() });
         assert_eq!(tuning.validate().unwrap_err(), "spacing.lane_draw.band");
-        tuning.spacing.lane_draw = Some(LaneDrawTuning { scale: Positive::of(1.0), ..LaneDrawTuning::default() });
-        assert_eq!(tuning.validate().unwrap_err(), "spacing.lane_draw.scale");
         let wider = Tuning::patched(serde_json::json!({"spacing": {"lane_draw": {"band": 1.3}}})).unwrap();
         let draw = wider.spacing.lane_draw.unwrap();
         assert_eq!(draw.band.get(), 1.3);
-        assert_eq!(draw.scale.get(), 1.15);
         assert_eq!(LaneDrawTuning { band: Positive::of(1.3), ..LaneDrawTuning::default() }, draw);
         assert!(wider.validate().is_ok());
     }
