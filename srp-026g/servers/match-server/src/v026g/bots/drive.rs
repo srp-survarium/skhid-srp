@@ -3563,7 +3563,8 @@ impl LipWatch {
 /// pitch and keys, the tick's turn and keys, the route's drop landings, the hold and the full guard (the grid and the tuning are the
 /// match's; the forecast reads no time while no jump is under way, and none is in a forecast of keys without the jump). The same ask
 /// gets the same answer, so a memo of the last one changes no decision.
-#[derive(Clone, Debug, PartialEq)]
+/// [M7] The route's drop landings, which it reads too, are compared by [`LipMemo::answer`] against its own kept copy (no copy an ask).
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub(super) struct LipAsk {
     feet: [u32; 3],
     velocity: [u32; 2],
@@ -3572,7 +3573,6 @@ pub(super) struct LipAsk {
     view_keys: u32,
     turn: u32,
     keys: u32,
-    planned: Vec<[u32; 3]>,
     hold: u32,
     full: bool,
     /// [A388 step 2b] The reckoning's kept controller the forecast starts from (compared field by field).
@@ -3583,17 +3583,15 @@ pub(super) struct LipAsk {
 
 impl LipAsk {
     #[allow(clippy::too_many_arguments)]
-    fn of(me: &PlaceView, turn: f32, keys: u32, planned: &[Vec3], hold: u32, full: bool, kept: Option<body::KeptBody>, margin: f32) -> Self {
-        let bits = |v: Vec3| [v.x.to_bits(), v.y.to_bits(), v.z.to_bits()];
+    fn of(me: &PlaceView, turn: f32, keys: u32, hold: u32, full: bool, kept: Option<body::KeptBody>, margin: f32) -> Self {
         Self {
-            feet: bits(me.feet),
+            feet: point_bits(me.feet),
             velocity: [me.velocity[0].to_bits(), me.velocity[1].to_bits()],
             yaw: me.yaw.to_bits(),
             pitch: me.pitch.to_bits(),
             view_keys: me.keys,
             turn: turn.to_bits(),
             keys,
-            planned: planned.iter().map(|&p| bits(p)).collect(),
             hold,
             full,
             kept,
@@ -3618,11 +3616,18 @@ pub(super) mod lip_repeats {
     }
 }
 
+/// A point's bits, x, y, z.
+fn point_bits(v: Vec3) -> [u32; 3] {
+    [v.x.to_bits(), v.y.to_bits(), v.z.to_bits()]
+}
+
 /// [A388 step 2b] A bot's last lip guard forecast and its ask ([`LipAsk`]), and the match's counts: forecasts asked anew, and the
 /// same ask's answer used again (the log's match-end line). A body standing or pushing at a lip asks the same each tick.
 #[derive(Clone, Debug, Default)]
 pub(super) struct LipMemo {
     last: Option<(LipAsk, LipGuard)>,
+    /// [M7] The last ask's route drop landings, bit for bit (part of the ask; the buffer is kept between asks).
+    planned: Vec<[u32; 3]>,
     /// The bench's reasons the forecast left (`GUARD_WHY`, `GUARD_FLOOR`), put back with a reused answer.
     #[cfg(test)]
     why: (u8, usize),
@@ -3631,10 +3636,13 @@ pub(super) struct LipMemo {
 }
 
 impl LipMemo {
-    /// The answer to `ask`: the last one when it was the same ask, else `forecast`'s (kept for the next).
-    fn answer(&mut self, ask: LipAsk, forecast: impl FnOnce() -> LipGuard) -> LipGuard {
+    /// The answer to `ask` with the route's drop landings `planned`: the last one when it was the same ask, else `forecast`'s (kept
+    /// for the next).
+    fn answer(&mut self, ask: LipAsk, planned: &[Vec3], forecast: impl FnOnce() -> LipGuard) -> LipGuard {
+        let same_planned = self.planned.len() == planned.len() && self.planned.iter().zip(planned).all(|(a, &b)| *a == point_bits(b));
         if let Some((last, guard)) = &self.last
             && *last == ask
+            && same_planned
         {
             self.reused += 1;
             #[cfg(test)]
@@ -3651,6 +3659,10 @@ impl LipMemo {
             self.why = (GUARD_WHY.get(), GUARD_FLOOR.get());
         }
         self.last = Some((ask, guard));
+        if !same_planned {
+            self.planned.clear();
+            self.planned.extend(planned.iter().map(|&p| point_bits(p)));
+        }
         guard
     }
 }
@@ -3749,25 +3761,23 @@ pub(super) fn lip_guard_with(
     let at = body::Estimate { kept, ..body::Estimate::of_view(me, node) };
     let stop = body::Stop { kin, level: 1.0, grid, planned, hold, margin };
     // The same body a reckoning's error to either side, where the floor is (across the way it goes).
-    let sides: Vec<body::Estimate> = if full && speed > 0.3 {
+    // [M7] Two at most, in an array (no Vec an ask): the same estimates in the same order.
+    let sides: [Option<body::Estimate>; 2] = if full && speed > 0.3 {
         let (ux, uz) = (me.velocity[0] / speed, me.velocity[1] / speed);
-        [(-uz, ux), (uz, -ux)]
-            .iter()
-            .filter_map(|&(px, pz)| {
-                let feet = Vec3::new(me.feet.x + px * body::RECKONING_M, me.feet.y, me.feet.z + pz * body::RECKONING_M);
-                let node = grid.locate(feet, 0.5)?;
-                Some(body::Estimate { feet, node: Some(node), kept: None, ..at })
-            })
-            .collect()
+        [(-uz, ux), (uz, -ux)].map(|(px, pz)| {
+            let feet = Vec3::new(me.feet.x + px * body::RECKONING_M, me.feet.y, me.feet.z + pz * body::RECKONING_M);
+            let node = grid.locate(feet, 0.5)?;
+            Some(body::Estimate { feet, node: Some(node), kept: None, ..at })
+        })
     } else {
-        Vec::new()
+        [None, None]
     };
-    let up = |keys: u32| body::stays_up(&at, keys, turn, &stop) && sides.iter().all(|side| body::stays_up(side, keys, turn, &stop));
+    let up = |keys: u32| body::stays_up(&at, keys, turn, &stop) && sides.iter().flatten().all(|side| body::stays_up(side, keys, turn, &stop));
     // [M2] The asked keys' centre forecast, played once: the sides are played only when it stays up (as `up` does), and the
     // test-only `sides_only` count below reads it rather than playing it again.
     let centre_up = body::stays_up(&at, keys, turn, &stop);
     let guard = {
-        if centre_up && sides.iter().all(|side| body::stays_up(side, keys, turn, &stop)) {
+        if centre_up && sides.iter().flatten().all(|side| body::stays_up(side, keys, turn, &stop)) {
             LipGuard::Safe
         } else {
             #[cfg(test)]
@@ -4157,8 +4167,8 @@ fn guard_keys(bot: &mut Bot, decision: &mut Decision, me: &PlaceView, tactics: &
     } else {
         let hold = bot.motor.feel.lip_guard_ticks;
         let kept = bot.reckoned_kept;
-        let ask = LipAsk::of(me, decision.turn.0, decision.keys, &planned, hold, full, kept, margin);
-        bot.lip_memo.answer(ask, || lip_guard_with(&tactics.world.grid, &tuning.kin, me, decision.turn.0, decision.keys, &planned, hold, full, kept, margin))
+        let ask = LipAsk::of(me, decision.turn.0, decision.keys, hold, full, kept, margin);
+        bot.lip_memo.answer(ask, &planned, || lip_guard_with(&tactics.world.grid, &tuning.kin, me, decision.turn.0, decision.keys, &planned, hold, full, kept, margin))
     };
     let guard = if full {
         const MOVE: u32 = key::FORWARD | key::BACK | key::LEFT | key::RIGHT | key::SPRINT;
