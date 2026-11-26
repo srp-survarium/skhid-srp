@@ -209,7 +209,7 @@ pub(crate) fn a_missed_jump_and_a_press_that_freed_nothing_are_counted_with_what
         nows
     });
     let presses = tally.run.presses.clone();
-    let (stalls, starts) = tally.run.stall_scan(0, &grid, &presses);
+    let (stalls, starts, _) = tally.run.stall_scan(0, &grid, &presses);
     assert_eq!((stalls[0], starts.len()), (1, 1));
     let pre = Pre::before(&tally.run.recs[0], starts[0]);
     assert_eq!(pre, Pre { fired: true, past_band: true, standing: true });
@@ -218,4 +218,31 @@ pub(crate) fn a_missed_jump_and_a_press_that_freed_nothing_are_counted_with_what
     let (_, json) = tally.finish(&game);
     assert_eq!(json["not_freed_pre_5s"]["hop"], serde_json::json!([1, 1, 1, 1]), "{json}");
     assert_eq!(json["not_freed_play"]["Roam"], 1);
+}
+
+/// [STALLEP] A bot pushing forward at the foot of a 0.45 m step, with no press, is a stall at a step: the scan gives it with the
+/// step's rise, and its line names the bot, its team, where it stood, the rise and its play. A missed jump (0.8 m) is not one.
+#[test]
+pub(crate) fn a_stall_at_a_step_is_given_with_its_rise_and_its_line() {
+    let grid = {
+        let triangles = super::super::ledge_triangles(0.45, mapdata::WalkerBehaviour::BySlope);
+        WalkGrid::build(&triangles, [0.0, 0.0, 20.0, 10.0], 0.25, mapdata::Body::default())
+    };
+    let (mut game, mut tally) = made_up(&[0, 1]);
+    play(&mut game, &mut tally, 200, |k, game| {
+        put(game, 0, if k < 60 { 2.0 } else { 9.6 }, 3.0, if k < 60 { 0 } else { key::FORWARD });
+        put(game, 1, 12.0, 100.0, 0);
+        for body in &mut game.bodies {
+            body.yaw = -std::f32::consts::FRAC_PI_2;
+        }
+        vec![bot_now(), None]
+    });
+    let presses = tally.run.presses.clone();
+    let (stalls, missed, steps) = tally.run.stall_scan(0, &grid, &presses);
+    assert_eq!((stalls[0], stalls[1], missed.len()), (0, 1, 0), "{stalls:?}");
+    assert_eq!(steps.len(), 1);
+    assert!((steps[0].rise - 0.45).abs() < 0.1, "{steps:?}");
+    let line = tally.run.stall_line(0, 0, &steps[0]);
+    assert!(line.starts_with("STALLEP place=0 team=0 t0="), "{line}");
+    assert!(line.contains(" rise=0.4") && line.contains(" play=") && line.contains(" walk=["), "{line}");
 }
