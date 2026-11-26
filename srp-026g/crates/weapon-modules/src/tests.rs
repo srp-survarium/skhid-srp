@@ -35,10 +35,13 @@ const TBRAKE: usize = 17;
 const AEK_HIDER: usize = 18;
 const MPR45: usize = 19;
 const DPPRO_SIDE: usize = 20;
+const DPPRO_TOP: usize = 21;
 
 /// The second sight's `aim`, above its base: on the rail's two quarter turns
 /// its line of sight runs along the gun's.
 const SIDE_EYE: Affine = Affine::translation(0.0, 0.03, 0.01);
+/// The DeltaPoint Pro's item, a scope and a second sight by its two rows.
+const DPPRO_DICT: u16 = 2112;
 
 // guns, by their dict id in 0.69d0
 const AK_74M: u16 = 3;
@@ -206,7 +209,7 @@ fn modules() -> Vec<ModuleSource> {
         ModuleSource {
             aimed: Some(String::from("weapons/modules/collimators/leupold_dppro_collimator/leupold_dppro_collimator_aim")),
             ..module(
-                2672,
+                DPPRO_DICT,
                 Role::Fitted(Kind::SecondSight),
                 "weapons/modules/collimators/leupold_dppro_collimator/leupold_dppro_collimator",
                 vec![
@@ -221,6 +224,16 @@ fn modules() -> Vec<ModuleSource> {
                         ..AttachSource::new(S::AngledCollimShortR)
                     },
                 ],
+            )
+        },
+        // the same DeltaPoint Pro as a scope on the top rail
+        ModuleSource {
+            aimed: Some(String::from("weapons/modules/collimators/leupold_dppro_collimator/leupold_dppro_collimator_aim")),
+            ..module(
+                DPPRO_DICT,
+                Role::Fitted(Kind::Scope),
+                "weapons/modules/collimators/leupold_dppro_collimator/leupold_dppro_collimator",
+                vec![AttachSource { eye: Some(AttachEye::InGunPlane(SIDE_EYE)), ..AttachSource::new(S::PicatinnyScopeLong) }],
             )
         },
     ]
@@ -275,7 +288,7 @@ fn source() -> Source {
                 (S::AngledCollimShortL, vec![(MPR45, S::AngledPicatinnyrailL)]),
                 (S::AngledCollimShortR, vec![(MPR45, S::AngledPicatinnyrailR)]),
             ],
-            fits: vec![MIKI, EOTECH, DPPRO_SIDE],
+            fits: vec![MIKI, EOTECH, DPPRO_SIDE, DPPRO_TOP],
             ..gun(
                 HK416,
                 &[
@@ -966,11 +979,24 @@ fn a_second_sight_needs_its_angled_rail() {
     // the AK-74M takes none
     assert_eq!(refusal(&table, AK_74M, side), Refusal::NoFit(Kind::SecondSight));
     // a second sight is no scope, and a scope no second sight
-    assert_eq!(refusal(&table, HK416, Wanted { scope: dict(DPPRO_SIDE), ..Wanted::default() }), Refusal::NoFit(Kind::Scope));
+    assert_eq!(refusal(&table, FN_FNC, Wanted { scope: dict(DPPRO_SIDE), ..Wanted::default() }), Refusal::NoFit(Kind::Scope));
     assert_eq!(refusal(&table, HK416, Wanted { second_sight: right(EOTECH), ..Wanted::default() }), Refusal::NoFit(Kind::SecondSight));
     // a second sight without its eye is no table
     let module = |fault| Malformed::Module { module: DPPRO_SIDE as u16, fault };
     assert_eq!(refused(|s| s.modules[DPPRO_SIDE].attaches[0].eye = None), module(ModuleFault::NoEye(S::AngledCollimShortL)));
+    // one optic, a scope and a second sight at once: two items of one dict id
+    let both = Wanted { scope: dict(DPPRO_TOP), second_sight: right(DPPRO_SIDE), ..Wanted::default() };
+    with(&table, HK416, both, |bare| {
+        assert_eq!(bare.optic.unwrap().module.role(), Role::Fitted(Kind::Scope));
+        assert_eq!(bare.second.unwrap().module.role(), Role::Fitted(Kind::SecondSight));
+    });
+    // one fit a dict id and kind
+    let hk = |s: &mut Source| s.guns.iter().position(|g| g.dict == HK416).unwrap();
+    let twice = refused(|s| {
+        let at = hk(s);
+        s.guns[at].fits.push(DPPRO_SIDE);
+    });
+    assert!(matches!(twice, Malformed::Gun { fault: GunFault::FitTwice(dict), .. } if dict.get() == DPPRO_DICT));
 }
 
 /// A version 3 table (`tests/sample-v3.srpm`, the format before second

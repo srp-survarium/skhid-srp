@@ -115,6 +115,7 @@ pub enum GunFault {
     CarrierTwice(SlotId),
     /// A fit: no such module, or one nobody fits (a carrier, a stock part).
     Fit,
+    /// Two fits of one dict id as one kind.
     FitTwice(DictId),
 }
 
@@ -471,7 +472,9 @@ impl<'a> Table<'a> {
         }
         for (nth, bytes) in gun.fits.records().enumerate() {
             let module = self.fit(bytes).filter(|module| matches!(module.role, Role::Fitted(_))).ok_or(F::Fit)?;
-            if gun.fits.records().take(nth).filter_map(|bytes| self.fit(bytes)).any(|earlier| earlier.dict == module.dict) {
+            // One optic may be a gun's scope and its second sight: one fit a dict id and kind.
+            let same = |earlier: &Module<'_>| earlier.dict == module.dict && earlier.role == module.role;
+            if gun.fits.records().take(nth).filter_map(|bytes| self.fit(bytes)).any(|earlier| same(&earlier)) {
                 return Err(F::FitTwice(module.dict));
             }
         }
