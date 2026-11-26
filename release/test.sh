@@ -105,27 +105,18 @@ done
 EOF
 chmod +x "$T/bin/srp-item-tables"
 export SRP_ITEM_TABLES_BIN=$T/bin/srp-item-tables
-# srp-world-check --data <data> --save <dir> <folder>: its arguments and the
-# recordings in <folder> a line of $TEST_DIR/world-check.args; every world
-# passes, unless $TEST_DIR/world-check-refuses is there.
+# srp-world-check: the release runs none (the owner, 2026-11-27). A call is
+# a line of $TEST_DIR/world-check.args, and fails: none is expected.
 cat >"$T/bin/srp-world-check" <<'EOF'
 #!/usr/bin/env bash
-folder=${!#}
-printf '%s | %s\n' "$*" "$(ls "$folder" | tr '\n' ' ')" >>"$TEST_DIR/world-check.args"
-if [[ -e $TEST_DIR/world-check-refuses ]]; then
-    echo "$folder/rec026g_x.srprec: 2 worlds, 1 passed, 1 refused, 0 not checked"
-    echo "  REFUSED p3 t1000: effects at 0x67e9: the closing part at 12 is not every world's"
-    echo "2 worlds checked: 1 passed, 1 refused; 0 not checked, 0 files unread, 0 recordings skipped"
-    echo "FAILED: the match server would refuse worlds games wrote, or could not check them"
-    exit 1
-fi
-echo "2 worlds checked: 2 passed, 0 refused; 0 not checked, 0 files unread, 0 recordings skipped"
-echo "ok: the match server takes every world"
+printf '%s\n' "$*" >>"$TEST_DIR/world-check.args"
+echo "FAILED: release.sh runs no world check" >&2
+exit 1
 EOF
 chmod +x "$T/bin/srp-world-check"
 export SRP_WORLD_CHECK_BIN=$T/bin/srp-world-check
-# The exe patches' self-test (release.sh, step 2, after build-zip): its
-# arguments (the commit's checkout, the original exe) a line of
+# The exe patches' self-test (release.sh, from the preflight on, as soon as
+# it knows the commit): its arguments (the commit's checkout, the original exe) a line of
 # $TEST_DIR/selftest.args; $TEST_DIR/selftest-fails: a check fails;
 # $TEST_DIR/selftest-hangs: it runs on (a sleep of its own; both PIDs in
 # $TEST_DIR/selftest.pids). It links the stand-in build-zip's arena.
@@ -305,8 +296,8 @@ cp "$T/docker/latest" "$T/docker/running"
 echo running >"$T/docker/state"
 echo 0 >"$T/docker/starts"
 printf 'srp.db schema 1\n' >"$T/volume/srp.db"
-# The kept match recordings the world check reads (the newest 3), and one
-# being written (.part) and another file, which it does not.
+# Kept match recordings on the host, which the release no longer reads (it
+# runs no world check), and one being written (.part) and another file.
 mkdir -p "$T/volume/recordings"
 for n in 1 2 3 4; do
     printf 'SRPREC01 match %s\n' "$n" >"$T/volume/recordings/rec026g_20261107-00000${n}_0000000${n}.srprec"
@@ -1311,6 +1302,8 @@ no_record() { # <revision>: neither the tag, nor the branch, nor REVISION <revis
 # The original install: its launcher a stand-in, of its own sha256.
 mkdir -p "$T/game/binaries/x86" "$T/tmp" "$T/no-launcher"
 echo "the original launcher" >"$T/game/binaries/x86/survarium_launcher.exe"
+# The original exe the self-test reads (its stand-in reads nothing of it).
+echo "the original exe" >"$T/game/binaries/x86/survarium.exe"
 SKHID_TEST_LAUNCHER_SHA256=$(sha256sum <"$T/game/binaries/x86/survarium_launcher.exe" | cut -d' ' -f1)
 export SKHID_TEST_LAUNCHER_SHA256
 cat >>"$T/release.env" <<ENV
@@ -1394,6 +1387,7 @@ commit "the public key back"
 merge_pr 7 "A feature | with a bar"
 released=$(git -C "$T/repo" rev-parse HEAD)
 : >"$T/args"
+: >"$T/selftest.args"
 run yes --minutes 2 --label a || fail "release.sh: $out"
 check "release: its revision is the live exe's + 1" has "$out" "the live exe is revision 11: this release is revision 12"
 check "release: ... built so, main's patch_026g.py not edited (REVISION 11 there)" bash -c \
@@ -1471,7 +1465,7 @@ check "release: ... its message: the UTC time, the ZIP's and the server data's s
     "grep -qE '^Revision 12, released 20[0-9]{2}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2} UTC$' <<<\"\$1\" && grep -q 'sha256 $zip_sha$' <<<\"\$1\" && grep -q 'server-game-data.db: sha256 $data_sha$' <<<\"\$1\" && grep -q 'sha256 $exe_with (--server=127.0.0.1:1234), $exe_without without a server' <<<\"\$1\"" _ "$tag_text"
 check "release: ... its tagger is the owner (no one else)" grep -q '^tagger the owner <owner@example.org>' <<<"$tag_text"
 check "release: ... with the self-test: the plan says so, the tag does not say it went without" bash -c \
-    "grep -q \"the exe patches' self-test: in step 2, beside the rest\" <<<\"\$1\" && ! grep -q 'WITHOUT the exe patches' <<<\"\$2\"" _ "$out" "$tag_text"
+    "grep -qE \"the exe patches' self-test: (running since the preflight, beside the rest|passed \\(above\\))\" <<<\"\$1\" && ! grep -q 'WITHOUT the exe patches' <<<\"\$2\"" _ "$out" "$tag_text"
 check "release: main is a merge commit: the released commit, then the record" \
     test "$(git -C "$T/origin.git" log -1 --format='%P' main)" = "$released $(git -C "$T/origin.git" rev-parse 'main^2')"
 check "release: ... the record PR's merge, as GitHub's" has "$(git -C "$T/origin.git" log -1 --format=%B main)" "^Merge pull request #[0-9]* from srp/release/record-rev12"
@@ -1501,10 +1495,13 @@ check "release: ... made once in step 2 too, in its work folder" \
     grep -qE 'server-game-data\.db --dir .*/skhid-release\.[^/]*/item-tables$' "$T/item-tables.args"
 check "release: ... before anything is staged" bash -c \
     "t=\$(grep -n 'the item tables of it: made' <<<\"\$1\" | head -n 1 | cut -d: -f1); s=\$(grep -n '2. staging in the release folder' <<<\"\$1\" | head -n 1 | cut -d: -f1); test -n \"\$t\" -a -n \"\$s\" && ((t < s))" _ "$out"
-check "release: runs the exe patches' self-test once, of the commit built, on SKHID_GAME's survarium.exe" bash -c \
-    "test \$(wc -l <$T/selftest.args) = 1 && grep -qE '/zip/src $T/game/(game/)?binaries/x86/survarium\\.exe\$' $T/selftest.args"
-check "release: ... started after build-zip, before the staging; its result after the staging, before the go" bash -c \
-    "z=\$(grep -n '2. building the ZIP' <<<\"\$1\" | head -n 1 | cut -d: -f1); b=\$(grep -n 'the exe patches. self-test of .* started' <<<\"\$1\" | head -n 1 | cut -d: -f1); s=\$(grep -n '2. staging in the release folder' <<<\"\$1\" | head -n 1 | cut -d: -f1); t=\$(grep -n 'the exe patches. self-test: all checks passed' <<<\"\$1\" | head -n 1 | cut -d: -f1); g=\$(grep -n '^go: given beforehand' <<<\"\$1\" | head -n 1 | cut -d: -f1); test -n \"\$z\" -a -n \"\$b\" -a -n \"\$s\" -a -n \"\$t\" -a -n \"\$g\" && ((z < b && b < s && s < t && t < g))" _ "$out"
+check "release: runs the exe patches' self-test once, of the commit built (a worktree of its own), on SKHID_GAME's survarium.exe" bash -c \
+    "test \$(wc -l <$T/selftest.args) = 1 && grep -qE '/selftest-src $T/game/(game/)?binaries/x86/survarium\\.exe\$' $T/selftest.args"
+check "release: ... no worktree of it left" bash -c "! git -C $T/repo worktree list | grep -q /selftest-src"
+check "release: ... started in the preflight once the commit is known, before the lock; its result after the staging, before the go" bash -c \
+    "c=\$(grep -n 'ok       origin/main: ' <<<\"\$1\" | head -n 1 | cut -d: -f1); b=\$(grep -n 'the exe patches. self-test of .* started in the background' <<<\"\$1\" | head -n 1 | cut -d: -f1); p=\$(grep -n '^the release: revision' <<<\"\$1\" | head -n 1 | cut -d: -f1); s=\$(grep -n '2. staging in the release folder' <<<\"\$1\" | head -n 1 | cut -d: -f1); t=\$(grep -n '^the exe patches. self-test: all checks passed' <<<\"\$1\" | head -n 1 | cut -d: -f1); g=\$(grep -n '^go: given beforehand' <<<\"\$1\" | head -n 1 | cut -d: -f1); test -n \"\$c\" -a -n \"\$b\" -a -n \"\$p\" -a -n \"\$s\" -a -n \"\$t\" -a -n \"\$g\" && ((b < c && b < p && p < s && s < t && t < g))" _ "$out"
+check "release: ... build-server-db asks no URL again that the preflight checked" bash -c \
+    "grep -q ': checked by this release.s preflight' <<<\"\$1\" && ! grep -qE '^  ok       resources\\.db\\.patch_(3|12) at .*: (as checked before|downloaded whole)' <<<\"\$(sed -n '/2. building the server data/,/2. building the ZIP/p' <<<\"\$1\")\"" _ "$out"
 check "release: ... says it all, and ends 0" bash -c "grep -q 'done     the PR merged (a merge commit): main has REVISION 12' <<<\"\$1\" && ! grep -q 'NOT COMPLETE' <<<\"\$1\"" _ "$out"
 check "release: no change of what a match computes: said, the replays' list as it was" bash -c \
     "grep -q 'replays: no change of what a match computes is marked (.*): recordings from revision 11 on stay watchable' <<<\"\$1\" && git -C $T/origin.git show main:srp-026g/crates/session/src/v026g/simulation_changes.tsv | grep -qx \$'11\tthe TDM end'" _ "$out"
@@ -1703,6 +1700,53 @@ expect_refused "release: a patch published with other bytes" "already published 
     "$here/release.sh" --resources "$T/r14/resources.db.patch_14"
 printf '%s\n' "$list_saved" >"$T/patches.tsv"
 rm "$T/patches/resources.db.patch_14" "$T/r16/other"
+# The exe patches' self-test runs from the moment the preflight knows the
+# commit: a failed check stops the run when it comes (here, in the
+# preflight), before the lock, so the new patch is never uploaded.
+list_before=$(cat "$T/patches.tsv")
+: >"$T/state/admin.log"
+args_before=$(wc -l <"$T/args")
+touch "$T/selftest-fails"
+run yes --resources "$T/r14/resources.db.patch_14" --minutes 2 --label stp && fail "release.sh, a failed self-test: ran ($out)"
+check "release --resources: a failed check of the exe patches' self-test stops the run" has "$out" \
+    "the exe patches' self-test failed: 1 check(s), the first: the default build: nothing of the original aims inside"
+check "release --resources: ... in the preflight: no lock taken, nothing published or planned" bash -c \
+    "! grep -qE '2\\. (publishing|building)|^the release: revision' <<<\"\$1\" && ! tail -n +$((args_before + 1)) $T/args | grep -q 'mkdir .*/lock' && test ! -e $T/lock && test ! -s $T/state/admin.log" _ "$out"
+check "release --resources: ... the patch never uploaded, the list as it was" bash -c \
+    "test ! -e $T/patches/resources.db.patch_14 && test \"\$(cat $T/patches.tsv)\" = \"\$1\"" _ "$list_before"
+check "release --resources: ... no worktree of the self-test left" bash -c "! git -C $T/repo worktree list | grep -q /selftest-src"
+# The dry run runs it too (local, it writes nothing) and reports a failure.
+run quiet --dry-run --resources "$T/r14/resources.db.patch_14" --minutes 2 && fail "release.sh --dry-run, a failed self-test: no problem ($out)"
+rm "$T/selftest-fails"
+check "release --dry-run: runs the exe patches' self-test and reports its failure as a problem" bash -c \
+    "grep -q \"MISSING  the exe patches' self-test failed: 1 check(s), the first: the default build\" <<<\"\$1\" && grep -q '\\[dry run\\]    the exe patches. self-test: failed' <<<\"\$1\" && grep -q 'dry run: preflight found [0-9]* problem(s) (above): a real run would stop before the lock' <<<\"\$1\"" _ "$out"
+check "release --dry-run: ... and goes on to show the rest" has "$out" "dry run: nothing was planned, uploaded or changed"
+check "release --dry-run: ... no worktree of it left" bash -c "! git -C $T/repo worktree list | grep -q /selftest-src"
+run quiet --dry-run --resources "$T/r14/resources.db.patch_14" --minutes 2 || fail "release.sh --dry-run: $out"
+check "release --dry-run: a passing self-test is said" has "$out" \
+    "^\[dry run\]    the exe patches' self-test: passed (all checks passed); a real run checks here, before the go, that its arena is the one build-zip shipped"
+
+# No world check (the owner, 2026-11-27): not in the preflight, not in step
+# 2, not even with build-content's server game data beside --resources (of
+# the stock db, the list's patches and the new one: what the preflight
+# checked worlds with before) and --worlds given, which is taken, said and
+# ignored.
+early=()
+while IFS=$'\t' read -r name _ _ urls; do
+    [[ -z $name || $name == \#* ]] || early+=(--patch "$T/patches/$name=$urls")
+done <"$T/patches.tsv"
+"$bin" build --db "$T/resources.db" "${early[@]}" --patch "$T/r14/resources.db.patch_14=$P/resources.db.patch_14" \
+    --out "$T/r14/server-game-data.db" >/dev/null || fail "srp-game-data build of build-content's server data"
+mkdir -p "$T/worlds-given"
+cp "$T/volume/recordings/rec026g_20261107-000001_00000001.srprec" "$T/worlds-given/"
+args_before=$(wc -l <"$T/args")
+run quiet --dry-run --resources "$T/r14/resources.db.patch_14" --minutes 2 --worlds "$T/worlds-given" ||
+    fail "release.sh --dry-run --worlds, build-content's server data: $out"
+check "release: runs no world check (preflight, step 2), build-content's server data beside --resources and --worlds given: srp-world-check not called, no recording read off the host" bash -c \
+    "! grep -v '^  WARNING  --worlds ' <<<\"\$1\" | grep -qi 'world check' && test ! -s $T/world-check.args && ! tail -n +$((args_before + 1)) $T/args | grep -q recordings" _ "$out"
+check "release --worlds: deprecated: taken, said as a warning in the preflight, and ignored" has "$out" \
+    "^  WARNING  --worlds $T/worlds-given: ignored, the release runs no world check any more (the owner, 2026-11-27); worlds are checked at the PR (tools/check world-check and world-drift"
+rm "$T/r14/server-game-data.db"
 expect_refused "release: --yes needs --i-know" "goes with --i-know" "$here/release.sh" --yes
 touch "$T/ssh-fails-live"
 expect_refused "release: says the live host cannot be reached" "ssh to the live host (live through jump) fails" "$here/release.sh"
@@ -1815,11 +1859,7 @@ check "release --dry-run: shows the swap and the restart" has "$out" "docker com
 check "release --dry-run: shows the image built here and loaded" bash -c "grep -q \"server's image of main's source\" <<<\"\$1\" && grep -q 'docker load' <<<\"\$1\"" _ "$out"
 check "release --dry-run: ... builds none" bash -c "! grep -q '^build-image' $T/log"
 check "release --dry-run: says so" has "$out" "dry run: nothing was planned, uploaded or changed"
-check "release --dry-run: reads the live host's newest 3 kept recordings for the world check" has "$out" \
-    "^  ok       the world check: will read the newest 3 recording(s) on the live host ([0-9]* MB: rec026g_20261107-000004_00000004.srprec rec026g_20261107-000003_00000003.srprec rec026g_20261107-000002_00000002.srprec)\$"
-check "release --dry-run: ... read at the lowest priority" grep -q "nice -n 19 ionice -c 3 cat .*rec026g_20261107-000004_00000004.srprec" "$T/args"
-check "release --dry-run: ... and shows step 2 checking them with the new data" has "$out" \
-    "^\[dry run\]    then the world check of the newest 3 recording(s) on the live host .*: $SRP_WORLD_CHECK_BIN --data .*server-game-data.db .*/worlds (one world refused stops the release)\$"
+check "release --dry-run: shows no world check in step 2" bash -c "! grep -qi 'world check' <<<\"\$1\"" _ "$out"
 check "release --dry-run: prints the rebuild of the site's pages with the new patch" has "$out" \
     "^  \[dry run\] would rebuild the Maps tab and the calculator (about 2 min; .*) in a worktree of [0-9a-f]*: $T/build-site --tree $T/tmp/skhid-release\.[^ ]*/site --with $T/r14/resources.db.patch_14\$"
 check "release --dry-run: ... runs none" test ! -s "$T/build-site.args"
@@ -1831,15 +1871,6 @@ check "release --dry-run: ... its server-code report has them changed, as the re
 check "release --dry-run: a GRID_ALGO of the live tree other than main's is warned about" has "$out" \
     "^  WARNING  the built maps (mapdata/built, [0-9]* file(s) now): pub const GRID_ALGO: u32 = 2; pub const SIGHT_ALGO: u32 = 1; on the live tree, pub const GRID_ALGO: u32 = 3; pub const SIGHT_ALGO: u32 = 1; on main: the first match on each map after the swap builds its grid and tree again"
 sed -i 's/^pub const GRID_ALGO: u32 = 2;$/pub const GRID_ALGO: u32 = 3;/' "$T/live/crates/mapdata/src/lib.rs"
-mkdir -p "$T/worlds-given"
-run quiet --dry-run --resources "$T/r14/resources.db.patch_14" --minutes 2 --worlds "$T/worlds-given" &&
-    fail "release.sh --dry-run --worlds <empty>: no problem ($out)"
-check "release --dry-run --worlds: a folder of no recording is a problem" has "$out" "--worlds $T/worlds-given: no match recording (\*.srprec) in it"
-cp "$T/volume/recordings/rec026g_20261107-000001_00000001.srprec" "$T/worlds-given/"
-run quiet --dry-run --resources "$T/r14/resources.db.patch_14" --minutes 2 --worlds "$T/worlds-given" ||
-    fail "release.sh --dry-run --worlds: $out"
-check "release --dry-run --worlds: its recordings are checked in place of the host's" bash -c \
-    "grep -q 'the world check: will read 1 recording(s) of --worlds $T/worlds-given\$' <<<\"\$1\" && grep -q 'then the world check of 1 recording(s) of --worlds $T/worlds-given with it: .* $T/worlds-given (one world' <<<\"\$1\"" _ "$out"
 before=$(tree)
 run quiet --dry-run --resources "$T/r14/resources.db.patch_14" --server-code no --minutes 2 && fail "release.sh --dry-run --server-code no: no problem ($out)"
 check "release --dry-run --server-code no: refused as a real run is, the pages to rebuild" bash -c \
@@ -1933,6 +1964,20 @@ sb_run --with r5/resources.db.patch_5 && fail "build-site, the pages without --w
 check "build-site: pages that leave --with's patch out: fails" has "$out" \
     "built-from.tsv does not name exactly the patches of $T/patches.tsv and resources.db.patch_5"
 rm "$T/sb/drop-with"
+# dbgrab's copy in the cache is kept by its source's tree hash: another
+# commit with the same tools/re-kit/common/dbgrab (a re-kit row) leaves it
+# (cargo then finds nothing to build); a changed source is copied anew.
+touch "$T/sb/cache/skhid-release/dbgrab/tools/re-kit/common/dbgrab/copy-kept"
+mkdir -p "$T/sb/tree/tools/re-kit/v026g" && echo "a row" >"$T/sb/tree/tools/re-kit/v026g/functions.tsv"
+git_t -C "$T/sb/tree" add tools && git_t -C "$T/sb/tree" commit -q -m "a re-kit row"
+sb_run --with r5/resources.db.patch_5 || fail "build-site, another commit: $out"
+check "build-site: another commit, dbgrab's source the same: its copy kept" \
+    test -e "$T/sb/cache/skhid-release/dbgrab/tools/re-kit/common/dbgrab/copy-kept"
+echo "the tree's new dbgrab" >"$T/sb/tree/tools/re-kit/common/dbgrab/src/main.rs"
+git_t -C "$T/sb/tree" add tools && git_t -C "$T/sb/tree" commit -q -m "dbgrab changed"
+sb_run --with r5/resources.db.patch_5 || fail "build-site, dbgrab changed: $out"
+check "build-site: ... its source changed: copied anew, and built from it" bash -c \
+    "test ! -e $T/sb/cache/skhid-release/dbgrab/tools/re-kit/common/dbgrab/copy-kept && grep -qx \"the tree's new dbgrab\" $T/sb/tree/srp-026g/servers/web-server/maps/dbgrab.txt"
 
 # The preflight checks every URL of every row, mirrors too: once whole,
 # then (the cache, across runs) by their first bytes.
@@ -2016,40 +2061,25 @@ check "release: ... stages nothing" nothing_staged
 check "release: ... leaves the live files as they were" test "$(tree)" = "$before"
 check "release: ... and makes no record" no_record 14
 
-# The world check refusing a recorded world with the new server data:
-# stopped in step 2, before the go, the refusal shown.
+# A check of the exe patches' self-test failing: it runs from the
+# preflight on, so the run stops when it fails, before the lock.
 : >"$T/state/admin.log"
-: >"$T/world-check.args"
-touch "$T/world-check-refuses"
-run yes --minutes 2 --label wc || true
-rm "$T/world-check-refuses"
-check "release: a world the new server would refuse stops before the swap" bash -c \
-    "grep -q 'the world check: the new server would refuse (or could not check) worlds its games wrote' <<<\"\$1\" && grep -q '^    REFUSED p3 t1000: effects at 0x67e9' <<<\"\$1\" && grep -q 'STOPPED before the swap' <<<\"\$1\"" _ "$out"
-check "release: ... it checked the live host's newest 3 recordings with the new server data" grep -qE \
-    "^--data .*/server-game-data\.db --save .*/worlds-refused .*/worlds \| rec026g_20261107-000002_00000002\.srprec rec026g_20261107-000003_00000003\.srprec rec026g_20261107-000004_00000004\.srprec \$" "$T/world-check.args"
-check "release: ... before the go: plans no maintenance" test -z "$(admin_log)"
+args_before=$(wc -l <"$T/args")
+touch "$T/selftest-fails"
+run yes --minutes 2 --label st || true
+rm "$T/selftest-fails"
+check "release: a failed check of the exe patches' self-test stops the run" has "$out" \
+    "the exe patches' self-test failed: 1 check(s), the first: the default build: nothing of the original aims inside"
+check "release: ... in the preflight, before the lock" bash -c \
+    "! grep -qE '^the release: revision|2\\. (building|staging)' <<<\"\$1\" && ! tail -n +$((args_before + 1)) $T/args | grep -q 'mkdir .*/lock'" _ "$out"
+check "release: ... plans no maintenance" test -z "$(admin_log)"
 check "release: ... stages nothing" nothing_staged
 check "release: ... leaves the live files as they were" test "$(tree)" = "$before"
 check "release: ... and makes no record" no_record 14
 
-# A check of the exe patches' self-test failing: stopped in step 2, before
-# anything is staged and before the go.
-: >"$T/state/admin.log"
-touch "$T/selftest-fails"
-run yes --minutes 2 --label st || true
-rm "$T/selftest-fails"
-check "release: a failed check of the exe patches' self-test stops before the swap" bash -c \
-    "grep -q \"the exe patches' self-test failed: 1 check(s), the first: the default build: nothing of the original aims inside\" <<<\"\$1\" && grep -q 'STOPPED before the swap' <<<\"\$1\"" _ "$out"
-check "release: ... after the staging, before the go" bash -c \
-    "grep -q '2. staging in the release folder' <<<\"\$1\" && ! grep -qE '^go: |3. the go' <<<\"\$1\"" _ "$out"
-check "release: ... before the go: plans no maintenance" test -z "$(admin_log)"
-check "release: ... removes the staged files" nothing_staged
-check "release: ... leaves the live files as they were" test "$(tree)" = "$before"
-check "release: ... and makes no record" no_record 14
-
-# A stop while the self-test runs (in the background, from build-zip to
-# the go): the item tables' tool failing after it started; the self-test
-# killed, its whole process group.
+# A stop while the self-test runs (in the background, from the preflight to
+# the go): the item tables' tool failing in step 2; the self-test killed,
+# its whole process group.
 : >"$T/state/admin.log"
 rm -f "$T/selftest.pids"
 touch "$T/selftest-hangs" "$T/item-tables-panics"
@@ -2739,6 +2769,12 @@ check "release --end-bot-and-private-matches: ... says, right before the stop, t
     'the server is up on the new data'
 check "release --end-bot-and-private-matches: ... kept in the folder's release.log" grep -q -- \
     "--end-bot-and-private-matches: the stop ended 2 match(es) without results (2 against bots or of private rooms, 0 normal)" "$(folder 20 nb)/release.log"
+
+# No world check (the owner, 2026-11-27) in any run above, real or dry, live
+# or --test: srp-world-check never called, no match recording read off the
+# host.
+check "release: runs no world check in any run: srp-world-check never called" test ! -s "$T/world-check.args"
+check "release: ... and reads no match recording off the host" bash -c "! grep -q recordings $T/args"
 
 # No secret in any output or command line.
 check "release: the admin token is in no output" bash -c "! grep -qF -- '$token' $T/outputs"
