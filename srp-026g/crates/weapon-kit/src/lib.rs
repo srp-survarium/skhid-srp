@@ -636,12 +636,32 @@ fn record_of(held: Held, slot: u8) -> Record {
     }
 }
 
+/// The item whose modification puts a second sight on a weapon's config
+/// (`srp_second_sight`, never sold): it adds `data/srp_second_sight` = its
+/// record's low half (the optic's dict id) and `data/srp_second_side` = its
+/// high half (the side), as a decal's sets its place. A second sight is an
+/// optic's own item (its scope's), whose own modification makes it the
+/// scope: the cook gets this one in its place.
+pub const SECOND_SIGHT_ITEM: u16 = 2676;
+
+/// The cook's record for the second sight `dict` at `side`.
+fn second_sight_record(dict: DictId, side: Side) -> Record {
+    Record {
+        id: 0,
+        dict: u32::from(SECOND_SIGHT_ITEM),
+        value: side.value() << 32 | u64::from(dict.get()),
+        slot: Slot::SecondSight.byte(),
+    }
+}
+
 /// The records the item config cook applies for an item's `records`: None
 /// when they hold no kit (the cook takes the item's own, as the stock does);
 /// else the records with the kit's own record valued 0 (as the thing's own
 /// record was before the kit) and, after them, one `{0, dict id, 0, slot}`
 /// for each dict id the kit names that `known` (the items dictionary) has: a
 /// dict id the game data lacks would be read from a null entry (0x2F18E3).
+/// A second sight, the kit's own or named, is the cook's record of
+/// [`SECOND_SIGHT_ITEM`] (when `known` has it) naming the optic and its side.
 /// Malformed records are refused: the cook takes them as they are.
 pub fn expand(
     records: &[Record],
@@ -662,20 +682,27 @@ pub fn expand(
     // The whole set is a weapon's (no slot twice, no dict id twice).
     Logical::unpack(records)?;
     let mut out = Expanded::default();
+    let second = known(SECOND_SIGHT_ITEM);
     for record in records {
         let own = Kit::of(record).ok().flatten().is_some();
-        out.push(if own {
-            Record {
-                value: kit.value_of(kit.own()),
-                ..*record
-            }
-        } else {
-            *record
-        });
+        if !own {
+            out.push(*record);
+        } else if kit.own() != KitSlot::SecondSight {
+            out.push(Record { value: 0, ..*record });
+        } else if let (true, Some(dict)) = (second, u16::try_from(record.dict).ok().and_then(DictId::new))
+            && known(dict.get())
+        {
+            out.push(second_sight_record(dict, kit.side()));
+        }
     }
     for (slot, dict) in kit.named() {
-        if known(dict.get()) {
-            out.push(record_of(Held::Named(dict, kit.value_of(slot)), slot.slot().byte()));
+        if !known(dict.get()) {
+            continue;
+        }
+        if slot != KitSlot::SecondSight {
+            out.push(record_of(Held::Named(dict, 0), slot.slot().byte()));
+        } else if second {
+            out.push(second_sight_record(dict, kit.side()));
         }
     }
     Ok(Some(out))

@@ -156,11 +156,17 @@ fn a_second_sight_makes_the_kit_wide() {
     let own = record(1606, 606, WIDE | 1 << 55 | 6 << 48, 3);
     assert_eq!(alone.pack().as_slice(), [own]);
     assert_eq!(Logical::unpack(&[own]).unwrap(), alone);
-    // the cook gets the own's record with its side as its value
+    // the cook gets the second sight item's record naming the optic and its
+    // side in the second sight's place, the own or named
+    let hidden = u32::from(SECOND_SIGHT_ITEM);
     let expanded = expand(&[own], |_| true).unwrap().unwrap();
-    assert_eq!(expanded.as_slice(), [record(1606, 606, 1, 3)]);
+    assert_eq!(expanded.as_slice(), [record(0, hidden, 1 << 32 | 606, 6)]);
     let expanded = expand(&[right], |_| true).unwrap().unwrap();
-    assert_eq!(expanded.as_slice().last(), Some(&record(0, 606, 1, 6)));
+    assert_eq!(expanded.as_slice().first(), Some(&record(1603, 603, 0, 3)));
+    assert_eq!(expanded.as_slice().last(), Some(&record(0, hidden, 1 << 32 | 606, 6)));
+    // game data without that item: no second sight, the rest as before
+    let expanded = expand(&[right], |dict| dict != SECOND_SIGHT_ITEM).unwrap().unwrap();
+    assert!(expanded.as_slice().iter().all(|r| r.slot != 6) && expanded.as_slice().len() == 4);
     // refused: a narrow kit of its own slot 6, a wide one without a second
     // sight, bits 52..54 set, a second sight's record of another value
     for (records, why) in [
@@ -297,7 +303,9 @@ fn the_cook_gets_the_records_and_what_the_kit_names() {
                     .all(|kit| logical.get(kit.slot()).is_none())
             ),
             Some(expanded) => {
-                let mut dicts: Vec<u32> = expanded.as_slice().iter().map(|r| r.dict).collect();
+                // a second sight is the second sight item's record, naming the optic
+                let named = |r: &Record| if r.dict == u32::from(SECOND_SIGHT_ITEM) { r.value as u32 } else { r.dict };
+                let mut dicts: Vec<u32> = expanded.as_slice().iter().map(named).collect();
                 let mut held: Vec<u32> = logical.iter().map(|(_, held)| held.dict()).collect();
                 dicts.sort();
                 held.sort();

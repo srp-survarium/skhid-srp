@@ -424,8 +424,8 @@ survarium::upgrade_record	value_low	0x8	u32	its value's low half (a modification
 survarium::upgrade_record	value_high	0xC	u32	its value's high half (<high_param>, 0x2F193B)
 survarium::upgrade_record	slot	0x10	u8	its slot
 survarium::upgrade_record	size	0x18	size	18h bytes, the next one after it
-survarium::weapon_kit_room	records	0x0	obj<survarium::upgrade_record>	patch 68's room on translate_query's stack (weapon_kit.query_room's sub esp): six records (weapon-kit's EXPANDED)
-survarium::weapon_kit_room	list	0x90	obj<survarium::upgrade_records>	their buffer_vector, which [ebp+40h] is pointed at
+survarium::weapon_kit_room	records	0x0	obj<survarium::upgrade_record>	patch 68's room on translate_query's stack (weapon_kit.query_room's sub esp): seven records (weapon-kit's EXPANDED)
+survarium::weapon_kit_room	list	0xa8	obj<survarium::upgrade_records>	their buffer_vector, which [ebp+40h] is pointed at
 survarium::item_record	id	0x0	u32	an inventory item record (B4h bytes, built at 0x2F7C10; the lobby's inventory, a profile's items): its item id
 survarium::item_record	dict	0x4	u16	its dict id
 survarium::item_record	upgrades	0x60	obj<survarium::upgrade_records>	its upgrade records' buffer_vector, the records inline at +6Ch (three at most: the assert at 0x1F1655)
