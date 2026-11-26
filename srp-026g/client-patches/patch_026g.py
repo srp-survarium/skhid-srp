@@ -2666,14 +2666,16 @@ CONTROLS_ADDED = ((0x19, "st_hide_interface_action"), (0x23, "st_hold_artifact_a
                   (0x56, "st_use_trap_action"),
                   (0x57, "st_use_oxygen_tank_action"),
                   (0x58, "st_use_next_artefact_action"),
-                  (0x59, "st_use_next_medkit_action"))
+                  (0x59, "st_use_next_medkit_action"),
+                  (0x5A, "st_srp_scope_next_action"))     # patch 206's second sight switch, default Y
 
 # A key per item type uses it (patch 149, README; client_patch.md section
 # 3.105; the rules: ../docs/notes/item-hotkeys.md). The game's action table (60
 # rows of 20 bytes at 0xA74AF0: name, id, kinds, toggle, default key's name)
 # ends where the key names' table begins (0xA74FA0), so its rows are moved:
 # `actions` (item_hotkeys_026g.asm, the arena's block item_hotkeys.data) is the
-# game's 60 and sixteen more (ids 4Ah..59h, ITEM_HOTKEYS_BINDER below). The four functions of the key binder that read the table by its
+# game's 60, sixteen more (ids 4Ah..59h, ITEM_HOTKEYS_BINDER below) and patch 206's scope_next (5Ah,
+# default Y). The four functions of the key binder that read the table by its
 # address read `actions`: (site, its bytes, where in them the address is, the
 # row's field it names); the binder's construction compares its pointer with
 # the table's end (ITEM_HOTKEYS_TABLE_END), the other three count its bytes,
@@ -2686,7 +2688,7 @@ CONTROLS_ADDED = ((0x19, "st_hide_interface_action"), (0x23, "st_hold_artifact_a
 # is under a count.
 ITEM_HOTKEYS_TABLE = 0xA74AF0
 ITEM_HOTKEYS_GAME_ROWS = 60
-ITEM_HOTKEYS_ROWS = 76
+ITEM_HOTKEYS_ROWS = 77
 ITEM_HOTKEYS_TABLE_REFS = (
     (0x20755B, bytes.fromhex("b8f04aa700"), 1, 0x0),           # the binder's construction: mov eax,table
     (0x2078AB, bytes.fromhex("8b83004ba700"), 2, 0x10),        # set_default_controls: mov eax,[ebx+table+10h]
