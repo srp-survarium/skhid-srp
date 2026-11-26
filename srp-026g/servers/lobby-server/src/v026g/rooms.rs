@@ -100,6 +100,7 @@ use survarium::v026g::lobby::rooms::{
 use survarium::v026g::lobby::{self, ClientState};
 use survarium::v026g::twist::Played;
 use survarium::v026g::maps;
+use survarium::v026g::match_msgs::static_info::MatchProfile;
 
 use super::MAINTENANCE_WINDOW;
 use super::core::{Core, Who};
@@ -2538,6 +2539,7 @@ impl Core<'_> {
         };
         let team = placement.assignments.first().map_or(0, |(_, team)| *team);
         let unix = quests::now();
+        let mode = running.map.mode();
         let profiles: Option<Vec<MatchPlayer>> = party
             .iter()
             .map(|each| {
@@ -2547,7 +2549,12 @@ impl Core<'_> {
                 Some(MatchPlayer {
                     session_id: each.player.session_id,
                     account_id: each.player.account_id,
-                    profile: match_profile(&account, team, 0, unix),
+                    // Its mode notice as at a match's start: a late joiner's
+                    // match counts too (`play::seated_late`).
+                    profile: MatchProfile {
+                        notice: account.mode_introductions.notice(mode),
+                        ..match_profile(&account, team, 0, unix)
+                    },
                     bot: self.accounts.is_bot_name(&account.name),
                     driven: false,
                 })

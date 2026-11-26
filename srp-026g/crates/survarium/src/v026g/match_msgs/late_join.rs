@@ -192,6 +192,7 @@ mod tests {
                 items: vec![],
                 squad: 7,
                 face: crate::v026g::faces::Face::DEFAULT,
+                notice: crate::v026g::match_msgs::static_info::Notice::Skipped,
             },
         }
     }

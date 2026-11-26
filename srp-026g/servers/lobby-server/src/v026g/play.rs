@@ -466,6 +466,7 @@ pub fn match_profile(account: &Account, team: u8, squad: u8, now: u64) -> MatchP
         items,
         squad,
         face: account.face,
+        notice: survarium::v026g::match_msgs::static_info::Notice::Skipped,
     }
 }
 
@@ -709,6 +710,7 @@ impl Core<'_> {
         };
         let ticket = running.ticket.match_id;
         let map = running.map.map().level;
+        let mode = running.map.mode();
         // The joiners are in: the match's equipment level is the highest
         // of its players' (`level_stats`).
         let mut match_gear = self.results.match_gear(ticket).unwrap_or(0);
@@ -742,6 +744,7 @@ impl Core<'_> {
                     .count();
                 if places <= 1 {
                     matchmaking::count_map_play(&mut account, map);
+                    account.mode_introductions.count(mode);
                     self.accounts.mark_dirty(player.account_id);
                 }
             }
@@ -1207,6 +1210,20 @@ impl Core<'_> {
                 })
             }
         };
+        // Each player's mode notice (`docs/notes/mode_introductions.md`):
+        // shown in its account's first three matches of the mode, counted
+        // once the match is made.
+        let players = players.map(|mut players| {
+            if let Some(played) = played {
+                for player in players.iter_mut().filter(|player| !player.driven) {
+                    if let Some(account) = self.accounts.get(player.account_id) {
+                        player.profile.notice =
+                            account.locked().mode_introductions.notice(played.mode());
+                    }
+                }
+            }
+            players
+        });
         let match_level = matchmaking::match_level(&levels);
         let compatible = self
             .pool_for_sessions(formed.seats.iter().map(|seat| seat.player.session_id))
@@ -1287,6 +1304,15 @@ impl Core<'_> {
                             .as_ref()
                             .map_or_else(|| "none".to_owned(), bot_kits::describe_weapon)
                     );
+                }
+                // A match of its mode more for each of them, whatever its
+                // kind, in a mode with a notice: its notice was theirs to see.
+                for seat in formed.seats.iter().filter(|_| played.mode().notice().is_some()) {
+                    let account_id = seat.player.account_id;
+                    if let Some(account) = self.accounts.get(account_id) {
+                        account.locked().mode_introductions.count(played.mode());
+                        self.accounts.mark_dirty(account_id);
+                    }
                 }
                 // The map is one more that each of them has played; a
                 // match against bots (a room's with bots too) counts towards

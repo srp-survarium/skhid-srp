@@ -276,6 +276,7 @@ pub fn of_map(map: maps::MatchMap, length_ms: u32) -> Result<Vec<u8>, String> {
         items: vec![static_info::MatchItem::default()],
         squad: 0,
         face: survarium::v026g::faces::Face::DEFAULT,
+        notice: survarium::v026g::match_msgs::static_info::Notice::Skipped,
     };
     let options = static_info::MatchOptions {
         players: vec![nobody],
@@ -1465,6 +1466,7 @@ mod tests {
             items: vec![MatchItem::default()],
             squad: 0,
             face: survarium::v026g::faces::Face::DEFAULT,
+            notice: survarium::v026g::match_msgs::static_info::Notice::Skipped,
         }
     }
 
