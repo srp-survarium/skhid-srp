@@ -692,6 +692,17 @@ pub struct CombatTuning {
     /// 1.6 reloads a minute against 1.0 of the others).
     pub reload_idle_ms: u32,
     pub reload_some_share: f32,
+    /// [reload out of reach] A tactical reload waits while an enemy the bot knows of is in reach of it: a track of its
+    /// memory that its own or its team's senses placed within `duel_ms` (the reflex's own length of a duel after the last
+    /// contact), nearer than a sprinting body covers in the time the weapon in hand takes to reload
+    /// ([`reload_reach_m`]: the client's sprint, the weapon's own time). The magazine of a tactical reload is not empty
+    /// (40 to 60 % left in three of four), so the bot keeps a weapon that fires; an empty weapon reloads as before, and so
+    /// does any weapon once nobody known is that near. Measured on 3511d36c3 (96 bench matches, 3,848 reloads,
+    /// `fable-fight-regressions-20261126.md`): a tactical reload begun with the nearest living enemy under 20 m ends in the
+    /// bot's death in 27 % of 579, one begun with him farther in 6 % of 2,188, one no enemy gets a line on in 1.3 % of
+    /// 1,542. Players die within 3 s of 5.6 % of their reload presses, the bots within 3 s of 11.5 %
+    /// (`duels-humans-vs-bots.md`). Off: a tactical reload whenever the target has been out of sight `reload_idle_ms`.
+    pub reload_out_of_reach: bool,
     /// [A277] The reload key goes in as the client takes it. The client takes a reload only from its weapon's idle, or at
     /// the end of the fire or chamber clip with the key held then (the exits to reload 0x2E3EF0, 0x2E3F70, 0x2E3F40; a key
     /// let go inside the clip is lost), and the shot that empties the magazine, rounds left to load, ends its fire clip in
@@ -2028,6 +2039,7 @@ impl Default for CombatTuning {
             trade_m: 40.0,
             reload_idle_ms: 400,
             reload_some_share: 0.4,
+            reload_out_of_reach: true,
             empty_reload: true,
             gun_from_world: true,
             worn_kit_from_world: true,
@@ -4096,6 +4108,13 @@ pub struct ReloadNote {
     pub magazine: u32,
 }
 
+/// [reload out of reach] How far an enemy can come while a reload of `reload_ms` runs, m ([`CombatTuning::reload_out_of_reach`]):
+/// at the client's sprint with no modifier (`max_speed` 0x2DC010, `mapdata::controller::speed::cap`: 5.0 m/s). 14.4 m for
+/// the bench kits' median reload (2,870 ms).
+pub fn reload_reach_m(reload_ms: u32) -> f32 {
+    mapdata::controller::speed::cap(mapdata::controller::speed::Gait::Sprint, 1.0) * reload_ms as f32 / 1000.0
+}
+
 /// [measure] A target lost this long ago, ms, counts as lost a moment
 /// ([`gate::LOST`], [`gate::REACTION_AGAIN`]).
 pub const LOST_MS: u32 = 1000;
@@ -4357,6 +4376,10 @@ pub struct Reflex {
     /// ([`Reflex::take_worth_notes`]).
     worth_stats: WorthStats,
     worth_notes: Vec<String>,
+    /// [reload out of reach] Since when a tactical reload has been waiting for a known enemy in reach of it
+    /// ([`CombatTuning::reload_out_of_reach`]; one bot note a wait), and the waits of this life.
+    reload_waits_since: Option<u32>,
+    reload_waits: u32,
     /// How far the weapon in hand reaches (the upper end of its band and the slack), as the last think had it: the reach of an
     /// objective actor's worth ([`WorthTuning::objective_in_band`]); none: no weapon known.
     reach_m: Option<f32>,
@@ -4742,6 +4765,7 @@ impl Reflex {
         self.journal.clear();
         self.busy_until = 0;
         self.reload_note = None;
+        self.reload_waits_since = None;
         self.loop_end = None;
         self.emptied = None;
         self.clip_end = 0;
@@ -7768,7 +7792,10 @@ impl Reflex {
     /// also reload by itself at a press on an empty weapon (its reload
     /// predicate 0x2E3EF0 takes the trigger with nothing in it); the count
     /// keeps the bot from needing that.
-    fn reload(&mut self, seen: bool, now: u32, c: &CombatTuning) -> u32 {
+    ///
+    /// [reload out of reach] `known_m`: the nearest enemy the bot knows of in its duel ([`Self::known_enemy_m`]). A tactical
+    /// reload waits while he is within [`reload_reach_m`] of the weapon's reload ([`CombatTuning::reload_out_of_reach`]).
+    fn reload(&mut self, seen: bool, known_m: Option<f32>, now: u32, c: &CombatTuning) -> u32 {
         if now < self.busy_until {
             return 0;
         }
@@ -7807,10 +7834,17 @@ impl Reflex {
         let load = hands.held_mut();
         let fired = load.gun.magazine - load.rounds;
         let some = ((load.gun.magazine as f32 * c.reload_some_share).ceil() as u32).max(1);
-        let tactical = !seen && now >= last_seen + c.reload_idle_ms && fired >= some;
+        let idle = !seen && now >= last_seen + c.reload_idle_ms && fired >= some;
+        // [reload out of reach] With rounds in the weapon and a known enemy near enough to be on the bot before it is back,
+        // the rounds are kept.
+        let reach_m = reload_reach_m(load.gun.reload_ms(load.rounds, load.loadable()));
+        let in_reach = known_m.filter(|&m| c.reload_out_of_reach && load.rounds > 0 && m <= reach_m);
+        let tactical = idle && in_reach.is_none();
         if load.loadable() == 0
             || !(load.rounds == 0 && (!seen || hiding || reload_here) || tactical)
         {
+            let waits = in_reach.filter(|_| idle && load.loadable() > 0);
+            self.reload_waits(waits.map(|m| (m, reach_m)), now);
             return 0;
         }
         let (left, magazine) = (load.rounds, load.gun.magazine);
@@ -7833,9 +7867,43 @@ impl Reflex {
         self.held_ms = 0;
         self.press_until = 0;
         self.reload_here = false;
+        self.reload_waits_since = None;
         // A reload resets the kick (0x310E52; when in it: not traced).
         self.recoil.reset();
         key::RELOAD
+    }
+
+    /// [reload out of reach] A tactical reload waits this tick for a known enemy `(his distance, the reload's reach)`, or
+    /// none does: a wait's first tick is counted and noted.
+    fn reload_waits(&mut self, waits: Option<(f32, f32)>, now: u32) {
+        match (waits, self.reload_waits_since) {
+            (Some((known_m, reach_m)), None) => {
+                self.reload_waits_since = Some(now);
+                self.reload_waits += 1;
+                self.worth_notes.push(format!(
+                    "waits with a tactical reload: an enemy known {known_m:.1} m away, within the {reach_m:.1} m a sprint covers in it"
+                ));
+            }
+            (None, Some(_)) => self.reload_waits_since = None,
+            _ => {}
+        }
+    }
+
+    /// [reload out of reach] The tactical reloads that waited for a known enemy in reach, this life.
+    pub fn reload_waits_n(&self) -> u32 {
+        self.reload_waits
+    }
+
+    /// [reload out of reach] The nearest enemy the bot knows of in its duel, m across: a track that its own or its team's
+    /// senses placed (a cheat's place does not count) within `duel_ms`.
+    fn known_enemy_m(me: &PlaceView, memory: &Memory, now: u32, c: &CombatTuning) -> Option<f32> {
+        memory
+            .tracks()
+            .iter()
+            .filter_map(|track| track.own)
+            .filter(|&(_, time)| now.saturating_sub(time) <= c.duel_ms)
+            .map(|(at, _)| at.distance_xz(me.feet))
+            .min_by(f32::total_cmp)
     }
 
     /// The trigger this tick when the reflex `wants` to fire, and the rounds
@@ -8632,7 +8700,8 @@ impl Reflex {
         if seen.is_some() {
             self.last_seen = now;
         }
-        let reload = self.reload(seen.is_some(), now, c);
+        let known_m = Self::known_enemy_m(me, memory, now, c);
+        let reload = self.reload(seen.is_some(), known_m, now, c);
         // A threat (a hit's shooter, a near shot from outside the view): a
         // moment's look, even from a target (`Self::threats`).
         if let Some(threat) = self.threat.filter(|t| now < t.until) {
@@ -11759,14 +11828,14 @@ mod tests {
         assert_eq!(r.hands().held().rounds, gun.magazine, "the count loads with the client");
         let note = r.reload_note().expect("a reload note");
         assert!(note.at == now && note.until == now + gun.reload_ms(0, gun.magazine), "{note:?}");
-        assert_eq!(r.reload(false, now + 50, &on), 0, "the reload runs");
+        assert_eq!(r.reload(false, None, now + 50, &on), 0, "the reload runs");
         // A sprint is taken off with the key; a jump leaves the reload to the habit's key.
         let (_, _, sent) = fire_out(&on, key::SPRINT | key::FORWARD);
         assert_eq!(sent, key::RELOAD | key::FORWARD);
         let (mut r, now, sent) = fire_out(&on, key::JUMP);
         assert_eq!((r.empty_reloads(), sent), (EmptyReloads { begun: 0, blocked: 1 }, key::JUMP));
         assert_eq!(r.hands().held().rounds, 0);
-        assert_eq!(r.reload(false, now + 50, &on), key::RELOAD);
+        assert_eq!(r.reload(false, None, now + 50, &on), key::RELOAD);
         // A tactical reload waits for the last shot's clip to end.
         let tactical = |c: &CombatTuning| {
             let mut rng = Rng::new(5);
@@ -11778,8 +11847,8 @@ mod tests {
                 now += 50;
             }
             assert!(!r.trigger(false, true, now, c, 20.0, &mut rng));
-            let in_clip = r.reload(false, now - 50, c);
-            let after = r.reload(false, now + 200, c);
+            let in_clip = r.reload(false, None, now - 50, c);
+            let after = r.reload(false, None, now + 200, c);
             (in_clip, after)
         };
         assert_eq!(tactical(&on), (0, key::RELOAD), "not inside the clip");
@@ -11789,7 +11858,7 @@ mod tests {
         let (mut r, now, sent) = fire_out(&off, 0);
         assert_eq!((r.empty_reloads(), sent), (EmptyReloads::default(), 0));
         assert!(r.emptied.is_none());
-        assert_eq!(r.reload(false, now, &off), key::RELOAD);
+        assert_eq!(r.reload(false, None, now, &off), key::RELOAD);
     }
 
     /// Walking into its weapon's band (the reflex's legs, a walk: an Uzi at
@@ -17087,6 +17156,40 @@ mod tests {
         assert_eq!(r.hands().held().rounds, 1, "the chambered round");
     }
 
+    /// [reload out of reach] A tactical reload waits while a known enemy is nearer than a sprint covers in the weapon's reload
+    /// (one note a wait); an empty weapon's does not wait, and with the switch off none does.
+    #[test]
+    fn a_tactical_reload_waits_while_a_known_enemy_is_in_reach_of_it() {
+        let on = CombatTuning::default();
+        assert!(on.reload_out_of_reach, "on by default");
+        let off = CombatTuning { reload_out_of_reach: false, ..CombatTuning::default() };
+        // Half the magazine fired, no target seen for longer than `reload_idle_ms`.
+        let half = || {
+            let mut r = gun_ledger(0, 600);
+            r.last_tick = Some(10_000);
+            let load = r.hands().held_mut();
+            load.rounds = load.gun.magazine / 2;
+            r
+        };
+        let mut r = half();
+        let load = r.hands().held();
+        let reach = reload_reach_m(load.gun.reload_ms(load.rounds, load.loadable()));
+        assert!(reach > 5.0, "{reach}");
+        assert_eq!(r.reload(false, Some(reach - 0.5), 10_000, &on), 0, "in reach: the rounds are kept");
+        assert_eq!(r.reload(false, Some(reach - 0.5), 10_050, &on), 0);
+        let notes = r.take_worth_notes();
+        assert_eq!(notes.len(), 1, "one note a wait: {notes:?}");
+        assert!(notes[0].starts_with("waits with a tactical reload: an enemy known "), "{notes:?}");
+        assert_eq!(r.reload_waits_n(), 1);
+        assert_eq!(r.reload(false, Some(reach + 0.5), 10_100, &on), key::RELOAD, "out of reach");
+        assert_eq!(half().reload(false, None, 10_000, &on), key::RELOAD, "nobody known");
+        assert_eq!(half().reload(false, Some(1.0), 10_000, &off), key::RELOAD, "off: as before");
+        let mut empty = gun_ledger(0, 600);
+        empty.last_tick = Some(10_000);
+        assert_eq!(empty.reload(false, Some(1.0), 10_000, &on), key::RELOAD, "an empty weapon reloads");
+        assert_eq!(empty.reload_waits_n(), 0);
+    }
+
     /// [Gap 7] Both hands broken: the aim is taken off, the trigger of a two-handed weapon too (its counted rounds given
     /// back), and it neither reloads nor throws a smoke; mended, all as before.
     #[test]
@@ -17099,7 +17202,7 @@ mod tests {
         assert!(r.can_smoke());
         r.set_hands(Hands::Broken { until: 5_000 });
         assert!(!r.can_smoke(), "no throw");
-        assert_eq!(r.reload(false, 1_000, &c), 0, "the AK-74U does not reload");
+        assert_eq!(r.reload(false, None, 1_000, &c), 0, "the AK-74U does not reload");
         r.hands().held_mut().rounds = 10;
         r.fired = (1_000, 2);
         r.hands().held_mut().rounds = 8;
@@ -17112,7 +17215,7 @@ mod tests {
         r.hands_gate(&mut over, 5_000);
         assert_eq!((over.fire, over.keys), (true, key::AIM));
         r.hands().held_mut().rounds = 0;
-        assert_eq!(r.reload(false, 5_000, &c), key::RELOAD);
+        assert_eq!(r.reload(false, None, 5_000, &c), key::RELOAD);
     }
 
     /// [Gap 8] A target a hit cannot hurt gets no shot until his protection ends (its counted rounds given back).
