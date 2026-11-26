@@ -30,8 +30,9 @@
 //!   whichever was drawn, as on any route. A replan for danger (a held shooter's lane ahead, a zone shut ahead, a crossing given
 //!   up) is the plain search, and the hold turns to L1 for the goal.
 //! - **The draw.** Weights as Roam's `draw_route`: L1 1, L2 its place in the band (1 at L1's cost, 0 at the band's edge: a dearer
-//!   lane is drawn less, and one at the cap no more than one past it), each times Roam's `friend_factor` per teammate on that lane
-//!   now (a teammate's long walk under way) or lately (one ended within Roam's `fresh_s`). The draw's number is the life's own for
+//!   lane is drawn less, and one at the cap no more than one past it), each times Roam's `friend_factor` per teammate whose walk on
+//!   that lane ended lately (within Roam's `fresh_s`, or who died on it) and divided by it per teammate walking it now ([`odds`]):
+//!   the lanes spread across walks and lives, and bots walking at the same time keep to one lane, in each other's cover. The draw's number is the life's own for
 //!   the walk's 15 m start and end cells (`Bot::life_key`): the same walk in one life draws the same, the next life draws anew.
 //! - **The walk keeps its lane.** The decision is held for the goal ([`LaneHold`]): a replan for a goal moved within `away_m` keeps
 //!   L2's shut regions (its way searched again on the regions from where the bot is) or L1, and draws nothing.
@@ -206,11 +207,24 @@ fn walks(theirs: &[Vec3], stretches: [&[Vec3]; 2], away: f32) -> Option<usize> {
     }
 }
 
-/// The draw's odds of L2 (`ratio` its cost over L1's, within `band`), with `mates` teammates on each lane and Roam's `friend`
-/// factor: L1 weighs `friend^mates[0]`, L2 its place in the band times `friend^mates[1]`.
-pub fn odds(ratio: f32, band: f32, mates: [u32; 2], friend: f32) -> f32 {
+/// The teammates on each of a walk's two lanes ([`TeamLanes::mates_on`]): those walking it now (a long walk under way), and those
+/// whose walk on it ended lately (within Roam's `fresh_s`).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct Mates {
+    pub now: [u32; 2],
+    pub lately: [u32; 2],
+}
+
+/// The draw's odds of L2 (`ratio` its cost over L1's, within `band`), with the teammates on each lane and Roam's `friend` factor.
+/// L1 weighs 1 and L2 its place in the band, each times `friend` per teammate whose walk on it ended lately and divided by it per
+/// teammate walking it now: across walks and lives the lanes spread (a lane just walked is drawn less), and bots walking at the
+/// same time keep to one lane, in each other's cover (v59 and v61: with the factor against both, side hits on walkers with no
+/// teammate within 30 m that ended in an unturned death rose 44 -> 72, unturned deaths with a teammate's line to the killer fell
+/// from 26-29 % to 22 %).
+pub fn odds(ratio: f32, band: f32, mates: Mates, friend: f32) -> f32 {
     let place = ((band - ratio) / (band - 1.0)).clamp(0.0, 1.0);
-    let (w1, w2) = (friend.powi(mates[0] as i32), place * friend.powi(mates[1] as i32));
+    let weight = |lane: usize| friend.powi(mates.lately[lane] as i32 - mates.now[lane] as i32);
+    let (w1, w2) = (weight(0), place * weight(1));
     if w1 + w2 > 0.0 { w2 / (w1 + w2) } else { 0.0 }
 }
 
@@ -328,6 +342,8 @@ struct Claim {
     who: Place,
     goal: Vec3,
     points: Vec<Vec3>,
+    /// When it was claimed (the walk's draw).
+    claimed: u32,
     /// When the walk ended (its route gone or for another goal), none while under way.
     ended: Option<u32>,
 }
@@ -344,10 +360,10 @@ impl TeamLanes {
         self.claims.retain(|c| c.ended.is_none_or(|end| time <= end.saturating_add(keep_ms)));
     }
 
-    /// `who` walks `points` to `goal` (its claim before is replaced).
-    pub fn claim(&mut self, who: Place, goal: Vec3, points: Vec<Vec3>) {
+    /// `who` walks `points` to `goal` from `time` (its claim before is replaced).
+    pub fn claim(&mut self, who: Place, goal: Vec3, points: Vec<Vec3>, time: u32) {
         self.claims.retain(|c| c.who != who);
-        self.claims.push(Claim { who, goal, points, ended: None });
+        self.claims.push(Claim { who, goal, points, claimed: time, ended: None });
     }
 
     /// `who`'s walk under way goes on to `goal` (a held lane's goal moved).
@@ -357,21 +373,30 @@ impl TeamLanes {
         }
     }
 
-    /// The teammates (not `who`) on each of two lanes ([`walks`] by their own stretches): a claim under way of one `alive`, or one
-    /// ended within `keep_ms` of `time`.
-    pub fn mates_on(&self, who: Place, stretches: [&[Vec3]; 2], away_m: f32, time: u32, keep_ms: u32, alive: impl Fn(Place) -> bool) -> [u32; 2] {
-        let mut on = [0; 2];
-        for claim in &self.claims {
-            let counts = claim.who != who
-                && match claim.ended {
-                    None => alive(claim.who),
-                    Some(end) => time <= end.saturating_add(keep_ms),
-                };
-            if counts && let Some(lane) = walks(&claim.points, stretches, away_m) {
-                on[lane] += 1;
+    /// The teammates (not `who`) on each of two lanes ([`walks`] by their own stretches): walking it now (a claim under way of one
+    /// `alive`), or lately (one ended within `keep_ms` of `time`; a walk under way whose walker died counts as ended lately for
+    /// `keep_ms` after it was claimed).
+    pub fn mates_on(&self, who: Place, stretches: [&[Vec3]; 2], away_m: f32, time: u32, keep_ms: u32, alive: impl Fn(Place) -> bool) -> Mates {
+        let mut mates = Mates::default();
+        for claim in self.claims.iter().filter(|c| c.who != who) {
+            let Some(lane) = walks(&claim.points, stretches, away_m) else {
+                continue;
+            };
+            match claim.ended {
+                None if alive(claim.who) => mates.now[lane] += 1,
+                None => {
+                    if time <= claim.claimed.saturating_add(keep_ms) {
+                        mates.lately[lane] += 1;
+                    }
+                }
+                Some(end) => {
+                    if time <= end.saturating_add(keep_ms) {
+                        mates.lately[lane] += 1;
+                    }
+                }
             }
         }
-        on
+        mates
     }
 }
 
@@ -381,7 +406,7 @@ pub enum Verdict {
     /// No second lane: why (no room off the ends, no way, over the band, more exposed).
     One(&'static str),
     /// Two lanes: L2's cost, the teammates on each, the odds of L2 and the number drawn; `second` when L2 was drawn.
-    Two { c2: f32, mates: [u32; 2], odds: f32, number: f32, second: bool },
+    Two { c2: f32, mates: Mates, odds: f32, number: f32, second: bool },
 }
 
 /// Why a walk has no second lane ([`Verdict::One`]).
@@ -396,10 +421,12 @@ pub fn line(play: impl std::fmt::Debug, goal: Vec3, c1: f32, verdict: &Verdict) 
     match verdict {
         Verdict::One(why) => format!("{head}, one lane ({why}), walks L1"),
         Verdict::Two { c2, mates, odds, number, second } => format!(
-            "{head}, C2 {c2:.1} m ({:.3}), mates on L1 {} L2 {}, p(L2) {odds:.3}, drew {:.3}: walks {} (rank {}), {:.1} m",
+            "{head}, C2 {c2:.1} m ({:.3}), mates now L1 {} L2 {}, lately L1 {} L2 {}, p(L2) {odds:.3}, drew {:.3}: walks {} (rank {}), {:.1} m",
             c2 / c1.max(0.1),
-            mates[0],
-            mates[1],
+            mates.now[0],
+            mates.now[1],
+            mates.lately[0],
+            mates.lately[1],
             number,
             if *second { "L2" } else { "L1" },
             if *second { 2 } else { 1 },
@@ -486,12 +513,12 @@ pub(super) fn draw(
         Some((way, points, shut)) => {
             let room = Room { regions: room(tactics, &way, &shut, walk.open), cap_m: band * c1 };
             bot.features.lane.drawn(walk.goal, Some((shut, room.cap_m)));
-            lanes.claim(bot.place, walk.goal, points);
+            lanes.claim(bot.place, walk.goal, points, walk.time);
             Some(room)
         }
         None => {
             bot.features.lane.drawn(walk.goal, None);
-            lanes.claim(bot.place, walk.goal, points1);
+            lanes.claim(bot.place, walk.goal, points1, walk.time);
             None
         }
     }
@@ -521,16 +548,24 @@ mod tests {
 
     #[test]
     fn the_odds_fall_with_cost_and_turn_from_mates() {
+        let none = Mates::default();
         // Equal cost and no mates: even. At the band's edge: L1 always.
-        assert!((odds(1.0, 1.15, [0, 0], 0.6) - 0.5).abs() < 1e-6);
-        assert_eq!(odds(1.15, 1.15, [0, 0], 0.6), 0.0);
-        assert_eq!(odds(1.3, 1.15, [0, 0], 0.6), 0.0, "past the band: never");
+        assert!((odds(1.0, 1.15, none, 0.6) - 0.5).abs() < 1e-6);
+        assert_eq!(odds(1.15, 1.15, none, 0.6), 0.0);
+        assert_eq!(odds(1.3, 1.15, none, 0.6), 0.0, "past the band: never");
         // Halfway: L2 weighs 0.5 against 1.
-        assert!((odds(1.075, 1.15, [0, 0], 0.6) - 1.0 / 3.0).abs() < 1e-5);
-        // A mate on L1 makes L2 likelier, one on L2 less.
-        let alone = odds(1.05, 1.15, [0, 0], 0.6);
-        assert!(odds(1.05, 1.15, [1, 0], 0.6) > alone && odds(1.05, 1.15, [0, 1], 0.6) < alone);
-        assert!((odds(1.05, 1.15, [1, 1], 0.6) - alone).abs() < 1e-6, "one on each: as alone");
+        assert!((odds(1.075, 1.15, none, 0.6) - 1.0 / 3.0).abs() < 1e-5);
+        // A mate's walk on L1 ended lately makes L2 likelier, one on L2 less.
+        let alone = odds(1.05, 1.15, none, 0.6);
+        let lately = |l1, l2| Mates { now: [0, 0], lately: [l1, l2] };
+        assert!(odds(1.05, 1.15, lately(1, 0), 0.6) > alone && odds(1.05, 1.15, lately(0, 1), 0.6) < alone);
+        assert!((odds(1.05, 1.15, lately(1, 1), 0.6) - alone).abs() < 1e-6, "one on each: as alone");
+        // A mate walking L1 now makes L1 likelier (its cover), one walking L2 now L2; now and lately on one lane cancel.
+        let now = |l1, l2| Mates { now: [l1, l2], lately: [0, 0] };
+        assert!(odds(1.05, 1.15, now(1, 0), 0.6) < alone && odds(1.05, 1.15, now(0, 1), 0.6) > alone);
+        assert!((odds(1.05, 1.15, Mates { now: [1, 0], lately: [1, 0] }, 0.6) - alone).abs() < 1e-6);
+        // Past the band no mate draws L2.
+        assert_eq!(odds(1.2, 1.15, now(0, 3), 0.6), 0.0);
     }
 
     #[test]
@@ -569,31 +604,35 @@ mod tests {
         assert!(matches!(fresh.replan(goal, 15.0, false), Replan::Held(None)));
     }
 
-    /// Two lanes from (0, 0) to (100, 0): L1 straight, L2 by z 40 from x 20 to 80. A mate on either is counted on it, under way while alive, after
-    /// its end for the window.
+    /// Two lanes from (0, 0) to (100, 0): L1 straight, L2 by z 40 from x 20 to 80. A mate is counted on the lane it walks: now while
+    /// under way and alive; lately once its walk ended, for the window; lately for the window after its claim once it died walking.
     #[test]
-    fn mates_are_counted_on_the_lane_they_walk() {
+    fn mates_are_counted_on_the_lane_they_walk_now_or_lately() {
         let line = |z: f32| (0..=50).map(|k| Vec3::new(k as f32 * 2.0, 0.0, if (10..=40).contains(&k) { z } else { 0.0 })).collect::<Vec<_>>();
         let (l1, l2) = (line(0.0), line(40.0));
         let (s1, s2) = (own_stretch(&l1, &l2, 15.0), own_stretch(&l2, &l1, 15.0));
         assert!(!s1.is_empty() && !s2.is_empty());
         let mut lanes = TeamLanes::default();
-        lanes.claim(1, Vec3::new(100.0, 0.0, 0.0), l1.clone());
-        lanes.claim(2, Vec3::new(100.0, 0.0, 0.0), l2.clone());
-        lanes.claim(3, Vec3::new(100.0, 0.0, 0.0), l2.clone());
+        let goal = Vec3::new(100.0, 0.0, 0.0);
+        lanes.claim(1, goal, l1.clone(), 0);
+        lanes.claim(2, goal, l2.clone(), 0);
+        lanes.claim(3, goal, l2.clone(), 0);
         let all = |_| true;
-        assert_eq!(lanes.mates_on(0, [&s1, &s2], 15.0, 0, 15_000, all), [1, 2]);
-        assert_eq!(lanes.mates_on(2, [&s1, &s2], 15.0, 0, 15_000, all), [1, 1], "not its own");
-        assert_eq!(lanes.mates_on(0, [&s1, &s2], 15.0, 0, 15_000, |p| p != 3), [1, 1], "a dead mate's walk under way is not");
-        // Mate 1's walk ends at 1 s: counted till 16 s.
+        let m = |now: [u32; 2], lately: [u32; 2]| Mates { now, lately };
+        assert_eq!(lanes.mates_on(0, [&s1, &s2], 15.0, 0, 15_000, all), m([1, 2], [0, 0]));
+        assert_eq!(lanes.mates_on(2, [&s1, &s2], 15.0, 0, 15_000, all), m([1, 1], [0, 0]), "not its own");
+        // Mate 3 dead with its walk under way: lately, till 15 s after its claim.
+        assert_eq!(lanes.mates_on(0, [&s1, &s2], 15.0, 15_000, 15_000, |p| p != 3), m([1, 1], [0, 1]));
+        assert_eq!(lanes.mates_on(0, [&s1, &s2], 15.0, 15_001, 15_000, |p| p != 3), m([1, 1], [0, 0]));
+        // Mate 1's walk ends at 1 s: lately till 16 s, then dropped.
         lanes.walking(1, None, 15.0, 1_000, 15_000);
-        assert_eq!(lanes.mates_on(0, [&s1, &s2], 15.0, 16_000, 15_000, all), [1, 2]);
+        assert_eq!(lanes.mates_on(0, [&s1, &s2], 15.0, 16_000, 15_000, all), m([0, 2], [1, 0]));
         lanes.walking(0, None, 15.0, 16_001, 15_000);
-        assert_eq!(lanes.mates_on(0, [&s1, &s2], 15.0, 16_001, 15_000, all), [0, 2], "ended past the window: dropped");
+        assert_eq!(lanes.mates_on(0, [&s1, &s2], 15.0, 16_001, 15_000, all), m([0, 2], [0, 0]), "ended past the window: dropped");
         // A walk whose goal moved within reach goes on.
         lanes.regoal(2, Vec3::new(105.0, 0.0, 0.0));
         lanes.walking(2, Some(Vec3::new(108.0, 0.0, 0.0)), 15.0, 17_000, 15_000);
-        assert_eq!(lanes.mates_on(0, [&s1, &s2], 15.0, 40_000, 15_000, all), [0, 2]);
+        assert_eq!(lanes.mates_on(0, [&s1, &s2], 15.0, 40_000, 15_000, all), m([0, 2], [0, 0]));
         // A lane along neither stretch: no one's.
         assert_eq!(walks(&line(-60.0)[20..=30], [&s1, &s2], 15.0), None);
     }
@@ -601,9 +640,12 @@ mod tests {
     #[test]
     fn the_line_names_the_lanes_and_the_draw() {
         let goal = Vec3::new(1.0, 0.0, 2.0);
-        let two = Verdict::Two { c2: 110.0, mates: [1, 0], odds: 0.4, number: 0.2, second: true };
+        let two = Verdict::Two { c2: 110.0, mates: Mates { now: [1, 0], lately: [0, 2] }, odds: 0.4, number: 0.2, second: true };
         let text = line("Collect", goal, 100.0, &two);
-        assert!(text.starts_with("nav: lane draw: \"Collect\" to (1.0, 2.0): C1 100.0 m, C2 110.0 m (1.100), mates on L1 1 L2 0"), "{text}");
+        assert!(
+            text.starts_with("nav: lane draw: \"Collect\" to (1.0, 2.0): C1 100.0 m, C2 110.0 m (1.100), mates now L1 1 L2 0, lately L1 0 L2 2"),
+            "{text}"
+        );
         assert!(text.ends_with("p(L2) 0.400, drew 0.200: walks L2 (rank 2), 110.0 m"), "{text}");
         assert!(line("Cut", goal, 80.0, &Verdict::One(NO_WAY)).ends_with("one lane (no way), walks L1"));
     }
