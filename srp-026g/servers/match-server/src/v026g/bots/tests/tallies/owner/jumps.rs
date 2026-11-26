@@ -211,19 +211,32 @@ pub(crate) fn run_up(recs: &[Rec], ri: usize) -> (usize, usize) {
 /// A floor `lo`-`hi` m above `feet`, [`LEDGE_AHEAD_M`] ahead along the
 /// facing `yaw` and at most [`LEDGE_SIDE_M`] to its side (`gridprobe`).
 pub(crate) fn ledge_ahead(grid: &WalkGrid, feet: Vec3, yaw: f32, lo: f32, hi: f32) -> bool {
+    ledge_ahead_rise(grid, feet, yaw, lo, hi).is_some()
+}
+
+/// [`ledge_ahead`]'s floors' highest rise over the feet within `lo..=hi`, m (the step a stall stands at, for its `STALLEP` line);
+/// none with no such floor.
+pub(crate) fn ledge_ahead_rise(grid: &WalkGrid, feet: Vec3, yaw: f32, lo: f32, hi: f32) -> Option<f32> {
     let (dx, dz) = (-yaw.sin(), yaw.cos());
     let r = LEDGE_AHEAD_M.1 + 0.1;
     grid.floors_in([feet.x - r, feet.z - r, feet.x + r, feet.z + r])
-        .any(|node| {
+        .filter_map(|node| {
             let p = grid.position(node);
             let (x, z) = (p.x - feet.x, p.z - feet.z);
             let along = x * dx + z * dz;
             let side = (x * dz - z * dx).abs();
             let up = p.y - feet.y;
-            (LEDGE_AHEAD_M.0..=LEDGE_AHEAD_M.1).contains(&along)
-                && side <= LEDGE_SIDE_M
-                && (lo..=hi).contains(&up)
+            ((LEDGE_AHEAD_M.0..=LEDGE_AHEAD_M.1).contains(&along) && side <= LEDGE_SIDE_M && (lo..=hi).contains(&up)).then_some(up)
         })
+        .reduce(f32::max)
+}
+
+/// A stall at a step ([`Run::stall_scan`]'s second class): its first and last sampled records and the step's rise, m.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) struct StepStall {
+    pub(crate) k0: usize,
+    pub(crate) k1: usize,
+    pub(crate) rise: f32,
 }
 
 /// Up a link to `to` at a record `dt` s after the press (§9.3 `NOT_UP`):
@@ -395,9 +408,33 @@ impl Run {
         self.stall_scan(place, grid, presses).0
     }
 
-    /// [`Self::stalls`] and the record indices at which the missed jumps
-    /// start.
-    pub(crate) fn stall_scan(&self, place: Place, grid: &WalkGrid, presses: &[Press]) -> ([u32; 3], Vec<usize>) {
+    /// The `STALLEP` line of a stall at a step (`SRP_BENCH_STALL_EPISODES`): the bot, its team, the stall's start and end (s), where
+    /// it stood, the step's rise, its play, the share of its sampled ticks with a route, and run-length strings of its walk state
+    /// and the lip guard's verdict over the stall. Logging only: it reads the records the count read.
+    pub(crate) fn stall_line(&self, place: Place, team: u8, stall: &StepStall) -> String {
+        let recs = &self.recs[place];
+        let during = &recs[stall.k0..=stall.k1.min(recs.len() - 1)];
+        let r = &recs[stall.k0];
+        let digit = |n: u8| char::from_digit(u32::from(n.min(9)), 10).unwrap_or('?');
+        let route = during.iter().filter(|r| r.has_route).count() as f32 / during.len().max(1) as f32;
+        format!(
+            "STALLEP place={place} team={team} t0={:.1} t1={:.1} at={:.2},{:.2},{:.2} yaw={:.2} rise={:.2} play={} route={route:.2} walk=[{}] guard=[{}]",
+            self.time_of(stall.k0) as f32 / 1000.0,
+            self.time_of(stall.k1) as f32 / 1000.0,
+            r.feet.x,
+            r.feet.y,
+            r.feet.z,
+            r.yaw,
+            stall.rise,
+            self.plays.get(usize::from(r.play)).map_or("none", String::as_str),
+            super::moving::runs(during.iter().map(|r| digit(r.walk))),
+            super::moving::runs(during.iter().map(|r| digit(r.guard))),
+        )
+    }
+
+    /// [`Self::stalls`], the record indices at which the missed jumps
+    /// start, and the stalls at a step ([`StepStall`]).
+    pub(crate) fn stall_scan(&self, place: Place, grid: &WalkGrid, presses: &[Press]) -> ([u32; 3], Vec<usize>, Vec<StepStall>) {
         let recs = &self.recs[place];
         let samples: Vec<usize> = (0..recs.len() / TPS).map(|s| s * TPS).collect();
         let ok = |k: usize| {
@@ -410,6 +447,7 @@ impl Run {
         };
         let mut out = [0u32; 3];
         let mut missed = Vec::new();
+        let mut steps = Vec::new();
         let mut i = 0;
         while i < samples.len() {
             if !ok(samples[i]) {
@@ -441,13 +479,15 @@ impl Run {
                         out[c] += 1;
                         if c == 0 {
                             missed.push(k0);
+                        } else if let Some(rise) = ledge_ahead_rise(grid, r.feet, r.yaw, LEDGES[c].0, LEDGES[c].1) {
+                            steps.push(StepStall { k0, k1, rise });
                         }
                     }
                 }
             }
             i = j + 1;
         }
-        (out, missed)
+        (out, missed, steps)
     }
 }
 
@@ -871,8 +911,15 @@ impl JumpCounts {
         });
         let gaps = self.gap_counts(run, &game.world.grid, presses);
         let mut stalls = [0u32; 3];
+        let stall_lines = super::super::bench_settings().flag("SRP_BENCH_STALL_EPISODES");
         for place in (0..n).filter(|&p| run.is_bot[p]) {
-            let (counts, missed) = run.stall_scan(place, &game.world.grid, presses);
+            let (counts, missed, steps) = run.stall_scan(place, &game.world.grid, presses);
+            // [STALLEP] Each stall at a step, with `SRP_BENCH_STALL_EPISODES` (logging only).
+            if stall_lines {
+                for stall in &steps {
+                    eprintln!("{}", run.stall_line(place, game.bodies[place].team, stall));
+                }
+            }
             for (c, s) in stalls.iter_mut().zip(counts) {
                 *c += s;
             }
