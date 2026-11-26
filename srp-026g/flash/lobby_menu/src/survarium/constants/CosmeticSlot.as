@@ -18,6 +18,10 @@ package survarium.constants
       public static const MUZZLE:int = 4;
 
       public static const GRIP:int = 5;
+
+      // a weapon's second sight: an optic on the offset rail at its side, its record's value the side
+      // (survarium.upgrade.SightPlace)
+      public static const SECOND_SIGHT:int = 6;
       
       public function CosmeticSlot()
       {

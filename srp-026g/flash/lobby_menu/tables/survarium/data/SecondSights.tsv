@@ -1,0 +1,10 @@
+# The Attachments window's second sight: the optics each weapon takes on its offset rail, one row a
+# (weapon dict id, optic dict id); sides the rail's sides it goes on, a mask (1 left, 2 right:
+# survarium.upgrade.SightPlace). A weapon with no row has no second-sight slot. The lobby build
+# makes it the class survarium.data.SecondSights (tools/actionscript/README.md, "Tables"); its
+# list fits must have a row (the movie reads SecondSights.fits). To be written from the content
+# pack's modules table; these rows are the harness's until then: the HK416 (2218) with the
+# Leupold DeltaPoint (2112) and the Hensoldt RSA-S (2116).
+list	weapon:int	optic:int	sides:int
+fits	2218	2112	3
+fits	2218	2116	3
