@@ -4696,11 +4696,14 @@ fn pincer_tick(bot: &mut Bot, me: &PlaceView, view: &MatchView, tactics: &Tactic
                 end_pincer(bot, lanes, time, &pincer::lines::alone(p.mate, "its teammate gone before the stages"));
                 return;
             }
-            // Danger or the round's end on the way breaks it: hit since it began, a fight, the round's last cap.
+            // Danger or the round's end on the way breaks it: hit since it began, a fight in its path (a target nearer than its
+            // stage; one at or past the objective is what the pincer is for), the round's last cap.
+            let stage_m = (me.feet - p.stage).length();
+            let near_fight = bot.reflex.target().and_then(|t| view.place(t)).is_some_and(|t| (me.feet - t.feet).length() < stage_m);
             let broke = if bot.reflex.hit_since(p.since) {
                 Some("hit")
-            } else if bot.reflex.target().is_some() {
-                Some("a fight")
+            } else if near_fight {
+                Some("a fight nearer than its stage")
             } else if view.time_left_s * 1000.0 <= pincer::HOLD_CAP_MS as f32 {
                 Some("the round's end")
             } else {

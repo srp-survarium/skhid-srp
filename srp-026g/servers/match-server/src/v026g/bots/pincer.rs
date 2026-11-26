@@ -25,7 +25,8 @@
 //!   (`team::Commit::Held`): against every candidate but a named interrupter (`team::interrupts`: a survival play, Heal or
 //!   Retreat; or an alarm-band call over a play below it: a mate's death to trade, a carrier to escort, a thief to intercept, a
 //!   hunt, a sneak, a near flank, a battery to bring home), and only while the play is still a candidate (its objective there).
-//!   On the way to the stage it breaks at a hit, a fight, or the round's last [`HOLD_CAP_MS`].
+//!   On the way to the stage it breaks at a hit, a fight nearer than its stage (in its path; one at or past the objective is
+//!   what the pincer is for), or the round's last [`HOLD_CAP_MS`].
 //! - **The hold** (`Reflex::hold_for_pincer`): each stands at its stage looking at the centre until the other is there, at most
 //!   [`HOLD_CAP_MS`] (the p90 of the walks' time error), and lets go at once when hit, fighting, or when its own senses notice an
 //!   enemy. No hold when the round has less time left than the cap.
