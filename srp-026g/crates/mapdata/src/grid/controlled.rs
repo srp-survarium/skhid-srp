@@ -156,6 +156,9 @@ type Held = Vec<(NodeId, NodeId)>;
 type Crouched = Vec<(u32, u32)>;
 /// [walk lane] The Walk links the walk check passed only on a side line, as (from, to, lane).
 type Lanes = Vec<(u32, u32, WalkLane)>;
+/// [`WalkGrid::walk_every_link`]'s answer: the stats, the failing links (floor, direction, share), the held, the crouched and
+/// the side-line walks.
+type WalkEveryLink = (ControlledStats, Vec<(u32, usize, f32)>, Held, Crouched, Lanes);
 
 /// [2c] One walk check's answer ([`WalkGrid::walk_link`]).
 #[derive(Clone, Copy, Debug, Default)]
@@ -1072,7 +1075,7 @@ impl WalkGrid {
         start: WalkStart,
         mut stats: ControlledStats,
         memo: &mut Memo,
-    ) -> (ControlledStats, Vec<(u32, usize, f32)>, Held, Crouched, Lanes) {
+    ) -> WalkEveryLink {
         let n = self.height.len();
         let floors: Vec<usize> = (0..n).collect();
         let near = parallel(&floors, |&a| {
