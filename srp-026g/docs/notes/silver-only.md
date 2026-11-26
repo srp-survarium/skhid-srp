@@ -13,8 +13,8 @@ in silver will also get cheaper".
   - premium items one by one (the drop card, premium camouflages and decals, the AK-74N): their
     `base_cost` times 100 (`scripts/content-edit/items.tsv`, 199 rows); they stay premium items
     (`is_premium`: sold one by one by seller 0, never by a faction, never worn by bots);
-  - premium time and the seven bundles (`shop_offers`): their gold prices times 100, offered in
-    silver (money type 0); `SRP_PREMIUM_PRICES` is silver;
+  - the seven bundles (`shop_offers`): their gold prices times 100, offered in silver (money
+    type 0); premium time was too, until the premium account was removed on 2026-11-09 (`premium.md`);
   - a nickname change: 25,000, what the rename voucher cost (`SRP_RENAME_COST` is silver,
     `premium::DEFAULT_RENAME_COST`), paid in silver only;
   - a skills reset: free and without a question (the owner, 2026-11-08: "let's make skill reset
