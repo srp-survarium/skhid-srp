@@ -1,26 +1,95 @@
 {
-  "_about": "The second sight's item (docs/notes/second-sights.md): srp_second_sight, dict id 2676 (weapon-kit's SECOND_SIGHT_ITEM), never sold (category 22, base_cost 0, no gun takes it as a module). A weapon's second sight is an optic's own item in kit slot 6; the client's weapon kit (patch 68) gives the item config cook this item's record in its place, its value the optic's dict id (low half) and its side (high half, 0 left, 1 right). Its modification 996676 adds data/srp_second_sight and data/srp_second_side to the weapon from the record's two halves, as a decal's sets its place; patch 161 reads them. Made from the DeltaPoint Pro's config as scope-modules-1 leaves it; its data (zoom, models) is not read.",
+  "_about": "The second sight's item (docs/notes/second-sights.md): srp_second_sight, dict id 2676 (weapon-kit's SECOND_SIGHT_ITEM), never sold (category 22, base_cost 0, no gun takes it as a module). A weapon's second sight is an optic's own item in kit slot 6; the client's weapon kit (patch 68) gives the item config cook this item's record in its place, its value the optic's dict id (low half) and its side (high half, 0 left, 1 right). Its modification 996676 adds data/srp_second_sight and data/srp_second_side to the weapon from the record's two halves, as a decal's sets its place; patch 161 reads them. Made from the DeltaPoint Pro's config as it is before scope-modules-1 (this list goes before items.tsv, which needs a row for every entry of the dictionary); its data (zoom, models) is not read.",
   "copy": [
-    {"files": "gameplay/items/scopes/shop_scope_leupold_deltapoint.options", "from": "gameplay/items/scopes/shop_scope_leupold_deltapoint.options", "to": "gameplay/items/scopes/srp_second_sight.options"}
+    {
+      "files": "gameplay/items/scopes/shop_scope_leupold_deltapoint.options",
+      "from": "gameplay/items/scopes/shop_scope_leupold_deltapoint.options",
+      "to": "gameplay/items/scopes/srp_second_sight.options"
+    }
   ],
   "replace_string": [
-    {"files": "gameplay/items/scopes/srp_second_sight.options", "from": "st_shop_scope_leupold_deltapoint_name", "to": "st_srp_second_sight_name"},
-    {"files": "gameplay/items/scopes/srp_second_sight.options", "from": "st_shop_scope_leupold_deltapoint_description", "to": "st_srp_second_sight_description"}
+    {
+      "files": "gameplay/items/scopes/srp_second_sight.options",
+      "from": "st_shop_scope_leupold_deltapoint_name",
+      "to": "st_srp_second_sight_name"
+    },
+    {
+      "files": "gameplay/items/scopes/srp_second_sight.options",
+      "from": "st_shop_scope_leupold_deltapoint_description",
+      "to": "st_srp_second_sight_description"
+    }
   ],
   "set": [
-    {"file": "gameplay/items/scopes/srp_second_sight.options", "path": "parameters/modification", "from": 996112, "to": 996676}
+    {
+      "file": "gameplay/items/scopes/srp_second_sight.options",
+      "path": "parameters/modification",
+      "from": 993112,
+      "to": 996676
+    }
   ],
   "set_entry": [
-    {"file": "gameplay/items/scopes/srp_second_sight.options", "list": "modifications", "where": {"id": 996112},
-     "from": {"id": 996112, "modifiers[0]/path[0]": "srp_scope_noop", "modifiers[0]/value": 0, "modifiers[0]/type": 0},
-     "to": {"id": 996676, "modifiers": [
-       {"path": ["srp_scope_noop"], "value": 0, "type": 0},
-       {"path": ["data"], "value": ["srp_second_sight", "<low_param>"], "type": 3},
-       {"path": ["data"], "value": ["srp_second_side", "<high_param>"], "type": 3}
-     ]}}
+    {
+      "file": "gameplay/items/scopes/srp_second_sight.options",
+      "list": "modifications",
+      "where": {
+        "id": 993112
+      },
+      "from": {
+        "id": 993112,
+        "modifiers[0]/path[0]": "srp_scope_noop",
+        "modifiers[0]/value": 0,
+        "modifiers[0]/type": 0
+      },
+      "to": {
+        "id": 996676,
+        "modifiers": [
+          {
+            "path": [
+              "srp_scope_noop"
+            ],
+            "value": 0,
+            "type": 0
+          },
+          {
+            "path": [
+              "data"
+            ],
+            "value": [
+              "srp_second_sight",
+              "<low_param>"
+            ],
+            "type": 3
+          },
+          {
+            "path": [
+              "data"
+            ],
+            "value": [
+              "srp_second_side",
+              "<high_param>"
+            ],
+            "type": 3
+          }
+        ]
+      }
+    }
   ],
   "add_entry": [
-    {"files": "gameplay/db_static_dictionaries", "list": "items_dict", "after": {"dict_id": 2671}, "like": {"dict_id": 2112},
-     "values": {"dict_id": 2676, "name": "srp_second_sight", "cfg_name": "gameplay/items/scopes/srp_second_sight.options", "base_cost": 0}}
+    {
+      "files": "gameplay/db_static_dictionaries",
+      "list": "items_dict",
+      "after": {
+        "dict_id": 2671
+      },
+      "like": {
+        "dict_id": 2112
+      },
+      "values": {
+        "dict_id": 2676,
+        "name": "srp_second_sight",
+        "cfg_name": "gameplay/items/scopes/srp_second_sight.options",
+        "base_cost": 0
+      }
+    }
   ]
 }
