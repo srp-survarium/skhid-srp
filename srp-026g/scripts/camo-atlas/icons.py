@@ -9,8 +9,6 @@ BIG = 'LobbyMenu_CamoIconsBig'
 
 def icon_cell(index):
     """One-based (row, column) of an entry in catalog order."""
-    if index < 0:
-        raise ValueError('negative camouflage index')
     # The two shipped sheets have 15 rows per column. Flash uses this stride
     # in both inventory and equipment previews; the porter appends columns.
     column, row = divmod(index, 15)
@@ -32,8 +30,6 @@ def icon_operations(pack_dir, images):
     for index, path in enumerate(images):
         row, col = icon_cell(index)
         with Image.open(path) as image:
-            if image.width != image.height:
-                raise ValueError(f'{path}: expected a square camouflage tile')
             rgb = image.convert('RGB')
         for op, size in zip(operations, (72, 140)):
             icon = rgb.resize((size, size), Image.Resampling.LANCZOS)
