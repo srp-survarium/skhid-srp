@@ -253,7 +253,8 @@ remove takes that id out. The particle object is the same again (insert
 transform through `scene_renderer::play_particle_system` and, when it has a
 track (+160h), registers its tick with the scene; its remove takes the
 instance out and unregisters the tick. The registry calls each kind's own
-two methods, and never the renderer directly.
+two methods, and the renderer directly only to move a loose visual's model
+(Loose pieces).
 
 The native insertion hook is `simple_game_project::insert` (0x285750): ECX
 is the project, its first stack argument the physics world. Scene +98h is
@@ -341,6 +342,49 @@ inside a fixture's bounds needs no trace. Each break goes through the same
 transition as a bullet's, under the same lock, into the same bullet history:
 rollback, resimulation and late joins agree, and only the first break of a
 fixture plays its shards and sound (none on a manager without a renderer).
+
+## Loose pieces
+
+A fixture can have a piece that comes off when it breaks: Rudnya's sitting
+skeleton's cap (the owner, 2026-11-26: "shooting this helmet should make it
+fly off", "similar to caps flying off dead ppl"). A row's optional `loose`
+table names its visuals, `{ "cap0": { "index": n } }`. The rest of the row is
+a fixture's: its bounds are the cap's (a shot at the skeleton's legs is no
+hit), its intact visual the skeleton, its broken one the skeleton without the
+cap, both placed alike. The piece is a model of its own whose origin is its
+centre, placed as the skeleton but at that centre: its seat. Content:
+`scripts/skeleton-cap` (pack `skeleton-cap@1`: the cap is the part of the
+skeleton's cloth textured from its atlas' top right block, in every LOD;
+edit list `skeleton-cap-1.json`: Rudnya and its v0.21 port, 27 projects; the
+skeleton's collision is stone, so its pair is bullet x stone, and its own
+stone marks inside the cap's bounds are not drawn). `check_built` checks a
+figure's bare model and its piece (`FIGURES`).
+
+The piece is drawn while its fixture is broken. Its flight is
+`lamps::model::Flight`, one machine per piece: `Seated`, `Struck` (broken by a
+push this client saw: a bullet's ray, or the direction from a blast's centre),
+`Flying` and `Lying`. A break strikes the fixture's pieces under the bullets'
+lock; each frame (`game_world.after_move`, the workers joined) steps them by
+the real time (`vostok::clock::FrameClock`) against the level the ragdolls
+use (`ragdoll::GameLevel`, 32 rays a frame), and the condition the history
+holds wins: an intact fixture's piece is seated again (a rollback), a broken
+one's that no push of this client's struck (a late join, a load) drops off
+its seat. The flying body is a corpse's headwear's (`ragdoll::LoneBody::
+shot_off`): the same capsule (half 0.04 m, radius 0.10 m, 1 kg), 0.8 m/s up,
+0.5 m/s along the push's level direction, a tumble of 3 rad/s about up x
+away, the same contacts, friction and rest. Only the condition is in the
+world; the flight is each client's own drawing.
+
+The registry draws a loose visual (`ProjectPlan::loose_visual`,
+`Presentation::placement`) by writing its place into the visual's own
+transform (+4h, the 16 floats the native insert gives
+`scene_renderer::add_model`), so an add, the native one included, draws it
+there. One drawn already is moved by `scene_renderer::update_model` with the
+visual's model reference (`[+44h]+108h`) and its scene's (`game_scene+4`, the
+renderer `[[+9Ch]+5360h]+200064h`), as the visual's insert names them
+(0x285FA0). Before its first add its model is made movable (+115h, as
+`weapon::on_show` makes a gun's): the renderer treats a model without it as
+static (0x172C4B). Detach gives the visual back its own transform.
 
 ## Locking
 

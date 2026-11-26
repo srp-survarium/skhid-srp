@@ -194,6 +194,8 @@ survarium::project_object	particle	0x0	obj<survarium::object_particle_visual>	on
 survarium::project_object	probe	0x0	obj<survarium::object_environment_probe>	only when the native vtable identifies object_environment_probe
 survarium::render_visual	vtable	0x0	u32	render visual insertion/removal interface
 survarium::render_visual	size	0x48	size	render visual stride in insert_static 0x285540
+survarium::render_visual	transform	0x4	f32	its transform, a row-vector 4x4 (16 f32): insert passes &+4 to scene_renderer::add_model as both matrices (0x285FA7..0x285FAF)
+survarium::render_visual	model	0x44	ptr<survarium::scene_model>	its model holder: insert adds &[+44h]+108h (0x285FA0..0x285FB0), remove takes it out (0x285FE0..0x286001); 0 none (both return)
 survarium::object_light	vtable	0x0	u32	light object interface
 survarium::object_light	position	0x140	f32	translation float3, object_light::load 0x291720
 survarium::object_ambient_light	vtable	0x0	u32	ambient light object interface
@@ -1489,6 +1491,8 @@ vostok::ui::ui_text_edit	selection_start	0x2A8	u16	the selection's first byte; w
 vostok::ui::ui_text_edit	selection_end	0x2AA	u16	the selection's end (select all 0x347FC0: 0 to the length)
 vostok::ui::ui_text_edit_text	edit	-4	obj<vostok::ui::ui_text_edit>	the text edit it is the +4 of (set_text 0x3479D0 calls its set_caret_position through [esi-4], 0x347A87)
 survarium::game_scene	render_scene	0x4	ptr<vostok::render::scene>	the render scene it holds (a scene_ptr): a visual's insert passes &+4 to scene_renderer::add_model (0x285FB6), game::tick draws the current scene's (draw_scene 0x1F7F0, its EAX = [game+539Ch]+4, 0x1ECD2D)
+survarium::game_scene	scene_reference	0x4	obj<vostok::scene_reference>	the same render scene as the reference add_model, update_model and remove_model take (a visual's insert 0x285FB6, remove 0x285FEB)
+survarium::game_scene	game	0x9C	ptr<survarium::game>	the game: a visual's insert reaches the scene renderer through it ([[+9Ch]+5360h]+200064h, 0x285FB9..0x285FC6)
 vostok::render::renderer_context	scene	0x416C	ptr<vostok::render::scene>	the scene a frame draws: renderer::render (0x13D010) stores *scene_ptr, its first argument's, at 0x13D210 before it runs the stages
 vostok::render::renderer_context	scene_view	0x4170	ptr<vostok::render::scene_view>	that frame's scene view, its environment at +118h (stage_rain::execute 0x1ADB55, stage_pre_rain::execute 0x17CA64)
 vostok::render::scene_view	rain_u_scale	0x2E8	f32	the environment's rain_u_scale (environment +1D0h; stage_rain::execute 0x1ADD90 multiplies it by 0.05 into rain_drops_parameters1.z)

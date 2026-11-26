@@ -63,6 +63,64 @@ impl Condition {
 
 pub use crate::vostok::presentation::{Membership, PresentationEvent, RendererAction, Visibility};
 
+use ::ragdoll::math::{Pose, Vec3};
+use ::ragdoll::ragdoll::{Level, LoneBody, Motion};
+
+/// The most loose pieces a project's fixtures have (a skeleton's cap).
+pub const MAX_PIECES: usize = 8;
+
+/// A fixture's loose piece (a skeleton's cap): on its seat while the fixture
+/// is intact, knocked off when it breaks, as a corpse's headwear is shot off
+/// (`ragdoll`'s LoneBody), then lying where it came to rest. Drawn only, on
+/// each client by itself: the history keeps the fixture's condition, never
+/// the piece's flight.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum Flight {
+    Seated,
+    /// Broken by a push along `push` (a bullet's ray, a blast's), not stepped yet.
+    Struck { push: RayDirection },
+    Flying(LoneBody),
+    Lying(Pose),
+}
+
+impl Flight {
+    /// The fixture broke by a push along `push`: its piece goes off that way.
+    pub fn strike(self, push: RayDirection) -> Flight {
+        Flight::Struck { push }
+    }
+
+    /// One frame of `dt` s for the piece of a fixture in `condition`, seated
+    /// at `seat`: an intact fixture's sits there; a broken one's flies off it
+    /// (dropped, when the break came from the history and no push of this
+    /// client's) and then lies where it rested.
+    pub fn step(self, condition: Condition, seat: Pose, dt: f32, up: Vec3, level: &mut impl Level) -> Flight {
+        let flying = match (condition, self) {
+            (Condition::Intact, _) => return Flight::Seated,
+            (Condition::Broken, Flight::Lying(pose)) => return Flight::Lying(pose),
+            (Condition::Broken, Flight::Seated) => LoneBody::shot_off(seat, up, Vec3::ZERO),
+            (Condition::Broken, Flight::Struck { push }) => {
+                let [x, y, z] = push.coordinates();
+                LoneBody::shot_off(seat, up, Vec3::new(x, y, z))
+            }
+            (Condition::Broken, Flight::Flying(body)) => body,
+        };
+        let mut body = flying;
+        match body.step(dt, up, level) {
+            Motion::Moving => Flight::Flying(body),
+            Motion::Settled => Flight::Lying(body.pose()),
+        }
+    }
+
+    /// Where the piece is drawn: None, on its seat.
+    pub fn pose(&self) -> Option<Pose> {
+        match self {
+            Flight::Seated | Flight::Struck { .. } => None,
+            Flight::Flying(body) => Some(body.pose()),
+            Flight::Lying(pose) => Some(*pose),
+        }
+    }
+}
+
 /// Parsed history, including its fixture count. No state changes until all
 /// words have been read and the count matches the bound project.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -245,6 +303,43 @@ mod tests {
         assert_eq!(state, before);
         state.restore(Snapshot::intact(count)).unwrap();
         assert_eq!(state, Snapshot::intact(count));
+    }
+
+    /// A floor at y 0.
+    struct Floor;
+    impl Level for Floor {
+        fn sweep(&mut self, from: Vec3, to: Vec3, radius: f32) -> ::ragdoll::ragdoll::Sweep {
+            let (a, b) = (from.y - radius, to.y - radius);
+            if a > 0.0 && b >= 0.0 { return ::ragdoll::ragdoll::Sweep::Clear; }
+            let t = if a <= 0.0 { 0.0 } else { a / (a - b) };
+            let p = from.lerp(to, t);
+            ::ragdoll::ragdoll::Sweep::Hit { point: Vec3::new(p.x, 0.0, p.z), normal: Vec3::Y }
+        }
+    }
+    fn fly(mut flight: Flight, condition: Condition, seat: Pose) -> Flight {
+        for _ in 0..600 {
+            flight = flight.step(condition, seat, 1.0 / 60.0, Vec3::Y, &mut Floor);
+            if !matches!(flight, Flight::Flying(_)) { break; }
+        }
+        flight
+    }
+    #[test]
+    fn a_piece_flies_off_along_its_push_and_lies_where_it_rests() {
+        let seat = Pose::new(::ragdoll::math::Quat::IDENTITY, Vec3::new(0.0, 0.8, 0.0));
+        assert_eq!(Flight::Seated.step(Condition::Intact, seat, 1.0 / 60.0, Vec3::Y, &mut Floor), Flight::Seated);
+        assert_eq!(Flight::Seated.pose(), None);
+        let struck = Flight::Seated.strike(RayDirection::parse([1.0, -0.5, 0.0]).unwrap());
+        assert_eq!(struck.pose(), None, "drawn on its seat until stepped");
+        let first = struck.step(Condition::Broken, seat, 1.0 / 60.0, Vec3::Y, &mut Floor);
+        assert!(matches!(first, Flight::Flying(_)), "{first:?}");
+        let Flight::Lying(rest) = fly(first, Condition::Broken, seat) else { panic!("it never rested") };
+        assert!(rest.position.x > 0.1 && rest.position.z.abs() < 0.05, "along the push: {:?}", rest.position);
+        assert!(rest.position.y < 0.15, "on the floor: {:?}", rest.position);
+        assert_eq!(Flight::Lying(rest).step(Condition::Broken, seat, 1.0 / 60.0, Vec3::Y, &mut Floor), Flight::Lying(rest));
+        // a rollback to intact seats it again; the history's break drops it
+        assert_eq!(Flight::Lying(rest).step(Condition::Intact, seat, 1.0 / 60.0, Vec3::Y, &mut Floor), Flight::Seated);
+        let Flight::Lying(dropped) = fly(Flight::Seated, Condition::Broken, seat) else { panic!("it never rested") };
+        assert!(dropped.position.x.abs() < 0.01 && dropped.position.z.abs() < 0.01, "{:?}", dropped.position);
     }
 
 }

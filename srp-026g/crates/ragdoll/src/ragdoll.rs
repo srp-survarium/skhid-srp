@@ -862,13 +862,9 @@ impl Ragdoll {
         let up = self.up;
         let skull = &self.bodies[Part::Head.index()];
         let pose = Pose::new(head.rotation, head.position + up * 0.10);
-        let mut body = Body::new(pose, Capsule { half: 0.04, radius: 0.10 }, 1.0);
+        let carried = (skull.point_velocity(pose.position - skull.pose.position), skull.spin);
+        let mut body = knocked_headwear(pose, carried, up, away, tumble);
         body.contacts = skull.contacts;
-        body.velocity = limit_length(
-            skull.point_velocity(pose.position - skull.pose.position) + up * 0.8 + away * 0.5,
-            START_SPEED,
-        );
-        body.spin = limit_length(skull.spin + tumble * 3.0, START_SPIN);
         self.headwear = Headwear::Off { body, bone: pose.inverse().then(head), by };
         self.last_good.2 = Some(pose);
     }
@@ -976,7 +972,7 @@ impl Ragdoll {
     /// Its dropped gun going on alone (its body went away: the player
     /// respawned), as it is now, if a gun dropped.
     pub fn lone_gun(&self) -> Option<LoneGun> {
-        Some(LoneGun { body: self.gun?, weapon: self.rig.gun_offset()?, pending: self.pending, age: 0.0, rest: GunRest::Moving })
+        Some(LoneGun { lone: LoneBody::new(self.gun?, self.pending), weapon: self.rig.gun_offset()? })
     }
 
     /// One frame of `dt` s (capped at 1/30): the level's queries, then six
@@ -1406,30 +1402,59 @@ fn substeps(pending: &mut f32, dt: f32) -> Option<(usize, f32)> {
     Some((substeps, substeps as f32 * SUBSTEP))
 }
 
-/// A dropped gun whose body went away (its player respawned before the
-/// ragdoll settled): the same gun body, stepped alone by the ragdoll's own
-/// rules (the level's queries, the contacts, friction, the near-rest
-/// slowing) until it rests. The corpse never touched it (the gun meets the
-/// level alone), so it falls and slides as it would have with the body.
+/// One body stepped alone by the ragdoll's own rules (the level's queries,
+/// the contacts, friction, the near-rest slowing) until it rests: a lone
+/// gun's, or headwear knocked off a figure of the map (lamps' loose
+/// pieces, `docs/notes/breakable_lamps.md`).
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub struct LoneGun {
+pub struct LoneBody {
     body: Body,
-    /// The `Weapon` bone relative to the gun (the rig's, from the death).
-    weapon: Pose,
     pending: f32,
     /// Its time alone (MAX_AGE caps it).
     age: f32,
-    rest: GunRest,
+    rest: LoneRest,
 }
 
-/// A lone gun's way to rest: as the ragdoll's [`Rest`], for one body.
+/// A lone body's way to rest: as the ragdoll's [`Rest`], for one body.
 #[derive(Clone, Copy, Debug, PartialEq)]
-enum GunRest {
+enum LoneRest {
     Moving,
     Slow { slow: f32, since: f32, anchor: Pose },
 }
 
-impl LoneGun {
+/// Headwear's body: a short capsule of 1 kg.
+const HEADWEAR: Capsule = Capsule { half: 0.04, radius: 0.10 };
+
+/// Headwear off a head, at `pose`: with what it carries from the head
+/// (`velocity`, `spin`), 0.8 m/s up, 0.5 m/s `away` and a tumble of 3 rad/s
+/// about `tumble` (both unit or zero).
+fn knocked_headwear(pose: Pose, (velocity, spin): (Vec3, Vec3), up: Vec3, away: Vec3, tumble: Vec3) -> Body {
+    let mut body = Body::new(pose, HEADWEAR, 1.0);
+    body.velocity = limit_length(velocity + up * 0.8 + away * 0.5, START_SPEED);
+    body.spin = limit_length(spin + tumble * 3.0, START_SPIN);
+    body
+}
+
+impl LoneBody {
+    fn new(body: Body, pending: f32) -> LoneBody {
+        LoneBody { body, pending, age: 0.0, rest: LoneRest::Moving }
+    }
+
+    /// Headwear shot off a figure that never moves (a skeleton of the map),
+    /// its body's centre at `pose`, by a shot along `shot`: as a corpse's
+    /// head shot takes its headwear off ([`Ragdoll::push`]), away along the
+    /// shot's level direction and tumbling about up x away, with nothing
+    /// carried from the head. A zero `shot` (a break no shot made) drops it.
+    pub fn shot_off(pose: Pose, up: Vec3, shot: Vec3) -> LoneBody {
+        let away = shot.reject(up).direction_or(Vec3::ZERO);
+        LoneBody::new(knocked_headwear(pose, (Vec3::ZERO, Vec3::ZERO), up, away, up.cross(away)), 0.0)
+    }
+
+    /// The body's pose (its centre's).
+    pub fn pose(&self) -> Pose {
+        self.body.pose
+    }
+
     /// One frame of `dt` s (`up` the level's): the level's query, then the substeps.
     pub fn step(&mut self, dt: f32, up: Vec3, level: &mut impl Level) -> Motion {
         let Some((substeps, dt)) = substeps(&mut self.pending, dt) else {
@@ -1465,24 +1490,42 @@ impl LoneGun {
             (a - c).length() < STILL_REACH && (b - d).length() < STILL_REACH
         };
         self.rest = match self.rest {
-            _ if self.body.end_speed() >= SLOW => GunRest::Moving,
-            GunRest::Moving => GunRest::Slow { slow: self.age, since: self.age, anchor: now },
-            GunRest::Slow { slow, since, anchor } if still(anchor) || self.body.velocity.length() < CREEP => {
-                GunRest::Slow { slow, since, anchor }
+            _ if self.body.end_speed() >= SLOW => LoneRest::Moving,
+            LoneRest::Moving => LoneRest::Slow { slow: self.age, since: self.age, anchor: now },
+            LoneRest::Slow { slow, since, anchor } if still(anchor) || self.body.velocity.length() < CREEP => {
+                LoneRest::Slow { slow, since, anchor }
             }
-            GunRest::Slow { slow, .. } => GunRest::Slow { slow, since: self.age, anchor: now },
+            LoneRest::Slow { slow, .. } => LoneRest::Slow { slow, since: self.age, anchor: now },
         };
         match self.rest {
-            GunRest::Slow { since, .. } if self.age - since >= STILL_TIME => Motion::Settled,
-            GunRest::Slow { slow, .. } if self.age - slow >= SLOW_TIME => Motion::Settled,
+            LoneRest::Slow { since, .. } if self.age - since >= STILL_TIME => Motion::Settled,
+            LoneRest::Slow { slow, .. } if self.age - slow >= SLOW_TIME => Motion::Settled,
             _ if self.age >= MAX_AGE => Motion::Settled,
             _ => Motion::Moving,
         }
     }
+}
+
+/// A dropped gun whose body went away (its player respawned before the
+/// ragdoll settled): the same gun body, a [`LoneBody`] until it rests. The
+/// corpse never touched it (the gun meets the level alone), so it falls and
+/// slides as it would have with the body.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct LoneGun {
+    lone: LoneBody,
+    /// The `Weapon` bone relative to the gun (the rig's, from the death).
+    weapon: Pose,
+}
+
+impl LoneGun {
+    /// One frame of `dt` s (`up` the level's): the level's query, then the substeps.
+    pub fn step(&mut self, dt: f32, up: Vec3, level: &mut impl Level) -> Motion {
+        self.lone.step(dt, up, level)
+    }
 
     /// The `Weapon` bone's world pose: where the game draws the held item.
     pub fn weapon(&self) -> Pose {
-        self.body.pose.then(self.weapon)
+        self.lone.pose().then(self.weapon)
     }
 }
 

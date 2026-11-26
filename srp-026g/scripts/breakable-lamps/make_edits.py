@@ -74,6 +74,16 @@ GLASS = TUBE_GLASS | LANTERN_GLASS
 # with glass; on its own it is scenery.
 HOUSINGS = {prefix + 'props/light/lamp_midle_04' for prefix in ('',) + LONDON_PREFIXES} | {glass.removesuffix('_glass_emit') for glass in LANTERN_GLASS}
 PARTS = REPLACEMENTS.keys() | GLASS | HOUSINGS
+# Figures with a loose piece (scripts/skeleton-cap): the sitting skeleton and
+# its cap. A figure's row is its piece's (its bounds, what a shot or a blast
+# must reach); its broken model is the figure without the piece, placed as
+# it; the piece (the row's `loose`) is a model of its own, placed as the
+# figure but at the piece's centre, inside the row's bounds. Not in PARTS:
+# the lamp rule never makes a fixture of them.
+FIGURE_PREFIXES = ('', 'ported/v021d/')
+FIGURES = {prefix + 'character/human/static/remains/skeleton_sitting1':
+           (prefix + 'character/human/static/remains/srp_skeleton_sitting1_bare',
+            prefix + 'character/human/static/remains/srp_skeleton_sitting1_cap') for prefix in FIGURE_PREFIXES}
 # Fluorescent glass: a model's tubes are its glass, not its housing or frame.
 # The local height of the tubes' axis in the models that hold them (the
 # triangles make_pack.py drops: lamp_midle_0N y -0.099..-0.055, lamp_big_01
@@ -377,8 +387,9 @@ def author(path, data, bounds, break_material, effect_material, cubemap=None, da
 def check_built(path, data):
     """Problems of a built client_project's srp_lamps against the file itself:
     each visual index names its role's model (intact: a breakable lamp inside
-    its row's bounds; broken: that lamp's broken model, placed as it; cone: a
-    light shaft), each light position is exactly one light of the map, each
+    its row's bounds, or a figure; broken: that lamp's broken model, or the
+    figure's bare one, placed as it; cone: a light shaft; loose: the figure's
+    piece, turned as it and inside the row's bounds), each light position is exactly one light of the map, each
     ambient light position exactly one ambient light and each particle
     position exactly one particle object, each probe position exactly one
     environment probe (what the client binds; a later edit list or a
@@ -390,27 +401,39 @@ def check_built(path, data):
     placed = {kind: [o['position'] for o in root.get('client_objects', []) if o.get('game_object_type') == kind]
               for kind in ('light', 'ambient_light', 'particle', 'environment_probe')}
     problems = []
+    broken_of = REPLACEMENTS | {figure: models[0] for figure, models in FIGURES.items()}
     for name, row in root['srp_lamps']['lamps'].items():
-        def visual(key):
-            index = row['visuals'][key]['index']
+        def visual(key, table='visuals'):
+            index = row[table][key]['index']
             return visuals[index] if 0 <= index < len(visuals) else None
+
+        def inside(v):
+            return all(row['min_' + a] - 1e-3 <= p <= row['max_' + a] + 1e-3 for a, p in zip('xyz', v['position']))
         for key in row['visuals']:
             v, role = visual(key), key.rstrip('0123456789')
             model = v.get('visual_name', '') if v else None
             if v is None:
                 ok = False
             elif role == 'intact':
-                ok = (model in REPLACEMENTS or model in GLASS) and all(
-                    row['min_' + a] - 1e-3 <= p <= row['max_' + a] + 1e-3 for a, p in zip('xyz', v['position']))
+                ok = model in FIGURES or ((model in REPLACEMENTS or model in GLASS) and inside(v))
             elif role == 'broken':
                 intact = visual('intact' + key[len(role):])
-                ok = intact is not None and intact.get('visual_name') in REPLACEMENTS and \
-                    model == REPLACEMENTS[intact['visual_name']] and \
+                ok = intact is not None and intact.get('visual_name') in broken_of and \
+                    model == broken_of[intact['visual_name']] and \
                     all(v[k] == intact[k] for k in ('position', 'rotation', 'scale'))
             else:
                 ok = role == 'cone' and (model == LEGACY_CONE or model.endswith('props/light/cone_light_volume'))
             if not ok:
                 problems.append(f'{path}: {name} {key}: render_visuals[{row["visuals"][key]["index"]}] is {model!r}')
+        figures = [visual(key) for key in row['visuals'] if key.startswith('intact')]
+        figures = [v for v in figures if v is not None and v.get('visual_name') in FIGURES]
+        for key in row.get('loose', {}):
+            v = visual(key, 'loose')
+            ok = v is not None and len(figures) == 1 and v.get('visual_name') == FIGURES[figures[0]['visual_name']][1] \
+                and all(v[k] == figures[0][k] for k in ('rotation', 'scale')) and inside(v)
+            if not ok:
+                model = v.get('visual_name', '') if v else None
+                problems.append(f'{path}: {name} loose {key}: render_visuals[{row["loose"][key]["index"]}] is {model!r}')
         for end in ('from', 'to'):
             if not all(row['min_' + a] - 1e-3 <= row[f'glass_{end}_{a}'] <= row['max_' + a] + 1e-3 for a in 'xyz'):
                 problems.append(f'{path}: {name}: its glass line leaves its bounds')
