@@ -2287,6 +2287,21 @@ fn drive_tick_inner(
             if let Some(line) = crossing::past_shuts_ended(&mut bot.features.crossing, route_goal, me.health, me.feet, time) {
                 bot.nav_log.push(super::nav_log::Kind::Route, time, line);
             }
+            // [pull unknown] The legs the route kept straight with no walk test: tested before the body walks them (the one it is
+            // on and the next), from the poll's walk budget. A failing one ends the route; the body plans again from where it is,
+            // and stands meanwhile (no step on toward the leg's lip).
+            let leg_check = bot.route.as_mut().map(|(route, _)| route.verify_ahead(&mut |a, b| tactics.world.grid.pull_walk_verdict(a, b)));
+            if let Some(path::LegCheck::Fails { on_leg, from, to }) = leg_check {
+                let line = format!(
+                    "nav: route leg {} -> {} unwalked by the client's walk ({}): planned again from {}",
+                    super::nav_log::at(from),
+                    super::nav_log::at(to),
+                    if on_leg { "the body on it" } else { "ahead" },
+                    super::nav_log::at(me.feet)
+                );
+                bot.nav_log.push(super::nav_log::Kind::Route, time, line);
+                bot.end_route(RouteEnd::LegUnwalked, time);
+            }
             match bot.route.as_mut() {
                 Some((route, route_at)) => {
                     // `route_at` is the goal's `at`, copied unchanged where

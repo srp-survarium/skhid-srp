@@ -48,11 +48,13 @@ pub enum RouteEnd {
     NoProgress,
     /// [A386] The client refuses its sprint link now and the link has no walking press (`Walked::JumpRefused`).
     JumpRefused,
+    /// [pull unknown] A leg kept straight with no walk test fails its test (`Route::verify_ahead`): planned again from the body.
+    LegUnwalked,
 }
 
 impl RouteEnd {
     /// Every ending, in the order of the bench's counts.
-    pub const ALL: [RouteEnd; 17] = [
+    pub const ALL: [RouteEnd; 18] = [
         RouteEnd::Arrived,
         RouteEnd::Off,
         RouteEnd::JumpFailed,
@@ -70,6 +72,7 @@ impl RouteEnd {
         RouteEnd::TrapAhead,
         RouteEnd::NoProgress,
         RouteEnd::JumpRefused,
+        RouteEnd::LegUnwalked,
     ];
 
     /// The name the bench prints.
@@ -92,6 +95,7 @@ impl RouteEnd {
             RouteEnd::TrapAhead => "trap_ahead",
             RouteEnd::NoProgress => "no_progress",
             RouteEnd::JumpRefused => "jump_refused",
+            RouteEnd::LegUnwalked => "leg_unwalked",
         }
     }
 }
