@@ -422,6 +422,7 @@ pub(super) fn drive_tick(
     time: u32,
     searching: &mut Searching,
     press: &mut body::PressMatch,
+    lanes: &mut lane_draw::TeamLanes,
 ) -> Decision {
     // [A364 P10] The bar is spent only in the sprint state: its own reload refuses it (`can_sprint`).
     let reloading = bot.reflex.reload_note().is_some_and(|reload| reload.at <= time && time < reload.until);
@@ -432,7 +433,14 @@ pub(super) fn drive_tick(
     // [S6] The closed drops of this bot's searches only.
     drop(mapdata::take_falls_closed());
     bot.key_tick = super::key_sources::Tick::default();
-    let mut decision = drive_tick_inner(bot, me, view, tactics, tuning, time, searching, press);
+    let mut decision = drive_tick_inner(bot, me, view, tactics, tuning, time, searching, press, lanes);
+    // [lane draw] Its walk's claim follows its held lane and ends with the walk; a teammate's under way whose walker is dead
+    // died now (`lane_draw::TeamLanes::walking`).
+    if tuning.spacing.lane_draw.is_some() {
+        let keep_ms = (tuning.number(plays::PlayKind::Roam, "fresh_s") * 1000.0) as u32;
+        let team = me.team;
+        lanes.walking(bot.place, bot.features.lane.walking(), time, keep_ms, |p| view.team(team).any(|mate| mate.place == p));
+    }
     // [keys] The unstick replay's keys skip the stages (`key_sources`).
     bot.key_tick.begun_or(super::key_sources::Stage::Unstick, decision.keys);
     log_falls_closed(bot, &tactics.world.grid, time);
@@ -678,6 +686,7 @@ fn drive_tick_inner(
     time: u32,
     searching: &mut Searching,
     press: &mut body::PressMatch,
+    lanes: &mut lane_draw::TeamLanes,
 ) -> Decision {
     // [recoil] The weapon's update first, as the client's; the view is the
     // base pitch and the kick the last tick left (the reflex takes back
@@ -1425,6 +1434,23 @@ fn drive_tick_inner(
             }
             // Why it has no route, if it has none after this.
             let mut no_route = path::NoRoute::Searched;
+            // [lane draw] A search kept to a drawn lane's room that ended over the lane's cap (the band on L1's cost, or more jumps
+            // than L1's leap links): not walked; L1 for the walk, planned at the next tick.
+            let found = match (found, tuning.spacing.lane_draw) {
+                (Some((goal, Some(way), crossed)), Some(set)) => {
+                    let jumps = lane_draw::route_leaps(&way, &tactics.world.grid);
+                    match bot.features.lane.over_cap(goal, way.length(), jumps, set.away_m.get()) {
+                        Some(cap) => {
+                            bot.nav_log.push(super::nav_log::Kind::Lane, time, lane_draw::over_cap_line(goal, way.length(), jumps, cap));
+                            bot.features.lane.drop_lane();
+                            bot.end_route(RouteEnd::Replanned, time);
+                            None
+                        }
+                        None => Some((goal, Some(way), crossed)),
+                    }
+                }
+                (found, _) => found,
+            };
             if let Some((goal, route, crossed)) = found {
                 // [#2081] The way keeps the clearance from the team's own traps, or there is none; a fallback search's way is held
                 // to its own reach (`traps::FALLBACK_REACH_M`).
@@ -1590,6 +1616,40 @@ fn drive_tick_inner(
                     (refused || island) && !(crossing && (island || tactics.hazards.only_fixed_at(from)))
                 });
                 let (floors, overdraft) = (&mut grant.floors, &mut grant.overdraft);
+                // [lane draw] The walk's lane (`lane_draw`): drawn on the regions for a new walk, or held for the walk; L2's
+                // room is where the floors' search keeps to (one search either way), the plain search's when there is none. A
+                // replan for danger (a held shooter's lane ahead, a zone shut ahead, a crossing given up) is the plain search.
+                // Not Roam's walks (its own human-route draw) nor a carrier's (a race home).
+                let lane_set = tuning
+                    .spacing
+                    .lane_draw
+                    .filter(|_| me.carrying.is_none() && bot.assignment.as_ref().is_none_or(|a| a.kind != plays::PlayKind::Roam));
+                let lane_plan = lane_set.map(|_| bot.features.lane.replan(at, aborted || shut || threat_ahead));
+                let lane_room = match (lane_set.as_ref(), lane_plan, ends) {
+                    (Some(set), Some(plan), Some(ends)) if !escaping && !there && !stranded => {
+                        let start = grid.position(ends.0);
+                        let open = |r: u32| tactics.region_allowed_from(r, time, side, objective, start) && filter.region_open(r);
+                        let walk = lane_draw::Walk { ends, goal: at, time, open: &open };
+                        match plan {
+                            lane_draw::Replan::Draw => lane_draw::draw(bot, me, view, tactics, tuning, set, walk, lanes),
+                            lane_draw::Replan::Held(Some(shut)) => {
+                                let room = lane_draw::held_room(tactics, &shut, set.band.get(), &walk);
+                                match &room {
+                                    Some(room) => bot.features.lane.capped(room.cap),
+                                    None => bot.features.lane.drop_lane(),
+                                }
+                                room
+                            }
+                            lane_draw::Replan::Held(None) => None,
+                        }
+                    }
+                    _ => None,
+                };
+                let plain_filter = lane_room.is_some().then(|| filter.clone());
+                let mut filter = match &lane_room {
+                    Some(room) => filter.keeping_to(room.regions.clone(), tactics.region_lookup()),
+                    None => filter,
+                };
                 // Left under way past this poll's floors: whether round the
                 // spots, and the search.
                 let mut left = None;
@@ -1683,6 +1743,27 @@ fn drive_tick_inner(
                 } else {
                     None
                 };
+                // [lane draw] No way in L2's room (a region link the body's reach refuses), or its route over the cap (the band
+                // on L1's cost, or more jumps than L1's leap links): the plain search, and L1 for the walk.
+                let over_cap = lane_room
+                    .as_ref()
+                    .zip(route.as_ref())
+                    .filter(|(room, way)| room.cap.over(way.length(), lane_draw::route_leaps(way, &tactics.world.grid)));
+                if let Some((room, way)) = over_cap {
+                    let line = lane_draw::over_cap_line(at, way.length(), lane_draw::route_leaps(way, &tactics.world.grid), room.cap);
+                    bot.nav_log.push(super::nav_log::Kind::Lane, time, line);
+                }
+                if let (Some(plain), Some((from, to))) = (plain_filter, ends)
+                    && (route.is_none() || over_cap.is_some())
+                    && left.is_none()
+                {
+                    bot.features.lane.drop_lane();
+                    filter = plain;
+                    match tactics.start_route(from, to, time, side, objective, &filter, floors) {
+                        Ok(found) => route = found,
+                        Err(planning) => left = Some((true, planning)),
+                    }
+                }
                 // [unstick.drop_shut_last_resort] A275: no way with the drops it shut, so they are its only way: it takes one
                 // again (a shut is a preference, as the stuck spots are), and no way without them either is proof for the
                 // plays. Off: it stands until the shut ends, the search no proof (Chemical Plant's walkway beams, 45 s).
