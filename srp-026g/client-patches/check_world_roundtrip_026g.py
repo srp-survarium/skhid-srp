@@ -121,6 +121,10 @@ OWN_CHECKS = {
                    "it never writes; check_artefact_keeper_026g.py runs it after the game's own "
                    "inventory::deserialize and asserts a mended current kit keeps its loaded +180h/+184h",
     (0x38CD22, 7): "FSM null-state guard owns no serialized bytes; check_deserialize_guards_026g.py",
+    (0x2D2770, 8): "sync.world_load (patch 210, the sync log): game_world_core::deserialize's entry reads its "
+                   "caller and the loaded state's time for the log's lines, writes nothing of the game's; "
+                   "check_sync_log_026g.py runs the site beside the original (registers and memory the same, "
+                   "the log off and on)",
     (0x30DC7C, 6): "reload.listen_again (patch 205): after the animation-end-aware state read its bytes, a magazine "
                    "reload subscribed to its clip's reload_commit channel as the game subscribes it to the clip's "
                    "end; reads and writes no byte a save writes (the replayed mov [ebx+134h],cl stores the byte as "

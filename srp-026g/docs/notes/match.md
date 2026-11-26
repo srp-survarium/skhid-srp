@@ -787,17 +787,19 @@ saved worlds unless tagged.
     medkits (`m_active`, `m_activity_time_ms`, ...), oxygen tanks. A split a few seconds after a
     load (a death and its respawn are 8 s or less) and a bloc of loaded games fit it; one player
     of the pair at a time (271700: only player 10) fits it.
-  - **The capture** (`Game::capture_split`, since 2026-11-05): at a game's first report against
+  - **The capture** (`Game::capture_split`, 2026-11-05 to 11-26): at a game's first report against
     more than half of the games, its world (kind `split`) and a majority game's (kind `checked`)
-    are asked for at once, aimed at one tick when both upload offsets are known; three splits a
-    match, 20 s apart, one a player. Comparing the two names the first field apart.
+    were asked for at once, aimed at one tick when both upload offsets were known. It needed a
+    majority, and the 7 against 7 split of 0x421b579c (270700) had none. Since 2026-11-26 the
+    desync capture (`desync_capture.md`) asks one game of each side at any split and saves both
+    worlds with their first differing field (`SRP_SNAPSHOT_DIR/captures`).
   - **Local repro** (not run): the local server with `SRP_SNAPSHOT_DIR` set; 3 or more clients
     in a battery match; each player picks a different kit at least once (so every place has a
     non-current kit with a life behind it); then one client is resynced (no switch forces one: stall its game 2 s, or have it leave and
     come back, a late join) and every player dies and respawns into another kit within 10 s. Expected if the
     candidate holds: the loaded game reports against the others within a respawn of the load
-    ("splits from the majority" in the log), and the `split` world differs from the `checked` one
-    in the respawned player's block.
+    ("desync capture" in the log), and the capture's first difference is in the respawned
+    player's block.
 - **The input history of 27 entries does not limit a rollback.** A rollback replays from a history
   item: 11 items, 550 ms (MATCH-SYNC-026G.md "The model"). At one input a tick, 27 entries of a
   player are 1.35 s. Only precise inputs (several a tick; 32 in 1.1 s seen, `INPUT_RING`) could put

@@ -1071,6 +1071,7 @@ va	status	ref_021d	name
 0x002ca910	reviewed	0x001c6f53	survarium::items_dictionary::can_move_item_to_slot
 0x002cea30	reviewed	0x001d0b6f	survarium::animation_analysis_result_cook::translate_query
 0x002d09c0	reviewed	0x001ca899	survarium::game_world_core::new_game_state_history_item
+0x002d0b30	reviewed	0x001cab13	survarium::game_world_core::event_horizon_history_item
 0x002d0b70	reviewed	0x001cab3b	survarium::game_world_core::deserialize
 0x002d1100	reviewed	0x001cae58	survarium::game_world_core::insert_impl
 0x002d1470	reviewed	0x001cb9bd	survarium::game_world_core::enter_match
@@ -2513,6 +2514,9 @@ va	status	ref_021d	name
 0x003b9680	observed		vostok::input::platform::mouse::execute
 0x002013a0	reviewed	0x0015f50d	survarium::game_options::assign_binding
 0x00201f20	reviewed	0x0015fb1f	survarium::game_options::apply_key_bindings
+0x00020310	observed		vostok::render::functor_with_big_buffer_to_copy_command<draw_scene_params>::ctor
+0x00028460	observed		vostok::render::functor_with_big_buffer_to_copy_command<draw_scene_params>::execute
+0x00028620	observed		vostok::render::functor_with_big_buffer_to_copy_command<draw_scene_params>::on_defer_execution
 0x00310e40	reviewed	0x001f34e8	survarium::weapon_core_reload_state_base::on_animation_end_impl
 0x0030fdb0	reviewed	0x001f3135	survarium::weapon_core_reload_state::initialize
 0x0030e420	reviewed	0x001f1951	survarium::weapon_core_reload_state::finalize
@@ -2526,9 +2530,9 @@ va	status	ref_021d	name
 0x00252f90	reviewed		survarium::weapon_sound_events_handler_state<survarium::double_barreled_weapon_core_reload_state>::initialize
 0x00253090	reviewed		survarium::weapon_sound_events_handler_state<survarium::double_barreled_weapon_core_reload_state>::finalize
 0x002530d0	reviewed		survarium::weapon_sound_events_handler_state<survarium::double_barreled_weapon_core_reload_state>::deserialize
-0x00020310	observed		vostok::render::functor_with_big_buffer_to_copy_command<draw_scene_params>::ctor
-0x00028460	observed		vostok::render::functor_with_big_buffer_to_copy_command<draw_scene_params>::execute
-0x00028620	observed		vostok::render::functor_with_big_buffer_to_copy_command<draw_scene_params>::on_defer_execution
+0x001f36d0	observed	0x001575e1	survarium::player::apply_new_input
+0x002d8ee0	observed	0x001d48b8	survarium::base_player::tick_animations
+0x001f3070	observed	0x001570a0	survarium::player::render_model
 0x00263950	reviewed		survarium::lobby_character::accept_decal_edit
 0x00270320	reviewed		survarium::lobby_client::copy_account_items
 0x00270950	reviewed		survarium::lobby_client::send_apply_decal

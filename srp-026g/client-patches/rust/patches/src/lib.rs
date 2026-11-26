@@ -102,6 +102,8 @@ pub mod footsteps;
 pub mod zone_guards;
 // patch 153: a step on a walker-only floor finds its ground
 pub mod step_ground;
+// patch 210: the sync log (SKHID_SYNC_LOG)
+pub mod sync_log;
 
 pub mod weapon_pickup;
 

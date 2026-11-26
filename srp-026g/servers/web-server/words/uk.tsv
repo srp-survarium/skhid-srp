@@ -951,3 +951,27 @@ A key fires every ready copy of its kind and restarts the cooldown of the ones s
 Copies of a kind add up (Onyx's passive multiplies); at most 4 count.	Копії одного виду додаються (пасив Онікса множиться); діють щонайбільше 4.
 Spring's and Larkspur's actives add to the passive; Onyx's replaces it.	Активація Пружини й Живокосту додається до пасиву; Онікса — замінює його.
 Onyx fired together: one reduction, 1 s longer per extra copy.	Онікси, активовані разом: одне зменшення, на 1 с довше за кожну додаткову копію.
+
+# The maps' anomalies (scripts/maps-tab/ui.js)
+Anomalies	Аномалії
+Anomaly	Аномалія
+Artefacts come from the anomalies. Each anomaly puts one of its artefacts into one of its free containers, one per time window, until its maximum lies uncollected; a pickup starts the window again. It gives only those of its artefacts that no player is carrying. Point at an anomaly or an artefact (or tap it) for its numbers.	Артефакти дають аномалії. Кожна аномалія кладе один зі своїх артефактів в один зі своїх вільних контейнерів, по одному за проміжок часу, доки її максимум не лежатиме незібраним; підбір артефакта починає проміжок знову. Вона дає лише ті свої артефакти, яких не несе жоден гравець. Наведіть на аномалію чи артефакт (або торкніться), щоб побачити її числа.
+{s} s	{s} с
+{a}–{b} s	{a}–{b} с
+Holds	Містить
+First one	Перший
+Then every	Далі кожні
+Chance	Шанс
+Max uncollected	Максимум незібраних
+Search	Пошук	artefact
+Zones switch every	Зони змінюються кожні
+After a pickup the next one comes {next} later; that container stays empty for {cooldown}.	Після підбору наступний з'явиться через {next}; той контейнер лишається порожнім {cooldown}.
+Its own zone does no damage.	Її власна зона не завдає шкоди.
+Searching a container takes {search}; after a pickup it stays empty for {cooldown}.	Обшук контейнера триває {search}; після підбору він лишається порожнім {cooldown}.
+After a pickup the next one comes {next} later.	Після підбору наступний з'явиться через {next}.
+whole body	усе тіло
+{n} % a hit, at most every {t}	{n} % за удар, не частіше ніж раз на {t}
+deadly	смертельно
+{n} % a second	{n} % за секунду
+Damage is a share of each body part's health, before armour.	Шкода — частка здоров'я кожної частини тіла, до броні.
+It gives no artefacts.	Вона не дає артефактів.
