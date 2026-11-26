@@ -14,8 +14,8 @@ patch 14, the 0.11e maps in patch 22).
 
 With --manifest, FILE gets what was read as JSON: "files", every archive path
 extracted, and "absent", every path looked for and found in no archive (a
-missing texture): build_maps.py hashes where each comes from to know when a
-render is stale.
+missing texture): a record of what a render was made from (build_all.py
+renders a map again only with --rerender or when it has no render yet).
 
 OUT_DIR/project            decoded client_project (bincfg JSON)
 OUT_DIR/models/<lib>.model/{settings,render/<surface>/converted_model}

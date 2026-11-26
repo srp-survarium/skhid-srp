@@ -35,8 +35,8 @@ use log::{Level, LevelFilter, Log, Metadata, Record};
 /// files of it are kept (`<server>.log`, `.1` ...). About two days of each
 /// at the heaviest seen (2026-11-01 to 11-02, 116-127 MB a day in all, of
 /// it about 95 % match, 4 % lobby, 1.5 % srp, under 0.2 % login and web);
-/// the lobby's about 12 days, the balance refit's input
-/// (scripts/balance-refit). `memory` and `modules`: the match server's
+/// the lobby's about 12 days (it was the input of scripts/balance-refit,
+/// since retired). `memory` and `modules`: the match server's
 /// lines of those targets, client patch 126's memory reports (about 2.5 KB
 /// a player a match) and patch 125's module reports (about 2 KB), weeks of
 /// them for `release/moderate memory` and `release/moderate modules`.

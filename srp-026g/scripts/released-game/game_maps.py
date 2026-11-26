@@ -1,8 +1,11 @@
 """The maps of the released game, as the site's builds read them from the
 files released.py extracts (`raw`, '/' as '__'): which maps can be played and
 their modes, and each project's HUD minimap. Shared by the Maps tab
-(srp-026g/scripts/maps-tab/build.py) and the top-down renders
-(srp-026g/scripts/damage-calc/assets/maps/tools/build_maps.py).
+(srp-026g/scripts/maps-tab/build.py), the calculator's data
+(srp-026g/scripts/damage-calc/gen_calc_data.py) and the skills page
+(srp-026g/scripts/skills-tab/build.py). The calculator's maps are made by
+srp-026g/scripts/damage-calc/assets/maps/tools/ (build_all.py, then
+make_json.py; --only adds maps to an existing maps.json).
 
     maps = playable(raw)                      # {folder: {"map_name", "build", "modes": {(mode, layout): {...}}}}
     minimaps = hud_minimaps(ffdec, raw, work)  # {project_name: (frame, bitmap png)}

@@ -1727,7 +1727,7 @@ impl<'a> Shared<'a> {
 
     /// The kits `account` used in the match, as the history keeps them
     /// ([`history::KitLine`]): every kit with a counter above 0 in the
-    /// trusted snapshot (as [`Self::wear`] counts a kit worn); with none
+    /// trusted snapshot; with none
     /// (no trusted snapshot, or nothing done), the kit the account plays,
     /// the one the match took. Each with its own kills, headshots, shots and
     /// hits, and its weapons and armour by slot.

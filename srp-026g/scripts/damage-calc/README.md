@@ -8,7 +8,7 @@ A single-page shooter-vs-target damage calculator for 0.26g, in every language o
 - Onyx (passive and active), and drugs (the anesthetic)
 - recovery: regeneration and medicines with the Larkspurs, the Rations, the gear's regeneration bonuses and the medical skills, in any mix
 
-The rules follow the client's hit code as the reverse-engineering notes record it (`tools/re-kit/v026g/damage/`, not part of this folder): `formula.txt` for the pipeline, the other `*.md` files for pain, limbs, drugs, artefacts, modifications and coverage, checked against the original exe in unicorn.
+The rules follow the client's hit code: its functions are named in re-kit (`tools/re-kit/v026g/`: `bullet::bullet`, `bullet::compute_damage_speed`, `bullet::try_pierce`, `body_part_parameters::hit_by_type`, `player_params_modifiers_container::apply_modifier`), and `srp-026g/docs/notes/` records the parts: `pierce_line.md` (damage, penetration, walls), `armour-params.md` (protection and coverage), `alt-weapon-stats.md` (modifications), `artefacts.md`, `regeneration-booster.md` and `medical-skills.md` (recovery).
 
 ## Files
 

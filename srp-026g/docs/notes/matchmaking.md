@@ -526,9 +526,8 @@ with fewer than four it moves no rating (§8.3).
   are in (since 2026-10-14). The parts are there so that the numbers can
   be fitted again from these lines and the results; the line changes
   nothing.
-- `scripts/balance-refit/refit.py` reads these lines and the "settled"
-  one: the weights of §8 fitted on who was in each match, minute by
-  minute. It does not fit the numbers of the lead.
+- `scripts/balance-refit`, which fitted §8's weights from these lines, was retired: K/D
+  balancing (`kd-balance.md`) superseded it.
 - `<name>: JOIN match 0x… (key k): ok|full|gone|busy (…); sides …` and
   `<name>: Play with a place held in match 0x… …`: the JOIN button (§9.7).
   A JOIN that puts a player in writes the "late join" line too.
