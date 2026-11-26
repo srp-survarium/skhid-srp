@@ -5388,6 +5388,40 @@ pub(super) mod tests {
         assert_eq!(at.fall, Fall::Ground);
     }
 
+    /// [lip client] The lip guard's stop forecast from the reckoned estimate (`Bot::reckoned`, a client body) is the reckoning's own
+    /// steps: a run reckoned tick by tick, then the guard's `stop_path` of its keys (held `hold` ticks, then let go) ends tick for tick
+    /// where the reckoning stepped through the same keys ends.
+    #[test]
+    fn the_lip_guards_stop_forecast_from_the_reckoned_body_is_the_reckonings_own_steps() {
+        let triangles = floor(0.0, 0.0, 20.0, 10.0, 0.0).to_vec();
+        let grid = WalkGrid::build(&triangles, [0.0, 0.0, 20.0, 10.0], 0.25, Body::default()).with_client_walker(&triangles);
+        let kin = Kinematics::default();
+        let mut track = BodyTrack::default();
+        track.fixed(fix(0, Vec3::new(3.0, 0.0, 5.0), -std::f32::consts::FRAC_PI_2), &kin, Some(&grid));
+        let mut time = 0;
+        for _ in 0..10 {
+            time += 50;
+            track.decided(time, key::FORWARD, (0.0, 0.0), 0.0, &kin, Some(&grid));
+        }
+        let at = *track.estimate().unwrap();
+        assert!(at.client.is_some(), "the reckoning keeps the client's body: {at:?}");
+        let hold = 2;
+        let stop = Stop { kin: &kin, level: 1.0, grid: &grid, planned: &[], hold, margin: RECKONING_M };
+        let forecast = stop_path(&at, key::FORWARD, 0.0, &stop);
+        let mut reckoned = vec![at.landed(&grid).feet];
+        for k in 0..kin.blend_ticks + hold + 2 {
+            time += 50;
+            let keys = if k < hold { key::FORWARD } else { 0 };
+            track.decided(time, keys, (0.0, 0.0), 0.0, &kin, Some(&grid));
+            reckoned.push(track.estimate().unwrap().feet);
+        }
+        assert_eq!(forecast.len(), reckoned.len());
+        for (k, (f, r)) in forecast.iter().zip(&reckoned).enumerate() {
+            assert!((*f - *r).length() < 1e-3, "tick {k}: the forecast {f:?}, the reckoning {r:?} ({forecast:?} against {reckoned:?})");
+        }
+        assert!(forecast.last().unwrap().x - forecast[0].x > 0.3, "it slid on: {forecast:?}");
+    }
+
     /// [body physics S3] A world inside a forward flight (its controller block mid-air) resumes the client body's flight at its step:
     /// the body lands where the unbroken reckoning lands.
     #[test]
