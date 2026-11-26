@@ -98,6 +98,20 @@ class Anomalies(unittest.TestCase):
         got = build.objects(self.project(), KEYS)
         self.assertEqual([a[3:] for a in got["artefacts"]], [[["onyx", "spring"], [0]]] * 2)
 
+    def test_a_second_anomaly_on_the_same_zones_names_its_twin(self):
+        project = self.project()
+        core = dict(project["client_objects"][0], full_name="b/core", artefacts=[{"dict_id": 54, "count": 1}],
+                    artefact_containers=["b/c"], states=[{"enabled": True, "groups": [{"enabled": True, "zones": ["b/idle"]}]}])
+        project["client_objects"] += [
+            core,
+            {"game_object_type": "artefact_container", "full_name": "b/c", "position": [0.0, 0.0, 0.0], "collision_geometries": []},
+            {"game_object_type": "damage_zone", "full_name": "b/idle", "max_hit": 0, "collision_geometries": [{"name": "a/box"}, {"name": "a/cyl"}]},
+        ]
+        first, second = build.objects(project, KEYS)["anomalies"]
+        self.assertNotIn("twin", first)
+        self.assertEqual(second["twin"], 0)
+        self.assertFalse(any(s["hurt"] for s in second["areas"]))
+
     def test_an_anomaly_with_its_artefacts_off_shows_its_zones_alone(self):
         got = build.objects(self.project(artefacts_enabled=False), KEYS)
         (a,) = got["anomalies"]

@@ -149,6 +149,16 @@
   // Its zones seen from above: the damaging ones filled, the harmless ones (sound and sight) faint and
   // dashed. Each layer's opacity is its group's, so overlapping shapes (School's fruit has 42) read
   // as one flat area; the edges are drawn over them, thin.
+  // Twins (two anomalies on the same zones, build.py's `twin`) are one place: drawn once, with the
+  // artefacts of both, a shape hurting when either's does.
+  const lead = (m, i) => m.anomalies[i].twin ?? i;
+  const members = (m, l) => m.anomalies.flatMap((a, j) => (j === l || a.twin === l ? [j] : []));
+  function place(m, l) {
+    const group = members(m, l).map(j => m.anomalies[j]);
+    const shape = s => JSON.stringify(s.c || s.p);
+    const hurt = new Set(group.flatMap(a => a.areas.filter(s => s.hurt).map(shape)));
+    return { gives: group.flatMap(a => a.gives), areas: group[0].areas.map(s => ({ ...s, hurt: hurt.has(shape(s)) })) };
+  }
   function area(a, i, u, defs) {
     const paint = tint(a, defs, u);
     const shape = (s, look) => (s.c ? svgEl("circle", { cx: s.c[0], cy: -s.c[1], r: s.c[2], ...look })
@@ -238,18 +248,14 @@
         : Tf("{n} % a second", { n: pcts(lo * k, hi * k) });
     return [HIT[d.type] || d.type, `${amount} · ${parts}`];
   }
-  function fillCard(i) {
-    const m = map(), a = m.anomalies[i], art = MAPS.artefacts, each = shared(m);
-    // One that gives no artefacts: its damage alone.
-    if (!a.gives.length) {
-      const rows = [...a.switch.map(([lo, hi]) => [T("Zones switch every"), secs(lo, hi)]), ...a.damage.map(hurts)];
-      card.replaceChildren(el("div", { class: "card-h" }, el("span", { text: T("Anomaly") })),
-        el("dl", {}, ...rows.flatMap(([k, v]) => [el("dt", { text: k }), el("dd", { text: v })])),
-        ...(a.damage.length ? [el("p", { text: T("Damage is a share of each body part's health, before armour.") })] : [el("p", { text: T("Its own zone does no damage.") })]),
-        el("p", { text: T("It gives no artefacts.") }));
-      return;
-    }
-    const rows = [
+  // Its card: each anomaly of the place (one, or twins) with what it holds and when it gives it,
+  // then what the place does.
+  function fillCard(l) {
+    const m = map(), art = MAPS.artefacts, each = shared(m);
+    const group = members(m, l).map(j => m.anomalies[j]), giving = group.filter(a => a.gives.length);
+    const kinds = giving.flatMap(kindsOf);
+    const list = rows => el("dl", {}, ...rows.flatMap(([k, v]) => [el("dt", { text: k }), el("dd", { text: v })]));
+    const holds = a => list([
       [T("Holds"), a.gives.map(([k, n]) => `${art[k] ? N(art[k].name) : k} ×${n}`).join(" · ")],
       [T("First one"), secs(...a.first)],
       [T("Then every"), secs(...a.next)],
@@ -257,21 +263,26 @@
       [T("Max uncollected"), String(a.max)],
       [T("Containers"), String(a.containers)],
       ...(each ? [] : [[Tc("artefact", "Search"), span(a.search)]]),
-      ...a.switch.map(([lo, hi]) => [T("Zones switch every"), secs(lo, hi)]),
-      ...a.damage.map(hurts),
-    ];
-    const harmless = a.areas.length && !a.areas.some(s => s.hurt);
+    ]);
+    const switches = [...new Set(group.flatMap(a => a.switch.map(([lo, hi]) => secs(lo, hi))))];
+    const damage = group.flatMap(a => a.damage);
+    const does = [...switches.map(t => [T("Zones switch every"), t]), ...damage.map(hurts)];
+    const next = giving.flatMap(a => a.next), cooldown = giving.flatMap(a => a.cooldown);
     card.replaceChildren(
-      el("div", { class: "card-h" }, ...kindsOf(a).filter(k => art[k]).map(k => el("img", { src: art[k].icon, alt: "" })),
-        el("span", { text: kindsOf(a).map(k => (art[k] ? N(art[k].name) : k)).join(" · ") })),
-      el("dl", {}, ...rows.flatMap(([k, v]) => [el("dt", { text: k }), el("dd", { text: v })])),
-      ...(a.damage.length ? [el("p", { text: T("Damage is a share of each body part's health, before armour.") })] : []),
-      ...(harmless ? [el("p", { text: T("Its own zone does no damage.") })] : []),
-      el("p", { text: each ? Tf("After a pickup the next one comes {next} later.", { next: secs(...a.next) })
-        : Tf("After a pickup the next one comes {next} later; that container stays empty for {cooldown}.", { next: secs(...a.next), cooldown: span(a.cooldown) }) }));
+      el("div", { class: "card-h" }, ...kinds.filter(k => art[k]).map(k => el("img", { src: art[k].icon, alt: "" })),
+        el("span", { text: kinds.length ? kinds.map(k => (art[k] ? N(art[k].name) : k)).join(" · ") : T("Anomaly") })),
+      ...giving.map(holds),
+      ...(does.length ? [list(does)] : []),
+      ...(damage.length ? [el("p", { text: T("Damage is a share of each body part's health, before armour.") })]
+        : group.some(a => a.areas.length) ? [el("p", { text: T("Its own zone does no damage.") })] : []),
+      el("p", { text: !giving.length ? T("It gives no artefacts.")
+        : each ? Tf("After a pickup the next one comes {next} later.", { next: span(next) })
+          : Tf("After a pickup the next one comes {next} later; that container stays empty for {cooldown}.", { next: span(next), cooldown: span(cooldown) }) }));
   }
   // Shown at (x, y), the pointer's place in the stage, kept inside it.
   function showCard(i, x, y) {
+    i = lead(map(), i);
+    const group = members(map(), i).map(String);
     if (card.dataset.a !== String(i)) { fillCard(i); card.dataset.a = i; }
     card.hidden = false;
     // Beside the pointer, inside the map (the board's top left is the map's); a phone's is under the map.
@@ -280,7 +291,7 @@
     card.style.left = under ? "" : `${x + 16 + w > s.width ? Math.max(4, x - 16 - w) : x + 16}px`;
     card.style.top = under ? "" : `${Math.max(4, Math.min(y + 16, s.height - h - 4))}px`;
     svg.classList.add("focus");
-    for (const e of svg.querySelectorAll("[data-a]")) e.classList.toggle("on", e.dataset.a.split(" ").includes(String(i)));
+    for (const e of svg.querySelectorAll("[data-a]")) e.classList.toggle("on", e.dataset.a.split(" ").some(j => group.includes(j)));
   }
   function hideCard() {
     pinned = null;
@@ -320,7 +331,7 @@
     kids.push(svgEl("image", { href: img.src, x: bx0, y: by0, width: bx1 - bx0, height: by1 - by0, preserveAspectRatio: "none" }));
     const defs = svgEl("defs");
     kids.push(defs);
-    if (state.on.anomalies) m.anomalies.forEach((a, i) => kids.push(area(a, i, u, defs)));
+    if (state.on.anomalies) m.anomalies.forEach((a, i) => { if (a.twin === undefined) kids.push(area(place(m, i), members(m, i).join(" "), u, defs)); });
     const team = t => (t === 0 ? "var(--team0)" : t === 1 ? "var(--team1)" : "var(--team-x)");
     const teamName = t => (t === 0 || t === 1 ? Tf("team {n}", { n: t + 1 }) : T("any team"));
     const tip = text => svgEl("title", {}, text);
@@ -369,7 +380,7 @@
   svg.addEventListener("pointerleave", () => { if (pinned === null) hideCard(); });
   svg.addEventListener("click", e => {
     const t = target(e);
-    if (t && t.dataset.a !== "") { pinned = Number(t.dataset.a.split(" ")[0]); showCard(pinned, ...at(e)); }
+    if (t && t.dataset.a !== "") { pinned = lead(map(), Number(t.dataset.a.split(" ")[0])); showCard(pinned, ...at(e)); }
     else hideCard();
   });
   svg.addEventListener("focusin", e => {

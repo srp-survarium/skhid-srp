@@ -355,6 +355,15 @@ def objects(project, artefact_keys):
             kinds_of[name] |= kinds
             owners_of[name].append(len(anomalies))
         anomalies.append(found)
+    # Twins: two anomalies on the very same zones, one of them hurting and the other only seen and
+    # heard (Rudnya's Lifebone and Spring, Chemical Plant's Spring and Onyx). The later one names
+    # the first (`twin`), and the page draws their place once, with one card for both.
+    first_at = {}
+    for i, a in enumerate(anomalies):
+        place = json.dumps(sorted(json.dumps({k: v for k, v in s.items() if k != "hurt"}) for s in a["areas"]))
+        if a["areas"] and place in first_at:
+            a["twin"] = first_at[place]
+        first_at.setdefault(place, i)
     # A container's own position is its anomaly's pivot, shared by all of
     # them; where the artefact is found is its collision geometry (the zone
     # the search runs in). Each is [x, z, y, its kinds, its anomalies (indices)].

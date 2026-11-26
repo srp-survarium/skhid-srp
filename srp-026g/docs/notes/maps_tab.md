@@ -58,7 +58,12 @@ and when and how"; "we should show anomalies there and for each one some kind of
 - A toggle "Anomalies" draws each anomaly that gives artefacts (`generic_anomaly_core` with `artefacts_enabled`
   and containers; Keeper's hidden pool has none) as its zones from above, tinted by what it holds (each kind its
   glow's colour, `artefacts.md` "The stock glow"; two kinds in stripes of both). A zone that hurts is filled, a
-  harmless one (sound and sight: Rudnya's Lifebone anomaly has only that, its twin the damage) dashed.
+  harmless one (sound and sight) dashed.
+- Twins: two anomalies on the very same zones, one hurting and the other only seen and heard (Rudnya's Lifebone
+  and Spring, v0.69 Rudnya's too; Chemical Plant's Spring and Onyx, v0.11's too). Drawn apart, the harmless one lay
+  on top and its card said "no damage" where the ground hurts. The build marks the later one (`twin`, the index
+  of the first); the page draws the place once, in both kinds' stripes, and its card lists each anomaly's
+  artefacts and timing, then the place's damage.
 - Pointing at an anomaly or at one of its artefacts (or tapping it, which keeps it until a tap elsewhere) dims the
   others and shows its card: what it holds (each kind and its count), the first artefact's window and each next
   one's, the chance where it is below 100 %, how many may lie uncollected, its containers and their search time,
