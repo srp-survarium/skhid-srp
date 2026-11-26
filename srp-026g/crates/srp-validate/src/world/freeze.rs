@@ -255,6 +255,21 @@ impl FreezeTag {
             Team::Second => second,
         })
     }
+    /// `team`'s down-to-one step.
+    fn since(&self, team: Team) -> Option<&Time> {
+        let [first, second] = &self.last_since;
+        match team {
+            Team::First => first.as_ref(),
+            Team::Second => second.as_ref(),
+        }
+    }
+    fn since_mut(&mut self, team: Team) -> &mut Option<Time> {
+        let [first, second] = &mut self.last_since;
+        match team {
+            Team::First => first,
+            Team::Second => second,
+        }
+    }
     fn score_mut(&mut self, team: Team) -> &mut u8 {
         let [first, second] = &mut self.score;
         match team {
@@ -292,7 +307,7 @@ impl FreezeTag {
     /// `team`'s last one fighting ([`Self::last_standing`]) and the step his team was down to
     /// him. A thaw (no longer last) ends it; the next time the team is down to one counts afresh.
     pub fn last_fighter(&self, team: Team) -> Option<LastFighter> {
-        let since = self.last_since[team.index()]?;
+        let since = *self.since(team)?;
         let place = Place::all().find(|place| self.player(*place) == Player::Fighting(team))?;
         Some(LastFighter { place, since })
     }
@@ -310,8 +325,8 @@ impl FreezeTag {
     /// two frozen), none otherwise.
     fn keep_last_since(&mut self, now: Time) {
         for team in [Team::First, Team::Second] {
-            let since = self.down_to_one(team).then(|| self.last_since[team.index()].unwrap_or(now));
-            self.last_since[team.index()] = since;
+            let since = self.down_to_one(team).then(|| self.since(team).copied().unwrap_or(now));
+            *self.since_mut(team) = since;
         }
     }
     fn living(&self, team: Team) -> usize {
@@ -670,12 +685,12 @@ impl FreezeTag {
             for team in [Team::First, Team::Second] {
                 let tag = input.u8().ok()?;
                 let time = input.u32().ok()?;
-                state.last_since[team.index()] = match (tag, time) {
+                *state.since_mut(team) = match (tag, time) {
                     (0, 0) => None,
                     (1, ms) => Some(Time::from_ms(ms)),
                     _ => return None,
                 };
-                if state.last_since[team.index()].is_some() != state.down_to_one(team) {
+                if state.since(team).is_some() != state.down_to_one(team) {
                     return None;
                 }
             }
