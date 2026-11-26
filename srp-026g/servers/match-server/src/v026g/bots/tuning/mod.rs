@@ -165,6 +165,7 @@ pub use smoke::ThreatLane;
 pub use smoke::WaitForCloud;
 pub use spacing::Callouts;
 pub use spacing::SpacingTuning;
+pub use spacing::LaneDrawTuning;
 pub use take::CrossFromZone;
 pub use take::DropImpossible;
 pub use take::FarStands;
