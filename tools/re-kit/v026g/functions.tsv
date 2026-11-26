@@ -2542,3 +2542,8 @@ va	status	ref_021d	name
 0x00331480	observed		survarium::character_dispersion_calculator::get_skill_influence
 0x00331560	observed		survarium::character_dispersion_calculator::get_target_koef
 0x002d8bb0	observed		survarium::base_player::process_quick_slots
+0x001fef90	reviewed		survarium::text_translator::expand_text
+0x00207bf0	reviewed		survarium::key_binder::keycode_to_ptr
+0x002346e0	reviewed		survarium::game_world_ui::set_localization_data
+0x00286260	reviewed		survarium::lobby_menu::set_localization_data
+0x00220a00	reviewed		survarium::lobby_menu::update_ui

@@ -2855,3 +2855,6 @@ va	name	source	ret_cleanup	result
 0x00270950	survarium::lobby_client::send_apply_decal	manual	24	void: writes 46 05 {kit, host, cosmetic, u64 value} on the lobby link (0x37A0E0 begin, 0x379640 send), then the value into the inventory's record of the cosmetic in the host (0x270A1A..0x270AC6: the host by find_item_by_id, the first record whose item id is the cosmetic's; nothing when either is missing) and copy_account_items (0x270ACC); checks no connection itself
 0x0028c2c0	survarium::lobby_menu::scaleform_callback	manual	16	EAX: lobby_menu_logic::call's AL (GFx's caller 0x2AF969 drops it)
 0x002812e0	survarium::lobby_menu_logic::call	manual	8	AL: the named handler's answer, 0 for a name none of its 70h names (0x281308, logged when the log asks: 0x281351)
+0x002346e0	survarium::game_world_ui::set_localization_data	manual	4	void; the hud movie (+8) gets root.set_localization_data of an object: each row of flash_movies_localizations.options' hud_strings (0xA03320) under its UI key, its dictionary key translated (translate_text 0x1FF0F0, so its {NAME}s expanded)
+0x00286260	survarium::lobby_menu::set_localization_data	manual	4	void; the lobby movie (+690h) gets root.set_localization_data of its lobby_menu_strings (0xA0A0A8) rows, translated as the hud's
+0x00220a00	survarium::lobby_menu::update_ui	manual	4	void

@@ -3103,11 +3103,15 @@ MATCH_STAT_MAP_HOOKS = (
 )
 INSTALLS[0x29ABE1] = (JUMP, "fill_match_statistic's map name (lobby_menu+313Ch, NULL until a match is loaded) as \"\"; "
                             "replay mov ecx,[esi+313Ch]", None, None)
-# expand_text's {USE} with no key bound (0x207BF0 finds no entry) translated
-# NULL (0x1FF09D); the branch goes to its unknown-placeholder path instead,
-# which appends nothing: what translate_text("") gives (0.31+ translate
-# st_key_use_not_assigned, a key 0.26g's dictionary does not have).
-EXPAND_TEXT_UNBOUND = (0x1FF073, bytes.fromhex("741b"), bytes.fromhex("7436"))   # je 1FF090 -> je 1FF0AB
+# Patch 212 (README "Keys in texts"): expand_text (0x1FEF90) makes a text's
+# {USE} the key bound to Use and any other {NAME} nothing. Its jne at
+# 0x1FF037 (a name other than USE) becomes a jmp: every name goes to that
+# path, 0x1FF0AB, where the Rust lohook `text_translator.expand_name`
+# (key_prompts.rs) makes it the key bound to the action of that name, or
+# st_srp_key_unbound. The stock USE path (0x1FF039..0x1FF0A9) is no longer
+# run: its unbound {USE} translated NULL (0x1FF09D), which the build's
+# EXPAND_TEXT_UNBOUND (0x1FF073) sent to the empty path before.
+EXPAND_TEXT_NAMES = (0x1FF037, bytes.fromhex("7572"), bytes.fromhex("eb72"))   # jne 1FF0AB -> jmp 1FF0AB
 # The battery's cook asks for its clips in room for 64 requests (patch 143,
 # ../docs/notes/battery-hit.md "The cook's requests"). victory_item_core's
 # cook (0x2FA050) gathers its resource requests in a buffer_vector on its
@@ -4645,7 +4649,7 @@ def build_image(original, mode, code=None, server=None, late_join=None, revision
                 if neutralize_relocs(data, [(va, va + len(old)) for va, old, _ in MAP_ID_READERS]):
                     sys.exit("a base relocation under a reader of the options' map")
                 patch(data, *EMPTY_SHOT_QUIET)
-                patch(data, *EXPAND_TEXT_UNBOUND)
+                patch(data, *EXPAND_TEXT_NAMES)
                 for change in BATTERY_COOK_REQUESTS:
                     patch(data, *change)
                 if neutralize_relocs(data, [(va, va + len(old)) for va, old, _ in BATTERY_COOK_REQUESTS]):

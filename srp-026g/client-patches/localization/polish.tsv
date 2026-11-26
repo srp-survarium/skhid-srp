@@ -3071,6 +3071,7 @@ st_srp_inventory_sell_duplicates	Sprzedaj duplikaty
 st_srp_inventory_sell_duplicates_ask	Przedmioty do sprzedaży: %1$s
 st_srp_item_props_mps	m/s
 st_srp_key_bindings	Przypisania
+st_srp_key_unbound	brak klawisza
 st_srp_keys_combat	Walka
 st_srp_keys_interface	Interfejs
 st_srp_keys_items	Przedmioty
@@ -3277,7 +3278,7 @@ st_srp_replay_place_in_line	Place in line: %1$s. Waiting: %2$s s.
 st_srp_replay_ready	The replay of this match is ready.\n\nIt is downloaded from the match server, which keeps the authoritative record of the match. A second game window opens and plays it; the lobby stays open.\n\nIn the replay press F9 for the controls: players, camera, seek, speed.
 st_srp_replay_ready_size	Replay of this match: %1$s.\n\nIt is downloaded from the match server, which keeps the authoritative record of the match. A second game window opens and plays it; the lobby stays open.\n\nIn the replay press F9 for the controls: players, camera, seek, speed.
 st_srp_replay_size	%1$s.%2$s MB
-st_srp_replay_starting	Starting the replay: a second game window will open; this lobby stays open. If something goes wrong, the updater shows what happened.\n\nIn the replay press F9 for the controls.
+st_srp_replay_starting	Uruchamianie powtórki: otworzy się drugie okno gry; to lobby pozostanie otwarte. Jeśli coś pójdzie nie tak, updater pokaże, co się stało.\n\nW powtórce naciśnij „Ukryj interfejs” ({HIDE_INTERFACE}), aby wyświetlić sterowanie.
 st_srp_replay_still_preparing	Still being prepared. It keeps being made on the server; open Watch replay again in a minute.
 st_srp_replay_title	Watch replay
 st_srp_replay_waiting	Waiting: %1$s s.
@@ -3386,7 +3387,7 @@ st_srp_scope_screen_hint	Przeciągnij celownik, urządzenie wylotowe lub chwyt z
 st_srp_scope_slot	Optyka
 st_srp_second_sight	Drugi celownik
 st_srp_second_sight_description	Montuje drugi celownik z boku broni.
-st_srp_second_sight_hint	Celownik na odsuniętej szynie z boku broni. Naciśnij Y podczas celowania, aby się na niego przełączyć.
+st_srp_second_sight_hint	Celownik na odsuniętej szynie z boku broni. Naciśnij „Zmień celownik” ({SCOPE_NEXT}) podczas celowania, aby się na niego przełączyć.
 st_srp_second_sight_name	Drugi celownik
 st_srp_shop_not_owned	Ukryj posiadane
 st_srp_shop_not_owned_hint	Pokazuj tylko przedmioty, których nie masz

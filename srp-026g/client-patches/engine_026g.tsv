@@ -362,3 +362,5 @@ engine_reload_event	0x30db60	ECX:state ESP+4:parameters	unsigned int engine_relo
 engine_reload_commit	0x310e40	ECX:state ESP+4:unused ESP+8:done	void engine_reload_commit(struct animation_end_aware_state *state, unsigned char *unused, unsigned char *done)	thiscall	
 engine_subscribe_event_channel	0x391c40	ESI:channels ESP+4:name ESP+8:functor ESP+12:subscriber ESP+16:resource ESP+20:flag	void engine_subscribe_event_channel(struct event_channels *channels, const char *name, const struct event_functor *functor, const void *subscriber, const unsigned int *resource, unsigned int flag)	thunk	
 engine_unsubscribe_event_channel	0x3921a0	EAX:name ESP+4:channels ESP+8:subscriber	void engine_unsubscribe_event_channel(const char *name, struct event_channels *channels, const void *subscriber)	thunk	
+engine_hud_texts	0x2346e0	ESP+4:hud	void engine_hud_texts(struct game_world_ui *ui)	stdcall	
+engine_lobby_texts	0x286260	ESP+4:lobby	void engine_lobby_texts(struct lobby_menu *menu)	stdcall	
