@@ -3602,6 +3602,22 @@ impl LipAsk {
     }
 }
 
+/// [M2] The lip guard's key sets not played again within one ask (a repeat of the replacement list), every match on this server
+/// since the last match end (the match-end line).
+pub(super) mod lip_repeats {
+    use std::sync::atomic::{AtomicU64, Ordering};
+
+    static SKIPPED: AtomicU64 = AtomicU64::new(0);
+
+    pub(crate) fn skipped() {
+        SKIPPED.fetch_add(1, Ordering::Relaxed);
+    }
+
+    pub(crate) fn take() -> u64 {
+        SKIPPED.swap(0, Ordering::Relaxed)
+    }
+}
+
 /// [A388 step 2b] A bot's last lip guard forecast and its ask ([`LipAsk`]), and the match's counts: forecasts asked anew, and the
 /// same ask's answer used again (the log's match-end line). A body standing or pushing at a lip asks the same each tick.
 #[derive(Clone, Debug, Default)]
@@ -3747,12 +3763,15 @@ pub(super) fn lip_guard_with(
         Vec::new()
     };
     let up = |keys: u32| body::stays_up(&at, keys, turn, &stop) && sides.iter().all(|side| body::stays_up(side, keys, turn, &stop));
+    // [M2] The asked keys' centre forecast, played once: the sides are played only when it stays up (as `up` does), and the
+    // test-only `sides_only` count below reads it rather than playing it again.
+    let centre_up = body::stays_up(&at, keys, turn, &stop);
     let guard = {
-        if up(keys) {
+        if centre_up && sides.iter().all(|side| body::stays_up(side, keys, turn, &stop)) {
             LipGuard::Safe
         } else {
             #[cfg(test)]
-            let sides_only = full && body::stays_up(&at, keys, turn, &stop);
+            let sides_only = full && centre_up;
             #[cfg(test)]
             if sides_only {
                 motor::counts::lip_gap(4);
@@ -3766,10 +3785,21 @@ pub(super) fn lip_guard_with(
             // The same walk slower (no sprint, then crouched), then without the side keys, then none, then the brake.
             let walk = keys & !key::SPRINT;
             let straight = keys & !(key::LEFT | key::RIGHT);
-            let found = [walk, walk | key::CROUCH, straight, (straight & !key::SPRINT) | key::CROUCH, keys & !MOVE]
-                .into_iter()
-                .chain(brake)
-                .filter(|&k| k != keys)
+            // [M2] A key set the list gave before is not played again: `up` is a function of the keys alone within one ask, and an
+            // earlier one was not up (the search stops at the first that is). The list repeats some (with no side key held,
+            // `straight == keys` and `(straight & !SPRINT) | CROUCH == walk | CROUCH`; the brake may be any of them).
+            let tries = [Some(walk), Some(walk | key::CROUCH), Some(straight), Some((straight & !key::SPRINT) | key::CROUCH), Some(keys & !MOVE), brake];
+            let found = tries
+                .iter()
+                .enumerate()
+                .filter_map(|(i, &k)| {
+                    let k = k.filter(|&k| k != keys)?;
+                    if tries[..i].contains(&Some(k)) {
+                        lip_repeats::skipped();
+                        return None;
+                    }
+                    Some(k)
+                })
                 .find(|&k| up(k));
             match (found, brake) {
                 (Some(found), _) => LipGuard::Swapped(found),
