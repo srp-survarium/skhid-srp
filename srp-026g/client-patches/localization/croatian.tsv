@@ -3353,7 +3353,7 @@ st_srp_rooms_pin_hint	Potrebne su 4 znamenke
 st_srp_rooms_players	Igrači
 st_srp_rooms_playing	Borba u tijeku
 st_srp_rooms_pool	Izbor
-st_srp_rooms_pool_hint	Glasuje se za 3 nasumične karte.
+st_srp_rooms_pool_hint	Glasuje se za 4 nasumične karte.
 st_srp_rooms_private_room	Privatna soba: do 20 igrača; vi slažete ekipe i pokrećete borbu.
 st_srp_rooms_queue	Red čekanja
 st_srp_rooms_queue_room	Čekaj sobu

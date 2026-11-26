@@ -3353,7 +3353,7 @@ st_srp_rooms_pin_hint	4 Ziffern erforderlich
 st_srp_rooms_players	Spieler
 st_srp_rooms_playing	Match läuft
 st_srp_rooms_pool	Pool
-st_srp_rooms_pool_hint	Die Wahl zieht 3 Karten daraus.
+st_srp_rooms_pool_hint	Die Wahl zieht 4 Karten daraus.
 st_srp_rooms_private_room	Privater Raum: bis 20 Spieler; du stellst die Teams und startest.
 st_srp_rooms_queue	Warteschlange
 st_srp_rooms_queue_room	Raum-Warteschlange

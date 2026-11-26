@@ -3353,7 +3353,7 @@ st_srp_rooms_pin_hint	Tarvitaan 4 numeroa
 st_srp_rooms_players	Pelaajat
 st_srp_rooms_playing	Ottelu käynnissä
 st_srp_rooms_pool	Karttavalikoima
-st_srp_rooms_pool_hint	Näistä arvotaan 3 korttia äänestykseen.
+st_srp_rooms_pool_hint	Näistä arvotaan 4 korttia äänestykseen.
 st_srp_rooms_private_room	Yksityinen huone: jopa 20 pelaajaa; sinä jaat joukkueet ja aloitat.
 st_srp_rooms_queue	Jono
 st_srp_rooms_queue_room	Jonota huoneeseen

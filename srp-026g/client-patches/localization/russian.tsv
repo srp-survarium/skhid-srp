@@ -3353,7 +3353,7 @@ st_srp_rooms_pin_hint	Нужны 4 цифры
 st_srp_rooms_players	Игроки
 st_srp_rooms_playing	Идёт матч
 st_srp_rooms_pool	Пул
-st_srp_rooms_pool_hint	Голосование берёт 3 карточки из них.
+st_srp_rooms_pool_hint	Голосование берёт 4 карточки из них.
 st_srp_rooms_private_room	Приватная комната: до 20 игроков; команды и старт за вами.
 st_srp_rooms_queue	Очередь
 st_srp_rooms_queue_room	Очередь в комнату

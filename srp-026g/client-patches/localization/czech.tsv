@@ -3353,7 +3353,7 @@ st_srp_rooms_pin_hint	Musí mít 4 číslice
 st_srp_rooms_players	Hráči
 st_srp_rooms_playing	Probíhá zápas
 st_srp_rooms_pool	Výběr map
-st_srp_rooms_pool_hint	Do hlasování jdou 3 z nich.
+st_srp_rooms_pool_hint	Do hlasování jdou 4 z nich.
 st_srp_rooms_private_room	Soukromá místnost: až 20 hráčů; týmy a start určuješ ty.
 st_srp_rooms_queue	Fronta
 st_srp_rooms_queue_room	Zařadit se do fronty
