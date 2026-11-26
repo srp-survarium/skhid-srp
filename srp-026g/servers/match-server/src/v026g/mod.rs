@@ -36,9 +36,10 @@
 //! - `SRP_SNAPSHOT_DIR`: where uploaded worlds are saved (default
 //!   `logs/snapshots`; `off` or empty for none), as for 0.21d;
 //! - `SRP_PACKET_LOG=<dir>`: the transport's raw datagram log;
-//! - `SRP_LATE_INPUTS=discard|move` (default `discard`, what 0.21d does):
-//!   what becomes of an input that comes after its tick is final: dropped
-//!   (0xF1 / 0xF2), or moved to an open tick (0xEF / 0xF0, new in 0.26g);
+//! - `SRP_LATE_INPUTS=relay|discard|move` (default `relay`): what becomes
+//!   of an input that comes after its tick is final: relayed at its own
+//!   tick, dropped (0xF1 / 0xF2, what 0.21d does), or moved to an open tick
+//!   (0xEF / 0xF0, new in 0.26g); [`LateInputs`];
 //! - `SRP_RESYNC_WORLD_ONLY=on|off` (default `off`): resync a playing
 //!   client with the world alone (0xE8 of the next generation, its clock
 //!   left as it is) instead of the time and the world (0xE5, 0xE8);
