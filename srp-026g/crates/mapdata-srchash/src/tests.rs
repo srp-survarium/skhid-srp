@@ -139,6 +139,32 @@ fn the_hash_is_the_stream_s() {
     assert_ne!(a.finish(), c.finish());
 }
 
+/// `lto` and `codegen-units` move no key: a profile of only those digests as no profile, and beside other keys they leave the
+/// digest as those keys alone give it; every other profile key, and `[workspace.package]`, still moves it.
+#[test]
+fn layout_only_profile_keys_move_no_key() {
+    let manifest = |text: &str| {
+        let mut h = Hash128::default();
+        hash_manifest_sections(&mut h, text);
+        h.finish()
+    };
+    let base = "[workspace.package]\nedition = \"2024\"\n\n[profile.dev.package.argon2]\nopt-level = 3\n";
+    let lto_only = format!("{base}\n[profile.release]\nlto = \"fat\"\ncodegen-units = 1\n");
+    let tight = format!("{base}[profile.release]\nlto=true\n  codegen-units=16 # a comment after\n");
+    assert_eq!(manifest(base), manifest(&lto_only));
+    assert_eq!(manifest(base), manifest(&tight));
+    let opt = format!("{base}[profile.release]\nopt-level = 2\n");
+    let opt_and_lto = format!("{base}[profile.release]\nlto = \"fat\"\nopt-level = 2\ncodegen-units = 1\n");
+    assert_ne!(manifest(base), manifest(&opt));
+    assert_eq!(manifest(&opt), manifest(&opt_and_lto));
+    for moved in ["overflow-checks = true", "debug-assertions = true", "panic = \"abort\""] {
+        assert_ne!(manifest(base), manifest(&format!("{base}[profile.release]\n{moved}\n")), "{moved}");
+    }
+    assert_ne!(manifest(base), manifest(&base.replace("2024", "2021")));
+    // Outside those sections nothing counts, `lto` included.
+    assert_eq!(manifest(base), manifest(&format!("{base}[workspace.metadata]\nlto = 1\n")));
+}
+
 #[test]
 fn an_included_file_s_bytes_are_in_its_item() {
     let root = std::env::temp_dir().join(format!("srchash-include-{}", std::process::id()));
