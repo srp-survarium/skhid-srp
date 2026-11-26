@@ -53,6 +53,17 @@ pub(super) fn escapes() -> Box<dyn RouteTopic> {
     )
 }
 
+/// [bot CPU] M4: the walk-up questions not answered by a floor already seen: by another part of the Walk links (no search), by the
+/// search going on until it came to the floor, by the search run to its end.
+pub(super) fn walk_ups() -> Box<dyn RouteTopic> {
+    Delta::of(
+        || super::super::tactics::walk_up_counts::counts().to_vec(),
+        |d, line| {
+            line.ends.push(format!("walk_up_other_part {} walk_up_found {} walk_up_searched_out {}", d[0], d[1], d[2]));
+        },
+    )
+}
+
 /// The motor's counts: jumps, look-ahead cuts, side steps, the lip guard; and (at the tail) the walk ticks whose look-ahead ended on a point the body does not walk to in a line, and what the walk did about it.
 pub(super) fn motor() -> Box<dyn RouteTopic> {
     Delta::of(

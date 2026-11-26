@@ -205,6 +205,9 @@ pub struct TacticsBase {
     /// [exit fields at load] [`Tactics::exit_of`]'s fields, made with the base, once for the map, off the match loop, not stored
     /// with it. Made at a match's first escape before, inside a tick: part of Cologne batteries s1's 0.39 s tick at 95.1 s.
     exit_fields: ExitFields,
+    /// [bot CPU] M4: the parts of the grid the Walk links join ([`WalkParts`]), made with the base, once for the map, off the
+    /// match loop, not stored with it: a walk-up set's floor in another part than its start is answered with no search.
+    walk_parts: WalkParts,
 }
 
 /// [exit fields at load] [`Tactics::exit_of`]'s fields by spawn rule ([`Tactics::spawn_ok`]: the side whose others' spawn areas
@@ -464,12 +467,11 @@ const REACHED_KEPT: usize = 32;
 /// The point and radius a [`WalkUp`] was made for, as bits.
 type WalkUpKey = [u32; 4];
 
-/// The floors a walk up from a point gets to ([`Tactics::walk_up_from`]): a bit
-/// a floor of the grid, in place of a hash set (the profile of the spot
-/// lists: 92 % of a build was this search, 6 ms of 5.2-5.7).
-pub(super) struct WalkUp(Vec<u64>);
+/// A bit a floor of the grid, in place of a hash set (the profile of the spot lists: 92 % of a build was the walk-up search,
+/// 6 ms of 5.2-5.7).
+struct FloorBits(Vec<u64>);
 
-impl WalkUp {
+impl FloorBits {
     fn new(floors: usize) -> Self {
         Self(vec![0; floors.div_ceil(64)])
     }
@@ -482,10 +484,83 @@ impl WalkUp {
         !was
     }
 
-    pub(super) fn contains(&self, node: NodeId) -> bool {
+    fn contains(&self, node: NodeId) -> bool {
         self.0
             .get(node as usize >> 6)
             .is_some_and(|word| word >> (node & 63) & 1 == 1)
+    }
+}
+
+/// [bot CPU] M4: the parts of the grid that the Walk links join, links taken both ways (the weak components): a walk over Walk links
+/// never leaves its part, so a floor of another part is in no walk-up set from this one ([`Tactics::walk_up_has`]).
+#[derive(Default)]
+struct WalkParts {
+    /// Per floor, its part's number (the least floor of the part).
+    part: Vec<u32>,
+    /// The parts.
+    parts: usize,
+    built_ms: f64,
+}
+
+impl WalkParts {
+    fn build(grid: &mapdata::WalkGrid) -> Self {
+        let started = std::time::Instant::now();
+        let floors = grid.len();
+        let mut up: Vec<u32> = (0..floors as u32).collect();
+        fn root(up: &mut [u32], mut a: u32) -> u32 {
+            while up[a as usize] != a {
+                let next = up[up[a as usize] as usize];
+                up[a as usize] = next;
+                a = next;
+            }
+            a
+        }
+        for u in 0..floors as NodeId {
+            for (v, kind) in grid.links(u) {
+                if kind == mapdata::LinkKind::Walk {
+                    let (a, b) = (root(&mut up, u), root(&mut up, v));
+                    // The lesser floor leads: the numbers do not hang on the links' order.
+                    match a.cmp(&b) {
+                        std::cmp::Ordering::Less => up[b as usize] = a,
+                        std::cmp::Ordering::Greater => up[a as usize] = b,
+                        std::cmp::Ordering::Equal => {}
+                    }
+                }
+            }
+        }
+        let mut parts = 0;
+        for i in 0..floors as u32 {
+            let r = root(&mut up, i);
+            up[i as usize] = r;
+            parts += usize::from(r == i);
+        }
+        Self { part: up, parts, built_ms: started.elapsed().as_secs_f64() * 1000.0 }
+    }
+
+    /// The part of `node` (a floor off the grid: a part of its own).
+    fn of(&self, node: NodeId) -> u32 {
+        self.part.get(node as usize).copied().unwrap_or(u32::MAX)
+    }
+}
+
+/// The floors a walk up from a point gets to ([`Tactics::walk_up_has`]): the breadth-first search over the Walk links within the
+/// radius ([`WALK_UP_MAX_FLOORS`] at most), run only as far as a question needs ([bot CPU] M4). A floor is in the set when the
+/// search, in its order, comes to it; one in another part of the Walk links than the start's ([`WalkParts`]) never is, and is
+/// answered with no search. The set is the whole search's, floor for floor, whenever and in whatever order it is asked.
+pub(super) struct WalkUp(std::sync::Mutex<WalkUpSearch>);
+
+/// [`WalkUp`]'s search, as far as it has gone.
+enum WalkUpSearch {
+    /// No floor at the start point: the set is empty.
+    NoStart,
+    /// From the start floor: the floors seen so far, and the queue (its first `head` taken).
+    From { around: Vec3, radius: f32, part: u32, seen: FloorBits, queue: Vec<NodeId>, head: usize },
+}
+
+impl WalkUpSearch {
+    /// Whether the search has more floors to take: not at the cap, and the queue not done (the whole search's own end).
+    fn open(queue: &[NodeId], head: usize) -> bool {
+        head < queue.len() && queue.len() < WALK_UP_MAX_FLOORS
     }
 }
 
@@ -731,8 +806,10 @@ impl TacticsBase {
             walkable,
             progress,
             exit_fields: ExitFields::default(),
+            walk_parts: WalkParts::default(),
         };
         base.exit_fields = base.exit_fields();
+        base.walk_parts = WalkParts::build(&base.world.grid);
         let sides: Vec<i32> = {
             let mut sides: Vec<i32> = base.world.map.spawns.iter().map(|s| s.team).collect();
             sides.sort_unstable();
@@ -869,7 +946,15 @@ impl TacticsBase {
     /// [exit fields at load] The exit fields' rules and the ms they took to make (for the log).
     pub fn exit_fields_line(&self) -> String {
         let floors: usize = self.exit_fields.fields.iter().map(|(_, f)| f.len()).sum();
-        format!("exit fields: {} rules, {} floor answers, made in {:.0} ms", self.exit_fields.fields.len(), floors, self.exit_fields.built_ms)
+        format!(
+            "exit fields: {} rules, {} floor answers, made in {:.0} ms; walk-up parts: {} over {} floors, made in {:.0} ms",
+            self.exit_fields.fields.len(),
+            floors,
+            self.exit_fields.built_ms,
+            self.walk_parts.parts,
+            self.walk_parts.part.len(),
+            self.walk_parts.built_ms
+        )
     }
 
     /// The marking it was built for ([`Marking`]).
@@ -993,8 +1078,10 @@ impl TacticsBase {
                     walkable,
                     progress,
                     exit_fields: ExitFields::default(),
+                    walk_parts: WalkParts::default(),
                 };
                 base.exit_fields = base.exit_fields();
+                base.walk_parts = WalkParts::build(&base.world.grid);
                 Ok(base)
             },
             Self::digest,
@@ -1017,6 +1104,7 @@ impl TacticsBase {
             + self.regions.memory_bytes()
             + self.hot.hot_bytes()
             + self.walkable.len() * 8
+            + self.walk_parts.part.len() * 4
             + self
                 .exits
                 .iter()
@@ -3080,9 +3168,10 @@ impl Tactics {
                 } else if !self.allowed(node, time, query.side, false) {
                     "not_allowed"
                 } else if at.y > query.around.y + STOREY_FROM_M
-                    && !by_walk
-                        .get_or_insert_with(|| self.walk_up_set(self.walk_up_anchor(query), query.max_m + WALK_UP_MARGIN_M))
-                        .contains(node)
+                    && !self.walk_up_has(
+                        by_walk.get_or_insert_with(|| self.walk_up_set(self.walk_up_anchor(query), query.max_m + WALK_UP_MARGIN_M)),
+                        node,
+                    )
                 {
                     "storey_no_walk"
                 } else if query.sight_to.is_some_and(|t| !self.sees(still_eye(at, true), t + Vec3::new(0.0, 1.0, 0.0))) {
@@ -3183,7 +3272,7 @@ impl Tactics {
                 continue;
             }
             // A spot on a storey over the anchor is one a walk up gets to (stairs,
-            // a ramp), not one only a jump chain does ([`Self::walk_up_from`]).
+            // a ramp), not one only a jump chain does ([`Self::walk_up_has`]).
             // [CPU] Asked after the sight rays above, which are pure tests as this
             // one is (a spot passes all or is left out, in any order): the walk-up
             // set (a search of up to 40,000 floors, 2.2 ms) is made only when a
@@ -3193,9 +3282,10 @@ impl Tactics {
             // tdm m6 s1). Before the line of fire below, whose tallies count only
             // the spots that pass.
             if spot.at.y > query.around.y + STOREY_FROM_M
-                && !by_walk
-                    .get_or_insert_with(|| self.walk_up_set(self.walk_up_anchor(query), query.max_m + WALK_UP_MARGIN_M))
-                    .contains(spot.node)
+                && !self.walk_up_has(
+                    by_walk.get_or_insert_with(|| self.walk_up_set(self.walk_up_anchor(query), query.max_m + WALK_UP_MARGIN_M)),
+                    spot.node,
+                )
             {
                 continue;
             }
@@ -3316,7 +3406,7 @@ impl Tactics {
         if let Some((_, set)) = kept.iter().find(|(k, _)| *k == key) {
             return set.clone();
         }
-        let set = Arc::new(self.walk_up_from(around, radius));
+        let set = Arc::new(self.walk_up_start(around, radius));
         if kept.len() >= WALK_UP_KEPT {
             kept.remove(0);
         }
@@ -3324,37 +3414,74 @@ impl Tactics {
         set
     }
 
-    /// The search [`Self::walk_up_set`] keeps.
-    fn walk_up_from(&self, around: Vec3, radius: f32) -> WalkUp {
+    /// The search [`Self::walk_up_set`] keeps, begun: nothing searched past the start floor ([`Self::walk_up_has`] goes on).
+    fn walk_up_start(&self, around: Vec3, radius: f32) -> WalkUp {
+        let grid = &self.world.grid;
+        let search = match grid.locate(around, LOCATE_M) {
+            None => WalkUpSearch::NoStart,
+            Some(start) => {
+                let mut seen = FloorBits::new(grid.len());
+                seen.insert(start);
+                WalkUpSearch::From { around, radius, part: self.base.walk_parts.of(start), seen, queue: vec![start], head: 0 }
+            }
+        };
+        WalkUp(std::sync::Mutex::new(search))
+    }
+
+    /// Whether `node` is in the walk-up set `set` ([`WalkUp`]): seen already; else not when it lies in another part of the Walk
+    /// links than the start; else the search goes on, a floor's links at a time in its own order, until it comes to `node` or
+    /// ends.
+    pub(super) fn walk_up_has(&self, set: &WalkUp, node: NodeId) -> bool {
+        let mut search = set.0.lock().unwrap_or_else(|e| e.into_inner());
+        match &*search {
+            WalkUpSearch::NoStart => return false,
+            WalkUpSearch::From { seen, .. } if seen.contains(node) => return true,
+            WalkUpSearch::From { part, .. } if self.base.walk_parts.of(node) != *part => {
+                #[cfg(test)]
+                walk_up_counts::count(walk_up_counts::OTHER_PART);
+                return false;
+            }
+            WalkUpSearch::From { .. } => {}
+        }
+        let found = self.walk_up_grow(&mut search, Some(node));
+        #[cfg(test)]
+        walk_up_counts::count(if found { walk_up_counts::FOUND } else { walk_up_counts::SEARCHED_OUT });
+        found
+    }
+
+    /// Goes on with `search` until it comes to `until` (whether it did), or to its end (`until` none: to its end).
+    fn walk_up_grow(&self, search: &mut WalkUpSearch, until: Option<NodeId>) -> bool {
         use mapdata::LinkKind;
         let grid = &self.world.grid;
-        let mut seen = WalkUp::new(grid.len());
-        let Some(start) = grid.locate(around, LOCATE_M) else {
-            return seen;
+        let WalkUpSearch::From { around, radius, seen, queue, head, .. } = search else {
+            return false;
         };
-        let mut queue = vec![start];
-        let mut count = 1usize;
-        seen.insert(start);
-        let mut head = 0;
-        while head < queue.len() {
-            let u = queue[head];
-            head += 1;
-            if count >= WALK_UP_MAX_FLOORS {
-                break;
-            }
+        while WalkUpSearch::open(queue, *head) {
+            let u = queue[*head];
+            *head += 1;
             // [CPU hot paths] `grid.links` by the base's load-time lookups: the same links in the same order.
             for (v, kind) in self.base.hot.hot_links(grid, u) {
-                if kind == LinkKind::Walk
-                    && !seen.contains(v)
-                    && grid.position(v).distance_xz(around) <= radius
-                {
+                if kind == LinkKind::Walk && !seen.contains(v) && grid.position(v).distance_xz(*around) <= *radius {
                     seen.insert(v);
-                    count += 1;
                     queue.push(v);
                 }
             }
+            if until.is_some_and(|node| seen.contains(node)) {
+                return true;
+            }
         }
-        seen
+        false
+    }
+
+    /// The whole set, its search run to its end: a bit a floor, and its floors (the tests' and the measurement's view).
+    #[cfg(test)]
+    fn walk_up_from(&self, around: Vec3, radius: f32) -> (Vec<u64>, usize) {
+        let mut search = self.walk_up_start(around, radius).0.into_inner().unwrap_or_else(|e| e.into_inner());
+        self.walk_up_grow(&mut search, None);
+        match search {
+            WalkUpSearch::NoStart => (FloorBits::new(self.world.grid.len()).0, 0),
+            WalkUpSearch::From { seen, queue, .. } => (seen.0, queue.len()),
+        }
     }
 
     /// [CPU hot paths] [`Self::walk_up_from`] as it was before the base's lookups (`grid.links`), and the new one, uncached:
@@ -3362,13 +3489,11 @@ impl Tactics {
     #[cfg(test)]
     pub(super) fn walk_up_both(&self, around: Vec3, radius: f32, hot: bool) -> (Vec<u64>, usize) {
         if hot {
-            let set = self.walk_up_from(around, radius);
-            let count = set.0.iter().map(|w| w.count_ones() as usize).sum();
-            return (set.0, count);
+            return self.walk_up_from(around, radius);
         }
         use mapdata::LinkKind;
         let grid = &self.world.grid;
-        let mut seen = WalkUp::new(grid.len());
+        let mut seen = FloorBits::new(grid.len());
         let Some(start) = grid.locate(around, LOCATE_M) else {
             return (seen.0, 0);
         };
@@ -3872,11 +3997,48 @@ pub(super) mod tests {
             let set = t.walk_up_set(around, radius);
             nonempty += usize::from(!reference.is_empty());
             for node in 0..grid.len() as NodeId {
-                assert_eq!(set.contains(node), reference.contains(&node), "{around:?} {radius} {node}");
+                assert_eq!(t.walk_up_has(&set, node), reference.contains(&node), "{around:?} {radius} {node}");
             }
             assert!(Arc::ptr_eq(&set, &t.walk_up_set(around, radius)));
         }
         assert!(nonempty > 20, "{nonempty}");
+    }
+
+    /// [bot CPU] M4: the set asked a floor at a time, the search going only as far as each answer needs, in any order (here
+    /// last floor first, then a shuffled order), is the whole search's set; a floor of another part of the Walk links than the
+    /// start is never in it.
+    #[test]
+    fn the_walk_up_set_asked_in_any_order_is_the_whole_search() {
+        let t = Tactics::new(tests::platform_world(), 1.0);
+        let grid = &t.world.grid;
+        let mut rng = Rng::new(11);
+        let mut other_part = 0;
+        for i in 0..120 {
+            let around = Vec3::new(rng.range(0.0, 70.0), rng.range(-1.0, 6.0), rng.range(0.0, 45.0));
+            let radius = [4.0, 12.0, 30.0, 80.0][i % 4];
+            let reference = t.walk_up_reference(around, radius);
+            let backwards = t.walk_up_start(around, radius);
+            for node in (0..grid.len() as NodeId).rev() {
+                assert_eq!(t.walk_up_has(&backwards, node), reference.contains(&node), "{around:?} {radius} {node}");
+            }
+            let shuffled = t.walk_up_start(around, radius);
+            let mut order: Vec<NodeId> = (0..grid.len() as NodeId).collect();
+            for k in (1..order.len()).rev() {
+                order.swap(k, (rng.next_u64() % (k as u64 + 1)) as usize);
+            }
+            for node in order {
+                assert_eq!(t.walk_up_has(&shuffled, node), reference.contains(&node), "{around:?} {radius} {node}");
+            }
+            if let Some(start) = grid.locate(around, LOCATE_M) {
+                for node in 0..grid.len() as NodeId {
+                    if t.base.walk_parts.of(node) != t.base.walk_parts.of(start) {
+                        other_part += 1;
+                        assert!(!reference.contains(&node));
+                    }
+                }
+            }
+        }
+        assert!(other_part > 0, "the platform world has floors in other parts");
     }
 
     /// The same on the real maps, where the search is cut by its cap too.
@@ -3915,9 +4077,9 @@ pub(super) mod tests {
                     kept_t += start.elapsed();
                     cut += usize::from(reference.len() >= WALK_UP_MAX_FLOORS);
                     checked += 1;
-                    let in_set = (0..grid.len() as NodeId).filter(|&n| set.contains(n)).count();
+                    let in_set = (0..grid.len() as NodeId).filter(|&n| t.walk_up_has(&set, n)).count();
                     assert_eq!(in_set, reference.len(), "{level} {mode} {around:?} {radius}");
-                    assert!(reference.iter().all(|&n| set.contains(n)));
+                    assert!(reference.iter().all(|&n| t.walk_up_has(&set, n)));
                 }
             }
         }
@@ -5266,4 +5428,21 @@ pub(super) mod tests {
         assert!(out.distance_xz(plain) > 2.0, "{out:?} against {plain:?}");
     }
 
+}
+
+/// [bot CPU] M4: how the walk-up questions were answered (test builds, the bench): seen already is not counted.
+#[cfg(test)]
+pub(crate) mod walk_up_counts {
+    use std::sync::atomic::{AtomicU64, Ordering::Relaxed};
+    pub const OTHER_PART: usize = 0;
+    pub const FOUND: usize = 1;
+    pub const SEARCHED_OUT: usize = 2;
+    static COUNTS: [AtomicU64; 3] = [AtomicU64::new(0), AtomicU64::new(0), AtomicU64::new(0)];
+    pub fn count(what: usize) {
+        COUNTS[what].fetch_add(1, Relaxed);
+    }
+    /// The counts so far: another part, found by the search, searched to its end.
+    pub fn counts() -> [u64; 3] {
+        std::array::from_fn(|k| COUNTS[k].load(Relaxed))
+    }
 }
