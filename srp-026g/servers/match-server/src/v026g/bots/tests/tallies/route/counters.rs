@@ -45,7 +45,10 @@ pub(super) fn escapes() -> Box<dyn RouteTopic> {
         || super::super::tactics::escapes::counts().to_vec(),
         |d, line| {
             line.main.push(format!("escapes_back {} escapes_on {} escapes_none {}", d[0], d[1], d[2]));
-            line.ends.push(format!("escapes_cross_zone {} escapes_drop_zone {}", d[3], d[4]));
+            line.ends.push(format!(
+                "escapes_cross_zone {} escapes_drop_zone {} escapes_field_past_search {} escapes_field_none_found {}",
+                d[3], d[4], d[5], d[6]
+            ));
         },
     )
 }
