@@ -252,9 +252,10 @@ or count check (0x2002F4C40, 0x2002F4D30). So an item loads when the rule list a
 
 ## 5. Open
 
-* DF `code` values; late join (not needed). E0 and the resync answers to a CC run only with the world host
-  (`netcode.md`: the host's hashes and a DE of the running world), and only while resync is on; without the host there
-  is no E0 and a CC is answered with the cached DE, which a running client ignores (no repair).
+* DF `code` values; late join (not needed). E0 runs only while a world host's link is live (`netcode.md`: the host's
+  hashes). A CC is then answered with a DE of the running world while resync is on for that client, else logged and
+  not answered. Without a live host there is no E0 and a CC is answered with the cached DE, which a running client
+  ignores (no repair).
 * The mask's write path from the check boxes (7.1); the original rotation and map pool (server settings, in no client file); `match_level`.
 
 ## 6. Game-run checks (two game copies), in order
