@@ -32,9 +32,9 @@ your own copy, and the patched exe is made from it.
 | File | What |
 |---|---|
 | `patch_launcher_026g.py` | Builds the patched launcher from the original. Python 3, nothing else |
-| `launcher_values_026g.asm`, `.bin` | The new code (304 bytes and three text slots): the values the launcher used to read from the installer's registry key, worked out from where the launcher is; and Enter pressing PLAY. Assembling the source again gives the same bytes |
+| `launcher_values_026g.asm` | The new code (304 bytes and three text slots): the values the launcher used to read from the installer's registry key, worked out from where the launcher is; and Enter pressing PLAY. Assembled by every build (`patch_launcher_026g.py`'s `code()`) |
 | `launcher_pages.py` | The ten small pages the launcher shows from its own folder while the server's page loads and when it cannot be loaded |
-| `check_*_026g.py` | Run the patched code under Unicorn: the registry reads (patch 4), the language (14), the install status (13), the "Allow torrent" box (15), the "Relay" row (16) |
+| `check_*_026g.py` | Run the patched code under Unicorn: the registry reads (patch 4), the language (14), the install status (13), the "Allow torrent" box (15), the "Relay" row (16), the file count of a download (17) |
 | `selftest_launcher_026g.py` | Builds it in memory and checks it: every changed byte is one named below, the PE is well formed, the hook and its way back, the addresses, the relocations, no old address left, the `.asm` gives the `.bin` |
 | `../make_client_026g.py` | Puts all of it into the players' ZIP (the default; `--no-launcher` leaves it out) |
 | `../../../client/updater/` | The updater: Rust source, its tests |
@@ -44,16 +44,17 @@ your own copy, and the patched exe is made from it.
 
 ```
 python patch_launcher_026g.py <game>/binaries/x86/survarium_launcher.exe <out>/launcher_skhid.exe [--site=https://skhid.link]
-python selftest_launcher_026g.py <game>/binaries/x86/survarium_launcher.exe --nasm=<nasm>
+python selftest_launcher_026g.py <game>/binaries/x86/survarium_launcher.exe
 python check_language_026g.py <game>/binaries/x86/survarium_launcher.exe   # the language code, under Unicorn
 python check_registry_026g.py <game>/binaries/x86/survarium_launcher.exe   # no registry call where the key was read, under Unicorn
 python check_torrent_box_026g.py <game>/binaries/x86/survarium_launcher.exe # the "Allow torrent" box (patch 15), under Unicorn
 python check_relay_box_026g.py <game>/binaries/x86/survarium_launcher.exe   # the "Relay" row (patch 16), under Unicorn
+python check_file_count_026g.py <game>/binaries/x86/survarium_launcher.exe  # "(5/69)" of a download (patch 17), under Unicorn
 ```
 
-After a change of the game's languages (`../localization_026g.py --write`
-writes `launcher_languages_026g.inc`), assemble the .bin again:
-`nasm -f bin -DCAVE=0x49A000 launcher_values_026g.asm -o launcher_values_026g.bin`.
+Each of them assembles `launcher_values_026g.asm` (the arena's NASM 2.16;
+`patch_launcher_026g.py`'s `code()`), with the game's languages, so no .bin
+is committed.
 
 Normally `make_client_026g.py` does it, with the updater and the pages:
 
@@ -91,8 +92,10 @@ installs whenever the ZIP's checksum changes.
    again by itself, and the new updater goes on from here.
 3. Then the game's patches: the bar shows "checking" while a patch file
    that changed since it was last checked is hashed, and a patch the
-   server lists that is missing or damaged is downloaded ("Extracting file
-   resources.db.patch_<n>" once it is in place). The first start after new
+   server lists that is missing or damaged is downloaded, the line saying
+   which of how many after what is left of it, "120 MB left (5/69)": 64
+   more to go (patch 17) ("Extracting file resources.db.patch_<n>" once it
+   is in place). The first start after new
    content downloads it; other starts take a second.
 4. "The latest version of the game is installed" and PLAY: only when the
    game's files are the server's ZIP, its exe is a revision the server lets
@@ -108,12 +111,12 @@ installs whenever the ZIP's checksum changes.
    launcher closes. Since game patch 79 (`../../docs/notes/language-option.md`)
    it passes no `-localization=`: the game's language is the one chosen in
    its Settings (user.cfg).
-7. The language button (EN, UA, RU, DE, PL, SR, CS, HU, FI, BE) opens a
+7. The language button (EN, UA, RU, DE, PL, SR, CS, HU, FI, BE, HR, PT) opens a
    menu of every language of the game, each by its own name, the current
    one checked. A pick is the game's language: it is written to the game's
    user.cfg at once, as the game's Settings write it, and the launcher's
    texts and page change with it (English for a language the launcher has
-   none in: SR, CS, HU, FI, BE). At its start the launcher shows user.cfg's
+   none in: SR, CS, HU, FI, BE, HR, PT). At its start the launcher shows user.cfg's
    language, else the one the game will start in (patch 14).
 
 "Watch replay" in the lobby's History (game patch revision 14) does not go
@@ -265,13 +268,6 @@ while srp is stopped none of it answers):
   (`resources.db.patch_<n>`, each with its SHA-256 and the addresses of its
   file on the patches server): those the server's game data was made of,
   read at srp's start.
-- `GET /resources/<sha256>` (64 lower-case hex digits, no other name) hands
-  out the file of that name in the folder `resources` beside the download
-  file (`./download/resources/` of the compose file): the stock bytes of
-  the `resources.db` regions earlier updaters rewrote in place, for the
-  updater's one-time restore. Whole or from a `Range`, `HEAD` too, five at
-  a time in slots of their own (they never take `/download`'s), "not found"
-  for a name that is not there.
 - `GET /launcher/v2/<product>/?lang=<en|ru|ua|de|pl>` is the page.
 - `GET /launcher/places/<uk|en>` is what changes on that page (the board,
   the matches, the numbers, the maintenance line), each part behind the
@@ -353,12 +349,12 @@ When the launcher or the updater was among the files, the run ends here
    whose ZIP is older than its setting: a release half put in place), and
    the watch (11) starts the launcher anew once the server offers another
    ZIP. An exe whose revision cannot be read is left to the login server.
-9. The restore, best effort, once: the `resources.db` regions an earlier
-   updater (before the patches) rewrote in place get their stock bytes
-   back, from the copies it kept, else from `/resources/<sha256>`. A failure
-   is logged and tried again at the next start; it never keeps PLAY off.
-   While the game runs it holds `resources.db`, and the step changes
-   nothing ([updater README](../../../client/updater/README.md#restoring-resourcesdb)).
+9. What the updaters of before the patches left beside the updater (their
+   record of the `resources.db` regions they rewrote in place, its journal,
+   the copies and blobs they kept) is deleted, best effort; `resources.db`
+   itself is never changed. A file Windows does not delete is tried again
+   at the next start; it never keeps PLAY off
+   ([updater README](../../../client/updater/README.md#what-earlier-updaters-left)).
 10. The patch step, required: `GET /patches`; every listed patch file in
     the game folder is checked (hashed when it changed since its last hash,
     or that was more than a week ago), a patch file the list has not is
@@ -376,8 +372,8 @@ When the launcher or the updater was among the files, the run ends here
 
 The offline case: when `/api/client-files` does not answer (three tries),
 the original game is present, and the files the updater installed last are
-whole, the box says "No update check: <why>. ..." and the restore and the
-patch step run against the list kept from the last run: PLAY is on only
+whole, the box says "No update check: <why>. ..." and steps 9 and 10 run
+against the list kept from the last run: PLAY is on only
 when that run ended with every patch in place and the folder still is so
 (a first start with the server down, or one after a new overlay, keeps PLAY
 off). The watch then leaves PLAY on while the server stays away, and starts
@@ -422,7 +418,6 @@ ZIP's files go in all or none, and a patch file is a checked file or none.
 | A Skhid file cannot be read for another reason (access denied) | Repaired: the ZIP downloaded and installed again; when that fails too, the install's error naming the file, PLAY off. Never "up to date" |
 | The server lets in a newer game than its ZIP (a release half put in place) | "The server lets in game revision n and up; this game is revision r, and the update to it is not offered yet (the server is being updated). Click OK: the launcher keeps looking and starts anew with the update. PLAY stays off until this is done."; the window starts anew by itself once the server offers the new ZIP (after OK: a launcher with a box open cannot close, and a second one is never started beside it) |
 | A patch cannot be had or put in place (the list cannot be fetched or read, every address of a patch fails, a wrong checksum, the game is running, an antivirus holds the file, the disk is full) | Status "Error", PLAY stays off, a box that says which and what to do, ending "PLAY stays off until this is done." The next start tries again (the cases: [updater README](../../../client/updater/README.md#patches)) |
-| The restore of `resources.db` fails (the game is running, a blob is missing on the server) | Nothing: no box, PLAY as usual. The reason is in the log after `resources:`; it is tried again at the next start |
 | The server goes away while the window is open (a release, a restart) | "Server maintenance...", PLAY off; once it answers, the window starts anew by itself and updates |
 | `updater_skhid.exe` is missing | The launcher's own box: "Cannot start updater_skhid.exe. Copy the files again." |
 | The launcher is closed during an update | The updater stops; nothing was changed, or everything was |
@@ -636,10 +631,10 @@ the game in Polish, his Windows' language): the launcher's language choice
 is the game's, in one place, user.cfg, and the launcher offers every
 language the game has. `docs/notes/language-option.md` has the rule.
 
-- **One list.** `launcher_languages_026g.inc` is generated by
-  `localization_026g.py --write` from its `LANGUAGES` (the game's own list:
+- **One list.** `launcher_languages_026g.inc` is generated at every build
+  from `localization_026g.py`'s `LANGUAGES` (the game's own list:
   resource name, own name, Windows locale rule, two-letter code), as
-  the game's table is; `check_localization_026g.py` fails when it is stale.
+  the game's table is.
   Exact Croatian LANGIDs take precedence over the Serbian primary-id fallback,
   as in the game. The launcher's own string tables and pages stay its five (`LAUNCHER_UI`
   there): another language shows them in English.
@@ -791,7 +786,9 @@ shows; the launcher only shows it and passes the pick on.
   without `updater_skhid.relay`, or with an older updater, there is no row.
   A tooltip (comctl32's, 30 s) says in a few lines what the relay is, the
   three choices, and what the row is now (in auto, the route the probe
-  picked, or that it is checking).
+  picked, or that it is checking). It says what the relay costs: "On:
+  always through the relay (higher ping)", and for auto on the relay "auto:
+  through the relay (higher ping): direct did not answer."
 - **The views** (message `0A <view>` of the updater, its one byte
   `updater_logic::route::Shown::byte`): 1 auto, probing; 2 auto, direct
   ("auto (off)"); 3 auto, the relay ("auto (on)"); 4 auto, neither answered;
@@ -850,6 +847,42 @@ shows; the launcher only shows it and passes the pick on.
   launcher window under Wine (2026-11-20, a headless display, the test
   folder of the PR); the gear and its menu not yet.
 
+### 17. "(5/69)": which file of how many is being downloaded
+
+The owner (2026-11-22): a download of many patches says which file of which
+it is at, "like (5/69)", so that 64 more are understood to follow. The
+updater knows (`client/updater`, its patch step's files to fetch) and says
+it; the launcher adds it to its downloading line.
+
+- **What it looks like:** the downloading line's middle text, "120 MB
+  left", is "120 MB left (5/69)" while the updater downloads the 5th of 69
+  patches. Numbers only: the same in every language. The Skhid ZIP and the
+  original game are one file each and have no count; a patch the torrent
+  gave is counted and not shown (nothing is downloaded for it).
+- **The message** `0B <file> <of>` of the updater (two 16-bit numbers; `0B
+  00 00 00 00`: no count, sent when the downloads end, however they end).
+  The original launcher's dispatch ignored 0B as it did 0A: its table entry
+  (0x160C6, a relocated dword) is now `count_message`, which keeps the two
+  numbers, or none when the file is 0 or past the last. An older launcher
+  ignores the message.
+- **The line:** in the updater's state 9 `refresh_status` loads "%s left"
+  (string 0x8D, its `load_string` call at 0x16ADF, a buffer of 128
+  characters) and formats what is left into it. That call is `count_text`:
+  `load_string`'s own, then " (5/69)" after the text while a count is kept
+  and 16 characters are free. The line is painted anew with every progress
+  message (four a second), so the count needs no repaint of its own. The
+  text is only there while the total is known (the original's rule for
+  "... left").
+- **Its state:** 4 bytes at 0x4A810, after the relay row's; `.data`'s
+  VirtualSize is 0x6814 now.
+- Checked: `check_file_count_026g.py` runs message 0B from the dispatch to
+  the handlers' end (kept, none for 0 of 0, file 0 and a file past the last;
+  the registers and the stack as they were) and the line's site (the count
+  after `load_string`'s text, 1 of 1 to 65535 of 65535; none without a
+  count or without room; the registers as they were), under Unicorn at two
+  bases. The other checks still pass. Not yet seen in a real launcher
+  window.
+
 ## The pipe, in short
 
 The launcher makes `\\.\pipe\vostok_updater_pipe-Survarium`, then starts the
@@ -870,6 +903,7 @@ and that many bytes, the first being its type.
 | `05 <text>` | a message box with the text (at most 255 ASCII characters) |
 | `02 0F` and the pipe closed | the launcher closes |
 | `0A <view>` | the "Relay" row (patch 16): hidden until then |
+| `0B <file> <of>` (two 16-bit numbers) | "(5/69)" after "... left" while downloading (patch 17); `0B 00 00 00 00`: no count |
 | `13 <seconds>` | after `02 16`: "The server is restarting. Next try in <seconds> s." (patch 16); `13 00`: "Server maintenance..." again |
 
 The launcher says `1B` (stop) when its window is closed, `22`, `23` or `24`
@@ -983,8 +1017,4 @@ installation and service.
    starts anew.
 4. Game content is not in the ZIP: it ships as `resources.db.patch_<n>`
    files on a patches server, listed by the game server at `/patches`
-   (`../../../client/updater/README.md`, "Patches"). Keep
-   `download/resources/` with the originals' blobs of the regions earlier
-   releases changed in place: the updater puts the stock bytes back from
-   the player's own copy, or from `/resources/<sha256>` when that copy is
-   gone.
+   (`../../../client/updater/README.md`, "Patches").

@@ -276,6 +276,16 @@ impl DropTable {
         self.rarity_at(unit(rng) * top)
     }
 
+    /// The rarity level a new piece of gear `params` gets of this table (steps 5 and 6): a rarity
+    /// rolled, its level of the item's `rarity` list (its last if it has fewer): how many
+    /// modifications it comes with (`Modifications::roll_for_rarity`).
+    pub fn gear_rarity(&self, params: &ItemParams, rng: &mut Rng) -> u8 {
+        let rarity = usize::from(self.roll_rarity(rng));
+        let levels = params.gear_rarity;
+        let used = rarity.min(levels.len().saturating_sub(1));
+        levels.get(used).copied().unwrap_or(0)
+    }
+
     /// The items a roll of `category` at item level `level` picks among
     /// (steps 2 and 3): those that can drop, of that level unless the
     /// category goes by no level.

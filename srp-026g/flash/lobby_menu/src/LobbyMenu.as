@@ -151,6 +151,7 @@ package
    import survarium.player.ProfileSelector;
    import survarium.quest.QuestList;
    import survarium.rooms.RoomsWindow;
+   import survarium.upgrade.UpgradeSlot;
    import survarium.upgrade.UpgradeWindow;
    
    public class LobbyMenu extends MovieClip
@@ -331,7 +332,7 @@ package
       
       protected var _superWidth:uint = 1920;
       
-      protected var _load_images:Array = [Level1_day,Level2_day,Level3_day,Level3_evn,Level3_rain,Level4_day,Level1_rain,Level1_evn,Level2_rain,Level2_evn,Level4_rain,Level4_evn,Level5_day,Level5_rain,Level5_evn,Level6_day,Level6_rain,Level6_evn,Level7_day,Level7_rain,Level7_evn,Level8_day,Level8_rain,Level8_evn,Level8_night,Level8_prerain,Level9_day,Level9_evn,Level9_rain,Level_v011e,Level_v069d_rudnya,Level_cs_mp_bath,Level_cs_mp_military_1,Level_cs_training_camp,Level_cs_mp_rembasa,Level_soc_ug_station,Level_soc_ug_depository,null,null,Level_cs_mp_firestation,Level_v011e_chemical];
+      protected var _load_images:Array = [Level1_day,Level2_day,Level3_day,Level3_evn,Level3_rain,Level4_day,Level1_rain,Level1_evn,Level2_rain,Level2_evn,Level4_rain,Level4_evn,Level5_day,Level5_rain,Level5_evn,Level6_day,Level6_rain,Level6_evn,Level7_day,Level7_rain,Level7_evn,Level8_day,Level8_rain,Level8_evn,Level8_night,Level8_prerain,Level9_day,Level9_evn,Level9_rain,Level_v011e,Level_v069d_rudnya,Level_cs_mp_bath,Level_cs_mp_military_1,Level_cs_training_camp,Level_cs_mp_rembasa,Level_soc_ug_station,Level_soc_ug_depository,null,null,Level_cs_mp_firestation,Level_v011e_chemical,Level9_day,Level9_evn,Level9_rain];
       
       private var spriteHighlightContainer:MovieClip = new MovieClip();
       
@@ -1062,6 +1063,8 @@ package
          // The modification window's item (a message): its card, the inventory's.
          this._top_container.addEventListener(MessageRerollItem.SHOW_CARD,this.showRerollItemHint);
          this._top_container.addEventListener(MessageRerollItem.HIDE_CARD,this.hideItemHint);
+         this.modifierWindow.addEventListener(UpgradeWindow.SHOW_CARD,this.showUpgradeItemHint);
+         this.modifierWindow.addEventListener(UpgradeWindow.HIDE_CARD,this.hideItemHint);
          this.player_profile.profileItems.addEventListener(PaperDollBase.PAPERDOLL_UPDATED,this.updateHintItem);
          shop_list = new SrvGangShop();
          this.shop_list.name = "inventory_list";
@@ -1333,6 +1336,19 @@ package
          this.showKitCard(element.cardItem,at.x,at.y);
       }
 
+      // The attachments window's slot hovered: its item's card beside the slot, as a kit slot's.
+      private function showUpgradeItemHint(e:Event) : void
+      {
+         var slot:UpgradeSlot = this.modifierWindow.cardSlot;
+         if(slot == null || this.modifierWindow.cardItem == null)
+         {
+            return;
+         }
+         this.hideItemHint(null);
+         var at:Point = this._cards.globalToLocal(slot.localToGlobal(new Point(slot.width + 3,-5)));
+         this.showKitCard(this.modifierWindow.cardItem,at.x,at.y);
+      }
+
       // The modification window's item: its card beside the window at its top, left of it as the
       // craft window's, right of it when the left has no room.
       private function showRerollItemHint(e:Event) : void
@@ -1449,6 +1465,11 @@ package
          if(e.target is ScrollingList)
          {
             this.itemHintRenderer.x = this.inventory_list.x - 195 - this.itemHintRenderer.width;
+            // left of the open attachments window, not over it
+            if(this.modifierWindow.visible && this.modifierWindow.parent != null)
+            {
+               this.itemHintRenderer.x = Math.min(this.itemHintRenderer.x,this.modifierWindow.container.getBounds(this._cards).left - 3 - this.itemHintRenderer.width);
+            }
          }
          else
          {
@@ -1877,12 +1898,6 @@ package
          }
          this.modifierWindow.removeEventListener(Event.CLOSE,this.closeModifierWindow);
          this.inventory_list.removeEventListener(Event.CLOSE,this.closeModifierWindow);
-         if(this._upgradeFromShop)
-         {
-            this.inventory_list.toggleShopMode(true);
-            _upgradeFromShop = false;
-         }
-         this.inventory_list.focusCategory(SuperCategory.NO_FOCUS);
          this.inventory_list.mainTabBar.enabled = true;
          this.inventory_list.inventoryTabPage.enabled = true;
          this.inventory_list.updateItemCard = true;
@@ -1899,6 +1914,13 @@ package
          {
             removeChild(this.modifierWindow);
          }
+         // the list again with the window closed: what it left out as unfit is listed (listsItem)
+         if(this._upgradeFromShop)
+         {
+            this.inventory_list.toggleShopMode(true);
+            _upgradeFromShop = false;
+         }
+         this.inventory_list.focusCategory(SuperCategory.NO_FOCUS);
          this.player_profile.visible = this.inventory_list.visible;
          this.dragRegion.mouseEnabled = true;
          if(this._upgradeShown)
@@ -2108,6 +2130,7 @@ package
       
       private function openModifierWindow(e:Event) : void
       {
+         var page:int = this.inventory_list.takeUpgradePage();
          if(this.modifierWindow.visible == true)
          {
             trace("!!modifierWindowIsOPened");
@@ -2145,7 +2168,7 @@ package
          // on the display list before setData, which places it by its parent's inventory list:
          // the close takes it off (#302), and a second open threw there and stopped half way
          addChild(this.modifierWindow);
-         this.modifierWindow.setData(itemData);
+         this.modifierWindow.setData(itemData,true,page);
          // the game shows a weapon in the character's hands (patch 32), any other item as before
          this._upgradeShown = Boolean(itemData);
          if(this._upgradeShown)
@@ -3375,6 +3398,7 @@ package
       {
          trace("setup_inventory_data::",value.length);
          this.inventory_list.setupInventoryData(value);
+         this.updateModifierWindowItem();
          if(this.victory_screen.visible)
          {
             this.victory_screen.updateVoucherCount();
@@ -3412,6 +3436,17 @@ package
       public function update_inventory_item(value:Object) : void
       {
          this.inventory_list.updateInventoryItem(value);
+         this.updateModifierWindowItem();
+      }
+
+      // An open upgrade window shows the item as the inventory now has it (UpgradeWindow.itemUpdated).
+      private function updateModifierWindowItem() : void
+      {
+         var itemId:uint = Boolean(this.modifierWindow) ? this.modifierWindow.getItemId() : 0;
+         if(itemId != 0)
+         {
+            this.modifierWindow.itemUpdated(this.inventory_list.getInventoryItem(itemId));
+         }
       }
       
       public function fill_victory_screen_player(value:Object) : void
@@ -3890,7 +3925,7 @@ package
       public function fill_skills(value:Array) : void
       {
          trace("root.fill_skills");
-         PlayerInfo.medicalSkills(value);
+         PlayerInfo.committedSkills(value);
          this.charWindow.fillSkills(value);
          this.player_profile.updatePocketSize(PlayerInfo.pocketSize);
       }

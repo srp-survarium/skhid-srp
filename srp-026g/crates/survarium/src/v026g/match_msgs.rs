@@ -34,6 +34,8 @@ pub mod static_info;
 pub mod upload;
 
 use client_model::COMPRESSED_SNAPSHOT_BUFFER;
+/// What an upload request asks for: the horizon's world or a tick's.
+pub use srp_validate::messages::UploadRequest as UploadWanted;
 use upload::{Chunk, ChunkError};
 
 use super::lzma2;
@@ -464,9 +466,10 @@ pub enum ServerMessage {
     MoveProfileInput { from_tick: u8, to_tick: u8 },
     /// 0xF5.
     DiscardProfileInput { tick: u8 },
-    /// 0xF6 with its one payload byte: "upload your event-horizon world".
-    /// Only for patched clients ([`upload`]).
-    UploadRequest,
+    /// 0xF6: "upload your event-horizon world", or the world of a tick
+    /// (`srp_validate::messages::UploadRequest`). Only for patched clients
+    /// ([`upload`]); a tick only for one that said it answers it.
+    UploadRequest(UploadWanted),
 }
 
 impl ServerMessage {
@@ -537,7 +540,7 @@ impl ServerMessage {
             Self::ProfileInputRelay { .. } => id::PROFILE_INPUT_RELAY,
             Self::MoveProfileInput { .. } => id::MOVE_PROFILE_INPUT,
             Self::DiscardProfileInput { .. } => id::DISCARD_PROFILE_INPUT,
-            Self::UploadRequest => id::UPLOAD_REQUEST,
+            Self::UploadRequest(_) => id::UPLOAD_REQUEST,
         }
     }
 
@@ -647,8 +650,11 @@ impl ServerMessage {
             Self::MoveProfileInput { from_tick, to_tick } => out.extend([*from_tick, *to_tick]),
             Self::DiscardProfileInput { tick } => out.push(*tick),
             // The client's length getter refuses an empty 0xF6 and drops
-            // the datagram; the patch ignores the byte.
-            Self::UploadRequest => out.push(0),
+            // the datagram.
+            Self::UploadRequest(wanted) => {
+                let (bytes, len) = wanted.encode();
+                out.extend(&bytes[..len]);
+            }
         }
         out
     }
@@ -1382,7 +1388,8 @@ mod tests {
     #[test]
     fn the_upload_request_has_one_byte() {
         // client_patch.md §3.4: `F6 <unique> 00`.
-        assert_eq!(ServerMessage::UploadRequest.id(), 0xF6);
-        assert_eq!(ServerMessage::UploadRequest.payload(), [0x00]);
+        assert_eq!(ServerMessage::UploadRequest(UploadWanted::Horizon).id(), 0xF6);
+        assert_eq!(ServerMessage::UploadRequest(UploadWanted::Horizon).payload(), [0x00]);
+        assert_eq!(ServerMessage::UploadRequest(UploadWanted::Tick(9)).payload(), [0x01, 9]);
     }
 }

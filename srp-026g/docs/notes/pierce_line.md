@@ -10,8 +10,8 @@ kind, Buckshot and Slug (its players switch between them).
 - **The rule is the game's:** a bullet gets through a material when its penetration P is above the
   material's armour A (`try_pierce` stops it at P <= A; A = 0 lets every bullet through). No other
   threshold. The VSSK with 12.7x54 VPS (P 0.84) gets through stone.
-- **The value:** the material and the damage kept after it, `Concrete · 52%`: k = 1 - (1 - clamp((P -
-  A) / A, 0, 1))^2 against that material, 100 % at A = 0, rounded to a whole percent. Computed per
+- **The value:** the material and the damage kept after it, `Concrete · 41%`: k = 1 - (A / P)^2 (exe
+  patch 175) against that material, 100 % at A = 0, rounded to a whole percent. Computed per
   weapon and round at the content build (P = bullet_pierce x k_arp, single precision).
 - **Weapon card only.** The ammo card keeps its own armour piercing stat, no Pierces row.
 - **The card (normal view):** one row, `Pierces: <material> · <percent>`, of the weapon's best round:
@@ -62,7 +62,8 @@ with `Concrete · 52%` beside it does not fit the card's line). The value `st_sr
 - Each wall: `check_collision` 0x32D4E0 puts the triangle's material in bullet +4Ch and tries the
   pierce first (`try_pierce` 0x32D960), the ricochet (`try_reflect` 0x32DE40) only when it fails.
 - `try_pierce`: A = the material's `physic/armor` (material +4Ch, `game_material::load_from_config`
-  0x323A10). t = clamp((P - A) / A, 0, 1), 1 when A = 0; k = 1 - (1 - t)^2. k <= 0 (P <= A) stops the
+  0x323A10). t = clamp((P - A) / A, 0, 1), 1 when A = 0; k = 1 - (1 - t)^2; with exe patch 175 (client_patch.md
+  3.96) k = 1 - (A / P)^2, 1 when A = 0. k <= 0 (P <= A) stops the
   bullet; else its damage, P and speed are multiplied by k, its direction turned by a random angle up
   to the round's `pierce_dispersion_angle` x the material's `k_pierce_dispersion`. No thickness, no
   angle of incidence. PROVEN.
@@ -72,10 +73,10 @@ with `Concrete · 52%` beside it does not fit the card's line). The value `st_sr
 
 ## How it reaches the card
 
-- `scripts/content-edit/pierce-line-1.json`, the last edit row of `release/content.tsv`: UI property
+- `scripts/content-edit/pierce-line-1.json`, an edit row of `release/content.tsv`: UI property
   174 (not comparable: no bar) and, on each round the item dictionary pairs with a weapon
   (`items_compatibility`), a `ui_desc/props_list` line 174 `<weapon dict_id>:<rank>:<key>:<percent>
-  ...`, one entry per weapon (the 12.7x54 VPS: `... <VSSK's id>:6:st_srp_pierce_stone:36 ...`; the
+  ...`, one entry per weapon (the 12.7x54 VPS: `... <VSSK's id>:6:st_srp_pierce_stone:31 ...`; the
   rank the tier's place in the list, 0 glass .. 6 stone, so the order is the data's; at most 505
   bytes, a string the exe hands the movie as it is, 0x28709C). `content_edit.py` (`pierce_lines`)
   computes it from the files as the rows above leave them (weapon-stats.tsv, ammo.tsv, packs), the
@@ -123,8 +124,8 @@ Minimum damage from, the Distance bar), the minimum damage (`k_min_damage_amount
 
 Best round per weapon (a shotgun of both kinds shows it by kind): 82 Concrete, 11 Plywood (the
 shotguns' slugs), 7 Brick, 2 Stone (the VSSK and
-its camo copy, 12.7x54 VPS: Stone · 36%), 1 Tinplate. The 12.7x54 PT on the VSSK (P 0.7 = stone's
-0.7) stops at stone: Concrete · 100%. By kind, from the data: 16 shotguns (Benelli M4, IZh-27 and
+its camo copy, 12.7x54 VPS: Stone · 31%, 36% before exe patch 175), 1 Tinplate. The 12.7x54 PT on the VSSK (P 0.7 = stone's
+0.7) stops at stone: Concrete · 89% (100%). By kind, from the data: 16 shotguns (Benelli M4, IZh-27 and
 its two premium copies, Jackhammer, MP-153, the two Neosteads, Remington 870, Saiga-12 and its
 premium, SPAS-12, TOZ-34, TOZ-66, Vepr-12 and its premium); the KS-23M fires buckshot only.
 
@@ -144,6 +145,6 @@ premium, SPAS-12, TOZ-34, TOZ-66, Vepr-12 and its premium); the KS-23M fires buc
   over PT Concrete · 100%), the same material by percent, equal and Ctrl neutral, a missing side a
   dash, no row without the data, no row on the ammo card, no bar.
 - `content-edit/test_content_edit.py`: the lines by weapon, P = A not through (0.2 x 1.0 at brick's
-  0.2), the VSSK's VPS through stone at 36 % and PT stopped at stone, no weapon or unpaired round
+  0.2), the VSSK's VPS through stone at 31 % and PT stopped at stone, no weapon or unpaired round
   touched, tiers out of order refused.
 - Not seen in the game.

@@ -24,10 +24,12 @@ handler = "on_select"
 [[hook]]
 site = "respawn.save"
 handler = "on_spawns_save"
+order = 0
 
 [[hook]]
 site = "respawn.load"
 handler = "on_spawns_load"
+order = 0
 
 [[hook]]
 site = "respawn.entered"

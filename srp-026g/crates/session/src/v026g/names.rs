@@ -112,8 +112,8 @@ mod tests {
     fn a_rename_is_paid_in_silver() {
         let settings = Settings::default();
         let mut account = Account::new("Alice");
-        account.generic_money = 30_000;
-        assert_eq!(rename(&mut account, &settings, "Alisa"), Ok(25_000));
+        account.generic_money = settings.rename_cost + 5_000;
+        assert_eq!(rename(&mut account, &settings, "Alisa"), Ok(settings.rename_cost));
         assert_eq!(
             (account.name.as_str(), account.generic_money),
             ("Alisa", 5_000)
@@ -125,7 +125,7 @@ mod tests {
         );
         assert_eq!(account.name, "Alisa");
         // The name is cut to the client's buffer.
-        account.generic_money = 25_000;
+        account.generic_money = settings.rename_cost;
         rename(&mut account, &settings, &"x".repeat(100)).unwrap();
         assert_eq!(account.name.len(), 63);
         // A price of 0 is free.

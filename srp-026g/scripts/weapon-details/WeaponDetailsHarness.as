@@ -452,7 +452,7 @@ package {
    military_medkit:[[19,"2.0"],[18,"1.0"],[135,"100"],[136,"60"],[137,"50"],[15,"0.3"]],
    blackmarket_medkit:[[19,"2.0"],[18,"1.0"],[135,"0"],[136,"100"],[137,"100"],[15,"0.3"]],
    science_medkit:[[19,"2.0"],[18,"3.0"],[135,"100"],[136,"100"],[137,"50"],[13,"100"],[15,"0.3"]],
-   antitoxin:[[13,"50"],[19,"1.0"],[18,"10.0"],[15,"0.1"]],
+   antitoxin:[[13,"50"],[19,"1.0"],[18,"15.0"],[15,"0.1"]],
    painkiller:[[17,"10"],[19,"1.0"],[18,"10.0"],[15,"0.1"]]
   };
   private static const MEDICINE_LABELS:Object={13:"Intoxication",17:"Pain protection",18:"Duration",19:"Activation",135:"Healing: arms / legs",136:"Healing: body / head",137:"Pain relief",15:"Weight"};
@@ -824,6 +824,40 @@ package {
    var field:TextField=card.defaultModifiersList.container.getChildAt(index).textFieldLabel,at:int=field.text.indexOf(": ")+2;
    return uint(field.getTextFormat(at,at+1).color)&0xFFFFFF;
   }
+  // An oxygen tank ("Breeze") with its own built-in lines `defaults` ([prop, label] each).
+  private function oxygenTank(defaults:Array):Object {
+   var Data:Class=domain.getDefinition("survarium.data.ItemData") as Class;
+   var d:Object=new Data();d.name="Breeze";d.category=4;d.superCategory=domain.getDefinition("survarium.item.ItemFactory").getCategory(d.category);d.descriptor=100;
+   d.properties=[{prop_id:11,prop_value:"80"},{prop_id:15,prop_value:"3.82"}];d.modifiers=[];
+   for each(var line:Array in defaults)d.modifiers.push({state:0,isDefault:true,icon:33,textValue:line[1]+"\n",props:[{prop_id:line[0],prop_value:"1"}]});
+   d.modifiersDefault=d.modifiers;
+   return d;
+  }
+  // The built-in lines of an oxygen tank's card, its own and the tank skills' (MatchEffects.tankBonuses), in
+  // BonusOrder's one order (2026-11-23: Tank Container's "Artifact container" was drawn last, after the
+  // other skills' lines, not beside "Pocket capacity").
+  private function tankChecks():void {
+   Scene.isShift=false;Scene.isAlt=false;
+   var Info:Object=domain.getDefinition("survarium.controls.PlayerInfo");
+   // float 47: Steady Breath 2 (x16), Tank Depth 2 (x3456), Deep Breaths 3 (x41472); Tank Container is PlayerInfo's
+   profile.setKitModifiers(kitFloats({47:2*16+2*3456+3*41472}));
+   Info.tankContainer=true;
+   shows(oxygenTank([]),oxygenTank([]));
+   var want:String="Pocket capacity: +2|Artifact container: +1|Energy costs: -40%|Dispersion off the hip: -20%|Sight sway: -20%";
+   require(defaultLines(cards[0])[0]==want,"the tank skills' lines in BonusOrder: "+defaultLines(cards[0])[0]);
+   // The tank's own built-in lines among them: ammo bags first, the movement after the container.
+   shows(oxygenTank([[105,"Movement speed: +5%"],[20,"Ammo bags: +1"]]),oxygenTank([]));
+   want="Ammo bags: +1|Pocket capacity: +2|Artifact container: +1|Movement speed: +5%|Energy costs: -40%|Dispersion off the hip: -20%|Sight sway: -20%";
+   require(defaultLines(cards[0])[0]==want,"the tank's own lines and the skills' in one order: "+defaultLines(cards[0])[0]);
+   Info.tankContainer=false;shows(oxygenTank([]),oxygenTank([]));
+   require(defaultLines(cards[0])[0]=="Pocket capacity: +2|Energy costs: -40%|Dispersion off the hip: -20%|Sight sway: -20%","no Tank Container: "+defaultLines(cards[0])[0]);
+   // A built-in line of a property BonusOrder has no row of stops the card; it is never drawn last.
+   var stopped:String=null;
+   try{shows(oxygenTank([[999,"Unknown: +1"]]),oxygenTank([]));}catch(err:Error){stopped=err.message;}
+   require(stopped!=null && stopped.indexOf("999")>=0,"a line without a row stops the card: "+stopped);
+   profile.setKitModifiers(kitFloats({}));shows(oxygenTank([]),oxygenTank([]));
+   require(defaultLines(cards[0])[0]=="","no skills: no tank lines");
+  }
   private var heavy:Object;
   private function bearArmsChecks():void {
    // The kit's armour (altChecks') has no Bear Arms: float 62 alone says it.
@@ -831,7 +865,7 @@ package {
    heavy=movingWeapon(true,"-0.05");
    var light:Object=movingWeapon(false,"0.03");
    // Another built-in line beside the movement (a golden weapon's silver): never changed.
-   var silver:Object={state:0,isDefault:true,icon:33,textValue:"Silver: <green>+10%</green>\n",props:[{prop_id:31,prop_value:"0.1"}]};
+   var silver:Object={state:0,isDefault:true,icon:33,textValue:"Silver: <green>+10%</green>\n",props:[{prop_id:126,prop_value:"0.1"}]};
    var both:Object=movingWeapon(true,"-0.05");both.modifiersDefault.push(silver);both.modifiers=both.modifiersDefault;
    var off:Object=kitFloats({}),on:Object=kitFloats({62:1});
    profile.setKitModifiers(on);
@@ -892,6 +926,8 @@ package {
     for each(id in [102,115,119])list.push({prop_id:id,comparable:false,modifier_type:1});
     // A weapon's own movement line (weapon-movement-ui-1), higher is better.
     list.push({prop_id:105,prop_name:"Movement speed",direction:1,comparable:false,modifier_type:1});
+    // An oxygen tank's lines (tankChecks): its oxygen, and the bonuses the tank skills add.
+    for each(spec in [[11,"Oxygen capacity",0],[117,"Pocket capacity",0],[9,"Artifact container",0],[116,"Energy costs",1],[101,"Dispersion off the hip",1],[125,"Sight sway",1]])list.push({prop_id:spec[0],prop_name:spec[1],comparable:false,modifier_type:spec[2]});
     props.setPropertiesDictionary(list);domain.getDefinition("survarium.controls.ItemCompare").setPropsDescriptor(props);
     var Container:Class=domain.getDefinition("survarium.data.IconContainer") as Class;
     var Atlas:Class=domain.getDefinition("LobbyMenu_ModifierIcons") as Class;
@@ -1117,6 +1153,7 @@ package {
      throwableChecks();
      medicineChecks();
      isolationChecks();
+     tankChecks();
      bearArmsChecks();
     }
     if(frame==140){Scene.isAlt=true;}

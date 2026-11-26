@@ -27,8 +27,11 @@ package survarium.controls
       // This owner combines native inventory descriptions with native effect
       // snapshots. Neither callback can erase the other's presentation state.
       // Phases: 0 none, 1 waiting (the use time), 2 active, 3 stopped by a
-      // bullet (patch 84; the hook sends it for a second of game time).
+      // bullet (patch 84; the hook sends it for a second of game time), 4 an
+      // oxygen tank whose Oxygen Rush runs (patch 180: its native countdown
+      // in Spring's blue, the rest of the slot as the game gives it).
       public static const ACTIVITY_INTERRUPTED:uint = 3;
+      public static const ACTIVITY_BOOSTED:uint = 4;
       private var _nativeSlots:Array = [];
       private var _activities:Array = [];
 
@@ -51,7 +54,12 @@ package survarium.controls
          // An exhausted stack still owns its ongoing native effect. Keep its
          // gray icon and native radial sweep during activation, then seconds only;
          // a stopped one keeps its icon, red, while the hook says so.
-         if(activity && activity.phase != 0 && !nativeSlot.is_artefact)
+         if(activity && activity.phase == ACTIVITY_BOOSTED && !nativeSlot.is_artefact)
+         {
+            result.activityPhase = activity.phase;
+            result.activitySeconds = 0;
+         }
+         else if(activity && activity.phase != 0 && !nativeSlot.is_artefact)
          {
             result.enabled = true;
             result.activityPhase = activity.phase;

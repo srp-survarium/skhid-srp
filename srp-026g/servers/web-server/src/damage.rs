@@ -9,6 +9,7 @@
 use std::io::Write;
 use std::net::{Shutdown, TcpStream};
 
+use crate::built::{Built, Script};
 use crate::{ContentType, Lang, Response};
 
 /// The page's address.
@@ -19,22 +20,26 @@ pub(crate) const PATH: &str = "/wiki/calculator";
 pub(crate) const POLICY: &str = "default-src 'none'; style-src 'unsafe-inline'; \
     script-src 'self'; img-src 'self' data:; font-src 'self'; form-action 'self'";
 
-/// Where the fonts are, which every page of the site uses (both servers).
-pub(crate) const FONTS: &str = "/damage/fonts/";
-
 /// The page's `@font-face` rules (the fonts' addresses with their hashes),
 /// for the site's other pages.
 pub(crate) fn font_faces() -> &'static str {
     static FACES: std::sync::OnceLock<String> = std::sync::OnceLock::new();
     FACES.get_or_init(|| {
-        PAGE.lines()
+        include_str!("../damage/damage.html")
+            .lines()
             .filter(|line| line.starts_with("@font-face"))
             .collect()
     })
 }
 
-/// The page, with `{{LANG}}` and `<!--SITE-HEADER-->` to fill.
-const PAGE: &str = include_str!("../damage/damage.html");
+/// The page, with `{{LANG}}` and `<!--SITE-HEADER-->` to fill, its texts in every language's
+/// places (`crate::built`), and its script, whose words it gives.
+static SCRIPT: Script = Script::new(include_bytes!("../damage/calc.js"));
+static PAGE: Built = Built::new(
+    include_str!("../damage/damage.html"),
+    include_str!("../damage/damage.texts.json"),
+    &SCRIPT,
+);
 
 /// The files the page loads: address, content type, bytes. Every file of
 /// `../damage/` but the page and its record (`../build.rs` lists them). The
@@ -72,6 +77,7 @@ pub(crate) fn page(lang: Lang, header: &str) -> Response {
         status: "200 OK",
         content_type: ContentType::Html,
         body: PAGE
+            .page(lang)
             .replacen("{{LANG}}", lang.code(), 1)
             .replacen("<!--SITE-HEADER-->", header, 1),
     }
@@ -90,8 +96,11 @@ margin:-20px calc(-1*max(16px,env(safe-area-inset-right,0px))) 22px calc(-1*max(
 .site nav a{font:700 .85rem var(--font-display);text-transform:uppercase;letter-spacing:.1em;color:var(--ink-2);text-decoration:none;padding:0 .8rem;line-height:1.1}\
 .site nav a+a{border-left:2px solid var(--ink-3)}.site nav a:first-child{padding-left:0}\
 .site nav a:hover{color:var(--ink)}.site nav a[aria-current]{color:var(--accent)}\
-.site .lang{font:.8rem var(--font-body);color:var(--ink-2);text-decoration:none;border:1px solid var(--rule);background:var(--bg);padding:.15rem .7rem;border-radius:999px}\
-.site .lang:hover{border-color:var(--ink-3);color:var(--ink)}\
+.site .lang{position:relative;font:.8rem var(--font-body)}\
+.site .lang summary{list-style:none;cursor:pointer;color:var(--ink-2);border:1px solid var(--rule);background:var(--bg);padding:.15rem .7rem;border-radius:999px}\
+.site .lang summary::-webkit-details-marker{display:none}.site .lang summary::after{content:'';display:inline-block;width:.36em;height:.36em;margin:0 0 .2em .55em;border:solid currentColor;border-width:0 1.5px 1.5px 0;transform:rotate(45deg)}.site .lang[open] summary::after{margin-bottom:0;transform:rotate(-135deg)}.site .lang summary:hover,.site .lang[open] summary{border-color:var(--ink-3);color:var(--ink)}\
+.site .lang div{position:absolute;right:0;top:calc(100% + 4px);z-index:20;display:grid;min-width:9.5rem;background:var(--bg);border:1px solid var(--ink-3);padding:.25rem 0}\
+.site .lang div a{color:var(--ink-2);text-decoration:none;padding:.3rem .8rem}.site .lang div a:hover{color:var(--ink);background:var(--rule)}\
 .site .badge{background:#d64531;color:#fff;font:700 .75rem system-ui,sans-serif;letter-spacing:.14em;padding:.2rem .55rem;border-radius:2px}\
 .site .note.test{max-width:1240px;margin:1rem auto 0;font-size:1rem;color:var(--ink-2);background:var(--bg);border-left:3px solid #d64531;padding:.7rem .9rem;border-radius:2px}\
 .site a{color:var(--accent)}\

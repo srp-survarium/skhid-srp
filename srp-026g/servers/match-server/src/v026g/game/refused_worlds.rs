@@ -298,9 +298,6 @@ pub(super) enum Removal {
     UploadsRefused,
     /// Invalid inputs in a stretch (`input_safety`).
     InvalidInputs,
-    /// Restores in a row that never brought it to agree
-    /// (`SRP_RESTORE_LIMIT`).
-    RestoresUnagreed,
 }
 
 impl fmt::Display for Removal {
@@ -316,7 +313,6 @@ impl fmt::Display for Removal {
             }
             Self::UploadsRefused => "its uploads were refused again and again",
             Self::InvalidInputs => "it repeatedly sent invalid inputs",
-            Self::RestoresUnagreed => "restores did not bring it to agree",
         })
     }
 }

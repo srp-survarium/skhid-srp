@@ -10,8 +10,13 @@ python3 srp-026g/scripts/v021d-weather/source_projects.py \
     --game-data "$(game_data_bin)" --porter "$SKHID_VOSTOK_PORT" \
     --packs "$SKHID_PACKS_DIR" --flash-tools "${SKHID_FLASH_TOOLS:-$common/private/actionscript/tools.json}" \
     --cache "$cache/build-content" --out "$CHECK_WORK/day-source"
+# The 0.21d donor's projects the geometry is made from (geometry-inputs.json names them), from its db.
+python3 -c 'import json, sys; print("\n".join(k.split(":", 1)[1] for k in json.load(open(sys.argv[1])) if k.startswith("donor:")))' \
+    srp-026g/scripts/v021d-weather/geometry-inputs.json >"$CHECK_WORK/donor-paths.txt"
+"$(game_data_bin)" get --db "$common/private/v021d-five-weathers/original-resources.db" \
+    --paths "$CHECK_WORK/donor-paths.txt" --out "$CHECK_WORK/donor-layout"
 python3 srp-026g/scripts/v021d-weather/make_geometry.py \
-    --donor "$common/private/v021d-five-weathers/donor-layout" \
+    --donor "$CHECK_WORK/donor-layout" \
     --imported "$common/private/v021d-five-weathers/geometry-import" \
     --pack "$SKHID_PACKS_DIR/maps-021d-weathers-2" --pack "$SKHID_PACKS_DIR/maps-021d-chemical-weathers-3" \
     --out "$CHECK_WORK/geometry.json" --provenance "$CHECK_WORK/geometry-inputs.json"
@@ -57,7 +62,8 @@ python3 srp-026g/scripts/v021d-weather/check_material_visibility.py \
 python3 srp-026g/scripts/v021d-weather/check_vertex_blend.py \
     --porter "$weather_porter" --stock "$SKHID_STOCK_DB" \
     --donor "$common/private/v021d-five-weathers/original-resources.db" \
-    --patch "${candidate[0]}" --pack "$SKHID_PACKS_DIR/v021d-vertex-blend-3"
+    --patch "${candidate[0]}" --pack "$SKHID_PACKS_DIR/v021d-vertex-blend-3" \
+    --composed-pack "$SKHID_PACKS_DIR/v021d-vertex-blend-4"
 python3 srp-026g/scripts/v021d-weather/check_normal_off.py \
     --porter "$weather_porter" --stock "$SKHID_STOCK_DB" \
     --donor "$common/private/v021d-five-weathers/original-resources.db" \

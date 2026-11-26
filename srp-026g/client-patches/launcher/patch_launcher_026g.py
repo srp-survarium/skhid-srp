@@ -9,17 +9,15 @@ USAGE (this script never touches the source exe):
         [--site=https://skhid.link]     the server's web page (HTTPS)
         [--game-exe=survarium_skhid.exe] what PLAY starts, beside the launcher
         [--arguments="-minimum_resources_memory_size=768"]
-        [--bin=<file>]                  another launcher_values_026g.bin
     python patch_launcher_026g.py <survarium_launcher.exe> --check [...]
         every check and patch in memory, nothing written
     python selftest_launcher_026g.py
         builds it, re-parses and disassembles every patched site
 
     <survarium_launcher.exe> must be the ORIGINAL 0.26g launcher (the sha256
-    is checked); the output must be another file. The new code comes from
-    launcher_values_026g.asm:
-        nasm -f bin -DCAVE=0x49A000 launcher_values_026g.asm -o launcher_values_026g.bin
-    (the .bin is checked in).
+    is checked); the output must be another file. The new code is
+    launcher_values_026g.asm, assembled by every build (code(): NASM, the
+    dev shell's).
 
 What is changed and why, patch by patch, with the evidence for every
 address: README.md beside this file. Each site is compared with the original
@@ -30,7 +28,9 @@ import hashlib
 import os
 import re
 import struct
+import subprocess
 import sys
+import tempfile
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.dirname(HERE))
@@ -122,17 +122,28 @@ RELAY_HOOKS = [
     (0x1BD3C, "837c240400", "jmp", "VK's click is the relay button's: the menu, its pick to the updater"),
     (0x1687C, "e827cfffff", "call", "refresh_status: \"Server maintenance...\" counts the updater's seconds to its next try"),
 ]
-ENTRY_HOOKS = LANGUAGE_HOOKS + TORRENT_HOOKS + RELAY_HOOKS
+# 17. "(5/69)" after the downloading line's "... left": which file of how
+# many, as the updater says it (message 0B, the dispatch table's entry
+# below). The line's `load_string` call for "%s left" goes through
+# `count_text`. No relocation is under it.
+COUNT_HOOKS = [
+    (0x16ADF, "e8c4ccffff", "call", "refresh_status: \"... left\" says which file of how many"),
+]
+ENTRY_HOOKS = LANGUAGE_HOOKS + TORRENT_HOOKS + RELAY_HOOKS + COUNT_HOOKS
 # on_updater_message's dispatch table (0x1609E, `jmp [0x1609E + (id-1)*4]`):
 # message 0A's entry (it pointed at the handlers' common end, as 0B..0D
 # still do) becomes the entry after the hooks' (`route_message`). A
 # relocated dword, and it stays one.
 ROUTE_TABLE = (0x160C2, 0x16093, "on_updater_message: message 0A is what the relay box shows")
 ROUTE_ENTRY = len(ENTRY_HOOKS)
+# Message 0B's (`count_message`), the entry after it.
+COUNT_TABLE = (0x160C6, 0x16093, "on_updater_message: message 0B is which file of how many")
+MESSAGE_TABLES = [ROUTE_TABLE, COUNT_TABLE]     # their entries from ROUTE_ENTRY, in this order
 # The relay row's state (launcher_values_026g.asm RELAY_STATE, 0x4A800..
 # 0x4A810) is in .data past its last variable: its VirtualSize grows into
-# the page that was already there, zero and unused.
-DATA_SECTION = (2, b".data\0\0\0", 0x67FC, 0x6810)
+# the page that was already there, zero and unused. The file count (FILE_COUNT,
+# 0x4A810..0x4A814) follows it.
+DATA_SECTION = (2, b".data\0\0\0", 0x67FC, 0x6814)
 
 # (VA, original bytes, new bytes, what): code and read-only data, in place.
 PATCHES = [
@@ -445,15 +456,15 @@ def build(original, code, site=DEFAULT_SITE, game_exe=DEFAULT_GAME_EXE, argument
     # The language's sites, and the box's, call or jump to their entries.
     if len(code) < ENTRIES_AT + 8 * len(ENTRY_HOOKS):
         sys.exit(f"launcher_values_026g.bin is {len(code)} bytes: no entries")
-    for va, expected, _, what in TORRENT_HOOKS + RELAY_HOOKS:
+    for va, expected, _, what in TORRENT_HOOKS + RELAY_HOOKS + COUNT_HOOKS:
         if any(va <= at + 3 and at < va + len(bytes.fromhex(expected)) for at in relocations):
             sys.exit(f"{va:#x} ({what}): a relocation overlaps the hook")
-    if len(code) < ENTRIES_AT + 8 * (ROUTE_ENTRY + 1) or code[ENTRIES_AT + 8 * ROUTE_ENTRY] != 0xE9:
-        sys.exit("launcher_values_026g.bin: no entry for message 0A after the hooks'")
-    va, old, what = ROUTE_TABLE
-    if va not in relocations:
-        sys.exit(f"{va:#x} ({what}): the table's entry is not relocated")
-    image.patch(va, struct.pack("<I", old), struct.pack("<I", SECTION_VA + ENTRIES_AT + 8 * ROUTE_ENTRY), what)
+    for number, (va, old, what) in enumerate(MESSAGE_TABLES, ROUTE_ENTRY):
+        if len(code) < ENTRIES_AT + 8 * (number + 1) or code[ENTRIES_AT + 8 * number] != 0xE9:
+            sys.exit(f"launcher_values_026g.bin: no entry after the hooks' ({what})")
+        if va not in relocations:
+            sys.exit(f"{va:#x} ({what}): the table's entry is not relocated")
+        image.patch(va, struct.pack("<I", old), struct.pack("<I", SECTION_VA + ENTRIES_AT + 8 * number), what)
     for number, (va, expected, kind, what) in enumerate(ENTRY_HOOKS):
         entry = ENTRIES_AT + 8 * number
         if code[entry] != 0xE9:
@@ -532,18 +543,34 @@ def build(original, code, site=DEFAULT_SITE, game_exe=DEFAULT_GAME_EXE, argument
                   f"the language in user.cfg ({len(LANGUAGE_HOOKS)} sites), "
                   f"Allow torrent on the main window ({len(TORRENT_HOOKS)} sites), "
                   f"Relay: auto/on/off under it ({len(RELAY_HOOKS)} sites and message 0A), "
+                  f"the file count of a download ({len(COUNT_HOOKS)} site and message 0B), "
                   f"local pages in {PAGES_DIR}, {sum(1 for r in RECTS if r[3] == GONE)} buttons removed, "
                   "signature removed")
 
 
-def default_bin():
-    return os.path.join(HERE, "launcher_values_026g.bin")
+def code():
+    """launcher_values_026g.asm assembled at CAVE by the arena's NASM (link_026g.py's
+    toolchain: 2.16, NASM or NASM_DIR), with the game's languages
+    (launcher_languages_026g.inc, from localization_026g.py's LANGUAGES)."""
+    import localization_026g
+    try:
+        nasm = P.linker.toolchain()["nasm"]
+    except P.linker.LinkError as error:
+        sys.exit(f"the launcher's code: {error}")
+    with tempfile.TemporaryDirectory(prefix="srp-launcher-") as folder:
+        with open(os.path.join(folder, "launcher_languages_026g.inc"), "w", encoding="utf-8") as table:
+            table.write(localization_026g.launcher_table())
+        out = os.path.join(folder, "launcher_values_026g.bin")
+        subprocess.run([nasm, "-f", "bin", f"-DCAVE={SECTION_VA:#x}", "-I", folder + os.sep,
+                        os.path.join(HERE, "launcher_values_026g.asm"), "-o", out], check=True)
+        with open(out, "rb") as file:
+            return file.read()
 
 
 def main():
     args = [a for a in sys.argv[1:] if not a.startswith("--") or a == "--check"]
     options = [a for a in sys.argv[1:] if a.startswith("--") and a != "--check"]
-    settings, bin_path = {}, None
+    settings = {}
     for option in options:
         name, _, value = option.partition("=")
         if name == "--site":
@@ -552,8 +579,6 @@ def main():
             settings["game_exe"] = value
         elif name == "--arguments":
             settings["arguments"] = value
-        elif name == "--bin":
-            bin_path = value
         else:
             sys.exit(f"unknown option {option}\n\n{__doc__}")
     if len(args) != 2:
@@ -561,11 +586,9 @@ def main():
     source, target = args
     if target != "--check" and os.path.exists(target) and os.path.samefile(source, target):
         sys.exit("the output must not be the original exe")
-    with open(bin_path or default_bin(), "rb") as file:
-        code = file.read()
     with open(source, "rb") as file:
         original = file.read()
-    data, description = build(original, code, **settings)
+    data, description = build(original, code(), **settings)
     if target != "--check":
         with open(target, "wb") as out:
             out.write(data)

@@ -2,6 +2,7 @@
 
 // The game data (`data.md`, `modes_maps.md`).
 pub mod armour;
+pub mod artefacts;
 pub mod awards;
 pub mod cowboy;
 pub mod dictionary;
@@ -19,6 +20,7 @@ pub mod new_account;
 pub mod prices;
 pub mod quests;
 pub mod racket;
+pub mod roulette;
 pub mod scopes;
 pub mod shop_offers;
 pub mod skills;
@@ -27,6 +29,7 @@ pub mod twist;
 pub mod ui_properties;
 pub mod weapon;
 pub mod weapon_kit;
+pub mod weapon_modules;
 
 // Wire helpers.
 pub mod lzma2;

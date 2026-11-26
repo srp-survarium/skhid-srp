@@ -60,6 +60,10 @@ where the premium (camouflaged) weapons have their paint; the tooling to do that
   weapon's own normal texture is used as it is (until 2026-11-11 a third, the normal with the
   camouflage's weave, 11 MB together).
 
+## Decals on shared material pixels
+
+Several distant faces of a weapon can use the same metal texture pixels. On the AK-12 this duplicated the Snufkin decal even with camouflage unequipped. The dual-UV content pack and client patch give each face its own place in a decal bake. The original material coordinates still determine the camouflage pattern, its mask and the relief. The local AK-12 comparison and pack generator are in [Weapon decal coordinates](../../scripts/weapon-decal-uv/README.md).
+
 ## The weapon's upgrade window (patches 32 and 45)
 
 The owner (2026-10-21): "the camera would flow to the working table and the 3d model of the weapon

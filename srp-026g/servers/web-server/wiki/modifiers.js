@@ -1,11 +1,24 @@
+// The page's own words in the reader's language (site-texts/README.md): the web server fills the
+// page's <script type="application/json" id="page-words"> with every text its script asks for
+// with T, Tc (a context first) and Tf (a template and its places), from words/<code>.tsv. Each
+// takes its English text as a literal (the server and the words test find them so); English is
+// what a text has no row for.
+const PAGE_WORDS = JSON.parse(document.getElementById("page-words").textContent);
+// (None calls another: each call in a script is a text's.)
+const Tc = (context, english) => PAGE_WORDS[context]?.[english] ?? english;
+const T = english => PAGE_WORDS[""]?.[english] ?? english;
+const Tf = (english, values) => (PAGE_WORDS[""]?.[english] ?? english)
+  .replace(/\{(\w+)\}/g, (place, name) => (name in values ? String(values[name]) : place));
+
 // Calculator-style chooser: lobby icons, class groups, level ordering,
 // punctuation-insensitive search and arrow/Enter/Escape keyboard controls.
 // The hidden select owns the selection, including URL and catalogue updates.
 // `weapons` are the elements offered (the weapons page's rows, or the
 // modifiers page's item entries and the weapons page's rounds, which carry
-// their name in data-title); `offer(ids)` narrows them to those ids.
-function WikiWeaponPicker(select, weapons, tr, collator, words = {
-  search: tr('Search weapons', 'Пошук зброї'), none: tr('No weapons match.', 'Зброю не знайдено.')}) {
+// their name in data-title); `offer(ids)` narrows them to those ids. Its
+// words are the page's (site-texts/words.js).
+function WikiWeaponPicker(select, weapons, collator, words = {
+  search: T('Search weapons'), none: T('No weapons match.')}) {
   const host = document.getElementById(`${select.id}-picker`);
   const make = (tag, attrs = {}, ...children) => {
     const element = document.createElement(tag);
@@ -19,14 +32,14 @@ function WikiWeaponPicker(select, weapons, tr, collator, words = {
     const source = weapon?.querySelector('img');
     return source ? make('img', {src: source.src, alt: '', width: 54, height: 26, loading: 'lazy'}) : make('span', {class: 'noimg'});
   };
-  const level = weapon => make('small', {}, tr(`lvl ${weapon.dataset.level}`, `рів. ${weapon.dataset.level}`));
+  const level = weapon => make('small', {}, Tf('lvl {n}', {n: weapon.dataset.level}));
   const button = make('button', {type: 'button', class: 'wpick-btn', id: `${select.id}-btn`,
     'aria-haspopup': 'listbox', 'aria-expanded': 'false', 'aria-controls': `${select.id}-list`,
     'aria-labelledby': `${select.id}-label ${select.id}-value`});
   const list = make('div', {class: 'wpick-list', role: 'listbox', id: `${select.id}-list`, 'aria-labelledby': `${select.id}-label`});
   const search = make('input', {type: 'search', class: 'wpick-search', role: 'combobox', autocomplete: 'off',
     'aria-controls': list.id, 'aria-expanded': 'false', 'aria-autocomplete': 'list',
-    'aria-label': words.search, placeholder: tr('Search…', 'Пошук…')});
+    'aria-label': words.search, placeholder: T('Search…')});
   const empty = make('p', {class: 'wpick-empty', role: 'status'}, words.none);
   const popup = make('div', {class: 'wpick-pop', hidden: ''}, search, list, empty);
   host.append(button, popup);
@@ -121,10 +134,9 @@ function WikiWeaponPicker(select, weapons, tr, collator, words = {
   const select = document.getElementById('item-choice');
   if (!select) return;
   const lang = document.documentElement.lang;
-  const tr = (en, uk) => lang === 'uk' ? uk : en;
   const items = [...document.querySelectorAll('#item-options [data-key]')];
-  const picker = WikiWeaponPicker(select, items, tr, new Intl.Collator(lang),
-    {search: tr('Search items', 'Пошук предметів'), none: tr('No items match.', 'Предметів не знайдено.')});
+  const picker = WikiWeaponPicker(select, items, new Intl.Collator(lang),
+    {search: T('Search items'), none: T('No items match.')});
   picker.paint();
   select.addEventListener('change', () => {
     const item = items.find(element => element.id === select.value);

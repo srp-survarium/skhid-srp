@@ -298,9 +298,11 @@ fn growing_dialect_requires_an_explicit_client_capability() {
 
 #[test]
 fn stock_debug_flag_is_not_a_growing_roster_capability() {
-    use survarium::v026g::match_msgs::late_join::has_connect_capability;
+    use survarium::v026g::match_msgs::late_join::{has_connect_capability, has_exact_worlds, has_world_receipts};
     for flag in 0..=u8::MAX {
-        assert_eq!(has_connect_capability(flag), matches!(flag, 0x80..=0x83));
+        assert_eq!(has_connect_capability(flag), matches!(flag, 0x80..=0x87));
+        assert_eq!(has_world_receipts(flag), matches!(flag, 0x82 | 0x83 | 0x86 | 0x87));
+        assert_eq!(has_exact_worlds(flag), matches!(flag, 0x84..=0x87));
     }
     for growing in [false, true] {
         let mut bench = if growing {
@@ -1693,13 +1695,13 @@ fn a_newcomer_that_loads_again_gives_the_games_their_install_grace_again() {
     bench.assert_no_faults();
 }
 
-/// A room with a PIN's match (`MatchSetup::private`): its result says so,
+/// A room with a PIN's match (`MatchKind::PrivateRoom`): its result says so,
 /// a late joiner's place in it too, so the rewards pay none of them (the
 /// owner's of 2026-10-20).
 #[test]
 fn a_private_rooms_result_says_so_with_its_late_joiner() {
     let mut private = setup(2, MAP_BATTERIES);
-    private.private = true;
+    private.kind = session::v026g::match_kind::MatchKind::PrivateRoom;
     let mut bench = Bench::with_setup(private, Settings::default(), &[], &[], true);
     bench.join_all();
     bench.run_long(135_000);
@@ -1720,7 +1722,10 @@ fn a_private_rooms_result_says_so_with_its_late_joiner() {
 
     // Any other match's does not.
     let bench = Bench::growing(2, MAP_BATTERIES, Settings::default());
-    assert!(!bench.registry.formed(bench.match_id).unwrap().private);
+    assert_eq!(
+        bench.registry.formed(bench.match_id).unwrap().kind,
+        session::v026g::match_kind::MatchKind::Normal
+    );
 }
 
 #[test]

@@ -7,7 +7,9 @@ package
    import flash.display.MovieClip;
    import flash.display.Sprite;
    import flash.events.Event;
+   import flash.events.MouseEvent;
    import flash.events.UncaughtErrorEvent;
+   import flash.geom.Point;
    import flash.geom.Rectangle;
    import flash.net.URLRequest;
    import flash.system.ApplicationDomain;
@@ -28,7 +30,14 @@ package
    //   a camouflage into the camouflage slot, a decal into the first free decal slot, over the first
    //   when both are full, a scope into the scope slot, the item already held left as it is, nothing
    //   the page does not show; armour's camouflage and decal; with the window closed, nothing;
-   // - the texts: each language's title, page names, slot labels, hints and button fitting.
+   // - the second sight (SecondSights, the movie's table: the HK416 2218 with the optics 2112 and
+   //   2116): a wide kit (kit_second, kit_side) shows its optic under the scope (the scope's own
+   //   optic's dict id: the other item of it) and its side on the Left/Right toggle; all four slots
+   //   and the toggle inside the window; a side's press sends srp_set_upgrade_value(host, optic,
+   //   side) (HarnessExternal's calls) and shows at once, the account's update what the server holds;
+   //   a kit whose own is the second sight; the slot chosen: what it takes bright, the rest dim, a
+   //   double click into it, the side left; a weapon without rows has no second-sight slot;
+   // - the texts: each language's title, page names, slot labels, hints, buttons and the toggle fitting.
    // Prints "WEAPONKIT ..." lines and ends with "WEAPONKIT RESULT pass" or "... fail: ...".
    public class WeaponKitHarness extends Sprite
    {
@@ -50,7 +59,33 @@ package
 
       private static const CAMO:int = 9030;
 
+      // a weapon that takes the scope, a muzzle device and a grip; one that takes the grip alone
+      private static const MODULE_RIFLE:int = 9003;
+
+      private static const GRIP_RIFLE:int = 9004;
+
+      // a muzzle device and a grip (ModuleKinds, of scripts/weapon-modules/ids.tsv)
+      private static const DEVICE:int = 2601;
+
+      private static const GRIP:int = 2659;
+
       private static const CAMO_OTHER:int = 9031;
+
+      // a weapon with SecondSights rows (the HK416), its two optics (shop scopes: its scopes too)
+      private static const WIDE_RIFLE:int = 2218;
+
+      private static const OPTIC_A:int = 2112;
+
+      private static const OPTIC_B:int = 2116;
+
+      private static const WIDE_RIFLE_ID:int = 16;
+
+      // two items of OPTIC_A: the scope (the kit's own) and the second sight
+      private static const OPTIC_A_LOW_ID:int = 44;
+
+      private static const OPTIC_A_HIGH_ID:int = 45;
+
+      private static const OPTIC_B_ID:int = 46;
 
       // item ids
       private static const RIFLE_ID:int = 11;
@@ -66,6 +101,17 @@ package
       private static const DECAL_C_ID:int = 23;
 
       private static const SCOPE_ID:int = 31;
+
+      private static const DEVICE_ID:int = 32;
+
+      private static const GRIP_ID:int = 33;
+
+      private static const MODULE_RIFLE_ID:int = 14;
+
+      private static const GRIP_RIFLE_ID:int = 15;
+
+      // the scope slot's place on the Attachments page (the top one)
+      private var topPlace:Array;
 
       // two items of the camouflage's dict id: the kit's camouflage is the lowest, 40
       private static const CAMO_HIGH_ID:int = 50;
@@ -108,6 +154,10 @@ package
       private var widest:Object;
 
       private var measured:int = 0;
+
+      private var shotX:Number = 0;
+
+      private var shotHintX:Number = 0;
 
       public function WeaponKitHarness()
       {
@@ -154,15 +204,25 @@ package
             }
             at = "the items";
             var descriptor:* = new (C("survarium.data.ItemDescriptor"))("weapon-kit-check");
-            descriptor.setItemsDictionary([item(RIFLE,Category.ASSAULT_RIFLES,"Rifle",2,1),item(STOCK_RIFLE,Category.ASSAULT_RIFLES,"Stock-scoped rifle",2,1),item(ARMOUR,Category.BODY_ARMOR,"Armour",2,1),item(DECAL_A,Category.DECALS,"Decal A",0,0),item(DECAL_B,Category.DECALS,"Decal B",0,0),item(DECAL_C,Category.DECALS,"Decal C",0,0),item(SCOPE,Category.SCOPES,"Scope",0,0),item(CAMO,Category.CAMOUFLAGES,"Camouflage",0,0),item(CAMO_OTHER,Category.CAMOUFLAGES,"Other camouflage",0,0)]);
+            descriptor.setItemsDictionary([item(RIFLE,Category.ASSAULT_RIFLES,"Rifle",2,1),item(STOCK_RIFLE,Category.ASSAULT_RIFLES,"Stock-scoped rifle",2,1),item(ARMOUR,Category.BODY_ARMOR,"Armour",2,1),item(DECAL_A,Category.DECALS,"Decal A",0,0),item(DECAL_B,Category.DECALS,"Decal B",0,0),item(DECAL_C,Category.DECALS,"Decal C",0,0),item(SCOPE,Category.SCOPES,"Scope",0,0),item(CAMO,Category.CAMOUFLAGES,"Camouflage",0,0),item(CAMO_OTHER,Category.CAMOUFLAGES,"Other camouflage",0,0),item(MODULE_RIFLE,Category.ASSAULT_RIFLES,"Module rifle",2,1),item(GRIP_RIFLE,Category.ASSAULT_RIFLES,"Grip rifle",2,1),item(DEVICE,Category.SCOPES,"Muzzle device",0,0),item(GRIP,Category.SCOPES,"Grip",0,0),item(WIDE_RIFLE,Category.ASSAULT_RIFLES,"HK416",2,1),item(OPTIC_A,Category.SCOPES,"DeltaPoint",0,0),item(OPTIC_B,Category.SCOPES,"RSA-S",0,0)]);
             // the scopes the rifles take (ItemFactory gives the movie its pairs so)
             Window.addCompatibility(RIFLE,SCOPE);
             Window.addCompatibility(STOCK_RIFLE,SCOPE);
             Window.addCompatibility(STOCK_RIFLE,domain.getDefinition("survarium.constants.ItemDictId").SCOPE_PSO_1);
+            Window.addCompatibility(MODULE_RIFLE,SCOPE);
+            Window.addCompatibility(MODULE_RIFLE,DEVICE);
+            Window.addCompatibility(MODULE_RIFLE,GRIP);
+            Window.addCompatibility(GRIP_RIFLE,GRIP);
+            // the HK416: both optics and the scope as its scope, a device and a grip; the optics as its
+            // second sight too (SecondSights)
+            for each(var attachment:int in [OPTIC_A,OPTIC_B,SCOPE,DEVICE,GRIP])
+            {
+               Window.addCompatibility(WIDE_RIFLE,attachment);
+            }
             at = "the shop";
             var shop:* = new (C("survarium.controls.GangShop"))();
             shop.registerItemDescriptor(descriptor);
-            shop.setupShopItems([RIFLE,STOCK_RIFLE,ARMOUR,DECAL_A,DECAL_B,DECAL_C,SCOPE,CAMO,CAMO_OTHER].map(function(dictId:int, i:int, a:Array):Object
+            shop.setupShopItems([RIFLE,STOCK_RIFLE,ARMOUR,DECAL_A,DECAL_B,DECAL_C,SCOPE,CAMO,CAMO_OTHER,MODULE_RIFLE,GRIP_RIFLE,DEVICE,GRIP,WIDE_RIFLE,OPTIC_A,OPTIC_B].map(function(dictId:int, i:int, a:Array):Object
             {
                return {dictId:dictId,faction_id:0,level:0,cost:100,condition_or_stack:10000};
             }));
@@ -259,7 +319,7 @@ package
                   });
                   inventory.setupShopItems(offers);
                   inventory.setupBundleData([]);
-                  inventory.setupInventoryData([owned(RIFLE_ID,RIFLE),owned(ARMOUR_ID,ARMOUR),owned(STOCK_RIFLE_ID,STOCK_RIFLE),owned(DECAL_A_ID,DECAL_A),owned(DECAL_B_ID,DECAL_B),owned(DECAL_C_ID,DECAL_C),owned(SCOPE_ID,SCOPE),owned(CAMO_HIGH_ID,CAMO),owned(CAMO_LOW_ID,CAMO),owned(CAMO_OTHER_ID,CAMO_OTHER)]);
+                  inventory.setupInventoryData([owned(RIFLE_ID,RIFLE),owned(ARMOUR_ID,ARMOUR),owned(STOCK_RIFLE_ID,STOCK_RIFLE),owned(DECAL_A_ID,DECAL_A),owned(DECAL_B_ID,DECAL_B),owned(DECAL_C_ID,DECAL_C),owned(SCOPE_ID,SCOPE),owned(CAMO_HIGH_ID,CAMO),owned(CAMO_LOW_ID,CAMO),owned(CAMO_OTHER_ID,CAMO_OTHER),owned(MODULE_RIFLE_ID,MODULE_RIFLE),owned(GRIP_RIFLE_ID,GRIP_RIFLE),owned(DEVICE_ID,DEVICE),owned(GRIP_ID,GRIP),owned(WIDE_RIFLE_ID,WIDE_RIFLE),owned(OPTIC_A_HIGH_ID,OPTIC_A),owned(OPTIC_A_LOW_ID,OPTIC_A),owned(OPTIC_B_ID,OPTIC_B)]);
                   require(inventory.getInventoryItemOf(CAMO).itemId == CAMO_LOW_ID,"getInventoryItemOf gives the lowest item of a dict id (" + inventory.getInventoryItemOf(CAMO).itemId + ")");
                   require(inventory.getInventoryItemOf(4242) == null,"getInventoryItemOf gives null for a dict id not owned");
                   // armour first, before any weapon: the movie's window
@@ -362,6 +422,115 @@ package
                   doubleClick(DECAL_A_ID,false);
                   break;
                case 14:
+                  // a weapon that takes a muzzle device and a grip, its kit naming both
+                  open(MODULE_RIFLE_ID,[{id:SCOPE_ID,param:3,kit_own:3,kit_camo:0,kit_muzzle:DEVICE,kit_grip:GRIP}]);
+                  break;
+               case 15:
+                  require(window.container.textField.text == WeaponKitText.DATA.english.scope_window_title,"a weapon with modules opens on Attachments");
+                  require(window.camoSlot.visible && window.muzzleSlot.visible && window.gripSlot.visible,"Attachments shows the scope, muzzle device and grip slots");
+                  require(!window.secondSightSlot.visible && !sideButtonsShown(),"a weapon without SecondSights rows: no second-sight slot, no side toggle");
+                  require(!window.decalSlot.visible && !window.decalSlot1.visible && !window.decalSlot2.visible,"Attachments shows no decal or camouflage slot");
+                  expectAttachments("the kit naming a device and a grip",[SCOPE_ID,DEVICE_ID,GRIP_ID]);
+                  checkAttachmentLayout();
+                  topPlace = [window.camoSlot.x,window.camoSlot.y];
+                  open(MODULE_RIFLE_ID,[]);
+                  break;
+               case 16:
+                  doubleClick(DEVICE_ID,true);
+                  doubleClick(GRIP_ID,true);
+                  doubleClick(SCOPE_ID,true);
+                  expectAttachments("a device, a grip and a scope double-clicked: each its own slot",[SCOPE_ID,DEVICE_ID,GRIP_ID]);
+                  var Drag:Class = C("scaleform.clik.events.DragEvent");
+                  window.onDrag(new Drag("dragStart",inventory.getInventoryItem(GRIP_ID),null,null,null));
+                  require(window.gripSlot.highlighted && !window.muzzleSlot.highlighted && !window.camoSlot.highlighted,"a grip's drag lights up the grip's slot alone");
+                  window.onDrag(new Drag("dragEnd",inventory.getInventoryItem(GRIP_ID),null,null,null));
+                  // the server refused the grip (a pair the weapon cannot hold): the account's update
+                  // holds the device alone, and reaches the open window as the game hands it the
+                  // inventory (LobbyMenu.update_inventory_item: UpgradeWindow.itemUpdated)
+                  var data:* = inventory.getInventoryItem(MODULE_RIFLE_ID);
+                  data.upgrades = [{id:SCOPE_ID,param:3,kit_own:3,kit_camo:0,kit_muzzle:DEVICE,kit_grip:0}];
+                  window.itemUpdated(data);
+                  expectAttachments("the account's update without the grip",[SCOPE_ID,DEVICE_ID,0]);
+                  open(GRIP_RIFLE_ID,[]);
+                  break;
+               case 17:
+                  require(window.gripSlot.visible && !window.muzzleSlot.visible && !window.camoSlot.visible,"a weapon that takes grips alone: the grip slot alone");
+                  require(window.gripSlot.x == topPlace[0] && window.gripSlot.y == topPlace[1],"its grip slot at the top place (" + window.gripSlot.x + "," + window.gripSlot.y + ", not " + topPlace.join(",") + ")");
+                  require(Window.greyed(inventory.getInventoryItem(DEVICE_ID)) && !Window.greyed(inventory.getInventoryItem(GRIP_ID)),"the inventory greys the device, not the grip");
+                  break;
+               case 18:
+                  // the HK416's wide kit: the scope (the low item of OPTIC_A) its own, naming the device,
+                  // the grip and OPTIC_A as its second sight, on the right
+                  open(WIDE_RIFLE_ID,[wide(OPTIC_A_LOW_ID,3,DEVICE,GRIP,OPTIC_A,1)]);
+                  break;
+               case 19:
+                  require(window.container.textField.text == WeaponKitText.DATA.english.scope_window_title,"the HK416 opens on Attachments");
+                  require(window.camoSlot.visible && window.secondSightSlot.visible && window.muzzleSlot.visible && window.gripSlot.visible,"the HK416's Attachments shows the scope, second sight, muzzle device and grip slots");
+                  expectFour("the wide kit",[OPTIC_A_LOW_ID,OPTIC_A_HIGH_ID,DEVICE_ID,GRIP_ID]);
+                  expectSide("the wide kit",1,3);
+                  checkFourLayout();
+                  require(Window.secondSightSide(inventory.getInventoryItem(WIDE_RIFLE_ID)) == 1 && Window.attachedIn(inventory.getInventoryItem(WIDE_RIFLE_ID),Slot.SECOND_SIGHT).itemId == OPTIC_A_HIGH_ID,"the weapon's card reads its second sight and side (attachedIn, secondSightSide)");
+                  require(window.infoContainer.infoDescr.text.indexOf(WeaponKitText.DATA.english.st_srp_second_sight_hint) != -1,"the hint names the second sight's switch");
+                  // the window right of the list for the picture (its place is the lobby's, outside the game
+                  // off the screen); put back after
+                  shotX = window.container.x;
+                  shotHintX = window.infoContainer.x;
+                  window.container.x = 640 - window.localToGlobal(new Point(0,0)).x;
+                  window.infoContainer.x = 860;
+                  trace("WEAPONKIT the window at " + window.x + "," + window.y + " visible " + window.visible + ", its container at " + window.container.x + "," + window.container.y + " visible " + window.container.visible + ", on the stage at " + window.container.localToGlobal(new Point(0,0)));
+                  trace("WEAPONKIT shot second");
+                  wait = 240;
+                  break;
+               case 20:
+                  window.container.x = shotX;
+                  window.infoContainer.x = shotHintX;
+                  // the toggle: Left sends the place's value 0, the same side again nothing, Right 1
+                  external().calls = [];
+                  press(0);
+                  expectSide("Left pressed",0,3);
+                  press(0);
+                  press(1);
+                  expectSide("Right pressed",1,3);
+                  expectCalls("the toggle",["srp_set_upgrade_value " + WIDE_RIFLE_ID + " " + OPTIC_A_HIGH_ID + " 0","srp_set_upgrade_value " + WIDE_RIFLE_ID + " " + OPTIC_A_HIGH_ID + " 1"]);
+                  // the account's update holds the left (the server refused the right): the toggle says so
+                  var held:* = inventory.getInventoryItem(WIDE_RIFLE_ID);
+                  held.upgrades = [wide(OPTIC_A_LOW_ID,3,DEVICE,GRIP,OPTIC_A,0)];
+                  window.itemUpdated(held);
+                  expectSide("the account's update on the left",0,3);
+                  expectFour("the account's update",[OPTIC_A_LOW_ID,OPTIC_A_HIGH_ID,DEVICE_ID,GRIP_ID]);
+                  // a kit whose own is the second sight (nothing else on the weapon), on the right
+                  open(WIDE_RIFLE_ID,[wide(OPTIC_B_ID,6,0,0,0,1)]);
+                  break;
+               case 21:
+                  expectFour("a kit whose own is the second sight",[0,OPTIC_B_ID,0,0]);
+                  expectSide("a kit whose own is the second sight",1,3);
+                  // an empty HK416: the second sight's slot chosen
+                  open(WIDE_RIFLE_ID,[]);
+                  break;
+               case 22:
+                  require(!sideButtonsShown(),"an empty second-sight slot: no side toggle");
+                  external().calls = [];
+                  window.secondSightSlot.dispatchEvent(new MouseEvent(MouseEvent.CLICK,false));
+                  require(!Window.greyed(inventory.getInventoryItem(OPTIC_B_ID)) && Window.greyed(inventory.getInventoryItem(SCOPE_ID)) && Window.greyed(inventory.getInventoryItem(DEVICE_ID)),"the second sight's slot chosen: its optics bright, the scope it does not take and the device dim");
+                  require(Window.listsItem(inventory.getInventoryItem(SCOPE_ID)) && Window.listsItem(inventory.getInventoryItem(OPTIC_B_ID)),"the HK416's scope and optics listed");
+                  doubleClick(OPTIC_B_ID,true);
+                  expectFour("an optic double-clicked with the second sight's slot chosen",[0,OPTIC_B_ID,0,0]);
+                  expectSide("an optic put in the empty slot",0,3);
+                  doubleClick(SCOPE_ID,true);
+                  expectFour("a scope the second sight does not take, double-clicked: the scope slot",[SCOPE_ID,OPTIC_B_ID,0,0]);
+                  expectCalls("the double clicks",["relocate_upgrade_item " + WIDE_RIFLE_ID + " " + OPTIC_B_ID + " " + Slot.SECOND_SIGHT,"relocate_upgrade_item " + WIDE_RIFLE_ID + " " + SCOPE_ID + " " + Slot.CAMOUFLAGE]);
+                  var Drag:Class = C("scaleform.clik.events.DragEvent");
+                  window.onDrag(new Drag("dragStart",inventory.getInventoryItem(OPTIC_A_LOW_ID),null,null,null));
+                  require(window.camoSlot.highlighted && window.secondSightSlot.highlighted && !window.muzzleSlot.highlighted,"an optic's drag lights up the scope's and the second sight's slots");
+                  window.onDrag(new Drag("dragEnd",inventory.getInventoryItem(OPTIC_A_LOW_ID),null,null,null));
+                  window.onDrag(new Drag("dragStart",inventory.getInventoryItem(SCOPE_ID),null,null,null));
+                  require(window.camoSlot.highlighted && !window.secondSightSlot.highlighted,"a scope the second sight does not take lights up the scope's slot alone");
+                  window.onDrag(new Drag("dragEnd",inventory.getInventoryItem(SCOPE_ID),null,null,null));
+                  // the window on another weapon: none chosen, as before
+                  open(MODULE_RIFLE_ID,[]);
+                  require(!window.secondSightSlot.visible && !Window.greyed(inventory.getInventoryItem(SCOPE_ID)),"another weapon's window: no second-sight slot, its scope bright");
+                  break;
+               case 23:
                   // every language: each window's texts in their fields
                   texts(WeaponKitText.LANGUAGES[language]);
                   if(++language < WeaponKitText.LANGUAGES.length)
@@ -388,18 +557,112 @@ package
       {
          var ListEvent:Class = C("scaleform.clik.events.ListEvent");
          var item:* = inventory.getInventoryItem(itemId);
-         var before:String = slots().map(function(s:*, i:int, a:Array):String
+         var before:String = slots().concat(attachmentSlots(),[window.secondSightSlot]).map(function(s:*, i:int, a:Array):String
          {
             return s.data ? String(s.data.itemId) : "0";
          }).join(",");
          inventory.itemsTileList.dispatchEvent(new ListEvent(ListEvent.ITEM_DOUBLE_CLICK,false,true,-1,-1,-1,null,item));
-         var after:String = slots().map(function(s:*, i:int, a:Array):String
+         var after:String = slots().concat(attachmentSlots(),[window.secondSightSlot]).map(function(s:*, i:int, a:Array):String
          {
             return s.data ? String(s.data.itemId) : "0";
          }).join(",");
          var changed:Boolean = before != after;
          trace("WEAPONKIT double click on " + item.name + " (" + itemId + "): " + (changed ? "taken" : "nothing"));
          require(changed == taken,"a double click on " + item.name + (taken ? " goes into a slot" : " changes no slot"));
+      }
+
+      // A wide kit's record as patch 68 gives it the movie: its own item and slot, the dict ids it names
+      // (device, grip, second sight) and the second sight's side.
+      private static function wide(own:int, ownSlot:int, device:int, grip:int, second:int, side:int) : Object
+      {
+         return {id:own,param:ownSlot,kit_own:ownSlot,kit_camo:0,kit_muzzle:device,kit_grip:grip,kit_second:second,kit_side:side};
+      }
+
+      private function external() : Object
+      {
+         return domain.getDefinition("HarnessExternal");
+      }
+
+      private function expectCalls(what:String, calls:Array) : void
+      {
+         var made:Array = external().calls as Array;
+         trace("WEAPONKIT " + what + ": the exe was called " + made.join("; "));
+         require(made.join("; ") == calls.join("; "),what + ": the calls " + made.join("; ") + ", not " + calls.join("; "));
+      }
+
+      // A side button's press, as CLIK's button dispatches it.
+      private function press(side:int) : void
+      {
+         window.sideButtons[side].dispatchEvent(new (C("scaleform.clik.events.ButtonEvent"))("buttonClick"));
+      }
+
+      private function sideButtonsShown() : Boolean
+      {
+         return window.sideButtons[0].visible || window.sideButtons[1].visible;
+      }
+
+      // The toggle shown, `side` chosen (the other not), each side enabled by the mask (1 left, 2 right).
+      private function expectSide(what:String, side:int, sides:int) : void
+      {
+         var b:Array = window.sideButtons;
+         trace("WEAPONKIT " + what + ": the toggle " + b.map(function(x:*, i:int, a:Array):String
+         {
+            return x.name + (x.visible ? "" : " hidden") + (x.chosen ? " chosen" : "") + (x.enabled ? "" : " disabled") + " " + x.face;
+         }).join(", "));
+         require(b[0].visible && b[1].visible,what + ": the toggle shown");
+         require(b[side].chosen && !b[1 - side].chosen,what + ": side " + side + " chosen");
+         require(b[0].enabled == ((sides & 1) != 0) && b[1].enabled == ((sides & 2) != 0),what + ": the sides " + sides + " enabled");
+      }
+
+      private function fourSlots() : Array
+      {
+         return [window.camoSlot,window.secondSightSlot,window.muzzleSlot,window.gripSlot];
+      }
+
+      // The item ids of the Attachments page's four slots (scope, second sight, muzzle device, grip).
+      private function expectFour(what:String, ids:Array) : void
+      {
+         var shown:Array = fourSlots().map(function(s:*, i:int, a:Array):int
+         {
+            return s.data ? int(s.data.itemId) : 0;
+         });
+         trace("WEAPONKIT " + what + ": scope, second sight, muzzle, grip hold " + shown.join(", "));
+         require(shown.join(",") == ids.join(","),what + ": " + shown.join(",") + ", not " + ids.join(","));
+      }
+
+      // All four slots one under the other in the window, each label over the next square, the toggle
+      // under the second sight's label and over the device's square, all of it above the Confirm button.
+      private function checkFourLayout() : void
+      {
+         var bounds:Rectangle = frame();
+         var shown:Array = fourSlots();
+         var confirm:Rectangle = window.btnAccept.getBounds(window.container);
+         trace("WEAPONKIT the window's frame " + bounds + ", its Confirm button " + confirm + "; the HK416's Attachments: " + shown.map(function(s:*, i:int, a:Array):String
+         {
+            return s.name + " at " + s.x + "," + s.y + " scale " + s.actualScaleX + " square " + square(s) + " label " + label(s);
+         }).join("; ") + "; the toggle " + window.sideButtons.map(function(b:*, i:int, a:Array):String
+         {
+            return b.name + " " + b.getBounds(window.container);
+         }).join(", "));
+         for(var i:int = 0; i < shown.length; i++)
+         {
+            var a:Rectangle = square(shown[i]);
+            var named:Rectangle = label(shown[i]);
+            require(bounds != null && bounds.containsRect(a) && bounds.containsRect(named) && named.bottom <= confirm.top,"the HK416's slot " + i + " " + a + " and its label " + named + " inside the window " + bounds + ", above Confirm " + confirm);
+            if(i > 0)
+            {
+               var above:Rectangle = label(shown[i - 1]);
+               require(a.top >= above.bottom && Math.abs(a.x + a.width / 2 - (square(shown[i - 1]).x + square(shown[i - 1]).width / 2)) < 0.01,"the HK416's slot " + i + " " + a + " under slot " + (i - 1) + "'s label " + above + ", on its middle line");
+            }
+         }
+         var sight:Rectangle = label(window.secondSightSlot);
+         var device:Rectangle = square(window.muzzleSlot);
+         var left:Rectangle = window.sideButtons[0].getBounds(window.container);
+         var right:Rectangle = window.sideButtons[1].getBounds(window.container);
+         var middle:Number = square(window.secondSightSlot).x + square(window.secondSightSlot).width / 2;
+         require(left.top >= sight.bottom && left.bottom <= device.top && right.top == left.top,"the toggle " + left + " " + right + " between the second sight's label " + sight + " and the device's square " + device);
+         require(left.right <= right.left && Math.abs((left.left + right.right) / 2 - middle) <= 1,"the toggle's buttons side by side on the slots' middle line " + middle + ": " + left + " " + right);
+         require(bounds.containsRect(left) && bounds.containsRect(right),"the toggle inside the window");
       }
 
       // The weapon kit's record as patch 68 gives it the movie.
@@ -411,6 +674,44 @@ package
       private function slots() : Array
       {
          return [window.decalSlot,window.decalSlot1,window.decalSlot2,window.camoSlot];
+      }
+
+      private function attachmentSlots() : Array
+      {
+         return [window.camoSlot,window.muzzleSlot,window.gripSlot];
+      }
+
+      // The item ids of the Attachments page's slots (scope, muzzle device, grip), 0 empty.
+      private function expectAttachments(what:String, ids:Array) : void
+      {
+         var shown:Array = attachmentSlots().map(function(s:*, i:int, a:Array):int
+         {
+            return s.data ? int(s.data.itemId) : 0;
+         });
+         trace("WEAPONKIT " + what + ": scope, muzzle, grip hold " + shown.join(", "));
+         require(shown.join(",") == ids.join(","),what + ": " + shown.join(",") + ", not " + ids.join(","));
+      }
+
+      // The Attachments page with all three: the scope's, the device's and the grip's slots one
+      // under the other in that order, inside the window, none over another.
+      private function checkAttachmentLayout() : void
+      {
+         var bounds:Rectangle = frame();
+         var shown:Array = attachmentSlots();
+         trace("WEAPONKIT the window's frame " + bounds + "; Attachments: " + shown.map(function(s:*, i:int, a:Array):String
+         {
+            return s.name + " at " + s.x + "," + s.y + " square " + square(s);
+         }).join("; "));
+         for(var i:int = 0; i < shown.length; i++)
+         {
+            var a:Rectangle = square(shown[i]);
+            require(bounds != null && bounds.containsRect(a),"Attachments slot " + i + " " + a + " inside the window " + bounds);
+            if(i > 0)
+            {
+               var above:Rectangle = square(shown[i - 1]);
+               require(a.top >= above.bottom && shown[i].x == shown[i - 1].x,"Attachments slot " + i + " " + a + " under slot " + (i - 1) + " " + above);
+            }
+         }
       }
 
       // The window opened on an owned item with these upgrade records (the account's), as
@@ -516,6 +817,12 @@ package
          return best;
       }
 
+      // A slot's label (under its square) in the window's coordinates.
+      private function label(s:*) : Rectangle
+      {
+         return s.textFieldLabel.getBounds(window.container);
+      }
+
       // A slot's square (its frame, the border) in the window's coordinates.
       private function square(s:*) : Rectangle
       {
@@ -559,6 +866,10 @@ package
          measure(name,"Appearance");
          open(STOCK_RIFLE_ID,[]);
          measure(name,"stock scope");
+         open(MODULE_RIFLE_ID,[]);
+         measure(name,"Attachments with a muzzle device and a grip");
+         open(WIDE_RIFLE_ID,[wide(OPTIC_B_ID,6,0,0,0,0)]);
+         measure(name,"Attachments with a second sight");
          open(ARMOUR_ID,[]);
          measure(name,"armour");
          trace("WEAPONKIT " + name + ": " + measured + " texts, widest " + widest.what + " \"" + widest.text + "\" " + widest.used + " of " + widest.room + " px");
@@ -567,7 +878,8 @@ package
       private function measure(language:String, page:String) : void
       {
          var c:* = window.container;
-         for each(var s:* in slots())
+         var all:Array = slots().concat([window.secondSightSlot,window.muzzleSlot,window.gripSlot]);
+         for each(var s:* in all)
          {
             s.validateNow();
          }
@@ -595,7 +907,7 @@ package
          }
          require(title.numLines == 1,language + " " + page + ": the title \"" + title.text + "\" on one line");
          note(language,page + " title (" + title.defaultTextFormat.size + " pt)",title,used,room);
-         for each(s in slots())
+         for each(s in all)
          {
             if(s.visible && !s.data)
             {
@@ -607,6 +919,13 @@ package
          if(window.infoContainer.visible)
          {
             fits(language,page + " hint",window.infoContainer.infoDescr);
+         }
+         for each(var b:* in window.sideButtons)
+         {
+            if(b.visible)
+            {
+               fits(language,page + " " + b.name,b.caption);
+            }
          }
          if(window.btnAccept.textField)
          {

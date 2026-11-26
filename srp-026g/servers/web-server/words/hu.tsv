@@ -1,0 +1,968 @@
+# The site's own words in Hungarian (README.md here): English as in the code, Hungarian, a context if any.
+Head	Fej
+Face	Arc
+Chest	Mellkas
+Back	Hát
+Arms	Karok
+Hands	Kezek
+Legs	Lábak
+Feet	Lábfejek
+Bullets	Lövedékek
+Melee	Közelharc
+Explosions	Robbanások
+Fire	Tűz
+Radiation	Sugárzás
+Electricity	Elektromosság
+Toxins	Mérgek
+Armour	Páncél
+Isolation	Szigetelés
+Protection	Védelem
+Level	Szint
+Faction	Frakció
+Matchmaking level	Meccskeresési szint
+Also takes	Ezt is foglalja
+Oxygen	Oxigén
+Gas filter	Gázszűrő
+{0}: hits up to {1} stopped, the rest ×{2}	{0}: a találatok {1}-ig elnyelve, a többi ×{2}
+Fatal headshot	Halálos fejlövés
+flies off	lerepül
+About it	Leírás
+premium	prémium
+level	szint
+Weight	Súly
+Details	Részletek
+Its modifiers	Bónuszai
+Slot	Rekesz
+All	Mind
+Find	Keresés
+Search by name…	Keresés név szerint…
+All factions	Minden frakció
+Level from	Szint ettől
+to	eddig
+Sort by	Rendezés
+Name	Név
+Weight: low to high	Súly: növekvő
+Armour: high to low	Páncél: csökkenő
+Isolation: high to low	Szigetelés: csökkenő
+Group	Csoportosítás
+No groups	Nincs csoport
+By set	Szett szerint
+By slot	Rekesz szerint
+Wiki	Wiki
+Equipment	Felszerelés
+Equipment reference	Felszereléstár
+pieces	db
+Nothing matches.	Nincs találat.
+Stats	Statisztika
+Public matches	Nyilvános meccsek
+The stats need JavaScript.	A statisztikához JavaScript kell.
+Skhid	Skhid
+mode {0}	mód: {0}
+No match is being played now.	Most nem zajlik meccs.
+waiting	várakozás
+starting	indul
+just now	épp most
+{minutes} min ago	{minutes} perce
+&le; {minutes} min	&le; {minutes} perc
+{0} v {1}	{0} vs {1}
+and {more} more	és még {more}
+Match	Meccs
+Players	Játékosok
+Started	Kezdés
+Time left	Hátralévő idő
+Score	Állás
+No battle has been fought yet. Be the first.	Még nem volt csata. Légy te az első.
+Player	Játékos
+Rating	Értékelés
+online	online
+rooms	szoba
+in rooms	szobákban
+matches now	meccs most
+players	játékos
+battles fought	lezajlott csata
+clans	klán
+Maintenance: the server is down	Karbantartás: a szerver nem elérhető
+Maintenance in {minutes} min	Karbantartás {minutes} perc múlva
+On the server now	Most a szerveren
+Since the server opened	A szerver megnyitása óta
+TEST SERVER	TESZTSZERVER
+Unofficial community server. Not affiliated with or endorsed by Vostok Games. Survarium is a trademark of its owners. An early test: accounts and progress can be reset at any time.	Nem hivatalos közösségi szerver. Nem áll kapcsolatban a Vostok Gamesszel, és az nem is támogatja. A Survarium a tulajdonosainak védjegye. Korai teszt: a fiókok és az előrehaladás bármikor visszaállíthatók.
+Top 10 players	Top 10 játékos
+Matches now	Meccsek most
+Skhid &middot; Survarium <i>0.26g</i> community server	Skhid &middot; Survarium <i>0.26g</i> közösségi szerver
+Legal notice	Jogi nyilatkozat
+Not found.	Nem található.
+Too many wrong tokens; wait a minute.	Túl sok hibás token; várj egy percet.
+Wrong token.	Hibás token.
+No such user.	Nincs ilyen felhasználó.
+New accounts are taken again.	Új fiókokat ismét elfogadunk.
+New accounts are refused; existing players sign in as before.	Új fiókokat nem fogadunk el; a meglévő játékosok ugyanúgy bejelentkeznek.
+Maintenance cancelled.	Karbantartás lemondva.
+No maintenance was planned.	Nem volt tervezett karbantartás.
+Minutes: a whole number from 1 to {MAX_MAINTENANCE_MINUTES}.	Percek: egész szám 1 és {MAX_MAINTENANCE_MINUTES} között.
+Maintenance starts in {minutes} min, at {0} UTC.	A karbantartás {minutes} perc múlva kezdődik, {0} UTC-kor.
+for {hours} h	{hours} órára
+for good	végleg
+Address {net} banned {how_long}; {kicked} session(s) ended.	{net} cím kitiltva {how_long}; lezárt munkamenetek: {kicked}.
+No such user or address. A name several accounts share needs the user name they sign in with.	Nincs ilyen felhasználó vagy cím. Ha több fiók osztozik egy néven, a bejelentkezési név kell.
+{target} banned {how_long}; {kicked} session(s) ended.	{target} kitiltva {how_long}; lezárt munkamenetek: {kicked}.
+ Its address {net} too ({more} more session(s) ended).	 A címe ({net}) is (további lezárt munkamenetek: {more}).
+ Its address is not known, so no address was banned.	 A címe nem ismert, ezért cím nem lett kitiltva.
+Address {net} unbanned.	{net} cím tiltása feloldva.
+{net} was not banned (a range is lifted as it was banned).	{net} nem volt kitiltva (egy tartomány úgy oldható fel, ahogy kitiltották).
+No such user or address.	Nincs ilyen felhasználó vagy cím.
+{target} unbanned.	{target} tiltása feloldva.
+{target} was not banned.	{target} nem volt kitiltva.
+ Its address {ip} too.	 A címe ({ip}) is.
+The players' server:	A játékosok szervere:
+Test server.	Tesztszerver.
+Changes are tried here before they reach the players: it can restart at any moment, and accounts and progress here can be reset.	Itt próbáljuk ki a változásokat, mielőtt a játékosokhoz kerülnek: bármikor újraindulhat, és az itteni fiókok és előrehaladás visszaállíthatók.
+Damage calculator	Sebzéskalkulátor
+Maps	Pályák
+TEST	TESZT
+Home	Kezdőlap
+Community server, unofficial. Not affiliated with or endorsed by Vostok Games. Survarium is a trademark of its owners.	Nem hivatalos közösségi szerver. Nem áll kapcsolatban a Vostok Gamesszel, és az nem is támogatja. A Survarium a tulajdonosainak védjegye.
+“Game files removed by antivirus: …”	„Game files removed by antivirus: …”
+Run <code>Skhid-defender-setup.cmd</code>.	Futtasd a <code>Skhid-defender-setup.cmd</code> fájlt.
+“Download failed: …”	„Download failed: …”
+Start <code>Skhid.bat</code> again. Still failing? Run <code>Skhid-without-updater.bat</code>: it downloads the game and its updates without the launcher, then starts it.	Indítsd újra a <code>Skhid.bat</code> fájlt. Még mindig nem megy? Futtasd a <code>Skhid-without-updater.bat</code> fájlt: letölti a játékot és a frissítéseit a launcher nélkül, majd elindítja.
+“No connection: …”	„No connection: …”
+Run <code>Skhid-network-setup.cmd</code>.	Futtasd a <code>Skhid-network-setup.cmd</code> fájlt.
+“Blocked on this network: …”	„Blocked on this network: …”
+Your provider blocks our server. The launcher has already switched to our relay, a way around the block (<b>Relay: auto</b>, bottom left). Just press <b>Retry</b>.	Az internetszolgáltatód blokkolja a szerverünket. A launcher már átváltott a relénkre, amely megkerüli a blokkolást (<b>Relay: auto</b>, bal alul). Csak nyomd meg az <b>Ismét</b> gombot.
+Nothing works.	Semmi sem működik.
+Run <code>Skhid-collect-logs.cmd</code> and send the zip it makes to us on Discord: <a href="https://discord.gg/QUmJg3gBhg">discord.gg/QUmJg3gBhg</a>.	Futtasd a <code>Skhid-collect-logs.cmd</code> fájlt, és küldd el nekünk Discordon a zipet, amelyet készít: <a href="https://discord.gg/QUmJg3gBhg">discord.gg/QUmJg3gBhg</a>.
+Q:	K:
+A:	V:
+If something goes wrong	Ha valami nem működik
+Download the files	Fájlok letöltése
+The download link is coming soon.	A letöltési link hamarosan érkezik.
+Chrome or your antivirus refuses the download? Try this script: {script}. It downloads the whole game into a Survarium folder beside it.	A Chrome vagy a víruskereső nem engedi a letöltést? Próbáld ki ezt a szkriptet: {script} – letölti az egész játékot egy mellette lévő Survarium mappába.
+Get the game	A játék beszerzése
+The link is coming soon.	A link hamarosan érkezik.
+Get the original Survarium 0.26g (build 2777) and unpack it.	Szerezd be az eredeti Survarium 0.26g-t (2777-es build), és csomagold ki.
+Maintenance.	Karbantartás.
+The server is down for maintenance.	A szerver karbantartás miatt nem elérhető.
+The game closes in {minutes} min; Play is locked in the last 30.	A játék {minutes} perc múlva bezárul; az utolsó 30 percben a Játék gomb zárolva van.
+New registrations are closed for now. Existing players can sign in and play.	Az új regisztráció egyelőre szünetel. A meglévő játékosok bejelentkezhetnek és játszhatnak.
+players online	játékos online
+registered	regisztrált
+Run <code>Skhid.bat</code> and press <b>PLAY</b>. The first start downloads the game.	Indítsd el a <code>Skhid.bat</code> fájlt, és nyomd meg a <b>PLAY</b> gombot. Az első indításkor letöltődik a játék.
+Run <code>Skhid.bat</code> and press <b>PLAY</b>.	Indítsd el a <code>Skhid.bat</code> fájlt, és nyomd meg a <b>PLAY</b> gombot.
+Windows warns about an unknown publisher? Let it run.<br>Linux: <code>bash Skhid.sh launcher</code>, see <code>LINUX.txt</code>.	A Windows ismeretlen kiadóra figyelmeztet? Engedd futni.<br>Linux: <code>bash Skhid.sh launcher</code>, lásd <code>LINUX.txt</code>.
+Windows warns about an unknown publisher? Let it run.<br>Linux: <code>bash Skhid.sh</code>, see <code>LINUX.txt</code>.	A Windows ismeretlen kiadóra figyelmeztet? Engedd futni.<br>Linux: <code>bash Skhid.sh</code>, lásd <code>LINUX.txt</code>.
+Run <code>play_skhid.bat</code> in <code>game\\binaries\\x86</code>.	Futtasd a <code>play_skhid.bat</code> fájlt a <code>game\\binaries\\x86</code> mappában.
+Skhid (Ukrainian for “east”) is a community server that lets the Survarium {version} client sign in, trade, form squads and play matches again.	A Skhid (ukránul „kelet”) egy közösségi szerver, amelyen a Survarium {version} kliens újra be tud jelentkezni, kereskedni, osztagot alakítani és meccseket játszani.
+Project Discord: <a href="https://discord.gg/pxywZfaxRQ">discord.gg/pxywZfaxRQ</a>	A projekt Discordja: <a href="https://discord.gg/pxywZfaxRQ">discord.gg/pxywZfaxRQ</a>
+Early test server.	Korai tesztszerver.
+It has bugs and may not work fully. Your progress, items and accounts can be lost or reset at any time, and the server may be stopped at any time. By playing you accept this.	Vannak benne hibák, és lehet, hogy nem működik teljesen. Az előrehaladásod, a tárgyaid és a fiókjaid bármikor elveszhetnek vagy visszaállhatnak, és a szerver bármikor leállhat. A játékkal ezt elfogadod.
+How to play	Hogyan játssz
+Download our files and unpack them into an empty folder (e.g. D:\\Survarium). <b>You do this only once.</b>	Töltsd le a fájljainkat, és csomagold ki őket egy üres mappába (pl. D:\\Survarium). <b>Ezt csak egyszer kell megtenni.</b>
+Download our files and unpack them into the game's folder, the one with the <code>game</code> folder, replacing files. <b>You do this only once.</b>	Töltsd le a fájljainkat, és csomagold ki őket a játék mappájába, abba, amelyikben a <code>game</code> mappa van, a fájlokat felülírva. <b>Ezt csak egyszer kell megtenni.</b>
+Download our files and unpack them over the game's <code>game</code> folder.	Töltsd le a fájljainkat, és csomagold ki őket a játék <code>game</code> mappájára.
+Sign in with any name and password: a new name registers itself. Remember the password.	Jelentkezz be bármilyen névvel és jelszóval: egy új név magától regisztrálódik. Jegyezd meg a jelszót.
+New accounts are taken.	Új fiókokat elfogadunk.
+Stop new registrations	Új regisztrációk leállítása
+New accounts are refused for now.	Új fiókokat egyelőre nem fogadunk el.
+Take new registrations	Új regisztrációk fogadása
+Shown once the token is right.	A helyes token után látható.
+Password	Jelszó
+User name	Felhasználónév
+Silver, + or -	Ezüst, + vagy -
+Change	Módosítás
+Admin	Admin
+Token	Token
+Money	Pénz
+Ban	Kitiltás
+Unban	Tiltás feloldása
+Bans	Kitiltások
+Maintenance	Karbantartás
+Signups	Regisztráció
+User name, or an address or range (1.2.3.4, 1.2.3.0/24)	Felhasználónév, vagy cím vagy tartomány (1.2.3.4, 1.2.3.0/24)
+Hours (empty: for good)	Órák (üres: végleg)
+Reason (only admins see it)	Indok (csak adminok látják)
+Also ban the address it last signed in from	A legutóbbi bejelentkezés címének kitiltása is
+Ban	Kitiltás	button
+User name, or an address or range	Felhasználónév, vagy cím vagy tartomány
+Also lift the ban of its last address	A legutóbbi címe tiltásának feloldása is
+Unban	Feloldás	button
+Refresh	Frissítés
+Existing players keep signing in and playing either way. Registration is open by default; a restart goes back to that (or to SRP_REGISTRATION=closed).	A meglévő játékosok mindenképp bejelentkezhetnek és játszhatnak. A regisztráció alapból nyitva van; újraindítás ezt állítja vissza (vagy az SRP_REGISTRATION=closed értéket).
+Starts in (minutes)	Kezdés (perc múlva)
+Players see the minutes left from 60 on, cannot press Play from 30, and the game closes at 0. Restarting srp cancels it.	A játékosok 60 perctől látják a hátralévő perceket, 30-tól nem nyomhatják meg a Játék gombot, 0-nál a játék bezárul. Az srp újraindítása törli.
+Plan	Ütemezés
+Cancel	Mégse
+Account	Fiók
+Give item	Tárgy adása
+Take items	Tárgyak elvétele
+Text	Szöveg
+Mute chat	Chat némítása
+Rename	Átnevezés
+Shown now:	Most látható:
+No text is shown.	Nincs látható szöveg.
+Set the level (0 to {0})	Szint beállítása (0–{0})
+Experience, + or -	Tapasztalat, + vagy -
+Faction (1 to 4)	Frakció (1–4)
+Reputation with it, + or -	Hírnév a frakciónál, + vagy -
+Empty fields change nothing. An open game is sent the account again.	Az üres mezők nem változtatnak semmit. A nyitott játék újra megkapja a fiókot.
+Item: its id in the 0.26g dictionary, or its exact name	Tárgy: azonosítója a 0.26g szótárban, vagy pontos neve
+Count (rounds for ammo; up to 8 of anything else)	Darabszám (lőszernél töltény; minden másból legfeljebb 8)
+Give	Adás
+First line	Első sor
+Second line	Második sor
+Everyone in the lobby sees it, and whoever signs in, until it is cleared or srp restarts.	Mindenki látja a lobbiban, és aki bejelentkezik, amíg nem törlik, vagy az srp újra nem indul.
+Show	Megjelenítés
+Clear	Törlés
+No maintenance is planned.	Nincs tervezett karbantartás.
+Maintenance has started: the game closes for everyone who signs in.	A karbantartás elkezdődött: a játék bezárul mindenkinél, aki bejelentkezik.
+Hours: a whole number up to {MAX_BAN_HOURS}, or empty for good.	Órák: egész szám, legfeljebb {MAX_BAN_HOURS}, vagy üres: végleg.
+until {at} UTC	{at} UTC-ig
+None.	Nincs.
+Accounts	Fiókok
+Until	Meddig
+Reason	Indok
+Last address	Utolsó cím
+Addresses	Címek
+Address	Cím
+Chat mutes	Chatnémítások
+ The database was busy: srp's saver writes it within seconds (the history below is shown next time).	 Az adatbázis foglalt volt: az srp mentője másodperceken belül kiírja (a lenti előzmények legközelebb látszanak).
+ Error: the change stands in memory only: the database refused it ({error}). srp retries the write; check its log.	 Hiba: a változás csak a memóriában van: az adatbázis elutasította ({error}). Az srp újrapróbálja az írást; nézd meg a naplóját.
+No 0.26g account has that id.	Egyik 0.26g fióknak sincs ilyen azonosítója.
+More than one account has that character name: type its user name or #id.	Több fióknak is ez a karakterneve: add meg a felhasználónevét vagy a #azonosítóját.
+Silver is a whole number, + or -, or empty.	Az ezüst egész szám, + vagy -, vagy üres.
+{0}: silver {1} → {2} ({3}).	{0}: ezüst {1} → {2} ({3}).
+Type the silver to add (+) or take (-). The balance is below.	Írd be a hozzáadandó (+) vagy elveendő (-) ezüstöt. Az egyenleg lent látható.
+Nothing would change: the account has none of it left to take.	Semmi sem változna: a fióknak már nincs ebből elvehető.
+A reason is required: nothing was changed.	Indok szükséges: semmi sem változott.
+The account changed since the preview, or the fields did: nothing was changed. Check the new preview below and apply again.	A fiók vagy a mezők megváltoztak az előnézet óta: semmi sem változott. Nézd meg az új előnézetet lent, és alkalmazd újra.
+Check the change below; type a reason to apply it.	Ellenőrizd lent a változást; írj indokot az alkalmazásához.
+Check the change below, then press Apply. Nothing is changed until then.	Ellenőrizd lent a változást, majd nyomd meg az Alkalmazás gombot. Addig semmi sem változik.
+Type the account: its user name, its character name, or #id.	Add meg a fiókot: felhasználónév, karakternév vagy #azonosító.
+Units are a whole number above 0, or empty for all of it.	Az egység 0-nál nagyobb egész szám, vagy üres: az egész.
+Tick the items to take (and the units of a stack, or all of it), type a reason, then press Preview.	Jelöld be az elveendő tárgyakat (és egy köteg egységeit, vagy az egészet), írj indokot, majd nyomd meg az Előnézet gombot.
+{0}: {1} item(s) taken.	{0}: elvett tárgyak: {1}.
+The items or the choice changed since the preview: nothing was changed. Check the new preview below and apply again.	A tárgyak vagy a választás megváltoztak az előnézet óta: semmi sem változott. Nézd meg az új előnézetet lent, és alkalmazd újra.
+Check what would be taken below; type a reason to apply it.	Ellenőrizd lent, mi kerülne elvételre; írj indokot az alkalmazásához.
+Check what would be taken below, then press Apply. Nothing is changed until then.	Ellenőrizd lent, mi kerülne elvételre, majd nyomd meg az Alkalmazás gombot. Addig semmi sem változik.
+A reason is required: the player is told it.	Indok szükséges: a játékos megkapja.
+{name}'s chat muted {0}.	{name} chatje némítva {0}.
+{name}'s chat was not muted.	{name} chatje nem volt némítva.
+{name}'s chat unmuted.	{name} chatjének némítása feloldva.
+Account: user name or character name	Fiók: felhasználónév vagy karakternév
+Reason (the player is told it)	Indok (a játékos megkapja)
+Nobody gets its chat lines, on any channel; it gets "muted for &lt;reason&gt;" (or "muted until &lt;time&gt; UTC: &lt;reason&gt;") back instead. Unmute needs the account only.	Senki sem kapja meg a chatüzeneteit egyik csatornán sem; helyette visszakapja: "muted for &lt;indok&gt;" (vagy "muted until &lt;idő&gt; UTC: &lt;indok&gt;"). A feloldáshoz csak a fiók kell.
+Mute	Némítás
+Unmute	Némítás feloldása
+This preview was used already or is older than 10 minutes: nothing was changed. Check the new preview below and apply again.	Ezt az előnézetet már felhasználták, vagy 10 percnél régebbi: semmi sem változott. Nézd meg az új előnézetet lent, és alkalmazd újra.
+No item was ticked.	Nincs bejelölt tárgy.
+At most {0} items at once.	Egyszerre legfeljebb {0} tárgy.
+The account has no item {item_id} now (sold or taken meanwhile): nothing was changed. Check the list again.	A fióknak most nincs {item_id} tárgya (közben eladták vagy elvették): semmi sem változott. Nézd meg újra a listát.
+Item {item_id} is named twice.	{item_id} tárgy kétszer szerepel.
+0 units of item {item_id}: leave it empty for all of it.	{item_id} tárgyból 0 egység: hagyd üresen az egészhez.
+yes: its game is sent the change at once	igen: a játéka azonnal megkapja a változást
+no: it sees the change at its next sign-in	nem: a következő bejelentkezéskor látja a változást
+User name	Bejelentkezési név	sign-in
+Character	Karakter
+Account id	Fiókazonosító
+ID	ID
+Earlier names	Korábbi nevek
+until {}	eddig: {}
+In the game now	Most játékban
+Earlier moderation of this account	A fiók korábbi moderálása
+not shown ({error})	nem látható ({error})
+none	nincs
+What	Mi
+Change	Változás	what
+; {0} asked, never below 0	; kért: {0}, sosem 0 alá
+Apply to {0}	Alkalmazás: {0}
+Done	Kész
+Preview	Előnézet
+Silver	Ezüst
+Account: user name, character name or #id	Fiók: felhasználónév, karakternév vagy #azonosító
+Reason (required; only admins see it)	Indok (kötelező; csak adminok látják)
+Preview shows the balance before and after; nothing changes until Apply. A balance never goes below 0. An open game shows the change at once.	Az előnézet mutatja az egyenleget előtte és utána; az Alkalmazásig semmi sem változik. Az egyenleg sosem megy 0 alá. A nyitott játék azonnal mutatja a változást.
+Preview	Előnézet	button
+the item	a tárgy
+all {0} units	mind a {0} egység
+{0} of {1} units ({2} left)	{0} / {1} egység ({2} marad)
+taken off its kits	levéve a felszerelésekről
+Apply: take them from {0}	Alkalmazás: elvétel innen: {0}
+Taken	Elvéve
+Would be taken	Elvételre kerülne
+Item	Tárgy
+Item id	Tárgyazonosító
+Kits	Felszerelések
+{0} units	{0} egység
+all	mind
+cosmetic {id}	kozmetikum {id}
+Items	Tárgyak
+Tick what to take. A stack takes the units typed, or all of it when empty. Kit * is the one it plays.	Jelöld be, mit veszel el. Egy kötegből a beírt egységek kerülnek elvételre, üresen az egész. A * felszerelés az, amellyel játszik.
+Dict id	Szótárazonosító
+Units / condition	Egység / állapot
+Worn	Viselt
+Modifications	Módosítások
+First the list, then a preview of what is taken; nothing changes until Apply. A worn item is taken off every kit, as when it is sold. An open game shows the change at once.	Előbb a lista, aztán az elvett dolgok előnézete; az Alkalmazásig semmi sem változik. A viselt tárgy minden felszerelésről lekerül, mint eladáskor. A nyitott játék azonnal mutatja a változást.
+List / preview	Lista / előnézet
+(premium)	(prémium)
+{0} of {1}	{0} / {1}
+Choose an item…	Válassz tárgyat…
+By item	Tárgy szerint
+level {0}	{0}. szint
+Can roll	Kaphat
+Comes with	Alapból
+Modifiers	Bónuszok
+An item rolls up to three modifiers, each of a different kind. The stronger, the rarer.	Egy tárgy legfeljebb három bónuszt kaphat, mindegyik más fajtájú. Minél erősebb, annál ritkább.
+Weapons	Fegyverek
+Strengths from common to rare.	Erősségek a gyakoritól a ritkáig.
+Built into some items	Egyes tárgyakba beépítve
+These never roll.	Ezek sosem sorsolódnak.
+No account signs in with that user name (character names are not looked up).	Egyik fiók sem jelentkezik be ezzel a felhasználónévvel (karakterneveket nem keresünk).
+Type the user name the player signs in with.	Írd be a felhasználónevet, amellyel a játékos bejelentkezik.
+Check the account below, then press the reset button.	Ellenőrizd lent a fiókot, majd nyomd meg a visszaállító gombot.
+That user name now means another account: nothing was changed. Check it below.	Ez a felhasználónév most egy másik fiókhoz tartozik: semmi sem változott. Ellenőrizd lent.
+The password of {login} is cleared; {ended} session(s) ended. Their next sign-in, with any password, sets the new one.	{login} jelszava törölve; lezárt munkamenetek: {ended}. A következő bejelentkezés bármilyen jelszóval beállítja az újat.
+The password of {login} is cleared; {ended} session(s) ended. The database was busy: srp's saver writes it within seconds. Their next sign-in, with any password, sets the new one.	{login} jelszava törölve; lezárt munkamenetek: {ended}. Az adatbázis foglalt volt: az srp mentője másodperceken belül kiírja. A következő bejelentkezés bármilyen jelszóval beállítja az újat.
+Error: the password of {login} is cleared and {ended} session(s) ended, but only in memory: the database was not written ({error}). srp retries the write; check its log before the player signs in.	Hiba: {login} jelszava törölve, és munkamenetek lezárva ({ended}), de csak a memóriában: az adatbázisba nem került ki ({error}). Az srp újrapróbálja az írást; nézd meg a naplóját, mielőtt a játékos bejelentkezik.
+not since srp started	az srp indulása óta nem
+unknown	ismeretlen
+yes: its game is signed out	igen: a játéka kijelentkezik
+no	nem
+Last sign-in	Utolsó bejelentkezés
+Signed in now	Most bejelentkezve
+Reset the password of {0}	{0} jelszavának visszaállítása
+User name the player signs in with (not the character name)	Felhasználónév, amellyel a játékos bejelentkezik (nem a karakternév)
+Clears the password: the player's next sign-in, with any password, sets it as the new one (owner's decision, 2026-10-18). Whoever signs in first takes it, so reset when the player is ready to sign in. A game signed in with the account is signed out. Case does not matter.	Törli a jelszót: a játékos következő bejelentkezése bármilyen jelszóval beállítja azt újként (a tulajdonos döntése, 2026-10-18). Aki elsőként jelentkezik be, azé lesz, ezért akkor állítsd vissza, amikor a játékos kész bejelentkezni. A fiókkal bejelentkezett játék kijelentkezik. A kis- és nagybetű nem számít.
+Quests	Feladatok
+Pay by match level	Fizetés meccsszint szerint
+Enter an account ID.	Adj meg egy fiókazonosítót.
+Invalid nickname: at least 3 characters, at most 63 UTF-8 bytes, no spaces or control characters.	Érvénytelen becenév: legalább 3 karakter, legfeljebb 63 UTF-8 bájt, szóköz és vezérlőkarakter nélkül.
+A reason is required.	Indok szükséges.
+That nickname or a Cyrillic/Latin lookalike is already taken.	Ez a becenév vagy egy cirill/latin hasonmása már foglalt.
+No such account ID.	Nincs ilyen fiókazonosító.
+Account #{account_id} renamed: {0} → {1}.	#{account_id} fiók átnevezve: {0} → {1}.
+Account ID	Fiókazonosító
+New nickname	Új becenév
+Reason (admin history only)	Indok (csak az admin előzményekben)
+Changes the nickname immediately, free of charge. Login and progress stay the same. Duplicate and Cyrillic/Latin lookalike names are refused.	Azonnal és ingyen megváltoztatja a becenevet. A bejelentkezés és az előrehaladás ugyanaz marad. Az ismétlődő és a cirill/latin hasonmás neveket elutasítja.
+Levels	Szintek
+This level	Ez a szint
+Total	Összesen
+Matches	Meccsek
+Hours	Órák
+Total experience by level	Összes tapasztalat szintenként
+That account has not signed in to the 0.26g lobby yet: it has nothing to change.	Ez a fiók még nem jelentkezett be a 0.26g lobbiba: nincs mit módosítani.
+Experience and reputation are whole numbers, + or -; the level is 0 to {MAX_LEVEL}; the faction is 1 to 4.	A tapasztalat és a hírnév egész szám, + vagy -; a szint 0 és {MAX_LEVEL} között; a frakció 1 és 4 között.
+That level is under the skill points the account has spent; reset its skills in the game first.	Ez a szint kevesebb, mint a fiók elköltött képességpontjai; előbb állítsd vissza a képességeit a játékban.
+{user}: level {level_now} ({exp_now} experience).	{user}: {level_now}. szint ({exp_now} tapasztalat).
+ Reputation with faction {faction}: {points}.	 Hírnév, {faction}. frakció: {points}.
+No such item in the 0.26g dictionary (give its id or its exact name).	Nincs ilyen tárgy a 0.26g szótárban (add meg az azonosítóját vagy a pontos nevét).
+The count for this item is 1 to {most}.	Ennek a tárgynak a darabszáma 1 és {most} között lehet.
+That stack would overflow.	A köteg túlcsordulna.
+{user}: given {count} of {0} (id {1}).	{user}: kapott {count} × {0} (azonosító: {1}).
+The text is cleared.	A szöveg törölve.
+Each line is at most {MAX_TEXT_LEN} bytes (a Cyrillic letter is 2) with no control characters.	Minden sor legfeljebb {MAX_TEXT_LEN} bájt (egy cirill betű 2), vezérlőkarakterek nélkül.
+The text is shown to everyone in the lobby, and to who signs in, until cleared.	A szöveget mindenki látja a lobbiban, és aki bejelentkezik, amíg nem törlik.
+Simulators	Szimulátorok
+Skills	Képességek
+Browse weapons, compare base stats and explore their damage and handling.	Böngészd a fegyvereket, hasonlítsd össze az alapértékeiket, és fedezd fel a sebzésüket és kezelhetőségüket.
+Recoil and spread of any weapon: aim, stance, skills, gear and injuries.	Bármely fegyver hátrarúgása és szórása: célzás, testhelyzet, képességek, felszerelés és sérülések.
+Every armour piece: protection, weight, built-in bonuses and what it can roll.	Minden páncéldarab: védelem, súly, beépített bónuszok és amit kaphat.
+Every modifier, its strengths and the items that can get it.	Minden bónusz, az erősségei és a tárgyak, amelyek megkaphatják.
+Levels and the experience they take; every skill tree: thresholds, ranks and what each rank gives.	Szintek és a hozzájuk kellő tapasztalat; minden képességfa: küszöbök, fokozatok és hogy mit ad az egyes fokozat.
+Every faction quest: its goal at each reputation level and what it pays.	Minden frakciófeladat: a célja minden hírnévszinten, és hogy mennyit fizet.
+Shots to kill a target in any armour, at any distance.	Hány találat kell egy célpont megöléséhez bármilyen páncélban, bármilyen távolságból.
+Spawns, batteries, chargers, containers and artefacts on every map.	Éledési pontok, akkumulátorok, töltők, tárolók és artefaktumok minden pályán.
+Skhid wiki	Skhid wiki
+Skhid · Survarium {version} community server	Skhid · Survarium {version} közösségi szerver
+Skhid · Survarium {version} TEST server	Skhid · Survarium {version} TESZTSZERVER
+COMMUNITY SERVER FOR SURVARIUM	KÖZÖSSÉGI SZERVER A SURVARIUMHOZ
+TEST SERVER FOR SURVARIUM	TESZTSZERVER A SURVARIUMHOZ
+{text} is not an item id: nothing was changed.	{text} nem tárgyazonosító: semmi sem változott.
+Exp	TP	formula
+Total	Összesen	formula
+Experience gives levels, and every level gives one skill point.	A tapasztalat szinteket ad, és minden szint egy képességpontot.
+Clan	Klán
+Matches	Meccsek	stats
+Player name	Játékosnév
+Clan tag	Kláncímke
+Match number	Meccsszám
+Clans	Klánok
+Best matches	Legjobb meccsek
+Latest matches	Legutóbbi meccsek
+Hour	Óra
+Day	Nap
+Experience	Tapasztalat
+Wins	Győzelmek
+Losses	Vereségek
+Win rate	Győzelmi arány
+Kills	Ölések
+Deaths	Halálok
+K/D	K/D
+Kills/min	Ölés/perc
+Experience/min	Tapasztalat/perc
+Assists	Segítések
+Score	Pontszám	stats
+Avg score	Átl. pontszám
+Headshots	Fejlövések
+Grenade kills	Gránátos ölések
+Melee kills	Közelharci ölések
+Batteries	Akkumulátorok
+Captures	Foglalások
+Artefacts	Artefaktumok
+Members	Tagok
+Commander	Parancsnok
+Overall	Összesítés
+In matches	Meccseken
+Last 30 days	Utolsó 30 nap
+Ended	Vége
+Duration	Időtartam
+Map	Pálya
+Mode	Játékmód
+Result	Eredmény
+Place	Hely
+Team	Csapat
+Points	Pontok
+Win	Győzelem
+Loss	Vereség
+Draw	Döntetlen
+Left	Kilépett
+won	nyert
+More players	További játékosok
+Older matches	Régebbi meccsek
+Hours played	Játszott órák
+Replay	Visszajátszás
+Preparing…	Előkészítés…
+Download	Letöltés
+Recorded by an older game version	Régebbi játékverzióval rögzítve
+Busy, try again in a minute	Foglalt, próbáld újra egy perc múlva
+No replay	Nincs visszajátszás
+Daily leaders	A nap legjobbjai
+All time	Mindenkori
+Shots fired	Leadott lövések
+Accuracy	Pontosság
+Weapon	Fegyver
+Kit	Felszerelés
+Favourite equipment	Kedvenc felszerelés
+1000+ shots	1000+ lövés
+5+ matches	5+ meccs
+HS %	Fejlövés %
+Avg distance	Átl. távolság
+Through walls	Falon át
+Ricochets	Gellerrel
+No weapons counted yet.	Még nincs számolt fegyver.
+No public matches yet.	Még nincs nyilvános meccs.
+No player with public matches named “{}”.	Nincs „{}” nevű játékos nyilvános meccsekkel.
+No clan tagged [{}].	Nincs [{}] címkéjű klán.
+No public match {}.	Nincs {} számú nyilvános meccs.
+This server keeps no match history.	Ez a szerver nem tárol meccselőzményeket.
+Could not load the stats. Reload the page.	Nem sikerült betölteni a statisztikát. Töltsd újra az oldalt.
+Nobody yet.	Még senki.
+
+# The wiki's modes (src/modes.rs).
+Modes	Játékmódok
+Every mode: its rules, numbers and maps.	Minden játékmód: szabályok, számok és pályák.
+Versions	Változatok
+Public rooms only	Csak nyilvános szobák
+Private rooms only	Csak privát szobák
+Not offered now	Most nem elérhető
+Respawn after {0} s.	Újraéledés {0} mp után.
+Batteries lie on the map.	Az akkumulátorok a pályán hevernek.
+Carry them to your team's container.	Vidd őket a csapatod tárolójához.
+First to {0} batteries wins.	Az első csapat nyer, amely {0} akkumulátort gyűjt.
+Time limit {0}: more batteries wins.	Időkorlát {0}: több akkumulátor nyer.
+Batteries come out of {0} active chargers.	Az akkumulátorok {0} aktív töltőből jönnek.
+A new battery every {0} s, give or take {1} s.	Új akkumulátor {0} mp-enként, plusz-mínusz {1} mp.
+Protective device rules: batteries, no chargers.	A védelmi berendezés szabályai: akkumulátorok, töltők nélkül.
+No interface: no ammo, health, crosshair or minimap.	Nincs kezelőfelület: se lőszer, se életerő, se célkereszt, se minitérkép.
+Teammates' markers stay; enemies have none.	A csapattársak jelölői megmaradnak; az ellenfeleknek nincs.
+Hold Tab for ammo, body state, the clock and the team list.	Tab nyomva tartva: lőszer, testi állapot, óra és csapatlista.
+Each team has {0} tickets.	Minden csapatnak {0} jegye van.
+A death costs one ticket; a teamkill costs none.	Egy halál egy jegybe kerül; csapattárs megölése egybe sem.
+Out of tickets, a team stops respawning and loses when its last player dies.	Jegyek nélkül a csapat nem éled újra, és veszít, amikor utolsó játékosa elesik.
+Time limit {0}: more tickets wins.	Időkorlát {0}: több jegy nyer.
+Capture research units: be inside with no enemy there.	Foglald el a kutatóegységeket: légy bent, amikor nincs ott ellenség.
+Owned units earn points; more units, faster.	A birtokolt egységek pontot adnak; több egység, gyorsabban.
+First to {0} points wins.	Az első csapat nyer, amely {0} pontot gyűjt.
+Time limit {0}: more points wins.	Időkorlát {0}: több pont nyer.
+Every player for himself.	Mindenki mindenki ellen.
+First to {0} kills wins.	Az nyer, aki elsőként eléri a {0} ölést.
+Time limit {0}: most kills wins.	Időkorlát {0}: a legtöbb ölés nyer.
+Public rooms: each FFA card draws a version.	Nyilvános szobák: minden FFA-kártya változatot sorsol.
+Private rooms: plain FFA only.	Privát szobák: csak sima FFA.
+A lethal hit freezes you in place.	Egy halálos találat a helyedre fagyaszt.
+A teammate within {0} m thaws you in {1} s.	Egy {0} m-en belüli csapattárs {1} mp alatt kiolvaszt.
+A thaw counts as a kill.	A kiolvasztás ölésnek számít.
+A frozen player thaws by himself after {0}.	A fagyott játékos {0} után magától kiolvad.
+A team's last fighter shows on the enemies' map.	A csapat utolsó harcosa látszik az ellenfelek térképén.
+Freeze the whole enemy team to win the round.	Fagyaszd le az egész ellenfél csapatot a kör megnyeréséhez.
+{0} s after a round ends, then everyone respawns and waits {1} s at the spawns.	{0} mp a kör vége után, aztán mindenki újraéled, és {1} mp-et vár a kezdőpontokon.
+First to {0} rounds wins.	Az első csapat nyer, amely {0} kört nyer.
+Time limit {0}: an unfinished series is a draw.	Időkorlát {0}: a befejezetlen sorozat döntetlen.
+One artefact at a time, {0}–{1} s into a round.	Egyszerre egy artefaktum, {0}–{1} mp-cel a kör kezdete után.
+Bring it to your own base: 1 point, and the round ends.	Vidd a saját bázisodra: 1 pont, és a kör véget ér.
+The carrier is slower and seen by everyone.	A hordozó lassabb, és mindenki látja.
+Respawn in waves every {0} s.	Újraéledés hullámokban, {0} mp-enként.
+Time limit {0}: the higher score wins; a tie plays {1} of sudden death without respawns.	Időkorlát {0}: a magasabb pontszám nyer; döntetlennél {1} hirtelen halál újraéledés nélkül.
+Sniper rifles, silenced guns and guns without automatic fire are replaced.	A mesterlövészpuskák, a hangtompítós és a sorozatlövés nélküli fegyverek lecserélődnek.
+Rooms up to level {0}: {1}.	{0}. szintig a szobákban: {1}.
+Other rooms: {0}.	Többi szoba: {0}.
+Sight: {0}.	Irányzék: {0}.
+Every kit: {0} only.	Minden felszerelés: csak {0}.
+Every kit: {0} and {1}.	Minden felszerelés: {0} és {1}.
+Everyone plays the same {0} random kits.	Mindenki ugyanazzal a {0} véletlen felszereléssel játszik.
+Level bands: {0}.	Szintsávok: {0}.
+A room draws bands up to its level.	A szoba a szintjéig sorsol sávot.
+Each kit a gun of another class, with random bonuses and attachments.	Minden felszerelésben más osztályú fegyver, véletlen bónuszokkal és kiegészítőkkel.
+{0} % of deals: pistols only.	Az osztások {0} %-a: csak pisztolyok.
+Plain FFA: {0} % of FFA cards.	Sima FFA: az FFA-kártyák {0} %-a.
+{0} % of FFA cards.	Az FFA-kártyák {0} %-a.
+FFA: Roulette	FFA: Rulett
+
+# The wiki's weapons and simulators (pages built at a release: scripts/site-texts)
+Search weapons	Fegyver keresése
+No weapons match.	Nincs megfelelő fegyver.
+lvl {n}	{n}. szint
+Search…	Keresés…
+Search items	Tárgy keresése
+No items match.	Nincs megfelelő tárgy.
+s	mp	unit
+Search rounds	Lőszer keresése
+No rounds match.	Nincs megfelelő lőszer.
+shots	lövés
+up	fel
+side	oldalra
+spread	szórás
+Play	Lejátszás
+Pause	Szünet
+Recoil and spread	Visszarúgás és szórás
+Weapon {side}	Fegyver {side}
+Choose a weapon…	Válassz fegyvert…
+Round	Lőszer
+Clear	Törlés	list
+Choose a weapon; a second one to compare.	Válassz fegyvert; egy másodikat az összehasonlításhoz.
+Aim	Célzás
+From the hip	Csípőből
+Aiming in	Célzás közben
+Fully aimed	Teljes célzás
+Stance	Testhelyzet
+Standing	Állva
+Walking	Járás
+Crouching	Guggolva
+Crouch-walking	Guggolva járás
+Sprinting	Sprint
+Jumping	Ugrás
+Broken arms	Törött karok
+Spread from the hip {v} per rank, sprinting and jumping included. Not while aiming.	Csípőlövés szórása fokozatonként {v}, sprint és ugrás közben is. Célzás közben nem.
+No effect fully aimed.	Teljes célzásnál nincs hatása.
+Spread while walking {v} per rank, from the hip or aiming in. Not crouch-walking.	Szórás járás közben fokozatonként {v}, csípőből és célzás közben. Guggolva járásnál nem.
+Spread from broken arms {v} per rank.	Szórás törött karokkal fokozatonként {v}.
+This weapon's kick ranges, up and sideways. Not the camera shake.	A fegyver visszarúgásának tartományai, felfelé és oldalra. Nem a kamera rázkódása.
+The stance's spread and each shot's. No effect sprinting, jumping or fully aimed.	A testhelyzet és minden lövés szórása. Sprintnél, ugrásnál és teljes célzásnál nincs hatása.
+Each shot's kick with any weapon: up, sideways and the camera shake.	Minden lövés visszarúgása bármely fegyverrel: felfelé, oldalra és a kamera rázkódása.
+Base	Alap
+A shot	Lövésenként
+At most	Legfeljebb
+Vertical kick	Függőleges visszarúgás
+game units	játékegység
+Horizontal kick	Vízszintes visszarúgás
+Trigger	Ravasz
+Hold	Nyomva tartás
+Click, {n} a second	Kattintás, másodpercenként {n}
+Sample seed	Véletlenmag
+Spread	Szórás
+degrees	fok
+Last shot	Utolsó lövés
+Reset	Visszaállítás
+Timeline	Idővonal
+Crosshair	Célkereszt
+degrees of view	látószögfok
+Target	Célpont
+None	Nincs
+Enemy at {m} m	Ellenség {m} m-re
+Recoil parameters are unavailable for this selection.	Ehhez a választáshoz nem érhetők el a visszarúgás paraméterei.
+Rounds	Lőszerek
+Sniper rifle	Mesterlövészpuska
+Submachine gun	Géppisztoly
+Pistol	Pisztoly
+Shotgun	Sörétes puska
+Assault rifle	Gépkarabély
+Machine gun	Géppuska
+Skhid revision {revision}	Skhid, {revision}. revízió
+Stat	Jellemző
+Better	Jobb
+Worse	Rosszabb
+weapons	fegyver	count
+Compare weapons or expand a row for damage, handling, accuracy, recoil and aim sway.	Hasonlítsd össze a fegyvereket, vagy nyiss le egy sort: sebzés, kezelhetőség, pontosság, visszarúgás és irányzék kilengése.
+Values with the chosen round, the weapon’s standard one first. Upgrades and character bonuses are not included. The game’s card shows the highest damage and the highest penetration among all the weapon’s rounds.	Értékek a választott lőszerrel, elsőként a fegyver alap lőszerével. A fejlesztések és a karakterbónuszok nincsenek beleszámítva. A játék kártyája a fegyver összes lőszere közül a legnagyobb sebzést és a legnagyobb páncélátütést mutatja.
+Find a weapon	Fegyver keresése
+Weapon class	Fegyverosztály
+All classes	Minden osztály
+Damage: high to low	Sebzés: csökkenő
+Fire rate: high to low	Tűzgyorsaság: csökkenő
+Compare weapons	Fegyverek összehasonlítása
+Only differences	Csak az eltérések
+Color better / worse values	Jobb / rosszabb értékek színezése
+Recoil and spread →	Visszarúgás és szórás →
+Choose two weapons to compare. Equal values and neutral traits keep their normal color.	Válassz két fegyvert az összehasonlításhoz. Az egyenlő értékek és a semleges tulajdonságok megtartják a szokásos színüket.
+No differences in the displayed stats.	A megjelenített értékekben nincs eltérés.
+m	m	unit
+kg	kg	unit
+Single shot	Egyes lövés
+Damage & range	Sebzés és lőtávolság
+Damage	Sebzés
+Armor penetration	Páncélátütés
+Full damage up to	Teljes sebzés hatótávja
+Minimum damage from	Minimális sebzés kezdete
+Minimum damage retained	Megmaradó minimális sebzés
+Stopping power	Megállítóerő
+Stamina damage	Állóképesség-sebzés
+Firing & handling	Lövés és kezelhetőség
+rpm	lövés/perc	unit
+Fire rate	Tűzgyorsaság
+Magazine capacity	Tárkapacitás
+Reload time	Újratöltési idő
+Aim time	Célzási idő
+Draw time	Elővételi idő
+Holster time	Elrakási idő
+Movement speed modifier	Mozgási sebesség módosítója
+Base aim zoom	Alap célzási nagyítás
+Fire modes	Tűzmódok
+Accuracy & spread	Pontosság és szórás
+Spread values use the game's own units. Growth and recovery parameters are shown without a better/worse rating.	A szórásértékek a játék saját egységeiben szerepelnek. A növekedési és visszaállási paraméterek jobb/rosszabb értékelés nélkül jelennek meg.
+Base dispersion	Alapszórás
+Hip-fire spread multiplier	Csípőlövés szórásszorzója
+Spread added per shot	Szórásnövekedés lövésenként
+Spread limit	Szóráskorlát
+Spread growth parameter	Szórásnövekedési paraméter
+Spread recovery parameter	Pontosság-visszaállási paraméter
+Recoil	Visszarúgás
+Base kick in game units, not degrees. Horizontal kick is right minus left; variability is its standard deviation. These do not describe an entire burst.	Alap visszarúgás játékegységben, nem fokban. A vízszintes visszarúgás a jobb mínusz a bal; az ingadozás ennek standard eltérése. Ezek nem egy teljes sorozatot írnak le.
+Base vertical kick range	Alap függőleges visszarúgás tartománya
+Horizontal kick range	Vízszintes visszarúgás tartománya
+Horizontal kick variability	Vízszintes ingadozás
+Horizontal bias (− left / + right)	Vízszintes eltolódás (− bal / + jobb)
+Recoil accumulation exponent	Visszarúgás-halmozódási kitevő
+Recovery response (P)	Visszaállási válasz (P)
+Recovery accumulation (I)	Visszaállási halmozódás (I)
+Recovery damping (D)	Visszaállási csillapítás (D)
+Aim sway	Irányzék kilengése
+Horizontal sway	Vízszintes kilengés
+Vertical sway	Függőleges kilengés
+Aim sway period	Kilengési ciklus
+Magazine	Tár
+Set as weapon A	Beállítás A fegyverként
+Set as weapon B	Beállítás B fegyverként
+Automatic	Automata
+{m}-round burst	{m} lövéses sorozat
+pellets	sörét
+No weapons match. Try another name or class.	Nincs megfelelő fegyver. Próbálj más nevet vagy osztályt.
+
+# The wiki's simulators: the shot's motions and the custom gun (pages built at a release: scripts/site-texts)
+Left	Balra	direction
+Right	Jobbra	direction
+Back	Hátra	direction
+where it aims as the shot moves it	hová céloz a lövés hatására
+from the side, the bullet from the eye along the view	oldalról: a lövedék a szemtől a nézés mentén
+custom	saját
+Up	Fel
+Side	Oldalra
+Rate	Tempó
+Power	Kitevő
+Camera wobble	Kameraremegés
+Gun kick	Fegyverrúgás
+Custom gun	Saját fegyver
+Speed	Sebesség
+bullet	lövedék
+sight	irányzék
+hit	találat
+
+# The wiki's skills (a page built at a release: scripts/site-texts)
+Points	Pontok	skills
+matches	meccs	skills
+h	ó	unit
+Tap a skill, then + or −.	Koppints egy képességre, majd a + vagy − gombra.
+Click a skill to add a rank, right-click to take one back.	Kattintás: egy fokozattal több, jobb kattintás: eggyel kevesebb.
+{n} point	{n} pont	one
+{n} points	{n} pont	few
+{n} points	{n} pont	many
+Maximum:	Maximum:
+or	vagy	skill
+
+# The Maps tab (a page built at a release: scripts/site-texts)
+Player spawns	Éledési pontok
+Battery spawns	Akkumulátorok megjelenése
+Chargers	Töltők
+Containers	Tárolók
+Research units	Kutatóegységek
+Ammo stashes	Lőszerutánpótlás
+Survarium maps	Survarium-pályák
+chargers	töltők
+Minimap	Minitérkép
+From above	Felülről
+{n} active	{n} aktív
+{n} batteries to win.	{n} akkumulátor a győzelemhez.
+team {n}	{n}. csapat
+any team	bármelyik csapat
+Ammo stash	Lőszerutánpótlás
+Container	Tároló
+Battery spawn	Akkumulátor megjelenése
+Charger	Töltő
+Research unit	Kutatóegység
+Spawn	Éledés
+Glow of the Forest	Erdő Ragyogása
+Bases	Bázisok
+Base	Bázis	hunt
+
+# The damage calculator (a page built at a release: scripts/site-texts)
+Feet	Lábfejek	parts
+m/s	m/s	unit
+HP/s	ÉP/mp	unit
+active	aktív
+passive	passzív
+Damage ×{damage}, penetration ×{pierce}, before armour: lower penetration makes the armour stop more.	Sebzés ×{damage}, páncélátütés ×{pierce}, a páncél előtt: kisebb páncélátütésnél a páncél többet nyel el.
+{drug}: {pool} takes ×{k} for {s} s after use ({delay} s to kick in).	{drug}: {pool} ×{k} sebzést kap a használat után {s} mp-ig ({delay} mp múlva hat).
+Inside an anomaly: damage ×{k}, before armour.	Anomálián belül: sebzés ×{k}, a páncél előtt.
+This weapon takes no damage bonuses.	Ez a fegyver nem kaphat sebzésbónuszt.
+Comes with the weapon; cannot be changed.	A fegyverrel jár; nem módosítható.
+An item holds at most 3 modifications. Bonuses on one stat add up before they apply.	Egy tárgyon legfeljebb 3 módosítás lehet. Az egy jellemzőre szóló bónuszok előbb összeadódnak.
+This item takes no armour bonuses.	Ez a tárgy nem kaphat páncélbónuszt.
+Nothing worn covers the {part}.	Semmilyen viselt tárgy nem védi: {part}.
+Drugs	Szerek
+Assault rifles	Gépkarabélyok
+Submachine guns	Géppisztolyok
+Shotguns	Sörétes puskák
+Bolt-action & sniper rifles	Ismétlő- és mesterlövészpuskák
+Pistols & revolvers	Pisztolyok és revolverek
+Helmet	Sisak
+Mask	Maszk
+Jacket	Kabát
+Gloves	Kesztyű
+Trousers	Nadrág
+Boots	Csizma
+Backpack	Hátizsák
+Chest & neck	Mellkas és nyak
+Right arm	Jobb kar
+Left arm	Bal kar
+Right hand	Jobb kézfej
+Left hand	Bal kézfej
+Right leg	Jobb láb
+Left leg	Bal láb
+Right foot	Jobb lábfej
+Left foot	Bal lábfej
+Body	Test
+Pain	Fájdalom
+Infection	Fertőzés
+death	halál
+bleeding	vérzés
+concussion	agyrázkódás
+hand injury	kézsérülés
+leg injury	lábsérülés
+infection	fertőzés
+blindness	vakság
+Search	Keresés
+— none —	— nincs —
+nothing worn	nincs rajta semmi
+back	hátul
+front	elöl
+after shot	lövés
+of	/
+dead	halott
+Glass	Üveg
+Car	Autó
+Plywood	Rétegelt lemez
+Tinplate	Bádog
+Brick, steel	Tégla, acél
+Concrete	Beton
+Stone	Kő
+<none>	<nincs>
+armour	páncél
+{n} left	{n} maradt
+damage	sebzés
+penetration	páncélátütés
+full damage to	teljes sebzés eddig
+minimum from	minimum ettől
+minimum	minimum
+muzzle	kezdősebesség
+rate	tűzgyorsaság
+magazine	tár
+Gets through: k {k}, D {D} · P {P}.	Átjut: k {k}, D {D} · P {P}.
+Does not get through: penetration {P}, armour {A}.	Nem jut át: páncélátütés {P}, páncél {A}.
+here	itt
+not here	nem itt
+taken by {item}	foglalja: {item}
+Covers the {part}.	Védi: {part}.
+Does not cover the {part}.	Nem védi: {part}.
+Click to aim at the {part}.	Kattints, hogy ide célozz: {part}.
+aim at the {part}	célzás ide: {part}
+Full damage at this range.	Ezen a távolságon teljes a sebzés.
+Fully fallen off: minimum damage.	Teljesen lecsökkent: minimális sebzés.
+Falling off: {share} of the way from minimum to full.	Csökken: a minimumtól a teljes felé {share}.
+Orange band: damage falls from {from} m to {to} m.	Narancs sáv: a sebzés {from} m és {to} m között csökken.
+per shot (all pellets)	lövésenként (minden sörét)
+per hit	találatonként
+{pool} damage {per}	{pool}: sebzés {per}
+of {n} {pool} left	a maradék {n} közül ({pool})
+of {n} {pool}	{n} közül ({pool})
+Hits to kill	Találat az öléshez
+dies when {pool} reaches 0	meghal, amikor 0-ra fogy: {pool}
+this shot cannot kill	ez a lövés nem tud ölni
+Time to kill	Idő az öléshez
+every shot lands, no reload	minden lövés talál, újratöltés nélkül
+Leaves the barrel	Elhagyja a csövet
+Weapon damage × ammo <code>k_damage</code>, weapon pierce × ammo <code>k_arp</code>.	A fegyver sebzése × a lőszer <code>k_damage</code> értéke, a fegyver páncélátütése × a lőszer <code>k_arp</code> értéke.
+Each of the {n} pellets carries this.	Ezt viszi mindegyik sörét ({n} db).
+Flies {m} m	{m} m repül
+Speed {v0} → {v} m/s. Damage slides from full ({full}) to minimum ({min}) by speed between {from} and {to} m: here {share}. Penetration stays.	Sebesség {v0} → {v} m/s. A sebzés a teljestől ({full}) a minimumig ({min}) csökken a sebesség szerint {from} és {to} m között: itt {share}. A páncélátütés nem változik.
+Through {wall}	Át ezen: {wall}
+stopped	megállt
+Penetration {P}, armour {A}. Damage, penetration and speed × k; then damage no higher than at {v} m/s.	Páncélátütés {P}, páncél {A}. A sebzés, a páncélátütés és a sebesség × k; utána a sebzés legfeljebb annyi, mint {v} m/s-nál.
+Penetration {P} is not above armour {A}: the bullet stops.	A páncélátütés ({P}) nem nagyobb a páncélnál ({A}): a golyó megáll.
+No armour here, the full amount goes in.	Itt nincs páncél: a teljes sebzés átmegy.
+Armour {A} is not above penetration {P}: nothing is stopped.	A páncél ({A}) nem nagyobb a páncélátütésnél ({P}): semmi sem nyelődik el.
+Armour exceeds penetration by a full 100: the bullet does nothing.	A páncél teljes 100-zal meghaladja a páncélátütést: a golyó hatástalan.
+Armour {A} − penetration {P} = {gap}% of the damage is stopped.	Páncél {A} − páncélátütés {P} = a sebzés {gap}%-a elnyelődik.
+Hits {part}	Találat: {part}
+Every hit anywhere also drains the shared pain pool. Pain at 0 kills.	Minden találat bárhol a közös fájdalomkészletből is levon. A fájdalom 0-n öl.
+Body at 0 kills.	A test 0-n öl.
+Head holds only 40: at 0 it kills, below 20 it concusses.	A fej csak 40-et bír: 0-n öl, 20 alatt agyrázkódást okoz.
+Limbs do not kill by themselves: an empty limb injures, the pain it carries can kill.	A végtagok maguktól nem ölnek: az üres végtag megsérül, a vele járó fájdalom ölhet.
+Second chance	Második esély
+The skill leaves the target alive once.	A képesség egyszer életben hagyja a célpontot.
+× {n} pellets	× {n} sörét
+Each pellet is its own bullet: when several land, their damage adds up.	Minden sörét külön golyó: ha több talál, a sebzésük összeadódik.
+kills	öl
+breaks	eltör
+below	alatt
+empty	üres
+movement	mozgás
+shot	lövés
+Damage over distance	Sebzés távolság szerint
+after armour	páncél után
+Body part	Testrész
+Stopped	Elnyelt
+Limb	Végtag
+Also	Még
+injury	sérülés
+best ammo	legjobb lőszer
+default ammo	alap lőszer
+Ammo	Lőszer
+Pen. here	Átütés itt
+Damage / hit	Sebzés / találat
+RPM	Lövés/perc
+Bullet	Golyó
+D, P = weapon × ammo, D falling with distance	D, P = fegyver × lőszer, D a távolsággal csökken
+{n} pellets	{n} sörét
+Wall	Fal
+P ≤ A: the bullet stays in the wall · else D, P × (1 − (A / P)²)	P ≤ A: a golyó a falban marad · különben D, P × (1 − (A / P)²)
+stays in the wall	a falban marad
+each	egyenként
+rank	fokozat
+inside an anomaly	anomálián belül
+D × (1 − (armour − P) / 100)	D × (1 − (páncél − P) / 100)
+{part}, armour {A} − P {P}	{part}, páncél {A} − P {P}
+Pools	Készletek
+chest, back → body · head, face → head · leg, foot → leg · arm, hand → hand	mellkas, hát → test · fej, arc → fej · láb, lábfej → láb · kar, kézfej → kéz
+× 1 chest, head, arms · 0.9 legs · 0.8 hands, feet	× 1 mellkas, fej, karok · 0.9 lábak · 0.8 kézfejek, lábfejek
+Death	Halál
+body, head or pain at 0	test, fej vagy fájdalom 0-n
+{n} hits	{n} találat
+at 0	0-n
+does not kill	nem öl
+wall armour	fal páncélja
+One bullet through several parts: each pool loses only its biggest hit, not the sum (hands 40 + 40, chest 35 → pain −40, not −115).	Egy golyó több testrészen át: minden készlet csak a legnagyobb találatát veszíti el, nem az összeget (kézfejek 40 + 40, mellkas 35 → fájdalom −40, nem −115).
+full	teljes
+fixed	gyógyít
+{s} s without hits	{s} mp találat nélkül
+By itself	Magától
+ends after {s} s without hits	{s} mp találat nélkül elmúlik
+carried	felszerelve
+activated	aktiválva
+at once, every {s} s	azonnal, {s} mp-enként
+{delay} s after use, for {s} s	használat után {delay} mp-cel, {s} mp-ig
+stops at {n}	{n}-ig
+From empty to full	Üresből teljesre
+Leg or hand	Láb vagy kéz
+No Larkspur	Szarkaláb nélkül
+Starts	Kezdés
+Legs, hands	Lábak, kezek
+Broken leg, hand	Törött láb, kéz
+Top-down view of	Felülnézet:
+<b>{m} m</b> ({across} across, {sign}{height} height). Click again to start over.	<b>{m} m</b> ({across} vízszintesen, {sign}{height} magasságban). Kattints újra az újrakezdéshez.
+Now click the target.	Most kattints a célpontra.
+Click the shooter, then the target.	Kattints a lövészre, aztán a célpontra.
+Orange ring: full damage to {from} m; dashed: minimum from {to} m.	Narancs kör: teljes sebzés {from} m-ig; szaggatott: minimum {to} m-től.
+health shown ×100 (body 100, head 40)	életerő ×100 (test 100, fej 40)
+Shooter	Lövész
+fires	lő
+Distance to target	Távolság a célpontig
+Wall in front of the target	Fal a célpont előtt
+Weapon bonuses	Fegyverbónuszok
+— — HIT — →	— — TALÁLAT — →
+takes the hit	kapja a találatot
+Current pain	Jelenlegi fájdalom
+Pain the target already carries from earlier hits. It drains back to none at 10 a second once 8 s pass without a hit.	A célpont korábbi találatokból már meglévő fájdalma. Másodpercenként 10-zel fogy nullára, ha 8 mp-ig nem éri találat.
+Armour bonuses	Páncélbónuszok
+Artefacts, drugs & skills	Artefaktumok, szerek és képességek
+Measure on a map	Mérés a pályán
+Clear points	Pontok törlése
+bullet before armour	golyó a páncél előtt
+after this armour	e páncél után
+Every body part, this shot	Minden testrész, ez a lövés
+Every weapon against this target	Minden fegyver e célpont ellen
+Same distance, wall, body part, armour and target effects. Each gun uses its best ammo for this target unless you pick "default ammo". Click a row to load that gun.	Ugyanaz a távolság, fal, testrész, páncél és célponthatások. Minden fegyver a célponthoz legjobb lőszerét használja, hacsak nem választod az „alap lőszer” lehetőséget. Kattints egy sorra a fegyver betöltéséhez.
+Formula	Képlet
+Healing	Gyógyulás
+Previous shot	Előző lövés
+Next shot	Következő lövés
+Damage calculator	Survarium sebzéskalkulátor	title
+# The wiki's artefacts (src/artefacts.rs)
+Every artefact: what it gives carried and fired, how copies stack, where it is found.	Minden artefaktum: mit ad hordva és aktiválva, hogyan adódnak össze a példányok, hol található.
+Artefact	Artefaktum
+Passive	Passzív
+Active	Aktív
+Active time	Hatásidő
+Cooldown	Újratöltés
+Skill	Képesség
+Rules	Szabályok
+Movement speed	Mozgási sebesség
+Stamina regeneration	Energia-visszatöltődés
+Stamina use	Energiafogyasztás
+Slowdown from hits	Lassulás találatoktól
+Against	Ellen
+Body parts	Testrészek
+Penetration	Átütés
+Health	Életerő
+Cures injuries	Sérüléseket gyógyít
+Regeneration	Regeneráció
+Regeneration delay	Regeneráció késleltetése
+Regenerates up to	Regenerálódik eddig
+HP	ÉP	unit
+Carried in a container: passive. A death leaves them in that kit.	Tárolóban: passzív. Halál után abban a felszerelésben maradnak.
+A key fires every ready copy of its kind and restarts the cooldown of the ones still cooling.	Egy gomb a fajtája minden kész példányát aktiválja, és újraindítja a még töltődők újratöltését.
+Copies of a kind add up (Onyx's passive multiplies); at most 4 count.	Egy fajta példányai összeadódnak (az Ónix passzívja szorzódik); legfeljebb 4 számít.
+Spring's and Larkspur's actives add to the passive; Onyx's replaces it.	A Rugó és a Szarkaláb aktívja hozzáadódik a passzívhoz; az Ónixé felváltja azt.
+Onyx fired together: one reduction, 1 s longer per extra copy.	Együtt aktivált Ónixok: egy csökkentés, minden további példányért 1 mp-cel tovább.
+
+# The maps' anomalies (scripts/maps-tab/ui.js)
+Anomalies	Anomáliák
+Anomaly	Anomália
+Artefacts come from the anomalies. Each anomaly puts one of its artefacts into one of its free containers, one per time window, until its maximum lies uncollected; a pickup starts the window again. It gives only those of its artefacts that no player is carrying. Point at an anomaly or an artefact (or tap it) for its numbers.	Az artefaktumokat az anomáliák adják. Minden anomália egy saját artefaktumát teszi egy saját szabad tárolójába, időablakonként egyet, amíg a maximuma begyűjtetlenül ott nem fekszik; egy felvétel újraindítja az ablakot. Csak azokat a saját artefaktumait adja, amelyeket egy játékos sem visel. Mutass egy anomáliára vagy artefaktumra (vagy koppints rá) a számaiért.
+{s} s	{s} mp
+{a}–{b} s	{a}–{b} mp
+Holds	Tartalmaz
+First one	Első
+Then every	Ezután
+Chance	Esély
+Max uncollected	Legfeljebb begyűjtetlen
+Search	Keresés	artefact
+Zones switch every	Zónaváltás
+After a pickup the next one comes {next} later; that container stays empty for {cooldown}.	Felvétel után a következő {next} múlva jön; az a tároló {cooldown} üres marad.
+Its own zone does no damage.	A saját zónája nem sebez.
+Searching a container takes {search}; after a pickup it stays empty for {cooldown}.	Egy tároló átkutatása {search}; felvétel után {cooldown} üres marad.
+After a pickup the next one comes {next} later.	Felvétel után a következő {next} múlva jön.
+whole body	egész test
+{n} % a hit, at most every {t}	{n} % találatonként, legfeljebb {t}-enként
+deadly	halálos
+{n} % a second	{n} % másodpercenként
+Damage is a share of each body part's health, before armour.	A sebzés minden testrész életerejének része, a páncél előtt.
+It gives no artefacts.	Nem ad artefaktumot.

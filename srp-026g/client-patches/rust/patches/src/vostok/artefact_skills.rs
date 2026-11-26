@@ -130,7 +130,7 @@ fn holder(artefact: raw::Artefact) -> Option<raw::Player> {
 /// then gives nothing, its passive nor its active. The holder is its inventory's (an Onyx's protector and a
 /// Lifebone's regeneration subscriber are in their holder's parts only while it carries them);
 /// an artefact in no inventory, or in no passive nor active, counts as the game has it.
-fn uncounted(artefact: raw::Artefact) -> bool {
+pub(super) fn uncounted(artefact: raw::Artefact) -> bool {
     let (Some(player), Some(kind)) = (holder(artefact), kind_of(artefact)) else {
         return false;
     };
@@ -299,7 +299,7 @@ impl<'t> Roster<'t> {
 /// The match's world core: the engine world's game's game world's match (a live or a replay
 /// match alike; never the network client's own field, which a replay client keeps elsewhere,
 /// ragdoll.md section 16), none in the lobby (the world's match 0) or before the engine runs.
-fn match_core() -> Option<raw::CoreWorld> {
+pub(in crate::vostok) fn match_core() -> Option<raw::CoreWorld> {
     // SAFETY: the image's engine world slot, the engine world, its game and the game's embedded
     // world are live while the game runs, the match while the world holds it; each pointer is 0
     // when absent.
@@ -356,7 +356,7 @@ struct Activation {
 /// teammates Cascade gave its active to (the owner, 2026-11-11: "they should get full effect"),
 /// read only while the copy is active (state 4). Every activation of a kind the tree shares sets
 /// it (none reached without Cascade); a world's save writes it with each active copy and its load
-/// reads it back (`artefact.save`, `artefact.load`), so a rollback and a late joiner have the
+/// reads it back (`carry.ground_save`, `carry.ground_load`), so a rollback and a late joiner have the
 /// activation's own.
 static ACTIVATIONS: Lock<[Option<Activation>; 255]> = Lock::new([None; 255]);
 

@@ -952,6 +952,7 @@ va	status	ref_021d	name
 0x00241250	reviewed	0x0017ef76	survarium::player_input_handler::process_first_person_mode
 0x002421c0	reviewed	0x0017f4ad	survarium::player_input_handler::process_third_person_mode
 0x00242200	reviewed	0x0017f500	survarium::player_input_handler::process_warmup_mode
+0x002422b0	observed		survarium::player_input_handler::update_inverted_view
 0x00242460	reviewed	0x0017f6e7	survarium::player_input_handler::action_present
 0x00242770	reviewed	0x00180c67	survarium::game_camera::set_position_direction
 0x00243370	reviewed	0x00193186	survarium::camera_director::set_position_direction
@@ -1070,6 +1071,7 @@ va	status	ref_021d	name
 0x002ca910	reviewed	0x001c6f53	survarium::items_dictionary::can_move_item_to_slot
 0x002cea30	reviewed	0x001d0b6f	survarium::animation_analysis_result_cook::translate_query
 0x002d09c0	reviewed	0x001ca899	survarium::game_world_core::new_game_state_history_item
+0x002d0b30	reviewed	0x001cab13	survarium::game_world_core::event_horizon_history_item
 0x002d0b70	reviewed	0x001cab3b	survarium::game_world_core::deserialize
 0x002d1100	reviewed	0x001cae58	survarium::game_world_core::insert_impl
 0x002d1470	reviewed	0x001cb9bd	survarium::game_world_core::enter_match
@@ -2053,6 +2055,7 @@ va	status	ref_021d	name
 0x001c9e40	observed		vostok::render::light::set_color_and_intensity
 0x0034e020	verified	0x0021570f	vostok::render::environment_sun_direction
 0x001a8900	observed		vostok::render::effect_compiler::set_constant_float4
+0x001d9740	observed		vostok::render::effect_compiler::set_constant_float2
 0x003e2ea0	observed		vostok::render::state_descriptor::set_alpha_blend
 0x001acb30	observed		vostok::render::reflection_surface_rejected
 0x000eee30	reviewed	0x000b829f	vostok::math::create_perspective_projection
@@ -2239,7 +2242,6 @@ va	status	ref_021d	name
 0x003422f0	reviewed	0x0020cf4f	survarium::short_jump_landing_state::serialize
 0x002ab6e0	reviewed	0x001afe7d	boost::random::detail::new_uniform_01<float>::operator()<boost::random::linear_congruential_engine<unsigned int,48271,0,2147483647> >
 0x002ddad0	observed		survarium::game_effect_player::serialize
-0x00301470	observed	0x001e7a74	survarium::victory_item_core::serialize
 0x00334310	observed		survarium::composite_game_effect::serialize
 0x0026d660	reviewed	0x0019bf64	survarium::base_local_network_client::get_player
 0x00397040	reviewed	0x0024df70	vostok::animation::mixing::n_ary_tree_serializer::save_floats
@@ -2258,7 +2260,6 @@ va	status	ref_021d	name
 0x00356d50	observed		vostok::physics::bt_dynamic_rigid_body::get_collision_group
 0x00357a90	observed		vostok::physics::bt_ghost_object::get_collision_group
 0x00246ed0	observed		[thunk]:survarium::victory_item_core::get_transform`adjustor{20}'
-0x0021beb0	observed		survarium::network_client::connect_to_match
 0x0027b880	observed		survarium::network_client::process_static_match_info
 0x0027aa20	verified	0x001a25cc	survarium::network_client::on_match_ready
 0x0027aed0	verified	0x001a27c4	survarium::network_client::query_players
@@ -2471,3 +2472,78 @@ va	status	ref_021d	name
 0x001ae500	reviewed	0x00123a52	vostok::render::effect_manager::create_effect<vostok::render::effect_apply_distortion>
 0x001ae5f0	reviewed	0x00123ad4	vostok::render::effect_manager::create_effect<vostok::render::effect_olta>
 0x001bd6a0	reviewed	0x0012fc3d	vostok::render::stage::is_enabled
+0x001f3c70	reviewed	0x00157ab8	survarium::player::generate_hit_event
+0x00238230	reviewed	0x0018257b	survarium::game_world_ui::draw_damage_collector
+0x00246f10	observed		survarium::player::tick
+0x00303d50	observed		survarium::grenade_core::remove_from_physics
+0x00248520	observed		survarium::grenade::throw_grenade
+0x00248600	observed		survarium::grenade::remove_from_physics
+0x003185a0	observed		survarium::serialize_local_fixed_time
+0x00305ea0	observed		survarium::booby_trap_set_core::try_to_place_trap
+0x00305f50	observed		survarium::booby_trap_set_core::find_inactive_trap
+0x00305fc0	observed		survarium::booby_trap_set_core::find_disarmed_trap
+0x00304f00	observed		survarium::booby_trap_core::remove
+0x00316820	observed		survarium::player_respawn_rule_base::tick
+0x0031d040	reviewed	0x001f7dbf	survarium::breath_state_normal::tick
+0x0031d0a0	reviewed	0x001f7e12	survarium::breath_state_shortbreathing::tick
+0x0031d0d0	reviewed	0x001f7e41	survarium::breath_state_shortbreathing::is_ready_for_transition
+0x0031d140	reviewed	0x001f7e5c	survarium::breath_state_holding::initialize
+0x0031d190	reviewed	0x001f7e9b	survarium::breath_state_holding::finalize
+0x0031d200	reviewed	0x001f7ed0	survarium::breath_state_holding::tick
+0x0031d3b0	reviewed	0x001f7fdb	survarium::breath_vibration_calculator::can_hold_breath
+0x0031d400	reviewed	0x001f8023	survarium::breath_vibration_calculator::not_holding_breath
+0x0031d430	reviewed	0x001f8046	survarium::breath_vibration_calculator::insufficient_breath
+0x0031d450	reviewed	0x001f8053	survarium::breath_vibration_calculator::initialize_logic
+0x0023ddd0	observed		survarium::base_game_scene::apply_camera
+0x0031a100	observed		survarium::damage_zone_core::play_effect
+0x0032a7a0	observed		survarium::body_part_parameters::play_effect
+0x001c89c0	reviewed	0x0013d25e	vostok::render::potential_request::cancel_request
+0x00176420	reviewed	0x00109836	stlp_std::find_if<vostok::render::render_surface_instance * *,vostok::render::remove_invisible_models_predicate>
+0x003cf260	reviewed		sun_shadow_map_size [descriptive]
+0x002f8570	observed		survarium::usable_object::use_initialize
+0x002f85b0	observed		survarium::usable_object::use_finalize
+0x003cfe20	reviewed		vostok::render::res_render_output::goto_fullscreen
+0x003cfe80	reviewed	0x00274fc2	vostok::render::res_render_output::minimize
+0x00222330	observed		survarium::lobby_menu::on_profile_changed
+0x00207540	observed		survarium::key_binder::key_binder
+0x002078a0	observed	0x00155843	survarium::key_binder::set_default_controls
+0x00207ff0	observed		survarium::key_binder::unbind_key
+0x00207450	observed		survarium::key_binder::bind_command_save
+0x0023b740	observed		survarium::game_world_ui::update_local_player_state
+0x002fe8b0	observed		survarium::inventory::first_grenade_set_slot
+0x003b9680	observed		vostok::input::platform::mouse::execute
+0x002013a0	reviewed	0x0015f50d	survarium::game_options::assign_binding
+0x00201f20	reviewed	0x0015fb1f	survarium::game_options::apply_key_bindings
+0x00020310	observed		vostok::render::functor_with_big_buffer_to_copy_command<draw_scene_params>::ctor
+0x00028460	observed		vostok::render::functor_with_big_buffer_to_copy_command<draw_scene_params>::execute
+0x00028620	observed		vostok::render::functor_with_big_buffer_to_copy_command<draw_scene_params>::on_defer_execution
+0x00310e40	reviewed	0x001f34e8	survarium::weapon_core_reload_state_base::on_animation_end_impl
+0x0030fdb0	reviewed	0x001f3135	survarium::weapon_core_reload_state::initialize
+0x0030e420	reviewed	0x001f1951	survarium::weapon_core_reload_state::finalize
+0x00250f30	reviewed	0x0018d0e8	survarium::weapon_sound_events_handler_state<survarium::weapon_core_reload_state>::initialize
+0x00251030	reviewed	0x0018d143	survarium::weapon_sound_events_handler_state<survarium::weapon_core_reload_state>::finalize
+0x00251070	reviewed	0x0018d19f	survarium::weapon_sound_events_handler_state<survarium::weapon_core_reload_state>::deserialize
+0x00252f90	reviewed		survarium::weapon_sound_events_handler_state<survarium::pistol_weapon_core_reload_state>::initialize
+0x00253090	reviewed		survarium::weapon_sound_events_handler_state<survarium::pistol_weapon_core_reload_state>::finalize
+0x002530d0	reviewed		survarium::weapon_sound_events_handler_state<survarium::pistol_weapon_core_reload_state>::deserialize
+0x00297c50	reviewed		survarium::weapon_sound_effect::on_sound_event
+0x00252f90	reviewed		survarium::weapon_sound_events_handler_state<survarium::double_barreled_weapon_core_reload_state>::initialize
+0x00253090	reviewed		survarium::weapon_sound_events_handler_state<survarium::double_barreled_weapon_core_reload_state>::finalize
+0x002530d0	reviewed		survarium::weapon_sound_events_handler_state<survarium::double_barreled_weapon_core_reload_state>::deserialize
+0x001f36d0	observed	0x001575e1	survarium::player::apply_new_input
+0x002d8ee0	observed	0x001d48b8	survarium::base_player::tick_animations
+0x001f3070	observed	0x001570a0	survarium::player::render_model
+0x00263950	reviewed		survarium::lobby_character::accept_decal_edit
+0x00270320	reviewed		survarium::lobby_client::copy_account_items
+0x00270950	reviewed		survarium::lobby_client::send_apply_decal
+0x002812e0	reviewed		survarium::lobby_menu_logic::call
+0x0028c2c0	reviewed		survarium::lobby_menu::scaleform_callback
+0x00331330	observed		survarium::dispersion_calculator::tick
+0x00331480	observed		survarium::character_dispersion_calculator::get_skill_influence
+0x00331560	observed		survarium::character_dispersion_calculator::get_target_koef
+0x002d8bb0	observed		survarium::base_player::process_quick_slots
+0x001fef90	reviewed		survarium::text_translator::expand_text
+0x00207bf0	reviewed		survarium::key_binder::keycode_to_ptr
+0x002346e0	reviewed		survarium::game_world_ui::set_localization_data
+0x00286260	reviewed		survarium::lobby_menu::set_localization_data
+0x00220a00	reviewed		survarium::lobby_menu::update_ui

@@ -19,8 +19,9 @@ Integration is a separate review step.
 
 Compatibility changes from the old PR:
 
-- Input bit 29 is now the shipped artefact-carry/weapon-pickup marker. Only bit 30
-  remains unused; the native per-input flag in bit 31 remains allowed.
+- Input bit 29 is now the shipped artefact-carry/weapon-pickup marker, bit 30 client
+  patch 206's second-sight switch (`messages::SCOPE_NEXT`, 2026-11-26); the native
+  per-input flag in bit 31 remains allowed. Every action bit is one a client sends.
 - Static options can carry the shipped `SRPX` Blackout extension. Its layout is
   checked against the current server encoder, including malformed extensions and
   truncated native options.
@@ -607,6 +608,13 @@ players' names and accounts; never committed):
 - `dumps/<config>/`: the kept world dumps of the local runs
   (`private/local-clients-*/runtime/snapshots`, copied once on 2026-11-07,
   14,748 worlds). They have no recording, so only `world-drift` reads them.
+- `retired/`: recordings no check reads (same layout as `live/` and `local/`, a
+  `README.txt` with each file's reason; first on 2026-11-21, the owner's choice).
+  `world-check` reads every recording with this tree's data, so a content change
+  that alters a map's world objects (its objects, anomalies, damage zones or
+  respawn points) retires that map's older recordings: moved here, not deleted,
+  with a line in the README saying which change. So does a local recording of
+  content that never reaches main.
 
 Two rows of `tools/checks.tsv` read it (`tools/checks/worlds.sh`); the corpus is
 in their key (`{main}/private/world-corpus/**`), not in the diff: a refresh
@@ -1040,11 +1048,14 @@ dispatches to. There are exactly three entry points, each enumerated above:
    phase `[+0x1F1C64]` (0->1->2), each case a per-id handler; its 128 KB stack
    buffer is the decompression target for 0xE4/0xE8, which `lzma2_bound`
    (`OPTIONS_CAP` 0x578A0 / `SNAPSHOT_STATE_CAP`) caps before the decoder runs.
+   0xF6 is one byte (srp's 0, the snapshot upload's, which reads none) or, since patch 211,
+   1 and a tick (`messages::UploadRequest`; `desync_capture.md`): anything else is refused, and an
+   earlier game refuses the two bytes, so srp sends them only to a game whose 0xD8 has 0x04.
    The input path reads fixed node fields (0x318400) and applies the rotation
    by ADDING its two IEEE halves to the player angle (0x2D86E0 -> 0x2D8AD0, and
    the merged node 0x2C6640) -- bounded by `rotation_is_sane` (each half finite
-   and < 1024) and the `UNUSED_ACTIONS` bit, so no NaN/Inf or stray action
-   reaches the angle. `enter_match` 0x2D1470 guards the place byte `< 0x14`
+   and < 1024), so no NaN/Inf reaches the angle (every action bit is a
+   client's since patch 206's bit 30). `enter_match` 0x2D1470 guards the place byte `< 0x14`
    before indexing the 20-place table (stride 0x45FC) and runs the resync/too-
    old time checks; `items_dictionary::item_by_id` 0x1F0090 is a lookup that
    returns NULL (not an array index) on an unknown id, null-checked by callers.

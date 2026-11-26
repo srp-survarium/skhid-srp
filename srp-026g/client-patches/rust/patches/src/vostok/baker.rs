@@ -703,6 +703,14 @@ impl List {
         true
     }
 
+    /// The list's last record: right after the bake's tail listed its
+    /// texture (push_back 0x132640 writes at the list's end), that one.
+    pub fn newest() -> Option<Record> {
+        let (begin, records) = List::records()?;
+        // SAFETY: the last record of begin..end.
+        records.checked_sub(1).map(|last| Record(unsafe { begin.at(last) }))
+    }
+
     /// The record of the least age with no load of it under way (the one
     /// remove_unwanted_files lets go first); none when every record is
     /// loading, or the list is empty.

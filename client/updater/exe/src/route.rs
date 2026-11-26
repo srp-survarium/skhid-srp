@@ -3,7 +3,9 @@
 //! choice: read once from `<Documents>\survarium\launcher_skhid.route`, the
 //! first time decided by the Windows region and saved at once (so that it is
 //! the player's from then on, shown and changed in the launcher's "Relay" row), and
-//! changed only by that row or a block found ([`set`]).
+//! changed only by that row or a block found ([`set`]). Beside it, the
+//! route PLAY last started a game by after its check
+//! (`launcher_skhid.route_played`, [`played`]): the next check's evidence.
 
 use alloc::format;
 use alloc::string::String;
@@ -15,7 +17,7 @@ use std::time::Duration;
 
 use relay_client::{Config, Selection};
 use updater_logic::diagnosis::{Diagnosis, Internet, Reach, Via, diagnose};
-use updater_logic::route::{CHOICE_FILE, Choice, Event, Probed, Shown};
+use updater_logic::route::{self as routing, CHOICE_FILE, Choice, Event, PLAYED_FILE, Probed, Shown};
 use updater_logic::url::Url;
 
 use crate::log::log;
@@ -77,6 +79,55 @@ fn save(folder: Option<&str>, choice: Choice) {
     }
 }
 
+/// The route PLAY last started a game by after its check.
+pub fn played() -> Option<Via> {
+    let text = win::read_file(&format!("{}\\{PLAYED_FILE}", folder()?), 64).ok()?;
+    routing::played(&text)
+}
+
+/// PLAY starts a game by `via`, which its check found.
+pub fn set_played(via: Via) {
+    if played() == Some(via) {
+        return;
+    }
+    let word = routing::played_word(via);
+    let Some(folder) = folder() else {
+        log!("route: no Documents folder: played {word} not saved");
+        return;
+    };
+    let written = win::create_folders(&folder)
+        .and_then(|()| win::write_file(&format!("{folder}\\{PLAYED_FILE}"), format!("{word}\r\n").as_bytes()));
+    match written {
+        Ok(()) => log!("route: played {word} saved"),
+        Err(code) => log!("route: played {word} not saved: {}", win::error_text(code)),
+    }
+}
+
+/// The check of the routes (`relay_client::select`), with the last game's
+/// route as its evidence; `who` asked, for the log, which gets every round
+/// and each probe that failed.
+pub fn check(config: &Config, who: &str) -> Selection {
+    let last = played();
+    let report = relay_client::select(config, last);
+    log!(
+        "{who}: route check (last game {}): {report} -> {:?}",
+        last.map_or("none", routing::played_word),
+        report.selection
+    );
+    report.selection
+}
+
+/// Whether the game's ports answer now by the player's route: one round,
+/// what a wait for a server that restarts asks.
+pub fn game_answers(config: &Config) -> bool {
+    let up = |via| relay_client::answers(config, via);
+    match choice() {
+        Choice::Direct => up(Via::Direct),
+        Choice::Relay => up(Via::Relay),
+        Choice::Automatic => up(Via::Direct) || up(Via::Relay),
+    }
+}
+
 /// Windows' region of this user (`GetUserGeoID(GEOCLASS_NATION)`): what
 /// Settings > Time & language > Region says, under Wine the prefix's.
 fn region() -> i32 {
@@ -88,7 +139,7 @@ fn region() -> i32 {
 pub fn probe(config: &'static Config) -> mpsc::Receiver<Probed> {
     let (send, receive) = mpsc::channel();
     std::thread::spawn(move || {
-        let probed = match relay_client::select(config) {
+        let probed = match check(config, "route") {
             Selection::Direct(_) => Probed::Direct,
             Selection::Relay(_) => Probed::Relay,
             Selection::Unreachable => Probed::Neither,

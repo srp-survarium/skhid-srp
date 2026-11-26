@@ -37,8 +37,6 @@ pub enum Fault {
     Damaged,
     /// The connection ended before the file did.
     CutShort,
-    /// Slower than the updater waits for.
-    TooSlow,
     /// A web page (a sign-in, a quota page), not the file.
     WebPage,
     /// An HTTP status other than the file.
@@ -290,35 +288,30 @@ fn fault_words(language: u32, fault: Fault) -> String {
     match (language, fault) {
         (1, Damaged) => "файл повреждён".into(),
         (1, CutShort) => "загрузка оборвалась".into(),
-        (1, TooSlow) => "слишком медленно".into(),
         (1, WebPage) => "веб-страница вместо файла".into(),
         (1, Status(status)) => format!("отказ сервера (HTTP {status})"),
         (1, Insecure) => "нет защищённого соединения".into(),
         (1, Other) => "файл не подошёл".into(),
         (2, Damaged) => "файл пошкоджено".into(),
         (2, CutShort) => "завантаження обірвалося".into(),
-        (2, TooSlow) => "надто повільно".into(),
         (2, WebPage) => "вебсторінка замість файлу".into(),
         (2, Status(status)) => format!("відмова сервера (HTTP {status})"),
         (2, Insecure) => "немає захищеного з'єднання".into(),
         (2, Other) => "файл не підійшов".into(),
         (3, Damaged) => "Datei beschädigt".into(),
         (3, CutShort) => "Download abgebrochen".into(),
-        (3, TooSlow) => "zu langsam".into(),
         (3, WebPage) => "Webseite statt Datei".into(),
         (3, Status(status)) => format!("vom Server abgelehnt (HTTP {status})"),
         (3, Insecure) => "keine sichere Verbindung".into(),
         (3, Other) => "Datei unbrauchbar".into(),
         (4, Damaged) => "plik uszkodzony".into(),
         (4, CutShort) => "pobieranie przerwane".into(),
-        (4, TooSlow) => "zbyt wolno".into(),
         (4, WebPage) => "strona WWW zamiast pliku".into(),
         (4, Status(status)) => format!("serwer odmówił (HTTP {status})"),
         (4, Insecure) => "brak bezpiecznego połączenia".into(),
         (4, Other) => "plik nie nadaje się".into(),
         (_, Damaged) => "damaged".into(),
         (_, CutShort) => "cut short".into(),
-        (_, TooSlow) => "too slow".into(),
         (_, WebPage) => "a web page instead of the file".into(),
         (_, Status(status)) => format!("refused (HTTP {status})"),
         (_, Insecure) => "no secure connection".into(),
@@ -469,10 +462,9 @@ mod tests {
         Failure::Timeout,
         Failure::CutOff,
     ];
-    const FAULTS: [Fault; 7] = [
+    const FAULTS: [Fault; 6] = [
         Fault::Damaged,
         Fault::CutShort,
-        Fault::TooSlow,
         Fault::WebPage,
         Fault::Status(404),
         Fault::Insecure,
@@ -597,7 +589,7 @@ mod tests {
         assert_eq!(
             Failed::of_file(
                 "resources.db.patch_44",
-                &[timeout, Miss::Answered(Fault::Damaged), Miss::Answered(Fault::TooSlow)]
+                &[timeout, Miss::Answered(Fault::Damaged), Miss::Answered(Fault::WebPage)]
             ),
             Some(Failed::Download {
                 file: "resources.db.patch_44".into(),

@@ -5,7 +5,7 @@ The third skill tab has 37 points in a full build: fourteen skills, of which
 the two tier-5 unlocks exclude each other. Thresholds count points in earlier
 tiers of this branch: 0, 3, 7, 12 and 17. In rows 2-4 the painkiller's skills
 are in column 1 and the antitoxin's in column 4. The 2026-11-19 changes below
-are implemented and checked locally; they have not been played or released.
+were released in revision 68 (#2258).
 
 | Tier | Required points | ID | Skill | Per rank / unlock | Maximum |
 |---|---:|---:|---|---|---|
@@ -35,8 +35,35 @@ Additional Medicine, one or the other):
 | - S M - |    Supply Pocket XOR Additional Medicine
 ```
 
+Supply Pocket's pocket, like Deep Pockets', may be declined by each kit for the second weapon
+slot again, by a click on its slots in the lobby (the owner, 2026-11-22; `artefact-skills.md`,
+"The slot a pocket again, by kit").
+
 Points held: tier 1 = 3 (exactly row 2's), tiers 1-2 = 16, tiers 1-3 = 24, tiers 1-4 = 36; a
 full build 37.
+
+## Icons (owner decision, 2026-11-22)
+
+The owner: "let's change icon for additional medicine skill, it should have many medkits/bandages,
+right now it conflicts with sharp eye, second wind, concentration"; "I would also make painkiller and
+antitoxin icons have small icon bottom right, just like we did for technical skills". Each drug
+skill has its own icon, made as the technical tree's item skills are
+(`scripts/medical-skills/make_icons.py`, using `scripts/technical-skills/make_icons.py`): the drug's
+lobby render (its config's `ui_desc/icon` cell of `LobbyMenu_AmmoIcons`) filling the square, a
+white badge in the bottom-right corner.
+
+| Skill | Render | Badge |
+|---|---|---|
+| 301 Potent Painkiller | painkiller [10, 1], the ampoule | plus (more protection, longer) |
+| 303 Numb Legs | painkiller | 0.69d0 `modifiers/11.png`, a runner (sprint stamina) |
+| 323 Unflinching | painkiller | `modifiers/0.png`, a shield (hits' stopping power) |
+| 314 Sharp Eye | antitoxin [16, 1], the syringe, on the diagonal | `modifiers/7.png`, a crosshair (aim time) |
+| 324 Second Wind | antitoxin | `modifiers/10.png`, lungs (stamina) |
+| 333 Concentration | antitoxin | stopwatch (reload speed) |
+
+Additional Medicine (322) shows the military medkit and the Medikit fanned with a field dressing in
+front (the owner's pick of eight); its `survival/11.png` is no longer used. Each skill has its
+own class (`MedicalSkill069<id>`) in `SkillIcon069.as`; `icons-069.tsv` names every icon's sources.
 
 ## The antitoxin's skills and the 2026-11-19 retune (owner decisions)
 
@@ -44,17 +71,20 @@ full build 37.
   values); painkiller skills in column 1 (Potent Painkiller moved to row 2
   for it), and every painkiller skill shows the painkiller's icon, every
   antitoxin skill the antitoxin's (Additional Medicine's, the owner: "we
-  already have it in Add. Medicine"). Row 1 is Brothers in Arms (column 2)
+  already have it in Add. Medicine"; since 2026-11-22 each its own, "Icons" above). Row 1 is Brothers in Arms (column 2)
   and Fast Bandaging: its 3 points open row 2; Metabolism row 2 column 2,
   Medical Training column 3.
 - "An antitoxin" is a drug whose data/influences heal the infection pool and
-  nothing else (`medical::antitoxin`; the science medkit heals infection and
+  nothing else (`drug::Effect::Antitoxin`; the science medkit heals infection and
   the body: a medkit). "Active" is native set_active's flag, as for the
-  painkiller (its use delay included).
+  painkiller (its use delay included): from the press, the antitoxin's 1 s of
+  use and its 15 s of active time (the owner, 2026-11-20: "it should last 15
+  seconds"; 10 s before), whatever hits its holder (a bullet no longer stops
+  an antitoxin, drug-interrupt.md); his death ends it.
 - Sharp Eye (314, new, row 2): while an antitoxin is active, the sight's aim
   time (modifier 49, as it comes up and as it goes down) takes -0.05/-0.10/
   -0.15 added to the kit's sum: B x max(0, 1 + S - bonus). Icon: retail
-  0.69d0 `survival/11.png` (Additional Medicine's).
+  0.69d0 `survival/11.png` (Additional Medicine's; since 2026-11-22 its own, "Icons" above).
 - Second Wind (324, new, row 3): when an antitoxin's active time begins (its
   use delay over, the first tick of medkit::tick's active time, right after
   its remove_affects), its holder's stamina +20/+30/+40, never past its
@@ -64,7 +94,8 @@ full build 37.
   reload speed +0.10/+0.15/+0.20 added to modifier 13's sum while an
   antitoxin is active, at every reload state (the clip speed B x (max(0, 1 +
   S) + bonus)). Three ranks (was four); no longer exclusive with Unflinching.
-  Unflinching and Numb Legs show Potent Painkiller's ampoule (`survival/1.png`).
+  Unflinching and Numb Legs show Potent Painkiller's ampoule (`survival/1.png`; since 2026-11-22
+  each its own, "Icons" above).
 - Take Cover (313) leaves the tree ("useless, we will rethink it"): its
   native code and transport field stay, nothing sets them.
 - Metabolism: four ranks of 1 s (was five of 0.5 s), row 2.
@@ -79,7 +110,7 @@ full build 37.
   Sharp Eye ("Aim time") lines (srp's texts, st_srp_medicine_*);
   Second Wind's is a flat amount and has none.
 - It changes what a match computes: words in `simulation_changes.tsv`'s
-  `next` row.
+  row 68.
 
 ## Brothers in Arms in tier 1 (owner decision, 2026-11-14)
 
@@ -237,8 +268,9 @@ fills and account repair without deleting inventory stock. The menu uses committ
 validation obtains available branches from the loaded tree instead of assuming
 two tabs. The stock movie contains only two icon sets; `SkillIcon069.as`
 displays original 0.69d survival PNGs for branch 3 within the existing
-skill renderer. Their bytes are unchanged in `flash/lobby_menu/bitmaps/`;
-`scripts/medical-skills/icons-069.tsv` records the donor paths, mapping and SHA-256.
+skill renderer, their bytes unchanged in `flash/lobby_menu/bitmaps/`, and the drug skills' and
+Additional Medicine's made by `scripts/medical-skills/make_icons.py` ("Icons" above);
+`scripts/medical-skills/icons-069.tsv` records the sources, mapping and SHA-256.
 
 ## Native implementation
 
@@ -354,8 +386,8 @@ drug_begin}`; sites_026g.tsv `medical.reload*`, `medical.aim_*`,
   the whole active time (0x33D860). The lohook at 0x33D872 (EDI the drug,
   EBP its holder; `movzx edx,byte [ebp+115h]` replayed) gives an antitoxin's
   holder its stamina (player+6C0h: +0 the most, +6Ch now).
-- The antitoxin test reads the drug's influences: +280h the records (14h
-  each, the pool's name inline at +0, the amount at +10h: the antitoxin keeps the medkit template's seven at 0, so a drug is one when only infection's amount is above 0), +288h their
+- The antitoxin test (`vostok::drug::effect`, patch 84's too) reads the drug's influences: +280h the records (14h
+  each, the pool's name inline at +0, the amount at +10h: a drug is one when, of its records, only infection's amount is above 0; the live config has that one record, a config made from the medkit template would keep its seven at 0), +288h their
   count (medkit::tick's loop, 0x33D8F5 / 0x33DA1B).
 
 ## Effect ownership, capacity and duration

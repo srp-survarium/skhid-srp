@@ -37,6 +37,27 @@ pub enum CompileSite {
     RainDropTexture,
     /// `water.normal_texture`: the forward water's t_normal_map.
     WaterTexture,
+    /// `composition_<abc>.compiled`: the composition effect's epilogue.
+    CompositionEnd(Composition),
+    /// `composition_<abc>.begin_pass`: its technique's begin_pass.
+    CompositionPass(Composition),
+    /// `composition_<abc>.sun_shadow`: its t_sun_shadow_and_scattering.
+    CompositionSunShadow(Composition),
+}
+
+/// One of stage_composition's eight effects, effect_composition<a,b,c>
+/// (0x1A9330..0x1AA590, one compile each, the same code at the same offsets
+/// but for the configuration's bytes).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Composition {
+    C000,
+    C100,
+    C010,
+    C110,
+    C001,
+    C101,
+    C011,
+    C111,
 }
 
 fn compiler(ctx: &Context<'_>, site: CompileSite) -> raw::EffectCompiler {
@@ -50,9 +71,66 @@ fn compiler(ctx: &Context<'_>, site: CompileSite) -> raw::EffectCompiler {
             CompileSite::RainEnd => raw::site::rain_compiled::compiler(ctx),
             CompileSite::RainDropTexture => raw::site::rain_drop_texture::compiler(ctx),
             CompileSite::WaterTexture => raw::site::water_normal_texture::compiler(ctx),
+            CompileSite::CompositionEnd(composition) => composition_end_compiler(ctx, composition),
+            CompileSite::CompositionPass(composition) => composition_pass_compiler(ctx, composition),
+            CompileSite::CompositionSunShadow(composition) => composition_sun_shadow_compiler(ctx, composition),
         }
     }
     .expect("the compile's compiler")
+}
+
+/// # Safety
+/// The context is the site's (`composition_<abc>.compiled`).
+unsafe fn composition_end_compiler(ctx: &Context<'_>, composition: Composition) -> Option<raw::EffectCompiler> {
+    use raw::site::*;
+    unsafe {
+        match composition {
+            Composition::C000 => composition_000_compiled::compiler(ctx),
+            Composition::C100 => composition_100_compiled::compiler(ctx),
+            Composition::C010 => composition_010_compiled::compiler(ctx),
+            Composition::C110 => composition_110_compiled::compiler(ctx),
+            Composition::C001 => composition_001_compiled::compiler(ctx),
+            Composition::C101 => composition_101_compiled::compiler(ctx),
+            Composition::C011 => composition_011_compiled::compiler(ctx),
+            Composition::C111 => composition_111_compiled::compiler(ctx),
+        }
+    }
+}
+
+/// # Safety
+/// The context is the site's (`composition_<abc>.begin_pass`).
+unsafe fn composition_pass_compiler(ctx: &Context<'_>, composition: Composition) -> Option<raw::EffectCompiler> {
+    use raw::site::*;
+    unsafe {
+        match composition {
+            Composition::C000 => composition_000_begin_pass::compiler(ctx),
+            Composition::C100 => composition_100_begin_pass::compiler(ctx),
+            Composition::C010 => composition_010_begin_pass::compiler(ctx),
+            Composition::C110 => composition_110_begin_pass::compiler(ctx),
+            Composition::C001 => composition_001_begin_pass::compiler(ctx),
+            Composition::C101 => composition_101_begin_pass::compiler(ctx),
+            Composition::C011 => composition_011_begin_pass::compiler(ctx),
+            Composition::C111 => composition_111_begin_pass::compiler(ctx),
+        }
+    }
+}
+
+/// # Safety
+/// The context is the site's (`composition_<abc>.sun_shadow`).
+unsafe fn composition_sun_shadow_compiler(ctx: &Context<'_>, composition: Composition) -> Option<raw::EffectCompiler> {
+    use raw::site::*;
+    unsafe {
+        match composition {
+            Composition::C000 => composition_000_sun_shadow::compiler(ctx),
+            Composition::C100 => composition_100_sun_shadow::compiler(ctx),
+            Composition::C010 => composition_010_sun_shadow::compiler(ctx),
+            Composition::C110 => composition_110_sun_shadow::compiler(ctx),
+            Composition::C001 => composition_001_sun_shadow::compiler(ctx),
+            Composition::C101 => composition_101_sun_shadow::compiler(ctx),
+            Composition::C011 => composition_011_sun_shadow::compiler(ctx),
+            Composition::C111 => composition_111_sun_shadow::compiler(ctx),
+        }
+    }
 }
 
 /// The compiler of the compile at `site`.
@@ -92,6 +170,47 @@ pub fn set_wet_surface_pixel_shader(ctx: &Context<'_>, name: &'static CStr) {
     // third argument once the gs name and the compiler follow), which only
     // begin_pass reads.
     unsafe { raw::site::wet_surface_begin_pass::frame(ctx).expect("the site's ESP").set_pixel_shader(name.as_ptr().cast_mut().cast()) }
+}
+
+/// Makes `name` the pixel shader of the composition technique's begin_pass
+/// at `composition_<abc>.begin_pass` (its pushed argument; the VS, also
+/// `composition`, and the configuration stay).
+pub fn set_composition_pixel_shader(ctx: &Context<'_>, composition: Composition, name: &'static CStr) {
+    use raw::site::*;
+    // SAFETY: the site's ESP: the PS name begin_pass's caller pushed (0x1A939D
+    // in effect_composition<0,0,0>, the same offset in each), which only
+    // begin_pass reads.
+    unsafe {
+        let frame = match composition {
+            Composition::C000 => composition_000_begin_pass::frame(ctx),
+            Composition::C100 => composition_100_begin_pass::frame(ctx),
+            Composition::C010 => composition_010_begin_pass::frame(ctx),
+            Composition::C110 => composition_110_begin_pass::frame(ctx),
+            Composition::C001 => composition_001_begin_pass::frame(ctx),
+            Composition::C101 => composition_101_begin_pass::frame(ctx),
+            Composition::C011 => composition_011_begin_pass::frame(ctx),
+            Composition::C111 => composition_111_begin_pass::frame(ctx),
+        };
+        frame.expect("the site's ESP").set_pixel_shader(name.as_ptr().cast_mut().cast())
+    }
+}
+
+/// Binds the composition's sun shadow under `slot` where its block at
+/// `composition_<abc>.sun_shadow` binds it as t_sun_shadow_and_scattering:
+/// the game's set_texture (0x3D98B0) with the block's arguments (its pushes:
+/// ESI, 1.0, ESI, -1, ESI, $user$sun_shadow_and_scattering, the slot, the
+/// compiler; ESI 0 there), the slot ours. The caller takes the site's `bound`
+/// exit, which skips the block.
+pub fn bind_composition_sun_shadow(ctx: &Context<'_>, composition: Composition, slot: &'static CStr) {
+    let compiler = compiler(ctx, CompileSite::CompositionSunShadow(composition));
+    let esi = ctx.reg(Reg::Esi);
+    // SAFETY: set_texture (stdcall, its eight arguments on the stack), on the
+    // compile's own thread and compiler, in the place of the game's call; it
+    // reads the two names (ours and the game's own render target's, static)
+    // and keeps them by name.
+    unsafe {
+        raw::engine_set_texture(Some(compiler), slot.as_ptr().cast(), c"$user$sun_shadow_and_scattering".as_ptr().cast(), esi, u32::MAX, esi, 1.0, esi)
+    }
 }
 
 /// The set_texture blocks a patch binds its own texture at instead: each
@@ -187,6 +306,181 @@ impl<'c> MaterialPass<'c> {
     pub fn set_vertex_shader(&mut self, name: &'static CStr) {
         // SAFETY: compile_begin's own argument slot (see `at`).
         unsafe { self.frame.set_vertex_shader(name.as_ptr().cast_mut().cast()) }
+    }
+}
+
+/// The shader configuration's byte 0Dh, as fill_shader_configuration_macros
+/// (0x3C9B80) makes macros of it. Its other bits (soft edges, terrain blend,
+/// thickness, scattering) are the compile's own and stay as they are.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Switches0d(u8);
+
+impl Switches0d {
+    /// Bit 0, CONFIG_USE_FUZZINESS: in the forward programs, the uv
+    /// distortion moves the emissive map only.
+    pub const FUZZINESS: u8 = 0x01;
+    /// Bit 6, CONFIG_USE_OLTA: in the forward and particle lighting
+    /// programs, the transparency map is a DXT1 image.
+    pub const OLTA: u8 = 0x40;
+    /// Bit 7, CONFIG_USE_DISPLACEMENT: in the forward programs (and their
+    /// vertex shader), the two maps tile by constant_tile_uv.
+    pub const DISPLACEMENT: u8 = 0x80;
+
+    pub fn bits(self) -> u8 {
+        self.0
+    }
+
+    /// The byte with `bit` (one of the constants) on or off.
+    pub fn with(self, bit: u8, on: bool) -> Switches0d {
+        Switches0d(if on { self.0 | bit } else { self.0 & !bit })
+    }
+}
+
+/// The compiles a patch sees at their call of compile_begin.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum BeginSite {
+    /// `forward.compile_begin`: forward_default's compile.
+    Forward,
+    /// `particle_lighting.compile_begin`: particle_lighting's compile.
+    ParticleLighting,
+}
+
+/// A material effect's call of compile_begin: its shader configuration,
+/// final there (compile_begin copies it for begin_pass), and its config tree.
+pub struct CompileBegin<'c> {
+    configuration: raw::ShaderConfiguration,
+    tree: Option<ConfigTable<'c>>,
+}
+
+impl<'c> CompileBegin<'c> {
+    pub fn at(ctx: &'c Context<'_>, site: BeginSite) -> Option<CompileBegin<'c>> {
+        // SAFETY: the site's ESP holds the arguments the compile pushed for
+        // compile_begin: the configuration is the compile's own local, the
+        // tree the compile data's, immutable while the effect compiles.
+        unsafe {
+            let (configuration, tree) = match site {
+                BeginSite::Forward => {
+                    let frame = raw::site::forward_compile_begin::frame(ctx)?;
+                    (frame.configuration()?, frame.tree())
+                }
+                BeginSite::ParticleLighting => {
+                    let frame = raw::site::particle_lighting_compile_begin::frame(ctx)?;
+                    (frame.configuration(), frame.tree())
+                }
+            };
+            let tree = tree.and_then(|tree| ConfigValue::read(tree).ok()?.table().ok());
+            Some(CompileBegin { configuration, tree })
+        }
+    }
+
+    /// The material's merged config (its <stage>.effect table), if a table.
+    pub fn tree(&self) -> Option<&ConfigTable<'c>> {
+        self.tree.as_ref()
+    }
+
+    pub fn switches_0d(&self) -> Switches0d {
+        // SAFETY: the compile's configuration (see `at`).
+        Switches0d(unsafe { self.configuration.switches_0d().read() })
+    }
+
+    pub fn set_switches_0d(&mut self, switches: Switches0d) {
+        // SAFETY: the compile's configuration (see `at`), read next by
+        // compile_begin's copy for begin_pass.
+        unsafe { self.configuration.switches_0d().write(switches.0) }
+    }
+}
+
+/// A material's values as a compile reads them: a key's `value` child,
+/// whatever its type.
+pub trait MaterialFields {
+    /// A switch: on when its value is not 0, as the compiles test it
+    /// (`cmp dword [eax],0`); off when the key is missing.
+    fn switch(&self, name: &CStr) -> bool;
+    /// A number: a float, or an integer made a float (the compiles' test of
+    /// the type word +14h); None when the key is missing.
+    fn number(&self, name: &CStr) -> Option<f32>;
+}
+
+impl MaterialFields for ConfigTable<'_> {
+    fn switch(&self, name: &CStr) -> bool {
+        match value_of(self, name) {
+            Some(ConfigValue::Boolean(on)) => on,
+            Some(ConfigValue::Integer(n)) => n != 0,
+            Some(ConfigValue::Number(x)) => x.to_bits() != 0,
+            _ => false,
+        }
+    }
+
+    fn number(&self, name: &CStr) -> Option<f32> {
+        value_of(self, name)?.number().ok()
+    }
+}
+
+fn value_of<'t>(table: &ConfigTable<'t>, name: &CStr) -> Option<ConfigValue<'t>> {
+    table.get(name).ok()??.table().ok()?.get(c"value").ok()?
+}
+
+/// The material config of the forward compile at `forward.tile_uv`.
+pub fn tile_uv_tree<'c>(ctx: &'c Context<'_>) -> Option<ConfigTable<'c>> {
+    // SAFETY: the site's EBX, the compile's config tree (its second
+    // argument, 0x1D8F78), immutable while the effect compiles.
+    unsafe { ConfigValue::read(raw::site::forward_tile_uv::tree(ctx)?).ok()?.table().ok() }
+}
+
+/// Sends constant_tile_uv as a float4 at `forward.tile_uv`, before the
+/// forward compile's own block sends its float2: a set_constant keeps a
+/// name's first value (the block's set of the name then adds nothing), so
+/// the float4 is the constant.
+pub fn send_tile_uv(ctx: &Context<'_>, value: [f32; 4]) {
+    // SAFETY: the site's EDI, the compile's compiler, which both of the
+    // block's calls are given.
+    let compiler = unsafe { raw::site::forward_tile_uv::compiler(ctx) }.expect("the compile's compiler");
+    // SAFETY: set_constant<float4> (thiscall: ECX the value, then the
+    // compiler and the name), on the compile's own thread and compiler, in
+    // the place of the game's set_constant<float2>; it copies the value and
+    // interns the name.
+    unsafe { raw::engine_set_constant_float4(value.as_ptr(), Some(compiler), c"constant_tile_uv".as_ptr().cast()) }
+}
+
+/// The g-buffer compile's parallax block (`gstage.parallax`): its material
+/// config and its compiler.
+pub struct GstageParallax<'c> {
+    compiler: raw::EffectCompiler,
+    tree: Option<ConfigTable<'c>>,
+}
+
+impl<'c> GstageParallax<'c> {
+    pub fn at(ctx: &'c Context<'_>) -> GstageParallax<'c> {
+        use raw::site::gstage_parallax as site;
+        // SAFETY: the site's EBP is effect_gstage_default_materials::compile's
+        // frame, [EBP+8] its compiler; EBX the compile's config tree,
+        // immutable while the effect compiles.
+        unsafe {
+            let compiler = site::frame(ctx).and_then(|frame| frame.compiler()).expect("the compile's compiler");
+            let tree = site::tree(ctx).and_then(|tree| ConfigValue::read(tree).ok()?.table().ok());
+            GstageParallax { compiler, tree }
+        }
+    }
+
+    /// The material's merged config (its g_stage effect table), if a table.
+    pub fn tree(&self) -> Option<&ConfigTable<'c>> {
+        self.tree.as_ref()
+    }
+
+    /// Sets a float2 constant of the compile: the game's set_constant<float2>,
+    /// which binds it only while building and only when no binding has the name.
+    pub fn send_float2(&self, name: &'static CStr, value: [f32; 2]) {
+        // SAFETY: set_constant<float2> (thiscall: ECX the value, then the
+        // compiler and the name), on the compile's own thread and compiler;
+        // it copies the value and interns the name.
+        unsafe { raw::engine_set_constant_float2(value.as_ptr(), Some(self.compiler), name.as_ptr().cast()) }
+    }
+}
+
+#[cfg(test)]
+impl Switches0d {
+    pub fn default_for_test(byte: u8) -> Switches0d {
+        Switches0d(byte)
     }
 }
 

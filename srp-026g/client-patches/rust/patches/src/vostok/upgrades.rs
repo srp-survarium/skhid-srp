@@ -23,7 +23,7 @@ use weapon_kit::{Expanded, Logical, RECORDS, Record, Wire};
 
 use super::context::Context;
 use super::hook::Thread;
-use super::ui::GFX_UINT;
+use super::ui::set_uint_member;
 use crate::raw;
 
 /// Patch 48's "taken off" (its queue's slot).
@@ -42,13 +42,20 @@ impl Records {
     pub fn as_slice(&self) -> &[Record] {
         self.records.get(..self.len).unwrap_or(&[])
     }
+
+    /// `records` as an item's (None for more than three).
+    pub fn of(records: &[Record]) -> Option<Records> {
+        let mut out = Records { len: records.len(), ..Records::default() };
+        out.records.get_mut(..records.len())?.copy_from_slice(records);
+        Some(out)
+    }
 }
 
 /// The records of `list` (None when it is broken or holds more than three).
 ///
 /// # Safety
 /// `list` is a live buffer_vector of upgrade records.
-unsafe fn read(list: raw::UpgradeRecords) -> Option<Records> {
+pub(super) unsafe fn read(list: raw::UpgradeRecords) -> Option<Records> {
     // SAFETY: the caller's.
     let (begin, end) = unsafe { (list.begin(), list.end()) };
     let mut out = Records::default();
@@ -84,7 +91,7 @@ unsafe fn record_at(record: raw::UpgradeRecord) -> Record {
 
 /// # Safety
 /// `place` is an upgrade record's room, ours or the item's.
-unsafe fn write(place: raw::UpgradeRecord, record: &Record) {
+pub(super) unsafe fn write(place: raw::UpgradeRecord, record: &Record) {
     // SAFETY: the caller's.
     unsafe {
         *place.id() = record.id;
@@ -210,23 +217,8 @@ impl<'t> FlashUpgrade<'t> {
     /// object interface, as the site's own `id` and `param`); false when the
     /// object is no AS3 movie's (nothing set) or the movie refused.
     pub fn set_uint(&self, name: &CStr, value: u32) -> bool {
-        let mut room = raw::GfxValueStorage::zeroed();
-        let given = room.handle();
-        // SAFETY: the object is the site's live GFx value; its interface is
-        // called only when its vtable is the AS3 interface's, whose SetMember
-        // 0x7C6A20 is that slot; the name a C string; the value ours, a uint.
-        unsafe {
-            let object = self.frame.object();
-            let Some(interface) = object.interface() else { return false };
-            if *interface.vtable() != raw::image::AS3_OBJECT_INTERFACE {
-                return false;
-            }
-            *given.kind() = GFX_UINT;
-            *given.value() = value;
-            let display = u32::from(*object.kind() & 0x8F == 0x0A);
-            raw::engine_gfx_set_member(Some(interface), object.object(), name.as_ptr().cast(), Some(given), display)
-                != 0
-        }
+        // SAFETY: the object is the site's live GFx value, on the lobby's thread.
+        unsafe { set_uint_member(self.frame.object(), name, value) }
     }
 }
 
@@ -256,9 +248,10 @@ impl<'t> AttachedPairs<'t> {
         }
     }
 
-    /// The inventory's item of `dict` with the lowest item id (as the lobby
-    /// movie's InventoryList.getInventoryItemOf), None when it holds none.
-    pub fn item_of(&self, dict: u16) -> Option<u32> {
+    /// The inventory's item of `dict` with the lowest item id that `taken`
+    /// does not hold (as the lobby movie's InventoryList.getInventoryItemOf,
+    /// past the weapon's own items of it), None when it holds none.
+    pub fn item_of(&self, dict: u16, taken: &[u32]) -> Option<u32> {
         // SAFETY: the inventory's vector and its end, the frame's, alive for
         // the function; begin..end are its item records.
         unsafe {
@@ -266,7 +259,7 @@ impl<'t> AttachedPairs<'t> {
             let count = self.frame.inventory_end()?.index_from(begin)?;
             (0..count)
                 .map(|i| begin.at(i))
-                .filter(|item| *item.dict() == dict && *item.id() != 0)
+                .filter(|item| *item.dict() == dict && *item.id() != 0 && !taken.contains(&*item.id()))
                 .map(|item| *item.id())
                 .min()
         }

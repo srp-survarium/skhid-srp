@@ -36,9 +36,9 @@ these exact rain/evening project aliases and still rejects unrelated scenes. Rud
 IDs require the already shipped wide map-ID support.
 
 `source_projects.py` composes `release/content.tsv` through build-content's
-own implementation, excluding the weather pack and weather-only edit lists.
-Its temporary view of `modes.tsv` excludes only those twenty weather rows,
-and subtracts the excluded pack’s twenty map rows from the existing
+own implementation, excluding the weather packs and weather-only edit lists.
+Its temporary view of `modes.tsv` excludes only those packs’ weather rows,
+and subtracts the excluded packs’ map rows from the existing
 append-count guards, without rewriting other edit sources. Thus adding
 the weather pack does not create a regeneration cycle. The export
 records each resource's checksum and the content manifest checksum. The

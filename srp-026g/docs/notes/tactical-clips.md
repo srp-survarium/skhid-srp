@@ -64,13 +64,47 @@ unsubscribes), so in a reload it is heard by nothing. Accepted by name: the Vity
 end, as our own reload starts it). Reported: the hands' fingers and forearm roll bones apart from
 our reload at the clips' ends (the Vityaz's forearm rolls); worth a look in the game.
 
+## 0.69d0, the guns it moved in the hands (pack tactical-clips-rebased-069@1)
+
+0.69d0 moved these guns in the hands: its hands' `Weapon` bone carries the static placement our
+clips keep in the gun's `offset` bone, so its reload as it is would slide the gun at the start and
+end (5 to 14 cm). The port places them as the live reload does (`"placement": "live_rest"`): the
+hands' `Weapon` held where the live reload holds it, the gun's `offset` curve rebased to start
+where the live reload's does and fitted again on 0.69d0's knots (checked every quarter frame,
+0.1 mm and 0.001 rad). The gun's own motion and the hands are 0.69d0's.
+
+The times (the owner, 2026-11-22: "make numbers proportional"): the reload time each gun had is
+its empty reload's, and the tactical one is shorter in 0.69d0's proportion. No reload is slower.
+
+| weapon | before, either reload | tactical | empty | 0.69d0 |
+|---|---:|---:|---:|---:|
+| SR-3M (+premium) | 3.167 | 2.573 | 3.167 | 2.6 / 3.2 |
+| SR-2M | 2.7 | 1.98 | 2.7 | 2.2 / 3 |
+| UMP-45 | 3.7 | 2.837 | 3.7 | 2.3 / 3 |
+| AEK-919K | 2.8 | 1.96 | 2.8 | 2.1 / 3 |
+| PPSh-41 | 3.7 | 2.775 | 3.7 | 3 / 4 |
+| Vepr (+premium) | 3.167 | 2.375 | 3.167 | 3 / 4 |
+| SVU-A | 3.1 | 2.657 | 3.1 | 3 / 3.5 |
+
+They are `weapon-stats.tsv`'s `reload` and `reload_empty`, which `reload-timings-1.json` cooks
+into the clips; retune there.
+
+- The SVU-A is a gun of pack weapons-046 and played one clip in both slots of its two-clip reload;
+  0.69d0's clips fit it as they are. The pack is therefore made over the files players have
+  (`release/patches.tsv`), not the base patches alone, and holds only what it changes in them
+  (`make_pack.sh ... 069d-rebased`).
+- The AEK-919K takes 0.69d0's reload sounds (its clips' sound events index them).
+- Accepted by name: the Vepr's fire selector (`safety`, 12 degrees from our idle) and the PPSh's
+  bolt (`zatvor`: 1.3 cm from our idle at the clips' ends, 5.7 cm at the empty reload's start,
+  where 0.69d0 has the open bolt forward on an empty gun).
+- Reported: the left hand's turn at the clips' ends, 0.96 rad on the Vepr and 1.76 rad on the
+  PPSh, from our reload (the PPSh's clips are 0.69d0's box-magazine ones, not the Drum's). Both
+  are worth a look in the game.
+
 ## Not converted
 
-- 0.69d0 moved the gun in the hands: its hands' `Weapon` bone carries the static placement our
-  clips keep in the gun's `offset` bone (the same numbers across the gun root's half turn about y),
-  so its reload would slide the gun at the start and end: the SR-2M, AEK-919K, Vepr (+premium)
-  (13 cm), UMP-45 (14 cm), PPSh-41 (6 to 9 cm), SR-3M (+premium) (the Val's clips, 5 cm).
-- One clip in 0.29a3 and 0.69d0 too: the PKP, RPD, VSSK (+camo), TOZ-122, Magnum (a revolver).
+- One clip in 0.29a3 and 0.69d0 too: the PKP, RPD, VSSK (+camo), TOZ-122, Magnum (a revolver),
+  and the Jackhammer (0.69d0 names one clip in both slots, 3.2 s either way).
 
 ## Slower-reload report and lobby timings (2026-11-03)
 

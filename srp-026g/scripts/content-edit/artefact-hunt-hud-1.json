@@ -1,0 +1,15 @@
+{
+  "_about": "Artifact Hunt's hud (docs/notes/artefact_hunt.md, HUD calls): the four dictionary texts the hud movie shows that are no st_srp_* key (those the localization compile maps itself), each mapped to itself in hud_strings: the take and put prompts and the pregame countdown are the game's own texts, \"Round restarts in\" is scripts/artefact-hunt/texts.tsv's. Text lives in client-patches/localization/*.tsv.",
+  "append_rows": [
+    {
+      "file": "localization/flash_movies_localizations.options",
+      "path": "hud_strings",
+      "rows": [
+        ["st_pickup_item", "st_pickup_item"],
+        ["st_put_item", "st_put_item"],
+        ["st_round_restart_in", "st_round_restart_in"],
+        ["st_final_countdown", "st_final_countdown"]
+      ]
+    }
+  ]
+}

@@ -1,5 +1,5 @@
 """sites.py : print VA, file offset and original bytes of every patch site named in
-notes/launcher-026g.md, plus the URL/string table with slack. Read-only."""
+srp-026g/docs/notes/launcher.md, plus the URL/string table with slack. Read-only."""
 import os, re, struct, sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from lpe import Pe, L026

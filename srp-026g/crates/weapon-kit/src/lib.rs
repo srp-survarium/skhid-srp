@@ -11,24 +11,36 @@
 //!
 //! The client keeps at most [`RECORDS`] upgrade records an item (the item
 //! record's inline array; a fourth is the fatal assert at 0x1F1655). A
-//! weapon holds up to six things, one a [`Slot`]: two decals, a camouflage,
-//! a scope, a muzzle device and a grip. On the wire: the decals as records
-//! of their own, then one **kit** record in record slot [`KIT_RECORD_SLOT`]
-//! for the rest. The kit is the first of scope, camouflage, muzzle, grip the
-//! weapon holds (its item id and dict id, as that one's own record would
-//! be); its value names the others by dict id:
+//! weapon holds up to seven things, one a [`Slot`]: two decals, a
+//! camouflage, a scope, a muzzle device, a grip and a second sight. On the
+//! wire: the decals as records of their own, then one **kit** record in
+//! record slot [`KIT_RECORD_SLOT`] for the rest. The kit is the first of
+//! scope, camouflage, muzzle, grip, second sight the weapon holds (its item
+//! id and dict id, as that one's own record would be); its value names the
+//! others by dict id, in one of two layouts:
 //!
 //! ```text
-//! bits  0..15  the camouflage's dict id (0: none, or it is the kit's own)
-//! bits 16..31  the muzzle device's
-//! bits 32..47  the grip's
-//! bits 48..55  the kit's own logical slot (2, 3, 4 or 5)
-//! bits 56..63  KIT_MAGIC
+//! KIT_MAGIC (no second sight):     KIT_MAGIC_WIDE (with one):
+//! bits  0..15  the camouflage's    bits  0..11  the camouflage's
+//! bits 16..31  the muzzle's        bits 12..23  the muzzle's
+//! bits 32..47  the grip's          bits 24..35  the grip's
+//!                                  bits 36..47  the second sight's
+//! bits 48..55  the kit's own logical slot (2 to 5)
+//!                                  bits 48..51  the kit's own slot (2 to 6)
+//!                                  bit  55      the second sight's side
+//! bits 56..63  the magic
 //! ```
 //!
-//! A record is a kit only in record slot 3 with [`KIT_MAGIC`] on top; any
-//! other is a plain record. A kit value that names its own slot, or an own
-//! slot outside 2..=5, is [`Malformed`], as is a set of records that puts two
+//! A second sight's record holds its [`Side`] as its value (0 left, 1
+//! right), as a decal's holds its place; the wide kit carries it in bit 55.
+//!
+//! A dict id the wide layout names is below 4096 ([`WIDE_DICT_LIMIT`]); a
+//! kit with a second sight and a larger one is refused (it is never sent).
+//! A weapon without a second sight is sent as before second sights.
+//!
+//! A record is a kit only in record slot 3 with a magic on top; any other
+//! is a plain record. A kit value that names its own slot, or an own slot
+//! outside its layout's, is [`Malformed`], as is a set of records that puts two
 //! things in one slot or names a dict id another record holds (the client's
 //! config would hit its duplicate-name assert; two records of one dict id,
 //! the same decal twice, are the stock game's). The client refuses a malformed kit by
@@ -61,8 +73,43 @@ use core::num::NonZeroU16;
 /// The upgrade records the client keeps an item (the item record's inline
 /// array, +6Ch..+B4h of its 0xB4 bytes; the reader's assert at 0x1F1655).
 pub const RECORDS: usize = 3;
-/// The value's top byte that makes a record of [`KIT_RECORD_SLOT`] a kit.
+/// The value's top byte that makes a record of [`KIT_RECORD_SLOT`] a kit
+/// without a second sight.
 pub const KIT_MAGIC: u8 = 0xA7;
+/// The top byte of a kit in the wide layout, which names a second sight.
+pub const KIT_MAGIC_WIDE: u8 = 0xA8;
+/// The wide layout's dict ids are below this.
+pub const WIDE_DICT_LIMIT: u16 = 1 << 12;
+/// The wide layout's bit of the second sight's side.
+const SIDE_BIT: u32 = 55;
+
+/// The side of the gun a second sight is on: the angled rail it takes
+/// (0.69d's `angled_picatinnyrail_l`, `_r`).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+pub enum Side {
+    #[default]
+    Left,
+    Right,
+}
+
+impl Side {
+    /// The side a second sight's record value names; None for another value.
+    pub fn of_value(value: u64) -> Option<Side> {
+        match value {
+            0 => Some(Side::Left),
+            1 => Some(Side::Right),
+            _ => None,
+        }
+    }
+
+    /// The record value.
+    pub fn value(self) -> u64 {
+        match self {
+            Side::Left => 0,
+            Side::Right => 1,
+        }
+    }
+}
 /// The record slot the kit goes in (the scope's).
 pub const KIT_RECORD_SLOT: u8 = 3;
 /// The records an expanded kit gives the item config cook at most: the
@@ -79,17 +126,19 @@ pub enum Slot {
     Scope = 3,
     Muzzle = 4,
     Grip = 5,
+    SecondSight = 6,
 }
 
 impl Slot {
     /// Every slot, in order.
-    pub const ALL: [Slot; 6] = [
+    pub const ALL: [Slot; 7] = [
         Slot::Decal0,
         Slot::Decal1,
         Slot::Camo,
         Slot::Scope,
         Slot::Muzzle,
         Slot::Grip,
+        Slot::SecondSight,
     ];
 
     /// The slot a record's byte names (None: no weapon slot).
@@ -111,22 +160,20 @@ pub enum KitSlot {
     Scope,
     Muzzle,
     Grip,
+    SecondSight,
 }
 
 impl KitSlot {
     /// The order the kit's own is chosen in: the first the weapon holds.
-    pub const ALL: [KitSlot; 4] = [
+    pub const ALL: [KitSlot; 5] = [
         KitSlot::Scope,
         KitSlot::Camo,
         KitSlot::Muzzle,
         KitSlot::Grip,
+        KitSlot::SecondSight,
     ];
-    /// The slots the value names, each with the bit its dict id begins at.
-    const NAMED: [(KitSlot, u32); 3] = [
-        (KitSlot::Camo, 0),
-        (KitSlot::Muzzle, 16),
-        (KitSlot::Grip, 32),
-    ];
+    /// The slots a value may name, in [`Kit::named`]'s order.
+    const NAMED: [KitSlot; 4] = [KitSlot::Camo, KitSlot::Muzzle, KitSlot::Grip, KitSlot::SecondSight];
 
     pub fn slot(self) -> Slot {
         match self {
@@ -134,6 +181,7 @@ impl KitSlot {
             KitSlot::Scope => Slot::Scope,
             KitSlot::Muzzle => Slot::Muzzle,
             KitSlot::Grip => Slot::Grip,
+            KitSlot::SecondSight => Slot::SecondSight,
         }
     }
 
@@ -168,12 +216,59 @@ pub struct Record {
     pub slot: u8,
 }
 
+/// A kit value's layout: the bit each named slot's dict id begins at, and
+/// how many bits it has.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Layout {
+    /// [`KIT_MAGIC`]: camouflage, muzzle, grip in 16 bits each.
+    Narrow,
+    /// [`KIT_MAGIC_WIDE`]: those and the second sight in 12 bits each.
+    Wide,
+}
+
+impl Layout {
+    fn of_magic(magic: u8) -> Option<Layout> {
+        match magic {
+            KIT_MAGIC => Some(Layout::Narrow),
+            KIT_MAGIC_WIDE => Some(Layout::Wide),
+            _ => None,
+        }
+    }
+
+    fn magic(self) -> u8 {
+        match self {
+            Layout::Narrow => KIT_MAGIC,
+            Layout::Wide => KIT_MAGIC_WIDE,
+        }
+    }
+
+    /// Where `slot`'s dict id is: (its first bit, its bits); None: this
+    /// layout names no such slot.
+    fn field(self, slot: KitSlot) -> Option<(u32, u32)> {
+        let at = KitSlot::NAMED.iter().position(|named| *named == slot)?;
+        let at = u32::try_from(at).ok()?;
+        match self {
+            Layout::Narrow => (at < 3).then(|| (at.saturating_mul(16), 16)),
+            Layout::Wide => Some((at.saturating_mul(12), 12)),
+        }
+    }
+
+    fn holds(self, own: KitSlot) -> bool {
+        self == Layout::Wide || own != KitSlot::SecondSight
+    }
+}
+
 /// Why records are not a weapon's: what the client refuses (and srp never
 /// sends).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Malformed {
-    /// A kit's own slot byte is not 2..=5.
+    /// A kit's own slot byte is not one of its layout's (2..=5, or 2..=6 in
+    /// the wide one).
     OwnSlot(u8),
+    /// A dict id the wide layout cannot hold ([`WIDE_DICT_LIMIT`]).
+    WideDict(u16),
+    /// A second sight's record value that is no [`Side`].
+    NoSide(u64),
     /// A kit's value names a dict id for its own slot.
     NamesItsOwn(KitSlot),
     /// More than [`RECORDS`] records.
@@ -193,8 +288,11 @@ pub enum Malformed {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Kit {
     own: KitSlot,
-    /// By [`KitSlot::NAMED`]: camouflage, muzzle, grip; never the own's.
-    named: [Option<DictId>; 3],
+    /// By [`KitSlot::NAMED`]: camouflage, muzzle, grip, second sight; never
+    /// the own's.
+    named: [Option<DictId>; 4],
+    /// The second sight's side; Left (and not encoded) without one.
+    side: Side,
 }
 
 impl Kit {
@@ -202,8 +300,26 @@ impl Kit {
     fn new(own: KitSlot) -> Kit {
         Kit {
             own,
-            named: [None; 3],
+            named: [None; 4],
+            side: Side::Left,
         }
+    }
+
+    /// The second sight's side (Left when it holds none).
+    pub fn side(&self) -> Side {
+        self.side
+    }
+
+    /// The record value of what it holds in `slot`: the second sight's side,
+    /// 0 for the others.
+    pub fn value_of(&self, slot: KitSlot) -> u64 {
+        if slot == KitSlot::SecondSight { self.side.value() } else { 0 }
+    }
+
+    /// Its layout: the wide one when it holds a second sight.
+    fn layout(&self) -> Layout {
+        let second = self.own == KitSlot::SecondSight || self.named.get(3).copied().flatten().is_some();
+        if second { Layout::Wide } else { Layout::Narrow }
     }
 
     /// The kit's own slot.
@@ -217,10 +333,15 @@ impl Kit {
         if slot == self.own {
             return Err(Malformed::NamesItsOwn(slot));
         }
-        let at = KitSlot::NAMED.iter().position(|(named, _)| *named == slot);
+        let at = KitSlot::NAMED.iter().position(|named| *named == slot);
         match at.and_then(|at| self.named.get_mut(at)) {
             Some(place) => *place = Some(dict),
             None => return Err(Malformed::NamesItsOwn(slot)),
+        }
+        if self.layout() == Layout::Wide
+            && let Some(big) = self.named().map(|(_, dict)| dict.get()).find(|id| *id >= WIDE_DICT_LIMIT)
+        {
+            return Err(Malformed::WideDict(big));
         }
         Ok(self)
     }
@@ -230,14 +351,18 @@ impl Kit {
         KitSlot::NAMED
             .iter()
             .zip(self.named.iter())
-            .filter_map(|((slot, _), dict)| dict.map(|dict| (*slot, dict)))
+            .filter_map(|(slot, dict)| dict.map(|dict| (*slot, dict)))
     }
 
     /// The record's value.
     pub fn value(&self) -> u64 {
-        let mut value = u64::from(KIT_MAGIC) << 56 | u64::from(self.own.slot().byte()) << 48;
-        for ((_, shift), dict) in KitSlot::NAMED.iter().zip(self.named.iter()) {
-            if let Some(dict) = dict {
+        let layout = self.layout();
+        let mut value = u64::from(layout.magic()) << 56 | u64::from(self.own.slot().byte()) << 48;
+        if layout == Layout::Wide {
+            value |= self.side.value() << SIDE_BIT;
+        }
+        for (slot, dict) in self.named() {
+            if let Some((shift, _)) = layout.field(slot) {
                 value |= u64::from(dict.get()) << shift;
             }
         }
@@ -245,20 +370,34 @@ impl Kit {
     }
 
     /// The kit a record holds: None for a plain record (not in record slot
-    /// 3, or no [`KIT_MAGIC`]).
+    /// 3, or no magic).
     pub fn of(record: &Record) -> Result<Option<Kit>, Malformed> {
-        if record.slot != KIT_RECORD_SLOT || (record.value >> 56) as u8 != KIT_MAGIC {
+        let Some(layout) = Layout::of_magic((record.value >> 56) as u8) else { return Ok(None) };
+        if record.slot != KIT_RECORD_SLOT {
             return Ok(None);
         }
         let byte = (record.value >> 48) as u8;
-        let own = Slot::from_byte(byte)
+        let (own_byte, side) = match layout {
+            Layout::Narrow => (byte, Side::Left),
+            Layout::Wide if byte & 0x70 == 0 => (byte & 0x0F, if byte & 0x80 == 0 { Side::Left } else { Side::Right }),
+            Layout::Wide => return Err(Malformed::OwnSlot(byte)),
+        };
+        let own = Slot::from_byte(own_byte)
             .and_then(KitSlot::of)
+            .filter(|own| layout.holds(*own))
             .ok_or(Malformed::OwnSlot(byte))?;
-        let mut kit = Kit::new(own);
-        for (slot, shift) in KitSlot::NAMED {
-            if let Some(dict) = DictId::new((record.value >> shift) as u16) {
+        let mut kit = Kit { side, ..Kit::new(own) };
+        for slot in KitSlot::NAMED {
+            let Some((shift, bits)) = layout.field(slot) else { continue };
+            let id = (record.value >> shift) & (u64::MAX >> (64u32.saturating_sub(bits)));
+            if let Some(dict) = DictId::new(id as u16) {
                 kit = kit.naming(slot, dict)?;
             }
+        }
+        // A wide kit names a second sight or is one: else it is a narrow one
+        // written in the other layout, which nothing sends.
+        if layout == Layout::Wide && kit.layout() != Layout::Wide {
+            return Err(Malformed::OwnSlot(byte));
         }
         Ok(Some(kit))
     }
@@ -269,7 +408,8 @@ impl Kit {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Held {
     Item { id: u32, dict: u32, value: u64 },
-    Named(DictId),
+    /// A kit's name and its value: a second sight's side, 0 for the others.
+    Named(DictId, u64),
 }
 
 impl Held {
@@ -277,7 +417,7 @@ impl Held {
     pub fn dict(&self) -> u32 {
         match *self {
             Held::Item { dict, .. } => dict,
-            Held::Named(dict) => u32::from(dict.get()),
+            Held::Named(dict, _) => u32::from(dict.get()),
         }
     }
 
@@ -286,22 +426,21 @@ impl Held {
     pub fn is(&self, id: u32, dict: u32) -> bool {
         match *self {
             Held::Item { id: own, .. } => own == id,
-            Held::Named(named) => u32::from(named.get()) == dict,
+            Held::Named(named, _) => u32::from(named.get()) == dict,
         }
     }
 
-    /// Its value (a decal's place; 0 for a name).
+    /// Its value (a decal's place, a second sight's side).
     pub fn value(&self) -> u64 {
         match *self {
-            Held::Item { value, .. } => value,
-            Held::Named(_) => 0,
+            Held::Item { value, .. } | Held::Named(_, value) => value,
         }
     }
 }
 
 /// A weapon's upgrades by logical slot, one a slot.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub struct Logical([Option<Held>; 6]);
+pub struct Logical([Option<Held>; 7]);
 
 /// Records packed for the client: at most [`RECORDS`].
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -367,6 +506,13 @@ impl Logical {
         self.set(slot, Some(Held::Item { id, dict, value }));
     }
 
+    /// The second sight `id` of `dict` goes on at `side`, as [`Logical::put`]
+    /// puts any upgrade; already there at another side, it moves.
+    pub fn put_second_sight(&mut self, id: u32, dict: u32, side: Side) {
+        self.put(Slot::SecondSight, id, dict);
+        self.set(Slot::SecondSight, Some(Held::Item { id, dict, value: side.value() }));
+    }
+
     /// The upgrade `id` of `dict` comes off wherever it is.
     pub fn take_off(&mut self, id: u32, dict: u32) {
         for slot in Slot::ALL {
@@ -390,13 +536,18 @@ impl Logical {
             .into_iter()
             .find_map(|kit| self.get(kit.slot()).map(|held| (kit, held)));
         if let Some((own, held)) = own {
-            let mut kit = Kit::new(own);
-            for (slot, _) in KitSlot::NAMED {
+            let side = self
+                .get(Slot::SecondSight)
+                .and_then(|held| Side::of_value(held.value()))
+                .unwrap_or_default();
+            let mut kit = Kit { side, ..Kit::new(own) };
+            for slot in KitSlot::NAMED {
                 let named = self
                     .get(slot.slot())
                     .and_then(|held| u16::try_from(held.dict()).ok());
                 if let (true, Some(dict)) = (slot != own, named.and_then(DictId::new)) {
-                    // `slot` is not the own: naming it cannot fail.
+                    // `slot` is not the own; a second sight beside a dict id
+                    // the wide layout cannot hold is not sent.
                     kit = kit.naming(slot, dict).unwrap_or(kit);
                 }
             }
@@ -409,8 +560,9 @@ impl Logical {
     }
 
     /// Records as the client holds them, by logical slot: a kit's own in its
-    /// own slot (value 0), each dict id it names [`Held::Named`]; a plain
-    /// record in its slot.
+    /// own slot (value 0, a second sight's its side), each dict id it names
+    /// [`Held::Named`]; a plain record in its slot. A second sight's plain
+    /// record whose value is no side is refused.
     pub fn unpack(records: &[Record]) -> Result<Logical, Malformed> {
         if records.len() > RECORDS {
             return Err(Malformed::TooMany);
@@ -425,7 +577,7 @@ impl Logical {
             // that modification twice (two `camouflage`s, its duplicate-name
             // assert). Two records of one dict id (the same decal twice) are
             // the stock game's, as on armour.
-            let named = |held: &Held| matches!(held, Held::Named(_));
+            let named = |held: &Held| matches!(held, Held::Named(..));
             if logical
                 .iter()
                 .any(|(_, other)| other.dict() == held.dict() && (named(&held) || named(&other)))
@@ -445,6 +597,9 @@ impl Logical {
                 None => {
                     let slot =
                         Slot::from_byte(record.slot).ok_or(Malformed::NoSlot(record.slot))?;
+                    if slot == Slot::SecondSight && Side::of_value(record.value).is_none() {
+                        return Err(Malformed::NoSide(record.value));
+                    }
                     put(&mut logical, slot, item(record.value))?;
                 }
                 Some(kit) => {
@@ -452,9 +607,9 @@ impl Logical {
                     if kits > 1 {
                         return Err(Malformed::TwoKits);
                     }
-                    put(&mut logical, kit.own().slot(), item(0))?;
+                    put(&mut logical, kit.own().slot(), item(kit.value_of(kit.own())))?;
                     for (slot, dict) in kit.named() {
-                        put(&mut logical, slot.slot(), Held::Named(dict))?;
+                        put(&mut logical, slot.slot(), Held::Named(dict, kit.value_of(slot)))?;
                     }
                 }
             }
@@ -472,12 +627,30 @@ fn record_of(held: Held, slot: u8) -> Record {
             value,
             slot,
         },
-        Held::Named(dict) => Record {
+        Held::Named(dict, value) => Record {
             id: 0,
             dict: u32::from(dict.get()),
-            value: 0,
+            value,
             slot,
         },
+    }
+}
+
+/// The item whose modification puts a second sight on a weapon's config
+/// (`srp_second_sight`, never sold): it adds `data/srp_second_sight` = its
+/// record's low half (the optic's dict id) and `data/srp_second_side` = its
+/// high half (the side), as a decal's sets its place. A second sight is an
+/// optic's own item (its scope's), whose own modification makes it the
+/// scope: the cook gets this one in its place.
+pub const SECOND_SIGHT_ITEM: u16 = 2676;
+
+/// The cook's record for the second sight `dict` at `side`.
+fn second_sight_record(dict: DictId, side: Side) -> Record {
+    Record {
+        id: 0,
+        dict: u32::from(SECOND_SIGHT_ITEM),
+        value: side.value() << 32 | u64::from(dict.get()),
+        slot: Slot::SecondSight.byte(),
     }
 }
 
@@ -487,6 +660,8 @@ fn record_of(held: Held, slot: u8) -> Record {
 /// record was before the kit) and, after them, one `{0, dict id, 0, slot}`
 /// for each dict id the kit names that `known` (the items dictionary) has: a
 /// dict id the game data lacks would be read from a null entry (0x2F18E3).
+/// A second sight, the kit's own or named, is the cook's record of
+/// [`SECOND_SIGHT_ITEM`] (when `known` has it) naming the optic and its side.
 /// Malformed records are refused: the cook takes them as they are.
 pub fn expand(
     records: &[Record],
@@ -507,20 +682,27 @@ pub fn expand(
     // The whole set is a weapon's (no slot twice, no dict id twice).
     Logical::unpack(records)?;
     let mut out = Expanded::default();
+    let second = known(SECOND_SIGHT_ITEM);
     for record in records {
         let own = Kit::of(record).ok().flatten().is_some();
-        out.push(if own {
-            Record {
-                value: 0,
-                ..*record
-            }
-        } else {
-            *record
-        });
+        if !own {
+            out.push(*record);
+        } else if kit.own() != KitSlot::SecondSight {
+            out.push(Record { value: 0, ..*record });
+        } else if let (true, Some(dict)) = (second, u16::try_from(record.dict).ok().and_then(DictId::new))
+            && known(dict.get())
+        {
+            out.push(second_sight_record(dict, kit.side()));
+        }
     }
     for (slot, dict) in kit.named() {
-        if known(dict.get()) {
-            out.push(record_of(Held::Named(dict), slot.slot().byte()));
+        if !known(dict.get()) {
+            continue;
+        }
+        if slot != KitSlot::SecondSight {
+            out.push(record_of(Held::Named(dict, 0), slot.slot().byte()));
+        } else if second {
+            out.push(second_sight_record(dict, kit.side()));
         }
     }
     Ok(Some(out))

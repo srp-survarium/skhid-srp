@@ -46,6 +46,7 @@ PROVEN from `projects/*` and `gameplay/game_modes/*.options` (`match_making_para
 | 8 | level_08 | Cologne | day/evening/prerain × _2 _3 _4 | **new** |
 | 9 | level_09 | London (skhid's `resources.db.patch_14`, ids 181 to 183) | day × _2 _3 _4 | — |
 | 14 | v069d_level_01 | Rudnya (v0.69) (skhid's pack `rudnya-069d`, ids 204 and 216-218, `rudnya-069d.md`) | day × _2 _3 _4 _5 | — |
+| 32 | v044a_level_09 | London (v0.42) (skhid's pack `london-v042`, ids 290-298, `london-v042.md`) | day, rain, evening × _2 _3 _4 | — |
 | 88 | test/tt5, test/tdm_test, test/artefact_testlevel | test maps | **no `projects/test/*` in the db** | — |
 
 - `lobby_scene/day` still exists (client only). PROVEN.
@@ -119,7 +120,7 @@ Other shifts seen on the way: project 0x41 → 0x40, game materials 0x52 → 0x5
 Serialized rule state (strings next to each `::serialize`), PROVEN:
 - timelimit_rule_core: `m_state_start_time_ms`, `m_current_time_in_ms`, `m_players_mask`, `(u8)m_current_state` — same as 0.21d.
 - gather_victory_items_rule_core: `m_spawner_random.seed()`, **`m_team_points[0..1]`**, `items_mask`.
-- match_time_vi_spawn_rule_core: the above + `m_available_victory_items_count`, `m_match_start_time_ms`, **`m_next_spawn_time_ms`**, `m_victory_items_spawn_time_ms`, `m_victory_items_spawn_variation_ms`, **`m_match_started`**. 0.21d did not serialize the next spawn time, the root of its rollback bug (`srp-021d/.../battery_spawn.md`). LIKELY fixed in 0.26g.
+- match_time_vi_spawn_rule_core: the above + `m_available_victory_items_count`, `m_match_start_time_ms`, **`m_next_spawn_time_ms`**, `m_victory_items_spawn_time_ms`, `m_victory_items_spawn_variation_ms`, **`m_match_started`**. 0.21d did not serialize the next spawn time, the root of its rollback bug (`srp-021d/docs/notes/battery_spawn.md`). LIKELY fixed in 0.26g.
 - tdm_rule_core: `m_team_tickets[0..1]`, `m_alive_players_mask`, `m_active_players_mask`.
 - player_respawn_rule_base: `players_mask`, `m_player_respawn_times[i]`; player_respawn_rule_core adds `m_respawn_random.seed()`.
 - kd_stats_rule: `m_kd_stats[i].kills/.deaths/.online` (`online` new).
@@ -162,7 +163,7 @@ Serialized rule state (strings next to each `::serialize`), PROVEN:
 
 1. Do the 28 f32 / 20 u8 fields of 0.26g `match_options` (sibling) override any config timing (e.g. countdown, wait percent), as 0.21d's C454/C45A did? **Answered for the timelimit and tdm rules: no.** Their constructors read `mode.parameters.*` from the config only; the one match-options value the timelimit rule takes is N (+0x577B5) (§10, §11). `respawn_time` was not re-checked.
 2. The 0.26g `game_mode` enum names (no PDB): are 0/1 still capture-base, and what is mode 5 ("dtb")? Only configs referencing it exist in maps_dict, no files.
-3. Does the client fail or skip when maps_dict names a missing config (ids 114, 143..151) at startup (`items_dictionary_cook::on_map_configs_loaded` ~0x2C9D24)? It evidently shipped this way, so LIKELY skipped, not checked.
+3. Does the client fail or skip when maps_dict names a missing config at startup (`items_dictionary_cook::on_map_configs_loaded` ~0x2C9D24)? It logs "Wrong map config" and goes on to the next row (0x2C9CA5..0x2C9D45). Moot since 2026-11-21: the five such rows (114, 143, 144, 150, 151) are out of the shipped maps_dict (`client-dictionary-1.json`).
 4. Exact semantics of mode 3 `spawn_points_count` vs the 2..5 `victory_item_spawn_points` per map (choose N stations by `spawners_weight`?), and what `m_team_points` count. Not traced in code.
 5. TDM end condition: **answered in §11** (a team with no tickets and no player left alive, or 900 s).
 6. Class 0x5C (respawn base) in 0.21d terms: is it the old `single_player_respawn_rule`? Its 0.21d class id was not looked up.
@@ -171,7 +172,7 @@ Serialized rule state (strings next to each `::serialize`), PROVEN:
 
 ## 10. When a match starts: `timelimit_rule_core` (added 2026-10-12) — PROVEN unless tagged
 
-Read in the 0.26g exe: constructor 0x317DA0, `on_match_ready` 0x317EE0, `tick` 0x317F10, `logic_tick` 0x318100, enter/leave 0x3180C0 / 0x3180E0, `rule_completed` 0x318360 (vtable 0xA06E2C slots 13, 8, 9 and 18; `tick` is a delegate stored at rule+0x110/+0x114). 0.21d counterpart: `timelimit_rule_core` 0x1F549E..0x1F590F (`v021d/match_start_spec.md`).
+Read in the 0.26g exe: constructor 0x317DA0, `on_match_ready` 0x317EE0, `tick` 0x317F10, `logic_tick` 0x318100, enter/leave 0x3180C0 / 0x3180E0, `rule_completed` 0x318360 (vtable 0xA06E2C slots 13, 8, 9 and 18; `tick` is a delegate stored at rule+0x110/+0x114). 0.21d counterpart: `timelimit_rule_core` 0x1F549E..0x1F590F (`srp-021d/docs/notes/match_start_spec.md`).
 
 **Parameters** (constructor, all from the mode config's `mode.parameters`, 0x317E18..0x317EC9):
 
@@ -273,7 +274,7 @@ is played as soon as the server runs on data with it.
   data; `survarium::v026g::localization`), else English, else the project's
   folder.
 - Checked: on the test data (0.26g) the projects give the hand tables srp had
-  before for every level 1 to 8 (`maps::tests::the_projects_give_what_srp_had_by_hand`);
+  before for every level 1 to 8 (`maps::tests::the_projects_give_what_srp_had_by_hand`, removed 2026-11-21 with the tests that repeat data);
   on 0.26g with skhid's patches 12 and 14 the playable ids are the 72 and 181
   to 183, every value as before, London 20 respawn points in each mode and
   container 0 team 1's, named "London" / "Лондон" (an ignored test:

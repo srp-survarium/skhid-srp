@@ -9,8 +9,9 @@ damage-calc/build_site.py runs it after the calculator's icons, so every
 release makes them again from its own patches. Writes <out>/ anew:
 
 - items/<items_dict name>.webp: the lobby icon of every item of a category
-  the shop's equipment and weapon filters name, as the calculator's build cut
-  it (assets/tools/build_icons.py, 171x83);
+  the shop's equipment and weapon filters name, and of every artefact
+  (`gameplay/items/artefacts/`), as the calculator's build cut it
+  (assets/tools/build_icons.py, 171x83);
 - mods/<ui_desc.icon>.webp: every 38x38 cell of the `modifiers` atlas
   (character 3279, IconContainer("modifiers", 38, 38, vertical): column-major)
   that holds an icon; each icon a modification shows must be one;
@@ -32,6 +33,12 @@ release makes them again from its own patches. Writes <out>/ anew:
   (match_making_params.map_id) and weather (map_weather_id), by the rule of the rooms' own
   RoomsLook.renderClass, which reads the same table; one for every level and weather that has a
   picture, so the site's match lists and the rooms cannot part;
+- modes/<frame>.webp: each frame of the loading screen's mode icon, SrvGameModeIcons (a config's
+  `ui.icon` n shows frame n + 1, LobbyGameLoad.setMode): the movie's own frames as FFDec exports
+  them, srp's (SrvGameModeIcons.as: a frame constant and the bitmap class `art` gives it) from the
+  lobby's bitmaps/<class>.png, the ones the movie is built with; and modes/twist-<lobby mode>.webp,
+  the frame SrvGameModeIcons.forTwist shows for a free-for-all's twist (its lobby mode number),
+  in their colours;
 - files.rs: those files, for the server's include (servers/web-server/src/icons.rs).
 
 The modification and filter icons are light glyphs with a dark drop shadow.
@@ -59,6 +66,8 @@ import swf  # noqa: E402
 
 MOD_ATLAS = "3279_LobbyMenu_ModifierIcons.png"
 MOD_CELL = 38
+# The artefacts' configs (the wiki's artefacts page, src/artefacts.rs).
+ARTEFACTS = "gameplay/items/artefacts/"
 # FilterItemCatRenderer's `itemIcon` (lobby_menu.swf sprite 1125): frame
 # 300 + icon draws a filter's icon. FFDec exports its frames as SVG.
 FILTER_SPRITE = 1125
@@ -156,6 +165,51 @@ def quest_icons(swf_path, ffdec, tmp):
     return found
 
 
+# The loading screen's mode icon (LobbyGameLoad: modeIcon.gotoAndStop(ui.icon + 1)), and the side
+# in pixels each frame is written at.
+MODE_ICONS = "SrvGameModeIcons"
+MODE_SIDE = 64
+
+
+def mode_icons(swf_path, ffdec, lobby, tmp):
+    """({frame: picture}, {twist lobby mode: frame}) of SrvGameModeIcons: the movie's own frames
+    (FFDec's export of the sprite; srp's frames show frame 1 with its art hidden) and srp's, each
+    the bitmap class its `art` gives for its constant, from the lobby's bitmaps; the twists' frames
+    by forTwist's cases (`case 9: return RACKET - 1;`: lobby mode 9 shows frame RACKET)."""
+    source = (lobby / "src" / f"{MODE_ICONS}.as").read_text(encoding="utf-8")
+    frames = {name: int(value) for name, value in re.findall(r"public static const (\w+):int = (\d+);", source)}
+    own = {frames[name]: cls for name, cls in re.findall(r"case (\w+):\s*return new (\w+)\(\);", source)}
+    body = source.split("function forTwist", 1)[1].split("\n      }\n", 1)[0]
+    twists, cases = {}, []
+    for case, returned in re.findall(r"case (\d+):|return (\w+) - 1;", body):
+        if case:
+            cases.append(int(case))
+        elif returned:
+            twists.update((number, frames[returned]) for number in cases)
+            cases = []
+    if not own or not twists:
+        raise SystemExit(f"{MODE_ICONS}.as: no frames of srp's or no twists read")
+    _, tags = swf.split(swf_path.read_bytes())
+    ids = {name: cid for cid, name in swf.symbol_classes(tags)}
+    if MODE_ICONS not in ids:
+        raise SystemExit(f"lobby_menu.swf: no {MODE_ICONS}")
+    subprocess.run(["java", "-jar", str(ffdec), "-format", "sprite:png", "-zoom", "2", "-selectid", str(ids[MODE_ICONS]),
+                    "-export", "sprite", str(tmp / "modes"), str(swf_path)], check=True, capture_output=True)
+    exported = next(d for d in (tmp / "modes").iterdir() if re.fullmatch(rf"DefineSprite_{ids[MODE_ICONS]}(_.*)?", d.name))
+    pictures = {int(path.stem): Image.open(path).convert("RGBA") for path in exported.glob("*.png")}
+    for frame, cls in own.items():
+        pictures[frame] = Image.open(lobby / "bitmaps" / f"{cls}.png").convert("RGBA")
+    missing = sorted(set(twists.values()) - set(pictures))
+    if missing:
+        raise SystemExit(f"{MODE_ICONS}: forTwist shows frames {missing}, which it has not")
+    return pictures, twists
+
+
+def mode_square(image):
+    """`image` cut to what it draws and scaled into a MODE_SIDE square, centred."""
+    return fitted(image, image.getbbox() or (0, 0, image.width, image.height), MODE_SIDE)
+
+
 # A map's picture in a match list: 16:9 as the rooms' cards, twice the 64x36 it is shown at.
 MAP_SIZE = (128, 72)
 # Levels are match_making_params.map_id, a byte's worth; none is above this.
@@ -240,7 +294,7 @@ def main():
         stems.setdefault(item["cfg_name"].rsplit("/", 1)[-1].removesuffix(".options"), []).append(item)
     missing = []
     for item in sorted(dictionary, key=lambda item: item["name"]):
-        if item["item_category"] not in categories:
+        if item["item_category"] not in categories and not item["cfg_name"].startswith(ARTEFACTS):
             continue
         stem = item["cfg_name"].rsplit("/", 1)[-1].removesuffix(".options")
         source = args.item_icons / f"{item['name'] if len(stems[stem]) > 1 else stem}.webp"
@@ -280,6 +334,11 @@ def main():
                     write(f"quests/{frame - 1}.webp", webp(glyph(fitted(picture, box, side))))
                 else:
                     write(f"factions/{frame}.webp", webp(fitted(picture, box, side)))
+        pictures, twists = mode_icons(args.swf, args.ffdec, args.lobby, Path(tmp))
+        for frame, picture in sorted(pictures.items()):
+            write(f"modes/{frame}.webp", webp(mode_square(picture)))
+        for number, frame in sorted(twists.items()):
+            write(f"modes/twist-{number}.webp", webp(mode_square(pictures[frame])))
 
     small = {}
     for (level, weather), picture in sorted(map_pictures(args.lobby, args.images).items()):
@@ -294,9 +353,9 @@ def main():
         "files! {\n" + "".join(f'    "{path}" => "{kind}",\n' for path, kind in sorted(files.items())) + "}\n")
     total = sum((out / path).stat().st_size for path in files)
     counts = {kind: sum(path.startswith(kind + "/") for path in files)
-              for kind in ("items", "mods", "groups", "quests", "factions", "maps")}
+              for kind in ("items", "mods", "groups", "quests", "factions", "maps", "modes")}
     print(f"{out}: {counts['items']} items, {counts['mods']} modification, {counts['groups']} group, "
-          f"{counts['quests']} quest and {counts['factions']} faction icons, {counts['maps']} map pictures, "
+          f"{counts['quests']} quest and {counts['factions']} faction icons, {counts['maps']} map pictures, {counts['modes']} mode icons, "
           f"{total / 1024:.0f} KB")
 
 

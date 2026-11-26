@@ -15,6 +15,7 @@ use std::sync::{Mutex, MutexGuard};
 use std::time::{Duration, Instant};
 
 use session::matchmaking_policy::Closed;
+use session::v026g::match_kind::MatchKind;
 use session::v026g::replays::ReplayId;
 use survarium::v026g::keeper;
 use survarium::v026g::twist::{Armed, Played};
@@ -22,7 +23,7 @@ use survarium::v026g::dictionary::Dictionary;
 use survarium::v026g::maps::{self, GameMode};
 use survarium::v026g::match_msgs::MAX_PLAYERS;
 use survarium::v026g::match_msgs::players::Supplies;
-use survarium::v026g::match_msgs::snapshot::{PlayerStatistics, Standing};
+use survarium::v026g::match_msgs::snapshot::{PlayerStatistics, Standing, WeaponCounts};
 use survarium::v026g::match_msgs::static_info::score_weights as static_info_weights;
 use survarium::v026g::match_msgs::static_info::{
     MatchOptions, MatchProfile, SCORE_EVENTS, StaticInfo, StaticInfoError,
@@ -91,15 +92,15 @@ pub struct MatchSetup {
     /// The clients' score weights; `None` for srp's own of the map's mode
     /// (`static_info::score_weights`: Research weighs its captures).
     pub score_weights: Option<[f32; SCORE_EVENTS]>,
-    /// A match of one player against the server's own bots ("Player vs
-    /// Bots", the lobby's `pvb`): its teams are fixed and it takes no late
-    /// joiner (the lobby's rule), it ends when its only player stops
-    /// uploading worlds it is asked for (`Timing::pvb_stall`), and its
-    /// result says so ([`MatchResult::vs_bots`]: the rewards pay less).
-    pub vs_bots: bool,
-    /// A match of a room with a PIN: its result says so
-    /// ([`MatchResult::private`]: the rewards pay nothing).
-    pub private: bool,
+    /// Who the match is for, as the lobby made it. Against the server's own
+    /// bots ("Player vs Bots", the lobby's `pvb`, or a PIN room's with
+    /// bots): its teams are fixed and it takes no late joiner (the lobby's
+    /// rule), it ends when its only player stops uploading worlds it is
+    /// asked for (`Timing::pvb_stall`), and its result says so
+    /// ([`MatchResult::vs_bots`]: the rewards pay less). A room's with a
+    /// PIN: its result says so ([`MatchResult::private`]: the rewards pay
+    /// nothing). Anti-AFK removes nobody from either.
+    pub kind: MatchKind,
     /// A room's match: the room's own minimum of players to start (2 for
     /// 1 v 1, 4, 6; 1 for a private room, which its owner starts with whoever
     /// is in, 1 v 0 too: no side needs a player; `docs/notes/rooms.md`). With it, a match the clients'
@@ -209,10 +210,8 @@ pub(crate) struct Formed {
     /// Every connecting client must advertise the matching capability.
     pub growing_roster: bool,
     pub initial_players: usize,
-    /// [`MatchSetup::vs_bots`].
-    pub vs_bots: bool,
-    /// [`MatchSetup::private`].
-    pub private: bool,
+    /// [`MatchSetup::kind`].
+    pub kind: MatchKind,
     /// [`MatchSetup::room_minimum`].
     pub room_minimum: Option<u8>,
     /// Keeper of the Artifacts' kind, drawn once when the match is made and written into every
@@ -276,6 +275,8 @@ pub struct LiveMatch {
     pub match_id: u32,
     /// The `maps_dict` id: the map and the mode.
     pub map_id: maps::MapId,
+    /// [`MatchSetup::kind`].
+    pub kind: MatchKind,
     pub phase: LivePhase,
     /// Each team's players who have not left: before the countdown the
     /// ones still to come count too.
@@ -482,8 +483,10 @@ impl MatchRegistry {
         }
         let played = setup.played;
         let map = played.map();
-        // The server's bots play modes 2 to 4 (`bots`): none in Research.
-        if map.mode.rules() == maps::RuleMode::Research && setup.players.iter().any(|player| player.driven) {
+        // The server's bots play modes 2 to 4 (`bots`): none in Research or
+        // Artifact Hunt.
+        let unplayed = matches!(map.mode.rules(), maps::RuleMode::Research | maps::RuleMode::ArtefactHunt);
+        if unplayed && setup.players.iter().any(|player| player.driven) {
             return Err(CreateError::Map(map.id));
         }
         let mut setup = setup;
@@ -588,8 +591,7 @@ impl MatchRegistry {
                 replay_id: ReplayId::new(match_id, std::time::SystemTime::now()),
                 growing_roster,
                 initial_players: options.players.len(),
-                vs_bots: setup.vs_bots,
-                private: setup.private,
+                kind: setup.kind,
                 room_minimum: setup.room_minimum,
                 keeper,
             }),
@@ -608,7 +610,7 @@ impl MatchRegistry {
             map.name,
             played.lobby_number(),
             options.players.len(),
-            if setup.vs_bots {
+            if setup.kind.vs_bots() {
                 ", one player against the server's bots"
             } else {
                 ""
@@ -954,6 +956,7 @@ impl MatchRegistry {
             return LiveMatch {
                 match_id: formed.match_id,
                 map_id: formed.played.map().id,
+                kind: formed.kind,
                 phase: LivePhase::Gathering,
                 players,
                 present: (1_u32 << formed.places.len().min(31)) - 1,
@@ -967,6 +970,7 @@ impl MatchRegistry {
         LiveMatch {
             match_id: formed.match_id,
             map_id: formed.played.map().id,
+            kind: formed.kind,
             phase: live.phase,
             players: live.players,
             present: live.present,
@@ -1103,6 +1107,11 @@ pub struct PlayerResult {
     /// (`survarium::v026g::match_msgs::players`). `None`: no trusted
     /// snapshot, the player was not in it, or its block did not read.
     pub supplies: Option<Supplies>,
+    /// What it did with each weapon, as the games counted it in the last
+    /// trusted snapshot (exe patch 165; `snapshot::WeaponCounts`): an entry
+    /// a dict id, rising, `dict_id` 0 no weapon known. Empty: no snapshot
+    /// was trusted, or its games count none.
+    pub weapons: Vec<WeaponCounts>,
 }
 
 /// How a match ended, for the results screen and the rewards. Every match
@@ -1125,6 +1134,10 @@ pub struct MatchResult {
     /// Batteries home (modes 2, 3), tickets left (mode 4) or Research's
     /// points (mode 5), from the last trusted snapshot.
     pub team_points: [u16; 2],
+    /// How often a round started again, respawning everyone (Artifact
+    /// Hunt's `Rule::round_starts` in the last trusted snapshot); 0 in the
+    /// modes without rounds.
+    pub round_starts: u16,
     /// The match clock when it ended, in ms.
     pub duration_ms: u32,
     /// How long it was played after the countdown; `None` if play never
@@ -1143,9 +1156,9 @@ pub struct MatchResult {
     pub trusted_by: u8,
     /// By roster place.
     pub players: Vec<PlayerResult>,
-    /// [`MatchSetup::vs_bots`].
+    /// [`MatchKind::vs_bots`] of [`MatchSetup::kind`].
     pub vs_bots: bool,
-    /// [`MatchSetup::private`].
+    /// [`MatchKind::private`] of [`MatchSetup::kind`].
     pub private: bool,
 }
 

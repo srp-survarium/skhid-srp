@@ -207,8 +207,10 @@ struct ad_engine {
 };
 
 /* The engine callback each real engine is given, two so that a late event of
- * the engine a rebuild replaced is told from the new one's. */
-struct ad_engine_callback { const struct xa_engine_callback_vtbl *vtbl; };
+ * the engine a rebuild replaced is told from the new one's. Its processing
+ * passes are counted (XAudio2's thread the only writer): one runs while
+ * `ended` is behind `started`. */
+struct ad_engine_callback { const struct xa_engine_callback_vtbl *vtbl; ad_u32 started, ended; };
 
 static struct ad_engine *ad_the_engine;            /* the game's one (sound_world+0C0h) */
 static struct ad_voice *ad_voices;                  /* every voice of ours */
@@ -683,6 +685,28 @@ static ad_hresult AD_STDCALL v_submit_source_buffer(void *self, const struct xa_
     return hr;
 }
 
+/* Wine's XAudio2 (FAudio, Wine 11.8) mixes a voice holding the buffer it
+ * decodes, its locks let go around each voice callback (FAudio_internal.c's
+ * DecodeBuffers): a stopped voice flushed then has its list emptied under
+ * that pass, which reads the next of a null list (xaudio2_7+0xE8DD) and its
+ * thread dies, the game without sound. A pass that starts after a Stop mixes
+ * the voice no more: so the pass running is waited for (a quarter second at
+ * most: then on as before, and said). */
+static void ad_wait_pass(struct ad_engine_callback *c)
+{
+    __atomic_thread_fence(__ATOMIC_SEQ_CST);        /* the Stop before the count's read */
+    ad_u32 started = __atomic_load_n(&c->started, __ATOMIC_SEQ_CST);
+    if ((int)(__atomic_load_n(&c->ended, __ATOMIC_ACQUIRE) - started) >= 0) return;
+    ad_u64 give_up = ad_now() + ad_frequency() / 4;
+    while ((int)(__atomic_load_n(&c->ended, __ATOMIC_ACQUIRE) - started) < 0) {
+        if (ad_now() > give_up) {
+            ad_log("a processing pass not ended in 250 ms: gone on under it", started);
+            return;
+        }
+        __builtin_ia32_pause();
+    }
+}
+
 /* XAudio2 flushes every buffer of a stopped voice, all but the one playing
  * of a started one (the game stops first: detach_voice 0x5CB8E..0x5CBB5);
  * their ends come as callbacks on a later pass. Kept, marked flushed, so a
@@ -690,6 +714,8 @@ static ad_hresult AD_STDCALL v_submit_source_buffer(void *self, const struct xa_
 static ad_hresult AD_STDCALL v_flush_source_buffers(void *self)
 {
     REAL_OR(self, AD_XAUDIO2_E_INVALID_CALL);
+    if (VOICE(self)->as.source.play == AD_STOPPED)
+        ad_wait_pass(&ad_engine_callbacks[__atomic_load_n(&ad_current_callback, __ATOMIC_ACQUIRE)]);
     ad_hresult hr = REAL(self)->flush_source_buffers(VOICE(self)->real);
     if (AD_FAILED(hr)) return hr;
     struct ad_pending *p = VOICE(self)->as.source.pending;
@@ -818,7 +844,19 @@ static const struct xa_voice_callback_vtbl ad_callback_vtbl = {
 
 /* ---- the engine callback (XAudio2's thread) and the device client (MMDevice's) ---- */
 
-static void AD_STDCALL ec_pass(void *self) { (void)self; }
+/* Seq-cst: the count is out before the pass reads any voice's state. */
+static void AD_STDCALL ec_pass_start(void *self)
+{
+    struct ad_engine_callback *c = self;
+    __atomic_store_n(&c->started, c->started + 1, __ATOMIC_SEQ_CST);
+}
+
+/* `started`, not +1: a callback registered mid-pass sees an end first. */
+static void AD_STDCALL ec_pass_end(void *self)
+{
+    struct ad_engine_callback *c = self;
+    __atomic_store_n(&c->ended, c->started, __ATOMIC_RELEASE);
+}
 
 static void AD_STDCALL ec_critical_error(void *self, ad_hresult error)
 {
@@ -827,7 +865,7 @@ static void AD_STDCALL ec_critical_error(void *self, ad_hresult error)
         ad_raise(AD_EVENT_CRITICAL);
 }
 
-static const struct xa_engine_callback_vtbl ad_engine_callback_vtbl = { ec_pass, ec_pass, ec_critical_error };
+static const struct xa_engine_callback_vtbl ad_engine_callback_vtbl = { ec_pass_start, ec_pass_end, ec_critical_error };
 
 static struct { const struct mm_client_vtbl *vtbl; } ad_client;
 
@@ -1328,6 +1366,9 @@ static int ad_rebuild(struct ad_engine *engine, int loud)
     void *old = engine->real;
     engine_methods(old)->stop_engine(old);
     ad_u32 sources = ad_collect(AD_SOURCE, order);
+    for (ad_u32 i = 0; i < sources; ++i)        /* as a flush: no pass inside a voice destroyed */
+        if (order[i]->real) voice_methods(order[i]->real)->stop(order[i]->real, 0, 0);
+    ad_wait_pass(&ad_engine_callbacks[ad_current_callback]);
     for (ad_u32 i = 0; i < sources; ++i)
         if (order[i]->real) {
             voice_methods(order[i]->real)->destroy_voice(order[i]->real);

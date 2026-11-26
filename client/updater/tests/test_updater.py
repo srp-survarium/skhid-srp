@@ -115,9 +115,6 @@ class Site:
         self.download_statuses = []     # statuses for the next downloads, then 200
         self.cut_downloads = 0          # the next N downloads end half way
         self.slow = 0.0                 # seconds between pieces of a download
-        self.blobs = {}                 # /resources/<sha256>: sha256 -> bytes (stock bytes, for the restore)
-        self.blob_statuses = {}         # sha256 -> another status than 200
-        self.blob_bodies = {}           # sha256 -> other bytes than the blob's
         self.patches = {}               # n -> bytes: listed at /patches, served at /store/patch_<n>
         self.patch_list = None          # bytes to answer /patches with instead of the true list
         self.patch_list_status = 200
@@ -129,7 +126,9 @@ class Site:
         self.patch_html = set()         # n: a web page (text/html) answered in the place of the file
         self.patch_urls = {}            # n -> the addresses the list gives it (default: one, on patch_base)
         self.old_list = False           # the list in the form before updater 0.3.0: one "url"
-        self.patch_cut = {}             # n -> bytes sent of the file, its whole length announced
+        self.patch_cut = {}             # n -> the file's byte its connection ends at, its whole length announced
+        self.patch_ranges = True        # `Range: bytes=<n>-` answered with a 206 (else the whole file, 200)
+        self.patch_ranges_asked = []    # (n, its Range header or None), each request of a patch file
         self.patch_slow = 0.0           # seconds between pieces of a patch file
         self.replays = {}               # /replays/<token>: token -> bytes
         self.replay_answers = {}        # token -> (status, headers, body) instead
@@ -219,17 +218,6 @@ class Site:
                         # Google Drive's "cannot scan this file for viruses".
                         self.answer(200, b"<!DOCTYPE html><html><title>Google Drive - Virus scan warning"
                                          b"</title></html>", "text/html; charset=utf-8")
-                    elif number in site.patch_cut:
-                        # The connection ends before the file does.
-                        body = site.patch_bodies.get(number, site.patches[number])
-                        self.send_response(200)
-                        self.send_header("Content-Length", str(len(body)))
-                        self.end_headers()
-                        try:
-                            self.wfile.write(body[:site.patch_cut[number]])
-                        except OSError:
-                            pass
-                        self.close_connection = True
                     elif number in site.patch_lengths:
                         # A file larger than the disk: its length, a few bytes.
                         self.send_response(200)
@@ -240,28 +228,40 @@ class Site:
                         except OSError:
                             pass
                         self.close_connection = True
-                    elif site.patch_slow:
+                    else:
+                        # The file, or with `Range: bytes=<n>-` (when the
+                        # site gives parts) its bytes from n: a 206, or a
+                        # 416 when it has no byte n. A cut ends the
+                        # connection at that byte of the file.
                         body = site.patch_bodies.get(number, site.patches[number])
-                        self.send_response(200)
-                        self.send_header("Content-Length", str(len(body)))
+                        asked = self.headers.get("Range")
+                        site.patch_ranges_asked.append((number, asked))
+                        start = 0
+                        if site.patch_ranges and asked and asked.startswith("bytes=") and asked.endswith("-"):
+                            start = int(asked[len("bytes="):-1])
+                        if start >= len(body) and start > 0:
+                            self.send_response(416)
+                            self.send_header("Content-Range", f"bytes */{len(body)}")
+                            self.send_header("Content-Length", "0")
+                            self.end_headers()
+                            return
+                        self.send_response(206 if start else 200)
+                        if start:
+                            self.send_header("Content-Range", f"bytes {start}-{len(body) - 1}/{len(body)}")
+                        self.send_header("Content-Type", "application/octet-stream")
+                        self.send_header("Content-Length", str(len(body) - start))
                         self.end_headers()
+                        end = min(site.patch_cut.get(number, len(body)), len(body))
                         try:
-                            for at in range(0, len(body), 65536):
-                                self.wfile.write(body[at:at + 65536])
+                            for at in range(start, end, 65536):
+                                self.wfile.write(body[at:min(at + 65536, end)])
                                 self.wfile.flush()
-                                time.sleep(site.patch_slow)
+                                if site.patch_slow:
+                                    time.sleep(site.patch_slow)
                         except OSError:
                             pass
-                    else:
-                        self.answer(200, site.patch_bodies.get(number, site.patches[number]),
-                                    "application/octet-stream")
-                elif self.path.startswith("/resources/"):
-                    name = self.path[len("/resources/"):]
-                    status = site.blob_statuses.get(name, 200 if name in site.blobs else 404)
-                    if status != 200:
-                        self.answer(status, b"")
-                    else:
-                        self.answer(200, site.blob_bodies.get(name, site.blobs[name]), "application/octet-stream")
+                        if number in site.patch_cut:
+                            self.close_connection = True
                 elif self.path.startswith("/replays/"):
                     token = self.path[len("/replays/"):]
                     if token in site.replay_answers:

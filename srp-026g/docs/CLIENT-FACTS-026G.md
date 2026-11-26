@@ -2,7 +2,7 @@
 
 > **Version scope: client 0.26g only** (build 2777, build string "0.26g0",
 > January 2015, no PDB). Every address, message id, data value and constant
-> here is 0.26g's. The 0.21d facts are in CLIENT-FACTS-021D.md; do not mix
+> here is 0.26g's. The 0.21d facts are in `srp-021d/docs/CLIENT-FACTS-021D.md`; do not mix
 > them: no 0.21d message is wire-compatible with 0.26g.
 
 Addresses are virtual addresses in `survarium.exe` 0.26g (image base
@@ -29,7 +29,9 @@ How names were found:
   (244 FUNCSIG strings), e.g. `on_match_packet_received` 0x27A300 (string
   0xA08908).
 - **Matching to 0.21d.** `tools/re-kit/v026g/functions_matched.txt`, made by
-  `tools/re-kit/common/scripts/match_functions.py`. Line format:
+  `tools/re-kit/common/scripts/match_functions.py` (made locally, not kept in the
+  repository; the names kept are the rows of `tools/re-kit/v026g/functions.tsv` and
+  `inferred.tsv`, `tools/re-kit/v026g/README.txt`). Line format:
   `<0.26g VA> <length> <0.21d name(s)>  # <confidence>; <method>: …; 021d <VA> len <length>`.
   22 478 of 35 070 0.21d functions matched (16 956 high, 5 522 medium).
   Library code is near 93 % (Scaleform); **game code only about 30 %, network
@@ -37,7 +39,7 @@ How names were found:
   Expect a few percent of medium rows to be wrong. Detail: client_patch.md
   "Function map".
 - **By hand.** The list in client_patch.md §5.
-- Data dumps: `tools/re-kit/v026g/data/`.
+- Data dumps: `tools/re-kit/v026g/data/` (not in the repository: `docs/RE-TOOLKIT.md`).
 
 ## Start-up and command line
 
@@ -55,7 +57,8 @@ How names were found:
   (query_db 0xE7D90, its one call of query_mount_archive at 0xE7E3E); a
   later mount at the same path wins file by file. Since patch revision 12
   the default build mounts each `resources.db.patch_<n>` there (n = 1..255, in order) after it
-  (README patch 27). Not run in a game. client_patch.md §0.2.
+  (README patch 27). In the players' download since revision 14 (London as
+  `resources.db.patch_14`). client_patch.md §0.2.
 - The login server key is **`-server=host:port`** (key object 0xA9C550), not
   `-client=`. With no key and no replay key the game stops: "Game server
   hasn't been specified" (0x9FA990). There is no default address.
@@ -321,7 +324,8 @@ each request expects back (`83 <op>` bodies, `84` behaviour): §4.
   commander is ready; the commander needs ready ≥ n − 1. social.md §2.2.
 - A squad mate's `88` must carry, as its first kit, the kit id `A1` gave
   for that mate. social.md §2.4.
-- Clans (`9A`, `49 06..23`): layouts in social.md §3; srp refuses them.
+- Clans (`9A`, `49 06..23`): layouts in social.md §3; srp implements them
+  (`servers/lobby-server/src/v026g/clans.rs`).
 
 ## Results (`results.md`)
 

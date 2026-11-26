@@ -14,14 +14,17 @@ k9	9
 kA	A
 kADD	+
 kAPOSTROPHE	'
+kAPPS	Меню
 kB	B
 kBACK	Backspace
 kBACKSLASH	\\
 kC	C
+kCAPITAL	CapsLock
 kCOMMA	,
 kD	D
 kDECIMAL	.
 kDELETE	Delete
+kDIVIDE	Num/
 kDOWN	Down
 kE	E
 kEND	End
@@ -55,10 +58,14 @@ kL	L
 kLBRACKET	<
 kLCONTROL	LCtrl
 kLEFT	Left
+kLMENU	LAlt
 kLSHIFT	LShift
+kLWIN	LWin
 kM	M
 kMINUS	-
+kMULTIPLY	Num*
 kN	N
+kNEXT	PgDn
 kNUMLOCK	NumLock
 kNUMPAD0	Num0
 kNUMPAD1	Num1
@@ -77,19 +84,23 @@ kO	O
 kP	P
 kPAUSE	Pause
 kPERIOD	.
+kPRIOR	PgUp
 kQ	Q
 kR	R
 kRBRACKET	>
 kRCONTROL	RControl
 kRETURN	Enter
 kRIGHT	Right
+kRMENU	RAlt
 kRSHIFT	RShift
+kRWIN	RWin
 kS	S
-kSCROLL	ScrollLock
+kSCROLL	ScrLk
 kSEMICOLON	,
 kSLASH	/
 kSPACE	Space
 kSUBTRACT	-
+kSYSRQ	PrtSc
 kT	T
 kTAB	Tab
 kU	U
@@ -155,6 +166,8 @@ st_ak74u_description	Укороченная модификация автома�
 st_ak74u_name	АКC-74У
 st_ak74u_premium_description	Укороченная модификация автомата АК74 под боеприпас 5.45х39. Благодаря своим размерам, широко использовался десантниками, МВД и охранными структурами. Поддерживает одиночный и автоматический режим стрельбы. Премиум-версия в особом камуфляже.
 st_ak74u_premium_name	АКС-74У "Корсар"
+st_ak_zenit_rk2_foregrip_desc	Отдача -3%. Время прицеливания +1%.
+st_ak_zenit_rk2_foregrip_name	Тактическая рукоять Зенит РК-2
 st_akmn_description	Автомат Калашникова модернизированный под 7.62×39мм патрон. Благодаря мощному патрону не теряет своей актуальности и в на ше время. Поддерживает одиночный и автоматический режим стрельбы.
 st_akmn_name	АКМ
 st_akmn_premium_2_description	Автомат Калашникова модернизированный под 7.62×39мм патрон. Благодаря мощному патрону не теряет своей актуальности и в на ше время. Поддерживает одиночный и автоматический режим стрельбы. Премиум-версия в особом камуфляже.
@@ -265,6 +278,16 @@ st_artcontainer_time_corr_perc_name	Время поиска
 st_artefact_activated_message	Артефакт активирован
 st_artefact_booster_description	Вторая версия прибора, изобретенного умельцами для извлечения артефактов. Благодаря встроенному погасителю аномальной активности артефакта позволяет ускорить процесс экстракции.
 st_artefact_booster_name	Артефакт-мастер
+st_artefact_hunt_draw	Ничья. Время вышло
+st_artefact_hunt_enemy_delivered	Команда противника доставила артефакт
+st_artefact_hunt_lost_collected	Поражение. Все артефакты собраны
+st_artefact_hunt_lost_time_out	Поражение. Время вышло
+st_artefact_hunt_lost_wiped	Поражение. Ваша команда выбыла
+st_artefact_hunt_team_delivered	Ваша команда доставила артефакт
+st_artefact_hunt_won_collected	Победа! Все артефакты собраны
+st_artefact_hunt_won_time_out	Победа! Время вышло
+st_artefact_hunt_won_wiped	Победа! Команда противника выбыла
+st_artefact_hunt_you_picked	Вы подобрали артефакт
 st_artefact_no_free_slots	Нет свободных слотов, чтобы взять артефакт!
 st_artefact_search_failed	Артефакт не найден
 st_artefact_search_success	Вы достали артефакт!
@@ -478,6 +501,307 @@ st_buy_premium_with_discount	Купите сейчас со скидкой!
 st_buy_profile_confirmation_text	Создать нового персонажа?
 st_buy_profile_price_text	Стоимость создания:
 st_buy_treasure_maps	Купить карту
+st_camo_atlas_all_terrain	Любая местность
+st_camo_atlas_amber_circuit	Янтарная схема
+st_camo_atlas_amethyst_wash	Аметистовая заливка
+st_camo_atlas_arid_lizard	Пустынная ящерица
+st_camo_atlas_ash_rain	Пепельный дождь
+st_camo_atlas_aubergine_broadbrush	Баклажановый широкий мазок
+st_camo_atlas_aubergine_crackle	Баклажановый кракелюр
+st_camo_atlas_aubergine_watercolor	Баклажановая акварель
+st_camo_atlas_autumn_flecktarn	Осенний флектарн
+st_camo_atlas_balkan_dpm	Балканский DPM
+st_camo_atlas_balkan_splinter	Балканские осколки
+st_camo_atlas_basalt_shard	Базальтовый осколок
+st_camo_atlas_birch_leaf	Берёзовый лист
+st_camo_atlas_black_ice	Гололёд
+st_camo_atlas_black_thicket	Чёрная чаща
+st_camo_atlas_blue_brush	Синие мазки
+st_camo_atlas_blue_shingle	Синяя черепица
+st_camo_atlas_blue_tiger_stripe	Синие тигровые полосы
+st_camo_atlas_bruise	Синяк
+st_camo_atlas_brushstroke	Мазок кисти
+st_camo_atlas_buntfarben_1918	Бунтфарбен 1918
+st_camo_atlas_butan	Бутан
+st_camo_atlas_carmine_crosscheck	Карминовая перекрёстная клетка
+st_camo_atlas_carmine_pebble	Карминовая галька
+st_camo_atlas_carmine_screenprint	Карминовая шелкография
+st_camo_atlas_carmine_soundings	Карминовые изобаты
+st_camo_atlas_carmine_wave_fan	Карминовый веер волн
+st_camo_atlas_centre_europe	Центральная Европа
+st_camo_atlas_centre_europe_vehicle	Центральная Европа, техника
+st_camo_atlas_cerise_broadbrush	Вишнёвый широкий мазок
+st_camo_atlas_cerise_crackle	Вишнёвый кракелюр
+st_camo_atlas_cinnabar_tiger	Киноварный тигр
+st_camo_atlas_citron_broadbrush	Лимонный широкий мазок
+st_camo_atlas_citron_crackle	Лимонный кракелюр
+st_camo_atlas_citron_cut	Лимонная аппликация
+st_camo_atlas_cobalt_cloud	Кобальтовое облако
+st_camo_atlas_cobalt_netting	Кобальтовая сеть
+st_camo_atlas_cobalt_shard	Кобальтовый осколок
+st_camo_atlas_cobalt_woodgrain	Кобальтовый древесный узор
+st_camo_atlas_copper_mesh	Медная сетка
+st_camo_atlas_copper_rain	Медный дождь
+st_camo_atlas_coral_reeds	Коралловый камыш
+st_camo_atlas_daguet	Даге
+st_camo_atlas_danube_leaf	Дунайский лист
+st_camo_atlas_desert_broadbrush	Пустынный широкий мазок
+st_camo_atlas_desert_broken_grid	Пустынная ломаная сетка
+st_camo_atlas_desert_cloud	Пустынное облако
+st_camo_atlas_desert_crackle	Пустынный кракелюр
+st_camo_atlas_desert_cut_paper	Пустынная аппликация
+st_camo_atlas_desert_drybrush	Пустынная сухая кисть
+st_camo_atlas_desert_fracture	Пустынный разлом
+st_camo_atlas_desert_mosaic	Пустынная мозаика
+st_camo_atlas_desert_netting	Пустынная сеть
+st_camo_atlas_desert_pebble	Пустынная галька
+st_camo_atlas_desert_pixel_grain	Пустынное пиксельное зерно
+st_camo_atlas_desert_rain_streak	Пустынный дождевой штрих
+st_camo_atlas_desert_reed_stripe	Пустынная камышовая полоса
+st_camo_atlas_desert_ribbon	Пустынная лента
+st_camo_atlas_desert_riverstone	Пустынный речной камень
+st_camo_atlas_desert_rosette	Пустынные розетки
+st_camo_atlas_desert_scribble	Пустынные каракули
+st_camo_atlas_desert_shard	Пустынный осколок
+st_camo_atlas_desert_shingle	Пустынная черепица
+st_camo_atlas_desert_starfield	Пустынное звёздное поле
+st_camo_atlas_desert_stone_chip	Пустынная каменная крошка
+st_camo_atlas_desert_tiger_stripe	Пустынная тигровая полоса
+st_camo_atlas_desert_watercolor	Пустынная акварель
+st_camo_atlas_desert_woodgrain	Пустынный древесный узор
+st_camo_atlas_dg3	DG3
+st_camo_atlas_dubok	Дубок
+st_camo_atlas_duck_hunter	Охотник на уток
+st_camo_atlas_dune_chip	Песчаная крошка
+st_camo_atlas_ember_leaf	Тлеющий лист
+st_camo_atlas_erdl_highland	Горный ERDL
+st_camo_atlas_erdl_lowland	Равнинный ERDL
+st_camo_atlas_fab_lizard	Ящерица FAB
+st_camo_atlas_fired_clay	Обожжённая глина
+st_camo_atlas_frogskin	Лягушачья кожа
+st_camo_atlas_frost_splinter	Морозные осколки
+st_camo_atlas_garnet_broken_grid	Гранатовая ломаная сетка
+st_camo_atlas_garnet_rosette	Гранатовые розетки
+st_camo_atlas_garnet_shard	Гранатовый осколок
+st_camo_atlas_glacial_stone_chip	Ледниковая каменная крошка
+st_camo_atlas_glacial_tiger_stripe	Ледниковая тигровая полоса
+st_camo_atlas_glacial_watercolor	Ледниковая акварель
+st_camo_atlas_glacier_cut	Ледниковая аппликация
+st_camo_atlas_graphite_broken_grid	Графитовая ломаная сетка
+st_camo_atlas_graphite_rosette	Графитовые розетки
+st_camo_atlas_graphite_shard	Графитовый осколок
+st_camo_atlas_harbor_tiger	Портовый тигр
+st_camo_atlas_hazard_pixel	Пиксель опасности
+st_camo_atlas_honey_rosette	Медовые розетки
+st_camo_atlas_icelandic_broadbrush	Исландский широкий мазок
+st_camo_atlas_icelandic_stone_chip	Исландская каменная крошка
+st_camo_atlas_icelandic_watercolor	Исландская акварель
+st_camo_atlas_inkstone	Тушечница
+st_camo_atlas_iris_mosaic	Ирисовая мозаика
+st_camo_atlas_jgsdf_desert	JGSDF пустынный
+st_camo_atlas_jgsdf_type_ii	JGSDF тип II
+st_camo_atlas_jgsdf_winter	JGSDF зимний
+st_camo_atlas_juniper_pixel	Можжевеловый пиксель
+st_camo_atlas_k07	K07
+st_camo_atlas_k07_dark	K07 тёмный
+st_camo_atlas_k20	K20
+st_camo_atlas_k20_navy	K20 морской
+st_camo_atlas_k20lq	K20LQ
+st_camo_atlas_kingfisher	Зимородок
+st_camo_atlas_kingfisher_cut_paper	Аппликация зимородка
+st_camo_atlas_kingfisher_reed_stripe	Камышовая полоса зимородка
+st_camo_atlas_kingfisher_screenprint	Шелкография зимородка
+st_camo_atlas_lagoon_rosette	Розетки лагуны
+st_camo_atlas_lapis_cloud	Лазуритовое облако
+st_camo_atlas_lapis_netting	Лазуритовая сеть
+st_camo_atlas_lapis_tiger_stripe	Лазуритовая тигровая полоса
+st_camo_atlas_lapis_woodgrain	Лазуритовый древесный узор
+st_camo_atlas_lichen_pixel	Лишайниковый пиксель
+st_camo_atlas_lime_spots	Лаймовые пятна
+st_camo_atlas_lizard	Ящерица
+st_camo_atlas_lozenge	Ромбы
+st_camo_atlas_lozenge_night	Ночные ромбы
+st_camo_atlas_m05_snow	M05 снежный
+st_camo_atlas_m05_woodland	M05 лесной
+st_camo_atlas_m81_woodland	M81 лесной
+st_camo_atlas_m90	M90
+st_camo_atlas_m90k	M90K
+st_camo_atlas_m_01_desert	M/01 пустынный
+st_camo_atlas_m_84	M/84
+st_camo_atlas_madder_crackle	Мареновый кракелюр
+st_camo_atlas_madder_cut_paper	Мареновая аппликация
+st_camo_atlas_madder_reed_stripe	Мареновая камышовая полоса
+st_camo_atlas_malachite	Малахит
+st_camo_atlas_marigold_broken_grid	Оранжевая ломаная сетка
+st_camo_atlas_marigold_pebble	Оранжевая галька
+st_camo_atlas_marigold_rosette	Оранжевые розетки
+st_camo_atlas_marigold_terrazzo	Оранжевое терраццо
+st_camo_atlas_marine_woodland	Морской лес
+st_camo_atlas_maritime_pebble	Морская галька
+st_camo_atlas_maritime_rosette	Морские розетки
+st_camo_atlas_maritime_terrazzo	Морское терраццо
+st_camo_atlas_maritime_wave_fan	Морской веер волн
+st_camo_atlas_mauve_static	Лиловые помехи
+st_camo_atlas_mm_14	ММ-14
+st_camo_atlas_mm_25	ММ-25
+st_camo_atlas_moro	Моро
+st_camo_atlas_mulberry_cloud	Тутовое облако
+st_camo_atlas_nfp_blue	Синий NFP
+st_camo_atlas_nfp_cloth	Ткань NFP
+st_camo_atlas_nfp_green	Зелёный NFP
+st_camo_atlas_nfp_multitone	Многотонный NFP
+st_camo_atlas_night_silk	Ночной шёлк
+st_camo_atlas_obh	OBH
+st_camo_atlas_ochre_cut	Охристая аппликация
+st_camo_atlas_olive_tide	Оливковый прилив
+st_camo_atlas_opal_fault	Опаловый разлом
+st_camo_atlas_orchid_broken_grid	Орхидейная ломаная сетка
+st_camo_atlas_orchid_cloud	Орхидейное облако
+st_camo_atlas_orchid_netting	Орхидейная сеть
+st_camo_atlas_orchid_shard	Орхидейный осколок
+st_camo_atlas_orchid_static	Орхидейные помехи
+st_camo_atlas_oxblood_cloud	Бордовое облако
+st_camo_atlas_oxblood_stone_chip	Бордовая каменная крошка
+st_camo_atlas_oxblood_terrazzo	Бордовое терраццо
+st_camo_atlas_oxblood_tiger_stripe	Бордовая тигровая полоса
+st_camo_atlas_oxblood_woodgrain	Бордовый древесный узор
+st_camo_atlas_pantera	Пантера
+st_camo_atlas_pantera_desert	Пантера пустынная
+st_camo_atlas_persimmon_ink	Хурмовая тушь
+st_camo_atlas_petal_wash	Лепестковая заливка
+st_camo_atlas_pewter_cut_paper	Оловянная аппликация
+st_camo_atlas_pewter_reed_stripe	Оловянная камышовая полоса
+st_camo_atlas_polar_mesh	Полярная сетка
+st_camo_atlas_porcelain_tide	Фарфоровый прилив
+st_camo_atlas_puma	Пума
+st_camo_atlas_quarry	Карьер
+st_camo_atlas_reef_tiger	Рифовый тигр
+st_camo_atlas_riptide_broadbrush	Широкий мазок прибоя
+st_camo_atlas_riptide_crackle	Кракелюр прибоя
+st_camo_atlas_riptide_cut_paper	Аппликация прибоя
+st_camo_atlas_riptide_terrazzo	Терраццо прибоя
+st_camo_atlas_rmp_woodland	RMP лесной
+st_camo_atlas_rose_breccia	Розовая брекчия
+st_camo_atlas_russet_crosscheck	Рыжая перекрёстная клетка
+st_camo_atlas_russet_screenprint	Рыжая шелкография
+st_camo_atlas_russet_stone_chip	Рыжая каменная крошка
+st_camo_atlas_russet_tiger_stripe	Рыжая тигровая полоса
+st_camo_atlas_russet_watercolor	Рыжая акварель
+st_camo_atlas_russet_woodgrain	Рыжий древесный узор
+st_camo_atlas_rust_flecktarn	Ржавый флектарн
+st_camo_atlas_rust_tiger	Ржавый тигр
+st_camo_atlas_saffron_gravel	Шафрановый гравий
+st_camo_atlas_saffron_pebble	Шафрановая галька
+st_camo_atlas_saffron_soundings	Шафрановые изобаты
+st_camo_atlas_saffron_wave_fan	Шафрановый веер волн
+st_camo_atlas_salt_crater	Соляной кратер
+st_camo_atlas_salt_tiger	Соляной тигр
+st_camo_atlas_sandstone	Песчаник
+st_camo_atlas_satsuma_stone_chip	Мандариновая каменная крошка
+st_camo_atlas_satsuma_tiger_stripe	Мандариновая тигровая полоса
+st_camo_atlas_satsuma_watercolor	Мандариновая акварель
+st_camo_atlas_savanna_flecktarn	Саванный флектарн
+st_camo_atlas_sea_glass	Морское стекло
+st_camo_atlas_seafoam_cloud	Облако морской пены
+st_camo_atlas_seafoam_netting	Сеть морской пены
+st_camo_atlas_seafoam_woodgrain	Древесный узор морской пены
+st_camo_atlas_shard_earth	Осколочная земля
+st_camo_atlas_shard_forest	Осколочный лес
+st_camo_atlas_shard_winter	Осколочная зима
+st_camo_atlas_sienna_wash	Заливка сиеной
+st_camo_atlas_signal_grid	Сигнальная сетка
+st_camo_atlas_silver_rosette	Серебряные розетки
+st_camo_atlas_snow_terrain	Снежная местность
+st_camo_atlas_star_ember	Звёздный жар
+st_camo_atlas_star_forest	Звёздный лес
+st_camo_atlas_sundown_pebble	Закатная галька
+st_camo_atlas_sundown_reed_stripe	Закатная камышовая полоса
+st_camo_atlas_sundown_terrazzo	Закатное терраццо
+st_camo_atlas_sundown_wave_fan	Закатный веер волн
+st_camo_atlas_t_99_winter	T/99 зимний
+st_camo_atlas_taz_07	TAZ 07
+st_camo_atlas_taz_83	TAZ 83
+st_camo_atlas_taz_83_ii	TAZ 83 II
+st_camo_atlas_teal_pixel	Бирюзовый пиксель
+st_camo_atlas_three_color_desert	Трёхцветная пустыня
+st_camo_atlas_tidal_pixel	Приливный пиксель
+st_camo_atlas_tropentarn	Тропентарн
+st_camo_atlas_tropentarn_ii	Тропентарн II
+st_camo_atlas_type_07_arid	Тип 07 пустынный
+st_camo_atlas_type_07_universal	Тип 07 универсальный
+st_camo_atlas_type_07_urban	Тип 07 городской
+st_camo_atlas_ultramarine_broken_grid	Ультрамариновая ломаная сетка
+st_camo_atlas_ultramarine_netting	Ультрамариновая сеть
+st_camo_atlas_ultramarine_rosette	Ультрамариновые розетки
+st_camo_atlas_ultramarine_shard	Ультрамариновый осколок
+st_camo_atlas_ultramarine_terrazzo	Ультрамариновое терраццо
+st_camo_atlas_ultraviolet_grid	Ультрафиолетовая сетка
+st_camo_atlas_urban_blots	Городские пятна
+st_camo_atlas_urban_broadbrush	Городской широкий мазок
+st_camo_atlas_urban_broken_grid	Городская ломаная сетка
+st_camo_atlas_urban_brush	Городской мазок
+st_camo_atlas_urban_cloud	Городское облако
+st_camo_atlas_urban_crackle	Городской кракелюр
+st_camo_atlas_urban_cut_paper	Городская аппликация
+st_camo_atlas_urban_drybrush	Городская сухая кисть
+st_camo_atlas_urban_flecktarn	Городской флектарн
+st_camo_atlas_urban_fracture	Городской разлом
+st_camo_atlas_urban_knit	Городской трикотаж
+st_camo_atlas_urban_mosaic	Городская мозаика
+st_camo_atlas_urban_netting	Городская сеть
+st_camo_atlas_urban_pebble	Городская галька
+st_camo_atlas_urban_pixel_grain	Городское пиксельное зерно
+st_camo_atlas_urban_rain_streak	Городской дождевой штрих
+st_camo_atlas_urban_reed_stripe	Городская камышовая полоса
+st_camo_atlas_urban_ribbon	Городская лента
+st_camo_atlas_urban_riverstone	Городской речной камень
+st_camo_atlas_urban_rosette	Городские розетки
+st_camo_atlas_urban_scribble	Городские каракули
+st_camo_atlas_urban_shard	Городской осколок
+st_camo_atlas_urban_shingle	Городская черепица
+st_camo_atlas_urban_starfield	Городское звёздное поле
+st_camo_atlas_urban_stone_chip	Городская каменная крошка
+st_camo_atlas_urban_tiger_stripe	Городская тигровая полоса
+st_camo_atlas_urban_watercolor	Городская акварель
+st_camo_atlas_urban_wave_fan	Городской веер волн
+st_camo_atlas_urban_woodgrain	Городской древесный узор
+st_camo_atlas_urban_woodland	Городской лес
+st_camo_atlas_vegetato_desert	Пустынный Вегетато
+st_camo_atlas_vehicle_pixel_2015	Пиксель техники 2015
+st_camo_atlas_vehicle_pixel_2016	Пиксель техники 2016
+st_camo_atlas_vehicle_pixel_2021	Пиксель техники 2021
+st_camo_atlas_verdigris_cut_paper	Патинированная аппликация
+st_camo_atlas_verdigris_reed_stripe	Патинированная камышовая полоса
+st_camo_atlas_verdigris_terrazzo	Патинированное терраццо
+st_camo_atlas_verdigris_wave_fan	Патинированный веер волн
+st_camo_atlas_vermilion_tide	Алый прилив
+st_camo_atlas_walnut_burl	Ореховый кап
+st_camo_atlas_woodland_broadbrush	Лесной широкий мазок
+st_camo_atlas_woodland_broken_grid	Лесная ломаная сетка
+st_camo_atlas_woodland_cloud	Лесное облако
+st_camo_atlas_woodland_crackle	Лесной кракелюр
+st_camo_atlas_woodland_cut_paper	Лесная аппликация
+st_camo_atlas_woodland_drybrush	Лесная сухая кисть
+st_camo_atlas_woodland_fracture	Лесной разлом
+st_camo_atlas_woodland_mosaic	Лесная мозаика
+st_camo_atlas_woodland_netting	Лесная сеть
+st_camo_atlas_woodland_pebble	Лесная галька
+st_camo_atlas_woodland_pixel_grain	Лесное пиксельное зерно
+st_camo_atlas_woodland_rain_streak	Лесной дождевой штрих
+st_camo_atlas_woodland_reed_stripe	Лесная камышовая полоса
+st_camo_atlas_woodland_ribbon	Лесная лента
+st_camo_atlas_woodland_riverstone	Лесной речной камень
+st_camo_atlas_woodland_rosette	Лесные розетки
+st_camo_atlas_woodland_scribble	Лесные каракули
+st_camo_atlas_woodland_shard	Лесной осколок
+st_camo_atlas_woodland_shingle	Лесная черепица
+st_camo_atlas_woodland_starfield	Лесное звёздное поле
+st_camo_atlas_woodland_stone_chip	Лесная каменная крошка
+st_camo_atlas_woodland_tiger_stripe	Лесная тигровая полоса
+st_camo_atlas_woodland_watercolor	Лесная акварель
+st_camo_atlas_woodland_wave_fan	Лесной веер волн
+st_camo_atlas_woodland_woodgrain	Лесной древесный узор
+st_camo_atlas_woven_woodland	Тканый лес
 st_camo_black_leather_01_name	Ворон
 st_camo_black_leather_name	Чёрная смерть
 st_camo_blue_leather_name	Бриз
@@ -708,7 +1032,11 @@ st_character_decals_4_73_name	Флаг Нигерии
 st_character_decals_4_74_name	Флаг ЮАР
 st_character_decals_4_75_name	Флаг Уэльса
 st_character_decals_4_76_name	Флаг Косово
+st_character_decals_4_77_name	Снусмумрик
+st_character_decals_4_78_name	Сидящий Снусмумрик
+st_character_decals_4_79_name	Фумо в бутылке
 st_character_decals_4_7_name	Флаг Литвы
+st_character_decals_4_82_name	Неко-Арк
 st_character_decals_4_8_name	Флаг Эстонии
 st_character_decals_4_9_name	Флаг Молдовы
 st_character_decals_5_10_name	Герб Грузии
@@ -1129,6 +1457,10 @@ st_exp_reward_match	Получено опыта за матч
 st_exp_reward_premium	Бонус за премиум
 st_experience	Опыт
 st_experience_modifier	Получаемый опыт
+st_fabdefence_miki_foregrip_desc	Отдача -3%. Время прицеливания +1%.
+st_fabdefence_miki_foregrip_name	Рукоять FAB-Defense MIKI
+st_fabdefence_ptk_foregrip_desc	Отдача -3.5%. Время прицеливания +1.2%.
+st_fabdefence_ptk_foregrip_name	Рукоять FAB-Defense PTK
 st_face_069d_balaclava_3_hole_desc	Вязаная балаклава с прорезями для глаз и рта. Тёплая и скрывает лицо.
 st_face_069d_balaclava_3_hole_name	Трёхдырочная балаклава
 st_face_069d_balaclava_desc	Облегающая армейская балаклава с одной прорезью для глаз, сделанная для ношения под шлемом.
@@ -1213,6 +1545,8 @@ st_fn_minimi_description	Бельгийский ручной пулемет по
 st_fn_minimi_name	FN Minimi
 st_fn_p90_description	Бельгийское оружие самообороны под боеприпас 5.7х28. Создано FN Herstal около 1990 года вместе с собственным патроном; «буллпап» с магазином на 50 патронов вдоль верха оружия. Служит в спецназе и полиции многих стран. Огонь: одиночный и автоматический.
 st_fn_p90_name	FN P90
+st_fort401_foregrip_desc	Отдача -3.5%. Время прицеливания +1.2%.
+st_fort401_foregrip_name	Штатная рукоять Форт-401
 st_fort_17_description	Украинский самозарядный пистолет под калибр 9х18. В серийное производство запущен в 2004 году. Использовался внутренними войсками и некоторыми спецподразделениями. Оснащен магазином на 12 патронов.
 st_fort_17_name	Форт 17
 st_fort_401_description	Украинский ручной пулемёт, патрон: 7,62x51. Лицензионный Negev из Винницы, питание из короба на 100 патронов.
@@ -1236,6 +1570,8 @@ st_friendly_user_compliment	Дружелюбный
 st_friends_online	Друзья онлайн
 st_friends_signin_notification_option	Оповещать о появлении друзей в сети
 st_fullscreen_option	Полноэкранный режим
+st_gandp_ris_foregrip_desc	Отдача -3%. Время прицеливания +1%.
+st_gandp_ris_foregrip_name	Рукоять G&P RIS
 st_general_volume_option	Общий
 st_generic_money_name	Рубли
 st_geometry_quality_option	Качество геометрии
@@ -1282,6 +1618,8 @@ st_hud_tutorial_frame_6_text_1	В бой!
 st_hud_tutorial_frame_6_text_2	Вы завершили базовый курс\nбоевой подготовки. Удачи!
 st_hud_tutorial_frame_6_text_3	Ваша награда:
 st_ignored	Черный список
+st_imi_fsg2_foregrip_desc	Отдача -2.5%. Время прицеливания +0.8%.
+st_imi_fsg2_foregrip_name	Рукоять FSG2
 st_in_develepoment_hint	В процессе разработки
 st_ingame_volume_option	Игра
 st_injury_penalty_description	Штраф дисперсии при ранении рук:
@@ -1421,7 +1759,7 @@ st_level_05_name	Таракановский форт
 st_level_06_name	Мамаев курган
 st_level_07_name	Лаборатория "Вектор"
 st_level_08_name	Кельн
-st_level_09_name	Лондон
+st_level_09_name	Лондон (v0.32)
 st_level_10_name	РЛС "Восток" (v0.21)
 st_level_11_name	Мамаев курган (v0.21)
 st_level_12_name	Химзавод (v0.11)
@@ -1431,6 +1769,7 @@ st_level_25_name	Школа (v0.21)
 st_level_26_name	Таракановский форт (v0.21)
 st_level_29_name	Рудня (v0.21)
 st_level_31_name	Химзавод (v0.21)
+st_level_32_name	Лондон (v0.42)
 st_lifebone_activation_hint	Живокост активирован! Все критические повреждения вылечены! Здоровье восстановлено!
 st_lifebone_pickup_hint	Артефакт Живокост. Повышает регенерацию здоровья.
 st_lightning_quality_option	Качество освещения
@@ -1455,8 +1794,13 @@ st_m4a1_description	Американский карабин под боепри�
 st_m4a1_name	М4А1
 st_magnum_description	Шестизарядный револьвер калибра .357 Магнум. Впервые был представлен в 1955 году. Некоторые считают, что это один из лучших представителей своего класса. Отличается мягким спуском и высокой точность.
 st_magnum_name	Кольт Питон
+st_magpul_afg1_foregrip_desc	Отдача -3.5%. Время прицеливания +1.2%.
+st_magpul_afg1_foregrip_name	Рукоять AFG-1
 st_maintenance	Началось техническое обслуживание серверов. Приложение будет закрыто.
 st_map	Карта
+st_map_hint_13_1	Найдите артефакт "Сияние Леса"
+st_map_hint_13_2	Принесите "Сияние Леса" на базу
+st_map_hint_13_3	Соберите 5 артефактов, чтобы победить
 st_match_items_found	Найдено
 st_match_making_level	Уровень матча
 st_match_rewards	Награда за бой
@@ -1479,6 +1823,8 @@ st_match_settings_checkbox_training_match	Тренировочный бой
 st_match_settings_checkbox_training_match_hint	Режим тренировочной комнаты
 st_match_settings_clan_match	Клановый бой
 st_match_time_is_up	Время матча истекло!
+st_mauser_m712_foregrip_desc	Отдача -3.5%. Время прицеливания +1.2%.
+st_mauser_m712_foregrip_name	Рукоять Mauser M.712
 st_max_carried_weight_description	Переносимый вес:
 st_max_carried_weight_name	Силач
 st_max_carried_weight_ultimate_description	Переносимый вес больше не влияет на скорость передвижения, но вы не можете спринтовать.
@@ -1535,6 +1881,10 @@ st_mode_05_description	Ваша задача - захватить контрол
 st_mode_05_name	Исследование
 st_mode_08_description	Каждый сам за себя. Матч заканчивается, когда кто-то наберёт нужное число убийств или истечёт время. Побеждает боец с наибольшим числом убийств.
 st_mode_08_name	Все против всех
+st_mode_12_description	Заморозьте всех противников. Побеждает команда, выигравшая 5 раундов. Стойте в пределах 2 м от замороженного союзника 4 секунды, чтобы разморозить его.
+st_mode_12_name	Заморозка
+st_mode_13_description	Найдите артефакт "Сияние Леса" и принесите его на базу. Соберите 5 артефактов, чтобы победить.
+st_mode_13_name	Охота за артефактом
 st_modification_screen_edit_decal_hint	Чтобы изменить размер и положение нашивки, кликните на ее слот
 st_modification_screen_hint	Перетяните камуфляж или нашивку из вашего инвентаря в соответствующий слот модификации предмета
 st_modified	Модифицировано
@@ -1584,6 +1934,114 @@ st_multiplicative_stamina_spending_modifier	Затраты энергии
 st_munition	Снаряжение
 st_music_volume_option	Музыка
 st_must_be_in_clan_team	Вы должны быть активным членом клановой команды.
+st_muzzle_aek919k_m12x1l_muzzlebrake_description	Отдача оружия -4 %. Время прицеливания +3 %.
+st_muzzle_aek919k_m12x1l_muzzlebrake_name	Дульный тормоз AEK-919K, M12x1L
+st_muzzle_akmsu_m24x15_muzzlebrake_description	
+st_muzzle_akmsu_m24x15_muzzlebrake_name	Пламегаситель AKMSU, M24x1.5
+st_muzzle_aks74u_m24x15_muzzlebrake_description	
+st_muzzle_aks74u_m24x15_muzzlebrake_name	Пламегаситель AKS-74U, M24x1.5
+st_muzzle_aws_rapira_m24x15_muzzlebrake_description	Отдача оружия -4 %. Время прицеливания +3 %.
+st_muzzle_aws_rapira_m24x15_muzzlebrake_name	Дульный тормоз Rapira, M24x1.5
+st_muzzle_cncwarrior_rofh_m14x1l_firearrestor_description	
+st_muzzle_cncwarrior_rofh_m14x1l_firearrestor_name	Пламегаситель ROFH, M14x1L
+st_muzzle_cncwarrior_rofh_m16x1l_firearrestor_description	
+st_muzzle_cncwarrior_rofh_m16x1l_firearrestor_name	Пламегаситель ROFH, M16x1L
+st_muzzle_custom_01_doublevert_m22x075_choke_description	Дисперсия -20 %. Время прицеливания +2.5 %.
+st_muzzle_custom_01_doublevert_m22x075_choke_name	Чок Custom 01, M22x0.75 O/U
+st_muzzle_custom_01_duckbill_description	Дисперсия -15 %. Время прицеливания +1.9 %.
+st_muzzle_custom_01_duckbill_name	Утиный клюв Custom 01, M22x0.75
+st_muzzle_custom_01_m14x1l_clamp_muzzlebrake_description	Отдача оружия -4 %. Время прицеливания +3 %.
+st_muzzle_custom_01_m14x1l_clamp_muzzlebrake_name	Дульный тормоз Custom 01, M14x1L
+st_muzzle_custom_01_m22x075_choke_description	Дисперсия -20 %. Время прицеливания +2.5 %.
+st_muzzle_custom_01_m22x075_choke_name	Чок Custom 01, M22x0.75
+st_muzzle_custom_01_m30x1_clamp_muzzlebrake_description	Отдача оружия -4 %. Время прицеливания +3 %.
+st_muzzle_custom_01_m30x1_clamp_muzzlebrake_name	Дульный тормоз Custom 01, M30x1
+st_muzzle_custom_02_duckbill_description	Дисперсия -15 %. Время прицеливания +1.9 %.
+st_muzzle_custom_02_duckbill_name	Утиный клюв Custom 02, M22x0.75
+st_muzzle_custom_02_m14x1l_firearrestor_description	
+st_muzzle_custom_02_m14x1l_firearrestor_name	Пламегаситель Custom 02, M14x1L
+st_muzzle_custom_02_m24x15_firearrestor_description	
+st_muzzle_custom_02_m24x15_firearrestor_name	Пламегаситель Custom 02, M24x1.5
+st_muzzle_custom_03_duckbill_description	Дисперсия -15 %. Время прицеливания +1.9 %.
+st_muzzle_custom_03_duckbill_name	Утиный клюв Custom 03, M22x0.75
+st_muzzle_custom_03_m14x1l_clamp_firearrestor_description	
+st_muzzle_custom_03_m14x1l_clamp_firearrestor_name	Пламегаситель Custom 03, M14x1L
+st_muzzle_custom_04_i05x28_clamp_firearrestor_description	
+st_muzzle_custom_04_i05x28_clamp_firearrestor_name	Пламегаситель Custom 04, 1/2"x28
+st_muzzle_custom_04_i06x24_clamp_firearrestor_description	
+st_muzzle_custom_04_i06x24_clamp_firearrestor_name	Пламегаситель Custom 04, 5/8"x24
+st_muzzle_custom_04_m14x1l_clamp_firearrestor_description	
+st_muzzle_custom_04_m14x1l_clamp_firearrestor_name	Пламегаситель Custom 04, M14x1L
+st_muzzle_custom_doublevert_01_duckbill_description	Дисперсия -15 %. Время прицеливания +1.9 %.
+st_muzzle_custom_doublevert_01_duckbill_name	Утиный клюв Custom 01, M22x0.75 O/U
+st_muzzle_custom_doublevert_02_duckbill_description	Дисперсия -15 %. Время прицеливания +1.9 %.
+st_muzzle_custom_doublevert_02_duckbill_name	Утиный клюв Custom 02, M22x0.75 O/U
+st_muzzle_custom_doublhor_01_duckbill_description	Дисперсия -15 %. Время прицеливания +1.9 %.
+st_muzzle_custom_doublhor_01_duckbill_name	Утиный клюв Custom 01, M22x0.75 SxS
+st_muzzle_diamondhead_tbrake_i05x28_muzzlebrake_description	Отдача оружия -4 %. Время прицеливания +3 %.
+st_muzzle_diamondhead_tbrake_i05x28_muzzlebrake_name	Дульный тормоз T-Brake, 1/2"x28
+st_muzzle_diamondhead_tbrake_m14x1l_muzzlebrake_description	Отдача оружия -4 %. Время прицеливания +3 %.
+st_muzzle_diamondhead_tbrake_m14x1l_muzzlebrake_name	Дульный тормоз T-Brake, M14x1L
+st_muzzle_grizzlygunworks_defcon1_i05x28_clamp_muzzlebrake_description	Отдача оружия -4 %. Время прицеливания +3 %.
+st_muzzle_grizzlygunworks_defcon1_i05x28_clamp_muzzlebrake_name	Дульный тормоз Defcon 1, 1/2"x28
+st_muzzle_grizzlygunworks_defcon1_m16x1l_clamp_muzzlebrake_description	Отдача оружия -4 %. Время прицеливания +3 %.
+st_muzzle_grizzlygunworks_defcon1_m16x1l_clamp_muzzlebrake_name	Дульный тормоз Defcon 1, M16x1L
+st_muzzle_grizzlygunworks_defcon1_m30x1_clamp_muzzlebrake_description	Отдача оружия -4 %. Время прицеливания +3 %.
+st_muzzle_grizzlygunworks_defcon1_m30x1_clamp_muzzlebrake_name	Дульный тормоз Defcon 1, M30x1
+st_muzzle_gunsru_custom_m22x075_muzzlebrake_description	Дисперсия -16 %. Время прицеливания +2 %.
+st_muzzle_gunsru_custom_m22x075_muzzlebrake_name	Дульный тормоз Guns.ru, M22x0.75
+st_muzzle_hartman_kochevnik_m22x075_muzzlebrake_description	Дисперсия -16 %. Время прицеливания +2 %.
+st_muzzle_hartman_kochevnik_m22x075_muzzlebrake_name	Дульный тормоз Kochevnik, M22x0.75
+st_muzzle_kkm_i05x28_muzzlebrake_description	Отдача оружия -4 %. Время прицеливания +3 %.
+st_muzzle_kkm_i05x28_muzzlebrake_name	Дульный тормоз KKM, 1/2"x28
+st_muzzle_lantac_dragon_i05x28_muzzlebrake_description	Отдача оружия -4 %. Время прицеливания +3 %.
+st_muzzle_lantac_dragon_i05x28_muzzlebrake_name	Дульный тормоз Dragon, 1/2"x28
+st_muzzle_lantac_dragon_i06x24_muzzlebrake_description	Отдача оружия -4 %. Время прицеливания +3 %.
+st_muzzle_lantac_dragon_i06x24_muzzlebrake_name	Дульный тормоз Dragon, 5/8"x24
+st_muzzle_lantac_drakon_m14x1l_muzzlebrake_description	Отдача оружия -4 %. Время прицеливания +3 %.
+st_muzzle_lantac_drakon_m14x1l_muzzlebrake_name	Дульный тормоз Dragon, M14x1L
+st_muzzle_manticorearms_nightbrake_i05x28_firearrestor_description	
+st_muzzle_manticorearms_nightbrake_i05x28_firearrestor_name	Пламегаситель NightBrake, 1/2"x28
+st_muzzle_manticorearms_nightbrake_i06x24_firearrestor_description	
+st_muzzle_manticorearms_nightbrake_i06x24_firearrestor_name	Пламегаситель NightBrake, 5/8"x24
+st_muzzle_manticorearms_nightbrake_m12x1l_firearrestor_description	
+st_muzzle_manticorearms_nightbrake_m12x1l_firearrestor_name	Пламегаситель NightBrake, M12x1L
+st_muzzle_manticorearms_nightbrake_m141l_firearrestor_description	
+st_muzzle_manticorearms_nightbrake_m141l_firearrestor_name	Пламегаситель NightBrake, M14x1L
+st_muzzle_polychoke_ventedcollar_m22x075_choke_description	Дисперсия -20 %. Время прицеливания +2.5 %.
+st_muzzle_polychoke_ventedcollar_m22x075_choke_name	Чок Polychoke, M22x0.75
+st_muzzle_redheat_ilgynagk01_m22x075_muzzlebrake_description	Дисперсия -16 %. Время прицеливания +2 %.
+st_muzzle_redheat_ilgynagk01_m22x075_muzzlebrake_name	Дульный тормоз Ilgynag K01, M22x0.75
+st_muzzle_redheat_krymske2_m24x15_firearrestor_description	
+st_muzzle_redheat_krymske2_m24x15_firearrestor_name	Пламегаситель Krymsk-2, M24x1.5
+st_muzzle_redheat_shturm_m14x1l_muzzlebrake_description	Отдача оружия -4 %. Время прицеливания +3 %.
+st_muzzle_redheat_shturm_m14x1l_muzzlebrake_name	Дульный тормоз Shturm, M14x1L
+st_muzzle_redheat_shturm_m24x15_muzzlebrake_description	Отдача оружия -4 %. Время прицеливания +3 %.
+st_muzzle_redheat_shturm_m24x15_muzzlebrake_name	Дульный тормоз Shturm, M24x1.5
+st_muzzle_remington_doublehor_m22x075_choke_description	Дисперсия -20 %. Время прицеливания +2.5 %.
+st_muzzle_remington_doublehor_m22x075_choke_name	Чок Remington, M22x0.75 SxS
+st_muzzle_remington_doublevert_m22x075_choke_description	Дисперсия -20 %. Время прицеливания +2.5 %.
+st_muzzle_remington_doublevert_m22x075_choke_name	Чок Remington, M22x0.75 O/U
+st_muzzle_remington_m22x075_choke_description	Дисперсия -20 %. Время прицеливания +2.5 %.
+st_muzzle_remington_m22x075_choke_name	Чок Remington, M22x0.75
+st_muzzle_spikestactical_dynacomp_m24x15_firearrestor_description	
+st_muzzle_spikestactical_dynacomp_m24x15_firearrestor_name	Пламегаситель Dynacomp, M24x1.5
+st_muzzle_stone_shurhit_m22x075_choke_description	Дисперсия -20 %. Время прицеливания +2.5 %.
+st_muzzle_stone_shurhit_m22x075_choke_name	Чок Sure-Hit, M22x0.75
+st_muzzle_taktikatula_saiga419_m22x075_firearrestor_description	
+st_muzzle_taktikatula_saiga419_m22x075_firearrestor_name	Пламегаситель TT-419, M22x0.75
+st_muzzle_venometactical_antidote_m14x1l_firearrestor_description	
+st_muzzle_venometactical_antidote_m14x1l_firearrestor_name	Пламегаситель Antidote, M14x1L
+st_muzzle_zenit_dtk2_m24x15_muzzlebrake_description	Отдача оружия -4 %. Время прицеливания +3 %.
+st_muzzle_zenit_dtk2_m24x15_muzzlebrake_name	Дульный тормоз Zenit DTK-2, M24x1.5
+st_muzzle_zenit_dtk3_m24x15_muzzlebrake_description	Отдача оружия -4 %. Время прицеливания +3 %.
+st_muzzle_zenit_dtk3_m24x15_muzzlebrake_name	Дульный тормоз Zenit DTK-3, M24x1.5
+st_muzzle_zenit_dtk4_m24x15_clamp_muzzlebrake_description	Отдача оружия -4 %. Время прицеливания +3 %.
+st_muzzle_zenit_dtk4_m24x15_clamp_muzzlebrake_name	Дульный тормоз Zenit DTK-4, M24x1.5 clamp
+st_muzzle_zenit_dtk4_m24x15_muzzlebrake_description	Отдача оружия -4 %. Время прицеливания +3 %.
+st_muzzle_zenit_dtk4_m24x15_muzzlebrake_name	Дульный тормоз Zenit DTK-4, M24x1.5
+st_muzzle_zenit_dtk4_m30x1_clamp_firearrestor_description	
+st_muzzle_zenit_dtk4_m30x1_clamp_firearrestor_name	Пламегаситель Zenit DTK-4, M30x1
 st_my_place	Мой рейтинг
 st_neostead_description	Южноафриканское помповое ружье 12 калибра. Создано в 90-х Тони Неофиту по схеме «буллпап»; два трубчатых магазина над стволом, для перезарядки цевье подается вперед. 12 патронов. Только одиночный огонь.
 st_neostead_name	NeoStead 2000
@@ -1615,7 +2073,9 @@ st_novice_026_helmet_desc	Вязаная шапка сталкера-нович�
 st_novice_026_helmet_name	Вязаная шапка новичка
 st_of	из
 st_ok	Ок
+st_on_destroyed_victory_artefact	Артефакт уничтожен
 st_on_enemy_theft_item	Противник украл батарею с вашей базы, остановите его!
+st_on_spawn_victory_artefact	Артефакт появился
 st_on_spawn_victory_item	Батарея заряжена! Принесите ее на базу.
 st_one_handed	Вспомогательное
 st_online_store	Купить золото
@@ -1703,6 +2163,8 @@ st_picatinny_scope_medium_name	Оптика / коллиматоры
 st_pickup_item	Поднять ({USE})
 st_ping_postfix	мс.
 st_pkp_pecheneg_description	Российский единый пулемет под боеприпас 7.62х54R. Создан в ЦНИИТочМаш на основе ПКМ, на вооружении с 2001 года; тяжелый ствол с принудительным охлаждением позволяет вести длинные очереди без замены. Лента на 100 патронов. Огонь: одиночный и автоматический.
+st_pkp_pecheneg_foregrip_desc	Отдача -3.5%. Время прицеливания +1.2%.
+st_pkp_pecheneg_foregrip_name	Рукоять ПКП
 st_pkp_pecheneg_name	ПКП "Печенег"
 st_place	Место
 st_play_button	Играть
@@ -1997,6 +2459,7 @@ st_rgd5_name	Граната РГД-5
 st_rgo_descr	ОПИСАНИЕ НЕ ГОТОВО!!!
 st_rgo_name	РГО
 st_right_strafe_action	Шаг вправо
+st_round_restart_in	До рестарта раунда осталось
 st_rpd_description	ОПИСАНИЕ НЕ ГОТОВО
 st_rpd_name	РПД
 st_rpk_description	ОПИСАНИЕ НЕ ГОТОВО
@@ -2261,11 +2724,14 @@ st_srp_artefact_532_description	Нет урона от падения, пока 
 st_srp_artefact_532_name	Оникс II
 st_srp_artefact_533_description	Активация Живокоста полностью восстанавливает выносливость.
 st_srp_artefact_533_name	Живокост II
+st_srp_artefact_534_description	После смерти артефакты комплекта переходят в комплект, в котором вы возрождаетесь, сколько поместится в его контейнеры.
+st_srp_artefact_534_name	Курьер
 st_srp_artefact_541_description	Пассивные эффекты ваших артефактов действуют и на живых союзников в радиусе 9 м.
 st_srp_artefact_541_name	Резонанс
 st_srp_artefact_542_description	Активированные артефакты действуют и на живых союзников в радиусе 6 м. "Они сияют, а ты блистаешь"
 st_srp_artefact_542_name	Каскад
 st_srp_artefact_points	 ед.
+st_srp_attach_unfit	Не сочетается с дульным устройством или рукояткой оружия.
 st_srp_attachments	Обвес
 st_srp_ban_reason_account_trading	Продажа или попытка продажи учётной записи.
 st_srp_ban_reason_administration	Решение администрации.
@@ -2540,14 +3006,34 @@ st_srp_equipment069_snow_20_torso_7_desc	Описание пока недост�
 st_srp_equipment069_snow_20_torso_7_name	Бронежилет "Снег-20"
 st_srp_face	Лицо
 st_srp_face_card	Лицо %1$s
+st_srp_grip_slot	Рукоятка
 st_srp_hide_quests_option	Скрыть задания
 st_srp_hide_scores_option	Скрыть очки игроков
 st_srp_hit_markers_all	Все хитмаркеры
 st_srp_hit_markers_hidden	Скрытые хитмаркеры
 st_srp_hit_markers_kill	Только при убийстве
 st_srp_hud_add_friend	Добавить в друзья
+st_srp_hud_artefact_hunt_carrying	Вы несёте артефакт
+st_srp_hud_artefact_hunt_sudden_death	Внезапная смерть
 st_srp_hud_blackout_intro	Блэкаут: несите батареи к устройству своей команды. Интерфейс и маркеры попаданий скрыты для погружения. Удерживайте Tab: боезапас, здоровье, чат; после смерти — выбор комплекта.
 st_srp_hud_blackout_start	Блэкаут\nНесите батареи к устройству своей команды.\nИнтерфейс и маркеры попаданий скрыты. Удерживайте Tab, чтобы увидеть боезапас и здоровье.
+st_srp_hud_freeze_draw	Ничья
+st_srp_hud_freeze_frozen	Заморожен (%1$s)
+st_srp_hud_freeze_help	Заморозьте всех противников. Побеждает команда, выигравшая 5 раундов. Стойте в пределах 2 м от замороженного союзника 4 секунды, чтобы разморозить его.
+st_srp_hud_freeze_lose	Поражение — противники выиграли пять раундов.
+st_srp_hud_freeze_reveal_enemy	Последний противник будет раскрыт через %1$s с
+st_srp_hud_freeze_reveal_self	Вы будете раскрыты через %1$s с
+st_srp_hud_freeze_reveal_teammate	Ваш последний союзник будет раскрыт через %1$s с
+st_srp_hud_freeze_revealed_enemy	Последний противник раскрыт на карте
+st_srp_hud_freeze_revealed_self	Вы раскрыты на карте
+st_srp_hud_freeze_revealed_teammate	Ваш последний союзник раскрыт на карте
+st_srp_hud_freeze_round_draw	Ничья в раунде. Повтор через %1$s с.
+st_srp_hud_freeze_round_lose	Раунд проигран. Следующий через %1$s с.
+st_srp_hud_freeze_round_win	Раунд выигран. Следующий через %1$s с.
+st_srp_hud_freeze_standing	В бою: ваша команда %1$s — противники %2$s
+st_srp_hud_freeze_start	Заморозка\nСмертельное попадание замораживает. Заморозьте всю команду противника, чтобы выиграть раунд.\nСтойте 4 с в 2 м от замороженного союзника, чтобы разморозить его; сам он оттает через 2 мин.\nПобеждает команда, первой выигравшая 5 раундов; по истечении времени — ведущая.
+st_srp_hud_freeze_thawing	Размораживание союзника…
+st_srp_hud_freeze_win	Победа — выиграно пять раундов.
 st_srp_hud_friend_not_sent	Заявка в друзья не отправлена
 st_srp_hud_friend_sent	Заявка в друзья отправлена
 st_srp_hud_mute_hide	Скрыть чат
@@ -2568,7 +3054,7 @@ st_srp_inv_fuse_time	Время запала
 st_srp_inv_material_pierce	Пробивает
 st_srp_inv_pellets	Дробин
 st_srp_inv_pocket_units	Место в кармане
-st_srp_inv_pocket_units_whole	∞
+st_srp_inv_pocket_units_whole	Все
 st_srp_inv_stamina_damage	Урон выносливости
 st_srp_inv_throw_speed	Скорость броска
 st_srp_inventory_search	Поиск
@@ -2584,6 +3070,13 @@ st_srp_inventory_search_tip_level_example	+10 +11
 st_srp_inventory_sell_duplicates	Продать дубли
 st_srp_inventory_sell_duplicates_ask	Предметов на продажу: %1$s
 st_srp_item_props_mps	м/с
+st_srp_key_bindings	Привязки
+st_srp_key_unbound	клавиша не назначена
+st_srp_keys_combat	Бой
+st_srp_keys_interface	Интерфейс
+st_srp_keys_items	Предметы
+st_srp_keys_movement	Движение
+st_srp_keys_talk	Связь
 st_srp_language_option	Язык:
 st_srp_language_restart	Применится после перезапуска.
 st_srp_loadout_block_ammo	Мало патронов к оружию
@@ -2598,6 +3091,10 @@ st_srp_loadout_sell_and	 и
 st_srp_loadout_sell_item	%1$s
 st_srp_loadout_sell_many	Используется в комплектах %1$s. Продать?
 st_srp_loadout_sell_one	Используется в комплекте %1$s. Продать?
+st_srp_loadout_slot_skill	Слот: %1$s
+st_srp_loadout_slot_to_container	Правый клик: контейнер для артефакта
+st_srp_loadout_slot_to_pocket	Правый клик: карман
+st_srp_loadout_slot_to_weapon	Правый клик: второе оружие
 st_srp_loadout_title	Комплект
 st_srp_loadout_unfit	не для боя
 st_srp_lobby_basement	Подвал
@@ -2620,7 +3117,8 @@ st_srp_map_cs_mp_military_1	Армейские склады
 st_srp_map_cs_mp_rembasa	Ремонтная база
 st_srp_map_cs_mp_sport_center	Спортивный центр
 st_srp_map_cs_training_camp	Тренировочный лагерь
-st_srp_map_london	Лондон
+st_srp_map_london	Лондон (v0.32)
+st_srp_map_london_v042	Лондон (v0.42)
 st_srp_map_mamayev_kurgan	Мамаев курган
 st_srp_map_mamayev_kurgan_v021	Мамаев курган (v0.21)
 st_srp_map_names_option	Имена на карте
@@ -2703,17 +3201,24 @@ st_srp_mic_test_playing	Воспроизведение %1$s
 st_srp_mic_test_recording	Запись %1$s
 st_srp_microphone	Микрофон
 st_srp_microphone_default	По умолчанию
+st_srp_mode_artefact_hunt	Охота за артефактом
 st_srp_mode_blackout	Защитное устройство: блэкаут
 st_srp_mode_chargers	Защитное устройство: зарядники
 st_srp_mode_cowboy	FFA: Салун
 st_srp_mode_cowboy_winchester	FFA: Салун (Винчестер)
 st_srp_mode_free_for_all	Все против всех
+st_srp_mode_freeze_tag	Заморозка
 st_srp_mode_protective_device	Защитное устройство
 st_srp_mode_racket	FFA: Движ
 st_srp_mode_research	Исследование
+st_srp_mode_roulette_high	FFA: Рулетка
+st_srp_mode_roulette_low	FFA: Рулетка
+st_srp_mode_roulette_mid	FFA: Рулетка
 st_srp_mode_team_deathmatch	Командный бой
 st_srp_mouse_lock_option	Зафиксировать вертикальную чувствительность
 st_srp_mouse_vertical_option	Вертикальная чувствительность
+st_srp_muzzle_slot	Дульная насадка
+st_srp_no_muzzle_flash	Без вспышки
 st_srp_optics	Оптика
 st_srp_options_hud	Интерфейс боя:
 st_srp_pierce_brick	Кирпич, сталь
@@ -2773,7 +3278,7 @@ st_srp_replay_place_in_line	Место в очереди: %1$s. Ожидание
 st_srp_replay_ready	Повтор этого матча готов.\n\nОн загружается с сервера матча, который хранит достоверную запись матча. Откроется второе окно игры и воспроизведёт его; лобби останется открытым.\n\nВ повторе нажмите F9 для управления: игроки, камера, перемотка, скорость.
 st_srp_replay_ready_size	Повтор этого матча: %1$s.\n\nОн загружается с сервера матча, который хранит достоверную запись матча. Откроется второе окно игры и воспроизведёт его; лобби останется открытым.\n\nВ повторе нажмите F9 для управления: игроки, камера, перемотка, скорость.
 st_srp_replay_size	%1$s,%2$s МБ
-st_srp_replay_starting	Запускаем повтор: откроется второе окно игры, лобби останется открытым. Если что-то пойдёт не так, программа обновления покажет, что случилось.\n\nВ повторе нажмите F9 для управления.
+st_srp_replay_starting	Запускаем повтор: откроется второе окно игры, лобби останется открытым. Если что-то пойдёт не так, программа обновления покажет, что случилось.\n\nВ повторе нажмите «Скрыть интерфейс» ({HIDE_INTERFACE}) для управления.
 st_srp_replay_still_preparing	Повтор ещё готовится. Сервер продолжает его создавать; откройте «Смотреть повтор» ещё раз через минуту.
 st_srp_replay_title	Смотреть повтор
 st_srp_replay_waiting	Ожидание: %1$s с.
@@ -2877,14 +3382,66 @@ st_srp_rooms_voting	Голосование
 st_srp_rooms_waiting	Ждём игроков
 st_srp_rooms_waiting_owner	Ждём, пока создатель начнёт.
 st_srp_rooms_waiting_short	Ожидание
-st_srp_scope_screen_hint	Перетяните прицел из вашего инвентаря в слот модификации оружия
+st_srp_scope_next_action	Сменить прицел
+st_srp_scope_screen_hint	Перетяните прицел, дульное устройство или рукоятку из вашего инвентаря в его слот
 st_srp_scope_slot	Прицел
+st_srp_second_sight	Второй прицел
+st_srp_second_sight_description	Ставит второй прицел сбоку оружия.
+st_srp_second_sight_hint	Прицел на смещённой планке сбоку оружия. Нажмите «Сменить прицел» ({SCOPE_NEXT}) во время прицеливания, чтобы переключиться на него.
+st_srp_second_sight_name	Второй прицел
 st_srp_shop_not_owned	Скрыть имеющиеся
 st_srp_shop_not_owned_hint	Показывать только то, чего у вас нет
+st_srp_side_left	Слева
+st_srp_side_right	Справа
 st_srp_skills	Навыки
 st_srp_speed_label	Скорость
 st_srp_speed_title	Скорость движения: %1$s
 st_srp_static_minimap_option	Статическая миникарта
+st_srp_technical_401_description	Скорость подбора батареи и пополнения у ящика с боеприпасами:
+st_srp_technical_401_name	Ловкие руки
+st_srp_technical_402_description	Время жизни дымового облака:
+st_srp_technical_402_name	Густой дым
+st_srp_technical_403_description	Пока включён кислородный баллон, раскачивание и разброс оружия:
+st_srp_technical_403_name	Ровное дыхание
+st_srp_technical_404_description	Урон от своих гранат и гранат союзников:
+st_srp_technical_404_name	Выучка
+st_srp_technical_411_description	Скорость обезвреживания капканов:
+st_srp_technical_411_name	Сапёр
+st_srp_technical_412_description	Слышен звук чеки, когда враг рядом готовит гранату.
+st_srp_technical_412_name	Чуткий слух
+st_srp_technical_413_description	С кислородным баллоном в комплекте:
+st_srp_technical_413_name	Карман у баллона
+st_srp_technical_414_description	С кислородным баллоном в комплекте:
+st_srp_technical_414_name	Глубокие карманы
+st_srp_technical_422_description	Подберите живую гранату рядом клавишей использования и бросьте её обратно. Запал продолжает гореть.
+st_srp_technical_422_name	Обратно отправителю
+st_srp_technical_423_description	Обезвреженный тобой капкан, свой или вражеский, попадает в твой карман, если там есть место.
+st_srp_technical_423_name	Трофейный капкан
+st_srp_technical_431_description	Пока включён кислородный баллон, расход энергии на спринт:
+st_srp_technical_431_name	Глубокое дыхание
+st_srp_technical_432_description	После гибели нажмите клавишу броска, чтобы уронить свою дымовую гранату там, где вы упали.
+st_srp_technical_432_name	Мёртвая рука
+st_srp_technical_433_description	Ваши капканы, в которые стреляли, снова открываются через:
+st_srp_technical_433_name	Перевзвод
+st_srp_technical_441_description	Ваш дым слегка зелёный и отравляет врагов внутри; кислородный баллон защищает. Дымовая граната занимает 1,5 места в кармане. Токсичный урон:
+st_srp_technical_441_name	Ядовитый дым
+st_srp_technical_442_description	После каждых 20 с непрерывной работы кислородного баллона и когда он пустеет: +10% к скорости на 20 с и полная энергия.
+st_srp_technical_442_name	Кислородный рывок
+st_srp_technical_443_description	Убийство вашей гранатой возвращает одну гранату.
+st_srp_technical_443_name	Мародёр
+st_srp_technical_444_description	Ваш капкан ломает ноги попавшему в него. Капкан занимает 1,5 места в кармане.
+st_srp_technical_444_name	Медвежий капкан
+st_srp_technical_445_description	С кислородным баллоном в комплекте: ещё один контейнер для артефакта.
+st_srp_technical_445_name	Контейнер в баллоне
+st_srp_technical_disarm_speed	Скорость разминирования
+st_srp_technical_friendly_blast	Урон от своих гранат
+st_srp_technical_oxygen_rush	Скорость после 20 с баллона и в конце
+st_srp_technical_per_second	 в секунду
+st_srp_technical_pocket_size	 к размеру карманов
+st_srp_technical_pockets	 карм.
+st_srp_technical_rearm	Снова открывается после выстрела
+st_srp_technical_smoke_duration	Длительность дыма
+st_srp_technical_toxic_damage	Токсичный урон
 st_srp_unit_days	%1$s д
 st_srp_unit_hours	%1$s ч
 st_srp_unit_kg	%1$s кг
@@ -2973,6 +3530,7 @@ st_stamina_spending_speed_description	Потребление энергии:
 st_stamina_spending_speed_name	Выносливость
 st_start_chat_action	Чат
 st_start_match_welcome_message	Найдите батареи и доставьте их на базу!
+st_start_match_welcome_message_13	Охота за артефактом. Доставьте артефакт на базу своей команды
 st_start_match_welcome_message_2	Найдите и защитите места зарядки батарей!
 st_start_match_welcome_message_3	Уничтожьте как можно больше противников!
 st_start_match_welcome_message_5	Найдите и захватите исследовательские установки!
@@ -3052,7 +3610,7 @@ st_team_member_is_not_commander	Член команды не является к
 st_texture_quality_option	Качество текстур
 st_there_is_no_item_in_inventory	Предмет не найден на складе
 st_thief_item	Забрать контейнер
-st_throw_grenade_action	Бросок гранаты
+st_throw_grenade_action	Следующая граната
 st_time_current	Подбор игроков:
 st_time_was_resynchronized	Восстановление связи...
 st_to_all	Всем
@@ -3067,6 +3625,8 @@ st_toz66_description	Обрез охотничей двустволки под �
 st_toz66_name	ТОЗ-66
 st_trap_damage	Урон от ловушки
 st_treasure_map_advert	Используйте карту схрона, чтобы найти больше предметов
+st_troy_modular_foregrip_desc	Отдача -3.5%. Время прицеливания +1.2%.
+st_troy_modular_foregrip_name	Рукоять Troy Modular
 st_tt_description	Тульский Токарева образца 1933 года под боеприпас 7.62х25мм. Разработан в 30-х годах двадцатого столетия и является первым самозарядным армейский пистолетом СССР. Магазин вмещает 8 патронов. 
 st_tt_name	ТТ-33
 st_turn_down_action	
@@ -3095,12 +3655,28 @@ st_ump45_name	H&K UMP45
 st_unknown_faction	Нейтрал
 st_unlimited_upload	неограничено
 st_use_action	Использовать
+st_use_antitoxin_action	Использовать антитоксин
 st_use_artefact_container	Достать артефакт ({USE})
+st_use_bandages_action	Использовать перевязочный пакет
+st_use_blackmarket_medkit_action	Использовать аптечку Чёрного Рынка
 st_use_fix_voucher	Ремнабор
 st_use_item_message	Вы действительно хотите использовать предмет?
 st_use_ladder	Лестница
+st_use_lifebone_action	Использовать Живокост
+st_use_medkit_action	Использовать аптечку
 st_use_microphone_option	Использовать микрофон
+st_use_military_medkit_action	Использовать армейскую аптечку
+st_use_next_artefact_action	Следующий артефакт
+st_use_next_medkit_action	Следующая аптечка
+st_use_onyx_action	Использовать Оникс
+st_use_oxygen_tank_action	Использовать кислородный баллон
+st_use_painkiller_action	Использовать обезболивающее
+st_use_rdgm_action	Бросок дымовой гранаты
 st_use_resupply_zone	Пополнить аммуницию ({USE})
+st_use_rgd5_action	Бросок гранаты РГД-5
+st_use_science_medkit_action	Использовать научную аптечку
+st_use_spring_action	Использовать Пружину
+st_use_trap_action	Использовать ловушку
 st_use_two_double_handed_weapons_description	Вы можете взять в бой два двуручных оружия.
 st_use_two_double_handed_weapons_name	Терминатор
 st_using_progress_message	Прогресс:

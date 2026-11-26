@@ -123,16 +123,18 @@ pub const ROOM_KEY_MAX: u32 = 99_999;
 pub const PIN_MAX: u16 = 9999;
 /// The pool entries one bits request carries.
 pub const BITS_PER_CHUNK: u32 = 16;
-/// The most chunks: a pool of 256 entries at the most (every playable map:
-/// 167 in the live data with the free-for-alls, 142 before them; 20 a chunk
-/// and 8 chunks, 160, until then).
-pub const CHUNKS: u32 = 16;
+/// The most chunks: a pool of 512 entries at the most (every playable map:
+/// 333 on 2026-11-22 with both Artifact Hunt and Freeze Tag on every team map,
+/// whose 256 cut off every map after the 0.21 ones, the Londons among them;
+/// 167 with the free-for-alls, 142 before them; 20 a chunk and 8 chunks, 160,
+/// until then).
+pub const CHUNKS: u32 = 32;
 /// The most pool entries a create can name: one bit each.
 pub const POOL_BITS: usize = (CHUNKS * BITS_PER_CHUNK) as usize;
 /// The pool's entries a page of [`room_pool`] lists.
 pub const POOL_PAGE_ROWS: usize = 30;
-/// The most pages of the pool.
-pub const POOL_PAGES: u32 = 16;
+/// The most pages of the pool: every entry a create can name.
+pub const POOL_PAGES: u32 = POOL_BITS.div_ceil(POOL_PAGE_ROWS) as u32;
 /// The most rooms one [`room_list`] lists, whatever the `3B` asks for.
 pub const LIST_ROWS: usize = 31;
 /// The most members a room has: two sides of 10.
@@ -1547,10 +1549,10 @@ mod tests {
                 bits: 0xFFFF
             })
         );
-        // 256 entries, and the chunks' starts end below the create's.
-        assert_eq!(POOL_BITS, 256);
+        // 512 entries, and the chunks' starts end below the create's.
+        assert_eq!(POOL_BITS, 512);
         const { assert!(ROOM_BITS_BASE + CHUNKS * (1 << BITS_PER_CHUNK) <= ROOM_CREATE_BASE) };
-        assert_eq!(room_request(bits_start(15, 0xFFFF) + 1, 1), None);
+        assert_eq!(room_request(bits_start(CHUNKS as u8 - 1, 0xFFFF) + 1, 1), None);
         assert_eq!(room_request(ROOMS_LAST, 1), None);
         assert_eq!(room_request(ROOMS_FIRST - 1, 1), None);
     }
@@ -1637,13 +1639,13 @@ mod tests {
             ..form
         };
         assert_eq!(form_names(&form), ["S1;F;0;9;2;7;45;;", "E;0;0"]);
-        // A big pool (the free-for-alls' maps too): a row each 16, 256 at most.
+        // A big pool (the free-for-alls' maps too): a row each 16, POOL_BITS at most.
         let big = RoomForm {
             tiles_on: (0..POOL_BITS).map(|index| index % 3 != 0).collect(),
             ..form.clone()
         };
         let names = form_names(&big);
-        assert_eq!(names.len(), 1 + 16);
+        assert_eq!(names.len(), 1 + 32);
         assert_eq!(names[16], format!("E;15;{}", 0x6DB6_u32));
         assert!(room_form(&big).is_ok());
         // More entries than a create can name: refused.

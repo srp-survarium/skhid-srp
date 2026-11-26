@@ -40,9 +40,9 @@ pub mod extras;
 pub mod items_rules;
 pub mod known;
 pub mod level_stats;
+pub mod match_kind;
 pub mod matches_now;
 pub mod matchmaking;
-pub mod mode_intro;
 pub mod moderation;
 pub mod names;
 pub mod notices;
@@ -198,6 +198,17 @@ impl GameAccounts {
         let mut dirty = HashSet::new();
         for (account_id, mut account) in loaded {
             let kept = account.clone();
+            // Saved up to release 68: a scope's record held a variant's dict
+            // id. Each takes its scope's own, before the repairs judge it.
+            let rewritten = items_rules::scope_records_to_own_ids(&mut account);
+            let migrated = (rewritten > 0).then(|| {
+                log::info!(
+                    "0.26g account {account_id}: {rewritten} scope record(s) now hold their \
+                     scope's own dict id (the scope variants are retired)"
+                );
+                dirty.insert(account_id);
+                account.clone()
+            });
             // Kits saved before the covered-slots rule: said once, apart.
             let uncovered = account.uncover_kits();
             if uncovered > 0 {
@@ -216,7 +227,8 @@ impl GameAccounts {
             }
             if account.repair() || uncovered > 0 || merged > 0 {
                 log::warn!("0.26g account {account_id} was not consistent; repaired");
-                for (host, record, why) in items_rules::upgrades_taken_off(&kept, &account) {
+                let before = migrated.as_ref().unwrap_or(&kept);
+                for (host, record, why) in items_rules::upgrades_taken_off(before, &account) {
                     log::warn!(
                         "0.26g account {account_id}: upgrade {} (dict id {}, slot {}) taken off \
                          item {host}: {why}",
@@ -263,14 +275,7 @@ impl GameAccounts {
     /// `SRP_DATA_DIR`, or in memory with `SRP_DB=off`.
     pub fn from_env() -> Result<Self, PersistError> {
         match SqliteGameRepository::from_env()? {
-            Some(mut repository) => {
-                if let Some(paid) =
-                    repository.pay_back_once(&crate::persist::data_dir().join("backups"))?
-                {
-                    log_paid_back(&paid);
-                }
-                Self::with_repository(Box::new(repository))
-            }
+            Some(repository) => Self::with_repository(Box::new(repository)),
             None => Ok(Self::new()),
         }
     }
@@ -761,38 +766,6 @@ impl GameAccounts {
         actions.truncate(limit);
         Ok(actions)
     }
-}
-
-/// The release log of [`persist::SqliteGameRepository::pay_back_once`]: a
-/// line for each account it paid, and the totals.
-fn log_paid_back(paid: &[persist::PaidBack]) {
-    let (mut gold, mut silver, mut vouchers) = (0_u64, 0_u64, [0_u64; 3]);
-    for account in paid {
-        log::info!(
-            "Paid back {} (account {}): {} gold, {} repair kits, {} rename vouchers, {} \
-             premium-day vouchers: worth {} silver (a balance stops at 4294967295)",
-            account.name,
-            account.account_id,
-            account.gold,
-            account.vouchers[0],
-            account.vouchers[1],
-            account.vouchers[2],
-            account.silver()
-        );
-        gold += account.gold;
-        silver += account.silver();
-        for (total, count) in vouchers.iter_mut().zip(account.vouchers) {
-            *total += count;
-        }
-    }
-    log::info!(
-        "Gold and the vouchers but the drop card are gone, paid back once: {} accounts, {gold} \
-         gold, {} repair kits, {} rename vouchers, {} premium-day vouchers, {silver} silver given",
-        paid.len(),
-        vouchers[0],
-        vouchers[1],
-        vouchers[2]
-    );
 }
 
 #[cfg(test)]

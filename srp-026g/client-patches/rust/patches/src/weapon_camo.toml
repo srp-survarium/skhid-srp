@@ -16,3 +16,11 @@ handler = "on_own_camouflage"
 [[hook]]
 site = "weapon_camo.bake_name"
 handler = "on_bake_name"
+
+[[hook]]
+site = "gbuffer.bake_host"
+handler = "on_register_bake_coordinates"
+
+[[hook]]
+site = "gbuffer.bake_coordinates"
+handler = "on_draw_surface"

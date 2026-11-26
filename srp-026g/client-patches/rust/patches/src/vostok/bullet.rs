@@ -28,6 +28,7 @@ const MATERIALS: u32 = 128;
 pub struct MaterialId(u32);
 impl MaterialId {
     pub fn parse(value: u32) -> Option<Self> { (value < MATERIALS).then_some(Self(value)) }
+    pub fn value(self) -> u32 { self.0 }
 }
 
 /// A bullet's ray just traced, its result not yet read.

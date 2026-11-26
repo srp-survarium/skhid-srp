@@ -95,6 +95,13 @@ pub(super) fn unread_kits(profiles: &[MatchProfile], from: usize) -> Option<Stri
         .find_map(|(place, profile)| place_kits(place, profile, dictionary).err())
 }
 
+/// The items dictionary's dict ids, rising (its items are by id): what a
+/// weapon counted in a world's statistics is one of.
+fn dict_ids() -> &'static [u16] {
+    static IDS: std::sync::OnceLock<Vec<u16>> = std::sync::OnceLock::new();
+    IDS.get_or_init(|| Dictionary::shared().items.iter().map(|item| item.dict_id).collect())
+}
+
 fn place_kits(
     place: usize,
     profile: &MatchProfile,
@@ -109,6 +116,48 @@ fn place_kits(
 }
 
 pub fn check(body: &[u8], time: u32, places: usize, roster: Roster) -> Result<(), Refused> {
+    let map = roster.map.map();
+    let refused = |refusal| Refused {
+        refusal,
+        game_mode: map.mode.rules().number(),
+        batteries: map.victory_items_count as usize,
+        respawn_points: map.respawn_points,
+        places,
+    };
+    with_contexts(time, places, roster, |contexts| {
+        let mut first = None;
+        for context in contexts {
+            match world::validate(body, context) {
+                Ok(()) => return Ok(()),
+                // Another count of installed places changes the game objects only.
+                Err(refusal) if refusal.part == Part::Objects => {
+                    first.get_or_insert(refusal);
+                }
+                Err(refusal) => return Err(refused(first.unwrap_or(refusal))),
+            }
+        }
+        Err(refused(first.expect(
+            "the first roster is no more than the known places",
+        )))
+    })
+}
+
+/// The contexts a world of `roster`'s match at `time` is read with, given
+/// to `read`: one for each count of late joiners its game may have
+/// installed, the most first. They differ in the game objects only.
+///
+/// The world's game objects begin with the grenades and traps of every
+/// place its game has bound, the newest first (`world::objects`): the
+/// first roster's from the start, then each late joiner's once that game
+/// installed it, in the order they joined. Which of the late joiners the
+/// uploading game has installed the server does not know, so a world is
+/// one of a game that installed the first `bound` of them.
+pub fn with_contexts<R>(
+    time: u32,
+    places: usize,
+    roster: Roster,
+    read: impl FnOnce(&[Context<'_>]) -> R,
+) -> R {
     let mut profiles = [Profile::default(); MAX_PLAYERS];
     for (target, source) in profiles.iter_mut().zip(roster.profiles) {
         target.items = source.items.len();
@@ -133,31 +182,27 @@ pub fn check(body: &[u8], time: u32, places: usize, roster: Roster) -> Result<()
         kits,
         body_parts: item_params::body_parts(),
     });
-    let refused = |refusal| Refused {
-        refusal,
-        game_mode: map.mode.rules().number(),
-        batteries: map.victory_items_count as usize,
-        respawn_points: map.respawn_points,
-        places,
-    };
-    // The world's game objects begin with the grenades and traps of every
-    // place its game has bound, the newest first (`world::objects`): the
-    // first roster's from the start, then each late joiner's once that
-    // game installed it, in the order they joined. Which of the late
-    // joiners the uploading game has installed the server does not know,
-    // so a world is one of a game that installed the first `bound` of them.
-    let mut first = None;
-    for bound in (roster.initial_players.min(known)..=known).rev() {
-        let held: Vec<Held> = roster.profiles[..bound]
-            .iter()
-            .rev()
-            .flat_map(|profile| profile.held())
-            .collect();
-        let objects = Objects {
-            held: &held,
+    let bounds: Vec<usize> = (roster.initial_players.min(known)..=known).rev().collect();
+    let held: Vec<Vec<Held>> = bounds
+        .iter()
+        .map(|bound| {
+            roster.profiles[..*bound]
+                .iter()
+                .rev()
+                .flat_map(|profile| profile.held())
+                .collect()
+        })
+        .collect();
+    let objects: Vec<Objects> = held
+        .iter()
+        .map(|held| Objects {
+            held,
             map: map.world_objects,
-        };
-        let context = Context {
+        })
+        .collect();
+    let contexts: Vec<Context> = objects
+        .iter()
+        .map(|objects| Context {
             time,
             places,
             game_mode: map.mode.rules().number(),
@@ -168,19 +213,12 @@ pub fn check(body: &[u8], time: u32, places: usize, roster: Roster) -> Result<()
             // The artefacts table is the game's live one; the inventory's
             // artefact ids are bounded by its own check (patch 115).
             artefacts: None,
-            objects: Some(&objects),
+            objects: Some(objects),
             inventory: inventory.as_ref(),
-        };
-        match world::validate(body, &context) {
-            Ok(()) => return Ok(()),
-            // Another count of installed places changes the game objects only.
-            Err(refusal) if refusal.part == Part::Objects => {
-                first.get_or_insert(refusal);
-            }
-            Err(refusal) => return Err(refused(first.unwrap_or(refusal))),
-        }
-    }
-    Err(refused(first.expect(
-        "the first roster is no more than the known places",
-    )))
+            dict_ids: Some(dict_ids()),
+            // The mode config's, as the game's rule reads them.
+            artefact_hunt: map.artefact_hunt,
+        })
+        .collect();
+    read(&contexts)
 }

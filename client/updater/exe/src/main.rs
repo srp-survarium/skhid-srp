@@ -32,13 +32,14 @@ mod play;
 mod gate;
 mod http;
 mod install;
+mod leftover;
 mod libtorrent;
 mod log;
+mod old_restore;
 mod patches;
 mod pipe;
 mod replay;
 mod replay_association;
-mod resources;
 mod route;
 mod seed;
 mod signed;
@@ -130,6 +131,9 @@ struct Session {
     run: Run,
     last_progress: u64,
     started: u64,
+    /// The bytes done at the first report since [`Session::begin_progress`]
+    /// (those of a download gone on from): the speed counts from them.
+    counted_from: Option<u64>,
     /// The launcher's line names a file ("Extracting file <name>") that the
     /// next state message must clear.
     named_file: bool,
@@ -348,6 +352,7 @@ impl Session {
     fn begin_progress(&mut self) {
         self.started = win::ticks();
         self.last_progress = 0;
+        self.counted_from = None;
         self.send(ToLauncher::Progress {
             done: 0,
             total: 0,
@@ -356,16 +361,29 @@ impl Session {
         });
     }
 
+    /// A new request of the same file (another address, a new try): its
+    /// speed is measured anew from its first report, the bar kept as it is.
+    fn restart_speed(&mut self) {
+        self.counted_from = None;
+    }
+
     /// Reports bytes done of a total, four times a second at most (always
     /// at the end). `false` when told to stop.
     fn progress(&mut self, done: u64, total: u64) -> bool {
         let now = win::ticks();
+        // The first report, or a file started again from byte 0: the speed
+        // is of the bytes from here on.
+        if self.counted_from.is_none_or(|from| done < from) {
+            self.counted_from = Some(done);
+            self.started = now;
+        }
         if done < total && now < self.last_progress + 250 {
             return !self.stopped();
         }
         self.last_progress = now;
         let elapsed = now.saturating_sub(self.started).max(1);
-        let speed = done.saturating_mul(1000) / elapsed;
+        let counted = done.saturating_sub(self.counted_from.unwrap_or(done));
+        let speed = counted.saturating_mul(1000) / elapsed;
         let eta = if speed == 0 || total < done {
             u64::MAX
         } else {
@@ -817,9 +835,8 @@ enum Done {
     Stop(Stop, String),
 }
 
-/// The update: the overlay, then the revision gate (`gate::behind`), the
-/// restore of resources.db and the patch step, all under the installation
-/// lock.
+/// The update: the overlay, then the revision gate (`gate::behind`) and the
+/// patch step, all under the installation lock.
 fn update(session: &mut Session, layout: &Layout, patch_look: patches::Look) -> Done {
     session.trouble = None;
     let _lock = match win::install_lock(&layout.exe_dir) {
@@ -844,10 +861,9 @@ fn update(session: &mut Session, layout: &Layout, patch_look: patches::Look) -> 
     if let Done::Installed { .. } = done {
         patches::overlay_changed(layout);
     }
-    // The restore and the patch step run at every start the game may be
-    // played after, with the server only when the server answered. When this
-    // updater or the launcher was replaced, the new ones start at once and
-    // do them.
+    // The patch step runs at every start the game may be played after, with
+    // the server only when the server answered. When this updater or the
+    // launcher was replaced, the new ones start at once and do it.
     match &done {
         Done::UpToDate | Done::Installed { restart: false, .. } | Done::Offline(_) => {}
         Done::Installed { restart: true, .. } => {
@@ -873,12 +889,9 @@ fn update(session: &mut Session, layout: &Layout, patch_look: patches::Look) -> 
         None => Ok(&server),
         Some(why) => Err(why.as_str()),
     };
-    // Best effort: what an earlier updater wrote into resources.db in place
-    // gets its stock bytes back, once.
-    match resources::run(session, layout, server.ok()) {
-        resources::Outcome::Done => {}
-        resources::Outcome::Stopped => return Done::Stopped,
-    }
+    // What the updaters of before the patches left beside this one goes;
+    // the game's resources.db is never changed.
+    old_restore::sweep(layout);
     // The patches of resources.db the server lists: required, every one of
     // them checked before the game is played.
     let installed = read_installed(layout);
@@ -1517,6 +1530,7 @@ fn run() -> u32 {
         run: Run::Going,
         last_progress: 0,
         started: 0,
+        counted_from: None,
         named_file: false,
         seen: None,
         trouble: None,
@@ -1722,8 +1736,8 @@ fn pass(session: &mut Session, layout: &Layout, look: patches::Look, product: Op
     }
     let (code, watch) = match done {
         Done::UpToDate => {
-            // "Checking" clears a file name the restore or the patch step
-            // left in the launcher's line.
+            // "Checking" clears a file name the patch step left in the
+            // launcher's line.
             if session.named_file {
                 session.state(state::CHECKING);
             }
@@ -1733,8 +1747,7 @@ fn pass(session: &mut Session, layout: &Layout, look: patches::Look, product: Op
         Done::Installed { restart: true, .. } => match product {
             // The launcher or this updater was replaced: the launcher
             // closes, and its new file is started, which starts the new
-            // updater: that one restores resources.db and does the patch
-            // step.
+            // updater: that one does the patch step.
             Some(product) if session.pipe.is_some() => {
                 restart_launcher(session, layout, product);
                 return exit::OK;
@@ -1821,8 +1834,8 @@ fn register_replays(arguments: &[String]) -> u32 {
 }
 
 /// `check` by hand (no launcher) replaced this updater: the new one is run,
-/// as it was started, to finish the update (the restore and the patch step,
-/// which this one leaves to it); its exit code is this one's.
+/// as it was started, to finish the update (the patch step, which this one
+/// leaves to it); its exit code is this one's.
 fn finish_by_new(session: &mut Session, layout: &Layout) -> u32 {
     let exe = format!("{}\\{}", layout.exe_dir, layout.exe_name);
     let command = format!(

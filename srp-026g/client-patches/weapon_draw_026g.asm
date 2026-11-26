@@ -11,7 +11,8 @@
 ; character+D515h). With it set the player is drawn for the decal editor:
 ; player::mt_draw (0x2474A0) puts the skeleton in its bind pose (0x2476F8,
 ; the T-pose) and the held item 10 m under it (0x24778F), and
-; player::insert (0x1F30E2) takes another transform. While a weapon's
+; player::render_model (0x1F3070; its test of +F49Ch at 0x1F30E2) takes
+; another transform. While a weapon's
 ; window shows that weapon's kit (weapon_preview_026g.asm's mode 1) the
 ; player gets 0 instead, and is drawn as in the lobby. Else the original.
 BITS 32

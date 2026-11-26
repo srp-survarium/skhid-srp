@@ -66,7 +66,11 @@ package survarium.controls
          {
             renderer = this._renderers[j];
             renderer.gotoAndStop(1);
-            removeChild(renderer);
+            // those past a smaller maximum were taken out at the last draw
+            if(renderer.parent == this)
+            {
+               removeChild(renderer);
+            }
             j++;
          }
          var i:uint = 0;

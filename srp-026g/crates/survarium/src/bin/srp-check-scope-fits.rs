@@ -1,5 +1,13 @@
-//! Compare released and candidate scope catalogs using the server's own parser.
-//! Refuse lost pairs, changed variant identities, and invisible lobby fits.
+//! `srp-check-scope-fits <released-pairs.tsv> <candidate game data>`: no
+//! scope pair players could put on is lost by the candidate.
+//!
+//! The released pairs (up to revision 68) are the record
+//! `scripts/scope-fits/released-pairs.tsv`
+//! (`survarium::v026g::scopes::released`). The candidate is asked what its
+//! servers will ask: its modules table (`weapon_modules::Modules`), with
+//! the same `check` an attach and an account's load run. Every released
+//! `(weapon, scope)` pair must still be put on in the candidate; each one
+//! that is not is listed, and the exit status is 1.
 
 use std::{
     collections::{BTreeMap, BTreeSet},
@@ -10,7 +18,8 @@ use std::{
 use survarium::v026g::{
     dictionary::Dictionary,
     game_data::{self, GameData},
-    scopes::ScopeFits,
+    scopes::{self, released},
+    weapon_modules::Modules,
 };
 
 fn unique_modification<'a>(
@@ -26,8 +35,9 @@ fn unique_modification<'a>(
     Ok(())
 }
 
-// The client collects modifications from every item, not just category 22.
-// A perfectly valid scope fit can otherwise resolve to a shop item's no-op.
+// The client collects modifications from every item, not just category 22:
+// a scope's own modification (which names it to the weapon) can otherwise
+// resolve to another item's.
 fn check_modification_ids(data: &GameData, dictionary: &Dictionary) -> Result<(), Box<dyn Error>> {
     let mut owners = BTreeMap::new();
     let mut paths = BTreeSet::new();
@@ -47,100 +57,79 @@ fn check_modification_ids(data: &GameData, dictionary: &Dictionary) -> Result<()
     Ok(())
 }
 
-fn read(path: &Path) -> Result<(Dictionary, ScopeFits), Box<dyn Error>> {
+fn open(path: &Path) -> Result<(GameData, Dictionary), Box<dyn Error>> {
     let data = GameData::open(path)?;
     let bytes = data
         .file("gameplay/db_static_dictionaries")
         .ok_or("game data has no dictionary")?;
     let dictionary = Dictionary::parse(bytes)?;
-    check_modification_ids(&data, &dictionary)?;
-    let (fits, rejected) = ScopeFits::derive(&data, &dictionary)?;
-    if !rejected.is_empty() {
-        return Err(format!("{}: rejected scope variants: {rejected:?}", path.display()).into());
-    }
-    for fit in fits.all() {
-        if !dictionary.compatible(fit.weapon, fit.scope) {
-            return Err(format!(
-                "{}: weapon {} / scope {} is absent from lobby compatibility",
-                path.display(),
-                fit.weapon,
-                fit.scope
-            )
-            .into());
-        }
-    }
-    Ok((dictionary, fits))
-}
-
-fn preserved(before: &ScopeFits, after: &ScopeFits) -> Result<(), String> {
-    for fit in before.all() {
-        match after.variant(fit.weapon, fit.scope) {
-            Some(variant) if variant == fit.variant => {}
-            Some(variant) => {
-                return Err(format!(
-                    "weapon {} / scope {} changed variant {} -> {variant}; saved attachments must survive",
-                    fit.weapon, fit.scope, fit.variant
-                ));
-            }
-            None => {
-                return Err(format!(
-                    "lost weapon {} / scope {} (variant {})",
-                    fit.weapon, fit.scope, fit.variant
-                ));
-            }
-        }
-    }
-    Ok(())
+    Ok((data, dictionary))
 }
 
 fn run(before: &Path, after: &Path) -> Result<(), Box<dyn Error>> {
-    let (old_dictionary, old) = read(before)?;
-    let (dictionary, new) = read(after)?;
-    preserved(&old, &new)?;
-    for id in old
-        .scopes()
-        .into_iter()
-        .chain(old.weapons())
-        .chain(old.all().iter().map(|f| f.variant))
-    {
-        let previous = old_dictionary
+    let old = released::parse(&std::fs::read_to_string(before)?)
+        .map_err(|why| format!("{}: {why}", before.display()))?;
+    let (data, dictionary) = open(after)?;
+    check_modification_ids(&data, &dictionary)?;
+    scopes::check(&data, &dictionary)?;
+    let modules = Modules::of(&data).map_err(|why| format!("the modules table: {why:?}"))?;
+    let candidate = released::Candidate {
+        dictionary: &dictionary,
+        modules: &modules,
+    };
+    let name = |id: u16| {
+        dictionary
             .item(id)
-            .ok_or("baseline fit names an absent item")?;
-        let current = dictionary
-            .item(id)
-            .ok_or("candidate lost an existing item")?;
-        if previous.name != current.name || previous.category != current.category {
-            return Err(format!(
-                "dictionary id {id} was repurposed: {} -> {}",
-                previous.name, current.name
-            )
-            .into());
+            .map_or_else(|| "?".to_owned(), |item| item.name.clone())
+    };
+    let mut losses = Vec::new();
+    for pair in &old {
+        if let Some(why) = candidate.lost(pair) {
+            losses.push(format!(
+                "lost weapon {} / scope {} (variant {}): {why}",
+                pair.weapon.0, pair.scope.0, pair.variant
+            ));
         }
     }
-    println!("status\tweapon\tscope\tvariant\tweapon_name\tscope_name");
-    for fit in new.all() {
-        let status = if old.variant(fit.weapon, fit.scope).is_some() {
+    let new = scopes::pairs(&dictionary, &modules);
+    // The lobby's window greys out a scope its weapon has no
+    // `items_compatibility` row with: a pair the table has and the
+    // dictionary lacks could never be put on.
+    for &(weapon, scope) in &new {
+        if !dictionary.compatible(weapon, scope) {
+            losses.push(format!(
+                "weapon {weapon} / scope {scope} is absent from lobby compatibility"
+            ));
+        }
+    }
+    if !losses.is_empty() {
+        for loss in &losses {
+            eprintln!("{loss}");
+        }
+        return Err(format!("{} pair(s) refused", losses.len()).into());
+    }
+    let released: BTreeSet<(u16, u16)> = old.iter().map(|pair| (pair.weapon.0, pair.scope.0)).collect();
+    println!("status\tweapon\tscope\tweapon_name\tscope_name");
+    for &(weapon, scope) in &new {
+        let status = if released.contains(&(weapon, scope)) {
             "preserved"
         } else {
             "added"
         };
-        let weapon = dictionary
-            .item(fit.weapon)
-            .ok_or("fit names an absent weapon")?;
-        let scope = dictionary
-            .item(fit.scope)
-            .ok_or("fit names an absent scope")?;
         println!(
-            "{status}\t{}\t{}\t{}\t{}\t{}",
-            fit.weapon, fit.scope, fit.variant, weapon.name, scope.name
+            "{status}\t{weapon}\t{scope}\t{}\t{}",
+            name(weapon),
+            name(scope)
         );
     }
+    let weapons: BTreeSet<u16> = new.iter().map(|&(weapon, _)| weapon).collect();
+    let sold: BTreeSet<u16> = new.iter().map(|&(_, scope)| scope).collect();
+    let added = new.iter().filter(|pair| !released.contains(pair)).count();
     eprintln!(
-        "{} pairs preserved; {} added; {} scopes on {} weapons",
-        old.all().len(),
-        new.all().len() - old.all().len(),
-        new.scopes().len(),
-        new.weapons().len()
+        "{} pairs preserved; {added} added; {} scopes on {} weapons",
+        old.len(),
+        sold.len(),
+        weapons.len()
     );
     Ok(())
 }
@@ -149,7 +138,7 @@ fn main() {
     let args: Vec<_> = std::env::args_os().skip(1).collect();
     let [before, after] = args.as_slice() else {
         eprintln!(
-            "usage: srp-check-scope-fits <released-server-game-data.db> <candidate-server-game-data.db>"
+            "usage: srp-check-scope-fits <released-pairs.tsv> <candidate-server-game-data.db>"
         );
         std::process::exit(2);
     };
@@ -162,74 +151,20 @@ fn main() {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use survarium::v026g::scopes::Fit;
 
     #[test]
-    fn a_shop_noop_cannot_shadow_a_scope_variant() {
+    fn two_items_cannot_share_a_modification_id() {
         for paths in [
-            ["shop_scope_docter", "fitn_pso_1_svu_a"],
-            ["fitn_pso_1_svu_a", "shop_scope_docter"],
+            ["shop_scope_docter", "srp_muzzle_zenit_dtk3"],
+            ["srp_muzzle_zenit_dtk3", "shop_scope_docter"],
         ] {
             let mut owners = BTreeMap::new();
             unique_modification(&mut owners, 993111, paths[0]).unwrap();
             let error = unique_modification(&mut owners, 993111, paths[1]).unwrap_err();
             assert!(error.contains(paths[0]) && error.contains(paths[1]));
         }
-    }
-
-    #[test]
-    fn distinct_item_modifications_are_unambiguous() {
         let mut owners = BTreeMap::new();
         unique_modification(&mut owners, 993111, "shop_scope_docter").unwrap();
-        unique_modification(&mut owners, 1003111, "fitn_pso_1_svu_a").unwrap();
-    }
-
-    fn catalog(pairs: &[(u16, u16, u16)]) -> ScopeFits {
-        let (fits, duplicate) = ScopeFits::new(
-            pairs
-                .iter()
-                .map(|&(weapon, scope, variant)| Fit {
-                    weapon,
-                    scope,
-                    variant,
-                })
-                .collect(),
-        );
-        assert!(duplicate.is_empty());
-        fits
-    }
-
-    #[test]
-    fn more_scopes_and_more_weapons_keep_saved_attachments() {
-        let old = catalog(&[(3, 2101, 2001), (4, 2101, 2002)]);
-        let new = catalog(&[
-            (3, 2101, 2001),
-            (4, 2101, 2002),
-            (3, 2113, 2701),
-            (2283, 2113, 2901),
-        ]);
-        assert_eq!(preserved(&old, &new), Ok(()));
-    }
-
-    #[test]
-    fn a_larger_catalog_can_still_lose_an_existing_pair() {
-        let old = catalog(&[(3, 2101, 2001)]);
-        let new = catalog(&[(4, 2101, 2002), (3, 2113, 2701)]);
-        assert!(
-            preserved(&old, &new)
-                .unwrap_err()
-                .contains("lost weapon 3 / scope 2101")
-        );
-    }
-
-    #[test]
-    fn changing_a_variant_would_strip_saved_attachments() {
-        let old = catalog(&[(3, 2101, 2001)]);
-        let new = catalog(&[(3, 2101, 2701)]);
-        assert!(
-            preserved(&old, &new)
-                .unwrap_err()
-                .contains("changed variant 2001 -> 2701")
-        );
+        unique_modification(&mut owners, 1003111, "srp_muzzle_zenit_dtk3").unwrap();
     }
 }
