@@ -20,6 +20,9 @@ plays them), and of each map
   config's `artefact_hunt.spawners` and `.bases` (`team`, `position`);
 - artefact containers and what spawns there: the project's `client_objects`
   (`artefact_container`, grouped by their `generic_anomaly_core`);
+- the anomalies (`anomaly`, `objects`): each `generic_anomaly_core`'s pool, timers,
+  chance and cap, its `damage_zone`s' hits and their `collision_geometry` seen
+  from above (docs/notes/maps_tab.md, "Anomalies");
 - the minimap and its frame: `flash_movies/hud.swf`, class
   `survarium.controls.Minimap` (`_minimapProps`, `_levels`), keyed by the
   project's `project_name` as the HUD does;
