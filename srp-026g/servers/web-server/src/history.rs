@@ -5,7 +5,9 @@
 //! history srp keeps ([`session::v026g::persist::history`]). A request is parsed once into an
 //! [`Endpoint`]; every answer is one indexed query of at most
 //! [`MatchHistory::MAX_ROWS`] rows (a clan card's members: up to
-//! `clans::MAX_MEMBERS`; `player/days`: up to `MAX_DAYS` days).
+//! `clans::MAX_MEMBERS`; `player/days`: up to `MAX_DAYS` days), but the Maps
+//! and Modes boards (`plays`): the period's matches added up by map and mode,
+//! kept by the history until a match is written ([`MatchHistory::plays`]).
 
 use serde_json::{Value, json};
 use std::time::Instant;
@@ -145,6 +147,21 @@ fn page_text(lang: Lang) -> Value {
         ("noHistory", lang.t("This server keeps no match history.")),
         ("failed", lang.t("Could not load the stats. Reload the page.")),
         ("nobody", lang.t("Nobody yet.")),
+        // The Maps and Modes boards.
+        ("maps", lang.t("Maps")),
+        ("modes", lang.t("Modes")),
+        ("last7", lang.t("Last 7 days")),
+        ("last24", lang.t("Last 24 hours")),
+        ("avgLength", lang.t("Avg length")),
+        ("sides", lang.t("Sides")),
+        ("noResult", lang.t("No result")),
+        ("versions", lang.t("Versions")),
+        ("share", lang.t("Share")),
+        ("trend", lang.t("Trend")),
+        ("perHour", lang.t("by hour")),
+        ("perDay", lang.t("by day")),
+        ("perWeek", lang.t("by week")),
+        ("mostPlayed", lang.t("Most played maps and modes")),
     ];
     let mut text: serde_json::Map<String, Value> = words
         .into_iter()
@@ -301,6 +318,11 @@ enum Endpoint {
         limit: usize,
     },
     Clan(ClanName),
+    /// The Maps board: the counted matches of the span by map and mode.
+    Maps(plays::Span),
+    /// The Modes board: by mode, with each mode's trend, and the most
+    /// played map + mode pairs.
+    Modes(plays::Span),
 }
 
 /// Why a request is not answered.
@@ -395,6 +417,12 @@ impl Query {
             Some("asc") => Ok(Order::Ascending),
             Some(_) => Err(Refusal::BadRequest),
         }
+    }
+
+    /// The Maps and Modes boards' `period`: `day`, `week`, `month` or
+    /// `all` (the default).
+    fn span(&self) -> Result<plays::Span, Refusal> {
+        plays::Span::parse(self.text("period")).ok_or(Refusal::BadRequest)
     }
 
     fn page(&self) -> Result<Page, Refusal> {
@@ -547,6 +575,8 @@ impl Endpoint {
                 }
                 _ => return Err(Refusal::BadRequest),
             },
+            "maps" => Self::Maps(query.span()?),
+            "modes" => Self::Modes(query.span()?),
             _ => return Err(Refusal::NotFound),
         })
     }
@@ -839,6 +869,11 @@ fn answer(
                 "members": members,
             })
         }
+        // Kept by the history until a match is written (`MatchHistory::plays`).
+        Endpoint::Maps(span) => plays::maps(&*history.plays(span.window(now))?, *span, lang),
+        Endpoint::Modes(span) => {
+            plays::modes(&*history.plays(span.window(now))?, *span, now, lang)
+        }
     })
 }
 
@@ -1102,6 +1137,8 @@ fn clan_line(clan: &ClanLine) -> Value {
         "totals": totals(&clan.totals),
     })
 }
+
+mod plays;
 
 #[cfg(test)]
 pub(crate) mod tests;

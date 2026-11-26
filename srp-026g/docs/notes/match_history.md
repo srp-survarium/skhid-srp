@@ -57,6 +57,25 @@ What survarium.pro showed of players, matches and clans, kept by srp itself and 
   piece, its card in the wiki. A map's name leads to the map in the wiki's Maps page. A match's
   two teams are in the Maps page's colours. A match with a replay has one Download: pressed, the
   replay is prepared if it has to be, and its file then downloads by itself.
+- The Maps and Modes boards (`?board=maps`, `?board=modes`; the owner, 2026-11-26: "add in stats
+  maps and modes: which winrate on each map side, how often which modes are played and which are
+  most popular"), over a period of their own (`&period=day|week|month`, else all time: the last 24
+  hours, 7 days, 30 days). They count the counted public matches, as the totals do.
+  - Maps: each map with its matches and their average length, the most played first. A map is its
+    place (`maps::Place`, as the rooms' vote cards have it): every version and weather of it one
+    map, named and drawn by its 0.26 version. Under it each mode played on it (a map's sides fare
+    otherwise in each mode) with its matches, average length and sides: a bar of team 1's wins
+    from the left and team 2's from the right in the teams' colours, the draws (and any match of
+    no known end) between, over each one's share and count. The game names the sides Team 1 and
+    Team 2 on every map (no factions). A free-for-all has no sides. A mode's versions and weathers
+    (each map id: the version's name and the rooms' weather word) open under it by its button.
+  - Modes: each mode as the lobby calls it (a free-for-all's twist one of its own) with its
+    matches, its share of all of them and its trend, the most played first, ranked; the trend is
+    the period's hours (a day), days (7 or 30) or weeks (all time: the last 26, from Mondays, UTC),
+    a column each as tall as its share of the mode's busiest. Then the ten most played map + mode
+    pairs, each leading to the map in the Maps page.
+  - A map's picture is never stretched (the owner, 2026-11-26): it covers a box of its own shape
+    (16:9) at every width; the check holds it, on a phone too.
 - `scripts/stats/check_history.mjs` exercises it in an isolated Firefox over the site's own
   endpoints: the preview (`cargo test -p web-server serve_wiki_preview -- --ignored --nocapture`,
   port 24583) keeps a made-up history (`history::tests::preview`); the script serves it again on
@@ -77,7 +96,11 @@ What survarium.pro showed of players, matches and clans, kept by srp itself and 
 - Banned accounts are left out of the top lists and the best scores.
 - Every request is cheap (one vCPU runs the game too): indexed lookups, results of at most 50 rows
   (`player/days`: up to 90 days; a clan card's members: up to 105), totals kept up to date when a
-  match is recorded, never added up per request. Four requests read at once, the rest wait.
+  match is recorded, never added up per request. Four requests read at once, the rest wait. The
+  Maps and Modes boards are added up from the matches' rows (two `GROUP BY`s of a few hundred
+  rows at most; the period's matches by `g26_matches_by_end`, all time's every match), and kept
+  by `MatchHistory::plays` until a match is written: an ask while none was is the newest
+  match's id and the kept answer (no scan of the matches on every view).
 
 ## What is kept
 
@@ -422,6 +445,39 @@ Registered clans by their totals. `by`: `matches`, `wins`, `kills` (default `mat
            "score":98000,"headshots":610,"grenade_kills":40,"melee_kills":9,"batteries":150,
            "captures":12.25,"artefacts":90,"shots":180000,"hits":52000,"accuracy":0.289,
            "kd":1.24,"win_rate":0.575,"score_avg":245}}]}
+```
+
+### `GET /api/history/maps?period=<day|week|month|all>`
+
+The counted public matches of the period (default `all`; `day`: the 24 hours to the current
+one's end, `week`/`month`: the 7 or 30 UTC days to today's) by map (every version one), the
+most played first, each with its modes, the most played first, and each mode's versions (map
+ids). `duration_s`: the matches' average length. `sides`: how the team matches ended, `wins`
+team 1's and team 2's, as `team_points` (`win_rates`, `draw_rate`: shares of them, three
+decimals; `unknown`: a match no trusted snapshot told the end of); `null` for a free-for-all.
+`map_key` of a mode: its most played version's. `weather`: the rooms' word, `null` without one.
+
+```json
+{"period":"all","matches":120,
+ "maps":[{"map":"Rudnya","map_key":"level_01","map_icon":"/wiki/icons/maps/1_1.webp?v=…","matches":40,"duration_s":845,
+          "modes":[{"mode":"Protective device","mode_url":"/wiki/modes?lang=en#protective-device","rules":2,"map_key":"level_01",
+                    "matches":30,"duration_s":860,
+                    "sides":{"wins":[14,12],"draws":4,"unknown":0,"win_rates":[0.467,0.4],"draw_rate":0.133},
+                    "versions":[{"map_id":3,"map":"Rudnya","weather":"day","map_key":"level_01","map_icon":"…",
+                                 "matches":20,"duration_s":850,"sides":{…}}]}]}]}
+```
+
+### `GET /api/history/modes?period=<day|week|month|all>`
+
+The counted public matches of the period by mode, the most played first (ties: the lobby's order),
+each with its `share` of them all (three decimals), average length and `trend`: its matches in
+each step of `steps` (each step's start, Unix seconds; `step`: `hour` for a day, `day` for 7 or
+30 days, `week` for all time, the last 26). `pairs`: the ten most played map + mode pairs.
+
+```json
+{"period":"week","matches":60,"step":"day","steps":[1793059200,…],
+ "modes":[{"mode":"Team Deathmatch","mode_url":"…","rules":4,"matches":24,"share":0.4,"duration_s":840,"trend":[2,5,3,4,3,4,3]}],
+ "pairs":[{"map":"Rudnya","map_key":"level_01","map_icon":"…","mode":"Team Deathmatch","mode_url":"…","rules":4,"matches":9,"share":0.15}]}
 ```
 
 ### `GET /api/history/clan?id=<clan>` or `?tag=<tag>`

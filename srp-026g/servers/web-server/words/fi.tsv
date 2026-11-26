@@ -966,3 +966,16 @@ deadly	tappava
 {n} % a second	{n} % sekunnissa
 Damage is a share of each body part's health, before armour.	Vahinko on osuus kunkin ruumiinosan terveydestä, ennen panssaria.
 It gives no artefacts.	Se ei anna artefakteja.
+
+# The stats' Maps and Modes boards.
+Last 7 days	Viimeiset 7 päivää
+Last 24 hours	Viimeiset 24 tuntia
+Avg length	Keskim. kesto
+Sides	Puolet
+No result	Ei tulosta
+Share	Osuus
+Trend	Kehitys
+by hour	tunneittain
+by day	päivittäin
+by week	viikoittain
+Most played maps and modes	Pelatuimmat kartat ja pelimuodot

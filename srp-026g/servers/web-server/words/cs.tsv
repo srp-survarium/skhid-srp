@@ -966,3 +966,16 @@ deadly	smrtelně
 {n} % a second	{n} % za sekundu
 Damage is a share of each body part's health, before armour.	Poškození je podíl zdraví každé části těla, před pancířem.
 It gives no artefacts.	Nedává žádné artefakty.
+
+# The stats' Maps and Modes boards.
+Last 7 days	Posledních 7 dní
+Last 24 hours	Posledních 24 hodin
+Avg length	Prům. délka
+Sides	Strany
+No result	Bez výsledku
+Share	Podíl
+Trend	Vývoj
+by hour	po hodinách
+by day	po dnech
+by week	po týdnech
+Most played maps and modes	Nejhranější mapy a režimy

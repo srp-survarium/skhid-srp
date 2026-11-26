@@ -966,3 +966,16 @@ deadly	smrtonosno
 {n} % a second	{n} % u sekundi
 Damage is a share of each body part's health, before armour.	Šteta je udeo zdravlja svakog dela tela, pre oklopa.
 It gives no artefacts.	Ne daje artefakte.
+
+# The stats' Maps and Modes boards.
+Last 7 days	Poslednjih 7 dana
+Last 24 hours	Poslednja 24 sata
+Avg length	Prosečno trajanje
+Sides	Strane
+No result	Bez rezultata
+Share	Udeo
+Trend	Kretanje
+by hour	po satima
+by day	po danima
+by week	po nedeljama
+Most played maps and modes	Najigranije mape i režimi

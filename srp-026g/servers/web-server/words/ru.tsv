@@ -966,3 +966,16 @@ deadly	смертельно
 {n} % a second	{n} % в секунду
 Damage is a share of each body part's health, before armour.	Урон — доля здоровья каждой части тела, до брони.
 It gives no artefacts.	Она не даёт артефактов.
+
+# The stats' Maps and Modes boards.
+Last 7 days	Последние 7 дней
+Last 24 hours	Последние 24 часа
+Avg length	Ср. длительность
+Sides	Стороны
+No result	Без результата
+Share	Доля
+Trend	Динамика
+by hour	по часам
+by day	по дням
+by week	по неделям
+Most played maps and modes	Самые популярные карты и режимы

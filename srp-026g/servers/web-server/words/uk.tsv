@@ -966,3 +966,16 @@ deadly	смертельно
 {n} % a second	{n} % за секунду
 Damage is a share of each body part's health, before armour.	Шкода — частка здоров'я кожної частини тіла, до броні.
 It gives no artefacts.	Вона не дає артефактів.
+
+# The stats' Maps and Modes boards.
+Last 7 days	Останні 7 днів
+Last 24 hours	Останні 24 години
+Avg length	Сер. тривалість
+Sides	Сторони
+No result	Без результату
+Share	Частка
+Trend	Динаміка
+by hour	по годинах
+by day	по днях
+by week	по тижнях
+Most played maps and modes	Найпопулярніші мапи й режими

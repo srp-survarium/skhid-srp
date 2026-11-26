@@ -966,3 +966,16 @@ deadly	смяротна
 {n} % a second	{n} % у секунду
 Damage is a share of each body part's health, before armour.	Шкода — доля здароўя кожнай часткі цела, да броні.
 It gives no artefacts.	Яна не дае артэфактаў.
+
+# The stats' Maps and Modes boards.
+Last 7 days	Апошнія 7 дзён
+Last 24 hours	Апошнія 24 гадзіны
+Avg length	Сяр. працягласць
+Sides	Бакі
+No result	Без выніку
+Share	Доля
+Trend	Дынаміка
+by hour	па гадзінах
+by day	па днях
+by week	па тыднях
+Most played maps and modes	Самыя папулярныя карты і рэжымы

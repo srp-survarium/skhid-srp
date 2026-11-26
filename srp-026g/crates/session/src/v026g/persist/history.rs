@@ -963,6 +963,53 @@ pub struct AllTime {
     pub totals: Totals,
 }
 
+/// The stretch of time the site's maps and modes views add up
+/// ([`MatchHistory::plays`]): the counted public matches that ended at
+/// `since` or later, and those that ended at `steps_from` or later counted
+/// again by mode in steps of `step` seconds (the modes' trend).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub struct PlayWindow {
+    pub since: u64,
+    pub steps_from: u64,
+    /// Above 0.
+    pub step: u64,
+}
+
+/// Counted public matches of one map id and mode that ended one way, added
+/// up: how many, and their lengths together.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Played {
+    pub map_id: MapId,
+    pub mode: LobbyMode,
+    pub winner: Winner,
+    pub matches: u64,
+    pub duration_ms: u64,
+}
+
+/// How many counted public matches of a mode ended in one step of a
+/// [`PlayWindow`] (`step`: its number, from `steps_from`).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ModeStep {
+    pub mode: LobbyMode,
+    pub step: u64,
+    pub matches: u64,
+}
+
+/// What a [`PlayWindow`] adds up: by map id, mode and winner, and by mode
+/// and step. As many rows as such groups, not as matches.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct Plays {
+    pub played: Vec<Played>,
+    pub steps: Vec<ModeStep>,
+}
+
+/// A [`Plays`] read, with the newest match the history had then: it holds
+/// until another match is written.
+struct KeptPlays {
+    newest: Option<u64>,
+    plays: std::sync::Arc<Plays>,
+}
+
 /// A registered clan with its totals.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ClanLine {
@@ -1578,6 +1625,9 @@ pub struct MatchHistory {
     connections: Vec<Mutex<Connection>>,
     /// The connection a read waits for when all are busy, in turn.
     next: AtomicUsize,
+    /// The maps and modes views' sums ([`Self::plays`]) by window, each
+    /// kept until a match is written.
+    plays: Mutex<BTreeMap<PlayWindow, KeptPlays>>,
 }
 
 impl MatchHistory {
@@ -1608,6 +1658,7 @@ impl MatchHistory {
         Ok(Self {
             connections,
             next: AtomicUsize::new(0),
+            plays: Mutex::new(BTreeMap::new()),
         })
     }
 
@@ -2047,6 +2098,75 @@ impl MatchHistory {
             matches,
             totals,
         })
+    }
+
+    /// The counted public matches of `window` added up by map id, mode and
+    /// winner, and by mode and step ([`Plays`]): the site's maps and modes
+    /// views. Read once (the period's matches by `g26_matches_by_end`, or
+    /// every match for all time, as [`Self::all_time`] counts them) and
+    /// kept until a match is written: an ask while none was is the newest
+    /// match's id, read by the primary key, and the kept sums.
+    pub fn plays(&self, window: PlayWindow) -> Result<std::sync::Arc<Plays>, PersistError> {
+        // A window of before, as the time goes on: gone, so that a few at most are kept.
+        const KEPT: usize = 16;
+        let connection = self.reader();
+        let newest: Option<u64> = connection
+            .query_row("SELECT MAX(id) FROM g26_matches", [], |row| row.get::<_, Option<i64>>(0))?
+            .map(|id| id as u64);
+        if let Some(kept) = self.plays.locked().get(&window)
+            && kept.newest == newest
+        {
+            return Ok(kept.plays.clone());
+        }
+        let at = |time: u64| time.min(i64::MAX as u64) as i64;
+        let mode_at = |row: &Row, index: usize| -> rusqlite::Result<LobbyMode> {
+            let mode: u8 = row.get(index)?;
+            LobbyMode::of_number(mode).ok_or_else(|| bad("game mode", &mode.to_string()))
+        };
+        let mut statement = connection.prepare_cached(
+            "SELECT map_id, game_mode, winner, COUNT(*), SUM(duration_ms) FROM g26_matches
+             WHERE ended_at >= ?1 AND eligibility = 'counted'
+             GROUP BY map_id, game_mode, winner",
+        )?;
+        let played = statement
+            .query_map([at(window.since)], |row| {
+                let winner: String = row.get(2)?;
+                Ok(Played {
+                    map_id: MapId::new(row.get(0)?),
+                    mode: mode_at(row, 1)?,
+                    winner: Winner::parse(&winner).ok_or_else(|| bad("winner", &winner))?,
+                    matches: u64_at(row, 3)?,
+                    duration_ms: u64_at(row, 4)?,
+                })
+            })?
+            .collect::<rusqlite::Result<Vec<_>>>()?;
+        let mut statement = connection.prepare_cached(
+            "SELECT game_mode, (ended_at - ?1) / ?2, COUNT(*) FROM g26_matches
+             WHERE ended_at >= ?1 AND eligibility = 'counted'
+             GROUP BY 1, 2",
+        )?;
+        let steps = statement
+            .query_map(params![at(window.steps_from), at(window.step.max(1))], |row| {
+                Ok(ModeStep {
+                    mode: mode_at(row, 0)?,
+                    step: u64_at(row, 1)?,
+                    matches: u64_at(row, 2)?,
+                })
+            })?
+            .collect::<rusqlite::Result<Vec<_>>>()?;
+        let plays = std::sync::Arc::new(Plays { played, steps });
+        let mut kept = self.plays.locked();
+        if kept.len() >= KEPT {
+            kept.clear();
+        }
+        kept.insert(
+            window,
+            KeptPlays {
+                newest,
+                plays: plays.clone(),
+            },
+        );
+        Ok(plays)
     }
 
     /// The top `limit` registered clans by `by`.
@@ -3158,6 +3278,87 @@ mod tests {
             (6, 60, 60)
         );
         assert_eq!(all.totals.played_ms, 6 * 600_000);
+    }
+
+    /// The maps and modes views' sums: the counted public matches of the
+    /// window by map, mode and winner, and by mode and step; kept until a
+    /// match is written, of any kind.
+    #[test]
+    fn plays_add_up_the_counted_matches_by_map_mode_winner_and_step() {
+        let dir = TempDir::new("plays");
+        let (mut repository, history) = repository(&dir);
+        let tdm = LobbyMode::Plain(GameMode::TeamDeathmatch);
+        let batteries = LobbyMode::Plain(GameMode::Batteries);
+        let played = |kind, at, map, mode, winner, minutes: u32| {
+            let mut record = record(kind, at);
+            record.info.map_id = MapId::new(map);
+            record.info.mode = mode;
+            record.info.winner = winner;
+            record.info.duration_ms = minutes * 60_000;
+            record
+        };
+        for record in [
+            played(PUBLIC, 100, 3, batteries, Winner::FirstTeam, 10),
+            played(PUBLIC, 1_000, 3, batteries, Winner::FirstTeam, 12),
+            played(PUBLIC, 1_100, 3, batteries, Winner::Draw, 15),
+            played(PUBLIC, 1_200, 7, tdm, Winner::SecondTeam, 9),
+            played(PUBLIC, 2_100, 7, tdm, Winner::FirstTeam, 11),
+            // None counts.
+            played(MatchKind::Public(Eligibility::Short), 1_300, 3, batteries, Winner::SecondTeam, 4),
+            played(MatchKind::Private, 1_400, 3, batteries, Winner::SecondTeam, 10),
+            played(MatchKind::VsBots, 1_500, 7, tdm, Winner::SecondTeam, 10),
+        ] {
+            repository.record_match(&record).unwrap();
+        }
+        let window = PlayWindow {
+            since: 1_000,
+            steps_from: 1_000,
+            step: 1_000,
+        };
+        let plays = history.plays(window).unwrap();
+        let mut sums: Vec<_> = plays
+            .played
+            .iter()
+            .map(|played| (played.map_id.get(), played.mode.number(), played.winner, played.matches, played.duration_ms))
+            .collect();
+        sums.sort_by_key(|&(map, mode, winner, ..)| (map, mode, winner.as_str()));
+        assert_eq!(
+            sums,
+            [
+                (3, batteries.number(), Winner::Draw, 1, 15 * 60_000),
+                (3, batteries.number(), Winner::FirstTeam, 1, 12 * 60_000),
+                (7, tdm.number(), Winner::FirstTeam, 1, 11 * 60_000),
+                (7, tdm.number(), Winner::SecondTeam, 1, 9 * 60_000),
+            ]
+        );
+        let mut steps: Vec<_> = plays
+            .steps
+            .iter()
+            .map(|step| (step.mode.number(), step.step, step.matches))
+            .collect();
+        steps.sort_unstable();
+        let mut expected = vec![(batteries.number(), 0, 2), (tdm.number(), 0, 1), (tdm.number(), 1, 1)];
+        expected.sort_unstable();
+        assert_eq!(steps, expected);
+        // All time: the first match too.
+        let all = history
+            .plays(PlayWindow { since: 0, ..window })
+            .unwrap();
+        assert_eq!(all.played.iter().map(|played| played.matches).sum::<u64>(), 5);
+        // Kept: the same sums until a match is written, then read again.
+        assert!(std::sync::Arc::ptr_eq(&plays, &history.plays(window).unwrap()));
+        repository
+            .record_match(&played(MatchKind::Private, 3_000, 3, batteries, Winner::FirstTeam, 10))
+            .unwrap();
+        let again = history.plays(window).unwrap();
+        assert!(!std::sync::Arc::ptr_eq(&plays, &again));
+        assert_eq!(*again, *plays, "a private match counts in none");
+        repository
+            .record_match(&played(PUBLIC, 3_100, 7, tdm, Winner::Draw, 10))
+            .unwrap();
+        let more = history.plays(window).unwrap();
+        assert_eq!(more.played.iter().map(|played| played.matches).sum::<u64>(), 5);
+        assert!(more.steps.contains(&ModeStep { mode: tdm, step: 2, matches: 1 }));
     }
 
     #[test]

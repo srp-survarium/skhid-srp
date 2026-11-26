@@ -24,7 +24,12 @@
     clans: ['matches', 'wins', 'kills'],
     best: ['day', 'hour'],
     latest: [],
+    // Their periods (`&period=`, PERIODS), all time first.
+    maps: ['all', 'month', 'week', 'day'],
+    modes: ['all', 'month', 'week', 'day'],
   };
+  // The boards whose keys are periods of the matches, said by `&period=` (all time: none).
+  const BY_PERIOD = ['maps', 'modes'];
   // What a list by a key leaves out, said beside the boards.
   const KEY_NOTE = {accuracy: 'accuracyNote', score_avg: 'averageNote', win_rate: 'averageNote', kd: 'averageNote',
     headshot_rate: 'averageNote'};
@@ -280,9 +285,12 @@
   // A map's picture as the rooms draw it, beside its name and mode; an
   // empty frame of its size while loading, and for a map without one.
   // The picture leads where the name does.
-  const mapPicture = row => {
-    if (!row || !row.map_icon) return el('span', {className: 'stats-map'});
-    const picture = el('img', {className: 'stats-map', src: row.map_icon, alt: '', width: 64, height: 36, loading: 'lazy'});
+  // `big`: the Maps board's, a map's own heading. Either is a box of the
+  // picture's 16:9 that it covers, never stretched.
+  const mapPicture = (row, big = false) => {
+    const kind = `stats-map${big ? ' stats-map-big' : ''}`;
+    if (!row || !row.map_icon) return el('span', {className: kind});
+    const picture = el('img', {className: kind, src: row.map_icon, alt: '', width: big ? 112 : 64, height: big ? 63 : 36, loading: 'lazy'});
     return row.map_key ? el('a', {className: 'stats-map-link', href: mapAddress(row), ariaLabel: row.map, tabIndex: -1}, picture) : picture;
   };
   const mapCell = row => el('span', {className: 'stats-map-cell'}, mapPicture(row),
@@ -605,10 +613,115 @@
     return [el('h2', {className: 'stats-heading'}, TEXT.allTime), box];
   }
 
+  // The Maps and Modes boards (maps, modes): the counted public matches of a period (`&period=`,
+  // all time first), every version and weather of a map one map.
+  const PERIODS = {all: 'allTime', month: 'last30', week: 'last7', day: 'last24'};
+  const STEP_NOTE = {hour: 'perHour', day: 'perDay', week: 'perWeek'};
+  // A bar of shares, each part ([share 0..1, className, title]) as wide as its share; the rest is
+  // the track's. Its numbers are beside it, the parts' own on a hover.
+  function bar(parts) {
+    return el('span', {className: 'stats-bar'}, parts.filter(([share]) => share > 0).map(([share, kind, title]) => {
+      const part = el('span', {className: `stats-bar-part ${kind}`, title});
+      part.style.width = `${Math.min(share, 1) * 100}%`;
+      return part;
+    }));
+  }
+  // How the team matches of a map and mode ended: a bar (team 1's wins from the left, team 2's
+  // from the right, the draws and those of no known end between) over each side's share and
+  // count, in the teams' colours. A free-for-all has no sides.
+  function sides(row) {
+    const s = row.sides;
+    if (!s) return '—';
+    const teams = s.wins[0] + s.wins[1] + s.draws + s.unknown;
+    const said = (label, share, count) => `${label} ${rate(share)} (${n(count)})`;
+    const items = [[`${TEXT.team} 1`, s.win_rates[0], s.wins[0], 'stats-team0'], [TEXT.draw, s.draw_rate, s.draws, 'stats-draw'],
+      ...(s.unknown ? [[TEXT.noResult, s.unknown / teams, s.unknown, 'stats-unknown']] : []),
+      [`${TEXT.team} 2`, s.win_rates[1], s.wins[1], 'stats-team1']];
+    return el('span', {className: 'stats-sides'},
+      bar(items.map(([label, share, count, kind]) => [share, kind, said(label, share, count)])),
+      el('span', {className: 'stats-legend'}, items.map(([label, share, count, kind]) =>
+        el('span', {className: `stats-legend-item ${kind}`}, el('b', {}, `${label} ${rate(share)}`), ` (${n(count)})`))));
+  }
+  // A share of all the period's matches: its number over its bar.
+  const shareCell = row => el('span', {className: 'stats-share'}, rate(row.share), bar([[row.share, 'stats-fill', rate(row.share)]]));
+  const blankSides = () => el('span', {className: 'stats-sides'}, el('span', {className: 'stats-bar'}), el('span', {className: 'stats-legend'}, BLANK));
+  // A step of a trend as its hover says it: the hour's day and time, or the day (a week's Monday).
+  const stepName = (step, seconds) => step === 'hour' ? when(seconds) : day.format(new Date(seconds * 1000));
+  // A mode's matches in each step of the period, oldest first: columns as tall as their share of
+  // the mode's busiest step, each saying its own on a hover.
+  function trend(row, data) {
+    const most = Math.max(1, ...row.trend);
+    return el('span', {className: 'stats-trend', role: 'img',
+      ariaLabel: `${TEXT.trend}: ${row.trend.map(n).join(', ')}`}, row.trend.map((count, i) => {
+      const column = el('span', {className: `stats-trend-bar${count ? '' : ' zero'}`, title: `${stepName(data.step, data.steps[i])}: ${n(count)}`});
+      if (count) column.style.height = `${Math.max(8, 100 * count / most)}%`;
+      return column;
+    }));
+  }
+  // A map (all its versions) as the Maps page shows it: in its most played mode.
+  const placeRow = place => place && {...place, rules: place.modes.length ? place.modes[0].rules : 0, mode: null};
+  // A map of the Maps board: its picture and name over its modes, each with its matches, their
+  // average length and how its sides fared, the most played first; a mode's versions and
+  // weathers (each its map id) under it, behind its button.
+  function placeBlock(place) {
+    const row = placeRow(place);
+    const head = el('div', {className: 'stats-place-head'}, mapPicture(row, true),
+      el('div', {}, el('h3', {className: 'stats-place-name'}, row ? mapLink(row) : BLANK),
+        el('small', {className: 'stats-under'}, row ? `${TEXT.matches} ${n(row.matches)} · ${TEXT.avgLength} ${duration(row.duration_s)}` : BLANK)));
+    const versionsOf = new Map();
+    const modeCell = mode => {
+      const button = el('button', {type: 'button', className: 'stats-versions', ariaExpanded: 'false'}, `${TEXT.versions} (${n(mode.versions.length)})`);
+      button.addEventListener('click', () => {
+        const open = button.getAttribute('aria-expanded') !== 'true';
+        button.setAttribute('aria-expanded', String(open));
+        for (const line of versionsOf.get(mode)) line.hidden = !open;
+      });
+      return [modeLink(mode), el('span', {className: 'stats-under'}, button)];
+    };
+    const columns = [[TEXT.mode, modeCell, 'l stats-mode-cell', '', twoLines], [TEXT.matches, mode => n(mode.matches)],
+      [TEXT.avgLength, mode => duration(mode.duration_s)], [TEXT.sides, sides, 'l stats-sides-cell', '', blankSides]];
+    const box = table(columns, place && place.modes, 2);
+    if (place) {
+      const lines = box.querySelectorAll('tbody tr');
+      place.modes.forEach((mode, i) => {
+        const versions = mode.versions.map(version => el('tr', {className: 'stats-version', hidden: true},
+          el('td', {className: 'l stats-mode-cell'}, el('span', {className: 'stats-map-cell'}, mapPicture(version),
+            el('span', {}, name(version.map), el('small', {className: 'stats-under'}, version.weather ?? `#${version.map_id}`)))),
+          el('td', {}, n(version.matches)), el('td', {}, duration(version.duration_s)),
+          el('td', {className: 'l stats-sides-cell'}, sides(version))));
+        versionsOf.set(mode, versions);
+        lines[i].after(...versions);
+      });
+    }
+    return el('section', {className: 'stats-place'}, head, box);
+  }
+  function mapsBoard(data) {
+    if (data && !data.maps.length) return [notice(TEXT.noMatches)];
+    return data ? data.maps.map(placeBlock) : [placeBlock(null), placeBlock(null), placeBlock(null)];
+  }
+  // The Modes board: each mode's matches, its share of them all and its trend, the most played
+  // first (the popularity's rank), the trend's steps said under it; then the most played map +
+  // mode pairs, each leading to its map in the Maps page.
+  const PAIRS = 10;
+  function modesBoard(data) {
+    if (data && !data.modes.length) return [notice(TEXT.noMatches)];
+    const ranked = list => list && list.map((row, rank) => ({...row, rank}));
+    const modeColumns = [[TEXT.rank, row => n(row.rank + 1)], [TEXT.mode, modeLink, 'l stats-mode-cell'], [TEXT.matches, row => n(row.matches)],
+      [TEXT.share, shareCell, 'stats-share-cell'], [TEXT.trend, row => trend(row, data), 'stats-trend-cell']];
+    const pairColumns = [[TEXT.rank, row => n(row.rank + 1)], [TEXT.map, mapCell, 'l', '', () => mapCell(null)],
+      [TEXT.matches, row => n(row.matches)], [TEXT.share, shareCell, 'stats-share-cell']];
+    const steps = data && data.steps;
+    const note = el('p', {className: 'stats-note stats-trend-note'}, data
+      ? `${TEXT.trend}: ${TEXT[STEP_NOTE[data.step]]}, ${stepName(data.step, steps[0])} – ${stepName(data.step, steps[steps.length - 1])}` : BLANK);
+    const modes = table(modeColumns, ranked(data && data.modes), 8, '', row => row.mode_url || null);
+    const pairs = table(pairColumns, ranked(data && data.pairs), PAIRS, '', row => row.map_key ? mapAddress(row) : null);
+    return [modes, note, el('h2', {className: 'stats-heading'}, TEXT.mostPlayed), pairs];
+  }
+
   function boardsView() {
     heading(TEXT.stats, document.getElementById('stats-eyebrow').textContent, '');
     let board = BOARDS[asked('board')] ? asked('board') : 'players';
-    let key = BOARDS[board].includes(asked('by')) ? asked('by') : BOARDS[board][0];
+    let key = BOARDS[board].includes(asked(BY_PERIOD.includes(board) ? 'period' : 'by')) ? asked(BY_PERIOD.includes(board) ? 'period' : 'by') : BOARDS[board][0];
     // Smallest first: a second click on the sorted heading, and back.
     let up = asked('order') === 'asc' && (board === 'players' || board === 'clans');
     // How many pages of the players are open ("More players"): a sort
@@ -641,22 +754,40 @@
     async function draw() {
       const drawing = ++shown;
       for (const button of tabs.querySelectorAll('button')) button.setAttribute('aria-pressed', String(button.dataset.board === board));
-      // The best scores' periods are buttons of a row of their own; a list
-      // of players or clans sorts by its columns' headings.
+      // The best scores' periods, and the maps' and modes', are buttons of a
+      // row of their own; a list of players or clans sorts by its columns' headings.
+      const periodic = BY_PERIOD.includes(board);
       note.textContent = KEY_NOTE[key] ? TEXT[KEY_NOTE[key]] : '';
-      keys.hidden = board !== 'best';
-      keys.replaceChildren(...(board === 'best' ? BOARDS.best : []).map(value => {
-        const button = el('button', {type: 'button'}, TEXT[value]);
+      keys.hidden = board !== 'best' && !periodic;
+      keys.replaceChildren(...(board === 'best' || periodic ? BOARDS[board] : []).map(value => {
+        const button = el('button', {type: 'button'}, TEXT[periodic ? PERIODS[value] : value]);
         button.setAttribute('aria-pressed', String(value === key));
         button.addEventListener('click', () => { key = value; draw(); });
         return button;
       }));
       const url = new URL(location.href);
       url.searchParams.set('board', board);
-      if (key) url.searchParams.set('by', key); else url.searchParams.delete('by');
+      if (key && !periodic) url.searchParams.set('by', key); else url.searchParams.delete('by');
+      if (periodic && key !== BOARDS[board][0]) url.searchParams.set('period', key); else url.searchParams.delete('period');
       if (up) url.searchParams.set('order', 'asc'); else url.searchParams.delete('order');
       history.replaceState(null, '', url);
       keepLanguage();
+      if (periodic) {
+        const view = board === 'maps' ? mapsBoard : modesBoard;
+        // A period asked anew: the board as it was until the new one is here.
+        if (!body.firstChild || body.dataset.board !== board) body.replaceChildren(el('div', {className: 'stats-plays'}, ...view(null)));
+        body.dataset.board = board;
+        let data;
+        try {
+          data = await api(board, {period: key});
+        } catch (error) {
+          if (drawing === shown) body.replaceChildren(notice(String(error)));
+          return;
+        }
+        if (drawing === shown) body.replaceChildren(el('div', {className: `stats-plays stats-${board}`}, ...view(data || {maps: [], modes: [], pairs: []})));
+        return;
+      }
+      body.dataset.board = board;
       if (board === 'latest') return body.replaceChildren(paged(latestColumns, before => api('matches', {limit: PAGE, ...(before ? {before} : {})}), TEXT.noMatches, openMatch));
       const [path, params, columns, list, size] = {
         players: ['top', {by: key, limit: TOP, ...(up ? {order: 'asc'} : {})}, playerColumns, data => data.players, TOP],

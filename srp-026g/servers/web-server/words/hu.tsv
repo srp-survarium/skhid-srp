@@ -966,3 +966,16 @@ deadly	halálos
 {n} % a second	{n} % másodpercenként
 Damage is a share of each body part's health, before armour.	A sebzés minden testrész életerejének része, a páncél előtt.
 It gives no artefacts.	Nem ad artefaktumot.
+
+# The stats' Maps and Modes boards.
+Last 7 days	Utolsó 7 nap
+Last 24 hours	Utolsó 24 óra
+Avg length	Átl. hossz
+Sides	Oldalak
+No result	Nincs eredmény
+Share	Arány
+Trend	Alakulás
+by hour	óránként
+by day	naponta
+by week	hetente
+Most played maps and modes	Legnépszerűbb pályák és játékmódok
