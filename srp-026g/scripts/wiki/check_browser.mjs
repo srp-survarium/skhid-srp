@@ -49,8 +49,19 @@ try {
   const visible = "[...document.querySelectorAll('.weapon')].filter(e => !e.hidden)";
   await send('browsingContext.setViewport', {context, viewport: {width: 1440, height: 1000}, devicePixelRatio: 1});
   await navigate('/wiki');
-  assert.equal(await evaluate("document.querySelector('.wiki-link').pathname"), '/wiki/weapons');
-  assert.equal(await evaluate("[...document.querySelectorAll('.wiki-link')][1].pathname"), '/wiki/simulators');
+  assert.deepEqual(JSON.parse(await evaluate("JSON.stringify([...document.querySelectorAll('.wiki-link')].map(a => a.pathname))")), [
+    '/wiki/skills', '/wiki/weapons', '/wiki/equipment', '/wiki/modifiers', '/wiki/modes',
+    '/wiki/maps', '/wiki/artefacts', '/wiki/quests', '/wiki/calculator', '/wiki/simulators']);
+  // Every tile has its picture, drawn under the real CSP (lazy ones once scrolled to), in one box size.
+  assert.deepEqual(JSON.parse(await evaluate(`(async () => {
+    window.scrollTo(0, document.body.scrollHeight);
+    await Promise.all([...document.images].map(i => i.decode().catch(() => {})));
+    window.scrollTo(0, 0);
+    return JSON.stringify([...document.querySelectorAll('.wiki-pic')].flatMap(box => {
+      const img = box.querySelector('img'), drawn = box.querySelector('svg,.glyph');
+      return (img ? img.naturalWidth > 0 : drawn?.getBoundingClientRect().width > 0) ? [] : [box.textContent];
+    }).concat(new Set([...document.querySelectorAll('.wiki-pic')].map(box => box.offsetHeight)).size === 1 ? [] : ['box sizes differ']));
+  })()`)), []);
   await screenshot('wiki');
   await navigate('/wiki/weapons');
   await evaluate("window.pageErrors=[];addEventListener('error',event=>pageErrors.push(event.message))");
