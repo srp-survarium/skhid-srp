@@ -69,6 +69,8 @@ features! {
         avoid: grenade_threat::Avoid,
         /// Crossing zones (`crossing`).
         crossing: crossing::BotState,
+        /// The lane its walk to the goal drew, held while the goal stays (`lane_draw`).
+        lane: lane_draw::LaneHold,
         /// What its plays remember between runs (`plays::memory`).
         memory: plays::memory::BotState,
         /// The drugs it carries and its health pools (`stock`).
@@ -111,6 +113,8 @@ features! {
 features! {
     /// A team's states, by feature.
     pub(super) struct TeamFeatures {
+        /// The lanes its bots walk now or walked lately (`lane_draw`).
+        lanes: lane_draw::TeamLanes,
         /// Where its bots got stuck, and the goals they proved no way to (`stuck`).
         stuck: stuck::TeamStuck,
         /// Where a shooter killed its bots from (`threat`).
