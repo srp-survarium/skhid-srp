@@ -6,12 +6,15 @@ package
    import flash.display.DisplayObjectContainer;
    import flash.display.Loader;
    import flash.display.Sprite;
+   import flash.display.StageAlign;
+   import flash.display.StageScaleMode;
    import flash.events.Event;
    import flash.events.MouseEvent;
    import flash.events.UncaughtErrorEvent;
    import flash.net.URLRequest;
    import flash.system.ApplicationDomain;
    import flash.system.LoaderContext;
+   import flash.geom.Rectangle;
    import flash.text.TextField;
    import flash.utils.getQualifiedClassName;
 
@@ -75,6 +78,14 @@ package
          if(loaderInfo.parameters.players == "1")
          {
             checkPlayerMenus();
+            finish(failures.length == 0 ? "pass" : "fail: " + failures.join("; "));
+            return;
+         }
+         // The vote's cards as the game lays them out at this stage's size (check.sh runs it at
+         // the game's 1920x1080 and 1280x720).
+         if(loaderInfo.parameters.cards == "1")
+         {
+            checkCardsAt();
             finish(failures.length == 0 ? "pass" : "fail: " + failures.join("; "));
             return;
          }
@@ -186,6 +197,120 @@ package
          var misses:Array = overlaps("a 200-entry pool, a room's vote");
          if(misses.length != 0)
             failures.push("a 200-entry pool: " + misses.join("; "));
+      }
+
+      // The vote's four cards (the owner's of 2026-11-26: "Change the number of vote options to
+      // 4") as the game lays the window out on a stage of the game's size: the movie's MainScene
+      // the harness, the window over the bottom bar at the stage's foot, scaled by
+      // RoomsWindow.layout. In an open room's vote and a private room's (its teams' line under the
+      // cards makes them lower), in every language: four cards, each whole inside the window and
+      // the stage, all as wide and as high, none meeting another or the players' panel under
+      // them, every text on them whole (the map names shrink to fit: overlaps).
+      private function checkCardsAt() : void
+      {
+         var domain:ApplicationDomain = loader.contentLoaderInfo.applicationDomain;
+         var Loc:Object = domain.getDefinition("survarium.data.LocalizationData");
+         var step:String = "the window";
+         try
+         {
+            stage.align = StageAlign.TOP_LEFT;
+            stage.scaleMode = StageScaleMode.NO_SCALE;
+            Loc.setData(HarnessText.DATA.english);
+            domain.getDefinition("MainScene").stage = this;
+            Win = domain.getDefinition("survarium.rooms.RoomsWindow");
+            var panel:* = new (domain.getDefinition("SrvBottomPanel") as Class)();
+            panel.y = stage.stageHeight - panel.height + 13;
+            addChild(panel);
+            win = new Win(panel);
+            Win.me = win;
+            addChild(win);
+         }
+         catch(err:Error)
+         {
+            failures.push("cards: " + step + ": " + err);
+            return;
+         }
+         var size:String = stage.stageWidth + "x" + stage.stageHeight;
+         var shown:String = null;
+         for each(var language:String in HarnessText.LANGUAGES)
+         {
+            var say:Object = HarnessText.DATA[language];
+            Loc.setData(say);
+            for each(var s:Array in [["open, vote", false, false, 3, null], ["private, owner", true, true, 0, "01010"]])
+            {
+               var what:String = size + ", " + language + ", " + s[0];
+               // The longest names: Vostok v0.11 (level 13) and the others of checkFit's pool.
+               tell(["S1;M;7;0","0;61;5;5;2;0","1;62;13;5;3;1","2;63;12;3;6;0","3;117;1;1;4;0","4;184;8;1;5;0",
+                  "5;12;7;1;8;0","6;300;1;1;13;0"]);
+               tellRoom(1003, s[1], s[2], s[3], s[4], 0, []);
+               win["layout"]();
+               var k:Number = win.scaleX;
+               var left:Number = win.x;
+               var right:Number = win.x + (Win.DESIGN_W - Win.LEFT - Win.RIGHT) * k;
+               var cells:Array = [];
+               voteCards(win, cells);
+               // Where each card is drawn (its frame too: 3 px for our vote) and its picture: the card.
+               var boxes:Array = [];
+               var pictures:Array = [];
+               for each(var cell:Sprite in cells)
+               {
+                  boxes.push(cell.getBounds(stage));
+                  pictures.push(cell.getChildAt(0).getBounds(stage));
+               }
+               boxes.sortOn("x", Array.NUMERIC);
+               pictures.sortOn("x", Array.NUMERIC);
+               var players:Rectangle = null;
+               var texts:Array = [];
+               walk(win,[],texts,0,0,[]);
+               for each(var t:Object in texts)
+                  if(t.text == String(say.st_srp_rooms_players).toUpperCase())
+                     players = TextField(t.field).getBounds(stage);
+               var bad:Array = [];
+               if(boxes.length != 4)
+                  bad.push(boxes.length + " cards");
+               if(right > stage.stageWidth + 0.5 || win.y < 0)
+                  bad.push("the window off the stage");
+               for(var i:int = 0; i < boxes.length; i++)
+               {
+                  var b:Rectangle = boxes[i];
+                  if(b.left < left + 8 * k || b.right > right - 8 * k || b.top < win.y || b.bottom > stage.stageHeight)
+                     bad.push("card " + i + " " + b + " outside the window " + left + ".." + right);
+                  if(i > 0 && b.left < Rectangle(boxes[i - 1]).right + 4 * k)
+                     bad.push("cards " + (i - 1) + " and " + i + " meet");
+                  var p:Rectangle = pictures[i];
+                  if(Math.abs(p.width - Rectangle(pictures[0]).width) > 1 || Math.abs(p.height - Rectangle(pictures[0]).height) > 1)
+                     bad.push("card " + i + " " + p.width + "x" + p.height + " not as card 0");
+                  if(players == null || players.top < b.bottom)
+                     bad.push("card " + i + " over the players' panel");
+               }
+               bad = bad.concat(overlaps(what));
+               if(bad.length != 0)
+                  failures.push(what + ": " + bad.join("; "));
+               if(shown == null && boxes.length > 0)
+                  shown = boxes.length + " cards of " + Math.round(Rectangle(pictures[0]).width) + "x"
+                     + Math.round(Rectangle(pictures[0]).height) + ", window scale " + k.toFixed(3);
+            }
+         }
+         Loc.setData(HarnessText.DATA.english);
+         trace("ROOMS cards at " + size + ": " + shown + "; whole, apart and over the players in every language: "
+            + (failures.length == 0 ? "yes" : "no"));
+      }
+
+      // The room view's vote cards under `at`: its sprites named by their card (RoomsRoom.render)
+      // with the card's map drawn in them.
+      private static function voteCards(at:DisplayObjectContainer, out:Array) : void
+      {
+         for(var i:int = 0; i < at.numChildren; i++)
+         {
+            var child:Sprite = at.getChildAt(i) as Sprite;
+            if(child == null || !child.visible)
+               continue;
+            var pictured:Boolean = child.numChildren > 0 && child.getChildAt(0) is Bitmap;
+            if(child.buttonMode && /^[0-9]$/.test(child.name) && pictured)
+               out.push(child);
+            else
+               voteCards(child, out);
+         }
       }
 
       // Ruffle draws the movie's embedded Calibri, yet not exactly as Scaleform lays it out: every
@@ -301,7 +426,7 @@ package
       {
          var size:int = 10;
          var names:Array = [["S1","R",key,15,pin ? 0 : 15,size,30,phase,754,owner ? 1 : 0,5,5,key,pin ? 1 : 0,63,pin ? 1 : 2,0].join(";"),
-            "C;0;61;2;1","C;1;62;1;0","C;2;63;0;0"];
+            "C;0;61;2;1","C;1;62;1;0","C;2;63;0;0","C;3;184;0;0"];
          for(var i:int = 0; i < WHO.length; i++)
          {
             var me:Boolean = owner ? i == 0 : i == 1;
@@ -1341,7 +1466,7 @@ package
       {
          var size:int = pin ? 10 : 6;
          var head:String = ["S1","R",key,0,0,size,30,phase,0,owner ? 1 : 0,5,5,key,pin ? 1 : 0,0,pin ? 1 : 2,0].join(";");
-         var names:Array = [head,"C;0;61;0;0","C;1;63;0;0","C;2;65;0;0"];
+         var names:Array = [head,"C;0;61;0;0","C;1;63;0;0","C;2;65;0;0","C;3;117;0;0"];
          for(var i:int = 0; i < WHO.length; i++)
          {
             // P;<i>;<gear>;<owner>;<me>;<in match>;<fit>;<away>;<name>

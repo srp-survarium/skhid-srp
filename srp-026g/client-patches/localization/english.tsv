@@ -159,7 +159,7 @@ st_ak12_premium_name	AK-12M1
 st_ak74m_description	A modern version of Kalashnikov submachine gun, ammo: 5,45x39. Was adopted and gained good reputation among the armed forces. Supports single and burst shooting.
 st_ak74m_name	AK-74M
 st_ak74n_bundle_descr	<white>Contains the following items:\n- Improved "AK-74N".\n- 2000 rounds of 5.45x39 7N6M ammo.</white>\n
-st_ak74n_bundle_name	"АК-74N" bundle
+st_ak74n_bundle_name	"AK-74N" bundle
 st_ak74n_description	ОПИСАНИЕ НЕ ГОТОВО!!!
 st_ak74n_name	AK-74N
 st_ak74u_description	A shortened version of AK74 submachine gun, ammo: 5.45х39. Thanks to its size, it was used by marines, MIA and security organizations. Supports single and burst shooting. 
@@ -2079,7 +2079,7 @@ st_on_spawn_victory_artefact	Artifact has spawned
 st_on_spawn_victory_item	The battery is charged! Deliver it to your base.
 st_one_handed	Secondary
 st_online_store	Buy gold
-st_onyx_activation_hint	Onyx activated! Decreases the damage and armor-piercing of incoming bullets by 75% for %s s.
+st_onyx_activation_hint	Onyx activated! Incoming bullets deal less damage and have less armor piercing for %s s.
 st_onyx_pickup_hint	Onyx artifact. Decreases the damage and armor-piercing qualities of bullets that hit  the player by 5%.
 st_open	Open
 st_options_2taa	2xTAA
@@ -2684,7 +2684,7 @@ st_special_offer	Special offer
 st_speed_booster_description	Energy drink with caffeine and taurine. Invigorates and stimulates the central nervous system.
 st_speed_booster_name	Tornado Energy Drink
 st_spot_action	Enemy spotted
-st_spring_activation_hint	Spring activated! Speed of movement and aiming +10%. Energy regeneration increased! Bullets do not slow you!
+st_spring_activation_hint	Spring activated! You move and aim faster, recover energy faster, and bullets slow you less.
 st_spring_pickup_hint	Spring artifact. Increases movement speed and aiming speed by 5%.
 st_sprint_action	Sprint (hold)
 st_sprint_toggle_action	Sprint 
@@ -3015,6 +3015,7 @@ st_srp_hit_markers_kill	Kill marker only
 st_srp_hud_add_friend	Add to friends
 st_srp_hud_artefact_hunt_carrying	You carry the artifact
 st_srp_hud_artefact_hunt_sudden_death	Sudden death
+st_srp_hud_artefact_wear	Artifact weakened. Passive and next activation at %1$s power.
 st_srp_hud_blackout_intro	Blackout: bring batteries to your team’s device. HUD and hitmarkers are hidden for immersion. Hold Tab for ammo, health, chat and kit selection when dead.
 st_srp_hud_blackout_start	Blackout\nBring batteries to your team’s device.\nHUD and hit markers are hidden. Hold Tab to check ammo and health.
 st_srp_hud_freeze_draw	Draw
@@ -3354,7 +3355,7 @@ st_srp_rooms_pin_hint	4 digits required
 st_srp_rooms_players	Players
 st_srp_rooms_playing	Match in progress
 st_srp_rooms_pool	Pool
-st_srp_rooms_pool_hint	The vote draws 3 cards from these.
+st_srp_rooms_pool_hint	The vote draws 4 cards from these.
 st_srp_rooms_private_room	Private room: up to 20 players; you set the teams and start.
 st_srp_rooms_queue	Queue
 st_srp_rooms_queue_room	Queue for room

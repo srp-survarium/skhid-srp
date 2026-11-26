@@ -503,10 +503,10 @@ Bring it to your own base: 1 point, and the round ends.	Принесите ег�
 The carrier is slower and seen by everyone.	Носитель медленнее и виден всем.
 Respawn in waves every {0} s.	Возрождение волнами каждые {0} с.
 Time limit {0}: the higher score wins; a tie plays {1} of sudden death without respawns.	Лимит времени {0}: побеждает больший счёт; при ничьей — {1} внезапной смерти без возрождения.
-Sniper rifles, silenced guns and guns without automatic fire are replaced.	Снайперские винтовки, оружие с глушителем и оружие без автоматического огня заменяются.
-Rooms up to level {0}: {1}.	Комнаты до уровня {0}: {1}.
-Other rooms: {0}.	Остальные комнаты: {0}.
-Sight: {0}.	Прицел: {0}.
+Everyone fights with an assault rifle: sniper rifles, silenced guns and guns without automatic fire are swapped for an {0} (rooms up to level {1}) or an {2} (higher rooms).	Все сражаются штурмовыми винтовками: снайперские винтовки, оружие с глушителем и оружие без автоматического огня заменяются на {0} (комнаты до уровня {1}) или {2} (более высокие комнаты).
+Each comes with an {0}.	На каждом — {0}.
+a revolver	револьвер
+a lever-action rifle	винтовка с рычажным затвором
 Every kit: {0} only.	Каждый комплект: только {0}.
 Every kit: {0} and {1}.	Каждый комплект: {0} и {1}.
 Everyone plays the same {0} random kits.	Все играют одними и теми же {0} случайными комплектами.
@@ -966,3 +966,37 @@ deadly	смертельно
 {n} % a second	{n} % в секунду
 Damage is a share of each body part's health, before armour.	Урон — доля здоровья каждой части тела, до брони.
 It gives no artefacts.	Она не даёт артефактов.
+
+# The stats' Maps and Modes boards.
+Last 7 days	Последние 7 дней
+Last 24 hours	Последние 24 часа
+Avg length	Ср. длительность
+Sides	Стороны
+No result	Без результата
+Share	Доля
+Trend	Динамика
+by hour	по часам
+by day	по дням
+by week	по неделям
+Most played maps and modes	Самые популярные карты и режимы
+
+# The modes and weathers as the game names them (client-patches/localization: the stats' Maps and Modes boards, the match lists).
+Protective device	Защитное устройство
+Protective device: chargers	Защитное устройство: зарядники
+Team Deathmatch	Командный бой
+Research	Исследование
+Protective device: blackout	Защитное устройство: блэкаут
+Free for all	Все против всех
+Freeze Tag	Заморозка
+Artifact Hunt	Охота за артефактом
+FFA: Racket	FFA: Движ
+FFA: Saloon	FFA: Салун
+FFA: Saloon (Winchester)	FFA: Салун (Винчестер)
+Mode {0}	Режим {0}
+day	день	weather
+rain	дождь	weather
+evening	вечер	weather
+night	ночь	weather
+before rain	перед дождём	weather
+Weathers	Погода
+Variants	Варианты

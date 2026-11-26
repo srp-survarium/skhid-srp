@@ -1850,11 +1850,14 @@ va	name	location	role	basis
 0x001b7210	vostok::render::stage_visibility::filter_and_sort_ambient_lights	entry ESP+4 low byte	nonzero bypasses initial occlusion/enable filtering; sorting or material partition still occurs	observed
 0x001b7360	vostok::render::stage_visibility::filter_and_sort_models	entry ESP+4	stage_visibility owner	observed
 0x001b7360	vostok::render::stage_visibility::filter_and_sort_models	entry ESP+8 low byte	nonzero bypasses initial occlusion/enable filtering; sorting or material partition still occurs	observed
+0x001b7360	vostok::render::stage_visibility::filter_and_sort_models	the camera list (scene view +44A0h) at 0x1B7392	with ESP+8 0, remove_if 0x1B8F10 drops every surface with +61h set while [0x2260498]+12Dh (hi-Z) is on (0x1B8F41), the first person's too; the list is then copied to the forward list +C4B8h (0x1B740A), which stage_forward::execute_foreground draws from (0x1AB82C)	observed
 0x001b74d0	vostok::render::stage_visibility::frustum_culling	stack+4	visibility stage receiver	inferred
 0x001b79a0	vostok::render::stage_visibility::occlusion_culling	ESI	visibility stage receiver	inferred
 0x001b7a70	vostok::render::stage_visibility::get_results_and_prepare_bounds_models	entry ESP+4	stage_visibility owner	observed
 0x001b7a70	vostok::render::stage_visibility::get_results_and_prepare_bounds_models	entry ESP+8	address of advancing 16-byte output pointer	observed
 0x001b7a70	vostok::render::stage_visibility::get_results_and_prepare_bounds_models	EDI	address of accumulated index/count	observed
+0x001b7a70	vostok::render::stage_visibility::get_results_and_prepare_bounds_models	byte [ECX+61h] at 0x1B7AB7	each surface instance of the camera list (scene view +44A0h..+44A4h) stores its hi-Z answer: 1 when the last query's byte at its index (+40h) is 0, 0 when it is not or the index is -1; no test of the first person (its model +3Ch, foreground +114h; its own +63h): patch 213's site hiz.model_answer	observed
+0x001b7a70	vostok::render::stage_visibility::get_results_and_prepare_bounds_models	the bound written at [[ESP+8]]	the sphere around the render surface's box (+38h, +20h..+37h) under the surface's world matrix (+50h, 0xF1FD0), then the pointer +10h	observed
 0x001b7bd0	vostok::render::stage_visibility::get_results_and_prepare_bounds_lights	entry ESP+4	stage_visibility owner	observed
 0x001b7bd0	vostok::render::stage_visibility::get_results_and_prepare_bounds_lights	entry ESP+8	address of advancing 16-byte output pointer	observed
 0x001b7bd0	vostok::render::stage_visibility::get_results_and_prepare_bounds_lights	entry ESP+12	address of accumulated index/count	observed
@@ -2510,6 +2513,7 @@ va	name	location	role	basis
 0x00245250		ECX		auto
 0x002474a0	survarium::player::mt_draw	ECX	the player	observed
 0x002474a0	survarium::player::mt_draw	byte [EBX+0F4E2h] at 0x24757C	the player's model not seen the last frame (0x247519, setb); `je 0x247592` draws, then `cmp dword [ebx+12Ch],0 / jne 0x247811` culls; EAX = [player+F290h] live into 0x247592	observed
+0x002474a0	survarium::player::mt_draw	byte [EBP-1] at 0x247576	the world's own player (0x2474E0..0x2474EC): its model and held item are drawn (jne 0x247592) whatever +F4E2h says; the not-seen cull applies to the other players only; only model +10Dh 0 (out of the scene, 0x247569) takes the culled path for it	observed
 0x00248ad0	survarium::step_manager::on_step	ECX	step_manager (+4 the game world)	observed
 0x00248ad0	survarium::step_manager::on_step	EAX	foot position (float3*; the ground ray starts 1 m above it, 2 m long)	observed
 0x00248ad0	survarium::step_manager::on_step	entry ESP+4	step direction (float3*)	observed

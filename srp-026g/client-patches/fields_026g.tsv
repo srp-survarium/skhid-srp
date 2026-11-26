@@ -194,6 +194,8 @@ survarium::project_object	particle	0x0	obj<survarium::object_particle_visual>	on
 survarium::project_object	probe	0x0	obj<survarium::object_environment_probe>	only when the native vtable identifies object_environment_probe
 survarium::render_visual	vtable	0x0	u32	render visual insertion/removal interface
 survarium::render_visual	size	0x48	size	render visual stride in insert_static 0x285540
+survarium::render_visual	transform	0x4	f32	its transform, a row-vector 4x4 (16 f32): insert passes &+4 to scene_renderer::add_model as both matrices (0x285FA7..0x285FAF)
+survarium::render_visual	model	0x44	ptr<survarium::scene_model>	its model holder: insert adds &[+44h]+108h (0x285FA0..0x285FB0), remove takes it out (0x285FE0..0x286001); 0 none (both return)
 survarium::object_light	vtable	0x0	u32	light object interface
 survarium::object_light	position	0x140	f32	translation float3, object_light::load 0x291720
 survarium::object_ambient_light	vtable	0x0	u32	ambient light object interface
@@ -1269,6 +1271,10 @@ vostok::render::render_surface_instance	surface	0x38	ptr<vostok::render::render_
 vostok::render::render_surface_instance	last_render_time	0x48	f32	when it was last drawn (the proxy's last_render_time 0x1C8B83; the constructor 0x158C7E zeroes it)
 vostok::render::render_surface_instance	streaming_mark	0x4C	u8	set by the proxy's slot 10h (0x1C8CA3) and the constructor (0x158C83), cleared by slot 14h after each streaming update (0x1C8CB3), read by slot 18h (0x1C8CC3)
 vostok::render::render_surface_instance	transform	0x50	ptr<f32>	its world matrix, a row-vector 4x4 (the proxy's texel_factor 0x1C8B98 reads its first three rows; the constructor zeroes the pointer)
+vostok::render::render_surface_instance	model	0x3C	ptr<vostok::render::model_instance>	the model instance it is a surface of (render_forward_models 0x1AB412 reads its foreground byte; stage_visibility::execute_stage 0x1B6AB1 writes its seen frame +110h)
+vostok::render::render_surface_instance	query_index	0x40	u32	its index in the last hi-Z query, -1 never queried (get_results_and_prepare_bounds_models 0x1B7A9D reads it, 0x1B7ABC writes the next)
+vostok::render::render_surface_instance	occluded	0x61	u8	the hi-Z occlusion's last answer, 1 occluded (stored at 0x1B7AB7, site hiz.model_answer); filter_and_sort_models' remove_if 0x1B8F41 drops the surface from every pass while the option ([0x2260498]+12Dh) is on
+vostok::render::render_surface_instance	foreground	0x63	u8	this surface drawn in the first-person pass (set_model_foreground_by_id 0x118852); render_forward_models 0x1AB422 takes a surface as first-person when this or its model's foreground byte (+114h) is set
 vostok::render::render_surface	streaming_texture_factor	0x4C	f32	m_streaming_texture_factor (render_surface.h): the texel factor of its mapping at scale 1 (the proxy's texel_factor 0x1C8C88)
 vostok::render::image	render_surface_proxy_vtable	0x9F7060	u32	render_surface_texture_instance_proxy's vtable (RTTI .?AUrender_surface_texture_instance_proxy@render@vostok@@ at 0x9F705C): bound_sphere 0x1C8CD0, last_render_time 0x1C8B80, texel_factor 0x1C8B90, +14h 0x1C8CB0 (clears the surface's streaming_mark)
 vostok::render::image	grass_patch_proxy_vtable	0x9F7080	u32	grass_patch_texture_instance_proxy's vtable (RTTI at 0x9F707C): bound_sphere 0x1C8D40 (centre 0, radius the image's 3000.0 at 0xA2D8A0), last_render_time 0x1C8D20 (fldz), texel_factor 0x1C8D30 (fld1), +14h 0x1AF330 (ret)
@@ -1498,6 +1504,8 @@ vostok::ui::ui_text_edit	selection_start	0x2A8	u16	the selection's first byte; w
 vostok::ui::ui_text_edit	selection_end	0x2AA	u16	the selection's end (select all 0x347FC0: 0 to the length)
 vostok::ui::ui_text_edit_text	edit	-4	obj<vostok::ui::ui_text_edit>	the text edit it is the +4 of (set_text 0x3479D0 calls its set_caret_position through [esi-4], 0x347A87)
 survarium::game_scene	render_scene	0x4	ptr<vostok::render::scene>	the render scene it holds (a scene_ptr): a visual's insert passes &+4 to scene_renderer::add_model (0x285FB6), game::tick draws the current scene's (draw_scene 0x1F7F0, its EAX = [game+539Ch]+4, 0x1ECD2D)
+survarium::game_scene	scene_reference	0x4	obj<vostok::scene_reference>	the same render scene as the reference add_model, update_model and remove_model take (a visual's insert 0x285FB6, remove 0x285FEB)
+survarium::game_scene	game	0x9C	ptr<survarium::game>	the game: a visual's insert reaches the scene renderer through it ([[+9Ch]+5360h]+200064h, 0x285FB9..0x285FC6)
 vostok::render::renderer_context	scene	0x416C	ptr<vostok::render::scene>	the scene a frame draws: renderer::render (0x13D010) stores *scene_ptr, its first argument's, at 0x13D210 before it runs the stages
 vostok::render::renderer_context	scene_view	0x4170	ptr<vostok::render::scene_view>	that frame's scene view, its environment at +118h (stage_rain::execute 0x1ADB55, stage_pre_rain::execute 0x17CA64)
 vostok::render::scene_view	rain_u_scale	0x2E8	f32	the environment's rain_u_scale (environment +1D0h; stage_rain::execute 0x1ADD90 multiplies it by 0.05 into rain_drops_parameters1.z)
@@ -1934,6 +1942,14 @@ survarium::hud_texts_frame	ui	0x4	ptr<survarium::game_world_ui>	set_localization
 survarium::lobby_texts_frame	menu	0x4	ptr<survarium::lobby_menu>	set_localization_data's argument at its start (0x286260, by the site's ESP): the lobby menu
 survarium::world_hash_frame	data	-0x10	ptr<u8>	game_state_history_item::hash's mutable_buffer {allocator -14h, data -10h, capacity -0Ch, size -8h} by EBP (0x32518A..0x3251A4): the bytes the serialize wrote (patch 98: 0xF000 of them at most)
 survarium::world_hash_frame	size	-0x8	u32	the bytes the serialize wrote: the world, whose CRC hash() makes of them (0x325207..0x32520D)
+survarium::artefact	uses_spent	0x286	u16	Combat artefact wear in alignment padding between the byte container ID (+284h) and aligned spawn timer (+288h), initialized at construction and anomaly spawn.
+survarium::onyx_hit_args	damage	0x8	ptr<survarium::damage_cell>	protect argument 2, writable damage.
+survarium::onyx_hit_args	piercing	0xC	ptr<survarium::damage_cell>	protect argument 3, writable piercing.
+survarium::regen_args	tick	0x4	ptr<survarium::regen_tick>	regeneration_modifier first argument.
+survarium::regen_args	record	0x8	ptr<survarium::lifebone_regeneration>	regeneration_modifier second argument.
+survarium::regen_tick	rate	0	f32	Pool regeneration rate.
+survarium::regen_tick	delay	4	u32	Pool regeneration delay in ms.
+survarium::regen_tick	limit	8	f32	Pool regeneration limit.
 vostok::render::probe_draw_frame	stage	0x8	ptr<vostok::render::stage_ambient_lighting>	stage_ambient_lighting::render_environment_probes's (0x180980, push ebp / mov ebp,esp) EBP frame: its argument, the stage (mov ebx,[ebp+8] at 0x18098D, again at 0x181474 and 0x181519)
 vostok::render::probe_loop_frame	probe	0x10	ptr<vostok::render::environment_probe>	render_environment_probes's ESP frame inside its probe loop (the pushes of each call popped again): [esp+10h] the probe being drawn (0x180BB2)
 vostok::render::probe_loop_frame	position	0x28	ptr<vostok::render::probe_slot>	[esp+28h]: the loop's place in the sorted list (0x180B64 the first, 0x181644 the next; read at the head 0x180B90)

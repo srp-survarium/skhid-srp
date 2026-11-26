@@ -743,6 +743,40 @@ hidden, it costs its draws (the light mask and two techniques, 5.3, 5.4) over it
 screen area at most. A point or spot light is stored occluded only after four occluded answers
 in a row: a hidden one would render its shadow map.
 
+**Model surfaces, the first person's too.** `frustum_culling` puts every surface instance in the
+camera's frustum into the camera's list (scene view +44A0h, `scene::select_models` 0x150560 with
+mask 1, at 0x1B790D); nothing there tells a first-person surface from the world's. In a frame
+with results, `get_results_and_prepare_bounds_models` (0x1B7A70) stores each surface's answer at
+its +61h (0x1B7AB7, 1 occluded; never queried, +40h -1, stores 0), takes the next index into +40h
+and adds the sphere around its render surface's box (+38h, box at +20h) under its world matrix
+(+50h). `filter_and_sort_models` (0x1B7360) then removes every surface with +61h set while the
+option is on (its remove_if 0x1B8F10, 0x1B8F41), before the list is copied to the forward list
+(+C4B8h, which `stage_forward::execute_foreground` 0x1AB82C also draws the first person from) and
+the G-buffer's; `stage_visibility::execute_stage` marks the models of the surfaces kept as seen
+this frame (their +110h, 0x1B6AA0), which `player::mt_draw` reads for its cull. So a first-person
+surface is tested like a wall: its sphere projected with the world's camera, against the world's
+linear depth of a frame before. PROVEN (instructions read).
+
+The test (`hiz_fill_culling_results_buffer.ps`, the 0.26g blob): `$user$position` (linear view
+depth) with each texel the maximum of its 3x3 (`hiz_copy_scene_depth.ps`), then 2x2 maxima down
+the mips (`hiz_downsample_depth.ps`); a sphere in front of the near plane takes the mip
+ceil(log2(its projected size)), four samples at the corners of its projected square (a 4x4 grid
+from mip 4 on, visible past mip 8), and is occluded when their maximum is below its nearest view
+depth. 0.10b's shader called a sphere occluded only when the depth was more than 20 m nearer
+(`depth + 20.f < nearest`); 0.26g dropped the 20 m. PROVEN (both shaders' code). A first-person
+surface is 0.05 to 1 m away, drawn over whatever the world has in front of it; a collimator's dot
+is a disk 0.66 mm across (`collimator_glowing_dot_s` of the 0.69d0 collimators, its box 0.33 mm
+around), the smallest sphere the query has, at the screen's centre, and its own housing (another
+surface, another answer) stays when it goes. A test from the depth of a frame before, read a
+frame or more late at an index that is another object's whenever the surface was out of the last
+query (re-added when an aimed optic comes in, the `+40h` of its last time in view), can only
+lose it.
+
+Patch 213 (`first_person_occlusion`) stores every first-person surface's answer as visible (its
+model's foreground byte +114h, or its own +63h: what `render_forward_models` 0x1AB412 and
+`stage_lights::execute_foreground` 0x192DC4 draw in the first-person pass); a world surface keeps
+its answer. The first person is a handful of surfaces, drawn every frame they are in the frustum.
+
 ## 6. Composition and emission
 
 ### 6.1 Composition (`stage_composition::execute` 0x1A8170)

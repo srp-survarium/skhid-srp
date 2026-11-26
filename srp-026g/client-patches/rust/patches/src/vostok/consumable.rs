@@ -49,6 +49,7 @@ pub enum Observed {
     Stopped { drug: DrugId },
     /// The holder's oxygen tank while its Oxygen Rush runs (patch 180).
     Boosted,
+    Artefact { id: u8, wear: srp_validate::world::ArtefactWear },
 }
 
 impl Observed {
@@ -73,6 +74,7 @@ pub enum Shown {
     Interrupted,
     /// An oxygen tank whose Oxygen Rush runs: its native countdown in Spring's blue.
     Boosted,
+    Artefact { id: u8, wear: srp_validate::world::ArtefactWear },
 }
 
 impl Shown {
@@ -83,6 +85,7 @@ impl Shown {
             Self::InUse(Course::Active { remaining, duration }) => [2, remaining.0, duration.0],
             Self::Interrupted => [3, 0, 0],
             Self::Boosted => [4, 0, 0],
+            Self::Artefact { id, wear } => [5, u32::from(wear.uses()), u32::from(id)],
         }
     }
 }
@@ -137,6 +140,11 @@ impl<'t> QuickSlotActivity<'t> {
                 }
                 Some(item) if *player.alive() != 0 && super::technical::oxygen_rush_on(player, item) => {
                     Observed::Boosted
+                }
+                _ if *player.alive() != 0 => {
+                    super::inventory::Inventory::of_player(player, ctx.thread())
+                        .and_then(|inv| inv.slot_wear(index as u32))
+                        .map_or(Observed::Idle, |(id, wear)| Observed::Artefact { id, wear })
                 }
                 _ => Observed::Idle,
             };

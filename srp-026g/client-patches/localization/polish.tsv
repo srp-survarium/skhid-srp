@@ -2079,7 +2079,7 @@ st_on_spawn_victory_artefact	Artefakt się pojawił
 st_on_spawn_victory_item	Bateria naładowana! Dostarcz ją do bazy!
 st_one_handed	Zapasowa
 st_online_store	Kup złoto
-st_onyx_activation_hint	Onyks aktywowany! Zmniejsza obrażenia i penetrację pocisków trafiających gracza o 75% na %s s.
+st_onyx_activation_hint	Onyks aktywowany! Przez %s s pociski zadają ci mniej obrażeń i mają mniejszą penetrację pancerza.
 st_onyx_pickup_hint	Artefakt Onyks. Zmniejsza obrażenia i penetrację pocisków trafiających gracza o 5%.
 st_open	Otwórz
 st_options_2taa	2xTAA
@@ -2684,7 +2684,7 @@ st_special_offer	Oferta specjalna
 st_speed_booster_description	Napój energetyczny o dużej zawartości kofeiny i tauryny. Orzeźwia i stymuluje pracę ośrodkowego układu nerwowego.
 st_speed_booster_name	Napój energetyczny "Tornado"
 st_spot_action	Zauważono przeciwnika
-st_spring_activation_hint	Sprężyna aktywowana! Szybkość poruszania się i celowania zwiększona o 10%. Przyspieszona regeneracja energii! Pociski cię nie spowalniają!
+st_spring_activation_hint	Sprężyna aktywowana! Szybciej się poruszasz, celujesz i odzyskujesz energię. Pociski słabiej cię spowalniają.
 st_spring_pickup_hint	Artefakt Sprężyna. Zwiększa szybkość poruszania się i celowania o 5%.
 st_sprint_action	Sprint (przytrzymaj)
 st_sprint_toggle_action	Sprint
@@ -3015,6 +3015,7 @@ st_srp_hit_markers_kill	Tylko zabójstwa
 st_srp_hud_add_friend	Dodaj do znajomych
 st_srp_hud_artefact_hunt_carrying	Niesiesz artefakt
 st_srp_hud_artefact_hunt_sudden_death	Nagła śmierć
+st_srp_hud_artefact_wear	Artefakt osłabł. Moc efektu pasywnego i kolejnej aktywacji wynosi %1$s.
 st_srp_hud_blackout_intro	Blackout: przynoś baterie do urządzenia swojej drużyny. Interfejs i znaczniki trafień są ukryte dla większej immersji. Przytrzymaj Tab: amunicja, zdrowie, czat; po śmierci — wybór zestawu.
 st_srp_hud_blackout_start	Blackout\nPrzynoś baterie do urządzenia swojej drużyny.\nInterfejs i znaczniki trafień są ukryte. Przytrzymaj Tab, aby sprawdzić amunicję i zdrowie.
 st_srp_hud_freeze_draw	Remis
@@ -3354,7 +3355,7 @@ st_srp_rooms_pin_hint	Wymagane 4 cyfry
 st_srp_rooms_players	Gracze
 st_srp_rooms_playing	Trwa mecz
 st_srp_rooms_pool	Pula
-st_srp_rooms_pool_hint	Głosowanie losuje z nich 3 karty.
+st_srp_rooms_pool_hint	Głosowanie losuje z nich 4 karty.
 st_srp_rooms_private_room	Pokój prywatny: do 20 graczy; ty ustawiasz drużyny i start.
 st_srp_rooms_queue	Kolejka
 st_srp_rooms_queue_room	Kolejka do pokoju

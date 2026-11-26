@@ -503,10 +503,10 @@ Bring it to your own base: 1 point, and the round ends.	Donesite ga u svoju bazu
 The carrier is slower and seen by everyone.	Nositelj je sporiji i svi ga vide.
 Respawn in waves every {0} s.	Oživljavanje u valovima svakih {0} s.
 Time limit {0}: the higher score wins; a tie plays {1} of sudden death without respawns.	Vremensko ograničenje {0}: pobjeđuje veći rezultat; kod neriješenog {1} iznenadne smrti bez oživljavanja.
-Sniper rifles, silenced guns and guns without automatic fire are replaced.	Snajperske puške, oružje s prigušivačem i oružje bez automatske paljbe zamjenjuju se.
-Rooms up to level {0}: {1}.	Sobe do razine {0}: {1}.
-Other rooms: {0}.	Ostale sobe: {0}.
-Sight: {0}.	Nišan: {0}.
+Everyone fights with an assault rifle: sniper rifles, silenced guns and guns without automatic fire are swapped for an {0} (rooms up to level {1}) or an {2} (higher rooms).	Svi se bore jurišnim puškama: snajperske puške, oružje s prigušivačem i oružje bez automatske paljbe zamjenjuju se s {0} (sobe do razine {1}) ili {2} (više sobe).
+Each comes with an {0}.	Svaka ima {0}.
+a revolver	revolver
+a lever-action rifle	puška s polužnim zatvaračem
 Every kit: {0} only.	Svaki komplet: samo {0}.
 Every kit: {0} and {1}.	Svaki komplet: {0} i {1}.
 Everyone plays the same {0} random kits.	Svi igraju iste {0} nasumične komplete.
@@ -516,7 +516,7 @@ Each kit a gun of another class, with random bonuses and attachments.	U svakom k
 {0} % of deals: pistols only.	{0} % dijeljenja: samo pištolji.
 Plain FFA: {0} % of FFA cards.	Obični FFA: {0} % FFA karata.
 {0} % of FFA cards.	{0} % FFA karata.
-FFA: Roulette	FFA: Rulet
+FFA: Roulette	Svatko za sebe: Rulet
 
 # The wiki's weapons and simulators (pages built at a release: scripts/site-texts)
 Search weapons	Traži oružje
@@ -966,3 +966,37 @@ deadly	smrtonosno
 {n} % a second	{n} % u sekundi
 Damage is a share of each body part's health, before armour.	Šteta je udio zdravlja svakog dijela tijela, prije oklopa.
 It gives no artefacts.	Ne daje artefakte.
+
+# The stats' Maps and Modes boards.
+Last 7 days	Zadnjih 7 dana
+Last 24 hours	Zadnja 24 sata
+Avg length	Prosj. trajanje
+Sides	Strane
+No result	Bez rezultata
+Share	Udio
+Trend	Kretanje
+by hour	po satima
+by day	po danima
+by week	po tjednima
+Most played maps and modes	Najigranije karte i načini
+
+# The modes and weathers as the game names them (client-patches/localization: the stats' Maps and Modes boards, the match lists).
+Protective device	Zaštitni uređaj
+Protective device: chargers	Zaštitni uređaj: punjači
+Team Deathmatch	Ekipna borba
+Research	Istraživanje
+Protective device: blackout	Zaštitni uređaj: zamračenje
+Free for all	Svatko za sebe
+Freeze Tag	Zamrzavanje
+Artifact Hunt	Lov na artefakt
+FFA: Racket	Svatko za sebe: Reket
+FFA: Saloon	Svatko za sebe: Saloon
+FFA: Saloon (Winchester)	Svatko za sebe: Saloon (Winchester)
+Mode {0}	Način {0}
+day	dan	weather
+rain	kiša	weather
+evening	večer	weather
+night	noć	weather
+before rain	prije kiše	weather
+Weathers	Vrijeme
+Variants	Varijante
