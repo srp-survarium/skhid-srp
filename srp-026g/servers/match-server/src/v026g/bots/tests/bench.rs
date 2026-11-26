@@ -654,15 +654,14 @@ pub(crate) fn timed_poll(bots: &mut Bots, clock: Clock, times: &mut Times) -> (V
     let mut commanders: Vec<(u8, f32, [u64; super::bench_work::KINDS])> = Vec::new();
     super::route_twins::phase(clock.playing, now);
     if bots.tactics.is_some() {
-        for team in 0..2u8 {
-            if bots.commander_due(team, &clock, &view) {
-                let (a, before) = (Instant::now(), super::bench_work::totals());
-                super::bench_work::set(super::bench_work::Who::Team(team));
-                bots.commander(team, &view, &mut notes);
-                super::bench_work::set(super::bench_work::Who::Shared);
-                if spike.is_some() {
-                    commanders.push((team, a.elapsed().as_secs_f32() * 1e6, work_since(&before)));
-                }
+        // The poll's own choice of rounds (`Bots::commanders_this_poll`, A2's budget with it).
+        for team in bots.commanders_this_poll(&clock, &view) {
+            let (a, before) = (Instant::now(), super::bench_work::totals());
+            super::bench_work::set(super::bench_work::Who::Team(team));
+            bots.commander(team, &view, &mut notes);
+            super::bench_work::set(super::bench_work::Who::Shared);
+            if spike.is_some() {
+                commanders.push((team, a.elapsed().as_secs_f32() * 1e6, work_since(&before)));
             }
         }
     }

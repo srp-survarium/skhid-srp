@@ -304,6 +304,11 @@ pub struct React {
 }
 
 impl React {
+    /// [A2] Whether a trap it noticed (that stands, and is not its target) is where `near` says.
+    pub fn noticed_near(&self, near: impl Fn(Vec3) -> bool) -> bool {
+        self.private.iter().any(|&(_, at)| near(at))
+    }
+
     pub fn counts(&self) -> ReactCounts {
         self.counts
     }

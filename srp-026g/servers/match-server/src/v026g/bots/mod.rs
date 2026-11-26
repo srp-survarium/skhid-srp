@@ -71,6 +71,7 @@ pub mod jump_carry;
 pub mod jump_test;
 pub mod key_sources;
 pub mod landmarks;
+pub(crate) mod poll_budget;
 pub mod kin;
 pub mod know;
 pub mod lane_ahead;
@@ -1187,6 +1188,8 @@ pub struct Bots {
     opened: [bool; 2],
     /// The commander's pass in progress is the start countdown's (for its notes).
     opening_pass: bool,
+    /// [A2] The team asked first when both commanders' rounds are due in one poll: the one that waited last.
+    round_first: u8,
     /// The real-map bench's stand-in camper (`SRP_BENCH_CAMPER`, `campers.md` K1 §4, `tests/camper_move.rs`): one bot holds a
     /// spot (or works an area), and plays by a tuning of its own.
     #[cfg(test)]
@@ -1316,6 +1319,7 @@ impl Bots {
             bench_enemy_lanes: tests::EnemyLanes::Off,
             opened: [false; 2],
             opening_pass: false,
+            round_first: 0,
             #[cfg(test)]
             bench_camper: None,
             #[cfg(test)]
@@ -2720,6 +2724,8 @@ impl Bots {
             nav_log::PREFIX,
             drive::lip_repeats::take()
         ));
+        // [A2] The per-poll budget's choices: rounds moved a poll, searches held a poll, and the rules that kept the rest.
+        lines.push(format!("{}{}", nav_log::PREFIX, poll_budget::take_line()));
         // [R3] The route searches' floors expanded (their landmark bounds cut them).
         lines.push(format!("{}{}", nav_log::PREFIX, path::expanded_counts::take_line()));
         // [route reuse] The searches the rest of a bot's kept way answered, and why the others were searched.
@@ -3328,14 +3334,12 @@ impl Bots {
             .tracker
             .view(&clock, &self.tunings.match_wide().kin, world.as_deref());
         if self.tactics.is_some() {
-            for team in 0..2u8 {
-                if self.commander_due(team, &clock, &view) {
-                    #[cfg(test)]
-                    bench_work::set(bench_work::Who::Team(team));
-                    self.commander(team, &view, &mut notes);
-                    #[cfg(test)]
-                    bench_work::set(bench_work::Who::Shared);
-                }
+            for team in self.commanders_this_poll(&clock, &view) {
+                #[cfg(test)]
+                bench_work::set(bench_work::Who::Team(team));
+                self.commander(team, &view, &mut notes);
+                #[cfg(test)]
+                bench_work::set(bench_work::Who::Shared);
             }
         }
         let mut rays = RayBudget::new(self.tunings.match_wide().think.rays_per_poll);
@@ -3428,6 +3432,104 @@ impl Bots {
         }
         #[cfg(test)]
         self.features.searching.count_idle();
+    }
+
+    /// [A2] The teams whose commander round runs in this poll, in order, and the bots whose new search waits a poll:
+    /// - Each team's round is due as before ([`Self::commander_due`]).
+    /// - Once play has begun, a second round due in the same poll waits for the next one, unless a bot of its team is under
+    ///   a full-rate rule ([`Self::full_rate`]); the team that waited goes first at the next meeting.
+    /// - In a poll that runs a round, a bot under none of the rules starts no new search (it keeps its route, and searches
+    ///   at the next poll). Bots under a rule search as before.
+    ///
+    /// Only how much is computed in one poll moves (the work goes to the next poll), never what a bot knows; the rules read
+    /// true positions only to keep the full rate. Every decision is counted ([`poll_budget`], the match-end line).
+    pub(super) fn commanders_this_poll(&mut self, clock: &Clock, view: &MatchView) -> Vec<u8> {
+        let mut run = Vec::new();
+        let first = self.round_first;
+        for team in [first, first ^ 1] {
+            if !self.commander_due(team, clock, view) {
+                continue;
+            }
+            if clock.playing && !run.is_empty() {
+                match self.team_full_rate(team, view) {
+                    None => {
+                        poll_budget::count(poll_budget::ROUND_MOVED);
+                        self.round_first = team;
+                        continue;
+                    }
+                    Some(why) => poll_budget::count_round_kept(why),
+                }
+            }
+            run.push(team);
+        }
+        let held = if clock.playing && !run.is_empty() {
+            (0..self.bots.len())
+                .map(|place| {
+                    self.bots[place].is_some() && {
+                        let why = self.full_rate(place, view);
+                        poll_budget::count_bot(why);
+                        why.is_none()
+                    }
+                })
+                .collect()
+        } else {
+            Vec::new()
+        };
+        self.features.searching.hold(held);
+        run
+    }
+
+    /// [A2] The first full-rate rule a bot of `team` is under ([`Self::full_rate`]), if any.
+    fn team_full_rate(&self, team: u8, view: &MatchView) -> Option<poll_budget::FullRate> {
+        (0..self.bots.len())
+            .filter(|&place| self.bots[place].as_ref().is_some_and(|bot| bot.team == team))
+            .find_map(|place| self.full_rate(place, view))
+    }
+
+    /// [A2] The first rule that keeps a bot's work at the full rate this poll, if any (`poll_budget::FullRate`):
+    /// 1. hit lately: an enemy's bullet within `breach::IN_FIGHT_MS`, at any range;
+    /// 2. in a fight: a reflex target, or it fired within `breach::IN_FIGHT_MS`;
+    /// 3. mates engaged: the team's fights, approaches or holds (`TeamKnowledge::fighting`, `approaching`, `holding`);
+    /// 4. an enemy known: seen now or tracked (`Memory::all_seen`, `Memory::tracks`);
+    /// 5. a player near: a living enemy or a human within its sight range (`sense.sight_m`), by true positions;
+    /// 6. a fight near: a team death spot or a "shot from there" callout within its sight range;
+    /// 7. threats near: a held line, a camper's held place, a held lane, a trap (the team's or one it saw) within its sight
+    ///    range.
+    ///
+    /// A dead bot, or one not in the view, is under none (it searches nothing).
+    pub(super) fn full_rate(&self, place: usize, view: &MatchView) -> Option<poll_budget::FullRate> {
+        use poll_budget::FullRate;
+        let bot = self.bots.get(place)?.as_ref()?;
+        let now = view.clock;
+        let lately = |at: Option<u32>| at.is_some_and(|at| now < at.saturating_add(breach::IN_FIGHT_MS));
+        if lately(bot.fight_hit_ms) {
+            return Some(FullRate::Hit);
+        }
+        if bot.reflex.target().is_some() || lately(bot.fired_at) {
+            return Some(FullRate::Fight);
+        }
+        let knowledge = &self.teams[usize::from(bot.team & 1)].knowledge;
+        if !knowledge.fighting.is_empty() || !knowledge.approaching.is_empty() || !knowledge.holding.is_empty() {
+            return Some(FullRate::MatesEngaged);
+        }
+        if !bot.memory.tracks().is_empty() || !bot.memory.all_seen(now, view.clock).is_empty() {
+            return Some(FullRate::Known);
+        }
+        let me = view.place(bot.place).filter(|me| me.alive)?;
+        let sight = self.tuning_of(bot.team).sense.sight_m;
+        let near = |at: Vec3| me.feet.distance_xz(at) <= sight;
+        if view.places.iter().any(|p| p.alive && p.place != bot.place && (p.team != bot.team || !p.bot) && near(p.feet)) {
+            return Some(FullRate::PlayerNear);
+        }
+        if knowledge.danger.iter().any(|d| near(d.at)) || knowledge.shots_from.iter().any(|s| near(s.at)) {
+            return Some(FullRate::FightNear);
+        }
+        let threats = knowledge.threat.held.iter().any(|h| near(h.at))
+            || knowledge.camper_traps.iter().any(|c| near(c.held))
+            || bot.lanes.iter().chain(bot.camp_lanes.iter()).any(|l| near(l.at))
+            || knowledge.traps.standing().any(|t| near(t.at))
+            || bot.features.traps.react.noticed_near(near);
+        threats.then_some(FullRate::ThreatNear)
     }
 
     /// Whether `team`'s commander runs in this poll: when its time has come and play has begun; and, with `roam.fresh_claims` on, once

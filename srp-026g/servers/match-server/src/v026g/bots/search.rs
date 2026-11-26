@@ -49,6 +49,9 @@ pub(super) const SEARCHES_PER_POLL: u32 = 2;
 ///   the poll's bots goes on with what both teams left.
 pub(super) struct Searching {
     queue: Queue,
+    /// [A2] By place: its new search waits for the next poll ([`Bots::commanders_this_poll`]: a poll with a commander
+    /// round, a bot under none of the full-rate rules). Set each poll; empty: none waits.
+    held: Vec<bool>,
 }
 
 /// [`Searching`]'s state by [`SearchQueue`].
@@ -167,7 +170,7 @@ pub mod queue {
 
 impl Default for Searching {
     fn default() -> Self {
-        Self { queue: Queue::FirstCome { left: SEARCHES_PER_POLL, floors: 0, pending: None } }
+        Self { queue: Queue::FirstCome { left: SEARCHES_PER_POLL, floors: 0, pending: None }, held: Vec::new() }
     }
 }
 
@@ -404,6 +407,16 @@ impl Searching {
         *self.slot_mut(team) = None;
         #[cfg(test)]
         queue::add(team, queue::DROPPED_MOVED, 1);
+    }
+
+    /// [A2] The places whose new search waits for the next poll (this poll's: [`Bots::commanders_this_poll`]).
+    pub(super) fn hold(&mut self, held: Vec<bool>) {
+        self.held = held;
+    }
+
+    /// [A2] Whether `place`'s new search waits for the next poll.
+    pub(super) fn held(&self, place: usize) -> bool {
+        self.held.get(place).copied().unwrap_or(false)
     }
 
     /// The bench's: a bot of team `team` wanted a search and had none.

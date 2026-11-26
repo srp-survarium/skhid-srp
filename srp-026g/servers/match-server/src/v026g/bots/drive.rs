@@ -1471,6 +1471,11 @@ fn drive_tick_inner(
                 #[cfg(test)]
                 in_flight_counts::held_tick();
                 no_route = path::NoRoute::Searching;
+            } else if replan && !waiting && searching.held(bot.place) {
+                // [A2] A poll with a commander round, and this bot under none of the full-rate rules: its new search waits a
+                // poll (`Bots::commanders_this_poll`); the old route meanwhile.
+                super::poll_budget::count(super::poll_budget::SEARCH_HELD);
+                no_route = path::NoRoute::Starved;
             } else if waiting || (replan && !searching.may_start(bot.team)) {
                 #[cfg(test)]
                 if !waiting {
