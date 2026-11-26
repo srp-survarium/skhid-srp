@@ -132,15 +132,15 @@ light; its reflections' composition was not read).
 
 ## Other maps: dead code
 
-- **The content.** Two quick content builds of revision 72's manifest, one with main's
-  rudnya-069d@7 and three-maps-021-lighting@14, one with this change's map and lighting packs,
-  each mounted over the live patches 12 to 71 (`srp-game-data files`, every file as the game
-  mounts it, 227 446): 31 files differ, the six `projects/v069d_level_01/*/client_project`, the 24
-  new `environment_probe_tier_{weight,damp,light}.ps` programs and `shaders/masks`. The masks'
-  diff is 18 added leaves, the three new families' rows (the stock probe family's six macros
-  each); every existing family's row is the same. A family's key is made from its own row (looked
-  up by its name), so a row added for a new family selects nothing for an existing one, as
-  composition_v044a.ps's row did (patch 178).
+- **The content.** Two quick content builds of revision 74, main's manifest and this stack's (main,
+  the sun colour #2593, the shade #2682 and this change), each a patch over the live patches 12 to
+  73: 41 files differ for players. The six `projects/v069d_level_01/*/client_project` (the sun
+  colour and the probe marks), the 10 tone programs (#2682: one literal), the 24 new
+  `environment_probe_tier_{weight,damp,light}.ps` programs and `shaders/masks`. The masks' diff is 18
+  added leaves, the three new families' rows (the stock probe family's six macros each); none of the
+  766 leaves players have changes. A family's key is made from its own row (looked up by its name),
+  so a row added for a new family selects nothing for an existing one, as composition_v044a.ps's row
+  did (patch 178).
 - **The data.** Every project of both contents (278 with probes) read for a probe radius below 0:
   stock level_07's `indoor(28)` (-0.4, 18 projects) and Rudnya's six projects (62 each); and for
   the scene marker: only Rudnya's six projects carry 33000 to 33999 (33001).
@@ -179,3 +179,7 @@ patch).
 - The global tier stays 0.26g's lerp (0.69d averages its global probes too; not in this patch).
 - The lobby room (marker 33100): its builder places its probes as 0.26g draws them (no negative
   radius), so it draws as before.
+- The exe ships with three-maps-021-lighting@16 in the same release, as patch 178 with its pack:
+  its extra techniques are compiled for every map at load, and without the tier programs the first
+  map load does not end (seen: this exe over revision 73's content stayed idle after "create replay
+  network client"; main's exe ran).
