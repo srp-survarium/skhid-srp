@@ -137,7 +137,7 @@ A:	V:
 If something goes wrong	Jos jokin menee pieleen
 Download the files	Lataa tiedostot
 The download link is coming soon.	Latauslinkki tulee pian.
-Can't download? Run {script}: it downloads the whole game into a Survarium folder beside it.	Lataus ei onnistu? Suorita {script}: se lataa koko pelin viereensä Survarium-kansioon.
+Chrome or your antivirus refuses the download? Try this script: {script}. It downloads the whole game into a Survarium folder beside it.	Chrome tai virustorjunta estää latauksen? Kokeile tätä skriptiä: {script}. Se lataa koko pelin viereensä Survarium-kansioon.
 Get the game	Hanki peli
 The link is coming soon.	Linkki tulee pian.
 Get the original Survarium 0.26g (build 2777) and unpack it.	Hanki alkuperäinen Survarium 0.26g (build 2777) ja pura se.

@@ -105,7 +105,7 @@ corrections from the owner go here.
   Commit the three.
 - The site serves the script at `GET /Skhid-get.bat` and links it on the home page under the
   ZIP's button, when the build has one, for whoever cannot get the ZIP (a browser that refuses
-  the download, an antivirus that removes it): "Can't download? Run Skhid-get.bat: it downloads
+  the download, an antivirus that removes it): "Chrome or your antivirus refuses the download? Try this script: Skhid-get.bat. It downloads
   the whole game into a Survarium folder beside it."
 - Retired: the standalone aria2 downloader of #2162 (2026-11-17, `release/get-game*`), pinned to
   revision 64's torrent and served by Caddy at the same address from its volume

@@ -137,7 +137,7 @@ A:	O:
 If something goes wrong	Ako nešto pođe po zlu
 Download the files	Preuzmi datoteke
 The download link is coming soon.	Poveznica za preuzimanje uskoro stiže.
-Can't download? Run {script}: it downloads the whole game into a Survarium folder beside it.	Ne možete preuzeti? Pokrenite {script}: preuzima cijelu igru u mapu Survarium pokraj sebe.
+Chrome or your antivirus refuses the download? Try this script: {script}. It downloads the whole game into a Survarium folder beside it.	Chrome ili antivirus ne dopušta preuzimanje? Isprobajte ovu skriptu: {script}. Preuzima cijelu igru u mapu Survarium pokraj sebe.
 Get the game	Nabavi igru
 The link is coming soon.	Poveznica uskoro stiže.
 Get the original Survarium 0.26g (build 2777) and unpack it.	Nabavite izvorni Survarium 0.26g (build 2777) i raspakirajte ga.

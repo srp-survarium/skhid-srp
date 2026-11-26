@@ -137,7 +137,7 @@ A:	В:
 If something goes wrong	Якщо щось не так
 Download the files	Завантажити файли
 The download link is coming soon.	Посилання на завантаження скоро з'явиться.
-Can't download? Run {script}: it downloads the whole game into a Survarium folder beside it.	Не завантажується? Запустіть {script}: він сам завантажить усю гру в теку Survarium поруч із собою.
+Chrome or your antivirus refuses the download? Try this script: {script}. It downloads the whole game into a Survarium folder beside it.	Chrome або антивірус не дає завантажити? Спробуйте цей скрипт: {script}. Він сам завантажить усю гру в теку Survarium поруч із собою.
 Get the game	Отримати гру
 The link is coming soon.	Посилання скоро з'явиться.
 Get the original Survarium 0.26g (build 2777) and unpack it.	Отримайте оригінальну Survarium 0.26g (збірка 2777) і розпакуйте її.

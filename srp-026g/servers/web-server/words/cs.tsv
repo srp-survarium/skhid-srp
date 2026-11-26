@@ -137,7 +137,7 @@ A:	Odpověď:
 If something goes wrong	Když se něco pokazí
 Download the files	Stáhnout soubory
 The download link is coming soon.	Odkaz ke stažení bude brzy.
-Can't download? Run {script}: it downloads the whole game into a Survarium folder beside it.	Nejde stahovat? Spusťte {script}: stáhne celou hru do složky Survarium vedle sebe.
+Chrome or your antivirus refuses the download? Try this script: {script}. It downloads the whole game into a Survarium folder beside it.	Chrome nebo antivirus nedovolí stahování? Zkuste tento skript: {script}. Stáhne celou hru do složky Survarium vedle sebe.
 Get the game	Získat hru
 The link is coming soon.	Odkaz bude brzy.
 Get the original Survarium 0.26g (build 2777) and unpack it.	Získejte původní Survarium 0.26g (build 2777) a rozbalte ho.

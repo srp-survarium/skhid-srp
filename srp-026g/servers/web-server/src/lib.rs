@@ -1862,7 +1862,7 @@ fn home(lang: Lang, stats: Stats) -> String {
         format!(
             "<small>{}</small>",
             lang.tf(
-                "Can't download? Run {script}: it downloads the whole game into a Survarium folder beside it.",
+                "Chrome or your antivirus refuses the download? Try this script: {script}. It downloads the whole game into a Survarium folder beside it.",
                 &[("script", &script)]
             )
         )
