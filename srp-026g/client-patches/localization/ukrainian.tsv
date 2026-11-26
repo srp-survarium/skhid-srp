@@ -3354,7 +3354,7 @@ st_srp_rooms_pin_hint	Потрібні 4 цифри
 st_srp_rooms_players	Гравці
 st_srp_rooms_playing	Триває матч
 st_srp_rooms_pool	Пул
-st_srp_rooms_pool_hint	Голосування бере 3 картки з них.
+st_srp_rooms_pool_hint	Голосування бере 4 картки з них.
 st_srp_rooms_private_room	Приватна кімната: до 20 гравців; команди й старт за вами.
 st_srp_rooms_queue	Черга
 st_srp_rooms_queue_room	Черга в кімнату

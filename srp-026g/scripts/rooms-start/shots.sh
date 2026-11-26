@@ -51,7 +51,7 @@ cases=(
     "owner-10-playing 10 1 0101010101 2"
     "owner-10-squads 10 1 0011001100 0 1122003300"
     # Artifact Hunt (artefact_hunt.md): its vote card (the second, map 63) and the create window.
-    "vote-artefact-hunt 5 0 01010 3 - S1;M;3;0|0;61;5;5;2;0|1;63;12;3;13;0|2;117;1;1;4;0"
+    "vote-artefact-hunt 5 0 01010 3 - S1;M;4;0|0;61;5;5;2;0|1;63;12;3;13;0|2;117;1;1;4;0|3;65;1;2;2;0"
     "create-artefact-hunt 1 0 0 0 - S1;M;7;0|0;61;5;5;2;0|1;62;13;5;3;1|2;63;12;3;6;0|3;117;1;1;4;0|4;184;8;1;5;0|5;12;7;1;8;0|6;300;1;1;13;0 create"
 )
 for size in "${sizes[@]}"; do

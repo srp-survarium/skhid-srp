@@ -7,7 +7,7 @@ use session::v026g::rooms::Stage;
 use survarium::v026g::maps::MapId;
 use session::v026g::{matchmaking, quests};
 use survarium::v026g::lobby::rooms::{
-    ROOM_FORM, ROOM_FRIENDS, ROOM_JOIN_BASE, ROOM_JOIN_MATCH, ROOM_LEAVE, ROOM_MEMBERS_BASE,
+    CARDS, ROOM_FORM, ROOM_FRIENDS, ROOM_JOIN_BASE, ROOM_JOIN_MATCH, ROOM_LEAVE, ROOM_MEMBERS_BASE,
     ROOM_PIN_BASE, ROOM_PLAY, ROOM_POOL_BASE, ROOM_QUEUE_BASE, ROOM_START, ROOM_STATE,
     ROOM_UNQUEUE, ROOM_VOTE_BASE, ROOMS_LIST, RoomSpec, bits_start, create_start, kick_start,
     move_start,
@@ -162,9 +162,9 @@ fn a_room_counts_down_from_two_and_plays_the_card_voted_for() {
         )
     );
     // The vote is there from the start, alone too.
-    assert_eq!(cards(&alone).len(), 3);
+    assert_eq!(cards(&alone).len(), CARDS);
     // Equipment level 0, the owner, the asker, not in a match.
-    assert_eq!(alone[4], "P;0;0;1;1;0;0;0;Alice");
+    assert_eq!(alone[1 + CARDS], "P;0;0;1;1;0;0;0;Alice");
     assert_eq!(alone.last().unwrap(), "L;0");
     // Nothing runs alone.
     world.advance(Duration::from_secs(5));
@@ -184,7 +184,7 @@ fn a_room_counts_down_from_two_and_plays_the_card_voted_for() {
     assert_eq!(header(&counting)[PHASE], "3", "the vote");
     assert_eq!(header(&counting)[NEXT], "0");
     let voted_cards = cards(&counting);
-    assert_eq!(voted_cards.len(), 3);
+    assert_eq!(voted_cards.len(), CARDS);
     // Alice changes her mind: one vote, the last.
     rows(&mut world, alice, ROOM_VOTE_BASE + 2, 1);
     rows(&mut world, alice, ROOM_VOTE_BASE + 1, 1);
@@ -246,7 +246,7 @@ fn a_room_counts_down_from_two_and_plays_the_card_voted_for() {
     let playing = state(&mut world, alice);
     assert_eq!(header(&playing)[PHASE], "2");
     // The vote for the next match is there while this one is played.
-    assert_eq!(cards(&playing).len(), 3);
+    assert_eq!(cards(&playing).len(), CARDS);
     assert!(
         playing
             .iter()
@@ -260,7 +260,7 @@ fn a_room_counts_down_from_two_and_plays_the_card_voted_for() {
     assert_eq!(header(&after)[PHASE], "3", "the next vote: {after:?}");
     // Its map and the mode it played.
     assert!(after.last().unwrap().starts_with(&format!("L;{};", voted_cards[2])), "{after:?}");
-    assert_eq!(cards(&after).len(), 3);
+    assert_eq!(cards(&after).len(), CARDS);
 }
 
 /// Play makes a room for the first, and the second goes into it; both are

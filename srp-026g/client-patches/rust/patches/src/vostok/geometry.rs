@@ -56,6 +56,8 @@ impl Distance {
     pub fn parse(value: f32) -> Option<Self> {
         (value.is_finite() && value >= 0.0).then_some(Self(value))
     }
+    /// Both lengths end to end.
+    pub fn plus(self, other: Self) -> Option<Self> { Self::parse(self.0 + other.0) }
 }
 
 /// Already clipped at the nearest native hit. All consumers see the same
@@ -82,6 +84,14 @@ impl BulletSegment {
         Some(Self { origin, direction, length: Distance(length.0.min(stop.0)) })
     }
     pub fn direction(self) -> RayDirection { self.direction }
+    /// Whether the segment passes within `radius` of `point` (the engine's
+    /// direction is a unit one).
+    pub fn passes_within(self, point: WorldPoint, radius: Distance) -> bool {
+        let mut along = 0.0;
+        for k in 0..3 { along += (point.0[k] - self.origin.0[k]) * self.direction.0[k]; }
+        let t = along.clamp(0.0, self.length.0);
+        WorldPoint(core::array::from_fn(|k| self.origin.0[k] + self.direction.0[k] * t)).within(point, radius)
+    }
 }
 
 /// A fixture's glass in world space, where its break plays: a segment along

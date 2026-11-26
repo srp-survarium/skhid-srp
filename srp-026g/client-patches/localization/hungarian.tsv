@@ -3354,7 +3354,7 @@ st_srp_rooms_pin_hint	4 számjegy szükséges
 st_srp_rooms_players	Játékosok
 st_srp_rooms_playing	Meccs folyamatban
 st_srp_rooms_pool	Pályakészlet
-st_srp_rooms_pool_hint	Ezek közül 3 kerül szavazásra.
+st_srp_rooms_pool_hint	Ezek közül 4 kerül szavazásra.
 st_srp_rooms_private_room	Privát szoba: max. 20 játékos; te osztod a csapatokat és indítasz.
 st_srp_rooms_queue	Sor
 st_srp_rooms_queue_room	Sorba állás

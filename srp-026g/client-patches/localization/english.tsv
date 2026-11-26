@@ -3354,7 +3354,7 @@ st_srp_rooms_pin_hint	4 digits required
 st_srp_rooms_players	Players
 st_srp_rooms_playing	Match in progress
 st_srp_rooms_pool	Pool
-st_srp_rooms_pool_hint	The vote draws 3 cards from these.
+st_srp_rooms_pool_hint	The vote draws 4 cards from these.
 st_srp_rooms_private_room	Private room: up to 20 players; you set the teams and start.
 st_srp_rooms_queue	Queue
 st_srp_rooms_queue_room	Queue for room
