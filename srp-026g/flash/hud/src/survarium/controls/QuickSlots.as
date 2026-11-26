@@ -30,7 +30,8 @@ package survarium.controls
       // Phases: 0 none, 1 waiting (the use time), 2 active, 3 stopped by a
       // bullet (patch 84; the hook sends it for a second of game time), 4 an
       // oxygen tank whose Oxygen Rush runs (patch 180: its native countdown
-      // in Spring's blue, the rest of the slot as the game gives it).
+      // in a light blue with a blue glow (Colors.SPEED_BOOST), the rest of the
+      // slot as the game gives it).
       public static const ACTIVITY_INTERRUPTED:uint = 3;
       public static const ACTIVITY_BOOSTED:uint = 4;
       public static const ACTIVITY_WEAR:uint = 5;
