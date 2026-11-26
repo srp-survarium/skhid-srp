@@ -27,6 +27,19 @@ enum Binding {
     Loose { piece: usize },
 }
 
+/// What is left of a fixture's collision once it broke, and so whether a
+/// mark of the break material in its bounds is drawn.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Leftover {
+    /// The glass's collision stays where the glass was (every lamp): a mark
+    /// there would hang in the air, intact or broken.
+    Glass,
+    /// The figure's own collision, which the broken model still covers (a
+    /// skeleton's head without its cap): marked once broken, never while the
+    /// piece that flies off is on it.
+    Body,
+}
+
 /// A fixture's loose piece: the visual seated at `seat` (its placement in
 /// the map) while the fixture is intact.
 #[derive(Clone, Copy)]
@@ -43,6 +56,7 @@ struct Lamps {
     /// The material whose pair with the glass plays a break, whatever broke
     /// it: bullet x glass, the game's own glass shards and sound.
     effect: MaterialId,
+    leftover: Leftover,
 }
 impl Presentation<Binding> for Lamps {
     fn visibility(&self, binding: Binding) -> Visibility {
@@ -59,10 +73,20 @@ impl Presentation<Binding> for Lamps {
 }
 /// The level's rays a frame for the pieces (two an end of a moving one).
 const PIECE_RAYS: u32 = 32;
+/// How near a shot or a blast's reach must come to a piece's centre to
+/// knock it on: about a cap's (ragdoll's headwear capsule, 10 cm about a
+/// 8 cm spine) half length.
+fn piece_reach() -> Distance { Distance::parse(0.14).expect("a finite, non-negative distance") }
+fn piece_point(pose: Pose) -> Option<WorldPoint> {
+    WorldPoint::parse([pose.position.x, pose.position.y, pose.position.z])
+}
 impl Lamps {
     fn piece(&self, index: usize) -> &Piece { self.pieces.get(index).expect("a bound piece") }
     fn shoot(&mut self, segment: BulletSegment, shatter: impl FnMut(GlassLine, RayDirection)) {
         self.hit(|bounds| bounds.intersects(segment), |_| segment.direction(), shatter);
+        // A piece off its seat has no collision: the ray passes it by (to
+        // what it hits behind), and knocks it on where it passes near.
+        self.kick(|point| segment.passes_within(point, piece_reach()).then(|| segment.direction()));
     }
     /// A blast breaks every fixture whose bounds come within its splash
     /// radius of the centre, where the game's splash reaches them (as it
@@ -73,6 +97,18 @@ impl Lamps {
             let nearest = bounds.nearest(centre);
             centre.within(nearest, radius) && reaches(nearest)
         }, |glass| RayDirection::between(centre, glass.middle()).unwrap_or_else(down), shatter);
+        let Some(reach) = radius.plus(piece_reach()) else { return };
+        self.kick(|point| (centre.within(point, reach) && reaches(point))
+            .then(|| RayDirection::between(centre, point).unwrap_or_else(down)));
+    }
+    /// Each piece off its seat that `push` reaches (at its centre) goes on
+    /// along the push.
+    fn kick(&mut self, push: impl Fn(WorldPoint) -> Option<RayDirection>) {
+        for piece in self.pieces.iter_mut() {
+            if let Some(direction) = piece.flight.pose().and_then(piece_point).and_then(&push) {
+                piece.flight = piece.flight.kick(direction);
+            }
+        }
     }
     /// The one transition of every break, a bullet's or a blast's: a first
     /// hit of an intact fixture shatters it, once, and knocks its loose
@@ -103,9 +139,18 @@ impl Lamps {
     /// air, or on the broken model behind it, once the glass is gone. A shot
     /// at a fixture's glass breaks it, so none is drawn there, intact or
     /// broken: the rule needs no lamp state, and rollback, resimulation and
-    /// late joins (which carry no decals) agree with it.
+    /// late joins (which carry no decals) agree with it. A figure's (Leftover::
+    /// Body) is its piece's while intact and its own once broken: marked then.
     fn marks_glass(&self, surface: MaterialId, point: WorldPoint) -> bool {
-        surface == self.material && self.fixtures.iter().any(|fixture| fixture.bounds.holds(point, mark_tolerance()))
+        surface == self.material && self.fixtures.iter().enumerate().any(|(i, fixture)| {
+            fixture.bounds.holds(point, mark_tolerance()) && match self.leftover {
+                Leftover::Glass => true,
+                Leftover::Body => {
+                    let lamp = self.state.count().id(i).expect("fixtures and history have the same authored count");
+                    self.state.condition(lamp) == Condition::Intact
+                }
+            }
+        })
     }
 }
 /// A blast at a fixture's glass throws its shards down.
@@ -125,10 +170,11 @@ fn mark_tolerance() -> Distance { Distance::parse(0.01).expect("a finite, non-ne
 static PROJECT: ProjectRegistry<Lamps, Binding> = ProjectRegistry::new();
 
 #[derive(Debug)]
-enum MetadataError { Binding(BindingError), Config(ConfigError), Version, Material, Count, Bounds, Condition, Share, Seat }
+enum MetadataError { Binding(BindingError), Config(ConfigError), Version, Material, Count, Bounds, Condition, Share, Seat,
+                     Leftover }
 /// The metadata's format: 3 adds effect_material and each fixture's glass
-/// line. A row's optional tables (ambient_lights, particles, probes, loose)
-/// need none: a client without them leaves them out.
+/// line. Optional keys (the table's leftover, a row's ambient_lights,
+/// particles, probes, loose) need none: a client without them leaves them out.
 const VERSION: u32 = 3;
 impl MetadataError {
     /// The objects the metadata names are not this map's (a wrong index, a
@@ -174,6 +220,14 @@ fn prepare(project: ProjectView<'_>) -> Result<Option<ProjectPlan<'_, Lamps, Bin
     if spec.required(c"version")?.integer()? != VERSION { return Err(MetadataError::Version); }
     let material = MaterialId::parse(spec.required(c"break_material")?.integer()?).ok_or(MetadataError::Material)?;
     let effect = MaterialId::parse(spec.required(c"effect_material")?.integer()?).ok_or(MetadataError::Material)?;
+    let leftover = match spec.get(c"leftover")? {
+        None => Leftover::Glass,
+        Some(value) => match value.text()?.to_bytes() {
+            b"glass" => Leftover::Glass,
+            b"body" => Leftover::Body,
+            _ => return Err(MetadataError::Leftover),
+        },
+    };
     let rows = spec.required(c"lamps")?.entries()?;
     let count = LampCount::parse(rows.len() as u32).ok_or(MetadataError::Count)?;
     let methods = MethodTables::new(vostok::lamps_visual_vtable_handle(), vostok::lamps_light_vtable_handle(),
@@ -240,7 +294,7 @@ fn prepare(project: ProjectView<'_>) -> Result<Option<ProjectPlan<'_, Lamps, Bin
         }
     }
     Ok(Some(plan.with_data(Lamps { fixtures, pieces, clock: FrameClock::UNSTARTED, state: Snapshot::intact(count), material,
-                                   effect })))
+                                   effect, leftover })))
 }
 
 pub fn on_bind(ctx: &mut Context<'_>) -> Flow<NoExit> {

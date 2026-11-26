@@ -3,8 +3,8 @@
 
 The owner (2026-11-26, Rudnya's skeleton at 11.9, 18.7, 38.6: "shooting
 this helmet should make it fly off", "similar to caps flying off dead ppl").
-Each Rudnya project (level_01, and v021d_level_01, the v0.21 port) gets, after
-its remains/skeleton_sitting1:
+Each Rudnya project (level_01, v021d_level_01 and v069d_level_01, the v0.21
+and v0.69 ports) gets, after its remains/skeleton_sitting1:
 
 - the skeleton without its cap (pack skeleton-cap@1's bare model), placed as
   it;
@@ -13,10 +13,14 @@ its remains/skeleton_sitting1:
 - a lamp table (the client's patch 81, docs/notes/breakable_lamps.md) of one
   fixture: the cap's bounds; the skeleton drawn while intact, the bare one
   while broken; the cap its loose piece, which flies off as a corpse's
-  headwear is shot off. Its break plays bullet x stone (the skeleton's
-  collision, whose decals inside the cap's bounds are not drawn) at the cap.
+  headwear is shot off, and which a later shot or blast knocks on. Its
+  break plays bullet x stone (the skeleton's collision) at the cap; its
+  leftover is 'body': no stone mark inside the cap's bounds while the cap
+  is on (it would hang in the air once the cap flies), the skull's once it
+  is off (its collision box is the skull's).
 
-Rudnya has no other lamp table. --projects holds
+Rudnya has no other lamp table; v069d_level_01 has a second sitting skeleton
+(at 38.6, 22.2, -32.1), its own fixture. --projects holds
 `projects/<level>/<project>/client_project` as the manifest leaves them
 before this list; --stock the skeleton's files (make_pack.py's). The
 indices are those of the final render_visuals: build-content's lamp check
@@ -41,7 +45,7 @@ def load(name, path):
 lamps = load('lamp_edits', 'breakable-lamps/make_edits.py')
 pack = load('cap_pack', 'skeleton-cap/make_pack.py')
 
-LEVELS = ('level_01', 'v021d_level_01')
+LEVELS = ('level_01', 'v021d_level_01', 'v069d_level_01')
 # The skeleton's collision (game_material_settings: stone) and the bullet.
 STONE, BULLET = 21, 7
 
@@ -54,31 +58,37 @@ def cap_bounds(stock):
 
 
 def edits_of(path, data, centre, bounds):
-    """One project's add_entry rows and its lamp table."""
+    """One project's add_entry rows and its lamp table: a fixture `cap<k>`
+    for each sitting skeleton, in the order of render_visuals."""
     root = lamps.tree(data)
     if 'srp_lamps' in root:
         raise ValueError(f'{path}: a lamp table already')
     visuals = root.get('render_visuals', [])
-    found = [(i, v) for i, v in enumerate(visuals) if v.get('visual_name') in lamps.FIGURES]
-    if len(found) != 1:
-        raise ValueError(f'{path}: {len(found)} sitting skeletons')
-    index, skeleton = found[0]
-    bare, cap = lamps.FIGURES[skeleton['visual_name']]
-    at = lamps.world_bounds(skeleton, centre, centre)[0]
-    where = {k: skeleton[k] for k in ('visual_name', 'position', 'rotation', 'scale')}
-    entries = [
-        {'files': path, 'list': 'render_visuals', 'after': where, 'like': where,
-         'values': {'visual_name': bare, 'lib_name': bare}},
-        {'files': path, 'list': 'render_visuals', 'after': dict(where, visual_name=bare), 'like': where,
-         'values': {'visual_name': cap, 'lib_name': cap, 'position': at}},
-    ]
-    placed = dict(skeleton, position=at)
-    lo, hi = lamps.world_bounds(placed, *bounds)
-    row = dict(zip(('min_x', 'min_y', 'min_z', 'max_x', 'max_y', 'max_z'), lo + hi))
-    row |= dict(zip(('glass_from_x', 'glass_from_y', 'glass_from_z', 'glass_to_x', 'glass_to_y', 'glass_to_z'), at + at))
-    row |= {'visuals': {'intact0': {'index': index, 'state': 0}, 'broken0': {'index': index + 1, 'state': 1}},
-            'lights': {}, 'loose': {'cap0': {'index': index + 2}}}
-    table = {'version': 3, 'break_material': STONE, 'effect_material': BULLET, 'lamps': {'cap0': row}}
+    found = [(i, v) for i, v in enumerate(visuals) if lamps.model_name(v) in lamps.FIGURES]
+    if not found:
+        raise ValueError(f'{path}: no sitting skeleton')
+    entries, rows = [], {}
+    for k, (index, skeleton) in enumerate(found):
+        index += 2 * k                  # each earlier skeleton's bare model and cap come before it
+        bare, cap = lamps.FIGURES[lamps.model_name(skeleton)]
+        # the names the map's visuals carry (the v0.69 ports' have no visual_name)
+        names = [key for key in ('visual_name', 'lib_name') if key in skeleton]
+        at = lamps.world_bounds(skeleton, centre, centre)[0]
+        where = {key: skeleton[key] for key in names + ['position', 'rotation', 'scale']}
+        entries += [
+            {'files': path, 'list': 'render_visuals', 'after': where, 'like': where,
+             'values': {key: bare for key in names}},
+            {'files': path, 'list': 'render_visuals', 'after': dict(where, **{key: bare for key in names}), 'like': where,
+             'values': {key: cap for key in names} | {'position': at}},
+        ]
+        lo, hi = lamps.world_bounds(dict(skeleton, position=at), *bounds)
+        row = dict(zip(('min_x', 'min_y', 'min_z', 'max_x', 'max_y', 'max_z'), lo + hi))
+        row |= dict(zip(('glass_from_x', 'glass_from_y', 'glass_from_z', 'glass_to_x', 'glass_to_y', 'glass_to_z'),
+                        at + at))
+        row |= {'visuals': {'intact0': {'index': index, 'state': 0}, 'broken0': {'index': index + 1, 'state': 1}},
+                'lights': {}, 'loose': {'cap0': {'index': index + 2}}}
+        rows[f'cap{k}'] = row
+    table = {'version': 3, 'break_material': STONE, 'effect_material': BULLET, 'leftover': 'body', 'lamps': rows}
     return entries, table
 
 
@@ -96,7 +106,7 @@ def main():
             rows, table = edits_of(path, p.read_bytes(), centre, bounds)
             entries += rows
             alike.setdefault(json.dumps(table, sort_keys=True), []).append(path)
-            print(f'{path}: skeleton at {table["lamps"]["cap0"]["visuals"]["intact0"]["index"]}')
+            print(f'{path}: skeletons at', ', '.join(str(r['visuals']['intact0']['index']) for r in table['lamps'].values()))
     edits = {'_about': "Rudnya's sitting skeleton's cap flies off when shot (the owner, 2026-11-26): after the "
              'skeleton its bare model and its cap (pack skeleton-cap@1), and a lamp table of one fixture, the '
              "cap's bounds, whose loose piece is the cap (docs/notes/breakable_lamps.md). Authored by "

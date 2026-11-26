@@ -355,16 +355,32 @@ cap, both placed alike. The piece is a model of its own whose origin is its
 centre, placed as the skeleton but at that centre: its seat. Content:
 `scripts/skeleton-cap` (pack `skeleton-cap@1`: the cap is the part of the
 skeleton's cloth textured from its atlas' top right block, in every LOD;
-edit list `skeleton-cap-1.json`: Rudnya and its v0.21 port, 27 projects; the
-skeleton's collision is stone, so its pair is bullet x stone, and its own
-stone marks inside the cap's bounds are not drawn). `check_built` checks a
+edit list `skeleton-cap-1.json`: Rudnya and its v0.21 and v0.69 ports, 33
+projects, a fixture for each sitting skeleton, two on v0.69's; the skeleton's
+collision is stone, so its pair is bullet x stone). `check_built` checks a
 figure's bare model and its piece (`FIGURES`).
+
+A figure's table says `"leftover": "body"` (a lamp's leaves it out, `"glass"`):
+the collision left after the break is the figure's own, which its broken model
+still covers, not glass hanging in the air. Its break material's marks inside
+a fixture's bounds are skipped only while the fixture is intact (they would
+be on the cap, and stay in the air once it flies) and drawn once it is broken:
+the skull's collision box (17 x 16 x 22 cm) lies almost wholly inside the
+cap's bounds, so a rule without the state left the bare skull unmarked but
+for its face (the owner, 2026-11-26). This rule reads the condition; a mark a
+rollback to intact leaves stays, under the cap, and late joins carry none.
 
 The piece is drawn while its fixture is broken. Its flight is
 `lamps::model::Flight`, one machine per piece: `Seated`, `Struck` (broken by a
 push this client saw: a bullet's ray, or the direction from a blast's centre),
-`Flying` and `Lying`. A break strikes the fixture's pieces under the bullets'
-lock; each frame (`game_world.after_move`, the workers joined) steps them by
+`Kicked` (off its seat, struck again where it was), `Flying` and `Lying`. A
+break strikes the fixture's pieces under the bullets' lock; a later bullet
+whose segment passes within 14 cm of a flying or lying piece's centre, or a
+blast whose splash reaches its centre, kicks it on (the owner, 2026-11-26:
+the cap is "a thing that flies around the map"): it has no collision, so the
+ray goes on to what is behind it, and the next frame launches it from where it
+is as `ragdoll::LoneBody::kicked` (2.5 m/s up and along the push, 8 rad/s of
+tumble: about 2.4 m along the ground); each frame (`game_world.after_move`, the workers joined) steps them by
 the real time (`vostok::clock::FrameClock`) against the level the ragdolls
 use (`ragdoll::GameLevel`, 32 rays a frame), and the condition the history
 holds wins: an intact fixture's piece is seated again (a rollback), a broken

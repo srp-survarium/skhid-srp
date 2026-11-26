@@ -26,5 +26,15 @@
   "models/ported/v021d/character/human/static/remains/skeleton_sitting1.model/render/rag_s/export_properties": "cb7a8ac167a37e0c2b1b89a21d48883dc8a3fb2d458821060944e9e537de2d88",
   "models/ported/v021d/character/human/static/remains/skeleton_sitting1.model/render/skeleton_s/converted_model": "1e2559a4b6fc506b1050d153932fca5b062cece502a062517d7f1e5697cdb14b",
   "models/ported/v021d/character/human/static/remains/skeleton_sitting1.model/render/skeleton_s/export_properties": "9b58ee738e12020a35c7a14f2677136b868148f6168ab71eb3431f016e985c39",
-  "models/ported/v021d/character/human/static/remains/skeleton_sitting1.model/settings": "99cad58e9501a11c935072f1525f5235e21ac89bb98dda1f14e85ca52e8113fb"
+  "models/ported/v021d/character/human/static/remains/skeleton_sitting1.model/settings": "99cad58e9501a11c935072f1525f5235e21ac89bb98dda1f14e85ca52e8113fb",
+  "models/v069d_rudnya/character/human/static/remains/skeleton_sitting1.model/render/export_properties": "3c7f7055ab00e54b0bc4688853bac3bee6024b62a9ee6dec5dfd043fa507e8ce",
+  "models/v069d_rudnya/character/human/static/remains/skeleton_sitting1.model/render/lod2_rag_s/converted_model": "f25a1ee3edccdbd71cef66c79d22b6d531affbf9e455d81cd583a8436280a43a",
+  "models/v069d_rudnya/character/human/static/remains/skeleton_sitting1.model/render/lod2_rag_s/export_properties": "591b43545a0072d2bb6bb7b212c103c348bc860c5b2551c6253e0545a7d40a0c",
+  "models/v069d_rudnya/character/human/static/remains/skeleton_sitting1.model/render/lod2_skeleton_s/converted_model": "44ec75d212f034047c256c973c1029c0ce92b81efc6ae81aafe9b0e97636274c",
+  "models/v069d_rudnya/character/human/static/remains/skeleton_sitting1.model/render/lod2_skeleton_s/export_properties": "dc7ae25135cf17cae6dace19fff0ba6fcd712b8cb07eef22ee00dd559447bb5d",
+  "models/v069d_rudnya/character/human/static/remains/skeleton_sitting1.model/render/rag_s/converted_model": "46b3142f2679001b83a0caa2d5eb75be15036381093eaee67e42d4e779a95ff7",
+  "models/v069d_rudnya/character/human/static/remains/skeleton_sitting1.model/render/rag_s/export_properties": "a6e08de4f1e6ad5cd18fd70d9e1a83746a412de100699ccd8f50e8381dd9d05e",
+  "models/v069d_rudnya/character/human/static/remains/skeleton_sitting1.model/render/skeleton_s/converted_model": "59daabd822fa4c51eab7eb29d2e52577bbce8f64fb72eb97bab007b4e54e2222",
+  "models/v069d_rudnya/character/human/static/remains/skeleton_sitting1.model/render/skeleton_s/export_properties": "9b58ee738e12020a35c7a14f2677136b868148f6168ab71eb3431f016e985c39",
+  "models/v069d_rudnya/character/human/static/remains/skeleton_sitting1.model/settings": "b6768b310aeda7b973020cfd8ffd9e3b5b721798d4ea4538e80015cbed6bde7c"
 }

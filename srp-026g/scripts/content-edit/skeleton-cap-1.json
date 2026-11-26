@@ -6,6 +6,7 @@
       "list": "render_visuals",
       "after": {
         "visual_name": "character/human/static/remains/skeleton_sitting1",
+        "lib_name": "character/human/static/remains/skeleton_sitting1",
         "position": [
           11.932000160217285,
           18.731000900268555,
@@ -24,6 +25,7 @@
       },
       "like": {
         "visual_name": "character/human/static/remains/skeleton_sitting1",
+        "lib_name": "character/human/static/remains/skeleton_sitting1",
         "position": [
           11.932000160217285,
           18.731000900268555,
@@ -50,6 +52,7 @@
       "list": "render_visuals",
       "after": {
         "visual_name": "character/human/static/remains/srp_skeleton_sitting1_bare",
+        "lib_name": "character/human/static/remains/srp_skeleton_sitting1_bare",
         "position": [
           11.932000160217285,
           18.731000900268555,
@@ -68,6 +71,7 @@
       },
       "like": {
         "visual_name": "character/human/static/remains/skeleton_sitting1",
+        "lib_name": "character/human/static/remains/skeleton_sitting1",
         "position": [
           11.932000160217285,
           18.731000900268555,
@@ -99,6 +103,7 @@
       "list": "render_visuals",
       "after": {
         "visual_name": "character/human/static/remains/skeleton_sitting1",
+        "lib_name": "character/human/static/remains/skeleton_sitting1",
         "position": [
           11.932000160217285,
           18.731000900268555,
@@ -117,6 +122,7 @@
       },
       "like": {
         "visual_name": "character/human/static/remains/skeleton_sitting1",
+        "lib_name": "character/human/static/remains/skeleton_sitting1",
         "position": [
           11.932000160217285,
           18.731000900268555,
@@ -143,6 +149,7 @@
       "list": "render_visuals",
       "after": {
         "visual_name": "character/human/static/remains/srp_skeleton_sitting1_bare",
+        "lib_name": "character/human/static/remains/srp_skeleton_sitting1_bare",
         "position": [
           11.932000160217285,
           18.731000900268555,
@@ -161,6 +168,7 @@
       },
       "like": {
         "visual_name": "character/human/static/remains/skeleton_sitting1",
+        "lib_name": "character/human/static/remains/skeleton_sitting1",
         "position": [
           11.932000160217285,
           18.731000900268555,
@@ -192,6 +200,7 @@
       "list": "render_visuals",
       "after": {
         "visual_name": "character/human/static/remains/skeleton_sitting1",
+        "lib_name": "character/human/static/remains/skeleton_sitting1",
         "position": [
           11.932000160217285,
           18.731000900268555,
@@ -210,6 +219,7 @@
       },
       "like": {
         "visual_name": "character/human/static/remains/skeleton_sitting1",
+        "lib_name": "character/human/static/remains/skeleton_sitting1",
         "position": [
           11.932000160217285,
           18.731000900268555,
@@ -236,6 +246,7 @@
       "list": "render_visuals",
       "after": {
         "visual_name": "character/human/static/remains/srp_skeleton_sitting1_bare",
+        "lib_name": "character/human/static/remains/srp_skeleton_sitting1_bare",
         "position": [
           11.932000160217285,
           18.731000900268555,
@@ -254,6 +265,7 @@
       },
       "like": {
         "visual_name": "character/human/static/remains/skeleton_sitting1",
+        "lib_name": "character/human/static/remains/skeleton_sitting1",
         "position": [
           11.932000160217285,
           18.731000900268555,
@@ -285,6 +297,7 @@
       "list": "render_visuals",
       "after": {
         "visual_name": "character/human/static/remains/skeleton_sitting1",
+        "lib_name": "character/human/static/remains/skeleton_sitting1",
         "position": [
           11.932000160217285,
           18.731000900268555,
@@ -303,6 +316,7 @@
       },
       "like": {
         "visual_name": "character/human/static/remains/skeleton_sitting1",
+        "lib_name": "character/human/static/remains/skeleton_sitting1",
         "position": [
           11.932000160217285,
           18.731000900268555,
@@ -329,6 +343,7 @@
       "list": "render_visuals",
       "after": {
         "visual_name": "character/human/static/remains/srp_skeleton_sitting1_bare",
+        "lib_name": "character/human/static/remains/srp_skeleton_sitting1_bare",
         "position": [
           11.932000160217285,
           18.731000900268555,
@@ -347,6 +362,7 @@
       },
       "like": {
         "visual_name": "character/human/static/remains/skeleton_sitting1",
+        "lib_name": "character/human/static/remains/skeleton_sitting1",
         "position": [
           11.932000160217285,
           18.731000900268555,
@@ -378,6 +394,7 @@
       "list": "render_visuals",
       "after": {
         "visual_name": "character/human/static/remains/skeleton_sitting1",
+        "lib_name": "character/human/static/remains/skeleton_sitting1",
         "position": [
           11.932000160217285,
           18.731000900268555,
@@ -396,6 +413,7 @@
       },
       "like": {
         "visual_name": "character/human/static/remains/skeleton_sitting1",
+        "lib_name": "character/human/static/remains/skeleton_sitting1",
         "position": [
           11.932000160217285,
           18.731000900268555,
@@ -422,6 +440,7 @@
       "list": "render_visuals",
       "after": {
         "visual_name": "character/human/static/remains/srp_skeleton_sitting1_bare",
+        "lib_name": "character/human/static/remains/srp_skeleton_sitting1_bare",
         "position": [
           11.932000160217285,
           18.731000900268555,
@@ -440,6 +459,7 @@
       },
       "like": {
         "visual_name": "character/human/static/remains/skeleton_sitting1",
+        "lib_name": "character/human/static/remains/skeleton_sitting1",
         "position": [
           11.932000160217285,
           18.731000900268555,
@@ -471,6 +491,7 @@
       "list": "render_visuals",
       "after": {
         "visual_name": "character/human/static/remains/skeleton_sitting1",
+        "lib_name": "character/human/static/remains/skeleton_sitting1",
         "position": [
           11.932000160217285,
           18.731000900268555,
@@ -489,6 +510,7 @@
       },
       "like": {
         "visual_name": "character/human/static/remains/skeleton_sitting1",
+        "lib_name": "character/human/static/remains/skeleton_sitting1",
         "position": [
           11.932000160217285,
           18.731000900268555,
@@ -515,6 +537,7 @@
       "list": "render_visuals",
       "after": {
         "visual_name": "character/human/static/remains/srp_skeleton_sitting1_bare",
+        "lib_name": "character/human/static/remains/srp_skeleton_sitting1_bare",
         "position": [
           11.932000160217285,
           18.731000900268555,
@@ -533,6 +556,7 @@
       },
       "like": {
         "visual_name": "character/human/static/remains/skeleton_sitting1",
+        "lib_name": "character/human/static/remains/skeleton_sitting1",
         "position": [
           11.932000160217285,
           18.731000900268555,
@@ -564,6 +588,7 @@
       "list": "render_visuals",
       "after": {
         "visual_name": "character/human/static/remains/skeleton_sitting1",
+        "lib_name": "character/human/static/remains/skeleton_sitting1",
         "position": [
           11.932000160217285,
           18.731000900268555,
@@ -582,6 +607,7 @@
       },
       "like": {
         "visual_name": "character/human/static/remains/skeleton_sitting1",
+        "lib_name": "character/human/static/remains/skeleton_sitting1",
         "position": [
           11.932000160217285,
           18.731000900268555,
@@ -608,6 +634,7 @@
       "list": "render_visuals",
       "after": {
         "visual_name": "character/human/static/remains/srp_skeleton_sitting1_bare",
+        "lib_name": "character/human/static/remains/srp_skeleton_sitting1_bare",
         "position": [
           11.932000160217285,
           18.731000900268555,
@@ -626,6 +653,7 @@
       },
       "like": {
         "visual_name": "character/human/static/remains/skeleton_sitting1",
+        "lib_name": "character/human/static/remains/skeleton_sitting1",
         "position": [
           11.932000160217285,
           18.731000900268555,
@@ -657,6 +685,7 @@
       "list": "render_visuals",
       "after": {
         "visual_name": "character/human/static/remains/skeleton_sitting1",
+        "lib_name": "character/human/static/remains/skeleton_sitting1",
         "position": [
           11.932000160217285,
           18.731000900268555,
@@ -675,6 +704,7 @@
       },
       "like": {
         "visual_name": "character/human/static/remains/skeleton_sitting1",
+        "lib_name": "character/human/static/remains/skeleton_sitting1",
         "position": [
           11.932000160217285,
           18.731000900268555,
@@ -701,6 +731,7 @@
       "list": "render_visuals",
       "after": {
         "visual_name": "character/human/static/remains/srp_skeleton_sitting1_bare",
+        "lib_name": "character/human/static/remains/srp_skeleton_sitting1_bare",
         "position": [
           11.932000160217285,
           18.731000900268555,
@@ -719,6 +750,7 @@
       },
       "like": {
         "visual_name": "character/human/static/remains/skeleton_sitting1",
+        "lib_name": "character/human/static/remains/skeleton_sitting1",
         "position": [
           11.932000160217285,
           18.731000900268555,
@@ -750,6 +782,7 @@
       "list": "render_visuals",
       "after": {
         "visual_name": "character/human/static/remains/skeleton_sitting1",
+        "lib_name": "character/human/static/remains/skeleton_sitting1",
         "position": [
           11.932000160217285,
           18.731000900268555,
@@ -768,6 +801,7 @@
       },
       "like": {
         "visual_name": "character/human/static/remains/skeleton_sitting1",
+        "lib_name": "character/human/static/remains/skeleton_sitting1",
         "position": [
           11.932000160217285,
           18.731000900268555,
@@ -794,6 +828,7 @@
       "list": "render_visuals",
       "after": {
         "visual_name": "character/human/static/remains/srp_skeleton_sitting1_bare",
+        "lib_name": "character/human/static/remains/srp_skeleton_sitting1_bare",
         "position": [
           11.932000160217285,
           18.731000900268555,
@@ -812,6 +847,7 @@
       },
       "like": {
         "visual_name": "character/human/static/remains/skeleton_sitting1",
+        "lib_name": "character/human/static/remains/skeleton_sitting1",
         "position": [
           11.932000160217285,
           18.731000900268555,
@@ -843,6 +879,7 @@
       "list": "render_visuals",
       "after": {
         "visual_name": "character/human/static/remains/skeleton_sitting1",
+        "lib_name": "character/human/static/remains/skeleton_sitting1",
         "position": [
           11.932000160217285,
           18.731000900268555,
@@ -861,6 +898,7 @@
       },
       "like": {
         "visual_name": "character/human/static/remains/skeleton_sitting1",
+        "lib_name": "character/human/static/remains/skeleton_sitting1",
         "position": [
           11.932000160217285,
           18.731000900268555,
@@ -887,6 +925,7 @@
       "list": "render_visuals",
       "after": {
         "visual_name": "character/human/static/remains/srp_skeleton_sitting1_bare",
+        "lib_name": "character/human/static/remains/srp_skeleton_sitting1_bare",
         "position": [
           11.932000160217285,
           18.731000900268555,
@@ -905,6 +944,7 @@
       },
       "like": {
         "visual_name": "character/human/static/remains/skeleton_sitting1",
+        "lib_name": "character/human/static/remains/skeleton_sitting1",
         "position": [
           11.932000160217285,
           18.731000900268555,
@@ -936,6 +976,7 @@
       "list": "render_visuals",
       "after": {
         "visual_name": "character/human/static/remains/skeleton_sitting1",
+        "lib_name": "character/human/static/remains/skeleton_sitting1",
         "position": [
           11.932000160217285,
           18.731000900268555,
@@ -954,6 +995,7 @@
       },
       "like": {
         "visual_name": "character/human/static/remains/skeleton_sitting1",
+        "lib_name": "character/human/static/remains/skeleton_sitting1",
         "position": [
           11.932000160217285,
           18.731000900268555,
@@ -980,6 +1022,7 @@
       "list": "render_visuals",
       "after": {
         "visual_name": "character/human/static/remains/srp_skeleton_sitting1_bare",
+        "lib_name": "character/human/static/remains/srp_skeleton_sitting1_bare",
         "position": [
           11.932000160217285,
           18.731000900268555,
@@ -998,6 +1041,7 @@
       },
       "like": {
         "visual_name": "character/human/static/remains/skeleton_sitting1",
+        "lib_name": "character/human/static/remains/skeleton_sitting1",
         "position": [
           11.932000160217285,
           18.731000900268555,
@@ -1029,6 +1073,7 @@
       "list": "render_visuals",
       "after": {
         "visual_name": "character/human/static/remains/skeleton_sitting1",
+        "lib_name": "character/human/static/remains/skeleton_sitting1",
         "position": [
           11.932000160217285,
           18.731000900268555,
@@ -1047,6 +1092,7 @@
       },
       "like": {
         "visual_name": "character/human/static/remains/skeleton_sitting1",
+        "lib_name": "character/human/static/remains/skeleton_sitting1",
         "position": [
           11.932000160217285,
           18.731000900268555,
@@ -1073,6 +1119,7 @@
       "list": "render_visuals",
       "after": {
         "visual_name": "character/human/static/remains/srp_skeleton_sitting1_bare",
+        "lib_name": "character/human/static/remains/srp_skeleton_sitting1_bare",
         "position": [
           11.932000160217285,
           18.731000900268555,
@@ -1091,6 +1138,7 @@
       },
       "like": {
         "visual_name": "character/human/static/remains/skeleton_sitting1",
+        "lib_name": "character/human/static/remains/skeleton_sitting1",
         "position": [
           11.932000160217285,
           18.731000900268555,
@@ -1122,6 +1170,7 @@
       "list": "render_visuals",
       "after": {
         "visual_name": "character/human/static/remains/skeleton_sitting1",
+        "lib_name": "character/human/static/remains/skeleton_sitting1",
         "position": [
           11.932000160217285,
           18.731000900268555,
@@ -1140,6 +1189,7 @@
       },
       "like": {
         "visual_name": "character/human/static/remains/skeleton_sitting1",
+        "lib_name": "character/human/static/remains/skeleton_sitting1",
         "position": [
           11.932000160217285,
           18.731000900268555,
@@ -1166,6 +1216,7 @@
       "list": "render_visuals",
       "after": {
         "visual_name": "character/human/static/remains/srp_skeleton_sitting1_bare",
+        "lib_name": "character/human/static/remains/srp_skeleton_sitting1_bare",
         "position": [
           11.932000160217285,
           18.731000900268555,
@@ -1184,6 +1235,7 @@
       },
       "like": {
         "visual_name": "character/human/static/remains/skeleton_sitting1",
+        "lib_name": "character/human/static/remains/skeleton_sitting1",
         "position": [
           11.932000160217285,
           18.731000900268555,
@@ -1215,6 +1267,7 @@
       "list": "render_visuals",
       "after": {
         "visual_name": "character/human/static/remains/skeleton_sitting1",
+        "lib_name": "character/human/static/remains/skeleton_sitting1",
         "position": [
           11.932000160217285,
           18.731000900268555,
@@ -1233,6 +1286,7 @@
       },
       "like": {
         "visual_name": "character/human/static/remains/skeleton_sitting1",
+        "lib_name": "character/human/static/remains/skeleton_sitting1",
         "position": [
           11.932000160217285,
           18.731000900268555,
@@ -1259,6 +1313,7 @@
       "list": "render_visuals",
       "after": {
         "visual_name": "character/human/static/remains/srp_skeleton_sitting1_bare",
+        "lib_name": "character/human/static/remains/srp_skeleton_sitting1_bare",
         "position": [
           11.932000160217285,
           18.731000900268555,
@@ -1277,6 +1332,7 @@
       },
       "like": {
         "visual_name": "character/human/static/remains/skeleton_sitting1",
+        "lib_name": "character/human/static/remains/skeleton_sitting1",
         "position": [
           11.932000160217285,
           18.731000900268555,
@@ -1308,6 +1364,7 @@
       "list": "render_visuals",
       "after": {
         "visual_name": "character/human/static/remains/skeleton_sitting1",
+        "lib_name": "character/human/static/remains/skeleton_sitting1",
         "position": [
           11.932000160217285,
           18.731000900268555,
@@ -1326,6 +1383,7 @@
       },
       "like": {
         "visual_name": "character/human/static/remains/skeleton_sitting1",
+        "lib_name": "character/human/static/remains/skeleton_sitting1",
         "position": [
           11.932000160217285,
           18.731000900268555,
@@ -1352,6 +1410,7 @@
       "list": "render_visuals",
       "after": {
         "visual_name": "character/human/static/remains/srp_skeleton_sitting1_bare",
+        "lib_name": "character/human/static/remains/srp_skeleton_sitting1_bare",
         "position": [
           11.932000160217285,
           18.731000900268555,
@@ -1370,6 +1429,7 @@
       },
       "like": {
         "visual_name": "character/human/static/remains/skeleton_sitting1",
+        "lib_name": "character/human/static/remains/skeleton_sitting1",
         "position": [
           11.932000160217285,
           18.731000900268555,
@@ -1401,6 +1461,7 @@
       "list": "render_visuals",
       "after": {
         "visual_name": "character/human/static/remains/skeleton_sitting1",
+        "lib_name": "character/human/static/remains/skeleton_sitting1",
         "position": [
           11.932000160217285,
           18.731000900268555,
@@ -1419,6 +1480,7 @@
       },
       "like": {
         "visual_name": "character/human/static/remains/skeleton_sitting1",
+        "lib_name": "character/human/static/remains/skeleton_sitting1",
         "position": [
           11.932000160217285,
           18.731000900268555,
@@ -1445,6 +1507,7 @@
       "list": "render_visuals",
       "after": {
         "visual_name": "character/human/static/remains/srp_skeleton_sitting1_bare",
+        "lib_name": "character/human/static/remains/srp_skeleton_sitting1_bare",
         "position": [
           11.932000160217285,
           18.731000900268555,
@@ -1463,6 +1526,7 @@
       },
       "like": {
         "visual_name": "character/human/static/remains/skeleton_sitting1",
+        "lib_name": "character/human/static/remains/skeleton_sitting1",
         "position": [
           11.932000160217285,
           18.731000900268555,
@@ -1494,6 +1558,7 @@
       "list": "render_visuals",
       "after": {
         "visual_name": "character/human/static/remains/skeleton_sitting1",
+        "lib_name": "character/human/static/remains/skeleton_sitting1",
         "position": [
           11.932000160217285,
           18.731000900268555,
@@ -1512,6 +1577,7 @@
       },
       "like": {
         "visual_name": "character/human/static/remains/skeleton_sitting1",
+        "lib_name": "character/human/static/remains/skeleton_sitting1",
         "position": [
           11.932000160217285,
           18.731000900268555,
@@ -1538,6 +1604,7 @@
       "list": "render_visuals",
       "after": {
         "visual_name": "character/human/static/remains/srp_skeleton_sitting1_bare",
+        "lib_name": "character/human/static/remains/srp_skeleton_sitting1_bare",
         "position": [
           11.932000160217285,
           18.731000900268555,
@@ -1556,6 +1623,7 @@
       },
       "like": {
         "visual_name": "character/human/static/remains/skeleton_sitting1",
+        "lib_name": "character/human/static/remains/skeleton_sitting1",
         "position": [
           11.932000160217285,
           18.731000900268555,
@@ -1587,6 +1655,7 @@
       "list": "render_visuals",
       "after": {
         "visual_name": "character/human/static/remains/skeleton_sitting1",
+        "lib_name": "character/human/static/remains/skeleton_sitting1",
         "position": [
           11.932000160217285,
           18.731000900268555,
@@ -1605,6 +1674,7 @@
       },
       "like": {
         "visual_name": "character/human/static/remains/skeleton_sitting1",
+        "lib_name": "character/human/static/remains/skeleton_sitting1",
         "position": [
           11.932000160217285,
           18.731000900268555,
@@ -1631,6 +1701,7 @@
       "list": "render_visuals",
       "after": {
         "visual_name": "character/human/static/remains/srp_skeleton_sitting1_bare",
+        "lib_name": "character/human/static/remains/srp_skeleton_sitting1_bare",
         "position": [
           11.932000160217285,
           18.731000900268555,
@@ -1649,6 +1720,7 @@
       },
       "like": {
         "visual_name": "character/human/static/remains/skeleton_sitting1",
+        "lib_name": "character/human/static/remains/skeleton_sitting1",
         "position": [
           11.932000160217285,
           18.731000900268555,
@@ -1680,6 +1752,7 @@
       "list": "render_visuals",
       "after": {
         "visual_name": "ported/v021d/character/human/static/remains/skeleton_sitting1",
+        "lib_name": "ported/v021d/character/human/static/remains/skeleton_sitting1",
         "position": [
           11.932000160217285,
           18.731000900268555,
@@ -1698,6 +1771,7 @@
       },
       "like": {
         "visual_name": "ported/v021d/character/human/static/remains/skeleton_sitting1",
+        "lib_name": "ported/v021d/character/human/static/remains/skeleton_sitting1",
         "position": [
           11.932000160217285,
           18.731000900268555,
@@ -1724,6 +1798,7 @@
       "list": "render_visuals",
       "after": {
         "visual_name": "ported/v021d/character/human/static/remains/srp_skeleton_sitting1_bare",
+        "lib_name": "ported/v021d/character/human/static/remains/srp_skeleton_sitting1_bare",
         "position": [
           11.932000160217285,
           18.731000900268555,
@@ -1742,6 +1817,7 @@
       },
       "like": {
         "visual_name": "ported/v021d/character/human/static/remains/skeleton_sitting1",
+        "lib_name": "ported/v021d/character/human/static/remains/skeleton_sitting1",
         "position": [
           11.932000160217285,
           18.731000900268555,
@@ -1773,6 +1849,7 @@
       "list": "render_visuals",
       "after": {
         "visual_name": "ported/v021d/character/human/static/remains/skeleton_sitting1",
+        "lib_name": "ported/v021d/character/human/static/remains/skeleton_sitting1",
         "position": [
           11.932000160217285,
           18.731000900268555,
@@ -1791,6 +1868,7 @@
       },
       "like": {
         "visual_name": "ported/v021d/character/human/static/remains/skeleton_sitting1",
+        "lib_name": "ported/v021d/character/human/static/remains/skeleton_sitting1",
         "position": [
           11.932000160217285,
           18.731000900268555,
@@ -1817,6 +1895,7 @@
       "list": "render_visuals",
       "after": {
         "visual_name": "ported/v021d/character/human/static/remains/srp_skeleton_sitting1_bare",
+        "lib_name": "ported/v021d/character/human/static/remains/srp_skeleton_sitting1_bare",
         "position": [
           11.932000160217285,
           18.731000900268555,
@@ -1835,6 +1914,7 @@
       },
       "like": {
         "visual_name": "ported/v021d/character/human/static/remains/skeleton_sitting1",
+        "lib_name": "ported/v021d/character/human/static/remains/skeleton_sitting1",
         "position": [
           11.932000160217285,
           18.731000900268555,
@@ -1866,6 +1946,7 @@
       "list": "render_visuals",
       "after": {
         "visual_name": "ported/v021d/character/human/static/remains/skeleton_sitting1",
+        "lib_name": "ported/v021d/character/human/static/remains/skeleton_sitting1",
         "position": [
           11.932000160217285,
           18.731000900268555,
@@ -1884,6 +1965,7 @@
       },
       "like": {
         "visual_name": "ported/v021d/character/human/static/remains/skeleton_sitting1",
+        "lib_name": "ported/v021d/character/human/static/remains/skeleton_sitting1",
         "position": [
           11.932000160217285,
           18.731000900268555,
@@ -1910,6 +1992,7 @@
       "list": "render_visuals",
       "after": {
         "visual_name": "ported/v021d/character/human/static/remains/srp_skeleton_sitting1_bare",
+        "lib_name": "ported/v021d/character/human/static/remains/srp_skeleton_sitting1_bare",
         "position": [
           11.932000160217285,
           18.731000900268555,
@@ -1928,6 +2011,7 @@
       },
       "like": {
         "visual_name": "ported/v021d/character/human/static/remains/skeleton_sitting1",
+        "lib_name": "ported/v021d/character/human/static/remains/skeleton_sitting1",
         "position": [
           11.932000160217285,
           18.731000900268555,
@@ -1959,6 +2043,7 @@
       "list": "render_visuals",
       "after": {
         "visual_name": "ported/v021d/character/human/static/remains/skeleton_sitting1",
+        "lib_name": "ported/v021d/character/human/static/remains/skeleton_sitting1",
         "position": [
           11.932000160217285,
           18.731000900268555,
@@ -1977,6 +2062,7 @@
       },
       "like": {
         "visual_name": "ported/v021d/character/human/static/remains/skeleton_sitting1",
+        "lib_name": "ported/v021d/character/human/static/remains/skeleton_sitting1",
         "position": [
           11.932000160217285,
           18.731000900268555,
@@ -2003,6 +2089,7 @@
       "list": "render_visuals",
       "after": {
         "visual_name": "ported/v021d/character/human/static/remains/srp_skeleton_sitting1_bare",
+        "lib_name": "ported/v021d/character/human/static/remains/srp_skeleton_sitting1_bare",
         "position": [
           11.932000160217285,
           18.731000900268555,
@@ -2021,6 +2108,7 @@
       },
       "like": {
         "visual_name": "ported/v021d/character/human/static/remains/skeleton_sitting1",
+        "lib_name": "ported/v021d/character/human/static/remains/skeleton_sitting1",
         "position": [
           11.932000160217285,
           18.731000900268555,
@@ -2052,6 +2140,7 @@
       "list": "render_visuals",
       "after": {
         "visual_name": "ported/v021d/character/human/static/remains/skeleton_sitting1",
+        "lib_name": "ported/v021d/character/human/static/remains/skeleton_sitting1",
         "position": [
           11.932000160217285,
           18.731000900268555,
@@ -2070,6 +2159,7 @@
       },
       "like": {
         "visual_name": "ported/v021d/character/human/static/remains/skeleton_sitting1",
+        "lib_name": "ported/v021d/character/human/static/remains/skeleton_sitting1",
         "position": [
           11.932000160217285,
           18.731000900268555,
@@ -2096,6 +2186,7 @@
       "list": "render_visuals",
       "after": {
         "visual_name": "ported/v021d/character/human/static/remains/srp_skeleton_sitting1_bare",
+        "lib_name": "ported/v021d/character/human/static/remains/srp_skeleton_sitting1_bare",
         "position": [
           11.932000160217285,
           18.731000900268555,
@@ -2114,6 +2205,7 @@
       },
       "like": {
         "visual_name": "ported/v021d/character/human/static/remains/skeleton_sitting1",
+        "lib_name": "ported/v021d/character/human/static/remains/skeleton_sitting1",
         "position": [
           11.932000160217285,
           18.731000900268555,
@@ -2145,6 +2237,7 @@
       "list": "render_visuals",
       "after": {
         "visual_name": "ported/v021d/character/human/static/remains/skeleton_sitting1",
+        "lib_name": "ported/v021d/character/human/static/remains/skeleton_sitting1",
         "position": [
           11.932000160217285,
           18.731000900268555,
@@ -2163,6 +2256,7 @@
       },
       "like": {
         "visual_name": "ported/v021d/character/human/static/remains/skeleton_sitting1",
+        "lib_name": "ported/v021d/character/human/static/remains/skeleton_sitting1",
         "position": [
           11.932000160217285,
           18.731000900268555,
@@ -2189,6 +2283,7 @@
       "list": "render_visuals",
       "after": {
         "visual_name": "ported/v021d/character/human/static/remains/srp_skeleton_sitting1_bare",
+        "lib_name": "ported/v021d/character/human/static/remains/srp_skeleton_sitting1_bare",
         "position": [
           11.932000160217285,
           18.731000900268555,
@@ -2207,6 +2302,7 @@
       },
       "like": {
         "visual_name": "ported/v021d/character/human/static/remains/skeleton_sitting1",
+        "lib_name": "ported/v021d/character/human/static/remains/skeleton_sitting1",
         "position": [
           11.932000160217285,
           18.731000900268555,
@@ -2238,6 +2334,7 @@
       "list": "render_visuals",
       "after": {
         "visual_name": "ported/v021d/character/human/static/remains/skeleton_sitting1",
+        "lib_name": "ported/v021d/character/human/static/remains/skeleton_sitting1",
         "position": [
           11.932000160217285,
           18.731000900268555,
@@ -2256,6 +2353,7 @@
       },
       "like": {
         "visual_name": "ported/v021d/character/human/static/remains/skeleton_sitting1",
+        "lib_name": "ported/v021d/character/human/static/remains/skeleton_sitting1",
         "position": [
           11.932000160217285,
           18.731000900268555,
@@ -2282,6 +2380,7 @@
       "list": "render_visuals",
       "after": {
         "visual_name": "ported/v021d/character/human/static/remains/srp_skeleton_sitting1_bare",
+        "lib_name": "ported/v021d/character/human/static/remains/srp_skeleton_sitting1_bare",
         "position": [
           11.932000160217285,
           18.731000900268555,
@@ -2300,6 +2399,7 @@
       },
       "like": {
         "visual_name": "ported/v021d/character/human/static/remains/skeleton_sitting1",
+        "lib_name": "ported/v021d/character/human/static/remains/skeleton_sitting1",
         "position": [
           11.932000160217285,
           18.731000900268555,
@@ -2331,6 +2431,7 @@
       "list": "render_visuals",
       "after": {
         "visual_name": "ported/v021d/character/human/static/remains/skeleton_sitting1",
+        "lib_name": "ported/v021d/character/human/static/remains/skeleton_sitting1",
         "position": [
           11.932000160217285,
           18.731000900268555,
@@ -2349,6 +2450,7 @@
       },
       "like": {
         "visual_name": "ported/v021d/character/human/static/remains/skeleton_sitting1",
+        "lib_name": "ported/v021d/character/human/static/remains/skeleton_sitting1",
         "position": [
           11.932000160217285,
           18.731000900268555,
@@ -2375,6 +2477,7 @@
       "list": "render_visuals",
       "after": {
         "visual_name": "ported/v021d/character/human/static/remains/srp_skeleton_sitting1_bare",
+        "lib_name": "ported/v021d/character/human/static/remains/srp_skeleton_sitting1_bare",
         "position": [
           11.932000160217285,
           18.731000900268555,
@@ -2393,6 +2496,7 @@
       },
       "like": {
         "visual_name": "ported/v021d/character/human/static/remains/skeleton_sitting1",
+        "lib_name": "ported/v021d/character/human/static/remains/skeleton_sitting1",
         "position": [
           11.932000160217285,
           18.731000900268555,
@@ -2424,6 +2528,7 @@
       "list": "render_visuals",
       "after": {
         "visual_name": "ported/v021d/character/human/static/remains/skeleton_sitting1",
+        "lib_name": "ported/v021d/character/human/static/remains/skeleton_sitting1",
         "position": [
           11.932000160217285,
           18.731000900268555,
@@ -2442,6 +2547,7 @@
       },
       "like": {
         "visual_name": "ported/v021d/character/human/static/remains/skeleton_sitting1",
+        "lib_name": "ported/v021d/character/human/static/remains/skeleton_sitting1",
         "position": [
           11.932000160217285,
           18.731000900268555,
@@ -2468,6 +2574,7 @@
       "list": "render_visuals",
       "after": {
         "visual_name": "ported/v021d/character/human/static/remains/srp_skeleton_sitting1_bare",
+        "lib_name": "ported/v021d/character/human/static/remains/srp_skeleton_sitting1_bare",
         "position": [
           11.932000160217285,
           18.731000900268555,
@@ -2486,6 +2593,7 @@
       },
       "like": {
         "visual_name": "ported/v021d/character/human/static/remains/skeleton_sitting1",
+        "lib_name": "ported/v021d/character/human/static/remains/skeleton_sitting1",
         "position": [
           11.932000160217285,
           18.731000900268555,
@@ -2509,6 +2617,1098 @@
           12.103468929781078,
           19.542544405469467,
           38.49126727674318
+        ]
+      }
+    },
+    {
+      "files": "projects/v069d_level_01/day_2/client_project",
+      "list": "render_visuals",
+      "after": {
+        "lib_name": "v069d_rudnya/character/human/static/remains/skeleton_sitting1",
+        "position": [
+          38.571998596191406,
+          22.191999435424805,
+          -32.1150016784668
+        ],
+        "rotation": [
+          -0.0,
+          -0.31200000643730164,
+          -0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "like": {
+        "lib_name": "v069d_rudnya/character/human/static/remains/skeleton_sitting1",
+        "position": [
+          38.571998596191406,
+          22.191999435424805,
+          -32.1150016784668
+        ],
+        "rotation": [
+          -0.0,
+          -0.31200000643730164,
+          -0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "values": {
+        "lib_name": "v069d_rudnya/character/human/static/remains/srp_skeleton_sitting1_bare"
+      }
+    },
+    {
+      "files": "projects/v069d_level_01/day_2/client_project",
+      "list": "render_visuals",
+      "after": {
+        "lib_name": "v069d_rudnya/character/human/static/remains/srp_skeleton_sitting1_bare",
+        "position": [
+          38.571998596191406,
+          22.191999435424805,
+          -32.1150016784668
+        ],
+        "rotation": [
+          -0.0,
+          -0.31200000643730164,
+          -0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "like": {
+        "lib_name": "v069d_rudnya/character/human/static/remains/skeleton_sitting1",
+        "position": [
+          38.571998596191406,
+          22.191999435424805,
+          -32.1150016784668
+        ],
+        "rotation": [
+          -0.0,
+          -0.31200000643730164,
+          -0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "values": {
+        "lib_name": "v069d_rudnya/character/human/static/remains/srp_skeleton_sitting1_cap",
+        "position": [
+          38.85985020366177,
+          22.95697221159935,
+          -31.95654648688257
+        ]
+      }
+    },
+    {
+      "files": "projects/v069d_level_01/day_2/client_project",
+      "list": "render_visuals",
+      "after": {
+        "lib_name": "v069d_rudnya/character/human/static/remains/skeleton_sitting1",
+        "position": [
+          11.932000160217285,
+          18.731000900268555,
+          38.5629997253418
+        ],
+        "rotation": [
+          -1.5779999494552612,
+          -1.373999834060669,
+          -1.6619999408721924
+        ],
+        "scale": [
+          1.0,
+          0.9999999403953552,
+          1.0
+        ]
+      },
+      "like": {
+        "lib_name": "v069d_rudnya/character/human/static/remains/skeleton_sitting1",
+        "position": [
+          11.932000160217285,
+          18.731000900268555,
+          38.5629997253418
+        ],
+        "rotation": [
+          -1.5779999494552612,
+          -1.373999834060669,
+          -1.6619999408721924
+        ],
+        "scale": [
+          1.0,
+          0.9999999403953552,
+          1.0
+        ]
+      },
+      "values": {
+        "lib_name": "v069d_rudnya/character/human/static/remains/srp_skeleton_sitting1_bare"
+      }
+    },
+    {
+      "files": "projects/v069d_level_01/day_2/client_project",
+      "list": "render_visuals",
+      "after": {
+        "lib_name": "v069d_rudnya/character/human/static/remains/srp_skeleton_sitting1_bare",
+        "position": [
+          11.932000160217285,
+          18.731000900268555,
+          38.5629997253418
+        ],
+        "rotation": [
+          -1.5779999494552612,
+          -1.373999834060669,
+          -1.6619999408721924
+        ],
+        "scale": [
+          1.0,
+          0.9999999403953552,
+          1.0
+        ]
+      },
+      "like": {
+        "lib_name": "v069d_rudnya/character/human/static/remains/skeleton_sitting1",
+        "position": [
+          11.932000160217285,
+          18.731000900268555,
+          38.5629997253418
+        ],
+        "rotation": [
+          -1.5779999494552612,
+          -1.373999834060669,
+          -1.6619999408721924
+        ],
+        "scale": [
+          1.0,
+          0.9999999403953552,
+          1.0
+        ]
+      },
+      "values": {
+        "lib_name": "v069d_rudnya/character/human/static/remains/srp_skeleton_sitting1_cap",
+        "position": [
+          12.103468932747663,
+          19.542544369426345,
+          38.491267362307866
+        ]
+      }
+    },
+    {
+      "files": "projects/v069d_level_01/day_3/client_project",
+      "list": "render_visuals",
+      "after": {
+        "lib_name": "v069d_rudnya/character/human/static/remains/skeleton_sitting1",
+        "position": [
+          38.571998596191406,
+          22.191999435424805,
+          -32.1150016784668
+        ],
+        "rotation": [
+          -0.0,
+          -0.31200000643730164,
+          -0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "like": {
+        "lib_name": "v069d_rudnya/character/human/static/remains/skeleton_sitting1",
+        "position": [
+          38.571998596191406,
+          22.191999435424805,
+          -32.1150016784668
+        ],
+        "rotation": [
+          -0.0,
+          -0.31200000643730164,
+          -0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "values": {
+        "lib_name": "v069d_rudnya/character/human/static/remains/srp_skeleton_sitting1_bare"
+      }
+    },
+    {
+      "files": "projects/v069d_level_01/day_3/client_project",
+      "list": "render_visuals",
+      "after": {
+        "lib_name": "v069d_rudnya/character/human/static/remains/srp_skeleton_sitting1_bare",
+        "position": [
+          38.571998596191406,
+          22.191999435424805,
+          -32.1150016784668
+        ],
+        "rotation": [
+          -0.0,
+          -0.31200000643730164,
+          -0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "like": {
+        "lib_name": "v069d_rudnya/character/human/static/remains/skeleton_sitting1",
+        "position": [
+          38.571998596191406,
+          22.191999435424805,
+          -32.1150016784668
+        ],
+        "rotation": [
+          -0.0,
+          -0.31200000643730164,
+          -0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "values": {
+        "lib_name": "v069d_rudnya/character/human/static/remains/srp_skeleton_sitting1_cap",
+        "position": [
+          38.85985020366177,
+          22.95697221159935,
+          -31.95654648688257
+        ]
+      }
+    },
+    {
+      "files": "projects/v069d_level_01/day_3/client_project",
+      "list": "render_visuals",
+      "after": {
+        "lib_name": "v069d_rudnya/character/human/static/remains/skeleton_sitting1",
+        "position": [
+          11.932000160217285,
+          18.731000900268555,
+          38.5629997253418
+        ],
+        "rotation": [
+          -1.5779999494552612,
+          -1.373999834060669,
+          -1.6619999408721924
+        ],
+        "scale": [
+          1.0,
+          0.9999999403953552,
+          1.0
+        ]
+      },
+      "like": {
+        "lib_name": "v069d_rudnya/character/human/static/remains/skeleton_sitting1",
+        "position": [
+          11.932000160217285,
+          18.731000900268555,
+          38.5629997253418
+        ],
+        "rotation": [
+          -1.5779999494552612,
+          -1.373999834060669,
+          -1.6619999408721924
+        ],
+        "scale": [
+          1.0,
+          0.9999999403953552,
+          1.0
+        ]
+      },
+      "values": {
+        "lib_name": "v069d_rudnya/character/human/static/remains/srp_skeleton_sitting1_bare"
+      }
+    },
+    {
+      "files": "projects/v069d_level_01/day_3/client_project",
+      "list": "render_visuals",
+      "after": {
+        "lib_name": "v069d_rudnya/character/human/static/remains/srp_skeleton_sitting1_bare",
+        "position": [
+          11.932000160217285,
+          18.731000900268555,
+          38.5629997253418
+        ],
+        "rotation": [
+          -1.5779999494552612,
+          -1.373999834060669,
+          -1.6619999408721924
+        ],
+        "scale": [
+          1.0,
+          0.9999999403953552,
+          1.0
+        ]
+      },
+      "like": {
+        "lib_name": "v069d_rudnya/character/human/static/remains/skeleton_sitting1",
+        "position": [
+          11.932000160217285,
+          18.731000900268555,
+          38.5629997253418
+        ],
+        "rotation": [
+          -1.5779999494552612,
+          -1.373999834060669,
+          -1.6619999408721924
+        ],
+        "scale": [
+          1.0,
+          0.9999999403953552,
+          1.0
+        ]
+      },
+      "values": {
+        "lib_name": "v069d_rudnya/character/human/static/remains/srp_skeleton_sitting1_cap",
+        "position": [
+          12.103468932747663,
+          19.542544369426345,
+          38.491267362307866
+        ]
+      }
+    },
+    {
+      "files": "projects/v069d_level_01/day_4/client_project",
+      "list": "render_visuals",
+      "after": {
+        "lib_name": "v069d_rudnya/character/human/static/remains/skeleton_sitting1",
+        "position": [
+          38.571998596191406,
+          22.191999435424805,
+          -32.1150016784668
+        ],
+        "rotation": [
+          -0.0,
+          -0.31200000643730164,
+          -0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "like": {
+        "lib_name": "v069d_rudnya/character/human/static/remains/skeleton_sitting1",
+        "position": [
+          38.571998596191406,
+          22.191999435424805,
+          -32.1150016784668
+        ],
+        "rotation": [
+          -0.0,
+          -0.31200000643730164,
+          -0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "values": {
+        "lib_name": "v069d_rudnya/character/human/static/remains/srp_skeleton_sitting1_bare"
+      }
+    },
+    {
+      "files": "projects/v069d_level_01/day_4/client_project",
+      "list": "render_visuals",
+      "after": {
+        "lib_name": "v069d_rudnya/character/human/static/remains/srp_skeleton_sitting1_bare",
+        "position": [
+          38.571998596191406,
+          22.191999435424805,
+          -32.1150016784668
+        ],
+        "rotation": [
+          -0.0,
+          -0.31200000643730164,
+          -0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "like": {
+        "lib_name": "v069d_rudnya/character/human/static/remains/skeleton_sitting1",
+        "position": [
+          38.571998596191406,
+          22.191999435424805,
+          -32.1150016784668
+        ],
+        "rotation": [
+          -0.0,
+          -0.31200000643730164,
+          -0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "values": {
+        "lib_name": "v069d_rudnya/character/human/static/remains/srp_skeleton_sitting1_cap",
+        "position": [
+          38.85985020366177,
+          22.95697221159935,
+          -31.95654648688257
+        ]
+      }
+    },
+    {
+      "files": "projects/v069d_level_01/day_4/client_project",
+      "list": "render_visuals",
+      "after": {
+        "lib_name": "v069d_rudnya/character/human/static/remains/skeleton_sitting1",
+        "position": [
+          11.932000160217285,
+          18.731000900268555,
+          38.5629997253418
+        ],
+        "rotation": [
+          -1.5779999494552612,
+          -1.373999834060669,
+          -1.6619999408721924
+        ],
+        "scale": [
+          1.0,
+          0.9999999403953552,
+          1.0
+        ]
+      },
+      "like": {
+        "lib_name": "v069d_rudnya/character/human/static/remains/skeleton_sitting1",
+        "position": [
+          11.932000160217285,
+          18.731000900268555,
+          38.5629997253418
+        ],
+        "rotation": [
+          -1.5779999494552612,
+          -1.373999834060669,
+          -1.6619999408721924
+        ],
+        "scale": [
+          1.0,
+          0.9999999403953552,
+          1.0
+        ]
+      },
+      "values": {
+        "lib_name": "v069d_rudnya/character/human/static/remains/srp_skeleton_sitting1_bare"
+      }
+    },
+    {
+      "files": "projects/v069d_level_01/day_4/client_project",
+      "list": "render_visuals",
+      "after": {
+        "lib_name": "v069d_rudnya/character/human/static/remains/srp_skeleton_sitting1_bare",
+        "position": [
+          11.932000160217285,
+          18.731000900268555,
+          38.5629997253418
+        ],
+        "rotation": [
+          -1.5779999494552612,
+          -1.373999834060669,
+          -1.6619999408721924
+        ],
+        "scale": [
+          1.0,
+          0.9999999403953552,
+          1.0
+        ]
+      },
+      "like": {
+        "lib_name": "v069d_rudnya/character/human/static/remains/skeleton_sitting1",
+        "position": [
+          11.932000160217285,
+          18.731000900268555,
+          38.5629997253418
+        ],
+        "rotation": [
+          -1.5779999494552612,
+          -1.373999834060669,
+          -1.6619999408721924
+        ],
+        "scale": [
+          1.0,
+          0.9999999403953552,
+          1.0
+        ]
+      },
+      "values": {
+        "lib_name": "v069d_rudnya/character/human/static/remains/srp_skeleton_sitting1_cap",
+        "position": [
+          12.103468932747663,
+          19.542544369426345,
+          38.491267362307866
+        ]
+      }
+    },
+    {
+      "files": "projects/v069d_level_01/day_5/client_project",
+      "list": "render_visuals",
+      "after": {
+        "lib_name": "v069d_rudnya/character/human/static/remains/skeleton_sitting1",
+        "position": [
+          38.571998596191406,
+          22.191999435424805,
+          -32.1150016784668
+        ],
+        "rotation": [
+          -0.0,
+          -0.31200000643730164,
+          -0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "like": {
+        "lib_name": "v069d_rudnya/character/human/static/remains/skeleton_sitting1",
+        "position": [
+          38.571998596191406,
+          22.191999435424805,
+          -32.1150016784668
+        ],
+        "rotation": [
+          -0.0,
+          -0.31200000643730164,
+          -0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "values": {
+        "lib_name": "v069d_rudnya/character/human/static/remains/srp_skeleton_sitting1_bare"
+      }
+    },
+    {
+      "files": "projects/v069d_level_01/day_5/client_project",
+      "list": "render_visuals",
+      "after": {
+        "lib_name": "v069d_rudnya/character/human/static/remains/srp_skeleton_sitting1_bare",
+        "position": [
+          38.571998596191406,
+          22.191999435424805,
+          -32.1150016784668
+        ],
+        "rotation": [
+          -0.0,
+          -0.31200000643730164,
+          -0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "like": {
+        "lib_name": "v069d_rudnya/character/human/static/remains/skeleton_sitting1",
+        "position": [
+          38.571998596191406,
+          22.191999435424805,
+          -32.1150016784668
+        ],
+        "rotation": [
+          -0.0,
+          -0.31200000643730164,
+          -0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "values": {
+        "lib_name": "v069d_rudnya/character/human/static/remains/srp_skeleton_sitting1_cap",
+        "position": [
+          38.85985020366177,
+          22.95697221159935,
+          -31.95654648688257
+        ]
+      }
+    },
+    {
+      "files": "projects/v069d_level_01/day_5/client_project",
+      "list": "render_visuals",
+      "after": {
+        "lib_name": "v069d_rudnya/character/human/static/remains/skeleton_sitting1",
+        "position": [
+          11.932000160217285,
+          18.731000900268555,
+          38.5629997253418
+        ],
+        "rotation": [
+          -1.5779999494552612,
+          -1.373999834060669,
+          -1.6619999408721924
+        ],
+        "scale": [
+          1.0,
+          0.9999999403953552,
+          1.0
+        ]
+      },
+      "like": {
+        "lib_name": "v069d_rudnya/character/human/static/remains/skeleton_sitting1",
+        "position": [
+          11.932000160217285,
+          18.731000900268555,
+          38.5629997253418
+        ],
+        "rotation": [
+          -1.5779999494552612,
+          -1.373999834060669,
+          -1.6619999408721924
+        ],
+        "scale": [
+          1.0,
+          0.9999999403953552,
+          1.0
+        ]
+      },
+      "values": {
+        "lib_name": "v069d_rudnya/character/human/static/remains/srp_skeleton_sitting1_bare"
+      }
+    },
+    {
+      "files": "projects/v069d_level_01/day_5/client_project",
+      "list": "render_visuals",
+      "after": {
+        "lib_name": "v069d_rudnya/character/human/static/remains/srp_skeleton_sitting1_bare",
+        "position": [
+          11.932000160217285,
+          18.731000900268555,
+          38.5629997253418
+        ],
+        "rotation": [
+          -1.5779999494552612,
+          -1.373999834060669,
+          -1.6619999408721924
+        ],
+        "scale": [
+          1.0,
+          0.9999999403953552,
+          1.0
+        ]
+      },
+      "like": {
+        "lib_name": "v069d_rudnya/character/human/static/remains/skeleton_sitting1",
+        "position": [
+          11.932000160217285,
+          18.731000900268555,
+          38.5629997253418
+        ],
+        "rotation": [
+          -1.5779999494552612,
+          -1.373999834060669,
+          -1.6619999408721924
+        ],
+        "scale": [
+          1.0,
+          0.9999999403953552,
+          1.0
+        ]
+      },
+      "values": {
+        "lib_name": "v069d_rudnya/character/human/static/remains/srp_skeleton_sitting1_cap",
+        "position": [
+          12.103468932747663,
+          19.542544369426345,
+          38.491267362307866
+        ]
+      }
+    },
+    {
+      "files": "projects/v069d_level_01/day_8/client_project",
+      "list": "render_visuals",
+      "after": {
+        "lib_name": "v069d_rudnya/character/human/static/remains/skeleton_sitting1",
+        "position": [
+          38.571998596191406,
+          22.191999435424805,
+          -32.1150016784668
+        ],
+        "rotation": [
+          -0.0,
+          -0.31200000643730164,
+          -0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "like": {
+        "lib_name": "v069d_rudnya/character/human/static/remains/skeleton_sitting1",
+        "position": [
+          38.571998596191406,
+          22.191999435424805,
+          -32.1150016784668
+        ],
+        "rotation": [
+          -0.0,
+          -0.31200000643730164,
+          -0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "values": {
+        "lib_name": "v069d_rudnya/character/human/static/remains/srp_skeleton_sitting1_bare"
+      }
+    },
+    {
+      "files": "projects/v069d_level_01/day_8/client_project",
+      "list": "render_visuals",
+      "after": {
+        "lib_name": "v069d_rudnya/character/human/static/remains/srp_skeleton_sitting1_bare",
+        "position": [
+          38.571998596191406,
+          22.191999435424805,
+          -32.1150016784668
+        ],
+        "rotation": [
+          -0.0,
+          -0.31200000643730164,
+          -0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "like": {
+        "lib_name": "v069d_rudnya/character/human/static/remains/skeleton_sitting1",
+        "position": [
+          38.571998596191406,
+          22.191999435424805,
+          -32.1150016784668
+        ],
+        "rotation": [
+          -0.0,
+          -0.31200000643730164,
+          -0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "values": {
+        "lib_name": "v069d_rudnya/character/human/static/remains/srp_skeleton_sitting1_cap",
+        "position": [
+          38.85985020366177,
+          22.95697221159935,
+          -31.95654648688257
+        ]
+      }
+    },
+    {
+      "files": "projects/v069d_level_01/day_8/client_project",
+      "list": "render_visuals",
+      "after": {
+        "lib_name": "v069d_rudnya/character/human/static/remains/skeleton_sitting1",
+        "position": [
+          11.932000160217285,
+          18.731000900268555,
+          38.5629997253418
+        ],
+        "rotation": [
+          -1.5779999494552612,
+          -1.373999834060669,
+          -1.6619999408721924
+        ],
+        "scale": [
+          1.0,
+          0.9999999403953552,
+          1.0
+        ]
+      },
+      "like": {
+        "lib_name": "v069d_rudnya/character/human/static/remains/skeleton_sitting1",
+        "position": [
+          11.932000160217285,
+          18.731000900268555,
+          38.5629997253418
+        ],
+        "rotation": [
+          -1.5779999494552612,
+          -1.373999834060669,
+          -1.6619999408721924
+        ],
+        "scale": [
+          1.0,
+          0.9999999403953552,
+          1.0
+        ]
+      },
+      "values": {
+        "lib_name": "v069d_rudnya/character/human/static/remains/srp_skeleton_sitting1_bare"
+      }
+    },
+    {
+      "files": "projects/v069d_level_01/day_8/client_project",
+      "list": "render_visuals",
+      "after": {
+        "lib_name": "v069d_rudnya/character/human/static/remains/srp_skeleton_sitting1_bare",
+        "position": [
+          11.932000160217285,
+          18.731000900268555,
+          38.5629997253418
+        ],
+        "rotation": [
+          -1.5779999494552612,
+          -1.373999834060669,
+          -1.6619999408721924
+        ],
+        "scale": [
+          1.0,
+          0.9999999403953552,
+          1.0
+        ]
+      },
+      "like": {
+        "lib_name": "v069d_rudnya/character/human/static/remains/skeleton_sitting1",
+        "position": [
+          11.932000160217285,
+          18.731000900268555,
+          38.5629997253418
+        ],
+        "rotation": [
+          -1.5779999494552612,
+          -1.373999834060669,
+          -1.6619999408721924
+        ],
+        "scale": [
+          1.0,
+          0.9999999403953552,
+          1.0
+        ]
+      },
+      "values": {
+        "lib_name": "v069d_rudnya/character/human/static/remains/srp_skeleton_sitting1_cap",
+        "position": [
+          12.103468932747663,
+          19.542544369426345,
+          38.491267362307866
+        ]
+      }
+    },
+    {
+      "files": "projects/v069d_level_01/day_ah/client_project",
+      "list": "render_visuals",
+      "after": {
+        "lib_name": "v069d_rudnya/character/human/static/remains/skeleton_sitting1",
+        "position": [
+          38.571998596191406,
+          22.191999435424805,
+          -32.1150016784668
+        ],
+        "rotation": [
+          -0.0,
+          -0.31200000643730164,
+          -0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "like": {
+        "lib_name": "v069d_rudnya/character/human/static/remains/skeleton_sitting1",
+        "position": [
+          38.571998596191406,
+          22.191999435424805,
+          -32.1150016784668
+        ],
+        "rotation": [
+          -0.0,
+          -0.31200000643730164,
+          -0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "values": {
+        "lib_name": "v069d_rudnya/character/human/static/remains/srp_skeleton_sitting1_bare"
+      }
+    },
+    {
+      "files": "projects/v069d_level_01/day_ah/client_project",
+      "list": "render_visuals",
+      "after": {
+        "lib_name": "v069d_rudnya/character/human/static/remains/srp_skeleton_sitting1_bare",
+        "position": [
+          38.571998596191406,
+          22.191999435424805,
+          -32.1150016784668
+        ],
+        "rotation": [
+          -0.0,
+          -0.31200000643730164,
+          -0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "like": {
+        "lib_name": "v069d_rudnya/character/human/static/remains/skeleton_sitting1",
+        "position": [
+          38.571998596191406,
+          22.191999435424805,
+          -32.1150016784668
+        ],
+        "rotation": [
+          -0.0,
+          -0.31200000643730164,
+          -0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "values": {
+        "lib_name": "v069d_rudnya/character/human/static/remains/srp_skeleton_sitting1_cap",
+        "position": [
+          38.85985020366177,
+          22.95697221159935,
+          -31.95654648688257
+        ]
+      }
+    },
+    {
+      "files": "projects/v069d_level_01/day_ah/client_project",
+      "list": "render_visuals",
+      "after": {
+        "lib_name": "v069d_rudnya/character/human/static/remains/skeleton_sitting1",
+        "position": [
+          11.932000160217285,
+          18.731000900268555,
+          38.5629997253418
+        ],
+        "rotation": [
+          -1.5779999494552612,
+          -1.373999834060669,
+          -1.6619999408721924
+        ],
+        "scale": [
+          1.0,
+          0.9999999403953552,
+          1.0
+        ]
+      },
+      "like": {
+        "lib_name": "v069d_rudnya/character/human/static/remains/skeleton_sitting1",
+        "position": [
+          11.932000160217285,
+          18.731000900268555,
+          38.5629997253418
+        ],
+        "rotation": [
+          -1.5779999494552612,
+          -1.373999834060669,
+          -1.6619999408721924
+        ],
+        "scale": [
+          1.0,
+          0.9999999403953552,
+          1.0
+        ]
+      },
+      "values": {
+        "lib_name": "v069d_rudnya/character/human/static/remains/srp_skeleton_sitting1_bare"
+      }
+    },
+    {
+      "files": "projects/v069d_level_01/day_ah/client_project",
+      "list": "render_visuals",
+      "after": {
+        "lib_name": "v069d_rudnya/character/human/static/remains/srp_skeleton_sitting1_bare",
+        "position": [
+          11.932000160217285,
+          18.731000900268555,
+          38.5629997253418
+        ],
+        "rotation": [
+          -1.5779999494552612,
+          -1.373999834060669,
+          -1.6619999408721924
+        ],
+        "scale": [
+          1.0,
+          0.9999999403953552,
+          1.0
+        ]
+      },
+      "like": {
+        "lib_name": "v069d_rudnya/character/human/static/remains/skeleton_sitting1",
+        "position": [
+          11.932000160217285,
+          18.731000900268555,
+          38.5629997253418
+        ],
+        "rotation": [
+          -1.5779999494552612,
+          -1.373999834060669,
+          -1.6619999408721924
+        ],
+        "scale": [
+          1.0,
+          0.9999999403953552,
+          1.0
+        ]
+      },
+      "values": {
+        "lib_name": "v069d_rudnya/character/human/static/remains/srp_skeleton_sitting1_cap",
+        "position": [
+          12.103468932747663,
+          19.542544369426345,
+          38.491267362307866
         ]
       }
     }
@@ -2563,6 +3763,7 @@
             }
           }
         },
+        "leftover": "body",
         "version": 3
       }
     },
@@ -2615,6 +3816,7 @@
             }
           }
         },
+        "leftover": "body",
         "version": 3
       }
     },
@@ -2661,6 +3863,7 @@
             }
           }
         },
+        "leftover": "body",
         "version": 3
       }
     },
@@ -2710,6 +3913,87 @@
             }
           }
         },
+        "leftover": "body",
+        "version": 3
+      }
+    },
+    {
+      "files": [
+        "projects/v069d_level_01/day_2/client_project",
+        "projects/v069d_level_01/day_3/client_project",
+        "projects/v069d_level_01/day_4/client_project",
+        "projects/v069d_level_01/day_5/client_project",
+        "projects/v069d_level_01/day_8/client_project",
+        "projects/v069d_level_01/day_ah/client_project"
+      ],
+      "table": "",
+      "key": "srp_lamps",
+      "value": {
+        "break_material": 21,
+        "effect_material": 7,
+        "lamps": {
+          "cap0": {
+            "glass_from_x": 38.85985020366177,
+            "glass_from_y": 22.95697221159935,
+            "glass_from_z": -31.95654648688257,
+            "glass_to_x": 38.85985020366177,
+            "glass_to_y": 22.95697221159935,
+            "glass_to_z": -31.95654648688257,
+            "lights": {},
+            "loose": {
+              "cap0": {
+                "index": 370
+              }
+            },
+            "max_x": 39.0097375736361,
+            "max_y": 23.08108651638031,
+            "max_z": -31.80579283304008,
+            "min_x": 38.70996283368744,
+            "min_y": 22.83285790681839,
+            "min_z": -32.10730014072506,
+            "visuals": {
+              "broken0": {
+                "index": 369,
+                "state": 1
+              },
+              "intact0": {
+                "index": 368,
+                "state": 0
+              }
+            }
+          },
+          "cap1": {
+            "glass_from_x": 12.103468932747663,
+            "glass_from_y": 19.542544369426345,
+            "glass_from_z": 38.491267362307866,
+            "glass_to_x": 12.103468932747663,
+            "glass_to_y": 19.542544369426345,
+            "glass_to_z": 38.491267362307866,
+            "lights": {},
+            "loose": {
+              "cap0": {
+                "index": 456
+              }
+            },
+            "max_x": 12.235452419560715,
+            "max_y": 19.697051938344476,
+            "max_z": 38.632166501628106,
+            "min_x": 11.971485445934611,
+            "min_y": 19.388036800508214,
+            "min_z": 38.350368222987626,
+            "visuals": {
+              "broken0": {
+                "index": 455,
+                "state": 1
+              },
+              "intact0": {
+                "index": 454,
+                "state": 0
+              }
+            }
+          }
+        },
+        "leftover": "body",
         "version": 3
       }
     }

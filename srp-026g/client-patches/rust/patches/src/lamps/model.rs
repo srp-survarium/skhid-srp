@@ -71,22 +71,35 @@ pub const MAX_PIECES: usize = 8;
 
 /// A fixture's loose piece (a skeleton's cap): on its seat while the fixture
 /// is intact, knocked off when it breaks, as a corpse's headwear is shot off
-/// (`ragdoll`'s LoneBody), then lying where it came to rest. Drawn only, on
-/// each client by itself: the history keeps the fixture's condition, never
-/// the piece's flight.
+/// (`ragdoll`'s LoneBody), then lying where it came to rest, until a shot or a
+/// blast knocks it on again. Drawn only, on each client by itself: the
+/// history keeps the fixture's condition, never the piece's flight.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Flight {
     Seated,
     /// Broken by a push along `push` (a bullet's ray, a blast's), not stepped yet.
     Struck { push: RayDirection },
+    /// Off its seat, struck again at `from` along `push`, not stepped yet.
+    Kicked { from: Pose, push: RayDirection },
     Flying(LoneBody),
     Lying(Pose),
 }
 
 impl Flight {
-    /// The fixture broke by a push along `push`: its piece goes off that way.
+    /// The fixture broke by a push along `push`: its piece goes off its seat that way.
     pub fn strike(self, push: RayDirection) -> Flight {
         Flight::Struck { push }
+    }
+
+    /// A shot or a blast reached the piece off its seat: it goes on along
+    /// `push` from where it is. A seated one is the fixture's (a break
+    /// strikes it), a struck one is already going.
+    pub fn kick(self, push: RayDirection) -> Flight {
+        match self {
+            Flight::Flying(body) => Flight::Kicked { from: body.pose(), push },
+            Flight::Lying(pose) => Flight::Kicked { from: pose, push },
+            Flight::Seated | Flight::Struck { .. } | Flight::Kicked { .. } => self,
+        }
     }
 
     /// One frame of `dt` s for the piece of a fixture in `condition`, seated
@@ -98,10 +111,8 @@ impl Flight {
             (Condition::Intact, _) => return Flight::Seated,
             (Condition::Broken, Flight::Lying(pose)) => return Flight::Lying(pose),
             (Condition::Broken, Flight::Seated) => LoneBody::shot_off(seat, up, Vec3::ZERO),
-            (Condition::Broken, Flight::Struck { push }) => {
-                let [x, y, z] = push.coordinates();
-                LoneBody::shot_off(seat, up, Vec3::new(x, y, z))
-            }
+            (Condition::Broken, Flight::Struck { push }) => LoneBody::shot_off(seat, up, vector(push)),
+            (Condition::Broken, Flight::Kicked { from, push }) => LoneBody::kicked(from, up, vector(push)),
             (Condition::Broken, Flight::Flying(body)) => body,
         };
         let mut body = flying;
@@ -111,14 +122,19 @@ impl Flight {
         }
     }
 
-    /// Where the piece is drawn: None, on its seat.
+    /// Where the piece is drawn, and where a shot reaches it: None, on its seat.
     pub fn pose(&self) -> Option<Pose> {
         match self {
-            Flight::Seated | Flight::Struck { .. } => None,
+            Flight::Seated | Flight::Struck { .. } | Flight::Kicked { .. } => None,
             Flight::Flying(body) => Some(body.pose()),
             Flight::Lying(pose) => Some(*pose),
         }
     }
+}
+
+fn vector(direction: RayDirection) -> Vec3 {
+    let [x, y, z] = direction.coordinates();
+    Vec3::new(x, y, z)
 }
 
 /// Parsed history, including its fixture count. No state changes until all
@@ -184,6 +200,17 @@ mod tests {
         assert!(Distance::parse(f32::INFINITY).is_none());
         assert!(Distance::parse(-1.0).is_none());
         assert!(Bounds::parse(point([1.0; 3]), point([0.0; 3])).is_none());
+    }
+    #[test]
+    fn a_segment_passes_near_a_point_only_along_its_own_length() {
+        let reach = Distance::parse(0.14).unwrap();
+        let shot = ray([0.0; 3], [1.0, 0.0, 0.0], 5.0, None);
+        assert!(shot.passes_within(point([2.0, 0.1, 0.0]), reach));
+        assert!(!shot.passes_within(point([2.0, 0.2, 0.0]), reach));
+        assert!(!shot.passes_within(point([-0.5, 0.0, 0.0]), reach), "behind the muzzle");
+        assert!(shot.passes_within(point([-0.1, 0.0, 0.0]), reach));
+        // a wall at 1 m stops it before a piece at 2
+        assert!(!ray([0.0; 3], [1.0, 0.0, 0.0], 5.0, Some([1.0, 0.0, 0.0])).passes_within(point([2.0, 0.0, 0.0]), reach));
     }
     #[test]
     fn marks_on_the_bounds_and_their_margin_only() {
@@ -340,6 +367,24 @@ mod tests {
         assert_eq!(Flight::Lying(rest).step(Condition::Intact, seat, 1.0 / 60.0, Vec3::Y, &mut Floor), Flight::Seated);
         let Flight::Lying(dropped) = fly(Flight::Seated, Condition::Broken, seat) else { panic!("it never rested") };
         assert!(dropped.position.x.abs() < 0.01 && dropped.position.z.abs() < 0.01, "{:?}", dropped.position);
+    }
+    #[test]
+    fn a_lying_piece_is_knocked_on_from_where_it_lies() {
+        let seat = Pose::new(::ragdoll::math::Quat::IDENTITY, Vec3::new(0.0, 0.8, 0.0));
+        let Flight::Lying(rest) = fly(Flight::Seated, Condition::Broken, seat) else { panic!("it never rested") };
+        let push = RayDirection::parse([0.0, -0.3, 1.0]).unwrap();
+        assert_eq!(Flight::Seated.kick(push), Flight::Seated, "a seated piece is its fixture's");
+        let kicked = Flight::Lying(rest).kick(push);
+        assert_eq!(kicked, Flight::Kicked { from: rest, push });
+        assert_eq!(kicked.pose(), None, "stepped before it is drawn: the present steps, then places");
+        assert_eq!(kicked.kick(RayDirection::parse([1.0, 0.0, 0.0]).unwrap()), kicked, "one push a frame");
+        let Flight::Lying(again) = fly(kicked, Condition::Broken, seat) else { panic!("it never rested") };
+        assert!(again.position.z > rest.position.z + 0.5 && (again.position.x - rest.position.x).abs() < 0.15,
+                "on along the push: {:?} from {:?}", again.position, rest.position);
+        // a flying one goes on from where it is
+        let flying = Flight::Seated.strike(push).step(Condition::Broken, seat, 1.0 / 60.0, Vec3::Y, &mut Floor);
+        let Flight::Flying(body) = flying else { panic!("{flying:?}") };
+        assert_eq!(flying.kick(push), Flight::Kicked { from: body.pose(), push });
     }
 
 }

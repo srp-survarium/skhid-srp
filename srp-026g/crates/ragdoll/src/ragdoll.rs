@@ -1450,6 +1450,16 @@ impl LoneBody {
         LoneBody::new(knocked_headwear(pose, (Vec3::ZERO, Vec3::ZERO), up, away, up.cross(away)), 0.0)
     }
 
+    /// Headwear lying (or flying) loose at `pose`, struck again by a shot or
+    /// a blast along `shot`: it hops off as a can does, 2.5 m/s up and away
+    /// along the shot's level direction, tumbling at 8 rad/s about up x away.
+    /// A zero or upright `shot` throws it straight up.
+    pub fn kicked(pose: Pose, up: Vec3, shot: Vec3) -> LoneBody {
+        let away = shot.reject(up).direction_or(Vec3::ZERO);
+        let tumble = up.cross(away);
+        LoneBody::new(knocked_headwear(pose, (up * 1.7 + away * 2.0, tumble * 5.0), up, away, tumble), 0.0)
+    }
+
     /// The body's pose (its centre's).
     pub fn pose(&self) -> Pose {
         self.body.pose

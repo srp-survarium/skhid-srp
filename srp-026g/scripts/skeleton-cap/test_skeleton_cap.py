@@ -45,8 +45,6 @@ class SkeletonCap(unittest.TestCase):
             self.assertTrue(all(math.isclose(a, b, abs_tol=1e-6) for a, b in zip(got, want[:3])))
 
     def project(self, *visuals):
-        for v in visuals:
-            v['lib_name'] = v['visual_name']
         return bytearray(pack.serialize((3, [('render_visuals', (4, [record(v) for v in visuals]))])))
 
     def built(self, data, entries, table):
@@ -56,33 +54,53 @@ class SkeletonCap(unittest.TestCase):
         lamps.c.add_value(data, '', 'srp_lamps', table)
         return data
 
-    def test_rudnya_rows_pass_the_built_check_and_a_moved_index_does_not(self):
-        for prefix in lamps.FIGURE_PREFIXES:
-            with self.subTest(prefix=prefix):
-                skeleton = dict(visual_name=prefix + 'character/human/static/remains/skeleton_sitting1',
-                                position=[11.932, 18.731, 38.563], rotation=[-1.578, -1.374, -1.662],
-                                scale=[1., 1., 1.])
-                crate = dict(visual_name='props/crate', position=[0., 0., 0.], rotation=[0., 0., 0.], scale=[1., 1., 1.])
-                data = self.project(dict(crate), skeleton, dict(crate, position=[1., 0., 0.]))
-                centre, bounds = [0.2255, 0.765, 0.239], ([-0.119, -0.124, -0.12], [0.119, 0.126, 0.12])
-                entries, table = edits.edits_of('p', data, centre, bounds)
-                built = self.built(data, entries, table)
-                self.assertEqual(lamps.check_built('p', built), [])
-                visuals = lamps.tree(built)['render_visuals']
-                row = table['lamps']['cap0']
-                bare, cap = (visuals[row['visuals']['broken0']['index']], visuals[row['loose']['cap0']['index']])
-                self.assertEqual(bare['visual_name'], lamps.FIGURES[skeleton['visual_name']][0])
-                self.assertEqual(cap['visual_name'], lamps.FIGURES[skeleton['visual_name']][1])
-                at = lamps.world_bounds(skeleton, centre, centre)[0]
-                self.assertTrue(all(math.isclose(a, b, abs_tol=1e-5) for a, b in zip(cap['position'], at)))
-                self.assertGreater(cap['position'][1] - skeleton['position'][1], 0.7, 'the cap is on its head')
-                # the skeleton's origin is out of the cap's bounds: a shot at its legs is no hit
-                self.assertTrue(skeleton['position'][1] < row['min_y'])
-                row['loose']['cap0']['index'] -= 1
-                self.assertEqual(len(lamps.check_built('p', self.built(data, entries, table))), 1)
-                with self.assertRaisesRegex(ValueError, 'a lamp table already'):
-                    edits.edits_of('p', built, centre, bounds)
+    SKELETON = dict(position=[11.932, 18.731, 38.563], rotation=[-1.578, -1.374, -1.662], scale=[1., 0.9999999403953552, 1.])
+    CENTRE, BOUNDS = [0.2255, 0.765, 0.239], ([-0.119, -0.124, -0.12], [0.119, 0.126, 0.12])
 
+    def test_rudnya_rows_pass_the_built_check_and_a_moved_index_does_not(self):
+        for figure in lamps.FIGURES:
+            for names in (('visual_name', 'lib_name'), ('lib_name',)):     # the v0.69 ports' maps: lib_name alone
+                with self.subTest(figure=figure, names=names):
+                    skeleton = dict(self.SKELETON, **{key: figure for key in names})
+                    crate = {key: 'props/crate' for key in names} | dict(position=[0., 0., 0.], rotation=[0., 0., 0.],
+                                                                         scale=[1., 1., 1.])
+                    data = self.project(dict(crate), skeleton, dict(crate, position=[1., 0., 0.]))
+                    entries, table = edits.edits_of('p', data, self.CENTRE, self.BOUNDS)
+                    self.assertEqual(table['leftover'], 'body')
+                    built = self.built(data, entries, table)
+                    self.assertEqual(lamps.check_built('p', built), [])
+                    visuals = lamps.tree(built)['render_visuals']
+                    row = table['lamps']['cap0']
+                    bare, cap = (visuals[row['visuals']['broken0']['index']], visuals[row['loose']['cap0']['index']])
+                    self.assertEqual(lamps.model_name(bare), lamps.FIGURES[figure][0])
+                    self.assertEqual(lamps.model_name(cap), lamps.FIGURES[figure][1])
+                    self.assertEqual(set(cap) & {'visual_name', 'lib_name'}, set(names))
+                    at = lamps.world_bounds(skeleton, self.CENTRE, self.CENTRE)[0]
+                    self.assertTrue(all(math.isclose(a, b, abs_tol=1e-5) for a, b in zip(cap['position'], at)))
+                    self.assertGreater(cap['position'][1] - skeleton['position'][1], 0.7, 'the cap is on its head')
+                    # the skeleton's origin is out of the cap's bounds: a shot at its legs is no hit
+                    self.assertTrue(skeleton['position'][1] < row['min_y'])
+                    row['loose']['cap0']['index'] -= 1
+                    self.assertEqual(len(lamps.check_built('p', self.built(data, entries, table))), 1)
+                    row['loose']['cap0']['index'] += 1
+                    self.assertEqual(len(lamps.check_built('p', self.built(data, entries, dict(table, leftover='glass')))), 1)
+                    with self.assertRaisesRegex(ValueError, 'a lamp table already'):
+                        edits.edits_of('p', built, self.CENTRE, self.BOUNDS)
+
+    def test_each_skeleton_of_a_map_is_its_own_fixture(self):
+        figure = next(iter(lamps.FIGURES))
+        first = dict(self.SKELETON, lib_name=figure)
+        second = dict(first, position=[38.572, 22.192, -32.115], rotation=[0., -0.312, 0.], scale=[1., 1., 1.])
+        crate = dict(lib_name='props/crate', position=[0., 0., 0.], rotation=[0., 0., 0.], scale=[1., 1., 1.])
+        data = self.project(first, dict(crate), second)
+        entries, table = edits.edits_of('p', data, self.CENTRE, self.BOUNDS)
+        built = self.built(data, entries, table)
+        self.assertEqual(lamps.check_built('p', built), [])
+        visuals = lamps.tree(built)['render_visuals']
+        self.assertEqual([table['lamps'][k]['visuals']['intact0']['index'] for k in ('cap0', 'cap1')], [0, 4])
+        self.assertEqual([lamps.model_name(v).rsplit('/', 1)[1] for v in visuals],
+                         ['skeleton_sitting1', 'srp_skeleton_sitting1_bare', 'srp_skeleton_sitting1_cap', 'crate',
+                          'skeleton_sitting1', 'srp_skeleton_sitting1_bare', 'srp_skeleton_sitting1_cap'])
 
 if __name__ == '__main__':
     unittest.main()
