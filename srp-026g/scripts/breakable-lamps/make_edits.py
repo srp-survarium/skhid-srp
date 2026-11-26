@@ -74,6 +74,10 @@ GLASS = TUBE_GLASS | LANTERN_GLASS
 # with glass; on its own it is scenery.
 HOUSINGS = {prefix + 'props/light/lamp_midle_04' for prefix in ('',) + LONDON_PREFIXES} | {glass.removesuffix('_glass_emit') for glass in LANTERN_GLASS}
 PARTS = REPLACEMENTS.keys() | GLASS | HOUSINGS
+# Glass that is no lamp: School's vodka bottles, each a fixture of its own
+# with its one intact visual (make_bottles.py), outside the lamp rule above,
+# which would merge bottles lying side by side into one fixture.
+BOTTLES = {prefix + 'props/kitchen/bottle_vodka' for prefix in PORT_PREFIXES}
 # Fluorescent glass: a model's tubes are its glass, not its housing or frame.
 # The local height of the tubes' axis in the models that hold them (the
 # triangles make_pack.py drops: lamp_midle_0N y -0.099..-0.055, lamp_big_01
@@ -400,7 +404,7 @@ def check_built(path, data):
             if v is None:
                 ok = False
             elif role == 'intact':
-                ok = (model in REPLACEMENTS or model in GLASS) and all(
+                ok = (model in REPLACEMENTS or model in GLASS or model in BOTTLES) and all(
                     row['min_' + a] - 1e-3 <= p <= row['max_' + a] + 1e-3 for a, p in zip('xyz', v['position']))
             elif role == 'broken':
                 intact = visual('intact' + key[len(role):])

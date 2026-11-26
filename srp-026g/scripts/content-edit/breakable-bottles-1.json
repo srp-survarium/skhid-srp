@@ -1,0 +1,503 @@
+{
+  "_about": "Breakable bottles (the owner, 2026-11-26: School's vodka bottles): each props/kitchen/bottle_vodka of a project with a lamp table is a fixture of it with its one intact visual, no broken model and no lights; a break hides it and plays the project's glass pair (docs/notes/breakable_lamps.md). Authored by scripts/breakable-lamps/make_bottles.py over the projects as the manifest leaves them; indices refer to the final render_visuals.",
+  "add_value": [
+    {
+      "files": [
+        "projects/level_02/day_2/client_project",
+        "projects/level_02/day_3/client_project",
+        "projects/level_02/evening_2/client_project",
+        "projects/level_02/evening_3/client_project",
+        "projects/level_02/rain_2/client_project",
+        "projects/level_02/rain_3/client_project"
+      ],
+      "table": "srp_lamps/lamps",
+      "key": "bottle0",
+      "value": {
+        "glass_from_x": 16.984465097655804,
+        "glass_from_y": 19.47966649309861,
+        "glass_from_z": 33.61915043512404,
+        "glass_to_x": 17.261731879597736,
+        "glass_to_y": 19.473648798532672,
+        "glass_to_z": 33.504752343609084,
+        "lights": {},
+        "max_x": 17.281960860305645,
+        "max_y": 19.53213051435599,
+        "max_z": 33.66756968573737,
+        "min_x": 16.96423611694789,
+        "min_y": 19.421184777275286,
+        "min_z": 33.45633309299575,
+        "visuals": {
+          "intact0": {
+            "index": 966,
+            "state": 0
+          }
+        }
+      }
+    },
+    {
+      "files": [
+        "projects/level_02/day_2/client_project",
+        "projects/level_02/day_3/client_project",
+        "projects/level_02/evening_2/client_project",
+        "projects/level_02/evening_3/client_project",
+        "projects/level_02/rain_2/client_project",
+        "projects/level_02/rain_3/client_project"
+      ],
+      "table": "srp_lamps/lamps",
+      "key": "bottle1",
+      "value": {
+        "glass_from_x": 17.04016603075126,
+        "glass_from_y": 19.449000991389273,
+        "glass_from_z": 33.76577326906324,
+        "glass_to_x": 17.04033479158427,
+        "glass_to_y": 19.749000929916225,
+        "glass_to_z": 33.765886238951886,
+        "lights": {},
+        "max_x": 17.089949158777685,
+        "max_y": 19.749036615806325,
+        "max_z": 33.815500613839845,
+        "min_x": 16.990551663557845,
+        "min_y": 19.444000244140625,
+        "min_z": 33.71615889417528,
+        "visuals": {
+          "intact0": {
+            "index": 967,
+            "state": 0
+          }
+        }
+      }
+    },
+    {
+      "files": [
+        "projects/level_02/day_2/client_project",
+        "projects/level_02/day_3/client_project",
+        "projects/level_02/evening_2/client_project",
+        "projects/level_02/evening_3/client_project",
+        "projects/level_02/rain_2/client_project",
+        "projects/level_02/rain_3/client_project"
+      ],
+      "table": "srp_lamps/lamps",
+      "key": "bottle2",
+      "value": {
+        "glass_from_x": 16.780073749704382,
+        "glass_from_y": 19.46668174672465,
+        "glass_from_z": 33.71967115770944,
+        "glass_to_x": 16.72283927918947,
+        "glass_to_y": 19.45712402516196,
+        "glass_to_z": 33.42533653571944,
+        "lights": {},
+        "max_x": 16.819943356292146,
+        "max_y": 19.50749385946108,
+        "max_z": 33.72855790053097,
+        "min_x": 16.682969672601708,
+        "min_y": 19.416311912425527,
+        "min_z": 33.41644979289791,
+        "visuals": {
+          "intact0": {
+            "index": 968,
+            "state": 0
+          }
+        }
+      }
+    },
+    {
+      "files": [
+        "projects/level_02/day_4/client_project",
+        "projects/level_02/day_5b/client_project",
+        "projects/level_02/day_8/client_project",
+        "projects/level_02/day_ah/client_project",
+        "projects/level_02/evening_4/client_project",
+        "projects/level_02/evening_5b/client_project",
+        "projects/level_02/evening_8/client_project",
+        "projects/level_02/evening_ah/client_project",
+        "projects/level_02/rain_4/client_project",
+        "projects/level_02/rain_5b/client_project",
+        "projects/level_02/rain_8/client_project",
+        "projects/level_02/rain_ah/client_project"
+      ],
+      "table": "srp_lamps/lamps",
+      "key": "bottle0",
+      "value": {
+        "glass_from_x": 16.984465097655804,
+        "glass_from_y": 19.47966649309861,
+        "glass_from_z": 33.61915043512404,
+        "glass_to_x": 17.261731879597736,
+        "glass_to_y": 19.473648798532672,
+        "glass_to_z": 33.504752343609084,
+        "lights": {},
+        "max_x": 17.281960860305645,
+        "max_y": 19.53213051435599,
+        "max_z": 33.66756968573737,
+        "min_x": 16.96423611694789,
+        "min_y": 19.421184777275286,
+        "min_z": 33.45633309299575,
+        "visuals": {
+          "intact0": {
+            "index": 877,
+            "state": 0
+          }
+        }
+      }
+    },
+    {
+      "files": [
+        "projects/level_02/day_4/client_project",
+        "projects/level_02/day_5b/client_project",
+        "projects/level_02/day_8/client_project",
+        "projects/level_02/day_ah/client_project",
+        "projects/level_02/evening_4/client_project",
+        "projects/level_02/evening_5b/client_project",
+        "projects/level_02/evening_8/client_project",
+        "projects/level_02/evening_ah/client_project",
+        "projects/level_02/rain_4/client_project",
+        "projects/level_02/rain_5b/client_project",
+        "projects/level_02/rain_8/client_project",
+        "projects/level_02/rain_ah/client_project"
+      ],
+      "table": "srp_lamps/lamps",
+      "key": "bottle1",
+      "value": {
+        "glass_from_x": 17.04016603075126,
+        "glass_from_y": 19.449000991389273,
+        "glass_from_z": 33.76577326906324,
+        "glass_to_x": 17.04033479158427,
+        "glass_to_y": 19.749000929916225,
+        "glass_to_z": 33.765886238951886,
+        "lights": {},
+        "max_x": 17.089949158777685,
+        "max_y": 19.749036615806325,
+        "max_z": 33.815500613839845,
+        "min_x": 16.990551663557845,
+        "min_y": 19.444000244140625,
+        "min_z": 33.71615889417528,
+        "visuals": {
+          "intact0": {
+            "index": 878,
+            "state": 0
+          }
+        }
+      }
+    },
+    {
+      "files": [
+        "projects/level_02/day_4/client_project",
+        "projects/level_02/day_5b/client_project",
+        "projects/level_02/day_8/client_project",
+        "projects/level_02/day_ah/client_project",
+        "projects/level_02/evening_4/client_project",
+        "projects/level_02/evening_5b/client_project",
+        "projects/level_02/evening_8/client_project",
+        "projects/level_02/evening_ah/client_project",
+        "projects/level_02/rain_4/client_project",
+        "projects/level_02/rain_5b/client_project",
+        "projects/level_02/rain_8/client_project",
+        "projects/level_02/rain_ah/client_project"
+      ],
+      "table": "srp_lamps/lamps",
+      "key": "bottle2",
+      "value": {
+        "glass_from_x": 16.780073749704382,
+        "glass_from_y": 19.46668174672465,
+        "glass_from_z": 33.71967115770944,
+        "glass_to_x": 16.72283927918947,
+        "glass_to_y": 19.45712402516196,
+        "glass_to_z": 33.42533653571944,
+        "lights": {},
+        "max_x": 16.819943356292146,
+        "max_y": 19.50749385946108,
+        "max_z": 33.72855790053097,
+        "min_x": 16.682969672601708,
+        "min_y": 19.416311912425527,
+        "min_z": 33.41644979289791,
+        "visuals": {
+          "intact0": {
+            "index": 879,
+            "state": 0
+          }
+        }
+      }
+    },
+    {
+      "files": [
+        "projects/level_02/day_5/client_project",
+        "projects/level_02/evening_5/client_project",
+        "projects/level_02/rain_5/client_project"
+      ],
+      "table": "srp_lamps/lamps",
+      "key": "bottle0",
+      "value": {
+        "glass_from_x": 16.984465097655804,
+        "glass_from_y": 19.47966649309861,
+        "glass_from_z": 33.61915043512404,
+        "glass_to_x": 17.261731879597736,
+        "glass_to_y": 19.473648798532672,
+        "glass_to_z": 33.504752343609084,
+        "lights": {},
+        "max_x": 17.281960860305645,
+        "max_y": 19.53213051435599,
+        "max_z": 33.66756968573737,
+        "min_x": 16.96423611694789,
+        "min_y": 19.421184777275286,
+        "min_z": 33.45633309299575,
+        "visuals": {
+          "intact0": {
+            "index": 872,
+            "state": 0
+          }
+        }
+      }
+    },
+    {
+      "files": [
+        "projects/level_02/day_5/client_project",
+        "projects/level_02/evening_5/client_project",
+        "projects/level_02/rain_5/client_project"
+      ],
+      "table": "srp_lamps/lamps",
+      "key": "bottle1",
+      "value": {
+        "glass_from_x": 17.04016603075126,
+        "glass_from_y": 19.449000991389273,
+        "glass_from_z": 33.76577326906324,
+        "glass_to_x": 17.04033479158427,
+        "glass_to_y": 19.749000929916225,
+        "glass_to_z": 33.765886238951886,
+        "lights": {},
+        "max_x": 17.089949158777685,
+        "max_y": 19.749036615806325,
+        "max_z": 33.815500613839845,
+        "min_x": 16.990551663557845,
+        "min_y": 19.444000244140625,
+        "min_z": 33.71615889417528,
+        "visuals": {
+          "intact0": {
+            "index": 873,
+            "state": 0
+          }
+        }
+      }
+    },
+    {
+      "files": [
+        "projects/level_02/day_5/client_project",
+        "projects/level_02/evening_5/client_project",
+        "projects/level_02/rain_5/client_project"
+      ],
+      "table": "srp_lamps/lamps",
+      "key": "bottle2",
+      "value": {
+        "glass_from_x": 16.780073749704382,
+        "glass_from_y": 19.46668174672465,
+        "glass_from_z": 33.71967115770944,
+        "glass_to_x": 16.72283927918947,
+        "glass_to_y": 19.45712402516196,
+        "glass_to_z": 33.42533653571944,
+        "lights": {},
+        "max_x": 16.819943356292146,
+        "max_y": 19.50749385946108,
+        "max_z": 33.72855790053097,
+        "min_x": 16.682969672601708,
+        "min_y": 19.416311912425527,
+        "min_z": 33.41644979289791,
+        "visuals": {
+          "intact0": {
+            "index": 874,
+            "state": 0
+          }
+        }
+      }
+    },
+    {
+      "files": [
+        "projects/v021d_level_02/day_2/client_project",
+        "projects/v021d_level_02/evening_2/client_project",
+        "projects/v021d_level_02/rain_2/client_project"
+      ],
+      "table": "srp_lamps/lamps",
+      "key": "bottle0",
+      "value": {
+        "glass_from_x": 16.984465097655804,
+        "glass_from_y": 19.47966649309861,
+        "glass_from_z": 33.61915043512404,
+        "glass_to_x": 17.261731879597736,
+        "glass_to_y": 19.473648798532672,
+        "glass_to_z": 33.504752343609084,
+        "lights": {},
+        "max_x": 17.281960860305645,
+        "max_y": 19.53213051435599,
+        "max_z": 33.66756968573737,
+        "min_x": 16.96423611694789,
+        "min_y": 19.421184777275286,
+        "min_z": 33.45633309299575,
+        "visuals": {
+          "intact0": {
+            "index": 854,
+            "state": 0
+          }
+        }
+      }
+    },
+    {
+      "files": [
+        "projects/v021d_level_02/day_2/client_project",
+        "projects/v021d_level_02/evening_2/client_project",
+        "projects/v021d_level_02/rain_2/client_project"
+      ],
+      "table": "srp_lamps/lamps",
+      "key": "bottle1",
+      "value": {
+        "glass_from_x": 17.040167310880356,
+        "glass_from_y": 19.44900133066211,
+        "glass_from_z": 33.76577412587845,
+        "glass_to_x": 17.040412853891514,
+        "glass_to_y": 19.749001192412422,
+        "glass_to_z": 33.76593849440345,
+        "lights": {},
+        "max_x": 17.09002720810488,
+        "max_y": 19.74905311453843,
+        "max_z": 33.8155528660364,
+        "min_x": 16.990552956666992,
+        "min_y": 19.444000244140625,
+        "min_z": 33.71615975424551,
+        "visuals": {
+          "intact0": {
+            "index": 855,
+            "state": 0
+          }
+        }
+      }
+    },
+    {
+      "files": [
+        "projects/v021d_level_02/day_2/client_project",
+        "projects/v021d_level_02/evening_2/client_project",
+        "projects/v021d_level_02/rain_2/client_project"
+      ],
+      "table": "srp_lamps/lamps",
+      "key": "bottle2",
+      "value": {
+        "glass_from_x": 16.780073749704382,
+        "glass_from_y": 19.46668174672465,
+        "glass_from_z": 33.71967115770944,
+        "glass_to_x": 16.72283927918947,
+        "glass_to_y": 19.45712402516196,
+        "glass_to_z": 33.42533653571944,
+        "lights": {},
+        "max_x": 16.819943356292146,
+        "max_y": 19.50749385946108,
+        "max_z": 33.72855790053097,
+        "min_x": 16.682969672601708,
+        "min_y": 19.416311912425527,
+        "min_z": 33.41644979289791,
+        "visuals": {
+          "intact0": {
+            "index": 856,
+            "state": 0
+          }
+        }
+      }
+    },
+    {
+      "files": [
+        "projects/v021d_level_02/day_4/client_project",
+        "projects/v021d_level_02/day_8/client_project",
+        "projects/v021d_level_02/day_ah/client_project",
+        "projects/v021d_level_02/evening_4/client_project",
+        "projects/v021d_level_02/evening_ah/client_project",
+        "projects/v021d_level_02/rain_4/client_project",
+        "projects/v021d_level_02/rain_ah/client_project"
+      ],
+      "table": "srp_lamps/lamps",
+      "key": "bottle0",
+      "value": {
+        "glass_from_x": 16.984465097655804,
+        "glass_from_y": 19.47966649309861,
+        "glass_from_z": 33.61915043512404,
+        "glass_to_x": 17.261731879597736,
+        "glass_to_y": 19.473648798532672,
+        "glass_to_z": 33.504752343609084,
+        "lights": {},
+        "max_x": 17.281960860305645,
+        "max_y": 19.53213051435599,
+        "max_z": 33.66756968573737,
+        "min_x": 16.96423611694789,
+        "min_y": 19.421184777275286,
+        "min_z": 33.45633309299575,
+        "visuals": {
+          "intact0": {
+            "index": 852,
+            "state": 0
+          }
+        }
+      }
+    },
+    {
+      "files": [
+        "projects/v021d_level_02/day_4/client_project",
+        "projects/v021d_level_02/day_8/client_project",
+        "projects/v021d_level_02/day_ah/client_project",
+        "projects/v021d_level_02/evening_4/client_project",
+        "projects/v021d_level_02/evening_ah/client_project",
+        "projects/v021d_level_02/rain_4/client_project",
+        "projects/v021d_level_02/rain_ah/client_project"
+      ],
+      "table": "srp_lamps/lamps",
+      "key": "bottle1",
+      "value": {
+        "glass_from_x": 17.040167310880356,
+        "glass_from_y": 19.44900133066211,
+        "glass_from_z": 33.76577412587845,
+        "glass_to_x": 17.040412853891514,
+        "glass_to_y": 19.749001192412422,
+        "glass_to_z": 33.76593849440345,
+        "lights": {},
+        "max_x": 17.09002720810488,
+        "max_y": 19.74905311453843,
+        "max_z": 33.8155528660364,
+        "min_x": 16.990552956666992,
+        "min_y": 19.444000244140625,
+        "min_z": 33.71615975424551,
+        "visuals": {
+          "intact0": {
+            "index": 853,
+            "state": 0
+          }
+        }
+      }
+    },
+    {
+      "files": [
+        "projects/v021d_level_02/day_4/client_project",
+        "projects/v021d_level_02/day_8/client_project",
+        "projects/v021d_level_02/day_ah/client_project",
+        "projects/v021d_level_02/evening_4/client_project",
+        "projects/v021d_level_02/evening_ah/client_project",
+        "projects/v021d_level_02/rain_4/client_project",
+        "projects/v021d_level_02/rain_ah/client_project"
+      ],
+      "table": "srp_lamps/lamps",
+      "key": "bottle2",
+      "value": {
+        "glass_from_x": 16.780073749704382,
+        "glass_from_y": 19.46668174672465,
+        "glass_from_z": 33.71967115770944,
+        "glass_to_x": 16.72283927918947,
+        "glass_to_y": 19.45712402516196,
+        "glass_to_z": 33.42533653571944,
+        "lights": {},
+        "max_x": 16.819943356292146,
+        "max_y": 19.50749385946108,
+        "max_z": 33.72855790053097,
+        "min_x": 16.682969672601708,
+        "min_y": 19.416311912425527,
+        "min_z": 33.41644979289791,
+        "visuals": {
+          "intact0": {
+            "index": 854,
+            "state": 0
+          }
+        }
+      }
+    }
+  ]
+}

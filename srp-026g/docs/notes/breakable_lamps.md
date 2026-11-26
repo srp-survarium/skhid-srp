@@ -118,6 +118,38 @@ Build this resource-porter pack into
 `$SKHID_PACKS_DIR/breakable-lamps-2`, then use `release/build-content` normally.
 No release patch is assembled by the authoring tools.
 
+## Bottles
+
+The owner (2026-11-26, `2026-11-26-03-48-25.png`: School's round table at
+17.0, 19.5, 33.7): "there are bottles in school which can be breakable". The
+three `props/kitchen/bottle_vodka` there (two lying, one standing, within
+0.3 m of one another) are fixtures of the project's lamp table, as a lit
+tube is: the intact visual alone, no broken model, no lights. Their
+collision is `glass` (the model's `coll_GLASS_s`, material 29), the
+project's `break_material`, so a break plays School's glass pair (bullet x
+glass) along the bottle (0.3 m: two bursts, its longest local axis) and no
+mark is left in the air where it stood. No exe change: the patch reads them
+as any other fixture.
+
+`scripts/content-edit/breakable-bottles-1.json`, made by
+`scripts/breakable-lamps/make_bottles.py`, adds the rows `bottle0..2` (in the
+order of the project's visuals) to `srp_lamps/lamps` of School's 21
+projects (day, evening and rain: modes 2 to 5, 5b, Free for All's 8 and
+Artefact Hunt's `_ah`) and School v0.21's 10 (`ported/v021d/` copies of the
+model, their own bounds); the lobby's two bottles stay (no lamp table). A
+row's box holds the model's origin too, its base 5 mm under the mesh, as
+`check_built` reads a fixture's placement inside its box. Bottles stay out
+of `make_edits.py`'s lamp rule (`PARTS`), which merges touching models into
+one fixture: one shot would break all three. `BOTTLES` lists the models for
+`check_built`. The list is the manifest's last edit row: its indices are
+those of the final `render_visuals` (authored over a quick build's patch on
+players' files), and build-content's lamp check refuses a build where a
+later list moves them.
+
+The table is named, so its fixtures' order in the history is its keys' CRC
+order: the bottles take places among the lamps, and these maps' worlds save
+three lamps more (`simulation_changes.tsv`).
+
 ## Room probes
 
 In a ported map most of a room's light is its environment probe's, whose
