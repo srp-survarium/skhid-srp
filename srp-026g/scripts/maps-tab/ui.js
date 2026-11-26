@@ -205,17 +205,50 @@
     }));
     const tdm = !mo.spawners.length && !mo.stations.length;
     $("note").textContent = mo.batteries && !tdm ? Tf("{n} batteries to win.", { n: mo.batteries }) : "";
-    $("anote").textContent = m.anomalies.length
-      ? T("Artefacts come from the anomalies. Each anomaly puts one of its artefacts into one of its free containers, one per time window, until its maximum lies uncollected; a pickup starts the window again. It gives only those of its artefacts that no player is carrying. Point at an anomaly or an artefact (or tap it) for its numbers.")
-      : "";
+    // The containers' search and cooldown, said once when every anomaly of the map has the same (it
+    // does on every map but differs between maps: 5 s on the v0.21 ports), else on each card.
+    const rule = T("Artefacts come from the anomalies. Each anomaly puts one of its artefacts into one of its free containers, one per time window, until its maximum lies uncollected; a pickup starts the window again. It gives only those of its artefacts that no player is carrying. Point at an anomaly or an artefact (or tap it) for its numbers.");
+    const each = shared(m);
+    $("anote").textContent = !m.anomalies.some(a => a.gives.length) ? ""
+      : each ? `${rule} ${Tf("Searching a container takes {search}; after a pickup it stays empty for {cooldown}.", { search: secs(each.search, each.search), cooldown: secs(each.cooldown, each.cooldown) })}`
+        : rule;
   }
 
-  // The floating card of anomaly `i` of the map: what it holds and when it gives it.
+  // The floating card of anomaly `i` of the map: what it holds, when it gives it, what it does.
   const card = $("card");
   const secs = (lo, hi) => (lo === hi ? Tf("{s} s", { s: lo }) : Tf("{a}–{b} s", { a: lo, b: hi }));
   const span = list => secs(Math.min(...list), Math.max(...list));
+  // The one search time and cooldown of every container of the map's anomalies, or null.
+  const shared = m => {
+    const all = (key) => [...new Set(m.anomalies.flatMap(a => a[key] || []))];
+    const [search, cooldown] = [all("search"), all("cooldown")];
+    return search.length === 1 && cooldown.length === 1 ? { search: search[0], cooldown: cooldown[0] } : null;
+  };
+  // A damage zone's hit: a share of each part's health (1.0), before armour (mapdata's `Damage`).
+  const HIT = { toxic: T("Toxins"), radiation: T("Radiation"), fire: T("Fire"), shock: T("Electricity") };
+  const PART = { head: T("Head"), face: T("Face"), chest: T("Chest"), back: T("Back"), arms: T("Arms"), hands: T("Hands"), legs: T("Legs"), feet: T("Feet") };
+  const pct = v => { const n = v * 100; return String(n < 10 ? Math.round(n * 10) / 10 : Math.round(n)); };
+  const pcts = (lo, hi) => (pct(lo) === pct(hi) ? pct(hi) : `${pct(lo)}–${pct(hi)}`);
+  function hurts(d) {
+    const parts = d.parts.length === Object.keys(PART).length ? T("whole body") : d.parts.map(p => PART[p] || p).join(", ");
+    // A continuous zone's hit is spread over its interval: per second, it is the hit x 1000 / interval.
+    const k = 1000 / d.interval, [lo, hi] = d.hit;
+    const amount = !d.continuous ? Tf("{n} % a hit, at most every {t}", { n: pcts(lo, hi), t: secs(d.interval / 1000, d.interval / 1000) })
+      : hi * k >= 1 ? T("deadly")
+        : Tf("{n} % a second", { n: pcts(lo * k, hi * k) });
+    return [HIT[d.type] || d.type, `${amount} · ${parts}`];
+  }
   function fillCard(i) {
-    const a = map().anomalies[i], art = MAPS.artefacts;
+    const m = map(), a = m.anomalies[i], art = MAPS.artefacts, each = shared(m);
+    // One that gives no artefacts: its damage alone.
+    if (!a.gives.length) {
+      const rows = [...a.switch.map(([lo, hi]) => [T("Zones switch every"), secs(lo, hi)]), ...a.damage.map(hurts)];
+      card.replaceChildren(el("div", { class: "card-h" }, el("span", { text: T("Anomaly") })),
+        el("dl", {}, ...rows.flatMap(([k, v]) => [el("dt", { text: k }), el("dd", { text: v })])),
+        ...(a.damage.length ? [el("p", { text: T("Damage is a share of each body part's health, before armour.") })] : [el("p", { text: T("Its own zone does no damage.") })]),
+        el("p", { text: T("It gives no artefacts.") }));
+      return;
+    }
     const rows = [
       [T("Holds"), a.gives.map(([k, n]) => `${art[k] ? N(art[k].name) : k} ×${n}`).join(" · ")],
       [T("First one"), secs(...a.first)],
@@ -223,16 +256,19 @@
       ...(a.chance < 1 ? [[T("Chance"), `${Math.round(a.chance * 100)} %`]] : []),
       [T("Max uncollected"), String(a.max)],
       [T("Containers"), String(a.containers)],
-      [Tc("artefact", "Search"), span(a.search)],
+      ...(each ? [] : [[Tc("artefact", "Search"), span(a.search)]]),
       ...a.switch.map(([lo, hi]) => [T("Zones switch every"), secs(lo, hi)]),
+      ...a.damage.map(hurts),
     ];
     const harmless = a.areas.length && !a.areas.some(s => s.hurt);
     card.replaceChildren(
       el("div", { class: "card-h" }, ...kindsOf(a).filter(k => art[k]).map(k => el("img", { src: art[k].icon, alt: "" })),
         el("span", { text: kindsOf(a).map(k => (art[k] ? N(art[k].name) : k)).join(" · ") })),
       el("dl", {}, ...rows.flatMap(([k, v]) => [el("dt", { text: k }), el("dd", { text: v })])),
-      el("p", { text: Tf("After a pickup the next one comes {next} later; that container stays empty for {cooldown}.", { next: secs(...a.next), cooldown: span(a.cooldown) }) }),
-      ...(harmless ? [el("p", { text: T("Its own zone does no damage.") })] : []));
+      ...(a.damage.length ? [el("p", { text: T("Damage is a share of each body part's health, before armour.") })] : []),
+      ...(harmless ? [el("p", { text: T("Its own zone does no damage.") })] : []),
+      el("p", { text: each ? Tf("After a pickup the next one comes {next} later.", { next: secs(...a.next) })
+        : Tf("After a pickup the next one comes {next} later; that container stays empty for {cooldown}.", { next: secs(...a.next), cooldown: span(a.cooldown) }) }));
   }
   // Shown at (x, y), the pointer's place in the stage, kept inside it.
   function showCard(i, x, y) {

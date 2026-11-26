@@ -249,6 +249,14 @@ def footprints(geometry):
     return shapes
 
 
+# A damage zone's `hit_parts_filter` part as the site names it, both sides together (the equipment
+# pages' `part_name`: brain the head, forearm the arms, arm the hands, hip the legs), head to feet.
+PARTS = ("head", "face", "chest", "back", "arms", "hands", "legs", "feet")
+PART = {"brain": "head", "face": "face", "front": "chest", "back": "back", "left_forearm": "arms",
+        "right_forearm": "arms", "left_arm": "hands", "right_arm": "hands", "left_hip": "legs",
+        "right_hip": "legs", "left_foot": "feet", "right_foot": "feet"}
+
+
 def window(middle, spread):
     """A time drawn uniformly in middle ± spread seconds, as the anomaly draws it
     (`artefact_respawn_delay`, never below 0): [earliest, latest], whole seconds."""
@@ -261,10 +269,14 @@ def anomaly(core, by_name, artefact_keys):
     (`artefacts_first_spawn_time_sec`, `_respawn_time_sec`, ± `_respawn_variation_sec`), the chance
     each try has, how many of its artefacts may lie uncollected at once (`max_artefacts_count`), its
     containers' search time and cooldown, how often its zones switch (a sequential group's
-    `min/max_active_time_sec`) and where it is: its damage zones' shapes seen from above, each
-    marked whether it hurts (`max_hit` > 0)."""
+    `min/max_active_time_sec`), what its zones that hurt do (a hit of `max_hit` of each part's health
+    to each part of `hit_parts_filter`, before armour: `continuous_hit` every `interval_in_msec`
+    spread over the ticks, else one hit at most that often; mapdata's `Damage`), grouped by damage
+    type, parts and timing with the range of their hits (School's fruit cloud has five levels),
+    and where it is: its damage zones' shapes seen from above, each marked whether it hurts
+    (`max_hit` > 0)."""
     variation = core.get("artefacts_respawn_variation_sec", 0)
-    containers = [by_name[name] for name in core["artefact_containers"] if name in by_name]
+    containers = [by_name[name] for name in core.get("artefact_containers") or [] if name in by_name]
     zones, switch = [], set()
     for state in core.get("states") or []:
         if not state.get("enabled", True):
@@ -277,12 +289,23 @@ def anomaly(core, by_name, artefact_keys):
             zones += [name for name in group.get("zones") or [] if name not in zones]
     # Its zones, each shape marked whether it hurts ("hurt": a damage zone with a hit) or not (an
     # idle zone of sound and sight: Rudnya's Lifebone anomaly has only that, its twin the damage).
-    areas = []
+    areas, hits = [], defaultdict(list)
     for name in zones:
         zone = by_name.get(name) or {}
         if zone.get("game_object_type") != "damage_zone":
             continue
         hurt = bool(zone.get("max_hit"))
+        if hurt:
+            # The v0.11 and v0.21 ports keep their builds' `body` and `head`, which 0.26g's body has not
+            # (its twelve parts: armour.rs `BodyPart`): shown without them, and said at the build
+            # (docs/notes/maps_tab.md, "Anomalies").
+            unknown = set(zone.get("hit_parts_filter") or []) - set(PART)
+            if unknown:
+                print(f"note: {name}: hit_parts_filter names parts 0.26g has not ({', '.join(sorted(unknown))}): not shown",
+                      file=sys.stderr)
+            parts = sorted({PART[p] for p in zone.get("hit_parts_filter") or [] if p in PART}, key=PARTS.index)
+            hits[(zone.get("damage_type", ""), tuple(parts), bool(zone.get("continuous_hit")),
+                  zone.get("interval_in_msec", 1000))].append(zone["max_hit"])
         for ref in zone.get("collision_geometries") or []:
             geometry = by_name.get(ref if isinstance(ref, str) else ref.get("name"))
             if geometry:
@@ -299,6 +322,10 @@ def anomaly(core, by_name, artefact_keys):
         "search": seconds("artefacts_search_time_sec"),
         "cooldown": seconds("artefacts_cooldown_time_sec"),
         "switch": sorted(switch),
+        "damage": sorted(({"type": kind, "parts": list(parts), "continuous": continuous, "interval": interval,
+                           "hit": [round(min(values), 3), round(max(values), 3)]}
+                          for (kind, parts, continuous, interval), values in hits.items()),
+                         key=lambda d: (-d["hit"][1], d["type"])),
         "areas": areas,
     }
 
@@ -314,16 +341,20 @@ def objects(project, artefact_keys):
     for o in client:
         if o.get("game_object_type") != "generic_anomaly_core":
             continue
-        # An anomaly with no container spawns nothing anywhere: Keeper of the Artifacts' hidden
-        # pool (content-edit/artefact-keeper-1.json) is one, and none of it is shown. Nor is one
-        # whose artefacts are off (`artefacts_enabled`): it never spawns them.
-        if not o.get("artefact_containers") or not o.get("artefacts_enabled"):
+        # An anomaly gives artefacts when they are on (`artefacts_enabled`) and it has containers;
+        # one that does not is shown by its zones alone (v0.21 Rudnya's swamp is seven anomalies,
+        # two of them giving artefacts), and one with neither is not shown: Keeper of the
+        # Artifacts' hidden pool (content-edit/artefact-keeper-1.json) is one.
+        found = anomaly(o, by_name, artefact_keys)
+        if not (o.get("artefact_containers") and o.get("artefacts_enabled")):
+            if found["areas"]:
+                anomalies.append({"gives": [], **{k: found[k] for k in ("switch", "damage", "areas")}})
             continue
         kinds = {artefact_keys[a["dict_id"]] for a in o.get("artefacts") or [] if a["dict_id"] in artefact_keys}
         for name in o.get("artefact_containers") or []:
             kinds_of[name] |= kinds
             owners_of[name].append(len(anomalies))
-        anomalies.append(anomaly(o, by_name, artefact_keys))
+        anomalies.append(found)
     # A container's own position is its anomaly's pivot, shared by all of
     # them; where the artefact is found is its collision geometry (the zone
     # the search runs in). Each is [x, z, y, its kinds, its anomalies (indices)].

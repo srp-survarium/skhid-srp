@@ -966,3 +966,11 @@ Search	Пошук	artefact
 Zones switch every	Зоны мяняюцца кожныя
 After a pickup the next one comes {next} later; that container stays empty for {cooldown}.	Пасля падбору наступны з'явіцца праз {next}; той кантэйнер застаецца пустым {cooldown}.
 Its own zone does no damage.	Яе ўласная зона не наносіць шкоды.
+Searching a container takes {search}; after a pickup it stays empty for {cooldown}.	Вобшук кантэйнера доўжыцца {search}; пасля падбору ён застаецца пустым {cooldown}.
+After a pickup the next one comes {next} later.	Пасля падбору наступны з'явіцца праз {next}.
+whole body	усё цела
+{n} % a hit, at most every {t}	{n} % за ўдар, не часцей за раз у {t}
+deadly	смяротна
+{n} % a second	{n} % у секунду
+Damage is a share of each body part's health, before armour.	Шкода — доля здароўя кожнай часткі цела, да броні.
+It gives no artefacts.	Яна не дае артэфактаў.

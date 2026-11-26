@@ -966,3 +966,11 @@ Search	Keresés	artefact
 Zones switch every	Zónaváltás
 After a pickup the next one comes {next} later; that container stays empty for {cooldown}.	Felvétel után a következő {next} múlva jön; az a tároló {cooldown} üres marad.
 Its own zone does no damage.	A saját zónája nem sebez.
+Searching a container takes {search}; after a pickup it stays empty for {cooldown}.	Egy tároló átkutatása {search}; felvétel után {cooldown} üres marad.
+After a pickup the next one comes {next} later.	Felvétel után a következő {next} múlva jön.
+whole body	egész test
+{n} % a hit, at most every {t}	{n} % találatonként, legfeljebb {t}-enként
+deadly	halálos
+{n} % a second	{n} % másodpercenként
+Damage is a share of each body part's health, before armour.	A sebzés minden testrész életerejének része, a páncél előtt.
+It gives no artefacts.	Nem ad artefaktumot.

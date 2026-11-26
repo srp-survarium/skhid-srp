@@ -69,6 +69,16 @@ and when and how"; "we should show anomalies there and for each one some kind of
   artefact of its pool into a random free container of its own (empty, cooldown over); it tries again a window later
   until `max_artefacts_count` lie in its containers; a pickup makes it due again a window later. A free artefact is
   one nobody has: the pool caps how many of its artefacts are out at once.
+- Each zone that hurts is a row of the card: its damage type (the equipment pages' names), its hit as a share of each
+  part's health before armour (a continuous zone's per second, `max_hit` x 1000 / `interval_in_msec`; "deadly" from
+  1 a second; another's per hit, at most once an interval), and its parts as the site names them, head to feet
+  ("whole body" for all eight). Zones of one type, parts and timing are one row with the range of their hits
+  (School's fruit cloud: five levels).
+- The v0.11 and v0.21 ports' `electric_hit_damage_zone` and v0.21 School's `fruit_toxic_cloud_explosion` list
+  `body` and `head`, their builds' part names, which 0.26g's body has not: the card leaves them out and the build
+  says so. What 0.26g does with an unknown name is not read (LIKELY: no part, no damage there): a port to check.
+- The containers' search time and cooldown are the same for every anomaly of each map (6 s and 80 s; 5 s on the
+  v0.21 ports): said once in the line under the map; a map whose anomalies differed would have them on each card.
 - Not on the page until checked in a game: the short spawning state of an artefact in a container before it can be
   taken (`m_time_left_to_spawn`), and whether an artefact a full-slots pickup replaces goes back to its pool.
 - Every number is the release's data: nothing typed in. The modes of a map have the same anomalies (the build stops

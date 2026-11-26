@@ -966,3 +966,11 @@ Search	Busca	artefact
 Zones switch every	Zonas alternam a cada
 After a pickup the next one comes {next} later; that container stays empty for {cooldown}.	Após uma coleta, o próximo vem {next} depois; esse recipiente fica vazio por {cooldown}.
 Its own zone does no damage.	A própria zona dela não causa dano.
+Searching a container takes {search}; after a pickup it stays empty for {cooldown}.	Revistar um recipiente leva {search}; após uma coleta ele fica vazio por {cooldown}.
+After a pickup the next one comes {next} later.	Após uma coleta, o próximo vem {next} depois.
+whole body	corpo inteiro
+{n} % a hit, at most every {t}	{n} % por acerto, no máximo a cada {t}
+deadly	mortal
+{n} % a second	{n} % por segundo
+Damage is a share of each body part's health, before armour.	O dano é uma parte da vida de cada parte do corpo, antes da armadura.
+It gives no artefacts.	Ela não dá artefatos.

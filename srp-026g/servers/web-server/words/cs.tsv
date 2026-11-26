@@ -966,3 +966,11 @@ Search	Hledání	artefact
 Zones switch every	Zóny se střídají každých
 After a pickup the next one comes {next} later; that container stays empty for {cooldown}.	Po sebrání přijde další za {next}; ten kontejner zůstane {cooldown} prázdný.
 Its own zone does no damage.	Její vlastní zóna nezraňuje.
+Searching a container takes {search}; after a pickup it stays empty for {cooldown}.	Prohledání kontejneru trvá {search}; po sebrání zůstane {cooldown} prázdný.
+After a pickup the next one comes {next} later.	Po sebrání přijde další za {next}.
+whole body	celé tělo
+{n} % a hit, at most every {t}	{n} % za zásah, nejvýš jednou za {t}
+deadly	smrtelně
+{n} % a second	{n} % za sekundu
+Damage is a share of each body part's health, before armour.	Poškození je podíl zdraví každé části těla, před pancířem.
+It gives no artefacts.	Nedává žádné artefakty.

@@ -966,3 +966,11 @@ Search	Etsintä	artefact
 Zones switch every	Vyöhykkeet vaihtuvat joka
 After a pickup the next one comes {next} later; that container stays empty for {cooldown}.	Poiminnan jälkeen seuraava tulee {next} kuluttua; säiliö pysyy tyhjänä {cooldown}.
 Its own zone does no damage.	Sen oma vyöhyke ei vahingoita.
+Searching a container takes {search}; after a pickup it stays empty for {cooldown}.	Säiliön etsintä kestää {search}; poiminnan jälkeen se pysyy tyhjänä {cooldown}.
+After a pickup the next one comes {next} later.	Poiminnan jälkeen seuraava tulee {next} kuluttua.
+whole body	koko keho
+{n} % a hit, at most every {t}	{n} % osumalta, enintään {t} välein
+deadly	tappava
+{n} % a second	{n} % sekunnissa
+Damage is a share of each body part's health, before armour.	Vahinko on osuus kunkin ruumiinosan terveydestä, ennen panssaria.
+It gives no artefacts.	Se ei anna artefakteja.

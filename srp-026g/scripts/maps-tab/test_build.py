@@ -63,7 +63,9 @@ class Anomalies(unittest.TestCase):
              "artefacts_search_time_sec": 6, "artefacts_cooldown_time_sec": 80, "collision_geometries": []},
             {"game_object_type": "artefact_container", "full_name": "a/c2", "position": [3.0, 0.0, 4.0],
              "artefacts_search_time_sec": 6, "artefacts_cooldown_time_sec": 80, "collision_geometries": []},
-            {"game_object_type": "damage_zone", "full_name": "a/hurt", "max_hit": 0.6, "collision_geometries": [{"name": "a/box"}]},
+            {"game_object_type": "damage_zone", "full_name": "a/hurt", "max_hit": 0.6, "damage_type": "shock",
+             "continuous_hit": False, "interval_in_msec": 1000, "hit_parts_filter": ["right_foot", "left_foot", "brain"],
+             "collision_geometries": [{"name": "a/box"}]},
             {"game_object_type": "damage_zone", "full_name": "a/idle", "max_hit": 0, "collision_geometries": [{"name": "a/cyl"}]},
             # A 4 x 2 m box (half sizes 2, 1) turned 90 degrees about y by its mesh, at x 10, z 20.
             {"game_object_type": "collision_geometry", "full_name": "a/box", "position": [10.0, 0.0, 20.0],
@@ -80,6 +82,11 @@ class Anomalies(unittest.TestCase):
         self.assertEqual((a["chance"], a["max"], a["containers"]), (0.5, 2, 2))
         self.assertEqual((a["search"], a["cooldown"], a["switch"]), ([6], [80], [(40, 60)]))
 
+    def test_its_damage_is_by_type_and_parts_head_to_feet(self):
+        (a,) = build.objects(self.project(), KEYS)["anomalies"]
+        self.assertEqual(a["damage"], [{"type": "shock", "parts": ["head", "feet"], "continuous": False,
+                                        "interval": 1000, "hit": [0.6, 0.6]}])
+
     def test_its_area_is_its_zones_seen_from_above(self):
         (a,) = build.objects(self.project(), KEYS)["anomalies"]
         box, cylinder = a["areas"]
@@ -91,9 +98,10 @@ class Anomalies(unittest.TestCase):
         got = build.objects(self.project(), KEYS)
         self.assertEqual([a[3:] for a in got["artefacts"]], [[["onyx", "spring"], [0]]] * 2)
 
-    def test_an_anomaly_with_its_artefacts_off_is_not_shown(self):
+    def test_an_anomaly_with_its_artefacts_off_shows_its_zones_alone(self):
         got = build.objects(self.project(artefacts_enabled=False), KEYS)
-        self.assertEqual((got["anomalies"], got["artefacts"]), ([], []))
+        (a,) = got["anomalies"]
+        self.assertEqual((a["gives"], len(a["areas"]), len(a["damage"]), got["artefacts"]), ([], 2, 1, []))
 
 
 class FreeForAllSpawns(unittest.TestCase):

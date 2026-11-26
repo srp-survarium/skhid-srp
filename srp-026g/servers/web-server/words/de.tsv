@@ -966,3 +966,11 @@ Search	Suche	artefact
 Zones switch every	Zonen wechseln alle
 After a pickup the next one comes {next} later; that container stays empty for {cooldown}.	Nach dem Aufheben kommt das nächste nach {next}; dieser Container bleibt {cooldown} leer.
 Its own zone does no damage.	Ihre eigene Zone richtet keinen Schaden an.
+Searching a container takes {search}; after a pickup it stays empty for {cooldown}.	Das Durchsuchen eines Containers dauert {search}; nach dem Aufheben bleibt er {cooldown} leer.
+After a pickup the next one comes {next} later.	Nach dem Aufheben kommt das nächste nach {next}.
+whole body	ganzer Körper
+{n} % a hit, at most every {t}	{n} % pro Treffer, höchstens alle {t}
+deadly	tödlich
+{n} % a second	{n} % pro Sekunde
+Damage is a share of each body part's health, before armour.	Schaden ist ein Anteil der Gesundheit jedes Körperteils, vor der Rüstung.
+It gives no artefacts.	Sie gibt keine Artefakte.

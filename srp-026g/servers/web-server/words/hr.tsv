@@ -966,3 +966,11 @@ Search	Pretraga	artefact
 Zones switch every	Zone se izmjenjuju svakih
 After a pickup the next one comes {next} later; that container stays empty for {cooldown}.	Nakon podizanja sljedeći dolazi za {next}; taj spremnik ostaje prazan {cooldown}.
 Its own zone does no damage.	Njezina vlastita zona ne nanosi štetu.
+Searching a container takes {search}; after a pickup it stays empty for {cooldown}.	Pretraga spremnika traje {search}; nakon podizanja ostaje prazan {cooldown}.
+After a pickup the next one comes {next} later.	Nakon podizanja sljedeći dolazi za {next}.
+whole body	cijelo tijelo
+{n} % a hit, at most every {t}	{n} % po pogotku, najviše svakih {t}
+deadly	smrtonosno
+{n} % a second	{n} % u sekundi
+Damage is a share of each body part's health, before armour.	Šteta je udio zdravlja svakog dijela tijela, prije oklopa.
+It gives no artefacts.	Ne daje artefakte.

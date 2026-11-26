@@ -966,3 +966,11 @@ Search	Przeszukanie	artefact
 Zones switch every	Strefy zmieniają się co
 After a pickup the next one comes {next} later; that container stays empty for {cooldown}.	Po podniesieniu następny pojawi się za {next}; ten kontener zostaje pusty przez {cooldown}.
 Its own zone does no damage.	Jej własna strefa nie zadaje obrażeń.
+Searching a container takes {search}; after a pickup it stays empty for {cooldown}.	Przeszukanie kontenera trwa {search}; po podniesieniu zostaje on pusty przez {cooldown}.
+After a pickup the next one comes {next} later.	Po podniesieniu następny pojawi się za {next}.
+whole body	całe ciało
+{n} % a hit, at most every {t}	{n} % na trafienie, najwyżej co {t}
+deadly	śmiertelnie
+{n} % a second	{n} % na sekundę
+Damage is a share of each body part's health, before armour.	Obrażenia to część zdrowia każdej części ciała, przed pancerzem.
+It gives no artefacts.	Nie daje artefaktów.
