@@ -434,10 +434,12 @@ pub(super) fn drive_tick(
     drop(mapdata::take_falls_closed());
     bot.key_tick = super::key_sources::Tick::default();
     let mut decision = drive_tick_inner(bot, me, view, tactics, tuning, time, searching, press, lanes);
-    // [lane draw] Its walk's claim ends when its route is gone or goes elsewhere (`lane_draw::TeamLanes::walking`).
-    if let Some(set) = tuning.spacing.lane_draw {
+    // [lane draw] Its walk's claim follows its held lane and ends with the walk; a teammate's under way whose walker is dead
+    // died now (`lane_draw::TeamLanes::walking`).
+    if tuning.spacing.lane_draw.is_some() {
         let keep_ms = (tuning.number(plays::PlayKind::Roam, "fresh_s") * 1000.0) as u32;
-        lanes.walking(bot.place, bot.route.as_ref().map(|&(_, goal)| goal), set.away_m.get(), time, keep_ms);
+        let team = me.team;
+        lanes.walking(bot.place, bot.features.lane.walking(), time, keep_ms, |p| view.team(team).any(|mate| mate.place == p));
     }
     // [keys] The unstick replay's keys skip the stages (`key_sources`).
     bot.key_tick.begun_or(super::key_sources::Stage::Unstick, decision.keys);
@@ -1432,13 +1434,14 @@ fn drive_tick_inner(
             }
             // Why it has no route, if it has none after this.
             let mut no_route = path::NoRoute::Searched;
-            // [lane draw] A search kept to a drawn lane's room that ended over the lane's cap (the band on L1's cost): not walked; L1
-            // for the goal, planned at the next tick.
+            // [lane draw] A search kept to a drawn lane's room that ended over the lane's cap (the band on L1's cost, or more jumps
+            // than L1's leap links): not walked; L1 for the walk, planned at the next tick.
             let found = match (found, tuning.spacing.lane_draw) {
                 (Some((goal, Some(way), crossed)), Some(set)) => {
-                    match bot.features.lane.over_cap(goal, way.length(), set.away_m.get()) {
+                    let jumps = lane_draw::jumps(&way);
+                    match bot.features.lane.over_cap(goal, way.length(), jumps, set.away_m.get()) {
                         Some(cap) => {
-                            bot.nav_log.push(super::nav_log::Kind::Lane, time, lane_draw::over_cap_line(goal, way.length(), cap));
+                            bot.nav_log.push(super::nav_log::Kind::Lane, time, lane_draw::over_cap_line(goal, way.length(), jumps, cap));
                             bot.features.lane.drop_lane();
                             bot.end_route(RouteEnd::Replanned, time);
                             None
@@ -1613,7 +1616,7 @@ fn drive_tick_inner(
                     (refused || island) && !(crossing && (island || tactics.hazards.only_fixed_at(from)))
                 });
                 let (floors, overdraft) = (&mut grant.floors, &mut grant.overdraft);
-                // [lane draw] The walk's lane (`lane_draw`): drawn on the regions for a new walk, or held for its goal; L2's
+                // [lane draw] The walk's lane (`lane_draw`): drawn on the regions for a new walk, or held for the walk; L2's
                 // room is where the floors' search keeps to (one search either way), the plain search's when there is none. A
                 // replan for danger (a held shooter's lane ahead, a zone shut ahead, a crossing given up) is the plain search.
                 // Not Roam's walks (its own human-route draw) nor a carrier's (a race home).
@@ -1621,10 +1624,7 @@ fn drive_tick_inner(
                     .spacing
                     .lane_draw
                     .filter(|_| me.carrying.is_none() && bot.assignment.as_ref().is_none_or(|a| a.kind != plays::PlayKind::Roam));
-                let lane_plan = lane_set.map(|set| bot.features.lane.replan(at, set.away_m.get(), aborted || shut || threat_ahead));
-                if matches!(lane_plan, Some(lane_draw::Replan::Held(_))) {
-                    lanes.regoal(bot.place, at);
-                }
+                let lane_plan = lane_set.map(|_| bot.features.lane.replan(at, aborted || shut || threat_ahead));
                 let lane_room = match (lane_set.as_ref(), lane_plan, ends) {
                     (Some(set), Some(plan), Some(ends)) if !escaping && !there && !stranded => {
                         let start = grid.position(ends.0);
@@ -1635,7 +1635,7 @@ fn drive_tick_inner(
                             lane_draw::Replan::Held(Some(shut)) => {
                                 let room = lane_draw::held_room(tactics, &shut, set.band.get(), &walk);
                                 match &room {
-                                    Some(room) => bot.features.lane.capped(room.cap_m),
+                                    Some(room) => bot.features.lane.capped(room.cap),
                                     None => bot.features.lane.drop_lane(),
                                 }
                                 room
@@ -1744,10 +1744,14 @@ fn drive_tick_inner(
                     None
                 };
                 // [lane draw] No way in L2's room (a region link the body's reach refuses), or its route over the cap (the band
-                // on L1's cost): the plain search, and L1 for the goal.
-                let over_cap = lane_room.as_ref().zip(route.as_ref()).filter(|(room, way)| way.length() > room.cap_m);
+                // on L1's cost, or more jumps than L1's leap links): the plain search, and L1 for the walk.
+                let over_cap = lane_room
+                    .as_ref()
+                    .zip(route.as_ref())
+                    .filter(|(room, way)| room.cap.over(way.length(), lane_draw::jumps(way)));
                 if let Some((room, way)) = over_cap {
-                    bot.nav_log.push(super::nav_log::Kind::Lane, time, lane_draw::over_cap_line(at, way.length(), room.cap_m));
+                    let line = lane_draw::over_cap_line(at, way.length(), lane_draw::jumps(way), room.cap);
+                    bot.nav_log.push(super::nav_log::Kind::Lane, time, line);
                 }
                 if let (Some(plain), Some((from, to))) = (plain_filter, ends)
                     && (route.is_none() || over_cap.is_some())
