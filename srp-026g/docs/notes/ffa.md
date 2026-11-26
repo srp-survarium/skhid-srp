@@ -62,8 +62,8 @@ kills wins, no elimination phases (not 0.31's "The Last Stand"). His rules of th
     kill feed, kills, assists, spotting.
   - **Voice for all** (the owner, 2026-11-13: "in FFA I would enable voice chat for all"; until
     then nobody heard anyone): every player hears every other of the match, by the team modes'
-    rule of near and far (plain in the world under 10 m, the radio from it or dead;
-    voice-chat.md). The game decides it from the options' free-for-all entry (patch 66's
+    rule of near and far (until 2026-11-16 plain in the world under 10 m, the radio from it
+    or dead; voice-chat.md). The game decides it from the options' free-for-all entry (patch 66's
     `channel`, by patch 142's `free_for_all::running`): everyone a mate. The relay sends every
     match whole since 2026-11-15, when opponents near became heard in the team modes too (it
     decided by the mode until then, `registry::VoiceChannel::of`). The Tab menu's voice mute and the
