@@ -43,7 +43,6 @@ pub mod level_stats;
 pub mod match_kind;
 pub mod matches_now;
 pub mod matchmaking;
-pub mod mode_intro;
 pub mod moderation;
 pub mod names;
 pub mod notices;

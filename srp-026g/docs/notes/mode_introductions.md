@@ -1,5 +1,16 @@
 # Mode introductions
 
+## The server side removed (2026-11-26)
+
+The lobby no longer answers `#mode-intro:` requests, and the account's
+allowances (`session::v026g::mode_intro`) and their Ruffle harness
+(`scripts/mode-intro/`) are gone: no shipped HUD has sent the request since
+revision 46 (the HUD notice below replaced it the same day it shipped in
+revision 45). Schema migration 13 still creates `g26_mode_introductions`, so the
+numbering stays; nothing reads or writes it. The HUD's `ModeIntroduction` class
+and `GameChat.addIntroduction` remain in the movie's source, unused. What
+follows is the history.
+
 ## HUD notice follow-up (2026-11-03, not released)
 
 The owner reported that late joiners could not read the mode notice, requested
