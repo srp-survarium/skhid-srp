@@ -52,6 +52,11 @@ base patches made outside this repo (maps, ported weapons and items), the Flash 
   tables, `QUICK-BUILD` in its folder), which `release.sh` refuses.
 - Never assemble a patch folder by hand, and never build a patch from the server game data or from
   one release's files: a file left out, or taken from the wrong revision, reverts what players have.
+- **Keep the original scopes on the weapons** (the owner, 2026-11-26). Whatever changes with the
+  0.69 remodels, ported optics or scope fits, the 0.26 scopes and the 0.30-era ones (the builds most
+  weapons were ported from) stay available on the weapons that had them: never drop, retire or
+  replace such a gun/scope pair. `tools/check scope-preservation` holds every released pair; a
+  change that would remove one is wrong, not the check.
 
 ## Game symbols
 
