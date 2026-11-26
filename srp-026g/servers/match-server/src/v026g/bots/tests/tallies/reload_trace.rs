@@ -12,7 +12,8 @@
 //! the start), ms to the first sample with a line (null: none), samples, samples in a line, the way walked m, how far from
 //! the start m at the end, ticks watched, ticks with the sprint, aim and crouch keys, ticks moving, ticks of them forward
 //! alone, ticks hiding, how much nearer the enemy nearest at the start came m, died after ms, the killer, the killer's
-//! distance m, the killer was its target at the start, the killer had a line at the start]`: one row for each reload,
+//! distance m, the killer was its target at the start, the killer had a line at the start, the enemies it knew of at the start, the nearest of them m, it knew of the
+//! killer, its play]`: one row for each reload,
 //! watched for [`WATCH_MS`] from its start or to a second after its end, whichever is later, to the death or to the next
 //! reload. A line is the owner tally's (`RELOAD_LINE_M`, either way), sampled every [`SAMPLE_TICKS`] ticks.
 
@@ -28,6 +29,8 @@ use crate::v026g::drive::key;
 pub(crate) const WATCH_MS: u32 = 3_000;
 /// A line is asked every this many ticks.
 pub(crate) const SAMPLE_TICKS: u32 = 2;
+/// An enemy sensed this lately is known at a reload's start, ms: the reflex's length of a duel (`CombatTuning::duel_ms`).
+pub(crate) const KNOWN_MS: u32 = 3_000;
 
 #[derive(Clone, Default)]
 struct Mag {
@@ -58,6 +61,11 @@ struct Walk {
     ticks: u32,
     keys: [u32; 6],
     hiding: u32,
+    /// The enemies its own or its team's senses placed in the [`KNOWN_MS`] before the start, the nearest of those places, m,
+    /// and its play.
+    known: Vec<Place>,
+    known_m: Option<f32>,
+    play: Option<String>,
 }
 
 #[derive(Clone, Default)]
@@ -217,6 +225,12 @@ impl ReloadTrace {
                 .enumerate()
                 .filter(|(p, b)| *p != place && b.alive && b.team == me.team && b.feet.distance_xz(me.feet) <= 15.0)
                 .count();
+            let known: Vec<(Place, f32)> = bot
+                .memory
+                .tracks()
+                .iter()
+                .filter_map(|t| t.own.filter(|own| now.saturating_sub(own.1) <= KNOWN_MS).map(|own| (t.who, own.0.distance_xz(me.feet))))
+                .collect();
             let since_line = if lines.is_empty() { one.last_line.map(|t| now.saturating_sub(t)) } else { Some(0) };
             let head = serde_json::json!([
                 why,
@@ -249,6 +263,9 @@ impl ReloadTrace {
                 ticks: 0,
                 keys: [0; 6],
                 hiding: 0,
+                known: known.iter().map(|k| k.0).collect(),
+                known_m: known.iter().map(|k| k.1).min_by(f32::total_cmp),
+                play: bot.assignment.as_ref().map(|a| format!("{:?}", a.kind)),
             });
         }
     }
@@ -276,6 +293,10 @@ impl ReloadTrace {
             serde_json::json!(killer.map(|k| round(game.bodies[k].feet.distance_xz(me.feet), 10.0))),
             serde_json::json!(killer.map(|k| walk.target == Some(k))),
             serde_json::json!(killer.map(|k| walk.lined.contains(&k))),
+            serde_json::json!(walk.known.len()),
+            serde_json::json!(walk.known_m.map(|m| round(m, 10.0))),
+            serde_json::json!(killer.map(|k| walk.known.contains(&k))),
+            serde_json::json!(walk.play),
         ]);
         serde_json::json!({"t": walk.at, "rl": row})
     }
