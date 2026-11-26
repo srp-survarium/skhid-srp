@@ -216,6 +216,120 @@ pub(crate) struct Times {
     pub(crate) cpu_named: [f64; 3],
     /// [CPU] Each poll's whole time on the thread's CPU, µs.
     pub(crate) cpu_each: Vec<f32>,
+    /// [CPU] The match's [`WORST_POLLS`] polls with the most thread CPU, the most first, each split by part.
+    pub(crate) worst_polls: Vec<WorstPoll>,
+}
+
+/// [CPU] The worst polls kept are the [`WORST_POLLS`] with the most CPU, the most first, whatever their order in the match.
+#[test]
+fn the_worst_polls_kept_are_the_most_cpu_first() {
+    let poll = |at_ms: u32, cpu_us: f64| WorstPoll {
+        at_ms,
+        cpu_us,
+        view_us: 0.0,
+        commander_us: 0.0,
+        commander_teams: 0,
+        commander_named_us: 0.0,
+        loop_us: 0.0,
+        think_own_us: 0.0,
+        queue_own_us: 0.0,
+        lip_guard_own_us: 0.0,
+        drive_rest_own_us: 0.0,
+        input_own_us: 0.0,
+        slices_us: 0.0,
+        ended_by_stage_us: [0.0; 4],
+        floors: 0,
+        pulls_us: 0.0,
+        kept_steps_us: 0.0,
+        top_bot: Some((3, 1, None, 7.0)),
+    };
+    let mut worst = Vec::new();
+    for (at, cpu) in [(1, 5.0), (2, 90.0), (3, 1.0), (4, 40.0), (5, 60.0), (6, 2.0), (7, 70.0), (8, 0.5)] {
+        WorstPoll::keep(&mut worst, poll(at, cpu));
+    }
+    let kept: Vec<u32> = worst.iter().map(|w| w.at_ms).collect();
+    assert_eq!(kept, [2, 7, 5, 4, 1]);
+    assert!(worst[0].line().starts_with("at 2 ms: 90 µs") && worst[0].line().ends_with("top bot place 3 team 1 none 7"));
+}
+
+/// [CPU] How many of a match's polls [`Times::worst_polls`] keeps.
+const WORST_POLLS: usize = 5;
+
+/// [CPU] One poll told by part, on the thread's CPU, µs (logging only: read from the marks and counters the poll keeps anyway,
+/// with no clock read of its own but one `Instant` a bot for the bot that took the longest).
+#[derive(Clone, Debug)]
+pub(crate) struct WorstPoll {
+    /// The match clock, ms.
+    at_ms: u32,
+    /// The whole poll, and its view, commanders and bots' loop.
+    cpu_us: f64,
+    view_us: f64,
+    commander_us: f64,
+    /// The teams whose commander ran (bit per team), and the named costs' part of the commanders' time.
+    commander_teams: u8,
+    commander_named_us: f64,
+    loop_us: f64,
+    /// The loop's parts' own time, named costs out ([`super::super::bench_cpu::Part`]): thinks, the search queue, the lip guard,
+    /// the rest of the drive, the reckoning's input.
+    think_own_us: f64,
+    queue_own_us: f64,
+    lip_guard_own_us: f64,
+    drive_rest_own_us: f64,
+    input_own_us: f64,
+    /// The grid searches' slices run in it (all callers), the searches that ended in it by their last stage (no way, corridor,
+    /// widened, whole), their floors expanded, the pulls, and the kept controllers' steps (the body's steps).
+    slices_us: f64,
+    ended_by_stage_us: [f64; 4],
+    floors: u64,
+    pulls_us: f64,
+    kept_steps_us: f64,
+    /// The bot whose think and ticks took the longest wall time in the loop: its place, team, play and µs.
+    top_bot: Option<(usize, u8, Option<super::plays::PlayKind>, f32)>,
+}
+
+impl WorstPoll {
+    /// Keeps `poll` among `worst` when it is one of the [`WORST_POLLS`] with the most CPU.
+    fn keep(worst: &mut Vec<WorstPoll>, poll: WorstPoll) {
+        let at = worst.partition_point(|w| w.cpu_us >= poll.cpu_us);
+        if at < WORST_POLLS {
+            worst.insert(at, poll);
+            worst.truncate(WORST_POLLS);
+        }
+    }
+
+    /// Its line in the bench's log.
+    fn line(&self) -> String {
+        let bot = self.top_bot.map_or("none".to_owned(), |(place, team, play, us)| {
+            format!("place {place} team {team} {} {us:.0}", play.map_or("none".to_owned(), |p| format!("{p:?}")))
+        });
+        let s = &self.ended_by_stage_us;
+        format!(
+            "at {} ms: {:.0} µs = view {:.0} + commander {:.0} (teams {:02b}, named {:.0}) + bots' loop {:.0} \
+             [thinks own {:.0}, queue own {:.0}, lip guard own {:.0}, drive rest own {:.0}, input own {:.0}]; \
+             searches: slices {:.0}, ended by stage no way/corridor/widened/whole {:.0}/{:.0}/{:.0}/{:.0}, floors {}; \
+             pulls {:.0}; body steps {:.0}; top bot {bot}",
+            self.at_ms,
+            self.cpu_us,
+            self.view_us,
+            self.commander_us,
+            self.commander_teams,
+            self.commander_named_us,
+            self.loop_us,
+            self.think_own_us,
+            self.queue_own_us,
+            self.lip_guard_own_us,
+            self.drive_rest_own_us,
+            self.input_own_us,
+            self.slices_us,
+            s[0],
+            s[1],
+            s[2],
+            s[3],
+            self.floors,
+            self.pulls_us,
+            self.kept_steps_us,
+        )
+    }
 }
 
 /// [CPU] The thread's CPU and the named costs' CPU (ns) at a point of a poll.
@@ -630,6 +744,11 @@ pub(crate) fn timed_poll(bots: &mut Bots, clock: Clock, times: &mut Times) -> (V
     let spike = spike_us();
     let started = Instant::now();
     let cpu_started = cpu_mark();
+    // [CPU] The counters a worst poll's split is told from (`WorstPoll`): read here and at the end, no clock read of their own.
+    let (parts_start, searches_start) = (super::bench_cpu::peek(), super::path::searches());
+    let kept_start = super::body::kept_clock::bots_cpu_ns();
+    let mut commander_teams = 0u8;
+    let mut top_bot: Option<(usize, f32)> = None;
     let work_start = super::bench_work::totals();
     super::bench_work::set(super::bench_work::Who::Shared);
     super::path::slowest::part("view");
@@ -656,6 +775,7 @@ pub(crate) fn timed_poll(bots: &mut Bots, clock: Clock, times: &mut Times) -> (V
     if bots.tactics.is_some() {
         for team in 0..2u8 {
             if bots.commander_due(team, &clock, &view) {
+                commander_teams |= 1 << team;
                 let (a, before) = (Instant::now(), super::bench_work::totals());
                 super::bench_work::set(super::bench_work::Who::Team(team));
                 bots.commander(team, &view, &mut notes);
@@ -696,6 +816,10 @@ pub(crate) fn timed_poll(bots: &mut Bots, clock: Clock, times: &mut Times) -> (V
         bots.ticks(index, &clock, &view, &mut made);
         bots.zone_walk_note(index, now, &mut notes);
         bots.nav_notes(index, &mut notes);
+        let bot_us = a.elapsed().as_secs_f32() * 1e6;
+        if top_bot.is_none_or(|(_, us)| bot_us > us) {
+            top_bot = Some((index, bot_us));
+        }
         if let Some((before, b, between)) = between {
             in_bots += a.elapsed().as_secs_f64();
             let bot = bots.bots[index].as_ref();
@@ -738,7 +862,44 @@ pub(crate) fn timed_poll(bots: &mut Bots, clock: Clock, times: &mut Times) -> (V
         times.cpu[k] += cpu;
         times.cpu_named[k] += named;
     }
-    times.cpu_each.push(cpu_between(cpu_started, cpu_end).0 as f32 * 1e6);
+    let cpu_us = cpu_between(cpu_started, cpu_end).0 * 1e6;
+    times.cpu_each.push(cpu_us as f32);
+    if times.worst_polls.len() < WORST_POLLS || times.worst_polls.last().is_some_and(|w| cpu_us > w.cpu_us) {
+        use super::bench_cpu::Part;
+        let (parts_end, searches_end) = (super::bench_cpu::peek(), super::path::searches());
+        let own = |p: Part| {
+            let (total, named) = (parts_end.0[p as usize] - parts_start.0[p as usize], parts_end.1[p as usize] - parts_start.1[p as usize]);
+            total.saturating_sub(named) as f64 / 1e3
+        };
+        let stage = |k: usize| searches_end.stage_cpu_us[k] - searches_start.stage_cpu_us[k];
+        let top = top_bot.map(|(index, us)| {
+            let bot = bots.bots[index].as_ref();
+            (index, bot.map_or(0, |b| b.team), bot.and_then(|b| b.assignment.as_ref().map(|a| a.kind)), us)
+        });
+        WorstPoll::keep(
+            &mut times.worst_polls,
+            WorstPoll {
+                at_ms: clock.clock,
+                cpu_us,
+                view_us: cpu_parts[0].0 * 1e6,
+                commander_us: cpu_parts[1].0 * 1e6,
+                commander_teams,
+                commander_named_us: cpu_parts[1].1 * 1e6,
+                loop_us: cpu_parts[2].0 * 1e6,
+                think_own_us: own(Part::Think),
+                queue_own_us: own(Part::Queue),
+                lip_guard_own_us: own(Part::LipGuard),
+                drive_rest_own_us: own(Part::Drive) - own(Part::LipGuard),
+                input_own_us: own(Part::Input),
+                slices_us: searches_end.spent_cpu_us - searches_start.spent_cpu_us,
+                ended_by_stage_us: [stage(0), stage(1), stage(2), stage(3)],
+                floors: searches_end.expanded - searches_start.expanded,
+                pulls_us: searches_end.pull_cpu_us - searches_start.pull_cpu_us,
+                kept_steps_us: super::body::kept_clock::bots_cpu_ns().saturating_sub(kept_start) as f64 / 1e3,
+                top_bot: top,
+            },
+        );
+    }
     if spike.is_some_and(|over| whole_us > over) {
         let us = |s: f64| s as f32 * 1e6;
         let loop_work = work_since(&work_looped);
@@ -2803,6 +2964,10 @@ pub(crate) fn real_bot_cost() {
                     each.last().copied().unwrap_or(0.0),
                     reads as f64 * read_ns / 1e6 / f64::from(limit_s.max(1)),
                 );
+                // [CPU] The match's worst polls by part, so a spike names its part and its bot (logging only).
+                for (rank, poll) in std::mem::take(&mut times.worst_polls).iter().enumerate() {
+                    eprintln!("  worst poll {} of {WORST_POLLS} (thread CPU) {}", rank + 1, poll.line());
+                }
             }
             // [A318] Whether the reckoning takes the client's walk tick in the bench's matches (it did not before the world's walker).
             eprintln!("route hash: camper {:016x} bots {:016x}", bots.bench_route_hash[0], bots.bench_route_hash[1]);

@@ -82,6 +82,12 @@ impl Drop for Guard {
     }
 }
 
+/// Each part's thread CPU and its named costs' part since the last [`take`] (ns, in [`Part`]'s order), left as they are: a poll's
+/// own split is the difference of two (the bench's worst polls).
+pub(crate) fn peek() -> ([u64; PARTS], [u64; PARTS]) {
+    (TOTAL_NS.with(Cell::get), NAMED_NS.with(Cell::get))
+}
+
 /// Each part's thread CPU and its named costs' part since the last call (ns, in [`Part`]'s order), and zero again.
 pub(crate) fn take() -> ([u64; PARTS], [u64; PARTS]) {
     (TOTAL_NS.with(|p| p.replace([0; PARTS])), NAMED_NS.with(|p| p.replace([0; PARTS])))
@@ -102,6 +108,7 @@ mod tests {
                 x = std::hint::black_box(x.wrapping_add(1));
             }
         }
+        assert_eq!(peek(), peek(), "a peek leaves the parts as they are");
         let (total, named) = take();
         if cfg!(target_os = "linux") {
             assert!(total[Part::Queue as usize] >= 2_000_000, "{total:?}");
