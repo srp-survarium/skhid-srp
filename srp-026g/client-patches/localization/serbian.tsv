@@ -3354,7 +3354,7 @@ st_srp_rooms_pin_hint	Potrebne su 4 cifre
 st_srp_rooms_players	Igrači
 st_srp_rooms_playing	Meč je u toku
 st_srp_rooms_pool	Izbor mapa
-st_srp_rooms_pool_hint	Za glasanje se biraju 3 od ovih.
+st_srp_rooms_pool_hint	Za glasanje se biraju 4 od ovih.
 st_srp_rooms_private_room	Privatna soba: do 20 igrača; ti sastavljaš timove i pokrećeš meč.
 st_srp_rooms_queue	Red
 st_srp_rooms_queue_room	Stani u red za sobu

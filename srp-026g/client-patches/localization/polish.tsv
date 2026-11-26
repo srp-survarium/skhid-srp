@@ -3354,7 +3354,7 @@ st_srp_rooms_pin_hint	Wymagane 4 cyfry
 st_srp_rooms_players	Gracze
 st_srp_rooms_playing	Trwa mecz
 st_srp_rooms_pool	Pula
-st_srp_rooms_pool_hint	Głosowanie losuje z nich 3 karty.
+st_srp_rooms_pool_hint	Głosowanie losuje z nich 4 karty.
 st_srp_rooms_private_room	Pokój prywatny: do 20 graczy; ty ustawiasz drużyny i start.
 st_srp_rooms_queue	Kolejka
 st_srp_rooms_queue_room	Kolejka do pokoju
