@@ -1,6 +1,7 @@
 # login-server (0.69d)
 
-TCP login of the 0.69d client: framing, sign-in `01`/`02`, answers `0B`, `0C`, `0D`, RSA-1024 PKCS#1 v1.5.
+TCP login of the 0.69d client: framing, sign-in `01`/`02`, answers `0B`, `0C`, `0D`, RSA-1024 PKCS#1 v1.5, and the
+Steam-mode import `04` with its answer `10`.
 The exchange is proven with the real client; the protocol is described in `docs/notes/login.md`.
 
 - `frame.rs`: `u8 len` (1..255) + payload, or `00` + `u32 LE len` + payload; the server answers in the 5-byte form.
@@ -20,10 +21,10 @@ The exchange is proven with the real client; the protocol is described in `docs/
   string digest (40 hex), `u32` challenge echoed from `0D`. The server checks the challenge.
 - `0B` success: `u8 0, u32 session, u32 lobby ip, u16 lobby port`; the ip is the u32 LE of the host-order value
   (127.0.0.1 = `01 00 00 7F`). Golden frame reproduced byte for byte.
-- `0C` failed: reader at 0x20011F140 reads `u8 reason`, and for reasons 2 and 3 `u8` + `u32` more.
+- `0C` failed: reader at 0x20011F140 reads `u8 code`, and for codes 2 and 3 `u8` + `u32` more. The code -> text table
+  (4 invalid user or password, 2 banned, 3 suspended, 7 already online, ...) is in `handshake.rs` (`Refusal`).
 
 ## Open
-- Which `0C` reason code the client shows for which cause is not traced; `Refusal::BAD_CREDENTIALS = 1` is a placeholder.
 - Meaning of the 20 plaintext prefix bytes and of the first plaintext byte pair is not traced (prefix ignored).
-- `0E` (digest, 41 bytes) and the other answers `0F..17` are not implemented.
+- `0E` (digest, 41 bytes) and the other answers `0F`, `11..17` are not implemented.
 - Tests cover the exchange with a scripted client; the real client against this server is a manual test.

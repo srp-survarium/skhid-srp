@@ -95,8 +95,6 @@ Not found.	Не знойдзена.
 Too many wrong tokens; wait a minute.	Занадта шмат няправільных токенаў; пачакайце хвіліну.
 Wrong token.	Няправільны токен.
 No such user.	Няма такога карыстальніка.
-Silver and gold are whole numbers, + or -, or empty.	Срэбра і золата — цэлыя лікі, + або -, або пуста.
-{user}: now {silver_now} silver and {gold_now} gold.	{user}: цяпер {silver_now} срэбра і {gold_now} золата.
 New accounts are taken again.	Новыя акаўнты зноў прымаюцца.
 New accounts are refused; existing players sign in as before.	Новыя акаўнты не прымаюцца; гульцы з акаўнтам уваходзяць як раней.
 Maintenance cancelled.	Тэхнічныя работы адменены.
@@ -138,7 +136,6 @@ Q:	П:
 A:	А:
 If something goes wrong	Калі нешта пайшло не так
 Download the files	Спампаваць файлы
-Download the game	Спампаваць гульню
 The download link is coming soon.	Спасылка на спампоўку хутка з'явіцца.
 Can't download? Run {script}: it downloads the whole game into a Survarium folder beside it.	Не спампоўваецца? Запусціце {script}: ён сам спампуе ўсю гульню ў тэчку Survarium побач з сабой.
 Get the game	Атрымаць гульню
@@ -155,10 +152,6 @@ Run <code>Skhid.bat</code> and press <b>PLAY</b>.	Запусціце <code>Skhid
 Windows warns about an unknown publisher? Let it run.<br>Linux: <code>bash Skhid.sh launcher</code>, see <code>LINUX.txt</code>.	Windows папярэджвае пра невядомага выдаўца? Дазвольце запуск.<br>Linux: <code>bash Skhid.sh launcher</code>, гл. <code>LINUX.txt</code>.
 Windows warns about an unknown publisher? Let it run.<br>Linux: <code>bash Skhid.sh</code>, see <code>LINUX.txt</code>.	Windows папярэджвае пра невядомага выдаўца? Дазвольце запуск.<br>Linux: <code>bash Skhid.sh</code>, гл. <code>LINUX.txt</code>.
 Run <code>play_skhid.bat</code> in <code>game\\binaries\\x86</code>.	Запусціце <code>play_skhid.bat</code> у тэчцы <code>game\\binaries\\x86</code>.
-Start it with this command line:	Запусціце гульню з такім камандным радком:
-english	russian
-server address	адрас сервера
-language: english, russian, ukrainian	мова: english, russian, ukrainian
 Skhid (Ukrainian for “east”) is a community server that lets the Survarium {version} client sign in, trade, form squads and play matches again.	Skhid («усход» па-ўкраінску) — сервер супольнасці, на якім кліент Survarium {version} зноў можа ўваходзіць, гандляваць, збіраць атрады і гуляць матчы.
 Project Discord: <a href="https://discord.gg/pxywZfaxRQ">discord.gg/pxywZfaxRQ</a>	Discord праекта: <a href="https://discord.gg/pxywZfaxRQ">discord.gg/pxywZfaxRQ</a>
 Early test server.	Ранні тэставы сервер.
@@ -167,7 +160,6 @@ How to play	Як гуляць
 Download our files and unpack them into an empty folder (e.g. D:\\Survarium). <b>You do this only once.</b>	Спампуйце нашы файлы і распакуйце іх у пустую тэчку (напр. D:\\Survarium). <b>Гэта трэба зрабіць толькі адзін раз.</b>
 Download our files and unpack them into the game's folder, the one with the <code>game</code> folder, replacing files. <b>You do this only once.</b>	Спампуйце нашы файлы і распакуйце іх у тэчку гульні, тую, дзе ляжыць тэчка <code>game</code>, з заменай файлаў. <b>Гэта трэба зрабіць толькі адзін раз.</b>
 Download our files and unpack them over the game's <code>game</code> folder.	Спампуйце нашы файлы і распакуйце іх па-над тэчкай <code>game</code> гульні.
-Download the patched game and unpack it.	Спампуйце прапатчаную гульню і распакуйце яе.
 Sign in with any name and password: a new name registers itself. Remember the password.	Увайдзіце з любым імем і паролем: новае імя рэгіструецца само. Запомніце пароль.
 New accounts are taken.	Новыя акаўнты прымаюцца.
 Stop new registrations	Спыніць новыя рэгістрацыі
@@ -177,7 +169,6 @@ Shown once the token is right.	Паказваюцца пасля правіль�
 Password	Пароль
 User name	Імя карыстальніка
 Silver, + or -	Срэбра, + або -
-Gold, + or -	Золата, + або -
 Change	Змяніць
 Admin	Адміністратар
 Token	Токен

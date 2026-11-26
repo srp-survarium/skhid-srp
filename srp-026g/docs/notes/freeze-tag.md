@@ -281,10 +281,11 @@ respawn rule's leave handler (0x316BE0: time -1, then the current player out
 with 1, unasked) reads it the same, with no load at all, if such a place
 leaves again.
 
-So an entry is never cancelled or held: Freeze Tag's `World::cancel` leaves
-a place whose current player is out of the world (`Seat::Entering`) to the
-native tick, which spawns it at its entry, and Artifact Hunt's `hold_due`
-skips it the same. Every game, every load and every leave then sees each
+So an entry is never cancelled or held: the respawn tick both modes share
+(`vostok::artefact_hunt::RespawnTick`, through `round_countdown::respawn_tick`)
+leaves a place whose current player is out of the world
+(`RespawnTick::entering`) to the native tick, which spawns it at its entry:
+neither `hold_due` nor `void` touches it. Every game, every load and every leave then sees each
 place of the match in the world, as the stock game does.
 
 ## The frozen name and the frozen glow
@@ -542,7 +543,8 @@ Rudnya day; the matches record into the world corpus):
   kits); a thaw now counts as a kill.
 - Test 3: "respawn in 8 seconds" counted in the pause and after the final
   win (the last freeze's death respawn; now every time is cancelled there),
-  and the end came 3 s after the final win (now 2 s).
+  and the end came 3 s after the final win (then 2 s; since 2026-11-23 the
+  rule's own end, "With Artifact Hunt" above).
 
 Open:
 

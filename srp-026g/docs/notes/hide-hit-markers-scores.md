@@ -82,7 +82,7 @@ better names too"). Exe patch 83
   markers" is checked separately. The existing saved `srp_hide_crosshair` choice applies.
 - Weapon/spread updates and respawning keep the cross hidden. Changing back to Dynamic or
   Static respects the game's current aiming/death visibility; it cannot reveal a cross that
-  the game currently suppresses. F11 and Blackout still hide the complete HUD.
+  the game currently suppresses. F9 (hide interface) and Blackout still hide the complete HUD.
 
 ## The hit marker list
 
@@ -122,7 +122,7 @@ better names too"). Exe patch 83
 - **Separate settings**, not part of the Interface level selector (Full / Minimal / Disabled,
   branch `feat/interface-level`, not merged): the selector decides which parts of the hud show;
   these change what the crosshair and the Tab list show when they do. Disabled hides both anyway.
-- **F11 (hide interface):** unchanged; both options apply again when the interface shows.
+- **F9 (hide interface):** unchanged; both options apply again when the interface shows.
 - **Blackout:** its interface is forced hidden (no crosshair); its Tab view has the list (since
   2026-11-09, `blackout.md`) always by names only, as "Hide player scores" shows it, whatever the
   option says. The saved choice is kept for the next match.

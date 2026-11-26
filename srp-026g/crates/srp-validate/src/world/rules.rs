@@ -369,7 +369,7 @@ impl SpawnHistory {
     }
 }
 
-/// A research unit (`rr_write`): 96 bytes.
+/// A research unit (`research_rule::write`): 96 bytes.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct ResearchUnit {
     progress: u32,
@@ -415,8 +415,8 @@ impl ResearchUnit {
     }
 }
 
-/// Research's rule (exe patch 53, `rr_write` / `rr_read`): two points, two
-/// shown scores, the end, the entered places, the unit count, the units.
+/// Research's rule (exe patch 53, `research_rule::write` / `research_rule::read`):
+/// two points, two shown scores, the end, the entered places, the unit count, the units.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Research {
     points: [u32; 2],
@@ -446,7 +446,7 @@ impl Research {
         })
     }
 
-    /// A rule of `units` units that fills `bytes`, as `rr_read` takes it.
+    /// A rule of `units` units that fills `bytes`, as `research_rule::read` takes it.
     fn read(bytes: &[u8], units: usize) -> Option<Self> {
         let mut reader = Reader::new(bytes, 0);
         let points = [reader.u32().ok()?, reader.u32().ok()?];
@@ -1405,7 +1405,7 @@ mod tests {
         }
     }
 
-    /// Research's rule as `rr_write` puts it: team 0 owns unit A, team 1
+    /// Research's rule as `research_rule::write` puts it: team 0 owns unit A, team 1
     /// takes unit B with the places of `inside_b`, unit C is nobody's.
     fn research(units: usize, inside_b: u32) -> Vec<u8> {
         let mut out = Vec::new();
@@ -1671,7 +1671,7 @@ mod tests {
             reason(check(&research(3, 0b100), mode::RESEARCH, None)),
             Some(Reason::ResearchMaskPast { places: 2 })
         );
-        // A place past the 20: no rule `rr_read` takes.
+        // A place past the 20: no rule `research_rule::read` takes.
         let past = research(3, 1 << 20);
         assert_eq!(
             reason(check(&past, mode::RESEARCH, None)),

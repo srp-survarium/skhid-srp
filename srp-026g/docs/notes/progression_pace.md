@@ -147,7 +147,8 @@ rising to 250 % the kits of tiers 12 to 15 wait for the Renaissance rank, tier 1
 ## 7. What the owner chose (2026-10-14)
 
 "150 to tier 5, steps of 10 to 220. increase reputation a bit for all.", and then "x2 exp".
-Built as (`results.md` §13):
+Built as (`results.md` §13; since 2026-11-09 half again, premium's: silver 225 to 330 %,
+reputation 180 %, experience three times, `premium.md`):
 
 - match silver by the match's level: 150 % at levels 0 to 5, then 160, 170, 180, 190, 200, 210,
   and 220 % from level 12 (`pay::MONEY_RATES`);

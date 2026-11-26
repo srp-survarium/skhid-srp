@@ -4,8 +4,8 @@ version = "0.3.0"
 edition = "2024"
 
 # The updater the patched 0.26g launcher starts in the place of the game's
-# own survarium_updater.exe. A 32-bit Windows program without the Rust
-# standard library or a C runtime, like ../../bugtrap.
+# own survarium_updater.exe. A 32-bit Windows program with the Rust standard
+# library and Microsoft's C runtime linked in (.cargo/config.toml), like ../../bugtrap.
 
 [[bin]]
 name = "updater_skhid"

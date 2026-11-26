@@ -2,10 +2,10 @@
 #
 #   SRP_PUBLIC_HOST=203.0.113.9 docker compose up -d --build
 #
-# Made to run BESIDE the live 0.21d server (compose project `srp`, containers
-# `srp-srp-1` / `srp-caddy-1`, image `srp:latest`, volume `srp_srp-data`,
-# ports 80, 443, 1234 tcp+udp, 1235 tcp, 1236 udp, 127.0.0.1:8088) without
-# touching it. Everything here has its own name and its own default port:
+# Made to run beside another server on one host without touching it (it was
+# made beside the 0.21d server, hosted until 2026-10-12: compose project `srp`,
+# image `srp:latest`, ports 80, 443, 1234 tcp+udp, 1235 tcp, 1236 udp).
+# Everything here has its own name and its own default port:
 #
 #   project   srp26           (containers srp26-srp26-1, srp26-caddy26-1)
 #   image     srp-026g:latest
@@ -180,7 +180,7 @@ services:
       # below, on a host whose 443 is free).
       - "127.0.0.1:${SRP26_WEB_PORT:-8098}:8088/tcp"
     volumes:
-      # Its own database: never the 0.21d server's volume.
+      # Its own database: never another server's volume.
       - srp26-data:/srv/srp/data
       - ${SRP26_DOWNLOAD_DIR:-./download}:/srv/srp/download:ro
     # Keeps what the game does not need away from it.

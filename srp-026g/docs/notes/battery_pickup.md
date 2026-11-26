@@ -29,10 +29,9 @@ The owner's rule and what it changes. Data: `gameplay/victory_items/default.opti
   reads nothing of `states`.
 - **Bots:** no pick-up time in their code (they press use every 1.2 s until they
   carry; `use_every_s`); nothing to change.
-- **Release:** the resources.db patch, made by `scripts/content-edit/content_edit.py`
-  from `scripts/content-edit/battery.tsv` (with
-  `gameplay/victory_items/` from the live server game data) and
-  `release/build-patch`; the server game data built again with that patch (the
-  server data must be the one the players' patches make); and the `next` row of
+- **Release:** the resources.db patch: `scripts/content-edit/battery.tsv`, a row of
+  `release/content.tsv`, which `release/build-content` builds with the server game data (the
+  server data must be the one the players' patches make; first shipped, before build-content,
+  by `content_edit.py` over the live server game data and `release/build-patch`); and the `next` row of
   `crates/session/src/v026g/simulation_changes.tsv`, which this change shares
   with patch 38 and fall damage (one `next` row a release).

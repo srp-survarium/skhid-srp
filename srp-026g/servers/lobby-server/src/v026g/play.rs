@@ -282,8 +282,6 @@ pub struct MatchTicket {
 
 /// A match made and not over.
 pub(super) struct Running {
-    /// First HUD request and its answer, per account; retries reuse it, reconnects do not count again.
-    pub mode_introductions: std::collections::HashMap<u32, (String, bool)>,
     pub pool: QueuePool,
     pub fixed_teams: bool,
     pub ticket: MatchTicket,
@@ -1304,7 +1302,6 @@ impl Core<'_> {
                 self.matches.insert(
                     match_id,
                     Running {
-                        mode_introductions: Default::default(),
                         pool: formed.pool,
                         fixed_teams: formed.fixed_teams,
                         ticket,

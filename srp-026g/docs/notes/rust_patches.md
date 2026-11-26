@@ -153,8 +153,8 @@ NH3API's HiHook/LoHook applied at build time:
 
 **`Context` (`lohook`)**: the registers (`reg`/`set_reg`, `set_reg8` for
 `al`/`bl`/..), the flags (`set_flag` for a following `jcc`), xmm0..7
-(`xmm_f32`/`set_xmm_f32`, f64), the x87 top (`set_st0`), the stack and typed
-frame locals. **`Flow`**: `Continue` (apply the context's writes, then replay
+(`xmm_f32`/`set_xmm_f32`, f64), the stack and typed frame locals (no x87
+accessor yet). **`Flow`**: `Continue` (apply the context's writes, then replay
 the overwritten bytes), `Skip`, or `Exit(E)` -- a generated enum of the
 hook's named exits, so a continuation is never return-address arithmetic in
 Rust. An exit is a jump inside the host function or a `host_return { pop,
@@ -424,8 +424,9 @@ installs. Void originals have a void Rust result. A lohook covering exactly one
 the displacement. Other relative-control-flow spans are still refused.
 
 The engine generator supports scalar float arguments in XMM registers; voice
-uses this for `cc_value<float>`'s minimum. `Context::reg(Esp)` is the original
-game stack pointer, accounting for the entry's dispatch slot and saved flags.
+uses this for `cc_value<float>`'s minimum. The original game stack pointer is
+`site_esp()` (raw's `Machine`): `Context::reg(Esp)` plus the entry's dispatch
+slot and saved flags.
 
 Voice policy is safe Rust in `voice.rs`; the Vostok boundary owns console storage,
 live game snapshots, Scaleform values and the checked `voice-abi::Api` token.

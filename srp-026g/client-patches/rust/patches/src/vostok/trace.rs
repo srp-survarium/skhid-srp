@@ -1,7 +1,7 @@
 //! A patch's opt-in diagnostics: lines to a file of its own in the game's
 //! user data folder (Documents\survarium), only in a build made for it.
 //!
-//! [`DIAGNOSTICS`] is off in every build; patch_026g.py's `--ragdoll-trace`
+//! [`SRP_DIAGNOSTICS`] is off in every build; patch_026g.py's `--ragdoll-trace`
 //! makes it 1 in a local build for us (rust_patches.md; never a release's:
 //! release/build-zip does not pass it, and the self-test checks the default
 //! build has it off).

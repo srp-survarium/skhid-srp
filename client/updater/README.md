@@ -12,13 +12,15 @@ changes the game's `resources.db` (it unpacks the original's only into a
 folder without the game; an earlier updater changed parts of it in place:
 "What earlier updaters left" below).
 
-An ordinary 32-bit Windows program of about 570 KB, like `../bugtrap`: Rust's
+An ordinary 32-bit Windows program of about 800 KB, like `../bugtrap`: Rust's
 standard library and Microsoft's C runtime, linked in (`+crt-static`, as
 `cl /MT`; no runtime DLL beside it), the game's icon, a version resource
 (Skhid, "Skhid updater", the release revision) and its `asInvoker` manifest.
 Windows 10 and later. It imports `kernel32.dll`, `user32.dll` (its message
 box), `winhttp.dll`, `advapi32.dll` (per-user replay registration), `shell32.dll` (file associations and the Documents folder, where the game's
-user.cfg says the language its messages are in), and `ntdll.dll` and
+user.cfg says the language its messages are in), `ole32.dll` (Network List
+Manager's connectivity test, "The player's boxes"), `ws2_32.dll` (the route's
+probes, "The route"), and `ntdll.dll` and
 `api-ms-win-core-synch-l1-2-0.dll` (the standard library's). Its BitTorrent is
 libtorrent, in `skhid_torrent.dll` beside it (Windows 10 and later), loaded
 only when torrent is on ("BitTorrent" below).
@@ -134,7 +136,7 @@ one.
 | `updater_skhid.exe play [<game options>]` (`quiet`: no box; `wait`: stays until the game ends, exit code 1 when it ended with an error) | the launcher's PLAY and the play scripts (`wait quiet`), in a download with `updater_skhid.relay` | Starts the game on the player's route ("The route" below): the relay, unprobed; direct, probed; Automatic: the server itself when it answers, else the relay (`srp-026g/deploy/relay/README.md`). A round of a route answers when its login TCP, lobby UDP and match UDP each echo 64 KiB each way within 5 s (`route/src/lib.rs` `PROBE_BYTES`, `ROUND`; "The check" below): some providers cut a flow to foreign hosting after its first tens of KB. A route that does not answer is told apart in a box with Retry (no internet, the server offline, the relay down); blocked here while the relay answers, the launcher's row turns to auto and Retry goes through the relay (`quiet`: at once); a server that restarts is probed every 5 s while its box counts the seconds, and the game starts by itself once it answers. With `-server=` or `-match_replay=` among the options, or no `updater_skhid.relay`, the game is started as given. Exit code 1 when the route does not answer or the patches are not ready |
 | `updater_skhid.exe replay <id> <token> <sha256> <size>` | the patched game (patch revision 14) | "Watch replay": fetches one replay and starts a second game that plays it (below). A problem is a message box |
 | `updater_skhid.exe replay <id> <token> <sha256> <size> quiet` | the tests | The same with no window at all: the problem is in the log and the exit code (1) |
-| `"<exe>" seed \\.\pipe\skhid_seed-<pid>` | the patched game, started by the launcher with "Allow torrent" on: from its login screen on, matches too | Shares the folder's revision torrent until the game closes its pipe (the game's end); answers the game's stats switch. No window, no box, no lock, nothing fetched or installed; its own run logs, in `updater_skhid.seed-logs\` ("BitTorrent" below). Anything after `seed` but the game's pipe: exit code 1 |
+| `"<exe>" seed \\.\pipe\skhid_seed-<pid>` | the patched game, started by the launcher with "Allow torrent" on: from its login screen on, matches too | Shares the folder's revision torrent until the game closes its pipe (the game's end); answers the game's stats switch. No window, no box, no lock, nothing fetched or installed; its own run logs, in `game\logs\seed\` ("BitTorrent" below). Anything after `seed` but the game's pipe: exit code 1 |
 
 Exit codes: 0, 1 (failed), 2 (the launcher's pipe could not be opened), 3
 (an internal error; logged).
@@ -148,6 +150,8 @@ says so and does nothing.
 |---|---|
 | `logic/` | Everything that needs no Windows, as a library whose one dependency is Ed25519 (`ed25519-compact`, the torrent's signature): SHA-256, DEFLATE and CRC-32, bencoding, the torrent (its files), its signature, the release's DHT item (`newest.rs`), the record of what was checked (`shared.rs`), the upload cap, the ZIP reader and its name rules, the text formats (the server's answer, the installed state, the list of resources.db's patches, the quick check's record) and what the patch step decides, the launcher's pipe messages, command-line splitting, the server address and a patch's. `cargo test` there runs on any host |
 | `exe/` | The program: WinHTTP, files, the pipe, the install with its undo, the texts a player sees. Built for `i686-pc-windows-msvc` with `rust-lld` and Microsoft's C runtime, as `../bugtrap`; `res/` holds its icon and version resource; `src/libtorrent.rs` is the one caller of the DLL |
+| `route/` | `relay-client`: the route's probes (login TCP, lobby and match UDP), in rounds by `logic`'s `route::Check` ("The route" below) |
+| `extractor/` | `7zr.exe`, the extractor the updater runs, with where it is from and its licence |
 | `torrent-dll/` | `skhid_torrent.dll`: libtorrent-rasterbar 2.0.12 behind a small C API (`skt.h`, `skt.cpp`), and `skhid-dht`, the same API on Linux for the release (`release/publish-dht`); `default.nix`, built by `srp-026g/flake.nix` (`skhid-torrent-dll`, `skhid-dht`) |
 | `tests/` | `test_updater.py`: the real exe against a web server on 127.0.0.1, with the test in the launcher's place on a real named pipe (Windows only). `test_db_patches.py`: the patch step and what earlier updaters left, Windows or Wine. `test_play_gate.py`: PLAY against the server's revision and the watch while the launcher stays open, Windows or Wine. `test_game_download.py`: the original game's download. `test_unreadable.py`: a Skhid file that cannot be read, Windows or Wine. `test_run_logs.py`: the run logs in `game\logs`, the old ones beside the updater deleted, Windows or Wine. `test_torrent.py`: BitTorrent (the updater with its DLL) against a local tracker, a local DHT and libtorrent peers, Windows or Wine; `test_seed.py`: the game's sharing. `fake_exe/`: a stand-in for the game and the launcher that writes down how it was started; it also holds a file as the game or an antivirus does, and is the launcher's end of its pipe, for the tests under Wine |
 
@@ -1164,8 +1168,8 @@ Use the dev shell of `srp-026g/flake.nix` (`nix develop ./srp-026g`): the
 nightly Rust of the game workspaces with `llvm-rc` and Microsoft's
 C runtime and import libraries for 32-bit x86 (`SKHID_MSVC_LIB`, as
 `../bugtrap/README.md` "Build" says). No Windows or Visual Studio installation
-is needed. The two locked dependencies of `exe/` are Microsoft's `windows-sys`
-and `windows-link`.
+is needed. The locked dependencies of `exe/` are Microsoft's `windows-sys`
+and `windows-link`, and `logic/`'s `ed25519-compact`.
 
 ```sh
 ./build.sh                                   # exe/target/i686-pc-windows-msvc/release/updater_skhid.exe
@@ -1206,7 +1210,7 @@ The build is reproducible: the same source, toolchain, `SKHID_UPDATE_URL` and
   of the content, not the time) and `/DEBUG:NONE` (no PDB, which would record
   the build folder), and Cargo `trim-paths` (no build, home or toolchain
   folder in the panic locations), as `../bugtrap`;
-- `exe` and `logic` are one Cargo workspace (`Cargo.toml` here, one
+- `exe`, `logic` and `route` are one Cargo workspace (`Cargo.toml` here, one
   `Cargo.lock`). Cargo names a path dependency outside the workspace by its
   absolute path, and that name reaches the exe's symbols and their order. The
   exe still builds to `exe/target/` (`target-dir` in `exe/.cargo/config.toml`);
@@ -1386,11 +1390,11 @@ trackers.
 - Resuming a broken download of the ZIP (a few megabytes; it is fetched
   again). The game's archive and the patches go on from their bytes.
 - Texts in other languages than English (the launcher shows them in an
-  ANSI message box), but the stop's box of "A file that cannot be read",
-  which is the updater's own.
+  ANSI message box), but the updater's own boxes: the stop's box of "A file
+  that cannot be read", "The player's boxes" and "Watch replay"'s.
 
 
-## Opening local .sur files (unreleased)
+## Opening local .sur files
 
 Double-click a `.sur` file and choose **Skhid Replay** if Windows asks which
 app to use; select the option to remember the choice. Successful launcher
