@@ -2743,9 +2743,20 @@ impl Bots {
         ));
         // [A388 step 2b] The lip guard's forecasts the margin point's walker-ground test alone called off, and the margin points it
         // could not test (no client walker on the grid).
-        let (walk_offs, no_walker) = body::margin_walk_offs::take();
+        let (walk_offs, no_walker, refused) = body::margin_walk_offs::take();
         lines.push(format!(
-            "{}lip guard forecasts called off by the margin point's walker-ground test alone since the last match end (every match on this server): {walk_offs}; margin points not tested for a grid with no client walker: {no_walker}",
+            "{}lip guard forecasts called off by the margin point's walker-ground test alone since the last match end (every match on this server): {walk_offs}; margin points not tested for a grid with no client walker: {no_walker}; walk-offs the client's body at rest refused: {refused}",
+            nav_log::PREFIX
+        ));
+        let (rests, rest_us, rest_max_us) = body::margin_walk_offs::take_rests();
+        lines.push(format!(
+            "{}lip guard client rests at margin points since the last match end (every match on this server): {rests}, {rest_us:.0} µs in all ({:.1} µs each, the longest {rest_max_us:.1} µs)",
+            nav_log::PREFIX,
+            rest_us / rests.max(1) as f64
+        ));
+        let (from_client, from_view) = drive::lip_client::take();
+        lines.push(format!(
+            "{}lip guard forecasts since the last match end (every match on this server): from the client's reckoned body {from_client}, from the view (no client body) {from_view}",
             nav_log::PREFIX
         ));
         // [Gap 10] The reckoned jumps the worlds' selectors refused, and the worlds in a jump the reckoning had none of.

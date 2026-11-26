@@ -301,6 +301,26 @@ pub(crate) fn kept_off_ground(grid: &WalkGrid, to: Vec3, top: f32) -> KeptOff {
     }
 }
 
+/// [lip client rest] The stop's start height over which the client's body is put at a margin point ([`client_rest_at`]), m: the exe
+/// rig's put (body-physics' lipray-v1 and the rest test: the port's body at rest equals the exe's to the millimetre on 13 of 13).
+const REST_PUT_OVER_M: f32 = 0.05;
+
+/// [lip client rest] Where the client's own body comes to rest put at `at`'s place at the height `top` + [`REST_PUT_OVER_M`]
+/// (`ClientBody::at_rest` on the grid's walker: its capsule, the client's ground rule); none when it does not come to rest (it falls
+/// on) or the grid keeps no client walker. Where the walker-ground ray down the body's axis finds no ground, this says whether the
+/// body stands there all the same: on a rim past which the axis looks into the gap, on a face too steep for the ray's normal test
+/// with ground about it, or on ground over the ray's start (exe-checked, 13 points, 2026-11-26).
+pub(crate) fn client_rest_at(grid: &WalkGrid, at: Vec3, top: f32) -> Option<Vec3> {
+    if !grid.has_client_walker() {
+        return None;
+    }
+    let feet = Vec3::new(at.x, top + REST_PUT_OVER_M - client_body::PUT_OVER_M, at.z);
+    let started = std::time::Instant::now();
+    let rest = client_body::ClientBody::at_rest(&super::client_walker::GridWalker(grid), feet, 0.0).map(|b| b.feet());
+    margin_walk_offs::rest_made(started.elapsed());
+    rest
+}
+
 /// [A388 step 2] What a ground step whose kept controller left the ground does ([`kept_off_ground`]).
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(crate) enum KeptOff {
@@ -508,6 +528,23 @@ pub(crate) mod margin_walk_offs {
 
     static ONLY: AtomicU64 = AtomicU64::new(0);
     static NO_WALKER: AtomicU64 = AtomicU64::new(0);
+    static REFUSED: AtomicU64 = AtomicU64::new(0);
+    static RESTS: AtomicU64 = AtomicU64::new(0);
+    static REST_NS: AtomicU64 = AtomicU64::new(0);
+    static REST_MAX_NS: AtomicU64 = AtomicU64::new(0);
+
+    /// [lip client rest] One client body put at rest at a margin point ([`super::client_rest_at`]) and its wall time.
+    pub(crate) fn rest_made(took: std::time::Duration) {
+        let ns = u64::try_from(took.as_nanos()).unwrap_or(u64::MAX);
+        RESTS.fetch_add(1, Relaxed);
+        REST_NS.fetch_add(ns, Relaxed);
+        REST_MAX_NS.fetch_max(ns, Relaxed);
+    }
+
+    /// (rests made, their µs in all, the longest's µs) since the last call, and zero again.
+    pub(crate) fn take_rests() -> (u64, f64, f64) {
+        (RESTS.swap(0, Relaxed), REST_NS.swap(0, Relaxed) as f64 / 1e3, REST_MAX_NS.swap(0, Relaxed) as f64 / 1e3)
+    }
 
     /// A forecast called off at its margin; `only`: by the walker-ground test alone.
     pub(crate) fn count(only: bool) {
@@ -521,9 +558,14 @@ pub(crate) mod margin_walk_offs {
         NO_WALKER.fetch_add(1, Relaxed);
     }
 
-    /// (called off by the test alone, not tested for no walker) since the last call, and zero again.
-    pub(crate) fn take() -> (u64, u64) {
-        (ONLY.swap(0, Relaxed), NO_WALKER.swap(0, Relaxed))
+    /// [lip client rest] A walk-off the walker-ground test called that the client's body at rest refused ([`super::client_rest_at`]).
+    pub(crate) fn refused() {
+        REFUSED.fetch_add(1, Relaxed);
+    }
+
+    /// (called off by the test alone, not tested for no walker, refused by the client's rest) since the last call, and zero again.
+    pub(crate) fn take() -> (u64, u64, u64) {
+        (ONLY.swap(0, Relaxed), NO_WALKER.swap(0, Relaxed), REFUSED.swap(0, Relaxed))
     }
 }
 
@@ -762,7 +804,21 @@ pub fn stays_up(at: &Estimate, keys: u32, turn: f32, stop: &Stop) -> bool {
             // [`kept_off_ground`]): at most 0.25 m early, the safe side.
             // [Phase 2] With no client walker on the grid the test is not made ([`KeptOff::NoWalker`]): the margin is the grid's.
             let walks_off = match kept_off_ground(grid, Vec3::new(margin.x, top, margin.z), top) {
-                KeptOff::Left(_, landing) => falls(landing),
+                // [lip client rest] The axis ray's walk-off stands only where the client's own body at rest there comes down a lip's
+                // height too (or does not come to rest): its capsule stands on ground the ray misses.
+                KeptOff::Left(_, landing) => {
+                    falls(landing)
+                        && match client_rest_at(grid, margin, top) {
+                            Some(rest) => {
+                                let off = falls(rest);
+                                if !off {
+                                    margin_walk_offs::refused();
+                                }
+                                off
+                            }
+                            None => true,
+                        }
+                }
                 KeptOff::NoWalker => {
                     margin_walk_offs::no_walker();
                     false

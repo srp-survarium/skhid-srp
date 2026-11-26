@@ -3559,6 +3559,29 @@ impl LipWatch {
     }
 }
 
+/// [lip client] The bot's client reckoned estimate and its speed level, where its reckoning keeps a client body (`Bot::reckoned`):
+/// what the lip guard's forecast starts from.
+fn client_estimate(bot: &Bot) -> Option<(body::Estimate, f32)> {
+    bot.reckoned.filter(|(at, _)| at.client.is_some())
+}
+
+/// [lip client] The lip guard's forecasts by the body they started from, on this server since the last match end (the match-end line).
+pub(crate) mod lip_client {
+    use std::sync::atomic::{AtomicU64, Ordering::Relaxed};
+
+    static CLIENT: AtomicU64 = AtomicU64::new(0);
+    static VIEW: AtomicU64 = AtomicU64::new(0);
+
+    pub(crate) fn count(client: bool) {
+        if client { &CLIENT } else { &VIEW }.fetch_add(1, Relaxed);
+    }
+
+    /// (from the client's body, from the view) since the last call, and zero again.
+    pub(crate) fn take() -> (u64, u64) {
+        (CLIENT.swap(0, Relaxed), VIEW.swap(0, Relaxed))
+    }
+}
+
 /// [A388 step 2b] Everything [`lip_guard_with`] reads that changes within a match, bit for bit: the view's feet, velocity, yaw,
 /// pitch and keys, the tick's turn and keys, the route's drop landings, the hold and the full guard (the grid and the tuning are the
 /// match's; the forecast reads no time while no jump is under way, and none is in a forecast of keys without the jump). The same ask
@@ -3579,11 +3602,13 @@ pub(super) struct LipAsk {
     kept: Option<body::KeptBody>,
     /// [fix-lip] The stop forecast's margin ([`body::Stop::margin`]).
     margin: u32,
+    /// [lip client] The client reckoned estimate the centre forecast starts from, and its speed level (none: the view's).
+    client: Option<(body::Estimate, u32)>,
 }
 
 impl LipAsk {
     #[allow(clippy::too_many_arguments)]
-    fn of(me: &PlaceView, turn: f32, keys: u32, hold: u32, full: bool, kept: Option<body::KeptBody>, margin: f32) -> Self {
+    fn of(me: &PlaceView, turn: f32, keys: u32, hold: u32, full: bool, kept: Option<body::KeptBody>, margin: f32, client: Option<(body::Estimate, f32)>) -> Self {
         Self {
             feet: point_bits(me.feet),
             velocity: [me.velocity[0].to_bits(), me.velocity[1].to_bits()],
@@ -3596,6 +3621,7 @@ impl LipAsk {
             full,
             kept,
             margin: margin.to_bits(),
+            client: client.map(|(at, level)| (at, level.to_bits())),
         }
     }
 }
@@ -3690,7 +3716,7 @@ pub(super) enum LipGuard {
 /// lip (`WalkGrid::near_lip`), with the keys pushing the body over or its glide carrying it.
 #[cfg(test)]
 pub(super) fn lip_guard(grid: &mapdata::WalkGrid, kin: &kin::Kinematics, me: &PlaceView, turn: f32, keys: u32, planned: &[Vec3], hold: u32) -> LipGuard {
-    lip_guard_with(grid, kin, me, turn, keys, planned, hold, false, None, body::RECKONING_M)
+    lip_guard_with(grid, kin, me, turn, keys, planned, hold, false, None, body::RECKONING_M, None)
 }
 
 /// The lip guard with the three gaps closed when `full` ([`Feel::lip_guard_full`]): a body with no move key held that still
@@ -3712,6 +3738,7 @@ pub(super) fn lip_guard_with(
     full: bool,
     kept: Option<body::KeptBody>,
     margin: f32,
+    client: Option<(body::Estimate, f32)>,
 ) -> LipGuard {
     const MOVE: u32 = key::FORWARD | key::BACK | key::LEFT | key::RIGHT | key::SPRINT;
     let node = grid.locate(me.feet, 1.5);
@@ -3758,8 +3785,13 @@ pub(super) fn lip_guard_with(
             true => 2,
         });
     }
-    let at = body::Estimate { kept, ..body::Estimate::of_view(me, node) };
-    let stop = body::Stop { kin, level: 1.0, grid, planned, hold, margin };
+    // [lip client] The centre forecast starts from the bot's client reckoned body at its own level where it has one (the client's
+    // body is the exe's: the exe replays of 2026-11-26), else from the view. The side bodies are the view's, moved a reckoning's
+    // error across (a client body cannot be moved so).
+    let view = body::Estimate { kept, ..body::Estimate::of_view(me, node) };
+    let (at, level) = client.unwrap_or((view, 1.0));
+    lip_client::count(client.is_some());
+    let stop = body::Stop { kin, level, grid, planned, hold, margin };
     // The same body a reckoning's error to either side, where the floor is (across the way it goes).
     // [M7] Two at most, in an array (no Vec an ask): the same estimates in the same order.
     let sides: [Option<body::Estimate>; 2] = if full && speed > 0.3 {
@@ -3767,7 +3799,7 @@ pub(super) fn lip_guard_with(
         [(-uz, ux), (uz, -ux)].map(|(px, pz)| {
             let feet = Vec3::new(me.feet.x + px * body::RECKONING_M, me.feet.y, me.feet.z + pz * body::RECKONING_M);
             let node = grid.locate(feet, 0.5)?;
-            Some(body::Estimate { feet, node: Some(node), kept: None, ..at })
+            Some(body::Estimate { feet, node: Some(node), kept: None, ..view })
         })
     } else {
         [None, None]
@@ -3870,6 +3902,7 @@ fn lip_ok_of<'a>(bot: &mut Bot, me: &'a PlaceView, tactics: &'a Tactics, tuning:
     let hold = bot.motor.feel.lip_guard_ticks;
     let full = bot.motor.feel.lip_guard_full;
     let kept = bot.reckoned_kept;
+    let client = client_estimate(bot);
     let margin = bot.reckon_error.margin_m(me.speed());
     let truth = bot.motor.feel.drop_truth;
     let planned = if hold == 0 {
@@ -3883,7 +3916,7 @@ fn lip_ok_of<'a>(bot: &mut Bot, me: &'a PlaceView, tactics: &'a Tactics, tuning:
     move |keys: u32| {
         hold == 0
             || matches!(
-                lip_guard_with(&tactics.world.grid, &tuning.kin, me, turn, keys, &planned, hold, full, kept, margin),
+                lip_guard_with(&tactics.world.grid, &tuning.kin, me, turn, keys, &planned, hold, full, kept, margin, client),
                 LipGuard::Clear | LipGuard::Safe
             )
     }
@@ -4114,6 +4147,7 @@ fn guard_keys(bot: &mut Bot, decision: &mut Decision, me: &PlaceView, tactics: &
     // line ([`body::RECKONING_M`]) until it is down a lip's height. Keys that carry the body off the line first (a side step toward a
     // side rim, a swerve) are not the drop's walk, and the guard judges them as any other.
     let kept = bot.reckoned_kept;
+    let client = client_estimate(bot);
     let hold = bot.motor.feel.lip_guard_ticks;
     let (planned, own_drop) = bot.route.as_mut().map_or_else(
         || (Vec::new(), OwnDrop::NoRoute),
@@ -4138,8 +4172,9 @@ fn guard_keys(bot: &mut Bot, decision: &mut Decision, me: &PlaceView, tactics: &
             } else if !route.walk_off_within(walked, reach) {
                 OwnDrop::NotInReach(reach)
             } else {
-                let at = body::Estimate { kept, ..body::Estimate::of_view(me, grid.locate(me.feet, 1.5)) };
-                let stop = body::Stop { kin: &tuning.kin, level: 1.0, grid, planned: &planned, hold, margin: body::RECKONING_M };
+                // [lip client] From the client's body where the bot reckons one, as the guard below.
+                let (at, level) = client.unwrap_or((body::Estimate { kept, ..body::Estimate::of_view(me, grid.locate(me.feet, 1.5)) }, 1.0));
+                let stop = body::Stop { kin: &tuning.kin, level, grid, planned: &planned, hold, margin: body::RECKONING_M };
                 if route.walk_off_path_on_line(walked, reach, &body::stop_path(&at, decision.keys, decision.turn.0, &stop), line_m) {
                     OwnDrop::Own
                 } else {
@@ -4167,8 +4202,8 @@ fn guard_keys(bot: &mut Bot, decision: &mut Decision, me: &PlaceView, tactics: &
     } else {
         let hold = bot.motor.feel.lip_guard_ticks;
         let kept = bot.reckoned_kept;
-        let ask = LipAsk::of(me, decision.turn.0, decision.keys, hold, full, kept, margin);
-        bot.lip_memo.answer(ask, &planned, || lip_guard_with(&tactics.world.grid, &tuning.kin, me, decision.turn.0, decision.keys, &planned, hold, full, kept, margin))
+        let ask = LipAsk::of(me, decision.turn.0, decision.keys, hold, full, kept, margin, client);
+        bot.lip_memo.answer(ask, &planned, || lip_guard_with(&tactics.world.grid, &tuning.kin, me, decision.turn.0, decision.keys, &planned, hold, full, kept, margin, client))
     };
     let guard = if full {
         const MOVE: u32 = key::FORWARD | key::BACK | key::LEFT | key::RIGHT | key::SPRINT;
@@ -4782,7 +4817,7 @@ mod tests {
         let kin = kin::Kinematics::default();
         let toward = -std::f32::consts::FRAC_PI_2; // facing +x, the rim at x = 56
         let at_rest = |x: f32| PlaceView { velocity: [0.0, 0.0], keys: 0, ..on_the_slab(x, toward, 0.0) };
-        let lip_ok = |me: &PlaceView, k: u32| matches!(lip_guard_with(grid, &kin, me, 0.0, k, &[], HOLD, true, None, body::RECKONING_M), LipGuard::Clear | LipGuard::Safe);
+        let lip_ok = |me: &PlaceView, k: u32| matches!(lip_guard_with(grid, &kin, me, 0.0, k, &[], HOLD, true, None, body::RECKONING_M, None), LipGuard::Clear | LipGuard::Safe);
         // Where the walk straight on goes over and a stop stays up.
         let me = (0..20)
             .map(|k| at_rest(55.0 + 0.05 * k as f32))
@@ -5192,11 +5227,11 @@ mod tests {
         let toward = -std::f32::consts::FRAC_PI_2;
         let at_rim = on_the_slab(55.4, toward, 3.5);
         assert_eq!(lip_guard(grid, &kin, &at_rim, 0.0, 0, &[], HOLD), LipGuard::Clear, "as it was: nothing to let go of");
-        assert!(matches!(lip_guard_with(grid, &kin, &at_rim, 0.0, 0, &[], HOLD, true, None, body::RECKONING_M), LipGuard::Braked(_) | LipGuard::Swapped(_)));
-        assert_eq!(lip_guard_with(grid, &kin, &on_the_slab(55.4, toward, 0.2), 0.0, 0, &[], HOLD, true, None, body::RECKONING_M), LipGuard::Clear, "no glide");
-        assert_eq!(lip_guard_with(grid, &kin, &on_the_slab(52.0, toward, 3.5), 0.0, 0, &[], HOLD, true, None, body::RECKONING_M), LipGuard::Clear, "far from the rim");
+        assert!(matches!(lip_guard_with(grid, &kin, &at_rim, 0.0, 0, &[], HOLD, true, None, body::RECKONING_M, None), LipGuard::Braked(_) | LipGuard::Swapped(_)));
+        assert_eq!(lip_guard_with(grid, &kin, &on_the_slab(55.4, toward, 0.2), 0.0, 0, &[], HOLD, true, None, body::RECKONING_M, None), LipGuard::Clear, "no glide");
+        assert_eq!(lip_guard_with(grid, &kin, &on_the_slab(52.0, toward, 3.5), 0.0, 0, &[], HOLD, true, None, body::RECKONING_M, None), LipGuard::Clear, "far from the rim");
         // With the keys held it is the same as ever.
-        let walk = |full: bool| lip_guard_with(grid, &kin, &at_rim, 0.0, key::FORWARD, &[], HOLD, full, None, body::RECKONING_M);
+        let walk = |full: bool| lip_guard_with(grid, &kin, &at_rim, 0.0, key::FORWARD, &[], HOLD, full, None, body::RECKONING_M, None);
         assert_eq!(walk(true), walk(false));
     }
 
@@ -5212,7 +5247,7 @@ mod tests {
         for k in 0..60 {
             let me = on_the_slab(50.0 + k as f32 * 0.1, toward, 0.1);
             let old = lip_guard(grid, &kin, &me, 0.0, key::FORWARD, &[], HOLD) != LipGuard::Clear;
-            let new = lip_guard_with(grid, &kin, &me, 0.0, key::FORWARD, &[], HOLD, true, None, body::RECKONING_M) != LipGuard::Clear;
+            let new = lip_guard_with(grid, &kin, &me, 0.0, key::FORWARD, &[], HOLD, true, None, body::RECKONING_M, None) != LipGuard::Clear;
             wider += usize::from(new && !old);
             narrower += usize::from(old && !new);
         }
@@ -5229,7 +5264,7 @@ mod tests {
         let body = kin::Kinematics::default();
         assert_eq!(body.edge, kin::Edge::Controller, "the default (A388 step 2)");
         let held = |guard: LipGuard| matches!(guard, LipGuard::Swapped(_) | LipGuard::Braked(_) | LipGuard::Doomed);
-        let walk = |kin: &kin::Kinematics, x: f32, yaw: f32, full: bool| lip_guard_with(grid, kin, &on_the_slab(x, yaw, 3.5), 0.0, key::FORWARD, &[], HOLD, full, None, body::RECKONING_M);
+        let walk = |kin: &kin::Kinematics, x: f32, yaw: f32, full: bool| lip_guard_with(grid, kin, &on_the_slab(x, yaw, 3.5), 0.0, key::FORWARD, &[], HOLD, full, None, body::RECKONING_M, None);
         // Along the rim on its last floor.
         assert_eq!(walk(&body, 55.875, 0.0, true), LipGuard::Safe);
         // Reckoned 0.1 m past the boundary (within the support).
