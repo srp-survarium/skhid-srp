@@ -45,7 +45,7 @@
 use core::ffi::CStr;
 use core::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 
-use weapon_modules::{Affine, BoneIndex, DictId, FINGERS, Malformed, Placement, Table, Wanted};
+use weapon_modules::{Affine, BoneIndex, DictId, FINGERS, Malformed, Placement, Side, Table, Wanted};
 
 use super::config::{ConfigTable, ConfigValue};
 use super::context::{Context, Reg};
@@ -409,16 +409,34 @@ fn dict(data: &ConfigTable<'_>, key: &CStr) -> Option<DictId> {
     DictId::new(u16::try_from(id).ok()?)
 }
 
+/// A second sight's side by `data/srp_second_side` (0 left, 1 right; the
+/// weapon kit's); None for any other value or none.
+fn side(data: &ConfigTable<'_>) -> Option<Side> {
+    match data.get(c"srp_second_side").ok()??.integer().ok()? {
+        0 => Some(Side::Left),
+        1 => Some(Side::Right),
+        _ => None,
+    }
+}
+
 /// What a weapon config names under `data`: `srp_gun`, the gun's dict id,
 /// and `srp_scope`, `srp_muzzle`, `srp_grip`, each a fitted module's dict
-/// id or 0. None for a config without `srp_gun`.
+/// id or 0, and `srp_second_sight` with `srp_second_side` (the second sight
+/// item's modification, from the weapon kit's slot 6). None for a config
+/// without `srp_gun`.
 ///
 /// # Safety
 /// `root` is a live weapon config's root.
 unsafe fn named(root: raw::EngineCfg) -> Option<Named> {
     // SAFETY: the caller's.
     let data = unsafe { ConfigValue::read(root) }.ok()?.table().ok()?.get(c"data").ok()??.table().ok()?;
-    let wanted = Wanted { scope: dict(&data, c"srp_scope"), muzzle: dict(&data, c"srp_muzzle"), grip: dict(&data, c"srp_grip") };
+    let second_sight = dict(&data, c"srp_second_sight").zip(side(&data));
+    let wanted = Wanted {
+        scope: dict(&data, c"srp_scope"),
+        muzzle: dict(&data, c"srp_muzzle"),
+        grip: dict(&data, c"srp_grip"),
+        second_sight,
+    };
     Some(Named { gun: dict(&data, c"srp_gun")?, wanted })
 }
 
