@@ -214,6 +214,8 @@ The request is silently not answered when:
 
 Server rules: one request per client at a time; wait for the upload to complete or about 1 s before asking again; keep acking during the burst (up to 69 datagrams, 128 since patch 98, then resends after 500 ms).
 
+**A tick's world (patch 211, since 2026-11-26).** A game of patch 211 keeps every world `hash()` (0x325150) serializes, the last 32 ticks, and takes a 0xF6 of two bytes, `01 <tick>` (the tick's time / 50, modulo 256), as "upload your world of that tick": the same chunks, with that tick's `item_time`; with no such world held, or no room in the packet pool for its chunks, it does what it does for `00`. It says so with the bit 0x04 of its 0xD8 debug byte (0x86, 0x87 with `-debug_hash_mismatch`; the late join's `connect_capability`). An earlier game's message check refuses a 0xF6 of two bytes (`srp_validate::messages`): send one only to a game that said so. The code, the ring and its check: `../../client-patches/README.md`, "The world of a tick"; why: `desync_capture.md`.
+
 Code (added 2026-10-12): `crates/survarium/src/v026g/match_msgs/upload.rs`
 (`Chunk::parse` with exactly these checks, `Reassembler` keyed by
 `item_time`, `split` = what the patch sends); the request is

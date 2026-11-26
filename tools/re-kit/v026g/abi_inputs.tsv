@@ -3265,8 +3265,9 @@ va	name	location	role	basis
 0x00324be0	survarium::game_state_history_item::serialize	stack+12	active clients mask (EDI at 324CB1)	observed
 0x00324d80	survarium::game_state_history_item::deserialize	stack+4	game history record	inferred
 0x00324d80	survarium::game_state_history_item::deserialize	stack+8	reader	inferred
-0x00325150	survarium::game_state_history_item::hash	EAX	game history record	inferred
-0x00325150	survarium::game_state_history_item::hash	stack+4	client selection history	inferred
+0x00325150	survarium::game_state_history_item::hash	EAX	the history item (mov esi,eax at 0x325158; its time +0C0BB0h)	observed
+0x00325150	survarium::game_state_history_item::hash	stack+4	the core's players-mask history (core+12280h at every caller; its node with a time at most the item's gives the mask, 0x325197..0x3251CE)	observed
+0x00325150	survarium::game_state_history_item::hash	site 3251DC	after the serialize (0x3251D7): ESI the item, the bytes at [EBP-10h], [EBP-8h] of them, the CRC not yet taken (patch 211's world_hash.serialized)	observed
 0x00325270	survarium::game_world_core::load_history_state	ESI (from EAX at 0x32527C)	the kept state it loads (its time +C0BB0h compared with EBX at 0x325285); sets the byte 0x1F1D32D to 1 and loads it through game_world_core::deserialize (0x325291, 0x325300); called by on_hash_mismatch 0x325DBD and dump_game_state 0x328615 only	observed
 0x00325a60		entry ESP+12		auto
 0x00329120	survarium::stamina_base_parameters::load	ESI	configuration object pointer passed to keyed lookup	observed
@@ -5003,6 +5004,7 @@ va	name	location	role	basis
 0x002cfe90	survarium::game_world_core::game_world_core	entry ESP+4	core: uninitialized embedded game world core	observed
 0x002d02a0	survarium::game_world_core::~game_world_core	entry ESP+4	core: game world core	observed
 0x0027a300	survarium::network_client::on_match_packet_received	site 27A322	EAX unsigned message byte before subtracting E3; ESI network_client; EBX buffer_reader; IDs E3..F6 dispatch at 27A330, F7 currently unknown; common completion 27A6FC preserves recorder path	observed
+0x0027a300	survarium::network_client::on_match_packet_received	site 27A4F4	case 0xF6 (jump table 0x27A738 entry 19): ESI the network client, EBX the reader at the message's payload ({begin, cursor, size}); 0x27A5AB reads it to its end and leaves by the common exit 0x27A6FC with no stack change (patch 211's upload_request.case)	observed
 0x0027a300	survarium::network_client::on_match_packet_received	ESI+1F1C64	connection state; ordinary input dispatch requires 2 at 27A439	observed
 0x0027c280	survarium::network_client::receive_player_input	EDI	network client; caller 27A448	observed
 0x0027c280	survarium::network_client::receive_player_input	entry ESP+4	buffer_reader; passed to 318400 in EAX	observed

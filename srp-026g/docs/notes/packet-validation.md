@@ -1048,6 +1048,9 @@ dispatches to. There are exactly three entry points, each enumerated above:
    phase `[+0x1F1C64]` (0->1->2), each case a per-id handler; its 128 KB stack
    buffer is the decompression target for 0xE4/0xE8, which `lzma2_bound`
    (`OPTIONS_CAP` 0x578A0 / `SNAPSHOT_STATE_CAP`) caps before the decoder runs.
+   0xF6 is one byte (srp's 0, the snapshot upload's, which reads none) or, since patch 211,
+   1 and a tick (`messages::UploadRequest`; `desync_capture.md`): anything else is refused, and an
+   earlier game refuses the two bytes, so srp sends them only to a game whose 0xD8 has 0x04.
    The input path reads fixed node fields (0x318400) and applies the rotation
    by ADDING its two IEEE halves to the player angle (0x2D86E0 -> 0x2D8AD0, and
    the merged node 0x2C6640) -- bounded by `rotation_is_sane` (each half finite
