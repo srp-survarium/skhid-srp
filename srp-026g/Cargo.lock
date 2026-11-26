@@ -891,6 +891,7 @@ version = "0.1.0"
 dependencies = [
  "artefact-carry",
  "artefact-hunt-rule",
+ "second-sight",
  "survarium",
  "technical-skills",
  "weapon-pickup",
@@ -927,6 +928,7 @@ dependencies = [
  "log",
  "lzma-rust2",
  "resources-db 0.1.0",
+ "second-sight",
  "serde",
  "serde_json",
  "srp-validate",

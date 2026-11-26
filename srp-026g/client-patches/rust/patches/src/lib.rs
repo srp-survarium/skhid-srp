@@ -63,6 +63,7 @@ pub mod lamps;
 pub mod artefact_score;
 pub mod battery_progress;
 pub mod weapon_stats;
+pub mod second_sights;
 
 pub mod hud_options;
 pub mod key_bindings;

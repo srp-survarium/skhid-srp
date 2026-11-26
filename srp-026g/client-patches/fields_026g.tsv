@@ -1867,3 +1867,7 @@ vostok::render::weapon_draw_params	command	-0x98	obj<vostok::render::weapon_draw
 vostok::render::foreground_frame	projection_x	0x28	f32	first diagonal element of foreground_begin's private stack copy of the projection
 vostok::render::foreground_frame	projection_y	0x3C	f32	second diagonal element of the same projection (element 5)
 vostok::query_result	binary_config	0x0	ptr<vostok::binary_config>	the unmanaged config of a class 1Fh request (first result of items_dictionary_cook at 0x2C8AF5)
+survarium::applied_input_frame	before_actions	0x24	u32	base_player::apply_new_input by ESP once process_quick_slots (0x2D8BB0, ret 0Ch) returned (0x2D877C): the actions mask the player had before this input, its copy at 0x2D8764 (mov [esp+24h],edx from +330h); the edges of spot (0x2D8782) and use (0x2D88B1) are read against it
+survarium::weapon_core_ctor_frame	weapon	0x4	u32	weapon_core::weapon_core (0x2DF0D0) entry first stack argument: the weapon being made (identity only: nothing of it is built yet)
+survarium::weapon_core_ctor_frame	config	0x8	ptr<vostok::engine_cfg>	its second: the weapon config's root, the cook's (weapon_cook::on_weapon_config_loaded's EBX, 0x24AC2A -> allocate_weapon [ebp+8] 0x24A7BA -> weapon ctor ECX 0x24364F); read by the ctor through config child 0xF6B10 (0x2DF11D)
+survarium::weapon_core_dtor_frame	weapon	0x4	u32	weapon_core::~weapon_core (0x2DF570) entry first stack argument: the weapon going (identity only)

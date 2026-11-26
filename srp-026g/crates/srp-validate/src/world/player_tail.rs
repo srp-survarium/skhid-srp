@@ -1983,6 +1983,45 @@ mod tests {
         assert!(matches!(reason(&carry, &[]), Reason::TailCarry));
     }
 
+    /// Patch 206's second sights after the carry snapshot: read when there,
+    /// none in an older state; any other bytes there refused.
+    #[test]
+    fn the_second_sights_follow_the_carry() {
+        use second_sight::{GameTime, Record, Sight, State};
+        let read = |state: &[u8]| {
+            let profiles = [profile()];
+            let kits: [[&[Item]; crate::KITS]; 1] = [[&[], &[], &[]]];
+            let inventory = Inventory { kits: &kits, body_parts: BODY_PARTS };
+            let context = Context {
+                inventory: Some(&inventory),
+                dict_ids: None,
+                artefact_hunt: None,
+                ..context(Some(&profiles))
+            };
+            let head = PlayerState::read(state, 1, None).unwrap();
+            head.items_and_rest(0, &context).map(|rest| rest.unwrap().rest().sights())
+        };
+        let mut state = valid_state();
+        state.extend(rest());
+        assert_eq!(read(&state), Ok(None));
+        let record = Record::new(
+            State::Settled(Sight::Second),
+            State::Switching { to: Sight::Main, pressed: GameTime(104_520) },
+        );
+        let mut with = state.clone();
+        with.extend(record.encode());
+        assert_eq!(read(&with), Ok(Some(record)));
+        let mut version = with.clone();
+        *version.last_mut().unwrap() = 2;
+        assert!(matches!(reason(&version, &[]), Reason::TailSights));
+        let mut short = state.clone();
+        short.extend([0; 5]);
+        assert!(matches!(reason(&short, &[]), Reason::TailSights));
+        let mut long = with.clone();
+        long.push(0);
+        assert!(matches!(reason(&long, &[]), Reason::TailUnread { .. }));
+    }
+
     #[test]
     fn an_item_that_runs_past_the_state_goes_to_nobody() {
         let mut state = valid_state();
