@@ -88,6 +88,16 @@ pub struct LaneDrawTuning {
     pub ends_m: Metres,
 }
 
+impl LaneDrawTuning {
+    /// The band is a cost ratio over 1 (the draw's odds divide by its excess, `bots/lane_draw.rs` `odds`).
+    pub fn check(&self) -> Result<(), String> {
+        if self.band.get() <= 1.0 {
+            return Err("spacing.lane_draw.band".into());
+        }
+        Ok(())
+    }
+}
+
 impl Default for LaneDrawTuning {
     fn default() -> Self {
         Self { long_m: Metres::of(60.0), band: Positive::of(1.15), away_m: Metres::of(15.0), ends_m: Metres::of(25.0) }
