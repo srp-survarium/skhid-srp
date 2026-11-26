@@ -961,9 +961,6 @@ check "list_numbers: the list's patches, as --required-patches= takes them" test
     "$(lib_eval "use_patches live && read_patch_list && list_numbers")" = "3,12"
 cp "$T/work/r11.zip" "$T/live/download/Survarium-0.26g-srp-files.zip"
 echo "old data" >"$T/live/download/server-game-data.db"
-# The original menus' blobs the updater's restore to stock fetches.
-mkdir -p "$T/live/download/resources"
-for blob in 0ff118a8 ab6f22d8 805ea5f8; do echo "$blob" >"$T/live/download/resources/${blob}0000"; done
 printf 'SRP_ADMIN_TOKEN=very-secret\nSRP_MIN_PATCH_REVISION=11\nOTHER=1' >"$T/live/.env"
 zip12=$T/work/r12.zip
 printf '{"patch_3": {"url": "%s/resources.db.patch_3", "sha256": "%s"}}' "$P" "$sha3" >"$T/site/patches"
@@ -987,10 +984,6 @@ expect_refused "deploy refuses revision 12 without patch_12 (the menus)" "does n
     "$here/deploy" --zip "$zip12" --server-data "$T/work/sgd-no12.db" --revision 12
 expect_refused "deploy refuses data that is not the list's" "does not offer exactly the patches of" \
     "$here/deploy" --zip "$T/work/r11.zip" --server-data "$T/work/sgd-no12.db" --revision 11
-mv "$T/live/download/resources/ab6f22d80000" "$T/ab6f.kept"
-expect_refused "deploy refuses when an original blob is gone from download/resources" "lacks the original blobs .*lobby_menu ab6f22d8" \
-    "$here/deploy" --zip "$zip12" --server-data "$T/work/sgd.db" --revision 12
-mv "$T/ab6f.kept" "$T/live/download/resources/ab6f22d80000"
 # Patch 49: the ZIP's exe requires exactly the patches the data offers.
 cp "$zip12" "$T/work/req.zip"
 python3 "$T/requiring.py" "$T/work/req.zip" 12

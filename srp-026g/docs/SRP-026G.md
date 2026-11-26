@@ -338,13 +338,6 @@ read by the 0.21d browser server and by the compose file's caddy, not by the
   the page's own). The SHOP button of the launchers players already have
   opens it (the launcher has no SHOP button since). The page exchanges
   nothing: a `POST` there is "not found" like any address it does not have.
-- `/resources/<sha256>` (64 lower-case hex digits; `GET` and `HEAD`): the
-  file of that name in the folder `resources` beside `SRP_DOWNLOAD_FILE`, as
-  `/download` hands out its file (a `Range` too, five at a time in slots of
-  their own), "not found" when there is none. The blobs of the updater's
-  resource step (`../../client/updater/README.md`, "Resources"). Any other
-  name under `/resources/` is the page's "not found"; the 0.21d page has no
-  such route.
 - `/torrent` (`GET` and `HEAD`; the 0.26g page only): the torrent of the
   whole game folder that the ZIP of `SRP_DOWNLOAD_FILE` holds as
   `game/torrent/skhid.torrent` (the release puts it in, signed), as

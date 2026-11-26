@@ -57,12 +57,10 @@ voice silent and nothing else: the games keep playing.
    fill it in. `SRP_PUBLIC_HOST` is required. Keep `.env` out of any
    repository: it holds the admin page's token and path.
 3. Put the players' download (the zip made as `client-patches/README.md`
-   says) into `./download`, or set `SRP_DOWNLOAD_URL`. A server whose
-   players had a ZIP with resource regions (before the patches) keeps
-   `./download/resources/` as it is: the originals there are what the
-   updater fetches (`/resources/<sha256>`) to put a player's `resources.db`
-   back to stock once, when it kept no copy of its own. A new server needs
-   no such folder.
+   says) into `./download`, or set `SRP_DOWNLOAD_URL`. A folder
+   `./download/resources/` (the blobs earlier updaters fetched to restore
+   `resources.db`) is no longer served: it may be deleted once a server
+   without that route is live.
 4. Put the server's game data (`server-game-data.db`, made by
    `srp-game-data build` of `resources.db` and the patches the players
    mount: "The game's files" below) into `./download` too, and each patch

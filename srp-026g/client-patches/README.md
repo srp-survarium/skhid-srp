@@ -588,9 +588,8 @@ Game content no longer goes into the ZIP: it ships as `resources.db.patch_<n>`
 files that the updater fetches from the server's `/patches` list
 (`../../client/updater/README.md`, "Patches"). The region options of
 earlier releases (`--resource-region`, `--resource-grow`, `--resources-out`)
-are gone; the updater only puts back the stock bytes of regions an earlier
-release changed in place ("Restoring resources.db" there), fetching originals
-from `/resources/<sha256>` when the player kept no copy.
+are gone, and so is the updater's one-time restore of the regions an
+earlier release changed in place ("What earlier updaters left" there).
 
 Full overlays embed the supplied `--server` address in the executable, so
 players do not need `-server=` at launch. The generated batch file retains

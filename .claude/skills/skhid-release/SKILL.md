@@ -358,11 +358,8 @@ The order, as it runs:
    admin page answers the jump host (not with `--no-maintenance` or `--now`); no
    maintenance planned already; no
    release folder left unfinished; `download/` on the file system of the
-   target's folder; `download/resources/` keeps the original menus' blobs
-   (main_menu `0ff118a8…`, lobby_menu `ab6f22d8…`, login_menu `805ea5f8…`:
-   the updater's one-time restore to the stock resources.db fetches them);
-   srp26's container and its image ID, which must be what `srp-026g:latest`
-   names (else a restart would run an image no release made); the list's
+   target's folder; srp26's container and its image ID, which must be what
+   `srp-026g:latest` names (else a restart would run an image no release made); the list's
    rows on the patches server, and every URL of every row giving the file
    (as the updater fetches it, not a web page, the size and sha256; whole
    the first time, then from the cache above); patch_12 offered from
