@@ -11,6 +11,7 @@ use super::*;
 
 mod carries;
 mod counters;
+mod corridors;
 mod exact;
 mod falls;
 mod fields;
@@ -178,6 +179,7 @@ fn topics(bodies: usize) -> Vec<Box<dyn RouteTopic>> {
         escape_floors(),
         open_walks(),
         Box::new(overlaps::Overlaps::default()),
+        Box::new(corridors::Corridors::default()),
     ]
 }
 
