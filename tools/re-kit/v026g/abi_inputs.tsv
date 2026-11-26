@@ -6784,3 +6784,4 @@ va	name	location	role	basis
 0x00020310	vostok::render::functor_with_big_buffer_to_copy_command<draw_scene_params>::ctor	stack+8	draw_scene_params to copy at +98h	observed
 0x00020310	vostok::render::functor_with_big_buffer_to_copy_command<draw_scene_params>::ctor	stack+0xC	on_defer_execution	observed
 0x00028460	vostok::render::functor_with_big_buffer_to_copy_command<draw_scene_params>::execute	ECX	command, vtable 0x9DC800 slot zero. Passes its inline payload +98h to its +58h functor.	observed
+0x00028620	vostok::render::functor_with_big_buffer_to_copy_command<draw_scene_params>::on_defer_execution	ECX	the command, handed on as the +78h functor's argument	observed

@@ -76,6 +76,10 @@ site = "weapon_view.camera"
 handler = "on_view_camera"
 
 [[hook]]
+site = "weapon_view.no_gun"
+handler = "on_view_no_gun"
+
+[[hook]]
 site = "weapon_view.submit"
 handler = "on_view_submit"
 
