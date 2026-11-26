@@ -830,7 +830,6 @@ target_command() {
 # One command on the target; its stdin is $2 (an upload) or nothing.
 # shellcheck disable=SC2029
 on_target() { ssh "${TARGET_VIA:-$TARGET_SSH}" "$(target_command "$1")" <"${2:-/dev/null}"; }
-on_live() { on_target "$@"; }
 
 # A write: printed only with DRY_RUN=1; else asked for, then run; a no
 # stops the script. <where> is `live` (the target) or `patches`; [file] is

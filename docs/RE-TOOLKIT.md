@@ -90,7 +90,7 @@ JPEXS FFDec decompiles them.
 
 | Tool | Use |
 |---|---|
-| `v021d/log-analysis/deep.py`, `deep2.py` | Per-resync analysis of a saved match-server log (0.21d server logs) |
+| `v021d/log-analysis/deep.py` | Per-resync analysis of a saved match-server log (0.21d server logs) |
 | `v021d/log-analysis/snapdiff.py`, `pdump.py` | Split and diff 0.21d world snapshots (dumps from `SRP_SNAPSHOT_DIR`) |
 | `v021d/log-analysis/loads.py`, `rejoins.py` | Loading times, rejoins |
 | `common/scripts/mdmp.py` | Reads a client minidump (`Documents/survarium/*.dmp`) and symbolises the stacks. It needs a `syms.pkl` (address, name) list beside it, built from the function list of the build that crashed |

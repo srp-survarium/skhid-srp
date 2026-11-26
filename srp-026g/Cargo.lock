@@ -113,7 +113,6 @@ dependencies = [
  "encoding_rs",
  "num-derive",
  "num-traits",
- "serde",
  "serde_json",
 ]
 
