@@ -67,6 +67,14 @@ waits for the owner's word.
   (`check_hashes`: 2.5 s settle, 1 s confirm), well after the capture's upload (under a second). The
   only change elsewhere: the majority game's world that `capture_split` asked for was a vote; the
   capture's is not (the periodic requests make the votes, as they did).
+- **A request close to another.** The capture prefers the best-linked games, which the periodic
+  requests for a world to start others from prefer too. A game handles requests in order; one
+  asked for a vote while its capture upload is on its way gives the capture's world as the vote's
+  (the server keeps one request a game, `asked`): a world of the present, checked as any, so no
+  resync waits; the capture is then written with the other side's world alone. As the earlier
+  split capture and the world of a game out of step (`ask_wrong_world`).
+- **No shared tick, no capture.** Stock clients on opposite hash phases never report the same tick
+  (`check_hash_phases`): no split is seen by the reports, and nothing is asked.
 - **Written** when both worlds came, or 4 s after the request with what came (a full packet pool,
   a refused world or a game gone sends none), or when the match closes.
 
