@@ -32,7 +32,7 @@ impl Bots {
         // TEST ONLY: the spot suite's bot walks to its pinned goal at a run, no play, no fire (`tests/spot_suite.rs`).
         #[cfg(test)]
         if let Some(goal) = bot.bench_pin {
-            bot.intent = Intent::to(goal, Pace::Run).hold_fire();
+            bot.set_intent(Intent::to(goal, Pace::Run).hold_fire());
             return;
         }
         if !schedule(bot, &tuning, now) {
@@ -102,7 +102,7 @@ impl Bots {
         react(&due, bot, state, &self.features.weapons, notes);
         self_kill(&due, bot, state, notes);
         if now < bot.pause_until {
-            bot.intent = Intent::stay();
+            bot.set_intent(Intent::stay());
             return;
         }
         // TEST ONLY: a bot a client test scripts plays no play (`client_tests`).
@@ -1479,7 +1479,7 @@ pub(super) fn decide(
     } = *due;
     // The play's step.
     let Some(mut running) = bot.running.take() else {
-        bot.intent = Intent::stay();
+        bot.set_intent(Intent::stay());
         return None;
     };
     // [bot traps] Its goals on cool-down (`unreachable.rs`): those whose cool-down ran out or that it stands away from go, each
@@ -1622,7 +1622,20 @@ pub(super) fn decide(
                     state.knowledge.takes.stand_failed(failed, now, (rule.keep_s.get() * 1000.0) as u32);
                 }
             }
-            bot.intent = intent;
+            #[cfg(test)]
+            if !bot.intent_is_current() {
+                use super::intent_counts::{OTHER_GOAL, REFRESHED, count};
+                count(REFRESHED);
+                let other = match (bot.intent.go, intent.go) {
+                    (Go::To { at: old, .. }, Go::To { at: new, .. }) => (old - new).length() > 1.0,
+                    (Go::To { .. }, _) | (_, Go::To { .. }) => true,
+                    _ => false,
+                };
+                if other {
+                    count(OTHER_GOAL);
+                }
+            }
+            bot.set_intent(intent);
         }
         Step::Done(why) => {
             bot.end_play(now, why, notes);

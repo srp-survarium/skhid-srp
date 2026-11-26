@@ -106,7 +106,7 @@ pub fn script_bot(link: Option<&Link>, bot: &mut Bot, me: &PlaceView) -> bool {
         return false;
     };
     let fire = matches!(drive.grip.fight, Fight::Free | Fight::Full);
-    bot.intent = match drive.act {
+    let intent = match drive.act {
         Act::Stand { crouch } => Intent {
             crouch,
             fire,
@@ -136,5 +136,6 @@ pub fn script_bot(link: Option<&Link>, bot: &mut Bot, me: &PlaceView) -> bool {
             ..Intent::stay()
         },
     };
+    bot.set_intent(intent);
     true
 }
