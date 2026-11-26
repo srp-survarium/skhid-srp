@@ -1,5 +1,5 @@
-//! The login server of the 0.26g client (build 2777, January 2015), beside
-//! 0.21d's in `lib.rs`. What differs (`docs/notes/login_chat.md`
+//! The login server of the 0.26g client (build 2777, January 2015). What
+//! differs from 0.21d's (`srp-021d`; `docs/notes/login_chat.md`
 //! §4): the version, the password message (a SHA-1 digest, with the password
 //! itself only when it was typed), the answer (the session and the lobby's
 //! UDP address, no browser server) and the numbers of the refusals. The
@@ -361,9 +361,9 @@ fn accept(
 }
 
 /// End the sessions nothing was seen of for too long, as 0.21d's
-/// `run_presence` does between its pings. The 0.26g client sends the login
-/// server nothing once signed in, so a session is seen only through its
-/// lobby and match connections (`SessionStore::hold`, `touch`,
+/// `run_presence` (`srp-021d`) does between its pings. The 0.26g client
+/// sends the login server nothing once signed in, so a session is seen only
+/// through its lobby and match connections (`SessionStore::hold`, `touch`,
 /// `seen_in_match`); one whose client never reached the lobby ends here.
 pub fn run_collector(store: Arc<SessionStore>) {
     let mut next_collect = Instant::now() + COLLECT_INTERVAL;

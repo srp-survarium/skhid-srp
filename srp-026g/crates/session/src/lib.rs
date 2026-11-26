@@ -38,7 +38,6 @@ mod matchmaking;
 pub mod matchmaking_policy;
 pub mod password;
 pub mod persist;
-mod reports;
 mod squads;
 pub mod utc;
 // The 0.26g account model, beside the 0.21d one (`resources/notes/v026g/`).
@@ -46,10 +45,9 @@ pub mod v026g;
 pub use bans::{Ban, IpBan, Net};
 pub use matchmaking::{
     DEFAULT_GATHER_WINDOW, FormedMatch, Level, MAX_PLAYERS_PER_MATCH, Matchmaking, Player,
-    QueuePool, QueueState, Seat, Strength, fill_from_env, gather_window_from_env, quiet_from_env,
+    QueuePool, QueueState, Seat, Strength, fill_from_env, quiet_from_env,
 };
 use persist::{AccountRecord, AccountRepository, PersistError, StoredSession};
-pub use reports::{MatchReport, Reports};
 pub use squads::{MAX_SQUAD_MEMBERS, Squad, SquadError, Squads};
 
 /// The `on`/`off` setting `name` of the environment ([`switch_value`]).
@@ -406,7 +404,6 @@ pub struct SessionStore {
     persistence: Option<Persistence>,
     sessions: Mutex<HashMap<u32, Session>>,
     matchmaking: Matchmaking,
-    reports: Reports,
     /// Match results not yet given to the lobby, by account.
     match_results: Mutex<HashMap<u32, Vec<MatchResult>>>,
     squads: Squads,
@@ -472,7 +469,6 @@ impl SessionStore {
             persistence: None,
             sessions: Mutex::new(HashMap::new()),
             matchmaking: Matchmaking::new(gather),
-            reports: Reports::default(),
             match_results: Mutex::new(HashMap::new()),
             squads: Squads::default(),
             ip_bans: Mutex::new(Vec::new()),
@@ -1118,31 +1114,6 @@ impl SessionStore {
         found
     }
 
-    /// Every account by rating, best first (then by name): the ranking.
-    /// Locks each account in turn, so the caller must hold none.
-    pub fn ranking(&self) -> Vec<survarium::v021d::lobby::Ranked> {
-        let accounts: Vec<_> = self.accounts.locked().values().cloned().collect();
-        let mut rows: Vec<_> = accounts
-            .iter()
-            .map(|account| {
-                let account = account.locked();
-                survarium::v021d::lobby::Ranked {
-                    account_id: account.id,
-                    name: account.name.clone(),
-                    rating: account.game.rating,
-                    rating_before: account.game.rating_before,
-                }
-            })
-            .collect();
-        rows.sort_by(|lhs, rhs| {
-            rhs.rating
-                .cmp(&lhs.rating)
-                .then_with(|| lhs.name.cmp(&rhs.name))
-                .then(lhs.account_id.cmp(&rhs.account_id))
-        });
-        rows
-    }
-
     /// A session bound to `account_id` without a sign-in: tests (and other
     /// crates' tests, with the `test-support` feature) only. A real
     /// sign-in's session is [`Self::create_signed_in_session`]. The saver
@@ -1473,11 +1444,6 @@ impl SessionStore {
     /// The queue and the matches being played.
     pub fn matchmaking(&self) -> &Matchmaking {
         &self.matchmaking
-    }
-
-    /// Finished matches' results.
-    pub fn reports(&self) -> &Reports {
-        &self.reports
     }
 
     /// How many matches are being played.

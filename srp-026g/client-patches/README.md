@@ -265,8 +265,7 @@ release's. The "Result" row is the build of the revision named in it.
 | `check_weapon_preview_026g.py` | Runs the original's and patch 32's upgrade window start and close (with the lobby camera's own setter), `setup_profile`'s entry, the lobby camera's three distance clamps and the player's decal pose on a made-up lobby, loaded as is and rebased (needs Unicorn) |
 | `check_forward_scroll_026g.py` | Runs the original's and the build's forward-effect compile, with patch 28's two hooks, on made-up materials and compares what each sends; runs the third hook against the game's own binding of `scene_time`; loaded as is and rebased (needs Unicorn). |
 | `selftest_026g.py` | Builds every variant and checks the general rules on each from what the build records and the patches declare (no byte changed undeclared, no relocation or branch into a rewritten byte, every hooked function's ABI, every branch target known, the PE, the .bin files current), and each patch's own code where it guards its ABI; needs the original exe, nasm (2.16), gcc (`-m32`), GNU ld and Python unicorn. `release/release.sh` runs it before a release (step 2, its Linux part): not during development |
-| `run_battery_rule.ps1` | Runs the battery rule's handler (patch 9) out of any 0.26g exe on a made-up rule object, in the 32-bit Windows PowerShell: what an exe does with a put that is played again after a rollback. Starts nothing of the game |
-| `survarium_login_server.crt` | The login certificate (the same file as `../certs/survarium_login_server.crt`) |
+| `survarium_login_server.crt` | The login certificate (the same file as `srp-021d/certs/survarium_login_server.crt`) |
 | `launcher/` | The game's launcher made to work again, and to keep these files current: its patch tool, the one piece of new code, the self-test and its own README. Its updater is `../../client/updater` |
 
 ## The arena (`.srpx`) and call shapes
@@ -834,8 +833,8 @@ original bytes first, so another build or an already patched file is refused.
 - **Why:** the client accepts a login server only if its certificate
   verifies against that file. The file the 0.26g game ships is of another
   key and ran out in 2015. This one is the game's own name issued again
-  (valid to 2037), and its key is in `../certs/`, which the login server
-  reads.
+  (valid to 2037); its key is in `srp-021d/certs/`. The 0.26g login server
+  no longer uses TLS (`docs/notes/sign-in-cipher.md`), so srp reads neither.
 
 ### 6. The minimum video-memory check
 
@@ -914,7 +913,7 @@ original bytes first, so another build or an already patched file is refused.
   not, which is what the 0.21d client's rule does. The containers are never
   closed. The match is ended by the server, 3 s after it reads the full
   count, as before.
-- **Run outside the game:** `run_battery_rule.ps1 <exe> [<exe> ...]` (the
+- **Run outside the game:** `run_battery_rule.ps1 <exe> [<exe> ...]` (removed 2026-11-26, in the git history) (the
   32-bit Windows PowerShell) copies the handler's 238 bytes out of an exe
   and calls them on a made-up rule object: nine puts, the tenth, a
   rollback of the count, the same put again, a take, a put. With a
@@ -1495,7 +1494,7 @@ reads the alive mask.
 and a game of 11 does, so they part at the first death after a team is out.
 A server asks for 11 together with the ZIP.
 
-Checked: `selftest_026g.py` check 22. `run_tdm_rule.ps1` (32-bit PowerShell)
+Checked: `selftest_026g.py` check 22. `run_tdm_rule.ps1` (removed 2026-11-26, in the git history) (32-bit PowerShell)
 copies the handler, its recount and its end test out of an exe to their own
 addresses and plays two teams of two through a team's last death, a rollback
 (tickets and masks loaded, not the time) and the replay: the original and
@@ -5059,7 +5058,7 @@ collision mesh, and its contact then often pushes it through. `GRENADE_CCD`
 bytes, the same instruction; its base relocation stays): the sphere is inside
 the capsule with a centimetre to spare and the capsule stops at the surface.
 A simulation of the game's world, step and body over vostok's Bullet 2.79
-(`grenade_ccd_sim.cpp`) loses 10 to 23 % of throws under the ground stock and
+(`grenade_ccd_sim.cpp`, removed 2026-11-26, in the git history) loses 10 to 23 % of throws under the ground stock and
 none of 4700 with 0.04; a grenade rolls on about half as far after it lands
 (stock, the sunk capsule was pushed back out with speed). What a match
 computes changes: a `next` row in

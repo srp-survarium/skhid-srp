@@ -15,8 +15,6 @@
 //!   while the window is open.
 //! - `GET /launcher/places/<language>`: what changes on that page, each part
 //!   behind the name of its place, which that script asks for.
-//! - `GET /launcher/fresh/<language>`: the same for a page opened before the
-//!   matches' tab was there, in that page's own form.
 
 use std::fs::File;
 use std::io::Read;
@@ -78,16 +76,9 @@ struct Checked {
 /// holds, so a page that is open while the server gets another one takes
 /// the places it has and passes over the rest.
 pub(super) const FRESH: &str = "/launcher/places/";
-/// Where the script of a page from before the matches' tab asks. A launcher
-/// can stay open for hours, and that script takes nothing but its three
-/// places in its own order ([`BEFORE`]), with no names: answered here, such
-/// a page still learns of a planned maintenance.
-pub(super) const FRESH_BEFORE: &str = "/launcher/fresh/";
 /// The places on the page that are filled again, by their `id`: the two
 /// tabs of the left side, then the two tiles of numbers.
 const PLACES: [&str; 4] = ["board", "live", "now", "totals"];
-/// The places of [`FRESH_BEFORE`], as that page's script has them.
-const BEFORE: [usize; 3] = [0, 2, 3];
 /// What stands between a place's name and what it holds, and between two
 /// places, in those answers. No place holds it: their markup has no such
 /// tag, and a name is text ([`escape`]).
@@ -308,8 +299,7 @@ pub(super) struct Counts {
     pub maintenance: Option<u32>,
 }
 
-/// Whether the path is the launcher's: its page, [`FRESH`] or
-/// [`FRESH_BEFORE`].
+/// Whether the path is the launcher's: its page or [`FRESH`].
 pub(super) fn serves(path: &str) -> bool {
     path == "/launcher" || path.starts_with("/launcher/")
 }
@@ -382,18 +372,6 @@ fn named(parts: &[String; 4]) -> String {
         answer.extend([*place, part.as_str()]);
     }
     answer.join(BETWEEN)
-}
-
-/// `GET /launcher/fresh/<language>`: what the [`BEFORE`] places hold now,
-/// with [`BETWEEN`] between them.
-pub(super) fn fresh_before(lang: Lang, store: &SessionStore, game: &Game) -> Response {
-    let (board, live, counts) = current(store, game);
-    let parts = places(lang, &board, &live, counts);
-    Response {
-        status: "200 OK",
-        content_type: ContentType::Html,
-        body: BEFORE.map(|place| parts[place].as_str()).join(BETWEEN),
-    }
 }
 
 /// A number with its thousands apart: 12 345.
@@ -1122,11 +1100,6 @@ mod tests {
         forged.top[0].clan_tag = BETWEEN.into();
         let answer = named(&places(Lang::En, &forged, &live(), counts()));
         assert_eq!(answer.split(BETWEEN).count(), 2 * PLACES.len());
-        // The page from before the tabs has the first, third and fourth.
-        assert_eq!(
-            BEFORE.map(|place| PLACES[place]),
-            ["board", "now", "totals"]
-        );
     }
 
     #[test]
@@ -1140,7 +1113,6 @@ mod tests {
         assert!(!policy.contains("unsafe-inline' 'sha256") && !policy.contains("unsafe-eval"));
         assert!(!crate::POLICY.contains("script-src"));
         assert!(serves("/launcher") && serves("/launcher/v2/survarium/") && serves(FRESH));
-        assert!(serves(FRESH_BEFORE));
         assert!(!serves("/launchers") && !serves("/") && !serves("/api/stats"));
     }
 

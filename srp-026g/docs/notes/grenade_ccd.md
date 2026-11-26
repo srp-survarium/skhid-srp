@@ -30,7 +30,7 @@
   side, or the next step carries the centre past the triangle. A wall that is a closed
   box catches it on its other face, the ground has nothing under it (LIKELY why the
   report says walls work: the simulation's one-sided wall loses grenades too).
-- **Simulated** (`client-patches/grenade_ccd_sim.cpp`, Bullet 2.79 of the 0.10b source,
+- **Simulated** (`client-patches/grenade_ccd_sim.cpp`, removed 2026-11-26, in the git history; Bullet 2.79 of the 0.10b source,
   the game's world, step and body; 1000 throws a case at 17 m/s, the RGD-5's
   throw_power):
 

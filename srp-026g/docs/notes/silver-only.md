@@ -49,16 +49,16 @@ in silver will also get cheaper".
   - A new account: 30,000 silver (`new-account.tsv`; its `gold` key is gone).
 - **The pay-back, once, at the release's first start** (the owner, 2026-11-08: "we should have
   release script which will give players silver back for gold they had"):
-  `persist::SqliteGameRepository::pay_back_once`, run by `GameAccounts::from_env` after srp's own
+  `persist::SqliteGameRepository::pay_back_once` (removed 2026-11-26, its work done on the live
+  database; the mark `persist::PAID_BACK` stays), run by `GameAccounts::from_env` after srp's own
   copy of srp.db (a rollback puts that back) and before the accounts load, in one transaction with
   its `g26_meta` mark `silver_only_paid_back`: a gold balance is silver at 100 a gold; each repair
   kit, rename voucher and premium-day voucher held is its shop price (5,000, 25,000, 5,000) and is
   taken out of the inventory, the kits and the presets. srp's log has a line per account and the
-  totals. The dry run: `python3 scripts/silver-only/preview.py <a copy of srp.db>` prints the same
-  per account and the totals. (Migration 14, #1523's conversion, which never shipped, does nothing
+  totals. The dry run was `scripts/silver-only/preview.py` (removed with it). (Migration 14, #1523's conversion, which never shipped, does nothing
   now; its number stays.)
 - **The gold column** (`g26_accounts.premium_money`) stays in the schema, empty and unused (the
-  owner, 2026-11-08: "we can keep that column empty and unused"): only the pay-back reads and zeroes
+  owner, 2026-11-08: "we can keep that column empty and unused"): only the pay-back read and zeroed
   it; a new row writes 0. So do `g26_extras.bonus_reward_dict` and `bonus_reward_count`.
 - **The client:** the lobby has no gold balance, no exchange window, no "Get Gold", no gold option
   in any window (`client-patches/README.md`, "Silver only"). `8B` carries gold 0; 0x8D's gold reset

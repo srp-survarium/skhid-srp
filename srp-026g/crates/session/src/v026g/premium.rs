@@ -21,7 +21,7 @@
 //!   (`scripts/content-edit/shop.tsv`, `vouchers-removed-1.json`), nothing
 //!   uses them (`46 04`, the only request that used an item, is not read),
 //!   and the release that removed them paid their owners their price in
-//!   silver, once (`persist::SqliteGameRepository::pay_back_once`).
+//!   silver, once (`persist::PAID_BACK`, `docs/notes/silver-only.md`).
 //!
 //! **There is no gold** (the owner, 2026-11-08): every price that was gold
 //! is its gold times `prices::GOLD_IN_SILVER` in silver, and what gave gold

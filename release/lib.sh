@@ -830,7 +830,6 @@ target_command() {
 # One command on the target; its stdin is $2 (an upload) or nothing.
 # shellcheck disable=SC2029
 on_target() { ssh "${TARGET_VIA:-$TARGET_SSH}" "$(target_command "$1")" <"${2:-/dev/null}"; }
-on_live() { on_target "$@"; }
 
 # A write: printed only with DRY_RUN=1; else asked for, then run; a no
 # stops the script. <where> is `live` (the target) or `patches`; [file] is
@@ -1079,8 +1078,7 @@ inspect_target() {
 # the recreate takes its value from the target's .env, where it may have sat
 # unused. env_settings_set <compose file text> prints the names of those the
 # compose file passes and the .env sets (never a value).
-NEW_SETTINGS=(SRP_ITEM_WEAR SRP_DROP_CONDITION SRP_DROP_DEFECT SRP_DROP_PLAYTIME_BONUS SRP_DAILY_BONUS
-    SRP_DAILY_BONUS_RESET_HOUR SRP_MATCH_SEARCH_STEP_SECONDS SRP_LOBBY_MATCH_LINK_TIMEOUT_SECONDS
+NEW_SETTINGS=(SRP_DAILY_BONUS SRP_DAILY_BONUS_RESET_HOUR SRP_LOBBY_MATCH_LINK_TIMEOUT_SECONDS
     SRP_LOBBY_SESSION_GRACE_SECONDS)
 env_settings_set() {
     local name passed=()
