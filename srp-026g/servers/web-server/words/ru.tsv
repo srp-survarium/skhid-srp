@@ -557,6 +557,7 @@ No effect fully aimed.	Не действует при полном прицел�
 Spread while walking {v} per rank, from the hip or aiming in. Not crouch-walking.	Разброс при ходьбе {v} за ранг, от бедра и при прицеливании. Не при ходьбе в приседе.
 Spread from broken arms {v} per rank.	Разброс от сломанных рук {v} за ранг.
 This weapon's kick ranges, up and sideways. Not the camera shake.	Пределы отдачи этого оружия, вверх и вбок. Не тряска камеры.
+This weapon's base spread, in every shot: all of the spread fully aimed, little of it from the hip. Not the stance's spread or a shot's.	Базовый разброс этого оружия, в каждом выстреле: весь разброс при полном прицеливании, малая его часть от бедра. Не разброс от положения или от выстрела.
 The stance's spread and each shot's. No effect sprinting, jumping or fully aimed.	Разброс от положения и от каждого выстрела. Не действует при спринте, в прыжке и при полном прицеливании.
 Each shot's kick with any weapon: up, sideways and the camera shake.	Отдача каждого выстрела из любого оружия: вверх, вбок и тряска камеры.
 Base	Базовый

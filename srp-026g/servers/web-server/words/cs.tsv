@@ -557,6 +557,7 @@ No effect fully aimed.	Při plném zamíření nepůsobí.
 Spread while walking {v} per rank, from the hip or aiming in. Not crouch-walking.	Rozptyl při chůzi {v} za stupeň, od boku i při zamiřování. Ne při chůzi v přikrčení.
 Spread from broken arms {v} per rank.	Rozptyl kvůli zlomeným rukám {v} za stupeň.
 This weapon's kick ranges, up and sideways. Not the camera shake.	Rozsahy rázu této zbraně, nahoru a do strany. Ne otřes kamery.
+This weapon's base spread, in every shot: all of the spread fully aimed, little of it from the hip. Not the stance's spread or a shot's.	Základní rozptyl této zbraně, v každém výstřelu: při plném zamíření celý rozptyl, od boku jeho malá část. Ne rozptyl z postoje ani z výstřelu.
 The stance's spread and each shot's. No effect sprinting, jumping or fully aimed.	Rozptyl z postoje a z každého výstřelu. Nepůsobí při sprintu, skoku ani při plném zamíření.
 Each shot's kick with any weapon: up, sideways and the camera shake.	Ráz každého výstřelu z jakékoli zbraně: nahoru, do strany a otřes kamery.
 Base	Základní

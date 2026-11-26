@@ -3436,8 +3436,13 @@ Recoil modifications 2080..2084 and defect 3060 once targeted
 recoil blocks (`find_modifier_target` 0x2F1430 returns null for missing paths;
 the cook skips them at 0x2F1ABF). The content edit (`weapon-rolls.md`) retargets
 them to the six keys recoil loads at 0x331840 (`min/max_top_recoil` and the
-left/right ranges, type 2), and the card's kick rows show the change. Likewise a base-dispersion
-upgrade (property 2) does not change shot spread, growth or recovery. The scope's
+left/right ranges, type 2), and the card's kick rows show the change. A base-dispersion
+upgrade (property 2: 2020..2024, -2..-10 %, type 2 on `dispersion/base_dispersion`) works in
+stock: the weapon's constructor loads `dispersion` from the cooked config into weapon +3D8h
+(0x330EE0 at 0x2DF1E7, the root the recoil loader reads), and get_static_dispersion 0x331220
+puts it in every bullet's spread, fully aimed too (get_dispersed_bullet_direction 0x2E1D50:
+static + dynamic x k), and in pellet spread (0x2E2120). It does not change a shot's bloom
+(one_shoot_dispersion_amount), the stance's part, growth or recovery. The scope's
 separate view FOV does not change the explicitly labelled base aim-zoom parameter.
 
 ### Artefact score (patch 80)

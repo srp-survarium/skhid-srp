@@ -557,6 +557,7 @@ No effect fully aimed.	Sem efeito com a mira completa.
 Spread while walking {v} per rank, from the hip or aiming in. Not crouch-walking.	Dispersão ao andar {v} por rank, da cintura ou mirando. Não andando agachado.
 Spread from broken arms {v} per rank.	Dispersão com braços quebrados {v} por rank.
 This weapon's kick ranges, up and sideways. Not the camera shake.	Faixas de recuo desta arma, para cima e para os lados. Não inclui o tremor da câmera.
+This weapon's base spread, in every shot: all of the spread fully aimed, little of it from the hip. Not the stance's spread or a shot's.	A dispersão base desta arma, em todo tiro: toda a dispersão com a mira completa, pouco dela da cintura. Não a dispersão da postura nem a de um tiro.
 The stance's spread and each shot's. No effect sprinting, jumping or fully aimed.	Dispersão da postura e de cada tiro. Sem efeito correndo, pulando ou com a mira completa.
 Each shot's kick with any weapon: up, sideways and the camera shake.	Recuo de cada tiro com qualquer arma: para cima, para os lados e o tremor da câmera.
 Base	Base
