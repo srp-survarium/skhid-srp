@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
-"""Import the atlas's 285 additional tiles from the author's two unmodified FREE ZIPs.
+"""Import the atlas's 208 additional tiles (art/) from the author's two unmodified FREE ZIPs.
 
 Usage: python3 import_art.py Camouflage_Pattern_Pack_1_FREE.zip Camouflage_Pattern_Pack_2_FREE.zip
-Pillow 12.1+, NumPy and SciPy. The catalog order is part of the game dictionary.
+Pillow 12.1+, NumPy and SciPy. Each catalog row's id is its item in the game dictionary: the
+tiles keep the ids of their places in the original 285-tile sequence (FIRST_ID onward), and a
+retired tile leaves its id unused.
 """
 import argparse
 from concurrent.futures import ThreadPoolExecutor
@@ -22,6 +24,9 @@ ARCHIVES = (
     'cb0ed66f0e6afc0735532af8827282dccc239d9c9085e66ce7cac23f8c104e2f',
     'edc78e404b10803ddf77b5498e8bac97326802e289db2841afabbf755c7bdda5',
 )
+FIRST_ID = 2814
+# Dropped by the owner on 2026-11-26; their ids stay unused.
+RETIRED = {'Desert Wave Fan'}
 # Archive, motif, display family, visible design, art-directed alternate name, ink ramp.
 FAMILIES = [
     (2,'Seigaiha','Wave Fan','Overlapping fans of concentric arcs','Porcelain Tide','203549 346976 7ca59e e2d6b5'),
@@ -138,13 +143,15 @@ def main():
         image.save(args.out/(slug+'.webp'),quality=94,method=4)
         return (slug,name,family,description,f'https://snowycocoon.itch.io/camouflage-texture-pack-{pack}',
                 f'SnowyCocoon · Free Pack {pack} · CC0',palette_text)
+    specs=list(select())
+    jobs=[(FIRST_ID+i,spec) for i,spec in enumerate(specs) if spec[5] not in RETIRED]
     with ThreadPoolExecutor(max_workers=4) as pool:
-        rows=list(pool.map(convert,select()))
-    rows.extend(expanded(args.out,args.free_packs,FAMILIES,member))
-    assert len(rows)==len({r[0] for r in rows})==285
+        rows=list(pool.map(lambda job:(job[0],*convert(job[1])),jobs))
+    rows.extend(expanded(args.out,args.free_packs,FAMILIES,member,FIRST_ID+len(specs)))
+    assert len(rows)==len({r[1] for r in rows})==208
     with (args.out/'catalog.tsv').open('w',encoding='utf8',newline='') as stream:
         writer=csv.writer(stream,delimiter='\t',lineterminator='\n')
-        writer.writerow(('slug','name','family','description','source_url','source_label','palette'))
+        writer.writerow(('id','slug','name','family','description','source_url','source_label','palette'))
         writer.writerows(rows)
 
 
