@@ -2767,6 +2767,12 @@ impl Bots {
             nav_log::PREFIX
         ));
         // [F42] The reckoned steps of bodies with both legs broken by their crouch selector state.
+        // [pull unknown] The legs routes kept straight with no walk test, and what their tests said (`path::unverified`).
+        let [kept, walked, ahead, on_leg, passed] = path::unverified::take();
+        lines.push(format!(
+            "{}unverified pulled legs since the last match end (every match on this server): kept {kept}, walked {walked}, failed ahead {ahead}, failed with the body on them {on_leg}, passed untested {passed}",
+            nav_log::PREFIX
+        ));
         // [keys] The walk keys' and the crouch key's changes by the stage that made them (`key_sources`).
         lines.extend(key_sources::lines().into_iter().map(|line| format!("{}{line}", nav_log::PREFIX)));
         let (steady, unparks) = drive::steady_creeps::take();
