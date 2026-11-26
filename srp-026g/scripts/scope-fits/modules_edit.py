@@ -14,8 +14,10 @@ For each optic of the record, in its shop item's config:
   the frame of the slot the optic goes in (the table places them on each gun);
 - its modification, which changed nothing, is 994000 + its dict id (the fitted items' ids) and adds
   data/srp_scope = the item's own dict id to the weapon that wears its record: what the game's cook
-  reads to fit it (the table's row, the scope object); and it sets the weapon's
-  parameters/aim_offset to 0 (the eye is the table's alone).
+  reads to fit it (the table's row, the scope object), and data/srp_scope_mount = its record's
+  value's low half (which of the scope's ways onto the gun it takes, 0 the first: the weapon kit's,
+  docs/notes/scope-mounts.md); and it sets the weapon's parameters/aim_offset to 0 (the eye is the
+  table's alone).
 Everything else of the item stays (its zoom, its price, its texts).
 And in the dictionary: an items_compatibility row (`compatibility_<scope><weapon>`) for each pair of
 the record: the lobby's movie greys a scope by these rows. The 169 pairs whose variant a base patch
@@ -142,6 +144,7 @@ def main():
         # without the key has none: the modifier finds nothing and is skipped. The released modifier
         # stays first, as it is (a set of a key no weapon has: skipped), so no key changes its type.
         fitted = [old, {'path': ['data'], 'value': ['srp_scope', dict_id], 'type': 3},
+                  {'path': ['data'], 'value': ['srp_scope_mount', '<low_param>'], 'type': 3},
                   {'path': ['parameters', 'aim_offset'], 'value': 0.0, 'type': 0}]
         modifications.append({'file': path, 'list': 'modifications', 'where': {'id': row['id']}, 'from': frm,
                               'to': {'id': FIRST_ID + dict_id, 'modifiers': fitted}})
@@ -158,7 +161,8 @@ def main():
     about = ("Scopes on the modules table (pack weapon-modules, docs/notes/attachments-scopes.md): each shop "
              "scope item's data/idle_model and data/aimed_model are the optic's own two models of the pack, and "
              "its modification adds data/srp_scope = its own dict id to the weapon wearing it (it changed nothing "
-             "before: the variants did) and sets its parameters/aim_offset to 0; an items_compatibility row for each "
+             "before: the variants did) and data/srp_scope_mount = its record's value (its way onto the gun) and sets "
+             "its parameters/aim_offset to 0; an items_compatibility row for each "
              "pair of the table but the 169 a base patch's dictionary has. Made by scope-fits/modules_edit.py "
              "from the pack's record.")
     out.write_text(json.dumps({'_about': about, 'replace_string': models, 'set': numbers, 'set_entry': modifications,
