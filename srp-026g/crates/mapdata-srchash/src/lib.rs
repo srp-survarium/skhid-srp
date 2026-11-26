@@ -31,8 +31,9 @@
 //!   ([`mapdata_source_wide`] reads them too, for a report). An `include_str!`/`include_bytes!` file's bytes are in the item
 //!   that includes it;
 //! - the inputs outside the source ([`outside`]): the `Cargo.lock` entries of `mapdata`'s dependencies, the workspace
-//!   manifest's `[workspace.package]` and `[profile*]` sections, `flake.nix` (its comment lines left out) and `flake.lock`, and
-//!   the `--cfg` flags of the rustflags.
+//!   manifest's `[workspace.package]` and `[profile*]` sections (save `lto` and `codegen-units`,
+//!   [`LAYOUT_ONLY_PROFILE_KEYS`]), `flake.nix` (its comment lines left out) and `flake.lock`, and the `--cfg` flags of the
+//!   rustflags.
 //!
 //! A source the parser refuses gives the fallback ([`Digests::fallback`]): every digest is the digest of every file's bytes, as
 //! the cache's names were before (never fewer rebuilds, only more), and the report says so.
@@ -1326,6 +1327,42 @@ fn read(workspace: &Path, path: &str) -> Result<String, String> {
     std::fs::read_to_string(workspace.join(path)).map_err(|e| format!("{path}: {e}"))
 }
 
+/// Profile keys that change how code is split and inlined, never what it computes: Rust neither contracts nor reorders floats
+/// without explicit calls, so a build's output is the same with or without them. Measured too: with and without fat LTO and one
+/// codegen unit (#2625) a cold batteries m2 grid and its sight tree were byte-identical, and so were the 32 sight trees two
+/// placings built with the LTO binary. Every other profile key (`opt-level`, `overflow-checks`, `debug-assertions`, `panic`, ...)
+/// is hashed.
+const LAYOUT_ONLY_PROFILE_KEYS: &[&str] = &["lto", "codegen-units"];
+
+/// Feeds the workspace manifest's sections that change code (`[workspace.package]`, every `[profile...]`) into `hash`: each
+/// section's header and its lines, trimmed, without blank lines, comments and [`LAYOUT_ONLY_PROFILE_KEYS`]. A section's header
+/// goes in only with a line of it, so a profile that holds only those keys digests as no profile at all.
+fn hash_manifest_sections(hash: &mut Hash128, manifest: &str) {
+    let mut header: Option<&str> = None;
+    let mut header_fed = false;
+    for line in manifest.lines() {
+        let trimmed = line.trim();
+        if trimmed.starts_with('[') {
+            header = Some(trimmed).filter(|h| *h == "[workspace.package]" || h.starts_with("[profile"));
+            header_fed = false;
+            continue;
+        }
+        let Some(h) = header else { continue };
+        if trimmed.is_empty() || trimmed.starts_with('#') {
+            continue;
+        }
+        let key = trimmed.split('=').next().unwrap_or_default().trim();
+        if h.starts_with("[profile") && LAYOUT_ONLY_PROFILE_KEYS.contains(&key) {
+            continue;
+        }
+        if !header_fed {
+            hash.str(h);
+            header_fed = true;
+        }
+        hash.str(trimmed);
+    }
+}
+
 /// The digest of the inputs outside the source (module documentation), and the files it read.
 pub fn outside(workspace: &Path, package: &str, cfgs: &[String]) -> Result<(u128, Vec<String>), String> {
     let mut hash = Hash128::default();
@@ -1367,17 +1404,7 @@ pub fn outside(workspace: &Path, package: &str, cfgs: &[String]) -> Result<(u128
         }
     }
     // The workspace manifest's sections that change code: the edition, the profiles.
-    let root = read(workspace, "Cargo.toml")?;
-    let mut header = String::new();
-    for line in root.lines() {
-        let trimmed = line.trim();
-        if trimmed.starts_with('[') {
-            header = trimmed.to_owned();
-        }
-        if (header == "[workspace.package]" || header.starts_with("[profile")) && !trimmed.is_empty() && !trimmed.starts_with('#') {
-            hash.str(trimmed);
-        }
-    }
+    hash_manifest_sections(&mut hash, &read(workspace, "Cargo.toml")?);
     // The toolchain.
     let flake = read(workspace, "flake.nix")?;
     for line in flake.lines().map(str::trim).filter(|l| !l.is_empty() && !l.starts_with('#')) {

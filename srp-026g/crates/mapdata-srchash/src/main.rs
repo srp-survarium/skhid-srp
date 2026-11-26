@@ -81,6 +81,9 @@ fn main() -> ExitCode {
             println!("SRC_ALL {:032x}", d.all);
             println!("SRC_GRID {:032x}", d.grid);
             println!("SRC_SIGHT {:032x}", d.sight);
+            for (id, digest) in &d.sites {
+                println!("SITE {id} {digest:032x}");
+            }
             println!("cache names: bench-grid-{:016x}-*, bench-sight-{:016x}-*", (d.grid >> 64) as u64, (d.sight >> 64) as u64);
             print!("{}", d.report);
             ExitCode::SUCCESS
