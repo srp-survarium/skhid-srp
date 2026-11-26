@@ -39,12 +39,6 @@
 //! - `SRP_LATE_INPUTS=discard|move` (default `discard`, what 0.21d does):
 //!   what becomes of an input that comes after its tick is final: dropped
 //!   (0xF1 / 0xF2), or moved to an open tick (0xEF / 0xF0, new in 0.26g);
-//! - `SRP_RESYNC_WORLD_ONLY=on|off` (default `off`): resync a playing
-//!   client with the world alone (0xE8 of the next generation, its clock
-//!   left as it is) instead of the time and the world (0xE5, 0xE8);
-//! - `SRP_RESTORE_LIMIT=<n>` (default 0, no limit): disconnect a client
-//!   that is out of sync again after `n` resyncs in a row with no report
-//!   of its that agreed in between;
 //! - `SRP_RESYNC_AFTER_AGREED_SECONDS` (default 5, 3 to 15; 15 = the old
 //!   rule): the least time between two resyncs of a client when its last
 //!   one was agreed with; after one that was not, it stays 15 s, and a
@@ -274,11 +268,6 @@ pub(crate) const DEFAULT_PVB_STALL_S: u64 = 60;
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct Settings {
     pub late_inputs: LateInputs,
-    /// Resync a playing client with 0xE8 alone.
-    pub resync_world_only: bool,
-    /// Resyncs in a row without agreement after which a client is
-    /// disconnected; 0 for no limit.
-    pub restore_limit: u32,
     pub clock_correction: bool,
     pub check_initial_world: bool,
     /// The world goes to the clients as LZMA2 where that is smaller
@@ -303,8 +292,6 @@ impl Default for Settings {
     fn default() -> Self {
         Self {
             late_inputs: LateInputs::Relay,
-            resync_world_only: false,
-            restore_limit: 0,
             clock_correction: true,
             check_initial_world: true,
             compress_state: true,
@@ -328,12 +315,6 @@ impl Settings {
         let var = |name: &str| std::env::var(name).ok();
         Self {
             late_inputs: parse_late_inputs(var("SRP_LATE_INPUTS").as_deref()),
-            resync_world_only: session::switch("SRP_RESYNC_WORLD_ONLY", false),
-            restore_limit: parse_number(
-                "SRP_RESTORE_LIMIT",
-                var("SRP_RESTORE_LIMIT").as_deref(),
-                0,
-            ),
             clock_correction: session::switch("SRP_CLOCK_CORRECTION", true),
             check_initial_world: session::switch("SRP_CHECK_INITIAL_WORLD", true),
             compress_state: session::switch("SRP_COMPRESS_STATE", true),
