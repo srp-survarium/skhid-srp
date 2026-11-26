@@ -304,3 +304,27 @@ stop of 7 degrees for the whole turn and five frames past its end, then came bac
   range, 19 degrees across and 19 up and down;
 - three times the arms' lag behind the smoothed way: about 4.5 degrees behind at 60 degrees a
   second, 9 at 200, 14 at 500.
+
+The owner's seventh play, of that cone (285 shots, 13862 frames, no crash), with a screenshot of a
+quick turn: the gun drawn well to the right of the crosshair. "now weapon and cross are not aligned
+again", "this is when quickly moving", "so the weapon model visible and internal are misaligned".
+A gun drawn where no shot goes is not wanted at any size of the cone. So the lag is the
+simulation's now, and nothing is drawn apart from it:
+
+- the mouse's turn of a frame is not given to the player at once. Patch 197 keeps it as pending at
+  the end of the input's building (`input_builder.end`, process_first_person_mode 0x2421B0: the
+  input's turn, the handler's +338h, emptied by on_before_processing each frame and filled by
+  on_mouse_move), and each frame puts a share of what is pending into the input: 7 a second times
+  1 + (pending / 12 degrees) squared from the hip, six times that fully aimed. The player's yaw
+  and look pitch, its eye, hands, gun, crosshair and shot all come after the mouse together;
+- the view is drawn ahead of the eye by what is pending (`camera.eye`), so the view is the mouse's,
+  turn for turn, as before;
+- the range is the last cone's: about 5 degrees behind a turn of 40 degrees a second, 10 behind
+  115, 17 behind 350; past 30 degrees the rest goes in at once. No pitch waits past the look
+  pitch's ends, a dead player and the scope's own view get the turn as the game has it, and a turn
+  no frame took for 250 ms (the menu is up) is no longer shown.
+
+What a match computes does not change: the inputs a game sends are its own to make, and every game
+plays the same ones. What it costs is the aim's own lag: a shot right after a flick goes where the
+gun is, behind the view, where the crosshair shows it. The swing of the Weapon bone, the arms'
+filter and the 19-degree bend are gone. Emulation-checked (`check_gun_sway_026g.py`); not played.

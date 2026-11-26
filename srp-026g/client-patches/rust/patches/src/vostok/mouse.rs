@@ -109,3 +109,70 @@ impl<'a, 'c> DeathPitch<'a, 'c> {
         self.ctx.set_xmm_f32(1, sensitivity);
     }
 }
+
+/// process_first_person_mode's end (`input_builder.end`, 0x2421B0; every way
+/// through it, also a frame with no key and no mouse event, 0x241284): the
+/// turn of the frame's input, two half floats (the yaw in radians, growing to
+/// the left; the pitch in the look pitch's units). on_before_processing
+/// (0x241107) empties it each frame, on_mouse_move (0x240374, 0x2403D1) adds
+/// each move of the mouse and the builder its turn keys (0x2413EA..0x24151F);
+/// nothing of the builder reads it after its check at 0x241526.
+pub struct FrameTurn<'c> {
+    handler: raw::PlayerInputHandler,
+    site: core::marker::PhantomData<&'c ()>,
+}
+
+impl<'c> FrameTurn<'c> {
+    pub fn at(ctx: &'c Context<'_>) -> Option<FrameTurn<'c>> {
+        // SAFETY: the context is this site's: EBX process_first_person_mode's
+        // handler, alive for the call on the game's thread.
+        let handler = unsafe { raw::site::input_builder_end::handler(ctx)? };
+        Some(FrameTurn { handler, site: core::marker::PhantomData })
+    }
+
+    /// The turn: the yaw's half and the pitch's.
+    pub fn halves(&self) -> (u16, u16) {
+        // SAFETY: the live handler's own dword (+338h: the two halves).
+        let turn = unsafe { self.handler.turn().read_volatile() };
+        (turn as u16, (turn >> 16) as u16)
+    }
+
+    /// The turn the game goes on to read.
+    pub fn set(&mut self, (yaw, pitch): (u16, u16)) {
+        // SAFETY: as `halves`; the game's thread takes the input after the builder.
+        unsafe { self.handler.turn().write_volatile(u32::from(yaw) | u32::from(pitch) << 16) };
+    }
+
+    /// The living local player whose turn it is; none without one, and while
+    /// the scope's own view is on.
+    pub fn holder(&self) -> Option<Holder> {
+        // SAFETY: the handler's game world, its game, network client and
+        // local player are the game's for the call (as `PitchStep::at`); the
+        // player's own byte, its held item (a weapon's first dword its
+        // vtable) and that weapon's own float and byte.
+        unsafe {
+            let player = self.handler.game_world()?.game()?.network_client()?.local_player()?;
+            if player.alive().read_volatile() == 0 {
+                return None;
+            }
+            let look_pitch = player.look_pitch().read_volatile();
+            let hip = Some(Holder { raised: 0.0, look_pitch });
+            let Some(item) = player.held_item() else { return hip };
+            if item.vtable().read_volatile() != raw::image::WEAPON_VTABLE {
+                return hip;
+            }
+            let weapon = item.weapon();
+            (weapon.scope_view().read_volatile() == 0).then(|| Holder { raised: weapon.aim_progress().read_volatile(), look_pitch })
+        }
+    }
+}
+
+/// The player a frame's turn turns.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Holder {
+    /// How far the sight of its gun is raised, 0 from the hip (and with no
+    /// client weapon in hand) to 1.
+    pub raised: f32,
+    /// Its look pitch (units; one up, one down).
+    pub look_pitch: f32,
+}

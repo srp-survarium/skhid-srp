@@ -38,6 +38,8 @@ handler = "on_load"
 [[hook]]
 site = "input_builder.end"
 handler = "on_input_end"
+# before patch 197's turn of the frame (order 2)
+order = 1
 
 [[hook]]
 site = "carry.weapon"

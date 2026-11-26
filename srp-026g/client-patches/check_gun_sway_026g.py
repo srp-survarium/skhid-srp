@@ -4,40 +4,37 @@
     python check_gun_sway_026g.py <original survarium.exe>
 
 On check_head_clearance_026g's rig, in the original and in the built exe:
-- process_hands_ik from where its ways join (0x295B00, `hands_ik.solve`) to
-  its call of the hands' IK (0x295B17), the first person's, a client weapon in
-  hand, the holder's bones of the frame in memory: with no turn before it the
-  bones and the registers are the original's;
-- update_camera for two frames 16 ms apart, the eyes turned 2 degrees to the
-  right between them, then the same stretch of process_hands_ik: the
-  Weapon bone is swung about the Item bone's place to the left by this file's
-  own arithmetic of the arms' lag behind the smoothed way (1.503 degrees), every other bone and the
-  registers the original's; the view of the second frame is the original's
-  (the view does not lag);
-- fully aimed, in the third person and with another item in hand: the bones
-  the original's.
+- process_first_person_mode's end (0x2421B0, `input_builder.end`: its three
+  pops and mov esp,ebp) with a living local player holding a client weapon
+  from the hip: the first frame's turn is the game's; a frame 16 ms on, of a
+  turn of 2 degrees to the right, the input's turn holds the gun's share by
+  this file's own arithmetic, the registers the original's;
+- update_camera after it: the view is the eyes turned to the right by what is
+  pending (the view is the mouse's), its place the eyes';
+- a still mouse a frame later: the gun takes a share of what is pending; fully
+  aimed a larger one;
+- a look pitch at its upper end leaves no pitch pending;
+- a dead player, no local player and the scope's own view: the frame's turn
+  and all that was pending, at once, and the view the original's;
+- a turn no frame took for 300 ms: the view the original's.
 """
 import math
 import struct
 import sys
 
-from unicorn import UC_HOOK_CODE
-from unicorn.x86_const import UC_X86_REG_EBP, UC_X86_REG_ESI, UC_X86_REG_ESP, UC_X86_REG_EIP
+from unicorn import UC_PROT_ALL
+from unicorn.x86_const import UC_X86_REG_EBP, UC_X86_REG_EBX, UC_X86_REG_ESP, UC_X86_REG_EIP
 
 import check_head_clearance_026g as rig
 
-SOLVE, CALL = 0x295B00, 0x295B17
-SPAN = bytes.fromhex("8b550c8b442414")                    # mov edx,[ebp+0Ch] / mov eax,[esp+14h]
-WEAPON_VTABLE, WEAPON_CORE_VTABLE = 0xA04174, 0xA11094
-CONTROLLER, BONES, HOLDER, SKELETON, NAMES, WEAPON = (rig.HEAP + 0x28000 + 0x800 * n for n in (0, 1, 2, 3, 5, 8))
-FRAME, ARGS = rig.STACK + 0x6000, rig.STACK + 0x7000
-NAMED = ("object_movement", "Root", "Weapon", "Item")
-SMOOTHING, ARMS_LAG, SWAY, MOST = 25.0, 20.0, 3.0, math.radians(19.0)
+SITE, NEXT = 0x2421B0, 0x2421B5
+SPAN = bytes.fromhex("5f5e5b8be5")                        # pop edi / pop esi / pop ebx / mov esp,ebp
+WEAPON_VTABLE = 0xA04174
+CHAIN = 0x33000000
+WORLD, GAME, CLIENT, WEAPON = CHAIN, CHAIN + 0x1000, CHAIN + 0x7000, CHAIN + 0x8000
+RATE, EASY, AIMED = 7.0, math.radians(12.0), 5.0
+UNIT_UP = math.radians(60.0)
 failed = 0
-
-ROOT = (1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0.0, 0.9, 0.0, 1)
-GUN = (0.98, 0.05, -0.19, 0, -0.04, 0.998, 0.06, 0, 0.19, -0.05, 0.98, 0, 0.21, 1.35, 0.42, 1)
-EYE = (1, 0, 0, 0, 0, 0.995, -0.0998, 0, 0, 0.0998, 0.995, 0, 0.0, 1.62, 0.13, 1)
 
 
 def check(ok, what):
@@ -46,66 +43,56 @@ def check(ok, what):
     print(("  ok  " if ok else "  FAIL  ") + what)
 
 
-def about(v, axis, angle):
-    s, c = math.sin(angle), math.cos(angle)
-    cross = (axis[1] * v[2] - axis[2] * v[1], axis[2] * v[0] - axis[0] * v[2], axis[0] * v[1] - axis[1] * v[0])
-    dot = sum(a * b for a, b in zip(axis, v))
-    return tuple(x * c + k * s + a * dot * (1 - c) for x, k, a in zip(v, cross, axis))
+def half(value):
+    return struct.unpack("<H", struct.pack("<e", value))[0]
 
 
-def swung(gun, eye, yaw, pitch):
-    pivot, right = eye[12:15], eye[0:3]
-    swing = lambda v: about(about(v, (0, 1, 0), yaw), right, -pitch)
-    rows = [swing(gun[r * 4:r * 4 + 3]) for r in range(3)]
-    at = tuple(p + d for p, d in zip(pivot, swing(tuple(g - p for g, p in zip(gun[12:15], pivot)))))
-    return (*rows[0], 0, *rows[1], 0, *rows[2], 0, *at, 1)
+def of_half(bits):
+    return struct.unpack("<e", struct.pack("<H", bits))[0]
 
 
-class Hands:
+def taken(pending, dt, raised):
+    """The gun's share of a pending (yaw, pitch), as halves' values."""
+    angle = math.hypot(pending[0], pending[1] * UNIT_UP)
+    share = min(RATE * (1 + (angle / EASY) ** 2) * (1 + AIMED * raised) * dt, 1.0) if angle else 1.0
+    return tuple(of_half(half(p * share)) for p in pending)
+
+
+class Input:
     def __init__(self, data):
         self.game = rig.Game(data)
-        self.yaw = None
-        self.ms = 0
-        self.game.emu.hook_add(UC_HOOK_CODE, self.turn, begin=rig.UPDATE_CAMERA, end=rig.UPDATE_CAMERA)
+        self.game.emu.mem_map(CHAIN, 0x10000, UC_PROT_ALL)
 
-    def turn(self, emu, *_):
-        if self.yaw is not None:
-            c, s = math.cos(self.yaw), math.sin(self.yaw)
-            emu.mem_write(rig.PLAYER + 0x44C, struct.pack("<16f", c, 0, -s, 0, 0, 1, 0, 0, s, 0, c, 0, *rig.EYE_AT, 1))
-
-    def frame(self, yaw, ms):
-        """A frame's camera with the eyes turned `yaw` to the right about the up."""
-        self.yaw = yaw
-        self.ms += ms
-        view, regs, _ = self.game.update_camera(0, ms=self.ms)
-        return view, regs
-
-    def solve(self, first_view=1, vtable=WEAPON_VTABLE, raised=0.0):
-        """process_hands_ik's last stretch: (the three bones after it, the registers at the IK's call)."""
-        emu, u32 = self.game.emu, self.game.u32
-        emu.mem_write(CONTROLLER, bytes(0x4000))
-        u32(CONTROLLER + 0x1F8, rig.PLAYER)
-        u32(HOLDER, SKELETON)
-        u32(SKELETON + 0x108, len(NAMED))
-        for n, name in enumerate(NAMED):
-            record = SKELETON + 0x110 + 0x1C * n
-            emu.mem_write(NAMES + 0x20 * n, name.encode() + b"\0")
-            u32(record, NAMES + 0x20 * n)
-            u32(record + 8, record + 0x1C if n + 1 < len(NAMED) else 0)
-        for n, bone in enumerate((ROOT, GUN, EYE)):
-            emu.mem_write(BONES + 0x40 * n, struct.pack("<16f", *bone))
-        u32(WEAPON, vtable)
+    def take(self, turn, ms, alive=1, local=True, raised=0.0, scope=0, look_pitch=0.0):
+        """The frame's turn (yaw rad, pitch units) at `ms`: (the input's turn after the builder's end, the registers)."""
+        game = self.game
+        emu, u32 = game.emu, game.u32
+        game.ms = ms
+        emu.mem_write(CHAIN, bytes(0x10000))
+        u32(rig.HANDLER + 0x334, WORLD)
+        u32(WORLD + 0x9C, GAME)
+        u32(GAME + 0x53AC, CLIENT)
+        u32(CLIENT + 4, rig.PLAYER if local else 0)
+        emu.mem_write(rig.PLAYER + 0x33C, bytes([alive]))
+        emu.mem_write(rig.PLAYER + 0x48C, struct.pack("<f", look_pitch))
+        u32(rig.PLAYER + 0x128, WEAPON)
+        u32(WEAPON, WEAPON_VTABLE)
         emu.mem_write(WEAPON + 0x5FC, struct.pack("<f", raised))
-        emu.mem_write(FRAME, struct.pack("<8I", 0, 0, 0, 0, CONTROLLER, first_view, WEAPON, 0))
-        emu.mem_write(ARGS, struct.pack("<6I", 0, 0, 0x5A5A0008, BONES, 0x5A5A0010, HOLDER))
+        emu.mem_write(WEAPON + 0x181E, bytes([scope]))
+        emu.mem_write(rig.HANDLER + 0x338, struct.pack("<2H", half(turn[0]), half(turn[1])))
         for reg, value in rig.STEADY.items():
             emu.reg_write(reg, value)
-        emu.reg_write(UC_X86_REG_ESI, CONTROLLER)
-        emu.reg_write(UC_X86_REG_EBP, ARGS)
-        emu.reg_write(UC_X86_REG_ESP, FRAME)
-        emu.emu_start(SOLVE, CALL, count=200000)
+        emu.reg_write(UC_X86_REG_EBX, rig.HANDLER)
+        emu.reg_write(UC_X86_REG_ESP, rig.STACK + 0x6000)
+        emu.reg_write(UC_X86_REG_EBP, rig.STACK + 0x6100)
+        emu.mem_write(rig.STACK + 0x6000, struct.pack("<3I", 0x0E0E0E01, 0x05050501, 0x0B0B0B01))
+        emu.emu_start(SITE, NEXT, count=200000)
         regs = {r: emu.reg_read(r) for r in rig.REGS + (UC_X86_REG_EIP,)}
-        return [self.game.floats(BONES + 0x40 * n, 16) for n in range(3)], regs
+        return struct.unpack("<2H", emu.mem_read(rig.HANDLER + 0x338, 4)), regs
+
+    def view(self, ms):
+        view, regs, _ = self.game.update_camera(0, ms=ms)
+        return view, regs
 
 
 def main():
@@ -116,43 +103,81 @@ def main():
     built, _ = rig.base.build(original, "section", code, None, open(rig.base.late_join_bin(), "rb").read())
     built = bytes(built)
     linked = rig.base.arena()
-    va, old, symbol, opcode = {h[0]: h for h in rig.base.rust_hooks(original)}[SOLVE]
+    va, old, symbol, opcode = {h[0]: h for h in rig.base.rust_hooks(original)}[SITE]
     at = rig.base.file_offset(va)
     new = rig.base.hook_bytes(linked.symbols[symbol], va, old, 0, opcode)
     check(opcode == 0xE9 and old == SPAN and original[at:at + len(SPAN)] == SPAN and built[at:at + len(new)] == new,
           f"{va:#x}: {old.hex()} in the original, `jmp {symbol}` here")
 
-    stock, ours = Hands(original), Hands(built)
-    posed = [struct.unpack("<16f", struct.pack("<16f", *bone)) for bone in (ROOT, GUN, EYE)]
-    s_bones, s_regs = stock.solve()
-    o_bones, o_regs = ours.solve()
-    check(s_bones == posed and s_regs[UC_X86_REG_EIP] == CALL, "the original leaves the bones")
-    check(o_bones == s_bones and o_regs == s_regs, "no turn before it: the bones and the registers the original's")
+    stock, ours = Input(original), Input(built)
+    close = lambda got, want: all(abs(g - half(w)) <= 1 for g, w in zip(got, want))
 
-    # two frames 16 ms apart, the eyes 2 degrees to the right between them
-    turn = math.radians(2.0)
-    for hands in (stock, ours):
-        hands.frame(0.4, 1000)
-    s_view, s_cam = stock.frame(0.4 + turn, 16)
-    o_view, o_cam = ours.frame(0.4 + turn, 16)
-    check(o_view == s_view and o_cam == s_cam, "the turn's frame: the view and the registers the original's (the view does not lag)")
-    smooth = turn * min(0.016 * SMOOTHING, 1.0)
-    arms = smooth * min(min(0.016, 1 / 30) * ARMS_LAG, 1.0)
-    lag = (arms - smooth) * SWAY                          # behind the smoothed way
-    behind = lag / (1 + abs(lag) / MOST)                  # bent under the most
-    want = struct.unpack("<16f", struct.pack("<16f", *swung(GUN, EYE, behind, 0.0)))
-    s_bones, s_regs = stock.solve()
-    o_bones, o_regs = ours.solve()
-    near = lambda a, b: all(abs(x - y) < 2e-5 for x, y in zip(a, b))
-    check(s_bones == posed, "after the turn the original leaves the bones")
-    check(near(o_bones[1], want) and o_bones[1] != posed[1],
-          f"after the turn: the Weapon bone swung {math.degrees(-behind):.3f} degrees to the left about the Item bone's place")
-    check(o_bones[0] == posed[0] and o_bones[2] == posed[2] and o_regs == s_regs, "the other bones and the registers the original's")
-    for what, hand in (("fully aimed", dict(raised=1.0)), ("the third person's", dict(first_view=0)),
-                       ("another item in hand", dict(vtable=WEAPON_CORE_VTABLE))):
-        s_bones, s_regs = stock.solve(**hand)
-        o_bones, o_regs = ours.solve(**hand)
-        check(o_bones == posed and o_bones == s_bones and o_regs == s_regs, f"{what}: the bones and the registers the original's")
+    def both(turn, ms, **player):
+        (s_turn, s_regs), (o_turn, o_regs) = stock.take(turn, ms, **player), ours.take(turn, ms, **player)
+        check(s_turn == (half(turn[0]), half(turn[1])) and s_regs[UC_X86_REG_EIP] == NEXT and s_regs[UC_X86_REG_ESP] == rig.STACK + 0x6100,
+              "  the original leaves the turn")
+        check(o_regs == s_regs, "  the registers the original's")
+        return o_turn, (of_half(o_turn[0]), of_half(o_turn[1]))
+
+    first = (of_half(half(-0.02)), of_half(half(0.01)))
+    print("the first frame")
+    o_turn, _ = both(first, 1000)
+    check(o_turn == (half(first[0]), half(first[1])), "the turn is the game's")
+    s_view, s_regs = stock.view(1004)
+    o_view, o_regs = ours.view(1004)
+    check(o_view == s_view and o_regs == s_regs, "nothing pending: the view and the registers the original's")
+
+    print("16 ms on, 2 degrees to the right")
+    frame = (of_half(half(-math.radians(2.0))), 0.0)
+    want = taken(frame, 0.016, 0.0)
+    o_turn, took = both(frame, 1016)
+    check(close(o_turn, want) and abs(took[0]) < 0.2 * abs(frame[0]), f"the gun takes {math.degrees(-took[0]):.3f} of the 2 degrees")
+    pending = (frame[0] - took[0], frame[1] - took[1])
+    s_view, s_regs = stock.view(1020)
+    o_view, o_regs = ours.view(1020)
+    yaw = math.atan2(s_view[8], s_view[10]) - pending[0]
+    check(max(abs(a - b) for a, b in zip(o_view[8:11], (math.sin(yaw), 0.0, math.cos(yaw)))) < 2e-6 and o_view[12:] == s_view[12:]
+          and abs(o_view[1]) < 1e-6 and o_regs == s_regs,
+          f"the view is the eyes turned {math.degrees(-pending[0]):.3f} degrees on to the right, level, at the eyes' place")
+
+    print("a still mouse, 16 ms on")
+    want = taken(pending, 0.016, 0.0)
+    o_turn, took = both((0.0, 0.0), 1032)
+    check(close(o_turn, want) and took[0] < 0.0 and o_turn[1] == 0, f"the gun takes {math.degrees(-took[0]):.3f} degrees of what is pending")
+    pending = (pending[0] - took[0], 0.0)
+    want = taken(pending, 0.016, 1.0)
+    o_turn, aimed = both((0.0, 0.0), 1048, raised=1.0)
+    check(close(o_turn, want) and aimed[0] < 3.0 * took[0], f"fully aimed it takes {math.degrees(-aimed[0]):.3f}")
+    pending = (pending[0] - aimed[0], 0.0)
+
+    print("a look pitch at its upper end")
+    up = (0.0, of_half(half(0.05)))
+    o_turn, took = both(up, 1064, look_pitch=1.0)
+    check(o_turn[1] == 0 and close(o_turn[:1], taken(pending, 0.016, 0.0)[:1]), "no pitch is taken and none stays pending")
+    pending = (pending[0] - took[0], 0.0)
+    o_turn, took = both((0.0, 0.0), 1080)
+    check(o_turn[1] == 0, "the next frame has no pitch to take")
+    pending = (pending[0] - took[0], 0.0)
+
+    for what, player in (("a dead player", dict(alive=0)), ("no local player", dict(local=False)), ("the scope's own view", dict(scope=1, raised=1.0))):
+        print(what)
+        ours.take((0.0, 0.0), 2000)
+        ours.take(frame, 2016)                              # something pending again
+        left = frame[0] - taken(frame, 0.016, 0.0)[0]
+        o_turn, took = both(first, 2032, **player)
+        check(abs(o_turn[0] - half(left + first[0])) <= 1 and o_turn[1] == half(first[1]), "the frame's turn and all that was pending, at once")
+        s_view, s_regs = stock.view(2036)
+        o_view, o_regs = ours.view(2036)
+        check(o_view == s_view and o_regs == s_regs, "the view and the registers the original's")
+
+    print("a turn no frame took for 300 ms")
+    ours.take((0.0, 0.0), 3000)
+    ours.take(frame, 3016)
+    s_view, s_regs = stock.view(3316)
+    o_view, o_regs = ours.view(3316)
+    check(o_view == s_view and o_regs == s_regs, "the view and the registers the original's")
+    o_turn, _ = both(first, 3332)
+    check(o_turn == (half(first[0]), half(first[1])), "and the next frame's turn is the game's")
     if failed:
         sys.exit(f"{failed} check(s) failed")
     print("all checks passed")

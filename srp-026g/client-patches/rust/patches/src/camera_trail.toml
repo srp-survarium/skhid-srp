@@ -1,10 +1,17 @@
-# Patch 197: the view and the gun apart (camera_trail.rs): the view takes a
-# share of the weapon's kick; the gun held from the hip is drawn behind the
-# view's turn. Only the decisions: the sites and the handlers.
+# Patch 197: the view and the gun apart (camera_trail.rs): the gun comes after
+# the mouse (the input's turn), the view is the mouse's; the view takes a
+# share of the weapon's kick; the hip shake is drawn on the gun. Only the
+# decisions: the sites and the handlers.
 name = "camera_trail"
 patch = 197
 # the hip shake of the frame
 uses = ["muzzle_shots"]
+
+# process_first_person_mode's end, the frame's turn in the input: EBX the handler
+[[hook]]
+site = "input_builder.end"
+handler = "on_turn"
+order = 2
 
 # update_camera's join: EAX the eye transform the view gets
 [[hook]]
@@ -12,7 +19,7 @@ site = "camera.eye"
 handler = "on_eye"
 order = 3
 
-# the first person's hands before their IK: the gun behind the turn
+# the first person's hands before their IK: the gun with the hip shake
 [[hook]]
 site = "hands_ik.solve"
 handler = "on_solve"

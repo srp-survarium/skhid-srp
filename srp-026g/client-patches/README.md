@@ -196,7 +196,7 @@ release's. The "Result" row is the build of the revision named in it.
 | `rust/patches/src/console_paste.rs`, `src/console_paste.toml`, `src/vostok/text_edit.rs`, `src/vostok/clipboard.rs`, `check_console_paste_026g.py` | Patch 157: Ctrl+V (and Shift+Insert) pastes the clipboard's first line at the caret of the console's line (`../docs/notes/console-paste.md`): a lohook at the engine's stub `ui_text_edit::paste_from_clipboard` (0x3482C0); printable ASCII only, cut to the line's max length; its check makes a text edit with the game's own code and takes every key through its bindings in both exes (needs Unicorn) |
 | `rust/patches/src/head_clearance.rs`, `src/head_clearance.toml`, `src/vostok/camera.rs` (`given_eye`), `check_head_clearance_026g.py` | Patch 158: the first-person eye stays out of the level's surfaces (`../docs/notes/head-clearance.md`): a lohook at update_camera's eye (`camera.eye`, 0x1F3643, after the ragdoll's), for a living player's own eye in modes 0 and 4: one ray from 0.4 m under the eye over the body's axis to 0.12 m past the eye against the level's shot collision; a hit puts the view's eye 0.12 m short of it at once, eased back at 6/s; the view alone, nothing a match computes; its check runs update_camera in both exes (needs Unicorn) |
 | `rust/patches/src/aim_pose.rs`, `src/aim_pose.toml`, `src/vostok/aim.rs`, `check_aim_pose_026g.py` | Patch 172: the aimed view is aligned to the gun's idle pose, as 0.45a6's (`../docs/notes/aim-pose.md`): a lohook in process_hands_ik before its calculate_aim_alignment (`hands_ik.aim_alignment`, 0x295AA5) moves the weapon's aim locator from its bone into the model at the idle pose, the first aimed frame the idle clip alone poses the gun; a fire clip's kick of that bone is then seen in sights and scopes; drawing only, nothing a match computes |
-| `rust/patches/src/camera_trail.rs`, `src/camera_trail.toml` | Patch 197: the view and the gun apart: the view takes 40 % of the lift the weapon's kick gives the eye (`src/vostok/shot.rs` `free_kick_lift`); the gun held from the hip is drawn behind the view's turn (`hands_ik.solve`, `src/vostok/aim.rs` `DrawnHands`). Drawing only (`../docs/notes/muzzle-shots.md`) |
+| `rust/patches/src/camera_trail.rs`, `src/camera_trail.toml` | Patch 197: the view and the gun apart: the view takes 40 % of the lift the weapon's kick gives the eye (`src/vostok/shot.rs` `free_kick_lift`); the gun comes after the mouse's turn (the input's turn, `input_builder.end`, `src/vostok/mouse.rs` `FrameTurn`) and the view is drawn ahead by what is pending; the hip shake drawn on the gun (`hands_ik.solve`, `src/vostok/aim.rs` `DrawnHands`) (`../docs/notes/muzzle-shots.md`) |
 | `rust/patches/src/muzzle_shots.rs`, `src/muzzle_shots.toml`, `src/vostok/shot.rs`, `src/affine.rs`, `check_muzzle_shots_026g.py` | Patch 200: a shot leaves the gun's muzzle, the way the gun looks (`../docs/notes/muzzle-shots.md`): a lohook in instant_fire after its copy of the eye (`weapon.shot_origin`); the HUD's crosshair where the own player's gun looks (`game_world.after_move`, `camera.apply`, `player_icons.update_start`). A simulation change. |
 | `rust/patches/src/sprint_fire.rs`, `src/sprint_fire.toml`, `src/vostok/sprint.rs`, `check_sprint_fire_026g.py` | Patch 201: a shot in a sprint (`../docs/notes/muzzle-shots.md`): five lohooks in the simulation's sprint tests (`sprint.keys_speed` 0x2FC207, `sprint.keys_posture` 0x2FBCAA, `sprint.keys_jump` 0x2F1231: FIRE no longer denies a sprint; `weapon.fire_wait` 0x2E3CD3: the weapon fires in one; `weapon.can_sprint` 0x2E3A43: a fire begun in a sprint keeps it). A simulation change. `tools/check sprint-fire` runs the five in both exes; not played |
 | `rust/patches/src/quiet_log.rs`, `src/quiet_log.toml`, `src/vostok/game_log.rs` | Patch 174: the engine's log (and the console, which shows it) without the engine's lines that tell nothing: a lohook at logging::log_message's start returns at once for seven known formats (README, "The engine's log without the lines that tell nothing") |
@@ -6408,8 +6408,8 @@ their view by the measured line when they fire from the hip.
 
 ## The kick is the gun's; the gun has weight on a turn (patch 197, unreleased)
 
-Two things drawn apart from the aim; the eye the simulation keeps, the shots and the kick's numbers
-are untouched (`../docs/notes/muzzle-shots.md`).
+The view and the gun apart; the kick's numbers and what a match computes from its inputs are
+untouched (`../docs/notes/muzzle-shots.md`).
 
 - **The weapon's kick is the gun's** (`camera.eye`). The game adds the kick (the weapon's +478h) to
   the look pitch, which turns the eye, the hands and the gun together (`weapon_core::look_pitch`
@@ -6420,19 +6420,25 @@ are untouched (`../docs/notes/muzzle-shots.md`).
   the game's view shook with it; patch 200 puts it on the gun for the shot, and here the view is
   drawn without it and the gun held from the hip with it (`muzzle_shots::shake_of`: the own
   player's eye mixed without the shake and with it, kept after each frame's simulation).
-- **The gun has weight on a turn** (`hands_ik.solve`, process_hands_ik 0x295B00, before the hands'
-  IK). The view stays on the mouse, turn for turn (the owner, of a view that followed the gun as
-  Bodycam's camera does: "camera is bobbling", "the camera is being flung w/weapon",
-  "uncomfortably"). The gun held from the hip is drawn behind the turn: its Weapon bone swung about
-  the eye by three times the lag of the arms behind the smoothed control in Bodycam's camera motion
-  as the STALKER bodycam fork reproduces it (the eye's way of each frame smoothed at 25 a second,
-  the arms after it at 20), bent under that fork's hip range of 19 degrees each way with no stop
-  (x / (1 + |x| / 19)), less the further the sight is raised and not at all fully aimed. `SKHID_SWAY_LOG` logs a line a frame.
-  While it trails, the drawn gun is not where a shot goes: the shot is the aim's.
+- **The gun has weight on a turn** (`input_builder.end`, process_first_person_mode's end 0x2421B0,
+  and `camera.eye`). The view stays on the mouse, turn for turn (the owner, of a view that followed
+  the gun as Bodycam's camera does: "camera is bobbling", "the camera is being flung w/weapon",
+  "uncomfortably"), and the gun comes after it in the simulation itself (the owner, of a gun only
+  drawn behind: "weapon and cross are not aligned", "the weapon model visible and internal are
+  misaligned"). The mouse's turn of a frame (the input's turn, the handler's +338h: two half
+  floats) is kept as pending, and each frame the input gets a share of what is pending: 7 a second
+  times 1 + (pending / 12 degrees) squared, six times that fully aimed; all of it past 30 degrees,
+  in a frame over 250 ms, for a dead player and in the scope's own view. So the player, its eye,
+  its gun, the HUD's crosshair and its shots are about 5 degrees behind a turn of 40 degrees a
+  second, 10 behind 115, 17 behind 350 (the range of the STALKER bodycam fork's arms), and come up
+  to the view when the turn slows. The view is the eye turned on by what is pending. Every game
+  gets the same inputs as ever: nothing a match computes changes. `SKHID_SWAY_LOG` logs a line a
+  frame.
 
-`check_kick_view_026g.py` (the kick), `check_gun_sway_026g.py` (the turn: the Weapon bone swung by
-the file's own arithmetic, the view and every other case the original's), and
-`check_head_clearance_026g.py` and `check_camera_walls_026g.py` with its camera hook in their path.
+`check_kick_view_026g.py` (the kick), `check_gun_sway_026g.py` (the turn: the input's turn and the
+view by the file's own arithmetic, a dead player, no player and the scope's view the original's),
+and `check_head_clearance_026g.py`, `check_camera_walls_026g.py` and `check_blackout_026g.py` with
+its hooks in their path.
 
 ## Scrolling the console (patch 159, unreleased)
 
