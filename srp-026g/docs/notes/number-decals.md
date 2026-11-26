@@ -52,7 +52,7 @@ Made by `scripts/number-decals/`; the pack is `number-decals@1` of `release/cont
 | at the stock flag's sizes | 877 KB a number, 877 MB: why the diffuse is 256² and the normal map and specular 16² |
 | `resources.db` | stores files as they are (no compression): about +91 MB on players' disks and in the patch |
 | the dictionary | 1,000 rows more in `items_dict` (about 4,000 items in all) |
-| the localization | 1,000 keys more in each of the twelve (3,054 to 4,054 keys) |
+| the localization | 1,000 keys more in each of the twelve (3,054 to 4,054 keys): 45 to 49 KB more each (English 215 to 260 KB) |
 | the decal atlas | one cell ([1, 25]); per-number icons were not possible: the atlas is 5 rows of 82 px and the porter widens it only by columns, 1,000 cells would be about 19,800 px wide (Flash's bitmaps stop at 8,191, D3D11's textures at 16,384), and the lobby cuts every cell into its own bitmap at its start (27 MB more in Scaleform's heap of the 32-bit game) |
 
 - Textures are read when a bake asks for them: a player's game loads the decals it shows, not
