@@ -148,7 +148,12 @@ globalThis.CAMERA_SHAKE = {"period_frames":225,"pitch":[-0.252,-0.238,-0.189,-0.
 //   a second;
 // - apply(v, S, w) = v x max(0, 1 + w x S) (apply_modifier 0x2D5AE0; several
 //   modifiers at once, apply_modifiers 0x2D5BC0: their sums added), S the
-//   kit's sum of a player modifier: skills, armour, by its name.
+//   kit's sum of a player modifier: skills, armour, by its name;
+// - base_dispersion is the weapon's cooked config's (weapon +3D8h, loaded by
+//   0x330EE0 in the weapon's constructor 0x2DF0D0): the config's value x
+//   max(0, 1 + the sum of the weapon's Dispersion modifications on
+//   dispersion/base_dispersion, type 2, 0x358010). Only the base: the
+//   stance's and the shots' parts take none of it.
 (() => {
   const STANCES = ['idle', 'walk', 'crouch', 'crouch_walk', 'run', 'jump'];
   const AIMS = ['hip', 'aiming', 'aimed'];
@@ -156,6 +161,12 @@ globalThis.CAMERA_SHAKE = {"period_frames":225,"pitch":[-0.252,-0.238,-0.189,-0.
   const AIMED = new Set(['idle', 'walk', 'crouch', 'crouch_walk']);
   const scale = (value, sum, weight = 1) => value * Math.max(0, 1 + weight * sum);
   const finite = (object, keys) => keys.every(key => typeof object?.[key] === 'number' && Number.isFinite(object[key]));
+  // The weapon's section as the cook leaves it: `sum` its modifications'
+  // sum on dispersion/base_dispersion (-0.1 for a -10 % roll).
+  function rolled(dispersion, sum = 0) {
+    if (typeof dispersion?.base_dispersion !== 'number') return dispersion;
+    return {...dispersion, base_dispersion: dispersion.base_dispersion * Math.max(0, 1 + sum)};
+  }
   // `dispersion`: the weapon's section; `player`: {stance, skill_influence},
   // default.player's character_dispersion_params and _skill_influence.
   function parse(dispersion, player, doubleHanded) {
@@ -201,7 +212,7 @@ globalThis.CAMERA_SHAKE = {"period_frames":225,"pitch":[-0.252,-0.238,-0.189,-0.
     return Object.freeze({aim, base: model.base, k: aim === 'aimed' ? 0 : 1, stance: scale(target, kit.dispersion, weight),
       perShot: scale(model.perShot, kit.dispersion, weight), max: model.max, recovery: model.recovery});
   }
-  globalThis.WeaponSpread = Object.freeze({STANCES, AIMS, parse, kitOf, condition});
+  globalThis.WeaponSpread = Object.freeze({STANCES, AIMS, parse, rolled, kitOf, condition});
 })();
 
 // A weapon's two fixed motions on a shot, from its own clips (shot_motions.py
@@ -530,18 +541,19 @@ const HUD = (() => {
   }
   // The player's stance spread and its skill weights (default.player).
   const player = JSON.parse(sim.dataset.player);
-  // A weapon's models firing a round with its modifications' `kick` (their
-  // sum): its recoil, whose kick ranges are times max(0, 1 + kick) (the
-  // cook's type 2, 0x358010), and its spread, whose base is times the round's
-  // `dispersion` (get_static_dispersion 0x331220).
+  // A weapon's models firing a round with its modifications' sums on its own
+  // values (`scales`, the cook's type 2: each value times max(0, 1 + sum),
+  // 0x358010): its recoil, the kick ranges by `kick`, and its spread, the
+  // base by `spread` and then times the round's `dispersion`
+  // (get_static_dispersion 0x331220: every bullet's, fully aimed too).
   const raws = new Map(weapons.map(element => [element.id, JSON.parse(element.dataset.recoil)]));
   const RANGES = ['top', 'left', 'right'].flatMap(axis => [`min_${axis}_recoil`, `max_${axis}_recoil`]);
   const models = new Map();
   // `over`: a custom gun's own recoil values, by the config's keys.
-  function model(id, roundId, kick = 0, over = {}) {
-    const round = roundOf(id, roundId), key = `${id} ${round.id} ${kick} ${JSON.stringify(over)}`;
+  function model(id, roundId, {kick = 0, spread = 0} = {}, over = {}) {
+    const round = roundOf(id, roundId), key = `${id} ${round.id} ${kick} ${spread} ${JSON.stringify(over)}`;
     if (!models.has(key)) {
-      const raw = {...raws.get(id), ...over}, dispersion = raw.dispersion, scale = Math.max(0, 1 + kick);
+      const raw = {...raws.get(id), ...over}, dispersion = WeaponSpread.rolled(raw.dispersion, spread), scale = Math.max(0, 1 + kick);
       const base = typeof dispersion.base_dispersion === 'number' ? dispersion.base_dispersion * round.spread : undefined;
       const ranges = Object.fromEntries(RANGES.filter(k => typeof raw[k] === 'number').map(k => [k, raw[k] * scale]));
       models.set(key, {recoil: WeaponRecoil.parse({...raw, ...ranges}),
@@ -810,7 +822,7 @@ const HUD = (() => {
     function rebuild(time = 0) {
       stop(); simulation = {kind:'empty'};
       const firing = sides.map(({side}) => stateOf(side));
-      const valid = sides.length > 0 && sides.every(({id, round}, i) => model(id, round, firing[i].kick, firing[i].custom.recoil).recoil);
+      const valid = sides.length > 0 && sides.every(({id, round}, i) => model(id, round, firing[i].scales, firing[i].custom.recoil).recoil);
       for (const element of root.querySelectorAll('input,select,button')) element.disabled = !valid;
       find('.sim-plots').hidden = !valid;
       find('.sim-sight').hidden = !valid;
@@ -818,9 +830,9 @@ const HUD = (() => {
       if (!valid) { find('.sim-legend').replaceChildren(); find('.sim-parts tbody').replaceChildren(); return; }
       seedInput.value = Math.max(1, Math.min(999999, Math.floor(Number(seedInput.value) || 1)));
       // A full magazine; with two weapons, the smaller one's from each.
-      const shots = Math.min(...sides.map(({id, round}, i) => model(id, round, firing[i].kick, firing[i].custom.recoil).recoil.magazine));
+      const shots = Math.min(...sides.map(({id, round}, i) => model(id, round, firing[i].scales, firing[i].custom.recoil).recoil.magazine));
       const series = sides.map(({id, round, side}, i) => {
-        const state = firing[i], {recoil, spread: weapon} = model(id, round, state.kick, state.custom.recoil), spread = weapon && WeaponSpread.condition(weapon, state);
+        const state = firing[i], {recoil, spread: weapon} = model(id, round, state.scales, state.custom.recoil), spread = weapon && WeaponSpread.condition(weapon, state);
         const result = WeaponRecoil.simulate(recoil, shots, Number(seedInput.value), {aim: state.aim, spread, recoil: state.kit.recoil},
           Number(find('.sim-trigger').value));
         // An initial un-fired frame makes Reset/Next shot unambiguous in the UI.
@@ -852,8 +864,9 @@ const HUD = (() => {
   // Each side's setup, its own (the same weapon can be set up twice): a panel
   // of hud.js's rows, as the calculator's, from build.py's `setup` rows. Its
   // state: the aim, the stance, the broken arms, the kit's sums of the
-  // skills' and armour pieces' modifiers, and the weapon modifications' sum
-  // on its kick ranges.
+  // skills' and armour pieces' modifiers, and the weapon modifications' sums
+  // on its own values (`scales`: `kick` its kick ranges, `spread` its base
+  // spread).
   const rows = JSON.parse(sim.dataset.setup);
   const panels = [...document.querySelectorAll('.sim-setup')];
   // Fully aimed first: how most shots that matter are fired.
@@ -884,10 +897,10 @@ const HUD = (() => {
     return +WeaponMotions.peak(group === 'gun' ? motions.gun : motions.camera.aimed, key).toFixed(3);
   }
   function stateOf(side) {
-    const pick = picks[side], chosen = rows.filter(row => pick[row.key]);
-    return {aim: pick.aim, stance: pick.stance, arms: Number(pick.arms), custom: custom[side],
-      kit: WeaponSpread.kitOf(chosen.filter(row => row.effects).map(row => row.effects[pick[row.key]])),
-      kick: chosen.filter(row => row.kick).reduce((sum, row) => sum + row.kick[pick[row.key]], 0)};
+    const pick = picks[side], chosen = rows.filter(row => pick[row.key]), scales = {kick: 0, spread: 0};
+    for (const row of chosen.filter(row => row.weapon)) for (const [name, value] of Object.entries(row.weapon[pick[row.key]])) scales[name] += value;
+    return {aim: pick.aim, stance: pick.stance, arms: Number(pick.arms), custom: custom[side], scales,
+      kit: WeaponSpread.kitOf(chosen.filter(row => row.effects).map(row => row.effects[pick[row.key]]))};
   }
   panels.forEach((panel, side) => {
     const box = HUD.el('div', {class: 'gamemods rows'});

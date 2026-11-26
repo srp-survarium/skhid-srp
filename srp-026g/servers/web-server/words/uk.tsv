@@ -557,6 +557,7 @@ No effect fully aimed.	Не діє при повному прицілюванн�
 Spread while walking {v} per rank, from the hip or aiming in. Not crouch-walking.	Розкид під час ходьби {v} за ранг, від стегна й під час прицілювання. Не в ходьбі присівши.
 Spread from broken arms {v} per rank.	Розкид від зламаних рук {v} за ранг.
 This weapon's kick ranges, up and sideways. Not the camera shake.	Межі поштовху цієї зброї, угору й убік. Не тремтіння камери.
+This weapon's base spread, in every shot: all of the spread fully aimed, little of it from the hip. Not the stance's spread or a shot's.	Базовий розкид цієї зброї, у кожному пострілі: увесь розкид при повному прицілюванні, мала його частина від стегна. Не розкид від положення чи від пострілу.
 The stance's spread and each shot's. No effect sprinting, jumping or fully aimed.	Розкид від положення й від кожного пострілу. Не діє в бігу, у стрибку й при повному прицілюванні.
 Each shot's kick with any weapon: up, sideways and the camera shake.	Поштовх кожного пострілу з будь-якої зброї: угору, убік і тремтіння камери.
 Base	Базовий

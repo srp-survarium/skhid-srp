@@ -705,6 +705,13 @@ package
          addEventListener(Event.ENTER_FRAME,this.onIntroductionFrame);
       }
 
+      // Exe patch 214, at each match's start after reset: whether this match shows its mode's notice
+      // (the account's first three matches of the mode; never in a replay). Until told, a notice waits.
+      public function mode_notice(shown:Boolean) : void
+      {
+         this._modeNotice.tell(shown);
+      }
+
       public function force_interface_hidden(forced:Boolean) : void
       {
          this._forcedView.forced = forced;
@@ -1341,10 +1348,6 @@ package
       
       public function set_quick_slot_activity(slot:uint, phase:uint, remaining:uint, duration:uint) : void
       {
-         if(this.quick_slots.takeWearHint(slot,phase,remaining,duration))
-         {
-            this.set_parameterized_message(LocalizationData.format("st_srp_hud_artefact_wear",QuickSlots.powerLabel(remaining)),21,20,3500);
-         }
          if(this.quick_slots.setActivity(slot,phase,remaining,duration) && !this._reflow)
          {
             _reflow = true;

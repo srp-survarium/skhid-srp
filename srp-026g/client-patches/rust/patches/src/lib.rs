@@ -186,6 +186,8 @@ pub mod quiet_log;
 pub mod replay_file;
 pub mod free_for_all;
 pub mod freeze_tag;
+// patch 214: a mode's notice only in each account's first three matches of it
+pub mod mode_notice;
 // patch 143: the battery carrier's hit
 pub mod battery_hit;
 // patch 150: the game shares by BitTorrent in the login screen and the lobby

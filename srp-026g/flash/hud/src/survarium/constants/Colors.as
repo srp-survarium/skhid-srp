@@ -41,9 +41,17 @@ package survarium.constants
       
       public static const READY:uint = 7959153;
       
-      // A speed boost's blue: the Spring artefact's activation glow (fx/artifacts/human_spring's
-      // light, 0, 0.40, 1). Oxygen Rush's countdown (the owner, 2026-11-23: "since both are for speed").
-      public static const SPEED_BOOST:uint = 0x0066FF;
+      // The hud's own blue: its text style "blue" (HUD.init, #079DD5).
+      public static const HUD_BLUE:uint = 0x079DD5;
+
+      // A speed boost's text: Oxygen Rush's countdown (the owner, 2026-11-23: "should become blue",
+      // "since both are for speed"). HUD_BLUE mixed 60 % with white, as light and as grey as the
+      // hud's green (GREEN, its style "current": saturation 0.35, value 0.92), drawn with the
+      // text's own black shadow and a glow of HUD_BLUE (SPEED_BOOST_GLOW). The owner, 2026-11-26:
+      // Spring's pure blue (0x0066FF) "is a bit too on the nose", not in the hud's style.
+      public static const SPEED_BOOST:uint = 0x9CD8EE;
+
+      public static const SPEED_BOOST_GLOW:uint = HUD_BLUE;
 
       public static const GREEN_DIFF:uint = 8890390;
       

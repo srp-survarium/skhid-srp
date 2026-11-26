@@ -557,6 +557,7 @@ No effect fully aimed.	Bez efektu przy pełnym celowaniu.
 Spread while walking {v} per rank, from the hip or aiming in. Not crouch-walking.	Rozrzut podczas chodu {v} na rangę, z biodra lub w trakcie celowania. Nie w chodzie w kucki.
 Spread from broken arms {v} per rank.	Rozrzut od złamanych rąk {v} na rangę.
 This weapon's kick ranges, up and sideways. Not the camera shake.	Zakresy odrzutu tej broni, w górę i w bok. Bez drgań kamery.
+This weapon's base spread, in every shot: all of the spread fully aimed, little of it from the hip. Not the stance's spread or a shot's.	Bazowy rozrzut tej broni, w każdym strzale: cały rozrzut przy pełnym celowaniu, mała jego część z biodra. Nie rozrzut od postawy ani od strzału.
 The stance's spread and each shot's. No effect sprinting, jumping or fully aimed.	Rozrzut od postawy i od każdego strzału. Bez efektu w sprincie, w skoku i przy pełnym celowaniu.
 Each shot's kick with any weapon: up, sideways and the camera shake.	Odrzut każdego strzału z dowolnej broni: w górę, w bok i drgania kamery.
 Base	Bazowy

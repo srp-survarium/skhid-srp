@@ -1679,22 +1679,22 @@
 },
 {
 "game": {
-"en": "Weapon recoil, weapons",
-"uk": "Віддача зброї, зброя",
-"ru": "Отдача оружия, оружие",
-"de": "Waffenrückstoß, waffe",
-"pl": "Odrzut broni, broń",
-"sr": "Trzaj oružja, oružje",
-"cs": "Zpětný ráz, zbraně",
-"hu": "Visszarúgás, fegyverek",
-"fi": "Rekyyli, aseet",
-"be": "Аддача зброі, зброя",
-"hr": "Trzaj oružja, oružje",
-"pt": "Recuo da arma, armas"
+"en": "Dispersion, weapons",
+"uk": "Дисперсія, зброя",
+"ru": "Дисперсия, оружие",
+"de": "Dispersion, waffe",
+"pl": "Rozrzut, broń",
+"sr": "Rasipanje, oružje",
+"cs": "Rozptyl, zbraně",
+"hu": "Szórás, fegyverek",
+"fi": "Hajonta, aseet",
+"be": "Дысперсія, зброя",
+"hr": "Rasipanje, oružje",
+"pt": "Dispersão, armas"
 }
 },
 {
-"word": "This weapon's kick ranges, up and sideways. Not the camera shake."
+"word": "This weapon's base spread, in every shot: all of the spread fully aimed, little of it from the hip. Not the stance's spread or a shot's."
 },
 {
 "game": {
@@ -1775,6 +1775,25 @@
 "hr": "−10%",
 "pt": "−10%"
 }
+},
+{
+"game": {
+"en": "Weapon recoil, weapons",
+"uk": "Віддача зброї, зброя",
+"ru": "Отдача оружия, оружие",
+"de": "Waffenrückstoß, waffe",
+"pl": "Odrzut broni, broń",
+"sr": "Trzaj oružja, oružje",
+"cs": "Zpětný ráz, zbraně",
+"hu": "Visszarúgás, fegyverek",
+"fi": "Rekyyli, aseet",
+"be": "Аддача зброі, зброя",
+"hr": "Trzaj oružja, oružje",
+"pt": "Recuo da arma, armas"
+}
+},
+{
+"word": "This weapon's kick ranges, up and sideways. Not the camera shake."
 },
 {
 "game": {

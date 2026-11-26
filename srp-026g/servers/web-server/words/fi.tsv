@@ -557,6 +557,7 @@ No effect fully aimed.	Ei vaikutusta täydessä tähtäyksessä.
 Spread while walking {v} per rank, from the hip or aiming in. Not crouch-walking.	Kävellessä hajonta {v} kultakin asteelta, lonkalta tai tähtäykseen siirryttäessä. Ei kyykyssä kävellessä.
 Spread from broken arms {v} per rank.	Murtuneiden käsien hajonta {v} kultakin asteelta.
 This weapon's kick ranges, up and sideways. Not the camera shake.	Tämän aseen rekyylin vaihteluvälit ylös ja sivulle. Ei kameran tärinää.
+This weapon's base spread, in every shot: all of the spread fully aimed, little of it from the hip. Not the stance's spread or a shot's.	Tämän aseen perushajonta, joka laukauksessa: täydessä tähtäyksessä koko hajonta, lonkalta pieni osa siitä. Ei asennon tai laukauksen hajontaa.
 The stance's spread and each shot's. No effect sprinting, jumping or fully aimed.	Asennon ja jokaisen laukauksen hajonta. Ei vaikutusta sprintatessa, hypätessä eikä täydessä tähtäyksessä.
 Each shot's kick with any weapon: up, sideways and the camera shake.	Jokaisen laukauksen rekyyli millä tahansa aseella: ylös, sivulle ja kameran tärinä.
 Base	Perus

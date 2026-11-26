@@ -13,7 +13,12 @@
 //   a second;
 // - apply(v, S, w) = v x max(0, 1 + w x S) (apply_modifier 0x2D5AE0; several
 //   modifiers at once, apply_modifiers 0x2D5BC0: their sums added), S the
-//   kit's sum of a player modifier: skills, armour, by its name.
+//   kit's sum of a player modifier: skills, armour, by its name;
+// - base_dispersion is the weapon's cooked config's (weapon +3D8h, loaded by
+//   0x330EE0 in the weapon's constructor 0x2DF0D0): the config's value x
+//   max(0, 1 + the sum of the weapon's Dispersion modifications on
+//   dispersion/base_dispersion, type 2, 0x358010). Only the base: the
+//   stance's and the shots' parts take none of it.
 (() => {
   const STANCES = ['idle', 'walk', 'crouch', 'crouch_walk', 'run', 'jump'];
   const AIMS = ['hip', 'aiming', 'aimed'];
@@ -21,6 +26,12 @@
   const AIMED = new Set(['idle', 'walk', 'crouch', 'crouch_walk']);
   const scale = (value, sum, weight = 1) => value * Math.max(0, 1 + weight * sum);
   const finite = (object, keys) => keys.every(key => typeof object?.[key] === 'number' && Number.isFinite(object[key]));
+  // The weapon's section as the cook leaves it: `sum` its modifications'
+  // sum on dispersion/base_dispersion (-0.1 for a -10 % roll).
+  function rolled(dispersion, sum = 0) {
+    if (typeof dispersion?.base_dispersion !== 'number') return dispersion;
+    return {...dispersion, base_dispersion: dispersion.base_dispersion * Math.max(0, 1 + sum)};
+  }
   // `dispersion`: the weapon's section; `player`: {stance, skill_influence},
   // default.player's character_dispersion_params and _skill_influence.
   function parse(dispersion, player, doubleHanded) {
@@ -66,5 +77,5 @@
     return Object.freeze({aim, base: model.base, k: aim === 'aimed' ? 0 : 1, stance: scale(target, kit.dispersion, weight),
       perShot: scale(model.perShot, kit.dispersion, weight), max: model.max, recovery: model.recovery});
   }
-  globalThis.WeaponSpread = Object.freeze({STANCES, AIMS, parse, kitOf, condition});
+  globalThis.WeaponSpread = Object.freeze({STANCES, AIMS, parse, rolled, kitOf, condition});
 })();

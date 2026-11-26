@@ -5098,6 +5098,8 @@ va	name	location	role	basis
 0x00331840	survarium::weapon_recoil_parameters::load	entry ESP+4	output parameter block	observed
 0x00330ee0	survarium::weapon_dispersion_parameters::load	entry ESP+4	output parameter block	observed
 0x00330ee0	survarium::weapon_dispersion_parameters::load	entry ESP+8	dispersion config node	observed
+0x00330ee0	survarium::weapon_dispersion_parameters::load	entry ESP+4 (its block)	floats, each its key in the node (strings 0xA1941C..0xA194AC): +0 base_dispersion, +4 one_shoot_dispersion_amount, +8 reload_dispersion_amount, +0Ch speed_of_aiming, +10h growth_speed, +14h max_dispersion, +18h from_the_hip_multiplier, +1Ch aim_multiplier (the last two 1.0 when absent); an int value converted	observed
+0x00330ee0	survarium::weapon_dispersion_parameters::load	entry ESP+8 (at its only call, 0x2DF1E7)	the `dispersion` child (0xA10E94) of weapon_core::weapon_core 0x2DF0D0's config argument (its entry ESP+8), into the block at weapon +3D8h: the config the inventory_item ctor (0x2FFB80) and the recoil loader (0x331840, at 0x2DF2AA) read, as the item cook left it, so a weapon modification of type 2 on dispersion/base_dispersion (2020..2024) reaches +3D8h	observed
 0x002debc0	survarium::weapon_breath_vibration_parameters::load	ESI	breath_vibration config node	observed
 0x002debc0	survarium::weapon_breath_vibration_parameters::load	entry ESP+4	output parameter block	observed
 0x002f1430	survarium::item_config_cook::find_modifier_target	EAX	indexed config path node	observed

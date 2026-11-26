@@ -30,11 +30,14 @@ package survarium.controls
       // Phases: 0 none, 1 waiting (the use time), 2 active, 3 stopped by a
       // bullet (patch 84; the hook sends it for a second of game time), 4 an
       // oxygen tank whose Oxygen Rush runs (patch 180: its native countdown
-      // in Spring's blue, the rest of the slot as the game gives it).
+      // in a light blue with a blue glow (Colors.SPEED_BOOST), the rest of the
+      // slot as the game gives it).
       public static const ACTIVITY_INTERRUPTED:uint = 3;
       public static const ACTIVITY_BOOSTED:uint = 4;
       public static const ACTIVITY_WEAR:uint = 5;
-      private var _wearHintShown:Boolean = false;
+      // A use is paid for at the press, but its drop (old -> new power) waits for the copy's
+      // cooldown: until then the slot keeps the power it fires with, then shows the switch.
+      public static const WEAR_SWITCH_MS:int = 1200;
       private var _nativeSlots:Array = [];
       private var _activities:Array = [];
 
@@ -42,14 +45,6 @@ package survarium.controls
       {
          var percent:Number = 100 * Math.pow(0.8,uses);
          return percent < 1 ? "<1%" : Math.round(percent) + "%";
-      }
-
-      public function takeWearHint(slot:uint, phase:uint, uses:uint, id:uint) : Boolean
-      {
-         var old:Object = _activities[slot];
-         if(_wearHintShown || phase != ACTIVITY_WEAR || !old || old.phase != phase || old.id != id || old.uses >= uses) return false;
-         _wearHintShown = true;
-         return true;
       }
 
       public function setActivity(slot:uint, phase:uint, remaining:uint, duration:uint) : Boolean
@@ -61,12 +56,26 @@ package survarium.controls
          if(phase == ACTIVITY_WEAR)
          {
             var now:int = getTimer();
-            var changed:Boolean = old && old.phase == phase && old.id == duration && old.uses < remaining;
-            var same:Boolean = old && old.phase == phase && old.id == duration && old.uses == remaining;
-            if(same && (!old.previous || now - old.since < 1200)) return false;
+            var copy:Boolean = old && old.phase == phase && old.id == duration;
+            if(copy && old.uses == remaining)
+            {
+               // previous: the power shown before the drop; since: when the switch began (null
+               // while the copy is still active).
+               if(!old.previous) return false;
+               if(old.since == null)
+               {
+                  var native:Object = _nativeSlots[slot];
+                  if(!native || !(native.cooldown > 0)) return false;
+                  old.since = now;
+               }
+               else if(now - old.since < WEAR_SWITCH_MS) return false;
+               else old.previous = null;
+               return _nativeSlots[slot] ? renderSlot(presentation(_nativeSlots[slot])) : false;
+            }
             var label:String = powerLabel(remaining);
+            var shown:String = copy ? (old.previous && old.since == null ? old.previous : old.power) : null;
             _activities[slot] = {phase:phase, uses:remaining, power:label, id:duration,
-               previous:changed && label != old.power ? old.power : null, since:now};
+               previous:copy && old.uses < remaining && shown != label ? shown : null, since:null};
             return _nativeSlots[slot] ? renderSlot(presentation(_nativeSlots[slot])) : false;
          }
          if(old && old.phase == phase && old.seconds == seconds && old.activation == activation) return false;
@@ -84,8 +93,9 @@ package survarium.controls
          // a stopped one keeps its icon, red, while the hook says so.
          if(activity && activity.phase == ACTIVITY_WEAR && nativeSlot.is_artefact)
          {
-            result.wearPower = activity.power;
-            result.previousPower = activity.previous;
+            var switching:Boolean = activity.previous && activity.since != null;
+            result.wearPower = activity.previous && !switching ? activity.previous : activity.power;
+            result.previousPower = switching ? activity.previous : null;
          }
          else if(activity && activity.phase == ACTIVITY_BOOSTED && !nativeSlot.is_artefact)
          {
@@ -229,7 +239,6 @@ package survarium.controls
       public function clean() : void
       {
          trace("QS::clean");
-         _wearHintShown = false;
          this._slots_items.length = 0;
          _nativeSlots = [];
          _activities = [];

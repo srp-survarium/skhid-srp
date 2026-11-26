@@ -1186,22 +1186,63 @@ fn wiki_routes_use_the_sites_navigation_and_language() {
             )));
         }
     }
-    // The index leads to every section.
-    let index = world.web.route(&get("/wiki"), "t").body;
-    for section in [
-        "/wiki/weapons",
-        "/wiki/modifiers",
-        "/wiki/equipment",
-        "/wiki/artefacts",
-        "/wiki/calculator",
-        "/wiki/maps",
-        "/wiki/skills",
-        "/wiki/quests",
-    ] {
-        assert!(
-            index.contains(&format!("<a class=wiki-link href=\"{section}?lang=en\">")),
-            "{section}"
+    // The index leads to every section, in its order, each tile with its
+    // picture: files the site serves, or a drawing.
+    for lang in Lang::ALL {
+        let mut request = get("/wiki");
+        request.lang = lang;
+        let index = world.web.route(&request, "t").body;
+        let tiles: Vec<&str> = index.split("<a class=wiki-link href=\"").skip(1).collect();
+        let order: Vec<&str> = tiles
+            .iter()
+            .map(|tile| tile.split_once('?').unwrap().0)
+            .collect();
+        assert_eq!(
+            order,
+            [
+                "/wiki/skills",
+                "/wiki/weapons",
+                "/wiki/equipment",
+                "/wiki/modifiers",
+                "/wiki/modes",
+                "/wiki/maps",
+                "/wiki/artefacts",
+                "/wiki/quests",
+                "/wiki/calculator",
+                "/wiki/simulators",
+            ],
+            "{lang:?}"
         );
+        for (path, tile) in order.iter().zip(&tiles) {
+            assert!(tile.starts_with(&format!("{path}?lang={}\">", lang.code())));
+            let picture = tile
+                .split_once("<div class=wiki-pic>")
+                .and_then(|(_, rest)| rest.split_once("<h2>"))
+                .unwrap_or_else(|| panic!("{path}: no picture box"))
+                .0;
+            let files: Vec<&str> = picture
+                .match_indices("?v=")
+                .map(|(at, _)| {
+                    let start = picture[..at].rfind(['"', '\'']).unwrap() + 1;
+                    &picture[start..at]
+                })
+                .collect();
+            let drawn = picture.starts_with("<svg") && picture.ends_with("</svg>");
+            assert!(drawn || !files.is_empty(), "{path}: no picture");
+            if path == &"/wiki/modifiers" {
+                assert_eq!(files.len(), 6, "{path}: a glyph left out");
+            }
+            for file in files {
+                let (kind, bytes) = crate::static_file(file).expect(file);
+                assert!(
+                    kind.starts_with("image/") && !bytes.is_empty(),
+                    "{path}: {file}"
+                );
+            }
+            if picture.starts_with("<img") {
+                assert!(picture.contains(" loading=lazy"), "{path}");
+            }
+        }
     }
     assert_eq!(
         world.web.route(&get("/wiki/unknown"), "t").status,

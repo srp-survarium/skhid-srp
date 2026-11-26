@@ -472,8 +472,9 @@ pub fn options(bytes: &[u8], dictionary: &dyn Dictionary) -> Result<u8, Refusal>
     reader.skip(MAX_PLAYERS).map_err(short)?;
     // srp appends an SRPX block for a Blackout match (shipped patch 65), for
     // a free-for-all (its kill target), for a map id over a byte (patch
-    // 154: the whole id, the options' byte its low byte) and for the
-    // roster's faces when one is not face 0 (the faces patch).
+    // 154: the whole id, the options' byte its low byte), for the roster's
+    // faces when one is not face 0 (the faces patch), for a Freeze Tag match
+    // (patch 160) and for the places' mode notices (patch 214).
     // Keep this in sync with static_info::read_srp_block on the server.
     let mut wide = None;
     if !reader.is_done() {
@@ -485,18 +486,32 @@ pub fn options(bytes: &[u8], dictionary: &dyn Dictionary) -> Result<u8, Refusal>
         reader.skip(4).map_err(short)?;
         // Entries `{tag, len, bytes}`, each tag once: the whole map id's
         // `{4, 2, id}` (over a byte, its low byte the options' byte),
-        // Blackout's `{2, 1, 1}` or a free-for-all's `{3, 2, kills to win}`
-        // (a u16, never 0), which only a roster of own sides has, and the
-        // faces' `{5, roster, a face a place}` (not every one face 0; a
-        // face the game's data does not list is drawn as face 0).
-        let (mut mode, mut faces) = (false, false);
+        // Blackout's `{2, 1, 1}`, Freeze Tag's `{6, 1, 1}` or a
+        // free-for-all's `{3, 2, kills to win}` (a u16, never 0), which only
+        // a roster of own sides has, the faces' `{5, roster, a face a place}`
+        // (not every one face 0; a face the game's data does not list is
+        // drawn as face 0), and after Blackout's or Freeze Tag's entry the
+        // notices' `{7, roster, 0 or 1 a place}`.
+        let (mut mode, mut faces, mut notices) = (false, false, false);
+        // The mode's entry is one of a mode with a notice.
+        let mut noticed = false;
         while !reader.is_done() {
             let fits = match reader.rest() {
                 [4, 2, low, high, ..] => {
                     let id = u16::from_le_bytes([*low, *high]);
                     id > u16::from(u8::MAX) && *low == map_byte && wide.replace(id).is_none()
                 }
-                [2, 1, 1, ..] => !own_sides && !core::mem::replace(&mut mode, true),
+                [2 | 6, 1, 1, ..] => {
+                    noticed = true;
+                    !own_sides && !core::mem::replace(&mut mode, true)
+                }
+                [7, len, entry @ ..] if *len == roster => {
+                    noticed
+                        && entry
+                            .get(..usize::from(roster))
+                            .is_some_and(|entry| entry.iter().all(|&notice| notice <= 1))
+                        && !core::mem::replace(&mut notices, true)
+                }
                 [3, 2, low, high, ..] => {
                     own_sides && (*low, *high) != (0, 0) && !core::mem::replace(&mut mode, true)
                 }
