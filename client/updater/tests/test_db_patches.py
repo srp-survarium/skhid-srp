@@ -1,4 +1,4 @@
-"""End-to-end tests of the patch step and of the restore of resources.db: the
+"""End-to-end tests of the patch step (and of what earlier updaters left): the
 real updater_skhid.exe, `check quiet` (no launcher, no box: the exit code,
 the log and the files tell what it did; every patch file hashed) or started
 by a stand-in for the launcher on its pipe (the quick check), a web server
@@ -1173,135 +1173,39 @@ class PatchTest(WineTest):
         self.assertTrue(self.exists("game/resources.db.patch_200"), "ready only reads")
         self.assert_patches({**patches, 200: b"from somewhere"})
 
-
-class RestoreTest(WineTest):
-    """The one-time restore: a resources.db whose regions an earlier updater
-    rewrote in place, with the record and the copies it kept, as the
-    players' folders are."""
-
-    DB_SIZE = 4 << 20
-    REGIONS = {"main_menu": (900_000, 100_000), "lobby_menu": (1_000_000, 1_500_000),
-               "login_menu": (3_000_000, 300_000)}
-    RECORD = f"{X86}/updater_skhid.resources.state"
-    BACKUP = f"{X86}/updater_skhid.backup"
-
-    def make_db(self, kept=True):
-        """The db as shipped, then as the earlier updater left it."""
-        self.db = random.Random(2777).randbytes(self.DB_SIZE)
-        changed = bytearray(self.db)
-        lines = []
-        for name, (offset, size) in self.REGIONS.items():
-            original = self.db[offset:offset + size]
-            target = random.Random(name).randbytes(size)
-            changed[offset:offset + size] = target
-            lines.append(f"region game/resources.db {self.DB_SIZE} {offset} {size} "
-                         f"{sha256(original)} {sha256(target)} {name}")
-            self.site.blobs[sha256(original)] = original
-            if kept:
-                self.write(f"{self.BACKUP}/{sha256(original)}", original)
-        self.write("game/resources.db", bytes(changed))
-        self.record = "".join(line + "\r\n" for line in ["skhid-resources-state 1", *lines, "end"]).encode()
-        self.write(self.RECORD, self.record)
-        # The earlier updaters' plan (the ZIP's) and the status of a plan
-        # that grew the db.
-        self.write(f"{X86}/updater_skhid.resources", b"skhid-resources 1\r\nend\r\n")
-        self.write(f"{X86}/updater_skhid.resources.status", b"ready\r\n")
-        return bytes(changed)
-
-    def blob_requests(self):
-        return [path for path in self.site.requests if path.startswith("/resources/")]
-
-    def assert_stock(self):
-        now = self.read("game/resources.db")
-        self.assertEqual((len(now), sha256(now)), (len(self.db), sha256(self.db)))
-
-    def assert_nothing_left(self):
-        for name in (self.RECORD, self.BACKUP, f"{X86}/updater_skhid.cache", f"{X86}/updater_skhid.resources",
-                     f"{X86}/updater_skhid.resources.status", f"{X86}/updater_skhid.resources.journal"):
-            self.assertFalse(self.exists(name), name)
-
-    def test_every_region_gets_its_stock_bytes_back_once(self):
-        self.make_db()
+    def test_what_earlier_updaters_left_goes_and_resources_db_is_not_written(self):
+        # As updater 0.1.x left a folder whose write of a region was cut
+        # short: its plan, the record, the journal of that region, the copy
+        # of its stock bytes, a fetched blob and a fetch cut short.
+        patches = self.make_patches(12)
+        db = random.Random(2777).randbytes(1 << 20)
+        self.write("game/resources.db", db)
+        stock = random.Random("lobby_menu").randbytes(100_000)
+        region = (f"region game/resources.db {len(db)} 300000 {len(stock)} "
+                  f"{sha256(stock)} {sha256(db[300_000:400_000])} lobby_menu")
+        record = f"skhid-resources-state 1\r\n{region}\r\nend\r\n".encode()
+        left = {f"{X86}/updater_skhid.resources": b"skhid-resources 1\r\nend\r\n",
+                f"{X86}/updater_skhid.resources.status": b"ready\r\n",
+                f"{X86}/updater_skhid.resources.state": record,
+                f"{X86}/updater_skhid.resources.journal": record,
+                f"{X86}/updater_skhid.backup/{sha256(stock)}": stock,
+                f"{X86}/updater_skhid.cache/{sha256(stock)}": stock,
+                f"{X86}/updater_skhid.cache/{sha256(stock)}.part": stock[:10]}
+        for name, data in left.items():
+            self.write(name, data)
         self.assertEqual(self.run_updater(), 0, self.log())
-        self.assert_stock()
-        self.assert_nothing_left()
-        self.assertEqual(self.blob_requests(), [])
-        log = self.log()
-        self.assertIn("resources: 3 region(s) of resources.db changed by an earlier updater", log)
-        for name in self.REGIONS:
-            self.assertIn(f"resources: {name}: its original is back (from the copy kept)", log)
-        # And never again.
+        self.assert_patches(patches)
+        self.assertEqual(sha256(self.read("game/resources.db")), sha256(db))
+        for name in [*left, f"{X86}/updater_skhid.backup", f"{X86}/updater_skhid.cache"]:
+            self.assertFalse(self.exists(name), name)
+        self.assertFalse([path for path in self.site.requests if path.startswith("/resources/")])
+        self.assertIn("(left by an earlier updater)", self.log())
+        self.assertEqual(self.run_ready(), 0, self.log())
+        # Once: a run after it finds nothing to say.
         mark = self.log_size()
         self.assertEqual(self.run_updater(), 0, self.log())
-        self.assertNotIn("resources:", self.log_since(mark))
-        self.assert_stock()
-
-    def test_without_the_copies_the_stock_bytes_come_from_the_server(self):
-        self.make_db(kept=False)
-        lobby = sha256(self.db[1_000_000:2_500_000])
-        self.site.blob_bodies[lobby] = b"x" * 1_500_000
-        self.assertEqual(self.run_updater(), 0, self.log())
-        # The two the server has right are back; the lobby stays recorded.
-        self.assertIn("the server's blob is not 1500000 bytes with that SHA-256", self.log())
-        self.assertIn("resources: 1 region(s) not restored yet (lobby_menu): next time", self.log())
-        self.assertIn("lobby_menu", self.read(self.RECORD).decode())
-        self.assertNotEqual(sha256(self.read("game/resources.db")), sha256(self.db))
-        self.site.blob_bodies.clear()
-        self.assertEqual(self.run_updater(), 0, self.log())
-        self.assertIn("resources: lobby_menu: its original is back (from the server)", self.log())
-        self.assert_stock()
-        self.assert_nothing_left()
-
-    def test_a_running_game_holds_the_db_and_the_restore_waits(self):
-        changed = self.make_db()
-        game = Holder(self, "game/resources.db")
-        self.assertEqual(self.run_updater(), 0, self.log())
-        self.assertEqual(sha256(self.read("game/resources.db")), sha256(changed))
-        self.assertEqual(self.read(self.RECORD), self.record)
-        self.assertIn("resources: the game is running", self.log())
-        game.release()
-        self.assertEqual(self.run_updater(), 0, self.log())
-        self.assert_stock()
-        self.assert_nothing_left()
-
-    def test_a_write_that_was_cut_short_is_repaired(self):
-        self.make_db()
-        # The PC went off half way through putting the lobby back: half
-        # stock, half not, the journal of it, and the record without it.
-        offset, size = self.REGIONS["lobby_menu"]
-        lines = self.record.decode().split("\r\n")
-        lobby = next(line for line in lines if line.endswith(" lobby_menu"))
-        self.write(self.RECORD, "\r\n".join(line for line in lines if line != lobby).encode())
-        self.write(f"{X86}/updater_skhid.resources.journal",
-                   f"skhid-resources-state 1\r\n{lobby}\r\nend\r\n".encode())
-        with open(self.path("game/resources.db"), "r+b") as file:
-            file.seek(offset)
-            file.write(self.db[offset:offset + size // 2])
-        self.assertEqual(self.run_updater(), 0, self.log())
-        self.assertIn("a write of lobby_menu was cut short", self.log())
-        self.assert_stock()
-        self.assert_nothing_left()
-
-    def test_the_copies_kept_are_enough_without_the_server(self):
-        self.make_db()
-        self.offer(self.bundle())
-        self.site.close()
-        # The patches were never checked, so PLAY stays off; the db is
-        # given back all the same.
-        self.assertEqual(self.run_updater(), 1)
-        self.assert_stock()
-        self.assert_nothing_left()
-        self.site = harness.Site()
-
-    def test_a_db_of_another_build_is_left_alone(self):
-        changed = self.make_db()
-        with open(self.path("game/resources.db"), "ab") as file:
-            file.write(b"!")
-        self.assertEqual(self.run_updater(), 0, self.log())
-        self.assertEqual(self.read("game/resources.db"), changed + b"!")
-        self.assertFalse(self.exists(self.RECORD))
-        self.assertIn("lobby_menu holds its stock bytes (or the db is gone or of another build): forgotten",
-                      self.log())
+        self.assertNotIn("earlier updater", self.log_since(mark))
+        self.assertEqual(sha256(self.read("game/resources.db")), sha256(db))
 
 
 if __name__ == "__main__":

@@ -23,7 +23,6 @@ pub mod patches;
 pub mod pipe;
 pub mod problem;
 pub mod replay;
-pub mod resources;
 pub mod revision;
 pub mod route;
 pub mod run_log;

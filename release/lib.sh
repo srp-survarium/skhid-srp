@@ -1091,19 +1091,6 @@ env_settings_set() {
     on_target "cd $D && { grep -oE '^($(IFS='|' && printf '%s' "${passed[*]}"))=' .env || true; } | tr -d = | LC_ALL=C sort -u | tr '\n' ' '" | sed 's/ $//'
 }
 
-# The original menus' blobs that download/resources/ on the target must keep:
-# the updater's one-time restore to the stock resources.db (from the region
-# releases before #105) fetches them from /resources/<sha256>. Prints the
-# missing ones, `<name> <sha256 prefix>` a line.
-ORIGINAL_BLOBS=(main_menu:0ff118a8 lobby_menu:ab6f22d8 login_menu:805ea5f8)
-missing_original_blobs() {
-    local there blob
-    there=$(on_target "cd $D && ls download/resources 2>/dev/null; true")
-    for blob in "${ORIGINAL_BLOBS[@]}"; do
-        grep -q "^${blob#*:}[0-9a-f]*$" <<<"$there" || say "${blob%%:*} ${blob#*:}…"
-    done
-}
-
 # The value of SRP_MIN_PATCH_REVISION in the target's .env, `none` when the
 # line is missing; dies when it is there more than once.
 current_min_revision() {
