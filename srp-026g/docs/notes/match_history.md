@@ -61,27 +61,35 @@ What survarium.pro showed of players, matches and clans, kept by srp itself and 
   maps and modes: which winrate on each map side, how often which modes are played and which are
   most popular"), over a period of their own (`&period=day|week|month`, else all time: the last 24
   hours, 7 days, 30 days). They count the counted public matches, as the totals do.
-  - Maps: one table, a row a map with its matches and their average length in their columns, the
-    maps in the order of the rooms' create window (the owner, 2026-11-26: "sorted in the same order
-    they are sorted in room creation"; `maps::in_room_order` over the lobby's pool and experimental
-    maps, the one rule the lobby's room list uses), the maps it does not list after it by build and
-    level, a map gone from the game data last. A map is its level (`match_making_params.map_id`, as
-    the create window has it): every ported version its own map, "Rudnya (v0.69)" apart from
-    Rudnya (the owner, 2026-11-26: "those are separate maps with separate balancing"; the rooms'
-    vote still takes a map's versions as one, `maps::Place`). Under it each mode played on it (a
-    map's sides fare otherwise in each mode), the most played first, with its matches, average
-    length and sides: a bar of team 1's wins from the left and team 2's from the right in the
-    teams' colours, the draws (and any match of no known end) between, over each one's share and
-    count. The game names the sides Team 1 and Team 2 on every map (no factions). A free-for-all
-    has no sides. A mode's weathers (each map id, day, evening, rain) open under it by its
-    *Weathers (n)* button.
+  - Maps: one table, its columns fixed (what opens moves none), a row a map, the maps in the order
+    of the rooms' create window (the owner, 2026-11-26: "sorted in the same order they are sorted
+    in room creation"; `maps::in_room_order` over the lobby's pool and experimental maps, the one
+    rule the lobby's room list uses), the maps it does not list after it by build and level, a
+    map gone from the game data last. A map is its level (`match_making_params.map_id`, as the
+    create window has it): every ported version its own map, "Rudnya (v0.69)" apart from Rudnya
+    (the owner: "those are separate maps with separate balancing"; the rooms' vote still takes a
+    map's versions as one, `maps::Place`). A map's row is its team matches, the free-for-alls
+    left out (the owner: "a map just shows general team 1 vs team 2"): their count, average
+    length and sides, a soft bar (the owner: "blue and red lines are a bit too strong": the
+    teams' colours at 60%, the draws a neutral grey, 6 px) of team 1's wins from the left and
+    team 2's from the right, the draws (and any match of no known end) between, over each one's
+    share and count in full colour. The game names the sides Team 1 and Team 2 on every map (no
+    factions). For more, its *Modes (n)* opens each mode played on it (a free-for-all's too, with
+    no bar) in the create window's order, with its own, and a mode's *Weathers (n)* its weathers
+    (each map id: day, evening, rain); everything closed at first, the maps close together.
   - Modes and weathers are named by the site's own words (`launcher::lobby_mode_name`, the
     weathers' `weather` context): the game's texts the rooms name them by
     (`client-patches/localization`, `st_srp_mode_*`, `st_srp_weather_*`), held equal to them in
     every language by a test, so a name never hangs on the game data having it (the owner,
     2026-11-26: the preview said "mode 2"). A mode srp no longer knows is "Mode N".
-  - Modes: each mode as the lobby calls it (a free-for-all's twist one of its own) with its
-    matches, its share of all of them and its trend, the most played first, ranked; the trend is
+  - The stats count Roulette's matches as the free-for-all's (the owner, 2026-11-26: "FFA Roulette
+    just goes to FFA"; the match lists still name a match by its own mode). Modes come in the
+    create window's order (`RoomsCreate.as`'s `MODE_ORDER`, which a test reads: the protective
+    device's three kinds together, Blackout with them; then Team Deathmatch, Research, Freeze Tag,
+    the free-for-all with its other twists after it, Artifact Hunt).
+  - Modes: each mode as the lobby calls it (a free-for-all's other twists modes of their own) with
+    its matches, its share of all of them, its popularity's rank (`#`) and its trend, in that
+    order; the trend is
     the period's hours (a day), days (7 or 30) or weeks (all time: the last 26, from Mondays, UTC),
     a column each as tall as its share of the mode's busiest. Then the ten most played map + mode
     pairs (a map's weathers one pair, its ported versions apart), each leading to the map in the
@@ -463,8 +471,10 @@ Registered clans by their totals. `by`: `matches`, `wins`, `kills` (default `mat
 
 The counted public matches of the period (default `all`; `day`: the 24 hours to the current
 one's end, `week`/`month`: the 7 or 30 UTC days to today's) by map (its level: every ported
-version its own), in the rooms' create window's order, each with its modes, the most played
-first, and each mode's weathers (map ids), day, evening, rain. `duration_s`: the matches' average length. `sides`: how the team matches ended, `wins`
+version its own), in the rooms' create window's order. A map's `matches`, `duration_s` and `sides`
+are its team matches' (no free-for-all: `sides` `null` without one); `modes`: each mode played
+on it, the free-for-all's too, in the window's mode order, each with its own and its weathers
+(map ids), day, evening, rain. `duration_s`: the matches' average length. `sides`: how the team matches ended, `wins`
 team 1's and team 2's, as `team_points` (`win_rates`, `draw_rate`: shares of them, three
 decimals; `unknown`: a match no trusted snapshot told the end of); `null` for a free-for-all.
 `map_key` of a mode: its first weather's. `weather`: the rooms' word, `null` without one. A mode
@@ -472,7 +482,8 @@ srp no longer knows: `"Mode N"`, its `mode_url` and `rules` `null`.
 
 ```json
 {"period":"all","matches":120,
- "maps":[{"map":"Rudnya","map_key":"level_01","map_icon":"/wiki/icons/maps/1_1.webp?v=…","matches":40,"duration_s":845,
+ "maps":[{"map":"Rudnya","map_key":"level_01","map_icon":"/wiki/icons/maps/1_1.webp?v=…","matches":36,"duration_s":845,
+          "sides":{"wins":[17,15],"draws":4,"unknown":0,"win_rates":[0.472,0.417],"draw_rate":0.111},
           "modes":[{"mode":"Protective device","mode_url":"/wiki/modes?lang=en#protective-device","rules":2,"map_key":"level_01",
                     "matches":30,"duration_s":860,
                     "sides":{"wins":[14,12],"draws":4,"unknown":0,"win_rates":[0.467,0.4],"draw_rate":0.133},
@@ -482,14 +493,15 @@ srp no longer knows: `"Mode N"`, its `mode_url` and `rules` `null`.
 
 ### `GET /api/history/modes?period=<day|week|month|all>`
 
-The counted public matches of the period by mode, the most played first (ties: the lobby's order),
-each with its `share` of them all (three decimals), average length and `trend`: its matches in
+The counted public matches of the period by mode (Roulette's the free-for-all's), in the create
+window's order, each with its popularity's `rank` (1: the most played; ties: that order), its
+`share` of them all (three decimals), average length and `trend`: its matches in
 each step of `steps` (each step's start, Unix seconds; `step`: `hour` for a day, `day` for 7 or
 30 days, `week` for all time, the last 26). `pairs`: the ten most played map + mode pairs.
 
 ```json
 {"period":"week","matches":60,"step":"day","steps":[1793059200,…],
- "modes":[{"mode":"Team Deathmatch","mode_url":"…","rules":4,"matches":24,"share":0.4,"duration_s":840,"trend":[2,5,3,4,3,4,3]}],
+ "modes":[{"mode":"Team Deathmatch","mode_url":"…","rules":4,"rank":1,"matches":24,"share":0.4,"duration_s":840,"trend":[2,5,3,4,3,4,3]}],
  "pairs":[{"map":"Rudnya","map_key":"level_01","map_icon":"…","mode":"Team Deathmatch","mode_url":"…","rules":4,"matches":9,"share":0.15}]}
 ```
 

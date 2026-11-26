@@ -661,37 +661,52 @@
   }
   // A map as the Maps page shows it: in its most played mode.
   const placeRow = place => place && {...place, rules: place.modes.length ? place.modes[0].rules : 0, mode: null};
-  // The Maps board: one table. A map's row (its picture and name, its matches and their average
-  // length), the maps in the order of the rooms' create window (every ported version its own
-  // map); under each its modes, the most played first, each with its matches, average length and
-  // how its sides fared; under a mode its weathers (each its map id), behind its button.
-  const MAP_COLUMNS = () => [[TEXT.map, 'l stats-mode-cell'], [TEXT.matches, ''], [TEXT.avgLength, ''], [TEXT.sides, 'l stats-sides-cell']];
+  // The Maps board: one table, its columns fixed (what opens moves none). A map's row: its picture
+  // and name, its team matches (the free-for-alls left out: no side wins one), their average length
+  // and how its sides fared; the maps in the order of the rooms' create window (every ported
+  // version its own map). Under it, closed until its "Modes (n)" opens them, each mode played on
+  // it in the window's order with its own (a free-for-all's: no bar); under a mode, closed until
+  // its "Weathers (n)" opens them, its weathers (each its map id).
+  const MAP_COLUMNS = () => [[TEXT.map, 'l stats-mode-cell stats-col-map'], [TEXT.matches, 'stats-col-n'], [TEXT.avgLength, 'stats-col-n'],
+    [TEXT.sides, 'l stats-sides-cell stats-col-sides']];
+  // A button that opens and closes `rows` (each closing what it opened under it).
+  function opener(label, rows) {
+    const button = el('button', {type: 'button', className: 'stats-opener', ariaExpanded: 'false'}, label);
+    button.addEventListener('click', () => {
+      const open = button.getAttribute('aria-expanded') !== 'true';
+      button.setAttribute('aria-expanded', String(open));
+      for (const row of rows) {
+        row.hidden = !open;
+        if (!open) for (const inner of row.closes || []) inner();
+      }
+    });
+    button.close = () => { if (button.getAttribute('aria-expanded') === 'true') button.click(); };
+    return button;
+  }
   function mapsTable(data) {
     const head = el('thead', {}, el('tr', {}, MAP_COLUMNS().map(([label, kind]) => el('th', {className: kind, scope: 'col'}, label))));
     const body = el('tbody');
     const line = (kind, cells) => el('tr', {className: kind}, cells.map((cell, i) => el('td', {className: MAP_COLUMNS()[i][1]}, cell)));
     if (!data) {
-      for (let i = 0; i < 3; i++) body.append(line('stats-map-row', [el('span', {className: 'stats-map-cell'}, mapPicture(null, true), BLANK), BLANK, BLANK, BLANK]),
-        line('stats-mode-row', [twoLines(), BLANK, BLANK, blankSides()]));
+      for (let i = 0; i < 5; i++) body.append(line('stats-map-row', [el('span', {className: 'stats-map-cell'}, mapPicture(null, true), twoLines()), BLANK, BLANK, blankSides()]));
     } else {
       for (const place of data.maps) {
         const row = placeRow(place);
-        body.append(line('stats-map-row', [el('span', {className: 'stats-map-cell'}, mapPicture(row, true), el('b', {className: 'stats-place-name'}, mapLink(row))),
-          n(place.matches), duration(place.duration_s), '']));
-        for (const mode of place.modes) {
-          const button = el('button', {type: 'button', className: 'stats-weathers', ariaExpanded: 'false'}, `${TEXT.weathers} (${n(mode.weathers.length)})`);
+        const modeRows = place.modes.map(mode => {
           const weathers = mode.weathers.map(weather => line('stats-weather', [
             el('span', {className: 'stats-map-cell'}, mapPicture({...weather, map: place.map, rules: mode.rules}), weather.weather ?? '—'),
             n(weather.matches), duration(weather.duration_s), sides(weather)]));
-          for (const each of weathers) each.hidden = true;
-          button.addEventListener('click', () => {
-            const open = button.getAttribute('aria-expanded') !== 'true';
-            button.setAttribute('aria-expanded', String(open));
-            for (const each of weathers) each.hidden = !open;
-          });
-          body.append(line('stats-mode-row', [[modeLink(mode), el('span', {className: 'stats-under'}, button)],
-            n(mode.matches), duration(mode.duration_s), sides(mode)]), ...weathers);
-        }
+          const button = opener(`${TEXT.weathers} (${n(mode.weathers.length)})`, weathers);
+          const modeRow = line('stats-mode-row', [[modeLink(mode), el('span', {className: 'stats-under'}, button)],
+            n(mode.matches), duration(mode.duration_s), sides(mode)]);
+          modeRow.closes = [() => button.close()];
+          for (const each of [modeRow, ...weathers]) each.hidden = true;
+          return [modeRow, weathers];
+        });
+        const button = opener(`${TEXT.modes} (${n(place.modes.length)})`, modeRows.map(([modeRow]) => modeRow));
+        body.append(line('stats-map-row', [el('span', {className: 'stats-map-cell'}, mapPicture(row, true),
+          el('span', {}, el('b', {className: 'stats-place-name'}, mapLink(row)), el('span', {className: 'stats-under'}, button))),
+          n(place.matches), place.matches ? duration(place.duration_s) : '—', sides(place)]), ...modeRows.flat(2));
       }
     }
     return el('div', {className: 'table-scroll'}, el('table', {className: 'stats-table stats-maps-table'}, head, body));
@@ -707,14 +722,15 @@
   function modesBoard(data) {
     if (data && !data.modes.length) return [notice(TEXT.noMatches)];
     const ranked = list => list && list.map((row, rank) => ({...row, rank}));
-    const modeColumns = [[TEXT.rank, row => n(row.rank + 1)], [TEXT.mode, modeLink, 'l stats-mode-cell'], [TEXT.matches, row => n(row.matches)],
+    // The modes in the create window's order; # is a mode's popularity (1: the most played).
+    const modeColumns = [[TEXT.rank, row => n(row.rank)], [TEXT.mode, modeLink, 'l stats-mode-cell'], [TEXT.matches, row => n(row.matches)],
       [TEXT.share, shareCell, 'stats-share-cell'], [TEXT.trend, row => trend(row, data), 'stats-trend-cell']];
     const pairColumns = [[TEXT.rank, row => n(row.rank + 1)], [TEXT.map, mapCell, 'l stats-mode-cell', '', () => mapCell(null)],
       [TEXT.matches, row => n(row.matches)], [TEXT.share, shareCell, 'stats-share-cell']];
     const steps = data && data.steps;
     const note = el('p', {className: 'stats-note stats-trend-note'}, data
       ? `${TEXT.trend}: ${TEXT[STEP_NOTE[data.step]]}, ${stepName(data.step, steps[0])} – ${stepName(data.step, steps[steps.length - 1])}` : BLANK);
-    const modes = table(modeColumns, ranked(data && data.modes), 8, '', row => row.mode_url || null);
+    const modes = table(modeColumns, data && data.modes, 8, '', row => row.mode_url || null);
     const pairs = table(pairColumns, ranked(data && data.pairs), PAIRS, '', row => row.map_key ? mapAddress(row) : null);
     return [modes, note, el('h2', {className: 'stats-heading'}, TEXT.mostPlayed), pairs];
   }

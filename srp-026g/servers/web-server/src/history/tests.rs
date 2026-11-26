@@ -888,7 +888,8 @@ fn the_maps_and_modes_boards_are_the_periods_counted_matches() {
     assert_eq!(keys(&maps), ["maps", "matches", "period"]);
     assert_eq!((maps["period"].as_str(), maps["matches"].as_u64()), (Some("all"), Some(3)));
     let map = &maps["maps"][0];
-    assert_eq!(keys(map), ["duration_s", "map", "map_icon", "map_key", "matches", "modes"]);
+    assert_eq!(keys(map), ["duration_s", "map", "map_icon", "map_key", "matches", "modes", "sides"]);
+    assert_eq!(map["sides"]["wins"], json!([3, 0]), "the map's team matches together");
     assert_eq!(map["duration_s"], 845, "the average, in whole seconds");
     let mode = &map["modes"][0];
     assert_eq!(
