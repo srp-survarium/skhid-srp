@@ -33,6 +33,7 @@ use std::path::{Path, PathBuf};
 
 use sha2::{Digest, Sha256};
 
+use crate::checked::{CHECKED, Checked};
 use crate::overlay::Overlay;
 use crate::{Archive, Error, crc32};
 
@@ -603,6 +604,9 @@ pub struct Built {
     pub projects: usize,
     /// What each archive gave: `resources.db`, then the patches in order.
     pub given: Vec<Given>,
+    /// The files a match asks the players' games to hash
+    /// ([`crate::checked`]), each once.
+    pub checked: usize,
 }
 
 /// `patches` in the game's order, by their n. A patch must be called as the
@@ -738,6 +742,8 @@ pub fn build(db: &Path, patches: &[PatchFile], game: Option<&GameArchive>) -> Re
     if gameplay == 0 {
         return Err(content(format!("{} has no {GAMEPLAY}", names.join(" + "))));
     }
+    let checked = Checked::of(&mut overlay)?;
+    files.insert(CHECKED.to_owned(), checked.text().into_bytes());
     files.insert(PROVENANCE.to_owned(), provenance.text().into_bytes());
     Ok(Built {
         bytes: crate::write::write(&files)?,
@@ -745,6 +751,7 @@ pub fn build(db: &Path, patches: &[PatchFile], game: Option<&GameArchive>) -> Re
         gameplay,
         projects,
         given,
+        checked: checked.files.len(),
     })
 }
 

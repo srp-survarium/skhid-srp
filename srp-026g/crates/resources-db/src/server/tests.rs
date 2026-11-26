@@ -214,7 +214,20 @@ fn the_server_data_is_the_files_srp_reads_of_the_patches_over_the_db() {
     let (db, two, fourteen) = game(&folder);
     // Given out of order: laid in the game's order all the same.
     let built = build(&db, &[patch(&fourteen), patch(&two)], None).unwrap();
-    let files = all_files(&built.bytes);
+    let mut files = all_files(&built.bytes);
+    // What a match checks: the projects have no vegetation, the game no
+    // startup.cfg, so each project's client_project alone, whole.
+    let checked = files.remove(crate::checked::CHECKED).expect("the checked files");
+    let checked = crate::checked::Checked::parse(&String::from_utf8(checked).unwrap()).unwrap();
+    assert_eq!(
+        checked.paths_of("level_01/day").collect::<Vec<_>>(),
+        ["projects/level_01/day/client_project"]
+    );
+    assert_eq!(
+        checked.files["projects/level_01/day/client_project"],
+        crate::checked::Sum::of(&project(3).0).unwrap()
+    );
+    assert_eq!(built.checked, 2);
     let mut expected: BTreeMap<String, Vec<u8>> = [
         ("gameplay/db_static_dictionaries", "dictionary 0"),
         ("gameplay/items/armour/mask/new.options", "fourteen"),
