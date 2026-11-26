@@ -951,3 +951,27 @@ A key fires every ready copy of its kind and restarts the cooldown of the ones s
 Copies of a kind add up (Onyx's passive multiplies); at most 4 count.	Kopije iste vrste se zbrajaju (pasiv Oniksa se množi); računaju se najviše 4.
 Spring's and Larkspur's actives add to the passive; Onyx's replaces it.	Aktivacija Opruge i Kokotića dodaje se pasivu; Oniksova ga zamjenjuje.
 Onyx fired together: one reduction, 1 s longer per extra copy.	Oniksi aktivirani zajedno: jedno smanjenje, 1 s dulje za svaku dodatnu kopiju.
+
+# The maps' anomalies (scripts/maps-tab/ui.js)
+Anomalies	Anomalije
+Anomaly	Anomalija
+Artefacts come from the anomalies. Each anomaly puts one of its artefacts into one of its free containers, one per time window, until its maximum lies uncollected; a pickup starts the window again. It gives only those of its artefacts that no player is carrying. Point at an anomaly or an artefact (or tap it) for its numbers.	Artefakti dolaze iz anomalija. Svaka anomalija stavlja jedan od svojih artefakata u jedan od svojih slobodnih spremnika, jedan po vremenskom prozoru, dok ne leži njezin maksimum neskupljenih; podizanje artefakta pokreće prozor iznova. Daje samo one svoje artefakte koje ne nosi nijedan igrač. Pokažite na anomaliju ili artefakt (ili ga dodirnite) za njezine brojke.
+{s} s	{s} s
+{a}–{b} s	{a}–{b} s
+Holds	Sadrži
+First one	Prvi
+Then every	Zatim svakih
+Chance	Šansa
+Max uncollected	Najviše neskupljenih
+Search	Pretraga	artefact
+Zones switch every	Zone se izmjenjuju svakih
+After a pickup the next one comes {next} later; that container stays empty for {cooldown}.	Nakon podizanja sljedeći dolazi za {next}; taj spremnik ostaje prazan {cooldown}.
+Its own zone does no damage.	Njezina vlastita zona ne nanosi štetu.
+Searching a container takes {search}; after a pickup it stays empty for {cooldown}.	Pretraga spremnika traje {search}; nakon podizanja ostaje prazan {cooldown}.
+After a pickup the next one comes {next} later.	Nakon podizanja sljedeći dolazi za {next}.
+whole body	cijelo tijelo
+{n} % a hit, at most every {t}	{n} % po pogotku, najviše svakih {t}
+deadly	smrtonosno
+{n} % a second	{n} % u sekundi
+Damage is a share of each body part's health, before armour.	Šteta je udio zdravlja svakog dijela tijela, prije oklopa.
+It gives no artefacts.	Ne daje artefakte.

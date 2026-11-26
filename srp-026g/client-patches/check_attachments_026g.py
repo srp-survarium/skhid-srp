@@ -81,8 +81,12 @@ SKELETON_INSTANCE, GAME_ALLOCATOR = 0x9F0F24, 0x1F1D9C4
 T_INT, T_TABLE, T_STRING = 1, 3, 5
 BARREL, SCOPE, AIM, FRAME, HAND_RECORDS, FINGER_SETS = 0x6E0, 0x744, 0x7A8, 0x660, 0x1A20, 0x20F0
 
-ENDS = (DICT_QUERY_END, DICT_CONFIGS_END, COOK_WEAPON, ASKED_END, READY_END, LOADED_END, DRAW_END, CULLED_END,
+VIEW_CAMERA, VIEW_NO_GUN, VIEW_SUBMIT, VIEW_BEGIN, VIEW_END, FOREGROUND = 0x1F3505, 0x1F3579, 0x1F8F7, 0x1F796, 0x1F7BA, 0x13E0C2
+VIEW_ENDS = (VIEW_CAMERA + 6, VIEW_NO_GUN + 6, VIEW_SUBMIT + 6, VIEW_BEGIN + 8, VIEW_END + 6, FOREGROUND + 7)
+ENDS = VIEW_ENDS + (DICT_QUERY_END, DICT_CONFIGS_END, COOK_WEAPON, ASKED_END, READY_END, LOADED_END, DRAW_END, CULLED_END,
         HIDDEN_END, HANDS_END, FINGERS_VIEW_END, SHELLS_END, RELEASE_END, SCOPE_RESULT_END, SCOPE_RESULT_SCOPED)
+
+AK_ID = 3        # the sample's AK-74M
 
 # The scope items of the made-up dictionary: the sample's PSO-1 and EOTech.
 SCOPE_ITEMS = {1755: "gameplay/items/scopes/pso1", 1771: "gameplay/items/scopes/eotech"}
@@ -340,12 +344,13 @@ class Run:
         requests, count = self.emu.reg_read(UC_X86_REG_EAX), self.emu.reg_read(UC_X86_REG_ECX)
         return [(bytes(self.text(self.u32(requests + 8 * n))), self.u32(requests + 8 * n + 4)) for n in range(count)]
 
-    def dictionary_configs(self, count, table):
+    def dictionary_configs(self, count, table, dictionary=0):
         """The dictionary cook's callback at its entry, its query's results
         `count` and the sixth's managed resource holding `table` (None: 0).
         The resource: its reference count, its node's pin count."""
         queries = self.block(0x50 + 0x2E0 * 6)
         self.u32(queries + 0x38, count)
+        self.u32(queries + 0x12C, dictionary)
         resource = node = 0
         if table is not None:
             resource, node = self.block(0xF0), self.block(0x34 + len(table))
@@ -526,6 +531,149 @@ class Run:
         return self.floats(out)
 
 
+def weapon_projection(exe, patched, report):
+    """The first-person lens through the camera (a gun in hand, 0x1F3505;
+    nothing or no gun, 0x1F3579), the scene's draw command (0x1F8F7, read
+    back at 0x1F796) and the foreground pass (0x13E0C2). Frames are
+    submitted before any is drawn, as on a busy renderer; one command is made
+    by the game's own constructor (0x20310) over garbage, handed to its
+    on_defer_execution (0x28620) and run by its execute (0x28460), each
+    functor's invoker the run's stop."""
+    r = Run(exe)
+    player, weapon, world, entry, config = [r.block(n) for n in (0xF480, 0x1900, 0x10, 0x118, 0x10C)]
+    view = r.block(0x100)                       # a scene view: its reference count at +D0h
+    r.u32(player + 0xF474, world)
+    r.u32(world + 8, view)
+    r.u32(weapon + 0x26C, entry)
+    r.u32(entry, 220)
+
+    def pair(hip, aimed):
+        at = r.block(8)
+        r.put_floats(at, (hip, aimed))
+        return r.node(6, at, 8)
+
+    rows = [{"gun": r.node(T_INT, 220), "fov": pair(1.0, 0.5)},
+            {"gun": r.node(T_INT, 221), "fov": pair(1.5, 0.5)},
+            {"gun": r.node(T_INT, 220), "fov": pair(0.75, 0.6)},
+            {"gun": r.text_node("a545"), "fov": pair(1.0, 0.5)}]
+    # the native iteration reads the rows inline in their parent's child array
+    array = r.block(0x18 * len(rows))
+    for n, entries in enumerate(rows):
+        at = array + 0x18 * n
+        r.u32(at, r.block(0x18 * len(entries)))
+        r.emu.mem_write(at + 0x14, struct.pack("<HH", T_TABLE, len(entries)))
+        for name, child in entries.items():
+            r.children[(at, name.encode())] = child
+    r.u32(config + 0x108, r.table({"srp_weapon_views": r.node(T_TABLE, array, len(rows))}))
+    r.dictionary_configs(5, None, config)
+    if patched:
+        report(all(f"row {n}".encode() in r.logged for n in (1, 2, 3)) and b"row 0" not in r.logged,
+               "srp_weapon_views: a factor above 1, a gun twice and a row with no dict id each left out with a line, "
+               "the first row kept")
+    world_projection = [1.125, 0, 0, 0, 0, 2, 0, 0, 0.001, -0.002, 1.01, 1, 0, 0, -0.1, 0]
+
+    def sample(progress, optics=0):
+        r.put_floats(weapon + 0x5FC, [progress])
+        r.u32(weapon + 0x1808, optics)
+        r.run(VIEW_CAMERA, VIEW_ENDS, STACK, eax=weapon, ebx=player)
+
+    def submit(to):
+        command = r.block(0xB8)
+        r.emu.mem_write(command + 0x14, b"\xCD" * 4)     # the constructor leaves it
+        r.u32(command + 0x9C, to)
+        r.run(VIEW_SUBMIT, VIEW_ENDS, STACK, eax=command, ebx=RENDERER)
+        return command
+
+    def project():
+        r.put_floats(STACK + 0x28, world_projection)
+        r.run(FOREGROUND, VIEW_ENDS, STACK)
+        return r.floats(STACK + 0x28)
+
+    def drawn(params):
+        r.run(VIEW_BEGIN, VIEW_ENDS, STACK, esi=params)
+        got = project()
+        r.run(VIEW_END, VIEW_ENDS, STACK)
+        return got, project()
+
+    def lens(angle):
+        out = world_projection.copy()
+        if patched and angle:
+            out[5] = 1.0 / math.tan(math.radians(angle) / 2)
+            out[0] = world_projection[0] / world_projection[5] * out[5]
+        return out
+
+    sample(1.0)
+    aimed = submit(view)
+    other_view = submit(0x5678)
+    sample(0.5)
+    moving = submit(view)
+    sample(1.0, optics=r.block(0x120))
+    own_optic = submit(view)
+    r.u32(entry, 999)
+    sample(1.0)
+    unknown = submit(view)
+    r.run(VIEW_NO_GUN, VIEW_ENDS, STACK, ebx=player)
+    no_gun = submit(view)
+
+    # the game's own constructor over garbage, its defer and execute slots
+    sample(1.0)
+    r.u32(entry, 220)
+    sample(1.0)
+    vt, run_f, defer_f, params = r.block(0x10), r.block(0x20), r.block(0x20), r.block(0x20)
+    r.u32(vt + 4, STOP)
+    r.u32(run_f, vt | 1)
+    r.u32(defer_f, vt | 1)
+    r.u32(params + 4, view)
+    made = r.block(0xB8)
+    r.emu.mem_write(made, b"\xCD" * 0xB8)
+    sp = STACK - 0x800
+    for n, value in enumerate((STOP, run_f, params, defer_f)):
+        r.u32(sp + 4 * n, value)
+    r.run(0x20310, (), sp, edi=made, ecx=r.block(0x40))
+    left = r.u32(made + 0x14) == 0xCDCDCDCD and r.u32(made + 0x9C) == view and r.byte(made + 0x10) == 1
+    r.run(VIEW_SUBMIT, VIEW_ENDS, STACK, eax=made, ebx=RENDERER)
+    r.run(0x28620, (), STACK - 0x800, ecx=made)
+    handed = r.u32(r.emu.reg_read(UC_X86_REG_ESP) + 8)
+    r.run(0x28460, (), STACK - 0x800, ecx=made)
+    payload = r.u32(r.emu.reg_read(UC_X86_REG_ESP) + 8)
+    report(left and handed == made and payload == made + 0x98,
+           f"the constructor leaves +14h ({r.u32(made + 0x14):#x} after the submit), on_defer_execution is handed the "
+           f"command itself, execute its payload at +98h (patched={patched})")
+
+    for command, angle, what in [(aimed + 0x98, 32.5, "aimed"), (other_view + 0x98, None, "another view"),
+                                 (moving + 0x98, 48.75, "half aimed"), (own_optic + 0x98, None, "its own optic"),
+                                 (unknown + 0x98, 65.0, "a gun with no profile"), (no_gun + 0x98, 65.0, "no gun"),
+                                 (payload, 32.5, "the deferred one")]:
+        got, after = drawn(command)
+        want = f"{angle} degrees" if patched and angle else "the world's"
+        report(close(got, lens(angle)) and close(after, world_projection),
+               f"foreground draw, {what}: {want} (patched={patched}), the world's after it")
+
+
+def fitted_optic_projection(run, weapon, report):
+    """A gun whose optic is the table's (its config's data/srp_scope, its
+    parts held) aimed through it: the lens, though the weapon has an optic
+    (+1808h); the gun has no profile here, so 65 degrees."""
+    player, world, entry, view, command = (run.block(n) for n in (0xF480, 0x10, 0x118, 0x100, 0xB8))
+    run.u32(player + 0xF474, world)
+    run.u32(world + 8, view)
+    run.u32(weapon + 0x26C, entry)
+    run.u32(entry, AK_ID)
+    run.u32(weapon + 0x1808, run.block(0x120))
+    run.put_floats(weapon + 0x5FC, [1.0])
+    run.run(VIEW_CAMERA, VIEW_ENDS, STACK, eax=weapon, ebx=player)
+    run.u32(command + 0x9C, view)
+    run.run(VIEW_SUBMIT, VIEW_ENDS, STACK, eax=command, ebx=RENDERER)
+    run.run(VIEW_BEGIN, VIEW_ENDS, STACK, esi=command + 0x98)
+    world_projection = [1.125, 0, 0, 0, 0, 2, 0, 0, 0.001, -0.002, 1.01, 1, 0, 0, -0.1, 0]
+    run.put_floats(STACK + 0x28, world_projection)
+    run.run(FOREGROUND, VIEW_ENDS, STACK)
+    want = world_projection.copy()
+    want[5] = 1.0 / math.tan(math.radians(32.5))
+    want[0] = world_projection[0] / world_projection[5] * want[5]
+    report(close(run.floats(STACK + 0x28), want), "a fitted optic aimed (the PSO-1 on the AK-74M): the lens, 65 degrees")
+
+
 def main():
     if len(sys.argv) != 2:
         sys.exit(__doc__)
@@ -541,6 +689,9 @@ def main():
         nonlocal failed
         failed += not ok
         print(f"  {'ok' if ok else 'FAIL'}  {text}")
+
+    for data, patched in [(original, False), (built, True)]:
+        weapon_projection(data, patched, report)
 
     def with_table(data=built):
         run = Run(data)
@@ -678,6 +829,11 @@ def main():
                and all(got[0] == want[0] and close(got[1], want[1]) for got, want in zip(records, GAME_RECORDS))
                and b"fewer bones" in run.logged,
                "a model of three bones for the table's four: the records the game's, the models given back, a line")
+    made = fitted((AK, PSO1, 0, 0))
+    if made is None:
+        report(False, "the PSO-1 on the AK-74M: the callback did not reach its sites")
+    else:
+        fitted_optic_projection(made[0], made[1], report)
     run = with_table()
     weapon, _ = run.weapon(4, GAME_RECORDS)
     resource, _ = run.config(named(AK))
