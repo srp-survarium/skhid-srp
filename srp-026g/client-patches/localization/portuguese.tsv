@@ -3372,10 +3372,17 @@ st_srp_rooms_voting	Votação de mapa
 st_srp_rooms_waiting	Aguardando jogadores
 st_srp_rooms_waiting_owner	Aguardando o criador iniciar.
 st_srp_rooms_waiting_short	Aguardando
+st_srp_scope_next_action	Trocar mira
 st_srp_scope_screen_hint	Arraste uma mira, um dispositivo de boca ou uma empunhadura do inventário para o espaço correspondente
 st_srp_scope_slot	Mira
+st_srp_second_sight	Segunda mira
+st_srp_second_sight_description	Coloca uma segunda mira na lateral da arma.
+st_srp_second_sight_hint	Uma mira no trilho deslocado na lateral da arma. Pressione T enquanto mira para alternar para ela.
+st_srp_second_sight_name	Segunda mira
 st_srp_shop_not_owned	Ocultar adquiridos
 st_srp_shop_not_owned_hint	Mostrar só os itens que você não tem
+st_srp_side_left	Esquerda
+st_srp_side_right	Direita
 st_srp_skills	Habilidades
 st_srp_speed_label	Velocidade
 st_srp_speed_title	Velocidade: %1$s

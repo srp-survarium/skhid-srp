@@ -3372,10 +3372,17 @@ st_srp_rooms_voting	Głosowanie
 st_srp_rooms_waiting	Czekamy na graczy
 st_srp_rooms_waiting_owner	Czekamy, aż twórca rozpocznie.
 st_srp_rooms_waiting_short	Oczekiwanie
+st_srp_scope_next_action	Zmień celownik
 st_srp_scope_screen_hint	Przeciągnij celownik, urządzenie wylotowe lub chwyt z ekwipunku do jego okna
 st_srp_scope_slot	Optyka
+st_srp_second_sight	Drugi celownik
+st_srp_second_sight_description	Montuje drugi celownik z boku broni.
+st_srp_second_sight_hint	Celownik na odsuniętej szynie z boku broni. Naciśnij T podczas celowania, aby się na niego przełączyć.
+st_srp_second_sight_name	Drugi celownik
 st_srp_shop_not_owned	Ukryj posiadane
 st_srp_shop_not_owned_hint	Pokazuj tylko przedmioty, których nie masz
+st_srp_side_left	Lewa
+st_srp_side_right	Prawa
 st_srp_skills	Umiejętności
 st_srp_speed_label	Szybkość
 st_srp_speed_title	Szybkość ruchu: %1$s

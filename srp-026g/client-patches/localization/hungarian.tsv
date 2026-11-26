@@ -3372,10 +3372,17 @@ st_srp_rooms_voting	Szavazás
 st_srp_rooms_waiting	Várakozás a játékosokra
 st_srp_rooms_waiting_owner	Várakozás, hogy a szoba létrehozója elindítsa a meccset.
 st_srp_rooms_waiting_short	Várakozás
+st_srp_scope_next_action	Irányzékváltás
 st_srp_scope_screen_hint	Húzz egy távcsövet, csőszájeszközt vagy markolatot a leltárból a rekeszébe
 st_srp_scope_slot	Irányzék
+st_srp_second_sight	Második irányzék
+st_srp_second_sight_description	Második irányzékot szerel a fegyver oldalára.
+st_srp_second_sight_hint	Irányzék a fegyver oldalán lévő eltolt sínen. Célzás közben nyomd meg a T-t, hogy átválts rá.
+st_srp_second_sight_name	Második irányzék
 st_srp_shop_not_owned	Meglévők elrejtése
 st_srp_shop_not_owned_hint	Csak a még nem birtokolt tárgyak mutatása
+st_srp_side_left	Bal
+st_srp_side_right	Jobb
 st_srp_skills	Képességek
 st_srp_speed_label	Sebesség
 st_srp_speed_title	Mozgási sebesség: %1$s

@@ -3372,10 +3372,17 @@ st_srp_rooms_voting	Äänestys
 st_srp_rooms_waiting	Odotetaan pelaajia
 st_srp_rooms_waiting_owner	Odotetaan huoneen luojan aloitusta.
 st_srp_rooms_waiting_short	Odotetaan
+st_srp_scope_next_action	Vaihda tähtäintä
 st_srp_scope_screen_hint	Vedä tähtäin, piipun suulaite tai kahva tavaroistasi sen paikkaan
 st_srp_scope_slot	Tähtäin
+st_srp_second_sight	Toinen tähtäin
+st_srp_second_sight_description	Asentaa toisen tähtäimen aseen kylkeen.
+st_srp_second_sight_hint	Tähtäin aseen kyljen siirretyllä kiskolla. Paina T tähdätessä vaihtaaksesi siihen.
+st_srp_second_sight_name	Toinen tähtäin
 st_srp_shop_not_owned	Piilota omistetut
 st_srp_shop_not_owned_hint	Näytä vain esineet, joita sinulla ei ole
+st_srp_side_left	Vasen
+st_srp_side_right	Oikea
 st_srp_skills	Taidot
 st_srp_speed_label	Nopeus
 st_srp_speed_title	Liikkumisnopeus: %1$s

@@ -3372,10 +3372,17 @@ st_srp_rooms_voting	Hlasování
 st_srp_rooms_waiting	Čekání na hráče
 st_srp_rooms_waiting_owner	Čekání na spuštění tvůrcem místnosti.
 st_srp_rooms_waiting_short	Čekání
+st_srp_scope_next_action	Přepnout optiku
 st_srp_scope_screen_hint	Přetáhni optiku, úsťové zařízení nebo rukojeť z inventáře do jejich slotu
 st_srp_scope_slot	Optika
+st_srp_second_sight	Druhá optika
+st_srp_second_sight_description	Nasadí druhou optiku na bok zbraně.
+st_srp_second_sight_hint	Optika na odsazené liště na boku zbraně. Při míření stiskni T a přepneš na ni.
+st_srp_second_sight_name	Druhá optika
 st_srp_shop_not_owned	Skrýt vlastněné
 st_srp_shop_not_owned_hint	Zobrazit jen předměty, které nevlastníš
+st_srp_side_left	Vlevo
+st_srp_side_right	Vpravo
 st_srp_skills	Dovednosti
 st_srp_speed_label	Rychlost
 st_srp_speed_title	Rychlost pohybu: %1$s

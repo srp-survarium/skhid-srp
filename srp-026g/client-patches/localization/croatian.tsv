@@ -3372,10 +3372,17 @@ st_srp_rooms_voting	Glasovanje
 st_srp_rooms_waiting	Čekanje igrača
 st_srp_rooms_waiting_owner	Čekanje da tvorac sobe pokrene borbu.
 st_srp_rooms_waiting_short	Čekanje
+st_srp_scope_next_action	Promijeni ciljnik
 st_srp_scope_screen_hint	Povucite ciljnik, nastavak cijevi ili rukohvat iz inventara na njegovo mjesto
 st_srp_scope_slot	Optika
+st_srp_second_sight	Drugi ciljnik
+st_srp_second_sight_description	Postavlja drugi ciljnik sa strane oružja.
+st_srp_second_sight_hint	Ciljnik na pomaknutoj šini sa strane oružja. Pritisnite T dok ciljate da prijeđete na njega.
+st_srp_second_sight_name	Drugi ciljnik
 st_srp_shop_not_owned	Sakrij posjedovane
 st_srp_shop_not_owned_hint	Prikaži samo predmete koje ne posjedujete
+st_srp_side_left	Lijevo
+st_srp_side_right	Desno
 st_srp_skills	Vještine
 st_srp_speed_label	Brzina
 st_srp_speed_title	Brzina kretanja: %1$s
