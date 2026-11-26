@@ -1441,12 +1441,50 @@ pub fn take_pull_walk_unknown() -> u64 {
 /// leg back a floor at a time (#2624) made the routes zigzag over the cells' centres where the budget was spent (the B arm of
 /// the combined bench: calm sprint -8.2 %, z -7.4; srp-route-sprint-v2: 24-81 waypoints a route against 8-26, the share a
 /// sprint may start on 0.22-0.62 against 0.38-0.77).
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct UnverifiedLeg {
     pub a: NodeId,
     pub b: NodeId,
     /// The waypoint the leg ends at: the leg is the route's segment `to - 1`.
     pub to: usize,
+    /// The path's floors from `a` to `b` and the links into them (`mapdata::Path`'s): a failing leg is pulled again over them
+    /// in place ([`Route::repaired`]), with no new search.
+    pub floors: Vec<NodeId>,
+    pub kinds: Vec<LinkKind>,
+}
+
+/// [pull unknown] The walk ticks a poll keeps for testing the unverified legs a body is on or walks next ([`verify_verdict`]),
+/// apart from the pulls' [`PULL_WALK_TICKS_A_POLL`]: in v50 the pulls had spent the poll's ticks, and 273 of a match's 362 failing
+/// legs were tested only with the body on them (its client stalls at the step). One leg's walk at most
+/// ([`PULL_WALK_LEG_M`] at the walk, 67 ticks): the poll's walk work stays bounded.
+pub const VERIFY_TICKS_A_POLL: u32 = 70;
+
+thread_local! {
+    static VERIFY_LEFT: std::cell::Cell<u32> = const { std::cell::Cell::new(0) };
+}
+
+/// [pull unknown] Starts this thread's verify ticks for a poll ([`VERIFY_TICKS_A_POLL`]; the poll's budgets).
+pub fn set_verify_budget(ticks: u32) {
+    VERIFY_LEFT.with(|v| v.set(ticks));
+}
+
+/// [pull unknown] The client walk's verdict of an unverified leg ([`Route::verify_ahead`]): from the poll's walk ticks while
+/// they last, then from its verify ticks ([`set_verify_budget`]); Unknown when both are spent. The verify ticks are lent to the
+/// grid's budget for this one walk and the poll's left is put back (`set_pull_walk_budget` starts a period: the poll's ticks
+/// spent before are kept in its most-a-period count).
+pub fn verify_verdict(grid: &WalkGrid, a: NodeId, b: NodeId) -> PullWalk {
+    use mapdata::grid::controlled::{pull_walk_budget_left, set_pull_walk_budget};
+    let first = grid.pull_walk_verdict(a, b);
+    let reserve = VERIFY_LEFT.with(std::cell::Cell::get);
+    if first != PullWalk::Unknown || reserve == 0 {
+        return first;
+    }
+    let left = pull_walk_budget_left();
+    set_pull_walk_budget(reserve);
+    let verdict = grid.pull_walk_verdict(a, b);
+    VERIFY_LEFT.with(|v| v.set(pull_walk_budget_left()));
+    set_pull_walk_budget(left);
+    verdict
 }
 
 /// [pull unknown] What [`Route::verify_ahead`] found.
@@ -1455,8 +1493,8 @@ pub enum LegCheck {
     /// No leg it tested fails (some may wait for budget).
     Clear,
     /// A leg the client's walk tick does not walk: the route ends and is planned again from the body. `on_leg`: the body is
-    /// on it already (its verdict came late).
-    Fails { on_leg: bool, from: Vec3, to: Vec3 },
+    /// on it already (its verdict came late). `leg`: the waypoint it ends at ([`Route::repaired`]).
+    Fails { on_leg: bool, from: Vec3, to: Vec3, leg: usize },
 }
 
 /// [pull unknown] How far ahead [`Route::verify_ahead`] tests the unverified legs: the one the body is on and the next.
@@ -1486,10 +1524,20 @@ pub mod unverified {
     pub(super) fn passed() {
         PASSED.fetch_add(1, Relaxed);
     }
+    pub(super) fn repaired() {
+        REPAIRED.fetch_add(1, Relaxed);
+    }
+    /// A failing leg that could not be repaired in place: the route ended and was planned again.
+    pub fn replanned() {
+        REPLANNED.fetch_add(1, Relaxed);
+    }
+    static REPAIRED: AtomicU64 = AtomicU64::new(0);
+    static REPLANNED: AtomicU64 = AtomicU64::new(0);
 
-    /// The counts, set back to 0: kept, walked, failed ahead, failed on the leg, passed untested.
-    pub fn take() -> [u64; 5] {
-        [&KEPT, &WALKED, &FAILED_AHEAD, &FAILED_ON_LEG, &PASSED].map(|c| c.swap(0, Relaxed))
+    /// The counts, set back to 0: kept, walked, failed ahead, failed on the leg, passed untested, failing ones repaired in
+    /// place, failing ones planned again.
+    pub fn take() -> [u64; 7] {
+        [&KEPT, &WALKED, &FAILED_AHEAD, &FAILED_ON_LEG, &PASSED, &REPAIRED, &REPLANNED].map(|c| c.swap(0, Relaxed))
     }
 }
 
@@ -1798,7 +1846,13 @@ fn pull_straight(
         if unknown {
             PULL_WALK_UNKNOWN.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
             unverified::kept();
-            unverified_legs.push(UnverifiedLeg { a: nodes[from], b: nodes[i], to: points.len() - 1 });
+            unverified_legs.push(UnverifiedLeg {
+                a: nodes[from],
+                b: nodes[i],
+                to: points.len() - 1,
+                floors: nodes[from..=i].to_vec(),
+                kinds: into[from..=i].to_vec(),
+            });
         }
         leg(from, i, &mut floors);
     }
@@ -2129,6 +2183,17 @@ impl Route {
         route.crouch_climbs = self.crouch_climbs.iter().chain(&mid.crouch_climbs).copied().collect();
         route.walk_offs = self.walk_offs.iter().chain(&mid.walk_offs).copied().collect();
         route.planned = self.planned && mid.planned;
+        // [pull unknown] The unverified legs: this route's before the stretch and after it (re-indexed), and `mid`'s own; one
+        // ending inside the stretch is gone with it. Before, a detour dropped them all: the legs it kept were never tested.
+        route.unverified = self
+            .unverified
+            .iter()
+            // A leg ending at the stretch's first point (the one at `s0`, replaced by `mid`'s first) ends there still.
+            .filter(|l| l.to < before || (l.to == before && self.along.get(before).is_some_and(|&a| a <= s0 + EPS)))
+            .cloned()
+            .chain(mid.unverified.iter().map(|l| UnverifiedLeg { to: l.to + first_mid, ..l.clone() }))
+            .chain(self.unverified.iter().filter(|l| l.to >= after).map(|l| UnverifiedLeg { to: l.to - after + first_after, ..l.clone() }))
+            .collect();
         route
     }
 
@@ -2193,6 +2258,8 @@ impl Route {
         route.crouch_climbs = self.crouch_climbs;
         route.walk_offs = self.walk_offs;
         route.planned = self.planned;
+        // [pull unknown] Its unverified legs, one waypoint on (the body's own place is first).
+        route.unverified = self.unverified.into_iter().map(|l| UnverifiedLeg { to: l.to + 1, ..l }).collect();
         route
     }
 
@@ -2526,32 +2593,67 @@ impl Route {
         let segment = self.segment;
         let mut k = 0;
         while k < self.unverified.len() {
-            let leg = self.unverified[k];
-            if leg.to <= segment {
+            let (a, b, to) = { let l = &self.unverified[k]; (l.a, l.b, l.to) };
+            if to <= segment {
                 self.unverified.remove(k);
                 unverified::passed();
                 continue;
             }
-            if leg.to > segment + VERIFY_LEGS_AHEAD {
+            if to > segment + VERIFY_LEGS_AHEAD {
                 k += 1;
                 continue;
             }
-            match verdict(leg.a, leg.b) {
+            match verdict(a, b) {
                 PullWalk::Walks => {
                     self.unverified.remove(k);
                     unverified::walked();
                 }
                 PullWalk::Unknown => k += 1,
                 PullWalk::Fails => {
-                    let on_leg = leg.to == segment + 1;
+                    let on_leg = to == segment + 1;
                     unverified::failed(on_leg);
-                    let from = self.points[leg.to - 1].at;
-                    let to = self.points[leg.to].at;
-                    return LegCheck::Fails { on_leg, from, to };
+                    return LegCheck::Fails { on_leg, from: self.points[to - 1].at, to: self.points[to].at, leg: to };
                 }
             }
         }
         LegCheck::Clear
+    }
+
+    /// [pull unknown] This route with its unverified leg ending at waypoint `leg` (a failing one, [`LegCheck::Fails`]) pulled
+    /// again over its own floors, the failing verdict known (`WalkGrid::pull_walk_verdict` keeps it), and spliced in its place
+    /// ([`Self::spliced`]); `shape` is what the planner does to a route it hands out (the doorways' middles, the wall-clear
+    /// corners). No search: v50's B arm ended the route instead (`RouteEnd::LegUnwalked`) and planned again, 360 times a
+    /// match: stood with no route +85 %, floors searched +29.5 %. None when no unverified leg ends there or its floors make no
+    /// route. The repaired stretch may keep legs of its own unverified (the budget spent): they are tested as any.
+    pub fn repaired(&self, grid: &WalkGrid, leg: usize, verdict: &dyn Fn(NodeId, NodeId) -> PullWalk, shape: impl FnOnce(Route) -> Route) -> Option<Route> {
+        let failing = self.unverified.iter().find(|l| l.to == leg)?;
+        if failing.floors.len() < 2 || leg == 0 || leg >= self.points.len() {
+            return None;
+        }
+        // The leg starts at its take-off's waypoint: the one before `leg` unless a corner was put in on it (wall_cleared).
+        let start = (0..leg).rev().find(|&k| self.points[k].node == failing.a).unwrap_or(leg - 1);
+        let floors: Vec<NodeId> = failing.floors.clone();
+        let mut kinds = failing.kinds.clone();
+        kinds[0] = LinkKind::Walk;
+        let own: std::collections::HashSet<NodeId> = floors.iter().copied().collect();
+        let mid = pull_straight(
+            grid,
+            mapdata::Path { nodes: floors, kinds, cost: 0.0 },
+            |n| own.contains(&n),
+            &|a, b| grid.walk_crouched(a, b),
+            verdict,
+            &|| {},
+        );
+        let mid = shape(mid);
+        if mid.points.len() < 2 {
+            return None;
+        }
+        let (s0, s1) = (self.along[start], self.along[leg]);
+        let mut route = self.spliced(s0, s1, &mid);
+        // The body is on the stretch or before it: it goes on from the stretch's start at the latest.
+        route.segment = self.segment.min(start);
+        unverified::repaired();
+        Some(route)
     }
 
     /// The next waypoint after `s` that is reached by a jump: its index and
@@ -3035,10 +3137,11 @@ mod tests {
         let (grid, at) = unverified_world();
         let path = || grid.path(at(1.0), at(19.0)).unwrap();
         let mut route = pull_straight(&grid, path(), |_| true, &|_, _| false, &|_, _| PullWalk::Unknown, &|| {});
-        let first = route.unverified[0];
+        let first = route.unverified[0].clone();
         let bad = (first.a, first.b);
         match route.verify_ahead(&mut |a, b| if (a, b) == bad { PullWalk::Fails } else { PullWalk::Walks }) {
-            LegCheck::Fails { on_leg, from, to } => {
+            LegCheck::Fails { on_leg, from, to, leg } => {
+                assert_eq!(leg, first.to);
                 assert_eq!(on_leg, first.to == 1, "the body is on the first leg only");
                 assert_eq!((from, to), (route.points[first.to - 1].at, route.points[first.to].at));
             }
@@ -3050,6 +3153,35 @@ mod tests {
         assert!(again.unverified.is_empty());
     }
 
+    /// [pull unknown] A failing unverified leg is pulled again in place over its own floors (`Route::repaired`): the route keeps
+    /// its start and end, the failing pair's straight leg is gone, the legs after the stretch are still unverified at their own
+    /// (moved) waypoints, and the body on the leg goes on from the stretch's start. No search (v50: ending the route there
+    /// planned again 360 times a match).
+    #[test]
+    fn a_failing_leg_is_pulled_again_in_place() {
+        let (grid, at) = unverified_world();
+        let mut route = pull_straight(&grid, grid.path(at(1.0), at(19.0)).unwrap(), |_| true, &|_, _| false, &|_, _| PullWalk::Unknown, &|| {});
+        assert!(route.unverified.len() >= 2, "two legs or more wait: {:?}", route.unverified);
+        let first = route.unverified[0].clone();
+        let (from, to) = (route.points[0].at, route.points[1].at);
+        route.progress(from + (to - from) * 0.5);
+        let bad = (first.a, first.b);
+        let verdict = |a: NodeId, b: NodeId| if (a, b) == bad { PullWalk::Fails } else { PullWalk::Walks };
+        let Some(LegCheck::Fails { leg, .. }) = Some(route.verify_ahead(&mut |a, b| verdict(a, b))) else { panic!("fails") };
+        let later: Vec<(NodeId, NodeId, Vec3)> = route.unverified.iter().filter(|l| l.to > leg).map(|l| (l.a, l.b, route.points[l.to].at)).collect();
+        let fixed = route.repaired(&grid, leg, &verdict, |r| r).expect("its floors make a route");
+        assert_eq!(fixed.points[0].at, route.points[0].at);
+        assert_eq!(fixed.points.last().unwrap().at, route.points.last().unwrap().at);
+        assert!(fixed.points.windows(2).all(|w| (w[0].node, w[1].node) != bad), "{:?}", fixed.points);
+        assert!(fixed.points.len() > route.points.len(), "the stretch is walked in more legs");
+        assert_eq!(fixed.segment(), 0, "the body goes on from the stretch's start");
+        let kept: Vec<(NodeId, NodeId, Vec3)> = fixed.unverified.iter().map(|l| (l.a, l.b, fixed.points[l.to].at)).collect();
+        for l in &later {
+            assert!(kept.contains(l), "{l:?} still waits at its own waypoint: {kept:?}");
+        }
+        assert!(fixed.unverified.iter().all(|l| (l.a, l.b) != bad));
+    }
+
     /// [pull unknown] A verdict that comes late, with the body already on the leg's risky part: the check says so (`on_leg`), the
     /// route ends (the drive stands the body: no step on toward the leg's end), and the plan from the body's own floor starts
     /// there and never takes the failing leg's straight line.
@@ -3057,7 +3189,7 @@ mod tests {
     fn a_late_failing_verdict_plans_again_from_the_body() {
         let (grid, at) = unverified_world();
         let mut route = pull_straight(&grid, grid.path(at(1.0), at(19.0)).unwrap(), |_| true, &|_, _| false, &|_, _| PullWalk::Unknown, &|| {});
-        let first = route.unverified[0];
+        let first = route.unverified[0].clone();
         assert_eq!(first.to, 1, "the first leg is unverified");
         let (from, to) = (route.points[0].at, route.points[1].at);
         // The body halfway along it.
@@ -3066,7 +3198,7 @@ mod tests {
         assert_eq!(route.segment(), 0);
         let bad = (first.a, first.b);
         let check = route.verify_ahead(&mut |a, b| if (a, b) == bad { PullWalk::Fails } else { PullWalk::Walks });
-        assert_eq!(check, LegCheck::Fails { on_leg: true, from, to });
+        assert_eq!(check, LegCheck::Fails { on_leg: true, from, to, leg: 1 });
         // From the body's floor, the failing pair's straight leg known: the new route starts under the body, and no leg of it is
         // the failed one (both its floors are behind or under the body now).
         let body = grid.locate(feet, 0.3).unwrap();

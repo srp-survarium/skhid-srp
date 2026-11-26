@@ -2768,9 +2768,9 @@ impl Bots {
         ));
         // [F42] The reckoned steps of bodies with both legs broken by their crouch selector state.
         // [pull unknown] The legs routes kept straight with no walk test, and what their tests said (`path::unverified`).
-        let [kept, walked, ahead, on_leg, passed] = path::unverified::take();
+        let [kept, walked, ahead, on_leg, passed, repaired, replanned] = path::unverified::take();
         lines.push(format!(
-            "{}unverified pulled legs since the last match end (every match on this server): kept {kept}, walked {walked}, failed ahead {ahead}, failed with the body on them {on_leg}, passed untested {passed}",
+            "{}unverified pulled legs since the last match end (every match on this server): kept {kept}, walked {walked}, failed ahead {ahead}, failed with the body on them {on_leg}, passed untested {passed}; failing ones repaired in place {repaired}, planned again {replanned}",
             nav_log::PREFIX
         ));
         // [keys] The walk keys' and the crouch key's changes by the stage that made them (`key_sources`).
@@ -3301,6 +3301,8 @@ impl Bots {
     /// the bench measures the server's budget.
     pub(super) fn poll_budgets(&self) {
         mapdata::grid::controlled::set_pull_walk_budget(path::PULL_WALK_TICKS_A_POLL);
+        // [pull unknown] And the ticks kept for testing the legs the bodies walk next ([`path::verify_verdict`]).
+        path::set_verify_budget(path::VERIFY_TICKS_A_POLL);
     }
 
     pub fn poll(&mut self, clock: Clock) -> (Vec<Made>, Vec<Note>) {

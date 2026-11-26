@@ -502,7 +502,7 @@ static COUNTS: [[[AtomicU64; FIELDS]; BANDS]; 7] = [const { [const { [const { At
 
 /// The links given up by how the route walked ended: the index in `RouteEnd::ALL`, or [`ENDED_NONE`] if it did not.
 static ENDED: [[AtomicU64; ENDED_NONE + 1]; 7] = [const { [const { AtomicU64::new(0) }; ENDED_NONE + 1] }; 7];
-pub const ENDED_NONE: usize = 16;
+pub const ENDED_NONE: usize = super::route_end::RouteEnd::ALL.len();
 /// The same for the links of a rise of 0.8 to 1.2 m.
 static ENDED_FACE: [[AtomicU64; ENDED_NONE + 1]; 7] = [const { [const { AtomicU64::new(0) }; ENDED_NONE + 1] }; 7];
 /// A link given up with the body this near its take-off stayed at the face.
@@ -572,6 +572,26 @@ pub const FIELD_COUNT: usize = FIELDS;
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Every route-end code ([`super::super::route_end::RouteEnd::ALL`]'s index, as `route_ended` takes it) has its own cell in the
+    /// ended tables, apart from [`ENDED_NONE`]: a reason added to `RouteEnd` grows them (v50's `leg_unwalked` indexed past a
+    /// table fixed at 16).
+    #[test]
+    fn every_route_end_code_fits_the_ended_tables() {
+        let all = super::super::route_end::RouteEnd::ALL;
+        assert_eq!(ENDED_NONE, all.len(), "the none cell is after the last reason");
+        for table in [&ENDED, &ENDED_FACE] {
+            for row in table.iter() {
+                assert_eq!(row.len(), all.len() + 1);
+            }
+        }
+        for row in GHOST.iter() {
+            assert_eq!(row.len(), all.len() + 1);
+        }
+        for (k, end) in all.into_iter().enumerate() {
+            assert!(k < ENDED_NONE, "{} at {k}", end.name());
+        }
+    }
 
     fn link(kind: Kind, rise: f32) -> Link {
         Link { kind, take_off: Vec3::new(5.0, 0.0, 0.0), landing: Vec3::new(5.4, rise, 0.0), top: Some(3.0) }
