@@ -530,7 +530,7 @@ The order, as it runs:
    folder and, from live, to the jump host (`$SKHID_BACKUP_DIR`, default
    `/srv/skhid-backups/srp-db`: folder 700, files 600, a line in
    `SHA256SUMS` there), its sha256 compared on both ends.
-   Live only, after the record (step 8; never `--test`),
+   Live only, after the record (step 7; it is `release.sh`'s step 8; never `--test`),
    `release/publish-dht <the torrent>` puts the
    torrent's signed item on the public DHT (BEP 46: the newest release, for
    updaters that cannot reach the site; `skhid.dht`, signed by
