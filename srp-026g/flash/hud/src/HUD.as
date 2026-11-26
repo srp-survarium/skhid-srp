@@ -1348,11 +1348,13 @@ package
       
       public function set_quick_slot_activity(slot:uint, phase:uint, remaining:uint, duration:uint) : void
       {
-         if(this.quick_slots.takeWearHint(slot,phase,remaining,duration))
+         var changed:Boolean = this.quick_slots.setActivity(slot,phase,remaining,duration);
+         var weakened:String = this.quick_slots.takeWearHint();
+         if(weakened)
          {
-            this.set_parameterized_message(LocalizationData.format("st_srp_hud_artefact_wear",QuickSlots.powerLabel(remaining)),21,20,3500);
+            this.set_parameterized_message(LocalizationData.format("st_srp_hud_artefact_wear",weakened),21,20,3500);
          }
-         if(this.quick_slots.setActivity(slot,phase,remaining,duration) && !this._reflow)
+         if(changed && !this._reflow)
          {
             _reflow = true;
             addEventListener(Event.RENDER,this.onRender);
