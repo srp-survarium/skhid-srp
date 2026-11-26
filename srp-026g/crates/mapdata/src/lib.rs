@@ -338,6 +338,15 @@ pub const WALK_EVERY_LINK_ALGO: u32 = 0x5402_0c05;
 /// The same for the gap links' flights ending at the game's last air step ([`Body::jump_air_steps`], A364 P6), in
 /// [`grid_key_with_links`] only for a body that asks for it. A value of its own.
 pub const JUMP_AIR_STEPS_ALGO: u32 = 0x5364_0603;
+/// [body physics S5d] The same for the share-0 sprint links no variant lands ([`Body::share0_drop`]), in
+/// [`grid_key_with_links`] only for a body that asks for it. A value of its own.
+pub const SHARE0_DROP_ALGO: u32 = 0x55d0_0101;
+/// [body physics S5d] The same for the rim jumps searched from floors back down a slope ([`Body::rim_walk_on`], rule A), in
+/// [`grid_key_with_links`] only for a body that asks for it. A value of its own.
+pub const RIM_WALK_ON_ALGO: u32 = 0x55d0_0201;
+/// [bot traps, ledge line-up] The same for the low risers no walk gets up judged by the risers' flight ([`Body::walk_gait`]), in
+/// [`grid_key_with_links`] only for a body that asks for it. A value of its own.
+pub const WALK_GAIT_ALGO: u32 = 0x5b7a_0101;
 /// The same for the exact erosion pass ([`Erosion::Exact`], `grid::exact`), in [`grid_key_with_links`] only for a body
 /// that asks for it: the grids of the cells' erosion key, build and write as before. 2: floors keep a quarter cell of
 /// slack (the nearer-than-the-radius-less-a-quarter rule; 1 was the full radius). 3: the capsule's round top (a wall above the
@@ -784,6 +793,18 @@ pub fn grid_key_with_links(
     // And the jumps' flights ending at the game's last air step.
     if body.jump_air_steps {
         digest.u32(JUMP_AIR_STEPS_ALGO);
+    }
+    // And the share-0 sprint links no variant lands.
+    if body.share0_drop {
+        digest.u32(SHARE0_DROP_ALGO);
+    }
+    // And the rim jumps from floors back down a slope.
+    if body.rim_walk_on {
+        digest.u32(RIM_WALK_ON_ALGO);
+    }
+    // And the low risers no walk gets up.
+    if body.walk_gait {
+        digest.u32(WALK_GAIT_ALGO);
     }
     // The carried landings are a switch too.
     if body.landing_carry {

@@ -287,6 +287,22 @@ pub struct GridTuning {
     /// the take-off's height): links built on a longer flight than the client makes (with the client-true stand-in, missed
     /// jumps 21 -> 32, z 2.6). Exe-proven (A364's traces, 20 of 20 jumps), so ON and kept by `all_off`. A grid is the map's.
     pub jump_air_steps: bool,
+    /// [body physics S5d] Whether the maps' share-0 sprint links whose own press, flown on until the body is down, rests on the
+    /// landing in no sprint variant go (`mapdata::Body::share0_drop`). The variant (the supporting leg, the first air frame) is
+    /// the client's, not the bot's (0x3371F3, 0x3375A0); level_06 TDM's P3 falls 4.3 m in all six in the exe. Client-proven, so
+    /// ON and kept by `all_off`. A grid is the map's.
+    pub share0_drop: bool,
+    /// [body physics S5d] Whether the maps' rim jumps are also searched from floors back down a slope to its edge
+    /// (`mapdata::Body::rim_walk_on`, rule A): Tarakanovsky TDM's ramp onto the wall top lands in all six sprint variants in
+    /// the exe from 0.6-0.8 m under it, its edge 1.3 m under lands none. Exe-proven, so ON and kept by `all_off`. A grid is the
+    /// map's.
+    pub rim_walk_on: bool,
+    /// [bot traps, ledge line-up] Whether the maps' Walk links rising 0.2 m to the walked step that neither the walk check's test
+    /// nor the exe's walk gets up are made risers where a press lands, else marked (`mapdata::Body::walk_gait`). On level_06 day 4
+    /// the bots held forward 4 s and more under such links at (62.03, 33.59, 120.24); the exe's tick gets up at neither the walk
+    /// nor the sprint. The exe's walk agrees with the exe on 55 of 57 links. Exe-proven, so ON and kept by `all_off`. A grid is
+    /// the map's.
+    pub walk_gait: bool,
     /// [A333] Whether a route's straight legs (the pull, `path.rs`) cross a floor nearer a wall than the client's body holds
     /// ([`PULL_HOLD_M`], the grid's table of wall clearances) only as a floor of the route's own path
     /// (`mapdata::WalkGrid::with_pull_hold`): a leg pulled past a wall's corner or along a wall keeps to the cells the search
@@ -364,6 +380,9 @@ impl Default for GridTuning {
             fall_stops_on_solids: true,
             walk_every_link: true,
             jump_air_steps: true,
+            share0_drop: true,
+            rim_walk_on: true,
+            walk_gait: true,
             wall_clear_pull: false,
             pull_walk: true,
             walker_shapes: true,
@@ -427,6 +446,9 @@ impl GridTuning {
             fall_stops_on_solids: self.fall_stops_on_solids,
             walk_every_link: self.walk_every_link,
             jump_air_steps: self.jump_air_steps,
+            share0_drop: self.share0_drop,
+            rim_walk_on: self.rim_walk_on,
+            walk_gait: self.walk_gait,
             ..body
         }
     }

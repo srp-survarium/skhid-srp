@@ -1,6 +1,6 @@
 //! [body physics S5b] The stored run-ins (DESIGN §3.3a, in its derived form): after the flights, each stored press's run-up is played
 //! again from the link as stored, and the moving steps it took are kept ([`WalkGrid::run_ins`], read by [`WalkGrid::run_in`]). The
-//! run-up is the builder's own ([`jump::run_up`] / [`jump::run_up_slow`]: the client's body, `motion::ClientBody`), at the press's
+//! run-up is the builder's own ([`crate::motion::flights::run_up_to`] / [`crate::motion::flights::slow_run_up_to`]: the client's body, `motion::ClientBody`), at the press's
 //! own neighbour (its lead, its aim's side and turn, the grid body's walk cap, no height offset), so the run-in a reader derives from
 //! the stored link is the one the link was flown with.
 
@@ -53,19 +53,19 @@ impl WalkGrid {
 }
 
 /// The moving steps of the run-up the press `press` from the take-off `take_off` along `way` (flat, unit) plays at the neighbour
-/// `n` (its side and turn: the press's aim), at the walk cap `cap`: a walk press's ([`jump::run_up`] at the cap), a sprint press's
-/// (at the sprint's speed, sprinting), a slow press's ([`jump::run_up_slow`], its own steps). None for a press with no run-up, or a
+/// `n` (its side and turn: the press's aim), at the walk cap `cap`: a walk press's ([`crate::motion::flights::run_up_to`] at the cap), a sprint press's
+/// (at the sprint's speed, sprinting), a slow press's ([`crate::motion::flights::slow_run_up_to`], its own steps). None for a press with no run-up, or a
 /// run-up that does not fit.
 pub(super) fn press_moving(world: &Collision, s: &Settings, take_off: crate::Vec3, way: (f32, f32), press: Takeoff, n: Neighbour, cap: f32) -> Option<u16> {
     let flight = jump::Flight { cap, dy: 0.0 };
     let (c, sn) = (n.turn.cos(), n.turn.sin());
     let heading = (way.0 * c - way.1 * sn, way.0 * sn + way.1 * c);
     let run = match press {
-        Takeoff::Press(lead) => jump::run_up(world, s, jump::press_point(take_off, way, lead.metres(), n), heading, cap, false),
+        Takeoff::Press(lead) => crate::motion::flights::run_up_to(world, s, jump::press_point(take_off, way, lead.metres(), n), heading, cap, false),
         Takeoff::Sprint(lead) | Takeoff::SprintHeld(lead) => {
-            jump::run_up(world, s, jump::press_point(take_off, way, lead.metres(), n), heading, flight.sprint_ms(), true)
+            crate::motion::flights::run_up_to(world, s, jump::press_point(take_off, way, lead.metres(), n), heading, flight.sprint_ms(), true)
         }
-        Takeoff::Slow { lead, steps } => jump::run_up_slow(world, s, jump::press_point(take_off, way, lead.metres(), n), heading, cap, steps),
+        Takeoff::Slow { lead, steps } => crate::motion::flights::slow_run_up_to(world, s, jump::press_point(take_off, way, lead.metres(), n), heading, cap, steps),
         _ => None,
     }?;
     u16::try_from(run.moving).ok().filter(|&m| m != NO_RUN_IN)
