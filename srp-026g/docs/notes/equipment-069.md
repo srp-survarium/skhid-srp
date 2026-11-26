@@ -12,7 +12,8 @@
   vest's plates were white; below, "Metal") and copies the Sniper set of
   equipment-046@8 (level 12); `@5` (the owner's redesign, 2026-11-06) makes
   the Snow-20 the level-11 Sniper's twin of equipment-046@9, its one bonus on
-  the vest.
+  the vest; `@6` (2026-11-26, a player's report: "the snow set cannot set camo
+  at all") ships the vest's and pants' camouflage maps (below, "Camouflage").
 
 Every number here is a proposal, but the Snow-20's (the owner's, 2026-11-06).
 Balance is the owner's call.
@@ -209,6 +210,36 @@ balanced with their quirks"): the Snow-20 vest, pants, gloves, boots and helmet
 - `balance_audit.py` compares each Snow-20 piece with the level-11 pieces of
   the same kind, regions and slots (its Sniper twin): none is strictly better
   or worse; the pants, helmets and boots are equal (an appearance choice).
+
+### Camouflage (equipment-069@6)
+
+- The vest and the pants take a camouflage as every stock vest and pair of
+  trousers (`camo_available`, the Sniper's config). The game bakes it into a
+  surface only when `<diffuse>_aoac.dds` loads beside its diffuse
+  (`weapon-camo.md`, "The engine"); without one the camouflage goes on and the
+  piece stays plain. `@2` to `@5` had none: resource-porter's
+  `build-armour-069d` converted the four maps a material names and left out
+  the ones the game derives from the diffuse's name, which 0.69d ships beside
+  the snow diffuse (`renesanse_sniper_07_snow_{torso,legs}` `_aoac`, `_camo`,
+  `_camo_nmap`, `_camo_smap`: the Snow-20 took a camouflage in 0.69d).
+- `@6`: the porter carries them (resource-porter `fix/armour-069d-camo-maps`):
+  each map the donor's albedo has, down to the diffuse's size by its own mips,
+  in the released vests' formats (the mask DXT1 linear, the colours DXT1 sRGB,
+  the normal DXT5, the gloss DXT1), with the options of the template
+  diffuse's map of the same suffix (`renesance_combat_torso_aoac` ...). Every
+  other file is `@5`'s, byte for byte. The ghillie has no mask, as 0.69d's and
+  the stock sniper's (`scavenger_05_sniper_ghillie`): it stays as it is under a
+  camouflage. `check_pack.py` now refuses a camouflaged piece whose data
+  sections' surfaces have no `_aoac`.
+- Other ported vests and trousers without a mask (live game data, 2026-11-26),
+  each of which 0.69d ships with its masks: equipment-046's Sniper vest and
+  pants (`eq046_renesanse_torso_7`, `_legs_7`: `renesanse_sniper_07_torso`,
+  `_legs`, whose donor has no masks) and `eq046_edge_torso_7`
+  (`edge_keeper_07_torso`; its pants have them), and five pieces of
+  equipment-029 (`edge_torso_8` and `edge_legs_8`, `edge_fighter_02`;
+  `renesanse_torso_8` and `renesanse_legs_8`, `renesanse_vdv`;
+  `scavenger_torso_6_premium`, `scavenger_05_sniper_torso_prem`). Not changed
+  here.
 
 ### The Delta mask
 
