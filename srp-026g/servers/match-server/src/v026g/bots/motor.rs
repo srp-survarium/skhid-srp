@@ -1305,7 +1305,7 @@ enum CastWhy {
     NoPressFromRest { flown: u32, longest: u32 },
     /// At rest where the rest was asked already.
     RestAgain,
-    /// No press [`PLAN_DEADLINE_S`] after the body first reached the lock.
+    /// No press [`PLAN_DEADLINE_S`] after the body last reached the lock (or was last pushed off the plan's chain).
     Deadline,
 }
 
@@ -1398,7 +1398,8 @@ struct PressCast {
     landing: Vec3,
     /// The try it is at ([`JumpTry::tries`]); a new try starts it again.
     tries: u32,
-    /// The motor's tick the body first reached the lock in this try ([`PLAN_DEADLINE_S`]).
+    /// The motor's tick the body last reached the lock in this try, or was last pushed off the plan's chain
+    /// ([`PLAN_DEADLINE_S`]); none while it is out of the lock.
     since: Option<u32>,
     state: CastState,
     /// The moving pass's last reason for no press, for the line of the try spent after it.
@@ -4230,6 +4231,13 @@ impl Motor {
         }
         let before = link.before(body.feet);
         let at_lock = link.on_line && link.level && before <= link.lock_from;
+        // [try deadline] The deadline runs from the body's last arrival at the lock: a body put back out of it (pushed back by a
+        // teammate at a crowded take-off, off the line's band or off its level) starts it again when it is back. batt-m3's spawn
+        // exit: tries spent "no press 2 s after the lock" 2-4 m out while teammates held the body back, then the landing shut.
+        if !at_lock && cast.since.is_some() {
+            cast.since = None;
+            cast.note(&format!("deadline restarted: off the lock at {before:.2} m out (the lock from {:.2} m)", link.lock_from));
+        }
         if at_lock && cast.since.is_none() {
             cast.since = Some(self.clock);
         }
@@ -4440,6 +4448,9 @@ impl Motor {
                 plan.text()
             ));
             cast.why = Some(CastWhy::Moved);
+            // [try deadline] Pushed off the plan's chain: the deadline starts again from here (the chain test above, no margin of
+            // its own), as from a new arrival at the lock.
+            cast.since = Some(self.clock);
             return if rest || bail { (CastState::Stopping, CastKeys::Stand) } else { (CastState::Approach, CastKeys::Line(link.gait)) };
         }
         self.cast_fly(&mut plan, link, flyer);
@@ -10414,6 +10425,43 @@ mod tests {
         assert!((-1.3..=-0.7).contains(&feet.x), "pressed at {feet:?}");
         assert!(press_casts::get(press_casts::Slot::Moved) > moved, "planned again");
         assert!(stub.chains >= 2, "{}", stub.chains);
+    }
+
+    /// [try deadline] batt-m3's spawn exit: a body that teammates push back out of the lock (here 2.65 m before the take-off,
+    /// held back to 3.4 m whenever it gets to 2.0 m, for 5 s) spends no try by the deadline: the deadline runs from its last
+    /// arrival at the lock, and each push starts it again (the try's line says so). Let go, it is pressed in the landing
+    /// ticks on its first try.
+    #[test]
+    fn a_body_pushed_back_out_of_the_lock_spends_no_try_by_the_deadline() {
+        let mut motor = cast_motor(true);
+        let mut route = cast_route();
+        let mut stub = Stub::new(-4.4, 3.5, |at: &Estimate| (-1.3..=-0.7).contains(&at.feet.x));
+        let mut pushes = 0;
+        let mut pressed = None;
+        for tick in 0..200 {
+            stub.poll = tick;
+            stub.free = true;
+            if tick < 100 && stub.body.feet.x > -2.0 {
+                stub.body.feet.x = -3.4;
+                pushes += 1;
+            }
+            let b = stub.body;
+            let speed = b.velocity[0].hypot(b.velocity[1]);
+            let pose = Pose { feet: b.feet, yaw: b.yaw, speed, velocity: b.velocity, ..Default::default() };
+            let (decision, walked) = motor.walk_with(&mut route, &pose, 5.0, |_| true, None, Some(&mut stub));
+            assert!(!matches!(walked, Walked::JumpFailed(_)), "tick {tick}: the link failed");
+            if decision.keys & key::JUMP != 0 {
+                pressed = Some((tick, b.feet));
+                break;
+            }
+            stub.body = stub.step(&stub.body, motor.lined_keys(decision.keys) & key::FORWARD, decision.turn.0);
+        }
+        assert!(pushes >= 5, "{pushes} pushes");
+        let (tick, feet) = pressed.expect("no press after the pushes");
+        assert!(tick >= 100 && (-1.3..=-0.7).contains(&feet.x), "pressed at tick {tick} at {feet:?}");
+        // Try 1: no try was spent while the body was held back; the pushes' restarts are in its line.
+        let line = motor.cast_watch.as_ref().map(|watch| watch.text.clone()).unwrap_or_default();
+        assert!(line.contains("try 1 pressed") && line.contains("deadline restarted: off the lock"), "{line}");
     }
 
     /// [press forecast] With the switch off no forecast is asked: the press is the motor's own as before.
