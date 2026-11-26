@@ -9,3 +9,5 @@ patch = 172
 [[hook]]
 site = "hands_ik.aim_alignment"
 handler = "on_aim_alignment"
+# after patch 161's second-sight eye (attachments.toml, order 0): it poses the record that one wrote
+order = 1

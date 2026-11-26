@@ -189,6 +189,7 @@ pub use artefact::{ArtefactPickup, Slots};
 pub mod statistics;
 pub mod weapon_stats;
 pub mod second_sight;
+pub mod sight_view;
 pub use statistics::{Band, Batteries, Battery, BatteryCarry, Cell, Delivery, Held, Life, Progress, Saving, ScoreEvent, Team, BATTERIES};
 
 pub mod medical;

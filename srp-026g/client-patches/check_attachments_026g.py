@@ -142,7 +142,8 @@ def loadouts():
     second sight {(gun, scope, muzzle, grip, second sight, side)}. A case is
     "whole", ("refused", why) or a dict: body, bones, parts [(model, bone,
     matrix)], optic, eye and eye2 (by anchor), second, fire, wrist (each
-    (bone, matrix)), fingers (fifteen matrices, or None), effect."""
+    (bone, matrix)), fingers (fifteen matrices, or None), effect, aimed (the
+    second sight's aimed model)."""
     cases, case = {}, None
     for line in (SAMPLE / "sample-v4.loadouts.tsv").read_text().splitlines():
         head, *rest = line.split("\t")
@@ -166,8 +167,8 @@ def loadouts():
         elif head == "fingers":
             floats = [float(v) for v in rest]
             case["fingers"] = [matrix(floats[12 * n:12 * n + 12]) for n in range(15)]
-        elif head == "effect":
-            case["effect"] = rest[0]
+        elif head in ("effect", "aimed"):
+            case[head] = rest[0]
         else:
             raise ValueError(line)
     return cases
@@ -765,11 +766,13 @@ def main():
             report(ok, f"{name}: the original's requests and alloca")
             continue
         scope = [(SCOPE_ITEMS[key[1]], 0x4D)] if key[1] in SCOPE_ITEMS else []
-        want = scope + [(case["body"], 0x10)] + NATIVE[1:] + [(model, 15) for model, _, _ in case["parts"]]
+        aimed = [(case["aimed"], 15)] if "aimed" in case else []
+        want = scope + [(case["body"], 0x10)] + NATIVE[1:] + [(model, 15) for model, _, _ in case["parts"]] + aimed
         ok = got is not None and native is not None and got[0] == want and got[1] \
-            and got[2] == native[2] + 8 * (len(case["parts"]) + len(scope))
+            and got[2] == native[2] + 8 * (len(case["parts"]) + len(scope) + len(aimed))
         report(ok, f"{name}: {'the scope item' + chr(39) + 's config first, class 4Dh; ' if scope else ''}the bare body "
-                   f"for the model, then {len(case['parts'])} part(s), class 15, inside the alloca "
+                   f"for the model, then {len(case['parts'])} part(s), class 15, "
+                   f"{'the second sight' + chr(39) + 's aimed model after them, ' if aimed else ''}inside the alloca "
                    f"({[path.rsplit('/', 1)[-1] for path, _ in (got[0][len(scope) + len(NATIVE):] if got else [])]})")
 
     print("the arena an upgraded item's config is rebuilt in (create_binary_config_buffer 0x358AA0)")
@@ -805,8 +808,10 @@ def main():
         if run.cook(resource, weapon) is None:
             return None
         parts = [run.part() for _ in case["parts"]]
+        run.aimed = [run.part() for _ in ("aimed",) if "aimed" in case]
         scope = [run.block(0x120)] if key[1] in SCOPE_ITEMS else []
-        stopped = run.callback(weapon, resource, scope + [run.block(0x120) for _ in NATIVE] + [h for h, _ in parts])
+        stopped = run.callback(weapon, resource, scope + [run.block(0x120) for _ in NATIVE] + [h for h, _ in parts]
+                               + [h for h, _ in run.aimed])
         return (run, weapon, instance, parts, case) if stopped == LOADED_END else None
 
     print("the callback (0x24ACF0, 0x24B0E1): the parts' models, the three records, the fingers")
@@ -818,7 +823,7 @@ def main():
             report(False, f"{name}: the callback did not reach its sites")
             continue
         run, weapon, _, parts, case = made
-        held = all(run.u32(holder + 0xD0) == 2 for holder, _ in parts)
+        held = all(run.u32(holder + 0xD0) == 2 for holder, _ in parts + run.aimed)
         records = {at: run.read_record(weapon + at) for at in (BARREL, SCOPE, AIM)}
         want = {BARREL: case.get("fire", GAME_RECORDS[0]), SCOPE: case.get("optic", GAME_RECORDS[1]),
                 AIM: case["eye"].get("gun_idle", GAME_RECORDS[2])}

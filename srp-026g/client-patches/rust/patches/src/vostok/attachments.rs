@@ -84,6 +84,42 @@ const IDENTITY: [f32; 16] = [1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct WeaponId(u32);
 
+impl WeaponId {
+    #[cfg(test)]
+    pub const fn numbered(number: u32) -> WeaponId {
+        WeaponId(number)
+    }
+
+    pub(in crate::vostok) fn of(weapon: raw::Weapon) -> WeaponId {
+        WeaponId(weapon.address())
+    }
+}
+
+/// A part's models: the one it shows, and the one it shows in its place
+/// while the eye looks through it (a second sight's aimed model, with its
+/// reticle), if any.
+#[derive(Clone, Copy)]
+pub struct PartModels {
+    pub model: &'static CStr,
+    pub aimed: Option<&'static CStr>,
+}
+
+impl PartModels {
+    /// The requests it takes.
+    pub fn requests(&self) -> usize {
+        1 + usize::from(self.aimed.is_some())
+    }
+}
+
+/// Which of its two models a part with an aimed one shows in first person
+/// ([`draw`]); a part without one, and any part out of first person, shows
+/// its own.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Shown {
+    Own,
+    Aimed,
+}
+
 /// What a weapon config names: its gun and what is fitted to it.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Named {
@@ -104,6 +140,8 @@ pub struct Kept {
 /// locator record its frame is worked out from each draw.
 struct Drawn {
     model: Model,
+    /// Its aimed model, shown in the first person in the model's place.
+    aimed: Option<Model>,
     at: raw::WeaponLocatorStorage,
     /// Its frame on the gun's model in the model's bind pose: where it
     /// stands on a gun that lies alone (a dropped one, a dead body's), which
@@ -545,13 +583,15 @@ pub fn more_requests(ctx: &mut Context<'_>, parts: usize) {
 }
 
 /// `attachments.asked`: the weapon's own model request becomes `body`'s and
-/// each of `models` is asked for after the game's requests, in the places
-/// [`more_requests`] made; the weapon is remembered with where its parts'
+/// each part's models are asked for after the game's requests, in the
+/// places [`more_requests`] made (every part's model in order, then the
+/// aimed ones in order); the weapon is remembered with where its parts'
 /// results will be. All of it or nothing: with no room in the requests, no
 /// model request to change or every place of the registry taken, the cook
 /// goes on as the game's own and a line says so once.
-pub fn request_parts(ctx: &Context<'_>, named: Named, body: &'static CStr, models: impl Iterator<Item = &'static CStr> + Clone) {
-    let parts = models.clone().count();
+pub fn request_parts(ctx: &Context<'_>, named: Named, body: &'static CStr, parts: impl Iterator<Item = PartModels> + Clone) {
+    let models = parts.clone().map(|part| part.model).chain(parts.clone().filter_map(|part| part.aimed));
+    let parts = parts.map(|part| part.requests()).sum::<usize>();
     // SAFETY: the site's EAX is the weapon allocate_weapon just made, EBP
     // on_weapon_config_loaded's frame: its requests a live buffer_vector
     // over the cook's alloca, read by query_resources after this (0x24AC84),
@@ -618,31 +658,43 @@ impl Asked<'_> {
         self.named
     }
 
-    /// Each part's model taken from the cook's results with a reference of
-    /// ours and kept with its placement, in the order they were asked for.
-    /// A model that did not come, or other parts than were asked for: the
-    /// weapon is forgotten (drawn as its bare body alone) and a line says so
-    /// once.
-    pub fn hold(self, placements: impl Iterator<Item = Placement>) {
+    /// Each part's models taken from the cook's results with a reference of
+    /// ours and kept with its placement, in the order they were asked for
+    /// ([`request_parts`]: every part's model, then the aimed ones; `placed`
+    /// says whether a part has one). A model that did not come, or other
+    /// parts than were asked for: the weapon is forgotten (drawn as its bare
+    /// body alone) and a line says so once.
+    pub fn hold(self, placements: impl Iterator<Item = (Placement, bool)> + Clone) {
+        let own = placements.clone().count();
+        let asked = placements.clone().map(|(_, aimed)| 1 + usize::from(aimed)).sum::<usize>();
         // SAFETY: the results are alive for the callback, one a request in
         // its order; ours are `count` from `first`, each a static model's
-        // holder or 0.
+        // holder or 0, the part's own models before the aimed ones.
         let parts = unsafe {
-            let enough = self.first.checked_add(self.count).is_some_and(|last| read(self.results.count()) as usize == last);
-            let mut parts = Parts::with_room(self.count).filter(|_| enough);
-            let mut placed = 0;
-            for (index, at) in placements.enumerate() {
-                placed += 1;
-                let model = (index < self.count).then(|| self.results.results().at(self.first + index).model()).flatten();
-                let (Some(held), Some(model)) = (&mut parts, model) else {
+            let enough = asked == self.count
+                && self.first.checked_add(self.count).is_some_and(|last| read(self.results.count()) as usize == last);
+            let mut parts = Parts::with_room(own).filter(|_| enough);
+            let model_at = |index: usize| (index < self.count).then(|| self.results.results().at(self.first + index).model()).flatten();
+            let mut aimed_at = own;
+            for (index, (at, aimed)) in placements.enumerate() {
+                let model = model_at(index);
+                // Some(None) a part without an aimed model; None one whose did not come
+                let aimed = if aimed {
+                    aimed_at += 1;
+                    model_at(aimed_at - 1).map(Some)
+                } else {
+                    Some(None)
+                };
+                let (Some(held), Some(model), Some(aimed)) = (&mut parts, model, aimed) else {
                     parts = None;
                     continue;
                 };
                 let mut record = raw::WeaponLocatorStorage::zeroed();
                 Records::place(record.handle(), &at);
-                held.push(Drawn { model: Model::retain(model), at: record, lying: None });
+                let aimed = aimed.map(|model| Model::retain(model));
+                held.push(Drawn { model: Model::retain(model), aimed, at: record, lying: None });
             }
-            parts.filter(|_| placed == self.count)
+            parts
         };
         let fit = match parts {
             Some(parts) => Some(Fit::Held { kept: Kept { named: self.named, shells: None }, parts }),
@@ -678,8 +730,11 @@ unsafe fn shown(weapon: raw::Weapon) -> Option<(u8, u8)> {
 /// `attachments.draw`: every part of the weapon in the scene at its frame
 /// (the game's calculate_locator on the part's record, as the weapon's own
 /// locators), drawn as the weapon's model is, exactly while that model is
-/// in the scene (draw added or removed it with the aimed scope).
-pub fn draw(ctx: &Context<'_>) {
+/// in the scene (draw added or removed it with the aimed scope). A part with
+/// an aimed model shows the one `aimed_view` says while the weapon is drawn in
+/// first person (asked only then, once a draw), its own otherwise; the other
+/// is out of the scene.
+pub fn draw(ctx: &Context<'_>, aimed_view: impl FnOnce() -> Shown) {
     // SAFETY: weapon::draw's EBX and EBP: the weapon it draws and its frame
     // ([ebp+8] the world matrix, [ebp+0Ch] the bones, which draw gives
     // calculate_locator itself at 0x244E51), alive for the draw, and its
@@ -689,13 +744,26 @@ pub fn draw(ctx: &Context<'_>) {
     unsafe {
         let Some(weapon) = raw::site::attachments_draw::weapon(ctx) else { return };
         let Some(frame) = raw::site::attachments_draw::frame(ctx) else { return };
-        let shown = shown(weapon);
+        let drawn = shown(weapon);
+        // the choice, outside FITTED's lock: only for a first-person gun with an aimed part
+        let first_person = drawn.is_some_and(|(foreground, _)| foreground != 0);
+        let aimed = first_person && FITTED.with(ctx.thread(), |fitted| match fitted.find(WeaponId(weapon.address())) {
+            Some(Fit::Held { parts, .. }) => parts.all().iter().any(|part| part.aimed.is_some()),
+            _ => false,
+        });
+        let pick = if aimed { aimed_view() } else { Shown::Own };
         FITTED.with(ctx.thread(), |fitted| {
             let Some(Fit::Held { parts, .. }) = fitted.find(WeaponId(weapon.address())) else { return };
             let Some(scene) = weapon.world().and_then(|world| Scene::of_world(world)) else { return };
             for part in parts.all() {
-                let model = part.model.get();
-                let Some((foreground, movable)) = shown else {
+                let (model, other) = match (&part.aimed, pick) {
+                    (Some(aimed), Shown::Aimed) => (aimed.get(), Some(part.model.get())),
+                    (aimed, _) => (part.model.get(), aimed.as_ref().map(Model::get)),
+                };
+                if let Some(other) = other {
+                    scene.remove(other);
+                }
+                let Some((foreground, movable)) = drawn else {
                     scene.remove(model);
                     continue;
                 };
@@ -760,6 +828,9 @@ pub(super) unsafe fn lie(thread: &Thread, weapon: raw::Weapon, scene: &Scene, tr
                     raw::engine_weapon_locator(at.as_mut_ptr(), Some(part.at.handle()), IDENTITY.as_ptr(), bones.as_ptr().cast(), IDENTITY.as_ptr());
                     part.lying = at.iter().all(|v| v.is_finite()).then(|| Affine::from_matrix(&at));
                 }
+                if let Some(aimed) = &part.aimed {
+                    scene.remove(aimed.get());
+                }
                 let Some(lying) = part.lying else { continue };
                 Scene::as_world(part.model.get());
                 scene.present(part.model.get(), &lying.then(&body).matrix());
@@ -778,8 +849,10 @@ pub(super) unsafe fn out_of_scene(thread: &Thread, weapon: raw::Weapon, scene: &
     FITTED.with(thread, |fitted| {
         let Some(Fit::Held { parts, .. }) = fitted.find(WeaponId(weapon.address())) else { return };
         for part in parts.all() {
-            // SAFETY: the part's model is held by this place; the scene the caller's.
-            unsafe { scene.remove(part.model.get()) };
+            for model in core::iter::once(&part.model).chain(&part.aimed) {
+                // SAFETY: the part's models are held by this place; the scene the caller's.
+                unsafe { scene.remove(model.get()) };
+            }
         }
     });
 }
@@ -966,7 +1039,9 @@ pub fn released(ctx: &Context<'_>) {
             && let Some(scene) = Scene::of_world(world)
         {
             for part in parts.all() {
-                scene.remove(part.model.get());
+                for model in core::iter::once(&part.model).chain(&part.aimed) {
+                    scene.remove(model.get());
+                }
             }
         }
         drop(fit);

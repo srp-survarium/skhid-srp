@@ -286,7 +286,7 @@ pub fn loading(ctx: &Context<'_>) -> Option<Loading> {
 ///
 /// # Safety
 /// `weapon` is a live weapon on the caller's thread (a draw's or a hook's).
-// patch 161's view (vostok::attachments, vostok::weapon_view) is its reader
+// the view reads sight_at (a frame's time, a tick's): no reader at the user's time yet
 #[allow(dead_code)]
 pub(in crate::vostok) unsafe fn sight(thread: &Thread, weapon: raw::Weapon) -> Option<View> {
     // SAFETY: the caller's: its user and the user's time.
@@ -300,7 +300,6 @@ pub(in crate::vostok) unsafe fn sight(thread: &Thread, weapon: raw::Weapon) -> O
 ///
 /// # Safety
 /// As [`sight`].
-#[allow(dead_code)]
 pub(in crate::vostok) unsafe fn sight_at(thread: &Thread, weapon: raw::Weapon, now: GameTime) -> Option<View> {
     // SAFETY: the caller's: its user.
     unsafe { crate::second_sights::view(thread, &holder_of(thread, weapon.user()?, weapon)?, now) }

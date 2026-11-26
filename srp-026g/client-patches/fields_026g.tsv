@@ -1880,3 +1880,11 @@ survarium::applied_input_frame	before_actions	0x24	u32	base_player::apply_new_in
 survarium::weapon_core_ctor_frame	weapon	0x4	u32	weapon_core::weapon_core (0x2DF0D0) entry first stack argument: the weapon being made (identity only: nothing of it is built yet)
 survarium::weapon_core_ctor_frame	config	0x8	ptr<vostok::engine_cfg>	its second: the weapon config's root, the cook's (weapon_cook::on_weapon_config_loaded's EBX, 0x24AC2A -> allocate_weapon [ebp+8] 0x24A7BA -> weapon ctor ECX 0x24364F); read by the ctor through config child 0xF6B10 (0x2DF11D)
 survarium::weapon_core_dtor_frame	weapon	0x4	u32	weapon_core::~weapon_core (0x2DF570) entry first stack argument: the weapon going (identity only)
+survarium::weapon_optics	change_scope_factor	0x110	f32	the config's change_scope_factor (rifle_scope ctor 0x2996C0): the client weapon's tick sets the scope view +181Eh at the aim's progress past it (0x244B1D) and clears it below (0x244B3A)
+survarium::weapon_optics	fov_factor	0x114	f32	the config's fov_factor (rifle_scope ctor 0x2996C0): update_camera's zoom aimed through it (0x1F34EB: the camera's +94h = 1 + (it - 1) x aim)
+survarium::weapon_optics	near_plane_factor	0x118	f32	the config's near_plane_factor (rifle_scope ctor 0x2996C0): update_camera's near plane aimed through it (0x1F3536: the camera's +8Ch = (1 + (it - 1) x aim) x 0.05)
+survarium::weapon	own_fov_factor	0x5B4	f32	1 / parameters/aim_zoom_factor (weapon_core::load_config_parameters 0x30AB94): update_camera's zoom with no optic (0x1F34F5)
+survarium::weapon	own_near_plane_factor	0x5B8	f32	1.0 (load_config_parameters 0x30AB9C): update_camera's near plane factor with no optic (0x1F3540)
+survarium::player_input_handler	near_plane	0x8C	f32	the camera's near plane, m: update_camera writes 0.05 x the aimed weapon's factor (0x1F3566; 0.05 with no gun 0x1F359D and in the other modes 0x1F35D6), the projection reads it (0x242900)
+survarium::near_plane_unit	value	0x0	f32	0.05, the near plane update_camera scales (mulss at 0x1F355E); also the tick's 0.05 s elsewhere: read, never written
+survarium::image	near_plane_unit	0x9CC878	obj<survarium::near_plane_unit>	update_camera's near plane at a factor of 1 (0x1F355E, 0x1F3595, 0x1F35CE; .rdata)
