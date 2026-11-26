@@ -16,7 +16,8 @@ rules, the tick list's runner, rules_on_event). Intercepted: the allocator
 (0xE4F90), GetCurrentThreadId, a buffer's resize (0x7AB30), the statistics'
 listener (0x2F5D40), and where a hooked function goes on into the game past
 the site (query_base_resources 0x1EC176, apply_new_input 0x2D86E6,
-can_sprint 0x2DBF4B, and the presentation's sites). The presentation's calls
+can_sprint 0x2DBF4B, render_name's and update_minimap_players' spotted tests
+0x1F2B57 / 0x23950B, and the presentation's sites). The presentation's calls
 into the game are answered here and kept: the query (0xE5B60, its callback
 then called with made-up results), the scene's model and particle calls
 (0x21CD0, 0x21F40, 0x22280, 0x22660, 0x229D0, 0x22B30), the hud sound's emit
@@ -51,6 +52,9 @@ COOKS = research.COOKS
 # where a hooked function goes on into the game after our site's replay
 QUERY_ON, INPUT_ON, SPRINT_ON = 0x1EC176, 0x2D86E6, 0x2DBF4B
 AFTER_MOVE_ON, DEACTIVATE_ON, ICONS_ON, MARK_ON = 0x1F7C41, 0x1F9525, 0x23AA16, 0x1F2D92
+# render_name's and update_minimap_players' spotted tests of an enemy: the game's own compare's
+# jump (each site's replay goes on there), and the minimap's listing (its shown exit)
+NAME_ON, MINIMAP_ON, MINIMAP_SHOWN = 0x1F2B57, 0x23950B, 0x23951B
 # the game's functions the presentation calls: answered here, each call kept
 QUERY_ONE, ADD_MODEL, REMOVE_MODEL, UPDATE_MODEL = 0xE5B60, 0x21CD0, 0x21F40, 0x22280
 PLAY_PARTICLE, REMOVE_PARTICLE, EMIT_HUD, PLAY_VOICE, FREE_VOICE = 0x22660, 0x229D0, 0x65630, 0x5ABA0, 0x5B390
@@ -120,7 +124,7 @@ class Run(research.Run):
             self.word(iat, files + 0x10 * n)
             self.emu.mem_write(files + 0x10 * n, bytes.fromhex(code))
         for address in (QUERY_ON, INPUT_ON, SPRINT_ON, AFTER_MOVE_ON, DEACTIVATE_ON, ICONS_ON,
-                        MARK_ON):
+                        MARK_ON, NAME_ON, MINIMAP_ON):
             self.emu.hook_add(UC_HOOK_CODE, self.past, begin=address, end=address)
         self.drawn, self.queries, self.voices = [], [], []
         self.proxy = None
@@ -426,6 +430,19 @@ def main():
     run.call(0x2DBF40, args=(players[11],), until=STOP)
     check("can_sprint refuses the carrier (its own refusal: xor eax / pop ebx / ret 4); another goes on",
           refused and run.stopped == ("past", SPRINT_ON))
+
+    # 8b. The other team sees the carrier on the minimaps alone (the owner, 2026-11-26: "player with
+    # art is still seen in ui, not only on map"): an unspotted enemy carrier's dot is listed, his
+    # marker over his head is the game's own test (an enemy's only while spotted).
+    run.word(taker + 0x348, 0)                              # not spotted
+    run.span(0x1F2B50, 0x1F2B5D, {UC_X86_REG_ESI: taker}, [0] * 8)
+    check("render_name's spotted test of the unspotted carrier: the game's own compare (no marker over "
+          "his head)", run.stopped == ("past", NAME_ON), str(run.stopped))
+    eip, _ = run.span(0x239505, MINIMAP_SHOWN, {UC_X86_REG_EAX: taker, UC_X86_REG_ESI: 0}, [0] * 8)
+    check("update_minimap_players' spotted test of the unspotted carrier: his dot listed (its shown exit)",
+          eip == MINIMAP_SHOWN and run.stopped is None, f"{eip:#x} {run.stopped}")
+    run.span(0x239505, MINIMAP_SHOWN, {UC_X86_REG_EAX: players[11], UC_X86_REG_ESI: 0}, [0] * 8)
+    check("and another enemy's the game's own compare", run.stopped == ("past", MINIMAP_ON), str(run.stopped))
 
     def modifier(player, index):
         profile = run.read(player + 0x6B8)
