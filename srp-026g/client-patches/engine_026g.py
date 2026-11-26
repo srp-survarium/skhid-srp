@@ -188,7 +188,7 @@ def rows_of(va, abi=None, inputs=None):
             out["results"].add(result_of(row["result"]))
     for row in by_va(inputs).get(va, ()):
         out["names"].add(row["name"])
-        if " at 0x" in row["location"]:
+        if " at 0x" in row["location"] or row["location"].startswith("at 0x"):
             continue                     # a register inside the function (a site's), no input
 
         out["locations"].add(location(row["location"]))

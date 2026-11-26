@@ -1,0 +1,13 @@
+{
+  "_comment": "Magazine reloads count the new ammunition when it is in the gun, not at the clip's end: every item reload clip of a state 303, 311 or 314 reload gets the reload_commit channel at its seat sound, where client patch 205 loads the magazine (docs/notes/reload-commit.md). Apply after reload-timings-1.json: it reads the clips as that leaves them.",
+  "reload_commit": [
+    {
+      "files": "gameplay/items/weapons/wpn_*.options"
+    }
+  ],
+  "_inputs": [
+    {
+      "files": "animations/single/weapons/*reload*.b-spline"
+    }
+  ]
+}

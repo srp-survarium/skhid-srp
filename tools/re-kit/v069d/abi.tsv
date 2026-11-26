@@ -14,3 +14,5 @@ va	name	source	ret_cleanup	result
 0x2006cc8a0	survarium::weapon::effective_aim_progress	manual	0	XMM0 effective aim progress
 0x2006cdb40	survarium::weapon::current_camera_fov_factor	manual	0	XMM0 world FOV factor
 0x2005a91b0	vostok::math::create_perspective_projection	manual	0	RAX output matrix
+0x20038ebb0	survarium::weapon_core_reload_state_base::on_user_may_shoot_event	manual	0	EAX 0; the params' handled byte +34h := 1
+0x2006d6c50	survarium::weapon_core::load_magazine	manual	0	void

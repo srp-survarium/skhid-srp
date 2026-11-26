@@ -1867,3 +1867,18 @@ vostok::render::weapon_draw_params	command	-0x98	obj<vostok::render::weapon_draw
 vostok::render::foreground_frame	projection_x	0x28	f32	first diagonal element of foreground_begin's private stack copy of the projection
 vostok::render::foreground_frame	projection_y	0x3C	f32	second diagonal element of the same projection (element 5)
 vostok::query_result	binary_config	0x0	ptr<vostok::binary_config>	the unmanaged config of a class 1Fh request (first result of items_dictionary_cook at 0x2C8AF5)
+survarium::animation_end_aware_state	weapon	0x120	ptr<survarium::weapon>	the state's weapon, as every weapon_core state's [+120h] (the reload states' get_weapon_lexeme 0x30E23D, initialize 0x30FDBA, on_animation_end_impl 0x310E41; on_animation_end 0x30DB6E compares the event's object with it and its user)
+survarium::weapon_state_methods	on_animation_end	0x24	u32	slot 9, on_animation_end_impl: 0x310E40 (weapon_core_reload_state_base's: load the magazine, reset the recoil, m_need_to_auto_reload 0) in the six reload vtables and only there, the plain 0xA14D14 (state 303), 0xA15088 (311), 0xA151FC (314) and their sound handlers' 0xA04DEC, 0xA050D4, 0xA051CC
+survarium::image	reload_on_animation_end	0x310E40	u32	weapon_core_reload_state_base::on_animation_end_impl, the slot 9 of a magazine reload (303, 311, 314); the shotgun's 306 loads its rounds one by one elsewhere (reload_one_round 0x2E1A00)
+survarium::image	event_member_functor	0xA14CBC	u32	the functor manager of a boost::function<callback_return_type(animation_callback_params&)> holding a bound member function (0x30DCE0 tags it 1, its buffer copied as bytes): [0] the manager 0x30DD30, [4] the invoker 0x246200, which calls buffer+0 thiscall with this = buffer+4 + buffer+8 and the parameters
+survarium::weapon	chamber_on_reload	0x5F2	u8	chamber_a_round_on_reload (load_config_parameters 0x30AC12, a bool): a reload's initialize puts the chambered round back into the magazine (0x30FDC0..0x30FDD8) and load_magazine chambers one again after the top-up (0x2E18B8)
+survarium::player	event_channels	0x750	obj<vostok::animation::event_channels>	its animation player, whose event channels a weapon state subscribes to (0x30DAC4, 0x2548E7)
+vostok::animation::event_channels	channels	0xE108	u32	the list of its channels (name, next, subscriptions) subscribe_event_channel walks (0x391C44) and makes a channel's record in (+E10Ch the room, +E110h what is left)
+vostok::animation::event_functor	manager	0x0	u32	the functor's manager table, bit 0 set when its buffer is copied as bytes (0x30DD12)
+vostok::animation::event_functor	buffer	0x8	obj<vostok::animation::member_bind>	its 24-byte buffer, the address the invoker gets
+vostok::animation::event_functor	size	0x20	size	a boost::function of an animation event: the tagged manager, a pad, the 24-byte buffer (0x30DCE0; a subscription record copies 20h bytes, its +20h the resource pointer, 0x390DC0)
+vostok::animation::member_bind	function	0x0	u32	the member function (thiscall: the object, the parameters; ret 4)
+vostok::animation::member_bind	adjust	0x4	u32	the member pointer's this adjustment (0 for these classes, 0x30DA7E)
+vostok::animation::member_bind	object	0x8	u32	the object the function is called on, as an address (the state, 0x30DA8C)
+vostok::animation::event_resource	resource	0x0	u32	a subscription's resource pointer slot (subscribe_event_channel's fourth argument; every caller's is null, 0x30DACA)
+vostok::animation::event_resource	size	0x4	size	one pointer

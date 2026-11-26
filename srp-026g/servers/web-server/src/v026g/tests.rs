@@ -187,7 +187,6 @@ fn world_with(accounts: GameAccounts) -> World {
         token_failures: Mutex::new((0, None)),
         connections: AtomicU32::new(0),
         downloads: AtomicU32::new(0),
-        resource_downloads: AtomicU32::new(0),
         replay_downloads: AtomicU32::new(0),
         replay_failures: Mutex::new(std::collections::HashMap::new()),
         replay_asks: Mutex::new(std::collections::HashMap::new()),

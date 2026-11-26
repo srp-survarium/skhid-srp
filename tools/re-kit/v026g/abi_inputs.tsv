@@ -6785,3 +6785,12 @@ va	name	location	role	basis
 0x00020310	vostok::render::functor_with_big_buffer_to_copy_command<draw_scene_params>::ctor	stack+0xC	on_defer_execution	observed
 0x00028460	vostok::render::functor_with_big_buffer_to_copy_command<draw_scene_params>::execute	ECX	command, vtable 0x9DC800 slot zero. Passes its inline payload +98h to its +58h functor.	observed
 0x00028620	vostok::render::functor_with_big_buffer_to_copy_command<draw_scene_params>::on_defer_execution	ECX	the command, handed on as the +78h functor's argument	observed
+0x00310e40	survarium::weapon_core_reload_state_base::on_animation_end_impl	ECX	the reload state (its weapon [+120h], read at 0x310E41)	observed
+0x00310e40	survarium::weapon_core_reload_state_base::on_animation_end_impl	entry ESP+4	an unused byte pointer (on_animation_end 0x30DB9D passes the event parameters' +24h)	observed
+0x00310e40	survarium::weapon_core_reload_state_base::on_animation_end_impl	entry ESP+8	a byte it sets to 1, done (0x310E62; the parameters' +23h from 0x30DB96)	observed
+0x00391c40	vostok::animation::animation_player::subscribe_event_channel	entry ESP+8	the functor, a boost::function of the event (20h bytes: the tagged manager, a pad, the 24-byte buffer), copied into the subscription's record (0x390DC0)	observed
+0x00391c40	vostok::animation::animation_player::subscribe_event_channel	entry ESP+12	the subscriber, the key unsubscribe_event_channel finds the subscription by (the record's +2Ch, 0x390E05; the state 0x30DABB, the sound handler 0x2548DC)	observed
+0x00391c40	vostok::animation::animation_player::subscribe_event_channel	entry ESP+16	a resource pointer slot, the record's +20h (0x390DD7; every caller's holds null)	observed
+0x00391c40	vostok::animation::animation_player::subscribe_event_channel	entry ESP+20	a flag dword, the record's +24h (0x390E09; 0 from every caller)	observed
+0x00246200	boost::detail::function::function_obj_invoker1<bind_t<callback_return_type, mf1<..., animation_end_aware_state, animation_callback_params&>>>::invoke [descriptive]	entry ESP+4	the functor's buffer: [0] the member function, [4] + [8] its this (0x246208..0x24620F)	observed
+0x00246200	boost::detail::function::function_obj_invoker1<bind_t<callback_return_type, mf1<..., animation_end_aware_state, animation_callback_params&>>>::invoke [descriptive]	entry ESP+8	the animation_callback_params, pushed for the member function (0x24620B)	observed

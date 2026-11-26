@@ -35,3 +35,6 @@ va	name	location	role	basis
 0x2005a91b0	vostok::math::create_perspective_projection	XMM2	viewport width divided by height	observed
 0x2005a91b0	vostok::math::create_perspective_projection	XMM3	near plane distance	observed
 0x2005a91b0	vostok::math::create_perspective_projection	entry RSP+28h	far plane distance	observed
+0x20038ebb0	survarium::weapon_core_reload_state_base::on_user_may_shoot_event	RCX	the reload state	observed
+0x20038ebb0	survarium::weapon_core_reload_state_base::on_user_may_shoot_event	RDX	the animation_callback_params: +0 the object, +8 the clip, +30h the domain, +34h handled	observed
+0x2006d6c50	survarium::weapon_core::load_magazine	RCX	the weapon	observed

@@ -99,7 +99,6 @@ fn web(replays: Option<Arc<Replays>>) -> Web {
         token_failures: Mutex::new((0, None)),
         connections: AtomicU32::new(0),
         downloads: AtomicU32::new(0),
-        resource_downloads: AtomicU32::new(0),
         replay_downloads: AtomicU32::new(0),
         replay_failures: Mutex::new(HashMap::new()),
         replay_asks: Mutex::new(HashMap::new()),
@@ -516,9 +515,9 @@ fn replays_off_and_the_0_21d_page_serve_none() {
 
 /// Every other route of the page, with the same hostile list after it:
 /// none reads a file a request names, so none answers with a private file
-/// (or the replay). `/download` and `/resources/` serve only the
-/// configured archive and the 64-hex blobs beside it (their own tests);
-/// with no archive here they are "not found" pages.
+/// (or the replay). `/download` serves only the configured archive (its own
+/// test); with no archive here it is a "not found" page, and `/resources/`
+/// (the blobs of the updaters' restore of resources.db, gone) is one too.
 #[test]
 fn no_other_route_reaches_a_private_file() {
     let planted = planted("routes");
@@ -571,5 +570,11 @@ fn no_other_route_reaches_a_private_file() {
                 );
             }
         }
+    }
+    // The blobs of the updaters' restore of resources.db are no longer
+    // served: they are the page's "not found".
+    for method in ["GET", "HEAD"] {
+        let answer = get(&web, method, &format!("/resources/{blob}"));
+        assert!(answer.starts_with(b"HTTP/1.0 404 Not Found\r\n"), "{method}");
     }
 }
