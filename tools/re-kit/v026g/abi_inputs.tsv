@@ -6793,3 +6793,4 @@ va	name	location	role	basis
 0x002d8ee0	survarium::base_player::tick_animations	EAX	the player	observed
 0x002d8ee0	survarium::base_player::tick_animations	entry ESP+4	the previous tick time: base_player::tick's old +324h (0x2DAAD3), apply_new_input's +324h (0x2D89F7)	observed
 0x002d8ee0	survarium::base_player::tick_animations	entry ESP+8	the time it ticks to: the step's (base_player::tick, return 0x2DAAE0) or the input's own (apply_new_input 0x2D8A01, return 0x2D8A06)	observed
+0x001f3070	survarium::player::render_model	ESI	the player: nothing drawn unless its models are in (+F4E0h) and its render instance ([+F290h]+108h) is in the scene (+10Dh); the transform +F4A0h when +F49Ch is set, else the simulated one +40Ch (0x1F30E2..0x1F30F1)	observed

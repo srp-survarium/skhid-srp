@@ -65,6 +65,33 @@ srp: sync: 5 lines held back in second 400
 At most 20 lines a second of game time (the next line of another second says how many were held
 back) and 50 000 a run (its last line says so).
 
+## The last one fighting on the map (Freeze Tag)
+
+The owner's report: in Freeze Tag a team's last one fighting, whom the rule shows on the other team's
+map (freeze-tag.md: `FreezeTag::last_standing`, `minimap.enemy_spotted`), sometimes is not on it,
+though his body is seen. With the log on, the viewer's game writes, once a second of game time while
+the rule shows an enemy of the viewer, a line for each such enemy:
+
+```
+srp: sync: map, second 90: p7 (team 1) his team's last one fighting, the rule shows him; viewer p3 at 23.4 m; frames 2, minimap ran 1, tested him 1 (spotted by the game 0), listed him 0
+```
+
+- `frames`: the frames of that second (`game_world.after_move`, order 9);
+- `minimap ran`: the frames in which update_minimap_players (0x239420) listed anyone (it lists
+  every living teammate, the viewer too: 0 is a minimap that did not run);
+- `tested him`: how often it reached its test of him as an enemy (`minimap.enemy_spotted`,
+  0x239505, this log's handler first, before every patch's verdict: replay_map 1, Artifact Hunt 2,
+  Freeze Tag 3, which shows him by the same rule); not reached: it skipped him before (not in the
+  world, +33Fh, or not alive, +33Ch, 0x2394D1..0x2394E5, or the loop does not hold him);
+  `spotted by the game`: of those, how often his own spotted time (+348h) was above 0;
+- `listed him`: how often it reached the listing (0x23951B, `sync.minimap_listed`) with him: the
+  native's spotted time, or a patch's `shown` exit, which jumps there;
+- the distance between his feet and the viewer's.
+
+Tested and not listed is a verdict that did not show him; listed and not on the screen is past
+the listing (the icon's movie). The body's draw is not logged (the owner, 2026-11-26: the body is
+seen; only the map misses him).
+
 ## Turning it on
 
 - **The owner's own install** (Linux): `SKHID_SYNC_LOG=on ./Skhid-local.sh launcher`. The launcher,

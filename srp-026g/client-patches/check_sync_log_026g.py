@@ -22,7 +22,8 @@ record the switch's reads and the lines, every other import a failure:
   not; from base_player::tick to 334697 (a frame's part) not, from 334697 to
   334700 (a step that went on from a part) a line, naming the rollback load
   of 334600 before it; the server's world (0x2D0FB9's call) is a line with
-  its time; a second of game time writes 20 lines at most, and says how
+  its time; the minimap's test of an enemy (0x239505) and its listing (0x23951B)
+  write nothing at once (the map line is a second's, at the frame); a second of game time writes 20 lines at most, and says how
   many it held back.
 """
 import struct
@@ -37,6 +38,7 @@ import patch_026g as base
 ENVIRONMENT, CREATE_FILE, WRITE_FILE, CLOSE_HANDLE, THREAD_SLOT = 0x8701B4, 0x870048, 0x870108, 0x870040, 0x870118
 ENGINE_TSV = "engine_026g.tsv"
 INPUT, ANIMATIONS, LOAD = (0x2D86E0, 6), (0x2D8EE0, 6), (0x2D2770, 8)
+MINIMAP_TEST, MINIMAP_LISTED = (0x239505, 6), (0x23951B, 6)
 SET_INPUT_CALLED, SET_INPUT_CALLER = 0x1F3731, 0x2D1F2A
 APPLY_CALLED, TICK_CALLED = 0x2D8A06, 0x2DAAE0
 ROLLBACK, SERVER = 0x2D2FF5, 0x2D0FBE
@@ -75,6 +77,8 @@ class Run:
         self.word(PLAYER + 0x120, CORE)                          # its world core
         self.emu.mem_write(PLAYER + 0x33C, b"\x01")              # alive
         self.word(CORE + 0x18FBC, 50)                            # the tick
+        self.word(PLAYER + 0x348, 0)                             # not spotted
+        self.word(PLAYER + 0x10C, DATA + 0x2000)                 # an inventory (the listing reads its +178h)
 
     def word(self, at, value):
         self.emu.mem_write(at, struct.pack("<I", value & 0xFFFFFFFF))
@@ -167,7 +171,9 @@ def main():
              ("an input's tick at 334700", lambda r: r.tick(APPLY_CALLED, 334650, 334700, 334650)),
              ("a step to a frame's part, 334697", lambda r: r.tick(TICK_CALLED, 334650, 334697, 334650)),
              ("a step from 334697 to 334700, replayed", lambda r: r.tick(TICK_CALLED, 334697, 334700, 334750)),
-             ("the server's world of 92250", lambda r: r.load(SERVER, 92250))]
+             ("the server's world of 92250", lambda r: r.load(SERVER, 92250)),
+             ("the minimap's test of an enemy", lambda r: r.site(MINIMAP_TEST, [], {UC_X86_REG_EAX: PLAYER, UC_X86_REG_ESI: 0})),
+             ("the minimap's listing", lambda r: r.site(MINIMAP_LISTED, [], {UC_X86_REG_EAX: PLAYER}))]
     stock, off, on = Run(original), Run(bytes(built)), Run(bytes(built), b"on")
     written = []
     for what, call in calls:
@@ -193,6 +199,8 @@ def main():
         [],
         ["sync: tick p2 t334700 prev 334697 by step replay (newest 334750) after a load of 334600 by rollback"],
         ["sync: the server's world loaded (a join or a resync), its time 92250"],
+        [],
+        [],
     ]
     for (what, _), want, i in zip(calls, expect, range(len(calls))):
         case(f"on: {what}: {len(want)} line(s)", lines(i) == want, (written[i], want))

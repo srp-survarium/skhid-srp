@@ -9,6 +9,9 @@
 //!   0x2D8FC2) that apply_new_input makes at an off-grid time, or that a step makes from an
 //!   off-grid time (its previous tick off the grid: a step that went on from a part);
 //! - each world the server sends that the game loads (a join or a resync), with its time.
+//! - in Freeze Tag, once a second while the rule shows an enemy of the viewer on the map (his team's
+//!   last one fighting), whether update_minimap_players tested and listed him (`minimap.enemy_spotted`
+//!   first, `sync.minimap_listed` 0x23951B) and how far he is.
 //!
 //! Each line says whether its time is played for the first time (`live`) or again (`replay`: at
 //! or before the core's newest time played, after which load). A step to a frame's time ahead
@@ -21,8 +24,9 @@
 
 use crate::vostok::log::{line, Piece, Piece::*};
 use crate::vostok::memory_profile::environment;
-use crate::vostok::desync::{Input, InputCaller, Load, LoadKind, Newest, Return, Tick, TickCaller};
-use crate::vostok::{Context, Flow, GameCell, NoExit, SyncLogOnInputExit, Thread};
+use crate::vostok::desync::{self, Input, InputCaller, Load, LoadKind, MapView, Newest, Return, Tick, TickCaller};
+use srp_validate::{Place, Team};
+use crate::vostok::{Context, Flow, GameCell, NoExit, SyncLogOnInputExit, SyncLogOnMinimapTestExit, Thread};
 
 /// The simulation's tick, ms (`core_world.tick_ms`).
 const TICK_MS: u32 = 50;
@@ -304,6 +308,175 @@ pub fn on_world_load(ctx: &mut Context<'_>) -> Flow<NoExit> {
     Flow::Continue
 }
 
+// ---- the last one fighting on the map (Freeze Tag) --------------------------------------------
+
+/// A second of frames while the rule shows an enemy of the viewer on the map: how often the
+/// minimap ran (listed anyone), tested each place as an enemy (and found him spotted natively),
+/// and listed each place.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct Tally {
+    second: u32,
+    frames: u16,
+    ran: u16,
+    tested: [u16; PLAYERS],
+    spotted: [u16; PLAYERS],
+    listed: [u16; PLAYERS],
+}
+
+/// The map log: nothing being counted, or a second's tally; the listings since the last frame.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum MapLog {
+    Idle { listings: u16 },
+    Counting { tally: Tally, listings: u16 },
+}
+
+static MAP: GameCell<MapLog> = GameCell::new(MapLog::Idle { listings: 0 });
+
+const PLAYERS: usize = srp_validate::MAX_PLAYERS;
+
+impl MapLog {
+    fn listings(self) -> u16 {
+        match self {
+            MapLog::Idle { listings } | MapLog::Counting { listings, .. } => listings,
+        }
+    }
+
+    fn visit(self, edit: impl FnOnce(&mut Tally), listing: bool) -> MapLog {
+        let listings = self.listings().saturating_add(u16::from(listing));
+        match self {
+            MapLog::Idle { .. } => MapLog::Idle { listings },
+            MapLog::Counting { mut tally, .. } => {
+                edit(&mut tally);
+                MapLog::Counting { tally, listings }
+            }
+        }
+    }
+}
+
+/// The enemies of the viewer the rule shows on the map, with their teams.
+fn enemies(fighters: &[Option<Team>; PLAYERS], viewer: Option<Team>) -> [Option<Team>; PLAYERS] {
+    fighters.map(|team| team.filter(|team| viewer.is_some_and(|viewer| viewer != *team)))
+}
+
+/// A frame (`game_world.after_move`) at `time`, `shown` the enemies the rule shows: the map log's
+/// next state and the second it closes, if any.
+fn frame(log: MapLog, time: u32, shown: bool) -> (MapLog, Option<Tally>) {
+    let second = time / 1000;
+    let ran = u16::from(log.listings() > 0);
+    match (log, shown) {
+        (_, false) => (MapLog::Idle { listings: 0 }, None),
+        (MapLog::Counting { tally, .. }, true) if tally.second != second => {
+            let next = Tally { second, frames: 1, ran, tested: [0; PLAYERS], spotted: [0; PLAYERS], listed: [0; PLAYERS] };
+            (MapLog::Counting { tally: next, listings: 0 }, Some(tally))
+        }
+        (MapLog::Counting { mut tally, .. }, true) => {
+            tally.frames = tally.frames.saturating_add(1);
+            tally.ran = tally.ran.saturating_add(ran);
+            (MapLog::Counting { tally, listings: 0 }, None)
+        }
+        (MapLog::Idle { .. }, true) => {
+            let tally = Tally { second, frames: 1, ran, tested: [0; PLAYERS], spotted: [0; PLAYERS], listed: [0; PLAYERS] };
+            (MapLog::Counting { tally, listings: 0 }, None)
+        }
+    }
+}
+
+/// Decimetres between two points.
+fn decimetres(a: [f32; 3], b: [f32; 3]) -> u32 {
+    let metres = ragdoll::math::Vec3::new(a[0] - b[0], a[1] - b[1], a[2] - b[2]).length();
+    if metres.is_finite() { (metres * 10.0 + 0.5) as u32 } else { u32::MAX }
+}
+
+fn write_map(
+    tally: &Tally,
+    place: Place,
+    team: Team,
+    viewer: Place,
+    distance: Option<u32>,
+    write: &mut impl FnMut(&[Piece<'_>]),
+) {
+    let i = place.index();
+    let (whole, tenth, unit) = match distance {
+        Some(dm) if dm != u32::MAX => (Dec(dm / 10), Dec(dm % 10), Text(" m")),
+        _ => (Text("?"), Text(""), Text("")),
+    };
+    write(&[
+        Text("sync: map, second "),
+        Dec(tally.second),
+        Text(": p"),
+        Dec(place.index() as u32),
+        Text(" (team "),
+        Dec(team.index() as u32),
+        Text(") his team's last one fighting, the rule shows him; viewer p"),
+        Dec(viewer.index() as u32),
+        Text(" at "),
+        whole,
+        Text("."),
+        tenth,
+        unit,
+        Text("; frames "),
+        Dec(u32::from(tally.frames)),
+        Text(", minimap ran "),
+        Dec(u32::from(tally.ran)),
+        Text(", tested him "),
+        Dec(u32::from(tally.tested[i])),
+        Text(" (spotted by the game "),
+        Dec(u32::from(tally.spotted[i])),
+        Text("), listed him "),
+        Dec(u32::from(tally.listed[i])),
+    ]);
+}
+
+/// update_minimap_players' test of an enemy (`minimap.enemy_spotted`, before every patch's verdict).
+pub fn on_minimap_test(ctx: &mut Context<'_>) -> Flow<SyncLogOnMinimapTestExit> {
+    let thread = ctx.thread();
+    if let Log::On { .. } = state(thread)
+        && let Some((place, spotted)) = desync::minimap_test(ctx)
+        && let Some(i) = Place::new(place).map(Place::index)
+    {
+        MAP.set(thread, MAP.get(thread).visit(|tally| {
+            tally.tested[i] = tally.tested[i].saturating_add(1);
+            tally.spotted[i] = tally.spotted[i].saturating_add(u16::from(spotted > 0));
+        }, false));
+    }
+    Flow::Continue
+}
+
+/// update_minimap_players listing a player (`sync.minimap_listed`, 0x23951B).
+pub fn on_minimap_listed(ctx: &mut Context<'_>) -> Flow<NoExit> {
+    let thread = ctx.thread();
+    if let Log::On { .. } = state(thread)
+        && let Some(i) = desync::minimap_listed(ctx).and_then(Place::new).map(Place::index)
+    {
+        MAP.set(thread, MAP.get(thread).visit(|tally| tally.listed[i] = tally.listed[i].saturating_add(1), true));
+    }
+    Flow::Continue
+}
+
+/// Each frame after the simulation's move: a second's line for each enemy of the viewer the rule
+/// shows on the map.
+pub fn on_frame(ctx: &mut Context<'_>) -> Flow<NoExit> {
+    let thread = ctx.thread();
+    let Log::On { .. } = state(thread) else { return Flow::Continue };
+    let Some(world) = crate::vostok::world::GameWorld::at_after_move(ctx) else { return Flow::Continue };
+    let Some(view) = MapView::of(&world) else {
+        MAP.set(thread, MapLog::Idle { listings: 0 });
+        return Flow::Continue;
+    };
+    let shown = crate::freeze_tag::last_fighters(thread)
+        .map(|fighters| enemies(&fighters, crate::freeze_tag::team_of(thread, view.viewer)))
+        .unwrap_or([None; PLAYERS]);
+    let (next, closed) = frame(MAP.get(thread), view.time, shown.iter().any(Option::is_some));
+    MAP.set(thread, next);
+    if let Some(tally) = closed {
+        for (place, team) in Place::all().zip(shown).filter_map(|(place, team)| Some((place, team?))) {
+            let distance = view.feet[place.index()].zip(view.feet[view.viewer.index()]).map(|(a, b)| decimetres(a, b));
+            write_map(&tally, place, team, view.viewer, distance, &mut |pieces| line(pieces));
+        }
+    }
+    Flow::Continue
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -361,7 +534,7 @@ mod tests {
         let (_, lines) = run(on(), &[input(334697, 334650), input(334697, 334800)]);
         assert_eq!(lines, [
             "sync: input p2 t334697 prev 334650 via set_input from 0x002d1f2a live",
-            "sync: input p2 t334697 prev 334650 via set_input from 0x002D1F2A replay (newest 334800)",
+            "sync: input p2 t334697 prev 334650 via set_input from 0x002d1f2a replay (newest 334800)",
         ]);
     }
 
@@ -403,6 +576,41 @@ mod tests {
         assert_eq!(lines.len(), 20 + 1 + 1);
         assert_eq!(lines[20], "sync: 5 lines held back in second 10");
         assert!(lines[21].starts_with("sync: input p2 t11003 "));
+    }
+
+    fn place(n: u8) -> Place {
+        Place::new(n).unwrap()
+    }
+
+    #[test]
+    fn the_map_counts_a_second_and_closes_it() {
+        let idle = MapLog::Idle { listings: 0 };
+        assert_eq!(frame(idle, 90_500, false), (idle, None));
+        let (log, closed) = frame(idle, 90_500, true);
+        assert!(closed.is_none());
+        // A frame of the minimap: it tests p7 (not spotted) and lists p3 (a teammate).
+        let log = log.visit(|t| t.tested[7] += 1, false).visit(|t| t.listed[3] += 1, true);
+        let (log, closed) = frame(log, 90_550, true);
+        assert!(closed.is_none());
+        let (_, closed) = frame(log, 91_000, true);
+        let tally = closed.expect("the second 90 closed");
+        assert_eq!((tally.second, tally.frames, tally.ran, tally.tested[7], tally.listed[7], tally.listed[3]), (90, 2, 1, 1, 0, 1));
+        let mut lines = Vec::new();
+        write_map(&tally, place(7), Team::Second, place(3), Some(234), &mut |p| lines.push(text(p)));
+        assert_eq!(lines, ["sync: map, second 90: p7 (team 1) his team's last one fighting, the rule shows him; viewer p3 at 23.4 m; frames 2, minimap ran 1, tested him 1 (spotted by the game 0), listed him 0"]);
+        // No enemy shown: idle, nothing closed.
+        assert_eq!(frame(log, 91_050, false), (idle, None));
+    }
+
+    #[test]
+    fn only_the_viewers_enemies() {
+        let mut fighters = [None; PLAYERS];
+        fighters[7] = Some(Team::Second);
+        fighters[2] = Some(Team::First);
+        let shown = enemies(&fighters, Some(Team::First));
+        assert_eq!((shown[7], shown[2]), (Some(Team::Second), None));
+        assert!(enemies(&fighters, None).iter().all(Option::is_none));
+        assert_eq!(decimetres([0.0, 0.0, 0.0], [3.0, 4.0, 0.0]), 50);
     }
 
     #[test]

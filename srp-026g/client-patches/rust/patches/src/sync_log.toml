@@ -1,4 +1,5 @@
-# Patch 210: the sync log, SKHID_SYNC_LOG=on (docs/notes/sync-log.md): a line for each input
+# Patch 210: the sync log, SKHID_SYNC_LOG=on (docs/notes/sync-log.md); in Freeze Tag also the
+# minimap's verdict on the last one fighting, once a second. A line for each input
 # applied, and each animation (and stamina) tick made, at a time off the 50 ms grid, and each
 # world the server sends. It only reads. The sites are sites_026g.tsv's; the reads vostok/desync.rs.
 name = "sync_log"
@@ -19,3 +20,22 @@ handler = "on_tick"
 [[hook]]
 site = "sync.world_load"
 handler = "on_world_load"
+
+# update_minimap_players' test of an enemy, before every patch's verdict (replay_map 1, Artifact
+# Hunt 2, Freeze Tag 3): the map log's count of tests
+[[hook]]
+site = "minimap.enemy_spotted"
+handler = "on_minimap_test"
+order = -1
+
+# update_minimap_players listing a player (0x23951B, where the test's shown exit goes)
+[[hook]]
+site = "sync.minimap_listed"
+handler = "on_minimap_listed"
+
+# each frame after the simulation's move, after Freeze Tag's (6) and the others: the map log's
+# second, a line for each enemy of the viewer the rule shows on the map
+[[hook]]
+site = "game_world.after_move"
+handler = "on_frame"
+order = 9

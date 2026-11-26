@@ -152,3 +152,49 @@ impl Load {
         }
     }
 }
+
+/// update_minimap_players at its test of an enemy (`minimap.enemy_spotted`): the enemy's place
+/// and his spotted time (+348h), which the native test lists him by while above 0.
+pub fn minimap_test(ctx: &Context<'_>) -> Option<(u8, u32)> {
+    // SAFETY: the site's EAX, the minimap's live player (inserted and alive). Only reads.
+    unsafe {
+        let player = raw::site::minimap_enemy_spotted::player(ctx)?;
+        Some((read(player.place()), read(player.spotted_time())))
+    }
+}
+
+/// update_minimap_players listing a player (`sync.minimap_listed`, 0x23951B): his place.
+pub fn minimap_listed(ctx: &Context<'_>) -> Option<u8> {
+    // SAFETY: the site's EAX, the player the minimap lists, alive for the loop. Only reads.
+    unsafe { Some(read(raw::site::sync_minimap_listed::player(ctx)?.place())) }
+}
+
+/// What the map log needs of a frame (after the simulation's move): the world's time, the
+/// viewer (the local player) and each place's feet.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct MapView {
+    pub time: u32,
+    pub viewer: srp_validate::Place,
+    pub feet: [Option<[f32; 3]>; srp_validate::MAX_PLAYERS],
+}
+
+impl MapView {
+    pub fn of(world: &super::world::GameWorld<'_>) -> Option<MapView> {
+        // SAFETY: the live game world of the hook, its match core, its network client's local
+        // player and each place's current player, alive on the game's thread. Only reads.
+        unsafe {
+            let core = world.this.pvp_match()?.core();
+            let local = world.this.game()?.network_client()?.local_player()?;
+            let viewer = srp_validate::Place::new(read(local.place()))?;
+            let mut feet = [None; srp_validate::MAX_PLAYERS];
+            for (place, slot) in srp_validate::Place::all().zip(feet.iter_mut()) {
+                if let Some(player) = super::freeze::player_at(core, place)
+                    && read(player.inserted()) != 0
+                {
+                    *slot = Some(super::world::floats::<3>(player.feet()));
+                }
+            }
+            Some(MapView { time: read(core.time()), viewer, feet })
+        }
+    }
+}

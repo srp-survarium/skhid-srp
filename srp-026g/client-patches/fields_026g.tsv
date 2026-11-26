@@ -1891,3 +1891,4 @@ survarium::image	frame_loaded	0x2D357F	u8	game_world_core::move's return from de
 survarium::image	server_world_loaded	0x2D0FBE	u8	game_world_core::deserialize (0x2D0B70, the server's world, 0xE8)'s return from deserialize (0x2D0FB9)
 survarium::image	history_loaded	0x325296	u8	load_history_state (0x325270)'s return from deserialize (0x325291)
 survarium::image	history_loaded_again	0x325305	u8	load_history_state (0x325270)'s return from deserialize (0x325300)
+survarium::player	spotted_time	0x348	u32	m_spotted_time_left_in_ms: update_minimap_players lists an enemy while it is above 0 (0x239505; serialized, motion.rs)

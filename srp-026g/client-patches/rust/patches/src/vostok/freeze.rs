@@ -122,7 +122,7 @@ unsafe fn place_of(player: raw::Player) -> Place {
     Place::new(unsafe { read(player.place()) }).expect("a player's roster place is one of the twenty")
 }
 
-fn player_at(core: raw::CoreWorld, place: Place) -> Option<raw::Player> {
+pub(super) fn player_at(core: raw::CoreWorld, place: Place) -> Option<raw::Player> {
     // SAFETY: the caller borrows a live core for the hook; bound both the
     // roster vector and kit index before following the current player.
     unsafe {
