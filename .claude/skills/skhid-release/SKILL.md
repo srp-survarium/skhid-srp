@@ -440,10 +440,10 @@ The order, as it runs:
    The local builds run at nice 10. A failure here (a stop too: it kills
    the self-test still running) stops before the go: the staged files removed, the
    image tag put back, nothing planned, and the new patch's row taken out
-   of the list again (no server offered it). The file goes from the
-   patches server too when this run uploaded it, so the revision can be
-   made again with other bytes; one there before the run stays, and a run
-   with the same `--resources` takes it as it is.
+   of the list again (no server offered it). The file stays on the patches
+   server, unlisted: a run with the same `--resources` takes it as it is
+   (no second upload), one with other bytes replaces it (never listed,
+   never offered).
 
    **The first release with server code after #1395 proves the image path**
    (owner, 2026-11-06: merged untested on a server, "we will test during
@@ -601,8 +601,10 @@ during the build too) cancels the maintenance when it was planned (only
 after the go), removes the staged files (the folder stays, state
 `stopped`, with its release.log) and puts the image tag back: the server
 is as it was. A published patch: after the go it stays with its row
-(the next run goes without `--resources`); before the go its row goes,
-and the file too when this run uploaded it (step 2). A stop in the swap before anything moved starts srp26
+(the next run goes without `--resources`); before the go its row goes
+and the file stays on the patches server, unlisted (no player is offered
+it): the next run with the same `--resources` takes it without uploading it
+again, one with other bytes replaces it (never listed, never offered). A stop in the swap before anything moved starts srp26
 again as it was.
 
 `--yes --i-know` (both or neither) answers the y/N before the swap; only
