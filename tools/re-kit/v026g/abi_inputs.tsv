@@ -6841,3 +6841,6 @@ va	name	location	role	basis
 0x00220a00	survarium::lobby_menu::update_ui	ESI	the lobby menu (+68Ch and +690h its movies, read at once; the caller 0x21D660 calls it only while +A0h is set)	observed
 0x00220a00	survarium::lobby_menu::update_ui	EDI	the game's time, ms (sub eax,[esi+30E0h] at 0x220A3D; stored at 0x220A6A)	observed
 0x00220a00	survarium::lobby_menu::update_ui	entry ESP+4	the time since its last frame, ms (the caller 0x21D65D: the game time less the last, fild at 0x220A06)	observed
+0x001b1840	vostok::render::stage_postprocess::is_not_motion_vector_surface [descriptive]	EAX	a render_surface_instance of the list being sorted (its +38h render surface, whose material effects 0x158870 reads)	observed
+0x001b1840	vostok::render::stage_postprocess::is_not_motion_vector_surface [descriptive]	entry ESP+4	a pointer to a byte: 1 for the G-buffer list (scene view +84ACh, 0x1B1D2E), which keeps the skinned; 0 for the moved models' list (+494h, 0x1B1D90), which keeps the rest	observed
+0x000396c0	vostok::collision::loose_oct_tree::unmove_all	ECX	the tree (vtable 0x9DE254, slot +34h)	observed

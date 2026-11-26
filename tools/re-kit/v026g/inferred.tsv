@@ -123,7 +123,6 @@ va	status	ref_021d	name
 0x000393b0	inferred-medium	0x0002a0cb	vostok::collision::loose_oct_tree::loose_oct_tree
 0x00039420	inferred-high	0x0002a129	vostok::collision::loose_oct_tree::`scalar deleting destructor'
 0x00039450	inferred-medium	0x0002a153	vostok::collision::loose_oct_tree::remove_nodes
-0x000396c0	inferred-medium	0x0002a30a	vostok::collision::loose_oct_tree::unmove_all
 0x0003a540	inferred-medium	0x0002af41	vostok::collision::loose_oct_tree::for_each
 0x0003a600	inferred-medium	0x0002af90	vostok::collision::loose_oct_tree::remove_impl<vostok::collision::remove_helper>
 0x0003ac20	inferred-medium	0x0002b3f7	vostok::collision::aabb_object::aabb_query

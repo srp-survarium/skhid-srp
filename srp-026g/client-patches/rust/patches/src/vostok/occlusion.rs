@@ -87,6 +87,19 @@ impl Drawn {
     fn of(model_foreground: u8, surface_foreground: u8) -> Drawn {
         if model_foreground != 0 || surface_foreground != 0 { Drawn::FirstPerson } else { Drawn::World }
     }
+
+    /// How `surface` is drawn.
+    ///
+    /// # Safety
+    /// `surface` is a live surface of a render pass, its model the
+    /// instance it belongs to.
+    pub(crate) unsafe fn of_surface(surface: raw::RenderSurfaceInstance) -> Drawn {
+        // SAFETY: the caller's; both bytes are the surface's and its model's.
+        unsafe {
+            let model = surface.model().map_or(0, |model| read(model.foreground()));
+            Drawn::of(model, read(surface.foreground()))
+        }
+    }
 }
 
 /// `hiz.model_answer`: a model surface's answer, about to be stored.
@@ -102,9 +115,8 @@ impl ModelAnswer {
         // instance render_forward_models reads the same byte of.
         unsafe {
             let surface = raw::site::hiz_model_answer::surface(ctx)?;
-            let model = surface.model().map_or(0, |model| read(model.foreground()));
             Some(ModelAnswer {
-                drawn: Drawn::of(model, read(surface.foreground())),
+                drawn: Drawn::of_surface(surface),
                 answer: Answer::of(raw::site::hiz_model_answer::answer(ctx)),
             })
         }
