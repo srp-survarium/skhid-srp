@@ -4032,7 +4032,7 @@ st_srp_hud_freeze_round_draw	Remíza. Nové kolo za %1$s s.
 st_srp_hud_freeze_round_lose	Prohrané kolo. Další za %1$s s.
 st_srp_hud_freeze_round_win	Vyhrané kolo. Další za %1$s s.
 st_srp_hud_freeze_standing	V boji: váš tým %1$s — soupeři %2$s
-st_srp_hud_freeze_start	Zmrazování\nSmrtelný zásah zmrazí. Zmraz celý nepřátelský tým a vyhraj kolo.\nStůj 4 s do 2 m od zmrazeného spoluhráče, aby rozmrzl; sám rozmrzne po 2 min.\nVyhrává první tým s 5 vítěznými koly; po vypršení času vyhrává tým, který vede.
+st_srp_hud_freeze_start	Zmrazování\nSmrtelný zásah zmrazí. Zmraz celý nepřátelský tým a vyhraj kolo.\nStůj u zmrazeného spoluhráče, aby rozmrzl.\nVyhrává tým, který první vyhraje 5 kol.
 st_srp_hud_freeze_thawing	Rozmrazování spoluhráče…
 st_srp_hud_freeze_win	Vítězství — pět vyhraných kol.
 st_srp_hud_friend_not_sent	Žádost o přátelství nebyla odeslána

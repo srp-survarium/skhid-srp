@@ -4032,7 +4032,7 @@ st_srp_hud_freeze_round_draw	Rodada empatada. Reiniciando em %1$s s.
 st_srp_hud_freeze_round_lose	Rodada perdida. Próxima rodada em %1$s s.
 st_srp_hud_freeze_round_win	Rodada vencida. Próxima rodada em %1$s s.
 st_srp_hud_freeze_standing	Em combate: sua equipe %1$s — adversários %2$s
-st_srp_hud_freeze_start	Pique-Congela\nUm acerto letal congela. Congele toda a equipe adversária para vencer a rodada.\nFique a até 2 m de um aliado congelado por 4 s para descongelá-lo; sozinho, ele descongela após 2 min.\nA primeira equipe a vencer 5 rodadas ganha; se o tempo acabar, vence a equipe que estiver na frente.
+st_srp_hud_freeze_start	Pique-Congela\nUm acerto letal congela. Congele toda a equipe adversária para vencer a rodada.\nFique ao lado de um aliado congelado para descongelá-lo.\nVence a primeira equipe a ganhar 5 rodadas.
 st_srp_hud_freeze_thawing	Descongelando aliado…
 st_srp_hud_freeze_win	Vitória — cinco rodadas vencidas.
 st_srp_hud_friend_not_sent	Pedido de amizade não enviado
