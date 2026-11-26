@@ -3207,7 +3207,7 @@ st_srp_mode_roulette_mid	FFA: Roleta
 st_srp_mode_team_deathmatch	Mata-Mata em Equipe
 st_srp_mouse_lock_option	Travar sensibilidade vertical
 st_srp_mouse_vertical_option	Sensibilidade vertical
-st_srp_muzzle_slot	Dispositivo de boca
+st_srp_muzzle_slot	Disp. de boca
 st_srp_no_muzzle_flash	Sem clarão
 st_srp_optics	Óptica
 st_srp_options_hud	HUD:
