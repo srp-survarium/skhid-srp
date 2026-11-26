@@ -3621,7 +3621,12 @@ impl LipAsk {
             full,
             kept,
             margin: margin.to_bits(),
-            client: client.map(|(at, level)| (at, level.to_bits())),
+            // [lip client memo] The forecast reads no time while no jump is under way (no clip arc, the client's body not flying, no
+            // press due, `air_until` 0), as the view's ask has it (no `known_at`): there the estimate's time is left out of the key.
+            client: client.map(|(at, level)| {
+                let timeless = !at.in_jump() && at.air_until == 0;
+                (body::Estimate { time: if timeless { 0 } else { at.time }, ..at }, level.to_bits())
+            }),
         }
     }
 }

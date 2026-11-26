@@ -310,15 +310,54 @@ const REST_PUT_OVER_M: f32 = 0.05;
 /// on) or the grid keeps no client walker. Where the walker-ground ray down the body's axis finds no ground, this says whether the
 /// body stands there all the same: on a rim past which the axis looks into the gap, on a face too steep for the ray's normal test
 /// with ground about it, or on ground over the ray's start (exe-checked, 13 points, 2026-11-26).
+///
+/// [lip client rest cache] The rest is made at the point snapped to [`REST_SNAP_M`] (its place and `top`), on a hit and on a miss alike,
+/// so the answer depends only on the snapped key: the cache ([`REST_CACHE`]) only keeps the answer for the next ask of that key. A rest
+/// depends on the grid's shapes alone, so a grid's answers stay valid for as long as it lives.
 pub(crate) fn client_rest_at(grid: &WalkGrid, at: Vec3, top: f32) -> Option<Vec3> {
     if !grid.has_client_walker() {
         return None;
     }
-    let feet = Vec3::new(at.x, top + REST_PUT_OVER_M - client_body::PUT_OVER_M, at.z);
+    let snap = |v: f32| (v / REST_SNAP_M).round() as i32;
+    let ends = |n: usize| grid.position(n as NodeId).to_array().map(f32::to_bits);
+    let id = (std::ptr::from_ref(grid) as usize, grid.len(), ends(0), ends(grid.len().saturating_sub(1)));
+    let key = (id, snap(at.x), snap(at.z), snap(top));
+    if let Some(rest) = REST_CACHE.with_borrow(|c| c.get(&key).copied()) {
+        margin_walk_offs::rest_hit();
+        return rest;
+    }
+    let back = |k: i32| k as f32 * REST_SNAP_M;
+    let feet = Vec3::new(back(key.1), back(key.3) + REST_PUT_OVER_M - client_body::PUT_OVER_M, back(key.2));
     let started = std::time::Instant::now();
     let rest = client_body::ClientBody::at_rest(&super::client_walker::GridWalker(grid), feet, 0.0).map(|b| b.feet());
     margin_walk_offs::rest_made(started.elapsed());
+    REST_CACHE.with_borrow_mut(|c| {
+        if c.len() >= REST_CACHE_MAX {
+            c.clear();
+        }
+        c.insert(key, rest);
+    });
     rest
+}
+
+/// [lip client rest cache] The lattice the rest points are snapped to, m: a point moves 3.5 cm at most, against the margin's 0.3 m.
+const REST_SNAP_M: f32 = 0.05;
+
+/// [lip client rest cache] At most this many answers a thread; then the cache starts again (the answers are the same either way).
+const REST_CACHE_MAX: usize = 1 << 18;
+
+thread_local! {
+    /// [lip client rest cache] The rests made on this thread, by the grid (its address, floors, and its first and last floors' places,
+    /// bit for bit: another grid at a freed one's address does not match) and the snapped x, z and top. [`clear_rests`] empties it
+    /// when a match's bots are made.
+    #[allow(clippy::type_complexity)]
+    static REST_CACHE: std::cell::RefCell<std::collections::HashMap<((usize, usize, [u32; 3], [u32; 3]), i32, i32, i32), Option<Vec3>>> =
+        std::cell::RefCell::new(std::collections::HashMap::new());
+}
+
+/// [lip client rest cache] Empties this thread's cache of rests ([`client_rest_at`]).
+pub(crate) fn clear_rests() {
+    REST_CACHE.with_borrow_mut(std::collections::HashMap::clear);
 }
 
 /// [A388 step 2] What a ground step whose kept controller left the ground does ([`kept_off_ground`]).
@@ -532,6 +571,18 @@ pub(crate) mod margin_walk_offs {
     static RESTS: AtomicU64 = AtomicU64::new(0);
     static REST_NS: AtomicU64 = AtomicU64::new(0);
     static REST_MAX_NS: AtomicU64 = AtomicU64::new(0);
+
+    static REST_HITS: AtomicU64 = AtomicU64::new(0);
+
+    /// [lip client rest cache] A rest answered from the cache ([`super::client_rest_at`]).
+    pub(crate) fn rest_hit() {
+        REST_HITS.fetch_add(1, Relaxed);
+    }
+
+    /// The rests answered from the cache since the last call, and zero again.
+    pub(crate) fn take_rest_hits() -> u64 {
+        REST_HITS.swap(0, Relaxed)
+    }
 
     /// [lip client rest] One client body put at rest at a margin point ([`super::client_rest_at`]) and its wall time.
     pub(crate) fn rest_made(took: std::time::Duration) {
@@ -5386,6 +5437,28 @@ pub(super) mod tests {
         let at = track.estimate().unwrap();
         assert!(at.feet.y.abs() < 0.01 && at.feet.x - from.x > 2.0 && top > 0.5, "landed ahead: top {top}, {from:?} -> {at:?}");
         assert_eq!(at.fall, Fall::Ground);
+    }
+
+    /// [lip client rest cache] A rest's answer depends only on its snapped key: two points in one 5 cm cell, asked in either order and
+    /// with the cache emptied or not, get the rest made at the snapped point itself.
+    #[test]
+    fn a_rest_is_made_at_the_snapped_point_on_a_hit_and_a_miss() {
+        let triangles = floor(0.0, 0.0, 20.0, 10.0, 0.0).to_vec();
+        let grid = WalkGrid::build(&triangles, [0.0, 0.0, 20.0, 10.0], 0.25, Body::default()).with_client_walker(&triangles);
+        let snapped = Vec3::new(5.0, 0.0, 5.0);
+        let direct = client_body::ClientBody::at_rest(
+            &super::super::client_walker::GridWalker(&grid),
+            Vec3::new(snapped.x, REST_PUT_OVER_M - client_body::PUT_OVER_M, snapped.z),
+            0.0,
+        )
+        .map(|b| b.feet());
+        assert!(direct.is_some(), "a body comes to rest on the floor");
+        clear_rests();
+        let a = client_rest_at(&grid, Vec3::new(5.012, 0.0, 4.989), 0.004);
+        let b = client_rest_at(&grid, Vec3::new(4.981, 0.0, 5.021), -0.006);
+        clear_rests();
+        let c = client_rest_at(&grid, Vec3::new(4.981, 0.0, 5.021), -0.006);
+        assert_eq!((a, b, c), (direct, direct, direct));
     }
 
     /// [lip client] The lip guard's stop forecast from the reckoned estimate (`Bot::reckoned`, a client body) is the reckoning's own
