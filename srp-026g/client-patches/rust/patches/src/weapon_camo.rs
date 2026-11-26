@@ -46,6 +46,18 @@ pub fn on_own_camouflage(ctx: &mut Context<'_>) -> Flow<WeaponCamoOnOwnCamouflag
     }
 }
 
+/// Register the per-surface texture coordinates when the renderer creates its gbuffer stage.
+pub fn on_register_bake_coordinates(ctx: &mut Context<'_>) -> Flow<NoExit> {
+    crate::vostok::render_stage::register_bake_coordinates(ctx);
+    Flow::Continue
+}
+
+/// A texture uses the decal atlas as soon as the native baker supplies that channel.
+pub fn on_draw_surface(ctx: &mut Context<'_>) -> Flow<NoExit> {
+    crate::vostok::render_stage::set_bake_coordinates(ctx);
+    Flow::Continue
+}
+
 /// `weapon_camo.bake_name`: patch 44 is about to ask for one surface's bake.
 pub fn on_bake_name(ctx: &mut Context<'_>) -> Flow<NoExit> {
     if let Some(bake) = WeaponBake::at(ctx) {

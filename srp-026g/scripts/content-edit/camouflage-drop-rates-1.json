@@ -1,0 +1,14 @@
+{
+ "_about": "Match and drop-card rewards (drop_card_drop) with all categories available: 15% camouflage, 10% decals, 37.5% armour and 37.5% weapons. Camouflage and decals are separate groups, so the server can skip a category once the player owns all its eligible items. generic_drop is left as it is: the server rolls no item from it (it reads only its rarity_points).",
+ "set": [
+  {"file": "gameplay/drops/drops.options", "path": "drop_card_drop/item_category_probabilities[0]/drop_weight", "from": 40, "to": 20},
+  {"file": "gameplay/drops/drops.options", "path": "drop_card_drop/item_category_probabilities[1]/drop_weight", "from": 30, "to": 75},
+  {"file": "gameplay/drops/drops.options", "path": "drop_card_drop/item_category_probabilities[2]/drop_weight", "from": 30, "to": 75}
+ ],
+ "remove_item": [
+  {"file": "gameplay/drops/drops.options", "path": "drop_card_drop/item_category_probabilities[0]/categories", "value": 25}
+ ],
+ "append_entry": [
+  {"file": "gameplay/drops/drops.options", "list": "drop_card_drop/item_category_probabilities", "expected_count": 3, "unique_key": null, "value": {"categories": [25], "drop_weight": 30}}
+ ]
+}

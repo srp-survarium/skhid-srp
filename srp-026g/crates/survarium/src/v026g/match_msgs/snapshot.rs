@@ -1644,14 +1644,11 @@ impl Decoded<'_> {
         // A free-for-all has no teams' standing: its players rank by the kd
         // rule's kills.
         if game_mode == RuleMode::FreezeTag {
+            // The leader by round wins, as the game's statistics have it: a match won at the
+            // wins, and one the time limit ends (`FreezeTag::leader`), even a draw.
             let rule = self.rules.as_ref()?.freeze_tag.as_ref()?;
-            // A team at the wins has won, in its last round's 3 s too (a match the time limit ends
-            // then).
-            let at_goal = [srp_validate::Team::First, srp_validate::Team::Second]
-                .into_iter()
-                .find(|team| rule.points_of(*team) == u16::from(srp_validate::world::freeze::WINS));
-            let winner = rule.winner().or(at_goal);
-            return Some(Standing { points: rule.points(), winner: winner.map_or(2, |team| team.index() as u8) });
+            let winner = rule.leader().map_or(rules::DRAW, |team| team.index() as u8);
+            return Some(Standing { points: rule.points(), winner });
         }
         if game_mode == RuleMode::FreeForAll {
             return None;
@@ -2874,6 +2871,14 @@ mod tests {
         let rules = Rules { freeze_tag: Some(freeze), ..rules };
         let decoded = Rules::decode(&rules.to_bytes(), TIME, 2, RuleMode::FreezeTag, 0).unwrap();
         assert_eq!(decoded.freeze_tag.map(|rule| rule.round_starts()), Some(2));
+        // The standing is the leader by round wins: the time limit ending the match at 1:0, not
+        // at five, still gives it to the first team.
+        let mut statistics = player_bytes();
+        statistics.extend(EMPTY_PLAYER);
+        statistics.extend([1, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0]);
+        let whole = body(&statistics, &rules.to_bytes());
+        let decoded = decode(TIME, &whole, 2, RuleMode::FreezeTag, 0).unwrap();
+        assert_eq!(decoded.standing(RuleMode::FreezeTag, &[0, 1]), Some(Standing { points: [1, 0], winner: 0 }));
     }
 
     #[test]
