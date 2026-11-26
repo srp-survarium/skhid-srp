@@ -66,7 +66,18 @@ const EFFECTS: [LegEffect; 13] = [
     LegEffect::Quarter { kind: Kind::Onyx, nth: 3 },
     LegEffect::Quarter { kind: Kind::Onyx, nth: 4 },
 ];
-const NAMES: [&CStr; 13] = [
+// The glow is rendered at 8-bit intensity. Counts 21..23 round to 2/255,
+// 24..27 to 1/255 and all later uses to zero. Combat keeps its float power.
+const GLOW_LEVELS: usize = 23;
+const WORN_COUNT: usize = 3 * GLOW_LEVELS;
+const fn glow_name(bytes: &'static [u8]) -> &'static CStr {
+    match CStr::from_bytes_with_nul(bytes) {
+        Ok(name) => name,
+        Err(_) => panic!("invalid glow resource name"),
+    }
+}
+macro_rules! glow_names {
+    ($($level:literal),+) => { [
     c"forest_protection",
     c"artefact_leg_spring_1",
     c"artefact_leg_spring_2",
@@ -80,7 +91,27 @@ const NAMES: [&CStr; 13] = [
     c"artefact_leg_onyx_2",
     c"artefact_leg_onyx_3",
     c"artefact_leg_onyx_4",
-];
+        $(glow_name(concat!("artefact_spring_wear_", $level, "\0").as_bytes()),)+
+        $(glow_name(concat!("artefact_lifebone_wear_", $level, "\0").as_bytes()),)+
+        $(glow_name(concat!("artefact_onyx_wear_", $level, "\0").as_bytes()),)+
+    ] };
+}
+const NAMES: [&CStr; 13 + WORN_COUNT] = glow_names!(
+    1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 24, 28
+);
+static WORN: GameCell<[Option<KeptEffect>; WORN_COUNT]> = GameCell::new([None; WORN_COUNT]);
+
+pub(crate) fn worn_glow(thread: &Thread, kind: Kind, wear: srp_validate::world::ArtefactWear) -> Option<KeptEffect> {
+    let level = match wear.firing().uses() {
+        0 => return None,
+        uses @ 1..=21 => usize::from(uses) - 1,
+        22..=23 => 20,
+        24..=27 => 21,
+        _ => 22,
+    };
+    let row = match kind { Kind::Spring => 0, Kind::Lifebone => 1, Kind::Onyx => 2 };
+    WORN.get(thread)[row * GLOW_LEVELS + level]
+}
 
 /// Whether this game shows the leg quarters (the owner, 2026-11-07): only to a local player whose
 /// current kit has Artifact Sight (513, its own quarters too), to everyone's game without a local
@@ -240,7 +271,7 @@ pub fn on_tick(ctx: &mut Context<'_>) -> Flow<NoExit> {
     LOAD.set(thread, load);
     match action {
         Action::Ask => {
-            log::line(&[Text("forest_glow: the glows' 13 game effects asked for (none plays until they arrive)")]);
+            log::line(&[Text("forest_glow: the glows' game effects asked for (none plays until they arrive)")]);
             resources::query_effects(thread, &NAMES, crate::vostok::forest_glow_on_loaded_entry());
         }
         Action::Show(kept) => {
@@ -260,7 +291,10 @@ pub fn on_tick(ctx: &mut Context<'_>) -> Flow<NoExit> {
 pub fn on_loaded(results: QueryResults<'_>, tag: QueryTag) {
     let thread = results.thread();
     let arrived = match results.arrived(tag) {
-        Arrived::Effects(kept) => kept.all(),
+        Arrived::Effects(kept) => {
+            WORN.set(thread, core::array::from_fn(|index| kept.get(13 + index)));
+            kept.all()
+        },
         // this callback is only the glow's query's
         Arrived::Bus(_) | Arrived::Track(..) | Arrived::Particles(_) | Arrived::Assets(_) => return,
     };
@@ -270,7 +304,7 @@ pub fn on_loaded(results: QueryResults<'_>, tag: QueryTag) {
         Action::Report => {
             log::line(&[Text("forest_glow: a game effect of the glows did not load; no glow this session")]);
         }
-        Action::Arrived => log::line(&[Text("forest_glow: the glows' 13 game effects arrived")]),
+        Action::Arrived => log::line(&[Text("forest_glow: the glows' game effects arrived")]),
         _ => {}
     }
 }

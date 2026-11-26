@@ -503,10 +503,10 @@ Bring it to your own base: 1 point, and the round ends.	Donesite ga u svoju bazu
 The carrier is slower and seen by everyone.	Nosilac je sporiji i svi ga vide.
 Respawn in waves every {0} s.	Oživljavanje u talasima na svakih {0} s.
 Time limit {0}: the higher score wins; a tie plays {1} of sudden death without respawns.	Vremensko ograničenje {0}: pobeđuje veći rezultat; kod nerešenog {1} iznenadne smrti bez oživljavanja.
-Sniper rifles, silenced guns and guns without automatic fire are replaced.	Snajperske puške, oružje sa prigušivačem i oružje bez automatske paljbe se zamenjuju.
-Rooms up to level {0}: {1}.	Sobe do nivoa {0}: {1}.
-Other rooms: {0}.	Ostale sobe: {0}.
-Sight: {0}.	Nišan: {0}.
+Everyone fights with an assault rifle: sniper rifles, silenced guns and guns without automatic fire are swapped for an {0} (rooms up to level {1}) or an {2} (higher rooms).	Svi se bore jurišnim puškama: snajperske puške, oružje s prigušivačem i oružje bez automatske paljbe zamenjuju se sa {0} (sobe do nivoa {1}) ili {2} (više sobe).
+Each comes with an {0}.	Svaka ima {0}.
+a revolver	revolver
+a lever-action rifle	puška sa polužnim zatvaračem
 Every kit: {0} only.	Svaki komplet: samo {0}.
 Every kit: {0} and {1}.	Svaki komplet: {0} i {1}.
 Everyone plays the same {0} random kits.	Svi igraju iste {0} nasumične komplete.
@@ -966,3 +966,37 @@ deadly	smrtonosno
 {n} % a second	{n} % u sekundi
 Damage is a share of each body part's health, before armour.	Šteta je udeo zdravlja svakog dela tela, pre oklopa.
 It gives no artefacts.	Ne daje artefakte.
+
+# The stats' Maps and Modes boards.
+Last 7 days	Poslednjih 7 dana
+Last 24 hours	Poslednja 24 sata
+Avg length	Prosečno trajanje
+Sides	Strane
+No result	Bez rezultata
+Share	Udeo
+Trend	Kretanje
+by hour	po satima
+by day	po danima
+by week	po nedeljama
+Most played maps and modes	Najigranije mape i režimi
+
+# The modes and weathers as the game names them (client-patches/localization: the stats' Maps and Modes boards, the match lists).
+Protective device	Zaštitni uređaj
+Protective device: chargers	Zaštitni uređaj: punjači
+Team Deathmatch	Timska eliminacija
+Research	Istraživanje
+Protective device: blackout	Zaštitni uređaj: zamračenje
+Free for all	Svako protiv svakoga
+Freeze Tag	Zamrzavanje
+Artifact Hunt	Lov na artefakt
+FFA: Racket	FFA: Galama
+FFA: Saloon	FFA: Salun
+FFA: Saloon (Winchester)	FFA: Salun (Winchester)
+Mode {0}	Režim {0}
+day	dan	weather
+rain	kiša	weather
+evening	veče	weather
+night	noć	weather
+before rain	pred kišu	weather
+Weathers	Vreme
+Variants	Varijante

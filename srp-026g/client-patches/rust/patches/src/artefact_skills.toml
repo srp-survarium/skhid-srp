@@ -97,3 +97,47 @@ order = 2
 site = "world_load.loaded"
 handler = "on_world_loaded"
 order = 2
+
+[[hook]]
+site = "artefact.wear_init"
+handler = "on_wear_init"
+
+[[hook]]
+site = "artefact.wear_spawn"
+handler = "on_wear_spawn"
+
+[[hook]]
+site = "artefact.wear_save"
+handler = "on_wear_save"
+
+[[hook]]
+site = "artefact.wear_load"
+handler = "on_wear_load"
+
+[[hook]]
+site = "artefact.wear_use"
+handler = "on_wear_use"
+
+[[hook]]
+site = "artefact.onyx_passive"
+handler = "on_onyx_passive"
+
+[[hook]]
+site = "artefact.onyx_active"
+handler = "on_onyx_active"
+
+[[hook]]
+site = "artefact.heal_amount"
+handler = "on_heal_amount"
+
+[[hook]]
+site = "artefact.wear_glow"
+handler = "on_wear_glow"
+
+[[hook]]
+site = "artefact.fall"
+handler = "on_fall"
+
+[[hook]]
+site = "artefact.fatal_fall"
+handler = "on_fatal_fall"

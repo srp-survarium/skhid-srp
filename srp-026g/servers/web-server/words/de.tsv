@@ -503,10 +503,10 @@ Bring it to your own base: 1 point, and the round ends.	Bring es zur eigenen Bas
 The carrier is slower and seen by everyone.	Der Träger ist langsamer und für alle sichtbar.
 Respawn in waves every {0} s.	Respawn in Wellen alle {0} s.
 Time limit {0}: the higher score wins; a tie plays {1} of sudden death without respawns.	Zeitlimit {0}: der höhere Stand gewinnt; bei Gleichstand {1} Sudden Death ohne Respawn.
-Sniper rifles, silenced guns and guns without automatic fire are replaced.	Scharfschützengewehre, schallgedämpfte Waffen und Waffen ohne Dauerfeuer werden ersetzt.
-Rooms up to level {0}: {1}.	Räume bis Stufe {0}: {1}.
-Other rooms: {0}.	Andere Räume: {0}.
-Sight: {0}.	Visier: {0}.
+Everyone fights with an assault rifle: sniper rifles, silenced guns and guns without automatic fire are swapped for an {0} (rooms up to level {1}) or an {2} (higher rooms).	Alle kämpfen mit Sturmgewehren: Scharfschützengewehre, schallgedämpfte Waffen und Waffen ohne Dauerfeuer werden durch ein {0} (Räume bis Stufe {1}) oder ein {2} (höhere Räume) ersetzt.
+Each comes with an {0}.	Jedes hat ein {0}.
+a revolver	ein Revolver
+a lever-action rifle	ein Unterhebelrepetierer
 Every kit: {0} only.	Jedes Kit: nur {0}.
 Every kit: {0} and {1}.	Jedes Kit: {0} und {1}.
 Everyone plays the same {0} random kits.	Alle spielen dieselben {0} zufälligen Kits.
@@ -966,3 +966,37 @@ deadly	tödlich
 {n} % a second	{n} % pro Sekunde
 Damage is a share of each body part's health, before armour.	Schaden ist ein Anteil der Gesundheit jedes Körperteils, vor der Rüstung.
 It gives no artefacts.	Sie gibt keine Artefakte.
+
+# The stats' Maps and Modes boards.
+Last 7 days	Letzte 7 Tage
+Last 24 hours	Letzte 24 Stunden
+Avg length	Ø Dauer
+Sides	Seiten
+No result	Kein Ergebnis
+Share	Anteil
+Trend	Verlauf
+by hour	nach Stunden
+by day	nach Tagen
+by week	nach Wochen
+Most played maps and modes	Meistgespielte Karten und Modi
+
+# The modes and weathers as the game names them (client-patches/localization: the stats' Maps and Modes boards, the match lists).
+Protective device	Schutzeinrichtung
+Protective device: chargers	Schutzeinrichtung: Ladestationen
+Team Deathmatch	Kommandokampf
+Research	Forschung
+Protective device: blackout	Schutzeinrichtung: Blackout
+Free for all	Jeder gegen jeden
+Freeze Tag	Fang den Frost
+Artifact Hunt	Artefaktsuche
+FFA: Racket	FFA: Radau
+FFA: Saloon	FFA: Saloon
+FFA: Saloon (Winchester)	FFA: Saloon (Winchester)
+Mode {0}	Modus {0}
+day	Tag	weather
+rain	Regen	weather
+evening	Abend	weather
+night	Nacht	weather
+before rain	vor dem Regen	weather
+Weathers	Wetter
+Variants	Varianten

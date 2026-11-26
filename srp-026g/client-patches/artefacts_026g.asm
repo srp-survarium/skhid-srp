@@ -34,6 +34,7 @@
 BITS 32
 global artefacts_loader, artefacts_link, artefacts_unlink, artefacts_lifebone, artefacts_fire
 global artefacts_stagger, artefacts_onyx, artefacts_popup, artefacts_link_passive, artefacts_unlink_passive
+extern artefact_skills_on_heal_amount
 extern medical_skills_on_stopping  ; patch 94's generated entry (rust_patches.md, `entry`)
 extern artefact_skills_on_spring_reload  ; patch 109's (cdecl: the Spring)
 extern artefact_skills_on_fire  ; patch 109's (cdecl: the artefact, its fires in/out)
@@ -326,6 +327,7 @@ lifebone_active:
     xorps xmm1, xmm1
     comiss xmm0, xmm1
     jbe .next
+    call artefact_skills_on_heal_amount
     sub esp, 4
     movss [esp], xmm0
     push dword [esp+0x38]          ; the time (pushad 20h + 14h, the amount's 4)

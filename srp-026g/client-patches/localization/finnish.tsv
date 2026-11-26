@@ -2079,7 +2079,7 @@ st_on_spawn_victory_artefact	Artefakti on ilmestynyt
 st_on_spawn_victory_item	Akku on ladattu! Vie se tukikohtaasi.
 st_one_handed	Toissijainen
 st_online_store	Osta kultaa
-st_onyx_activation_hint	Onyksi aktivoitu! Vähentää osuvien luotien vahinkoa ja panssarinläpäisyä 75% ajaksi %s s.
+st_onyx_activation_hint	Onyksi aktivoitu! Osuvien luotien vahinko ja panssarinläpäisy pienenevät %s sekunniksi.
 st_onyx_pickup_hint	Onyksi-artefakti. Vähentää pelaajaan osuvien luotien vahinkoa ja panssarinläpäisyä 5%.
 st_open	Avaa
 st_options_2taa	2xTAA
@@ -2684,7 +2684,7 @@ st_special_offer	Erikoistarjous
 st_speed_booster_description	Energiajuoma, jossa on kofeiinia ja tauriinia. Virkistää ja stimuloi keskushermostoa.
 st_speed_booster_name	Tornado-energiajuoma
 st_spot_action	Vihollinen havaittu
-st_spring_activation_hint	Jousi aktivoitu! Liike- ja tähtäysnopeus +10%. Energia palautuu nopeammin! Luodit eivät hidasta sinua!
+st_spring_activation_hint	Jousi aktivoitu! Liikut ja tähtäät nopeammin, energia palautuu nopeammin ja luodit hidastavat sinua vähemmän.
 st_spring_pickup_hint	Jousi-artefakti. Lisää liike- ja tähtäysnopeutta 5%.
 st_sprint_action	Sprinttaa (pidä)
 st_sprint_toggle_action	Sprintti 
@@ -3015,6 +3015,7 @@ st_srp_hit_markers_kill	Vain tappomerkki
 st_srp_hud_add_friend	Lisää kaveriksi
 st_srp_hud_artefact_hunt_carrying	Kannat artefaktia
 st_srp_hud_artefact_hunt_sudden_death	Äkkikuolema
+st_srp_hud_artefact_wear	Artefakti heikkeni. Passiivisen vaikutuksen ja seuraavan aktivoinnin teho on %1$s.
 st_srp_hud_blackout_intro	Blackout: tuo akkuja joukkueesi laitteelle. Käyttöliittymä ja osumamerkit on piilotettu eläytymisen vuoksi. Pidä Tab pohjassa: ammukset, terveys, chat; kuolleena varustesarjan valinta.
 st_srp_hud_blackout_start	Blackout\nTuo akkuja joukkueesi laitteelle.\nKäyttöliittymä ja osumamerkit on piilotettu. Pidä Tab pohjassa nähdäksesi ammukset ja terveyden.
 st_srp_hud_freeze_draw	Tasapeli

@@ -413,13 +413,32 @@ pub(crate) fn mode_name(lang: Lang, map: &maps::MapMode) -> String {
     }
 }
 
-/// A mode as the lobby calls it, a free-for-all's twist too: the text the
-/// rooms name it by ([`LobbyMode::name_key`]). Without one, its number.
+/// A mode as the lobby calls it, a free-for-all's twist too, in the site's own
+/// words: the game's texts the rooms name it by ([`LobbyMode::name_key`],
+/// `client-patches/localization`), so that it never hangs on the game data
+/// having them (the owner, 2026-11-26: the stats said "mode 2").
 pub(crate) fn lobby_mode_name(lang: Lang, mode: LobbyMode) -> String {
-    match localization::text(game_language(lang), mode.name_key()) {
-        Some(name) => name.to_owned(),
-        None => lang.tf("mode {0}", &[("0", &mode.number())]),
+    use survarium::v026g::cowboy::Variation;
+    use survarium::v026g::maps::GameMode;
+    match mode {
+        LobbyMode::Plain(GameMode::Batteries) => lang.t("Protective device"),
+        LobbyMode::Plain(GameMode::TimedBatteries) => lang.t("Protective device: chargers"),
+        LobbyMode::Plain(GameMode::TeamDeathmatch) => lang.t("Team Deathmatch"),
+        LobbyMode::Plain(GameMode::Research) => lang.t("Research"),
+        LobbyMode::Plain(GameMode::Blackout) => lang.t("Protective device: blackout"),
+        LobbyMode::Plain(GameMode::FreeForAll) => lang.t("Free for all"),
+        LobbyMode::Plain(GameMode::FreezeTag) => lang.t("Freeze Tag"),
+        LobbyMode::Plain(GameMode::ArtefactHunt) => lang.t("Artifact Hunt"),
+        LobbyMode::Racket => lang.t("FFA: Racket"),
+        LobbyMode::Cowboy(Variation::Colt) => lang.t("FFA: Saloon"),
+        LobbyMode::Cowboy(Variation::WinchesterAndColt) => lang.t("FFA: Saloon (Winchester)"),
+        LobbyMode::Roulette(_) => lang.t("FFA: Roulette"),
     }
+}
+
+/// A mode the history keeps by a lobby number srp no longer knows.
+pub(crate) fn unknown_mode_name(lang: Lang, number: u8) -> String {
+    lang.tf("Mode {0}", &[("0", &number)])
 }
 
 /// The matches' tab: a line for each match that is not over, the oldest

@@ -14,6 +14,8 @@ package survarium.controls
    import survarium.constants.Colors;
    import survarium.core.Icon;
    
+   import survarium.data.LocalizationData;
+
    public class QuickItemRenderer extends DragSlot implements IListItemRenderer
    {
       
@@ -283,7 +285,11 @@ package survarium.controls
                   _lastCount = _data.count;
                   _lastId = _data.icon_id;
                }
-               if(_data.count > 1 && _data.enabled)
+               if(_data.wearPower != undefined && _data.is_artefact)
+               {
+                  this.count.text = _data.previousPower ? _data.previousPower + " → " + _data.wearPower : _data.wearPower;
+               }
+               else if(_data.count > 1 && _data.enabled)
                {
                   this.count.text = "x" + _data.count;
                }

@@ -99,13 +99,15 @@
 //!                        three kits with a player object
 //!   when that kit has a player: u8 m_slot_id, its inventory slot, an
 //!                        artefact slot 13..18 ([`ArtefactSlot`])
-//!   u8   m_state         0 free, 1 spawning in a container, 2 ready in
-//!                        it, 3 taken, 4 active, 5 (below); no other
+//!   u8   wear << 3 | m_state for 0..31 uses, else FF, u16 use count, u8 m_state
+//!                        0 free, 1 spawning in a container, 2 ready in
+//!                        it, 3 taken, 4 active, 5 disabled, 6 dropped
 //!   1, 2: u8 m_container_id; 1: u32 m_time_left_to_spawn
 //!   else: u32 m_time_left_to_cool
 //!   4: u32 reached       client patch 109's, written at 0x313735 and read
 //!                        at 0x3137EC: the places Cascade's activation of
 //!                        the copy reached ([`Places`]: no bit past the 20)
+//!   6: 20 bytes of ground release (origin, floor and release time) or all FF
 //!   u32  m_last_activation_time_ms
 //!   4: what its core saves of its own, by its item's data.type (the
 //!   artefact cook's switch 0x2EE95F):
@@ -1183,6 +1185,8 @@ pub enum ArtefactState {
     },
     /// 5: its holder's player down (LIKELY, the module doc).
     Disabled { time_left_to_cool: u32 },
+    /// 6: patch 78's ground copy. A missing release is saved as twenty FF bytes.
+    Dropped { time_left_to_cool: u32, release: Option<artefact_carry::ground::Drop> },
 }
 
 /// The `m_state` byte, before what its state saves.
@@ -1194,6 +1198,7 @@ enum StateByte {
     Taken,
     Active,
     Disabled,
+    Dropped,
 }
 
 impl StateByte {
@@ -1205,6 +1210,7 @@ impl StateByte {
             3 => StateByte::Taken,
             4 => StateByte::Active,
             5 => StateByte::Disabled,
+            6 => StateByte::Dropped,
             _ => return None,
         })
     }
@@ -1214,6 +1220,7 @@ impl StateByte {
 /// active, its core's own.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct ArtefactBase {
+    wear: super::ArtefactWear,
     amount: u16,
     owner: Option<Owner>,
     state: ArtefactState,
@@ -1265,8 +1272,21 @@ impl ArtefactBase {
         let cooling = |reader: &mut Reader| -> Result<(u32, u32), ObjectFault> {
             Ok((reader.u32()?, reader.u32()?))
         };
+        let at = reader.at();
+        let tag = reader.u8()?;
+        let (raw_state, wear) = if tag == super::ArtefactWear::EXTENDED {
+            let wear = super::ArtefactWear::new(reader.u16()?);
+            let state = reader.u8()?;
+            if wear.inline(state).is_some() {
+                return Err(ObjectFault::Value { at, field: "extended artefact wear", value: tag });
+            }
+            (state, wear)
+        } else { super::ArtefactWear::from_inline(tag) };
+        let state_byte = StateByte::of(raw_state).filter(|state|
+            !matches!(state, StateByte::Spawning | StateByte::Ready) || wear == super::ArtefactWear::FRESH
+        ).ok_or(ObjectFault::Value { at, field: "artefact m_state", value: raw_state })?;
         let (state, last_activation_time_ms) =
-            match byte(reader, "artefact m_state", StateByte::of)? {
+            match state_byte {
                 StateByte::Free => {
                     let (time_left_to_cool, last) = cooling(reader)?;
                     (ArtefactState::Free { time_left_to_cool }, last)
@@ -1303,6 +1323,17 @@ impl ArtefactBase {
                     };
                     (state, last)
                 }
+                StateByte::Dropped => {
+                    let time_left_to_cool = reader.u32()?;
+                    let at = reader.at();
+                    let bytes = reader.array::<20>()?;
+                    let release = if bytes == [0xff; 20] { None } else {
+                        Some(artefact_carry::ground::Drop::restore(bytes).ok_or(ObjectFault::Value {
+                            at, field: "artefact ground release", value: raw_state,
+                        })?)
+                    };
+                    (ArtefactState::Dropped { time_left_to_cool, release }, reader.u32()?)
+                }
                 StateByte::Disabled => {
                     let (time_left_to_cool, last) = cooling(reader)?;
                     (ArtefactState::Disabled { time_left_to_cool }, last)
@@ -1310,11 +1341,14 @@ impl ArtefactBase {
             };
         Ok(Self {
             amount,
+            wear,
             owner,
             state,
             last_activation_time_ms,
         })
     }
+
+    pub fn wear(&self) -> super::ArtefactWear { self.wear }
 
     /// `m_amount`.
     pub fn amount(&self) -> u16 {
@@ -2129,6 +2163,29 @@ mod tests {
         ));
         let ArtefactState::Active { reached, .. } = cores[0] else { panic!("active") };
         assert_eq!(reached.iter().map(Place::get).collect::<Vec<_>>(), [0, 19]);
+        // Replace the first active state byte only. Old, inline and extended
+        // wear all leave the core and the following artefact in the right place.
+        for (count, encoded) in [(0, std::vec![4]), (5, std::vec![44]), (31, std::vec![252]),
+                                 (32, std::vec![255, 32, 0, 4]), (256, std::vec![255, 0, 1, 4])] {
+            let mut saved = bytes.clone();
+            saved.splice(artefacts + 3..artefacts + 4, encoded);
+            assert_eq!(reason(&LIST, &saved), None);
+            let parsed = GameObjects::read(&section(&saved), &LIST).unwrap();
+            let Some(GameObject::Anomaly(anomaly)) = parsed.objects().last() else { panic!("anomaly") };
+            let copy = anomaly.artefacts().unwrap().artefacts().next().unwrap();
+            assert_eq!(copy.wear().uses(), count);
+            assert_eq!(copy.state(), cores[0]);
+        }
+        let mut ground = bytes.clone();
+        let mut dropped = std::vec![255, 32, 0, 6];
+        dropped.extend([0; 4]); // cooldown
+        dropped.extend([255; 20]); // no release
+        dropped.extend([0; 4]); // previous activation time
+        ground.splice(artefacts + 3..artefacts + active(8).len(), dropped);
+        assert_eq!(reason(&LIST, &ground), None);
+        let first = artefacts + 3;
+        ground[first + 1] = 0;
+        assert_eq!(field(&LIST, &ground), Some("extended artefact wear"));
         // A place past the 20: its byte named.
         for (nth, byte) in [(2, 0x10), (3, 0x01)] {
             let mut bad = bytes.clone();
@@ -2166,7 +2223,8 @@ mod tests {
             (artefact + 4, 12, "m_slot_id"),
             (artefact + 4, 19, "m_slot_id"),
             (artefact + 4, 200, "m_slot_id"),
-            (artefact + 5, 6, "artefact m_state"),
+            (artefact + 5, 7, "artefact m_state"),
+            (artefact + 5, 1 | 1 << 3, "artefact m_state"),
         ] {
             assert_eq!(field(&LIST, &mutate(offset, byte)), Some(name), "{name}");
         }
