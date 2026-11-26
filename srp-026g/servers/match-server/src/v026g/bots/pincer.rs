@@ -24,9 +24,12 @@
 //! - **The hold** (`Reflex::hold_for_pincer`): each stands at its stage looking at the centre until the other is there, at most
 //!   [`HOLD_CAP_MS`] (the p90 of the walks' time error), and lets go at once when hit, fighting, or when its own senses notice an
 //!   enemy. No hold when the round has less time left than the cap.
-//! - **The fall-backs.** No free stage, or the two stages more than the cap apart in time, or the walker's route to its stage with
-//!   more leaps or ledge metres than the teammate's: the walk goes as the lane draw has it (with the teammate's lane: shared, in
-//!   its cover). A hold that ends without the teammate: the walk goes on alone.
+//! - **The flank's caps.** The flank (its route to the stage, then the straight leg in) takes no more leaps and no more metres on
+//!   edge floors ([`ledge_m`]) than the flanker's own plain way to the objective, searched once a pairing ([`PLAIN_WAY_FLOORS`]):
+//!   a second way asks no more jumps, gaps, drops or ledge-walking of the body than the one it would have walked.
+//! - **The fall-backs.** No free stage, or the flank over the band on its own way, or the two stages more than the cap apart in
+//!   time, or the flank over its caps (or its own way not found within the floors): the walk goes as the lane draw has it (with
+//!   the teammate's lane: shared, in its cover). A hold that ends without the teammate: the walk goes on alone.
 
 use mapdata::{NodeId, Vec3, WalkGrid};
 
@@ -50,6 +53,9 @@ pub const HOLD_CAP_MS: u32 = 10_600;
 pub const CLUSTER_M: f32 = 15.0;
 /// The stage's ring is tried at this many bearings.
 const RING: usize = 24;
+/// The floors the flanker's own plain way to the objective is searched over: past the most of the probe's 177 long walks' plain
+/// searches (p50 12,519, p90 24,239, max 33,429); its way not found within them, the pincer is not taken.
+pub const PLAIN_WAY_FLOORS: usize = 40_000;
 /// A walker is at its stage this near it, m (the cloud hold's `HOLD_AT_M`).
 pub const STAGED_M: f32 = 1.5;
 /// The look's height over the objective's centre while holding, m (a standing body's eye).
@@ -174,21 +180,24 @@ pub fn ledge_m(grid: &WalkGrid, route: &super::path::Route) -> f32 {
 /// Where a bot is in its pincer.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Phase {
-    /// Walking to its stage; the length of the route its caps were checked on (`drive`'s `pincer_tick`), none yet.
-    ToStage { checked_m: Option<f32> },
+    /// Walking to its stage; the length of the route its caps were checked on (`drive`'s `pincer_tick`), none yet; and its own plain
+    /// way's leaps and edge metres, searched once a pincer.
+    ToStage { checked_m: Option<f32>, own: Option<(u32, f32)> },
     /// At its stage, holding since then (ms).
     Staged { since: u32 },
     /// Let go: walking in to the objective (or alone, the pincer over).
     In,
 }
 
-/// A bot's pincer: its teammate, its stage, the objective's centre, and its phase.
+/// A bot's pincer: its teammate, its stage, the objective's centre, its phase, and whether it is the flank (the walk that took a
+/// stage off its teammate's bearing; the teammate's stage is on its own route, its way not capped).
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Pincer {
     pub mate: Place,
     pub stage: Vec3,
     pub centre: Vec3,
     pub phase: Phase,
+    pub flank: bool,
 }
 
 /// A walk's state for its team in a pincer ([`super::lane_draw::TeamLanes`]): what its teammate reads.
@@ -233,14 +242,26 @@ pub mod lines {
         format!("{PREFIX}pincer: goes in without b{mate} ({why})")
     }
 
+    /// Its walk in the pincer ended (a new play, no goal, no way, there) with `play` now.
+    pub fn walk_ended(mate: Place, play: Option<super::super::plays::PlayKind>) -> String {
+        format!("{PREFIX}pincer: its walk ended before the stages (play now {play:?}), b{mate} goes alone")
+    }
+
     pub fn joined(mate: Place, stage: Vec3) -> String {
         format!("{PREFIX}pincer: paired by b{mate}: stage ({:.1}, {:.1}) on its own route", stage.x, stage.z)
     }
 
-    pub fn over_caps(mate: Place, leaps: (u32, u32), ledge_m: (f32, f32)) -> String {
+    /// The flank checked against its own plain way: the leaps and edge metres of each, the plain search's floors and time, and the
+    /// verdict.
+    pub fn checked(mate: Place, leaps: (u32, Option<u32>), ledge_m: (f32, Option<f32>), floors: usize, us: u128, kept: bool) -> String {
+        let own = |v: Option<String>| v.unwrap_or_else(|| "-".to_owned());
         format!(
-            "{PREFIX}pincer: with b{mate}: shared (its way to the stage: {} leaps against {}, {:.1} m on edge floors against {:.1}), goes in",
-            leaps.0, leaps.1, ledge_m.0, ledge_m.1
+            "{PREFIX}pincer: with b{mate}: flank {} leaps against its own way's {}, {:.1} m on edge floors against {}; own way searched {floors} floors {us} us: {}",
+            leaps.0,
+            own(leaps.1.map(|l| l.to_string())),
+            ledge_m.0,
+            own(ledge_m.1.map(|m| format!("{m:.1}"))),
+            if kept { "kept" } else { "shared, goes in" }
         )
     }
 }

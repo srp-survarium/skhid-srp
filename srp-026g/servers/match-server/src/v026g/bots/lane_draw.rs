@@ -298,6 +298,8 @@ pub fn number(life_key: u64, goal: Vec3) -> f32 {
 pub struct LaneHold {
     held: Option<Held>,
     pincer: Option<super::pincer::Pincer>,
+    /// [pincer] The goal a pairing was last refused for (shared): not tried again for a goal near it (a new life forgets it).
+    refused: Option<Vec3>,
 }
 
 #[derive(Clone, Debug)]
@@ -351,6 +353,7 @@ impl super::features::Feature for LaneHold {
     fn new_life(&mut self, _life: &super::features::Life) {
         self.held = None;
         self.pincer = None;
+        self.refused = None;
     }
 }
 
@@ -398,6 +401,16 @@ impl LaneHold {
             Some(p) if p.phase != super::pincer::Phase::In => p.stage,
             _ => goal,
         }
+    }
+
+    /// [pincer] A pairing was refused for its walk to `goal` (shared).
+    pub fn pincer_refused(&mut self, goal: Vec3) {
+        self.refused = Some(goal);
+    }
+
+    /// [pincer] Whether a pairing was refused for its walk to a goal within `away_m` of `goal`.
+    pub fn refused_for(&self, goal: Vec3, away_m: f32) -> bool {
+        self.refused.is_some_and(|r| r.distance_xz(goal) <= away_m)
     }
 
     /// Its walk's pincer, if any.
@@ -475,14 +488,11 @@ struct Claim {
 }
 
 /// [pincer] A walk's route as its walker publishes it for a teammate's pincer: the point [`super::pincer::final_leg_m`] before its
-/// end and the metres to it, its leaps and its ledge metres (`pincer::ledge_m`), and the route's length they were counted on.
+/// end and the metres to it.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Ahead {
     pub stage: Vec3,
     pub to_stage_m: f32,
-    pub leaps: u32,
-    pub ledge_m: f32,
-    pub route_m: f32,
 }
 
 /// [pincer] A claim's pincer.
@@ -563,11 +573,6 @@ impl TeamLanes {
     /// [pincer] Whether `who` has a claim under way.
     pub fn claimed(&self, who: Place) -> bool {
         self.live(who).is_some()
-    }
-
-    /// [pincer] `who`'s published route facts, if its walk is under way.
-    pub fn ahead_of(&self, who: Place) -> Option<Ahead> {
-        self.live(who).and_then(|c| c.ahead)
     }
 
     /// [pincer] A teammate's walk (not `who`'s) under way to the same objective as `objective` (`same`), of a pincer's play, in no
@@ -1052,7 +1057,7 @@ mod tests {
         let walk = |play, objective| WalkFor { play: Some(play), goal: Vec3::new(80.0, 0.0, 0.0), objective: Some(objective) };
         lanes.claim(1, lane.clone(), false, walk(PlayKind::Collect, Objective::Battery(3)));
         lanes.claim(4, lane.clone(), false, walk(PlayKind::Escort, Objective::Battery(3)));
-        let ahead = Ahead { stage: Vec3::new(75.0, 0.0, 0.0), to_stage_m: 60.0, leaps: 1, ledge_m: 4.0, route_m: 80.0 };
+        let ahead = Ahead { stage: Vec3::new(75.0, 0.0, 0.0), to_stage_m: 60.0 };
         let same = |o: Objective| o == Objective::Battery(3);
         assert_eq!(lanes.pincer_mate(2, same), None, "its route is not published yet");
         lanes.publish(1, ahead);
@@ -1080,7 +1085,7 @@ mod tests {
         let stage = Vec3::new(75.0, 0.0, 3.0);
         let mut hold = LaneHold::default();
         assert_eq!(hold.goal(goal), goal);
-        hold.start_pincer(goal, Pincer { mate: 1, stage, centre: goal, phase: Phase::ToStage { checked_m: None } });
+        hold.start_pincer(goal, Pincer { mate: 1, stage, centre: goal, phase: Phase::ToStage { checked_m: None, own: None }, flank: true });
         assert_eq!(hold.goal(goal), stage);
         assert!(matches!(hold.replan(stage, false), Replan::Held(None)), "no lane drawn: the stage is its way");
         hold.route_ended(RouteEnd::Arrived);
@@ -1091,9 +1096,14 @@ mod tests {
         assert_eq!(hold.goal(goal), goal);
         hold.route_ended(RouteEnd::Arrived);
         assert!(hold.pincer().is_none() && hold.walking().is_none(), "in and there: the walk is over");
-        hold.start_pincer(goal, Pincer { mate: 1, stage, centre: goal, phase: Phase::ToStage { checked_m: None } });
+        hold.start_pincer(goal, Pincer { mate: 1, stage, centre: goal, phase: Phase::ToStage { checked_m: None, own: None }, flank: true });
         hold.route_ended(RouteEnd::NewAssignment);
         assert!(hold.pincer().is_none());
+        // A refusal holds for its goal, past the walk's end (a bot at its goal stands there with no route), not for another goal.
+        hold.pincer_refused(goal);
+        assert!(hold.refused_for(goal + Vec3::new(3.0, 0.0, 0.0), 15.0) && !hold.refused_for(Vec3::ZERO, 15.0));
+        hold.route_ended(RouteEnd::Arrived);
+        assert!(hold.refused_for(goal, 15.0));
     }
 
     #[test]

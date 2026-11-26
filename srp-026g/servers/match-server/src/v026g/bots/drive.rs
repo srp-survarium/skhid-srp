@@ -4573,14 +4573,18 @@ fn pincer_goal(
     if tuning.spacing.lane_draw.is_none() {
         return goal;
     }
+    // A teammate's pairing joins the walk it paired with only while that walk is still held (an ended walk's claim goes as gone).
     let paired = lanes.paired(bot.place).filter(|p| p.state == Shared::Walking);
     if bot.features.lane.pincer().is_none()
+        && bot.features.lane.walking().is_some()
         && let Some(p) = paired
     {
-        bot.features.lane.start_pincer(goal, Pincer { mate: p.mate, stage: p.stage, centre: p.centre, phase: Phase::ToStage { checked_m: None } });
+        let joined = Pincer { mate: p.mate, stage: p.stage, centre: p.centre, phase: Phase::ToStage { checked_m: None, own: None }, flank: false };
+        bot.features.lane.start_pincer(goal, joined);
         bot.nav_log.push(super::nav_log::Kind::Lane, time, pincer::lines::joined(p.mate, p.stage));
     } else if bot.features.lane.walking().is_none()
         && bot.features.lane.pincer().is_none()
+        && tuning.spacing.lane_draw.is_some_and(|set| !bot.features.lane.refused_for(goal, set.away_m.get()))
         && me.carrying.is_none()
         && view.time_left_s * 1000.0 > pincer::HOLD_CAP_MS as f32
         && bot.route.as_ref().is_none_or(|(_, planned)| planned.distance_xz(goal) > REPLAN_MOVED_M)
@@ -4605,7 +4609,10 @@ fn pincer_goal(
                 pincer::stage(grid, me.feet, centre, centre_node, ahead.stage, leg, view_deg / 2.0, |n| tactics.allowed(n, time, side, objective))
             });
             match stage {
-                None => bot.nav_log.push(super::nav_log::Kind::Lane, time, pincer::lines::shared(kind, mate, "no free stage")),
+                None => {
+                    bot.features.lane.pincer_refused(goal);
+                    bot.nav_log.push(super::nav_log::Kind::Lane, time, pincer::lines::shared(kind, mate, "no free stage"));
+                }
                 Some((node, off)) => {
                     // The two stages' times apart: its way there on the regions against the teammate's metres to its own.
                     let to = grid.position(node);
@@ -4624,15 +4631,17 @@ fn pincer_goal(
                     let flank_m = mine + to.distance_xz(centre);
                     if direct.is_some_and(|d| flank_m > band * d) {
                         let why = format!("flank {flank_m:.0} m over the band on {:.0} m", direct.unwrap_or(0.0));
+                        bot.features.lane.pincer_refused(goal);
                         bot.nav_log.push(super::nav_log::Kind::Lane, time, pincer::lines::shared(kind, mate, &why));
                     } else if gap_s * 1000.0 > pincer::HOLD_CAP_MS as f32 {
                         let why = format!("stages {gap_s:.1} s apart");
+                        bot.features.lane.pincer_refused(goal);
                         bot.nav_log.push(super::nav_log::Kind::Lane, time, pincer::lines::shared(kind, mate, &why));
                     } else {
                         let walk = lane_draw::WalkFor { play: Some(kind), goal, objective: Some(obj) };
                         lanes.claim(bot.place, std::sync::Arc::new([vec![me.feet, to], Vec::new()]), false, walk);
                         lanes.pair((mate, ahead.stage), (bot.place, to), centre);
-                        let p = Pincer { mate, stage: to, centre, phase: Phase::ToStage { checked_m: None } };
+                        let p = Pincer { mate, stage: to, centre, phase: Phase::ToStage { checked_m: None, own: None }, flank: true };
                         bot.features.lane.start_pincer(goal, p);
                         let line = pincer::lines::paired(kind, mate, to, centre, off, leg, pincer::window_s(view_deg), gap_s);
                         bot.nav_log.push(super::nav_log::Kind::Lane, time, line);
@@ -4667,36 +4676,70 @@ fn pincer_tick(bot: &mut Bot, me: &PlaceView, view: &MatchView, tactics: &Tactic
     {
         let len = route.length();
         let (walked, _) = route.progress(me.feet);
-        let (leaps, ledge_m) = match lanes.ahead_of(bot.place) {
-            Some(a) if (a.route_m - len).abs() < 0.01 => (a.leaps, a.ledge_m),
-            _ => (lane_draw::route_leaps(route, grid), pincer::ledge_m(grid, route)),
-        };
-        let ahead = lane_draw::Ahead { stage: route.point_at((len - leg).max(0.0)), to_stage_m: (len - leg - walked).max(0.0), leaps, ledge_m, route_m: len };
+        let ahead = lane_draw::Ahead { stage: route.point_at((len - leg).max(0.0)), to_stage_m: (len - leg - walked).max(0.0) };
         lanes.publish(bot.place, ahead);
     }
     let Some(p) = bot.features.lane.pincer() else {
+        // Its claim still in a pincer its walk is no longer in (the walk ended, a short one came next): gone, for its teammate.
+        if let Some(q) = lanes.paired(bot.place).filter(|q| q.state != Shared::Gone) {
+            lanes.share(bot.place, Shared::Gone);
+            let play = bot.assignment.as_ref().map(|a| a.kind);
+            bot.nav_log.push(super::nav_log::Kind::Lane, time, pincer::lines::walk_ended(q.mate, play));
+        }
         return;
     };
     let mate = lanes.mate_state(bot.place);
     match p.phase {
-        Phase::ToStage { checked_m } => {
+        Phase::ToStage { checked_m, own } => {
             if mate == Shared::Gone {
                 end_pincer(bot, lanes, time, &pincer::lines::alone(p.mate, "its teammate gone before the stages"));
                 return;
             }
-            // Its way to the stage against its teammate's route, once a route.
-            if let Some((route, _)) = bot.route.as_ref()
+            // The flank (its route to the stage, then the straight leg in) against its own plain way to the objective, once a route:
+            // no more leaps, no more edge metres (within the samples' half metre).
+            if p.flank
+                && let Some((route, planned)) = bot.route.as_ref()
+                && planned.distance_xz(p.stage) <= REPLAN_MOVED_M
                 && checked_m.is_none_or(|m| (m - route.length()).abs() >= 0.01)
             {
-                let (len, leaps, ledge) = (route.length(), lane_draw::route_leaps(route, grid), pincer::ledge_m(grid, route));
-                if let Some(theirs) = lanes.ahead_of(p.mate)
-                    && (leaps > theirs.leaps || ledge > theirs.ledge_m + 0.5)
-                {
-                    end_pincer(bot, lanes, time, &pincer::lines::over_caps(p.mate, (leaps, theirs.leaps), (ledge, theirs.ledge_m)));
+                let len = route.length();
+                let line = |a: Vec3, b: Vec3| {
+                    let n = (a.distance_xz(b) / 0.5).ceil().max(1.0) as usize;
+                    let step = a.distance_xz(b) / n as f32;
+                    (0..=n)
+                        .filter(|&k| {
+                            let q = a + (b - a) * (k as f32 / n as f32);
+                            grid.locate(q, 1.0).is_some_and(|f| grid.is_lip(f) || grid.near_lip(f) || grid.near_fall(f))
+                        })
+                        .count() as f32
+                        * step
+                };
+                let (leaps, ledge) = (lane_draw::route_leaps(route, grid), pincer::ledge_m(grid, route) + line(p.stage, p.centre));
+                // Its own plain way, searched once a pincer (a re-check of a new route to the stage reads it).
+                let started = std::time::Instant::now();
+                let mut iters = pincer::PLAIN_WAY_FLOORS;
+                let own = own.or_else(|| {
+                    grid.locate(me.feet, 1.5)
+                        .zip(grid.locate(p.centre, 3.0))
+                        .and_then(|(from, to)| {
+                            let filter = RouteFilter::open();
+                            tactics.start_route(from, to, time, bot.side, bot.intent.objective, &filter, &mut iters).ok().flatten()
+                        })
+                        .map(|r| (lane_draw::route_leaps(&r, grid), pincer::ledge_m(grid, &r)))
+                });
+                let (floors, us) = (pincer::PLAIN_WAY_FLOORS - iters, started.elapsed().as_micros());
+                let kept = own.is_some_and(|(l, m)| leaps <= l && ledge <= m + 0.5);
+                let note = pincer::lines::checked(p.mate, (leaps, own.map(|o| o.0)), (ledge, own.map(|o| o.1)), floors, us, kept);
+                if !kept {
+                    end_pincer(bot, lanes, time, &note);
                     bot.end_route(RouteEnd::Replanned, time);
                     return;
                 }
-                bot.features.lane.pincer_phase(Phase::ToStage { checked_m: Some(len) });
+                // The first check's line; a re-check of a new route to the stage only when it refuses.
+                if checked_m.is_none() {
+                    bot.nav_log.push(super::nav_log::Kind::Lane, time, note);
+                }
+                bot.features.lane.pincer_phase(Phase::ToStage { checked_m: Some(len), own });
             }
             if me.feet.distance_xz(p.stage) <= pincer::STAGED_M {
                 bot.features.lane.pincer_phase(Phase::Staged { since: time });
