@@ -870,7 +870,8 @@ fn placed(out: &mut String, head: &str, at: &Placement) {
 /// A case is `case <gun> <scope> <muzzle> <grip> <second sight> <side>`
 /// (dict ids, 0 none; the side left, right or -) and then `whole`, `refused <why>`, or `bare <body> <bones>` with a
 /// row a thing: `part <model> <bone> <12 floats>`, `optic`, `eye
-/// optic|gun_idle`, `second` (the second sight's frame), `eye2
+/// optic|gun_idle`, `second` (the second sight's frame), `aimed <path>` (its
+/// aimed model, shown in its place while it is looked through), `eye2
 /// optic|gun_idle`, `fire`, `wrist` (each a bone and twelve floats),
 /// `fingers` (fifteen matrices), `effect <path>`.
 #[test]
@@ -932,6 +933,9 @@ fn the_samples_loadouts_are_pinned() {
         }
         if let Some(second) = &bare.second {
             placed(&mut out, "second", &second.at);
+            if let Some(aimed) = second.module.aimed() {
+                writeln!(out, "aimed\t{}", aimed.to_str().unwrap()).unwrap();
+            }
             placed(&mut out, "eye2\toptic", &second.eye.placed(EyeAnchor::Optic));
             placed(&mut out, "eye2\tgun_idle", &second.eye.placed(EyeAnchor::GunIdle));
         }

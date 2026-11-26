@@ -103,6 +103,7 @@ part	weapons/modules/collimators/leupold_dppro_collimator/leupold_dppro_collimat
 eye	optic	1	1.0	0.0	0.0	0.0	1.0	0.0	0.0	0.0	1.0	-0.13	0.106000006	-0.11999999
 eye	gun_idle	0	1.0	0.0	0.0	0.0	1.0	0.0	0.0	0.0	1.0	-0.13	0.11000001	-0.13999999
 second	1	1.0	0.0	0.0	0.0	1.0	0.0	0.0	0.0	1.0	-0.38	0.136	1.66
+aimed	weapons/modules/collimators/leupold_dppro_collimator/leupold_dppro_collimator_aim
 eye2	optic	1	-1.0	0.0	0.0	0.0	1.0	0.0	0.0	0.0	-1.0	-0.38	0.16600001	-0.11999999
 eye2	gun_idle	0	-1.0	0.0	0.0	0.0	1.0	0.0	0.0	0.0	-1.0	-0.38	0.17	-0.13999999
 fire	1	1.0	0.0	0.0	0.0	1.0	0.0	0.0	0.0	1.0	-0.19000003	0.102000006	1.3299999
@@ -117,6 +118,7 @@ part	weapons/modules/collimators/leupold_dppro_collimator/leupold_dppro_collimat
 eye	optic	1	1.0	0.0	0.0	0.0	1.0	0.0	0.0	0.0	1.0	-0.13	0.106000006	-0.11999999
 eye	gun_idle	0	1.0	0.0	0.0	0.0	1.0	0.0	0.0	0.0	1.0	-0.13	0.11000001	-0.13999999
 second	1	1.0	0.0	0.0	0.0	1.0	0.0	0.0	0.0	1.0	-0.36000004	0.132	1.62
+aimed	weapons/modules/collimators/leupold_dppro_collimator/leupold_dppro_collimator_aim
 eye2	optic	1	-1.0	0.0	0.0	0.0	1.0	0.0	0.0	0.0	-1.0	-0.36000004	0.162	-0.11999999
 eye2	gun_idle	0	-1.0	0.0	0.0	0.0	1.0	0.0	0.0	0.0	-1.0	-0.36000004	0.166	-0.13999999
 fire	1	1.0	0.0	0.0	0.0	1.0	0.0	0.0	0.0	1.0	-0.19000003	0.102000006	1.3299999
@@ -133,6 +135,7 @@ optic	1	0.0	0.0	-1.0	0.0	1.0	0.0	1.0	0.0	0.0	0.38	0.076000005	1.24
 eye	optic	1	1.0	0.0	0.0	0.0	1.0	0.0	0.0	0.0	1.0	-0.07999998	0.10000001	1.36
 eye	gun_idle	0	1.0	0.0	0.0	0.0	1.0	0.0	0.0	0.0	1.0	-0.07999998	0.10400001	1.34
 second	1	1.0	0.0	0.0	0.0	1.0	0.0	0.0	0.0	1.0	-0.38	0.136	1.66
+aimed	weapons/modules/collimators/leupold_dppro_collimator/leupold_dppro_collimator_aim
 eye2	optic	1	-1.0	0.0	0.0	0.0	1.0	0.0	0.0	0.0	-1.0	-0.38	0.16600001	-0.11999999
 eye2	gun_idle	0	-1.0	0.0	0.0	0.0	1.0	0.0	0.0	0.0	-1.0	-0.38	0.17	-0.13999999
 fire	1	1.0	0.0	0.0	0.0	1.0	0.0	0.0	0.0	1.0	-0.19000003	0.102000006	1.3299999
