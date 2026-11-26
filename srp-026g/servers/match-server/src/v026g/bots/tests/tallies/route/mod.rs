@@ -112,6 +112,7 @@ fn topics(bodies: usize) -> Vec<Box<dyn RouteTopic>> {
         Box::new(zones::Zones::new(bodies)),
         escapes(),
         walk_ups(),
+        soft_noways(),
         Box::new(pockets::Pockets::new(bodies)),
         Box::new(exact::ExactFalls::new(bodies)),
         motor(),

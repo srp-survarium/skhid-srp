@@ -261,6 +261,8 @@ pub struct Tactics {
     /// [`Self::walk_up_set`]'s sets, the latest [`WALK_UP_KEPT`]: they depend
     /// on the map alone and the point asked.
     walk_ups: std::sync::Mutex<Vec<(WalkUpKey, Arc<WalkUp>)>>,
+    /// [bot CPU] Soft-filtered route searches that ended over the whole grid with no way ([`SoftNoWays`]).
+    soft_noways: std::sync::Mutex<SoftNoWays>,
     /// [bot traps] [`Self::regions_reached`]'s sets by start region, the latest [`REACHED_KEPT`]: they depend on the map alone.
     reached: std::sync::Mutex<Vec<(u32, Arc<Vec<u64>>)>>,
     /// [bot traps] [`Self::carrier_static_way`]'s ways (`carrier_home.rs`).
@@ -463,6 +465,59 @@ pub enum NoGate {
 
 /// [bot traps] [`Tactics::regions_reached`]'s sets kept.
 const REACHED_KEPT: usize = 32;
+
+/// [bot CPU] How many [`SoftNoWays`] a match keeps (a bot stuck asking keeps one; the oldest goes first).
+const SOFT_NOWAYS_KEPT: usize = 8;
+
+/// [bot CPU] The route searches with a soft part in their filter ([`RouteFilter::has_soft`]: the spots a body got stuck at, the
+/// traps it noticed, a held threat's lanes, all shut) that ended over the whole grid with no way: by start, goal and the body's
+/// reach, the floor test's answers on every floor the search tested ([`path::Exhausted`]). Such a search costs the whole grid
+/// (290,000-520,000 floors on the bench's Mamayev and Chemical Plant cells, 70-200 ms), and the poll then searches through the
+/// soft part and finds the way, so a bot standing there asks the same failing search again at its next ask (59 times in 31 s for
+/// one bot of tdm m6 s2). The search asked again from the same start to the same goal with the same reach, unweighed, whose
+/// floor test gives each of those floors the same answer, tests and expands the same floors and ends the same: it is answered
+/// with no floor searched ([`path::plan_start_known`]). Any floor whose answer changed (a zone that switched, a spot or a trap
+/// more or less, another side or objective) refuses it, and the search runs.
+#[derive(Default)]
+struct SoftNoWays(Vec<(SoftNoWayKey, path::Exhausted)>);
+
+/// [`SoftNoWays`]' key: the start floor, the goal floor, and the body's reach.
+#[derive(Clone, Copy, PartialEq)]
+struct SoftNoWayKey {
+    start: NodeId,
+    goal: NodeId,
+    reach: mapdata::Reach,
+}
+
+impl SoftNoWays {
+    /// The key of a search with `filter`: none for a filter with no soft part, or a weighed one (a weight may shut a floor).
+    fn key(start: NodeId, goal: NodeId, filter: &RouteFilter) -> Option<SoftNoWayKey> {
+        (filter.has_soft() && !filter.weighs()).then(|| SoftNoWayKey { start, goal, reach: filter.reach() })
+    }
+
+    /// The kept search of `key` whose every tested floor `allowed` answers the same; one that does not is dropped.
+    fn known(&mut self, key: SoftNoWayKey, allowed: impl Fn(NodeId) -> bool) -> Option<&path::Exhausted> {
+        let i = self.0.iter().position(|(k, _)| *k == key)?;
+        if self.0[i].1.holds(&allowed) {
+            return Some(&self.0[i].1);
+        }
+        #[cfg(test)]
+        path::noway_memo::count(path::noway_memo::REFUSED, 1);
+        self.0.remove(i);
+        None
+    }
+
+    /// Keeps `exhausted` for `key`, in place of the one kept for it.
+    fn keep(&mut self, key: SoftNoWayKey, exhausted: path::Exhausted) {
+        #[cfg(test)]
+        path::noway_memo::count(path::noway_memo::KEPT, 1);
+        self.0.retain(|(k, _)| *k != key);
+        if self.0.len() >= SOFT_NOWAYS_KEPT {
+            self.0.remove(0);
+        }
+        self.0.push((key, exhausted));
+    }
+}
 
 /// The point and radius a [`WalkUp`] was made for, as bits.
 type WalkUpKey = [u32; 4];
@@ -1267,6 +1322,7 @@ impl Tactics {
             walks: Default::default(),
             spot_lists: Default::default(),
             walk_ups: Default::default(),
+            soft_noways: Default::default(),
             reached: Default::default(),
             carrier_ways: Default::default(),
             carrier_rounds: Default::default(),
@@ -2021,18 +2077,33 @@ impl Tactics {
         let at = grid.position(start);
         let weight = |node| filter.weight(grid, node);
         let legs = self.band_legs(start, goal);
-        path::plan_start(
+        let allowed = |node| self.route_floor_open(node, time, side, objective, at, filter, &legs);
+        let region_ok = |region| self.route_region_open(region, time, side, objective, at, filter, &legs);
+        // [bot CPU] A soft-filtered search that ended over the whole grid with no way lately, from this start to this goal: when
+        // the floor test gives every floor it tested the same answer now, it would end the same ([`SoftNoWays`]).
+        let key = SoftNoWays::key(start, goal, filter);
+        if let Some(key) = key {
+            let mut kept = self.soft_noways.lock().unwrap_or_else(|e| e.into_inner());
+            if let Some(known) = kept.known(key, allowed) {
+                return Ok(path::plan_start_known(grid, &self.base.regions, start, goal, allowed, region_ok, filter.reach(), known));
+            }
+        }
+        let (started, exhausted) = path::plan_start_keeping(
             grid,
             &self.base.regions,
             &self.base.hot,
             start,
             goal,
-            |node| self.route_floor_open(node, time, side, objective, at, filter, &legs),
-            |region| self.route_region_open(region, time, side, objective, at, filter, &legs),
+            allowed,
+            region_ok,
             filter.reach(),
             filter.weighs().then_some(&weight as &dyn Fn(NodeId) -> f32),
             iters,
-        )
+        );
+        if let (Some(key), Some(exhausted)) = (key, exhausted) {
+            self.soft_noways.lock().unwrap_or_else(|e| e.into_inner()).keep(key, exhausted);
+        }
+        started
     }
 
     /// A plain route's floor test ([`Self::start_route`], [`Self::resume_route`], [`Self::partial_route`]):
@@ -2110,7 +2181,7 @@ impl Tactics {
         let at = grid.position(start);
         let weight = |node| filter.weight(grid, node);
         let legs = self.band_legs(start, goal);
-        planning.resume(
+        let ended = planning.resume(
             grid,
             &self.base.regions,
             &self.base.hot,
@@ -2118,7 +2189,12 @@ impl Tactics {
             |region| self.route_region_open(region, time, side, objective, at, filter, &legs),
             &weight,
             iters,
-        )
+        );
+        // [bot CPU] A soft-filtered search that ended over the whole grid with no way, kept for the next ask ([`SoftNoWays`]).
+        if let (Some(key), Some(exhausted)) = (SoftNoWays::key(start, goal, filter), planning.take_exhausted()) {
+            self.soft_noways.lock().unwrap_or_else(|e| e.into_inner()).keep(key, exhausted);
+        }
+        ended
     }
 
     /// [`Self::start_route`] with the floors `crossable` gives open as well
@@ -3979,6 +4055,62 @@ pub(super) mod tests {
         }
         assert!(2.0 * per_s(0.02) <= 0.1);
         assert!(mild(per_s(0.02)));
+    }
+
+    /// [bot CPU] A soft-filtered search answered from a kept one that ended over the whole grid with no way equals a fresh
+    /// search, on every start asked (inside the shut ring, where a way is found, and outside it, where none is), asked again,
+    /// and after the zone in the ring's gap switched. The world: a ring of floors 4-5 m round the goal shut by the filter's soft
+    /// part but for its gap toward electric zone b, which shuts the gap while it is on.
+    #[test]
+    fn a_kept_soft_no_way_is_the_fresh_search_on_every_start_and_after_a_switch() {
+        use crate::v026g::bots::anomalies::Anomalies;
+        use crate::v026g::bots::anomalies::tests::electric_map;
+        let grid = WalkGrid::build(&floor(0.0, 0.0, 40.0, 40.0, 0.0), [0.0, 0.0, 40.0, 40.0], 0.25, mapdata::Body::default());
+        let world = Arc::new(World::assemble(electric_map(), grid.into(), RayTree::build(&[]).into()));
+        let (goal_at, zone_b) = (Vec3::new(30.0, 0.0, 26.0), Vec3::new(30.0, 0.0, 20.0));
+        let ring_world = world.clone();
+        let filter = RouteFilter::open().avoiding_floors(move |n| {
+            let at = ring_world.grid.position(n);
+            let d = at.distance_xz(goal_at);
+            !(4.0..=5.0).contains(&d) || at.distance_xz(zone_b) <= 2.0
+        });
+        assert!(filter.has_soft() && !filter.weighs());
+        let kept = Tactics::new(world.clone(), 0.5);
+        let fresh = |time: u32| {
+            let mut t = Tactics::new(world.clone(), 0.5);
+            t.hazards.attach(Anomalies::new(&world.map, 0x8000_0042));
+            t.hazards.advance(time);
+            t
+        };
+        let mut kept = kept;
+        kept.hazards.attach(Anomalies::new(&world.map, 0x8000_0042));
+        kept.hazards.advance(2_000);
+        let grid = &world.grid;
+        let goal = grid.locate(goal_at, 0.3).unwrap();
+        let answer = |t: &Tactics, start: NodeId, time: u32| {
+            let mut iters = usize::MAX;
+            let route = t.start_route(start, goal, time, Some(0), false, &filter, &mut iters).ok().expect("ends within its floors");
+            (route.map(|r| format!("{r:?}")), path::last_end())
+        };
+        let switch = kept.hazards.next_switch(grid.locate(zone_b, 0.3).unwrap()).unwrap();
+        let starts: Vec<NodeId> = (0..grid.len() as NodeId).step_by(97).chain([grid.locate(Vec3::new(5.0, 0.0, 5.0), 0.3).unwrap()]).collect();
+        let (mut none, mut found) = (0, 0);
+        let hits_before = path::noway_memo::counts()[path::noway_memo::HITS];
+        for (phase, time) in [(0, 2_000), (1, switch + crate::v026g::bots::hazards::SWITCH_MARGIN_MS + 500)] {
+            if phase == 1 {
+                kept.hazards.advance(time);
+            }
+            let reference = fresh(time);
+            for &start in &starts {
+                let want = answer(&reference, start, time);
+                none += usize::from(want.0.is_none());
+                found += usize::from(want.0.is_some());
+                assert_eq!(answer(&kept, start, time), want, "phase {phase} start {start}: first ask");
+                assert_eq!(answer(&kept, start, time), want, "phase {phase} start {start}: asked again");
+            }
+        }
+        assert!(none > 0 && found > 0, "{none} without a way, {found} with one");
+        assert!(path::noway_memo::counts()[path::noway_memo::HITS] > hits_before, "a start asked again was answered from the kept search");
     }
 
     /// The set of floors a walk up gets to is the hash set's, floor for
