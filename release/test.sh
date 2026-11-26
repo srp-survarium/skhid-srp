@@ -1697,8 +1697,8 @@ check "release --resources: ... no problem about it" bash -c "! grep -q 'problem
 cp "$T/r14/resources.db.patch_14" "$T/r16/other" && printf x >>"$T/r16/other" && cp "$T/r16/other" "$T/patches/resources.db.patch_14"
 # Listed, its bytes are published for good: never replaced.
 list_saved=$(cat "$T/patches.tsv")
-printf 'resources.db.patch_14\t%s\t%s\thttp://patches.invalid/resources.db.patch_14\n' \
-    "$(sha256sum <"$T/r16/other" | cut -d' ' -f1)" "$(stat -c %s "$T/r16/other")" >>"$T/patches.tsv"
+printf 'resources.db.patch_14\t%s\t%s\t%s/resources.db.patch_14\n' \
+    "$(sha256sum <"$T/r16/other" | cut -d' ' -f1)" "$(stat -c %s "$T/r16/other")" "$P" >>"$T/patches.tsv"
 expect_refused "release: a patch published with other bytes" "already published with OTHER bytes" \
     "$here/release.sh" --resources "$T/r14/resources.db.patch_14"
 printf '%s\n' "$list_saved" >"$T/patches.tsv"
