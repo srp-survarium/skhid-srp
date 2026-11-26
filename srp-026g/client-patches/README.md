@@ -6680,7 +6680,8 @@ rule's tick in the world's second list; the respawn rule's death delay (the wave
 restart holds the places due, its end spawns everyone); patch 78's `carry.input` asks the hunt first (the
 frozen countdown applies no input, exit `held`; the use key's take and delivery; the Drop key); patch 109's
 getter sites add the carrier's two modifiers (lists 4 and 2); `hunt.can_sprint` refuses the carrier; his
-marker, minimap dot and icon mark (0x1F2D8B) for both teams, and his glow (`artefact_wood_shine`); the
+minimap dot for both teams, his icon mark (0x1F2D8B, the marker only his teammates see), and his glow
+(`artefact_wood_shine`); the
 artefact's model and its idle, spawn and destroy particles in the world (a query of the patch's own, the
 scene reconciled each frame); the announcer's seven lines (sound collections in the game's language's voice);
 the hud's `root.artefact_hunt_update` (30 Numbers), its messages, the prompt and the welcome. The spec and design: `docs/notes/artefact_hunt.md`; the code: `client_patch.md`

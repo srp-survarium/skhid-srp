@@ -4611,8 +4611,10 @@ code is (`rust/patches/src/artefact_hunt.rs`, `artefact_hunt.toml`, `src/vostok/
 - **The carrier**: patch 109's `artefact.shared_modifier(s)` handlers call `shared_modifier(s)` (the
   filter `HOOKED_LISTS`: the Springs' lists and 2): the carrier's kit container gets the item's -0.2
   on list 4 and +0.05 on list 2; `hunt.can_sprint` 0x2DBF45 exits to can_sprint's refusal 0x2DC008;
-  `player_names.enemy_spotted` and `minimap.enemy_spotted` (order 2, after patch 135's) show him;
-  `player_icons.enemy_ids` tells the icons movie `root.srp_show_carriers(hunting)` at every match.
+  `minimap.enemy_spotted` (order 2, after patch 135's) shows his dot to the other team (his marker
+  over his head is the game's own, an enemy's never shown: the owner, 2026-11-26);
+  `player_icons.enemy_ids` tells the icons movie `root.srp_show_carriers(hunting)` at every match
+  (the carrier mark the artefact's).
 - **The hud** (`player_icons.update_start`, order 5; `hud.initialize_match`; `game_world_ui.welcome`):
   `root.artefact_hunt_update` with the 30 Numbers of "HUD calls" (a new `Movie::invoke_numbers`, GFx
   type 5), the cues' messages through `set_parameterized_message`, the prompt `show_artefact_offer`.

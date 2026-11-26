@@ -90,15 +90,12 @@ site = "respawn.tick"
 handler = "on_respawn_tick"
 order = 1
 
-# the carrier: no sprint; his marker and dot for both teams
+# the carrier: no sprint; his dot on the minimaps for both teams (the marker
+# over his head is the game's: an enemy's only while spotted, and the icons
+# movie shows none)
 [[hook]]
 site = "hunt.can_sprint"
 handler = "on_can_sprint"
-
-[[hook]]
-site = "player_names.enemy_spotted"
-handler = "on_name"
-order = 2
 
 [[hook]]
 site = "minimap.enemy_spotted"
