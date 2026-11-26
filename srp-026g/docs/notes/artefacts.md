@@ -57,8 +57,8 @@ Resonance and Cascade use the source copy's power. Each worn activation plays a 
 with its emission scaled to the nearest 8-bit intensity in both views, including its light emitter.
 
 The quick slot shows passive and next-use power rounded to the nearest percent, and shows
-`<1%` below one percent. It briefly shows the change on use. Each match gives a hint on the
-first drop. The count lives at +286h and permits further activations even at the native counter's
+`<1%` below one percent. While the copy is active it keeps the power it fires with; the change (`100% → 80%`) shows briefly once its cooldown starts (the owner, 2026-11-26). No
+hint text (the owner removed it, 2026-11-26). The count lives at +286h and permits further activations even at the native counter's
 maximum. Counts below 32 use bits 3..7 of the saved state byte. Larger counts use FF followed by
 the little-endian 16-bit count and the native state. Legacy snapshots decode at full strength. The simulation-change entry gates replay playback.
 
