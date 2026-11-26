@@ -11,7 +11,7 @@
 //! |---|---|
 //! | 0, 1 | a decal ([`super::modifications::WEAPON_DECAL_SLOTS`]) |
 //! | 2 | the camouflage ([`super::modifications::WEAPON_CAMO_SLOT`]) |
-//! | 3 | the scope ([`super::scopes::SCOPE_SLOT`]) |
+//! | 3 | the scope ([`super::scopes::SCOPE_SLOT`]), its record's value its way onto the gun (0 the first) |
 //! | 4 | a muzzle device ([`MUZZLE_SLOT`]; no item yet) |
 //! | 5 | a grip ([`GRIP_SLOT`]) |
 //! | 6 | a second sight ([`SECOND_SIGHT_SLOT`]): an optic on the offset rail at the gun's side, its record's value its side (0 left, 1 right) |
@@ -23,7 +23,7 @@
 //! lobby's inventory and kits, a match's static info, a late join's, a
 //! replay's) carries those records as they are.
 
-pub use weapon_kit::{KIT_MAGIC, KIT_MAGIC_WIDE, KIT_RECORD_SLOT as KIT_SLOT, Malformed, Side};
+pub use weapon_kit::{KIT_MAGIC, KIT_MAGIC_WIDE, KIT_RECORD_SLOT as KIT_SLOT, Malformed, Mount, Side};
 use weapon_kit::{Held, Logical, Record, Slot};
 
 use super::lobby::Upgrade;
