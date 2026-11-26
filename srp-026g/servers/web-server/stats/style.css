@@ -81,3 +81,61 @@
 /* A team's word or number in its colour (the result, the points). */
 .stats-side { color:var(--team); font-weight:700 }
 .stats-map-link { flex:none; display:block }
+/* The Maps and Modes boards. The Maps table: its columns fixed, so that rows opening move none; a
+   map's row (its picture, a 16:9 box it covers, never stretched, by its name), its modes' rows and
+   a mode's weathers' under it, closed until their buttons open them. */
+.stats-map.stats-map-big { width:112px; height:63px }
+.stats-plays .stats-table th { white-space:normal; overflow-wrap:normal; word-break:normal; hyphens:auto }
+.stats-plays .stats-table td.stats-mode-cell { white-space:normal; min-width:6.5em }
+.stats-maps-table { table-layout:fixed }
+.stats-maps-table .stats-col-map { width:38% }
+.stats-maps-table .stats-col-n { width:11% }
+.stats-maps-table .stats-col-sides { width:40% }
+.stats-maps-table tr.stats-map-row td { border-top:2px solid var(--rule) }
+.stats-place-name { font-size:.95rem }
+.stats-maps-table tr.stats-mode-row td { background:color-mix(in srgb,var(--rule) 25%,transparent) }
+.stats-maps-table tr.stats-mode-row td:first-child { padding-left:18px }
+/* A free-for-all's versions (the Racket, the Saloon, the Roulette), under it on both boards. */
+.stats-table tr.stats-version-row td { background:color-mix(in srgb,var(--rule) 18%,transparent) }
+.stats-table tr.stats-version-row td.stats-mode-cell { padding-left:26px }
+.stats-maps-table tr.stats-weather td { background:color-mix(in srgb,var(--rule) 12%,transparent) }
+.stats-maps-table tr.stats-weather td:first-child { padding-left:34px }
+.stats-table button.stats-opener { all:unset; cursor:pointer; color:var(--accent); text-decoration:underline }
+.stats-table button.stats-opener:focus-visible { outline:2px solid var(--accent); outline-offset:2px }
+.stats-table button.stats-opener[aria-expanded=true]::after { content:' \25B4' }
+.stats-table button.stats-opener[aria-expanded=false]::after { content:' \25BE' }
+/* A bar of shares on its track, soft (the owner, 2026-11-26: "blue and red lines are a bit too
+   strong"): a side's wins in its team's colour at 60%, the draws a neutral grey; a share of all the
+   matches. Its numbers are under it at full strength. */
+.stats-bar { display:flex; width:100%; min-width:64px; height:6px; background:color-mix(in srgb,var(--rule) 60%,transparent); overflow:hidden; border-radius:3px }
+.stats-bar-part { display:block; height:100%; background:var(--team, var(--accent)); opacity:.6 }
+.stats-bar-part.stats-draw { background:var(--ink-3); opacity:.45 }
+.stats-bar-part.stats-unknown { background:var(--ink-3); opacity:.2 }
+.stats-sides { display:flex; flex-direction:column; gap:4px }
+.stats-table td.stats-sides-cell { white-space:normal; min-width:120px }
+.stats-legend { display:flex; flex-wrap:wrap; gap:0 10px; font:.72rem var(--body); color:var(--ink-2) }
+.stats-legend-item b { color:var(--team, var(--ink-2)) }
+.stats-share { display:flex; flex-direction:column; align-items:flex-end; gap:3px; min-width:56px }
+.stats-table td.stats-share-cell { width:22% }
+/* A mode's trend: a column a step, as tall as its share of the busiest. */
+.stats-trend { display:flex; align-items:flex-end; gap:1px; height:26px; min-width:72px }
+.stats-trend-bar { flex:1; min-width:1px; height:1px; background:var(--rule) }
+.stats-trend-bar:not(.zero) { background:var(--accent) }
+.stats-table td.stats-trend-cell { width:34% }
+.stats-trend-note { margin:6px 0 0 }
+@media(max-width:700px) {
+ .stats-map.stats-map-big { width:80px; height:45px }
+ .stats-table td.stats-sides-cell { min-width:0 }
+ .stats-maps-table .stats-col-map { width:36% }
+ .stats-maps-table .stats-col-n { width:13% }
+ .stats-maps-table .stats-col-sides { width:38% }
+ .stats-plays .stats-table th,.stats-plays .stats-table td { padding:6px 4px }
+ /* A weather: its name, without its picture (its map's is over it). */
+ .stats-maps-table tr.stats-weather .stats-map { display:none }
+ /* A map: its picture over its name, so that the name has the column's width. */
+ .stats-maps-table tr.stats-map-row .stats-map-cell { flex-direction:column; align-items:flex-start; gap:4px }
+ .stats-maps-table .stats-place-name { overflow-wrap:normal; word-break:normal }
+ .stats-maps-table tr.stats-mode-row td:first-child { padding-left:8px }
+ .stats-maps-table tr.stats-weather td:first-child { padding-left:14px }
+ .stats-table tr.stats-version-row td.stats-mode-cell { padding-left:12px }
+}

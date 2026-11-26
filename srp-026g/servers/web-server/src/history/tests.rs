@@ -879,6 +879,43 @@ fn the_days_leaders_and_the_all_time_totals() {
     assert_eq!(all["kills"], 3 * (14 + 6));
 }
 
+/// The Maps and Modes boards add up the counted public matches of their
+/// period: the private match and the one against bots are in neither.
+#[test]
+fn the_maps_and_modes_boards_are_the_periods_counted_matches() {
+    let world = world("plays");
+    let maps = world.ok("/api/history/maps");
+    assert_eq!(keys(&maps), ["maps", "matches", "period"]);
+    assert_eq!((maps["period"].as_str(), maps["matches"].as_u64()), (Some("all"), Some(3)));
+    let map = &maps["maps"][0];
+    assert_eq!(keys(map), ["duration_s", "map", "map_icon", "map_key", "matches", "modes", "sides"]);
+    assert_eq!(map["sides"]["wins"], json!([3, 0]), "the map's team matches together");
+    assert_eq!(map["duration_s"], 845, "the average, in whole seconds");
+    let mode = &map["modes"][0];
+    assert_eq!(
+        keys(mode),
+        ["duration_s", "map_key", "matches", "mode", "mode_url", "rules", "sides", "weathers"]
+    );
+    assert_eq!(mode["mode"], "Protective device", "named by the code, not the game data");
+    assert_eq!(mode["sides"]["wins"], json!([3, 0]));
+    assert_eq!(mode["sides"]["win_rates"], json!([1.0, 0.0]));
+    assert_eq!(
+        keys(&mode["weathers"][0]),
+        ["duration_s", "map_icon", "map_id", "map_key", "matches", "sides", "weather"]
+    );
+    assert_eq!(mode["weathers"][0]["map_id"], 3);
+    // The last 24 hours: the two of today.
+    assert_eq!(world.ok("/api/history/maps?period=day")["matches"], 2);
+    assert_eq!(world.ok("/api/history/maps?period=week")["matches"], 3);
+    let modes = world.ok("/api/history/modes?period=week");
+    assert_eq!(keys(&modes), ["matches", "modes", "pairs", "period", "step", "steps"]);
+    assert_eq!(modes["modes"][0]["share"], 1.0);
+    assert_eq!(modes["modes"][0]["trend"].as_array().unwrap().iter().filter_map(Value::as_u64).sum::<u64>(), 3);
+    assert_eq!(modes["pairs"][0]["matches"], 3);
+    assert_eq!(world.get("/api/history/modes?period=hour").0, "400 Bad Request");
+    assert_eq!(world.get("/api/history/maps?period=year").0, "400 Bad Request");
+}
+
 #[test]
 fn the_best_scores_are_of_the_period() {
     let world = world("best");
@@ -1010,7 +1047,8 @@ fn an_unknown_endpoint_is_not_found_and_no_database_no_history() {
 /// page's browser check (`scripts/wiki/check_history.mjs`), in a new `srp.db`
 /// under `dir`: twelve players and Nova, who never played, six clans (RAD's
 /// commander is Nova), and 23 public matches ending at `now`, written as srp
-/// writes them: one a free-for-all, one a draw, one too short to count;
+/// writes them: in the preview's team modes in turn (`PREVIEW_MODES`), on
+/// their maps in turn, one a free-for-all, one a draw, one too short to count;
 /// Yasen in the newest 15 only, with too few shots for the accuracy list
 /// and no weapons counted;
 /// Dub leaves every fifth; one weapon is gone from the game data; Sheep was
@@ -1019,8 +1057,9 @@ fn an_unknown_endpoint_is_not_found_and_no_database_no_history() {
 /// capitals; the fifth's is as wide as the widest of the live server's
 /// (181 px with its tag); five more are named as players there are. With a
 /// `crowd`, as many more players, each with a few matches of today among
-/// themselves (newer than the 23), and Sheep with a dozen more names left:
-/// for looking at long lists.
+/// themselves (newer than the 23), twice as many matches of theirs over the
+/// last twelve weeks in every mode (the Modes board's trend of all time),
+/// and Sheep with a dozen more names left: for looking at long lists.
 pub(crate) fn preview(dir: &std::path::Path, now: u64, crowd: u32) -> GameAccounts {
     const NAMES: [&str; 13] = [
         "Sheep",
@@ -1107,6 +1146,11 @@ pub(crate) fn preview(dir: &std::path::Path, now: u64, crowd: u32) -> GameAccoun
         let of_mode: Vec<_> = maps.iter().filter(|map| map.mode == mode).collect();
         of_mode[nth % of_mode.len()].id
     };
+    // The modes the game data has maps of, of the preview's.
+    let modes: Vec<GameMode> = PREVIEW_MODES
+        .into_iter()
+        .filter(|mode| maps.iter().any(|map| map.mode == *mode))
+        .collect();
     let mut seed: u64 = 26;
     let mut random = |below: u64| {
         seed = (seed * 1_103_515_245 + 12_345) % 2_147_483_648;
@@ -1120,10 +1164,11 @@ pub(crate) fn preview(dir: &std::path::Path, now: u64, crowd: u32) -> GameAccoun
             _ if random(2) == 0 => Winner::FirstTeam,
             _ => Winner::SecondTeam,
         };
+        // The modes in turn, for the Maps and Modes boards: the batteries most.
         let mode = if free_for_all {
             GameMode::FreeForAll
         } else {
-            GameMode::Batteries
+            modes[i as usize % modes.len()]
         };
         // The free-for-all was a Racket.
         let called = if free_for_all {
@@ -1395,8 +1440,109 @@ pub(crate) fn preview(dir: &std::path::Path, now: u64, crowd: u32) -> GameAccoun
             })
             .unwrap();
     }
+    // The crowd's past: its matches of the last twelve weeks, more of them
+    // lately, in every mode in turn, on each mode's maps (versions and
+    // weathers) in turn; a draw in nine, a free-for-all's winner by kills.
+    let past = crowd * 2;
+    for i in 0..past {
+        let mode = modes[(i as usize * 7 / 3) % modes.len()];
+        let (mode, called) = if i % 11 == 5 {
+            (GameMode::FreeForAll, LobbyMode::Plain(GameMode::FreeForAll))
+        } else {
+            (mode, LobbyMode::Plain(mode))
+        };
+        let winner = if mode == GameMode::FreeForAll {
+            Winner::MostKills
+        } else if i % 9 == 4 {
+            Winner::Draw
+        } else if random(5) < 3 {
+            Winner::FirstTeam
+        } else {
+            Winner::SecondTeam
+        };
+        let players = (0..12u32.min(crowd))
+            .map(|seat| {
+                let team = if mode == GameMode::FreeForAll {
+                    survarium::v026g::maps::free_for_all_team(seat as usize)
+                } else {
+                    (seat % 2) as u8
+                };
+                let won = match winner {
+                    Winner::FirstTeam => team == 0,
+                    Winner::SecondTeam => team == 1,
+                    Winner::MostKills => seat == 0,
+                    Winner::Draw | Winner::Unknown => false,
+                };
+                let (kills, deaths) = (random(20), 1 + random(12));
+                PlayerRecord {
+                    account_id: CROWD_FIRST + (i * 5 + seat * 3) % crowd,
+                    clan_id: None,
+                    line: PlayerLine {
+                        team,
+                        place: (seat / 2) as u8 + 1,
+                        seat: seat as u8,
+                        presence: Presence::Finished,
+                        outcome: match winner {
+                            _ if won => Outcome::Won,
+                            Winner::Draw => Outcome::Neither,
+                            _ => Outcome::Lost,
+                        },
+                        rating: 1000,
+                        score: 60 + 25 * kills,
+                        kills,
+                        deaths,
+                        counters: Counters::default(),
+                        played_ms: 700_000,
+                        experience: Some(800),
+                    },
+                    kits: Vec::new(),
+                    weapons: BTreeMap::new(),
+                }
+            })
+            .collect();
+        // Older ones farther apart: the first twelve weeks ago, the last a day ago.
+        let back = u64::from(past - i);
+        let ended_at = now - DAY - back * back * 84 * DAY / u64::from(past * past);
+        repository
+            .record_match(&MatchRecord {
+                replay_id: ReplayId::new(
+                    0x5E1C_0000 + i,
+                    std::time::UNIX_EPOCH + std::time::Duration::from_secs(ended_at - 900),
+                ),
+                kind: MatchKind::Public(Eligibility::Counted),
+                info: MatchInfo {
+                    ended_at,
+                    duration_ms: 480_000 + 1_000 * random(900) as u32,
+                    map_id: map_of(mode, (i * 5 / 3) as usize),
+                    mode: called,
+                    match_level: 12,
+                    winner,
+                    team_points: match winner {
+                        Winner::FirstTeam => [5, random(5) as u16],
+                        Winner::SecondTeam => [random(5) as u16, 5],
+                        Winner::Draw => [3, 3],
+                        Winner::MostKills | Winner::Unknown => [0, 0],
+                    },
+                },
+                players,
+            })
+            .unwrap();
+    }
     GameAccounts::with_repository(Box::new(repository)).unwrap()
 }
+
+/// The preview's team modes, in turn (those the game data has maps of: the
+/// tests' has no Research, Freeze Tag or Artifact Hunt), the batteries most.
+const PREVIEW_MODES: [GameMode; 8] = [
+    GameMode::Batteries,
+    GameMode::TeamDeathmatch,
+    GameMode::Batteries,
+    GameMode::Research,
+    GameMode::FreezeTag,
+    GameMode::ArtefactHunt,
+    GameMode::Blackout,
+    GameMode::TimedBatteries,
+];
 
 /// The preview's replays: under `dir`, the newest match's made (a file of a
 /// few bytes, no game's), the one before it a kept recording nobody
@@ -1441,7 +1587,7 @@ fn a_matchs_replay_is_asked_for_by_anyone() {
     let ask = |target: &str, replays: Option<&Replays>| {
         let (path, query) = target.split_once('?').unwrap();
         let endpoint = Endpoint::parse(path, query).unwrap();
-        answer(&endpoint, accounts.history().unwrap(), replays, &|_| false, Lang::En, NOW)
+        answer(&endpoint, accounts.history().unwrap(), replays, &|_| false, &[], Lang::En, NOW)
     };
     let ok = |target: &str| ask(target, Some(&replays)).unwrap();
     assert_eq!(ok("/api/history/match?id=23")["replay"], true);
@@ -1476,7 +1622,7 @@ fn the_previews_history_is_served() {
     let ask = |target: &str| {
         let (path, query) = target.split_once('?').unwrap_or((target, ""));
         let endpoint = Endpoint::parse(path, query).unwrap();
-        answer(&endpoint, history, None, &|_| false, Lang::En, NOW).unwrap()
+        answer(&endpoint, history, None, &|_| false, &[], Lang::En, NOW).unwrap()
     };
     assert_eq!(ask("/api/history/top")["players"].as_array().unwrap().len(), 12);
     assert_eq!(ask("/api/history/matches?limit=50")["matches"].as_array().unwrap().len(), 23);
@@ -1492,6 +1638,15 @@ fn the_previews_history_is_served() {
     sorted.sort_unstable();
     assert_eq!(sorted, (1..=11).collect::<Vec<u64>>(), "placed among everyone");
     assert_eq!(ask("/api/history/match?id=7")["match"]["eligibility"], "short");
+    // The Maps and Modes boards have the modes in turn: the 22 counted.
+    let modes = ask("/api/history/modes");
+    assert_eq!(modes["matches"], 22);
+    // The tests' game data: the batteries (both), Team Deathmatch, Blackout and the Racket.
+    assert!(modes["modes"].as_array().unwrap().len() >= 5, "{modes}");
+    let maps = ask("/api/history/maps");
+    let of_modes: Vec<&Value> = maps["maps"].as_array().unwrap().iter().flat_map(|map| map["modes"].as_array().unwrap()).collect();
+    assert!(of_modes.iter().any(|mode| mode["sides"].is_null()), "the free-for-all");
+    assert!(of_modes.iter().any(|mode| mode["sides"]["draws"] == 1), "the draw");
     let _ = std::fs::remove_dir_all(&dir);
 }
 
@@ -1525,7 +1680,7 @@ fn a_match_has_its_maps_picture_as_the_rooms_draw_it() {
     let _ = std::fs::remove_dir_all(&dir);
     let accounts = preview(&dir, NOW, 0);
     let endpoint = Endpoint::parse("/api/history/matches", "limit=50").unwrap();
-    let answer = answer(&endpoint, accounts.history().unwrap(), None, &|_| false, Lang::En, NOW).unwrap();
+    let answer = answer(&endpoint, accounts.history().unwrap(), None, &|_| false, &[], Lang::En, NOW).unwrap();
     for played in answer["matches"].as_array().unwrap() {
         assert!(played["map_icon"].as_str().unwrap().starts_with("/wiki/icons/maps/"));
     }

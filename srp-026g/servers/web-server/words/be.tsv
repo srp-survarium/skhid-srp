@@ -503,10 +503,10 @@ Bring it to your own base: 1 point, and the round ends.	Прынясіце яг�
 The carrier is slower and seen by everyone.	Носьбіт павольнейшы і бачны ўсім.
 Respawn in waves every {0} s.	Адраджэнне хвалямі кожныя {0} с.
 Time limit {0}: the higher score wins; a tie plays {1} of sudden death without respawns.	Ліміт часу {0}: перамагае большы лік; пры нічыі — {1} раптоўнай смерці без адраджэння.
-Sniper rifles, silenced guns and guns without automatic fire are replaced.	Снайперскія вінтоўкі, зброя з глушыцелем і зброя без аўтаматычнага агню замяняюцца.
-Rooms up to level {0}: {1}.	Пакоі да ўзроўню {0}: {1}.
-Other rooms: {0}.	Астатнія пакоі: {0}.
-Sight: {0}.	Прыцэл: {0}.
+Everyone fights with an assault rifle: sniper rifles, silenced guns and guns without automatic fire are swapped for an {0} (rooms up to level {1}) or an {2} (higher rooms).	Усе б'юцца штурмавымі вінтоўкамі: снайперскія вінтоўкі, зброя з глушыцелем і зброя без аўтаматычнага агню замяняюцца на {0} (пакоі да ўзроўню {1}) або {2} (вышэйшыя пакоі).
+Each comes with an {0}.	На кожнай — {0}.
+a revolver	рэвальвер
+a lever-action rifle	вінтоўка з рычажным затворам
 Every kit: {0} only.	Кожны камплект: толькі {0}.
 Every kit: {0} and {1}.	Кожны камплект: {0} і {1}.
 Everyone plays the same {0} random kits.	Усе гуляюць тымі ж {0} выпадковымі камплектамі.
@@ -966,3 +966,37 @@ deadly	смяротна
 {n} % a second	{n} % у секунду
 Damage is a share of each body part's health, before armour.	Шкода — доля здароўя кожнай часткі цела, да броні.
 It gives no artefacts.	Яна не дае артэфактаў.
+
+# The stats' Maps and Modes boards.
+Last 7 days	Апошнія 7 дзён
+Last 24 hours	Апошнія 24 гадзіны
+Avg length	Сяр. працягласць
+Sides	Бакі
+No result	Без выніку
+Share	Доля
+Trend	Дынаміка
+by hour	па гадзінах
+by day	па днях
+by week	па тыднях
+Most played maps and modes	Самыя папулярныя карты і рэжымы
+
+# The modes and weathers as the game names them (client-patches/localization: the stats' Maps and Modes boards, the match lists).
+Protective device	Ахоўная прылада
+Protective device: chargers	Ахоўная прылада: зараднікі
+Team Deathmatch	Камандны бой
+Research	Даследаванне
+Protective device: blackout	Ахоўная прылада: блэкаўт
+Free for all	Усе супраць усіх
+Freeze Tag	Замарозка
+Artifact Hunt	Паляванне на артэфакт
+FFA: Racket	FFA: Двіж
+FFA: Saloon	FFA: Салун
+FFA: Saloon (Winchester)	FFA: Салун (Вінчэстар)
+Mode {0}	Рэжым {0}
+day	дзень	weather
+rain	дождж	weather
+evening	вечар	weather
+night	ноч	weather
+before rain	перад дажджом	weather
+Weathers	Надвор'е
+Variants	Варыянты

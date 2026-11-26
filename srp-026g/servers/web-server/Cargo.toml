@@ -23,3 +23,5 @@ survarium = { workspace = true }
 [dev-dependencies]
 # Sessions without a sign-in, for the tests (`SessionStore::create_session`).
 session = { workspace = true, features = ["test-support"] }
+# Maps laid over the test data (ported versions of a level) for the stats' Maps board.
+survarium = { workspace = true, features = ["fixtures"] }

@@ -1145,6 +1145,21 @@ pub fn playable() -> impl Iterator<Item = &'static MapMode> {
     all().iter().filter(|map| map.is_playable())
 }
 
+/// `entries` in the order the rooms' create window lists them, each told by `of` as its map's
+/// `(build, level, weather)`: by build (0.26, 0.11, 0.21, 0.32, 0.42, 0.69, STALKER: the owner's of
+/// 2026-11-19 and, for the Londons, of 2026-11-20), each map (level) where its first entry came,
+/// its weathers day, evening, rain ([`weather::list_place`]). Stable. The lobby's room list and
+/// the site's stats both order maps by it.
+pub fn in_room_order<T>(mut entries: Vec<T>, of: impl Fn(&T) -> (Build, u8, u8)) -> Vec<T> {
+    let levels: Vec<u8> = entries.iter().map(|entry| of(entry).1).collect();
+    entries.sort_by_key(|entry| {
+        let (build, level, weather) = of(entry);
+        let map = levels.iter().position(|&each| each == level);
+        (build, map, weather::list_place(weather))
+    });
+    entries
+}
+
 /// The ids a match of `mode` may use.
 pub fn playable_in(mode: GameMode) -> impl Iterator<Item = &'static MapMode> {
     playable().filter(move |map| map.mode == mode)
