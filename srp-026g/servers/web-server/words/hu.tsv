@@ -137,7 +137,7 @@ A:	V:
 If something goes wrong	Ha valami nem működik
 Download the files	Fájlok letöltése
 The download link is coming soon.	A letöltési link hamarosan érkezik.
-Can't download? Run {script}: it downloads the whole game into a Survarium folder beside it.	Nem sikerül a letöltés? Futtasd ezt: {script} – letölti az egész játékot egy mellette lévő Survarium mappába.
+Chrome or your antivirus refuses the download? Try this script: {script}. It downloads the whole game into a Survarium folder beside it.	A Chrome vagy a víruskereső nem engedi a letöltést? Próbáld ki ezt a szkriptet: {script} – letölti az egész játékot egy mellette lévő Survarium mappába.
 Get the game	A játék beszerzése
 The link is coming soon.	A link hamarosan érkezik.
 Get the original Survarium 0.26g (build 2777) and unpack it.	Szerezd be az eredeti Survarium 0.26g-t (2777-es build), és csomagold ki.

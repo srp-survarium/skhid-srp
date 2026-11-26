@@ -137,7 +137,7 @@ A:	A:
 If something goes wrong	Wenn etwas schiefgeht
 Download the files	Dateien herunterladen
 The download link is coming soon.	Der Download-Link kommt bald.
-Can't download? Run {script}: it downloads the whole game into a Survarium folder beside it.	Download klappt nicht? Starte {script}: Es lädt das ganze Spiel in einen Survarium-Ordner daneben herunter.
+Chrome or your antivirus refuses the download? Try this script: {script}. It downloads the whole game into a Survarium folder beside it.	Chrome oder dein Virenschutz blockiert den Download? Probiere dieses Skript: {script}. Es lädt das ganze Spiel in einen Survarium-Ordner daneben herunter.
 Get the game	Spiel besorgen
 The link is coming soon.	Der Link kommt bald.
 Get the original Survarium 0.26g (build 2777) and unpack it.	Besorge das originale Survarium 0.26g (Build 2777) und entpacke es.
