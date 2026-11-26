@@ -49,3 +49,42 @@ served by `servers/web-server/src/maps.rs`.
 - Maps in one frame (a port and its original, such as the three Vostoks) show the same view: switching between
   them, nothing jumps.
 - The view and toggles are remembered in the browser.
+
+## Anomalies
+
+The owner (2026-11-26): "one thing we miss on our wiki with artifacts is rules, how many can spawn of which kind
+and when and how"; "we should show anomalies there and for each one some kind of floating window"; on the maps.
+
+- A toggle "Anomalies" draws each anomaly that gives artefacts (`generic_anomaly_core` with `artefacts_enabled`
+  and containers; Keeper's hidden pool has none) as its zones from above, tinted by what it holds (each kind its
+  glow's colour, `artefacts.md` "The stock glow"; two kinds in stripes of both). A zone that hurts is filled, a
+  harmless one (sound and sight) dashed.
+- Twins: two anomalies on the very same zones, one hurting and the other only seen and heard (Rudnya's Lifebone
+  and Spring, v0.69 Rudnya's too; Chemical Plant's Spring and Onyx, v0.11's too). Drawn apart, the harmless one lay
+  on top and its card said "no damage" where the ground hurts. The build marks the later one (`twin`, the index
+  of the first); the page draws the place once, in both kinds' stripes, and its card lists each anomaly's
+  artefacts and timing, then the place's damage.
+- Pointing at an anomaly or at one of its artefacts (or tapping it, which keeps it until a tap elsewhere) dims the
+  others and shows its card: what it holds (each kind and its count), the first artefact's window and each next
+  one's, the chance where it is below 100 %, how many may lie uncollected, its containers and their search time,
+  how often its zones switch (Vostok's electric pairs), what a pickup starts (the next window, the container's
+  cooldown), and "its own zone does no damage" for an idle-only one.
+- A line under the map gives the rule the card's numbers follow (the 0.26g exe, `dynamic_anomalies.md` section 2,
+  `bots/anomalies.rs`): a due anomaly draws its chance (a miss tries again a window later), then puts a random free
+  artefact of its pool into a random free container of its own (empty, cooldown over); it tries again a window later
+  until `max_artefacts_count` lie in its containers; a pickup makes it due again a window later. A free artefact is
+  one nobody has: the pool caps how many of its artefacts are out at once.
+- Each zone that hurts is a row of the card: its damage type (the equipment pages' names), its hit as a share of each
+  part's health before armour (a continuous zone's per second, `max_hit` x 1000 / `interval_in_msec`; "deadly" from
+  1 a second; another's per hit, at most once an interval), and its parts as the site names them, head to feet
+  ("whole body" for all eight). Zones of one type, parts and timing are one row with the range of their hits
+  (School's fruit cloud: five levels).
+- The v0.11 and v0.21 ports' `electric_hit_damage_zone` and v0.21 School's `fruit_toxic_cloud_explosion` list
+  `body` and `head`, their builds' part names, which 0.26g's body has not: the card leaves them out and the build
+  says so. What 0.26g does with an unknown name is not read (LIKELY: no part, no damage there): a port to check.
+- The containers' search time and cooldown are the same for every anomaly of each map (6 s and 80 s; 5 s on the
+  v0.21 ports): said once in the line under the map; a map whose anomalies differed would have them on each card.
+- Not on the page until checked in a game: the short spawning state of an artefact in a container before it can be
+  taken (`m_time_left_to_spawn`), and whether an artefact a full-slots pickup replaces goes back to its pool.
+- Every number is the release's data: nothing typed in. The modes of a map have the same anomalies (the build stops
+  otherwise).

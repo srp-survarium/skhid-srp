@@ -951,3 +951,27 @@ A key fires every ready copy of its kind and restarts the cooldown of the ones s
 Copies of a kind add up (Onyx's passive multiplies); at most 4 count.	Копии одного вида складываются (пассив Оникса перемножается); действуют не больше 4.
 Spring's and Larkspur's actives add to the passive; Onyx's replaces it.	Активация Пружины и Живокоста добавляется к пассиву; Оникса — заменяет его.
 Onyx fired together: one reduction, 1 s longer per extra copy.	Ониксы, активированные вместе: одно уменьшение, на 1 с дольше за каждую лишнюю копию.
+
+# The maps' anomalies (scripts/maps-tab/ui.js)
+Anomalies	Аномалии
+Anomaly	Аномалия
+Artefacts come from the anomalies. Each anomaly puts one of its artefacts into one of its free containers, one per time window, until its maximum lies uncollected; a pickup starts the window again. It gives only those of its artefacts that no player is carrying. Point at an anomaly or an artefact (or tap it) for its numbers.	Артефакты дают аномалии. Каждая аномалия кладёт один из своих артефактов в один из своих свободных контейнеров, по одному за промежуток времени, пока её максимум не будет лежать несобранным; подбор артефакта запускает промежуток заново. Она даёт только те свои артефакты, которые не несёт ни один игрок. Наведите на аномалию или артефакт (или коснитесь), чтобы увидеть её числа.
+{s} s	{s} с
+{a}–{b} s	{a}–{b} с
+Holds	Содержит
+First one	Первый
+Then every	Далее каждые
+Chance	Шанс
+Max uncollected	Максимум несобранных
+Search	Поиск	artefact
+Zones switch every	Зоны сменяются каждые
+After a pickup the next one comes {next} later; that container stays empty for {cooldown}.	После подбора следующий появится через {next}; этот контейнер остаётся пустым {cooldown}.
+Its own zone does no damage.	Её собственная зона не наносит урона.
+Searching a container takes {search}; after a pickup it stays empty for {cooldown}.	Обыск контейнера длится {search}; после подбора он остаётся пустым {cooldown}.
+After a pickup the next one comes {next} later.	После подбора следующий появится через {next}.
+whole body	всё тело
+{n} % a hit, at most every {t}	{n} % за удар, не чаще раза в {t}
+deadly	смертельно
+{n} % a second	{n} % в секунду
+Damage is a share of each body part's health, before armour.	Урон — доля здоровья каждой части тела, до брони.
+It gives no artefacts.	Она не даёт артефактов.
