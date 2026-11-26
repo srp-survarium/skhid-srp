@@ -52,12 +52,12 @@ pub struct Budget {
 pub const CACHE: usize = 32 * PAGE;
 pub const CHUNK: usize = 64 * 1024;
 
-enum Phase<D: Disk> {
+enum Phase<F, B> {
     /// Looking paths up in the archive `archive` (0 the last mounted), from
     /// the path `next` on; its table open once it is.
-    Resolving { archive: usize, next: u16, pages: Option<Pages<D::File, D::Bytes>> },
+    Resolving { archive: usize, next: u16, pages: Option<Pages<F, B>> },
     /// Hashing from file `index` on; the archive open, the file begun.
-    Hashing { index: u16, open: Option<(Archive, D::File)>, file: Option<Hashing> },
+    Hashing { index: u16, open: Option<(Archive, F)>, file: Option<Hashing> },
     Whole,
 }
 
@@ -68,23 +68,25 @@ struct Hashing {
     size: u32,
 }
 
-pub struct Run<D: Disk> {
-    request: D::Bytes,
+/// A run, of the file, memory and slot types of the [`Disk`] it reads
+/// (none of the disk itself: it is given to each step).
+pub struct Run<F, B, S> {
+    request: B,
     len: usize,
     count: u16,
     mounts: Mounts,
-    slots: D::Slots,
-    chunk: D::Bytes,
+    slots: S,
+    chunk: B,
     /// The table cache, between archives.
-    cache: Option<D::Bytes>,
-    phase: Phase<D>,
+    cache: Option<B>,
+    phase: Phase<F, B>,
 }
 
-impl<D: Disk> Run<D> {
+impl<F: Source, B: AsMut<[u8]>, S: AsMut<[Slot]>> Run<F, B, S> {
     /// The run of the request `bytes` (checked again here) for a game that
     /// mounted `mounts`; none when it is no request or the memory is not
     /// there.
-    pub fn new(disk: &mut D, bytes: &[u8], mounts: Mounts) -> Option<Self> {
+    pub fn new<D: Disk<File = F, Bytes = B, Slots = S>>(disk: &mut D, bytes: &[u8], mounts: Mounts) -> Option<Self> {
         let count = Request::parse(bytes)?.len();
         let mut request = disk.bytes(bytes.len().max(1))?;
         request.as_mut().get_mut(..bytes.len())?.copy_from_slice(bytes);
@@ -116,7 +118,7 @@ impl<D: Disk> Run<D> {
     }
 
     /// One step, as far as `budget` goes.
-    pub fn step(&mut self, disk: &mut D, mut budget: Budget) {
+    pub fn step<D: Disk<File = F, Bytes = B, Slots = S>>(&mut self, disk: &mut D, mut budget: Budget) {
         loop {
             let phase = core::mem::replace(&mut self.phase, Phase::Whole);
             let (next, more) = match phase {
@@ -146,14 +148,14 @@ impl<D: Disk> Run<D> {
 
     /// Looks paths up in archive `archive`; `true` in the second when the
     /// next phase may go on in this step.
-    fn resolve(
+    fn resolve<D: Disk<File = F, Bytes = B, Slots = S>>(
         &mut self,
         disk: &mut D,
         archive: usize,
         next: u16,
-        pages: Option<Pages<D::File, D::Bytes>>,
+        pages: Option<Pages<F, B>>,
         budget: &mut Budget,
-    ) -> (Phase<D>, bool) {
+    ) -> (Phase<F, B>, bool) {
         let Some(which) = self.archive(archive) else {
             // Past resources.db: what no archive has is missing.
             for slot in self.slots.as_mut().iter_mut() {
@@ -172,12 +174,12 @@ impl<D: Disk> Run<D> {
                     // not known.
                     None => {
                         self.cache = disk.bytes(CACHE);
-                        return (self.unreadable_from(archive), true);
+                        return (self.unreadable_from(), true);
                     }
                 },
                 (_, cache) => {
                     self.cache = cache;
-                    return (self.unreadable_from(archive), true);
+                    return (self.unreadable_from(), true);
                 }
             },
         };
@@ -211,8 +213,7 @@ impl<D: Disk> Run<D> {
 
     /// An archive that cannot be read: a file it may hold over the ones
     /// below is not known, so every file not found yet is unreadable.
-    fn unreadable_from(&mut self, archive: usize) -> Phase<D> {
-        let _ = archive;
+    fn unreadable_from(&mut self) -> Phase<F, B> {
         for slot in self.slots.as_mut().iter_mut() {
             if *slot == Slot::Unresolved {
                 *slot = Slot::Answered(Answer::Unreadable);
@@ -221,14 +222,14 @@ impl<D: Disk> Run<D> {
         Phase::Hashing { index: 0, open: None, file: None }
     }
 
-    fn hash(
+    fn hash<D: Disk<File = F, Bytes = B, Slots = S>>(
         &mut self,
         disk: &mut D,
         mut index: u16,
-        mut open: Option<(Archive, D::File)>,
+        mut open: Option<(Archive, F)>,
         mut file: Option<Hashing>,
         budget: &mut Budget,
-    ) -> (Phase<D>, bool) {
+    ) -> (Phase<F, B>, bool) {
         while index < self.count {
             let Some(&slot) = self.slots.as_mut().get(usize::from(index)) else { break };
             let Slot::At(archive, place) = slot else {

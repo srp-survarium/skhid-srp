@@ -1,0 +1,21 @@
+name = "file_check"
+patch = 215
+uses = ["packet_recovery"]
+
+# after patch 125's reports (orders 5 and 6): the connection's first world is in, its offer
+[[hook]]
+site = "world_load.loaded"
+handler = "on_loaded"
+order = 7
+
+# every frame of a match: a bounded step of the run
+[[hook]]
+site = "game.tick"
+handler = "on_frame"
+order = 8
+
+# close_current_match's entry: nothing of the match kept
+[[hook]]
+site = "match_recovery.close"
+handler = "on_close"
+order = 6

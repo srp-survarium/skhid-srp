@@ -107,6 +107,7 @@ pub mod step;
 pub mod system;
 pub mod modules;
 pub mod executable;
+pub mod file_check;
 pub mod module_watch;
 pub mod voices;
 pub mod voice;
