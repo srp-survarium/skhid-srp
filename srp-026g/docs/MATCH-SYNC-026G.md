@@ -507,6 +507,7 @@ From `servers/match-server/src/v026g/mod.rs`, read once at start:
 | `SRP_CLOCK_CORRECTION` | `on` | `off`: no 0xE7 |
 | `SRP_CHECK_INITIAL_WORLD` | `on` | `off`: take a first world that already has statistics in it (for when the reader, not the world, is wrong) |
 | `SRP_SNAPSHOT_DIR` | `logs/snapshots` | Where uploaded worlds are saved; `off` or empty for none |
+| `SRP_CAPTURE_MAX_MB` | 200 | The desync captures (`<SRP_SNAPSHOT_DIR>/captures`, `docs/notes/desync_capture.md`) over this together: the oldest go |
 | `SRP_COMPRESS_STATE` | `on` | `off`: 0xE8 goes as it is, not as LZMA2 (match.md §27) |
 | `SRP_ENTRY_STATE_SECONDS` | 4 | A game's first world is kept on its way this long (2 to 5) before its sync starts over; less where its snapshot is old, so that the ticks of the inputs relayed meanwhile stay within 127 of the clock the game waits at |
 | `SRP_RELAY_PACK_MS` | 15 | Relays and drop orders wait this long (at most 50, 0 = off) for others to share their datagram (transport.md §11.1) |
@@ -549,7 +550,12 @@ plain reliables (E3, F3..F5).
 - `SRP_SNAPSHOT_DIR`: saved worlds, with their kind (`unreadable` among
   them; `wrong`: a game's own world as it was found out of step; `split`: a
   game's world at its first report against the majority, with a majority
-  game's `checked` world asked for at the same moment).
+  game's `checked` world asked for at the same moment, until 2026-11-26).
+- `<SRP_SNAPSHOT_DIR>/captures`: the desync captures, one folder a split: a
+  world of each side, timed for one tick, and `capture.json` with the first
+  differing place, object and field (`docs/notes/desync_capture.md`); one
+  "desync capture" line each in the match log. `srp-world-diff` diffs any
+  two dumps the same way.
 - `client-patches/check_world_roundtrip_026g.py <survarium.exe> [dumps]`:
   for each saved world, a late joiner and a resynced game load it and save it at
   once under Unicorn, through every patch hook inside the world's load and save.

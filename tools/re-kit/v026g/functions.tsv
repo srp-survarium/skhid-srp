@@ -1071,6 +1071,7 @@ va	status	ref_021d	name
 0x002ca910	reviewed	0x001c6f53	survarium::items_dictionary::can_move_item_to_slot
 0x002cea30	reviewed	0x001d0b6f	survarium::animation_analysis_result_cook::translate_query
 0x002d09c0	reviewed	0x001ca899	survarium::game_world_core::new_game_state_history_item
+0x002d0b30	reviewed	0x001cab13	survarium::game_world_core::event_horizon_history_item
 0x002d0b70	reviewed	0x001cab3b	survarium::game_world_core::deserialize
 0x002d1100	reviewed	0x001cae58	survarium::game_world_core::insert_impl
 0x002d1470	reviewed	0x001cb9bd	survarium::game_world_core::enter_match

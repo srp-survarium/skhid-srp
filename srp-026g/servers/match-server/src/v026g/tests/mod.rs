@@ -12,6 +12,7 @@ mod afk;
 mod bots;
 mod driven;
 mod free_for_all;
+mod desync_capture;
 mod game;
 mod late_join;
 mod late_join_edge_cases;
