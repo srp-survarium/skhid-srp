@@ -3,7 +3,7 @@
 //! with `SKHID_MEMORY_PROFILE=on`, read once when the arenas are made
 //! ([`Setting`]). Off, nothing is reserved, written or logged, and the
 //! allocator is the game's byte for byte: its gates are written into it
-//! only when the profile is on (`vostok::memory_profile::install`).
+//! only when the profile is on (`vostok::memory_profile::start`).
 //!
 //! On, every block the engine's heaps hand out or take back (dlmalloc's
 //! mspace_malloc, mspace_realloc, mspace_free: each doug_lea arena's heap and
