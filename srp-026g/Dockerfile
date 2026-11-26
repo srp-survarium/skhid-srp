@@ -3,8 +3,8 @@
 # web page in one process), as one small non-root image.
 #   docker build -t srp-026g .
 # Run it through docker-compose.yml (see docs/DEPLOY.md).
-# It is made to run beside the live 0.21d server without touching it: its own
-# image name, compose project, volume and ports.
+# Its own image name, compose project, volume and ports keep it apart from any
+# other server on the host.
 
 FROM rust:1-slim-bookworm AS build
 RUN apt-get update \

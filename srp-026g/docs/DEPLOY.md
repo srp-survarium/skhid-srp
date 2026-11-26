@@ -40,11 +40,11 @@ preflight stops when it is not.
 | Voice chat (UDP, the match port + 1; `SRP_VOICE=off` for none) | 2237 | 1237 |
 | Web page | `127.0.0.1:8098` | the same, or public through `caddy26` on 443 |
 
-The defaults are a block of their own so that the stack can run beside a
-0.21d server on one host without sharing a name, a volume or a port with it
-(that server has 1234 tcp+udp, 1235 tcp, 1236 udp, 80 and 443). Beside it,
-do not start `caddy26`: port 443 is the other server's. On a host of its own
-use the game's own 1234, 1235, 1236 and 1237 for voice.
+The defaults are a block of their own so that the stack can run beside
+another server on one host without sharing a name, a volume or a port with
+it (it was made to run beside the 0.21d server, hosted until 2026-10-12).
+Beside a server that has port 443, do not start `caddy26`. On a host of its
+own use the game's own 1234, 1235, 1236 and 1237 for voice.
 
 Open every game port in the host's firewall: the login port for TCP, the
 lobby, match and voice ports for UDP. A voice port that is not open leaves

@@ -55,7 +55,7 @@ start them: the two login servers share one port.
 | `servers/match-server/src/v026g/` | The match server: `registry` (the lobby makes a match here), `game` (sync, relay, hashes, resync, the end), `server` (socket and loop) |
 | `servers/srp/src/v026g.rs` | Joins them: `Stack` (the three servers and the session collector, each on a supervised thread), `RegistryHost` (lobby → match server), `Settler` (match result → rewards → database → lobby), `WebLink` (web page → lobby) |
 | `servers/web-server` | The web page (`run_026g`, `src/v026g.rs`). The 0.21d page is `srp-021d`'s |
-| `scripts/client-patch-026g/` | `patch_026g.py` (the client patch), `selftest_026g.py`, `make_client_026g.py` (the players' overlay) |
+| `client-patches/` | `patch_026g.py` (the client patch), `selftest_026g.py`, `make_client_026g.py` (the players' overlay) |
 | `crates/resources-db` | Reads `resources.db` and its patches (`resources.db.patch_<n>`), lays them over one another as the game mounts them, and `srp-game-data` builds the server's game data from them: the `gameplay/` files, the English and Ukrainian localizations and each project's `server_objects`, with what it was made of (`resources.db`, each patch with its URL). `srp` reads it at start (`SRP_GAME_DATA`). `crates/resources-db/README.md` |
 | `resources/game-026g/` | The server's game data of tests and tools: 0.26g's `resources.db` with the test patches 14 to 16 |
 
@@ -329,9 +329,9 @@ read by the 0.21d browser server and by the compose file's caddy, not by the
   (`SRP_GAME_URL`); step two, the download of the few files that go over it;
   the launch line (`-localization=… -server=<host>:<port>
   -minimum_resources_memory_size=768`); players online; how matches start.
-- `/exchange` (`GET`): a short page saying that silver and gold are
-  exchanged in the game now (the lobby's exchange window,
-  `client-patches/README.md`, "Lobby exchange"), in the language of its
+- `/exchange` (`GET`): a short page saying that there is no gold: everything
+  in the game is bought with silver (since 2026-11-08,
+  `notes/silver-only.md`), in the language of its
   `?lang=` (`en`, `ua`, `ru`, `de`, `pl`, as the launcher sends them; else
   the page's own). The SHOP button of the launchers players already have
   opens it (the launcher has no SHOP button since). The page exchanges
@@ -392,7 +392,7 @@ read by the 0.21d browser server and by the compose file's caddy, not by the
   These addresses alone are sent with a `Content-Security-Policy`
   that lets that one script run, by its SHA-256, and ask this server.
 - The admin page (token, path and address as in the table). Tabs:
-  money (silver and gold, `+500` / `-100`, never below 0, with a reason, a
+  money (silver, `+500` / `-100`, never below 0, with a reason, a
   preview and a confirm: `notes/account-moderation.md`); take items (the
   same: listed, ticked, taken whole or units of a stack, off every kit);
   account (premium hours, set the level, experience, reputation with a
@@ -432,8 +432,8 @@ Implemented (coded and tested):
 |---|---|
 | Login | Sign-in, registration on first sign-in, wrong password, bans with the game's ban reasons, limits, closed registration, wrong build |
 | Lobby account | The sign-in push in the order the client needs; inventory with its three "spent" lists; kits (three, every one usable without premium), move, the autobuy byte (always on), active kit, kit names |
-| Shop | Buy, sell, repair, gold for silver and (srp's lobby exchange) silver for gold (`47 04`); sellers by reputation level |
-| Skills | Set, reset for silver or gold |
+| Shop | Buy, sell, repair, all for silver (no gold since 2026-11-08, `notes/silver-only.md`); sellers by reputation level |
+| Skills | Set, reset for silver |
 | Quests | Choosing a faction, daily quests, progress and pay after a match |
 | Queue and matches | Play alone or as a squad, leave, rejoin after a new sign-in (`MatchRegistry::reseat`) |
 | Results | Rewards (experience, silver, reputation, levels, rating, drops, item wear), the results screen, player details, the drop card |
@@ -467,8 +467,8 @@ srp's own choices (the client does not reveal a rule): the level table is
 0.21d's, 50 levels; the reward rules are 0.21d's; one queue; a second sign-in
 signs the first out; chat limit 10 lines then 1 a second (the client's own
 spam filter is stricter and prints the game's notice itself); a match's
-report is kept while a results screen of it may be open (two hours); silver for gold on
-the page at the game's gold-for-silver rate; the admin's limits above.
+report is kept while a results screen of it may be open (two hours); the admin's
+limits above.
 
 ## Build and test on Windows
 
@@ -563,7 +563,7 @@ the paragraph above says.
 
 ## The client patch and the players' download
 
-`scripts/client-patch-026g/patch_026g.py <survarium.exe> <survarium_srp.exe>`
+`client-patches/patch_026g.py <survarium.exe> <survarium_srp.exe>`
 builds the patched client from the original exe (its sha256 is checked; each
 site is checked against the original bytes). It patches the code-signing
 certificate check (without it every stock 0.26g client stops with "Resources
