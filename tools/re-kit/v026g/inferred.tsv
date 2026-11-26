@@ -1863,7 +1863,6 @@ va	status	ref_021d	name
 0x002d02a0	inferred-high	0x001ca649	survarium::game_world_core::~game_world_core
 0x002d04f0	inferred-high	0x001ca765	survarium::game_world_core::serialize
 0x002d0a60	inferred-high	0x001ca996	survarium::game_world_core::commit_game_statistic_event_history_item
-0x002d0b30	inferred-high	0x001cab13	survarium::game_world_core::event_horizon_history_item
 0x002d1340	inferred-high	0x001cb043	survarium::game_world_core::erase_impl
 0x002d55b0	inferred-high	0x001dc824	survarium::pvp_match_core::pvp_match_core
 0x002d5750	inferred-high	0x001dca6c	survarium::pvp_match_core::~pvp_match_core

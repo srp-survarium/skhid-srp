@@ -2775,10 +2775,12 @@ va	name	location	role	basis
 0x002d0ab0	survarium::game_world_core::active_player_ptr	ESI	the world core	observed
 0x002d0ab0	survarium::game_world_core::active_player_ptr	CL	the place	observed
 0x002d0ab0	survarium::game_world_core::active_player_ptr	EDI	out pointer	observed
+0x002d0b30	survarium::game_world_core::event_horizon_history_item	EAX	the game_world_core (network_client [nc+1F1C40h] + 1F8h at 0x27CD66)	observed
 0x002d0b70		entry ESP+12		auto
 0x002d0b70		entry ESP+4		auto
 0x002d0b70	survarium::game_world_core::deserialize	entry ESP+4	the world core ([network_client+1F1C40h]+1F8h at the 0xE8 handler's loads 0x27C0D9, 0x27C111)	observed
 0x002d0b70	survarium::game_world_core::deserialize	entry ESP+8	the buffer_reader at the world: its time (u32), then the body	observed
+0x002d1070	survarium::game_world_core::is_there_event_horizon_item	EAX	the game_world_core	observed
 0x002d1100		EAX		auto
 0x002d1100		entry ESP+4		auto
 0x002d1100		entry ESP+12		auto

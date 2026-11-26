@@ -35,6 +35,9 @@
 //!   the address, as for 0.21d (`vostok::config`);
 //! - `SRP_SNAPSHOT_DIR`: where uploaded worlds are saved (default
 //!   `logs/snapshots`; `off` or empty for none), as for 0.21d;
+//! - `SRP_CAPTURE_MAX_MB` (default 200): the desync captures kept in
+//!   `<SRP_SNAPSHOT_DIR>/captures` together at most, the oldest deleted
+//!   first (`game/desync_capture.rs`);
 //! - `SRP_PACKET_LOG=<dir>`: the transport's raw datagram log;
 //! - `SRP_LATE_INPUTS=discard|move` (default `discard`, what 0.21d does):
 //!   what becomes of an input that comes after its tick is final: dropped
@@ -133,6 +136,9 @@ mod game;
 pub mod world_validation;
 /// Recorded and dumped worlds checked as uploads are (`srp-world-check`).
 pub mod world_check;
+/// What differs between two worlds of one tick (`world_diff::diff`): the
+/// desync capture's summary and `srp-world-diff`.
+pub mod world_diff;
 /// A player's kills of one enemy pay at most 10 times a match.
 mod kill_cap;
 /// Match recordings (`SRP_RECORD_DIR`) and their reader.
@@ -285,6 +291,9 @@ pub(crate) struct Settings {
     /// (`SRP_COMPRESS_STATE`).
     pub compress_state: bool,
     pub snapshot_dir: Option<PathBuf>,
+    /// `SRP_CAPTURE_MAX_MB`: the desync captures kept under the snapshot
+    /// folder (`game/desync_capture.rs`) together at most; the oldest go.
+    pub capture_max_bytes: u64,
     /// `SRP_RECORD_DIR`: the match recordings, if any.
     pub record: Option<record::RecordSettings>,
     /// `SRP_RELAY_PACK_MS`: the match link's `Config::gather`.
@@ -309,6 +318,7 @@ impl Default for Settings {
             check_initial_world: true,
             compress_state: true,
             snapshot_dir: None,
+            capture_max_bytes: DEFAULT_CAPTURE_MAX_MB << 20,
             record: None,
             pack: Config::for_table(Table::Match).gather,
             maps: None,
@@ -318,6 +328,9 @@ impl Default for Settings {
         }
     }
 }
+
+/// `SRP_CAPTURE_MAX_MB` when unset: some 1000 captures of 0.1 to 0.2 MB.
+const DEFAULT_CAPTURE_MAX_MB: u64 = 200;
 
 /// Where accepted snapshots are kept unless `SRP_SNAPSHOT_DIR` says
 /// otherwise: the 0.21d server's place.
@@ -338,6 +351,11 @@ impl Settings {
             check_initial_world: session::switch("SRP_CHECK_INITIAL_WORLD", true),
             compress_state: session::switch("SRP_COMPRESS_STATE", true),
             snapshot_dir: parse_snapshot_dir(var("SRP_SNAPSHOT_DIR").as_deref()),
+            capture_max_bytes: u64::from(parse_number(
+                "SRP_CAPTURE_MAX_MB",
+                var("SRP_CAPTURE_MAX_MB").as_deref(),
+                DEFAULT_CAPTURE_MAX_MB as u32,
+            )) << 20,
             record: record::RecordSettings::from_env(),
             pack: match var("SRP_RELAY_PACK_MS") {
                 Some(value) => Duration::from_millis(u64::from(
