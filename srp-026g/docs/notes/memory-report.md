@@ -36,8 +36,8 @@ is in `client_patch.md` section 3.76.
 - **Where.** Each snapshot goes to `srp_patches.log` as one line for the process and one for
   each arena, so a crash report carries the last one. It is also sent to the match server on
   the generic client-report channel.
-- **The channel** (`srp_validate::report`): one typed `Report` enum (memory now; the module
-  report can become a second kind), one carrier, one send path and one owner on the server.
+- **The channel** (`srp_validate::report`): one typed `Report` enum (memory, kind 1; the module
+  report, kind 2, `module-report.md`), one carrier, one send path and one owner on the server.
   - The carrier is 0xE0 with the impossible chunk prefix `ff ff ff ff ff ff 03 00`, the match
     id (its seed), the kind, the part and the number of parts. A memory report takes 2 parts
     (10 entries each, at most 4). Each part is plain and resent until acked, like the receipts;
