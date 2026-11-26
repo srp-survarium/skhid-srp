@@ -1085,7 +1085,7 @@ mod tests {
         let stage = Vec3::new(75.0, 0.0, 3.0);
         let mut hold = LaneHold::default();
         assert_eq!(hold.goal(goal), goal);
-        hold.start_pincer(goal, Pincer { mate: 1, stage, centre: goal, phase: Phase::ToStage { checked_m: None, own: None }, flank: true });
+        hold.start_pincer(goal, Pincer { mate: 1, stage, centre: goal, phase: Phase::ToStage { checked_m: None, own: None }, flank: true, since: 0 });
         assert_eq!(hold.goal(goal), stage);
         assert!(matches!(hold.replan(stage, false), Replan::Held(None)), "no lane drawn: the stage is its way");
         hold.route_ended(RouteEnd::Arrived);
@@ -1096,7 +1096,7 @@ mod tests {
         assert_eq!(hold.goal(goal), goal);
         hold.route_ended(RouteEnd::Arrived);
         assert!(hold.pincer().is_none() && hold.walking().is_none(), "in and there: the walk is over");
-        hold.start_pincer(goal, Pincer { mate: 1, stage, centre: goal, phase: Phase::ToStage { checked_m: None, own: None }, flank: true });
+        hold.start_pincer(goal, Pincer { mate: 1, stage, centre: goal, phase: Phase::ToStage { checked_m: None, own: None }, flank: true, since: 0 });
         hold.route_ended(RouteEnd::NewAssignment);
         assert!(hold.pincer().is_none());
         // A refusal holds for its goal, past the walk's end (a bot at its goal stands there with no route), not for another goal.

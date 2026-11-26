@@ -4579,7 +4579,7 @@ fn pincer_goal(
         && bot.features.lane.walking().is_some()
         && let Some(p) = paired
     {
-        let joined = Pincer { mate: p.mate, stage: p.stage, centre: p.centre, phase: Phase::ToStage { checked_m: None, own: None }, flank: false };
+        let joined = Pincer { mate: p.mate, stage: p.stage, centre: p.centre, phase: Phase::ToStage { checked_m: None, own: None }, flank: false, since: time };
         bot.features.lane.start_pincer(goal, joined);
         bot.nav_log.push(super::nav_log::Kind::Lane, time, pincer::lines::joined(p.mate, p.stage));
     } else if bot.features.lane.walking().is_none()
@@ -4641,7 +4641,7 @@ fn pincer_goal(
                         let walk = lane_draw::WalkFor { play: Some(kind), goal, objective: Some(obj) };
                         lanes.claim(bot.place, std::sync::Arc::new([vec![me.feet, to], Vec::new()]), false, walk);
                         lanes.pair((mate, ahead.stage), (bot.place, to), centre);
-                        let p = Pincer { mate, stage: to, centre, phase: Phase::ToStage { checked_m: None, own: None }, flank: true };
+                        let p = Pincer { mate, stage: to, centre, phase: Phase::ToStage { checked_m: None, own: None }, flank: true, since: time };
                         bot.features.lane.start_pincer(goal, p);
                         let line = pincer::lines::paired(kind, mate, to, centre, off, leg, pincer::window_s(view_deg), gap_s);
                         bot.nav_log.push(super::nav_log::Kind::Lane, time, line);
@@ -4683,7 +4683,8 @@ fn pincer_tick(bot: &mut Bot, me: &PlaceView, view: &MatchView, tactics: &Tactic
         // Its claim still in a pincer its walk is no longer in (the walk ended, a short one came next): gone, for its teammate.
         if let Some(q) = lanes.paired(bot.place).filter(|q| q.state != Shared::Gone) {
             lanes.share(bot.place, Shared::Gone);
-            let play = bot.assignment.as_ref().map(|a| a.kind);
+            // The commander gave it another play (an interrupter, or its own play no longer a candidate: its objective gone).
+            let play = bot.assignment.as_ref().map(|a| (a.kind, a.reason));
             bot.nav_log.push(super::nav_log::Kind::Lane, time, pincer::lines::walk_ended(q.mate, play));
         }
         return;
@@ -4693,6 +4694,20 @@ fn pincer_tick(bot: &mut Bot, me: &PlaceView, view: &MatchView, tactics: &Tactic
         Phase::ToStage { checked_m, own } => {
             if mate == Shared::Gone {
                 end_pincer(bot, lanes, time, &pincer::lines::alone(p.mate, "its teammate gone before the stages"));
+                return;
+            }
+            // Danger or the round's end on the way breaks it: hit since it began, a fight, the round's last cap.
+            let broke = if bot.reflex.hit_since(p.since) {
+                Some("hit")
+            } else if bot.reflex.target().is_some() {
+                Some("a fight")
+            } else if view.time_left_s * 1000.0 <= pincer::HOLD_CAP_MS as f32 {
+                Some("the round's end")
+            } else {
+                None
+            };
+            if let Some(why) = broke {
+                end_pincer(bot, lanes, time, &pincer::lines::broke(p.mate, why));
                 return;
             }
             // The flank (its route to the stage, then the straight leg in) against its own plain way to the objective, once a route:

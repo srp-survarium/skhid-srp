@@ -21,6 +21,11 @@
 //!   within W: W x [`SPEED_MPS`] / [`ETA_REL_P75`], both measured on the bench's walks; 5.2 m), walked to the centre in a straight
 //!   line (`path::straight`: no jump, no drop), at least half the view off the teammate's own stage's bearing; the one nearest the
 //!   walker. The teammate's stage is its own route's point that far before its end.
+//! - **The plays held.** While a pincer is under way the commander holds both walkers' plays as a started play is held
+//!   (`team::Commit::Held`): against every candidate but a named interrupter (`team::interrupts`: a survival play, Heal or
+//!   Retreat; or an alarm-band call over a play below it: a mate's death to trade, a carrier to escort, a thief to intercept, a
+//!   hunt, a sneak, a near flank, a battery to bring home), and only while the play is still a candidate (its objective there).
+//!   On the way to the stage it breaks at a hit, a fight, or the round's last [`HOLD_CAP_MS`].
 //! - **The hold** (`Reflex::hold_for_pincer`): each stands at its stage looking at the centre until the other is there, at most
 //!   [`HOLD_CAP_MS`] (the p90 of the walks' time error), and lets go at once when hit, fighting, or when its own senses notice an
 //!   enemy. No hold when the round has less time left than the cap.
@@ -189,8 +194,8 @@ pub enum Phase {
     In,
 }
 
-/// A bot's pincer: its teammate, its stage, the objective's centre, its phase, and whether it is the flank (the walk that took a
-/// stage off its teammate's bearing; the teammate's stage is on its own route, its way not capped).
+/// A bot's pincer: its teammate, its stage, the objective's centre, its phase, whether it is the flank (the walk that took a
+/// stage off its teammate's bearing; the teammate's stage is on its own route, its way not capped), and since when (ms).
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Pincer {
     pub mate: Place,
@@ -198,6 +203,7 @@ pub struct Pincer {
     pub centre: Vec3,
     pub phase: Phase,
     pub flank: bool,
+    pub since: u32,
 }
 
 /// A walk's state for its team in a pincer ([`super::lane_draw::TeamLanes`]): what its teammate reads.
@@ -242,9 +248,15 @@ pub mod lines {
         format!("{PREFIX}pincer: goes in without b{mate} ({why})")
     }
 
-    /// Its walk in the pincer ended (a new play, no goal, no way, there) with `play` now.
-    pub fn walk_ended(mate: Place, play: Option<super::super::plays::PlayKind>) -> String {
-        format!("{PREFIX}pincer: its walk ended before the stages (play now {play:?}), b{mate} goes alone")
+    /// Its walk in the pincer ended (a new play, no goal, no way, there) with `play` now and the commander's reason for it.
+    pub fn walk_ended(mate: Place, play: Option<(super::super::plays::PlayKind, &str)>) -> String {
+        let (kind, why) = play.map_or(("None".to_owned(), "-"), |(k, w)| (format!("{k:?}"), w));
+        format!("{PREFIX}pincer: its walk ended before the stages (play now {kind}: {why}), b{mate} goes alone")
+    }
+
+    /// A break of the pincer on the way to the stages.
+    pub fn broke(mate: Place, why: &str) -> String {
+        format!("{PREFIX}pincer: broken on the way ({why}), b{mate} goes alone")
     }
 
     pub fn joined(mate: Place, stage: Vec3) -> String {

@@ -5467,6 +5467,11 @@ impl Reflex {
         }
     }
 
+    /// [pincer] Whether it was hit at or after `since` (ms).
+    pub fn hit_since(&self, since: u32) -> bool {
+        self.hit_at.is_some_and(|at| at >= since) || self.bullet_hit_at.is_some_and(|at| at >= since)
+    }
+
     /// [pincer] Whether it holds at a stage now.
     pub fn holds_for_pincer(&self) -> bool {
         self.pincer_hold.is_some()

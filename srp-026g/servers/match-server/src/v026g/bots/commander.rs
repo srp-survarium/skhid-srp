@@ -1473,6 +1473,12 @@ impl Bots {
             {
                 // [fix-team 2] Its held play waits for the interrupter it runs to be over.
                 commits.push((bot.place, team::Commit::Resumes { kind: s.kind, target: s.target }));
+            } else if bot.assignment.is_some()
+                && bot.features.lane.pincer().is_some_and(|p| p.phase != super::pincer::Phase::In)
+            {
+                // [pincer] A pincer under way holds its play as a started play is held: against all but a named interrupter, while
+                // its play is still a candidate (`pincer`).
+                commits.push((bot.place, team::Commit::Held));
             } else if tuning.commit.hold_started
                 && bot.assignment.as_ref().is_some_and(|a| team::held(a.kind, a.target, a.since, now))
             {
