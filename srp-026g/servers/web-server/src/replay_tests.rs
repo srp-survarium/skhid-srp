@@ -537,7 +537,6 @@ fn no_other_route_reaches_a_private_file() {
         "/api/client-files".to_owned(),
         "/launcher".to_owned(),
         "/launcher/places/en".to_owned(),
-        "/launcher/fresh/uk".to_owned(),
         "/exchange".to_owned(),
         "/hidden".to_owned(),
     ];

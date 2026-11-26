@@ -391,9 +391,7 @@ read by the 0.21d browser server and by the compose file's caddy, not by the
   leaves the page as it is (the launcher does not go to its offline page).
   A place the page does not have is passed over, so a page that stays open
   over a later change of the server keeps what it knows.
-  `/launcher/fresh/<uk|en>` still answers the three places of the page
-  from before the tabs, in its form, for a launcher left open over that
-  deploy. These addresses alone are sent with a `Content-Security-Policy`
+  These addresses alone are sent with a `Content-Security-Policy`
   that lets that one script run, by its SHA-256, and ask this server.
 - The admin page (token, path and address as in the table). Tabs:
   money (silver and gold, `+500` / `-100`, never below 0, with a reason, a

@@ -159,7 +159,7 @@ pub struct Account {
     /// The clan abbreviation; empty without a clan.
     pub clan_tag: String,
     /// Silver, the one currency (gold was removed 2026-11-08: the balances
-    /// were paid back in silver once, `persist::SqliteGameRepository::pay_back_once`).
+    /// were paid back in silver once, `persist::PAID_BACK`).
     pub generic_money: u32,
     /// All the experience earned; the level follows from it ([`level_at`]).
     pub exp_total: u32,

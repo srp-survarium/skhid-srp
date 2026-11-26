@@ -1094,13 +1094,6 @@ impl Web {
                         game,
                     );
                 }
-                path if path.starts_with(launcher::FRESH_BEFORE) => {
-                    return launcher::fresh_before(
-                        launcher::language(path, request.lang),
-                        &self.store,
-                        game,
-                    );
-                }
                 path if launcher::serves(path) => {
                     return launcher::page(
                         launcher::language(path, request.lang),

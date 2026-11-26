@@ -778,7 +778,6 @@ fn the_launchers_page_and_its_fresh_numbers_come_with_the_launchers_policy() {
         "/launcher/places/uk",
         "/launcher/places/en",
         "/",
-        "/launcher/fresh/uk",
     ];
     let server = std::thread::spawn(move || {
         for _ in targets {
@@ -843,14 +842,6 @@ fn the_launchers_page_and_its_fresh_numbers_come_with_the_launchers_policy() {
     for part in &parts {
         assert!(page.1.contains(part));
     }
-    // A page opened before the matches' tab asks where it always did, and
-    // is given its three places in its order.
-    let before = &answers[4];
-    assert!(before.0.contains(&launchers));
-    assert_eq!(
-        before.1.split("<hr>").collect::<Vec<_>>(),
-        [parts[1], parts[5], parts[7]]
-    );
     // Every other page keeps the site's policy: no script at all.
     assert!(home.0.contains(&format!(
         "\r\nContent-Security-Policy: {}\r\n",
