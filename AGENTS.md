@@ -144,11 +144,12 @@ receiving game itself (patch 87), with the same code (`srp-validate`'s typed vie
 
 ## Checks while iterating and before a PR
 
-- Run `tools/check`, also before pushing or opening a PR: it picks the checks your change affects
-  (the rows of `tools/checks.tsv` whose inputs differ from the merge-base with origin/main) and
-  skips the ones that already passed on the same inputs (a cache shared by every worktree), so a
-  clean merge from main or a trivial edit reruns nothing it does not touch. `tools/check <name>`
-  runs one check (still cached), `tools/check --list` shows what your change selects.
+- **Never run the full `tools/check` except for a release** (the owner, 2026-11-26: "we don't run
+  full tools/check at all unless release"). While iterating and before a PR, run only the checks
+  of what you changed, one by one: `tools/check <name>` (cached; `tools/check --list` shows which
+  rows your change selects, the rows of `tools/checks.tsv` whose inputs differ from the
+  merge-base with origin/main). The release runs the whole selection, and the owner tests in the
+  game then; a PR says which checks it ran.
 - Don't run checks by hand except to debug one. When you add a check, add its row to
   `tools/checks.tsv` with every input it reads; a changed file it reports as `not covered` has no
   check yet (docs need none).
