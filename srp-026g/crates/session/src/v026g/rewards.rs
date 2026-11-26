@@ -505,6 +505,11 @@ pub struct Reward {
     /// What the account got for the match itself: not the quests' pay, not
     /// the levels' rewards.
     pub experience: u32,
+    /// Of `experience`, what the daily bonus paid once more (0 in a match
+    /// that was none of the day's first three victories); the rest is what
+    /// the play earned, which the history keeps ([`Self::played_experience`]).
+    #[serde(default)]
+    pub daily_experience: u32,
     pub money: u32,
     /// 0: no faction chosen, no reputation.
     pub reputation_faction: u8,
@@ -532,6 +537,14 @@ pub struct Reward {
     /// What autobuy spent after the match: the lists the
     /// results screen shows.
     pub spent: lobby::SpentMoney,
+}
+
+impl Reward {
+    /// The experience the play itself earned: its rows and the items' bonus,
+    /// without the daily bonus's second pay of the rows.
+    pub fn played_experience(&self) -> u32 {
+        self.experience.saturating_sub(self.daily_experience)
+    }
 }
 
 /// One player of a [`MatchReport`].
@@ -1847,6 +1860,7 @@ impl<'a> Shared<'a> {
                         hits: count(event::BULLET_HIT),
                     },
                     played_ms: player.time_in_match_ms,
+                    experience: Some(report.reward.played_experience()),
                 },
                 kits,
                 weapons: self.weapons(player),
@@ -2415,6 +2429,7 @@ impl<'a> Shared<'a> {
         reputation += daily_pay.1;
         reward.money = money;
         reward.experience = experience;
+        reward.daily_experience = daily_pay.0;
         reward.reputation = reputation;
         account.generic_money = account.generic_money.saturating_add(money);
         (reward.levels, reward.level_money) = pay_levels(account, experience);

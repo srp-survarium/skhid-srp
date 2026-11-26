@@ -358,3 +358,7 @@ engine_hunt_rule_base	0x313900	EAX:this ESP+4:game_match_rule_type	struct hunt_r
 engine_player_remove	0x1f2870	ECX:player ESP+4:flag	void engine_player_remove(struct player *player, unsigned int flag)	thiscall	
 engine_spawn_player	0x316da0	ECX:rule ESP+4:place ESP+8:point ESP+12:time	void engine_spawn_player(struct player_respawn_rule_base *rule, unsigned int place, const unsigned int *point, unsigned int time)	thiscall	
 engine_set_hud_icon_type	0x23bea0	ESP+4:ui ESP+8:id ESP+12:type	void engine_set_hud_icon_type(struct game_world_ui *ui, unsigned int id, unsigned int type)	thunk	
+engine_reload_event	0x30db60	ECX:state ESP+4:parameters	unsigned int engine_reload_event(struct animation_end_aware_state *state, struct animation_callback_params *params)	thiscall	state: ReloadEventState, params: AnimationEvent -> u32
+engine_reload_commit	0x310e40	ECX:state ESP+4:unused ESP+8:done	void engine_reload_commit(struct animation_end_aware_state *state, unsigned char *unused, unsigned char *done)	thiscall	
+engine_subscribe_event_channel	0x391c40	ESI:channels ESP+4:name ESP+8:functor ESP+12:subscriber ESP+16:resource ESP+20:flag	void engine_subscribe_event_channel(struct event_channels *channels, const char *name, const struct event_functor *functor, const void *subscriber, const unsigned int *resource, unsigned int flag)	thunk	
+engine_unsubscribe_event_channel	0x3921a0	EAX:name ESP+4:channels ESP+8:subscriber	void engine_unsubscribe_event_channel(const char *name, struct event_channels *channels, const void *subscriber)	thunk	

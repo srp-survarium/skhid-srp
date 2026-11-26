@@ -89,6 +89,7 @@ pub mod music;
 pub mod game_volume;
 pub mod sound_voices;
 pub mod drug_interrupt;
+pub mod reload_commit;
 // patch 177: a hit breaks the victim's breath hold
 pub mod breath_hit;
 // patch 196: a shot into a corpse, 0.21's death sound and the dead player in the dark

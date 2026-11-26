@@ -1303,7 +1303,7 @@ va	name	source	ret_cleanup	result
 0x003053c0	survarium::booby_trap_core::deserialize	manual	12	
 0x0030d750	survarium::computed_show_animation_time_scale	manual	0	XMM0 low32: (end - start) x (1/30) / time, the animation's length over the wanted time
 0x0030da60	survarium::weapon_core_animation_end_aware_state::initialize	manual	0	
-0x0030db60	survarium::weapon_core_animation_end_aware_state::on_animation_end	manual	4	
+0x0030db60	survarium::weapon_core_animation_end_aware_state::on_animation_end	manual	4	EAX: the callback_return_type, 0 (0x30DBA8)
 0x0030dbb0	survarium::weapon_core_animation_end_aware_state::deserialize	manual	12	
 0x0030dc90	survarium::weapon_core_animation_end_aware_state::serialize	manual	8	
 0x0030e910	survarium::weapon_core_fire_state_base::initialize	manual	0	
@@ -2841,6 +2841,10 @@ va	name	source	ret_cleanup	result
 0x00222330	survarium::lobby_menu::on_profile_changed	manual	0	none; the kit shown to the lobby movie: root.select_player_profile, root.fill_player_profile_items (0x222A23: the kit's items value [esp+58h], its profileId and items), the ammo bags and quick slot size, then root.update_profile_slots_count (0x222CD6: containers [esp+0Fh], modifier 0Eh; pockets lobby_menu+3121h, modifier 0Fh; their sum held to six, 0x222B18..0x222B5A) and the weight (0x2221E0); the only caller of both Invokes; called by on_client_status_received (0x21D813) and process_succeeded_inventory_action (0x2762BE)
 0x003b9680	vostok::input::platform::mouse::execute	manual	0	none; the poll, under the mouse's spin lock (+30h): GetDeviceState(DIMOUSESTATE2, 14h bytes; device vtable+24h) into a local, copied into +4..+13h by 0x3B9610 (the last poll's state to +14h..+23h first); on DIERR_NOTACQUIRED or DIERR_INPUTLOST, Acquire (vtable+1Ch, 0x3B971A) and one more read, its "mouse device is lost" line (0x3B97D2) when that one is lost too; a failed Acquire (0x3B971E) or any other failed read (0x3B9704) returns with no input and no line
 0x003b9800	vostok::input::platform::mouse::set_exclusive [descriptive]	manual	4	AL: 1 when SetCooperativeLevel (vtable+34h, 0x3B9846) and Acquire (vtable+1Ch, 0x3B9860) succeeded, else 0; the device Unacquired first (vtable+20h, 0x3B982A), under the mouse's spin lock
+0x00310e40	survarium::weapon_core_reload_state_base::on_animation_end_impl	manual	8	
+0x00391c40	vostok::animation::animation_player::subscribe_event_channel	manual	20	
+0x003921a0	vostok::animation::animation_player::unsubscribe_event_channel	manual	8	
+0x00246200	boost::detail::function::function_obj_invoker1<bind_t<callback_return_type, mf1<..., animation_end_aware_state, animation_callback_params&>>>::invoke [descriptive]	manual	0	EAX: the member function's result
 0x00020310	vostok::render::functor_with_big_buffer_to_copy_command<draw_scene_params>::ctor	manual	12	EAX command
 0x00028460	vostok::render::functor_with_big_buffer_to_copy_command<draw_scene_params>::execute	manual	0	void
 0x00028620	vostok::render::functor_with_big_buffer_to_copy_command<draw_scene_params>::on_defer_execution	manual	0	void; vtable 0x9DC800 slot 1: calls the +78h functor with the command itself (push ecx), never a copy; the draw_scene command (0x1F8EE) is made with an empty one (+10h 0)

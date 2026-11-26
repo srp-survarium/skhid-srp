@@ -2513,6 +2513,19 @@ va	status	ref_021d	name
 0x003b9680	observed		vostok::input::platform::mouse::execute
 0x002013a0	reviewed	0x0015f50d	survarium::game_options::assign_binding
 0x00201f20	reviewed	0x0015fb1f	survarium::game_options::apply_key_bindings
+0x00310e40	reviewed	0x001f34e8	survarium::weapon_core_reload_state_base::on_animation_end_impl
+0x0030fdb0	reviewed	0x001f3135	survarium::weapon_core_reload_state::initialize
+0x0030e420	reviewed	0x001f1951	survarium::weapon_core_reload_state::finalize
+0x00250f30	reviewed	0x0018d0e8	survarium::weapon_sound_events_handler_state<survarium::weapon_core_reload_state>::initialize
+0x00251030	reviewed	0x0018d143	survarium::weapon_sound_events_handler_state<survarium::weapon_core_reload_state>::finalize
+0x00251070	reviewed	0x0018d19f	survarium::weapon_sound_events_handler_state<survarium::weapon_core_reload_state>::deserialize
+0x00252f90	reviewed		survarium::weapon_sound_events_handler_state<survarium::pistol_weapon_core_reload_state>::initialize
+0x00253090	reviewed		survarium::weapon_sound_events_handler_state<survarium::pistol_weapon_core_reload_state>::finalize
+0x002530d0	reviewed		survarium::weapon_sound_events_handler_state<survarium::pistol_weapon_core_reload_state>::deserialize
+0x00297c50	reviewed		survarium::weapon_sound_effect::on_sound_event
+0x00252f90	reviewed		survarium::weapon_sound_events_handler_state<survarium::double_barreled_weapon_core_reload_state>::initialize
+0x00253090	reviewed		survarium::weapon_sound_events_handler_state<survarium::double_barreled_weapon_core_reload_state>::finalize
+0x002530d0	reviewed		survarium::weapon_sound_events_handler_state<survarium::double_barreled_weapon_core_reload_state>::deserialize
 0x00020310	observed		vostok::render::functor_with_big_buffer_to_copy_command<draw_scene_params>::ctor
 0x00028460	observed		vostok::render::functor_with_big_buffer_to_copy_command<draw_scene_params>::execute
 0x00028620	observed		vostok::render::functor_with_big_buffer_to_copy_command<draw_scene_params>::on_defer_execution

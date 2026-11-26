@@ -473,6 +473,9 @@ fn the_first_screen_comes_out_but_for_its_kills() {
         ),
         (base.0, base.1 + 198, 52)
     );
+    // The history keeps the play's own: the rows, not the daily second pay.
+    assert_eq!(alice.reward.daily_experience, 198);
+    assert_eq!(alice.reward.played_experience(), base.1);
 }
 
 /// srp's own terms (the owner's of 2026-11-13): a kill pays 50 silver and 6
@@ -3927,6 +3930,17 @@ fn a_settled_match_is_kept_for_the_history_without_its_bots() {
     );
     assert_eq!(record.players[1].line.place, 1);
     assert!(record.players.iter().all(|player| player.clan_id.is_none()));
+    // Each line keeps what the match paid for the play, the daily bonus
+    // left out.
+    for (player, report) in record.players.iter().zip(&report.players) {
+        assert_eq!(player.account_id, report.account_id);
+        let reward = &report.reward;
+        assert_eq!(
+            player.line.experience,
+            Some(reward.experience - reward.daily_experience)
+        );
+    }
+    assert!(alice.experience.is_some_and(|experience| experience > 0));
 }
 
 #[test]

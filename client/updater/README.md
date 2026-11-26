@@ -7,10 +7,10 @@
 the launcher and itself) the same as the ZIP the server's page offers, and
 the game folder's `resources.db.patch_<n>` files, which the game mounts
 over its own `resources.db`, the ones the server lists ("Patches" below).
-New content reaches the players in those patches alone; `resources.db`
-itself stays as the game ships it (an earlier updater changed parts of it
-in place: those get their stock bytes back once, "Restoring resources.db"
-below).
+New content reaches the players in those patches alone; the updater never
+changes the game's `resources.db` (it unpacks the original's only into a
+folder without the game; an earlier updater changed parts of it in place:
+"What earlier updaters left" below).
 
 An ordinary 32-bit Windows program of about 570 KB, like `../bugtrap`: Rust's
 standard library and Microsoft's C runtime, linked in (`+crt-static`, as
@@ -47,11 +47,10 @@ only when torrent is on ("BitTorrent" below).
   prompt is needed. Allow about 10 GB of free disk space. The game is
   unpacked with `7zr.exe`, a file of the Skhid archive beside the updater
   (`extractor/`): nothing that is run is downloaded on its own.
-- After the Skhid files, at every start: the regions of `resources.db` an
-  earlier updater rewrote in place (its record beside the updater names
-  them) get their stock bytes back, from the copies it kept, else from
-  `GET /resources/<sha256>`. Best effort, once: it never fails the update
-  ("Restoring resources.db" below).
+- After the Skhid files, at every start: what the updaters of before the
+  patches left beside this one (their record of `resources.db`, its journal,
+  copies and blobs) is deleted, best effort ("What earlier updaters left"
+  below).
 - Before PLAY, the drive of the Documents folder needs 5 GB free
   (`logic/src/disk.rs`; patch 70 keeps up to 3 GB of baked textures there).
   With less, PLAY stays off and a box in the game's language says so; Retry
@@ -128,7 +127,7 @@ one.
 |---|---|---|
 | `"<exe>" "update" "\\.\pipe\vostok_updater_pipe-<product>" ...` (also `full_update`) | the launcher | The update, reported over the launcher's pipe in the messages of the original updater (`logic/src/pipe.rs`). It stays until the launcher says stop or goes away, asking the server every 10 s meanwhile ("PLAY and the server's revision") |
 | `"<exe>" "copy" "<pipe>" ...` | the unpatched launcher | Answers "copy done" at once: nothing needs copying |
-| `updater_skhid.exe check` | a person, a script | The update without a launcher, every patch file hashed whole whatever the quick check's record says: the repair, when a patch file may be damaged in a way the quick check does not see (bytes changed in place with the size and the time kept, as no program does by chance). When the ZIP replaces the updater itself, the new one is run at once (`check`, `quiet` as given) to restore resources.db and do the patch step, and its exit code is this one's. An error is a message box |
+| `updater_skhid.exe check` | a person, a script | The update without a launcher, every patch file hashed whole whatever the quick check's record says: the repair, when a patch file may be damaged in a way the quick check does not see (bytes changed in place with the size and the time kept, as no program does by chance). When the ZIP replaces the updater itself, the new one is run at once (`check`, `quiet` as given) to do the patch step, and its exit code is this one's. An error is a message box |
 | `updater_skhid.exe check quiet` | a script | No box either. Exit code 0: done or nothing to do; 1: failed (the reason is in the log) |
 | `updater_skhid.exe check ... torrent` / `direct` | `Skhid-get.bat` (`check torrent`), the tests (`direct`) | `check` takes torrent as the word says, else as the launcher keeps its "Allow torrent": user.cfg's `enable_torrent_seeding on` (`<Documents>\survarium\user.cfg`, as the language), taken only once the launcher's one-time reset is done (`launcher_skhid.torrent_reset` beside user.cfg, launcher patch 15); else off |
 | `updater_skhid.exe ready` (`quiet`: no box) | `play_skhid.bat`, `play_skhid.sh` before they start the game | Reads only: no lock, no server, nothing written but the log. Exit code 1 (and a box that says to start the launcher) when the last patch step did not end `ready` (a new overlay since, too), or the patch files are not now what its list says (one missing, damaged, or one more; looked at with the quick check); else 0 |
@@ -147,10 +146,10 @@ says so and does nothing.
 
 | Folder | What |
 |---|---|
-| `logic/` | Everything that needs no Windows, as a library whose one dependency is Ed25519 (`ed25519-compact`, the torrent's signature): SHA-256, DEFLATE and CRC-32, bencoding, the torrent (its files), its signature, the release's DHT item (`newest.rs`), the record of what was checked (`shared.rs`), the upload cap, the ZIP reader and its name rules, the text formats (the server's answer, the installed state, the earlier updaters' record of resources.db, the list of resources.db's patches, the quick check's record) and what the restore and the patch step decide, the launcher's pipe messages, command-line splitting, the server address and a patch's. `cargo test` there runs on any host |
+| `logic/` | Everything that needs no Windows, as a library whose one dependency is Ed25519 (`ed25519-compact`, the torrent's signature): SHA-256, DEFLATE and CRC-32, bencoding, the torrent (its files), its signature, the release's DHT item (`newest.rs`), the record of what was checked (`shared.rs`), the upload cap, the ZIP reader and its name rules, the text formats (the server's answer, the installed state, the list of resources.db's patches, the quick check's record) and what the patch step decides, the launcher's pipe messages, command-line splitting, the server address and a patch's. `cargo test` there runs on any host |
 | `exe/` | The program: WinHTTP, files, the pipe, the install with its undo, the texts a player sees. Built for `i686-pc-windows-msvc` with `rust-lld` and Microsoft's C runtime, as `../bugtrap`; `res/` holds its icon and version resource; `src/libtorrent.rs` is the one caller of the DLL |
 | `torrent-dll/` | `skhid_torrent.dll`: libtorrent-rasterbar 2.0.12 behind a small C API (`skt.h`, `skt.cpp`), and `skhid-dht`, the same API on Linux for the release (`release/publish-dht`); `default.nix`, built by `srp-026g/flake.nix` (`skhid-torrent-dll`, `skhid-dht`) |
-| `tests/` | `test_updater.py`: the real exe against a web server on 127.0.0.1, with the test in the launcher's place on a real named pipe (Windows only). `test_db_patches.py`: the patch step and the restore, Windows or Wine. `test_play_gate.py`: PLAY against the server's revision and the watch while the launcher stays open, Windows or Wine. `test_game_download.py`: the original game's download. `test_unreadable.py`: a Skhid file that cannot be read, Windows or Wine. `test_run_logs.py`: the run logs in `game\logs`, the old ones beside the updater deleted, Windows or Wine. `test_torrent.py`: BitTorrent (the updater with its DLL) against a local tracker, a local DHT and libtorrent peers, Windows or Wine; `test_seed.py`: the game's sharing. `fake_exe/`: a stand-in for the game and the launcher that writes down how it was started; it also holds a file as the game or an antivirus does, and is the launcher's end of its pipe, for the tests under Wine |
+| `tests/` | `test_updater.py`: the real exe against a web server on 127.0.0.1, with the test in the launcher's place on a real named pipe (Windows only). `test_db_patches.py`: the patch step and what earlier updaters left, Windows or Wine. `test_play_gate.py`: PLAY against the server's revision and the watch while the launcher stays open, Windows or Wine. `test_game_download.py`: the original game's download. `test_unreadable.py`: a Skhid file that cannot be read, Windows or Wine. `test_run_logs.py`: the run logs in `game\logs`, the old ones beside the updater deleted, Windows or Wine. `test_torrent.py`: BitTorrent (the updater with its DLL) against a local tracker, a local DHT and libtorrent peers, Windows or Wine; `test_seed.py`: the game's sharing. `fake_exe/`: a stand-in for the game and the launcher that writes down how it was started; it also holds a file as the game or an antivirus does, and is the launcher's end of its pipe, for the tests under Wine |
 
 ## PLAY and the server's revision
 
@@ -169,8 +168,7 @@ sections give the file offset of 0x380862, where the patched exe has
 `C6 44 24 27 <revision> 90` and the original `8A 0D 9E AE 9D 00`, revision
 0). A lower revision than `n` keeps PLAY off ("Error", and "The server lets
 in game revision n and up; this game is revision r, and the update to it is
-not offered yet (the server is being updated). ..."), before the restore and
-the patch step. That is a server whose ZIP is older than its setting: a
+not offered yet (the server is being updated). ..."), before the patch step. That is a server whose ZIP is older than its setting: a
 release half put in place. An exe whose site is neither (another program, a
 build whose site moved) or that cannot be read is logged and let through:
 the login server still decides. A server that says no `min-revision` (srp
@@ -861,50 +859,34 @@ downloads, verifies and extracts the full game with the extractor of
 `extractor/`, then installs the Skhid overlay. It does not contact Drive or
 archive.org.
 
-## Restoring resources.db
+## What earlier updaters left
 
-Before the patches, the players' ZIP had a plan
-(`game/binaries/x86/updater_skhid.resources`) and the updater wrote entries
-of it over the game's `resources.db` in place: the settings menu's, the
-lobby's and the login screen's Flash movies (`main_menu`, `lobby_menu`,
-`login_menu`), the same size and the same game CRC as the stock ones. Those
-updaters recorded each region before its first byte was written, in
-`updater_skhid.resources.state` beside the updater (the file, its size, the
-region's offset and size, the SHA-256 of its stock bytes and of what was
-written), noted the one being written in `updater_skhid.resources.journal`,
-and kept a copy of the stock bytes in `updater_skhid.backup\<sha256>`.
+Updaters 0.1.x (the players' ZIPs of 2026-10-14 to 2026-10-16, before the
+patches) wrote three Flash movies of `game/resources.db` in place, from a
+plan in their ZIP (`updater_skhid.resources`): the settings menu's, the
+lobby's and the login screen's (`main_menu`, `lobby_menu`, `login_menu`),
+the same size as the stock ones. They kept a record of each region in
+`updater_skhid.resources.state` beside the updater, a journal of the one
+being written in `updater_skhid.resources.journal`, a copy of its stock
+bytes in `updater_skhid.backup\` and the blobs they fetched
+(`/resources/<sha256>`) in `updater_skhid.cache\`. The updaters from 0.2.0
+(2026-10-16) until this change put the stock bytes back once, from the
+copy or from the server, and then deleted all of it.
 
-Content now comes as patches only, so a player's db must be the stock one
-again. At every start, after the overlay and before the patch step, under
-the installation lock (`exe/src/resources.rs`, `logic/src/resources.rs`):
+This updater changes no byte of an installed `resources.db`. After the
+overlay, under the installation lock (`exe/src/old_restore.rs`), it
+deletes those files and folders where they are still there, and
+`updater_skhid.resources.status` (of a plan that grew the db; never in a
+players' ZIP), logging each one; one Windows does not delete now (open) is
+tried at the next start. Nothing there fails the update, and with nothing
+left the step is a look for six names.
 
-1. The record is read, and the journal's region added to it (a write that
-   was cut short). Lines of another word are skipped; a record that cannot
-   be read is none (nothing is changed). Only regions of `game/resources.db`
-   are taken.
-2. Each region is hashed. Its stock bytes, a db of another size (another
-   build) or no db: it leaves the record. Else:
-3. The db is opened by the updater alone (share mode 0) and closed again.
-   The game keeps `resources.db` open while it runs, so this fails then: the
-   log says "the game is running" and nothing is changed this run.
-4. The stock bytes come from the copy kept when it checks (its size and
-   SHA-256), else from `<site>/resources/<sha256>` into
-   `updater_skhid.cache\` (streamed to the disk, checked; two tries).
-5. The region is journalled (flushed), the db opened by the updater alone,
-   the bytes written at the region's offset, flushed, read back and
-   checked; then the journal goes and the region leaves the record.
-6. Once the record is empty, it is deleted, and so are the copies kept, the
-   cache, the old plan and `updater_skhid.resources.status` (of a plan that
-   grew the db; never in a players' ZIP).
-
-Best effort: whatever fails is logged (`resources:`) and tried again at the
-next start, the record kept; it never fails the update or keeps PLAY off.
-The patches mount over the db, so a region not restored yet is hidden
-wherever a patch has that file. A player whose record is lost keeps the
-regions as they are: the updater no longer knows where they are. After the
-restore the step costs one look for its files. The launcher shows a
-restore as an install ("downloading" with the bar for a blob, "Extracting
-file <name>" while a region is written).
+A region an earlier updater left changed, or cut short by a write that was
+never finished, stays as it is. The game never reads it: those three movies
+are in `resources.db.patch_12` (a listed patch, so PLAY stays off until it
+is in place) and the game takes a file from the last patch that has it,
+over the db. A player who wants the stock db back replaces
+`game/resources.db` with the original's.
 
 ## Patches
 
@@ -1090,7 +1072,7 @@ delete, a new file of the same size and the old time set on it (`touch
 -r`) is not seen either. Neither happens by chance with a patch's bytes;
 `check` is the repair.
 
-**A run**, after the restore (also when nothing new was installed; under
+**A run**, after the overlay (also when nothing new was installed; under
 the installation lock):
 
 1. The list is fetched (three tries, 3 s apart; the launcher's stop is
@@ -1191,7 +1173,7 @@ SKHID_UPDATE_URL=https://test.example ./build.sh   # another default server
 SKHID_REVISION=27 ./build.sh                 # as release/build-zip builds revision 27
 (cd logic && cargo test)
 python tests/test_updater.py                 # Windows
-python tests/test_db_patches.py              # Windows or Wine (resources.db's patches, the restore)
+python tests/test_db_patches.py              # Windows or Wine (resources.db's patches, what earlier updaters left)
 python tests/test_play_gate.py               # Windows or Wine (PLAY and the server's revision, the watch)
 python tests/test_replay.py                  # Windows; the replay, in its no-window mode only
 python tests/test_game_download.py           # Windows or Wine

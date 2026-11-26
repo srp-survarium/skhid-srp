@@ -189,6 +189,7 @@ release's. The "Result" row is the build of the revision named in it.
 | `rust/patches/src/use_prompt.rs`, `src/use_prompt.toml`, `src/vostok/use_prompt.rs`, `check_use_prompt_026g.py` | Patch 195: a use's progress bar ends with the use (`../docs/notes/client_patch.md` 3.101): one lohook at set_using_progress_message's start (`use_prompt.progress`, 0x23A430) writes 0 to the ui's last prompt key (+334h), so set_using_info_message gives the next prompt again; the hud alone; its check runs both functions in both exes on a made-up hud (needs Unicorn) |
 | `rust/patches/src/profile_kit.rs`, `src/profile_kit.toml`, `src/vostok/profile_kit.rs`, `check_profile_kit_026g.py` | Patch 199: the lobby is given the kit it shows whole, in one call (`../docs/notes/client_patch.md` 3.104): lobby_menu::on_profile_changed's root.fill_player_profile_items (`lobby_menu.profile_items`, 0x222A07) is not made, and at its root.update_profile_slots_count (`lobby_menu.profile_counts`, 0x222CA1) the items value gets `item_slots` and `artifact_slots` and is given in its place; the lobby alone; its check runs both sites in both exes (needs Unicorn) |
 | `rust/patches/src/mouse_acquire.rs`, `src/mouse_acquire.toml`, `src/vostok/mouse_device.rs`, `check_mouse_acquire_026g.py` | Patch 202: a line in `srp_patches.<run>.log` when the game cannot take the mouse, with the reason, and one when it has it again (`../docs/notes/client_patch.md` 3.106): three lohooks in mouse::execute (`mouse.read` 0x3B96DE, `mouse.read_failed` 0x3B9704, `mouse.acquire_join` 0x3B97E8) keep the poll's last outcome and log a change only: the failed Acquire's or read's code (dinput.h's name, hex), the device's level (exclusive or not) and the window in front (GetForegroundWindow against the device's); a log line only; its check runs execute whole in both exes, the device stubbed (needs Unicorn) |
+| `rust/patches/src/reload_commit.rs`, `src/reload_commit.toml`, `src/vostok/reload.rs`, `check_reload_commit_026g.py` | Patch 205: a magazine reload (states 303, 311, 314) loads its magazine at its item clip's `reload_commit` event, the seat (edit list `reload-commit-1.json`), not only at the clip's end, so a reload left after the seat keeps the new magazine (`../docs/notes/reload-commit.md`, `../docs/notes/client_patch.md` 3.107): `reload.listen` 0x30DB0F and `reload.listen_again` 0x30DC7C subscribe a reload state (slot 9 0x310E40) to the channel, `reload.stop_listening` 0x30E476 unsubscribes it, the runtime callback `reload.commit_event` runs the game's own on_animation_end_impl without ending the state, and `reload.load_at_end` 0x310E41 makes its load the same twice as once (a chamber-on-reload gun's round back first); changes the simulation; its check runs the four reload state kinds whole in both exes (needs Unicorn) |
 | `rust/patches/src/upgrade_value.rs`, `src/upgrade_value.toml`, `src/vostok/lobby_call.rs`, `check_upgrade_value_026g.py` | Patch 207: the lobby movie's `srp_set_upgrade_value(host, upgrade, value)` (the Attachments window's Left/Right toggle of a second sight) becomes the decal editor's lobby request `46 05 <kit> <host> <upgrade> <u64>` (`../docs/notes/client_patch.md` 3.111): one lohook at lobby_menu::scaleform_callback's start (`lobby.callback`, 0x28C2C0) takes that method (every other call to the game), sends through the game's send_apply_decal (0x270950) for a value 0 or 1 and a host of the inventory whose weapon kit holds that second sight, and gives the client's copy of the host the kit with the new side; another value: nothing sent, one log line |
 | `rust/patches/src/material_bounds.rs`, `src/material_bounds.toml`, `src/vostok/material.rs` | Patch 193: game_material_manager::material_pair (0x306D50) takes an id past its 128 material slots as the default material's, the answer it gives an empty slot, instead of reading past its tables (`../docs/notes/footsteps.md`, "Material ids past the table"): one lohook at its start (`material_pair.entry`), every caller's pair through it; the patch log says so at the 1st, 10th, 100th, .. of a run |
 | `rust/patches/src/constant_upload.toml`, `constant_upload_026g.asm`, `check_constant_upload_026g.py` | Patch 134: shader constants cost the render thread less, the same bytes on the GPU: shader_constant_buffer::set_memory (0x11B5A0) copies 16 bytes at a time, not one, and update (0x3DDFD0) maps a buffer only when its bytes differ from the ones it last uploaded (four `code` hooks); its check runs set_memory on 4000 made-up cases in both exes (every register, XMM0..7 and the memory alike), the constructor, and 150 draws over four buffers with a model of the device context (the GPU's bytes after every update alike) (needs Unicorn) |
@@ -589,9 +590,8 @@ Game content no longer goes into the ZIP: it ships as `resources.db.patch_<n>`
 files that the updater fetches from the server's `/patches` list
 (`../../client/updater/README.md`, "Patches"). The region options of
 earlier releases (`--resource-region`, `--resource-grow`, `--resources-out`)
-are gone; the updater only puts back the stock bytes of regions an earlier
-release changed in place ("Restoring resources.db" there), fetching originals
-from `/resources/<sha256>` when the player kept no copy.
+are gone, and so is the updater's one-time restore of the regions an
+earlier release changed in place ("What earlier updaters left" there).
 
 Full overlays embed the supplied `--server` address in the executable, so
 players do not need `-server=` at launch. The generated batch file retains
@@ -6681,7 +6681,8 @@ rule's tick in the world's second list; the respawn rule's death delay (the wave
 restart holds the places due, its end spawns everyone); patch 78's `carry.input` asks the hunt first (the
 frozen countdown applies no input, exit `held`; the use key's take and delivery; the Drop key); patch 109's
 getter sites add the carrier's two modifiers (lists 4 and 2); `hunt.can_sprint` refuses the carrier; his
-marker, minimap dot and icon mark (0x1F2D8B) for both teams, and his glow (`artefact_wood_shine`); the
+minimap dot for both teams, his icon mark (0x1F2D8B, the marker only his teammates see), and his glow
+(`artefact_wood_shine`); the
 artefact's model and its idle, spawn and destroy particles in the world (a query of the patch's own, the
 scene reconciled each frame); the announcer's seven lines (sound collections in the game's language's voice);
 the hud's `root.artefact_hunt_update` (30 Numbers), its messages, the prompt and the welcome. The spec and design: `docs/notes/artefact_hunt.md`; the code: `client_patch.md`
@@ -6857,6 +6858,22 @@ player's view: the hud movie's `root.set_dead_black`, and patch 144's Game share
 patch 76's, 78's and 144's, `player_icons.update_start`, `game.clear_resources` and
 `resources.query_done`. Nothing a match computes. Checked: its transition's test; not run in a game.
 
+## A reload left after the magazine is in (patch 205, unreleased)
+
+The game loads a reload's magazine once, at its clip's end (on_animation_end_impl 0x310E40): a reload
+left before that end by a melee, a sprint, a weapon switch or a grenade loads nothing, though the new
+magazine was seen in the gun ("you put the ammo magazine into the weapon, then do a melee hit and the
+ammo is reset to 0", the owner, 2026-11-26). Every magazine gun (states 303, 311, 314: 91 of the 103
+live weapons), empty and tactical reloads alike; nothing is lost, the rounds stay in the stack.
+
+Patch 205 loads at the clip's `reload_commit` event, which `reload-commit-1.json` puts at each item
+reload clip's seat sound (the magazine set, the belt laid, the shells in: 154 clips), as 0.69d0 loads
+at its clips' `shoot` event. The game's own load runs there, without ending the reload; its end
+loads again, which changes nothing (a top-up; a chamber-on-reload gun's chambered round goes back
+first). Left before the seat: the old magazine, as before. Nothing new in a world. Changes the
+simulation (`simulation_changes.tsv`). Checked with `check_reload_commit_026g.py` (Unicorn; `tools/check
+reload-commit`); not run in a game. The addresses: `../docs/notes/client_patch.md` 3.107 and
+`../docs/notes/reload-commit.md`.
 ## A weapon's second sight: the switch, simulated (patch 206, unreleased)
 
 A gun with a second sight (patch 161's `data/srp_second_sight`) switches between it and its main

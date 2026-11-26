@@ -115,9 +115,6 @@ class Site:
         self.download_statuses = []     # statuses for the next downloads, then 200
         self.cut_downloads = 0          # the next N downloads end half way
         self.slow = 0.0                 # seconds between pieces of a download
-        self.blobs = {}                 # /resources/<sha256>: sha256 -> bytes (stock bytes, for the restore)
-        self.blob_statuses = {}         # sha256 -> another status than 200
-        self.blob_bodies = {}           # sha256 -> other bytes than the blob's
         self.patches = {}               # n -> bytes: listed at /patches, served at /store/patch_<n>
         self.patch_list = None          # bytes to answer /patches with instead of the true list
         self.patch_list_status = 200
@@ -265,13 +262,6 @@ class Site:
                             pass
                         if number in site.patch_cut:
                             self.close_connection = True
-                elif self.path.startswith("/resources/"):
-                    name = self.path[len("/resources/"):]
-                    status = site.blob_statuses.get(name, 200 if name in site.blobs else 404)
-                    if status != 200:
-                        self.answer(status, b"")
-                    else:
-                        self.answer(200, site.blob_bodies.get(name, site.blobs[name]), "application/octet-stream")
                 elif self.path.startswith("/replays/"):
                     token = self.path[len("/replays/"):]
                     if token in site.replay_answers:
