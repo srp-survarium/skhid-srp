@@ -89,6 +89,14 @@ vostok = { path = "crates/vostok" }
 world-frame = { path = "crates/world-frame" }
 weapon-kit = { path = "crates/weapon-kit" }
 
+# The release build (servers, grid builds, benches) as one codegen unit with
+# fat LTO: cross-crate inlining into the bots' hot paths (mapdata's casts and
+# searches called from match-server). Bots' thread CPU on real_bot_cost 5-10 %
+# lower, decisions identical. Dev and test builds keep their defaults.
+[profile.release]
+lto = "fat"
+codegen-units = 1
+
 # Password hashing runs in srp's debug build too: unoptimized, argon2 takes
 # seconds a sign-in.
 [profile.dev.package.argon2]
