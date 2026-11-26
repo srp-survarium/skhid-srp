@@ -44,7 +44,7 @@ went on a weapon by a variant: [weapon_scopes.md](weapon_scopes.md), kept as the
   angle from any eye; and leaves the aimed model's first-person lens out, as every released
   collimator has it. A magnified scope's reticle is its aimed model's own (`scope_aimgrid_s`,
   `scope_reddot_s`).
-- **The reticle's material** (pack version 8): the players' emitter (`weapons/loc2/collimator_glowing_dot_red`,
+- **The reticle's material** (pack version 9): the players' emitter (`weapons/loc2/collimator_glowing_dot_red`,
   patch 21's: red, 20 times, `constant_transparency` 0.3) without its fade by the view's angle, as
   `weapons/modules_069/collimator_glowing_dot_red` (the one setting that differs). The fade
   (`use_angle_depended_attenuation`, `attenuation_power` 7000; `forward_base.ps` multiplies the alpha
@@ -53,7 +53,7 @@ went on a weapon by a variant: [weapon_scopes.md](weapon_scopes.md), kept as the
   0.6 m ahead of the optic, which the gun's moves hardly move; at 0.69d0's place, 0.08 to 0.8 m ahead
   of the eye (the AK-74M's EOTech 0.13 m), a few millimetres of the gun's move against the eye take the
   reticle out of that degree, and the EOTech's ring (2.8 degrees across there) was lit at an eighth
-  even at rest. Versions 3 to 7 had it (live since revision 69): the owner saw the dot flicker and go
+  even at rest. Versions 3 to 8 had it (live since revision 69): the owner saw the dot flicker and go
   out (2026-11-22, again 2026-11-26). 0.69d0's reticle material and 0.26g's own EOTech 552 and
   Walther emitters (`eotech_552_emissive`, `walther_comp2_emissive`, at the same place in their
   housings) have no fade; loc2's material, which the 0.26 and 0.30-era sights use, is unchanged.
