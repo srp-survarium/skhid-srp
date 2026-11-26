@@ -14884,7 +14884,7 @@ mod tests {
             let o = reflex.tick(&me, sit.view, &memory, now, true, &aim, 0.5, &mut rng);
             out.push((now, o.keys, o.legs.map(|l| l.why), o.look_at.is_some(), me.feet));
             if let Some(legs) = o.legs.filter(|l| l.why == LegsWhy::BreakSight) {
-                let step = if o.look_at.is_none() { 5.0 } else { 2.5 } * 0.05;
+                let step: f32 = if o.look_at.is_none() { 5.0 } else { 2.5 } * 0.05;
                 let to = legs.at - me.feet;
                 let d = to.x.hypot(to.z);
                 if d > 0.0 {
