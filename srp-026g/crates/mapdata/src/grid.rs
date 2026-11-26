@@ -5457,20 +5457,27 @@ impl WalkGrid {
         let reach = (max_distance / self.cell).ceil() as i32;
         let mut best: Option<(NodeId, f32)> = None;
         for ring in 0..=reach {
+            // [bot CPU] M8: the ring's cells only, in the order the whole square was walked in (a row at a time, each row from
+            // its least column): the rows at the ring's edge whole, the others their two end cells; a tie keeps the first found.
             for dk in -ring..=ring {
-                for di in -ring..=ring {
-                    if di.abs() != ring && dk.abs() != ring {
-                        continue;
-                    }
+                let edge_row = dk.abs() == ring;
+                let step = if edge_row || ring == 0 { 1 } else { (2 * ring) as usize };
+                for di in (-ring..=ring).step_by(step) {
                     let Some(c) = self.cell_index(i + di, k + dk) else {
                         continue;
                     };
+                    // [bot CPU] M8: a cell's floors share its column and row: their place across is the cell's
+                    // ([`Self::position`]'s own sums, made once a cell, not once a floor).
+                    let (x, z) = (
+                        self.x0 + ((i + di) as f32 + 0.5) * self.cell,
+                        self.z0 + ((k + dk) as f32 + 0.5) * self.cell,
+                    );
                     for node in self.start[c]..self.start[c + 1] {
                         let h = self.height[node as usize];
                         if h > point.y + above || point.y - h > 2.5 {
                             continue;
                         }
-                        let p = self.position(node);
+                        let p = Vec3::new(x, h, z);
                         if p.distance_xz(point) > max_distance {
                             continue;
                         }
@@ -6199,6 +6206,91 @@ impl Open {
 #[cfg(test)]
 pub(crate) mod tests {
     use super::*;
+
+    /// [bot CPU] M8: [`WalkGrid::locate_within`] as it was (every cell of the square, each floor's place from
+    /// [`WalkGrid::position`]): the reference the new one is held to.
+    fn locate_within_reference(grid: &WalkGrid, point: Vec3, max_distance: f32, above: f32) -> Option<NodeId> {
+        if !point.is_finite() {
+            return None;
+        }
+        let i = ((point.x - grid.x0) / grid.cell).floor() as i32;
+        let k = ((point.z - grid.z0) / grid.cell).floor() as i32;
+        let reach = (max_distance / grid.cell).ceil() as i32;
+        let mut best: Option<(NodeId, f32)> = None;
+        for ring in 0..=reach {
+            for dk in -ring..=ring {
+                for di in -ring..=ring {
+                    if di.abs() != ring && dk.abs() != ring {
+                        continue;
+                    }
+                    let Some(c) = grid.cell_index(i + di, k + dk) else {
+                        continue;
+                    };
+                    for node in grid.start[c]..grid.start[c + 1] {
+                        let h = grid.height[node as usize];
+                        if h > point.y + above || point.y - h > 2.5 {
+                            continue;
+                        }
+                        let p = grid.position(node);
+                        if p.distance_xz(point) > max_distance {
+                            continue;
+                        }
+                        let d = (p - point).length();
+                        if best.is_none_or(|(_, bd)| d < bd) {
+                            best = Some((node, d));
+                        }
+                    }
+                }
+            }
+            if let Some((_, d)) = best
+                && d <= ring as f32 * grid.cell
+            {
+                break;
+            }
+        }
+        best.map(|(node, _)| node)
+    }
+
+    /// [bot CPU] M8: the ring's cells alone, and the floors' place across from their cell, find the floor the whole
+    /// square and each floor's own place found, for points on, over, under, off and between floors of several storeys and on
+    /// the cells' edges and centres, at every reach and height asked (ties at the cell's spacing included).
+    #[test]
+    fn locate_within_is_the_reference_on_every_point_reach_and_height() {
+        let mut tris = Vec::new();
+        tris.extend(floor(0.0, 0.0, 30.0, 12.0, 0.0));
+        tris.extend(wall_x(15.0, 0.0, 5.0, 3.0));
+        tris.extend(floor(10.0, 8.0, 20.0, 12.0, 3.0));
+        tris.extend(floor(4.0, 2.0, 8.0, 6.0, 1.0));
+        tris.extend(floor(20.0, 1.0, 26.0, 7.0, 2.4));
+        let grid = WalkGrid::build(&tris, [0.0, 0.0, 30.0, 12.0], 0.25, Body::default());
+        let mut x = 0x2545_F491_4F6C_DD1Du64;
+        let mut next = move || {
+            x ^= x << 13;
+            x ^= x >> 7;
+            x ^= x << 17;
+            (x >> 11) as f32 / (1u64 << 53) as f32
+        };
+        let (mut checked, mut found) = (0, 0);
+        for n in 0..20_000 {
+            let mut point = Vec3::new(-2.0 + 34.0 * next(), -1.0 + 6.0 * next(), -2.0 + 16.0 * next());
+            // A share on the cells' edges and centres, where ties fall.
+            match n % 4 {
+                1 => point = Vec3::new((point.x * 4.0).round() / 4.0, point.y, (point.z * 4.0).round() / 4.0),
+                2 => point = Vec3::new((point.x * 4.0).floor() / 4.0 + 0.125, point.y, (point.z * 4.0).floor() / 4.0 + 0.125),
+                _ => {}
+            }
+            if n % 5 == 0 {
+                point.y = [0.0, 1.0, 2.4, 3.0][n % 4];
+            }
+            let max_distance = [0.01, 0.125, 0.2, 0.5, 1.0, 1.5, 3.0, 6.0][n % 8];
+            let above = [0.01, 0.3, 1.0, 2.0, 3.5][n % 5];
+            let want = locate_within_reference(&grid, point, max_distance, above);
+            assert_eq!(grid.locate_within(point, max_distance, above), want, "{point:?} {max_distance} {above}");
+            checked += 1;
+            found += usize::from(want.is_some());
+        }
+        assert!(found > checked / 3, "{found} of {checked} found a floor");
+    }
 
     /// Two 15 x 12 m rooms side by side, the wall between them at x = 15
     /// with a 2 m door at z 5-7.
