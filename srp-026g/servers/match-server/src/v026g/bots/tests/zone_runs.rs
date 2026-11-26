@@ -406,6 +406,32 @@ fn a_line_from_a_zone_may_leave_it_not_cross_its_core() {
     assert_eq!(tactics.zone_exit(at(10.0, 20.0), 0), None);
 }
 
+/// [route shut] A route that jumps over a zone's floor (its take-off and landing out of the zone) is not shut by the floor
+/// under its flight; the same route walked across is, and a jump that lands on the zone's floor is.
+#[test]
+fn a_jump_over_a_shut_floor_does_not_shut_the_route() {
+    use crate::v026g::bots::path::{Leap, Route, Waypoint};
+    let big = zone("big", Vec3::new(30.0, 1.0, 20.0), Vec3::new(4.0, 1.0, 4.0));
+    let world = field(&[], vec![big]);
+    let teams = [0u8];
+    let mut bots = Bots::new(0xA70C, survarium::v026g::maps::RuleMode::Batteries, 0, &teams, &[true], &[None], Arc::new(Tuning::default()), Trace::none(0));
+    bots.map_ready(world.clone());
+    let tactics = bots.tactics.as_ref().unwrap();
+    let at = |x: f32, z: f32| Vec3::new(x, 0.0, z);
+    let waypoint = |p: Vec3, jump: Option<Leap>| Waypoint { at: p, node: 0, jump, low: false };
+    let feet = at(22.0, 20.0);
+    assert!(tactics.hazards.allowed(tactics.world.grid.locate(feet, 1.0).unwrap(), 0), "the feet out of the zone");
+    assert!(!tactics.hazards.allowed(tactics.world.grid.locate(at(30.0, 20.0), 1.0).unwrap(), 0), "the zone's floor shut");
+    // Take-off at x 24, landing at x 36: the zone's box (x 26-34) and its margin under the flight only.
+    let over = Route::new(vec![waypoint(feet, None), waypoint(at(24.0, 20.0), None), waypoint(at(36.0, 20.0), Some(Leap::Ledge))]);
+    assert!(over.flight_leg(over.points()[1].at.x - feet.x + 6.0).is_some(), "the leg's middle is its flight");
+    assert!(!tactics.route_shut_ahead(&mut over.clone(), feet, 0, false, None), "jumped over: not shut");
+    let walked = Route::new(vec![waypoint(feet, None), waypoint(at(24.0, 20.0), None), waypoint(at(36.0, 20.0), None)]);
+    assert!(tactics.route_shut_ahead(&mut walked.clone(), feet, 0, false, None), "walked across: shut");
+    let into = Route::new(vec![waypoint(feet, None), waypoint(at(24.0, 20.0), None), waypoint(at(30.0, 20.0), Some(Leap::Ledge))]);
+    assert!(tactics.route_shut_ahead(&mut into.clone(), feet, 0, false, None), "landing on the zone's floor: shut");
+}
+
 /// [A395a] A body on a zone's refused floors does not walk the route it held before its walk out began across the zone: that
 /// route is shut ahead (the walk would follow it, each line within the reach of where the feet are then); one that leaves the
 /// zone's floors within the way out's reach is not, nor a route planned since (its search's way out), nor one with no walk.

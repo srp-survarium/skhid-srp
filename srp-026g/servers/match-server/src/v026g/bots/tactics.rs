@@ -464,6 +464,20 @@ pub enum NoGate {
 /// [bot traps] [`Tactics::regions_reached`]'s sets kept.
 const REACHED_KEPT: usize = 32;
 
+/// [route shut] The bench's count of the route checks ([`Tactics::route_shut_ahead`]) that looked over a jump or drop leg by
+/// its take-off and landing (test builds; logging only).
+#[cfg(test)]
+pub(crate) mod shut_flights {
+    use std::sync::atomic::{AtomicU64, Ordering::Relaxed};
+    static COUNT: AtomicU64 = AtomicU64::new(0);
+    pub fn count() {
+        COUNT.fetch_add(1, Relaxed);
+    }
+    pub fn counts() -> [u64; 1] {
+        [COUNT.load(Relaxed)]
+    }
+}
+
 /// The point and radius a [`WalkUp`] was made for, as bits.
 type WalkUpKey = [u32; 4];
 
@@ -2721,7 +2735,29 @@ impl Tactics {
         let (from, _) = route.progress(feet);
         let to = (from + HELD_AHEAD_M).min(route.length());
         let steps = ((to - from) / HELD_STEP_M).ceil().max(0.0) as u32;
-        let mut points = (0..=steps).map(|k| route.floor_point((from + k as f32 * HELD_STEP_M).min(to)));
+        // [route shut] The floors the route stands on, in order: a walked leg's floor every `HELD_STEP_M`; a jump or drop leg
+        // its take-off and its landing, never a point of its flight (a gap jump's air over a zone's floor in the gap is no walk
+        // there: the search crossed it by the link, and `grid.locate` of the air point found the floor 2.4 m under it, tdm m6
+        // s2's place 15 standing 20 s while its every route was shut so).
+        let mut stood: Vec<Vec3> = Vec::with_capacity(steps as usize + 3);
+        let mut last_leg = None;
+        for k in 0..=steps {
+            let s = (from + k as f32 * HELD_STEP_M).min(to);
+            match route.flight_leg(s) {
+                Some(leg) if last_leg != Some(leg) => {
+                    last_leg = Some(leg);
+                    stood.push(route.points()[leg - 1].at);
+                    stood.push(route.points()[leg].at);
+                }
+                Some(_) => {}
+                None => stood.push(route.floor_point(s)),
+            }
+        }
+        #[cfg(test)]
+        if last_leg.is_some() {
+            shut_flights::count();
+        }
+        let mut points = stood.into_iter();
         // Shut at `point` when the body gets there.
         let shut_at = |point: &Vec3| {
             grid.locate(*point, 0.6).is_some_and(|node| {
