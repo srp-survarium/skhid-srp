@@ -1036,7 +1036,7 @@ va	name	source	ret_cleanup	result
 0x002449e0		auto	0	
 0x00244a00	survarium::weapon::serialize	manual	8	
 0x00244a40		auto	12	
-0x00244ab0		auto	4	
+0x00244ab0	survarium::weapon::tick	manual	4	none; the client weapon's tick: weapon_core::tick, then its scope view +181Eh (abi_inputs.tsv)
 0x00244b60	survarium::weapon::add_aimed_rifle_scope_to_scene	manual	0	
 0x00244c50	survarium::weapon::remove_aimed_rifle_scope_from_scene	manual	0	
 0x00244e10	survarium::weapon::draw	manual	16	ECX client weapon, four stack arguments world transform/bones/count/optional UI state; world transform forwarded unchanged to renderer22280
@@ -2852,3 +2852,6 @@ va	name	source	ret_cleanup	result
 0x00246200	boost::detail::function::function_obj_invoker1<bind_t<callback_return_type, mf1<..., animation_end_aware_state, animation_callback_params&>>>::invoke [descriptive]	manual	0	EAX: the member function's result
 0x001f36d0	survarium::player::apply_new_input	manual	8	no result; the client player's override: copies the input into its input handler (+F470h, when its state +358h is 0 or 2), then base_player::apply_new_input (0x1F372C, return 0x1F3731)
 0x002d8ee0	survarium::base_player::tick_animations	manual	8	no result; ticks the animation player (+750h) and the stamina (player_stamina::tick at 0x2D8FC2) to its second argument
+0x00270950	survarium::lobby_client::send_apply_decal	manual	24	void: writes 46 05 {kit, host, cosmetic, u64 value} on the lobby link (0x37A0E0 begin, 0x379640 send), then the value into the inventory's record of the cosmetic in the host (0x270A1A..0x270AC6: the host by find_item_by_id, the first record whose item id is the cosmetic's; nothing when either is missing) and copy_account_items (0x270ACC); checks no connection itself
+0x0028c2c0	survarium::lobby_menu::scaleform_callback	manual	16	EAX: lobby_menu_logic::call's AL (GFx's caller 0x2AF969 drops it)
+0x002812e0	survarium::lobby_menu_logic::call	manual	8	AL: the named handler's answer, 0 for a name none of its 70h names (0x281308, logged when the log asks: 0x281351)

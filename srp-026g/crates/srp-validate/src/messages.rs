@@ -76,9 +76,11 @@ pub const fn fixed_length(id: u8) -> Option<usize> {
     })
 }
 
-/// Bit 30 is unused. Bit 29 is the shipped artefact-carry/weapon-pickup
-/// command marker; bit 31 is the native per-input flag. Both are valid.
-pub const UNUSED_ACTIONS: u32 = 1 << 30;
+/// Bit 30 of an input's actions: the second sight's switch key
+/// (`scope_next`, client patch 206), on its press only. With bit 29 (client
+/// patches 78 and 85's command marker) and bit 31 (the native per-input flag)
+/// every bit of the mask is an action a client sends.
+pub const SCOPE_NEXT: u32 = 1 << 30;
 
 /// A half float's exponent field, and that of 1024.0.
 const HALF_EXPONENT: u16 = 0x7C00;
@@ -96,8 +98,9 @@ pub fn rotation_is_sane(rotation: [u8; 4]) -> bool {
         .all(|half| half & HALF_EXPONENT < HALF_EXPONENT_1024)
 }
 
-/// A relayed input's rotation and actions (relay_trust.md 0xDC/0xDD).
-pub fn input(rotation: [u8; 4], actions: u32) -> Result<(), Reason> {
+/// A relayed input's rotation (relay_trust.md 0xDC/0xDD); its actions take
+/// every bit ([`SCOPE_NEXT`]).
+pub fn input(rotation: [u8; 4]) -> Result<(), Reason> {
     if !rotation_is_sane(rotation) {
         let [a, b, c, d] = rotation;
         let [dx, dy] = [u16::from_le_bytes([a, b]), u16::from_le_bytes([c, d])];
@@ -107,9 +110,6 @@ pub fn input(rotation: [u8; 4], actions: u32) -> Result<(), Reason> {
             dy
         };
         return Err(Reason::RotationNotSane { half });
-    }
-    if actions & UNUSED_ACTIONS != 0 {
-        return Err(Reason::UnusedActions { actions });
     }
     Ok(())
 }
@@ -155,9 +155,9 @@ pub fn check(message: u8, payload: &[u8]) -> Result<(), Refusal> {
                 reader.skip(at.saturating_add(1))?;
                 Ok::<_, Short>((reader.array::<4>()?, reader.u32()?))
             })();
-            let (rotation, actions) =
+            let (rotation, _actions) =
                 read.map_err(|_| refuse(0, Reason::MessageLength { len, wanted: len }))?;
-            input(rotation, actions).map_err(|reason| refuse(at.saturating_add(1), reason))
+            input(rotation).map_err(|reason| refuse(at.saturating_add(1), reason))
         }
         id::PROFILE_INPUT_RELAY => place(1),
         // The local index, then the LZMA2 stream of the options: it decodes

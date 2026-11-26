@@ -1,0 +1,6 @@
+# The optics a weapon takes as a second sight and their items' zoom factors, as their configs have them
+# (gameplay/items/scopes/<item>.options, data/fov_factor and data/near_plane_factor). Written by
+# srp-026g/scripts/weapon-modules/sight_views.py --live <the scope items' configs>: do not edit.
+# optic	item	fov_factor	near_plane_factor
+2112	shop_scope_leupold_deltapoint	0.8	0.5
+2116	shop_scope_hensoldt_rsas	0.5	0.5

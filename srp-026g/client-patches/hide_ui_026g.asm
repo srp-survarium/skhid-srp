@@ -64,7 +64,7 @@
 ; st_screenshot_action and st_screenshot_no_ui_action, and patch 149's
 ; sixteen (use_onyx .. use_next_medkit, no default key,
 ; labelled st_use_<item>_action); patch_026g.py points the six functions at
-; it and makes their counts 3Dh. The rows stand in the order the options list
+; it and makes their counts 3Eh (patch 206's scope_next too). The rows stand in the order the options list
 ; them: the movie (Settings.as) puts each row in its group's list (game, lobby,
 ; chat) in the table's order, and nothing takes a row by its place (the movie,
 ; root.set_keybind and the six functions name a row by its action, user.cfg
@@ -82,7 +82,7 @@
 BITS 32
 %include "engine_026g.inc"
 global hide_ui_match, hide_ui_lobby, hide_ui_reset
-global controls                    ; the options' controls, 61 rows (patch_026g.py's HIDE_UI_TABLE_REFS)
+global controls                    ; the options' controls, 62 rows (patch_026g.py's HIDE_UI_TABLE_REFS)
 global controls_end                ; their end (the Rust hud_options' key bindings read the rows)
 global ptt_nearby_action           ; the action table's row 37h's name (item_hotkeys_026g.asm's `actions`)
 global hide_interface_action, screenshot_action, screenshot_no_ui_action   ; the rows 19h, 1Ah and 1Bh's
@@ -374,6 +374,9 @@ use_next_artefact_label:
 use_next_medkit_label:
     db "st_use_next_medkit_action", 0
 
+scope_next_label:
+    db "st_srp_scope_next_action", 0
+
 ; A row of the controls: the action, its label's key, the group, the type, and
 ; two empty buffer_strings (begin, end, the buffer's end; 32 bytes).
 %macro CONTROL 4
@@ -403,6 +406,7 @@ controls:                          ; the rows in the order the options list them
     CONTROL 0x26, 0x9FCAD0, 2, 1   ; st_weapon_fire_action
     CONTROL 0x28, 0x9FCAA0, 2, 1   ; st_weapon_aim_action
     CONTROL 0x29, 0x9FCC2C, 2, 1   ; st_aim_toggle_action
+    CONTROL 0x5A, scope_next_label, 2, 1   ; st_srp_scope_next_action (Y): patch 206's second sight switch
     CONTROL 0x2A, 0x9FCA88, 2, 1   ; st_dealy_breath_action
     CONTROL 0x27, 0x9FCAB8, 2, 1   ; st_weapon_reload_action
     CONTROL 0x09, 0x9FCBE4, 2, 1   ; st_next_fire_queue_action

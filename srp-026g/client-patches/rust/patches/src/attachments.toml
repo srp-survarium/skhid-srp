@@ -94,3 +94,20 @@ handler = "on_view_end"
 [[hook]]
 site = "weapon_view.foreground"
 handler = "on_foreground"
+
+# patch 206's second sight in the first person (attachments/sights.rs): the eye
+# record blended between the two eyes, before patch 172 poses it (order 1)
+[[hook]]
+site = "hands_ik.aim_alignment"
+handler = "on_sight_eye"
+order = 0
+
+# the world's zoom and near plane of the two sights' factors
+[[hook]]
+site = "sights.zoom"
+handler = "on_sight_zoom"
+
+# the main optic not looked through while the second sight is shown
+[[hook]]
+site = "sights.scope_view"
+handler = "on_scope_view"
