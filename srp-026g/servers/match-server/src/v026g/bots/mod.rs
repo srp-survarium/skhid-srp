@@ -74,6 +74,7 @@ pub mod kin;
 pub mod know;
 pub mod lane_ahead;
 pub mod lane_draw;
+pub mod pincer;
 pub mod legs;
 pub mod link_time;
 pub mod live_grenades;

@@ -2271,6 +2271,8 @@ pub enum LegsWhy {
     /// [A208 `smoke.wait_for_cloud`] Holding short of a crossing until a cloud hides it (`smoke::CloudWait`): the
     /// route stays for the walk on.
     WaitingForCloud,
+    /// [pincer] Holding at a pincer's stage for the teammate coming in on the other bearing (`lane_draw::pincer`).
+    PincerHold,
     /// A hurt enemy who broke sight: on his last place while he cannot mend
     /// ([`Reflex::finish`]); the push is this state, the enemy is its own.
     Finish(Place),
@@ -2844,6 +2846,30 @@ struct CloudHolding {
     since: u32,
     until: u32,
     legs: HoldLegs,
+}
+
+/// [pincer] A hold at a pincer's stage: where it stands, what it looks at (the objective), since when, and its cap.
+#[derive(Clone, Copy, Debug, PartialEq)]
+struct PincerHolding {
+    at: Vec3,
+    look: Vec3,
+    since: u32,
+    until: u32,
+}
+
+/// [pincer] Why a hold at a stage ended (`Reflex::take_pincer_end`).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum PincerEnd {
+    /// The drive let it go: the teammate is staged, or gone.
+    Released,
+    /// Hit since the hold began.
+    Hit,
+    /// A target taken: a fight.
+    Fight,
+    /// An enemy its own senses noticed since the hold began.
+    Seen,
+    /// The hold's cap (`lane_draw::pincer::HOLD_CAP_MS`).
+    Cap,
 }
 
 /// [A208] Where a hold's legs are: walking the route on to the hold point, or standing at it.
@@ -4272,6 +4298,10 @@ pub struct Reflex {
     cloud_hold: Option<CloudHolding>,
     /// [A208] The crossing of the last hold that ended and when: a mate's cloud holds it there no second time.
     hold_ended: Option<(Vec3, u32)>,
+    /// [pincer] A hold at a pincer's stage under way (`lane_draw::pincer`).
+    pincer_hold: Option<PincerHolding>,
+    /// [pincer] How the last hold at a stage ended and how long it held, ms, not yet taken by the drive.
+    pincer_ended: Option<(PincerEnd, u32)>,
     /// [`CombatTuning::gate_from_client`] The last tick it sent the sprint, ms.
     sprinted_at: Option<u32>,
     /// [`CombatTuning::gate_from_client`] The tick it last pressed the jump, ms.
@@ -5424,6 +5454,29 @@ impl Reflex {
         super::smoke::tally::wait(me.team, wait.waits_for, super::smoke::tally::Wait::Begun, 1);
     }
 
+    /// [pincer] A hold at a pincer's stage `at` from `now`, looking at `look`, for at most `cap_ms` (a hold under way is replaced).
+    pub fn hold_for_pincer(&mut self, at: Vec3, look: Vec3, now: u32, cap_ms: u32) {
+        self.pincer_hold = Some(PincerHolding { at, look, since: now, until: now.saturating_add(cap_ms) });
+        self.pincer_ended = None;
+    }
+
+    /// [pincer] The drive lets the hold go (the teammate staged, or gone): it ends as [`PincerEnd::Released`].
+    pub fn release_pincer(&mut self, now: u32) {
+        if let Some(h) = self.pincer_hold.take() {
+            self.pincer_ended = Some((PincerEnd::Released, now.saturating_sub(h.since)));
+        }
+    }
+
+    /// [pincer] Whether it holds at a stage now.
+    pub fn holds_for_pincer(&self) -> bool {
+        self.pincer_hold.is_some()
+    }
+
+    /// [pincer] How the last hold at a stage ended and how long it held, ms, once.
+    pub fn take_pincer_end(&mut self) -> Option<(PincerEnd, u32)> {
+        self.pincer_ended.take()
+    }
+
     /// [smoke] A smoke thrown at `plan` from now, if the kit has one and the hands are free: no throw under way, no
     /// target, no reload or weapon switch. Whether it was begun.
     /// With `wait` (`smoke::CloudWait::of`, `smoke.wait_for_cloud`), after the launch it holds short of the plan's
@@ -5776,6 +5829,36 @@ impl Reflex {
             look_at: Some(w.line.eye),
             turn_time_s: Some(settle_s),
             legs: Some(Legs { at, within_m: 1.0, run: false, crouch: me.crouched(), why: LegsWhy::WaitingForCloud }),
+            band_m: self.band,
+            ..Override::default()
+        })
+    }
+
+    /// [pincer] A hold at a stage: standing there looking at the objective until the drive lets it go, or at once on a hit since the
+    /// hold began, a target (a fight), an enemy its own senses noticed since it began, or the cap. `None`: no hold.
+    fn pincer_holding(&mut self, me: &PlaceView, memory: &Memory, now: u32, settle_s: f32) -> Option<Override> {
+        let h = self.pincer_hold?;
+        let hit = |at: Option<u32>| at.is_some_and(|at| at >= h.since);
+        let end = if hit(self.hit_at) || hit(self.bullet_hit_at) {
+            Some(PincerEnd::Hit)
+        } else if self.target.is_some() {
+            Some(PincerEnd::Fight)
+        } else if memory.tracks().iter().any(|track| track.own.is_some_and(|(_, time)| time >= h.since)) {
+            Some(PincerEnd::Seen)
+        } else if now >= h.until {
+            Some(PincerEnd::Cap)
+        } else {
+            None
+        };
+        if let Some(why) = end {
+            self.pincer_hold = None;
+            self.pincer_ended = Some((why, now.saturating_sub(h.since)));
+            return None;
+        }
+        Some(Override {
+            look_at: Some(h.look),
+            turn_time_s: Some(settle_s),
+            legs: Some(Legs { at: h.at, within_m: 1.0, run: false, crouch: me.crouched(), why: LegsWhy::PincerHold }),
             band_m: self.band,
             ..Override::default()
         })
@@ -8572,6 +8655,10 @@ impl Reflex {
         }
         // [A208] A hold for a cloud has them next.
         if let Some(over) = self.cloud_holding(me, view, memory, now, settle_s) {
+            return over;
+        }
+        // [pincer] A hold at a pincer's stage next.
+        if let Some(over) = self.pincer_holding(me, memory, now, settle_s) {
             return over;
         }
         #[cfg(test)]
@@ -14013,6 +14100,39 @@ mod tests {
         assert!(!reflex.holds_for_cloud(), "the cap from the hold's begin");
         assert!(!reflex.hold_for_cloud(mates, &me, 10_000 + mates.cap_ms + 50), "not twice at one crossing");
         assert!(reflex.hold_for_cloud(mates, &me, 10_000 + 2 * mates.cap_ms + 50), "a later cloud");
+    }
+
+    /// [pincer] A hold at a stage stands there looking at the objective until the drive lets it go (Released), or ends itself at a
+    /// hit since it began, a target (a fight), or its cap; each end once, with its time held.
+    #[test]
+    fn a_pincer_hold_stands_at_its_stage_and_ends_on_a_release_a_hit_a_fight_or_its_cap() {
+        let memory = Memory::default();
+        let stage = Vec3::new(5.0, 0.0, 5.0);
+        let look = Vec3::new(10.0, 1.6, 5.0);
+        let me = body(0, 0, stage, 0.0);
+        let mut reflex = Reflex::default();
+        reflex.hold_for_pincer(stage, look, 1_000, 10_600);
+        let o = reflex.pincer_holding(&me, &memory, 1_050, 0.1).expect("stands");
+        assert_eq!(o.look_at, Some(look));
+        assert!(o.legs.is_some_and(|l| l.why == LegsWhy::PincerHold && l.at == stage), "{o:?}");
+        assert!(reflex.holds_for_pincer() && reflex.take_pincer_end().is_none());
+        reflex.release_pincer(3_000);
+        assert!(!reflex.holds_for_pincer());
+        assert_eq!(reflex.take_pincer_end(), Some((PincerEnd::Released, 2_000)));
+        assert_eq!(reflex.take_pincer_end(), None, "once");
+        assert!(reflex.pincer_holding(&me, &memory, 3_050, 0.1).is_none());
+        for (end, at) in [(PincerEnd::Hit, 1_500), (PincerEnd::Fight, 1_500), (PincerEnd::Cap, 11_600)] {
+            let mut reflex = Reflex { hit_at: Some(900), ..Reflex::default() };
+            reflex.hold_for_pincer(stage, look, 1_000, 10_600);
+            assert!(reflex.pincer_holding(&me, &memory, 1_050, 0.1).is_some(), "a hit before the hold does not end it");
+            match end {
+                PincerEnd::Hit => reflex.hit_at = Some(1_400),
+                PincerEnd::Fight => reflex.target = Some(3),
+                _ => {}
+            }
+            assert!(reflex.pincer_holding(&me, &memory, at, 0.1).is_none(), "{end:?}");
+            assert_eq!(reflex.take_pincer_end(), Some((end, at - 1_000)), "{end:?}");
+        }
     }
 
     /// The view is held for the grenade from the key's press to the launch and
