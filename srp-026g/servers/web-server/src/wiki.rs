@@ -10,6 +10,7 @@
 //! the modes ([`crate::modes`]) from its game data, its rules and the lobby's pools.
 
 use crate::built::{Built, Script};
+use crate::icons::{self, IconSet};
 use crate::{
     ContentType, Lang, Response, artefacts, damage, equipment, escape, maps, modes, modifiers,
     quests, skills,
@@ -44,14 +45,142 @@ pub(crate) fn moved(path: &str) -> Option<&'static str> {
     }
 }
 
-/// A section's link on the wiki's index: its address, name and one line.
-fn section(lang: Lang, path: &str, name: &str, line: &str) -> String {
+/// A section's picture on the wiki's index: the game's own, as the section
+/// shows it.
+enum Picture {
+    /// A picture (its address with its version), whole: an item's, a
+    /// skill's, an emblem, a mode's icon, a map.
+    Image(Option<String>),
+    /// Lobby glyphs (their addresses), in the accent colour.
+    Glyphs(Vec<Option<String>>),
+    /// A drawing of the section's own (an SVG), in the page's colours.
+    Drawing(Option<&'static str>),
+}
+
+impl Picture {
+    /// The picture's markup; nothing for a file or drawing the build did not
+    /// make (the tests require each).
+    fn html(&self) -> String {
+        match self {
+            Self::Image(url) => url.as_deref().map_or_else(String::new, |url| {
+                format!(
+                    "<img src=\"{}\" alt=\"\" loading=lazy decoding=async>",
+                    escape(url)
+                )
+            }),
+            Self::Glyphs(urls) => {
+                let glyphs: String = urls
+                    .iter()
+                    .flatten()
+                    .map(|url| {
+                        format!(
+                            "<span class=glyph style=\"--icon:url('{}')\"></span>",
+                            escape(url)
+                        )
+                    })
+                    .collect();
+                format!("<span class=wiki-glyphs aria-hidden=true>{glyphs}</span>")
+            }
+            Self::Drawing(svg) => svg.unwrap_or_default().to_owned(),
+        }
+    }
+}
+
+/// The recoil and spread simulators' picture, in their plots' look: a burst
+/// climbing inside its spread.
+const BURST: &str = "<svg class=burst viewBox=\"0 0 100 100\" aria-hidden=true>\
+    <circle class=\"sim-spread\" cx=\"50\" cy=\"38\" r=\"32\"/>\
+    <path class=\"sim-curve\" d=\"M50 90C50 76 46 70 50 60S60 46 54 36 42 22 52 12\"/>\
+    <circle class=\"sim-shot\" cx=\"50\" cy=\"90\" r=\"3.5\"/>\
+    <circle class=\"sim-shot\" cx=\"48\" cy=\"73\" r=\"3.5\"/>\
+    <circle class=\"sim-shot\" cx=\"50\" cy=\"60\" r=\"3.5\"/>\
+    <circle class=\"sim-shot\" cx=\"54\" cy=\"36\" r=\"3.5\"/>\
+    <circle class=\"sim-shot\" cx=\"52\" cy=\"12\" r=\"3.5\"/></svg>";
+
+/// A section's tile on the wiki's index: its picture with its name on it, its
+/// one line under them, a link to its address.
+fn section(lang: Lang, path: &str, name: &str, line: &str, picture: &Picture) -> String {
     format!(
-        "<a class=wiki-link href=\"{path}?lang={}\"><h2>{} →</h2><p>{}</p></a>",
+        "<a class=wiki-link href=\"{path}?lang={}\"><div class=wiki-pic>{}<h2>{}</h2></div><p>{}</p></a>",
         lang.code(),
+        picture.html(),
         escape(name),
         escape(line),
     )
+}
+
+/// The wiki's sections in their index's order: what you play with (skills,
+/// weapons, equipment and its modifiers), then where and how (modes, maps,
+/// the artefacts found there, quests), then the tools. Each with its address,
+/// name, line and picture.
+fn sections(lang: Lang) -> [(&'static str, String, String, Picture); 10] {
+    let item = |name: &str| Picture::Image(icons::url(IconSet::Item, name));
+    [
+        (
+            skills::PATH,
+            lang.t("Skills"),
+            lang.t("Levels and the experience they take; every skill tree: thresholds, ranks and what each rank gives."),
+            Picture::Image(crate::versioned("/skills/icons/101.webp")),
+        ),
+        (
+            WEAPONS,
+            lang.t("Weapons"),
+            lang.t("Browse weapons, compare base stats and explore their damage and handling."),
+            item("ak_74m"),
+        ),
+        (
+            EQUIPMENT,
+            lang.t("Equipment"),
+            lang.t("Every armour piece: protection, weight, built-in bonuses and what it can roll."),
+            item("scav_resp_1"),
+        ),
+        (
+            MODIFIERS,
+            lang.t("Modifiers"),
+            lang.t("Every modifier, its strengths and the items that can get it."),
+            Picture::Glyphs(
+                ["0", "16", "11", "7", "20", "33"]
+                    .map(|icon| icons::url(IconSet::Modifier, icon))
+                    .to_vec(),
+            ),
+        ),
+        (
+            modes::PATH,
+            lang.t("Modes"),
+            lang.t("Every mode: its rules, numbers and maps."),
+            Picture::Image(icons::url(IconSet::Mode, "7")),
+        ),
+        (
+            maps::PATH,
+            lang.t("Maps"),
+            lang.t("Spawns, batteries, chargers, containers and artefacts on every map."),
+            Picture::Image(icons::url(IconSet::Map, "1_1")),
+        ),
+        (
+            artefacts::PATH,
+            lang.t("Artefacts"),
+            lang.t("Every artefact: what it gives carried and fired, how copies stack, where it is found."),
+            item("artefact_spring"),
+        ),
+        (
+            quests::PATH,
+            lang.t("Quests"),
+            lang.t("Every faction quest: its goal at each reputation level and what it pays."),
+            Picture::Image(icons::url(IconSet::Faction, "1")),
+        ),
+        (
+            damage::PATH,
+            lang.t("Damage calculator"),
+            lang.t("Shots to kill a target in any armour, at any distance."),
+            Picture::Drawing(damage::doll()),
+        ),
+        (
+            SIMULATORS,
+            lang.t("Simulators"),
+            lang.t("Recoil and spread of any weapon: aim, stance, skills, gear and injuries."),
+            Picture::Drawing(Some(BURST)),
+        ),
+    ]
 }
 
 pub(crate) fn file(path: &str) -> Option<(&'static str, &'static [u8])> {
@@ -96,78 +225,16 @@ pub(crate) fn page(
         (
             lang.t("Wiki"),
             format!(
-                "<div class=wiki-heading><h1>{}</h1></div><div class=wiki-sections>{}{}{}{}{}{}{}{}{}{}</div>",
+                "<div class=wiki-heading><h1>{}</h1></div><div class=wiki-sections>{}</div>",
                 lang.t("Wiki"),
-                section(
-                    lang,
-                    WEAPONS,
-                    &lang.t("Weapons"),
-                    &lang.t("Browse weapons, compare base stats and explore their damage and handling."),
-                ),
-                section(
-                    lang,
-                    SIMULATORS,
-                    &lang.t("Simulators"),
-                    &lang.t("Recoil and spread of any weapon: aim, stance, skills, gear and injuries."),
-                ),
-                section(
-                    lang,
-                    EQUIPMENT,
-                    &lang.t("Equipment"),
-                    &lang.t("Every armour piece: protection, weight, built-in bonuses and what it can roll."),
-                ),
-                section(
-                    lang,
-                    artefacts::PATH,
-                    &lang.t("Artefacts"),
-                    &lang.t("Every artefact: what it gives carried and fired, how copies stack, where it is found."),
-                ),
-                section(
-                    lang,
-                    MODIFIERS,
-                    &lang.t("Modifiers"),
-                    &lang.t("Every modifier, its strengths and the items that can get it."),
-                ),
-                section(
-                    lang,
-                    skills::PATH,
-                    &lang.t("Skills"),
-                    &lang.t("Levels and the experience they take; every skill tree: thresholds, ranks and what each rank gives."),
-                ),
-                section(
-                    lang,
-                    quests::PATH,
-                    &lang.t("Quests"),
-                    &lang.t("Every faction quest: its goal at each reputation level and what it pays."),
-                ),
-                section(
-                    lang,
-                    damage::PATH,
-                    &lang.t("Damage calculator"),
-                    &lang.t("Shots to kill a target in any armour, at any distance."),
-                ),
-                section(
-                    lang,
-                    maps::PATH,
-                    &lang.t("Maps"),
-                    &lang.t("Spawns, batteries, chargers, containers and artefacts on every map."),
-                ),
-                section(
-                    lang,
-                    modes::PATH,
-                    &lang.t("Modes"),
-                    &lang.t("Every mode: its rules, numbers and maps."),
-                ),
+                sections(lang)
+                    .iter()
+                    .map(|(path, name, line, picture)| section(lang, path, name, line, picture))
+                    .collect::<String>(),
             ),
         )
     };
-    framed(
-        lang,
-        &title,
-        &lang.t("Skhid wiki"),
-        header,
-        &body,
-    )
+    framed(lang, &title, &lang.t("Skhid wiki"), header, &body)
 }
 
 /// A page in the wiki's look: `body` under `header`, titled `title · site`.

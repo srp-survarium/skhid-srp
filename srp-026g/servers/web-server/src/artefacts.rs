@@ -267,13 +267,7 @@ fn list(lines: &[Line]) -> String {
 
 /// A file of the skills page with its version, as its own pages name it.
 fn skill_icon(id: u16) -> Option<String> {
-    let path = format!("/skills/icons/{id}.webp");
-    let (_, bytes) = skills::file(&path)?;
-    let version: String = openssl::sha::sha256(bytes)[..6]
-        .iter()
-        .map(|byte| format!("{byte:02x}"))
-        .collect();
-    Some(format!("{path}?v={version}"))
+    crate::versioned(&format!("/skills/icons/{id}.webp"))
 }
 
 fn skill_link(lang: Lang, id: u16) -> Option<String> {

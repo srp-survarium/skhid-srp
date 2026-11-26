@@ -678,6 +678,29 @@ struct Response {
     body: String,
 }
 
+/// The file at `path` (the target before any `?`) that the pages load, sent to be kept: the
+/// calculator's, the Maps tab's, the wiki's, the stats' and the skills' files, the icons, and the
+/// calculator's fonts, which every page uses.
+fn static_file(path: &str) -> Option<(&'static str, &'static [u8])> {
+    damage::file(path)
+        .or_else(|| maps::file(path))
+        .or_else(|| wiki::file(path))
+        .or_else(|| history::file(path))
+        .or_else(|| skills::file(path))
+        .or_else(|| icons::file(path))
+}
+
+/// The address of the file at `path` ([`static_file`]) with its version (`?v=`, as the
+/// pages name their files), if there is one.
+fn versioned(path: &str) -> Option<String> {
+    let (_, bytes) = static_file(path)?;
+    let version: String = openssl::sha::sha256(bytes)[..6]
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect();
+    Some(format!("{path}?v={version}"))
+}
+
 fn locked<T>(mutex: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
     mutex
         .lock()
@@ -735,19 +758,11 @@ impl Web {
             torrent::send_bootstrap(&mut stream, request.method == "HEAD", script);
             return;
         }
-        // The calculator's, the Maps tab's, the wiki's, the stats' and the
-        // skills' files, and the calculator's fonts, which every page uses.
-        if matches!(request.method.as_str(), "GET" | "HEAD") {
-            let file = damage::file(&request.path)
-                .or_else(|| maps::file(&request.path))
-                .or_else(|| wiki::file(&request.path))
-                .or_else(|| history::file(&request.path))
-                .or_else(|| skills::file(&request.path))
-                .or_else(|| icons::file(&request.path));
-            if let Some((content_type, bytes)) = file {
-                damage::send(&mut stream, request.method == "HEAD", content_type, bytes);
-                return;
-            }
+        if matches!(request.method.as_str(), "GET" | "HEAD")
+            && let Some((content_type, bytes)) = static_file(&request.path)
+        {
+            damage::send(&mut stream, request.method == "HEAD", content_type, bytes);
+            return;
         }
         // A page's address from before it was the wiki's: the page where it
         // is now, in the same language (the browser keeps a `#` itself).
