@@ -271,7 +271,10 @@ pub const WALL_HELD_TOPS_ALGO: u32 = 0x5401_0001;
 /// body over the step, swept half way to the landing) and no jump off the edge lands, the Drop link is cut and a walk-off GapDrop
 /// removed; a walk-off no client way tried lands from is removed where such a wall or ceiling stands on every line (it was kept)
 /// (level 7's S011 and S083: no client way down, PROVEN by the exe).
-pub const DROP_LANDS_ALGO: u32 = 0x5067_0011;
+/// 0012: [stepped ceiling] with no line moving and no jump landing, a line also counts as shut where it steps onto a floor under
+/// the step with a ceiling too low for the crouched body over it (`grid::drop_check::walk_line_stepped_ceiling`), when no line's
+/// crouched walk leaves the take-off's level: S083's Drop on batteries, kept by 0011 because its +0.1 m line meets no wall.
+pub const DROP_LANDS_ALGO: u32 = 0x5067_0012;
 /// The same for the gap links flown by the client's jump ([`Body::gap_flights`], A389), in [`grid_key_with_links`] only for a
 /// body that asks for it. A value of its own. 0007: [S3] the floors on the thin tops the gaps over one cross carry their top's
 /// centre line where a body is held on it (`grid::line_tops`), in the grid file. 0008: [F1] no clip pass press is kept unflown:

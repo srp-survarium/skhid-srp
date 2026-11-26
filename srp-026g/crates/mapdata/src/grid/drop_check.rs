@@ -21,6 +21,12 @@
 //! from the knee to over the head) and S083 (a Drop link from (31.51, 22.03, -14.04), a wall 0.01 m ahead, a ceiling 0.13 m
 //! over the head): the client's body walked, sprinted and crouched at them at seven headings, from the take-off and with a
 //! run-up, and reached neither landing (exe_walkoff_point_v2 on rig_real_v3, 84 and 55 runs).
+//!
+//! [stepped ceiling] The wall test sweeps the crouched body at the take-off's own height, so a floor under the step with a ceiling
+//! too low over it passes it ([`walk_line_stepped_ceiling`]). Where every line meets a wall or such a floor and no line's crouched
+//! walk leaves the take-off's level, the link is Blocked too. S083 on batteries (its +0.1 m line steps onto a curb 0.40 m up under
+//! a ceiling 0.98 m over it) is such a link: kept by the wall test alone, the bots' body wedged on it with the keys held, and the
+//! exe's stays on every line (census-20261123).
 
 use super::{DIRS, LIP_DROP_M, LinkKind, NONE, SEED_M, SPAWN_M, Triangle, Vec3, WalkGrid, Wide};
 use super::controlled::{STARTS, Stance, WalkStart, out_of_walls, parallel};
@@ -113,6 +119,49 @@ pub(super) fn walk_line_blocked(world: &Collision, s: &Settings, body: &super::B
     };
     let way = Vec3::new(to.x - start.x, 0.0, to.z - start.z) * 0.5;
     world.sweep_shape(shape, way, |f| f.normal.y < s.max_slope_cos).is_some()
+}
+
+/// [stepped ceiling] How far over the take-off a floor under the walk line must rise to be stepped onto, m.
+const STEP_UP_MIN_M: f32 = 0.05;
+/// [stepped ceiling] The points along [`walk_line_blocked`]'s sweep where the floor under the body is read: its start, its end and
+/// three between.
+const STEPPED_POINTS: usize = 5;
+
+/// [stepped ceiling] Whether the walk line from `from` toward `to` steps the body up onto a floor it does not fit on crouched: at
+/// [`STEPPED_POINTS`] points of [`walk_line_blocked`]'s sweep (the line's start moved out of the walls, half the way to the
+/// landing), the highest walkable top under the body's footprint within the walk tick's step over the take-off
+/// ([`Settings::step_height`]: the walk steps onto it); where it rises [`STEP_UP_MIN_M`] or more, the crouched body
+/// ([`super::Body::crouch_height`]) standing on it overlaps a face facing down. [`walk_line_blocked`] sweeps the crouched body at
+/// the take-off's own height, so it misses a curb under the step with a ceiling over it: Vector Laboratory batteries' S083 Drop
+/// (31.51, 22.03, -14.04) -> (32.01, 21.01, -14.54), whose +0.1 m line steps onto a 22.43 m top under a ceiling at 23.42 m (0.98 m
+/// of room for the 1.1 m crouched body); the bots' body wedges there in the air with the keys held (the batteries bench: 76 s on
+/// one life), and the exe's body stays on every line, gait and heading (census-20261123, rig_real_v3).
+pub(super) fn walk_line_stepped_ceiling(world: &Collision, s: &Settings, body: &super::Body, from: Vec3, to: Vec3) -> bool {
+    const MARGIN_M: f32 = 0.04;
+    let start = out_of_walls(world, from);
+    let (low, high) = (s.step_height, body.crouch_height);
+    if flat(start, to) < 1e-3 || high <= STEP_UP_MIN_M + 2.0 * MARGIN_M {
+        return false;
+    }
+    let way = Vec3::new(to.x - start.x, 0.0, to.z - start.z) * 0.5;
+    (0..STEPPED_POINTS).any(|k| {
+        let at = start + way * (k as f32 / (STEPPED_POINTS - 1) as f32);
+        // A thin disc of the body's footprint let down from just over the step onto the walkable tops under it.
+        let foot = Shape::Cylinder { centre: at + Vec3::new(0.0, low + 0.06, 0.0), half: 0.005, radius: body.radius, margin: MARGIN_M };
+        let Some(top) = world.sweep_shape(foot, Vec3::new(0.0, -(low + 0.05), 0.0), |f| f.normal.y >= s.max_slope_cos).map(|c| c.point.y) else {
+            return false;
+        };
+        if top < start.y + STEP_UP_MIN_M {
+            return false;
+        }
+        let crouched = Shape::Cylinder {
+            centre: Vec3::new(at.x, top + 0.5 * (STEP_UP_MIN_M + high), at.z),
+            half: 0.5 * (high - STEP_UP_MIN_M) - MARGIN_M,
+            radius: body.radius,
+            margin: MARGIN_M,
+        };
+        world.nearest_to(crouched, 0.0, |f| f.normal.y <= -s.max_slope_cos).is_some_and(|(gap, _, _)| gap < 0.0)
+    })
 }
 
 /// Whether the client's walk tick takes a body walking off `from` down to `to` (module documentation): on any of the
@@ -915,7 +964,7 @@ impl WalkGrid {
         }
         // [blocked walk-offs] A line whose body cannot move says nothing, unless no gait passes on any line and no jump lands.
         if walks.contains(&DropWalk::NoMove) {
-            return if self.no_client_way(world, s, &walks, a, from, to) { Verdict::Blocked } else { Verdict::Keep };
+            return if self.no_client_way(world, s, start, &walks, a, from, to) { Verdict::Blocked } else { Verdict::Keep };
         }
         // [D2] A walk line that overshoots the link's own landing (a ledge) and comes to rest deeper than the harmless fall under
         // the take-off ([`super::Body::max_drop`]) is re-aimed there only when no other client way takes the body down within it
@@ -992,12 +1041,31 @@ impl WalkGrid {
 
     /// [blocked walk-offs] Whether no client way goes down a walk-off from `a` (at `from`) toward `to`, its standing walk lines
     /// `walks` (the [`STARTS`] lines): no line's body moves ([`DropWalk::NoMove`]), a wall or a ceiling no gait passes stands on
-    /// every line ([`walk_line_blocked`]), and no jump off the edge lands ([`Self::jumped_down`]).
-    fn no_client_way(&self, world: &Collision, s: &Settings, walks: &[DropWalk; 3], a: u32, from: Vec3, to: Vec3) -> bool {
+    /// every line ([`walk_line_blocked`]; [stepped ceiling] or [`Self::lines_stepped_shut`]), and no jump off the edge lands
+    /// ([`Self::jumped_down`]).
+    #[allow(clippy::too_many_arguments)]
+    fn no_client_way(&self, world: &Collision, s: &Settings, start: WalkStart, walks: &[DropWalk; 3], a: u32, from: Vec3, to: Vec3) -> bool {
         let len = flat(from, to).max(1e-3);
         walks.iter().all(|w| *w == DropWalk::NoMove)
-            && self.lines_blocked(world, s, from, to)
+            && (self.lines_blocked(world, s, from, to) || self.lines_stepped_shut(world, s, start, from, to))
             && self.jumped_down(world, s, a, from, ((to.x - from.x) / len, (to.z - from.z) / len)).is_none()
+    }
+
+    /// [stepped ceiling] Whether every [`STARTS`] line from `from` toward `to` is shut to the crouched body too: a wall or a ceiling
+    /// over the take-off ([`walk_line_blocked`]) or a floor under the step with a ceiling too low over it
+    /// ([`walk_line_stepped_ceiling`]) on each, and no line's crouched walk ([`walk_off_rest`] at [`CROUCH_MPS`]) leaves the
+    /// take-off's level: where the crouched body does go down (it slips past the curb's end), the link keeps that way.
+    fn lines_stepped_shut(&self, world: &Collision, s: &Settings, start: WalkStart, from: Vec3, to: Vec3) -> bool {
+        let len = flat(from, to).max(1e-3);
+        let side = Vec3::new(-(to.z - from.z) / len, 0.0, (to.x - from.x) / len);
+        let line = |off: f32| (from + side * off, to + side * off);
+        STARTS.iter().all(|&off| {
+            let (f, t) = line(off);
+            walk_line_blocked(world, s, &self.body, f, t) || walk_line_stepped_ceiling(world, s, &self.body, f, t)
+        }) && STARTS.iter().all(|&off| {
+            let (f, t) = line(off);
+            matches!(walk_off_rest(world, s, start, Stance::Crouched, CROUCH_MPS, f, t), DropWalk::Held | DropWalk::NoMove)
+        })
     }
 
     /// [blocked walk-offs] Whether a wall or a ceiling no gait passes stands on every [`STARTS`] line from `from` toward `to`
@@ -1625,6 +1693,38 @@ mod tests {
         assert!(!blocked(&wall(2.0, 2.5)), "a ledge under the step");
         assert!(blocked(&ceiling(3.0)), "a ceiling 1.0 m over the deck");
         assert!(!blocked(&ceiling(3.5)), "a ceiling 1.5 m over the deck");
+    }
+
+    /// [stepped ceiling] The same deck with a curb 0.4 m high on the way (x 0 to 0.4, under the walk tick's step) and a ceiling
+    /// 1.3 m over the deck: the wall test passes it (the crouched body, 1.1 m, fits over the deck), the stepped test does not (0.9 m
+    /// over the curb). Without the curb, or with the ceiling 1.6 m over the deck (1.2 m over the curb), the way is open to both.
+    #[test]
+    fn a_curb_under_a_low_ceiling_shuts_the_line_to_the_crouched_body() {
+        let t = |v: [Vec3; 3]| Triangle { v, walker: WalkerBehaviour::BySlope };
+        let ceiling = |y: f32| {
+            let (a, b, c, d) = (Vec3::new(-1.0, y, -2.0), Vec3::new(2.0, y, -2.0), Vec3::new(2.0, y, 2.0), Vec3::new(-1.0, y, 2.0));
+            [t([a, b, c]), t([a, c, d])]
+        };
+        let world = |curb: bool, ceiling_y: f32| {
+            let mut tris = Vec::new();
+            tris.extend(quad(-3.0, 0.4, -2.0, 2.0, 2.0));
+            tris.extend(quad(0.4, 3.0, -2.0, 2.0, 1.0));
+            if curb {
+                tris.extend(quad(0.0, 0.4, -2.0, 2.0, 2.4));
+            }
+            tris.extend(ceiling(ceiling_y));
+            Collision::build(&tris)
+        };
+        let body = crate::Body::client();
+        let s = Settings::LIVE;
+        let (from, to) = (Vec3::new(0.0, 2.0, 0.0), Vec3::new(0.8, 1.0, 0.0));
+        let walled = |w: &Collision| walk_line_blocked(w, &s, &body, from, to);
+        let stepped = |w: &Collision| walk_line_stepped_ceiling(w, &s, &body, from, to);
+        let low = world(true, 3.3);
+        assert!(!walled(&low), "the wall test passes the curb under a ceiling 1.3 m over the deck");
+        assert!(stepped(&low), "a curb 0.4 m up under a ceiling 0.9 m over it");
+        assert!(!stepped(&world(false, 3.3)), "no curb: 1.3 m over the deck");
+        assert!(!stepped(&world(true, 3.6)), "a ceiling 1.2 m over the curb");
     }
 
     /// A take-off boxed in by walls (the body cannot move from it on any line) says nothing of the drop: the link is kept.
