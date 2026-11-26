@@ -64,8 +64,8 @@ correctly derived rates; medicine cards calculate total / pool maximum.
 - One table for all of them ("we can just rebuild it completely for all items").
 - Yellow heals intoxication and radiation, always completely; gradually is fine.
 - Pain (the owner, 2026-10-31): orange 40 %, blue and yellow 50 %, green 100 %, bandages 35 %.
-- A bullet hit stops a drug's use or its healing: an exe patch of its own (branch
-  `feat/drug-hit-interrupt`), for every drug.
+- A bullet hit stops a drug's use or its healing: an exe patch of its own (patch 84,
+  `drug-interrupt.md`), for every drug.
 
 ## The table (the owner's, 2026-10-31)
 
@@ -105,8 +105,8 @@ reads them too); `scripts/medicines/medicines.tsv` holds each one's ids, keys, i
   medkits, 1 for the bandages, as before: a kit with one is matched as before.
 - Sellers: a config's `parameters/faction` (the coloured ones); srp sells a supply whose config
   names a faction from that faction, as gear (`prices.rs`); no stock supply names one. The bandages
-  and the Medikit stay the Scavengers' (`EXCEPTIONS`).
-- The match changes: the Medikit's pain heal (`simulation_changes.tsv` `next` row). The new items
+  and the Medikit stay the Scavengers' (`scripts/content-edit/shop.tsv`).
+- The match changes: the Medikit's pain heal (`simulation_changes.tsv` row 40). The new items
   change no older game (none has one).
 
 ## Intoxication and radiation (PROVEN in the data and the exe's tables)

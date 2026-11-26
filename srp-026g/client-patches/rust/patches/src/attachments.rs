@@ -37,9 +37,14 @@
 
 #![forbid(unsafe_code)]
 
-use weapon_modules::{Bare, EyeAnchor, Gun, Hand, Loadout, Placement, resolve};
+pub(crate) mod sights;
+pub(crate) mod view;
+pub use sights::{on_scope_view, on_sight_eye, on_sight_zoom};
+pub use view::{on_foreground, on_view_begin, on_view_camera, on_view_end, on_view_frame, on_view_no_gun, on_view_submit};
 
-use crate::vostok::attachments::{self, Cook, FingerCorrector, HandSet, Leaving, Named, Records};
+use weapon_modules::{Bare, EyeAnchor, Gun, Hand, Loadout, Part, Placement, resolve};
+
+use crate::vostok::attachments::{self, Cook, FingerCorrector, HandSet, Leaving, Named, PartModels, Records};
 use crate::vostok::{
     AttachmentsOnScopeDictExit, AttachmentsOnScopeResultExit, Context, Flow, NoExit, OrigFingersSetWeaponModel, Thread,
 };
@@ -71,6 +76,14 @@ pub fn shells(was: &Placement, now: &Placement) -> Option<weapon_modules::Affine
     was.frame_over(now)
 }
 
+/// A part's models: a second sight's aimed one too (with its reticle,
+/// shown in its place while the eye looks through it; 0.69d0 draws the
+/// current aim slot's reticle alone).
+fn models(bare: &Bare<'static>, part: &Part<'static>) -> PartModels {
+    let second = bare.second.filter(|second| second.module.index() == part.module.index() && second.at == part.at);
+    PartModels { model: part.model(), aimed: second.and_then(|second| second.module.aimed()) }
+}
+
 fn fingers(weapon: &mut Records<'_>, hand: &Hand) {
     for set in HAND_SETS {
         weapon.set_left_fingers(set, &hand.fingers());
@@ -84,6 +97,8 @@ pub fn on_dictionary_requests(ctx: &mut Context<'_>) -> Flow<NoExit> {
 
 /// items_dictionary_cook::on_configs_loaded's entry (0x2C8AA0).
 pub fn on_dictionary_configs(ctx: &mut Context<'_>) -> Flow<NoExit> {
+    crate::vostok::weapon_view::load_profiles(ctx);
+    crate::vostok::sight_view::load_views(ctx);
     if let Err(why) = attachments::arrived(ctx) {
         attachments::refused(why);
     }
@@ -105,7 +120,7 @@ pub fn on_scope_result(ctx: &mut Context<'_>) -> Flow<AttachmentsOnScopeResultEx
 pub fn on_request_room(ctx: &mut Context<'_>) -> Flow<NoExit> {
     if let Some(named) = attachments::cooking(ctx, Cook::Room) {
         let mut parts = 0;
-        bare(ctx.thread(), named, |_, bare| parts = bare.parts().count());
+        bare(ctx.thread(), named, |_, bare| parts = bare.parts().map(|part| models(bare, part).requests()).sum());
         attachments::more_requests(ctx, parts);
     }
     Flow::Continue
@@ -117,7 +132,7 @@ pub fn on_asked(ctx: &mut Context<'_>) -> Flow<NoExit> {
     attachments::fresh(ctx);
     if let Some(named) = attachments::cooking(ctx, Cook::Asked) {
         bare(ctx.thread(), named, |gun, bare| {
-            attachments::request_parts(ctx, named, gun.bare(), bare.parts().map(|part| part.model()));
+            attachments::request_parts(ctx, named, gun.bare(), bare.parts().map(|part| models(bare, part)));
         });
     }
     Flow::Continue
@@ -127,7 +142,7 @@ pub fn on_asked(ctx: &mut Context<'_>) -> Flow<NoExit> {
 pub fn on_ready(ctx: &mut Context<'_>) -> Flow<NoExit> {
     if let Some(asked) = attachments::asked(ctx) {
         let named = asked.named();
-        bare(ctx.thread(), named, |_, bare| asked.hold(bare.parts().map(|part| part.at)));
+        bare(ctx.thread(), named, |_, bare| asked.hold(bare.parts().map(|part| (part.at, models(bare, part).aimed.is_some()))));
     }
     Flow::Continue
 }
@@ -135,6 +150,7 @@ pub fn on_ready(ctx: &mut Context<'_>) -> Flow<NoExit> {
 /// on_weapon_subresources_ready after load_weapon (0x24B0E1).
 pub fn on_loaded(ctx: &mut Context<'_>) -> Flow<NoExit> {
     let Some(mut weapon) = Records::loaded(ctx) else { return Flow::Continue };
+    sights::forget_eye(weapon.thread(), weapon.id());
     let Some(kept) = attachments::kept(weapon.thread(), weapon.id()) else { return Flow::Continue };
     bare(weapon.thread(), kept.named, |gun, bare| {
         // every placement of this gun names a bone below the table's count
@@ -162,7 +178,7 @@ pub fn on_loaded(ctx: &mut Context<'_>) -> Flow<NoExit> {
 
 /// weapon::draw after the weapon model's update (0x245017).
 pub fn on_draw(ctx: &mut Context<'_>) -> Flow<NoExit> {
-    attachments::draw(ctx);
+    attachments::draw(ctx, || sights::shown(ctx));
     Flow::Continue
 }
 

@@ -11,7 +11,8 @@
 
 use crate::built::{Built, Script};
 use crate::{
-    ContentType, Lang, Response, damage, equipment, escape, maps, modes, modifiers, quests, skills,
+    ContentType, Lang, Response, artefacts, damage, equipment, escape, maps, modes, modifiers,
+    quests, skills,
 };
 
 pub(crate) const PATH: &str = "/wiki";
@@ -84,6 +85,8 @@ pub(crate) fn page(
         (lang.t("Quests"), quests::body(lang))
     } else if path == EQUIPMENT {
         (lang.t("Equipment"), equipment::body(lang))
+    } else if path == artefacts::PATH {
+        (lang.t("Artefacts"), artefacts::body(lang))
     } else if path == MODIFIERS {
         (
             lang.t("Modifiers"),
@@ -93,7 +96,7 @@ pub(crate) fn page(
         (
             lang.t("Wiki"),
             format!(
-                "<div class=wiki-heading><h1>{}</h1></div><div class=wiki-sections>{}{}{}{}{}{}{}{}{}</div>",
+                "<div class=wiki-heading><h1>{}</h1></div><div class=wiki-sections>{}{}{}{}{}{}{}{}{}{}</div>",
                 lang.t("Wiki"),
                 section(
                     lang,
@@ -112,6 +115,12 @@ pub(crate) fn page(
                     EQUIPMENT,
                     &lang.t("Equipment"),
                     &lang.t("Every armour piece: protection, weight, built-in bonuses and what it can roll."),
+                ),
+                section(
+                    lang,
+                    artefacts::PATH,
+                    &lang.t("Artefacts"),
+                    &lang.t("Every artefact: what it gives carried and fired, how copies stack, where it is found."),
                 ),
                 section(
                     lang,

@@ -259,6 +259,21 @@ pub(super) const NAMES_MIGRATION: &str = "
     END;
     ";
 
+/// The schema step that keeps the experience each match paid a player for
+/// its play ([`PlayerLine::experience`]), and its sums in the totals with the
+/// time of the matches that have it ([`Earned`]). New columns only, nullable
+/// or 0 by default: a line of before has none (NULL), and nothing can
+/// recompute it (the items' bonus, the rates and the daily bonus of then
+/// are not kept), so the totals of before count neither its experience nor
+/// its time.
+pub(super) const EXPERIENCE_MIGRATION: &str = "
+    ALTER TABLE g26_match_players ADD COLUMN experience INTEGER;
+    ALTER TABLE g26_player_totals ADD COLUMN experience INTEGER NOT NULL DEFAULT 0;
+    ALTER TABLE g26_player_totals ADD COLUMN experience_played_ms INTEGER NOT NULL DEFAULT 0;
+    ALTER TABLE g26_clan_totals ADD COLUMN experience INTEGER NOT NULL DEFAULT 0;
+    ALTER TABLE g26_clan_totals ADD COLUMN experience_played_ms INTEGER NOT NULL DEFAULT 0;
+    ";
+
 /// Who could join a match.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum MatchKind {
@@ -700,6 +715,10 @@ pub struct PlayerLine {
     pub counters: Counters,
     /// How long it was in the match.
     pub played_ms: u32,
+    /// The experience the match paid it for its play, the daily bonus
+    /// left out (`rewards::Reward::played_experience`); `None` in a line
+    /// written before the history kept it.
+    pub experience: Option<u32>,
 }
 
 /// One player of a [`MatchRecord`].
@@ -753,6 +772,34 @@ pub struct Totals {
     pub counters: Counters,
     /// Time in the matches.
     pub played_ms: u64,
+    /// The experience of the matches whose lines have it.
+    pub earned: Earned,
+}
+
+/// The experience matches paid for their play, and the time in those
+/// matches alone: a rate of the two leaves out the matches written before
+/// the history kept experience ([`PlayerLine::experience`] `None`).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct Earned {
+    pub experience: u64,
+    pub played_ms: u64,
+}
+
+impl Earned {
+    /// A line's: none of a line without experience.
+    fn of_line(line: &PlayerLine) -> Self {
+        line.experience.map_or(Self::default(), |experience| Self {
+            experience: u64::from(experience),
+            played_ms: u64::from(line.played_ms),
+        })
+    }
+
+    fn plus(self, more: Self) -> Self {
+        Self {
+            experience: self.experience + more.experience,
+            played_ms: self.played_ms + more.played_ms,
+        }
+    }
 }
 
 /// A total the top lists sort by.
@@ -1006,9 +1053,9 @@ pub(super) fn record(
         transaction.execute(
             "INSERT INTO g26_match_players (match_id, account_id, clan_id, team, place, presence,
                  rating, score, kills, deaths, assists, headshots, grenade_kills, melee_kills,
-                 batteries, captures, artefacts, shots, hits, seat, outcome, played_ms)
+                 batteries, captures, artefacts, shots, hits, seat, outcome, played_ms, experience)
              VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16,
-                 ?17, ?18, ?19, ?20, ?21, ?22)",
+                 ?17, ?18, ?19, ?20, ?21, ?22, ?23)",
             params![
                 match_id,
                 player.account_id,
@@ -1032,6 +1079,7 @@ pub(super) fn record(
                 line.seat,
                 line.outcome.as_str(),
                 line.played_ms,
+                line.experience,
             ],
         )?;
         record_kits(&transaction, match_id, player)?;
@@ -1099,6 +1147,7 @@ impl Totals {
             deaths: line.deaths,
             counters: line.counters,
             played_ms: u64::from(line.played_ms),
+            earned: Earned::of_line(line),
         }
     }
 
@@ -1126,6 +1175,7 @@ impl Totals {
                 hits: own.hits + more.hits,
             },
             played_ms: self.played_ms + member.played_ms,
+            earned: self.earned.plus(member.earned),
         }
     }
 }
@@ -1265,8 +1315,9 @@ fn add_totals(
         &format!(
             "INSERT INTO {table} ({key}, matches, wins, losses, score, kills, deaths, assists,
                  headshots, grenade_kills, melee_kills, batteries, captures, artefacts, shots, hits,
-                 played_ms)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17)
+                 played_ms, experience, experience_played_ms)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17,
+                 ?18, ?19)
              ON CONFLICT({key}) DO UPDATE SET
                  matches = matches + excluded.matches, wins = wins + excluded.wins,
                  losses = losses + excluded.losses,
@@ -1279,7 +1330,9 @@ fn add_totals(
                  captures = captures + excluded.captures,
                  artefacts = artefacts + excluded.artefacts,
                  shots = shots + excluded.shots, hits = hits + excluded.hits,
-                 played_ms = played_ms + excluded.played_ms"
+                 played_ms = played_ms + excluded.played_ms,
+                 experience = experience + excluded.experience,
+                 experience_played_ms = experience_played_ms + excluded.experience_played_ms"
         ),
         params![
             id,
@@ -1299,6 +1352,8 @@ fn add_totals(
             counters.shots as i64,
             counters.hits as i64,
             totals.played_ms as i64,
+            totals.earned.experience as i64,
+            totals.earned.played_ms as i64,
         ],
     )?;
     Ok(())
@@ -1320,15 +1375,21 @@ const SUMMARY: &str = "m.id, m.ended_at, m.duration_ms, m.map_id, m.game_mode, m
      (SELECT COUNT(*) FROM g26_match_players n WHERE n.match_id = m.id), m.eligibility,
      m.replay_id";
 const SUMMARY_COLUMNS: usize = 12;
-/// The columns of a [`PlayerLine`] of `p` (nineteen).
+/// The columns of a [`PlayerLine`] of `p` (twenty).
 const LINE: &str = "p.team, p.place, p.presence, p.rating, p.score, p.kills, p.deaths, p.assists,
      p.headshots, p.grenade_kills, p.melee_kills, p.batteries, p.captures, p.artefacts, p.shots,
-     p.hits, p.seat, p.outcome, p.played_ms";
+     p.hits, p.seat, p.outcome, p.played_ms, p.experience";
 /// The columns of [`Totals`] of `t` ([`TOTALS_COLUMNS`]).
-const TOTALS_COLUMNS: usize = 16;
+const TOTALS_COLUMNS: usize = 18;
 const TOTALS: &str = "t.matches, t.wins, t.losses, t.score, t.kills, t.deaths, t.assists, t.headshots,
      t.grenade_kills, t.melee_kills, t.batteries, t.captures, t.artefacts, t.shots, t.hits,
-     t.played_ms";
+     t.played_ms, t.experience, t.experience_played_ms";
+/// The [`Totals`] of the lines `p` added up, in [`TOTALS`]' order (the matches: their count).
+const LINE_SUMS: &str = "COUNT(*), SUM(p.outcome = 'won'), SUM(p.outcome = 'lost'), SUM(p.score),
+     SUM(p.kills), SUM(p.deaths), SUM(p.assists), SUM(p.headshots), SUM(p.grenade_kills),
+     SUM(p.melee_kills), SUM(p.batteries), SUM(p.captures), SUM(p.artefacts), SUM(p.shots),
+     SUM(p.hits), SUM(p.played_ms), SUM(p.experience),
+     SUM(CASE WHEN p.experience IS NULL THEN 0 ELSE p.played_ms END)";
 /// A match's kits and what they held, of `k` and `i`, by account and
 /// place, then slot (eight columns: account, kit, its four counters, slot,
 /// dict id); `{filter}` narrows `k` further.
@@ -1469,6 +1530,7 @@ fn line_at(row: &Row, at: usize) -> rusqlite::Result<PlayerLine> {
             hits: u64_at(row, at + 15)?,
         },
         played_ms: row.get(at + 18)?,
+        experience: row.get(at + 19)?,
     })
 }
 
@@ -1493,6 +1555,10 @@ fn totals_at(row: &Row, at: usize) -> rusqlite::Result<Totals> {
             hits: u64_at(row, at + 14)?,
         },
         played_ms: u64_at(row, at + 15)?,
+        earned: Earned {
+            experience: u64_at(row, at + 16)?,
+            played_ms: u64_at(row, at + 17)?,
+        },
     })
 }
 
@@ -1758,18 +1824,14 @@ impl MatchHistory {
         since: u64,
     ) -> Result<Vec<(String, Totals)>, PersistError> {
         let connection = self.reader();
-        let mut statement = connection.prepare_cached(
-            "SELECT date(m.ended_at, 'unixepoch') AS day, COUNT(*),
-                 SUM(p.outcome = 'won'), SUM(p.outcome = 'lost'), SUM(p.score), SUM(p.kills),
-                 SUM(p.deaths), SUM(p.assists), SUM(p.headshots), SUM(p.grenade_kills),
-                 SUM(p.melee_kills), SUM(p.batteries), SUM(p.captures), SUM(p.artefacts),
-                 SUM(p.shots), SUM(p.hits), SUM(p.played_ms)
+        let mut statement = connection.prepare_cached(&format!(
+            "SELECT date(m.ended_at, 'unixepoch') AS day, {LINE_SUMS}
              FROM g26_match_players p JOIN g26_matches m ON m.id = p.match_id
              WHERE p.account_id = ?1 AND m.eligibility = 'counted' AND m.ended_at >= ?2
                AND p.match_id >= IFNULL((SELECT MIN(id) FROM g26_matches WHERE ended_at >= ?2),
                    9223372036854775807)
-             GROUP BY day ORDER BY day",
-        )?;
+             GROUP BY day ORDER BY day"
+        ))?;
         let rows = statement.query_map(
             params![account_id, since.min(i64::MAX as u64) as i64],
             |row| Ok((row.get(0)?, totals_at(row, 1)?)),
@@ -1941,10 +2003,7 @@ impl MatchHistory {
     ) -> Result<Vec<(Named, Totals)>, PersistError> {
         let connection = self.reader();
         let mut statement = connection.prepare_cached(&format!(
-            "SELECT {NAMED}, COUNT(*), SUM(p.outcome = 'won'), SUM(p.outcome = 'lost'),
-                 SUM(p.score), SUM(p.kills), SUM(p.deaths), SUM(p.assists), SUM(p.headshots),
-                 SUM(p.grenade_kills), SUM(p.melee_kills), SUM(p.batteries), SUM(p.captures),
-                 SUM(p.artefacts), SUM(p.shots), SUM(p.hits), SUM(p.played_ms)
+            "SELECT {NAMED}, {LINE_SUMS}
              FROM g26_matches m CROSS JOIN g26_match_players p ON p.match_id = m.id
              JOIN g26_accounts a ON a.account_id = p.account_id
              {CLAN_JOIN}
@@ -2219,6 +2278,7 @@ mod tests {
                 hits: 40,
             },
             played_ms: 600_000,
+            experience: Some(150),
         }
     }
 
@@ -2365,6 +2425,117 @@ mod tests {
             .unwrap();
         let history = repository.history().unwrap().unwrap();
         (repository, history)
+    }
+
+    /// The experience step adds columns only: a line of before has no
+    /// experience (`None`) and the totals of before none of its time, a
+    /// match after it adds both, and the writes of a server of before (no
+    /// experience columns named) still go in.
+    #[test]
+    fn the_experience_step_keeps_the_lines_of_before_without_experience() {
+        let dir = TempDir::new("experience-step");
+        let own = MIGRATIONS
+            .iter()
+            .position(|step| *step == EXPERIENCE_MIGRATION)
+            .expect("the step is in the list");
+        // The writes of the server of before, as it made them.
+        let old_match = |connection: &Connection, ended_at: u64, played_ms: u32| {
+            let replay_id = ReplayId::new(
+                9_000 + ended_at as u32,
+                std::time::UNIX_EPOCH + std::time::Duration::from_secs(ended_at),
+            );
+            connection
+                .execute(
+                    "INSERT INTO g26_matches (game_match_id, replay_id, ended_at, duration_ms,
+                         map_id, game_mode, match_level, kind, eligibility, winner, team0_points,
+                         team1_points)
+                     VALUES (?1, ?2, ?3, 900000, 3, ?4, 12, 'public', 'counted', 'team0', 5, 3)",
+                    params![
+                        replay_id.match_id(),
+                        replay_id.as_str(),
+                        ended_at as i64,
+                        LobbyMode::Plain(GameMode::Batteries).number(),
+                    ],
+                )
+                .unwrap();
+            let match_id = connection.last_insert_rowid();
+            connection
+                .execute(
+                    "INSERT INTO g26_match_players (match_id, account_id, clan_id, team, place,
+                         presence, rating, score, kills, deaths, assists, headshots,
+                         grenade_kills, melee_kills, batteries, captures, artefacts, shots, hits,
+                         seat, outcome, played_ms)
+                     VALUES (?1, 10, NULL, 0, 1, 'finished', 100, 200, 9, 3, 0, 0, 0, 0, 0, 0, 0,
+                         0, 0, 0, 'won', ?2)",
+                    params![match_id, played_ms],
+                )
+                .unwrap();
+            connection
+                .execute(
+                    "INSERT INTO g26_player_totals (account_id, matches, wins, losses, score,
+                         kills, deaths, assists, headshots, grenade_kills, melee_kills,
+                         batteries, captures, artefacts, shots, hits, played_ms)
+                     VALUES (10, 1, 1, 0, 200, 9, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, ?1)
+                     ON CONFLICT(account_id) DO UPDATE SET
+                         matches = matches + excluded.matches, kills = kills + excluded.kills,
+                         played_ms = played_ms + excluded.played_ms",
+                    [played_ms],
+                )
+                .unwrap();
+        };
+        {
+            let connection = Connection::open(dir.db()).unwrap();
+            connection
+                .execute_batch(
+                    "CREATE TABLE g26_meta (key TEXT PRIMARY KEY, value INTEGER NOT NULL);",
+                )
+                .unwrap();
+            for earlier in &MIGRATIONS[..own] {
+                connection.execute_batch(earlier).unwrap();
+            }
+            connection
+                .execute(
+                    "INSERT INTO g26_meta (key, value) VALUES ('schema', ?1)",
+                    [own as i64],
+                )
+                .unwrap();
+            old_match(&connection, 500, 900_000);
+        }
+        let (mut repository, history) = repository(&dir);
+        assert_eq!(repository.version().unwrap(), MIGRATIONS.len() as i64);
+        let card = history.player(10).unwrap().unwrap();
+        assert_eq!((card.totals.matches, card.totals.played_ms), (1, 900_000));
+        assert_eq!(card.totals.earned, Earned::default());
+        assert_eq!(history.player_matches(10, None, 1).unwrap()[0].line.experience, None);
+
+        // A match after the step: its line says what it paid, and the totals
+        // count that with its time alone.
+        repository.record_match(&record(PUBLIC, 1000)).unwrap();
+        let card = history.player(10).unwrap().unwrap();
+        assert_eq!(card.totals.played_ms, 900_000 + 600_000);
+        let earned = Earned {
+            experience: 150,
+            played_ms: 600_000,
+        };
+        assert_eq!(card.totals.earned, earned);
+        let lines = history.player_matches(10, None, 2).unwrap();
+        let experience: Vec<Option<u32>> = lines.iter().map(|played| played.line.experience).collect();
+        assert_eq!(experience, [Some(150), None]);
+        // The day sums and the period's sums leave the old line out alike.
+        let days = history.player_days(10, 0).unwrap();
+        assert_eq!(days.len(), 1);
+        assert_eq!(days[0].1.earned, earned);
+        assert_eq!(days[0].1.played_ms, 1_500_000);
+        let since = history.totals_since(0, &|_| true).unwrap();
+        let alice = since.iter().find(|(player, _)| player.account_id == 10).unwrap();
+        assert_eq!(alice.1.earned, earned);
+        assert_eq!(history.all_time().unwrap().totals.earned.experience, 150 + 150);
+
+        // A server of before still writes into the tables after the step.
+        old_match(&Connection::open(dir.db()).unwrap(), 2000, 300_000);
+        let card = history.player(10).unwrap().unwrap();
+        assert_eq!(card.totals.played_ms, 1_800_000);
+        assert_eq!(card.totals.earned, earned);
     }
 
     #[test]
@@ -2828,6 +2999,10 @@ mod tests {
                     hits: 80,
                 },
                 played_ms: 1_200_000,
+                earned: Earned {
+                    experience: 300,
+                    played_ms: 1_200_000,
+                },
             }
         );
         let bob = history.player(11).unwrap().unwrap();
@@ -3194,6 +3369,10 @@ mod tests {
                     hits: 320,
                 },
                 played_ms: 4_800_000,
+                earned: Earned {
+                    experience: 8 * 150,
+                    played_ms: 4_800_000,
+                },
             }
         );
         // The list of clans and the clan's matches agree with the card.

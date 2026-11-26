@@ -9,8 +9,9 @@ damage-calc/build_site.py runs it after the calculator's icons, so every
 release makes them again from its own patches. Writes <out>/ anew:
 
 - items/<items_dict name>.webp: the lobby icon of every item of a category
-  the shop's equipment and weapon filters name, as the calculator's build cut
-  it (assets/tools/build_icons.py, 171x83);
+  the shop's equipment and weapon filters name, and of every artefact
+  (`gameplay/items/artefacts/`), as the calculator's build cut it
+  (assets/tools/build_icons.py, 171x83);
 - mods/<ui_desc.icon>.webp: every 38x38 cell of the `modifiers` atlas
   (character 3279, IconContainer("modifiers", 38, 38, vertical): column-major)
   that holds an icon; each icon a modification shows must be one;
@@ -65,6 +66,8 @@ import swf  # noqa: E402
 
 MOD_ATLAS = "3279_LobbyMenu_ModifierIcons.png"
 MOD_CELL = 38
+# The artefacts' configs (the wiki's artefacts page, src/artefacts.rs).
+ARTEFACTS = "gameplay/items/artefacts/"
 # FilterItemCatRenderer's `itemIcon` (lobby_menu.swf sprite 1125): frame
 # 300 + icon draws a filter's icon. FFDec exports its frames as SVG.
 FILTER_SPRITE = 1125
@@ -291,7 +294,7 @@ def main():
         stems.setdefault(item["cfg_name"].rsplit("/", 1)[-1].removesuffix(".options"), []).append(item)
     missing = []
     for item in sorted(dictionary, key=lambda item: item["name"]):
-        if item["item_category"] not in categories:
+        if item["item_category"] not in categories and not item["cfg_name"].startswith(ARTEFACTS):
             continue
         stem = item["cfg_name"].rsplit("/", 1)[-1].removesuffix(".options")
         source = args.item_icons / f"{item['name'] if len(stems[stem]) > 1 else stem}.webp"

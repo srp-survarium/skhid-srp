@@ -63,8 +63,10 @@ pub mod lamps;
 pub mod artefact_score;
 pub mod battery_progress;
 pub mod weapon_stats;
+pub mod second_sights;
 
 pub mod hud_options;
+pub mod key_bindings;
 // patch 167: no white hit marker through walls
 pub mod hit_marker_walls;
 // patch 191: a kill made in a re-simulation keeps its kill marker
@@ -87,6 +89,7 @@ pub mod music;
 pub mod game_volume;
 pub mod sound_voices;
 pub mod drug_interrupt;
+pub mod reload_commit;
 // patch 177: a hit breaks the victim's breath hold
 pub mod breath_hit;
 // patch 196: a shot into a corpse, 0.21's death sound and the dead player in the dark
@@ -99,6 +102,9 @@ pub mod footsteps;
 pub mod zone_guards;
 // patch 153: a step on a walker-only floor finds its ground
 pub mod step_ground;
+// patch 210: the sync log (SKHID_SYNC_LOG)
+pub mod sync_log;
+pub mod exact_world;
 
 pub mod weapon_pickup;
 
@@ -123,6 +129,8 @@ pub mod keyboard_layout;
 pub mod mouse_pitch;
 // patch 202: a line in the patches' log when the game cannot take the mouse
 pub mod mouse_acquire;
+// patch 207: the lobby movie's srp_set_upgrade_value is the decal editor's 46 05
+pub mod upgrade_value;
 pub mod bake_cache;
 pub mod weapon_camo;
 pub mod key_remap;

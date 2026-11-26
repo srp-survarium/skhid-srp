@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Patch 156 (the Rust patch collision_view, rust/patches/src/collision_view.rs):
-the console command `collision` (client_patch.md section 3.82).
+the console command `collision` (client_patch.md section 3.112).
 
     python check_collision_view_026g.py <original survarium.exe>
 

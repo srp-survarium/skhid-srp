@@ -10,6 +10,7 @@ members = [
   "crates/session",
   "crates/artefact-carry",
   "crates/weapon-pickup",
+  "crates/second-sight",
   "crates/technical-skills",
   "crates/ragdoll",
   "crates/voice-abi",
@@ -71,7 +72,6 @@ socket2 = { version = "0.5", features = ["all"] }
 thiserror = "2.0.12"
 
 actix-web = "4.10.2"
-env_logger = "0.10"
 log = "0.4"
 sqlx = { version = "0.8", features = [ "runtime-tokio" ] }
 

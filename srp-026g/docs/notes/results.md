@@ -333,6 +333,7 @@ Code: `crates/session/src/v026g/pay.rs` (every number, each with its tag) and `r
 - **Score weights** (`static_info.rs` `SCORE_WEIGHTS`): kill 10, assist 5, stolen battery 35 (the wiki of February 2015; the stolen battery is event 17, LIKELY); the others are srp's 0.21d choices divided by ten. A Research match (mode 5) is sent and paid with three others (`static_info::RESEARCH_WEIGHTS`, 0.27d's awards): a capture (event 6) and a neutralisation (event 18) 30 for a whole one, a "kill invader" (event 10) 10. Its battery rules do not apply there: no per-match cap of the battery events (`battery_credit.md`), no drop chance a battery, no battery quests.
 - **Quests**: a quest's silver × `money_k` and its reputation × `reputation_k` of the match it was completed in (that the level matters is PROVEN, patch note 0.23h; these multipliers LIKELY), each rounded down; its reputation twice in one of the day's doubled victories (LIKELY, patch note 0.25a). A 0.26g quest awards no experience. The silver rate does not touch a quest's silver; `SRP_REPUTATION_RATE` does raise its reputation (× the percent, in the same rounding down, before the doubling).
 - **The drop** (the owner's of 2026-11-04): every player who finished a match finds one item, rolled as a drop card is (`drop_card_drop` at the match's drop level): a weapon, an armour piece, or a camouflage or decal not owned yet, whole; never money, a voucher or ammo. The four f32 of §1.3 are sent as 1, 0, 0, 0.
+  With unowned items in both cosmetic categories, each roll gives 37.5% weapons, 37.5% armour, 10% decals and 15% camouflage (`camouflage-drop-rates-1.json`). The server skips exhausted cosmetic categories and divides the roll among the remaining groups by weight.
 - **Levels**: 100 is the highest; reaching it pays 250 gold (the wiki's table). **Rating** starts at 100 for a new 0.26g account (LIKELY); accounts made before keep theirs.
 - **The seven days** (`bonus.rs`): a day counts when its three victories are made, a day missed or not made does not reset the run, and the reward comes with the third victory of the seventh such day (patch notes 0.24a, 0.24c). `SRP_DAILY_BONUS=off` turns the bonus off (no 0x99 is sent); `SRP_DAILY_BONUS_RESET_HOUR` moves the start of a bonus day.
 
@@ -424,7 +425,7 @@ Tests: `pay.rs` `the_silver_rate_rises_with_the_match_level`; `rewards/tests.rs`
   least 80 % (`pay::FLOOR_OF_MEDIAN`) of the rows' silver of the match's median player (of those
   who stayed to the end; bots not counted; of two middle ones, the lower).
 - What its rows lack is added to its main kit's activity cell ("Match Activity Rewards"), so the
-  premium half and the premium items' bonus count it too. Experience and reputation: unchanged.
+  premium items' bonus counts it too (and the premium half did, until 2026-11-09). Experience and reputation: unchanged.
 - Score under 30 (idle, or barely played), a player who left, a room with a PIN, a match with no
   trusted snapshot: no floor. A match against bots: its median is of its human players' pay.
 - On live (61 matches of revision 35, no bots): the lowest quarter of each match's scoreboard
@@ -450,8 +451,9 @@ See `kill_cap.md` and `research_mode.md` for thresholds.
 
 PvE settles match rewards at `min(actual match level, 7)` (`pvb::MAX_REWARD_LEVEL`). One effective
 level in `Shared` selects both the dictionary's money/experience/reputation multipliers and the
-silver rate. At seven these are 4.97 / 1.3 / 1.3 and 170% silver with the default by-level rates.
-The usual `SRP_PVB_PAY` share (default 50% for silver and experience) and premium still apply.
+silver rate. At seven these are 4.97 / 1.3 / 1.3 and 255% silver with the default by-level rates
+(170% until 2026-11-09, when premium's half went into them). The usual `SRP_PVB_PAY` share (default
+50% for silver and experience) still applies.
 Lower-tier PvE and all PvP retain their normal level scaling. Equipment, bot kits and the actual
 match level are unchanged; this is a payment ceiling, not a change to combat simulation.
 

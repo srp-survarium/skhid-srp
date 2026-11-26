@@ -1036,7 +1036,7 @@ va	name	source	ret_cleanup	result
 0x002449e0		auto	0	
 0x00244a00	survarium::weapon::serialize	manual	8	
 0x00244a40		auto	12	
-0x00244ab0		auto	4	
+0x00244ab0	survarium::weapon::tick	manual	4	none; the client weapon's tick: weapon_core::tick, then its scope view +181Eh (abi_inputs.tsv)
 0x00244b60	survarium::weapon::add_aimed_rifle_scope_to_scene	manual	0	
 0x00244c50	survarium::weapon::remove_aimed_rifle_scope_from_scene	manual	0	
 0x00244e10	survarium::weapon::draw	manual	16	ECX client weapon, four stack arguments world transform/bones/count/optional UI state; world transform forwarded unchanged to renderer22280
@@ -1167,7 +1167,9 @@ va	name	source	ret_cleanup	result
 0x002cea30	survarium::animation_analysis_result_cook::translate_query	manual	4	
 0x002d09c0		auto	0	
 0x002d0ab0	survarium::game_world_core::active_player_ptr	manual	0	EAX = EDI; [EDI] := [[core+18458h]+place*30h+4*[..+0Ch]] (reference added), 0 when the place is past the count or not in [core+18FD8h]
+0x002d0b30	survarium::game_world_core::event_horizon_history_item	manual	0	EAX: the history item a hash (0xDF) and an upload (0xF6, client patch 3.4) are of: with the server-mode byte [core+18FDDh] the newest ([core+2FC0h]), else the newest whose time +0xC0BB0 is at most [core+18FC4h] - [core+18FB4h] (now less the horizon), walking back by +0xC0BA8; 0 if none
 0x002d0b70		auto	16	
+0x002d1070	survarium::game_world_core::is_there_event_horizon_item	manual	0	AL: 1 if there is an event-horizon item that came from no snapshot (+0xC0BB9 clear) and is at least the horizon old; 0 with no history ([core+2FBCh] null)
 0x002d1100		auto	20	
 0x002d1470	survarium::game_world_core::enter_match	manual	8	
 0x002d18a0	survarium::game_world_core::leave_match	manual	8	
@@ -1303,7 +1305,7 @@ va	name	source	ret_cleanup	result
 0x003053c0	survarium::booby_trap_core::deserialize	manual	12	
 0x0030d750	survarium::computed_show_animation_time_scale	manual	0	XMM0 low32: (end - start) x (1/30) / time, the animation's length over the wanted time
 0x0030da60	survarium::weapon_core_animation_end_aware_state::initialize	manual	0	
-0x0030db60	survarium::weapon_core_animation_end_aware_state::on_animation_end	manual	4	
+0x0030db60	survarium::weapon_core_animation_end_aware_state::on_animation_end	manual	4	EAX: the callback_return_type, 0 (0x30DBA8)
 0x0030dbb0	survarium::weapon_core_animation_end_aware_state::deserialize	manual	12	
 0x0030dc90	survarium::weapon_core_animation_end_aware_state::serialize	manual	8	
 0x0030e910	survarium::weapon_core_fire_state_base::initialize	manual	0	
@@ -1407,7 +1409,7 @@ va	name	source	ret_cleanup	result
 0x00324ad0	survarium::game_state_history_item::clear_buffers	manual	4	
 0x00324be0	survarium::game_state_history_item::serialize	manual	12	
 0x00324d80	survarium::game_state_history_item::deserialize	manual	8	
-0x00325150	survarium::game_state_history_item::hash	manual	4	
+0x00325150	survarium::game_state_history_item::hash	manual	4	EAX: the boost CRC-32 of the item serialized with its players mask (0x324BE0 into a stack buffer by EBP: data -10h, size -8h), cached at +0C0BB4h with the flag +0C0BB8h (set at once, 0x32517B; a cached item returns at 0x325164 with no serialize)
 0x00325a60		auto	16	
 0x00329120	survarium::stamina_base_parameters::load	manual	4	
 0x00329310	survarium::player_stamina::serialize	manual	0	
@@ -2841,3 +2843,15 @@ va	name	source	ret_cleanup	result
 0x00222330	survarium::lobby_menu::on_profile_changed	manual	0	none; the kit shown to the lobby movie: root.select_player_profile, root.fill_player_profile_items (0x222A23: the kit's items value [esp+58h], its profileId and items), the ammo bags and quick slot size, then root.update_profile_slots_count (0x222CD6: containers [esp+0Fh], modifier 0Eh; pockets lobby_menu+3121h, modifier 0Fh; their sum held to six, 0x222B18..0x222B5A) and the weight (0x2221E0); the only caller of both Invokes; called by on_client_status_received (0x21D813) and process_succeeded_inventory_action (0x2762BE)
 0x003b9680	vostok::input::platform::mouse::execute	manual	0	none; the poll, under the mouse's spin lock (+30h): GetDeviceState(DIMOUSESTATE2, 14h bytes; device vtable+24h) into a local, copied into +4..+13h by 0x3B9610 (the last poll's state to +14h..+23h first); on DIERR_NOTACQUIRED or DIERR_INPUTLOST, Acquire (vtable+1Ch, 0x3B971A) and one more read, its "mouse device is lost" line (0x3B97D2) when that one is lost too; a failed Acquire (0x3B971E) or any other failed read (0x3B9704) returns with no input and no line
 0x003b9800	vostok::input::platform::mouse::set_exclusive [descriptive]	manual	4	AL: 1 when SetCooperativeLevel (vtable+34h, 0x3B9846) and Acquire (vtable+1Ch, 0x3B9860) succeeded, else 0; the device Unacquired first (vtable+20h, 0x3B982A), under the mouse's spin lock
+0x00020310	vostok::render::functor_with_big_buffer_to_copy_command<draw_scene_params>::ctor	manual	12	EAX command
+0x00028460	vostok::render::functor_with_big_buffer_to_copy_command<draw_scene_params>::execute	manual	0	void
+0x00028620	vostok::render::functor_with_big_buffer_to_copy_command<draw_scene_params>::on_defer_execution	manual	0	void; vtable 0x9DC800 slot 1: calls the +78h functor with the command itself (push ecx), never a copy; the draw_scene command (0x1F8EE) is made with an empty one (+10h 0)
+0x00310e40	survarium::weapon_core_reload_state_base::on_animation_end_impl	manual	8	
+0x00391c40	vostok::animation::animation_player::subscribe_event_channel	manual	20	
+0x003921a0	vostok::animation::animation_player::unsubscribe_event_channel	manual	8	
+0x00246200	boost::detail::function::function_obj_invoker1<bind_t<callback_return_type, mf1<..., animation_end_aware_state, animation_callback_params&>>>::invoke [descriptive]	manual	0	EAX: the member function's result
+0x001f36d0	survarium::player::apply_new_input	manual	8	no result; the client player's override: copies the input into its input handler (+F470h, when its state +358h is 0 or 2), then base_player::apply_new_input (0x1F372C, return 0x1F3731)
+0x002d8ee0	survarium::base_player::tick_animations	manual	8	no result; ticks the animation player (+750h) and the stamina (player_stamina::tick at 0x2D8FC2) to its second argument
+0x00270950	survarium::lobby_client::send_apply_decal	manual	24	void: writes 46 05 {kit, host, cosmetic, u64 value} on the lobby link (0x37A0E0 begin, 0x379640 send), then the value into the inventory's record of the cosmetic in the host (0x270A1A..0x270AC6: the host by find_item_by_id, the first record whose item id is the cosmetic's; nothing when either is missing) and copy_account_items (0x270ACC); checks no connection itself
+0x0028c2c0	survarium::lobby_menu::scaleform_callback	manual	16	EAX: lobby_menu_logic::call's AL (GFx's caller 0x2AF969 drops it)
+0x002812e0	survarium::lobby_menu_logic::call	manual	8	AL: the named handler's answer, 0 for a name none of its 70h names (0x281308, logged when the log asks: 0x281351)

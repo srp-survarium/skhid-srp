@@ -10,7 +10,7 @@ use serde_json::{Value, json};
 use session::v026g::account::Account;
 use session::v026g::clans::{Clan, Member, Rank, status};
 use session::v026g::persist::history::{
-    Counters, Eligibility, GearSlot, KitItem, MatchInfo, MatchKind, MatchRecord, PlayerLine,
+    Counters, Earned, Eligibility, GearSlot, KitItem, MatchInfo, MatchKind, MatchRecord, PlayerLine,
     Outcome, PlayerRecord, Presence, WeaponCounts, Winner,
 };
 use session::v026g::replays::{ReplayId, Replays};
@@ -88,6 +88,7 @@ fn line(team: u8, score: u64, kills: u64, deaths: u64) -> PlayerLine {
             hits: 100,
         },
         played_ms: 840_000,
+        experience: Some(420),
     }
 }
 
@@ -315,18 +316,21 @@ fn keys(value: &Value) -> Vec<&str> {
     keys
 }
 
-const TOTALS: [&str; 20] = [
+const TOTALS: [&str; 23] = [
     "accuracy",
     "artefacts",
     "assists",
     "batteries",
     "captures",
     "deaths",
+    "experience",
+    "experience_per_minute",
     "grenade_kills",
     "headshots",
     "hits",
     "kd",
     "kills",
+    "kills_per_minute",
     "losses",
     "matches",
     "melee_kills",
@@ -357,13 +361,14 @@ const SUMMARY: [&str; 16] = [
     "winner",
 ];
 
-const LINE: [&str; 20] = [
+const LINE: [&str; 21] = [
     "accuracy",
     "artefacts",
     "assists",
     "batteries",
     "captures",
     "deaths",
+    "experience",
     "grenade_kills",
     "headshots",
     "hits",
@@ -422,6 +427,61 @@ fn a_player_is_its_card_and_totals_of_public_matches() {
     );
     assert_eq!(world.get("/api/history/player").0, "400 Bad Request");
     assert_eq!(world.get("/api/history/player?id=x").0, "400 Bad Request");
+}
+
+/// The "In matches" panel's rates: by the player's own time in its counted
+/// public matches (14 minutes each of a match of 14:04.5), not the matches'
+/// length; the private match and the one against bots are not in them.
+#[test]
+fn a_players_kills_and_experience_are_a_minute_of_its_time_in_matches() {
+    let world = world("per-minute");
+    let totals = &world.ok(&format!("/api/history/player?id={}", world.alice))["totals"];
+    assert_eq!(totals["played_s"], 3 * 840);
+    // 42 kills in 42 minutes.
+    assert_eq!(totals["kills_per_minute"], 1.0);
+    // 420 experience a match of 14 minutes.
+    assert_eq!(totals["experience"], 3 * 420);
+    assert_eq!(totals["experience_per_minute"], 30.0);
+    let bob = &world.ok(&format!("/api/history/player?id={}", world.bob))["totals"];
+    // 18 kills in 42 minutes: rounded to two places.
+    assert_eq!(bob["kills_per_minute"], 0.43);
+    // A match's line says what it paid.
+    let matches = world.ok(&format!("/api/history/player/matches?id={}", world.alice));
+    assert_eq!(matches["matches"][0]["experience"], 420);
+}
+
+/// No minute to divide by: no rate (the page's '—'); lines written before
+/// the history kept experience count neither their experience nor their
+/// time in it.
+#[test]
+fn a_rate_without_minutes_is_none_and_old_lines_are_left_out_of_experience() {
+    let never = super::totals(&Totals::default());
+    assert_eq!(never["kills_per_minute"], Value::Null);
+    assert_eq!(never["experience_per_minute"], Value::Null);
+    assert_eq!(never["experience"], 0);
+    // An old match of 14 minutes and a new one of 10 that paid 500
+    // (`persist::history` adds them up so, and tests it).
+    let both = Totals {
+        matches: 2,
+        kills: 15,
+        played_ms: 840_000 + 600_000,
+        earned: Earned {
+            experience: 500,
+            played_ms: 600_000,
+        },
+        ..Totals::default()
+    };
+    let value = super::totals(&both);
+    // 15 kills in 24 minutes; 500 experience in the 10 minutes that kept it.
+    assert_eq!(value["kills_per_minute"], 0.63);
+    assert_eq!(value["experience"], 500);
+    assert_eq!(value["experience_per_minute"], 50.0);
+    // An old line has no experience to show.
+    let old = PlayerLine {
+        experience: None,
+        ..line(0, 300, 10, 2)
+    };
+    assert_eq!(line_fields(&old)["experience"], Value::Null);
 }
 
 #[test]
@@ -1184,6 +1244,7 @@ pub(crate) fn preview(dir: &std::path::Path, now: u64, crowd: u32) -> GameAccoun
                             hits,
                         },
                         played_ms: if k == 10 && i % 5 == 0 { 300_000 } else { 780_000 },
+                        experience: Some(900 + 40 * kills as u32 + random(300) as u32),
                     },
                     kits,
                     weapons,
@@ -1306,6 +1367,7 @@ pub(crate) fn preview(dir: &std::path::Path, now: u64, crowd: u32) -> GameAccoun
                             hits: shots * (18 + 3 * random(7)) / 100,
                         },
                         played_ms: 600_000 + 1_000 * random(300) as u32,
+                        experience: Some(700 + 40 * kills as u32 + random(300) as u32),
                     },
                     kits: Vec::new(),
                     weapons: BTreeMap::new(),

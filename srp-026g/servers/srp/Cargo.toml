@@ -10,7 +10,8 @@ workspace = true
 
 [dependencies]
 ctrlc = { workspace = true }
-log = { workspace = true }
+# `set_boxed_logger` for its own logger (`src/logger.rs`).
+log = { workspace = true, features = ["std"] }
 
 session = { workspace = true }
 survarium = { workspace = true }

@@ -6,7 +6,7 @@
 //! from the login screen to the results screen, again and again, so that
 //! a real client gets a real match (level load, world upload, countdown,
 //! play, end, results). `srp-bot` (`src/bin/srp-bot.rs`) runs it; so does
-//! the end-to-end test (`tests/v026g_bot.rs`).
+//! the end-to-end test (`tests/v026g_end_to_end.rs`).
 //!
 //! What it does, one printed line a step:
 //! 1. signs in at the login server (TCP, then TLS), as a client with a

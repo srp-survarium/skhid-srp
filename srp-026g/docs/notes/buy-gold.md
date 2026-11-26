@@ -7,11 +7,13 @@ the lobby movie with gold (the owner, 2026-11-08; [silver-only.md](silver-only.m
 - **Balance:** the top bar shows silver only; the gold box is hidden and the silver box opens
   nothing (`StatusPanel`, `topPanelLeftContainer_56`). `PlayerInfo` keeps no gold balance.
 - **Prices:** every price is silver, a premium item's too (`isPremium` no longer picks gold or
-  multiplies by the exchange rate; selling gives `cost / 4`, times the condition). The buy dialog,
+  multiplies by the exchange rate; selling gives `cost / 4`, `ItemPrice.SELL_DIVISOR`; times the
+  condition until items stopped wearing on 2026-11-08). The buy dialog,
   the shop's cards, the bundles and the ammo dialog check silver (`MessageAsk`, `ItemCard`,
   `ItemControlPanel`, `ItemRendererInv`, `InventoryList`, `AmmoShareLite`).
 - **Windows with a gold option** show the silver one only: a modification's change (`MessageRerollItem`), the upgrade (`MessageCraftItem`: the server sends
-  the chances it rolls in the silver column), the repair (`MessageRepair`: no quick fix), the
+  the chances it rolls in the silver column), the repair (`MessageRepair`: no quick fix; the
+  window went with repair on 2026-11-08), the
   rename (`MessageEnterName`: paid in silver at 0x8D's rename price). Each sends payment 0. The
   skills reset has no window: it is free and the Reset button sends it at once, payment 0
   (`CharWindow.rerollChanges`, silver-only.md).

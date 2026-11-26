@@ -15,6 +15,14 @@ the kinds that never roll, the items that come with it); a group only some of
 whose items take it lists those items. Reliability is left out: items wear
 nothing.
 
+The artefacts page (`/wiki/artefacts`) has no build step either: the web server
+makes it from the server's game data (`servers/web-server/src/artefacts.rs`,
+the configs read by `survarium::v026g::artefacts`): each artefact's passive and
+active with its numbers, active time, cooldown, weight and skill, the rules of
+carrying several (exe patches 54 and 109, `docs/notes/artefacts.md`) and the
+artefact tree's skills. Its icons are the lobby's, made with the wiki's
+(`build_icons.py`).
+
 The weapons section is a searchable weapon catalogue with class filters,
 sorting and expandable weapon stats. Both pages are one copy for every language
 (`weapons.html`, `simulators.html`, each with its `.texts.json`): their words

@@ -1,7 +1,6 @@
 package survarium.controls
 {
    import flash.display.MovieClip;
-   import flash.display.Shape;
    import flash.display.Sprite;
    import flash.geom.ColorTransform;
    import flash.text.TextField;
@@ -12,7 +11,6 @@ package survarium.controls
    import survarium.constants.Colors;
    import survarium.constants.SquadState;
    import survarium.constants.TeamSide;
-   import survarium.modes.ArtefactHuntLook;
    import survarium.modes.FrozenPlaces;
    
    public class PlayerListRenderer extends Button implements IListItemRenderer
@@ -41,9 +39,6 @@ package survarium.controls
       public var squad_icon:MovieClip;
       
       public var ui_sqad:TextField;
-
-      // Artifact Hunt: the carrier's row, the artefact's orb left of his name.
-      private var _carryMark:Shape;
       
       public function PlayerListRenderer()
       {
@@ -179,7 +174,6 @@ package survarium.controls
             {
                this.ui_name.textColor = FrozenPlaces.COLOR;
             }
-            this.markCarrier(this.board != null && _data.id != undefined && this.board.carrier == int(_data.id));
          }
          else
          {
@@ -196,35 +190,7 @@ package survarium.controls
                this.squad_icon.visible = false;
                this.squad_icon.gotoAndStop(1);
             }
-            this.markCarrier(false);
          }
-      }
-
-      protected function markCarrier(carries:Boolean) : void
-      {
-         if(!carries)
-         {
-            if(this._carryMark)
-            {
-               this._carryMark.visible = false;
-            }
-            return;
-         }
-         if(!this._carryMark)
-         {
-            _carryMark = new Shape();
-            ArtefactHuntLook.drawOrb(this._carryMark.graphics,6,true);
-            this._carryMark.filters = [ArtefactHuntLook.glow(1.5)];
-            addChild(this._carryMark);
-         }
-         this._carryMark.x = this.ui_name.x - 9;
-         this._carryMark.y = this.ui_name.y + this.ui_name.height / 2;
-         this._carryMark.visible = true;
-      }
-
-      public function get carrierMarked() : Boolean
-      {
-         return this._carryMark != null && this._carryMark.visible;
       }
       
       // The list this row is in shows names only (PlayerList.namesOnly: the Settings' "Hide player scores").

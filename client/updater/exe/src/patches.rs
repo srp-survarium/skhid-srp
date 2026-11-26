@@ -1,10 +1,9 @@
-//! The patch step: after the overlay and the restore of resources.db, at
-//! every run, the game folder's `resources.db.patch_<n>` files are made the
-//! server's list (`GET <site>/patches`, `updater_logic::patches`): every
-//! listed patch's file is checked (the launcher shows "checking" with its
-//! bar), a patch file the list has not is deleted, and a listed patch that
-//! is missing or damaged is downloaded from the first of its addresses that
-//! gives it (plain HTTP or HTTPS, any host, redirects followed: the list's
+//! The patch step: after the overlay, at every run, the game folder's
+//! `resources.db.patch_<n>` files are made the server's list (`GET
+//! <site>/patches`, `updater_logic::patches`): every listed patch's file is
+//! checked (the launcher shows "checking" with its bar), a patch file the
+//! list has not is deleted, and a listed patch that is missing or damaged
+//! is downloaded from the first of its addresses that gives it (plain HTTP or HTTPS, any host, redirects followed: the list's
 //! SHA-256 decides). `client/updater/README.md`, "Patches".
 //!
 //! A file is checked by its SHA-256, or, when it is still the file hashed

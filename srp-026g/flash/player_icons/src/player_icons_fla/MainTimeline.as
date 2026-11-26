@@ -88,9 +88,9 @@ package player_icons_fla
       }
 
       // Artifact Hunt (its exe patch, told with the enemy list at each match's start; false another
-      // mode; docs/notes/artefact_hunt.md "The carrier"): an enemy's marker and name shown while he
-      // carries the artefact (the game's carrier mark, modifier_visible), the mark the artefact's
-      // instead of the battery's box. Kept for frame 1's layer when told before it.
+      // mode; docs/notes/artefact_hunt.md "The carrier"): the carrier's mark (the game's,
+      // modifier_visible) the artefact's instead of the battery's box. An enemy carrier's marker never
+      // shows (the minimaps alone show him to the other team). Kept for frame 1's layer when told before it.
       public function srp_show_carriers(shown:Boolean) : void
       {
          this.carriersShown = shown;

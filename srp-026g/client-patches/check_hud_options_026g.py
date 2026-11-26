@@ -75,7 +75,10 @@ Scaleform's Invoke 0x511600 a stub that records each call; translate_text
   "0" sets that variable alone and writes user.cfg once, with another value
   or none sets nothing, and each answers root.srp_check_option(name, label,
   "1" or "0") and returns as the function does (ret 10h); srp_language still
-  reaches patch 79; the original answers nothing;
+  reaches patch 79; the original answers nothing; the Bindings window's
+  srp_keys answers the binder's keys and the controls' rows, srp_bind_key
+  gives no key while a wait runs, without a scene or for a bad argument
+  (key_bindings);
 - each frame's player icons update (update_ui's `push edi / call 0x23AA10`
   at 0x23B206 to update_player_icons' prologue's end 0x23AA16, through patch
   65's hook): the hud movie told root.srp_hud_options(hit markers 0 all, 1
@@ -124,7 +127,9 @@ TEXTS = {"st_srp_options_hud": "HUD:", "st_srp_hide_quests_option": "Hide quests
          "st_srp_vulkan_overlay_hint": "Shows the game's speed on screen.",
          "st_srp_vulkan_low_latency_hint": "Makes the game react sooner to your mouse.\n+ Aim reacts faster\n- May feel less smooth on some PCs",
          "st_srp_vulkan_tear_free_hint": "Keeps the picture whole when vertical sync is off.\n+ No torn lines when turning fast\n- A bit more input delay than plain vsync off",
-         "st_srp_vulkan_dedicated_gpu_hint": "Picks the stronger graphics card on laptops.\n+ Better performance on laptops\n- Uses more battery"}
+         "st_srp_vulkan_dedicated_gpu_hint": "Picks the stronger graphics card on laptops.\n+ Better performance on laptops\n- Uses more battery",
+         "st_srp_key_bindings": "Bindings", "st_srp_keys_movement": "Movement", "st_srp_keys_combat": "Combat",
+         "st_srp_keys_items": "Items", "st_srp_keys_talk": "Communication", "st_srp_keys_interface": "Interface"}
 language.ENGLISH.update({key: text.encode() for key, text in TEXTS.items()})
 language.ENGLISH.update({"st_srp_hit_markers_all": b"All hit markers", "st_srp_hit_markers_kill": b"Kill marker only",
                          "st_srp_hit_markers_hidden": b"Hidden hit markers", "st_srp_hide_scores_option": b"Hide player scores",
@@ -682,6 +687,59 @@ def console_bool(r, node):
     return r.text(r.read(node + 0x10)).decode(), r.read(node + 0x14), r.read(node + 0x1C, 2)[1], r.read(node + 0x40)
 
 
+def key_bindings(stock, ours, expect):
+    """The Bindings window's calls (key_bindings.rs): srp_keys answers the binder's keys (its table at
+    0xA74FA0: name, code, the dictionary's text) and the controls' rows (action, key; `controls` as
+    assign_binding's code points at it); srp_bind_key gives nothing while a key wait runs, without a
+    scene, for a row or code the tables lack or Esc's code, and answers the table again; srp_unbind_key
+    likewise takes nothing while a wait runs or for a code the binder lacks. (A key given runs the game's
+    own process_key_input and finish_binding, as a press does, a key taken its assign_binding: not run
+    here.)"""
+    long_text = lambda r: lambda at: bytes(r.emu.mem_read(at, 0x2000)).split(b"\0")[0]
+    ours.text = long_text(ours)
+    keys, at = [], 0xA74FA0
+    while ours.read(at):
+        name = ours.text(ours.read(at)).decode()
+        keys.append(f"K\t{name}\t{ours.read(at + 4)}\t{name}")
+        at += 0x88
+    table, count = ours.read(0x2013C0), ours.read(0x20140D) & 0xFF
+    rows = [f"A\t{ours.read(table + 0x68 * i)}\t{ours.text(ours.read(table + 0x68 * i + 0x10)).decode()}"
+            for i in range(count)]
+    answer = "\n".join(keys + rows) + "\n"
+    menu = language.GAME + 0x57F4
+    waiting = lambda: (ours.read(menu + 0x3C), ours.read(menu + 0x30))
+    invokes, count = ours.callback("srp_keys")
+    expect(invokes == [(language.MOVIE, "root.srp_keys", (answer,))] and count == 0 and len(keys) == 135
+           and len(rows) == 62,
+           f"srp_keys: the binder's {len(keys)} keys (kESCAPE first, the wheel's last) and the controls' "
+           f"{len(rows)} rows, their keys none yet, one string")
+    for argument, state, why in (("4 57", (0, 0), "a key wait running (the menu's +3Ch not 48h)"),
+                                 ("4 57", (0x48, 0), "no scene for the menu's cursor movie"),
+                                 ("4 1", (0x48, 0x31313131), "Esc's code"),
+                                 ("999 57", (0x48, 0x31313131), "an action without a row"),
+                                 ("4 9999", (0x48, 0x31313131), "a code the binder lacks"),
+                                 ("4", (0x48, 0x31313131), "no code"), ("x 57", (0x48, 0x31313131), "no number")):
+        ours.word(menu + 0x3C, state[0])
+        ours.word(menu + 0x30, state[1])
+        invokes, count = ours.callback("srp_bind_key", argument)
+        expect(invokes == [(language.MOVIE, "root.srp_keys", (answer,))] and waiting() == state,
+               f"srp_bind_key {argument!r} with {why}: nothing given, the wait and the cursor as they were, "
+               f"the table answered")
+    for argument, state, why in (("57", (0, 0), "a key wait running"), ("9999", (0x48, 0), "a code the binder lacks"),
+                                 ("x", (0x48, 0), "no number")):
+        ours.word(menu + 0x3C, state[0])
+        ours.word(menu + 0x30, state[1])
+        invokes, count = ours.callback("srp_unbind_key", argument)
+        expect(invokes == [(language.MOVIE, "root.srp_keys", (answer,))] and waiting() == state,
+               f"srp_unbind_key {argument!r} with {why}: nothing taken, the table answered")
+    ours.word(menu + 0x3C, 0)
+    ours.word(menu + 0x30, 0)
+    for name, argument in (("srp_keys", None), ("srp_bind_key", "4 57"), ("srp_unbind_key", "57")):
+        stock_invokes, _ = stock.callback(name, argument)
+        expect(stock_invokes == [], f"the original ignores {name}")
+    del ours.text
+
+
 def main():
     original = open(sys.argv[1], "rb").read()
     patched, _ = base.build(original, "section", open(base.default_bin("section"), "rb").read(), None,
@@ -787,6 +845,7 @@ def main():
            "nothing set or saved")
     stock_invokes, _ = stock.callback("srp_hud_texts")
     expect(stock_invokes == [], "the original ignores srp_hud_texts")
+    key_bindings(stock, ours, expect)
     invokes, count = ours.callback("srp_language")
     expect([m for _, m, _ in invokes] == ["root.srp_language"] and count == 0,
            "srp_language still reaches patch 79 (its hook before this one)")

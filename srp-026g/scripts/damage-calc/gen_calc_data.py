@@ -297,9 +297,9 @@ for file in files("gameplay__items__drugs__") + files("gameplay__items__medicine
 # the position of the 1 in its type_mask; an item's mask char j is type j+1.
 RELEVANT = ("parameters/bullet_damage", "parameters/bullet_pierce", "parameters/min_damage_distance",
             "parameters/max_damage_distance", "parameters/rounds_per_minute")
-# A weapon's presets (premium weapons) are shown whatever they change, as the
-# lobby lists them; only the relevant ones change the numbers. Armour keeps
-# the relevant ones only (its presets are silver and wear).
+# A weapon's presets (its built-in bonuses) are shown whatever they change,
+# as the lobby lists them; only the relevant ones change the numbers. Armour
+# keeps the relevant ones only (its presets are silver and wear).
 presets = {str(d) for item in weapons.values() for d in item["default_modifications"]}
 ui_props = {}
 for q in rows(load("gameplay__static_game_parameters.options.json").get("ui_properties", [])):
@@ -353,13 +353,15 @@ for kind, table in (("mod", mods_cfg["modifications"]), ("defect", mods_cfg["def
 
 
 def item_mods(params, default, shown):
-    """The relevant modification types an item may carry, and its defaults
-    (`shown`: every preset, else the relevant ones)."""
+    """The relevant modification types an item may carry besides its defaults,
+    and the defaults (`shown`: every preset, else the relevant ones). A type
+    a default holds does not roll (modifications.rs, `candidates`)."""
     allowed = params.get("available_modifications_mask", "")
     defects = params.get("available_defects_mask", "")
+    held = {type_of[d] for d in default if d in type_of}
     out = {"mod": [], "defect": []}
     for mid, m in mods.items():
-        if not m["effects"]:
+        if not m["effects"] or (m["kind"] == "mod" and m["type"] in held):
             continue
         mask = allowed if m["kind"] == "mod" else defects
         j = m["type"] - 1
@@ -387,6 +389,7 @@ def regeneration_of(m):
 
 
 every_mod = {m["id"]: m for m in rows(mods_cfg["modifications"])}
+type_of = {i: m["type_mask"].index("1") for i, m in every_mod.items()}
 # The bonus that rolls on equipment: one kind, its grades, and the slots with
 # an item that takes it (a piece carries one bonus of a kind at most).
 rolled = sorted((m for m in every_mod.values() if m.get("drop_weight", 0) > 0 and "speed" in regeneration_of(m)),

@@ -1,7 +1,7 @@
 # Rudnya (v0.69)
 
 0.69d's Rudnya (its `level_01`, day) as a map of its own beside 0.26g's Rudnya, in content
-pack `rudnya-069d@4`. The owner's asks: port it "with the same sharp look" (2026-10-29);
+pack `rudnya-069d` (now @7). The owner's asks: port it "with the same sharp look" (2026-10-29);
 "add batteries there", "and artefact spawners", "and research points and battery chargers",
 "we know positions from 0.26 version", "might need to be changed a bit" (2026-10-30); after he
 played it (2026-11-20): "our converter is pretty bad and I think we were patching the map screen by

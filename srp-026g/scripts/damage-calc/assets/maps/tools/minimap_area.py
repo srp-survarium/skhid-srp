@@ -20,8 +20,8 @@ def kind_of(bitmap):
     painting with a drawn outline ("line"); two fifths or more faint (alpha
     above 0 up to 0.15) is a vignette, cut at its histogram's valley between
     0.16 and 0.84; little of either is the 0.26g kind ("alpha"). Bitmaps
-    near those bounds raise ValueError: give them a kind by hand
-    (build_maps.PLAY_AREA) rather than guess."""
+    near those bounds raise ValueError: give them a kind by hand (the
+    map's `area` in build_all.py's NATIVE or PATCHED) rather than guess."""
     a = np.asarray(Image.open(bitmap).convert('RGBA'))[..., 3].astype(int)
     opaque, faint = (a == 255).mean(), ((a > 0) & (a <= 38)).mean()
     if opaque >= 0.2 and faint < 0.3:

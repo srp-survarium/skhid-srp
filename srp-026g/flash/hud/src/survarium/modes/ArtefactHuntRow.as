@@ -12,8 +12,8 @@ package survarium.modes
    // units, in their look (ArtefactHuntLook). One circle, the orb in it:
    // - none in the world (the wait for it): grey, the orb dim;
    // - lying: grey, the orb bright, a ring as far round as its life left, the time under it;
-   // - carried: in the carrier's team's colour, his name under it; the game's own player's (or the
-   //   watched one's) larger, "You carry the artifact" under it.
+   // - carried: in the carrier's team's colour (who carries is the minimaps' alone); the game's own
+   //   player's (or the watched one's) larger, "You carry the artifact" under it.
    // Under that, while sudden death is on or comes with the next round, "Sudden death"; then the
    // round's own countdowns (0.46c2's "Round restarts in" and its pre-round text): the 3 s after a
    // delivery that a new round follows, and the round's 5 s at the spawns. Beside the match time
@@ -43,8 +43,6 @@ package survarium.modes
 
       protected var _state:ArtefactHuntState;
 
-      protected var _carrierName:String = "";
-
       public var wave:ArtefactHuntWave;
 
       // The match time's label now (the indicator's frames may make it anew).
@@ -68,11 +66,9 @@ package survarium.modes
          visible = false;
       }
 
-      // The state and the carrier's name (the Tab list's row of his place; "" unknown).
-      public function draw(state:ArtefactHuntState, carrierName:String, now:int) : void
+      public function draw(state:ArtefactHuntState, now:int) : void
       {
          this._state = state;
-         this._carrierName = carrierName == null ? "" : carrierName;
          this.tick(now);
       }
 
@@ -145,10 +141,6 @@ package survarium.modes
          {
             return LocalizationData.getName("st_srp_hud_artefact_hunt_carrying");
          }
-         if(s.artefact == ArtefactHuntState.HELD)
-         {
-            return this._carrierName;
-         }
          if(s.artefact == ArtefactHuntState.LYING && s.phaseWhole > 0)
          {
             return ResearchUnits.timeText(s.phaseLeftAt(now));
@@ -158,11 +150,7 @@ package survarium.modes
 
       protected function captionColour(s:ArtefactHuntState) : uint
       {
-         if(s.viewerCarries)
-         {
-            return ArtefactHuntLook.GLOW;
-         }
-         return s.artefact == ArtefactHuntState.HELD ? ArtefactHuntLook.teamColour(s.carrierTeam,s) : 0xFFFFFF;
+         return s.viewerCarries ? ArtefactHuntLook.GLOW : 0xFFFFFF;
       }
 
       // 0.46c2's round texts: "Round restarts in" with the 3 s left when a round follows, the

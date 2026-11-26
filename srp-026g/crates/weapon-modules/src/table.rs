@@ -9,8 +9,8 @@
 //! guns       84  dict u16, bones u16, aim bone u16, fits-of gun u16,
 //!                spans: slots, poses, stock, carriers, fits,
 //!                text: the bare body's model,
-//!                the gun's own eye (0.69d's `body_aim`): bone u16,
-//!                offset 12 x f32
+//!                the composed model's own `aim` (its iron sights' line): bone
+//!                u16, offset 12 x f32
 //! gun slots  51  slot u8, bone u16, offset 12 x f32
 //! poses      50  bone u16, the bone's matrix in the gun's aimed idle pose
 //! stock       3  slot u8, module u16
@@ -44,8 +44,12 @@ use crate::{AttachEye, BoneIndex, DictId, Kind, Point, Role, resolve};
 
 pub const MAGIC: [u8; 4] = *b"SRPM";
 /// 2: a gun names its bare body's model. 3: a gun has its own eye, and an
-/// attach's eye may keep that eye's plane (0.69d's `plane_slot`).
-pub const VERSION: u16 = 3;
+/// attach's eye may keep that eye's plane (0.69d's `plane_slot`). 4: a
+/// module may be a second sight (role 5, [`Kind::SecondSight`]); a version 3
+/// table is read as one without any.
+pub const VERSION: u16 = 4;
+/// The oldest version read.
+pub const OLDEST: u16 = 3;
 /// A gun's own parts that are modules, at most.
 pub const MAX_STOCK: usize = 8;
 /// The carriers one fit brings, at most (a suppressor's clamp is one; no
@@ -111,7 +115,11 @@ pub enum GunFault {
     CarrierTwice(SlotId),
     /// A fit: no such module, or one nobody fits (a carrier, a stock part).
     Fit,
+    /// Two fits of one dict id as one kind.
     FitTwice(DictId),
+    /// A fit or a stock part keeps the eye in the gun's eye plane
+    /// ([`AttachEye::InGunPlane`]) and the gun has no `body_aim` slot.
+    NoEyePlane,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -126,7 +134,7 @@ pub enum ModuleFault {
     AddTwice(SlotId),
     /// One point twice, or both kinds of eye.
     PointTwice(Point),
-    /// A scope's attach without its eye.
+    /// A scope's or a second sight's attach without its eye.
     NoEye(SlotId),
     /// A grip without its hand locators, another module with them, or a
     /// hand locator with no inverse.
@@ -237,11 +245,11 @@ impl<'a> Table<'a> {
         if header.array() != Some(MAGIC) {
             return Err(Malformed::Magic);
         }
-        match header.u16() {
-            Some(VERSION) => {}
+        let version = match header.u16() {
+            Some(version @ OLDEST..=VERSION) => version,
             Some(other) => return Err(Malformed::Version(other)),
             None => return Err(Malformed::Size),
-        }
+        };
         let mut counts = [0u32; SECTIONS];
         for count in &mut counts {
             *count = header.u32().ok_or(Malformed::Size)?;
@@ -268,7 +276,7 @@ impl<'a> Table<'a> {
         if usize::try_from(strings) != Ok(rest.len()) {
             return Err(Malformed::Size);
         }
-        table.check()?;
+        table.check(version)?;
         Ok(table)
     }
 
@@ -300,9 +308,9 @@ impl<'a> Table<'a> {
             carriers: self.carriers.span(r.span()?)?,
             fits: self.fits.span(r.span()?)?,
             bare: self.text(r.text()?)??,
-            body_aim: Placement { bone: BoneIndex(r.u16()?), offset: r.affine()? },
+            own_aim: Placement { bone: BoneIndex(r.u16()?), offset: r.affine()? },
         };
-        (aim_bone < bones && gun.body_aim.bone.0 < bones && usize::from(fits_of) < self.guns.len()).then_some(gun)
+        (aim_bone < bones && gun.own_aim.bone.0 < bones && usize::from(fits_of) < self.guns.len()).then_some(gun)
     }
 
     fn module_at(&'a self, index: u16) -> Option<Module<'a>> {
@@ -339,12 +347,16 @@ impl<'a> Table<'a> {
         self.guns().find(|gun| gun.dict == dict)
     }
 
-    fn check(&self) -> Result<(), Malformed> {
+    fn check(&self, version: u16) -> Result<(), Malformed> {
         for index in 0..=u16::MAX {
             if usize::from(index) >= self.modules.len() {
                 break;
             }
             self.check_module(index).map_err(|fault| Malformed::Module { module: index, fault })?;
+            let second = self.module_at(index).is_some_and(|module| module.role == Role::Fitted(Kind::SecondSight));
+            if second && version < 4 {
+                return Err(Malformed::Version(version));
+            }
         }
         for index in 0..=u16::MAX {
             if usize::from(index) >= self.guns.len() {
@@ -383,7 +395,7 @@ impl<'a> Table<'a> {
             if !slots.clone().all(|bytes| slot_ref(bytes).is_some()) {
                 return Err(F::Attach);
             }
-            if module.role == Role::Fitted(Kind::Scope) && attach.eye().is_none() {
+            if matches!(module.role, Role::Fitted(kind) if kind.sees()) && attach.eye().is_none() {
                 return Err(F::NoEye(attach.slot));
             }
         }
@@ -419,7 +431,7 @@ impl<'a> Table<'a> {
                 return Err(F::PoseTwice(bone.0));
             }
         }
-        for bone in [gun.aim_bone, gun.body_aim.bone] {
+        for bone in [gun.aim_bone, gun.own_aim.bone] {
             if gun.pose(bone).is_none() {
                 return Err(F::PoseMissing(bone.0));
             }
@@ -463,9 +475,15 @@ impl<'a> Table<'a> {
         }
         for (nth, bytes) in gun.fits.records().enumerate() {
             let module = self.fit(bytes).filter(|module| matches!(module.role, Role::Fitted(_))).ok_or(F::Fit)?;
-            if gun.fits.records().take(nth).filter_map(|bytes| self.fit(bytes)).any(|earlier| earlier.dict == module.dict) {
+            // One optic may be a gun's scope and its second sight: one fit a dict id and kind.
+            let same = |earlier: &Module<'_>| earlier.dict == module.dict && earlier.role == module.role;
+            if gun.fits.records().take(nth).filter_map(|bytes| self.fit(bytes)).any(|earlier| same(&earlier)) {
                 return Err(F::FitTwice(module.dict));
             }
+        }
+        let in_plane = |module: Module<'_>| module.attaches().any(|attach| matches!(attach.eye(), Some(AttachEye::InGunPlane(_))));
+        if gun.eye_plane().is_none() && (gun.fits().any(in_plane) || gun.stock().any(|(_, module)| in_plane(module))) {
+            return Err(F::NoEyePlane);
         }
         Ok(())
     }
@@ -530,7 +548,7 @@ pub struct Gun<'t> {
     carriers: Section<'t, CARRIER>,
     fits: Section<'t, FIT>,
     bare: &'t CStr,
-    body_aim: Placement,
+    own_aim: Placement,
 }
 
 impl<'t> Gun<'t> {
@@ -557,11 +575,18 @@ impl<'t> Gun<'t> {
         self.aim_bone
     }
 
-    /// The gun's own eye, where its body has it with nothing on it (0.69d's
-    /// `body_aim` slot): the plane an open sight's eye stays in
-    /// ([`crate::AttachEye::InGunPlane`]).
-    pub fn body_aim(&self) -> Placement {
-        self.body_aim
+    /// Its whole body's own `aim` locator: the eye the game reads from the
+    /// model with no part moving it, on the line of the gun's own iron
+    /// sights ([`crate::iron_sights`]).
+    pub fn own_aim(&self) -> Placement {
+        self.own_aim
+    }
+
+    /// 0.69d's `body_aim` slot: the plane an eye that keeps the gun's eye
+    /// relief moves to ([`AttachEye::InGunPlane`]). Every gun with a fit or
+    /// a stock part that keeps it has one ([`GunFault::NoEyePlane`]).
+    pub fn eye_plane(&self) -> Option<Placement> {
+        self.slot(SlotId::BodyAim)
     }
 
     /// Its own slots, each where its locator is.

@@ -1,0 +1,10 @@
+# Patch 207: the lobby movie's srp_set_upgrade_value(host, upgrade, value)
+# becomes the decal editor's lobby request 46 05 (upgrade_value.rs;
+# client_patch.md 3.111). The site is lobby_menu::scaleform_callback's start
+# (sites_026g.tsv); every other call of the lobby movie goes on to the game.
+name = "upgrade_value"
+patch = 207
+
+[[hook]]
+site = "lobby.callback"
+handler = "on_lobby_call"

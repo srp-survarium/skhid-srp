@@ -47,9 +47,9 @@ base patches made outside this repo (maps, ported weapons and items), the Flash 
   lists, compares it with what players have (the stock db and every listed patch), and packs only the
   files that differ, printing each one and why; anything live that the manifest does not make stops
   it, save what an earlier version of a listed pack added and its new version no longer makes (left
-  as it is, listed). Then `release/release.sh --resources <that patch>`. Without `--full` it is a quick
-  build for local tests (no check of players' files with the patch, no item tables, `QUICK-BUILD` in its
-  folder), which `release.sh` refuses.
+  as it is, listed). Then `release/release.sh --resources <that patch>`. With `--slow` instead of
+  `--full` it is a quick build for local tests (no check of players' files with the patch, no item
+  tables, `QUICK-BUILD` in its folder), which `release.sh` refuses.
 - Never assemble a patch folder by hand, and never build a patch from the server game data or from
   one release's files: a file left out, or taken from the wrong revision, reverts what players have.
 
@@ -64,7 +64,7 @@ Names of the 0.26g executable's functions, for reading and patching it, are in
 - `identity.json`: the exact executable's hashes, image bases and sections;
 - `lookup.py`: `python tools/re-kit/v026g/lookup.py <name or address>`.
 
-Earlier builds have their own folders (`tools/re-kit/v021d/`, `tools/re-kit/v0100b/`,
+Other builds have their own folders (`tools/re-kit/v021d/`, `v044a5/`, `v045a6/`, `v069d/`, `v0100b/`,
 `tools/re-kit/launcher/`); shared tools are in `tools/re-kit/common/`. The kit is meant to grow: when
 work identifies a function that is not there, or identifies one with more confidence, add a row to the
 TSV (one line per name, no bulk JSON). The client patches' own addresses and reasoning are in
@@ -76,9 +76,10 @@ TSV (one line per name, no bulk JSON). The client patches' own addresses and rea
   function instead of a hand-written call. Only varargs, XMM-argument calls and tail jumps stay hand-written.
 - New client-patch code goes in the `.srpx` arena as plain C or NASM, linked by
   `srp-026g/client-patches/link_026g.py` (`client_patch.md` §0.3): one `ARENA` row and its sources, hooks
-  by symbol, no fixed addresses. The generated sources (`engine_026g.*`, `raw_026g.rs`, `hooks_026g.rs`,
-  `hook_entries_026g.asm`, `languages_026g.rs`) are written by every build and never committed; nothing
-  to regenerate by hand (`python link_026g.py --generate` writes them for cargo or rust-analyzer alone).
+  by symbol, no fixed addresses. The generated sources (`engine_026g.{h,inc,asm,rs}`, `raw_026g.rs`,
+  `hooks_026g.rs`, `hook_entries_026g.asm`, `languages_026g.rs`) are written by every build and never
+  committed; nothing to regenerate by hand (`python link_026g.py --generate` writes them for cargo or
+  rust-analyzer alone).
 
 ## Types and states
 
@@ -154,8 +155,9 @@ receiving game itself (patch 87), with the same code (`srp-validate`'s typed vie
 - Where it has no row yet, use the patch's own self-tests and Unicorn check or the movie's
   Ruffle harness (`selftest_026g.py` runs at a release, in `release/release.sh`: not during
   development). Shell/docs/page-copy changes do not need game builds, Unicorn or unrelated
-  server tests. World save/load changes also need `check_world_roundtrip_026g.py`. Reserve full
-  suites for shared infrastructure changes that affect them or release validation.
+  server tests. World save/load changes also need `check_world_roundtrip_026g.py` (the
+  `ffa-native` check runs it). Reserve full suites for shared infrastructure changes that affect
+  them or release validation.
 - Broaden checks only for a concrete dependency or failure; do not repeat passing checks without
   relevant changes. Report validation limits and pre-existing failures without expanding the PR.
 
@@ -185,3 +187,22 @@ receiving game itself (patch 87), with the same code (`srp-validate`'s typed vie
   `release/build-content` lists every key). A local one (`--slow`, `--delta-from`) is for what
   `tools/test-patch` cannot make (a pack's composed operations: tables, `config_set`, icons); a
   release builds the whole patch with `--full`.
+
+## srp-069d (Skhid for Survarium 0.69d)
+
+`srp-069d/` is a server for the unmodified Survarium 0.69d client (`srp-069d/README.md`). The rules above
+for srp-026g's exe patches, content and revisions do not apply to it.
+
+- It is a separate Rust workspace with its own toolchain: `srp-069d/flake.nix` (the dev shell,
+  `nix develop ./srp-069d`) and `srp-069d/rust-toolchain.toml` (the release's Rust, read by rustup).
+  Build and test it from that folder, never with srp-026g's shell or target.
+- Test with `tools/check`: `srp-069d:cargo` (`cargo test --workspace -- --test-threads=2`) and
+  `srp-069d:check-public`. Tests that need game tables read them from `SRP_TEST_DATA` (else
+  `srp-069d/data/`, ignored by git) and skip without them; set `SRP_REQUIRE_TEST_DATA=1` with the tables
+  to make a skip a failure, and run with `--no-cache` then (the tables are not in the check's key).
+- No game files and no game code in the repository: the server reads them from the operator's own game
+  install. `srp-069d/scripts/check-public.sh` must stay clean (no local paths, private notes or
+  references, decision notes, addresses, keys or game data).
+- Releases are made with `srp-069d/scripts/release.sh` on an older glibc distribution (Debian 12,
+  Ubuntu 22.04), outside a Nix shell, so the binaries run on newer ones; there is no GitHub Actions
+  build.

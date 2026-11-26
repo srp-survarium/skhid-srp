@@ -231,7 +231,8 @@ The content side (the porter's `port-modules` and the remodel, sub-branch `feat/
 and the client's runtime meet in these, and nowhere else:
 
 1. **The table**: the archive's file `gameplay/weapon_modules.srpm` in the pack and in the server
-   game data, `weapon_modules::encode`'s bytes, version 2. The game asks for it as
+   game data, `weapon_modules::encode`'s bytes, version 3 (`table::VERSION`; 2 until
+   2026-11-21). The game asks for it as
    `resources/gameplay/weapon_modules.srpm` (raw data): `resources/` is the request's prefix, as for
    the dictionary itself (asked for as `resources/gameplay/db_static_dictionaries`, 0xA0E8CC; the
    archive's `gameplay/db_static_dictionaries`).
@@ -529,12 +530,13 @@ Not done:
    its own k (the line of sight) to the plane through the plane slot's origin normal to its k:
    `s = (P.c - M.c)·P.k / M.k·P.k`, `M.c += s·M.k` when `s >= -2.0` m; a line along the plane or a
    plane over 2 m behind leaves the locator whole. `aim_offset` is added after, along the same k.
-   So a collimator gives the line of sight and the gun keeps its own eye relief. Today's table
-   (version 2) writes such a module's `aim` whole: the eye is nearer the optic than in 0.69d0, the
+   So a collimator gives the line of sight and the gun keeps its own eye relief. The table
+   before version 3 wrote such a module's `aim` whole: the eye is nearer the optic than in 0.69d0, the
    reticle's centre the same.
    - Decided (the coordinator): one value on an attach's eye that `resolve` applies with the gun's
      own eye, not per-gun rows.
-   - On the branch `feat/attachments-table-v3` (one commit over c81ada3df, NOT merged): version 3
+   - On the branch `feat/attachments-table-v3` (one commit over c81ada3df; not merged then, it
+     landed as this item's heading says): version 3
      of the table (a gun record has its own eye, `body_aim`, 84 bytes; a point of kind 2 is an eye
      at the gun's plane), `AttachEye::Own | InGunPlane`, `Gun::body_aim`, `resolve`'s
      `in_gun_plane` in the aimed idle pose, the sample at version 3; the crate's 20 tests pass.
@@ -588,7 +590,7 @@ Not done:
   clip and the scopes lane checks the centre with the camera oracle for every fit.
 - The two patches write one record, the weapon's aim locator (+7A8h): this one once, when the
   weapon is cooked; patch 172 on aimed frames at rest, from what it finds there. No Unicorn case
-  runs them together yet (#2294 is not in this branch).
+  runs them together yet (#2294 was not in the attachments branch when this was written).
 
 **The fingers: the grip's own matrices, whole. Settled 2026-11-21; the switch is gone.**
 

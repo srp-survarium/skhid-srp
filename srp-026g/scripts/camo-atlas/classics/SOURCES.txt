@@ -1,0 +1,279 @@
+The 68 tiles of this folder (classics/catalog.tsv), initial/mm-14.webp and initial/mm-25.webp are cut
+by classics_art.py from free swatches and pictures of real camouflage patterns. classics_art.py fetch
+downloads the sources and checks each one's sha256; classics_art.py build then reproduces every WebP
+byte for byte (checked 2026-11-26 with NumPy 2.4.4, Pillow 13.0.0 and SciPy 1.17.1).
+
+Each swatch tile is a modified copy of its source: cropped, its lighting evened out where
+the source is a photograph (tropentarn, balkan-dpm), made seamless and scaled to 768 px. A
+crop is made periodic by replacing a strip at its left and top edges with the pixels that
+followed the crop in the swatch, cut along the path of least colour difference, so the tile's
+edges meet as the swatch's own did. Centre Europe and the desert swatch are themselves
+repeats, and their crops run over the swatch's edges. The vector drawings of K07 Dark, K20, K20
+Navy and the three Ukrainian vehicle patterns are seamless tiles, rendered by Wikimedia Commons
+at 1920 px and used whole (scaled). The 56 rows from id 3115 on were added on 2026-11-26 from the
+owner's picks of the real-pattern candidates; their crops are the ones the owner was shown.
+
+
+Public domain and CC0 swatches (Wikimedia Commons; the page is each catalog row's source_url)
+
+  lizard.webp              French_Lizard_Pattern_Swatch_from_the_1950s.png, by VoltigeurFR,
+                           CC0 1.0 (the 3840 px standard thumbnail of the 11202 px original)
+  erdl-highland.webp       Brown-dominant "highland" ERDL camouflage pattern swatch.svg, uploaded
+                           by Illegitimate Barrister: public domain, a U.S. Government design
+                           (Engineer Research and Development Laboratories); 3840 px rendering
+  three-color-desert.webp  DCU_camo_swatch.png, uploaded by Illegitimate Barrister: public domain,
+                           the U.S. Army's three-colour desert pattern; the original file
+  urban-brush.webp         Phase_I_All-Over_Brush_Urban_Camo_Close-Up_Swatch.png, uploaded by
+                           SergeantSelfExplanatory: public domain, a U.S. Army photograph (from a
+                           briefing on its 2002 Universal Camouflage for the Future Warrior trial)
+                           of a trial pattern; 1280 px thumbnail
+  centre-europe.webp       Bariolage_Centre-Europe.png, by Youri BRIAND, CC0 1.0; the original
+  all-terrain.webp         Bariolage_multi-environnement_(B.M.E.).png, by Youri BRIAND, CC0 1.0;
+                           the original
+  danube-leaf.webp         2015M.png, by Shotya, CC0 1.0; the original
+  moro.webp                Moro.wzor.tkaniny, by Julo, public domain (released by the author);
+                           https://commons.wikimedia.org/wiki/File:Moro.wzor.tkaniny.svg
+  vegetato-desert.webp     Vegetato deserto, by Menelicche, public domain (released by the author);
+                           https://commons.wikimedia.org/wiki/File:Vegetato_deserto.jpg
+  erdl-lowland.webp        Green-dominant "lowland" ERDL camouflage pattern swatch, by Illegitimate
+                           Barrister, public domain (U.S. Government work);
+                           https://commons.wikimedia.org/wiki/File:Green-dominant_"lowland"_ERDL_camouflage_pattern_swatch.svg
+  daguet.webp              Bariolage Daguet (Couleurs CIELAB officielles), by Youri BRIAND, CC0 1.0;
+                           https://commons.wikimedia.org/wiki/File:Bariolage_Daguet_(Couleurs_CIELAB_officielles).png
+  snow-terrain.webp        Bariolage zone enneigée (version enneigée du Bariolage
+                           multi-environnement), by Youri BRIAND, CC0 1.0;
+                           https://commons.wikimedia.org/wiki/File:Bariolage_zone_enneigée_(version_enneigée_du_Bariolage_multi-environnement).png
+  centre-europe-vehicle.webp
+                           Bariolage Centre-Europe (Variante pour véhicules), by Youri BRIAND,
+                           CC0 1.0;
+                           https://commons.wikimedia.org/wiki/File:Bariolage_Centre-Europe_(Variante_pour_véhicules).png
+  m05-woodland.webp        M05 woodland pattern, by Pekka Vilhunen, public domain (released by the
+                           author); https://commons.wikimedia.org/wiki/File:M05_woodland_pattern.jpg
+  m05-snow.webp            M05 snow pattern, by Pekka Vilhunen, public domain (released by the
+                           author); https://commons.wikimedia.org/wiki/File:M05_snow_pattern.jpg
+  lozenge.webp             Lozenge 4, by unknown author (via flight-depot.com), CC0 1.0;
+                           https://commons.wikimedia.org/wiki/File:Lozenge_4.png
+  lozenge-night.webp       Lozenge 5, by unknown author (via flight-depot.com), CC0 1.0;
+                           https://commons.wikimedia.org/wiki/File:Lozenge_5.png
+  buntfarben-1918.webp     Buntfarbenmuster 1918, by Mediatus, public domain (released by the
+                           author);
+                           https://commons.wikimedia.org/wiki/File:Buntfarbenmuster_1918.svg
+  obh.webp                 Tanzug OBH multienvironment, by Fabrice Ram, CC0 1.0;
+                           https://commons.wikimedia.org/wiki/File:Tanzug_OBH_multienvironment.png
+  blue-tiger-stripe.webp   USAF Blue Tigerstripe pattern closeup, by U.S. Air Force, public domain
+                           (U.S. Government work);
+                           https://commons.wikimedia.org/wiki/File:USAF_Blue_Tigerstripe_pattern_closeup.jpg
+  rmp-woodland.webp        RMP Subdued Woodland pattern, by Rizuan, CC0 1.0;
+                           https://commons.wikimedia.org/wiki/File:RMP_Subdued_Woodland_pattern.jpg
+
+The ERDL and DCU files are flat copies of the two U.S. Army designs, which Commons files as
+public domain (PD-USGov-Military-Army, PD-US-1978-89): the ERDL one was taken from a print
+design on Spoonflower, the DCU one from a fabric shop's product image (both linked on their
+Commons pages). A faithful copy of a two-dimensional public-domain design adds no copyright of
+its own in the United States. The same holds for the ERDL lowland swatch. The blue tigerstripe is
+a close-up from a U.S. Air Force photograph (af.mil, 2003) and keeps the "U.S. AIR FORCE" printed on
+that fabric. The two lozenge drawings are of the German lozenge fabric of 1917-18; their Commons
+pages give flight-depot.com as the source and no author.
+
+CC0 1.0: https://creativecommons.org/publicdomain/zero/1.0/
+A work of the U.S. Government is in the public domain in the United States (17 U.S.C. 105).
+
+
+MM-25
+
+  initial/mm-25.webp       the right-hand disc of the explanation graphic at
+                           https://mod.gov.ua/en/news/mo-d-clarifies-in-response-to-service-members-requests-trial-batches-of-clothing-and-gear-featuring-a-new-camouflage-pattern-will-be-procured
+                           (the image
+                           https://mod.gov.ua/assets/34-p-camo-04aug-ws01-eng-704d2c5d84.webp),
+                           Ukrainian Ministry of Defence, 4 Aug 2025; stitched at the picture's own
+                           scale from 16 crops inside the disc, clear of three small printed marks,
+                           into a seamless 512 px tile (classics_art.py quilt())
+
+
+CC BY and CC BY-SA swatches: credits
+
+  initial/mm-14.webp       "MM14" by Lucas Cavalcante Mesquita,
+                           https://commons.wikimedia.org/wiki/File:MM14.jpg,
+                           CC BY-SA 4.0; modified: cropped, made seamless, scaled
+  brushstroke.webp         "Rhodesian Brushstroke pattern" by Katangais,
+                           https://commons.wikimedia.org/wiki/File:Rhodesian_Brushstroke_pattern.jpg,
+                           CC BY-SA 3.0; modified: cropped, made seamless, scaled
+  tropentarn.webp          "Tropentarn Fabric (cropped 2)" by Murchison-Eye,
+                           https://commons.wikimedia.org/wiki/File:Tropentarn_Fabric_(cropped_2).jpg,
+                           CC BY-SA 4.0; modified: cropped, lighting evened out, made seamless, scaled
+  balkan-dpm.webp          "Bulgarian M2003 DPM camouflage" by Spektov,
+                           https://commons.wikimedia.org/wiki/File:Bulgarian_M2003_DPM_camouflage.jpg,
+                           CC BY-SA 4.0; modified: cropped, lighting evened out, made seamless, scaled
+  balkan-splinter.webp     "Bulgarian Splinter camouflage" by Spektov,
+                           https://commons.wikimedia.org/wiki/File:Bulgarian_Splinter_camouflage.jpg,
+                           CC BY-SA 4.0; modified: cropped, made seamless, scaled
+  nfp-blue.webp            "M19 NFP Blue - Dutch pattern", Ministerie van Defensie (Netherlands),
+                           from https://www.defensie.nl/onderwerpen/materieel/kleding-en-uitrusting/camouflagepatronen,
+                           https://commons.wikimedia.org/wiki/File:M19_NFP_Blue_-_Dutch_pattern.jpg,
+                           CC BY-SA 4.0 on Commons (defensie.nl lets its images be used freely with
+                           the credit "ministerie van Defensie" and a note of any change);
+                           modified: cropped, made seamless, scaled
+  pantera.webp             "Kamuflaż wz 93" by Magnum045,
+                           https://commons.wikimedia.org/wiki/File:Kamuflaż_wz_93.png, CC BY-SA 4.0;
+                           modified: cropped, made seamless, scaled
+  pantera-desert.webp      "Kamuflaż wz. 93 pustynny" by Magnum045,
+                           https://commons.wikimedia.org/wiki/File:Kamuflaż_wz._93_pustynny.png,
+                           CC BY-SA 4.0; modified: cropped, made seamless, scaled
+  puma.webp                "Kamuflaż wz. 89" by Magnum045,
+                           https://commons.wikimedia.org/wiki/File:Kamuflaż_wz._89.png,
+                           CC BY-SA 4.0; modified: cropped, made seamless, scaled
+  m-84.webp                "M84camo" by Skjoldbro,
+                           https://commons.wikimedia.org/wiki/File:M84camo.jpeg, CC BY-SA 4.0;
+                           modified: cropped, made seamless, scaled
+  m-01-desert.webp         "M01DKcamo" by Skjoldbro,
+                           https://commons.wikimedia.org/wiki/File:M01DKcamo.jpeg, CC BY-SA 4.0;
+                           modified: cropped, made seamless, scaled
+  duck-hunter.webp         "Duckhunter" by gravedigger88,
+                           https://commons.wikimedia.org/wiki/File:Duckhunter.JPG, CC BY-SA 3.0;
+                           modified: cropped, made seamless, scaled
+  frogskin.webp            "Frog Skin camouflage pattern" by IQ125,
+                           https://commons.wikimedia.org/wiki/File:Frog_Skin_camouflage_pattern.jpg,
+                           CC BY-SA 3.0; modified: cropped, made seamless, scaled
+  taz-83.webp              "Alpenflage Taz 83 Tarnanzug (cropped)" by Qirille,
+                           https://commons.wikimedia.org/wiki/File:Alpenflage_Taz_83_Tarnanzug_(cropped).jpg,
+                           CC BY-SA 4.0; modified: cropped, made seamless, scaled
+  taz-83-ii.webp           "Alpenflage (cropped)" by Bouterolle,
+                           https://commons.wikimedia.org/wiki/File:Alpenflage_(cropped).JPG,
+                           CC BY-SA 3.0; modified: cropped, made seamless, scaled
+  arid-lizard.webp         "Greek Arid Lizard M24" by Hellenic Ministry of National Defence,
+                           https://commons.wikimedia.org/wiki/File:Greek_Arid_Lizard_M24.png,
+                           CC BY-SA 4.0; modified: cropped, made seamless, scaled
+  sandstone.webp           "Cypriot Sandstone" by Onemanband01,
+                           https://commons.wikimedia.org/wiki/File:Cypriot_Sandstone.png,
+                           CC BY-SA 4.0; modified: cropped, made seamless, scaled
+  dubok.webp               "Butan Dubok" by GTRus,
+                           https://commons.wikimedia.org/wiki/File:Butan_Dubok.jpg, CC BY-SA 4.0;
+                           modified: cropped, made seamless, scaled
+  butan.webp               "Transnistrian butan" by JeSys,
+                           https://commons.wikimedia.org/wiki/File:Transnistrian_butan.png,
+                           CC BY-SA 4.0; modified: cropped, made seamless, scaled
+  jgsdf-type-ii.webp       "Japanese Flecktarn" by Skjoldbro,
+                           https://commons.wikimedia.org/wiki/File:Japanese_Flecktarn.png,
+                           CC BY-SA 4.0; modified: cropped, made seamless, scaled
+  jgsdf-desert.webp        "Japanese Desert Flecktarn" by Skjoldbro,
+                           https://commons.wikimedia.org/wiki/File:Japanese_Desert_Flecktarn.png,
+                           CC BY-SA 4.0; modified: cropped, made seamless, scaled
+  jgsdf-winter.webp        "Japanese Winter Flecktarn" by Skjoldbro,
+                           https://commons.wikimedia.org/wiki/File:Japanese_Winter_Flecktarn.png,
+                           CC BY-SA 4.0; modified: cropped, made seamless, scaled
+  tropentarn-ii.webp       "Tropentarn" by Skjoldbro,
+                           https://commons.wikimedia.org/wiki/File:Tropentarn.png, CC BY-SA 4.0;
+                           modified: cropped, made seamless, scaled
+  urban-flecktarn.webp     "Polish Urban Flecktarn" by Skjoldbro,
+                           https://commons.wikimedia.org/wiki/File:Polish_Urban_Flecktarn.png,
+                           CC BY-SA 4.0; modified: cropped, made seamless, scaled
+  rust-flecktarn.webp      "Chinese Flecktarn" by Skjoldbro,
+                           https://commons.wikimedia.org/wiki/File:Chinese_Flecktarn.png,
+                           CC BY-SA 4.0; modified: cropped, made seamless, scaled
+  savanna-flecktarn.webp   "Indian Flecktarn" by Skjoldbro,
+                           https://commons.wikimedia.org/wiki/File:Indian_Flecktarn.png,
+                           CC BY-SA 4.0; modified: cropped, made seamless, scaled
+  autumn-flecktarn.webp    "Belgian Flecktarn" by Skjoldbro,
+                           https://commons.wikimedia.org/wiki/File:Belgian_Flecktarn.png,
+                           CC BY-SA 4.0; modified: cropped, made seamless, scaled
+  t-99-winter.webp         "T99 DK camo" by Skjoldbro,
+                           https://commons.wikimedia.org/wiki/File:T99_DK_camo.jpg, CC BY-SA 4.0;
+                           modified: cropped, made seamless, scaled
+  nfp-green.webp           "M19 NFP Green - Dutch pattern" by Ministerie van Defensie (Netherlands),
+                           https://commons.wikimedia.org/wiki/File:M19_NFP_Green_-_Dutch_pattern.jpg,
+                           CC BY-SA 4.0; modified: cropped, made seamless, scaled
+  nfp-multitone.webp       "M19 NFP Multitone - Dutch pattern" by Ministerie van Defensie
+                           (Netherlands),
+                           https://commons.wikimedia.org/wiki/File:M19_NFP_Multitone_-_Dutch_pattern.jpg,
+                           CC BY-SA 4.0; modified: cropped, made seamless, scaled
+  nfp-cloth.webp           "Netherlands Fractal Pattern" by Ministerie van Defensie (Netherlands),
+                           https://commons.wikimedia.org/wiki/File:Netherlands_Fractal_Pattern.jpg,
+                           CC BY-SA 4.0; modified: cropped, made seamless, scaled
+  m90.webp                 "Sweden M90 pattern" by Henrickson at en.wikipedia,
+                           https://commons.wikimedia.org/wiki/File:Sweden_M90_pattern.svg,
+                           CC BY-SA 3.0; modified: cropped, made seamless, scaled
+  m90k.webp                "M90K Camo" by Willarnold13,
+                           https://commons.wikimedia.org/wiki/File:M90K_Camo.jpg, CC BY-SA 4.0;
+                           modified: cropped, made seamless, scaled
+  m81-woodland.webp        "US Woodland pattern" by Henrickson at en.wikipedia,
+                           https://commons.wikimedia.org/wiki/File:US_Woodland_pattern.svg,
+                           CC BY-SA 3.0; modified: cropped, made seamless, scaled
+  k20lq.webp               "K20LQ" by Hieunguyen.e4,
+                           https://commons.wikimedia.org/wiki/File:K20LQ.png, CC BY-SA 4.0;
+                           modified: cropped, made seamless, scaled
+  taz-07.webp              "TAZ 07" by Fabrice Ram,
+                           https://commons.wikimedia.org/wiki/File:TAZ_07.png, CC BY-SA 4.0;
+                           modified: cropped, made seamless, scaled
+  dg3.webp                 "USASOC DG3 Pattern" by Savageearthllc,
+                           https://commons.wikimedia.org/wiki/File:USASOC_DG3_Pattern.svg,
+                           CC BY-SA 4.0; modified: cropped, made seamless, scaled
+  fab-lizard.webp          "Camo FAB" by Guilmann,
+                           https://commons.wikimedia.org/wiki/File:Camo_FAB.jpg, CC BY-SA 3.0;
+                           modified: cropped, made seamless, scaled
+  type-07-universal.webp   "Type 07 universal" by GTRus,
+                           https://commons.wikimedia.org/wiki/File:Type_07_universal.jpg,
+                           CC BY-SA 4.0; modified: cropped, made seamless, scaled
+  type-07-arid.webp        "Type 07 arid" by GTRus,
+                           https://commons.wikimedia.org/wiki/File:Type_07_arid.jpg, CC BY-SA 4.0;
+                           modified: cropped, made seamless, scaled
+  type-07-urban.webp       "Type 07 urban" by GTRus,
+                           https://commons.wikimedia.org/wiki/File:Type_07_urban.jpg, CC BY-SA 4.0;
+                           modified: cropped, made seamless, scaled
+  k07.webp                 "People's Army of Vietnam - K07 (Type 07) camouflage - Ground Force" by
+                           Hủ Tíu Mỳ Khô,
+                           https://commons.wikimedia.org/wiki/File:People's_Army_of_Vietnam_-_K07_(Type_07)_camouflage_-_Ground_Force.jpg,
+                           CC BY-SA 4.0; modified: cropped, made seamless, scaled
+  k07-dark.webp            "People's Army of Vietnam K07 Ground Force Camoflauge Vector Version" by
+                           LeenoDT,
+                           https://commons.wikimedia.org/wiki/File:People's_Army_of_Vietnam_K07_Ground_Force_Camoflauge_Vector_Version.svg,
+                           CC BY 4.0; modified: scaled
+  k20.webp                 "People's Army of Vietnam K20 Ground Force Camouflage Vector Version" by
+                           LeenoDT,
+                           https://commons.wikimedia.org/wiki/File:People's_Army_of_Vietnam_K20_Ground_Force_Camouflage_Vector_Version.svg,
+                           CC BY 4.0; modified: scaled
+  k20-navy.webp            "People's Army of Vietnam K20 Navy Camouflage Vector Version" by LeenoDT,
+                           https://commons.wikimedia.org/wiki/File:People's_Army_of_Vietnam_K20_Navy_Camouflage_Vector_Version.svg,
+                           CC BY 4.0; modified: scaled
+  vehicle-pixel-2015.webp  "Ukrainian military vehicle pixel camouflage, 2015 pattern" by VileGecko,
+                           https://commons.wikimedia.org/wiki/File:Ukrainian_military_vehicle_pixel_camouflage,_2015_pattern.svg,
+                           CC BY-SA 4.0; modified: scaled
+  vehicle-pixel-2016.webp  "Ukrainian military vehicle pixel camouflage, 2016 pattern" by VileGecko,
+                           https://commons.wikimedia.org/wiki/File:Ukrainian_military_vehicle_pixel_camouflage,_2016_pattern.svg,
+                           CC BY-SA 4.0; modified: scaled
+  vehicle-pixel-2021.webp  "Ukrainian military vehicle pixel camouflage, 2021 pattern" by VileGecko,
+                           https://commons.wikimedia.org/wiki/File:Ukrainian_military_vehicle_pixel_camouflage,_2021_pattern.svg,
+                           CC BY-SA 4.0; modified: scaled
+
+CC BY-SA 4.0: https://creativecommons.org/licenses/by-sa/4.0/
+CC BY-SA 3.0: https://creativecommons.org/licenses/by-sa/3.0/
+CC BY 4.0:    https://creativecommons.org/licenses/by/4.0/
+
+These textures are adaptations, and each is licensed as its source. Those from CC BY-SA 4.0 sources
+are under CC BY-SA 4.0, or, as CC BY-SA 4.0 permits for adaptations, under the GNU GPL v3 (this
+repository's licence). Those from CC BY-SA 3.0 sources (brushstroke.webp, duck-hunter.webp,
+frogskin.webp, taz-83-ii.webp, m90.webp, m81-woodland.webp, fab-lizard.webp) are under CC BY-SA 3.0
+only, since CC BY-SA 3.0 is not compatible with the GPL. Those from CC BY 4.0 sources
+(k07-dark.webp, k20.webp, k20-navy.webp) are under CC BY 4.0, which asks only for the credit above.
+Each credit applies wherever the texture goes, including the game's archive built from it.
+
+Several of these render national patterns (among them France's CCE, BME and Daguet, Hungary's 2015M
+and OBH, Ukraine's MM-14 and MM-25 and its vehicle patterns, Germany's Tropentarn, Bulgaria's DPM
+and splinter, the Netherlands' NFP, Poland's Pantera, Puma and Moro, Denmark's M/84, M/01 and T/99,
+Switzerland's TAZ 83, Sweden's M90, Finland's M05, China's Type 07 and Vietnam's K07 and K20). The
+licences cover the drawings and photographs; whether an army claims a design right in its pattern is
+not stated on those pages. The project owner accepted that. The Greek Arid Lizard drawing is
+credited on Commons to the Hellenic Ministry of National Defence (via joint-forces.com) and was
+uploaded under CC BY-SA 4.0 by another user, Incidentconfirmed.
+
+
+Items 3107-3110 were procedural studies of classic patterns (Frogskin, Alpenflage, KLMK,
+Leibermuster); the owner dropped them on 2026-11-26 and their ids stay unused. Item 3106 was
+such a study (Brushstroke) until the real Rhodesian swatch above took its place. Item 2813 was
+a study (Field Mosaic) until the MM-25 tile above took its place.
+
+
+Looked at and left out: SnowyCocoon's free packs (every motif is already in art/), ShareTextures
+(its "CC0" adds use and redistribution limits), Megabyte Games' Chromatic Camouflage (CC BY 4.0,
+disclosed as AI-assisted), photographs of folded garments or blurred ones, recolours of a
+pattern chosen here (CCE Alpin and Montagne), Waffen-SS patterns, restricted designs (MARPAT,
+CADPAT, commercial hunting patterns), and the candidates the owner dropped on 2026-11-26.

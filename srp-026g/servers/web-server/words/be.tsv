@@ -95,8 +95,6 @@ Not found.	Не знойдзена.
 Too many wrong tokens; wait a minute.	Занадта шмат няправільных токенаў; пачакайце хвіліну.
 Wrong token.	Няправільны токен.
 No such user.	Няма такога карыстальніка.
-Silver and gold are whole numbers, + or -, or empty.	Срэбра і золата — цэлыя лікі, + або -, або пуста.
-{user}: now {silver_now} silver and {gold_now} gold.	{user}: цяпер {silver_now} срэбра і {gold_now} золата.
 New accounts are taken again.	Новыя акаўнты зноў прымаюцца.
 New accounts are refused; existing players sign in as before.	Новыя акаўнты не прымаюцца; гульцы з акаўнтам уваходзяць як раней.
 Maintenance cancelled.	Тэхнічныя работы адменены.
@@ -138,9 +136,8 @@ Q:	П:
 A:	А:
 If something goes wrong	Калі нешта пайшло не так
 Download the files	Спампаваць файлы
-Download the game	Спампаваць гульню
 The download link is coming soon.	Спасылка на спампоўку хутка з'явіцца.
-Can't download? Run {script}: it downloads the whole game into a Survarium folder beside it.	Не спампоўваецца? Запусціце {script}: ён сам спампуе ўсю гульню ў тэчку Survarium побач з сабой.
+Chrome or your antivirus refuses the download? Try this script: {script}. It downloads the whole game into a Survarium folder beside it.	Chrome або антывірус не дае спампаваць? Паспрабуйце гэты скрыпт: {script}. Ён сам спампуе ўсю гульню ў тэчку Survarium побач з сабой.
 Get the game	Атрымаць гульню
 The link is coming soon.	Спасылка хутка з'явіцца.
 Get the original Survarium 0.26g (build 2777) and unpack it.	Знайдзіце арыгінальны Survarium 0.26g (зборка 2777) і распакуйце яго.
@@ -155,10 +152,6 @@ Run <code>Skhid.bat</code> and press <b>PLAY</b>.	Запусціце <code>Skhid
 Windows warns about an unknown publisher? Let it run.<br>Linux: <code>bash Skhid.sh launcher</code>, see <code>LINUX.txt</code>.	Windows папярэджвае пра невядомага выдаўца? Дазвольце запуск.<br>Linux: <code>bash Skhid.sh launcher</code>, гл. <code>LINUX.txt</code>.
 Windows warns about an unknown publisher? Let it run.<br>Linux: <code>bash Skhid.sh</code>, see <code>LINUX.txt</code>.	Windows папярэджвае пра невядомага выдаўца? Дазвольце запуск.<br>Linux: <code>bash Skhid.sh</code>, гл. <code>LINUX.txt</code>.
 Run <code>play_skhid.bat</code> in <code>game\\binaries\\x86</code>.	Запусціце <code>play_skhid.bat</code> у тэчцы <code>game\\binaries\\x86</code>.
-Start it with this command line:	Запусціце гульню з такім камандным радком:
-english	russian
-server address	адрас сервера
-language: english, russian, ukrainian	мова: english, russian, ukrainian
 Skhid (Ukrainian for “east”) is a community server that lets the Survarium {version} client sign in, trade, form squads and play matches again.	Skhid («усход» па-ўкраінску) — сервер супольнасці, на якім кліент Survarium {version} зноў можа ўваходзіць, гандляваць, збіраць атрады і гуляць матчы.
 Project Discord: <a href="https://discord.gg/pxywZfaxRQ">discord.gg/pxywZfaxRQ</a>	Discord праекта: <a href="https://discord.gg/pxywZfaxRQ">discord.gg/pxywZfaxRQ</a>
 Early test server.	Ранні тэставы сервер.
@@ -167,7 +160,6 @@ How to play	Як гуляць
 Download our files and unpack them into an empty folder (e.g. D:\\Survarium). <b>You do this only once.</b>	Спампуйце нашы файлы і распакуйце іх у пустую тэчку (напр. D:\\Survarium). <b>Гэта трэба зрабіць толькі адзін раз.</b>
 Download our files and unpack them into the game's folder, the one with the <code>game</code> folder, replacing files. <b>You do this only once.</b>	Спампуйце нашы файлы і распакуйце іх у тэчку гульні, тую, дзе ляжыць тэчка <code>game</code>, з заменай файлаў. <b>Гэта трэба зрабіць толькі адзін раз.</b>
 Download our files and unpack them over the game's <code>game</code> folder.	Спампуйце нашы файлы і распакуйце іх па-над тэчкай <code>game</code> гульні.
-Download the patched game and unpack it.	Спампуйце прапатчаную гульню і распакуйце яе.
 Sign in with any name and password: a new name registers itself. Remember the password.	Увайдзіце з любым імем і паролем: новае імя рэгіструецца само. Запомніце пароль.
 New accounts are taken.	Новыя акаўнты прымаюцца.
 Stop new registrations	Спыніць новыя рэгістрацыі
@@ -177,7 +169,6 @@ Shown once the token is right.	Паказваюцца пасля правіль�
 Password	Пароль
 User name	Імя карыстальніка
 Silver, + or -	Срэбра, + або -
-Gold, + or -	Золата, + або -
 Change	Змяніць
 Admin	Адміністратар
 Token	Токен
@@ -408,6 +399,7 @@ Kills	Забойствы
 Deaths	Смерці
 K/D	K/D
 Kills/min	Забойстваў/хв
+Experience/min	Досвед/хв
 Assists	Дапамога
 Score	Ачкі	stats
 Avg score	Сяр. ачкі
@@ -731,7 +723,7 @@ Damage ×{damage}, penetration ×{pierce}, before armour: lower penetration make
 {drug}: {pool} takes ×{k} for {s} s after use ({delay} s to kick in).	{drug}: {pool} атрымлівае ×{k} на працягу {s} с пасля ўжывання (пачынае дзейнічаць праз {delay} с).
 Inside an anomaly: damage ×{k}, before armour.	У анамаліі: шкода ×{k}, да брані.
 This weapon takes no damage bonuses.	Гэта зброя не мае бонусаў шкоды.
-Come with the weapon; cannot be changed.	Ідуць са зброяй; змяніць нельга.
+Comes with the weapon; cannot be changed.	Ідзе са зброяй; змяніць нельга.
 An item holds at most 3 modifications. Bonuses on one stat add up before they apply.	Прадмет мае не больш за 3 мадыфікацыі. Бонусы да адной характарыстыкі складваюцца, перш чым дзейнічаць.
 This item takes no armour bonuses.	Гэты прадмет не мае бонусаў брані.
 Nothing worn covers the {part}.	Нічога з надзетага не ахоўвае: {part}.
@@ -923,3 +915,54 @@ Healing	Лячэнне
 Previous shot	Папярэдні стрэл
 Next shot	Наступны стрэл
 Damage calculator	Калькулятар шкоды Survarium	title
+# The wiki's artefacts (src/artefacts.rs)
+Every artefact: what it gives carried and fired, how copies stack, where it is found.	Кожны артэфакт: што ён дае пры сабе і пры актывацыі, як складваюцца копіі, дзе яго знайсці.
+Artefact	Артэфакт
+Passive	Пасіўны
+Active	Актыўны
+Active time	Час дзеяння
+Cooldown	Перазарадка
+Skill	Навык
+Rules	Правілы
+Movement speed	Хуткасць перамяшчэння
+Stamina regeneration	Рэгенерацыя энергіі
+Stamina use	Расход энергіі
+Slowdown from hits	Запаволенне ад пападанняў
+Against	Супраць
+Body parts	Часткі цела
+Penetration	Бранябойнасць
+Health	Здароўе
+Cures injuries	Лечыць траўмы
+Regeneration	Рэгенерацыя
+Regeneration delay	Затрымка рэгенерацыі
+Regenerates up to	Аднаўляецца да
+HP	АЗ	unit
+Carried in a container: passive. A death leaves them in that kit.	У кантэйнеры: пасіў. Пасля смерці яны застаюцца ў тым камплекце.
+A key fires every ready copy of its kind and restarts the cooldown of the ones still cooling.	Клавіша актывуе ўсе гатовыя копіі свайго віду і наноў запускае перазарадку тых, што яшчэ перазараджаюцца.
+Copies of a kind add up (Onyx's passive multiplies); at most 4 count.	Копіі аднаго віду складваюцца (пасіў Онікса памнажаецца); дзейнічаюць не больш за 4.
+Spring's and Larkspur's actives add to the passive; Onyx's replaces it.	Актывацыя Спружыны і Жывакосту дадаецца да пасіву; Онікса — замяняе яго.
+Onyx fired together: one reduction, 1 s longer per extra copy.	Оніксы, актываваныя разам: адно памяншэнне, на 1 с даўжэй за кожную дадатковую копію.
+
+# The maps' anomalies (scripts/maps-tab/ui.js)
+Anomalies	Анамаліі
+Anomaly	Анамалія
+Artefacts come from the anomalies. Each anomaly puts one of its artefacts into one of its free containers, one per time window, until its maximum lies uncollected; a pickup starts the window again. It gives only those of its artefacts that no player is carrying. Point at an anomaly or an artefact (or tap it) for its numbers.	Артэфакты даюць анамаліі. Кожная анамалія кладзе адзін са сваіх артэфактаў у адзін са сваіх вольных кантэйнераў, па адным за прамежак часу, пакуль яе максімум не будзе ляжаць нясабраным; падбор артэфакта пачынае прамежак нанава. Яна дае толькі тыя свае артэфакты, якіх не нясе ніводзін гулец. Навядзіце на анамалію ці артэфакт (або дакраніцеся), каб убачыць яе лікі.
+{s} s	{s} с
+{a}–{b} s	{a}–{b} с
+Holds	Утрымлівае
+First one	Першы
+Then every	Далей кожныя
+Chance	Шанец
+Max uncollected	Максімум нясабраных
+Search	Пошук	artefact
+Zones switch every	Зоны мяняюцца кожныя
+After a pickup the next one comes {next} later; that container stays empty for {cooldown}.	Пасля падбору наступны з'явіцца праз {next}; той кантэйнер застаецца пустым {cooldown}.
+Its own zone does no damage.	Яе ўласная зона не наносіць шкоды.
+Searching a container takes {search}; after a pickup it stays empty for {cooldown}.	Вобшук кантэйнера доўжыцца {search}; пасля падбору ён застаецца пустым {cooldown}.
+After a pickup the next one comes {next} later.	Пасля падбору наступны з'явіцца праз {next}.
+whole body	усё цела
+{n} % a hit, at most every {t}	{n} % за ўдар, не часцей за раз у {t}
+deadly	смяротна
+{n} % a second	{n} % у секунду
+Damage is a share of each body part's health, before armour.	Шкода — доля здароўя кожнай часткі цела, да броні.
+It gives no artefacts.	Яна не дае артэфактаў.

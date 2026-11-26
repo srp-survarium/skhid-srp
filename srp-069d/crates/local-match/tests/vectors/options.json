@@ -1,0 +1,1292 @@
+{
+"training": [
+{
+"case": {
+"map": 1,
+"mode": 1,
+"weather": 0,
+"match_id": 12345
+},
+"human": {
+"name": "test",
+"clan": "",
+"account_id": [
+0,
+0,
+0,
+0,
+0,
+0,
+0,
+0
+],
+"items": [
+[
+1,
+107,
+107
+],
+[
+2,
+104,
+200
+],
+[
+3,
+31,
+100
+]
+],
+"slots": {
+"2": 3,
+"7": 1,
+"8": 2
+},
+"slot_rounds": {
+"8": 100
+},
+"skills": {},
+"upgrades": {},
+"attach": [],
+"bound": {}
+},
+"roster": {
+"match_id": 12345,
+"map_id": 1,
+"mode_id": 1,
+"human_name": "test",
+"bots": [
+{
+"k": 0,
+"team": 1,
+"ai": 32,
+"first": 0,
+"second": 3,
+"name": "Bot 1"
+},
+{
+"k": 1,
+"team": 0,
+"ai": 33,
+"first": 1,
+"second": 10,
+"name": "Bot 2"
+},
+{
+"k": 2,
+"team": 1,
+"ai": 34,
+"first": 2,
+"second": 17,
+"name": "Bot 3"
+},
+{
+"k": 3,
+"team": 0,
+"ai": 35,
+"first": 3,
+"second": 24,
+"name": "Bot 4"
+},
+{
+"k": 4,
+"team": 1,
+"ai": 25,
+"first": 4,
+"second": 1,
+"name": "Bot 5"
+},
+{
+"k": 5,
+"team": 0,
+"ai": 27,
+"first": 5,
+"second": 8,
+"name": "Bot 6"
+},
+{
+"k": 6,
+"team": 1,
+"ai": 29,
+"first": 6,
+"second": 15,
+"name": "Bot 7"
+},
+{
+"k": 7,
+"team": 0,
+"ai": 31,
+"first": 7,
+"second": 22,
+"name": "Bot 8"
+},
+{
+"k": 8,
+"team": 1,
+"ai": 24,
+"first": 8,
+"second": 29,
+"name": "Bot 9"
+},
+{
+"k": 9,
+"team": 0,
+"ai": 26,
+"first": 9,
+"second": 6,
+"name": "Bot 10"
+},
+{
+"k": 10,
+"team": 1,
+"ai": 28,
+"first": 10,
+"second": 13,
+"name": "Bot 11"
+},
+{
+"k": 11,
+"team": 0,
+"ai": 30,
+"first": 11,
+"second": 20,
+"name": "Bot 12"
+},
+{
+"k": 12,
+"team": 1,
+"ai": 14,
+"first": 12,
+"second": 27,
+"name": "Bot 13"
+}
+]
+},
+"options_len": 8790,
+"options_fnv": "6c4158fc7e879481"
+},
+{
+"case": {
+"map": 2,
+"mode": 9,
+"weather": 0,
+"match_id": 777
+},
+"human": {
+"name": "Ivan \u0416",
+"clan": "CLN",
+"account_id": [
+1,
+2,
+3,
+4,
+5,
+6,
+7,
+8
+],
+"items": [
+[
+1,
+107,
+107
+],
+[
+2,
+104,
+200
+],
+[
+3,
+31,
+100
+],
+[
+4,
+540,
+1
+],
+[
+5,
+541,
+1
+],
+[
+6,
+31,
+30
+],
+[
+7,
+9,
+5
+]
+],
+"slots": {
+"2": 3,
+"7": 1,
+"8": 2,
+"9": 6,
+"10": 4,
+"13": 7
+},
+"slot_rounds": {
+"8": 100,
+"9": 30,
+"13": 5
+},
+"skills": {
+"skill_112": 2,
+"skill_113": 2,
+"skill_121": 2,
+"skill_123": 2,
+"skill_124": 2,
+"skill_131": 2
+},
+"upgrades": {
+"1": [
+[
+3,
+2
+],
+[
+4,
+1
+]
+],
+"4": [
+[
+9,
+9
+]
+]
+},
+"attach": [
+[
+1,
+[
+[
+"scope",
+5
+],
+[
+"muzzle",
+4
+]
+]
+]
+],
+"bound": {
+"1": 77,
+"3": 1
+}
+},
+"roster": {
+"match_id": 777,
+"map_id": 2,
+"mode_id": 9,
+"human_name": "Ivan \u0416",
+"bots": [
+{
+"k": 0,
+"team": 1,
+"ai": 32,
+"first": 0,
+"second": 3,
+"name": "Bot 1"
+},
+{
+"k": 1,
+"team": 0,
+"ai": 33,
+"first": 1,
+"second": 10,
+"name": "Bot 2"
+},
+{
+"k": 2,
+"team": 1,
+"ai": 34,
+"first": 2,
+"second": 17,
+"name": "Bot 3"
+},
+{
+"k": 3,
+"team": 0,
+"ai": 35,
+"first": 3,
+"second": 24,
+"name": "Bot 4"
+},
+{
+"k": 4,
+"team": 1,
+"ai": 25,
+"first": 4,
+"second": 1,
+"name": "Bot 5"
+},
+{
+"k": 5,
+"team": 0,
+"ai": 27,
+"first": 5,
+"second": 8,
+"name": "Bot 6"
+},
+{
+"k": 6,
+"team": 1,
+"ai": 29,
+"first": 6,
+"second": 15,
+"name": "Bot 7"
+},
+{
+"k": 7,
+"team": 0,
+"ai": 31,
+"first": 7,
+"second": 22,
+"name": "Bot 8"
+},
+{
+"k": 8,
+"team": 1,
+"ai": 24,
+"first": 8,
+"second": 29,
+"name": "Bot 9"
+},
+{
+"k": 9,
+"team": 0,
+"ai": 26,
+"first": 9,
+"second": 6,
+"name": "Bot 10"
+},
+{
+"k": 10,
+"team": 1,
+"ai": 28,
+"first": 10,
+"second": 13,
+"name": "Bot 11"
+},
+{
+"k": 11,
+"team": 0,
+"ai": 30,
+"first": 11,
+"second": 20,
+"name": "Bot 12"
+},
+{
+"k": 12,
+"team": 1,
+"ai": 14,
+"first": 12,
+"second": 27,
+"name": "Bot 13"
+},
+{
+"k": 13,
+"team": 0,
+"ai": 17,
+"first": 13,
+"second": 4,
+"name": "Bot 14"
+},
+{
+"k": 14,
+"team": 1,
+"ai": 20,
+"first": 14,
+"second": 11,
+"name": "Bot 15"
+}
+]
+},
+"options_len": 10218,
+"options_fnv": "c86f0f6f690383bf"
+},
+{
+"case": {
+"map": 1,
+"mode": 0,
+"weather": 1,
+"match_id": 2147483647,
+"n_players": 20,
+"bot_level": 1
+},
+"human": {
+"name": "Ivan \u0416",
+"clan": "CLN",
+"account_id": [
+1,
+2,
+3,
+4,
+5,
+6,
+7,
+8
+],
+"items": [
+[
+1,
+107,
+107
+],
+[
+2,
+104,
+200
+],
+[
+3,
+31,
+100
+],
+[
+4,
+540,
+1
+],
+[
+5,
+541,
+1
+],
+[
+6,
+31,
+30
+],
+[
+7,
+9,
+5
+]
+],
+"slots": {
+"2": 3,
+"7": 1,
+"8": 2,
+"9": 6,
+"10": 4,
+"13": 7
+},
+"slot_rounds": {
+"8": 100,
+"9": 30,
+"13": 5
+},
+"skills": {
+"skill_112": 2,
+"skill_113": 2,
+"skill_121": 2,
+"skill_123": 2,
+"skill_124": 2,
+"skill_131": 2
+},
+"upgrades": {
+"1": [
+[
+3,
+2
+],
+[
+4,
+1
+]
+],
+"4": [
+[
+9,
+9
+]
+]
+},
+"attach": [
+[
+1,
+[
+[
+"scope",
+5
+],
+[
+"muzzle",
+4
+]
+]
+]
+],
+"bound": {
+"1": 77,
+"3": 1
+}
+},
+"roster": {
+"match_id": 2147483647,
+"map_id": 1,
+"mode_id": 0,
+"human_name": "Ivan \u0416",
+"bots": [
+{
+"k": 0,
+"team": 1,
+"ai": 0,
+"first": 0,
+"second": 3,
+"name": "Bot 1"
+},
+{
+"k": 1,
+"team": 0,
+"ai": 1,
+"first": 1,
+"second": 10,
+"name": "Bot 2"
+},
+{
+"k": 2,
+"team": 1,
+"ai": 2,
+"first": 2,
+"second": 17,
+"name": "Bot 3"
+},
+{
+"k": 3,
+"team": 0,
+"ai": 3,
+"first": 3,
+"second": 24,
+"name": "Bot 4"
+},
+{
+"k": 4,
+"team": 1,
+"ai": 5,
+"first": 4,
+"second": 1,
+"name": "Bot 5"
+},
+{
+"k": 5,
+"team": 0,
+"ai": 7,
+"first": 5,
+"second": 8,
+"name": "Bot 6"
+},
+{
+"k": 6,
+"team": 1,
+"ai": 9,
+"first": 6,
+"second": 15,
+"name": "Bot 7"
+},
+{
+"k": 7,
+"team": 0,
+"ai": 11,
+"first": 7,
+"second": 22,
+"name": "Bot 8"
+},
+{
+"k": 8,
+"team": 1,
+"ai": 4,
+"first": 8,
+"second": 29,
+"name": "Bot 9"
+},
+{
+"k": 9,
+"team": 0,
+"ai": 6,
+"first": 9,
+"second": 6,
+"name": "Bot 10"
+},
+{
+"k": 10,
+"team": 1,
+"ai": 8,
+"first": 10,
+"second": 13,
+"name": "Bot 11"
+},
+{
+"k": 11,
+"team": 0,
+"ai": 10,
+"first": 11,
+"second": 20,
+"name": "Bot 12"
+},
+{
+"k": 12,
+"team": 1,
+"ai": 14,
+"first": 12,
+"second": 27,
+"name": "Bot 13"
+},
+{
+"k": 13,
+"team": 0,
+"ai": 17,
+"first": 13,
+"second": 4,
+"name": "Bot 14"
+},
+{
+"k": 14,
+"team": 1,
+"ai": 20,
+"first": 14,
+"second": 11,
+"name": "Bot 15"
+},
+{
+"k": 15,
+"team": 0,
+"ai": 23,
+"first": 15,
+"second": 18,
+"name": "Bot 16"
+},
+{
+"k": 16,
+"team": 1,
+"ai": 13,
+"first": 16,
+"second": 25,
+"name": "Bot 17"
+},
+{
+"k": 17,
+"team": 0,
+"ai": 16,
+"first": 17,
+"second": 2,
+"name": "Bot 18"
+},
+{
+"k": 18,
+"team": 1,
+"ai": 19,
+"first": 18,
+"second": 9,
+"name": "Bot 19"
+}
+]
+},
+"options_len": 11900,
+"options_fnv": "8c67485c1f9e428a"
+},
+{
+"case": {
+"map": 2,
+"mode": 2,
+"weather": 4,
+"match_id": 5,
+"n_players": 3,
+"bot_level": 12
+},
+"human": {
+"name": "test",
+"clan": "",
+"account_id": [
+0,
+0,
+0,
+0,
+0,
+0,
+0,
+0
+],
+"items": [
+[
+1,
+107,
+107
+],
+[
+2,
+104,
+200
+],
+[
+3,
+31,
+100
+]
+],
+"slots": {
+"2": 3,
+"7": 1,
+"8": 2
+},
+"slot_rounds": {
+"8": 100
+},
+"skills": {},
+"upgrades": {},
+"attach": [],
+"bound": {}
+},
+"roster": {
+"match_id": 5,
+"map_id": 2,
+"mode_id": 2,
+"human_name": "test",
+"bots": [
+{
+"k": 0,
+"team": 1,
+"ai": 32,
+"first": 0,
+"second": 3,
+"name": "Bot 1"
+},
+{
+"k": 1,
+"team": 0,
+"ai": 33,
+"first": 1,
+"second": 10,
+"name": "Bot 2"
+}
+]
+},
+"options_len": 1609,
+"options_fnv": "85d0e20dd20c3242"
+},
+{
+"case": {
+"map": 3,
+"mode": 1,
+"weather": 0,
+"match_id": 99,
+"n_players": 7
+},
+"human": {
+"name": "Ivan \u0416",
+"clan": "CLN",
+"account_id": [
+1,
+2,
+3,
+4,
+5,
+6,
+7,
+8
+],
+"items": [
+[
+1,
+107,
+107
+],
+[
+2,
+104,
+200
+],
+[
+3,
+31,
+100
+],
+[
+4,
+540,
+1
+],
+[
+5,
+541,
+1
+],
+[
+6,
+31,
+30
+],
+[
+7,
+9,
+5
+]
+],
+"slots": {
+"2": 3,
+"7": 1,
+"8": 2,
+"9": 6,
+"10": 4,
+"13": 7
+},
+"slot_rounds": {
+"8": 100,
+"9": 30,
+"13": 5
+},
+"skills": {
+"skill_112": 2,
+"skill_113": 2,
+"skill_121": 2,
+"skill_123": 2,
+"skill_124": 2,
+"skill_131": 2
+},
+"upgrades": {
+"1": [
+[
+3,
+2
+],
+[
+4,
+1
+]
+],
+"4": [
+[
+9,
+9
+]
+]
+},
+"attach": [
+[
+1,
+[
+[
+"scope",
+5
+],
+[
+"muzzle",
+4
+]
+]
+]
+],
+"bound": {
+"1": 77,
+"3": 1
+}
+},
+"roster": {
+"match_id": 99,
+"map_id": 3,
+"mode_id": 1,
+"human_name": "Ivan \u0416",
+"bots": [
+{
+"k": 0,
+"team": 1,
+"ai": 32,
+"first": 0,
+"second": 3,
+"name": "Bot 1"
+},
+{
+"k": 1,
+"team": 0,
+"ai": 33,
+"first": 1,
+"second": 10,
+"name": "Bot 2"
+},
+{
+"k": 2,
+"team": 1,
+"ai": 34,
+"first": 2,
+"second": 17,
+"name": "Bot 3"
+},
+{
+"k": 3,
+"team": 0,
+"ai": 35,
+"first": 3,
+"second": 24,
+"name": "Bot 4"
+},
+{
+"k": 4,
+"team": 1,
+"ai": 25,
+"first": 4,
+"second": 1,
+"name": "Bot 5"
+},
+{
+"k": 5,
+"team": 0,
+"ai": 27,
+"first": 5,
+"second": 8,
+"name": "Bot 6"
+}
+]
+},
+"options_len": 4450,
+"options_fnv": "677e238002a81f21"
+},
+{
+"case": {
+"map": 2,
+"mode": 6,
+"weather": 8,
+"match_id": 424242
+},
+"human": {
+"name": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+"clan": "",
+"account_id": [
+0,
+0,
+0,
+0,
+0,
+0,
+0,
+0
+],
+"items": [
+[
+1,
+104,
+5
+]
+],
+"slots": {},
+"slot_rounds": {},
+"skills": {},
+"upgrades": {},
+"attach": [],
+"bound": {}
+},
+"roster": {
+"match_id": 424242,
+"map_id": 2,
+"mode_id": 6,
+"human_name": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+"bots": [
+{
+"k": 0,
+"team": 1,
+"ai": 32,
+"first": 0,
+"second": 3,
+"name": "Bot 1"
+},
+{
+"k": 1,
+"team": 0,
+"ai": 33,
+"first": 1,
+"second": 10,
+"name": "Bot 2"
+},
+{
+"k": 2,
+"team": 1,
+"ai": 34,
+"first": 2,
+"second": 17,
+"name": "Bot 3"
+},
+{
+"k": 3,
+"team": 0,
+"ai": 35,
+"first": 3,
+"second": 24,
+"name": "Bot 4"
+},
+{
+"k": 4,
+"team": 1,
+"ai": 25,
+"first": 4,
+"second": 1,
+"name": "Bot 5"
+},
+{
+"k": 5,
+"team": 0,
+"ai": 27,
+"first": 5,
+"second": 8,
+"name": "Bot 6"
+},
+{
+"k": 6,
+"team": 1,
+"ai": 29,
+"first": 6,
+"second": 15,
+"name": "Bot 7"
+},
+{
+"k": 7,
+"team": 0,
+"ai": 31,
+"first": 7,
+"second": 22,
+"name": "Bot 8"
+},
+{
+"k": 8,
+"team": 1,
+"ai": 24,
+"first": 8,
+"second": 29,
+"name": "Bot 9"
+}
+]
+},
+"options_len": 6356,
+"options_fnv": "e3bad9353d816ff6"
+},
+{
+"case": {
+"map": 1,
+"mode": 1,
+"weather": 2,
+"match_id": 1,
+"n_players": 1
+},
+"human": {
+"name": "test",
+"clan": "",
+"account_id": [
+0,
+0,
+0,
+0,
+0,
+0,
+0,
+0
+],
+"items": [
+[
+1,
+107,
+107
+],
+[
+2,
+104,
+200
+],
+[
+3,
+31,
+100
+]
+],
+"slots": {
+"2": 3,
+"7": 1,
+"8": 2
+},
+"slot_rounds": {
+"8": 100
+},
+"skills": {},
+"upgrades": {},
+"attach": [],
+"bound": {}
+},
+"roster": {
+"match_id": 1,
+"map_id": 1,
+"mode_id": 1,
+"human_name": "test",
+"bots": []
+},
+"options_len": 301,
+"options_fnv": "36245a2999bb0356"
+}
+],
+"tutorial": [
+{
+"match_id": 31337,
+"human": {
+"name": "test",
+"clan": "",
+"account_id": [
+0,
+0,
+0,
+0,
+0,
+0,
+0,
+0
+],
+"items": [
+[
+1,
+107,
+107
+],
+[
+2,
+104,
+200
+],
+[
+3,
+31,
+100
+]
+],
+"slots": {
+"2": 3,
+"7": 1,
+"8": 2
+},
+"slot_rounds": {
+"8": 100
+},
+"skills": {},
+"upgrades": {},
+"attach": [],
+"bound": {}
+},
+"header": "64000000320a697a0000000100000100087475746f7269616c107475746f7269616c2f64656661756c74"
+},
+{
+"match_id": 8,
+"human": {
+"name": "Ivan \u0416",
+"clan": "CLN",
+"account_id": [
+1,
+2,
+3,
+4,
+5,
+6,
+7,
+8
+],
+"items": [
+[
+1,
+107,
+107
+],
+[
+2,
+104,
+200
+],
+[
+3,
+31,
+100
+],
+[
+4,
+540,
+1
+],
+[
+5,
+541,
+1
+],
+[
+6,
+31,
+30
+],
+[
+7,
+9,
+5
+]
+],
+"slots": {
+"2": 3,
+"7": 1,
+"8": 2,
+"9": 6,
+"10": 4,
+"13": 7
+},
+"slot_rounds": {
+"8": 100,
+"9": 30,
+"13": 5
+},
+"skills": {
+"skill_112": 2,
+"skill_113": 2,
+"skill_121": 2,
+"skill_123": 2,
+"skill_124": 2,
+"skill_131": 2
+},
+"upgrades": {
+"1": [
+[
+3,
+2
+],
+[
+4,
+1
+]
+],
+"4": [
+[
+9,
+9
+]
+]
+},
+"attach": [
+[
+1,
+[
+[
+"scope",
+5
+],
+[
+"muzzle",
+4
+]
+]
+]
+],
+"bound": {
+"1": 77,
+"3": 1
+}
+},
+"header": "64000000320a08000000000100000100087475746f7269616c107475746f7269616c2f64656661756c74"
+}
+]
+}

@@ -64,7 +64,7 @@
 ; st_screenshot_action and st_screenshot_no_ui_action, and patch 149's
 ; sixteen (use_onyx .. use_next_medkit, no default key,
 ; labelled st_use_<item>_action); patch_026g.py points the six functions at
-; it and makes their counts 3Dh. The rows stand in the order the options list
+; it and makes their counts 3Eh (patch 206's scope_next too). The rows stand in the order the options list
 ; them: the movie (Settings.as) puts each row in its group's list (game, lobby,
 ; chat) in the table's order, and nothing takes a row by its place (the movie,
 ; root.set_keybind and the six functions name a row by its action, user.cfg
@@ -82,7 +82,8 @@
 BITS 32
 %include "engine_026g.inc"
 global hide_ui_match, hide_ui_lobby, hide_ui_reset
-global controls                    ; the options' controls, 61 rows (patch_026g.py's HIDE_UI_TABLE_REFS)
+global controls                    ; the options' controls, 62 rows (patch_026g.py's HIDE_UI_TABLE_REFS)
+global controls_end                ; their end (the Rust hud_options' key bindings read the rows)
 global ptt_nearby_action           ; the action table's row 37h's name (item_hotkeys_026g.asm's `actions`)
 global hide_interface_action, screenshot_action, screenshot_no_ui_action   ; the rows 19h, 1Ah and 1Bh's
 section .text
@@ -373,6 +374,9 @@ use_next_artefact_label:
 use_next_medkit_label:
     db "st_use_next_medkit_action", 0
 
+scope_next_label:
+    db "st_srp_scope_next_action", 0
+
 ; A row of the controls: the action, its label's key, the group, the type, and
 ; two empty buffer_strings (begin, end, the buffer's end; 32 bytes).
 %macro CONTROL 4
@@ -402,6 +406,7 @@ controls:                          ; the rows in the order the options list them
     CONTROL 0x26, 0x9FCAD0, 2, 1   ; st_weapon_fire_action
     CONTROL 0x28, 0x9FCAA0, 2, 1   ; st_weapon_aim_action
     CONTROL 0x29, 0x9FCC2C, 2, 1   ; st_aim_toggle_action
+    CONTROL 0x5A, scope_next_label, 2, 1   ; st_srp_scope_next_action (Y): patch 206's second sight switch
     CONTROL 0x2A, 0x9FCA88, 2, 1   ; st_dealy_breath_action
     CONTROL 0x27, 0x9FCAB8, 2, 1   ; st_weapon_reload_action
     CONTROL 0x09, 0x9FCBE4, 2, 1   ; st_next_fire_queue_action
@@ -411,12 +416,17 @@ controls:                          ; the rows in the order the options list them
     CONTROL 0x24, 0x9FCBC0, 2, 1   ; st_next_weapon
     CONTROL 0x25, 0x9FCBB0, 2, 1   ; st_prev_weapon
 
-    ; grenade, melee, use
-    CONTROL 0x20, 0x9FCB08, 2, 1   ; st_throw_grenade_action
+    ; melee, use
     CONTROL 0x21, 0x9FCAF8, 2, 1   ; st_melee_action
     CONTROL 0x35, 0x9FC9D0, 2, 1   ; st_use_action
     CONTROL 0x36, 0x9FC9C0, 2, 1   ; st_drop_action
     CONTROL HOLD_ARTIFACT, hold_artifact_label, 2, 1   ; st_hold_artifact_action (H): patch 78's carry chord
+
+    ; the items' "next" keys together (the owner, 2026-11-23: "next medkit, next grenade, next art should
+    ; be close by"): the next grenade, the next medkit, the next artefact
+    CONTROL 0x20, 0x9FCB08, 2, 1   ; st_throw_grenade_action ("Next grenade")
+    CONTROL 0x59, use_next_medkit_label, 2, 1   ; st_use_next_medkit_action
+    CONTROL 0x58, use_next_artefact_label, 2, 1   ; st_use_next_artefact_action
 
     ; the quick slots
     CONTROL 0x39, 0x9FCA70, 2, 1   ; st_quick_use_action_1
@@ -426,12 +436,11 @@ controls:                          ; the rows in the order the options list them
     CONTROL 0x3D, 0x9FCA10, 2, 1   ; st_quick_use_action_5
     CONTROL 0x3E, 0x9FC9F8, 2, 1   ; st_quick_use_action_6
 
-    ; patch 149's sixteen (item_hotkeys_026g.asm's `actions`), no default key: artefacts, medicines,
-    ; grenades, the others
+    ; patch 149's sixteen but the two "next" above (item_hotkeys_026g.asm's `actions`), no default
+    ; key: artefacts, medicines, grenades, the others
     CONTROL 0x4A, use_onyx_label, 2, 1   ; st_use_onyx_action
     CONTROL 0x4B, use_spring_label, 2, 1   ; st_use_spring_action
     CONTROL 0x4C, use_lifebone_label, 2, 1   ; st_use_lifebone_action
-    CONTROL 0x58, use_next_artefact_label, 2, 1   ; st_use_next_artefact_action
     CONTROL 0x4D, use_bandages_label, 2, 1   ; st_use_bandages_action
     CONTROL 0x4E, use_medkit_label, 2, 1   ; st_use_medkit_action
     CONTROL 0x4F, use_military_medkit_label, 2, 1   ; st_use_military_medkit_action
@@ -439,7 +448,6 @@ controls:                          ; the rows in the order the options list them
     CONTROL 0x51, use_science_medkit_label, 2, 1   ; st_use_science_medkit_action
     CONTROL 0x52, use_antitoxin_label, 2, 1   ; st_use_antitoxin_action
     CONTROL 0x53, use_painkiller_label, 2, 1   ; st_use_painkiller_action
-    CONTROL 0x59, use_next_medkit_label, 2, 1   ; st_use_next_medkit_action
     CONTROL 0x54, use_rgd5_label, 2, 1   ; st_use_rgd5_action
     CONTROL 0x55, use_rdgm_label, 2, 1   ; st_use_rdgm_action
     CONTROL 0x56, use_trap_label, 2, 1   ; st_use_trap_action
@@ -465,6 +473,7 @@ controls:                          ; the rows in the order the options list them
     CONTROL 0x44, 0x9FC944, 0, 1   ; st_show_friends_action
     CONTROL 0x45, 0x9FC92C, 1, 0   ; st_send_message_action
     CONTROL 0x46, 0x9FC910, 1, 0   ; st_select_send_to_action
+controls_end:
 
 ptt_nearby_action:                 ; in data: the action table (item_hotkeys_026g.asm) points at it
     db "ptt_nearby", 0

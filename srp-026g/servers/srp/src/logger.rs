@@ -10,9 +10,10 @@
 //! The files are in `SRP_LOG_DIR` (default `logs`; `off`: stdout only), as
 //! `<server>.log`, appended to across restarts: a container's own output is
 //! gone when the container is made anew, which every update does, so the
-//! compose file puts them in the data volume. A file that reaches
-//! [`MAX_FILE_BYTES`] becomes `<server>.log.1` (the `.1` before it `.2`, and
-//! so on); [`KEPT_FILES`] files per server are kept, the oldest deleted.
+//! compose file puts them in the data volume. A file that reaches its size
+//! in [`SERVERS`] becomes `<server>.log.1` (the `.1` before it `.2`, and so
+//! on); as many files of each server as [`SERVERS`] says are kept, the
+//! oldest deleted.
 //!
 //! What a line costs: stdout as before (one write of the line), and for the
 //! file a copy into an 8 KiB buffer, an add and a compare for the size. The
@@ -34,8 +35,8 @@ use log::{Level, LevelFilter, Log, Metadata, Record};
 /// files of it are kept (`<server>.log`, `.1` ...). About two days of each
 /// at the heaviest seen (2026-11-01 to 11-02, 116-127 MB a day in all, of
 /// it about 95 % match, 4 % lobby, 1.5 % srp, under 0.2 % login and web);
-/// the lobby's about 12 days, the balance refit's input
-/// (scripts/balance-refit). `memory` and `modules`: the match server's
+/// the lobby's about 12 days (it was the input of scripts/balance-refit,
+/// since retired). `memory` and `modules`: the match server's
 /// lines of those targets, client patch 126's memory reports (about 2.5 KB
 /// a player a match) and patch 125's module reports (about 2 KB), weeks of
 /// them for `release/moderate memory` and `release/moderate modules`.
