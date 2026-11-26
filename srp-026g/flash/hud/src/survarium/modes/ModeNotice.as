@@ -14,7 +14,11 @@ package survarium.modes
    // docs/notes/mode_introductions.md); a notice begun waits for it.
    public class ModeNotice extends Sprite
    {
-      public static const DISPLAY_MS:int = 10000;
+      // On screen after the countdown: Freeze Tag's longer (the owner, 2026-11-26: it went too fast).
+      public static function displayMs(mode:String) : int
+      {
+         return mode == "freeze_tag" ? 20000 : 10000;
+      }
       private var _state:Object = {kind:"inactive"};
       // This match's word: "unknown" until told, then "shown" or "skipped" until the next reset.
       private var _word:String = "unknown";
@@ -81,11 +85,11 @@ package survarium.modes
          if(_state.kind == "waiting" && ready && _word == "shown" && ModeIntroText.ready(_state.mode))
          {
             label.text = ModeIntroText.start(_state.mode);
-            _state = countdown ? {kind:"countdown",mode:_state.mode} : {kind:"showing",mode:_state.mode,until:now + DISPLAY_MS};
+            _state = countdown ? {kind:"countdown",mode:_state.mode} : {kind:"showing",mode:_state.mode,until:now + displayMs(_state.mode)};
             visible = true;
          }
          if(_state.kind == "countdown" && !countdown)
-            _state = {kind:"showing",mode:_state.mode,until:now + DISPLAY_MS};
+            _state = {kind:"showing",mode:_state.mode,until:now + displayMs(_state.mode)};
          if(_state.kind == "showing" && int(now - _state.until) >= 0)
          {
             _state = {kind:"finished",mode:_state.mode};

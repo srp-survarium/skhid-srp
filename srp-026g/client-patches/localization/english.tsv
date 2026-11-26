@@ -4031,7 +4031,7 @@ st_srp_hud_freeze_round_draw	Round drawn. Restarting in %1$s s.
 st_srp_hud_freeze_round_lose	Round lost. Next round in %1$s s.
 st_srp_hud_freeze_round_win	Round won. Next round in %1$s s.
 st_srp_hud_freeze_standing	Fighting: your team %1$s — opponents %2$s
-st_srp_hud_freeze_start	Freeze Tag\nA lethal hit freezes. Freeze the whole enemy team to win the round.\nStand within 2 m of a frozen teammate for 4 s to thaw them; alone, they thaw after 2 min.\nFirst team to 5 round wins takes the match; at the time limit, the team ahead wins.
+st_srp_hud_freeze_start	Freeze Tag\nA lethal hit freezes. Freeze the whole enemy team to win the round.\nStand next to a frozen teammate to thaw them.\nFirst team to win 5 rounds wins.
 st_srp_hud_freeze_thawing	Thawing teammate…
 st_srp_hud_freeze_win	Victory — five rounds won.
 st_srp_hud_friend_not_sent	Friend request not sent

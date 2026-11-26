@@ -4031,7 +4031,7 @@ st_srp_hud_freeze_round_draw	Unentschieden. Neustart in %1$s s.
 st_srp_hud_freeze_round_lose	Runde verloren. Nächste Runde in %1$s s.
 st_srp_hud_freeze_round_win	Runde gewonnen. Nächste Runde in %1$s s.
 st_srp_hud_freeze_standing	Im Kampf: dein Team %1$s — Gegner %2$s
-st_srp_hud_freeze_start	Fang den Frost\nEin tödlicher Treffer friert ein. Friere das ganze gegnerische Team ein, um die Runde zu gewinnen.\nBleibe 4 s innerhalb von 2 m eines eingefrorenen Teammitglieds, um es aufzutauen; allein taut es nach 2 min auf.\nDas erste Team mit 5 Rundensiegen gewinnt; endet die Zeit, gewinnt das führende Team.
+st_srp_hud_freeze_start	Fang den Frost\nEin tödlicher Treffer friert ein. Friere das ganze gegnerische Team ein, um die Runde zu gewinnen.\nStell dich neben ein eingefrorenes Teammitglied, um es aufzutauen.\nDas Team, das zuerst 5 Runden gewinnt, gewinnt.
 st_srp_hud_freeze_thawing	Teammitglied wird aufgetaut…
 st_srp_hud_freeze_win	Sieg — fünf Runden gewonnen.
 st_srp_hud_friend_not_sent	Freundschaftsanfrage nicht gesendet

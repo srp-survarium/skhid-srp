@@ -4031,7 +4031,7 @@ st_srp_hud_freeze_round_draw	Nerešeno. Nova runda za %1$s s.
 st_srp_hud_freeze_round_lose	Runda izgubljena. Sledeća za %1$s s.
 st_srp_hud_freeze_round_win	Runda dobijena. Sledeća za %1$s s.
 st_srp_hud_freeze_standing	U borbi: vaš tim %1$s — protivnici %2$s
-st_srp_hud_freeze_start	Zamrzavanje\nSmrtonosni pogodak zamrzava. Zamrzni ceo protivnički tim da dobiješ rundu.\nStoj 4 s na najviše 2 m od zamrznutog saigrača da ga odmrzneš; sam se odmrzava posle 2 min.\nPobeđuje prvi tim koji dobije 5 rundi; kad istekne vreme, pobeđuje tim koji vodi.
+st_srp_hud_freeze_start	Zamrzavanje\nSmrtonosni pogodak zamrzava. Zamrzni ceo protivnički tim da dobiješ rundu.\nStani pored zamrznutog saigrača da ga odmrzneš.\nPobeđuje tim koji prvi dobije 5 rundi.
 st_srp_hud_freeze_thawing	Odmrzavanje saigrača…
 st_srp_hud_freeze_win	Pobeda — pet dobijenih rundi.
 st_srp_hud_friend_not_sent	Zahtev za prijateljstvo nije poslat
