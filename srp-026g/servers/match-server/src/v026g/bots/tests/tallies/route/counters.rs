@@ -978,11 +978,11 @@ pub(super) fn fix_gaps() -> Box<dyn RouteTopic> {
 }
 
 /// The stuck recovery's floor test (`unstick.escape_floor`, `stuck::escape_floors`): recoveries it was on for, escapes refused
-/// for no floor under their way, recoveries left with no walk key.
+/// for no floor under their way, recoveries left with no walk key, and [ledge-drop escape] escapes taken down off a ledge.
 pub(super) fn escape_floors() -> Box<dyn RouteTopic> {
     Delta::of(
         || super::super::stuck::escape_floors::counts().to_vec(),
-        |d, line| line.tail.push(format!("escape_floor_checked {} escape_floor_refused {} escape_floor_none {}", d[0], d[1], d[2])),
+        |d, line| line.tail.push(format!("escape_floor_checked {} escape_floor_refused {} escape_floor_none {} escape_drop {}", d[0], d[1], d[2], d[3])),
     )
 }
 

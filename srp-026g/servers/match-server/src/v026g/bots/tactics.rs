@@ -2847,6 +2847,36 @@ impl Tactics {
         })
     }
 
+    /// [ledge-drop escape] The fall of a way from `a` to `b` that goes down off an edge the body may take: every half metre a
+    /// floor a body stands on within [`FLOOR_STEP_NEAR_M`] across (the highest under the point), no more than the client's step
+    /// over the floor before it and no more than the harmless fall ([`mapdata::Body::max_drop`]) under `a`'s feet; the last one
+    /// a lip's drop ([`mapdata::grid::LIP_DROP_M`]) or more under them (else [`Self::floor_free_step`] takes the way), on a
+    /// floor the spawns walk to and that walks back to the main area ([`WalkGrid::reached`],
+    /// [`WalkGrid::returns`]), so the step off ends on ground the routes go on from. `None` for any other way. The stuck
+    /// recovery's last tries at a lip (`Bots::fixed`).
+    pub fn drop_free_step(&self, a: Vec3, b: Vec3) -> Option<f32> {
+        let grid = &self.world.grid;
+        let (step, deepest) = (grid.body().step, a.y - grid.body().max_drop);
+        let n = (a.distance_xz(b) / 0.5).ceil().max(1.0) as u32;
+        let mut level = a.y;
+        let mut last = None;
+        for k in 1..=n {
+            let point = a + (b - a) * (k as f32 / n as f32);
+            let near = FLOOR_STEP_NEAR_M;
+            let node = grid
+                .floors_in([point.x - near, point.z - near, point.x + near, point.z + near])
+                .filter(|&node| {
+                    let at = grid.position(node);
+                    at.distance_xz(point) <= near && at.y <= level + step && at.y >= deepest && grid.can_stand(node)
+                })
+                .max_by(|&p, &q| grid.position(p).y.total_cmp(&grid.position(q).y))?;
+            level = grid.position(node).y;
+            last = Some(node);
+        }
+        let fall = a.y - level;
+        last.filter(|&node| fall >= mapdata::grid::LIP_DROP_M && grid.reached(node) && grid.returns(node)).map(|_| fall)
+    }
+
     /// The rise of the lowest ledge a stuck body at `feet` facing `yaw` can
     /// jump up, if there is one ahead: a floor to stand on more than the
     /// client's step-up ([`STEP_UP_M`], which it walks up by itself) and at
@@ -4338,6 +4368,18 @@ pub(super) mod tests {
         let feet = Vec3::new(50.12, 3.0, 10.0);
         assert!(tactics.floor_free_step(feet, feet + Vec3::new(0.0, 0.0, 3.0)), "along the rail");
         assert!(!tactics.floor_free_step(feet, feet + Vec3::new(-2.1, 0.0, 2.1)), "back-diagonal off it");
+    }
+
+    /// [ledge-drop escape] The same top, 3 m over the field: the way over its edge is a drop within the harmless fall onto the
+    /// field the routes go on from; a way along the top is no drop (the floor-kept escape's).
+    #[test]
+    fn a_drop_free_step_takes_the_way_down_off_a_top() {
+        let top = floor(30.0, 0.0, 40.0, 40.0, 3.0);
+        let tactics = Tactics::new(field_with_solids(&top, |_| {}), 1.0);
+        let feet = Vec3::new(31.0, 3.0, 10.0);
+        let fall = tactics.drop_free_step(feet, feet + Vec3::new(-2.0, 0.0, 0.0)).expect("down off the edge");
+        assert!((fall - 3.0).abs() < 0.1, "{fall}");
+        assert_eq!(tactics.drop_free_step(feet, feet + Vec3::new(2.0, 0.0, 0.0)), None, "along the top");
     }
 
     #[test]
