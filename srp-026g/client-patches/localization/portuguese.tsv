@@ -501,6 +501,8 @@ st_buy_premium_with_discount	Compre agora com desconto!
 st_buy_profile_confirmation_text	Criar personagem novo?
 st_buy_profile_price_text	Perfil disponível por:
 st_buy_treasure_maps	Comprar mapa
+st_camo_atlas_all_terrain	Todo terreno
+st_camo_atlas_alpenflage	Alpenflage
 st_camo_atlas_amber_circuit	Circuito âmbar
 st_camo_atlas_amethyst_wash	Aguada ametista
 st_camo_atlas_ash_rain	Chuva de cinzas
@@ -516,12 +518,14 @@ st_camo_atlas_black_ice	Gelo negro
 st_camo_atlas_black_thicket	Matagal negro
 st_camo_atlas_blue_shingle	Telha azul
 st_camo_atlas_bruise	Hematoma
+st_camo_atlas_brushstroke	Pincelada
 st_camo_atlas_carmine_cloud_hex	Nuvem hexagonal carmim
 st_camo_atlas_carmine_crosscheck	Xadrez cruzado carmim
 st_camo_atlas_carmine_pebble	Pedrisco carmim
 st_camo_atlas_carmine_screenprint	Serigrafia carmim
 st_camo_atlas_carmine_soundings	Batimetria carmim
 st_camo_atlas_carmine_wave_fan	Leque de ondas carmim
+st_camo_atlas_centre_europe	Europa Central
 st_camo_atlas_cerise_agate	Ágata cereja
 st_camo_atlas_cerise_beadwork	Bordado de miçanga cereja
 st_camo_atlas_cerise_broadbrush	Pincelada larga cereja
@@ -547,6 +551,7 @@ st_camo_atlas_cobalt_woodgrain	Veio de madeira cobalto
 st_camo_atlas_copper_mesh	Malha de cobre
 st_camo_atlas_copper_rain	Chuva de cobre
 st_camo_atlas_coral_reeds	Juncos coral
+st_camo_atlas_danube_leaf	Folha do Danúbio
 st_camo_atlas_desert_broadbrush	Pincelada larga do deserto
 st_camo_atlas_desert_broken_grid	Grade quebrada do deserto
 st_camo_atlas_desert_cloud	Nuvem do deserto
@@ -574,8 +579,10 @@ st_camo_atlas_desert_wave_fan	Leque de ondas do deserto
 st_camo_atlas_desert_woodgrain	Veio de madeira do deserto
 st_camo_atlas_dune_chip	Lasca de duna
 st_camo_atlas_ember_leaf	Folha em brasa
+st_camo_atlas_erdl_highland	ERDL de planalto
 st_camo_atlas_field_mosaic	Mosaico do campo
 st_camo_atlas_fired_clay	Barro cozido
+st_camo_atlas_frogskin	Pele de sapo
 st_camo_atlas_frost_splinter	Estilhaços de geada
 st_camo_atlas_garnet_beadwork	Bordado de miçanga granada
 st_camo_atlas_garnet_broken_grid	Grade quebrada granada
@@ -617,6 +624,7 @@ st_camo_atlas_kingfisher_cut_paper	Papel recortado martim-pescador
 st_camo_atlas_kingfisher_reed_stripe	Listra de junco martim-pescador
 st_camo_atlas_kingfisher_screenprint	Serigrafia martim-pescador
 st_camo_atlas_kingfisher_soundings	Batimetria martim-pescador
+st_camo_atlas_klmk	KLMK
 st_camo_atlas_lagoon_rosette	Roseta laguna
 st_camo_atlas_lapis_agate	Ágata lápis-lazúli
 st_camo_atlas_lapis_beadwork	Bordado de miçanga lápis-lazúli
@@ -626,7 +634,9 @@ st_camo_atlas_lapis_netting	Rede lápis-lazúli
 st_camo_atlas_lapis_tiger_stripe	Tigrado lápis-lazúli
 st_camo_atlas_lapis_wax_resist	Batique lápis-lazúli
 st_camo_atlas_lapis_woodgrain	Veio de madeira lápis-lazúli
+st_camo_atlas_leibermuster	Leibermuster
 st_camo_atlas_lichen_pixel	Pixel líquen
+st_camo_atlas_lizard	Lagarto
 st_camo_atlas_madder_crackle	Craquelê garança
 st_camo_atlas_madder_crosscheck	Xadrez cruzado garança
 st_camo_atlas_madder_cut_paper	Papel recortado garança
@@ -731,6 +741,7 @@ st_camo_atlas_sundown_pebble	Pedrisco do poente
 st_camo_atlas_sundown_reed_stripe	Listra de junco do poente
 st_camo_atlas_sundown_terrazzo	Granilite do poente
 st_camo_atlas_sundown_wave_fan	Leque de ondas do poente
+st_camo_atlas_three_color_desert	Deserto tricolor
 st_camo_atlas_tidal_pixel	Pixel de maré
 st_camo_atlas_ultramarine_agate	Ágata ultramar
 st_camo_atlas_ultramarine_beadwork	Bordado de miçanga ultramar
@@ -743,6 +754,7 @@ st_camo_atlas_ultramarine_wax_resist	Batique ultramar
 st_camo_atlas_ultraviolet_grid	Grade ultravioleta
 st_camo_atlas_urban_broadbrush	Pincelada larga urbana
 st_camo_atlas_urban_broken_grid	Grade quebrada urbana
+st_camo_atlas_urban_brush	Pincel urbano
 st_camo_atlas_urban_cloud	Nuvem urbana
 st_camo_atlas_urban_crackle	Craquelê urbano
 st_camo_atlas_urban_cut_paper	Papel recortado urbano

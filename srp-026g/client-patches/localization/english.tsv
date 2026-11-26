@@ -501,6 +501,8 @@ st_buy_premium_with_discount	Buy now with discount!
 st_buy_profile_confirmation_text	Create new character? 
 st_buy_profile_price_text	Profile available for: 
 st_buy_treasure_maps	Buy map
+st_camo_atlas_all_terrain	All Terrain
+st_camo_atlas_alpenflage	Alpenflage
 st_camo_atlas_amber_circuit	Amber Circuit
 st_camo_atlas_amethyst_wash	Amethyst Wash
 st_camo_atlas_ash_rain	Ash Rain
@@ -516,12 +518,14 @@ st_camo_atlas_black_ice	Black Ice
 st_camo_atlas_black_thicket	Black Thicket
 st_camo_atlas_blue_shingle	Blue Shingle
 st_camo_atlas_bruise	Bruise
+st_camo_atlas_brushstroke	Brushstroke
 st_camo_atlas_carmine_cloud_hex	Carmine Cloud Hex
 st_camo_atlas_carmine_crosscheck	Carmine Crosscheck
 st_camo_atlas_carmine_pebble	Carmine Pebble
 st_camo_atlas_carmine_screenprint	Carmine Screenprint
 st_camo_atlas_carmine_soundings	Carmine Soundings
 st_camo_atlas_carmine_wave_fan	Carmine Wave Fan
+st_camo_atlas_centre_europe	Centre Europe
 st_camo_atlas_cerise_agate	Cerise Agate
 st_camo_atlas_cerise_beadwork	Cerise Beadwork
 st_camo_atlas_cerise_broadbrush	Cerise Broadbrush
@@ -547,6 +551,7 @@ st_camo_atlas_cobalt_woodgrain	Cobalt Woodgrain
 st_camo_atlas_copper_mesh	Copper Mesh
 st_camo_atlas_copper_rain	Copper Rain
 st_camo_atlas_coral_reeds	Coral Reeds
+st_camo_atlas_danube_leaf	Danube Leaf
 st_camo_atlas_desert_broadbrush	Desert Broadbrush
 st_camo_atlas_desert_broken_grid	Desert Broken Grid
 st_camo_atlas_desert_cloud	Desert Cloud
@@ -574,8 +579,10 @@ st_camo_atlas_desert_wave_fan	Desert Wave Fan
 st_camo_atlas_desert_woodgrain	Desert Woodgrain
 st_camo_atlas_dune_chip	Dune Chip
 st_camo_atlas_ember_leaf	Ember Leaf
+st_camo_atlas_erdl_highland	ERDL Highland
 st_camo_atlas_field_mosaic	Field Mosaic
 st_camo_atlas_fired_clay	Fired Clay
+st_camo_atlas_frogskin	Frogskin
 st_camo_atlas_frost_splinter	Frost Splinter
 st_camo_atlas_garnet_beadwork	Garnet Beadwork
 st_camo_atlas_garnet_broken_grid	Garnet Broken Grid
@@ -617,6 +624,7 @@ st_camo_atlas_kingfisher_cut_paper	Kingfisher Cut Paper
 st_camo_atlas_kingfisher_reed_stripe	Kingfisher Reed Stripe
 st_camo_atlas_kingfisher_screenprint	Kingfisher Screenprint
 st_camo_atlas_kingfisher_soundings	Kingfisher Soundings
+st_camo_atlas_klmk	KLMK
 st_camo_atlas_lagoon_rosette	Lagoon Rosette
 st_camo_atlas_lapis_agate	Lapis Agate
 st_camo_atlas_lapis_beadwork	Lapis Beadwork
@@ -626,7 +634,9 @@ st_camo_atlas_lapis_netting	Lapis Netting
 st_camo_atlas_lapis_tiger_stripe	Lapis Tiger Stripe
 st_camo_atlas_lapis_wax_resist	Lapis Wax Resist
 st_camo_atlas_lapis_woodgrain	Lapis Woodgrain
+st_camo_atlas_leibermuster	Leibermuster
 st_camo_atlas_lichen_pixel	Lichen Pixel
+st_camo_atlas_lizard	Lizard
 st_camo_atlas_madder_crackle	Madder Crackle
 st_camo_atlas_madder_crosscheck	Madder Crosscheck
 st_camo_atlas_madder_cut_paper	Madder Cut Paper
@@ -731,6 +741,7 @@ st_camo_atlas_sundown_pebble	Sundown Pebble
 st_camo_atlas_sundown_reed_stripe	Sundown Reed Stripe
 st_camo_atlas_sundown_terrazzo	Sundown Terrazzo
 st_camo_atlas_sundown_wave_fan	Sundown Wave Fan
+st_camo_atlas_three_color_desert	Three-Color Desert
 st_camo_atlas_tidal_pixel	Tidal Pixel
 st_camo_atlas_ultramarine_agate	Ultramarine Agate
 st_camo_atlas_ultramarine_beadwork	Ultramarine Beadwork
@@ -743,6 +754,7 @@ st_camo_atlas_ultramarine_wax_resist	Ultramarine Wax Resist
 st_camo_atlas_ultraviolet_grid	Ultraviolet Grid
 st_camo_atlas_urban_broadbrush	Urban Broadbrush
 st_camo_atlas_urban_broken_grid	Urban Broken Grid
+st_camo_atlas_urban_brush	Urban Brush
 st_camo_atlas_urban_cloud	Urban Cloud
 st_camo_atlas_urban_crackle	Urban Crackle
 st_camo_atlas_urban_cut_paper	Urban Cut Paper

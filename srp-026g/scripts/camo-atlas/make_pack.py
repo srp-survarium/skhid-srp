@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Build the camo-atlas resource-porter pack from its artwork and the retail 0.26g archive.
 
-python3 make_pack.py --db /path/to/resources.db --reader /path/to/srp-game-data --out /path/to/camo-atlas-4
+python3 make_pack.py --db /path/to/resources.db --reader /path/to/srp-game-data --out /path/to/camo-atlas-5
 Requires Pillow, NumPy and ImageMagick. Catalog order owns the permanent item IDs and icon cells.
 """
 import argparse
@@ -47,7 +47,7 @@ STOCK = {
 
 def catalog():
     seen = set()
-    for folder in (HERE / 'initial', HERE / 'art'):
+    for folder in (HERE / 'initial', HERE / 'art', HERE / 'classics'):
         with (folder / 'catalog.tsv').open(encoding='utf-8', newline='') as stream:
             for row in csv.DictReader(stream, delimiter='\t'):
                 slug = row['slug']
@@ -92,7 +92,7 @@ def build(stock, target):
         images.append(path)
     ops.append({'op': 'dictionary_add', 'table': 'items_dict', 'entries': entries})
     ops.extend(icons.icon_operations(target, images))
-    manifest = dict(format_version=1, id='camo-atlas', version='4', target_build='0.26g',
+    manifest = dict(format_version=1, id='camo-atlas', version='5', target_build='0.26g',
                     description='Camouflage Atlas appearance items for armour and weapons',
                     operations=ops, server={'items': [{'dict_id': e['dict_id']} for e in entries]})
     manifest_bytes = (json.dumps(manifest, indent=2, ensure_ascii=False) + '\n').encode()

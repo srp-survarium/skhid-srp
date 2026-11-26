@@ -1,0 +1,54 @@
+The 12 tiles of this folder (classics/catalog.tsv) are drawn by classics_art.py: seven
+are cut from free swatches of real camouflage patterns, five are original procedural studies of
+classic patterns. classics_art.py fetch downloads the swatches and checks each one's sha256;
+classics_art.py build then reproduces every WebP here byte for byte (checked 2026-11-26 with
+NumPy 2.4.4, Pillow 13.0.0 and SciPy 1.17.1).
+
+Swatches, all from Wikimedia Commons (the page is each catalog row's source_url):
+
+  lizard.webp              French_Lizard_Pattern_Swatch_from_the_1950s.png, by VoltigeurFR,
+                           CC0 1.0 (the 3840 px standard thumbnail of the 11202 px original)
+  erdl-highland.webp       Brown-dominant "highland" ERDL camouflage pattern swatch.svg, uploaded by
+                           Illegitimate Barrister: public domain, a U.S. Government design
+                           (Engineer Research and Development Laboratories); 3840 px rendering
+  three-color-desert.webp  DCU_camo_swatch.png, uploaded by Illegitimate Barrister: public domain, the U.S.
+                           Army's three-colour desert pattern; the original file
+  urban-brush.webp         Phase_I_All-Over_Brush_Urban_Camo_Close-Up_Swatch.png, uploaded by
+                           SergeantSelfExplanatory: public domain, a U.S. Army photograph (from a
+                           briefing on its 2002 Universal Camouflage for the Future Warrior trial)
+                           of a trial pattern; 1280 px thumbnail
+  centre-europe.webp       Bariolage_Centre-Europe.png, by Youri BRIAND, CC0 1.0; the original
+  all-terrain.webp         Bariolage_multi-environnement_(B.M.E.).png, by Youri BRIAND, CC0 1.0;
+                           the original
+  danube-leaf.webp         2015M.png, by Shotya, CC0 1.0; the original
+
+The ERDL and DCU files are flat copies of the two U.S. Army designs, which Commons files as
+public domain (PD-USGov-Military-Army, PD-US-1978-89): the ERDL one was taken from a print
+design on Spoonflower, the DCU one from a fabric shop's product image (both linked on their
+Commons pages). A faithful copy of a two-dimensional public-domain design adds no copyright of
+its own in the United States.
+
+CC0 1.0: https://creativecommons.org/publicdomain/zero/1.0/
+A work of the U.S. Government is in the public domain in the United States (17 U.S.C. 105).
+
+The three CC0 drawings render current national patterns: the French Army's Centre Europe (CCE)
+and Bariolage multi-environnement (BME), and the Hungarian Defence Forces' 2015M. The uploaders
+dedicated their drawings to the public domain; whether the armies claim a design right in the
+patterns themselves is not stated on those pages. The project owner decides whether to ship them.
+
+Each crop is made periodic by replacing a strip at its left and top edges with the pixels that
+followed the crop in the swatch, cut along the path of least colour difference, so the tile's
+edges meet as the swatch's own did. Centre Europe and the desert swatch are themselves repeats,
+and their crops run over the swatch's edges.
+
+Studies (brushstroke, frogskin, alpenflage, klmk, leibermuster): drawn from the seeds and
+palettes in classics_art.py; they read no image. Each recalls a classic family (the Rhodesian
+brushstroke, the 1940s U.S. spot patterns, the Swiss TAZ 83, the Soviet KLMK, the 1945 German
+Leibermuster) without copying a swatch of it. They were written on 2026-11-26 by a coding agent,
+like initial/; no licence has been stated for them yet, as for initial/.
+
+Looked at and left out: SnowyCocoon's free packs (every motif is already in art/), ShareTextures
+(its "CC0" adds use and redistribution limits), Megabyte Games' Chromatic Camouflage (CC BY 4.0,
+disclosed as AI-assisted), CC BY-SA swatches, photographs of folded garments, recolours of a
+pattern chosen here (ERDL lowland, M81, CCE Daguet, Alpin and Montagne, BME variants), and
+restricted designs (MARPAT, CADPAT, MultiCam and OCP, commercial hunting patterns).

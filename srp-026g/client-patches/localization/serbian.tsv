@@ -501,6 +501,8 @@ st_buy_premium_with_discount	Kupite sada uz popust!
 st_buy_profile_confirmation_text	Želite li da napravite novog lika?
 st_buy_profile_price_text	Cena profila: 
 st_buy_treasure_maps	Kupi mapu
+st_camo_atlas_all_terrain	Svaki teren
+st_camo_atlas_alpenflage	Alpenflage
 st_camo_atlas_amber_circuit	Ćilibarno kolo
 st_camo_atlas_amethyst_wash	Ametistna lavura
 st_camo_atlas_ash_rain	Pepeljasta kiša
@@ -516,12 +518,14 @@ st_camo_atlas_black_ice	Poledica
 st_camo_atlas_black_thicket	Crno šipražje
 st_camo_atlas_blue_shingle	Plava šindra
 st_camo_atlas_bruise	Modrica
+st_camo_atlas_brushstroke	Potez četkom
 st_camo_atlas_carmine_cloud_hex	Karminsko oblačno saće
 st_camo_atlas_carmine_crosscheck	Karminski ukršteni karo
 st_camo_atlas_carmine_pebble	Karminski oblutak
 st_camo_atlas_carmine_screenprint	Karminska sitoštampa
 st_camo_atlas_carmine_soundings	Karminske izobate
 st_camo_atlas_carmine_wave_fan	Karminska lepeza talasa
+st_camo_atlas_centre_europe	Centralna Evropa
 st_camo_atlas_cerise_agate	Višnjasti ahat
 st_camo_atlas_cerise_beadwork	Višnjaste perlice
 st_camo_atlas_cerise_broadbrush	Višnjasta široka četka
@@ -547,6 +551,7 @@ st_camo_atlas_cobalt_woodgrain	Kobaltni godovi drveta
 st_camo_atlas_copper_mesh	Bakarna mrežica
 st_camo_atlas_copper_rain	Bakarna kiša
 st_camo_atlas_coral_reeds	Koralna trska
+st_camo_atlas_danube_leaf	Dunavski list
 st_camo_atlas_desert_broadbrush	Pustinjska široka četka
 st_camo_atlas_desert_broken_grid	Pustinjska izlomljena rešetka
 st_camo_atlas_desert_cloud	Pustinjski oblak
@@ -574,8 +579,10 @@ st_camo_atlas_desert_wave_fan	Pustinjska lepeza talasa
 st_camo_atlas_desert_woodgrain	Pustinjski godovi drveta
 st_camo_atlas_dune_chip	Peščani drobir
 st_camo_atlas_ember_leaf	Žareći list
+st_camo_atlas_erdl_highland	Planinski ERDL
 st_camo_atlas_field_mosaic	Poljski mozaik
 st_camo_atlas_fired_clay	Pečena glina
+st_camo_atlas_frogskin	Žablja koža
 st_camo_atlas_frost_splinter	Mrazne krhotine
 st_camo_atlas_garnet_beadwork	Grimizne perlice
 st_camo_atlas_garnet_broken_grid	Grimizna izlomljena rešetka
@@ -617,6 +624,7 @@ st_camo_atlas_kingfisher_cut_paper	Isečeni papir vodomara
 st_camo_atlas_kingfisher_reed_stripe	Trščana pruga vodomara
 st_camo_atlas_kingfisher_screenprint	Sitoštampa vodomara
 st_camo_atlas_kingfisher_soundings	Izobate vodomara
+st_camo_atlas_klmk	KLMK
 st_camo_atlas_lagoon_rosette	Lagunske rozete
 st_camo_atlas_lapis_agate	Lazurni ahat
 st_camo_atlas_lapis_beadwork	Lazurne perlice
@@ -626,7 +634,9 @@ st_camo_atlas_lapis_netting	Lazurna mreža
 st_camo_atlas_lapis_tiger_stripe	Lazurna tigrasta pruga
 st_camo_atlas_lapis_wax_resist	Lazurni batik
 st_camo_atlas_lapis_woodgrain	Lazurni godovi drveta
+st_camo_atlas_leibermuster	Leibermuster
 st_camo_atlas_lichen_pixel	Lišajni piksel
+st_camo_atlas_lizard	Gušter
 st_camo_atlas_madder_crackle	Rumeni krakelir
 st_camo_atlas_madder_crosscheck	Rumeni ukršteni karo
 st_camo_atlas_madder_cut_paper	Rumeni isečeni papir
@@ -731,6 +741,7 @@ st_camo_atlas_sundown_pebble	Oblutak sutona
 st_camo_atlas_sundown_reed_stripe	Trščana pruga sutona
 st_camo_atlas_sundown_terrazzo	Teraco sutona
 st_camo_atlas_sundown_wave_fan	Lepeza talasa sutona
+st_camo_atlas_three_color_desert	Trobojna pustinja
 st_camo_atlas_tidal_pixel	Plimski piksel
 st_camo_atlas_ultramarine_agate	Ultramarinski ahat
 st_camo_atlas_ultramarine_beadwork	Ultramarinske perlice
@@ -743,6 +754,7 @@ st_camo_atlas_ultramarine_wax_resist	Ultramarinski batik
 st_camo_atlas_ultraviolet_grid	Ultraljubičasta rešetka
 st_camo_atlas_urban_broadbrush	Gradska široka četka
 st_camo_atlas_urban_broken_grid	Gradska izlomljena rešetka
+st_camo_atlas_urban_brush	Gradska četka
 st_camo_atlas_urban_cloud	Gradski oblak
 st_camo_atlas_urban_crackle	Gradski krakelir
 st_camo_atlas_urban_cut_paper	Gradski isečeni papir

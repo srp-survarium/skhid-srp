@@ -501,6 +501,8 @@ st_buy_premium_with_discount	Kup w niższej cenie już dziś!
 st_buy_profile_confirmation_text	Stworzyć nowego bohatera?
 st_buy_profile_price_text	Profil dostępny dla:
 st_buy_treasure_maps	Kup mapę
+st_camo_atlas_all_terrain	Każdy teren
+st_camo_atlas_alpenflage	Alpenflage
 st_camo_atlas_amber_circuit	Bursztynowy obwód
 st_camo_atlas_amethyst_wash	Ametystowe lawowanie
 st_camo_atlas_ash_rain	Popielny deszcz
@@ -516,12 +518,14 @@ st_camo_atlas_black_ice	Gołoledź
 st_camo_atlas_black_thicket	Czarna gęstwina
 st_camo_atlas_blue_shingle	Niebieski gont
 st_camo_atlas_bruise	Siniak
+st_camo_atlas_brushstroke	Pociągnięcie pędzla
 st_camo_atlas_carmine_cloud_hex	Karminowe sześciokątne chmury
 st_camo_atlas_carmine_crosscheck	Karminowa krzyżowa krata
 st_camo_atlas_carmine_pebble	Karminowy otoczak
 st_camo_atlas_carmine_screenprint	Karminowy sitodruk
 st_camo_atlas_carmine_soundings	Karminowe izobaty
 st_camo_atlas_carmine_wave_fan	Karminowy wachlarz fal
+st_camo_atlas_centre_europe	Europa Środkowa
 st_camo_atlas_cerise_agate	Wiśniowy agat
 st_camo_atlas_cerise_beadwork	Wiśniowe koraliki
 st_camo_atlas_cerise_broadbrush	Wiśniowy szeroki pędzel
@@ -547,6 +551,7 @@ st_camo_atlas_cobalt_woodgrain	Kobaltowe słoje drewna
 st_camo_atlas_copper_mesh	Miedziana siatka
 st_camo_atlas_copper_rain	Miedziany deszcz
 st_camo_atlas_coral_reeds	Koralowe trzciny
+st_camo_atlas_danube_leaf	Dunajski liść
 st_camo_atlas_desert_broadbrush	Pustynny szeroki pędzel
 st_camo_atlas_desert_broken_grid	Pustynna łamana siatka
 st_camo_atlas_desert_cloud	Pustynna chmura
@@ -574,8 +579,10 @@ st_camo_atlas_desert_wave_fan	Pustynny wachlarz fal
 st_camo_atlas_desert_woodgrain	Pustynne słoje drewna
 st_camo_atlas_dune_chip	Wydmowy grys
 st_camo_atlas_ember_leaf	Tlący się liść
+st_camo_atlas_erdl_highland	Górski ERDL
 st_camo_atlas_field_mosaic	Polna mozaika
 st_camo_atlas_fired_clay	Wypalona glina
+st_camo_atlas_frogskin	Żabia skóra
 st_camo_atlas_frost_splinter	Mroźne odłamki
 st_camo_atlas_garnet_beadwork	Rubinowe koraliki
 st_camo_atlas_garnet_broken_grid	Rubinowa łamana siatka
@@ -617,6 +624,7 @@ st_camo_atlas_kingfisher_cut_paper	Wycinanka zimorodka
 st_camo_atlas_kingfisher_reed_stripe	Trzcinowy pas zimorodka
 st_camo_atlas_kingfisher_screenprint	Sitodruk zimorodka
 st_camo_atlas_kingfisher_soundings	Izobaty zimorodka
+st_camo_atlas_klmk	KLMK
 st_camo_atlas_lagoon_rosette	Lagunowe rozety
 st_camo_atlas_lapis_agate	Lazurytowy agat
 st_camo_atlas_lapis_beadwork	Lazurytowe koraliki
@@ -626,7 +634,9 @@ st_camo_atlas_lapis_netting	Lazurytowa sieć
 st_camo_atlas_lapis_tiger_stripe	Lazurytowy tygrysi pas
 st_camo_atlas_lapis_wax_resist	Lazurytowy batik
 st_camo_atlas_lapis_woodgrain	Lazurytowe słoje drewna
+st_camo_atlas_leibermuster	Leibermuster
 st_camo_atlas_lichen_pixel	Porostowy piksel
+st_camo_atlas_lizard	Jaszczurka
 st_camo_atlas_madder_crackle	Kraplakowa krakelura
 st_camo_atlas_madder_crosscheck	Kraplakowa krzyżowa krata
 st_camo_atlas_madder_cut_paper	Kraplakowa wycinanka
@@ -731,6 +741,7 @@ st_camo_atlas_sundown_pebble	Otoczak zmierzchu
 st_camo_atlas_sundown_reed_stripe	Trzcinowy pas zmierzchu
 st_camo_atlas_sundown_terrazzo	Lastryko zmierzchu
 st_camo_atlas_sundown_wave_fan	Wachlarz fal zmierzchu
+st_camo_atlas_three_color_desert	Trójbarwna pustynia
 st_camo_atlas_tidal_pixel	Pływowy piksel
 st_camo_atlas_ultramarine_agate	Ultramarynowy agat
 st_camo_atlas_ultramarine_beadwork	Ultramarynowe koraliki
@@ -743,6 +754,7 @@ st_camo_atlas_ultramarine_wax_resist	Ultramarynowy batik
 st_camo_atlas_ultraviolet_grid	Ultrafioletowa siatka
 st_camo_atlas_urban_broadbrush	Miejski szeroki pędzel
 st_camo_atlas_urban_broken_grid	Miejska łamana siatka
+st_camo_atlas_urban_brush	Miejski pędzel
 st_camo_atlas_urban_cloud	Miejska chmura
 st_camo_atlas_urban_crackle	Miejska krakelura
 st_camo_atlas_urban_cut_paper	Miejska wycinanka

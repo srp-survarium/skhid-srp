@@ -501,6 +501,8 @@ st_buy_premium_with_discount	Придбайте зараз зі знижкою!
 st_buy_profile_confirmation_text	Створити нового персонажа?
 st_buy_profile_price_text	Вартість створення:
 st_buy_treasure_maps	Придбати мапу
+st_camo_atlas_all_terrain	Будь-яка місцевість
+st_camo_atlas_alpenflage	Альпенфляж
 st_camo_atlas_amber_circuit	Бурштинова схема
 st_camo_atlas_amethyst_wash	Аметистова заливка
 st_camo_atlas_ash_rain	Попелястий дощ
@@ -516,12 +518,14 @@ st_camo_atlas_black_ice	Ожеледь
 st_camo_atlas_black_thicket	Чорна хаща
 st_camo_atlas_blue_shingle	Синя черепиця
 st_camo_atlas_bruise	Синець
+st_camo_atlas_brushstroke	Мазок пензля
 st_camo_atlas_carmine_cloud_hex	Кармінові хмарні стільники
 st_camo_atlas_carmine_crosscheck	Кармінова перехресна клітинка
 st_camo_atlas_carmine_pebble	Кармінова галька
 st_camo_atlas_carmine_screenprint	Кармінова шовкографія
 st_camo_atlas_carmine_soundings	Кармінові ізобати
 st_camo_atlas_carmine_wave_fan	Кармінове віяло хвиль
+st_camo_atlas_centre_europe	Центральна Європа
 st_camo_atlas_cerise_agate	Вишневий агат
 st_camo_atlas_cerise_beadwork	Вишневий бісер
 st_camo_atlas_cerise_broadbrush	Вишневий широкий мазок
@@ -547,6 +551,7 @@ st_camo_atlas_cobalt_woodgrain	Кобальтовий деревний візе�
 st_camo_atlas_copper_mesh	Мідна сітка
 st_camo_atlas_copper_rain	Мідний дощ
 st_camo_atlas_coral_reeds	Кораловий очерет
+st_camo_atlas_danube_leaf	Дунайський лист
 st_camo_atlas_desert_broadbrush	Пустельний широкий мазок
 st_camo_atlas_desert_broken_grid	Пустельна ламана сітка
 st_camo_atlas_desert_cloud	Пустельна хмара
@@ -574,8 +579,10 @@ st_camo_atlas_desert_wave_fan	Пустельне віяло хвиль
 st_camo_atlas_desert_woodgrain	Пустельний деревний візерунок
 st_camo_atlas_dune_chip	Піщана крихта
 st_camo_atlas_ember_leaf	Жаристий лист
+st_camo_atlas_erdl_highland	Гірський ERDL
 st_camo_atlas_field_mosaic	Польова мозаїка
 st_camo_atlas_fired_clay	Обпалена глина
+st_camo_atlas_frogskin	Жаб'яча шкіра
 st_camo_atlas_frost_splinter	Морозні уламки
 st_camo_atlas_garnet_beadwork	Гранатовий бісер
 st_camo_atlas_garnet_broken_grid	Гранатова ламана сітка
@@ -617,6 +624,7 @@ st_camo_atlas_kingfisher_cut_paper	Аплікація рибалочки
 st_camo_atlas_kingfisher_reed_stripe	Очеретяна смуга рибалочки
 st_camo_atlas_kingfisher_screenprint	Шовкографія рибалочки
 st_camo_atlas_kingfisher_soundings	Ізобати рибалочки
+st_camo_atlas_klmk	КЛМК
 st_camo_atlas_lagoon_rosette	Розетки лагуни
 st_camo_atlas_lapis_agate	Лазуритовий агат
 st_camo_atlas_lapis_beadwork	Лазуритовий бісер
@@ -626,7 +634,9 @@ st_camo_atlas_lapis_netting	Лазуритова сіть
 st_camo_atlas_lapis_tiger_stripe	Лазуритова тигрова смуга
 st_camo_atlas_lapis_wax_resist	Лазуритовий батик
 st_camo_atlas_lapis_woodgrain	Лазуритовий деревний візерунок
+st_camo_atlas_leibermuster	Лейбермустер
 st_camo_atlas_lichen_pixel	Лишайниковий піксель
+st_camo_atlas_lizard	Ящірка
 st_camo_atlas_madder_crackle	Мареновий кракелюр
 st_camo_atlas_madder_crosscheck	Маренова перехресна клітинка
 st_camo_atlas_madder_cut_paper	Маренова аплікація
@@ -731,6 +741,7 @@ st_camo_atlas_sundown_pebble	Призахідна галька
 st_camo_atlas_sundown_reed_stripe	Призахідна очеретяна смуга
 st_camo_atlas_sundown_terrazzo	Призахідне тераццо
 st_camo_atlas_sundown_wave_fan	Призахідне віяло хвиль
+st_camo_atlas_three_color_desert	Триколірна пустеля
 st_camo_atlas_tidal_pixel	Припливний піксель
 st_camo_atlas_ultramarine_agate	Ультрамариновий агат
 st_camo_atlas_ultramarine_beadwork	Ультрамариновий бісер
@@ -743,6 +754,7 @@ st_camo_atlas_ultramarine_wax_resist	Ультрамариновий батик
 st_camo_atlas_ultraviolet_grid	Ультрафіолетова сітка
 st_camo_atlas_urban_broadbrush	Міський широкий мазок
 st_camo_atlas_urban_broken_grid	Міська ламана сітка
+st_camo_atlas_urban_brush	Міський мазок
 st_camo_atlas_urban_cloud	Міська хмара
 st_camo_atlas_urban_crackle	Міський кракелюр
 st_camo_atlas_urban_cut_paper	Міська аплікація

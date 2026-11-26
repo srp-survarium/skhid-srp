@@ -501,6 +501,8 @@ st_buy_premium_with_discount	Kup teď se slevou!
 st_buy_profile_confirmation_text	Vytvořit novou postavu? 
 st_buy_profile_price_text	Profil je dostupný za: 
 st_buy_treasure_maps	Koupit mapu
+st_camo_atlas_all_terrain	Každý terén
+st_camo_atlas_alpenflage	Alpenflage
 st_camo_atlas_amber_circuit	Jantarový obvod
 st_camo_atlas_amethyst_wash	Ametystová lavírka
 st_camo_atlas_ash_rain	Popelavý déšť
@@ -516,12 +518,14 @@ st_camo_atlas_black_ice	Náledí
 st_camo_atlas_black_thicket	Černá houština
 st_camo_atlas_blue_shingle	Modrý šindel
 st_camo_atlas_bruise	Modřina
+st_camo_atlas_brushstroke	Tah štětcem
 st_camo_atlas_carmine_cloud_hex	Karmínové oblačné plástve
 st_camo_atlas_carmine_crosscheck	Karmínové křížové káro
 st_camo_atlas_carmine_pebble	Karmínový oblázek
 st_camo_atlas_carmine_screenprint	Karmínový sítotisk
 st_camo_atlas_carmine_soundings	Karmínové izobaty
 st_camo_atlas_carmine_wave_fan	Karmínový vějíř vln
+st_camo_atlas_centre_europe	Střední Evropa
 st_camo_atlas_cerise_agate	Višňový achát
 st_camo_atlas_cerise_beadwork	Višňové korálky
 st_camo_atlas_cerise_broadbrush	Višňový široký štětec
@@ -547,6 +551,7 @@ st_camo_atlas_cobalt_woodgrain	Kobaltová dřevěná kresba
 st_camo_atlas_copper_mesh	Měděná síťka
 st_camo_atlas_copper_rain	Měděný déšť
 st_camo_atlas_coral_reeds	Korálový rákos
+st_camo_atlas_danube_leaf	Dunajský list
 st_camo_atlas_desert_broadbrush	Pouštní široký štětec
 st_camo_atlas_desert_broken_grid	Pouštní lomená mřížka
 st_camo_atlas_desert_cloud	Pouštní mrak
@@ -574,8 +579,10 @@ st_camo_atlas_desert_wave_fan	Pouštní vějíř vln
 st_camo_atlas_desert_woodgrain	Pouštní dřevěná kresba
 st_camo_atlas_dune_chip	Písečná drť
 st_camo_atlas_ember_leaf	Doutnající list
+st_camo_atlas_erdl_highland	Horský ERDL
 st_camo_atlas_field_mosaic	Polní mozaika
 st_camo_atlas_fired_clay	Pálená hlína
+st_camo_atlas_frogskin	Žabí kůže
 st_camo_atlas_frost_splinter	Mrazivé střepy
 st_camo_atlas_garnet_beadwork	Granátové korálky
 st_camo_atlas_garnet_broken_grid	Granátová lomená mřížka
@@ -617,6 +624,7 @@ st_camo_atlas_kingfisher_cut_paper	Vystřihovánka ledňáčka
 st_camo_atlas_kingfisher_reed_stripe	Rákosový pruh ledňáčka
 st_camo_atlas_kingfisher_screenprint	Sítotisk ledňáčka
 st_camo_atlas_kingfisher_soundings	Izobaty ledňáčka
+st_camo_atlas_klmk	KLMK
 st_camo_atlas_lagoon_rosette	Lagunové rozety
 st_camo_atlas_lapis_agate	Lazuritový achát
 st_camo_atlas_lapis_beadwork	Lazuritové korálky
@@ -626,7 +634,9 @@ st_camo_atlas_lapis_netting	Lazuritová síť
 st_camo_atlas_lapis_tiger_stripe	Lazuritový tygří pruh
 st_camo_atlas_lapis_wax_resist	Lazuritová batika
 st_camo_atlas_lapis_woodgrain	Lazuritová dřevěná kresba
+st_camo_atlas_leibermuster	Leibermuster
 st_camo_atlas_lichen_pixel	Lišejníkový pixel
+st_camo_atlas_lizard	Ještěrka
 st_camo_atlas_madder_crackle	Mořenová krakeláž
 st_camo_atlas_madder_crosscheck	Mořenové křížové káro
 st_camo_atlas_madder_cut_paper	Mořenová vystřihovánka
@@ -731,6 +741,7 @@ st_camo_atlas_sundown_pebble	Oblázek soumraku
 st_camo_atlas_sundown_reed_stripe	Rákosový pruh soumraku
 st_camo_atlas_sundown_terrazzo	Teraco soumraku
 st_camo_atlas_sundown_wave_fan	Vějíř vln soumraku
+st_camo_atlas_three_color_desert	Tříbarevná poušť
 st_camo_atlas_tidal_pixel	Přílivový pixel
 st_camo_atlas_ultramarine_agate	Ultramarínový achát
 st_camo_atlas_ultramarine_beadwork	Ultramarínové korálky
@@ -743,6 +754,7 @@ st_camo_atlas_ultramarine_wax_resist	Ultramarínová batika
 st_camo_atlas_ultraviolet_grid	Ultrafialová mřížka
 st_camo_atlas_urban_broadbrush	Městský široký štětec
 st_camo_atlas_urban_broken_grid	Městská lomená mřížka
+st_camo_atlas_urban_brush	Městský štětec
 st_camo_atlas_urban_cloud	Městský mrak
 st_camo_atlas_urban_crackle	Městská krakeláž
 st_camo_atlas_urban_cut_paper	Městská vystřihovánka
