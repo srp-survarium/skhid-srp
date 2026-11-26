@@ -2615,7 +2615,7 @@ it is given to the weapon (0x243A30), calls `weapon_ready` (`.srpw`+0) in place 
 eax,[esp+20h] / push eax` (0x24B0D2, five bytes, no address and no relocation under them). With a
 non-empty `data/camouflage` text in the weapon's merged config (a camouflage upgrade puts it
 there when the config has a `data` table), an `object/model` text and a model with a render
-instance, it asks for one class-6Ch bake for each surface in the instance's native vector (up to 64), as the
+instance, it asks for one class-6Ch bake for each of the instance's surfaces (at most 8), as the
 lobby's decal editor (0x2641A0) asks for one: a camouflage_decal_cook_parameters from the game's
 allocator with the camouflage's diffuse and `_smap` names (not its `_nmap`, a cloth's weave: the
 weapon keeps its own relief, and the Rust patch `weapon_camo` at the baker's 0x12E124 makes a name

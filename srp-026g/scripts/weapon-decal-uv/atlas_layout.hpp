@@ -1,10 +1,10 @@
-// Exact intersection tests on the coordinates that will reach the shader.
+// Exact intersection tests on the coordinates that will reach the shader, and
+// the chart of a face moved out of its xatlas chart.
 #pragma once
 #include <algorithm>
 #include <array>
 #include <cmath>
 #include <cstdint>
-#include <stdexcept>
 #include <vector>
 
 struct Uv {
@@ -24,8 +24,9 @@ inline bool separated(const Triangle &a, const Triangle &b) {
     return false;
 }
 
-// Keep one owner for each overlapping region. A 64x64 grid bounds the
-// candidate pairs. All intersection decisions use integer edge equations.
+// Keep one owner for each overlapping region: the faces returned are the
+// later of each overlapping pair and those of zero area. A 64x64 grid bounds
+// the candidate pairs. All intersection decisions use integer edge equations.
 inline std::vector<uint32_t> conflicts(std::vector<Triangle> triangles) {
     constexpr int cells = 64;
     std::vector<std::vector<uint32_t>> grid(cells * cells);
@@ -66,8 +67,8 @@ inline std::vector<uint32_t> conflicts(std::vector<Triangle> triangles) {
     return rejected;
 }
 
-
 using Position = std::array<float, 3>;
+using Texel = std::array<float, 2>;
 
 inline double distance2(Position a, Position b) {
     double sum = 0;
@@ -78,32 +79,15 @@ inline double distance2(Position a, Position b) {
     return sum;
 }
 
-struct FaceChart {
-    uint32_t face;
-    Triangle uv;
-    int64_t width, height;
-};
-
-// Put a detached face in its own chart. Place its longest side horizontally;
-// the third vertex retains its position along that edge and its altitude.
-// The uncompressed source positions/UVs are still used by the shader.
-inline FaceChart face_chart(uint32_t face, const std::vector<uint16_t> &indices,
-                            const std::vector<Position> &positions, const Triangle &source, double density,
-                            int64_t padding) {
-    std::array<Position, 3> p;
-    for (int i = 0; i < 3; ++i)
-        p[i] = positions[indices[3 * face + i]];
+// A face moved into a chart of its own: its shape in the model, its longest
+// side along x, scaled to the texel area its xatlas chart gave it (or to the
+// atlas's texel density where that area is 0), at least a texel each way.
+inline std::array<Texel, 3> face_chart(std::array<Position, 3> p, double uvArea, double density) {
     int a = 0, b = 1, c = 2;
-    if (distance2(p[1], p[2]) > distance2(p[a], p[b])) {
-        a = 1;
-        b = 2;
-        c = 0;
-    }
-    if (distance2(p[2], p[0]) > distance2(p[a], p[b])) {
-        a = 2;
-        b = 0;
-        c = 1;
-    }
+    if (distance2(p[1], p[2]) > distance2(p[a], p[b]))
+        a = 1, b = 2, c = 0;
+    if (distance2(p[2], p[0]) > distance2(p[a], p[b]))
+        a = 2, b = 0, c = 1;
     double length = std::sqrt(distance2(p[a], p[b]));
     double along = 0, height2 = 0;
     if (length > 0) {
@@ -115,69 +99,11 @@ inline FaceChart face_chart(uint32_t face, const std::vector<uint16_t> &indices,
         }
     }
     double height = std::sqrt(height2);
-    double uvArea = std::abs(side(source[0], source[1], source[2]));
-    double scale = (uvArea > 0 && length * height > 0) ? std::sqrt(uvArea / (length * height)) : density;
-    // A one-texel minimum also gives an originally collapsed face a valid
-    // footprint. Its geometric area can be zero in the donor data.
-    int64_t width = std::clamp<int64_t>(std::llround(length * scale), 32, 65535 - 2 * padding);
-    int64_t high = std::max<int64_t>(32, std::llround(length ? width * height / length : 0));
-    FaceChart chart{face, {}, width, high};
-    chart.uv[a] = {0, 0};
-    chart.uv[b] = {width, 0};
-    chart.uv[c] = {std::clamp<int64_t>(std::llround(length ? width * along / length : 0), 0, width), high};
+    double scale = uvArea > 0 && length * height > 0 ? std::sqrt(2 * uvArea / (length * height)) : density;
+    double width = std::max(1.0, length * scale), high = std::max(1.0, height * scale);
+    std::array<Texel, 3> chart;
+    chart[a] = {0, 0};
+    chart[b] = {float(width), 0};
+    chart[c] = {float(length > 0 ? width * along / length : 0), float(high)};
     return chart;
-}
-
-// Most faces keep the charts produced by xatlas. Some donor islands fold
-// back onto themselves; even quantizing a thin face can introduce overlap.
-// Move just one owner of each conflict into a padded strip of separate
-// charts. Recheck after quantization; each iteration detaches new faces.
-inline std::vector<Triangle> separate(std::vector<Triangle> source, const std::vector<uint16_t> &indices,
-                                      const std::vector<Position> &positions, unsigned resolution) {
-    auto bad = conflicts(source);
-    if (bad.empty())
-        return source;
-    const int64_t pad = (8 * 65535 + resolution - 1) / resolution;
-    const double density = 65535. / 1000.; // working mesh's longest axis is 1000
-    std::vector<bool> detached(source.size());
-    std::vector<FaceChart> charts;
-    do {
-        for (auto i : bad) {
-            if (detached[i])
-                throw std::runtime_error("detached chart intersects another face");
-            detached[i] = true;
-            charts.push_back(face_chart(i, indices, positions, source[i], density, pad));
-        }
-        std::sort(charts.begin(), charts.end(), [](const auto &a, const auto &b) {
-            return a.height != b.height ? a.height > b.height : a.face < b.face;
-        });
-        std::vector<Triangle> result = source;
-        int64_t x = pad, y = pad, row = 0;
-        for (const auto &chart : charts) {
-            if (x + chart.width + pad > 65535) {
-                x = pad;
-                y += row + 2 * pad;
-                row = 0;
-            }
-            for (int k = 0; k < 3; ++k)
-                result[chart.face][k] = {x + chart.uv[k].x, y + chart.uv[k].y};
-            x += chart.width + 2 * pad;
-            row = std::max(row, chart.height);
-        }
-        int64_t strip = y + row + pad;
-        if (strip >= 65535 - pad)
-            throw std::runtime_error("detached charts exceed the atlas");
-        for (size_t i = 0; i < result.size(); ++i)
-            for (auto &p : result[i]) {
-                if (detached[i])
-                    p.y += 65535 - strip;
-                else
-                    p.y = (p.y * (65535 - strip - pad) + 32767) / 65535;
-            }
-        bad = conflicts(result);
-        if (bad.empty())
-            return result;
-        // conflicts() keeps the first owner; detached and original bands
-        // are disjoint, so any new owner belongs to the compressed band.
-    } while (true);
 }

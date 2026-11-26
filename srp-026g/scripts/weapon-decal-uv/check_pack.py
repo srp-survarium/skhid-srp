@@ -11,6 +11,7 @@ import sys
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from make_pack import FAMILIES, content_edit, shader_sources
+from shaders import channel_offset
 
 
 def versioned_packs(manifest, directory):
@@ -69,6 +70,11 @@ def audit(args):
                 raise ValueError(f'{path}: packed shader differs from generator')
         elif path in declared:
             raise ValueError(f'{path}: redundant shader override')
+    # One buffer name, one layout: every patched material program carries the
+    # channel flags at the same offset.
+    offsets = {channel_offset((files / path).read_bytes()) for path in declared if '/gbuffer_pass.ps/' in path}
+    if len(offsets) != 1:
+        raise ValueError(f'srp_weapon_bake_channels at offsets {sorted(offsets)}')
     for path, op in declared.items():
         upstream = shaders[path][1] if path.startswith('shaders/') else source / path
         if op['op'] != 'replace_file' or op['base_sha256'] != sha256(upstream.read_bytes()).hexdigest():

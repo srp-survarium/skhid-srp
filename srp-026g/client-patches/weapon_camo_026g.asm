@@ -19,7 +19,7 @@
 ; calls `weapon_ready` in place of `lea eax,[esp+20h] / push eax` (0x24B0D2).
 ; With `data/camouflage` a non-empty text or decals in `data/decals`
 ; (DECALS' lookup), it asks, for each surface of the model's render instance
-; (at most SURFACES), for the bake the lobby's editor asks for: one P
+; (at most MAX_SURFACES), for the bake the lobby's editor asks for: one P
 ; from the game's allocator, the camouflage's diffuse and `_smap` names (not
 ; its `_nmap`) and the decals' layers (DECALS' fill), the render instance (one
 ; reference more), the surface's index, the scale (`data/camo_scale`, else
@@ -77,6 +77,7 @@ CONFIG_ROOT         equ 0x108
 REFERENCES          equ 0xD0
 T_FLOAT             equ 2
 T_STRING            equ 5
+MAX_SURFACES        equ 8
 SURFACES            equ 64          ; the inline buffer of get_all_surfaces' vector
 
 ; the frame below ebp (ebp = esp after pushad)
@@ -190,9 +191,9 @@ bake_weapon:
     mov eax, [ebp+VECTOR+4]
     sub eax, [ebp+VECTOR]
     shr eax, 2
-    cmp eax, SURFACES
+    cmp eax, MAX_SURFACES
     jbe .count
-    mov eax, SURFACES
+    mov eax, MAX_SURFACES
 .count:
     mov [ebp+COUNT], eax
     xor ebx, ebx

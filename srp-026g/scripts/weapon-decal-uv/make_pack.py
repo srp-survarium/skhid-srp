@@ -84,7 +84,7 @@ def weapon_meshes(pack, source, unwrap, directory, jobs):
     def convert(entry):
         key, paths = entry
         output = directory/key
-        subprocess.run([unwrap, paths[0], output, '2048'], check=True)
+        subprocess.run([unwrap, paths[0], output], check=True)
         return paths, output.read_bytes()
 
     with ThreadPoolExecutor(max_workers=jobs) as workers:
@@ -106,15 +106,12 @@ def main(args):
     args.out.parent.mkdir(parents=True, exist_ok=True)
     if args.out.exists():
         raise ValueError(f'{args.out} already exists')
-    archives = ['--db', args.stock]
-    for base in args.base:
-        archives.extend(['--patch', base])
     with tempfile.TemporaryDirectory(dir=args.out.parent) as scratch:
         tmp = Path(scratch)
         output = tmp/'pack'
         output.mkdir()
         pack = Pack(output)
-        sources = shader_sources(args.game_data, archives, args.shader_pack, tmp)
+        sources = shader_sources(args.game_data, ['--db', args.stock], args.shader_pack, tmp)
         for path, (owner, file) in sorted(sources.items()):
             src = file.read_bytes()
             data = FAMILIES[path.split('/')[2]](src)
@@ -129,7 +126,6 @@ def main(args):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--stock', type=Path, required=True, help='stock 0.26g resources.db')
-    parser.add_argument('--base', type=Path, action='append', default=[], help='published base row from content.tsv')
     parser.add_argument('--weapons', type=Path, required=True, help='weapon-modules source pack')
     parser.add_argument('--shader-pack', type=Path, action='append', default=[], help='upstream shader pack, in manifest order')
     parser.add_argument('--game-data', type=Path, required=True)

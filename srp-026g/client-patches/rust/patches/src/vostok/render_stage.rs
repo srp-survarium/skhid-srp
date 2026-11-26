@@ -20,6 +20,7 @@ use core::num::NonZeroU32;
 use core::sync::atomic::{AtomicU32, Ordering};
 
 use super::context::{Context, Reg};
+use super::log::{self, Piece::Text};
 use super::sync::Lock;
 use crate::raw;
 
@@ -304,17 +305,26 @@ unsafe impl Send for BakeCoordinates {}
 
 static BAKE_COORDINATES: Lock<Option<BakeCoordinates>> = Lock::new(None);
 
+/// Registers `srp_weapon_bake_channels` at `gbuffer.bake_host`. With no host,
+/// every surface draws with its material coordinates (a baked weapon's decal
+/// and camouflage in the wrong place), so the stage says so once.
 pub fn register_bake_coordinates(ctx: &Context<'_>) {
     let host = register_host(c"srp_weapon_bake_channels").map(BakeCoordinates);
+    if host.is_none() {
+        log::line(&[Text("weapon decals: no host srp_weapon_bake_channels: baked weapons drawn in material UVs")]);
+    }
     BAKE_COORDINATES.with(ctx.thread(), |slot| *slot = host);
 }
 
+/// At `gbuffer.bake_coordinates`: one flag a channel (diffuse, normal,
+/// fresnel, smoothness), 1 where the surface's override slot holds a bake.
 pub fn set_bake_coordinates(ctx: &Context<'_>) {
     use raw::site::gbuffer_bake_coordinates as site;
     let Some(host) = BAKE_COORDINATES.with(ctx.thread(), |slot| slot.as_ref().map(|h| h.0)) else { return };
-    // SAFETY: render_models has a live instance and backend across this
-    // draw. Its four override slots, in D/N/F/S order, are the ones it
-    // just used for t_base, t_normal, t_fresnel and t_roughness.
+    // SAFETY: render_models has a live instance (EDX) and backend (EDI)
+    // across this draw. Its four override slots, in D/N/F/S order, are the
+    // ones it just used for t_base, t_normal, t_fresnel and t_roughness; the
+    // value is the 16 bytes a host's binding reads.
     unsafe {
         let (Some(surface), Some(backend)) = (site::surface(ctx), site::backend(ctx)) else { return };
         let channels: [f32; 4] =

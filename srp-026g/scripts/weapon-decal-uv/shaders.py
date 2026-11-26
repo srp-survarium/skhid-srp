@@ -180,6 +180,7 @@ def bake_vertex(resource):
     if len(indices) != 1:
         raise ValueError('unrecognized native unwrap projection')
     at = indices[0]
+    material = p.vertex_input('TEXCOORD', 3)
     old_projection, old_uv = p.ops[at:at+2]
     if old_uv != [0x5000036, 0x102032, 7, 0x100086, 0]:
         raise ValueError('unrecognized material coordinates')
@@ -189,7 +190,7 @@ def bake_vertex(resource):
         old_projection[:3] + pair(scratch) + old_projection[5:],
         # Preserve unwrapped source coordinates on a triangle crossing a
         # sampler wrap boundary. Untagged assets get the stock shader result.
-        ins(55, old_uv[1:3], scalar(tag, 0), pair(5, INPUT), old_uv[3:]),
+        ins(55, old_uv[1:3], scalar(tag, 0), pair(material, INPUT), old_uv[3:]),
     ]
     return p.finish()
 
@@ -229,12 +230,19 @@ def resources(reflection):
         yield string(reflection, name), name, kind, slot, length
 
 
-def channel_constant(program):
-    """Give the shader its own material buffer and a named four-channel host.
+# The float4 of deferred_material_parameters that carries the channel flags:
+# unused by every gbuffer_pass.ps program the pack patches. Every patched
+# program renames the same field, so the one buffer name has one layout.
+CHANNEL_FIELD = 'sequence_parameters'
+CHANNEL_HOST = b'srp_weapon_bake_channels'
 
-    The native compiler emitted the full deferred-material layout for every
-    permutation. Use a float4 it marked unused in this permutation. A distinct
-    buffer name keeps updates out of the engine's ordinary material buffer.
+
+def channel_constant(program):
+    """Give the shader its own material buffer and the named four-channel host.
+
+    CHANNEL_FIELD becomes srp_weapon_bake_channels. A distinct buffer name
+    (as long as the original) keeps updates out of the engine's ordinary
+    material buffer.
     """
     r = program.chunks[b'RDEF']
     source = 'deferred_material_parameters'
@@ -242,28 +250,37 @@ def channel_constant(program):
     bindings = list(resources(r))
     slot, = (slot for name, _, kind, slot, _ in bindings if name == source and kind == 0)
     count, start = struct.unpack_from('<II', r)
+    buffer, = (start+i*24 for i in range(count) if string(r, uint(r, start+i*24)) == source)
+    name, fields, field_start = struct.unpack_from('<3I', r, buffer)
+    field, = (field_start+j*24 for j in range(fields) if string(r, uint(r, field_start+j*24)) == CHANNEL_FIELD)
+    _, offset, size, flags, type_info, _ = struct.unpack_from('<6I', r, field)
+    if flags & 2 or size != 16 or offset % 16 or struct.unpack_from('<4H', r, type_info) != (1, 3, 1, 4):
+        raise ValueError(f'{CHANNEL_FIELD} is no unused float4')
+    store(r, field, len(r))
+    store(r, field+12, flags | 2)
+    r.extend(CHANNEL_HOST + b'\0')
+    r.extend(bytes(-len(r) % 4))
+    for at in {name} | {at for text, at, kind, _, _ in bindings if kind == 0 and text == source}:
+        r[at:at+len(target)] = target
+    declaration, = (op for op in program.ops if op[0] & 2047 == 89 and op[2] == slot)
+    index = offset // 16
+    declaration[3] = max(declaration[3], index+1)
+    return slot, index
+
+
+def channel_offset(resource):
+    """The byte offset of srp_weapon_bake_channels in a patched program's buffer."""
+    r = Program(resource).chunks[b'RDEF']
+    count, start = struct.unpack_from('<II', r)
+    offsets = set()
     for i in range(count):
-        name, fields, field_start, _, _, _ = struct.unpack_from('<6I', r, start+i*24)
-        if string(r, name) != source:
-            continue
+        _, fields, field_start = struct.unpack_from('<3I', r, start+i*24)
         for j in range(fields):
             field = field_start+j*24
-            _, offset, size, flags, type_info, _ = struct.unpack_from('<6I', r, field)
-            if flags & 2 or size != 16 or offset % 16 or struct.unpack_from('<4H', r, type_info) != (1, 3, 1, 4):
-                continue
-            store(r, field, len(r))
-            store(r, field+12, flags | 2)
-            r.extend(b'srp_weapon_bake_channels\0')
-            r.extend(bytes(-len(r) % 4))
-            for at in {name} | {at for text, at, kind, _, _ in bindings if kind == 0 and text == source}:
-                if len(target) != len(source):
-                    raise ValueError('buffer name width differs')
-                r[at:at+len(target)] = target
-            declaration, = (op for op in program.ops if op[0] & 2047 == 89 and op[2] == slot)
-            index = offset // 16
-            declaration[3] = max(declaration[3], index+1)
-            return slot, index
-    raise ValueError('material buffer has no unused float4')
+            if string(r, uint(r, field)) == CHANNEL_HOST.decode():
+                offsets.add(uint(r, field+4))
+    offset, = offsets
+    return offset
 
 
 def draw_pixel(resource):
