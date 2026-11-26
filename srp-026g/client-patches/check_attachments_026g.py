@@ -9,8 +9,8 @@ and the original.
 Requires Python `unicorn`. The exe's sections are loaded as they are, the
 arena with them; the game's own code runs between the sites, on made-up
 objects. The modules table is the weapon-modules crate's checked-in sample
-(../crates/weapon-modules/tests/sample-v3.srpm), and what must stand where is
-that crate's own `resolve`, pinned beside it (sample-v3.loadouts.tsv, kept
+(../crates/weapon-modules/tests/sample-v4.srpm), and what must stand where is
+that crate's own `resolve`, pinned beside it (sample-v4.loadouts.tsv, kept
 by the crate's test): nothing here works a loadout out again.
 
 - the table's way in: the items dictionary cook's query at its site
@@ -136,28 +136,31 @@ def close(a, b, eps=1e-5):
 
 
 def loadouts():
-    """sample-v3.loadouts.tsv: {(gun, scope, muzzle, grip): a case}. A case
-    is "whole", ("refused", why) or a dict: body, bones, parts [(model, bone,
-    matrix)], optic, eye (by anchor), fire, wrist (each (bone, matrix)),
-    fingers (fifteen matrices, or None), effect."""
+    """sample-v4.loadouts.tsv: {(gun, scope, muzzle, grip): a case}, with a
+    second sight {(gun, scope, muzzle, grip, second sight, side)}. A case is
+    "whole", ("refused", why) or a dict: body, bones, parts [(model, bone,
+    matrix)], optic, eye and eye2 (by anchor), second, fire, wrist (each
+    (bone, matrix)), fingers (fifteen matrices, or None), effect."""
     cases, case = {}, None
-    for line in (SAMPLE / "sample-v3.loadouts.tsv").read_text().splitlines():
+    for line in (SAMPLE / "sample-v4.loadouts.tsv").read_text().splitlines():
         head, *rest = line.split("\t")
         placed = lambda cells: (int(cells[0]), matrix([float(v) for v in cells[1:13]]))
         if head == "case":
-            key = tuple(int(v) for v in rest)
+            ids = tuple(int(v) for v in rest[:5])
+            key = ids[:4] if ids[4] == 0 else ids + ({"left": 0, "right": 1}[rest[5]],)
         elif head == "whole":
             cases[key] = "whole"
         elif head == "refused":
             cases[key] = ("refused", rest[0])
         elif head == "bare":
-            case = cases[key] = {"body": rest[0], "bones": int(rest[1]), "parts": [], "eye": {}, "fingers": None}
+            case = cases[key] = {"body": rest[0], "bones": int(rest[1]), "parts": [], "eye": {}, "eye2": {},
+                                 "fingers": None}
         elif head == "part":
             case["parts"].append((rest[0], *placed(rest[1:])))
-        elif head in ("optic", "fire", "wrist"):
+        elif head in ("optic", "fire", "wrist", "second"):
             case[head] = placed(rest)
-        elif head == "eye":
-            case["eye"][rest[0]] = placed(rest[1:])
+        elif head in ("eye", "eye2"):
+            case[head][rest[0]] = placed(rest[1:])
         elif head == "fingers":
             floats = [float(v) for v in rest]
             case["fingers"] = [matrix(floats[12 * n:12 * n + 12]) for n in range(15)]
@@ -590,7 +593,7 @@ def main():
     late_join = open(base.late_join_bin(), "rb").read()
     built, _ = base.build(original, "section", open(base.default_bin("section"), "rb").read(), None, late_join)
     built = bytes(built)
-    table = (SAMPLE / "sample-v3.srpm").read_bytes()
+    table = (SAMPLE / "sample-v4.srpm").read_bytes()
     cases = loadouts()
     failed = 0
 
@@ -607,13 +610,16 @@ def main():
         run.dictionary_configs(6, table)
         return run
 
-    AK, DTK3, MIKI, PSO1, EOTECH, HK416 = 3, 1415, 1438, 1755, 1771, 763
+    AK, DTK3, MIKI, PSO1, EOTECH, HK416, DPPRO = 3, 1415, 1438, 1755, 1771, 763, 2112
     NATIVE = [("weapons/ak74m/ak74m", 0x10), ("weapons/ak_74/preview", 0x31), ("shells/5_45x040", 0x3D),
               ("fx/weapons/ak_74", 0x3D), ("fx/weapons/ak_74", 0x3D)]
     GAME_RECORDS = [(1, translate(0.0, 0.042, -0.636)), (1, translate(0.0, 0.07, 0.02)), (0, translate(0.0, 0.08, 0.1))]
 
-    def named(gun, scope=0, muzzle=0, grip=0):
-        return {"srp_gun": gun, "srp_scope": scope, "srp_muzzle": muzzle, "srp_grip": grip}
+    def named(gun, scope=0, muzzle=0, grip=0, second=0, side=0):
+        config = {"srp_gun": gun, "srp_scope": scope, "srp_muzzle": muzzle, "srp_grip": grip}
+        if second:
+            config.update({"srp_second_sight": second, "srp_second_side": side})
+        return config
 
     print("the table's way in (the items dictionary cook's query 0x2C8963, its callback 0x2C8AA0)")
     a, b = Run(original).dictionary_query(), Run(built).dictionary_query()
@@ -653,7 +659,13 @@ def main():
             ("a grip, with its forend", named(AK, grip=MIKI), (AK, 0, 0, MIKI)),
             ("a scope on the dovetail", named(AK, scope=PSO1), (AK, PSO1, 0, 0)),
             ("a scope with its rail", named(AK, scope=EOTECH), (AK, EOTECH, 0, 0)),
-            ("all three", named(AK, PSO1, DTK3, MIKI), (AK, PSO1, DTK3, MIKI))):
+            ("all three", named(AK, PSO1, DTK3, MIKI), (AK, PSO1, DTK3, MIKI)),
+            ("a second sight on the right, with its offset rail", named(HK416, second=DPPRO, side=1),
+             (HK416, 0, 0, 0, DPPRO, 1)),
+            ("a second sight on the right beside a scope and a grip",
+             named(HK416, scope=EOTECH, grip=MIKI, second=DPPRO, side=1), (HK416, EOTECH, 0, MIKI, DPPRO, 1)),
+            ("a second sight on a gun without angled rails", named(820, second=DPPRO, side=1),
+             (820, 0, 0, 0, DPPRO, 1))):
         run = with_table()
         got = run.cook(run.config(data)[0], run.block(0x4800))
         case = cases.get(key) if key else None
@@ -708,7 +720,8 @@ def main():
 
     print("the callback (0x24ACF0, 0x24B0E1): the parts' models, the three records, the fingers")
     for name, key in (("a brake", (AK, 0, DTK3, 0)), ("a grip", (AK, 0, 0, MIKI)), ("a scope", (AK, PSO1, 0, 0)),
-                      ("a scope with its rail", (AK, EOTECH, 0, 0)), ("all three", (AK, PSO1, DTK3, MIKI))):
+                      ("a scope with its rail", (AK, EOTECH, 0, 0)), ("all three", (AK, PSO1, DTK3, MIKI)),
+                      ("a second sight on the right", (HK416, 0, 0, 0, DPPRO, 1))):
         made = fitted(key)
         if made is None:
             report(False, f"{name}: the callback did not reach its sites")
