@@ -12,7 +12,7 @@ of the match's kind from a pool no anomaly of the map spawns from: one generic_a
 appended to each project's client_objects (every project but the lobby's), with
 
 - a pool of 20 dormant artefacts of each kind (crates/artefact-carry/src/keeper.rs, KINDS and POOL;
-  crates/survarium/tests/artefact_keeper.rs checks the list against them): its own cook makes them
+  crates/mapdata/tests/artefact_keeper.rs checks the list against them): its own cook makes them
   with the map's own cook chain, its tick ticks them and its save writes them in every world;
 - no artefact container: it never spawns one (spawn_artefact 0x31B6C0 returns without a free
   container), and a chance of 0 besides;
