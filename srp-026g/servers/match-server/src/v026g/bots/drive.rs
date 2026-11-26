@@ -2376,20 +2376,25 @@ fn drive_tick_inner(
                     let counted = bot.contact.tick(time, walks_the_route && walked == Walked::OnTheWay, decision.keys, me.speed());
                     contact::contacts::count(counted, me.feet);
                     if walked != Walked::OnTheWay {
+                        // [under a jump leg] Off the route because it came back down under the jump leg it was on: that jump is
+                        // given up as the motor gives it up after its tries (`Walked::JumpFailed`: its landing shut, the match
+                        // told), now, not after lining up under its take-off until the tries run out. A plain replan picked the
+                        // same jumps again at once (v71: tdm-m1's ledge retried, jumps failed 107 -> 131).
+                        let under_jump = match walked {
+                            Walked::Off(off) if off.is_infinite() => route.fallen_under_jump(pose.feet),
+                            _ => None,
+                        };
+                        if let Some(take_off) = under_jump {
+                            let line = super::nav_log::under_jump_leg_line(take_off, pose.feet);
+                            bot.nav_log.push(super::nav_log::Kind::Jump, time, line);
+                        }
+                        let walked = under_jump.map_or(walked, Walked::JumpFailed);
                         // Fallen off it: the spot it fell from (`Stuck::fell`).
                         if let Walked::Off(off) = walked
                             && off.is_infinite()
                             && let Some(from) = route.fell_from(pose.feet)
                         {
                             bot.stuck.fell(time, from);
-                        }
-                        // [under a jump leg] Off the route because it came back down under the jump leg it was on.
-                        if let Walked::Off(off) = walked
-                            && off.is_infinite()
-                            && let Some(take_off) = route.fallen_under_jump(pose.feet)
-                        {
-                            let line = super::nav_log::under_jump_leg_line(take_off, pose.feet);
-                            bot.nav_log.push(super::nav_log::Kind::Jump, time, line);
                         }
                         // A jump it could not make: its take-off, likewise
                         // (not an escape's: a pocket's rim is no way).

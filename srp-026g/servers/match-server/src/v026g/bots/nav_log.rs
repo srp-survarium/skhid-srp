@@ -640,10 +640,10 @@ pub fn route_line(from: Option<Vec3>, goal: Vec3, verdict: &str) -> String {
 }
 
 /// [under a jump leg] A route lost because the body came back down under the jump leg it was on (`Route::fallen_under_jump`):
-/// `nav: fell back under a jump leg: take-off (..) from feet (..), D m under it; planned again`.
+/// `nav: fell back under a jump leg: take-off (..) from feet (..), D m under it; the jump given up`.
 pub fn under_jump_leg_line(take_off: Vec3, feet: Vec3) -> String {
     format!(
-        "{PREFIX}fell back under a jump leg: take-off {} from feet {}, {:.2} m under it; planned again",
+        "{PREFIX}fell back under a jump leg: take-off {} from feet {}, {:.2} m under it; the jump given up",
         at(take_off),
         at(feet),
         take_off.y - feet.y
