@@ -54,13 +54,34 @@ pub(crate) fn slide_to_plane(line: &Affine, plane: &Affine) -> Option<Affine> {
 /// fitted modules.
 const MAX_PARTS: usize = MAX_STOCK + Kind::ALL.len() * MAX_CHAIN + Kind::ALL.len();
 
+/// The side of the gun a second sight goes on (the weapon kit's side of
+/// slot 6): 0.69d's `angled_collim_short_l` or `_r`, on the offset rail on
+/// that angled rail.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+pub enum Side {
+    #[default]
+    Left,
+    Right,
+}
+
+impl Side {
+    /// The slot a second sight takes on this side.
+    pub fn slot(self) -> SlotId {
+        match self {
+            Side::Left => SlotId::AngledCollimShortL,
+            Side::Right => SlotId::AngledCollimShortR,
+        }
+    }
+}
+
 /// What a player fitted, by dict id (the weapon kit's slots 3, 4, 5 and 6).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct Wanted {
     pub scope: Option<DictId>,
     pub muzzle: Option<DictId>,
     pub grip: Option<DictId>,
-    pub second_sight: Option<DictId>,
+    /// The second sight and its side.
+    pub second_sight: Option<(DictId, Side)>,
 }
 
 impl Wanted {
@@ -69,7 +90,16 @@ impl Wanted {
             Kind::Scope => self.scope,
             Kind::Muzzle => self.muzzle,
             Kind::Grip => self.grip,
-            Kind::SecondSight => self.second_sight,
+            Kind::SecondSight => self.second_sight.map(|(dict, _)| dict),
+        }
+    }
+
+    /// The one slot a `kind` may go in, when the player chose it: a second
+    /// sight's side.
+    fn chosen(&self, kind: Kind) -> Option<SlotId> {
+        match kind {
+            Kind::SecondSight => self.second_sight.map(|(_, side)| side.slot()),
+            Kind::Scope | Kind::Muzzle | Kind::Grip => None,
         }
     }
 }
@@ -258,11 +288,12 @@ impl<'t> Build<'t> {
         if build.live().count() == gun.stock().count() { Ok(build) } else { Err(Refusal::Broken) }
     }
 
-    /// The slot `module` goes in on the gun as it is now, and whether
-    /// carriers bring it.
-    fn way(&self, module: Module<'t>) -> Option<(Attach<'t>, bool)> {
-        let stands = module.attaches().find(|attach| self.frame(attach.slot()).is_some());
-        let carried = || module.attaches().find(|attach| self.gun.carrier(attach.slot()).is_some());
+    /// The slot `module` goes in on the gun as it is now (`only` that one,
+    /// when the player chose it), and whether carriers bring it.
+    fn way(&self, module: Module<'t>, only: Option<SlotId>) -> Option<(Attach<'t>, bool)> {
+        let named = || module.attaches().filter(move |attach| only.is_none_or(|slot| attach.slot() == slot));
+        let stands = named().find(|attach| self.frame(attach.slot()).is_some());
+        let carried = || named().find(|attach| self.gun.carrier(attach.slot()).is_some());
         stands.map(|attach| (attach, false)).or_else(|| carried().map(|attach| (attach, true)))
     }
 
@@ -400,7 +431,7 @@ pub fn resolve<'t>(gun: Gun<'t>, wanted: Wanted) -> Result<Loadout<'t>, Refusal>
     for (kind, place) in Kind::ALL.into_iter().zip(&mut fitted) {
         let Some(dict) = wanted.of(kind) else { continue };
         let module = gun.fit(dict, kind).ok_or(Refusal::NoFit(kind))?;
-        let (attach, carried) = build.way(module).ok_or(Refusal::NoSlot(kind))?;
+        let (attach, carried) = build.way(module, wanted.chosen(kind)).ok_or(Refusal::NoSlot(kind))?;
         *place = Some((kind, module, attach, carried));
     }
     for (_, _, attach, carried) in fitted.into_iter().flatten() {
