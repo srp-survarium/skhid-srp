@@ -370,6 +370,20 @@ pub struct CombatTuning {
     /// cautious reading (it was 1.5 s, when the blast was thought to follow
     /// the let-go by 4 s).
     pub grenade_lead_s: f32,
+    /// [goal lead] A throw's teammates are also led toward the spot each means to be at. No number of its own:
+    /// - The spot: the team's spot claims (`TeamKnowledge::claims_of_others`: a bot's goal, or its feet when it holds,
+    ///   made again at every think, kept 2 s), read at the thrower's think.
+    /// - The way: straight from his feet toward it, as far as his ground speed now takes him in the time left to the blast
+    ///   (the fuse `ttl_ms` from the press), never past the spot. The whole way counts, as he may stop on it.
+    /// - The line: the mate rule's own, `grenade_friend_m` from the landing zone of the usual spread.
+    /// - It adds to the lead along his velocity (`grenade_lead_s`), which stays; a mate with no claim, or one standing,
+    ///   is read as before. Weighed at the press and every tick of the hold, where the throw can still be given up or
+    ///   turned (the traced throw only, `grenade_trace`).
+    ///
+    /// Measured on 6,489 bot grenades of 1,152 bench matches (`fable-grenade-walkins-20261127.md`): 91 mates were within
+    /// `grenade_friend_m` of the rest at the blast, 71 of them came there after the launch, and the lead along the
+    /// velocity read 20 of the 71; 33 were on no straight line of their velocity, however long. Off: the velocity alone.
+    pub grenade_goal_lead: bool,
     /// [play 20] The throw is traced on the bullet mesh ([`arc`]), aimed to
     /// come down at the place, and not made when its first contact is
     /// within `grenade_land_m` of the thrower or a wall near him
@@ -2000,6 +2014,7 @@ impl Default for CombatTuning {
             grenade_friend_m: arc::Grenade::bots().half_health_m(),
             grenade_recheck: true,
             grenade_lead_s: 2.5,
+            grenade_goal_lead: true,
             grenade_trace: true,
             grenade_rest_flown: true,
             grenade_look_after_ms: 300,
@@ -3056,6 +3071,9 @@ enum Refuse {
     /// A teammate may be in the blast: his place, and how far his feet are from the landing zone, decimetres (none for
     /// a check that measures no zone).
     Mate(Place, Option<u16>),
+    /// [goal lead] A teammate's way to his claimed spot takes him into the blast before it goes off: his place, and the
+    /// nearest his feet come to the landing zone on it, decimetres.
+    MateWay(Place, u16),
 }
 
 impl Refuse {
@@ -3069,6 +3087,7 @@ impl Refuse {
             Self::Off => "lands off the place".to_owned(),
             Self::Mate(mate, None) => format!("teammate {mate}"),
             Self::Mate(mate, Some(dm)) => format!("teammate {mate} ({:.1} m from the landing zone)", f32::from(dm) / 10.0),
+            Self::MateWay(mate, dm) => format!("teammate {mate} ({:.1} m from the landing zone on his way to his spot)", f32::from(dm) / 10.0),
         }
     }
 
@@ -3077,7 +3096,7 @@ impl Refuse {
         match self {
             Self::Thrower => 0,
             Self::Wall => 1,
-            Self::Mate(..) => 2,
+            Self::Mate(..) | Self::MateWay(..) => 2,
             Self::Reach => 3,
             Self::Nowhere => 4,
             Self::Off => 5,
@@ -3429,6 +3448,46 @@ fn over_ground<R>(
     }
 }
 
+/// [play 20] The teammates a throw is weighed against: whether at all, and for the lead toward their spots
+/// ([`CombatTuning::grenade_goal_lead`]) where each means to be (the team's spot claims as the thrower's last think read
+/// them) and the time left to the blast, s. `true` / `false`: weighed or not, with no spots.
+#[derive(Clone, Copy, Debug)]
+struct Mates<'a> {
+    check: bool,
+    goals: &'a [(Place, Vec3)],
+    left_s: f32,
+}
+
+impl From<bool> for Mates<'static> {
+    fn from(check: bool) -> Self {
+        Self { check, goals: &[], left_s: 0.0 }
+    }
+}
+
+/// [goal lead] A teammate of `me` whose way to his claimed spot takes him into the blast of `landing` before it goes off
+/// ([`CombatTuning::grenade_goal_lead`]): straight from his feet toward the spot, as far as his ground speed now takes
+/// him in `mates.left_s`, never past it; his feet within `grenade_friend_m` of the landing zone of its usual spread
+/// anywhere on it. With the nearest they come to the zone, metres.
+fn mate_on_his_way(me: &PlaceView, view: &MatchView, landing: &arc::Landing, mates: Mates, c: &CombatTuning) -> Option<(Place, f32)> {
+    /// The way is looked at every this many seconds of it, as the velocity's line is.
+    const SAMPLE_S: f32 = 0.5;
+    let steps = (mates.left_s / SAMPLE_S).ceil().max(1.0) as u32;
+    view.team(me.team).filter(|p| p.place != me.place).find_map(|p| {
+        let (_, goal) = mates.goals.iter().find(|(who, _)| *who == p.place)?;
+        let to = Vec3::new(goal.x - p.feet.x, 0.0, goal.z - p.feet.z);
+        let (length, speed) = (to.length(), p.velocity[0].hypot(p.velocity[1]));
+        let reach = (speed * mates.left_s).min(length);
+        if reach <= 0.0 {
+            return None;
+        }
+        let walk = to * (reach / length);
+        let nearest = (0..=steps)
+            .map(|k| landing.blast_distance(p.feet + walk * (k as f32 / steps as f32), arc::Spread::Usual))
+            .fold(f32::INFINITY, f32::min);
+        (nearest < c.grenade_friend_m).then_some((p.place, nearest))
+    })
+}
+
 /// [play 20] A teammate of `me` who may be in the blast of `landing`: now
 /// and along his velocity for `grenade_lead_s` (none with
 /// `grenade_recheck` off), his feet within `grenade_friend_m` of the
@@ -3467,18 +3526,19 @@ fn mate_in_blast(
 /// `mates`, with no teammate in the blast. Without
 /// `grenade_trace`, only the teammate near the place.
 #[allow(clippy::too_many_arguments)]
-fn weigh_throw(
+fn weigh_throw<'m>(
     me: &PlaceView,
     view: &MatchView,
     at: Vec3,
     error: (f32, f32),
     c: &CombatTuning,
     hold_ms: u32,
-    mates: bool,
+    mates: impl Into<Mates<'m>>,
     ground: &dyn arc::Ground,
 ) -> Result<(), Refuse> {
+    let mates = mates.into();
     if !c.grenade_trace {
-        if !mates {
+        if !mates.check {
             return Ok(());
         }
         let near = if c.grenade_recheck {
@@ -3497,7 +3557,7 @@ fn weigh_throw(
 /// [play 20] The checks of [`weigh_throw`] for the view `(yaw, pitch)` of a
 /// throw at `at`, the first contact to be within `off_m` of the place (none: anywhere, [`ArcPick::Away`]).
 #[allow(clippy::too_many_arguments)]
-fn weigh_view(
+fn weigh_view<'m>(
     me: &PlaceView,
     view: &MatchView,
     at: Vec3,
@@ -3505,10 +3565,11 @@ fn weigh_view(
     error: (f32, f32),
     c: &CombatTuning,
     hold_ms: u32,
-    mates: bool,
+    mates: impl Into<Mates<'m>>,
     ground: &dyn arc::Ground,
     off_m: Option<f32>,
 ) -> Result<(), Refuse> {
+    let mates = mates.into();
     let by = planned_thrower(me, hold_ms);
     let flight = arc::Flight::thrown(&by, yaw + error.0, pitch + error.1);
     let contact = flight.first_contact(ground, flight.max_s).ok_or(Refuse::Nowhere)?;
@@ -3533,8 +3594,14 @@ fn weigh_view(
     }) {
         return Err(Refuse::Off);
     }
-    let mate = mates.then(|| mate_in_blast(me, view, &landing, c));
-    match mate.flatten() {
+    let mate = mates.check.then(|| mate_in_blast(me, view, &landing, c)).flatten();
+    // [goal lead] Clear where they stand and along their velocities: their ways to the spots they mean to be at.
+    if mate.is_none() && mates.check && c.grenade_goal_lead {
+        if let Some((mate, zone_m)) = mate_on_his_way(me, view, &landing, mates, c) {
+            return Err(Refuse::MateWay(mate, (zone_m * 10.0).round() as u16));
+        }
+    }
+    match mate {
         Some((mate, zone_m)) => Err(Refuse::Mate(mate, Some((zone_m * 10.0).round() as u16))),
         // [A260] Last, as it takes six short traces: the same view from a start off by the margin.
         None if c
@@ -4469,6 +4536,9 @@ pub struct Reflex {
     /// [play 20] Throws made and given up since the last think, for the
     /// bot's notes ([`Reflex::take_throw_notes`]).
     throw_notes: Vec<String>,
+    /// [goal lead] Where each teammate means to be, as this bot's last think read the team's spot claims: a throw is
+    /// weighed with them at the ticks of its hold ([`CombatTuning::grenade_goal_lead`]).
+    mate_goals: Vec<(Place, Vec3)>,
     /// [A393] Sights up at a heard or told enemy: the last tick they were (a new start logs a line when a second has
     /// gone since), and the debug lines ([`Reflex::take_debug_notes`]).
     sights_up_last: Option<u32>,
@@ -5402,6 +5472,11 @@ impl Reflex {
             now,
         };
         self.grenade_roll(look, aim, skill, rng);
+        // [goal lead] The team's spot claims, for the weighing of a throw at the ticks to the next think.
+        self.mate_goals.clear();
+        if let Some(team) = sit.team.filter(|_| aim.combat.grenade_goal_lead) {
+            self.mate_goals.extend(team.claims_of_others(me.place, now).map(|claim| (claim.who, claim.at)));
+        }
     }
 
     /// [aimpoint] Before each [`Self::tick`]: which parts of the target
@@ -7756,7 +7831,7 @@ impl Reflex {
         self.grenade_stats.committed[usize::from(after)] += 1;
         let found = match self.repick(mesh, throw, me, view, c, why) {
             Some(pick) => Some((pick, 2)),
-            None if matches!(why, Refuse::Thrower | Refuse::Wall | Refuse::Mate(..)) => {
+            None if matches!(why, Refuse::Thrower | Refuse::Wall | Refuse::Mate(..) | Refuse::MateWay(..)) => {
                 over_ground(mesh, throw.at.y, |ground| away_arc(me, view, throw.at, throw.error, c, throw.hold_ms, ground))
                     .map(|pick| (pick, 3))
             }
@@ -7845,9 +7920,12 @@ impl Reflex {
         };
         throw.pitch = Some(pitch);
         let mesh = self.sight.ground();
+        // [goal lead] The spots the mates mean to be at, and the time left to the blast (the fuse from the press).
+        let goals = self.mate_goals.clone();
+        let left_s = (throw.pressed.unwrap_or(now) + fuse).saturating_sub(now) as f32 / 1000.0;
         let weigh = |mates: bool, pick: ArcPick| {
             // A close throw weighs the teammates every time, and refuses for one not seen lately.
-            let mates = mates || throw.close.is_some();
+            let mates = Mates { check: mates || throw.close.is_some(), goals: &goals, left_s };
             let seen = if throw.close.is_some() { close_fresh(me, view, c) } else { Ok(()) };
             seen.and_then(|()| over_ground(mesh.as_deref(), throw.at.y, |ground| match pick {
                 ArcPick::Flat => weigh_throw(me, view, throw.at, throw.error, c, throw.hold_ms, mates, ground),
@@ -7976,6 +8054,20 @@ impl Reflex {
                             _ => String::new(),
                         }
                     ));
+                    // [goal lead] [measure] The mates at the let-go, for the pricing of the mate rule: each one's place, velocity
+                    // and the spot he means to be at.
+                    let told: Vec<String> = view
+                        .team(me.team)
+                        .filter(|p| p.place != me.place)
+                        .map(|p| {
+                            let goal = match self.mate_goals.iter().find(|(who, _)| *who == p.place) {
+                                Some((_, goal)) => format!("goal ({:.1}, {:.1})", goal.x, goal.z),
+                                None => "no goal".to_owned(),
+                            };
+                            format!("{} at ({:.1}, {:.1}) v ({:.1}, {:.1}) {goal}", p.place, p.feet.x, p.feet.z, p.velocity[0], p.velocity[1])
+                        })
+                        .collect();
+                    self.throw_notes.push(format!("throw mates, {} ms to the blast: {}", blast.saturating_sub(now), told.join("; ")));
                     // [G624] Where it is to rest by the rule in use and by the other one: the view of the let-go.
                     let landing = throw_view_of(me, throw.at, c, throw.hold_ms, throw.pick).and_then(|(yaw, pitch)| {
                         over_ground(mesh.as_deref(), throw.at.y, |ground| {
@@ -13979,6 +14071,90 @@ mod tests {
         // 8.5 m aside (6.68 m from the zone's side), or 6.45 m past its square end: clear.
         assert_eq!(place(with(8.5, 28.0)), None);
         assert_eq!(place(with(0.0, 35.9)), None);
+    }
+
+    /// [goal lead] A mate clear of the blast where he stands and along his velocity, whose way to the spot he means to be
+    /// at takes him within half a body's health of the landing zone before the blast, is read on that way: as far as his
+    /// speed takes him in the time left, never past the spot, and not at all while he stands or has no claim.
+    #[test]
+    fn a_mate_is_led_toward_the_spot_he_means_to_be_at() {
+        let c = CombatTuning::default();
+        assert!(c.grenade_goal_lead, "on by default");
+        let contact = arc::Contact {
+            point: Vec3::new(0.0, arc::RADIUS_M, 25.0),
+            normal: Vec3::Y,
+            velocity: Vec3::new(0.0, -5.0, 15.0),
+            t: 1.0,
+        };
+        let landing = arc::Landing::flown(contact, 10.0, Vec3::new(0.0, arc::RADIUS_M, 25.5));
+        let me = body(0, 0, Vec3::ZERO, 0.0);
+        // 14 m aside of the throw's line, walking along it at 3.5 m/s.
+        let walking = |velocity: [f32; 2]| {
+            let mut mate = body(3, 0, Vec3::new(14.0, 0.0, 12.0), 0.0);
+            mate.velocity = velocity;
+            view_of(vec![me.clone(), mate])
+        };
+        let view = walking([0.0, 3.5]);
+        assert_eq!(mate_in_blast(&me, &view, &landing, &c), None, "clear where he stands and along his velocity");
+        let way = |goals: &[(Place, Vec3)], left_s: f32, view: &MatchView| mate_on_his_way(&me, view, &landing, Mates { check: true, goals, left_s }, &c);
+        // His spot is at the landing, 19.1 m off: 3.8 s at 3.5 m/s take him 13.3 m of it, to (4.3, 21.0).
+        let at_landing = [(3, Vec3::new(0.0, 0.0, 25.0))];
+        let (who, zone_m) = way(&at_landing, 3.8, &view).expect("on his way into the blast");
+        assert_eq!(who, 3);
+        assert!(zone_m < c.grenade_friend_m, "{zone_m}");
+        // A second left: 3.5 m of the way.
+        assert_eq!(way(&at_landing, 1.0, &view), None);
+        // No claim of his (the thrower's own is not a mate's); a spot away from the blast; a spot short of it (never past).
+        assert_eq!(way(&[], 3.8, &view), None);
+        assert_eq!(way(&[(0, Vec3::new(0.0, 0.0, 25.0))], 3.8, &view), None);
+        assert_eq!(way(&[(3, Vec3::new(30.0, 0.0, 12.0))], 3.8, &view), None);
+        assert_eq!(way(&[(3, Vec3::new(11.0, 0.0, 14.8))], 3.8, &view), None);
+        // Standing: where he stands, as before.
+        assert_eq!(way(&at_landing, 3.8, &walking([0.0, 0.0])), None);
+    }
+
+    /// [goal lead] The weighing of a throw refuses it for a mate on his way into its blast, with its own reason, counted
+    /// with the teammate refusals; not with the switch off, and not where the mates are not weighed.
+    #[test]
+    fn a_throw_is_refused_for_a_mate_on_his_way_into_its_blast() {
+        let me = body(0, 0, Vec3::ZERO, 0.0);
+        let mut mate = body(3, 0, Vec3::new(14.0, 0.0, 8.0), 0.0);
+        mate.velocity = [0.0, 3.5];
+        let view = view_of(vec![me.clone(), mate]);
+        let c = CombatTuning::default();
+        let at = Vec3::new(0.0, 0.0, 20.0);
+        let floor = arc::Floor { y: 0.0 };
+        let goals = [(3, at)];
+        let weigh = |mates: Mates, c: &CombatTuning| weigh_throw(&me, &view, at, (0.0, 0.0), c, HOLD_MS, mates, &floor);
+        assert_eq!(weigh(true.into(), &c), Ok(()), "clear where he stands and along his velocity");
+        let led = weigh(Mates { check: true, goals: &goals, left_s: 3.8 }, &c).expect_err("his way goes into the blast");
+        assert!(matches!(led, Refuse::MateWay(3, _)), "{led:?}");
+        let why = led.why();
+        assert!(why.starts_with("teammate 3 (") && why.ends_with(" m from the landing zone on his way to his spot)"), "{why}");
+        assert_eq!(led.index(), Refuse::Mate(3, None).index());
+        let off = CombatTuning { grenade_goal_lead: false, ..CombatTuning::default() };
+        assert_eq!(weigh(Mates { check: true, goals: &goals, left_s: 3.8 }, &off), Ok(()));
+        assert_eq!(weigh(Mates { check: false, goals: &goals, left_s: 3.8 }, &c), Ok(()), "the mates are not weighed");
+    }
+
+    /// [goal lead] A think reads the team's spot claims of the others for the throw's weighing; none with the switch off.
+    #[test]
+    fn a_think_reads_where_the_mates_mean_to_be() {
+        let me = body(0, 0, Vec3::ZERO, 0.0);
+        let view = view_of(vec![me.clone(), body(3, 0, Vec3::new(14.0, 0.0, 8.0), 0.0)]);
+        let mut team = TeamKnowledge::default();
+        let spot = Vec3::new(0.0, 0.0, 20.0);
+        team.claim(0, Vec3::new(1.0, 0.0, 1.0), 1_000);
+        team.claim(3, spot, 1_000);
+        let read = |combat: CombatTuning| {
+            let aim = AimTuning { combat, ..AimTuning::default() };
+            let mut reflex = Reflex::default();
+            let sit = Situation { team: Some(&team), ..Situation::of(&view) };
+            reflex.think_with(&me, &sit, &Memory::default(), 1_200, &aim, 0.5, &mut Rng::new(4));
+            reflex.mate_goals
+        };
+        assert_eq!(read(CombatTuning::default()), [(3, spot)]);
+        assert!(read(CombatTuning { grenade_goal_lead: false, ..CombatTuning::default() }).is_empty());
     }
 
     #[test]

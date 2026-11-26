@@ -30,6 +30,7 @@
       "grenade_held_recheck": false,
       "grenade_land_m": 12.0,
       "grenade_lead_s": 4.0,
+      "grenade_goal_lead": false,
       "grenade_push_tracks": true,
       "grenade_repick": false,
       "grenade_commit": false,
