@@ -74,6 +74,20 @@ pub(super) fn shut_flights() -> Box<dyn RouteTopic> {
     )
 }
 
+/// [bot CPU] The soft-filtered searches that ended over the whole grid with no way: kept, answered again with no floor searched,
+/// the floors those would have expanded, refused (a tested floor's answer changed).
+pub(super) fn soft_noways() -> Box<dyn RouteTopic> {
+    Delta::of(
+        || super::super::path::noway_memo::counts().to_vec(),
+        |d, line| {
+            line.ends.push(format!(
+                "soft_noways_kept {} soft_noways_hits {} soft_noways_floors_saved {} soft_noways_refused {}",
+                d[0], d[1], d[2], d[3]
+            ));
+        },
+    )
+}
+
 /// The motor's counts: jumps, look-ahead cuts, side steps, the lip guard; and (at the tail) the walk ticks whose look-ahead ended on a point the body does not walk to in a line, and what the walk did about it.
 pub(super) fn motor() -> Box<dyn RouteTopic> {
     Delta::of(
@@ -974,11 +988,11 @@ pub(super) fn fix_gaps() -> Box<dyn RouteTopic> {
 }
 
 /// The stuck recovery's floor test (`unstick.escape_floor`, `stuck::escape_floors`): recoveries it was on for, escapes refused
-/// for no floor under their way, recoveries left with no walk key.
+/// for no floor under their way, recoveries left with no walk key, and [ledge-drop escape] escapes taken down off a ledge.
 pub(super) fn escape_floors() -> Box<dyn RouteTopic> {
     Delta::of(
         || super::super::stuck::escape_floors::counts().to_vec(),
-        |d, line| line.tail.push(format!("escape_floor_checked {} escape_floor_refused {} escape_floor_none {}", d[0], d[1], d[2])),
+        |d, line| line.tail.push(format!("escape_floor_checked {} escape_floor_refused {} escape_floor_none {} escape_drop {}", d[0], d[1], d[2], d[3])),
     )
 }
 

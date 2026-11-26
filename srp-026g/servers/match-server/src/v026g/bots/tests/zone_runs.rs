@@ -344,6 +344,9 @@ fn a_bot_pushed_into_a_zone_stands_there_with_zone_lines_off() {
     let _step = super::standin_jump::OldStepInput::scope();
     // And the speeds before F5.
     let _speeds = crate::v026g::bots::kin::PreF5Speeds::scope();
+    // And the walk keys' pick before #2450 (the open floors' hold and band): with it the unstick ends the stand at 4.9 s, before it
+    // at the 8.4 s below.
+    let _keys = crate::v026g::bots::motor::OldKeyHold::scope();
     let small = zone("small", Vec3::new(30.0, 1.0, 20.0), Vec3::new(2.0, 1.0, 2.0));
     let pushed = |zone_lines: bool| {
         let mut pushed = run(field(&[], vec![small.clone()]), None);
