@@ -1,7 +1,7 @@
 //! The 0.26g match server's socket: one UDP port for every match. A
 //! datagram goes to the match of the client that sent it; a new client is
 //! placed by the session in its 0xD8, through the registry the lobby made
-//! the match in. (0.21d: `crate::server`.)
+//! the match in. (0.21d: `srp-021d/servers/match-server/src/server.rs`.)
 
 use std::collections::{HashMap, HashSet};
 use std::io;

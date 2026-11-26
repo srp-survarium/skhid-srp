@@ -1093,12 +1093,12 @@ git_t clone -q "$T/origin.git" "$T/repo" 2>/dev/null
 git -C "$T/repo" config user.name "the owner"
 git -C "$T/repo" config user.email owner@example.org
 src=$T/repo/srp-026g
-mkdir -p "$src/client-patches" "$src/certs" "$src/crates/a/src" "$src/resources/binary-config-examples" \
+mkdir -p "$src/client-patches" "$src/crates/a/src" "$src/resources/binary-config-examples" \
     "$src/resources/game-026g" "$src/scripts" "$src/servers/srp/src" "$src/docs" "$src/crates/session/src/v026g"
 # The changes of what a match computes (the replays' list), none to come.
 sim=$src/crates/session/src/v026g/simulation_changes.tsv
 printf '# revision\twhat changed\n11\tthe TDM end\n' >"$sim"
-for f in Cargo.toml Cargo.lock Dockerfile .dockerignore docker-compose.yml certs/login.crt crates/a/src/lib.rs \
+for f in Cargo.toml Cargo.lock Dockerfile .dockerignore docker-compose.yml crates/a/src/lib.rs \
     resources/binary-config-examples/a.cfg resources/game-026g/README scripts/run.sh servers/srp/src/main.rs docs/notes.md; do
     echo "$f 1" >"$src/$f"
 done
@@ -1116,7 +1116,6 @@ COPY resources/game-026g resources/game-026g
 COPY resources/not-in-main resources/not-in-main
 FROM debian:bookworm-slim
 COPY --from=build /srp /usr/local/bin/srp
-COPY certs ./certs
 DOCKERFILE
 commit() { # <message>: a commit on main, after the records merged there
     git_t -C "$T/repo" pull -q --ff-only origin main 2>/dev/null || true
@@ -1148,7 +1147,7 @@ for pair in torrent-signing:signing torrent-signing-test:signing-test; do
     echo >>"$T/repo/release/${pair#*:}.pub"
 done
 commit "revision 11, as released"
-git -C "$T/repo" archive HEAD:srp-026g Cargo.toml Cargo.lock Dockerfile .dockerignore docker-compose.yml certs crates \
+git -C "$T/repo" archive HEAD:srp-026g Cargo.toml Cargo.lock Dockerfile .dockerignore docker-compose.yml crates \
     resources/binary-config-examples resources/game-026g scripts servers | tar -x -C "$T/live"
 cat >"$T/build-zip" <<'STANDIN'
 #!/usr/bin/env bash

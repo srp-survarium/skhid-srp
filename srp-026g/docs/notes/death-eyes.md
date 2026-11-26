@@ -30,7 +30,7 @@ complete darkening before restart". Code: the hud movie,
   under it, the owner: the order does not matter): the kits, the countdown, the kill feed and the
   rest of the hud stay over it, readable; it never takes a click (kits clickable, keys 1 to 3 as
   before).
-- **F11 (hide the interface):** it still fades: a screen effect like the blood, not the interface
+- **F9 (hide the interface):** it still fades: a screen effect like the blood, not the interface
   (hide-ui-key.md).
 - **Blackout:** it still fades (an immersion effect; with the countdown hidden it is the only sign
   of the respawn coming).
@@ -58,5 +58,5 @@ complete darkening before restart". Code: the hud movie,
 - **Size:** the stage's, as the fading's (`place`, at every resize), drawn only while on.
 - **Off:** by the exe (`false`) and by the hud's `reset`; not by the countdown's end. The same
   value again changes nothing; the countdown's fading goes on under it and shows when it is off.
-- **F11, Blackout:** as the fading, it stays.
+- **F9 (hide the interface), Blackout:** as the fading, it stays.
 - **Not run in a game.**

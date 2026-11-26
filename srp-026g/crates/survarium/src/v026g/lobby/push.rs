@@ -992,8 +992,8 @@ pub fn pvb_choose_no(
 /// conversion line while preparing (1 being made now, 0 not known), else
 /// 0. The movie's
 /// `PlayerRanking.fillPlayers` routes an `R1;` header to the History, as
-/// `M2;` and `J1;` go to the matches' window. **srp's own**, as safe for
-/// the client as [`join_answer`]: 45 bytes at the most (the longest word is
+/// `M2;` and `J1;` go to the matches' window. **srp's own**, safe for
+/// the client: 45 bytes at the most (the longest word is
 /// 12 letters, a u64 20 digits), the place a u32 the movie tells apart from
 /// a ranking row.
 pub fn replay_answer(status: &str, match_id: u32, size: u64) -> Result<ServerMessage, WireError> {

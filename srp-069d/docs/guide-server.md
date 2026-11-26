@@ -368,7 +368,7 @@ Before you invite anyone, start the game on the server PC (or another PC at home
 1. Copy the four files of the `scripts/player` folder to that PC (on WSL the folder is also reachable from Windows, for
    example `\\wsl$\Ubuntu\home\<you>\...`).
 2. Follow the [player guide, Without Steam](guide-player.md#without-steam-the-start-file) with the address
-   `scripts/srp-host.sh check` shows in its `start file` line. You should see `Server answers: login port 65000, ...`
+   `scripts/srp-host.sh check` shows in its `start file` line. You should see `Server answers: login port 65000.`
    and `Written: ...\Skhid.cmd`; the server log shows `player start data /skhid/client.txt sent to ...`.
 3. Sign in with a new name and password. You should see the nickname screen; in the server log a `login of ...` line
    appears.

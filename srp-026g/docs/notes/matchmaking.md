@@ -22,8 +22,9 @@ schema step 5).
 > JOIN), the server's PvP bots and their giving way, and `JOIN_CUTOFF` (a room's match takes a
 > member who comes from its countdown until 30 s are left, `LOAD_MARGIN`, on the side with fewer
 > players in the match, then the side it played on in that match before, then the one that
-> counts for less: `matchmaking_policy::place_joiner`). Those sections are kept for the record. §1, §4, §8 (the
-> sides now made by `rooms::sides` with the same count) and §9.8 still hold.
+> counts for less: `matchmaking_policy::place_joiner`). Those sections are kept for the record.
+> §1, §4 and §9.8 still hold; §8's count of a player was replaced on 2026-11-01 by the K/D one
+> (`kd-balance.md`, the sides made by `rooms::sides`).
 
 Sources of the time: `progression_sources.md` §9.
 

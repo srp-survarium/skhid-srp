@@ -1,10 +1,6 @@
-//! The after-match results screen (`../srp-021d/docs/notes/results_spec.md`)
-//! and what a match earns.
-//!
-//! The screen is `36 13`: `match_stats` (winner, team scores, the four "best"
-//! titles, a brief row per player) and the recipient's own
-//! `player_result_full`. Clicking a player asks `21 0E` for that player's
-//! full result, answered with `36 0E`.
+//! What a 0.21d match earns. (The after-match screen that showed it, `36 13`
+//! and `36 0E` (`../srp-021d/docs/notes/results_spec.md`), was the 0.21d
+//! lobby's: `srp-021d/servers/lobby-server`.)
 //!
 //! The 0.21d data has no experience values
 //! (`../srp-021d/docs/notes/progression.md`). What a match
@@ -24,16 +20,10 @@
 //! - a level takes 500 experience more than the one before took... see
 //!   [`experience_for_level`]; each gives a skill point and its reward.
 
-use super::account::{Account, MAX_NAME_LEN, Profile};
+use super::account::{Account, Profile};
 use super::drops::{DropTable, Rng, roll};
 use super::item_params::item_params;
-use super::lobby::{CLIENT_STATUS, Writer};
 
-/// `query_info_types` 0x13 and 0x0E.
-pub const MATCH_STATS: u8 = 0x13;
-pub const PLAYER_MATCH_STATS: u8 = 0x0E;
-/// The client holds 20 rows.
-const MAX_ROWS: usize = 20;
 /// The client keeps up to four drops.
 pub const MAX_DROPS: usize = 4;
 /// `game_team_id` when nobody won.
@@ -390,130 +380,6 @@ pub fn apply_at(
     reward
 }
 
-/// The best player of the four titles, by `key`, if anyone scored.
-fn best(players: &[PlayerStats], key: impl Fn(&PlayerStats) -> u32) -> Option<&PlayerStats> {
-    players
-        .iter()
-        .filter(|player| key(player) > 0)
-        .max_by_key(|player| key(player))
-}
-
-/// `match_stats`: the winner, the team scores (batteries in base), the four
-/// titles and the rows.
-fn write_match_stats(
-    writer: &mut Writer,
-    match_id: u32,
-    winner: u8,
-    scores: [u8; 2],
-    players: &[PlayerStats],
-) {
-    writer.u32(match_id).u8(winner).u8(scores[0]).u8(scores[1]);
-    let title = |writer: &mut Writer, player: Option<&PlayerStats>| {
-        writer.str(player.map_or("", |player| &player.name), MAX_NAME_LEN);
-    };
-    let player = best(players, |player| u32::from(player.score));
-    title(writer, player);
-    writer.u16(player.map_or(0, |player| player.score));
-    let shooter = best(players, |player| {
-        u32::from(player.accuracy()) * 0x10000 + u32::from(player.shots)
-    });
-    title(writer, shooter);
-    writer
-        .u8(shooter.map_or(0, PlayerStats::accuracy))
-        .u16(shooter.map_or(0, |player| player.shots));
-    let support = best(players, |player| {
-        u32::from(player.saved) + u32::from(player.healed)
-    });
-    title(writer, support);
-    writer
-        .u16(support.map_or(0, |player| player.saved))
-        .u16(support.map_or(0, |player| player.healed));
-    let explorer = best(players, |player| {
-        u32::from(player.artefacts) + u32::from(player.found)
-    });
-    title(writer, explorer);
-    writer
-        .u16(explorer.map_or(0, |player| player.artefacts))
-        .u16(explorer.map_or(0, |player| player.found));
-    let rows = &players[..players.len().min(MAX_ROWS)];
-    writer.u8(rows.len() as u8);
-    for player in rows {
-        writer
-            .str(&player.name, MAX_NAME_LEN)
-            .u32(player.id)
-            .u16(player.score)
-            .u16(player.kills)
-            .u16(player.deaths)
-            .u8(player.team)
-            .u16(u16::from(player.level));
-    }
-}
-
-/// `player_result_full`.
-fn write_full(writer: &mut Writer, stats: &PlayerStats, reward: &Reward) {
-    writer
-        .u32(stats.id)
-        .u16(stats.assists)
-        .u16(stats.healed)
-        .u16(stats.saved)
-        .u16(stats.headshots)
-        .u16(stats.silent_kills)
-        .u16(stats.melee_kills)
-        .u16(stats.found)
-        .u16(stats.defended)
-        .u16(stats.artefacts)
-        .u8(reward.level)
-        .u16(stats.stolen_x100)
-        .u16(reward.experience.min(u16::MAX.into()) as u16)
-        .u16(reward.money.min(u16::MAX.into()) as u16)
-        .u16(reward.rating_before)
-        .u16(reward.rating_after)
-        // Faction 0 hides the reputation box.
-        .u8(reward.reputation_faction)
-        .u16(reward.reputation.min(u16::MAX.into()) as u16)
-        .u16(stats.max_killstreak)
-        .u8(stats.accuracy())
-        .u16(stats.weapons[0])
-        .u16(stats.weapons[1])
-        // A list the client never reads.
-        .u8(0);
-    let drops = &reward.drops[..reward.drops.len().min(MAX_DROPS)];
-    writer.u8(drops.len() as u8);
-    for &(dict_id, count) in drops {
-        writer.u32(dict_id.into()).u32(count);
-    }
-    writer.u32(reward.drop_progress);
-}
-
-/// `36 13`: the screen for `recipient`.
-pub fn match_stats(
-    match_id: u32,
-    winner: u8,
-    scores: [u8; 2],
-    players: &[PlayerStats],
-    recipient: &PlayerStats,
-    reward: &Reward,
-) -> Vec<u8> {
-    let mut writer = Writer::new(CLIENT_STATUS);
-    writer.u8(MATCH_STATS);
-    write_match_stats(&mut writer, match_id, winner, scores, players);
-    write_full(&mut writer, recipient, reward);
-    writer.done()
-}
-
-/// `36 0E`: one player's full result, for the screen's detail panel.
-pub fn player_match_stats(stats: &PlayerStats, reward: &Reward) -> Vec<u8> {
-    let mut writer = Writer::new(CLIENT_STATUS);
-    writer.u8(PLAYER_MATCH_STATS);
-    write_full(&mut writer, stats, reward);
-    writer.done()
-}
-
-/// The stats sender's chat line that makes the client ask for the screen.
-pub fn stats_line(match_id: u32) -> String {
-    format!("#mstats [{match_id}]")
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -698,52 +564,5 @@ mod tests {
         assert_eq!(level_reward(3), LevelReward::Money(500));
         assert_eq!(level_reward(6), LevelReward::Premium(100));
         assert_eq!(level_reward(7), LevelReward::Money(750));
-    }
-
-    #[test]
-    fn the_screen_is_the_match_then_the_recipients_result() {
-        let bob = PlayerStats {
-            id: 2,
-            name: "bob".into(),
-            team: 1,
-            ..PlayerStats::default()
-        };
-        let reward = Reward {
-            experience: 100,
-            money: 1100,
-            level: 1,
-            reputation_faction: 3,
-            reputation: 0x0102,
-            drops: vec![(22, 20)],
-            drop_progress: 1100,
-            ..Reward::default()
-        };
-        let players = [alice(), bob];
-        let screen = match_stats(0x123, 0, [2, 0], &players, &players[0], &reward);
-        let mut expected = vec![0x36, 0x13, 0x23, 1, 0, 0, 0, 2, 0];
-        // Best player alice (120), best shooter alice (25 %, 40 shots); no
-        // support or explorer.
-        expected.extend([5, b'a', b'l', b'i', b'c', b'e', 120, 0]);
-        expected.extend([5, b'a', b'l', b'i', b'c', b'e', 25, 40, 0]);
-        expected.extend([0, 0, 0, 0, 0]);
-        expected.extend([0, 0, 0, 0, 0]);
-        expected.push(2);
-        expected.extend([
-            5, b'a', b'l', b'i', b'c', b'e', 1, 0, 0, 0, 120, 0, 3, 0, 1, 0, 0, 1, 0,
-        ]);
-        expected.extend([3, b'b', b'o', b'b', 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0]);
-        assert_eq!(screen[..expected.len()], expected);
-        let full = &screen[expected.len()..];
-        assert_eq!(full[..4], [1, 0, 0, 0]);
-        // Level, stolen ×100, experience, money, rating before and after,
-        // the reputation faction and amount.
-        assert_eq!(
-            full[22..38],
-            [1, 200, 0, 100, 0, 0x4C, 0x04, 0, 0, 0, 0, 3, 2, 1, 0, 0]
-        );
-        // One drop, then the progress.
-        let tail = &full[full.len() - 13..];
-        assert_eq!(tail, [1, 22, 0, 0, 0, 20, 0, 0, 0, 0x4C, 0x04, 0, 0]);
-        assert_eq!(stats_line(0x123), "#mstats [291]");
     }
 }

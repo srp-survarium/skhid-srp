@@ -15,9 +15,9 @@ import check_kit_change_026g as kits
 
 FREEZE = blackout.empty_options(blackout.srpx((6, b"\x01")))
 PLAIN = blackout.empty_options(b"")
-LENGTH = 191
+LENGTH = 201
 # The state's bytes (srp_validate::world::freeze): version, phase, scores, the ended round, a time,
-# the round starts, the kit switches, then each place's record.
+# the round starts, the kit switches, then each place's record, then each team's down-to-one step (version 4).
 PHASE, TIME, STARTS, RECORDS = 1, 5, 9, 51
 STATS = ffa.DATA + 0x60000
 CAMERA_INPUT = ffa.DATA + 0x96000
@@ -34,6 +34,13 @@ WEAPON_VTABLE = 0xA04174   # the client weapon's (fields_026g.tsv survarium::ima
 WHOLE = 0x37000000
 INSERT, REMOVE, BASE_INSERT, BASE_REMOVE, CLIENT_REMOVE = 0x1F2720, 0x1F2870, 0x2DA850, 0x2DA790, 0x1F3670
 NULL_EFFECT = 0x2DE36D   # game_effect_player::stop's read of the effect it did not find
+# The hud told no place revealed (freeze_tag::on_hud, every frame of a Freeze Tag match).
+REVEALED_NONE = ("root.freeze_tag_revealed", (0,))
+# Nobody's reveal counting down (freeze_tag::on_hud's root.freeze_tag_reveal: each side's whose and ms left).
+REVEAL_NONE = ("root.freeze_tag_reveal", (0, 0, 0, 0))
+# update_minimap_players' spotted test of an enemy (site minimap.enemy_spotted): the game's own compare's
+# jump, and the listing (the site's shown exit)
+MINIMAP_TEST, MINIMAP_ON, MINIMAP_SHOWN = 0x239505, 0x23950B, 0x23951B
 
 
 class Run(ffa.Run):
@@ -230,6 +237,15 @@ class Run(ffa.Run):
         assert not held or after == sp + 12, "ret 8 gives back both arguments"
         return held
 
+    def minimap_lists(self, place):
+        """update_minimap_players' spotted test of `place`, an enemy not spotted: whether the game lists
+        his dot on the maps."""
+        self.word(ffa.player(place) + 0x348, 0)
+        self.run(MINIMAP_TEST, (MINIMAP_ON, MINIMAP_SHOWN), hide.STACK + 0x8000,
+                 {**hide.GAME, UC_X86_REG_EAX: ffa.player(place), UC_X86_REG_ESI: 0})
+        assert self.stopped in (MINIMAP_ON, MINIMAP_SHOWN), self.stopped
+        return self.stopped == MINIMAP_SHOWN
+
     def state(self):
         return self.serialize()[-LENGTH:]
 
@@ -268,18 +284,18 @@ def main():
         r.tick(time)
     before = r.serialize()
     state = before[-LENGTH:]
-    assert state[:2] == b"\x03\x00"
+    assert state[:2] == b"\x04\x00"
     assert state[RECORDS] == 3 and struct.unpack_from("<H", state, RECORDS + 1)[0] == 3950
     assert r.freeze_hud(0, 3950) == [("root.freeze_tag_score", (0, 0, 5)),
                                      ("root.freeze_tag_update", (1, 3950, 0, 0, 4000, 116050, 0)),
-                                     ("root.freeze_tag_rows", (1,))]
+                                     ("root.freeze_tag_rows", (1,)), REVEALED_NONE, REVEAL_NONE]
     assert r.freeze_hud(1, 3950) == [("root.freeze_tag_score", (0, 0, 5)),
                                      ("root.freeze_tag_update", (0, 3950, 0, 0, 4000, 0, 0)),
-                                     ("root.freeze_tag_rows", (1,))]
+                                     ("root.freeze_tag_rows", (1,)), REVEALED_NONE, REVEAL_NONE]
     # The time limit at even round wins: a draw.
     assert r.freeze_hud(1, 900_000) == [("root.freeze_tag_score", (0, 0, 5)),
                                         ("root.freeze_tag_update", (0, 3950, 3, 0, 4000, 0, 0)),
-                                        ("root.freeze_tag_rows", (1,))]
+                                        ("root.freeze_tag_rows", (1,)), REVEALED_NONE, REVEAL_NONE]
     assert r.read(ffa.RULE + 0x138) == 0xFFFFFFFF
     # Only a frozen body's respawn is void: another place's native
     # schedule (a late arrival's first spawn) is left to run.
@@ -315,18 +331,18 @@ def main():
     assert struct.unpack("<2H", r.emu.mem_read(STATS + 0x31D4, 4)) == (0, 1)
     assert r.freeze_hud(1, 4100) == [("root.freeze_tag_score", (0, 1, 5)),
                                      ("root.freeze_tag_update", (1, 0, 5, 3000, 4000, 119950, 3000)),
-                                     ("root.freeze_tag_rows", (3,))]
+                                     ("root.freeze_tag_rows", (3,)), REVEALED_NONE, REVEAL_NONE]
     assert r.freeze_hud(2, 4100) == [("root.freeze_tag_score", (1, 0, 5)),
                                      ("root.freeze_tag_update", (0, 0, 4, 3000, 4000, 0, 3000)),
-                                     ("root.freeze_tag_rows", (3,))]
+                                     ("root.freeze_tag_rows", (3,)), REVEALED_NONE, REVEAL_NONE]
     # The time limit ends the match (here in the round's 3 s): the team with more round wins won it
     # (the owner, 2026-11-26: "when the timer ends, the team with the most points wins").
     assert r.freeze_hud(1, 900_000) == [("root.freeze_tag_score", (0, 1, 5)),
                                         ("root.freeze_tag_update", (1, 0, 2, 0, 4000, 119950, 0)),
-                                        ("root.freeze_tag_rows", (3,))]
+                                        ("root.freeze_tag_rows", (3,)), REVEALED_NONE, REVEAL_NONE]
     assert r.freeze_hud(2, 900_000) == [("root.freeze_tag_score", (1, 0, 5)),
                                         ("root.freeze_tag_update", (0, 0, 1, 0, 4000, 0, 0)),
-                                        ("root.freeze_tag_rows", (3,))]
+                                        ("root.freeze_tag_rows", (3,)), REVEALED_NONE, REVEAL_NONE]
     # The score bars' native source is the hud state's +90h/+92h, which no Freeze Tag rule fills
     # and nothing clears at a new match: the last match's 7:3 is written over with the rule's.
     r.emu.mem_write(ffa.HUD + 0xB4, struct.pack("<2H", 7, 3))
@@ -670,6 +686,57 @@ def main():
     assert not r.input(0)
     print("ok an arrival in a round in play spawns frozen, on an empty team too (the other team's round); "
           "not before play, in a countdown, after a round or after the match, nor in another mode")
+
+    # A team's last one fighting, two teammates of his frozen at least (the owner, 2026-11-22: "last
+    # member is always shown on the map"), from 15 s after his team was down to him (2026-11-26: "the
+    # last person should only be seen after 15 seconds, with a clear timer visible for everyone"):
+    # the rule keeps the step (version 4); every viewer is told the countdown, then 3 s that he is
+    # revealed; from then the other team's maps list his dot unspotted (update_minimap_players' spotted
+    # test) and the hud is told his place revealed, so the maps mark it (an enemy's icon alone draws
+    # nothing). A thaw ends it; one teammate frozen, or a team of two, reveals nobody. Walls between
+    # them: nobody thaws.
+    def reveal(viewed, now):
+        calls = dict(r.freeze_hud(viewed, now))
+        return calls["root.freeze_tag_revealed"][0], calls["root.freeze_tag_reveal"]
+    r.start(teams=(0, 0, 0, 1))
+    r.blocked = True
+    r.lethal(0)
+    r.tick(50)
+    assert r.state()[RECORDS] == 3 and r.state()[-10:] == bytes(10)
+    assert reveal(3, 50) == (0, (0, 0, 0, 0)) and not r.minimap_lists(2)
+    r.lethal(1)
+    r.tick(100)
+    assert r.state()[PHASE] == 0 and r.state()[RECORDS + 7] == 3
+    assert r.state()[-10:] == b"\x01" + struct.pack("<I", 100) + bytes(5), "the first team down to one at 100"
+    # The countdown: every viewer, the last one (2), his frozen teammate (0), the other team (3).
+    assert reveal(2, 100) == (0, (1, 15000, 0, 0)) and not r.minimap_lists(2)
+    assert reveal(0, 100) == (0, (2, 15000, 0, 0))
+    assert reveal(3, 100) == (0, (0, 0, 3, 15000)) and not r.minimap_lists(2)
+    assert reveal(3, 15050) == (0, (0, 0, 3, 50)) and not r.minimap_lists(2), "not before 15 s"
+    assert reveal(3, 15100) == (1 << 2, (0, 0, 3, 0)) and r.minimap_lists(2) and not r.minimap_lists(3)
+    assert reveal(2, 15100) == (1 << 2, (1, 0, 0, 0))
+    assert reveal(3, 18100) == (1 << 2, (0, 0, 0, 0)) and r.minimap_lists(2), "the notice's 3 s over"
+    # The world saved and loaded again (a late joiner's, a resync's): the same step.
+    saved = r.serialize()
+    assert r.deserialize(saved) == len(saved)
+    assert reveal(3, 15100) == (1 << 2, (0, 0, 3, 0)) and r.minimap_lists(2)
+    # He thaws them (no walls): no longer last, nobody revealed or counting.
+    r.blocked = False
+    for time in range(150, 4300, 50):
+        r.tick(time)
+    assert r.state()[RECORDS] == 1 and r.state()[-10:] == bytes(10)
+    assert reveal(3, 4300) == (0, (0, 0, 0, 0)) and not r.minimap_lists(2)
+    r.blocked = True
+    r.start(teams=(0, 0, 1))
+    r.lethal(0)
+    r.tick(50)
+    assert r.state()[RECORDS] == 3
+    assert reveal(1, 30_000) == (0, (0, 0, 0, 0)) and not r.minimap_lists(1)
+    r.blocked = False
+    print("ok a team's last one fighting (two teammates frozen at least): every viewer told the 15 s "
+          "countdown from the step his team was down to him (saved in the world), then he is listed on "
+          "the other team's maps and told revealed; a thaw ends it; one teammate frozen, or a team of two, "
+          "is not")
 
     # Why: what the game does to a player put in with link 0 that was out of the world (a world
     # load's 0x2D2D51) when it is next taken out with 1 (the restart's 0x3169A0, the leave handler's

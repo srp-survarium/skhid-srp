@@ -1,6 +1,6 @@
 """Additional seamless prints for the atlas, composed at illustration scale.
 
-All geometry in the ten textile, mineral and map studies is original. Museum and
+All geometry in the 14 textile, mineral and map prints is original. Museum and
 USGS links identify visual references. The 75 other colorways rework CC0 source
 tiles with custom palettes and periodic overprints.
 """
@@ -42,53 +42,26 @@ INKS = (
     ('Maritime','293641 3a6477 92afaa e8dbc0'),
     ('Garnet','352736 6f3644 b55e57 e4ad87'),
 )
-STUDIES = (
-    ('Soundings','Stepped depth bands and fine contour loops wind around submerged peaks.',
+# Print families by number (the number seeds each design). Families 1-4, 6 and 9 (Agate, Kasuri,
+# Cloud Hex, Wax Resist, Fishbone, Beadwork) no longer have a tile in the atlas.
+STUDIES = {
+    0: ('Soundings','Stepped depth bands and fine contour loops wind around submerged peaks.',
      'https://www.usgs.gov/faqs/what-a-topographic-map','USGS · Contour maps'),
-    ('Agate','Alternating mineral bands pool into broken eyes and softly folded ribbons.',
-     'https://naturalhistory.si.edu/explore/collections/geogallery/10026355','Smithsonian · Banded agate'),
-    ('Kasuri','Feathered edges break up staggered diamond-shaped resist marks.',
-     'https://www.metmuseum.org/art/collection/search/45408','The Met · Warp and weft kasuri'),
-    ('Cloud Hex','Cloud-shaped islands interrupt an outlined, nested hexagon repeat.',
-     'https://www.metmuseum.org/art/collection/search/50803','The Met · Clouds and hexagons'),
-    ('Wax Resist','Six-petal resist rosettes lie over mottled dye and wandering fine cracks.',
-     'https://asia.si.edu/education/educator-resources/teaching-china-with-the-smithsonian/lesson-plans/batik-textile-connections-from-china-to-today/','Smithsonian · Batik textiles'),
-    ('Crosscheck','Unequal warp and weft stripes cross with narrow pinstripes and twill marks.',
+    5: ('Crosscheck','Unequal warp and weft stripes cross with narrow pinstripes and twill marks.',
      'https://www.vam.ac.uk/dundee/info/scotland-s-oldest-tartan-discovered-by-scottish-tartans-authority','V&A Dundee · Glen Affric tartan'),
-    ('Fishbone','Broken narrow chevrons run through staggered bands of woven color.',
-     'https://www.metmuseum.org/art/collection/search/454599','The Met · Herringbone silk fragment'),
-    ('Terrazzo','Three sizes of angular inlay chips sit in a contrasting mineral ground.',
+    7: ('Terrazzo','Three sizes of angular inlay chips sit in a contrasting mineral ground.',
      'https://www.si.edu/object/gems-and-minerals-exhibit-national-museum-natural-history%3Asiris_sic_9363','Smithsonian · Terrazzo floor'),
-    ('Screenprint','A dot screen swells and contracts over broad areas of flat printed color.',
+    8: ('Screenprint','A dot screen swells and contracts over broad areas of flat printed color.',
      'https://www.metmuseum.org/art/collection/search/265373','The Met · Halftone screen'),
-    ('Beadwork','Stepped diamond shapes form a beaded band with small contrasting accents.',
-     'https://artsandculture.google.com/asset/%D0%A8%D0%B8%D0%B9%D0%BD%D1%96-%D0%B1%D1%96%D1%81%D0%B5%D1%80%D0%BD%D1%96-%D0%BF%D1%80%D0%B8%D0%BA%D1%80%D0%B0%D1%81%D0%B8-%D2%90%D0%B5%D1%80%D0%B4%D0%B0%D0%BD%D0%B8-%D0%90%D0%B2%D1%82%D0%BE%D1%80-%D0%BD%D0%B5%D0%B2%D1%96%D0%B4%D0%BE%D0%BC%D0%B8%D0%B9/GgGw8mhbXFm5rw?hl=uk','National Museum of the History of Ukraine · Geometric beadwork'),
-)
+}
+FAMILY_COUNT = 10
+# The kept prints by their place in the original 10 x 9 grid (family = index % 10, variant = index // 10).
+ORIGINALS = (7, 17, 20, 27, 28, 37, 45, 57, 58, 68, 75, 77, 80, 87)
 
 
 def field(rng, nx, ny, x=X, y=Y, order=3):
     values=rng.uniform(-1,1,(ny,nx)).astype(np.float32)
     return map_coordinates(values,[y*ny,x*nx],order=order,mode='grid-wrap')
-
-
-def closest_cell(x,y,nx,ny):
-    """Offset rows wrap over an even row count. Return signed position inside nearest hex."""
-    row=np.floor(y*ny)
-    best=np.full_like(x,9.)
-    for dr in (-1,0,1):
-        r=row+dr
-        xx=(x*nx-.5*(r%2)+.5)%1-.5
-        yy=y*ny-r
-        metric=xx*xx+yy*yy*.75
-        use=metric<best
-        if dr==-1:
-            closest_x=xx
-            closest_y=yy
-        else:
-            closest_x=np.where(use,xx,closest_x)
-            closest_y=np.where(use,yy,closest_y)
-        best=np.minimum(metric,best)
-    return closest_x,closest_y
 
 
 def polygon_wrap(draw, points, color):
@@ -122,30 +95,6 @@ def design(family,variant):
         height=a+.27*b+.07*field(rng,14,14)
         levels=height*(4+variant%3)
         c=np.select([levels%1<.12,levels%3<.24,height>.18],[3,0,2],1)
-    elif family==1:
-        u=x+.055*a;v=y+.055*b
-        xx,yy=closest_cell(u,v,2+variant%3,4)
-        bands=np.sqrt(xx*xx+(.8*yy)**2)*6+.62*field(rng,6,7,u,v)
-        c=np.select([bands%1<.09,bands%2<.59,bands%1<.48],[3,0,2],1)
-    elif family==2:
-        u=x+.022*field(rng,5,86); v=y+.008*field(rng,65,5)
-        xx,yy=closest_cell(u,v,5+variant%4,6+2*(variant%2))
-        d=np.abs(xx)+.68*np.abs(yy)
-        c=np.select([d<.10,(d>.18)&(d<.27),d<.44,b>.35],[3,3,2,1],0)
-    elif family==3:
-        xx,yy=closest_cell(x,y,7+variant%3,8)
-        d=np.maximum(abs(xx)*2,abs(xx)+1.5*abs(yy))
-        c=np.select([d>.91,(d>.62)&(d<.71),d<.18],[3,2,2],0)
-        c=np.where(a+.18*b>.34,np.where(b>.28,3,1),c)
-    elif family==4:
-        xw=x+.009*a;yw=y+.012*b
-        xx,yy=closest_cell(xw,yw,4+variant%3,6)
-        rad=np.sqrt(xx**2+yy**2)
-        petals=np.cos(6*np.arctan2(yy,xx)-variant*.24)
-        rim=.24+.12*petals
-        leaf=(abs(rad-rim)<.022)|(rad<.066)|(abs(rad-.47)<.018)
-        crack=abs(b+.29*field(rng,17,18))<.024
-        c=np.select([leaf,crack,rad<rim,a>.22],[3,2,2,1],0)
     elif family==5:
         # Unequal stripe widths form a sett. The crossings alternate warp/weft.
         n=2+variant%3
@@ -156,13 +105,6 @@ def design(family,variant):
         warp=colors[np.digitize(tx,widths)]
         weft=colors[np.digitize(ty,widths)]
         c=np.where(((x+y)*128)%1<.52,warp,weft)
-    elif family==6:
-        n=8+4*(variant%3)
-        tx=x*n
-        phase=np.where(tx.astype(int)%2==0,tx%1,1-tx%1)
-        band=(y*(11+variant%4)+phase*.64)%1
-        c=np.select([band<.10,band<.26,(np.floor(tx)+np.floor(y*4))%4==0],[3,2,2],0)
-        c=np.where((y*4)%1<.17,np.where(band<.42,0,1),c)
     elif family==7:
         c=terrazzo(rng,np.ones_like(a))
     elif family==8:
@@ -173,18 +115,12 @@ def design(family,variant):
         threshold=np.clip(.27+.27*a+.055*b,.06,.63)
         c=np.select([rad<threshold*.69,rad<threshold,a>.23,b<-.35],[0,1,2,1],3)
     else:
-        # Keep motif period an exact divisor of tile dimensions.
-        n=48+24*(variant%2)
-        u=np.floor(x*n);v=np.floor(y*n)
-        xx=((u+6*((v//12)%2))%12)-6; yy=v%12-6
-        d=abs(xx)+abs(yy)
-        c=np.select([d==5,(d==2)|(d==9),d<=1,d<=5],[3,2,3,1],0)
-        c=np.where((v%24==0)|(v%24==1),np.where((u//2)%2==0,2,1),c)
+        raise ValueError(f'no print family {family}')
     return c.astype('uint8'),a
 
 
 def save_original(out,index):
-    family,variant=index%len(STUDIES),index//len(STUDIES)
+    family,variant=index%FAMILY_COUNT,index//FAMILY_COUNT
     name,description,url,label=STUDIES[family]
     color,inks=INKS[(variant*7+family*13)%len(INKS)]
     title=f'{color} {name}'
@@ -241,8 +177,10 @@ def save_reprint(out,index,archives,families,member):
             ' '.join('#'+h.upper() for h in inks.split()))
 
 
-def expanded(out,archives,families,member):
+def expanded(out,archives,families,member,first):
+    """Catalog rows (id first). The prints keep the ids of their places in the 90-print grid
+    (first + index), the reprints follow it (first + 90 + index)."""
     with ThreadPoolExecutor(max_workers=4) as pool:
-        original=list(pool.map(lambda i:save_original(out,i),range(90)))
-        reprints=list(pool.map(lambda i:save_reprint(out,i,archives,families,member),range(75)))
+        original=list(pool.map(lambda i:(first+i,*save_original(out,i)),ORIGINALS))
+        reprints=list(pool.map(lambda i:(first+90+i,*save_reprint(out,i,archives,families,member)),range(75)))
     return original+reprints

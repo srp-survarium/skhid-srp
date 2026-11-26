@@ -55,8 +55,8 @@ code names none of them (sold as the knit cap, below).
   beanie is": gear of no faction is sold by seller 0 to everyone at no rank, as the cap, at
   its price (Stats, below). They also drop after
   matches: each has its level's drop weight, its category is in the generic drop table, and
-  the table's level rows roll its item level (`prices::tests::the_stk2_outfits_are_sold_to_everyone_at_no_rank`;
-  on the built server data, `drops::tests::the_stk2_outfits_drop_and_are_sold_to_everyone`).
+  the table's level rows roll its item level (on the built server data,
+  `drops::tests::the_stk2_outfits_drop_and_are_sold_to_everyone`).
   Drops are rolled after a match and prices are the lobby's, so nothing a match computes
   changes (no `simulation_changes.tsv` row).
 - **Levels (the owner, 2026-10-31):** the Novice's set 4, the bandit's and the loner's 6.

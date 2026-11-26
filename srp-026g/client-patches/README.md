@@ -247,7 +247,7 @@ release's. The "Result" row is the build of the revision named in it.
 | `rust/patches/src/tick_parts.rs`, `src/tick_parts.toml`, `src/vostok/controller.rs` (`Step`, `IdleTest`, `SpeedMeasure`) | Patch 168: a part of a tick walks, and says a player's speed, as a whole tick does (`../docs/notes/fall_damage.md`, "A part of a tick: its least walk and the speed read from it"): two lohooks, can_skeep_player_step's least walk asked of a part at its tick's worth (`controller.idle_walk`, 0x7C823: a part's walk squared over (dt / 0.05) squared, so no part of a walking body is skipped) and assign_physics_transform's store of m_linear_horizontal_speed skipped unless the step ends a tick (`player.speed_measured`, 0x2D9541: a jump begun in a cut tick reads what an uncut one reads); whole ticks bit for bit; a simulation change (`../docs/notes/client_patch.md` section 3.93); checked by `check_step_parts_026g.py` |
 | `rust/patches/src/forward_effects.rs`, `src/forward_effects.toml`, `src/vostok/effect_compile.rs` (`CompileBegin`, `Switches0d`, `send_tile_uv`), `check_forward_effects_026g.py` | Patch 169: the forward effects draw as 0.44a5's (`../docs/notes/client_patch.md` section 3.91): three lohooks in two effect compiles, forward_default's and particle_lighting's pushes for compile_begin (`forward.compile_begin` 0x1D910D, `particle_lighting.compile_begin` 0x1DB34B: the shader configuration's byte 0Dh, CONFIG_USE_OLTA for a DXT1 transparency map, CONFIG_USE_DISPLACEMENT for tiled maps, CONFIG_USE_FUZZINESS for the distortion of the emissive map alone) and forward_default's solid_color_specular, before its constant_tile_uv block (`forward.tile_uv` 0x1D964D: a tiled material's four factors as a float4, which stands: a set_constant keeps a name's first value); stage_lights' constructor and particle pass (`stage_lights.constructed` 0x19015D, `stage_lights.particle_probe` 0x19834B: probe_diffuse_mult registered and set); rendering only; the programs come with content pack forward-effects; its check runs both compiles in both exes on made-up materials (needs Unicorn) |
 | `rust/patches/src/parallax_uv.rs`, `src/parallax_uv.toml`, `src/vostok/effect_compile.rs` (`GstageParallax`) | Patch 183: the g-buffer's parallax constants as 0.44a5 sets them (`../docs/notes/client_patch.md` section 3.100): one lohook in effect_gstage_default_materials::compile's parallax block (`gstage.parallax` 0x1DFF85, before t_height_map's set_texture), `parallax_uv_scrolling_factors` and `parallax_uv_scale_factors` from the material's own fields by set_constant<float2> (0x1D9740, a new engine_026g.tsv row); rendering only; the programs come with the London packs |
-| `rust/patches/src/freeze_tag.rs`, `src/freeze_tag.toml`, `src/vostok/freeze.rs`, `../crates/srp-validate/src/world/freeze.rs`, `check_freeze_tag_026g.py` | Patch 160: Freeze Tag, mode 12 (`../docs/notes/freeze-tag.md`): a lethal hit freezes, a teammate thaws in 4 s within 2 m, a body by itself after 120 s, a team's last one fighting on the other's map (`minimap.enemy_spotted`, order 3), first to five rounds; the rule saved after the respawn rule's; `respawn.tick` (order 0, Artifact Hunt's 1) and `carry.input` (order 0, patch 78's 1, exit `held`) shared, each handler acting in its own mode. Unicorn: `tools/check freeze-native`. Not run in a game. |
+| `rust/patches/src/freeze_tag.rs`, `src/freeze_tag.toml`, `src/vostok/freeze.rs`, `../crates/srp-validate/src/world/freeze.rs`, `check_freeze_tag_026g.py` | Patch 160: Freeze Tag, mode 12 (`../docs/notes/freeze-tag.md`): a lethal hit freezes, a teammate thaws in 4 s within 2 m, a body by itself after 120 s, a team's last one fighting on the other's maps 15 s after his team was down to him (`minimap.enemy_spotted`, order 3; the hud told `root.freeze_tag_revealed` and the countdown `root.freeze_tag_reveal`), first to five rounds; the rule saved after the respawn rule's (version 4, 201 bytes; the game reads it by its version byte); `respawn.tick` (order 0, Artifact Hunt's 1) and `carry.input` (order 0, patch 78's 1, exit `held`) shared, each handler acting in its own mode. Unicorn: `tools/check freeze-native`. Not run in a game. |
 | `rust/patches/src/artefact_carry.rs`, `check_artefact_carry_026g.py` | Patch 78: H (the game's unused action `artefact`, default H, a controls row) + an artefact quick key lowers the weapon and raises the artefact above the right palm in both views; switching lowers the old item before raising the new one. Use takes an offered or death-dropped artefact into a free container, with the existing collection UI. Deterministic input/snapshots, native inventory ownership, model callbacks and matching damage poses. See [controls, architecture and validation](../docs/notes/held_artefact_transfer.md). |
 | `rust/patches/src/bake_cache.rs`, `src/bake_cache.toml`, `src/vostok/baker.rs`, `src/vostok/files.rs`, `src/vostok/crc32.rs`, `check_bake_cache_026g.py` | Patch 70: the baked camouflage and decal textures kept from game to game (the folder deleted only for another revision, its files back in the baker's list) and baked or loaded once while asked for again: seven `lohook`s (`sites_026g.tsv` bake.* and crc32.step); its check runs game::game's delete, the game's own check_loaded, translate_query's look-up, the texture made by a bake and a load, and finish_query on a made-up baker, folder and queries (needs Unicorn) |
 | `rust/patches/src/bake_async.rs`, `src/bake_async.toml`, `src/vostok/bake_gpu.rs`, `check_bake_async_026g.py` | Patch 121: the camouflage/decal bake does not wait for the GPU: level 0 a GPU copy of the target, the compressed levels copied to stagings and flushed, at most 8 bakes on the GPU (with all 8 taken, the oldest completed on the spot for the next), polled each dispatch with the no-wait map, the DDS allocated only then, and process_compression's own tail run, on a 6 ms budget a frame; nothing is put off or asked again; the save owns the MT DDS (no copy), at most 64 saves and 128 MB not written yet; nine `lohook`s (`sites_026g.tsv` bake.issue, bake.resume, bake.save, bake.free, save.freed, compress_mip.readback, resources.dispatched, engine.tick, game.exit_start); its check runs them in Unicorn on a made-up D3D11 context |
@@ -266,8 +266,7 @@ release's. The "Result" row is the build of the revision named in it.
 | `check_weapon_preview_026g.py` | Runs the original's and patch 32's upgrade window start and close (with the lobby camera's own setter), `setup_profile`'s entry, the lobby camera's three distance clamps and the player's decal pose on a made-up lobby, loaded as is and rebased (needs Unicorn) |
 | `check_forward_scroll_026g.py` | Runs the original's and the build's forward-effect compile, with patch 28's two hooks, on made-up materials and compares what each sends; runs the third hook against the game's own binding of `scene_time`; loaded as is and rebased (needs Unicorn). |
 | `selftest_026g.py` | Builds every variant and checks the general rules on each from what the build records and the patches declare (no byte changed undeclared, no relocation or branch into a rewritten byte, every hooked function's ABI, every branch target known, the PE, the .bin files current), and each patch's own code where it guards its ABI; needs the original exe, nasm (2.16), gcc (`-m32`), GNU ld and Python unicorn. `release/release.sh` runs it before a release (step 2, its Linux part): not during development |
-| `run_battery_rule.ps1` | Runs the battery rule's handler (patch 9) out of any 0.26g exe on a made-up rule object, in the 32-bit Windows PowerShell: what an exe does with a put that is played again after a rollback. Starts nothing of the game |
-| `survarium_login_server.crt` | The login certificate (the same file as `../certs/survarium_login_server.crt`) |
+| `survarium_login_server.crt` | The login certificate (the same file as `srp-021d/certs/survarium_login_server.crt`) |
 | `launcher/` | The game's launcher made to work again, and to keep these files current: its patch tool, the one piece of new code, the self-test and its own README. Its updater is `../../client/updater` |
 
 ## The arena (`.srpx`) and call shapes
@@ -835,8 +834,8 @@ original bytes first, so another build or an already patched file is refused.
 - **Why:** the client accepts a login server only if its certificate
   verifies against that file. The file the 0.26g game ships is of another
   key and ran out in 2015. This one is the game's own name issued again
-  (valid to 2037), and its key is in `../certs/`, which the login server
-  reads.
+  (valid to 2037); its key is in `srp-021d/certs/`. The 0.26g login server
+  no longer uses TLS (`docs/notes/sign-in-cipher.md`), so srp reads neither.
 
 ### 6. The minimum video-memory check
 
@@ -915,7 +914,7 @@ original bytes first, so another build or an already patched file is refused.
   not, which is what the 0.21d client's rule does. The containers are never
   closed. The match is ended by the server, 3 s after it reads the full
   count, as before.
-- **Run outside the game:** `run_battery_rule.ps1 <exe> [<exe> ...]` (the
+- **Run outside the game:** `run_battery_rule.ps1 <exe> [<exe> ...]` (removed 2026-11-26, in the git history) (the
   32-bit Windows PowerShell) copies the handler's 238 bytes out of an exe
   and calls them on a made-up rule object: nine puts, the tenth, a
   rollback of the count, the same put again, a take, a put. With a
@@ -1496,7 +1495,7 @@ reads the alive mask.
 and a game of 11 does, so they part at the first death after a team is out.
 A server asks for 11 together with the ZIP.
 
-Checked: `selftest_026g.py` check 22. `run_tdm_rule.ps1` (32-bit PowerShell)
+Checked: `selftest_026g.py` check 22. `run_tdm_rule.ps1` (removed 2026-11-26, in the git history) (32-bit PowerShell)
 copies the handler, its recount and its end test out of an exe to their own
 addresses and plays two teams of two through a team's last death, a rollback
 (tickets and masks loaded, not the time) and the replay: the original and
@@ -5060,7 +5059,7 @@ collision mesh, and its contact then often pushes it through. `GRENADE_CCD`
 bytes, the same instruction; its base relocation stays): the sphere is inside
 the capsule with a centimetre to spare and the capsule stops at the surface.
 A simulation of the game's world, step and body over vostok's Bullet 2.79
-(`grenade_ccd_sim.cpp`) loses 10 to 23 % of throws under the ground stock and
+(`grenade_ccd_sim.cpp`, removed 2026-11-26, in the git history) loses 10 to 23 % of throws under the ground stock and
 none of 4700 with 0.04; a grenade rolls on about half as far after it lands
 (stock, the sunk capsule was pushed back out with speed). What a match
 computes changes: a `next` row in

@@ -1,5 +1,5 @@
 //! One 0.26g match, the server's side of the clients' lockstep
-//! (`docs/notes/match.md`). The 0.21d `crate::game` carried over
+//! (`docs/notes/match.md`). The 0.21d server's `game.rs` (`srp-021d`) carried over
 //! to the 0.26g messages; the reasons behind most rules and numbers are in
 //! its comments and in `MATCH-SYNC-021D.md`.
 //!
@@ -2674,18 +2674,13 @@ impl Game {
     /// their way ahead). Once a clock is assigned, its projection bounds
     /// every copy, including unanswered generations. The margin is for
     /// inputs on their way, newer than the newest seen; it is not added
-    /// again when a generation is retried. By
-    /// the world alone (`SRP_RESYNC_WORLD_ONLY`) the clock stays where it
-    /// is.
+    /// again when a generation is retried.
     ///
     /// Copies whose clocks disagree may arrive in any order. The bound
     /// retains the latest projection until a clock correction invalidates it.
     fn sync_start(&self, index: usize, time: u32, entering: bool, clock: u32, now: Instant) -> u32 {
         let others = self.others_live(index);
         if !entering {
-            if self.settings.resync_world_only && others {
-                return clock;
-            }
             let Some(peer) = self.peers[index].as_ref() else {
                 return clock;
             };
@@ -2812,18 +2807,6 @@ impl Game {
             // sync end it (`send_set_time`).
             let runs = now + takes + Duration::from_millis(u64::from(peer.round_trip));
             peer.correction_ends = Some(peer.correction_ends.map_or(runs, |end| end.max(runs)));
-        }
-        if self.settings.resync_world_only && !entering && self.others_live(index) {
-            // `SRP_RESYNC_WORLD_ONLY`: no 0xE5, the world of the next
-            // generation at once (the client takes a 0xE8 that is newer
-            // than its own generation).
-            if let Some(peer) = self.peers[index].as_mut() {
-                peer.generation = peer.generation.next();
-                peer.set_times.clear();
-                peer.time_confirmed = true;
-            }
-            self.send_sync(index, snapshot.clone(), entering, now);
-            return;
         }
         let Some(peer) = self.peers[index].as_mut() else {
             return;
@@ -3178,9 +3161,6 @@ impl Game {
     /// gets the 0xE5 once more and the world.
     fn send_sync(&mut self, index: usize, snapshot: Snapshot, entering: bool, now: Instant) {
         let clock = self.clock(now);
-        let others = self.others_live(index);
-        let resync = !entering && others;
-        let world_only = self.settings.resync_world_only && resync;
         let resync_from = self.peers[index].as_ref().and_then(|peer| peer.resync_from);
         // A client in a resync has had its replay (`send_replay`), and the
         // relays since as they came.
@@ -3266,9 +3246,7 @@ impl Game {
             .flatten();
         // The time once more, for this very moment: it travels ahead of
         // the inputs and the snapshot's first part.
-        if !world_only {
-            self.send_set_time(index, snapshot.time, entering, now);
-        }
+        self.send_set_time(index, snapshot.time, entering, now);
         let Some(peer) = self.peers[index].as_mut() else {
             return;
         };
@@ -4956,20 +4934,6 @@ impl Game {
                     divergence.first, divergence.last
                 )
             });
-            let limit = self.settings.restore_limit;
-            if limit != 0 && peer.restores_unagreed >= limit {
-                // `SRP_RESTORE_LIMIT`: so many restores in a row never
-                // brought it to agree; it is put out instead of restored
-                // for ever.
-                log::warn!(
-                    "Match {:#x}: player {index} is out of sync{wrong} after {} restores that \
-                     did not help",
-                    self.id,
-                    peer.restores_unagreed
-                );
-                self.remove(index, Removal::RestoresUnagreed, now);
-                continue;
-            }
             peer.last_resync = Some(now);
             if peer.resynced_at.len() >= RESYNCS_PER_MINUTE {
                 peer.resynced_at.pop_front();

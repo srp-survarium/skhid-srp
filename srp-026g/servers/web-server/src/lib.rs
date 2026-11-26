@@ -1,20 +1,18 @@
 //! A small website for the people running srp.
 //!
 //! - `/` is a home page: what the project is and where it came from.
-//! - `/exchange` (the 0.26g page only, `GET`) says that there is no gold:
-//!   everything is bought with silver. The SHOP button of the launchers
-//!   already in players' hands opens it ([`v026g::no_gold`]). Nothing is
-//!   exchanged on the page; on the 0.21d page it is "not found".
-//! - `/launcher/…` and `/api/client-files` (the 0.26g page only) are for the
-//!   patched game launcher and its updater ([`launcher`]): the page it shows
-//!   in its window, and which archive `/download` hands out now.
-//! - `/torrent` and `/Skhid-get.bat` (the 0.26g page only): the download
-//!   file's torrent and the bootstrap script, when there are ([`torrent`]).
-//! - `/patches` (the 0.26g page only) is the list of `resources.db`'s patches
-//!   the updater keeps in the game folder: those the server's game data was
-//!   made of ([`patches`]).
-//! - `/replays/<token>` (the 0.26g page only) is the replay file of the
-//!   match a token of the lobby's "Watch replay" is for
+//! - `/exchange` (`GET`) says that there is no gold: everything is bought
+//!   with silver. The SHOP button of the launchers already in players' hands
+//!   opens it ([`v026g::no_gold`]). Nothing is exchanged on the page.
+//! - `/launcher/…` and `/api/client-files` are for the patched game launcher
+//!   and its updater ([`launcher`]): the page it shows in its window, and
+//!   which archive `/download` hands out now.
+//! - `/torrent` and `/Skhid-get.bat`: the download file's torrent and the
+//!   bootstrap script, when there are ([`torrent`]).
+//! - `/patches` is the list of `resources.db`'s patches the updater keeps in
+//!   the game folder: those the server's game data was made of ([`patches`]).
+//! - `/replays/<token>` is the replay file of the match a token of the
+//!   lobby's "Watch replay" is for
 //!   (`session::v026g::replays`): `SRP_REPLAY_DIR/<id:08x>.sur`, named from
 //!   the token's match id alone ([`replay_file`]); anything else under
 //!   `/replays` is one and the same "not found", and an address that fails
@@ -33,10 +31,9 @@
 //! its own credentials, so there are no cookies and nothing to forge across
 //! sites.
 //!
-//! The page is of one game version, by how it is started: [`run`] is the
-//! 0.21d page (balances of `session::Account::game`, `-client=`), and
-//! [`run_026g`] the 0.26g one ([`v026g`]: the 0.26g accounts, the lobby told
-//! of every change, `-server=`). `srp` starts the 0.26g one.
+//! It is the 0.26g game's page ([`run_026g`], [`v026g`]: the 0.26g
+//! accounts, the lobby told of every change), as `srp` starts it. The 0.21d
+//! page is in `srp-021d/servers/web-server`.
 
 mod artefacts;
 mod built;
@@ -82,8 +79,6 @@ use survarium::v026g::localization::Language;
 
 /// What the home page tells a new player, fixed at start-up.
 struct Connect {
-    /// The login server as the client is told to reach it (`host:port`).
-    address: String,
     /// `SRP_DOWNLOAD_URL`: where the patched game can be had.
     download_url: Option<String>,
     /// `SRP_DOWNLOAD_SHA256`: its checksum.
@@ -280,37 +275,23 @@ struct Stats {
     /// The minutes to a planned maintenance.
     maintenance: Option<u32>,
     registrations_open: bool,
-    /// The 0.26g page.
-    v026g: bool,
-    /// The download holds the launcher (0.26g): the page tells players to
+    /// The download holds the launcher: the page tells players to
     /// start that, and keeps the start script for those who want it.
     launcher: bool,
-    /// The download's launcher brings the original game itself (0.26g):
+    /// The download's launcher brings the original game itself:
     /// the page tells players to unpack into an empty folder, and names
     /// the game's own archive only as the way out when that fails.
     installs_game: bool,
 }
 
 enum Form {
-    None,
     Home(Stats),
     Admin(Box<AdminView>),
-    /// The 0.26g page's "not found".
+    /// "Not found".
     None26,
-    /// The 0.26g page's `/exchange`: no gold, in the launcher's
-    /// language ([`v026g::launcher_code`]).
+    /// `/exchange`: no gold, in the launcher's language
+    /// ([`v026g::launcher_code`]).
     InTheGame26(&'static str),
-}
-
-impl Form {
-    fn is_026g(&self) -> bool {
-        match self {
-            Self::None => false,
-            Self::None26 | Self::InTheGame26(_) => true,
-            Self::Home(stats) => stats.v026g,
-            Self::Admin(view) => view.g26,
-        }
-    }
 }
 
 /// The admin page as shown: before the token (all empty), or after it.
@@ -327,15 +308,13 @@ struct AdminView {
     maintenance: String,
     /// Whether new accounts are taken, for the form's buttons.
     registrations_open: bool,
-    /// The 0.26g page: the account, item and text tabs too.
-    g26: bool,
-    /// The operator's text that stands (0.26g, after the token only).
+    /// The operator's text that stands (after the token only).
     admin_text: Option<(String, String)>,
     /// The password tab: the account to confirm, or the user name typed.
     reset: password_reset::ResetView,
-    /// The 0.26g Money tab: the change previewed or made.
+    /// The Money tab: the change previewed or made.
     money: moderation::MoneyView,
-    /// The 0.26g Take items tab: the listing, the take previewed or made.
+    /// The Take items tab: the listing, the take previewed or made.
     items: moderation::ItemsView,
 }
 
@@ -512,8 +491,8 @@ struct Web {
     replay_asks: Mutex<HashMap<Option<IpAddr>, ReplayAsks>>,
     /// The admin's moderation previews waiting for their confirm.
     plans: moderation::Plans,
-    /// `Some`: the page of the 0.26g stack.
-    game: Option<Game>,
+    /// The 0.26g stack the page is of.
+    game: Game,
 }
 
 /// Who may use the admin page, and how.
@@ -529,26 +508,11 @@ pub struct Admin {
     pub trust_proxy: bool,
 }
 
-/// The 0.21d page, as the environment asks for it.
-pub fn run(store: Arc<SessionStore>) -> io::Result<()> {
-    run_from_env(store, None)
-}
-
-/// The 0.26g page, as the environment asks for it (the same settings).
+/// The page, as the environment asks for it.
 pub fn run_026g(store: Arc<SessionStore>, game: Game) -> io::Result<()> {
-    run_from_env(store, Some(game))
-}
-
-fn run_from_env(store: Arc<SessionStore>, game: Option<Game>) -> io::Result<()> {
     let bind = std::env::var("SRP_WEB_BIND").unwrap_or_else(|_| "127.0.0.1".into());
     let port = std::env::var("SRP_WEB_PORT").unwrap_or_else(|_| "8088".into());
-    let address = vostok::config::load().map_or_else(
-        |_| "127.0.0.1:1234".into(),
-        |config| config.login_server.public_addr(),
-    );
-    log::info!("Home page tells players to connect to {address}");
     let _ = CONNECT.set(Connect {
-        address,
         download_url: env_text("SRP_DOWNLOAD_URL").filter(|url| url.starts_with("https://")),
         download_file: env_text("SRP_DOWNLOAD_FILE").map(PathBuf::from),
         sha256: env_text("SRP_DOWNLOAD_SHA256")
@@ -608,25 +572,20 @@ fn run_from_env(store: Arc<SessionStore>, game: Option<Game>) -> io::Result<()> 
     )
 }
 
-/// Serve the page on `listener` until it fails: the 0.26g page with a
-/// `game`, else the 0.21d one. (What the home page tells of the address and
-/// the download comes from the environment, through [`run`] / [`run_026g`]
-/// only.)
+/// Serve the page on `listener` until it fails. (What the home page tells
+/// of the address and the download comes from the environment, through
+/// [`run_026g`] only.)
 pub fn serve_on(
     listener: &TcpListener,
     store: Arc<SessionStore>,
     admin: Admin,
-    game: Option<Game>,
+    game: Game,
 ) -> io::Result<()> {
     let admin_state = match (&admin.token, &admin.path) {
         (Some(_), Some(_)) => format!("admin on for {} address(es)", admin.ips.len()),
         _ => "admin off: SRP_ADMIN_TOKEN and SRP_ADMIN_PATH are needed".to_owned(),
     };
-    log::info!(
-        "Web server on {} ({} page, {admin_state})",
-        listener.local_addr()?,
-        if game.is_some() { "0.26g" } else { "0.21d" }
-    );
+    log::info!("Web server on {} ({admin_state})", listener.local_addr()?);
     let web = Arc::new(Web {
         store,
         token: admin.token,
@@ -746,7 +705,7 @@ impl Web {
         } else {
             connection
         };
-        if self.game.is_some() && replay_route(&request) {
+        if replay_route(&request) {
             self.replay(&mut stream, &request, Instant::now());
             return;
         }
@@ -757,8 +716,7 @@ impl Web {
             self.download(&mut stream, &request, file);
             return;
         }
-        if let Some(game) = &self.game
-            && request.path == torrent::PATH
+        if request.path == torrent::PATH
             && matches!(request.method.as_str(), "GET" | "HEAD")
             && let Some(found) = available_download().and_then(|file| torrent::in_zip(file))
         {
@@ -766,28 +724,26 @@ impl Web {
                 &mut stream,
                 request.method == "HEAD",
                 &found,
-                game.min_patch_revision,
+                self.game.min_patch_revision,
             );
             return;
         }
-        if self.game.is_some()
-            && request.path == torrent::BOOTSTRAP_PATH
+        if request.path == torrent::BOOTSTRAP_PATH
             && matches!(request.method.as_str(), "GET" | "HEAD")
             && let Some(script) = torrent::BOOTSTRAP
         {
             torrent::send_bootstrap(&mut stream, request.method == "HEAD", script);
             return;
         }
-        // The calculator's, the Maps tab's and the skills' files on the 0.26g site; the
-        // calculator's fonts, which every page uses, on both.
-        let site_file = self.game.is_some() || request.path.starts_with(damage::FONTS);
-        if site_file && matches!(request.method.as_str(), "GET" | "HEAD") {
+        // The calculator's, the Maps tab's, the wiki's, the stats' and the
+        // skills' files, and the calculator's fonts, which every page uses.
+        if matches!(request.method.as_str(), "GET" | "HEAD") {
             let file = damage::file(&request.path)
-                .or_else(|| self.game.as_ref().and_then(|_| maps::file(&request.path)))
-                .or_else(|| self.game.as_ref().and_then(|_| wiki::file(&request.path)))
-                .or_else(|| self.game.as_ref().and_then(|_| history::file(&request.path)))
-                .or_else(|| self.game.as_ref().and_then(|_| skills::file(&request.path)))
-                .or_else(|| self.game.as_ref().and_then(|_| icons::file(&request.path)));
+                .or_else(|| maps::file(&request.path))
+                .or_else(|| wiki::file(&request.path))
+                .or_else(|| history::file(&request.path))
+                .or_else(|| skills::file(&request.path))
+                .or_else(|| icons::file(&request.path));
             if let Some((content_type, bytes)) = file {
                 damage::send(&mut stream, request.method == "HEAD", content_type, bytes);
                 return;
@@ -795,8 +751,7 @@ impl Web {
         }
         // A page's address from before it was the wiki's: the page where it
         // is now, in the same language (the browser keeps a `#` itself).
-        if self.game.is_some()
-            && matches!(request.method.as_str(), "GET" | "HEAD")
+        if matches!(request.method.as_str(), "GET" | "HEAD")
             && let Some(path) = wiki::moved(&request.path)
         {
             let head = format!(
@@ -810,28 +765,26 @@ impl Web {
             return;
         }
         let response = self.route(&request, &peer);
-        let policy = if self.game.is_some() && launcher::serves(&request.path) {
+        let policy = if launcher::serves(&request.path) {
             launcher::policy()
-        } else if self.game.is_some() && request.path == damage::PATH {
+        } else if request.path == damage::PATH {
             damage::POLICY
-        } else if self.game.is_some() && request.path == maps::PATH {
+        } else if request.path == maps::PATH {
             maps::POLICY
-        } else if self.game.is_some() && request.path == history::PATH {
+        } else if request.path == history::PATH {
             history::POLICY
-        } else if self.game.is_some()
-            && matches!(
-                request.path.as_str(),
-                wiki::PATH
-                    | wiki::WEAPONS
-                    | wiki::SIMULATORS
-                    | wiki::MODIFIERS
-                    | wiki::EQUIPMENT
-                    | artefacts::PATH
-                    | skills::PATH
-                    | quests::PATH
-                    | modes::PATH
-            )
-        {
+        } else if matches!(
+            request.path.as_str(),
+            wiki::PATH
+                | wiki::WEAPONS
+                | wiki::SIMULATORS
+                | wiki::MODIFIERS
+                | wiki::EQUIPMENT
+                | artefacts::PATH
+                | skills::PATH
+                | quests::PATH
+                | modes::PATH
+        ) {
             damage::POLICY
         } else {
             POLICY
@@ -874,7 +827,7 @@ impl Web {
             );
             return;
         }
-        let replays = self.game.as_ref().and_then(|game| game.replays.as_deref());
+        let replays = self.game.replays.as_deref();
         let token = replay_token(&request.method, &request.target);
         let taken = match replays.zip(token) {
             Some((replays, token)) => replays
@@ -1088,107 +1041,70 @@ impl Web {
     }
 
     fn route(&self, request: &Request, peer: &str) -> Response {
-        if let Some(game) = &self.game {
-            if request.method == "GET" {
-                match request.path.as_str() {
-                    "/api/stats" => return stats::response(&self.store, game),
-                    history::PATH => return stats_page(request.lang, &request.target),
-                    history::REPLAY
-                        if !self.replay_ask_allowed(request.client, Instant::now()) =>
-                    {
-                        return history::too_many();
-                    }
-                    path if path.starts_with(history::PREFIX) => {
-                        let query = request
-                            .target
-                            .split_once('?')
-                            .map_or("", |(_, query)| query);
-                        return history::response(
-                            path,
-                            query,
-                            request.lang,
-                            &self.store,
-                            game,
-                            unix_now(),
-                        );
-                    }
-                    "/patches" => return patches::response(&game.downloads),
-                    "/game" => {
-                        if let Some(response) = patches::game_response(&game.downloads) {
-                            return response;
-                        }
-                    }
-                    "/api/client-files" => {
-                        return launcher::client_files(game.min_patch_revision);
-                    }
-                    damage::PATH => return damage_page(request.lang),
-                    maps::PATH => return maps_page(request.lang),
-                    path @ (wiki::PATH
-                    | wiki::WEAPONS
-                    | wiki::SIMULATORS
-                    | wiki::MODIFIERS
-                    | wiki::EQUIPMENT
-                    | artefacts::PATH
-                    | skills::PATH
-                    | quests::PATH
-                    | modes::PATH) => {
-                        return wiki_page(path, &request.target, request.lang, game);
-                    }
-                    path if path.starts_with(launcher::FRESH) => {
-                        return launcher::fresh(
-                            launcher::language(path, request.lang),
-                            &self.store,
-                            game,
-                        );
-                    }
-                    path if path.starts_with(launcher::FRESH_BEFORE) => {
-                        return launcher::fresh_before(
-                            launcher::language(path, request.lang),
-                            &self.store,
-                            game,
-                        );
-                    }
-                    path if launcher::serves(path) => {
-                        return launcher::page(
-                            launcher::language(path, request.lang),
-                            &self.store,
-                            game,
-                        );
-                    }
-                    _ => {}
+        let game = &self.game;
+        if request.method == "GET" {
+            match request.path.as_str() {
+                "/api/stats" => return stats::response(&self.store, game),
+                history::PATH => return stats_page(request.lang, &request.target),
+                history::REPLAY
+                    if !self.replay_ask_allowed(request.client, Instant::now()) =>
+                {
+                    return history::too_many();
                 }
+                path if path.starts_with(history::PREFIX) => {
+                    let query = request
+                        .target
+                        .split_once('?')
+                        .map_or("", |(_, query)| query);
+                    return history::response(
+                        path,
+                        query,
+                        request.lang,
+                        &self.store,
+                        game,
+                        unix_now(),
+                    );
+                }
+                "/patches" => return patches::response(&game.downloads),
+                "/game" => {
+                    if let Some(response) = patches::game_response(&game.downloads) {
+                        return response;
+                    }
+                }
+                "/api/client-files" => {
+                    return launcher::client_files(game.min_patch_revision);
+                }
+                damage::PATH => return damage_page(request.lang),
+                maps::PATH => return maps_page(request.lang),
+                path @ (wiki::PATH
+                | wiki::WEAPONS
+                | wiki::SIMULATORS
+                | wiki::MODIFIERS
+                | wiki::EQUIPMENT
+                | artefacts::PATH
+                | skills::PATH
+                | quests::PATH
+                | modes::PATH) => {
+                    return wiki_page(path, &request.target, request.lang, game);
+                }
+                path if path.starts_with(launcher::FRESH) => {
+                    return launcher::fresh(
+                        launcher::language(path, request.lang),
+                        &self.store,
+                        game,
+                    );
+                }
+                path if launcher::serves(path) => {
+                    return launcher::page(
+                        launcher::language(path, request.lang),
+                        &self.store,
+                        game,
+                    );
+                }
+                _ => {}
             }
-            return self.route_026g(request, peer);
         }
-        match (request.method.as_str(), request.path.as_str()) {
-            ("GET", "/") => page(
-                request.lang,
-                Form::Home(Stats {
-                    registered: self.store.registered_accounts(),
-                    online: self.store.players_present(),
-                    maintenance: self.store.minutes_to_maintenance(),
-                    registrations_open: self.store.registrations_open(),
-                    v026g: false,
-                    launcher: false,
-                    installs_game: false,
-                }),
-                "",
-            ),
-            ("GET", path) if self.is_admin_page(path, request) => {
-                page(request.lang, Form::Admin(Box::default()), "")
-            }
-            ("POST", path) if self.is_admin_page(path, request) => self.admin(request, peer),
-            _ => Response {
-                status: "404 Not Found",
-                content_type: ContentType::Html,
-                body: page(
-                    request.lang,
-                    Form::None,
-                    &request.lang.t("Not found."),
-                )
-                .body,
-            },
-        }
+        self.route_026g(request, peer)
     }
 
     /// Whether `path` is the admin page and `request` may see it.
@@ -1209,16 +1125,14 @@ impl Web {
         let lang = request.lang;
         // The tab the form was on says what to do: Enter in any field
         // submits the form, whichever button that presses.
-        let g26 = self.game.is_some();
         let tab = match request.field("tab") {
-            tab @ ("money" | "ban" | "unban" | "bans" | "maint" | "signups" | "password") => tab,
-            tab @ ("account" | "item" | "items" | "text" | "mute" | "rename") if g26 => tab,
+            tab @ ("money" | "ban" | "unban" | "bans" | "maint" | "signups" | "password"
+            | "account" | "item" | "items" | "text" | "mute" | "rename") => tab,
             _ => "money",
         };
         let refused = |message: String| {
             let view = AdminView {
                 tab: tab.to_owned(),
-                g26,
                 ..AdminView::default()
             };
             page(lang, Form::Admin(Box::new(view)), &message)
@@ -1257,12 +1171,11 @@ impl Web {
             "text" => self.admin_text_026g(request, peer),
             "mute" => self.admin_chat_mute(request, peer),
             "rename" => self.admin_rename(request, peer),
-            _ if g26 => {
+            _ => {
                 let (message, view) = self.admin_moderate_money(request, peer);
                 money = view;
                 message
             }
-            _ => self.admin_money(request, peer),
         };
         let view = AdminView {
             token: given.to_owned(),
@@ -1270,8 +1183,7 @@ impl Web {
             bans: bans_table(lang, &self.store),
             maintenance: maintenance_line(lang, &self.store),
             registrations_open: self.store.registrations_open(),
-            g26,
-            admin_text: self.game.as_ref().and_then(|game| game.lobby.admin_text()),
+            admin_text: self.game.lobby.admin_text(),
             reset,
             money,
             items,
@@ -1294,37 +1206,6 @@ impl Web {
         }
         *locked(&self.token_failures) = (0, None);
         Ok(())
-    }
-
-    fn admin_money(&self, request: &Request, peer: &str) -> String {
-        let lang = request.lang;
-        let user = request.field("user").trim();
-        let no_such = lang.t("No such user.");
-        let Some(account_id) = self.store.find_account(user) else {
-            return no_such;
-        };
-        let (Some(silver), Some(gold)) =
-            (delta(request.field("silver")), delta(request.field("gold")))
-        else {
-            return lang.t("Silver and gold are whole numbers, + or -, or empty.");
-        };
-        let Some(account) = self.store.account(account_id) else {
-            return no_such;
-        };
-        let (silver_now, gold_now) = {
-            let mut account = locked(&account);
-            let game = &mut account.game;
-            game.generic_money = apply(game.generic_money, silver);
-            game.premium_money = apply(game.premium_money, gold);
-            (game.generic_money, game.premium_money)
-        };
-        self.store.mark_dirty(account_id);
-        self.store.save_soon();
-        log::info!(
-            "Admin from {peer}: {user:?} silver {silver:+}, gold {gold:+} \
-             (now {silver_now} silver, {gold_now} gold)"
-        );
-        lang.tf("{user}: now {silver_now} silver and {gold_now} gold.", &[("user", &user), ("silver_now", &silver_now), ("gold_now", &gold_now)])
     }
 
     /// Open or close registration of new accounts.
@@ -1712,7 +1593,7 @@ fn stats_page(lang: Lang, target: &str) -> Response {
     let connect = CONNECT.get();
     let test = connect.is_some_and(|connect| connect.test_server);
     let other_url = connect.and_then(|connect| connect.other_url.as_deref());
-    let (header, notice) = site_header(lang, true, test, other_url, history::PATH);
+    let (header, notice) = site_header(lang, test, other_url, history::PATH);
     let query = target.split_once('?').map_or("", |(_, query)| query);
     history::page(lang, &format!("{header}{notice}"), query)
 }
@@ -1721,7 +1602,7 @@ fn wiki_page(path: &str, target: &str, lang: Lang, game: &Game) -> Response {
     let connect = CONNECT.get();
     let test = connect.is_some_and(|connect| connect.test_server);
     let other_url = connect.and_then(|connect| connect.other_url.as_deref());
-    let (header, notice) = site_header(lang, true, test, other_url, wiki::PATH);
+    let (header, notice) = site_header(lang, test, other_url, wiki::PATH);
     if path == modes::PATH {
         return wiki::framed(
             lang,
@@ -1749,7 +1630,7 @@ fn tool_header(lang: Lang, name: &str) -> String {
     let connect = CONNECT.get();
     let test = connect.is_some_and(|connect| connect.test_server);
     let other_url = connect.and_then(|connect| connect.other_url.as_deref());
-    let (header, test_notice) = site_header(lang, true, test, other_url, wiki::PATH);
+    let (header, test_notice) = site_header(lang, test, other_url, wiki::PATH);
     format!(
         "<div class=site><style>{}</style>{header}{test_notice}\
          <p class=breadcrumb><a href=\"{}?lang={}\">{}</a> / {}</p></div>",
@@ -1761,11 +1642,10 @@ fn tool_header(lang: Lang, name: &str) -> String {
     )
 }
 
-/// Every page's header (the 0.26g site's or the 0.21d's), and what a test
-/// server says under it. `current`: the path of the tab shown, if one is.
+/// Every page's header, and what a test server says under it. `current`:
+/// the path of the tab shown, if one is.
 fn site_header(
     lang: Lang,
-    v026g: bool,
     test: bool,
     other_url: Option<&str>,
     current: &str,
@@ -1789,7 +1669,6 @@ fn site_header(
         "<details class=lang><summary>{}</summary><div>{others}</div></details>",
         lang.native()
     );
-    let other_version = if v026g { "0.21d" } else { "0.26g" };
     // A test server names the other server in its notice, as the players'.
     let (other_link, badge, test_notice) = if test {
         (
@@ -1799,13 +1678,12 @@ fn site_header(
         )
     } else {
         (
-            other_server_link(lang, other_version, other_url),
+            other_server_link(lang, "0.21d", other_url),
             String::new(),
             String::new(),
         )
     };
-    // The wiki (the calculator and the maps are in it) and the stats are the
-    // 0.26g game's.
+    // The wiki (the calculator and the maps are in it) and the stats.
     let tab = |path: &str, name: &str| {
         format!(
             "<a href=\"{path}?lang={code}\"{}>{name}</a>",
@@ -1817,11 +1695,7 @@ fn site_header(
         )
     };
     let home_link = tab("/", &lang.t("Home"));
-    let wiki_link = if v026g {
-        tab(wiki::PATH, &lang.t("Wiki")) + &tab(history::PATH, &lang.t("Stats"))
-    } else {
-        String::new()
-    };
+    let wiki_link = tab(wiki::PATH, &lang.t("Wiki")) + &tab(history::PATH, &lang.t("Stats"));
     let header = format!(
         "<header><a class=brand href=\"/?lang={code}\">СХІД</a>{badge}\
          <span class=tag>{}</span>\
@@ -1839,18 +1713,17 @@ fn page_as(lang: Lang, form: Form, message: &str, test: bool, other_url: Option<
         format!("<p class=note>{}</p>", escape(message))
     };
     let code = lang.code();
-    let version = if form.is_026g() { "0.26g" } else { "0.21d" };
     let current = if matches!(form, Form::Home(_)) {
         "/"
     } else {
         ""
     };
-    let (header, test_notice) = site_header(lang, form.is_026g(), test, other_url, current);
+    let (header, test_notice) = site_header(lang, test, other_url, current);
     let body = match form {
         Form::InTheGame26(code) => v026g::no_gold(code),
         Form::Admin(view) => admin_form(lang, &view),
         Form::Home(stats) => home(lang, stats),
-        Form::None | Form::None26 => String::new(),
+        Form::None26 => String::new(),
     };
     let disclaimer = lang.t("Community server, unofficial. Not affiliated with or endorsed by Vostok Games. Survarium is a trademark of its owners.");
     Response {
@@ -1863,7 +1736,7 @@ fn page_as(lang: Lang, form: Form, message: &str, test: bool, other_url: Option<
              {header}\
              <main>{test_notice}{notice}{body}</main>\
              <footer>{}</footer></html>",
-            escape(&page_title(lang, version, test)),
+            escape(&page_title(lang, "0.26g", test)),
             damage::font_faces(),
             escape(&disclaimer),
         ),
@@ -1957,16 +1830,10 @@ fn faq(lang: Lang) -> String {
 /// (download, start, sign in) and nothing more, then, with the launcher,
 /// what to do when something goes wrong ([`faq`]).
 fn home(lang: Lang, stats: Stats) -> String {
-    let v026g = stats.v026g;
     let with_launcher = stats.launcher;
     let installs_game = with_launcher && stats.installs_game;
     let connect = CONNECT.get();
-    let address = connect.map_or("127.0.0.1:1234", |connect| connect.address.as_str());
-    let download_label = if v026g {
-        lang.t("Download the files")
-    } else {
-        lang.t("Download the game")
-    };
+    let download_label = lang.t("Download the files");
     let download = match connect.and_then(|connect| connect.download_url.as_deref()) {
         _ if available_download().is_some() => {
             format!("<a class=button href=\"/download\">{download_label}</a>")
@@ -1988,9 +1855,9 @@ fn home(lang: Lang, stats: Stats) -> String {
         ),
         None => String::new(),
     };
-    // 0.26g: for a browser or an antivirus that refuses the ZIP, the script
-    // that gets it all by itself, when there is one.
-    let bootstrap = if v026g && torrent::BOOTSTRAP.is_some() {
+    // For a browser or an antivirus that refuses the ZIP, the script that
+    // gets it all by itself, when there is one.
+    let bootstrap = if torrent::BOOTSTRAP.is_some() {
         let script = format!("<a href=\"{}\">Skhid-get.bat</a>", torrent::BOOTSTRAP_PATH);
         format!(
             "<small>{}</small>",
@@ -2002,10 +1869,10 @@ fn home(lang: Lang, stats: Stats) -> String {
     } else {
         String::new()
     };
-    // 0.26g: the game itself comes from elsewhere (step one); this server
-    // hands out only the files that go over it. A download whose launcher
-    // brings the game has no such step.
-    let original = if v026g && !installs_game {
+    // The game itself comes from elsewhere (step one); this server hands
+    // out only the files that go over it. A download whose launcher brings
+    // the game has no such step.
+    let original = if !installs_game {
         let link = match connect.and_then(|connect| connect.game_url.as_deref()) {
             Some(url) => format!(
                 "<div class=dl><a class=button href=\"{}\" rel=noopener>{}</a></div>",
@@ -2049,10 +1916,9 @@ fn home(lang: Lang, stats: Stats) -> String {
         stats.registered,
         lang.t("registered"),
     );
-    let version = if v026g { "0.26g" } else { "0.21d" };
-    // With the launcher a player starts that and types nothing. 0.21d: the
-    // start command, typed by hand (0.26g's exe has the server and the memory
-    // sizes built in, so its page names no command line).
+    // With the launcher a player starts that and types nothing (the exe has
+    // the server and the memory sizes built in, so the page names no command
+    // line).
     let start = if with_launcher {
         format!(
             "{}<p><small>{}</small></p>",
@@ -2067,19 +1933,10 @@ fn home(lang: Lang, stats: Stats) -> String {
                 lang.t("Windows warns about an unknown publisher? Let it run.<br>Linux: <code>bash Skhid.sh</code>, see <code>LINUX.txt</code>.")
             },
         )
-    } else if v026g {
+    } else {
         format!(
             "<p>{}</p>",
             lang.t("Run <code>play_skhid.bat</code> in <code>game\\binaries\\x86</code>.")
-        )
-    } else {
-        format!(
-            "{}<pre>survarium.exe -localization={} -client={}</pre><ul class=opts><li><code>-client</code> {}</li><li><code>-localization</code> {}</li></ul>",
-            lang.t("Start it with this command line:"),
-            lang.t("english"),
-            escape(address),
-            lang.t("server address"),
-            lang.t("language: english, russian, ukrainian"),
         )
     };
     let faq = if with_launcher {
@@ -2090,7 +1947,7 @@ fn home(lang: Lang, stats: Stats) -> String {
     format!(
         "<section class=card><h1>{}</h1><p>{}</p><p>{}</p><p class=note><b>{}</b> {}</p>{stats}</section> <section class=card><h2>{}</h2><ol> {original}<li>{}<div class=dl>{download}{hash}{bootstrap}</div></li> <li>{start}</li> <li>{}</li></ol></section>{faq}",
         lang.t("Skhid"),
-        lang.tf("Skhid (Ukrainian for “east”) is a community server that lets the Survarium {version} client sign in, trade, form squads and play matches again.", &[("version", &version)]),
+        lang.tf("Skhid (Ukrainian for “east”) is a community server that lets the Survarium {version} client sign in, trade, form squads and play matches again.", &[("version", &"0.26g")]),
         lang.t("Project Discord: <a href=\"https://discord.gg/pxywZfaxRQ\">discord.gg/pxywZfaxRQ</a>"),
         lang.t("Early test server."),
         lang.t("It has bugs and may not work fully. Your progress, items and accounts can be lost or reset at any time, and the server may be stopped at any time. By playing you accept this."),
@@ -2099,10 +1956,8 @@ fn home(lang: Lang, stats: Stats) -> String {
             lang.t("Download our files and unpack them into an empty folder (e.g. D:\\Survarium). <b>You do this only once.</b>")
         } else if with_launcher {
             lang.t("Download our files and unpack them into the game's folder, the one with the <code>game</code> folder, replacing files. <b>You do this only once.</b>")
-        } else if v026g {
-            lang.t("Download our files and unpack them over the game's <code>game</code> folder.")
         } else {
-            lang.t("Download the patched game and unpack it.")
+            lang.t("Download our files and unpack them over the game's <code>game</code> folder.")
         },
         lang.t("Sign in with any name and password: a new name registers itself. Remember the password."),
     )
@@ -2146,30 +2001,11 @@ fn admin_form(lang: Lang, view: &AdminView) -> String {
     } else {
         view.bans.clone()
     };
-    let (extra_tabs, extra_panels) = if view.g26 {
-        admin_extras_026g(lang, view, &tab)
-    } else {
-        (String::new(), String::new())
-    };
+    let (extra_tabs, extra_panels) = admin_extras_026g(lang, view, &tab);
     let password_tab = tab("password", lang.t("Password"));
     let password_panel = password_reset::panel(lang, view);
-    // The 0.26g page's money is moderation's: a reason, a preview, a
-    // confirm. The 0.21d page's changes at once, for testing.
-    let money_panel = if view.g26 {
-        moderation::money_panel(lang, view)
-    } else {
-        format!(
-            "<div class=\"panel p-money\">\
-             <label for=u>{}</label><input id=u name=user maxlength=99>\
-             <label for=s>{}</label><input id=s name=silver placeholder=+10000>\
-             <label for=g>{}</label><input id=g name=gold placeholder=+500>\
-             <button>{}</button></div>",
-            lang.t("User name"),
-            lang.t("Silver, + or -"),
-            lang.t("Gold, + or -"),
-            lang.t("Change"),
-        )
-    };
+    // The money is moderation's: a reason, a preview, a confirm.
+    let money_panel = moderation::money_panel(lang, view);
     format!(
         "<h1>{}</h1><form method=post action=\"\" autocomplete=off>\
          <input type=hidden name=lang value={code}>\
@@ -2446,7 +2282,7 @@ mod tests {
             replay_failures: Mutex::new(HashMap::new()),
             replay_asks: Mutex::new(HashMap::new()),
             plans: Default::default(),
-            game: None,
+            game: crate::replay_tests::quiet_game(),
         }
     }
 
@@ -2472,63 +2308,6 @@ mod tests {
             form: Vec::new(),
             ..post(path, &[])
         }
-    }
-
-    fn balances(web: &Web, user: &str) -> (u32, u32) {
-        let id = web.store.account_id_by_name(user).unwrap();
-        let account = web.store.account(id).unwrap();
-        let account = locked(&account);
-        (account.game.generic_money, account.game.premium_money)
-    }
-
-    #[test]
-    fn the_0_21d_page_has_no_exchange() {
-        let web = web(None);
-        web.store.sign_in("fighter", b"secret").unwrap();
-        let before = balances(&web, "fighter");
-        assert_eq!(web.route(&get("/exchange"), "t").status, "404 Not Found");
-        let sent = web.route(
-            &post(
-                "/exchange",
-                &[("user", "fighter"), ("password", "secret"), ("gold", "1")],
-            ),
-            "t",
-        );
-        assert_eq!(sent.status, "404 Not Found");
-        assert_eq!(balances(&web, "fighter"), before);
-        let home = web.route(&get("/"), "t").body;
-        assert!(!home.contains("/exchange"), "{home}");
-    }
-
-    #[test]
-    fn the_admin_needs_its_token_and_changes_balances() {
-        let web = web(Some("tok"));
-        web.store.sign_in("tester", b"secret").unwrap();
-        let (silver, gold) = balances(&web, "tester");
-        let refused = web.admin(
-            &post(
-                "/hidden",
-                &[("token", "bad"), ("user", "tester"), ("gold", "+9")],
-            ),
-            "t",
-        );
-        assert!(refused.body.contains("Wrong token"));
-        assert_eq!(balances(&web, "tester"), (silver, gold));
-
-        let done = web.admin(
-            &post(
-                "/hidden",
-                &[
-                    ("token", "tok"),
-                    ("user", "tester"),
-                    ("gold", "+500"),
-                    ("silver", "-999999999"),
-                ],
-            ),
-            "t",
-        );
-        assert!(done.body.contains("now 0 silver"), "{}", done.body);
-        assert_eq!(balances(&web, "tester"), (0, gold + 500));
     }
 
     #[test]
@@ -2986,7 +2765,7 @@ mod tests {
             assert_eq!(lang.game() as usize, Lang::ALL.iter().position(|l| *l == lang).unwrap());
         }
         // The header offers every other language, each by its own name.
-        let (header, _) = site_header(Lang::Pl, true, false, None, "/");
+        let (header, _) = site_header(Lang::Pl, false, None, "/");
         assert!(header.contains("<summary>Polski</summary>"));
         assert!(header.contains("<a href=\"?lang=ru\" lang=ru hreflang=ru>Русский</a>"));
         assert!(!header.contains("hreflang=pl"));
@@ -2994,13 +2773,13 @@ mod tests {
 
     #[test]
     fn a_test_server_says_so_on_every_page() {
-        let plain = page_as(Lang::En, Form::None, "", false, None).body;
-        assert!(plain.contains("<title>Skhid · Survarium 0.21d community server</title>"));
+        let plain = page_as(Lang::En, Form::None26, "", false, None).body;
+        assert!(plain.contains("<title>Skhid · Survarium 0.26g community server</title>"));
         assert!(!plain.contains("class=badge>"));
         assert!(!plain.contains("Test server."));
 
         let url = Some("https://skhid.link");
-        for form in [Form::None, Form::InTheGame26("en"), Form::None26] {
+        for form in [Form::InTheGame26("en"), Form::None26] {
             let test = page_as(Lang::En, form, "", true, url).body;
             assert!(test.contains(" TEST server</title>"), "{test}");
             assert!(test.contains("<span class=badge>TEST</span>"));
@@ -3025,31 +2804,10 @@ mod tests {
     }
 
     #[test]
-    fn the_damage_calculator_is_the_026g_sites_only() {
-        let web = web(None);
-        assert_eq!(web.route(&get(damage::PATH), "t").status, "404 Not Found");
-        let home = web.route(&get("/"), "t").body;
-        assert!(!home.contains("href=\"/wiki"));
-        // The site's fonts are the calculator's, served on both servers.
+    fn every_page_has_the_calculators_fonts() {
+        let home = web(None).route(&get("/"), "t").body;
         assert!(home.contains("src: url(\"/damage/fonts/pt-sans-regular.woff2?v="));
         assert!(crate::damage::file("/damage/fonts/pt-sans-regular.woff2").is_some());
-    }
-
-    #[test]
-    fn the_maps_are_the_026g_sites_only() {
-        let web = web(None);
-        assert_eq!(web.route(&get(maps::PATH), "t").status, "404 Not Found");
-        // The old address leads nowhere either.
-        assert_eq!(web.route(&get("/maps"), "t").status, "404 Not Found");
-    }
-
-    #[test]
-    fn the_wiki_is_only_on_the_026g_site() {
-        let web = web(None);
-        for path in ["/wiki", "/wiki/weapons"] {
-            assert_eq!(web.route(&get(path), "t").status, "404 Not Found");
-        }
-        assert!(!web.route(&get("/"), "t").body.contains("href=\"/wiki"));
     }
 
     #[test]
@@ -3069,9 +2827,9 @@ mod tests {
         );
         // Without the setting the pages are as they were.
         assert!(
-            !page(Lang::En, Form::None, "")
+            !page(Lang::En, Form::None26, "")
                 .body
-                .contains("Survarium 0.26g</a>")
+                .contains("Survarium 0.21d</a>")
         );
     }
 
