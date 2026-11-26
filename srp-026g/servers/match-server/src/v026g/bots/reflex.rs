@@ -716,6 +716,26 @@ pub struct CombatTuning {
     /// every line within a second (44 %), at a median 2.9 m/s. Off: the reload wherever the bot stands 400 ms after its
     /// target is out of sight, and the peek at its wait's end.
     pub reload_in_cover: bool,
+    /// [last rounds] The last rounds of a magazine are fired on the way to cover, so that it ends out of the enemy's line.
+    /// No number of its own:
+    /// - At a think in a fight (a target seen, a round fired from this magazine) the hide spot is asked for once a magazine
+    ///   and target: the query the empty weapon's hide makes (`hide_m`, out of the fire of his place). It is asked again
+    ///   when his place has got a line of fire to it, or the bot has left its ring.
+    /// - At the tick the rounds left last no longer than the way to the spot, the bot starts for it. It walks, so the
+    ///   sights stay up and it goes on firing. The rounds' time: a round takes what a round of this fight has taken so
+    ///   far (the time since the fight's first tick with this magazine over the rounds fired since, so the bursts' pauses
+    ///   count), and never less than the weapon's own cycle (`Gun::cycle_ms`). The way's time: its length at the client's
+    ///   ground speed for the keys it takes (forward, side or back of the view, aimed or not: `mapdata::controller::speed`).
+    /// - The weapon out or reloading on that way, it runs, as any hide. The target gone and no known enemy with a line of
+    ///   fire, the walk is called off.
+    /// - Not a bolt action (it stands still for its shot), a carrier or a push.
+    ///
+    /// Measured on afc8b42b7 (96 bench matches, 6,004 magazines, 3,852 reloads; `fable-fight-reload-20261126.md`): 987
+    /// reloads begin with the magazine out and the target in view, 481 of them in an enemy's line within 40 m, and 250 of
+    /// the 600 deaths in a reload are in these. The hide is asked for at that moment already; its ring starts 2 m out,
+    /// and the median death comes 1.1 s after the reload begins. A bot in a line that is out of every line within a second
+    /// dies in 13 % of the reloads, one that is not in 48 %. Off: the bot stands to fire until the magazine is out.
+    pub last_rounds_to_cover: bool,
     /// [A277] The reload key goes in as the client takes it. The client takes a reload only from its weapon's idle, or at
     /// the end of the fire or chamber clip with the key held then (the exits to reload 0x2E3EF0, 0x2E3F70, 0x2E3F40; a key
     /// let go inside the clip is lost), and the shot that empties the magazine, rounds left to load, ends its fire clip in
@@ -2053,6 +2073,7 @@ impl Default for CombatTuning {
             reload_idle_ms: 400,
             reload_some_share: 0.4,
             reload_in_cover: true,
+            last_rounds_to_cover: true,
             empty_reload: true,
             gun_from_world: true,
             worn_kit_from_world: true,
@@ -2771,6 +2792,49 @@ enum ReloadCover {
     Going { who: Place, at: Vec3 },
     /// No spot, a carrier or a push: where it stands, as before.
     Here,
+}
+
+/// [last rounds] Where the way to cover of a magazine's last rounds stands ([`CombatTuning::last_rounds_to_cover`]).
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+enum LastRounds {
+    /// No fight with this magazine yet, or nothing to ask.
+    #[default]
+    Idle,
+    /// The hide spot of this magazine's fight with `target`, out of the fire of the place he was seen at (`enemy`).
+    Spot { target: Place, spot: Vec3, enemy: Vec3 },
+    /// None was found for it.
+    NoSpot { target: Place },
+    /// On the way to it: the hide begun at `started`.
+    Walking { started: u32 },
+}
+
+/// [last rounds] [measure] What the rule did this life ([`CombatTuning::last_rounds_to_cover`]); nothing decides by them.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct LastRoundsStats {
+    /// Hide spots asked for, and the asks that found none.
+    pub asked: u32,
+    pub no_spot: u32,
+    /// Ways to cover begun with rounds to fire, and those called off (the target gone, nobody known with a line).
+    pub walked: u32,
+    pub called_off: u32,
+}
+
+/// [last rounds] The client's ground speed, m/s, of a standing or crouched body that goes to `to` with its view where it is,
+/// `aiming` or not: the keys of the way are forward (alone or with a side key: within 67.5 degrees of the view), back
+/// (past 112.5) or a side key alone, and a forward or back diagonal moves as forward or back
+/// (`mapdata::controller::speed`, the client's `movement_speed` table).
+fn way_speed(me: &PlaceView, to: Vec3, aiming: bool) -> f32 {
+    use mapdata::controller::speed::{Gait, Heading, Stance, desired};
+    let off = wrap(bearing(me.feet, to) - me.yaw).abs().to_degrees();
+    let heading = if off <= 67.5 {
+        Heading::Forward
+    } else if off >= 112.5 {
+        Heading::Back
+    } else {
+        Heading::Side
+    };
+    let stance = if me.crouched() { Stance::Crouch } else { Stance::Stand };
+    desired(Gait::Move { stance, heading, aiming })
 }
 
 /// [reload in cover] [measure] What the rule did this life ([`CombatTuning::reload_in_cover`]); nothing decides by them.
@@ -4527,6 +4591,11 @@ pub struct Reflex {
     ran_hide: Option<u32>,
     held_reload: Option<u32>,
     reload_cover_stats: ReloadCoverStats,
+    /// [last rounds] The way to cover of this magazine's last rounds, and this life's counts.
+    last_rounds: LastRounds,
+    last_rounds_stats: LastRoundsStats,
+    /// [last rounds] The fight's first tick with this magazine, and the rounds in it then: the rate the rounds go at.
+    fight_mark: Option<(u32, u32)>,
     /// No shot before this (a reload or the switch to the pistol under
     /// way).
     busy_until: u32,
@@ -5349,6 +5418,7 @@ impl Reflex {
             self.reload_here = !matches!(self.cover, Cover::Hiding { .. });
         }
         self.reload_in_cover(me, sit, memory, now, c, rng);
+        self.last_rounds_think(me, sit, memory, now, c, rng);
         self.cover_steps(me, sit, now, c, rng);
         self.matchup(me, sit, memory, now, c);
         // Outranged: out of his sight, and wait (no re-peek); a carrier
@@ -6920,6 +6990,143 @@ impl Reflex {
         }
     }
 
+    /// [last rounds] At a think: the hide spot of this magazine's fight asked for (once a magazine and target; again when
+    /// the enemy's place has a line of fire to it or the bot has left its ring), and a walk whose reason is gone called off
+    /// ([`CombatTuning::last_rounds_to_cover`]).
+    fn last_rounds_think(&mut self, me: &PlaceView, sit: &Situation, memory: &Memory, now: u32, c: &CombatTuning, rng: &mut Rng) {
+        if !c.last_rounds_to_cover {
+            return;
+        }
+        let reloading = self.reload_note.is_some_and(|note| note.at <= now && now < note.until);
+        if let LastRounds::Walking { started } = self.last_rounds {
+            match self.cover {
+                Cover::Hiding { started: hide, arrived: None, .. } if hide == started => {
+                    // The target gone and no known enemy with a line of fire: no need of the cover.
+                    if self.target.is_none()
+                        && self.known_line.is_none()
+                        && !reloading
+                        && self.reload_cover == ReloadCover::Free
+                        && self.hands().held().rounds > 0
+                    {
+                        self.cover = Cover::Open;
+                        self.last_rounds = LastRounds::Idle;
+                        self.last_rounds_stats.called_off += 1;
+                        self.worth_notes.push("calls off its way to cover: the target is gone and no known enemy has a line of fire to it".to_owned());
+                    }
+                }
+                // At the spot: the hide's own steps.
+                Cover::Hiding { started: hide, .. } if hide == started => {}
+                _ => self.last_rounds = LastRounds::Idle,
+            }
+            return;
+        }
+        let Some(tactics) = sit.tactics else {
+            return;
+        };
+        let busy_until = self.busy_until;
+        let held = self.hands().held();
+        let (rounds, gun) = (held.rounds, held.gun);
+        // A fight with this magazine: a target seen, a round of it fired, the hands free; the legs its own to give.
+        let fight = rounds > 0
+            && rounds < gun.magazine
+            && now >= busy_until
+            && gun.handling != Handling::Bolt
+            && self.cover == Cover::Open
+            && !self.push.is_some_and(|p| now < p.until)
+            && !sit.view.objective().is_actor(me);
+        let seen = self.target.and_then(|target| memory.seen(target, now, sit.view.clock));
+        let Some(track) = seen.filter(|_| fight) else {
+            if self.target.is_none() {
+                self.last_rounds = LastRounds::Idle;
+                self.fight_mark = None;
+            }
+            return;
+        };
+        let (target, enemy) = (track.who(), track.at());
+        match self.last_rounds {
+            // Asked for this target: kept while his place has no line of fire to it and the bot is in its ring.
+            LastRounds::Spot { target: of, spot, .. }
+                if of == target
+                    && spot.distance_xz(me.feet) <= c.hide_m.1
+                    && !tactics.shot_reaches(sit.cover, still_eye(enemy, false), still_eye(spot, false)) =>
+            {
+                return;
+            }
+            LastRounds::NoSpot { target: of } if of == target => return,
+            _ => {}
+        }
+        let query = SpotQuery {
+            out_of_fire_of: Some(enemy),
+            cover: sit.cover,
+            side: sit.side,
+            samples: 48,
+            ..SpotQuery::ring(me.feet, c.hide_m.0, c.hide_m.1)
+        };
+        self.last_rounds_stats.asked += 1;
+        self.last_rounds = match tactics.spots(&query, now, 1, rng).first() {
+            Some(spot) => LastRounds::Spot { target, spot: spot.at, enemy },
+            None => {
+                self.last_rounds_stats.no_spot += 1;
+                LastRounds::NoSpot { target }
+            }
+        };
+    }
+
+    /// [last rounds] At a tick with the target `target` seen at `enemy`: the rounds left, at the weapon's cycle, last no
+    /// longer than the way to the hide spot at the client's speed for it: the bot starts for the spot, firing.
+    #[allow(clippy::too_many_arguments)]
+    fn last_rounds_start(&mut self, me: &PlaceView, target: Place, enemy: Vec3, aiming: bool, now: u32, c: &CombatTuning, rng: &mut Rng) {
+        if !c.last_rounds_to_cover {
+            return;
+        }
+        let rounds = self.hands().held().rounds;
+        let (since, full) = match self.fight_mark {
+            Some(mark) if mark.1 >= rounds => mark,
+            _ => {
+                self.fight_mark = Some((now, rounds));
+                (now, rounds)
+            }
+        };
+        let LastRounds::Spot { target: of, spot, .. } = self.last_rounds else {
+            return;
+        };
+        if of != target || self.cover != Cover::Open || now < self.busy_until || self.push.is_some_and(|p| now < p.until) {
+            return;
+        }
+        let gun = self.hands().held().gun;
+        let way_m = spot.distance_xz(me.feet);
+        let speed = way_speed(me, spot, aiming);
+        // A round's time: this fight's so far, never under the weapon's cycle.
+        let cycle = gun.cycle_ms() as f32;
+        let round_ms = if full > rounds { ((now - since) as f32 / (full - rounds) as f32).max(cycle) } else { cycle };
+        let left_ms = rounds as f32 * round_ms;
+        let way_ms = way_m / speed * 1000.0;
+        if rounds == 0 || left_ms > way_ms {
+            return;
+        }
+        self.last_peek = Some(me.feet);
+        self.cover = Cover::Hiding {
+            at: spot,
+            enemy,
+            started: now,
+            arrived: None,
+            wait_ms: rng.range(c.hide_wait_ms.0 as f32, c.hide_wait_ms.1 as f32) as u32,
+            repeek: true,
+        };
+        self.last_rounds = LastRounds::Walking { started: now };
+        self.last_rounds_stats.walked += 1;
+        self.worth_notes.push(format!(
+            "starts for cover firing: {rounds} rounds at {round_ms:.0} ms a round last {:.1} s, the spot {way_m:.1} m off takes {:.1} s at {speed:.1} m/s",
+            left_ms / 1000.0,
+            way_ms / 1000.0
+        ));
+    }
+
+    /// [last rounds] [measure] This life's counts ([`LastRoundsStats`]).
+    pub fn last_rounds_stats(&self) -> LastRoundsStats {
+        self.last_rounds_stats
+    }
+
     /// [reload in cover] [measure] This life's counts ([`ReloadCoverStats`]).
     pub fn reload_cover_stats(&self) -> ReloadCoverStats {
         self.reload_cover_stats
@@ -8037,6 +8244,10 @@ impl Reflex {
         self.press_until = 0;
         self.reload_here = false;
         self.reload_cover = ReloadCover::Free;
+        if !matches!(self.last_rounds, LastRounds::Walking { .. }) {
+            self.last_rounds = LastRounds::Idle;
+        }
+        self.fight_mark = None;
         // A reload resets the kick (0x310E52; when in it: not traced).
         self.recoil.reset();
         key::RELOAD
@@ -8188,6 +8399,10 @@ impl Reflex {
         self.press_until = 0;
         self.reload_here = false;
         self.reload_cover = ReloadCover::Free;
+        if !matches!(self.last_rounds, LastRounds::Walking { .. }) {
+            self.last_rounds = LastRounds::Idle;
+        }
+        self.fight_mark = None;
         // A reload resets the kick (0x310E52), as the habit's.
         self.recoil.reset();
         self.empty_reloads.begun += 1;
@@ -8472,11 +8687,17 @@ impl Reflex {
             self.push = None;
         }
         match self.cover {
-            Cover::Hiding { at, .. } => {
+            Cover::Hiding { at, started, .. } => {
+                // [last rounds] The way begun with rounds to fire is walked while the weapon fires (the sights stay up); it is
+                // run with the weapon out or reloading, and to the cover of a tactical reload.
+                let walks = self.last_rounds == (LastRounds::Walking { started })
+                    && self.reload_cover == ReloadCover::Free
+                    && !(now < self.busy_until && self.busy_why == gate::RELOAD)
+                    && self.hands().held().rounds > 0;
                 return Some(Legs {
                     at,
                     within_m: 0.8,
-                    run: true,
+                    run: !walks,
                     crouch: false,
                     why: LegsWhy::BreakSight,
                 });
@@ -9129,6 +9350,8 @@ impl Reflex {
         let hip_fits = !c.aim_in_first || hip_cone_fits(me, gun, self.strafe_fire, distance, c);
         let ads = !running && (bolt || distance >= c.ads_near_m || self.ads_near || !hip_fits);
         self.aim_since = ads.then(|| aim_since.unwrap_or(now));
+        // [last rounds] The rounds left last no longer than the way to the hide spot: for it, firing (the legs from the next tick).
+        self.last_rounds_start(me, track.who(), track.at(), ads, now, c, rng);
         let aimed_in = self
             .aim_since
             .is_some_and(|since| now >= self.aim_from(since, c) + gun.aim_ms + c.aim_in_margin_ms);
@@ -14849,6 +15072,12 @@ mod tests {
     /// tick: the time, the keys, the legs' why, whether the reflex held a look of its own, and where the body stood.
     #[allow(clippy::type_complexity)]
     fn walked_duel(combat: &CombatTuning, seen_until: u32, until: u32) -> (Vec<(u32, u32, Option<LegsWhy>, bool, Vec3)>, Reflex, Tactics, Vec3) {
+        walked_duel_as("flanker", combat, seen_until, until)
+    }
+
+    /// [`walked_duel`] with the weapon of `role`.
+    #[allow(clippy::type_complexity)]
+    fn walked_duel_as(role: &str, combat: &CombatTuning, seen_until: u32, until: u32) -> (Vec<(u32, u32, Option<LegsWhy>, bool, Vec3)>, Reflex, Tactics, Vec3) {
         let tactics = Tactics::new(crate::v026g::bots::tactics::tests::field(), 1.0);
         let enemy_at = Vec3::new(55.0, 0.0, 30.0);
         let mut me = body(0, 0, Vec3::new(32.0, 0.0, 28.0), 0.0);
@@ -14857,7 +15086,7 @@ mod tests {
         aim.combat.fire.burst_human = None;
         let sit = Situation { tactics: Some(&tactics), side: Some(0), ..Situation::of(&view) };
         let mut memory = Memory::default();
-        let mut reflex = Reflex::armed(Arms::of_test_role("flanker"));
+        let mut reflex = Reflex::armed(Arms::of_test_role(role));
         let mut rng = Rng::new(21);
         let chest = enemy_at + Vec3::new(0.0, 1.3, 0.0);
         let mut out = Vec::new();
@@ -14959,6 +15188,94 @@ mod tests {
         assert!(!hidden(&on, 3_500).0, "the reload is over");
         let off = CombatTuning { reload_in_cover: false, ..CombatTuning::default() };
         assert_eq!((hidden(&off, 1_600).0, hidden(&off, 1_600).1), (false, 0), "off: at its wait's end");
+    }
+
+    /// [last rounds] With the enemy in sight the bot starts for the hide spot before the magazine is out, walks with the view
+    /// on him and fires on the way, and the reload begins nearer the spot; off, it stands in his line until the magazine is
+    /// out.
+    #[test]
+    fn the_last_rounds_are_fired_on_the_way_to_cover() {
+        let on = CombatTuning::default();
+        assert!(on.last_rounds_to_cover, "on by default");
+        let off = CombatTuning { last_rounds_to_cover: false, ..CombatTuning::default() };
+        let in_line = |tactics: &Tactics, enemy: Vec3, at: Vec3| tactics.shot_reaches(None, still_eye(enemy, false), still_eye(at, false));
+        let (ticks, mut reflex, tactics, enemy) = walked_duel(&on, 20_000, 20_000);
+        let reload = ticks.iter().find(|t| t.1 & key::RELOAD != 0).expect("reloads");
+        let way: Vec<_> = ticks.iter().filter(|t| t.2 == Some(LegsWhy::BreakSight) && t.0 < reload.0).collect();
+        assert!(!way.is_empty(), "it starts for cover before the magazine is out");
+        assert!(way.iter().all(|t| t.3), "the view stays on him: {way:?}");
+        let shots = way.iter().filter(|t| t.1 & key::FIRE != 0).count();
+        assert!(shots > 0, "it fires on the way: {way:?}");
+        assert!(way.iter().all(|t| t.1 & key::SPRINT == 0), "it walks");
+        let stats = reflex.last_rounds_stats();
+        assert_eq!((stats.walked, stats.called_off, stats.no_spot), (1, 0, 0), "{stats:?}");
+        assert!(stats.asked >= 1, "{stats:?}");
+        let notes = reflex.take_worth_notes();
+        assert!(notes.iter().any(|n| n.starts_with("starts for cover firing: ")), "{notes:?}");
+        let Cover::Hiding { at: spot, .. } = reflex_cover_at(&on, way[0].0 + 50) else { panic!("it hides") };
+        assert!(!in_line(&tactics, enemy, spot), "the spot is out of his line");
+        // Off: it stands where it was, in his line, until the magazine is out.
+        let (ticks_off, reflex_off, tactics, enemy) = walked_duel(&off, 20_000, 20_000);
+        let reload_off = ticks_off.iter().find(|t| t.1 & key::RELOAD != 0).expect("reloads");
+        assert!(ticks_off.iter().all(|t| t.0 >= reload_off.0 || t.2 != Some(LegsWhy::BreakSight)), "off: no way to cover before the magazine is out");
+        assert!(in_line(&tactics, enemy, reload_off.4), "{reload_off:?}");
+        assert_eq!(reflex_off.last_rounds_stats(), LastRoundsStats::default());
+        // On: the reload begins nearer the spot than off, the way begun `left` before it.
+        let to_spot = |at: Vec3| at.distance_xz(spot);
+        assert!(to_spot(reload.4) + 1.0 < to_spot(reload_off.4), "{} m against {} m", to_spot(reload.4), to_spot(reload_off.4));
+    }
+
+    /// The cover of [`walked_duel`]'s reflex at `until` (the enemy in sight throughout).
+    fn reflex_cover_at(combat: &CombatTuning, until: u32) -> Cover {
+        walked_duel(combat, until, until).1.cover
+    }
+
+    /// [last rounds] Not a bolt action: it stands still for its shot.
+    #[test]
+    fn a_bolt_action_does_not_walk_its_last_rounds_to_cover() {
+        let on = CombatTuning::default();
+        let (ticks, reflex, ..) = walked_duel_as("camper", &on, 40_000, 40_000);
+        let reload = ticks.iter().find(|t| t.1 & key::RELOAD != 0).expect("reloads");
+        assert!(ticks.iter().all(|t| t.0 >= reload.0 || t.2 != Some(LegsWhy::BreakSight)), "no way to cover before the magazine is out");
+        assert_eq!(reflex.last_rounds_stats(), LastRoundsStats::default());
+    }
+
+    /// [last rounds] The way's legs: walked while the weapon can fire, run with it out; and the way is called off when the
+    /// target is gone and no known enemy has a line of fire.
+    #[test]
+    fn the_way_of_the_last_rounds_is_walked_and_called_off_with_no_enemy() {
+        let me = body(0, 0, Vec3::new(32.0, 0.0, 20.0), 0.0);
+        let view = view_of(vec![me.clone(), body(1, 1, Vec3::new(55.0, 0.0, 30.0), 0.0)]);
+        let sit = Situation::of(&view);
+        let c = CombatTuning::default();
+        let walking = |rounds: u32| {
+            let mut r = gun_ledger(rounds, 600);
+            r.cover = Cover::Hiding { at: Vec3::new(30.0, 0.0, 16.0), enemy: Vec3::new(55.0, 0.0, 30.0), started: 1_000, arrived: None, wait_ms: 500, repeek: true };
+            r.last_rounds = LastRounds::Walking { started: 1_000 };
+            r
+        };
+        let legs = walking(5).legs(1_200).expect("legs");
+        assert_eq!((legs.why, legs.run), (LegsWhy::BreakSight, false), "rounds to fire: walked");
+        let legs = walking(0).legs(1_200).expect("legs");
+        assert_eq!((legs.why, legs.run), (LegsWhy::BreakSight, true), "the weapon out: run");
+        // A hide that is not this way's is run, as before.
+        let mut other = walking(5);
+        other.last_rounds = LastRounds::Idle;
+        assert!(other.legs(1_200).expect("legs").run);
+        // No target, nobody known with a line: called off, once.
+        let mut r = walking(5);
+        let memory = Memory::default();
+        let mut rng = Rng::new(3);
+        r.last_rounds_think(&me, &sit, &memory, 1_250, &c, &mut rng);
+        assert_eq!((r.cover, r.last_rounds), (Cover::Open, LastRounds::Idle));
+        assert_eq!(r.last_rounds_stats().called_off, 1);
+        assert_eq!(r.take_worth_notes(), ["calls off its way to cover: the target is gone and no known enemy has a line of fire to it"]);
+        // A known enemy with a line: the way goes on.
+        let mut r = walking(5);
+        r.known_line = Some((1, Vec3::new(55.0, 0.0, 30.0)));
+        r.last_rounds_think(&me, &sit, &memory, 1_250, &c, &mut rng);
+        assert!(matches!(r.cover, Cover::Hiding { .. }));
+        assert_eq!(r.last_rounds_stats().called_off, 0);
     }
 
     /// The first reload key of `ticks` (a duel's), and the reflex of the same

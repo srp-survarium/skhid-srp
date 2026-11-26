@@ -12,6 +12,7 @@
     "combat": {
       "aim_sway_counter": false,
       "reload_in_cover": false,
+      "last_rounds_to_cover": false,
       "kit_recoil": false,
       "recoil_pull_low": 0.5,
       "sights_up": null,
