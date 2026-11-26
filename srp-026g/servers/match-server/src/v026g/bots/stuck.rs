@@ -347,8 +347,29 @@ struct Spot {
     first: u32,
     last: u32,
     times: u32,
-    /// A body fell off its route from here ([`Stuck::fell`]).
-    fell: bool,
+    /// Whether a body fell off its route from here, or gave a jump or a drop up here ([`Stuck::fell`]), and its catches since.
+    mark: Mark,
+}
+
+impl Spot {
+    fn fell(&self) -> bool {
+        matches!(self.mark, Mark::Marked(_))
+    }
+}
+
+/// [ladder after a fall] A spot's mark by a fall or a failed jump or drop ([`Stuck::fell`]): none, or the stucks that caught
+/// the body there after the last one.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Mark {
+    Unmarked,
+    Marked(Option<Caught>),
+}
+
+/// [ladder after a fall] The stucks that caught a body at a marked spot after its last mark: the first one's time, how many.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Caught {
+    pub first: u32,
+    pub times: u32,
 }
 
 /// [self-kill facts] A stuck spot as the log tells it ([`Stuck::spot_at`]).
@@ -356,7 +377,7 @@ struct Spot {
 pub struct SpotWord {
     pub first: u32,
     pub times: u32,
-    pub fell: bool,
+    pub mark: Mark,
 }
 
 impl Stuck {
@@ -437,7 +458,7 @@ impl Stuck {
                 spot.last = time;
                 spot.times = spot.times.max(AVOID_AFTER);
             }
-            None => self.spots.push(Spot { at: leg, first: time, last: time, times: AVOID_AFTER, fell: false }),
+            None => self.spots.push(Spot { at: leg, first: time, last: time, times: AVOID_AFTER, mark: Mark::Unmarked }),
         }
         self.told.push((leg, false));
         true
@@ -502,6 +523,10 @@ impl Stuck {
             Some(spot) => {
                 spot.last = time;
                 spot.times += 1;
+                // [ladder after a fall] A catch after the spot's last mark counts toward its ladder from there.
+                if let Mark::Marked(caught) = spot.mark {
+                    spot.mark = Mark::Marked(Some(caught.map_or(Caught { first: time, times: 1 }, |c| Caught { times: c.times + 1, ..c })));
+                }
                 spot.times
             }
             None => {
@@ -510,7 +535,7 @@ impl Stuck {
                     first: time,
                     last: time,
                     times: 1,
-                    fell: false,
+                    mark: Mark::Unmarked,
                 });
                 1
             }
@@ -534,14 +559,14 @@ impl Stuck {
     }
 
     /// [self-kill facts] The stuck spot at `feet` (the one [`Self::hopeless`]'s ladder reads, the latest): when it first caught
-    /// the body in this run, how often, and whether a fall or a failed jump or drop marked it (a marked spot is never
-    /// hopeless).
+    /// the body in this run, how often, and whether a fall or a failed jump or drop marked it, with its catches since the last
+    /// mark (a marked spot's ladder counts those only).
     pub fn spot_at(&self, feet: Vec3) -> Option<SpotWord> {
         self.spots
             .iter()
             .filter(|spot| near(spot.at, feet))
             .max_by_key(|spot| spot.last)
-            .map(|spot| SpotWord { first: spot.first, times: spot.times, fell: spot.fell })
+            .map(|spot| SpotWord { first: spot.first, times: spot.times, mark: spot.mark })
     }
 
     /// For a note of a stuck body the reckoned watch told of: how far its keys meant to move it over the window, as
@@ -691,14 +716,15 @@ impl Stuck {
             Some(spot) => {
                 spot.last = time;
                 spot.times += 1;
-                spot.fell = true;
+                // [ladder after a fall] Each mark starts its catches again: only the stucks after the last one count.
+                spot.mark = Mark::Marked(None);
             }
             None => self.spots.push(Spot {
                 at,
                 first: time,
                 last: time,
                 times: 1,
-                fell: true,
+                mark: Mark::Marked(None),
             }),
         }
     }
@@ -723,15 +749,16 @@ impl Stuck {
         let ladder = self
             .spots
             .iter()
-            .filter(|spot| {
-                !spot.fell
-                    && spot.first >= life_from
-                    && spot.times >= HOPELESS_TIMES
-                    && spot.last + AGAIN_MS > now
-            })
-            .map(|spot| Hopeless {
-                since: spot.first,
-                why: HopelessWhy::Ladder(spot.at),
+            .filter_map(|spot| {
+                // [ladder after a fall] A spot a fall or a failed jump or drop marked counts the stucks after its last mark only:
+                // the fall in is no try of the way out (batt-m1's pit, (-9.5, 14.6, 35.5): fallen in, three jumps out failed, then
+                // a GiveUp every 7 s for 80 s, never hopeless).
+                let (first, times) = match spot.mark {
+                    Mark::Unmarked => (spot.first, spot.times),
+                    Mark::Marked(caught) => caught.map(|c| (c.first, c.times))?,
+                };
+                (first >= life_from && times >= HOPELESS_TIMES && spot.last + AGAIN_MS > now)
+                    .then_some(Hopeless { since: first, why: HopelessWhy::Ladder(spot.at) })
             })
             .min_by_key(|hopeless| hopeless.since);
         [pocket, ladder].into_iter().flatten().min_by_key(|h| h.since)
@@ -974,7 +1001,7 @@ impl Stuck {
         self.spots
             .iter()
             .filter(move |spot| {
-                (spot.fell || spot.times >= AVOID_AFTER) && spot.last + SPOT_KEPT_MS > time
+                (spot.fell() || spot.times >= AVOID_AFTER) && spot.last + SPOT_KEPT_MS > time
             })
             .map(|spot| spot.at)
     }
@@ -2513,6 +2540,42 @@ mod tests {
         assert_eq!(fallen.hopeless(t0 + 12_000, 0), None);
     }
 
+    /// [ladder after a fall] batt-m1's pit (-9.5, 14.6, 35.5): fallen in, jumps out failed (each a mark at the spot), the ladder's
+    /// catches before the last mark do not count; [`HOPELESS_TIMES`] catches after it are nothing left to try, since the first
+    /// of them. A mark among them starts the count again.
+    #[test]
+    fn a_marked_spot_counts_its_catches_after_the_last_mark() {
+        let spot = Vec3::new(-9.5, 14.6, 35.5);
+        let catch = |stuck: &mut Stuck, at: u32| {
+            assert_eq!(walk(stuck, at, spot, None), None);
+            assert!(walk(stuck, at + 1_600, spot, None).is_some(), "caught at {at}");
+        };
+        let mut stuck = Stuck::default();
+        stuck.fell(65_400, spot);
+        stuck.failed_jump(79_100, spot, None);
+        for k in 0..4 {
+            catch(&mut stuck, 80_000 + k * 3_000);
+        }
+        // Four catches after the mark at 79.1 s, then a failed jump: a mark again, its catches start again.
+        assert_eq!(stuck.hopeless(91_600, 0), None);
+        stuck.failed_jump(91_600, spot, None);
+        assert_eq!(stuck.spot_at(spot).map(|s| s.mark), Some(Mark::Marked(None)));
+        for k in 0..HOPELESS_TIMES {
+            let at = 92_000 + k * 3_000;
+            catch(&mut stuck, at);
+            let hopeless = stuck.hopeless(at + 1_600, 0);
+            if k + 1 < HOPELESS_TIMES {
+                assert_eq!(hopeless, None, "{} catches after the mark", k + 1);
+            } else {
+                assert_eq!(hopeless, Some(Hopeless { since: 93_600, why: HopelessWhy::Ladder(spot) }));
+            }
+        }
+        assert_eq!(
+            stuck.spot_at(spot).map(|s| s.mark),
+            Some(Mark::Marked(Some(Caught { first: 93_600, times: HOPELESS_TIMES })))
+        );
+    }
+
     /// The owner's rule: the defaults with the 60 s on.
     fn rule() -> UnstickTuning {
         UnstickTuning { suicide_after_ms: Some(crate::v026g::bots::tuning::SUICIDE_AFTER_OWNER_MS), ..UnstickTuning::default() }
@@ -2626,7 +2689,7 @@ mod tests {
     }
 
     /// [self-kill facts] Each GiveUp is told once, with the spot the ladder reads there: its first catch, its count, and the
-    /// mark a fall or a failed jump or drop leaves (a marked spot is never hopeless).
+    /// mark a fall or a failed jump or drop leaves (a marked spot's ladder counts its catches after the last mark only).
     #[test]
     fn each_give_up_is_told_once_with_its_spot() {
         let mut stuck = Stuck::default();
@@ -2639,9 +2702,9 @@ mod tests {
             assert_eq!(stuck.take_give_up(), (k == 2).then_some((at + 1_600, spot)), "stuck {} times", k + 1);
             assert_eq!(stuck.take_give_up(), None, "told once");
         }
-        assert_eq!(stuck.spot_at(spot), Some(SpotWord { first: t0 + 1_600, times: 3, fell: false }));
+        assert_eq!(stuck.spot_at(spot), Some(SpotWord { first: t0 + 1_600, times: 3, mark: Mark::Unmarked }));
         stuck.fell(t0 + 9_000, spot);
-        assert_eq!(stuck.spot_at(spot).map(|s| s.fell), Some(true));
+        assert_eq!(stuck.spot_at(spot).map(|s| s.mark), Some(Mark::Marked(None)));
         assert_eq!(stuck.spot_at(Vec3::new(30.0, 0.0, 10.0)), None);
     }
 

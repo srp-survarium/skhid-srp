@@ -1198,6 +1198,10 @@ pub struct TeamKnowledge {
     /// [A192] The team's bots running Crossfire now and the choke each
     /// covers (the commander's, from the plays it handed out).
     pub crossfiring: Vec<(Place, super::plays::TargetRef)>,
+    /// [posts apart] The team's bots running a position play now (Crossfire, HoldExit, Cut: each takes its own spot round a
+    /// point; the commander's, from the plays it handed out): their claimed spots are the bearings a new spot keeps apart from
+    /// (`plays::goals::apart_from_posts`).
+    pub posts: Vec<(Place, super::plays::PlayKind)>,
     /// [A297 `tdm.group`] The team's bots in a fight now (the commander's, from each one's reflex target): the team hears
     /// their shots and their callouts. Empty with the switch off or outside Team Deathmatch.
     pub fighting: Vec<Fighting>,

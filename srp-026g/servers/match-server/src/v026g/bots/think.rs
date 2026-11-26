@@ -1381,7 +1381,15 @@ pub(super) fn self_kill(due: &Due, bot: &mut Bot, state: &mut TeamState, notes: 
     if let Some((give_up_ms, give_up_at)) = bot.stuck.take_give_up() {
         let ms = |v: u32| if v == u32::MAX { "never".to_owned() } else { format!("{:.1} s", f64::from(v) / 1_000.0) };
         let spot = bot.stuck.spot_at(give_up_at).map_or("none".to_owned(), |s| {
-            format!("{} times since {} ms{}", s.times, s.first, if s.fell { ", marked by a fall or a failed jump or drop" } else { "" })
+            // [ladder after a fall] A marked spot's ladder counts the stucks after its last mark: the line says how many and since when.
+            let mark = match s.mark {
+                stuck::Mark::Unmarked => String::new(),
+                stuck::Mark::Marked(None) => ", marked by a fall or a failed jump or drop, no stuck since its last mark".to_owned(),
+                stuck::Mark::Marked(Some(c)) => {
+                    format!(", marked by a fall or a failed jump or drop, {} stucks since its last mark (from {} ms) count", c.times, c.first)
+                }
+            };
+            format!("{} times since {} ms{mark}", s.times, s.first)
         });
         let hopeless = facts.hopeless.map_or("no".to_owned(), |h| format!("{:?} for {}", h.why, ms(now.saturating_sub(h.since))));
         bot.note(

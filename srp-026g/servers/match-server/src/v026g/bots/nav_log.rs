@@ -359,6 +359,9 @@ pub(crate) fn at(p: Vec3) -> String {
 /// Which line.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Kind {
+    /// [posts apart] A position play's spots kept apart by bearing from its teammates' posts round the same point
+    /// (`plays::goals::apart_from_posts`): how many of its fine spots were, or none and all kept.
+    Posts,
     Jump,
     Fall,
     /// A294's drift line (`nav_drift.rs`).
