@@ -276,7 +276,7 @@ pub(crate) struct Episode {
 }
 
 /// Run-length text of a tick sequence: each run as its symbol and length (`3x12 0x5`), cut at 60 runs.
-fn runs(symbols: impl Iterator<Item = char>) -> String {
+pub(super) fn runs(symbols: impl Iterator<Item = char>) -> String {
     let mut out: Vec<(char, u32)> = Vec::new();
     for c in symbols {
         match out.last_mut() {
