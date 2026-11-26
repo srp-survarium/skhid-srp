@@ -988,6 +988,45 @@ const KEY_HOLD_OPEN_TICKS: u32 = 4;
 const KEY_BAND_RAD: f32 = 8.0 * std::f32::consts::PI / 180.0;
 // The band stays well inside a sector's half-width.
 const _: () = assert!(KEY_BAND_RAD < std::f32::consts::FRAC_PI_8);
+
+#[cfg(test)]
+thread_local! {
+    /// [`OldKeyHold`]: this thread's motor picks its walk keys as before #2450.
+    static OLD_KEY_HOLD: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
+/// The walk keys' pick before #2450 for this thread while it lives: every floor is held as an edge's ([`KEY_HOLD_TICKS`], no band
+/// past the sector's edge). Tests whose pinned numbers predate the open floors' hold; never live.
+#[cfg(test)]
+pub(crate) struct OldKeyHold(());
+
+#[cfg(test)]
+impl OldKeyHold {
+    pub(crate) fn scope() -> Self {
+        OLD_KEY_HOLD.set(true);
+        Self(())
+    }
+}
+
+#[cfg(test)]
+impl Drop for OldKeyHold {
+    fn drop(&mut self) {
+        OLD_KEY_HOLD.set(false);
+    }
+}
+
+/// Whether the walk keys' pick is the one before #2450 ([`OldKeyHold`]); never live.
+fn old_key_hold() -> bool {
+    #[cfg(test)]
+    {
+        OLD_KEY_HOLD.get()
+    }
+    #[cfg(not(test))]
+    {
+        false
+    }
+}
+
 /// A set is let go at once when the way to go is this far from it, radians
 /// (more than a sector and a half: the facing swung round).
 const KEY_FORCE_RAD: f32 = 3.0 * std::f32::consts::FRAC_PI_8;
@@ -2289,7 +2328,8 @@ impl Motor {
             .filter(|hold| self.clock.wrapping_sub(hold.at) <= 2);
         // [keys] On open floors the longer hold and the band past the sector's edge.
         let (hold_ticks, band) = match floor {
-            Floor::Open => (KEY_HOLD_OPEN_TICKS, KEY_BAND_RAD),
+            Floor::Open if !old_key_hold() => (KEY_HOLD_OPEN_TICKS, KEY_BAND_RAD),
+            Floor::Open => (KEY_HOLD_TICKS, 0.0),
             Floor::Edge => (KEY_HOLD_TICKS, 0.0),
         };
         let (sector, ticks) = match held {
