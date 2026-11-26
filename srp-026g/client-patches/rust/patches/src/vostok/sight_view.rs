@@ -112,6 +112,13 @@ impl<'c> SightedGun<'c> {
         unsafe { read(self.weapon.aim_progress()) }
     }
 
+    /// Its optic's change_scope_factor (+1808h, +110h): the aim's progress
+    /// from which the tick turns the scope view on; None without an optic.
+    pub fn change_scope_factor(&self) -> Option<f32> {
+        // SAFETY: the live weapon's optic (its own, alive with it) and float.
+        unsafe { self.weapon.optics().map(|optic| read(optic.change_scope_factor())) }
+    }
+
     /// The eye: calculate_aim_alignment, called after the site, moves the
     /// gun until this record's frame is on the camera. `at` is a placement
     /// of the gun patch 161 keeps this weapon for ([`Self::kept`]), whose
