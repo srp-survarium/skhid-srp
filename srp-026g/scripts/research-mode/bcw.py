@@ -1,6 +1,7 @@
 """Reader and writer of the game's binary configs (client projects,
 particles, materials, options), as patch_14 (London) has them. (The same
-file as scripts/dynamic-anomalies/bcw.py of #225, which is not merged.)
+file as scripts/dynamic-anomalies/bcw.py of #225, a folder removed again
+in 84a9b17c0.)
 
 A value is a 24-byte record `u64 data, u64 name offset, u32 crc32(name),
 u16 type, u16 count`, the root first. A node here is (type, payload, count):
@@ -13,7 +14,7 @@ u16 type, u16 count`, the root first. A node here is (type, payload, count):
 CRC-32 of their names (the game finds a key by binary search on it), names
 written once each when their table is reached, string and vector bytes
 written once each (strings and vectors apart): byte for byte the layout of patch_14's
-London projects and particles (test_bcw.py). The original game files are
+London projects and particles (that folder's test_bcw.py). The original game files are
 laid out otherwise (by their editor); written again they read the same.
 
 Later builds (0.46c2, 0.69d) pack a value into 16 bytes instead: `u64` with

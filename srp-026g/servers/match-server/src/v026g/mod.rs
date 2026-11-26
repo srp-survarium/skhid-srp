@@ -39,9 +39,10 @@
 //!   `<SRP_SNAPSHOT_DIR>/captures` together at most, the oldest deleted
 //!   first (`game/desync_capture.rs`);
 //! - `SRP_PACKET_LOG=<dir>`: the transport's raw datagram log;
-//! - `SRP_LATE_INPUTS=discard|move` (default `discard`, what 0.21d does):
-//!   what becomes of an input that comes after its tick is final: dropped
-//!   (0xF1 / 0xF2), or moved to an open tick (0xEF / 0xF0, new in 0.26g);
+//! - `SRP_LATE_INPUTS=relay|discard|move` (default `relay`): what becomes
+//!   of an input that comes after its tick is final: relayed at its own
+//!   tick, dropped (0xF1 / 0xF2, what 0.21d does), or moved to an open tick
+//!   (0xEF / 0xF0, new in 0.26g); [`LateInputs`];
 //! - `SRP_RESYNC_AFTER_AGREED_SECONDS` (default 5, 3 to 15; 15 = the old
 //!   rule): the least time between two resyncs of a client when its last
 //!   one was agreed with; after one that was not, it stays 15 s, and a

@@ -51,7 +51,8 @@ pub mod channel {
     /// above 9 goes out with id 0) and shows a received one in the tabs
     /// that list 10 (`add_message` 0x208AD0 passes it on as it is). Only
     /// srp's lobby movie has such a tab (the "Room Chat" tab of
-    /// `SrpRooms.as`); the game's own tabs list 10 nowhere in the lobby.
+    /// `survarium/rooms/RoomsWindow.as`); the game's own tabs list 10
+    /// nowhere in the lobby.
     pub const ROOM: u8 = 10;
 }
 

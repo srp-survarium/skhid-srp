@@ -7,7 +7,7 @@ build and the game's own code in the original exe, on made-up game objects.
 
 Requires Python `unicorn`. The exe's sections are loaded as they are, the
 arena with them; the config lookups (0xF6B10, 0xF6C00) and buffer_string's
-assign (0x129BB0) are the game's own code. Stubbed: GetCurrentThreadId (one
+assign_config_text (0x129BB0) are the game's own code. Stubbed: GetCurrentThreadId (one
 thread), QueryPerformanceCounter/-Frequency and the log's kernel32 (its lines
 kept). Each run starts at a site
 and stops at its span's end (or the head's join, 0x2056F0, where the native

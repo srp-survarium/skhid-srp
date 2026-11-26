@@ -537,7 +537,7 @@ const VENDOR_INTEL: u32 = 0x8086;
 /// their file names (`VK_LOADER_DRIVERS_SELECT`'s globs): AMD's
 /// `amd-vulkan32.json` (and an older package's `amdvlk32.json`), NVIDIA's
 /// `nv-vk32.json`, Intel's `igvk32.json`. A name not matched is caught by the
-/// look that follows ([`limit_vulkan_drivers`]).
+/// look that follows ([`look_for_dxvk`]).
 pub fn drivers_of(vendor: u32) -> Option<&'static CStr> {
     match vendor {
         VENDOR_AMD => Some(c"amd*"),
