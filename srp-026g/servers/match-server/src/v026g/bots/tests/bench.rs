@@ -632,6 +632,7 @@ pub(crate) fn timed_poll(bots: &mut Bots, clock: Clock, times: &mut Times) -> (V
     let cpu_started = cpu_mark();
     let work_start = super::bench_work::totals();
     super::bench_work::set(super::bench_work::Who::Shared);
+    super::path::slowest::part("view");
     bots.poll_budgets();
     let (mut made, mut notes) = (Vec::new(), Vec::new());
     let now = clock.clock;
@@ -649,6 +650,7 @@ pub(crate) fn timed_poll(bots: &mut Bots, clock: Clock, times: &mut Times) -> (V
     let viewed = Instant::now();
     let cpu_viewed = cpu_mark();
     let work_viewed = super::bench_work::totals();
+    super::path::slowest::part("commander");
     let mut commanders: Vec<(u8, f32, [u64; super::bench_work::KINDS])> = Vec::new();
     super::route_twins::phase(clock.playing, now);
     if bots.tactics.is_some() {
@@ -676,6 +678,7 @@ pub(crate) fn timed_poll(bots: &mut Bots, clock: Clock, times: &mut Times) -> (V
     let looped = Instant::now();
     let cpu_looped = cpu_mark();
     let work_looped = super::bench_work::totals();
+    super::path::slowest::part("bots");
     let mut by_bot: Vec<BotTime> = Vec::new();
     let mut in_bots = 0.0;
     bots.each_bot(&view, |bots, index| {
@@ -710,6 +713,7 @@ pub(crate) fn timed_poll(bots: &mut Bots, clock: Clock, times: &mut Times) -> (V
     let ticks = looped.elapsed().as_secs_f64() - think;
     let cpu_end = cpu_mark();
     super::bench_work::set(super::bench_work::Who::Idle);
+    super::path::slowest::part("outside a poll");
     bots.polls.record(clock.clock, &rays);
     let parts = [
         (viewed - started).as_secs_f64(),
@@ -2098,6 +2102,18 @@ pub(crate) fn real_bot_cost() {
                 "  by stage (no way, corridor, widened, whole): (searches, ms each) {stages:?}; worst search {:.1} ms",
                 searches.worst_us / 1e3
             );
+            if let Some(w) = super::path::slowest::worst() {
+                eprintln!(
+                    "  slowest search: {:.1} ms wall, {:.1} ms CPU, floors {}, stage {}, slices {}, asked at {}, in the poll's {}",
+                    w.us / 1e3,
+                    w.cpu_us / 1e3,
+                    w.expanded,
+                    super::path::slowest::STAGES[w.stage.min(3)],
+                    w.slices,
+                    w.asker,
+                    w.part
+                );
+            }
             let by_expanded: Vec<u64> = (0..8)
                 .map(|k| searches.by_expanded[k] - searches_before.by_expanded[k])
                 .collect();

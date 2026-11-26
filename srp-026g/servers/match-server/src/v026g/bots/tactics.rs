@@ -1721,11 +1721,13 @@ impl Tactics {
 
     /// The route from `from` to `to` for a body of map side `side`, off
     /// their spawn area.
+    #[cfg_attr(test, track_caller)]
     pub fn route(&self, from: Vec3, to: Vec3, time: u32, side: Option<i32>) -> Option<Route> {
         self.route_for(from, to, time, side, false)
     }
 
     /// [`Self::route`], into their base if `objective`.
+    #[cfg_attr(test, track_caller)]
     pub fn route_for(
         &self,
         from: Vec3,
@@ -1862,6 +1864,8 @@ impl Tactics {
                     return round;
                 }
                 let legs = tactics.band_legs(start, self.home);
+                #[cfg(test)]
+                let _asker = path::slowest::Scope::label("Tactics carrier way_round");
                 let round = path::way_exists(
                     grid,
                     &tactics.base.regions,
@@ -1888,6 +1892,7 @@ impl Tactics {
     /// [`Self::route_for`] between floors, keeping off what `filter` keeps
     /// out too (the spots a bot got stuck at, the landings of the jumps it
     /// gave up).
+    #[cfg_attr(test, track_caller)]
     pub fn route_nodes(
         &self,
         start: NodeId,
@@ -1911,6 +1916,7 @@ impl Tactics {
     #[allow(clippy::too_many_arguments)]
     // The Err is the search under way (`path::plan_start`).
     #[allow(clippy::result_large_err)]
+    #[cfg_attr(test, track_caller)]
     pub fn start_route(
         &self,
         start: NodeId,
@@ -1921,6 +1927,8 @@ impl Tactics {
         filter: &RouteFilter,
         iters: &mut usize,
     ) -> Result<Option<Route>, path::Planning> {
+        #[cfg(test)]
+        let _asker = path::slowest::Scope::at(std::panic::Location::caller());
         let grid = &self.world.grid;
         let at = grid.position(start);
         let weight = |node| filter.weight(grid, node);
@@ -1997,6 +2005,7 @@ impl Tactics {
     /// it started with: the same arguments (`start`: its start floor), and
     /// the hazards as they were ([`Hazards::version`]).
     #[allow(clippy::too_many_arguments)]
+    #[cfg_attr(test, track_caller)]
     pub fn resume_route(
         &self,
         planning: &mut path::Planning,
@@ -2007,6 +2016,8 @@ impl Tactics {
         filter: &RouteFilter,
         iters: &mut usize,
     ) -> Option<Option<Route>> {
+        #[cfg(test)]
+        let _asker = path::slowest::Scope::at(std::panic::Location::caller());
         let grid = &self.world.grid;
         let at = grid.position(start);
         let weight = |node| filter.weight(grid, node);
@@ -2031,6 +2042,7 @@ impl Tactics {
     /// `RouteFilter::hard_open`: the landings this body gave up), as for the plain search ([`Self::crossing_allowed`]).
     #[allow(clippy::too_many_arguments)]
     #[allow(clippy::result_large_err)]
+    #[cfg_attr(test, track_caller)]
     pub fn start_crossing(
         &self,
         start: NodeId,
@@ -2042,6 +2054,8 @@ impl Tactics {
         crossable: impl Fn(NodeId) -> bool,
         iters: &mut usize,
     ) -> Result<Option<Route>, path::Planning> {
+        #[cfg(test)]
+        let _asker = path::slowest::Scope::at(std::panic::Location::caller());
         let at = self.world.grid.position(start);
         path::plan_start(
             &self.world.grid,
@@ -2060,6 +2074,7 @@ impl Tactics {
     /// A [`Self::start_crossing`] search goes on, as
     /// [`Self::resume_route`] (the same arguments, `hard` and `crossable` too).
     #[allow(clippy::too_many_arguments)]
+    #[cfg_attr(test, track_caller)]
     pub fn resume_crossing(
         &self,
         planning: &mut path::Planning,
@@ -2071,6 +2086,8 @@ impl Tactics {
         crossable: impl Fn(NodeId) -> bool,
         iters: &mut usize,
     ) -> Option<Option<Route>> {
+        #[cfg(test)]
+        let _asker = path::slowest::Scope::at(std::panic::Location::caller());
         let at = self.world.grid.position(start);
         planning.resume(
             &self.world.grid,
