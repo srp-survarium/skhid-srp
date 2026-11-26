@@ -53,6 +53,17 @@ pub(super) fn escapes() -> Box<dyn RouteTopic> {
     )
 }
 
+/// [bot CPU] M4: the walk-up questions not answered by a floor already seen: by another part of the Walk links (no search), by the
+/// search going on until it came to the floor, by the search run to its end.
+pub(super) fn walk_ups() -> Box<dyn RouteTopic> {
+    Delta::of(
+        || super::super::tactics::walk_up_counts::counts().to_vec(),
+        |d, line| {
+            line.ends.push(format!("walk_up_other_part {} walk_up_found {} walk_up_searched_out {}", d[0], d[1], d[2]));
+        },
+    )
+}
+
 /// [bot CPU] The soft-filtered searches that ended over the whole grid with no way: kept, answered again with no floor searched,
 /// the floors those would have expanded, refused (a tested floor's answer changed).
 pub(super) fn soft_noways() -> Box<dyn RouteTopic> {
