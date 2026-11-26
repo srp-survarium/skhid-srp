@@ -2405,6 +2405,12 @@ fn drive_tick_inner(
                                 })
                                 .map(|(_, point)| point.at);
                             bot.stuck.failed_jump(time, take_off, landing);
+                            // [unreached take-off] Given up from under its take-off's floor: the walk onto it failed too, for this body.
+                            if super::stuck::take_off_unreached(me.feet, take_off) {
+                                bot.stuck.unreached_take_off(time, take_off);
+                                let line = super::nav_log::unreached_take_off_line(take_off, me.feet, super::stuck::JUMP_SHUT_MS);
+                                bot.nav_log.push(super::nav_log::Kind::Jump, time, line);
+                            }
                             // [T2] The route's goal on the failed jump's landing: the search never shuts a goal's own floor (only
                             // the floors it enters from), so it planned the same route over the same gap every tick and the kept
                             // tries failed it at once, keys 0 to the end (the 887 final round's level_04 ledges S169, S260, S262,

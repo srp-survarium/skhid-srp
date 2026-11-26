@@ -124,6 +124,12 @@ pub const JUMP_SHUT_MS: u32 = (super::motor::TRY_KEPT_S * 1000.0) as u32;
 pub const LANDING_SHUT_M: f32 = 0.35;
 /// … and within this up or down, metres.
 pub const LANDING_SHUT_UP_M: f32 = 0.3;
+/// [unreached take-off] Whether a body whose feet are at `feet` when its route's jump from `take_off` is given up never got onto
+/// the take-off's floor: its feet are under it by more than a shut landing's height band ([`LANDING_SHUT_UP_M`]), where a body
+/// on that floor is not ([`Stuck::unreached_take_off`]).
+pub fn take_off_unreached(feet: Vec3, take_off: Vec3) -> bool {
+    take_off.y - feet.y > LANDING_SHUT_UP_M
+}
 /// A spot is avoided once it caught the body this many times.
 const AVOID_AFTER: u32 = 2;
 /// A route passing this near a kept spot is not taken (its first metres,
@@ -716,6 +722,17 @@ impl Stuck {
                 self.spent.push(landing);
             }
         }
+    }
+
+    /// [unreached take-off] A jump of its route given up ([`Self::failed_jump`]) while the body stands under its take-off's floor
+    /// ([`take_off_unreached`]): the walk onto the take-off failed with it, so the take-off's floor is shut to this body's
+    /// searches for [`JUMP_SHUT_MS`] too, as the jump's landing is. This body's try only: nothing is told to the match's dead links
+    /// and nothing is spent, so another body (and this one, once the shut ends) may walk onto it and jump. Level 5 day 2's
+    /// take-off (6.63, 6.58, 11.16), v65 C batt-m5-s4 place 7: the body slid off that narrow top onto the slope north of it
+    /// ((6.6, 6.09, 11.6)), lined up from there up a slope no client walks, gave the jump up, and the next search handed back the
+    /// same take-off (72 s there).
+    pub fn unreached_take_off(&mut self, time: u32, take_off: Vec3) {
+        self.shut(Shut { kind: ShutKind::Jump, landing: take_off, lasts: Lasts::Until(time + JUMP_SHUT_MS) }, time);
     }
 
     /// [A386] A sprint link the client refuses this body now (`motor::Walked::JumpRefused`): its `landing` is shut to this body's
@@ -1702,6 +1719,29 @@ mod tests {
         assert_eq!(without_evidence(&tagged), plain);
         let off = "was 13.9 m off its reckoning; plans again to [2.2, 16.3, 105.7] [fix gap 4000 ms]";
         assert_eq!(without_evidence(off), "was 13.9 m off its reckoning; plans again to [2.2, 16.3, 105.7]");
+    }
+
+    /// [unreached take-off] v65 C batt-m5-s4 place 7: its route's jump from level 5 day 2's take-off (6.625, 6.577, 11.164) to
+    /// (6.625, 7.782, 11.914) given up with the feet at (6.6, 6.09, 11.6), on the slope under that narrow top. The take-off's floor
+    /// is shut to this body's searches for the jump's time, beside the landing, and only for it: the match is told the jump alone.
+    /// A body that gave the jump up standing on the take-off's floor shuts the landing only.
+    #[test]
+    fn a_jump_given_up_from_under_its_take_off_shuts_the_take_off_for_this_body() {
+        let (take_off, landing) = (Vec3::new(6.625, 6.577, 11.164), Vec3::new(6.625, 7.782, 11.914));
+        let feet = Vec3::new(6.6, 6.09, 11.6);
+        assert!(take_off_unreached(feet, take_off), "0.49 m under the take-off");
+        assert!(!take_off_unreached(Vec3::new(6.62, 6.55, 11.0), take_off), "on its floor, lining up behind it");
+        let mut stuck = Stuck::default();
+        stuck.failed_jump(54_900, take_off, Some(landing));
+        stuck.unreached_take_off(54_900, take_off);
+        let shut: Vec<Shut> = stuck.shut_landings_from(55_000, feet, true).collect();
+        assert!(shut.iter().any(|s| s.covers(take_off)), "the take-off's floor: {shut:?}");
+        assert!(shut.iter().any(|s| s.covers(landing)), "the landing, as before");
+        assert!(!shut.iter().any(|s| s.covers(Vec3::new(6.875, 6.235, 11.164))), "the floor below it, east, stays open");
+        assert!(stuck.shut_landings_from(54_900 + JUMP_SHUT_MS + 1, feet, true).next().is_none(), "for the jump's time only");
+        let told = stuck.tell_failed_links();
+        assert_eq!(told.len(), 1, "the match is told the jump alone: {told:?}");
+        assert_eq!(told[0].landing, landing);
     }
 
     /// [unstick.link_made] A jump the motor gave up that a world then showed the body up: its shut lifted, its failure not

@@ -652,6 +652,18 @@ pub fn failed_jump_line(take_off: Vec3, landing: Option<Vec3>, feet: Vec3, shut_
     )
 }
 
+/// [unreached take-off] A route jump given up from under its take-off's floor (`Stuck::unreached_take_off`): `nav: take-off never
+/// reached: (..) from feet (..), D m under it; its floor shut to this body for S s`.
+pub fn unreached_take_off_line(take_off: Vec3, feet: Vec3, shut_ms: u32) -> String {
+    format!(
+        "{PREFIX}take-off never reached: {} from feet {}, {:.2} m under it; its floor shut to this body for {:.0} s",
+        at(take_off),
+        at(feet),
+        take_off.y - feet.y,
+        shut_ms as f32 / 1000.0
+    )
+}
+
 /// [C6] A zone spawner searched from a look spot on the margin's band (a floor no zone lists a standing body on, that the
 /// margin alone marks): `nav: zone spawner <i> at (..) looked at from the band at (..)`.
 pub fn spawner_band_line(index: usize, item: Vec3, spot: Vec3) -> String {
