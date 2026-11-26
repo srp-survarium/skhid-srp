@@ -99,6 +99,8 @@ impl RouteEnd {
 impl Bot {
     /// Drops its route, if it has one, because of `why`.
     pub(super) fn end_route(&mut self, why: RouteEnd, now: u32) {
+        // [lane draw] The walk's lane ends with the walk (`lane_draw::ends_walk`), with a route or before one was found.
+        self.features.lane.route_ended(why);
         if self.route.take().is_some() {
             self.motor.link_route_ended(why as usize);
             self.route_ended(why, now);

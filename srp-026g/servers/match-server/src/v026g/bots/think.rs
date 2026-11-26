@@ -227,7 +227,8 @@ impl Bots {
                         let drive_span = super::bench_cpu::Span::begin();
                         // [bot traps] A goal the drive's own search failed to reach to the end this tick goes on cool-down.
                         path::mark_ends();
-                        let decision = drive_tick(bot, &me, view, tactics, &tuning, time, searching, press);
+                        let lanes = &mut self.teams[usize::from(team)].features.lanes;
+                        let decision = drive_tick(bot, &me, view, tactics, &tuning, time, searching, press, lanes);
                         unreachable::after_drive(bot, &me, tactics, path::end_since_mark(), time);
                         #[cfg(test)]
                         drive_span.end(super::bench_cpu::Part::Drive);
