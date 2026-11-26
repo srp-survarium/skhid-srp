@@ -20,7 +20,7 @@ use mapdata::{NodeId, RayTree, Shape, Vec3, WalkGrid, World};
 
 mod progress;
 
-use super::hazards::{HazardMarks, Hazards, Marking, PASS_MS};
+use super::hazards::{Activity, HazardMarks, Hazards, Marking, PASS_MS};
 use super::path::{self, Route};
 use super::route_filter::RouteFilter;
 use super::rng::Rng;
@@ -261,6 +261,9 @@ pub struct Tactics {
     /// [`Self::walk_up_set`]'s sets, the latest [`WALK_UP_KEPT`]: they depend
     /// on the map alone and the point asked.
     walk_ups: std::sync::Mutex<Vec<(WalkUpKey, Arc<WalkUp>)>>,
+    /// [bot CPU] The strongly connected parts of the floors no zone always on shuts ([`NeverOpenParts`]), by which zones are
+    /// always on.
+    never_open: std::sync::Mutex<Option<(Vec<bool>, Arc<NeverOpenParts>)>>,
     /// [bot CPU] Soft-filtered route searches that ended over the whole grid with no way ([`SoftNoWays`]).
     soft_noways: std::sync::Mutex<SoftNoWays>,
     /// [bot traps] [`Self::regions_reached`]'s sets by start region, the latest [`REACHED_KEPT`]: they depend on the map alone.
@@ -321,6 +324,11 @@ pub struct BandLegs {
 }
 
 impl BandLegs {
+    /// The floors of both ways.
+    fn floors(&self) -> impl Iterator<Item = NodeId> + '_ {
+        self.ways.iter().flatten().flat_map(|way| way.iter().copied())
+    }
+
     /// Whether `node` is a floor of either way.
     pub fn has(&self, node: NodeId) -> bool {
         self.ways.iter().flatten().any(|way| way.contains(&node))
@@ -530,6 +538,139 @@ impl SoftNoWays {
             self.0.remove(0);
         }
         self.0.push((key, exhausted));
+    }
+}
+
+/// [bot CPU] The floors no zone always on shuts, in their strongly connected parts by the links the search plans
+/// (`WalkGrid::plans`): the floors of a part reach each other, and a part reaches another only along [`Self::next`]. A floor such
+/// a zone shuts is in none ([`Tactics::never_open_no_way`]).
+pub struct NeverOpenParts {
+    /// Per floor, its part; none for a floor a zone always on shuts.
+    part: Vec<Option<u32>>,
+    /// The parts each part's floors link into (the condensation's steps, each once): `next[from[p]..from[p + 1]]` for part `p`.
+    from: Vec<u32>,
+    next: Vec<u32>,
+}
+
+impl NeverOpenParts {
+    fn build(grid: &WalkGrid, never: impl Fn(NodeId) -> bool) -> Self {
+        let floors = grid.len();
+        let shut: Vec<bool> = (0..floors as NodeId).map(&never).collect();
+        // The planned links between open floors, by floor: `to[row[a]..row[a + 1]]`.
+        let mut row: Vec<u32> = Vec::with_capacity(floors + 1);
+        let mut to: Vec<NodeId> = Vec::new();
+        row.push(0);
+        for a in 0..floors as NodeId {
+            if !shut[a as usize] {
+                to.extend(grid.links(a).map(|(b, _)| b).filter(|&b| !shut[b as usize] && grid.plans(a, b)));
+            }
+            row.push(to.len() as u32);
+        }
+        // Tarjan's strongly connected parts, with its own stack of calls (a floor and its next link).
+        let mut index: Vec<Option<u32>> = vec![None; floors];
+        let mut low = vec![0u32; floors];
+        let mut on_stack = vec![false; floors];
+        let mut stack: Vec<NodeId> = Vec::new();
+        let mut part: Vec<Option<u32>> = vec![None; floors];
+        let (mut parts, mut next_index) = (0u32, 0u32);
+        let mut calls: Vec<(NodeId, u32)> = Vec::new();
+        for root in 0..floors as NodeId {
+            if shut[root as usize] || index[root as usize].is_some() {
+                continue;
+            }
+            index[root as usize] = Some(next_index);
+            low[root as usize] = next_index;
+            next_index += 1;
+            stack.push(root);
+            on_stack[root as usize] = true;
+            calls.push((root, row[root as usize]));
+            while let Some(&(v, e)) = calls.last() {
+                if e < row[v as usize + 1] {
+                    let top = calls.len() - 1;
+                    calls[top].1 += 1;
+                    let w = to[e as usize];
+                    match index[w as usize] {
+                        None => {
+                            index[w as usize] = Some(next_index);
+                            low[w as usize] = next_index;
+                            next_index += 1;
+                            stack.push(w);
+                            on_stack[w as usize] = true;
+                            calls.push((w, row[w as usize]));
+                        }
+                        Some(at) if on_stack[w as usize] => low[v as usize] = low[v as usize].min(at),
+                        Some(_) => {}
+                    }
+                    continue;
+                }
+                calls.pop();
+                if let Some(&(u, _)) = calls.last() {
+                    low[u as usize] = low[u as usize].min(low[v as usize]);
+                }
+                if index[v as usize] == Some(low[v as usize]) {
+                    while let Some(w) = stack.pop() {
+                        on_stack[w as usize] = false;
+                        part[w as usize] = Some(parts);
+                        if w == v {
+                            break;
+                        }
+                    }
+                    parts += 1;
+                }
+            }
+        }
+        // The condensation: each part's steps into other parts, once each.
+        let mut steps: Vec<(u32, u32)> = Vec::new();
+        for a in 0..floors {
+            let Some(pa) = part[a] else { continue };
+            for &b in &to[row[a] as usize..row[a + 1] as usize] {
+                if let Some(pb) = part[b as usize]
+                    && pb != pa
+                {
+                    steps.push((pa, pb));
+                }
+            }
+        }
+        steps.sort_unstable();
+        steps.dedup();
+        let mut from = vec![0u32; parts as usize + 1];
+        for &(p, _) in &steps {
+            from[p as usize + 1] += 1;
+        }
+        for p in 0..parts as usize {
+            from[p + 1] += from[p];
+        }
+        let next = steps.into_iter().map(|(_, q)| q).collect();
+        Self { part, from, next }
+    }
+
+    /// The part of `node`; none for a floor a zone always on shuts (or one off the grid).
+    fn part(&self, node: NodeId) -> Option<u32> {
+        self.part.get(node as usize).copied().flatten()
+    }
+
+    /// The parts `part`'s floors link into.
+    fn next(&self, part: u32) -> &[u32] {
+        &self.next[self.from[part as usize] as usize..self.from[part as usize + 1] as usize]
+    }
+}
+
+/// [bot CPU] The bench's counts of [`Tactics::never_open_no_way`] (test builds; logging only): the unbounded route searches it
+/// answered, the parts' builds and their µs, and the keys its proofs walked.
+#[cfg(test)]
+pub(crate) mod never_open_counts {
+    use std::sync::atomic::{AtomicU64, Ordering::Relaxed};
+    pub const PROVEN: usize = 0;
+    pub const BUILDS: usize = 1;
+    pub const BUILD_US: usize = 2;
+    /// The keys the proofs walked.
+    pub const WALKED: usize = 3;
+    static COUNTS: [AtomicU64; 4] = [const { AtomicU64::new(0) }; 4];
+    pub fn count(what: usize, n: u64) {
+        COUNTS[what].fetch_add(n, Relaxed);
+    }
+    pub fn counts() -> [u64; 4] {
+        std::array::from_fn(|k| COUNTS[k].load(Relaxed))
     }
 }
 
@@ -1336,6 +1477,7 @@ impl Tactics {
             walks: Default::default(),
             spot_lists: Default::default(),
             walk_ups: Default::default(),
+            never_open: Default::default(),
             soft_noways: Default::default(),
             reached: Default::default(),
             carrier_ways: Default::default(),
@@ -2060,11 +2202,136 @@ impl Tactics {
         objective: bool,
         filter: &RouteFilter,
     ) -> Option<Route> {
+        // [bot CPU] A goal no walk reaches over the floors a zone may open: the unbounded search would expand every floor it may
+        // walk to find that out (a camper job's held spot under a zone always on: 490,207-777,728 floors, 97-178 ms in one
+        // commander poll); it ends so with no floor searched ([`Self::never_open_no_way`]).
+        if self.never_open_no_way(start, goal) {
+            #[cfg(test)]
+            never_open_counts::count(never_open_counts::PROVEN, 1);
+            let grid = &self.world.grid;
+            let at = grid.position(start);
+            let legs = self.band_legs(start, goal);
+            return path::plan_start_proven_no_way(
+                grid,
+                &self.base.regions,
+                start,
+                goal,
+                |node| self.route_floor_open(node, time, side, objective, at, filter, &legs),
+                |region| self.route_region_open(region, time, side, objective, at, filter, &legs),
+                filter.reach(),
+            );
+        }
         let mut iters = usize::MAX;
         match self.start_route(start, goal, time, side, objective, filter, &mut iters) {
             Ok(route) => route,
             Err(_) => unreachable!("an unbounded search ends"),
         }
+    }
+
+    /// [bot CPU] The strongly connected parts of the floors no zone always on shuts ([`NeverOpenParts`]): made at the first ask after the
+    /// anomalies are attached (`Bots::map_ready` asks it then, off the match loop), kept while the same zones are always on
+    /// (`Hazards::refresh` turns a zone always on when it does not switch or its schedule is not known; made again when that
+    /// changes).
+    pub fn never_open_parts(&self) -> Arc<NeverOpenParts> {
+        let always: Vec<bool> = self.hazards.zones.iter().map(|zone| zone.activity == Activity::Always).collect();
+        let mut kept = self.never_open.lock().unwrap_or_else(|e| e.into_inner());
+        if let Some((key, parts)) = kept.as_ref()
+            && *key == always
+        {
+            return parts.clone();
+        }
+        #[cfg(test)]
+        let started = std::time::Instant::now();
+        let parts = Arc::new(NeverOpenParts::build(&self.world.grid, |node| {
+            self.hazards.zones_at(node).any(|zone| zone.activity == Activity::Always)
+        }));
+        #[cfg(test)]
+        {
+            never_open_counts::count(never_open_counts::BUILDS, 1);
+            never_open_counts::count(never_open_counts::BUILD_US, started.elapsed().as_micros() as u64);
+        }
+        *kept = Some((always, parts.clone()));
+        parts
+    }
+
+    /// [bot CPU] Whether no route from `start` to `goal` can exist now, whatever the side, objective or filter: the search's floor
+    /// test ([`Self::route_floor_open`]) never opens a floor a zone always on shuts (`Activity::Always` is never off:
+    /// `Hazards::allowed_for`), but for the floors of the start's and the goal's band legs, and it takes only the links it plans
+    /// (`WalkGrid::plans`). Over the strongly connected parts of the other floors ([`NeverOpenParts`]) and the start, the goal
+    /// and the band legs' floors under such a zone, each a key, with the steps between keys the way their links go: no walk of
+    /// steps from the start's key to the goal's is no way. A proof only: false says nothing.
+    pub fn never_open_no_way(&self, start: NodeId, goal: NodeId) -> bool {
+        if start == goal {
+            return false;
+        }
+        let parts = self.never_open_parts();
+        if parts.part(start).is_some() && parts.part(start) == parts.part(goal) {
+            return false;
+        }
+        let grid = &self.world.grid;
+        let legs = self.band_legs(start, goal);
+        // The keys a route may stand on: a part (its floors reach each other), or the start, the goal or a band leg's floor under a
+        // zone always on, alone.
+        #[derive(Clone, Copy, PartialEq, Eq, Hash)]
+        enum Key {
+            Floor(NodeId),
+            Part(u32),
+        }
+        let key_of = |node: NodeId| match parts.part(node) {
+            Some(part) => Some(Key::Part(part)),
+            None => (node == start || node == goal || legs.has(node)).then_some(Key::Floor(node)),
+        };
+        // The steps between keys, each the way its link goes and only by a link the search plans (`WalkGrid::plans`: none into
+        // a shut pocket from outside it, which the search prices past any way): out of each of those floors by its links, into
+        // each by the floors that link into it, and from part to part by the parts' own ([`NeverOpenParts::next`]). Every step
+        // of a route from key to key is one of them.
+        let mut steps: std::collections::HashMap<Key, Vec<Key>> = std::collections::HashMap::new();
+        let mut floors: Vec<NodeId> = vec![start, goal];
+        floors.extend(legs.floors());
+        for &node in &floors {
+            let Some(here) = key_of(node) else { continue };
+            for (b, _) in grid.links(node) {
+                if let Some(there) = key_of(b)
+                    && grid.plans(node, b)
+                {
+                    steps.entry(here).or_default().push(there);
+                }
+            }
+            // `entered_from` takes a plain closure: the steps in are gathered through a cell.
+            let into = std::cell::RefCell::new(Vec::new());
+            grid.entered_from(node, |b| {
+                if grid.plans(b, node) {
+                    into.borrow_mut().extend(key_of(b));
+                }
+                false
+            });
+            for there in into.into_inner() {
+                steps.entry(there).or_default().push(here);
+            }
+        }
+        let (Some(s), Some(g)) = (key_of(start), key_of(goal)) else { return false };
+        let mut seen = std::collections::HashSet::from([s]);
+        let mut queue = vec![s];
+        while let Some(k) = queue.pop() {
+            if k == g {
+                return false;
+            }
+            for &next in steps.get(&k).map_or(&[][..], Vec::as_slice) {
+                if seen.insert(next) {
+                    queue.push(next);
+                }
+            }
+            if let Key::Part(part) = k {
+                for &next in parts.next(part) {
+                    if seen.insert(Key::Part(next)) {
+                        queue.push(Key::Part(next));
+                    }
+                }
+            }
+        }
+        #[cfg(test)]
+        never_open_counts::count(never_open_counts::WALKED, seen.len() as u64);
+        true
     }
 
     /// [`Self::route_nodes`] for at most `iters` floors expanded (taken off
@@ -5652,7 +5919,7 @@ pub(crate) mod walk_up_counts {
         COUNTS[what].fetch_add(1, Relaxed);
     }
     /// The counts so far: another part, found by the search, searched to its end.
-    pub fn counts() -> [u64; 3] {
+    pub fn counts() -> [u64; 4] {
         std::array::from_fn(|k| COUNTS[k].load(Relaxed))
     }
 }
