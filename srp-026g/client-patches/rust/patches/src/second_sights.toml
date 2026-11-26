@@ -1,0 +1,61 @@
+# Patch 206: a weapon's second sight and the switch to it and back, simulated
+# as 0.69d0's aim-slot switch (docs/notes/second-sights.md, "The simulation
+# (0.26g)"). The sites are sites_026g.tsv's; the logic is second_sights.rs,
+# the machine the second-sight crate.
+name = "second_sights"
+patch = 206
+
+# The switch key's press is bit 30 of the input: first of the input
+# builder's end (patch 149's quick bits, then patch 78's chord, read it as
+# any other key's bit).
+[[hook]]
+site = "input_builder.end"
+handler = "on_input_end"
+order = -1
+
+[[hook]]
+site = "sights.press"
+handler = "on_press"
+
+[[hook]]
+site = "sights.tick"
+handler = "on_tick"
+
+[[hook]]
+site = "sights.deactivate"
+handler = "on_deactivate"
+
+[[hook]]
+site = "sights.made"
+handler = "on_made"
+
+[[hook]]
+site = "sights.destroyed"
+handler = "on_destroyed"
+
+[[hook]]
+site = "sights.bullet_aim"
+handler = "on_bullet_aim"
+
+[[hook]]
+site = "sights.dispersion_aimed"
+handler = "on_dispersion_aimed"
+
+[[hook]]
+site = "sights.skill_aimed"
+handler = "on_skill_aimed"
+
+[[hook]]
+site = "sights.target_aimed"
+handler = "on_target_aimed"
+
+# The player's state's end: after patch 78's carry snapshot (artefact_carry.toml, order 0).
+[[hook]]
+site = "carry.save"
+handler = "on_save"
+order = 1
+
+[[hook]]
+site = "carry.load"
+handler = "on_load"
+order = 1

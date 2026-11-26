@@ -15,8 +15,10 @@ const PREPARE_MAGIC: [u8; 4] = [0xff, b'L', b'J', 1];
 const PREPARED_MAGIC: [u8; 8] = [0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0, 0];
 const PREPARE_HEADER: usize = 14;
 pub const PREPARED_SIZE: usize = 20;
-/// D8's debug byte is 0x80/0x81 for dialect 1, or 0x82/0x83 with world
-/// load receipts. The low bit enables debug logging in either dialect.
+/// D8's debug byte is 0x80/0x81 for dialect 1; with world load receipts
+/// 0x02 more (0x82/0x83), and with the exact-tick upload requests
+/// (`srp_validate::messages::EXACT_WORLDS`, patch 211) 0x04 more (0x86/0x87).
+/// The low bit enables debug logging in either dialect.
 /// The stock writer sends 0 or 0xff: testing bit 7 alone is insufficient.
 /// Released snapshot-upload patches do not support this dialect.
 pub const CONNECT_CAPABILITY: u8 = 0x80;
@@ -34,7 +36,18 @@ pub fn spoken_by(revision: u8) -> bool {
 }
 
 pub fn has_connect_capability(debug: u8) -> bool {
-    matches!(debug, CONNECT_CAPABILITY | 0x81 | 0x82 | 0x83)
+    debug & !0x07 == CONNECT_CAPABILITY
+}
+
+/// Whether a game of the dialect sends load receipts (0x02).
+pub fn has_world_receipts(debug: u8) -> bool {
+    has_connect_capability(debug) && debug & 0x02 != 0
+}
+
+/// Whether a game of the dialect answers an upload request for a tick
+/// (`srp_validate::messages::EXACT_WORLDS`).
+pub fn has_exact_worlds(debug: u8) -> bool {
+    has_connect_capability(debug) && debug & srp_validate::messages::EXACT_WORLDS != 0
 }
 
 /// Binds an acknowledgement to one match and one immutable profile proposal.

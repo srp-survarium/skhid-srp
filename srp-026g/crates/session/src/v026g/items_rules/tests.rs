@@ -427,7 +427,7 @@ fn records(account: &Account, host: u32) -> Vec<Upgrade> {
 /// forend that takes that thread.
 fn modules_table() -> Modules {
     Modules::parse(
-        include_bytes!("../../../../weapon-modules/tests/sample-v3.srpm").to_vec(),
+        include_bytes!("../../../../weapon-modules/tests/sample-v4.srpm").to_vec(),
     )
     .unwrap()
 }
@@ -1991,7 +1991,7 @@ fn a_weapons_upgrades_go_to_the_client_packed_in_the_weapon_kit() {
     let rifle = give(&mut account, "ak_74m", &[]);
     let vest = give(&mut account, "edge_torso_2", &[]);
     assert!(is_weapon(dict("ak_74m")) && !is_weapon(dict("edge_torso_2")));
-    assert_eq!(upgrade_capacity(dict("ak_74m")), 6);
+    assert_eq!(upgrade_capacity(dict("ak_74m")), 7);
     assert_eq!(upgrade_capacity(dict("edge_torso_2")), limits::UPGRADES);
     let camo = account.add_item(dict("camo_city"), FULL_CONDITION);
     let scope = account.add_item(69, FULL_CONDITION);

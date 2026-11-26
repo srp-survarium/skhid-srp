@@ -29,8 +29,11 @@ pub const ROOMS_LIST: u32 = ROOMS_FIRST;
 pub const ROOM_STATE: u32 = ROOMS_FIRST + 1;
 /// Leave the asker's room (the window's cross). Answered with its state.
 pub const ROOM_LEAVE: u32 = ROOMS_FIRST + 2;
-/// `ROOM_VOTE_BASE + card`, card 0 to 2: a vote. Answered with the state.
-pub const ROOM_VOTE_BASE: u32 = ROOMS_FIRST + 3;
+/// `ROOM_VOTE_BASE + card`, card 0 to [`CARDS`] − 1: a vote. Answered with
+/// the state. Past the room with bots since the fourth card (the owner's
+/// of 2026-11-26); 2 060 000 003 to 2 060 000 005, the three cards' before
+/// it, are no request now.
+pub const ROOM_VOTE_BASE: u32 = ROOMS_FIRST + 50;
 /// Play: into an open room, or a new one (the movie's Play button with
 /// rooms on: no search, no queue). Answered with the state.
 pub const ROOM_PLAY: u32 = ROOMS_FIRST + 6;
@@ -139,8 +142,9 @@ pub const POOL_PAGES: u32 = POOL_BITS.div_ceil(POOL_PAGE_ROWS) as u32;
 pub const LIST_ROWS: usize = 31;
 /// The most members a room has: two sides of 10.
 pub const MEMBERS_MAX: usize = 20;
-/// The most cards of a vote.
-pub const CARDS: usize = 3;
+/// The cards of a vote (the owner's of 2026-11-26: "Change the number of
+/// vote options to 4"; three before).
+pub const CARDS: usize = 4;
 /// The most rows of [`friend_rooms`] after its header: all a `91` holds
 /// (a friend list has 200 at most).
 pub const FRIEND_ROWS: usize = u8::MAX as usize - 1;
@@ -1435,6 +1439,18 @@ mod tests {
         }
     }
 
+    /// The lobby movie votes at these starts and draws as many cards
+    /// (`RoomsWire.VOTE`, `RoomsWire.CARDS`): the two ship together.
+    #[test]
+    fn the_movie_votes_on_the_cards_the_server_deals() {
+        let wire = include_str!("../../../../../flash/lobby_menu/src/survarium/rooms/RoomsWire.as");
+        assert!(wire.contains("public static const FIRST:int = 2060000000;"));
+        let vote = format!("public static const VOTE:int = FIRST + {};", ROOM_VOTE_BASE - ROOMS_FIRST);
+        assert!(wire.contains(&vote), "{vote}");
+        let cards = format!("public static const CARDS:int = {CARDS};");
+        assert!(wire.contains(&cards), "{cards}");
+    }
+
     #[test]
     fn every_start_is_one_request_and_inside_an_int() {
         const {
@@ -1448,13 +1464,25 @@ mod tests {
         assert_eq!(room_request(ROOM_STATE, 1), Some(RoomRequest::State));
         assert_eq!(room_request(ROOM_LEAVE, 1), Some(RoomRequest::Leave));
         assert_eq!(room_request(ROOM_PLAY, 1), Some(RoomRequest::Play));
-        assert_eq!(
-            room_request(ROOM_VOTE_BASE + 2, 1),
-            Some(RoomRequest::Vote { card: 2 })
-        );
-        // Play and leaving a queue come right after the three cards; then
-        // nothing up to the pool.
-        assert_eq!(ROOM_VOTE_BASE + 3, ROOM_PLAY);
+        // The four cards' votes past the room with bots, before the kicks;
+        // where the three cards' were (3 to 5) nothing, then Play.
+        const {
+            assert!(ROOM_CREATE_BOTS < ROOM_VOTE_BASE);
+            assert!(ROOM_VOTE_BASE + (CARDS as u32) <= ROOM_KICK_BASE);
+        }
+        for card in 0..CARDS as u8 {
+            assert_eq!(
+                room_request(ROOM_VOTE_BASE + u32::from(card), 1),
+                Some(RoomRequest::Vote { card })
+            );
+        }
+        assert_eq!(room_request(ROOM_VOTE_BASE - 1, 1), None);
+        assert_eq!(room_request(ROOM_VOTE_BASE + CARDS as u32, 1), None);
+        for retired in ROOM_LEAVE + 1..ROOM_PLAY {
+            assert_eq!(room_request(retired, 1), None);
+        }
+        // Play and leaving a queue; then nothing up to the pool.
+        assert_eq!(ROOM_LEAVE + 4, ROOM_PLAY);
         assert_eq!(ROOM_PLAY + 1, ROOM_UNQUEUE);
         assert_eq!(ROOM_UNQUEUE + 1, ROOM_JOIN_MATCH);
         assert_eq!(

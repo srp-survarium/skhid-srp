@@ -263,7 +263,7 @@ Patches:
   death that completed the rule left it set and the replay of that death
   was skipped: one dead player of the team that was out stayed in the alive
   mask, the server saw a player alive and the match ran to the time limit
-  (match.md section 28). The `jnz` at 0x3160F1 becomes six nops, as the
+  (match.md section 37). The `jnz` at 0x3160F1 becomes six nops, as the
   battery rule's does;
 - the resources.db file table's signature is not checked (patch revision
   12, client_patch.md section 0.1): verify_sign's call of verify_sign_impl
@@ -960,7 +960,7 @@ GATHER = (GATHER_EVENTS, GATHER_LOCK)
 # alive mask) -> the jnz becomes nops, as for the battery rule above. The
 # completion time is not serialized (the constructor's 0x31601D is the only
 # write of -1), so a rollback over the death that completed the rule keeps
-# it, and the replay of that death is skipped (match.md section 28).
+# it, and the replay of that death is skipped (match.md section 37).
 TDM_DEATHS = (0x3160F1, bytes.fromhex("0f85e6000000"), b"\x90" * 6)
 
 # camouflage_decal_texture_type_baker_cook::check_loaded_baked_texture
@@ -1490,7 +1490,8 @@ READ_ORDER_SHA256 = "3c49ddd03438f137bbf3ec844d41ed3c4247d6d815595f1d494a515e112
 #   ctor clears it at 0x1F1BFB, nothing else writes it): set, the player is
 #   drawn for the decal editor, its skeleton in the bind pose (mt_draw
 #   0x2474A0 at 0x2476F8: the T-pose) and its held item 10 m under it
-#   (0x24778F), with another transform (insert 0x1F30E2). The six bytes are
+#   (0x24778F), with another transform (render_model 0x1F3070, at
+#   0x1F30E2). The six bytes are
 #   a call of weapon_draw_026g.asm's player_mode (WEAPON_DRAW_OFFSET of
 #   `.srp`, in the first page after the forward effect's scrolling) and a
 #   nop: 0 while a weapon is shown (the state's mode), the window's mode
@@ -2232,8 +2233,8 @@ PREGAME_PROGRESS = (PREGAME_PROGRESS_VA, bytes.fromhex("e9f4000000"),
 # `st_fov_option` in all five languages, and names its console variable by
 # `mov eax,offset "fov"` (0x262930; "fov" at 0xA0659C, read nowhere else).
 # No console variable is called "fov", so the slider was never shown (the
-# menu has no instance of it either: fov_slider_026g.py adds one to
-# main_menu.swf). `uro_fov` (float at 0xA6FA28, 65.0, saved in user.cfg; the
+# menu has no instance of it either; main_menu's own Gameplay slider is
+# flash/main_menu/src/SrpFieldOfView.as). `uro_fov` (float at 0xA6FA28, 65.0, saved in user.cfg; the
 # console variable at 0xAA6510, its name "uro_fov" at 0xA281D0) is
 # registered with the range 0 to 100 and read by nothing. Option 7 stays the
 # original's, dead: the Gameplay tab's slider (exe patch 83, `uro_fov` in
@@ -2666,14 +2667,16 @@ CONTROLS_ADDED = ((0x19, "st_hide_interface_action"), (0x23, "st_hold_artifact_a
                   (0x56, "st_use_trap_action"),
                   (0x57, "st_use_oxygen_tank_action"),
                   (0x58, "st_use_next_artefact_action"),
-                  (0x59, "st_use_next_medkit_action"))
+                  (0x59, "st_use_next_medkit_action"),
+                  (0x5A, "st_srp_scope_next_action"))     # patch 206's second sight switch, default Y
 
 # A key per item type uses it (patch 149, README; client_patch.md section
 # 3.105; the rules: ../docs/notes/item-hotkeys.md). The game's action table (60
 # rows of 20 bytes at 0xA74AF0: name, id, kinds, toggle, default key's name)
 # ends where the key names' table begins (0xA74FA0), so its rows are moved:
 # `actions` (item_hotkeys_026g.asm, the arena's block item_hotkeys.data) is the
-# game's 60 and sixteen more (ids 4Ah..59h, ITEM_HOTKEYS_BINDER below). The four functions of the key binder that read the table by its
+# game's 60, sixteen more (ids 4Ah..59h, ITEM_HOTKEYS_BINDER below) and patch 206's scope_next (5Ah,
+# default Y). The four functions of the key binder that read the table by its
 # address read `actions`: (site, its bytes, where in them the address is, the
 # row's field it names); the binder's construction compares its pointer with
 # the table's end (ITEM_HOTKEYS_TABLE_END), the other three count its bytes,
@@ -2686,7 +2689,7 @@ CONTROLS_ADDED = ((0x19, "st_hide_interface_action"), (0x23, "st_hold_artifact_a
 # is under a count.
 ITEM_HOTKEYS_TABLE = 0xA74AF0
 ITEM_HOTKEYS_GAME_ROWS = 60
-ITEM_HOTKEYS_ROWS = 76
+ITEM_HOTKEYS_ROWS = 77
 ITEM_HOTKEYS_TABLE_REFS = (
     (0x20755B, bytes.fromhex("b8f04aa700"), 1, 0x0),           # the binder's construction: mov eax,table
     (0x2078AB, bytes.fromhex("8b83004ba700"), 2, 0x10),        # set_default_controls: mov eax,[ebx+table+10h]
@@ -3100,11 +3103,15 @@ MATCH_STAT_MAP_HOOKS = (
 )
 INSTALLS[0x29ABE1] = (JUMP, "fill_match_statistic's map name (lobby_menu+313Ch, NULL until a match is loaded) as \"\"; "
                             "replay mov ecx,[esi+313Ch]", None, None)
-# expand_text's {USE} with no key bound (0x207BF0 finds no entry) translated
-# NULL (0x1FF09D); the branch goes to its unknown-placeholder path instead,
-# which appends nothing: what translate_text("") gives (0.31+ translate
-# st_key_use_not_assigned, a key 0.26g's dictionary does not have).
-EXPAND_TEXT_UNBOUND = (0x1FF073, bytes.fromhex("741b"), bytes.fromhex("7436"))   # je 1FF090 -> je 1FF0AB
+# Patch 212 (README "Keys in texts"): expand_text (0x1FEF90) makes a text's
+# {USE} the key bound to Use and any other {NAME} nothing. Its jne at
+# 0x1FF037 (a name other than USE) becomes a jmp: every name goes to that
+# path, 0x1FF0AB, where the Rust lohook `text_translator.expand_name`
+# (key_prompts.rs) makes it the key bound to the action of that name, or
+# st_srp_key_unbound. The stock USE path (0x1FF039..0x1FF0A9) is no longer
+# run: its unbound {USE} translated NULL (0x1FF09D), which the build's
+# EXPAND_TEXT_UNBOUND (0x1FF073) sent to the empty path before.
+EXPAND_TEXT_NAMES = (0x1FF037, bytes.fromhex("7572"), bytes.fromhex("eb72"))   # jne 1FF0AB -> jmp 1FF0AB
 # The battery's cook asks for its clips in room for 64 requests (patch 143,
 # ../docs/notes/battery-hit.md "The cook's requests"). victory_item_core's
 # cook (0x2FA050) gathers its resource requests in a buffer_vector on its
@@ -4642,7 +4649,7 @@ def build_image(original, mode, code=None, server=None, late_join=None, revision
                 if neutralize_relocs(data, [(va, va + len(old)) for va, old, _ in MAP_ID_READERS]):
                     sys.exit("a base relocation under a reader of the options' map")
                 patch(data, *EMPTY_SHOT_QUIET)
-                patch(data, *EXPAND_TEXT_UNBOUND)
+                patch(data, *EXPAND_TEXT_NAMES)
                 for change in BATTERY_COOK_REQUESTS:
                     patch(data, *change)
                 if neutralize_relocs(data, [(va, va + len(old)) for va, old, _ in BATTERY_COOK_REQUESTS]):

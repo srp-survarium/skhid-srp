@@ -63,6 +63,8 @@ pub mod lamps;
 pub mod artefact_score;
 pub mod battery_progress;
 pub mod weapon_stats;
+pub mod second_sights;
+pub mod key_prompts;
 
 pub mod hud_options;
 pub mod key_bindings;
@@ -103,6 +105,7 @@ pub mod zone_guards;
 pub mod step_ground;
 // patch 210: the sync log (SKHID_SYNC_LOG)
 pub mod sync_log;
+pub mod exact_world;
 
 pub mod weapon_pickup;
 
@@ -127,6 +130,8 @@ pub mod keyboard_layout;
 pub mod mouse_pitch;
 // patch 202: a line in the patches' log when the game cannot take the mouse
 pub mod mouse_acquire;
+// patch 207: the lobby movie's srp_set_upgrade_value is the decal editor's 46 05
+pub mod upgrade_value;
 pub mod bake_cache;
 pub mod weapon_camo;
 pub mod key_remap;

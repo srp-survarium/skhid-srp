@@ -6,7 +6,7 @@
 
 use crate::reader::Reader;
 use crate::{MAX_PLAYERS, Place, Places, Team};
-use artefact_hunt_rule::{Lives, Restart, Spawning, Step, Time, Timing};
+use artefact_hunt_rule::{Lives, Ms, Restart, Spawning, Step, Time, Timing};
 use core::num::NonZeroU32;
 
 /// The restart's parts: Artifact Hunt's maps' own (3 s after the round, the
@@ -19,6 +19,29 @@ pub const THAW_MS: u16 = 4000;
 /// (the owner, 2026-11-22: "2 min unthaw is good for now as a stop gap").
 pub const AUTO_THAW_MS: NonZeroU32 = NonZeroU32::new(120_000).unwrap();
 pub const RADIUS: f32 = 2.0;
+/// A team's last one fighting is shown on the other team's maps this long after his team was down
+/// to him (the owner, 2026-11-26: "the last person should only be seen after 15 seconds, with a
+/// clear timer visible for everyone").
+pub const REVEAL: Ms = Ms::short(15_000);
+
+/// A team's last one fighting ([`FreezeTag::last_fighter`]): his place and the step his team was
+/// down to him, which the state keeps (every game reads the same, a late joiner's and a
+/// resynced one's too).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct LastFighter {
+    pub place: Place,
+    pub since: Time,
+}
+impl LastFighter {
+    /// When he is shown on the other team's maps: [`REVEAL`] after his team was down to him.
+    pub fn reveal_at(self) -> Time {
+        self.since.after(REVEAL)
+    }
+    /// Whether he is shown at `now`.
+    pub fn revealed(self, now: Time) -> bool {
+        now.reached(self.reveal_at())
+    }
+}
 /// A player record's bytes: tag, thaw progress (u16), auto-thaw time left (u32).
 const RECORD: usize = 7;
 
@@ -112,11 +135,17 @@ pub struct FreezeTag {
     /// The rounds started after the match's first (a round replayed after a
     /// double wipe too) and the kit switches in their countdowns.
     lives: Lives,
+    /// Each team's (the first's first) step it was down to its last one fighting
+    /// ([`FreezeTag::last_standing`]'s team), while it is: set at the step it gets there, kept
+    /// while it stays there, none otherwise (a thaw, his freeze, the round's end and restart).
+    last_since: [Option<Time>; 2],
 }
 
 /// The bytes before the player records: version, phase, scores, the ended
 /// round, a time (u32), the round starts (u16), each place's kit switches (u16).
 const HEAD: usize = 9 + 2 + 2 * PLAYERS;
+/// A team's down-to-one step: a tag (0 none, 1 a time) and the time (u32, 0 with none).
+const SINCE: usize = 5;
 const _: () = assert!(RECORD == 1 + 2 + 4);
 
 impl FreezeTag {
@@ -125,13 +154,19 @@ impl FreezeTag {
         phase: Phase::Playing,
         score: [0; 2],
         lives: Lives::NONE,
+        last_since: [None; 2],
     };
     /// [`HEAD`], then twenty player records (tag, thaw progress u16,
-    /// auto-thaw time left u32).
-    pub const LEN: usize = HEAD + PLAYERS * RECORD;
-    /// 3: Artifact Hunt's restart (the phase's deadline, the countdown's kit
-    /// switches); 2 (revision 71: a 5 s pause, then the restart) is not read.
-    const VERSION: u8 = 3;
+    /// auto-thaw time left u32), then each team's down-to-one step ([`SINCE`]).
+    pub const LEN: usize = Self::LEN_V3 + 2 * SINCE;
+    /// Version 3's: [`HEAD`] and the records.
+    pub const LEN_V3: usize = HEAD + PLAYERS * RECORD;
+    /// 4: each team's down-to-one step (the last one fighting revealed 15 s after it, the owner,
+    /// 2026-11-26). 3 (Artifact Hunt's restart: the phase's deadline, the countdown's kit
+    /// switches) is read, with no team down to one yet; 2 (revision 71: a 5 s pause, then the
+    /// restart) is not.
+    const VERSION: u8 = 4;
+    const VERSION_3: u8 = 3;
     pub fn player(&self, place: Place) -> Player {
         // A place is below PLAYERS; the crate reaches no panic.
         self.players.get(place.index()).copied().unwrap_or(Player::Waiting)
@@ -220,6 +255,21 @@ impl FreezeTag {
             Team::Second => second,
         })
     }
+    /// `team`'s down-to-one step.
+    fn since(&self, team: Team) -> Option<&Time> {
+        let [first, second] = &self.last_since;
+        match team {
+            Team::First => first.as_ref(),
+            Team::Second => second.as_ref(),
+        }
+    }
+    fn since_mut(&mut self, team: Team) -> &mut Option<Time> {
+        let [first, second] = &mut self.last_since;
+        match team {
+            Team::First => first,
+            Team::Second => second,
+        }
+    }
     fn score_mut(&mut self, team: Team) -> &mut u8 {
         let [first, second] = &mut self.score;
         match team {
@@ -246,8 +296,38 @@ impl FreezeTag {
     /// should also not show", and the two-player side's last one hidden too:
     /// "yes").
     pub fn last_standing(&self, place: Place) -> bool {
-        self.phase == Phase::Playing
-            && matches!(self.player(place), Player::Fighting(team) if self.living(team) == 1 && self.frozen(team) >= 2)
+        matches!(self.player(place), Player::Fighting(team) if self.down_to_one(team))
+    }
+    /// Whether `team` is down to its last one fighting, two teammates of his frozen at least, in
+    /// a round in play. A place that left is frozen (it stays so), so a teammate leaving takes the
+    /// team down as his freeze does.
+    fn down_to_one(&self, team: Team) -> bool {
+        self.phase == Phase::Playing && self.living(team) == 1 && self.frozen(team) >= 2
+    }
+    /// `team`'s last one fighting ([`Self::last_standing`]) and the step his team was down to
+    /// him. A thaw (no longer last) ends it; the next time the team is down to one counts afresh.
+    pub fn last_fighter(&self, team: Team) -> Option<LastFighter> {
+        let since = *self.since(team)?;
+        let place = Place::all().find(|place| self.player(*place) == Player::Fighting(team))?;
+        Some(LastFighter { place, since })
+    }
+    /// Whether `place` is shown on the other team's maps at `now`: his team's last one fighting,
+    /// [`REVEAL`] after his team was down to him (the owner, 2026-11-26: "the last person should
+    /// only be seen after 15 seconds, with a clear timer visible for everyone").
+    pub fn revealed(&self, place: Place, now: Time) -> bool {
+        match self.player(place) {
+            Player::Fighting(team) => self.last_fighter(team).is_some_and(|last| last.revealed(now)),
+            Player::Waiting | Player::Frozen { .. } => false,
+        }
+    }
+    /// Each team's down-to-one step after a step at `now`: kept while it stays down to one, `now`
+    /// when it gets there (from two fighting or more, a leave too, or a frozen arrival that makes
+    /// two frozen), none otherwise.
+    fn keep_last_since(&mut self, now: Time) {
+        for team in [Team::First, Team::Second] {
+            let since = self.down_to_one(team).then(|| self.since(team).copied().unwrap_or(now));
+            *self.since_mut(team) = since;
+        }
     }
     fn living(&self, team: Team) -> usize {
         self.players
@@ -266,7 +346,19 @@ impl FreezeTag {
     /// use the same pre-thaw population: a player revived this tick cannot
     /// revive another until the next. `visible[a][b]` is the world's
     /// obstruction test between the bodies.
+    /// Each team's down-to-one step follows ([`Self::last_fighter`]).
     pub fn step(
+        &mut self,
+        now: Time,
+        bodies: &[Body; PLAYERS],
+        visible: &[[bool; PLAYERS]; PLAYERS],
+        elapsed: u16,
+    ) -> Actions {
+        let actions = self.play(now, bodies, visible, elapsed);
+        self.keep_last_since(now);
+        actions
+    }
+    fn play(
         &mut self,
         now: Time,
         bodies: &[Body; PLAYERS],
@@ -463,7 +555,8 @@ impl FreezeTag {
         [*zero, *one] = self.score;
         [*t0, *t1, *t2, *t3] = time.to_le_bytes();
         [*s0, *s1] = self.lives.round_starts().to_le_bytes();
-        let (kits, records) = rest.split_at_mut(2 * PLAYERS);
+        let (kits, rest) = rest.split_at_mut(2 * PLAYERS);
+        let (records, since) = rest.split_at_mut(PLAYERS * RECORD);
         for (out, count) in kits.as_chunks_mut::<2>().0.iter_mut().zip(self.lives.every_kit_switch()) {
             *out = count.to_le_bytes();
         }
@@ -480,16 +573,42 @@ impl FreezeTag {
             let [h0, h1, h2, h3] = thaws_in.to_le_bytes();
             *out = [tag, p0, p1, h0, h1, h2, h3];
         }
+        // The tags `read` takes: 0 none, 1 a time.
+        for (out, since) in since.as_chunks_mut::<SINCE>().0.iter_mut().zip(self.last_since) {
+            let (tag, [t0, t1, t2, t3]) = match since {
+                None => (0, [0; 4]),
+                Some(time) => (1, time.ms().to_le_bytes()),
+            };
+            *out = [tag, t0, t1, t2, t3];
+        }
         bytes
     }
+    /// The rule at the end of a world's respawn block (`middle`), version 3 or 4, and where it
+    /// starts. Version 3's length is tried first: a version 4 rule's byte there is its round
+    /// starts' high byte, never 3 in a match (768 rounds), while version 4's place in a version 3
+    /// world is in the respawn points.
+    pub fn read_back(middle: &[u8]) -> Option<(usize, Self)> {
+        [Self::LEN_V3, Self::LEN].into_iter().find_map(|len| {
+            let at = middle.len().checked_sub(len)?;
+            Some((at, Self::read(middle.get(at..)?)?))
+        })
+    }
+    /// The length of a rule of `version` (its first byte): 4's or 3's.
+    pub fn len_of(version: u8) -> Option<usize> {
+        match version {
+            Self::VERSION => Some(Self::LEN),
+            Self::VERSION_3 => Some(Self::LEN_V3),
+            _ => None,
+        }
+    }
+    /// A rule's bytes, version 4 or 3 (its first byte and its length).
     pub fn read(bytes: &[u8]) -> Option<Self> {
-        if bytes.len() != Self::LEN {
-            return None;
-        }
         let mut input = Reader::new(bytes, 0);
-        if input.u8().ok()? != Self::VERSION {
-            return None;
-        }
+        let v4 = match (input.u8().ok()?, bytes.len()) {
+            (Self::VERSION, Self::LEN) => true,
+            (Self::VERSION_3, Self::LEN_V3) => false,
+            _ => return None,
+        };
         let phase = input.u8().ok()?;
         let score = [input.u8().ok()?, input.u8().ok()?];
         let [zero, one] = score;
@@ -560,6 +679,22 @@ impl FreezeTag {
                 _ => return None,
             };
         }
+        // Each team's down-to-one step: exactly while it is down to one. Version 3 has none: a
+        // team down to one gets its step at the next.
+        if v4 {
+            for team in [Team::First, Team::Second] {
+                let tag = input.u8().ok()?;
+                let time = input.u32().ok()?;
+                *state.since_mut(team) = match (tag, time) {
+                    (0, 0) => None,
+                    (1, ms) => Some(Time::from_ms(ms)),
+                    _ => return None,
+                };
+                if state.since(team).is_some() != state.down_to_one(team) {
+                    return None;
+                }
+            }
+        }
         // Nobody's state changes from the round's end to the fade's end,
         // when everyone waits for his new spawn.
         let valid = match state.phase {
@@ -628,6 +763,12 @@ mod tests {
         fn step(&mut self, bodies: &[Body; PLAYERS], visible: &[[bool; PLAYERS]; PLAYERS], elapsed: u16) -> Actions {
             self.now += u32::from(elapsed);
             self.s.step(Time::from_ms(self.now), bodies, visible, elapsed)
+        }
+        /// Steps of 50 ms for `ms`, walls between everyone (no thaw).
+        fn run_blind(&mut self, bodies: &[Body; PLAYERS], ms: u32) {
+            for _ in 0..ms / 50 {
+                self.step(bodies, &BLIND, 50);
+            }
         }
         /// Steps of 50 ms for `ms`.
         fn run(&mut self, bodies: &[Body; PLAYERS], ms: u16) {
@@ -757,12 +898,13 @@ mod tests {
             },
             score: [3, 2],
             lives: Lives::new(0x0307, kit_switches),
+            last_since: [None; 2],
         };
         let bytes = state.bytes();
         assert_eq!(FreezeTag::read(&bytes), Some(state));
-        // The head: version, phase (the fade), the scores, the ended round (a win of the first
+        // The head: version (4), phase (the fade), the scores, the ended round (a win of the first
         // team), the fade's end, the round starts, each place's kit switches.
-        assert_eq!(bytes[..11], [3, 2, 3, 2, 1, 0x0D, 0x0C, 0x0B, 0x0A, 0x07, 0x03]);
+        assert_eq!(bytes[..11], [4, 2, 3, 2, 1, 0x0D, 0x0C, 0x0B, 0x0A, 0x07, 0x03]);
         assert_eq!(bytes[11..13], [0x01, 0x10]);
         assert_eq!(bytes[HEAD - 2..HEAD], kit_switches[PLAYERS - 1].to_le_bytes());
         // The records: tag, progress, thaws_in, from HEAD.
@@ -771,7 +913,10 @@ mod tests {
         assert_eq!(record(17), [3, 217, 0, 0x43, 0x14, 0, 0]);
         assert_eq!(record(18), [1, 0, 0, 0, 0, 0, 0]);
         assert_eq!(record(19), [0; RECORD]);
-        assert_eq!(HEAD + PLAYERS * RECORD, FreezeTag::LEN);
+        assert_eq!(HEAD + PLAYERS * RECORD, FreezeTag::LEN_V3);
+        // Each team's down-to-one step: none, none.
+        assert_eq!(bytes[FreezeTag::LEN_V3..], [0; 2 * SINCE]);
+        assert_eq!(FreezeTag::LEN_V3 + 2 * SINCE, FreezeTag::LEN);
     }
 
     #[test]
@@ -1089,6 +1234,151 @@ mod tests {
         b[1] = body(Team::First, 10.0, Condition::Lethal);
         g.step(&b, &BLIND, 50);
         assert!(!(0..4).any(|n| g.s.last_standing(place(n))));
+    }
+
+    /// The first team 0, 1 and 3 fighting; the second 2 alone.
+    fn three_v_one() -> [Body; PLAYERS] {
+        let mut b = [Body::Absent; PLAYERS];
+        b[0] = body(Team::First, 0.0, Condition::Fighting);
+        b[1] = body(Team::First, 10.0, Condition::Fighting);
+        b[2] = body(Team::Second, 20.0, Condition::Fighting);
+        b[3] = body(Team::First, 30.0, Condition::Fighting);
+        b
+    }
+
+    #[test]
+    fn the_last_one_fighting_is_revealed_fifteen_seconds_after_his_team_is_down_to_him() {
+        let mut b = three_v_one();
+        b[0] = body(Team::First, 0.0, Condition::Lethal);
+        let mut g = Game::new();
+        g.step(&b, &BLIND, 50);
+        // One frozen, two fighting: nobody's count.
+        assert_eq!(g.s.last_fighter(Team::First), None);
+        g.run_blind(&b, 1000);
+        // 3 frozen: 1 is the last one, from that step.
+        b[3] = body(Team::First, 30.0, Condition::Lethal);
+        g.step(&b, &BLIND, 50);
+        let down = Time::from_ms(g.now);
+        let last = LastFighter { place: place(1), since: down };
+        assert_eq!(g.s.last_fighter(Team::First), Some(last));
+        assert_eq!(g.read_back(), g.s, "the step kept in the world");
+        assert_eq!(g.s.last_fighter(Team::Second), None);
+        // Not before 15 s, from 15 s; the step kept while it stays so.
+        g.run_blind(&b, 14_950);
+        assert!(!g.s.revealed(place(1), Time::from_ms(g.now)));
+        g.step(&b, &BLIND, 50);
+        assert!(g.s.revealed(place(1), Time::from_ms(g.now)));
+        assert_eq!(g.s.last_fighter(Team::First), Some(last));
+        assert!(![0, 2, 3].into_iter().any(|n| g.s.revealed(place(n), Time::from_ms(g.now))));
+        // He thaws 0 (2 m, 4 s): no longer last, no count.
+        b[1] = body(Team::First, 1.0, Condition::Fighting);
+        b[0] = body(Team::First, 0.0, Condition::Fighting);
+        g.run(&b, THAW_MS);
+        assert_eq!(g.s.player(place(0)), Player::Fighting(Team::First));
+        assert_eq!(g.s.last_fighter(Team::First), None);
+        assert!(!g.s.revealed(place(1), Time::from_ms(g.now)));
+        // 0 frozen again: the count starts afresh.
+        b[0] = body(Team::First, 0.0, Condition::Lethal);
+        g.step(&b, &BLIND, 50);
+        assert_eq!(g.s.last_fighter(Team::First), Some(LastFighter { place: place(1), since: Time::from_ms(g.now) }));
+        assert!(!g.s.revealed(place(1), Time::from_ms(g.now)));
+        // He is frozen: the round over, nobody's count.
+        b[1] = body(Team::First, 1.0, Condition::Lethal);
+        g.step(&b, &BLIND, 50);
+        assert!(matches!(g.s.phase(), Phase::Restart { .. }));
+        assert_eq!(g.s.last_fighter(Team::First), None);
+        assert_eq!(g.read_back(), g.s);
+    }
+
+    #[test]
+    fn a_teammate_leaving_takes_the_team_down_to_one_and_a_frozen_arrival_counts_from_its_step() {
+        // 0 frozen; 3 leaves: no longer fighting (his place stays frozen), so 1 is the last one
+        // from the step he left.
+        let mut b = three_v_one();
+        b[0] = body(Team::First, 0.0, Condition::Lethal);
+        let mut g = Game::new();
+        g.step(&b, &BLIND, 50);
+        b[3] = Body::Absent;
+        g.step(&b, &BLIND, 50);
+        assert_eq!(g.s.last_fighter(Team::First), Some(LastFighter { place: place(1), since: Time::from_ms(g.now) }));
+        // He comes back (frozen at his team's points): the count goes on from the leave.
+        let left_at = Time::from_ms(g.now);
+        g.run_blind(&b, 5000);
+        b[3] = body(Team::First, 30.0, Condition::Lethal);
+        g.step(&b, &BLIND, 50);
+        assert_eq!(g.s.last_fighter(Team::First).map(|last| last.since), Some(left_at));
+        // A team of two down to one (2 v 1 no count), then a late arrival frozen: two frozen now,
+        // the count from that step, so its whole 15 s are seen.
+        let mut b = [Body::Absent; PLAYERS];
+        b[0] = body(Team::First, 0.0, Condition::Lethal);
+        b[1] = body(Team::First, 10.0, Condition::Fighting);
+        b[2] = body(Team::Second, 20.0, Condition::Fighting);
+        let mut g = Game::new();
+        g.step(&b, &BLIND, 50);
+        assert_eq!(g.s.last_fighter(Team::First), None);
+        g.run_blind(&b, 20_000);
+        b[3] = body(Team::First, 30.0, Condition::Lethal);
+        g.step(&b, &BLIND, 50);
+        assert_eq!(g.s.last_fighter(Team::First), Some(LastFighter { place: place(1), since: Time::from_ms(g.now) }));
+        assert!(!g.s.revealed(place(1), Time::from_ms(g.now)));
+    }
+
+    #[test]
+    fn a_version_3_rule_reads_with_no_count_which_starts_at_the_next_step() {
+        let mut b = three_v_one();
+        b[0] = body(Team::First, 0.0, Condition::Lethal);
+        b[3] = body(Team::First, 30.0, Condition::Lethal);
+        let mut g = Game::new();
+        g.step(&b, &BLIND, 50);
+        assert!(g.s.last_fighter(Team::First).is_some());
+        let mut v3 = g.s.bytes()[..FreezeTag::LEN_V3].to_vec();
+        v3[0] = 3;
+        let read = FreezeTag::read(&v3).unwrap();
+        assert_eq!(read.last_fighter(Team::First), None);
+        assert!(read.last_standing(place(1)));
+        let mut g = Game { s: read, ..g };
+        g.step(&b, &BLIND, 50);
+        assert_eq!(g.s.last_fighter(Team::First), Some(LastFighter { place: place(1), since: Time::from_ms(g.now) }));
+        // A version 3 rule's length with version 4, and the reverse, are no rule.
+        let mut wrong = v3.clone();
+        wrong[0] = 4;
+        assert!(FreezeTag::read(&wrong).is_none());
+        let mut wrong = g.s.bytes();
+        wrong[0] = 3;
+        assert!(FreezeTag::read(&wrong).is_none());
+        // read_back finds each at the end of a respawn block.
+        let mut middle = std::vec![7u8; 13];
+        middle.extend_from_slice(&v3);
+        assert_eq!(FreezeTag::read_back(&middle).map(|(at, _)| at), Some(13));
+        let mut middle = std::vec![7u8; 13];
+        middle.extend_from_slice(&g.s.bytes());
+        assert_eq!(FreezeTag::read_back(&middle), Some((13, g.s)));
+    }
+
+    #[test]
+    fn a_count_is_read_exactly_while_its_team_is_down_to_one() {
+        let mut b = three_v_one();
+        b[0] = body(Team::First, 0.0, Condition::Lethal);
+        b[3] = body(Team::First, 30.0, Condition::Lethal);
+        let mut g = Game::new();
+        g.step(&b, &BLIND, 50);
+        let since = FreezeTag::LEN - 2 * SINCE;
+        let bytes = g.s.bytes();
+        assert_eq!(bytes[since], 1);
+        assert_eq!(&bytes[since + 1..since + 5], &g.now.to_le_bytes());
+        // None for the team down to one, or one for the other team, or a bad tag: no rule.
+        for (at, value) in [(since, 0), (since + SINCE, 1), (since, 2)] {
+            let mut wrong = bytes;
+            wrong[at] = value;
+            if value == 0 {
+                wrong[since + 1..since + 5].fill(0);
+            }
+            assert!(FreezeTag::read(&wrong).is_none(), "{at} {value}");
+        }
+        // No time with no count.
+        let mut wrong = bytes;
+        wrong[since + SINCE + 1] = 1;
+        assert!(FreezeTag::read(&wrong).is_none());
     }
 
     #[test]

@@ -12,3 +12,10 @@ va	name	source	ret_cleanup	result
 0x20022e610	survarium::base_player::root_transform_at	manual	0	void; float4x4 written to RDX
 0x20038ebb0	survarium::weapon_core_reload_state_base::on_user_may_shoot_event	manual	0	EAX 0; the params' handled byte +34h := 1
 0x2006d6c50	survarium::weapon_core::load_magazine	manual	0	void
+0x2002c2d70	survarium::first_person_view_camera_controller::update_camera	manual	0	void
+0x2006cc8a0	survarium::weapon::effective_aim_progress	manual	0	XMM0 effective aim progress
+0x2006cdb40	survarium::weapon::current_camera_fov_factor	manual	0	XMM0 world FOV factor
+0x2005a91b0	vostok::math::create_perspective_projection	manual	0	RAX output matrix
+0x2006cd490	survarium::weapon::request_aim_slot_switch	manual	0	void
+0x2006d87d0	survarium::weapon::start_aim_slot_switch	manual	0	void
+0x2006cc810	survarium::weapon::current_zoom_factor	manual	0	XMM0 aim zoom factor

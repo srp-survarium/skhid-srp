@@ -50,6 +50,9 @@ package survarium.rooms
         public static const FOOT_H:Number = 46;
         // The game's bold Calibri (the font of these lists) has U+2026.
         public static const DOTS:String = "…";
+        // What fitSize leaves of a field's width: Scaleform lays the embedded
+        // font out a little wider than it measures (the rooms harness's FIT_MARGIN).
+        internal static const FIT_SPARE:Number = 0.05;
         private static var _renders:Object = {};
         // A vote card's mode tag: the protective devices blue, team
         // deathmatch red, Research green, Blackout white, free for all amber, Artifact Hunt
@@ -582,6 +585,27 @@ package survarium.rooms
             {
             }
             return getDefinitionByName(base + "_day") as Class;
+        }
+
+        // A one-line field's text whole in its width, with FIT_SPARE of it to
+        // spare: its font a point smaller at a time, down to `smallest`, and
+        // only then cut to it (fitName). The points it took off, for the caller
+        // to keep the line where it was.
+        internal static function fitSize(field:TextField, smallest:int):int
+        {
+            var format:TextFormat = field.getTextFormat();
+            var was:int = int(format.size);
+            var size:int = was;
+            while (field.textWidth * (1 + FIT_SPARE) > field.width - 4 && size > smallest)
+            {
+                size--;
+                format.size = size;
+                field.defaultTextFormat = format;
+                field.setTextFormat(format);
+            }
+            if (field.textWidth > field.width - 4)
+                fitName(field, field.text, "");
+            return was - size;
         }
 
         // A name cut to its field by its width in the field's own font and

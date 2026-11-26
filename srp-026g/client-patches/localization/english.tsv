@@ -501,52 +501,50 @@ st_buy_premium_with_discount	Buy now with discount!
 st_buy_profile_confirmation_text	Create new character? 
 st_buy_profile_price_text	Profile available for: 
 st_buy_treasure_maps	Buy map
+st_camo_atlas_all_terrain	All Terrain
 st_camo_atlas_amber_circuit	Amber Circuit
 st_camo_atlas_amethyst_wash	Amethyst Wash
+st_camo_atlas_arid_lizard	Arid Lizard
 st_camo_atlas_ash_rain	Ash Rain
 st_camo_atlas_aubergine_broadbrush	Aubergine Broadbrush
 st_camo_atlas_aubergine_crackle	Aubergine Crackle
-st_camo_atlas_aubergine_crosscheck	Aubergine Crosscheck
-st_camo_atlas_aubergine_kasuri	Aubergine Kasuri
-st_camo_atlas_aubergine_screenprint	Aubergine Screenprint
 st_camo_atlas_aubergine_watercolor	Aubergine Watercolor
+st_camo_atlas_autumn_flecktarn	Autumn Flecktarn
+st_camo_atlas_balkan_dpm	Balkan DPM
+st_camo_atlas_balkan_splinter	Balkan Splinter
 st_camo_atlas_basalt_shard	Basalt Shard
 st_camo_atlas_birch_leaf	Birch Leaf
 st_camo_atlas_black_ice	Black Ice
 st_camo_atlas_black_thicket	Black Thicket
+st_camo_atlas_blue_brush	Blue Brush
 st_camo_atlas_blue_shingle	Blue Shingle
+st_camo_atlas_blue_tiger_stripe	Blue Tiger Stripe
 st_camo_atlas_bruise	Bruise
-st_camo_atlas_carmine_cloud_hex	Carmine Cloud Hex
+st_camo_atlas_brushstroke	Brushstroke
+st_camo_atlas_buntfarben_1918	Buntfarben 1918
+st_camo_atlas_butan	Butan
 st_camo_atlas_carmine_crosscheck	Carmine Crosscheck
 st_camo_atlas_carmine_pebble	Carmine Pebble
 st_camo_atlas_carmine_screenprint	Carmine Screenprint
 st_camo_atlas_carmine_soundings	Carmine Soundings
 st_camo_atlas_carmine_wave_fan	Carmine Wave Fan
-st_camo_atlas_cerise_agate	Cerise Agate
-st_camo_atlas_cerise_beadwork	Cerise Beadwork
+st_camo_atlas_centre_europe	Centre Europe
+st_camo_atlas_centre_europe_vehicle	Centre Europe Vehicle
 st_camo_atlas_cerise_broadbrush	Cerise Broadbrush
-st_camo_atlas_cerise_cloud_hex	Cerise Cloud Hex
 st_camo_atlas_cerise_crackle	Cerise Crackle
-st_camo_atlas_cerise_fishbone	Cerise Fishbone
 st_camo_atlas_cinnabar_tiger	Cinnabar Tiger
 st_camo_atlas_citron_broadbrush	Citron Broadbrush
-st_camo_atlas_citron_cloud_hex	Citron Cloud Hex
 st_camo_atlas_citron_crackle	Citron Crackle
 st_camo_atlas_citron_cut	Citron Cut
-st_camo_atlas_citron_fishbone	Citron Fishbone
-st_camo_atlas_citron_screenprint	Citron Screenprint
-st_camo_atlas_citron_soundings	Citron Soundings
 st_camo_atlas_cobalt_cloud	Cobalt Cloud
-st_camo_atlas_cobalt_crosscheck	Cobalt Crosscheck
-st_camo_atlas_cobalt_kasuri	Cobalt Kasuri
 st_camo_atlas_cobalt_netting	Cobalt Netting
-st_camo_atlas_cobalt_screenprint	Cobalt Screenprint
 st_camo_atlas_cobalt_shard	Cobalt Shard
-st_camo_atlas_cobalt_soundings	Cobalt Soundings
 st_camo_atlas_cobalt_woodgrain	Cobalt Woodgrain
 st_camo_atlas_copper_mesh	Copper Mesh
 st_camo_atlas_copper_rain	Copper Rain
 st_camo_atlas_coral_reeds	Coral Reeds
+st_camo_atlas_daguet	Daguet
+st_camo_atlas_danube_leaf	Danube Leaf
 st_camo_atlas_desert_broadbrush	Desert Broadbrush
 st_camo_atlas_desert_broken_grid	Desert Broken Grid
 st_camo_atlas_desert_cloud	Desert Cloud
@@ -570,184 +568,185 @@ st_camo_atlas_desert_starfield	Desert Starfield
 st_camo_atlas_desert_stone_chip	Desert Stone Chip
 st_camo_atlas_desert_tiger_stripe	Desert Tiger Stripe
 st_camo_atlas_desert_watercolor	Desert Watercolor
-st_camo_atlas_desert_wave_fan	Desert Wave Fan
 st_camo_atlas_desert_woodgrain	Desert Woodgrain
+st_camo_atlas_dg3	DG3
+st_camo_atlas_dubok	Dubok
+st_camo_atlas_duck_hunter	Duck Hunter
 st_camo_atlas_dune_chip	Dune Chip
 st_camo_atlas_ember_leaf	Ember Leaf
-st_camo_atlas_field_mosaic	Field Mosaic
+st_camo_atlas_erdl_highland	ERDL Highland
+st_camo_atlas_erdl_lowland	ERDL Lowland
+st_camo_atlas_fab_lizard	FAB Lizard
 st_camo_atlas_fired_clay	Fired Clay
+st_camo_atlas_frogskin	Frogskin
 st_camo_atlas_frost_splinter	Frost Splinter
-st_camo_atlas_garnet_beadwork	Garnet Beadwork
 st_camo_atlas_garnet_broken_grid	Garnet Broken Grid
-st_camo_atlas_garnet_cloud_hex	Garnet Cloud Hex
-st_camo_atlas_garnet_fishbone	Garnet Fishbone
 st_camo_atlas_garnet_rosette	Garnet Rosette
 st_camo_atlas_garnet_shard	Garnet Shard
-st_camo_atlas_garnet_soundings	Garnet Soundings
-st_camo_atlas_glacial_agate	Glacial Agate
-st_camo_atlas_glacial_beadwork	Glacial Beadwork
-st_camo_atlas_glacial_fishbone	Glacial Fishbone
 st_camo_atlas_glacial_stone_chip	Glacial Stone Chip
 st_camo_atlas_glacial_tiger_stripe	Glacial Tiger Stripe
 st_camo_atlas_glacial_watercolor	Glacial Watercolor
-st_camo_atlas_glacial_wax_resist	Glacial Wax Resist
 st_camo_atlas_glacier_cut	Glacier Cut
 st_camo_atlas_graphite_broken_grid	Graphite Broken Grid
-st_camo_atlas_graphite_crosscheck	Graphite Crosscheck
-st_camo_atlas_graphite_kasuri	Graphite Kasuri
 st_camo_atlas_graphite_rosette	Graphite Rosette
-st_camo_atlas_graphite_screenprint	Graphite Screenprint
 st_camo_atlas_graphite_shard	Graphite Shard
-st_camo_atlas_graphite_soundings	Graphite Soundings
 st_camo_atlas_harbor_tiger	Harbor Tiger
+st_camo_atlas_hazard_pixel	Hazard Pixel
 st_camo_atlas_honey_rosette	Honey Rosette
-st_camo_atlas_icelandic_agate	Icelandic Agate
 st_camo_atlas_icelandic_broadbrush	Icelandic Broadbrush
 st_camo_atlas_icelandic_stone_chip	Icelandic Stone Chip
-st_camo_atlas_icelandic_terrazzo	Icelandic Terrazzo
 st_camo_atlas_icelandic_watercolor	Icelandic Watercolor
-st_camo_atlas_icelandic_wax_resist	Icelandic Wax Resist
 st_camo_atlas_inkstone	Inkstone
 st_camo_atlas_iris_mosaic	Iris Mosaic
+st_camo_atlas_jgsdf_desert	JGSDF Desert
+st_camo_atlas_jgsdf_type_ii	JGSDF Type II
+st_camo_atlas_jgsdf_winter	JGSDF Winter
 st_camo_atlas_juniper_pixel	Juniper Pixel
+st_camo_atlas_k07	K07
+st_camo_atlas_k07_dark	K07 Dark
+st_camo_atlas_k20	K20
+st_camo_atlas_k20_navy	K20 Navy
+st_camo_atlas_k20lq	K20LQ
 st_camo_atlas_kingfisher	Kingfisher
-st_camo_atlas_kingfisher_cloud_hex	Kingfisher Cloud Hex
-st_camo_atlas_kingfisher_crosscheck	Kingfisher Crosscheck
 st_camo_atlas_kingfisher_cut_paper	Kingfisher Cut Paper
 st_camo_atlas_kingfisher_reed_stripe	Kingfisher Reed Stripe
 st_camo_atlas_kingfisher_screenprint	Kingfisher Screenprint
-st_camo_atlas_kingfisher_soundings	Kingfisher Soundings
 st_camo_atlas_lagoon_rosette	Lagoon Rosette
-st_camo_atlas_lapis_agate	Lapis Agate
-st_camo_atlas_lapis_beadwork	Lapis Beadwork
 st_camo_atlas_lapis_cloud	Lapis Cloud
-st_camo_atlas_lapis_fishbone	Lapis Fishbone
 st_camo_atlas_lapis_netting	Lapis Netting
 st_camo_atlas_lapis_tiger_stripe	Lapis Tiger Stripe
-st_camo_atlas_lapis_wax_resist	Lapis Wax Resist
 st_camo_atlas_lapis_woodgrain	Lapis Woodgrain
 st_camo_atlas_lichen_pixel	Lichen Pixel
+st_camo_atlas_lime_spots	Lime Spots
+st_camo_atlas_lizard	Lizard
+st_camo_atlas_lozenge	Lozenge
+st_camo_atlas_lozenge_night	Lozenge Night
+st_camo_atlas_m05_snow	M05 Snow
+st_camo_atlas_m05_woodland	M05 Woodland
+st_camo_atlas_m81_woodland	M81 Woodland
+st_camo_atlas_m90	M90
+st_camo_atlas_m90k	M90K
+st_camo_atlas_m_01_desert	M/01 Desert
+st_camo_atlas_m_84	M/84
 st_camo_atlas_madder_crackle	Madder Crackle
-st_camo_atlas_madder_crosscheck	Madder Crosscheck
 st_camo_atlas_madder_cut_paper	Madder Cut Paper
-st_camo_atlas_madder_kasuri	Madder Kasuri
 st_camo_atlas_madder_reed_stripe	Madder Reed Stripe
-st_camo_atlas_madder_screenprint	Madder Screenprint
 st_camo_atlas_malachite	Malachite
 st_camo_atlas_marigold_broken_grid	Marigold Broken Grid
-st_camo_atlas_marigold_crosscheck	Marigold Crosscheck
-st_camo_atlas_marigold_kasuri	Marigold Kasuri
 st_camo_atlas_marigold_pebble	Marigold Pebble
 st_camo_atlas_marigold_rosette	Marigold Rosette
 st_camo_atlas_marigold_terrazzo	Marigold Terrazzo
-st_camo_atlas_maritime_agate	Maritime Agate
-st_camo_atlas_maritime_beadwork	Maritime Beadwork
+st_camo_atlas_marine_woodland	Marine Woodland
 st_camo_atlas_maritime_pebble	Maritime Pebble
 st_camo_atlas_maritime_rosette	Maritime Rosette
 st_camo_atlas_maritime_terrazzo	Maritime Terrazzo
 st_camo_atlas_maritime_wave_fan	Maritime Wave Fan
-st_camo_atlas_maritime_wax_resist	Maritime Wax Resist
 st_camo_atlas_mauve_static	Mauve Static
+st_camo_atlas_mm_14	MM-14
+st_camo_atlas_mm_25	MM-25
+st_camo_atlas_moro	Moro
 st_camo_atlas_mulberry_cloud	Mulberry Cloud
-st_camo_atlas_night_grid	Night Grid
+st_camo_atlas_nfp_blue	NFP Blue
+st_camo_atlas_nfp_cloth	NFP Cloth
+st_camo_atlas_nfp_green	NFP Green
+st_camo_atlas_nfp_multitone	NFP Multitone
 st_camo_atlas_night_silk	Night Silk
+st_camo_atlas_obh	OBH
 st_camo_atlas_ochre_cut	Ochre Cut
 st_camo_atlas_olive_tide	Olive Tide
 st_camo_atlas_opal_fault	Opal Fault
 st_camo_atlas_orchid_broken_grid	Orchid Broken Grid
 st_camo_atlas_orchid_cloud	Orchid Cloud
-st_camo_atlas_orchid_kasuri	Orchid Kasuri
 st_camo_atlas_orchid_netting	Orchid Netting
 st_camo_atlas_orchid_shard	Orchid Shard
 st_camo_atlas_orchid_static	Orchid Static
-st_camo_atlas_orchid_terrazzo	Orchid Terrazzo
-st_camo_atlas_orchid_wax_resist	Orchid Wax Resist
 st_camo_atlas_oxblood_cloud	Oxblood Cloud
-st_camo_atlas_oxblood_kasuri	Oxblood Kasuri
 st_camo_atlas_oxblood_stone_chip	Oxblood Stone Chip
 st_camo_atlas_oxblood_terrazzo	Oxblood Terrazzo
 st_camo_atlas_oxblood_tiger_stripe	Oxblood Tiger Stripe
-st_camo_atlas_oxblood_wax_resist	Oxblood Wax Resist
 st_camo_atlas_oxblood_woodgrain	Oxblood Woodgrain
+st_camo_atlas_pantera	Pantera
+st_camo_atlas_pantera_desert	Pantera Desert
 st_camo_atlas_persimmon_ink	Persimmon Ink
 st_camo_atlas_petal_wash	Petal Wash
-st_camo_atlas_pewter_agate	Pewter Agate
-st_camo_atlas_pewter_beadwork	Pewter Beadwork
-st_camo_atlas_pewter_cloud_hex	Pewter Cloud Hex
 st_camo_atlas_pewter_cut_paper	Pewter Cut Paper
-st_camo_atlas_pewter_fishbone	Pewter Fishbone
 st_camo_atlas_pewter_reed_stripe	Pewter Reed Stripe
-st_camo_atlas_pixel_steppe	Pixel Steppe
 st_camo_atlas_polar_mesh	Polar Mesh
 st_camo_atlas_porcelain_tide	Porcelain Tide
+st_camo_atlas_puma	Puma
 st_camo_atlas_quarry	Quarry
-st_camo_atlas_reed_rain	Reed Rain
 st_camo_atlas_reef_tiger	Reef Tiger
-st_camo_atlas_riptide_agate	Riptide Agate
 st_camo_atlas_riptide_broadbrush	Riptide Broadbrush
 st_camo_atlas_riptide_crackle	Riptide Crackle
 st_camo_atlas_riptide_cut_paper	Riptide Cut Paper
 st_camo_atlas_riptide_terrazzo	Riptide Terrazzo
-st_camo_atlas_riptide_wax_resist	Riptide Wax Resist
+st_camo_atlas_rmp_woodland	RMP Woodland
 st_camo_atlas_rose_breccia	Rose Breccia
 st_camo_atlas_russet_crosscheck	Russet Crosscheck
-st_camo_atlas_russet_kasuri	Russet Kasuri
 st_camo_atlas_russet_screenprint	Russet Screenprint
 st_camo_atlas_russet_stone_chip	Russet Stone Chip
 st_camo_atlas_russet_tiger_stripe	Russet Tiger Stripe
 st_camo_atlas_russet_watercolor	Russet Watercolor
 st_camo_atlas_russet_woodgrain	Russet Woodgrain
+st_camo_atlas_rust_flecktarn	Rust Flecktarn
 st_camo_atlas_rust_tiger	Rust Tiger
-st_camo_atlas_saffron_beadwork	Saffron Beadwork
-st_camo_atlas_saffron_cloud_hex	Saffron Cloud Hex
-st_camo_atlas_saffron_fishbone	Saffron Fishbone
 st_camo_atlas_saffron_gravel	Saffron Gravel
 st_camo_atlas_saffron_pebble	Saffron Pebble
 st_camo_atlas_saffron_soundings	Saffron Soundings
 st_camo_atlas_saffron_wave_fan	Saffron Wave Fan
 st_camo_atlas_salt_crater	Salt Crater
 st_camo_atlas_salt_tiger	Salt Tiger
-st_camo_atlas_satsuma_cloud_hex	Satsuma Cloud Hex
-st_camo_atlas_satsuma_fishbone	Satsuma Fishbone
-st_camo_atlas_satsuma_screenprint	Satsuma Screenprint
-st_camo_atlas_satsuma_soundings	Satsuma Soundings
+st_camo_atlas_sandstone	Sandstone
 st_camo_atlas_satsuma_stone_chip	Satsuma Stone Chip
 st_camo_atlas_satsuma_tiger_stripe	Satsuma Tiger Stripe
 st_camo_atlas_satsuma_watercolor	Satsuma Watercolor
+st_camo_atlas_savanna_flecktarn	Savanna Flecktarn
 st_camo_atlas_sea_glass	Sea Glass
-st_camo_atlas_seafoam_beadwork	Seafoam Beadwork
 st_camo_atlas_seafoam_cloud	Seafoam Cloud
-st_camo_atlas_seafoam_cloud_hex	Seafoam Cloud Hex
-st_camo_atlas_seafoam_fishbone	Seafoam Fishbone
 st_camo_atlas_seafoam_netting	Seafoam Netting
-st_camo_atlas_seafoam_soundings	Seafoam Soundings
 st_camo_atlas_seafoam_woodgrain	Seafoam Woodgrain
+st_camo_atlas_shard_earth	Shard Earth
+st_camo_atlas_shard_forest	Shard Forest
+st_camo_atlas_shard_winter	Shard Winter
 st_camo_atlas_sienna_wash	Sienna Wash
 st_camo_atlas_signal_grid	Signal Grid
 st_camo_atlas_silver_rosette	Silver Rosette
-st_camo_atlas_sundown_crosscheck	Sundown Crosscheck
-st_camo_atlas_sundown_kasuri	Sundown Kasuri
+st_camo_atlas_snow_terrain	Snow Terrain
+st_camo_atlas_star_ember	Star Ember
+st_camo_atlas_star_forest	Star Forest
 st_camo_atlas_sundown_pebble	Sundown Pebble
 st_camo_atlas_sundown_reed_stripe	Sundown Reed Stripe
 st_camo_atlas_sundown_terrazzo	Sundown Terrazzo
 st_camo_atlas_sundown_wave_fan	Sundown Wave Fan
+st_camo_atlas_t_99_winter	T/99 Winter
+st_camo_atlas_taz_07	TAZ 07
+st_camo_atlas_taz_83	TAZ 83
+st_camo_atlas_taz_83_ii	TAZ 83 II
+st_camo_atlas_teal_pixel	Teal Pixel
+st_camo_atlas_three_color_desert	Three-Color Desert
 st_camo_atlas_tidal_pixel	Tidal Pixel
-st_camo_atlas_ultramarine_agate	Ultramarine Agate
-st_camo_atlas_ultramarine_beadwork	Ultramarine Beadwork
+st_camo_atlas_tropentarn	Tropentarn
+st_camo_atlas_tropentarn_ii	Tropentarn II
+st_camo_atlas_type_07_arid	Type 07 Arid
+st_camo_atlas_type_07_universal	Type 07 Universal
+st_camo_atlas_type_07_urban	Type 07 Urban
 st_camo_atlas_ultramarine_broken_grid	Ultramarine Broken Grid
 st_camo_atlas_ultramarine_netting	Ultramarine Netting
 st_camo_atlas_ultramarine_rosette	Ultramarine Rosette
 st_camo_atlas_ultramarine_shard	Ultramarine Shard
 st_camo_atlas_ultramarine_terrazzo	Ultramarine Terrazzo
-st_camo_atlas_ultramarine_wax_resist	Ultramarine Wax Resist
 st_camo_atlas_ultraviolet_grid	Ultraviolet Grid
+st_camo_atlas_urban_blots	Urban Blots
 st_camo_atlas_urban_broadbrush	Urban Broadbrush
 st_camo_atlas_urban_broken_grid	Urban Broken Grid
+st_camo_atlas_urban_brush	Urban Brush
 st_camo_atlas_urban_cloud	Urban Cloud
 st_camo_atlas_urban_crackle	Urban Crackle
 st_camo_atlas_urban_cut_paper	Urban Cut Paper
 st_camo_atlas_urban_drybrush	Urban Drybrush
+st_camo_atlas_urban_flecktarn	Urban Flecktarn
 st_camo_atlas_urban_fracture	Urban Fracture
+st_camo_atlas_urban_knit	Urban Knit
 st_camo_atlas_urban_mosaic	Urban Mosaic
 st_camo_atlas_urban_netting	Urban Netting
 st_camo_atlas_urban_pebble	Urban Pebble
@@ -766,14 +765,16 @@ st_camo_atlas_urban_tiger_stripe	Urban Tiger Stripe
 st_camo_atlas_urban_watercolor	Urban Watercolor
 st_camo_atlas_urban_wave_fan	Urban Wave Fan
 st_camo_atlas_urban_woodgrain	Urban Woodgrain
-st_camo_atlas_verdigris_agate	Verdigris Agate
+st_camo_atlas_urban_woodland	Urban Woodland
+st_camo_atlas_vegetato_desert	Vegetato Desert
+st_camo_atlas_vehicle_pixel_2015	Vehicle Pixel 2015
+st_camo_atlas_vehicle_pixel_2016	Vehicle Pixel 2016
+st_camo_atlas_vehicle_pixel_2021	Vehicle Pixel 2021
 st_camo_atlas_verdigris_cut_paper	Verdigris Cut Paper
 st_camo_atlas_verdigris_reed_stripe	Verdigris Reed Stripe
 st_camo_atlas_verdigris_terrazzo	Verdigris Terrazzo
 st_camo_atlas_verdigris_wave_fan	Verdigris Wave Fan
-st_camo_atlas_verdigris_wax_resist	Verdigris Wax Resist
 st_camo_atlas_vermilion_tide	Vermilion Tide
-st_camo_atlas_violet_splinter	Violet Splinter
 st_camo_atlas_walnut_burl	Walnut Burl
 st_camo_atlas_woodland_broadbrush	Woodland Broadbrush
 st_camo_atlas_woodland_broken_grid	Woodland Broken Grid
@@ -800,6 +801,7 @@ st_camo_atlas_woodland_tiger_stripe	Woodland Tiger Stripe
 st_camo_atlas_woodland_watercolor	Woodland Watercolor
 st_camo_atlas_woodland_wave_fan	Woodland Wave Fan
 st_camo_atlas_woodland_woodgrain	Woodland Woodgrain
+st_camo_atlas_woven_woodland	Woven Woodland
 st_camo_black_leather_01_name	Raven
 st_camo_black_leather_name	Black death
 st_camo_blue_leather_name	Breeze
@@ -3019,10 +3021,17 @@ st_srp_hud_freeze_draw	Draw
 st_srp_hud_freeze_frozen	Frozen (%1$s)
 st_srp_hud_freeze_help	Freeze every opponent. First team to win 5 rounds wins. Stand within 2 m of a frozen teammate for 4 seconds to thaw them.
 st_srp_hud_freeze_lose	Defeat — opponents won five rounds.
+st_srp_hud_freeze_reveal_enemy	Last enemy revealed in %1$s s
+st_srp_hud_freeze_reveal_self	You are revealed in %1$s s
+st_srp_hud_freeze_reveal_teammate	Your last teammate is revealed in %1$s s
+st_srp_hud_freeze_revealed_enemy	Last enemy revealed on the map
+st_srp_hud_freeze_revealed_self	You are revealed on the map
+st_srp_hud_freeze_revealed_teammate	Your last teammate is revealed on the map
 st_srp_hud_freeze_round_draw	Round drawn. Restarting in %1$s s.
 st_srp_hud_freeze_round_lose	Round lost. Next round in %1$s s.
 st_srp_hud_freeze_round_win	Round won. Next round in %1$s s.
 st_srp_hud_freeze_standing	Fighting: your team %1$s — opponents %2$s
+st_srp_hud_freeze_start	Freeze Tag\nA lethal hit freezes. Freeze the whole enemy team to win the round.\nStand within 2 m of a frozen teammate for 4 s to thaw them; alone, they thaw after 2 min.\nFirst team to 5 round wins takes the match; at the time limit, the team ahead wins.
 st_srp_hud_freeze_thawing	Thawing teammate…
 st_srp_hud_freeze_win	Victory — five rounds won.
 st_srp_hud_friend_not_sent	Friend request not sent
@@ -3062,6 +3071,7 @@ st_srp_inventory_sell_duplicates	Sell duplicates
 st_srp_inventory_sell_duplicates_ask	Items to sell: %1$s
 st_srp_item_props_mps	m/s
 st_srp_key_bindings	Bindings
+st_srp_key_unbound	unbound
 st_srp_keys_combat	Combat
 st_srp_keys_interface	Interface
 st_srp_keys_items	Items
@@ -3268,7 +3278,7 @@ st_srp_replay_place_in_line	Place in line: %1$s. Waiting: %2$s s.
 st_srp_replay_ready	The replay of this match is ready.\n\nIt is downloaded from the match server, which keeps the authoritative record of the match. A second game window opens and plays it; the lobby stays open.\n\nIn the replay press F9 for the controls: players, camera, seek, speed.
 st_srp_replay_ready_size	Replay of this match: %1$s.\n\nIt is downloaded from the match server, which keeps the authoritative record of the match. A second game window opens and plays it; the lobby stays open.\n\nIn the replay press F9 for the controls: players, camera, seek, speed.
 st_srp_replay_size	%1$s.%2$s MB
-st_srp_replay_starting	Starting the replay: a second game window will open; this lobby stays open. If something goes wrong, the updater shows what happened.\n\nIn the replay press F9 for the controls.
+st_srp_replay_starting	Starting the replay: a second game window will open; this lobby stays open. If something goes wrong, the updater shows what happened.\n\nIn the replay press "Hide interface" ({HIDE_INTERFACE}) for the controls.
 st_srp_replay_still_preparing	Still being prepared. It keeps being made on the server; open Watch replay again in a minute.
 st_srp_replay_title	Watch replay
 st_srp_replay_waiting	Waiting: %1$s s.
@@ -3344,7 +3354,7 @@ st_srp_rooms_pin_hint	4 digits required
 st_srp_rooms_players	Players
 st_srp_rooms_playing	Match in progress
 st_srp_rooms_pool	Pool
-st_srp_rooms_pool_hint	The vote draws 3 cards from these.
+st_srp_rooms_pool_hint	The vote draws 4 cards from these.
 st_srp_rooms_private_room	Private room: up to 20 players; you set the teams and start.
 st_srp_rooms_queue	Queue
 st_srp_rooms_queue_room	Queue for room
@@ -3372,10 +3382,17 @@ st_srp_rooms_voting	Map vote
 st_srp_rooms_waiting	Waiting for players
 st_srp_rooms_waiting_owner	Waiting for the creator to start.
 st_srp_rooms_waiting_short	Waiting
+st_srp_scope_next_action	Switch sight
 st_srp_scope_screen_hint	Drag a scope, a muzzle device or a grip from your inventory into its slot
 st_srp_scope_slot	Optics
+st_srp_second_sight	Second sight
+st_srp_second_sight_description	Puts a second optic on the gun's side.
+st_srp_second_sight_hint	An optic on the offset rail at the gun's side. Press "Switch sight" ({SCOPE_NEXT}) while aiming to switch to it.
+st_srp_second_sight_name	Second sight
 st_srp_shop_not_owned	Hide owned
 st_srp_shop_not_owned_hint	Show only the items you do not own
+st_srp_side_left	Left
+st_srp_side_right	Right
 st_srp_skills	Skills
 st_srp_speed_label	Speed
 st_srp_speed_title	Movement speed: %1$s

@@ -501,52 +501,50 @@ st_buy_premium_with_discount	Придбайте зараз зі знижкою!
 st_buy_profile_confirmation_text	Створити нового персонажа?
 st_buy_profile_price_text	Вартість створення:
 st_buy_treasure_maps	Придбати мапу
+st_camo_atlas_all_terrain	Будь-яка місцевість
 st_camo_atlas_amber_circuit	Бурштинова схема
 st_camo_atlas_amethyst_wash	Аметистова заливка
+st_camo_atlas_arid_lizard	Пустельна ящірка
 st_camo_atlas_ash_rain	Попелястий дощ
 st_camo_atlas_aubergine_broadbrush	Баклажановий широкий мазок
 st_camo_atlas_aubergine_crackle	Баклажановий кракелюр
-st_camo_atlas_aubergine_crosscheck	Баклажанова перехресна клітинка
-st_camo_atlas_aubergine_kasuri	Баклажанове касурі
-st_camo_atlas_aubergine_screenprint	Баклажанова шовкографія
 st_camo_atlas_aubergine_watercolor	Баклажанова акварель
+st_camo_atlas_autumn_flecktarn	Осінній флектарн
+st_camo_atlas_balkan_dpm	Балканський DPM
+st_camo_atlas_balkan_splinter	Балканські уламки
 st_camo_atlas_basalt_shard	Базальтовий уламок
 st_camo_atlas_birch_leaf	Березовий лист
 st_camo_atlas_black_ice	Ожеледь
 st_camo_atlas_black_thicket	Чорна хаща
+st_camo_atlas_blue_brush	Сині мазки
 st_camo_atlas_blue_shingle	Синя черепиця
+st_camo_atlas_blue_tiger_stripe	Сині тигрові смуги
 st_camo_atlas_bruise	Синець
-st_camo_atlas_carmine_cloud_hex	Кармінові хмарні стільники
+st_camo_atlas_brushstroke	Мазок пензля
+st_camo_atlas_buntfarben_1918	Бунтфарбен 1918
+st_camo_atlas_butan	Бутан
 st_camo_atlas_carmine_crosscheck	Кармінова перехресна клітинка
 st_camo_atlas_carmine_pebble	Кармінова галька
 st_camo_atlas_carmine_screenprint	Кармінова шовкографія
 st_camo_atlas_carmine_soundings	Кармінові ізобати
 st_camo_atlas_carmine_wave_fan	Кармінове віяло хвиль
-st_camo_atlas_cerise_agate	Вишневий агат
-st_camo_atlas_cerise_beadwork	Вишневий бісер
+st_camo_atlas_centre_europe	Центральна Європа
+st_camo_atlas_centre_europe_vehicle	Центральна Європа, техніка
 st_camo_atlas_cerise_broadbrush	Вишневий широкий мазок
-st_camo_atlas_cerise_cloud_hex	Вишневі хмарні стільники
 st_camo_atlas_cerise_crackle	Вишневий кракелюр
-st_camo_atlas_cerise_fishbone	Вишнева ялинка
 st_camo_atlas_cinnabar_tiger	Кіноварний тигр
 st_camo_atlas_citron_broadbrush	Лимонний широкий мазок
-st_camo_atlas_citron_cloud_hex	Лимонні хмарні стільники
 st_camo_atlas_citron_crackle	Лимонний кракелюр
 st_camo_atlas_citron_cut	Лимонна аплікація
-st_camo_atlas_citron_fishbone	Лимонна ялинка
-st_camo_atlas_citron_screenprint	Лимонна шовкографія
-st_camo_atlas_citron_soundings	Лимонні ізобати
 st_camo_atlas_cobalt_cloud	Кобальтова хмара
-st_camo_atlas_cobalt_crosscheck	Кобальтова перехресна клітинка
-st_camo_atlas_cobalt_kasuri	Кобальтове касурі
 st_camo_atlas_cobalt_netting	Кобальтова сіть
-st_camo_atlas_cobalt_screenprint	Кобальтова шовкографія
 st_camo_atlas_cobalt_shard	Кобальтовий уламок
-st_camo_atlas_cobalt_soundings	Кобальтові ізобати
 st_camo_atlas_cobalt_woodgrain	Кобальтовий деревний візерунок
 st_camo_atlas_copper_mesh	Мідна сітка
 st_camo_atlas_copper_rain	Мідний дощ
 st_camo_atlas_coral_reeds	Кораловий очерет
+st_camo_atlas_daguet	Даге
+st_camo_atlas_danube_leaf	Дунайський лист
 st_camo_atlas_desert_broadbrush	Пустельний широкий мазок
 st_camo_atlas_desert_broken_grid	Пустельна ламана сітка
 st_camo_atlas_desert_cloud	Пустельна хмара
@@ -570,184 +568,185 @@ st_camo_atlas_desert_starfield	Пустельне зоряне поле
 st_camo_atlas_desert_stone_chip	Пустельна кам'яна крихта
 st_camo_atlas_desert_tiger_stripe	Пустельна тигрова смуга
 st_camo_atlas_desert_watercolor	Пустельна акварель
-st_camo_atlas_desert_wave_fan	Пустельне віяло хвиль
 st_camo_atlas_desert_woodgrain	Пустельний деревний візерунок
+st_camo_atlas_dg3	DG3
+st_camo_atlas_dubok	Дубок
+st_camo_atlas_duck_hunter	Мисливець на качок
 st_camo_atlas_dune_chip	Піщана крихта
 st_camo_atlas_ember_leaf	Жаристий лист
-st_camo_atlas_field_mosaic	Польова мозаїка
+st_camo_atlas_erdl_highland	Гірський ERDL
+st_camo_atlas_erdl_lowland	Рівнинний ERDL
+st_camo_atlas_fab_lizard	Ящірка FAB
 st_camo_atlas_fired_clay	Обпалена глина
+st_camo_atlas_frogskin	Жаб'яча шкіра
 st_camo_atlas_frost_splinter	Морозні уламки
-st_camo_atlas_garnet_beadwork	Гранатовий бісер
 st_camo_atlas_garnet_broken_grid	Гранатова ламана сітка
-st_camo_atlas_garnet_cloud_hex	Гранатові хмарні стільники
-st_camo_atlas_garnet_fishbone	Гранатова ялинка
 st_camo_atlas_garnet_rosette	Гранатові розетки
 st_camo_atlas_garnet_shard	Гранатовий уламок
-st_camo_atlas_garnet_soundings	Гранатові ізобати
-st_camo_atlas_glacial_agate	Льодовиковий агат
-st_camo_atlas_glacial_beadwork	Льодовиковий бісер
-st_camo_atlas_glacial_fishbone	Льодовикова ялинка
 st_camo_atlas_glacial_stone_chip	Льодовикова кам'яна крихта
 st_camo_atlas_glacial_tiger_stripe	Льодовикова тигрова смуга
 st_camo_atlas_glacial_watercolor	Льодовикова акварель
-st_camo_atlas_glacial_wax_resist	Льодовиковий батик
 st_camo_atlas_glacier_cut	Льодовикова аплікація
 st_camo_atlas_graphite_broken_grid	Графітова ламана сітка
-st_camo_atlas_graphite_crosscheck	Графітова перехресна клітинка
-st_camo_atlas_graphite_kasuri	Графітове касурі
 st_camo_atlas_graphite_rosette	Графітові розетки
-st_camo_atlas_graphite_screenprint	Графітова шовкографія
 st_camo_atlas_graphite_shard	Графітовий уламок
-st_camo_atlas_graphite_soundings	Графітові ізобати
 st_camo_atlas_harbor_tiger	Портовий тигр
+st_camo_atlas_hazard_pixel	Піксель небезпеки
 st_camo_atlas_honey_rosette	Медові розетки
-st_camo_atlas_icelandic_agate	Ісландський агат
 st_camo_atlas_icelandic_broadbrush	Ісландський широкий мазок
 st_camo_atlas_icelandic_stone_chip	Ісландська кам'яна крихта
-st_camo_atlas_icelandic_terrazzo	Ісландське тераццо
 st_camo_atlas_icelandic_watercolor	Ісландська акварель
-st_camo_atlas_icelandic_wax_resist	Ісландський батик
 st_camo_atlas_inkstone	Тушечниця
 st_camo_atlas_iris_mosaic	Ірисова мозаїка
+st_camo_atlas_jgsdf_desert	JGSDF пустельний
+st_camo_atlas_jgsdf_type_ii	JGSDF тип II
+st_camo_atlas_jgsdf_winter	JGSDF зимовий
 st_camo_atlas_juniper_pixel	Ялівцевий піксель
+st_camo_atlas_k07	K07
+st_camo_atlas_k07_dark	K07 темний
+st_camo_atlas_k20	K20
+st_camo_atlas_k20_navy	K20 морський
+st_camo_atlas_k20lq	K20LQ
 st_camo_atlas_kingfisher	Рибалочка
-st_camo_atlas_kingfisher_cloud_hex	Хмарні стільники рибалочки
-st_camo_atlas_kingfisher_crosscheck	Перехресна клітинка рибалочки
 st_camo_atlas_kingfisher_cut_paper	Аплікація рибалочки
 st_camo_atlas_kingfisher_reed_stripe	Очеретяна смуга рибалочки
 st_camo_atlas_kingfisher_screenprint	Шовкографія рибалочки
-st_camo_atlas_kingfisher_soundings	Ізобати рибалочки
 st_camo_atlas_lagoon_rosette	Розетки лагуни
-st_camo_atlas_lapis_agate	Лазуритовий агат
-st_camo_atlas_lapis_beadwork	Лазуритовий бісер
 st_camo_atlas_lapis_cloud	Лазуритова хмара
-st_camo_atlas_lapis_fishbone	Лазуритова ялинка
 st_camo_atlas_lapis_netting	Лазуритова сіть
 st_camo_atlas_lapis_tiger_stripe	Лазуритова тигрова смуга
-st_camo_atlas_lapis_wax_resist	Лазуритовий батик
 st_camo_atlas_lapis_woodgrain	Лазуритовий деревний візерунок
 st_camo_atlas_lichen_pixel	Лишайниковий піксель
+st_camo_atlas_lime_spots	Лаймові плями
+st_camo_atlas_lizard	Ящірка
+st_camo_atlas_lozenge	Ромби
+st_camo_atlas_lozenge_night	Нічні ромби
+st_camo_atlas_m05_snow	M05 сніговий
+st_camo_atlas_m05_woodland	M05 лісовий
+st_camo_atlas_m81_woodland	M81 лісовий
+st_camo_atlas_m90	M90
+st_camo_atlas_m90k	M90K
+st_camo_atlas_m_01_desert	M/01 пустельний
+st_camo_atlas_m_84	M/84
 st_camo_atlas_madder_crackle	Мареновий кракелюр
-st_camo_atlas_madder_crosscheck	Маренова перехресна клітинка
 st_camo_atlas_madder_cut_paper	Маренова аплікація
-st_camo_atlas_madder_kasuri	Маренове касурі
 st_camo_atlas_madder_reed_stripe	Маренова очеретяна смуга
-st_camo_atlas_madder_screenprint	Маренова шовкографія
 st_camo_atlas_malachite	Малахіт
 st_camo_atlas_marigold_broken_grid	Чорнобривцева ламана сітка
-st_camo_atlas_marigold_crosscheck	Чорнобривцева перехресна клітинка
-st_camo_atlas_marigold_kasuri	Чорнобривцеве касурі
 st_camo_atlas_marigold_pebble	Чорнобривцева галька
 st_camo_atlas_marigold_rosette	Чорнобривцеві розетки
 st_camo_atlas_marigold_terrazzo	Чорнобривцеве тераццо
-st_camo_atlas_maritime_agate	Морський агат
-st_camo_atlas_maritime_beadwork	Морський бісер
+st_camo_atlas_marine_woodland	Морський ліс
 st_camo_atlas_maritime_pebble	Морська галька
 st_camo_atlas_maritime_rosette	Морські розетки
 st_camo_atlas_maritime_terrazzo	Морське тераццо
 st_camo_atlas_maritime_wave_fan	Морське віяло хвиль
-st_camo_atlas_maritime_wax_resist	Морський батик
 st_camo_atlas_mauve_static	Бузкові завади
+st_camo_atlas_mm_14	ММ-14
+st_camo_atlas_mm_25	ММ-25
+st_camo_atlas_moro	Моро
 st_camo_atlas_mulberry_cloud	Шовковична хмара
-st_camo_atlas_night_grid	Нічна сітка
+st_camo_atlas_nfp_blue	Синій NFP
+st_camo_atlas_nfp_cloth	Тканина NFP
+st_camo_atlas_nfp_green	Зелений NFP
+st_camo_atlas_nfp_multitone	Багатотонний NFP
 st_camo_atlas_night_silk	Нічний шовк
+st_camo_atlas_obh	OBH
 st_camo_atlas_ochre_cut	Вохриста аплікація
 st_camo_atlas_olive_tide	Оливковий приплив
 st_camo_atlas_opal_fault	Опаловий розлам
 st_camo_atlas_orchid_broken_grid	Орхідейна ламана сітка
 st_camo_atlas_orchid_cloud	Орхідейна хмара
-st_camo_atlas_orchid_kasuri	Орхідейне касурі
 st_camo_atlas_orchid_netting	Орхідейна сіть
 st_camo_atlas_orchid_shard	Орхідейний уламок
 st_camo_atlas_orchid_static	Орхідейні завади
-st_camo_atlas_orchid_terrazzo	Орхідейне тераццо
-st_camo_atlas_orchid_wax_resist	Орхідейний батик
 st_camo_atlas_oxblood_cloud	Бордова хмара
-st_camo_atlas_oxblood_kasuri	Бордове касурі
 st_camo_atlas_oxblood_stone_chip	Бордова кам'яна крихта
 st_camo_atlas_oxblood_terrazzo	Бордове тераццо
 st_camo_atlas_oxblood_tiger_stripe	Бордова тигрова смуга
-st_camo_atlas_oxblood_wax_resist	Бордовий батик
 st_camo_atlas_oxblood_woodgrain	Бордовий деревний візерунок
+st_camo_atlas_pantera	Пантера
+st_camo_atlas_pantera_desert	Пантера пустельна
 st_camo_atlas_persimmon_ink	Хурмова туш
 st_camo_atlas_petal_wash	Пелюсткова заливка
-st_camo_atlas_pewter_agate	Олов'яний агат
-st_camo_atlas_pewter_beadwork	Олов'яний бісер
-st_camo_atlas_pewter_cloud_hex	Олов'яні хмарні стільники
 st_camo_atlas_pewter_cut_paper	Олов'яна аплікація
-st_camo_atlas_pewter_fishbone	Олов'яна ялинка
 st_camo_atlas_pewter_reed_stripe	Олов'яна очеретяна смуга
-st_camo_atlas_pixel_steppe	Піксельний степ
 st_camo_atlas_polar_mesh	Полярна сітка
 st_camo_atlas_porcelain_tide	Порцеляновий приплив
+st_camo_atlas_puma	Пума
 st_camo_atlas_quarry	Кар'єр
-st_camo_atlas_reed_rain	Очеретяний дощ
 st_camo_atlas_reef_tiger	Рифовий тигр
-st_camo_atlas_riptide_agate	Агат прибою
 st_camo_atlas_riptide_broadbrush	Широкий мазок прибою
 st_camo_atlas_riptide_crackle	Кракелюр прибою
 st_camo_atlas_riptide_cut_paper	Аплікація прибою
 st_camo_atlas_riptide_terrazzo	Тераццо прибою
-st_camo_atlas_riptide_wax_resist	Батик прибою
+st_camo_atlas_rmp_woodland	RMP лісовий
 st_camo_atlas_rose_breccia	Рожева брекчія
 st_camo_atlas_russet_crosscheck	Руда перехресна клітинка
-st_camo_atlas_russet_kasuri	Руде касурі
 st_camo_atlas_russet_screenprint	Руда шовкографія
 st_camo_atlas_russet_stone_chip	Руда кам'яна крихта
 st_camo_atlas_russet_tiger_stripe	Руда тигрова смуга
 st_camo_atlas_russet_watercolor	Руда акварель
 st_camo_atlas_russet_woodgrain	Рудий деревний візерунок
+st_camo_atlas_rust_flecktarn	Іржавий флектарн
 st_camo_atlas_rust_tiger	Іржавий тигр
-st_camo_atlas_saffron_beadwork	Шафрановий бісер
-st_camo_atlas_saffron_cloud_hex	Шафранові хмарні стільники
-st_camo_atlas_saffron_fishbone	Шафранова ялинка
 st_camo_atlas_saffron_gravel	Шафрановий гравій
 st_camo_atlas_saffron_pebble	Шафранова галька
 st_camo_atlas_saffron_soundings	Шафранові ізобати
 st_camo_atlas_saffron_wave_fan	Шафранове віяло хвиль
 st_camo_atlas_salt_crater	Соляний кратер
 st_camo_atlas_salt_tiger	Соляний тигр
-st_camo_atlas_satsuma_cloud_hex	Мандаринові хмарні стільники
-st_camo_atlas_satsuma_fishbone	Мандаринова ялинка
-st_camo_atlas_satsuma_screenprint	Мандаринова шовкографія
-st_camo_atlas_satsuma_soundings	Мандаринові ізобати
+st_camo_atlas_sandstone	Пісковик
 st_camo_atlas_satsuma_stone_chip	Мандаринова кам'яна крихта
 st_camo_atlas_satsuma_tiger_stripe	Мандаринова тигрова смуга
 st_camo_atlas_satsuma_watercolor	Мандаринова акварель
+st_camo_atlas_savanna_flecktarn	Саванний флектарн
 st_camo_atlas_sea_glass	Морське скло
-st_camo_atlas_seafoam_beadwork	Бісер морської піни
 st_camo_atlas_seafoam_cloud	Хмара морської піни
-st_camo_atlas_seafoam_cloud_hex	Хмарні стільники морської піни
-st_camo_atlas_seafoam_fishbone	Ялинка морської піни
 st_camo_atlas_seafoam_netting	Сіть морської піни
-st_camo_atlas_seafoam_soundings	Ізобати морської піни
 st_camo_atlas_seafoam_woodgrain	Деревний візерунок морської піни
+st_camo_atlas_shard_earth	Уламкова земля
+st_camo_atlas_shard_forest	Уламковий ліс
+st_camo_atlas_shard_winter	Уламкова зима
 st_camo_atlas_sienna_wash	Заливка сієною
 st_camo_atlas_signal_grid	Сигнальна сітка
 st_camo_atlas_silver_rosette	Срібні розетки
-st_camo_atlas_sundown_crosscheck	Призахідна перехресна клітинка
-st_camo_atlas_sundown_kasuri	Призахідне касурі
+st_camo_atlas_snow_terrain	Снігова місцевість
+st_camo_atlas_star_ember	Зоряний жар
+st_camo_atlas_star_forest	Зоряний ліс
 st_camo_atlas_sundown_pebble	Призахідна галька
 st_camo_atlas_sundown_reed_stripe	Призахідна очеретяна смуга
 st_camo_atlas_sundown_terrazzo	Призахідне тераццо
 st_camo_atlas_sundown_wave_fan	Призахідне віяло хвиль
+st_camo_atlas_t_99_winter	T/99 зимовий
+st_camo_atlas_taz_07	TAZ 07
+st_camo_atlas_taz_83	TAZ 83
+st_camo_atlas_taz_83_ii	TAZ 83 II
+st_camo_atlas_teal_pixel	Бірюзовий піксель
+st_camo_atlas_three_color_desert	Триколірна пустеля
 st_camo_atlas_tidal_pixel	Припливний піксель
-st_camo_atlas_ultramarine_agate	Ультрамариновий агат
-st_camo_atlas_ultramarine_beadwork	Ультрамариновий бісер
+st_camo_atlas_tropentarn	Тропентарн
+st_camo_atlas_tropentarn_ii	Тропентарн II
+st_camo_atlas_type_07_arid	Тип 07 пустельний
+st_camo_atlas_type_07_universal	Тип 07 універсальний
+st_camo_atlas_type_07_urban	Тип 07 міський
 st_camo_atlas_ultramarine_broken_grid	Ультрамаринова ламана сітка
 st_camo_atlas_ultramarine_netting	Ультрамаринова сіть
 st_camo_atlas_ultramarine_rosette	Ультрамаринові розетки
 st_camo_atlas_ultramarine_shard	Ультрамариновий уламок
 st_camo_atlas_ultramarine_terrazzo	Ультрамаринове тераццо
-st_camo_atlas_ultramarine_wax_resist	Ультрамариновий батик
 st_camo_atlas_ultraviolet_grid	Ультрафіолетова сітка
+st_camo_atlas_urban_blots	Міські плями
 st_camo_atlas_urban_broadbrush	Міський широкий мазок
 st_camo_atlas_urban_broken_grid	Міська ламана сітка
+st_camo_atlas_urban_brush	Міський мазок
 st_camo_atlas_urban_cloud	Міська хмара
 st_camo_atlas_urban_crackle	Міський кракелюр
 st_camo_atlas_urban_cut_paper	Міська аплікація
 st_camo_atlas_urban_drybrush	Міська суха кисть
+st_camo_atlas_urban_flecktarn	Міський флектарн
 st_camo_atlas_urban_fracture	Міський розлам
+st_camo_atlas_urban_knit	Міський трикотаж
 st_camo_atlas_urban_mosaic	Міська мозаїка
 st_camo_atlas_urban_netting	Міська сіть
 st_camo_atlas_urban_pebble	Міська галька
@@ -766,14 +765,16 @@ st_camo_atlas_urban_tiger_stripe	Міська тигрова смуга
 st_camo_atlas_urban_watercolor	Міська акварель
 st_camo_atlas_urban_wave_fan	Міське віяло хвиль
 st_camo_atlas_urban_woodgrain	Міський деревний візерунок
-st_camo_atlas_verdigris_agate	Патинований агат
+st_camo_atlas_urban_woodland	Міський ліс
+st_camo_atlas_vegetato_desert	Пустельний Вегетато
+st_camo_atlas_vehicle_pixel_2015	Піксель техніки 2015
+st_camo_atlas_vehicle_pixel_2016	Піксель техніки 2016
+st_camo_atlas_vehicle_pixel_2021	Піксель техніки 2021
 st_camo_atlas_verdigris_cut_paper	Патинована аплікація
 st_camo_atlas_verdigris_reed_stripe	Патинована очеретяна смуга
 st_camo_atlas_verdigris_terrazzo	Патиноване тераццо
 st_camo_atlas_verdigris_wave_fan	Патиноване віяло хвиль
-st_camo_atlas_verdigris_wax_resist	Патинований батик
 st_camo_atlas_vermilion_tide	Багряний приплив
-st_camo_atlas_violet_splinter	Фіолетові уламки
 st_camo_atlas_walnut_burl	Горіховий кап
 st_camo_atlas_woodland_broadbrush	Лісовий широкий мазок
 st_camo_atlas_woodland_broken_grid	Лісова ламана сітка
@@ -800,6 +801,7 @@ st_camo_atlas_woodland_tiger_stripe	Лісова тигрова смуга
 st_camo_atlas_woodland_watercolor	Лісова акварель
 st_camo_atlas_woodland_wave_fan	Лісове віяло хвиль
 st_camo_atlas_woodland_woodgrain	Лісовий деревний візерунок
+st_camo_atlas_woven_woodland	Тканий ліс
 st_camo_black_leather_01_name	Ворон
 st_camo_black_leather_name	Чорна смерть
 st_camo_blue_leather_name	Бриз
@@ -3019,10 +3021,17 @@ st_srp_hud_freeze_draw	Нічия
 st_srp_hud_freeze_frozen	Заморожений (%1$s)
 st_srp_hud_freeze_help	Заморозьте всіх суперників. Перемагає команда, що виграє 5 раундів. Стійте в межах 2 м від замороженого союзника 4 секунди, щоб розморозити його.
 st_srp_hud_freeze_lose	Поразка — суперники виграли п'ять раундів.
+st_srp_hud_freeze_reveal_enemy	Останнього суперника буде розкрито через %1$s с
+st_srp_hud_freeze_reveal_self	Вас буде розкрито через %1$s с
+st_srp_hud_freeze_reveal_teammate	Вашого останнього союзника буде розкрито через %1$s с
+st_srp_hud_freeze_revealed_enemy	Останнього суперника розкрито на карті
+st_srp_hud_freeze_revealed_self	Вас розкрито на карті
+st_srp_hud_freeze_revealed_teammate	Вашого останнього союзника розкрито на карті
 st_srp_hud_freeze_round_draw	Нічия в раунді. Повтор через %1$s с.
 st_srp_hud_freeze_round_lose	Раунд програно. Наступний через %1$s с.
 st_srp_hud_freeze_round_win	Раунд виграно. Наступний через %1$s с.
 st_srp_hud_freeze_standing	У бою: ваша команда %1$s — суперники %2$s
+st_srp_hud_freeze_start	Заморожування\nСмертельне влучання заморожує. Заморозьте всю команду суперників, щоб виграти раунд.\nСтійте 4 с у 2 м від замороженого союзника, щоб розморозити його; сам він відтане за 2 хв.\nПеремагає команда, що першою виграє 5 раундів; коли час вийде — та, що веде.
 st_srp_hud_freeze_thawing	Розморожування союзника…
 st_srp_hud_freeze_win	Перемога — виграно п'ять раундів.
 st_srp_hud_friend_not_sent	Заявку в друзі не надіслано
@@ -3062,6 +3071,7 @@ st_srp_inventory_sell_duplicates	Продати дублі
 st_srp_inventory_sell_duplicates_ask	Предметів на продаж: %1$s
 st_srp_item_props_mps	м/с
 st_srp_key_bindings	Прив’язки
+st_srp_key_unbound	клавішу не призначено
 st_srp_keys_combat	Бій
 st_srp_keys_interface	Інтерфейс
 st_srp_keys_items	Предмети
@@ -3268,7 +3278,7 @@ st_srp_replay_place_in_line	Місце в черзі: %1$s. Очікування
 st_srp_replay_ready	Повтор цього матчу готовий.\n\nВін завантажується із сервера матчу, який зберігає достовірний запис матчу. Відкриється друге вікно гри й відтворить його; лобі залишиться відкритим.\n\nУ повторі натисніть F9 для керування: гравці, камера, перемотування, швидкість.
 st_srp_replay_ready_size	Повтор цього матчу: %1$s.\n\nВін завантажується із сервера матчу, який зберігає достовірний запис матчу. Відкриється друге вікно гри й відтворить його; лобі залишиться відкритим.\n\nУ повторі натисніть F9 для керування: гравці, камера, перемотування, швидкість.
 st_srp_replay_size	%1$s,%2$s МБ
-st_srp_replay_starting	Запускаємо повтор: відкриється друге вікно гри, лобі залишиться відкритим. Якщо щось піде не так, програма оновлення покаже, що сталося.\n\nУ повторі натисніть F9 для керування.
+st_srp_replay_starting	Запускаємо повтор: відкриється друге вікно гри, лобі залишиться відкритим. Якщо щось піде не так, програма оновлення покаже, що сталося.\n\nУ повторі натисніть «Сховати інтерфейс» ({HIDE_INTERFACE}) для керування.
 st_srp_replay_still_preparing	Повтор ще готується. Сервер продовжує його створювати; відкрийте «Дивитися повтор» ще раз за хвилину.
 st_srp_replay_title	Дивитися повтор
 st_srp_replay_waiting	Очікування: %1$s с.
@@ -3344,7 +3354,7 @@ st_srp_rooms_pin_hint	Потрібні 4 цифри
 st_srp_rooms_players	Гравці
 st_srp_rooms_playing	Триває матч
 st_srp_rooms_pool	Пул
-st_srp_rooms_pool_hint	Голосування бере 3 картки з них.
+st_srp_rooms_pool_hint	Голосування бере 4 картки з них.
 st_srp_rooms_private_room	Приватна кімната: до 20 гравців; команди й старт за вами.
 st_srp_rooms_queue	Черга
 st_srp_rooms_queue_room	Черга в кімнату
@@ -3372,10 +3382,17 @@ st_srp_rooms_voting	Голосування
 st_srp_rooms_waiting	Чекаємо гравців
 st_srp_rooms_waiting_owner	Чекаємо, поки творець почне.
 st_srp_rooms_waiting_short	Очікування
+st_srp_scope_next_action	Змінити приціл
 st_srp_scope_screen_hint	Перетягніть приціл, дульний пристрій або рукоятку з вашого інвентарю в його слот
 st_srp_scope_slot	Приціл
+st_srp_second_sight	Другий приціл
+st_srp_second_sight_description	Ставить другий приціл збоку зброї.
+st_srp_second_sight_hint	Приціл на зміщеній планці збоку зброї. Натисніть «Змінити приціл» ({SCOPE_NEXT}) під час прицілювання, щоб перейти на нього.
+st_srp_second_sight_name	Другий приціл
 st_srp_shop_not_owned	Сховати наявні
 st_srp_shop_not_owned_hint	Показувати лише те, чого у вас немає
+st_srp_side_left	Зліва
+st_srp_side_right	Справа
 st_srp_skills	Навички
 st_srp_speed_label	Швидкість
 st_srp_speed_title	Швидкість руху: %1$s

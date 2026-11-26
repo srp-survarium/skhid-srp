@@ -426,10 +426,8 @@ pub struct Options {
 
 impl Options {
     /// What the environment asks for (`vostok::config` and the lobby's own
-    /// settings), with the certificates of `./certs`: srp is run from the
-    /// repository's root. By default everything is on 127.0.0.1: the login
-    /// server on TCP 1234, the lobby on UDP 1235, the match server on UDP
-    /// 1236.
+    /// settings). By default everything is on 127.0.0.1: the login server
+    /// on TCP 1234, the lobby on UDP 1235, the match server on UDP 1236.
     pub fn from_env() -> Self {
         let config = vostok::config::get();
         Self {

@@ -181,7 +181,7 @@ Faction pace (average scenario, one faction active, matches from 0 reputation):
 | 10 (prestige 5) | 950000 | 4318 | 4318 | 4318 |
 | 15 (prestige 10) | 1700000 | 7727 | 7727 | 7727 |
 
-Silver for the whole faction shop of a wiki rank (sum of the silver prices of all four factions' items of that rank / 4, 
+Silver for the whole faction shop of a wiki rank (sum of the silver prices of all four factions' items of that rank / 4,
 fan wiki 2022-05, data/shop_069d.tsv) against matches of the average scenario at match level = tier of that gear (rank 1-2 -> L1, 3-4 -> L2, 5-6 -> L3, 7-8 -> L4, 9-10 -> L5; CHOICE):
 
 | rank | items (all factions) | silver per faction | match level used | silver per match | matches to buy the whole rank |

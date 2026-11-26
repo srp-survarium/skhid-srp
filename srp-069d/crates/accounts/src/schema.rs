@@ -1,7 +1,8 @@
-//! SQLite schema (PRAGMA user_version = 6). Version 1 -> 2 adds the `skills` table (`SCHEMA_V2_UP`), 2 -> 3 the
-//! achievements table (`SCHEMA_V3_UP`, progression), 3 -> 4 the ban columns and the clan tables (`SCHEMA_V4_UP`, social),
-//! 4 -> 5 the item uid renumbering and the presets tables (`SCHEMA_V5_UP`, items), 5 -> 6 the premium expiry table
-//! (`SCHEMA_V6_UP`, store).
+//! SQLite schema (PRAGMA user_version = [`VERSION`]). Each step n-1 -> n is `SCHEMA_Vn_UP` (its doc says what it adds):
+//! version 1 -> 2 adds the `skills` table (`SCHEMA_V2_UP`), 2 -> 3 the achievements table (`SCHEMA_V3_UP`, progression),
+//! 3 -> 4 the ban columns and the clan tables (`SCHEMA_V4_UP`, social), 4 -> 5 the item uid renumbering and the presets
+//! tables (`SCHEMA_V5_UP`, items), 5 -> 6 the premium expiry table (`SCHEMA_V6_UP`, store), and so on. `Store::open`
+//! runs the missing steps in order; a newer database is refused.
 
 pub const VERSION: i64 = 23;
 

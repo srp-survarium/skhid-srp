@@ -190,8 +190,36 @@ fn stock_config(game_mode: RuleMode) -> ConfigValue {
 /// rules and the goal of the pack's configs); its localization key is
 /// `st_level_<level>_name`, which no localization has.
 pub fn with_map(map: &AddedMap) -> GameData {
-    let stock = game_data::shared();
+    with_maps(std::slice::from_ref(map))
+}
 
+/// The test data with every map of `maps` added, as one patch adds them ([`with_map`]).
+pub fn with_maps(maps: &[AddedMap]) -> GameData {
+    let stock = game_data::shared();
+    let mut dictionary_config = ConfigValue::parse(stock.file(dictionary::PATH).unwrap()).unwrap();
+    let mut files = Vec::new();
+    for map in maps {
+        match entry(&mut dictionary_config, "maps_dict") {
+            ConfigValue::Indexed(rows) => rows.push(ConfigValue::Named(vec![
+                ("id".into(), ConfigValue::Integer(map.id.get().into())),
+                (
+                    "cfg_mode_name".into(),
+                    ConfigValue::String(map.config.into()),
+                ),
+            ])),
+            _ => panic!("maps_dict is not a list"),
+        }
+        files.extend(map_files(map));
+    }
+    files.push((
+        dictionary::PATH.to_owned(),
+        dictionary_config.to_bytes().unwrap(),
+    ));
+    stock.laid_over("the test data and maps of a patch", files)
+}
+
+/// `map`'s game mode config and its project, by path.
+fn map_files(map: &AddedMap) -> [(String, Vec<u8>); 2] {
     let mut config = stock_config(match RuleMode::of_config(map.mode) {
         Some(RuleMode::Research | RuleMode::FreezeTag | RuleMode::ArtefactHunt) => RuleMode::TeamDeathmatch,
         Some(other) => other,
@@ -272,36 +300,16 @@ pub fn with_map(map: &AddedMap) -> GameData {
         resources_db::server::SERVER_OBJECTS.to_owned(),
         ConfigValue::Named(objects),
     )]);
-
-    let mut dictionary_config = ConfigValue::parse(stock.file(dictionary::PATH).unwrap()).unwrap();
-    match entry(&mut dictionary_config, "maps_dict") {
-        ConfigValue::Indexed(rows) => rows.push(ConfigValue::Named(vec![
-            ("id".into(), ConfigValue::Integer(map.id.get().into())),
-            (
-                "cfg_mode_name".into(),
-                ConfigValue::String(map.config.into()),
-            ),
-        ])),
-        _ => panic!("maps_dict is not a list"),
-    }
-
-    stock.laid_over(
-        "the test data and a map of a patch",
-        vec![
-            (
-                dictionary::PATH.to_owned(),
-                dictionary_config.to_bytes().unwrap(),
-            ),
-            (
-                format!("{GAME_MODES_DIR}{}", map.config),
-                config.to_bytes().unwrap(),
-            ),
-            (
-                format!("projects/{}/client_project", map.project),
-                project.to_bytes().unwrap(),
-            ),
-        ],
-    )
+    [
+        (
+            format!("{GAME_MODES_DIR}{}", map.config),
+            config.to_bytes().unwrap(),
+        ),
+        (
+            format!("projects/{}/client_project", map.project),
+            project.to_bytes().unwrap(),
+        ),
+    ]
 }
 
 /// The table of `data` ([`super::derive`]), with its own dictionary.

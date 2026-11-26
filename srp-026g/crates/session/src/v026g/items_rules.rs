@@ -330,7 +330,11 @@ pub fn make_safe_with(item: &mut Item, modules: &Modules) {
     // A muzzle device and a grip that each go on but not together (a table
     // of another pack version): the grip comes off, then the device if the
     // weapon still refuses it.
-    for kind in [Kind::Grip, Kind::Muzzle] {
+    // A second sight whose value is no side comes off; then, as for those,
+    // the second sight first.
+    let second = weapon_modules::slot_of(Kind::SecondSight);
+    item.upgrades.retain(|upgrade| upgrade.param != second || weapon_modules::side_of(upgrade.value).is_some());
+    for kind in [Kind::SecondSight, Kind::Grip, Kind::Muzzle] {
         if modules.check(host, fitted_modules(modules, host, &item.upgrades)).is_ok() {
             break;
         }
@@ -345,7 +349,7 @@ pub fn is_weapon(dict_id: u16) -> bool {
     item_params(dict_id).is_some_and(|params| modifications::is_weapon_kind(params.kind))
 }
 
-/// The upgrades an item of `dict_id` may hold: a weapon's six logical
+/// The upgrades an item of `dict_id` may hold: a weapon's seven logical
 /// slots, which go to the client packed into three records
 /// ([`survarium::v026g::weapon_kit::pack`]); any other item's three
 /// records ([`limits::UPGRADES`], the client's).
@@ -408,20 +412,27 @@ pub fn attach_upgrade(
     )
 }
 
-/// What a weapon holds as its scope, its muzzle device and its grip, by
-/// its records: each one whose dict id the weapon takes as a module
-/// ([`Modules::kind`]), in that kind's slot.
+/// What a weapon holds as its scope, its muzzle device, its grip and its
+/// second sight, by its records: each one in a module's slot whose dict id
+/// the weapon takes as that slot's kind ([`Modules::takes`]); a second
+/// sight's side is its record's value (one that is no side: none).
 fn fitted_modules(modules: &Modules, host_dict_id: u16, upgrades: &[Upgrade]) -> Fitted {
     let mut fitted = Fitted::default();
     for held in upgrades {
         let Ok(module) = u16::try_from(held.a) else {
             continue;
         };
-        if let Some(kind) = modules.kind(host_dict_id, module)
-            && weapon_modules::slot_of(kind) == held.param
-        {
-            fitted = fitted.with(kind, Some(module));
+        let Some(kind) = weapon_modules::kind_of_slot(held.param) else { continue };
+        if !modules.takes(host_dict_id, module, kind) {
+            continue;
         }
+        fitted = match kind {
+            Kind::SecondSight => match weapon_modules::side_of(held.value) {
+                Some(side) => fitted.with(kind, Some(module)).on_side(side),
+                None => fitted,
+            },
+            _ => fitted.with(kind, Some(module)),
+        };
     }
     fitted
 }
@@ -455,10 +466,11 @@ pub fn attach_upgrade_with(
         return Err(ItemError::Upgrade("it does not go into that slot"));
     }
     // A module of the weapon (the slot is its kind's, checked above): the
-    // whole of what the weapon would hold, by the gun's rules.
-    if let Some(kind) = modules.kind(host.dict_id, upgrade_dict) {
-        let fitted = fitted_modules(modules, host.dict_id, &host.upgrades)
-            .with(kind, Some(upgrade_dict));
+    // whole of what the weapon would hold, by the gun's rules. A second
+    // sight goes on at the side it had there, else the left.
+    if let Some(kind) = weapon_modules::kind_of_slot(slot).filter(|&kind| modules.takes(host.dict_id, upgrade_dict, kind)) {
+        let others: Vec<Upgrade> = host.upgrades.iter().filter(|held| held.id != upgrade_item_id).copied().collect();
+        let fitted = fitted_modules(modules, host.dict_id, &others).with(kind, Some(upgrade_dict));
         if modules.check(host.dict_id, fitted).is_err() {
             return Err(ItemError::Unfit);
         }
@@ -596,6 +608,29 @@ pub fn place_upgrade(
     upgrade_item_id: u32,
     value: u64,
 ) -> Result<bool, ItemError> {
+    place_upgrade_with(account, Modules::shared(), host_item_id, upgrade_item_id, value)
+}
+
+/// [`place_upgrade`] with `modules`. A weapon's second sight's value is its
+/// side (0 left, 1 right): another value is refused, and so is a side the
+/// weapon cannot hold it on with what it holds ([`Modules::check`]).
+pub fn place_upgrade_with(
+    account: &mut Account,
+    modules: &Modules,
+    host_item_id: u32,
+    upgrade_item_id: u32,
+    value: u64,
+) -> Result<bool, ItemError> {
+    if let Some(host) = account.item(host_item_id)
+        && is_weapon(host.dict_id)
+        && host.upgrades.iter().any(|held| held.id == upgrade_item_id && held.param == weapon_modules::slot_of(Kind::SecondSight))
+    {
+        let side = weapon_modules::side_of(value).ok_or(ItemError::Upgrade("a second sight's side is 0 or 1"))?;
+        let fitted = fitted_modules(modules, host.dict_id, &host.upgrades).on_side(side);
+        if modules.check(host.dict_id, fitted).is_err() {
+            return Err(ItemError::Unfit);
+        }
+    }
     let held = account
         .item_mut(host_item_id)
         .and_then(|host| {

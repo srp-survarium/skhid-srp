@@ -95,8 +95,6 @@ Not found.	Не найдено.
 Too many wrong tokens; wait a minute.	Слишком много неверных токенов; подождите минуту.
 Wrong token.	Неверный токен.
 No such user.	Нет такого пользователя.
-Silver and gold are whole numbers, + or -, or empty.	Серебро и золото — целые числа, + или -, либо пусто.
-{user}: now {silver_now} silver and {gold_now} gold.	{user}: теперь {silver_now} серебра и {gold_now} золота.
 New accounts are taken again.	Новые аккаунты снова принимаются.
 New accounts are refused; existing players sign in as before.	Новые аккаунты не принимаются; игроки с аккаунтом входят как раньше.
 Maintenance cancelled.	Технические работы отменены.
@@ -138,9 +136,8 @@ Q:	В:
 A:	О:
 If something goes wrong	Если что-то пошло не так
 Download the files	Скачать файлы
-Download the game	Скачать игру
 The download link is coming soon.	Ссылка на скачивание скоро появится.
-Can't download? Run {script}: it downloads the whole game into a Survarium folder beside it.	Не скачивается? Запустите {script}: он сам скачает всю игру в папку Survarium рядом с собой.
+Chrome or your antivirus refuses the download? Try this script: {script}. It downloads the whole game into a Survarium folder beside it.	Chrome или антивирус не даёт скачать? Попробуйте этот скрипт: {script}. Он сам скачает всю игру в папку Survarium рядом с собой.
 Get the game	Получить игру
 The link is coming soon.	Ссылка скоро появится.
 Get the original Survarium 0.26g (build 2777) and unpack it.	Найдите оригинальный Survarium 0.26g (сборка 2777) и распакуйте его.
@@ -155,10 +152,6 @@ Run <code>Skhid.bat</code> and press <b>PLAY</b>.	Запустите <code>Skhid
 Windows warns about an unknown publisher? Let it run.<br>Linux: <code>bash Skhid.sh launcher</code>, see <code>LINUX.txt</code>.	Windows предупреждает о неизвестном издателе? Разрешите запуск.<br>Linux: <code>bash Skhid.sh launcher</code>, см. <code>LINUX.txt</code>.
 Windows warns about an unknown publisher? Let it run.<br>Linux: <code>bash Skhid.sh</code>, see <code>LINUX.txt</code>.	Windows предупреждает о неизвестном издателе? Разрешите запуск.<br>Linux: <code>bash Skhid.sh</code>, см. <code>LINUX.txt</code>.
 Run <code>play_skhid.bat</code> in <code>game\\binaries\\x86</code>.	Запустите <code>play_skhid.bat</code> в папке <code>game\\binaries\\x86</code>.
-Start it with this command line:	Запустите игру с такой командной строкой:
-english	russian
-server address	адрес сервера
-language: english, russian, ukrainian	язык: english, russian, ukrainian
 Skhid (Ukrainian for “east”) is a community server that lets the Survarium {version} client sign in, trade, form squads and play matches again.	Skhid («восток» по-украински) — комьюнити-сервер, на котором клиент Survarium {version} снова может входить, торговать, собирать отряды и играть матчи.
 Project Discord: <a href="https://discord.gg/pxywZfaxRQ">discord.gg/pxywZfaxRQ</a>	Discord проекта: <a href="https://discord.gg/pxywZfaxRQ">discord.gg/pxywZfaxRQ</a>
 Early test server.	Ранний тестовый сервер.
@@ -167,7 +160,6 @@ How to play	Как играть
 Download our files and unpack them into an empty folder (e.g. D:\\Survarium). <b>You do this only once.</b>	Скачайте наши файлы и распакуйте их в пустую папку (напр. D:\\Survarium). <b>Это нужно сделать только один раз.</b>
 Download our files and unpack them into the game's folder, the one with the <code>game</code> folder, replacing files. <b>You do this only once.</b>	Скачайте наши файлы и распакуйте их в папку игры, ту, где лежит папка <code>game</code>, с заменой файлов. <b>Это нужно сделать только один раз.</b>
 Download our files and unpack them over the game's <code>game</code> folder.	Скачайте наши файлы и распакуйте их поверх папки <code>game</code> игры.
-Download the patched game and unpack it.	Скачайте пропатченную игру и распакуйте её.
 Sign in with any name and password: a new name registers itself. Remember the password.	Войдите с любым именем и паролем: новое имя регистрируется само. Запомните пароль.
 New accounts are taken.	Новые аккаунты принимаются.
 Stop new registrations	Остановить новые регистрации
@@ -177,7 +169,6 @@ Shown once the token is right.	Показываются после верног�
 Password	Пароль
 User name	Имя пользователя
 Silver, + or -	Серебро, + или -
-Gold, + or -	Золото, + или -
 Change	Изменить
 Admin	Администратор
 Token	Токен
@@ -951,3 +942,27 @@ A key fires every ready copy of its kind and restarts the cooldown of the ones s
 Copies of a kind add up (Onyx's passive multiplies); at most 4 count.	Копии одного вида складываются (пассив Оникса перемножается); действуют не больше 4.
 Spring's and Larkspur's actives add to the passive; Onyx's replaces it.	Активация Пружины и Живокоста добавляется к пассиву; Оникса — заменяет его.
 Onyx fired together: one reduction, 1 s longer per extra copy.	Ониксы, активированные вместе: одно уменьшение, на 1 с дольше за каждую лишнюю копию.
+
+# The maps' anomalies (scripts/maps-tab/ui.js)
+Anomalies	Аномалии
+Anomaly	Аномалия
+Artefacts come from the anomalies. Each anomaly puts one of its artefacts into one of its free containers, one per time window, until its maximum lies uncollected; a pickup starts the window again. It gives only those of its artefacts that no player is carrying. Point at an anomaly or an artefact (or tap it) for its numbers.	Артефакты дают аномалии. Каждая аномалия кладёт один из своих артефактов в один из своих свободных контейнеров, по одному за промежуток времени, пока её максимум не будет лежать несобранным; подбор артефакта запускает промежуток заново. Она даёт только те свои артефакты, которые не несёт ни один игрок. Наведите на аномалию или артефакт (или коснитесь), чтобы увидеть её числа.
+{s} s	{s} с
+{a}–{b} s	{a}–{b} с
+Holds	Содержит
+First one	Первый
+Then every	Далее каждые
+Chance	Шанс
+Max uncollected	Максимум несобранных
+Search	Поиск	artefact
+Zones switch every	Зоны сменяются каждые
+After a pickup the next one comes {next} later; that container stays empty for {cooldown}.	После подбора следующий появится через {next}; этот контейнер остаётся пустым {cooldown}.
+Its own zone does no damage.	Её собственная зона не наносит урона.
+Searching a container takes {search}; after a pickup it stays empty for {cooldown}.	Обыск контейнера длится {search}; после подбора он остаётся пустым {cooldown}.
+After a pickup the next one comes {next} later.	После подбора следующий появится через {next}.
+whole body	всё тело
+{n} % a hit, at most every {t}	{n} % за удар, не чаще раза в {t}
+deadly	смертельно
+{n} % a second	{n} % в секунду
+Damage is a share of each body part's health, before armour.	Урон — доля здоровья каждой части тела, до брони.
+It gives no artefacts.	Она не даёт артефактов.

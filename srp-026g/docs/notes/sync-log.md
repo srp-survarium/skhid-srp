@@ -68,9 +68,11 @@ back) and 50 000 a run (its last line says so).
 ## The last one fighting on the map (Freeze Tag)
 
 The owner's report: in Freeze Tag a team's last one fighting, whom the rule shows on the other team's
-map (freeze-tag.md: `FreezeTag::last_standing`, `minimap.enemy_spotted`), sometimes is not on it,
-though his body is seen. With the log on, the viewer's game writes, once a second of game time while
-the rule shows an enemy of the viewer, a line for each such enemy:
+map (freeze-tag.md: `FreezeTag::revealed`, 15 s after his team was down to him, `minimap.enemy_spotted`),
+sometimes is not on it, though his body is seen. With the log on, the viewer's game writes, once a
+second of game time while the rule shows an enemy of the viewer (revealed: the 15 s over, the
+places `freeze_tag::on_hud` found for that frame, what `on_enemy` answers), a line for each such
+enemy:
 
 ```
 srp: sync: map, second 90: p7 (team 1) his team's last one fighting, the rule shows him; viewer p3 at 23.4 m; frames 2, minimap ran 1, tested him 1 (spotted by the game 0), listed him 0
@@ -89,7 +91,8 @@ srp: sync: map, second 90: p7 (team 1) his team's last one fighting, the rule sh
 - the distance between his feet and the viewer's.
 
 Tested and not listed is a verdict that did not show him; listed and not on the screen is past
-the listing (the icon's movie). The body's draw is not logged (the owner, 2026-11-26: the body is
+the listing (the icon's movie). The cause found (2026-11-26, freeze-tag.md "The last fighter's mark"): an
+enemy's icon draws nothing; the hud now marks a revealed enemy red. The body's draw is not logged (the owner, 2026-11-26: the body is
 seen; only the map misses him).
 
 ## Turning it on

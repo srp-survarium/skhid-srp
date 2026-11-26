@@ -221,8 +221,8 @@ FNV-1a of the 256 bytes at the block's first executable region, so a kept file i
 found from a report's entry by its size and that fingerprint at one of its page
 offsets. Nothing of another process is read.
 
-Implementation and validation are recorded below; this source change is not a
-release and has not collected a live player's executable.
+Implementation and validation before its release are recorded below; it shipped in revision 57
+(#1685, #1718).
 
 2026-11-12, branch `feat/executable-hash`, based on `6952d835e`:
 

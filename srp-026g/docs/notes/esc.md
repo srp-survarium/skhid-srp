@@ -20,8 +20,7 @@ window: "we fixed that a few times already, but ... not from a single place".
   shown: Esc closes it before the results.
 - **A message's Esc is what its own close does** (`MessageBase.cancelByEsc`): its Cancel or X
   (`onNo` runs: the Upgrade window's donor with more modifiers leaves its slot), an OK box's OK
-  (it tells the game). The tutorial-complete box only closes (its Cancel would repeat the
-  tutorial). An invite (squad, clan, clan team) does what its hide button does: the box closes,
+  (it tells the game). An invite (squad, clan, clan team) does what its hide button does: the box closes,
   nothing is sent (no decline) and the invite stays in the list.
 - **Modals that keep Esc out stay:** a message not closable now (`closable` false: a reroll being
   paid), the reroll's choice of modifier (its X is off).
@@ -48,7 +47,7 @@ window: "we fixed that a few times already, but ... not from a single place".
 | Squad's player search | LOBBY | `SquadList.onItemClick` | closes it |
 | Rooms window | LOBBY | `RoomsWindow.show` | hides it |
 | Rooms join popup (loadout offer) | LOBBY | `RoomsWindow.takeOffer` | its Exit (no join) |
-| Tutorial slides | LOBBY | `LobbyMenu.show_tutorial` | ends them |
+| Card windows (the lobby scene, the faces) | LOBBY | `CardWindow.toggle` | its `close` |
 | Message box (any type) | MESSAGE | `Message.addMessageToStage` | `cancelByEsc` |
 | Right-click menu | MENU | `SrvContextMenu.show` | hides it |
 

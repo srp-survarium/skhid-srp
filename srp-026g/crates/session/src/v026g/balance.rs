@@ -16,7 +16,7 @@
 //!   the less the result was to be expected: the side with a player more
 //!   is expected to win ([`PLAYER`]), so winning with it moves little.
 //!   The sides counted it until 2026-11-01; it is still kept and written
-//!   in the log's "sides" lines (`scripts/balance-refit`), and the matches
+//!   in the log's "sides" lines, and the matches
 //!   that move it are the ones that count kills and deaths.
 //! - **A match of few players moves none** ([`RATED_PLAYERS`],
 //!   [`players_in`]): one against one and two against one say nothing of

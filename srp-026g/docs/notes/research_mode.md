@@ -229,7 +229,7 @@ about arranging things beautifully". The places: his cursor on the minimap, thre
 - **Maps page:** a mode's second layout is a choice of its own, "Research · 2" (`#level_02/5.2`).
 - **Bots, late joiners, replays:** nothing new (Research has no bots; a replay names its map id).
 - **Release impact:** content and the site's pages; no exe, no server code. Three more entries of a
-  room's pool (256 at most, `lobby/rooms.rs` `POOL_BITS`).
+  room's pool (512 at most, `lobby/rooms.rs` `POOL_BITS`).
 - **Another layout:** a file beside `school-b.json` and its list's row in `release/content.tsv`. More
   cover at a unit: a `props` entry of its layout file (a model the map or an `examples` project
   has, its place and yaw), then the list made again.
