@@ -25,6 +25,7 @@
 
 pub mod attachments;
 pub mod reload;
+pub mod weapon_view;
 pub mod back_buffer;
 pub mod baker;
 pub mod aim;

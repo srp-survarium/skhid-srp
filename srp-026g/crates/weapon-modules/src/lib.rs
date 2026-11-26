@@ -60,7 +60,7 @@ use core::num::NonZeroU16;
 
 pub use math::Affine;
 pub use pose::{Eye, EyeAnchor, FINGERS, Hand, Placement, locator_frame};
-pub use resolve::{Bare, Loadout, Optic, Part, Refusal, Shape, Wanted, resolve};
+pub use resolve::{Bare, Loadout, Optic, Part, Refusal, Shape, Wanted, iron_sights, resolve};
 pub use slot::SlotId;
 pub use table::{Attach, Gun, GunFault, HAND_LOCATORS, MAGIC, MAX_CHAIN, MAX_STOCK, Malformed, Module, ModuleFault, Table, VERSION};
 
@@ -153,7 +153,7 @@ pub enum AttachEye {
     /// The locator whole: a magnified scope brings its eye relief.
     Own(Affine),
     /// The locator's axes and its line of sight, at the plane of the gun's
-    /// own eye ([`Gun::body_aim`]): a collimator, an iron sight and a rail
+    /// eye plane ([`Gun::eye_plane`]): a collimator, an iron sight and a rail
     /// mount give the line, and the gun keeps its eye relief.
     InGunPlane(Affine),
 }
