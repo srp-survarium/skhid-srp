@@ -701,6 +701,17 @@ impl Bots {
         }
         // [owner-5] How the last of its searches ended, for the log's line if it found no way.
         let last_end = super::path::last_end();
+        // [lane draw] A search kept to a drawn lane's room (`lane_draw`) that found no way proves nothing of the goal: its bot
+        // takes L1 for the goal and plans again at its next tick (no no-way line, no cool-down, no answer).
+        let lane_set = self.tunings.of(team).spacing.lane_draw;
+        if route.is_none()
+            && let (Some(set), Some(Some(bot))) = (lane_set, self.bots.get_mut(pending.place))
+            && bot.features.lane.second_for(pending.goal, set.away_m.get())
+        {
+            bot.features.lane.drop_lane();
+            bot.end_route(super::route_end::RouteEnd::Replanned, time);
+            return;
+        }
         if let Some(Some(bot)) = self.bots.get_mut(pending.place) {
             // [S6] The drops its search closed as lethal.
             for closed in mapdata::take_falls_closed() {
