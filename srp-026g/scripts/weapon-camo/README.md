@@ -6,18 +6,27 @@ The rules and the engine: `srp-026g/docs/notes/weapon-camo.md`. The exe side is 
 A camouflage reaches a weapon in three pieces, all made by `release/build-content` from the
 content manifest (`release/content.tsv`), never by hand:
 
-1. `<diffuse>_aoac.dds` (+ `.options`) beside each weapon diffuse: the content packs
-   `weapon-camo@<version>` (the stock and 0.29a3 guns, `guns.tsv`) and `weapons-031-camo`,
-   `weapons-046-camo`, `weapons-069-camo` (the ported guns, `../weapons-0xx/camo.tsv`), which
-   `weapon_camo.py --pack` makes of each table by one rule;
+1. `<diffuse>_aoac.dds` (+ `.options`) beside each weapon diffuse. Since `remodel-069-1` every gun
+   (all 103 weapon configs) draws its 0.69d0 remodel (`docs/notes/remodel-069.md`), whose textures
+   are 0.69d0's: their masks are made inside the pack `weapon-modules` (`../weapon-modules/make_pack.sh`
+   step 3, from `../remodel-069/camo.tsv`) and, for the textures the six weapons-069 guns brought,
+   the pack `weapons-069-camo` (`../weapons-069/camo.tsv`). `weapon_camo.py` makes both by one rule
+   and each table's `parts.tsv`. The tables of the guns' earlier models (`guns.tsv`, packs
+   `weapon-camo`, `weapons-031-camo`, `weapons-046-camo`) are of textures no live gun draws any more:
+   they follow the rule, and their packs stay as released;
 2. `parameters/camo_available` and a `data` table (`camo_scale`) in the weapons' configs:
    `../content-edit/weapon-camo-1.json`, then `weapon-decals-1.json` (`decal_available` and
    `data/decals`: decals, client patch 47), the manifest's `edit` rows, applied in order;
 3. the server reads both from its game data built of that patch (camouflage into slot 2 of a weapon).
 
-A scope's variant of a weapon (`models/weapons/attach`, `coverage`) draws the weapon's own textures
-on a part of its UVs, so it wears the weapon's masks (2026-11-20: every one of 2771 surfaces; the
-scoped Mosin has a texture of its own, which gets the Mosin's mask).
+The bake paints a weapon's first 8 LOD0 surfaces only (patch 44; #973 would make it 16): of the
+remodels, the AKMSU's bolt, fire selector and wooden grip (11 surfaces; its bare body's receiver
+cover), the HK416's magazine, the SCAR-H's front sight and the Glock 17's back cap stay plain
+whatever their masks say. The decal UVs of `weapon-decal-uv` do not touch the masks: its bake reads
+the diffuse, the mask and the camouflage through the material's own UVs and only writes into the
+decal atlas. A fitted scope, muzzle device, grip or second sight (and the MPR45 rail) is a model of
+its own (`weapons/modules_069`), not a surface of the gun: no bake, no mask, plain under a
+camouflage (the owner's decision). The scope variants are retired (8d646466b).
 
 ## Which parts are painted
 
@@ -56,6 +65,24 @@ tube), the SPAS-12's magazine tube, the SKS's cartridges, the MP7's stock rods, 
 device; painted, the Neostead's two magazine tubes (its top; its premium paints them), the
 TOZ-66's forend and receiver, the barrel jackets of the two PPShs.
 
+## The review (2026-11-26)
+
+The owner, of the rule alone: "it didn't do a good job, in some cases what we have now is better";
+the right answer is where the game's own camouflaged versions paint. Every texture the live remodels
+draw (237: `../remodel-069/camo.tsv` and `../weapons-069/camo.tsv`) was measured part by part
+against its painted versions (0.69d0's `_camo` and premium textures, else its event skins; a part
+counts as painted where one changed it: its mean blurred difference 0.02 and more, an untouched part
+measures 0.005 and less), and so were the masks players had (weapon-modules@7's, each texture's
+large parts) and the rule's. Each texture took whichever agreed better by area, then, under 95 %,
+the parts the painted version decides clearly (a change of 0.03 and more, or 0.008 and less); a
+texture with no painted version kept the masks players had but where the rule is clearly right (a
+rod bare, large polymer or wood painted), and one players had plain (the cartridges) stays plain. The
+choices are the `+`/`-` picks of the two `parts.tsv`. Agreement with the painted versions, by a
+gun's area, on average: 67 % with the masks players had, 82 % by the rule, 95 % chosen. No painted
+version: the MP-153, SOC Vepr, TT-33, Magnum, SV-98, AEK-919K, OTs-14, PM, CZ 75, Fort-17, MP-443
+and TOZ-66. Only an event skin (30 guns, the A-545's, the SCAR-H's, the HK416's ...): it paints
+where the skin does, barrels too.
+
 ## The tables
 
 `guns.tsv` and the packs' `camo.tsv`, one texture a line (the header says the columns): the texture,
@@ -70,11 +97,21 @@ attachments with textures of their own (never painted), the 12-gauge shell, the 
 # 0.69d0's weapon files (a vostok-port that reads its compressed volumes)
 vostok-port extract-bundle --db <0.69d0 .split> --prefix textures/weapons/ --prefix models/weapons/ \
     --prefix material_instances/weapons/ --output v069          # v069/overlay: the folder below
-python3 -I references.py game v069/overlay <vostok-port> guns.tsv ../weapons-031/camo.tsv \
-    ../weapons-046/camo.tsv ../weapons-069/camo.tsv --write
+python3 references.py game v069/overlay <vostok-port> guns.tsv ../weapons-031/camo.tsv \
+    ../weapons-046/camo.tsv ../weapons-069/camo.tsv ../remodel-069/camo.tsv --write
 ```
 
+(`references.py` imports `weapon_camo` from its own folder: no `-I`.) The game folder has the live
+configs, so a weapons-069 texture that a remodel of another gun draws (the AKMN's magazine and
+grip, the PPSh's body) gets that remodel's surfaces too, after its own.
+
 ## Making the packs
+
+The remodels' masks are made by `../weapon-modules/make_pack.sh` (step 3, the same `weapon_camo.py`
+call over `../remodel-069/camo.tsv` with `--v069`) into the next `weapon-modules`; the weapons-069
+textures' by `../weapons-069/make_pack.sh` into the next `weapons-069-camo`. weapon-modules@8 is
+@7's files with only its 410 mask files (205 `_aoac` and their `.options`) made again so, as step 3
+alone makes them: the models, the modules table and every fit are @7's byte for byte.
 
 A new version of each pack when its table, its parts.tsv or the tool changes: its folder under
 `$SKHID_PACKS_DIR` (`private/content-packs`) and its row in `release/content.tsv` (the name
@@ -130,24 +167,19 @@ survey of models, materials and configs; regenerate it when guns.tsv gains a wea
 
 ## Result
 
-2026-11-20, the players' files of revision 68 (packs `weapon-camo@4`, `weapons-031-camo@3`,
-`weapons-046-camo@3`, `weapons-069-camo@4`): 186 textures, 207 `_aoac` files with the premium copies,
-all 103 weapon configs.
+2026-11-26, the players' files of revision 73 (packs `weapon-modules@8`, masks only, and
+`weapons-069-camo@5`): the 237 textures the 103 guns' remodels draw, one `_aoac` each.
 
 | table | textures | parts | painted | plain textures |
 |---|---|---|---|---|
-| `guns.tsv` | 96 | 11344 | 3208 | none |
-| `../weapons-031/camo.tsv` | 20 | 2653 | 584 | 2 (sights) |
-| `../weapons-046/camo.tsv` | 38 | 3549 | 674 | 12 (sights, barrels, muzzle devices, cartridges; the Colt's trigger group by the rule) |
-| `../weapons-069/camo.tsv` | 32 | 3083 | 553 | 4 (cartridges, the loose shell) |
+| `../remodel-069/camo.tsv` | 205 | 21638 | 6411 | 6 (cartridges, the MP7's glowing dots, the Colt's barrel, the Glock's back cap) |
+| `../weapons-069/camo.tsv` | 32 | 3083 | 408 | 4 (cartridges, the loose shell) |
 
-Of the painted parts about 2100 are the body, 1750 not metal and 1200 small parts or slim tubes a
-painted version paints. Measured on the models (each gun's whole surface, hidden faces too): the
-painted share of a gun was 68 % on average with the masks before (the hand-picked parts of
-`weapon-camo@1`, the ported guns' large parts) and is 81 %; 91 guns are painted on more, 11 on less
-(barrels above all: the double-barrel shotguns, the TT, the TOZ-122, the KS-23M; the Kedr, the
-FN FNC, the Colt and the PP-2000 by a few points). Of what the
-painted versions repaint (88 guns have one) the masks painted 75 % before and 88 % now. Each gun
-drawn with the masks before and after beside its painted version: the page
-`private/renders/weapon-camo-coverage/index.html` of the main checkout (software renders; not seen
-in the game).
+Agreement with the painted versions, by a gun's area (the review above): 67 % with the masks
+players had, 82 % by the rule alone, 95 % chosen. Each gun drawn with its painted version, the
+masks players had, the rule's and the chosen ones, its scores and the surfaces past the bake's 8th:
+the review sheet of 2026-11-26 (software renders; not seen in the game).
+
+2026-11-20, before the remodels were live (the PR's first version, of `guns.tsv` and the weapon
+packs' tables, which no live gun draws now): 186 textures; the painted share of a gun 68 % with the
+hand-picked masks, 81 % by the rule.

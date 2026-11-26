@@ -177,7 +177,8 @@ class Test(unittest.TestCase):
         import os
         here = os.path.dirname(os.path.abspath(__file__))
         seen = {}
-        for folder in ('weapon-camo/guns.tsv', 'weapons-031/camo.tsv', 'weapons-046/camo.tsv', 'weapons-069/camo.tsv'):
+        for folder in ('weapon-camo/guns.tsv', 'weapons-031/camo.tsv', 'weapons-046/camo.tsv', 'weapons-069/camo.tsv',
+                       'remodel-069/camo.tsv'):
             table = os.path.join(here, '..', *folder.split('/'))
             rows = w.read_rows(table)
             self.assertTrue(rows)

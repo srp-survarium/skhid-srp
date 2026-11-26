@@ -669,7 +669,7 @@ def main():
         print('%-58s %3d parts, %3d painted (%s%s), %5.1f%% of its surface'
               % (texture, len(weapon), len(chosen), ', '.join('%d %s' % (n, w) for w, n in sorted(why.items())) or 'none',
                  '; parts.tsv: %d picks' % len(parts[texture]) if texture in parts else '',
-                 100 * sum(weapon[i].area for i in chosen) / max(1e-9, sum(p.area for p in weapon.values()))))
+                 100 * sum(weapon[i].area for i in chosen if i in weapon) / max(1e-9, sum(p.area for p in weapon.values()))))
         premiums = row.premiums
         suggested = set(rule)
         if picker:

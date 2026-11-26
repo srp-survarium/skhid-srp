@@ -59,7 +59,10 @@ fi
     --output "$pack" --id weapons-069 --version "$version"
 # Camouflage masks: weapon_camo.py reads the bundle's models and textures and the stock _aoac
 # options it copies.
-diff <(python3 -I "$here/camo_rows.py" "$work/bundle" | grep -v '^#' | cut -f1,3) <(grep -v '^#' "$here/camo.tsv" | cut -f1,3) \
+# camo.tsv's textures are the bundle's, each row's surfaces first the bundle's and then the remodels'
+# that draw it (references.py adds them: the AKMN's and the PPSh's remodels draw some of these).
+diff <(python3 -I "$here/camo_rows.py" "$work/bundle" | grep -v '^#' | cut -f1,3) \
+    <(grep -v '^#' "$here/camo.tsv" | cut -f1,3 | sed -E 's/(,weapons\/remodel_069\/[^,]*)+$//') \
     || { echo "camo.tsv's textures and surfaces are not the bundle's (camo_rows.py)" >&2; exit 1; }
 mkdir -p "$work/camo/textures/character/human/black_market_01"
 cp -as "$(realpath "$work/bundle/overlay")/." "$work/camo/"
