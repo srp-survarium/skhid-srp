@@ -10,9 +10,10 @@
 //! The files are in `SRP_LOG_DIR` (default `logs`; `off`: stdout only), as
 //! `<server>.log`, appended to across restarts: a container's own output is
 //! gone when the container is made anew, which every update does, so the
-//! compose file puts them in the data volume. A file that reaches
-//! [`MAX_FILE_BYTES`] becomes `<server>.log.1` (the `.1` before it `.2`, and
-//! so on); [`KEPT_FILES`] files per server are kept, the oldest deleted.
+//! compose file puts them in the data volume. A file that reaches its size
+//! in [`SERVERS`] becomes `<server>.log.1` (the `.1` before it `.2`, and so
+//! on); as many files of each server as [`SERVERS`] says are kept, the
+//! oldest deleted.
 //!
 //! What a line costs: stdout as before (one write of the line), and for the
 //! file a copy into an 8 KiB buffer, an add and a compare for the size. The
