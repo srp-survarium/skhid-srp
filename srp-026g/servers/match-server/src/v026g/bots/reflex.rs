@@ -14956,7 +14956,7 @@ mod tests {
         let (hides, held, notes) = hidden(&on, 1_600);
         assert!(hides && held == 1, "the reload runs: {held}");
         assert_eq!(notes, ["its hide lasts for its reload: no peek with the weapon not loaded"], "one note a reload");
-        assert_eq!(hidden(&on, 3_500).0, false, "the reload is over");
+        assert!(!hidden(&on, 3_500).0, "the reload is over");
         let off = CombatTuning { reload_in_cover: false, ..CombatTuning::default() };
         assert_eq!((hidden(&off, 1_600).0, hidden(&off, 1_600).1), (false, 0), "off: at its wait's end");
     }
