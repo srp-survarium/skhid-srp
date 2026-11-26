@@ -1545,9 +1545,10 @@ impl Bots {
         let sides: std::collections::BTreeSet<i32> =
             tactics.world.map.spawns.iter().map(|s| s.team).collect();
         let summary = format!(
-            "{} damage zones over {} floors; exits by side {:?}; human routes by side {:?}",
+            "{} damage zones over {} floors ({}); exits by side {:?}; human routes by side {:?}",
             tactics.hazards.zones.len(),
             tactics.hazards.marked(),
+            tactics.base_exit_fields_line(),
             sides
                 .iter()
                 .map(|side| (*side, tactics.exits(*side).len()))
