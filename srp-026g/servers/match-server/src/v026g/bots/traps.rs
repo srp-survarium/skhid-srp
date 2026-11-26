@@ -994,10 +994,10 @@ pub(super) fn camper_tick(
         }
         true
     });
-    // [bot traps T1, T2] A place no longer held keeps its point for the team's memory of a camp place
+    // [bot traps T1] A place no longer held keeps its point for the team's memory of a camp place
     // (`threat::CAMP_KILLS_KEPT_MS`): no bot is sent to it, a mate whose walk passes it lays the trap (`think`), and a bot sent
-    // while it was held walks on to it (its play's time, its death or its trap end the walk). What is over: a point that long
-    // past its hold. A point with a standing trap of the team on it is trapped (nothing sent, not searched again); when that
+    // while it was held is let go (its play ends at its next think, `camper_job_point`): walked on, those walks cost 15 more
+    // deaths of sent bots in 96 bench matches for 6 more traps. What is over: a point that long past its hold. A point with a standing trap of the team on it is trapped (nothing sent, not searched again); when that
     // trap is gone it wants another.
     let standing: Vec<Vec3> = knowledge.traps.standing().map(|k| k.at).collect();
     knowledge.camper_traps.retain_mut(|c| {
@@ -1006,6 +1006,10 @@ pub(super) fn camper_tick(
             (CamperHold::Over { .. }, true) => c.hold = CamperHold::Held,
             (CamperHold::Held, false) => {
                 c.hold = CamperHold::Over { since: now };
+                if let CamperTrapState::Sent { placer, .. } = c.state {
+                    c.state = CamperTrapState::Open;
+                    said.push(format!("team {team}: {}'s way in at {}: its place is no longer held; bot {placer} is let go", c.spot, xyz(c.at)));
+                }
                 #[cfg(test)]
                 camper::count(team, camper::KEPT);
                 said.push(format!(
@@ -1161,15 +1165,16 @@ fn runs_job(bot: &Bot, spot: u32) -> bool {
     bot.assignment.as_ref().is_some_and(|a| a.kind == PlayKind::TrapSpot && a.target == TargetRef::ThreatSpot(spot))
 }
 
-/// [bot traps T3] The point of held line `spot` a bot of `place` runs the job's play on: sent to it, or open (the commander's
-/// pass gave it the play since the job's last tick, which marks it sent then).
+/// [bot traps T3] The point of held line `spot` a bot of `place` runs the job's play on: sent to it, or open while its place is
+/// held (the commander's pass gave it the play since the job's last tick, which marks it sent then). A point no longer held is
+/// none: the play ends.
 pub fn camper_job_point(knowledge: &super::know::TeamKnowledge, place: super::view::Place, spot: u32) -> Option<&super::know::CamperTrap> {
     use super::know::CamperTrapState;
     knowledge.camper_traps.iter().find(|c| {
         c.spot == spot
             && match c.state {
                 CamperTrapState::Sent { placer, .. } => placer == place,
-                CamperTrapState::Open => true,
+                CamperTrapState::Open => c.hold == super::know::CamperHold::Held,
                 CamperTrapState::Trapped => false,
             }
     })
@@ -6168,9 +6173,12 @@ mod tests {
         assert!(matches!(k.camper_traps[0].state, CamperTrapState::Sent { placer: 0, .. }), "{:?}", k.camper_traps[0]);
         camper_tick(&bots, &mut k, &s.view, &s.tactics, &t, 0, std::slice::from_ref(&line), 1_800, &mut notes);
         assert!(matches!(k.camper_traps[0].state, CamperTrapState::Sent { placer: 0, .. }));
-        // [T2] Its place no longer held: the bot walks on, sent; [T1] an open kept point is sent to nobody.
+        // Its place no longer held: the bot is let go (its play's step finds no job point); [T1] an open kept point is sent to
+        // nobody.
         camper_tick(&bots, &mut k, &s.view, &s.tactics, &t, 0, &[], 2_000, &mut notes);
-        assert!(matches!(k.camper_traps[0].state, CamperTrapState::Sent { placer: 0, .. }), "T2: it walks on");
+        assert_eq!(k.camper_traps[0].state, CamperTrapState::Open, "let go at the hold's end");
+        assert!(camper_job_point(&k, 0, 7).is_none(), "no job point: its play ends");
+        assert!(notes.iter().any(|n| n.text.contains("bot 0 is let go")), "{notes:?}");
         bots[0].as_mut().unwrap().assignment = None;
         camper_tick(&bots, &mut k, &s.view, &s.tactics, &t, 0, &[], 2_100, &mut notes);
         assert_eq!(k.camper_traps[0].state, CamperTrapState::Open);
