@@ -2461,6 +2461,15 @@ impl Route {
             };
             let s = self.along[segment] + t * length2.sqrt();
             let above = |from: f32| feet.y > self.highest_floor(from, s) + OFF_ROUTE_HEIGHT_M;
+            // [under a jump leg] A jump's leg keeps [`OFF_ROUTE_HEIGHT_M`] (its floor rises by the jump along it), but a body under
+            // both its take-off and its landing by more than a walk's band is on neither: it came back down off the jump's top, and
+            // the leg it stands under is not its way. Level 1's ledge (-42.32, 22.46, -77.40) -> (-41.82, 23.48, -77.40) and the gap
+            // jump on from that top: a short press carried the body over the top's line in the air, the route went on to the gap
+            // jump's leg, and the body, fallen back to 22.4, was lined up for that jump's take-off 1.1 m over it until its tries
+            // ran out (v65 C tdm-m1-s4 place 11, 12-29 s; the 16 stuck episodes there last 16-17 s, in every arm).
+            if self.under_jump_leg(segment, feet) {
+                continue;
+            }
             #[cfg(test)]
             if self.past_drop == PastDrop::Landed
                 && feet.y >= self.floor_at(s) - self.below_m(segment)
@@ -2490,6 +2499,18 @@ impl Route {
         }
         self.segment = best.1;
         (self.along[best.1] + best.2, best.0)
+    }
+
+    /// [under a jump leg] Whether `segment` is a jump's leg the feet are under both ends of by more than a walk's band.
+    fn under_jump_leg(&self, segment: usize, feet: Vec3) -> bool {
+        let (a, b) = (self.points[segment].at, self.points[segment + 1].at);
+        self.points[segment + 1].jump.is_some() && feet.y < a.y.min(b.y) - self.below_walk_m
+    }
+
+    /// [under a jump leg] The take-off of the jump's leg the body was last found on, when the feet are now under it (a route
+    /// [`Self::progress`] lost for that reason; the trace's `nav: fell back under a jump leg` line).
+    pub fn fallen_under_jump(&self, feet: Vec3) -> Option<Vec3> {
+        (self.segment + 1 < self.points.len() && self.under_jump_leg(self.segment, feet)).then(|| self.points[self.segment].at)
     }
 
     /// How far along the route the body was last found: the start of its segment ([`Self::progress`]), metres.
@@ -3670,6 +3691,45 @@ mod tests {
             (s - 2.0).abs() < 1e-3 && (off - 0.5).abs() < 1e-3,
             "{s} {off}"
         );
+    }
+
+    /// A body that came back down off a jump's top, after its route went on
+    /// to the next jump's leg from that top, is off the route; one on the
+    /// top, or rising by the jump, is on it. The case of level 1's ledge
+    /// (-42.32, 22.46, -77.40) -> (-41.82, 23.48, -77.40) and the gap jump
+    /// on from that top (v65 C tdm-m1-s4 place 11).
+    #[test]
+    fn a_body_fallen_back_under_a_jump_leg_is_off_it() {
+        let p = |x, y, z, jump| Waypoint {
+            at: Vec3::new(x, y, z),
+            node: 0,
+            jump,
+            low: false,
+        };
+        let route = Route::new(vec![
+            p(-44.0, 22.46, -77.4, None),
+            p(-42.32, 22.46, -77.4, None),
+            p(-41.82, 23.48, -77.4, Some(Leap::Ledge)),
+            p(-40.6, 23.6, -77.9, Some(Leap::Ledge)),
+        ]);
+        // The short press: in the air over the top's line, the route goes on to the gap jump's leg.
+        let mut in_air = route.clone();
+        in_air.progress(Vec3::new(-43.0, 22.46, -77.4));
+        let (_, off) = in_air.progress(Vec3::new(-41.58, 23.31, -78.21));
+        assert!(off.is_finite(), "{off}");
+        assert_eq!(in_air.segment, 2);
+        // Fallen back to the floor under the top: 1.1 m under the gap jump's take-off.
+        let fell = Vec3::new(-41.6, 22.4, -77.6);
+        let mut fallen = in_air.clone();
+        let (_, off) = fallen.progress(fell);
+        assert!(off.is_infinite(), "{off}");
+        assert_eq!(fallen.fallen_under_jump(fell), Some(Vec3::new(-41.82, 23.48, -77.4)));
+        assert_eq!(in_air.fallen_under_jump(Vec3::new(-41.6, 23.48, -77.6)), None);
+        // On the top, and a step under it, it is still on the gap jump's leg.
+        for y in [23.48, 22.8] {
+            let (_, off) = in_air.clone().progress(Vec3::new(-41.6, y, -77.6));
+            assert!(off.is_finite(), "{y}: {off}");
+        }
     }
 
     /// A body falling down its route's own drop is on the route while in

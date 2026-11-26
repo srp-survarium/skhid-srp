@@ -2383,6 +2383,14 @@ fn drive_tick_inner(
                         {
                             bot.stuck.fell(time, from);
                         }
+                        // [under a jump leg] Off the route because it came back down under the jump leg it was on.
+                        if let Walked::Off(off) = walked
+                            && off.is_infinite()
+                            && let Some(take_off) = route.fallen_under_jump(pose.feet)
+                        {
+                            let line = super::nav_log::under_jump_leg_line(take_off, pose.feet);
+                            bot.nav_log.push(super::nav_log::Kind::Jump, time, line);
+                        }
                         // A jump it could not make: its take-off, likewise
                         // (not an escape's: a pocket's rim is no way).
                         if let Walked::JumpFailed(take_off) = walked

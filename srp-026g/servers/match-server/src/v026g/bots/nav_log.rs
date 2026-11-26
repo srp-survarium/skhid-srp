@@ -639,6 +639,17 @@ pub fn route_line(from: Option<Vec3>, goal: Vec3, verdict: &str) -> String {
     format!("{PREFIX}no way from {from} to {}: {verdict}", at(goal))
 }
 
+/// [under a jump leg] A route lost because the body came back down under the jump leg it was on (`Route::fallen_under_jump`):
+/// `nav: fell back under a jump leg: take-off (..) from feet (..), D m under it; planned again`.
+pub fn under_jump_leg_line(take_off: Vec3, feet: Vec3) -> String {
+    format!(
+        "{PREFIX}fell back under a jump leg: take-off {} from feet {}, {:.2} m under it; planned again",
+        at(take_off),
+        at(feet),
+        take_off.y - feet.y
+    )
+}
+
 /// [T2] A route jump given up after its tries (`Stuck::failed_jump`): `nav: jump failed: from (..) to (..|no landing), feet (..),
 /// its landing shut for S s[; the goal on its landing]`. One line a link a shut (`drive.rs`).
 pub fn failed_jump_line(take_off: Vec3, landing: Option<Vec3>, feet: Vec3, shut_ms: u32, goal_on_landing: bool) -> String {
