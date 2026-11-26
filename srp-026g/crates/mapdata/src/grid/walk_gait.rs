@@ -23,9 +23,7 @@
 use super::controlled::walk_share;
 use super::memo::{Codec, Memo, MemoCodec, MemoInput, Mode, Site, StableIds, Windows};
 use super::rim::{gap_leads, Riser, OWN_TOP_FLAT_M};
-use super::controlled::WalkStart;
-use super::{LinkKind, NodeId, WalkGrid, Wide, DIRS, NONE};
-use crate::controller::jump::{self, Kits};
+use super::{LinkKind, WalkGrid, Wide, DIRS, NONE};
 use crate::controller::tick::{Controller, Settings};
 use crate::motion::{self, ClientBody, Input, Kin, Pass};
 use crate::controller::Collision;
@@ -150,14 +148,14 @@ impl WalkGrid {
     /// [body physics S6c] The verdicts of `todo` (take-off, top, way) through the memo's site `walk.gait` ([`walk_gait_job`]), each
     /// at its link's place. Its window is the rim line site's ([`WalkGrid::flight_reach_m`]: the press flights read the floors
     /// that far, the walks only the two floors' places); with the memo on, a press point or a flight past it stops the build.
-    fn walk_gait_memo(&self, world: &Collision, s: &Settings, start: WalkStart, todo: &[(u32, u32, usize)], memo: &mut Memo) -> Vec<GaitVerdict> {
+    fn walk_gait_memo(&self, world: &Collision, s: &Settings, start: super::controlled::WalkStart, todo: &[(u32, u32, usize)], memo: &mut Memo) -> Vec<GaitVerdict> {
         let on = memo.mode() != Mode::Off;
         let reach_m = self.flight_reach_m();
         let window_cells = ((reach_m + self.body.radius + OWN_TOP_FLAT_M + self.cell) / self.cell).ceil() as i64;
         let windows = on.then(|| Windows::of_floors(self));
         let leads = gap_leads();
         if on {
-            let n = jump::neighbourhood();
+            let n = crate::controller::jump::neighbourhood();
             let press_m = leads.iter().copied().fold(0.0f32, f32::max)
                 + n.iter().map(|n| n.lead.abs()).fold(0.0f32, f32::max)
                 + n.iter().map(|n| n.side.abs()).fold(0.0f32, f32::max);
@@ -172,7 +170,7 @@ impl WalkGrid {
                 window: windows.as_ref().map_or(0, |w| w.around(self.cell_of[a as usize] as usize, window_cells)),
             })
             .collect();
-        let kits = Kits { body: jump::WALK_CAP_MS, fastest: self.body.fastest_walk_cap };
+        let kits = crate::controller::jump::Kits { body: crate::controller::jump::WALK_CAP_MS, fastest: self.body.fastest_walk_cap };
         let ctx = WalkGaitCtx { leads, kits, reach_m, window_cells, grid: self, world, s, start };
         let site = Site { id: "walk.gait", source: crate::source::site("walk.gait") };
         let out = memo.run(site, self, &ctx, &items, walk_gait_key, walk_gait_job);
@@ -189,8 +187,8 @@ impl WalkGrid {
 /// and the digest of the floors in its window ([`Windows::of_floors`]).
 #[derive(Clone, Debug)]
 pub(super) struct WalkGaitItem {
-    a: NodeId,
-    b: NodeId,
+    a: super::NodeId,
+    b: super::NodeId,
     d: usize,
     window: u128,
 }
@@ -200,14 +198,14 @@ crate::memo_ctx! {
     /// grid, the world, the tick's settings and the start, read through the items' windows and the memo's global inputs.
     pub(super) struct WalkGaitCtx<'a> {
         leads: Vec<f32>,
-        kits: Kits,
+        kits: crate::controller::jump::Kits,
         reach_m: f32,
         window_cells: i64,
     } through {
         grid: &'a WalkGrid,
         world: &'a Collision,
         s: &'a Settings,
-        start: WalkStart,
+        start: super::controlled::WalkStart,
     }
 }
 
