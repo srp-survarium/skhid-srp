@@ -57,9 +57,9 @@ public.**
 | Tool | Use |
 |---|---|
 | `common/pdb-procs/` | Rust program (crate `pdb`) that writes the function list of a build that has a PDB: `cargo build --release`, then run it on `survarium.pdb` and keep the output (`address length name`, sorted; 41,797 lines for 0.21d). Grep a name to get its address, or bisect an address to get its function |
-| `common/scripts/dis.py <build> VA LEN`, `dis.sh VA LEN` | Disassemble LEN bytes at VA with ndisasm |
+| `common/scripts/dis.py <build> VA LEN`, `dis.sh <build> VA LEN` | Disassemble LEN bytes at VA with ndisasm |
 | `common/scripts/callers.py <build> VA ...` | Every direct `call VA` site (E8 scan). Indirect calls (vtables) are not found |
-| `common/scripts/xref.py`, `fn.py` | References to an address; the function an address is in (from the function list) |
+| `common/scripts/xref.py <build> TEXT`, `fn.py <build> ADDR\|NAME` | Where the code uses a string (every 4-byte reference to its address); the function an address is in, or the functions with a name (from the function list) |
 | `common/scripts/symbolize.py <dumpbin.txt> ADDR...` | Map addresses to the function labels of a dumpbin listing |
 | `common/scripts/pe.py`, `rva.py` | Print PE sections, convert addresses |
 | `common/scripts/match_functions.py` | Matches the functions of a build without symbols (0.26g) against one with them (0.21d): exact bytes, shape, strings, call graph, vtables. Its docstring has the method and how sure each kind of match is; `srp-026g/docs/notes/client_patch.md` has the numbers |
