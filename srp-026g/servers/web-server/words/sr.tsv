@@ -950,3 +950,19 @@ A key fires every ready copy of its kind and restarts the cooldown of the ones s
 Copies of a kind add up (Onyx's passive multiplies); at most 4 count.	Kopije iste vrste se sabiraju (pasiv Oniksa se množi); računaju se najviše 4.
 Spring's and Larkspur's actives add to the passive; Onyx's replaces it.	Aktivacija Federa i Živokosta dodaje se pasivu; Oniksova ga zamenjuje.
 Onyx fired together: one reduction, 1 s longer per extra copy.	Oniksi aktivirani zajedno: jedno smanjenje, 1 s duže za svaku dodatnu kopiju.
+
+# The maps' anomalies (scripts/maps-tab/ui.js)
+Anomalies	Anomalije
+Anomaly	Anomalija
+Artefacts come from the anomalies. Each anomaly puts one of its artefacts into one of its free containers, one per time window, until its maximum lies uncollected; a pickup starts the window again. It gives only those of its artefacts that no player is carrying. Point at an anomaly or an artefact (or tap it) for its numbers.	Artefakti dolaze iz anomalija. Svaka anomalija stavlja jedan od svojih artefakata u jedan od svojih slobodnih kontejnera, jedan po vremenskom prozoru, dok ne leži njen maksimum nesakupljenih; podizanje artefakta pokreće prozor iznova. Daje samo one svoje artefakte koje ne nosi nijedan igrač. Pokažite na anomaliju ili artefakt (ili ga dodirnite) za njene brojke.
+{s} s	{s} s
+{a}–{b} s	{a}–{b} s
+Holds	Sadrži
+First one	Prvi
+Then every	Zatim svakih
+Chance	Šansa
+Max uncollected	Najviše nesakupljenih
+Search	Pretraga	artefact
+Zones switch every	Zone se smenjuju svakih
+After a pickup the next one comes {next} later; that container stays empty for {cooldown}.	Posle podizanja sledeći dolazi za {next}; taj kontejner ostaje prazan {cooldown}.
+Its own zone does no damage.	Njena sopstvena zona ne nanosi štetu.

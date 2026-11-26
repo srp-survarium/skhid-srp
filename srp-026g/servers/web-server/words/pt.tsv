@@ -950,3 +950,19 @@ A key fires every ready copy of its kind and restarts the cooldown of the ones s
 Copies of a kind add up (Onyx's passive multiplies); at most 4 count.	Cópias de um tipo se somam (o passivo do Ônix se multiplica); contam no máximo 4.
 Spring's and Larkspur's actives add to the passive; Onyx's replaces it.	O ativo da Fonte e da Espora soma-se ao passivo; o do Ônix o substitui.
 Onyx fired together: one reduction, 1 s longer per extra copy.	Ônix ativados juntos: uma redução, 1 s a mais por cópia extra.
+
+# The maps' anomalies (scripts/maps-tab/ui.js)
+Anomalies	Anomalias
+Anomaly	Anomalia
+Artefacts come from the anomalies. Each anomaly puts one of its artefacts into one of its free containers, one per time window, until its maximum lies uncollected; a pickup starts the window again. It gives only those of its artefacts that no player is carrying. Point at an anomaly or an artefact (or tap it) for its numbers.	Os artefatos vêm das anomalias. Cada anomalia coloca um dos seus artefatos em um dos seus recipientes livres, um por janela de tempo, até que o seu máximo esteja à espera de coleta; uma coleta reinicia a janela. Ela só dá os seus artefatos que nenhum jogador está carregando. Aponte para uma anomalia ou um artefato (ou toque nele) para ver os números dela.
+{s} s	{s} s
+{a}–{b} s	{a}–{b} s
+Holds	Contém
+First one	Primeiro
+Then every	Depois a cada
+Chance	Chance
+Max uncollected	Máx. não coletados
+Search	Busca	artefact
+Zones switch every	Zonas alternam a cada
+After a pickup the next one comes {next} later; that container stays empty for {cooldown}.	Após uma coleta, o próximo vem {next} depois; esse recipiente fica vazio por {cooldown}.
+Its own zone does no damage.	A própria zona dela não causa dano.

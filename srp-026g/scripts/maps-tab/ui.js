@@ -33,6 +33,7 @@
     { key: "bases", label: T("Bases") },
     { key: "units", label: T("Research units") },
     { key: "resupply", label: T("Ammo stashes") },
+    { key: "anomalies", label: T("Anomalies") },
     ...Object.entries(MAPS.artefacts).map(([k, a]) => ({ key: "art:" + k, label: N(a.name), icon: a.icon })),
   ];
   const state = {
@@ -131,6 +132,34 @@
       svgEl("circle", { cx: x, cy: y, r: r * 0.56, fill: GLOW }),
       svgEl("circle", { cx: x - r * 0.18, cy: y - r * 0.18, r: r * 0.2, fill: "#fff", "fill-opacity": 0.9 }));
   };
+  // An anomaly is tinted by the artefacts it holds: each kind its glow's colour (artefacts.md, "The
+  // stock glow": Lifebone green, Spring blue, Onyx orange); one holding two kinds, in stripes of both.
+  const KIND = { lifebone: "#3fc41a", spring: "#2f7dff", onyx: "#ff8a1f" };
+  const kindsOf = a => a.gives.map(([k]) => k);
+  // Its paint: a colour, or a stripes pattern of `defs` (drawn anew with the map: `u` metres a pixel).
+  function tint(a, defs, u) {
+    const kinds = kindsOf(a).filter(k => KIND[k]);
+    if (kinds.length < 2) return KIND[kinds[0]] || "#9aa0a6";
+    const id = "mix-" + kinds.join("-"), w = 6 * u;
+    if (!defs.querySelector("#" + id))
+      defs.append(svgEl("pattern", { id, patternUnits: "userSpaceOnUse", width: w * kinds.length, height: w * kinds.length, patternTransform: "rotate(45)" },
+        ...kinds.map((k, n) => svgEl("rect", { x: n * w, y: 0, width: w, height: w * kinds.length, fill: KIND[k] }))));
+    return `url(#${id})`;
+  }
+  // Its zones seen from above: the damaging ones filled, the harmless ones (sound and sight) faint and
+  // dashed. Each layer's opacity is its group's, so overlapping shapes (School's fruit has 42) read
+  // as one flat area; the edges are drawn over them, thin.
+  function area(a, i, u, defs) {
+    const paint = tint(a, defs, u);
+    const shape = (s, look) => (s.c ? svgEl("circle", { cx: s.c[0], cy: -s.c[1], r: s.c[2], ...look })
+      : svgEl("polygon", { points: s.p.map(([x, z]) => `${x},${-z}`).join(" "), ...look }));
+    const layer = (hurt, opacity) => svgEl("g", { opacity }, ...a.areas.filter(s => s.hurt === hurt).map(s => shape(s, { fill: paint })));
+    const edge = { fill: "none", stroke: paint, "stroke-opacity": 0.85, "stroke-width": 1.2 * u };
+    return svgEl("g", { class: "anom", "data-a": i, tabindex: 0, role: "button", "aria-label": T("Anomaly") },
+      layer(false, 0.1), layer(true, 0.32),
+      ...a.areas.map(s => shape(s, s.hurt ? edge : { ...edge, "stroke-dasharray": `${4 * u} ${3 * u}` })));
+  }
+
   // Legend swatches, drawn as the markers are.
   // Two teams in one swatch: blue above and behind, red below and in front.
   const swatch = (key, mo) => {
@@ -144,6 +173,10 @@
     if (key === "units") s.append(unitMark(0, 0, 0, 18, 1));
     if (key === "hunt") s.append(orb(0, 0, 18, 1));
     if (key === "bases") s.append(hud("base", -4, -2, 16, 1, "t0"), hud("base", 4, 2, 16, 1, "t1"));
+    if (key === "anomalies") {
+      const kinds = [...new Set(map().anomalies.flatMap(kindsOf))].filter(k => KIND[k]);
+      kinds.forEach((k, n) => s.append(svgEl("circle", { cx: (n - (kinds.length - 1) / 2) * 6, cy: 0, r: 6, fill: KIND[k], "fill-opacity": 0.45, stroke: KIND[k], "stroke-width": 1.2 })));
+    }
     return s;
   };
 
@@ -158,6 +191,7 @@
     const counts = {
       respawn: mo.respawn.length, spawners: mo.spawners.length, stations: mo.stations.length, containers: mo.containers.length,
       resupply: mo.resupply.length, units: (mo.units || []).length, hunt: mo.hunt.length, bases: mo.bases.length,
+      anomalies: m.anomalies.length,
       ...Object.fromEntries(Object.keys(MAPS.artefacts).map(k => ["art:" + k, m.artefacts.filter(a => a[3].includes(k)).length])),
     };
     $("layers").replaceChildren(...LAYERS.map(l => {
@@ -171,6 +205,52 @@
     }));
     const tdm = !mo.spawners.length && !mo.stations.length;
     $("note").textContent = mo.batteries && !tdm ? Tf("{n} batteries to win.", { n: mo.batteries }) : "";
+    $("anote").textContent = m.anomalies.length
+      ? T("Artefacts come from the anomalies. Each anomaly puts one of its artefacts into one of its free containers, one per time window, until its maximum lies uncollected; a pickup starts the window again. It gives only those of its artefacts that no player is carrying. Point at an anomaly or an artefact (or tap it) for its numbers.")
+      : "";
+  }
+
+  // The floating card of anomaly `i` of the map: what it holds and when it gives it.
+  const card = $("card");
+  const secs = (lo, hi) => (lo === hi ? Tf("{s} s", { s: lo }) : Tf("{a}–{b} s", { a: lo, b: hi }));
+  const span = list => secs(Math.min(...list), Math.max(...list));
+  function fillCard(i) {
+    const a = map().anomalies[i], art = MAPS.artefacts;
+    const rows = [
+      [T("Holds"), a.gives.map(([k, n]) => `${art[k] ? N(art[k].name) : k} ×${n}`).join(" · ")],
+      [T("First one"), secs(...a.first)],
+      [T("Then every"), secs(...a.next)],
+      ...(a.chance < 1 ? [[T("Chance"), `${Math.round(a.chance * 100)} %`]] : []),
+      [T("Max uncollected"), String(a.max)],
+      [T("Containers"), String(a.containers)],
+      [Tc("artefact", "Search"), span(a.search)],
+      ...a.switch.map(([lo, hi]) => [T("Zones switch every"), secs(lo, hi)]),
+    ];
+    const harmless = a.areas.length && !a.areas.some(s => s.hurt);
+    card.replaceChildren(
+      el("div", { class: "card-h" }, ...kindsOf(a).filter(k => art[k]).map(k => el("img", { src: art[k].icon, alt: "" })),
+        el("span", { text: kindsOf(a).map(k => (art[k] ? N(art[k].name) : k)).join(" · ") })),
+      el("dl", {}, ...rows.flatMap(([k, v]) => [el("dt", { text: k }), el("dd", { text: v })])),
+      el("p", { text: Tf("After a pickup the next one comes {next} later; that container stays empty for {cooldown}.", { next: secs(...a.next), cooldown: span(a.cooldown) }) }),
+      ...(harmless ? [el("p", { text: T("Its own zone does no damage.") })] : []));
+  }
+  // Shown at (x, y), the pointer's place in the stage, kept inside it.
+  function showCard(i, x, y) {
+    if (card.dataset.a !== String(i)) { fillCard(i); card.dataset.a = i; }
+    card.hidden = false;
+    // Beside the pointer, inside the map (the board's top left is the map's); a phone's is under the map.
+    const s = $("stage").getBoundingClientRect(), w = card.offsetWidth, h = card.offsetHeight;
+    const under = getComputedStyle(card).position === "static";
+    card.style.left = under ? "" : `${x + 16 + w > s.width ? Math.max(4, x - 16 - w) : x + 16}px`;
+    card.style.top = under ? "" : `${Math.max(4, Math.min(y + 16, s.height - h - 4))}px`;
+    svg.classList.add("focus");
+    for (const e of svg.querySelectorAll("[data-a]")) e.classList.toggle("on", e.dataset.a.split(" ").includes(String(i)));
+  }
+  function hideCard() {
+    pinned = null;
+    card.hidden = true;
+    delete card.dataset.a;
+    svg.classList.remove("focus");
   }
 
   // The view box: the play area, the same for maps in one frame.
@@ -202,6 +282,9 @@
     const img = state.view === "render" && m.render ? m.render : { src: m.minimap, box: m.box };
     const [bx0, by0, bx1, by1] = img.box;
     kids.push(svgEl("image", { href: img.src, x: bx0, y: by0, width: bx1 - bx0, height: by1 - by0, preserveAspectRatio: "none" }));
+    const defs = svgEl("defs");
+    kids.push(defs);
+    if (state.on.anomalies) m.anomalies.forEach((a, i) => kids.push(area(a, i, u, defs)));
     const team = t => (t === 0 ? "var(--team0)" : t === 1 ? "var(--team1)" : "var(--team-x)");
     const teamName = t => (t === 0 || t === 1 ? Tf("team {n}", { n: t + 1 }) : T("any team"));
     const tip = text => svgEl("title", {}, text);
@@ -213,13 +296,13 @@
       kids.push(svgEl("g", { class: "mk" }, hud("battery", x, -z, 20, u), tip(T("Battery spawn"))));
     if (state.on.stations) for (const [x, z] of mo.stations)
       kids.push(svgEl("g", { class: "mk" }, hud("charger", x, -z, MAPS.hud.charger.h, u), tip(T("Charger"))));
-    for (const [x, z, , kinds] of m.artefacts) {
+    // Each container's artefacts; pointing at one shows its anomaly's card (`data-a`: its anomalies).
+    for (const [x, z, , kinds, owners] of m.artefacts) {
       const shown = kinds.filter(k => state.on["art:" + k]);
       shown.forEach((k, i) => {
         const s = 24 * u, dx = (i - (shown.length - 1) / 2) * s * 0.9;
-        kids.push(svgEl("g", { class: "mk" },
-          svgEl("image", { href: MAPS.artefacts[k].icon, x: x + dx - s / 2, y: -z - s / 2, width: s, height: s, filter: outline() }),
-          tip(kinds.map(k => N(MAPS.artefacts[k].name)).join(", "))));
+        kids.push(svgEl("g", { class: "mk art", "data-a": owners.join(" "), "aria-label": kinds.map(k => N(MAPS.artefacts[k].name)).join(", ") },
+          svgEl("image", { href: MAPS.artefacts[k].icon, x: x + dx - s / 2, y: -z - s / 2, width: s, height: s, filter: outline() })));
       });
     }
     if (state.on.bases) for (const [x, z, , t] of mo.bases)
@@ -233,7 +316,34 @@
       kids.push(svgEl("g", { class: "mk" }, hud("player", x, -z, MAPS.hud.player.h, u, solo(mo) ? "solo" : tintOf(t), facing),
         tip(solo(mo) ? T("Spawn") : `${T("Spawn")}, ${teamName(t)}`)));
     svg.replaceChildren(...kids);
+    hideCard();
   }
+
+  // The card follows the pointer over an anomaly or an artefact; a tap (or a click) keeps it until
+  // a tap elsewhere; the keyboard shows it by an anomaly's focus.
+  let pinned = null;
+  const target = e => e.target.closest?.("[data-a]");
+  const at = e => { const s = $("stage").getBoundingClientRect(); return [e.clientX - s.left, e.clientY - s.top]; };
+  svg.addEventListener("pointermove", e => {
+    if (pinned !== null) return;
+    const t = target(e);
+    if (t && t.dataset.a !== "") showCard(Number(t.dataset.a.split(" ")[0]), ...at(e));
+    else hideCard();
+  });
+  svg.addEventListener("pointerleave", () => { if (pinned === null) hideCard(); });
+  svg.addEventListener("click", e => {
+    const t = target(e);
+    if (t && t.dataset.a !== "") { pinned = Number(t.dataset.a.split(" ")[0]); showCard(pinned, ...at(e)); }
+    else hideCard();
+  });
+  svg.addEventListener("focusin", e => {
+    const t = target(e);
+    if (!t) return;
+    const r = t.getBoundingClientRect(), s = $("stage").getBoundingClientRect();
+    showCard(Number(t.dataset.a.split(" ")[0]), r.right - s.left, r.top - s.top);
+  });
+  svg.addEventListener("focusout", () => { if (pinned === null) hideCard(); });
+  addEventListener("keydown", e => { if (e.key === "Escape") hideCard(); });
 
   function go() {
     history.replaceState(null, "", `#${state.map}/${state.mode || ""}`);

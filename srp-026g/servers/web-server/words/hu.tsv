@@ -950,3 +950,19 @@ A key fires every ready copy of its kind and restarts the cooldown of the ones s
 Copies of a kind add up (Onyx's passive multiplies); at most 4 count.	Egy fajta példányai összeadódnak (az Ónix passzívja szorzódik); legfeljebb 4 számít.
 Spring's and Larkspur's actives add to the passive; Onyx's replaces it.	A Rugó és a Szarkaláb aktívja hozzáadódik a passzívhoz; az Ónixé felváltja azt.
 Onyx fired together: one reduction, 1 s longer per extra copy.	Együtt aktivált Ónixok: egy csökkentés, minden további példányért 1 mp-cel tovább.
+
+# The maps' anomalies (scripts/maps-tab/ui.js)
+Anomalies	Anomáliák
+Anomaly	Anomália
+Artefacts come from the anomalies. Each anomaly puts one of its artefacts into one of its free containers, one per time window, until its maximum lies uncollected; a pickup starts the window again. It gives only those of its artefacts that no player is carrying. Point at an anomaly or an artefact (or tap it) for its numbers.	Az artefaktumokat az anomáliák adják. Minden anomália egy saját artefaktumát teszi egy saját szabad tárolójába, időablakonként egyet, amíg a maximuma begyűjtetlenül ott nem fekszik; egy felvétel újraindítja az ablakot. Csak azokat a saját artefaktumait adja, amelyeket egy játékos sem visel. Mutass egy anomáliára vagy artefaktumra (vagy koppints rá) a számaiért.
+{s} s	{s} mp
+{a}–{b} s	{a}–{b} mp
+Holds	Tartalmaz
+First one	Első
+Then every	Ezután
+Chance	Esély
+Max uncollected	Legfeljebb begyűjtetlen
+Search	Keresés	artefact
+Zones switch every	Zónaváltás
+After a pickup the next one comes {next} later; that container stays empty for {cooldown}.	Felvétel után a következő {next} múlva jön; az a tároló {cooldown} üres marad.
+Its own zone does no damage.	A saját zónája nem sebez.

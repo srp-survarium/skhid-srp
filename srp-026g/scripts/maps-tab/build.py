@@ -185,34 +185,155 @@ def heading(o):
     return round(math.degrees(math.atan2(-vz, vx)) - 90) % 360
 
 
+def rotation(angles):
+    """The rows i, j, k (where local x, y, z go) of the engine's `create_rotation`
+    (Rx · Ry · Rz for row vectors), as mapdata's `Rotation::from_angles`."""
+    (xs, ys, zs), (xc, yc, zc) = ([math.sin(a) for a in angles], [math.cos(a) for a in angles])
+    return ((yc * zc, -yc * zs, ys),
+            (ys * xs * zc + xc * zs, -xs * ys * zs + xc * zc, -xs * yc),
+            (-xc * ys * zc + xs * zs, xc * ys * zs + xs * zc, xc * yc))
+
+
+def turn(rows, v):
+    """`v` through the rotation `rows` (v · R)."""
+    return tuple(rows[0][n] * v[0] + rows[1][n] * v[1] + rows[2][n] * v[2] for n in range(3))
+
+
+def hull(points):
+    """The convex hull of [x, z] points, counter-clockwise (Andrew's monotone chain)."""
+    points = sorted(set(points))
+    if len(points) < 3:
+        return points
+    cross = lambda o, a, b: (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0])
+    lower, upper = [], []
+    for p in points:
+        while len(lower) >= 2 and cross(lower[-2], lower[-1], p) <= 0:
+            lower.pop()
+        lower.append(p)
+    for p in reversed(points):
+        while len(upper) >= 2 and cross(upper[-2], upper[-1], p) <= 0:
+            upper.pop()
+        upper.append(p)
+    return lower[:-1] + upper[:-1]
+
+
+def footprints(geometry):
+    """What a `collision_geometry`'s trigger shapes cover seen from above, as mapdata places them
+    (`geometry_shapes`: the mesh's rotation and position, then the object's scale, rotation and
+    position): {"c": [x, z, r]} for a sphere or an upright cylinder, else {"p": [[x, z], ...]}, the
+    hull of its corners (a box) or of its rims (a tilted cylinder)."""
+    scale = geometry.get("scale") or (1, 1, 1)
+    outer = rotation(geometry.get("rotation") or (0, 0, 0))
+    origin = geometry.get("position") or (0, 0, 0)
+    place = lambda v: [a + b for a, b in zip(turn(outer, [c * s for c, s in zip(v, scale)]), origin)]
+    shapes = []
+    for mesh in geometry.get("meshes") or []:
+        kind = mesh.get("type")
+        if kind not in (0, 1, 2):  # 0 sphere, 1 box, 2 cylinder (no shipped trigger has another)
+            continue
+        half = [h * s for h, s in zip(mesh.get("scale") or (1, 1, 1), scale)]
+        inner = rotation(mesh.get("rotation") or (0, 0, 0))
+        rows = tuple(turn(outer, row) for row in inner)
+        x, _, z = place(mesh.get("position") or (0, 0, 0))
+        up = rows[1][1]
+        if kind == 0 or (kind == 2 and abs(up) > 0.999):
+            shapes.append({"c": [r1(x), r1(z), r1(half[0])]})
+            continue
+        if kind == 1:
+            local = [(a * half[0], b * half[1], c * half[2]) for a in (-1, 1) for b in (-1, 1) for c in (-1, 1)]
+        else:
+            local = [(half[0] * math.cos(t), y * half[1], half[0] * math.sin(t))
+                     for y in (-1, 1) for t in (2 * math.pi * n / 24 for n in range(24))]
+        corners = [turn(rows, v) for v in local]
+        shapes.append({"p": [[r1(x + dx), r1(z + dz)] for dx, dz in hull([(dx, dz) for dx, _, dz in corners])]})
+    return shapes
+
+
+def window(middle, spread):
+    """A time drawn uniformly in middle ± spread seconds, as the anomaly draws it
+    (`artefact_respawn_delay`, never below 0): [earliest, latest], whole seconds."""
+    return [max(0, round(middle - spread)), max(0, round(middle + spread))]
+
+
+def anomaly(core, by_name, artefact_keys):
+    """What an anomaly's card says and its area shows (docs/notes/maps_tab.md, "Anomalies"): the
+    artefacts it holds (its pool: a kind and how many), when the first one comes and then each next
+    (`artefacts_first_spawn_time_sec`, `_respawn_time_sec`, ± `_respawn_variation_sec`), the chance
+    each try has, how many of its artefacts may lie uncollected at once (`max_artefacts_count`), its
+    containers' search time and cooldown, how often its zones switch (a sequential group's
+    `min/max_active_time_sec`) and where it is: its damage zones' shapes seen from above, each
+    marked whether it hurts (`max_hit` > 0)."""
+    variation = core.get("artefacts_respawn_variation_sec", 0)
+    containers = [by_name[name] for name in core["artefact_containers"] if name in by_name]
+    zones, switch = [], set()
+    for state in core.get("states") or []:
+        if not state.get("enabled", True):
+            continue
+        for group in state.get("groups") or []:
+            if not group.get("enabled", True):
+                continue
+            if group.get("sequential_activation") and not group.get("keep_all_zones_active"):
+                switch.add((group.get("min_active_time_sec", 0), group.get("max_active_time_sec", 0)))
+            zones += [name for name in group.get("zones") or [] if name not in zones]
+    # Its zones, each shape marked whether it hurts ("hurt": a damage zone with a hit) or not (an
+    # idle zone of sound and sight: Rudnya's Lifebone anomaly has only that, its twin the damage).
+    areas = []
+    for name in zones:
+        zone = by_name.get(name) or {}
+        if zone.get("game_object_type") != "damage_zone":
+            continue
+        hurt = bool(zone.get("max_hit"))
+        for ref in zone.get("collision_geometries") or []:
+            geometry = by_name.get(ref if isinstance(ref, str) else ref.get("name"))
+            if geometry:
+                areas += [{**shape, "hurt": hurt} for shape in footprints(geometry)]
+    seconds = lambda key: sorted({c.get(key, 0) for c in containers})
+    return {
+        "gives": [[artefact_keys[a["dict_id"]], a.get("count", 0)] for a in core.get("artefacts") or []
+                  if a["dict_id"] in artefact_keys],
+        "first": window(core.get("artefacts_first_spawn_time_sec", 0), variation),
+        "next": window(core.get("artefacts_respawn_time_sec", 0), variation),
+        "chance": round(core.get("artefacts_respawn_chance", 0), 3),
+        "max": core.get("max_artefacts_count", 0),
+        "containers": len(containers),
+        "search": seconds("artefacts_search_time_sec"),
+        "cooldown": seconds("artefacts_cooldown_time_sec"),
+        "switch": sorted(switch),
+        "areas": areas,
+    }
+
+
 def objects(project, artefact_keys):
     """What the tab shows of one project."""
     so = project.get("server_objects") or {}
     spawners = so.get("victory_item_spawners") or []
     stations = [xzy(o) for o in so.get("victory_item_spawn_points") or []]
     client = project.get("client_objects") or []
-    kinds_of = defaultdict(set)
+    by_name = {o.get("full_name"): o for o in client}
+    kinds_of, owners_of, anomalies = defaultdict(set), defaultdict(list), []
     for o in client:
         if o.get("game_object_type") != "generic_anomaly_core":
             continue
         # An anomaly with no container spawns nothing anywhere: Keeper of the Artifacts' hidden
-        # pool (content-edit/artefact-keeper-1.json) is one, and none of it is shown.
-        if not o.get("artefact_containers"):
+        # pool (content-edit/artefact-keeper-1.json) is one, and none of it is shown. Nor is one
+        # whose artefacts are off (`artefacts_enabled`): it never spawns them.
+        if not o.get("artefact_containers") or not o.get("artefacts_enabled"):
             continue
         kinds = {artefact_keys[a["dict_id"]] for a in o.get("artefacts") or [] if a["dict_id"] in artefact_keys}
         for name in o.get("artefact_containers") or []:
             kinds_of[name] |= kinds
+            owners_of[name].append(len(anomalies))
+        anomalies.append(anomaly(o, by_name, artefact_keys))
     # A container's own position is its anomaly's pivot, shared by all of
     # them; where the artefact is found is its collision geometry (the zone
-    # the search runs in).
-    by_name = {o.get("full_name"): o for o in client}
+    # the search runs in). Each is [x, z, y, its kinds, its anomalies (indices)].
     artefacts = []
     for o in client:
         if o.get("game_object_type") == "artefact_container":
             kinds = sorted(kinds_of.get(o.get("full_name"), ()))
             zones = [by_name[c["name"]] for c in o.get("collision_geometries") or [] if c.get("name") in by_name]
             if kinds:
-                artefacts.append(xzy(zones[0] if zones else o) + [kinds])
+                artefacts.append(xzy(zones[0] if zones else o) + [kinds, owners_of[o.get("full_name")]])
     # A team's container and its stash are where their collision zone is:
     # the object's own position can be a pivot far away (level_04's two
     # containers both stand at one team's side by it).
@@ -227,6 +348,7 @@ def objects(project, artefact_keys):
         "containers": sorted(xzy(zone_of(o)) + [o.get("team", -1)] for o in so.get("victory_items_containers") or []),
         "resupply": sorted(resupply),
         "artefacts": sorted(artefacts),
+        "anomalies": anomalies,
     }
 
 
@@ -298,7 +420,7 @@ def main():
         # By build, as the room list (BUILDS), each build's maps by folder.
         for folder in sorted(maps, key=lambda f: (BUILDS.index(maps[f]["build"]), f)):
             m = maps[folder]
-            modes, project_name, artefacts = [], None, None
+            modes, project_name, artefacts, anomalies = [], None, None, None
             for mode_id, layout in sorted(m["modes"]):
                 mm = m["modes"][mode_id, layout]
                 seen = None
@@ -312,6 +434,9 @@ def main():
                 if artefacts is not None and seen["artefacts"] != artefacts:
                     die(f"{folder}: artefact containers differ between modes")
                 artefacts = seen.pop("artefacts")
+                if anomalies is not None and seen["anomalies"] != anomalies:
+                    die(f"{folder}: its anomalies differ between modes")
+                anomalies = seen.pop("anomalies")
                 rules = mm["rules"]
                 if not rules & {GATHER, TIMED}:
                     seen["spawners"], seen["containers"] = [], []
@@ -349,7 +474,8 @@ def main():
             box = [r1(px - s), r1(-py - s), r1(px + s), r1(-py + s)]
             play = [r1(px - s + bbox[0] * k), r1(-py - s + bbox[1] * k), r1(px - s + bbox[2] * k), r1(-py - s + bbox[3] * k)]
             entry = {"key": folder, "name": text(m["map_name"]), "box": box, "play": play,
-                     "minimap": f"{SITE}/minimap/{name}?v={version(blob)}", "modes": modes, "artefacts": artefacts}
+                     "minimap": f"{SITE}/minimap/{name}?v={version(blob)}", "modes": modes, "artefacts": artefacts,
+                     "anomalies": anomalies}
             render = renders.get(folder)
             if render and (RENDERS / render["image"]).is_file():
                 a, b, c, d, e, f = render["pixel_to_world_affine"]

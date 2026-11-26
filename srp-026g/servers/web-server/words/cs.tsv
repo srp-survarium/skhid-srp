@@ -950,3 +950,19 @@ A key fires every ready copy of its kind and restarts the cooldown of the ones s
 Copies of a kind add up (Onyx's passive multiplies); at most 4 count.	Kopie jednoho druhu se sčítají (pasiv Onyxu se násobí); počítají se nejvýše 4.
 Spring's and Larkspur's actives add to the passive; Onyx's replaces it.	Aktivace Pružiny a Ostrožky se přičítá k pasivu; aktivace Onyxu ho nahrazuje.
 Onyx fired together: one reduction, 1 s longer per extra copy.	Onyxy aktivované společně: jedno snížení, o 1 s déle za každou další kopii.
+
+# The maps' anomalies (scripts/maps-tab/ui.js)
+Anomalies	Anomálie
+Anomaly	Anomálie
+Artefacts come from the anomalies. Each anomaly puts one of its artefacts into one of its free containers, one per time window, until its maximum lies uncollected; a pickup starts the window again. It gives only those of its artefacts that no player is carrying. Point at an anomaly or an artefact (or tap it) for its numbers.	Artefakty dávají anomálie. Každá anomálie vloží jeden ze svých artefaktů do jednoho ze svých volných kontejnerů, jeden za časové okno, dokud jich neleží nesebraných její maximum; sebrání artefaktu spustí okno znovu. Dává jen ty své artefakty, které nenese žádný hráč. Ukažte na anomálii nebo artefakt (nebo na ně klepněte) a uvidíte její čísla.
+{s} s	{s} s
+{a}–{b} s	{a}–{b} s
+Holds	Obsahuje
+First one	První
+Then every	Pak každých
+Chance	Šance
+Max uncollected	Max. nesebraných
+Search	Hledání	artefact
+Zones switch every	Zóny se střídají každých
+After a pickup the next one comes {next} later; that container stays empty for {cooldown}.	Po sebrání přijde další za {next}; ten kontejner zůstane {cooldown} prázdný.
+Its own zone does no damage.	Její vlastní zóna nezraňuje.
