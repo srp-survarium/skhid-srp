@@ -101,7 +101,13 @@ pub(super) enum AirClass {
     PlannedDrop,
     /// A fall of [`super::grid::FALL_M`] or more the route has no drop for.
     UnplannedFall,
-    /// Down less than [`super::grid::FALL_M`].
+    /// Down less than [`super::grid::FALL_M`]: a stair, a slope, a kerb. Since the stand-in's bodies are the client's (body
+    /// physics S2, #2560) these are flights too: the client's body is off the ground on every tick its ground is more than
+    /// 0.05 m lower than the tick before (`step_down` 0x7E1B0), and the tallies count it in the air while it goes down faster
+    /// than `standin::CLIENT_FALLING_MS`. The lattice body before S2 walked them. On the 48 gate cells of #2560 the same bots
+    /// had 185 fire ticks here on the lattice body and 904 on the client's, the falls of a metre or more not up (PlannedDrop
+    /// 314 and 174, UnplannedFall 100 and 111). The client neither holds the shot nor widens an aimed-in cone here (the type's doc;
+    /// the cone's state is the logic's stored one, 0x2E1780..0x2E17A7 to 0x331480): told, not a guard.
     ShortStep,
     /// A jump: the jump key held as the body left the ground.
     Jump,
@@ -214,8 +220,10 @@ pub(crate) const TURN_MS: u32 = 3_000;
 /// The keys that strafe: a fire tick with either held counts as fired with a side key.
 pub(crate) const SIDE_KEYS: u32 = key::LEFT | key::RIGHT;
 
-/// The shooter's movement at a fire tick or a hit: in the air (a jump
-/// under way), still (under [`STILL_MPS`] or no walk key), sprinting
+/// The shooter's movement at a fire tick or a hit: in the air (the stand-in's
+/// `Body::in_air`: a jump, a fall, and for a client body every step down it
+/// goes faster than 2 m/s, stairs and slopes included: [`AirClass`] splits
+/// them), still (under [`STILL_MPS`] or no walk key), sprinting
 /// (forward and sprint), strafing (a side key, no forward or back),
 /// walking.
 pub(crate) const MOVES: [&str; 5] = ["still", "walk", "sprint", "strafe", "air"];

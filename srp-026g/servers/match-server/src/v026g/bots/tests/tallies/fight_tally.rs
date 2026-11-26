@@ -861,11 +861,12 @@ impl ReloadTally {
         let count = &mut self.by_line[case.why][usize::from(case.in_line)];
         count[0] += 1;
         count[1] += u32::from(died_ms.is_some());
-        let round = |m: f32| (m * 10.0).round() / 10.0;
+        // Rounded as f64: an f32 in the JSON would print its binary tail.
+        let round = |x: f32, to: f64| (f64::from(x) * to).round() / to;
         serde_json::json!({
             "t": case.at,
-            "reload": [place, case.class, WHY_NAMES[case.why], (case.left * 100.0).round() / 100.0, case.until - case.at,
-                case.view_ago_ms, case.start.enemy_m.map(round), case.start.cover, case.start.crouched, case.start.moving,
+            "reload": [place, case.class, WHY_NAMES[case.why], round(case.left, 100.0), case.until - case.at,
+                case.view_ago_ms, case.start.enemy_m.map(|m| round(m, 10.0)), case.start.cover, case.start.crouched, case.start.moving,
                 case.line_at_start, case.in_line, died_ms],
         })
     }
