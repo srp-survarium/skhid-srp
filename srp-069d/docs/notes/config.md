@@ -12,7 +12,7 @@ on/off switches (section 4).
 ```
 srp setup --game <game folder> [--address IP]   # checks; writes srp.toml (the example, filled in), database, login key
 srp --config srp.toml check                 # what is missing, the effective settings, the generated daemon config
-srp --config srp.toml selftest              # a world host of its own builds one start world: OK or the failing part
+srp --config srp.toml selftest              # a world host of its own builds one start world and plays a bot match: OK or the failing part
 scripts/srp-host.sh start srp.toml          # background; or `run` in the foreground (WSL2: keep that call attached)
 scripts/srp-host.sh stop srp.toml
 ```
@@ -28,7 +28,9 @@ scripts/srp-host.sh stop srp.toml
   database and the login key (RSA-1024 PKCS#1 PEM, mode 600) and prints the launch line. `srp run` also generates a
   missing key and logs the launch line at every start.
 * `srp selftest [PROJECT]`: a daemon of its own (`<run_dir>/selftest`, `<log_dir>/selftest`, `max_zygotes` 1, no prestart)
-  builds the start world of the first served PvP project (or PROJECT) for one placeholder human, as the match server asks for it.
+  builds the start world of the first served PvP project (or PROJECT) for one placeholder human, as the match server asks for it,
+  then plays 30 s of a bot match on that project (`world_host::bot_match`: the host's AI drives five AI players; skipped
+  for the gun race, which has none).
 * `srp account add|password <name> <password>`: an account as its first sign-in would make it / a new password; the stored
   password is the client digest of the password (`login.md`), so both sign-in paths work.
 
@@ -117,6 +119,5 @@ variables, and the ignored end-to-end tests' `SRP_E2E_*` / `SRP_PROBE_*` / `SRP_
 ## 5. Open points
 
 * Native Linux on a real ext4 copy of the game (not through a link to a Windows drive): to be confirmed (section 1).
-* The self-test builds one start world; a few seconds of a bot match are not part of it yet.
 * The WSL 2 NAT address written by `srp setup` changes when Windows restarts; srp does not notice (the operator re-runs
   `srp setup --address`, or uses mirrored networking).

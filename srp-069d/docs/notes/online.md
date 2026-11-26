@@ -173,7 +173,7 @@ or count check (0x2002F4C40, 0x2002F4D30). So an item loads when the rule list a
 
 * The six PvE projects `pve_01_v{1..3}_maze{1,2}` share map 15 / mode 7 but have their own level checksum (a mismatch
   is fatal, 0x2001F1071) and seed. `.srpde` 005 adds the level project (64 bytes) and a flags word; the store and the
-  hub key worlds by (map, mode, project) (`WorldStore::get_project`, `Hub::world_info_project`, `MatchSpec::project`);
+  hub key worlds by (map, mode, project) (`WorldStore::get_project`, `Hub::can_create`, `MatchSpec::project`);
   `SRPDE004` files still load (project "").
 * The PvE G3 holds, besides kd_stats, four scripting-rule blocks whose length follows the record count (savers
   0x2003FD5EE / 0x2003FDB87 / 0x2003FCC90 / 0x2003F9D40); their G3 offsets are not located. So a stored PvE world holds
