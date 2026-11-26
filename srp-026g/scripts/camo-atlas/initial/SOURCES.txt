@@ -1,0 +1,18 @@
+The 14 tiles of this folder (initial/catalog.tsv) are procedural: initial_art.py draws
+each one from seeded noise and the three to five colours of its catalog row. It reads no
+image or other file, so no third-party artwork is in them. It reproduces all 14 WebPs byte
+for byte (checked 2026-11-26 with NumPy 2.4.4 and Pillow 13.0.0).
+
+They were made on 2026-11-25 as colourway proposals for the camouflage gallery that came
+before this pack: a coding agent wrote the script and chose the names and palettes. The
+script's only copy was in /tmp, and it was added here unchanged apart from its output path
+and the removal of a preview contact sheet.
+
+The source_url and source_label of each catalog row point to the camouflage family or
+issued pattern the tile was meant to recall (TURBO DESIGN, Made Good Designs, British
+Material Unit, the U.S. Army, Soviet Uniform, Militaria Plaza, Canada's Department of
+National Defence, Ukraine's Ministry of Defence). Nothing was downloaded from those pages
+into the tiles. Pixel Steppe and Field Mosaic are colour studies in the spirit of
+Ukraine's MM-14 and MM-25; they are not copies of either pattern.
+
+No licence has been stated for these 14 tiles. The project owner has to set one.
