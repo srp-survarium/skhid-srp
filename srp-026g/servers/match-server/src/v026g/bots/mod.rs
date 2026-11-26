@@ -1533,6 +1533,8 @@ impl Bots {
         self.bases = protection::Base::of_map(&tactics.world.map);
         let anomalies = anomalies::Anomalies::new(&tactics.world.map, self.static_seed);
         tactics.hazards.attach(anomalies);
+        // [bot CPU] The parts off the floors no zone opens, made here at load and not at a commander's first ask.
+        let _ = tactics.never_open_parts();
         self.features.artefacts = tuning
             .hazard
             .artefact_know
