@@ -1447,6 +1447,10 @@ pub struct WalkGrid {
     /// [`Body::walk_ceiling_stalls`] The Walk links only a crouching body walks ([`WalkGait::Crouch`], [`Self::walk_crouched`]), as
     /// (from, to), sorted. In the file (after the marked walks) and the digest. Empty without the switch.
     walk_crouched: Vec<(NodeId, NodeId)>,
+    /// [walk lane] [`Body::walk_every_link`] The Walk links the client's walk tick makes only from a side line of the walk
+    /// check ([`controlled::WalkLane`], [`Self::walk_lane`]), as (from, to, lane), sorted by (from, to). In the file (the last
+    /// table, after the run-ins) and the digest. Empty without the switch.
+    walk_lanes: Vec<(NodeId, NodeId, controlled::WalkLane)>,
     /// [A385 rule (d)] [`Body::rim_jumps`] The risers' presses ([`Self::riser`]), as (from, to, how), sorted by (from, to): every
     /// Walk link rising [`Body::walked_step`] or more, still a Walk link that is not crouched. In
     /// the file (after the crouched walks) and the digest. Empty without the switch.
@@ -1532,6 +1536,8 @@ struct Wide {
     marked: Vec<(u32, u32)>,
     /// [`Body::walk_ceiling_stalls`]: the Walk links the walk check passes only crouched, as (from, to), sorted.
     crouch: Vec<(u32, u32)>,
+    /// [walk lane] [`Body::walk_every_link`]: the Walk links the walk check passes only on a side line, with it, sorted.
+    lanes: Vec<(u32, u32, controlled::WalkLane)>,
     /// [A385 rule (d)] The risers' presses ([`WalkGrid::fly_risers`]), as (from, to, how), sorted.
     riser: Vec<(u32, u32, Riser)>,
     /// [S6] The held floors' drops' landing speeds ([`WalkGrid::add_unheld_drops`]), as (from, to, speed), sorted.
@@ -1968,6 +1974,7 @@ impl WalkGrid {
             walled_exits: Vec::new(),
             walk_marked: Vec::new(),
             walk_crouched: Vec::new(),
+            walk_lanes: Vec::new(),
             riser: Vec::new(),
             rim_unmade: Vec::new(),
             drop_lips: Vec::new(),
@@ -2284,6 +2291,7 @@ impl WalkGrid {
             aside: Vec::new(),
             marked: Vec::new(),
             crouch: Vec::new(),
+            lanes: Vec::new(),
             riser: Vec::new(),
             drop_speed: Vec::new(),
             held: Vec::new(),
@@ -3157,6 +3165,10 @@ impl WalkGrid {
         for p in &mut wide.crouch {
             remap(p, &mut tables.crouched);
         }
+        // [walk lane] Not in the build's log tables (a lane is no link's verdict the give-back can break).
+        for (a, b, _) in &mut wide.lanes {
+            (*a, *b) = pair((*a, *b));
+        }
         for p in &mut wide.lips {
             remap(p, &mut tables.lips);
         }
@@ -3462,6 +3474,11 @@ impl WalkGrid {
             *a = new_id[*a as usize];
             *b = new_id[*b as usize];
         }
+        wide.lanes.retain(|&(a, b, _)| alive[a as usize] && alive[b as usize]);
+        for (a, b, _) in &mut wide.lanes {
+            *a = new_id[*a as usize];
+            *b = new_id[*b as usize];
+        }
         wide.riser.retain(|&(a, b, _)| alive[a as usize] && alive[b as usize]);
         for (a, b, _) in &mut wide.riser {
             *a = new_id[*a as usize];
@@ -3678,6 +3695,15 @@ impl WalkGrid {
                 digest.u32(b);
             }
         }
+        // [walk lane] A grid with no side-line walks digests as before there were any.
+        if !self.walk_lanes.is_empty() {
+            digest.len(self.walk_lanes.len());
+            for &(a, b, lane) in &self.walk_lanes {
+                digest.u32(a);
+                digest.u32(b);
+                digest.u32(0x574c_0000 | u32::from(lane.byte()));
+            }
+        }
         // [S6] A grid with no drop landing speeds digests as before there were any.
         if !self.drop_speed.is_empty() {
             digest.len(self.drop_speed.len());
@@ -3779,7 +3805,7 @@ impl WalkGrid {
                 && self.walk_marked.is_empty()
                 && self.walk_crouched.is_empty()
                 && self.riser.is_empty()
-                && self.drop_lips.is_empty() && self.held_taken.is_empty() && self.drop_speed.is_empty() && self.line_tops.is_empty() && masks.is_empty() && self.run_ins.is_empty()
+                && self.drop_lips.is_empty() && self.held_taken.is_empty() && self.drop_speed.is_empty() && self.line_tops.is_empty() && masks.is_empty() && self.run_ins.is_empty() && self.walk_lanes.is_empty()
             {
                 return Ok(());
             }
@@ -3800,12 +3826,12 @@ impl WalkGrid {
                 bytes
             })?;
             // [A304] The ramp slopes, when the grid has them (an empty table before the walled exits).
-            if self.ramp.is_empty() && self.walled_exits.is_empty() && self.walk_marked.is_empty() && self.walk_crouched.is_empty() && self.riser.is_empty() && self.drop_lips.is_empty() && self.held_taken.is_empty() && self.drop_speed.is_empty() && self.line_tops.is_empty() && masks.is_empty() && self.run_ins.is_empty() {
+            if self.ramp.is_empty() && self.walled_exits.is_empty() && self.walk_marked.is_empty() && self.walk_crouched.is_empty() && self.riser.is_empty() && self.drop_lips.is_empty() && self.held_taken.is_empty() && self.drop_speed.is_empty() && self.line_tops.is_empty() && masks.is_empty() && self.run_ins.is_empty() && self.walk_lanes.is_empty() {
                 return Ok(());
             }
             out.plain(&self.ramp, |&v| [v])?;
             // [A347] The walled exits, when the grid has them (an empty table before the marked walks).
-            if self.walled_exits.is_empty() && self.walk_marked.is_empty() && self.walk_crouched.is_empty() && self.riser.is_empty() && self.drop_lips.is_empty() && self.held_taken.is_empty() && self.drop_speed.is_empty() && self.line_tops.is_empty() && masks.is_empty() && self.run_ins.is_empty() {
+            if self.walled_exits.is_empty() && self.walk_marked.is_empty() && self.walk_crouched.is_empty() && self.riser.is_empty() && self.drop_lips.is_empty() && self.held_taken.is_empty() && self.drop_speed.is_empty() && self.line_tops.is_empty() && masks.is_empty() && self.run_ins.is_empty() && self.walk_lanes.is_empty() {
                 return Ok(());
             }
             let pair = |&(a, b): &(NodeId, NodeId)| {
@@ -3816,17 +3842,17 @@ impl WalkGrid {
             };
             out.plain(&self.walled_exits, pair)?;
             // [2c] The marked walks, when the grid has them (an empty table before the crouched walks).
-            if self.walk_marked.is_empty() && self.walk_crouched.is_empty() && self.riser.is_empty() && self.drop_lips.is_empty() && self.held_taken.is_empty() && self.drop_speed.is_empty() && self.line_tops.is_empty() && masks.is_empty() && self.run_ins.is_empty() {
+            if self.walk_marked.is_empty() && self.walk_crouched.is_empty() && self.riser.is_empty() && self.drop_lips.is_empty() && self.held_taken.is_empty() && self.drop_speed.is_empty() && self.line_tops.is_empty() && masks.is_empty() && self.run_ins.is_empty() && self.walk_lanes.is_empty() {
                 return Ok(());
             }
             out.plain(&self.walk_marked, pair)?;
             // [`Body::walk_ceiling_stalls`] The crouched walks, when the grid has them.
-            if self.walk_crouched.is_empty() && self.riser.is_empty() && self.drop_lips.is_empty() && self.held_taken.is_empty() && self.drop_speed.is_empty() && self.line_tops.is_empty() && masks.is_empty() && self.run_ins.is_empty() {
+            if self.walk_crouched.is_empty() && self.riser.is_empty() && self.drop_lips.is_empty() && self.held_taken.is_empty() && self.drop_speed.is_empty() && self.line_tops.is_empty() && masks.is_empty() && self.run_ins.is_empty() && self.walk_lanes.is_empty() {
                 return Ok(());
             }
             out.plain(&self.walk_crouched, pair)?;
             // [A385 rule (d)] The risers' presses, when the grid has them: from, to, press (as an off-mesh link's), share, a zero.
-            if self.riser.is_empty() && self.drop_lips.is_empty() && self.held_taken.is_empty() && self.drop_speed.is_empty() && self.line_tops.is_empty() && masks.is_empty() && self.run_ins.is_empty() {
+            if self.riser.is_empty() && self.drop_lips.is_empty() && self.held_taken.is_empty() && self.drop_speed.is_empty() && self.line_tops.is_empty() && masks.is_empty() && self.run_ins.is_empty() && self.walk_lanes.is_empty() {
                 return Ok(());
             }
             out.plain(&self.riser, |&(a, b, r)| {
@@ -3839,12 +3865,12 @@ impl WalkGrid {
                 bytes
             })?;
             // [A377] The lips by where the body stops, when the grid has them.
-            if self.drop_lips.is_empty() && self.held_taken.is_empty() && self.drop_speed.is_empty() && self.line_tops.is_empty() && masks.is_empty() && self.run_ins.is_empty() {
+            if self.drop_lips.is_empty() && self.held_taken.is_empty() && self.drop_speed.is_empty() && self.line_tops.is_empty() && masks.is_empty() && self.run_ins.is_empty() && self.walk_lanes.is_empty() {
                 return Ok(());
             }
             out.plain(&self.drop_lips, pair)?;
             // [A389] The floors `held_floors` took, as feet, when the grid has them (a log's only: not in the digest).
-            if self.held_taken.is_empty() && self.drop_speed.is_empty() && self.line_tops.is_empty() && masks.is_empty() && self.run_ins.is_empty() {
+            if self.held_taken.is_empty() && self.drop_speed.is_empty() && self.line_tops.is_empty() && masks.is_empty() && self.run_ins.is_empty() && self.walk_lanes.is_empty() {
                 return Ok(());
             }
             out.plain(&self.held_taken, |p| {
@@ -3855,7 +3881,7 @@ impl WalkGrid {
                 bytes
             })?;
             // [S6] The held floors' drops' landing speeds, when the grid has them: from, to, cm/s.
-            if self.drop_speed.is_empty() && self.line_tops.is_empty() && masks.is_empty() && self.run_ins.is_empty() {
+            if self.drop_speed.is_empty() && self.line_tops.is_empty() && masks.is_empty() && self.run_ins.is_empty() && self.walk_lanes.is_empty() {
                 return Ok(());
             }
             out.plain(&self.drop_speed, |&(a, b, v)| {
@@ -3866,20 +3892,31 @@ impl WalkGrid {
                 bytes
             })?;
             // [S3] The line tops, when the grid has them.
-            if self.line_tops.is_empty() && masks.is_empty() && self.run_ins.is_empty() {
+            if self.line_tops.is_empty() && masks.is_empty() && self.run_ins.is_empty() && self.walk_lanes.is_empty() {
                 return Ok(());
             }
             out.plain(&self.line_tops, |(f, t)| line_tops::LineTop::bytes(*f, t))?;
             // [F1b] The flown shares' neighbourhood masks ([`Self::share_masks`]), when any share is flown.
-            if masks.is_empty() && self.run_ins.is_empty() {
+            if masks.is_empty() && self.run_ins.is_empty() && self.walk_lanes.is_empty() {
                 return Ok(());
             }
             out.plain(&masks, |m| m.to_le_bytes())?;
             // [body physics S5b] The stored run-ins' steps ([`Self::run_in`]), when recorded.
-            if self.run_ins.is_empty() {
+            if self.run_ins.is_empty() && self.walk_lanes.is_empty() {
                 return Ok(());
             }
-            out.plain(&self.run_ins, |r| r.to_le_bytes())
+            out.plain(&self.run_ins, |r| r.to_le_bytes())?;
+            // [walk lane] The side-line walks, when the grid has them: from, to, the lane's byte.
+            if self.walk_lanes.is_empty() {
+                return Ok(());
+            }
+            out.plain(&self.walk_lanes, |&(a, b, lane)| {
+                let mut bytes = [0u8; 9];
+                bytes[..4].copy_from_slice(&a.to_le_bytes());
+                bytes[4..8].copy_from_slice(&b.to_le_bytes());
+                bytes[8] = lane.byte();
+                bytes
+            })
         }
     }
 
@@ -3990,6 +4027,7 @@ impl WalkGrid {
                             (word(0), word(4))
                         })?
                     },
+                    walk_lanes: Vec::new(),
                     walk_crouched: if input.ends() {
                         Vec::new()
                     } else {
@@ -4055,6 +4093,17 @@ impl WalkGrid {
                     return Err(format!("{} run-ins for {} off links", run_ins.len(), grid.off.len()));
                 }
                 grid.run_ins = run_ins;
+                // [walk lane] The side-line walks, when the file has them. A byte that is no lane makes a walk from a floor to
+                // itself, which `check` rejects.
+                if !input.ends() {
+                    grid.walk_lanes = input.plain(|bytes: [u8; 9]| {
+                        let word = |i: usize| u32::from_le_bytes([bytes[i], bytes[i + 1], bytes[i + 2], bytes[i + 3]]);
+                        match controlled::WalkLane::from_byte(bytes[8]) {
+                            Some(lane) => (word(0), word(4), lane),
+                            None => (word(0), word(0), controlled::WalkLane::Minus),
+                        }
+                    })?;
+                }
                 grid.check()?;
                 grid.body = build;
                 grid.warm();
@@ -4190,6 +4239,11 @@ impl WalkGrid {
         }
         if self.walk_crouched.iter().any(|&(a, b)| a as usize >= n || b as usize >= n) || self.walk_crouched.windows(2).any(|w| w[0] >= w[1]) {
             return Err("bad crouched walks".into());
+        }
+        if self.walk_lanes.iter().any(|&(a, b, _)| a as usize >= n || b as usize >= n || a == b)
+            || self.walk_lanes.windows(2).any(|w| (w[0].0, w[0].1) >= (w[1].0, w[1].1))
+        {
+            return Err("bad side-line walks".into());
         }
         if self.riser.iter().any(|&(a, b, _)| a as usize >= n || b as usize >= n || a == b)
             || self.riser.windows(2).any(|w| (w[0].0, w[0].1) >= (w[1].0, w[1].1))
@@ -4860,6 +4914,16 @@ impl WalkGrid {
             .collect();
         self.riser = riser;
         self.walk_crouched = crouched;
+        // [walk lane] The side-line walks still Walk links (one lane a link: the first a pass recorded).
+        let mut lanes: Vec<(NodeId, NodeId, controlled::WalkLane)> = wide
+            .lanes
+            .iter()
+            .copied()
+            .filter(|&(a, b, _)| (0..DIRS.len()).any(|d| wide.links[a as usize][d] == b && wide.kinds[a as usize][d] == LinkKind::Walk))
+            .collect();
+        lanes.sort_by_key(|&(a, b, _)| (a, b));
+        lanes.dedup_by_key(|&mut (a, b, _)| (a, b));
+        self.walk_lanes = lanes;
         // [A377] The lips by where the body stops, whose link is still there.
         let mut lips: Vec<(NodeId, NodeId)> = wide.lips.iter().copied().filter(|&(a, b)| wide.out(a as usize).any(|x| x == b)).collect();
         lips.sort_unstable();
@@ -4942,6 +5006,33 @@ impl WalkGrid {
     /// back ([`Body::walk_every_link`]): a body is likely held on it.
     pub fn walk_marked(&self, a: NodeId, b: NodeId) -> bool {
         self.walk_marked.binary_search(&(a, b)).is_ok()
+    }
+
+    /// [walk lane] The side line of the walk check the client's walk tick makes the Walk link `a` -> `b` from, when its centre
+    /// line it does not ([`controlled::WalkLane`]): a route walks the link on it.
+    pub fn walk_lane(&self, a: NodeId, b: NodeId) -> Option<controlled::WalkLane> {
+        self.walk_lanes.binary_search_by_key(&(a, b), |&(x, y, _)| (x, y)).ok().map(|i| self.walk_lanes[i].2)
+    }
+
+    /// [walk lane] This grid with `lanes` as its side-line walks ([`Self::walk_lane`]), for tests and tools that set them on a
+    /// grid built without the walk check: each must be a Walk link of the grid, one lane a link.
+    pub fn with_walk_lanes(mut self, mut lanes: Vec<(NodeId, NodeId, controlled::WalkLane)>) -> Result<Self, String> {
+        lanes.sort_by_key(|&(a, b, _)| (a, b));
+        if let Some(&(a, b, _)) = lanes.iter().find(|&&(a, b, _)| {
+            a as usize >= self.len() || !self.links(a).any(|(n, kind)| n == b && kind == LinkKind::Walk)
+        }) {
+            return Err(format!("{a} -> {b} is no Walk link"));
+        }
+        if lanes.windows(2).any(|w| (w[0].0, w[0].1) == (w[1].0, w[1].1)) {
+            return Err("two lanes for one link".into());
+        }
+        self.walk_lanes = lanes;
+        Ok(self)
+    }
+
+    /// [walk lane] How many Walk links are walked on a side line ([`Self::walk_lane`]).
+    pub fn walk_lane_count(&self) -> usize {
+        self.walk_lanes.len()
     }
 
     /// [`Body::walk_ceiling_stalls`] Whether the Walk link `a` -> `b` is one only a crouching body walks ([`WalkGait::Crouch`]).
@@ -5130,7 +5221,10 @@ impl WalkGrid {
     /// [`Body::walked_step`] or more: a sprint or a jump climbs it) or a marked walk ([`Self::walk_marked`]: the client's tick
     /// does not walk it).
     pub fn climbed_not_walked(&self, a: NodeId, b: NodeId) -> bool {
-        self.height[b as usize] - self.height[a as usize] >= self.body.walked_step() || self.riser_of(a, b).is_some() || self.walk_marked(a, b)
+        self.height[b as usize] - self.height[a as usize] >= self.body.walked_step()
+            || self.riser_of(a, b).is_some()
+            || self.walk_marked(a, b)
+            || self.walk_lane(a, b).is_some()
     }
 
     /// [`Self::links`], each with the way back from the floor it reaches
@@ -6522,6 +6616,39 @@ pub(crate) mod tests {
         let before = grid.digest();
         grid.off[0].walk = Some((gap::PressLead::from_metres(0.3), gap::Share::landed(4)));
         assert_ne!(grid.digest(), before, "the digest takes the walking mask, not only its count");
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    /// [walk lane] A written grid's side-line walks read back with their lanes (the last table, after no run-ins), the digest
+    /// takes them, and a file whose lane byte is no lane is refused.
+    #[test]
+    fn side_line_walks_read_back_and_a_bad_lane_is_refused() {
+        let dir = std::env::temp_dir().join(format!("srp-grid-lane-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join(crate::built::grid_file_name(7));
+        let mut grid = two_rooms();
+        let before = grid.digest();
+        grid.walk_lanes = vec![(0, 1, controlled::WalkLane::Plus), (2, 3, controlled::WalkLane::Minus)];
+        assert_ne!(grid.digest(), before, "the digest takes the lanes");
+        grid.write(&path, 7).unwrap();
+        let read = WalkGrid::read(&path, 7, Body::default()).unwrap();
+        assert_eq!(read.walk_lanes, grid.walk_lanes);
+        assert_eq!(read.walk_lane(0, 1), Some(controlled::WalkLane::Plus));
+        assert_eq!(read.walk_lane(1, 0), None);
+        assert_eq!(read.digest(), grid.digest());
+        let written = grid.digest();
+        grid.walk_lanes[1].2 = controlled::WalkLane::Plus;
+        assert_ne!(grid.digest(), written, "the digest takes each lane");
+        grid.walk_lanes[1].2 = controlled::WalkLane::Minus;
+        // The last lane's byte made no lane: refused.
+        let mut bytes = std::fs::read(&path).unwrap();
+        let at = bytes.windows(9).rposition(|w| w[..8] == [2, 0, 0, 0, 3, 0, 0, 0] && w[8] == 1).expect("the last record");
+        bytes[at + 8] = 7;
+        std::fs::write(&path, &bytes).unwrap();
+        assert!(WalkGrid::read(&path, 7, Body::default()).is_err());
+        // A grid with none writes and digests as before there were any.
+        grid.walk_lanes.clear();
+        assert_eq!(grid.digest(), before);
         let _ = std::fs::remove_dir_all(dir);
     }
 

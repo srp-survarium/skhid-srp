@@ -2372,6 +2372,11 @@ fn drive_tick_inner(
                         let line = super::nav_log::over_end_line(end, over, me.feet);
                         bot.nav_log.push_once(super::nav_log::Kind::Arrival, super::nav_log::key(("over end", end.x.to_bits(), end.y.to_bits(), end.z.to_bits())), time, line);
                     }
+                    // [walk lane] On a Walk link walked on its side line (once a link).
+                    if let Some((from, to, lane)) = route.lane_walk_on() {
+                        let line = super::nav_log::lane_walk_line(from, to, lane, me.feet);
+                        bot.nav_log.push_once(super::nav_log::Kind::Route, super::nav_log::key(("lane walk", from.x.to_bits(), from.z.to_bits(), to.x.to_bits(), to.z.to_bits())), time, line);
+                    }
                     // Pressing against something while walking the route: counted, nothing is decided from it.
                     let counted = bot.contact.tick(time, walks_the_route && walked == Walked::OnTheWay, decision.keys, me.speed());
                     contact::contacts::count(counted, me.feet);

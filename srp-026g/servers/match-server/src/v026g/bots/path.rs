@@ -397,6 +397,9 @@ pub struct Route {
     /// The landings of the route's jump links, and how deep the top is past the face along the jump
     /// ([`top_depth`]); the planner sets them. A landing not in it has no known top (a lift is not tried up it).
     ledge_tops: Vec<(Vec3, f32)>,
+    /// [walk lane] The Walk links the route walks on a side line of the walk check ([`WalkGrid::walk_lane`]), in the route's
+    /// order: (foot, top, lane); the planner sets them, for the trace.
+    lane_walks: Vec<(NodeId, NodeId, mapdata::grid::controlled::WalkLane)>,
     /// The middles of the doorways the route crosses ([`Route::door_centred`]), each a corner of it: the walk steers at the
     /// first one it has not reached however near the corner after it is ([`Route::gate_within`]).
     gates: Vec<Vec3>,
@@ -1730,11 +1733,15 @@ fn pull_straight(
     let mut ledge_leads = Vec::new();
     let mut walk_offs = Vec::new();
     let mut ledge_tops = Vec::new();
+    // [walk lane] The lane walks the route takes ([`Route::lane_walks`]).
+    let mut lanes = Vec::new();
     // The floors of the leg from node `from` to node `to`, by distance
     // along the route (`start` at `from`).
     let mut floors = vec![(0.0, grid.position(nodes[0]).y)];
     let mut start = 0.0;
-    let mut leg = |from: usize, to: usize, floors: &mut Vec<(f32, f32)>| {
+    // `side_m`: a step across onto a walk lane's line before the leg ([`WalkGrid::walk_lane`]), on the route's distance.
+    let mut leg = |from: usize, to: usize, floors: &mut Vec<(f32, f32)>, side_m: f32| {
+        start += side_m;
         let (a, b) = (grid.position(nodes[from]), grid.position(nodes[to]));
         let length = a.distance_xz(b);
         let (dx, dz) = if length < 1e-6 {
@@ -1828,7 +1835,7 @@ fn pull_straight(
                 sprint_drops.push((landing, false));
                 walk_offs.push(WalkOffRelease { take_off, landing, let_go: LetGo::At(at.metres()), crouched, line: DropLine::of_link(&link) });
             }
-            leg(i - 1, i, &mut floors);
+            leg(i - 1, i, &mut floors, 0.0);
             continue;
         }
         let mut j = i + 1;
@@ -1883,19 +1890,36 @@ fn pull_straight(
         }
         let from = i;
         i = j;
+        // [walk lane] A Walk link the client's walk tick makes only from a side line of the walk check
+        // ([`WalkGrid::walk_lane`]; a straight line stops at its foot, [`WalkGrid::climbed_not_walked`]) is walked on that
+        // line: from its start beside the foot to its end beside the top. batt-m3's floor 421325 up to 421323: bots walking
+        // the centre line pushed under the riser at 0 m/s.
+        if j == from + 1
+            && let Some(lane) = grid.walk_lane(nodes[from], nodes[j])
+        {
+            let (start_at, end_at) = lane.line(grid.position(nodes[from]), grid.position(nodes[j]));
+            let before = points.last().map_or(start_at, |p| p.at);
+            points.push(Waypoint { at: start_at, node: nodes[from], jump: None, low: low(from, j) });
+            points.push(Waypoint { at: end_at, node: nodes[j], jump: None, low: low(from, j) });
+            lanes.push((nodes[from], nodes[j], lane));
+            // The side step onto the line: the floors' distances along the route stay those of its points.
+            leg(from, i, &mut floors, before.distance_xz(start_at));
+            continue;
+        }
         points.push(Waypoint {
             at: grid.position(nodes[i]),
             node: nodes[i],
             jump: None,
             low: low(from, i),
         });
-        leg(from, i, &mut floors);
+        leg(from, i, &mut floors, 0.0);
     }
     let mut route = Route::with_floors(points, floors);
     route.sprint_drops = sprint_drops;
     route.ledge_leads = ledge_leads;
     route.walk_offs = walk_offs;
     route.ledge_tops = ledge_tops;
+    route.lane_walks = lanes;
     // [S1] And the tops of its sprint climbs (`mapdata::grid::gap::Takeoff::Climb`): a sprinting body climbs an edge to 1.15 m
     // with no jump, so the riser's way (sprint into it) is the client's for both.
     let climb = |i: usize| {
@@ -2089,7 +2113,10 @@ impl Route {
         for k in 0..n {
             if k > 0 {
                 let (a, b) = (self.points[k - 1], self.points[k]);
+                // [walk lane] Not on a lane walk's legs (its side step, its line): the line is the walk check's own.
+                let lane_leg = self.lane_walks.iter().any(|&(foot, top, _)| a.node == foot && (b.node == top || b.node == foot));
                 if b.jump.is_none() && !b.low && b.at.y - a.at.y > -DROP_LINK_MIN_M
+                    && !lane_leg
                     && let Some(c) = super::doors::centre_of(grid, a.at, b.at)
                     && let Some(node) = grid.locate(c, 0.3)
                     && straight(grid, a.node, node)
@@ -2114,10 +2141,12 @@ impl Route {
             new_at.push(total);
         }
         let floors = self.rescaled_floors(&new_at);
-        let Self { sprint_drops, ledge_leads, ledge_tops, mut gates, risers, crouch_climbs, planned, below_walk_m, past_drop, walk_offs, .. } = self;
+        let Self { sprint_drops, ledge_leads, ledge_tops, mut gates, risers, crouch_climbs, planned, below_walk_m, past_drop, walk_offs, lane_walks, .. } =
+            self;
         gates.extend(corner.iter().flatten());
         let mut route = Self::with_floors(points, floors);
         route.walk_offs = walk_offs;
+        route.lane_walks = lane_walks;
         route.sprint_drops = sprint_drops;
         route.ledge_leads = ledge_leads;
         route.ledge_tops = ledge_tops;
@@ -2148,6 +2177,7 @@ impl Route {
             risers,
             crouch_climbs,
             walk_offs,
+            lane_walks,
             ..
         } = self;
         // A planned walk has its start at least (an escape's walk to an
@@ -2166,6 +2196,7 @@ impl Route {
         floors.push((along + last.at.distance_xz(to), to.y));
         let mut route = Self::with_floors(points, floors);
         route.walk_offs = walk_offs;
+        route.lane_walks = lane_walks;
         route.sprint_drops = sprint_drops;
         route.ledge_leads = ledge_leads;
         route.ledge_tops = ledge_tops;
@@ -2216,6 +2247,7 @@ impl Route {
         route.risers = self.risers.iter().chain(&mid.risers).copied().collect();
         route.crouch_climbs = self.crouch_climbs.iter().chain(&mid.crouch_climbs).copied().collect();
         route.walk_offs = self.walk_offs.iter().chain(&mid.walk_offs).copied().collect();
+        route.lane_walks = self.lane_walks.iter().chain(&mid.lane_walks).copied().collect();
         route.planned = self.planned && mid.planned;
         route
     }
@@ -2250,6 +2282,7 @@ impl Route {
             sprint_drops: Vec::new(),
             ledge_leads: Vec::new(),
             ledge_tops: Vec::new(),
+            lane_walks: Vec::new(),
             gates: Vec::new(),
             risers: Vec::new(),
             crouch_climbs: Vec::new(),
@@ -2275,6 +2308,7 @@ impl Route {
         route.sprint_drops = self.sprint_drops;
         route.ledge_leads = self.ledge_leads;
         route.ledge_tops = self.ledge_tops;
+        route.lane_walks = self.lane_walks;
         route.gates = self.gates;
         route.risers = self.risers;
         route.crouch_climbs = self.crouch_climbs;
@@ -2634,6 +2668,38 @@ impl Route {
         self.ledge_leads.iter().find(|(at, ..)| *at == landing).map(|&(.., least)| least).filter(|&least| least > 0.0)
     }
 
+    /// [walk lane] The Walk links this route walks on a side line ([`WalkGrid::walk_lane`]): (foot, top, lane).
+    pub fn lane_walks(&self) -> &[(NodeId, NodeId, mapdata::grid::controlled::WalkLane)] {
+        &self.lane_walks
+    }
+
+    /// [walk lane] The lane walk of the leg the body was last found on ([`Self::progress`]): the line's start and end, and the
+    /// lane; None on any other leg.
+    pub fn lane_walk_on(&self) -> Option<(Vec3, Vec3, mapdata::grid::controlled::WalkLane)> {
+        let lane_leg = |k: usize| {
+            let (a, b) = (self.points.get(k)?, self.points.get(k + 1)?);
+            let &(.., lane) = self.lane_walks.iter().find(|&&(foot, top, _)| foot == a.node && top == b.node && foot != top)?;
+            Some((a.at, b.at, lane))
+        };
+        // The side step onto the line (from the foot's centre to the line's start, one floor) is the lane walk's too.
+        let on_step = self.points.get(self.segment).zip(self.points.get(self.segment + 1)).is_some_and(|(a, b)| a.node == b.node);
+        lane_leg(self.segment).or_else(|| if on_step { lane_leg(self.segment + 1) } else { None })
+    }
+
+    /// [walk lane] Where a body at `feet` on a lane walk steers ([`Self::lane_walk_on`]): on the line, past the feet's place on
+    /// it by the walk check's own aim past its target (`controlled::AIM_PAST_M`), at the line's end's height. None off a lane walk.
+    pub fn lane_aim(&self, feet: Vec3) -> Option<Vec3> {
+        let (from, to, _) = self.lane_walk_on()?;
+        let (dx, dz) = (to.x - from.x, to.z - from.z);
+        let length = dx.hypot(dz);
+        if length < 1e-4 {
+            return None;
+        }
+        let (ux, uz) = (dx / length, dz / length);
+        let along = ((feet.x - from.x) * ux + (feet.z - from.z) * uz).clamp(0.0, length) + mapdata::grid::controlled::AIM_PAST_M;
+        Some(Vec3::new(from.x + ux * along, to.y, from.z + uz * along))
+    }
+
     /// How deep the top is past the face of the jump link into waypoint `k`, metres ([`top_depth`]); None where the
     /// planner did not measure it (a jump made some other way).
     pub fn ledge_top(&self, k: usize) -> Option<f32> {
@@ -2902,9 +2968,53 @@ impl Route {
     }
 }
 
+/// [walk lane] A test grid: a ground at 0 for x 0-10 and a deck 0.6 m up for x 10-20 (a step the client's walking body
+/// climbs), and, with `lanes`, every Walk link up the step walked on its Plus line ([`WalkGrid::walk_lane`]); the route
+/// planned along z 5.125 from x 2.125 to 18.125.
+#[cfg(test)]
+pub(crate) fn lane_step_route(lanes: bool) -> (WalkGrid, Route) {
+    use crate::v026g::bots::body::tests::floor;
+    use mapdata::grid::controlled::WalkLane;
+    let mut tris = floor(0.0, 0.0, 10.0, 10.0, 0.0).to_vec();
+    tris.extend(floor(10.0, 0.0, 20.0, 10.0, 0.6));
+    let grid = WalkGrid::build(&tris, [0.0, 0.0, 20.0, 10.0], 0.25, mapdata::Body::client());
+    let up: Vec<(NodeId, NodeId, WalkLane)> = (0..grid.len() as NodeId)
+        .flat_map(|a| grid.links(a).map(move |(b, kind)| (a, b, kind)))
+        .filter(|&(a, b, kind)| kind == LinkKind::Walk && grid.position(a).y < 0.3 && grid.position(b).y > 0.3)
+        .map(|(a, b, _)| (a, b, WalkLane::Plus))
+        .collect();
+    assert!(!up.is_empty(), "Walk links up the step");
+    let grid = if lanes { grid.with_walk_lanes(up).expect("Walk links") } else { grid };
+    let at = |x: f32, y: f32| grid.locate(Vec3::new(x, y, 5.125), 0.05).expect("a floor");
+    let route = plan(&grid, at(2.125, 0.0), at(18.125, 0.6)).expect("a route");
+    (grid, route)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// [walk lane] A route over a Walk link walked on a side line goes onto that line at the link's foot and walks it to the
+    /// top, the link recorded for the trace; without the lane it is one straight leg. The floors' distances stay the points'.
+    #[test]
+    fn a_route_walks_a_lane_link_on_its_line() {
+        use mapdata::grid::controlled::WalkLane;
+        let (_, plain) = lane_step_route(false);
+        assert_eq!(plain.points().len(), 2, "{:?}", plain.points());
+        assert!(plain.lane_walks().is_empty());
+        let (grid, laned) = lane_step_route(true);
+        assert_eq!(laned.lane_walks().len(), 1, "{:?}", laned.lane_walks());
+        let (foot, top, lane) = laned.lane_walks()[0];
+        assert_eq!(lane, WalkLane::Plus);
+        let (start, end) = lane.line(grid.position(foot), grid.position(top));
+        let k = laned.points().iter().position(|p| p.at == start).expect("the line's start");
+        assert_eq!(laned.points()[k + 1].at, end, "{:?}", laned.points());
+        assert_eq!((laned.points()[k].node, laned.points()[k + 1].node), (foot, top));
+        // Its start is 0.1 m across the link from the foot's centre (Plus: +z for a link along +x).
+        assert!((start.z - grid.position(foot).z - 0.1).abs() < 1e-4 && start.x == grid.position(foot).x, "{start:?}");
+        assert!(laned.floors.windows(2).all(|w| w[0].0 <= w[1].0), "{:?}", laned.floors);
+        assert!((laned.floors.last().unwrap().0 - laned.length()).abs() < 1e-3, "{:?} {}", laned.floors.last(), laned.length());
+    }
 
     /// [CPU] A search's floor test is asked once a floor and answers as the test does, a floor past the grid each time.
     #[test]

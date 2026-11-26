@@ -2607,6 +2607,12 @@ impl Motor {
     /// [`BACK_AIM_M`] back of `s`, and with none the route is lost to it ([`Aim::None`]: off the route, planned again from
     /// where it stands). `feet`: the body's, for the route's risers within reach.
     fn aim_point(&self, route: &Route, s: f32, feet: Vec3, ahead: f32, clear: &impl Fn(Vec3) -> bool) -> Aim {
+        // [walk lane] On a Walk link the client's walk tick makes only from a side line of the walk check (and the side step
+        // onto it): that line, aimed past the feet's place on it as the check's walk aims ([`Route::lane_aim`]). The look-ahead
+        // would cut it (batt-m3's floor 421325: the centre line stays under the riser).
+        if let Some(aim) = route.lane_aim(feet) {
+            return Aim::Clear(aim);
+        }
         let (target, found) = self.look_ahead(route, s, ahead, clear, self.heights());
         if found {
             return Aim::Clear(target);
@@ -6844,6 +6850,46 @@ pub mod counts {
 mod tests {
     use super::*;
     use crate::v026g::bots::kin::Kinematics;
+
+    /// [walk lane] The walk steers a lane link's side line ([`Route::lane_aim`]): from the foot's centre and on the line, at
+    /// the line past the feet by the walk check's aim (0.5 m), not at the look-ahead's point on the deck; off the lane walk,
+    /// at the look-ahead's. The keys walk forward, no jump.
+    #[test]
+    fn the_walk_steers_the_lane_links_side_line() {
+        let (grid, route) = crate::v026g::bots::path::lane_step_route(true);
+        let (foot, top, lane) = route.lane_walks()[0];
+        let (start, end) = lane.line(grid.position(foot), grid.position(top));
+        let aim_of = |feet: Vec3| {
+            let mut route = route.clone();
+            let (s, _) = route.progress(feet);
+            let mut rng = Rng::new(5);
+            let motor = Motor::new(Feel { sway: 0.0, ..Feel::default() }, &mut rng);
+            match motor.aim_point(&route, s, feet, motor.feel.look_ahead_m, &|_| true) {
+                Aim::Clear(p) => p,
+                other => panic!("{other:?}"),
+            }
+        };
+        // On the side step (halfway onto the line), at the line's start, and along it.
+        let step = Vec3::new(grid.position(foot).x, 0.0, (grid.position(foot).z + start.z) / 2.0);
+        for feet in [step, start, Vec3::new(start.x + 0.1, start.y, start.z)] {
+            let aim = aim_of(feet);
+            assert!((aim.z - start.z).abs() < 1e-4, "{feet:?}: {aim:?} off the line z {}", start.z);
+            let past = feet.x.max(start.x) + mapdata::grid::controlled::AIM_PAST_M;
+            assert!((aim.x - past.min(end.x + mapdata::grid::controlled::AIM_PAST_M)).abs() < 1e-3, "{feet:?}: {aim:?}");
+        }
+        // Back on the ground before the foot, the look-ahead's point.
+        let before = Vec3::new(grid.position(foot).x - 3.0, 0.0, grid.position(foot).z);
+        assert!((aim_of(before).z - grid.position(foot).z).abs() < 1e-3, "{:?}", aim_of(before));
+        // The keys from the foot: forward, no jump.
+        let mut walked = route.clone();
+        let mut rng = Rng::new(5);
+        let mut motor = Motor::new(Feel { sway: 0.0, ..Feel::default() }, &mut rng);
+        let pose = Pose { feet: start, yaw: yaw_of([1.0, 0.0]), pitch: 0.0, speed: 3.0, ..Default::default() };
+        let (decision, how) = motor.walk(&mut walked, &pose, 5.0, |_| true);
+        assert_eq!(how, Walked::OnTheWay);
+        assert_eq!(decision.keys & key::JUMP, 0);
+        assert_ne!(decision.keys & key::FORWARD, 0, "{:#x}", decision.keys);
+    }
 
     /// [A387] Up a route jump judged on the top's floors: a world's feet anywhere on the top within a sprint's reach of the landing
     /// since the press are up, though [`is_up`]'s projection (past half the link, within 1.5 m of the landing) said no; feet on

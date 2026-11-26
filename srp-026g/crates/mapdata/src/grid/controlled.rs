@@ -40,6 +40,70 @@ pub const CHECK_REACH_M: f32 = 0.15;
 /// The lines the controller walks a leg on: from the floor's centre, and this far either side of it across the leg, m. A
 /// check fails, and a bridge is walked, only when every line does.
 pub const STARTS: [f32; 3] = [0.0, -0.1, 0.1];
+
+/// [walk lane] The side line of [`STARTS`] a checked Walk link was walked on when its centre line was not
+/// ([`WalkGrid::walk_lane`]): the client's walk tick makes the link only from there. batt-m3's floor 421325 (-38.78, 11.161,
+/// -7.295) up to 421323 (-39.03, 11.760, -7.295): the centre and the -0.1 m line stay at 11.1, the +0.1 m line goes up, on the
+/// port and on the exe alike (feed_steps_v2 on rig_real_v3, 6 of 6 lines equal); bots walking the centre pushed there at 0 m/s.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum WalkLane {
+    /// [`STARTS`]`[1]` across the link ([`link_side`]).
+    Minus,
+    /// [`STARTS`]`[2]` across the link.
+    Plus,
+}
+
+impl WalkLane {
+    /// The lane of a side line's offset (one of [`STARTS`] but the centre's).
+    fn of_offset(off: f32) -> Option<Self> {
+        if off == STARTS[1] {
+            Some(Self::Minus)
+        } else if off == STARTS[2] {
+            Some(Self::Plus)
+        } else {
+            None
+        }
+    }
+
+    /// How far across the link ([`link_side`]) the line runs, m.
+    pub fn offset_m(self) -> f32 {
+        match self {
+            Self::Minus => STARTS[1],
+            Self::Plus => STARTS[2],
+        }
+    }
+
+    /// The file's byte.
+    pub fn byte(self) -> u8 {
+        match self {
+            Self::Minus => 1,
+            Self::Plus => 2,
+        }
+    }
+
+    /// The lane of a file's byte; None for any other.
+    pub fn from_byte(b: u8) -> Option<Self> {
+        match b {
+            1 => Some(Self::Minus),
+            2 => Some(Self::Plus),
+            _ => None,
+        }
+    }
+
+    /// The line's ends for the link from `from` to `to`: both moved [`Self::offset_m`] across it.
+    pub fn line(self, from: Vec3, to: Vec3) -> (Vec3, Vec3) {
+        let side = link_side(from, to);
+        (from + side * self.offset_m(), to + side * self.offset_m())
+    }
+}
+
+/// The unit vector across a link from `from` to `to` on the ground plane that [`STARTS`]' offsets move its lines along (zero
+/// for a link with no flat length).
+pub fn link_side(from: Vec3, to: Vec3) -> Vec3 {
+    let flat = Vec3::new(to.x - from.x, 0.0, to.z - from.z);
+    let l = flat.length();
+    if l > 1e-4 { Vec3::new(-flat.z / l, 0.0, flat.x / l) } else { Vec3::ZERO }
+}
 /// The body is at the target when its feet are this near it flat and this near it in height, m.
 const AT_FLAT_M: f32 = 0.15;
 const AT_HEIGHT_M: f32 = 0.2;
@@ -90,6 +154,8 @@ pub struct ControlledStats {
 type Held = Vec<(NodeId, NodeId)>;
 /// [`Body::walk_ceiling_stalls`] The Walk links the walk check passes only crouched, as (from, to).
 type Crouched = Vec<(u32, u32)>;
+/// [walk lane] The Walk links the walk check passed only on a side line, as (from, to, lane).
+type Lanes = Vec<(u32, u32, WalkLane)>;
 
 /// [2c] One walk check's answer ([`WalkGrid::walk_link`]).
 #[derive(Clone, Copy, Debug, Default)]
@@ -104,17 +170,21 @@ struct LinkWalk {
     /// [`Body::walk_ceiling_stalls`]: how many of the passing lines arrived only crouched (the standing body refused under a low
     /// ceiling, walked again crouched).
     crouched: usize,
+    /// [walk lane] The first side line that arrived when the centre line did not ([`WalkLane`]); None when the centre arrived
+    /// or no line did.
+    lane: Option<WalkLane>,
 }
 
-/// [body physics S6c] The walk check's results as the memo stores them: every field.
+/// [body physics S6c] The walk check's results as the memo stores them: every field. 02: [walk lane] the lane.
 impl MemoCodec for LinkWalk {
-    const TAG: u32 = 0x574c_4b01;
+    const TAG: u32 = 0x574c_4b02;
     fn encode(&self, out: &mut Codec<'_>) {
         self.passes.encode(out);
         out.put_f32(self.share);
         self.chain_failed.encode(out);
         out.put_u32(u32::try_from(self.refused).expect("a link's lines fit 32 bits"));
         out.put_u32(u32::try_from(self.crouched).expect("a link's lines fit 32 bits"));
+        out.put_u32(u32::from(self.lane.map_or(0, WalkLane::byte)));
     }
     fn decode(input: &mut Codec<'_>) -> Option<Self> {
         Some(LinkWalk {
@@ -123,6 +193,10 @@ impl MemoCodec for LinkWalk {
             chain_failed: bool::decode(input)?,
             refused: input.u32()? as usize,
             crouched: input.u32()? as usize,
+            lane: match input.u32()? {
+                0 => None,
+                b => Some(WalkLane::from_byte(u8::try_from(b).ok()?)?),
+            },
         })
     }
 }
@@ -944,11 +1018,14 @@ impl WalkGrid {
         }
         wide.off.sort_by_key(|l| (l.from, l.to));
         if body.walk_every_link {
-            let (stats, failing, held, mut crouch) = self.walk_every_link(wide, world, s, start, stats, memo);
+            let (stats, failing, held, mut crouch, mut lanes) = self.walk_every_link(wide, world, s, start, stats, memo);
             // The risers with no walking way round stay, marked (the caller marks the cut's kept ones beside them).
             wide.marked = held;
             crouch.sort_unstable();
             wide.crouch = crouch;
+            // [walk lane] The links walked only on a side line, with it (a cut one leaves the table when the grid is made).
+            lanes.sort_unstable();
+            wide.lanes = lanes;
             return (stats, failing);
         }
         // Checks: the floors with a face no body walks on near their capsule.
@@ -995,7 +1072,7 @@ impl WalkGrid {
         start: WalkStart,
         mut stats: ControlledStats,
         memo: &mut Memo,
-    ) -> (ControlledStats, Vec<(u32, usize, f32)>, Held, Crouched) {
+    ) -> (ControlledStats, Vec<(u32, usize, f32)>, Held, Crouched, Lanes) {
         let n = self.height.len();
         let floors: Vec<usize> = (0..n).collect();
         let near = parallel(&floors, |&a| {
@@ -1029,6 +1106,8 @@ impl WalkGrid {
         } else {
             Vec::new()
         };
+        // [walk lane] The links whose centre line the client's tick does not walk and a side line it does.
+        let lanes: Lanes = checks.iter().zip(&walked).filter_map(|(&(a, d), w)| Some((a as u32, wide.links[a][d], w.lane?))).collect();
         stats.checks_chain_failed = walked.iter().filter(|w| w.chain_failed).count();
         stats.checks_failed_crouched = checks
             .iter()
@@ -1056,7 +1135,7 @@ impl WalkGrid {
         let (round, held): (Vec<_>, Vec<_>) = failing.into_iter().zip(other_way).partition(|&(_, round)| round);
         stats.checks_no_way_round = held.len();
         let held = held.into_iter().map(|((a, d, _), _)| (a, wide.links[a as usize][d])).collect();
-        (stats, round.into_iter().map(|(f, _)| f).collect(), held, crouch)
+        (stats, round.into_iter().map(|(f, _)| f).collect(), held, crouch, lanes)
     }
 
     /// [given-back walks] The Walk links the wall give-back made ([`Body::wall_give_back`]: out of each given-back floor, and
@@ -1105,6 +1184,9 @@ impl WalkGrid {
             (0..n).flat_map(|a| (0..8).map(move |d| (a, d))).filter(|&(a, d)| made(a, d) && self.walk_checked(a, wide.links[a][d] as usize, &near)).collect();
         stats.given_back_checks = checks.len();
         let walked = parallel(&checks, |&(a, d)| self.walk_link(wide, world, s, start, a, d));
+        // [walk lane] Their side-line walks too, as the walk check's.
+        wide.lanes.extend(checks.iter().zip(&walked).filter_map(|(&(a, d), w)| Some((a as u32, wide.links[a][d], w.lane?))));
+        wide.lanes.sort_unstable();
         let failing: Vec<(u32, usize, f32)> = checks.iter().zip(walked).filter(|(_, w)| !w.passes).map(|(&(a, d), w)| (a as u32, d, w.share)).collect();
         let cut: std::collections::HashSet<(u32, u32)> = failing.iter().map(|&(a, d, _)| (a, wide.links[a as usize][d])).collect();
         let other_way = parallel(&failing, |&(a, d, _)| self.walk_way_round(wide, a, wide.links[a as usize][d], &cut));
@@ -1236,9 +1318,9 @@ impl WalkGrid {
             _ => self.stance(a, b),
         };
         let (pa, pb) = (self.position(a as NodeId), self.position(b as NodeId));
-        let flat = Vec3::new(pb.x - pa.x, 0.0, pb.z - pa.z);
-        let l = flat.length();
-        let side = if l > 1e-4 { Vec3::new(-flat.z / l, 0.0, flat.x / l) } else { Vec3::ZERO };
+        let side = link_side(pa, pb);
+        // [walk lane] Whether the centre line arrived, and the first side line that did.
+        let (mut centre_arrived, mut lane) = (false, None);
         // [`Body::walk_ceiling_stalls`]: a refusal under a low ceiling is the client's own stall, not a pass.
         let stalls = self.body.walk_ceiling_stalls;
         let arrives = |w: Walked| matches!(w, Walked::At | Walked::AtEnd(_)) || (w == Walked::Ceiling && !stalls);
@@ -1289,6 +1371,12 @@ impl WalkGrid {
                     || arrives(walk_on(world, s, &mut c, line, from, to, SPARE_TICKS, self.body.step))
             });
             if chained {
+                match WalkLane::of_offset(off) {
+                    None => centre_arrived = true,
+                    Some(side_line) => {
+                        lane = lane.or(Some(side_line));
+                    }
+                }
                 lines += 1;
                 crouched += only_crouched as usize;
                 // Two lines pass: the link passes whatever the third does (its share counts only for a failing link).
@@ -1299,7 +1387,14 @@ impl WalkGrid {
                 chain_failed = true;
             }
         }
-        LinkWalk { passes: lines >= 2, share, chain_failed: chain_failed && lines < 2, refused, crouched }
+        LinkWalk {
+            passes: lines >= 2,
+            share,
+            chain_failed: chain_failed && lines < 2,
+            refused,
+            crouched,
+            lane: lane.filter(|_| !centre_arrived),
+        }
     }
 
     /// How many bridges of `all` are side by side with the bridge `a` -> `b`, it included, counted out to [`BRIDGE_MIN_RUN`]
@@ -1630,6 +1725,71 @@ mod tests {
         let (low, stats) = build(0.65);
         assert_eq!(low.walk_crouched_count(), 0, "{:?}", stats.controlled);
         assert!(low.reached(low.locate(Vec3::new(8.0, 0.65, 3.0), 0.3).expect("the top")));
+    }
+
+    /// [walk lane] batt-m3 (level_03 day_2): the Walk link from floor 421325 (-38.78, 11.161, -7.295) up to 421323 (-39.03,
+    /// 11.760, -7.295). On the map's own shapes the walk check's centre line and its z -7.395 line stay under the riser and its
+    /// z -7.195 line goes up, as the exe's tick does on each (feed_steps_v2 on rig_real_v3, every line equal to the port): that
+    /// line is [`WalkLane::Minus`] of the link, and the check's lane is it.
+    #[test]
+    #[ignore = "needs SRP_MAPDATA_DIR (the map files with their shapes)"]
+    fn a_walk_made_only_from_a_side_line_records_that_line() {
+        let Some(dir) = std::env::var_os("SRP_MAPDATA_DIR").map(std::path::PathBuf::from) else {
+            eprintln!("skipping: SRP_MAPDATA_DIR is not set");
+            return;
+        };
+        let map = crate::MapData::from_bytes(&std::fs::read(dir.join("level_03_day_2.mapdata")).unwrap()).unwrap();
+        let world = Collision::build_exe(&map).unwrap();
+        // The bench's grid body's walk: the exe's collision (its wall normals by rays, the start witness) and the clear start.
+        let body = Body { exe_collision: true, start_witness: true, walk_start_clear: true, ..Body::client() };
+        let (_, s) = body.controller();
+        let (pa, pb) = (Vec3::new(-38.78, 11.161, -7.295), Vec3::new(-39.03, 11.760, -7.295));
+        let walk = |(from, to): (Vec3, Vec3)| {
+            let mut c = put_at(&world, body.walk_start(), Stance::Standing, from, yaw_toward(from, to));
+            walk_on(&world, &s, &mut c, Stance::Standing, from, to, SPARE_TICKS, body.step)
+        };
+        let up = |w: Walked| matches!(w, Walked::At | Walked::AtEnd(_));
+        let centre = walk((pa, pb));
+        assert!(!up(centre), "centre: {centre:?}");
+        let (minus, plus) = (WalkLane::Minus.line(pa, pb), WalkLane::Plus.line(pa, pb));
+        assert!((minus.0.z - -7.195).abs() < 1e-4 && (plus.0.z - -7.395).abs() < 1e-4, "{minus:?} {plus:?}");
+        assert!(up(walk(minus)), "z -7.195: {:?}", walk(minus));
+        assert!(!up(walk(plus)), "z -7.395: {:?}", walk(plus));
+        // The lane the walk check keeps for the link, and its line for the route: its first side line that arrived.
+        let lines: Vec<(f32, bool)> = STARTS.iter().map(|&off| (off, up(walk((pa + link_side(pa, pb) * off, pb + link_side(pa, pb) * off))))).collect();
+        let lane = if lines[0].1 { None } else { lines.iter().find(|l| l.1).and_then(|l| WalkLane::of_offset(l.0)) };
+        assert_eq!(lane, Some(WalkLane::Minus));
+    }
+
+    /// [walk lane] A link's lanes are its two side lines of [`STARTS`], across the link; the memo stores a check's lane.
+    #[test]
+    fn a_links_lanes_are_its_side_lines_and_the_memo_keeps_them() {
+        let (a, b) = (Vec3::new(0.0, 1.0, 0.0), Vec3::new(-0.25, 1.6, 0.0));
+        assert_eq!(link_side(a, b), Vec3::new(0.0, 0.0, -1.0));
+        for (lane, off) in [(WalkLane::Minus, STARTS[1]), (WalkLane::Plus, STARTS[2])] {
+            assert_eq!(WalkLane::of_offset(off), Some(lane));
+            assert_eq!(WalkLane::from_byte(lane.byte()), Some(lane));
+            let (f, t) = lane.line(a, b);
+            assert_eq!((f, t), (a + link_side(a, b) * off, b + link_side(a, b) * off));
+        }
+        assert_eq!(WalkLane::of_offset(STARTS[0]), None);
+        assert_eq!(WalkLane::from_byte(0), None);
+        let (p, q, r) = (Vec3::new(0.0, 0.0, 0.0), Vec3::new(4.0, 0.0, 0.0), Vec3::new(4.0, 0.0, 4.0));
+        let tris = [
+            Triangle { v: [p, q, r], walker: WalkerBehaviour::BySlope },
+            Triangle { v: [p, r, Vec3::new(0.0, 0.0, 4.0)], walker: WalkerBehaviour::BySlope },
+        ];
+        let g = WalkGrid::build(&tris, [0.0, 0.0, 4.0, 4.0], 0.25, Body::default());
+        let ids = StableIds::of(&g).expect("stable floor names");
+        for lane in [None, Some(WalkLane::Minus), Some(WalkLane::Plus)] {
+            let w = LinkWalk { passes: false, share: 1.0, chain_failed: false, refused: 0, crouched: 0, lane };
+            let mut out = Codec::writer(&ids);
+            w.encode(&mut out);
+            let bytes = out.into_bytes();
+            let mut input = Codec::reader(&ids, &bytes);
+            assert_eq!(LinkWalk::decode(&mut input).expect("decodes").lane, lane);
+            assert!(input.done());
+        }
     }
 
     /// [S7] The two live edges a crouched body climbs and a standing walker cannot (exactness's real-memory rig, the exe's own
