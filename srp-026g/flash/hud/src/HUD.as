@@ -461,8 +461,6 @@ package
          this.pregameInfo.premiumMembers.parent.removeChild(this.pregameInfo.premiumMembers);
          this._modeNotice = new ModeNotice(this.pregameInfo.contextText);
          addChild(this._modeNotice);
-         this._revealNotice = new RevealNotice(this.pregameInfo.contextText);
-         addChild(this._revealNotice);
          damageDebug = new SrvDebugDamage();
          addChild(this.damageDebug);
          this.damageDebug.visible = false;
@@ -661,8 +659,10 @@ package
 
       private var _forcedView:ForcedView;
       private var _modeNotice:ModeNotice;
-      // Freeze Tag: the countdown to a last one fighting's reveal (freeze_tag_reveal).
-      private var _revealNotice:RevealNotice;
+      // Freeze Tag: the popups of a last one fighting's reveal (freeze_tag_reveal), and the text of
+      // the one shown (null: none of ours).
+      private var _revealNotice:RevealNotice = new RevealNotice();
+      private var _revealPopup:String = null;
       private var _freezeContext:Object = null;
 
       private static const FREEZE_BAR_WIDTH:Number = 120;
@@ -1746,7 +1746,7 @@ package
          this.endArtefactHunt();
          this.showFrozen(FrozenPlaces.NONE);
          this.showRevealed(RevealedPlaces.NONE);
-         this._revealNotice.reset();
+         this.resetRevealNotice();
          if(this.progress_indicator.respawn_time)
          {
             this.set_respawn_time("");
@@ -1846,7 +1846,7 @@ package
          {
             this.showFrozen(FrozenPlaces.NONE);
             this.showRevealed(RevealedPlaces.NONE);
-            this._revealNotice.reset();
+            this.resetRevealNotice();
             this._modeNotice.cancel("freeze_tag");
          }
          else
@@ -1981,20 +1981,39 @@ package
       // it is clipped there, as every dot.
       public static const REVEALED_ON_MINIMAP:Boolean = true;
 
-      // The countdown to a last one fighting's reveal, sent each frame (exe patch 160,
-      // freeze_tag::on_hud; RevealNotice): each side's whose (0 none, 1 the viewer, 2 his last
-      // teammate, 3 the enemy's last one) and the ms left (0: revealed). Under the timer, under the
-      // mode notice while it shows.
+      // A last one fighting's reveal, sent each frame (exe patch 160, freeze_tag::on_hud;
+      // RevealNotice): each side's whose (0 none, 1 the viewer, 2 his last teammate, 3 the enemy's
+      // last one) and the ms left (0: revealed). A side that starts counting, or is revealed, gives
+      // one short popup, the game's own message (set_parameterized_message, small, 30% down the
+      // screen: under the mode notice), which hides itself after its few seconds; no countdown.
+      public static const REVEAL_POPUP_SIZE:uint = 22;
+      public static const REVEAL_POPUP_SHIFT:uint = 30;
+
       public function freeze_tag_reveal(own:uint, ownLeft:uint, enemy:uint, enemyLeft:uint) : void
       {
          this._revealNotice.tell(own,ownLeft,enemy,enemyLeft);
-         if(this._revealNotice.shown)
+         if(this._revealNotice.text != null)
          {
-            var bottom:Number = this.underTimer();
-            if(this._modeNotice.shown)
-               bottom = Math.max(bottom,this._modeNotice.getBounds(this).bottom);
-            this._revealNotice.place(this.stageWidth,bottom);
+            this._revealPopup = this._revealNotice.text;
+            // The same text again (a thaw, then down to one again) starts the popup afresh.
+            this.contextInfo3.mc_text.contextText.text = "";
+            this.set_parameterized_message(this._revealPopup,REVEAL_POPUP_SIZE,REVEAL_POPUP_SHIFT,this._revealNotice.time);
          }
+      }
+
+      // A new match or another mode: no side counted; a popup of ours still shown goes.
+      private function resetRevealNotice() : void
+      {
+         this._revealNotice.reset();
+         if(this._revealPopup != null && this.contextInfo3.visible && this.contextInfo3.mc_text.contextText.text == this._revealPopup)
+         {
+            if(this._parameterizedTimeout)
+            {
+               clearTimeout(this._parameterizedTimeout);
+            }
+            this.hideParameterized();
+         }
+         this._revealPopup = null;
       }
 
       private function showRevealed(places:RevealedPlaces) : void

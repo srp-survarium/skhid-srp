@@ -158,7 +158,8 @@ enum Who {
     Teammate = 2,
     Enemy = 3,
 }
-/// How long the hud says a last one fighting is revealed, after its countdown.
+/// How long the hud is told a last one fighting is revealed, after his 15 s (its popup's chance: a
+/// late joiner in it gets the popup too).
 const REVEALED_NOTICE_MS: u32 = 3000;
 /// A side's reveal notice for the hud: whose (`who` of his place) and the ms left until he is
 /// revealed while it counts down; 0 left for [`REVEALED_NOTICE_MS`] once he is; `[0, 0]` (none)
@@ -533,8 +534,10 @@ pub fn on_hud(ctx: &mut Context<'_>) -> Flow<NoExit> {
         // on_enemy lists his dot on the other team's maps, and the hud marks it red (an enemy's
         // icon alone draws nothing). The rule's, whoever is viewed, as the listing is.
         movie.invoke_uints(c"root.freeze_tag_revealed", &[revealed.bits()]);
-        // The reveal's countdown for everyone (the owner, 2026-11-26: "with a clear timer visible
-        // for everyone"): the viewer's side's last one (himself or a teammate), the other side's.
+        // The reveal for everyone, each frame: the viewer's side's last one (himself or a teammate),
+        // the other side's. The hud pops it up once when a side starts counting, with its seconds
+        // then, and once when he is revealed (the owner, 2026-11-26: "no need for it to be a timer,
+        // it should be a small popup for a few seconds").
         let [own, own_left] = reveal_notice(
             state.last_fighter(team),
             |last| if last == viewed { Who::Viewer } else { Who::Teammate },
