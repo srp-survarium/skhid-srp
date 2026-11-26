@@ -163,7 +163,8 @@ class Config:
 
     def client_environment(self, index: int) -> dict[str, str]:
         # run.py's own environment goes on to the clients: SKHID_MEMORY_PROFILE=on there
-        # profiles them (patch 127, docs/notes/memory-profile.md); unset, nothing is set.
+        # profiles them (patch 127, docs/notes/memory-profile.md), SKHID_SYNC_LOG=on logs their
+        # off-grid ticks (patch 210, docs/notes/sync-log.md); unset, nothing is set.
         return dict(os.environ, **(self.client_env | {
             "WINEPREFIX": str(self.prefix(index)), "WINEDEBUG": "-all",
             # Full-memory crash dumps (client/bugtrap/README.md, "Dump contents").

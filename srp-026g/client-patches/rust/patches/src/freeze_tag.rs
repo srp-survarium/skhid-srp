@@ -176,6 +176,28 @@ fn places_mask(has: impl Fn(Place) -> bool) -> u32 {
         .filter(|place| has(*place))
         .fold(0, |mask, place| mask | (1 << place.index()))
 }
+/// The sync log's view of the map rule (patch 210, `sync_log`): each place the rule shows on the other
+/// team's map now (`FreezeTag::revealed` at this frame's match time, on_hud's [`REVEALED`]: what
+/// [`on_enemy`] answers, 15 s after his team was down to him), with his team; None outside a Freeze
+/// Tag match.
+pub fn last_fighters(thread: &vostok::Thread) -> Option<[Option<srp_validate::Team>; PLAYERS]> {
+    let Match::Freeze(state) = MATCH.get(thread) else { return None };
+    let mut out = [None; PLAYERS];
+    for (place, slot) in Place::all().zip(out.iter_mut()) {
+        if let (true, Player::Fighting(team)) = (REVEALED.get(thread).contains(place), state.player(place)) {
+            *slot = Some(team);
+        }
+    }
+    Some(out)
+}
+/// A place's team in the rule (fighting or frozen); None waiting or outside Freeze Tag.
+pub fn team_of(thread: &vostok::Thread, place: Place) -> Option<srp_validate::Team> {
+    let Match::Freeze(state) = MATCH.get(thread) else { return None };
+    match state.player(place) {
+        Player::Fighting(team) | Player::Frozen { team, .. } => Some(team),
+        Player::Waiting => None,
+    }
+}
 fn is_frozen(state: &FreezeTag, place: Place) -> bool {
     matches!(state.player(place), Player::Frozen { .. })
 }
