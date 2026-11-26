@@ -160,7 +160,7 @@ package survarium.controls
       
       // The lists' one order (the owner, 2026-11-02: "it should always be per level"; there is no sort
       // to choose): what can be bought first, then by level, the price last.
-      private static const LIST_ORDER:Array = ["buyValue","itemLevel","superCategory","category","dictId","rank","value","broken","price","factionId"];
+      private static const LIST_ORDER:Array = ["buyValue","itemLevel","superCategory","category","dictId","rank","value","price","factionId"];
 
       // The search box (docs/notes/item-search.md), always there under the grid: the grid is
       // SEARCH_ROW shorter (the fade at its foot moves up with it), and the box sits in that row,
@@ -3805,7 +3805,7 @@ package survarium.controls
                filteredItems.push(itemData);
             }
          }
-         filteredItems.sortOn(["buyValue","superCategory","category","dictId","rank","value","broken","factionId"],Array.NUMERIC);
+         filteredItems.sortOn(["buyValue","superCategory","category","dictId","rank","value","factionId"],Array.NUMERIC);
          trace("fillItems::",filteredItems.length);
          itemsTileList.dataProvider = new DataProvider(filteredItems);
          itemsTileList.validateNow();
