@@ -1,7 +1,8 @@
 # London (v0.32)
 
 The live London rebuilt from 0.32a4's own projects (the owner, 2026-11-20: "I think we want london 0.32
-in the game and london 0.42 in the game"; `london.md`, "Name and build"). Content pack `london-v032@2`,
+in the game and london 0.42 in the game"; `london.md`, "Name and build"). Content pack
+`london-v032` (@4 in `release/content.tsv`),
 made by resource-porter's `build-survarium-near-map` in the same one pass as London (v0.42)
 (`ports/survarium-032a4-london-to-026g.json`, `docs/near-builds.md` there), and the forward effects as
 0.44a5 and 0.32a4 draw them with client patch 169 (pack `forward-effects@1`).

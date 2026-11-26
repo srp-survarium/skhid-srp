@@ -1,10 +1,10 @@
 # Missing native normal-blend permutations
 
 The original material conversion activates combinations absent from the 0.26g
-shader archive. Candidate7 exposed four such combinations across School,
+shader archive. Candidate 7 exposed four such combinations across School,
 Rudnya, Fort and Mamayev. `v021d-vertex-blend-normal-on@1` supplies the complete
-bounded closure of the corresponding existing native layouts:704 absent paths,
-44 pinned source programs and160 distinct resulting DXBC programs.
+bounded closure of the corresponding existing native layouts: 704 absent paths,
+44 pinned source programs and 160 distinct resulting DXBC programs.
 
 The source is resource-porter `weather_fog_021/vertex_blend/normal_on.rs`, its
 `normal-on-programs.json`, and `examples/vertex-blend-normal-on-021-pack.rs`.
@@ -19,8 +19,8 @@ sample with the native UV/sampler contract. The unused tiled-mask declaration
 and reflection binding are removed; the other texture slots stay unchanged.
 This retains native unmarked base-alpha weighting, while the existing explicit
 original-material marker selects the donor blend equation. In particular,
-School's native scene-time offset remains400; copying the corresponding raw
-original program would incorrectly read396.
+School's native scene-time offset remains 400; copying the corresponding raw
+original program would incorrectly read 396.
 
 A missing alpha-enabled permutation adds the native cutoff after the blend
 adapter: either baseAlpha-alpha_ref, or
@@ -34,6 +34,6 @@ alpha_test_consider_vertex_blend control for the five affected materials.
 outside those bounded changes, checks the complete reflection delta and exact
 composed payload, proves removed coordinate components are dead and that no
 mask value escapes the original weight override, and checks absence across
-stock/published archives. All704 aliases passed that inverse audit and all160
+stock/published archives. All 704 aliases passed that inverse audit and all 160
 programs disassembled. Native loading and visual comparison remain required;
 these static results alone do not accept the maps.

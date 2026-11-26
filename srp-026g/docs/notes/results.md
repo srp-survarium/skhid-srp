@@ -425,7 +425,7 @@ Tests: `pay.rs` `the_silver_rate_rises_with_the_match_level`; `rewards/tests.rs`
   least 80 % (`pay::FLOOR_OF_MEDIAN`) of the rows' silver of the match's median player (of those
   who stayed to the end; bots not counted; of two middle ones, the lower).
 - What its rows lack is added to its main kit's activity cell ("Match Activity Rewards"), so the
-  premium half and the premium items' bonus count it too. Experience and reputation: unchanged.
+  premium items' bonus counts it too (and the premium half did, until 2026-11-09). Experience and reputation: unchanged.
 - Score under 30 (idle, or barely played), a player who left, a room with a PIN, a match with no
   trusted snapshot: no floor. A match against bots: its median is of its human players' pay.
 - On live (61 matches of revision 35, no bots): the lowest quarter of each match's scoreboard
@@ -451,8 +451,9 @@ See `kill_cap.md` and `research_mode.md` for thresholds.
 
 PvE settles match rewards at `min(actual match level, 7)` (`pvb::MAX_REWARD_LEVEL`). One effective
 level in `Shared` selects both the dictionary's money/experience/reputation multipliers and the
-silver rate. At seven these are 4.97 / 1.3 / 1.3 and 170% silver with the default by-level rates.
-The usual `SRP_PVB_PAY` share (default 50% for silver and experience) and premium still apply.
+silver rate. At seven these are 4.97 / 1.3 / 1.3 and 255% silver with the default by-level rates
+(170% until 2026-11-09, when premium's half went into them). The usual `SRP_PVB_PAY` share (default
+50% for silver and experience) still applies.
 Lower-tier PvE and all PvP retain their normal level scaling. Equipment, bot kits and the actual
 match level are unchanged; this is a payment ceiling, not a change to combat simulation.
 

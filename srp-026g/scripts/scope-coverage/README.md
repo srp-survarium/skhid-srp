@@ -1,5 +1,10 @@
 # Complete scope coverage
 
+Retired on 2026-11-21 with every scope variant (`../../docs/notes/attachments-scopes.md`,
+"The variants retired"): `release/content.tsv` lists `scope-coverage@3`, version 2 less its 640
+variants, made by `../scope-fits/retire.py`; `scope-coverage-1.json` and the `scope-coverage` and
+`scope-coverage-assets` checks are gone. The rest of this file is how version 2 was made.
+
 `audit.py` compares every weapon dictionary entry, including premium aliases
 and `srp_like`, with the 0.69 attachment graph. A fit requires a complete path
 through non-optical modules and usable slots. Weapon-specific module exceptions

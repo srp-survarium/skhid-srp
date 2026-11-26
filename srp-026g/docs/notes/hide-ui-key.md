@@ -71,7 +71,7 @@ too, for screenshots.
 ## Later: a match without UI
 
 A prototype is built (2026-10-24): `blackout.md` (a server switch and the static info's flag,
-everything hidden as F11 hides it but the players' markers; the bands parked). The spec below was the
+everything hidden as the key hides it but the players' markers; the bands parked). The spec below was the
 first plan: "the no-UI battery mode", Battery Hunt's rules
 with no UI for anyone; the teams told apart by coloured bands on the characters.
 
