@@ -699,6 +699,7 @@ impl Dropped {
 /// The worst search's time and floors forgotten: a run's own from here.
 #[cfg(test)]
 pub fn reset_worst() {
+    slowest::reset();
     SEARCHES.with(|s| {
         let mut c = s.get();
         c.worst_us = 0.0;
@@ -1216,6 +1217,7 @@ fn count(found: &Search, stage: Stage, us: f64, cpu_us: f64, expanded: u64, slic
         c.stage_us[stage as usize] += us;
         c.stage_cpu_us[stage as usize] += cpu_us;
         c.worst_us = c.worst_us.max(us);
+        slowest::ended(us, cpu_us, expanded, stage as usize, slices);
         c.expanded += expanded;
         super::bench_work::add(super::bench_work::Work::Floors, expanded);
         c.worst_expanded = c.worst_expanded.max(expanded);
@@ -1228,6 +1230,98 @@ fn count(found: &Search, stage: Stage, us: f64, cpu_us: f64, expanded: u64, slic
         c.slices += slices;
         s.set(c);
     });
+}
+
+/// [CPU spikes] The slowest search of a run, and where it came from (TEST ONLY: logging, no decision reads it): its wall and CPU
+/// µs, floors expanded, the stage it ended in, its slices, the code that asked for it (the first caller outside `Tactics`'s
+/// search entry points, which are `#[track_caller]` in test builds, or a label where a closure asks), and the bench poll's part
+/// it ended in ([`slowest::part`]). A poll's worst is a commander's or a bot's whole-grid search: this names which.
+#[cfg(test)]
+pub mod slowest {
+    use std::cell::Cell;
+    use std::panic::Location;
+
+    /// Who asked for the search under way.
+    #[derive(Clone, Copy, Debug)]
+    pub enum Asker {
+        /// A search no tagged entry point made.
+        Untagged,
+        At(&'static Location<'static>),
+        Label(&'static str),
+    }
+
+    impl std::fmt::Display for Asker {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            match self {
+                Asker::Untagged => write!(f, "untagged"),
+                Asker::At(at) => write!(f, "{}:{}", at.file(), at.line()),
+                Asker::Label(label) => write!(f, "{label}"),
+            }
+        }
+    }
+
+    /// The slowest search so far.
+    #[derive(Clone, Copy, Debug)]
+    pub struct Worst {
+        pub us: f64,
+        pub cpu_us: f64,
+        pub expanded: u64,
+        pub stage: usize,
+        pub slices: u64,
+        pub asker: Asker,
+        pub part: &'static str,
+    }
+
+    thread_local! {
+        static ASKER: Cell<Asker> = const { Cell::new(Asker::Untagged) };
+        static PART: Cell<&'static str> = const { Cell::new("outside a poll") };
+        static WORST: Cell<Option<Worst>> = const { Cell::new(None) };
+    }
+
+    /// The asker from now until it drops (the one before then again).
+    pub struct Scope(Asker);
+
+    impl Scope {
+        pub fn at(at: &'static Location<'static>) -> Self {
+            Self(ASKER.with(|a| a.replace(Asker::At(at))))
+        }
+
+        pub fn label(label: &'static str) -> Self {
+            Self(ASKER.with(|a| a.replace(Asker::Label(label))))
+        }
+    }
+
+    impl Drop for Scope {
+        fn drop(&mut self) {
+            ASKER.with(|a| a.set(self.0));
+        }
+    }
+
+    /// The bench poll's part from now on (`view`, `commander`, `bots`, `outside a poll`).
+    pub fn part(part: &'static str) {
+        PART.with(|p| p.set(part));
+    }
+
+    /// A search ended (`count`): kept if it is the slowest by wall time.
+    pub(super) fn ended(us: f64, cpu_us: f64, expanded: u64, stage: usize, slices: u64) {
+        WORST.with(|w| {
+            if w.get().is_none_or(|worst| us > worst.us) {
+                w.set(Some(Worst { us, cpu_us, expanded, stage, slices, asker: ASKER.with(Cell::get), part: PART.with(Cell::get) }));
+            }
+        });
+    }
+
+    /// The slowest search since the last [`reset`].
+    pub fn worst() -> Option<Worst> {
+        WORST.with(Cell::get)
+    }
+
+    pub fn reset() {
+        WORST.with(|w| w.set(None));
+    }
+
+    /// The stages' names ([`mapdata::regions::Stage`] in order, as the bench's by-stage row).
+    pub const STAGES: [&str; 4] = ["no way", "corridor", "widened", "whole"];
 }
 
 /// The bench's grid searches by why they ran (the threat answer's work,

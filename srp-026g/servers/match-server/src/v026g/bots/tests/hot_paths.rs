@@ -92,7 +92,7 @@ fn hot_paths_index_on_all_maps() {
 /// and `hot_paths_route_search_on_real_maps`, and put the new digest printed below in [`HOT_COPIES`].
 const HOT_COPIES: &[(&str, &str, &str)] = &[
     ("WalkGrid::link_cost_hot", "WalkGrid::link_cost_reaching", "ca5771ab36318403b4663a22489b4862"),
-    ("WalkGrid::links_back_hot", "WalkGrid::links_back", "b3317aaaaa3c60250a35d782fa962d65"),
+    ("WalkGrid::links_back_hot", "WalkGrid::links_back", "bcef72e4b97322224a89b629d0d79bc3"),
     ("HotIndex::hot_off_link", "WalkGrid::off_link", "10687070e348a2917b1c0dd212af720a"),
     ("SlicedSearch::step_hot", "SlicedSearch::step", "0baa0f061f25ae8d4f1d44405f2d942f"),
     ("RouteSearch::step_hot", "RouteSearch::step", "438b3865ba552fad4fd3062c32a2070e"),

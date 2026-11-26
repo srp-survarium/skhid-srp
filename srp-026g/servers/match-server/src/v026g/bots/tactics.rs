@@ -109,6 +109,11 @@ const FLOOR_STEP_NEAR_M: f32 = 0.3;
 /// A way out ends at least this far from where it starts, metres: past the
 /// motor's arrival distance, so the body really walks out.
 const ESCAPE_MIN_M: f32 = 1.5;
+/// [zone exit clear] The exit field's way out ([`Tactics::exit_of`]) ends on a floor no zone marks within this, metres
+/// across: the motor's arrival radius ([`super::motor::ARRIVE_M`]) and the half of a floor's spacing the feet are located
+/// by. A body arrived at it stands on a floor no zone marks. The edge's own floor (one link out) was arrived at from the
+/// last marked floor: Cologne batteries s1, 48 s at 0.25 m from it, on the zone's floor, its route walked each tick.
+pub(super) const EXIT_CLEAR_M: f32 = super::motor::ARRIVE_M + 0.2;
 /// The ways out a body chooses from lie within this of the nearest, metres
 /// of the way to them. GUESS: round a zone a few metres across, both sides
 /// (the Cologne anomaly bench's comparison took 6).
@@ -197,6 +202,28 @@ pub struct TacticsBase {
     /// commander tick and paid both floods there, 104-214 ms of a 125-245 ms
     /// poll on the bench's Team Deathmatch maps.
     progress: progress::Progress,
+    /// [exit fields at load] [`Tactics::exit_of`]'s fields, made with the base, once for the map, off the match loop, not stored
+    /// with it. Made at a match's first escape before, inside a tick: part of Cologne batteries s1's 0.39 s tick at 95.1 s.
+    exit_fields: ExitFields,
+}
+
+/// [exit fields at load] [`Tactics::exit_of`]'s fields by spawn rule ([`Tactics::spawn_ok`]: the side whose others' spawn areas
+/// are refused, none when bound for their base), and how long they took to make (for the log).
+#[derive(Default)]
+struct ExitFields {
+    fields: Vec<(Option<i32>, ExitField)>,
+    built_ms: f32,
+}
+
+/// [`Tactics::spawn_ok`] on the spawn areas' bits a floor (`TacticsBase::spawn_areas`): no spawn area of another side than
+/// `side`'s, unless bound for their base (`objective`) or of no side.
+fn spawn_ok_in(spawn_areas: &[u8], node: NodeId, side: Option<i32>, objective: bool) -> bool {
+    let Some(side) = side.filter(|_| !objective) else {
+        return true;
+    };
+    let own = 1u32 << side.clamp(0, SPAWN_BITS as i32 - 1);
+    let spawn_areas = spawn_areas.get(node as usize).map_or(0, |&bits| u32::from(bits));
+    spawn_areas & !own == 0
 }
 
 /// The past-fixed-zones regions and the zones they were made for
@@ -237,8 +264,9 @@ pub struct Tactics {
     carrier_ways: std::sync::Mutex<super::carrier_home::Ways>,
     /// [bot traps] The carrier forecasts' searches for a way round a shut floor (`carrier_home::Rounds`).
     carrier_rounds: std::sync::Mutex<super::carrier_home::Rounds>,
-    /// [`Self::exit_of`]'s field, once made.
-    exit_field: std::sync::Mutex<Option<ExitField>>,
+    /// [`Self::exit_of`]'s fields the base has none for (`TacticsBase::exit_fields`), each made once when first wanted: [zone exit clear] one per spawn rule (the side whose
+    /// others' spawn areas a body may not enter, [`Self::spawn_ok`]; none when it is bound for their base).
+    exit_field: std::sync::Mutex<std::collections::HashMap<Option<i32>, ExitField>>,
     /// The teams' escapes from pockets that worked, and their trapped bots
     /// (`escape.rs`), for the match.
     pub escapes: super::escape::Board,
@@ -702,7 +730,9 @@ impl TacticsBase {
             hot,
             walkable,
             progress,
+            exit_fields: ExitFields::default(),
         };
+        base.exit_fields = base.exit_fields();
         let sides: Vec<i32> = {
             let mut sides: Vec<i32> = base.world.map.spawns.iter().map(|s| s.team).collect();
             sides.sort_unstable();
@@ -714,6 +744,132 @@ impl TacticsBase {
             base.exits.push((side, exits));
         }
         base
+    }
+
+    /// [exit fields at load] The exit fields of every spawn rule a match asks ([`ExitFields`]): none (bound for the others'
+    /// base), and each map side. The edge field is made once and shared by the rules.
+    fn exit_fields(&self) -> ExitFields {
+        let started = std::time::Instant::now();
+        let edge = self.exit_field_edge();
+        let mut rules: Vec<Option<i32>> = vec![None];
+        for spawn in &self.world.map.spawns {
+            if !rules.contains(&Some(spawn.team)) {
+                rules.push(Some(spawn.team));
+            }
+        }
+        let fields = rules.into_iter().map(|rule| (rule, Arc::new(self.exit_field(rule, &edge)))).collect();
+        ExitFields { fields, built_ms: started.elapsed().as_secs_f32() * 1000.0 }
+    }
+
+    /// [`Tactics::exit_of`]'s field for the spawn rule `rule` (the side whose others' spawn areas are refused, [`Tactics::spawn_ok`]):
+    /// each marked floor's way out. [zone exit clear] To a floor clear of the zones and the refused spawn floors by
+    /// [`EXIT_CLEAR_M`] ([`Self::exit_field_clear`]); where none is reached, the edge's own floor as before.
+    fn exit_field(&self, rule: Option<i32>, edge: &std::collections::HashMap<NodeId, NodeId>) -> std::collections::HashMap<NodeId, NodeId> {
+        let mut field = edge.clone();
+        for (floor, out) in self.exit_field_clear(rule) {
+            field.insert(floor, out);
+        }
+        field
+    }
+
+    /// [zone exit clear] Each marked floor's way out to a floor clear of the zones by [`EXIT_CLEAR_M`]: the floors no zone
+    /// marks within it of a marked floor (by its links) are the zones' band, walked as the marked ones; the field is the
+    /// breadth-first search inward from the floors past the band.
+    fn exit_field_clear(&self, rule: Option<i32>) -> std::collections::HashMap<NodeId, NodeId> {
+        let grid = &self.world.grid;
+        let marked = |n: NodeId| self.hazards.set_of(n).baked() != 0;
+        // Refused as an end: a zone's floor, or a spawn area the rule refuses (the field's end is any route's end).
+        let refused = |n: NodeId| marked(n) || !spawn_ok_in(&self.spawn_areas, n, rule, false);
+        // The band: the floors not refused within EXIT_CLEAR_M of a refused floor at its edge, by the links over them.
+        let mut near: std::collections::HashSet<NodeId> = std::collections::HashSet::new();
+        for a in (0..grid.len() as NodeId).filter(|&a| refused(a)) {
+            if grid.links(a).all(|(b, _)| refused(b)) {
+                continue;
+            }
+            let at = grid.position(a);
+            let mut stack: Vec<NodeId> = grid.links(a).map(|(b, _)| b).filter(|&b| !refused(b)).collect();
+            while let Some(b) = stack.pop() {
+                if grid.position(b).distance_xz(at) > EXIT_CLEAR_M || !near.insert(b) {
+                    continue;
+                }
+                stack.extend(grid.links(b).map(|(c, _)| c).filter(|&c| !refused(c)));
+            }
+        }
+        let band = |n: NodeId| refused(n) || near.contains(&n);
+        let mut field = std::collections::HashMap::new();
+        let mut into: std::collections::HashMap<NodeId, Vec<NodeId>> = std::collections::HashMap::new();
+        let mut queue = std::collections::VecDeque::new();
+        let mut floors: Vec<NodeId> = (0..grid.len() as NodeId).filter(|&a| refused(a)).collect();
+        floors.extend(near.iter().copied());
+        floors.sort_unstable();
+        for &a in &floors {
+            for (b, _) in grid.links(a) {
+                if !grid.plans(a, b) {
+                    continue;
+                }
+                if !band(b) {
+                    if let std::collections::hash_map::Entry::Vacant(entry) = field.entry(a) {
+                        entry.insert(b);
+                        queue.push_back(a);
+                    }
+                } else {
+                    into.entry(b).or_default().push(a);
+                }
+            }
+        }
+        while let Some(b) = queue.pop_front() {
+            let out = field[&b];
+            for &a in into.get(&b).map_or(&[][..], Vec::as_slice) {
+                if let std::collections::hash_map::Entry::Vacant(entry) = field.entry(a) {
+                    entry.insert(out);
+                    queue.push_back(a);
+                }
+            }
+        }
+        field.retain(|&floor, _| marked(floor));
+        field
+    }
+
+    /// The edge field: each marked floor's way out to the first unmarked floor (the field before [zone exit clear]).
+    pub(super) fn exit_field_edge(&self) -> std::collections::HashMap<NodeId, NodeId> {
+        let grid = &self.world.grid;
+        let marked = |n: NodeId| self.hazards.set_of(n).baked() != 0;
+        let mut field = std::collections::HashMap::new();
+        // The marked floors each marked floor is a link from.
+        let mut into: std::collections::HashMap<NodeId, Vec<NodeId>> =
+            std::collections::HashMap::new();
+        let mut queue = std::collections::VecDeque::new();
+        for a in (0..grid.len() as NodeId).filter(|&a| marked(a)) {
+            for (b, _) in grid.links(a) {
+                if !grid.plans(a, b) {
+                    continue;
+                }
+                if !marked(b) {
+                    if let std::collections::hash_map::Entry::Vacant(entry) = field.entry(a) {
+                        entry.insert(b);
+                        queue.push_back(a);
+                    }
+                } else {
+                    into.entry(b).or_default().push(a);
+                }
+            }
+        }
+        while let Some(b) = queue.pop_front() {
+            let out = field[&b];
+            for &a in into.get(&b).map_or(&[][..], Vec::as_slice) {
+                if let std::collections::hash_map::Entry::Vacant(entry) = field.entry(a) {
+                    entry.insert(out);
+                    queue.push_back(a);
+                }
+            }
+        }
+        field
+    }
+
+    /// [exit fields at load] The exit fields' rules and the ms they took to make (for the log).
+    pub fn exit_fields_line(&self) -> String {
+        let floors: usize = self.exit_fields.fields.iter().map(|(_, f)| f.len()).sum();
+        format!("exit fields: {} rules, {} floor answers, made in {:.0} ms", self.exit_fields.fields.len(), floors, self.exit_fields.built_ms)
     }
 
     /// The marking it was built for ([`Marking`]).
@@ -825,7 +981,7 @@ impl TacticsBase {
                 let walker_walls = super::body::walker_walls(&world);
                 let contract = objective_contract(&world);
                 let hot = mapdata::grid::HotIndex::for_grid(&world.grid);
-                Ok(Self {
+                let mut base = Self {
                     walker_walls,
                     contract,
                     world,
@@ -836,7 +992,10 @@ impl TacticsBase {
                     hot,
                     walkable,
                     progress,
-                })
+                    exit_fields: ExitFields::default(),
+                };
+                base.exit_fields = base.exit_fields();
+                Ok(base)
             },
             Self::digest,
         )
@@ -1001,6 +1160,11 @@ impl Tactics {
     /// neither body meets, which the map files leave out, in group 0x2 with mask 0x400 and no 0x4.
     pub fn trap_mesh(&self) -> &RayTree {
         &self.base.walker_walls
+    }
+
+    /// [exit fields at load] The base's exit fields line ([`TacticsBase::exit_fields_line`]).
+    pub fn base_exit_fields_line(&self) -> String {
+        self.base.exit_fields_line()
     }
 
     pub fn of(base: Arc<TacticsBase>) -> Self {
@@ -1355,17 +1519,7 @@ impl Tactics {
     /// Not the other side's spawn area for a body of map side `side`,
     /// unless bound for their base (`objective`).
     pub fn spawn_ok(&self, node: NodeId, side: Option<i32>, objective: bool) -> bool {
-        let Some(side) = side.filter(|_| !objective) else {
-            return true;
-        };
-        // No spawn area of another side.
-        let own = 1u32 << side.clamp(0, SPAWN_BITS as i32 - 1);
-        let spawn_areas = self
-            .base
-            .spawn_areas
-            .get(node as usize)
-            .map_or(0, |&bits| u32::from(bits));
-        spawn_areas & !own == 0
+        spawn_ok_in(&self.base.spawn_areas, node, side, objective)
     }
 
     /// [A395a] Whether a body of map side `side` may stand on `node` at `time` (a goal, a take's stand): [`Self::allowed`]
@@ -1567,11 +1721,13 @@ impl Tactics {
 
     /// The route from `from` to `to` for a body of map side `side`, off
     /// their spawn area.
+    #[cfg_attr(test, track_caller)]
     pub fn route(&self, from: Vec3, to: Vec3, time: u32, side: Option<i32>) -> Option<Route> {
         self.route_for(from, to, time, side, false)
     }
 
     /// [`Self::route`], into their base if `objective`.
+    #[cfg_attr(test, track_caller)]
     pub fn route_for(
         &self,
         from: Vec3,
@@ -1708,6 +1864,8 @@ impl Tactics {
                     return round;
                 }
                 let legs = tactics.band_legs(start, self.home);
+                #[cfg(test)]
+                let _asker = path::slowest::Scope::label("Tactics carrier way_round");
                 let round = path::way_exists(
                     grid,
                     &tactics.base.regions,
@@ -1734,6 +1892,7 @@ impl Tactics {
     /// [`Self::route_for`] between floors, keeping off what `filter` keeps
     /// out too (the spots a bot got stuck at, the landings of the jumps it
     /// gave up).
+    #[cfg_attr(test, track_caller)]
     pub fn route_nodes(
         &self,
         start: NodeId,
@@ -1757,6 +1916,7 @@ impl Tactics {
     #[allow(clippy::too_many_arguments)]
     // The Err is the search under way (`path::plan_start`).
     #[allow(clippy::result_large_err)]
+    #[cfg_attr(test, track_caller)]
     pub fn start_route(
         &self,
         start: NodeId,
@@ -1767,6 +1927,8 @@ impl Tactics {
         filter: &RouteFilter,
         iters: &mut usize,
     ) -> Result<Option<Route>, path::Planning> {
+        #[cfg(test)]
+        let _asker = path::slowest::Scope::at(std::panic::Location::caller());
         let grid = &self.world.grid;
         let at = grid.position(start);
         let weight = |node| filter.weight(grid, node);
@@ -1843,6 +2005,7 @@ impl Tactics {
     /// it started with: the same arguments (`start`: its start floor), and
     /// the hazards as they were ([`Hazards::version`]).
     #[allow(clippy::too_many_arguments)]
+    #[cfg_attr(test, track_caller)]
     pub fn resume_route(
         &self,
         planning: &mut path::Planning,
@@ -1853,6 +2016,8 @@ impl Tactics {
         filter: &RouteFilter,
         iters: &mut usize,
     ) -> Option<Option<Route>> {
+        #[cfg(test)]
+        let _asker = path::slowest::Scope::at(std::panic::Location::caller());
         let grid = &self.world.grid;
         let at = grid.position(start);
         let weight = |node| filter.weight(grid, node);
@@ -1877,6 +2042,7 @@ impl Tactics {
     /// `RouteFilter::hard_open`: the landings this body gave up), as for the plain search ([`Self::crossing_allowed`]).
     #[allow(clippy::too_many_arguments)]
     #[allow(clippy::result_large_err)]
+    #[cfg_attr(test, track_caller)]
     pub fn start_crossing(
         &self,
         start: NodeId,
@@ -1888,6 +2054,8 @@ impl Tactics {
         crossable: impl Fn(NodeId) -> bool,
         iters: &mut usize,
     ) -> Result<Option<Route>, path::Planning> {
+        #[cfg(test)]
+        let _asker = path::slowest::Scope::at(std::panic::Location::caller());
         let at = self.world.grid.position(start);
         path::plan_start(
             &self.world.grid,
@@ -1906,6 +2074,7 @@ impl Tactics {
     /// A [`Self::start_crossing`] search goes on, as
     /// [`Self::resume_route`] (the same arguments, `hard` and `crossable` too).
     #[allow(clippy::too_many_arguments)]
+    #[cfg_attr(test, track_caller)]
     pub fn resume_crossing(
         &self,
         planning: &mut path::Planning,
@@ -1917,6 +2086,8 @@ impl Tactics {
         crossable: impl Fn(NodeId) -> bool,
         iters: &mut usize,
     ) -> Option<Option<Route>> {
+        #[cfg(test)]
+        let _asker = path::slowest::Scope::at(std::panic::Location::caller());
         let at = self.world.grid.position(start);
         planning.resume(
             &self.world.grid,
@@ -2049,6 +2220,21 @@ impl Tactics {
         objective: bool,
         filter: &RouteFilter,
     ) -> Option<Route> {
+        self.escape_way(from, goal, time, side, objective, filter).map(|(route, _)| route)
+    }
+
+    /// [`Self::escape`] and how its way out was found ([`EscapeEnd`]). [zone exit clear] A search that stops at
+    /// [`ESCAPE_FLOORS`] with no way out (a zone wider than it reaches: Cologne's batteries zone marks 466,125 floors) takes
+    /// the exit field's way ([`Self::exit_of`]) at once: the search with the ceiling lifted reaches no farther.
+    pub fn escape_way(
+        &self,
+        from: NodeId,
+        goal: Option<Vec3>,
+        time: u32,
+        side: Option<i32>,
+        objective: bool,
+        filter: &RouteFilter,
+    ) -> Option<(Route, EscapeEnd)> {
         let grid = &self.world.grid;
         let shut = |n: NodeId| !filter.hard_open(grid, n);
         let ok = |n: NodeId| self.allowed(n, time, side, objective);
@@ -2069,12 +2255,13 @@ impl Tactics {
         // [hazard.leave_islands] A dry island is no way out: the search goes on over it to the floors the spawns reach.
         let island = self.island_test();
         let skipped = std::cell::Cell::new(false);
-        let search = |open: &dyn Fn(NodeId) -> bool| {
-            let mut seen = std::collections::HashSet::from([from]);
-            let mut queue = std::collections::VecDeque::from([(from, 0.0f32)]);
+        let search = |open: &dyn Fn(NodeId) -> bool| EscapeScratch::with(grid.len(), from, |seen, queue| {
+            // [bot CPU] The floors seen by a stamp a floor and the queue's buffer, kept between calls ([`EscapeScratch`]): the same
+            // floors in the same order as the fresh set and queue each call had (a bot borne in a zone asks every tick).
             let mut first: Option<f32> = None;
             // The ways out, each with the way to it.
             let mut outs: Vec<(NodeId, f32)> = Vec::new();
+            let mut capped = false;
             while let Some((a, d)) = queue.pop_front() {
                 if first.is_some_and(|first| d > first + ESCAPE_BAND_M) {
                     break;
@@ -2094,6 +2281,7 @@ impl Tactics {
                     continue;
                 }
                 if seen.len() > ESCAPE_FLOORS {
+                    capped = true;
                     break;
                 }
                 for (b, _) in grid.links(a) {
@@ -2102,16 +2290,16 @@ impl Tactics {
                     }
                 }
             }
-            outs
-        };
+            (outs, capped)
+        });
         let mut ceiling = match self.escape {
             super::tuning::EscapeRule::UnderStartZone => start_hit,
             super::tuning::EscapeRule::Nearest => f32::INFINITY,
         };
-        let mut outs = search(&open_under(ceiling));
-        if outs.is_empty() && ceiling.is_finite() {
+        let (mut outs, mut capped) = search(&open_under(ceiling));
+        if outs.is_empty() && !capped && ceiling.is_finite() {
             ceiling = f32::INFINITY;
-            outs = search(&open_under(ceiling));
+            (outs, capped) = search(&open_under(ceiling));
         }
         let nearest = outs.iter().copied().min_by(|a, b| a.1.total_cmp(&b.1));
         // Out of a spawn area (no zone there): the nearest way, as ever.
@@ -2140,7 +2328,15 @@ impl Tactics {
         if skipped.get() {
             islands::count(islands::OUTS_SKIPPED);
         }
-        let out = out.or_else(|| self.exit_of(from))?;
+        let (out, end) = match out {
+            Some(out) => (out, EscapeEnd::Searched),
+            None => {
+                let end = if capped { EscapeEnd::FieldPastSearch } else { EscapeEnd::FieldNoneFound };
+                (self.exit_of(from, side, objective)?, end)
+            }
+        };
+        #[cfg(test)]
+        escapes::count_field(end);
         let open = open_under(ceiling);
         let route = path::plan_where(grid, from, out, |n| !shut(n) && open(n))
             .or_else(|| path::plan_where(grid, from, out, |n| !shut(n)));
@@ -2148,7 +2344,7 @@ impl Tactics {
         if let Some(route) = &route {
             self.count_escape_route(route, from, time, side, objective);
         }
-        route
+        route.map(|route| (route, end))
     }
 
     /// [`grenade_avoid`](super::tuning::AvoidTuning) The floor a body at
@@ -2329,10 +2525,17 @@ impl Tactics {
     /// of thousands of marked floors). For a body deeper in a zone than
     /// [`Self::escape`]'s search reaches (the Cologne bench's run 5: 25 m
     /// into a big zone, 73 escapes found nothing and it stood 37 s).
-    pub fn exit_of(&self, from: NodeId) -> Option<NodeId> {
+    /// [zone exit clear] The floor it leads to is clear by [`EXIT_CLEAR_M`] of the zones' floors and of the spawn areas a
+    /// body of `side` may not enter ([`Self::spawn_ok`]), where the zone has one: an end any route may have.
+    pub fn exit_of(&self, from: NodeId, side: Option<i32>, objective: bool) -> Option<NodeId> {
         // The field is made of the baked marks alone; a floor only a live field marks has its own way out.
         if self.hazards.set_of(from).baked() == 0 {
-            return self.live_exit_of(from);
+            return self.live_exit_of(from, side, objective);
+        }
+        let rule = side.filter(|_| !objective);
+        // [exit fields at load] The base's, made with the map; a rule it has none for (a side with no spawn) at first want.
+        if let Some((_, field)) = self.base.exit_fields.fields.iter().find(|(r, _)| *r == rule) {
+            return field.get(&from).copied();
         }
         let field = {
             let mut cache = self
@@ -2340,7 +2543,8 @@ impl Tactics {
                 .lock()
                 .unwrap_or_else(std::sync::PoisonError::into_inner);
             cache
-                .get_or_insert_with(|| Arc::new(self.exit_field()))
+                .entry(rule)
+                .or_insert_with(|| Arc::new(self.base.exit_field(rule, &self.base.exit_field_edge())))
                 .clone()
         };
         field.get(&from).copied()
@@ -2349,7 +2553,7 @@ impl Tactics {
     /// The floor no zone marks that a breadth-first walk from `from`, a floor only live fields mark (`Hazards::live`),
     /// first comes to over the marked floors, within [`LIVE_EXIT_FLOORS`] (the live fields come and go, so there is
     /// no field kept as for the baked zones). None when no live field lies on `from`.
-    fn live_exit_of(&self, from: NodeId) -> Option<NodeId> {
+    fn live_exit_of(&self, from: NodeId, side: Option<i32>, objective: bool) -> Option<NodeId> {
         if self.hazards.live.set_of(from) == 0 {
             return None;
         }
@@ -2361,7 +2565,10 @@ impl Tactics {
                 if !grid.plans(a, b) || !seen.insert(b) {
                     continue;
                 }
-                if self.hazards.set_of(b).is_none() {
+                // [zone exit clear] The first floor no field marks that is clear of the marked ones and of the refused
+                // spawn floors by EXIT_CLEAR_M.
+                let refused = |n: NodeId| !self.hazards.set_of(n).is_none() || !self.spawn_ok(n, side, objective);
+                if !refused(b) && self.clear_of(b, refused) {
                     return Some(b);
                 }
                 if seen.len() < LIVE_EXIT_FLOORS {
@@ -2372,40 +2579,25 @@ impl Tactics {
         None
     }
 
-    /// [`Self::exit_of`]'s field: each marked floor's way out.
-    fn exit_field(&self) -> std::collections::HashMap<NodeId, NodeId> {
+    /// [zone exit clear] Whether no floor `marked` takes lies within [`EXIT_CLEAR_M`] across of `end` (the floors its links
+    /// reach within it): a body arrived at `end` ([`super::motor::ARRIVE_M`]) stands on none.
+    fn clear_of(&self, end: NodeId, marked: impl Fn(NodeId) -> bool) -> bool {
         let grid = &self.world.grid;
-        let marked = |n: NodeId| self.hazards.set_of(n).baked() != 0;
-        let mut field = std::collections::HashMap::new();
-        // The marked floors each marked floor is a link from.
-        let mut into: std::collections::HashMap<NodeId, Vec<NodeId>> =
-            std::collections::HashMap::new();
-        let mut queue = std::collections::VecDeque::new();
-        for a in (0..grid.len() as NodeId).filter(|&a| marked(a)) {
+        let at = grid.position(end);
+        let mut seen = vec![end];
+        let mut next = 0;
+        while let Some(&a) = seen.get(next) {
+            next += 1;
+            if marked(a) {
+                return false;
+            }
             for (b, _) in grid.links(a) {
-                if !grid.plans(a, b) {
-                    continue;
-                }
-                if !marked(b) {
-                    if let std::collections::hash_map::Entry::Vacant(entry) = field.entry(a) {
-                        entry.insert(b);
-                        queue.push_back(a);
-                    }
-                } else {
-                    into.entry(b).or_default().push(a);
+                if grid.position(b).distance_xz(at) <= EXIT_CLEAR_M && !seen.contains(&b) {
+                    seen.push(b);
                 }
             }
         }
-        while let Some(b) = queue.pop_front() {
-            let out = field[&b];
-            for &a in into.get(&b).map_or(&[][..], Vec::as_slice) {
-                if let std::collections::hash_map::Entry::Vacant(entry) = field.entry(a) {
-                    entry.insert(out);
-                    queue.push_back(a);
-                }
-            }
-        }
-        field
+        true
     }
 
     /// Whether the route a body at `feet` holds is shut ahead: a floor a
@@ -3417,6 +3609,96 @@ fn line_ends(grid: &WalkGrid, a: Vec3, b: Vec3) -> Option<(NodeId, NodeId)> {
     Some((from, to))
 }
 
+/// [zone exit clear] How [`Tactics::escape_way`] found its way out.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum EscapeEnd {
+    /// The breadth-first search's way out.
+    Searched,
+    /// The exit field's ([`Tactics::exit_of`]): the search stopped at [`ESCAPE_FLOORS`] with none.
+    FieldPastSearch,
+    /// The exit field's: the search found none within its reach.
+    FieldNoneFound,
+}
+
+impl EscapeEnd {
+    /// The nav log's words for a way out from the exit field; none for a searched one.
+    pub fn field_line(self) -> Option<&'static str> {
+        match self {
+            Self::Searched => None,
+            Self::FieldPastSearch => Some("zone way out from the exit field: the zone is wider than the search reaches"),
+            Self::FieldNoneFound => Some("zone way out from the exit field: the search found none"),
+        }
+    }
+}
+
+/// [bot CPU] [`Tactics::escape`]'s search state kept between calls on a thread: a stamp a floor for the floors seen (a floor is seen
+/// when its stamp is this call's) and the queue's buffer. A call's set and queue answer as the fresh `HashSet` and `VecDeque` did: the
+/// same floors inserted, in the same order, and the same count.
+struct EscapeScratch {
+    stamps: Vec<u32>,
+    stamp: u32,
+    queue: std::collections::VecDeque<(NodeId, f32)>,
+}
+
+/// The floors one search has seen ([`EscapeScratch`]).
+struct EscapeSeen<'a> {
+    stamps: &'a mut [u32],
+    stamp: u32,
+    len: usize,
+}
+
+impl EscapeSeen<'_> {
+    /// Marks `node` seen: true when it was not yet (`HashSet::insert`).
+    fn insert(&mut self, node: NodeId) -> bool {
+        let slot = &mut self.stamps[node as usize];
+        if *slot == self.stamp {
+            return false;
+        }
+        *slot = self.stamp;
+        self.len += 1;
+        true
+    }
+
+    /// How many floors are seen (`HashSet::len`).
+    fn len(&self) -> usize {
+        self.len
+    }
+}
+
+thread_local! {
+    static ESCAPE_SCRATCH: std::cell::RefCell<EscapeScratch> =
+        const { std::cell::RefCell::new(EscapeScratch { stamps: Vec::new(), stamp: 0, queue: std::collections::VecDeque::new() }) };
+}
+
+impl EscapeScratch {
+    /// Runs `search` with a set holding only `from` and a queue holding only `(from, 0)`, on a grid of `floors` floors.
+    fn with<R>(
+        floors: usize,
+        from: NodeId,
+        search: impl FnOnce(&mut EscapeSeen<'_>, &mut std::collections::VecDeque<(NodeId, f32)>) -> R,
+    ) -> R {
+        ESCAPE_SCRATCH.with(|cell| {
+            let mut guard = cell.borrow_mut();
+            let scratch = &mut *guard;
+            if scratch.stamps.len() != floors {
+                scratch.stamps = vec![0; floors];
+                scratch.stamp = 0;
+            }
+            // A new stamp a call; at the wrap every floor is cleared once.
+            scratch.stamp = scratch.stamp.wrapping_add(1);
+            if scratch.stamp == 0 {
+                scratch.stamps.fill(0);
+                scratch.stamp = 1;
+            }
+            scratch.queue.clear();
+            scratch.queue.push_back((from, 0.0));
+            let mut seen = EscapeSeen { stamps: &mut scratch.stamps, stamp: scratch.stamp, len: 0 };
+            seen.insert(from);
+            search(&mut seen, &mut scratch.queue)
+        })
+    }
+}
+
 /// The bench's counts of [`Tactics::escape`] (all matches of the run): the
 /// ways out it found, of them not the nearest (on toward the goal), and
 /// none found in its search.
@@ -3424,7 +3706,17 @@ fn line_ends(grid: &WalkGrid, a: Vec3, b: Vec3) -> Option<(NodeId, NodeId)> {
 pub mod escapes {
     use std::sync::atomic::{AtomicU64, Ordering};
 
-    static COUNTS: [AtomicU64; 5] = [const { AtomicU64::new(0) }; 5];
+    static COUNTS: [AtomicU64; 7] = [const { AtomicU64::new(0) }; 7];
+
+    /// [zone exit clear] A way out taken from the exit field: past the search's reach, or none found within it.
+    pub fn count_field(end: super::EscapeEnd) {
+        let k = match end {
+            super::EscapeEnd::Searched => return,
+            super::EscapeEnd::FieldPastSearch => 5,
+            super::EscapeEnd::FieldNoneFound => 6,
+        };
+        COUNTS[k].fetch_add(1, Ordering::Relaxed);
+    }
 
     /// A way out passed a stronger zone than its start's, or dropped onto a
     /// floor a zone marks.
@@ -3439,8 +3731,9 @@ pub mod escapes {
     }
 
     /// (back the nearest way, on toward the goal, none in the search, over
-    /// a stronger zone, a drop onto a zone's floor).
-    pub fn counts() -> [u64; 5] {
+    /// a stronger zone, a drop onto a zone's floor, the exit field's way past the search's reach, the exit field's way with
+    /// none found in the search).
+    pub fn counts() -> [u64; 7] {
         std::array::from_fn(|k| COUNTS[k].load(Ordering::Relaxed))
     }
 }
@@ -4326,6 +4619,53 @@ pub(super) mod tests {
         assert!(hits.iter().all(|&h| h <= 0.05 + 1e-4), "{hits:?}");
     }
 
+    /// [zone exit clear] A zone wider than the escape search reaches (x 3-77 across the whole field: about 47,000 floors):
+    /// the way out is the exit field's at once, and it ends clear of the zone by the motor's arrival radius, from deep
+    /// inside and from the floor next to the edge (Cologne batteries s1: the edge's own floor, 0.25 m off, was "arrived"
+    /// at from the zone's floor and the body stood in it 48 s).
+    #[test]
+    fn a_way_out_of_a_zone_wider_than_the_search_ends_clear_of_it() {
+        let world = field_with(|map| {
+            map.zones.push(box_zone("wide", Vec3::new(40.0, 0.0, 20.0), Vec3::new(37.0, 3.0, 25.0), 0.6));
+        });
+        let tactics = Tactics::new(world.clone(), 1.0);
+        let grid = &world.grid;
+        let arrived_out = |end: Vec3| {
+            let mut floors = 0;
+            for k in 0..=16 {
+                for r in [0.0, 0.3, super::super::motor::ARRIVE_M] {
+                    let a = k as f32 * std::f32::consts::TAU / 16.0;
+                    if let Some(n) = grid.locate(end + Vec3::new(r * a.cos(), 0.0, r * a.sin()), 0.3) {
+                        floors += 1;
+                        // Any route end's rule: no zone on and no spawn area of the other side (side 1's, x 75).
+                        assert!(tactics.allowed(n, 0, Some(0), false), "a floor within the arrival radius of {end:?} is refused");
+                    }
+                }
+            }
+            assert!(floors > 0);
+        };
+        for start in [Vec3::new(40.0, 0.0, 30.0), Vec3::new(3.2, 0.0, 30.0), Vec3::new(76.8, 0.0, 30.0)] {
+            let inside = grid.locate(start, 1.0).unwrap();
+            assert!(!tactics.allowed(inside, 0, Some(0), false), "{start:?}");
+            let (out, end) = tactics
+                .escape_way(inside, None, 0, Some(0), false, &RouteFilter::open())
+                .expect("a way out");
+            // A searched way out ends ESCAPE_MIN_M on with every neighbour out, and the next search from where the body
+            // arrives goes on; the field's way is the same from anywhere near, so it must end clear.
+            if end != EscapeEnd::Searched {
+                arrived_out(out.point_at(out.length()));
+            }
+            if start.x == 40.0 {
+                assert_eq!(end, EscapeEnd::FieldPastSearch);
+            }
+        }
+        // The edge field alone ends one link out: within the arrival radius of the zone's floor.
+        let edge = grid.locate(Vec3::new(3.2, 0.0, 30.0), 1.0).unwrap();
+        let near_out = tactics.base.exit_field_edge()[&edge];
+        assert!(!tactics.clear_of(near_out, |n| tactics.hazards.set_of(n).baked() != 0));
+        assert!(tactics.clear_of(tactics.exit_of(edge, Some(0), false).unwrap(), |n| tactics.hazards.set_of(n).baked() != 0));
+    }
+
     /// With the ceiling off (`EscapeRule::Nearest`) the way out is the old one:
     /// the nearest, east through the strong zone.
     #[test]
@@ -4896,7 +5236,7 @@ pub(super) mod tests {
         // search expands before it gives up, so the way out is the board's own (`Tactics::live_exit_of`).
         tactics.hazards.set_fields(&[live_field(1, Vec3::new(30.0, 0.0, 20.0), 25.0, LIVE_ON)], &c.grid, 0);
         let inside = grid.locate(Vec3::new(30.0, 0.0, 20.0), 1.0).unwrap();
-        assert!(tactics.exit_of(inside).is_some_and(|n| tactics.hazards.set_of(n).is_none()));
+        assert!(tactics.exit_of(inside, Some(0), false).is_some_and(|n| tactics.hazards.set_of(n).is_none()));
         let out = tactics
             .escape(inside, None, 0, Some(0), false, &RouteFilter::open())
             .expect("a way out");
