@@ -104,11 +104,6 @@ every vector (float2/3/4) as an indexed table through a `json.loads(json.dumps(.
 the game, which reads vectors raw, loaded scrambled levels. A vector rewritten as a list is exactly
 what it refuses (`release/test.sh` has the negative test; today's content passes it unchanged).
 
-Then run `weapon_balance_1_changes_only_its_values`
-(`crates/survarium/src/v026g/maps.rs`, ignored: it needs `SRP_TEST_RESOURCES_DB`,
-`SRP_TEST_SKHID_PATCHES` and `SRP_TEST_PATCH_WEAPON_BALANCE_1`) when a change touches its files. The
-server game data carries no localization tables: the test reads the texts in the patches themselves.
-
 ### Map edit lists
 
 The map editor (`~/Projects/survarium/map-editor`) saves one edit list per map: moves and turns
