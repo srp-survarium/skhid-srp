@@ -198,7 +198,7 @@ impl Hunt {
         } else {
             self.running += 1;
         }
-        bot.intent = intent;
+        bot.set_intent(intent);
         true
     }
 

@@ -137,8 +137,14 @@ pub(crate) fn a_bot_leaves_a_play_whose_goal_it_proved_no_way_to_and_takes_anoth
                 .filter(|n| n.place == 0)
                 .map(|n| format!("{} {}", n.time, n.text)),
         );
-        if notes.iter().any(|n| n.text.contains("no way to its goal")) {
-            left_at = Some(clock);
+        // The play taken after it leaving: the commander's note (a next play whose goal is shut too is left in the poll that
+        // gives it, its think being due at once).
+        for n in notes.iter().filter(|n| n.place == 0) {
+            if n.text.contains("no way to its goal") && left_at.is_none() && proved.is_some() {
+                left_at = Some(clock);
+            } else if left_at.is_some() && next.is_none() && n.text.starts_with("takes ") {
+                next = Some((n.time, n.text.clone()));
+            }
         }
         let bot = bots.bots[0].as_mut().expect("bot 0");
         match (proved, bot.assignment.as_ref()) {
@@ -157,16 +163,13 @@ pub(crate) fn a_bot_leaves_a_play_whose_goal_it_proved_no_way_to_and_takes_anoth
                     bots.teams[0].next_commander = clock + 10_000;
                 }
             }
-            (Some((_, kind, target, _)), Some(a)) if (a.kind, a.target) != (kind, target) => {
-                next = Some((clock, a.kind, a.target));
-            }
             _ => {}
         }
     }
     let (at, kind, target, goal) = proved.expect("a play with a goal");
     let left_at =
         left_at.unwrap_or_else(|| panic!("{kind:?} {target:?} to {goal:?} not left: {said:#?}"));
-    let (taken_at, next_kind, next_target) = next.expect("another play taken");
+    let (taken_at, taken) = next.unwrap_or_else(|| panic!("no other play taken: {said:#?}"));
     let (leaving, taking) = (left_at - at, taken_at - left_at);
     assert!(leaving <= 1_000, "left {leaving} ms after the proof");
     assert!(taking <= 500, "the next play {taking} ms after");
@@ -178,7 +181,7 @@ pub(crate) fn a_bot_leaves_a_play_whose_goal_it_proved_no_way_to_and_takes_anoth
         "{:?}",
         bot.features.memory.set_aside
     );
-    assert_ne!((next_kind, next_target), (kind, target));
+    assert!(!taken.starts_with(&format!("takes {kind:?} {target:?} ")), "{taken}");
 }
 
 /// [bot traps] A goal its own exhaustive search failed to reach, with no proof for the team (`unreachable.rs`), is left at the

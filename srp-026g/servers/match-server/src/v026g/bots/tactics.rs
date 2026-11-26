@@ -2568,6 +2568,10 @@ impl Tactics {
     ) -> Result<Option<Route>, path::Planning> {
         #[cfg(test)]
         let _asker = path::slowest::Scope::at(std::panic::Location::caller());
+        #[cfg(test)]
+        if super::intent_counts::stale() {
+            super::intent_counts::count(super::intent_counts::SEARCHES);
+        }
         let grid = &self.world.grid;
         let at = grid.position(start);
         let weight = |node| filter.weight(grid, node);
@@ -2672,6 +2676,10 @@ impl Tactics {
     ) -> Option<Option<Route>> {
         #[cfg(test)]
         let _asker = path::slowest::Scope::at(std::panic::Location::caller());
+        #[cfg(test)]
+        if super::intent_counts::stale() {
+            super::intent_counts::count(super::intent_counts::SEARCHES);
+        }
         let grid = &self.world.grid;
         let at = grid.position(start);
         let weight = |node| filter.weight(grid, node);
@@ -2715,6 +2723,10 @@ impl Tactics {
     ) -> Result<Option<Route>, path::Planning> {
         #[cfg(test)]
         let _asker = path::slowest::Scope::at(std::panic::Location::caller());
+        #[cfg(test)]
+        if super::intent_counts::stale() {
+            super::intent_counts::count(super::intent_counts::SEARCHES);
+        }
         let at = self.world.grid.position(start);
         path::plan_start(
             &self.world.grid,
@@ -2747,6 +2759,10 @@ impl Tactics {
     ) -> Option<Option<Route>> {
         #[cfg(test)]
         let _asker = path::slowest::Scope::at(std::panic::Location::caller());
+        #[cfg(test)]
+        if super::intent_counts::stale() {
+            super::intent_counts::count(super::intent_counts::SEARCHES);
+        }
         let at = self.world.grid.position(start);
         planning.resume(
             &self.world.grid,
