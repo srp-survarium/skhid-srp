@@ -1951,6 +1951,7 @@ impl Tactics {
     /// answer it read is this search's too, else the search, whose way, once found here, is kept in its place.
     #[allow(clippy::too_many_arguments)]
     #[allow(clippy::result_large_err)]
+    #[cfg_attr(test, track_caller)]
     pub fn start_route_kept(
         &self,
         kept: &mut Option<path::KeptWay>,
@@ -1962,6 +1963,8 @@ impl Tactics {
         filter: &RouteFilter,
         iters: &mut usize,
     ) -> Result<Option<Route>, path::Planning> {
+        #[cfg(test)]
+        let _asker = path::slowest::Scope::at(std::panic::Location::caller());
         let grid = &self.world.grid;
         let at = grid.position(start);
         let weight = |node| filter.weight(grid, node);
@@ -1998,6 +2001,7 @@ impl Tactics {
 
     /// [route reuse] [`Self::resume_route`] for a bot with its kept way: a way the search finds is kept in its place.
     #[allow(clippy::too_many_arguments)]
+    #[cfg_attr(test, track_caller)]
     pub fn resume_route_kept(
         &self,
         kept: &mut Option<path::KeptWay>,
@@ -2009,6 +2013,8 @@ impl Tactics {
         filter: &RouteFilter,
         iters: &mut usize,
     ) -> Option<Option<Route>> {
+        #[cfg(test)]
+        let _asker = path::slowest::Scope::at(std::panic::Location::caller());
         let grid = &self.world.grid;
         let at = grid.position(start);
         let weight = |node| filter.weight(grid, node);
