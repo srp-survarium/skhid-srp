@@ -29,10 +29,14 @@
 //!   more of their covered regions than L1 (metres of links into covered regions); the drive's detour round a lane then runs on
 //!   whichever was drawn, as on any route. A replan for danger (a held shooter's lane ahead, a zone shut ahead, a crossing given
 //!   up) is the plain search, and the hold turns to L1 for the walk.
-//! - **No more leaps.** L2 is a candidate only through no more leap links than L1 ([`RegionWay::leaps`]: a region link's cost over
-//!   its middles' distance is its kind's penalty, a drop's or a jump's), and its route is over the cap when it takes more jumps than
-//!   L1's links ([`Cap`]): a second lane asks no more jumps, gaps or drops of the body than the first (v65: L2's stuck per 100
-//!   starts 87-104 s against L1's 55-71 s from the same draws, its route-jump part 37.6 against 7.3 in TDM at 1.15).
+//! - **No more leaps.** L2's floors' route is over the cap when it makes more leaps (jump, gap and drop links, [`route_leaps`])
+//!   than L1's way on the regions has leap links ([`RegionWay::leaps`], [`Cap`]): a second lane asks no more jumps, gaps or drops
+//!   of the body than the first (v65: L2's stuck per 100 starts 87-104 s against L1's 55-71 s from the same draws, its route-jump
+//!   part 37.6 against 7.3 in TDM at 1.15). The test is on the floors, where L2's route is known: on the regions alone a way's
+//!   leap links are not its route's (the probe's 177 lane groups: the regions' count would drop 13 of 23 L2s in the band the
+//!   floors keep). L1's floors' route is not searched with L2's, so L1 counts its regions' leap links: they are its floors'
+//!   route's in 130 of 174 groups (more in 35, fewer in 9), and the floors' test against them decides as against L1's floors'
+//!   route in 49 of 53 L2s within +15 % and 102 of 110 within +30 %.
 //! - **L1 the cheaper.** When L2 costs less than L1 between the walk's own ends (the regions rank the ways from their end regions'
 //!   middles; 3 % of v65's two-lane draws), the two swap and the second lane is searched again off the new L1: the cap, the odds and
 //!   the shut regions are measured from the cheaper lane.
@@ -41,9 +45,9 @@
 //!   draw by cost, times Roam's `death_factor` per teammate who died walking that lane within Roam's `fresh_s` ([`odds`]). (v65 C,
 //!   from the same draws: a bot that left the lane its mates walked died unturned in 5.3 % of starts, one that went with them 3.6 %;
 //!   Roam's weights changed only 593 of 5,081 draws and left a mate at ratio 1.12 a quarter of the time.)
-//! - **The odds' scale apart from the cap.** A lane within `scale` of L1's cost weighs its place there (1 at L1's cost, 0 at the
-//!   scale); past it and within the cap (`band`), the live humans' share of legs there against their first 5 % ([`PAST_SCALE`]).
-//!   The draw's number is the life's own for the walk's 15 m goal cell (`Bot::life_key`): the same walk in one life draws the same,
+//! - **The odds from the humans' lanes.** L2 weighs, against L1's 1, the live humans' legs in its 5 % bin of cost over L1's
+//!   against their first bin's ([`HUMAN_LEGS`]), within the cap (`band`) and nothing past it: the cap and the odds are apart, and a
+//!   dearer lane weighs what the humans' dearer lanes are walked, as measured. The draw's number is the life's own for the walk's 15 m goal cell (`Bot::life_key`): the same walk in one life draws the same,
 //!   the next life draws anew.
 //! - **One draw a walk.** The decision is held for the walk ([`LaneHold`]) until its route ends for good: arrived, a new play, the
 //!   play's end, no goal or no way (`Bot::end_route`, [`ends_walk`]), or a new life. A replan in between, for any goal, keeps L2's
@@ -56,9 +60,9 @@
 //! Roam keeps its human-route draw (its walks are not drawn here), and a carrier's walk home is a race (not drawn).
 //!
 //! The values ([`LaneDrawTuning`]) are measures, not fits: `long_m` is the lane test's long leg; `away_m` and `ends_m` the C2
-//! probe's; `scale` where the live humans' lanes off their cheapest thin out (per 5 % of cost: 870, 658, 529 legs to +15 %, then 295
-//! and about 300 a 5 % on to +30 %; 27,255 legs, 2,712 recordings), and `band` the cap (+15 %, or +30 % where the humans' legs
-//! hold their share). The death weight and window are Roam's own.
+//! probe's; `band` the cap: +15 %, where the live humans' lanes off their cheapest thin out ([`HUMAN_LEGS`]: 870, 658, 529 legs
+//! per 5 % to +15 %, then 295), or +30 %, where the bins after hold about that level. The odds are the humans' bins as measured; the
+//! death weight and window are Roam's own.
 
 use std::sync::Arc;
 
@@ -72,9 +76,18 @@ use super::view::Place;
 /// The lane test's cell, m: the draw's number is the life's own for the walk's goal cell.
 const CELL_M: f32 = 15.0;
 
-/// The weight of a lane past the odds' scale and within the cap, against L1's 1: the live humans' legs 15-20 % off their cheapest
-/// (295) over those within 5 % (870), of 27,255 legs ([module](self)).
-pub const PAST_SCALE: f32 = 295.0 / 870.0;
+/// The live humans' legs off their group's cheapest lane, per 5 % bin of their lane's cost over the cheapest's: (1.00, 1.05],
+/// (1.05, 1.10], ... (1.45, 1.50] (27,255 legs of 2,712 recordings in groups of 3+ legs by the lane test's 30 m Hausdorff;
+/// `lane-band-humans-v2.py` on `legs3-H.tsv`). Not monotone: the bin (1.20, 1.25] holds more legs (355) than (1.15, 1.20] (295),
+/// and (1.40, 1.45] (218) more than (1.35, 1.40] (190); the draw uses them as measured.
+pub const HUMAN_LEGS: [u32; 10] = [870, 658, 529, 295, 355, 260, 240, 190, 218, 162];
+
+/// The weight of a second lane `ratio` times L1's cost against L1's 1: its bin's humans' legs over the first bin's ([`HUMAN_LEGS`];
+/// at or under L1's cost the first bin's); none past the table.
+pub fn human_weight(ratio: f32) -> f32 {
+    let bin = ((ratio - 1.0) / 0.05).ceil().max(1.0) as usize - 1;
+    HUMAN_LEGS.get(bin).map_or(0.0, |&legs| legs as f32 / HUMAN_LEGS[0] as f32)
+}
 
 /// Whether a route ending ends the walk, and with it the walk's lane ([`LaneHold`]): the walk got there, or its play or goal is
 /// gone. Every other ending (a replan, the body off the route, a failed or refused jump, no progress, a trap, an escape, the
@@ -262,17 +275,11 @@ pub fn cover(mates: Mates) -> Option<bool> {
     }
 }
 
-/// The draw's odds of L2 (`ratio` its cost over L1's) with no teammate's cover to keep to: L1 weighs 1 and L2 its place within
-/// `scale` (1 at L1's cost, 0 at the scale), or [`PAST_SCALE`] past it and within the cap `band`, nothing past the cap; each times
-/// Roam's `death` factor per teammate who died walking it lately (`died`).
-pub fn odds(ratio: f32, scale: f32, band: f32, died: [u32; 2], death: f32) -> f32 {
-    let place = if ratio <= scale {
-        ((scale - ratio) / (scale - 1.0)).clamp(0.0, 1.0)
-    } else if ratio <= band {
-        PAST_SCALE
-    } else {
-        0.0
-    };
+/// The draw's odds of L2 (`ratio` its cost over L1's) with no teammate's cover to keep to: L1 weighs 1 and L2 the humans' weight of
+/// its bin ([`human_weight`]) within the cap `band`, nothing past it; each times Roam's `death` factor per teammate who died walking
+/// it lately (`died`).
+pub fn odds(ratio: f32, band: f32, died: [u32; 2], death: f32) -> f32 {
+    let place = if ratio <= band { human_weight(ratio) } else { 0.0 };
     let weight = |lane: usize| death.powi(died[lane] as i32);
     let (w1, w2) = (weight(0), place * weight(1));
     if w1 + w2 > 0.0 { w2 / (w1 + w2) } else { 0.0 }
@@ -307,7 +314,7 @@ struct Second {
 }
 
 /// The most an L2 route may ask, against L1 on the regions: its length at most `metres` (the band times L1's cost: the true
-/// cost's cap), its jumps no more than L1's leap links (`leaps`, [`RegionWay::leaps`]). A route over either is not walked.
+/// cost's cap), its leaps ([`route_leaps`]) no more than L1's leap links (`leaps`, [`RegionWay::leaps`]). A route over either is not walked.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Cap {
     pub metres: f32,
@@ -315,7 +322,7 @@ pub struct Cap {
 }
 
 impl Cap {
-    /// Whether a route of `length` m and `jumps` jumps is over it.
+    /// Whether a route of `length` m making `jumps` leaps is over it.
     pub fn over(&self, length: f32, jumps: u32) -> bool {
         length > self.metres || jumps > self.leaps
     }
@@ -489,7 +496,7 @@ impl TeamLanes {
 /// The draw's verdict on a long walk, for its line and the walk.
 #[derive(Clone, Debug)]
 pub enum Verdict {
-    /// No second lane: why (no room off the ends, no way, over the band, more exposed, more leaps).
+    /// No second lane: why (no room off the ends, no way, over the band, more exposed).
     One(&'static str),
     /// Two lanes: L2's cost, the teammates on each; the lane their cover gave (`cover`), or the odds of L2 and the number drawn;
     /// `second` when L2 was taken; `swapped` when the regions' ranking was swapped (L1 the cheaper between the walk's ends).
@@ -501,7 +508,6 @@ const NO_ROOM: &str = "no room off the ends";
 const NO_WAY: &str = "no way";
 const OVER_BAND: &str = "over the band";
 const MORE_EXPOSED: &str = "more exposed";
-const MORE_LEAPS: &str = "more leaps";
 
 /// The nav line of a drawn walk: `nav: lane draw: <play> to (x, z): C1 m, <verdict>`.
 pub fn line(play: impl std::fmt::Debug, goal: Vec3, c1: f32, verdict: &Verdict) -> String {
@@ -597,8 +603,6 @@ pub(super) fn draw(
             Err(OVER_BAND)
         } else if exposed(&way) > exposed(&first) {
             Err(MORE_EXPOSED)
-        } else if way.leaps(tactics) > leaps1 {
-            Err(MORE_LEAPS)
         } else {
             Ok((way, c2, shut))
         }
@@ -615,7 +619,7 @@ pub(super) fn draw(
             let (odds, second) = match covered {
                 Some(second) => (if second { 1.0 } else { 0.0 }, second),
                 None => {
-                    let odds = odds(c2 / c1.max(0.1), set.scale.get(), band, mates.died, death);
+                    let odds = odds(c2 / c1.max(0.1), band, mates.died, death);
                     (odds, number < odds)
                 }
             };
@@ -653,16 +657,18 @@ pub(super) fn held_room(tactics: &Tactics, shut: &[bool], band: f32, walk: &Walk
     Some(Room { regions: room(tactics, &way, shut, walk.open), cap: Cap { metres: band * c1, leaps: first.leaps(tactics) } })
 }
 
-/// The jumps of a route: its waypoints reached by a jump.
-pub fn jumps(route: &super::path::Route) -> u32 {
-    route.points().iter().filter(|w| w.jump.is_some()).count() as u32
+/// The leaps a floors' route makes: its legs that are one link of the grid's other than a walk (a jump, a gap's or a drop: the
+/// planner's route has a corner at each end of every such link, `path::pull`).
+pub fn route_leaps(route: &super::path::Route, grid: &mapdata::WalkGrid) -> u32 {
+    use mapdata::grid::LinkKind;
+    route.points().windows(2).filter(|w| grid.links(w[0].node).any(|(to, kind)| to == w[1].node && kind != LinkKind::Walk)).count() as u32
 }
 
-/// The nav line of an L2 route over its cap: `nav: lane draw: L2 to (x, z) over its cap: L m against C m, J jumps against K leaps,
+/// The nav line of an L2 route over its cap: `nav: lane draw: L2 to (x, z) over its cap: L m against C m, J leaps against L1's K,
 /// walks L1`.
 pub fn over_cap_line(goal: Vec3, length: f32, jumps: u32, cap: Cap) -> String {
     format!(
-        "{}lane draw: L2 to ({:.1}, {:.1}) over its cap: {length:.1} m against {:.1} m, {jumps} jumps against {} leaps, walks L1",
+        "{}lane draw: L2 to ({:.1}, {:.1}) over its cap: {length:.1} m against {:.1} m, {jumps} leaps against L1's {}, walks L1",
         super::nav_log::PREFIX,
         goal.x,
         goal.z,
@@ -675,24 +681,32 @@ pub fn over_cap_line(goal: Vec3, length: f32, jumps: u32, cap: Cap) -> String {
 mod tests {
     use super::*;
 
+    /// The odds are the humans' bins as measured: each bin's weight is its legs over the first bin's, the cap cuts them, and deaths
+    /// weigh a lane down.
     #[test]
-    fn the_odds_fall_with_cost_and_deaths_and_keep_the_scale_apart_from_the_cap() {
+    fn the_odds_are_the_humans_bins_within_the_cap_and_fall_with_deaths() {
         let none = [0, 0];
-        // Equal cost: even. At the scale's edge: L1 always, with the cap there too.
-        assert!((odds(1.0, 1.15, 1.15, none, 0.4) - 0.5).abs() < 1e-6);
-        assert_eq!(odds(1.15, 1.15, 1.15, none, 0.4), 0.0);
-        assert_eq!(odds(1.2, 1.15, 1.15, none, 0.4), 0.0, "past the cap: never");
-        // Halfway in the scale: L2 weighs 0.5 against 1, whatever the cap.
-        assert!((odds(1.075, 1.15, 1.15, none, 0.4) - 1.0 / 3.0).abs() < 1e-5);
-        assert!((odds(1.075, 1.15, 1.3, none, 0.4) - 1.0 / 3.0).abs() < 1e-5, "the cap leaves the scale's odds");
-        // Past the scale and within the cap: the humans' share there.
-        let past = PAST_SCALE / (1.0 + PAST_SCALE);
-        assert!((odds(1.2, 1.15, 1.3, none, 0.4) - past).abs() < 1e-6 && (odds(1.3, 1.15, 1.3, none, 0.4) - past).abs() < 1e-6);
-        assert_eq!(odds(1.31, 1.15, 1.3, none, 0.4), 0.0);
+        let p = |w: f32| w / (1.0 + w);
+        for (k, &legs) in HUMAN_LEGS.iter().enumerate() {
+            let w = legs as f32 / 870.0;
+            for ratio in [1.0 + 0.05 * k as f32 + 0.01, 1.0 + 0.05 * (k + 1) as f32 - 0.01] {
+                assert!((human_weight(ratio) - w).abs() < 1e-6, "bin {k} at {ratio}");
+                assert!((odds(ratio, 1.5, none, 0.4) - p(w)).abs() < 1e-6, "bin {k} at {ratio}");
+            }
+        }
+        assert_eq!(human_weight(1.0), 1.0, "at L1's cost: the first bin");
+        assert_eq!(human_weight(0.9), 1.0);
+        assert_eq!(human_weight(1.51), 0.0, "past the table");
+        // Equal cost: even. The cap cuts the bins past it.
+        assert!((odds(1.0, 1.15, none, 0.4) - 0.5).abs() < 1e-6);
+        assert!((odds(1.12, 1.15, none, 0.4) - p(529.0 / 870.0)).abs() < 1e-6);
+        assert_eq!(odds(1.17, 1.15, none, 0.4), 0.0, "past the cap: never");
+        assert!((odds(1.17, 1.3, none, 0.4) - p(295.0 / 870.0)).abs() < 1e-6);
+        assert!((odds(1.22, 1.3, none, 0.4) - p(355.0 / 870.0)).abs() < 1e-6, "as measured: more legs at +20-25 % than at +15-20 %");
         // A mate who died on L1 makes L2 likelier, one on L2 less; one on each: as none.
-        let alone = odds(1.05, 1.15, 1.15, none, 0.4);
-        assert!(odds(1.05, 1.15, 1.15, [1, 0], 0.4) > alone && odds(1.05, 1.15, 1.15, [0, 1], 0.4) < alone);
-        assert!((odds(1.05, 1.15, 1.15, [1, 1], 0.4) - alone).abs() < 1e-6);
+        let alone = odds(1.07, 1.15, none, 0.4);
+        assert!(odds(1.07, 1.15, [1, 0], 0.4) > alone && odds(1.07, 1.15, [0, 1], 0.4) < alone);
+        assert!((odds(1.07, 1.15, [1, 1], 0.4) - alone).abs() < 1e-6);
     }
 
     #[test]
@@ -808,7 +822,7 @@ mod tests {
         let cover = Verdict::Two { c2: 98.0, mates, cover: true, odds: 0.0, number: 0.2, second: false, swapped: true };
         let text = line("Collect", goal, 100.0, &cover);
         assert!(text.contains("C2 98.0 m (0.980), swapped, mates now L1 2 L2 0") && text.ends_with("with the mates: walks L1 (rank 1), 100.0 m"), "{text}");
-        assert!(line("Cut", goal, 80.0, &Verdict::One(MORE_LEAPS)).ends_with("one lane (more leaps), walks L1"));
+        assert!(line("Cut", goal, 80.0, &Verdict::One(MORE_EXPOSED)).ends_with("one lane (more exposed), walks L1"));
     }
 
     /// On the test field (80 by 40 m, a wall at x 40 from z 0 to 25): the regions' way from (10, 10) to (70, 10) goes by the gap
@@ -887,7 +901,7 @@ mod tests {
         let near = Cap { metres: 90.0, leaps: 0 };
         hold.capped(near);
         assert_eq!(hold.over_cap(goal, 100.0, 0, 15.0), Some(near));
-        assert!(over_cap_line(goal, 100.0, 1, near).ends_with("lane draw: L2 to (100.0, 0.0) over its cap: 100.0 m against 90.0 m, 1 jumps against 0 leaps, walks L1"));
+        assert!(over_cap_line(goal, 100.0, 1, near).ends_with("lane draw: L2 to (100.0, 0.0) over its cap: 100.0 m against 90.0 m, 1 leaps against L1's 0, walks L1"));
         hold.drop_lane();
         assert!(!hold.second_for(goal, 15.0));
     }

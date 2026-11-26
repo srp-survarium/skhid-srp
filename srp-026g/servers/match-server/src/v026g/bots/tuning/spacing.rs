@@ -67,7 +67,7 @@ pub struct SpacingTuning {
     /// [lane draw] (the lane-spreading root cause, 2026-11-26: every play but Roam walked the one least-cost way, so between the same
     /// start and end a team's bots and lives took one lane; top lane share 0.878 against the live humans' 0.846): at the start of a
     /// walk to a new goal over `long_m`, a second lane kept `away_m` off the first is searched, and one of the two is taken: the one
-    /// more teammates walk now, else drawn per life by cost within `band` and against teammates' deaths on it (`bots/lane_draw.rs`). Off: every walk
+    /// more teammates walk now, else drawn per life by the humans' lanes' share at its cost within `band` and against teammates' deaths on it (`bots/lane_draw.rs`). Off: every walk
     /// takes the least-cost way.
     pub lane_draw: Option<LaneDrawTuning>,
 }
@@ -80,13 +80,9 @@ pub struct LaneDrawTuning {
     /// A walk whose least-cost way is longer than this is a long leg, m: the lane test's long legs (60 m walked).
     pub long_m: Metres,
     /// A second lane costs at most this times the least-cost way (the cap): +15 %, where the live humans' lanes off their cheapest
-    /// thin out (per 5 % of cost: 870, 658, 529 legs to +15 %, then 295 and about 300 a 5 % on to +30 %; 27,255 legs of 2,712
-    /// recordings).
+    /// thin out (per 5 % of cost: 870, 658, 529 legs to +15 %, then 295, 355, 260 to +30 %; 27,255 legs of 2,712 recordings). Within
+    /// it the draw weighs a lane by the humans' legs in its bin (`bots/lane_draw.rs` `HUMAN_LEGS`), apart from the cap.
     pub band: Positive,
-    /// The draw's odds scale apart from the cap: a second lane within this times the least-cost way weighs its place in it (1 at
-    /// the least cost, 0 here), past it and within `band` the humans' share there (`bots/lane_draw.rs` `PAST_SCALE`): where the
-    /// humans' lanes thin out (+15 %).
-    pub scale: Positive,
     /// The second lane keeps this far off the first, m: the root cause's C2 search (floors within 15 m of the first lane shut).
     pub away_m: Metres,
     /// … but within this of the walk's ends, where both lanes start and end, m (the C2 search's 25 m).
@@ -94,13 +90,10 @@ pub struct LaneDrawTuning {
 }
 
 impl LaneDrawTuning {
-    /// The band and the scale are cost ratios over 1 (the draw's odds divide by the scale's excess, `bots/lane_draw.rs` `odds`).
+    /// The band is a cost ratio over 1 (a second lane is dearer than the first).
     pub fn check(&self) -> Result<(), String> {
         if self.band.get() <= 1.0 {
             return Err("spacing.lane_draw.band".into());
-        }
-        if self.scale.get() <= 1.0 {
-            return Err("spacing.lane_draw.scale".into());
         }
         Ok(())
     }
@@ -108,7 +101,7 @@ impl LaneDrawTuning {
 
 impl Default for LaneDrawTuning {
     fn default() -> Self {
-        Self { long_m: Metres::of(60.0), band: Positive::of(1.15), scale: Positive::of(1.15), away_m: Metres::of(15.0), ends_m: Metres::of(25.0) }
+        Self { long_m: Metres::of(60.0), band: Positive::of(1.15), away_m: Metres::of(15.0), ends_m: Metres::of(25.0) }
     }
 }
 
