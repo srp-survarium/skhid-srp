@@ -274,7 +274,7 @@ is played as soon as the server runs on data with it.
   data; `survarium::v026g::localization`), else English, else the project's
   folder.
 - Checked: on the test data (0.26g) the projects give the hand tables srp had
-  before for every level 1 to 8 (`maps::tests::the_projects_give_what_srp_had_by_hand`);
+  before for every level 1 to 8 (`maps::tests::the_projects_give_what_srp_had_by_hand`, removed 2026-11-21 with the tests that repeat data);
   on 0.26g with skhid's patches 12 and 14 the playable ids are the 72 and 181
   to 183, every value as before, London 20 respawn points in each mode and
   container 0 team 1's, named "London" / "Лондон" (an ignored test:

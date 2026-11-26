@@ -17,10 +17,8 @@ The owner's of 2026-10-19. Code: `session::v026g::tutorial`; the client's side: 
     nothing; its 15 points spent:
     Quick Response 5 (101), Battle Stance 2 (102), Potent Painkiller 1 (301), Fast
     Bandaging 2 (302), Metabolism 5 (311);
-  - 15 000 silver and 150 gold (the owner's of 2026-10-24; before, 10 000 and 500);
-  - a month of premium: 30 days (the shop's month, `PREMIUM_OFFERS` id 3) from the account's
-    making at its first sign-in, added as all premium is (`premium::add_premium`); the lobby
-    is told the hours left (720);
+  - 30 000 silver (since 2026-11-08, gold gone: the 15 000 silver and 150 gold of 2026-10-24, the gold at 100 silver; before, 10 000 and 500);
+  - no premium (gone since 2026-11-09, `premium.md`; until then a month of it);
   - exactly 1000 rounds of every ammo: each stack of the dictionary under
     `gameplay/items/weapons/ammo/`, the ported weapons' too (39 on the data of rev58). An
     account made before an ammo was added does not get it (a one-off top-up of the older
@@ -88,9 +86,9 @@ The owner's of 2026-10-19. Code: `session::v026g::tutorial`; the client's side: 
   pocket's, a modification of a type its item does not take, on a stack or on an item it
   is not given (worn or owned), or more than 3 on an item with those it comes with. The
   test data lacks the knit cap, the backpack, the Keeper of the Sun, the Saiga-12, its
-  buckshot and the Glock 17, and predates the container's pocket; the whole grant on released data, preset 2 chosen as a player
-  chooses it: `SRP_TEST_GAME_DATA=<server-game-data.db> cargo test -p session --test
-  starter_kit -- --ignored`.
+  buckshot and the Glock 17, and predates the container's pocket. (The ignored test of the whole
+  grant on released data, session's `tests/starter_kit.rs`, went on 2026-11-21 with the tests
+  that repeat data.)
 - **Accounts made before:** raised once to where a new one starts (37 999 experience, level
   15; the owner's of 2026-11-06) by the release that ships it, in the database with srp
   stopped (`UPDATE g26_accounts SET exp_total = 37999 WHERE exp_total < 37999`): the levels

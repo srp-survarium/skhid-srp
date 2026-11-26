@@ -105,7 +105,7 @@ reads them too); `scripts/medicines/medicines.tsv` holds each one's ids, keys, i
   medkits, 1 for the bandages, as before: a kit with one is matched as before.
 - Sellers: a config's `parameters/faction` (the coloured ones); srp sells a supply whose config
   names a faction from that faction, as gear (`prices.rs`); no stock supply names one. The bandages
-  and the Medikit stay the Scavengers' (`EXCEPTIONS`).
+  and the Medikit stay the Scavengers' (`scripts/content-edit/shop.tsv`).
 - The match changes: the Medikit's pain heal (`simulation_changes.tsv` `next` row). The new items
   change no older game (none has one).
 
