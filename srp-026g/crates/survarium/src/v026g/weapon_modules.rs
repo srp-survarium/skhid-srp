@@ -8,11 +8,12 @@
 //! may be fitted so, with the same `resolve` the game runs:
 //!
 //! - [`Modules::check`]: a weapon and what it would hold in its kit's slots
-//!   3, 4 and 5 ([`Fitted`]), to `Ok` or why not ([`Unfit`]). Every fit
-//!   check (a scope's, a muzzle device's, a grip's; an attach, an account's
-//!   load, a shop's list) calls this and nothing else;
-//! - [`Modules::kind`]: the kind a module is fitted as on a weapon, which is
-//!   the slot its record goes in ([`slot_of`]);
+//!   3, 4, 5 and 6 ([`Fitted`]), to `Ok` or why not ([`Unfit`]). Every fit
+//!   check (a scope's, a muzzle device's, a grip's, a second sight's; an
+//!   attach, an account's load, a shop's list) calls this and nothing else;
+//! - [`Modules::kinds`], [`Modules::takes`]: the kinds a module is fitted as
+//!   on a weapon (an optic may be its scope and its second sight), each the
+//!   slot its record goes in ([`slot_of`]);
 //! - [`Modules::fits`]: what a weapon takes, for a list.
 //!
 //! Game data without the table has no gun: nothing is fitted to anything
@@ -21,11 +22,11 @@
 use std::sync::OnceLock;
 
 use weapon_modules::{DictId, Malformed, Table, Wanted, resolve};
-pub use weapon_modules::{Kind, Refusal};
+pub use weapon_modules::{Kind, Refusal, Side};
 
 use super::game_data::{self, GameData};
 use super::scopes::SCOPE_SLOT;
-use super::weapon_kit::{GRIP_SLOT, MUZZLE_SLOT};
+use super::weapon_kit::{self, GRIP_SLOT, MUZZLE_SLOT, SECOND_SIGHT_SLOT};
 
 /// The table's file in the game data (the game asks for it under
 /// `resources/`).
@@ -38,22 +39,42 @@ pub fn slot_of(kind: Kind) -> u8 {
         Kind::Scope => SCOPE_SLOT,
         Kind::Muzzle => MUZZLE_SLOT,
         Kind::Grip => GRIP_SLOT,
+        Kind::SecondSight => SECOND_SIGHT_SLOT,
     }
 }
 
-/// The kind a weapon's kit slot holds, for the three that hold a module.
+/// A second sight's side by its record's value (the kit's [`weapon_kit::Side`]);
+/// None for a value that is no side.
+pub fn side_of(value: u64) -> Option<Side> {
+    weapon_kit::Side::of_value(value).map(|side| match side {
+        weapon_kit::Side::Left => Side::Left,
+        weapon_kit::Side::Right => Side::Right,
+    })
+}
+
+/// A second sight's record value for `side`.
+pub fn side_value(side: Side) -> u64 {
+    match side {
+        Side::Left => weapon_kit::Side::Left.value(),
+        Side::Right => weapon_kit::Side::Right.value(),
+    }
+}
+
+/// The kind a weapon's kit slot holds, for the four that hold a module.
 pub fn kind_of_slot(slot: u8) -> Option<Kind> {
     Kind::ALL.into_iter().find(|&kind| slot_of(kind) == slot)
 }
 
-/// What a weapon holds, or would hold, in its kit's slots 3, 4 and 5: each
-/// a module's dict id (the record's own, what its item's modification sets
-/// `srp_scope`, `srp_muzzle` or `srp_grip` to).
+/// What a weapon holds, or would hold, in its kit's slots 3, 4, 5 and 6:
+/// each a module's dict id (the record's own, what its item's modification
+/// sets `srp_scope`, `srp_muzzle` or `srp_grip` to), and the second sight's
+/// side.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct Fitted {
     pub scope: Option<u16>,
     pub muzzle: Option<u16>,
     pub grip: Option<u16>,
+    pub second_sight: Option<(u16, Side)>,
 }
 
 impl Fitted {
@@ -62,16 +83,28 @@ impl Fitted {
             Kind::Scope => self.scope,
             Kind::Muzzle => self.muzzle,
             Kind::Grip => self.grip,
+            Kind::SecondSight => self.second_sight.map(|(module, _)| module),
         }
     }
 
-    /// This, with `module` (or nothing) as its `kind`.
+    /// This, with `module` (or nothing) as its `kind`; a second sight keeps
+    /// the side it had, the left one for a new one.
     pub fn with(mut self, kind: Kind, module: Option<u16>) -> Fitted {
         match kind {
             Kind::Scope => self.scope = module,
             Kind::Muzzle => self.muzzle = module,
             Kind::Grip => self.grip = module,
+            Kind::SecondSight => {
+                let side = self.second_sight.map_or(Side::Left, |(_, side)| side);
+                self.second_sight = module.map(|module| (module, side));
+            }
         }
+        self
+    }
+
+    /// This, with its second sight (if any) on `side`.
+    pub fn on_side(mut self, side: Side) -> Fitted {
+        self.second_sight = self.second_sight.map(|(module, _)| (module, side));
         self
     }
 
@@ -145,13 +178,16 @@ impl Modules {
         self.gun_fits(weapon).is_some()
     }
 
-    /// The kind `module` is fitted as on `weapon`; None when the weapon
-    /// takes no such module.
-    pub fn kind(&self, weapon: u16, module: u16) -> Option<Kind> {
-        self.gun_fits(weapon)?
-            .into_iter()
-            .find(|&(dict, _)| dict == module)
-            .map(|(_, kind)| kind)
+    /// The kinds `module` is fitted as on `weapon`, in [`Kind::ALL`]'s
+    /// order; empty when the weapon takes no such module.
+    pub fn kinds(&self, weapon: u16, module: u16) -> Vec<Kind> {
+        let fits = self.gun_fits(weapon).unwrap_or_default();
+        Kind::ALL.into_iter().filter(|kind| fits.contains(&(module, *kind))).collect()
+    }
+
+    /// Whether `weapon` takes `module` as a `kind`.
+    pub fn takes(&self, weapon: u16, module: u16, kind: Kind) -> bool {
+        self.gun_fits(weapon).is_some_and(|fits| fits.contains(&(module, kind)))
     }
 
     /// Whether some gun takes `module` (as any kind): an item of the
@@ -202,6 +238,7 @@ impl Modules {
                 Kind::Scope => wanted.scope = Some(dict),
                 Kind::Muzzle => wanted.muzzle = Some(dict),
                 Kind::Grip => wanted.grip = Some(dict),
+                Kind::SecondSight => wanted.second_sight = fitted.second_sight.map(|(_, side)| (dict, side)),
             }
         }
         resolve(gun, wanted).map(|_| ()).map_err(Unfit::Refused)
@@ -220,14 +257,16 @@ pub mod fixtures {
     /// has one slot a kind and nothing of its own, every module goes in its
     /// kind's slot. No pair is refused in it.
     pub fn modules(fits: &[(u16, u16, Kind)]) -> Modules {
-        let slot = |kind| match kind {
-            Kind::Scope => SlotId::ScopeDovetail,
-            Kind::Muzzle => SlotId::M24x15Muzzle,
-            Kind::Grip => SlotId::PicatinnyGrip,
+        // a second sight on either side
+        let slots = |kind| match kind {
+            Kind::Scope => vec![SlotId::ScopeDovetail],
+            Kind::Muzzle => vec![SlotId::M24x15Muzzle],
+            Kind::Grip => vec![SlotId::PicatinnyGrip],
+            Kind::SecondSight => vec![SlotId::AngledCollimShortL, SlotId::AngledCollimShortR],
         };
         let mut source = Source::default();
         for &(weapon, module, kind) in fits {
-            let at = match source.modules.iter().position(|made| made.dict == module) {
+            let at = match source.modules.iter().position(|made| made.dict == module && made.role == Role::Fitted(kind)) {
                 Some(at) => at,
                 None => {
                     source.modules.push(ModuleSource {
@@ -236,10 +275,13 @@ pub mod fixtures {
                         model: format!("weapons/test/module_{module}"),
                         alt: None,
                         aimed: None,
-                        attaches: vec![AttachSource {
-                            eye: (kind == Kind::Scope).then_some(AttachEye::Own(Affine::IDENTITY)),
-                            ..AttachSource::new(slot(kind))
-                        }],
+                        attaches: slots(kind)
+                            .into_iter()
+                            .map(|slot| AttachSource {
+                                eye: kind.sees().then_some(AttachEye::Own(Affine::IDENTITY)),
+                                ..AttachSource::new(slot)
+                            })
+                            .collect(),
                         hand: (kind == Kind::Grip).then_some([Affine::IDENTITY; HAND_LOCATORS]),
                     });
                     source.modules.len() - 1
@@ -253,7 +295,7 @@ pub mod fixtures {
                         bones: 1,
                         aim_bone: 0,
                         bare: format!("weapons/test/gun_{weapon}_bare"),
-                        slots: Kind::ALL.into_iter().map(|kind| (slot(kind), 0, Affine::IDENTITY)).collect(),
+                        slots: Kind::ALL.into_iter().flat_map(slots).map(|slot| (slot, 0, Affine::IDENTITY)).collect(),
                         pose: vec![(0, Affine::IDENTITY)],
                         ..GunSource::default()
                     });
@@ -273,9 +315,10 @@ mod tests {
     /// The `weapon-modules` crate's own sample (its guns and dict ids are
     /// 0.69d0's): the AK-74M 3, its premium 2079, the FN FNC 820, the HK416
     /// 763, the P90 1220; the DTK-3 1415, the MIKI grip 1438, the PSO-1
-    /// 1755, the EOTech 1771, a P90 brake 1421 and flash hider 1395.
+    /// 1755, the EOTech 1771, a P90 brake 1421 and flash hider 1395, the
+    /// DeltaPoint Pro 2112 (the HK416's scope and second sight).
     fn sample() -> Modules {
-        Modules::parse(include_bytes!("../../../weapon-modules/tests/sample-v3.srpm").to_vec()).unwrap()
+        Modules::parse(include_bytes!("../../../weapon-modules/tests/sample-v4.srpm").to_vec()).unwrap()
     }
 
     const AK: u16 = 3;
@@ -284,16 +327,21 @@ mod tests {
     const DTK3: u16 = 1415;
     const MIKI: u16 = 1438;
     const PSO1: u16 = 1755;
+    const DPPRO: u16 = 2112;
 
     #[test]
     fn a_module_goes_in_the_slot_of_its_kind() {
         let modules = sample();
-        assert_eq!(modules.kind(AK, DTK3), Some(Kind::Muzzle));
-        assert_eq!(modules.kind(AK, MIKI), Some(Kind::Grip));
-        assert_eq!(modules.kind(AK, PSO1), Some(Kind::Scope));
-        assert_eq!(modules.kind(HK416, DTK3), None);
-        assert_eq!(modules.kind(999, DTK3), None);
-        assert_eq!((slot_of(Kind::Scope), slot_of(Kind::Muzzle), slot_of(Kind::Grip)), (3, 4, 5));
+        assert_eq!(modules.kinds(AK, DTK3), [Kind::Muzzle]);
+        assert_eq!(modules.kinds(AK, MIKI), [Kind::Grip]);
+        assert_eq!(modules.kinds(AK, PSO1), [Kind::Scope]);
+        assert_eq!(modules.kinds(HK416, DPPRO), [Kind::Scope, Kind::SecondSight]);
+        assert!(modules.takes(HK416, DPPRO, Kind::SecondSight) && !modules.takes(AK, DPPRO, Kind::SecondSight));
+        assert!(modules.kinds(HK416, DTK3).is_empty());
+        assert!(modules.kinds(999, DTK3).is_empty());
+        assert_eq!(Kind::ALL.map(slot_of), [3, 4, 5, 6]);
+        assert_eq!(kind_of_slot(6), Some(Kind::SecondSight));
+        assert_eq!((side_of(1), side_of(0), side_of(2)), (Some(Side::Right), Some(Side::Left), None));
         assert_eq!(kind_of_slot(4), Some(Kind::Muzzle));
         assert_eq!(kind_of_slot(2), None);
         assert!(modules.fits(AK).contains(&(DTK3, Kind::Muzzle)));
@@ -303,7 +351,7 @@ mod tests {
     #[test]
     fn the_check_is_the_guns_own_rules() {
         let modules = sample();
-        let all = Fitted { scope: Some(PSO1), muzzle: Some(DTK3), grip: Some(MIKI) };
+        let all = Fitted { scope: Some(PSO1), muzzle: Some(DTK3), grip: Some(MIKI), second_sight: None };
         assert_eq!(modules.check(AK, all), Ok(()));
         assert_eq!(modules.check(AK, Fitted::default()), Ok(()));
         // nothing fitted is fine on anything; something on no gun is not
@@ -330,12 +378,29 @@ mod tests {
         assert_eq!(modules.check(AK, Fitted::default().with(Kind::Scope, Some(0))), Err(Unfit::Refused(Refusal::NoFit(Kind::Scope))));
     }
 
+    /// The HK416 of the sample: a DeltaPoint Pro on its top rail, a second
+    /// on the offset rail at either side, both at once; the AK-74M has no
+    /// angled rail.
+    #[test]
+    fn a_second_sight_goes_on_either_side() {
+        let modules = sample();
+        let side = |side| Fitted::default().with(Kind::SecondSight, Some(DPPRO)).on_side(side);
+        assert_eq!(modules.check(HK416, side(Side::Left)), Ok(()));
+        assert_eq!(modules.check(HK416, side(Side::Right).with(Kind::Scope, Some(DPPRO))), Ok(()));
+        assert_eq!(side(Side::Right).with(Kind::SecondSight, Some(DPPRO)).second_sight, Some((DPPRO, Side::Right)));
+        assert_eq!(modules.check(AK, side(Side::Left)), Err(Unfit::Refused(Refusal::NoFit(Kind::SecondSight))));
+        // a made-up table: a fit of each kind, the second sight on both sides
+        let made = fixtures::modules(&[(63, 2112, Kind::Scope), (63, 2112, Kind::SecondSight)]);
+        assert_eq!(made.kinds(63, 2112), [Kind::Scope, Kind::SecondSight]);
+        assert_eq!(made.check(63, side(Side::Right).with(Kind::Scope, Some(2112))), Ok(()));
+    }
+
     #[test]
     fn a_made_up_table_fits_what_it_is_told() {
         let modules = fixtures::modules(&[(63, 2601, Kind::Muzzle), (63, 2660, Kind::Grip), (3, 2101, Kind::Scope)]);
-        assert_eq!(modules.kind(63, 2601), Some(Kind::Muzzle));
-        assert_eq!(modules.check(63, Fitted { scope: None, muzzle: Some(2601), grip: Some(2660) }), Ok(()));
-        assert_eq!(modules.kind(3, 2601), None);
+        assert_eq!(modules.kinds(63, 2601), [Kind::Muzzle]);
+        assert_eq!(modules.check(63, Fitted { scope: None, muzzle: Some(2601), grip: Some(2660), second_sight: None }), Ok(()));
+        assert!(modules.kinds(3, 2601).is_empty());
         assert!(modules.is_module(2101) && modules.is_module(2660) && !modules.is_module(63));
     }
 
@@ -343,7 +408,7 @@ mod tests {
     fn game_data_without_the_table_fits_nothing() {
         let none = Modules::NONE;
         assert!(!none.is_gun(AK));
-        assert_eq!(none.kind(AK, DTK3), None);
+        assert!(none.kinds(AK, DTK3).is_empty());
         assert_eq!(none.check(AK, Fitted::default().with(Kind::Muzzle, Some(DTK3))), Err(Unfit::NoGun));
         assert!(Modules::parse(b"SRPX".to_vec()).is_err());
         // the test archive has none: the shared one of tests is empty
