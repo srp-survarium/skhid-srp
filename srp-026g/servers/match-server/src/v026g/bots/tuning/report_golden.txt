@@ -50,7 +50,7 @@ switch values mods: comeback={"drop_confidence":0.6700000166893005,"enemy_m":30.
 switch values pace: reserve={"gap":[15.0,30.0],"stop":[10.0,25.0]}
 switch values skill: tactics={"answer":{"floor":0.4000000059604645,"top":1.2000000476837158},"crossfire":{...
 switch values smoke: shooter_spot={"rest_within_m":4.0} wait_for_cloud={"close_m":15.0,"close_sensed_ms":2000,"margin_ms":500,"who":"crossers"}
-switch values spacing: callouts=seen_and_heard lane_draw={"away_m":15.0,"band":1.149999976158142,"ends_m":25.0,"long_m":60.0} queue={"cone_deg":60.0,"gap_m":2.0,"stop_m":1.5}
+switch values spacing: callouts=seen_and_heard lane_draw={"away_m":15.0,"band":1.2999999523162842,"ends_m":25.0,"long_m":60.0} queue={"cone_deg":60.0,"gap_m":2.0,"stop_m":1.5}
 switch values take: pitch=view_scale team_memory={"aside_after":2,"aside_s":20.0,"keep_s":90.0} zone_look={"within_m":24.0} zone_take={"in_mps":4.5,"spend":{"after_opening":{"left":0.4000000059604645,"share":0.6...
 switch values tdm: behind_holds={"cut_cut":0.75,"full_tickets":5.0,"hold_gain":1.0}
 switch values think: search_queue=fair stamina_rates=kit

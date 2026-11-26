@@ -79,9 +79,10 @@ pub struct SpacingTuning {
 pub struct LaneDrawTuning {
     /// A walk whose least-cost way is longer than this is a long leg, m: the lane test's long legs (60 m walked).
     pub long_m: Metres,
-    /// A second lane costs at most this times the least-cost way (the cap): +15 %, where the live humans' lanes off their cheapest
-    /// thin out (per 5 % of cost: 870, 658, 529 legs to +15 %, then 295, 355, 260 to +30 %; 27,255 legs of 2,712 recordings). Within
-    /// it the draw weighs a lane by the humans' legs in its bin (`bots/lane_draw.rs` `HUMAN_LEGS`), apart from the cap.
+    /// A second lane costs at most this times the least-cost way (the cap): +30 %, the owner's band (at least +30 %), through the
+    /// bins where the live humans' lanes off their cheapest thin out (per 5 % of cost: 870, 658, 529 legs to +15 %, then 295, 355,
+    /// 260 to +30 %; 27,255 legs of 2,712 recordings). Within it the draw weighs a lane by the humans' legs in its bin
+    /// (`bots/lane_draw.rs` `HUMAN_LEGS`), apart from the cap.
     pub band: Positive,
     /// The second lane keeps this far off the first, m: the root cause's C2 search (floors within 15 m of the first lane shut).
     pub away_m: Metres,
@@ -101,7 +102,7 @@ impl LaneDrawTuning {
 
 impl Default for LaneDrawTuning {
     fn default() -> Self {
-        Self { long_m: Metres::of(60.0), band: Positive::of(1.15), away_m: Metres::of(15.0), ends_m: Metres::of(25.0) }
+        Self { long_m: Metres::of(60.0), band: Positive::of(1.30), away_m: Metres::of(15.0), ends_m: Metres::of(25.0) }
     }
 }
 
