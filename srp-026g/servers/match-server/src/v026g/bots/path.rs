@@ -2413,6 +2413,17 @@ impl Route {
         &self.points
     }
 
+    /// [route shut] The jump or drop leg whose flight the point `s` metres along lies in (past its take-off, short of its
+    /// landing): its landing's index `k` (`points()[k - 1]` the take-off). A jump leg is one its landing is reached by a
+    /// [`Leap`]; a drop leg one [`Self::drop_into`] knows by the links. None on a walked leg.
+    pub fn flight_leg(&self, s: f32) -> Option<usize> {
+        let k = self.along.partition_point(|&a| a <= s);
+        if k == 0 || k >= self.points.len() || s <= self.along[k - 1] {
+            return None;
+        }
+        (self.points[k].jump.is_some() || self.drop_into(k, DropTruth::Links).is_some()).then_some(k)
+    }
+
     pub fn length(&self) -> f32 {
         self.along.last().copied().unwrap_or(0.0)
     }

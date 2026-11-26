@@ -64,6 +64,16 @@ pub(super) fn walk_ups() -> Box<dyn RouteTopic> {
     )
 }
 
+/// [route shut] The route checks that looked over a jump or drop leg by its take-off and landing, not its flight.
+pub(super) fn shut_flights() -> Box<dyn RouteTopic> {
+    Delta::of(
+        || super::super::tactics::shut_flights::counts().to_vec(),
+        |d, line| {
+            line.ends.push(format!("shut_checks_over_a_flight {}", d[0]));
+        },
+    )
+}
+
 /// [bot CPU] The soft-filtered searches that ended over the whole grid with no way: kept, answered again with no floor searched,
 /// the floors those would have expanded, refused (a tested floor's answer changed).
 pub(super) fn soft_noways() -> Box<dyn RouteTopic> {
