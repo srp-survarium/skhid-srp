@@ -41,6 +41,10 @@ pub struct Pools {
     /// What a private room's maker may add besides (the experimental maps),
     /// none of them in the match pool.
     experimental: BTreeSet<MapId>,
+    /// Both, in the order the rooms' create window lists them (the lobby's
+    /// `room_entries`: [`maps::in_room_order`] of the match pool, then the
+    /// experimental maps): the stats' Maps board's order.
+    room_order: Vec<MapId>,
 }
 
 /// Where a map is offered.
@@ -54,17 +58,33 @@ enum Offer {
 
 impl Pools {
     /// The lobby's match pool and its experimental maps.
-    pub fn new(public: &[MapId], experimental: &[MapId]) -> Self {
-        let public: BTreeSet<MapId> = public.iter().copied().collect();
-        let experimental = experimental
+    pub fn new(public_ids: &[MapId], experimental: &[MapId]) -> Self {
+        let public: BTreeSet<MapId> = public_ids.iter().copied().collect();
+        let experimental: Vec<MapId> = experimental
             .iter()
             .copied()
             .filter(|id| !public.contains(id))
             .collect();
+        // The pool in its own order, then the experimental maps, as the lobby takes them.
+        let listed: Vec<&MapMode> = public_ids
+            .iter()
+            .chain(&experimental)
+            .filter_map(|id| maps::map_mode(*id))
+            .collect();
+        let room_order = maps::in_room_order(listed, |map| (map.build, map.level, map.weather))
+            .into_iter()
+            .map(|map| map.id)
+            .collect();
         Self {
             public,
-            experimental,
+            experimental: experimental.into_iter().collect(),
+            room_order,
         }
+    }
+
+    /// The maps the rooms' create window lists, in its order.
+    pub(crate) fn room_order(&self) -> &[MapId] {
+        &self.room_order
     }
 
     /// What the lobby plays with neither set: every playable map in the

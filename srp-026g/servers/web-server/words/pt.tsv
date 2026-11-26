@@ -979,3 +979,23 @@ by hour	por hora
 by day	por dia
 by week	por semana
 Most played maps and modes	Mapas e modos mais jogados
+
+# The modes and weathers as the game names them (client-patches/localization: the stats' Maps and Modes boards, the match lists).
+Protective device	Pegue a Bateria
+Protective device: chargers	Pegue a Bateria: carregadores
+Team Deathmatch	Mata-Mata em Equipe
+Research	Captura de Ponto
+Protective device: blackout	Pegue a Bateria: blecaute
+Free for all	Todos contra Todos
+Freeze Tag	Pique-Congela
+Artifact Hunt	Caça ao Artefato
+FFA: Racket	FFA: Bagunça
+FFA: Saloon	FFA: Saloon
+FFA: Saloon (Winchester)	FFA: Saloon (Winchester)
+Mode {0}	Modo {0}
+day	dia	weather
+rain	chuva	weather
+evening	entardecer	weather
+night	noite	weather
+before rain	antes da chuva	weather
+Weathers	Climas

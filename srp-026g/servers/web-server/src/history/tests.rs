@@ -893,15 +893,16 @@ fn the_maps_and_modes_boards_are_the_periods_counted_matches() {
     let mode = &map["modes"][0];
     assert_eq!(
         keys(mode),
-        ["duration_s", "map_key", "matches", "mode", "mode_url", "rules", "sides", "versions"]
+        ["duration_s", "map_key", "matches", "mode", "mode_url", "rules", "sides", "weathers"]
     );
+    assert_eq!(mode["mode"], "Protective device", "named by the code, not the game data");
     assert_eq!(mode["sides"]["wins"], json!([3, 0]));
     assert_eq!(mode["sides"]["win_rates"], json!([1.0, 0.0]));
     assert_eq!(
-        keys(&mode["versions"][0]),
-        ["duration_s", "map", "map_icon", "map_id", "map_key", "matches", "sides", "weather"]
+        keys(&mode["weathers"][0]),
+        ["duration_s", "map_icon", "map_id", "map_key", "matches", "sides", "weather"]
     );
-    assert_eq!(mode["versions"][0]["map_id"], 3);
+    assert_eq!(mode["weathers"][0]["map_id"], 3);
     // The last 24 hours: the two of today.
     assert_eq!(world.ok("/api/history/maps?period=day")["matches"], 2);
     assert_eq!(world.ok("/api/history/maps?period=week")["matches"], 3);
@@ -1585,7 +1586,7 @@ fn a_matchs_replay_is_asked_for_by_anyone() {
     let ask = |target: &str, replays: Option<&Replays>| {
         let (path, query) = target.split_once('?').unwrap();
         let endpoint = Endpoint::parse(path, query).unwrap();
-        answer(&endpoint, accounts.history().unwrap(), replays, &|_| false, Lang::En, NOW)
+        answer(&endpoint, accounts.history().unwrap(), replays, &|_| false, &[], Lang::En, NOW)
     };
     let ok = |target: &str| ask(target, Some(&replays)).unwrap();
     assert_eq!(ok("/api/history/match?id=23")["replay"], true);
@@ -1620,7 +1621,7 @@ fn the_previews_history_is_served() {
     let ask = |target: &str| {
         let (path, query) = target.split_once('?').unwrap_or((target, ""));
         let endpoint = Endpoint::parse(path, query).unwrap();
-        answer(&endpoint, history, None, &|_| false, Lang::En, NOW).unwrap()
+        answer(&endpoint, history, None, &|_| false, &[], Lang::En, NOW).unwrap()
     };
     assert_eq!(ask("/api/history/top")["players"].as_array().unwrap().len(), 12);
     assert_eq!(ask("/api/history/matches?limit=50")["matches"].as_array().unwrap().len(), 23);
@@ -1678,7 +1679,7 @@ fn a_match_has_its_maps_picture_as_the_rooms_draw_it() {
     let _ = std::fs::remove_dir_all(&dir);
     let accounts = preview(&dir, NOW, 0);
     let endpoint = Endpoint::parse("/api/history/matches", "limit=50").unwrap();
-    let answer = answer(&endpoint, accounts.history().unwrap(), None, &|_| false, Lang::En, NOW).unwrap();
+    let answer = answer(&endpoint, accounts.history().unwrap(), None, &|_| false, &[], Lang::En, NOW).unwrap();
     for played in answer["matches"].as_array().unwrap() {
         assert!(played["map_icon"].as_str().unwrap().starts_with("/wiki/icons/maps/"));
     }

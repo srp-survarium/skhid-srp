@@ -516,7 +516,7 @@ Each kit a gun of another class, with random bonuses and attachments.	U svakom k
 {0} % of deals: pistols only.	{0} % dijeljenja: samo pištolji.
 Plain FFA: {0} % of FFA cards.	Obični FFA: {0} % FFA karata.
 {0} % of FFA cards.	{0} % FFA karata.
-FFA: Roulette	FFA: Rulet
+FFA: Roulette	Svatko za sebe: Rulet
 
 # The wiki's weapons and simulators (pages built at a release: scripts/site-texts)
 Search weapons	Traži oružje
@@ -979,3 +979,23 @@ by hour	po satima
 by day	po danima
 by week	po tjednima
 Most played maps and modes	Najigranije karte i načini
+
+# The modes and weathers as the game names them (client-patches/localization: the stats' Maps and Modes boards, the match lists).
+Protective device	Zaštitni uređaj
+Protective device: chargers	Zaštitni uređaj: punjači
+Team Deathmatch	Ekipna borba
+Research	Istraživanje
+Protective device: blackout	Zaštitni uređaj: zamračenje
+Free for all	Svatko za sebe
+Freeze Tag	Zamrzavanje
+Artifact Hunt	Lov na artefakt
+FFA: Racket	Svatko za sebe: Reket
+FFA: Saloon	Svatko za sebe: Saloon
+FFA: Saloon (Winchester)	Svatko za sebe: Saloon (Winchester)
+Mode {0}	Način {0}
+day	dan	weather
+rain	kiša	weather
+evening	večer	weather
+night	noć	weather
+before rain	prije kiše	weather
+Weathers	Vrijeme

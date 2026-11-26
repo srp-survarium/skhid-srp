@@ -252,17 +252,14 @@ struct Ready {
     gear: u8,
 }
 
-/// The room list's entries ordered by their maps' builds (0.26, 0.11, 0.21,
-/// 0.32, 0.42, 0.69, STALKER: the owner's of 2026-11-19 and, for the Londons, of
-/// 2026-11-20), each map where its first entry came, its weathers in the
-/// list's order. Stable.
-pub(super) fn by_build(mut entries: Vec<(maps::Build, PoolEntry)>) -> Vec<PoolEntry> {
-    let levels: Vec<u8> = entries.iter().map(|(_, entry)| entry.level).collect();
-    entries.sort_by_key(|&(build, entry)| {
-        let map = levels.iter().position(|&level| level == entry.level);
-        (build, map, maps::weather::list_place(entry.weather))
-    });
-    entries.into_iter().map(|(_, entry)| entry).collect()
+/// The room list's entries in the create window's order ([`maps::in_room_order`]: by their
+/// maps' builds, each map where its first entry came, its weathers in the list's order; the
+/// site's stats list maps in it too). Stable.
+pub(super) fn by_build(entries: Vec<(maps::Build, PoolEntry)>) -> Vec<PoolEntry> {
+    maps::in_room_order(entries, |&(build, entry)| (build, entry.level, entry.weather))
+        .into_iter()
+        .map(|(_, entry)| entry)
+        .collect()
 }
 
 impl Core<'_> {

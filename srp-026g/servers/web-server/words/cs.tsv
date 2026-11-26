@@ -979,3 +979,23 @@ by hour	po hodinách
 by day	po dnech
 by week	po týdnech
 Most played maps and modes	Nejhranější mapy a režimy
+
+# The modes and weathers as the game names them (client-patches/localization: the stats' Maps and Modes boards, the match lists).
+Protective device	Ochranné zařízení
+Protective device: chargers	Ochranné zařízení: nabíječky
+Team Deathmatch	Týmový deathmatch
+Research	Výzkum
+Protective device: blackout	Ochranné zařízení: výpadek
+Free for all	Každý proti každému
+Freeze Tag	Zmrazování
+Artifact Hunt	Lov na artefakt
+FFA: Racket	FFA: Rambajz
+FFA: Saloon	FFA: Saloon
+FFA: Saloon (Winchester)	FFA: Saloon (Winchester)
+Mode {0}	Režim {0}
+day	den	weather
+rain	déšť	weather
+evening	večer	weather
+night	noc	weather
+before rain	před deštěm	weather
+Weathers	Počasí

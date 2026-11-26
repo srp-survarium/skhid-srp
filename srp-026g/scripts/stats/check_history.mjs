@@ -268,9 +268,10 @@ try {
   assert.equal(await count('.stats-board .stats-table tbody tr'), 23);
   assert.equal(await evaluate("document.querySelector('.stats-paged button').hidden"), true, 'no older page');
 
-  // The Maps board: the counted matches (22 of the 23) by map, every version and weather of a map
-  // one map, the most played first; under each its modes with how the sides fared, and each
-  // mode's versions behind its button; a period of its own.
+  // The Maps board: the counted matches (22 of the 23) by map, in the order of the rooms' create
+  // window (every ported version its own map; the preview's window is every playable map, by
+  // id: the stock levels in their order), each with its matches in a column; under each its
+  // modes with how the sides fared, and each mode's weathers behind its button; a period of its own.
   const percent = (value, lang = 'en') => new Intl.NumberFormat(lang, {style: 'percent', maximumFractionDigits: 1}).format(value);
   const length = seconds => `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
   // A map's picture is never stretched (the owner, 2026-11-26): it covers a box of its own shape
@@ -280,9 +281,14 @@ try {
     const box = i.clientWidth / i.clientHeight, own = i.complete && i.naturalWidth ? i.naturalWidth / i.naturalHeight : 16 / 9;
     return !(getComputedStyle(i).objectFit === 'cover' && Math.abs(box - 16 / 9) < 0.03 || Math.abs(own - box) < 0.03);
   }).map(i => i.src))`).then(JSON.parse);
+  // Every mode and weather named in words (the code's, never the game data's): no "mode 2", no "#61".
+  const unnamed = () => evaluate(`JSON.stringify([...document.querySelectorAll('.stats-mode-cell, .stats-map-cell, .stats-modes td:nth-child(2)')]
+    .map(cell => cell.textContent.trim()).filter(text => /(^|\\s)(mode|режим|Режим) \\d+/i.test(text) || /#\\d+/.test(text)))`).then(JSON.parse);
   const legend = sides => sides ? [`Team 1 ${percent(sides.win_rates[0])} (${sides.wins[0]})`, `Draw ${percent(sides.draw_rate)} (${sides.draws})`,
     ...(sides.unknown ? [`No result ${percent(sides.unknown / (sides.wins[0] + sides.wins[1] + sides.draws + sides.unknown))} (${sides.unknown})`] : []),
     `Team 2 ${percent(sides.win_rates[1])} (${sides.wins[1]})`].join('') : '—';
+  const GAME_MODES = ['Protective device', 'Protective device: chargers', 'Team Deathmatch', 'Research', 'Protective device: blackout',
+    'Free for all', 'Freeze Tag', 'Artifact Hunt', 'FFA: Racket', 'FFA: Saloon', 'FFA: Saloon (Winchester)', 'FFA: Roulette'];
   await navigate('/stats');
   await evaluate("document.querySelector('[data-board=maps]').click()");
   await settled();
@@ -292,44 +298,49 @@ try {
   const atlas = answered.maps;
   assert.equal(atlas.period, 'all');
   assert.equal(atlas.matches, 22, 'the counted ones: not the short one');
-  assert.equal(await count('.stats-place'), atlas.maps.length);
+  assert.equal(await count('.stats-maps-table tr.stats-map-row'), atlas.maps.length);
   assert.ok(atlas.maps.length > 1);
-  assert.deepEqual(await cells('.stats-place-name'), atlas.maps.map(map => map.map));
-  assert.ok(atlas.maps.every((map, i) => !i || atlas.maps[i - 1].matches >= map.matches), 'the most played first');
+  assert.deepEqual(await cells('.stats-map-row .stats-place-name'), atlas.maps.map(map => map.map));
+  const keys = atlas.maps.map(map => map.map_key);
+  assert.deepEqual(keys, [...keys].sort(), 'the create window\'s order (the preview\'s: the levels by id), not the most played first');
   assert.equal(atlas.maps.reduce((sum, map) => sum + map.matches, 0), 22);
-  assert.deepEqual(await cells('.stats-place .stats-under:not(.stats-table *)'),
-    atlas.maps.map(map => `Matches ${map.matches} · Avg length ${length(map.duration_s)}`));
+  assert.deepEqual(await cells('.stats-maps-table thead th'), ['Map', 'Matches', 'Avg length', 'Sides']);
+  assert.deepEqual(await cells('.stats-map-row td:nth-child(2)'), atlas.maps.map(map => String(map.matches)), 'a map\'s matches in their column');
+  assert.deepEqual(await cells('.stats-map-row td:nth-child(3)'), atlas.maps.map(map => length(map.duration_s)));
   const modeRows = atlas.maps.flatMap(map => map.modes);
-  assert.deepEqual(await cells('.stats-place tbody tr:not(.stats-version) td:nth-child(2)'), modeRows.map(mode => String(mode.matches)));
-  assert.deepEqual(await cells('.stats-place tbody tr:not(.stats-version) td:nth-child(3)'), modeRows.map(mode => length(mode.duration_s)));
-  assert.deepEqual(await cells('.stats-place tbody tr:not(.stats-version) .stats-sides-cell'), modeRows.map(mode => legend(mode.sides)));
+  assert.ok(modeRows.every(mode => GAME_MODES.includes(mode.mode)), modeRows.map(mode => mode.mode).join());
+  assert.deepEqual(await cells('.stats-mode-row td:nth-child(2)'), modeRows.map(mode => String(mode.matches)));
+  assert.deepEqual(await cells('.stats-mode-row td:nth-child(3)'), modeRows.map(mode => length(mode.duration_s)));
+  assert.deepEqual(await cells('.stats-mode-row .stats-sides-cell'), modeRows.map(mode => legend(mode.sides)));
+  assert.deepEqual(await cells('.stats-mode-row .stats-mode-cell a'), modeRows.map(mode => mode.mode), 'each mode by its name');
   assert.ok(modeRows.some(mode => mode.sides === null), 'the free-for-all: no sides');
   assert.ok(modeRows.some(mode => mode.sides && mode.sides.draws), 'a draw');
   // The bar: team 1 from the left in its colour, team 2 at the right in its own.
   const firstBar = modeRows.findIndex(mode => mode.sides && mode.sides.wins[0] && mode.sides.wins[1]);
-  const parts = JSON.parse(await evaluate(`JSON.stringify([...[...document.querySelectorAll('.stats-place tbody tr:not(.stats-version) .stats-sides-cell')][${firstBar}]
+  const parts = JSON.parse(await evaluate(`JSON.stringify([...[...document.querySelectorAll('.stats-mode-row .stats-sides-cell')][${firstBar}]
     .querySelectorAll('.stats-bar-part')].map(p => [getComputedStyle(p).backgroundColor, Math.round(p.getBoundingClientRect().width / p.parentNode.getBoundingClientRect().width * 1000) / 1000]))`));
   const fared = modeRows[firstBar].sides;
   assert.equal(parts[0][0], 'rgb(59, 130, 246)');
   assert.equal(parts[parts.length - 1][0], 'rgb(229, 72, 77)');
   assert.ok(Math.abs(parts[0][1] - fared.win_rates[0]) < 0.01 && Math.abs(parts[parts.length - 1][1] - fared.win_rates[1]) < 0.01, JSON.stringify(parts));
-  // A mode's versions and weathers: behind its button, each with its own numbers.
-  assert.equal(await count('.stats-version'), modeRows.reduce((sum, mode) => sum + mode.versions.length, 0));
-  assert.equal(await evaluate("[...document.querySelectorAll('.stats-version')].every(row => row.hidden)"), true, 'closed at first');
-  const several = modeRows.findIndex(mode => mode.versions.length > 1);
-  assert.ok(several >= 0, 'a mode played on two versions or weathers of a map');
-  assert.equal((await cells('.stats-versions'))[several], `Versions (${modeRows[several].versions.length})`);
-  await evaluate(`document.querySelectorAll('.stats-versions')[${several}].click()`);
-  assert.equal(await evaluate(`document.querySelectorAll('.stats-versions')[${several}].getAttribute('aria-expanded')`), 'true');
-  const shownVersions = () => cells('.stats-version:not([hidden]) td:nth-child(2)');
-  assert.deepEqual(await shownVersions(), modeRows[several].versions.map(version => String(version.matches)));
-  assert.equal(modeRows[several].versions.reduce((sum, version) => sum + version.matches, 0), modeRows[several].matches);
-  assert.deepEqual(await cells('.stats-version:not([hidden]) .stats-sides-cell'), modeRows[several].versions.map(version => legend(version.sides)));
-  assert.deepEqual(await cells('.stats-version:not([hidden]) .stats-under'),
-    modeRows[several].versions.map(version => version.weather ?? `#${version.map_id}`), 'each its weather (else its id)');
-  await screenshot('board-maps-versions');
-  await evaluate(`document.querySelectorAll('.stats-versions')[${several}].click()`);
-  assert.deepEqual(await shownVersions(), [], 'and closed again');
+  // A mode's weathers: behind its button, each with its own numbers and the rooms' word for it.
+  assert.equal(await count('.stats-weather'), modeRows.reduce((sum, mode) => sum + mode.weathers.length, 0));
+  assert.equal(await evaluate("[...document.querySelectorAll('.stats-weather')].every(row => row.hidden)"), true, 'closed at first');
+  const several = modeRows.findIndex(mode => mode.weathers.length > 1);
+  assert.ok(several >= 0, 'a mode played in two weathers of a map');
+  assert.equal((await cells('.stats-weathers'))[several], `Weathers (${modeRows[several].weathers.length})`);
+  await evaluate(`document.querySelectorAll('.stats-weathers')[${several}].click()`);
+  assert.equal(await evaluate(`document.querySelectorAll('.stats-weathers')[${several}].getAttribute('aria-expanded')`), 'true');
+  const shownWeathers = () => cells('.stats-weather:not([hidden]) td:nth-child(2)');
+  assert.deepEqual(await shownWeathers(), modeRows[several].weathers.map(weather => String(weather.matches)));
+  assert.equal(modeRows[several].weathers.reduce((sum, weather) => sum + weather.matches, 0), modeRows[several].matches);
+  assert.deepEqual(await cells('.stats-weather:not([hidden]) .stats-sides-cell'), modeRows[several].weathers.map(weather => legend(weather.sides)));
+  assert.ok(modeRows.flatMap(mode => mode.weathers).every(weather => ['day', 'evening', 'rain', 'night', 'before rain'].includes(weather.weather)), 'every weather named');
+  assert.deepEqual(await cells('.stats-weather:not([hidden]) td:first-child'), modeRows[several].weathers.map(weather => weather.weather));
+  assert.deepEqual(await unnamed(), [], 'no mode or weather by its number');
+  await screenshot('board-maps-weathers');
+  await evaluate(`document.querySelectorAll('.stats-weathers')[${several}].click()`);
+  assert.deepEqual(await shownWeathers(), [], 'and closed again');
   // A map's name and picture lead to it in the Maps page, in its most played mode.
   assert.equal(await evaluate("(a => a.pathname + a.hash)(document.querySelector('.stats-place-name a'))"), `/wiki/maps#${atlas.maps[0].map_key}/${atlas.maps[0].modes[0].rules}`);
   assert.deepEqual(await unstretched(), [], 'no map\'s picture stretched');
@@ -342,7 +353,7 @@ try {
   assert.equal(await evaluate("new URLSearchParams(location.search).get('period')"), 'day');
   assert.ok((await evaluate("document.querySelector('.lang a[hreflang=uk]').href")).includes('period=day'));
   assert.ok(answered.maps.matches > 0 && answered.maps.matches < 22, `${answered.maps.matches} of the last day`);
-  assert.equal(await count('.stats-place'), answered.maps.maps.length);
+  assert.equal(await count('.stats-maps-table tr.stats-map-row'), answered.maps.maps.length);
   // The Modes board: each mode's matches, share and trend, the most played first; then the map + mode pairs.
   await navigate('/stats?board=modes&period=week&lang=en');
   const tally = answered.modes;
@@ -354,6 +365,8 @@ try {
   assert.ok(tally.modes.length >= 5, 'the modes in turn');
   assert.deepEqual(await cells(`${modeLines} td:nth-child(1)`), tally.modes.map((_, i) => String(i + 1)), 'ranked');
   assert.deepEqual(await cells(`${modeLines} td:nth-child(2)`), tally.modes.map(mode => mode.mode));
+  assert.ok(tally.modes.every(mode => GAME_MODES.includes(mode.mode)), tally.modes.map(mode => mode.mode).join());
+  assert.deepEqual(await unnamed(), [], 'no mode by its number');
   assert.deepEqual(await cells(`${modeLines} td:nth-child(3)`), tally.modes.map(mode => String(mode.matches)));
   assert.deepEqual(await cells(`${modeLines} td:nth-child(4)`), tally.modes.map(mode => percent(mode.share)));
   assert.ok(tally.modes.every((mode, i) => !i || tally.modes[i - 1].matches >= mode.matches), 'the most played first');
@@ -395,13 +408,16 @@ try {
     assert.deepEqual(await unstretched(), [], `${board}: no picture stretched on a phone`);
     if (board === 'maps') {
       assert.deepEqual(await cells('.stats-keys button'), ['За весь час', 'Останні 30 днів', 'Останні 7 днів', 'Останні 24 години']);
-      await evaluate("document.querySelector('.stats-versions').click()");
-      assert.ok(await evaluate("document.querySelector('.stats-version:not([hidden]) .stats-map-cell > span:last-child').getBoundingClientRect().height < 45"), 'a version\'s name reads across a phone');
+      await evaluate("document.querySelector('.stats-weathers').click()");
+      await screenshot('board-maps-uk-phone-open');
+      assert.ok(await evaluate("document.querySelector('.stats-weather:not([hidden]) .stats-map-cell').getBoundingClientRect().height < 30"), 'a weather\'s name one line on a phone');
+      assert.ok(await evaluate("[...document.querySelectorAll('.stats-place-name')].every(name => name.getBoundingClientRect().height < 60)"), 'a map\'s name reads across a phone');
     }
     await screenshot(`board-${board}-uk-phone`);
   }
   await navigate('/stats?board=latest&lang=uk');
   assert.deepEqual(await unstretched(), [], 'the latest matches\' pictures on a phone');
+  assert.deepEqual(await unnamed(), [], 'the latest matches\' modes by their names');
   await send('browsingContext.setViewport', {context, viewport: {width: 1440, height: 1000}, devicePixelRatio: 1});
 
   // A click anywhere on a player's row opens the player, on a clan's the clan.

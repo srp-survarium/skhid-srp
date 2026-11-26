@@ -278,7 +278,8 @@
   const matchLink = row => link({match: row.id}, `${row.id}`);
   // A map's name, leading to it in the wiki's Maps page in the match's mode;
   // plain for a map the game data no longer has.
-  const mapAddress = row => `/wiki/maps?${new URLSearchParams({lang})}#${row.map_key}/${row.rules}`;
+  // (A mode srp no longer knows has no rules: the map in its first mode.)
+  const mapAddress = row => `/wiki/maps?${new URLSearchParams({lang})}#${row.map_key}${row.rules === null || row.rules === undefined ? '' : `/${row.rules}`}`;
   const mapLink = row => row.map_key ? el('a', {href: mapAddress(row)}, row.map) : name(row.map);
   // A mode's name, linked to its section on the wiki's Modes page.
   const modeLink = row => row.mode_url ? el('a', {href: row.mode_url}, name(row.mode)) : name(row.mode);
@@ -658,46 +659,46 @@
       return column;
     }));
   }
-  // A map (all its versions) as the Maps page shows it: in its most played mode.
+  // A map as the Maps page shows it: in its most played mode.
   const placeRow = place => place && {...place, rules: place.modes.length ? place.modes[0].rules : 0, mode: null};
-  // A map of the Maps board: its picture and name over its modes, each with its matches, their
-  // average length and how its sides fared, the most played first; a mode's versions and
-  // weathers (each its map id) under it, behind its button.
-  function placeBlock(place) {
-    const row = placeRow(place);
-    const head = el('div', {className: 'stats-place-head'}, mapPicture(row, true),
-      el('div', {}, el('h3', {className: 'stats-place-name'}, row ? mapLink(row) : BLANK),
-        el('small', {className: 'stats-under'}, row ? `${TEXT.matches} ${n(row.matches)} · ${TEXT.avgLength} ${duration(row.duration_s)}` : BLANK)));
-    const versionsOf = new Map();
-    const modeCell = mode => {
-      const button = el('button', {type: 'button', className: 'stats-versions', ariaExpanded: 'false'}, `${TEXT.versions} (${n(mode.versions.length)})`);
-      button.addEventListener('click', () => {
-        const open = button.getAttribute('aria-expanded') !== 'true';
-        button.setAttribute('aria-expanded', String(open));
-        for (const line of versionsOf.get(mode)) line.hidden = !open;
-      });
-      return [modeLink(mode), el('span', {className: 'stats-under'}, button)];
-    };
-    const columns = [[TEXT.mode, modeCell, 'l stats-mode-cell', '', twoLines], [TEXT.matches, mode => n(mode.matches)],
-      [TEXT.avgLength, mode => duration(mode.duration_s)], [TEXT.sides, sides, 'l stats-sides-cell', '', blankSides]];
-    const box = table(columns, place && place.modes, 2);
-    if (place) {
-      const lines = box.querySelectorAll('tbody tr');
-      place.modes.forEach((mode, i) => {
-        const versions = mode.versions.map(version => el('tr', {className: 'stats-version', hidden: true},
-          el('td', {className: 'l stats-mode-cell'}, el('span', {className: 'stats-map-cell'}, mapPicture(version),
-            el('span', {}, name(version.map), el('small', {className: 'stats-under'}, version.weather ?? `#${version.map_id}`)))),
-          el('td', {}, n(version.matches)), el('td', {}, duration(version.duration_s)),
-          el('td', {className: 'l stats-sides-cell'}, sides(version))));
-        versionsOf.set(mode, versions);
-        lines[i].after(...versions);
-      });
+  // The Maps board: one table. A map's row (its picture and name, its matches and their average
+  // length), the maps in the order of the rooms' create window (every ported version its own
+  // map); under each its modes, the most played first, each with its matches, average length and
+  // how its sides fared; under a mode its weathers (each its map id), behind its button.
+  const MAP_COLUMNS = () => [[TEXT.map, 'l stats-mode-cell'], [TEXT.matches, ''], [TEXT.avgLength, ''], [TEXT.sides, 'l stats-sides-cell']];
+  function mapsTable(data) {
+    const head = el('thead', {}, el('tr', {}, MAP_COLUMNS().map(([label, kind]) => el('th', {className: kind, scope: 'col'}, label))));
+    const body = el('tbody');
+    const line = (kind, cells) => el('tr', {className: kind}, cells.map((cell, i) => el('td', {className: MAP_COLUMNS()[i][1]}, cell)));
+    if (!data) {
+      for (let i = 0; i < 3; i++) body.append(line('stats-map-row', [el('span', {className: 'stats-map-cell'}, mapPicture(null, true), BLANK), BLANK, BLANK, BLANK]),
+        line('stats-mode-row', [twoLines(), BLANK, BLANK, blankSides()]));
+    } else {
+      for (const place of data.maps) {
+        const row = placeRow(place);
+        body.append(line('stats-map-row', [el('span', {className: 'stats-map-cell'}, mapPicture(row, true), el('b', {className: 'stats-place-name'}, mapLink(row))),
+          n(place.matches), duration(place.duration_s), '']));
+        for (const mode of place.modes) {
+          const button = el('button', {type: 'button', className: 'stats-weathers', ariaExpanded: 'false'}, `${TEXT.weathers} (${n(mode.weathers.length)})`);
+          const weathers = mode.weathers.map(weather => line('stats-weather', [
+            el('span', {className: 'stats-map-cell'}, mapPicture({...weather, map: place.map, rules: mode.rules}), weather.weather ?? '—'),
+            n(weather.matches), duration(weather.duration_s), sides(weather)]));
+          for (const each of weathers) each.hidden = true;
+          button.addEventListener('click', () => {
+            const open = button.getAttribute('aria-expanded') !== 'true';
+            button.setAttribute('aria-expanded', String(open));
+            for (const each of weathers) each.hidden = !open;
+          });
+          body.append(line('stats-mode-row', [[modeLink(mode), el('span', {className: 'stats-under'}, button)],
+            n(mode.matches), duration(mode.duration_s), sides(mode)]), ...weathers);
+        }
+      }
     }
-    return el('section', {className: 'stats-place'}, head, box);
+    return el('div', {className: 'table-scroll'}, el('table', {className: 'stats-table stats-maps-table'}, head, body));
   }
   function mapsBoard(data) {
     if (data && !data.maps.length) return [notice(TEXT.noMatches)];
-    return data ? data.maps.map(placeBlock) : [placeBlock(null), placeBlock(null), placeBlock(null)];
+    return [mapsTable(data)];
   }
   // The Modes board: each mode's matches, its share of them all and its trend, the most played
   // first (the popularity's rank), the trend's steps said under it; then the most played map +
@@ -708,7 +709,7 @@
     const ranked = list => list && list.map((row, rank) => ({...row, rank}));
     const modeColumns = [[TEXT.rank, row => n(row.rank + 1)], [TEXT.mode, modeLink, 'l stats-mode-cell'], [TEXT.matches, row => n(row.matches)],
       [TEXT.share, shareCell, 'stats-share-cell'], [TEXT.trend, row => trend(row, data), 'stats-trend-cell']];
-    const pairColumns = [[TEXT.rank, row => n(row.rank + 1)], [TEXT.map, mapCell, 'l', '', () => mapCell(null)],
+    const pairColumns = [[TEXT.rank, row => n(row.rank + 1)], [TEXT.map, mapCell, 'l stats-mode-cell', '', () => mapCell(null)],
       [TEXT.matches, row => n(row.matches)], [TEXT.share, shareCell, 'stats-share-cell']];
     const steps = data && data.steps;
     const note = el('p', {className: 'stats-note stats-trend-note'}, data

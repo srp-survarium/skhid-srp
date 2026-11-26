@@ -979,3 +979,23 @@ by hour	по часам
 by day	по дням
 by week	по неделям
 Most played maps and modes	Самые популярные карты и режимы
+
+# The modes and weathers as the game names them (client-patches/localization: the stats' Maps and Modes boards, the match lists).
+Protective device	Защитное устройство
+Protective device: chargers	Защитное устройство: зарядники
+Team Deathmatch	Командный бой
+Research	Исследование
+Protective device: blackout	Защитное устройство: блэкаут
+Free for all	Все против всех
+Freeze Tag	Заморозка
+Artifact Hunt	Охота за артефактом
+FFA: Racket	FFA: Движ
+FFA: Saloon	FFA: Салун
+FFA: Saloon (Winchester)	FFA: Салун (Винчестер)
+Mode {0}	Режим {0}
+day	день	weather
+rain	дождь	weather
+evening	вечер	weather
+night	ночь	weather
+before rain	перед дождём	weather
+Weathers	Погода

@@ -61,19 +61,31 @@ What survarium.pro showed of players, matches and clans, kept by srp itself and 
   maps and modes: which winrate on each map side, how often which modes are played and which are
   most popular"), over a period of their own (`&period=day|week|month`, else all time: the last 24
   hours, 7 days, 30 days). They count the counted public matches, as the totals do.
-  - Maps: each map with its matches and their average length, the most played first. A map is its
-    place (`maps::Place`, as the rooms' vote cards have it): every version and weather of it one
-    map, named and drawn by its 0.26 version. Under it each mode played on it (a map's sides fare
-    otherwise in each mode) with its matches, average length and sides: a bar of team 1's wins
-    from the left and team 2's from the right in the teams' colours, the draws (and any match of
-    no known end) between, over each one's share and count. The game names the sides Team 1 and
-    Team 2 on every map (no factions). A free-for-all has no sides. A mode's versions and weathers
-    (each map id: the version's name and the rooms' weather word) open under it by its button.
+  - Maps: one table, a row a map with its matches and their average length in their columns, the
+    maps in the order of the rooms' create window (the owner, 2026-11-26: "sorted in the same order
+    they are sorted in room creation"; `maps::in_room_order` over the lobby's pool and experimental
+    maps, the one rule the lobby's room list uses), the maps it does not list after it by build and
+    level, a map gone from the game data last. A map is its level (`match_making_params.map_id`, as
+    the create window has it): every ported version its own map, "Rudnya (v0.69)" apart from
+    Rudnya (the owner, 2026-11-26: "those are separate maps with separate balancing"; the rooms'
+    vote still takes a map's versions as one, `maps::Place`). Under it each mode played on it (a
+    map's sides fare otherwise in each mode), the most played first, with its matches, average
+    length and sides: a bar of team 1's wins from the left and team 2's from the right in the
+    teams' colours, the draws (and any match of no known end) between, over each one's share and
+    count. The game names the sides Team 1 and Team 2 on every map (no factions). A free-for-all
+    has no sides. A mode's weathers (each map id, day, evening, rain) open under it by its
+    *Weathers (n)* button.
+  - Modes and weathers are named by the site's own words (`launcher::lobby_mode_name`, the
+    weathers' `weather` context): the game's texts the rooms name them by
+    (`client-patches/localization`, `st_srp_mode_*`, `st_srp_weather_*`), held equal to them in
+    every language by a test, so a name never hangs on the game data having it (the owner,
+    2026-11-26: the preview said "mode 2"). A mode srp no longer knows is "Mode N".
   - Modes: each mode as the lobby calls it (a free-for-all's twist one of its own) with its
     matches, its share of all of them and its trend, the most played first, ranked; the trend is
     the period's hours (a day), days (7 or 30) or weeks (all time: the last 26, from Mondays, UTC),
     a column each as tall as its share of the mode's busiest. Then the ten most played map + mode
-    pairs, each leading to the map in the Maps page.
+    pairs (a map's weathers one pair, its ported versions apart), each leading to the map in the
+    Maps page.
   - A map's picture is never stretched (the owner, 2026-11-26): it covers a box of its own shape
     (16:9) at every width; the check holds it, on a phone too.
 - `scripts/stats/check_history.mjs` exercises it in an isolated Firefox over the site's own
@@ -450,12 +462,13 @@ Registered clans by their totals. `by`: `matches`, `wins`, `kills` (default `mat
 ### `GET /api/history/maps?period=<day|week|month|all>`
 
 The counted public matches of the period (default `all`; `day`: the 24 hours to the current
-one's end, `week`/`month`: the 7 or 30 UTC days to today's) by map (every version one), the
-most played first, each with its modes, the most played first, and each mode's versions (map
-ids). `duration_s`: the matches' average length. `sides`: how the team matches ended, `wins`
+one's end, `week`/`month`: the 7 or 30 UTC days to today's) by map (its level: every ported
+version its own), in the rooms' create window's order, each with its modes, the most played
+first, and each mode's weathers (map ids), day, evening, rain. `duration_s`: the matches' average length. `sides`: how the team matches ended, `wins`
 team 1's and team 2's, as `team_points` (`win_rates`, `draw_rate`: shares of them, three
 decimals; `unknown`: a match no trusted snapshot told the end of); `null` for a free-for-all.
-`map_key` of a mode: its most played version's. `weather`: the rooms' word, `null` without one.
+`map_key` of a mode: its first weather's. `weather`: the rooms' word, `null` without one. A mode
+srp no longer knows: `"Mode N"`, its `mode_url` and `rules` `null`.
 
 ```json
 {"period":"all","matches":120,
@@ -463,7 +476,7 @@ decimals; `unknown`: a match no trusted snapshot told the end of); `null` for a 
           "modes":[{"mode":"Protective device","mode_url":"/wiki/modes?lang=en#protective-device","rules":2,"map_key":"level_01",
                     "matches":30,"duration_s":860,
                     "sides":{"wins":[14,12],"draws":4,"unknown":0,"win_rates":[0.467,0.4],"draw_rate":0.133},
-                    "versions":[{"map_id":3,"map":"Rudnya","weather":"day","map_key":"level_01","map_icon":"…",
+                    "weathers":[{"map_id":3,"weather":"day","map_key":"level_01","map_icon":"…",
                                  "matches":20,"duration_s":850,"sides":{…}}]}]}]}
 ```
 

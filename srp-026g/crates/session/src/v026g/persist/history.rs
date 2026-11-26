@@ -975,12 +975,34 @@ pub struct PlayWindow {
     pub step: u64,
 }
 
+/// A match's mode as the history keeps it ([`LobbyMode::number`]): one srp
+/// plays, or the number of one it no longer knows, so that a mode taken out
+/// of srp leaves its matches in the sums ([`MatchHistory::plays`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum KeptMode {
+    Known(LobbyMode),
+    Unknown(u8),
+}
+
+impl KeptMode {
+    pub fn of_number(number: u8) -> Self {
+        LobbyMode::of_number(number).map_or(Self::Unknown(number), Self::Known)
+    }
+
+    pub fn number(self) -> u8 {
+        match self {
+            Self::Known(mode) => mode.number(),
+            Self::Unknown(number) => number,
+        }
+    }
+}
+
 /// Counted public matches of one map id and mode that ended one way, added
 /// up: how many, and their lengths together.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Played {
     pub map_id: MapId,
-    pub mode: LobbyMode,
+    pub mode: KeptMode,
     pub winner: Winner,
     pub matches: u64,
     pub duration_ms: u64,
@@ -990,7 +1012,7 @@ pub struct Played {
 /// [`PlayWindow`] (`step`: its number, from `steps_from`).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct ModeStep {
-    pub mode: LobbyMode,
+    pub mode: KeptMode,
     pub step: u64,
     pub matches: u64,
 }
@@ -2119,10 +2141,8 @@ impl MatchHistory {
             return Ok(kept.plays.clone());
         }
         let at = |time: u64| time.min(i64::MAX as u64) as i64;
-        let mode_at = |row: &Row, index: usize| -> rusqlite::Result<LobbyMode> {
-            let mode: u8 = row.get(index)?;
-            LobbyMode::of_number(mode).ok_or_else(|| bad("game mode", &mode.to_string()))
-        };
+        let mode_at =
+            |row: &Row, index: usize| -> rusqlite::Result<KeptMode> { Ok(KeptMode::of_number(row.get(index)?)) };
         let mut statement = connection.prepare_cached(
             "SELECT map_id, game_mode, winner, COUNT(*), SUM(duration_ms) FROM g26_matches
              WHERE ended_at >= ?1 AND eligibility = 'counted'
@@ -3358,7 +3378,10 @@ mod tests {
             .unwrap();
         let more = history.plays(window).unwrap();
         assert_eq!(more.played.iter().map(|played| played.matches).sum::<u64>(), 5);
-        assert!(more.steps.contains(&ModeStep { mode: tdm, step: 2, matches: 1 }));
+        assert!(more.steps.contains(&ModeStep { mode: KeptMode::Known(tdm), step: 2, matches: 1 }));
+        assert_eq!(KeptMode::of_number(tdm.number()), KeptMode::Known(tdm));
+        assert_eq!(KeptMode::of_number(200), KeptMode::Unknown(200), "a mode srp no longer plays");
+        assert_eq!(KeptMode::Unknown(200).number(), 200);
     }
 
     #[test]

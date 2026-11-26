@@ -979,3 +979,23 @@ by hour	tunneittain
 by day	päivittäin
 by week	viikoittain
 Most played maps and modes	Pelatuimmat kartat ja pelimuodot
+
+# The modes and weathers as the game names them (client-patches/localization: the stats' Maps and Modes boards, the match lists).
+Protective device	Suojalaite
+Protective device: chargers	Suojalaite: laturit
+Team Deathmatch	Joukkuetaistelu
+Research	Tutkimus
+Protective device: blackout	Suojalaite: sähkökatko
+Free for all	Kaikki kaikkia vastaan
+Freeze Tag	Jäädytys
+Artifact Hunt	Artefaktijahti
+FFA: Racket	FFA: Meteli
+FFA: Saloon	FFA: Saluuna
+FFA: Saloon (Winchester)	FFA: Saluuna (Winchester)
+Mode {0}	Pelimuoto {0}
+day	päivä	weather
+rain	sade	weather
+evening	ilta	weather
+night	yö	weather
+before rain	ennen sadetta	weather
+Weathers	Säät

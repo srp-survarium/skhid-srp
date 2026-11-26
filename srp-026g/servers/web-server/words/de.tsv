@@ -979,3 +979,23 @@ by hour	nach Stunden
 by day	nach Tagen
 by week	nach Wochen
 Most played maps and modes	Meistgespielte Karten und Modi
+
+# The modes and weathers as the game names them (client-patches/localization: the stats' Maps and Modes boards, the match lists).
+Protective device	Schutzeinrichtung
+Protective device: chargers	Schutzeinrichtung: Ladestationen
+Team Deathmatch	Kommandokampf
+Research	Forschung
+Protective device: blackout	Schutzeinrichtung: Blackout
+Free for all	Jeder gegen jeden
+Freeze Tag	Fang den Frost
+Artifact Hunt	Artefaktsuche
+FFA: Racket	FFA: Radau
+FFA: Saloon	FFA: Saloon
+FFA: Saloon (Winchester)	FFA: Saloon (Winchester)
+Mode {0}	Modus {0}
+day	Tag	weather
+rain	Regen	weather
+evening	Abend	weather
+night	Nacht	weather
+before rain	vor dem Regen	weather
+Weathers	Wetter

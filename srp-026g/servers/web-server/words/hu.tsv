@@ -979,3 +979,23 @@ by hour	óránként
 by day	naponta
 by week	hetente
 Most played maps and modes	Legnépszerűbb pályák és játékmódok
+
+# The modes and weathers as the game names them (client-patches/localization: the stats' Maps and Modes boards, the match lists).
+Protective device	Védelmi berendezés
+Protective device: chargers	Védelmi berendezés: töltők
+Team Deathmatch	Csapatos deathmatch
+Research	Kutatás
+Protective device: blackout	Védelmi berendezés: áramszünet
+Free for all	Mindenki mindenki ellen
+Freeze Tag	Fagyasztó fogó
+Artifact Hunt	Artefaktumvadászat
+FFA: Racket	FFA: Zsivaj
+FFA: Saloon	FFA: Saloon
+FFA: Saloon (Winchester)	FFA: Saloon (Winchester)
+Mode {0}	Mód: {0}
+day	nappal	weather
+rain	eső	weather
+evening	este	weather
+night	éjszaka	weather
+before rain	eső előtt	weather
+Weathers	Időjárás

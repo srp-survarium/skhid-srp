@@ -979,3 +979,23 @@ by hour	według godzin
 by day	według dni
 by week	według tygodni
 Most played maps and modes	Najpopularniejsze mapy i tryby
+
+# The modes and weathers as the game names them (client-patches/localization: the stats' Maps and Modes boards, the match lists).
+Protective device	Urządzenie ochronne
+Protective device: chargers	Urządzenie ochronne: ładowarki
+Team Deathmatch	Walka drużynowa
+Research	Badania
+Protective device: blackout	Urządzenie ochronne: blackout
+Free for all	Każdy na każdego
+Freeze Tag	Zamrażanie
+Artifact Hunt	Poszukiwanie artefaktów
+FFA: Racket	FFA: Raban
+FFA: Saloon	FFA: Saloon
+FFA: Saloon (Winchester)	FFA: Saloon (Winchester)
+Mode {0}	Tryb {0}
+day	dzień	weather
+rain	deszcz	weather
+evening	wieczór	weather
+night	noc	weather
+before rain	przed deszczem	weather
+Weathers	Pogoda

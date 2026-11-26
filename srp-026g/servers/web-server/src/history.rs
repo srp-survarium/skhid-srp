@@ -155,7 +155,7 @@ fn page_text(lang: Lang) -> Value {
         ("avgLength", lang.t("Avg length")),
         ("sides", lang.t("Sides")),
         ("noResult", lang.t("No result")),
-        ("versions", lang.t("Versions")),
+        ("weathers", lang.t("Weathers")),
         ("share", lang.t("Share")),
         ("trend", lang.t("Trend")),
         ("perHour", lang.t("by hour")),
@@ -594,7 +594,8 @@ pub(crate) fn response(
     let answer = Endpoint::parse(path, query).and_then(|endpoint| {
         let history = game.accounts.history().ok_or(Refusal::NoHistory)?;
         let banned = |account_id: u32| store.account_ban(account_id).is_some();
-        answer(&endpoint, history, game.replays.as_deref(), &banned, lang, now)
+        let rooms = game.pools.room_order();
+        answer(&endpoint, history, game.replays.as_deref(), &banned, rooms, lang, now)
     });
     match answer {
         Ok(body) => Response {
@@ -611,6 +612,8 @@ fn answer(
     history: &MatchHistory,
     replays: Option<&Replays>,
     banned: &dyn Fn(u32) -> bool,
+    // The rooms' create window's maps in its order: the Maps board's.
+    rooms: &[maps::MapId],
     lang: Lang,
     now: u64,
 ) -> Result<Value, Refusal> {
@@ -870,9 +873,15 @@ fn answer(
             })
         }
         // Kept by the history until a match is written (`MatchHistory::plays`).
-        Endpoint::Maps(span) => plays::maps(&*history.plays(span.window(now))?, *span, lang),
+        Endpoint::Maps(span) => plays::maps(
+            &*history.plays(span.window(now))?,
+            *span,
+            lang,
+            &plays::Atlas::shared(),
+            rooms,
+        ),
         Endpoint::Modes(span) => {
-            plays::modes(&*history.plays(span.window(now))?, *span, now, lang)
+            plays::modes(&*history.plays(span.window(now))?, *span, now, lang, &plays::Atlas::shared())
         }
     })
 }
