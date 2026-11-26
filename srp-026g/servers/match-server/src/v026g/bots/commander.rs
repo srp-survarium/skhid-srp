@@ -1080,6 +1080,15 @@ impl Bots {
             .filter_map(|b| b.assignment.as_ref().filter(|a| a.kind == plays::PlayKind::Crossfire).map(|a| (b.place, a.target)))
             .collect();
         self.teams[usize::from(team)].knowledge.crossfiring = crossfiring;
+        // [posts apart] The bots running a position play now.
+        let posts = self
+            .bots
+            .iter()
+            .flatten()
+            .filter(|b| b.team == team)
+            .filter_map(|b| b.assignment.as_ref().filter(|a| plays::goals::POSTS.contains(&a.kind)).map(|a| (b.place, a.kind)))
+            .collect();
+        self.teams[usize::from(team)].knowledge.posts = posts;
         // [A310 `tdm.squad` S3] The squad target order: with the squads on, fights are answered as `tdm.group`'s (play 21's cover,
         // its default rules), by a free mover of the fighting bot's own squad.
         let squad_on = tuning.tdm.squad.is_some() && !view.objective().has_homes();

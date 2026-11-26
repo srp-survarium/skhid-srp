@@ -199,7 +199,7 @@ fn fine_spots(cx: &Ctx, exit: Vec3) -> Vec<Vec3> {
 
 /// A spot to hold `exit` from: one of the best `pick_of` fine ones.
 fn pick(cx: &Ctx, exit: Vec3, rng: &mut Rng) -> Option<Vec3> {
-    let fine = goals::perch_first(cx, exit, rng, fine_spots(cx, exit));
+    let fine = goals::perch_first(cx, exit, rng, goals::apart_from_posts(cx, PlayKind::HoldExit, exit, fine_spots(cx, exit)));
     let n = fine.len().min(cx.num(PlayKind::HoldExit, "pick_of").max(1.0) as usize);
     (n > 0).then(|| fine[rng.below(n)])
 }
