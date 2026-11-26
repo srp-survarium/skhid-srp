@@ -216,6 +216,16 @@ pub fn pull_walk_ticks_max_take() -> u32 {
     })
 }
 
+/// [pull walk] Charges `ticks` more to this thread's period (a walk that ran past its up-front charge, [`pull_walk_reaches`]).
+fn charge_pull_walk(ticks: u32) {
+    PULL_WALK_BUDGET.with(|b| {
+        let mut now = b.get();
+        now.left = now.left.saturating_sub(ticks);
+        now.spent = now.spent.saturating_add(ticks);
+        b.set(now);
+    });
+}
+
 /// [A334] Takes a walk of up to `ticks` from this thread's budget: a walk starts while any of it is left, so a period runs
 /// past it by one walk at most (the caller bounds a walk's length). False: the leg is not walked now.
 fn take_pull_walk(ticks: u32) -> bool {
@@ -473,6 +483,66 @@ pub fn walk_on(world: &Collision, s: &Settings, b: &mut ClientBody, stance: Stan
     }
 }
 
+/// [pull walk] The most ticks [`pull_walk_reaches`] walks a leg, as a share of the leg's ticks at [`WALK_MPS`]: a bound for safety
+/// only (the walk ends on the body's own arrival or stall first).
+pub const PULL_WALK_TICKS_BOUND: f32 = 2.0;
+
+/// [pull walk] How many ticks a pull walk's body may go without getting [`PULL_WALK_PROGRESS_M`] further along the leg before
+/// it is held: the client's run-down to rest ([`crate::motion::flights::STAY_STEPS`]: the release's 6 steps and one at rest).
+pub const PULL_WALK_STALL_TICKS: u32 = crate::motion::flights::STAY_STEPS;
+
+/// [pull walk] The least gain along the leg, m, that counts as progress over [`PULL_WALK_STALL_TICKS`].
+pub const PULL_WALK_PROGRESS_M: f32 = 0.01;
+
+/// [pull walk] Whether the client's body walks a pulled leg from `from` to `to` (feet), for [`WalkGrid::pull_walk_fails`] only
+/// (the builder's checks keep [`walk_share`]): the walk check's standing body in its steady walk ([`walking_at`]) walked by the
+/// forward key as [`walk_on`] walks it, to the same arrival band ([`AT_FLAT_M`], [`AT_HEIGHT_M`] under and over) and refusals
+/// (a low ceiling), but for as long as the body keeps getting along the leg: until it is there, or it has not got
+/// [`PULL_WALK_PROGRESS_M`] further along in [`PULL_WALK_STALL_TICKS`] ticks (held), or [`PULL_WALK_TICKS_BOUND`] times the
+/// leg's ticks at [`WALK_MPS`] have gone. [`walk_share`]'s fixed `ceil(len / (3.5 x 0.05)) + 2` ticks called a body that walks the
+/// leg a little under 3.5 m/s (uphill most) short of it: of 2,234 failing pulled legs of a bench (v52's B arm), 1,585 got there
+/// on spare ticks, 1,524 of them on one; 9 of 10 such legs replayed in the exe rig (rig_real_v3) walk to their end as the port
+/// does, step for step (the tenth fails in both). The ticks the walk took are the second value (the budget's charge).
+pub fn pull_walk_reaches(world: &Collision, s: &Settings, start: WalkStart, from: Vec3, to: Vec3) -> (bool, u32) {
+    let flat = Vec3::new(to.x - from.x, 0.0, to.z - from.z);
+    let length = flat.length();
+    if length < 1e-4 {
+        return (true, 0);
+    }
+    let dir = flat * (1.0 / length);
+    let mut b = walking_at(world, start, from, yaw_toward(from, to));
+    let leg = length.max(b.feet().distance_xz(to));
+    let bound = ((leg / (WALK_MPS * 0.05)).ceil() * PULL_WALK_TICKS_BOUND) as u32 + 2;
+    let pass = Pass { world, settings: s };
+    let aim = to + dir * AIM_PAST_M;
+    let at = |feet: Vec3| {
+        let rel = Vec3::new(feet.x - to.x, 0.0, feet.z - to.z);
+        let along = rel.dot(dir);
+        let across = (rel - dir * along).length();
+        let level = feet.y - to.y >= -AT_HEIGHT_M && feet.y - to.y <= AT_HEIGHT_M;
+        level && (rel.length() <= AT_FLAT_M || (along >= 0.0 && across <= AT_FLAT_M))
+    };
+    // The best way along (m) and the tick it was last bettered by the progress step.
+    let (mut best_m, mut best_at) = (way_along(from, to, b.feet()) * length, 0u32);
+    for tick in 0..bound {
+        let feet = b.feet();
+        if at(feet) {
+            return (true, tick);
+        }
+        let t = b.tick(&pass, Kin::CLIENT, Input { keys: motion::keys::FORWARD, yaw: yaw_toward(feet, aim) });
+        if t.ceiling {
+            return (false, tick + 1);
+        }
+        let along_m = way_along(from, to, b.feet()) * length;
+        if along_m >= best_m + PULL_WALK_PROGRESS_M {
+            (best_m, best_at) = (along_m, tick + 1);
+        } else if tick + 1 - best_at >= PULL_WALK_STALL_TICKS {
+            return (at(b.feet()), tick + 1);
+        }
+    }
+    (at(b.feet()), bound)
+}
+
 /// The yaw from `feet` toward `aim` on the ground.
 fn yaw_toward(feet: Vec3, aim: Vec3) -> f32 {
     let (dx, dz) = (aim.x - feet.x, aim.z - feet.z);
@@ -650,7 +720,10 @@ impl WalkGrid {
             return false;
         }
         let (_, s) = self.body.controller();
-        let fails = !walk_share(world, &s, self.body.walk_start(), pa, pb).1;
+        // [pull walk] Walked to the body's own end ([`pull_walk_reaches`]); the ticks past the up-front charge are charged after.
+        let (reaches, took) = pull_walk_reaches(world, &s, self.body.walk_start(), pa, pb);
+        charge_pull_walk(took.saturating_sub(ticks));
+        let fails = !reaches;
         PULL_WALKS.with(|c| {
             let mut c = c.borrow_mut();
             if c.len() >= PULL_WALKS_MAX {
@@ -1246,6 +1319,42 @@ mod tests {
         assert!(old, "the old start climbs it from inside the ledge");
         assert!(!clear && share < CHECK_SHARE, "from where a body stands it does not climb: share {share}");
         assert!(out_of_faces(&world, from).z < 2.0 - STAND_RADIUS_M + 0.01, "pushed out to the capsule's radius");
+    }
+
+    /// [pull walk] The pull walk runs to the body's own end: every leg [`walk_share`] walks it walks (up ramps of 0-30 deg,
+    /// 2-11 m long), it walks some the fixed ticks call short (the body slower than 3.5 m/s uphill), and a body held at a wall
+    /// ends on the stall rule, long before the bound.
+    #[test]
+    fn the_pull_walk_runs_to_the_bodys_own_end() {
+        let s = Settings::LIVE;
+        let mut late = 0;
+        for deg in [0.0f32, 10.0, 20.0, 25.0, 30.0] {
+            let mut tris = Vec::new();
+            let rise = |x: f32| (x - 2.0).max(0.0) * deg.to_radians().tan();
+            // Flat to x 2, then the ramp to x 16.
+            floor(&mut tris, -2.0, 0.0, 2.0, 6.0, 0.0);
+            quad(&mut tris, Vec3::new(2.0, 0.0, 0.0), Vec3::new(2.0, 0.0, 6.0), Vec3::new(16.0, rise(16.0), 6.0), Vec3::new(16.0, rise(16.0), 0.0));
+            let world = Collision::build(&tris);
+            for len in [2.0f32, 5.0, 8.0, 11.0] {
+                let (from, to) = (Vec3::new(1.0, 0.0, 3.0), Vec3::new(1.0 + len, rise(1.0 + len), 3.0));
+                let old = walk_share(&world, &s, WalkStart::Clear, from, to).1;
+                let (reaches, took) = pull_walk_reaches(&world, &s, WalkStart::Clear, from, to);
+                assert!(!old || reaches, "{deg} deg {len} m: walk_share walks it, the pull walk must");
+                late += usize::from(reaches && !old);
+                assert!(took <= ((len / (WALK_MPS * 0.05)).ceil() * PULL_WALK_TICKS_BOUND) as u32 + 2);
+            }
+        }
+        // A wall 3 m along: held there, the walk ends a stall's ticks after the body stops, not at the bound.
+        let mut tris = Vec::new();
+        floor(&mut tris, -2.0, 0.0, 14.0, 6.0, 0.0);
+        quad(&mut tris, Vec3::new(4.0, 0.0, 0.0), Vec3::new(4.0, 0.0, 6.0), Vec3::new(4.0, 3.0, 6.0), Vec3::new(4.0, 3.0, 0.0));
+        let world = Collision::build(&tris);
+        let (from, to) = (Vec3::new(1.0, 0.0, 3.0), Vec3::new(12.0, 0.0, 3.0));
+        let (reaches, took) = pull_walk_reaches(&world, &s, WalkStart::Clear, from, to);
+        let bound = ((11.0 / (WALK_MPS * 0.05)).ceil() * PULL_WALK_TICKS_BOUND) as u32 + 2;
+        assert!(!reaches, "the wall holds it");
+        assert!(took < bound / 2, "held: ended after {took} of {bound} ticks");
+        assert!(late > 0, "some ramp legs the fixed ticks call short are walked");
     }
 
     /// A floor at 0 and a top 0.6 m up past one 0.25 m cell (x 5.0-5.25), 6 m wide. With `strip`, that cell holds a 0.3 m
