@@ -46,7 +46,8 @@ use crate::vostok::draw::{self, DrawnBones};
 use crate::vostok::trace::{self, TraceFile};
 use crate::vostok::world::{BodyId, GameWorld, Held, ModifierIndex, NetworkClient, PhysicsWorld, Player, PlayerId, SkeletonId,
                            WorldKey};
-use crate::vostok::{Context, Flow, Lock, NoExit, RagdollOnCullExit, RagdollOnHeldItemExit, RagdollOnPostBonesExit, Thread, camera, clock, headwear};
+use crate::vostok::clock::FrameClock;
+use crate::vostok::{Context, Flow, Lock, NoExit, RagdollOnCullExit, RagdollOnHeldItemExit, RagdollOnPostBonesExit, Thread, camera, headwear};
 
 /// ray_test's filter (an object is hit when its mask has a bit of the
 /// group and its group a bit of the mask): the walker collision (group 4,
@@ -203,13 +204,6 @@ enum EyeView {
     On { player: PlayerId, matrix: [f32; 16] },
 }
 
-/// The frame clock (QueryPerformanceCounter).
-#[derive(Clone, Copy)]
-enum Clock {
-    Unstarted,
-    Running { ticks: u32, frequency: u32 },
-}
-
 /// A bullet's round as the trace says it: the ammo's mass and muzzle speed
 /// (its identity), its speed at the hit, its segment, its id and shooter.
 #[derive(Clone, Copy)]
@@ -275,7 +269,7 @@ struct State {
     draws: [Draw; MAX_PLACES],
     eye: EyeView,
     mappings: [Mapping; 4],
-    clock: Clock,
+    clock: FrameClock,
     /// The step's time, s (the frames' real times summed).
     time: f32,
     /// Each place's hits lately (the next death's push).
@@ -299,7 +293,7 @@ static STATE: Lock<State> = Lock::new(State {
     draws: [Draw::Off; MAX_PLACES],
     eye: EyeView::Off,
     mappings: [Mapping::Empty; 4],
-    clock: Clock::Unstarted,
+    clock: FrameClock::UNSTARTED,
     time: 0.0,
     recent: [Recent::new(); MAX_PLACES],
     moving: [Moving { at: Vec3::ZERO, velocity: Vec3::ZERO, known: false }; MAX_PLACES],
@@ -313,29 +307,19 @@ static STATE: Lock<State> = Lock::new(State {
 /// bullets' hook returns at once otherwise, the lock not taken.
 static ANY_BODIES: AtomicBool = AtomicBool::new(false);
 
-/// The real time since the last frame, s (1/60 the first time).
-fn frame_time(clock: &mut Clock, thread: &Thread) -> f32 {
-    let ticks = clock::counter(thread) as u32;
-    match *clock {
-        Clock::Running { ticks: last, frequency } => {
-            *clock = Clock::Running { ticks, frequency };
-            ticks.wrapping_sub(last) as f32 / frequency as f32
-        }
-        Clock::Unstarted => {
-            let frequency = clock::frequency(thread);
-            if frequency > 0 && frequency <= u64::from(u32::MAX) {
-                *clock = Clock::Running { ticks, frequency: frequency as u32 };
-            }
-            1.0 / 60.0
-        }
-    }
-}
-
 /// The level as the ragdolls read it: ray_test on the simulation's physics
-/// world, the level's group alone, a budget of rays a frame.
-struct GameLevel<'t> {
+/// world, the level's group alone, a budget of rays a frame. A lamp's loose
+/// piece meets it the same way (patch 81).
+pub(crate) struct GameLevel<'t> {
     world: Option<PhysicsWorld<'t>>,
     rays: u32,
+}
+
+impl<'t> GameLevel<'t> {
+    /// The level of `world` for a frame of at most `rays` rays.
+    pub(crate) fn new(world: Option<PhysicsWorld<'t>>, rays: u32) -> GameLevel<'t> {
+        GameLevel { world, rays }
+    }
 }
 
 impl Level for GameLevel<'_> {
@@ -498,7 +482,7 @@ pub fn on_step(ctx: &mut Context<'_>) -> Flow<NoExit> {
 }
 
 fn step(state: &mut State, client: Option<&NetworkClient<'_>>, thread: &Thread) {
-    let dt = frame_time(&mut state.clock, thread);
+    let dt = state.clock.tick(thread);
     state.time += dt;
     let living = core::mem::replace(&mut state.shots.living, [None; LIVING_HITS]);
     // the pushes of the shots since the last step (the bullets' threads

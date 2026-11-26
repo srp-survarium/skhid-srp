@@ -83,7 +83,7 @@ package
                return;
             }
             var head:String = ["S1","R",4242,7,0,10,30,phase,0,owner ? 1 : 0,24,count,99,1,0,1,0].join(";");
-            var names:Array = [head,"C;0;61;1;0","C;1;63;0;0","C;2;117;0;0"];
+            var names:Array = [head,"C;0;61;1;0","C;1;63;0;0","C;2;117;0;0","C;3;65;0;0"];
             for(var i:int = 0; i < count; i++)
             {
                // P;<i>;<gear>;<owner>;<me>;<in match>;<fit>;<away>;<name>

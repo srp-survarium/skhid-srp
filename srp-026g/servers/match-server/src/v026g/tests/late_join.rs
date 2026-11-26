@@ -298,9 +298,11 @@ fn growing_dialect_requires_an_explicit_client_capability() {
 
 #[test]
 fn stock_debug_flag_is_not_a_growing_roster_capability() {
-    use survarium::v026g::match_msgs::late_join::has_connect_capability;
+    use survarium::v026g::match_msgs::late_join::{has_connect_capability, has_exact_worlds, has_world_receipts};
     for flag in 0..=u8::MAX {
-        assert_eq!(has_connect_capability(flag), matches!(flag, 0x80..=0x83));
+        assert_eq!(has_connect_capability(flag), matches!(flag, 0x80..=0x87));
+        assert_eq!(has_world_receipts(flag), matches!(flag, 0x82 | 0x83 | 0x86 | 0x87));
+        assert_eq!(has_exact_worlds(flag), matches!(flag, 0x84..=0x87));
     }
     for growing in [false, true] {
         let mut bench = if growing {

@@ -11,7 +11,9 @@ points, each kind toggled on its own:
 - Research's three units (mode 5), lettered A to C;
 - Artifact Hunt's artefact spawns and the teams' bases (mode 13);
 - the teams' ammo stashes (resupply zones);
-- artefact spawns, one toggle per artefact.
+- artefact spawns, one toggle per artefact;
+- the anomalies the artefacts come from: each one's zones, and a card (pointing at
+  the anomaly or one of its artefacts, or tapping it) with when and how it gives them.
 
 Player spawns are drawn as the HUD's player triangle, turned the way the
 player faces at spawn. The markers are the game's own HUD minimap icons,
@@ -80,6 +82,7 @@ What comes from where:
 | marker icons | `hud.swf` `Minimap._icons` (`PlayerBlue`, `Base`, `SpawnIcon`, `ResupplyIcon`), as SVG (FFDec), with each one's lightness and opacity so the page paints them in one blue and one red; the battery: the kill feed's battery icon without its burst (the game's electrobox mesh, `models/weapons/electrobox.skinned_model/render/electrobox_s/converted_model`, in three-quarter view), traced as a vector SVG by `scripts/kill-feed-icons/make_battery_icon.py` (the owner, 2026-11-15: "we can use the same icon on website (without strike)") |
 | spawn facing | the respawn point's rotation: yaw = y, or pi - y when x and z are pi; forward (-sin yaw, cos yaw) in x/z (on every map the points face the enemy's side) |
 | artefact spawns | `client_objects`: each `artefact_container`'s collision zone, its artefacts from the `generic_anomaly_core` that lists it; names from `st_<artefact>_pickup_hint` |
+| anomalies | `client_objects`: each `generic_anomaly_core` with `artefacts_enabled` and containers. Its card: `artefacts` (a kind and its count), `artefacts_first_spawn_time_sec` and `_respawn_time_sec` ± `_respawn_variation_sec` (never below 0), `artefacts_respawn_chance`, `max_artefacts_count`, its containers' `artefacts_search_time_sec` and `artefacts_cooldown_time_sec`, a sequential zone group's `min/max_active_time_sec`. Its area: the `damage_zone`s its states' groups name, each `collision_geometry`'s meshes seen from above (a sphere or upright cylinder a circle, else the hull of its corners), filled where `max_hit` is above 0, dashed where not |
 | minimap and its frame | `flash_movies/hud.swf`, `survarium.controls.Minimap` (`_minimapProps`, `_levels`) by the project's `project_name`, as the HUD picks it (exported with FFDec) |
 | top-down render | `srp-026g/scripts/damage-calc/assets/maps/` (its README) and the site copy in `servers/web-server/damage/maps/`: the one input not read from the game |
 

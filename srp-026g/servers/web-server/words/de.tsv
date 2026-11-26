@@ -95,8 +95,6 @@ Not found.	Nicht gefunden.
 Too many wrong tokens; wait a minute.	Zu viele falsche Tokens; warte eine Minute.
 Wrong token.	Falsches Token.
 No such user.	Diesen Benutzer gibt es nicht.
-Silver and gold are whole numbers, + or -, or empty.	Silber und Gold sind ganze Zahlen, + oder -, oder leer.
-{user}: now {silver_now} silver and {gold_now} gold.	{user}: jetzt {silver_now} Silber und {gold_now} Gold.
 New accounts are taken again.	Neue Konten werden wieder angenommen.
 New accounts are refused; existing players sign in as before.	Neue Konten werden abgelehnt; bestehende Spieler melden sich wie bisher an.
 Maintenance cancelled.	Wartung abgesagt.
@@ -138,9 +136,8 @@ Q:	F:
 A:	A:
 If something goes wrong	Wenn etwas schiefgeht
 Download the files	Dateien herunterladen
-Download the game	Spiel herunterladen
 The download link is coming soon.	Der Download-Link kommt bald.
-Can't download? Run {script}: it downloads the whole game into a Survarium folder beside it.	Download klappt nicht? Starte {script}: Es lädt das ganze Spiel in einen Survarium-Ordner daneben herunter.
+Chrome or your antivirus refuses the download? Try this script: {script}. It downloads the whole game into a Survarium folder beside it.	Chrome oder dein Virenschutz blockiert den Download? Probiere dieses Skript: {script}. Es lädt das ganze Spiel in einen Survarium-Ordner daneben herunter.
 Get the game	Spiel besorgen
 The link is coming soon.	Der Link kommt bald.
 Get the original Survarium 0.26g (build 2777) and unpack it.	Besorge das originale Survarium 0.26g (Build 2777) und entpacke es.
@@ -155,10 +152,6 @@ Run <code>Skhid.bat</code> and press <b>PLAY</b>.	Starte <code>Skhid.bat</code> 
 Windows warns about an unknown publisher? Let it run.<br>Linux: <code>bash Skhid.sh launcher</code>, see <code>LINUX.txt</code>.	Windows warnt vor einem unbekannten Herausgeber? Lass es trotzdem laufen.<br>Linux: <code>bash Skhid.sh launcher</code>, siehe <code>LINUX.txt</code>.
 Windows warns about an unknown publisher? Let it run.<br>Linux: <code>bash Skhid.sh</code>, see <code>LINUX.txt</code>.	Windows warnt vor einem unbekannten Herausgeber? Lass es trotzdem laufen.<br>Linux: <code>bash Skhid.sh</code>, siehe <code>LINUX.txt</code>.
 Run <code>play_skhid.bat</code> in <code>game\\binaries\\x86</code>.	Starte <code>play_skhid.bat</code> in <code>game\\binaries\\x86</code>.
-Start it with this command line:	Starte es mit dieser Befehlszeile:
-english	german
-server address	Serveradresse
-language: english, russian, ukrainian	Sprache: english, german, russian, ukrainian
 Skhid (Ukrainian for “east”) is a community server that lets the Survarium {version} client sign in, trade, form squads and play matches again.	Skhid (ukrainisch für „Osten“) ist ein Community-Server, auf dem sich der Client von Survarium {version} wieder anmelden, handeln, Trupps bilden und Matches spielen kann.
 Project Discord: <a href="https://discord.gg/pxywZfaxRQ">discord.gg/pxywZfaxRQ</a>	Discord des Projekts: <a href="https://discord.gg/pxywZfaxRQ">discord.gg/pxywZfaxRQ</a>
 Early test server.	Früher Testserver.
@@ -167,7 +160,6 @@ How to play	So spielst du
 Download our files and unpack them into an empty folder (e.g. D:\\Survarium). <b>You do this only once.</b>	Lade unsere Dateien herunter und entpacke sie in einen leeren Ordner (z. B. D:\\Survarium). <b>Das machst du nur einmal.</b>
 Download our files and unpack them into the game's folder, the one with the <code>game</code> folder, replacing files. <b>You do this only once.</b>	Lade unsere Dateien herunter und entpacke sie in den Ordner des Spiels, den mit dem Ordner <code>game</code>, und ersetze dabei die Dateien. <b>Das machst du nur einmal.</b>
 Download our files and unpack them over the game's <code>game</code> folder.	Lade unsere Dateien herunter und entpacke sie über den Ordner <code>game</code> des Spiels.
-Download the patched game and unpack it.	Lade das gepatchte Spiel herunter und entpacke es.
 Sign in with any name and password: a new name registers itself. Remember the password.	Melde dich mit beliebigem Namen und Passwort an: Ein neuer Name registriert sich selbst. Merk dir das Passwort.
 New accounts are taken.	Neue Konten werden angenommen.
 Stop new registrations	Neue Registrierungen stoppen
@@ -177,7 +169,6 @@ Shown once the token is right.	Wird angezeigt, sobald das Token stimmt.
 Password	Passwort
 User name	Benutzername
 Silver, + or -	Silber, + oder -
-Gold, + or -	Gold, + oder -
 Change	Ändern
 Admin	Admin
 Token	Token
@@ -408,6 +399,7 @@ Kills	Kills
 Deaths	Tode
 K/D	K/D
 Kills/min	Kills/Min.
+Experience/min	Erfahrung/Min.
 Assists	Assists
 Score	Punkte	stats
 Avg score	Ø Punkte
@@ -950,3 +942,27 @@ A key fires every ready copy of its kind and restarts the cooldown of the ones s
 Copies of a kind add up (Onyx's passive multiplies); at most 4 count.	Kopien einer Art addieren sich (das Passiv von Onyx multipliziert sich); höchstens 4 zählen.
 Spring's and Larkspur's actives add to the passive; Onyx's replaces it.	Das Aktiv von Feder und Lebknochen kommt zum Passiv hinzu; das von Onyx ersetzt es.
 Onyx fired together: one reduction, 1 s longer per extra copy.	Zusammen aktivierte Onyx: eine Verringerung, je weitere Kopie 1 s länger.
+
+# The maps' anomalies (scripts/maps-tab/ui.js)
+Anomalies	Anomalien
+Anomaly	Anomalie
+Artefacts come from the anomalies. Each anomaly puts one of its artefacts into one of its free containers, one per time window, until its maximum lies uncollected; a pickup starts the window again. It gives only those of its artefacts that no player is carrying. Point at an anomaly or an artefact (or tap it) for its numbers.	Artefakte kommen aus den Anomalien. Jede Anomalie legt eins ihrer Artefakte in einen ihrer freien Container, eins pro Zeitfenster, bis ihr Maximum ungesammelt daliegt; ein Aufheben startet das Fenster neu. Sie gibt nur die ihrer Artefakte, die kein Spieler trägt. Zeige auf eine Anomalie oder ein Artefakt (oder tippe darauf), um ihre Zahlen zu sehen.
+{s} s	{s} s
+{a}–{b} s	{a}–{b} s
+Holds	Enthält
+First one	Erstes
+Then every	Dann alle
+Chance	Chance
+Max uncollected	Max. ungesammelt
+Search	Suche	artefact
+Zones switch every	Zonen wechseln alle
+After a pickup the next one comes {next} later; that container stays empty for {cooldown}.	Nach dem Aufheben kommt das nächste nach {next}; dieser Container bleibt {cooldown} leer.
+Its own zone does no damage.	Ihre eigene Zone richtet keinen Schaden an.
+Searching a container takes {search}; after a pickup it stays empty for {cooldown}.	Das Durchsuchen eines Containers dauert {search}; nach dem Aufheben bleibt er {cooldown} leer.
+After a pickup the next one comes {next} later.	Nach dem Aufheben kommt das nächste nach {next}.
+whole body	ganzer Körper
+{n} % a hit, at most every {t}	{n} % pro Treffer, höchstens alle {t}
+deadly	tödlich
+{n} % a second	{n} % pro Sekunde
+Damage is a share of each body part's health, before armour.	Schaden ist ein Anteil der Gesundheit jedes Körperteils, vor der Rüstung.
+It gives no artefacts.	Sie gibt keine Artefakte.

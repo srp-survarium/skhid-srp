@@ -294,7 +294,7 @@ try {
 
   // A player: nothing moves while it loads; 15 matches, then 8 older.
   await navigate('/stats?player=Sheep&lang=en', 'interactive');
-  assert.equal(await count('.stats-panels dd'), 27, 'the panels are drawn before their data');
+  assert.equal(await count('.stats-panels dd'), 29, 'the panels are drawn before their data');
   assert.equal(await count('.stats-favourites .stats-table tbody tr'), 10, 'five empty rows of each favourite');
   const loading = [await top(0), await listsTop()];
   await settled();
@@ -311,6 +311,8 @@ try {
   assert.equal(await panel('Artefacts'), String(answered.player.totals.artefacts), 'the artefacts taken');
   assert.equal(await panel('Hours played'), (answered.player.totals.played_s / 3600).toFixed(1));
   assert.equal(await panel('Accuracy'), aim(answered.player.totals), 'accuracy in whole percents');
+  assert.equal(await panel('Kills/min'), new Intl.NumberFormat('en', {minimumFractionDigits: 2, maximumFractionDigits: 2}).format(answered.player.totals.kills_per_minute), 'kills a minute in its matches');
+  assert.equal(await panel('Experience/min'), new Intl.NumberFormat('en', {maximumFractionDigits: 2}).format(answered.player.totals.experience_per_minute), 'experience a minute');
   assert.ok((await columns()).includes('HS %') && !(await columns()).includes('Artefacts'), 'a match line has its headshot rate');
   assert.ok((await columns()).includes('Accuracy') && (await columns()).includes('Weapons'), 'and its accuracy and weapons');
   const lines = answered['player/matches'].matches;

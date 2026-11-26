@@ -724,7 +724,8 @@ stored answers stay. PROVEN (instructions read).
 
 So an answer is acted on a frame or more after its query, against a depth a frame older still:
 while the camera moves, objects in sight are called occluded, and one back in view reads, once,
-the result at the index it had when last in view, another object's. Patch 189's log of four
+the result at the index it had when last in view, another object's. Patch 189's log (a
+diagnostic, `SKHID_LIGHT_SET_LOG`, on the branch `diag/light-set-log`, not merged) of four
 minutes in London (v0.42, 2026-11-22): per frame on average 64 probes in view, 24 of them left out;
 75 ambient lights, 39 left out; 17 lights, 11 left out. 5,080 drops of a probe or ambient light,
 1,269 of them back within a frame (20 ms); 552 of a light, 77 within a frame. A probe left out lets

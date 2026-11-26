@@ -1364,8 +1364,6 @@ if ((target_ok)); then
     fi
     fs=$(on_target "cd $D && stat -L -c %d . download" || true)
     if [[ $(sort -u <<<"$fs" | grep -c .) == 1 ]]; then okay "download/ is on the file system of $TARGET_DIR (a release folder's files go in by rename)"; else problem "download/ is not on the file system of $TARGET_DIR (or not there): the swap hard-links the release folder's files into it"; fi
-    blobs=$(missing_original_blobs)
-    if [[ -z $blobs ]]; then okay "download/resources/ keeps the original menus' blobs (the updater's restore to stock)"; else problem "download/resources/ on the $TARGET host lacks the original blobs the updater's restore fetches: $(tr '\n' ' ' <<<"$blobs")"; fi
     present=$(on_target "cd $D && for f in download/$ZIP_NAME download/$DATA_NAME; do if test -f \$f; then echo \$f; fi; done")
     [[ $present == *"$ZIP_NAME"* ]] && HAVE_ZIP=1
     [[ $present == *"$DATA_NAME"* ]] && HAVE_DATA=1

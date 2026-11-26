@@ -2,10 +2,10 @@
 #
 #   SRP_PUBLIC_HOST=203.0.113.9 docker compose up -d --build
 #
-# Made to run BESIDE the live 0.21d server (compose project `srp`, containers
-# `srp-srp-1` / `srp-caddy-1`, image `srp:latest`, volume `srp_srp-data`,
-# ports 80, 443, 1234 tcp+udp, 1235 tcp, 1236 udp, 127.0.0.1:8088) without
-# touching it. Everything here has its own name and its own default port:
+# Made to run beside another server on one host without touching it (it was
+# made beside the 0.21d server, hosted until 2026-10-12: compose project `srp`,
+# image `srp:latest`, ports 80, 443, 1234 tcp+udp, 1235 tcp, 1236 udp).
+# Everything here has its own name and its own default port:
 #
 #   project   srp26           (containers srp26-srp26-1, srp26-caddy26-1)
 #   image     srp-026g:latest
@@ -79,8 +79,13 @@ services:
       # `on`: every page says this is the test server (a badge, the title,
       # a notice that accounts here can be reset).
       - SRP_TEST_SERVER=${SRP_TEST_SERVER:-}
-      # The worlds the match server accepted are kept here to compare.
+      # The worlds the match server accepted are kept here to compare (no
+      # cap), and in captures/ the desync captures: both sides' worlds where
+      # the games split, with their first differing field
+      # (docs/notes/desync_capture.md); captures over SRP_CAPTURE_MAX_MB
+      # (default 200) together go oldest first.
       - SRP_SNAPSHOT_DIR=/srv/srp/data/snapshots
+      - SRP_CAPTURE_MAX_MB
       # Every datagram of a match in and out, one file per match, kept when
       # SRP_RECORD_MIN_PLAYERS (default 6 for PvP; 1 human for PvE) have entered
       # it; kept files over SRP_RECORD_MAX_MB (default 5000) together go
@@ -175,7 +180,7 @@ services:
       # below, on a host whose 443 is free).
       - "127.0.0.1:${SRP26_WEB_PORT:-8098}:8088/tcp"
     volumes:
-      # Its own database: never the 0.21d server's volume.
+      # Its own database: never another server's volume.
       - srp26-data:/srv/srp/data
       - ${SRP26_DOWNLOAD_DIR:-./download}:/srv/srp/download:ro
     # Keeps what the game does not need away from it.
@@ -225,7 +230,7 @@ services:
       - >-
         relays=$$(printf %s "$$SRP_RELAYS" | sed 's/=[^,]*/\/32/g; s/,/ /g');
         { [ -z "$$relays" ] || printf '{\n\tservers {\n\t\tlistener_wrappers {\n\t\t\tproxy_protocol {\n\t\t\t\ttimeout 5s\n\t\t\t\tallow %s\n\t\t\t}\n\t\t\ttls\n\t\t}\n\t}\n}\n' "$$relays";
-        printf '%s {\n\t@get_script {\n\t\tpath /Skhid-get.bat\n\t\tfile {\n\t\t\troot /data/skhid-downloads\n\t\t}\n\t}\n\thandle @get_script {\n\t\troot * /data/skhid-downloads\n\t\theader Content-Disposition "attachment; filename=Skhid-get.bat"\n\t\tfile_server\n\t}\n\thandle {\n\t\treverse_proxy srp26:8088\n\t}\n}\n' "$$SRP_WEB_NAMES"; } > /tmp/Caddyfile
+        printf '%s {\n\treverse_proxy srp26:8088\n}\n' "$$SRP_WEB_NAMES"; } > /tmp/Caddyfile
         && exec caddy run --config /tmp/Caddyfile --adapter caddyfile
     ports:
       - "${SRP26_HTTPS_PORT:-443}:443/tcp"

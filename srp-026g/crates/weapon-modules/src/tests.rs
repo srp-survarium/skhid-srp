@@ -33,6 +33,15 @@ const P90_BRAKE: usize = 15;
 const P90_ACM: usize = 16;
 const TBRAKE: usize = 17;
 const AEK_HIDER: usize = 18;
+const MPR45: usize = 19;
+const DPPRO_SIDE: usize = 20;
+const DPPRO_TOP: usize = 21;
+
+/// The second sight's `aim`, above its base: on the rail's two quarter turns
+/// its line of sight runs along the gun's.
+const SIDE_EYE: Affine = Affine::translation(0.0, 0.03, 0.01);
+/// The DeltaPoint Pro's item, a scope and a second sight by its two rows.
+const DPPRO_DICT: u16 = 2112;
 
 // guns, by their dict id in 0.69d0
 const AK_74M: u16 = 3;
@@ -44,7 +53,8 @@ const FN_P90: u16 = 1220;
 /// The gun's `offset` bone, which every slot hangs on (as on the stock AK-74M).
 const OFFSET_BONE: u16 = 1;
 
-/// Every sample gun's own eye, on the offset bone.
+/// Every sample gun's own eye, on the offset bone: its whole body's `aim`
+/// and its eye plane (0.69d's `body_aim` slot) alike.
 const BODY_AIM: Affine = Affine::translation(0.0, 0.06, -0.12);
 
 /// A made-up locator: a quarter turn about y and a place of its own.
@@ -177,6 +187,56 @@ fn modules() -> Vec<ModuleSource> {
         ),
         module(1421, Role::Fitted(Kind::Muzzle), &[brakes, "diamondhead_tbrake_i05x28_muzzlebrake"].concat(), vec![muzzle(S::I05x28Muzzle, 21, &[fx, "dtk4_6"].concat())]),
         module(1395, Role::Fitted(Kind::Muzzle), &[brakes, "aek919k_m12x1l_muzzlebrake"].concat(), vec![muzzle(S::M12x1lMuzzle, 22, &[fx, "pp_arrest1"].concat())]),
+        // the 45-degree offset rail: on either angled rail, the collimator's slot beside it
+        module(
+            1886,
+            Role::Carrier,
+            "weapons/modules/picatinnyrails/ncstar_mpr45_picatinnyrail",
+            vec![
+                AttachSource {
+                    adds: vec![(S::AngledCollimShortL, locator(23))],
+                    closes: vec![S::AngledPicatinnyrailR],
+                    ..AttachSource::new(S::AngledPicatinnyrailL)
+                },
+                AttachSource {
+                    adds: vec![(S::AngledCollimShortR, locator(24))],
+                    closes: vec![S::AngledPicatinnyrailL],
+                    ..AttachSource::new(S::AngledPicatinnyrailR)
+                },
+            ],
+        ),
+        // a DeltaPoint Pro as a second sight (its own item, ours): 0.69d's
+        // attach_params_3, `aim_4` and `reticle_3` at its `aim`, at the gun's eye plane
+        ModuleSource {
+            aimed: Some(String::from("weapons/modules/collimators/leupold_dppro_collimator/leupold_dppro_collimator_aim")),
+            ..module(
+                DPPRO_DICT,
+                Role::Fitted(Kind::SecondSight),
+                "weapons/modules/collimators/leupold_dppro_collimator/leupold_dppro_collimator",
+                vec![
+                    AttachSource {
+                        eye: Some(AttachEye::InGunPlane(SIDE_EYE)),
+                        adds: vec![(S::Reticle2, SIDE_EYE)],
+                        ..AttachSource::new(S::AngledCollimShortL)
+                    },
+                    AttachSource {
+                        eye: Some(AttachEye::InGunPlane(SIDE_EYE)),
+                        adds: vec![(S::Reticle3, SIDE_EYE)],
+                        ..AttachSource::new(S::AngledCollimShortR)
+                    },
+                ],
+            )
+        },
+        // the same DeltaPoint Pro as a scope on the top rail
+        ModuleSource {
+            aimed: Some(String::from("weapons/modules/collimators/leupold_dppro_collimator/leupold_dppro_collimator_aim")),
+            ..module(
+                DPPRO_DICT,
+                Role::Fitted(Kind::Scope),
+                "weapons/modules/collimators/leupold_dppro_collimator/leupold_dppro_collimator",
+                vec![AttachSource { eye: Some(AttachEye::InGunPlane(locator(26))), ..AttachSource::new(S::PicatinnyScopeLong) }],
+            )
+        },
     ]
 }
 
@@ -193,7 +253,7 @@ fn gun(dict: u16, slots: &[(SlotId, u8)]) -> GunSource {
         aim_bone: 0,
         bare: std::format!("weapons/gun_{dict}/bare"),
         body_aim: (OFFSET_BONE, BODY_AIM),
-        slots: slots.iter().map(|(slot, n)| (*slot, OFFSET_BONE, locator(*n))).collect(),
+        slots: slots.iter().map(|(slot, n)| (*slot, OFFSET_BONE, locator(*n))).chain([(S::BodyAim, OFFSET_BONE, BODY_AIM)]).collect(),
         pose: pose(),
         ..GunSource::default()
     }
@@ -224,7 +284,11 @@ fn source() -> Source {
         },
         GunSource {
             stock: vec![(S::PicatinnyIronsightRear, HK_REAR), (S::Hk416a5IronsightFront, HK_FRONT), (S::I05x28Muzzle, HK_BRAKE)],
-            fits: vec![MIKI, EOTECH],
+            carriers: vec![
+                (S::AngledCollimShortL, vec![(MPR45, S::AngledPicatinnyrailL)]),
+                (S::AngledCollimShortR, vec![(MPR45, S::AngledPicatinnyrailR)]),
+            ],
+            fits: vec![MIKI, EOTECH, DPPRO_SIDE, DPPRO_TOP],
             ..gun(
                 HK416,
                 &[
@@ -233,13 +297,16 @@ fn source() -> Source {
                     (S::PicatinnyScopeLong, 38),
                     (S::PicatinnyIronsightRear, 39),
                     (S::Hk416a5IronsightFront, 40),
+                    (S::AngledPicatinnyrailL, 43),
+                    (S::AngledPicatinnyrailR, 44),
                 ],
             )
         },
         GunSource {
             stock: vec![(S::M12x1lMuzzle, P90_BRAKE)],
             carriers: vec![(S::PicatinnyGrip, vec![(P90_ACM, S::M12x1lMuzzle)]), (S::I05x28Muzzle, vec![(P90_ACM, S::M12x1lMuzzle)])],
-            fits: vec![MIKI, TBRAKE, AEK_HIDER],
+            // a second sight the gun names, with no angled rail to bring its slot
+            fits: vec![MIKI, TBRAKE, AEK_HIDER, DPPRO_SIDE],
             ..gun(FN_P90, &[(S::M12x1lMuzzle, 41), (S::PicatinnyScopeMedium, 42)])
         },
     ];
@@ -248,6 +315,14 @@ fn source() -> Source {
 
 fn dict(module: usize) -> Option<DictId> {
     DictId::new(modules()[module].dict)
+}
+
+fn right(module: usize) -> Option<(DictId, Side)> {
+    dict(module).map(|dict| (dict, Side::Right))
+}
+
+fn left(module: usize) -> Option<(DictId, Side)> {
+    dict(module).map(|dict| (dict, Side::Left))
 }
 
 fn with(table: &Table<'_>, gun: u16, wanted: Wanted, check: impl FnOnce(Bare<'_>)) {
@@ -344,7 +419,13 @@ fn a_grip_swaps_the_forend() {
 /// one sets the eye; an optic alters both and sets its own.
 #[test]
 fn a_scope_folds_the_sights() {
-    let bytes = encode(&source()).unwrap();
+    let mut data = source();
+    let hk = data.guns.iter_mut().find(|g| g.dict == HK416).unwrap();
+    // the eye plane elsewhere than the whole body's own eye: the plane is
+    // the slot's alone
+    let donor_eye = Affine::translation(0.0, 0.1, 0.17);
+    hk.slots.iter_mut().find(|(slot, _, _)| *slot == S::BodyAim).unwrap().2 = donor_eye;
+    let bytes = encode(&data).unwrap();
     let table = Table::parse(&bytes).unwrap();
     with(&table, HK416, Wanted { scope: dict(EOTECH), ..Wanted::default() }, |bare| {
         assert_eq!(models(&bare), ["hk416_a5_rear_ironsight_off", "hk416_a5_front_ironsight_off", "hk416a5_i05x28_muzzlebrake"]);
@@ -362,7 +443,7 @@ fn a_scope_folds_the_sights() {
         let (own, eye) = (on_offset(locator(39)).child(&locator(14)), bare.eye.unwrap().placed(EyeAnchor::Optic));
         assert_eq!((eye.bone, eye.offset.x, eye.offset.y, eye.offset.z), (own.bone, own.offset.x, own.offset.y, own.offset.z));
         let frame = |at: &Placement| locator_frame(&Affine::IDENTITY, at, &pose()[1].1, &Affine::IDENTITY);
-        let gun_eye = Placement { bone: BoneIndex(OFFSET_BONE), offset: BODY_AIM };
+        let gun_eye = Placement { bone: BoneIndex(OFFSET_BONE), offset: donor_eye };
         let (line, moved, plane) = (frame(&own), frame(&eye), frame(&gun_eye));
         let off = |a: [f32; 3], b: [f32; 3]| [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
         let dot = |a: [f32; 3], b: [f32; 3]| a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
@@ -373,21 +454,63 @@ fn a_scope_folds_the_sights() {
     });
 }
 
-/// 0.69d's two cases of `plane_slot` that leave the eye whole: a line of
-/// sight along the plane, and a plane more than 2 m behind the eye.
+/// 0.69d's two cases of `plane_slot` that leave the eye where it is, inside
+/// the sight: a line of sight along the plane, and a plane more than 2 m
+/// behind the eye. A fit that meets one is refused.
 #[test]
-fn an_eye_stays_whole_off_its_plane() {
-    use crate::resolve::slide_to_plane;
+fn an_eye_off_its_plane_is_refused() {
+    use crate::resolve::to_plane;
     let plane = Affine::translation(0.0, 0.06, -0.12);
     let at = |z: f32, k: [f32; 3]| Affine { z: k, t: [0.0, 0.07, z], ..Affine::IDENTITY };
-    let step = |z: f32, k: [f32; 3]| slide_to_plane(&at(z, k), &plane).map(|step| step.t);
+    let step = |z: f32, k: [f32; 3]| to_plane(&at(z, k), &plane);
     let ahead = [0.0, 0.0, 1.0];
-    assert!(step(0.1, ahead).is_some_and(|[x, y, z]| x == 0.0 && y == 0.0 && (z + 0.22).abs() < 1e-6));
-    // the plane 1.92 m behind: moved; 2.02 m behind: whole
+    assert!(step(0.1, ahead).is_some_and(|along| (along + 0.22).abs() < 1e-6));
+    // the plane 1.92 m behind: moved; 2.02 m behind: stays
     assert!(step(1.8, ahead).is_some());
     assert_eq!(step(1.9, ahead), None);
     // a line along the plane
     assert_eq!(step(0.1, [1.0, 0.0, 0.0]), None);
+    // the HK416's rear sight looking along its eye plane
+    let mut data = source();
+    let hk = data.guns.iter_mut().find(|g| g.dict == HK416).unwrap();
+    let sideways = Affine { x: [0.0, 0.0, 1.0], z: [-1.0, 0.0, 0.0], ..BODY_AIM };
+    hk.slots.iter_mut().find(|(slot, _, _)| *slot == S::BodyAim).unwrap().2 = sideways;
+    let bytes = encode(&data).unwrap();
+    let table = Table::parse(&bytes).unwrap();
+    assert_eq!(refusal(&table, HK416, Wanted { grip: dict(MIKI), ..Wanted::default() }), Refusal::OffPlane);
+}
+
+/// A gun with a part that keeps its eye relief has an eye plane, or the
+/// table is refused: no eye falls back to another.
+#[test]
+fn a_sight_in_the_gun_plane_needs_the_plane() {
+    let mut data = source();
+    let hk = data.guns.iter().position(|g| g.dict == HK416).unwrap();
+    data.guns[hk].slots.retain(|(slot, _, _)| *slot != S::BodyAim);
+    assert_eq!(encode(&data).err(), Some(EncodeError::Refused(Malformed::Gun { gun: hk as u16, fault: GunFault::NoEyePlane })));
+    // a gun none of whose parts and fits keeps it needs none
+    let fnc = data.guns.iter().position(|g| g.dict == FN_FNC).unwrap();
+    data.guns[fnc].slots.retain(|(slot, _, _)| *slot != S::BodyAim);
+    data.guns[hk].slots.push((S::BodyAim, OFFSET_BONE, BODY_AIM));
+    let bytes = encode(&data).unwrap();
+    let table = Table::parse(&bytes).unwrap();
+    assert_eq!(table.gun(DictId::new(FN_FNC).unwrap()).unwrap().eye_plane(), None);
+}
+
+/// The iron sights: the whole body's own eye goes along its line to the eye
+/// plane, the distance the content gives as the gun's aim_offset.
+#[test]
+fn the_iron_sights_go_to_the_eye_plane() {
+    let mut data = source();
+    let hk = data.guns.iter_mut().find(|g| g.dict == HK416).unwrap();
+    hk.slots.iter_mut().find(|(slot, _, _)| *slot == S::BodyAim).unwrap().2 = Affine::translation(0.0, 0.1, 0.17);
+    let bytes = encode(&data).unwrap();
+    let table = Table::parse(&bytes).unwrap();
+    // both frames' k is the model's -z (the half turn), the eye at z -0.14, the plane at +0.15: 0.29 m
+    // against the eye's k
+    let along = iron_sights(table.gun(DictId::new(HK416).unwrap()).unwrap()).unwrap();
+    assert!((along + 0.29).abs() < 1e-5, "{along}");
+    assert_eq!(iron_sights(table.gun(DictId::new(AK_74M).unwrap()).unwrap()), Some(0.0));
 }
 
 /// 0.69d0: a rail optic on the AK-74M stands on a dovetail rail, which the
@@ -407,7 +530,7 @@ fn a_rail_optic_brings_its_rail_and_never_moves_for_a_grip() {
     });
     // everything at once: the forend the grip brings has a scope rail of its
     // own, and the optic stays where it was
-    let all = Wanted { scope: dict(EOTECH), muzzle: dict(DTK3), grip: dict(MIKI) };
+    let all = Wanted { scope: dict(EOTECH), muzzle: dict(DTK3), grip: dict(MIKI), second_sight: None };
     with(&table, AK_74M, all, |bare| {
         assert_eq!(
             models(&bare),
@@ -659,14 +782,14 @@ fn the_slot_ids_are_their_numbers() {
     }
     assert_eq!(SlotId::from_byte(94), None);
     assert_eq!((S::M24x15Muzzle.name(), S::NoneSlot.name()), ("m24x15_muzzle", "none"));
-    for role in [Role::Fitted(Kind::Scope), Role::Fitted(Kind::Muzzle), Role::Fitted(Kind::Grip), Role::Carrier, Role::Stock] {
+    for role in [Role::Carrier, Role::Stock].into_iter().chain(Kind::ALL.map(Role::Fitted)) {
         assert_eq!(Role::from_byte(role.byte()), Some(role));
     }
-    assert_eq!(Role::from_byte(5), None);
+    assert_eq!(Role::from_byte(6), None);
 }
 
 fn sample() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/sample-v3.srpm")
+    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/sample-v4.srpm")
 }
 
 /// The format, pinned: the checked-in table is what these cases encode to,
@@ -679,10 +802,11 @@ fn the_checked_in_table_is_the_format() {
         std::fs::write(sample(), &bytes).unwrap();
     }
     let kept = std::fs::read(sample()).unwrap();
-    assert!(kept == bytes, "tests/sample-v3.srpm is not what the cases encode to");
+    assert!(kept == bytes, "tests/sample-v4.srpm is not what the cases encode to");
     let table = Table::parse(&kept).unwrap();
     let ak = table.gun(DictId::new(AK_74M).unwrap()).unwrap();
-    assert_eq!((ak.bones(), ak.aim_bone(), ak.slots().count(), ak.stock().count(), ak.fits().count()), (4, BoneIndex(0), 3, 2, 4));
+    assert_eq!((ak.bones(), ak.aim_bone(), ak.slots().count(), ak.stock().count(), ak.fits().count()), (4, BoneIndex(0), 4, 2, 4));
+    assert_eq!((ak.own_aim(), ak.eye_plane()), (on_offset(BODY_AIM), Some(on_offset(BODY_AIM))));
     assert_eq!(ak.slot(S::Forend), Some(on_offset(locator(31))));
     let chain: Vec<_> = ak.carrier(S::PicatinnyGrip).unwrap().map(|(module, slot)| (module.dict().get(), slot)).collect();
     assert_eq!(chain, [(1669, S::Forend)]);
@@ -706,14 +830,18 @@ fn no_bytes_panic_the_parse() {
         let Ok(table) = Table::parse(&changed) else { continue };
         for gun in table.guns() {
             for module in gun.fits() {
-                let wanted = Wanted { scope: Some(module.dict()), muzzle: Some(module.dict()), grip: Some(module.dict()) };
+                let dict = Some(module.dict());
+                let wanted = Wanted { scope: dict, muzzle: dict, grip: dict, second_sight: dict.map(|dict| (dict, Side::Right)) };
                 let _ = resolve(gun, wanted);
             }
         }
     }
     let mut other = bytes.clone();
-    other[4] = 4;
-    assert_eq!(Table::parse(&other).err(), Some(Malformed::Version(4)));
+    other[4] = 5;
+    assert_eq!(Table::parse(&other).err(), Some(Malformed::Version(5)));
+    // a version 3 table has no second sights
+    other[4] = 3;
+    assert_eq!(Table::parse(&other).err(), Some(Malformed::Version(3)));
     assert_eq!(Table::parse(b"SRPX").err(), Some(Malformed::Magic));
 }
 
@@ -735,15 +863,17 @@ fn placed(out: &mut String, head: &str, at: &Placement) {
 
 /// What `resolve` says of the sample table's guns, pinned in a checked-in
 /// file: the client's Unicorn check (`check_attachments_026g.py`) runs the
-/// game's code over `tests/sample-v3.srpm` and compares what the patch
+/// game's code over `tests/sample-v4.srpm` and compares what the patch
 /// wrote with these rows, so it needs no second `resolve`.
 /// `SRP_WRITE_SAMPLE=1 cargo test -p weapon-modules` writes it.
 ///
-/// A case is `case <gun> <scope> <muzzle> <grip>` (dict ids, 0 none) and
-/// then `whole`, `refused <why>`, or `bare <body> <bones>` with a row a
-/// thing: `part <model> <bone> <12 floats>`, `optic`, `eye optic|gun_idle`,
-/// `fire`, `wrist` (each a bone and twelve floats), `fingers` (fifteen
-/// matrices), `effect <path>`.
+/// A case is `case <gun> <scope> <muzzle> <grip> <second sight> <side>`
+/// (dict ids, 0 none; the side left, right or -) and then `whole`, `refused <why>`, or `bare <body> <bones>` with a
+/// row a thing: `part <model> <bone> <12 floats>`, `optic`, `eye
+/// optic|gun_idle`, `second` (the second sight's frame), `aimed <path>` (its
+/// aimed model, shown in its place while it is looked through), `eye2
+/// optic|gun_idle`, `fire`, `wrist` (each a bone and twelve floats),
+/// `fingers` (fifteen matrices), `effect <path>`.
 #[test]
 fn the_samples_loadouts_are_pinned() {
     use core::fmt::Write;
@@ -752,25 +882,34 @@ fn the_samples_loadouts_are_pinned() {
     let table = Table::parse(&bytes).unwrap();
     let dict = |module: usize| DictId::new(source.modules[module].dict);
     let cases = [
-        (AK_74M, None, None, None),
-        (AK_74M, None, dict(DTK3), None),
-        (AK_74M, None, None, dict(MIKI)),
-        (AK_74M, dict(PSO1), None, None),
-        (AK_74M, dict(EOTECH), None, None),
-        (AK_74M, dict(PSO1), dict(DTK3), dict(MIKI)),
-        (AK_74M_VICTORY, None, dict(DTK3), dict(MIKI)),
-        (FN_FNC, dict(EOTECH), None, dict(MIKI)),
-        (HK416, dict(EOTECH), None, dict(MIKI)),
-        (FN_P90, None, dict(TBRAKE), dict(MIKI)),
-        (FN_P90, None, dict(AEK_HIDER), dict(MIKI)),
-        (HK416, None, dict(DTK3), None),
+        (AK_74M, None, None, None, None),
+        (AK_74M, None, dict(DTK3), None, None),
+        (AK_74M, None, None, dict(MIKI), None),
+        (AK_74M, dict(PSO1), None, None, None),
+        (AK_74M, dict(EOTECH), None, None, None),
+        (AK_74M, dict(PSO1), dict(DTK3), dict(MIKI), None),
+        (AK_74M_VICTORY, None, dict(DTK3), dict(MIKI), None),
+        (FN_FNC, dict(EOTECH), None, dict(MIKI), None),
+        (HK416, dict(EOTECH), None, dict(MIKI), None),
+        (FN_P90, None, dict(TBRAKE), dict(MIKI), None),
+        (FN_P90, None, dict(AEK_HIDER), dict(MIKI), None),
+        (HK416, None, dict(DTK3), None, None),
+        (HK416, None, None, None, right(DPPRO_SIDE)),
+        (HK416, None, None, None, left(DPPRO_SIDE)),
+        (HK416, dict(EOTECH), None, dict(MIKI), right(DPPRO_SIDE)),
+        (FN_P90, None, None, None, right(DPPRO_SIDE)),
     ];
     let mut out = String::new();
-    for (gun, scope, muzzle, grip) in cases {
+    for (gun, scope, muzzle, grip, second_sight) in cases {
         let id = |module: Option<DictId>| module.map_or(0, DictId::get);
-        writeln!(out, "case\t{gun}\t{}\t{}\t{}", id(scope), id(muzzle), id(grip)).unwrap();
+        let side = match second_sight {
+            Some((_, Side::Right)) => "right",
+            Some((_, Side::Left)) => "left",
+            None => "-",
+        };
+        writeln!(out, "case\t{gun}\t{}\t{}\t{}\t{}\t{side}", id(scope), id(muzzle), id(grip), id(second_sight.map(|(dict, _)| dict))).unwrap();
         let gun = table.gun(DictId::new(gun).unwrap()).unwrap();
-        let bare = match resolve(gun, Wanted { scope, muzzle, grip }) {
+        let bare = match resolve(gun, Wanted { scope, muzzle, grip, second_sight }) {
             Ok(Loadout::Whole) => {
                 out.push_str("whole\n");
                 continue;
@@ -792,6 +931,14 @@ fn the_samples_loadouts_are_pinned() {
             placed(&mut out, "eye\toptic", &eye.placed(EyeAnchor::Optic));
             placed(&mut out, "eye\tgun_idle", &eye.placed(EyeAnchor::GunIdle));
         }
+        if let Some(second) = &bare.second {
+            placed(&mut out, "second", &second.at);
+            if let Some(aimed) = second.module.aimed() {
+                writeln!(out, "aimed\t{}", aimed.to_str().unwrap()).unwrap();
+            }
+            placed(&mut out, "eye2\toptic", &second.eye.placed(EyeAnchor::Optic));
+            placed(&mut out, "eye2\tgun_idle", &second.eye.placed(EyeAnchor::GunIdle));
+        }
         if let Some(fire_point) = &bare.fire_point {
             placed(&mut out, "fire", fire_point);
         }
@@ -803,11 +950,114 @@ fn the_samples_loadouts_are_pinned() {
             writeln!(out, "effect\t{}", effect.to_str().unwrap()).unwrap();
         }
     }
-    let path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/sample-v3.loadouts.tsv");
+    let path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/sample-v4.loadouts.tsv");
     if std::env::var_os("SRP_WRITE_SAMPLE").is_some() {
         std::fs::write(&path, &out).unwrap();
     }
-    assert!(std::fs::read_to_string(&path).unwrap() == out, "tests/sample-v3.loadouts.tsv is not what resolve gives");
+    assert!(std::fs::read_to_string(&path).unwrap() == out, "tests/sample-v4.loadouts.tsv is not what resolve gives");
+}
+
+/// 0.69d0: the HK416's angled rails take the NcStar MPR45, whose
+/// `angled_collim_short_r` takes a DeltaPoint Pro as a second sight
+/// (`attach_params_3`: `aim_4` at its `aim`, `plane_slot: body_aim`). The
+/// rail comes with the fit; the sight's eye is the second one, at the gun's
+/// eye plane, and the gun's own eye stays the eye.
+#[test]
+fn a_second_sight_brings_its_offset_rail_and_a_second_eye() {
+    let mut data = source();
+    let hk = data.guns.iter_mut().find(|g| g.dict == HK416).unwrap();
+    let donor_eye = Affine::translation(0.0, 0.1, 0.17);
+    hk.slots.iter_mut().find(|(slot, _, _)| *slot == S::BodyAim).unwrap().2 = donor_eye;
+    let bytes = encode(&data).unwrap();
+    let table = Table::parse(&bytes).unwrap();
+    let side = Wanted { second_sight: right(DPPRO_SIDE), ..Wanted::default() };
+    let mut own_eye = None;
+    with(&table, HK416, Wanted { grip: dict(MIKI), ..Wanted::default() }, |bare| own_eye = bare.eye);
+    with(&table, HK416, side, |bare| {
+        // nothing folds: the sights stand, the rail on the right angled rail, the sight on it
+        assert_eq!(
+            models(&bare),
+            ["hk416_a5_rear_ironsight_on", "hk416_a5_front_ironsight_on", "hk416a5_i05x28_muzzlebrake", "ncstar_mpr45_picatinnyrail", "leupold_dppro_collimator"]
+        );
+        let [.., rail, sight] = bare.parts().collect::<Vec<_>>()[..] else { panic!() };
+        assert_eq!(rail.at, on_offset(locator(44)));
+        assert_eq!(sight.at, rail.at.child(&locator(24)));
+        assert!(bare.optic.is_none());
+        // the eye is the gun's own, as with nothing on the top rail
+        assert_eq!(bare.eye, own_eye);
+        let second = bare.second.unwrap();
+        assert_eq!(second.at, sight.at);
+        assert_eq!(second.module.aimed().unwrap().to_str().unwrap().rsplit('/').next(), Some("leupold_dppro_collimator_aim"));
+        // its axes and its line of sight, at the plane of the gun's own eye
+        let (line, eye) = (sight.at.child(&SIDE_EYE), second.eye.placed(EyeAnchor::Optic));
+        assert_eq!((eye.bone, eye.offset.x, eye.offset.y, eye.offset.z), (line.bone, line.offset.x, line.offset.y, line.offset.z));
+        let frame = |at: &Placement| locator_frame(&Affine::IDENTITY, at, &pose()[1].1, &Affine::IDENTITY);
+        let plane = frame(&Placement { bone: BoneIndex(OFFSET_BONE), offset: donor_eye });
+        let (moved, before) = (frame(&eye), frame(&line));
+        let off = [moved.t[0] - plane.t[0], moved.t[1] - plane.t[1], moved.t[2] - plane.t[2]];
+        assert!((off[0] * plane.z[0] + off[1] * plane.z[1] + off[2] * plane.z[2]).abs() < 1e-5);
+        // moved along its own line, and by more than a little
+        let step = [moved.t[0] - before.t[0], moved.t[1] - before.t[1], moved.t[2] - before.t[2]];
+        let along = step[0] * before.z[0] + step[1] * before.z[1] + step[2] * before.z[2];
+        assert!(along.abs() > 0.05 && (0..3).all(|k| (step[k] - along * before.z[k]).abs() < 1e-5));
+    });
+    // on the left: the rail on the left angled rail, the sight in its slot there
+    with(&table, HK416, Wanted { second_sight: left(DPPRO_SIDE), ..Wanted::default() }, |bare| {
+        let [.., rail, sight] = bare.parts().collect::<Vec<_>>()[..] else { panic!() };
+        assert_eq!(rail.at, on_offset(locator(43)));
+        assert_eq!(sight.at, rail.at.child(&locator(23)));
+        assert_eq!(bare.second.unwrap().at, sight.at);
+    });
+    // with a scope on top: the scope's eye is the eye, the second sight stands where it stood
+    let mut alone = None;
+    with(&table, HK416, side, |bare| alone = bare.second.map(|second| (second.at, second.eye)));
+    with(&table, HK416, Wanted { scope: dict(EOTECH), grip: dict(MIKI), ..side }, |bare| {
+        let optic = bare.optic.unwrap();
+        assert_eq!(bare.eye.unwrap().placed(EyeAnchor::Optic), optic.frame.child(&locator(12)));
+        assert_eq!(bare.second.map(|second| (second.at, second.eye)), alone);
+        assert_eq!(models(&bare).iter().filter(|model| model.starts_with("ncstar_mpr45")).count(), 1);
+    });
+}
+
+#[test]
+fn a_second_sight_needs_its_angled_rail() {
+    let bytes = encode(&source()).unwrap();
+    let table = Table::parse(&bytes).unwrap();
+    let side = Wanted { second_sight: right(DPPRO_SIDE), ..Wanted::default() };
+    // the P90 names the fit but has no angled rail
+    assert_eq!(refusal(&table, FN_P90, side), Refusal::NoSlot(Kind::SecondSight));
+    // the AK-74M takes none
+    assert_eq!(refusal(&table, AK_74M, side), Refusal::NoFit(Kind::SecondSight));
+    // a second sight is no scope, and a scope no second sight
+    assert_eq!(refusal(&table, FN_FNC, Wanted { scope: dict(DPPRO_SIDE), ..Wanted::default() }), Refusal::NoFit(Kind::Scope));
+    assert_eq!(refusal(&table, HK416, Wanted { second_sight: right(EOTECH), ..Wanted::default() }), Refusal::NoFit(Kind::SecondSight));
+    // a second sight without its eye is no table
+    let module = |fault| Malformed::Module { module: DPPRO_SIDE as u16, fault };
+    assert_eq!(refused(|s| s.modules[DPPRO_SIDE].attaches[0].eye = None), module(ModuleFault::NoEye(S::AngledCollimShortL)));
+    // one optic, a scope and a second sight at once: two items of one dict id
+    let both = Wanted { scope: dict(DPPRO_TOP), second_sight: right(DPPRO_SIDE), ..Wanted::default() };
+    with(&table, HK416, both, |bare| {
+        assert_eq!(bare.optic.unwrap().module.role(), Role::Fitted(Kind::Scope));
+        assert_eq!(bare.second.unwrap().module.role(), Role::Fitted(Kind::SecondSight));
+    });
+    // one fit a dict id and kind
+    let hk = |s: &mut Source| s.guns.iter().position(|g| g.dict == HK416).unwrap();
+    let twice = refused(|s| {
+        let at = hk(s);
+        s.guns[at].fits.push(DPPRO_SIDE);
+    });
+    assert!(matches!(twice, Malformed::Gun { fault: GunFault::FitTwice(dict), .. } if dict.get() == DPPRO_DICT));
+}
+
+/// A version 3 table (`tests/sample-v3.srpm`, the format before second
+/// sights) is still read, as one without any.
+#[test]
+fn a_version_3_table_is_read() {
+    let kept = std::fs::read(PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/sample-v3.srpm")).unwrap();
+    let table = Table::parse(&kept).unwrap();
+    let hk = table.gun(DictId::new(HK416).unwrap()).unwrap();
+    assert_eq!(hk.fits().count(), 2);
+    assert!(table.guns().flat_map(|gun| gun.fits()).all(|module| module.role() != Role::Fitted(Kind::SecondSight)));
 }
 
 fn refused(change: impl FnOnce(&mut Source)) -> Malformed {
@@ -855,4 +1105,68 @@ fn a_frame_over_another_on_its_bone() {
         assert!(near(&over.then(&frame(&now)), &frame(&was)));
     }
     assert!(was.frame_over(&Placement { bone: BoneIndex(0), ..now }).is_none());
+}
+
+/// The table `release/content.tsv` ships, when the check `weapon-modules-table`
+/// names it in `SRP_WEAPON_MODULES_TABLE` (it is private game content: a run
+/// without it has nothing to read). Every scope fit stands with its eye (none
+/// refused off its eye plane, none without one); no stock part moves the
+/// eye, so with no optic the eye is the gun's own and the content's
+/// `aim_offset` alone moves it (a part's eye would come on top of it); and
+/// every gun's iron sights meet its eye plane, by the distances
+/// `scripts/weapon-modules/iron_sights.tsv` holds, which the content takes
+/// (`SRP_WRITE_IRON_SIGHTS=1` writes them).
+#[test]
+fn the_shipped_table() {
+    use core::fmt::Write;
+    let Some(path) = std::env::var_os("SRP_WEAPON_MODULES_TABLE") else { return };
+    let bytes = std::fs::read(path).unwrap();
+    let table = Table::parse(&bytes).unwrap();
+    let mut irons = String::from("# gun dict id\tits iron sights' aim_offset (m): the whole body's eye along its line to the eye plane\n");
+    for gun in table.guns() {
+        let id = gun.dict().get();
+        for module in gun.fits().filter(|module| module.role() == Role::Fitted(Kind::Scope)) {
+            let wanted = Wanted { scope: Some(module.dict()), ..Wanted::default() };
+            assert!(
+                matches!(resolve(gun, wanted), Ok(Loadout::Bare(bare)) if bare.eye.is_some() && bare.optic.is_some()),
+                "gun {id}, scope {}",
+                module.dict().get()
+            );
+        }
+        assert!(gun.stock().all(|(slot, module)| module.attach(slot).and_then(|attach| attach.eye()).is_none()), "gun {id}: a stock eye");
+        let along = iron_sights(gun).unwrap_or_else(|| panic!("gun {id}: no eye plane its iron sights meet"));
+        writeln!(irons, "{id}\t{along:.4}").unwrap();
+    }
+    let kept = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../scripts/weapon-modules/iron_sights.tsv");
+    if std::env::var_os("SRP_WRITE_IRON_SIGHTS").is_some() {
+        std::fs::write(&kept, &irons).unwrap();
+    }
+    assert!(std::fs::read_to_string(&kept).unwrap() == irons, "scripts/weapon-modules/iron_sights.tsv is not the shipped table's");
+}
+
+/// The blend of two eyes on one bone: whole at 0 and 1, half way turned
+/// half the angle about the axis between, the place half way; different
+/// bones or a scaled offset: none.
+#[test]
+fn an_eye_turns_toward_another() {
+    let turn = |angle: f32| {
+        let (s, c) = angle.sin_cos();
+        // a turn about z (the line of sight): rows x, y
+        Affine { x: [c, s, 0.0], y: [-s, c, 0.0], z: [0.0, 0.0, 1.0], t: [0.0, 0.0, 0.0] }
+    };
+    let main = on_offset(Affine { t: [0.0, 0.1, -0.2], ..turn(0.0) });
+    let side = on_offset(Affine { t: [0.05, 0.05, -0.2], ..turn(core::f32::consts::FRAC_PI_4) });
+    let at = |t| main.toward(&side, t).unwrap();
+    assert!(near(&at(0.0).offset, &main.offset) && near(&at(1.0).offset, &side.offset));
+    // half way: the normalised blend of two turns about one axis is the half turn exactly
+    let half = at(0.5);
+    assert!(near(&half.offset, &Affine { t: [0.025, 0.075, -0.2], ..turn(core::f32::consts::FRAC_PI_8) }));
+    assert!(main.toward(&Placement { bone: BoneIndex(0), ..side }, 0.5).is_none());
+    let scaled = on_offset(Affine { x: [2.0, 0.0, 0.0], ..Affine::IDENTITY });
+    assert!(main.toward(&scaled, 0.5).is_none());
+    // the other way round the long arc is never taken
+    let back = on_offset(turn(-3.0));
+    let far = on_offset(turn(3.0));
+    let mid = back.toward(&far, 0.5).unwrap().offset;
+    assert!(mid.x[0] < -0.98, "{mid:?}");
 }

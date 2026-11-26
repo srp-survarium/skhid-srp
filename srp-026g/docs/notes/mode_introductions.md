@@ -1,5 +1,16 @@
 # Mode introductions
 
+## The server side removed (2026-11-26)
+
+The lobby no longer answers `#mode-intro:` requests, and the account's
+allowances (`session::v026g::mode_intro`) and their Ruffle harness
+(`scripts/mode-intro/`) are gone: no shipped HUD has sent the request since
+revision 46 (the HUD notice below replaced it the same day it shipped in
+revision 45). Schema migration 13 still creates `g26_mode_introductions`, so the
+numbering stays; nothing reads or writes it. The HUD's `ModeIntroduction` class
+and `GameChat.addIntroduction` remain in the movie's source, unused. What
+follows is the history.
+
 ## HUD notice follow-up (2026-11-03, not released)
 
 The owner reported that late joiners could not read the mode notice, requested
@@ -21,6 +32,10 @@ classes remain compatible with earlier clients; this notice uses neither.
 The Ruffle harness covers late joins, countdown expiry, repeated callbacks,
 reset, placement and every language. Native multiplayer play remains to be
 confirmed.
+
+Freeze Tag (2026-11-26) has its notice the same way: `set_game_type(12)` begins it
+(`st_srp_hud_freeze_start`, all twelve dictionaries; `freeze-tag.md`, "The mode
+notice"), and Blackout's unforce cancels only Blackout's (`ModeNotice.cancel`).
 
 ## Original implementation (superseded HUD behavior)
 

@@ -26,7 +26,7 @@ pub const KEYS: &CStr = c"srp_keys";
 pub const BIND_KEY: &CStr = c"srp_bind_key";
 pub const UNBIND_KEY: &CStr = c"srp_unbind_key";
 
-/// The answer's room: 135 keys and 61 rows take some 4 KiB.
+/// The answer's room: 135 keys and 62 rows take some 4 KiB.
 const ROOM: usize = 0x2000;
 
 /// Answers a call of the Bindings window's; whether it was one.

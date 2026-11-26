@@ -112,8 +112,6 @@ else
     [[ $present == *"$ZIP_NAME"* ]] && HAVE_ZIP=1
     [[ $present == *"$DATA_NAME"* ]] && HAVE_DATA=1
     OLD_PATCHES=$(served_patches)
-    blobs=$(missing_original_blobs)
-    [[ -z $blobs ]] || die "download/resources/ lacks the original blobs the updater's restore fetches: $(tr '\n' ' ' <<<"$blobs")"
     set_now=$(env_settings_set "$(on_target "cat $D/docker-compose.yml 2>/dev/null" || true)" || echo "(not readable)")
     if [[ -n $set_now ]]; then say "NOTE: the compose file passes on $set_now, which the .env sets (names only): those values take effect at the recreate"; fi
 fi

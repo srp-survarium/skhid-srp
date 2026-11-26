@@ -268,13 +268,6 @@ while srp is stopped none of it answers):
   (`resources.db.patch_<n>`, each with its SHA-256 and the addresses of its
   file on the patches server): those the server's game data was made of,
   read at srp's start.
-- `GET /resources/<sha256>` (64 lower-case hex digits, no other name) hands
-  out the file of that name in the folder `resources` beside the download
-  file (`./download/resources/` of the compose file): the stock bytes of
-  the `resources.db` regions earlier updaters rewrote in place, for the
-  updater's one-time restore. Whole or from a `Range`, `HEAD` too, five at
-  a time in slots of their own (they never take `/download`'s), "not found"
-  for a name that is not there.
 - `GET /launcher/v2/<product>/?lang=<en|ru|ua|de|pl>` is the page.
 - `GET /launcher/places/<uk|en>` is what changes on that page (the board,
   the matches, the numbers, the maintenance line), each part behind the
@@ -356,12 +349,12 @@ When the launcher or the updater was among the files, the run ends here
    whose ZIP is older than its setting: a release half put in place), and
    the watch (11) starts the launcher anew once the server offers another
    ZIP. An exe whose revision cannot be read is left to the login server.
-9. The restore, best effort, once: the `resources.db` regions an earlier
-   updater (before the patches) rewrote in place get their stock bytes
-   back, from the copies it kept, else from `/resources/<sha256>`. A failure
-   is logged and tried again at the next start; it never keeps PLAY off.
-   While the game runs it holds `resources.db`, and the step changes
-   nothing ([updater README](../../../client/updater/README.md#restoring-resourcesdb)).
+9. What the updaters of before the patches left beside the updater (their
+   record of the `resources.db` regions they rewrote in place, its journal,
+   the copies and blobs they kept) is deleted, best effort; `resources.db`
+   itself is never changed. A file Windows does not delete is tried again
+   at the next start; it never keeps PLAY off
+   ([updater README](../../../client/updater/README.md#what-earlier-updaters-left)).
 10. The patch step, required: `GET /patches`; every listed patch file in
     the game folder is checked (hashed when it changed since its last hash,
     or that was more than a week ago), a patch file the list has not is
@@ -379,8 +372,8 @@ When the launcher or the updater was among the files, the run ends here
 
 The offline case: when `/api/client-files` does not answer (three tries),
 the original game is present, and the files the updater installed last are
-whole, the box says "No update check: <why>. ..." and the restore and the
-patch step run against the list kept from the last run: PLAY is on only
+whole, the box says "No update check: <why>. ..." and steps 9 and 10 run
+against the list kept from the last run: PLAY is on only
 when that run ended with every patch in place and the folder still is so
 (a first start with the server down, or one after a new overlay, keeps PLAY
 off). The watch then leaves PLAY on while the server stays away, and starts
@@ -425,7 +418,6 @@ ZIP's files go in all or none, and a patch file is a checked file or none.
 | A Skhid file cannot be read for another reason (access denied) | Repaired: the ZIP downloaded and installed again; when that fails too, the install's error naming the file, PLAY off. Never "up to date" |
 | The server lets in a newer game than its ZIP (a release half put in place) | "The server lets in game revision n and up; this game is revision r, and the update to it is not offered yet (the server is being updated). Click OK: the launcher keeps looking and starts anew with the update. PLAY stays off until this is done."; the window starts anew by itself once the server offers the new ZIP (after OK: a launcher with a box open cannot close, and a second one is never started beside it) |
 | A patch cannot be had or put in place (the list cannot be fetched or read, every address of a patch fails, a wrong checksum, the game is running, an antivirus holds the file, the disk is full) | Status "Error", PLAY stays off, a box that says which and what to do, ending "PLAY stays off until this is done." The next start tries again (the cases: [updater README](../../../client/updater/README.md#patches)) |
-| The restore of `resources.db` fails (the game is running, a blob is missing on the server) | Nothing: no box, PLAY as usual. The reason is in the log after `resources:`; it is tried again at the next start |
 | The server goes away while the window is open (a release, a restart) | "Server maintenance...", PLAY off; once it answers, the window starts anew by itself and updates |
 | `updater_skhid.exe` is missing | The launcher's own box: "Cannot start updater_skhid.exe. Copy the files again." |
 | The launcher is closed during an update | The updater stops; nothing was changed, or everything was |
@@ -1025,8 +1017,4 @@ installation and service.
    starts anew.
 4. Game content is not in the ZIP: it ships as `resources.db.patch_<n>`
    files on a patches server, listed by the game server at `/patches`
-   (`../../../client/updater/README.md`, "Patches"). Keep
-   `download/resources/` with the originals' blobs of the regions earlier
-   releases changed in place: the updater puts the stock bytes back from
-   the player's own copy, or from `/resources/<sha256>` when that copy is
-   gone.
+   (`../../../client/updater/README.md`, "Patches").

@@ -7,7 +7,7 @@
 
 | File | What it does |
 |---|---|
-| `Dockerfile` | Builds `srp` (the 0.26g login server, lobby, match server and web page in one process) in a Rust image and copies the binary and `certs/` into a small Debian image. Runs as a user without rights. The cargo caches are build cache mounts, so a rebuild compiles only what changed (about 1.5 minutes on one CPU; the first build about 6) |
+| `Dockerfile` | Builds `srp` (the 0.26g login server, lobby, match server and web page in one process) in a Rust image and copies the binary into a small Debian image. Runs as a user without rights. The cargo caches are build cache mounts, so a rebuild compiles only what changed (about 1.5 minutes on one CPU; the first build about 6) |
 | `docker-compose.yml` | Compose project `srp26`: the service `srp26` and, with the profile `tls`, `caddy26` (HTTPS for the web page). Ports, the data volume, the settings passed to srp, the container's limits |
 | `.dockerignore` | Keeps build output, data, logs, docs and the client patches out of the build |
 | `deploy/env-026g.example` | The settings to put into `.env` beside the compose file |
@@ -40,11 +40,11 @@ preflight stops when it is not.
 | Voice chat (UDP, the match port + 1; `SRP_VOICE=off` for none) | 2237 | 1237 |
 | Web page | `127.0.0.1:8098` | the same, or public through `caddy26` on 443 |
 
-The defaults are a block of their own so that the stack can run beside a
-0.21d server on one host without sharing a name, a volume or a port with it
-(that server has 1234 tcp+udp, 1235 tcp, 1236 udp, 80 and 443). Beside it,
-do not start `caddy26`: port 443 is the other server's. On a host of its own
-use the game's own 1234, 1235, 1236 and 1237 for voice.
+The defaults are a block of their own so that the stack can run beside
+another server on one host without sharing a name, a volume or a port with
+it (it was made to run beside the 0.21d server, hosted until 2026-10-12).
+Beside a server that has port 443, do not start `caddy26`. On a host of its
+own use the game's own 1234, 1235, 1236 and 1237 for voice.
 
 Open every game port in the host's firewall: the login port for TCP, the
 lobby, match and voice ports for UDP. A voice port that is not open leaves
@@ -57,12 +57,10 @@ voice silent and nothing else: the games keep playing.
    fill it in. `SRP_PUBLIC_HOST` is required. Keep `.env` out of any
    repository: it holds the admin page's token and path.
 3. Put the players' download (the zip made as `client-patches/README.md`
-   says) into `./download`, or set `SRP_DOWNLOAD_URL`. A server whose
-   players had a ZIP with resource regions (before the patches) keeps
-   `./download/resources/` as it is: the originals there are what the
-   updater fetches (`/resources/<sha256>`) to put a player's `resources.db`
-   back to stock once, when it kept no copy of its own. A new server needs
-   no such folder.
+   says) into `./download`, or set `SRP_DOWNLOAD_URL`. A folder
+   `./download/resources/` (the blobs earlier updaters fetched to restore
+   `resources.db`) is no longer served: it may be deleted once a server
+   without that route is live.
 4. Put the server's game data (`server-game-data.db`, made by
    `srp-game-data build` of `resources.db` and the patches the players
    mount: "The game's files" below) into `./download` too, and each patch

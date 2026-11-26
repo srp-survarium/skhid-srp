@@ -501,6 +501,307 @@ st_buy_premium_with_discount	Kupite sada uz popust!
 st_buy_profile_confirmation_text	Želite li da napravite novog lika?
 st_buy_profile_price_text	Cena profila: 
 st_buy_treasure_maps	Kupi mapu
+st_camo_atlas_all_terrain	Svaki teren
+st_camo_atlas_amber_circuit	Ćilibarno kolo
+st_camo_atlas_amethyst_wash	Ametistna lavura
+st_camo_atlas_arid_lizard	Sušni gušter
+st_camo_atlas_ash_rain	Pepeljasta kiša
+st_camo_atlas_aubergine_broadbrush	Tamnoljubičasta široka četka
+st_camo_atlas_aubergine_crackle	Tamnoljubičasti krakelir
+st_camo_atlas_aubergine_watercolor	Tamnoljubičasti akvarel
+st_camo_atlas_autumn_flecktarn	Jesenji flecktarn
+st_camo_atlas_balkan_dpm	Balkanski DPM
+st_camo_atlas_balkan_splinter	Balkanske krhotine
+st_camo_atlas_basalt_shard	Bazaltna krhotina
+st_camo_atlas_birch_leaf	Brezov list
+st_camo_atlas_black_ice	Poledica
+st_camo_atlas_black_thicket	Crno šipražje
+st_camo_atlas_blue_brush	Plavi potezi
+st_camo_atlas_blue_shingle	Plava šindra
+st_camo_atlas_blue_tiger_stripe	Plave tigraste pruge
+st_camo_atlas_bruise	Modrica
+st_camo_atlas_brushstroke	Potez četkom
+st_camo_atlas_buntfarben_1918	Buntfarben 1918
+st_camo_atlas_butan	Butan
+st_camo_atlas_carmine_crosscheck	Karminski ukršteni karo
+st_camo_atlas_carmine_pebble	Karminski oblutak
+st_camo_atlas_carmine_screenprint	Karminska sitoštampa
+st_camo_atlas_carmine_soundings	Karminske izobate
+st_camo_atlas_carmine_wave_fan	Karminska lepeza talasa
+st_camo_atlas_centre_europe	Centralna Evropa
+st_camo_atlas_centre_europe_vehicle	Centralna Evropa, vozila
+st_camo_atlas_cerise_broadbrush	Višnjasta široka četka
+st_camo_atlas_cerise_crackle	Višnjasti krakelir
+st_camo_atlas_cinnabar_tiger	Cinobarni tigar
+st_camo_atlas_citron_broadbrush	Limunasta široka četka
+st_camo_atlas_citron_crackle	Limunasti krakelir
+st_camo_atlas_citron_cut	Limunasti isečak
+st_camo_atlas_cobalt_cloud	Kobaltni oblak
+st_camo_atlas_cobalt_netting	Kobaltna mreža
+st_camo_atlas_cobalt_shard	Kobaltna krhotina
+st_camo_atlas_cobalt_woodgrain	Kobaltni godovi drveta
+st_camo_atlas_copper_mesh	Bakarna mrežica
+st_camo_atlas_copper_rain	Bakarna kiša
+st_camo_atlas_coral_reeds	Koralna trska
+st_camo_atlas_daguet	Daguet
+st_camo_atlas_danube_leaf	Dunavski list
+st_camo_atlas_desert_broadbrush	Pustinjska široka četka
+st_camo_atlas_desert_broken_grid	Pustinjska izlomljena rešetka
+st_camo_atlas_desert_cloud	Pustinjski oblak
+st_camo_atlas_desert_crackle	Pustinjski krakelir
+st_camo_atlas_desert_cut_paper	Pustinjski isečeni papir
+st_camo_atlas_desert_drybrush	Pustinjska suva četka
+st_camo_atlas_desert_fracture	Pustinjska pukotina
+st_camo_atlas_desert_mosaic	Pustinjski mozaik
+st_camo_atlas_desert_netting	Pustinjska mreža
+st_camo_atlas_desert_pebble	Pustinjski oblutak
+st_camo_atlas_desert_pixel_grain	Pustinjsko pikselno zrno
+st_camo_atlas_desert_rain_streak	Pustinjska kišna crta
+st_camo_atlas_desert_reed_stripe	Pustinjska trščana pruga
+st_camo_atlas_desert_ribbon	Pustinjska traka
+st_camo_atlas_desert_riverstone	Pustinjski rečni kamen
+st_camo_atlas_desert_rosette	Pustinjske rozete
+st_camo_atlas_desert_scribble	Pustinjske škrabotine
+st_camo_atlas_desert_shard	Pustinjska krhotina
+st_camo_atlas_desert_shingle	Pustinjska šindra
+st_camo_atlas_desert_starfield	Pustinjsko zvezdano polje
+st_camo_atlas_desert_stone_chip	Pustinjski kameni drobir
+st_camo_atlas_desert_tiger_stripe	Pustinjska tigrasta pruga
+st_camo_atlas_desert_watercolor	Pustinjski akvarel
+st_camo_atlas_desert_woodgrain	Pustinjski godovi drveta
+st_camo_atlas_dg3	DG3
+st_camo_atlas_dubok	Dubok
+st_camo_atlas_duck_hunter	Lovac na patke
+st_camo_atlas_dune_chip	Peščani drobir
+st_camo_atlas_ember_leaf	Žareći list
+st_camo_atlas_erdl_highland	Planinski ERDL
+st_camo_atlas_erdl_lowland	Nizijski ERDL
+st_camo_atlas_fab_lizard	Gušter FAB
+st_camo_atlas_fired_clay	Pečena glina
+st_camo_atlas_frogskin	Žablja koža
+st_camo_atlas_frost_splinter	Mrazne krhotine
+st_camo_atlas_garnet_broken_grid	Grimizna izlomljena rešetka
+st_camo_atlas_garnet_rosette	Grimizne rozete
+st_camo_atlas_garnet_shard	Grimizna krhotina
+st_camo_atlas_glacial_stone_chip	Glečerski kameni drobir
+st_camo_atlas_glacial_tiger_stripe	Glečerska tigrasta pruga
+st_camo_atlas_glacial_watercolor	Glečerski akvarel
+st_camo_atlas_glacier_cut	Glečerski isečak
+st_camo_atlas_graphite_broken_grid	Grafitna izlomljena rešetka
+st_camo_atlas_graphite_rosette	Grafitne rozete
+st_camo_atlas_graphite_shard	Grafitna krhotina
+st_camo_atlas_harbor_tiger	Lučki tigar
+st_camo_atlas_hazard_pixel	Pikseli opasnosti
+st_camo_atlas_honey_rosette	Medene rozete
+st_camo_atlas_icelandic_broadbrush	Islandska široka četka
+st_camo_atlas_icelandic_stone_chip	Islandski kameni drobir
+st_camo_atlas_icelandic_watercolor	Islandski akvarel
+st_camo_atlas_inkstone	Kamen za tuš
+st_camo_atlas_iris_mosaic	Perunikin mozaik
+st_camo_atlas_jgsdf_desert	JGSDF pustinjski
+st_camo_atlas_jgsdf_type_ii	JGSDF tip II
+st_camo_atlas_jgsdf_winter	JGSDF zimski
+st_camo_atlas_juniper_pixel	Klekin piksel
+st_camo_atlas_k07	K07
+st_camo_atlas_k07_dark	K07 tamni
+st_camo_atlas_k20	K20
+st_camo_atlas_k20_navy	K20 mornarički
+st_camo_atlas_k20lq	K20LQ
+st_camo_atlas_kingfisher	Vodomar
+st_camo_atlas_kingfisher_cut_paper	Isečeni papir vodomara
+st_camo_atlas_kingfisher_reed_stripe	Trščana pruga vodomara
+st_camo_atlas_kingfisher_screenprint	Sitoštampa vodomara
+st_camo_atlas_lagoon_rosette	Lagunske rozete
+st_camo_atlas_lapis_cloud	Lazurni oblak
+st_camo_atlas_lapis_netting	Lazurna mreža
+st_camo_atlas_lapis_tiger_stripe	Lazurna tigrasta pruga
+st_camo_atlas_lapis_woodgrain	Lazurni godovi drveta
+st_camo_atlas_lichen_pixel	Lišajni piksel
+st_camo_atlas_lime_spots	Limetine mrlje
+st_camo_atlas_lizard	Gušter
+st_camo_atlas_lozenge	Rombovi
+st_camo_atlas_lozenge_night	Noćni rombovi
+st_camo_atlas_m05_snow	M05 snežni
+st_camo_atlas_m05_woodland	M05 šumski
+st_camo_atlas_m81_woodland	M81 šumski
+st_camo_atlas_m90	M90
+st_camo_atlas_m90k	M90K
+st_camo_atlas_m_01_desert	M/01 pustinjski
+st_camo_atlas_m_84	M/84
+st_camo_atlas_madder_crackle	Rumeni krakelir
+st_camo_atlas_madder_cut_paper	Rumeni isečeni papir
+st_camo_atlas_madder_reed_stripe	Rumena trščana pruga
+st_camo_atlas_malachite	Malahit
+st_camo_atlas_marigold_broken_grid	Narandžasta izlomljena rešetka
+st_camo_atlas_marigold_pebble	Narandžasti oblutak
+st_camo_atlas_marigold_rosette	Narandžaste rozete
+st_camo_atlas_marigold_terrazzo	Narandžasti teraco
+st_camo_atlas_marine_woodland	Pomorska šuma
+st_camo_atlas_maritime_pebble	Morski oblutak
+st_camo_atlas_maritime_rosette	Morske rozete
+st_camo_atlas_maritime_terrazzo	Morski teraco
+st_camo_atlas_maritime_wave_fan	Morska lepeza talasa
+st_camo_atlas_mauve_static	Slezasti šum
+st_camo_atlas_mm_14	MM-14
+st_camo_atlas_mm_25	MM-25
+st_camo_atlas_moro	Moro
+st_camo_atlas_mulberry_cloud	Dudov oblak
+st_camo_atlas_nfp_blue	Plavi NFP
+st_camo_atlas_nfp_cloth	Tkanina NFP
+st_camo_atlas_nfp_green	Zeleni NFP
+st_camo_atlas_nfp_multitone	Višetonski NFP
+st_camo_atlas_night_silk	Noćna svila
+st_camo_atlas_obh	OBH
+st_camo_atlas_ochre_cut	Okerni isečak
+st_camo_atlas_olive_tide	Maslinasta plima
+st_camo_atlas_opal_fault	Opalni rased
+st_camo_atlas_orchid_broken_grid	Orhidejna izlomljena rešetka
+st_camo_atlas_orchid_cloud	Orhidejni oblak
+st_camo_atlas_orchid_netting	Orhidejna mreža
+st_camo_atlas_orchid_shard	Orhidejna krhotina
+st_camo_atlas_orchid_static	Orhidejni šum
+st_camo_atlas_oxblood_cloud	Bordo oblak
+st_camo_atlas_oxblood_stone_chip	Bordo kameni drobir
+st_camo_atlas_oxblood_terrazzo	Bordo teraco
+st_camo_atlas_oxblood_tiger_stripe	Bordo tigrasta pruga
+st_camo_atlas_oxblood_woodgrain	Bordo godovi drveta
+st_camo_atlas_pantera	Pantera
+st_camo_atlas_pantera_desert	Pustinjska Pantera
+st_camo_atlas_persimmon_ink	Kakijevo mastilo
+st_camo_atlas_petal_wash	Laticna lavura
+st_camo_atlas_pewter_cut_paper	Kalajni isečeni papir
+st_camo_atlas_pewter_reed_stripe	Kalajna trščana pruga
+st_camo_atlas_polar_mesh	Polarna mrežica
+st_camo_atlas_porcelain_tide	Porcelanska plima
+st_camo_atlas_puma	Puma
+st_camo_atlas_quarry	Kamenolom
+st_camo_atlas_reef_tiger	Grebenski tigar
+st_camo_atlas_riptide_broadbrush	Vrtložna široka četka
+st_camo_atlas_riptide_crackle	Vrtložni krakelir
+st_camo_atlas_riptide_cut_paper	Vrtložni isečeni papir
+st_camo_atlas_riptide_terrazzo	Vrtložni teraco
+st_camo_atlas_rmp_woodland	RMP šumski
+st_camo_atlas_rose_breccia	Ružičasta breča
+st_camo_atlas_russet_crosscheck	Riđi ukršteni karo
+st_camo_atlas_russet_screenprint	Riđa sitoštampa
+st_camo_atlas_russet_stone_chip	Riđi kameni drobir
+st_camo_atlas_russet_tiger_stripe	Riđa tigrasta pruga
+st_camo_atlas_russet_watercolor	Riđi akvarel
+st_camo_atlas_russet_woodgrain	Riđi godovi drveta
+st_camo_atlas_rust_flecktarn	Rđavi flecktarn
+st_camo_atlas_rust_tiger	Rđavi tigar
+st_camo_atlas_saffron_gravel	Šafranski šljunak
+st_camo_atlas_saffron_pebble	Šafranski oblutak
+st_camo_atlas_saffron_soundings	Šafranske izobate
+st_camo_atlas_saffron_wave_fan	Šafranska lepeza talasa
+st_camo_atlas_salt_crater	Slani krater
+st_camo_atlas_salt_tiger	Slani tigar
+st_camo_atlas_sandstone	Peščar
+st_camo_atlas_satsuma_stone_chip	Mandarinski kameni drobir
+st_camo_atlas_satsuma_tiger_stripe	Mandarinska tigrasta pruga
+st_camo_atlas_satsuma_watercolor	Mandarinski akvarel
+st_camo_atlas_savanna_flecktarn	Savanski flecktarn
+st_camo_atlas_sea_glass	Morsko staklo
+st_camo_atlas_seafoam_cloud	Oblak morske pene
+st_camo_atlas_seafoam_netting	Mreža morske pene
+st_camo_atlas_seafoam_woodgrain	Godovi drveta morske pene
+st_camo_atlas_shard_earth	Zemlja krhotina
+st_camo_atlas_shard_forest	Šuma krhotina
+st_camo_atlas_shard_winter	Zima krhotina
+st_camo_atlas_sienna_wash	Sijena lavura
+st_camo_atlas_signal_grid	Signalna rešetka
+st_camo_atlas_silver_rosette	Srebrne rozete
+st_camo_atlas_snow_terrain	Snežni teren
+st_camo_atlas_star_ember	Zvezdana žeravica
+st_camo_atlas_star_forest	Zvezdana šuma
+st_camo_atlas_sundown_pebble	Oblutak sutona
+st_camo_atlas_sundown_reed_stripe	Trščana pruga sutona
+st_camo_atlas_sundown_terrazzo	Teraco sutona
+st_camo_atlas_sundown_wave_fan	Lepeza talasa sutona
+st_camo_atlas_t_99_winter	T/99 zimski
+st_camo_atlas_taz_07	TAZ 07
+st_camo_atlas_taz_83	TAZ 83
+st_camo_atlas_taz_83_ii	TAZ 83 II
+st_camo_atlas_teal_pixel	Tirkizni pikseli
+st_camo_atlas_three_color_desert	Trobojna pustinja
+st_camo_atlas_tidal_pixel	Plimski piksel
+st_camo_atlas_tropentarn	Tropentarn
+st_camo_atlas_tropentarn_ii	Tropentarn II
+st_camo_atlas_type_07_arid	Tip 07 pustinjski
+st_camo_atlas_type_07_universal	Tip 07 univerzalni
+st_camo_atlas_type_07_urban	Tip 07 gradski
+st_camo_atlas_ultramarine_broken_grid	Ultramarinska izlomljena rešetka
+st_camo_atlas_ultramarine_netting	Ultramarinska mreža
+st_camo_atlas_ultramarine_rosette	Ultramarinske rozete
+st_camo_atlas_ultramarine_shard	Ultramarinska krhotina
+st_camo_atlas_ultramarine_terrazzo	Ultramarinski teraco
+st_camo_atlas_ultraviolet_grid	Ultraljubičasta rešetka
+st_camo_atlas_urban_blots	Gradske mrlje
+st_camo_atlas_urban_broadbrush	Gradska široka četka
+st_camo_atlas_urban_broken_grid	Gradska izlomljena rešetka
+st_camo_atlas_urban_brush	Gradska četka
+st_camo_atlas_urban_cloud	Gradski oblak
+st_camo_atlas_urban_crackle	Gradski krakelir
+st_camo_atlas_urban_cut_paper	Gradski isečeni papir
+st_camo_atlas_urban_drybrush	Gradska suva četka
+st_camo_atlas_urban_flecktarn	Gradski flecktarn
+st_camo_atlas_urban_fracture	Gradska pukotina
+st_camo_atlas_urban_knit	Gradsko pletivo
+st_camo_atlas_urban_mosaic	Gradski mozaik
+st_camo_atlas_urban_netting	Gradska mreža
+st_camo_atlas_urban_pebble	Gradski oblutak
+st_camo_atlas_urban_pixel_grain	Gradsko pikselno zrno
+st_camo_atlas_urban_rain_streak	Gradska kišna crta
+st_camo_atlas_urban_reed_stripe	Gradska trščana pruga
+st_camo_atlas_urban_ribbon	Gradska traka
+st_camo_atlas_urban_riverstone	Gradski rečni kamen
+st_camo_atlas_urban_rosette	Gradske rozete
+st_camo_atlas_urban_scribble	Gradske škrabotine
+st_camo_atlas_urban_shard	Gradska krhotina
+st_camo_atlas_urban_shingle	Gradska šindra
+st_camo_atlas_urban_starfield	Gradsko zvezdano polje
+st_camo_atlas_urban_stone_chip	Gradski kameni drobir
+st_camo_atlas_urban_tiger_stripe	Gradska tigrasta pruga
+st_camo_atlas_urban_watercolor	Gradski akvarel
+st_camo_atlas_urban_wave_fan	Gradska lepeza talasa
+st_camo_atlas_urban_woodgrain	Gradski godovi drveta
+st_camo_atlas_urban_woodland	Gradska šuma
+st_camo_atlas_vegetato_desert	Pustinjski Vegetato
+st_camo_atlas_vehicle_pixel_2015	Pikseli vozila 2015
+st_camo_atlas_vehicle_pixel_2016	Pikseli vozila 2016
+st_camo_atlas_vehicle_pixel_2021	Pikseli vozila 2021
+st_camo_atlas_verdigris_cut_paper	Patinirani isečeni papir
+st_camo_atlas_verdigris_reed_stripe	Patinirana trščana pruga
+st_camo_atlas_verdigris_terrazzo	Patinirani teraco
+st_camo_atlas_verdigris_wave_fan	Patinirana lepeza talasa
+st_camo_atlas_vermilion_tide	Cinobarna plima
+st_camo_atlas_walnut_burl	Orahova kvrga
+st_camo_atlas_woodland_broadbrush	Šumska široka četka
+st_camo_atlas_woodland_broken_grid	Šumska izlomljena rešetka
+st_camo_atlas_woodland_cloud	Šumski oblak
+st_camo_atlas_woodland_crackle	Šumski krakelir
+st_camo_atlas_woodland_cut_paper	Šumski isečeni papir
+st_camo_atlas_woodland_drybrush	Šumska suva četka
+st_camo_atlas_woodland_fracture	Šumska pukotina
+st_camo_atlas_woodland_mosaic	Šumski mozaik
+st_camo_atlas_woodland_netting	Šumska mreža
+st_camo_atlas_woodland_pebble	Šumski oblutak
+st_camo_atlas_woodland_pixel_grain	Šumsko pikselno zrno
+st_camo_atlas_woodland_rain_streak	Šumska kišna crta
+st_camo_atlas_woodland_reed_stripe	Šumska trščana pruga
+st_camo_atlas_woodland_ribbon	Šumska traka
+st_camo_atlas_woodland_riverstone	Šumski rečni kamen
+st_camo_atlas_woodland_rosette	Šumske rozete
+st_camo_atlas_woodland_scribble	Šumske škrabotine
+st_camo_atlas_woodland_shard	Šumska krhotina
+st_camo_atlas_woodland_shingle	Šumska šindra
+st_camo_atlas_woodland_starfield	Šumsko zvezdano polje
+st_camo_atlas_woodland_stone_chip	Šumski kameni drobir
+st_camo_atlas_woodland_tiger_stripe	Šumska tigrasta pruga
+st_camo_atlas_woodland_watercolor	Šumski akvarel
+st_camo_atlas_woodland_wave_fan	Šumska lepeza talasa
+st_camo_atlas_woodland_woodgrain	Šumski godovi drveta
+st_camo_atlas_woven_woodland	Tkana šuma
 st_camo_black_leather_01_name	Gavran
 st_camo_black_leather_name	Crna smrt
 st_camo_blue_leather_name	Povetarac
@@ -733,7 +1034,9 @@ st_character_decals_4_75_name	Zastava Velsa
 st_character_decals_4_76_name	Zastava Kosova
 st_character_decals_4_77_name	Snufkin
 st_character_decals_4_78_name	Snufkin koji sedi
+st_character_decals_4_79_name	Fumo u boci
 st_character_decals_4_7_name	Zastava Litvanije
+st_character_decals_4_82_name	Neco-Arc
 st_character_decals_4_8_name	Zastava Estonije
 st_character_decals_4_9_name	Zastava Moldavije
 st_character_decals_5_10_name	Grb Gruzije
@@ -2719,10 +3022,17 @@ st_srp_hud_freeze_draw	Nerešeno
 st_srp_hud_freeze_frozen	Zamrznut (%1$s)
 st_srp_hud_freeze_help	Zamrzni sve protivnike. Pobeđuje prvi tim koji dobije 5 rundi. Stoj 4 sekunde na najviše 2 m od zamrznutog saigrača da ga odmrzneš.
 st_srp_hud_freeze_lose	Poraz — protivnici su dobili pet rundi.
+st_srp_hud_freeze_reveal_enemy	Poslednji protivnik biće otkriven za %1$s s
+st_srp_hud_freeze_reveal_self	Bićeš otkriven za %1$s s
+st_srp_hud_freeze_reveal_teammate	Tvoj poslednji saigrač biće otkriven za %1$s s
+st_srp_hud_freeze_revealed_enemy	Poslednji protivnik je otkriven na mapi
+st_srp_hud_freeze_revealed_self	Otkriven si na mapi
+st_srp_hud_freeze_revealed_teammate	Tvoj poslednji saigrač je otkriven na mapi
 st_srp_hud_freeze_round_draw	Nerešeno. Nova runda za %1$s s.
 st_srp_hud_freeze_round_lose	Runda izgubljena. Sledeća za %1$s s.
 st_srp_hud_freeze_round_win	Runda dobijena. Sledeća za %1$s s.
 st_srp_hud_freeze_standing	U borbi: vaš tim %1$s — protivnici %2$s
+st_srp_hud_freeze_start	Zamrzavanje\nSmrtonosni pogodak zamrzava. Zamrzni ceo protivnički tim da dobiješ rundu.\nStoj 4 s na najviše 2 m od zamrznutog saigrača da ga odmrzneš; sam se odmrzava posle 2 min.\nPobeđuje prvi tim koji dobije 5 rundi; kad istekne vreme, pobeđuje tim koji vodi.
 st_srp_hud_freeze_thawing	Odmrzavanje saigrača…
 st_srp_hud_freeze_win	Pobeda — pet dobijenih rundi.
 st_srp_hud_friend_not_sent	Zahtev za prijateljstvo nije poslat
@@ -2762,6 +3072,7 @@ st_srp_inventory_sell_duplicates	Prodaj duplikate
 st_srp_inventory_sell_duplicates_ask	Predmeta za prodaju: %1$s
 st_srp_item_props_mps	m/s
 st_srp_key_bindings	Dodele
+st_srp_key_unbound	nije dodeljeno
 st_srp_keys_combat	Borba
 st_srp_keys_interface	Interfejs
 st_srp_keys_items	Predmeti
@@ -2968,7 +3279,7 @@ st_srp_replay_place_in_line	Mesto u redu: %1$s. Čekanje: %2$s s.
 st_srp_replay_ready	Snimak ovog meča je spreman.\n\nPreuzima se sa servera koji čuva izvorni zapis meča. Otvoriće se drugi prozor igre i prikazati snimak; lobi ostaje otvoren.\n\nU snimku pritisni F9 za kontrole: igrači, kamera, premotavanje, brzina.
 st_srp_replay_ready_size	Snimak ovog meča: %1$s.\n\nPreuzima se sa servera koji čuva izvorni zapis meča. Otvoriće se drugi prozor igre i prikazati snimak; lobi ostaje otvoren.\n\nU snimku pritisni F9 za kontrole: igrači, kamera, premotavanje, brzina.
 st_srp_replay_size	%1$s,%2$s MB
-st_srp_replay_starting	Pokretanje snimka: otvoriće se drugi prozor igre; ovaj lobi ostaje otvoren. Ako nešto pođe po zlu, program za ažuriranje će prikazati šta se desilo.\n\nU snimku pritisni F9 za kontrole.
+st_srp_replay_starting	Pokretanje snimka: otvoriće se drugi prozor igre; ovaj lobi ostaje otvoren. Ako nešto pođe po zlu, program za ažuriranje će prikazati šta se desilo.\n\nU snimku pritisni „Sakrij interfejs” ({HIDE_INTERFACE}) za kontrole.
 st_srp_replay_still_preparing	Snimak se još priprema. Server nastavlja izradu; ponovo otvori Gledaj snimak za minut.
 st_srp_replay_title	Gledaj snimak
 st_srp_replay_waiting	Čekanje: %1$s s.
@@ -3044,7 +3355,7 @@ st_srp_rooms_pin_hint	Potrebne su 4 cifre
 st_srp_rooms_players	Igrači
 st_srp_rooms_playing	Meč je u toku
 st_srp_rooms_pool	Izbor mapa
-st_srp_rooms_pool_hint	Za glasanje se biraju 3 od ovih.
+st_srp_rooms_pool_hint	Za glasanje se biraju 4 od ovih.
 st_srp_rooms_private_room	Privatna soba: do 20 igrača; ti sastavljaš timove i pokrećeš meč.
 st_srp_rooms_queue	Red
 st_srp_rooms_queue_room	Stani u red za sobu
@@ -3072,10 +3383,17 @@ st_srp_rooms_voting	Glasanje
 st_srp_rooms_waiting	Čekanje igrača
 st_srp_rooms_waiting_owner	Čekanje da kreator pokrene meč.
 st_srp_rooms_waiting_short	Čekanje
+st_srp_scope_next_action	Promeni nišan
 st_srp_scope_screen_hint	Prevucite nišan, nastavak cevi ili rukohvat iz inventara na njegovo mesto.
 st_srp_scope_slot	Optika
+st_srp_second_sight	Drugi nišan
+st_srp_second_sight_description	Postavlja drugi nišan sa strane oružja.
+st_srp_second_sight_hint	Nišan na pomerenoj šini sa strane oružja. Pritisnite „Promeni nišan” ({SCOPE_NEXT}) dok nišanite da pređete na njega.
+st_srp_second_sight_name	Drugi nišan
 st_srp_shop_not_owned	Sakrij posedovano
 st_srp_shop_not_owned_hint	Prikaži samo predmete koje nemaš
+st_srp_side_left	Levo
+st_srp_side_right	Desno
 st_srp_skills	Veštine
 st_srp_speed_label	Brzina
 st_srp_speed_title	Brzina kretanja: %1$s

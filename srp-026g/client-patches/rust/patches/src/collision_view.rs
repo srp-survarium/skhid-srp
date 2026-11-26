@@ -1,6 +1,6 @@
 //! Patch 156: the console command `collision` draws the level's collision
 //! geometry near the camera as lines, each filter group in its own colour
-//! (docs/notes/collision-view.md; client_patch.md section 3.82).
+//! (docs/notes/collision-view.md; client_patch.md section 3.112).
 //!
 //! The command (a cc_delegate of ours, as patch 133's `where`) turns the view
 //! on and off; `collision walk` shows what stops walkers (the walk and solid

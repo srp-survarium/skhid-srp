@@ -19,7 +19,8 @@ SQLite store (rusqlite, bundled) of accounts and profiles. One database file per
   `import_state(id, json)` / `import_state_file` / `create_account_from_state`; missing keys take the
   defaults, a short `money` list is padded, references to missing items are dropped (reported).
 
-Schema: `src/schema.rs` (`PRAGMA user_version = 2`, v1 databases are migrated on open (adds `skills`); a newer database is refused). The crate does not depend on `game-data`:
+Schema: `src/schema.rs` (`PRAGMA user_version` = `schema::VERSION`; an older database is migrated step by step on
+open, a newer one is refused). The crate does not depend on `game-data`:
 dict ids are plain `u16`, rules (is this item a stack, may it go into this slot) belong to the caller.
 
 Tests: `cargo test -p accounts -- --test-threads=2` (temporary databases; tests lower the argon2 cost with

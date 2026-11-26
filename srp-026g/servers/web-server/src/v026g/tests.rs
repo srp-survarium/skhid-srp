@@ -187,12 +187,11 @@ fn world_with(accounts: GameAccounts) -> World {
         token_failures: Mutex::new((0, None)),
         connections: AtomicU32::new(0),
         downloads: AtomicU32::new(0),
-        resource_downloads: AtomicU32::new(0),
         replay_downloads: AtomicU32::new(0),
         replay_failures: Mutex::new(std::collections::HashMap::new()),
         replay_asks: Mutex::new(std::collections::HashMap::new()),
         plans: Default::default(),
-        game: Some(Game {
+        game: Game {
             accounts: accounts.clone(),
             lobby: told.clone(),
             matches: told.clone(),
@@ -201,7 +200,7 @@ fn world_with(accounts: GameAccounts) -> World {
             replays: None,
             results: Arc::new(session::v026g::rewards::Results::new()),
             pools: crate::Pools::every_playable(),
-        }),
+        },
     };
     World {
         web,
@@ -779,7 +778,6 @@ fn the_launchers_page_and_its_fresh_numbers_come_with_the_launchers_policy() {
         "/launcher/places/uk",
         "/launcher/places/en",
         "/",
-        "/launcher/fresh/uk",
     ];
     let server = std::thread::spawn(move || {
         for _ in targets {
@@ -844,14 +842,6 @@ fn the_launchers_page_and_its_fresh_numbers_come_with_the_launchers_policy() {
     for part in &parts {
         assert!(page.1.contains(part));
     }
-    // A page opened before the matches' tab asks where it always did, and
-    // is given its three places in its order.
-    let before = &answers[4];
-    assert!(before.0.contains(&launchers));
-    assert_eq!(
-        before.1.split("<hr>").collect::<Vec<_>>(),
-        [parts[1], parts[5], parts[7]]
-    );
     // Every other page keeps the site's policy: no script at all.
     assert!(home.0.contains(&format!(
         "\r\nContent-Security-Policy: {}\r\n",
@@ -914,7 +904,7 @@ fn the_patches_are_listed_for_the_updater_as_json() {
     let mut world = world();
     world.web.token = None;
     world.web.admin_path = None;
-    world.web.game.as_mut().unwrap().downloads = Arc::new(crate::Downloads::new(
+    world.web.game.downloads = Arc::new(crate::Downloads::new(
         vec![
             offered(
                 14,
@@ -965,7 +955,7 @@ fn the_games_archive_is_offered_apart_from_the_patches() {
             "https://archive.org/download/x/survarium_full_026g0.7z".into(),
         ],
     };
-    world.web.game.as_mut().unwrap().downloads = Arc::new(crate::Downloads::new(
+    world.web.game.downloads = Arc::new(crate::Downloads::new(
         vec![offered(14, 'a', &["http://203.0.113.5/p14"])],
         Some(archive),
         None,
@@ -1320,7 +1310,7 @@ fn serve_wiki_preview() {
         crate::unix_now(),
         crowd,
     ));
-    world.web.game.as_mut().unwrap().replays =
+    world.web.game.replays =
         Some(Arc::new(crate::history::tests::preview_replays(&dir)));
     // SRP_PREVIEW_PORT: another port, for two previews side by side.
     let port = std::env::var("SRP_PREVIEW_PORT").unwrap_or_else(|_| "24583".to_owned());

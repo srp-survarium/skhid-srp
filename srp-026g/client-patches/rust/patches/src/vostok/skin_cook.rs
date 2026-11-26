@@ -285,7 +285,7 @@ fn name_skin(frame: raw::SkinCookFrame, text: &[u8]) -> Result<(), NameFull> {
     }
 }
 
-/// `text` into `string`, as buffer_string::assign (0x129BB0): from its
+/// `text` into `string`, as buffer_string::assign_config_text (0x129BB0): from its
 /// start, while its room lasts, then its zero (always inside the room: the
 /// native's of a full one is at its capacity, past it).
 ///

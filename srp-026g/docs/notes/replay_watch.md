@@ -64,7 +64,7 @@ The second-largest (10 MB, 10 places) peaks at 57 MiB (233 MiB before), in 1.3 s
 - Only a `GET` or `HEAD` whose target, **exactly as sent**, is `/replays/` + 32 lower-case hex digits is looked up (no query, no fragment, no escapes, no suffix). The token gives a match id; the file is `SRP_REPLAY_DIR/<id:08x>.sur`, its name built from that u32 alone, served only if it is a regular file (not a link, not a folder) whose real path is in the replay folder. No part of the request is ever joined to a folder.
 - Everything else (malformed, unknown, expired or used-up token, a token of another server, replays off, the file gone) gets the same 64 bytes: `HTTP/1.0 404 Not Found`, `Content-Length: 0`, no body.
 - Failed lookups are counted per address: 30 in a minute, then `429` for a minute. Behind the proxy, `SRP_WEB_TRUST_PROXY=on` is needed for the address to be the player's.
-- Own slots (5 at once, as `/download` and `/resources/` have); `Range` as `/download`. A second download of a token while its first runs gets `503 Service Unavailable` with `Retry-After: 10` (not a failed lookup, none of its downloads taken).
+- Own slots (5 at once, as `/download` has); `Range` as `/download`. A second download of a token while its first runs gets `503 Service Unavailable` with `Retry-After: 10` (not a failed lookup, none of its downloads taken).
 - The log line of a replay handed out shows the `Range` escaped (`{:?}`): the request's header lines are split at `\r\n` alone, so a bare `\n` or another control character in it cannot start a forged log line. The other values in it are checked first (the method, the token's 6 hex digits, the parsed address); the other routes log request values (user names, the admin text) with `{:?}` too.
 - `SRP_REPLAY_DIR` must be a folder of its own: equal to `SRP_RECORD_DIR`, inside it or around it, replays are off (logged).
 
@@ -74,11 +74,10 @@ The second-largest (10 MB, 10 places) peaks at 57 MiB (233 MiB before), in 1.3 s
 |---|---|---|---|
 | `/replays/<token>` (0.26g) | GET, HEAD | `SRP_REPLAY_DIR/<id:08x>.sur` of a live token's match | the name is built from the token's u32; the `.json`, recordings, `.part` files and any other name are never opened; regular files in the folder only |
 | `/download` | GET, HEAD | the one file `SRP_DOWNLOAD_FILE` (read-only mount) | exact path match; the file is the operator's setting, no part of the request names it |
-| `/resources/<64 hex>` (0.26g) | GET, HEAD | `<folder of SRP_DOWNLOAD_FILE>/resources/<64 hex>` | only 64 lower-case hex digits name a file there (`resource_file`); that folder holds the update blobs only |
 | `/api/client-files` (0.26g) | GET | the SHA-256 and size of `SRP_DOWNLOAD_FILE` | the archive's checksum, nothing else |
 | `/patches` (0.26g) | GET | the list of `resources.db`'s patches the server's game data was made of (name, SHA-256, address), built in memory at start-up (`srp::v026g::offered_patches`) | no file; exact path match; the patch files themselves are served by another host |
 | `/api/stats` (0.26g) | GET | counts from the store and the registry | no file |
-| `/launcher…`, `/launcher/places/<lang>`, `/launcher/fresh/<lang>` (0.26g) | GET | the board and counts; the skin is compiled in (`include_bytes!`) | no file; the language is read from the path, nothing else |
+| `/launcher…`, `/launcher/places/<lang>` (0.26g) | GET | the board and counts; the skin is compiled in (`include_bytes!`) | no file; the language is read from the path, nothing else |
 | `/`, `/exchange` | GET | the store's counts (`/exchange` only says the exchange is in the game now) | pages; no file |
 | `/<SRP_ADMIN_PATH>` | GET, POST | accounts, bans, maintenance (with `SRP_ADMIN_TOKEN`, from `SRP_ADMIN_IPS` only) | no file; any other address gets the plain "not found" |
 | anything else | any | nothing | "not found" page |

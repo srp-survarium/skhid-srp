@@ -34,7 +34,8 @@ package survarium.rooms
         // kick (answered with the state, whose `A;<sides>` row has the teams).
         public static const MOVE:int = FIRST + 20000;
         public static const QUEUE:int = FIRST + 200000;
-        public static const VOTE:int = FIRST + 3;
+        // A vote: VOTE + card, 0 to CARDS - 1 (FIRST + 3 to + 5 until the fourth card).
+        public static const VOTE:int = FIRST + 50;
         public static const POOL:int = FIRST + 10;
         public static const KICK:int = FIRST + 100;
         public static const PIN:int = FIRST + 10000;
@@ -62,8 +63,8 @@ package survarium.rooms
         public static const POOL_BITS:int = 512;
         // A PIN's digits (PIN_MAX 9999).
         public static const PIN_DIGITS:int = 4;
-        // The vote's cards: 0 to LAST_CARD (the server's CARDS, 3).
-        public static const LAST_CARD:int = 2;
+        // The vote's cards (the server's CARDS: 4 since the owner's of 2026-11-26, 3 before).
+        public static const CARDS:int = 4;
         // A kick: KICK + place + MEMBERS_MAX * (the room's serial % KICK_CHECKS).
         public static const KICK_CHECKS:int = 495;
 

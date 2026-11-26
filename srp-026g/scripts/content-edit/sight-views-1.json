@@ -1,0 +1,28 @@
+{
+ "_about": "The second sights' world zoom (client patch 161, docs/notes/second-sights.md): under each optic the lobby's SecondSights offers as a second sight, its item's data/fov_factor and data/near_plane_factor (sight_factors.tsv, from the scope items' configs; made by scripts/weapon-modules/sight_views.py).",
+ "add_value": [
+  {
+   "files": [
+    "gameplay/db_static_dictionaries"
+   ],
+   "table": "",
+   "key": "srp_sight_views",
+   "value": {
+    "shop_scope_leupold_deltapoint": {
+     "sight": 2112,
+     "fov": [
+      0.8,
+      0.5
+     ]
+    },
+    "shop_scope_hensoldt_rsas": {
+     "sight": 2116,
+     "fov": [
+      0.5,
+      0.5
+     ]
+    }
+   }
+  }
+ ]
+}

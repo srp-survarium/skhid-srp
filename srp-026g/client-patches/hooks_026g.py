@@ -195,6 +195,18 @@ TYPES["FingerCorrector"] = {
     "orig_type": "&mut FingerCorrector", "orig_raw": "Some({n}.raw())",
     "pass": "&mut {n}", "null": "{a}",
 }
+# Patch 205's reload commit (vostok::reload): the state a reload_commit event is
+# delivered to (its subscription's object: only a magazine reload's) and the event.
+TYPES["ReloadEventState"] = {
+    "raw": "Option<AnimationEndAwareState>",
+    "binding": "let {n} = unsafe {{ ReloadEventState::from_raw(&thread, {a}) }};",
+    "orig_type": "&ReloadEventState", "orig_raw": "-", "pass": "&{n}", "null": "{a}",
+}
+TYPES["AnimationEvent"] = {
+    "raw": "Option<AnimationCallbackParams>",
+    "binding": "let {n} = unsafe {{ AnimationEvent::from_raw(&thread, {a}) }};",
+    "orig_type": "&AnimationEvent", "orig_raw": "-", "pass": "&{n}", "null": "{a}",
+}
 TYPES["PredicateBuffer"] = {
     "raw": "Option<PredicateBuffer>",
     "binding": "let {n} = unsafe {{ PredicateBuffer::from_raw(&thread, {a}) }};",

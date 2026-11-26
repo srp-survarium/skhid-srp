@@ -135,7 +135,7 @@ impl BusScene {
     }
 
     /// Gives the bus a listener. A scene's sounds get voices only once its
-    /// listener is set: its tick calls notify_listener (0x5C280, the only
+    /// listener is set: its tick calls notify_listener2 (0x5C280, the only
     /// path to create_sound_voice) only then (0x57C9C). The game sets its
     /// own scenes' every frame; the bus's never moves, so once is enough.
     pub fn listen(&self, _: &Thread) {

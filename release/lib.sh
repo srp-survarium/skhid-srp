@@ -15,7 +15,7 @@ DATA_NAME=server-game-data.db
 # Where a checkout keeps its item tables (srp-item-tables).
 # shellcheck disable=SC2034 # used by the scripts that source this
 ITEM_TABLES_DIR=srp-026g/docs/data
-# The file in the folder of a quick build (build-content --quick), which
+# The file in the folder of a quick build (build-content --slow: build_content.py --quick), which
 # release.sh refuses a patch beside.
 # shellcheck disable=SC2034 # used by the scripts that source this
 QUICK_MARK=QUICK-BUILD
@@ -830,7 +830,6 @@ target_command() {
 # One command on the target; its stdin is $2 (an upload) or nothing.
 # shellcheck disable=SC2029
 on_target() { ssh "${TARGET_VIA:-$TARGET_SSH}" "$(target_command "$1")" <"${2:-/dev/null}"; }
-on_live() { on_target "$@"; }
 
 # A write: printed only with DRY_RUN=1; else asked for, then run; a no
 # stops the script. <where> is `live` (the target) or `patches`; [file] is
@@ -1079,8 +1078,7 @@ inspect_target() {
 # the recreate takes its value from the target's .env, where it may have sat
 # unused. env_settings_set <compose file text> prints the names of those the
 # compose file passes and the .env sets (never a value).
-NEW_SETTINGS=(SRP_ITEM_WEAR SRP_DROP_CONDITION SRP_DROP_DEFECT SRP_DROP_PLAYTIME_BONUS SRP_DAILY_BONUS
-    SRP_DAILY_BONUS_RESET_HOUR SRP_MATCH_SEARCH_STEP_SECONDS SRP_LOBBY_MATCH_LINK_TIMEOUT_SECONDS
+NEW_SETTINGS=(SRP_DAILY_BONUS SRP_DAILY_BONUS_RESET_HOUR SRP_LOBBY_MATCH_LINK_TIMEOUT_SECONDS
     SRP_LOBBY_SESSION_GRACE_SECONDS)
 env_settings_set() {
     local name passed=()
@@ -1089,19 +1087,6 @@ env_settings_set() {
     done
     ((${#passed[@]})) || return 0
     on_target "cd $D && { grep -oE '^($(IFS='|' && printf '%s' "${passed[*]}"))=' .env || true; } | tr -d = | LC_ALL=C sort -u | tr '\n' ' '" | sed 's/ $//'
-}
-
-# The original menus' blobs that download/resources/ on the target must keep:
-# the updater's one-time restore to the stock resources.db (from the region
-# releases before #105) fetches them from /resources/<sha256>. Prints the
-# missing ones, `<name> <sha256 prefix>` a line.
-ORIGINAL_BLOBS=(main_menu:0ff118a8 lobby_menu:ab6f22d8 login_menu:805ea5f8)
-missing_original_blobs() {
-    local there blob
-    there=$(on_target "cd $D && ls download/resources 2>/dev/null; true")
-    for blob in "${ORIGINAL_BLOBS[@]}"; do
-        grep -q "^${blob#*:}[0-9a-f]*$" <<<"$there" || say "${blob%%:*} ${blob#*:}…"
-    done
 }
 
 # The value of SRP_MIN_PATCH_REVISION in the target's .env, `none` when the
