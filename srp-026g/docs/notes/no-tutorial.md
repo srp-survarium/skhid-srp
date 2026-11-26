@@ -16,8 +16,9 @@ The owner's of 2026-10-19. Code: `session::v026g::tutorial`; the client's side: 
     short of level 16 (37 999), so its first match brings it to 16; the levels below it pay
     nothing; its 15 points spent:
     Quick Response 5 (101), Battle Stance 2 (102), Potent Painkiller 1 (301), Fast
-    Bandaging 2 (302), Metabolism 5 (311);
-  - 30 000 silver (since 2026-11-08, gold gone: the 15 000 silver and 150 gold of 2026-10-24, the gold at 100 silver; before, 10 000 and 500);
+    Bandaging 2 (302), Metabolism 4 (311), Brothers in Arms 1 (342);
+  - 30 000 silver (since 2026-11-08, gold gone: the 15 000 silver and 150 gold of 2026-10-24,
+    the gold at 100 silver; before, 10 000 and 500);
   - no premium (gone since 2026-11-09, `premium.md`; until then a month of it);
   - exactly 1000 rounds of every ammo: each stack of the dictionary under
     `gameplay/items/weapons/ammo/`, the ported weapons' too (39 on the data of rev58). An
@@ -103,7 +104,7 @@ The owner's of 2026-10-19. Code: `session::v026g::tutorial`; the client's side: 
 - **No switch:** `SRP_TUTORIAL` is gone.
 - **Release:** the server, and the content patch that carries `new_account.options` (srp
   refuses data without it), the container's pocket and the premium bonuses (+20 % experience,
-  +50 % reputation, `premium_armour.md`; both in `simulation_changes.tsv`'s `next` row); no
+  +50 % reputation, `premium_armour.md`; both in `simulation_changes.tsv`'s row 54); no
   exe change.
 - **Code left of it** (2026-11-08): the server keeps no tutorial state (the accounts' tutorial
   columns stay, written done) and still sends `ALL_DONE` in `9D`; the lobby movie's tutorial
