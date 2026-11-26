@@ -1632,3 +1632,42 @@ fn headwear_dropped_off_a_still_figure_falls_straight_down() {
     }
     panic!("the cap never rested");
 }
+
+#[test]
+fn shards_of_a_shot_bottle_scatter_outward_and_along_the_shot_and_rest() {
+    // a bottle on a table 0.8 m up, shot toward +Z; shards on its +X and -X sides
+    let rest_of = |at: Vec3, outward: Vec3, shot: Vec3| {
+        let mut shard = LoneBody::shattered(Pose::new(Quat::IDENTITY, at), Vec3::Y, shot, outward);
+        assert_eq!(shard.body.shape, SHARD);
+        let mut ground = Ground::flat();
+        for n in 1..=900 {
+            if shard.step(1.0 / 60.0, Vec3::Y, &mut ground) == Motion::Settled {
+                // glass skids a little and stops: no rolling on along its length
+                assert!(n < 150, "{n} frames");
+                return shard.pose().position;
+            }
+        }
+        panic!("the shard never rested");
+    };
+    let shot = Vec3::new(0.0, -0.3, 1.0);
+    let east = rest_of(Vec3::new(0.03, 0.9, 0.0), Vec3::X, shot);
+    let west = rest_of(Vec3::new(-0.03, 0.9, 0.0), -Vec3::X, shot);
+    assert!(east.x > 0.2 && west.x < -0.2, "outward: {east:?} {west:?}");
+    assert!(east.z > 0.2 && west.z > 0.2, "along the shot: {east:?} {west:?}");
+    assert!(east.x < 1.0 && east.z < 1.2, "no gliding far: {east:?}");
+    assert!((east.y - SHARD.radius).abs() < 0.02, "on the ground: {east:?}");
+    // a break no shot of this client's made: straight down
+    let dropped = rest_of(Vec3::new(0.03, 0.9, 0.0), Vec3::ZERO, Vec3::ZERO);
+    assert!((dropped.x - 0.03).abs() < 0.01 && dropped.z.abs() < 0.01, "{dropped:?}");
+    // kicked on from where it lies
+    let mut kicked = LoneBody::shard_kicked(Pose::new(Quat::IDENTITY, east), Vec3::Y, Vec3::new(1.0, 0.0, 0.0));
+    let mut ground = Ground::flat();
+    for _ in 0..900 {
+        if kicked.step(1.0 / 60.0, Vec3::Y, &mut ground) == Motion::Settled {
+            let at = kicked.pose().position;
+            assert!(at.x > east.x + 0.6 && at.x < east.x + 1.5, "about 0.8 m on: {at:?} from {east:?}");
+            return;
+        }
+    }
+    panic!("the kicked shard never rested");
+}

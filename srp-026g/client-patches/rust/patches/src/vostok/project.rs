@@ -10,8 +10,9 @@ use super::geometry::WorldPoint;
 use super::presentation::{Membership, PresentationEvent, RendererAction, Visibility};
 
 const MAX_BINDINGS: usize = 1024;
-/// The loose visuals of a project (ProjectPlan::loose_visual).
-const MAX_LOOSE: usize = 16;
+/// The loose visuals of a project (ProjectPlan::loose_visual): School's
+/// three bottles' 24 shards and room to spare.
+pub const MAX_LOOSE: usize = 32;
 
 /// A generated immutable vtable of the native layout T. Only generated
 /// glue constructs one, after checking every replaced slot against the exe.

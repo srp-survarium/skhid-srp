@@ -378,6 +378,34 @@ class Lamps(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'no lamp table'):
             bottles_tool.rows('projects/level_02/day_2/client_project', bytes(original), bottle_bounds)
 
+    def test_a_bottles_collision_is_taken_out_and_the_rest_stays(self):
+        # A broken bottle leaves nothing on the table (the owner, 2026-11-26): its
+        # collision and walker collision go, matched by model and position (the
+        # v0.21 port's rotation differs from its visual's by rounding).
+        def record(value):
+            return (3, [(k, (7 if isinstance(v, list) else 5, v)) for k, v in value.items()])
+        name = 'ported/v021d/props/kitchen/bottle_vodka'
+        bottles = [dict(visual_name=name, lib_name=name, position=p, rotation=[3.142, 0.391, 3.142], scale=[1., 1., 1.])
+                   for p in ([16.979, 19.48, 33.619], [17.04, 19.444, 33.768])]
+        table = dict(lib_name='resources/models/props/furniture/table.model/collision', position=[17., 19., 33.7],
+                     rotation=[0., 0., 0.], scale=[1., 1., 1.])
+        objects = [table] + [dict(lib_name=f'resources/models/{name}.model/{part}', position=b['position'],
+                                  rotation=[-3.141, 0.391, -3.141], scale=[1., 1., 1.])
+                             for b in bottles for part in ('collision', 'walker_collision')]
+        data = bytearray(pack.serialize((3, [('render_visuals', (4, [record(v) for v in bottles])),
+                                             ('collision_objects', (4, [record(c) for c in objects]))])))
+        path = 'projects/v021d_level_02/day_2/client_project'
+        rows = bottles_tool.collisions(path, bytes(data))
+        self.assertEqual(len(rows), 4)
+        for row in rows:
+            edits.c.remove_entry(data, row['list'], row['where'])
+        self.assertEqual([c['lib_name'] for c in edits.tree(bytes(data))['collision_objects']], [table['lib_name']])
+        # a bottle whose collision is not the live data's is refused
+        lone = bytearray(pack.serialize((3, [('render_visuals', (4, [record(v) for v in bottles])),
+                                             ('collision_objects', (4, [record(c) for c in objects[:2]]))])))
+        with self.assertRaisesRegex(ValueError, '0 walker_collision objects'):
+            bottles_tool.collisions(path, bytes(lone))
+
     def test_manifest_bindings_are_bounded_and_have_one_owner(self):
         path = Path(__file__).resolve().parents[1] / 'content-edit/breakable-lamps-1.json'
         source = json.loads(path.read_text())

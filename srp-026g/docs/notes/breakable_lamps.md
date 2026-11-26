@@ -127,9 +127,29 @@ three `props/kitchen/bottle_vodka` there (two lying, one standing, within
 tube is: the intact visual alone, no broken model, no lights. Their
 collision is `glass` (the model's `coll_GLASS_s`, material 29), the
 project's `break_material`, so a break plays School's glass pair (bullet x
-glass) along the bottle (0.3 m: two bursts, its longest local axis) and no
-mark is left in the air where it stood. No exe change: the patch reads them
-as any other fixture.
+glass) along the bottle (0.3 m: two bursts, its longest local axis).
+
+That spray reads as a break on a lamp up by the ceiling, not on a bottle at
+arm's length (the owner, 2026-11-26: "it looks like it disappears instead of
+shattering", "there should be proper shards and destruction of the
+bottle"). A bottle breaks into eight shards, its row's loose pieces of kind
+`shard` ("Loose pieces"): pack `bottle-shards@1`
+(`scripts/bottle-shards/make_pack.py`) cuts the bottle's surface (49
+vertices, 58 triangles, flat sides 17 cm tall) to triangles of at most 2 cm,
+each vertex's position, UV and three attribute vectors interpolated, and
+groups them into the neck and seven body pieces (the nearest of two rings
+of points, jittered a triangle so the edges are jagged), each doubled with
+its winding reversed and its vectors negated so it shows from either side,
+its origin its centre. The list places the shards after the project's last
+visual (no index an earlier list bound moves), as the bottle but at each
+one's centre.
+
+The bottles' collision objects (`collision`, `walker_collision`) are taken
+out of the projects ("after that there should be nothing on the table and
+bullet holes should disappear"): a hidden bottle's would stay, the glass
+hits playing in the air and a player bumping into nothing. A shot breaks a
+fixture its ray crosses, clipped at the first collision it hits, which is
+now the table's; no glass mark is ever drawn on a bottle.
 
 `scripts/content-edit/breakable-bottles-1.json`, made by
 `scripts/breakable-lamps/make_bottles.py`, adds the rows `bottle0..2` (in the
@@ -148,7 +168,8 @@ later list moves them.
 
 The table is named, so its fixtures' order in the history is its keys' CRC
 order: the bottles take places among the lamps, and these maps' worlds save
-three lamps more (`simulation_changes.tsv`).
+three lamps more (`simulation_changes.tsv`). Their collision gone, a bullet
+through a bottle is no longer stopped or slowed by its glass.
 
 ## Room probes
 
@@ -405,7 +426,12 @@ rollback to intact leaves stays, under the cap, and late joins carry none.
 The piece is drawn while its fixture is broken. Its flight is
 `lamps::model::Flight`, one machine per piece: `Seated`, `Struck` (broken by a
 push this client saw: a bullet's ray, or the direction from a blast's centre),
-`Kicked` (off its seat, struck again where it was), `Flying` and `Lying`. A
+`Kicked` (off its seat, struck again where it was), `Flying` and `Lying`;
+how it flies is its `kind` (`PieceKind`): `headwear` (the default, the cap)
+or `shard` (a bottle's: `ragdoll::LoneBody::shattered`, a capsule 9.4 cm long
+of 50 g thrown 1 m/s up, 1.2 m/s out from the glass's middle and 1.5 m/s
+along the shot, `shard_kicked` after; a shot within 6 cm knocks it on). A
+project has at most 32 pieces, and 64 level rays a frame for them. A
 break strikes the fixture's pieces under the bullets' lock; a later bullet
 whose segment passes within 14 cm of a flying or lying piece's centre, or a
 blast whose splash reaches its centre, kicks it on (the owner, 2026-11-26:
