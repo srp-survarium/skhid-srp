@@ -2354,6 +2354,10 @@ fn drive_tick_inner(
                     if let Some(line) = bot.motor.take_cast_line() {
                         bot.nav_log.push(super::nav_log::Kind::Press, time, line);
                     }
+                    // [due hold] A flown gap press due by its lead that another term held, and where it was pressed (logging only).
+                    if let Some(line) = bot.motor.take_due_line() {
+                        bot.nav_log.push(super::nav_log::Kind::Press, time, line);
+                    }
                     // [T3] A route end under the feet, not arrived at: walked on (once a route end).
                     if let Some((end, over)) = bot.motor.take_over_end() {
                         let line = super::nav_log::over_end_line(end, over, me.feet);

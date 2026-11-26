@@ -2825,7 +2825,7 @@ pub(crate) fn real_bot_cost() {
             eprintln!(
                 "risers so far: sprinted ticks {}, jumps {}, neither ticks {}, flown press not makeable ticks {}, no press ticks {}, \
                  refused and planned again {}, sprint held at the face past the lift's wait ticks {}; \
-                 gap landings let go ticks {}; flown presses backed off: off the height {}, slow too fast {}, off the lead {}, off the line {}",
+                 gap landings let go ticks {}; flown presses backed off: off the height {}, slow too fast {}, off the lead {}, off the line {}, cap too slow {}",
                 riser[0],
                 riser[1],
                 riser[2],
@@ -2837,7 +2837,8 @@ pub(crate) fn real_bot_cost() {
                 crate::v026g::bots::motor::flown_presses::counts()[0],
                 crate::v026g::bots::motor::flown_presses::counts()[1],
                 crate::v026g::bots::motor::flown_presses::counts()[2],
-                crate::v026g::bots::motor::flown_presses::counts()[3]
+                crate::v026g::bots::motor::flown_presses::counts()[3],
+                crate::v026g::bots::motor::flown_presses::counts()[4]
             );
             // [fix-move] The sights-up's last corner and its yields.
             let (picks, aimed, yields) = crate::v026g::bots::reflex::sights_up_counts::counts();

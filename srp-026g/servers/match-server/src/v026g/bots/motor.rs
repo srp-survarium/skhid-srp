@@ -1057,6 +1057,11 @@ pub struct Motor {
     cast: Option<PressCast>,
     /// [press forecast] The log line of its last press or spent try ([`Self::take_cast_line`]).
     cast_line: Option<String>,
+    /// [due hold] A flown gap or rim press that was due by its lead and held by another gate of the due test ([`DueHeld`]):
+    /// counted until it is pressed, then its log line ([`Self::take_due_line`]). Logging only.
+    due_held: Option<DueHeld>,
+    /// [due hold] The log line of the last such press ([`Self::take_due_line`]).
+    due_line: Option<String>,
     /// [T1] The log line of the last try a line-up hold spent ([`Self::take_line_hold_line`]).
     line_hold_line: Option<String>,
     /// [press forecast] The last forecast press, followed for its line ([`Self::cast_watch_tick`]).
@@ -1572,6 +1577,40 @@ enum PressHeld {
     WalkReach,
 }
 
+/// [due hold] A flown gap or rim press ([`Leap::Gap`], [`Leap::SprintGap`]) due by its lead ([`press_due`]) and held by another
+/// term of the due test, for the log only (v54's UP_THEN_DOWN presses: four walking presses flown with a 0.6-1.2 m lead were
+/// pressed at the take-off, 2.2-3.8 m/s, and came down short; the trace did not say what held them): the take-off, the lead,
+/// how far before the take-off the press was first held so, the ticks each term held it (not lined, not going, not walking,
+/// not facing its way, resting), from which motor tick.
+#[derive(Clone, Copy, Debug, PartialEq)]
+struct DueHeld {
+    take_off: Vec3,
+    lead: f32,
+    first_before: f32,
+    since: u32,
+    ticks: [u32; DUE_GATES.len()],
+}
+
+/// [due hold] The due test's terms other than the lead, in the order the test reads them ([`DueHeld::ticks`]).
+const DUE_GATES: [&str; 5] = ["not lined", "not going", "not walking", "not facing", "resting"];
+
+impl DueHeld {
+    /// The log line of the press that ends the hold: pressed `before` m before the take-off at `speed` m/s, motor tick `now`.
+    fn line(&self, before: f32, speed: f32, now: u32) -> String {
+        let gates: Vec<String> = DUE_GATES.iter().zip(self.ticks).filter(|&(_, n)| n > 0).map(|(g, n)| format!("{g} {n}")).collect();
+        format!(
+            "nav: gap press due at its lead {:.2} m held {} ticks ({}) from {:.2} m before its take-off {}; pressed at {:.2} m, {:.2} m/s",
+            self.lead,
+            now.saturating_sub(self.since),
+            gates.join(", "),
+            self.first_before,
+            super::nav_log::at(self.take_off),
+            before,
+            speed
+        )
+    }
+}
+
 /// [spot suite] TEST ONLY: the term of [`Motor::jump_key`]'s due test that held the press ([`PressHeld::NotDue`]).
 #[cfg(test)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -1967,6 +2006,12 @@ enum FlownOff {
     Lead,
     /// The feet farther than [`FlownWindow::SIDE_M`] off the jump's line.
     Side,
+    /// [utd] A press at the walk cap (`jump::Kind::Walk`, [`WalkPress::Cap`]: the short jump from the walk-up's end) at a speed
+    /// along the way under the walk-up's step 5 (5 / 6 of the body's cap, `jump::run_up_slow`'s k / 6 at step k): a slower
+    /// press is another jump than the one flown, the slow press's counterpart of [`Self::Fast`]. v54's UP_THEN_DOWN presses
+    /// replayed in the client's body (rig_real_v3 the same): four gap links flown at the cap, pressed at 2.2-2.9 m/s after the
+    /// line-up held them (the due-hold probe: "not lined" in 26 of 27 such holds), came down short.
+    Slow,
 }
 
 /// [A386] Whether this press of `ahead`'s link is off the flown one ([`FlownOff`]); None for a press as flown, and for a link
@@ -1991,6 +2036,7 @@ fn flown_press_off(ahead: &Ahead, pose: &Pose, along: f32) -> Option<FlownOff> {
     }
     match ahead.leap {
         Leap::Gap(GapPress { walk: WalkPress::Slow(k), .. }) if along >= f32::from(k + 1) / 6.0 * pose.walk_cap.ms() => Some(FlownOff::Fast),
+        Leap::Gap(GapPress { walk: WalkPress::Cap, .. }) if along < 5.0 / 6.0 * pose.walk_cap.ms() => Some(FlownOff::Slow),
         _ => None,
     }
 }
@@ -2086,14 +2132,14 @@ pub(super) enum CapPressOff {
 pub mod flown_presses {
     use std::sync::atomic::{AtomicU64, Ordering};
 
-    static COUNTS: [AtomicU64; 4] = [const { AtomicU64::new(0) }; 4];
+    static COUNTS: [AtomicU64; 5] = [const { AtomicU64::new(0) }; 5];
 
     pub(super) fn off(why: super::FlownOff) {
         COUNTS[why as usize].fetch_add(1, Ordering::Relaxed);
     }
 
-    /// Off the height, too fast, off the lead, off the line.
-    pub fn counts() -> [u64; 4] {
+    /// Off the height, too fast, off the lead, off the line, too slow.
+    pub fn counts() -> [u64; 5] {
         std::array::from_fn(|k| COUNTS[k].load(Ordering::Relaxed))
     }
 }
@@ -2179,6 +2225,8 @@ impl Motor {
             over_end: None,
             cast: None,
             cast_line: None,
+            due_held: None,
+            due_line: None,
             line_hold_line: None,
             cast_watch: None,
             watch_now: WatchNow::Off,
@@ -2944,9 +2992,16 @@ impl Motor {
 
     /// [A1b] Whether the body was let go at a walk-off's release and is not yet down and still ([`super::walk_off::WalkOff::LetGo`]),
     /// or [item 10] is in a held sprint's held steps ([`Stay::Held`]), or [press forecast] is held for a world after a forecast
-    /// press ([`Self::press_hold`]): the lip guard, the landing brake and the stuck and progress watches leave it be.
+    /// press ([`Self::press_hold`]), or [utd] is settling after a gap or rim link's let-go landing ([`Stay::Settling`]): the lip
+    /// guard, the landing brake and the stuck and progress watches leave it be. A let-go landing stays as the grid flew it (the
+    /// builder's flight, exe = port, A385-FORMAT §1); the guard's glide forecast braked it toward the take-off instead (the back
+    /// key) and walked it off the top's near edge: v54's UP_THEN_DOWN presses replayed by their own keys, 28 of 44 that got up came
+    /// back down, with no move keys from the landing on all 44 stay (port; rig_real_v3 the same).
     pub fn letting_go(&self) -> bool {
-        matches!(self.walk_off, super::walk_off::WalkOff::LetGo { .. }) || self.holding_landing() || self.press_hold()
+        matches!(self.walk_off, super::walk_off::WalkOff::LetGo { .. })
+            || self.holding_landing()
+            || self.press_hold()
+            || matches!(self.stay, Stay::Settling)
     }
 
     /// [A1b] The log line of the last walk-off at release that ended, once.
@@ -3817,10 +3872,13 @@ impl Motor {
             slow_rests::let_go_early();
         }
         let stand = (at_rest_point || stops_near) && jump.walk_up == WalkUp::ToRest;
-        // [A386] A gap or rim link's landing stays as flown ([`Stay`]) unless the route's next corner is on the same top: a walk
-        // on within a step of the landing's height.
-        let let_go = matches!(leap, Leap::Gap(_) | Leap::SprintGap(_))
-            && points.get(k + 1).is_none_or(|next| next.jump.is_some() || (next.at.y - landing.y).abs() > mapdata::Body::client().step);
+        // [A386] A route jump's landing stays ([`Stay`]): the move keys let go from its first ground step until the body is at
+        // rest, then the route's walk goes on. [utd] Every route jump, the route's next corner on the same top or not: v54's
+        // UP_THEN_DOWN presses replayed in the client's body by their own keys (rig_real_v3 the same on every step), 44 got up
+        // and 28 of them came back down with the walk on at once and the lip guard braking it (the back key toward the take-off);
+        // with no move keys from the landing on, all 44 stay; with the forward key held, 23 come down. Before, only a gap or rim
+        // link whose route went on off the top let go.
+        let let_go = true;
         // [press forecast] This tick's keys by the forecast ([`Self::cast_tick`]); the slow press's rest box and walk-up are not used.
         let cast = match (flyer, cast_zone) {
             (Some(flyer), Some((zone, lock_from, cap, gait, pace))) => {
@@ -4715,6 +4773,32 @@ impl Motor {
             if near && rested && ahead.at_press_point() && !ahead.out_of_reach(most) {
                 self.hold_tick(&mut jump);
             }
+            // [due hold] A flown gap press due by its lead, held by another term: which, for the log (decision-neutral).
+            if near && !forecast {
+                let lead = match ahead.leap {
+                    Leap::Gap(GapPress { lead, .. }) | Leap::SprintGap(SprintPress { lead, .. }) => Some(lead.metres()),
+                    _ => None,
+                };
+                if let Some(lead) = lead {
+                    let gate = if !ahead.lined {
+                        0
+                    } else if !ahead.going {
+                        1
+                    } else if !self.walking {
+                        2
+                    } else if still > facing {
+                        3
+                    } else {
+                        4
+                    };
+                    let mut held = match self.due_held {
+                        Some(h) if h.take_off == jump.take_off => h,
+                        _ => DueHeld { take_off: jump.take_off, lead, first_before: ahead.before, since: self.clock, ticks: [0; DUE_GATES.len()] },
+                    };
+                    held.ticks[gate] += 1;
+                    self.due_held = Some(held);
+                }
+            }
             #[cfg(test)]
             self.bench_hold(PressHeld::NotDue(if !ahead.lined {
                 DueTerm::NotLined
@@ -4952,7 +5036,17 @@ impl Motor {
             sprint_gaps::pressed(speed);
             sprint_gaps::sprint_held(self.sprinting);
         }
+        // [due hold] The press that ends a hold of its own take-off: its line (decision-neutral).
+        if let Some(held) = self.due_held.take().filter(|h| h.take_off == jump.take_off) {
+            self.due_line = Some(held.line(ahead.before, speed, self.clock));
+        }
         key::JUMP
+    }
+
+    /// [due hold] The log line of the last flown gap press that was due by its lead and held by another term, once
+    /// ([`DueHeld`]).
+    pub fn take_due_line(&mut self) -> Option<String> {
+        self.due_line.take()
     }
 
     /// A world showed the body still under the jump it last pressed (on the
@@ -8583,7 +8677,7 @@ mod tests {
     /// ground the move keys and the sprint are let go until it is at rest, then the walk goes on. A route going on on the same
     /// top is walked on at once.
     #[test]
-    fn a_gap_links_landing_lets_go_until_at_rest_unless_the_route_goes_on_on_its_top() {
+    fn a_route_jumps_landing_lets_go_until_at_rest_then_walks_on() {
         let walk = Leap::Gap(GapPress { lead: mapdata::PressLead::from_metres(0.5), walk: WalkPress::Cap, share: mapdata::Share::FULL, aim: PressAim::STRAIGHT, way: None });
         let run = |route_on_top: bool| {
             let p = |x: f32, y: f32, jump: Option<Leap>| Waypoint { at: Vec3::new(x, y, 0.0), node: 0, jump, low: false };
@@ -8607,16 +8701,33 @@ mod tests {
             motor.walk(&mut route, &pose(0.5, 0.3, 3.5, Footing::Air), 5.0, |_| true);
             motor.clock += 1;
             let (landed, _) = motor.walk(&mut route, &pose(3.0, -1.7, 2.0, Footing::Ground), 5.0, |_| true);
+            // [utd] While it lets go the lip guard, the landing brake and the watches leave it be (`Motor::letting_go`).
+            let settling = motor.letting_go();
             motor.clock += 1;
             let (rest, _) = motor.walk(&mut route, &pose(3.1, -1.7, 0.0, Footing::Ground), 5.0, |_| true);
-            (landed.keys, rest.keys)
+            (landed.keys, rest.keys, settling, motor.letting_go())
         };
         let moves = key::FORWARD | key::BACK | key::LEFT | key::RIGHT | key::SPRINT;
-        let (landed, rest) = run(false);
-        assert_eq!(landed & moves, 0, "let go on landing: {landed:#x}");
-        assert_ne!(rest & moves, 0, "at rest: walks on: {rest:#x}");
-        let (landed, _) = run(true);
-        assert_ne!(landed & moves, 0, "the route goes on on the top: walked on: {landed:#x}");
+        // [utd] The same with the route going on along the landing's top: let go until at rest, then walked on (v54's replays:
+        // walked on at once and braked by the lip guard, 28 of 44 came back down; let go, all 44 stay).
+        for route_on_top in [false, true] {
+            let (landed, rest, settling, after) = run(route_on_top);
+            assert_eq!(landed & moves, 0, "let go on landing (route on top {route_on_top}): {landed:#x}");
+            assert!(settling, "the let-go landing is left be (route on top {route_on_top})");
+            assert_ne!(rest & moves, 0, "at rest: walks on (route on top {route_on_top}): {rest:#x}");
+            assert!(!after, "at rest it is the walk's again (route on top {route_on_top})");
+        }
+    }
+
+    /// [due hold] A flown gap press held past its lead by the due test's other terms is told once at its press: its lead, the
+    /// ticks it was held and by which terms, where it was first due and where it went (logging only).
+    #[test]
+    fn a_gap_press_held_past_its_lead_is_told_at_its_press() {
+        let held = DueHeld { take_off: Vec3::new(15.0, 2.0, 26.5), lead: 1.2, first_before: 1.25, since: 100, ticks: [0, 0, 0, 7, 2] };
+        let line = held.line(0.05, 2.16, 109);
+        assert!(line.contains("due at its lead 1.20 m held 9 ticks (not facing 7, resting 2)"), "{line}");
+        assert!(line.contains("from 1.25 m before its take-off") && line.contains("pressed at 0.05 m, 2.16 m/s"), "{line}");
+        assert!(!line.contains("not lined"), "a term that held no tick is not named: {line}");
     }
 
     /// [A386 R83/R94] An aimed press is lined up on the flight's own line: the point `lead` back from [`aimed_line`]'s origin is
@@ -8698,13 +8809,14 @@ mod tests {
         assert_eq!(flown_press_off(&ahead(0.17, 0.0), &pose, 0.0), Some(FlownOff::Lead));
         assert_eq!(flown_press_off(&ahead(0.64, 0.0), &pose, 0.0), Some(FlownOff::Lead));
         assert_eq!(flown_press_off(&ahead(0.4, 0.2), &pose, 0.0), Some(FlownOff::Side));
-        // A walking press: the jump's first step starts a step's travel on (0.5 m now at 2 m/s: 0.4 m).
+        // A walking press at the cap: the jump's first step starts a step's travel on (0.575 m now at 3.5 m/s: 0.4 m).
         let walking = |before: f32| Ahead {
             leap: Leap::Gap(GapPress { lead: mapdata::PressLead::from_metres(0.4), walk: WalkPress::Cap, share: mapdata::Share::landed(14), aim: PressAim::STRAIGHT, way: None }),
             ..ahead(before, 0.0)
         };
-        assert_eq!(flown_press_off(&walking(0.5), &pose, 2.0), None);
-        assert_eq!(flown_press_off(&walking(0.1), &pose, 2.0), Some(FlownOff::Lead), "arrived past its lead");
+        let cap = pose.walk_cap.ms();
+        assert_eq!(flown_press_off(&walking(0.4 + cap * TICK_S), &pose, cap), None);
+        assert_eq!(flown_press_off(&walking(0.1), &pose, cap), Some(FlownOff::Lead), "arrived past its lead");
         // Not flown: not asked.
         let ledge = Ahead { leap: Leap::Ledge, ..ahead(0.0, 0.5) };
         assert_eq!(flown_press_off(&ledge, &pose, 0.0), None);
@@ -8746,6 +8858,12 @@ mod tests {
         // A standing jump: under 1 / 6 of the cap.
         assert_eq!(flown_press_off(&ahead(slow(0, flown), 0.0), &pose, 0.2), None);
         assert_eq!(flown_press_off(&ahead(slow(0, flown), 0.0), &pose, 2.8), Some(FlownOff::Fast));
+        // [utd] A press flown at the cap: at the walk-up's end, not under its step 5 (5 / 6 of the cap).
+        let cap = Leap::Gap(GapPress { lead: mapdata::PressLead::from_metres(0.1), walk: WalkPress::Cap, share: flown, aim: PressAim::STRAIGHT, way: None });
+        let cap_ms = pose.walk_cap.ms();
+        assert_eq!(flown_press_off(&ahead(cap, 0.0), &pose, cap_ms), None);
+        assert_eq!(flown_press_off(&ahead(cap, 0.0), &pose, 5.0 / 6.0 * cap_ms), None);
+        assert_eq!(flown_press_off(&ahead(cap, 0.0), &pose, 2.2), Some(FlownOff::Slow), "v54's 2.2-2.9 m/s presses of cap links");
         // The feet 0.57 m under the take-off: no flight starts there.
         assert_eq!(flown_press_off(&ahead(slow(2, flown), 0.57), &pose, 1.0), Some(FlownOff::Height));
         // Not flown: not asked.
