@@ -614,7 +614,8 @@ fn accept_tls(tls: &SslContext, stream: TcpStream) -> Option<SslStream<TcpStream
             // The client checks the certificate against its own
             // `resources/ssl/survarium_login_server.crt` on its first attempt
             // only. The game's original certificate expired in 2014, so that
-            // file has to be replaced with `CERT_PATH` (see WORK.md).
+            // file has to be replaced with `CERT_PATH` (see
+            // `srp-026g/docs/notes/login_chat.md`).
             log::warn!(
                 "TLS handshake with {peer:?} failed ({error}); if the client logs \
                  \"certificate verify failed\", copy {CERT_PATH} over its \

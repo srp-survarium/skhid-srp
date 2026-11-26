@@ -1,4 +1,4 @@
-//! The 0.26g lobby (`resources/notes/v026g/lobby.md`, `lobby_requests.md`,
+//! The 0.26g lobby (`srp-026g/docs/notes/lobby.md`, `lobby_requests.md`,
 //! `social.md`), beside the 0.21d one.
 //!
 //! What 0.26g changed: the lobby is one UDP link on the match transport
