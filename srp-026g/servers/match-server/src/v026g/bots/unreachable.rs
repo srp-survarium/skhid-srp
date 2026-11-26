@@ -127,13 +127,14 @@ impl UnreachableGoals {
 }
 
 /// The event line of a goal put on cool-down: its failed search started in region `region`.
-pub fn noted_line(goal: Vec3, region: u32, now: u32) -> String {
+pub fn noted_line(goal: Vec3, region: u32, end: super::path::SearchEnd, now: u32) -> String {
     format!(
-        "unreachable: goal ({:.1}, {:.1}, {:.1}) on cool-down {} s from region {region} (exhaustive search failed) at {:.1} s",
+        "unreachable: goal ({:.1}, {:.1}, {:.1}) on cool-down {} s from region {region} (exhaustive search failed: {}) at {:.1} s",
         goal.x,
         goal.y,
         goal.z,
         COOL_DOWN_MS / 1_000,
+        end.word(),
         f64::from(now) / 1_000.0
     )
 }
@@ -147,15 +148,23 @@ pub fn released_line(goal: Vec3, why: Release, now: u32) -> String {
     format!("unreachable: goal ({:.1}, {:.1}, {:.1}) tried again: {why} at {:.1} s", goal.x, goal.y, goal.z, f64::from(now) / 1_000.0)
 }
 
-/// Notes for `bot` an exhaustive failure of its search from floor `from` to `goal`, with its line.
-pub(super) fn note(bot: &mut super::Bot, tactics: &super::Tactics, goal: Vec3, from: mapdata::NodeId, time: u32) {
+/// Notes for `bot` an exhaustive failure of its search from floor `from` to `goal` (how it ended: `end`), with its line.
+pub(super) fn note(
+    bot: &mut super::Bot,
+    tactics: &super::Tactics,
+    goal: Vec3,
+    from: mapdata::NodeId,
+    end: super::path::SearchEnd,
+    time: u32,
+) {
     bot.unreachable.note(goal, tactics.regions_reached(from), time);
-    let line = noted_line(goal, tactics.regions().of(from), time);
+    let line = noted_line(goal, tactics.regions().of(from), end, time);
     bot.nav_log.push(super::nav_log::Kind::Unreachable, time, line);
 }
 
-/// After the drive's tick: a goal it found no way to this tick (`Bot::no_way` made now) whose search, the last to end in the
-/// tick (`end`, `path::end_since_mark`), was exhaustive is noted from the floor under the feet (none: not noted).
+/// After the drive's tick: a goal it found no way to this tick (`Bot::no_way` made now) whose proof was exhaustive is noted from
+/// the floor under the feet (none: not noted). The proof (`end`, `path::end_since_mark`) is the plain search's end (a crossing's
+/// search after it is put back, `path::EndsKept`), or the escape's [`super::path::SearchEnd::NoExit`].
 pub(super) fn after_drive(
     bot: &mut super::Bot,
     me: &super::PlaceView,
@@ -166,11 +175,14 @@ pub(super) fn after_drive(
     let Some((goal, until)) = bot.no_way else {
         return;
     };
-    if until != time + super::search::NO_WAY_RETRY_MS || !end.is_some_and(super::path::SearchEnd::exhaustive) {
+    let Some(end) = end.filter(|end| end.exhaustive()) else {
+        return;
+    };
+    if until != time + super::search::NO_WAY_RETRY_MS {
         return;
     }
     if let Some(from) = tactics.world.grid.locate(me.feet, STAND_M) {
-        note(bot, tactics, goal, from, time);
+        note(bot, tactics, goal, from, end, time);
     }
 }
 
