@@ -82,6 +82,17 @@ comparison: "the way rudnya is is fine"; not in work):
   68 blends draw their own numbers (the sheds' rusty roof sheets drew rust all over; their
   rust patches now follow 0.69d's, the rust itself still more saturated than 0.69d's); the 4
   alpha-tested ones of technique 1 without a mask stay on their category's template.
+- Pack @10 (the owner's seams between ground types, 2026-11-26): the terrain overlays
+  (`terrain_tiled/{grass,dirt,sand_grass,earth}_vc`, `tiled/trash/trash_vc` and
+  `trash_dirt_moss_alpha_vc` over the 12 `terrain_game` tiles, the bus stop, the culture centre
+  and house_3) are 0.69d vertex blends of technique 2, which bind no second texture: both
+  builds' technique-2 programs draw the base layer alone and discard where
+  `sat(pow(w, (1 - mask)^2 falloff) strength)` is under 0.4. The converter took a blend without
+  a second texture for a one-texture vertex-colour mesh, so each overlay was drawn whole to its
+  mesh border: straight seams where two ground types meet, since the first port (pack @4's
+  frames have them). Now they are blends on the technique-2 tiled-mask templates with their own
+  numbers (strength 3, falloff 10, mask scale 3 or 4, rotation 30); the 6 materials are all the
+  pack changes.
 - Spawns (team deathmatch): 0.69d's team-deathmatch points as they are, 405 (team 0: 313,
   team 1: 92); each point's own check radii; their invulnerability time 6 s as the rest of the
   map (maps.tsv; 0.69d's 3 s until then). The owner may revisit it: these are free spawns, up to
