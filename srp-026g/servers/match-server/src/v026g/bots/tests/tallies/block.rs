@@ -84,6 +84,8 @@ pub(crate) struct BlockTally {
     pub(crate) gates: fight_tally::GateTally,
     /// [measure] The bots' reloads.
     pub(crate) reloads: fight_tally::ReloadTally,
+    /// [reload trace] [measure] Each magazine and each reload as event rows.
+    pub(crate) trace: super::reload_trace::ReloadTrace,
 }
 
 /// [measure] A bot free to fire with its view within 4 deg of a visible
@@ -333,6 +335,8 @@ impl BlockTally {
         if game.kill_log.len() < self.kills_seen {
             self.kills_seen = 0;
         }
+        // [reload trace] The step's kills: by each killer, and each victim's killer.
+        let step_kills: Vec<(Place, Place)> = game.kill_log[self.kills_seen..].iter().map(|&(_, shooter, victim)| (shooter, victim)).collect();
         for &(_, shooter, victim) in &game.kill_log[self.kills_seen..] {
             for (place, spell) in self.spells.iter_mut().enumerate() {
                 if let Some(spell) = spell.as_mut()
@@ -357,6 +361,9 @@ impl BlockTally {
             self.shots[k] += s - s0;
             self.hits[k] += h - h0;
             self.onview_tick(game, bots, bot, s > s0, events);
+            let made = step_kills.iter().filter(|k| k.0 == place).count() as u32;
+            let killer = step_kills.iter().find(|k| k.1 == place).map(|k| k.0);
+            self.trace.tick(game, bot, (s - s0, h - h0, made), killer, events);
             // From a new target to the first shot at it.
             let target = bot.reflex.target().filter(|_| body.alive);
             self.aiming[place] = match (target, self.aiming[place]) {

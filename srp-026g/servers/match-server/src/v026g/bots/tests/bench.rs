@@ -119,6 +119,11 @@ impl BenchEvents {
         }
     }
 
+    /// Whether the rows are written (a tally that only writes rows does no work otherwise).
+    pub(crate) fn on(&self) -> bool {
+        self.0.is_some()
+    }
+
     pub(crate) fn line(&mut self, value: serde_json::Value) {
         use std::io::Write;
         if let Some(file) = self.0.as_mut() {
