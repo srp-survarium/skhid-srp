@@ -49,7 +49,7 @@ STOCK = {
 def catalog():
     """(offset from FIRST_ITEM, row, artwork) in id order."""
     seen, ids, rows = set(), set(), []
-    for folder in (HERE / 'initial', HERE / 'art', HERE / 'classics'):
+    for folder in (HERE / 'initial', HERE / 'art', HERE / 'classics', HERE / 'artists'):
         with (folder / 'catalog.tsv').open(encoding='utf-8', newline='') as stream:
             for row in csv.DictReader(stream, delimiter='\t'):
                 slug = row['slug']

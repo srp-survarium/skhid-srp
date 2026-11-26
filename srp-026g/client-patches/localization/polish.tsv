@@ -504,25 +504,32 @@ st_buy_treasure_maps	Kup mapę
 st_camo_atlas_all_terrain	Każdy teren
 st_camo_atlas_amber_circuit	Bursztynowy obwód
 st_camo_atlas_amethyst_wash	Ametystowe lawowanie
+st_camo_atlas_arid_lizard	Jaszczurka pustynna
 st_camo_atlas_ash_rain	Popielny deszcz
 st_camo_atlas_aubergine_broadbrush	Bakłażanowy szeroki pędzel
 st_camo_atlas_aubergine_crackle	Bakłażanowa krakelura
 st_camo_atlas_aubergine_watercolor	Bakłażanowa akwarela
+st_camo_atlas_autumn_flecktarn	Jesienny flecktarn
 st_camo_atlas_balkan_dpm	Bałkański DPM
 st_camo_atlas_balkan_splinter	Bałkańskie odłamki
 st_camo_atlas_basalt_shard	Bazaltowy odłamek
 st_camo_atlas_birch_leaf	Brzozowy liść
 st_camo_atlas_black_ice	Gołoledź
 st_camo_atlas_black_thicket	Czarna gęstwina
+st_camo_atlas_blue_brush	Niebieskie pociągnięcia
 st_camo_atlas_blue_shingle	Niebieski gont
+st_camo_atlas_blue_tiger_stripe	Niebieskie tygrysie pasy
 st_camo_atlas_bruise	Siniak
 st_camo_atlas_brushstroke	Pociągnięcie pędzla
+st_camo_atlas_buntfarben_1918	Buntfarben 1918
+st_camo_atlas_butan	Butan
 st_camo_atlas_carmine_crosscheck	Karminowa krzyżowa krata
 st_camo_atlas_carmine_pebble	Karminowy otoczak
 st_camo_atlas_carmine_screenprint	Karminowy sitodruk
 st_camo_atlas_carmine_soundings	Karminowe izobaty
 st_camo_atlas_carmine_wave_fan	Karminowy wachlarz fal
 st_camo_atlas_centre_europe	Europa Środkowa
+st_camo_atlas_centre_europe_vehicle	Europa Środkowa, pojazdy
 st_camo_atlas_cerise_broadbrush	Wiśniowy szeroki pędzel
 st_camo_atlas_cerise_crackle	Wiśniowa krakelura
 st_camo_atlas_cinnabar_tiger	Cynobrowy tygrys
@@ -536,6 +543,7 @@ st_camo_atlas_cobalt_woodgrain	Kobaltowe słoje drewna
 st_camo_atlas_copper_mesh	Miedziana siatka
 st_camo_atlas_copper_rain	Miedziany deszcz
 st_camo_atlas_coral_reeds	Koralowe trzciny
+st_camo_atlas_daguet	Daguet
 st_camo_atlas_danube_leaf	Dunajski liść
 st_camo_atlas_desert_broadbrush	Pustynny szeroki pędzel
 st_camo_atlas_desert_broken_grid	Pustynna łamana siatka
@@ -561,11 +569,16 @@ st_camo_atlas_desert_stone_chip	Pustynny kamienny grys
 st_camo_atlas_desert_tiger_stripe	Pustynny tygrysi pas
 st_camo_atlas_desert_watercolor	Pustynna akwarela
 st_camo_atlas_desert_woodgrain	Pustynne słoje drewna
+st_camo_atlas_dg3	DG3
+st_camo_atlas_dubok	Dubok
+st_camo_atlas_duck_hunter	Myśliwy na kaczki
 st_camo_atlas_dune_chip	Wydmowy grys
 st_camo_atlas_ember_leaf	Tlący się liść
 st_camo_atlas_erdl_highland	Górski ERDL
-st_camo_atlas_field_mosaic	Polna mozaika
+st_camo_atlas_erdl_lowland	Nizinny ERDL
+st_camo_atlas_fab_lizard	Jaszczurka FAB
 st_camo_atlas_fired_clay	Wypalona glina
+st_camo_atlas_frogskin	Żabia skóra
 st_camo_atlas_frost_splinter	Mroźne odłamki
 st_camo_atlas_garnet_broken_grid	Rubinowa łamana siatka
 st_camo_atlas_garnet_rosette	Rubinowe rozety
@@ -578,13 +591,22 @@ st_camo_atlas_graphite_broken_grid	Grafitowa łamana siatka
 st_camo_atlas_graphite_rosette	Grafitowe rozety
 st_camo_atlas_graphite_shard	Grafitowy odłamek
 st_camo_atlas_harbor_tiger	Portowy tygrys
+st_camo_atlas_hazard_pixel	Ostrzegawczy piksel
 st_camo_atlas_honey_rosette	Miodowe rozety
 st_camo_atlas_icelandic_broadbrush	Islandzki szeroki pędzel
 st_camo_atlas_icelandic_stone_chip	Islandzki kamienny grys
 st_camo_atlas_icelandic_watercolor	Islandzka akwarela
 st_camo_atlas_inkstone	Kamień do tuszu
 st_camo_atlas_iris_mosaic	Irysowa mozaika
+st_camo_atlas_jgsdf_desert	JGSDF pustynny
+st_camo_atlas_jgsdf_type_ii	JGSDF typ II
+st_camo_atlas_jgsdf_winter	JGSDF zimowy
 st_camo_atlas_juniper_pixel	Jałowcowy piksel
+st_camo_atlas_k07	K07
+st_camo_atlas_k07_dark	K07 ciemny
+st_camo_atlas_k20	K20
+st_camo_atlas_k20_navy	K20 morski
+st_camo_atlas_k20lq	K20LQ
 st_camo_atlas_kingfisher	Zimorodek
 st_camo_atlas_kingfisher_cut_paper	Wycinanka zimorodka
 st_camo_atlas_kingfisher_reed_stripe	Trzcinowy pas zimorodka
@@ -595,7 +617,17 @@ st_camo_atlas_lapis_netting	Lazurytowa sieć
 st_camo_atlas_lapis_tiger_stripe	Lazurytowy tygrysi pas
 st_camo_atlas_lapis_woodgrain	Lazurytowe słoje drewna
 st_camo_atlas_lichen_pixel	Porostowy piksel
+st_camo_atlas_lime_spots	Limonkowe cętki
 st_camo_atlas_lizard	Jaszczurka
+st_camo_atlas_lozenge	Romby
+st_camo_atlas_lozenge_night	Nocne romby
+st_camo_atlas_m05_snow	M05 śnieżny
+st_camo_atlas_m05_woodland	M05 leśny
+st_camo_atlas_m81_woodland	M81 leśny
+st_camo_atlas_m90	M90
+st_camo_atlas_m90k	M90K
+st_camo_atlas_m_01_desert	M/01 pustynny
+st_camo_atlas_m_84	M/84
 st_camo_atlas_madder_crackle	Kraplakowa krakelura
 st_camo_atlas_madder_cut_paper	Kraplakowa wycinanka
 st_camo_atlas_madder_reed_stripe	Kraplakowy trzcinowy pas
@@ -604,15 +636,22 @@ st_camo_atlas_marigold_broken_grid	Nagietkowa łamana siatka
 st_camo_atlas_marigold_pebble	Nagietkowy otoczak
 st_camo_atlas_marigold_rosette	Nagietkowe rozety
 st_camo_atlas_marigold_terrazzo	Nagietkowe lastryko
+st_camo_atlas_marine_woodland	Morski las
 st_camo_atlas_maritime_pebble	Morski otoczak
 st_camo_atlas_maritime_rosette	Morskie rozety
 st_camo_atlas_maritime_terrazzo	Morskie lastryko
 st_camo_atlas_maritime_wave_fan	Morski wachlarz fal
 st_camo_atlas_mauve_static	Liliowe zakłócenia
 st_camo_atlas_mm_14	MM-14
+st_camo_atlas_mm_25	MM-25
+st_camo_atlas_moro	Moro
 st_camo_atlas_mulberry_cloud	Morwowa chmura
 st_camo_atlas_nfp_blue	Niebieski NFP
+st_camo_atlas_nfp_cloth	Tkanina NFP
+st_camo_atlas_nfp_green	Zielony NFP
+st_camo_atlas_nfp_multitone	Wielotonowy NFP
 st_camo_atlas_night_silk	Nocny jedwab
+st_camo_atlas_obh	OBH
 st_camo_atlas_ochre_cut	Ochrowa wycinanka
 st_camo_atlas_olive_tide	Oliwkowy przypływ
 st_camo_atlas_opal_fault	Opalowy uskok
@@ -626,18 +665,22 @@ st_camo_atlas_oxblood_stone_chip	Bordowy kamienny grys
 st_camo_atlas_oxblood_terrazzo	Bordowe lastryko
 st_camo_atlas_oxblood_tiger_stripe	Bordowy tygrysi pas
 st_camo_atlas_oxblood_woodgrain	Bordowe słoje drewna
+st_camo_atlas_pantera	Pantera
+st_camo_atlas_pantera_desert	Pantera pustynna
 st_camo_atlas_persimmon_ink	Persymonowy tusz
 st_camo_atlas_petal_wash	Płatkowe lawowanie
 st_camo_atlas_pewter_cut_paper	Cynowa wycinanka
 st_camo_atlas_pewter_reed_stripe	Cynowy trzcinowy pas
 st_camo_atlas_polar_mesh	Polarna siatka
 st_camo_atlas_porcelain_tide	Porcelanowy przypływ
+st_camo_atlas_puma	Puma
 st_camo_atlas_quarry	Kamieniołom
 st_camo_atlas_reef_tiger	Rafowy tygrys
 st_camo_atlas_riptide_broadbrush	Szeroki pędzel przyboju
 st_camo_atlas_riptide_crackle	Krakelura przyboju
 st_camo_atlas_riptide_cut_paper	Wycinanka przyboju
 st_camo_atlas_riptide_terrazzo	Lastryko przyboju
+st_camo_atlas_rmp_woodland	RMP leśny
 st_camo_atlas_rose_breccia	Różowa brekcja
 st_camo_atlas_russet_crosscheck	Ruda krzyżowa krata
 st_camo_atlas_russet_screenprint	Rudy sitodruk
@@ -645,6 +688,7 @@ st_camo_atlas_russet_stone_chip	Rudy kamienny grys
 st_camo_atlas_russet_tiger_stripe	Rudy tygrysi pas
 st_camo_atlas_russet_watercolor	Ruda akwarela
 st_camo_atlas_russet_woodgrain	Rude słoje drewna
+st_camo_atlas_rust_flecktarn	Rdzawy flecktarn
 st_camo_atlas_rust_tiger	Rdzawy tygrys
 st_camo_atlas_saffron_gravel	Szafranowy żwir
 st_camo_atlas_saffron_pebble	Szafranowy otoczak
@@ -652,29 +696,47 @@ st_camo_atlas_saffron_soundings	Szafranowe izobaty
 st_camo_atlas_saffron_wave_fan	Szafranowy wachlarz fal
 st_camo_atlas_salt_crater	Solny krater
 st_camo_atlas_salt_tiger	Solny tygrys
+st_camo_atlas_sandstone	Piaskowiec
 st_camo_atlas_satsuma_stone_chip	Mandarynkowy kamienny grys
 st_camo_atlas_satsuma_tiger_stripe	Mandarynkowy tygrysi pas
 st_camo_atlas_satsuma_watercolor	Mandarynkowa akwarela
+st_camo_atlas_savanna_flecktarn	Flecktarn sawannowy
 st_camo_atlas_sea_glass	Szkło morskie
 st_camo_atlas_seafoam_cloud	Chmura morskiej piany
 st_camo_atlas_seafoam_netting	Sieć morskiej piany
 st_camo_atlas_seafoam_woodgrain	Słoje drewna morskiej piany
+st_camo_atlas_shard_earth	Ziemia odłamków
+st_camo_atlas_shard_forest	Las odłamków
+st_camo_atlas_shard_winter	Zima odłamków
 st_camo_atlas_sienna_wash	Lawowanie sjeną
 st_camo_atlas_signal_grid	Sygnałowa siatka
 st_camo_atlas_silver_rosette	Srebrne rozety
+st_camo_atlas_snow_terrain	Śnieżny teren
+st_camo_atlas_star_ember	Gwiezdny żar
+st_camo_atlas_star_forest	Gwiezdny las
 st_camo_atlas_sundown_pebble	Otoczak zmierzchu
 st_camo_atlas_sundown_reed_stripe	Trzcinowy pas zmierzchu
 st_camo_atlas_sundown_terrazzo	Lastryko zmierzchu
 st_camo_atlas_sundown_wave_fan	Wachlarz fal zmierzchu
+st_camo_atlas_t_99_winter	T/99 zimowy
+st_camo_atlas_taz_07	TAZ 07
+st_camo_atlas_taz_83	TAZ 83
+st_camo_atlas_taz_83_ii	TAZ 83 II
+st_camo_atlas_teal_pixel	Turkusowy piksel
 st_camo_atlas_three_color_desert	Trójbarwna pustynia
 st_camo_atlas_tidal_pixel	Pływowy piksel
 st_camo_atlas_tropentarn	Tropentarn
+st_camo_atlas_tropentarn_ii	Tropentarn II
+st_camo_atlas_type_07_arid	Typ 07 pustynny
+st_camo_atlas_type_07_universal	Typ 07 uniwersalny
+st_camo_atlas_type_07_urban	Typ 07 miejski
 st_camo_atlas_ultramarine_broken_grid	Ultramarynowa łamana siatka
 st_camo_atlas_ultramarine_netting	Ultramarynowa sieć
 st_camo_atlas_ultramarine_rosette	Ultramarynowe rozety
 st_camo_atlas_ultramarine_shard	Ultramarynowy odłamek
 st_camo_atlas_ultramarine_terrazzo	Ultramarynowe lastryko
 st_camo_atlas_ultraviolet_grid	Ultrafioletowa siatka
+st_camo_atlas_urban_blots	Miejskie plamy
 st_camo_atlas_urban_broadbrush	Miejski szeroki pędzel
 st_camo_atlas_urban_broken_grid	Miejska łamana siatka
 st_camo_atlas_urban_brush	Miejski pędzel
@@ -682,7 +744,9 @@ st_camo_atlas_urban_cloud	Miejska chmura
 st_camo_atlas_urban_crackle	Miejska krakelura
 st_camo_atlas_urban_cut_paper	Miejska wycinanka
 st_camo_atlas_urban_drybrush	Miejski suchy pędzel
+st_camo_atlas_urban_flecktarn	Miejski flecktarn
 st_camo_atlas_urban_fracture	Miejskie pęknięcie
+st_camo_atlas_urban_knit	Miejska dzianina
 st_camo_atlas_urban_mosaic	Miejska mozaika
 st_camo_atlas_urban_netting	Miejska sieć
 st_camo_atlas_urban_pebble	Miejski otoczak
@@ -701,6 +765,11 @@ st_camo_atlas_urban_tiger_stripe	Miejski tygrysi pas
 st_camo_atlas_urban_watercolor	Miejska akwarela
 st_camo_atlas_urban_wave_fan	Miejski wachlarz fal
 st_camo_atlas_urban_woodgrain	Miejskie słoje drewna
+st_camo_atlas_urban_woodland	Miejski las
+st_camo_atlas_vegetato_desert	Vegetato pustynny
+st_camo_atlas_vehicle_pixel_2015	Piksel pojazdów 2015
+st_camo_atlas_vehicle_pixel_2016	Piksel pojazdów 2016
+st_camo_atlas_vehicle_pixel_2021	Piksel pojazdów 2021
 st_camo_atlas_verdigris_cut_paper	Spatynowana wycinanka
 st_camo_atlas_verdigris_reed_stripe	Spatynowany trzcinowy pas
 st_camo_atlas_verdigris_terrazzo	Spatynowane lastryko
@@ -732,6 +801,7 @@ st_camo_atlas_woodland_tiger_stripe	Leśny tygrysi pas
 st_camo_atlas_woodland_watercolor	Leśna akwarela
 st_camo_atlas_woodland_wave_fan	Leśny wachlarz fal
 st_camo_atlas_woodland_woodgrain	Leśne słoje drewna
+st_camo_atlas_woven_woodland	Tkany las
 st_camo_black_leather_01_name	Kruk
 st_camo_black_leather_name	Czarna śmierć
 st_camo_blue_leather_name	Bryza

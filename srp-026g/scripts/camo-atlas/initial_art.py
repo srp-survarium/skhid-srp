@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
-"""Draw 10 of the 11 tiles of initial/ (768 x 768 WebP) from seeded noise and the palettes below.
+"""Draw 9 of the 11 tiles of initial/ (768 x 768 WebP) from seeded noise and the palettes below.
 
 python3 initial_art.py [--out DIR]   (default: initial/ beside this script)
 Pillow and NumPy. No input files: every shape comes from the seeds in this file. Written
 2026-11-25 for the camouflage gallery and kept here so the tiles can be regenerated; with
-NumPy 2.4.4 and Pillow 12.2.0 (as made) or 13.0.0 it reproduces them byte for byte. The 11th,
-mm-14.webp, is a swatch of the real MM-14 drawn by classics_art.py; it replaced this script's MM-14
-study (Pixel Steppe) on 2026-11-26. A row left None is a dropped tile: its place keeps every other
-tile's grain seed (its index).
+NumPy 2.4.4 and Pillow 12.2.0 (as made) or 13.0.0 it reproduces them byte for byte. The other two,
+mm-14.webp and mm-25.webp, are cut by classics_art.py from pictures of the real patterns; they
+replaced this script's studies of them (Pixel Steppe and Field Mosaic) on 2026-11-26. A row left
+None is a dropped tile: its place keeps every other tile's grain seed (its index).
 """
 import argparse
 import numpy as np
@@ -129,12 +129,7 @@ None,  # Night Grid, dropped 2026-11-26
 ("ember-leaf","8E6040 BD8C50 AD6342 593F3D",ember),
 ("tidal-pixel","577B78 789B93 506672 35495A",tidal),
 None]  # Violet Splinter, dropped 2026-11-26
-def mosaic():
-    u=X+.07*field(810,4,3); v=Y+.05*field(523,4,4)
-    a=organic(251,u,v,5,9); b=organic(216,u,v,6,8); c=organic(211,u,v,8,10); d=organic(226,u,v,8,11)
-    return np.select([a>.89,b>.53,c>.39,d>.26],[4,3,2,1],0)
-# Row 12 was the MM-14 study.
-rows.extend([None,("field-mosaic","9A9473 B0A388 837F5B 6D6E4F 635948",mosaic)])
+# Rows 12 and 13, the last, were the MM-14 and MM-25 studies.
 
 
 def main():
