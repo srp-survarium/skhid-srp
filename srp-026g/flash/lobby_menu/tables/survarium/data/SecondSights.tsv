@@ -2,9 +2,25 @@
 # (weapon dict id, optic dict id); sides the rail's sides it goes on, a mask (1 left, 2 right:
 # survarium.upgrade.SightPlace). A weapon with no row has no second-sight slot. The lobby build
 # makes it the class survarium.data.SecondSights (tools/actionscript/README.md, "Tables"); its
-# list fits must have a row (the movie reads SecondSights.fits). To be written from the content
-# pack's modules table; these rows are the harness's until then: the HK416 (2218) with the
-# Leupold DeltaPoint (2112) and the Hensoldt RSA-S (2116).
+# list fits must have a row (the movie reads SecondSights.fits). Written by
+# srp-026g/scripts/weapon-modules/second_sights.py from the listed weapon-modules pack's record:
+# do not edit.
 list	weapon:int	optic:int	sides:int
+fits	220	2112	3
+fits	220	2116	3
+fits	363	2112	3
+fits	363	2116	3
+fits	2217	2112	3
+fits	2217	2116	3
 fits	2218	2112	3
 fits	2218	2116	3
+fits	2219	2112	3
+fits	2219	2116	3
+fits	2245	2112	3
+fits	2245	2116	3
+fits	2262	2112	3
+fits	2262	2116	3
+fits	2263	2112	3
+fits	2263	2116	3
+fits	2272	2112	3
+fits	2272	2116	3

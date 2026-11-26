@@ -10,8 +10,8 @@
 #   1. 0.69d0's weapon models, materials and textures (all of them: which modules a gun takes is what
 #      the build works out) as one archive with gameplay/game.options; kept in the work folder
 #      (donor.db) and made once;
-#   2. resource-porter's port-modules (its docs/modules-069d-026.md) over what players have (the
-#      stock resources.db and every patch of release/patches.tsv), with the released scope pairs
+#   2. resource-porter's port-modules (its docs/modules-069d-026.md) over what players had before
+#      the pack (the stock resources.db and the patches of release/patches.tsv below 69), with the released scope pairs
 #      (../scope-fits/released-pairs.tsv: one 0.69d0 does not give is a legacy row); its check of
 #      every gun and fit against 0.69d0 is in <work folder>/bundle/modules-069d.json, and a failure
 #      is printed;
@@ -45,11 +45,16 @@ for d in "$work/bundle" "$pack"; do
 done
 mkdir -p "$work"
 cache=$HOME/.cache/skhid-release/patches
+# The players' files before this pack's first release (patch 69): a remodel's or a module's path
+# must be new to them, and release/build-content packs only what differs from what players have
+# (as fix/builtin-suppressors, 176ebfec6, which this follows).
+first=69
 layers=() bases=()
 while read -r n; do
+    ((n < first)) || continue
     [[ -f $cache/resources.db.patch_$n ]] || { echo "$cache/resources.db.patch_$n is missing (release/build-content fetches it)" >&2; exit 1; }
     layers+=(--target-patch "$cache/resources.db.patch_$n") bases+=(--base-patch "$cache/resources.db.patch_$n")
-done < <(grep -v '^#' "$root/release/patches.tsv" | cut -f1 | grep -o '[0-9]*$')
+done < <(grep -v '^#' "$root/release/patches.tsv" | cut -f1 | grep -oE '[0-9]+$')
 (cd "$porter" && cargo build -q --release --bin vostok-port --example pack-donor-tree)
 port=$porter/target/release/vostok-port
 if [[ ! -f $work/donor.db ]]; then
