@@ -15,6 +15,9 @@
 //!    part alters shows its alternative shape, and the eye, the fire point
 //!    and the shot effect are the last part's that sets them, a fitted
 //!    module's over a carrier's over the gun's own.
+//! 5. A second sight's eye is never the eye: it is the second one, which the
+//!    player switches to (0.69d's `aim_3`, `aim_4` beside `aim`), at the
+//!    plane of the gun's own eye as 0.69d's `plane_slot` puts it.
 //!
 //! What cannot be is a [`Refusal`], never a guess.
 //!
@@ -66,12 +69,34 @@ pub fn iron_sights(gun: Gun<'_>) -> Option<f32> {
 /// fitted modules.
 const MAX_PARTS: usize = MAX_STOCK + Kind::ALL.len() * MAX_CHAIN + Kind::ALL.len();
 
-/// What a player fitted, by dict id (the weapon kit's slots 3, 4 and 5).
+/// The side of the gun a second sight goes on (the weapon kit's side of
+/// slot 6): 0.69d's `angled_collim_short_l` or `_r`, on the offset rail on
+/// that angled rail.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+pub enum Side {
+    #[default]
+    Left,
+    Right,
+}
+
+impl Side {
+    /// The slot a second sight takes on this side.
+    pub fn slot(self) -> SlotId {
+        match self {
+            Side::Left => SlotId::AngledCollimShortL,
+            Side::Right => SlotId::AngledCollimShortR,
+        }
+    }
+}
+
+/// What a player fitted, by dict id (the weapon kit's slots 3, 4, 5 and 6).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct Wanted {
     pub scope: Option<DictId>,
     pub muzzle: Option<DictId>,
     pub grip: Option<DictId>,
+    /// The second sight and its side.
+    pub second_sight: Option<(DictId, Side)>,
 }
 
 impl Wanted {
@@ -80,6 +105,16 @@ impl Wanted {
             Kind::Scope => self.scope,
             Kind::Muzzle => self.muzzle,
             Kind::Grip => self.grip,
+            Kind::SecondSight => self.second_sight.map(|(dict, _)| dict),
+        }
+    }
+
+    /// The one slot a `kind` may go in, when the player chose it: a second
+    /// sight's side.
+    fn chosen(&self, kind: Kind) -> Option<SlotId> {
+        match kind {
+            Kind::SecondSight => self.second_sight.map(|(_, side)| side.slot()),
+            Kind::Scope | Kind::Muzzle | Kind::Grip => None,
         }
     }
 }
@@ -141,6 +176,17 @@ pub struct Optic<'t> {
     pub frame: Placement,
 }
 
+/// The fitted second sight: drawn as a part ([`Bare::parts`]), its own eye
+/// the second one.
+#[derive(Clone, Copy)]
+pub struct SecondSight<'t> {
+    pub module: Module<'t>,
+    /// Its model's frame, as its part's.
+    pub at: Placement,
+    /// The eye through it.
+    pub eye: Eye,
+}
+
 /// A gun with something fitted: its bare body and every part on it.
 #[derive(Clone, Copy)]
 pub struct Bare<'t> {
@@ -148,6 +194,8 @@ pub struct Bare<'t> {
     pub optic: Option<Optic<'t>>,
     /// The eye, when a part moves it; None: the gun's own.
     pub eye: Option<Eye>,
+    /// The second sight and the second eye, when one is fitted.
+    pub second: Option<SecondSight<'t>>,
     /// The fire point, when a part moves it; None: the gun's own.
     pub fire_point: Option<Placement>,
     /// The left hand, on a grip; None: the gun's own.
@@ -158,7 +206,8 @@ pub struct Bare<'t> {
 
 impl<'t> Bare<'t> {
     /// The parts to draw on the bare body, the gun's own that stay, the
-    /// carriers, the muzzle device and the grip; not the scope.
+    /// carriers, the muzzle device, the grip and the second sight; not the
+    /// scope.
     pub fn parts(&self) -> impl Iterator<Item = &Part<'t>> + Clone {
         self.parts.iter().flatten()
     }
@@ -258,11 +307,12 @@ impl<'t> Build<'t> {
         if build.live().count() == gun.stock().count() { Ok(build) } else { Err(Refusal::Broken) }
     }
 
-    /// The slot `module` goes in on the gun as it is now, and whether
-    /// carriers bring it.
-    fn way(&self, module: Module<'t>) -> Option<(Attach<'t>, bool)> {
-        let stands = module.attaches().find(|attach| self.frame(attach.slot()).is_some());
-        let carried = || module.attaches().find(|attach| self.gun.carrier(attach.slot()).is_some());
+    /// The slot `module` goes in on the gun as it is now (`only` that one,
+    /// when the player chose it), and whether carriers bring it.
+    fn way(&self, module: Module<'t>, only: Option<SlotId>) -> Option<(Attach<'t>, bool)> {
+        let named = || module.attaches().filter(move |attach| only.is_none_or(|slot| attach.slot() == slot));
+        let stands = named().find(|attach| self.frame(attach.slot()).is_some());
+        let carried = || named().find(|attach| self.gun.carrier(attach.slot()).is_some());
         stands.map(|attach| (attach, false)).or_else(|| carried().map(|attach| (attach, true)))
     }
 
@@ -324,6 +374,17 @@ impl<'t> Build<'t> {
         self.live().filter_map(|(_, part)| Some((rank(part.role), of(part)?))).max_by_key(|(rank, _)| *rank).map(|(_, value)| value)
     }
 
+    /// The eye a part's attach gives, in the gun's terms.
+    fn eye(&self, at: Placement, eye: AttachEye) -> Result<Eye, Refusal> {
+        let eye = match eye {
+            AttachEye::Own(locator) => at.child(&locator),
+            AttachEye::InGunPlane(locator) => self.in_gun_plane(at.child(&locator))?,
+        };
+        let aim = self.gun.aim_bone();
+        let aim_pose = self.gun.pose(aim).ok_or(Refusal::Broken)?;
+        Eye::new(eye, &self.bone(&eye)?, (aim, &aim_pose)).ok_or(Refusal::Broken)
+    }
+
     fn bone(&self, at: &Placement) -> Result<Affine, Refusal> {
         self.gun.pose(at.bone).ok_or(Refusal::Broken)
     }
@@ -346,7 +407,8 @@ impl<'t> Build<'t> {
     }
 
     fn loadout(&self) -> Result<Bare<'t>, Refusal> {
-        let mut bare = Bare { parts: [None; MAX_PARTS], optic: None, eye: None, fire_point: None, left_hand: None, shot_effect: None };
+        let mut bare =
+            Bare { parts: [None; MAX_PARTS], optic: None, eye: None, second: None, fire_point: None, left_hand: None, shot_effect: None };
         let mut drawn = bare.parts.iter_mut();
         for (_, part) in self.live() {
             if part.role == Role::Fitted(Kind::Scope) {
@@ -358,15 +420,14 @@ impl<'t> Build<'t> {
                 let locators = part.module.hand().ok_or(Refusal::Broken)?;
                 bare.left_hand = Some(Hand::new(&part.at, &locators).ok_or(Refusal::Broken)?);
             }
+            if part.role == Role::Fitted(Kind::SecondSight) {
+                let eye = self.eye(part.at, part.attach.eye().ok_or(Refusal::Broken)?)?;
+                bare.second = Some(SecondSight { module: part.module, at: part.at, eye });
+            }
         }
-        if let Some((at, eye)) = self.last(|part| Some((part.at, part.attach.eye()?))) {
-            let eye = match eye {
-                AttachEye::Own(locator) => at.child(&locator),
-                AttachEye::InGunPlane(locator) => self.in_gun_plane(at.child(&locator))?,
-            };
-            let aim = self.gun.aim_bone();
-            let aim_pose = self.gun.pose(aim).ok_or(Refusal::Broken)?;
-            bare.eye = Some(Eye::new(eye, &self.bone(&eye)?, (aim, &aim_pose)).ok_or(Refusal::Broken)?);
+        let main = |part: &Placed<'t>| part.role != Role::Fitted(Kind::SecondSight);
+        if let Some((at, eye)) = self.last(|part| Some((part.at, part.attach.eye().filter(|_| main(part))?))) {
+            bare.eye = Some(self.eye(at, eye)?);
         }
         bare.fire_point = self.last(|part| Some(part.at.child(&part.attach.fire_point()?)));
         bare.shot_effect = self.last(|part| part.attach.shot_effect());
@@ -389,7 +450,7 @@ pub fn resolve<'t>(gun: Gun<'t>, wanted: Wanted) -> Result<Loadout<'t>, Refusal>
     for (kind, place) in Kind::ALL.into_iter().zip(&mut fitted) {
         let Some(dict) = wanted.of(kind) else { continue };
         let module = gun.fit(dict, kind).ok_or(Refusal::NoFit(kind))?;
-        let (attach, carried) = build.way(module).ok_or(Refusal::NoSlot(kind))?;
+        let (attach, carried) = build.way(module, wanted.chosen(kind)).ok_or(Refusal::NoSlot(kind))?;
         *place = Some((kind, module, attach, carried));
     }
     for (_, _, attach, carried) in fitted.into_iter().flatten() {

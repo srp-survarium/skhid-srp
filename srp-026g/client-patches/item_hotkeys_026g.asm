@@ -35,8 +35,10 @@
 ; name clears, 0x20801D). Kinds 5 as the quick-use keys' (the game world's 1,
 ; the player's input handler's 4), no toggle, no default key: a player binds
 ; them in Options, Controls (patch 62's `controls`, hide_ui_026g.asm).
+; Then patch 206's scope_next (5Ah, kinds 5, default Y): the second sight's
+; switch, bit 30 of the input (rust/patches/src/second_sights.rs).
 BITS 32
-global actions                     ; the action table, 76 rows (patch_026g.py's ITEM_HOTKEYS_TABLE_REFS)
+global actions                     ; the action table, 77 rows (patch_026g.py's ITEM_HOTKEYS_TABLE_REFS)
 extern hide_interface_action, screenshot_action, screenshot_no_ui_action, ptt_nearby_action   ; hide_ui_026g.asm
 
 ; A row: its name, id, kinds, toggle and default key's name (0: none).
@@ -124,6 +126,10 @@ actions:                           ; the game's 60 rows (0xA74AF0), in their ord
     ACTION use_oxygen_tank, 0x57, 5, 0, 0
     ACTION use_next_artefact, 0x58, 5, 0, 0
     ACTION use_next_medkit, 0x59, 5, 0, 0
+                                   ; patch 206's switch between a weapon's two sights (docs/notes/second-sights.md),
+                                   ; default Y: 0.69d0's T is chat here (3Fh, kinds 5), and a default would
+                                   ; unbind it (bind_key 0x207DC0); Y is no kinds-5 row's
+    ACTION scope_next, 0x5A, 5, 0, 0x9FDCC8   ; scope_next, kY
 
 ; Their names: what user.cfg's `bind <action> <key>` names.
 use_onyx:
@@ -158,3 +164,5 @@ use_next_artefact:
     db "use_next_artefact", 0
 use_next_medkit:
     db "use_next_medkit", 0
+scope_next:
+    db "scope_next", 0

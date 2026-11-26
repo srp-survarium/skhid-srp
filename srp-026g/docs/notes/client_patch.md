@@ -4792,3 +4792,90 @@ The full account, 0.69d0's and the content's seats: `reload-commit.md`.
   ECX the state): with +5F2h (chamber_a_round_on_reload) and +5F1h (chambered) set, +5E5h += 1 and
   +5F1h = 0 before the load (as 0x30FDD2..0x30FDD8). load_magazine is then the same twice as once.
 - **Nothing new in a world**: the subscription is the state's own, made again by its deserialize.
+### 3.111 A second sight's side from the lobby movie: `46 05` (written 2026-11-26, README patch 207) — PROVEN in the code and under Unicorn; not run in a game
+
+The Attachments window's Left/Right toggle of a weapon's second sight (UpgradeWindow.onSideButton,
+SightPlace) calls `ExternalInterface.call("srp_set_upgrade_value", host, upgrade, value)` (three
+AS3 uints; the value 0 left, 1 right). The exe makes it the lobby request the decal editor's accept
+sends, `46 05 <active kit> <host> <upgrade> <u64 value>` (lobby_requests.md, items.md §3); the
+server checks the side (session `items_rules::place_upgrade_with`) and sends the account after a
+weapon's `46 05`, or after a refusal, so the movie redraws from what the server holds.
+
+**Where a lobby movie call arrives** (PROVEN): GFx's ExternalInterface handler (0x2AF940) calls slot
+4 of its handler's vtable (0x2AF966) with (movie, method, arguments, count). The lobby menu's handler
+is its `survarium::flash_external_handler` base at +F0h (RTTI 0xA476C4, the hierarchy 0xA47700:
+`handler@input` at +ECh, `flash_external_handler` at +F0h, `flash_function_handler` at +F8h),
+vtable 0x9FFEDC, slot 4 = **lobby_menu::scaleform_callback 0x28C2C0** (thiscall, `ret 10h`): it
+builds the event {movie, name, arguments, count, 0} on its stack and calls
+**lobby_menu_logic::call 0x2812E0** (stdcall(logic, event), `ret 8`) with the logic at
+ECX+5B8h (the menu+6A8h). call compares the name with its 70h names (0x9C56C8) and calls the
+delegate of that index (logic+1C00h+20h×index, 0x2813AB; registered by name at 0x281750..: e.g.
+`mov eax,29A830h` start_decal_edit's handler at 0x2817CC, stored by 0x283610 with the menu,
+logic+2A24h, as its `this`); a name it lacks is logged when the engine's log asks (0x281351) and
+answers al 0. The game's own named events (show_match_statistic, 0x271960) enter call directly,
+not through scaleform_callback. The 0xF8h base's slot (0x28C280) is the function-name handler, a
+second way in, which the patch does not need.
+
+**The site** `lobby.callback` (0x28C2C0, a lohook of 7 bytes: `sub esp,14h / mov eax,[esp+18h]`,
+branch-free; nothing aims inside): ECX the handler, the site's ESP+8 the name, +0Ch the arguments,
++10h the count (`survarium::lobby_callback_frame`). Its exit `done` is the function's own `ret 10h`
+at 0x28C2FD (after its `add esp,14h`, so with the stack as at the entry), as hud.callback's and
+options.callback's. Patch 207 takes `srp_set_upgrade_value` there (EAX 1, the menu's handlers' al
+1; GFx's caller drops it) and leaves every other call to the game, unchanged.
+
+**The engine call: send_apply_decal 0x270950, not accept_decal_edit 0x263950** (both read in full):
+
+- accept_decal_edit (`void(ESI the lobby character, host, decal)`, `ret 8`) does nothing outside a
+  decal edit (`cmp byte [esi+0D514h],0 / je 0x263A68`). In one it ends it: the edit flag off
+  (0x263971), the preview's scene decal 999 taken away (0x263994 → 0x231B0), 0x225130(al 1) on the
+  menu, and it reads the value from the edit's own state (+D548h/+D54Ch) and the record's index
+  from +D52Dh (0x263A1A), then the markers (0x265F80). To use it the patch would have to open an
+  edit's state on the menu's character (the flag, +D52Dh, +D548h) and leave it closed again with
+  the movie's decal editor never told: its state is the decal editor's, not a side's.
+- send_apply_decal (`void(lobby client, kit, host, cosmetic, low, high)`, stdcall, `ret 18h`) is
+  the request and the client's write alone: `46` begun on the lobby link (0x37A0E0, which sends
+  nothing without a link, 0x37A12A), `05`, the four values (0x270984..0x270A10), sent (0x379640);
+  then the host found in the inventory (lc+1EA978h..+1EA97Ch, find_item_by_id 0x277AA0), its first
+  record whose item id is the cosmetic's given the u64 (0x270A70..0x270AC6; nothing without one),
+  and copy_account_items (0x270320: the account's items +1E78ACh made their inventory records
+  again). accept_decal_edit calls it with the network client's lobby client (the client's vtable
+  +3Ch, 0x219960: +1E0h) and its active kit (lc+1EA964h) (0x263A28..0x263A5C). It is the engine
+  call: `engine_send_apply_decal` (engine_026g.tsv).
+
+**The client's own copy.** send_apply_decal writes the bare value into the record whose item id is
+the upgrade's. A weapon's records are srp's weapon kit (`weapon-kit`, weapon-kit.md): its second
+sight is either the kit record's own (no scope, camouflage, muzzle or grip: the record of its item
+id holds the wide kit value, bit 55 the side) or a dict id the kit of another item names (no record
+of its id). In the first case the game's write puts 0 or 1 over the kit (the record becomes a plain
+scope-slot record of the optic, the kit lost until the account comes); in the second it writes
+nothing. So after the send the patch gives the host the records the server will hold — the host's
+records unpacked (`Logical::unpack`), the second sight's side set, packed again
+(`Logical::pack`) — only when they are the host's own with other values (the same count, each the
+same item, dict id and slot), and runs copy_account_items again (`engine_copy_account_items`, ESI
+the lobby client), as the send did after its own write. A host gone after the send (none in the
+game: the send changes no vector) or other records: a line, the account sets it.
+
+**The boundary** (upgrade_value.rs, parsed once): the method's three arguments are whole numbers
+(a GFx uint, an int not below 0, or a Number; the native handlers read the +8 of theirs,
+0x29A837); the value is a `weapon_kit::Side` (0 or 1): any other value sends nothing and writes
+one line to the patches' log, once a run (`srp: upgrade_value: srp_set_upgrade_value(host,
+upgrade, value): the value is no side ...`). The host and the upgrade are items of the account's
+inventory, the host's records a weapon kit (only a weapon's are: srp's servers pack a kit for
+`is_weapon` items alone) whose second sight is the upgrade (its own item id, or the dict id the kit
+names being the upgrade item's): else nothing is sent (a refusal's line, at most one a second).
+The same side again is sent (the server answers the account, the movie redraws).
+
+**Checked:** `check_upgrade_value_026g.py` (`tools/check upgrade-value`, Unicorn): the callback
+from its start to its return in both exes, the lobby menu's handler, logic, game, network client,
+lobby client and inventory made up; the dispatch, the message's begin and send and kernel32's log
+calls stubbed; send_apply_decal, its buffer growth, find_item_by_id and copy_account_items the
+game's own. A weapon whose kit is its second sight's and one whose scope's kit names it (beside a
+decal), each to either side, with uint, int and Number arguments: the request's bytes
+`46 05 <kit> <host> <upgrade> <u64>` sent once, send_apply_decal reached with (the lobby client,
+the kit, the host, the upgrade, the value, 0), the host's kit with the new side and its other
+records as they were, copy_account_items twice; a value 2, 0xFFFFFFFF, 0.5 or -1, another item's
+sight, a missing host or upgrade, an armour, a string or a missing argument: nothing sent, the log
+line once in the run; each returns by `ret 10h` with EBX, ESI, EDI, EBP as at the entry and no
+native dispatch, which the original makes each time; start_decal_edit goes to the native dispatch
+with the same `this` and event in both. With the repair of the client's copy taken out, seven
+cases fail. The patch's logic and the vostok wrapper have cargo tests. **Not run in a game.**

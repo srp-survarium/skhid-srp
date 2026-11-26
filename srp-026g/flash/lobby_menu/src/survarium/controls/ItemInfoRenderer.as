@@ -26,6 +26,7 @@ package survarium.controls
    import survarium.item.ModificationRolls;
    import survarium.data.LocalizationData;
    import survarium.upgrade.UpgradeWindow;
+   import survarium.upgrade.SightPlace;
    import survarium.constants.CosmeticSlot;
    import survarium.constants.ItemCategory;
    import survarium.constants.ItemPlace;
@@ -325,6 +326,12 @@ package survarium.controls
             else if(Boolean(UpgradeWindow.stockScopes[item.dictId]))
             {
                lines.push(LocalizationData.getName("scope_slot") + ": " + LocalizationData.getName("default_scope"));
+            }
+            // the second sight with its side: "Second sight: <optic> (Left)"
+            module = UpgradeWindow.attachedIn(item,CosmeticSlot.SECOND_SIGHT);
+            if(Boolean(module))
+            {
+               lines.push(LocalizationData.getName("st_srp_second_sight") + ": " + module.name + " (" + LocalizationData.getName(SightPlace.labelKey(UpgradeWindow.secondSightSide(item))) + ")");
             }
             module = UpgradeWindow.attachedIn(item,CosmeticSlot.MUZZLE);
             if(Boolean(module))

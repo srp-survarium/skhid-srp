@@ -3379,10 +3379,17 @@ st_srp_rooms_voting	Kartenwahl
 st_srp_rooms_waiting	Warten auf Spieler
 st_srp_rooms_waiting_owner	Warten, bis der Ersteller startet.
 st_srp_rooms_waiting_short	Warten
+st_srp_scope_next_action	Visier wechseln
 st_srp_scope_screen_hint	Ziehen Sie ein Zielfernrohr, einen Mündungsaufsatz oder einen Griff aus Ihrem Inventar in seine Zelle
 st_srp_scope_slot	Optik
+st_srp_second_sight	Zweitvisier
+st_srp_second_sight_description	Setzt eine zweite Optik an die Seite der Waffe.
+st_srp_second_sight_hint	Eine Optik auf der versetzten Schiene an der Seite der Waffe. Drücken Sie beim Zielen Y, um zu ihr zu wechseln.
+st_srp_second_sight_name	Zweitvisier
 st_srp_shop_not_owned	Besitz ausblenden
 st_srp_shop_not_owned_hint	Nur Gegenstände zeigen, die du nicht besitzt
+st_srp_side_left	Links
+st_srp_side_right	Rechts
 st_srp_skills	Fähigkeiten
 st_srp_speed_label	Tempo
 st_srp_speed_title	Bewegungstempo: %1$s

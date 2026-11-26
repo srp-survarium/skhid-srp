@@ -69,6 +69,8 @@ pub mod language;
 pub mod lobby;
 pub mod lobby_camera;
 pub mod lobby_menu;
+mod lobby_call;
+pub use lobby_call::{LobbyCall, LobbyInventory, LobbyItem, NotGiven};
 pub mod login;
 pub mod openssl;
 pub mod mouse;
@@ -190,6 +192,8 @@ mod artefact;
 pub use artefact::{ArtefactPickup, Slots};
 pub mod statistics;
 pub mod weapon_stats;
+pub mod second_sight;
+pub mod sight_view;
 pub use statistics::{Band, Batteries, Battery, BatteryCarry, Cell, Delivery, Held, Life, Progress, Saving, ScoreEvent, Team, BATTERIES};
 
 pub mod medical;

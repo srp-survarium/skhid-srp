@@ -1071,6 +1071,7 @@ va	status	ref_021d	name
 0x002ca910	reviewed	0x001c6f53	survarium::items_dictionary::can_move_item_to_slot
 0x002cea30	reviewed	0x001d0b6f	survarium::animation_analysis_result_cook::translate_query
 0x002d09c0	reviewed	0x001ca899	survarium::game_world_core::new_game_state_history_item
+0x002d0b30	reviewed	0x001cab13	survarium::game_world_core::event_horizon_history_item
 0x002d0b70	reviewed	0x001cab3b	survarium::game_world_core::deserialize
 0x002d1100	reviewed	0x001cae58	survarium::game_world_core::insert_impl
 0x002d1470	reviewed	0x001cb9bd	survarium::game_world_core::enter_match
@@ -2532,3 +2533,12 @@ va	status	ref_021d	name
 0x001f36d0	observed	0x001575e1	survarium::player::apply_new_input
 0x002d8ee0	observed	0x001d48b8	survarium::base_player::tick_animations
 0x001f3070	observed	0x001570a0	survarium::player::render_model
+0x00263950	reviewed		survarium::lobby_character::accept_decal_edit
+0x00270320	reviewed		survarium::lobby_client::copy_account_items
+0x00270950	reviewed		survarium::lobby_client::send_apply_decal
+0x002812e0	reviewed		survarium::lobby_menu_logic::call
+0x0028c2c0	reviewed		survarium::lobby_menu::scaleform_callback
+0x00331330	observed		survarium::dispersion_calculator::tick
+0x00331480	observed		survarium::character_dispersion_calculator::get_skill_influence
+0x00331560	observed		survarium::character_dispersion_calculator::get_target_koef
+0x002d8bb0	observed		survarium::base_player::process_quick_slots

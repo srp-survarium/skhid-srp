@@ -84,7 +84,7 @@ pub fn on_view_frame(ctx: &mut Context<'_>) -> Flow<NoExit> {
 
 /// `weapon_view.camera`: a gun in first-person hands.
 pub fn on_view_camera(ctx: &mut Context<'_>) -> Flow<NoExit> {
-    let sample = engine::gun_camera(ctx).and_then(|(view, gun)| Some((view, lens(gun)?)));
+    let sample = engine::gun_camera(ctx).and_then(|(view, gun)| Some((view, lens(super::sights::lowered(ctx, gun))?)));
     CAMERA.with(ctx.thread(), |camera| *camera = sample);
     Flow::Continue
 }
