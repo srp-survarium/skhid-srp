@@ -894,7 +894,8 @@ impl Tdm {
     }
 }
 
-/// A research unit as Research's rule writes it (exe patch 53, `rr_write`):
+/// A research unit as Research's rule writes it (exe patch 53,
+/// `research_rule::write`):
 /// 96 bytes.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct ResearchUnit {
@@ -946,7 +947,7 @@ impl ResearchUnit {
             inside,
             marks,
         };
-        // What `rr_read` refuses.
+        // What `research_rule::read` refuses.
         let sound = progress <= Research::FULL
             && taking <= rules::DRAW
             && owner <= rules::DRAW
@@ -1500,9 +1501,14 @@ impl Rules {
             Some((at, rule)) => (Some(at), Some(rule)),
             None => (None, None),
         };
-        let freeze_tag = (game_mode == RuleMode::FreezeTag)
-            .then(|| middle.len().checked_sub(FreezeTag::LEN)).flatten()
-            .and_then(|at| FreezeTag::read(&middle[at..]));
+        // Version 3's rule or version 4's (FreezeTag::read_back).
+        let (freeze_tag_at, freeze_tag) = match (game_mode == RuleMode::FreezeTag)
+            .then(|| FreezeTag::read_back(middle))
+            .flatten()
+        {
+            Some((at, rule)) => (Some(at), Some(rule)),
+            None => (None, None),
+        };
         let free_for_all = (game_mode == RuleMode::FreeForAll)
             .then(|| middle.len().checked_sub(SpawnHistory::LEN))
             .flatten()
@@ -1521,7 +1527,7 @@ impl Rules {
             // Where a mode rule of a size known from the end starts.
             let fixed_at = match game_mode {
                 RuleMode::TeamDeathmatch => Some(middle.len().checked_sub(Tdm::LEN)),
-                RuleMode::FreezeTag => Some(middle.len().checked_sub(FreezeTag::LEN)),
+                RuleMode::FreezeTag => Some(freeze_tag_at),
                 RuleMode::Research => Some(research_at),
                 // No mode rule: the respawn rule ends where the spawn
                 // history begins.
@@ -1682,7 +1688,7 @@ impl Decoded<'_> {
                 });
             }
             // Without the rule: the tail's leader, which patch 53's publish()
-            // writes from rr_leader every tick (the millionths at the goal),
+            // writes from research_rule::leader every tick (the millionths at the goal),
             // when it is one (3 until a rule's first event); else the points.
             let tail = tail?;
             let winner = if tail.winner_team <= rules::DRAW {
@@ -2445,7 +2451,7 @@ mod tests {
 
     #[test]
     fn a_research_match_without_its_rule_takes_the_tails_leader() {
-        // Both show 100 at the goal; the tail's leader (rr_leader, by the
+        // Both show 100 at the goal; the tail's leader (research_rule::leader, by the
         // millionths) is team 1.
         let mut statistics = player_bytes();
         statistics.extend(EMPTY_PLAYER);

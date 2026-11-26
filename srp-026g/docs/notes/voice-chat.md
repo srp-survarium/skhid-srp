@@ -231,8 +231,8 @@ distance's: "Two keys", below. The rest of this section is as it was designed an
     transport.md section 4). A new id means patching those tables and the dispatcher.
   - It would also share the 8-bit sequence window and the 128-unacked limit with the
     simulation's inputs.
-  - So voice goes on its own socket: the client's DLL to a new srp port, `SRP_VOICE_PORT`
-    (default: the match port + 1).
+  - So voice goes on its own socket: the client's DLL to a new srp port, always the match
+    port + 1 (no setting of its own; `SRP_VOICE=off` turns the relay off).
   - 0.69 kept voice apart too (`voice_chat_client`).
 - **Who a datagram is from.** The `u32 session` of the client's 0xD8 connect (match.md),
   checked two ways: the session holds a seat in a running match, and the datagram's IP is of

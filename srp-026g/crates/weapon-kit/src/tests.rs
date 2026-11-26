@@ -1,4 +1,5 @@
 use super::*;
+use std::vec;
 use std::vec::Vec;
 
 const MAGIC: u64 = (KIT_MAGIC as u64) << 56;
@@ -27,14 +28,19 @@ fn record(id: u32, dict: u32, value: u64, slot: u8) -> Record {
     }
 }
 
-/// Every combination of the six slots (a bit a slot).
+/// Every combination of the seven slots (a bit a slot), the second sight on
+/// either side.
 fn combinations() -> impl Iterator<Item = Logical> {
-    (0u32..64).map(|bits| {
+    (0u32..256).map(|bits| {
         let mut logical = Logical::new();
         for slot in Slot::ALL {
             if bits >> slot.byte() & 1 == 1 {
                 logical.set(slot, Some(item(slot)));
             }
+        }
+        if bits >> 7 & 1 == 1 {
+            let Some(Held::Item { id, dict, .. }) = logical.get(Slot::SecondSight) else { return logical };
+            logical.put_second_sight(id, dict, Side::Right);
         }
         logical
     })
@@ -54,10 +60,13 @@ fn as_received(logical: &Logical) -> Logical {
             Some(match (kit, own) {
                 (None, _) => held,
                 (Some(kit), Some(own)) if kit == own => match held {
-                    Held::Item { id, dict, .. } => Held::Item { id, dict, value: 0 },
-                    Held::Named(_) => unreachable!(),
+                    // its record's value is the kit's; a second sight keeps its side
+                    Held::Item { id, dict, value } => {
+                        Held::Item { id, dict, value: if slot == Slot::SecondSight { value } else { 0 } }
+                    }
+                    Held::Named(..) => unreachable!(),
                 },
-                _ => Held::Named(DictId::new(held.dict() as u16).unwrap()),
+                _ => Held::Named(DictId::new(held.dict() as u16).unwrap(), held.value()),
             }),
         );
     }
@@ -98,7 +107,7 @@ fn every_combination_goes_in_three_records_and_comes_back() {
 #[test]
 fn the_kit_is_the_scope_naming_the_others() {
     let mut logical = Logical::new();
-    for slot in Slot::ALL {
+    for slot in Slot::ALL.into_iter().filter(|slot| *slot != Slot::SecondSight) {
         logical.set(slot, Some(item(slot)));
     }
     assert_eq!(
@@ -122,6 +131,58 @@ fn the_kit_is_the_scope_naming_the_others() {
         camo.pack().as_slice(),
         [record(1602, 602, MAGIC | 2 << 48, 3)]
     );
+}
+
+const WIDE: u64 = (KIT_MAGIC_WIDE as u64) << 56;
+
+/// With a second sight the kit is wide: four dict ids of 12 bits, the side
+/// in bit 55; it is the own when nothing else is held.
+#[test]
+fn a_second_sight_makes_the_kit_wide() {
+    let mut logical = Logical::new();
+    for slot in Slot::ALL.into_iter().skip(2) {
+        logical.set(slot, Some(item(slot)));
+    }
+    let kit = |value: u64| record(1603, 603, value, 3);
+    assert_eq!(logical.pack().as_slice(), [kit(WIDE | 3 << 48 | 606 << 36 | 605 << 24 | 604 << 12 | 602)]);
+    logical.put_second_sight(1606, 606, Side::Right);
+    let right = kit(WIDE | 1 << 55 | 3 << 48 | 606 << 36 | 605 << 24 | 604 << 12 | 602);
+    assert_eq!(logical.pack().as_slice(), [right]);
+    let back = Logical::unpack(&[right]).unwrap();
+    assert_eq!(back.get(Slot::SecondSight), Some(Held::Named(DictId::new(606).unwrap(), Side::Right.value())));
+    // the second sight alone is the kit's own, its value its side
+    let mut alone = Logical::new();
+    alone.put_second_sight(1606, 606, Side::Right);
+    let own = record(1606, 606, WIDE | 1 << 55 | 6 << 48, 3);
+    assert_eq!(alone.pack().as_slice(), [own]);
+    assert_eq!(Logical::unpack(&[own]).unwrap(), alone);
+    // the cook gets the second sight item's record naming the optic and its
+    // side in the second sight's place, the own or named
+    let hidden = u32::from(SECOND_SIGHT_ITEM);
+    let expanded = expand(&[own], |_| true).unwrap().unwrap();
+    assert_eq!(expanded.as_slice(), [record(0, hidden, 1 << 32 | 606, 6)]);
+    let expanded = expand(&[right], |_| true).unwrap().unwrap();
+    assert_eq!(expanded.as_slice().first(), Some(&record(1603, 603, 0, 3)));
+    assert_eq!(expanded.as_slice().last(), Some(&record(0, hidden, 1 << 32 | 606, 6)));
+    // game data without that item: no second sight, the rest as before
+    let expanded = expand(&[right], |dict| dict != SECOND_SIGHT_ITEM).unwrap().unwrap();
+    assert!(expanded.as_slice().iter().all(|r| r.slot != 6) && expanded.as_slice().len() == 4);
+    // refused: a narrow kit of its own slot 6, a wide one without a second
+    // sight, bits 52..54 set, a second sight's record of another value
+    for (records, why) in [
+        (vec![record(1606, 606, MAGIC | 6 << 48, 3)], Malformed::OwnSlot(6)),
+        (vec![kit(WIDE | 3 << 48 | 602)], Malformed::OwnSlot(3)),
+        (vec![kit(WIDE | 0x13 << 48 | 606 << 36)], Malformed::OwnSlot(0x13)),
+        (vec![record(1606, 606, 2, 6)], Malformed::NoSide(2)),
+    ] {
+        assert_eq!(Logical::unpack(&records), Err(why), "{records:?}");
+    }
+    // a dict id the wide layout cannot hold: the second sight is not sent
+    let mut big = Logical::new();
+    big.set(Slot::Scope, Some(item(Slot::Scope)));
+    big.set(Slot::Grip, Some(Held::Item { id: 1605, dict: 4096, value: 0 }));
+    big.put_second_sight(1606, 606, Side::Left);
+    assert_eq!(big.pack().as_slice(), [record(1603, 603, MAGIC | 3 << 48 | 4096 << 32, 3)]);
 }
 
 #[test]
@@ -242,7 +303,9 @@ fn the_cook_gets_the_records_and_what_the_kit_names() {
                     .all(|kit| logical.get(kit.slot()).is_none())
             ),
             Some(expanded) => {
-                let mut dicts: Vec<u32> = expanded.as_slice().iter().map(|r| r.dict).collect();
+                // a second sight is the second sight item's record, naming the optic
+                let named = |r: &Record| if r.dict == u32::from(SECOND_SIGHT_ITEM) { r.value as u32 } else { r.dict };
+                let mut dicts: Vec<u32> = expanded.as_slice().iter().map(named).collect();
                 let mut held: Vec<u32> = logical.iter().map(|(_, held)| held.dict()).collect();
                 dicts.sort();
                 held.sort();

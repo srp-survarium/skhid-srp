@@ -18,7 +18,7 @@ let rank = gd.craft.rank(107, 1);                    // client rank of a Mosin w
 | `craft` | per item mask / costs / base rank, modifier groups; `rank`, `craft_price`, `reroll_price`, `candidates`, `choices` (random through the `Roll` trait), exchange (46 03, 250 silver per gold) |
 | `modules` | weapon slot ids (B3), compatible ammo, module links, seed (first 9 links), possible owners, slot check |
 | `pockets` | groups and cell limits, `pocket_group` of an item, capacity from armour defaults (groups 173/174), `pocket_fits` |
-| `levels` | XP table, `level_of`, `level_fields` (14 bytes of 87/8C), faction level from points, match rewards |
+| `levels` | XP table, `level_of`, `level_fields` (14 bytes of 87/8C), faction level from points, level-up rewards |
 | `skills` | the skill tree (69 skills: levels, branch points), `apply` (learn rules), reset points and price, modifiers via `matches.skill_modifiers` |
 | `matches` | maps/modes rows and `resolve_map`, 36 AI players, `pick_bots`, `kit`, `skill_modifiers`, bot names/teams |
 
@@ -46,4 +46,4 @@ those tests skip without them.
   values (tested for every dict id).
 - Craft: item-aware pool and rank costs (docs/notes/workshop.md). Three offered rows: server rule unknown (LIKELY).
 - Pocket capacity (groups 173/174) and `pocket_fits` are LIKELY (client popup rules), limits per group PROVEN.
-- Match rewards follow the data's formula (docs/notes/progression.md); per-player match stats are not here.
+- Match rewards follow the data's formula (docs/notes/progression-audit.md section 4); per-player match stats are not here.

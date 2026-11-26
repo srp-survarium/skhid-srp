@@ -35,6 +35,8 @@ engine_unpack_decal_value	0x263d00	ESP+4:out ESP+8:low ESP+12:high	void *engine_
 engine_decal_value	0x264a10	ESI:lobby_character	unsigned long long engine_decal_value(void *character)	thunk	
 engine_mouse_ray	0x26d130	ESI:menu EDI:direction ESP+4:eye	void engine_mouse_ray(void *menu, float *direction, float *eye)	thunk	
 engine_accept_decal_edit	0x263950	ESI:lobby_character ESP+4:host ESP+8:decal	void engine_accept_decal_edit(void *character, unsigned int host, unsigned int decal)	thunk	
+engine_send_apply_decal	0x270950	ESP+4:lobby_client ESP+8:kit ESP+12:host ESP+16:cosmetic ESP+20:low ESP+24:high	void engine_send_apply_decal(struct lobby_client *client, unsigned int kit, unsigned int host, unsigned int cosmetic, unsigned int low, unsigned int high)	thunk	
+engine_copy_account_items	0x270320	ESI:lobby_client	void engine_copy_account_items(struct lobby_client *client)	thunk	
 engine_cc_bool	0x01ddb0	EAX:object ESP+4:name ESP+8:value ESP+12:saved ESP+16:kind	void engine_cc_bool(struct cc_bool *object, const char *name, unsigned char *value, unsigned int saved, unsigned int kind)	thunk	
 engine_binded_action	0x207d50	EAX:binder EDI:kinds ESI:key ESP+4:toggle	unsigned int engine_binded_action(const struct key_binder *binder, unsigned int kinds, unsigned int key, unsigned int *toggle)	thunk	
 engine_action_present	0x242460	ESP+4:receiver ESP+8:identifier ESP+12:state	unsigned char engine_action_present(struct player_input_handler *handler, unsigned int action, unsigned int *state)	stdcall	handler: InputHandler, action: Action, state: Out<u32> -> bool
@@ -356,3 +358,9 @@ engine_hunt_rule_base	0x313900	EAX:this ESP+4:game_match_rule_type	struct hunt_r
 engine_player_remove	0x1f2870	ECX:player ESP+4:flag	void engine_player_remove(struct player *player, unsigned int flag)	thiscall	
 engine_spawn_player	0x316da0	ECX:rule ESP+4:place ESP+8:point ESP+12:time	void engine_spawn_player(struct player_respawn_rule_base *rule, unsigned int place, const unsigned int *point, unsigned int time)	thiscall	
 engine_set_hud_icon_type	0x23bea0	ESP+4:ui ESP+8:id ESP+12:type	void engine_set_hud_icon_type(struct game_world_ui *ui, unsigned int id, unsigned int type)	thunk	
+engine_reload_event	0x30db60	ECX:state ESP+4:parameters	unsigned int engine_reload_event(struct animation_end_aware_state *state, struct animation_callback_params *params)	thiscall	state: ReloadEventState, params: AnimationEvent -> u32
+engine_reload_commit	0x310e40	ECX:state ESP+4:unused ESP+8:done	void engine_reload_commit(struct animation_end_aware_state *state, unsigned char *unused, unsigned char *done)	thiscall	
+engine_subscribe_event_channel	0x391c40	ESI:channels ESP+4:name ESP+8:functor ESP+12:subscriber ESP+16:resource ESP+20:flag	void engine_subscribe_event_channel(struct event_channels *channels, const char *name, const struct event_functor *functor, const void *subscriber, const unsigned int *resource, unsigned int flag)	thunk	
+engine_unsubscribe_event_channel	0x3921a0	EAX:name ESP+4:channels ESP+8:subscriber	void engine_unsubscribe_event_channel(const char *name, struct event_channels *channels, const void *subscriber)	thunk	
+engine_hud_texts	0x2346e0	ESP+4:hud	void engine_hud_texts(struct game_world_ui *ui)	stdcall	
+engine_lobby_texts	0x286260	ESP+4:lobby	void engine_lobby_texts(struct lobby_menu *menu)	stdcall	

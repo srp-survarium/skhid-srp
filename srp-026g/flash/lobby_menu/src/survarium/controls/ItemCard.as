@@ -215,7 +215,7 @@ package survarium.controls
          _data = itemData;
          if(this._data != null)
          {
-            trace("IC:updateItemData",itemData.name,itemData.broken);
+            trace("IC:updateItemData",itemData.name);
             alpha = 1;
             this.updateData();
          }

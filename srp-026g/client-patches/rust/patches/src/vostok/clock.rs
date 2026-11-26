@@ -26,6 +26,37 @@ pub fn milliseconds(thread: &Thread) -> u32 {
     (u128::from(counter(thread)) * 1000 / u128::from(frequency)) as u32
 }
 
+/// A frame clock: the real time from one frame's tick to the next.
+#[derive(Clone, Copy)]
+pub struct FrameClock(Ticking);
+#[derive(Clone, Copy)]
+enum Ticking {
+    Unstarted,
+    Running { ticks: u32, frequency: u32 },
+}
+
+impl FrameClock {
+    pub const UNSTARTED: FrameClock = FrameClock(Ticking::Unstarted);
+
+    /// The real time since the last tick, s (1/60 the first time).
+    pub fn tick(&mut self, thread: &Thread) -> f32 {
+        let ticks = counter(thread) as u32;
+        match self.0 {
+            Ticking::Running { ticks: last, frequency } => {
+                self.0 = Ticking::Running { ticks, frequency };
+                ticks.wrapping_sub(last) as f32 / frequency as f32
+            }
+            Ticking::Unstarted => {
+                let frequency = frequency(thread);
+                if frequency > 0 && frequency <= u64::from(u32::MAX) {
+                    self.0 = Ticking::Running { ticks, frequency: frequency as u32 };
+                }
+                1.0 / 60.0
+            }
+        }
+    }
+}
+
 /// A moment of the wall clock: kernel32's FILETIME, 100 ns since 1601 UTC.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct FileTime(u64);

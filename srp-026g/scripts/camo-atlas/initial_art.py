@@ -1,10 +1,13 @@
 #!/usr/bin/env python3
-"""Draw the 14 tiles of initial/ (768 x 768 WebP) from seeded noise and the palettes below.
+"""Draw 9 of the 11 tiles of initial/ (768 x 768 WebP) from seeded noise and the palettes below.
 
 python3 initial_art.py [--out DIR]   (default: initial/ beside this script)
 Pillow and NumPy. No input files: every shape comes from the seeds in this file. Written
 2026-11-25 for the camouflage gallery and kept here so the tiles can be regenerated; with
-NumPy 2.4.4 and Pillow 12.2.0 (as made) or 13.0.0 it reproduces initial/*.webp byte for byte.
+NumPy 2.4.4 and Pillow 12.2.0 (as made) or 13.0.0 it reproduces them byte for byte. The other two,
+mm-14.webp and mm-25.webp, are cut by classics_art.py from pictures of the real patterns; they
+replaced this script's studies of them (Pixel Steppe and Field Mosaic) on 2026-11-26. A row left
+None is a dropped tile: its place keeps every other tile's grain seed (its index).
 """
 import argparse
 import numpy as np
@@ -74,19 +77,6 @@ def dazzle():
 def urban():
     u=X+.06*field(170,3); v=Y+.05*field(199,3)
     return np.select([organic(182,u,v)>0.46,organic(72,u,v)>0.22,organic(294,u,v)>-.07],[3,2,1],0)
-def reed():
-    a=np.where(organic(916,wx=5,wy=3)<-.4,1,0)
-    a=np.where(organic(17,wx=4,wy=5)>.84,2,a)
-    # Dense little staggered, vertical reed marks group into uneven columns.
-    im,draw=poly_img(a); r=Random(20)
-    for col in range(102):
-        x=W*col/102
-        for row in range(28):
-            if r.random()<.25:continue
-            y=W*row/28+r.uniform(-7,7); h=r.uniform(8,24)
-            x0=x+r.uniform(-2.2,2.2); w=r.uniform(.9,2.3)
-            periodic_poly(draw,[(x0,y),(x0+w,y+1),(x0+w+.7,y+h),(x0+.8,y+h-2)],3)
-    return np.array(im)
 def dunes():
     a=np.select([organic(21,wx=3,wy=5)>.42,organic(5,wx=6,wy=4)>.13],[2,1],0)
     im,draw=poly_img(a)
@@ -100,10 +90,6 @@ def dunes():
             periodic_poly(draw,path,3)
             periodic_poly(draw,[(x+(ix-x)*.66+1.2,y+(iy-y)*.64-2) for ix,iy in path],4)
     return np.array(im)
-def night():
-    core=np.where(organic(750,wx=7,wy=6)>.3,1,0)
-    ridges=(np.mod(32*X,.99999999)<.09)|(np.mod(32*Y,.99999999)<.09)
-    return np.where(ridges,2,core)
 def birch():
     # Minute stepped edges around larger pale leaf islands, with shadow around some cells.
     u=np.floor(X*128)/128; v=np.floor(Y*128)/128
@@ -136,23 +122,14 @@ rows=[
 ("quarry","C2BC9A A29B73 78816C 4D5045",lambda:angular(881,5)),
 ("black-ice","232C30 3C5355 ADABA0 526D6A",dazzle),
 ("bruise","68565F 80767A 634858 392F39",urban),
-("reed-rain","93966C 85885E 9F9F74 565741",reed),
+None,  # Reed Rain, dropped 2026-11-26
 ("dune-chip","CDB58A AA916C AC7657 4F443D E5D9BE",dunes),
-("night-grid","697455 556548 404B3B",night),
+None,  # Night Grid, dropped 2026-11-26
 ("birch-leaf","45594B 52654D 91A184 B9C3A0",birch),
 ("ember-leaf","8E6040 BD8C50 AD6342 593F3D",ember),
 ("tidal-pixel","577B78 789B93 506672 35495A",tidal),
-("violet-splinter","7F7284 ADA1A6 695F76 4B4059",lambda:angular(873,5))]
-def steppe():
-    u=np.floor(X*82)/82; v=np.floor(Y*82)/82
-    a=organic(579,u,v,5,5)+.32*field(101,19,21,u,v)
-    b=organic(433,u,v,6,6)+.19*field(43,23,20,u,v)
-    return np.select([a>.95,b>.62,((a>.08)&(b<.15)),((b>-.13)&(a<.3))],[4,3,2,1],0)
-def mosaic():
-    u=X+.07*field(810,4,3); v=Y+.05*field(523,4,4)
-    a=organic(251,u,v,5,9); b=organic(216,u,v,6,8); c=organic(211,u,v,8,10); d=organic(226,u,v,8,11)
-    return np.select([a>.89,b>.53,c>.39,d>.26],[4,3,2,1],0)
-rows.extend([("pixel-steppe","B7A98B A39D7D 85896B 706F56 625D50",steppe),("field-mosaic","9A9473 B0A388 837F5B 6D6E4F 635948",mosaic)])
+None]  # Violet Splinter, dropped 2026-11-26
+# Rows 12 and 13, the last, were the MM-14 and MM-25 studies.
 
 
 def main():
@@ -160,7 +137,10 @@ def main():
     parser.add_argument('--out',type=Path,default=Path(__file__).resolve().parent/'initial')
     out=parser.parse_args().out
     out.mkdir(parents=True,exist_ok=True)
-    for i,(name,palette,fn) in enumerate(rows):
+    for i,row in enumerate(rows):
+        if row is None:
+            continue
+        name,palette,fn=row
         p=np.array([[int(c[k:k+2],16) for k in (0,2,4)] for c in palette.split()],dtype='float32')
         color=p[fn()]
         # Subtle print mottling, periodic over each tile. No pre-lit bevels or shadows.

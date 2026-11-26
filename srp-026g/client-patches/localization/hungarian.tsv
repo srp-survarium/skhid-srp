@@ -501,52 +501,50 @@ st_buy_premium_with_discount	Vedd meg most kedvezménnyel!
 st_buy_profile_confirmation_text	Új karakter létrehozása? 
 st_buy_profile_price_text	A profil ára: 
 st_buy_treasure_maps	Térkép vásárlása
+st_camo_atlas_all_terrain	Minden terep
 st_camo_atlas_amber_circuit	Borostyán áramkör
 st_camo_atlas_amethyst_wash	Ametiszt lavírozás
+st_camo_atlas_arid_lizard	Sivatagi gyík
 st_camo_atlas_ash_rain	Hamueső
 st_camo_atlas_aubergine_broadbrush	Padlizsánlila ecsetvonás
 st_camo_atlas_aubergine_crackle	Padlizsánlila krakelé
-st_camo_atlas_aubergine_crosscheck	Padlizsánlila keresztkocka
-st_camo_atlas_aubergine_kasuri	Padlizsánlila kasuri
-st_camo_atlas_aubergine_screenprint	Padlizsánlila szitanyomat
 st_camo_atlas_aubergine_watercolor	Padlizsánlila akvarell
+st_camo_atlas_autumn_flecktarn	Őszi flecktarn
+st_camo_atlas_balkan_dpm	Balkáni DPM
+st_camo_atlas_balkan_splinter	Balkáni szilánkok
 st_camo_atlas_basalt_shard	Bazaltszilánk
 st_camo_atlas_birch_leaf	Nyírfalevél
 st_camo_atlas_black_ice	Fekete jég
 st_camo_atlas_black_thicket	Fekete bozót
+st_camo_atlas_blue_brush	Kék ecsetvonások
 st_camo_atlas_blue_shingle	Kék zsindely
+st_camo_atlas_blue_tiger_stripe	Kék tigriscsíkok
 st_camo_atlas_bruise	Zúzódás
-st_camo_atlas_carmine_cloud_hex	Kárminvörös felhőméhsejt
+st_camo_atlas_brushstroke	Ecsetvonás
+st_camo_atlas_buntfarben_1918	Buntfarben 1918
+st_camo_atlas_butan	Butan
 st_camo_atlas_carmine_crosscheck	Kárminvörös keresztkocka
 st_camo_atlas_carmine_pebble	Kárminvörös kavics
 st_camo_atlas_carmine_screenprint	Kárminvörös szitanyomat
 st_camo_atlas_carmine_soundings	Kárminvörös mélységvonalak
 st_camo_atlas_carmine_wave_fan	Kárminvörös hullámlegyező
-st_camo_atlas_cerise_agate	Cseresznyepiros achát
-st_camo_atlas_cerise_beadwork	Cseresznyepiros gyöngyhímzés
+st_camo_atlas_centre_europe	Közép-Európa
+st_camo_atlas_centre_europe_vehicle	Közép-Európa, jármű
 st_camo_atlas_cerise_broadbrush	Cseresznyepiros ecsetvonás
-st_camo_atlas_cerise_cloud_hex	Cseresznyepiros felhőméhsejt
 st_camo_atlas_cerise_crackle	Cseresznyepiros krakelé
-st_camo_atlas_cerise_fishbone	Cseresznyepiros halszálka
 st_camo_atlas_cinnabar_tiger	Cinóbertigris
 st_camo_atlas_citron_broadbrush	Citromsárga ecsetvonás
-st_camo_atlas_citron_cloud_hex	Citromsárga felhőméhsejt
 st_camo_atlas_citron_crackle	Citromsárga krakelé
 st_camo_atlas_citron_cut	Citromsárga kivágás
-st_camo_atlas_citron_fishbone	Citromsárga halszálka
-st_camo_atlas_citron_screenprint	Citromsárga szitanyomat
-st_camo_atlas_citron_soundings	Citromsárga mélységvonalak
 st_camo_atlas_cobalt_cloud	Kobaltkék felhő
-st_camo_atlas_cobalt_crosscheck	Kobaltkék keresztkocka
-st_camo_atlas_cobalt_kasuri	Kobaltkék kasuri
 st_camo_atlas_cobalt_netting	Kobaltkék háló
-st_camo_atlas_cobalt_screenprint	Kobaltkék szitanyomat
 st_camo_atlas_cobalt_shard	Kobaltkék szilánk
-st_camo_atlas_cobalt_soundings	Kobaltkék mélységvonalak
 st_camo_atlas_cobalt_woodgrain	Kobaltkék faerezet
 st_camo_atlas_copper_mesh	Rézháló
 st_camo_atlas_copper_rain	Rézeső
 st_camo_atlas_coral_reeds	Korallnád
+st_camo_atlas_daguet	Daguet
+st_camo_atlas_danube_leaf	Dunai levél
 st_camo_atlas_desert_broadbrush	Sivatagi ecsetvonás
 st_camo_atlas_desert_broken_grid	Sivatagi tört rács
 st_camo_atlas_desert_cloud	Sivatagi felhő
@@ -570,184 +568,185 @@ st_camo_atlas_desert_starfield	Sivatagi csillagmező
 st_camo_atlas_desert_stone_chip	Sivatagi kőzúzalék
 st_camo_atlas_desert_tiger_stripe	Sivatagi tigriscsík
 st_camo_atlas_desert_watercolor	Sivatagi akvarell
-st_camo_atlas_desert_wave_fan	Sivatagi hullámlegyező
 st_camo_atlas_desert_woodgrain	Sivatagi faerezet
+st_camo_atlas_dg3	DG3
+st_camo_atlas_dubok	Dubok
+st_camo_atlas_duck_hunter	Kacsavadász
 st_camo_atlas_dune_chip	Dűnezúzalék
 st_camo_atlas_ember_leaf	Parázslevél
-st_camo_atlas_field_mosaic	Mezei mozaik
+st_camo_atlas_erdl_highland	Hegyvidéki ERDL
+st_camo_atlas_erdl_lowland	Alföldi ERDL
+st_camo_atlas_fab_lizard	FAB gyík
 st_camo_atlas_fired_clay	Égetett agyag
+st_camo_atlas_frogskin	Békabőr
 st_camo_atlas_frost_splinter	Fagyszilánkok
-st_camo_atlas_garnet_beadwork	Gránátvörös gyöngyhímzés
 st_camo_atlas_garnet_broken_grid	Gránátvörös tört rács
-st_camo_atlas_garnet_cloud_hex	Gránátvörös felhőméhsejt
-st_camo_atlas_garnet_fishbone	Gránátvörös halszálka
 st_camo_atlas_garnet_rosette	Gránátvörös rozetta
 st_camo_atlas_garnet_shard	Gránátvörös szilánk
-st_camo_atlas_garnet_soundings	Gránátvörös mélységvonalak
-st_camo_atlas_glacial_agate	Jeges achát
-st_camo_atlas_glacial_beadwork	Jeges gyöngyhímzés
-st_camo_atlas_glacial_fishbone	Jeges halszálka
 st_camo_atlas_glacial_stone_chip	Jeges kőzúzalék
 st_camo_atlas_glacial_tiger_stripe	Jeges tigriscsík
 st_camo_atlas_glacial_watercolor	Jeges akvarell
-st_camo_atlas_glacial_wax_resist	Jeges batik
 st_camo_atlas_glacier_cut	Gleccserkivágás
 st_camo_atlas_graphite_broken_grid	Grafitszürke tört rács
-st_camo_atlas_graphite_crosscheck	Grafitszürke keresztkocka
-st_camo_atlas_graphite_kasuri	Grafitszürke kasuri
 st_camo_atlas_graphite_rosette	Grafitszürke rozetta
-st_camo_atlas_graphite_screenprint	Grafitszürke szitanyomat
 st_camo_atlas_graphite_shard	Grafitszürke szilánk
-st_camo_atlas_graphite_soundings	Grafitszürke mélységvonalak
 st_camo_atlas_harbor_tiger	Kikötői tigris
+st_camo_atlas_hazard_pixel	Veszélypixel
 st_camo_atlas_honey_rosette	Mézrozetta
-st_camo_atlas_icelandic_agate	Izlandi achát
 st_camo_atlas_icelandic_broadbrush	Izlandi ecsetvonás
 st_camo_atlas_icelandic_stone_chip	Izlandi kőzúzalék
-st_camo_atlas_icelandic_terrazzo	Izlandi terrazzo
 st_camo_atlas_icelandic_watercolor	Izlandi akvarell
-st_camo_atlas_icelandic_wax_resist	Izlandi batik
 st_camo_atlas_inkstone	Tintakő
 st_camo_atlas_iris_mosaic	Íriszmozaik
+st_camo_atlas_jgsdf_desert	JGSDF sivatagi
+st_camo_atlas_jgsdf_type_ii	JGSDF II. típus
+st_camo_atlas_jgsdf_winter	JGSDF téli
 st_camo_atlas_juniper_pixel	Borókapixel
+st_camo_atlas_k07	K07
+st_camo_atlas_k07_dark	K07 sötét
+st_camo_atlas_k20	K20
+st_camo_atlas_k20_navy	K20 haditengerészeti
+st_camo_atlas_k20lq	K20LQ
 st_camo_atlas_kingfisher	Jégmadár
-st_camo_atlas_kingfisher_cloud_hex	Jégmadárkék felhőméhsejt
-st_camo_atlas_kingfisher_crosscheck	Jégmadárkék keresztkocka
 st_camo_atlas_kingfisher_cut_paper	Jégmadárkék papírkivágás
 st_camo_atlas_kingfisher_reed_stripe	Jégmadárkék nádcsík
 st_camo_atlas_kingfisher_screenprint	Jégmadárkék szitanyomat
-st_camo_atlas_kingfisher_soundings	Jégmadárkék mélységvonalak
 st_camo_atlas_lagoon_rosette	Lagúnarozetta
-st_camo_atlas_lapis_agate	Lazúrkék achát
-st_camo_atlas_lapis_beadwork	Lazúrkék gyöngyhímzés
 st_camo_atlas_lapis_cloud	Lazúrkék felhő
-st_camo_atlas_lapis_fishbone	Lazúrkék halszálka
 st_camo_atlas_lapis_netting	Lazúrkék háló
 st_camo_atlas_lapis_tiger_stripe	Lazúrkék tigriscsík
-st_camo_atlas_lapis_wax_resist	Lazúrkék batik
 st_camo_atlas_lapis_woodgrain	Lazúrkék faerezet
 st_camo_atlas_lichen_pixel	Zuzmópixel
+st_camo_atlas_lime_spots	Limezöld pöttyök
+st_camo_atlas_lizard	Gyík
+st_camo_atlas_lozenge	Rombuszok
+st_camo_atlas_lozenge_night	Éjszakai rombuszok
+st_camo_atlas_m05_snow	M05 havas
+st_camo_atlas_m05_woodland	M05 erdei
+st_camo_atlas_m81_woodland	M81 erdei
+st_camo_atlas_m90	M90
+st_camo_atlas_m90k	M90K
+st_camo_atlas_m_01_desert	M/01 sivatagi
+st_camo_atlas_m_84	M/84
 st_camo_atlas_madder_crackle	Buzérvörös krakelé
-st_camo_atlas_madder_crosscheck	Buzérvörös keresztkocka
 st_camo_atlas_madder_cut_paper	Buzérvörös papírkivágás
-st_camo_atlas_madder_kasuri	Buzérvörös kasuri
 st_camo_atlas_madder_reed_stripe	Buzérvörös nádcsík
-st_camo_atlas_madder_screenprint	Buzérvörös szitanyomat
 st_camo_atlas_malachite	Malachit
 st_camo_atlas_marigold_broken_grid	Körömvirág-sárga tört rács
-st_camo_atlas_marigold_crosscheck	Körömvirág-sárga keresztkocka
-st_camo_atlas_marigold_kasuri	Körömvirág-sárga kasuri
 st_camo_atlas_marigold_pebble	Körömvirág-sárga kavics
 st_camo_atlas_marigold_rosette	Körömvirág-sárga rozetta
 st_camo_atlas_marigold_terrazzo	Körömvirág-sárga terrazzo
-st_camo_atlas_maritime_agate	Tengeri achát
-st_camo_atlas_maritime_beadwork	Tengeri gyöngyhímzés
+st_camo_atlas_marine_woodland	Tengeri erdő
 st_camo_atlas_maritime_pebble	Tengeri kavics
 st_camo_atlas_maritime_rosette	Tengeri rozetta
 st_camo_atlas_maritime_terrazzo	Tengeri terrazzo
 st_camo_atlas_maritime_wave_fan	Tengeri hullámlegyező
-st_camo_atlas_maritime_wax_resist	Tengeri batik
 st_camo_atlas_mauve_static	Mályvaszínű zaj
+st_camo_atlas_mm_14	MM-14
+st_camo_atlas_mm_25	MM-25
+st_camo_atlas_moro	Moro
 st_camo_atlas_mulberry_cloud	Szederfelhő
-st_camo_atlas_night_grid	Éjszakai rács
+st_camo_atlas_nfp_blue	Kék NFP
+st_camo_atlas_nfp_cloth	NFP szövet
+st_camo_atlas_nfp_green	Zöld NFP
+st_camo_atlas_nfp_multitone	Többtónusú NFP
 st_camo_atlas_night_silk	Éjselyem
+st_camo_atlas_obh	OBH
 st_camo_atlas_ochre_cut	Okker kivágás
 st_camo_atlas_olive_tide	Olajzöld dagály
 st_camo_atlas_opal_fault	Opálvető
 st_camo_atlas_orchid_broken_grid	Orchidealila tört rács
 st_camo_atlas_orchid_cloud	Orchidealila felhő
-st_camo_atlas_orchid_kasuri	Orchidealila kasuri
 st_camo_atlas_orchid_netting	Orchidealila háló
 st_camo_atlas_orchid_shard	Orchidealila szilánk
 st_camo_atlas_orchid_static	Orchidealila zaj
-st_camo_atlas_orchid_terrazzo	Orchidealila terrazzo
-st_camo_atlas_orchid_wax_resist	Orchidealila batik
 st_camo_atlas_oxblood_cloud	Bordó felhő
-st_camo_atlas_oxblood_kasuri	Bordó kasuri
 st_camo_atlas_oxblood_stone_chip	Bordó kőzúzalék
 st_camo_atlas_oxblood_terrazzo	Bordó terrazzo
 st_camo_atlas_oxblood_tiger_stripe	Bordó tigriscsík
-st_camo_atlas_oxblood_wax_resist	Bordó batik
 st_camo_atlas_oxblood_woodgrain	Bordó faerezet
+st_camo_atlas_pantera	Pantera
+st_camo_atlas_pantera_desert	Sivatagi Pantera
 st_camo_atlas_persimmon_ink	Datolyaszilva-tinta
 st_camo_atlas_petal_wash	Sziromlavírozás
-st_camo_atlas_pewter_agate	Ónszürke achát
-st_camo_atlas_pewter_beadwork	Ónszürke gyöngyhímzés
-st_camo_atlas_pewter_cloud_hex	Ónszürke felhőméhsejt
 st_camo_atlas_pewter_cut_paper	Ónszürke papírkivágás
-st_camo_atlas_pewter_fishbone	Ónszürke halszálka
 st_camo_atlas_pewter_reed_stripe	Ónszürke nádcsík
-st_camo_atlas_pixel_steppe	Pixelsztyepp
 st_camo_atlas_polar_mesh	Sarki háló
 st_camo_atlas_porcelain_tide	Porcelándagály
+st_camo_atlas_puma	Puma
 st_camo_atlas_quarry	Kőfejtő
-st_camo_atlas_reed_rain	Nádeső
 st_camo_atlas_reef_tiger	Zátonytigris
-st_camo_atlas_riptide_agate	Örvénylő achát
 st_camo_atlas_riptide_broadbrush	Örvénylő ecsetvonás
 st_camo_atlas_riptide_crackle	Örvénylő krakelé
 st_camo_atlas_riptide_cut_paper	Örvénylő papírkivágás
 st_camo_atlas_riptide_terrazzo	Örvénylő terrazzo
-st_camo_atlas_riptide_wax_resist	Örvénylő batik
+st_camo_atlas_rmp_woodland	RMP erdei
 st_camo_atlas_rose_breccia	Rózsabreccsa
 st_camo_atlas_russet_crosscheck	Rozsdabarna keresztkocka
-st_camo_atlas_russet_kasuri	Rozsdabarna kasuri
 st_camo_atlas_russet_screenprint	Rozsdabarna szitanyomat
 st_camo_atlas_russet_stone_chip	Rozsdabarna kőzúzalék
 st_camo_atlas_russet_tiger_stripe	Rozsdabarna tigriscsík
 st_camo_atlas_russet_watercolor	Rozsdabarna akvarell
 st_camo_atlas_russet_woodgrain	Rozsdabarna faerezet
+st_camo_atlas_rust_flecktarn	Rozsdás flecktarn
 st_camo_atlas_rust_tiger	Rozsdatigris
-st_camo_atlas_saffron_beadwork	Sáfránysárga gyöngyhímzés
-st_camo_atlas_saffron_cloud_hex	Sáfránysárga felhőméhsejt
-st_camo_atlas_saffron_fishbone	Sáfránysárga halszálka
 st_camo_atlas_saffron_gravel	Sáfránykavics
 st_camo_atlas_saffron_pebble	Sáfránysárga kavics
 st_camo_atlas_saffron_soundings	Sáfránysárga mélységvonalak
 st_camo_atlas_saffron_wave_fan	Sáfránysárga hullámlegyező
 st_camo_atlas_salt_crater	Sókráter
 st_camo_atlas_salt_tiger	Sótigris
-st_camo_atlas_satsuma_cloud_hex	Mandarinsárga felhőméhsejt
-st_camo_atlas_satsuma_fishbone	Mandarinsárga halszálka
-st_camo_atlas_satsuma_screenprint	Mandarinsárga szitanyomat
-st_camo_atlas_satsuma_soundings	Mandarinsárga mélységvonalak
+st_camo_atlas_sandstone	Homokkő
 st_camo_atlas_satsuma_stone_chip	Mandarinsárga kőzúzalék
 st_camo_atlas_satsuma_tiger_stripe	Mandarinsárga tigriscsík
 st_camo_atlas_satsuma_watercolor	Mandarinsárga akvarell
+st_camo_atlas_savanna_flecktarn	Szavanna flecktarn
 st_camo_atlas_sea_glass	Tengeri üveg
-st_camo_atlas_seafoam_beadwork	Tajtékos gyöngyhímzés
 st_camo_atlas_seafoam_cloud	Tajtékos felhő
-st_camo_atlas_seafoam_cloud_hex	Tajtékos felhőméhsejt
-st_camo_atlas_seafoam_fishbone	Tajtékos halszálka
 st_camo_atlas_seafoam_netting	Tajtékos háló
-st_camo_atlas_seafoam_soundings	Tajtékos mélységvonalak
 st_camo_atlas_seafoam_woodgrain	Tajtékos faerezet
+st_camo_atlas_shard_earth	Szilánkföld
+st_camo_atlas_shard_forest	Szilánkerdő
+st_camo_atlas_shard_winter	Szilánktél
 st_camo_atlas_sienna_wash	Sziéna lavírozás
 st_camo_atlas_signal_grid	Jelzőrács
 st_camo_atlas_silver_rosette	Ezüstrozetta
-st_camo_atlas_sundown_crosscheck	Alkonyi keresztkocka
-st_camo_atlas_sundown_kasuri	Alkonyi kasuri
+st_camo_atlas_snow_terrain	Havas terep
+st_camo_atlas_star_ember	Csillagparázs
+st_camo_atlas_star_forest	Csillagerdő
 st_camo_atlas_sundown_pebble	Alkonyi kavics
 st_camo_atlas_sundown_reed_stripe	Alkonyi nádcsík
 st_camo_atlas_sundown_terrazzo	Alkonyi terrazzo
 st_camo_atlas_sundown_wave_fan	Alkonyi hullámlegyező
+st_camo_atlas_t_99_winter	T/99 téli
+st_camo_atlas_taz_07	TAZ 07
+st_camo_atlas_taz_83	TAZ 83
+st_camo_atlas_taz_83_ii	TAZ 83 II
+st_camo_atlas_teal_pixel	Türkiz pixel
+st_camo_atlas_three_color_desert	Háromszínű sivatag
 st_camo_atlas_tidal_pixel	Árapálypixel
-st_camo_atlas_ultramarine_agate	Ultramarinkék achát
-st_camo_atlas_ultramarine_beadwork	Ultramarinkék gyöngyhímzés
+st_camo_atlas_tropentarn	Tropentarn
+st_camo_atlas_tropentarn_ii	Tropentarn II
+st_camo_atlas_type_07_arid	Type 07 sivatagi
+st_camo_atlas_type_07_universal	Type 07 univerzális
+st_camo_atlas_type_07_urban	Type 07 városi
 st_camo_atlas_ultramarine_broken_grid	Ultramarinkék tört rács
 st_camo_atlas_ultramarine_netting	Ultramarinkék háló
 st_camo_atlas_ultramarine_rosette	Ultramarinkék rozetta
 st_camo_atlas_ultramarine_shard	Ultramarinkék szilánk
 st_camo_atlas_ultramarine_terrazzo	Ultramarinkék terrazzo
-st_camo_atlas_ultramarine_wax_resist	Ultramarinkék batik
 st_camo_atlas_ultraviolet_grid	Ultraibolya rács
+st_camo_atlas_urban_blots	Városi foltok
 st_camo_atlas_urban_broadbrush	Városi ecsetvonás
 st_camo_atlas_urban_broken_grid	Városi tört rács
+st_camo_atlas_urban_brush	Városi ecset
 st_camo_atlas_urban_cloud	Városi felhő
 st_camo_atlas_urban_crackle	Városi krakelé
 st_camo_atlas_urban_cut_paper	Városi papírkivágás
 st_camo_atlas_urban_drybrush	Városi száraz ecset
+st_camo_atlas_urban_flecktarn	Városi flecktarn
 st_camo_atlas_urban_fracture	Városi repedés
+st_camo_atlas_urban_knit	Városi kötött
 st_camo_atlas_urban_mosaic	Városi mozaik
 st_camo_atlas_urban_netting	Városi háló
 st_camo_atlas_urban_pebble	Városi kavics
@@ -766,14 +765,16 @@ st_camo_atlas_urban_tiger_stripe	Városi tigriscsík
 st_camo_atlas_urban_watercolor	Városi akvarell
 st_camo_atlas_urban_wave_fan	Városi hullámlegyező
 st_camo_atlas_urban_woodgrain	Városi faerezet
-st_camo_atlas_verdigris_agate	Patinás achát
+st_camo_atlas_urban_woodland	Városi erdő
+st_camo_atlas_vegetato_desert	Sivatagi Vegetato
+st_camo_atlas_vehicle_pixel_2015	Járműpixel 2015
+st_camo_atlas_vehicle_pixel_2016	Járműpixel 2016
+st_camo_atlas_vehicle_pixel_2021	Járműpixel 2021
 st_camo_atlas_verdigris_cut_paper	Patinás papírkivágás
 st_camo_atlas_verdigris_reed_stripe	Patinás nádcsík
 st_camo_atlas_verdigris_terrazzo	Patinás terrazzo
 st_camo_atlas_verdigris_wave_fan	Patinás hullámlegyező
-st_camo_atlas_verdigris_wax_resist	Patinás batik
 st_camo_atlas_vermilion_tide	Cinóberdagály
-st_camo_atlas_violet_splinter	Ibolyaszilánkok
 st_camo_atlas_walnut_burl	Diógyökér
 st_camo_atlas_woodland_broadbrush	Erdei ecsetvonás
 st_camo_atlas_woodland_broken_grid	Erdei tört rács
@@ -800,6 +801,7 @@ st_camo_atlas_woodland_tiger_stripe	Erdei tigriscsík
 st_camo_atlas_woodland_watercolor	Erdei akvarell
 st_camo_atlas_woodland_wave_fan	Erdei hullámlegyező
 st_camo_atlas_woodland_woodgrain	Erdei faerezet
+st_camo_atlas_woven_woodland	Szőtt erdő
 st_camo_black_leather_01_name	Holló
 st_camo_black_leather_name	Fekete halál
 st_camo_blue_leather_name	Szellő
@@ -3019,10 +3021,17 @@ st_srp_hud_freeze_draw	Döntetlen
 st_srp_hud_freeze_frozen	Megfagyva (%1$s)
 st_srp_hud_freeze_help	Fagyaszd meg az összes ellenfelet. Az első 5 kört megnyerő csapat győz. Állj 4 másodpercig egy fagyott csapattárs 2 méteres körzetében a kiolvasztásához.
 st_srp_hud_freeze_lose	Vereség — az ellenfél öt kört nyert.
+st_srp_hud_freeze_reveal_enemy	Az utolsó ellenfél %1$s mp múlva lelepleződik
+st_srp_hud_freeze_reveal_self	%1$s mp múlva lelepleződsz
+st_srp_hud_freeze_reveal_teammate	Utolsó csapattársad %1$s mp múlva lelepleződik
+st_srp_hud_freeze_revealed_enemy	Az utolsó ellenfél látszik a térképen
+st_srp_hud_freeze_revealed_self	Látszol a térképen
+st_srp_hud_freeze_revealed_teammate	Utolsó csapattársad látszik a térképen
 st_srp_hud_freeze_round_draw	Döntetlen. Újrakezdés: %1$s mp.
 st_srp_hud_freeze_round_lose	Elvesztett kör. Következő: %1$s mp.
 st_srp_hud_freeze_round_win	Megnyert kör. Következő: %1$s mp.
 st_srp_hud_freeze_standing	Harcban: saját csapat %1$s — ellenfelek %2$s
+st_srp_hud_freeze_start	Fagyasztó fogó\nA halálos találat megfagyaszt. Fagyaszd meg a teljes ellenfél csapatot a kör megnyeréséhez.\nÁllj 4 mp-ig egy fagyott csapattárs 2 méteres körzetében a kiolvasztásához; magától 2 perc után olvad ki.\nAz első 5 kört megnyerő csapat győz; ha lejár az idő, a vezető csapat nyer.
 st_srp_hud_freeze_thawing	Csapattárs kiolvasztása…
 st_srp_hud_freeze_win	Győzelem — öt megnyert kör.
 st_srp_hud_friend_not_sent	A barátkérelem nincs elküldve
@@ -3062,6 +3071,7 @@ st_srp_inventory_sell_duplicates	Duplikátumok eladása
 st_srp_inventory_sell_duplicates_ask	Eladandó tárgyak: %1$s
 st_srp_item_props_mps	m/s
 st_srp_key_bindings	Kiosztás
+st_srp_key_unbound	nincs hozzárendelve
 st_srp_keys_combat	Harc
 st_srp_keys_interface	Felület
 st_srp_keys_items	Tárgyak
@@ -3268,7 +3278,7 @@ st_srp_replay_place_in_line	Helyed a sorban: %1$s. Várakozás: %2$s mp.
 st_srp_replay_ready	A meccs visszajátszása elkészült.\n\nA meccs hiteles felvételét tároló szerverről töltődik le. Egy második játékablakban indul el, a lobby nyitva marad.\n\nLejátszás közben az F9 nyitja meg a vezérlőket: játékosok, kamera, tekerés, sebesség.
 st_srp_replay_ready_size	A meccs felvétele: %1$s.\n\nA meccs hiteles felvételét tároló szerverről töltődik le. Egy második játékablakban indul el, a lobby nyitva marad.\n\nLejátszás közben az F9 nyitja meg a vezérlőket: játékosok, kamera, tekerés, sebesség.
 st_srp_replay_size	%1$s,%2$s MB
-st_srp_replay_starting	A visszajátszás indul: egy második játékablak nyílik meg, a lobby nyitva marad. Ha hiba történik, a frissítőprogram jelzi az okát.\n\nLejátszás közben az F9 nyitja meg a vezérlőket.
+st_srp_replay_starting	A visszajátszás indul: egy második játékablak nyílik meg, a lobby nyitva marad. Ha hiba történik, a frissítőprogram jelzi az okát.\n\nLejátszás közben a „Kezelőfelület elrejtése” ({HIDE_INTERFACE}) gomb nyitja meg a vezérlőket.
 st_srp_replay_still_preparing	A szerver még készíti a felvételt. Egy perc múlva nyisd meg újra a Visszajátszás ablakot.
 st_srp_replay_title	Visszajátszás
 st_srp_replay_waiting	Várakozás: %1$s mp.
@@ -3344,7 +3354,7 @@ st_srp_rooms_pin_hint	4 számjegy szükséges
 st_srp_rooms_players	Játékosok
 st_srp_rooms_playing	Meccs folyamatban
 st_srp_rooms_pool	Pályakészlet
-st_srp_rooms_pool_hint	Ezek közül 3 kerül szavazásra.
+st_srp_rooms_pool_hint	Ezek közül 4 kerül szavazásra.
 st_srp_rooms_private_room	Privát szoba: max. 20 játékos; te osztod a csapatokat és indítasz.
 st_srp_rooms_queue	Sor
 st_srp_rooms_queue_room	Sorba állás
@@ -3372,10 +3382,17 @@ st_srp_rooms_voting	Szavazás
 st_srp_rooms_waiting	Várakozás a játékosokra
 st_srp_rooms_waiting_owner	Várakozás, hogy a szoba létrehozója elindítsa a meccset.
 st_srp_rooms_waiting_short	Várakozás
+st_srp_scope_next_action	Irányzékváltás
 st_srp_scope_screen_hint	Húzz egy távcsövet, csőszájeszközt vagy markolatot a leltárból a rekeszébe
 st_srp_scope_slot	Irányzék
+st_srp_second_sight	Második irányzék
+st_srp_second_sight_description	Második irányzékot szerel a fegyver oldalára.
+st_srp_second_sight_hint	Irányzék a fegyver oldalán lévő eltolt sínen. Célzás közben nyomd meg az „Irányzékváltás” ({SCOPE_NEXT}) gombot, hogy átválts rá.
+st_srp_second_sight_name	Második irányzék
 st_srp_shop_not_owned	Meglévők elrejtése
 st_srp_shop_not_owned_hint	Csak a még nem birtokolt tárgyak mutatása
+st_srp_side_left	Bal
+st_srp_side_right	Jobb
 st_srp_skills	Képességek
 st_srp_speed_label	Sebesség
 st_srp_speed_title	Mozgási sebesség: %1$s

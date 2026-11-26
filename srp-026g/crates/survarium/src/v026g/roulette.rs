@@ -171,11 +171,15 @@ impl Gun {
     }
 }
 
-/// The modules fitted to a gun of a hand, by kind in [`Kind::ALL`]'s order (the scope, the muzzle
+/// The kinds a roulette hand is fitted with, in this order: not the second sight (its side would
+/// be one more draw; roulette hands had none before second sights were made).
+const ROLLED: [Kind; 3] = [Kind::Scope, Kind::Muzzle, Kind::Grip];
+
+/// The modules fitted to a gun of a hand, by kind in [`ROLLED`]'s order (the scope, the muzzle
 /// device, the grip): the owner, 2026-11-22: "there should be random applicable attachments on
 /// weapons" ([`Self::roll`]).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
-pub struct Attachments([Option<u16>; 3]);
+pub struct Attachments([Option<u16>; ROLLED.len()]);
 
 impl Attachments {
     /// What `gun` is fitted with: for each kind it takes ([`Modules::fits`]), none half the time,
@@ -189,8 +193,8 @@ impl Attachments {
             .is_some_and(|item| item.category == category::SNIPER_RIFLES);
         let fits = modules.fits(gun);
         let mut fitted = Fitted::default();
-        let mut attachments = [None; 3];
-        for (at, kind) in Kind::ALL.into_iter().enumerate() {
+        let mut attachments = [None; ROLLED.len()];
+        for (at, kind) in ROLLED.into_iter().enumerate() {
             if sniper && kind == Kind::Scope {
                 continue;
             }
@@ -214,7 +218,7 @@ impl Attachments {
     /// Racket's sight): each its module's dict id in its kind's slot, the record's item id from
     /// `ids` (no item of the profile: an owned module is in no kit either).
     fn records(&self, ids: &mut impl FnMut() -> u32) -> Vec<Upgrade> {
-        let held: Vec<super::lobby::Upgrade> = Kind::ALL
+        let held: Vec<super::lobby::Upgrade> = ROLLED
             .into_iter()
             .zip(self.0)
             .filter_map(|(kind, module)| {

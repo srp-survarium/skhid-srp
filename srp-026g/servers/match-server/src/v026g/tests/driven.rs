@@ -326,7 +326,7 @@ fn with_the_map_the_servers_bot_sees_its_body_in_the_worlds_and_walks_smoothly()
     let asked = |bench: &Bench| {
         bench.clients[0]
             .got(|message| match message {
-                ServerMessage::UploadRequest => Some(()),
+                ServerMessage::UploadRequest(_) => Some(()),
                 _ => None,
             })
             .len()

@@ -310,7 +310,12 @@
   const blank = labels => labels.map(label => [label, null]);
   function combat(totals) {
     const v = key => totals ? n(totals[key]) : null;
+    // A minute is the player's own time in its matches (played_s), as the
+    // weapons' Kills/min is a weapon's time in the hands; experience's is
+    // that of the matches that kept their experience. '—' without one.
     return [[TEXT.kills, v('kills')], [TEXT.deaths, v('deaths')], [TEXT.kd, totals ? kd(totals.kd) : null],
+      [TEXT.killsPerMinute, totals ? kd(totals.kills_per_minute) : null],
+      [TEXT.experiencePerMinute, totals ? n(totals.experience_per_minute) : null],
       [TEXT.accuracy, totals ? aim(totals) : null], [TEXT.assists, v('assists')],
       [TEXT.headshotRate, totals ? headshotRate(totals) : null], [TEXT.grenadeKills, v('grenade_kills')], [TEXT.meleeKills, v('melee_kills')],
       [TEXT.batteries, v('batteries')], [TEXT.captures, v('captures')], [TEXT.artefacts, v('artefacts')]];

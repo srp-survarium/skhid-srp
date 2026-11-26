@@ -69,7 +69,7 @@ The owner, 2026-11-01: the simplest version first.
 
 - A smarter stage against AFK scripts: points, damage and objective progress as the signals,
   and an on-screen check (a code typed in chat) before the removal. Parked: no server text is
-  sure to be seen in a match (Hide chat in match, F11, Blackout).
+  sure to be seen in a match (Hide chat in match, F9, Blackout).
 
 ## Where
 

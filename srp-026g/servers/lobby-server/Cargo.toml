@@ -10,10 +10,6 @@ workspace = true
 default = []
 
 [dependencies]
-bytemuck = { workspace = true }
-openssl = { workspace = true }
-thiserror = { workspace = true }
-env_logger = { workspace = true }
 log = { workspace = true }
 
 session = { workspace = true }

@@ -93,7 +93,7 @@ pub fn on_frame(ctx: &mut Context<'_>) -> Flow<NoExit> {
     Flow::Continue
 }
 
-/// A weapon sound was made (after Concentration's tag, order 1): an enemy's pull also plays the copy.
+/// A weapon sound was made (the site's only handler): an enemy's pull also plays the copy.
 pub fn on_weapon_sound(ctx: &mut Context<'_>) -> Flow<NoExit> {
     if let Some(pin) = EnemyPin::at(ctx) {
         step(ctx.thread(), Event::EnemyPin, |sound| pin.play(sound));

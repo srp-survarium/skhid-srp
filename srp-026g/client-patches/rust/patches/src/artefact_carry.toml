@@ -22,13 +22,17 @@ handler = "on_tick"
 site = "carry.construct"
 handler = "on_construct"
 
+# The state's end: the carry snapshot first, then patch 206's second sights
+# (second_sights.toml, order 1).
 [[hook]]
 site = "carry.save"
 handler = "on_save"
+order = 0
 
 [[hook]]
 site = "carry.load"
 handler = "on_load"
+order = 0
 
 # Shared sites compose explicitly in ragdoll's on_bones/on_cull; there is one
 # installed detour at each address. The input builder's end: patch 149's item

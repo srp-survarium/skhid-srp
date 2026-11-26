@@ -84,6 +84,13 @@ fn kernel_cos(r: f64) -> f64 {
     1.0 - (0.5 * z - z * p)
 }
 
+/// Vertical focal length of a perspective projection with half-angle in (0, pi/4].
+pub fn focal_length(half_angle: f64) -> Option<f32> {
+    if !(half_angle > 0.0 && half_angle <= FRAC_PI_4) { return None; }
+    let focal = (kernel_cos(half_angle) / kernel_sin(half_angle)) as f32;
+    focal.is_finite().then_some(focal)
+}
+
 /// `y` as a float, unless it is too near a float midpoint to be sure.
 fn settled(y: f64) -> Option<f32> {
     let low = (y.to_bits() & LOW) as i64;

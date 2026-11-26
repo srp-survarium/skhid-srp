@@ -69,16 +69,54 @@ pub const fn fixed_length(id: u8) -> Option<usize> {
         id::PROFILE_INPUT_RELAY => 3,
         id::MOVE_PROFILE_INPUT => 2,
         id::DISCARD_PROFILE_INPUT => 1,
-        // srp's 0xF6 is one byte the patch ignores (the client's length
-        // getter refuses an empty one).
-        id::UPLOAD_REQUEST => 1,
         _ => return None,
     })
 }
 
-/// Bit 30 is unused. Bit 29 is the shipped artefact-carry/weapon-pickup
-/// command marker; bit 31 is the native per-input flag. Both are valid.
-pub const UNUSED_ACTIONS: u32 = 1 << 30;
+/// What an upload request (0xF6) asks a patched game for. The client's
+/// length getter refuses an empty payload; srp sends one of two:
+/// - one byte (0): the game's event-horizon world of the moment (client
+///   patch §3.4, `snapshot_upload_026g.asm`, which reads no payload: any one
+///   byte means that);
+/// - 1 and a tick: the game's world of that tick from the ring of the worlds
+///   it hashed (patch 211, `exact_world`), else the event-horizon world as
+///   above. Only a game that says [`EXACT_WORLDS`] in its 0xD8 is sent this:
+///   an earlier game refuses two bytes here.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum UploadRequest {
+    Horizon,
+    /// The tick's byte: its time / 50, modulo 256.
+    Tick(u8),
+}
+
+impl UploadRequest {
+    pub fn parse(payload: &[u8]) -> Option<Self> {
+        match *payload {
+            [_] => Some(Self::Horizon),
+            [1, tick] => Some(Self::Tick(tick)),
+            _ => None,
+        }
+    }
+
+    /// Its payload: the bytes and how many of them.
+    pub fn encode(self) -> ([u8; 2], usize) {
+        match self {
+            Self::Horizon => ([0, 0], 1),
+            Self::Tick(tick) => ([1, tick], 2),
+        }
+    }
+}
+
+/// The bit of 0xD8's debug byte by which a game says it answers
+/// [`UploadRequest::Tick`] (patch 211), beside the dialect's 0x80 and the
+/// world receipts' 0x02 ([`crate::recovery::CONNECT_CAPABILITY`]).
+pub const EXACT_WORLDS: u8 = 0x04;
+
+/// Bit 30 of an input's actions: the second sight's switch key
+/// (`scope_next`, client patch 206), on its press only. With bit 29 (client
+/// patches 78 and 85's command marker) and bit 31 (the native per-input flag)
+/// every bit of the mask is an action a client sends.
+pub const SCOPE_NEXT: u32 = 1 << 30;
 
 /// A half float's exponent field, and that of 1024.0.
 const HALF_EXPONENT: u16 = 0x7C00;
@@ -96,8 +134,9 @@ pub fn rotation_is_sane(rotation: [u8; 4]) -> bool {
         .all(|half| half & HALF_EXPONENT < HALF_EXPONENT_1024)
 }
 
-/// A relayed input's rotation and actions (relay_trust.md 0xDC/0xDD).
-pub fn input(rotation: [u8; 4], actions: u32) -> Result<(), Reason> {
+/// A relayed input's rotation (relay_trust.md 0xDC/0xDD); its actions take
+/// every bit ([`SCOPE_NEXT`]).
+pub fn input(rotation: [u8; 4]) -> Result<(), Reason> {
     if !rotation_is_sane(rotation) {
         let [a, b, c, d] = rotation;
         let [dx, dy] = [u16::from_le_bytes([a, b]), u16::from_le_bytes([c, d])];
@@ -107,9 +146,6 @@ pub fn input(rotation: [u8; 4], actions: u32) -> Result<(), Reason> {
             dy
         };
         return Err(Reason::RotationNotSane { half });
-    }
-    if actions & UNUSED_ACTIONS != 0 {
-        return Err(Reason::UnusedActions { actions });
     }
     Ok(())
 }
@@ -124,6 +160,13 @@ pub fn check(message: u8, payload: &[u8]) -> Result<(), Refusal> {
     let len = payload.len();
     if matches!(message, id::INPUTS_RELAY | id::INPUTS_RELAY_PRECISE) {
         return Err(refuse(0, Reason::NeverSent));
+    }
+    if message == id::UPLOAD_REQUEST {
+        return match (UploadRequest::parse(payload), payload) {
+            (Some(_), _) => Ok(()),
+            (None, [first, _]) => Err(refuse(0, Reason::UploadRequestForm { first: *first })),
+            (None, _) => Err(refuse(0, Reason::MessageLength { len, wanted: len.clamp(1, 2) })),
+        };
     }
     if let Some(wanted) = fixed_length(message) {
         if len != wanted {
@@ -155,9 +198,9 @@ pub fn check(message: u8, payload: &[u8]) -> Result<(), Refusal> {
                 reader.skip(at.saturating_add(1))?;
                 Ok::<_, Short>((reader.array::<4>()?, reader.u32()?))
             })();
-            let (rotation, actions) =
+            let (rotation, _actions) =
                 read.map_err(|_| refuse(0, Reason::MessageLength { len, wanted: len }))?;
-            input(rotation, actions).map_err(|reason| refuse(at.saturating_add(1), reason))
+            input(rotation).map_err(|reason| refuse(at.saturating_add(1), reason))
         }
         id::PROFILE_INPUT_RELAY => place(1),
         // The local index, then the LZMA2 stream of the options: it decodes
@@ -617,5 +660,21 @@ mod tests {
             reason(id::STATIC_INFO, &wrong),
             Some(Reason::PlacePast { place: 255 })
         );
+    }
+
+    #[test]
+    fn an_upload_request_is_one_byte_or_one_and_a_tick() {
+        assert_eq!(check(id::UPLOAD_REQUEST, &[0]), Ok(()));
+        // Any one byte: the horizon (the upload code reads none of it).
+        assert_eq!(UploadRequest::parse(&[7]), Some(UploadRequest::Horizon));
+        assert_eq!(check(id::UPLOAD_REQUEST, &[1, 200]), Ok(()));
+        assert_eq!(UploadRequest::parse(&[1, 200]), Some(UploadRequest::Tick(200)));
+        for request in [UploadRequest::Horizon, UploadRequest::Tick(9)] {
+            let (bytes, len) = request.encode();
+            assert_eq!(UploadRequest::parse(&bytes[..len]), Some(request));
+        }
+        assert_eq!(reason(id::UPLOAD_REQUEST, &[2, 5]), Some(Reason::UploadRequestForm { first: 2 }));
+        assert_eq!(reason(id::UPLOAD_REQUEST, &[]), Some(Reason::MessageLength { len: 0, wanted: 1 }));
+        assert_eq!(reason(id::UPLOAD_REQUEST, &[1, 2, 3]), Some(Reason::MessageLength { len: 3, wanted: 2 }));
     }
 }

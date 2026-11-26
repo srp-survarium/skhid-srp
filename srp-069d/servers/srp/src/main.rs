@@ -6,7 +6,7 @@
 //! srp [--config FILE] [run]          the world host (when none runs yet) + login + lobby + match server
 //! srp [--config FILE] check          check the config, print the effective settings, exit
 //! srp extract [--game DIR] --out DIR      build the game tables from a game install into DIR (setup does this too)
-//! srp [--config FILE] selftest [PROJECT]   start a world host of its own and build one start world
+//! srp [--config FILE] selftest [PROJECT]   start a world host of its own, build one start world, play a bot match
 //! srp [--config FILE] world-host     the world host daemon alone, in the foreground
 //! srp [--config FILE] account add|password <name> <password>
 //! srp [--config FILE] ban|unban|comments ...   admin commands on the account database
