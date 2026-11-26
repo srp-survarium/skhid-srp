@@ -1,0 +1,19 @@
+{
+ "_about": "Match and drop-card rewards with all categories available: 15% camouflage, 10% decals, 37.5% armour and 37.5% weapons. For generic drops move 12 of 1200 from camouflage to gear, split evenly. Standalone cosmetic groups let the server omit an exhausted category.",
+ "set": [
+  {"file": "gameplay/drops/drops.options", "path": "drop_card_drop/item_category_probabilities[0]/drop_weight", "from": 40, "to": 20},
+  {"file": "gameplay/drops/drops.options", "path": "drop_card_drop/item_category_probabilities[1]/drop_weight", "from": 30, "to": 75},
+  {"file": "gameplay/drops/drops.options", "path": "drop_card_drop/item_category_probabilities[2]/drop_weight", "from": 30, "to": 75},
+  {"file": "gameplay/drops/drops.options", "path": "generic_drop/item_category_probabilities[1]/drop_weight", "from": 60, "to": 30},
+  {"file": "gameplay/drops/drops.options", "path": "generic_drop/item_category_probabilities[5]/drop_weight", "from": 120, "to": 126},
+  {"file": "gameplay/drops/drops.options", "path": "generic_drop/item_category_probabilities[6]/drop_weight", "from": 120, "to": 126}
+ ],
+ "remove_item": [
+  {"file": "gameplay/drops/drops.options", "path": "drop_card_drop/item_category_probabilities[0]/categories", "value": 25},
+  {"file": "gameplay/drops/drops.options", "path": "generic_drop/item_category_probabilities[1]/categories", "value": 25}
+ ],
+ "append_entry": [
+  {"file": "gameplay/drops/drops.options", "list": "drop_card_drop/item_category_probabilities", "expected_count": 3, "unique_key": null, "value": {"categories": [25], "drop_weight": 30}},
+  {"file": "gameplay/drops/drops.options", "list": "generic_drop/item_category_probabilities", "expected_count": 7, "unique_key": null, "value": {"categories": [25], "drop_weight": 18}}
+ ]
+}

@@ -40,6 +40,9 @@ const TAG_FREEZE_TAG: u8 = 6;
 fn options(ctx: &Context<'_>, options: Option<OptionsRead<'_>>) {
     CAMERA.set(ctx.thread(), vostok::freeze::Camera::Native);
     let on = options.is_some_and(|options| freeze_tag_in(options.rest()));
+    if on && matches!(GLOWING.get(ctx.thread()), Halos::Closed) {
+        GLOWING.set(ctx.thread(), Halos::Open([None; PLAYERS]));
+    }
     MATCH.set(
         ctx.thread(),
         if on {
@@ -55,6 +58,22 @@ pub fn on_static_info(ctx: &mut Context<'_>) -> Flow<NoExit> {
 }
 pub fn on_replay_options(ctx: &mut Context<'_>) -> Flow<NoExit> {
     options(ctx, OptionsRead::at_replay(ctx));
+    Flow::Continue
+}
+/// A spawn's end (the respawn rule installed the new kit and reset its health): a place that
+/// enters while a round is in play (a late arrival, a player who comes back) spawns frozen, held
+/// from its first input and tick and frozen at the rule's next step, on a team with nobody
+/// fighting too (that team then loses the round: the owner, 2026-11-26). Only in the rule's
+/// Playing: in the 3 s after a round, the fade, the countdown and after the match an arrival
+/// moves (the owner, 2026-11-22: "only frozen people do"), and the round's respawns and the
+/// countdown's kit switches start as they are (a kit switch spawns inside the rule's tick, before
+/// its step is kept: the state is still the countdown's).
+pub fn on_spawned(ctx: &mut Context<'_>) -> Flow<NoExit> {
+    if let Match::Freeze(state) = MATCH.get(ctx.thread())
+        && state.phase() == Phase::Playing
+    {
+        vostok::freeze::freeze_spawn_in_play(ctx);
+    }
     Flow::Continue
 }
 pub fn on_tick(ctx: &mut Context<'_>) -> Flow<NoExit> {
@@ -105,7 +124,7 @@ pub fn on_tick(ctx: &mut Context<'_>) -> Flow<NoExit> {
         Actions::Wait => {}
     }
     world.set_round_countdown(state.round_countdown());
-    world.publish(state.points(), state.winner());
+    world.publish(state.points(), state.leader());
     MATCH.set(ctx.thread(), Match::Freeze(state));
     Flow::Continue
 }
@@ -209,7 +228,12 @@ enum Load {
 }
 static GLOW: GameCell<Load> = GameCell::new(Load::Unasked);
 /// The body each place's glow is in the scene on, in this game (none: not in the scene).
-static GLOWING: GameCell<[Option<vostok::freeze::BodyId>; PLAYERS]> = GameCell::new([None; PLAYERS]);
+#[derive(Clone, Copy)]
+enum Halos {
+    Closed,
+    Open([Option<vostok::freeze::BodyId>; PLAYERS]),
+}
+static GLOWING: GameCell<Halos> = GameCell::new(Halos::Closed);
 
 /// Each frame after the simulation's move, this game draws the glow itself on every frozen body of
 /// a match in play, at the size its thaw progress gives, from the world's rule state (so every
@@ -223,25 +247,24 @@ fn draw_glow(thread: &vostok::Thread, world: &vostok::world::GameWorld<'_>) {
         Match::Freeze(state) => Some(state),
         Match::Other => None,
     };
-    let shown = GLOWING.get(thread);
+    let Halos::Open(shown) = GLOWING.get(thread) else { return };
     if state.is_none() && shown.iter().all(Option::is_none) {
         return;
     }
     let particles = match GLOW.get(thread) {
         Load::Unasked => {
-            resources::query_particles(thread, &[GLOW_PARTICLE; PLAYERS], crate::vostok::freeze_tag_on_loaded_entry());
             GLOW.set(thread, Load::Asked);
+            resources::query_particles(thread, &[GLOW_PARTICLE; PLAYERS], crate::vostok::freeze_tag_on_loaded_entry());
             return;
         }
         Load::Ready(particles) => particles,
         Load::Asked | Load::Missing => return,
     };
     let Some(scene) = vostok::freeze::GlowScene::of(world, thread) else { return };
-    let in_play = scene.in_play();
+    let state = state.filter(|rule| !rule.complete() && scene.in_play());
     let mut now = [None; PLAYERS];
     for (place, (was, next)) in Place::all().zip(shown.into_iter().zip(now.iter_mut())) {
         let target = state
-            .filter(|_| in_play)
             .and_then(|state| match state.player(place) {
                 Player::Frozen { progress, .. } => Some(progress.millis()),
                 Player::Waiting | Player::Fighting(_) => None,
@@ -262,7 +285,7 @@ fn draw_glow(thread: &vostok::Thread, world: &vostok::world::GameWorld<'_>) {
         }
         *next = target.map(|(_, body)| body.id());
     }
-    GLOWING.set(thread, now);
+    GLOWING.set(thread, Halos::Open(now));
 }
 
 /// The glow's query came back (on the game's thread).
@@ -278,21 +301,32 @@ pub fn on_loaded(results: QueryResults<'_>, tag: QueryTag) {
     }
 }
 
-/// game_world::on_deactivate: the match's scene is left; no glow of ours in it.
-pub fn on_deactivate(ctx: &mut Context<'_>) -> Flow<NoExit> {
-    let thread = ctx.thread();
-    let shown = GLOWING.get(thread);
-    if let Load::Ready(particles) = GLOW.get(thread)
-        && let Some(world) = vostok::world::GameWorld::at_deactivate(ctx)
-        && let Some(scene) = vostok::freeze::GlowScene::of(&world, thread)
+/// The match's end (`game_world.finish`, before its unload detaches the match core) or its scene
+/// left (`game_world.deactivate`): every instance this game played is taken out of the scene,
+/// which outlives the core, and no glow is drawn until a Freeze Tag match's options open it
+/// again; so no body of this match is stopped or moved in the next one's scene. Closed whatever
+/// is there to take out: without a scene (or never loaded) nothing of ours is in one.
+fn close_halos(thread: &vostok::Thread, world: Option<vostok::world::GameWorld<'_>>) {
+    if let Halos::Open(shown) = GLOWING.get(thread)
+        && let Load::Ready(particles) = GLOW.get(thread)
+        && let Some(scene) = world.as_ref().and_then(|world| vostok::freeze::GlowScene::of(world, thread))
     {
-        for (particle, shown) in particles.into_iter().zip(shown) {
-            if shown.is_some() {
+        for (particle, body) in particles.into_iter().zip(shown) {
+            if body.is_some() {
                 scene.stop(particle);
             }
         }
     }
-    GLOWING.set(thread, [None; PLAYERS]);
+    GLOWING.set(thread, Halos::Closed);
+}
+
+pub fn on_finish(ctx: &mut Context<'_>) -> Flow<NoExit> {
+    close_halos(ctx.thread(), vostok::world::GameWorld::at_finish(ctx));
+    Flow::Continue
+}
+
+pub fn on_deactivate(ctx: &mut Context<'_>) -> Flow<NoExit> {
+    close_halos(ctx.thread(), vostok::world::GameWorld::at_deactivate(ctx));
     Flow::Continue
 }
 
@@ -375,6 +409,10 @@ pub fn on_hud(ctx: &mut Context<'_>) -> Flow<NoExit> {
     // left of its time and its whole length.
     let (status, remaining, whole) = match state.phase() {
         Phase::Finished { winner, .. } => (won(winner), 0, 0),
+        // The time limit ended the match, in whatever phase: the team with more round wins won
+        // it, even ones drew (the owner, 2026-11-26: "when the timer ends, the team with the most
+        // points wins").
+        _ if matches!(ui.clock(), Some(vostok::MatchClock::Finished)) => (state.leader().map_or(3, won), 0, 0),
         Phase::Restart { ended, restart } => {
             let (remaining, whole) = left(&restart);
             let status = match (ended, restart) {
@@ -389,7 +427,6 @@ pub fn on_hud(ctx: &mut Context<'_>) -> Flow<NoExit> {
             };
             (status, remaining, whole)
         }
-        Phase::Playing if matches!(ui.clock(), Some(vostok::MatchClock::Finished)) => (3, 0, 0),
         Phase::Playing => (0, 0, 0),
     };
     // The rescuer sees the same native collection bar as its frozen teammate.

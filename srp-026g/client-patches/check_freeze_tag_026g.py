@@ -137,15 +137,15 @@ class Run(ffa.Run):
         self.thaws.append((emu.reg_read(UC_X86_REG_EDI), self.read(sp + 4)))
         self.leave(emu, 4)
 
-    def start(self, payload=FREEZE):
+    def start(self, payload=FREEZE, teams=(0, 0, 1)):
         assert self.static_info(payload)[0]
         self.rule([])
         self.word(ffa.RULE + 0x134, ffa.CORE)
-        self.word(ffa.CORE + 0x1845C, ffa.CORE + 0x18464 + 3 * 48)
-        self.word(ffa.CORE + 0x18FD8, 7)
+        self.word(ffa.CORE + 0x1845C, ffa.CORE + 0x18464 + len(teams) * 48)
+        self.word(ffa.CORE + 0x18FD8, (1 << len(teams)) - 1)
         self.word(ffa.CORE + 0x18FE4, 3)
         self.word(ffa.CORE + 0x18FA8, STATS)
-        for i, team in enumerate([0, 0, 1]):
+        for i, team in enumerate(teams):
             p = ffa.player(i)
             self.make_player(i, team, i, (float(i), 0.0, 0.0))
             self.word(p + 0x120, ffa.CORE)
@@ -153,6 +153,13 @@ class Run(ffa.Run):
             self.word(p + 0x2E0, ffa.DATA + 0xC000 + 0x100 * i)
             self.emu.mem_write(p + 0x33C, b"\x01\x00\x00\x01")
         self.thaws.clear()
+
+    def spawned(self, place):
+        # The end of the native spawn, after it installed a fresh, living kit.
+        self.emu.mem_write(ffa.player(place) + 0x33C, b"\x01\x00\x00\x01")
+        self.run(0x316EAB, (0x316EB0,), CAMERA_STACK + 0xFE000,
+                 {**hide.GAME, UC_X86_REG_ESI: ffa.player(place), UC_X86_REG_EBX: place})
+        assert self.stopped == 0x316EB0
 
     def out_of_world(self, place):
         """The place in the match, its player out of the world: it entered (or came back) and
@@ -186,7 +193,8 @@ class Run(ffa.Run):
         self.tick(decided + 4000, 1000)
         assert self.state()[PHASE] == 3 and self.times() == [decided + 4000] * 3
         for i in range(3):
-            self.emu.mem_write(ffa.player(i) + 0x33D, b"\0")
+            self.spawned(i)
+            assert self.read(ffa.player(i) + 0x33D, 1)[0] == 0
         self.tick(decided + 9000, 5000)
         assert self.state()[PHASE] == 0
 
@@ -268,6 +276,10 @@ def main():
     assert r.freeze_hud(1, 3950) == [("root.freeze_tag_score", (0, 0, 5)),
                                      ("root.freeze_tag_update", (0, 3950, 0, 0, 4000, 0, 0)),
                                      ("root.freeze_tag_rows", (1,))]
+    # The time limit at even round wins: a draw.
+    assert r.freeze_hud(1, 900_000) == [("root.freeze_tag_score", (0, 0, 5)),
+                                        ("root.freeze_tag_update", (0, 3950, 3, 0, 4000, 0, 0)),
+                                        ("root.freeze_tag_rows", (1,))]
     assert r.read(ffa.RULE + 0x138) == 0xFFFFFFFF
     # Only a frozen body's respawn is void: another place's native
     # schedule (a late arrival's first spawn) is left to run.
@@ -297,7 +309,9 @@ def main():
     state = r.state()
     assert state[1:5] == b"\x01\x00\x01\x02"  # Decided, 0:1, the second team's round.
     assert struct.unpack_from("<I", state, TIME)[0] == 7100
-    assert bytes(r.emu.mem_read(STATS + 0x31E4, 1)) == b"\x02"
+    # The statistics' leader is the team with more round wins (the second), as every mode's rule
+    # keeps it.
+    assert bytes(r.emu.mem_read(STATS + 0x31E4, 1)) == b"\x01"
     assert struct.unpack("<2H", r.emu.mem_read(STATS + 0x31D4, 4)) == (0, 1)
     assert r.freeze_hud(1, 4100) == [("root.freeze_tag_score", (0, 1, 5)),
                                      ("root.freeze_tag_update", (1, 0, 5, 3000, 4000, 119950, 3000)),
@@ -305,6 +319,14 @@ def main():
     assert r.freeze_hud(2, 4100) == [("root.freeze_tag_score", (1, 0, 5)),
                                      ("root.freeze_tag_update", (0, 0, 4, 3000, 4000, 0, 3000)),
                                      ("root.freeze_tag_rows", (3,))]
+    # The time limit ends the match (here in the round's 3 s): the team with more round wins won it
+    # (the owner, 2026-11-26: "when the timer ends, the team with the most points wins").
+    assert r.freeze_hud(1, 900_000) == [("root.freeze_tag_score", (0, 1, 5)),
+                                        ("root.freeze_tag_update", (1, 0, 2, 0, 4000, 119950, 0)),
+                                        ("root.freeze_tag_rows", (3,))]
+    assert r.freeze_hud(2, 900_000) == [("root.freeze_tag_score", (1, 0, 5)),
+                                        ("root.freeze_tag_update", (0, 0, 1, 0, 4000, 0, 0)),
+                                        ("root.freeze_tag_rows", (3,))]
     # The score bars' native source is the hud state's +90h/+92h, which no Freeze Tag rule fills
     # and nothing clears at a new match: the last match's 7:3 is written over with the rule's.
     r.emu.mem_write(ffa.HUD + 0xB4, struct.pack("<2H", 7, 3))
@@ -362,12 +384,13 @@ def main():
             r.restart(time)
             time += 9050
     # The match point: its 3 s, then the match is over.
-    assert bytes(r.emu.mem_read(STATS + 0x31E4, 1)) == b"\x02"
     r.tick(time + 3000, 3000)
     state = r.state()
     assert state[PHASE] == 4 and state[4] == 2 and struct.unpack_from("<I", state, TIME)[0] == time + 3000
     assert state[STARTS:STARTS + 2] == b"\x04\x00"  # The last round is not restarted.
     assert bytes(r.emu.mem_read(STATS + 0x31E4, 1)) == b"\x01"
+    r.spawned(2)                   # a spawn after the match, the core still in play: it moves
+    assert r.read(ffa.player(2) + 0x33D, 1)[0] == 0 and not r.input(2)
     saved = r.serialize()
     r.tick(time + 8000, 5000)
     assert r.serialize() == saved
@@ -458,8 +481,10 @@ def main():
     r.word(ffa.player(0) + 0x498, hit_model)
     r.word(ffa.player(0) + 0xF290, model)
     r.word(CAMERA_INPUT + 0x358, 2)
-    # asked once, at the first frame of a Freeze Tag match above, never answered until now
-    assert [paths for paths, _, _ in r.queries] == [[("fx/artifacts/human_frozen", 61)] * 20], r.queries
+    # asked once, at the first frame of a Freeze Tag match above, never answered until now; before it
+    # patch 196's death sound (corpse_shot_dark.rs), asked at the first match step whatever the mode
+    death_sound = [("animations/death_animation_021d_m", 257)]
+    assert [paths for paths, _, _ in r.queries] == [death_sound, [("fx/artifacts/human_frozen", 61)] * 20], r.queries
     tag = 2                              # the particles' query word (resources.rs PARTICLES_WORD)
     answer = GLOW + 0x220000
     r.word(answer + 0x38, 20)
@@ -488,6 +513,42 @@ def main():
     assert r.particles == [("remove", systems[0])], r.particles
     print("ok the frozen glow is played on the frozen body's hit model and model (his bones), moved with him, "
           "removed out of play")
+
+    # The match's end and its scene left take every glow out of the scene once, also with the match
+    # core detached (unload clears the world's match pointer before the switch to the lobby); with
+    # no scene to take them out of, nothing is. Either way the next Freeze Tag match's scene gets
+    # nothing of the last one's bodies (no stop, no move), and its first freeze is a fresh play.
+    for leave in ("finish", "deactivate", "no scene"):
+        r.start()
+        for place in (0, 1):
+            r.lethal(place)
+        r.tick(50)
+        r.particles.clear()
+        r.camera()
+        assert [event[:2] for event in r.particles] == [("play", systems[0]), ("play", systems[1])], (leave, r.particles)
+        r.particles.clear()
+        if leave == "finish":
+            r.run(0x1F96F0, (0x1F96F9,), sp, {**hide.GAME, UC_X86_REG_EAX: ffa.UI_WORLD})
+            r.camera()  # a frame of the finished world draws nothing again
+        if leave == "no scene":
+            r.word(renderer + 0x200064, 0)
+        r.word(ffa.UI_WORLD + 0x4D4C, 0)
+        r.run(0x1F9520, (0x1F9525,), sp, {**hide.GAME, UC_X86_REG_ECX: ffa.UI_WORLD})
+        removed = [] if leave == "no scene" else [("remove", systems[0]), ("remove", systems[1])]
+        assert r.particles == removed, (leave, r.particles)
+        r.word(renderer + 0x200064, scene_renderer)
+        r.word(ffa.UI_WORLD + 0x4D4C, ffa.PVP)
+        r.start()
+        r.particles.clear()
+        r.camera()
+        assert r.particles == [], (leave, r.particles)
+        r.lethal(1)
+        r.tick(50)
+        r.camera()
+        assert [event[:2] for event in r.particles] == [("play", systems[1])], (leave, r.particles)
+        r.run(0x1F9520, (0x1F9525,), sp, {**hide.GAME, UC_X86_REG_ECX: ffa.UI_WORLD})
+    print("ok the glow out of the scene once at the match's end or its scene left (the core detached too); "
+          "the next match's scene gets nothing of the last one's")
 
     # The gun in hand keeps the clock while held: its first tick after a thaw no longer steps the
     # whole freeze at once (the owner, 2026-11-22: "after unfreezing there are problems with mouse").
@@ -568,6 +629,47 @@ def main():
     r.tick(200)
     assert r.state()[RECORDS] == 3, "back in the world, frozen there"
     print("ok a frozen player who comes back spawns at his entry and stays frozen")
+
+    # A place new to the match that enters a round in play: its spawn's end makes it lethal, held
+    # from its first input and tick, frozen at the rule's next step; a teammate thaws it.
+    r.start(teams=(0, 0, 1, 0))
+    r.out_of_world(3)
+    r.tick(50)
+    r.spawned(3)
+    assert r.input(3) and r.player_tick(3, 50)
+    r.tick(100)
+    assert r.state()[RECORDS + 3 * 7] == 3
+    for time in range(150, 4100, 50):
+        r.tick(time)
+    assert r.state()[RECORDS + 3 * 7] == 1 and not r.input(3), "a teammate thawed the arrival"
+    # The match start's countdown (the rule not stepped yet) and a round's (its respawns, the kit
+    # switches): a spawn starts as it is.
+    for clock in (2, 4):
+        r.word(ffa.CORE + 0x18FE4, clock)
+        r.spawned(3)
+        assert r.read(ffa.player(3) + 0x33D, 1)[0] == 0
+    # The 3 s after a round, the core still in play: an arrival moves (only the frozen stop).
+    r.start()
+    r.lethal(2)
+    r.tick(50)
+    assert r.state()[PHASE] == 1 and r.read(ffa.CORE + 0x18FE4) == 3
+    r.spawned(1)
+    assert r.read(ffa.player(1) + 0x33D, 1)[0] == 0 and not r.input(1)
+    # An arrival on a team with nobody in it is frozen as well: the other team wins the round (the
+    # owner, 2026-11-26: as intended).
+    r.start(teams=(0, 1))
+    r.out_of_world(1)
+    r.tick(50)
+    assert r.state()[PHASE] == 0, "1 v 0: nothing ends"
+    r.spawned(1)
+    assert r.input(1)
+    r.tick(100)
+    assert r.state()[1:5] == b"\x01\x01\x00\x01"  # Decided, 1:0, the first team's round.
+    r.start(PLAIN)
+    r.spawned(0)
+    assert not r.input(0)
+    print("ok an arrival in a round in play spawns frozen, on an empty team too (the other team's round); "
+          "not before play, in a countdown, after a round or after the match, nor in another mode")
 
     # Why: what the game does to a player put in with link 0 that was out of the world (a world
     # load's 0x2D2D51) when it is next taken out with 1 (the restart's 0x3169A0, the leave handler's

@@ -10,6 +10,18 @@ site = "game_world.after_move"
 handler = "on_frame"
 order = 6
 
+# a spawn's end: an arrival in a round in play spawns frozen (after the courier's 0)
+[[hook]]
+site = "courier.spawned"
+handler = "on_spawned"
+order = 1
+
+# the match over, before its unload: the glow out of the scene (after voice's 0)
+[[hook]]
+site = "game_world.finish"
+handler = "on_finish"
+order = 1
+
 # the match's scene left: the glow out of it (after Artifact Hunt's 3)
 [[hook]]
 site = "game_world.deactivate"

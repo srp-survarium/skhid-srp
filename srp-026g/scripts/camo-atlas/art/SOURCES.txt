@@ -1,0 +1,22 @@
+The 285 additional atlas tiles include 195 based on artwork by SnowyCocoon.
+
+Camouflage Texture Pack 1, FREE edition v1.2
+https://snowycocoon.itch.io/camouflage-texture-pack-1
+
+Camouflage Texture Pack 2, FREE edition v1.0
+https://snowycocoon.itch.io/camouflage-texture-pack-2
+
+The License.txt in each FREE archive dedicates its artwork to CC0 1.0 Universal:
+https://creativecommons.org/publicdomain/zero/1.0/
+
+87 tiles preserve the creator's original colorways. 33 use atlas color ramps.
+Another 75 apply atlas inks and overprints to source motifs. The importer
+selects the precise archive PNG, realization and print treatment for each row.
+
+90 tiles use original artwork across ten textile, cartographic and mineral
+families. They are drawn by expanded_art.py. Each catalog row links the
+museum object, USGS description or mineral specimen used as a visual
+reference. The paintings, photographs and maps remain on their source sites.
+
+The first 120 WebPs are 1024 x 1024. Rows 121 to 285 are 768 x 768.
+The game builds its own 512 x 512 diffuse textures from these sources.
