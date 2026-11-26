@@ -191,6 +191,7 @@ release's. The "Result" row is the build of the revision named in it.
 | `rust/patches/src/profile_kit.rs`, `src/profile_kit.toml`, `src/vostok/profile_kit.rs`, `check_profile_kit_026g.py` | Patch 199: the lobby is given the kit it shows whole, in one call (`../docs/notes/client_patch.md` 3.104): lobby_menu::on_profile_changed's root.fill_player_profile_items (`lobby_menu.profile_items`, 0x222A07) is not made, and at its root.update_profile_slots_count (`lobby_menu.profile_counts`, 0x222CA1) the items value gets `item_slots` and `artifact_slots` and is given in its place; the lobby alone; its check runs both sites in both exes (needs Unicorn) |
 | `rust/patches/src/mouse_acquire.rs`, `src/mouse_acquire.toml`, `src/vostok/mouse_device.rs`, `check_mouse_acquire_026g.py` | Patch 202: a line in `srp_patches.<run>.log` when the game cannot take the mouse, with the reason, and one when it has it again (`../docs/notes/client_patch.md` 3.106): three lohooks in mouse::execute (`mouse.read` 0x3B96DE, `mouse.read_failed` 0x3B9704, `mouse.acquire_join` 0x3B97E8) keep the poll's last outcome and log a change only: the failed Acquire's or read's code (dinput.h's name, hex), the device's level (exclusive or not) and the window in front (GetForegroundWindow against the device's); a log line only; its check runs execute whole in both exes, the device stubbed (needs Unicorn) |
 | `rust/patches/src/reload_commit.rs`, `src/reload_commit.toml`, `src/vostok/reload.rs`, `check_reload_commit_026g.py` | Patch 205: a magazine reload (states 303, 311, 314) loads its magazine at its item clip's `reload_commit` event, the seat (edit list `reload-commit-1.json`), not only at the clip's end, so a reload left after the seat keeps the new magazine (`../docs/notes/reload-commit.md`, `../docs/notes/client_patch.md` 3.107): `reload.listen` 0x30DB0F and `reload.listen_again` 0x30DC7C subscribe a reload state (slot 9 0x310E40) to the channel, `reload.stop_listening` 0x30E476 unsubscribes it, the runtime callback `reload.commit_event` runs the game's own on_animation_end_impl without ending the state, and `reload.load_at_end` 0x310E41 makes its load the same twice as once (a chamber-on-reload gun's round back first); changes the simulation; its check runs the four reload state kinds whole in both exes (needs Unicorn) |
+| `rust/patches/src/key_prompts.rs`, `src/key_prompts.toml`, `src/vostok/key_text.rs`, `check_key_prompts_026g.py` | Patch 212: a text names a key by its action: `{USE}`, `{SCOPE_NEXT}`, `{HIDE_INTERFACE}` are the keys bound to them in the player's language, "unbound" (`st_srp_key_unbound`) for an action without one, and the hud and the lobby are handed their texts again when the bindings change ("Keys in texts" below); expand_text's jne (`EXPAND_TEXT_NAMES`), five lohooks; its check runs translate_text and expand_text whole in both exes (needs Unicorn) |
 | `rust/patches/src/upgrade_value.rs`, `src/upgrade_value.toml`, `src/vostok/lobby_call.rs`, `check_upgrade_value_026g.py` | Patch 207: the lobby movie's `srp_set_upgrade_value(host, upgrade, value)` (the Attachments window's Left/Right toggle of a second sight) becomes the decal editor's lobby request `46 05 <kit> <host> <upgrade> <u64>` (`../docs/notes/client_patch.md` 3.111): one lohook at lobby_menu::scaleform_callback's start (`lobby.callback`, 0x28C2C0) takes that method (every other call to the game), sends through the game's send_apply_decal (0x270950) for a value 0 or 1 and a host of the inventory whose weapon kit holds that second sight, and gives the client's copy of the host the kit with the new side; another value: nothing sent, one log line |
 | `rust/patches/src/material_bounds.rs`, `src/material_bounds.toml`, `src/vostok/material.rs` | Patch 193: game_material_manager::material_pair (0x306D50) takes an id past its 128 material slots as the default material's, the answer it gives an empty slot, instead of reading past its tables (`../docs/notes/footsteps.md`, "Material ids past the table"): one lohook at its start (`material_pair.entry`), every caller's pair through it; the patch log says so at the 1st, 10th, 100th, .. of a run |
 | `rust/patches/src/constant_upload.toml`, `constant_upload_026g.asm`, `check_constant_upload_026g.py` | Patch 134: shader constants cost the render thread less, the same bytes on the GPU: shader_constant_buffer::set_memory (0x11B5A0) copies 16 bytes at a time, not one, and update (0x3DDFD0) maps a buffer only when its bytes differ from the ones it last uploaded (four `code` hooks); its check runs set_memory on 4000 made-up cases in both exes (every register, XMM0..7 and the memory alike), the constructor, and 150 draws over four buffers with a model of the device context (the GPU's bytes after every update alike) (needs Unicorn) |
@@ -4161,11 +4162,11 @@ shows no map name. See `docs/notes/results.md` section 6, hazard 10, and
 
 The same NULL came from expand_text (0x1FEF90): a text's `{USE}` whose
 action has no key bound (the key table 0x207BF0 finds no entry) translated
-NULL at 0x1FF09D. `EXPAND_TEXT_UNBOUND` retargets its branch (0x1FF073,
-`je 1FF090` to `je 1FF0AB`) to the path of an unknown placeholder, which
-appends nothing: "Pick up ()". Later builds (0.31a2 on) translate
-`st_key_use_not_assigned` there; 0.26g's dictionary has no such key, and
-translating "" would give the same empty text. translate_text's 0x200 is
+NULL at 0x1FF09D. That path is no longer run: patch 212 ("Keys in texts")
+makes every `{NAME}` its action's key or `st_srp_key_unbound`'s text
+("Pick up (unbound)"), as later builds (0.31a2 on) translate
+`st_key_use_not_assigned` there. (Before it, `EXPAND_TEXT_UNBOUND` sent the
+unbound `{USE}` to the empty path: "Pick up ()".) translate_text's 0x200 is
 only a log line ("Too long localization string"), it truncates nothing; the
 catalog check already keeps every text under 512 bytes, so it stays.
 
@@ -6974,3 +6975,50 @@ makes from an off-grid time, and each world the server sends is a line of the ru
 replay after which load; 20 lines a second of game time at most. In Freeze Tag, once a second while the rule shows an enemy of the
 viewer on the map, a line says whether the minimap tested and listed him, and how far he is. It only reads (`tools/check sync-log`:
 the three sites' registers and memory the original's, off and on); off, a hook tests one cell.
+
+## Keys in texts (patch 212, unreleased)
+
+A prompt names the key the player has bound, in his language, never a key written into the text.
+The game's localizer, text_translator::expand_text (0x1FEF90), runs on every text translate_text
+(0x1FF0F0) gives: the texts each movie is handed (set_localization_data), messages, prompts. It
+made `{USE}` the key bound to Use and any other `{NAME}` nothing, so srp's own texts wrote their
+keys out ("Press Y while aiming", "press F9"), right only for the default keys.
+
+- **`{NAME}` is the key of the action NAME.** `EXPAND_TEXT_NAMES` makes the jne at 0x1FF037 a jmp:
+  every name goes to the path of an unknown one (0x1FF0AB), where the lohook
+  `text_translator.expand_name` (`key_prompts.rs`, `vostok/key_text.rs`) finds the action of that
+  name (ASCII case aside) among the key binder's bindings (game+5344h, patch 149's 60h, each its
+  action table row), takes its first key, else its second, names it as the game's Settings do
+  (game_options 0x201CF0, the stock USE): the first row of the key names' table (0xA74FA0) with
+  its code, that row's name translated ("kE" -> "E", "mouse1" -> "LMB", "kSPACE" -> "Leertaste"),
+  and exits to 0x1FF087, which appends it. An action with no key (or a key no row names) is
+  `st_srp_key_unbound`'s text ("unbound", "клавиша не назначена"); a name of no action is
+  nothing, as before; `{{` is a brace. The stock USE path (0x1FF039..0x1FF0A9) is no longer run.
+  The key is the physical key's name the Settings and the Bindings window show, not the letter a
+  keyboard layout prints on it (the game names keys so everywhere).
+- **The texts follow a rebinding.** The hud is handed its texts once a match
+  (game_world_ui::set_localization_data 0x2346E0, from initialize_resources) and the lobby once
+  its movie is loaded (lobby_menu::set_localization_data 0x286260, from on_render_scenes_ready),
+  with the keys of that moment: a key rebound in the Settings (in a match too) stayed the old one
+  in them. `hud.texts` and `lobby_menu.texts` (both functions' starts) keep the movie and the
+  bindings it is handed its texts with (every binding's two keys' codes); each frame of the scene
+  (`player_icons.update_start`, first of its chain; `lobby_menu.update_ui` 0x220A00) compares
+  them with the bindings now and, for the same movie, calls the game's function again, which hands
+  the movie every text anew. A movie not yet handed its texts is left to the game. The hud's
+  `set_localization_data` shows a shown offer's text again (`refresh_context`), so the artefact and
+  weapon prompts change at once; the lobby's texts are read when shown.
+- **The texts.** `localization_026g.py`'s `KEY_ACTIONS` are the actions a text may name (`USE`,
+  `SCOPE_NEXT`, `HIDE_INTERFACE`), in capitals, with their default keys; the localization check
+  fails any other `{...}`, a default key that is not the action table's
+  (`item_hotkeys_026g.asm`), and a dictionary that lacks the texts a named key may become.
+  `expand_keys` makes a text as the exe does, for the Ruffle harnesses (`harness_text.py`, the
+  weapon kit's, the artefact carry's). The stock prompts already wrote `{USE}` (`st_pickup_item`,
+  `st_put_item`, `st_artefact_take_teammate`, `st_weapon_pick_up`, ...); srp's second sight hint
+  names "Switch sight" ({SCOPE_NEXT}) and the replay's start "Hide interface" ({HIDE_INTERFACE}).
+- **Checked:** `check_key_prompts_026g.py` (Unicorn, `tools/check key-prompts`): translate_text and
+  expand_text whole in both exes over a made-up dictionary and a key binder of the exe's own action
+  table and key names: the build names every action's key (its default, rebound, the second key
+  alone, unbound, any case), nothing for other names; the original Use alone (its unbound one a
+  fault); every placeholder of the dictionaries is an action of the build. The artefact carry's
+  Ruffle harness (`tools/check artefact-carry`) shows every language's prompts with Use on E, on F
+  and unbound, a shown prompt following new texts at once. Not played in the game.

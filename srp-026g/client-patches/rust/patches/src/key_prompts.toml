@@ -1,0 +1,34 @@
+# Patch 212: keys in texts (client-patches/README.md "Keys in texts"). A
+# dictionary text's {NAME} is the key bound to the action NAME ({USE},
+# {SCOPE_NEXT}), "unbound" in the player's language for an action without one;
+# the hud and the lobby are handed their texts again when the bindings change.
+# The sites are sites_026g.tsv's; the logic is key_prompts.rs.
+name = "key_prompts"
+patch = 212
+
+# expand_text at a {NAME} (patch_026g.py's EXPAND_TEXT_NAMES sends every name here)
+[[hook]]
+site = "text_translator.expand_name"
+handler = "on_placeholder"
+
+# the hud handed its texts (once a match): the bindings they were made with
+[[hook]]
+site = "hud.texts"
+handler = "on_hud_texts"
+
+# every frame of a match, first of the hud's update: the texts made again
+# when the bindings changed since
+[[hook]]
+site = "player_icons.update_start"
+handler = "on_hud_frame"
+order = -1
+
+# the lobby handed its texts (once its movie is loaded)
+[[hook]]
+site = "lobby_menu.texts"
+handler = "on_lobby_texts"
+
+# every frame of the lobby: the same
+[[hook]]
+site = "lobby_menu.update_ui"
+handler = "on_lobby_frame"

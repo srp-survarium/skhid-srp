@@ -833,6 +833,8 @@ package
       public function set_localization_data(value:Object) : void
       {
          LocalizationData.setData(value);
+         // The texts again when the key bindings change (exe patch 212): a shown offer names the key now.
+         this.refresh_context();
          this.set_pregame(this._pregameText);
       }
       

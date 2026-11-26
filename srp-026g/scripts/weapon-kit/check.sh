@@ -60,7 +60,7 @@ lobby=$work/lobby_menu.built.swf
 import json, sys
 from pathlib import Path
 sys.path.insert(0, sys.argv[1])
-from localization_026g import CATALOG, LANGUAGES, read_translations
+from localization_026g import CATALOG, LANGUAGES, expand_keys, read_translations
 KEYS = {'btn_upgrade_label': 'st_btn_upgrade_label', 'scope_window_title': 'st_srp_attachments',
         'decal_slot': 'st_decal_slot', 'camo_slot': 'st_camo_slot',
         'scope_slot': 'st_picatinny_scope_medium_name', 'default_scope': 'st_default_scope_name',
@@ -75,7 +75,8 @@ languages = [name for name, *_ in LANGUAGES]
 data = {}
 for language in languages:
     strings = read_translations(CATALOG / f'{language}.tsv')
-    data[language] = {ui: strings[key] for ui, key in KEYS.items()}
+    # a key a text names ({SCOPE_NEXT}) is the action's default key, as the exe makes it
+    data[language] = {ui: expand_keys(strings[key], strings) for ui, key in KEYS.items()}
 (Path(sys.argv[2]) / 'WeaponKitText.as').write_text(
     'package\n{\n    // Made by srp-026g/scripts/weapon-kit/check.sh: do not edit.\n'
     '    public class WeaponKitText\n    {\n'
