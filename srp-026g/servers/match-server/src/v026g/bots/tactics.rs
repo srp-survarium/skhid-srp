@@ -20,7 +20,7 @@ use mapdata::{NodeId, RayTree, Shape, Vec3, WalkGrid, World};
 
 mod progress;
 
-use super::hazards::{HazardMarks, Hazards, Marking, PASS_MS};
+use super::hazards::{Activity, HazardMarks, Hazards, Marking, PASS_MS};
 use super::path::{self, Route};
 use super::route_filter::RouteFilter;
 use super::rng::Rng;
@@ -261,10 +261,15 @@ pub struct Tactics {
     /// [`Self::walk_up_set`]'s sets, the latest [`WALK_UP_KEPT`]: they depend
     /// on the map alone and the point asked.
     walk_ups: std::sync::Mutex<Vec<(WalkUpKey, Arc<WalkUp>)>>,
+    /// [bot CPU] The strongly connected parts of the floors no zone always on shuts ([`NeverOpenParts`]), by which zones are
+    /// always on.
+    never_open: std::sync::Mutex<Option<(Vec<bool>, Arc<NeverOpenParts>)>>,
     /// [bot CPU] Soft-filtered route searches that ended over the whole grid with no way ([`SoftNoWays`]).
     soft_noways: std::sync::Mutex<SoftNoWays>,
     /// [bot traps] [`Self::regions_reached`]'s sets by start region, the latest [`REACHED_KEPT`]: they depend on the map alone.
     reached: std::sync::Mutex<Vec<(u32, Arc<Vec<u64>>)>>,
+    /// [bot traps] [`Self::reach`]'s sets, by strongly joined part of the regions, side and objective.
+    reaches: std::sync::Mutex<ReachKept>,
     /// [bot traps] [`Self::carrier_static_way`]'s ways (`carrier_home.rs`).
     carrier_ways: std::sync::Mutex<super::carrier_home::Ways>,
     /// [bot traps] The carrier forecasts' searches for a way round a shut floor (`carrier_home::Rounds`).
@@ -321,6 +326,11 @@ pub struct BandLegs {
 }
 
 impl BandLegs {
+    /// The floors of both ways.
+    fn floors(&self) -> impl Iterator<Item = NodeId> + '_ {
+        self.ways.iter().flatten().flat_map(|way| way.iter().copied())
+    }
+
     /// Whether `node` is a floor of either way.
     pub fn has(&self, node: NodeId) -> bool {
         self.ways.iter().flatten().any(|way| way.contains(&node))
@@ -466,6 +476,96 @@ pub enum NoGate {
 /// [bot traps] [`Tactics::regions_reached`]'s sets kept.
 const REACHED_KEPT: usize = 32;
 
+/// [bot traps] [`Tactics::reach`]'s sets kept (a match's bots stand in a few strongly joined parts of the regions a side).
+const REACHES_KEPT: usize = 64;
+
+/// [bot traps] How a goal is reached from a start for a side ([`ReachFrom::way`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum WayTo {
+    /// No chain of planned links from the start to the goal off the other sides' spawn areas, with every zone off: no route
+    /// search and no crossing ever finds one (both keep to planned links and the spawn rule; time, filters and the body's reach
+    /// only shut more).
+    Never,
+    /// A way only across floors zones on all match mark ([`Hazards::fixed_at`]): a crossing's.
+    CrossingOnly,
+    /// A way with the zones that switch counted off and those on all match shut.
+    Plain,
+}
+
+/// [bot traps] The regions a start's region reaches for a side and objective, a bit a region ([`Tactics::reach`]): `open`
+/// entering only regions off the other sides' spawn areas (`Tactics::spawn_ok` on the region's middle: a region's floors share
+/// their label, the spawn areas and the zones), `dry` those that no zone on all match marks too; and the regions that reach
+/// `root` back by each rule, so that a start of the same strongly joined part (by both rules) reads the same sets.
+struct ReachSets {
+    side: Option<i32>,
+    objective: bool,
+    root: u32,
+    open: Vec<u64>,
+    open_back: Vec<u64>,
+    dry: Vec<u64>,
+    dry_back: Vec<u64>,
+}
+
+impl ReachSets {
+    /// Whether a start in region `r` reads these sets: the root's own, or one that the root reaches and that reaches the root
+    /// back by both rules (each set from `r` is then the root's).
+    fn holds(&self, r: u32, side: Option<i32>, objective: bool) -> bool {
+        self.side == side
+            && self.objective == objective
+            && (r == self.root
+                || (region_bit(&self.open, r)
+                    && region_bit(&self.open_back, r)
+                    && region_bit(&self.dry, r)
+                    && region_bit(&self.dry_back, r)))
+    }
+}
+
+/// [bot traps] [`Tactics::reach`]'s kept sets and the zones on all match they were made for.
+#[derive(Default)]
+struct ReachKept {
+    fixed: Vec<bool>,
+    sets: Vec<Arc<ReachSets>>,
+}
+
+/// Whether region `r`'s bit is set in `bits`.
+fn region_bit(bits: &[u64], r: u32) -> bool {
+    bits.get(r as usize / 64).is_some_and(|word| word >> (r % 64) & 1 == 1)
+}
+
+/// [bot traps] A start's reach for a side ([`Tactics::reach`]): asks of its goals.
+pub struct ReachFrom<'a> {
+    tactics: &'a Tactics,
+    sets: Arc<ReachSets>,
+    /// The start's grid pocket (`WalkGrid::pocket_of`).
+    pocket: Option<mapdata::grid::PocketId>,
+}
+
+impl ReachFrom<'_> {
+    /// How `goal` is reached from the start. A goal in a shut pocket the start is not in is entered by no planned link
+    /// (`WalkGrid::plans`). Else, by the regions: the goal is in a set when its region is, or a floor of the set links into it by a
+    /// planned link (a search lets the goal in whatever its own floor), and for `dry` also when the band's walk in starts from
+    /// one (`Tactics::band_way_from`: a route may walk a goal's band legs).
+    pub fn way(&self, goal: NodeId) -> WayTo {
+        let tactics = self.tactics;
+        let (grid, regions) = (&tactics.world.grid, &tactics.base.regions);
+        if grid.in_shut_pocket(goal) && grid.pocket_of(goal) != self.pocket {
+            return WayTo::Never;
+        }
+        let inside = |set: &[u64]| {
+            region_bit(set, regions.of(goal)) || grid.entered_from(goal, |b| grid.plans(b, goal) && region_bit(set, regions.of(b)))
+        };
+        if !inside(&self.sets.open) {
+            return WayTo::Never;
+        }
+        let dry = &self.sets.dry;
+        if inside(dry) || tactics.band_way_from(goal, |b| region_bit(dry, regions.of(b))) {
+            WayTo::Plain
+        } else {
+            WayTo::CrossingOnly
+        }
+    }
+}
+
 /// [route shut] The bench's count of the route checks ([`Tactics::route_shut_ahead`]) that looked over a jump or drop leg by
 /// its take-off and landing (test builds; logging only).
 #[cfg(test)]
@@ -530,6 +630,156 @@ impl SoftNoWays {
             self.0.remove(0);
         }
         self.0.push((key, exhausted));
+    }
+}
+
+/// [bot CPU] The floors no zone always on shuts, in their strongly connected parts by the links the search plans
+/// (`WalkGrid::plans`): the floors of a part reach each other, and a part reaches another only along [`Self::next`]. A floor such
+/// a zone shuts is in none ([`Tactics::never_open_no_way`]).
+pub struct NeverOpenParts {
+    /// Per floor, its part; none for a floor a zone always on shuts.
+    part: Vec<Option<u32>>,
+    /// The parts each part's floors link into (the condensation's steps, each once): `next[from[p]..from[p + 1]]` for part `p`.
+    from: Vec<u32>,
+    next: Vec<u32>,
+}
+
+impl NeverOpenParts {
+    fn build(grid: &WalkGrid, never: impl Fn(NodeId) -> bool) -> Self {
+        let floors = grid.len();
+        let shut: Vec<bool> = (0..floors as NodeId).map(&never).collect();
+        // The planned links between open floors, by floor: `to[row[a]..row[a + 1]]`.
+        let mut row: Vec<u32> = Vec::with_capacity(floors + 1);
+        let mut to: Vec<NodeId> = Vec::new();
+        row.push(0);
+        for a in 0..floors as NodeId {
+            if !shut[a as usize] {
+                to.extend(grid.links(a).map(|(b, _)| b).filter(|&b| !shut[b as usize] && grid.plans(a, b)));
+            }
+            row.push(to.len() as u32);
+        }
+        // Tarjan's strongly connected parts, with its own stack of calls (a floor and its next link).
+        let mut index: Vec<Option<u32>> = vec![None; floors];
+        let mut low = vec![0u32; floors];
+        let mut on_stack = vec![false; floors];
+        let mut stack: Vec<NodeId> = Vec::new();
+        let mut part: Vec<Option<u32>> = vec![None; floors];
+        let (mut parts, mut next_index) = (0u32, 0u32);
+        let mut calls: Vec<(NodeId, u32)> = Vec::new();
+        for root in 0..floors as NodeId {
+            if shut[root as usize] || index[root as usize].is_some() {
+                continue;
+            }
+            index[root as usize] = Some(next_index);
+            low[root as usize] = next_index;
+            next_index += 1;
+            stack.push(root);
+            on_stack[root as usize] = true;
+            calls.push((root, row[root as usize]));
+            while let Some(&(v, e)) = calls.last() {
+                if e < row[v as usize + 1] {
+                    let top = calls.len() - 1;
+                    calls[top].1 += 1;
+                    let w = to[e as usize];
+                    match index[w as usize] {
+                        None => {
+                            index[w as usize] = Some(next_index);
+                            low[w as usize] = next_index;
+                            next_index += 1;
+                            stack.push(w);
+                            on_stack[w as usize] = true;
+                            calls.push((w, row[w as usize]));
+                        }
+                        Some(at) if on_stack[w as usize] => low[v as usize] = low[v as usize].min(at),
+                        Some(_) => {}
+                    }
+                    continue;
+                }
+                calls.pop();
+                if let Some(&(u, _)) = calls.last() {
+                    low[u as usize] = low[u as usize].min(low[v as usize]);
+                }
+                if index[v as usize] == Some(low[v as usize]) {
+                    while let Some(w) = stack.pop() {
+                        on_stack[w as usize] = false;
+                        part[w as usize] = Some(parts);
+                        if w == v {
+                            break;
+                        }
+                    }
+                    parts += 1;
+                }
+            }
+        }
+        // The condensation: each part's steps into other parts, once each.
+        let mut steps: Vec<(u32, u32)> = Vec::new();
+        for a in 0..floors {
+            let Some(pa) = part[a] else { continue };
+            for &b in &to[row[a] as usize..row[a + 1] as usize] {
+                if let Some(pb) = part[b as usize]
+                    && pb != pa
+                {
+                    steps.push((pa, pb));
+                }
+            }
+        }
+        steps.sort_unstable();
+        steps.dedup();
+        let mut from = vec![0u32; parts as usize + 1];
+        for &(p, _) in &steps {
+            from[p as usize + 1] += 1;
+        }
+        for p in 0..parts as usize {
+            from[p + 1] += from[p];
+        }
+        let next = steps.into_iter().map(|(_, q)| q).collect();
+        Self { part, from, next }
+    }
+
+    /// The part of `node`; none for a floor a zone always on shuts (or one off the grid).
+    fn part(&self, node: NodeId) -> Option<u32> {
+        self.part.get(node as usize).copied().flatten()
+    }
+
+    /// The parts `part`'s floors link into.
+    fn next(&self, part: u32) -> &[u32] {
+        &self.next[self.from[part as usize] as usize..self.from[part as usize + 1] as usize]
+    }
+}
+
+/// [bot CPU] The bench's counts of [`Tactics::never_open_no_way`] (test builds; logging only): the unbounded route searches it
+/// answered, the parts' builds and their µs, and the keys its proofs walked.
+#[cfg(test)]
+pub(crate) mod never_open_counts {
+    use std::sync::atomic::{AtomicU64, Ordering::Relaxed};
+    pub const PROVEN: usize = 0;
+    pub const BUILDS: usize = 1;
+    pub const BUILD_US: usize = 2;
+    /// The keys the proofs walked.
+    pub const WALKED: usize = 3;
+    static COUNTS: [AtomicU64; 4] = [const { AtomicU64::new(0) }; 4];
+    pub fn count(what: usize, n: u64) {
+        COUNTS[what].fetch_add(n, Relaxed);
+    }
+    pub fn counts() -> [u64; 4] {
+        std::array::from_fn(|k| COUNTS[k].load(Relaxed))
+    }
+}
+
+/// [bot traps] The bench's counts of [`Tactics::reach`] (test builds; logging only): its sets made (four region floods) and
+/// read again, and the goals [`Ctx::reachable`](super::plays::Ctx::reachable) refused as [`WayTo::Never`].
+#[cfg(test)]
+pub(crate) mod reach_counts {
+    use std::sync::atomic::{AtomicU64, Ordering::Relaxed};
+    pub const FLOODS: usize = 0;
+    pub const HITS: usize = 1;
+    pub const REFUSED_NEVER: usize = 2;
+    static COUNTS: [AtomicU64; 3] = [const { AtomicU64::new(0) }; 3];
+    pub fn count(what: usize) {
+        COUNTS[what].fetch_add(1, Relaxed);
+    }
+    pub fn counts() -> [u64; 3] {
+        std::array::from_fn(|k| COUNTS[k].load(Relaxed))
     }
 }
 
@@ -1336,8 +1586,10 @@ impl Tactics {
             walks: Default::default(),
             spot_lists: Default::default(),
             walk_ups: Default::default(),
+            never_open: Default::default(),
             soft_noways: Default::default(),
             reached: Default::default(),
+            reaches: Default::default(),
             carrier_ways: Default::default(),
             carrier_rounds: Default::default(),
             exit_field: Default::default(),
@@ -1877,6 +2129,110 @@ impl Tactics {
         set
     }
 
+    /// [bot traps] The reach of floor `start` for a body of map side `side` (bound for their base if `objective`): which goals a
+    /// route or a crossing may ever get to from there ([`ReachFrom::way`]). Made on the regions, a few thousand: four floods of them
+    /// (forward and back, by the spawn rule alone and with the zones on all match shut) once a strongly joined part, side and
+    /// objective; then a bit test a goal. Made again when the zones on all match change.
+    ///
+    /// Exact: a region's floors share one label and reach each other, and regions link where a planned floor link does
+    /// (`mapdata::regions`); the start's whole region is let in where a search lets in its floor only. So the sets may only be
+    /// too wide: [`WayTo::Never`] is never said of a goal a search or a crossing reaches.
+    pub fn reach(&self, start: NodeId, side: Option<i32>, objective: bool) -> ReachFrom<'_> {
+        let regions = &self.base.regions;
+        let root = regions.of(start);
+        let sets = {
+            let mut kept = self.reaches.lock().unwrap_or_else(|e| e.into_inner());
+            let same_fixed = kept.fixed.len() == self.hazards.zones.len()
+                && kept.fixed.iter().zip(&self.hazards.zones).all(|(&fixed, zone)| fixed != zone.switches());
+            if !same_fixed {
+                kept.sets.clear();
+                kept.fixed = self.hazards.fixed_zones();
+            }
+            match kept.sets.iter().find(|s| s.holds(root, side, objective)) {
+                Some(sets) => {
+                    #[cfg(test)]
+                    reach_counts::count(reach_counts::HITS);
+                    sets.clone()
+                }
+                None => {
+                    #[cfg(test)]
+                    reach_counts::count(reach_counts::FLOODS);
+                    let open = |r: u32| self.spawn_ok(regions.middle(r), side, objective);
+                    let dry = |r: u32| open(r) && !self.hazards.fixed_at(regions.middle(r));
+                    let sets = Arc::new(ReachSets {
+                        side,
+                        objective,
+                        root,
+                        open: self.region_flood(root, &open, false),
+                        open_back: self.region_flood(root, &open, true),
+                        dry: self.region_flood(root, &dry, false),
+                        dry_back: self.region_flood(root, &dry, true),
+                    });
+                    if kept.sets.len() >= REACHES_KEPT {
+                        kept.sets.remove(0);
+                    }
+                    kept.sets.push(sets.clone());
+                    sets
+                }
+            }
+        };
+        ReachFrom { tactics: self, sets, pocket: self.world.grid.pocket_of(start) }
+    }
+
+    /// [bot traps] The regions `root` reaches entering only regions `enters` lets in (`back`: the regions that reach `root`
+    /// so, every region after the first let in, `root` too), a bit a region; `root` is in either.
+    fn region_flood(&self, root: u32, enters: &dyn Fn(u32) -> bool, back: bool) -> Vec<u64> {
+        let regions = &self.base.regions;
+        let mut seen = vec![0u64; regions.len().div_ceil(64)];
+        seen[root as usize / 64] |= 1 << (root % 64);
+        let mut queue = Vec::new();
+        if !back || enters(root) {
+            queue.push(root);
+        }
+        while let Some(a) = queue.pop() {
+            let next: Box<dyn Iterator<Item = u32>> =
+                if back { Box::new(regions.into(a).iter().copied()) } else { Box::new(regions.out(a).iter().map(|&(b, _)| b)) };
+            for b in next {
+                let (word, bit) = (b as usize / 64, 1u64 << (b % 64));
+                if seen[word] & bit != 0 {
+                    continue;
+                }
+                // Forward a region is marked only when entered; back it is marked as a start (which needs no entry) and
+                // gone on from only when entered.
+                if back {
+                    seen[word] |= bit;
+                    if enters(b) {
+                        queue.push(b);
+                    }
+                } else if enters(b) {
+                    seen[word] |= bit;
+                    queue.push(b);
+                }
+            }
+        }
+        seen
+    }
+
+    /// [bot traps] The route from `start` to `goal` for a body of map side `side` with the zones that switch counted off and
+    /// those on all match shut (but for the floors of the band legs, `Self::band_legs`), off the other sides' spawn areas: the
+    /// way a body walks at a time not known yet (the camper trap job's way in to a held place, for his next walk there).
+    pub fn route_all_match(&self, start: NodeId, goal: NodeId, side: Option<i32>) -> Option<Route> {
+        let regions = &self.base.regions;
+        let legs = self.band_legs(start, goal);
+        path::plan_in(
+            &self.world.grid,
+            regions,
+            &self.base.hot,
+            start,
+            goal,
+            |node| (!self.hazards.fixed_at(node) || legs.has(node)) && self.spawn_ok(node, side, false),
+            |region| {
+                let middle = regions.middle(region);
+                (!self.hazards.fixed_at(middle) && self.spawn_ok(middle, side, false)) || legs.crosses(regions, region)
+            },
+        )
+    }
+
     /// The route from `from` to `to` for a body of map side `side`, off
     /// their spawn area.
     #[cfg_attr(test, track_caller)]
@@ -2060,11 +2416,136 @@ impl Tactics {
         objective: bool,
         filter: &RouteFilter,
     ) -> Option<Route> {
+        // [bot CPU] A goal no walk reaches over the floors a zone may open: the unbounded search would expand every floor it may
+        // walk to find that out (a camper job's held spot under a zone always on: 490,207-777,728 floors, 97-178 ms in one
+        // commander poll); it ends so with no floor searched ([`Self::never_open_no_way`]).
+        if self.never_open_no_way(start, goal) {
+            #[cfg(test)]
+            never_open_counts::count(never_open_counts::PROVEN, 1);
+            let grid = &self.world.grid;
+            let at = grid.position(start);
+            let legs = self.band_legs(start, goal);
+            return path::plan_start_proven_no_way(
+                grid,
+                &self.base.regions,
+                start,
+                goal,
+                |node| self.route_floor_open(node, time, side, objective, at, filter, &legs),
+                |region| self.route_region_open(region, time, side, objective, at, filter, &legs),
+                filter.reach(),
+            );
+        }
         let mut iters = usize::MAX;
         match self.start_route(start, goal, time, side, objective, filter, &mut iters) {
             Ok(route) => route,
             Err(_) => unreachable!("an unbounded search ends"),
         }
+    }
+
+    /// [bot CPU] The strongly connected parts of the floors no zone always on shuts ([`NeverOpenParts`]): made at the first ask after the
+    /// anomalies are attached (`Bots::map_ready` asks it then, off the match loop), kept while the same zones are always on
+    /// (`Hazards::refresh` turns a zone always on when it does not switch or its schedule is not known; made again when that
+    /// changes).
+    pub fn never_open_parts(&self) -> Arc<NeverOpenParts> {
+        let always: Vec<bool> = self.hazards.zones.iter().map(|zone| zone.activity == Activity::Always).collect();
+        let mut kept = self.never_open.lock().unwrap_or_else(|e| e.into_inner());
+        if let Some((key, parts)) = kept.as_ref()
+            && *key == always
+        {
+            return parts.clone();
+        }
+        #[cfg(test)]
+        let started = std::time::Instant::now();
+        let parts = Arc::new(NeverOpenParts::build(&self.world.grid, |node| {
+            self.hazards.zones_at(node).any(|zone| zone.activity == Activity::Always)
+        }));
+        #[cfg(test)]
+        {
+            never_open_counts::count(never_open_counts::BUILDS, 1);
+            never_open_counts::count(never_open_counts::BUILD_US, started.elapsed().as_micros() as u64);
+        }
+        *kept = Some((always, parts.clone()));
+        parts
+    }
+
+    /// [bot CPU] Whether no route from `start` to `goal` can exist now, whatever the side, objective or filter: the search's floor
+    /// test ([`Self::route_floor_open`]) never opens a floor a zone always on shuts (`Activity::Always` is never off:
+    /// `Hazards::allowed_for`), but for the floors of the start's and the goal's band legs, and it takes only the links it plans
+    /// (`WalkGrid::plans`). Over the strongly connected parts of the other floors ([`NeverOpenParts`]) and the start, the goal
+    /// and the band legs' floors under such a zone, each a key, with the steps between keys the way their links go: no walk of
+    /// steps from the start's key to the goal's is no way. A proof only: false says nothing.
+    pub fn never_open_no_way(&self, start: NodeId, goal: NodeId) -> bool {
+        if start == goal {
+            return false;
+        }
+        let parts = self.never_open_parts();
+        if parts.part(start).is_some() && parts.part(start) == parts.part(goal) {
+            return false;
+        }
+        let grid = &self.world.grid;
+        let legs = self.band_legs(start, goal);
+        // The keys a route may stand on: a part (its floors reach each other), or the start, the goal or a band leg's floor under a
+        // zone always on, alone.
+        #[derive(Clone, Copy, PartialEq, Eq, Hash)]
+        enum Key {
+            Floor(NodeId),
+            Part(u32),
+        }
+        let key_of = |node: NodeId| match parts.part(node) {
+            Some(part) => Some(Key::Part(part)),
+            None => (node == start || node == goal || legs.has(node)).then_some(Key::Floor(node)),
+        };
+        // The steps between keys, each the way its link goes and only by a link the search plans (`WalkGrid::plans`: none into
+        // a shut pocket from outside it, which the search prices past any way): out of each of those floors by its links, into
+        // each by the floors that link into it, and from part to part by the parts' own ([`NeverOpenParts::next`]). Every step
+        // of a route from key to key is one of them.
+        let mut steps: std::collections::HashMap<Key, Vec<Key>> = std::collections::HashMap::new();
+        let mut floors: Vec<NodeId> = vec![start, goal];
+        floors.extend(legs.floors());
+        for &node in &floors {
+            let Some(here) = key_of(node) else { continue };
+            for (b, _) in grid.links(node) {
+                if let Some(there) = key_of(b)
+                    && grid.plans(node, b)
+                {
+                    steps.entry(here).or_default().push(there);
+                }
+            }
+            // `entered_from` takes a plain closure: the steps in are gathered through a cell.
+            let into = std::cell::RefCell::new(Vec::new());
+            grid.entered_from(node, |b| {
+                if grid.plans(b, node) {
+                    into.borrow_mut().extend(key_of(b));
+                }
+                false
+            });
+            for there in into.into_inner() {
+                steps.entry(there).or_default().push(here);
+            }
+        }
+        let (Some(s), Some(g)) = (key_of(start), key_of(goal)) else { return false };
+        let mut seen = std::collections::HashSet::from([s]);
+        let mut queue = vec![s];
+        while let Some(k) = queue.pop() {
+            if k == g {
+                return false;
+            }
+            for &next in steps.get(&k).map_or(&[][..], Vec::as_slice) {
+                if seen.insert(next) {
+                    queue.push(next);
+                }
+            }
+            if let Key::Part(part) = k {
+                for &next in parts.next(part) {
+                    if seen.insert(Key::Part(next)) {
+                        queue.push(Key::Part(next));
+                    }
+                }
+            }
+        }
+        #[cfg(test)]
+        never_open_counts::count(never_open_counts::WALKED, seen.len() as u64);
+        true
     }
 
     /// [`Self::route_nodes`] for at most `iters` floors expanded (taken off
@@ -2087,6 +2568,10 @@ impl Tactics {
     ) -> Result<Option<Route>, path::Planning> {
         #[cfg(test)]
         let _asker = path::slowest::Scope::at(std::panic::Location::caller());
+        #[cfg(test)]
+        if super::intent_counts::stale() {
+            super::intent_counts::count(super::intent_counts::SEARCHES);
+        }
         let grid = &self.world.grid;
         let at = grid.position(start);
         let weight = |node| filter.weight(grid, node);
@@ -2191,6 +2676,10 @@ impl Tactics {
     ) -> Option<Option<Route>> {
         #[cfg(test)]
         let _asker = path::slowest::Scope::at(std::panic::Location::caller());
+        #[cfg(test)]
+        if super::intent_counts::stale() {
+            super::intent_counts::count(super::intent_counts::SEARCHES);
+        }
         let grid = &self.world.grid;
         let at = grid.position(start);
         let weight = |node| filter.weight(grid, node);
@@ -2234,6 +2723,10 @@ impl Tactics {
     ) -> Result<Option<Route>, path::Planning> {
         #[cfg(test)]
         let _asker = path::slowest::Scope::at(std::panic::Location::caller());
+        #[cfg(test)]
+        if super::intent_counts::stale() {
+            super::intent_counts::count(super::intent_counts::SEARCHES);
+        }
         let at = self.world.grid.position(start);
         path::plan_start(
             &self.world.grid,
@@ -2266,6 +2759,10 @@ impl Tactics {
     ) -> Option<Option<Route>> {
         #[cfg(test)]
         let _asker = path::slowest::Scope::at(std::panic::Location::caller());
+        #[cfg(test)]
+        if super::intent_counts::stale() {
+            super::intent_counts::count(super::intent_counts::SEARCHES);
+        }
         let at = self.world.grid.position(start);
         planning.resume(
             &self.world.grid,

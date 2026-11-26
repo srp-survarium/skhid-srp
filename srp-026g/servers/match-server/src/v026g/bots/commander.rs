@@ -1801,6 +1801,12 @@ impl Bots {
             bot.running = Some(running);
             bot.end_route(RouteEnd::NewAssignment, now);
             bot.assignment = Some(assignment);
+            bot.plays_given = bot.plays_given.wrapping_add(1);
+            // [stale intent] Its think is due at once: the poll's thinks run after the commander and before the ticks, so
+            // its first drive tick on the new play goes for the new play's goal (`Bot::intent_is_current`).
+            bot.next_think = bot.next_think.min(now);
+            #[cfg(test)]
+            super::intent_counts::count(super::intent_counts::GIVEN);
             if tuning.number(plays::PlayKind::Roam, "fresh_claims") > 0.5 {
                 let knowledge = &mut self.teams[usize::from(team)].knowledge;
                 match (claim, bot.side) {

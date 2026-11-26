@@ -124,6 +124,47 @@ pub const JUMP_SHUT_MS: u32 = (super::motor::TRY_KEPT_S * 1000.0) as u32;
 pub const LANDING_SHUT_M: f32 = 0.35;
 /// … and within this up or down, metres.
 pub const LANDING_SHUT_UP_M: f32 = 0.3;
+/// [unreached take-off] Where a body stands against a route jump's take-off when the jump is given up, from the grid alone.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Footing {
+    /// The grid floor under the feet is the take-off's.
+    OnTakeOff,
+    /// A floor the take-off is walked to from in a straight line ([`mapdata::WalkGrid::walks_straight`]) over no marked walk
+    /// ([`mapdata::WalkGrid::walk_marked`]): the take-off's floor, as a body lining up a press's lead behind it stands.
+    WalksOn,
+    /// Any other floor: the take-off is no straight walk from it, or only over a walk the walk check found the client does not
+    /// walk.
+    Off,
+}
+
+impl Footing {
+    /// The footing of a body on floor `on` against take-off `to`: `walks`, whether the take-off is a straight walk from `on` over
+    /// no marked walk.
+    pub fn of(on: mapdata::NodeId, to: mapdata::NodeId, walks: bool) -> Self {
+        match (on == to, walks) {
+            (true, _) => Self::OnTakeOff,
+            (false, true) => Self::WalksOn,
+            (false, false) => Self::Off,
+        }
+    }
+}
+
+/// [unreached take-off] Whether a body whose feet are at `feet` when its route's jump from `take_off` is given up never got onto
+/// the take-off's floor ([`Stuck::unreached_take_off`]): the grid floor under its feet ([`mapdata::WalkGrid::locate`]) is not
+/// the take-off's, nor one it walks to the take-off from in a straight line over no marked walk ([`Footing::Off`]). No floor
+/// under the feet, or none at the take-off, says nothing. v70's census of the one-link test before it: 256 of its 380 firings
+/// had the feet within 0.3 m of the take-off's height, 0.5-1 m back on its floor.
+pub fn take_off_unreached(grid: &mapdata::WalkGrid, feet: Vec3, take_off: Vec3) -> bool {
+    let (Some(on), Some(to)) = (grid.locate(feet, 1.5), grid.locate(take_off, 1.5)) else {
+        return false;
+    };
+    // The line's floors in order, each against the one before; the take-off itself is let through by `walks_straight`
+    // unasked, so its link in is looked at after.
+    let before = std::cell::Cell::new(on);
+    let straight = on != to && grid.walks_straight(on, to, f32::INFINITY, |n| !grid.walk_marked(before.replace(n), n));
+    let walks = straight && !grid.walk_marked(before.get(), to);
+    Footing::of(on, to, walks) == Footing::Off
+}
 /// A spot is avoided once it caught the body this many times.
 const AVOID_AFTER: u32 = 2;
 /// A route passing this near a kept spot is not taken (its first metres,
@@ -716,6 +757,17 @@ impl Stuck {
                 self.spent.push(landing);
             }
         }
+    }
+
+    /// [unreached take-off] A jump of its route given up ([`Self::failed_jump`]) while the body stands under its take-off's floor
+    /// ([`take_off_unreached`]): the walk onto the take-off failed with it, so the take-off's floor is shut to this body's
+    /// searches for [`JUMP_SHUT_MS`] too, as the jump's landing is. This body's try only: nothing is told to the match's dead links
+    /// and nothing is spent, so another body (and this one, once the shut ends) may walk onto it and jump. Level 5 day 2's
+    /// take-off (6.63, 6.58, 11.16), v65 C batt-m5-s4 place 7: the body slid off that narrow top onto the slope north of it
+    /// ((6.6, 6.09, 11.6)), lined up from there up a slope no client walks, gave the jump up, and the next search handed back the
+    /// same take-off (72 s there).
+    pub fn unreached_take_off(&mut self, time: u32, take_off: Vec3) {
+        self.shut(Shut { kind: ShutKind::Jump, landing: take_off, lasts: Lasts::Until(time + JUMP_SHUT_MS) }, time);
     }
 
     /// [A386] A sprint link the client refuses this body now (`motor::Walked::JumpRefused`): its `landing` is shut to this body's
@@ -1702,6 +1754,49 @@ mod tests {
         assert_eq!(without_evidence(&tagged), plain);
         let off = "was 13.9 m off its reckoning; plans again to [2.2, 16.3, 105.7] [fix gap 4000 ms]";
         assert_eq!(without_evidence(off), "was 13.9 m off its reckoning; plans again to [2.2, 16.3, 105.7]");
+    }
+
+    /// [unreached take-off] v65 C batt-m5-s4 place 7: its route's jump from level 5 day 2's take-off (6.625, 6.577, 11.164) to
+    /// (6.625, 7.782, 11.914) given up with the feet at (6.6, 6.09, 11.6), on the slope under that narrow top. The take-off's floor
+    /// is shut to this body's searches for the jump's time, beside the landing, and only for it: the match is told the jump alone.
+    /// A body that gave the jump up standing on the take-off's floor shuts the landing only.
+    #[test]
+    fn a_take_off_is_reached_from_its_own_floor_not_from_under_its_ledge() {
+        use crate::v026g::bots::body::tests::floor;
+        // A ground at 0 for x 0-10 and a deck 1.0 m up for x 10-20: the deck is no walk from the ground (a Jump link).
+        let mut tris = floor(0.0, 0.0, 10.0, 10.0, 0.0).to_vec();
+        tris.extend(floor(10.0, 0.0, 20.0, 10.0, 1.0));
+        let grid = mapdata::WalkGrid::build(&tris, [0.0, 0.0, 20.0, 10.0], 0.25, mapdata::Body::client());
+        let take_off = Vec3::new(14.125, 1.0, 5.125);
+        assert!(!take_off_unreached(&grid, take_off, take_off), "on the take-off");
+        // Lining up a press's lead back on its floor, level or a step aside: reached.
+        for feet in [Vec3::new(13.375, 1.0, 5.125), Vec3::new(12.125, 1.0, 4.375)] {
+            assert!(!take_off_unreached(&grid, feet, take_off), "{feet:?}");
+        }
+        // On the ground under the deck's edge: the take-off is no walk from there.
+        assert!(take_off_unreached(&grid, Vec3::new(9.625, 0.0, 5.125), take_off));
+    }
+
+    #[test]
+    fn a_jump_given_up_from_under_its_take_off_shuts_the_take_off_for_this_body() {
+        let (take_off, landing) = (Vec3::new(6.625, 6.577, 11.164), Vec3::new(6.625, 7.782, 11.914));
+        let feet = Vec3::new(6.6, 6.09, 11.6);
+        // level_05 day_2's take-off 143074: the feet on 143681, north of it, whose walk-in the walk check marked (the port and
+        // the exe alike: the client's walk does not reach the take-off from there); 143075's walk-in reaches it, unmarked.
+        assert_eq!(Footing::of(143_681, 143_074, false), Footing::Off, "on the slope's floor, its walk-in marked");
+        assert_eq!(Footing::of(143_074, 143_074, false), Footing::OnTakeOff, "on the take-off's own floor");
+        assert_eq!(Footing::of(143_075, 143_074, true), Footing::WalksOn, "a straight walk the client walks");
+        let mut stuck = Stuck::default();
+        stuck.failed_jump(54_900, take_off, Some(landing));
+        stuck.unreached_take_off(54_900, take_off);
+        let shut: Vec<Shut> = stuck.shut_landings_from(55_000, feet, true).collect();
+        assert!(shut.iter().any(|s| s.covers(take_off)), "the take-off's floor: {shut:?}");
+        assert!(shut.iter().any(|s| s.covers(landing)), "the landing, as before");
+        assert!(!shut.iter().any(|s| s.covers(Vec3::new(6.875, 6.235, 11.164))), "the floor below it, east, stays open");
+        assert!(stuck.shut_landings_from(54_900 + JUMP_SHUT_MS + 1, feet, true).next().is_none(), "for the jump's time only");
+        let told = stuck.tell_failed_links();
+        assert_eq!(told.len(), 1, "the match is told the jump alone: {told:?}");
+        assert_eq!(told[0].landing, landing);
     }
 
     /// [unstick.link_made] A jump the motor gave up that a world then showed the body up: its shut lifted, its failure not

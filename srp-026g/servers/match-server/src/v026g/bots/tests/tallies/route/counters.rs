@@ -74,6 +74,31 @@ pub(super) fn shut_flights() -> Box<dyn RouteTopic> {
     )
 }
 
+/// [bot CPU] The unbounded route searches proven to have no way over the floors no zone always on shuts, answered with no
+/// search; the builds of those floors' parts, with their time; and the keys the proofs walked.
+pub(super) fn never_open() -> Box<dyn RouteTopic> {
+    Delta::of(
+        || super::super::tactics::never_open_counts::counts().to_vec(),
+        |d, line| {
+            line.ends.push(format!(
+                "never_open_no_way {} never_open_builds {} never_open_build_us {} never_open_walked {}",
+                d[0], d[1], d[2], d[3]
+            ));
+        },
+    )
+}
+
+/// [bot traps] `Tactics::reach`'s sets made (four region floods each) and read again, and the goals `Ctx::reachable` refused
+/// with no way for the side from the bot's floor even with every zone off.
+pub(super) fn reach() -> Box<dyn RouteTopic> {
+    Delta::of(
+        || super::super::tactics::reach_counts::counts().to_vec(),
+        |d, line| {
+            line.ends.push(format!("reach_floods {} reach_hits {} goals_refused_never {}", d[0], d[1], d[2]));
+        },
+    )
+}
+
 /// [bot CPU] The soft-filtered searches that ended over the whole grid with no way: kept, answered again with no floor searched,
 /// the floors those would have expanded, refused (a tested floor's answer changed).
 pub(super) fn soft_noways() -> Box<dyn RouteTopic> {

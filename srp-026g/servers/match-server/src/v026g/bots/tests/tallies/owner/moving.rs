@@ -198,8 +198,10 @@ pub(crate) const FOLLOW_STEPS: [&str; 4] = ["Follow", "Follow)", "Behind", "Ahea
 pub(crate) const LEADER_FAR_M: f32 = 20.0;
 
 /// Its window kinds: the least seconds, the radius about the positions'
-/// middle (m), the least share of ticks with a walk key, the share of aim
-/// or fire under which it counts (none: any).
+/// middle (m; x/z, but 'nohead' in 3D: a bot that climbs a stair inside a
+/// small footprint moves, while a pushing or standing bot that hops is
+/// still stuck), the least share of ticks with a walk key, the share of
+/// aim or fire under which it counts (none: any).
 pub(crate) const STUCK_KINDS: [(&str, f32, f32, f32, Option<f32>); 3] = [
     ("push", 3.0, 0.6, 0.75, None),
     ("nohead", 10.0, 2.5, 0.70, Some(0.35)),
@@ -504,6 +506,12 @@ impl MoveCounts {
                 .map(|&k| (recs[k].feet.x - cx).hypot(recs[k].feet.z - cz))
                 .fold(0.0, f32::max)
         };
+        // The same in 3D, for 'nohead': a climb inside a small footprint (a spiral stair) is moving. A push or a stand keeps x/z:
+        // a body hopping against a ledge is still stuck.
+        let radius_3d = |pts: &[usize]| {
+            let middle = pts.iter().map(|&k| recs[k].feet).fold(Vec3::ZERO, |a, b| a + b) * (1.0 / pts.len() as f32);
+            pts.iter().map(|&k| (recs[k].feet - middle).length()).fold(0.0, f32::max)
+        };
         // Windows: start, end (record indexes), kind.
         let mut marks: Vec<(usize, usize, &'static str)> = Vec::new();
         for life in &lives {
@@ -529,7 +537,8 @@ impl MoveCounts {
                     let ok = |j: usize| -> bool {
                         let pts = &life[i..=j];
                         let (k0, k1) = (pts[0], pts[pts.len() - 1]);
-                        if radius(pts) > rmax || share(k0, k1, walking) < wmin {
+                        let r = if name == "nohead" { radius_3d(pts) } else { radius(pts) };
+                        if r > rmax || share(k0, k1, walking) < wmin {
                             return false;
                         }
                         if amax.is_some_and(|amax| share(k0, k1, aiming) >= amax) {
@@ -1214,6 +1223,38 @@ pub(crate) fn the_stuck_detector_finds_a_push_a_stand_and_a_watch_and_their_caus
     assert_eq!(json["stuck_by_cause"]["stand"][0], 1);
     assert_eq!(json["stuck_by_cause"]["wall"][0], 1);
     assert_eq!(json["stuck_blips"], 1);
+}
+
+#[test]
+pub(crate) fn a_stair_climb_in_a_small_footprint_is_not_stuck_and_a_bot_on_one_spot_is() {
+    // Bot 0 walks a spiral stair: round a 1.5 m circle, a lap in 4 s, 10 m up in 12 s, then on east. Bot 1 walks the same circle
+    // on the flat ground ('nohead'). Bot 2 pushes forward on one spot, hopping 0.8 m every other second ('push': the radius of a
+    // push stays x/z).
+    let (mut game, mut tally) = made_up(&[0, 0, 0]);
+    let climb = 12 * TPS;
+    play(&mut game, &mut tally, climb + 100, |k, game| {
+        let a = std::f32::consts::TAU * k as f32 / (4 * TPS) as f32;
+        let (cx, cz) = (20.0 + 1.5 * a.cos(), 20.0 + 1.5 * a.sin());
+        if k < climb {
+            put(game, 0, cx, cz, key::FORWARD);
+            game.bodies[0].feet.y = 10.0 * k as f32 / climb as f32;
+            put(game, 1, cx, cz + 20.0, key::FORWARD);
+        } else {
+            put(game, 0, 21.5 + 0.15 * (k - climb) as f32, 20.0, key::FORWARD);
+            game.bodies[0].feet.y = 10.0;
+            put(game, 1, 21.5 + 0.15 * (k - climb) as f32, 40.0, key::FORWARD);
+        }
+        for place in [0, 1] {
+            game.bodies[place].step_m = 0.12;
+        }
+        put(game, 2, 10.0, 60.0, key::FORWARD);
+        game.bodies[2].feet.y = if (k / TPS) % 2 == 1 { 0.8 } else { 0.0 };
+        vec![bot_now(); 3]
+    });
+    let (_, json) = tally.finish(&game);
+    assert_eq!(json["stuck_by"]["nohead"][0], 1, "the flat circle: {json}");
+    assert_eq!(json["stuck_by"]["push"][0], 1, "the push on one spot: {json}");
+    assert_eq!(json["stuck"], 2, "the climb is no episode: {json}");
 }
 
 #[test]

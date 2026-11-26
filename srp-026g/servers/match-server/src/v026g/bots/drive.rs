@@ -433,7 +433,21 @@ pub(super) fn drive_tick(
     // [S6] The closed drops of this bot's searches only.
     drop(mapdata::take_falls_closed());
     bot.key_tick = super::key_sources::Tick::default();
+    #[cfg(test)]
+    {
+        use super::intent_counts::{MOVING, TICKS, count, set_stale};
+        let stale = !bot.intent_is_current();
+        if stale {
+            count(TICKS);
+            if matches!(bot.intent.go, Go::To { .. }) {
+                count(MOVING);
+            }
+        }
+        set_stale(stale);
+    }
     let mut decision = drive_tick_inner(bot, me, view, tactics, tuning, time, searching, press, lanes);
+    #[cfg(test)]
+    super::intent_counts::set_stale(false);
     // [lane draw] Its walk's claim follows its held lane and ends with the walk; a teammate's under way whose walker is dead
     // died now (`lane_draw::TeamLanes::walking`).
     if tuning.spacing.lane_draw.is_some() {
@@ -703,7 +717,9 @@ fn drive_tick_inner(
         pitch: Pitch::view(me.pitch, kick).elevation(tuning.kin.pitch_scale),
         ..me.clone()
     };
-    let intent = bot.intent;
+    // [stale intent] An intent made for a play before the one it has now goes nowhere: no search, no walk for the old goal
+    // (its look, fire and keys are kept) until a think puts the new play's in place.
+    let intent = if bot.intent_is_current() { bot.intent } else { Intent { go: Go::Stay, ..bot.intent } };
     #[cfg(test)]
     {
         bot.bench_walk = 0;
@@ -1622,10 +1638,13 @@ fn drive_tick_inner(
                 // room is where the floors' search keeps to (one search either way), the plain search's when there is none. A
                 // replan for danger (a held shooter's lane ahead, a zone shut ahead, a crossing given up) is the plain search.
                 // Not Roam's walks (its own human-route draw) nor a carrier's (a race home).
-                let lane_set = tuning
-                    .spacing
-                    .lane_draw
-                    .filter(|_| me.carrying.is_none() && bot.assignment.as_ref().is_none_or(|a| a.kind != plays::PlayKind::Roam));
+                // [Fable D fix 1] Only on the intent of the play given last (`Bot::intent_is_current`): never a lane, a hold or a pairing
+                // for the play before's goal.
+                let lane_set = tuning.spacing.lane_draw.filter(|_| {
+                    me.carrying.is_none()
+                        && bot.assignment.as_ref().is_none_or(|a| a.kind != plays::PlayKind::Roam)
+                        && bot.intent_is_current()
+                });
                 // [pincer] A replan for danger ends its pincer: it goes in alone, the plain search (`pincer`).
                 if (aborted || shut || threat_ahead)
                     && let Some(p) = bot.features.lane.pincer().filter(|p| p.phase != super::pincer::Phase::In)
@@ -2499,6 +2518,13 @@ fn drive_tick_inner(
                                 })
                                 .map(|(_, point)| point.at);
                             bot.stuck.failed_jump(time, take_off, landing);
+                            // [unreached take-off] Given up from a floor that is not the take-off's, nor one the client's walk takes
+                            // onto it (`stuck::Footing`): the walk onto it failed too, for this body.
+                            if super::stuck::take_off_unreached(&tactics.world.grid, me.feet, take_off) {
+                                bot.stuck.unreached_take_off(time, take_off);
+                                let line = super::nav_log::unreached_take_off_line(take_off, me.feet, super::stuck::JUMP_SHUT_MS);
+                                bot.nav_log.push(super::nav_log::Kind::Jump, time, line);
+                            }
                             // [T2] The route's goal on the failed jump's landing: the search never shuts a goal's own floor (only
                             // the floors it enters from), so it planned the same route over the same gap every tick and the kept
                             // tries failed it at once, keys 0 to the end (the 887 final round's level_04 ledges S169, S260, S262,
