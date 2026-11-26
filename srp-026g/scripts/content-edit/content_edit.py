@@ -62,7 +62,14 @@ Edits (edits.json):
   "retime_reload":  [{"files" (glob)}]               compile explicit reload_empty_time pairs after
                     weapon-stats.tsv. Private hands/item clips and event times follow the pair;
                     declare source .b-spline and .bones_names dependencies in _inputs.
-  "append_entry":   [{"file", "list", "expected_count", "unique_key", "value"}]
+  "reload_commit":  [{"files" (glob)}]               each item reload clip of a magazine reload
+                    (state 303, 311, 314) gets the `reload_commit` channel: one knot, domain 1, at
+                    the clip's own seat sound (reload_seat: the last sound event of a magazine,
+                    belt, shell or stripper going in), where client patch 205 counts the new
+                    ammunition; a clip two guns read at two seats, or one without a seat sound,
+                    stops it. After retime_reload (it reads the clips as they are); declare the
+                    clips in _inputs (docs/notes/reload-commit.md).
+  "append_entry":  [{"file", "list", "expected_count", "unique_key", "value"}]
                     append a new indexed record, refusing stale counts and duplicate identities;
                     "unique_key": null for a list whose entries are known by their index (the
                     game reads them by it: a battery's `states`), the count check alone;
@@ -2200,6 +2207,59 @@ def retime_reload(config, weapon, read_asset):
     return assets, written
 
 
+RELOAD_COMMIT = 'reload_commit'  # the channel client patch 205 subscribes a magazine reload to
+RELOAD_COMMIT_SEATED = 1         # its one domain value: the new ammunition is in the gun
+RELOAD_COMMIT_TYPE = 2           # an event channel's type, as the clips' own (sound_events, shoot)
+# The reload states whose end loads the magazine (weapon_core_reload_state_base::on_animation_end_impl
+# 0x310E40): 303 one clip, 314 a tactical and an empty one, 311 a double barrel's two.
+RELOAD_COMMIT_STATES = (303, 311, 314)
+# A sound of the new ammunition going in: a magazine in or set (not its _ready or _start), a belt laid,
+# a shell loaded, a revolver's shells or a stripper's rounds in.
+SEAT_SOUND = re.compile(r'(mag_(in|set|slide_in|in_set|set_in|in_rnd|power_set)|belt_(set|on)|(^|_)load_\d'
+                        r'|shells_in|bullets_in)(_\d+)?$')
+
+
+def reload_sounds(config):
+    """The reload state's first-view sounds (their last path part), in the list's order."""
+    return [value_of(config, children(config, sound)[1]).rsplit('/', 1)[-1]
+            for sound in children(config, find(config, 'states/reload/sounds/first_view'))]
+
+
+def reload_seat(channels, sounds):
+    """The frame of a reload clip's seat: its last sound event whose sound is SEAT_SOUND's. A knot of
+    domain 255 plays the list's next sound (weapon_sound_effect::on_sound_event 0x297D11: the index
+    from 0FFh, a byte, then modulo the list), any other the sound of that index. None without one."""
+    events = [c for c in channels if c['name'] == 'sound_events']
+    if len(events) != 1 or not sounds:
+        return None
+    seat, index = None, 0xff
+    for knot, domain in zip(events[0]['knots'], events[0]['domains']):
+        index = ((index + 1) & 0xff) % len(sounds) if domain == 255 else domain
+        if index < len(sounds) and SEAT_SOUND.search(sounds[index]):
+            seat = knot
+    return seat
+
+
+def reload_commit_seats(config, read_clip):
+    """{item reload clip: its seat frame} of a magazine reload's config; {} for another reload."""
+    try:
+        state = value_of(config, find(config, 'states/reload/state_type'))
+    except KeyError:
+        return {}
+    if state not in RELOAD_COMMIT_STATES:
+        return {}
+    sounds = reload_sounds(config)
+    seats = {}
+    for off in children(config, find(config, 'states/reload/animations')):
+        clip = value_of(config, off).removeprefix('resources/') + '.b-spline'
+        _, _, tracks, channels, _ = clip_parse(read_clip(clip))
+        seat = reload_seat(channels, sounds)
+        if seat is None or not 0 <= seat < clip_end(tracks):
+            raise ValueError(f'{clip}: no seat sound in {sounds}')
+        seats[clip] = seat
+    return seats
+
+
 def f32(values):
     return [struct.unpack('<f', struct.pack('<f', v))[0] for v in values]
 
@@ -2775,6 +2835,27 @@ def main():
             allowed.setdefault(p, set()).update(written)
             clips.update(assets)
             print('retimed reload %s: %d private animation resources' % (p, len(assets)))
+    for e in edits.get('reload_commit', []):
+        paths = sorted(fnmatch.filter(files, e['files']))
+        if not paths:
+            raise ValueError('reload_commit: no matching weapons')
+        live_clip = lambda path: bytes(clips[path]) if path in clips else open(files[path], 'rb').read()
+        seats = {}  # clip: (its seat, the first config that reads it)
+        for p in paths:
+            config = bufs[p] if p in bufs else bytearray(open(files[p], 'rb').read())
+            for clip, seat in reload_commit_seats(config, live_clip).items():
+                first = seats.setdefault(clip, (seat, p))
+                if first[0] != seat:
+                    raise ValueError('reload_commit: %s seats at %g for %s, %g for %s' % (clip, first[0], first[1], seat, p))
+        if not seats:
+            raise ValueError('reload_commit: no magazine reload')
+        for clip, (seat, _) in sorted(seats.items()):
+            buf = bytearray(live_clip(clip))
+            live = clip_parse(buf)[3]
+            add_event_channel(buf, live, {'name': RELOAD_COMMIT, 'type': RELOAD_COMMIT_TYPE, 'knots': [seat],
+                                          'domains': [RELOAD_COMMIT_SEATED]})
+            clips[clip] = buf
+        print('reload commit: %d clips of %d configs' % (len(seats), len(paths)))
     for e in edits.get('make_held_flower', []):
         made = make_held_flower({p: open(files[p], 'rb').read() for p in e['files']}, e)
         for p, data in made.items():

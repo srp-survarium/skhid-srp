@@ -24,6 +24,7 @@
 //! It grows with what the patches need, and no further.
 
 pub mod attachments;
+pub mod reload;
 pub mod back_buffer;
 pub mod baker;
 pub mod aim;
@@ -143,6 +144,8 @@ mod generated {
     #[allow(unused_imports)]
     use super::artefact_hunt::{HudState, HuntCook, HuntRule, RuleCore, RuleEvent, RuleQuery, RuleReader, RuleWriter, TickRule};
     use super::attachments::FingerCorrector;
+    #[allow(unused_imports)]
+    use super::reload::{AnimationEvent, ReloadEventState};
     #[allow(unused_imports)]
     use core::ffi::c_void;
     include!("../../../../hooks_026g.rs");

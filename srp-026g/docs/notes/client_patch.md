@@ -4762,3 +4762,31 @@ or "no window" (a locked or switching desktop). It is asked only for a line.
 registers in every poll, and the lines above only from the patched exe, once per change. The
 lost-device line's paths are run with a failed HRESULT's look in EAX: no line. A log line only:
 nothing a match computes.
+
+### 3.107 A reload left after the magazine is in (written 2026-11-26, README patch 205) — PROVEN in the code and under Unicorn; not run in a game
+
+The full account, 0.69d0's and the content's seats: `reload-commit.md`.
+
+- **The game's one load.** `weapon_core_reload_state_base::on_animation_end_impl` (0x310E40, thiscall,
+  ret 8: `mov esi,[ecx+120h]` / `call load_magazine` 0x2E17D0 / the recoil's reset 0x332140 / `mov byte
+  [esi+5F5h],0` / `mov byte [[esp+8]],1`) is slot 9 (+24h) of exactly six vtables, the plain 0xA14D14
+  (303), 0xA15088 (311), 0xA151FC (314) and the sound handlers' 0xA04DEC, 0xA050D4, 0xA051CC; the clip
+  end's callback 0x30DB60 calls it and sets the state's ended byte +12Dh. Nothing else of a reload
+  touches the ammunition (its initialize puts a chamber-on-reload gun's round back, 0x30FDD2; its
+  finalize 0x30E420 only unsubscribes).
+- **The subscription the patch adds**, where the game subscribes the state to its clip's end
+  (`"\x01"`): `reload.listen` 0x30DB0F (0x30DA60's `mov byte [ebp+134h],0FFh`, EBP the state) and
+  `reload.listen_again` 0x30DC7C (0x30DBB0's `mov [ebx+134h],cl`, EBX the state), for a state whose
+  vtable's slot 9 is 0x310E40: subscribe_event_channel (0x391C40: ESI the user's animation player
+  +750h, the name `reload_commit`, a functor of the manager 0xA14CBC tagged 1 {the entry, adjustment 0,
+  the state}, the state as the key, a null resource slot, 0; ret 14h). `reload.stop_listening` 0x30E476
+  (0x30E420's `mov byte [esi+134h],0FFh`, ESI the state; the sound handlers' finalize jump there):
+  unsubscribe_event_channel (0x3921A0: EAX the name, the channels, the key; ret 8). The functor's
+  invoker 0x246200 calls the entry thiscall (the state, the animation_callback_params), as 0x30DB60.
+- **The event** (`reload.commit_event`, the runtime callback): params +0 the state's weapon or its user
+  (as 0x30DB74..0x30DB7B accepts), domain +20h 1: 0x310E40 with done bytes of the patch's: the
+  magazine loaded, the recoil reset, +5F5h 0, the state not ended.
+- **The end's load the same as the event's**: `reload.load_at_end` 0x310E41 (`mov esi,[ecx+120h]`,
+  ECX the state): with +5F2h (chamber_a_round_on_reload) and +5F1h (chambered) set, +5E5h += 1 and
+  +5F1h = 0 before the load (as 0x30FDD2..0x30FDD8). load_magazine is then the same twice as once.
+- **Nothing new in a world**: the subscription is the state's own, made again by its deserialize.
