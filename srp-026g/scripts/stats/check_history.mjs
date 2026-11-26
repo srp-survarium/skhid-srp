@@ -320,13 +320,14 @@ try {
   // at first, the maps close together.
   assert.ok(modeRows.every(mode => GAME_MODES.includes(mode.mode)), modeRows.map(mode => mode.mode).join());
   assert.equal(await count('.stats-mode-row'), modeRows.length);
-  assert.equal(await evaluate("[...document.querySelectorAll('.stats-mode-row, .stats-weather')].every(row => row.hidden)"), true, 'closed at first');
+  assert.equal(await evaluate("[...document.querySelectorAll('.stats-mode-row, .stats-version-row, .stats-weather')].every(row => row.hidden)"), true, 'closed at first');
+  assert.ok(!modeRows.some(mode => mode.mode.startsWith('FFA:')), 'every free-for-all one mode');
   const rowHeights = () => evaluate("JSON.stringify([...document.querySelectorAll('.stats-map-row')].map(row => Math.round(row.getBoundingClientRect().height)))").then(JSON.parse);
   assert.ok((await rowHeights()).every(height => height < 100), `compact: ${await rowHeights()}`);
   assert.deepEqual(await cells('.stats-map-row .stats-opener'), atlas.maps.map(map => `Modes (${map.modes.length})`));
   const columnsAt = () => evaluate("JSON.stringify([...document.querySelectorAll('.stats-maps-table thead th')].map(th => Math.round(th.getBoundingClientRect().left)))");
   const before = await columnsAt();
-  const several = atlas.maps.findIndex(map => map.modes.some(mode => mode.weathers.length > 1) && map.modes.some(mode => mode.sides));
+  const several = atlas.maps.findIndex(map => map.modes.some(mode => !mode.versions && mode.weathers.length > 1) && map.modes.some(mode => mode.sides));
   assert.ok(several >= 0, 'a map with a mode played in two weathers');
   const opened = atlas.maps[several];
   await evaluate(`document.querySelectorAll('.stats-map-row .stats-opener')[${several}].click()`);
@@ -350,7 +351,7 @@ try {
   const draws = await evaluate("JSON.stringify([...document.querySelectorAll('.stats-bar-part.stats-draw')].map(p => getComputedStyle(p).opacity))");
   assert.ok(JSON.parse(draws).every(opacity => opacity === '0.45'), draws);
   // A mode's weathers: behind its button, each with its own numbers and the rooms' word for it.
-  const mode = opened.modes.findIndex(each => each.weathers.length > 1);
+  const mode = opened.modes.findIndex(each => !each.versions && each.weathers.length > 1);
   const button = `[...document.querySelectorAll('.stats-mode-row:not([hidden]) .stats-opener')][${mode}]`;
   assert.equal(await evaluate(`${button}.textContent`), `Weathers (${opened.modes[mode].weathers.length})`);
   await evaluate(`${button}.click()`);
@@ -367,6 +368,25 @@ try {
   await evaluate(`document.querySelectorAll('.stats-map-row .stats-opener')[${several}].click()`);
   assert.deepEqual(await shownModes(), [], 'closed again');
   assert.deepEqual(await shownWeathers(), [], 'its weathers too');
+  // Every free-for-all is one Free for all under its map; its versions open under it, each with its weathers.
+  const free = atlas.maps.findIndex(map => map.modes.some(each => each.versions));
+  assert.ok(free >= 0, 'a map with a free-for-all');
+  const ffa = atlas.maps[free].modes.find(each => each.versions);
+  assert.equal(ffa.mode, 'Free for all');
+  assert.equal(ffa.versions.reduce((sum, version) => sum + version.matches, 0), ffa.matches);
+  assert.ok(ffa.versions.some(version => version.mode === 'FFA: Racket'), 'the Racket one version of it');
+  await evaluate(`document.querySelectorAll('.stats-map-row .stats-opener')[${free}].click()`);
+  const ffaButton = "[...document.querySelectorAll('.stats-mode-row:not([hidden])')].find(row => row.querySelector('.stats-mode-cell a').textContent === 'Free for all').querySelector('.stats-opener')";
+  assert.equal(await evaluate(`${ffaButton}.textContent`), `Variants (${ffa.versions.length})`);
+  await evaluate(`${ffaButton}.click()`);
+  assert.deepEqual(await cells('.stats-version-row:not([hidden]) .stats-mode-cell a'), ffa.versions.map(version => version.mode));
+  assert.deepEqual(await cells('.stats-version-row:not([hidden]) td:nth-child(2)'), ffa.versions.map(version => String(version.matches)));
+  await evaluate("document.querySelector('.stats-version-row:not([hidden]) .stats-opener').click()");
+  assert.deepEqual(await shownWeathers(), ffa.versions[0].weathers.map(weather => String(weather.matches)), 'a version\'s weathers');
+  assert.equal(await columnsAt(), before, 'nor do the versions');
+  await screenshot('board-maps-free-for-all');
+  await evaluate(`document.querySelectorAll('.stats-map-row .stats-opener')[${free}].click()`);
+  assert.equal(await evaluate("[...document.querySelectorAll('.stats-mode-row, .stats-version-row, .stats-weather')].every(row => row.hidden)"), true, 'all closed with its map');
   // A map's name and picture lead to it in the Maps page, in its first mode.
   assert.equal(await evaluate("(a => a.pathname + a.hash)(document.querySelector('.stats-place-name a'))"), `/wiki/maps#${atlas.maps[0].map_key}/${atlas.maps[0].modes[0].rules}`);
   assert.deepEqual(await unstretched(), [], 'no map\'s picture stretched');
@@ -386,18 +406,35 @@ try {
   assert.equal(tally.period, 'week');
   assert.equal(await text('.stats-keys button[aria-pressed=true]'), 'Last 7 days');
   assert.equal(await text('.stats-board > .stats-plays > .table-scroll:first-child thead th:last-child'), 'Trend');
-  const modeLines = '.stats-modes > .table-scroll:first-child tbody tr';
+  const modeLines = '.stats-modes > .table-scroll:first-child tbody tr:not(.stats-version-row)';
   assert.equal(await count(modeLines), tally.modes.length);
   assert.ok(tally.modes.length >= 5, 'the modes in turn');
   // In the create window's order (Blackout right after the protective device's other kinds), # each one's popularity.
   const order = ['Protective device', 'Protective device: chargers', 'Protective device: blackout', 'Team Deathmatch', 'Research', 'Freeze Tag',
     'Free for all', 'FFA: Racket', 'FFA: Saloon', 'FFA: Saloon (Winchester)', 'Artifact Hunt'];
   assert.deepEqual(tally.modes.map(mode => mode.mode), order.filter(name => tally.modes.some(mode => mode.mode === name)), 'the window\'s order');
-  assert.ok(!tally.modes.some(mode => mode.mode === 'FFA: Roulette'), 'Roulette is the free-for-all');
+  assert.ok(!tally.modes.some(mode => mode.mode.startsWith('FFA:')), 'every free-for-all one mode');
+  // The free-for-all's versions under it, each with its matches, share and trend; its button opens them, leading nowhere.
+  const freeMode = tally.modes.find(mode => mode.versions);
+  assert.equal(freeMode.mode, 'Free for all');
+  assert.equal(freeMode.versions.reduce((sum, version) => sum + version.matches, 0), freeMode.matches);
+  assert.equal(await count('.stats-modes .stats-version-row'), freeMode.versions.length);
+  assert.equal(await evaluate("[...document.querySelectorAll('.stats-modes .stats-version-row')].every(row => row.hidden)"), true, 'closed at first');
+  const here = await evaluate('location.href');
+  await evaluate("document.querySelector('.stats-modes .stats-opener').click()");
+  assert.equal(await evaluate('location.href'), here, 'the button opens, it leads nowhere');
+  assert.equal(await text('.stats-modes .stats-opener'), `Variants (${freeMode.versions.length})`);
+  assert.deepEqual(await cells('.stats-modes .stats-version-row:not([hidden]) td:nth-child(2)'), freeMode.versions.map(version => version.mode));
+  assert.deepEqual(await cells('.stats-modes .stats-version-row:not([hidden]) td:nth-child(3)'), freeMode.versions.map(version => String(version.matches)));
+  assert.deepEqual(await cells('.stats-modes .stats-version-row:not([hidden]) td:nth-child(4)'), freeMode.versions.map(version => percent(version.share)));
+  assert.deepEqual(JSON.parse(await evaluate("JSON.stringify([...document.querySelectorAll('.stats-modes .stats-version-row:not([hidden]) .stats-trend')].map(t => t.children.length))")),
+    freeMode.versions.map(() => 7));
+  await screenshot('board-modes-versions');
+  await evaluate("document.querySelector('.stats-modes .stats-opener').click()");
   const byMatches = [...tally.modes].sort((a, b) => b.matches - a.matches || order.indexOf(a.mode) - order.indexOf(b.mode));
   assert.deepEqual(tally.modes.map(mode => mode.rank), tally.modes.map(mode => byMatches.indexOf(mode) + 1), 'ranked by matches');
   assert.deepEqual(await cells(`${modeLines} td:nth-child(1)`), tally.modes.map(mode => String(mode.rank)));
-  assert.deepEqual(await cells(`${modeLines} td:nth-child(2)`), tally.modes.map(mode => mode.mode));
+  assert.deepEqual(await cells(`${modeLines} td:nth-child(2) a`), tally.modes.map(mode => mode.mode));
   assert.ok(tally.modes.every(mode => GAME_MODES.includes(mode.mode)), tally.modes.map(mode => mode.mode).join());
   assert.deepEqual(await unnamed(), [], 'no mode by its number');
   assert.deepEqual(await cells(`${modeLines} td:nth-child(3)`), tally.modes.map(mode => String(mode.matches)));

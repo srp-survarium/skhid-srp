@@ -9,6 +9,7 @@ use std::collections::BTreeMap;
 use serde_json::{Value, json};
 use session::v026g::persist::history::{KeptMode, PlayWindow, Played, Plays, Winner};
 use survarium::v026g::maps::{self, Build, GameMode, MapId, MapMode};
+use survarium::v026g::roulette::Band;
 use survarium::v026g::twist::LobbyMode;
 
 use super::{DAY, HOUR, round};
@@ -263,12 +264,28 @@ fn mode_fields(mode: KeptMode, lang: Lang) -> Value {
     }
 }
 
-/// A match's mode as the boards count it: its own, but Roulette's (each
-/// band) the free-for-all's (the owner, 2026-11-26: "FFA Roulette just goes
-/// to FFA"). The match lists still name a match by its own.
+/// Whether a mode is a free-for-all, plain or with a twist.
+fn is_free_for_all(mode: KeptMode) -> bool {
+    matches!(mode, KeptMode::Known(lobby) if lobby.mode() == GameMode::FreeForAll)
+}
+
+/// A match's mode as the boards count it: its own, but every free-for-all
+/// (plain, the Racket, the Saloon, the Roulette) one, the free-for-all (the
+/// owner, 2026-11-26: all of them one Free for all, each version under it).
+/// The match lists still name a match by its own.
 fn counted_as(mode: KeptMode) -> KeptMode {
+    if is_free_for_all(mode) {
+        KeptMode::Known(LobbyMode::Plain(GameMode::FreeForAll))
+    } else {
+        mode
+    }
+}
+
+/// A free-for-all's version as the boards tell them apart under it: its own
+/// mode, the Roulette's bands one (they are one name, "FFA: Roulette").
+fn version_of(mode: KeptMode) -> KeptMode {
     match mode {
-        KeptMode::Known(LobbyMode::Roulette(_)) => KeptMode::Known(LobbyMode::Plain(GameMode::FreeForAll)),
+        KeptMode::Known(LobbyMode::Roulette(_)) => KeptMode::Known(LobbyMode::Roulette(Band::Low)),
         other => other,
     }
 }
@@ -332,8 +349,35 @@ fn map_fields(face: Option<&MapMode>, lang: Lang) -> Value {
 
 /// Whether a match had sides: not a free-for-all (nor any of its twists).
 fn team_match(mode: KeptMode, winner: Winner) -> bool {
-    !matches!(mode, KeptMode::Known(lobby) if lobby.mode() == GameMode::FreeForAll)
-        && winner != Winner::MostKills
+    !is_free_for_all(mode) && winner != Winner::MostKills
+}
+
+/// The weathers of a map's matches in `ids`' tallies (each its map id), day,
+/// evening, rain, as the window lists them.
+fn weather_rows(of: &BTreeMap<MapId, Tally>, atlas: &Atlas, lang: Lang) -> Vec<Value> {
+    let mut rows: Vec<(MapId, Tally)> = of.iter().map(|(id, tally)| (*id, *tally)).collect();
+    rows.sort_by_key(|(id, _)| (atlas.map(*id).map(|map| maps::weather::list_place(map.weather)), *id));
+    rows.iter()
+        .map(|(id, tally)| {
+            let map = atlas.map(*id);
+            with(
+                json!({
+                    "map_id": id.get(),
+                    "weather": map.and_then(|map| weather_name(lang, map.weather)),
+                    "map_key": map.and_then(map_key),
+                    "map_icon": map.and_then(map_icon),
+                }),
+                tally.json(),
+            )
+        })
+        .collect()
+}
+
+/// A mode's tallies by key, in the create window's order ([`mode_rank`]).
+fn in_mode_order(tallies: &BTreeMap<u8, (KeptMode, Tally)>) -> Vec<(KeptMode, Tally)> {
+    let mut list: Vec<(KeptMode, Tally)> = tallies.values().copied().collect();
+    list.sort_by_key(|(mode, _)| mode_rank(*mode));
+    list
 }
 
 /// The Maps board: each map played (every ported version its own, by
@@ -341,26 +385,43 @@ fn team_match(mode: KeptMode, winner: Winner) -> bool {
 /// order; the owner, 2026-11-26), with its team matches (the
 /// free-for-alls left out: no side wins one) added up: their count, average
 /// length and how its sides fared (the owner: "a map just shows general team
-/// 1 vs team 2"). Under it, for more, each mode played on it (the
-/// free-for-all's too) in the create window's order ([`MODE_ORDER`]), with
-/// its own, and under that each weather of it played in that mode (each its
-/// map id).
+/// 1 vs team 2"). Under it, for more, each mode played on it in the create
+/// window's order ([`MODE_ORDER`]; every free-for-all one, its versions
+/// under it), with its own, and under that each weather of it (each its map
+/// id).
 pub(super) fn maps(plays: &Plays, span: Span, lang: Lang, atlas: &Atlas, rooms: &[MapId]) -> Value {
     let order = Order { atlas, rooms };
     let mut spots: BTreeMap<Spot, Tally> = BTreeMap::new();
-    let mut modes: BTreeMap<(Spot, u8), (KeptMode, Tally)> = BTreeMap::new();
-    let mut weathers: BTreeMap<(Spot, u8, MapId), Tally> = BTreeMap::new();
+    // By map and mode as counted; by map, mode and version; each one's weathers.
+    let mut modes: BTreeMap<Spot, BTreeMap<u8, (KeptMode, Tally)>> = BTreeMap::new();
+    let mut versions: BTreeMap<(Spot, u8), BTreeMap<u8, (KeptMode, Tally)>> = BTreeMap::new();
+    let mut mode_weathers: BTreeMap<(Spot, u8), BTreeMap<MapId, Tally>> = BTreeMap::new();
+    let mut version_weathers: BTreeMap<(Spot, u8), BTreeMap<MapId, Tally>> = BTreeMap::new();
     let mut all = Tally::default();
     for played in &plays.played {
         let spot = order.spot(played.map_id);
         let counted = counted_as(played.mode);
-        let mode = counted.number();
+        let version = version_of(played.mode);
         let of_map = spots.entry(spot).or_default();
         if team_match(counted, played.winner) {
             of_map.add(played);
         }
-        modes.entry((spot, mode)).or_insert((counted, Tally::default())).1.add(played);
-        weathers.entry((spot, mode, played.map_id)).or_default().add(played);
+        let mode = counted.number();
+        modes.entry(spot).or_default().entry(mode).or_insert((counted, Tally::default())).1.add(played);
+        versions
+            .entry((spot, mode))
+            .or_default()
+            .entry(version.number())
+            .or_insert((version, Tally::default()))
+            .1
+            .add(played);
+        mode_weathers.entry((spot, mode)).or_default().entry(played.map_id).or_default().add(played);
+        version_weathers
+            .entry((spot, version.number()))
+            .or_default()
+            .entry(played.map_id)
+            .or_default()
+            .add(played);
         all.add(played);
     }
     let mut list: Vec<(Spot, Tally)> = spots.into_iter().collect();
@@ -368,50 +429,35 @@ pub(super) fn maps(plays: &Plays, span: Span, lang: Lang, atlas: &Atlas, rooms: 
     let list: Vec<Value> = list
         .into_iter()
         .map(|(spot, tally)| {
-            let tallies: BTreeMap<u8, Tally> = modes
-                .iter()
-                .filter(|((at, _), _)| *at == spot)
-                .map(|((_, mode), (_, tally))| (*mode, *tally))
-                .collect();
-            let mut in_order: Vec<(u8, Tally)> = tallies.into_iter().collect();
-            in_order.sort_by_key(|(mode, _)| mode_rank(modes[&(spot, *mode)].0));
-            let of_modes: Vec<Value> = in_order
+            let of_modes: Vec<Value> = in_mode_order(&modes[&spot])
                 .into_iter()
                 .map(|(mode, tally)| {
-                    let kept = modes[&(spot, mode)].0;
-                    let mut of_weathers: Vec<(MapId, Tally)> = weathers
-                        .iter()
-                        .filter(|((at, of, _), _)| *at == spot && *of == mode)
-                        .map(|((_, _, id), tally)| (*id, *tally))
-                        .collect();
-                    // Day, evening, rain, as the window lists them.
-                    of_weathers.sort_by_key(|(id, _)| {
-                        (atlas.map(*id).map(|map| maps::weather::list_place(map.weather)), *id)
-                    });
+                    let weathers = &mode_weathers[&(spot, mode.number())];
                     // The wiki's Maps page shows the mode on the map's first weather of it.
-                    let key = of_weathers
+                    let key = weather_rows(weathers, atlas, lang)
                         .first()
-                        .and_then(|(id, _)| atlas.map(*id))
-                        .and_then(map_key);
-                    let rows: Vec<Value> = of_weathers
-                        .iter()
-                        .map(|(id, tally)| {
-                            let map = atlas.map(*id);
-                            with(
-                                json!({
-                                    "map_id": id.get(),
-                                    "weather": map.and_then(|map| weather_name(lang, map.weather)),
-                                    "map_key": map.and_then(map_key),
-                                    "map_icon": map.and_then(map_icon),
-                                }),
-                                tally.json(),
-                            )
-                        })
-                        .collect();
-                    with(
-                        with(mode_fields(kept, lang), json!({ "map_key": key, "weathers": rows })),
+                        .and_then(|row| row["map_key"].as_str().map(str::to_owned));
+                    let mut value = with(
+                        with(
+                            mode_fields(mode, lang),
+                            json!({ "map_key": key, "weathers": weather_rows(weathers, atlas, lang) }),
+                        ),
                         tally.json(),
-                    )
+                    );
+                    if is_free_for_all(mode) {
+                        let rows: Vec<Value> = in_mode_order(&versions[&(spot, mode.number())])
+                            .into_iter()
+                            .map(|(version, tally)| {
+                                let weathers = &version_weathers[&(spot, version.number())];
+                                with(
+                                    with(mode_fields(version, lang), json!({ "weathers": weather_rows(weathers, atlas, lang) })),
+                                    tally.json(),
+                                )
+                            })
+                            .collect();
+                        super::extend(&mut value, json!({ "versions": rows }));
+                    }
+                    value
                 })
                 .collect();
             with(with(map_fields(order.face(spot), lang), tally.json()), json!({ "modes": of_modes }))
@@ -422,22 +468,29 @@ pub(super) fn maps(plays: &Plays, span: Span, lang: Lang, atlas: &Atlas, rooms: 
 
 /// The Modes board: each mode with its matches, its share of them all, its
 /// popularity's `rank` (1: the most played) and its average length, in the
-/// create window's order ([`MODE_ORDER`]),
-/// with its matches in each step of the trend (`steps`: each step's start,
-/// Unix seconds); then the [`PAIRS`] most played map + mode pairs (every
-/// ported version its own map, its weathers one).
+/// create window's order ([`MODE_ORDER`]), with its matches in each step of the
+/// trend (`steps`: each step's start, Unix seconds); every free-for-all one
+/// mode, its versions under it (`versions`, each with its own); then the
+/// [`PAIRS`] most played map + mode pairs (every ported version its own map,
+/// its weathers one; the free-for-alls one).
 pub(super) fn modes(plays: &Plays, span: Span, now: u64, lang: Lang, atlas: &Atlas) -> Value {
     let order = Order { atlas, rooms: &[] };
     let window = span.window(now);
     let (step_name, _, count) = span.steps();
     let mut kept: BTreeMap<u8, KeptMode> = BTreeMap::new();
     let mut modes: BTreeMap<u8, Tally> = BTreeMap::new();
+    // The free-for-all's versions, by their own numbers.
+    let mut versions: BTreeMap<u8, (KeptMode, Tally)> = BTreeMap::new();
     let mut pairs: BTreeMap<(Spot, u8), Tally> = BTreeMap::new();
     let mut all = Tally::default();
     for played in &plays.played {
         let counted = counted_as(played.mode);
         kept.insert(counted.number(), counted);
         modes.entry(counted.number()).or_default().add(played);
+        if is_free_for_all(counted) {
+            let version = version_of(played.mode);
+            versions.entry(version.number()).or_insert((version, Tally::default())).1.add(played);
+        }
         pairs
             .entry((order.spot(played.map_id), counted.number()))
             .or_default()
@@ -445,11 +498,16 @@ pub(super) fn modes(plays: &Plays, span: Span, now: u64, lang: Lang, atlas: &Atl
         all.add(played);
     }
     let mut trend: BTreeMap<u8, Vec<u64>> = BTreeMap::new();
+    let mut version_trend: BTreeMap<u8, Vec<u64>> = BTreeMap::new();
     for step in &plays.steps {
         if step.step < count {
-            trend
-                .entry(counted_as(step.mode).number())
-                .or_insert_with(|| vec![0; count as usize])[step.step as usize] += step.matches;
+            let at = step.step as usize;
+            trend.entry(counted_as(step.mode).number()).or_insert_with(|| vec![0; count as usize])[at] += step.matches;
+            if is_free_for_all(step.mode) {
+                version_trend
+                    .entry(version_of(step.mode).number())
+                    .or_insert_with(|| vec![0; count as usize])[at] += step.matches;
+            }
         }
     }
     let share = |matches: u64| {
@@ -458,6 +516,14 @@ pub(super) fn modes(plays: &Plays, span: Span, now: u64, lang: Lang, atlas: &Atl
         } else {
             round(matches as f64 / all.matches as f64, 3)
         }
+    };
+    let numbers = |mode: u8, tally: &Tally, trend: &BTreeMap<u8, Vec<u64>>| {
+        json!({
+            "matches": tally.matches,
+            "share": share(tally.matches),
+            "duration_s": average_s(tally.duration_ms, tally.matches),
+            "trend": trend.get(&mode).cloned().unwrap_or_else(|| vec![0; count as usize]),
+        })
     };
     // Ranked by matches (ties: the order), listed in the order.
     let mut by_rank: Vec<(u8, Tally)> = modes.iter().map(|(mode, tally)| (*mode, *tally)).collect();
@@ -468,16 +534,20 @@ pub(super) fn modes(plays: &Plays, span: Span, now: u64, lang: Lang, atlas: &Atl
         .into_iter()
         .map(|(mode, tally)| {
             let rank = by_rank.iter().position(|(each, _)| *each == mode).map_or(0, |at| at + 1);
-            with(
-                mode_fields(kept[&mode], lang),
-                json!({
-                    "rank": rank,
-                    "matches": tally.matches,
-                    "share": share(tally.matches),
-                    "duration_s": average_s(tally.duration_ms, tally.matches),
-                    "trend": trend.get(&mode).cloned().unwrap_or_else(|| vec![0; count as usize]),
-                }),
-            )
+            let mut value = with(
+                with(mode_fields(kept[&mode], lang), json!({ "rank": rank })),
+                numbers(mode, &tally, &trend),
+            );
+            if is_free_for_all(kept[&mode]) {
+                let rows: Vec<Value> = in_mode_order(&versions)
+                    .into_iter()
+                    .map(|(version, tally)| {
+                        with(mode_fields(version, lang), numbers(version.number(), &tally, &version_trend))
+                    })
+                    .collect();
+                super::extend(&mut value, json!({ "versions": rows }));
+            }
+            value
         })
         .collect();
     let pairs: Vec<Value> = by_matches(&pairs)
@@ -506,7 +576,6 @@ mod tests {
     use super::*;
     use session::v026g::persist::history::ModeStep;
     use survarium::v026g::maps::{GameMode, fixtures};
-    use survarium::v026g::roulette::Band;
     use survarium::v026g::twist::LobbyMode;
 
     const NOW: u64 = 1_793_500_000;
@@ -644,10 +713,11 @@ mod tests {
         assert_eq!(ported["sides"]["wins"], json!([1, 1]));
         assert_eq!(ported["weathers"].as_array().unwrap().len(), 2);
         assert_eq!(list[2]["map_key"], "v069d_level_01");
-        // The free-for-all: under its map, its matches with no sides.
+        // The free-for-all: under its map, its matches with no sides, the Racket one version of it.
         assert!(list[0]["modes"][0]["sides"].is_null());
         assert_eq!(list[0]["modes"][0]["matches"], 5);
-        assert_eq!(list[0]["modes"][0]["mode"], "FFA: Racket");
+        assert_eq!(list[0]["modes"][0]["mode"], "Free for all");
+        assert_eq!(list[0]["modes"][0]["versions"][0]["mode"], "FFA: Racket");
     }
 
     /// Maps the window does not list come after it, by build and level; a
@@ -731,50 +801,79 @@ mod tests {
         assert!(empty["modes"].as_array().unwrap().is_empty());
     }
 
-    /// Roulette's matches (every band) are the free-for-all's on both boards:
-    /// one Free for all row, its trend and its map + mode pair too; the
-    /// Racket stays a mode of its own.
+    /// Every free-for-all (plain, the Racket, the Roulette's bands) is one
+    /// Free for all on both boards, its trend and its map + mode pair too, with
+    /// each version under it (the Roulette's bands one) with its own: its
+    /// matches, share and trend, and on a map its weathers.
     #[test]
-    fn roulette_counts_as_free_for_all() {
+    fn every_free_for_all_is_one_with_its_versions_under_it() {
         let free = maps::playable().find(|map| map.mode == GameMode::FreeForAll).unwrap();
+        let tdm = maps::playable().find(|map| map.mode == GameMode::TeamDeathmatch && map.level == free.level);
         let plain = LobbyMode::Plain(GameMode::FreeForAll);
+        let mut played_list = vec![
+            played(free.id, plain, Winner::MostKills, 2),
+            played(free.id, LobbyMode::Roulette(Band::Low), Winner::MostKills, 1),
+            played(free.id, LobbyMode::Roulette(Band::High), Winner::MostKills, 3),
+            played(free.id, LobbyMode::Racket, Winner::MostKills, 1),
+        ];
+        if let Some(tdm) = tdm {
+            played_list.push(played(tdm.id, LobbyMode::Plain(GameMode::TeamDeathmatch), Winner::FirstTeam, 1));
+        }
         let plays = Plays {
-            played: vec![
-                played(free.id, plain, Winner::MostKills, 2),
-                played(free.id, LobbyMode::Roulette(Band::Low), Winner::MostKills, 1),
-                played(free.id, LobbyMode::Roulette(Band::High), Winner::MostKills, 3),
-                played(free.id, LobbyMode::Racket, Winner::MostKills, 1),
-            ],
+            played: played_list,
             steps: vec![
                 ModeStep { mode: KeptMode::Known(plain), step: 6, matches: 2 },
                 ModeStep { mode: KeptMode::Known(LobbyMode::Roulette(Band::Mid)), step: 6, matches: 4 },
-                ModeStep { mode: KeptMode::Known(LobbyMode::Racket), step: 6, matches: 1 },
+                ModeStep { mode: KeptMode::Known(LobbyMode::Racket), step: 5, matches: 1 },
             ],
         };
         let atlas = Atlas::shared();
         let board = modes(&plays, Span::Week, NOW, Lang::En, &atlas);
-        let rows: Vec<(String, u64)> = board["modes"]
+        let ffa = board["modes"]
             .as_array()
             .unwrap()
             .iter()
-            .map(|mode| (mode["mode"].as_str().unwrap().to_owned(), mode["matches"].as_u64().unwrap()))
+            .find(|mode| mode["mode"] == "Free for all")
+            .unwrap();
+        assert!(board["modes"].as_array().unwrap().iter().all(|mode| !mode["mode"].as_str().unwrap().starts_with("FFA:")), "no version a mode of its own");
+        assert_eq!(ffa["matches"], 7, "the plain, the Roulette's and the Racket's");
+        assert_eq!(ffa["trend"][6], 6);
+        assert_eq!(ffa["trend"][5], 1);
+        assert_eq!(ffa["mode_url"], json!(crate::modes::url(Lang::En, plain)));
+        let versions: Vec<(&str, u64, u64)> = ffa["versions"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|row| (row["mode"].as_str().unwrap(), row["matches"].as_u64().unwrap(), row["trend"][6].as_u64().unwrap()))
             .collect();
-        assert_eq!(rows, [("Free for all".to_owned(), 6), ("FFA: Racket".to_owned(), 1)]);
-        assert_eq!(board["modes"][0]["rank"], 1);
-        assert_eq!(board["modes"][0]["trend"][6], 6);
-        assert_eq!(board["modes"][0]["mode_url"], json!(crate::modes::url(Lang::En, plain)));
-        assert_eq!(board["pairs"][0]["matches"], 6);
-        assert_eq!(board["pairs"][0]["mode"], "Free for all");
+        assert_eq!(versions, [("Free for all", 2, 2), ("FFA: Racket", 1, 0), ("FFA: Roulette", 4, 4)], "each version, the Roulette's bands one");
+        assert_eq!(ffa["versions"][1]["trend"][5], 1);
+        let shares: f64 = ffa["versions"].as_array().unwrap().iter().map(|row| row["share"].as_f64().unwrap()).sum();
+        assert!((shares - ffa["share"].as_f64().unwrap()).abs() < 0.002);
+        let pair = board["pairs"].as_array().unwrap().iter().find(|pair| pair["mode"] == "Free for all").unwrap();
+        assert_eq!(pair["matches"], 7);
+        // On its map: one Free for all, its versions under it, each with its weathers.
         let board = maps(&plays, Span::Week, Lang::En, &atlas, &[]);
-        let modes: Vec<(&str, u64)> = board["maps"][0]["modes"]
+        let map = board["maps"]
             .as_array()
             .unwrap()
             .iter()
-            .map(|mode| (mode["mode"].as_str().unwrap(), mode["matches"].as_u64().unwrap()))
+            .find(|map| map["modes"].as_array().unwrap().iter().any(|mode| mode["mode"] == "Free for all"))
+            .unwrap();
+        assert_eq!(map["matches"], if tdm.is_some() { 1 } else { 0 }, "a free-for-all has no sides on the map's row");
+        let ffa = map["modes"].as_array().unwrap().iter().find(|mode| mode["mode"] == "Free for all").unwrap();
+        assert_eq!(ffa["matches"], 7);
+        assert!(ffa["sides"].is_null());
+        assert_eq!(ffa["weathers"][0]["matches"], 7);
+        let versions: Vec<(&str, u64)> = ffa["versions"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|row| (row["mode"].as_str().unwrap(), row["matches"].as_u64().unwrap()))
             .collect();
-        assert_eq!(modes, [("Free for all", 6), ("FFA: Racket", 1)]);
-        assert_eq!(board["maps"][0]["matches"], 0, "no team match: no sides on the map's row");
-        assert_eq!(board["maps"][0]["modes"][0]["weathers"][0]["matches"], 6);
+        assert_eq!(versions, [("Free for all", 2), ("FFA: Racket", 1), ("FFA: Roulette", 4)]);
+        assert_eq!(ffa["versions"][2]["weathers"][0]["matches"], 4);
+        assert!(map["modes"].as_array().unwrap().iter().all(|mode| mode["mode"] == "Free for all" || mode.get("versions").is_none()), "only the free-for-all has versions");
     }
 
     /// The modes come in the rooms' create window's order (`RoomsCreate.as`'s
@@ -821,14 +920,28 @@ mod tests {
                 "Research",
                 "Freeze Tag",
                 "Free for all",
-                "FFA: Racket",
-                "FFA: Saloon",
-                "FFA: Saloon (Winchester)",
                 "Artifact Hunt",
                 "Mode 200",
             ],
-            "Roulette is the free-for-all"
+            "every free-for-all one"
         );
+        // The free-for-all's versions in their own order under it.
+        let mut versions: Vec<KeptMode> = LobbyMode::ALL
+            .into_iter()
+            .map(KeptMode::Known)
+            .filter(|mode| is_free_for_all(*mode))
+            .map(version_of)
+            .collect();
+        versions.sort_by_key(|mode| mode_rank(*mode));
+        versions.dedup();
+        let names: Vec<String> = versions
+            .iter()
+            .map(|mode| match mode {
+                KeptMode::Known(mode) => launcher::lobby_mode_name(Lang::En, *mode),
+                KeptMode::Unknown(_) => unreachable!(),
+            })
+            .collect();
+        assert_eq!(names, ["Free for all", "FFA: Racket", "FFA: Saloon", "FFA: Saloon (Winchester)", "FFA: Roulette"]);
     }
 
     /// Every mode and weather is named in the site's own words, and those

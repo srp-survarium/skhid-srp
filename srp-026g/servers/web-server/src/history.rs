@@ -156,6 +156,7 @@ fn page_text(lang: Lang) -> Value {
         ("sides", lang.t("Sides")),
         ("noResult", lang.t("No result")),
         ("weathers", lang.t("Weathers")),
+        ("variants", lang.t("Variants")),
         ("share", lang.t("Share")),
         ("trend", lang.t("Trend")),
         ("perHour", lang.t("by hour")),

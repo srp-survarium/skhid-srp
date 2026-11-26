@@ -672,7 +672,9 @@
   // A button that opens and closes `rows` (each closing what it opened under it).
   function opener(label, rows) {
     const button = el('button', {type: 'button', className: 'stats-opener', ariaExpanded: 'false'}, label);
-    button.addEventListener('click', () => {
+    button.addEventListener('click', event => {
+      // Not the row's own click (a mode's row leads to its wiki section).
+      event.stopPropagation();
       const open = button.getAttribute('aria-expanded') !== 'true';
       button.setAttribute('aria-expanded', String(open));
       for (const row of rows) {
@@ -692,21 +694,33 @@
     } else {
       for (const place of data.maps) {
         const row = placeRow(place);
-        const modeRows = place.modes.map(mode => {
+        // A mode's (or a free-for-all version's) row, closed, with its weathers under it behind its button.
+        const withWeathers = (mode, kind) => {
           const weathers = mode.weathers.map(weather => line('stats-weather', [
             el('span', {className: 'stats-map-cell'}, mapPicture({...weather, map: place.map, rules: mode.rules}), weather.weather ?? '—'),
             n(weather.matches), duration(weather.duration_s), sides(weather)]));
           const button = opener(`${TEXT.weathers} (${n(mode.weathers.length)})`, weathers);
+          const row = line(kind, [[modeLink(mode), el('span', {className: 'stats-under'}, button)],
+            n(mode.matches), duration(mode.duration_s), sides(mode)]);
+          row.closes = [() => button.close()];
+          for (const each of [row, ...weathers]) each.hidden = true;
+          return [row, weathers];
+        };
+        // Every free-for-all is one mode: its versions under it (each with its weathers), not its weathers.
+        const modeRows = place.modes.map(mode => {
+          if (!mode.versions) return withWeathers(mode, 'stats-mode-row');
+          const versions = mode.versions.map(version => withWeathers(version, 'stats-version-row'));
+          const button = opener(`${TEXT.variants} (${n(mode.versions.length)})`, versions.map(([row]) => row));
           const modeRow = line('stats-mode-row', [[modeLink(mode), el('span', {className: 'stats-under'}, button)],
             n(mode.matches), duration(mode.duration_s), sides(mode)]);
           modeRow.closes = [() => button.close()];
-          for (const each of [modeRow, ...weathers]) each.hidden = true;
-          return [modeRow, weathers];
+          modeRow.hidden = true;
+          return [modeRow, versions];
         });
         const button = opener(`${TEXT.modes} (${n(place.modes.length)})`, modeRows.map(([modeRow]) => modeRow));
         body.append(line('stats-map-row', [el('span', {className: 'stats-map-cell'}, mapPicture(row, true),
           el('span', {}, el('b', {className: 'stats-place-name'}, mapLink(row)), el('span', {className: 'stats-under'}, button))),
-          n(place.matches), place.matches ? duration(place.duration_s) : '—', sides(place)]), ...modeRows.flat(2));
+          n(place.matches), place.matches ? duration(place.duration_s) : '—', sides(place)]), ...modeRows.flat(Infinity));
       }
     }
     return el('div', {className: 'table-scroll'}, el('table', {className: 'stats-table stats-maps-table'}, head, body));
@@ -731,6 +745,17 @@
     const note = el('p', {className: 'stats-note stats-trend-note'}, data
       ? `${TEXT.trend}: ${TEXT[STEP_NOTE[data.step]]}, ${stepName(data.step, steps[0])} – ${stepName(data.step, steps[steps.length - 1])}` : BLANK);
     const modes = table(modeColumns, data && data.modes, 8, '', row => row.mode_url || null);
+    // Every free-for-all is one mode: its versions under it (the Racket, the Saloon, the Roulette),
+    // each with its own numbers, closed until its button opens them.
+    if (data) data.modes.forEach((mode, i) => {
+      if (!mode.versions) return;
+      const versionColumns = modeColumns.map(([label, cell, kind], at) => [label, at === 0 ? () => '' : cell, kind]);
+      const rows = mode.versions.map(version => el('tr', {className: 'stats-version-row', hidden: true},
+        versionColumns.map(([, cell, kind]) => el('td', {className: kind || ''}, cell(version)))));
+      const line = modes.querySelectorAll('tbody tr')[i];
+      line.querySelector('.stats-mode-cell').append(el('span', {className: 'stats-under'}, opener(`${TEXT.variants} (${n(mode.versions.length)})`, rows)));
+      line.after(...rows);
+    });
     const pairs = table(pairColumns, ranked(data && data.pairs), PAIRS, '', row => row.map_key ? mapAddress(row) : null);
     return [modes, note, el('h2', {className: 'stats-heading'}, TEXT.mostPlayed), pairs];
   }

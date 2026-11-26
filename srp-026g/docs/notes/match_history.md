@@ -82,13 +82,15 @@ What survarium.pro showed of players, matches and clans, kept by srp itself and 
     (`client-patches/localization`, `st_srp_mode_*`, `st_srp_weather_*`), held equal to them in
     every language by a test, so a name never hangs on the game data having it (the owner,
     2026-11-26: the preview said "mode 2"). A mode srp no longer knows is "Mode N".
-  - The stats count Roulette's matches as the free-for-all's (the owner, 2026-11-26: "FFA Roulette
-    just goes to FFA"; the match lists still name a match by its own mode). Modes come in the
+  - The stats count every free-for-all (plain, the Racket, the Saloon, the Roulette's bands) as one
+    Free for all (the owner, 2026-11-26), its variants under it behind its *Variants (n)* (the
+    Roulette's bands one): on the Modes board each with its matches, share and trend; under a map
+    each with its weathers. The map + mode pairs take them as one. The match lists still name a
+    match by its own mode. Modes come in the
     create window's order (`RoomsCreate.as`'s `MODE_ORDER`, which a test reads: the protective
     device's three kinds together, Blackout with them; then Team Deathmatch, Research, Freeze Tag,
-    the free-for-all with its other twists after it, Artifact Hunt).
-  - Modes: each mode as the lobby calls it (a free-for-all's other twists modes of their own) with
-    its matches, its share of all of them, its popularity's rank (`#`) and its trend, in that
+    the free-for-all, Artifact Hunt; its variants plain first, then by their lobby numbers).
+  - Modes: each mode as the lobby calls it with its matches, its share of all of them, its popularity's rank (`#`) and its trend, in that
     order; the trend is
     the period's hours (a day), days (7 or 30) or weeks (all time: the last 26, from Mondays, UTC),
     a column each as tall as its share of the mode's busiest. Then the ten most played map + mode
@@ -473,8 +475,9 @@ The counted public matches of the period (default `all`; `day`: the 24 hours to 
 one's end, `week`/`month`: the 7 or 30 UTC days to today's) by map (its level: every ported
 version its own), in the rooms' create window's order. A map's `matches`, `duration_s` and `sides`
 are its team matches' (no free-for-all: `sides` `null` without one); `modes`: each mode played
-on it, the free-for-all's too, in the window's mode order, each with its own and its weathers
-(map ids), day, evening, rain. `duration_s`: the matches' average length. `sides`: how the team matches ended, `wins`
+on it, every free-for-all one, in the window's mode order, each with its own and its weathers
+(map ids), day, evening, rain; the free-for-all's `versions`: its variants, each with its own and
+its weathers. `duration_s`: the matches' average length. `sides`: how the team matches ended, `wins`
 team 1's and team 2's, as `team_points` (`win_rates`, `draw_rate`: shares of them, three
 decimals; `unknown`: a match no trusted snapshot told the end of); `null` for a free-for-all.
 `map_key` of a mode: its first weather's. `weather`: the rooms' word, `null` without one. A mode
@@ -493,7 +496,8 @@ srp no longer knows: `"Mode N"`, its `mode_url` and `rules` `null`.
 
 ### `GET /api/history/modes?period=<day|week|month|all>`
 
-The counted public matches of the period by mode (Roulette's the free-for-all's), in the create
+The counted public matches of the period by mode (every free-for-all one, its variants in its
+`versions`, each with its matches, share, average length and trend), in the create
 window's order, each with its popularity's `rank` (1: the most played; ties: that order), its
 `share` of them all (three decimals), average length and `trend`: its matches in
 each step of `steps` (each step's start, Unix seconds; `step`: `hour` for a day, `day` for 7 or
