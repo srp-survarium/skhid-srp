@@ -2405,8 +2405,9 @@ fn drive_tick_inner(
                                 })
                                 .map(|(_, point)| point.at);
                             bot.stuck.failed_jump(time, take_off, landing);
-                            // [unreached take-off] Given up from under its take-off's floor: the walk onto it failed too, for this body.
-                            if super::stuck::take_off_unreached(me.feet, take_off) {
+                            // [unreached take-off] Given up from a floor that is not the take-off's, nor one the client's walk takes
+                            // onto it (`stuck::Footing`): the walk onto it failed too, for this body.
+                            if super::stuck::take_off_unreached(&tactics.world.grid, me.feet, take_off) {
                                 bot.stuck.unreached_take_off(time, take_off);
                                 let line = super::nav_log::unreached_take_off_line(take_off, me.feet, super::stuck::JUMP_SHUT_MS);
                                 bot.nav_log.push(super::nav_log::Kind::Jump, time, line);

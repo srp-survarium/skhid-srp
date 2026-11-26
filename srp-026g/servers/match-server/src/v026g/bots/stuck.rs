@@ -124,11 +124,39 @@ pub const JUMP_SHUT_MS: u32 = (super::motor::TRY_KEPT_S * 1000.0) as u32;
 pub const LANDING_SHUT_M: f32 = 0.35;
 /// … and within this up or down, metres.
 pub const LANDING_SHUT_UP_M: f32 = 0.3;
+/// [unreached take-off] Where a body stands against a route jump's take-off when the jump is given up, from the grid alone.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Footing {
+    /// The grid floor under the feet is the take-off's.
+    OnTakeOff,
+    /// A floor whose Walk link onto the take-off is one the client's walk tick walks (not [`mapdata::WalkGrid::walk_marked`]).
+    WalksOn,
+    /// Any other floor: no Walk link onto the take-off, or one the walk check found the client does not walk.
+    Off,
+}
+
+impl Footing {
+    /// The footing of a body on floor `on` against take-off `to`; `walk` is the Walk link `on` -> `to` if the grid has one, with
+    /// whether it is marked.
+    pub fn of(on: mapdata::NodeId, to: mapdata::NodeId, walk: Option<bool>) -> Self {
+        match (on == to, walk) {
+            (true, _) => Self::OnTakeOff,
+            (false, Some(false)) => Self::WalksOn,
+            (false, Some(true) | None) => Self::Off,
+        }
+    }
+}
+
 /// [unreached take-off] Whether a body whose feet are at `feet` when its route's jump from `take_off` is given up never got onto
-/// the take-off's floor: its feet are under it by more than a shut landing's height band ([`LANDING_SHUT_UP_M`]), where a body
-/// on that floor is not ([`Stuck::unreached_take_off`]).
-pub fn take_off_unreached(feet: Vec3, take_off: Vec3) -> bool {
-    take_off.y - feet.y > LANDING_SHUT_UP_M
+/// the take-off's floor ([`Stuck::unreached_take_off`]): the grid floor under its feet ([`mapdata::WalkGrid::locate`]) is not
+/// the take-off's, nor one the client's walk takes onto it ([`Footing::Off`]). No floor under the feet, or none at the take-off,
+/// says nothing.
+pub fn take_off_unreached(grid: &mapdata::WalkGrid, feet: Vec3, take_off: Vec3) -> bool {
+    let (Some(on), Some(to)) = (grid.locate(feet, 1.5), grid.locate(take_off, 1.5)) else {
+        return false;
+    };
+    let walk = grid.links(on).find(|&(n, kind)| n == to && kind == mapdata::LinkKind::Walk).map(|_| grid.walk_marked(on, to));
+    Footing::of(on, to, walk) == Footing::Off
 }
 /// A spot is avoided once it caught the body this many times.
 const AVOID_AFTER: u32 = 2;
@@ -1729,8 +1757,12 @@ mod tests {
     fn a_jump_given_up_from_under_its_take_off_shuts_the_take_off_for_this_body() {
         let (take_off, landing) = (Vec3::new(6.625, 6.577, 11.164), Vec3::new(6.625, 7.782, 11.914));
         let feet = Vec3::new(6.6, 6.09, 11.6);
-        assert!(take_off_unreached(feet, take_off), "0.49 m under the take-off");
-        assert!(!take_off_unreached(Vec3::new(6.62, 6.55, 11.0), take_off), "on its floor, lining up behind it");
+        // level_05 day_2's take-off 143074: the feet on 143681, north of it, whose walk-in the walk check marked (the port and
+        // the exe alike: the client's walk does not reach the take-off from there); 143075's walk-in reaches it, unmarked.
+        assert_eq!(Footing::of(143_681, 143_074, Some(true)), Footing::Off, "on the slope's floor, its walk-in marked");
+        assert_eq!(Footing::of(143_074, 143_074, None), Footing::OnTakeOff, "on the take-off's own floor");
+        assert_eq!(Footing::of(143_075, 143_074, Some(false)), Footing::WalksOn, "a walk-in the client walks");
+        assert_eq!(Footing::of(140_000, 143_074, None), Footing::Off, "a floor with no walk onto it");
         let mut stuck = Stuck::default();
         stuck.failed_jump(54_900, take_off, Some(landing));
         stuck.unreached_take_off(54_900, take_off);
