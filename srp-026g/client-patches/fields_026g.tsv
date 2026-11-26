@@ -351,6 +351,12 @@ survarium::lobby_menu	character	0x694	ptr<survarium::lobby_character>	the lobby'
 survarium::lobby_menu	squad_right	0x698	ptr<survarium::lobby_character>	the squad panel's character at (1, 0, 0.5) (made at 0x21CD33, kept at 0x21CD47)
 survarium::lobby_menu	squad_left	0x69C	ptr<survarium::lobby_character>	the squad panel's character at (-1, 0, 0.5) (made at 0x21CD94, kept at 0x21CD9D)
 survarium::lobby_menu	account_profile	0x6A0	ptr<survarium::player_profile>	the account's profile (patch 32's show_kit gives it to setup_profile: weapon_preview_026g.asm PROFILE)
+survarium::lobby_menu	game	0x9C	ptr<survarium::game>	the game: [+9Ch]+53ACh its network client (lobby_menu_logic's delegates' this is the menu: 0x281666..0x281672, start_decal_edit's handler 0x29A83A reads +694h of it; the lobby character's +D2BCh is the menu too, accept_decal_edit 0x263978)
+survarium::lobby_menu_external	logic	0x5B8	obj<survarium::lobby_menu_logic>	the lobby menu's flash external handler (the menu+F0h, its vtable 0x9FFEDC: slot 4 scaleform_callback 0x28C2C0): +5B8h the menu's logic, which scaleform_callback hands each call (lea: 0x28C2E2 add ecx,5B8h; the menu+6A8h)
+survarium::lobby_menu_logic	menu	0x2A24	ptr<survarium::lobby_menu>	its lobby menu, the `this` of every delegate it registers by name (0x281753..0x2817C1: [esi+2A24h] stored with each handler, 0x283610)
+survarium::lobby_callback_frame	method	0x8	ptr<u8>	the lobby movie's ExternalInterface call at lobby_menu::scaleform_callback's start (0x28C2C0, by the site's ESP): the method's name, a C string (the event's +4, lobby_menu_logic::call 0x2812FD compares it with its 70h names at 0x9C56C8)
+survarium::lobby_callback_frame	arguments	0xC	ptr<scaleform::gfx_value>	its GFx arguments (24 bytes each; start_decal_edit's handler reads the first's and second's +8, 0x29A837)
+survarium::lobby_callback_frame	count	0x10	u32	their count
 survarium::player_profile	chosen_kit	0x4632	u8	the kit chosen in the lobby (weapon_preview_026g.asm CHOSEN_KIT)
 survarium::explosion_params	splash_radius	0x28	f32	the blast's splash_radius, after its thrower's modifier 0Ch (grenade_set_core +2A0h read at 0x309BDD, the copy's +28h at 0x30A3DC): bullet_manager::explode's objects within it (0x33963D) take damage
 survarium::explosion_params	splash_pierce	0x34	f32	its splash_pierce (grenade_set_core +2ACh, 0x309C49): the strength the splash keeps through the materials between (0x3393F0 at 0x3397CB)
@@ -358,6 +364,8 @@ survarium::explode_frame	manager	0x4	ptr<survarium::bullet_manager>	bullet_manag
 survarium::explode_frame	centre	0x8	ptr<f32>	its second: the blast's centre, a float3 (a grenade's transform +30h 0x30A4E6, a trap's +1D0h 0x30571E)
 
 survarium::lobby_client	quest_faction	0x1EA998	u32	the account's quest faction, 0x8E's last byte (0x2717CF; 0 none, factions_dict 1..4)
+survarium::lobby_client	active_kit	0x1EA964	u32	the active kit's profile id: the kit accept_decal_edit's 46 05 names (0x263A52: [lc+1EA964h] pushed for send_apply_decal 0x270950)
+survarium::lobby_client	inventory	0x1EA978	obj<survarium::item_records>	the account's inventory: its item records' begin and end (+1EA97Ch; find_item_by_id 0x277AA0 searches them, send_apply_decal 0x270A1E, copy_account_items 0x270342)
 survarium::lobby_client	squad_revision	0x1EAAA0	u32	0xA1's revision (read_squad_info 0x2748BC)
 survarium::lobby_client	squad_id	0x1EAAA4	u32	0xA1's squad id; 0 no squad (0x2747A8; the reader stops there and the squad chat tab is removed)
 survarium::lobby_client	squad_count	0x1EAAA8	u8	0xA1's member count (0x2747D9), not checked against the three slots; its members at +1EA9B0h, 50h each, zeroed (FCh) on each 0xA1
@@ -431,6 +439,7 @@ survarium::item_record	dict	0x4	u16	its dict id
 survarium::item_record	upgrades	0x60	obj<survarium::upgrade_records>	its upgrade records' buffer_vector, the records inline at +6Ch (three at most: the assert at 0x1F1655)
 survarium::item_record	size	0xB4	size	B4h bytes (setup_inventory_data 0x2885E1: add ebx,0B4h)
 survarium::item_records	begin	0x0	ptr<survarium::item_record>	the lobby's inventory: a vector of item records (lc+1EA978h, setup_inventory_data 0x288547)
+survarium::item_records	end	0x4	ptr<survarium::item_record>	past its last record (lc+1EA97Ch: the search's end, send_apply_decal 0x270A1E, copy_account_items 0x270342)
 survarium::setup_inventory_frame	inventory	-0x14	ptr<survarium::item_records>	setup_inventory_data's [ebp-14h]: the inventory's vector (0x288573)
 survarium::setup_inventory_frame	inventory_end	-0xC	ptr<survarium::item_record>	[ebp-0Ch]: the inventory's end (0x288553; the item loop's bound, 0x2885E7)
 survarium::setup_inventory_frame	host	-0x18	u32	[ebp-18h]: the item's id (0x2885AC), every pair's host

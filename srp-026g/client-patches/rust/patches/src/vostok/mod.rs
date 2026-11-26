@@ -67,6 +67,8 @@ pub mod language;
 pub mod lobby;
 pub mod lobby_camera;
 pub mod lobby_menu;
+mod lobby_call;
+pub use lobby_call::{LobbyCall, LobbyInventory, LobbyItem, NotGiven};
 pub mod login;
 pub mod openssl;
 pub mod mouse;

@@ -42,13 +42,20 @@ impl Records {
     pub fn as_slice(&self) -> &[Record] {
         self.records.get(..self.len).unwrap_or(&[])
     }
+
+    /// `records` as an item's (None for more than three).
+    pub fn of(records: &[Record]) -> Option<Records> {
+        let mut out = Records { len: records.len(), ..Records::default() };
+        out.records.get_mut(..records.len())?.copy_from_slice(records);
+        Some(out)
+    }
 }
 
 /// The records of `list` (None when it is broken or holds more than three).
 ///
 /// # Safety
 /// `list` is a live buffer_vector of upgrade records.
-unsafe fn read(list: raw::UpgradeRecords) -> Option<Records> {
+pub(super) unsafe fn read(list: raw::UpgradeRecords) -> Option<Records> {
     // SAFETY: the caller's.
     let (begin, end) = unsafe { (list.begin(), list.end()) };
     let mut out = Records::default();
@@ -84,7 +91,7 @@ unsafe fn record_at(record: raw::UpgradeRecord) -> Record {
 
 /// # Safety
 /// `place` is an upgrade record's room, ours or the item's.
-unsafe fn write(place: raw::UpgradeRecord, record: &Record) {
+pub(super) unsafe fn write(place: raw::UpgradeRecord, record: &Record) {
     // SAFETY: the caller's.
     unsafe {
         *place.id() = record.id;
