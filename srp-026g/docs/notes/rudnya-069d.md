@@ -82,6 +82,11 @@ comparison: "the way rudnya is is fine"; not in work):
   68 blends draw their own numbers (the sheds' rusty roof sheets drew rust all over; their
   rust patches now follow 0.69d's, the rust itself still more saturated than 0.69d's); the 4
   alpha-tested ones of technique 1 without a mask stay on their category's template.
+- Pack @8: the sun's colour as 0.26g's environment loader reads it. The loader raises `sun_color`
+  to 2.2 (0x34e447, through 0x1bfcb0), so the scene stores 0.69d's sun colour to 1/2.2
+  ((1, 0.882, 0.753), intensity 4.88; resource-porter #95). Written linear until @7, the sun
+  drew at (1, 0.544, 0.253) of its intensity: 0.78 of its light and red, the planks, tiles and
+  wallpaper in sun brown where 0.69d shows them grey. Shade is unchanged.
 - Spawns (team deathmatch): 0.69d's team-deathmatch points as they are, 405 (team 0: 313,
   team 1: 92); each point's own check radii; their invulnerability time 6 s as the rest of the
   map (maps.tsv; 0.69d's 3 s until then). The owner may revisit it: these are free spawns, up to
