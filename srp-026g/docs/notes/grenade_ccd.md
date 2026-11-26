@@ -55,9 +55,10 @@
   0.01/0.01 (made at 0x300468, a box: not a grenade).
 - **Simulation:** what a match computes changes (every game runs each grenade's flight):
   a `next` row in `crates/session/src/v026g/simulation_changes.tsv`.
-- **Checked:** selftest check 105 (`test_grenade_ccd`: the original's capsule and CCD
-  stores, the 8 bytes, the constant, the relocation, no branch inside) and the late-join
-  section's site and relocation checks; the simulation above. **Not run in a game.**
+- **Checked:** when written, selftest check 105 (`test_grenade_ccd`: the original's capsule and
+  CCD stores, the 8 bytes, the constant, the relocation, no branch inside) and the late-join
+  section's site and relocation checks; since 2026-11-06 the self-test's general rules over every
+  declared write (7983ab1dd) replace both. The simulation above. **Not run in a game.**
 - **In game:** any map, open ground (Rudnya's or Vostok's fields, a concrete yard):
   throw an RGD-5 or a smoke grenade far at a flat spot, then straight down at your
   feet, ten times each; stock, one or two in ten drop through and explode or smoke
