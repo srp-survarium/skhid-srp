@@ -901,7 +901,7 @@ pub(super) fn camper_tick(
     now: u32,
     notes: &mut Vec<super::Note>,
 ) {
-    use super::know::{CamperTrap, CamperTrapKind, CamperTrapState, SeenRefusals};
+    use super::know::{CamperHold, CamperTrap, CamperTrapKind, CamperTrapState, SeenRefusals};
     let Some(j) = t.camper_job else {
         knowledge.camper_traps.clear();
         knowledge.camper_no_way.clear();
@@ -999,11 +999,36 @@ pub(super) fn camper_tick(
         }
         true
     });
-    // What is over: a place no longer held (his death ends it). A point with a standing trap of the team on it is trapped
-    // (nothing sent, not searched again) while the place lasts; when that trap is gone it wants another.
+    // [bot traps T1] A place no longer held keeps its point for the team's memory of a camp place
+    // (`threat::CAMP_KILLS_KEPT_MS`): no bot is sent to it, a mate whose walk passes it lays the trap (`think`), and a bot sent
+    // while it was held is let go (its play ends at its next think: `camper_point` finds no point sent to it); walked on, those
+    // walks cost 15 more deaths of sent bots in 96 bench matches for 6 more traps. What is over: a point that long past its hold.
+    // A point with a standing trap of the team on it is trapped (nothing sent, not searched again); when that trap is gone it
+    // wants another.
     let standing: Vec<Vec3> = knowledge.traps.standing().map(|k| k.at).collect();
     knowledge.camper_traps.retain_mut(|c| {
-        let over = (!sources.iter().any(|l| l.id == c.spot)).then_some("the place is no longer held");
+        let held = sources.iter().any(|l| l.id == c.spot);
+        match (c.hold, held) {
+            (CamperHold::Over { .. }, true) => c.hold = CamperHold::Held,
+            (CamperHold::Held, false) => {
+                c.hold = CamperHold::Over { since: now };
+                if let CamperTrapState::Sent { placer, .. } = c.state {
+                    c.state = CamperTrapState::Open;
+                    said.push(format!("team {team}: {}'s way in at {}: its place is no longer held; bot {placer} is let go", c.spot, xyz(c.at)));
+                }
+                #[cfg(test)]
+                camper::count(team, camper::KEPT);
+                said.push(format!(
+                    "team {team}: {}'s way in at {}: the place is no longer held; the point is kept {:.0} s for a mate's walk past it",
+                    c.spot,
+                    xyz(c.at),
+                    super::threat::CAMP_KILLS_KEPT_MS as f32 / 1000.0
+                ));
+            }
+            _ => {}
+        }
+        let over = matches!(c.hold, CamperHold::Over { since } if now.saturating_sub(since) > super::threat::CAMP_KILLS_KEPT_MS)
+            .then_some("its place is not held again since it was kept");
         let trap_on = standing.iter().any(|s| s.distance_xz(c.at) <= j.within_m);
         match c.state {
             CamperTrapState::Open if over.is_none() && trap_on => {
@@ -1050,6 +1075,27 @@ pub(super) fn camper_tick(
         let kind = if line.battery.is_some() { CamperTrapKind::Battery } else { CamperTrapKind::Job };
         match nearest_home(line.at).ok_or(NoWayIn::NoFloor).and_then(|home| way_in(tactics, home, line.at, &j)) {
             Ok(at) => {
+                // [bot traps T1] One point a way in: a kept point within `near_own_m` (its place no longer held, no bot walking
+                // to it) gives way to this one; a point of a place still held there, or one a bot walks to, keeps it.
+                if let Some(other) = knowledge.camper_traps.iter().position(|c| c.at.distance_xz(at) <= t.near_own_m) {
+                    let o = &knowledge.camper_traps[other];
+                    if matches!(o.hold, CamperHold::Over { .. }) && !matches!(o.state, CamperTrapState::Sent { .. }) {
+                        said.push(format!("team {team}: {}'s kept way in at {} gives way to {}'s", o.spot, xyz(o.at), line.id));
+                        knowledge.camper_traps.remove(other);
+                    } else {
+                        said.push(format!(
+                            "team {team}: {:?} {} held by player {} at {}: its way in at {} is {}'s point",
+                            kind,
+                            line.id,
+                            line.shooter,
+                            xyz(line.at),
+                            xyz(at),
+                            o.spot
+                        ));
+                        knowledge.camper_no_way.push(line.id);
+                        continue;
+                    }
+                }
                 knowledge.camper_traps.push(CamperTrap {
                     spot: line.id,
                     shooter: line.shooter,
@@ -1057,6 +1103,7 @@ pub(super) fn camper_tick(
                     at,
                     kind,
                     state: CamperTrapState::Open,
+                    hold: CamperHold::Held,
                     seen: SeenRefusals::default(),
                 });
                 #[cfg(test)]
@@ -1081,7 +1128,7 @@ pub(super) fn camper_tick(
             }
         }
     }
-    // Who goes.
+    // Who goes: [bot traps T1] to an open point of a place still held only (a kept point is laid in passing, `think`).
     let mut taken: Vec<super::view::Place> = knowledge
         .camper_traps
         .iter()
@@ -1090,7 +1137,7 @@ pub(super) fn camper_tick(
             CamperTrapState::Open | CamperTrapState::Trapped => None,
         })
         .collect();
-    for c in knowledge.camper_traps.iter_mut().filter(|c| c.state == CamperTrapState::Open) {
+    for c in knowledge.camper_traps.iter_mut().filter(|c| c.state == CamperTrapState::Open && c.hold == CamperHold::Held) {
         let pick = bots
             .iter()
             .flatten()
@@ -1184,13 +1231,18 @@ pub mod camper {
     pub const TOO_SHORT: usize = 27;
     pub const IN_SPAWN: usize = 28;
     pub const ALL_SEEN: usize = 29;
-    pub const N: usize = 30;
+    /// [bot traps T1] Points kept past their hold; thinks of a bot whose walk passes a kept or open point it may trap; traps
+    /// planned on one so.
+    pub const KEPT: usize = 30;
+    pub const PASS_WISHED: usize = 31;
+    pub const PASS_PLANNED: usize = 32;
+    pub const N: usize = 33;
     pub const NAMES: [&str; N] = [
         "noted_job", "noted_battery", "dropped", "no_way", "no_placer_ticks", "sent", "gave_up", "placed",
         "gave_up_dead", "gave_up_not_playing", "gave_up_far", "gave_up_at", "think_walking", "think_gate", "think_no_look",
         "think_no_spot", "think_waited", "think_planned", "think_planned_else", "think_job_over", "seen_camper_crouched",
         "seen_camper_standing", "seen_other_crouched", "seen_other_standing", "trap_gone", "no_way_no_floor", "no_way_no_route",
-        "no_way_too_short", "no_way_in_spawn", "no_way_all_seen",
+        "no_way_too_short", "no_way_in_spawn", "no_way_all_seen", "kept", "pass_wished", "pass_planned",
     ];
     static TEAM: [[AtomicU64; N]; 2] = [const { [const { AtomicU64::new(0) }; N] }; 2];
     /// The gate's refusals of a sent bot at its point, in `gates::of` order from Play on.
@@ -2923,9 +2975,19 @@ pub(super) fn think(bot: &mut Bot, due: &Due, state: &mut TeamState, notes: &mut
     // [A324] A bot the team sent to a camper's point (`camper_job`): no trap elsewhere on its way; at the point, the job's gate (an
     // enemy seen, not one known near: the camper himself is known there) and no chance roll.
     let job = t.camper_job.and_then(|j| camper_point(&state.knowledge, bot.place).map(|c| (c.at, j)));
+    // [bot traps T1] A bot not sent whose walk passes an open camper point of the team (its place held, or kept past the hold):
+    // the point is its wished spot. The trap there is the team's: no skill share and no chance roll; [D1] a task play does not
+    // refuse it (only a trap on the point then), an enemy within `PASS_ENEMY_M` does.
+    let passing = if job.is_none() { passed_points(bot, me, t, &state.knowledge) } else { Vec::new() };
+    let task_waived = !passing.is_empty() && bot.assignment.as_ref().is_some_and(|a| urgent(a.kind));
+    #[cfg(test)]
+    if !passing.is_empty() {
+        camper::count(me.team, camper::PASS_WISHED);
+    }
     // [fix-team 5 T8 `skill.tactics.traps`] Traps on the enemy's lanes only on the lives its skill gives them; the camper job's
     // trap is the team's (not scaled).
     if job.is_none()
+        && passing.is_empty()
         && let Some(tactics) = due.tuning.skill.tactics
         && !crate::v026g::bots::signals::life_uses(
             bot.life_key,
@@ -2953,10 +3015,16 @@ pub(super) fn think(bot: &mut Bot, due: &Due, state: &mut TeamState, notes: &mut
     let waiting = bot.features.traps.pass_wait.is_some();
     let facts = Facts {
         now: due.now,
-        play: bot.assignment.as_ref().map(|a| a.kind),
+        play: bot.assignment.as_ref().map(|a| a.kind).filter(|_| !task_waived),
         carrying: me.carrying.is_some(),
         health: super::pools::own_health(bot.features.stock.pools, me.health, due.tuning.heal.lethal_health),
-        enemy: if job.is_some() { !bot.memory.all_seen(due.now, due.view.clock).is_empty() } else { enemy_near(bot, due) },
+        enemy: if job.is_some() {
+            !bot.memory.all_seen(due.now, due.view.clock).is_empty()
+        } else if !passing.is_empty() {
+            enemy_within(bot, me.feet, due.now, due.view.clock, PASS_ENEMY_M)
+        } else {
+            enemy_near(bot, due)
+        },
         last_hit: bot.fight_hit_ms,
         reloading: bot
             .reflex
@@ -2999,7 +3067,7 @@ pub(super) fn think(bot: &mut Bot, due: &Due, state: &mut TeamState, notes: &mut
         }
         return;
     }
-    if job.is_none() && bot.rng.unit() >= t.chance {
+    if job.is_none() && passing.is_empty() && bot.rng.unit() >= t.chance {
         bot.features.traps.tally.chance();
         #[cfg(test)]
         {
@@ -3062,9 +3130,13 @@ pub(super) fn think(bot: &mut Bot, due: &Due, state: &mut TeamState, notes: &mut
         .standing()
         .map(|trap| trap.at)
         .collect();
-    // [A324] A sent bot's point is the one wished spot (the calm habit wishes none: a camper's place is the job's).
-    let job_spots: Vec<Vec3> = job.map(|(at, _)| at).into_iter().collect();
-    let wish = job.map(|(_, j)| Wish { spots: &job_spots, within_m: j.within_m, friend_m: j.friend_m });
+    // [A324] A sent bot's point is the one wished spot (the calm habit wishes none: a camper's place is the job's); [bot traps
+    // T1] a passing bot's, the open points its walk passes.
+    let job_spots: Vec<Vec3> = if job.is_some() { job.map(|(at, _)| at).into_iter().collect() } else { passing.clone() };
+    let wish = job
+        .map(|(_, j)| j)
+        .or_else(|| t.camper_job.filter(|_| !passing.is_empty()))
+        .map(|j| Wish { spots: &job_spots, within_m: j.within_m, friend_m: j.friend_m });
     let search = Search {
         t,
         reach_m,
@@ -3154,13 +3226,21 @@ pub(super) fn think(bot: &mut Bot, due: &Due, state: &mut TeamState, notes: &mut
             },
         );
     }
-    // [A324] A sent bot puts its trap only by its point.
-    if let Some(chosen) = chosen.filter(|c| job.is_none() || c.wished) {
+    // [A324] A sent bot puts its trap only by its point; [bot traps T1] so does a passing bot on a task play.
+    if let Some(chosen) = chosen.filter(|c| (job.is_none() && !task_waived) || c.wished) {
         #[cfg(test)]
         if chosen.wished {
             defeated::count_team(me.team, defeated::PLACED);
-            if let Some(point) = camper_point(&state.knowledge, bot.place) {
+            let point = camper_point(&state.knowledge, bot.place).or_else(|| {
+                state.knowledge.camper_traps.iter().filter(|c| passing.contains(&c.at)).min_by(|a, b| {
+                    a.at.distance_xz(chosen.spot).total_cmp(&b.at.distance_xz(chosen.spot))
+                })
+            });
+            if let Some(point) = point {
                 camper::planned(bot.place, due.now, point.shooter);
+            }
+            if job.is_none() {
+                camper::count(me.team, camper::PASS_PLANNED);
             }
         }
         #[cfg(test)]
@@ -3667,6 +3747,33 @@ pub mod gates {
 }
 
 /// Whether an enemy is seen now, sensed lately, or known near.
+/// [bot traps T1, D1] A passing bot lays the team's trap on a camper point only with no enemy within this, metres (seen or
+/// known): the trap-job design's decision D1.
+const PASS_ENEMY_M: f32 = 15.0;
+
+/// [bot traps T1] Whether an enemy seen or known is within `m` of `feet`.
+fn enemy_within(bot: &Bot, feet: Vec3, now: u32, clock: u32, m: f32) -> bool {
+    bot.memory.all_seen(now, clock).iter().any(|s| s.track().at.distance_xz(feet) < m)
+        || bot.memory.tracks().iter().any(|track| track.at.distance_xz(feet) < m)
+}
+
+/// [bot traps T1] The team's open camper points (no trap on them, no bot sent) that the bot's route ahead passes: within the
+/// job's at-the-point distance (`within_m` + the trap's `reach_m` + 1 m, as a sent bot's) of a point of the route's next
+/// `route_ahead_m`, a storey at most apart. A distance test of at most 13 route points against the team's few points; no search.
+fn passed_points(bot: &Bot, me: &PlaceView, t: &TrapTuning, knowledge: &super::know::TeamKnowledge) -> Vec<Vec3> {
+    use super::know::CamperTrapState;
+    let Some(j) = t.camper_job else {
+        return Vec::new();
+    };
+    let open: Vec<Vec3> = knowledge.camper_traps.iter().filter(|c| c.state == CamperTrapState::Open).map(|c| c.at).collect();
+    if open.is_empty() {
+        return Vec::new();
+    }
+    let (ahead, _) = route_ahead(bot, me, t);
+    let near = j.within_m + t.reach_m + 1.0;
+    open.into_iter().filter(|at| ahead.iter().any(|p| p.distance_xz(*at) <= near && (p.y - at.y).abs() < 2.0)).collect()
+}
+
 fn enemy_near(bot: &Bot, due: &Due) -> bool {
     enemy_near_at(bot, due.me.feet, due.now, due.view.clock, &due.tuning.traps)
 }
@@ -5911,8 +6018,9 @@ mod tests {
         let j = crate::v026g::bots::tuning::CamperJob::default();
         let (home, spot) = (Vec3::new(10.0, 0.0, 10.0), Vec3::new(50.0, 0.0, 10.0));
         let points = approach_points(&s.tactics, home, spot, &j);
-        assert_eq!(points.len(), 5, "{points:?}");
-        for (k, at) in points.iter().enumerate() {
+        assert_eq!(points.len(), ((j.far_m - j.near_m) / j.step_m) as usize + 1, "{points:?}");
+        // The way is straight for its last 18 m (round the wall's end at z 25 before that): there each point lies its metres back.
+        for (k, at) in points.iter().enumerate().filter(|&(k, _)| j.near_m + j.step_m * k as f32 <= 18.0) {
             let d = at.distance_xz(spot);
             let want = j.near_m + j.step_m * k as f32;
             assert!((d - want).abs() < 1.5, "point {k} {at:?}: {d} m from the spot, want about {want}");
@@ -5953,9 +6061,9 @@ mod tests {
     }
 
     /// [A324] The camper job's points: a K2 job's spot and a battery hold each get their way in, out of his sight (here past
-    /// the field's wall end, the way from the one spawn kept); when the holder dies the point stays for his return with
-    /// nothing after his death: the point goes with the job;
-    /// taken off the list, one point a man. Every step is a note.
+    /// the field's wall end, the way from the one spawn kept); [bot traps T1] when the holder dies the point is kept past its
+    /// hold (`threat::CAMP_KILLS_KEPT_MS`) and then goes; a second noting within `near_own_m` of a held one makes no second
+    /// point. Every step is a note.
     #[test]
     fn the_camper_job_traps_the_way_in_of_held_places_while_they_are_held() {
         use crate::v026g::bots::know::{CamperTrapKind, CamperTrapState, TeamKnowledge};
@@ -5997,19 +6105,31 @@ mod tests {
         assert_eq!(notes.iter().filter(|n| n.text.contains("trapped while it stands")).count(), 1, "{notes:?}");
         // The battery's man stands in the open field's east half, seen from all of his way from the west spawn: no way in.
         assert!(k.camper_no_way.contains(&battery.id) || k.camper_traps.iter().any(|c| c.kind == CamperTrapKind::Battery));
-        // He dies: the point goes with the job.
+        // Another line held near his place finds the same way in: no second point.
+        let near = HeldLine::for_test(8, 13, held + Vec3::new(0.5, 0.0, 0.0), &[], Some(1_000));
+        tick(&mut k, &t, &s.view, &[line.clone(), battery.clone(), near.clone()], 3_200, &mut notes);
+        assert!(k.camper_traps.iter().all(|c| c.spot != 8), "{:?}", k.camper_traps);
+        assert!(k.camper_no_way.contains(&8));
+        assert!(notes.iter().any(|n| n.text.contains("is 7's point")), "{notes:?}");
+        // He dies: the point is kept past its hold, then goes.
         s.view.places.iter_mut().find(|p| p.place == 11).unwrap().alive = false;
         tick(&mut k, &t, &s.view, &[battery.clone()], 4_000, &mut notes);
+        let kept = k.camper_traps.iter().find(|c| c.spot == 7).expect("kept past its hold");
+        assert_eq!(kept.hold, crate::v026g::bots::know::CamperHold::Over { since: 4_000 });
+        assert!(notes.iter().any(|n| n.text.contains("no longer held; the point is kept")), "{notes:?}");
+        let gone = 4_001 + crate::v026g::bots::threat::CAMP_KILLS_KEPT_MS;
+        tick(&mut k, &t, &s.view, &[battery.clone()], gone, &mut notes);
         assert!(k.camper_traps.iter().all(|c| c.spot != 7), "{:?}", k.camper_traps);
-        assert!(notes.iter().any(|n| n.text.contains("no longer held")), "{notes:?}");
-        let at = 4_001;
+        assert!(notes.iter().any(|n| n.text.contains("dropped")), "{notes:?}");
+        let at = gone + 1;
         // Off: nothing.
         tick(&mut k, &TrapTuning { camper_job: None, ..t.clone() }, &s.view, std::slice::from_ref(&line), at + 1, &mut notes);
         assert!(k.camper_traps.is_empty());
     }
 
     /// [#2081] A sent bot that runs another play than the job's past its first thinks is let go (the point is open again); within
-    /// them it stays sent. A walk longer than the hold's typical remaining time is never sent (`max_walk_m` 22.75 m).
+    /// them it stays sent. A walk longer than the hold's typical remaining time is never sent (`max_walk_m` 22.75 m). [bot traps
+    /// T1] At its place's hold end a sent bot is let go, and nobody is sent to the kept point.
     #[test]
     fn the_camper_job_lets_go_a_bot_that_left_its_play() {
         use crate::v026g::bots::know::{CamperTrap, CamperTrapKind, CamperTrapState, SeenRefusals, TeamKnowledge};
@@ -6032,6 +6152,7 @@ mod tests {
             at: Vec3::new(30.0, 0.0, 10.0),
             kind: CamperTrapKind::Job,
             state: CamperTrapState::Sent { placer: 0, since: 1_000, placed_before: 0 },
+            hold: crate::v026g::bots::know::CamperHold::Held,
             seen: SeenRefusals::default(),
         });
         let mut notes = Vec::new();
@@ -6040,6 +6161,48 @@ mod tests {
         camper_tick(&bots, &mut k, &s.view, &s.tactics, &t, 0, std::slice::from_ref(&line), 1_001 + LEFT_PLAY_GRACE_MS, &mut notes);
         assert_eq!(k.camper_traps[0].state, CamperTrapState::Open);
         assert!(notes.iter().any(|n| n.text.contains("it left the job's play")), "{notes:?}");
+        // [bot traps T1] Sent again; its place no longer held: let go (no point sent to it, its play ends), the point kept open
+        // and sent to nobody.
+        k.camper_traps[0].state = CamperTrapState::Sent { placer: 0, since: 2_000, placed_before: 0 };
+        camper_tick(&bots, &mut k, &s.view, &s.tactics, &t, 0, &[], 2_100, &mut notes);
+        assert_eq!(k.camper_traps[0].state, CamperTrapState::Open, "let go at the hold's end");
+        assert!(camper_point(&k, 0).is_none());
+        assert!(notes.iter().any(|n| n.text.contains("bot 0 is let go")), "{notes:?}");
+        camper_tick(&bots, &mut k, &s.view, &s.tactics, &t, 0, &[], 2_200, &mut notes);
+        assert_eq!(k.camper_traps[0].state, CamperTrapState::Open, "no bot is sent to a kept point");
+    }
+
+    /// [bot traps T1] A bot not sent whose route ahead passes an open camper point wishes it (`passed_points`); one whose route
+    /// keeps off it does not; a trapped point is not wished.
+    #[test]
+    fn a_bot_whose_walk_passes_an_open_camper_point_wishes_it() {
+        use crate::v026g::bots::know::{CamperHold, CamperTrap, CamperTrapKind, CamperTrapState, SeenRefusals};
+        let t = TrapTuning::default();
+        let mut s = Scenario::field(Mode::TeamDeathmatch);
+        s.bot(0, 0, Vec3::new(10.0, 0.0, 30.0));
+        let tuning = crate::v026g::bots::tuning::Tuning::all_off();
+        let mut bot = Bot::new(1, 0, 0, None, &tuning);
+        let me = s.view.places[0].clone();
+        let route = s.tactics.route(me.feet, Vec3::new(35.0, 0.0, 30.0), 0, Some(0)).expect("a route");
+        bot.route = Some((route, Vec3::new(35.0, 0.0, 30.0)));
+        let mut state = crate::v026g::bots::know::TeamKnowledge::default();
+        let point = |at: Vec3, state: CamperTrapState| CamperTrap {
+            spot: 7,
+            shooter: 11,
+            held: Vec3::new(45.0, 0.0, 30.0),
+            at,
+            kind: CamperTrapKind::Battery,
+            state,
+            hold: CamperHold::Over { since: 0 },
+            seen: SeenRefusals::default(),
+        };
+        let on = Vec3::new(15.0, 0.0, 30.0);
+        state.camper_traps.push(point(on, CamperTrapState::Open));
+        assert_eq!(passed_points(&bot, &me, &t, &state), vec![on]);
+        state.camper_traps[0].state = CamperTrapState::Trapped;
+        assert!(passed_points(&bot, &me, &t, &state).is_empty(), "trapped");
+        state.camper_traps[0] = point(Vec3::new(15.0, 0.0, 5.0), CamperTrapState::Open);
+        assert!(passed_points(&bot, &me, &t, &state).is_empty(), "off its route");
     }
 
     /// [traps.look_over_heard] The trap look survives a glance and a sights-up aim at an enemy only heard or told of while the

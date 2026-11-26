@@ -865,8 +865,20 @@ pub struct CamperTrap {
     pub at: Vec3,
     pub kind: CamperTrapKind,
     pub state: CamperTrapState,
+    /// [bot traps T1] Whether its place is held still, or since when it is not: the point outlives the hold.
+    pub hold: CamperHold,
     /// The sent bot's "enemy seen" refusals at the point, this job.
     pub seen: SeenRefusals,
+}
+
+/// [bot traps T1] A camper trap point's place: held (a K2 job runs on it, or the man is held off from at a loose battery), or no
+/// longer, since `since`. A point whose hold is over is kept for the team's memory of a camp place
+/// (`threat::CAMP_KILLS_KEPT_MS`): no bot is sent to it, a mate whose walk passes it lays the trap (`traps::think`), the human
+/// record's way (every holder a human trap caught was caught by one laid before his hold, `docs/notes/bear_traps.md`).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum CamperHold {
+    Held,
+    Over { since: u32 },
 }
 
 /// Why the team wants the point, and so for how long.
@@ -1218,7 +1230,8 @@ pub struct TeamKnowledge {
     pub losses: Vec<Loss>,
     /// [A324] The camper trap points the team wants a trap on, and their jobs (`traps::camper_tick`).
     pub camper_traps: Vec<CamperTrap>,
-    /// [A324] Held places (their line's id) on which no way in out of his sight was found (not searched again while held).
+    /// [A324] Held places (their line's id) not searched again while held: no way in out of his sight was found, or [bot traps
+    /// T1] the way in found is another place's kept point (within `near_own_m`).
     pub camper_no_way: Vec<u32>,
     /// Enemies seen carrying lately.
     pub carriers_seen: Vec<CarrierSeen>,
