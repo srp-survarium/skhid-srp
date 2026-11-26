@@ -414,10 +414,13 @@ pub enum Kind {
     Unreachable,
     /// [bot traps] A battery left before its take: its carrier would have no way home from its stand (`carrier_home.rs`).
     CarrierHome,
+    /// [lane draw] A long walk's lanes and the draw between them (`lane_draw.rs`): one line a new walk, none held, not capped (the
+    /// bench's lane spread reads every one).
+    Lane,
 }
 
 /// How many kinds of line there are ([`Kind`]).
-const KINDS: usize = 23;
+const KINDS: usize = 24;
 
 /// [owner-5] At most this many lines of a kind per bot per match (the first ones; the rest are counted into the last): the
 /// owner-5 kinds fire on events that can repeat all match (a battery refused at every poll, a role offered and refused
@@ -440,12 +443,12 @@ impl NavLog {
     /// A line of `kind` at `time`: kept for the next poll, or held back (counted) within [`EVERY_MS`] of the last one. The
     /// owner-5 kinds also stop at [`MAX_PER_KIND`] a match.
     pub fn push(&mut self, kind: Kind, time: u32, text: String) {
-        let capped = !matches!(kind, Kind::Jump | Kind::Fall | Kind::Drift | Kind::Press | Kind::ZoneTake);
+        let capped = !matches!(kind, Kind::Jump | Kind::Fall | Kind::Drift | Kind::Press | Kind::ZoneTake | Kind::Lane);
         if capped && self.written[kind as usize] >= MAX_PER_KIND {
             return;
         }
         // [anomaly batteries] Every line of a zone take is its own event: none is held.
-        if kind == Kind::ZoneTake {
+        if matches!(kind, Kind::ZoneTake | Kind::Lane) {
             self.written[kind as usize] += 1;
             self.pending.push((time, text));
             return;
@@ -473,7 +476,7 @@ impl NavLog {
     /// [fix-lip] Whether a line of `kind` at `time` would be written now ([`Self::push`]'s limits): a line costly to make is made only
     /// then; one not due is still counted held by [`Self::push`] (its text unused).
     pub fn due(&self, kind: Kind, time: u32) -> bool {
-        if matches!(kind, Kind::Press | Kind::ZoneTake) {
+        if matches!(kind, Kind::Press | Kind::ZoneTake | Kind::Lane) {
             return true;
         }
         let capped = !matches!(kind, Kind::Jump | Kind::Fall | Kind::Drift);
