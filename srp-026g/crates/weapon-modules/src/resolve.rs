@@ -18,6 +18,9 @@
 //! 5. A second sight's eye is never the eye: it is the second one, which the
 //!    player switches to (0.69d's `aim_3`, `aim_4` beside `aim`), at the
 //!    plane of the gun's own eye as 0.69d's `plane_slot` puts it.
+//! 6. A scope whose module names more than one slot the gun offers may be
+//!    put in another of them ([`mounts`], the player's [`Mount`]): rule 2's
+//!    slot is its first, the others follow in the module's order.
 //!
 //! What cannot be is a [`Refusal`], never a guess.
 //!
@@ -89,10 +92,79 @@ impl Side {
     }
 }
 
+/// Which of a scope's ways onto its gun it takes ([`mounts`]): 0 is rule 2's
+/// (the way a scope went on before a player could choose), 1 to 3 the others
+/// in the order its module names their slots. The weapon kit keeps it as the
+/// scope's record value.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+pub struct Mount(u8);
+
+impl Mount {
+    /// The ways one scope may have on a gun, at most (two bits of the kit).
+    pub const MAX: usize = 4;
+
+    /// The `index`th way; None past [`Mount::MAX`].
+    pub fn new(index: u8) -> Option<Mount> {
+        (usize::from(index) < Mount::MAX).then_some(Mount(index))
+    }
+
+    pub fn index(self) -> u8 {
+        self.0
+    }
+}
+
+/// The slots a scope may go in on a gun, by [`Mount`]: the first rule 2's,
+/// then each other slot its module names that the gun with its own parts
+/// has or has carriers for, where the scope alone stands. Empty for a scope
+/// the gun does not take.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct Mounts([Option<SlotId>; Mount::MAX]);
+
+impl Mounts {
+    /// The slot of `mount`; None for a way the gun does not have.
+    pub fn get(&self, mount: Mount) -> Option<SlotId> {
+        self.0.get(usize::from(mount.0)).copied().flatten()
+    }
+
+    /// Each way and its slot, in order.
+    pub fn iter(&self) -> impl Iterator<Item = (Mount, SlotId)> + '_ {
+        (0u8..).zip(self.0.iter()).filter_map(|(index, slot)| Some((Mount(index), (*slot)?)))
+    }
+
+    pub fn len(&self) -> usize {
+        self.0.iter().flatten().count()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+}
+
+/// The ways `scope` goes onto `gun` ([`Mounts`]).
+pub fn mounts(gun: Gun<'_>, scope: DictId) -> Mounts {
+    let mut mounts = Mounts::default();
+    let (Ok(build), Some(module)) = (Build::stock(gun), gun.fit(scope, Kind::Scope)) else { return mounts };
+    let Some((first, _)) = build.way(module, None) else { return mounts };
+    let others = module.attaches().map(|attach| attach.slot()).filter(|slot| *slot != first.slot());
+    let stands = |slot: SlotId| {
+        build.way(module, Some(slot)).is_some()
+            && fit(gun, Wanted { scope: Some((scope, Mount::default())), ..Wanted::default() }, Some(slot)).is_ok()
+    };
+    let mut places = mounts.0.iter_mut();
+    for slot in core::iter::once(first.slot()).chain(others).filter(|slot| stands(*slot)) {
+        match places.next() {
+            Some(place) => *place = Some(slot),
+            None => break,
+        }
+    }
+    mounts
+}
+
 /// What a player fitted, by dict id (the weapon kit's slots 3, 4, 5 and 6).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct Wanted {
-    pub scope: Option<DictId>,
+    /// The scope and the way it goes on.
+    pub scope: Option<(DictId, Mount)>,
     pub muzzle: Option<DictId>,
     pub grip: Option<DictId>,
     /// The second sight and its side.
@@ -102,19 +174,24 @@ pub struct Wanted {
 impl Wanted {
     pub fn of(&self, kind: Kind) -> Option<DictId> {
         match kind {
-            Kind::Scope => self.scope,
+            Kind::Scope => self.scope.map(|(dict, _)| dict),
             Kind::Muzzle => self.muzzle,
             Kind::Grip => self.grip,
             Kind::SecondSight => self.second_sight.map(|(dict, _)| dict),
         }
     }
 
-    /// The one slot a `kind` may go in, when the player chose it: a second
-    /// sight's side.
-    fn chosen(&self, kind: Kind) -> Option<SlotId> {
+    /// The one slot a `kind` may go in on `gun`, when the player chose it: a
+    /// second sight's side, a scope's way other than the first (one the gun
+    /// does not have: [`Refusal::NoMount`]).
+    fn chosen(&self, gun: Gun<'_>, kind: Kind) -> Result<Option<SlotId>, Refusal> {
         match kind {
-            Kind::SecondSight => self.second_sight.map(|(_, side)| side.slot()),
-            Kind::Scope | Kind::Muzzle | Kind::Grip => None,
+            Kind::SecondSight => Ok(self.second_sight.map(|(_, side)| side.slot())),
+            Kind::Scope => match self.scope {
+                Some((dict, mount)) if mount != Mount::default() => mounts(gun, dict).get(mount).map(Some).ok_or(Refusal::NoMount),
+                _ => Ok(None),
+            },
+            Kind::Muzzle | Kind::Grip => Ok(None),
         }
     }
 }
@@ -131,6 +208,8 @@ pub enum Refusal {
     Taken(SlotId),
     /// The slot's part was displaced by another fitted module's carrier.
     Unseated(SlotId),
+    /// The scope's [`Mount`] is no way it has onto the gun.
+    NoMount,
     /// The fitted sight keeps the gun's eye relief, and its line of sight
     /// runs along the gun's eye plane or meets it more than 2 m behind the
     /// eye: 0.69d would leave the eye inside the sight.
@@ -445,12 +524,22 @@ pub fn resolve<'t>(gun: Gun<'t>, wanted: Wanted) -> Result<Loadout<'t>, Refusal>
     if wanted == Wanted::default() {
         return Ok(Loadout::Whole);
     }
+    let scope = match wanted.scope {
+        Some(_) => wanted.chosen(gun, Kind::Scope)?,
+        None => None,
+    };
+    fit(gun, wanted, scope).map(Loadout::Bare)
+}
+
+/// [`resolve`] of something fitted, the scope in `scope` when it is given.
+fn fit<'t>(gun: Gun<'t>, wanted: Wanted, scope: Option<SlotId>) -> Result<Bare<'t>, Refusal> {
     let mut build = Build::stock(gun)?;
     let mut fitted = [None; Kind::ALL.len()];
     for (kind, place) in Kind::ALL.into_iter().zip(&mut fitted) {
         let Some(dict) = wanted.of(kind) else { continue };
         let module = gun.fit(dict, kind).ok_or(Refusal::NoFit(kind))?;
-        let (attach, carried) = build.way(module, wanted.chosen(kind)).ok_or(Refusal::NoSlot(kind))?;
+        let only = if kind == Kind::Scope { scope } else { wanted.chosen(gun, kind)? };
+        let (attach, carried) = build.way(module, only).ok_or(Refusal::NoSlot(kind))?;
         *place = Some((kind, module, attach, carried));
     }
     for (_, _, attach, carried) in fitted.into_iter().flatten() {
@@ -464,5 +553,5 @@ pub fn resolve<'t>(gun: Gun<'t>, wanted: Wanted) -> Result<Loadout<'t>, Refusal>
     }
     build.settle()?;
     build.alter();
-    build.loadout().map(Loadout::Bare)
+    build.loadout()
 }
