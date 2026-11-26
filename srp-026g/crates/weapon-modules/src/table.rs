@@ -44,8 +44,12 @@ use crate::{AttachEye, BoneIndex, DictId, Kind, Point, Role, resolve};
 
 pub const MAGIC: [u8; 4] = *b"SRPM";
 /// 2: a gun names its bare body's model. 3: a gun has its own eye, and an
-/// attach's eye may keep that eye's plane (0.69d's `plane_slot`).
-pub const VERSION: u16 = 3;
+/// attach's eye may keep that eye's plane (0.69d's `plane_slot`). 4: a
+/// module may be a second sight (role 5, [`Kind::SecondSight`]); a version 3
+/// table is read as one without any.
+pub const VERSION: u16 = 4;
+/// The oldest version read.
+pub const OLDEST: u16 = 3;
 /// A gun's own parts that are modules, at most.
 pub const MAX_STOCK: usize = 8;
 /// The carriers one fit brings, at most (a suppressor's clamp is one; no
@@ -126,7 +130,7 @@ pub enum ModuleFault {
     AddTwice(SlotId),
     /// One point twice, or both kinds of eye.
     PointTwice(Point),
-    /// A scope's attach without its eye.
+    /// A scope's or a second sight's attach without its eye.
     NoEye(SlotId),
     /// A grip without its hand locators, another module with them, or a
     /// hand locator with no inverse.
@@ -237,11 +241,11 @@ impl<'a> Table<'a> {
         if header.array() != Some(MAGIC) {
             return Err(Malformed::Magic);
         }
-        match header.u16() {
-            Some(VERSION) => {}
+        let version = match header.u16() {
+            Some(version @ OLDEST..=VERSION) => version,
             Some(other) => return Err(Malformed::Version(other)),
             None => return Err(Malformed::Size),
-        }
+        };
         let mut counts = [0u32; SECTIONS];
         for count in &mut counts {
             *count = header.u32().ok_or(Malformed::Size)?;
@@ -268,7 +272,7 @@ impl<'a> Table<'a> {
         if usize::try_from(strings) != Ok(rest.len()) {
             return Err(Malformed::Size);
         }
-        table.check()?;
+        table.check(version)?;
         Ok(table)
     }
 
@@ -339,12 +343,16 @@ impl<'a> Table<'a> {
         self.guns().find(|gun| gun.dict == dict)
     }
 
-    fn check(&self) -> Result<(), Malformed> {
+    fn check(&self, version: u16) -> Result<(), Malformed> {
         for index in 0..=u16::MAX {
             if usize::from(index) >= self.modules.len() {
                 break;
             }
             self.check_module(index).map_err(|fault| Malformed::Module { module: index, fault })?;
+            let second = self.module_at(index).is_some_and(|module| module.role == Role::Fitted(Kind::SecondSight));
+            if second && version < 4 {
+                return Err(Malformed::Version(version));
+            }
         }
         for index in 0..=u16::MAX {
             if usize::from(index) >= self.guns.len() {
@@ -383,7 +391,7 @@ impl<'a> Table<'a> {
             if !slots.clone().all(|bytes| slot_ref(bytes).is_some()) {
                 return Err(F::Attach);
             }
-            if module.role == Role::Fitted(Kind::Scope) && attach.eye().is_none() {
+            if matches!(module.role, Role::Fitted(kind) if kind.sees()) && attach.eye().is_none() {
                 return Err(F::NoEye(attach.slot));
             }
         }

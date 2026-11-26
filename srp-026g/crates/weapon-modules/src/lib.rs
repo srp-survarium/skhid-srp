@@ -21,8 +21,8 @@
 //! - [`Placement`], [`Eye`], [`Hand`]: where things are, in the terms the
 //!   client's locator records take.
 //!
-//! What a player fits is one module a [`Kind`]: the weapon kit's slots 3, 4
-//! and 5 (`weapon-kit`), by dict id. Everything else a fit needs (a rail
+//! What a player fits is one module a [`Kind`]: the weapon kit's slots 3, 4,
+//! 5 and 6 (`weapon-kit`), by dict id. Everything else a fit needs (a rail
 //! bracket, a tactical forend in place of the gun's own) comes with it.
 //!
 //! `no_std`, no `alloc`, no `unsafe`, and no read can panic: a panic in the
@@ -60,9 +60,9 @@ use core::num::NonZeroU16;
 
 pub use math::Affine;
 pub use pose::{Eye, EyeAnchor, FINGERS, Hand, Placement, locator_frame};
-pub use resolve::{Bare, Loadout, Optic, Part, Refusal, Shape, Wanted, resolve};
+pub use resolve::{Bare, Loadout, Optic, Part, Refusal, SecondSight, Shape, Wanted, resolve};
 pub use slot::SlotId;
-pub use table::{Attach, Gun, GunFault, HAND_LOCATORS, MAGIC, MAX_CHAIN, MAX_STOCK, Malformed, Module, ModuleFault, Table, VERSION};
+pub use table::{Attach, Gun, GunFault, HAND_LOCATORS, MAGIC, MAX_CHAIN, MAX_STOCK, Malformed, Module, ModuleFault, OLDEST, Table, VERSION};
 
 /// What a player fits to a weapon: one module of each kind at most.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -73,10 +73,21 @@ pub enum Kind {
     Muzzle,
     /// Slot 5.
     Grip,
+    /// Slot 6: a collimator on a 45-degree offset rail at the gun's side
+    /// (0.69d's NcStar MPR45 with a DeltaPoint Pro or an RSA-S in its
+    /// `angled_collim_short_*` slot). Its eye is a second one beside the
+    /// scope's ([`crate::Bare::second`]), which the player switches to.
+    SecondSight,
 }
 
 impl Kind {
-    pub const ALL: [Kind; 3] = [Kind::Scope, Kind::Muzzle, Kind::Grip];
+    pub const ALL: [Kind; 4] = [Kind::Scope, Kind::Muzzle, Kind::Grip, Kind::SecondSight];
+
+    /// Whether its attach must give an eye: an optic is one where it moves
+    /// an eye.
+    pub fn sees(self) -> bool {
+        matches!(self, Kind::Scope | Kind::SecondSight)
+    }
 }
 
 /// What a module is to a gun.
@@ -99,6 +110,7 @@ impl Role {
             Role::Fitted(Kind::Grip) => 2,
             Role::Carrier => 3,
             Role::Stock => 4,
+            Role::Fitted(Kind::SecondSight) => 5,
         }
     }
 
@@ -109,6 +121,7 @@ impl Role {
             2 => Some(Role::Fitted(Kind::Grip)),
             3 => Some(Role::Carrier),
             4 => Some(Role::Stock),
+            5 => Some(Role::Fitted(Kind::SecondSight)),
             _ => None,
         }
     }
