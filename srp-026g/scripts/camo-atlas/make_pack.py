@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Build the camo-atlas resource-porter pack from its artwork and the retail 0.26g archive.
 
-python3 make_pack.py --db /path/to/resources.db --reader /path/to/srp-game-data --out /path/to/camo-atlas-3
+python3 make_pack.py --db /path/to/resources.db --reader /path/to/srp-game-data --out /path/to/camo-atlas-4
 Requires Pillow, NumPy and ImageMagick. Catalog order owns the permanent item IDs and icon cells.
 """
 import argparse
@@ -58,7 +58,7 @@ def catalog():
 
 
 def build(stock, target):
-    ops, entries, names, images = [], [], {}, []
+    ops, entries, images = [], [], []
     like = pbr_026.Dds(stock[DIFFUSE])
 
     def add(path, data):
@@ -88,15 +88,11 @@ def build(stock, target):
             add(base + '.options', stock[decals.CAMO_TEXTURES + 'new_year' + role + '.options'])
             add(base + '.dds', stock[CLOTH + role + '.dds'] if role else pbr_026.encoded(pixels, like))
         entries.append(dict(dict_id=FIRST_ITEM + index, name=name, cfg_name=config, item_category=25,
-                            is_premium=True, is_stack=False, base_cost=PRICE))
-        names[key] = decals.porter_text(row['name'])
+                            is_premium=False, is_stack=False, base_cost=PRICE))
         images.append(path)
-    if not entries:
-        raise ValueError('empty catalog')
     ops.append({'op': 'dictionary_add', 'table': 'items_dict', 'entries': entries})
-    ops.append({'op': 'localization_add', 'languages': list(decals.LANGUAGES), 'strings': names})
     ops.extend(icons.icon_operations(target, images))
-    manifest = dict(format_version=1, id='camo-atlas', version='3', target_build='0.26g',
+    manifest = dict(format_version=1, id='camo-atlas', version='4', target_build='0.26g',
                     description='Camouflage Atlas appearance items for armour and weapons',
                     operations=ops, server={'items': [{'dict_id': e['dict_id']} for e in entries]})
     manifest_bytes = (json.dumps(manifest, indent=2, ensure_ascii=False) + '\n').encode()
