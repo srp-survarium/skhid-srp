@@ -1756,10 +1756,11 @@ mod tests {
         state.extend(rest());
         let items = [item(0, Body::None), item(7, gun(2)), item(10, gun(2))];
         assert_eq!(with_inventory(&state, &items), Ok(()));
-        // A byte more, or a byte less: no state of the game.
+        // A byte more (no second sights' record after the carry, patch 206), or a
+        // byte less: no state of the game.
         let mut long = state.clone();
         long.push(0);
-        assert!(matches!(reason(&long, &items), Reason::TailUnread { .. }));
+        assert!(matches!(reason(&long, &items), Reason::TailSights));
         let short = &state[..state.len() - 1];
         assert!(matches!(reason(short, &items), Reason::TailUnread { .. }));
     }
