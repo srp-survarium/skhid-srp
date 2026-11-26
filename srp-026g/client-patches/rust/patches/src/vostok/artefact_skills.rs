@@ -240,7 +240,9 @@ pub fn larkspur(ctx: &Context<'_>) {
         // SAFETY: a live player's embedded stamina.
         unsafe {
             let stamina = filled.stamina();
-            *stamina.current() += (*stamina.maximum() - *stamina.current()) * wear(artefact).firing().power();
+            // A worn copy gives its power's share of the whole bar, never past full.
+            let full = *stamina.maximum();
+            *stamina.current() = (*stamina.current() + full * wear(artefact).firing().power()).min(full);
         }
     }
 }
