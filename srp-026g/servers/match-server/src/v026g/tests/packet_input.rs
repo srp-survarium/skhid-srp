@@ -8,7 +8,8 @@ fn distinct_bad_inputs_up_to_the_limit_remove_the_sender_but_retransmissions_do_
     let mut bench = Bench::new(3, MAP_BATTERIES, Settings::default());
     bench.join_all(); bench.run(4_000);
     for count in 0..STRIKE_LIMIT {
-        let bad = PlayerInput { time: WireTime::tick(bench.clients[0].clock() + 50), rotation: [0; 4], actions: 1 << 30 };
+        // a turn of a half's infinity, which no mouse makes
+        let bad = PlayerInput { time: WireTime::tick(bench.clients[0].clock() + 50), rotation: [0x00, 0x7C, 0, 0], actions: 0 };
         for _ in 0..20 { bench.clients[0].send_input(bad); }
         bench.run(100);
         if count + 1 < STRIKE_LIMIT { assert!(!bench.clients[0].disconnected); }

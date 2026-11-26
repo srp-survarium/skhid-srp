@@ -191,6 +191,7 @@ release's. The "Result" row is the build of the revision named in it.
 | `rust/patches/src/profile_kit.rs`, `src/profile_kit.toml`, `src/vostok/profile_kit.rs`, `check_profile_kit_026g.py` | Patch 199: the lobby is given the kit it shows whole, in one call (`../docs/notes/client_patch.md` 3.104): lobby_menu::on_profile_changed's root.fill_player_profile_items (`lobby_menu.profile_items`, 0x222A07) is not made, and at its root.update_profile_slots_count (`lobby_menu.profile_counts`, 0x222CA1) the items value gets `item_slots` and `artifact_slots` and is given in its place; the lobby alone; its check runs both sites in both exes (needs Unicorn) |
 | `rust/patches/src/mouse_acquire.rs`, `src/mouse_acquire.toml`, `src/vostok/mouse_device.rs`, `check_mouse_acquire_026g.py` | Patch 202: a line in `srp_patches.<run>.log` when the game cannot take the mouse, with the reason, and one when it has it again (`../docs/notes/client_patch.md` 3.106): three lohooks in mouse::execute (`mouse.read` 0x3B96DE, `mouse.read_failed` 0x3B9704, `mouse.acquire_join` 0x3B97E8) keep the poll's last outcome and log a change only: the failed Acquire's or read's code (dinput.h's name, hex), the device's level (exclusive or not) and the window in front (GetForegroundWindow against the device's); a log line only; its check runs execute whole in both exes, the device stubbed (needs Unicorn) |
 | `rust/patches/src/reload_commit.rs`, `src/reload_commit.toml`, `src/vostok/reload.rs`, `check_reload_commit_026g.py` | Patch 205: a magazine reload (states 303, 311, 314) loads its magazine at its item clip's `reload_commit` event, the seat (edit list `reload-commit-1.json`), not only at the clip's end, so a reload left after the seat keeps the new magazine (`../docs/notes/reload-commit.md`, `../docs/notes/client_patch.md` 3.107): `reload.listen` 0x30DB0F and `reload.listen_again` 0x30DC7C subscribe a reload state (slot 9 0x310E40) to the channel, `reload.stop_listening` 0x30E476 unsubscribes it, the runtime callback `reload.commit_event` runs the game's own on_animation_end_impl without ending the state, and `reload.load_at_end` 0x310E41 makes its load the same twice as once (a chamber-on-reload gun's round back first); changes the simulation; its check runs the four reload state kinds whole in both exes (needs Unicorn) |
+| `rust/patches/src/upgrade_value.rs`, `src/upgrade_value.toml`, `src/vostok/lobby_call.rs`, `check_upgrade_value_026g.py` | Patch 207: the lobby movie's `srp_set_upgrade_value(host, upgrade, value)` (the Attachments window's Left/Right toggle of a second sight) becomes the decal editor's lobby request `46 05 <kit> <host> <upgrade> <u64>` (`../docs/notes/client_patch.md` 3.111): one lohook at lobby_menu::scaleform_callback's start (`lobby.callback`, 0x28C2C0) takes that method (every other call to the game), sends through the game's send_apply_decal (0x270950) for a value 0 or 1 and a host of the inventory whose weapon kit holds that second sight, and gives the client's copy of the host the kit with the new side; another value: nothing sent, one log line |
 | `rust/patches/src/material_bounds.rs`, `src/material_bounds.toml`, `src/vostok/material.rs` | Patch 193: game_material_manager::material_pair (0x306D50) takes an id past its 128 material slots as the default material's, the answer it gives an empty slot, instead of reading past its tables (`../docs/notes/footsteps.md`, "Material ids past the table"): one lohook at its start (`material_pair.entry`), every caller's pair through it; the patch log says so at the 1st, 10th, 100th, .. of a run |
 | `rust/patches/src/constant_upload.toml`, `constant_upload_026g.asm`, `check_constant_upload_026g.py` | Patch 134: shader constants cost the render thread less, the same bytes on the GPU: shader_constant_buffer::set_memory (0x11B5A0) copies 16 bytes at a time, not one, and update (0x3DDFD0) maps a buffer only when its bytes differ from the ones it last uploaded (four `code` hooks); its check runs set_memory on 4000 made-up cases in both exes (every register, XMM0..7 and the memory alike), the constructor, and 150 draws over four buffers with a model of the device context (the GPU's bytes after every update alike) (needs Unicorn) |
 | `rust/patches/src/replay_map.rs`, `src/replay_map.toml`, `src/vostok/ui.rs` (`GameWorldUi::at_enemy_ids`), `check_replay_map_026g.py` | Patch 135: a replay shows every enemy, spotted or not (`../docs/notes/replay-map.md`): its dot (update_minimap_players' spotted test, 0x239505), its marker and red name with Alt (render_name's, 0x1F2B50), the icons movie told `root.srp_show_enemies` before initialize_match's enemy list (0x235709); a replay known by the game's network client's class (`vostok::world::Playback`), no state of its own; its check runs the three sites in both exes (needs Unicorn) |
@@ -6873,6 +6874,21 @@ first). Left before the seat: the old magazine, as before. Nothing new in a worl
 simulation (`simulation_changes.tsv`). Checked with `check_reload_commit_026g.py` (Unicorn; `tools/check
 reload-commit`); not run in a game. The addresses: `../docs/notes/client_patch.md` 3.107 and
 `../docs/notes/reload-commit.md`.
+## A weapon's second sight: the switch, simulated (patch 206, unreleased)
+
+A gun with a second sight (patch 161's `data/srp_second_sight`) switches between it and its main
+sight with `scope_next` (5Ah, default Y; Options, Controls: "Switch sight"), as 0.69d0 switches its
+aim slots: the key's press is bit 30 of the input; every game, for every player, switches the held
+weapon over 500 ms (the blend from the next 50 ms tick, the weapon's tick ends it, putting the
+weapon away undoes it); while the switch lowers the aim a shot spreads as from the hip (the dynamic
+dispersion zeroed only at an effective aim of 1, the dispersion calculator's three m_aimed reads
+unaimed). Each player's two weapon slots' states are saved after patch 78's carry snapshot at the end
+of the player's state (11 bytes, `second_sight::Record`; srp-validate reads them). The machine is the
+crate `second-sight`; the patch `rust/patches/src/second_sights.rs`, its reads of the game
+`vostok/second_sight.rs`, whose `sight` gives patch 161's view the switch (from, to, s). It changes
+what a match computes (`simulation_changes.tsv`). Checked with `check_second_sights_026g.py`
+(Unicorn; `tools/check second-sights`) and `check_world_roundtrip_026g.py`; not run in a game. The
+sites, the state and the world bytes: `../docs/notes/second-sights.md`, "The simulation (0.26g)".
 
 ## A line when the game cannot take the mouse (patch 202, unreleased)
 
@@ -6893,6 +6909,22 @@ The code (dinput.h's name when it has one), the level the device is set to, and 
 in front: the game's, another, or none. A log line only: nothing a match computes. Checked with
 `check_mouse_acquire_026g.py` (Unicorn; `tools/check mouse-acquire`); not run in a game. The
 addresses: `../docs/notes/client_patch.md` 3.106.
+
+## A second sight's side from the lobby movie (patch 207, unreleased)
+
+The Attachments window puts a weapon's second sight on its left or right side with a toggle, and
+tells the exe with `srp_set_upgrade_value(host, upgrade, value)`. No patch took a lobby movie's call
+before: the lobby menu's own dispatch knows only its names. Patch 207 takes this one at the start of
+lobby_menu::scaleform_callback and sends the lobby `46 05`, the request the decal editor sends for a
+decal's place, through the game's own sender (send_apply_decal), then gives the client's copy of the
+weapon the kit with the new side (the sender's own write would put the value over the kit record).
+The server checks the side and sends the account back, so the window shows the side it holds.
+
+Nothing is sent for a value other than 0 or 1 (one line in the patches' log, once a run), for an
+item the inventory lacks, or for a host whose kit does not hold that second sight. Nothing a match
+computes. Checked with `check_upgrade_value_026g.py` (Unicorn; `tools/check upgrade-value`); not run
+in a game. The addresses and why send_apply_decal and not the decal editor's accept:
+`../docs/notes/client_patch.md` 3.111.
 
 ## The kit shown, in one call (patch 199, unreleased)
 
@@ -6927,7 +6959,7 @@ ptt_nearby, patch 66's) and the sixteen (ids 4Ah..59h); `ITEM_HOTKEYS_TABLE_REFS
 binder's four readers of it. The binder's bindings (one per action id) grow from 48h to 60h:
 `ITEM_HOTKEYS_BINDER` makes its allocation, construction, get_binded_action, bind_key's pass and
 the save's loop 60h, and moves its game pointer (+360h) after them. The rows are patch 62's
-`controls` (61 rows). `check_item_hotkeys_026g.py` runs the binder's functions and the whole input
+`controls` (62 rows with patch 206's scope_next). `check_item_hotkeys_026g.py` runs the binder's functions and the whole input
 builder in both exes (needs Unicorn); `docs/notes/client_patch.md` 3.105.
 
 ## The sync log (patch 210, unreleased)

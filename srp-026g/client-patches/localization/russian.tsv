@@ -3372,10 +3372,17 @@ st_srp_rooms_voting	Голосование
 st_srp_rooms_waiting	Ждём игроков
 st_srp_rooms_waiting_owner	Ждём, пока создатель начнёт.
 st_srp_rooms_waiting_short	Ожидание
+st_srp_scope_next_action	Сменить прицел
 st_srp_scope_screen_hint	Перетяните прицел, дульное устройство или рукоятку из вашего инвентаря в его слот
 st_srp_scope_slot	Прицел
+st_srp_second_sight	Второй прицел
+st_srp_second_sight_description	Ставит второй прицел сбоку оружия.
+st_srp_second_sight_hint	Прицел на смещённой планке сбоку оружия. Нажмите Y во время прицеливания, чтобы переключиться на него.
+st_srp_second_sight_name	Второй прицел
 st_srp_shop_not_owned	Скрыть имеющиеся
 st_srp_shop_not_owned_hint	Показывать только то, чего у вас нет
+st_srp_side_left	Слева
+st_srp_side_right	Справа
 st_srp_skills	Навыки
 st_srp_speed_label	Скорость
 st_srp_speed_title	Скорость движения: %1$s

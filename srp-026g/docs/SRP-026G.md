@@ -182,7 +182,8 @@ that rule is mended when the accounts load, and never plays.
 | `SRP_DB` | on | `off`: everything in memory only |
 | `SRP_LOG_DIR` | `logs` | Each server's lines in `<server>.log` (login, lobby, match, web, srp), dated, added to across restarts; rotated to `.1` (`.1` becomes `.2`, ...) at a size of its server's, about two days of each kept, the lobby about 12 (match 32 x 8 MB, lobby 16 x 4 MB, srp 4 x 4 MB, login 4 x 2 MB, web 2 x 2 MB: 348 MB). `off`: stdout only (the image's default). The compose file sets `/srv/srp/data/logs` (the data volume): a container's own output is gone at every update |
 | `RUST_LOG` | `info` | The log level |
-| `SRP_SNAPSHOT_DIR` | `logs/snapshots` | Where the match server keeps accepted worlds; `off`: nowhere |
+| `SRP_SNAPSHOT_DIR` | `logs/snapshots` | Where the match server keeps the worlds it is sent (accepted, refused, out of step; no cap), and in `captures/` the desync captures (`docs/notes/desync_capture.md`); `off`: nowhere |
+| `SRP_CAPTURE_MAX_MB` | `200` | The desync captures (`<SRP_SNAPSHOT_DIR>/captures`, a folder of 0.05 to 0.2 MB each) over this together: the oldest folders are deleted after each capture |
 | `SRP_RECORD_DIR` | unset (off; the compose file sets `/srv/srp/data/recordings`) | Match recordings: every datagram of a match in and out (no addresses), one LZMA2-packed file per match (`servers/match-server/src/v026g/record.rs` has the format); read with `srp-recording` |
 | `SRP_RECORD_MIN_PLAYERS` | `6` | PvP recordings are kept after this many human players enter, including late joiners. PvE recordings need one human regardless of this setting. Empty matches are discarded |
 | `SRP_RECORD_MAX_MB` | `5000` | Kept recordings over this together: the oldest are deleted |

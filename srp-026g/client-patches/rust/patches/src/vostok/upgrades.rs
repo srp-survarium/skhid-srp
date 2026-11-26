@@ -42,13 +42,20 @@ impl Records {
     pub fn as_slice(&self) -> &[Record] {
         self.records.get(..self.len).unwrap_or(&[])
     }
+
+    /// `records` as an item's (None for more than three).
+    pub fn of(records: &[Record]) -> Option<Records> {
+        let mut out = Records { len: records.len(), ..Records::default() };
+        out.records.get_mut(..records.len())?.copy_from_slice(records);
+        Some(out)
+    }
 }
 
 /// The records of `list` (None when it is broken or holds more than three).
 ///
 /// # Safety
 /// `list` is a live buffer_vector of upgrade records.
-unsafe fn read(list: raw::UpgradeRecords) -> Option<Records> {
+pub(super) unsafe fn read(list: raw::UpgradeRecords) -> Option<Records> {
     // SAFETY: the caller's.
     let (begin, end) = unsafe { (list.begin(), list.end()) };
     let mut out = Records::default();
@@ -84,7 +91,7 @@ unsafe fn record_at(record: raw::UpgradeRecord) -> Record {
 
 /// # Safety
 /// `place` is an upgrade record's room, ours or the item's.
-unsafe fn write(place: raw::UpgradeRecord, record: &Record) {
+pub(super) unsafe fn write(place: raw::UpgradeRecord, record: &Record) {
     // SAFETY: the caller's.
     unsafe {
         *place.id() = record.id;
@@ -241,9 +248,10 @@ impl<'t> AttachedPairs<'t> {
         }
     }
 
-    /// The inventory's item of `dict` with the lowest item id (as the lobby
-    /// movie's InventoryList.getInventoryItemOf), None when it holds none.
-    pub fn item_of(&self, dict: u16) -> Option<u32> {
+    /// The inventory's item of `dict` with the lowest item id that `taken`
+    /// does not hold (as the lobby movie's InventoryList.getInventoryItemOf,
+    /// past the weapon's own items of it), None when it holds none.
+    pub fn item_of(&self, dict: u16, taken: &[u32]) -> Option<u32> {
         // SAFETY: the inventory's vector and its end, the frame's, alive for
         // the function; begin..end are its item records.
         unsafe {
@@ -251,7 +259,7 @@ impl<'t> AttachedPairs<'t> {
             let count = self.frame.inventory_end()?.index_from(begin)?;
             (0..count)
                 .map(|i| begin.at(i))
-                .filter(|item| *item.dict() == dict && *item.id() != 0)
+                .filter(|item| *item.dict() == dict && *item.id() != 0 && !taken.contains(&*item.id()))
                 .map(|item| *item.id())
                 .min()
         }

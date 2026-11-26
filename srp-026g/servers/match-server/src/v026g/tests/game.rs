@@ -386,10 +386,11 @@ fn an_input_refused_by_the_client_validator_never_reaches_other_players() {
     bench.run(100);
     let bad = PlayerInput {
         time: WireTime::tick(bench.clients[0].clock() + 50),
-        rotation: [0; 4],
-        actions: 1 << 30,
+        // a turn of a half's infinity, which no mouse makes
+        rotation: [0x00, 0x7C, 0, 0],
+        actions: 0x20,
     };
-    assert!(srp_validate::messages::input(bad.rotation, bad.actions).is_err());
+    assert!(srp_validate::messages::input(bad.rotation).is_err());
     bench.clients[0].send_input(bad);
     bench.clients[0].send_input(bad);
     bench.run(100);
@@ -399,9 +400,10 @@ fn an_input_refused_by_the_client_validator_never_reaches_other_players() {
         assert_eq!(bench.clients[other].relays_of(0), [good]);
         assert!(discards(&bench.clients[other]).is_empty());
     }
-    // Native bit 31 and the shipped carry/pickup marker in bit 29 stay
-    // accepted. All players continue after the bad input is discarded.
-    for actions in [1 << 31, 1 << 29, 0x20] {
+    // Native bit 31, the shipped carry/pickup marker in bit 29 and the
+    // second sight's switch in bit 30 (client patch 206) stay accepted. All
+    // players continue after the bad input is discarded.
+    for actions in [1 << 31, 1 << 29, 1 << 30, 0x20] {
         let input = bench.clients[0].input(50, actions);
         bench.run(100);
         for other in [1, 2] {
@@ -828,76 +830,6 @@ fn a_game_back_in_step_before_its_disagreement_is_judged_is_not_resynced() {
     assert_eq!(bench.clients[2].model.syncs, 1);
     settle(&mut bench);
     bench.assert_no_faults();
-}
-
-/// The worlds of a split are asked for at its first tick, not seconds
-/// later at the resync: the wrong game's and a majority game's, and the
-/// wrong one is saved as "split".
-#[test]
-fn a_games_world_is_asked_for_at_its_first_report_against_the_majority() {
-    let mut bench = Bench::new(3, MAP_BATTERIES, Settings::default());
-    bench.join_all();
-    settle(&mut bench);
-    bench.run(3_000);
-    let right_asked = bench.clients[0].upload_requests + bench.clients[1].upload_requests;
-    let from = bench.clients[2].clock();
-    bench.clients[2].sim.salt_from = Some((from, 7));
-    // Its first wrong report comes a horizon (500 ms) and a way later.
-    assert!(bench.until(1_500, |bench| bench.game().split_world(2).0.is_some()));
-    assert_eq!(bench.game().resyncs(2), 0);
-    assert!(bench.until(1_000, |bench| !bench.game().split_world(2).1));
-    assert!(bench.clients[0].upload_requests + bench.clients[1].upload_requests > right_asked);
-    // Once a player, however long it is wrong; it is resynced as before.
-    assert!(bench.until(10_000, |bench| bench.game().resyncs(2) == 1));
-    assert_eq!(bench.game().split_world(0), (None, false));
-    assert_eq!(bench.game().split_world(1), (None, false));
-}
-
-/// A split's request that its game never answered (a full packet pool
-/// skips it) says nothing of the game's next upload: asked later as a
-/// source for another game's resync, its world is a vote, not "split".
-#[test]
-fn an_unanswered_split_request_does_not_take_the_next_upload() {
-    let dir = std::env::temp_dir().join(format!("srp-split-stale-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&dir);
-    let settings = Settings {
-        snapshot_dir: Some(dir.clone()),
-        ..Settings::default()
-    };
-    let mut bench = Bench::new(3, MAP_BATTERIES, settings);
-    bench.join_all();
-    settle(&mut bench);
-    bench.run(3_000);
-    bench.clients[1].no_uploads = true;
-    let from = bench.clients[1].clock();
-    bench.clients[1].sim.salt_from = Some((from, 7));
-    assert!(bench.until(1_500, |bench| bench.game().split_world(1).0.is_some()));
-    // Wrong for a moment only, and its request skipped.
-    bench.clients[1].sim.salt_from = None;
-    bench.run(2_000);
-    bench.clients[1].no_uploads = false;
-    let asked = bench.clients[1].upload_requests;
-    // Player 0 goes wrong: its resync's source is player 1
-    // (the best link; the lowest place of equal ones).
-    let from = bench.clients[0].clock();
-    bench.clients[0].sim.salt_from = Some((from, 9));
-    assert!(bench.until(15_000, |bench| bench.game().resyncs(0) == 1));
-    assert!(bench.until(5_000, |bench| bench.clients[1].upload_requests > asked));
-    bench.run(2_000);
-    let saved: Vec<String> = std::fs::read_dir(&dir)
-        .map(|entries| {
-            entries
-                .flatten()
-                .map(|entry| entry.file_name().to_string_lossy().into_owned())
-                .collect()
-        })
-        .unwrap_or_default();
-    let _ = std::fs::remove_dir_all(&dir);
-    assert!(
-        !saved.iter().any(|name| name.contains("_p1_split_")),
-        "{saved:?}"
-    );
-    assert!(!bench.game().split_world(1).1);
 }
 
 /// A game wrong from its first reports after the world it was resynced

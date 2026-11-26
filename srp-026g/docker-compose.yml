@@ -79,8 +79,13 @@ services:
       # `on`: every page says this is the test server (a badge, the title,
       # a notice that accounts here can be reset).
       - SRP_TEST_SERVER=${SRP_TEST_SERVER:-}
-      # The worlds the match server accepted are kept here to compare.
+      # The worlds the match server accepted are kept here to compare (no
+      # cap), and in captures/ the desync captures: both sides' worlds where
+      # the games split, with their first differing field
+      # (docs/notes/desync_capture.md); captures over SRP_CAPTURE_MAX_MB
+      # (default 200) together go oldest first.
       - SRP_SNAPSHOT_DIR=/srv/srp/data/snapshots
+      - SRP_CAPTURE_MAX_MB
       # Every datagram of a match in and out, one file per match, kept when
       # SRP_RECORD_MIN_PLAYERS (default 6 for PvP; 1 human for PvE) have entered
       # it; kept files over SRP_RECORD_MAX_MB (default 5000) together go

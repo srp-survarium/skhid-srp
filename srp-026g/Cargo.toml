@@ -10,6 +10,7 @@ members = [
   "crates/session",
   "crates/artefact-carry",
   "crates/weapon-pickup",
+  "crates/second-sight",
   "crates/technical-skills",
   "crates/ragdoll",
   "crates/voice-abi",
