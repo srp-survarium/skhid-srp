@@ -285,7 +285,12 @@ impl Route {
             crouch_climbs,
             planned,
             walk_offs,
+            unverified,
         } = self;
+        // [pull unknown] The unverified legs end at the same waypoints, now after the corners put in before them (a corner put in
+        // on such a leg splits it: the leg is still tested by its own floors before the body walks to its end).
+        let shift = |to: usize| to + corner[..=to].iter().filter(|c| c.is_some()).count();
+        let unverified = unverified.into_iter().map(|leg| super::UnverifiedLeg { to: shift(leg.to), ..leg }).collect();
         add(Count::WalkOffs, walk_offs.len() as u64);
         add(Count::Risers, risers.len() as u64);
         add(Count::CrouchClimbs, crouch_climbs.len() as u64);
@@ -305,6 +310,7 @@ impl Route {
             crouch_climbs,
             planned,
             walk_offs,
+            unverified,
         }
     }
 }
