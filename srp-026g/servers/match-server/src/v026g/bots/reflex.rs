@@ -696,11 +696,11 @@ pub struct CombatTuning {
     /// memory that its own or its team's senses placed within `duel_ms` (the reflex's own length of a duel after the last
     /// contact), nearer than a sprinting body covers in the time the weapon in hand takes to reload
     /// ([`reload_reach_m`]: the client's sprint, the weapon's own time). The magazine of a tactical reload is not empty
-    /// (40 to 60 % left in three of four), so the bot keeps a weapon that fires; an empty weapon reloads as before, and so
+    /// (40 % or more left in 63 % of them), so the bot keeps a weapon that fires; an empty weapon reloads as before, and so
     /// does any weapon once nobody known is that near. Measured on 3511d36c3 (96 bench matches, 3,848 reloads,
     /// `fable-fight-regressions-20261126.md`): a tactical reload begun with the nearest living enemy under 20 m ends in the
     /// bot's death in 27 % of 579, one begun with him farther in 6 % of 2,188, one no enemy gets a line on in 1.3 % of
-    /// 1,542. Players die within 3 s of 5.6 % of their reload presses, the bots within 3 s of 11.5 %
+    /// 1,542. Players die within 3 s of 5.6 % of their reload presses, the bots within 3 s of 12.0 %
     /// (`duels-humans-vs-bots.md`). Off: a tactical reload whenever the target has been out of sight `reload_idle_ms`.
     pub reload_out_of_reach: bool,
     /// [A277] The reload key goes in as the client takes it. The client takes a reload only from its weapon's idle, or at
