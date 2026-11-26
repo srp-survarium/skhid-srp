@@ -3377,7 +3377,7 @@ st_srp_scope_screen_hint	Húzz egy távcsövet, csőszájeszközt vagy markolato
 st_srp_scope_slot	Irányzék
 st_srp_second_sight	Második irányzék
 st_srp_second_sight_description	Második irányzékot szerel a fegyver oldalára.
-st_srp_second_sight_hint	Irányzék a fegyver oldalán lévő eltolt sínen. Célzás közben nyomd meg a T-t, hogy átválts rá.
+st_srp_second_sight_hint	Irányzék a fegyver oldalán lévő eltolt sínen. Célzás közben nyomd meg az Y-t, hogy átválts rá.
 st_srp_second_sight_name	Második irányzék
 st_srp_shop_not_owned	Meglévők elrejtése
 st_srp_shop_not_owned_hint	Csak a még nem birtokolt tárgyak mutatása

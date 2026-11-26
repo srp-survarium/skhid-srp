@@ -3377,7 +3377,7 @@ st_srp_scope_screen_hint	Přetáhni optiku, úsťové zařízení nebo rukojeť 
 st_srp_scope_slot	Optika
 st_srp_second_sight	Druhá optika
 st_srp_second_sight_description	Nasadí druhou optiku na bok zbraně.
-st_srp_second_sight_hint	Optika na odsazené liště na boku zbraně. Při míření stiskni T a přepneš na ni.
+st_srp_second_sight_hint	Optika na odsazené liště na boku zbraně. Při míření stiskni Y a přepneš na ni.
 st_srp_second_sight_name	Druhá optika
 st_srp_shop_not_owned	Skrýt vlastněné
 st_srp_shop_not_owned_hint	Zobrazit jen předměty, které nevlastníš

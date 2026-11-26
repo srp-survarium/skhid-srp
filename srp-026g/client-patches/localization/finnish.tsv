@@ -3377,7 +3377,7 @@ st_srp_scope_screen_hint	Vedä tähtäin, piipun suulaite tai kahva tavaroistasi
 st_srp_scope_slot	Tähtäin
 st_srp_second_sight	Toinen tähtäin
 st_srp_second_sight_description	Asentaa toisen tähtäimen aseen kylkeen.
-st_srp_second_sight_hint	Tähtäin aseen kyljen siirretyllä kiskolla. Paina T tähdätessä vaihtaaksesi siihen.
+st_srp_second_sight_hint	Tähtäin aseen kyljen siirretyllä kiskolla. Paina Y tähdätessä vaihtaaksesi siihen.
 st_srp_second_sight_name	Toinen tähtäin
 st_srp_shop_not_owned	Piilota omistetut
 st_srp_shop_not_owned_hint	Näytä vain esineet, joita sinulla ei ole

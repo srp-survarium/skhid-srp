@@ -3377,7 +3377,7 @@ st_srp_scope_screen_hint	Arraste uma mira, um dispositivo de boca ou uma empunha
 st_srp_scope_slot	Mira
 st_srp_second_sight	Segunda mira
 st_srp_second_sight_description	Coloca uma segunda mira na lateral da arma.
-st_srp_second_sight_hint	Uma mira no trilho deslocado na lateral da arma. Pressione T enquanto mira para alternar para ela.
+st_srp_second_sight_hint	Uma mira no trilho deslocado na lateral da arma. Pressione Y enquanto mira para alternar para ela.
 st_srp_second_sight_name	Segunda mira
 st_srp_shop_not_owned	Ocultar adquiridos
 st_srp_shop_not_owned_hint	Mostrar só os itens que você não tem

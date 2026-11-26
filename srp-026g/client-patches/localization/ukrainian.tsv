@@ -3377,7 +3377,7 @@ st_srp_scope_screen_hint	Перетягніть приціл, дульний п�
 st_srp_scope_slot	Приціл
 st_srp_second_sight	Другий приціл
 st_srp_second_sight_description	Ставить другий приціл збоку зброї.
-st_srp_second_sight_hint	Приціл на зміщеній планці збоку зброї. Натисніть T під час прицілювання, щоб перейти на нього.
+st_srp_second_sight_hint	Приціл на зміщеній планці збоку зброї. Натисніть Y під час прицілювання, щоб перейти на нього.
 st_srp_second_sight_name	Другий приціл
 st_srp_shop_not_owned	Сховати наявні
 st_srp_shop_not_owned_hint	Показувати лише те, чого у вас немає

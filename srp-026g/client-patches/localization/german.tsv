@@ -3377,7 +3377,7 @@ st_srp_scope_screen_hint	Ziehen Sie ein Zielfernrohr, einen Mündungsaufsatz ode
 st_srp_scope_slot	Optik
 st_srp_second_sight	Zweitvisier
 st_srp_second_sight_description	Setzt eine zweite Optik an die Seite der Waffe.
-st_srp_second_sight_hint	Eine Optik auf der versetzten Schiene an der Seite der Waffe. Drücken Sie beim Zielen T, um zu ihr zu wechseln.
+st_srp_second_sight_hint	Eine Optik auf der versetzten Schiene an der Seite der Waffe. Drücken Sie beim Zielen Y, um zu ihr zu wechseln.
 st_srp_second_sight_name	Zweitvisier
 st_srp_shop_not_owned	Besitz ausblenden
 st_srp_shop_not_owned_hint	Nur Gegenstände zeigen, die du nicht besitzt

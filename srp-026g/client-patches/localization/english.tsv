@@ -3377,7 +3377,7 @@ st_srp_scope_screen_hint	Drag a scope, a muzzle device or a grip from your inven
 st_srp_scope_slot	Optics
 st_srp_second_sight	Second sight
 st_srp_second_sight_description	Puts a second optic on the gun's side.
-st_srp_second_sight_hint	An optic on the offset rail at the gun's side. Press T while aiming to switch to it.
+st_srp_second_sight_hint	An optic on the offset rail at the gun's side. Press Y while aiming to switch to it.
 st_srp_second_sight_name	Second sight
 st_srp_shop_not_owned	Hide owned
 st_srp_shop_not_owned_hint	Show only the items you do not own

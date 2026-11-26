@@ -3377,7 +3377,7 @@ st_srp_scope_screen_hint	Povucite ciljnik, nastavak cijevi ili rukohvat iz inven
 st_srp_scope_slot	Optika
 st_srp_second_sight	Drugi ciljnik
 st_srp_second_sight_description	Postavlja drugi ciljnik sa strane oružja.
-st_srp_second_sight_hint	Ciljnik na pomaknutoj šini sa strane oružja. Pritisnite T dok ciljate da prijeđete na njega.
+st_srp_second_sight_hint	Ciljnik na pomaknutoj šini sa strane oružja. Pritisnite Y dok ciljate da prijeđete na njega.
 st_srp_second_sight_name	Drugi ciljnik
 st_srp_shop_not_owned	Sakrij posjedovane
 st_srp_shop_not_owned_hint	Prikaži samo predmete koje ne posjedujete

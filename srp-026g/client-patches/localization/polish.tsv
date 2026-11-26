@@ -3377,7 +3377,7 @@ st_srp_scope_screen_hint	Przeciągnij celownik, urządzenie wylotowe lub chwyt z
 st_srp_scope_slot	Optyka
 st_srp_second_sight	Drugi celownik
 st_srp_second_sight_description	Montuje drugi celownik z boku broni.
-st_srp_second_sight_hint	Celownik na odsuniętej szynie z boku broni. Naciśnij T podczas celowania, aby się na niego przełączyć.
+st_srp_second_sight_hint	Celownik na odsuniętej szynie z boku broni. Naciśnij Y podczas celowania, aby się na niego przełączyć.
 st_srp_second_sight_name	Drugi celownik
 st_srp_shop_not_owned	Ukryj posiadane
 st_srp_shop_not_owned_hint	Pokazuj tylko przedmioty, których nie masz

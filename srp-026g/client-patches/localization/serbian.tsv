@@ -3377,7 +3377,7 @@ st_srp_scope_screen_hint	Prevucite nišan, nastavak cevi ili rukohvat iz inventa
 st_srp_scope_slot	Optika
 st_srp_second_sight	Drugi nišan
 st_srp_second_sight_description	Postavlja drugi nišan sa strane oružja.
-st_srp_second_sight_hint	Nišan na pomerenoj šini sa strane oružja. Pritisnite T dok nišanite da pređete na njega.
+st_srp_second_sight_hint	Nišan na pomerenoj šini sa strane oružja. Pritisnite Y dok nišanite da pređete na njega.
 st_srp_second_sight_name	Drugi nišan
 st_srp_shop_not_owned	Sakrij posedovano
 st_srp_shop_not_owned_hint	Prikaži samo predmete koje nemaš

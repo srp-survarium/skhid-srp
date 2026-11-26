@@ -3377,7 +3377,7 @@ st_srp_scope_screen_hint	Перетяните прицел, дульное ус�
 st_srp_scope_slot	Прицел
 st_srp_second_sight	Второй прицел
 st_srp_second_sight_description	Ставит второй прицел сбоку оружия.
-st_srp_second_sight_hint	Прицел на смещённой планке сбоку оружия. Нажмите T во время прицеливания, чтобы переключиться на него.
+st_srp_second_sight_hint	Прицел на смещённой планке сбоку оружия. Нажмите Y во время прицеливания, чтобы переключиться на него.
 st_srp_second_sight_name	Второй прицел
 st_srp_shop_not_owned	Скрыть имеющиеся
 st_srp_shop_not_owned_hint	Показывать только то, чего у вас нет
