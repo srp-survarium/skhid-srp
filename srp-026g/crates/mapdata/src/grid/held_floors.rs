@@ -11,7 +11,7 @@
 //!
 //! The rule:
 //! 1. A floor at an edge (a side with no Walk link) is kept only where the client's walk tick holds a standing body
-//!    ([`super::rest_floors::holds`]: come down onto its centre from 0.6 m over it, no keys, 2 s): once landed it never drops
+//!    ([`crate::motion::rest::holds`]: come down onto its centre from 0.6 m over it, no keys, 2 s): once landed it never drops
 //!    more than a step (`Body::step`, `cc_step_height`) off the ground (a body sliding down a steep walked slope stays on the
 //!    ground: held). A floor a body falls off is our grid's only, no client's place.
 //! 2. The way down stays, as one drop: from each kept floor that had a link onto a taken one, the client's body walked at the
@@ -25,7 +25,8 @@ use super::controlled::parallel;
 use super::controlled::Stance;
 use super::drop_check::{walk_drop, walk_drop_as, DropWalk};
 use super::gap::{OffLink, Share, Takeoff};
-use super::rest_floors::{NAME_HEIGHT_M, holds, rests_at};
+use super::rest_floors::NAME_HEIGHT_M;
+use crate::motion::rest::{holds, rest_spot};
 use super::*;
 use crate::controller::tick::{LandingGround, Settings};
 use crate::controller::Collision;
@@ -380,7 +381,7 @@ impl WalkGrid {
             let ring = (0..RING_WAYS).any(|k| {
                 let t = k as f32 * std::f32::consts::TAU / RING_WAYS as f32;
                 let start = p + Vec3::new(RING_M * t.cos(), 0.0, RING_M * t.sin());
-                rests_at(world, s, start, room).is_some_and(|rest| {
+                rest_spot(world, s, start, room).is_some_and(|rest| {
                     let named = self
                         .floors_near(rest, self.body.radius)
                         .filter(|&f| self.stand_gap(f, rest.y) <= NAME_HEIGHT_M)

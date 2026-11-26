@@ -1138,7 +1138,7 @@ mod tests {
         let (kits, reach) = (Kits { body: jump::WALK_CAP_MS, fastest }, g.flight_reach_m());
         let (mut farthest, mut lowest) = (0.0f32, f32::MAX);
         for n in jump::neighbourhood() {
-            let flights = jump::neighbour_flights_for(&world, &s, takeoff, (1.0, 0.0), jump::Kind::Sprint, 1.6, n, kits, g.fall_ground()).expect("a run-up");
+            let flights = crate::motion::flights::press_flights(&world, &s, takeoff, (1.0, 0.0), jump::Kind::Sprint, 1.6, n, kits, g.fall_ground()).expect("a run-up");
             for f in flights.iter().flatten() {
                 farthest = farthest.max(f.feet.distance_xz(takeoff));
                 lowest = lowest.min(f.feet.y);

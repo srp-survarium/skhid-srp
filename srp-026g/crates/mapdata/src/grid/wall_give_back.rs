@@ -18,7 +18,7 @@
 //! It runs after the rounds (and the narrow doors), before their relinking and the exact pass, as the doors' pass does.
 
 use super::controlled::{out_of_walls, parallel};
-use super::rest_floors::Settle;
+use crate::motion::rest::Settle;
 use super::exact::Walls;
 use super::*;
 use crate::controller::{Collision, Shape};
@@ -28,7 +28,7 @@ use crate::controller::tick::Settings;
 pub const WALL_NEAR_M: f32 = 0.6;
 /// How far the feet may move (or drop) in the stand test, m.
 pub const STAND_MOVED_M: f32 = 0.1;
-/// Whether the client's walk tick stands a body on `feet`: the own-point test ([`super::rest_floors::settle_near`]: a standing
+/// Whether the client's walk tick stands a body on `feet`: the own-point test ([`crate::motion::rest::settle_near`]: a standing
 /// body put 5 mm over the floor's own point, no push out of the walls, no keys; where it jams there, put again 0.05 then 0.10 m
 /// around it), and it comes down and rests within [`STAND_MOVED_M`] of where it was put across and of the floor in height (no
 /// slide, no fall, not jammed). The body is stepped by the grid's collision and settings (`world`, `s`: [`Body::controller`]).
@@ -52,7 +52,7 @@ pub(super) fn stands(world: &Collision, s: &Settings, feet: Vec3) -> bool {
     let takes = |put: Vec3, at: Vec3| {
         (at.x - put.x).hypot(at.z - put.z) < STAND_MOVED_M && feet.y - at.y < STAND_MOVED_M && at.y - feet.y <= super::rest_floors::NAME_HEIGHT_M
     };
-    let settled = super::rest_floors::settle_near(world, s, feet, takes);
+    let settled = crate::motion::rest::settle_near(world, s, feet, takes);
     let ok = match settled {
         Settle::Rests { put, at } => takes(put, at),
         Settle::Jammed | Settle::Moving => false,
@@ -208,7 +208,7 @@ mod tests {
     /// off) jams on the whole ring: it stays taken.
     #[test]
     fn a_floor_the_rounds_took_beside_a_wall_the_body_clears_comes_back() {
-        use super::super::rest_floors::{settle, settle_near, Settle};
+        use crate::motion::rest::{settled_at, settle_near, Settle};
         let mut tris = ground();
         tris.extend(wall(5.22));
         let (off, on) = (floors(&tris, false), floors(&tris, true));
@@ -216,7 +216,7 @@ mod tests {
         assert!(!at(&off, 4.875), "the rounds take it");
         let (world, s) = (Collision::build(&tris), &Settings::LIVE);
         let feet = Vec3::new(4.875, 0.0, 5.125);
-        assert_eq!(settle(&world, s, feet), Settle::Jammed, "0.345 m off the wall the standing body overlaps it");
+        assert_eq!(settled_at(&world, s, feet), Settle::Jammed, "0.345 m off the wall the standing body overlaps it");
         let any = |_: Vec3, _: Vec3| true;
         let near = settle_near(&world, s, feet, any);
         assert!(matches!(near, Settle::Rests { put, .. } if put.x < feet.x - 0.03), "rests from the ring, put away from the wall: {near:?}");
@@ -251,7 +251,7 @@ mod tests {
     /// down, inside the solid) it does not.
     #[test]
     fn the_stand_test_sets_a_standing_body_on_the_floor_s_own_point() {
-        use super::super::rest_floors::{settle, Settle};
+        use crate::motion::rest::{settled_at, Settle};
         let mut tris = ground();
         // A slab over x 4.95..7 from 1.24 to 1.6 m.
         let t = |a: Vec3, b: Vec3, c: Vec3| Triangle { v: [a, b, c], walker: WalkerBehaviour::BySlope };
@@ -268,12 +268,12 @@ mod tests {
         let world = Collision::build(&tris);
         let s = &Settings::LIVE;
         let under = Vec3::new(5.6, 0.0, 5.0);
-        assert_eq!(settle(&world, s, under), Settle::Rests { put: under + Vec3::new(0.0, 0.005, 0.0), at: under }, "the body comes down onto the floor's own point");
+        assert_eq!(settled_at(&world, s, under), Settle::Rests { put: under + Vec3::new(0.0, 0.005, 0.0), at: under }, "the body comes down onto the floor's own point");
         assert!(stands(&world, s, under), "under the slab");
         let open = Vec3::new(2.0, 0.0, 5.0);
-        assert!(stands(&world, s, open), "open ground: {:?}", settle(&world, s, open));
+        assert!(stands(&world, s, open), "open ground: {:?}", settled_at(&world, s, open));
         let underside = Vec3::new(5.6, lo, 5.0);
-        assert!(!stands(&world, s, underside), "on the slab's underside: {:?}", settle(&world, s, underside));
+        assert!(!stands(&world, s, underside), "on the slab's underside: {:?}", settled_at(&world, s, underside));
     }
 
     /// [A364 C2 row 45] The stand test runs the client's steps: a body on flat ground stands, one in mid-air or with its centre

@@ -1,33 +1,10 @@
 # [body physics] The known callers of the body-motion entry points (motion_fidelity.rs, ENTRY_POINTS): file, entry point, calls.
 # Written by `SRP_MOTION_COPIES_WRITE=1 cargo test -p match-server no_new_body_physics_copies`; it may only shrink.
-../../crates/mapdata/src/controller/jump.rs	body_at	4
-../../crates/mapdata/src/controller/jump.rs	climb_flight	2
-../../crates/mapdata/src/controller/jump.rs	fly_as	4
-../../crates/mapdata/src/controller/jump.rs	held_flight	1
-../../crates/mapdata/src/controller/jump.rs	neighbour_flights	1
-../../crates/mapdata/src/controller/jump.rs	neighbour_flights_for	1
-../../crates/mapdata/src/controller/jump.rs	run_and_fly	2
-../../crates/mapdata/src/controller/jump.rs	run_up	8
-../../crates/mapdata/src/controller/jump.rs	run_up_slow	1
-../../crates/mapdata/src/controller/jump.rs	settle	4
-../../crates/mapdata/src/controller/jump.rs	walk_step	7
-../../crates/mapdata/src/controller/tick.rs	standing_at	14
-../../crates/mapdata/src/controller/tick.rs	step_as	2
-../../crates/mapdata/src/grid/controlled.rs	body_at	4
+../../crates/mapdata/src/grid/controlled.rs	body_at	1
 ../../crates/mapdata/src/grid/controlled.rs	client_step	1
 ../../crates/mapdata/src/grid/controlled.rs	deserialized	1
-../../crates/mapdata/src/grid/controlled.rs	standing_at	5
-../../crates/mapdata/src/grid/controlled.rs	walk_on_at	6
-../../crates/mapdata/src/grid/drop_check.rs	body_at	8
-../../crates/mapdata/src/grid/drop_check.rs	neighbour_flights_for	1
-../../crates/mapdata/src/grid/drop_check.rs	standing_at	1
-../../crates/mapdata/src/grid/held_floors.rs	rests_at	1
-../../crates/mapdata/src/grid/line_tops.rs	settle	1
-../../crates/mapdata/src/grid/rest_floors.rs	settle	2
-../../crates/mapdata/src/grid/rest_floors.rs	standing_at	3
-../../crates/mapdata/src/grid/rim.rs	neighbour_flights	2
-../../crates/mapdata/src/grid/wall_give_back.rs	settle	4
-src/v026g/bots/body.rs	.client_step	1
+../../crates/mapdata/src/grid/controlled.rs	standing_at	4
+../../crates/mapdata/src/grid/walk_gait.rs	standing_at	1
 src/v026g/bots/body.rs	client_fall_tick	1
 src/v026g/bots/body.rs	fall_step	3
 src/v026g/bots/body.rs	kept_controller_at	2
