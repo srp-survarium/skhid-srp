@@ -61,6 +61,35 @@ went on a weapon by a variant: [weapon_scopes.md](weapon_scopes.md), kept as the
   until patch 213 it took the world's hi-Z test like any surface in view, the housing around it a
   separate answer (`renderer-026g.md` 5.7): a wrong answer dropped the dot alone for a frame or more.
   Patch 213 keeps every first-person surface out of that test.
+- **The glass.** An idle optic's outside lens (`scope_lense_3p_s`: the front and the rear glass in
+  one surface, two discs at the tube's ends) is dark coated glass one sees through (pack version
+  9: version 8 with it; versions 4 to 6 were its steps, never released):
+  `weapons/modules_069/scope_lense_3p_glass`, the stock PSO-1's lens material
+  (`weapons/pso_1_lens`, `forward_lighting_no_distort`) on patch 19's lens normal and gloss maps,
+  and a texture of its own made from patch 19's lens map (alpha 40/255 and colour (90, 110, 120)
+  in the glass, the map's dark opaque rim kept). How 0.26g draws it (the shipped bytecode, and
+  captures with one stage switched off): the forward stage (`forward_base.ps`) blends black by the
+  transparency map's alpha times `constant_transparency`; the lit stage (`forward_lighting.ps`)
+  blends its lit colour (diffuse times the diffuse map's alpha, plus the light's specular) by its
+  own alpha, which is `constant_transparency` alone unless the stage reads the transparency map
+  too (`use_ttransparency`). The PSO-1's lit stage does not, and its constant is 1: version 5's
+  glass drew its lit colour over everything behind it, a flat light-grey disc at the hip in sun and
+  in shade (the owner, 2026-11-23: "the scope is opaque"; the capture rig: grey 37 in shade, and
+  black once that constant is 0). The stock scopes' own glass has the same lit stage (opaque, lit,
+  its map's coating colour, by the same rule; not captured). Version 6 (and 9): the lit stage reads the map (stock `weapons/pasted_glass`'s
+  switches), both stages' constant 2.2 (88/255 in the glass), the lit diffuse times (0.25, 0.22,
+  0.45) (a dark blue-violet coating, about (22, 24, 54)), the specular times 0.5 (the PSO-1's 0.1):
+  at the hip the tube's dark inside shows through, with the light's highlight on the glass.
+  An aimed optic's first-person lens (`scope_lense_1p_s`) stays on `weapons/loc2/scope_lense_1p`.
+  Behind the glass (a ray test of the models): the tube's inside is modelled in ten optics; the
+  Leupold 3-7, the PSO-1 old and the PU 3.5x have none, and through their glass at an angle one
+  sees the back of the body's outer shell (their materials are two-sided); the 1P69 Hyperon is
+  closed inside (a part 9 to 25 cm along its tube), so its glass shows that, not the world.
+  Version 3 had remade the outside lens's material (0.69d0's is an opaque stage with all its maps)
+  on the AK-12's, whose Fresnel map (`weapons/ak_12/ak_12_fmap`) drew the AK-12's parts in the
+  glass of the 13 idle optics that have one (the owner, 2026-11-23); version 4 put it on patch 19's
+  opaque `weapons/loc2/scope_lense_3p`, as the variants had it (seen in a game: the picture gone;
+  the owner wished it were see-through).
 
 ## No released pair is lost
 
