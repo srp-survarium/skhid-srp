@@ -1,4 +1,4 @@
-//! Item rewards after a match: spare parts and chests (docs/notes/workshop.md section 4).
+//! Item rewards after a match: spare parts and chests (docs/notes/workshop.md section 3).
 //!
 //! Source: `gameplay/drops/drops.options` -> `drop_after_combat` (copy in data/drops_069d.json, made by
 //! crates/data-extract), PROVEN data:
