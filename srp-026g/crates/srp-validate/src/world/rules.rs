@@ -369,7 +369,7 @@ impl SpawnHistory {
     }
 }
 
-/// A research unit (`rr_write`): 96 bytes.
+/// A research unit (`research_rule::write`): 96 bytes.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct ResearchUnit {
     progress: u32,
@@ -415,8 +415,8 @@ impl ResearchUnit {
     }
 }
 
-/// Research's rule (exe patch 53, `rr_write` / `rr_read`): two points, two
-/// shown scores, the end, the entered places, the unit count, the units.
+/// Research's rule (exe patch 53, `research_rule::write` / `research_rule::read`):
+/// two points, two shown scores, the end, the entered places, the unit count, the units.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Research {
     points: [u32; 2],
@@ -446,7 +446,7 @@ impl Research {
         })
     }
 
-    /// A rule of `units` units that fills `bytes`, as `rr_read` takes it.
+    /// A rule of `units` units that fills `bytes`, as `research_rule::read` takes it.
     fn read(bytes: &[u8], units: usize) -> Option<Self> {
         let mut reader = Reader::new(bytes, 0);
         let points = [reader.u32().ok()?, reader.u32().ok()?];
@@ -1029,13 +1029,17 @@ impl<'a> Rules<'a> {
             rest.is_empty().then_some(Respawn { points, ..respawn })
         };
         let (respawn, mode_rule) = match context.game_mode {
-            mode::FREEZE_TAG => match middle.len().checked_sub(super::freeze::FreezeTag::LEN) {
-                Some(at) => (
+            // Version 3's rule or version 4's (FreezeTag::read_back); none read, the respawn
+            // rule before a version 4 rule's length and the rule refused.
+            mode::FREEZE_TAG => match super::freeze::FreezeTag::read_back(middle) {
+                Some((at, rule)) => (
                     respawn_to(at),
-                    middle.get(at..).and_then(super::freeze::FreezeTag::read)
-                        .filter(|rule| rule.fits(places)).map(ModeRule::FreezeTag),
+                    Some(rule).filter(|rule| rule.fits(places)).map(ModeRule::FreezeTag),
                 ),
-                None => (None, None),
+                None => (
+                    middle.len().checked_sub(super::freeze::FreezeTag::LEN).and_then(respawn_to),
+                    None,
+                ),
             },
             mode::TEAM_DEATHMATCH => match middle.len().checked_sub(TDM) {
                 Some(at) => (
@@ -1250,12 +1254,17 @@ pub fn rules(section: &Section, context: &Context) -> Result<(), Refusal> {
 /// What in Freeze Tag's rule its own bytes cannot say against the world's
 /// time `now` (the timelimit's): a round's restart part ends after it, by the
 /// part's whole length at most (each part is timed from the step that entered
-/// it, the world's last at the latest); the match ended at it or before.
+/// it, the world's last at the latest); the match ended at it or before; in
+/// play, a team's down-to-one step is at it or before.
 fn freeze_tag_fault(rule: &super::freeze::FreezeTag, now: u32) -> Option<Reason> {
     use super::freeze::{Phase, TIMING};
+    use crate::Team;
     let now = artefact_hunt_rule::Time::from_ms(now);
     let fits = match rule.phase() {
-        Phase::Playing => true,
+        Phase::Playing => [Team::First, Team::Second]
+            .into_iter()
+            .filter_map(|team| rule.last_fighter(team))
+            .all(|last| now.since(last.since).is_some()),
         Phase::Restart { restart, .. } => restart
             .until()
             .since(now)
@@ -1396,7 +1405,7 @@ mod tests {
         }
     }
 
-    /// Research's rule as `rr_write` puts it: team 0 owns unit A, team 1
+    /// Research's rule as `research_rule::write` puts it: team 0 owns unit A, team 1
     /// takes unit B with the places of `inside_b`, unit C is nobody's.
     fn research(units: usize, inside_b: u32) -> Vec<u8> {
         let mut out = Vec::new();
@@ -1662,7 +1671,7 @@ mod tests {
             reason(check(&research(3, 0b100), mode::RESEARCH, None)),
             Some(Reason::ResearchMaskPast { places: 2 })
         );
-        // A place past the 20: no rule `rr_read` takes.
+        // A place past the 20: no rule `research_rule::read` takes.
         let past = research(3, 1 << 20);
         assert_eq!(
             reason(check(&past, mode::RESEARCH, None)),

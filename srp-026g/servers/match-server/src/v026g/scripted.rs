@@ -27,7 +27,7 @@ use survarium::v026g::match_msgs::snapshot::{
     WeaponCounts,
 };
 use survarium::v026g::match_msgs::{
-    PlayerInput, ServerMessage, TICK_MS, WireTime, id, tick_byte, upload,
+    PlayerInput, ServerMessage, TICK_MS, UploadWanted, WireTime, id, tick_byte, upload,
 };
 use udp_transport::seq::{Recorded, Window};
 use udp_transport::wire::{self, low_level};
@@ -35,6 +35,9 @@ use udp_transport::{Class, Direction, Table, ack};
 
 /// The client's event horizon: `max_ping_time_in_ms` + 250.
 pub const HORIZON_MS: u32 = 500;
+/// How far back patch 211's ring of hashed worlds reaches: 32 ticks
+/// (`client-patches/rust/patches/src/exact_world.rs`, `SLOTS`).
+pub const EXACT_RING_MS: u32 = 32 * TICK_MS;
 /// The initial world's time in the tests.
 pub const INITIAL_MS: u32 = 50;
 
@@ -635,6 +638,11 @@ pub struct Client {
     pub uploads_hashed_tick: bool,
     /// Does not answer 0xF6 (as if its pool guard skipped every request).
     pub no_uploads: bool,
+    /// Patch 211: its 0xD8 says it answers 0xF6 for a tick, which it does
+    /// with its world of that tick while the tick is among the last
+    /// [`EXACT_RING_MS`] of the worlds it simulated (hashed), else with its
+    /// horizon's.
+    pub exact_worlds: bool,
     /// Its uploads (not the worlds it hashes) have this many stray bytes
     /// in front of their game objects ([`Sim::stray_objects_from`]): a
     /// forged or broken game whose worlds the check refuses.
@@ -708,6 +716,7 @@ impl Client {
             simulates: true,
             uploads_hashed_tick: false,
             no_uploads: false,
+            exact_worlds: false,
             forged_uploads: None,
             mute_acks: false,
             mute_time_replies: false,
@@ -784,6 +793,17 @@ impl Client {
 
     /// The time of its event-horizon world, if it has one it may upload or
     /// hash: none loaded from a snapshot, none younger than the horizon.
+    /// The time of the tick `tick` (its byte) among the worlds it simulated
+    /// in the last [`EXACT_RING_MS`] since its last resync: what patch 211
+    /// holds of the worlds it hashed.
+    fn held_tick(&self, tick: u8) -> Option<u32> {
+        let resync = self.model.last_resync?;
+        let newest = self.clock() / TICK_MS * TICK_MS;
+        (0..EXACT_RING_MS / TICK_MS)
+            .filter_map(|back| newest.checked_sub(back * TICK_MS))
+            .find(|time| *time > resync && WireTime::tick(*time).tick == tick)
+    }
+
     pub fn horizon(&self) -> Option<u32> {
         let resync = self.model.last_resync?;
         let time = self.clock().checked_sub(HORIZON_MS)? / TICK_MS * TICK_MS;
@@ -811,12 +831,18 @@ impl Client {
     /// 0xD8: the first message.
     pub fn connect(&mut self) {
         let mut payload = self.session.to_le_bytes().to_vec();
-        payload.push(if self.world_receipts != WorldReceiptMode::Legacy {
+        let dialect = if self.world_receipts != WorldReceiptMode::Legacy {
             srp_validate::recovery::CONNECT_CAPABILITY
         } else if self.model.growing_roster {
             CONNECT_CAPABILITY
         } else {
             0
+        };
+        // Patch 211's bit goes with the dialect's byte only, as the exe's.
+        payload.push(if self.exact_worlds && dialect != 0 {
+            dialect | srp_validate::messages::EXACT_WORLDS
+        } else {
+            dialect
         });
         self.send(id::CONNECT, &payload, true);
     }
@@ -1260,11 +1286,17 @@ impl Client {
                     self.sim.events.push(event);
                 }
             }
-            ServerMessage::UploadRequest => {
+            ServerMessage::UploadRequest(wanted) => {
                 self.upload_requests += 1;
                 // Silently not answered without an event-horizon world.
                 if let Some(horizon) = self.horizon().filter(|_| !self.no_uploads) {
-                    let time = if self.uploads_hashed_tick {
+                    let held = match wanted {
+                        UploadWanted::Tick(tick) if self.exact_worlds => self.held_tick(*tick),
+                        _ => None,
+                    };
+                    let time = if let Some(time) = held {
+                        time
+                    } else if self.uploads_hashed_tick {
                         self.last_hashed
                     } else {
                         horizon

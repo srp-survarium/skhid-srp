@@ -20,9 +20,9 @@ repository.
 | [`srp-069d/`](srp-069d/) | 0.69d, the last Steam build (February 2022) | Skhid (Схід) 0.69d server: see [`srp-069d/README.md`](srp-069d/README.md) | Not hosted yet; anyone can run one |
 
 Each folder is a complete Rust workspace that builds and tests by itself.
-`srp-026g` began as a copy of `srp-021d` and still holds the 0.21d code beside
-its own (its shared crates and tests use it); the 0.21d server that was hosted
-was built from `srp-021d`.
+`srp-026g` began as a copy of `srp-021d`; its shared crates keep the 0.21d
+account and rules its own code builds on, and the 0.21d servers are in
+`srp-021d` only (that was what was hosted, until 2026-10-12).
 
 ## What is in each folder
 
@@ -33,7 +33,7 @@ was built from `srp-021d`.
 | `docs/` | That version's pages: the server, how matches stay in step, facts about the game client, open issues, and `docs/notes/` (the protocol research, message by message) |
 | `client-patches/` | What a player's copy of the original game needs to play on this server: the patch tools for `survarium.exe`, the login certificate, and a description of every patch |
 | `Dockerfile`, `docker-compose.yml`, `deploy/` | Hosting in Docker (0.21d and 0.26g); described in `docs/DEPLOY.md` |
-| `certs/` | The login server's certificate and key (the game's own name, issued again; the game pins the certificate, so the key is no secret) |
+| `certs/` | 0.21d and 0.100b: the login server's certificate and key (the game's own name, issued again; the game pins the certificate, so the key is no secret) |
 | `resources/binary-config-examples/` | Game data the code embeds |
 
 At the root:

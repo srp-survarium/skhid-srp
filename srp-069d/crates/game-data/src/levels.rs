@@ -1,4 +1,4 @@
-//! Account level from experience, faction level from reputation points, match rewards.
+//! Account level from experience, faction level from reputation points, level-up rewards.
 
 /// The five fields shared by 87 (tail) and 8C: u8 level, u8 skill points (= level), u32 experience,
 /// u32 previous-level threshold, u32 next-level threshold.

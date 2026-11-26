@@ -73,7 +73,7 @@ with `Concrete · 52%` beside it does not fit the card's line). The value `st_sr
 
 ## How it reaches the card
 
-- `scripts/content-edit/pierce-line-1.json`, the last edit row of `release/content.tsv`: UI property
+- `scripts/content-edit/pierce-line-1.json`, an edit row of `release/content.tsv`: UI property
   174 (not comparable: no bar) and, on each round the item dictionary pairs with a weapon
   (`items_compatibility`), a `ui_desc/props_list` line 174 `<weapon dict_id>:<rank>:<key>:<percent>
   ...`, one entry per weapon (the 12.7x54 VPS: `... <VSSK's id>:6:st_srp_pierce_stone:31 ...`; the

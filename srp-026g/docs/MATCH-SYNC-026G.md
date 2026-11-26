@@ -2,7 +2,7 @@
 
 > **Version scope: client 0.26g only** (build 2777, no PDB). 0.26g matches
 > are still lockstep, but every message, id and time format differs from
-> 0.21d. The 0.21d page is MATCH-SYNC-021D.md; its history of fixes is the
+> 0.21d. The 0.21d page is `srp-021d/docs/MATCH-SYNC-021D.md`; its history of fixes is the
 > reason behind most numbers here. All addresses are 0.26g's.
 
 > Sections marked *(server, may move)* describe

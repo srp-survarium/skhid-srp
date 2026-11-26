@@ -19,7 +19,6 @@ srp-validate = { workspace = true }
 
 session = { workspace = true }
 survarium = { workspace = true }
-vostok = { workspace = true }
 
 [dev-dependencies]
 # Sessions without a sign-in, for the tests (`SessionStore::create_session`).

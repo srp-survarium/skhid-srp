@@ -77,7 +77,7 @@ The second-largest (10 MB, 10 places) peaks at 57 MiB (233 MiB before), in 1.3 s
 | `/api/client-files` (0.26g) | GET | the SHA-256 and size of `SRP_DOWNLOAD_FILE` | the archive's checksum, nothing else |
 | `/patches` (0.26g) | GET | the list of `resources.db`'s patches the server's game data was made of (name, SHA-256, address), built in memory at start-up (`srp::v026g::offered_patches`) | no file; exact path match; the patch files themselves are served by another host |
 | `/api/stats` (0.26g) | GET | counts from the store and the registry | no file |
-| `/launcher…`, `/launcher/places/<lang>`, `/launcher/fresh/<lang>` (0.26g) | GET | the board and counts; the skin is compiled in (`include_bytes!`) | no file; the language is read from the path, nothing else |
+| `/launcher…`, `/launcher/places/<lang>` (0.26g) | GET | the board and counts; the skin is compiled in (`include_bytes!`) | no file; the language is read from the path, nothing else |
 | `/`, `/exchange` | GET | the store's counts (`/exchange` only says the exchange is in the game now) | pages; no file |
 | `/<SRP_ADMIN_PATH>` | GET, POST | accounts, bans, maintenance (with `SRP_ADMIN_TOKEN`, from `SRP_ADMIN_IPS` only) | no file; any other address gets the plain "not found" |
 | anything else | any | nothing | "not found" page |

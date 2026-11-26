@@ -1,6 +1,6 @@
 # Patch 156: the console command `collision` draws the level's collision
 # geometry near the camera as lines, a colour a group (collision_view.rs;
-# client_patch.md section 3.82). configs.start after patches 79, 83, 81, 88,
+# client_patch.md section 3.112). configs.start after patches 79, 83, 81, 88,
 # 112, 133, 66 and 144 (orders 1 to 8); camera.viewed after patch 133.
 name = "collision_view"
 patch = 156

@@ -1,5 +1,5 @@
 //! One 0.26g match, the server's side of the clients' lockstep
-//! (`docs/notes/match.md`). The 0.21d `crate::game` carried over
+//! (`docs/notes/match.md`). The 0.21d server's `game.rs` (`srp-021d`) carried over
 //! to the 0.26g messages; the reasons behind most rules and numbers are in
 //! its comments and in `MATCH-SYNC-021D.md`.
 //!
@@ -110,6 +110,7 @@ use survarium::v026g::match_msgs::snapshot::{self, Rules, Standing, Statistics, 
 use survarium::v026g::match_msgs::upload::{Pushed, Reassembler, Upload};
 use survarium::v026g::match_msgs::{
     ClientMessage, FORCED_MISMATCH, Generation, PlayerInput, ServerMessage, TICK_MS, TimeReply,
+    UploadWanted,
     WireTime, clock as game_clock, parse_client, tick_byte, tick_time,
 };
 use udp_transport::{Event, SendError, Transport};
@@ -625,6 +626,17 @@ enum Wanted {
     Look(WrongWorld),
 }
 
+impl Wanted {
+    /// What its 0xF6 asks for: a tick's world only for the desync capture of a
+    /// game that answers one.
+    fn request(self) -> UploadWanted {
+        match self {
+            Wanted::Look(WrongWorld::Capture(wanted)) => wanted,
+            Wanted::Vote(_) | Wanted::Look(WrongWorld::Resync) => UploadWanted::Horizon,
+        }
+    }
+}
+
 /// A request for a game's world that went and is not answered yet.
 #[derive(Clone, Copy, Debug)]
 struct Asked {
@@ -642,8 +654,8 @@ enum WrongWorld {
     Resync,
     /// Its game is of one side of a split, asked for at its first
     /// disagreeing report (`desync_capture`): saved with the other side's
-    /// world and what differs.
-    Capture,
+    /// world and what differs. Asked for the split's tick, or the horizon's.
+    Capture(UploadWanted),
 }
 
 /// A client whose hashes disagree with the right ones, in a row.
@@ -736,6 +748,10 @@ struct Peer {
     next_ping: Instant,
     /// It uploaded a snapshot, so it answers 0xF6.
     patched: bool,
+    /// Its 0xD8 said it answers 0xF6 for a tick from the worlds it hashed
+    /// (patch 211, `srp_validate::messages::EXACT_WORLDS`): the desync
+    /// capture asks it for the split's own tick.
+    exact_worlds: bool,
     resources_loaded: bool,
     installed_roster: usize,
     preparing: Option<LoadingProfile>,
@@ -1422,6 +1438,7 @@ impl Game {
             ping: None,
             next_ping: now,
             patched: false,
+            exact_worlds: false,
             resources_loaded: false,
             installed_roster: 0,
             preparing: None,
@@ -1519,6 +1536,13 @@ impl Game {
     pub(super) fn enable_world_receipts(&mut self, index: usize) {
         if let Some(peer) = self.peers.get_mut(index).and_then(Option::as_mut) {
             peer.world_receipts.enable();
+        }
+    }
+
+    /// The game at `index` answers an upload request for a tick.
+    pub(super) fn enable_exact_worlds(&mut self, index: usize) {
+        if let Some(peer) = self.peers.get_mut(index).and_then(Option::as_mut) {
+            peer.exact_worlds = true;
         }
     }
 
@@ -2563,7 +2587,7 @@ impl Game {
             if peer.stage != Stage::Live {
                 continue;
             }
-            send(peer, &ServerMessage::UploadRequest);
+            send(peer, &ServerMessage::UploadRequest(wanted.request()));
             peer.asked = Some(Asked {
                 at: now,
                 clock,
@@ -2598,7 +2622,7 @@ impl Game {
             return;
         }
         peer.wrong_worlds += 1;
-        send(peer, &ServerMessage::UploadRequest);
+        send(peer, &ServerMessage::UploadRequest(UploadWanted::Horizon));
         peer.asked = Some(Asked {
             at: now,
             clock,
@@ -2650,18 +2674,13 @@ impl Game {
     /// their way ahead). Once a clock is assigned, its projection bounds
     /// every copy, including unanswered generations. The margin is for
     /// inputs on their way, newer than the newest seen; it is not added
-    /// again when a generation is retried. By
-    /// the world alone (`SRP_RESYNC_WORLD_ONLY`) the clock stays where it
-    /// is.
+    /// again when a generation is retried.
     ///
     /// Copies whose clocks disagree may arrive in any order. The bound
     /// retains the latest projection until a clock correction invalidates it.
     fn sync_start(&self, index: usize, time: u32, entering: bool, clock: u32, now: Instant) -> u32 {
         let others = self.others_live(index);
         if !entering {
-            if self.settings.resync_world_only && others {
-                return clock;
-            }
             let Some(peer) = self.peers[index].as_ref() else {
                 return clock;
             };
@@ -2788,18 +2807,6 @@ impl Game {
             // sync end it (`send_set_time`).
             let runs = now + takes + Duration::from_millis(u64::from(peer.round_trip));
             peer.correction_ends = Some(peer.correction_ends.map_or(runs, |end| end.max(runs)));
-        }
-        if self.settings.resync_world_only && !entering && self.others_live(index) {
-            // `SRP_RESYNC_WORLD_ONLY`: no 0xE5, the world of the next
-            // generation at once (the client takes a 0xE8 that is newer
-            // than its own generation).
-            if let Some(peer) = self.peers[index].as_mut() {
-                peer.generation = peer.generation.next();
-                peer.set_times.clear();
-                peer.time_confirmed = true;
-            }
-            self.send_sync(index, snapshot.clone(), entering, now);
-            return;
         }
         let Some(peer) = self.peers[index].as_mut() else {
             return;
@@ -3154,9 +3161,6 @@ impl Game {
     /// gets the 0xE5 once more and the world.
     fn send_sync(&mut self, index: usize, snapshot: Snapshot, entering: bool, now: Instant) {
         let clock = self.clock(now);
-        let others = self.others_live(index);
-        let resync = !entering && others;
-        let world_only = self.settings.resync_world_only && resync;
         let resync_from = self.peers[index].as_ref().and_then(|peer| peer.resync_from);
         // A client in a resync has had its replay (`send_replay`), and the
         // relays since as they came.
@@ -3242,9 +3246,7 @@ impl Game {
             .flatten();
         // The time once more, for this very moment: it travels ahead of
         // the inputs and the snapshot's first part.
-        if !world_only {
-            self.send_set_time(index, snapshot.time, entering, now);
-        }
+        self.send_set_time(index, snapshot.time, entering, now);
         let Some(peer) = self.peers[index].as_mut() else {
             return;
         };
@@ -4061,7 +4063,7 @@ impl Game {
             // of step (`ask_wrong_world`), or for the desync capture.
             match why {
                 WrongWorld::Resync => self.wrong_world_uploaded(index, clock, &snapshot),
-                WrongWorld::Capture => self.capture_world(index, snapshot),
+                WrongWorld::Capture(_) => self.capture_world(index, snapshot),
             }
             return;
         }
@@ -4932,20 +4934,6 @@ impl Game {
                     divergence.first, divergence.last
                 )
             });
-            let limit = self.settings.restore_limit;
-            if limit != 0 && peer.restores_unagreed >= limit {
-                // `SRP_RESTORE_LIMIT`: so many restores in a row never
-                // brought it to agree; it is put out instead of restored
-                // for ever.
-                log::warn!(
-                    "Match {:#x}: player {index} is out of sync{wrong} after {} restores that \
-                     did not help",
-                    self.id,
-                    peer.restores_unagreed
-                );
-                self.remove(index, Removal::RestoresUnagreed, now);
-                continue;
-            }
             peer.last_resync = Some(now);
             if peer.resynced_at.len() >= RESYNCS_PER_MINUTE {
                 peer.resynced_at.pop_front();

@@ -9,9 +9,7 @@ use crate::{Lang, Request, Web, moderation, unix_now};
 impl Web {
     pub(crate) fn admin_rename(&self, request: &Request, peer: &str) -> String {
         let lang = request.lang;
-        let Some(game) = &self.game else {
-            return String::new();
-        };
+        let game = &self.game;
         let target = request.field("rename_id").trim();
         if target.is_empty() && request.field("rename_name").is_empty() {
             return String::new();

@@ -21,7 +21,7 @@ pub enum Inventory45 {
     CamoDrop { item: u32, id: u32, slot: u8 },
     /// Sub 3 item used: `u32 item` (count - 1, 0 = skip).
     Used { item: u32 },
-    /// Sub 5 reroll options: `u32 item, 3 x (u16 group, u16 grade)`. PROVEN reader, 
+    /// Sub 5 reroll options: `u32 item, 3 x (u16 group, u16 grade)`. PROVEN reader,
     RerollOptions { item: u32, options: [(u16, u16); 3] },
     /// Sub 6 reroll result: `u32 item, u16 a, u16 b, u16 c, u16 d`: replaces (a,b) by (c,d); no append (0x190A9D).
     RerollDone { item: u32, old: (u16, u16), new: (u16, u16) },
@@ -126,7 +126,7 @@ pub struct PlayBlob {
 }
 
 impl PlayBlob {
-    /// Smallest valid unpacked blob, 118 zero bytes (n = 0 account bodies, two empty strings): 
+    /// Smallest valid unpacked blob, 118 zero bytes (n = 0 account bodies, two empty strings):
     pub fn minimal_blob() -> Vec<u8> {
         vec![0u8; 118]
     }

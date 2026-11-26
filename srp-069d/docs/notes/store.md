@@ -320,7 +320,7 @@ Code: `servers/lobby-server/src/premium.rs` (`PremiumOffer`, `shop_elem`, `buy_o
   `46 02 id, match id, f32` takes the gold and adds the hours (from the running expiry, else from now), then 8B and 94; an
   unknown id (e.g. a voucher item id) or too little gold changes nothing and sends nothing. Then the client's own
   "premium bought" notice `B1 0x14 [1][days]` (0x2001C3EA3, section "Premium notice" below).
-* Actions tab: 95 tab `{id 1, "Special offers", default_gold 1}` (CHOICE: name and id; server tabs replace the client's five
+* Actions tab: 95 tab `{id 1, "st_special_offer", default_gold 1}`, sent as its English text (CHOICE: name and id; server tabs replace the client's five
   built-in tabs, `StoreScreen.setTabData`). Its blob has two type-0 cards (all mandatory keys, `actions.md`):
   item 0 = card 1, 7 days of premium, 300 gold (the window's week price, 0.6x web shop), pictures
   `673_s/m/l_1563455165.png` (crown; item 0 uses `l_img`), `5C 01 1 01` adds 168 h of premium (the same as a voucher),

@@ -12,14 +12,18 @@ const Tc = (context, english) => PAGE_WORDS[context]?.[english] ?? english;
 const T = english => PAGE_WORDS[""]?.[english] ?? english;
 const Tf = (english, values) => (PAGE_WORDS[""]?.[english] ?? english)
   .replace(/\{(\w+)\}/g, (place, name) => (name in values ? String(values[name]) : place));
-// The 0.26g client's damage path, as tools/re-kit/v026g/damage/formula.txt
-// recovers it. Health is in the game's units (body 1.0); the page shows x100.
+// The 0.26g client's damage path, as its hit code computes it (re-kit names:
+// bullet::bullet 0x32BA60, bullet::compute_damage_speed 0x32C520,
+// bullet::try_pierce 0x32D960, body_part_parameters::hit_by_type 0x329FF0;
+// docs/notes/pierce_line.md and armour-params.md). Health is in the game's
+// units (body 1.0); the page shows x100.
 // Pure functions only, so tools can run them under node as well.
 
 const clamp = (x, lo, hi) => Math.min(hi, Math.max(lo, x));
 
 // A modifier sum S applied to a base B: B*max(0,1+S), or B+S for the indices
-// the client adds (formula.txt section 4).
+// the client adds (player_params_modifiers_container::apply_modifier
+// 0x2D5AE0, its additive list 0x927E08).
 function applyModifier(base, sum, additive) {
   return additive ? base + sum : base * Math.max(0, 1 + sum);
 }

@@ -20,9 +20,6 @@ pub(crate) const PATH: &str = "/wiki/calculator";
 pub(crate) const POLICY: &str = "default-src 'none'; style-src 'unsafe-inline'; \
     script-src 'self'; img-src 'self' data:; font-src 'self'; form-action 'self'";
 
-/// Where the fonts are, which every page of the site uses (both servers).
-pub(crate) const FONTS: &str = "/damage/fonts/";
-
 /// The page's `@font-face` rules (the fonts' addresses with their hashes),
 /// for the site's other pages.
 pub(crate) fn font_faces() -> &'static str {

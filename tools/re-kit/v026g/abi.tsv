@@ -1409,7 +1409,7 @@ va	name	source	ret_cleanup	result
 0x00324ad0	survarium::game_state_history_item::clear_buffers	manual	4	
 0x00324be0	survarium::game_state_history_item::serialize	manual	12	
 0x00324d80	survarium::game_state_history_item::deserialize	manual	8	
-0x00325150	survarium::game_state_history_item::hash	manual	4	
+0x00325150	survarium::game_state_history_item::hash	manual	4	EAX: the boost CRC-32 of the item serialized with its players mask (0x324BE0 into a stack buffer by EBP: data -10h, size -8h), cached at +0C0BB4h with the flag +0C0BB8h (set at once, 0x32517B; a cached item returns at 0x325164 with no serialize)
 0x00325a60		auto	16	
 0x00329120	survarium::stamina_base_parameters::load	manual	4	
 0x00329310	survarium::player_stamina::serialize	manual	0	

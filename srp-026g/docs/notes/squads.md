@@ -2,7 +2,7 @@
 
 The rules the code and the tests follow (the owner's of 2026-10-31: "we should return the ability
 to start in squads of 2 (not 3)"; "should be seen in room UI too"). Code: `session::squads`,
-`session::v026g::rooms` (`join_with`, `next_ready_in_queue`), the lobby's `rooms.rs`
+`session::v026g::rooms` (`join_with`, `take_from_queue`), the lobby's `rooms.rs`
 (`room_mate`, `room_quick`, `room_join`, `room_late_join`, `squad_ready`) and `social.rs`; the
 movie's `SquadList`, `RoomsLook.squadTag`. Tests: `core_tests::rooms_tests::squads`, the session's
 `squads` and `rooms` tests, `scripts/rooms-start/check.sh` (`checkSquads`).

@@ -1,5 +1,5 @@
 ; Option B for the 0.26g client (build 2777): upload the world snapshot to srp.
-; Port of ../srp-021d/client-patches/snapshot_upload.asm. Not run live yet.
+; Port of ../srp-021d/client-patches/snapshot_upload.asm (patch 4, in every release).
 ; Every address and offset is 0.26g; the evidence is in
 ; docs/notes/client_patch.md (section 3, "Review of the injected
 ; code"). Assemble once per cave placement:

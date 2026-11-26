@@ -95,8 +95,6 @@ Not found.	Nicht gefunden.
 Too many wrong tokens; wait a minute.	Zu viele falsche Tokens; warte eine Minute.
 Wrong token.	Falsches Token.
 No such user.	Diesen Benutzer gibt es nicht.
-Silver and gold are whole numbers, + or -, or empty.	Silber und Gold sind ganze Zahlen, + oder -, oder leer.
-{user}: now {silver_now} silver and {gold_now} gold.	{user}: jetzt {silver_now} Silber und {gold_now} Gold.
 New accounts are taken again.	Neue Konten werden wieder angenommen.
 New accounts are refused; existing players sign in as before.	Neue Konten werden abgelehnt; bestehende Spieler melden sich wie bisher an.
 Maintenance cancelled.	Wartung abgesagt.
@@ -138,9 +136,8 @@ Q:	F:
 A:	A:
 If something goes wrong	Wenn etwas schiefgeht
 Download the files	Dateien herunterladen
-Download the game	Spiel herunterladen
 The download link is coming soon.	Der Download-Link kommt bald.
-Can't download? Run {script}: it downloads the whole game into a Survarium folder beside it.	Download klappt nicht? Starte {script}: Es lädt das ganze Spiel in einen Survarium-Ordner daneben herunter.
+Chrome or your antivirus refuses the download? Try this script: {script}. It downloads the whole game into a Survarium folder beside it.	Chrome oder dein Virenschutz blockiert den Download? Probiere dieses Skript: {script}. Es lädt das ganze Spiel in einen Survarium-Ordner daneben herunter.
 Get the game	Spiel besorgen
 The link is coming soon.	Der Link kommt bald.
 Get the original Survarium 0.26g (build 2777) and unpack it.	Besorge das originale Survarium 0.26g (Build 2777) und entpacke es.
@@ -155,10 +152,6 @@ Run <code>Skhid.bat</code> and press <b>PLAY</b>.	Starte <code>Skhid.bat</code> 
 Windows warns about an unknown publisher? Let it run.<br>Linux: <code>bash Skhid.sh launcher</code>, see <code>LINUX.txt</code>.	Windows warnt vor einem unbekannten Herausgeber? Lass es trotzdem laufen.<br>Linux: <code>bash Skhid.sh launcher</code>, siehe <code>LINUX.txt</code>.
 Windows warns about an unknown publisher? Let it run.<br>Linux: <code>bash Skhid.sh</code>, see <code>LINUX.txt</code>.	Windows warnt vor einem unbekannten Herausgeber? Lass es trotzdem laufen.<br>Linux: <code>bash Skhid.sh</code>, siehe <code>LINUX.txt</code>.
 Run <code>play_skhid.bat</code> in <code>game\\binaries\\x86</code>.	Starte <code>play_skhid.bat</code> in <code>game\\binaries\\x86</code>.
-Start it with this command line:	Starte es mit dieser Befehlszeile:
-english	german
-server address	Serveradresse
-language: english, russian, ukrainian	Sprache: english, german, russian, ukrainian
 Skhid (Ukrainian for “east”) is a community server that lets the Survarium {version} client sign in, trade, form squads and play matches again.	Skhid (ukrainisch für „Osten“) ist ein Community-Server, auf dem sich der Client von Survarium {version} wieder anmelden, handeln, Trupps bilden und Matches spielen kann.
 Project Discord: <a href="https://discord.gg/pxywZfaxRQ">discord.gg/pxywZfaxRQ</a>	Discord des Projekts: <a href="https://discord.gg/pxywZfaxRQ">discord.gg/pxywZfaxRQ</a>
 Early test server.	Früher Testserver.
@@ -167,7 +160,6 @@ How to play	So spielst du
 Download our files and unpack them into an empty folder (e.g. D:\\Survarium). <b>You do this only once.</b>	Lade unsere Dateien herunter und entpacke sie in einen leeren Ordner (z. B. D:\\Survarium). <b>Das machst du nur einmal.</b>
 Download our files and unpack them into the game's folder, the one with the <code>game</code> folder, replacing files. <b>You do this only once.</b>	Lade unsere Dateien herunter und entpacke sie in den Ordner des Spiels, den mit dem Ordner <code>game</code>, und ersetze dabei die Dateien. <b>Das machst du nur einmal.</b>
 Download our files and unpack them over the game's <code>game</code> folder.	Lade unsere Dateien herunter und entpacke sie über den Ordner <code>game</code> des Spiels.
-Download the patched game and unpack it.	Lade das gepatchte Spiel herunter und entpacke es.
 Sign in with any name and password: a new name registers itself. Remember the password.	Melde dich mit beliebigem Namen und Passwort an: Ein neuer Name registriert sich selbst. Merk dir das Passwort.
 New accounts are taken.	Neue Konten werden angenommen.
 Stop new registrations	Neue Registrierungen stoppen
@@ -177,7 +169,6 @@ Shown once the token is right.	Wird angezeigt, sobald das Token stimmt.
 Password	Passwort
 User name	Benutzername
 Silver, + or -	Silber, + oder -
-Gold, + or -	Gold, + oder -
 Change	Ändern
 Admin	Admin
 Token	Token

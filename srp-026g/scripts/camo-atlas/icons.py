@@ -8,7 +8,7 @@ BIG = 'LobbyMenu_CamoIconsBig'
 
 
 def icon_cell(index):
-    """One-based (row, column) of an entry in catalog order."""
+    """One-based (row, column) of the item FIRST_ITEM + index."""
     # The two shipped sheets have 15 rows per column. Flash uses this stride
     # in both inventory and equipment previews; the porter appends columns.
     column, row = divmod(index, 15)
@@ -16,7 +16,7 @@ def icon_cell(index):
 
 
 def icon_operations(pack_dir, images):
-    """Write the 72px inventory discs and 140px preview squares for image paths in order."""
+    """Write the 72px inventory discs and 140px preview squares for (index, image path) pairs."""
     operations = []
     for symbol in (SMALL, BIG):
         (pack_dir / 'icons' / symbol).mkdir(parents=True, exist_ok=True)
@@ -27,7 +27,7 @@ def icon_operations(pack_dir, images):
     circle = Image.new('L', (288, 288))
     ImageDraw.Draw(circle).ellipse((0, 0, 287, 287), fill=255)
     circle = circle.resize((72, 72), Image.Resampling.LANCZOS)
-    for index, path in enumerate(images):
+    for index, path in images:
         row, col = icon_cell(index)
         with Image.open(path) as image:
             rgb = image.convert('RGB')

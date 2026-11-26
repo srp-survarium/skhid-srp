@@ -1932,3 +1932,5 @@ survarium::key_binding	size	0xC	size	a binding: 0Ch bytes (bind_key 0x207E81: le
 survarium::action_row	name	0x0	ptr<u8>	the action's name, what user.cfg's `bind <action> <key>` names ("use", "scope_next")
 survarium::hud_texts_frame	ui	0x4	ptr<survarium::game_world_ui>	set_localization_data's argument at its start (0x2346E0, by the site's ESP): the hud
 survarium::lobby_texts_frame	menu	0x4	ptr<survarium::lobby_menu>	set_localization_data's argument at its start (0x286260, by the site's ESP): the lobby menu
+survarium::world_hash_frame	data	-0x10	ptr<u8>	game_state_history_item::hash's mutable_buffer {allocator -14h, data -10h, capacity -0Ch, size -8h} by EBP (0x32518A..0x3251A4): the bytes the serialize wrote (patch 98: 0xF000 of them at most)
+survarium::world_hash_frame	size	-0x8	u32	the bytes the serialize wrote: the world, whose CRC hash() makes of them (0x325207..0x32520D)

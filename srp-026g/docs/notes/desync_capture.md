@@ -28,21 +28,23 @@ a resync (`wrong`) are seconds past a split.
 - The history holds (max_ping + 250) / 50 + 1 items (11; 128 with `-debug_hash_mismatch`, 0x2CBFDC):
   the horizon's span. The horizon item is the oldest a game keeps, so the tick a report names has
   left the game by the time the report reaches the server, and a request could not name it anyway.
-- So the server cannot get the world of the exact first disagreeing tick. It gets the nearest it
-  can: it asks as soon as it sees the split, and times the two requests so that both games upload
-  the same tick, the first both can still give (`aim_tick`, as the hash-starved requests are timed).
-  That tick is about the slower game's round trip past the split, plus up to a tick.
+- So a game of an exe before patch 211 cannot give the world of the exact first disagreeing tick.
+  The server gets the nearest it can: it asks as soon as it sees the split, and times the two
+  requests so that both games upload the same tick, the first both can still give (`aim_tick`, as
+  the hash-starved requests are timed). That tick is about the slower game's round trip past the
+  split, plus up to a tick.
 
-### The exact tick would need an exe patch (proposed, not made)
+### The exact tick: exe patch 211 (since 2026-11-26)
 
-A small client patch could answer "your world at tick T" from a ring of the worlds it hashed:
-`game_state_history_item::hash` (0x325150) already serializes the horizon item into its scratch
-buffer for the CRC; a hook after the serialize (0x3251D7) would copy those bytes (about 20 KB, at
-most 0xF000) with their item time into a ring in the `.srpx` arena (16 slots, 0.8 s, a few hundred
-KB at real sizes); 0xF6 with payload `01 <tick>` would upload the slot of that tick through the
-existing chunk sender, `00` keeping today's meaning (an older game ignores the payload and uploads
-its horizon world, which the server tells by the item time). Not implemented: it changes the exe and
-waits for the owner's word.
+A game of patch 211 (`client-patches/README.md`, "The world of a tick") keeps every world
+`game_state_history_item::hash` serializes, the last 32 ticks (about 1.6 s, 640 KiB taken once with
+the image), and takes a 0xF6 of `01 <tick>` as "upload your world of that tick"; a tick it no longer
+holds, or no room in its packet pool, and it uploads its horizon world as before. It says so in its
+0xD8 (bit 0x04, `srp_validate::messages::EXACT_WORLDS`): an earlier game refuses a 0xF6 of two
+bytes, so only such a game is sent one. The tick a report names reaches the server about a way after
+it left the game's event horizon ((max_ping + 250) ms back); the request comes back a way later: the
+tick is still held after a round trip of about a second. The largest worlds (0xF000 bytes) hold ten
+ticks; a world over a slot cannot be: each is kept whole, and a newer one takes the room of the oldest.
 
 ## The capture
 
@@ -54,7 +56,10 @@ waits for the owner's word.
   shortest round trip that is patched, live, no test bot, not entering, and has no request of its
   own on the way or waiting (`ask_at`, `asked`). With no such game on a second side yet, the next
   report tries again, for 500 ms (`ASK_REACH`); then the log says the split was missed.
-- **Timed for one tick.** Each game's upload offset (where its event horizon is against the match
+- **The split's own tick.** When both games are of patch 211, both are asked at once for the
+  split's first tick (the first of the run of disagreeing ticks the reports show then): `01 <tick>`.
+  Each gives that tick's world, or its horizon's if it no longer holds it (the summary says which).
+- **Else timed for one tick.** Each game's upload offset (where its event horizon is against the match
   clock, a way on): from its earlier uploads where it gave any (`upload_offset`), else its round trip
   less the least lag of its last 20 reports (`ReportLags`). The requests go when each game, if its
   offset is that, handles them in the middle of the same tick (`aim_tick`); with no such tick within
@@ -75,7 +80,8 @@ waits for the owner's word.
   split capture and the world of a game out of step (`ask_wrong_world`).
 - **No shared tick, no capture.** Stock clients on opposite hash phases never report the same tick
   (`check_hash_phases`): no split is seen by the reports, and nothing is asked.
-- **Written** when both worlds came, or 4 s after the request with what came (a full packet pool,
+- **Written** a second after the request once both worlds came (the longer links' reports of the
+  split's tick are in by then, and the sides it names are whole), or 4 s after it with what came (a full packet pool,
   a refused world or a game gone sends none), or when the match closes.
 
 ## Where the captures are
@@ -90,20 +96,27 @@ waits for the owner's word.
 Captures over `SRP_CAPTURE_MAX_MB` (default 200, about a thousand) together: the oldest folders go
 after each capture. The rest of `SRP_SNAPSHOT_DIR` (the dumps of every kind) has no cap.
 
-The match log has one line a capture (warning; this one from the test of a 2-against-2 split,
-`a_split_with_no_majority_has_a_world_of_each_side_saved_at_one_tick`):
+The match log has one line a capture (warning), written once both worlds came and a second passed
+(the reports of the split's tick from the longer links are in then), or 4 s after the request with
+what came. Two from the tests of a 2-against-2 split, games of patch 211
+(`games_that_answer_for_a_tick_give_the_splits_own_tick`) and of an earlier exe
+(`a_split_with_no_majority_has_a_world_of_each_side_saved_at_one_tick`):
 
 ```text
+Match 0x54eb74a8: desync capture 1 at 12150 ms (seen 12660 ms): groups 12d4caa6:[0, 1] 7dea6348:[2, 3];
+worlds player 1 at 12150 ms, player 3 at 12150 ms (asked for 12150 ms: exact), 0 ms after the split;
+first difference: bullets at +0, header.current_time_ms 0 vs 7; <SRP_SNAPSHOT_DIR>/captures/match026g_54eb74a8_12150_c1_r1795697003
+
 Match 0x11a72501: desync capture 1 at 12150 ms (seen 12660 ms): groups f3a69efb:[0, 1] 1fdcccb0:[2, 3];
-worlds player 1 at 12200 ms, player 3 at 12200 ms, 50 ms after the split; first difference: bullets at +0,
-header.current_time_ms 0 vs 7; <SRP_SNAPSHOT_DIR>/captures/match026g_11a72501_12150_c1_r1795693343
+worlds player 1 at 12200 ms, player 3 at 12200 ms (their horizons' worlds, timed for one tick), 50 ms after
+the split; first difference: bullets at +0, header.current_time_ms 0 vs 7; <SRP_SNAPSHOT_DIR>/captures/match026g_11a72501_12150_c1_r1795693343
 ```
 
-(one line in the log; broken here). Of the recorded live pair below, the line would end `first
+(each one line in the log; broken here). Of the recorded live pair below, the line would end `first
 difference: place 6 state at +426, rest.linear_horizontal_speed 2.0735257 (0x4004b4a5) vs 1.9975309
 (0x3fffaf18)`.
 
-`NOT the same tick` after the worlds' times says the timing missed (each game's own tick is in
+`asked for T ms: NOT given` says a game of patch 211 no longer held the tick (it gave its horizon's world instead); `NOT the same tick` after the worlds' times says the timing missed (each game's own tick is in
 `capture.json`); `no diff (a world did not come)` that one side sent nothing.
 
 ## Reading `capture.json`
@@ -113,7 +126,9 @@ difference: place 6 state at +426, rest.linear_horizontal_speed 2.0735257 (0x400
 | `split_tick` | The first tick the games are known to disagree on: the first of the run of disagreeing ticks that holds `first_seen_tick` (a report of an earlier tick can come later) |
 | `first_seen_tick`, `seen_at_ms` | The tick whose reports showed the split, and the match clock then |
 | `groups` | Each side: the CRC its games reported for `first_seen_tick`, and its places, the largest first |
-| `worlds` | Each game asked: its place, what it reported, its round trip, the tick its request was timed for (`aimed_tick`), the tick it gave (`tick`), the world's CRC and file |
+| `asked`, `asked_tick` | `tick`: both games of patch 211, each asked for `asked_tick` (the split's first); `aimed`: their horizons' worlds, the requests timed for `asked_tick` (`null`: no timing known, both asked at once) |
+| `exact` | Both worlds are of `split_tick` |
+| `worlds` | Each game asked: its place, what it reported, its round trip, the tick it gave (`tick`), the world's CRC and file |
 | `after_split_ms`, `same_tick` | How far past `split_tick` the worlds are (the later one), and whether both are of one tick |
 | `first_difference` | The first difference with a field named, in one line |
 | `diff.differences` | Every part of the body that differs, in the body's order |

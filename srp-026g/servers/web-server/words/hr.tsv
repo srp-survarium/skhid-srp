@@ -95,8 +95,6 @@ Not found.	Nije pronađeno.
 Too many wrong tokens; wait a minute.	Previše pogrešnih tokena; pričekajte minutu.
 Wrong token.	Pogrešan token.
 No such user.	Nema takvog korisnika.
-Silver and gold are whole numbers, + or -, or empty.	Srebro i zlato su cijeli brojevi, + ili -, ili prazno.
-{user}: now {silver_now} silver and {gold_now} gold.	{user}: sada {silver_now} srebra i {gold_now} zlata.
 New accounts are taken again.	Novi računi ponovno se primaju.
 New accounts are refused; existing players sign in as before.	Novi računi se ne primaju; postojeći igrači prijavljuju se kao i prije.
 Maintenance cancelled.	Održavanje je otkazano.
@@ -138,9 +136,8 @@ Q:	P:
 A:	O:
 If something goes wrong	Ako nešto pođe po zlu
 Download the files	Preuzmi datoteke
-Download the game	Preuzmi igru
 The download link is coming soon.	Poveznica za preuzimanje uskoro stiže.
-Can't download? Run {script}: it downloads the whole game into a Survarium folder beside it.	Ne možete preuzeti? Pokrenite {script}: preuzima cijelu igru u mapu Survarium pokraj sebe.
+Chrome or your antivirus refuses the download? Try this script: {script}. It downloads the whole game into a Survarium folder beside it.	Chrome ili antivirus ne dopušta preuzimanje? Isprobajte ovu skriptu: {script}. Preuzima cijelu igru u mapu Survarium pokraj sebe.
 Get the game	Nabavi igru
 The link is coming soon.	Poveznica uskoro stiže.
 Get the original Survarium 0.26g (build 2777) and unpack it.	Nabavite izvorni Survarium 0.26g (build 2777) i raspakirajte ga.
@@ -155,10 +152,6 @@ Run <code>Skhid.bat</code> and press <b>PLAY</b>.	Pokrenite <code>Skhid.bat</cod
 Windows warns about an unknown publisher? Let it run.<br>Linux: <code>bash Skhid.sh launcher</code>, see <code>LINUX.txt</code>.	Windows upozorava na nepoznatog izdavača? Dopustite pokretanje.<br>Linux: <code>bash Skhid.sh launcher</code>, vidi <code>LINUX.txt</code>.
 Windows warns about an unknown publisher? Let it run.<br>Linux: <code>bash Skhid.sh</code>, see <code>LINUX.txt</code>.	Windows upozorava na nepoznatog izdavača? Dopustite pokretanje.<br>Linux: <code>bash Skhid.sh</code>, vidi <code>LINUX.txt</code>.
 Run <code>play_skhid.bat</code> in <code>game\\binaries\\x86</code>.	Pokrenite <code>play_skhid.bat</code> u mapi <code>game\\binaries\\x86</code>.
-Start it with this command line:	Pokrenite igru ovom naredbom:
-english	english
-server address	adresa poslužitelja
-language: english, russian, ukrainian	jezik: english, russian, ukrainian
 Skhid (Ukrainian for “east”) is a community server that lets the Survarium {version} client sign in, trade, form squads and play matches again.	Skhid (ukrajinski „istok”) poslužitelj je zajednice na kojem se klijent Survarium {version} ponovno može prijaviti, trgovati, okupljati odrede i igrati borbe.
 Project Discord: <a href="https://discord.gg/pxywZfaxRQ">discord.gg/pxywZfaxRQ</a>	Discord projekta: <a href="https://discord.gg/pxywZfaxRQ">discord.gg/pxywZfaxRQ</a>
 Early test server.	Rani testni poslužitelj.
@@ -167,7 +160,6 @@ How to play	Kako igrati
 Download our files and unpack them into an empty folder (e.g. D:\\Survarium). <b>You do this only once.</b>	Preuzmite naše datoteke i raspakirajte ih u praznu mapu (npr. D:\\Survarium). <b>To radite samo jednom.</b>
 Download our files and unpack them into the game's folder, the one with the <code>game</code> folder, replacing files. <b>You do this only once.</b>	Preuzmite naše datoteke i raspakirajte ih u mapu igre, onu s mapom <code>game</code>, uz zamjenu datoteka. <b>To radite samo jednom.</b>
 Download our files and unpack them over the game's <code>game</code> folder.	Preuzmite naše datoteke i raspakirajte ih preko mape <code>game</code> igre.
-Download the patched game and unpack it.	Preuzmite izmijenjenu igru i raspakirajte je.
 Sign in with any name and password: a new name registers itself. Remember the password.	Prijavite se bilo kojim imenom i lozinkom: novo ime samo se registrira. Zapamtite lozinku.
 New accounts are taken.	Novi računi se primaju.
 Stop new registrations	Zaustavi nove registracije
@@ -177,7 +169,6 @@ Shown once the token is right.	Prikazuje se kad je token ispravan.
 Password	Lozinka
 User name	Korisničko ime
 Silver, + or -	Srebro, + ili -
-Gold, + or -	Zlato, + ili -
 Change	Promijeni
 Admin	Administrator
 Token	Token

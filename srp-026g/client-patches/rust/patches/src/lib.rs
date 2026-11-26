@@ -105,6 +105,7 @@ pub mod zone_guards;
 pub mod step_ground;
 // patch 210: the sync log (SKHID_SYNC_LOG)
 pub mod sync_log;
+pub mod exact_world;
 
 pub mod weapon_pickup;
 
