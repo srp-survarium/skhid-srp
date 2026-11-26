@@ -79,3 +79,122 @@ function named below has its row in `tools/re-kit/v069d/functions.tsv`.
 
 The plan and its state: the PR's description. What is built is said in each part's section below as
 it lands.
+
+## The simulation (0.26g)
+
+Client patch 206 (`rust/patches/src/second_sights.rs`, `second_sights.toml`; its reads of the game
+`vostok/second_sight.rs`), the machine and its world bytes the crate `second-sight` (`no_std`,
+`#![forbid(unsafe_code)]`, tested on the host; srp-validate and the match server's bot reader use it
+too). Written 2026-11-26. PROVEN in the code of 0.26g and in the Unicorn check below; not run in a
+game.
+
+### The machine (`second_sight::State`)
+
+- `Settled(Main | Second)` or `Switching { to, pressed }`: the press's time alone, from which the
+  blend's start (the first 50 ms tick after it) and the end (`pressed + 500`, 0.69d0's
+  `scope_switch_delay`) follow, so no start and end can disagree. One transition, `State::step`,
+  total over `Press(t)`, `Tick(t)`, `Deactivate`: a press of a settled weapon switches to the other
+  sight, a press while switching is nothing; a tick at or past the end settles on `to`; putting the
+  weapon away (`reset_switches`) settles back on the sight switched from. A weapon of one sight
+  (`Sights::One`) is always on its main. Game time is `GameTime(u32)`, its wrap defined there.
+- `s = clamp((t - start) / 500, 0, 1)` while switching, 0 settled; the sight shown is `to` past 0.5;
+  the effective aim `clamp(aim - min(s, 1 - s), 0, 1)` (`View::effective_aim`); a weapon counts as
+  aimed only where `min(s, 1 - s)` is 0 (`State::aimed`). The commit comes before the blend's end:
+  s reaches 0.9 at most (a press at 104520: the blend from 104550, the end at 105020).
+
+### The sites (sites_026g.tsv, each re-read in the exe)
+
+| site | VA | what |
+|---|---|---|
+| `input_builder.end` (order -1, first of the chain) | 0x2421B0 | scope_next (5Ah) down: bit 30 of the handler's mask (+33Ch), in that input only |
+| `sights.press` | 0x2D877C | apply_new_input after process_quick_slots: bit 30 set in +330h and clear in the actions before ([esp+24h]), at the input's time ([ebp+8]): a press of the weapon held (+128h) when slot 7 or 10 holds it. Every game applies every player's input here |
+| `sights.tick` | 0x2E0A45 | weapon_core::tick's join (EBP the weapon, EBX the time): the end. Only the active item ticks |
+| `sights.deactivate` | 0x2E2DB0 | weapon_core::deactivate's entry (its user still set): the undo |
+| `sights.made` | 0x2DF0D0 | weapon_core::weapon_core's entry: its config's root (the cook's, the one patch 161 reads) has `data/srp_second_sight` nonzero and `srp_second_side` 0 or 1: two sights |
+| `sights.destroyed` | 0x2DF570 | ~weapon_core: forgotten (and a weapon made anew at an address is nothing of the one before) |
+| `sights.bullet_aim` | 0x2E1D68 | get_dispersed_bullet_direction after its load of the aim progress: while switching, XMM1 is the effective aim, so the dynamic dispersion is zeroed only at an effective 1 |
+| `sights.dispersion_aimed` | 0x331375 | dispersion_calculator::tick's `cmp byte [eax+5E8h],0`: while the aim dips, a Skip with ZF set (the hip's multiplier +3F0h) |
+| `sights.skill_aimed` | 0x33149D | get_skill_influence's `mov cl,[ecx+5E8h]`: a Skip with CL 0 |
+| `sights.target_aimed` | 0x331572 | get_target_koef's `mov dl,[eax+5E8h]`: a Skip with DL 0 (push edi after it runs natively) |
+| `carry.save` (order 1, after patch 78's) | 0x2DB47E | the record after the carry snapshot |
+| `carry.load` (order 1) | 0x2DBAB5 | the record after the carry snapshot, when the state has one |
+
+- A weapon not switching takes every native path bit for bit: the four aim hooks change nothing
+  unless the weapon's state is `Switching` (and the three m_aimed ones only while `min(s, 1 - s)`
+  is over 0). The recoil has no aimed/hip difference in 0.26g (`weapon_recoil_calculator::on_shot`
+  0x331C50 reads no aim): nothing there. The time a dispersion read is at is the weapon's last
+  tick (+5A4h), set at the start of its tick (0x2E09F5).
+- **Bit 30** was set and read by nothing in the stock exe (no test of 40000000h, no byte test of the
+  mask's high byte; the relays and the replays strip bit 31 alone). srp-validate refused it
+  (`UNUSED_ACTIONS`); it is now `messages::SCOPE_NEXT` and every bit of the mask is a client's. The
+  bots never send it (drive.rs `key::NEVER`); afk counts a change of it as acting; the replay
+  converter clears bit 31 only.
+- **The key**: action `scope_next`, id 5Ah, kinds 5, row 77 of the moved action table
+  (item_hotkeys_026g.asm), a controls row after the aim toggle (hide_ui_026g.asm, label
+  `st_srp_scope_next_action`, the localization row the lobby's work adds). Default **Y**: 0.69d0's T is
+  chat here (3Fh, kinds 5), and a default T would unbind chat (bind_key 0x207DC0 clears the key from
+  the other bindings); Y is no kinds-5 row's. The player may rebind it.
+
+### The state (who owns what)
+
+- `second_sights::Table` behind a `Lock` (the game thread writes, patch 161's view reads from the
+  render thread): the weapons that have two sights (by address, from their constructor to their
+  destructor; 512 at most, a line in the log when full), and a player's life (carry's `Key`: place,
+  kit, the player object, the world, the spawn time) with the state of each weapon slot (7, 10)
+  and the gun (dict id) it was made for.
+- **The view's reading** (patch 161): `vostok::second_sight::sight(thread, weapon) -> Option<View>` at
+  the weapon's user's simulation time (+324h), `sight_at(thread, weapon, now)` at a frame's time
+  (both `unsafe`: a live `raw::Weapon` of the caller's draw or hook); `None` for a weapon of one sight
+  or in no weapon slot. `View { from, to, s }`, `View::shown()` (the sight past half way),
+  `View::effective_aim(aim)`.
+- A state is the slot's gun's: another gun in the slot (a pickup of another kind, patch 85) is on
+  its main sight; a picked-up gun of the same kind keeps the slot's state. A respawn is a new life:
+  both slots on their main sights. A gun on the ground has no state (the switch it had is undone at
+  its deactivation; only a player's slots are saved).
+
+### The world bytes
+
+After patch 78's 32-byte carry snapshot at the end of a player's state (base_player::serialize's
+epilogue), `second_sight::Record`, 11 bytes:
+
+```
+for slot 7, then slot 10:  u8 tag (0 main, 1 second, 2 switching to the second, 3 to the main),
+                           u32 the press's time when switching, 0 settled
+u8 version 1 (last)
+```
+
+- srp-validate's `AfterItems` reads it after the carry to the state's exact end (`AfterItems::sights`,
+  `Reason::TailSights` for any other bytes): a closed tag set, no time on a settled sight. A state
+  without it parses as before (every world of the corpus).
+- The version is the last byte so a state can be read from its end too: the bots' `Motion::read`
+  (`survarium::match_msgs::motion`) strips the record when the state ends with one (it decodes and the
+  carry before it restores), else the carry alone; an older state's last byte is the carry's 0 or a
+  generation's high byte.
+- **A world without the record** (an older game's, a replay of one) leaves that player's life
+  *unkept*: on the main sights, no press taken, nothing written, so this game's worlds are the
+  loaded world's byte for byte (check_world_roundtrip_026g.py) until the player's next life. Every
+  game of a match runs the same revision; a match's first world is a patched game's.
+- `simulation_changes.tsv`: the `next` row says it (replays of older games are refused).
+
+### Checked
+
+- `cargo test -p second-sight` (the machine, the clock's wrap, the record's bytes), srp-validate's
+  `the_second_sights_follow_the_carry`, survarium's `the_second_sights_after_the_carry_are_skipped`,
+  the patches crate's `second_sights` tests (the table: a press, the end, the undo, a weapon of one
+  sight, a new life, another gun, a load with and without a record, the room).
+- `check_second_sights_026g.py` (tools/checks.tsv `second-sights`): every site above from its own
+  site in the build beside the original (above in the cases' text).
+- `check_world_roundtrip_026g.py`: the corpus worlds as they are (no record: nothing written) and
+  with a record after each state (read whole, written as read).
+
+### Not run in a game: what a local match of several clients must show
+
+- Y (or the key bound to Options, Controls' "Switch sight") with a second sight fitted switches the
+  view to it in about half a second and back with another press; nothing with a gun without one,
+  and nothing while a switch runs.
+- The other clients see the same: no resync that a match without the patch has not (the worlds'
+  hashes agree), through a rollback and a late joiner mid-switch.
+- A shot fired half way through a switch spreads as from the hip; settled on either sight, aimed
+  shots are as before.
+- Changing weapon mid-switch leaves the sight it was on; a respawn starts on the main sights.
+- No world refused for its record (the server's log, the games' refusal log).
