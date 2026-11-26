@@ -90,8 +90,8 @@ The rules the code and the tests follow. Code: `crates/session/src/v026g/rewards
   that rule but its search icon works, as before.
 - **Logged** (`log::info!`, one line each, name and account id): every card used (match,
   level, item dict and id, rarity, cards left), every refusal and its reason, every sale
-  (count, dict, item id, silver paid, silver after), every silver -> gold (`bought N gold for
-  S silver`) and gold -> silver (`exchanged N gold for S silver`) with the balances right after,
-  read under the same lock as the exchange.
+  (count, dict, item id, silver paid, silver after); until gold was removed (2026-11-08,
+  buy-gold.md) also every silver -> gold (`bought N gold for S silver`) and gold -> silver
+  (`exchanged N gold for S silver`) with the balances right after.
 - **Release:** the refusal is server only (#243), with a new schema step (`g26_drop_cards`): an older srp refuses the
   database once this one has run. The greying is a lobby movie change (a resources.db patch).
