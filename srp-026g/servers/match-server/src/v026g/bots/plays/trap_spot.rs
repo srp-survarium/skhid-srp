@@ -25,14 +25,30 @@ pub fn tuning() -> PlayTuning {
     }
 }
 
+/// [bot traps T3] The play is offered on each open point of a place still held within the job's `max_walk_m` to a bot that may
+/// place a trap (`BotFacts::may_trap`), alive and not carrying; and on its own point to the bot running it. The commander's pass
+/// gives it (one bot a point, its slot) by its bands, commits and margin; the job reads who runs it (`traps::camper_tick`).
 pub fn candidates(cx: &Ctx, out: &mut Vec<Candidate>) {
-    if cx.tuning.traps.camper_job.is_none() {
-        return;
-    }
-    let Some(point) = crate::v026g::bots::traps::camper_point(cx.team, cx.me.place) else {
+    use crate::v026g::bots::know::{CamperHold, CamperTrapState};
+    let Some(j) = cx.tuning.traps.camper_job else {
         return;
     };
-    out.extend(cx.job_candidate(PlayKind::TrapSpot, TargetRef::ThreatSpot(point.spot), JOB_KEY + point.spot, JOB_HEALTH));
+    let running = match cx.bot.current {
+        Some((PlayKind::TrapSpot, TargetRef::ThreatSpot(spot), _)) => crate::v026g::bots::traps::camper_job_point(cx.team, cx.me.place, spot),
+        _ => None,
+    };
+    if let Some(point) = running {
+        out.extend(cx.job_candidate(PlayKind::TrapSpot, TargetRef::ThreatSpot(point.spot), JOB_KEY + point.spot, JOB_HEALTH));
+        return;
+    }
+    if !cx.bot.may_trap || !cx.me.alive || cx.me.carrying.is_some() {
+        return;
+    }
+    for point in cx.team.camper_traps.iter().filter(|c| c.state == CamperTrapState::Open && c.hold == CamperHold::Held) {
+        if cx.me.feet.distance_xz(point.at) <= j.max_walk_m {
+            out.extend(cx.job_candidate(PlayKind::TrapSpot, TargetRef::ThreatSpot(point.spot), JOB_KEY + point.spot, JOB_HEALTH));
+        }
+    }
 }
 
 /// The play keeps nothing of its own: the team's point is its state.
@@ -52,7 +68,10 @@ pub fn step(_state: &mut State, target: TargetRef, cx: &Ctx, _rng: &mut Rng) -> 
     {
         return Step::Failed("trapped too long");
     }
-    let Some(point) = crate::v026g::bots::traps::camper_point(cx.team, cx.me.place).filter(|p| target == TargetRef::ThreatSpot(p.spot)) else {
+    let TargetRef::ThreatSpot(spot) = target else {
+        return Step::Done("the camper trap job ended");
+    };
+    let Some(point) = crate::v026g::bots::traps::camper_job_point(cx.team, cx.me.place, spot) else {
         return Step::Done("the camper trap job ended");
     };
     let reach = num("reach_m");
@@ -69,4 +88,45 @@ pub fn step(_state: &mut State, target: TargetRef, cx: &Ctx, _rng: &mut Rng) -> 
     let ahead = cx.me.feet + Vec3::new(cx.me.velocity[0] * ahead_s, 0.0, cx.me.velocity[1] * ahead_s);
     let crouch = [cx.me.feet, ahead].iter().any(|&at| crate::v026g::bots::traps::hidden_by_crouching(sight, point.held, at));
     Step::Continue(Intent::to(point.at, if crouch { Pace::Sneak } else { Pace::Run }).within(reach))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::super::tests::Scenario;
+    use super::*;
+    use crate::v026g::bots::know::{CamperHold, CamperTrap, CamperTrapKind, CamperTrapState, SeenRefusals};
+    use crate::v026g::bots::view::Mode;
+
+    /// [bot traps T3] The camper trap job's play is offered on an open point of a held place within `max_walk_m` to a bot that may
+    /// place a trap, to no bot that may not, on no kept point (its place no longer held), and to none farther off.
+    #[test]
+    fn the_job_play_is_offered_to_a_bot_that_may_place_within_its_walk() {
+        let mut s = Scenario::field(Mode::TeamDeathmatch);
+        s.tuning.traps = crate::v026g::bots::tuning::TrapTuning::default();
+        s.tuning.threat.job_score = crate::v026g::bots::tuning::Tuning::default().threat.job_score;
+        s.bot(0, 0, Vec3::new(20.0, 0.0, 30.0));
+        let point = |at: Vec3, hold: CamperHold| CamperTrap {
+            spot: 7,
+            shooter: 11,
+            held: Vec3::new(45.0, 0.0, 30.0),
+            at,
+            kind: CamperTrapKind::Job,
+            state: CamperTrapState::Open,
+            hold,
+            seen: SeenRefusals::default(),
+        };
+        s.team.camper_traps.push(point(Vec3::new(30.0, 0.0, 30.0), CamperHold::Held));
+        let offered = |s: &Scenario| {
+            let mut out = Vec::new();
+            candidates(&s.cx(0), &mut out);
+            out.iter().any(|c| c.kind == PlayKind::TrapSpot && c.target == TargetRef::ThreatSpot(7))
+        };
+        assert!(!offered(&s), "may not place");
+        s.may_trap = true;
+        assert!(offered(&s), "may place, 10 m off");
+        s.team.camper_traps[0] = point(Vec3::new(30.0, 0.0, 30.0), CamperHold::Over { since: 0 });
+        assert!(!offered(&s), "a kept point");
+        s.team.camper_traps[0] = point(Vec3::new(60.0, 0.0, 30.0), CamperHold::Held);
+        assert!(!offered(&s), "past its walk");
+    }
 }
