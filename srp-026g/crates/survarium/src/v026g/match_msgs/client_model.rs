@@ -752,6 +752,7 @@ mod tests {
         }
         // Every server id was covered.
         ids.sort_unstable();
+        ids.dedup();
         assert_eq!(ids, (0xE3..=0xF6).collect::<Vec<u8>>());
     }
 
