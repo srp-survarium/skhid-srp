@@ -678,15 +678,35 @@ impl RouteSearch {
         weight: impl Fn(NodeId) -> f32,
         iters: &mut usize,
     ) -> Option<(Search, Stage)> {
+        // The ground distance alone (`mapdata::SlicedSearch::step_hot`).
+        self.step_bounded(regions, grid, hot, queue, allowed, region_ok, weight, |_| 0.0, iters)
+    }
+
+    /// [R3] [`Self::step_hot`] with a second lower bound of each floor's cost to the goal ([`SlicedSearch::step_bounded`]):
+    /// the same stages, each stage's search A* with the larger of it and the ground distance. `lower` must be admissible
+    /// and consistent for the costs searched, and the same at every step.
+    #[allow(clippy::too_many_arguments)]
+    pub fn step_bounded(
+        &mut self,
+        regions: &Regions,
+        grid: &WalkGrid,
+        hot: &crate::grid::HotIndex,
+        queue: &mut crate::grid::HotOpen,
+        allowed: impl Fn(NodeId) -> bool,
+        region_ok: impl Fn(u32) -> bool,
+        weight: impl Fn(NodeId) -> f32,
+        lower: impl Fn(NodeId) -> f32,
+        iters: &mut usize,
+    ) -> Option<(Search, Stage)> {
         loop {
             let Some(search) = self.search.as_mut() else {
                 return Some((Search::NoWay, self.stage));
             };
             let found = if self.stage == Stage::Whole {
-                search.step_hot(grid, hot, queue, &allowed, &weight, iters)?
+                search.step_bounded(grid, hot, queue, &allowed, &weight, &lower, iters)?
             } else {
                 let inside = &self.inside;
-                search.step_hot(
+                search.step_bounded(
                     grid,
                     hot,
                     queue,
@@ -695,6 +715,7 @@ impl RouteSearch {
                         inside[r / 64] & (1 << (r % 64)) != 0 && allowed(v)
                     },
                     &weight,
+                    &lower,
                     iters,
                 )?
             };

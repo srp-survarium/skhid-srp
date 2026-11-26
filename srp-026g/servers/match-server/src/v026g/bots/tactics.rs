@@ -205,6 +205,8 @@ pub struct TacticsBase {
     /// [exit fields at load] [`Tactics::exit_of`]'s fields, made with the base, once for the map, off the match loop, not stored
     /// with it. Made at a match's first escape before, inside a tick: part of Cologne batteries s1's 0.39 s tick at 95.1 s.
     exit_fields: ExitFields,
+    /// [R3] The route searches' landmark bounds (`landmarks.rs`): built with the base, once for the map, off the match loop.
+    landmarks: super::landmarks::Landmarks,
 }
 
 /// [exit fields at load] [`Tactics::exit_of`]'s fields by spawn rule ([`Tactics::spawn_ok`]: the side whose others' spawn areas
@@ -717,6 +719,7 @@ impl TacticsBase {
         drop(labels);
         let walkable = walkable_from_spawns(&world);
         let progress = progress::Progress::build(&world.grid, &regions, &world.map.spawns);
+        let landmarks = super::landmarks::Landmarks::build_logged(&world.grid);
         let walker_walls = super::body::walker_walls(&world);
         let contract = objective_contract(&world);
         let mut base = Self {
@@ -731,6 +734,7 @@ impl TacticsBase {
             walkable,
             progress,
             exit_fields: ExitFields::default(),
+            landmarks,
         };
         base.exit_fields = base.exit_fields();
         let sides: Vec<i32> = {
@@ -978,6 +982,7 @@ impl TacticsBase {
                     })
                     .collect();
                 let progress = progress::Progress::build(&world.grid, &regions, &world.map.spawns);
+                let landmarks = super::landmarks::Landmarks::build_logged(&world.grid);
                 let walker_walls = super::body::walker_walls(&world);
                 let contract = objective_contract(&world);
                 let hot = mapdata::grid::HotIndex::for_grid(&world.grid);
@@ -993,6 +998,7 @@ impl TacticsBase {
                     walkable,
                     progress,
                     exit_fields: ExitFields::default(),
+                    landmarks,
                 };
                 base.exit_fields = base.exit_fields();
                 Ok(base)
@@ -1017,6 +1023,7 @@ impl TacticsBase {
             + self.regions.memory_bytes()
             + self.hot.hot_bytes()
             + self.walkable.len() * 8
+            + self.landmarks.bytes()
             + self
                 .exits
                 .iter()
@@ -1870,6 +1877,7 @@ impl Tactics {
                     grid,
                     &tactics.base.regions,
                     &tactics.base.hot,
+                    &tactics.base.landmarks,
                     start,
                     self.home,
                     |node| tactics.route_floor_open(node, t, self.side, false, from, &self.filter, &legs),
@@ -1937,6 +1945,7 @@ impl Tactics {
             grid,
             &self.base.regions,
             &self.base.hot,
+            &self.base.landmarks,
             start,
             goal,
             |node| self.route_floor_open(node, time, side, objective, at, filter, &legs),
@@ -1985,6 +1994,7 @@ impl Tactics {
             grid,
             &self.base.regions,
             &self.base.hot,
+            &self.base.landmarks,
             start,
             goal,
             allowed,
@@ -2023,6 +2033,7 @@ impl Tactics {
             grid,
             &self.base.regions,
             &self.base.hot,
+            &self.base.landmarks,
             |node| self.route_floor_open(node, time, side, objective, at, filter, &legs),
             |region| self.route_region_open(region, time, side, objective, at, filter, &legs),
             &weight,
@@ -2113,6 +2124,7 @@ impl Tactics {
             grid,
             &self.base.regions,
             &self.base.hot,
+            &self.base.landmarks,
             |node| self.route_floor_open(node, time, side, objective, at, filter, &legs),
             |region| self.route_region_open(region, time, side, objective, at, filter, &legs),
             &weight,
@@ -2148,6 +2160,7 @@ impl Tactics {
             &self.world.grid,
             &self.base.regions,
             &self.base.hot,
+            &self.base.landmarks,
             start,
             goal,
             |node| self.crossing_allowed(node, time, side, objective, at, &hard, &crossable),
@@ -2180,6 +2193,7 @@ impl Tactics {
             &self.world.grid,
             &self.base.regions,
             &self.base.hot,
+            &self.base.landmarks,
             |node| self.crossing_allowed(node, time, side, objective, at, &hard, &crossable),
             |region| self.spawn_ok(self.base.regions.middle(region), side, objective),
             &|_| 1.0,

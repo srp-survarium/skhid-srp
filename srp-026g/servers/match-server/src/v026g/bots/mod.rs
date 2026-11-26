@@ -70,6 +70,7 @@ pub mod jump_carry;
 #[cfg(feature = "jump-test")]
 pub mod jump_test;
 pub mod key_sources;
+pub mod landmarks;
 pub mod kin;
 pub mod know;
 pub mod lane_ahead;
@@ -2719,6 +2720,8 @@ impl Bots {
             nav_log::PREFIX,
             drive::lip_repeats::take()
         ));
+        // [R3] The route searches' floors expanded (their landmark bounds cut them).
+        lines.push(format!("{}{}", nav_log::PREFIX, path::expanded_counts::take_line()));
         // [route reuse] The searches the rest of a bot's kept way answered, and why the others were searched.
         lines.push(format!("{}{}", nav_log::PREFIX, path::reuse_counts::take_line()));
         // [crossing prewarm] The routed crossings' entry searches asked in play, and of them searched then (not made at load).

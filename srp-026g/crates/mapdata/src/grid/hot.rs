@@ -352,6 +352,26 @@ impl SlicedSearch {
         weight: impl Fn(NodeId) -> f32,
         iters: &mut usize,
     ) -> Option<Search> {
+        // The ground distance alone: `x.max(0.0) == x` for every distance.
+        self.step_bounded(grid, hot, queue, allowed, weight, |_| 0.0, iters)
+    }
+
+    /// [R3] [`Self::step_hot`] with a second lower bound of each floor's cost to the goal (`lower`, m: a landmarks' bound,
+    /// match-server `landmarks.rs`): the heuristic is the larger of it and the ground distance. `lower` must be admissible
+    /// and consistent for the costs searched (no more than any way's cost from the floor to the goal, and no more than a
+    /// link's cost plus its value at the link's end), and the same at every step: the search then finds a way of the least
+    /// cost as before, expanding no more floors than with the ground distance (ties aside).
+    #[allow(clippy::too_many_arguments)]
+    pub fn step_bounded(
+        &mut self,
+        grid: &WalkGrid,
+        hot: &HotIndex,
+        queue: &mut HotOpen,
+        allowed: impl Fn(NodeId) -> bool,
+        weight: impl Fn(NodeId) -> f32,
+        lower: impl Fn(NodeId) -> f32,
+        iters: &mut usize,
+    ) -> Option<Search> {
         assert!(hot.hot_fits(grid), "a hot index of another grid");
         let Self {
             scratch:
@@ -431,7 +451,7 @@ impl SlicedSearch {
                     mark[v as usize] = seen;
                     cost[v as usize] = c;
                     back[v as usize] = way_back;
-                    open.hot_push(Entry(c + grid.position(v).distance_xz(goal), v));
+                    open.hot_push(Entry(c + grid.position(v).distance_xz(goal).max(lower(v)), v));
                 }
             }
         }

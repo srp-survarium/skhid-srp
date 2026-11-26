@@ -570,6 +570,7 @@ mod tests {
                 grid,
                 &regions,
                 &hot,
+                crate::v026g::bots::landmarks::Landmarks::none_ref(),
                 na,
                 nb,
                 |n| filter.floor_open(grid, n),

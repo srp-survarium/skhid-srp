@@ -17,6 +17,8 @@ use mapdata::regions::Stage;
 use mapdata::regions::{Regions, RouteSearch};
 use mapdata::{LinkKind, NodeId, Search, Vec3, WalkGrid};
 
+use super::landmarks::Landmarks;
+
 /// A straight line is not tried farther than this (metres): the check
 /// walks every cell of it.
 const MAX_STRAIGHT_M: f32 = 40.0;
@@ -890,7 +892,7 @@ pub fn plan_in(
     region_ok: impl Fn(u32) -> bool,
 ) -> Option<Route> {
     let mut iters = usize::MAX;
-    match plan_start(grid, regions, hot, from, to, allowed, region_ok, mapdata::Reach::FULL, None, &mut iters) {
+    match plan_start(grid, regions, hot, Landmarks::none_ref(), from, to, allowed, region_ok, mapdata::Reach::FULL, None, &mut iters) {
         Ok(route) => route,
         Err(_) => unreachable!("an unbounded search ends"),
     }
@@ -934,6 +936,7 @@ pub fn plan_start(
     grid: &WalkGrid,
     regions: &Regions,
     hot: &mapdata::grid::HotIndex,
+    marks: &Landmarks,
     from: NodeId,
     to: NodeId,
     allowed: impl Fn(NodeId) -> bool,
@@ -942,7 +945,7 @@ pub fn plan_start(
     weight: Option<&dyn Fn(NodeId) -> f32>,
     iters: &mut usize,
 ) -> Result<Option<Route>, Planning> {
-    plan_start_with(grid, regions, hot, from, to, allowed, region_ok, reach, weight, iters, false).0
+    plan_start_with(grid, regions, hot, marks, from, to, allowed, region_ok, reach, weight, iters, false).0
 }
 
 /// [route reuse] [`plan_start`], and the search's [`KeptWay`] when it ends here with a way (none when it ends without one,
@@ -952,6 +955,7 @@ pub fn plan_start_keeping(
     grid: &WalkGrid,
     regions: &Regions,
     hot: &mapdata::grid::HotIndex,
+    marks: &Landmarks,
     from: NodeId,
     to: NodeId,
     allowed: impl Fn(NodeId) -> bool,
@@ -960,7 +964,7 @@ pub fn plan_start_keeping(
     weight: Option<&dyn Fn(NodeId) -> f32>,
     iters: &mut usize,
 ) -> (Result<Option<Route>, Planning>, Option<KeptWay>) {
-    plan_start_with(grid, regions, hot, from, to, allowed, region_ok, reach, weight, iters, true)
+    plan_start_with(grid, regions, hot, marks, from, to, allowed, region_ok, reach, weight, iters, true)
 }
 
 /// [`plan_start`] and [`plan_start_keeping`]: the answers are asked through the search's own kept tests from its start
@@ -971,6 +975,7 @@ fn plan_start_with(
     grid: &WalkGrid,
     regions: &Regions,
     hot: &mapdata::grid::HotIndex,
+    marks: &Landmarks,
     from: NodeId,
     to: NodeId,
     allowed: impl Fn(NodeId) -> bool,
@@ -1019,7 +1024,7 @@ fn plan_start_with(
                 #[cfg(test)]
                 slices: 0,
             };
-            match planning.resume_with(grid, regions, hot, allowed, region_ok, weight.unwrap_or(&|_| 1.0), iters, keep) {
+            match planning.resume_with(grid, regions, hot, marks, allowed, region_ok, weight.unwrap_or(&|_| 1.0), iters, keep) {
                 Some((route, kept)) => (Ok(route), kept),
                 None => (Err(planning), None),
             }
@@ -1037,6 +1042,7 @@ pub fn way_exists(
     grid: &WalkGrid,
     regions: &Regions,
     hot: &mapdata::grid::HotIndex,
+    marks: &Landmarks,
     from: NodeId,
     to: NodeId,
     allowed: impl Fn(NodeId) -> bool,
@@ -1054,7 +1060,7 @@ pub fn way_exists(
                 let mut queue = mapdata::grid::HotOpen::hot_open_empty();
                 let mut iters = usize::MAX;
                 let (found, stage) = search
-                    .step_hot(regions, grid, hot, &mut queue, &allowed, region_ok, |_| 1.0, &mut iters)
+                    .step_bounded(regions, grid, hot, &mut queue, &allowed, region_ok, |_| 1.0, |v| marks.lower(v, to), &mut iters)
                     .expect("an unbounded search ends");
                 (found, stage, search.expanded() as u64)
             }
@@ -1123,12 +1129,13 @@ impl Planning {
         grid: &WalkGrid,
         regions: &Regions,
         hot: &mapdata::grid::HotIndex,
+        marks: &Landmarks,
         allowed: impl Fn(NodeId) -> bool,
         region_ok: impl Fn(u32) -> bool,
         weight: &dyn Fn(NodeId) -> f32,
         iters: &mut usize,
     ) -> Option<Option<Route>> {
-        self.resume_with(grid, regions, hot, allowed, region_ok, weight, iters, false).map(|(route, _)| route)
+        self.resume_with(grid, regions, hot, marks, allowed, region_ok, weight, iters, false).map(|(route, _)| route)
     }
 
     /// [route reuse] [`Self::resume`], and the search's [`KeptWay`] when it ends with a way.
@@ -1138,12 +1145,13 @@ impl Planning {
         grid: &WalkGrid,
         regions: &Regions,
         hot: &mapdata::grid::HotIndex,
+        marks: &Landmarks,
         allowed: impl Fn(NodeId) -> bool,
         region_ok: impl Fn(u32) -> bool,
         weight: &dyn Fn(NodeId) -> f32,
         iters: &mut usize,
     ) -> Option<(Option<Route>, Option<KeptWay>)> {
-        self.resume_with(grid, regions, hot, allowed, region_ok, weight, iters, true)
+        self.resume_with(grid, regions, hot, marks, allowed, region_ok, weight, iters, true)
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -1152,6 +1160,7 @@ impl Planning {
         grid: &WalkGrid,
         regions: &Regions,
         hot: &mapdata::grid::HotIndex,
+        marks: &Landmarks,
         allowed: impl Fn(NodeId) -> bool,
         region_ok: impl Fn(u32) -> bool,
         weight: &dyn Fn(NodeId) -> f32,
@@ -1159,14 +1168,15 @@ impl Planning {
         keep: bool,
     ) -> Option<(Option<Route>, Option<KeptWay>)> {
         let weight = self.weighted.then_some(weight);
+        let to = self.to;
         #[cfg(test)]
         let (started, started_cpu) = (std::time::Instant::now(), super::cpu_time::thread());
         let allowed = self.tested.kept(&allowed);
         let region_ok = self.regions_tested.kept(&region_ok);
         // The plain search keeps its own loop (no call through the weight).
         let ended = match weight {
-            Some(w) => self.search.step_hot(regions, grid, hot, &mut self.queue, &allowed, region_ok, w, iters),
-            None => self.search.step_hot(regions, grid, hot, &mut self.queue, &allowed, region_ok, |_| 1.0, iters),
+            Some(w) => self.search.step_bounded(regions, grid, hot, &mut self.queue, &allowed, region_ok, w, |v| marks.lower(v, to), iters),
+            None => self.search.step_bounded(regions, grid, hot, &mut self.queue, &allowed, region_ok, |_| 1.0, |v| marks.lower(v, to), iters),
         };
         #[cfg(test)]
         {
@@ -1184,6 +1194,7 @@ impl Planning {
             self.search.expanded() as u64,
             self.slices,
         );
+        expanded_counts::add(self.search.expanded());
         let way = match (&found, keep) {
             (Search::Found(path), true) => Some(path.clone()),
             _ => None,
@@ -1322,6 +1333,29 @@ impl KeptWay {
         let path = mapdata::Path { nodes: rest.to_vec(), kinds, cost: self.path.cost };
         let route = finish(grid, Search::Found(path), allowed, weight).expect("a found way gives a route");
         Ok((route, self.expanded, self.inside.is_none()))
+    }
+}
+
+/// [R3] The route searches that ended ([`Planning`]'s, every stage) and the floors they expanded, every match on this server
+/// since the last match end (the match-end line): what the landmark bounds cut.
+pub mod expanded_counts {
+    use std::sync::atomic::{AtomicU64, Ordering};
+
+    static SEARCHES: AtomicU64 = AtomicU64::new(0);
+    static FLOORS: AtomicU64 = AtomicU64::new(0);
+
+    pub fn add(floors: usize) {
+        SEARCHES.fetch_add(1, Ordering::Relaxed);
+        FLOORS.fetch_add(floors as u64, Ordering::Relaxed);
+    }
+
+    /// The line's words, and the counts zeroed.
+    pub fn take_line() -> String {
+        format!(
+            "route searches ended since the last match end (every match on this server): {}, floors expanded {} (A* by the larger of the ground distance and the map's landmark bound)",
+            SEARCHES.swap(0, Ordering::Relaxed),
+            FLOORS.swap(0, Ordering::Relaxed)
+        )
     }
 }
 
@@ -3020,14 +3054,14 @@ mod tests {
         // Sliced: 200 floors a slice.
         let mut iters = 200;
         let hot = mapdata::grid::HotIndex::for_grid(grid);
-        let mut sliced = plan_start(grid, &regions, &hot, from, to, allowed, |_| true, mapdata::Reach::FULL, None, &mut iters);
+        let mut sliced = plan_start(grid, &regions, &hot, Landmarks::none_ref(), from, to, allowed, |_| true, mapdata::Reach::FULL, None, &mut iters);
         let mut slices = 1;
         let route = loop {
             match sliced {
                 Ok(route) => break route,
                 Err(mut planning) => {
                     let mut iters = 200;
-                    match planning.resume(grid, &regions, &hot, allowed, |_| true, &|_| 1.0, &mut iters) {
+                    match planning.resume(grid, &regions, &hot, Landmarks::none_ref(), allowed, |_| true, &|_| 1.0, &mut iters) {
                         Some(route) => break route,
                         None => sliced = Err(planning),
                     }
@@ -3084,7 +3118,7 @@ mod tests {
             ((floor(5.0, 10.0), floor(75.0, 12.0)), mapdata::regions::Stage::Widened),
         ] {
             let mut iters = usize::MAX;
-            let (found, kept) = plan_start_keeping(grid, &regions, &hot, from, to, allowed, |_| true, mapdata::Reach::FULL, None, &mut iters);
+            let (found, kept) = plan_start_keeping(grid, &regions, &hot, Landmarks::none_ref(), from, to, allowed, |_| true, mapdata::Reach::FULL, None, &mut iters);
             assert!(found.ok().flatten().is_some(), "a way through the gap");
             let kept = kept.expect("its way kept");
             let nodes = kept.path.nodes.clone();

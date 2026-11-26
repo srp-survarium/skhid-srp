@@ -229,7 +229,7 @@ fn hot_items_are_outside_the_grid_and_sight_keys() {
     let workspace = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
     let source = mapdata_srchash::mapdata_source(&workspace).expect("mapdata's source parses");
     let file: Option<&str> = Some("crates/mapdata/src/grid/hot.rs");
-    let names: &[&str] = &["RouteSearch::step_hot"];
+    let names: &[&str] = &["RouteSearch::step_hot", "RouteSearch::step_bounded"];
     let ours = |u: &mapdata_srchash::Unit| file.is_some_and(|f| u.file == f) || u.names.iter().any(|n| names.contains(&n.as_str()));
     assert!(source.units.iter().any(ours), "no runtime-only items found: the test looks in the wrong place");
     let mut sets: Vec<(&str, Vec<&str>)> =
