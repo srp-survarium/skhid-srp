@@ -238,8 +238,21 @@ balanced with their quirks"): the Snow-20 vest, pants, gloves, boots and helmet
   (`edge_keeper_07_torso`; its pants have them), and five pieces of
   equipment-029 (`edge_torso_8` and `edge_legs_8`, `edge_fighter_02`;
   `renesanse_torso_8` and `renesanse_legs_8`, `renesanse_vdv`;
-  `scavenger_torso_6_premium`, `scavenger_05_sniper_torso_prem`). Not changed
-  here.
+  `scavenger_torso_6_premium`, `scavenger_05_sniper_torso_prem`). The pack
+  `armour-camo-069d@1` gives them 0.69d's (below).
+- `armour-camo-069d@1` (the owner, 2026-11-26): the four camouflage maps of
+  those eight textures from 0.69d at the same paths, by resource-porter's
+  `build-camo-maps-069d` (`ports/survarium-069d-camo-maps-to-026g.json`),
+  each at the released diffuse's size. 0.69d repainted some (the Sniper's
+  picture correlates 0.36 with 0.31a2's), so the porter checks the layout by
+  the mesh: a surface drawing each texture has 0.69d's vertices, triangles
+  and UVs (within a texel of a 1024 map; all eight within 1/4000). A pack of
+  its own beside equipment-046 and -029, as the weapons' `*-camo` packs:
+  rebuilding those needs their 0.31a2, 0.46c2 and 0.29c donors.
+  `scripts/armour-camo-069d/make_pack.py --check` is the guard over the
+  composed game: every `camo_available` config's worn surfaces have their
+  `_aoac` (live data 2026-11-26: 30 surfaces without; with equipment-069@6,
+  exo-camo@1, stk2-camo@1 and this pack, none of 436).
 
 ### The Delta mask
 
