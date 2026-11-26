@@ -188,6 +188,8 @@ pub(crate) struct FightTally {
     /// Plays: the last two takes of each place (what, when); ended within
     /// 1 s; A, B, A within 10 s.
     takes: BTreeMap<Place, Vec<(String, u32)>>,
+    /// Every play taken (what `quick_ends` and `flips` are shares of).
+    play_takes: u32,
     quick_ends: u32,
     flips: u32,
     next_sample: u32,
@@ -303,6 +305,7 @@ impl FightTally {
             return;
         };
         let what = rest.split(" (score").next().unwrap_or(rest).to_owned();
+        self.play_takes += 1;
         let list = self.takes.entry(note.place).or_default();
         if let Some((_, at)) = list.last()
             && note.time < at + 1_000
@@ -478,7 +481,7 @@ impl FightTally {
         let off_median = offs.get(offs.len() / 2).copied().unwrap_or(0.0);
         let bands: Vec<String> = self.band.iter().map(Count::text).collect();
         format!(
-            "fight: episodes {} farther {} never {}; close {} engaged<=1s {} median_ms {} never {}; standoffs {}; exposed {} not_facing {}; quick_ends {} flips {}; team kills {:?} deaths {:?}\n  \
+            "fight: episodes {} farther {} never {}; close {} engaged<=1s {} median_ms {} never {}; standoffs {}; exposed {} not_facing {}; quick_ends {} flips {} of takes {}; team kills {:?} deaths {:?}\n  \
              shots: bands(<10,<20,<35,<60,60+) {}; still hip {} still aim {} moving hip {} moving aim {}; crouched {}; first3 {} later {}; line on body {} off median {:.1} deg; aim hip {} aiming-in {} aimed-in {} cone mean {:.2} deg\n  \
              grenades: thrown {} held back {}; at the blasts teammates within 3/6/10 m {} {} {}; the thrower within 6/10 m {} {}
              ranges ({} m bins): {}; hits taken by team {:?} {:?}; deaths by team {:?} {:?}; at the target {} shots, {} into a wall, {} with nothing of him showing; by team {:?} {:?} {:?}",
@@ -494,6 +497,7 @@ impl FightTally {
             self.not_facing,
             self.quick_ends,
             self.flips,
+            self.play_takes,
             kills,
             deaths,
             bands.join(" | "),
