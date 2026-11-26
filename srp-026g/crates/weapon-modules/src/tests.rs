@@ -317,6 +317,11 @@ fn dict(module: usize) -> Option<DictId> {
     DictId::new(modules()[module].dict)
 }
 
+/// A scope on its first way.
+fn top(module: usize) -> Option<(DictId, Mount)> {
+    dict(module).map(|dict| (dict, Mount::default()))
+}
+
 fn right(module: usize) -> Option<(DictId, Side)> {
     dict(module).map(|dict| (dict, Side::Right))
 }
@@ -427,7 +432,7 @@ fn a_scope_folds_the_sights() {
     hk.slots.iter_mut().find(|(slot, _, _)| *slot == S::BodyAim).unwrap().2 = donor_eye;
     let bytes = encode(&data).unwrap();
     let table = Table::parse(&bytes).unwrap();
-    with(&table, HK416, Wanted { scope: dict(EOTECH), ..Wanted::default() }, |bare| {
+    with(&table, HK416, Wanted { scope: top(EOTECH), ..Wanted::default() }, |bare| {
         assert_eq!(models(&bare), ["hk416_a5_rear_ironsight_off", "hk416_a5_front_ironsight_off", "hk416a5_i05x28_muzzlebrake"]);
         // on the gun's own long rail, the second slot the optic names
         let optic = bare.optic.unwrap();
@@ -520,7 +525,7 @@ fn a_rail_optic_brings_its_rail_and_never_moves_for_a_grip() {
     let bytes = encode(&source()).unwrap();
     let table = Table::parse(&bytes).unwrap();
     let mut alone = None;
-    with(&table, AK_74M, Wanted { scope: dict(EOTECH), ..Wanted::default() }, |bare| {
+    with(&table, AK_74M, Wanted { scope: top(EOTECH), ..Wanted::default() }, |bare| {
         assert_eq!(models(&bare), ["ak74_m24x15_muzzlebrake", "ak74_plastic_forend", "custom_dovetail_01_picatinnyrail"]);
         let rail = bare.parts().last().unwrap();
         assert_eq!(bare.optic.unwrap().frame, rail.at.child(&locator(10)));
@@ -530,7 +535,7 @@ fn a_rail_optic_brings_its_rail_and_never_moves_for_a_grip() {
     });
     // everything at once: the forend the grip brings has a scope rail of its
     // own, and the optic stays where it was
-    let all = Wanted { scope: dict(EOTECH), muzzle: dict(DTK3), grip: dict(MIKI), second_sight: None };
+    let all = Wanted { scope: top(EOTECH), muzzle: dict(DTK3), grip: dict(MIKI), second_sight: None };
     with(&table, AK_74M, all, |bare| {
         assert_eq!(
             models(&bare),
@@ -539,7 +544,7 @@ fn a_rail_optic_brings_its_rail_and_never_moves_for_a_grip() {
         assert_eq!(bare.optic.map(|optic| optic.frame), alone);
     });
     // a dovetail scope needs no rail
-    with(&table, AK_74M, Wanted { scope: dict(PSO1), ..Wanted::default() }, |bare| {
+    with(&table, AK_74M, Wanted { scope: top(PSO1), ..Wanted::default() }, |bare| {
         assert_eq!(bare.optic.unwrap().frame, on_offset(locator(30)));
         assert_eq!(bare.parts().count(), 2);
     });
@@ -568,7 +573,7 @@ fn an_unfit_pair_is_refused() {
     // a choke of the M22x0.75 thread: 0.69d0 links it to no AK
     assert_eq!(refusal(&table, AK_74M, Wanted { muzzle: dict(CHOKE), ..Wanted::default() }), Refusal::NoFit(Kind::Muzzle));
     // a grip is no scope
-    assert_eq!(refusal(&table, AK_74M, Wanted { scope: dict(MIKI), ..Wanted::default() }), Refusal::NoFit(Kind::Scope));
+    assert_eq!(refusal(&table, AK_74M, Wanted { scope: top(MIKI), ..Wanted::default() }), Refusal::NoFit(Kind::Scope));
     // the gun's own brake is not fitted by a player
     assert_eq!(refusal(&table, AK_74M, Wanted { muzzle: dict(AK_BRAKE), ..Wanted::default() }), Refusal::NoFit(Kind::Muzzle));
     assert_eq!(refusal(&table, HK416, Wanted { muzzle: dict(DTK3), ..Wanted::default() }), Refusal::NoFit(Kind::Muzzle));
@@ -674,7 +679,7 @@ fn optic_before_the_eye(frame: &Placement, eye: &Placement, bones: &impl Fn(Bone
 fn the_eye_is_fixed_to_the_optic_or_to_the_guns_idle_pose() {
     let bytes = encode(&source()).unwrap();
     let table = Table::parse(&bytes).unwrap();
-    with(&table, AK_74M, Wanted { scope: dict(EOTECH), ..Wanted::default() }, |bare| {
+    with(&table, AK_74M, Wanted { scope: top(EOTECH), ..Wanted::default() }, |bare| {
         let (frame, eye) = (bare.optic.unwrap().frame, bare.eye.unwrap());
         let idle = bones(&Affine::IDENTITY, &Affine::IDENTITY);
         let kicked = bones(&locator(50), &Affine::translation(0.0, 0.01, -0.03));
@@ -724,7 +729,7 @@ fn the_idle_pose_anchor_shows_the_kick_and_agrees_with_patch_165() {
         source.guns[0].aim_bone = aim_bone;
         let bytes = encode(&source).unwrap();
         let table = Table::parse(&bytes).unwrap();
-        with(&table, AK_74M, Wanted { scope: dict(EOTECH), ..Wanted::default() }, |bare| {
+        with(&table, AK_74M, Wanted { scope: top(EOTECH), ..Wanted::default() }, |bare| {
             let (frame, eye) = (bare.optic.unwrap().frame, bare.eye.unwrap());
             let (rest, kicked) = (bones(&Affine::IDENTITY, &Affine::IDENTITY), bones(&Affine::IDENTITY, &kick));
             let (on_optic, on_idle) = (eye.placed(EyeAnchor::Optic), eye.placed(EyeAnchor::GunIdle));
@@ -831,7 +836,7 @@ fn no_bytes_panic_the_parse() {
         for gun in table.guns() {
             for module in gun.fits() {
                 let dict = Some(module.dict());
-                let wanted = Wanted { scope: dict, muzzle: dict, grip: dict, second_sight: dict.map(|dict| (dict, Side::Right)) };
+                let wanted = Wanted { scope: dict.map(|dict| (dict, Mount::default())), muzzle: dict, grip: dict, second_sight: dict.map(|dict| (dict, Side::Right)) };
                 let _ = resolve(gun, wanted);
             }
         }
@@ -909,7 +914,7 @@ fn the_samples_loadouts_are_pinned() {
         };
         writeln!(out, "case\t{gun}\t{}\t{}\t{}\t{}\t{side}", id(scope), id(muzzle), id(grip), id(second_sight.map(|(dict, _)| dict))).unwrap();
         let gun = table.gun(DictId::new(gun).unwrap()).unwrap();
-        let bare = match resolve(gun, Wanted { scope, muzzle, grip, second_sight }) {
+        let bare = match resolve(gun, Wanted { scope: scope.map(|dict| (dict, Mount::default())), muzzle, grip, second_sight }) {
             Ok(Loadout::Whole) => {
                 out.push_str("whole\n");
                 continue;
@@ -1011,7 +1016,7 @@ fn a_second_sight_brings_its_offset_rail_and_a_second_eye() {
     // with a scope on top: the scope's eye is the eye, the second sight stands where it stood
     let mut alone = None;
     with(&table, HK416, side, |bare| alone = bare.second.map(|second| (second.at, second.eye)));
-    with(&table, HK416, Wanted { scope: dict(EOTECH), grip: dict(MIKI), ..side }, |bare| {
+    with(&table, HK416, Wanted { scope: top(EOTECH), grip: dict(MIKI), ..side }, |bare| {
         let optic = bare.optic.unwrap();
         assert_eq!(bare.eye.unwrap().placed(EyeAnchor::Optic), optic.frame.child(&locator(12)));
         assert_eq!(bare.second.map(|second| (second.at, second.eye)), alone);
@@ -1029,13 +1034,13 @@ fn a_second_sight_needs_its_angled_rail() {
     // the AK-74M takes none
     assert_eq!(refusal(&table, AK_74M, side), Refusal::NoFit(Kind::SecondSight));
     // a second sight is no scope, and a scope no second sight
-    assert_eq!(refusal(&table, FN_FNC, Wanted { scope: dict(DPPRO_SIDE), ..Wanted::default() }), Refusal::NoFit(Kind::Scope));
+    assert_eq!(refusal(&table, FN_FNC, Wanted { scope: top(DPPRO_SIDE), ..Wanted::default() }), Refusal::NoFit(Kind::Scope));
     assert_eq!(refusal(&table, HK416, Wanted { second_sight: right(EOTECH), ..Wanted::default() }), Refusal::NoFit(Kind::SecondSight));
     // a second sight without its eye is no table
     let module = |fault| Malformed::Module { module: DPPRO_SIDE as u16, fault };
     assert_eq!(refused(|s| s.modules[DPPRO_SIDE].attaches[0].eye = None), module(ModuleFault::NoEye(S::AngledCollimShortL)));
     // one optic, a scope and a second sight at once: two items of one dict id
-    let both = Wanted { scope: dict(DPPRO_TOP), second_sight: right(DPPRO_SIDE), ..Wanted::default() };
+    let both = Wanted { scope: top(DPPRO_TOP), second_sight: right(DPPRO_SIDE), ..Wanted::default() };
     with(&table, HK416, both, |bare| {
         assert_eq!(bare.optic.unwrap().module.role(), Role::Fitted(Kind::Scope));
         assert_eq!(bare.second.unwrap().module.role(), Role::Fitted(Kind::SecondSight));
@@ -1047,6 +1052,41 @@ fn a_second_sight_needs_its_angled_rail() {
         s.guns[at].fits.push(DPPRO_SIDE);
     });
     assert!(matches!(twice, Malformed::Gun { fault: GunFault::FitTwice(dict), .. } if dict.get() == DPPRO_DICT));
+}
+
+/// A scope whose module names two slots the gun offers takes the first
+/// unless the player chose the other; a way the gun lacks is refused.
+#[test]
+fn a_scope_goes_on_by_its_chosen_way() {
+    let mut source = source();
+    // the AK-74M with its tactical forend's handguard rail as a second way for the EOTech
+    source.guns[0].carriers.push((S::PicatinnyScopeHandguard, vec![(MIDWEST, S::Forend)]));
+    let bytes = encode(&source).unwrap();
+    let table = Table::parse(&bytes).unwrap();
+    let ak = table.gun(DictId::new(AK_74M).unwrap()).unwrap();
+    let eotech = dict(EOTECH).unwrap();
+    let ways: Vec<_> = mounts(ak, eotech).iter().map(|(mount, slot)| (mount.index(), slot)).collect();
+    assert_eq!(ways, [(0, S::PicatinnyScopeMedium), (1, S::PicatinnyScopeHandguard)]);
+    // one way: the PSO-1 on its dovetail; none for a module the gun does not take as a scope
+    assert_eq!(mounts(ak, dict(PSO1).unwrap()).len(), 1);
+    assert!(mounts(ak, dict(MIKI).unwrap()).is_empty());
+    let on = |index| Wanted { scope: Some((eotech, Mount::new(index).unwrap())), ..Wanted::default() };
+    // the first: on the dovetail's rail, as with nothing chosen
+    with(&table, AK_74M, on(0), |bare| {
+        assert_eq!(bare.optic.unwrap().frame, on_offset(locator(30)).child(&locator(10)));
+        assert!(models(&bare).iter().any(|model| model.ends_with("custom_dovetail_01_picatinnyrail")));
+    });
+    // the second: on the tactical forend's rail, the dovetail's rail not drawn, the eye the optic's there
+    with(&table, AK_74M, on(1), |bare| {
+        let optic = bare.optic.unwrap();
+        assert_eq!(optic.frame, on_offset(locator(31)).child(&locator(6)));
+        assert_eq!(bare.eye.unwrap().placed(EyeAnchor::Optic), optic.frame.child(&locator(12)));
+        let models = models(&bare);
+        assert!(models.iter().any(|model| model.ends_with("ak_midwest_extended_tactical_forend")));
+        assert!(!models.iter().any(|model| model.ends_with("custom_dovetail_01_picatinnyrail")));
+    });
+    assert_eq!(refusal(&table, AK_74M, on(2)), Refusal::NoMount);
+    assert_eq!(Mount::new(4), None);
 }
 
 /// A version 3 table (`tests/sample-v3.srpm`, the format before second
@@ -1126,12 +1166,17 @@ fn the_shipped_table() {
     for gun in table.guns() {
         let id = gun.dict().get();
         for module in gun.fits().filter(|module| module.role() == Role::Fitted(Kind::Scope)) {
-            let wanted = Wanted { scope: Some(module.dict()), ..Wanted::default() };
-            assert!(
-                matches!(resolve(gun, wanted), Ok(Loadout::Bare(bare)) if bare.eye.is_some() && bare.optic.is_some()),
-                "gun {id}, scope {}",
-                module.dict().get()
-            );
+            let ways = mounts(gun, module.dict());
+            assert!(!ways.is_empty(), "gun {id}, scope {}: no way", module.dict().get());
+            for (mount, _) in ways.iter() {
+                let wanted = Wanted { scope: Some((module.dict(), mount)), ..Wanted::default() };
+                assert!(
+                    matches!(resolve(gun, wanted), Ok(Loadout::Bare(bare)) if bare.eye.is_some() && bare.optic.is_some()),
+                    "gun {id}, scope {}, way {}",
+                    module.dict().get(),
+                    mount.index()
+                );
+            }
         }
         assert!(gun.stock().all(|(slot, module)| module.attach(slot).and_then(|attach| attach.eye()).is_none()), "gun {id}: a stock eye");
         let along = iron_sights(gun).unwrap_or_else(|| panic!("gun {id}: no eye plane its iron sights meet"));

@@ -10,7 +10,7 @@
 //! those releases read) and never again: [`parse`] reads it.
 
 use super::super::dictionary::Dictionary;
-use super::super::weapon_modules::{Fitted, Modules, Unfit};
+use super::super::weapon_modules::{Fitted, Modules, Mount, Unfit};
 use super::SCOPE_CATEGORY;
 
 /// One released pair: the variant a weapon showed a scope item by, each
@@ -82,7 +82,7 @@ impl Candidate<'_> {
             return Some(format!("scope {scope} `{scope_name}` is not sold"));
         }
         let fitted = Fitted {
-            scope: Some(*scope),
+            scope: Some((*scope, Mount::default())),
             ..Fitted::default()
         };
         match self.modules.check(*weapon, fitted) {

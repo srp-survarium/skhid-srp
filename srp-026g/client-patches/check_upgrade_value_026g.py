@@ -33,10 +33,13 @@ record's upgrade records' vector at +60h):
   (send_apply_decal's own write put the bare value into the record of that
   id: patched over), the other records as they were; copy_account_items run
   after; the movie's ids as GFx uints, ints and Numbers alike;
-- a value 2 (and 0xFFFFFFFF): nothing sent, one log line naming the value at
-  the first only; an upgrade the host does not hold, a host the inventory
-  lacks, an item with no second sight, a string argument, too few
-  arguments: nothing sent;
+- srp_set_upgrade_value(host, scope, 1) for the weapon whose kit is its
+  scope's: the same request, the kit then with the scope's way 1 in bits
+  52..53 and its second sight's side as it was (docs/notes/scope-mounts.md);
+- a value 2 for a second sight, 4 for a scope (and 0xFFFFFFFF): nothing sent,
+  one log line naming the value at the first only; an upgrade the host does
+  not hold, a host the inventory lacks, an item with no scope or second
+  sight, a string argument, too few arguments: nothing sent;
 - each of them returns as the function does (`ret 10h`, EBX, ESI, EDI and
   EBP as at the entry, EAX 1) without the native dispatch, which the original
   reaches for each (the menu's logic and the event {movie, name, arguments,
@@ -72,9 +75,10 @@ A, B, C, SIGHT_A, SIGHT_B, SCOPE_B, DECAL_B, DECAL_C = 1001, 1002, 1003, 72, 71,
 WIDE = 0xA8 << 56
 
 
-def kit(own, side, sight=0):
-    """A wide kit value: its own slot, the second sight's side, the second sight's dict id named."""
-    return WIDE | own << 48 | side << 55 | sight << 36
+def kit(own, side, sight=0, way=0):
+    """A wide kit value: its own slot, the second sight's side, the second sight's dict id named, the
+    scope's way (its own a scope)."""
+    return WIDE | own << 48 | side << 55 | sight << 36 | way << 52
 
 
 def inventory(side_a=0, side_b=1):
@@ -249,7 +253,7 @@ def main():
     # (what, the inventory's sides (A, B), the arguments, the request wanted (host, upgrade, value) or
     # None, the host's records after (None: as they were))
     a_kit = lambda side: [(SIGHT_A, RED_DOT, kit(6, side), 3)]
-    b_kit = lambda side: [(DECAL_B, DECAL, 0x1234567890, 0), (SCOPE_B, OPTIC, kit(3, side, RED_DOT), 3)]
+    b_kit = lambda side, way=0: [(DECAL_B, DECAL, 0x1234567890, 0), (SCOPE_B, OPTIC, kit(3, side, RED_DOT, way), 3)]
     cases = [
         ("A (the second sight its kit's own) to the right", (0, 1), (uint(A), uint(SIGHT_A), uint(1)),
          (A, SIGHT_A, 1), (A, a_kit(1))),
@@ -268,8 +272,9 @@ def main():
         ("a Number 0.5: nothing sent", (0, 1), (uint(A), uint(SIGHT_A), (GFX_NUMBER, 0.5)), None, None),
         ("an int -1 as the value: nothing sent", (0, 1), (uint(A), uint(SIGHT_A), (GFX_INT, -1)), None, None),
         ("B's second sight on A: nothing sent", (0, 1), (uint(A), uint(SIGHT_B), uint(1)), None, None),
-        ("A's scope item as B's second sight (its scope, not its sight): nothing sent", (0, 1),
-         (uint(B), uint(SCOPE_B), uint(0)), None, None),
+        ("B's scope (its kit's own) on its second way, its second sight kept on the right", (0, 1),
+         (uint(B), uint(SCOPE_B), uint(1)), (B, SCOPE_B, 1), (B, b_kit(1, 1))),
+        ("B's scope on a way 4: nothing sent", (0, 1), (uint(B), uint(SCOPE_B), uint(4)), None, None),
         ("a host the inventory lacks: nothing sent", (0, 1), (uint(999), uint(SIGHT_A), uint(1)), None, None),
         ("an upgrade the inventory lacks: nothing sent", (0, 1), (uint(A), uint(998), uint(1)), None, None),
         ("C, armour with a decal: nothing sent", (0, 1), (uint(C), uint(DECAL_C), uint(1)), None, None),
@@ -293,7 +298,7 @@ def main():
                 and applied == [(LOBBY, KIT, host, upgrade, value, 0)] and copies == [LOBBY, LOBBY] \
                 and ours.records(after[0]) == after[1] \
                 and all(ours.records(i) == stock.records(i) for i in (A, B, C) if i != after[0])
-        said = [line for line in lines if "is no side" in line]
+        said = [line for line in lines if "is not its slot's" in line]
         side_lines += len(said)
         report(ok and native(a, len(arguments)),
                f"{what}: {'request ' + sent[0][1].hex(' ') if sent else 'nothing sent'}"

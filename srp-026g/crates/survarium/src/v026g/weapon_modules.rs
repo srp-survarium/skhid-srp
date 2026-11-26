@@ -22,7 +22,7 @@
 use std::sync::OnceLock;
 
 use weapon_modules::{DictId, Malformed, Table, Wanted, resolve};
-pub use weapon_modules::{Kind, Refusal, Side};
+pub use weapon_modules::{Kind, Mount, Refusal, Side};
 
 use super::game_data::{self, GameData};
 use super::scopes::SCOPE_SLOT;
@@ -60,6 +60,17 @@ pub fn side_value(side: Side) -> u64 {
     }
 }
 
+/// A scope's way onto its gun by its record's value (the kit's
+/// [`weapon_kit::Mount`]); None for a value that is no way.
+pub fn mount_of(value: u64) -> Option<Mount> {
+    weapon_kit::Mount::of_value(value).and_then(|mount| Mount::new(mount.index()))
+}
+
+/// A scope's record value for `mount`.
+pub fn mount_value(mount: Mount) -> u64 {
+    u64::from(mount.index())
+}
+
 /// The kind a weapon's kit slot holds, for the four that hold a module.
 pub fn kind_of_slot(slot: u8) -> Option<Kind> {
     Kind::ALL.into_iter().find(|&kind| slot_of(kind) == slot)
@@ -67,11 +78,11 @@ pub fn kind_of_slot(slot: u8) -> Option<Kind> {
 
 /// What a weapon holds, or would hold, in its kit's slots 3, 4, 5 and 6:
 /// each a module's dict id (the record's own, what its item's modification
-/// sets `srp_scope`, `srp_muzzle` or `srp_grip` to), and the second sight's
-/// side.
+/// sets `srp_scope`, `srp_muzzle` or `srp_grip` to), the scope's way and
+/// the second sight's side.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct Fitted {
-    pub scope: Option<u16>,
+    pub scope: Option<(u16, Mount)>,
     pub muzzle: Option<u16>,
     pub grip: Option<u16>,
     pub second_sight: Option<(u16, Side)>,
@@ -80,18 +91,22 @@ pub struct Fitted {
 impl Fitted {
     pub fn of(&self, kind: Kind) -> Option<u16> {
         match kind {
-            Kind::Scope => self.scope,
+            Kind::Scope => self.scope.map(|(module, _)| module),
             Kind::Muzzle => self.muzzle,
             Kind::Grip => self.grip,
             Kind::SecondSight => self.second_sight.map(|(module, _)| module),
         }
     }
 
-    /// This, with `module` (or nothing) as its `kind`; a second sight keeps
-    /// the side it had, the left one for a new one.
+    /// This, with `module` (or nothing) as its `kind`; the same scope keeps
+    /// the way it had (another takes the first), a second sight the side it
+    /// had (the left one for a new one).
     pub fn with(mut self, kind: Kind, module: Option<u16>) -> Fitted {
         match kind {
-            Kind::Scope => self.scope = module,
+            Kind::Scope => {
+                let mount = self.scope.filter(|(had, _)| Some(*had) == module).map_or(Mount::default(), |(_, mount)| mount);
+                self.scope = module.map(|module| (module, mount));
+            }
             Kind::Muzzle => self.muzzle = module,
             Kind::Grip => self.grip = module,
             Kind::SecondSight => {
@@ -99,6 +114,12 @@ impl Fitted {
                 self.second_sight = module.map(|module| (module, side));
             }
         }
+        self
+    }
+
+    /// This, with its scope (if any) on its way `mount`.
+    pub fn on_mount(mut self, mount: Mount) -> Fitted {
+        self.scope = self.scope.map(|(module, _)| (module, mount));
         self
     }
 
@@ -235,7 +256,7 @@ impl Modules {
             let Some(module) = fitted.of(kind) else { continue };
             let dict = DictId::new(module).ok_or(Unfit::Refused(Refusal::NoFit(kind)))?;
             match kind {
-                Kind::Scope => wanted.scope = Some(dict),
+                Kind::Scope => wanted.scope = fitted.scope.map(|(_, mount)| (dict, mount)),
                 Kind::Muzzle => wanted.muzzle = Some(dict),
                 Kind::Grip => wanted.grip = Some(dict),
                 Kind::SecondSight => wanted.second_sight = fitted.second_sight.map(|(_, side)| (dict, side)),
@@ -351,7 +372,7 @@ mod tests {
     #[test]
     fn the_check_is_the_guns_own_rules() {
         let modules = sample();
-        let all = Fitted { scope: Some(PSO1), muzzle: Some(DTK3), grip: Some(MIKI), second_sight: None };
+        let all = Fitted { scope: Some((PSO1, Mount::default())), muzzle: Some(DTK3), grip: Some(MIKI), second_sight: None };
         assert_eq!(modules.check(AK, all), Ok(()));
         assert_eq!(modules.check(AK, Fitted::default()), Ok(()));
         // nothing fitted is fine on anything; something on no gun is not

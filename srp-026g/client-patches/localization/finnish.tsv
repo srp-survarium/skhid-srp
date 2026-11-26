@@ -4215,6 +4215,10 @@ st_srp_mode_roulette_high	FFA: Ruletti
 st_srp_mode_roulette_low	FFA: Ruletti
 st_srp_mode_roulette_mid	FFA: Ruletti
 st_srp_mode_team_deathmatch	Joukkuetaistelu
+st_srp_mount_barrel	Piippu
+st_srp_mount_gas_tube	Kaasuputki
+st_srp_mount_handguard	Etutukki
+st_srp_mount_receiver	Runko
 st_srp_mouse_lock_option	Lukitse pystyherkkyys
 st_srp_mouse_vertical_option	Pystyherkkyys
 st_srp_muzzle_slot	Piipun suulaite

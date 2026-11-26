@@ -46,9 +46,12 @@ A weapon's upgrades are kept by the server in **logical slots**, one upgrade a s
 bits  0..15  the camouflage's dict id (0: none, or it is the kit's own)
 bits 16..31  the muzzle device's
 bits 32..47  the grip's
-bits 48..55  the kit's own logical slot (2, 3, 4 or 5)
+bits 48..51  the kit's own logical slot (2, 3, 4 or 5)
+bits 52..53  the scope's way onto its gun when the scope is the kit's own (0 the first; scope-mounts.md)
 bits 56..63  0xA7, the kit's mark
 ```
+
+The wide kit of a second sight (0xA8, second-sights.md) has the scope's way in the same bits 52..53.
 
 - A weapon is sent at most three records whatever it holds. Armour is sent as before.
 - A record is a kit only in record slot 3 with 0xA7 on top. **Malformed** (refused by the server's

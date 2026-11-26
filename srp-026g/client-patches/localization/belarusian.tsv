@@ -4215,6 +4215,10 @@ st_srp_mode_roulette_high	FFA: Рулетка
 st_srp_mode_roulette_low	FFA: Рулетка
 st_srp_mode_roulette_mid	FFA: Рулетка
 st_srp_mode_team_deathmatch	Камандны бой
+st_srp_mount_barrel	Ствол
+st_srp_mount_gas_tube	Газаадвод
+st_srp_mount_handguard	Цаўё
+st_srp_mount_receiver	Каробка
 st_srp_mouse_lock_option	Зафіксаваць вертыкальную адчувальнасць
 st_srp_mouse_vertical_option	Вертыкальная адчувальнасць
 st_srp_muzzle_slot	Дульная прылада

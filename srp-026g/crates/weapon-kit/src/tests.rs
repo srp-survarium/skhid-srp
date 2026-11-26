@@ -168,11 +168,11 @@ fn a_second_sight_makes_the_kit_wide() {
     let expanded = expand(&[right], |dict| dict != SECOND_SIGHT_ITEM).unwrap().unwrap();
     assert!(expanded.as_slice().iter().all(|r| r.slot != 6) && expanded.as_slice().len() == 4);
     // refused: a narrow kit of its own slot 6, a wide one without a second
-    // sight, bits 52..54 set, a second sight's record of another value
+    // sight, bit 54 set, a second sight's record of another value
     for (records, why) in [
         (vec![record(1606, 606, MAGIC | 6 << 48, 3)], Malformed::OwnSlot(6)),
         (vec![kit(WIDE | 3 << 48 | 602)], Malformed::OwnSlot(3)),
-        (vec![kit(WIDE | 0x13 << 48 | 606 << 36)], Malformed::OwnSlot(0x13)),
+        (vec![kit(WIDE | 0x43 << 48 | 606 << 36)], Malformed::OwnSlot(0x43)),
         (vec![record(1606, 606, 2, 6)], Malformed::NoSide(2)),
     ] {
         assert_eq!(Logical::unpack(&records), Err(why), "{records:?}");
@@ -383,4 +383,37 @@ fn the_same_decal_twice_is_a_weapons() {
     assert_eq!(logical.pack().as_slice(), records);
     let expanded = expand(&records, |_| true).unwrap().unwrap();
     assert_eq!(expanded.as_slice().len(), 4);
+}
+
+/// A scope's way is its record's value: the kit carries it in bits 52..53
+/// in either layout, the cook gets it as the scope record's value; the first
+/// way is the kit of before.
+#[test]
+fn a_scopes_way_rides_in_the_kit() {
+    let mut logical = Logical::new();
+    logical.set(Slot::Scope, Some(Held::Item { id: 1603, dict: 603, value: 1 }));
+    logical.set(Slot::Muzzle, Some(item(Slot::Muzzle)));
+    let narrow = record(1603, 603, MAGIC | 0x13 << 48 | 604 << 16, 3);
+    assert_eq!(logical.pack().as_slice(), [narrow]);
+    assert_eq!(Logical::unpack(&[narrow]).unwrap(), logical);
+    assert_eq!(Kit::of(&narrow).unwrap().unwrap().mount(), Mount::of_value(1).unwrap());
+    let expanded = expand(&[narrow], |_| true).unwrap().unwrap();
+    assert_eq!(expanded.as_slice(), [record(1603, 603, 1, 3), record(0, 604, 0, 4)]);
+    // with a second sight on the right: the wide kit, its side and the way
+    logical.put_second_sight(1606, 606, Side::Right);
+    let wide = record(1603, 603, WIDE | 0x93 << 48 | 606 << 36 | 604 << 12, 3);
+    assert_eq!(logical.pack().as_slice(), [wide]);
+    assert_eq!(Logical::unpack(&[wide]).unwrap().get(Slot::Scope), Some(Held::Item { id: 1603, dict: 603, value: 1 }));
+    // the first way: the kit of before
+    let mut first = Logical::new();
+    first.put(Slot::Scope, 1603, 603);
+    assert_eq!(first.pack().as_slice(), [record(1603, 603, MAGIC | 3 << 48, 3)]);
+    // the same scope put on again keeps its way
+    logical.put(Slot::Scope, 1603, 603);
+    assert_eq!(logical.get(Slot::Scope).map(|held| held.value()), Some(1));
+    // refused: a way with no scope the kit's own, a scope's record of no way
+    let camo = record(1602, 602, MAGIC | 0x12 << 48, 3);
+    assert_eq!(Logical::unpack(&[camo]), Err(Malformed::NoMount(1)));
+    assert_eq!(Logical::unpack(&[record(1603, 603, 4, 3)]), Err(Malformed::NoMount(4)));
+    assert_eq!(Mount::of_value(4), None);
 }
