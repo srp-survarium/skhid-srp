@@ -772,11 +772,11 @@ rules, spawns, pay and results, every kit's guns changed by the server.
     every kit and slot that held it (the second slot takes it: assault rifles fit slot 10), with
     the EOTech 552 sight on it and no other modification or upgrade (the owner, 2026-11-14: "also
     for ak-12, people should have eotech collimator set on replaced weapons"). The sight is the
-    shop's `shop_scope_eotech_552`, on the gun by the variant the game data makes for it
-    (`fit_ak_12_eotech_552`, `fit_ak_74n_eotech_552`, `ScopeFits::variant`): the gun's one scope
+    shop's `shop_scope_eotech_552`, on the gun when the game data's modules table fits it to the gun
+    (`Modules::kind`, in `racket::Arms::of`): the gun's one scope
     record in slot 3, packed as an owned scope's (`weapon_scopes.md`, `weapon-kit.md`), its item
     id none of the profile's (an owned scope is in no kit either). Nobody needs to own one.
-    Without that variant in the data the gun goes bare; nothing refuses such data (the owner,
+    Without that fit in the data the gun goes bare; nothing refuses such data (the owner,
     2026-11-14: "since it is just enforced the behvaiour", "not correctness").
   - Its ammo, the simplest way (the owner, 2026-11-14: "make it the simplest way"): in each kit
     that held a replaced gun, every ammo slot whose ammo none of the kit's guns fires now is

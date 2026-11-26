@@ -85,6 +85,9 @@ what isn't").
 
 ## A failed upgrade
 
+Replaced on 2026-11-08 by "Always a success; the window" below: an upgrade no longer fails, and
+the window's `removeFailureRow` became `removeChancePanel`. As it was:
+
 The owner's rule: 2026-10-23 ("remove chance for bonus removal during combination"; players called
 the silver upgrade's 67.5 % chance to lose a modification too harsh).
 
