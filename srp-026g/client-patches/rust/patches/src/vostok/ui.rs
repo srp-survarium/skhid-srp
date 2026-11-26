@@ -77,6 +77,16 @@ pub struct GameWorldUi<'t> {
 }
 
 impl<'t> GameWorldUi<'t> {
+    /// The hud a site of `vostok` holds, alive on the hook's thread for `'t`.
+    pub(super) fn of(this: raw::GameWorldUi, _: &'t Thread) -> GameWorldUi<'t> {
+        GameWorldUi { this, thread: PhantomData }
+    }
+
+    /// Its handle, for `vostok`'s own reads.
+    pub(super) fn raw(&self) -> raw::GameWorldUi {
+        self.this
+    }
+
     /// The hud's game world (+18h).
     pub fn game_world(&self, thread: &'t Thread) -> Option<super::world::GameWorld<'t>> {
         // SAFETY: the live ui's world, alive while the hud is.
@@ -296,7 +306,41 @@ pub(super) unsafe fn string_argument<'a>(values: Option<raw::GfxValue>, count: u
     }
 }
 
+/// `object`'s member `name` is the uint `value` (SetMember of the AS3 object interface,
+/// 0x7C6A20); false when the value is no AS3 movie's object (nothing set) or the movie refused.
+///
+/// # Safety
+/// `object` is a live GFx value of a movie on the hook's thread.
+pub(super) unsafe fn set_uint_member(object: raw::GfxValue, name: &CStr, value: u32) -> bool {
+    let mut room = raw::GfxValueStorage::zeroed();
+    let given = room.handle();
+    // SAFETY: the caller's live value; its interface is called only when its vtable is the AS3
+    // interface's, whose SetMember 0x7C6A20 is that slot; the name a C string; the value ours, a
+    // uint.
+    unsafe {
+        let Some(interface) = object.interface() else { return false };
+        if *interface.vtable() != raw::image::AS3_OBJECT_INTERFACE {
+            return false;
+        }
+        *given.kind() = GFX_UINT;
+        *given.value() = value;
+        let display = u32::from(*object.kind() & 0x8F == 0x0A);
+        raw::engine_gfx_set_member(Some(interface), object.object(), name.as_ptr().cast(), Some(given), display) != 0
+    }
+}
+
 impl Movie<'_> {
+    /// Invokes the movie's `method` with the one value `value` (the game's own, which it keeps
+    /// and releases); whether the movie took it.
+    ///
+    /// # Safety
+    /// `value` is a live GFx value of this movie.
+    pub(super) unsafe fn invoke_value(&self, method: &CStr, value: raw::GfxValue) -> bool {
+        // SAFETY: a live movie on the hook's thread; the name a C string; the caller's value.
+        let taken = unsafe { raw::engine_movie_invoke(Some(self.this), method.as_ptr().cast(), None, Some(value), 1) };
+        taken & 0xFF != 0
+    }
+
     pub fn invoke_text(&self, method: &CStr, value: &CStr) -> bool {
         self.invoke_strings(method, &[value])
     }

@@ -537,7 +537,7 @@ const VENDOR_INTEL: u32 = 0x8086;
 /// their file names (`VK_LOADER_DRIVERS_SELECT`'s globs): AMD's
 /// `amd-vulkan32.json` (and an older package's `amdvlk32.json`), NVIDIA's
 /// `nv-vk32.json`, Intel's `igvk32.json`. A name not matched is caught by the
-/// look that follows ([`limit_vulkan_drivers`]).
+/// look that follows ([`look_for_dxvk`]).
 pub fn drivers_of(vendor: u32) -> Option<&'static CStr> {
     match vendor {
         VENDOR_AMD => Some(c"amd*"),
@@ -1066,13 +1066,17 @@ pub static SETTINGS: [&Setting; 7] =
 /// three choices, the stock fixed minimap checkbox's label; then the
 /// Graphics tab's Renderer list's two choices, its note (the Language
 /// choice's "Applies after restart."), the Vulkan options' button and its
-/// five options' hints (in the panel's order).
-pub const TEXTS: [&CStr; 15] = [c"st_srp_options_hud", c"st_srp_hide_quests_option", c"st_srp_crosshair_dynamic",
+/// five options' hints (in the panel's order); then the Controls tab's "Key
+/// bindings" button and window (the main menu's SrpKeysWindow) and the
+/// window's five kinds of action.
+pub const TEXTS: [&CStr; 21] = [c"st_srp_options_hud", c"st_srp_hide_quests_option", c"st_srp_crosshair_dynamic",
                                 c"st_srp_crosshair_static", c"st_srp_crosshair_hidden", c"st_srp_static_minimap_option",
                                 c"st_srp_renderer_dx11", c"st_srp_renderer_dxvk", c"st_srp_language_restart",
                                 c"st_srp_vulkan_options", c"st_srp_vulkan_frame_limit_hint", c"st_srp_vulkan_overlay_hint",
                                 c"st_srp_vulkan_low_latency_hint", c"st_srp_vulkan_tear_free_hint",
-                                c"st_srp_vulkan_dedicated_gpu_hint"];
+                                c"st_srp_vulkan_dedicated_gpu_hint", c"st_srp_key_bindings",
+                                c"st_srp_keys_movement", c"st_srp_keys_combat", c"st_srp_keys_items",
+                                c"st_srp_keys_talk", c"st_srp_keys_interface"];
 
 /// The setting the Settings' call names.
 pub fn setting(name: &CStr) -> Option<&'static Setting> {
@@ -1157,6 +1161,9 @@ pub fn on_options_call(ctx: &mut Context<'_>) -> Flow<HudOptionsOnOptionsCallExi
     let Some(call) = OptionsCall::at(ctx) else { return Flow::Continue };
     let thread = ctx.thread();
     let method = call.method();
+    if crate::key_bindings::on_call(&call, method) {
+        return Flow::Exit(HudOptionsOnOptionsCallExit::Done);
+    }
     if method == c"srp_hud_texts" {
         let mut rooms = [[0; 0x200]; TEXTS.len()];
         let mut texts: [&CStr; TEXTS.len()] = [c""; TEXTS.len()];

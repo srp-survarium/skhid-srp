@@ -9,10 +9,15 @@ package survarium.modes
 
    // HUD-local lifetime: joining an old match still gets a full reading interval.
    // Native countdown updates cannot clear this separate label.
+   // Shown only when the match's word says so (root.mode_notice, exe patch 214, told after the hud's
+   // reset at each match's start: the account's first three matches of the mode,
+   // docs/notes/mode_introductions.md); a notice begun waits for it.
    public class ModeNotice extends Sprite
    {
       public static const DISPLAY_MS:int = 10000;
       private var _state:Object = {kind:"inactive"};
+      // This match's word: "unknown" until told, then "shown" or "skipped" until the next reset.
+      private var _word:String = "unknown";
       public var label:TextField = new TextField();
       public var layoutData:LayoutData;
 
@@ -42,26 +47,48 @@ package survarium.modes
             _state = {kind:"waiting",mode:mode};
       }
 
+      // A new match: no notice, and no word yet.
       public function reset() : void
+      {
+         _word = "unknown";
+         stop();
+      }
+
+      // The match's word, once (a late join's rebuild tells it again: the same).
+      public function tell(shown:Boolean) : void
+      {
+         if(_word == "unknown")
+            _word = shown ? "shown" : "skipped";
+      }
+
+      private function stop() : void
       {
          _state = {kind:"inactive"};
          label.text = "";
          visible = false;
       }
 
+      // Reset only while it is `mode`'s notice: another mode's goes on (Blackout unforced at a Freeze
+      // Tag match's start, another game type after Freeze Tag's).
+      public function cancel(mode:String) : void
+      {
+         if(_state.mode == mode)
+            stop();
+      }
+
       public function update(now:int, ready:Boolean, countdown:Boolean) : void
       {
-         if(_state.kind == "waiting" && ready && ModeIntroText.ready(_state.mode))
+         if(_state.kind == "waiting" && ready && _word == "shown" && ModeIntroText.ready(_state.mode))
          {
             label.text = ModeIntroText.start(_state.mode);
-            _state = countdown ? {kind:"countdown"} : {kind:"showing",until:now + DISPLAY_MS};
+            _state = countdown ? {kind:"countdown",mode:_state.mode} : {kind:"showing",mode:_state.mode,until:now + DISPLAY_MS};
             visible = true;
          }
          if(_state.kind == "countdown" && !countdown)
-            _state = {kind:"showing",until:now + DISPLAY_MS};
+            _state = {kind:"showing",mode:_state.mode,until:now + DISPLAY_MS};
          if(_state.kind == "showing" && int(now - _state.until) >= 0)
          {
-            _state = {kind:"finished"};
+            _state = {kind:"finished",mode:_state.mode};
             visible = false;
          }
       }

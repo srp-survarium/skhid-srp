@@ -644,17 +644,8 @@ impl<'c, 'm> DeathDelay<'c, 'm> {
     pub fn time(&self) -> u32 {
         self.time
     }
-    /// The delay the native rule computed: its respawn_time with the
-    /// victim's modifier 60, rounded.
-    pub fn delay(&self) -> u32 {
-        self.ctx.reg(Reg::Eax)
-    }
-    /// The mode's respawn_time, ms (rule+114h).
-    pub fn respawn_time(&self) -> u32 {
-        // SAFETY: the live respawn rule's constant.
-        unsafe { read(self.rule.respawn_time()) }
-    }
-    /// The delay the native grid and store then take.
+    /// The delay the native grid and store then take, in place of the
+    /// native rule's (its respawn_time with the victim's modifier 60).
     pub fn set_delay(&mut self, delay: u32) {
         self.ctx.set_reg(Reg::Eax, delay);
     }
@@ -805,14 +796,6 @@ impl HuntWorld<'_> {
         // SAFETY: the live core's time.
         unsafe { read(self.core.time()) }
     }
-}
-
-/// render_name's player at its spotted test of an enemy
-/// (`player_names.enemy_spotted`, ESI).
-pub fn name_enemy<'t>(ctx: &'t Context<'_>) -> Option<Player<'t>> {
-    // SAFETY: render_name's live player.
-    let this = unsafe { raw::site::player_names_enemy_spotted::player(ctx) }?;
-    Some(Player { this, thread: ctx.thread() })
 }
 
 /// update_minimap_players' player at its spotted test of an enemy

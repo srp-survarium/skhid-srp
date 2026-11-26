@@ -15,6 +15,9 @@
 //!    part alters shows its alternative shape, and the eye, the fire point
 //!    and the shot effect are the last part's that sets them, a fitted
 //!    module's over a carrier's over the gun's own.
+//! 5. A second sight's eye is never the eye: it is the second one, which the
+//!    player switches to (0.69d's `aim_3`, `aim_4` beside `aim`), at the
+//!    plane of the gun's own eye as 0.69d's `plane_slot` puts it.
 //!
 //! What cannot be is a [`Refusal`], never a guess.
 //!
@@ -36,27 +39,64 @@ use crate::{AttachEye, DictId, Kind, Role};
 /// the eye to move to it (metres; 0.69d's own bound).
 const PLANE_BEHIND: f32 = -2.0;
 
-/// The step that takes the frame `line` along its own k (its line of sight)
-/// to the plane through `plane`'s origin normal to `plane`'s k, as a
-/// translation in the frames' space; None when it stays: its line runs along
-/// the plane, or the plane is more than 2 m behind it.
-pub(crate) fn slide_to_plane(line: &Affine, plane: &Affine) -> Option<Affine> {
+/// How far the frame `line` goes along its own k (its line of sight) to the
+/// plane through `plane`'s origin normal to `plane`'s k; None when 0.69d
+/// leaves it where it is: its line runs along the plane, or the plane is
+/// more than 2 m behind it.
+pub(crate) fn to_plane(line: &Affine, plane: &Affine) -> Option<f32> {
     let gap = [plane.t[0] - line.t[0], plane.t[1] - line.t[1], plane.t[2] - line.t[2]];
     let along = dot(gap, plane.z) / dot(line.z, plane.z);
-    (along.is_finite() && along >= PLANE_BEHIND)
-        .then(|| Affine::translation(along * line.z[0], along * line.z[1], along * line.z[2]))
+    (along.is_finite() && along >= PLANE_BEHIND).then_some(along)
+}
+
+/// A frame in the gun's aimed idle pose (the model's space).
+fn posed(gun: &Gun<'_>, at: &Placement) -> Option<Affine> {
+    Some(Affine::HALF_TURN.then(&at.offset).then(&gun.pose(at.bone)?))
+}
+
+/// The gun's own iron sights: how far its own eye ([`Gun::own_aim`], which
+/// the game reads with no part moving the eye) goes along its line to the
+/// gun's eye plane, where 0.69d's open sights put the eye (0.69d0's
+/// `ironsight` modules all keep `plane_slot: body_aim`). The game moves
+/// that eye along its line by the gun's `parameters/aim_offset`: the content
+/// gives each gun this (scripts/weapon-modules/iron_sights.py). None for a
+/// gun without an eye plane, or whose line never meets it.
+pub fn iron_sights(gun: Gun<'_>) -> Option<f32> {
+    to_plane(&posed(&gun, &gun.own_aim())?, &posed(&gun, &gun.eye_plane()?)?)
 }
 
 /// The parts of one gun at most: its own, a chain of carriers a kind, the
 /// fitted modules.
 const MAX_PARTS: usize = MAX_STOCK + Kind::ALL.len() * MAX_CHAIN + Kind::ALL.len();
 
-/// What a player fitted, by dict id (the weapon kit's slots 3, 4 and 5).
+/// The side of the gun a second sight goes on (the weapon kit's side of
+/// slot 6): 0.69d's `angled_collim_short_l` or `_r`, on the offset rail on
+/// that angled rail.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+pub enum Side {
+    #[default]
+    Left,
+    Right,
+}
+
+impl Side {
+    /// The slot a second sight takes on this side.
+    pub fn slot(self) -> SlotId {
+        match self {
+            Side::Left => SlotId::AngledCollimShortL,
+            Side::Right => SlotId::AngledCollimShortR,
+        }
+    }
+}
+
+/// What a player fitted, by dict id (the weapon kit's slots 3, 4, 5 and 6).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct Wanted {
     pub scope: Option<DictId>,
     pub muzzle: Option<DictId>,
     pub grip: Option<DictId>,
+    /// The second sight and its side.
+    pub second_sight: Option<(DictId, Side)>,
 }
 
 impl Wanted {
@@ -65,6 +105,16 @@ impl Wanted {
             Kind::Scope => self.scope,
             Kind::Muzzle => self.muzzle,
             Kind::Grip => self.grip,
+            Kind::SecondSight => self.second_sight.map(|(dict, _)| dict),
+        }
+    }
+
+    /// The one slot a `kind` may go in, when the player chose it: a second
+    /// sight's side.
+    fn chosen(&self, kind: Kind) -> Option<SlotId> {
+        match kind {
+            Kind::SecondSight => self.second_sight.map(|(_, side)| side.slot()),
+            Kind::Scope | Kind::Muzzle | Kind::Grip => None,
         }
     }
 }
@@ -81,6 +131,10 @@ pub enum Refusal {
     Taken(SlotId),
     /// The slot's part was displaced by another fitted module's carrier.
     Unseated(SlotId),
+    /// The fitted sight keeps the gun's eye relief, and its line of sight
+    /// runs along the gun's eye plane or meets it more than 2 m behind the
+    /// eye: 0.69d would leave the eye inside the sight.
+    OffPlane,
     /// The table contradicts itself. [`crate::Table::parse`] refuses every
     /// such table; the variant keeps `resolve` total without a panic.
     Broken,
@@ -122,6 +176,17 @@ pub struct Optic<'t> {
     pub frame: Placement,
 }
 
+/// The fitted second sight: drawn as a part ([`Bare::parts`]), its own eye
+/// the second one.
+#[derive(Clone, Copy)]
+pub struct SecondSight<'t> {
+    pub module: Module<'t>,
+    /// Its model's frame, as its part's.
+    pub at: Placement,
+    /// The eye through it.
+    pub eye: Eye,
+}
+
 /// A gun with something fitted: its bare body and every part on it.
 #[derive(Clone, Copy)]
 pub struct Bare<'t> {
@@ -129,6 +194,8 @@ pub struct Bare<'t> {
     pub optic: Option<Optic<'t>>,
     /// The eye, when a part moves it; None: the gun's own.
     pub eye: Option<Eye>,
+    /// The second sight and the second eye, when one is fitted.
+    pub second: Option<SecondSight<'t>>,
     /// The fire point, when a part moves it; None: the gun's own.
     pub fire_point: Option<Placement>,
     /// The left hand, on a grip; None: the gun's own.
@@ -139,7 +206,8 @@ pub struct Bare<'t> {
 
 impl<'t> Bare<'t> {
     /// The parts to draw on the bare body, the gun's own that stay, the
-    /// carriers, the muzzle device and the grip; not the scope.
+    /// carriers, the muzzle device, the grip and the second sight; not the
+    /// scope.
     pub fn parts(&self) -> impl Iterator<Item = &Part<'t>> + Clone {
         self.parts.iter().flatten()
     }
@@ -239,11 +307,12 @@ impl<'t> Build<'t> {
         if build.live().count() == gun.stock().count() { Ok(build) } else { Err(Refusal::Broken) }
     }
 
-    /// The slot `module` goes in on the gun as it is now, and whether
-    /// carriers bring it.
-    fn way(&self, module: Module<'t>) -> Option<(Attach<'t>, bool)> {
-        let stands = module.attaches().find(|attach| self.frame(attach.slot()).is_some());
-        let carried = || module.attaches().find(|attach| self.gun.carrier(attach.slot()).is_some());
+    /// The slot `module` goes in on the gun as it is now (`only` that one,
+    /// when the player chose it), and whether carriers bring it.
+    fn way(&self, module: Module<'t>, only: Option<SlotId>) -> Option<(Attach<'t>, bool)> {
+        let named = || module.attaches().filter(move |attach| only.is_none_or(|slot| attach.slot() == slot));
+        let stands = named().find(|attach| self.frame(attach.slot()).is_some());
+        let carried = || named().find(|attach| self.gun.carrier(attach.slot()).is_some());
         stands.map(|attach| (attach, false)).or_else(|| carried().map(|attach| (attach, true)))
     }
 
@@ -305,29 +374,41 @@ impl<'t> Build<'t> {
         self.live().filter_map(|(_, part)| Some((rank(part.role), of(part)?))).max_by_key(|(rank, _)| *rank).map(|(_, value)| value)
     }
 
+    /// The eye a part's attach gives, in the gun's terms.
+    fn eye(&self, at: Placement, eye: AttachEye) -> Result<Eye, Refusal> {
+        let eye = match eye {
+            AttachEye::Own(locator) => at.child(&locator),
+            AttachEye::InGunPlane(locator) => self.in_gun_plane(at.child(&locator))?,
+        };
+        let aim = self.gun.aim_bone();
+        let aim_pose = self.gun.pose(aim).ok_or(Refusal::Broken)?;
+        Eye::new(eye, &self.bone(&eye)?, (aim, &aim_pose)).ok_or(Refusal::Broken)
+    }
+
     fn bone(&self, at: &Placement) -> Result<Affine, Refusal> {
         self.gun.pose(at.bone).ok_or(Refusal::Broken)
     }
 
-    /// `eye` moved along its own line of sight to the plane of the gun's own
-    /// eye, in the gun's aimed idle pose. 0.69d's rule for a slot with a
+    /// `eye` moved along its own line of sight to the gun's eye plane, in
+    /// the gun's aimed idle pose. 0.69d's rule for a slot with a
     /// `plane_slot` (`get_slot_transform` 0x2006CF320 of its exe, read by the
     /// scopes lane: `docs/notes/attachments-scopes.md`): with M the slot's
     /// frame and P the plane slot's, `s = (P.c - M.c)·P.k / M.k·P.k` and
-    /// `M.c += s·M.k`; the axes stay. A line along the plane, or a plane
-    /// more than 2 m behind the eye, leaves the eye where it is.
+    /// `M.c += s·M.k`; the axes stay. Where 0.69d would leave the eye (a
+    /// line along the plane, a plane more than 2 m behind it), a refusal.
     fn in_gun_plane(&self, eye: Placement) -> Result<Placement, Refusal> {
-        let frame = |at: &Placement, bone: &Affine| Affine::HALF_TURN.then(&at.offset).then(bone);
-        let (bone, own) = (self.bone(&eye)?, self.gun.body_aim());
-        let Some(slide) = slide_to_plane(&frame(&eye, &bone), &frame(&own, &self.bone(&own)?)) else {
-            return Ok(eye);
-        };
+        let plane = self.gun.eye_plane().ok_or(Refusal::Broken)?;
+        let (line, plane) = (posed(&self.gun, &eye).ok_or(Refusal::Broken)?, posed(&self.gun, &plane).ok_or(Refusal::Broken)?);
+        let along = to_plane(&line, &plane).ok_or(Refusal::OffPlane)?;
+        let bone = self.bone(&eye)?;
+        let slide = Affine::translation(along * line.z[0], along * line.z[1], along * line.z[2]);
         let offset = eye.offset.then(&bone).then(&slide).then(&bone.inverse().ok_or(Refusal::Broken)?);
         Ok(Placement { bone: eye.bone, offset })
     }
 
     fn loadout(&self) -> Result<Bare<'t>, Refusal> {
-        let mut bare = Bare { parts: [None; MAX_PARTS], optic: None, eye: None, fire_point: None, left_hand: None, shot_effect: None };
+        let mut bare =
+            Bare { parts: [None; MAX_PARTS], optic: None, eye: None, second: None, fire_point: None, left_hand: None, shot_effect: None };
         let mut drawn = bare.parts.iter_mut();
         for (_, part) in self.live() {
             if part.role == Role::Fitted(Kind::Scope) {
@@ -339,15 +420,14 @@ impl<'t> Build<'t> {
                 let locators = part.module.hand().ok_or(Refusal::Broken)?;
                 bare.left_hand = Some(Hand::new(&part.at, &locators).ok_or(Refusal::Broken)?);
             }
+            if part.role == Role::Fitted(Kind::SecondSight) {
+                let eye = self.eye(part.at, part.attach.eye().ok_or(Refusal::Broken)?)?;
+                bare.second = Some(SecondSight { module: part.module, at: part.at, eye });
+            }
         }
-        if let Some((at, eye)) = self.last(|part| Some((part.at, part.attach.eye()?))) {
-            let eye = match eye {
-                AttachEye::Own(locator) => at.child(&locator),
-                AttachEye::InGunPlane(locator) => self.in_gun_plane(at.child(&locator))?,
-            };
-            let aim = self.gun.aim_bone();
-            let aim_pose = self.gun.pose(aim).ok_or(Refusal::Broken)?;
-            bare.eye = Some(Eye::new(eye, &self.bone(&eye)?, (aim, &aim_pose)).ok_or(Refusal::Broken)?);
+        let main = |part: &Placed<'t>| part.role != Role::Fitted(Kind::SecondSight);
+        if let Some((at, eye)) = self.last(|part| Some((part.at, part.attach.eye().filter(|_| main(part))?))) {
+            bare.eye = Some(self.eye(at, eye)?);
         }
         bare.fire_point = self.last(|part| Some(part.at.child(&part.attach.fire_point()?)));
         bare.shot_effect = self.last(|part| part.attach.shot_effect());
@@ -370,7 +450,7 @@ pub fn resolve<'t>(gun: Gun<'t>, wanted: Wanted) -> Result<Loadout<'t>, Refusal>
     for (kind, place) in Kind::ALL.into_iter().zip(&mut fitted) {
         let Some(dict) = wanted.of(kind) else { continue };
         let module = gun.fit(dict, kind).ok_or(Refusal::NoFit(kind))?;
-        let (attach, carried) = build.way(module).ok_or(Refusal::NoSlot(kind))?;
+        let (attach, carried) = build.way(module, wanted.chosen(kind)).ok_or(Refusal::NoSlot(kind))?;
         *place = Some((kind, module, attach, carried));
     }
     for (_, _, attach, carried) in fitted.into_iter().flatten() {

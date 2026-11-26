@@ -24,6 +24,8 @@
 //! It grows with what the patches need, and no further.
 
 pub mod attachments;
+pub mod reload;
+pub mod weapon_view;
 pub mod back_buffer;
 pub mod baker;
 pub mod aim;
@@ -35,6 +37,7 @@ pub mod footstep;
 pub mod zone_guard;
 pub mod material;
 pub mod freeze;
+pub mod desync;
 pub mod camera;
 pub mod carry_runtime;
 pub mod carry_ground;
@@ -62,13 +65,17 @@ mod input;
 pub mod inventory;
 mod keyboard;
 pub mod keyboard_layout;
+pub mod key_text;
 pub mod language;
 pub mod lobby;
 pub mod lobby_camera;
 pub mod lobby_menu;
+mod lobby_call;
+pub use lobby_call::{LobbyCall, LobbyInventory, LobbyItem, NotGiven};
 pub mod login;
 pub mod openssl;
 pub mod mouse;
+pub mod mouse_device;
 pub mod game_log;
 pub mod log;
 pub mod run_log;
@@ -87,6 +94,7 @@ pub mod render_stage;
 pub mod effect_compile;
 pub mod gun_cook;
 pub mod pickup;
+pub mod profile_kit;
 pub mod use_prompt;
 pub mod use_scan;
 pub mod streaming;
@@ -142,6 +150,8 @@ mod generated {
     use super::artefact_hunt::{HudState, HuntCook, HuntRule, RuleCore, RuleEvent, RuleQuery, RuleReader, RuleWriter, TickRule};
     use super::attachments::FingerCorrector;
     #[allow(unused_imports)]
+    use super::reload::{AnimationEvent, ReloadEventState};
+    #[allow(unused_imports)]
     use core::ffi::c_void;
     include!("../../../../hooks_026g.rs");
 }
@@ -183,6 +193,8 @@ mod artefact;
 pub use artefact::{ArtefactPickup, Slots};
 pub mod statistics;
 pub mod weapon_stats;
+pub mod second_sight;
+pub mod sight_view;
 pub use statistics::{Band, Batteries, Battery, BatteryCarry, Cell, Delivery, Held, Life, Progress, Saving, ScoreEvent, Team, BATTERIES};
 
 pub mod medical;
@@ -202,6 +214,7 @@ pub mod effect_presenter;
 
 pub mod match_message;
 pub mod packet_recovery;
+pub mod exact_world;
 pub mod match_close;
 pub mod seeding;
 

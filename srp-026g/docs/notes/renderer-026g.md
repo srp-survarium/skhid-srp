@@ -639,7 +639,7 @@ ABGR: red in the low byte, green in bits 8..15, blue in bits 16..23, extracted
 at 0x29094F..0x2909BC; linearized with pow 2.2 at insert 0x2909C0), `intensity` (clamped >= 0), `attenuation_power`,
 `dot_normal`, `affect_specular` (default 0), `geometry` (0 sphere, 1 box), `side_width`
 (default 0.1, 0x921948), `smart_attenuation`. Render light: +44h location, +50h colour, +5Ch
-intensity, +60h attenuation power, +64h radius, +68h side width, +6Ch geometry, +71h dot_normal,
+intensity, +60h radius, +64h attenuation power (its bits as the object has them: 0x290856, set_properties 0x1C4745, cb0[12].w at 0x181AEF), +68h side width, +6Ch geometry, +71h dot_normal,
 +72h smart_attenuation, +73h affect_specular. PROVEN.
 
 The visible list (scene_view+1CD24h) is split by intensity (0x1858E0): lights with intensity <= 1
@@ -724,7 +724,8 @@ stored answers stay. PROVEN (instructions read).
 
 So an answer is acted on a frame or more after its query, against a depth a frame older still:
 while the camera moves, objects in sight are called occluded, and one back in view reads, once,
-the result at the index it had when last in view, another object's. Patch 189's log of four
+the result at the index it had when last in view, another object's. Patch 189's log (a
+diagnostic, `SKHID_LIGHT_SET_LOG`, on the branch `diag/light-set-log`, not merged) of four
 minutes in London (v0.42, 2026-11-22): per frame on average 64 probes in view, 24 of them left out;
 75 ambient lights, 39 left out; 17 lights, 11 left out. 5,080 drops of a probe or ambient light,
 1,269 of them back within a frame (20 ms); 552 of a light, 77 within a frame. A probe left out lets
@@ -734,6 +735,40 @@ Patch 190 (`light_occlusion`) stores every probe's and ambient light's answer as
 hidden, it costs its draws (the light mask and two techniques, 5.3, 5.4) over its volume's
 screen area at most. A point or spot light is stored occluded only after four occluded answers
 in a row: a hidden one would render its shadow map.
+
+**Model surfaces, the first person's too.** `frustum_culling` puts every surface instance in the
+camera's frustum into the camera's list (scene view +44A0h, `scene::select_models` 0x150560 with
+mask 1, at 0x1B790D); nothing there tells a first-person surface from the world's. In a frame
+with results, `get_results_and_prepare_bounds_models` (0x1B7A70) stores each surface's answer at
+its +61h (0x1B7AB7, 1 occluded; never queried, +40h -1, stores 0), takes the next index into +40h
+and adds the sphere around its render surface's box (+38h, box at +20h) under its world matrix
+(+50h). `filter_and_sort_models` (0x1B7360) then removes every surface with +61h set while the
+option is on (its remove_if 0x1B8F10, 0x1B8F41), before the list is copied to the forward list
+(+C4B8h, which `stage_forward::execute_foreground` 0x1AB82C also draws the first person from) and
+the G-buffer's; `stage_visibility::execute_stage` marks the models of the surfaces kept as seen
+this frame (their +110h, 0x1B6AA0), which `player::mt_draw` reads for its cull. So a first-person
+surface is tested like a wall: its sphere projected with the world's camera, against the world's
+linear depth of a frame before. PROVEN (instructions read).
+
+The test (`hiz_fill_culling_results_buffer.ps`, the 0.26g blob): `$user$position` (linear view
+depth) with each texel the maximum of its 3x3 (`hiz_copy_scene_depth.ps`), then 2x2 maxima down
+the mips (`hiz_downsample_depth.ps`); a sphere in front of the near plane takes the mip
+ceil(log2(its projected size)), four samples at the corners of its projected square (a 4x4 grid
+from mip 4 on, visible past mip 8), and is occluded when their maximum is below its nearest view
+depth. 0.10b's shader called a sphere occluded only when the depth was more than 20 m nearer
+(`depth + 20.f < nearest`); 0.26g dropped the 20 m. PROVEN (both shaders' code). A first-person
+surface is 0.05 to 1 m away, drawn over whatever the world has in front of it; a collimator's dot
+is a disk 0.66 mm across (`collimator_glowing_dot_s` of the 0.69d0 collimators, its box 0.33 mm
+around), the smallest sphere the query has, at the screen's centre, and its own housing (another
+surface, another answer) stays when it goes. A test from the depth of a frame before, read a
+frame or more late at an index that is another object's whenever the surface was out of the last
+query (re-added when an aimed optic comes in, the `+40h` of its last time in view), can only
+lose it.
+
+Patch 213 (`first_person_occlusion`) stores every first-person surface's answer as visible (its
+model's foreground byte +114h, or its own +63h: what `render_forward_models` 0x1AB412 and
+`stage_lights::execute_foreground` 0x192DC4 draw in the first-person pass); a world surface keeps
+its answer. The first person is a handful of surfaces, drawn every frame they are in the frustum.
 
 ## 6. Composition and emission
 

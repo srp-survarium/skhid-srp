@@ -36,6 +36,29 @@ impl Placement {
         Placement { bone: self.bone, offset: locator.then(&Affine::HALF_TURN).then(&self.offset) }
     }
 
+    /// The way from this placement to `other` at `t` (0 this, 1 `other`):
+    /// the rotation turned along the shorter arc (the normalised blend of
+    /// the two quaternions: no trigonometry in `no_std`; for the 45 degrees
+    /// of a side sight its angle is within 2 percent of the arc's), the
+    /// place on the line between; None when they hang on different bones or
+    /// either offset is no rotation (scaled or skewed). 0.69d blends the two
+    /// aim slots' alignments by its switch's fraction
+    /// (`align_weapon_bone_to_aim` 0x2002b8cf0); this is that blend on the
+    /// eye's record, whose alignment the game makes.
+    pub fn toward(&self, other: &Placement, t: f32) -> Option<Placement> {
+        if self.bone != other.bone || !t.is_finite() {
+            return None;
+        }
+        let t = t.clamp(0.0, 1.0);
+        let (a, b) = (Quaternion::of(&self.offset)?, Quaternion::of(&other.offset)?);
+        let turned = a.slerp(b, t).rows();
+        let (from, to) = (self.offset.t, other.offset.t);
+        let place = [from[0] + (to[0] - from[0]) * t, from[1] + (to[1] - from[1]) * t, from[2] + (to[2] - from[2]) * t];
+        let [x, y, z] = turned;
+        let offset = Affine { x, y, z, t: place };
+        offset.is_finite().then_some(Placement { bone: self.bone, offset })
+    }
+
     /// The matrix `k` with this placement's frame = `k` · `other`'s frame in
     /// every pose, which there is when both hang on one bone: half turn ·
     /// offset · inverse(other's offset) · half turn.
@@ -142,4 +165,99 @@ pub(crate) fn fingers(locators: &[Affine; HAND_LOCATORS]) -> Option<[Affine; FIN
         parent = *joint;
     }
     Some(out)
+}
+
+/// A unit quaternion (w, x, y, z) of a rotation's rows (row vectors).
+#[derive(Clone, Copy, Debug)]
+struct Quaternion([f32; 4]);
+
+impl Quaternion {
+    /// The rotation of `m`'s rows; None when they are not orthonormal
+    /// (within 1e-3) or turn the hand.
+    fn of(m: &Affine) -> Option<Quaternion> {
+        let rows = [m.x, m.y, m.z];
+        let dot = |a: [f32; 3], b: [f32; 3]| a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+        for (i, a) in rows.iter().enumerate() {
+            for (j, b) in rows.iter().enumerate() {
+                let want = if i == j { 1.0 } else { 0.0 };
+                if (dot(*a, *b) - want).abs() > 1e-3 {
+                    return None;
+                }
+            }
+        }
+        let cross = [m.x[1] * m.y[2] - m.x[2] * m.y[1], m.x[2] * m.y[0] - m.x[0] * m.y[2], m.x[0] * m.y[1] - m.x[1] * m.y[0]];
+        if dot(cross, m.z) < 0.0 {
+            return None;
+        }
+        // The column-vector matrix is the transpose of the rows.
+        let r = |i: usize, j: usize| rows.get(j).and_then(|row| row.get(i)).copied().unwrap_or(0.0);
+        let trace = r(0, 0) + r(1, 1) + r(2, 2);
+        let q = if trace > 0.0 {
+            let s = (trace + 1.0).sqrt_newton() * 2.0;
+            [0.25 * s, (r(2, 1) - r(1, 2)) / s, (r(0, 2) - r(2, 0)) / s, (r(1, 0) - r(0, 1)) / s]
+        } else if r(0, 0) > r(1, 1) && r(0, 0) > r(2, 2) {
+            let s = (1.0 + r(0, 0) - r(1, 1) - r(2, 2)).sqrt_newton() * 2.0;
+            [(r(2, 1) - r(1, 2)) / s, 0.25 * s, (r(0, 1) + r(1, 0)) / s, (r(0, 2) + r(2, 0)) / s]
+        } else if r(1, 1) > r(2, 2) {
+            let s = (1.0 + r(1, 1) - r(0, 0) - r(2, 2)).sqrt_newton() * 2.0;
+            [(r(0, 2) - r(2, 0)) / s, (r(0, 1) + r(1, 0)) / s, 0.25 * s, (r(1, 2) + r(2, 1)) / s]
+        } else {
+            let s = (1.0 + r(2, 2) - r(0, 0) - r(1, 1)).sqrt_newton() * 2.0;
+            [(r(1, 0) - r(0, 1)) / s, (r(0, 2) + r(2, 0)) / s, (r(1, 2) + r(2, 1)) / s, 0.25 * s]
+        };
+        let q = Quaternion(q).unit()?;
+        Some(q)
+    }
+
+    fn unit(self) -> Option<Quaternion> {
+        let [w, x, y, z] = self.0;
+        let n = (w * w + x * x + y * y + z * z).sqrt_newton();
+        (n.is_finite() && n > 1e-6).then(|| Quaternion([w / n, x / n, y / n, z / n]))
+    }
+
+    fn slerp(self, other: Quaternion, t: f32) -> Quaternion {
+        let [a0, a1, a2, a3] = self.0;
+        let [mut b0, mut b1, mut b2, mut b3] = other.0;
+        if a0 * b0 + a1 * b1 + a2 * b2 + a3 * b3 < 0.0 {
+            (b0, b1, b2, b3) = (-b0, -b1, -b2, -b3);
+        }
+        let (wa, wb) = (1.0 - t, t);
+        let mixed = Quaternion([wa * a0 + wb * b0, wa * a1 + wb * b1, wa * a2 + wb * b2, wa * a3 + wb * b3]);
+        mixed.unit().unwrap_or(self)
+    }
+
+    /// Its rotation's rows (row vectors).
+    fn rows(self) -> [[f32; 3]; 3] {
+        let [w, x, y, z] = self.0;
+        // the column-vector matrix, transposed into rows
+        let m = [
+            [1.0 - 2.0 * (y * y + z * z), 2.0 * (x * y - z * w), 2.0 * (x * z + y * w)],
+            [2.0 * (x * y + z * w), 1.0 - 2.0 * (x * x + z * z), 2.0 * (y * z - x * w)],
+            [2.0 * (x * z - y * w), 2.0 * (y * z + x * w), 1.0 - 2.0 * (x * x + y * y)],
+        ];
+        let at = |i: usize, j: usize| m.get(i).and_then(|row| row.get(j)).copied().unwrap_or(0.0);
+        [[at(0, 0), at(1, 0), at(2, 0)], [at(0, 1), at(1, 1), at(2, 1)], [at(0, 2), at(1, 2), at(2, 2)]]
+    }
+}
+
+/// A square root by Newton's steps from the bits' halved exponent (`no_std`
+/// has none): within an ulp or two for the values here (0 to 4).
+trait SqrtNewton {
+    fn sqrt_newton(self) -> f32;
+}
+
+impl SqrtNewton for f32 {
+    fn sqrt_newton(self) -> f32 {
+        if self == 0.0 {
+            return 0.0;
+        }
+        if self.is_nan() || self < 0.0 || self.is_infinite() {
+            return f32::NAN;
+        }
+        let mut x = f32::from_bits((self.to_bits() >> 1).wrapping_add(0x1FBD_1DF5));
+        for _ in 0..4 {
+            x = 0.5 * (x + self / x);
+        }
+        x
+    }
 }

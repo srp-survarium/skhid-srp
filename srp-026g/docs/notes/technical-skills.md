@@ -230,6 +230,11 @@ booster's modifications; 29 the hand-kill marker.
   (`technical.tank_construct`) and by both refills. The speed: x1.1 at `medical.movement` (order
   2, after Adrenalin); movement is cached, so the start and the end set the player's
   refresh_selection (+33Eh); the end is checked each tick at `battery.carrier_tick` (order 6).
+- The HUD (the owner, 2026-11-23): while the local player's boost runs, the tank's quick-slot
+  countdown is blue ("since both are for speed"; a light blue, 0x9CD8EE, in a glow of the hud's
+  blue since 2026-11-26, Spring's 0x0066FF before): patch 77's
+  quick-slot activity sends phase 4 for the tank (client_patch.md, "Medical consumable
+  activity"). View only: nothing saved, no match computes otherwise.
 - The world format: every tank of every world saves the boost's u32 and the use's u16 after
   m_amount_ms, 2 bytes more than revisions 70 and 71 (srp-validate's `OxygenTank`, `oxygen_rush()`
   and `oxygen_rush_use()`, a use of 20 000 or more refused). Worlds recorded by revisions 70 and

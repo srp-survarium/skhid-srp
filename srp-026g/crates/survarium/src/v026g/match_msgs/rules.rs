@@ -204,7 +204,8 @@ impl TimelimitRule {
 
 /// The leader by points: more wins, equal is a draw. Modes 2 and 3 with the
 /// batteries in each team's container (0x313AA5..0x313ADC); also mode 4's
-/// tickets while they differ, and mode 5's shown points (`rr_leader`).
+/// tickets while they differ, and mode 5's shown points
+/// (`research_rule::leader`).
 pub fn winner_by_points(points: [u16; 2]) -> u8 {
     match points[0].cmp(&points[1]) {
         std::cmp::Ordering::Greater => 0,
@@ -213,7 +214,7 @@ pub fn winner_by_points(points: [u16; 2]) -> u8 {
     }
 }
 
-/// Research's leader (exe patch 53, `rr_leader`): by the shown points, equal
+/// Research's leader (exe patch 53, `research_rule::leader`): by the shown points, equal
 /// a draw; once a team reached the goal (the rule's end is set), by the
 /// millionths, so 100 shown for both (99.5 rounds up) is not a draw when one
 /// team reached 100.
@@ -267,7 +268,7 @@ pub fn tdm_finished(tickets: [u16; 2], alive: [u32; 2]) -> bool {
 pub const RESEARCH_POINT: u32 = 1_000_000;
 
 /// Research ends (3 s later) when a team's points, in millionths, reach the
-/// mode config's `resources_count` (exe patch 53, `rr_tick`). The rule
+/// mode config's `resources_count` (exe patch 53, `research_rule::tick`). The rule
 /// writes that end into its own bytes (`snapshot::Research::end`), which
 /// is what the server goes by; the shown scores are rounded and can say
 /// 100 a little before.
@@ -291,7 +292,7 @@ pub fn ffa_finished(kills: impl IntoIterator<Item = u16>, kills_to_win: u32) -> 
 /// Whether a mode rule that set its end at `completion` reports the match
 /// over at `time`: the gather rules at `completion ≤ time` (0x314230),
 /// Team Deathmatch at `completion < time` (0x316520), Research at
-/// `completion ≤ time` (exe patch 53, `rr_completed`).
+/// `completion ≤ time` (exe patch 53, `research_rule::completed`).
 pub fn mode_rule_completed(game_mode: RuleMode, completion: u32, time: u32) -> bool {
     if game_mode == RuleMode::TeamDeathmatch {
         completion < time

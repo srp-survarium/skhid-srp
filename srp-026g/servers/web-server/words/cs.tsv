@@ -95,8 +95,6 @@ Not found.	Nenalezeno.
 Too many wrong tokens; wait a minute.	Příliš mnoho chybných tokenů; počkejte minutu.
 Wrong token.	Chybný token.
 No such user.	Takový uživatel neexistuje.
-Silver and gold are whole numbers, + or -, or empty.	Stříbro a zlato jsou celá čísla, + nebo -, nebo prázdné.
-{user}: now {silver_now} silver and {gold_now} gold.	{user}: nyní {silver_now} stříbra a {gold_now} zlata.
 New accounts are taken again.	Nové účty se opět přijímají.
 New accounts are refused; existing players sign in as before.	Nové účty se nepřijímají; stávající hráči se přihlašují jako dřív.
 Maintenance cancelled.	Údržba zrušena.
@@ -138,9 +136,8 @@ Q:	Otázka:
 A:	Odpověď:
 If something goes wrong	Když se něco pokazí
 Download the files	Stáhnout soubory
-Download the game	Stáhnout hru
 The download link is coming soon.	Odkaz ke stažení bude brzy.
-Can't download? Run {script}: it downloads the whole game into a Survarium folder beside it.	Nejde stahovat? Spusťte {script}: stáhne celou hru do složky Survarium vedle sebe.
+Chrome or your antivirus refuses the download? Try this script: {script}. It downloads the whole game into a Survarium folder beside it.	Chrome nebo antivirus nedovolí stahování? Zkuste tento skript: {script}. Stáhne celou hru do složky Survarium vedle sebe.
 Get the game	Získat hru
 The link is coming soon.	Odkaz bude brzy.
 Get the original Survarium 0.26g (build 2777) and unpack it.	Získejte původní Survarium 0.26g (build 2777) a rozbalte ho.
@@ -155,10 +152,6 @@ Run <code>Skhid.bat</code> and press <b>PLAY</b>.	Spusťte <code>Skhid.bat</code
 Windows warns about an unknown publisher? Let it run.<br>Linux: <code>bash Skhid.sh launcher</code>, see <code>LINUX.txt</code>.	Windows varuje před neznámým vydavatelem? Povolte spuštění.<br>Linux: <code>bash Skhid.sh launcher</code>, viz <code>LINUX.txt</code>.
 Windows warns about an unknown publisher? Let it run.<br>Linux: <code>bash Skhid.sh</code>, see <code>LINUX.txt</code>.	Windows varuje před neznámým vydavatelem? Povolte spuštění.<br>Linux: <code>bash Skhid.sh</code>, viz <code>LINUX.txt</code>.
 Run <code>play_skhid.bat</code> in <code>game\\binaries\\x86</code>.	Spusťte <code>play_skhid.bat</code> ve složce <code>game\\binaries\\x86</code>.
-Start it with this command line:	Spusťte hru tímto příkazem:
-english	english
-server address	adresa serveru
-language: english, russian, ukrainian	jazyk: english, russian, ukrainian
 Skhid (Ukrainian for “east”) is a community server that lets the Survarium {version} client sign in, trade, form squads and play matches again.	Skhid (ukrajinsky „východ“) je komunitní server, na kterém se klient Survarium {version} může znovu přihlašovat, obchodovat, tvořit čety a hrát zápasy.
 Project Discord: <a href="https://discord.gg/pxywZfaxRQ">discord.gg/pxywZfaxRQ</a>	Discord projektu: <a href="https://discord.gg/pxywZfaxRQ">discord.gg/pxywZfaxRQ</a>
 Early test server.	Raný testovací server.
@@ -167,7 +160,6 @@ How to play	Jak hrát
 Download our files and unpack them into an empty folder (e.g. D:\\Survarium). <b>You do this only once.</b>	Stáhněte naše soubory a rozbalte je do prázdné složky (např. D:\\Survarium). <b>Děláte to jen jednou.</b>
 Download our files and unpack them into the game's folder, the one with the <code>game</code> folder, replacing files. <b>You do this only once.</b>	Stáhněte naše soubory a rozbalte je do složky hry, té se složkou <code>game</code>, s nahrazením souborů. <b>Děláte to jen jednou.</b>
 Download our files and unpack them over the game's <code>game</code> folder.	Stáhněte naše soubory a rozbalte je přes složku <code>game</code> hry.
-Download the patched game and unpack it.	Stáhněte upravenou hru a rozbalte ji.
 Sign in with any name and password: a new name registers itself. Remember the password.	Přihlaste se libovolným jménem a heslem: nové jméno se zaregistruje samo. Zapamatujte si heslo.
 New accounts are taken.	Nové účty se přijímají.
 Stop new registrations	Zastavit nové registrace
@@ -177,7 +169,6 @@ Shown once the token is right.	Zobrazí se po zadání správného tokenu.
 Password	Heslo
 User name	Uživatelské jméno
 Silver, + or -	Stříbro, + nebo -
-Gold, + or -	Zlato, + nebo -
 Change	Změnit
 Admin	Administrátor
 Token	Token
@@ -408,6 +399,7 @@ Kills	Zabití
 Deaths	Úmrtí
 K/D	K/D
 Kills/min	Zabití/min
+Experience/min	Zkušenosti/min
 Assists	Asistence
 Score	Skóre	stats
 Avg score	Prům. skóre
@@ -511,10 +503,10 @@ Bring it to your own base: 1 point, and the round ends.	Doneste ho do vlastní z
 The carrier is slower and seen by everyone.	Nosič je pomalejší a vidí ho všichni.
 Respawn in waves every {0} s.	Oživení ve vlnách každých {0} s.
 Time limit {0}: the higher score wins; a tie plays {1} of sudden death without respawns.	Časový limit {0}: vyhrává vyšší skóre; při remíze {1} náhlé smrti bez oživení.
-Sniper rifles, silenced guns and guns without automatic fire are replaced.	Odstřelovací pušky, tlumené zbraně a zbraně bez automatické palby se nahrazují.
-Rooms up to level {0}: {1}.	Místnosti do úrovně {0}: {1}.
-Other rooms: {0}.	Ostatní místnosti: {0}.
-Sight: {0}.	Zaměřovač: {0}.
+Everyone fights with an assault rifle: sniper rifles, silenced guns and guns without automatic fire are swapped for an {0} (rooms up to level {1}) or an {2} (higher rooms).	Všichni bojují útočnými puškami: odstřelovací pušky, zbraně s tlumičem a zbraně bez automatické střelby se nahrazují za {0} (místnosti do úrovně {1}) nebo {2} (vyšší místnosti).
+Each comes with an {0}.	Každá má {0}.
+a revolver	revolver
+a lever-action rifle	puška s pákovým závěrem
 Every kit: {0} only.	Každá sada: jen {0}.
 Every kit: {0} and {1}.	Každá sada: {0} a {1}.
 Everyone plays the same {0} random kits.	Všichni hrají stejné {0} náhodné sady.
@@ -565,6 +557,7 @@ No effect fully aimed.	Při plném zamíření nepůsobí.
 Spread while walking {v} per rank, from the hip or aiming in. Not crouch-walking.	Rozptyl při chůzi {v} za stupeň, od boku i při zamiřování. Ne při chůzi v přikrčení.
 Spread from broken arms {v} per rank.	Rozptyl kvůli zlomeným rukám {v} za stupeň.
 This weapon's kick ranges, up and sideways. Not the camera shake.	Rozsahy rázu této zbraně, nahoru a do strany. Ne otřes kamery.
+This weapon's base spread, in every shot: all of the spread fully aimed, little of it from the hip. Not the stance's spread or a shot's.	Základní rozptyl této zbraně, v každém výstřelu: při plném zamíření celý rozptyl, od boku jeho malá část. Ne rozptyl z postoje ani z výstřelu.
 The stance's spread and each shot's. No effect sprinting, jumping or fully aimed.	Rozptyl z postoje a z každého výstřelu. Nepůsobí při sprintu, skoku ani při plném zamíření.
 Each shot's kick with any weapon: up, sideways and the camera shake.	Ráz každého výstřelu z jakékoli zbraně: nahoru, do strany a otřes kamery.
 Base	Základní
@@ -717,6 +710,9 @@ Battery spawn	Výskyt baterie
 Charger	Nabíječka
 Research unit	Výzkumná jednotka
 Spawn	Oživení
+Glow of the Forest	Záře Lesa
+Bases	Základny
+Base	Základna	hunt
 
 # The damage calculator (a page built at a release: scripts/site-texts)
 Feet	Chodidla	parts
@@ -728,7 +724,7 @@ Damage ×{damage}, penetration ×{pierce}, before armour: lower penetration make
 {drug}: {pool} takes ×{k} for {s} s after use ({delay} s to kick in).	{drug}: {pool} dostává ×{k} po dobu {s} s po použití (účinek za {delay} s).
 Inside an anomaly: damage ×{k}, before armour.	V anomálii: poškození ×{k}, před ochranou.
 This weapon takes no damage bonuses.	Tato zbraň nemůže mít bonusy k poškození.
-Come with the weapon; cannot be changed.	Patří ke zbrani; nelze je změnit.
+Comes with the weapon; cannot be changed.	Patří ke zbrani; nelze jej změnit.
 An item holds at most 3 modifications. Bonuses on one stat add up before they apply.	Předmět má nejvýš 3 modifikace. Bonusy k jednomu parametru se před použitím sečtou.
 This item takes no armour bonuses.	Tento předmět nemůže mít bonusy k ochraně.
 Nothing worn covers the {part}.	Nic z vybavení nechrání: {part}.
@@ -920,3 +916,88 @@ Healing	Léčení
 Previous shot	Předchozí výstřel
 Next shot	Další výstřel
 Damage calculator	Kalkulačka poškození Survarium	title
+# The wiki's artefacts (src/artefacts.rs)
+Every artefact: what it gives carried and fired, how copies stack, where it is found.	Každý artefakt: co dává nošený a aktivovaný, jak se kopie sčítají, kde ho najít.
+Artefact	Artefakt
+Passive	Pasivní
+Active	Aktivní
+Active time	Doba účinku
+Cooldown	Doba obnovy
+Skill	Dovednost
+Rules	Pravidla
+Movement speed	Rychlost pohybu
+Stamina regeneration	Obnova energie
+Stamina use	Spotřeba energie
+Slowdown from hits	Zpomalení od zásahů
+Against	Proti
+Body parts	Části těla
+Penetration	Průbojnost
+Health	Zdraví
+Cures injuries	Léčí zranění
+Regeneration	Regenerace
+Regeneration delay	Prodleva regenerace
+Regenerates up to	Obnovuje se do
+HP	HP	unit
+Carried in a container: passive. A death leaves them in that kit.	V kontejneru: pasiv. Po smrti zůstanou v té sadě.
+A key fires every ready copy of its kind and restarts the cooldown of the ones still cooling.	Klávesa aktivuje každou připravenou kopii svého druhu a znovu spustí dobu obnovy těch, které se ještě obnovují.
+Copies of a kind add up (Onyx's passive multiplies); at most 4 count.	Kopie jednoho druhu se sčítají (pasiv Onyxu se násobí); počítají se nejvýše 4.
+Spring's and Larkspur's actives add to the passive; Onyx's replaces it.	Aktivace Pružiny a Ostrožky se přičítá k pasivu; aktivace Onyxu ho nahrazuje.
+Onyx fired together: one reduction, 1 s longer per extra copy.	Onyxy aktivované společně: jedno snížení, o 1 s déle za každou další kopii.
+
+# The maps' anomalies (scripts/maps-tab/ui.js)
+Anomalies	Anomálie
+Anomaly	Anomálie
+Artefacts come from the anomalies. Each anomaly puts one of its artefacts into one of its free containers, one per time window, until its maximum lies uncollected; a pickup starts the window again. It gives only those of its artefacts that no player is carrying. Point at an anomaly or an artefact (or tap it) for its numbers.	Artefakty dávají anomálie. Každá anomálie vloží jeden ze svých artefaktů do jednoho ze svých volných kontejnerů, jeden za časové okno, dokud jich neleží nesebraných její maximum; sebrání artefaktu spustí okno znovu. Dává jen ty své artefakty, které nenese žádný hráč. Ukažte na anomálii nebo artefakt (nebo na ně klepněte) a uvidíte její čísla.
+{s} s	{s} s
+{a}–{b} s	{a}–{b} s
+Holds	Obsahuje
+First one	První
+Then every	Pak každých
+Chance	Šance
+Max uncollected	Max. nesebraných
+Search	Hledání	artefact
+Zones switch every	Zóny se střídají každých
+After a pickup the next one comes {next} later; that container stays empty for {cooldown}.	Po sebrání přijde další za {next}; ten kontejner zůstane {cooldown} prázdný.
+Its own zone does no damage.	Její vlastní zóna nezraňuje.
+Searching a container takes {search}; after a pickup it stays empty for {cooldown}.	Prohledání kontejneru trvá {search}; po sebrání zůstane {cooldown} prázdný.
+After a pickup the next one comes {next} later.	Po sebrání přijde další za {next}.
+whole body	celé tělo
+{n} % a hit, at most every {t}	{n} % za zásah, nejvýš jednou za {t}
+deadly	smrtelně
+{n} % a second	{n} % za sekundu
+Damage is a share of each body part's health, before armour.	Poškození je podíl zdraví každé části těla, před pancířem.
+It gives no artefacts.	Nedává žádné artefakty.
+
+# The stats' Maps and Modes boards.
+Last 7 days	Posledních 7 dní
+Last 24 hours	Posledních 24 hodin
+Avg length	Prům. délka
+Sides	Strany
+No result	Bez výsledku
+Share	Podíl
+Trend	Vývoj
+by hour	po hodinách
+by day	po dnech
+by week	po týdnech
+Most played maps and modes	Nejhranější mapy a režimy
+
+# The modes and weathers as the game names them (client-patches/localization: the stats' Maps and Modes boards, the match lists).
+Protective device	Ochranné zařízení
+Protective device: chargers	Ochranné zařízení: nabíječky
+Team Deathmatch	Týmový deathmatch
+Research	Výzkum
+Protective device: blackout	Ochranné zařízení: výpadek
+Free for all	Každý proti každému
+Freeze Tag	Zmrazování
+Artifact Hunt	Lov na artefakt
+FFA: Racket	FFA: Rambajz
+FFA: Saloon	FFA: Saloon
+FFA: Saloon (Winchester)	FFA: Saloon (Winchester)
+Mode {0}	Režim {0}
+day	den	weather
+rain	déšť	weather
+evening	večer	weather
+night	noc	weather
+before rain	před deštěm	weather
+Weathers	Počasí
+Variants	Varianty

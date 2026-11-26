@@ -24,7 +24,7 @@
 ; exe_name, arguments and server are the three zero-filled slots at the end,
 ; ASCII with a zero at the end, filled in by patch_launcher_026g.py.
 ;
-; registry_key::get_string, as its callers use it (launcher-026g.md, 2 and 6):
+; registry_key::get_string, as its callers use it (docs/notes/launcher.md, 2 and 6):
 ;   edi          the buffer, UTF-16
 ;   esi          its size in characters
 ;   [esp+4]      the open key (not used here)
@@ -2017,39 +2017,39 @@ restart_pl:     dw __utf16__('Serwer uruchamia się ponownie. Kolejna próba za 
 seconds_en:     dw __utf16__(' s.'), 0
 seconds_ru:     dw __utf16__(' с.'), 0
 
-tip_en: dw __utf16__(`The relay is a second server that forwards your game when your provider blocks ours.\r\nAuto: through the relay only when the direct way is blocked.\r\nOn: always through the relay (a bit more ping).\r\nOff: never.\r\nClick the gear to choose.\r\n\r\nNow: `), 0
-tip_ru: dw __utf16__(`Релей — второй сервер: он передаёт вашу игру, когда провайдер блокирует наш.\r\nАвто: через релей, только если прямой путь заблокирован.\r\nВкл: всегда через релей (пинг чуть выше).\r\nВыкл: никогда.\r\nНажмите на шестерёнку, чтобы выбрать.\r\n\r\nСейчас: `), 0
-tip_uk: dw __utf16__(`Релей — другий сервер: він передає вашу гру, коли провайдер блокує наш.\r\nАвто: через релей, лише коли прямий шлях заблоковано.\r\nУвімк: завжди через релей (пінг трохи вищий).\r\nВимк: ніколи.\r\nНатисніть на шестерню, щоб вибрати.\r\n\r\nЗараз: `), 0
-tip_de: dw __utf16__(`Das Relay ist ein zweiter Server, der dein Spiel weiterleitet, wenn dein Anbieter unseren sperrt.\r\nAuto: über das Relay nur, wenn der direkte Weg gesperrt ist.\r\nAn: immer über das Relay (etwas mehr Ping).\r\nAus: nie.\r\nKlicke auf das Zahnrad, um zu wählen.\r\n\r\nJetzt: `), 0
-tip_pl: dw __utf16__(`Relay to drugi serwer, który przekazuje twoją grę, gdy dostawca blokuje nasz.\r\nAuto: przez relay tylko wtedy, gdy droga bezpośrednia jest zablokowana.\r\nWł.: zawsze przez relay (nieco wyższy ping).\r\nWył.: nigdy.\r\nKliknij koło zębate, aby wybrać.\r\n\r\nTeraz: `), 0
+tip_en: dw __utf16__(`The relay is a second server that forwards your game when your provider blocks ours.\r\nAuto: through the relay only when the direct way is blocked.\r\nOn: always through the relay (higher ping).\r\nOff: never.\r\nClick the gear to choose.\r\n\r\nNow: `), 0
+tip_ru: dw __utf16__(`Релей — второй сервер: он передаёт вашу игру, когда провайдер блокирует наш.\r\nАвто: через релей, только если прямой путь заблокирован.\r\nВкл: всегда через релей (пинг выше).\r\nВыкл: никогда.\r\nНажмите на шестерёнку, чтобы выбрать.\r\n\r\nСейчас: `), 0
+tip_uk: dw __utf16__(`Релей — другий сервер: він передає вашу гру, коли провайдер блокує наш.\r\nАвто: через релей, лише коли прямий шлях заблоковано.\r\nУвімк: завжди через релей (пінг вищий).\r\nВимк: ніколи.\r\nНатисніть на шестерню, щоб вибрати.\r\n\r\nЗараз: `), 0
+tip_de: dw __utf16__(`Das Relay ist ein zweiter Server, der dein Spiel weiterleitet, wenn dein Anbieter unseren sperrt.\r\nAuto: über das Relay nur, wenn der direkte Weg gesperrt ist.\r\nAn: immer über das Relay (höherer Ping).\r\nAus: nie.\r\nKlicke auf das Zahnrad, um zu wählen.\r\n\r\nJetzt: `), 0
+tip_pl: dw __utf16__(`Relay to drugi serwer, który przekazuje twoją grę, gdy dostawca blokuje nasz.\r\nAuto: przez relay tylko wtedy, gdy droga bezpośrednia jest zablokowana.\r\nWł.: zawsze przez relay (wyższy ping).\r\nWył.: nigdy.\r\nKliknij koło zębate, aby wybrać.\r\n\r\nTeraz: `), 0
 
 now_en_1:       dw __utf16__('auto, checking...'), 0
 now_en_2:       dw __utf16__('auto: direct.'), 0
-now_en_3:       dw __utf16__('auto: through the relay.'), 0
+now_en_3:       dw __utf16__('auto: through the relay (higher ping): direct did not answer.'), 0
 now_en_4:       dw __utf16__('auto: the server does not answer.'), 0
 now_en_5:       dw __utf16__('on: through the relay.'), 0
 now_en_6:       dw __utf16__('off: direct.'), 0
 now_ru_1:       dw __utf16__('авто, проверка...'), 0
 now_ru_2:       dw __utf16__('авто: напрямую.'), 0
-now_ru_3:       dw __utf16__('авто: через релей.'), 0
+now_ru_3:       dw __utf16__('авто: через релей (пинг выше): напрямую ответа нет.'), 0
 now_ru_4:       dw __utf16__('авто: сервер не отвечает.'), 0
 now_ru_5:       dw __utf16__('вкл: через релей.'), 0
 now_ru_6:       dw __utf16__('выкл: напрямую.'), 0
 now_uk_1:       dw __utf16__('авто, перевірка...'), 0
 now_uk_2:       dw __utf16__('авто: напряму.'), 0
-now_uk_3:       dw __utf16__('авто: через релей.'), 0
+now_uk_3:       dw __utf16__('авто: через релей (пінг вищий): напряму відповіді немає.'), 0
 now_uk_4:       dw __utf16__('авто: сервер не відповідає.'), 0
 now_uk_5:       dw __utf16__('увімк: через релей.'), 0
 now_uk_6:       dw __utf16__('вимк: напряму.'), 0
 now_de_1:       dw __utf16__('Auto, prüfe...'), 0
 now_de_2:       dw __utf16__('Auto: direkt.'), 0
-now_de_3:       dw __utf16__('Auto: über das Relay.'), 0
+now_de_3:       dw __utf16__('Auto: über das Relay (höherer Ping): direkt keine Antwort.'), 0
 now_de_4:       dw __utf16__('Auto: der Server antwortet nicht.'), 0
 now_de_5:       dw __utf16__('An: über das Relay.'), 0
 now_de_6:       dw __utf16__('Aus: direkt.'), 0
 now_pl_1:       dw __utf16__('auto, sprawdzam...'), 0
 now_pl_2:       dw __utf16__('auto: bezpośrednio.'), 0
-now_pl_3:       dw __utf16__('auto: przez relay.'), 0
+now_pl_3:       dw __utf16__('auto: przez relay (wyższy ping): bezpośrednio brak odpowiedzi.'), 0
 now_pl_4:       dw __utf16__('auto: serwer nie odpowiada.'), 0
 now_pl_5:       dw __utf16__('wł.: przez relay.'), 0
 now_pl_6:       dw __utf16__('wył.: bezpośrednio.'), 0

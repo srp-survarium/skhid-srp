@@ -5,11 +5,6 @@
 //!   SHA-256 and size, and the least game revision the login server lets in
 //!   (`SRP_MIN_PATCH_REVISION`). The updater compares the archive with what
 //!   it installed last, and the revision with what the game exe says.
-//! - `GET /resources/<sha256>`: the original bytes of a `resources.db`
-//!   region an earlier updater wrote (the resource step, gone with the
-//!   patches), for the updater's one-time restore of the stock db when it
-//!   has no copy of its own; served as `/download` is (`resource_file` in
-//!   `lib.rs`).
 //! - `GET /launcher/…`: the page the launcher shows in its window, in the
 //!   place of the original game's news page: the best players and the
 //!   matches being played, as two tabs, what the server counts, and the
@@ -20,8 +15,6 @@
 //!   while the window is open.
 //! - `GET /launcher/places/<language>`: what changes on that page, each part
 //!   behind the name of its place, which that script asks for.
-//! - `GET /launcher/fresh/<language>`: the same for a page opened before the
-//!   matches' tab was there, in that page's own form.
 
 use std::fs::File;
 use std::io::Read;
@@ -83,16 +76,9 @@ struct Checked {
 /// holds, so a page that is open while the server gets another one takes
 /// the places it has and passes over the rest.
 pub(super) const FRESH: &str = "/launcher/places/";
-/// Where the script of a page from before the matches' tab asks. A launcher
-/// can stay open for hours, and that script takes nothing but its three
-/// places in its own order ([`BEFORE`]), with no names: answered here, such
-/// a page still learns of a planned maintenance.
-pub(super) const FRESH_BEFORE: &str = "/launcher/fresh/";
 /// The places on the page that are filled again, by their `id`: the two
 /// tabs of the left side, then the two tiles of numbers.
 const PLACES: [&str; 4] = ["board", "live", "now", "totals"];
-/// The places of [`FRESH_BEFORE`], as that page's script has them.
-const BEFORE: [usize; 3] = [0, 2, 3];
 /// What stands between a place's name and what it holds, and between two
 /// places, in those answers. No place holds it: their markup has no such
 /// tag, and a name is text ([`escape`]).
@@ -313,8 +299,7 @@ pub(super) struct Counts {
     pub maintenance: Option<u32>,
 }
 
-/// Whether the path is the launcher's: its page, [`FRESH`] or
-/// [`FRESH_BEFORE`].
+/// Whether the path is the launcher's: its page or [`FRESH`].
 pub(super) fn serves(path: &str) -> bool {
     path == "/launcher" || path.starts_with("/launcher/")
 }
@@ -389,18 +374,6 @@ fn named(parts: &[String; 4]) -> String {
     answer.join(BETWEEN)
 }
 
-/// `GET /launcher/fresh/<language>`: what the [`BEFORE`] places hold now,
-/// with [`BETWEEN`] between them.
-pub(super) fn fresh_before(lang: Lang, store: &SessionStore, game: &Game) -> Response {
-    let (board, live, counts) = current(store, game);
-    let parts = places(lang, &board, &live, counts);
-    Response {
-        status: "200 OK",
-        content_type: ContentType::Html,
-        body: BEFORE.map(|place| parts[place].as_str()).join(BETWEEN),
-    }
-}
-
 /// A number with its thousands apart: 12 345.
 fn grouped(value: u64) -> String {
     let digits = value.to_string();
@@ -440,13 +413,32 @@ pub(crate) fn mode_name(lang: Lang, map: &maps::MapMode) -> String {
     }
 }
 
-/// A mode as the lobby calls it, a free-for-all's twist too: the text the
-/// rooms name it by ([`LobbyMode::name_key`]). Without one, its number.
+/// A mode as the lobby calls it, a free-for-all's twist too, in the site's own
+/// words: the game's texts the rooms name it by ([`LobbyMode::name_key`],
+/// `client-patches/localization`), so that it never hangs on the game data
+/// having them (the owner, 2026-11-26: the stats said "mode 2").
 pub(crate) fn lobby_mode_name(lang: Lang, mode: LobbyMode) -> String {
-    match localization::text(game_language(lang), mode.name_key()) {
-        Some(name) => name.to_owned(),
-        None => lang.tf("mode {0}", &[("0", &mode.number())]),
+    use survarium::v026g::cowboy::Variation;
+    use survarium::v026g::maps::GameMode;
+    match mode {
+        LobbyMode::Plain(GameMode::Batteries) => lang.t("Protective device"),
+        LobbyMode::Plain(GameMode::TimedBatteries) => lang.t("Protective device: chargers"),
+        LobbyMode::Plain(GameMode::TeamDeathmatch) => lang.t("Team Deathmatch"),
+        LobbyMode::Plain(GameMode::Research) => lang.t("Research"),
+        LobbyMode::Plain(GameMode::Blackout) => lang.t("Protective device: blackout"),
+        LobbyMode::Plain(GameMode::FreeForAll) => lang.t("Free for all"),
+        LobbyMode::Plain(GameMode::FreezeTag) => lang.t("Freeze Tag"),
+        LobbyMode::Plain(GameMode::ArtefactHunt) => lang.t("Artifact Hunt"),
+        LobbyMode::Racket => lang.t("FFA: Racket"),
+        LobbyMode::Cowboy(Variation::Colt) => lang.t("FFA: Saloon"),
+        LobbyMode::Cowboy(Variation::WinchesterAndColt) => lang.t("FFA: Saloon (Winchester)"),
+        LobbyMode::Roulette(_) => lang.t("FFA: Roulette"),
     }
+}
+
+/// A mode the history keeps by a lobby number srp no longer knows.
+pub(crate) fn unknown_mode_name(lang: Lang, number: u8) -> String {
+    lang.tf("Mode {0}", &[("0", &number)])
 }
 
 /// The matches' tab: a line for each match that is not over, the oldest
@@ -1127,11 +1119,6 @@ mod tests {
         forged.top[0].clan_tag = BETWEEN.into();
         let answer = named(&places(Lang::En, &forged, &live(), counts()));
         assert_eq!(answer.split(BETWEEN).count(), 2 * PLACES.len());
-        // The page from before the tabs has the first, third and fourth.
-        assert_eq!(
-            BEFORE.map(|place| PLACES[place]),
-            ["board", "now", "totals"]
-        );
     }
 
     #[test]
@@ -1145,7 +1132,6 @@ mod tests {
         assert!(!policy.contains("unsafe-inline' 'sha256") && !policy.contains("unsafe-eval"));
         assert!(!crate::POLICY.contains("script-src"));
         assert!(serves("/launcher") && serves("/launcher/v2/survarium/") && serves(FRESH));
-        assert!(serves(FRESH_BEFORE));
         assert!(!serves("/launchers") && !serves("/") && !serves("/api/stats"));
     }
 

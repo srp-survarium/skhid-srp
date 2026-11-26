@@ -23,6 +23,11 @@ impl Ms {
         if ms <= Ms::MAX.0 { Some(Ms(ms)) } else { None }
     }
 
+    /// A duration of at most 65 s, always under [`Ms::MAX`].
+    pub const fn short(ms: u16) -> Ms {
+        Ms(ms as u32)
+    }
+
     /// A config's seconds (0.46c2 keeps them x 1000); `None` over a day.
     pub const fn from_seconds(seconds: u32) -> Option<Ms> {
         if seconds <= Ms::MAX.0 / 1000 {

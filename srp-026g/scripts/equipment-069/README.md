@@ -1,6 +1,6 @@
 # Armour from 0.69d
 
-`equipment-069@5` adds 0.69d-only armour: the two backpacks that equipment-046 left out,
+`equipment-069@6` adds 0.69d-only armour: the two backpacks that equipment-046 left out,
 the Medic's bag (1357) and the Soldier's backpack (1359), the Snow-20 vest, pants, gloves,
 boots and helmet (1878-1881, 1883) and the Delta mask (1882). What ships, the balance
 proposals and the open questions are in
@@ -50,11 +50,11 @@ python srp-026g/scripts/equipment-069/prepare_inputs.py --bundle <bundle> \
   --game-data-bin srp-026g/target/release/srp-game-data \
   --equipment046 private/content-packs/equipment-046-9 --out <inputs folder>
 python srp-026g/scripts/equipment-069/make_pack.py \
-  --inputs <inputs folder> --out private/content-packs/equipment-069-5
+  --inputs <inputs folder> --out private/content-packs/equipment-069-6
 python srp-026g/scripts/equipment-069/check_pack.py \
-  private/content-packs/equipment-069-5 <inputs folder>
+  private/content-packs/equipment-069-6 <inputs folder>
 python srp-026g/scripts/equipment-069/balance_audit.py \
-  private/content-packs/equipment-069-5 <inputs folder> --out <report.json>
+  private/content-packs/equipment-069-6 <inputs folder> --out <report.json>
 ```
 
 `--equipment046` is equipment-046@9's built pack (its make_pack.py's folder): the configs
@@ -67,6 +67,8 @@ only by `release/build-content <revision>`.
 ## Checks
 
 - `check_pack.py` checks:
+  - each piece that takes a camouflage (`camo_available`): its data sections' surfaces have
+    their diffuse's `_aoac` mask, without which the game's bake leaves them plain;
   - each config: the template's parameters, level, faction, price, weight, drop weight,
     built-ins, the card, the surface names, the sounds, and that the built-in bonuses are at
     the promoted strength; a mask's protection on every hit type of its region, worn in the

@@ -22,7 +22,6 @@ pub struct RawParams {
     pub round_countdown_time: u32,
     pub score: u32,
     pub respawn_time: u32,
-    pub time_needed_to_respawn: u32,
     pub vi_spawn_time: u32,
     pub vi_spawn_variation: u32,
     pub vi_not_picked_ttl: u32,
@@ -74,7 +73,6 @@ pub enum ParamError {
     RoundCountdownTime,
     Score,
     RespawnTime,
-    TimeNeededToRespawn,
     ViSpawnTime,
     ViNotPickedTtl,
     ViDroppedTtl,
@@ -102,7 +100,6 @@ pub struct Params {
     pub(crate) goal: u8,
     /// Not 0.
     pub(crate) respawn_wave: Ms,
-    pub(crate) respawn_least: Ms,
     /// The artefact's wait is `wait_least` plus a draw below `wait_range`.
     pub(crate) wait_least: Ms,
     pub(crate) wait_range: u32,
@@ -192,11 +189,6 @@ impl Params {
         if respawn_wave == Ms::ZERO {
             return Err(ParamError::RespawnTime);
         }
-        let respawn_least = seconds(
-            raw.time_needed_to_respawn,
-            HOUR,
-            ParamError::TimeNeededToRespawn,
-        )?;
         // 0.46c2 (0x73FCDA): v = min(spawn time, variation); the wait is
         // uniform in [spawn time - v, spawn time + v).
         let spawn = seconds(raw.vi_spawn_time, DAY / 2, ParamError::ViSpawnTime)?;
@@ -246,7 +238,6 @@ impl Params {
             restart: Timing::new(before_new_round, round_countdown),
             goal,
             respawn_wave,
-            respawn_least,
             wait_least: spawn.minus(variation),
             wait_range: 2 * variation.get(),
             not_picked_ttl,

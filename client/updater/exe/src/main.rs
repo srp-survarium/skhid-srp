@@ -32,13 +32,14 @@ mod play;
 mod gate;
 mod http;
 mod install;
+mod leftover;
 mod libtorrent;
 mod log;
+mod old_restore;
 mod patches;
 mod pipe;
 mod replay;
 mod replay_association;
-mod resources;
 mod route;
 mod seed;
 mod signed;
@@ -834,9 +835,8 @@ enum Done {
     Stop(Stop, String),
 }
 
-/// The update: the overlay, then the revision gate (`gate::behind`), the
-/// restore of resources.db and the patch step, all under the installation
-/// lock.
+/// The update: the overlay, then the revision gate (`gate::behind`) and the
+/// patch step, all under the installation lock.
 fn update(session: &mut Session, layout: &Layout, patch_look: patches::Look) -> Done {
     session.trouble = None;
     let _lock = match win::install_lock(&layout.exe_dir) {
@@ -861,10 +861,9 @@ fn update(session: &mut Session, layout: &Layout, patch_look: patches::Look) -> 
     if let Done::Installed { .. } = done {
         patches::overlay_changed(layout);
     }
-    // The restore and the patch step run at every start the game may be
-    // played after, with the server only when the server answered. When this
-    // updater or the launcher was replaced, the new ones start at once and
-    // do them.
+    // The patch step runs at every start the game may be played after, with
+    // the server only when the server answered. When this updater or the
+    // launcher was replaced, the new ones start at once and do it.
     match &done {
         Done::UpToDate | Done::Installed { restart: false, .. } | Done::Offline(_) => {}
         Done::Installed { restart: true, .. } => {
@@ -890,12 +889,9 @@ fn update(session: &mut Session, layout: &Layout, patch_look: patches::Look) -> 
         None => Ok(&server),
         Some(why) => Err(why.as_str()),
     };
-    // Best effort: what an earlier updater wrote into resources.db in place
-    // gets its stock bytes back, once.
-    match resources::run(session, layout, server.ok()) {
-        resources::Outcome::Done => {}
-        resources::Outcome::Stopped => return Done::Stopped,
-    }
+    // What the updaters of before the patches left beside this one goes;
+    // the game's resources.db is never changed.
+    old_restore::sweep(layout);
     // The patches of resources.db the server lists: required, every one of
     // them checked before the game is played.
     let installed = read_installed(layout);
@@ -1740,8 +1736,8 @@ fn pass(session: &mut Session, layout: &Layout, look: patches::Look, product: Op
     }
     let (code, watch) = match done {
         Done::UpToDate => {
-            // "Checking" clears a file name the restore or the patch step
-            // left in the launcher's line.
+            // "Checking" clears a file name the patch step left in the
+            // launcher's line.
             if session.named_file {
                 session.state(state::CHECKING);
             }
@@ -1751,8 +1747,7 @@ fn pass(session: &mut Session, layout: &Layout, look: patches::Look, product: Op
         Done::Installed { restart: true, .. } => match product {
             // The launcher or this updater was replaced: the launcher
             // closes, and its new file is started, which starts the new
-            // updater: that one restores resources.db and does the patch
-            // step.
+            // updater: that one does the patch step.
             Some(product) if session.pipe.is_some() => {
                 restart_launcher(session, layout, product);
                 return exit::OK;
@@ -1839,8 +1834,8 @@ fn register_replays(arguments: &[String]) -> u32 {
 }
 
 /// `check` by hand (no launcher) replaced this updater: the new one is run,
-/// as it was started, to finish the update (the restore and the patch step,
-/// which this one leaves to it); its exit code is this one's.
+/// as it was started, to finish the update (the patch step, which this one
+/// leaves to it); its exit code is this one's.
 fn finish_by_new(session: &mut Session, layout: &Layout) -> u32 {
     let exe = format!("{}\\{}", layout.exe_dir, layout.exe_name);
     let command = format!(

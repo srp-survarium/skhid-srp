@@ -5,7 +5,7 @@ description: Port a map from another Survarium build (0.69d, 0.46c2, 0.27d, 0.21
 
 # Porting a map into 0.26g
 
-Rudnya (v0.69) is the worked example: maps 204/216/217/218, pack `rudnya-069d@3`,
+Rudnya (v0.69) is the worked example: maps 204/216/217/218, pack `rudnya-069d@7`,
 resource-porter `ports/survarium-069d-rudnya-to-026g.json`. The longer notes:
 
 - resource-porter `docs/survarium-069d-to-026.md`: every conversion choice, with numbers;
@@ -100,7 +100,12 @@ resource-porter `ports/survarium-069d-rudnya-to-026g.json`. The longer notes:
   - probes: the donor's own volumes, cubes and SH with their `multiplier` and full
     rotation, the largest also as the map-wide sphere;
   - ambient lights: 0.26g's own ambient lights (an intensity above 1 adds light; the colour
-    is packed with red in the low byte), with the donor's falloff and facing fitted;
+    is packed with red in the low byte), with the donor's falloff fitted and its facing term
+    (cutoff, power) carried exactly in `attenuation_power` for the lighting pack's programs;
+    a box keeps 0.69d's own falloff, side width and `gradient_attenuation` (the light from a
+    door falling off into the room), and a cylinder is drawn as one in the box around it,
+    both carried the same way (lighting @14): drawn as plain boxes, Rudnya's floor and loft
+    lights were uniform bright rectangles and its tower darkeners black squares;
   - exposure, grading and tone curve: the donor's, as an exposure profile of the lighting
     pack (`three-maps-021-lighting`, its `exposure_profiles` row with the numbers the
     build's "tone:" note prints; the scene's `mie_fog_base_height` is the marker) and the
@@ -113,7 +118,10 @@ resource-porter `ports/survarium-069d-rudnya-to-026g.json`. The longer notes:
     donor's unused constant was drawn (Rudnya's rusty roofs "greasy" at gloss 0.62; the build
     now stops on such a template);
   - vertex blends: the donor's own strength, falloff, second-layer tile and mask scale and
-    rotation (both builds draw the same weight formula); a blend 0.69d cuts by its second
+    rotation (both builds draw the same weight formula for the same technique and tiled-mask
+    switch: the manifest names a template per switch the category's own lacks,
+    `<category>_technique<n>[_tiled_mask]`; on the category's template a linear blend drew
+    the second layer all over: the sheds' rust roofs); a blend 0.69d cuts by its second
     layer's alpha needs the blended-cut gbuffer programs (0.26g's own read the base's alpha
     only: the lath under Rudnya's wallpaper drew black);
   - scene objects both builds have (sound emitters, a particle 0.26g ships): the donor's.

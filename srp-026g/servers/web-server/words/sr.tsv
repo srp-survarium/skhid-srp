@@ -95,8 +95,6 @@ Not found.	Nije pronađeno.
 Too many wrong tokens; wait a minute.	Previše pogrešnih tokena; sačekajte minut.
 Wrong token.	Pogrešan token.
 No such user.	Nema takvog korisnika.
-Silver and gold are whole numbers, + or -, or empty.	Srebro i zlato su celi brojevi, + ili -, ili prazno.
-{user}: now {silver_now} silver and {gold_now} gold.	{user}: sada {silver_now} srebra i {gold_now} zlata.
 New accounts are taken again.	Novi nalozi se ponovo primaju.
 New accounts are refused; existing players sign in as before.	Novi nalozi se ne primaju; postojeći igrači se prijavljuju kao i ranije.
 Maintenance cancelled.	Održavanje je otkazano.
@@ -138,9 +136,8 @@ Q:	P:
 A:	O:
 If something goes wrong	Ako nešto pođe naopako
 Download the files	Preuzmi datoteke
-Download the game	Preuzmi igru
 The download link is coming soon.	Link za preuzimanje stiže uskoro.
-Can't download? Run {script}: it downloads the whole game into a Survarium folder beside it.	Ne možete da preuzmete? Pokrenite {script}: preuzima celu igru u folder Survarium pored sebe.
+Chrome or your antivirus refuses the download? Try this script: {script}. It downloads the whole game into a Survarium folder beside it.	Chrome ili antivirus ne dozvoljava preuzimanje? Probajte ovu skriptu: {script}. Preuzima celu igru u folder Survarium pored sebe.
 Get the game	Nabavi igru
 The link is coming soon.	Link stiže uskoro.
 Get the original Survarium 0.26g (build 2777) and unpack it.	Nabavite originalni Survarium 0.26g (build 2777) i raspakujte ga.
@@ -155,10 +152,6 @@ Run <code>Skhid.bat</code> and press <b>PLAY</b>.	Pokrenite <code>Skhid.bat</cod
 Windows warns about an unknown publisher? Let it run.<br>Linux: <code>bash Skhid.sh launcher</code>, see <code>LINUX.txt</code>.	Windows upozorava na nepoznatog izdavača? Dozvolite pokretanje.<br>Linux: <code>bash Skhid.sh launcher</code>, pogledajte <code>LINUX.txt</code>.
 Windows warns about an unknown publisher? Let it run.<br>Linux: <code>bash Skhid.sh</code>, see <code>LINUX.txt</code>.	Windows upozorava na nepoznatog izdavača? Dozvolite pokretanje.<br>Linux: <code>bash Skhid.sh</code>, pogledajte <code>LINUX.txt</code>.
 Run <code>play_skhid.bat</code> in <code>game\\binaries\\x86</code>.	Pokrenite <code>play_skhid.bat</code> u folderu <code>game\\binaries\\x86</code>.
-Start it with this command line:	Pokrenite igru ovom komandom:
-english	english
-server address	adresa servera
-language: english, russian, ukrainian	jezik: english, russian, ukrainian
 Skhid (Ukrainian for “east”) is a community server that lets the Survarium {version} client sign in, trade, form squads and play matches again.	Skhid (ukrajinski „istok“) je server zajednice na kom klijent Survarium {version} ponovo može da se prijavi, trguje, okuplja odrede i igra mečeve.
 Project Discord: <a href="https://discord.gg/pxywZfaxRQ">discord.gg/pxywZfaxRQ</a>	Discord projekta: <a href="https://discord.gg/pxywZfaxRQ">discord.gg/pxywZfaxRQ</a>
 Early test server.	Rani test server.
@@ -167,7 +160,6 @@ How to play	Kako igrati
 Download our files and unpack them into an empty folder (e.g. D:\\Survarium). <b>You do this only once.</b>	Preuzmite naše datoteke i raspakujte ih u prazan folder (npr. D:\\Survarium). <b>Ovo radite samo jednom.</b>
 Download our files and unpack them into the game's folder, the one with the <code>game</code> folder, replacing files. <b>You do this only once.</b>	Preuzmite naše datoteke i raspakujte ih u folder igre, onaj sa folderom <code>game</code>, uz zamenu datoteka. <b>Ovo radite samo jednom.</b>
 Download our files and unpack them over the game's <code>game</code> folder.	Preuzmite naše datoteke i raspakujte ih preko foldera <code>game</code> igre.
-Download the patched game and unpack it.	Preuzmite izmenjenu igru i raspakujte je.
 Sign in with any name and password: a new name registers itself. Remember the password.	Prijavite se bilo kojim imenom i lozinkom: novo ime se samo registruje. Zapamtite lozinku.
 New accounts are taken.	Novi nalozi se primaju.
 Stop new registrations	Zaustavi nove registracije
@@ -177,7 +169,6 @@ Shown once the token is right.	Prikazuje se kada je token ispravan.
 Password	Lozinka
 User name	Korisničko ime
 Silver, + or -	Srebro, + ili -
-Gold, + or -	Zlato, + ili -
 Change	Promeni
 Admin	Administrator
 Token	Token
@@ -408,6 +399,7 @@ Kills	Ubistva
 Deaths	Smrti
 K/D	K/D
 Kills/min	Ubistva/min
+Experience/min	Iskustvo/min
 Assists	Asistencije
 Score	Rezultat	stats
 Avg score	Prosečan rezultat
@@ -511,10 +503,10 @@ Bring it to your own base: 1 point, and the round ends.	Donesite ga u svoju bazu
 The carrier is slower and seen by everyone.	Nosilac je sporiji i svi ga vide.
 Respawn in waves every {0} s.	Oživljavanje u talasima na svakih {0} s.
 Time limit {0}: the higher score wins; a tie plays {1} of sudden death without respawns.	Vremensko ograničenje {0}: pobeđuje veći rezultat; kod nerešenog {1} iznenadne smrti bez oživljavanja.
-Sniper rifles, silenced guns and guns without automatic fire are replaced.	Snajperske puške, oružje sa prigušivačem i oružje bez automatske paljbe se zamenjuju.
-Rooms up to level {0}: {1}.	Sobe do nivoa {0}: {1}.
-Other rooms: {0}.	Ostale sobe: {0}.
-Sight: {0}.	Nišan: {0}.
+Everyone fights with an assault rifle: sniper rifles, silenced guns and guns without automatic fire are swapped for an {0} (rooms up to level {1}) or an {2} (higher rooms).	Svi se bore jurišnim puškama: snajperske puške, oružje s prigušivačem i oružje bez automatske paljbe zamenjuju se sa {0} (sobe do nivoa {1}) ili {2} (više sobe).
+Each comes with an {0}.	Svaka ima {0}.
+a revolver	revolver
+a lever-action rifle	puška sa polužnim zatvaračem
 Every kit: {0} only.	Svaki komplet: samo {0}.
 Every kit: {0} and {1}.	Svaki komplet: {0} i {1}.
 Everyone plays the same {0} random kits.	Svi igraju iste {0} nasumične komplete.
@@ -565,6 +557,7 @@ No effect fully aimed.	Ne deluje pri potpunom nišanjenju.
 Spread while walking {v} per rank, from the hip or aiming in. Not crouch-walking.	Rasipanje pri hodanju {v} po rangu, sa boka ili pri ulasku u nišanjenje. Ne važi pri hodanju u čučnju.
 Spread from broken arms {v} per rank.	Rasipanje zbog slomljenih ruku {v} po rangu.
 This weapon's kick ranges, up and sideways. Not the camera shake.	Opsezi trzaja ovog oružja, nagore i u stranu. Bez podrhtavanja kamere.
+This weapon's base spread, in every shot: all of the spread fully aimed, little of it from the hip. Not the stance's spread or a shot's.	Osnovno rasipanje ovog oružja, u svakom hicu: celo rasipanje pri potpunom nišanjenju, mali njegov deo sa boka. Ne rasipanje od stava ni od hica.
 The stance's spread and each shot's. No effect sprinting, jumping or fully aimed.	Rasipanje od stava i od svakog hica. Ne deluje pri sprintu, skoku ni potpunom nišanjenju.
 Each shot's kick with any weapon: up, sideways and the camera shake.	Trzaj svakog hica iz bilo kog oružja: nagore, u stranu i podrhtavanje kamere.
 Base	Osnovno
@@ -717,6 +710,9 @@ Battery spawn	Pojavljivanje baterije
 Charger	Punjač
 Research unit	Istraživačka jedinica
 Spawn	Pojavljivanje
+Glow of the Forest	Sjaj Šume
+Bases	Baze
+Base	Baza	hunt
 
 # The damage calculator (a page built at a release: scripts/site-texts)
 Feet	Stopala	parts
@@ -728,7 +724,7 @@ Damage ×{damage}, penetration ×{pierce}, before armour: lower penetration make
 {drug}: {pool} takes ×{k} for {s} s after use ({delay} s to kick in).	{drug}: {pool} prima ×{k} tokom {s} s posle upotrebe (deluje posle {delay} s).
 Inside an anomaly: damage ×{k}, before armour.	U anomaliji: šteta ×{k}, pre oklopa.
 This weapon takes no damage bonuses.	Ovo oružje ne prima bonuse štete.
-Come with the weapon; cannot be changed.	Dolaze sa oružjem; ne mogu se menjati.
+Comes with the weapon; cannot be changed.	Dolazi sa oružjem; ne može se menjati.
 An item holds at most 3 modifications. Bonuses on one stat add up before they apply.	Predmet ima najviše 3 modifikacije. Bonusi na istu osobinu se sabiraju pre primene.
 This item takes no armour bonuses.	Ovaj predmet ne prima bonuse oklopa.
 Nothing worn covers the {part}.	Ništa od opreme ne štiti: {part}.
@@ -920,3 +916,88 @@ Healing	Lečenje
 Previous shot	Prethodni hitac
 Next shot	Sledeći hitac
 Damage calculator	Kalkulator štete Survarium	title
+# The wiki's artefacts (src/artefacts.rs)
+Every artefact: what it gives carried and fired, how copies stack, where it is found.	Svaki artefakt: šta daje kad se nosi i kad se aktivira, kako se kopije slažu, gde se nalazi.
+Artefact	Artefakt
+Passive	Pasivni
+Active	Aktivni
+Active time	Trajanje
+Cooldown	Hlađenje
+Skill	Veština
+Rules	Pravila
+Movement speed	Brzina kretanja
+Stamina regeneration	Obnova energije
+Stamina use	Potrošnja energije
+Slowdown from hits	Usporavanje od pogodaka
+Against	Protiv
+Body parts	Delovi tela
+Penetration	Probojnost
+Health	Zdravlje
+Cures injuries	Leči povrede
+Regeneration	Regeneracija
+Regeneration delay	Kašnjenje regeneracije
+Regenerates up to	Obnavlja se do
+HP	HP	unit
+Carried in a container: passive. A death leaves them in that kit.	U kontejneru: pasiv. Posle smrti ostaju u tom kompletu.
+A key fires every ready copy of its kind and restarts the cooldown of the ones still cooling.	Taster aktivira svaku spremnu kopiju svoje vrste i ponovo pokreće hlađenje onih koje se još hlade.
+Copies of a kind add up (Onyx's passive multiplies); at most 4 count.	Kopije iste vrste se sabiraju (pasiv Oniksa se množi); računaju se najviše 4.
+Spring's and Larkspur's actives add to the passive; Onyx's replaces it.	Aktivacija Federa i Živokosta dodaje se pasivu; Oniksova ga zamenjuje.
+Onyx fired together: one reduction, 1 s longer per extra copy.	Oniksi aktivirani zajedno: jedno smanjenje, 1 s duže za svaku dodatnu kopiju.
+
+# The maps' anomalies (scripts/maps-tab/ui.js)
+Anomalies	Anomalije
+Anomaly	Anomalija
+Artefacts come from the anomalies. Each anomaly puts one of its artefacts into one of its free containers, one per time window, until its maximum lies uncollected; a pickup starts the window again. It gives only those of its artefacts that no player is carrying. Point at an anomaly or an artefact (or tap it) for its numbers.	Artefakti dolaze iz anomalija. Svaka anomalija stavlja jedan od svojih artefakata u jedan od svojih slobodnih kontejnera, jedan po vremenskom prozoru, dok ne leži njen maksimum nesakupljenih; podizanje artefakta pokreće prozor iznova. Daje samo one svoje artefakte koje ne nosi nijedan igrač. Pokažite na anomaliju ili artefakt (ili ga dodirnite) za njene brojke.
+{s} s	{s} s
+{a}–{b} s	{a}–{b} s
+Holds	Sadrži
+First one	Prvi
+Then every	Zatim svakih
+Chance	Šansa
+Max uncollected	Najviše nesakupljenih
+Search	Pretraga	artefact
+Zones switch every	Zone se smenjuju svakih
+After a pickup the next one comes {next} later; that container stays empty for {cooldown}.	Posle podizanja sledeći dolazi za {next}; taj kontejner ostaje prazan {cooldown}.
+Its own zone does no damage.	Njena sopstvena zona ne nanosi štetu.
+Searching a container takes {search}; after a pickup it stays empty for {cooldown}.	Pretraga kontejnera traje {search}; posle podizanja ostaje prazan {cooldown}.
+After a pickup the next one comes {next} later.	Posle podizanja sledeći dolazi za {next}.
+whole body	celo telo
+{n} % a hit, at most every {t}	{n} % po pogotku, najviše svakih {t}
+deadly	smrtonosno
+{n} % a second	{n} % u sekundi
+Damage is a share of each body part's health, before armour.	Šteta je udeo zdravlja svakog dela tela, pre oklopa.
+It gives no artefacts.	Ne daje artefakte.
+
+# The stats' Maps and Modes boards.
+Last 7 days	Poslednjih 7 dana
+Last 24 hours	Poslednja 24 sata
+Avg length	Prosečno trajanje
+Sides	Strane
+No result	Bez rezultata
+Share	Udeo
+Trend	Kretanje
+by hour	po satima
+by day	po danima
+by week	po nedeljama
+Most played maps and modes	Najigranije mape i režimi
+
+# The modes and weathers as the game names them (client-patches/localization: the stats' Maps and Modes boards, the match lists).
+Protective device	Zaštitni uređaj
+Protective device: chargers	Zaštitni uređaj: punjači
+Team Deathmatch	Timska eliminacija
+Research	Istraživanje
+Protective device: blackout	Zaštitni uređaj: zamračenje
+Free for all	Svako protiv svakoga
+Freeze Tag	Zamrzavanje
+Artifact Hunt	Lov na artefakt
+FFA: Racket	FFA: Galama
+FFA: Saloon	FFA: Salun
+FFA: Saloon (Winchester)	FFA: Salun (Winchester)
+Mode {0}	Režim {0}
+day	dan	weather
+rain	kiša	weather
+evening	veče	weather
+night	noć	weather
+before rain	pred kišu	weather
+Weathers	Vreme
+Variants	Varijante

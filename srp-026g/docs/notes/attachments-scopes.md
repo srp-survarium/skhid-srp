@@ -44,9 +44,27 @@ went on a weapon by a variant: [weapon_scopes.md](weapon_scopes.md), kept as the
   angle from any eye; and leaves the aimed model's first-person lens out, as every released
   collimator has it. A magnified scope's reticle is its aimed model's own (`scope_aimgrid_s`,
   `scope_reddot_s`).
+- **The reticle's material** (pack version 8): the players' emitter (`weapons/loc2/collimator_glowing_dot_red`,
+  patch 21's: red, 20 times, `constant_transparency` 0.3) without its fade by the view's angle, as
+  `weapons/modules_069/collimator_glowing_dot_red` (the one setting that differs). The fade
+  (`use_angle_depended_attenuation`, `attenuation_power` 7000; `forward_base.ps` multiplies the alpha
+  by |cos|^7000 of the angle between the pixel's ray and the view's axis) keeps a pixel lit only within
+  about a degree of the screen's centre (half at 0.8 degrees). It was made for the 0.51c5 optics' dot,
+  0.6 m ahead of the optic, which the gun's moves hardly move; at 0.69d0's place, 0.08 to 0.8 m ahead
+  of the eye (the AK-74M's EOTech 0.13 m), a few millimetres of the gun's move against the eye take the
+  reticle out of that degree, and the EOTech's ring (2.8 degrees across there) was lit at an eighth
+  even at rest. Versions 3 to 7 had it (live since revision 69): the owner saw the dot flicker and go
+  out (2026-11-22, again 2026-11-26). 0.69d0's reticle material and 0.26g's own EOTech 552 and
+  Walther emitters (`eotech_552_emissive`, `walther_comp2_emissive`, at the same place in their
+  housings) have no fade; loc2's material, which the 0.26 and 0.30-era sights use, is unchanged.
+- **The reticle and the hi-Z occlusion**: the dot is a surface of its own, a disk 0.66 mm across, and
+  until patch 213 it took the world's hi-Z test like any surface in view, the housing around it a
+  separate answer (`renderer-026g.md` 5.7): a wrong answer dropped the dot alone for a frame or more.
+  Patch 213 keeps every first-person surface out of that test.
 - **The glass.** An idle optic's outside lens (`scope_lense_3p_s`: the front and the rear glass in
   one surface, two discs at the tube's ends) is dark coated glass one sees through (pack version
-  6): `weapons/modules_069/scope_lense_3p_glass`, the stock PSO-1's lens material
+  9: version 8 with it; versions 4 to 6 were its steps, never released):
+  `weapons/modules_069/scope_lense_3p_glass`, the stock PSO-1's lens material
   (`weapons/pso_1_lens`, `forward_lighting_no_distort`) on patch 19's lens normal and gloss maps,
   and a texture of its own made from patch 19's lens map (alpha 40/255 and colour (90, 110, 120)
   in the glass, the map's dark opaque rim kept). How 0.26g draws it (the shipped bytecode, and
@@ -58,7 +76,7 @@ went on a weapon by a variant: [weapon_scopes.md](weapon_scopes.md), kept as the
   glass drew its lit colour over everything behind it, a flat light-grey disc at the hip in sun and
   in shade (the owner, 2026-11-23: "the scope is opaque"; the capture rig: grey 37 in shade, and
   black once that constant is 0). The stock scopes' own glass has the same lit stage (opaque, lit,
-  its map's coating colour, by the same rule; not captured). Version 6: the lit stage reads the map (stock `weapons/pasted_glass`'s
+  its map's coating colour, by the same rule; not captured). Version 6 (and 9): the lit stage reads the map (stock `weapons/pasted_glass`'s
   switches), both stages' constant 2.2 (88/255 in the glass), the lit diffuse times (0.25, 0.22,
   0.45) (a dark blue-violet coating, about (22, 24, 54)), the specular times 0.5 (the PSO-1's 0.1):
   at the hip the tube's dark inside shows through, with the light's highlight on the glass.
@@ -250,6 +268,141 @@ Not in the table yet: the crate's change (a flag on an attach's eye, table versi
 - Not established: what 0.69d0's `Item` bone holds (LIKELY the camera's frame, as in 0.26g); which
   module wins when two override one slot.
 
+
+## Why the EOTech looks small on the A-545 (2026-11-25)
+
+Two differences add up. The first is the distance from the camera to the optic.
+The 0.69d0 A-545 and the shipped remodel both put the long rail at local z = −0.25013 m
+on the offset bone. Both EOTechs use that rail directly. The porter's version 3 gun record
+takes its `body_aim` from the **live** model's `aim` locator. Its z on the root bone is
++0.3140 m. Retail takes it from its own model's `aim` at +0.1771 m. The plane intersection
+therefore puts our eye 13.7 cm farther behind either sight. The porter's `eye line` check
+projects the reference onto the closest point to our eye on that line. Moving the eye along
+the line can pass both this check and the reticle centring check.
+
+| A-545, camera to reticle | Retail 0.69d0 | Shipped 0.26g remodel |
+|---|---:|---:|
+| EOTech 552 | 39.46 cm | 53.16 cm |
+| EOTech XPS2 | 42.85 cm | 56.55 cm |
+
+Measured in bind pose from each model's `render/export_properties` and `render/bind_pose`.
+Use the optic's `aim` on the rail as the reticle position and intersect its sight line with
+the corresponding gun's eye plane. On the shipped side these distances also agree with
+`weapon-modules@3`'s aimed-idle `centres[].ahead` within 0.1 mm. Of 33 gun records with
+a directly mounted 552 and both slots on the gun, the A-545 alone puts the bind-pose eye
+more than 5 cm farther back than retail. Seventeen put it more than 5 cm closer, including
+the M4A1 (20.78 cm in retail, 7.99 cm here). A single per-optic offset cannot restore both.
+
+The second difference is the first-person projection. The 0.69d0 first-person camera controller
+builds two perspective matrices. The world follows the view setting and the current sight zoom
+(both EOTechs have `aim_zoom_factor = 1.2`). The weapon uses a fixed 65° vertical field of view
+multiplied by the interpolation from `weapon_fov_factor` to `aimed_weapon_fov_factor` over the aim.
+The A-545 goes from 1 to 0.5, giving **32.5°** at full aim regardless of the world FOV setting.
+The same aimed factor occurs on 84 of the 103 gun item rows in `scripts/remodel-069/items.tsv`.
+Examples of other factors are 0.35 on the SKS, 0.4 on the Remington 870 and 0.65 on the Jackhammer.
+
+In revision 73 both shipped shop EOTechs have `data/fov_factor = 0.8` (their files in
+`resources.db.patch_69`). At the default `uro_fov = 65`, the aimed world FOV is **52°**.
+The 0.26g foreground pass (0x13E010, identical in the stock and revision 73 executables)
+copies that projection and changes its depth terms. The weapon and reticle therefore also use
+52°. At equal viewport height and reticle size, projected width varies as
+`1 / (distance × tan(vertical FOV / 2))`. The two measured differences predict a retail
+ring about **2.25× as wide for the 552** and **2.21× for the XPS2** on the A-545. These are
+geometry estimates at default settings, without a matched retail gameplay capture.
+
+The shipped v3 table already has both locators. Its gun header holds the composed body's
+own `aim` (what the game reads as the eye with no part moving it) and its ordinary slots hold
+the donor's resolved `body_aim` on the shipped rig. Patch 161 takes that slot as the plane of
+every `InGunPlane` eye (`Gun::eye_plane`); the header is never a plane. A table with such a fit
+or stock part and no slot is refused (`GunFault::NoEyePlane`), and a sight whose line never
+meets the plane is a refusal (`Refusal::OffPlane`, where 0.69d0 would leave the eye inside the
+sight); the check `weapon-modules-table` holds the shipped table to both, and to every scope fit
+standing. The corrected aimed-idle distances for the A-545 are 39.459 cm and 42.852 cm, and for
+the M4A1 20.781 cm and 24.185 cm (552, then XPS2).
+
+**Which fits move** (both resolvers over `weapon-modules@3`, 2026-11-26). 1,248 scope fits on 102
+guns: 413 take the optic's own eye (`Own`: every magnified scope, the PSO-1, ACOG, Elcan, Leupold
+and 1P69 among them) and are unchanged. 835 keep the gun's eye plane (collimators and the rail
+iron sight): 725 move, 110 do not. Of the 110, none has a missing slot and none meets the
+plane-less case; the header lies in the plane already: AKMSU, FAMAS, G3SG1, KS-23M and PPSh
+drum (header equal to the slot), Beretta 93R, CZ 75, MP-443, SVU-A (within 0.01 mm), Glock 17,
+Rem 700 and its premium, SV-98, VSSK and its camo (the header off the slot by 0.4 to 4.3 cm, but
+in its plane). The moving ones, along the line, negative toward the shooter: the pistols with a
+collimator 43 to 49 cm (Fort-17, APS, PM, TT-33, Magnum), Kriss 26.6, Uzi 23.0, PPSh 21.4, HK416
+17.7, SKS 16.7, Winchester 15.0, VHS-2 13.6, OTs-14 13.4, M4A1 12.8, AEK-919K 11.9, the
+shotguns 9 to 11.5, most rifles and SMGs 2.5 to 10, and forward the VSS (+18.1), A-545 (+13.7),
+MP5 and Val (+6.7, +6.6), VSK-94 (+3.9), Rem 870 (+3.6), Vepr (+1.5), MP-153 (+1.1), SVD (+0.7).
+
+**Iron sights.** No stock part of the shipped table sets the eye, so with no optic (nothing
+fitted, or only a muzzle device or a grip) the eye is the body's own `aim`, moved along its line
+by the gun's `parameters/aim_offset` (`calculate_aim_alignment` 0x244D40; the cook makes the
+matrix at 0x24A8E7). Every 0.69d0 `ironsight` module sets the eye with `plane_slot: body_aim`, so
+0.69d0's iron sights stand at the eye plane. `weapon_modules::iron_sights` gives each gun how far
+its own eye goes along its line to that plane (`scripts/weapon-modules/iron_sights.tsv`), and the
+edit list `iron-sights-1.json` makes it the gun's `aim_offset` (`iron_sights.py`) on the 89 guns
+without an optic of their own; a fitted optic's modification still sets it to 0. Against the
+revision 73 eye: the pistols 38 to 43 cm farther back, Uzi 23, PPSh 22, RPD 20, PKP 16, Winchester
+15, SKS 15, VHS-2 14, OTs-14 13, M4A1 13, Mosin 12, most others 1 to 12; forward MP5 6.7, Val 3.8;
+the A-545 (its `aim_offset` +15 cm already) 1.3; twelve within 0.5 cm. The fourteen guns with an
+optic of their own (SVD, VSS, VSK-94, Rem 700, SV-98, VSSK and their premiums, HK416, MSBS, Kriss
+Vector, P90) keep theirs: it is that optic's eye relief, and their iron sights are never seen.
+
+**The projection.** 0.69d0's first-person camera (`update_camera` 0x2002C2D70) makes two
+projections every frame: the world's, the view setting times the sight's zoom
+(`current_camera_fov_factor`), and the first person's, 65 degrees times the held gun's factor
+interpolated from `weapon_fov_factor` to `aimed_weapon_fov_factor` by the aim, 1 for anything that
+is no gun (the 1.0 at 0x2002C2DC6). `send_camera` 0x2001F7A40 hands both to the render view
+(camera +80h and +C0h). The gun, its modules and its optic go to the foreground together
+(`weapon::set_foreground` 0x2002B7630 through each module's visual), and a rifle scope's visual
+puts its idle and aimed models and its current reticle there alike (`rifle_scope_visual` vtable
+0x200984240, slot 6): **a magnified scope's lens and reticle are drawn with the first person's
+projection**, not the world's. Only the item's two factors feed it (their one reader is the
+weapon cook, 0x2002025C5; the G33 magnifier's `effects_to_override` of `weapon_fov_factor` is the
+one module that would change them, and it is not shipped). The geometry agrees: at 32.5 degrees
+the PSO-1's first-person lens (radius 13.1 mm, 67.7 mm from its eye) spans 0.66 of the half
+height, the 1P69's 0.64, the ACOG's 0.61, inside the 0.7 of the PSO-1's `scope_radius` (its
+exposure mask); at the world's x4 (16.25 degrees) the PSO-1's would span 1.35, past the screen
+(929 px of 720, as seen at revision 73). The world's zoom is the same in both (the shop scopes'
+`fov_factor` 0.25 is 1 / `aim_zoom_factor` 4), so the reticle against the world is 0.69d0's. The
+patch draws every held thing so: a gun at its profile (none: 65 degrees), anything else or nothing
+in hand at 65 degrees (`weapon_view.no_gun` 0x1F3579, the camera's branch with no weapon), so a
+knife, a grenade or a medkit is drawn at 0.69d0's 65 whatever `uro_fov` is, as 0.69d0 draws them.
+**One exception**: a gun drawing an optic of its own (0.26g's PSO-1, Leupold and Giperon items 304,
+69, 362, the EOTech and Walther 2206, 2207) keeps the world's projection, as at revision 73:
+0.26g made those models and their eye relief for it, and 0.69d0 has none of them. The optic is
+the table's exactly when the weapon's config names one by `data/srp_scope` and its parts are held
+(`attachments::scope_fitted`).
+
+The shared `srp_weapon_views` dictionary holds both factors for every gun id
+(`weapon-view-069.json`, made by `scripts/weapon-modules/view_profiles.py` from
+`view_factors_069.tsv`, which `--retail <game.options leaves>` takes from 0.69d0's items). This
+keeps the weapon config entry count within its existing bound, including the premium Remington 700
+already at 565 entries. The client copies the profiles when the items dictionary loads; a row that
+is no `{gun, fov}`, has a factor outside (0, 1] or repeats a gun is left out with a line, the
+others kept. In first person the camera samples the weapon's aim progress. The matching scene draw
+command carries its own lens to the render thread in base_command's padding at +14h, which the
+constructor (0x20310) leaves: every draw_scene command is made at 0x1F8EE, its one caller, and the
+submit site writes the field (0 for no lens) before the push publishes it (0x1F8FF); the render
+channel links the command itself (0x1F2C0), never a copy, and on_defer_execution (0x28620) is
+handed the command (this one is made with an empty defer). Each foreground pass replaces the two
+scale terms of its private projection matrix, retaining aspect, jitter and depth. Other scene
+views use their original projection. The attachments Unicorn check runs queued frames through the
+patched executable: aimed, half aimed, another view, a gun's own optic, a fitted optic, no profile,
+no gun, the bad rows, and a command made by the game's own constructor over garbage, deferred and
+run through its own slots.
+
+Measured in local matches with the EOTech 552, at 1280×720 and `uro_fov 65`.
+Ring diameter is measured across its red band, excluding the centre dot and the four
+cardinal marks. The retail column is the geometric prediction from the 0.69d0 assets
+and camera code, relative to revision 73.
+
+| Gun | Revision 73 | Corrected client | Measured change | Retail prediction |
+|---|---:|---:|---:|---:|
+| A-545 | 8.6 px | 19.7 px | 2.28× | 2.25× |
+| M4A1 | 56.9 px | 37.1 px | 0.65× | 0.64× |
+
+The A-545 with the XPS2 was also aimed in a local match on the final executable.
+Its ring measured 18.0 px across at the same resolution.
 
 ## State, 2026-11-21 (06:00)
 

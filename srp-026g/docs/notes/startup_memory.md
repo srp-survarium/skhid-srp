@@ -16,7 +16,7 @@ with ample memory. The observed Wine 9 failure does not establish that
 fragmentation alone, or the largest region being 1.6 GiB, explains every
 player's failure.
 
-## Executable change (patch 78, unreleased)
+## Executable change (not yet merged; its patch number is assigned when it lands)
 
 The generated Rust lohook at **0xE9B96** handles the second allocation's
 result. On failure it reduces the combined resource request in 64 MiB
@@ -34,7 +34,7 @@ request. The existing native allocator may itself shrink requested pools
 to fit free regions; this patch does not change that behavior. The native
 page-file warning after a successful fallback is also unchanged.
 
-The safe policy and owner are `rust/patches/src/startup_memory.rs` and
+In that unmerged work, the safe policy and owner are `rust/patches/src/startup_memory.rs` and
 `vostok/memory.rs`. Bindings, frame fields and hook entry are generated from
 the usual tables; the existing `patches.code` arena block owns the code.
 No revision, content or simulation compatibility number changes.

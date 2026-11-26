@@ -1,0 +1,78 @@
+The 14 tiles of this folder (artists/catalog.tsv) are camouflage textures drawn by artists and
+published under free licences, picked by the owner on 2026-11-26. classics_art.py fetch downloads
+each source and checks its sha256; classics_art.py build then reproduces every WebP byte for byte
+(checked 2026-11-26 with NumPy 2.4.4, Pillow 13.0.0 and SciPy 1.17.1; the Nobiax archive is read
+with the 7z tool).
+
+Each source is a seamless tile and is used whole, scaled to 768 px (the Commons drawings rendered
+at 1920 px), save the two star patterns: a square of 30% of the drawing's side is cut and made
+seamless as in classics/ (SOURCES.txt there). None of the sources discloses AI-generated or
+AI-assisted work.
+
+
+CC0 textures
+
+  shard-forest.webp        pattern_157/diffuse.tga of 3D_pattern_31.7z, "Free materials pack 31
+                           redux" by Nobiax (OpenGameArt user Yughues),
+                           https://opengameart.org/content/free-materials-pack-31-redux; modified:
+                           scaled
+  shard-winter.webp        pattern_154/diffuse.tga of the same archive, by Nobiax; modified: scaled
+  shard-earth.webp         pattern_158/diffuse.tga of the same archive, by Nobiax; modified: scaled
+  urban-blots.webp         Untitled-1_5.png of "camo texture pack 1" by 6666,
+                           https://opengameart.org/content/camo-texture-pack-1, CC0 1.0; modified:
+                           scaled
+  lime-spots.webp          Untitled-2_0.png of the same pack, by 6666, CC0 1.0; modified: scaled
+  woven-woodland.webp      Fabric_Camo_003_basecolor.jpg of "Fabric Camo 003" by João Paulo
+                           (3dtextures.me), https://3dtextures.me/2019/07/30/fabric-camo-003/,
+                           CC0 1.0; modified: scaled
+  urban-knit.webp          Camo_001_COLOR.jpg of "Fabric Camo 001" by João Paulo (3dtextures.me),
+                           https://3dtextures.me/2016/05/17/fabric-camo-001/, CC0 1.0; modified:
+                           scaled
+
+Nobiax's pack carries a readme dedicating it to CC0 1.0; its OpenGameArt page lists CC BY 3.0 and
+CC BY 4.0. It is credited here as CC BY asks, whichever applies.
+
+CC0 1.0: https://creativecommons.org/publicdomain/zero/1.0/
+
+
+CC BY and CC BY-SA textures: credits
+
+  blue-brush.webp          "Blue camo 4k" (blucamo4k.png) by cron,
+                           https://opengameart.org/content/blue-camo-4k, CC BY 3.0; modified: scaled
+  star-forest.webp         "0 0 0 Exército do Lula - camuflagem floresta" by Eugenio Hansen, OFS,
+                           https://commons.wikimedia.org/wiki/File:0_0_0_Exército_do_Lula_-_camuflagem_floresta.svg,
+                           CC BY-SA 4.0; modified: cropped, made seamless, scaled
+  star-ember.webp          "0 0 0 Exército do Lula - camuflagem bombeiros" by Eugenio Hansen, OFS,
+                           https://commons.wikimedia.org/wiki/File:0_0_0_Exército_do_Lula_-_camuflagem_bombeiros.svg,
+                           CC BY-SA 4.0; modified: cropped, made seamless, scaled
+  marine-woodland.webp     "Armea kamuflado - mararmea 1" by Eugenio Hansen, OFS,
+                           https://commons.wikimedia.org/wiki/File:Armea_kamuflado_-_mararmea_1.svg,
+                           CC BY-SA 4.0; modified: scaled
+  urban-woodland.webp      "Armea kamuflado - urba 2" by Eugenio Hansen, OFS,
+                           https://commons.wikimedia.org/wiki/File:Armea_kamuflado_-_urba_2.svg,
+                           CC BY-SA 4.0; modified: scaled
+  hazard-pixel.webp        "Armea kamuflado - UTFPR" by Eugenio Hansen, OFS, after "EMR camouflage
+                           pattern swatch.svg" by Aleksey Belousov (the Russian Armed Forces' EMR
+                           pattern),
+                           https://commons.wikimedia.org/wiki/File:Armea_kamuflado_-_UTFPR.svg,
+                           CC BY-SA 4.0; modified: scaled
+  teal-pixel.webp          "Armea kamuflado - turkiza" by Eugenio Hansen, OFS, after the same EMR
+                           swatch by Aleksey Belousov,
+                           https://commons.wikimedia.org/wiki/File:Armea_kamuflado_-_turkiza.svg,
+                           CC BY-SA 4.0; modified: scaled
+
+CC BY 3.0:    https://creativecommons.org/licenses/by/3.0/
+CC BY-SA 4.0: https://creativecommons.org/licenses/by-sa/4.0/
+
+These textures are adaptations, and each is licensed as its source: blue-brush.webp under CC BY 3.0,
+which asks only for the credit above; the six from CC BY-SA 4.0 drawings under CC BY-SA 4.0, or, as
+CC BY-SA 4.0 permits for adaptations, under the GNU GPL v3 (this repository's licence). Each credit
+applies wherever the texture goes, including the game's archive built from it. Hazard Pixel and Teal
+Pixel are recolours of the Russian EMR digital pattern.
+
+
+Looked at and left out: textures that disclose AI-generated or AI-assisted work (oleekconder,
+SM ART'S, berserkerbones, Wayfold Studio and Megabyte Games on itch.io), packs without a licence,
+paid packs that forbid redistributing the textures (this repository publishes the tiles),
+ShareTextures (its "CC0" forbids redistribution without written permission), textures under
+512 px, and the artist candidates the owner dropped on 2026-11-26.

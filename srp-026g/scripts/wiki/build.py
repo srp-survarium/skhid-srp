@@ -48,11 +48,12 @@ SKILL_TIPS = {
     "recoil": "Each shot's kick {v} per rank: up, sideways and the camera shake.",
 }
 # What a modification of each kind does: of the kit's player modifiers, or
-# the weapon's kick ranges.
+# of the weapon's own values (gen_calc_data.py WEAPON).
 MOD_TIPS = {
     ("dispersion",): "The stance's spread and each shot's. No effect sprinting, jumping or fully aimed.",
     ("recoil",): "Each shot's kick with any weapon: up, sideways and the camera shake.",
-    "kick": "This weapon's kick ranges, up and sideways. Not the camera shake.",
+    ("weapon", "kick"): "This weapon's kick ranges, up and sideways. Not the camera shake.",
+    ("weapon", "spread"): "This weapon's base spread, in every shot: all of the spread fully aimed, little of it from the hip. Not the stance's spread or a shot's.",
 }
 
 
@@ -79,8 +80,9 @@ def setup(texts, sim, weapons, mod_icons):
     """What a weapon's setup offers (simulators.js draws a panel of it per
     side with hud.js's rows, as the calculator draws its picks): the aim, the
     stance and the broken arms; a row per skill, its ranks; a row per
-    modification kind a piece can have: the weapon's, scaling its kick
-    ranges (`kick`), and each armour piece's that rolls or comes with one,
+    modification kind a piece can have: the weapon's, scaling its own values
+    (`weapon`: its kick ranges, `kick`, or its base spread, `spread`),
+    and each armour piece's that rolls or comes with one,
     adding to the kit's player modifiers (`effects`; the pieces' sum, as
     apply_modifier takes it). Each a card of what it does."""
     t = texts.t
@@ -111,15 +113,15 @@ def setup(texts, sim, weapons, mod_icons):
         for slot in m["slots"]:
             pieces.setdefault((m["type"], slot["slot"]), (slot, []))[1].append(m)
     for (kind, _), (slot, mods) in sorted(pieces.items(), key=lambda kv: (kv[0][1] != "weapon", kv[0][1], kv[0][0])):
-        mods.sort(key=lambda m: abs(m["kick"] if "kick" in m else sum(m["kit"].values())))
+        mods.sort(key=lambda m: abs(sum((m["weapon"] if "weapon" in m else m["kit"]).values())))
         first = mods[0]
         labels, slots = named(first["card"], "label"), named(slot)
         label = texts.game({code: labels[code] and f'{labels[code]}, {(slots[code] or slots["en"]).lower()}'
                             for code in CODES})
-        tip = t(MOD_TIPS["kick" if "kick" in first else tuple(sorted(first["kit"]))])
+        tip = t(MOD_TIPS[("weapon", *sorted(first["weapon"])) if "weapon" in first else tuple(sorted(first["kit"]))])
         rows.append({"key": f'mod-{kind}-{slot["slot"]}', "label": label, "card": [label, tip], "icon": mod_icons.get(str(first["icon"])),
                      "options": [[m["id"], texts.game(named(m["card"], "value"))] for m in mods],
-                     **({"kick": {m["id"]: m["kick"] for m in mods}} if "kick" in first else {"effects": {m["id"]: m["kit"] for m in mods}})})
+                     **({"weapon": {m["id"]: m["weapon"] for m in mods}} if "weapon" in first else {"effects": {m["id"]: m["kit"] for m in mods}})})
     return rows
 
 

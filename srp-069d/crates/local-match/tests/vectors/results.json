@@ -1,0 +1,5311 @@
+[
+{
+"roster": {
+"match_id": 12345,
+"map_id": 1,
+"mode_id": 1,
+"human_name": "test",
+"bots": [
+{
+"k": 0,
+"team": 1,
+"ai": 32,
+"first": 0,
+"second": 3,
+"name": "Bot 1"
+},
+{
+"k": 1,
+"team": 0,
+"ai": 33,
+"first": 1,
+"second": 10,
+"name": "Bot 2"
+},
+{
+"k": 2,
+"team": 1,
+"ai": 34,
+"first": 2,
+"second": 17,
+"name": "Bot 3"
+},
+{
+"k": 3,
+"team": 0,
+"ai": 35,
+"first": 3,
+"second": 24,
+"name": "Bot 4"
+},
+{
+"k": 4,
+"team": 1,
+"ai": 25,
+"first": 4,
+"second": 1,
+"name": "Bot 5"
+},
+{
+"k": 5,
+"team": 0,
+"ai": 27,
+"first": 5,
+"second": 8,
+"name": "Bot 6"
+},
+{
+"k": 6,
+"team": 1,
+"ai": 29,
+"first": 6,
+"second": 15,
+"name": "Bot 7"
+},
+{
+"k": 7,
+"team": 0,
+"ai": 31,
+"first": 7,
+"second": 22,
+"name": "Bot 8"
+},
+{
+"k": 8,
+"team": 1,
+"ai": 24,
+"first": 8,
+"second": 29,
+"name": "Bot 9"
+},
+{
+"k": 9,
+"team": 0,
+"ai": 26,
+"first": 9,
+"second": 6,
+"name": "Bot 10"
+},
+{
+"k": 10,
+"team": 1,
+"ai": 28,
+"first": 10,
+"second": 13,
+"name": "Bot 11"
+},
+{
+"k": 11,
+"team": 0,
+"ai": 30,
+"first": 11,
+"second": 20,
+"name": "Bot 12"
+},
+{
+"k": 12,
+"team": 1,
+"ai": 14,
+"first": 12,
+"second": 27,
+"name": "Bot 13"
+}
+]
+},
+"events": [
+5
+],
+"xp": 1000,
+"fac_points": 0,
+"faction": 1,
+"t0": 35,
+"t1": 27,
+"msg_len": 1814,
+"msg_fnv": "a2a34b16ecc57efb",
+"names_fnv": "73e256f82cb6201e",
+"people": [
+{
+"team": 0,
+"pid": 0,
+"kills": 10,
+"deaths": 6,
+"score": 1023
+},
+{
+"team": 1,
+"pid": 1,
+"kills": 2,
+"deaths": 7,
+"score": 225
+},
+{
+"team": 0,
+"pid": 2,
+"kills": 2,
+"deaths": 2,
+"score": 219
+},
+{
+"team": 1,
+"pid": 3,
+"kills": 10,
+"deaths": 5,
+"score": 1028
+},
+{
+"team": 0,
+"pid": 4,
+"kills": 4,
+"deaths": 1,
+"score": 439
+},
+{
+"team": 1,
+"pid": 5,
+"kills": 1,
+"deaths": 7,
+"score": 116
+},
+{
+"team": 0,
+"pid": 6,
+"kills": 4,
+"deaths": 6,
+"score": 419
+},
+{
+"team": 1,
+"pid": 7,
+"kills": 2,
+"deaths": 4,
+"score": 247
+},
+{
+"team": 0,
+"pid": 8,
+"kills": 7,
+"deaths": 4,
+"score": 731
+},
+{
+"team": 1,
+"pid": 9,
+"kills": 1,
+"deaths": 2,
+"score": 130
+},
+{
+"team": 0,
+"pid": 10,
+"kills": 6,
+"deaths": 7,
+"score": 603
+},
+{
+"team": 1,
+"pid": 11,
+"kills": 5,
+"deaths": 3,
+"score": 516
+},
+{
+"team": 0,
+"pid": 12,
+"kills": 2,
+"deaths": 1,
+"score": 228
+},
+{
+"team": 1,
+"pid": 13,
+"kills": 6,
+"deaths": 7,
+"score": 601
+}
+]
+},
+{
+"roster": {
+"match_id": 12345,
+"map_id": 1,
+"mode_id": 1,
+"human_name": "test",
+"bots": [
+{
+"k": 0,
+"team": 1,
+"ai": 32,
+"first": 0,
+"second": 3,
+"name": "Bot 1"
+},
+{
+"k": 1,
+"team": 0,
+"ai": 33,
+"first": 1,
+"second": 10,
+"name": "Bot 2"
+},
+{
+"k": 2,
+"team": 1,
+"ai": 34,
+"first": 2,
+"second": 17,
+"name": "Bot 3"
+},
+{
+"k": 3,
+"team": 0,
+"ai": 35,
+"first": 3,
+"second": 24,
+"name": "Bot 4"
+},
+{
+"k": 4,
+"team": 1,
+"ai": 25,
+"first": 4,
+"second": 1,
+"name": "Bot 5"
+},
+{
+"k": 5,
+"team": 0,
+"ai": 27,
+"first": 5,
+"second": 8,
+"name": "Bot 6"
+},
+{
+"k": 6,
+"team": 1,
+"ai": 29,
+"first": 6,
+"second": 15,
+"name": "Bot 7"
+},
+{
+"k": 7,
+"team": 0,
+"ai": 31,
+"first": 7,
+"second": 22,
+"name": "Bot 8"
+},
+{
+"k": 8,
+"team": 1,
+"ai": 24,
+"first": 8,
+"second": 29,
+"name": "Bot 9"
+},
+{
+"k": 9,
+"team": 0,
+"ai": 26,
+"first": 9,
+"second": 6,
+"name": "Bot 10"
+},
+{
+"k": 10,
+"team": 1,
+"ai": 28,
+"first": 10,
+"second": 13,
+"name": "Bot 11"
+},
+{
+"k": 11,
+"team": 0,
+"ai": 30,
+"first": 11,
+"second": 20,
+"name": "Bot 12"
+},
+{
+"k": 12,
+"team": 1,
+"ai": 14,
+"first": 12,
+"second": 27,
+"name": "Bot 13"
+}
+]
+},
+"events": [
+6
+],
+"xp": 1001,
+"fac_points": 50,
+"faction": 2,
+"t0": 27,
+"t1": 35,
+"msg_len": 1814,
+"msg_fnv": "419799774bdf8c39",
+"names_fnv": "73e256f82cb6201e",
+"people": [
+{
+"team": 0,
+"pid": 0,
+"kills": 8,
+"deaths": 9,
+"score": 823
+},
+{
+"team": 1,
+"pid": 1,
+"kills": 5,
+"deaths": 6,
+"score": 525
+},
+{
+"team": 0,
+"pid": 2,
+"kills": 1,
+"deaths": 2,
+"score": 119
+},
+{
+"team": 1,
+"pid": 3,
+"kills": 9,
+"deaths": 5,
+"score": 928
+},
+{
+"team": 0,
+"pid": 4,
+"kills": 3,
+"deaths": 2,
+"score": 339
+},
+{
+"team": 1,
+"pid": 5,
+"kills": 1,
+"deaths": 6,
+"score": 116
+},
+{
+"team": 0,
+"pid": 6,
+"kills": 3,
+"deaths": 6,
+"score": 319
+},
+{
+"team": 1,
+"pid": 7,
+"kills": 5,
+"deaths": 1,
+"score": 547
+},
+{
+"team": 0,
+"pid": 8,
+"kills": 6,
+"deaths": 5,
+"score": 631
+},
+{
+"team": 1,
+"pid": 9,
+"kills": 3,
+"deaths": 1,
+"score": 330
+},
+{
+"team": 0,
+"pid": 10,
+"kills": 4,
+"deaths": 8,
+"score": 403
+},
+{
+"team": 1,
+"pid": 11,
+"kills": 5,
+"deaths": 4,
+"score": 516
+},
+{
+"team": 0,
+"pid": 12,
+"kills": 2,
+"deaths": 3,
+"score": 228
+},
+{
+"team": 1,
+"pid": 13,
+"kills": 7,
+"deaths": 4,
+"score": 701
+}
+]
+},
+{
+"roster": {
+"match_id": 12345,
+"map_id": 1,
+"mode_id": 1,
+"human_name": "test",
+"bots": [
+{
+"k": 0,
+"team": 1,
+"ai": 32,
+"first": 0,
+"second": 3,
+"name": "Bot 1"
+},
+{
+"k": 1,
+"team": 0,
+"ai": 33,
+"first": 1,
+"second": 10,
+"name": "Bot 2"
+},
+{
+"k": 2,
+"team": 1,
+"ai": 34,
+"first": 2,
+"second": 17,
+"name": "Bot 3"
+},
+{
+"k": 3,
+"team": 0,
+"ai": 35,
+"first": 3,
+"second": 24,
+"name": "Bot 4"
+},
+{
+"k": 4,
+"team": 1,
+"ai": 25,
+"first": 4,
+"second": 1,
+"name": "Bot 5"
+},
+{
+"k": 5,
+"team": 0,
+"ai": 27,
+"first": 5,
+"second": 8,
+"name": "Bot 6"
+},
+{
+"k": 6,
+"team": 1,
+"ai": 29,
+"first": 6,
+"second": 15,
+"name": "Bot 7"
+},
+{
+"k": 7,
+"team": 0,
+"ai": 31,
+"first": 7,
+"second": 22,
+"name": "Bot 8"
+},
+{
+"k": 8,
+"team": 1,
+"ai": 24,
+"first": 8,
+"second": 29,
+"name": "Bot 9"
+},
+{
+"k": 9,
+"team": 0,
+"ai": 26,
+"first": 9,
+"second": 6,
+"name": "Bot 10"
+},
+{
+"k": 10,
+"team": 1,
+"ai": 28,
+"first": 10,
+"second": 13,
+"name": "Bot 11"
+},
+{
+"k": 11,
+"team": 0,
+"ai": 30,
+"first": 11,
+"second": 20,
+"name": "Bot 12"
+},
+{
+"k": 12,
+"team": 1,
+"ai": 14,
+"first": 12,
+"second": 27,
+"name": "Bot 13"
+}
+]
+},
+"events": [],
+"xp": 1002,
+"fac_points": 100,
+"faction": 3,
+"t0": 27,
+"t1": 35,
+"msg_len": 1814,
+"msg_fnv": "6c6df267dec7a189",
+"names_fnv": "73e256f82cb6201e",
+"people": [
+{
+"team": 0,
+"pid": 0,
+"kills": 8,
+"deaths": 9,
+"score": 823
+},
+{
+"team": 1,
+"pid": 1,
+"kills": 5,
+"deaths": 6,
+"score": 525
+},
+{
+"team": 0,
+"pid": 2,
+"kills": 1,
+"deaths": 2,
+"score": 119
+},
+{
+"team": 1,
+"pid": 3,
+"kills": 9,
+"deaths": 5,
+"score": 928
+},
+{
+"team": 0,
+"pid": 4,
+"kills": 3,
+"deaths": 2,
+"score": 339
+},
+{
+"team": 1,
+"pid": 5,
+"kills": 1,
+"deaths": 6,
+"score": 116
+},
+{
+"team": 0,
+"pid": 6,
+"kills": 3,
+"deaths": 6,
+"score": 319
+},
+{
+"team": 1,
+"pid": 7,
+"kills": 5,
+"deaths": 1,
+"score": 547
+},
+{
+"team": 0,
+"pid": 8,
+"kills": 6,
+"deaths": 5,
+"score": 631
+},
+{
+"team": 1,
+"pid": 9,
+"kills": 3,
+"deaths": 1,
+"score": 330
+},
+{
+"team": 0,
+"pid": 10,
+"kills": 4,
+"deaths": 8,
+"score": 403
+},
+{
+"team": 1,
+"pid": 11,
+"kills": 5,
+"deaths": 4,
+"score": 516
+},
+{
+"team": 0,
+"pid": 12,
+"kills": 2,
+"deaths": 3,
+"score": 228
+},
+{
+"team": 1,
+"pid": 13,
+"kills": 7,
+"deaths": 4,
+"score": 701
+}
+]
+},
+{
+"roster": {
+"match_id": 15345,
+"map_id": 1,
+"mode_id": 1,
+"human_name": "test",
+"bots": [
+{
+"k": 0,
+"team": 1,
+"ai": 32,
+"first": 0,
+"second": 3,
+"name": "Bot 1"
+},
+{
+"k": 1,
+"team": 0,
+"ai": 33,
+"first": 1,
+"second": 10,
+"name": "Bot 2"
+},
+{
+"k": 2,
+"team": 1,
+"ai": 34,
+"first": 2,
+"second": 17,
+"name": "Bot 3"
+},
+{
+"k": 3,
+"team": 0,
+"ai": 35,
+"first": 3,
+"second": 24,
+"name": "Bot 4"
+},
+{
+"k": 4,
+"team": 1,
+"ai": 25,
+"first": 4,
+"second": 1,
+"name": "Bot 5"
+},
+{
+"k": 5,
+"team": 0,
+"ai": 27,
+"first": 5,
+"second": 8,
+"name": "Bot 6"
+},
+{
+"k": 6,
+"team": 1,
+"ai": 29,
+"first": 6,
+"second": 15,
+"name": "Bot 7"
+},
+{
+"k": 7,
+"team": 0,
+"ai": 31,
+"first": 7,
+"second": 22,
+"name": "Bot 8"
+},
+{
+"k": 8,
+"team": 1,
+"ai": 24,
+"first": 8,
+"second": 29,
+"name": "Bot 9"
+},
+{
+"k": 9,
+"team": 0,
+"ai": 26,
+"first": 9,
+"second": 6,
+"name": "Bot 10"
+},
+{
+"k": 10,
+"team": 1,
+"ai": 28,
+"first": 10,
+"second": 13,
+"name": "Bot 11"
+},
+{
+"k": 11,
+"team": 0,
+"ai": 30,
+"first": 11,
+"second": 20,
+"name": "Bot 12"
+},
+{
+"k": 12,
+"team": 1,
+"ai": 14,
+"first": 12,
+"second": 27,
+"name": "Bot 13"
+}
+]
+},
+"events": [
+61,
+7
+],
+"xp": 1003,
+"fac_points": 150,
+"faction": 4,
+"t0": 42,
+"t1": 27,
+"msg_len": 1814,
+"msg_fnv": "bd5d39c6f3d78113",
+"names_fnv": "73e256f82cb6201e",
+"people": [
+{
+"team": 0,
+"pid": 0,
+"kills": 5,
+"deaths": 2,
+"score": 555
+},
+{
+"team": 1,
+"pid": 1,
+"kills": 6,
+"deaths": 2,
+"score": 600
+},
+{
+"team": 0,
+"pid": 2,
+"kills": 8,
+"deaths": 4,
+"score": 852
+},
+{
+"team": 1,
+"pid": 3,
+"kills": 1,
+"deaths": 6,
+"score": 122
+},
+{
+"team": 0,
+"pid": 4,
+"kills": 3,
+"deaths": 3,
+"score": 333
+},
+{
+"team": 1,
+"pid": 5,
+"kills": 5,
+"deaths": 4,
+"score": 517
+},
+{
+"team": 0,
+"pid": 6,
+"kills": 3,
+"deaths": 6,
+"score": 335
+},
+{
+"team": 1,
+"pid": 7,
+"kills": 4,
+"deaths": 11,
+"score": 426
+},
+{
+"team": 0,
+"pid": 8,
+"kills": 2,
+"deaths": 3,
+"score": 225
+},
+{
+"team": 1,
+"pid": 9,
+"kills": 5,
+"deaths": 9,
+"score": 546
+},
+{
+"team": 0,
+"pid": 10,
+"kills": 10,
+"deaths": 4,
+"score": 1011
+},
+{
+"team": 1,
+"pid": 11,
+"kills": 1,
+"deaths": 3,
+"score": 139
+},
+{
+"team": 0,
+"pid": 12,
+"kills": 11,
+"deaths": 5,
+"score": 1107
+},
+{
+"team": 1,
+"pid": 13,
+"kills": 5,
+"deaths": 7,
+"score": 521
+}
+]
+},
+{
+"roster": {
+"match_id": 12345,
+"map_id": 1,
+"mode_id": 1,
+"human_name": "test",
+"bots": [
+{
+"k": 0,
+"team": 1,
+"ai": 32,
+"first": 0,
+"second": 3,
+"name": "Bot 1"
+},
+{
+"k": 1,
+"team": 0,
+"ai": 33,
+"first": 1,
+"second": 10,
+"name": "Bot 2"
+},
+{
+"k": 2,
+"team": 1,
+"ai": 34,
+"first": 2,
+"second": 17,
+"name": "Bot 3"
+},
+{
+"k": 3,
+"team": 0,
+"ai": 35,
+"first": 3,
+"second": 24,
+"name": "Bot 4"
+},
+{
+"k": 4,
+"team": 1,
+"ai": 25,
+"first": 4,
+"second": 1,
+"name": "Bot 5"
+},
+{
+"k": 5,
+"team": 0,
+"ai": 27,
+"first": 5,
+"second": 8,
+"name": "Bot 6"
+},
+{
+"k": 6,
+"team": 1,
+"ai": 29,
+"first": 6,
+"second": 15,
+"name": "Bot 7"
+},
+{
+"k": 7,
+"team": 0,
+"ai": 31,
+"first": 7,
+"second": 22,
+"name": "Bot 8"
+},
+{
+"k": 8,
+"team": 1,
+"ai": 24,
+"first": 8,
+"second": 29,
+"name": "Bot 9"
+},
+{
+"k": 9,
+"team": 0,
+"ai": 26,
+"first": 9,
+"second": 6,
+"name": "Bot 10"
+},
+{
+"k": 10,
+"team": 1,
+"ai": 28,
+"first": 10,
+"second": 13,
+"name": "Bot 11"
+},
+{
+"k": 11,
+"team": 0,
+"ai": 30,
+"first": 11,
+"second": 20,
+"name": "Bot 12"
+},
+{
+"k": 12,
+"team": 1,
+"ai": 14,
+"first": 12,
+"second": 27,
+"name": "Bot 13"
+}
+]
+},
+"events": [
+62
+],
+"xp": 1004,
+"fac_points": 200,
+"faction": 1,
+"t0": 27,
+"t1": 35,
+"msg_len": 1814,
+"msg_fnv": "ed4462ece855512d",
+"names_fnv": "73e256f82cb6201e",
+"people": [
+{
+"team": 0,
+"pid": 0,
+"kills": 8,
+"deaths": 9,
+"score": 823
+},
+{
+"team": 1,
+"pid": 1,
+"kills": 5,
+"deaths": 6,
+"score": 525
+},
+{
+"team": 0,
+"pid": 2,
+"kills": 1,
+"deaths": 2,
+"score": 119
+},
+{
+"team": 1,
+"pid": 3,
+"kills": 9,
+"deaths": 5,
+"score": 928
+},
+{
+"team": 0,
+"pid": 4,
+"kills": 3,
+"deaths": 2,
+"score": 339
+},
+{
+"team": 1,
+"pid": 5,
+"kills": 1,
+"deaths": 6,
+"score": 116
+},
+{
+"team": 0,
+"pid": 6,
+"kills": 3,
+"deaths": 6,
+"score": 319
+},
+{
+"team": 1,
+"pid": 7,
+"kills": 5,
+"deaths": 1,
+"score": 547
+},
+{
+"team": 0,
+"pid": 8,
+"kills": 6,
+"deaths": 5,
+"score": 631
+},
+{
+"team": 1,
+"pid": 9,
+"kills": 3,
+"deaths": 1,
+"score": 330
+},
+{
+"team": 0,
+"pid": 10,
+"kills": 4,
+"deaths": 8,
+"score": 403
+},
+{
+"team": 1,
+"pid": 11,
+"kills": 5,
+"deaths": 4,
+"score": 516
+},
+{
+"team": 0,
+"pid": 12,
+"kills": 2,
+"deaths": 3,
+"score": 228
+},
+{
+"team": 1,
+"pid": 13,
+"kills": 7,
+"deaths": 4,
+"score": 701
+}
+]
+},
+{
+"roster": {
+"match_id": 12345,
+"map_id": 1,
+"mode_id": 1,
+"human_name": "test",
+"bots": [
+{
+"k": 0,
+"team": 1,
+"ai": 32,
+"first": 0,
+"second": 3,
+"name": "Bot 1"
+},
+{
+"k": 1,
+"team": 0,
+"ai": 33,
+"first": 1,
+"second": 10,
+"name": "Bot 2"
+},
+{
+"k": 2,
+"team": 1,
+"ai": 34,
+"first": 2,
+"second": 17,
+"name": "Bot 3"
+},
+{
+"k": 3,
+"team": 0,
+"ai": 35,
+"first": 3,
+"second": 24,
+"name": "Bot 4"
+},
+{
+"k": 4,
+"team": 1,
+"ai": 25,
+"first": 4,
+"second": 1,
+"name": "Bot 5"
+},
+{
+"k": 5,
+"team": 0,
+"ai": 27,
+"first": 5,
+"second": 8,
+"name": "Bot 6"
+},
+{
+"k": 6,
+"team": 1,
+"ai": 29,
+"first": 6,
+"second": 15,
+"name": "Bot 7"
+},
+{
+"k": 7,
+"team": 0,
+"ai": 31,
+"first": 7,
+"second": 22,
+"name": "Bot 8"
+},
+{
+"k": 8,
+"team": 1,
+"ai": 24,
+"first": 8,
+"second": 29,
+"name": "Bot 9"
+},
+{
+"k": 9,
+"team": 0,
+"ai": 26,
+"first": 9,
+"second": 6,
+"name": "Bot 10"
+},
+{
+"k": 10,
+"team": 1,
+"ai": 28,
+"first": 10,
+"second": 13,
+"name": "Bot 11"
+},
+{
+"k": 11,
+"team": 0,
+"ai": 30,
+"first": 11,
+"second": 20,
+"name": "Bot 12"
+},
+{
+"k": 12,
+"team": 1,
+"ai": 14,
+"first": 12,
+"second": 27,
+"name": "Bot 13"
+}
+]
+},
+"events": [
+1,
+2,
+6
+],
+"xp": 1005,
+"fac_points": 250,
+"faction": 2,
+"t0": 27,
+"t1": 35,
+"msg_len": 1814,
+"msg_fnv": "166ddad368220735",
+"names_fnv": "73e256f82cb6201e",
+"people": [
+{
+"team": 0,
+"pid": 0,
+"kills": 8,
+"deaths": 9,
+"score": 823
+},
+{
+"team": 1,
+"pid": 1,
+"kills": 5,
+"deaths": 6,
+"score": 525
+},
+{
+"team": 0,
+"pid": 2,
+"kills": 1,
+"deaths": 2,
+"score": 119
+},
+{
+"team": 1,
+"pid": 3,
+"kills": 9,
+"deaths": 5,
+"score": 928
+},
+{
+"team": 0,
+"pid": 4,
+"kills": 3,
+"deaths": 2,
+"score": 339
+},
+{
+"team": 1,
+"pid": 5,
+"kills": 1,
+"deaths": 6,
+"score": 116
+},
+{
+"team": 0,
+"pid": 6,
+"kills": 3,
+"deaths": 6,
+"score": 319
+},
+{
+"team": 1,
+"pid": 7,
+"kills": 5,
+"deaths": 1,
+"score": 547
+},
+{
+"team": 0,
+"pid": 8,
+"kills": 6,
+"deaths": 5,
+"score": 631
+},
+{
+"team": 1,
+"pid": 9,
+"kills": 3,
+"deaths": 1,
+"score": 330
+},
+{
+"team": 0,
+"pid": 10,
+"kills": 4,
+"deaths": 8,
+"score": 403
+},
+{
+"team": 1,
+"pid": 11,
+"kills": 5,
+"deaths": 4,
+"score": 516
+},
+{
+"team": 0,
+"pid": 12,
+"kills": 2,
+"deaths": 3,
+"score": 228
+},
+{
+"team": 1,
+"pid": 13,
+"kills": 7,
+"deaths": 4,
+"score": 701
+}
+]
+},
+{
+"roster": {
+"match_id": 777,
+"map_id": 2,
+"mode_id": 9,
+"human_name": "Ivan \u0416",
+"bots": [
+{
+"k": 0,
+"team": 1,
+"ai": 32,
+"first": 0,
+"second": 3,
+"name": "Bot 1"
+},
+{
+"k": 1,
+"team": 0,
+"ai": 33,
+"first": 1,
+"second": 10,
+"name": "Bot 2"
+},
+{
+"k": 2,
+"team": 1,
+"ai": 34,
+"first": 2,
+"second": 17,
+"name": "Bot 3"
+},
+{
+"k": 3,
+"team": 0,
+"ai": 35,
+"first": 3,
+"second": 24,
+"name": "Bot 4"
+},
+{
+"k": 4,
+"team": 1,
+"ai": 25,
+"first": 4,
+"second": 1,
+"name": "Bot 5"
+},
+{
+"k": 5,
+"team": 0,
+"ai": 27,
+"first": 5,
+"second": 8,
+"name": "Bot 6"
+},
+{
+"k": 6,
+"team": 1,
+"ai": 29,
+"first": 6,
+"second": 15,
+"name": "Bot 7"
+},
+{
+"k": 7,
+"team": 0,
+"ai": 31,
+"first": 7,
+"second": 22,
+"name": "Bot 8"
+},
+{
+"k": 8,
+"team": 1,
+"ai": 24,
+"first": 8,
+"second": 29,
+"name": "Bot 9"
+},
+{
+"k": 9,
+"team": 0,
+"ai": 26,
+"first": 9,
+"second": 6,
+"name": "Bot 10"
+},
+{
+"k": 10,
+"team": 1,
+"ai": 28,
+"first": 10,
+"second": 13,
+"name": "Bot 11"
+},
+{
+"k": 11,
+"team": 0,
+"ai": 30,
+"first": 11,
+"second": 20,
+"name": "Bot 12"
+},
+{
+"k": 12,
+"team": 1,
+"ai": 14,
+"first": 12,
+"second": 27,
+"name": "Bot 13"
+},
+{
+"k": 13,
+"team": 0,
+"ai": 17,
+"first": 13,
+"second": 4,
+"name": "Bot 14"
+},
+{
+"k": 14,
+"team": 1,
+"ai": 20,
+"first": 14,
+"second": 11,
+"name": "Bot 15"
+}
+]
+},
+"events": [
+5
+],
+"xp": 2000,
+"fac_points": 0,
+"faction": 2,
+"t0": 32,
+"t1": 26,
+"msg_len": 1897,
+"msg_fnv": "09231c8f528c07d4",
+"names_fnv": "251db0bd01feb1e1",
+"people": [
+{
+"team": 0,
+"pid": 0,
+"kills": 3,
+"deaths": 3,
+"score": 359
+},
+{
+"team": 1,
+"pid": 1,
+"kills": 0,
+"deaths": 2,
+"score": 37
+},
+{
+"team": 0,
+"pid": 2,
+"kills": 2,
+"deaths": 2,
+"score": 211
+},
+{
+"team": 1,
+"pid": 3,
+"kills": 3,
+"deaths": 3,
+"score": 342
+},
+{
+"team": 0,
+"pid": 4,
+"kills": 2,
+"deaths": 1,
+"score": 236
+},
+{
+"team": 1,
+"pid": 5,
+"kills": 1,
+"deaths": 3,
+"score": 158
+},
+{
+"team": 0,
+"pid": 6,
+"kills": 7,
+"deaths": 4,
+"score": 759
+},
+{
+"team": 1,
+"pid": 7,
+"kills": 5,
+"deaths": 3,
+"score": 531
+},
+{
+"team": 0,
+"pid": 8,
+"kills": 6,
+"deaths": 3,
+"score": 619
+},
+{
+"team": 1,
+"pid": 9,
+"kills": 8,
+"deaths": 6,
+"score": 812
+},
+{
+"team": 0,
+"pid": 10,
+"kills": 3,
+"deaths": 5,
+"score": 318
+},
+{
+"team": 1,
+"pid": 11,
+"kills": 1,
+"deaths": 4,
+"score": 131
+},
+{
+"team": 0,
+"pid": 12,
+"kills": 5,
+"deaths": 5,
+"score": 503
+},
+{
+"team": 1,
+"pid": 13,
+"kills": 5,
+"deaths": 5,
+"score": 556
+},
+{
+"team": 0,
+"pid": 14,
+"kills": 4,
+"deaths": 3,
+"score": 444
+},
+{
+"team": 1,
+"pid": 15,
+"kills": 3,
+"deaths": 6,
+"score": 335
+}
+]
+},
+{
+"roster": {
+"match_id": 777,
+"map_id": 2,
+"mode_id": 9,
+"human_name": "Ivan \u0416",
+"bots": [
+{
+"k": 0,
+"team": 1,
+"ai": 32,
+"first": 0,
+"second": 3,
+"name": "Bot 1"
+},
+{
+"k": 1,
+"team": 0,
+"ai": 33,
+"first": 1,
+"second": 10,
+"name": "Bot 2"
+},
+{
+"k": 2,
+"team": 1,
+"ai": 34,
+"first": 2,
+"second": 17,
+"name": "Bot 3"
+},
+{
+"k": 3,
+"team": 0,
+"ai": 35,
+"first": 3,
+"second": 24,
+"name": "Bot 4"
+},
+{
+"k": 4,
+"team": 1,
+"ai": 25,
+"first": 4,
+"second": 1,
+"name": "Bot 5"
+},
+{
+"k": 5,
+"team": 0,
+"ai": 27,
+"first": 5,
+"second": 8,
+"name": "Bot 6"
+},
+{
+"k": 6,
+"team": 1,
+"ai": 29,
+"first": 6,
+"second": 15,
+"name": "Bot 7"
+},
+{
+"k": 7,
+"team": 0,
+"ai": 31,
+"first": 7,
+"second": 22,
+"name": "Bot 8"
+},
+{
+"k": 8,
+"team": 1,
+"ai": 24,
+"first": 8,
+"second": 29,
+"name": "Bot 9"
+},
+{
+"k": 9,
+"team": 0,
+"ai": 26,
+"first": 9,
+"second": 6,
+"name": "Bot 10"
+},
+{
+"k": 10,
+"team": 1,
+"ai": 28,
+"first": 10,
+"second": 13,
+"name": "Bot 11"
+},
+{
+"k": 11,
+"team": 0,
+"ai": 30,
+"first": 11,
+"second": 20,
+"name": "Bot 12"
+},
+{
+"k": 12,
+"team": 1,
+"ai": 14,
+"first": 12,
+"second": 27,
+"name": "Bot 13"
+},
+{
+"k": 13,
+"team": 0,
+"ai": 17,
+"first": 13,
+"second": 4,
+"name": "Bot 14"
+},
+{
+"k": 14,
+"team": 1,
+"ai": 20,
+"first": 14,
+"second": 11,
+"name": "Bot 15"
+}
+]
+},
+"events": [
+6
+],
+"xp": 2001,
+"fac_points": 50,
+"faction": 3,
+"t0": 26,
+"t1": 32,
+"msg_len": 1897,
+"msg_fnv": "c9a13e54a5daad66",
+"names_fnv": "251db0bd01feb1e1",
+"people": [
+{
+"team": 0,
+"pid": 0,
+"kills": 2,
+"deaths": 3,
+"score": 259
+},
+{
+"team": 1,
+"pid": 1,
+"kills": 1,
+"deaths": 2,
+"score": 137
+},
+{
+"team": 0,
+"pid": 2,
+"kills": 2,
+"deaths": 2,
+"score": 211
+},
+{
+"team": 1,
+"pid": 3,
+"kills": 3,
+"deaths": 3,
+"score": 342
+},
+{
+"team": 0,
+"pid": 4,
+"kills": 2,
+"deaths": 1,
+"score": 236
+},
+{
+"team": 1,
+"pid": 5,
+"kills": 1,
+"deaths": 3,
+"score": 158
+},
+{
+"team": 0,
+"pid": 6,
+"kills": 5,
+"deaths": 6,
+"score": 559
+},
+{
+"team": 1,
+"pid": 7,
+"kills": 4,
+"deaths": 4,
+"score": 431
+},
+{
+"team": 0,
+"pid": 8,
+"kills": 4,
+"deaths": 3,
+"score": 419
+},
+{
+"team": 1,
+"pid": 9,
+"kills": 10,
+"deaths": 6,
+"score": 1012
+},
+{
+"team": 0,
+"pid": 10,
+"kills": 3,
+"deaths": 7,
+"score": 318
+},
+{
+"team": 1,
+"pid": 11,
+"kills": 3,
+"deaths": 1,
+"score": 331
+},
+{
+"team": 0,
+"pid": 12,
+"kills": 4,
+"deaths": 7,
+"score": 403
+},
+{
+"team": 1,
+"pid": 13,
+"kills": 4,
+"deaths": 4,
+"score": 456
+},
+{
+"team": 0,
+"pid": 14,
+"kills": 4,
+"deaths": 3,
+"score": 444
+},
+{
+"team": 1,
+"pid": 15,
+"kills": 6,
+"deaths": 3,
+"score": 635
+}
+]
+},
+{
+"roster": {
+"match_id": 2777,
+"map_id": 2,
+"mode_id": 9,
+"human_name": "Ivan \u0416",
+"bots": [
+{
+"k": 0,
+"team": 1,
+"ai": 32,
+"first": 0,
+"second": 3,
+"name": "Bot 1"
+},
+{
+"k": 1,
+"team": 0,
+"ai": 33,
+"first": 1,
+"second": 10,
+"name": "Bot 2"
+},
+{
+"k": 2,
+"team": 1,
+"ai": 34,
+"first": 2,
+"second": 17,
+"name": "Bot 3"
+},
+{
+"k": 3,
+"team": 0,
+"ai": 35,
+"first": 3,
+"second": 24,
+"name": "Bot 4"
+},
+{
+"k": 4,
+"team": 1,
+"ai": 25,
+"first": 4,
+"second": 1,
+"name": "Bot 5"
+},
+{
+"k": 5,
+"team": 0,
+"ai": 27,
+"first": 5,
+"second": 8,
+"name": "Bot 6"
+},
+{
+"k": 6,
+"team": 1,
+"ai": 29,
+"first": 6,
+"second": 15,
+"name": "Bot 7"
+},
+{
+"k": 7,
+"team": 0,
+"ai": 31,
+"first": 7,
+"second": 22,
+"name": "Bot 8"
+},
+{
+"k": 8,
+"team": 1,
+"ai": 24,
+"first": 8,
+"second": 29,
+"name": "Bot 9"
+},
+{
+"k": 9,
+"team": 0,
+"ai": 26,
+"first": 9,
+"second": 6,
+"name": "Bot 10"
+},
+{
+"k": 10,
+"team": 1,
+"ai": 28,
+"first": 10,
+"second": 13,
+"name": "Bot 11"
+},
+{
+"k": 11,
+"team": 0,
+"ai": 30,
+"first": 11,
+"second": 20,
+"name": "Bot 12"
+},
+{
+"k": 12,
+"team": 1,
+"ai": 14,
+"first": 12,
+"second": 27,
+"name": "Bot 13"
+},
+{
+"k": 13,
+"team": 0,
+"ai": 17,
+"first": 13,
+"second": 4,
+"name": "Bot 14"
+},
+{
+"k": 14,
+"team": 1,
+"ai": 20,
+"first": 14,
+"second": 11,
+"name": "Bot 15"
+}
+]
+},
+"events": [],
+"xp": 2002,
+"fac_points": 100,
+"faction": 4,
+"t0": 25,
+"t1": 40,
+"msg_len": 1897,
+"msg_fnv": "c7e18b1cdfbb7ad9",
+"names_fnv": "251db0bd01feb1e1",
+"people": [
+{
+"team": 0,
+"pid": 0,
+"kills": 4,
+"deaths": 6,
+"score": 402
+},
+{
+"team": 1,
+"pid": 1,
+"kills": 8,
+"deaths": 5,
+"score": 837
+},
+{
+"team": 0,
+"pid": 2,
+"kills": 2,
+"deaths": 13,
+"score": 239
+},
+{
+"team": 1,
+"pid": 3,
+"kills": 3,
+"deaths": 4,
+"score": 327
+},
+{
+"team": 0,
+"pid": 4,
+"kills": 1,
+"deaths": 0,
+"score": 126
+},
+{
+"team": 1,
+"pid": 5,
+"kills": 4,
+"deaths": 2,
+"score": 436
+},
+{
+"team": 0,
+"pid": 6,
+"kills": 5,
+"deaths": 4,
+"score": 546
+},
+{
+"team": 1,
+"pid": 7,
+"kills": 3,
+"deaths": 2,
+"score": 300
+},
+{
+"team": 0,
+"pid": 8,
+"kills": 4,
+"deaths": 2,
+"score": 412
+},
+{
+"team": 1,
+"pid": 9,
+"kills": 7,
+"deaths": 4,
+"score": 757
+},
+{
+"team": 0,
+"pid": 10,
+"kills": 2,
+"deaths": 3,
+"score": 204
+},
+{
+"team": 1,
+"pid": 11,
+"kills": 4,
+"deaths": 5,
+"score": 460
+},
+{
+"team": 0,
+"pid": 12,
+"kills": 6,
+"deaths": 10,
+"score": 658
+},
+{
+"team": 1,
+"pid": 13,
+"kills": 10,
+"deaths": 2,
+"score": 1018
+},
+{
+"team": 0,
+"pid": 14,
+"kills": 1,
+"deaths": 2,
+"score": 138
+},
+{
+"team": 1,
+"pid": 15,
+"kills": 1,
+"deaths": 1,
+"score": 100
+}
+]
+},
+{
+"roster": {
+"match_id": 777,
+"map_id": 2,
+"mode_id": 9,
+"human_name": "Ivan \u0416",
+"bots": [
+{
+"k": 0,
+"team": 1,
+"ai": 32,
+"first": 0,
+"second": 3,
+"name": "Bot 1"
+},
+{
+"k": 1,
+"team": 0,
+"ai": 33,
+"first": 1,
+"second": 10,
+"name": "Bot 2"
+},
+{
+"k": 2,
+"team": 1,
+"ai": 34,
+"first": 2,
+"second": 17,
+"name": "Bot 3"
+},
+{
+"k": 3,
+"team": 0,
+"ai": 35,
+"first": 3,
+"second": 24,
+"name": "Bot 4"
+},
+{
+"k": 4,
+"team": 1,
+"ai": 25,
+"first": 4,
+"second": 1,
+"name": "Bot 5"
+},
+{
+"k": 5,
+"team": 0,
+"ai": 27,
+"first": 5,
+"second": 8,
+"name": "Bot 6"
+},
+{
+"k": 6,
+"team": 1,
+"ai": 29,
+"first": 6,
+"second": 15,
+"name": "Bot 7"
+},
+{
+"k": 7,
+"team": 0,
+"ai": 31,
+"first": 7,
+"second": 22,
+"name": "Bot 8"
+},
+{
+"k": 8,
+"team": 1,
+"ai": 24,
+"first": 8,
+"second": 29,
+"name": "Bot 9"
+},
+{
+"k": 9,
+"team": 0,
+"ai": 26,
+"first": 9,
+"second": 6,
+"name": "Bot 10"
+},
+{
+"k": 10,
+"team": 1,
+"ai": 28,
+"first": 10,
+"second": 13,
+"name": "Bot 11"
+},
+{
+"k": 11,
+"team": 0,
+"ai": 30,
+"first": 11,
+"second": 20,
+"name": "Bot 12"
+},
+{
+"k": 12,
+"team": 1,
+"ai": 14,
+"first": 12,
+"second": 27,
+"name": "Bot 13"
+},
+{
+"k": 13,
+"team": 0,
+"ai": 17,
+"first": 13,
+"second": 4,
+"name": "Bot 14"
+},
+{
+"k": 14,
+"team": 1,
+"ai": 20,
+"first": 14,
+"second": 11,
+"name": "Bot 15"
+}
+]
+},
+"events": [
+61,
+7
+],
+"xp": 2003,
+"fac_points": 150,
+"faction": 1,
+"t0": 32,
+"t1": 26,
+"msg_len": 1897,
+"msg_fnv": "ecc0c84fcf581476",
+"names_fnv": "251db0bd01feb1e1",
+"people": [
+{
+"team": 0,
+"pid": 0,
+"kills": 3,
+"deaths": 3,
+"score": 359
+},
+{
+"team": 1,
+"pid": 1,
+"kills": 0,
+"deaths": 2,
+"score": 37
+},
+{
+"team": 0,
+"pid": 2,
+"kills": 2,
+"deaths": 2,
+"score": 211
+},
+{
+"team": 1,
+"pid": 3,
+"kills": 3,
+"deaths": 3,
+"score": 342
+},
+{
+"team": 0,
+"pid": 4,
+"kills": 2,
+"deaths": 1,
+"score": 236
+},
+{
+"team": 1,
+"pid": 5,
+"kills": 1,
+"deaths": 3,
+"score": 158
+},
+{
+"team": 0,
+"pid": 6,
+"kills": 7,
+"deaths": 4,
+"score": 759
+},
+{
+"team": 1,
+"pid": 7,
+"kills": 5,
+"deaths": 3,
+"score": 531
+},
+{
+"team": 0,
+"pid": 8,
+"kills": 6,
+"deaths": 3,
+"score": 619
+},
+{
+"team": 1,
+"pid": 9,
+"kills": 8,
+"deaths": 6,
+"score": 812
+},
+{
+"team": 0,
+"pid": 10,
+"kills": 3,
+"deaths": 5,
+"score": 318
+},
+{
+"team": 1,
+"pid": 11,
+"kills": 1,
+"deaths": 4,
+"score": 131
+},
+{
+"team": 0,
+"pid": 12,
+"kills": 5,
+"deaths": 5,
+"score": 503
+},
+{
+"team": 1,
+"pid": 13,
+"kills": 5,
+"deaths": 5,
+"score": 556
+},
+{
+"team": 0,
+"pid": 14,
+"kills": 4,
+"deaths": 3,
+"score": 444
+},
+{
+"team": 1,
+"pid": 15,
+"kills": 3,
+"deaths": 6,
+"score": 335
+}
+]
+},
+{
+"roster": {
+"match_id": 777,
+"map_id": 2,
+"mode_id": 9,
+"human_name": "Ivan \u0416",
+"bots": [
+{
+"k": 0,
+"team": 1,
+"ai": 32,
+"first": 0,
+"second": 3,
+"name": "Bot 1"
+},
+{
+"k": 1,
+"team": 0,
+"ai": 33,
+"first": 1,
+"second": 10,
+"name": "Bot 2"
+},
+{
+"k": 2,
+"team": 1,
+"ai": 34,
+"first": 2,
+"second": 17,
+"name": "Bot 3"
+},
+{
+"k": 3,
+"team": 0,
+"ai": 35,
+"first": 3,
+"second": 24,
+"name": "Bot 4"
+},
+{
+"k": 4,
+"team": 1,
+"ai": 25,
+"first": 4,
+"second": 1,
+"name": "Bot 5"
+},
+{
+"k": 5,
+"team": 0,
+"ai": 27,
+"first": 5,
+"second": 8,
+"name": "Bot 6"
+},
+{
+"k": 6,
+"team": 1,
+"ai": 29,
+"first": 6,
+"second": 15,
+"name": "Bot 7"
+},
+{
+"k": 7,
+"team": 0,
+"ai": 31,
+"first": 7,
+"second": 22,
+"name": "Bot 8"
+},
+{
+"k": 8,
+"team": 1,
+"ai": 24,
+"first": 8,
+"second": 29,
+"name": "Bot 9"
+},
+{
+"k": 9,
+"team": 0,
+"ai": 26,
+"first": 9,
+"second": 6,
+"name": "Bot 10"
+},
+{
+"k": 10,
+"team": 1,
+"ai": 28,
+"first": 10,
+"second": 13,
+"name": "Bot 11"
+},
+{
+"k": 11,
+"team": 0,
+"ai": 30,
+"first": 11,
+"second": 20,
+"name": "Bot 12"
+},
+{
+"k": 12,
+"team": 1,
+"ai": 14,
+"first": 12,
+"second": 27,
+"name": "Bot 13"
+},
+{
+"k": 13,
+"team": 0,
+"ai": 17,
+"first": 13,
+"second": 4,
+"name": "Bot 14"
+},
+{
+"k": 14,
+"team": 1,
+"ai": 20,
+"first": 14,
+"second": 11,
+"name": "Bot 15"
+}
+]
+},
+"events": [
+62
+],
+"xp": 2004,
+"fac_points": 200,
+"faction": 2,
+"t0": 26,
+"t1": 32,
+"msg_len": 1897,
+"msg_fnv": "1b37dec193f0bde8",
+"names_fnv": "251db0bd01feb1e1",
+"people": [
+{
+"team": 0,
+"pid": 0,
+"kills": 2,
+"deaths": 3,
+"score": 259
+},
+{
+"team": 1,
+"pid": 1,
+"kills": 1,
+"deaths": 2,
+"score": 137
+},
+{
+"team": 0,
+"pid": 2,
+"kills": 2,
+"deaths": 2,
+"score": 211
+},
+{
+"team": 1,
+"pid": 3,
+"kills": 3,
+"deaths": 3,
+"score": 342
+},
+{
+"team": 0,
+"pid": 4,
+"kills": 2,
+"deaths": 1,
+"score": 236
+},
+{
+"team": 1,
+"pid": 5,
+"kills": 1,
+"deaths": 3,
+"score": 158
+},
+{
+"team": 0,
+"pid": 6,
+"kills": 5,
+"deaths": 6,
+"score": 559
+},
+{
+"team": 1,
+"pid": 7,
+"kills": 4,
+"deaths": 4,
+"score": 431
+},
+{
+"team": 0,
+"pid": 8,
+"kills": 4,
+"deaths": 3,
+"score": 419
+},
+{
+"team": 1,
+"pid": 9,
+"kills": 10,
+"deaths": 6,
+"score": 1012
+},
+{
+"team": 0,
+"pid": 10,
+"kills": 3,
+"deaths": 7,
+"score": 318
+},
+{
+"team": 1,
+"pid": 11,
+"kills": 3,
+"deaths": 1,
+"score": 331
+},
+{
+"team": 0,
+"pid": 12,
+"kills": 4,
+"deaths": 7,
+"score": 403
+},
+{
+"team": 1,
+"pid": 13,
+"kills": 4,
+"deaths": 4,
+"score": 456
+},
+{
+"team": 0,
+"pid": 14,
+"kills": 4,
+"deaths": 3,
+"score": 444
+},
+{
+"team": 1,
+"pid": 15,
+"kills": 6,
+"deaths": 3,
+"score": 635
+}
+]
+},
+{
+"roster": {
+"match_id": 5777,
+"map_id": 2,
+"mode_id": 9,
+"human_name": "Ivan \u0416",
+"bots": [
+{
+"k": 0,
+"team": 1,
+"ai": 32,
+"first": 0,
+"second": 3,
+"name": "Bot 1"
+},
+{
+"k": 1,
+"team": 0,
+"ai": 33,
+"first": 1,
+"second": 10,
+"name": "Bot 2"
+},
+{
+"k": 2,
+"team": 1,
+"ai": 34,
+"first": 2,
+"second": 17,
+"name": "Bot 3"
+},
+{
+"k": 3,
+"team": 0,
+"ai": 35,
+"first": 3,
+"second": 24,
+"name": "Bot 4"
+},
+{
+"k": 4,
+"team": 1,
+"ai": 25,
+"first": 4,
+"second": 1,
+"name": "Bot 5"
+},
+{
+"k": 5,
+"team": 0,
+"ai": 27,
+"first": 5,
+"second": 8,
+"name": "Bot 6"
+},
+{
+"k": 6,
+"team": 1,
+"ai": 29,
+"first": 6,
+"second": 15,
+"name": "Bot 7"
+},
+{
+"k": 7,
+"team": 0,
+"ai": 31,
+"first": 7,
+"second": 22,
+"name": "Bot 8"
+},
+{
+"k": 8,
+"team": 1,
+"ai": 24,
+"first": 8,
+"second": 29,
+"name": "Bot 9"
+},
+{
+"k": 9,
+"team": 0,
+"ai": 26,
+"first": 9,
+"second": 6,
+"name": "Bot 10"
+},
+{
+"k": 10,
+"team": 1,
+"ai": 28,
+"first": 10,
+"second": 13,
+"name": "Bot 11"
+},
+{
+"k": 11,
+"team": 0,
+"ai": 30,
+"first": 11,
+"second": 20,
+"name": "Bot 12"
+},
+{
+"k": 12,
+"team": 1,
+"ai": 14,
+"first": 12,
+"second": 27,
+"name": "Bot 13"
+},
+{
+"k": 13,
+"team": 0,
+"ai": 17,
+"first": 13,
+"second": 4,
+"name": "Bot 14"
+},
+{
+"k": 14,
+"team": 1,
+"ai": 20,
+"first": 14,
+"second": 11,
+"name": "Bot 15"
+}
+]
+},
+"events": [
+1,
+2,
+6
+],
+"xp": 2005,
+"fac_points": 250,
+"faction": 3,
+"t0": 20,
+"t1": 40,
+"msg_len": 1897,
+"msg_fnv": "f3262a4be69dc772",
+"names_fnv": "251db0bd01feb1e1",
+"people": [
+{
+"team": 0,
+"pid": 0,
+"kills": 3,
+"deaths": 4,
+"score": 320
+},
+{
+"team": 1,
+"pid": 1,
+"kills": 2,
+"deaths": 2,
+"score": 256
+},
+{
+"team": 0,
+"pid": 2,
+"kills": 2,
+"deaths": 3,
+"score": 250
+},
+{
+"team": 1,
+"pid": 3,
+"kills": 2,
+"deaths": 3,
+"score": 225
+},
+{
+"team": 0,
+"pid": 4,
+"kills": 4,
+"deaths": 6,
+"score": 402
+},
+{
+"team": 1,
+"pid": 5,
+"kills": 10,
+"deaths": 5,
+"score": 1012
+},
+{
+"team": 0,
+"pid": 6,
+"kills": 6,
+"deaths": 7,
+"score": 649
+},
+{
+"team": 1,
+"pid": 7,
+"kills": 4,
+"deaths": 3,
+"score": 413
+},
+{
+"team": 0,
+"pid": 8,
+"kills": 0,
+"deaths": 1,
+"score": 55
+},
+{
+"team": 1,
+"pid": 9,
+"kills": 6,
+"deaths": 4,
+"score": 657
+},
+{
+"team": 0,
+"pid": 10,
+"kills": 3,
+"deaths": 8,
+"score": 331
+},
+{
+"team": 1,
+"pid": 11,
+"kills": 2,
+"deaths": 1,
+"score": 216
+},
+{
+"team": 0,
+"pid": 12,
+"kills": 0,
+"deaths": 3,
+"score": 58
+},
+{
+"team": 1,
+"pid": 13,
+"kills": 8,
+"deaths": 1,
+"score": 854
+},
+{
+"team": 0,
+"pid": 14,
+"kills": 2,
+"deaths": 8,
+"score": 258
+},
+{
+"team": 1,
+"pid": 15,
+"kills": 6,
+"deaths": 1,
+"score": 612
+}
+]
+},
+{
+"roster": {
+"match_id": 2147483647,
+"map_id": 1,
+"mode_id": 0,
+"human_name": "Ivan \u0416",
+"bots": [
+{
+"k": 0,
+"team": 1,
+"ai": 0,
+"first": 0,
+"second": 3,
+"name": "Bot 1"
+},
+{
+"k": 1,
+"team": 0,
+"ai": 1,
+"first": 1,
+"second": 10,
+"name": "Bot 2"
+},
+{
+"k": 2,
+"team": 1,
+"ai": 2,
+"first": 2,
+"second": 17,
+"name": "Bot 3"
+},
+{
+"k": 3,
+"team": 0,
+"ai": 3,
+"first": 3,
+"second": 24,
+"name": "Bot 4"
+},
+{
+"k": 4,
+"team": 1,
+"ai": 5,
+"first": 4,
+"second": 1,
+"name": "Bot 5"
+},
+{
+"k": 5,
+"team": 0,
+"ai": 7,
+"first": 5,
+"second": 8,
+"name": "Bot 6"
+},
+{
+"k": 6,
+"team": 1,
+"ai": 9,
+"first": 6,
+"second": 15,
+"name": "Bot 7"
+},
+{
+"k": 7,
+"team": 0,
+"ai": 11,
+"first": 7,
+"second": 22,
+"name": "Bot 8"
+},
+{
+"k": 8,
+"team": 1,
+"ai": 4,
+"first": 8,
+"second": 29,
+"name": "Bot 9"
+},
+{
+"k": 9,
+"team": 0,
+"ai": 6,
+"first": 9,
+"second": 6,
+"name": "Bot 10"
+},
+{
+"k": 10,
+"team": 1,
+"ai": 8,
+"first": 10,
+"second": 13,
+"name": "Bot 11"
+},
+{
+"k": 11,
+"team": 0,
+"ai": 10,
+"first": 11,
+"second": 20,
+"name": "Bot 12"
+},
+{
+"k": 12,
+"team": 1,
+"ai": 14,
+"first": 12,
+"second": 27,
+"name": "Bot 13"
+},
+{
+"k": 13,
+"team": 0,
+"ai": 17,
+"first": 13,
+"second": 4,
+"name": "Bot 14"
+},
+{
+"k": 14,
+"team": 1,
+"ai": 20,
+"first": 14,
+"second": 11,
+"name": "Bot 15"
+},
+{
+"k": 15,
+"team": 0,
+"ai": 23,
+"first": 15,
+"second": 18,
+"name": "Bot 16"
+},
+{
+"k": 16,
+"team": 1,
+"ai": 13,
+"first": 16,
+"second": 25,
+"name": "Bot 17"
+},
+{
+"k": 17,
+"team": 0,
+"ai": 16,
+"first": 17,
+"second": 2,
+"name": "Bot 18"
+},
+{
+"k": 18,
+"team": 1,
+"ai": 19,
+"first": 18,
+"second": 9,
+"name": "Bot 19"
+}
+]
+},
+"events": [
+5
+],
+"xp": 3000,
+"fac_points": 0,
+"faction": 3,
+"t0": 40,
+"t1": 30,
+"msg_len": 2043,
+"msg_fnv": "51f32d0e6af74714",
+"names_fnv": "d28da1656fb52dcf",
+"people": [
+{
+"team": 0,
+"pid": 0,
+"kills": 4,
+"deaths": 1,
+"score": 403
+},
+{
+"team": 1,
+"pid": 1,
+"kills": 3,
+"deaths": 4,
+"score": 306
+},
+{
+"team": 0,
+"pid": 2,
+"kills": 4,
+"deaths": 4,
+"score": 408
+},
+{
+"team": 1,
+"pid": 3,
+"kills": 2,
+"deaths": 2,
+"score": 220
+},
+{
+"team": 0,
+"pid": 4,
+"kills": 5,
+"deaths": 3,
+"score": 552
+},
+{
+"team": 1,
+"pid": 5,
+"kills": 1,
+"deaths": 3,
+"score": 140
+},
+{
+"team": 0,
+"pid": 6,
+"kills": 2,
+"deaths": 3,
+"score": 232
+},
+{
+"team": 1,
+"pid": 7,
+"kills": 3,
+"deaths": 7,
+"score": 308
+},
+{
+"team": 0,
+"pid": 8,
+"kills": 3,
+"deaths": 1,
+"score": 347
+},
+{
+"team": 1,
+"pid": 9,
+"kills": 4,
+"deaths": 8,
+"score": 444
+},
+{
+"team": 0,
+"pid": 10,
+"kills": 3,
+"deaths": 3,
+"score": 337
+},
+{
+"team": 1,
+"pid": 11,
+"kills": 8,
+"deaths": 5,
+"score": 842
+},
+{
+"team": 0,
+"pid": 12,
+"kills": 4,
+"deaths": 3,
+"score": 441
+},
+{
+"team": 1,
+"pid": 13,
+"kills": 1,
+"deaths": 5,
+"score": 106
+},
+{
+"team": 0,
+"pid": 14,
+"kills": 6,
+"deaths": 7,
+"score": 613
+},
+{
+"team": 1,
+"pid": 15,
+"kills": 1,
+"deaths": 1,
+"score": 141
+},
+{
+"team": 0,
+"pid": 16,
+"kills": 4,
+"deaths": 3,
+"score": 444
+},
+{
+"team": 1,
+"pid": 17,
+"kills": 2,
+"deaths": 1,
+"score": 253
+},
+{
+"team": 0,
+"pid": 18,
+"kills": 5,
+"deaths": 2,
+"score": 548
+},
+{
+"team": 1,
+"pid": 19,
+"kills": 5,
+"deaths": 4,
+"score": 560
+}
+]
+},
+{
+"roster": {
+"match_id": 2147484647,
+"map_id": 1,
+"mode_id": 0,
+"human_name": "Ivan \u0416",
+"bots": [
+{
+"k": 0,
+"team": 1,
+"ai": 0,
+"first": 0,
+"second": 3,
+"name": "Bot 1"
+},
+{
+"k": 1,
+"team": 0,
+"ai": 1,
+"first": 1,
+"second": 10,
+"name": "Bot 2"
+},
+{
+"k": 2,
+"team": 1,
+"ai": 2,
+"first": 2,
+"second": 17,
+"name": "Bot 3"
+},
+{
+"k": 3,
+"team": 0,
+"ai": 3,
+"first": 3,
+"second": 24,
+"name": "Bot 4"
+},
+{
+"k": 4,
+"team": 1,
+"ai": 5,
+"first": 4,
+"second": 1,
+"name": "Bot 5"
+},
+{
+"k": 5,
+"team": 0,
+"ai": 7,
+"first": 5,
+"second": 8,
+"name": "Bot 6"
+},
+{
+"k": 6,
+"team": 1,
+"ai": 9,
+"first": 6,
+"second": 15,
+"name": "Bot 7"
+},
+{
+"k": 7,
+"team": 0,
+"ai": 11,
+"first": 7,
+"second": 22,
+"name": "Bot 8"
+},
+{
+"k": 8,
+"team": 1,
+"ai": 4,
+"first": 8,
+"second": 29,
+"name": "Bot 9"
+},
+{
+"k": 9,
+"team": 0,
+"ai": 6,
+"first": 9,
+"second": 6,
+"name": "Bot 10"
+},
+{
+"k": 10,
+"team": 1,
+"ai": 8,
+"first": 10,
+"second": 13,
+"name": "Bot 11"
+},
+{
+"k": 11,
+"team": 0,
+"ai": 10,
+"first": 11,
+"second": 20,
+"name": "Bot 12"
+},
+{
+"k": 12,
+"team": 1,
+"ai": 14,
+"first": 12,
+"second": 27,
+"name": "Bot 13"
+},
+{
+"k": 13,
+"team": 0,
+"ai": 17,
+"first": 13,
+"second": 4,
+"name": "Bot 14"
+},
+{
+"k": 14,
+"team": 1,
+"ai": 20,
+"first": 14,
+"second": 11,
+"name": "Bot 15"
+},
+{
+"k": 15,
+"team": 0,
+"ai": 23,
+"first": 15,
+"second": 18,
+"name": "Bot 16"
+},
+{
+"k": 16,
+"team": 1,
+"ai": 13,
+"first": 16,
+"second": 25,
+"name": "Bot 17"
+},
+{
+"k": 17,
+"team": 0,
+"ai": 16,
+"first": 17,
+"second": 2,
+"name": "Bot 18"
+},
+{
+"k": 18,
+"team": 1,
+"ai": 19,
+"first": 18,
+"second": 9,
+"name": "Bot 19"
+}
+]
+},
+"events": [
+6
+],
+"xp": 3001,
+"fac_points": 50,
+"faction": 4,
+"t0": 53,
+"t1": 60,
+"msg_len": 2043,
+"msg_fnv": "b6b6fa3c9740e5b9",
+"names_fnv": "d28da1656fb52dcf",
+"people": [
+{
+"team": 0,
+"pid": 0,
+"kills": 4,
+"deaths": 7,
+"score": 431
+},
+{
+"team": 1,
+"pid": 1,
+"kills": 2,
+"deaths": 10,
+"score": 238
+},
+{
+"team": 0,
+"pid": 2,
+"kills": 4,
+"deaths": 3,
+"score": 441
+},
+{
+"team": 1,
+"pid": 3,
+"kills": 3,
+"deaths": 1,
+"score": 326
+},
+{
+"team": 0,
+"pid": 4,
+"kills": 8,
+"deaths": 8,
+"score": 807
+},
+{
+"team": 1,
+"pid": 5,
+"kills": 12,
+"deaths": 7,
+"score": 1240
+},
+{
+"team": 0,
+"pid": 6,
+"kills": 2,
+"deaths": 4,
+"score": 222
+},
+{
+"team": 1,
+"pid": 7,
+"kills": 8,
+"deaths": 8,
+"score": 849
+},
+{
+"team": 0,
+"pid": 8,
+"kills": 1,
+"deaths": 2,
+"score": 117
+},
+{
+"team": 1,
+"pid": 9,
+"kills": 8,
+"deaths": 13,
+"score": 852
+},
+{
+"team": 0,
+"pid": 10,
+"kills": 1,
+"deaths": 2,
+"score": 103
+},
+{
+"team": 1,
+"pid": 11,
+"kills": 1,
+"deaths": 2,
+"score": 156
+},
+{
+"team": 0,
+"pid": 12,
+"kills": 10,
+"deaths": 9,
+"score": 1050
+},
+{
+"team": 1,
+"pid": 13,
+"kills": 2,
+"deaths": 0,
+"score": 247
+},
+{
+"team": 0,
+"pid": 14,
+"kills": 3,
+"deaths": 4,
+"score": 349
+},
+{
+"team": 1,
+"pid": 15,
+"kills": 9,
+"deaths": 7,
+"score": 912
+},
+{
+"team": 0,
+"pid": 16,
+"kills": 10,
+"deaths": 8,
+"score": 1035
+},
+{
+"team": 1,
+"pid": 17,
+"kills": 7,
+"deaths": 2,
+"score": 714
+},
+{
+"team": 0,
+"pid": 18,
+"kills": 10,
+"deaths": 13,
+"score": 1012
+},
+{
+"team": 1,
+"pid": 19,
+"kills": 8,
+"deaths": 3,
+"score": 851
+}
+]
+},
+{
+"roster": {
+"match_id": 2147483647,
+"map_id": 1,
+"mode_id": 0,
+"human_name": "Ivan \u0416",
+"bots": [
+{
+"k": 0,
+"team": 1,
+"ai": 0,
+"first": 0,
+"second": 3,
+"name": "Bot 1"
+},
+{
+"k": 1,
+"team": 0,
+"ai": 1,
+"first": 1,
+"second": 10,
+"name": "Bot 2"
+},
+{
+"k": 2,
+"team": 1,
+"ai": 2,
+"first": 2,
+"second": 17,
+"name": "Bot 3"
+},
+{
+"k": 3,
+"team": 0,
+"ai": 3,
+"first": 3,
+"second": 24,
+"name": "Bot 4"
+},
+{
+"k": 4,
+"team": 1,
+"ai": 5,
+"first": 4,
+"second": 1,
+"name": "Bot 5"
+},
+{
+"k": 5,
+"team": 0,
+"ai": 7,
+"first": 5,
+"second": 8,
+"name": "Bot 6"
+},
+{
+"k": 6,
+"team": 1,
+"ai": 9,
+"first": 6,
+"second": 15,
+"name": "Bot 7"
+},
+{
+"k": 7,
+"team": 0,
+"ai": 11,
+"first": 7,
+"second": 22,
+"name": "Bot 8"
+},
+{
+"k": 8,
+"team": 1,
+"ai": 4,
+"first": 8,
+"second": 29,
+"name": "Bot 9"
+},
+{
+"k": 9,
+"team": 0,
+"ai": 6,
+"first": 9,
+"second": 6,
+"name": "Bot 10"
+},
+{
+"k": 10,
+"team": 1,
+"ai": 8,
+"first": 10,
+"second": 13,
+"name": "Bot 11"
+},
+{
+"k": 11,
+"team": 0,
+"ai": 10,
+"first": 11,
+"second": 20,
+"name": "Bot 12"
+},
+{
+"k": 12,
+"team": 1,
+"ai": 14,
+"first": 12,
+"second": 27,
+"name": "Bot 13"
+},
+{
+"k": 13,
+"team": 0,
+"ai": 17,
+"first": 13,
+"second": 4,
+"name": "Bot 14"
+},
+{
+"k": 14,
+"team": 1,
+"ai": 20,
+"first": 14,
+"second": 11,
+"name": "Bot 15"
+},
+{
+"k": 15,
+"team": 0,
+"ai": 23,
+"first": 15,
+"second": 18,
+"name": "Bot 16"
+},
+{
+"k": 16,
+"team": 1,
+"ai": 13,
+"first": 16,
+"second": 25,
+"name": "Bot 17"
+},
+{
+"k": 17,
+"team": 0,
+"ai": 16,
+"first": 17,
+"second": 2,
+"name": "Bot 18"
+},
+{
+"k": 18,
+"team": 1,
+"ai": 19,
+"first": 18,
+"second": 9,
+"name": "Bot 19"
+}
+]
+},
+"events": [],
+"xp": 3002,
+"fac_points": 100,
+"faction": 1,
+"t0": 30,
+"t1": 40,
+"msg_len": 2043,
+"msg_fnv": "9e8699e195f4a2aa",
+"names_fnv": "d28da1656fb52dcf",
+"people": [
+{
+"team": 0,
+"pid": 0,
+"kills": 4,
+"deaths": 3,
+"score": 403
+},
+{
+"team": 1,
+"pid": 1,
+"kills": 3,
+"deaths": 2,
+"score": 306
+},
+{
+"team": 0,
+"pid": 2,
+"kills": 3,
+"deaths": 5,
+"score": 308
+},
+{
+"team": 1,
+"pid": 3,
+"kills": 2,
+"deaths": 2,
+"score": 220
+},
+{
+"team": 0,
+"pid": 4,
+"kills": 3,
+"deaths": 5,
+"score": 352
+},
+{
+"team": 1,
+"pid": 5,
+"kills": 2,
+"deaths": 3,
+"score": 240
+},
+{
+"team": 0,
+"pid": 6,
+"kills": 2,
+"deaths": 3,
+"score": 232
+},
+{
+"team": 1,
+"pid": 7,
+"kills": 5,
+"deaths": 4,
+"score": 508
+},
+{
+"team": 0,
+"pid": 8,
+"kills": 3,
+"deaths": 1,
+"score": 347
+},
+{
+"team": 1,
+"pid": 9,
+"kills": 8,
+"deaths": 4,
+"score": 844
+},
+{
+"team": 0,
+"pid": 10,
+"kills": 2,
+"deaths": 4,
+"score": 237
+},
+{
+"team": 1,
+"pid": 11,
+"kills": 8,
+"deaths": 3,
+"score": 842
+},
+{
+"team": 0,
+"pid": 12,
+"kills": 2,
+"deaths": 5,
+"score": 241
+},
+{
+"team": 1,
+"pid": 13,
+"kills": 4,
+"deaths": 5,
+"score": 406
+},
+{
+"team": 0,
+"pid": 14,
+"kills": 5,
+"deaths": 7,
+"score": 513
+},
+{
+"team": 1,
+"pid": 15,
+"kills": 1,
+"deaths": 1,
+"score": 141
+},
+{
+"team": 0,
+"pid": 16,
+"kills": 3,
+"deaths": 5,
+"score": 344
+},
+{
+"team": 1,
+"pid": 17,
+"kills": 1,
+"deaths": 2,
+"score": 153
+},
+{
+"team": 0,
+"pid": 18,
+"kills": 3,
+"deaths": 2,
+"score": 348
+},
+{
+"team": 1,
+"pid": 19,
+"kills": 6,
+"deaths": 4,
+"score": 660
+}
+]
+},
+{
+"roster": {
+"match_id": 2147483647,
+"map_id": 1,
+"mode_id": 0,
+"human_name": "Ivan \u0416",
+"bots": [
+{
+"k": 0,
+"team": 1,
+"ai": 0,
+"first": 0,
+"second": 3,
+"name": "Bot 1"
+},
+{
+"k": 1,
+"team": 0,
+"ai": 1,
+"first": 1,
+"second": 10,
+"name": "Bot 2"
+},
+{
+"k": 2,
+"team": 1,
+"ai": 2,
+"first": 2,
+"second": 17,
+"name": "Bot 3"
+},
+{
+"k": 3,
+"team": 0,
+"ai": 3,
+"first": 3,
+"second": 24,
+"name": "Bot 4"
+},
+{
+"k": 4,
+"team": 1,
+"ai": 5,
+"first": 4,
+"second": 1,
+"name": "Bot 5"
+},
+{
+"k": 5,
+"team": 0,
+"ai": 7,
+"first": 5,
+"second": 8,
+"name": "Bot 6"
+},
+{
+"k": 6,
+"team": 1,
+"ai": 9,
+"first": 6,
+"second": 15,
+"name": "Bot 7"
+},
+{
+"k": 7,
+"team": 0,
+"ai": 11,
+"first": 7,
+"second": 22,
+"name": "Bot 8"
+},
+{
+"k": 8,
+"team": 1,
+"ai": 4,
+"first": 8,
+"second": 29,
+"name": "Bot 9"
+},
+{
+"k": 9,
+"team": 0,
+"ai": 6,
+"first": 9,
+"second": 6,
+"name": "Bot 10"
+},
+{
+"k": 10,
+"team": 1,
+"ai": 8,
+"first": 10,
+"second": 13,
+"name": "Bot 11"
+},
+{
+"k": 11,
+"team": 0,
+"ai": 10,
+"first": 11,
+"second": 20,
+"name": "Bot 12"
+},
+{
+"k": 12,
+"team": 1,
+"ai": 14,
+"first": 12,
+"second": 27,
+"name": "Bot 13"
+},
+{
+"k": 13,
+"team": 0,
+"ai": 17,
+"first": 13,
+"second": 4,
+"name": "Bot 14"
+},
+{
+"k": 14,
+"team": 1,
+"ai": 20,
+"first": 14,
+"second": 11,
+"name": "Bot 15"
+},
+{
+"k": 15,
+"team": 0,
+"ai": 23,
+"first": 15,
+"second": 18,
+"name": "Bot 16"
+},
+{
+"k": 16,
+"team": 1,
+"ai": 13,
+"first": 16,
+"second": 25,
+"name": "Bot 17"
+},
+{
+"k": 17,
+"team": 0,
+"ai": 16,
+"first": 17,
+"second": 2,
+"name": "Bot 18"
+},
+{
+"k": 18,
+"team": 1,
+"ai": 19,
+"first": 18,
+"second": 9,
+"name": "Bot 19"
+}
+]
+},
+"events": [
+61,
+7
+],
+"xp": 3003,
+"fac_points": 150,
+"faction": 2,
+"t0": 40,
+"t1": 30,
+"msg_len": 2043,
+"msg_fnv": "ee7eb97056d287ac",
+"names_fnv": "d28da1656fb52dcf",
+"people": [
+{
+"team": 0,
+"pid": 0,
+"kills": 4,
+"deaths": 1,
+"score": 403
+},
+{
+"team": 1,
+"pid": 1,
+"kills": 3,
+"deaths": 4,
+"score": 306
+},
+{
+"team": 0,
+"pid": 2,
+"kills": 4,
+"deaths": 4,
+"score": 408
+},
+{
+"team": 1,
+"pid": 3,
+"kills": 2,
+"deaths": 2,
+"score": 220
+},
+{
+"team": 0,
+"pid": 4,
+"kills": 5,
+"deaths": 3,
+"score": 552
+},
+{
+"team": 1,
+"pid": 5,
+"kills": 1,
+"deaths": 3,
+"score": 140
+},
+{
+"team": 0,
+"pid": 6,
+"kills": 2,
+"deaths": 3,
+"score": 232
+},
+{
+"team": 1,
+"pid": 7,
+"kills": 3,
+"deaths": 7,
+"score": 308
+},
+{
+"team": 0,
+"pid": 8,
+"kills": 3,
+"deaths": 1,
+"score": 347
+},
+{
+"team": 1,
+"pid": 9,
+"kills": 4,
+"deaths": 8,
+"score": 444
+},
+{
+"team": 0,
+"pid": 10,
+"kills": 3,
+"deaths": 3,
+"score": 337
+},
+{
+"team": 1,
+"pid": 11,
+"kills": 8,
+"deaths": 5,
+"score": 842
+},
+{
+"team": 0,
+"pid": 12,
+"kills": 4,
+"deaths": 3,
+"score": 441
+},
+{
+"team": 1,
+"pid": 13,
+"kills": 1,
+"deaths": 5,
+"score": 106
+},
+{
+"team": 0,
+"pid": 14,
+"kills": 6,
+"deaths": 7,
+"score": 613
+},
+{
+"team": 1,
+"pid": 15,
+"kills": 1,
+"deaths": 1,
+"score": 141
+},
+{
+"team": 0,
+"pid": 16,
+"kills": 4,
+"deaths": 3,
+"score": 444
+},
+{
+"team": 1,
+"pid": 17,
+"kills": 2,
+"deaths": 1,
+"score": 253
+},
+{
+"team": 0,
+"pid": 18,
+"kills": 5,
+"deaths": 2,
+"score": 548
+},
+{
+"team": 1,
+"pid": 19,
+"kills": 5,
+"deaths": 4,
+"score": 560
+}
+]
+},
+{
+"roster": {
+"match_id": 2147487647,
+"map_id": 1,
+"mode_id": 0,
+"human_name": "Ivan \u0416",
+"bots": [
+{
+"k": 0,
+"team": 1,
+"ai": 0,
+"first": 0,
+"second": 3,
+"name": "Bot 1"
+},
+{
+"k": 1,
+"team": 0,
+"ai": 1,
+"first": 1,
+"second": 10,
+"name": "Bot 2"
+},
+{
+"k": 2,
+"team": 1,
+"ai": 2,
+"first": 2,
+"second": 17,
+"name": "Bot 3"
+},
+{
+"k": 3,
+"team": 0,
+"ai": 3,
+"first": 3,
+"second": 24,
+"name": "Bot 4"
+},
+{
+"k": 4,
+"team": 1,
+"ai": 5,
+"first": 4,
+"second": 1,
+"name": "Bot 5"
+},
+{
+"k": 5,
+"team": 0,
+"ai": 7,
+"first": 5,
+"second": 8,
+"name": "Bot 6"
+},
+{
+"k": 6,
+"team": 1,
+"ai": 9,
+"first": 6,
+"second": 15,
+"name": "Bot 7"
+},
+{
+"k": 7,
+"team": 0,
+"ai": 11,
+"first": 7,
+"second": 22,
+"name": "Bot 8"
+},
+{
+"k": 8,
+"team": 1,
+"ai": 4,
+"first": 8,
+"second": 29,
+"name": "Bot 9"
+},
+{
+"k": 9,
+"team": 0,
+"ai": 6,
+"first": 9,
+"second": 6,
+"name": "Bot 10"
+},
+{
+"k": 10,
+"team": 1,
+"ai": 8,
+"first": 10,
+"second": 13,
+"name": "Bot 11"
+},
+{
+"k": 11,
+"team": 0,
+"ai": 10,
+"first": 11,
+"second": 20,
+"name": "Bot 12"
+},
+{
+"k": 12,
+"team": 1,
+"ai": 14,
+"first": 12,
+"second": 27,
+"name": "Bot 13"
+},
+{
+"k": 13,
+"team": 0,
+"ai": 17,
+"first": 13,
+"second": 4,
+"name": "Bot 14"
+},
+{
+"k": 14,
+"team": 1,
+"ai": 20,
+"first": 14,
+"second": 11,
+"name": "Bot 15"
+},
+{
+"k": 15,
+"team": 0,
+"ai": 23,
+"first": 15,
+"second": 18,
+"name": "Bot 16"
+},
+{
+"k": 16,
+"team": 1,
+"ai": 13,
+"first": 16,
+"second": 25,
+"name": "Bot 17"
+},
+{
+"k": 17,
+"team": 0,
+"ai": 16,
+"first": 17,
+"second": 2,
+"name": "Bot 18"
+},
+{
+"k": 18,
+"team": 1,
+"ai": 19,
+"first": 18,
+"second": 9,
+"name": "Bot 19"
+}
+]
+},
+"events": [
+62
+],
+"xp": 3004,
+"fac_points": 200,
+"faction": 3,
+"t0": 23,
+"t1": 40,
+"msg_len": 2043,
+"msg_fnv": "c65914f9efbfce54",
+"names_fnv": "d28da1656fb52dcf",
+"people": [
+{
+"team": 0,
+"pid": 0,
+"kills": 2,
+"deaths": 5,
+"score": 241
+},
+{
+"team": 1,
+"pid": 1,
+"kills": 6,
+"deaths": 2,
+"score": 641
+},
+{
+"team": 0,
+"pid": 2,
+"kills": 1,
+"deaths": 2,
+"score": 130
+},
+{
+"team": 1,
+"pid": 3,
+"kills": 1,
+"deaths": 2,
+"score": 138
+},
+{
+"team": 0,
+"pid": 4,
+"kills": 7,
+"deaths": 5,
+"score": 729
+},
+{
+"team": 1,
+"pid": 5,
+"kills": 5,
+"deaths": 1,
+"score": 556
+},
+{
+"team": 0,
+"pid": 6,
+"kills": 1,
+"deaths": 4,
+"score": 122
+},
+{
+"team": 1,
+"pid": 7,
+"kills": 4,
+"deaths": 3,
+"score": 438
+},
+{
+"team": 0,
+"pid": 8,
+"kills": 5,
+"deaths": 3,
+"score": 559
+},
+{
+"team": 1,
+"pid": 9,
+"kills": 4,
+"deaths": 4,
+"score": 451
+},
+{
+"team": 0,
+"pid": 10,
+"kills": 1,
+"deaths": 6,
+"score": 153
+},
+{
+"team": 1,
+"pid": 11,
+"kills": 2,
+"deaths": 0,
+"score": 246
+},
+{
+"team": 0,
+"pid": 12,
+"kills": 2,
+"deaths": 3,
+"score": 206
+},
+{
+"team": 1,
+"pid": 13,
+"kills": 7,
+"deaths": 5,
+"score": 758
+},
+{
+"team": 0,
+"pid": 14,
+"kills": 1,
+"deaths": 4,
+"score": 150
+},
+{
+"team": 1,
+"pid": 15,
+"kills": 3,
+"deaths": 3,
+"score": 351
+},
+{
+"team": 0,
+"pid": 16,
+"kills": 1,
+"deaths": 3,
+"score": 121
+},
+{
+"team": 1,
+"pid": 17,
+"kills": 8,
+"deaths": 2,
+"score": 842
+},
+{
+"team": 0,
+"pid": 18,
+"kills": 2,
+"deaths": 5,
+"score": 245
+},
+{
+"team": 1,
+"pid": 19,
+"kills": 0,
+"deaths": 1,
+"score": 6
+}
+]
+},
+{
+"roster": {
+"match_id": 2147483647,
+"map_id": 1,
+"mode_id": 0,
+"human_name": "Ivan \u0416",
+"bots": [
+{
+"k": 0,
+"team": 1,
+"ai": 0,
+"first": 0,
+"second": 3,
+"name": "Bot 1"
+},
+{
+"k": 1,
+"team": 0,
+"ai": 1,
+"first": 1,
+"second": 10,
+"name": "Bot 2"
+},
+{
+"k": 2,
+"team": 1,
+"ai": 2,
+"first": 2,
+"second": 17,
+"name": "Bot 3"
+},
+{
+"k": 3,
+"team": 0,
+"ai": 3,
+"first": 3,
+"second": 24,
+"name": "Bot 4"
+},
+{
+"k": 4,
+"team": 1,
+"ai": 5,
+"first": 4,
+"second": 1,
+"name": "Bot 5"
+},
+{
+"k": 5,
+"team": 0,
+"ai": 7,
+"first": 5,
+"second": 8,
+"name": "Bot 6"
+},
+{
+"k": 6,
+"team": 1,
+"ai": 9,
+"first": 6,
+"second": 15,
+"name": "Bot 7"
+},
+{
+"k": 7,
+"team": 0,
+"ai": 11,
+"first": 7,
+"second": 22,
+"name": "Bot 8"
+},
+{
+"k": 8,
+"team": 1,
+"ai": 4,
+"first": 8,
+"second": 29,
+"name": "Bot 9"
+},
+{
+"k": 9,
+"team": 0,
+"ai": 6,
+"first": 9,
+"second": 6,
+"name": "Bot 10"
+},
+{
+"k": 10,
+"team": 1,
+"ai": 8,
+"first": 10,
+"second": 13,
+"name": "Bot 11"
+},
+{
+"k": 11,
+"team": 0,
+"ai": 10,
+"first": 11,
+"second": 20,
+"name": "Bot 12"
+},
+{
+"k": 12,
+"team": 1,
+"ai": 14,
+"first": 12,
+"second": 27,
+"name": "Bot 13"
+},
+{
+"k": 13,
+"team": 0,
+"ai": 17,
+"first": 13,
+"second": 4,
+"name": "Bot 14"
+},
+{
+"k": 14,
+"team": 1,
+"ai": 20,
+"first": 14,
+"second": 11,
+"name": "Bot 15"
+},
+{
+"k": 15,
+"team": 0,
+"ai": 23,
+"first": 15,
+"second": 18,
+"name": "Bot 16"
+},
+{
+"k": 16,
+"team": 1,
+"ai": 13,
+"first": 16,
+"second": 25,
+"name": "Bot 17"
+},
+{
+"k": 17,
+"team": 0,
+"ai": 16,
+"first": 17,
+"second": 2,
+"name": "Bot 18"
+},
+{
+"k": 18,
+"team": 1,
+"ai": 19,
+"first": 18,
+"second": 9,
+"name": "Bot 19"
+}
+]
+},
+"events": [
+1,
+2,
+6
+],
+"xp": 3005,
+"fac_points": 250,
+"faction": 4,
+"t0": 30,
+"t1": 40,
+"msg_len": 2043,
+"msg_fnv": "45b5377f2654c75a",
+"names_fnv": "d28da1656fb52dcf",
+"people": [
+{
+"team": 0,
+"pid": 0,
+"kills": 4,
+"deaths": 3,
+"score": 403
+},
+{
+"team": 1,
+"pid": 1,
+"kills": 3,
+"deaths": 2,
+"score": 306
+},
+{
+"team": 0,
+"pid": 2,
+"kills": 3,
+"deaths": 5,
+"score": 308
+},
+{
+"team": 1,
+"pid": 3,
+"kills": 2,
+"deaths": 2,
+"score": 220
+},
+{
+"team": 0,
+"pid": 4,
+"kills": 3,
+"deaths": 5,
+"score": 352
+},
+{
+"team": 1,
+"pid": 5,
+"kills": 2,
+"deaths": 3,
+"score": 240
+},
+{
+"team": 0,
+"pid": 6,
+"kills": 2,
+"deaths": 3,
+"score": 232
+},
+{
+"team": 1,
+"pid": 7,
+"kills": 5,
+"deaths": 4,
+"score": 508
+},
+{
+"team": 0,
+"pid": 8,
+"kills": 3,
+"deaths": 1,
+"score": 347
+},
+{
+"team": 1,
+"pid": 9,
+"kills": 8,
+"deaths": 4,
+"score": 844
+},
+{
+"team": 0,
+"pid": 10,
+"kills": 2,
+"deaths": 4,
+"score": 237
+},
+{
+"team": 1,
+"pid": 11,
+"kills": 8,
+"deaths": 3,
+"score": 842
+},
+{
+"team": 0,
+"pid": 12,
+"kills": 2,
+"deaths": 5,
+"score": 241
+},
+{
+"team": 1,
+"pid": 13,
+"kills": 4,
+"deaths": 5,
+"score": 406
+},
+{
+"team": 0,
+"pid": 14,
+"kills": 5,
+"deaths": 7,
+"score": 513
+},
+{
+"team": 1,
+"pid": 15,
+"kills": 1,
+"deaths": 1,
+"score": 141
+},
+{
+"team": 0,
+"pid": 16,
+"kills": 3,
+"deaths": 5,
+"score": 344
+},
+{
+"team": 1,
+"pid": 17,
+"kills": 1,
+"deaths": 2,
+"score": 153
+},
+{
+"team": 0,
+"pid": 18,
+"kills": 3,
+"deaths": 2,
+"score": 348
+},
+{
+"team": 1,
+"pid": 19,
+"kills": 6,
+"deaths": 4,
+"score": 660
+}
+]
+},
+{
+"roster": {
+"match_id": 5,
+"map_id": 2,
+"mode_id": 2,
+"human_name": "test",
+"bots": [
+{
+"k": 0,
+"team": 1,
+"ai": 32,
+"first": 0,
+"second": 3,
+"name": "Bot 1"
+},
+{
+"k": 1,
+"team": 0,
+"ai": 33,
+"first": 1,
+"second": 10,
+"name": "Bot 2"
+}
+]
+},
+"events": [
+5
+],
+"xp": 4000,
+"fac_points": 0,
+"faction": 4,
+"t0": 12,
+"t1": 10,
+"msg_len": 1423,
+"msg_fnv": "ece71f50cfde84f6",
+"names_fnv": "3d96d92a6c0265c7",
+"people": [
+{
+"team": 0,
+"pid": 0,
+"kills": 3,
+"deaths": 6,
+"score": 300
+},
+{
+"team": 1,
+"pid": 1,
+"kills": 10,
+"deaths": 12,
+"score": 1038
+},
+{
+"team": 0,
+"pid": 2,
+"kills": 9,
+"deaths": 4,
+"score": 943
+}
+]
+},
+{
+"roster": {
+"match_id": 5,
+"map_id": 2,
+"mode_id": 2,
+"human_name": "test",
+"bots": [
+{
+"k": 0,
+"team": 1,
+"ai": 32,
+"first": 0,
+"second": 3,
+"name": "Bot 1"
+},
+{
+"k": 1,
+"team": 0,
+"ai": 33,
+"first": 1,
+"second": 10,
+"name": "Bot 2"
+}
+]
+},
+"events": [
+6
+],
+"xp": 4001,
+"fac_points": 50,
+"faction": 1,
+"t0": 5,
+"t1": 6,
+"msg_len": 1423,
+"msg_fnv": "93384d8404eb6035",
+"names_fnv": "3d96d92a6c0265c7",
+"people": [
+{
+"team": 0,
+"pid": 0,
+"kills": 1,
+"deaths": 3,
+"score": 100
+},
+{
+"team": 1,
+"pid": 1,
+"kills": 6,
+"deaths": 5,
+"score": 655
+},
+{
+"team": 0,
+"pid": 2,
+"kills": 4,
+"deaths": 3,
+"score": 400
+}
+]
+},
+{
+"roster": {
+"match_id": 5,
+"map_id": 2,
+"mode_id": 2,
+"human_name": "test",
+"bots": [
+{
+"k": 0,
+"team": 1,
+"ai": 32,
+"first": 0,
+"second": 3,
+"name": "Bot 1"
+},
+{
+"k": 1,
+"team": 0,
+"ai": 33,
+"first": 1,
+"second": 10,
+"name": "Bot 2"
+}
+]
+},
+"events": [],
+"xp": 4002,
+"fac_points": 100,
+"faction": 2,
+"t0": 5,
+"t1": 6,
+"msg_len": 1423,
+"msg_fnv": "2216bcbc5fd81de7",
+"names_fnv": "3d96d92a6c0265c7",
+"people": [
+{
+"team": 0,
+"pid": 0,
+"kills": 1,
+"deaths": 3,
+"score": 100
+},
+{
+"team": 1,
+"pid": 1,
+"kills": 6,
+"deaths": 5,
+"score": 655
+},
+{
+"team": 0,
+"pid": 2,
+"kills": 4,
+"deaths": 3,
+"score": 400
+}
+]
+},
+{
+"roster": {
+"match_id": 3005,
+"map_id": 2,
+"mode_id": 2,
+"human_name": "test",
+"bots": [
+{
+"k": 0,
+"team": 1,
+"ai": 32,
+"first": 0,
+"second": 3,
+"name": "Bot 1"
+},
+{
+"k": 1,
+"team": 0,
+"ai": 33,
+"first": 1,
+"second": 10,
+"name": "Bot 2"
+}
+]
+},
+"events": [
+61,
+7
+],
+"xp": 4003,
+"fac_points": 150,
+"faction": 3,
+"t0": 10,
+"t1": 6,
+"msg_len": 1423,
+"msg_fnv": "a34b4ab4d05cf651",
+"names_fnv": "3d96d92a6c0265c7",
+"people": [
+{
+"team": 0,
+"pid": 0,
+"kills": 4,
+"deaths": 2,
+"score": 406
+},
+{
+"team": 1,
+"pid": 1,
+"kills": 6,
+"deaths": 10,
+"score": 636
+},
+{
+"team": 0,
+"pid": 2,
+"kills": 6,
+"deaths": 4,
+"score": 614
+}
+]
+},
+{
+"roster": {
+"match_id": 5,
+"map_id": 2,
+"mode_id": 2,
+"human_name": "test",
+"bots": [
+{
+"k": 0,
+"team": 1,
+"ai": 32,
+"first": 0,
+"second": 3,
+"name": "Bot 1"
+},
+{
+"k": 1,
+"team": 0,
+"ai": 33,
+"first": 1,
+"second": 10,
+"name": "Bot 2"
+}
+]
+},
+"events": [
+62
+],
+"xp": 4004,
+"fac_points": 200,
+"faction": 4,
+"t0": 5,
+"t1": 6,
+"msg_len": 1423,
+"msg_fnv": "69e4360c82c5703f",
+"names_fnv": "3d96d92a6c0265c7",
+"people": [
+{
+"team": 0,
+"pid": 0,
+"kills": 1,
+"deaths": 3,
+"score": 100
+},
+{
+"team": 1,
+"pid": 1,
+"kills": 6,
+"deaths": 5,
+"score": 655
+},
+{
+"team": 0,
+"pid": 2,
+"kills": 4,
+"deaths": 3,
+"score": 400
+}
+]
+},
+{
+"roster": {
+"match_id": 5,
+"map_id": 2,
+"mode_id": 2,
+"human_name": "test",
+"bots": [
+{
+"k": 0,
+"team": 1,
+"ai": 32,
+"first": 0,
+"second": 3,
+"name": "Bot 1"
+},
+{
+"k": 1,
+"team": 0,
+"ai": 33,
+"first": 1,
+"second": 10,
+"name": "Bot 2"
+}
+]
+},
+"events": [
+1,
+2,
+6
+],
+"xp": 4005,
+"fac_points": 250,
+"faction": 1,
+"t0": 5,
+"t1": 6,
+"msg_len": 1423,
+"msg_fnv": "b62d328465778e81",
+"names_fnv": "3d96d92a6c0265c7",
+"people": [
+{
+"team": 0,
+"pid": 0,
+"kills": 1,
+"deaths": 3,
+"score": 100
+},
+{
+"team": 1,
+"pid": 1,
+"kills": 6,
+"deaths": 5,
+"score": 655
+},
+{
+"team": 0,
+"pid": 2,
+"kills": 4,
+"deaths": 3,
+"score": 400
+}
+]
+},
+{
+"roster": {
+"match_id": 31337,
+"map_id": 0,
+"mode_id": 1,
+"human_name": "test",
+"bots": []
+},
+"events": [
+5
+],
+"xp": 5000,
+"fac_points": 0,
+"faction": 1,
+"t0": 6,
+"t1": 0,
+"msg_len": 1348,
+"msg_fnv": "ba995bc674879151",
+"names_fnv": "f9e6e6ef197c2b25",
+"people": [
+{
+"team": 0,
+"pid": 0,
+"kills": 6,
+"deaths": 0,
+"score": 637
+}
+]
+},
+{
+"roster": {
+"match_id": 31337,
+"map_id": 0,
+"mode_id": 1,
+"human_name": "test",
+"bots": []
+},
+"events": [
+6
+],
+"xp": 5001,
+"fac_points": 50,
+"faction": 2,
+"t0": 4,
+"t1": 0,
+"msg_len": 1348,
+"msg_fnv": "b28c971e7da78ed6",
+"names_fnv": "f9e6e6ef197c2b25",
+"people": [
+{
+"team": 0,
+"pid": 0,
+"kills": 4,
+"deaths": 0,
+"score": 406
+}
+]
+},
+{
+"roster": {
+"match_id": 33337,
+"map_id": 0,
+"mode_id": 1,
+"human_name": "test",
+"bots": []
+},
+"events": [],
+"xp": 5002,
+"fac_points": 100,
+"faction": 3,
+"t0": 4,
+"t1": 0,
+"msg_len": 1348,
+"msg_fnv": "76404540858a514e",
+"names_fnv": "f9e6e6ef197c2b25",
+"people": [
+{
+"team": 0,
+"pid": 0,
+"kills": 4,
+"deaths": 0,
+"score": 422
+}
+]
+},
+{
+"roster": {
+"match_id": 31337,
+"map_id": 0,
+"mode_id": 1,
+"human_name": "test",
+"bots": []
+},
+"events": [
+61,
+7
+],
+"xp": 5003,
+"fac_points": 150,
+"faction": 4,
+"t0": 6,
+"t1": 0,
+"msg_len": 1348,
+"msg_fnv": "34fe6685ee375e1d",
+"names_fnv": "f9e6e6ef197c2b25",
+"people": [
+{
+"team": 0,
+"pid": 0,
+"kills": 6,
+"deaths": 0,
+"score": 637
+}
+]
+},
+{
+"roster": {
+"match_id": 31337,
+"map_id": 0,
+"mode_id": 1,
+"human_name": "test",
+"bots": []
+},
+"events": [
+62
+],
+"xp": 5004,
+"fac_points": 200,
+"faction": 1,
+"t0": 4,
+"t1": 0,
+"msg_len": 1348,
+"msg_fnv": "80126c6615535352",
+"names_fnv": "f9e6e6ef197c2b25",
+"people": [
+{
+"team": 0,
+"pid": 0,
+"kills": 4,
+"deaths": 0,
+"score": 406
+}
+]
+},
+{
+"roster": {
+"match_id": 36337,
+"map_id": 0,
+"mode_id": 1,
+"human_name": "test",
+"bots": []
+},
+"events": [
+1,
+2,
+6
+],
+"xp": 5005,
+"fac_points": 250,
+"faction": 2,
+"t0": 4,
+"t1": 0,
+"msg_len": 1348,
+"msg_fnv": "c88207b05d675439",
+"names_fnv": "f9e6e6ef197c2b25",
+"people": [
+{
+"team": 0,
+"pid": 0,
+"kills": 4,
+"deaths": 0,
+"score": 400
+}
+]
+}
+]

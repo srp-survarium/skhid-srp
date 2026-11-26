@@ -187,12 +187,11 @@ fn world_with(accounts: GameAccounts) -> World {
         token_failures: Mutex::new((0, None)),
         connections: AtomicU32::new(0),
         downloads: AtomicU32::new(0),
-        resource_downloads: AtomicU32::new(0),
         replay_downloads: AtomicU32::new(0),
         replay_failures: Mutex::new(std::collections::HashMap::new()),
         replay_asks: Mutex::new(std::collections::HashMap::new()),
         plans: Default::default(),
-        game: Some(Game {
+        game: Game {
             accounts: accounts.clone(),
             lobby: told.clone(),
             matches: told.clone(),
@@ -201,7 +200,7 @@ fn world_with(accounts: GameAccounts) -> World {
             replays: None,
             results: Arc::new(session::v026g::rewards::Results::new()),
             pools: crate::Pools::every_playable(),
-        }),
+        },
     };
     World {
         web,
@@ -779,7 +778,6 @@ fn the_launchers_page_and_its_fresh_numbers_come_with_the_launchers_policy() {
         "/launcher/places/uk",
         "/launcher/places/en",
         "/",
-        "/launcher/fresh/uk",
     ];
     let server = std::thread::spawn(move || {
         for _ in targets {
@@ -844,14 +842,6 @@ fn the_launchers_page_and_its_fresh_numbers_come_with_the_launchers_policy() {
     for part in &parts {
         assert!(page.1.contains(part));
     }
-    // A page opened before the matches' tab asks where it always did, and
-    // is given its three places in its order.
-    let before = &answers[4];
-    assert!(before.0.contains(&launchers));
-    assert_eq!(
-        before.1.split("<hr>").collect::<Vec<_>>(),
-        [parts[1], parts[5], parts[7]]
-    );
     // Every other page keeps the site's policy: no script at all.
     assert!(home.0.contains(&format!(
         "\r\nContent-Security-Policy: {}\r\n",
@@ -914,7 +904,7 @@ fn the_patches_are_listed_for_the_updater_as_json() {
     let mut world = world();
     world.web.token = None;
     world.web.admin_path = None;
-    world.web.game.as_mut().unwrap().downloads = Arc::new(crate::Downloads::new(
+    world.web.game.downloads = Arc::new(crate::Downloads::new(
         vec![
             offered(
                 14,
@@ -965,7 +955,7 @@ fn the_games_archive_is_offered_apart_from_the_patches() {
             "https://archive.org/download/x/survarium_full_026g0.7z".into(),
         ],
     };
-    world.web.game.as_mut().unwrap().downloads = Arc::new(crate::Downloads::new(
+    world.web.game.downloads = Arc::new(crate::Downloads::new(
         vec![offered(14, 'a', &["http://203.0.113.5/p14"])],
         Some(archive),
         None,
@@ -1174,6 +1164,7 @@ fn wiki_routes_use_the_sites_navigation_and_language() {
         "/wiki/weapons",
         "/wiki/modifiers",
         "/wiki/equipment",
+        "/wiki/artefacts",
         "/wiki/calculator",
         "/wiki/maps",
         "/wiki/skills",
@@ -1195,21 +1186,63 @@ fn wiki_routes_use_the_sites_navigation_and_language() {
             )));
         }
     }
-    // The index leads to every section.
-    let index = world.web.route(&get("/wiki"), "t").body;
-    for section in [
-        "/wiki/weapons",
-        "/wiki/modifiers",
-        "/wiki/equipment",
-        "/wiki/calculator",
-        "/wiki/maps",
-        "/wiki/skills",
-        "/wiki/quests",
-    ] {
-        assert!(
-            index.contains(&format!("<a class=wiki-link href=\"{section}?lang=en\">")),
-            "{section}"
+    // The index leads to every section, in its order, each tile with its
+    // picture: files the site serves, or a drawing.
+    for lang in Lang::ALL {
+        let mut request = get("/wiki");
+        request.lang = lang;
+        let index = world.web.route(&request, "t").body;
+        let tiles: Vec<&str> = index.split("<a class=wiki-link href=\"").skip(1).collect();
+        let order: Vec<&str> = tiles
+            .iter()
+            .map(|tile| tile.split_once('?').unwrap().0)
+            .collect();
+        assert_eq!(
+            order,
+            [
+                "/wiki/skills",
+                "/wiki/weapons",
+                "/wiki/equipment",
+                "/wiki/modifiers",
+                "/wiki/modes",
+                "/wiki/maps",
+                "/wiki/artefacts",
+                "/wiki/quests",
+                "/wiki/calculator",
+                "/wiki/simulators",
+            ],
+            "{lang:?}"
         );
+        for (path, tile) in order.iter().zip(&tiles) {
+            assert!(tile.starts_with(&format!("{path}?lang={}\">", lang.code())));
+            let picture = tile
+                .split_once("<div class=wiki-pic>")
+                .and_then(|(_, rest)| rest.split_once("<h2>"))
+                .unwrap_or_else(|| panic!("{path}: no picture box"))
+                .0;
+            let files: Vec<&str> = picture
+                .match_indices("?v=")
+                .map(|(at, _)| {
+                    let start = picture[..at].rfind(['"', '\'']).unwrap() + 1;
+                    &picture[start..at]
+                })
+                .collect();
+            let drawn = picture.starts_with("<svg") && picture.ends_with("</svg>");
+            assert!(drawn || !files.is_empty(), "{path}: no picture");
+            if path == &"/wiki/modifiers" {
+                assert_eq!(files.len(), 6, "{path}: a glyph left out");
+            }
+            for file in files {
+                let (kind, bytes) = crate::static_file(file).expect(file);
+                assert!(
+                    kind.starts_with("image/") && !bytes.is_empty(),
+                    "{path}: {file}"
+                );
+            }
+            if picture.starts_with("<img") {
+                assert!(picture.contains(" loading=lazy"), "{path}");
+            }
+        }
     }
     assert_eq!(
         world.web.route(&get("/wiki/unknown"), "t").status,
@@ -1318,7 +1351,7 @@ fn serve_wiki_preview() {
         crate::unix_now(),
         crowd,
     ));
-    world.web.game.as_mut().unwrap().replays =
+    world.web.game.replays =
         Some(Arc::new(crate::history::tests::preview_replays(&dir)));
     // SRP_PREVIEW_PORT: another port, for two previews side by side.
     let port = std::env::var("SRP_PREVIEW_PORT").unwrap_or_else(|_| "24583".to_owned());

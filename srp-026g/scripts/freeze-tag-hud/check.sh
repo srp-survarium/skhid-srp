@@ -5,7 +5,9 @@
 # - FreezeIconsHarness.as: the player icons movie's names and arrows over heads, freeze-names-<w>x<h>.png.
 #   With FREEZE_BACKGROUND (an image of the game's screen) the tags are drawn over it, else over a sky
 #   and ground drawn by the harness;
-# - FreezeHudHarness.as: the hud movie's minimap, Tab map and Tab list, freeze-maps-<w>x<h>.png.
+# - FreezeHudHarness.as: the hud movie's minimap, Tab map and Tab list, the last one fighting's mark and
+#   his reveal's popups, Freeze Tag's mode notice (every language's texts: HarnessText.as,
+#   localization-check/harness_text.py), freeze-maps-<w>x<h>.png.
 # The two movies' ice blue must be the same. Exits 0 when every run says pass; prints their lines. A
 # work dir given is kept. Java and Flex from private/actionscript/tools.json
 # (tools/actionscript/README.md), or SRP_AS_TOOLS.
@@ -18,13 +20,14 @@ harness_work "${3:-}"
 
 "${PYTHON:-python3}" "$here/../medical-cards/ruffle_movie.py" "$icons" "$work/player_icons.swf"
 "${PYTHON:-python3}" "$here/../medical-cards/ruffle_movie.py" "$hud" "$work/hud.swf"
+"${PYTHON:-python3}" "$here/../localization-check/harness_text.py" "$work"
 if [[ -n ${FREEZE_BACKGROUND:-} ]]; then cp "$FREEZE_BACKGROUND" "$work/background.png"; fi
 logs=()
 # each harness, its shot and its screenshots' name
 for run in "FreezeIconsHarness tags freeze-names" "FreezeHudHarness maps freeze-maps"; do
     read -r harness shot png <<<"$run"
     for size in 1920x1080 1280x720; do
-        harness_compile "$here/$harness.as" "${size/x/,}" -default-background-color=0x4A5257
+        harness_compile "$here/$harness.as" "${size/x/,}" -default-background-color=0x4A5257 -source-path+="$work"
         mv "$work/$harness.swf" "$work/$harness-$size.swf"
         harness_display "$size" ffmpeg-full
         log=$harness-$size.log

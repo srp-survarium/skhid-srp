@@ -297,9 +297,9 @@ for file in files("gameplay__items__drugs__") + files("gameplay__items__medicine
 # the position of the 1 in its type_mask; an item's mask char j is type j+1.
 RELEVANT = ("parameters/bullet_damage", "parameters/bullet_pierce", "parameters/min_damage_distance",
             "parameters/max_damage_distance", "parameters/rounds_per_minute")
-# A weapon's presets (premium weapons) are shown whatever they change, as the
-# lobby lists them; only the relevant ones change the numbers. Armour keeps
-# the relevant ones only (its presets are silver and wear).
+# A weapon's presets (its built-in bonuses) are shown whatever they change,
+# as the lobby lists them; only the relevant ones change the numbers. Armour
+# keeps the relevant ones only (its presets are silver and wear).
 presets = {str(d) for item in weapons.values() for d in item["default_modifications"]}
 ui_props = {}
 for q in rows(load("gameplay__static_game_parameters.options.json").get("ui_properties", [])):
@@ -353,13 +353,15 @@ for kind, table in (("mod", mods_cfg["modifications"]), ("defect", mods_cfg["def
 
 
 def item_mods(params, default, shown):
-    """The relevant modification types an item may carry, and its defaults
-    (`shown`: every preset, else the relevant ones)."""
+    """The relevant modification types an item may carry besides its defaults,
+    and the defaults (`shown`: every preset, else the relevant ones). A type
+    a default holds does not roll (modifications.rs, `candidates`)."""
     allowed = params.get("available_modifications_mask", "")
     defects = params.get("available_defects_mask", "")
+    held = {type_of[d] for d in default if d in type_of}
     out = {"mod": [], "defect": []}
     for mid, m in mods.items():
-        if not m["effects"]:
+        if not m["effects"] or (m["kind"] == "mod" and m["type"] in held):
             continue
         mask = allowed if m["kind"] == "mod" else defects
         j = m["type"] - 1
@@ -387,6 +389,7 @@ def regeneration_of(m):
 
 
 every_mod = {m["id"]: m for m in rows(mods_cfg["modifications"])}
+type_of = {i: m["type_mask"].index("1") for i, m in every_mod.items()}
 # The bonus that rolls on equipment: one kind, its grades, and the slots with
 # an item that takes it (a piece carries one bonus of a kind at most).
 rolled = sorted((m for m in every_mod.values() if m.get("drop_weight", 0) > 0 and "speed" in regeneration_of(m)),
@@ -482,9 +485,17 @@ level_names = {k.removeprefix("st_").removesuffix("_name"): {"en": v.strip(), **
 # parameter (type 1) and reach the kit from it (armor::add_modifiers
 # 0x33F3A0); a weapon's own parameters do not (weapon_core::initialize
 # 0x2E2A30 adds its movement node only). A weapon's modifications scale its
-# kick ranges instead (type 2, base x max(0, 1 + sum), the cook's 0x358010).
+# own values instead (type 2, base x max(0, 1 + sum), the cook's 0x358010),
+# which its constructor (0x2DF0D0) reads from the cooked config: `WEAPON`,
+# each a set of keys a modification gives one value: its kick ranges
+# (weapon_recoil_parameters::load 0x331840) and its base spread
+# (weapon_dispersion_parameters::load 0x330EE0 into weapon +3D8h, which
+# get_static_dispersion 0x331220 puts in every bullet's spread, fully aimed
+# too: get_dispersed_bullet_direction 0x2E1D50).
 KIT = ("dispersion", "aiming_speed", "dispersion_movement_influence", "dispersion_from_hip", "injury_penalty", "recoil")
-KICK = {f"recoil/{end}_{axis}_recoil" for end in ("min", "max") for axis in ("top", "left", "right")}
+WEAPON = {"kick": {f"recoil/{end}_{axis}_recoil" for end in ("min", "max") for axis in ("top", "left", "right")},
+          "spread": {"dispersion/base_dispersion"}}
+SCALES = {path: name for name, paths in WEAPON.items() for path in paths}
 # The lobby's name for the items of an armour folder (its shop filter).
 SLOT_NAMES = {"helmet": "st_filter_helmet", "mask": "st_filter_mask", "torso": "st_filter_body_armor", "back": "st_backpack",
               "gloves": "st_filter_gloves", "legs": "st_filter_pants", "boots": "st_filter_boots"}
@@ -521,16 +532,16 @@ def takers(cfgs, kind, m):
 sim_mods = []
 for kind, table in (("mod", mods_cfg["modifications"]), ("defect", mods_cfg["defects"])):
     for m in rows(table):
-        kit, kick = {}, {}
+        kit, scales = {}, {}
         for e in rows(m.get("modifiers") or []):
             path, name = "/".join(e["path"]), e["path"][-1].removesuffix("_modifier")
             if e["path"][0] == "parameters" and len(e["path"]) == 2 and name in KIT:
                 assert e["type"] == 1, f"modification {m['id']}: {name} type {e['type']}, not added"
                 kit[name] = r(kit.get(name, 0) + e["value"])
-            elif path in KICK:
+            elif path in SCALES:
                 assert e["type"] == 2, f"modification {m['id']}: {path} type {e['type']}, not a scale"
-                kick[path] = r(e["value"])
-        if not kit and not kick:
+                scales.setdefault(SCALES[path], {})[path] = r(e["value"])
+        if not kit and not scales:
             continue
         (prop,) = rows(m["ui_desc"]["props_list"])
         row = {"id": str(m["id"]), "kind": kind, "type": m["type_mask"].index("1"), "icon": m["ui_desc"].get("icon"),
@@ -544,16 +555,18 @@ for kind, table in (("mod", mods_cfg["modifications"]), ("defect", mods_cfg["def
             slots = sorted({f.split("__")[3] for f in takers(armour_cfgs, kind, m)}, key=list(SLOT_NAMES).index)
             row |= {"kit": kit, "slots": [{"slot": x, "name": text(SLOT_NAMES[x]), **texts("name", SLOT_NAMES[x]), "rolls": x in rolls}
                                           for x in slots]}
-        if kick:
-            if kick.keys() != KICK or len(set(kick.values())) != 1 or kit:
-                sys.exit(f"modification {m['id']}: kick {kick}: not one scale of the six ranges")
-            row |= {"kick": next(iter(kick.values())), "weapons": takers(weapon_cfgs, kind, m),
+        if scales:
+            for name, values in scales.items():
+                if values.keys() != WEAPON[name] or len(set(values.values())) != 1 or kit:
+                    sys.exit(f"modification {m['id']}: {name} {values}: not one scale of {sorted(WEAPON[name])}")
+            row |= {"weapon": {name: next(iter(values.values())) for name, values in sorted(scales.items())},
+                    "weapons": takers(weapon_cfgs, kind, m),
                     "slots": [{"slot": "weapon", "name": text("st_filter_weapons"), **texts("name", "st_filter_weapons"), "rolls": True}]}
         sim_mods.append(row)
 simulators = {"stance": {k: r(v) for k, v in player["character_dispersion_params"].items()},
               "skill_influence": {k: r(v) for k, v in player["character_dispersion_skill_influence"].items()},
               "skills": sim_skills,
-              "mods": sorted(sim_mods, key=lambda m: (m["kind"], m["type"], -abs(sum(m.get("kit", {}).values()) + m.get("kick", 0))))}
+              "mods": sorted(sim_mods, key=lambda m: (m["kind"], m["type"], -abs(sum(m.get("kit", {}).values()) + sum(m.get("weapon", {}).values()))))}
 
 out = {
     "source": "Survarium 0.26g resources.db (build 0.26g0)",

@@ -12,7 +12,8 @@ from pathlib import Path
 import re
 import sys
 
-from localization_026g import (CATALOG, CYRILLIC, may_be_empty, FLASH_MOVIES, FLASH_PREFIX, FOREIGN_LETTERS,
+from localization_026g import (CATALOG, CYRILLIC, KEY_ACTIONS, KEY_PLACEHOLDER, KEY_UNBOUND, action_defaults,
+                              may_be_empty, FLASH_MOVIES, FLASH_PREFIX, FOREIGN_LETTERS,
                               LANGUAGES, discover, encode_strings, read_config, read_strings,
                               read_translations)
 from check_flash_localization_026g import audit_flash
@@ -53,16 +54,28 @@ def audit_catalog(root=CATALOG):
     dictionaries = {name: read_translations(path) for name, path in paths.items()}
     if 'english' not in dictionaries:
         raise ValueError(f'{root}: missing English TSV')
+    # The actions a text may name are the action table's, with its default keys, and an action
+    # without a key has its text in every dictionary.
+    defaults = action_defaults()
+    for name, key in KEY_ACTIONS.items():
+        if defaults.get(name.lower(), False) != key:
+            raise ValueError(f'KEY_ACTIONS: {name} {key}, the action table: {defaults.get(name.lower(), "no row")}')
     report = {'reference': 'english', 'missing_languages': sorted(expected - paths.keys()),
               'unexpected_languages': sorted(paths.keys() - expected), 'languages': {},
               'ui_mapping_found': False, 'ui_missing': {}}
     for language, strings in dictionaries.items():
         result = compare(dictionaries['english'], strings)
         result['empty'] = sorted(k for k, v in strings.items() if not v.strip() and not may_be_empty(k))
-        # The game's localizer (0x1FEF90) makes {NAME} an action's key and drops any other
-        # {...}: srp's own texts take %1$s placeholders.
+        # The game's localizer (0x1FEF90, exe patch 212) makes {NAME} the key bound to the action
+        # NAME and drops any other {...}: a text names a key of KEY_ACTIONS that way, nothing else
+        # in braces (values are %1$s).
         result['braces'] = sorted(k for k, v in strings.items()
-                                  if k.startswith(FLASH_PREFIX) and re.search('[{}]', v))
+                                  if re.search('[{}]', KEY_PLACEHOLDER.sub(
+                                      lambda m: '' if m.group(1) in KEY_ACTIONS else m.group(0), v)))
+        # A text naming a key needs the texts it may become: the default key's and KEY_UNBOUND's.
+        result['key_texts'] = sorted(k for k, v in strings.items() for name in KEY_PLACEHOLDER.findall(v)
+                                     if name in KEY_ACTIONS and not all(strings.get(key, '').strip()
+                                                                        for key in (KEY_ACTIONS[name], KEY_UNBOUND)))
         result['invalid_utf8'] = []  # Strict UTF-8 decoding happens in read_translations.
         result['key_order'] = [] if list(strings) == sorted(strings) else ['keys must be sorted']
         result['too_long'] = sorted(k for k, v in strings.items() if len(v.encode('utf-8')) >= 512)
@@ -164,7 +177,7 @@ def failed(report):
                 or any(
         result.get(field) for result in report['languages'].values()
         for field in ('missing', 'extra', 'empty', 'placeholders', 'markup', 'invalid_utf8',
-                      'too_long', 'non_latin', 'foreign_letters', 'braces', 'key_order', 'catalog_mismatch'))
+                      'too_long', 'non_latin', 'foreign_letters', 'braces', 'key_texts', 'key_order', 'catalog_mismatch'))
         or any(report['ui_missing'].values()) or any(report.get('ui_unmapped', {}).values())
         or report.get('flash', {}).get('issues'))
 
@@ -211,7 +224,7 @@ def main(argv=None):
                 f'{len(result[field])} {field}' for field in
                 ('missing', 'extra', 'empty', 'placeholders', 'markup', 'invalid_utf8', 'unchanged')))
             for field in ('missing', 'extra', 'empty', 'placeholders', 'markup', 'invalid_utf8',
-                          'too_long', 'non_latin', 'foreign_letters', 'braces', 'key_order'):
+                          'too_long', 'non_latin', 'foreign_letters', 'braces', 'key_texts', 'key_order'):
                 for key in result[field]:
                     print(f'  {field}: {key}')
             for key in report['ui_missing'].get(language, []):

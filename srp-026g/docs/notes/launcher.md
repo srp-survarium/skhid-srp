@@ -1076,7 +1076,7 @@ C. **No temp copy**: B + the three patches of 1.8 (`0x1474A`, `0x14442`, string 
 - The original updater's behaviour (what it sends in which order, what `copy` copies exactly, what the
   service does with `StartServiceW` arguments) was only skimmed from its strings; the launcher-side
   contract in sections 4 and 5 is what is proven. A separate note on the updater side,
-  `notes\updater-026g.md`, was being written by another task at the same time and was not
+  `launcher_updater.md`, was being written by another task at the same time and was not
   cross-checked against this one.
 - What the installer wrote into `file to execute`, `arguments`, `working folder`, `update server`,
   `launcher` on a real installation (no registry export was available).

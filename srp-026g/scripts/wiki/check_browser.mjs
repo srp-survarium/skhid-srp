@@ -49,8 +49,19 @@ try {
   const visible = "[...document.querySelectorAll('.weapon')].filter(e => !e.hidden)";
   await send('browsingContext.setViewport', {context, viewport: {width: 1440, height: 1000}, devicePixelRatio: 1});
   await navigate('/wiki');
-  assert.equal(await evaluate("document.querySelector('.wiki-link').pathname"), '/wiki/weapons');
-  assert.equal(await evaluate("[...document.querySelectorAll('.wiki-link')][1].pathname"), '/wiki/simulators');
+  assert.deepEqual(JSON.parse(await evaluate("JSON.stringify([...document.querySelectorAll('.wiki-link')].map(a => a.pathname))")), [
+    '/wiki/skills', '/wiki/weapons', '/wiki/equipment', '/wiki/modifiers', '/wiki/modes',
+    '/wiki/maps', '/wiki/artefacts', '/wiki/quests', '/wiki/calculator', '/wiki/simulators']);
+  // Every tile has its picture, drawn under the real CSP (lazy ones once scrolled to), in one box size.
+  assert.deepEqual(JSON.parse(await evaluate(`(async () => {
+    window.scrollTo(0, document.body.scrollHeight);
+    await Promise.all([...document.images].map(i => i.decode().catch(() => {})));
+    window.scrollTo(0, 0);
+    return JSON.stringify([...document.querySelectorAll('.wiki-pic')].flatMap(box => {
+      const img = box.querySelector('img'), drawn = box.querySelector('svg,.glyph');
+      return (img ? img.naturalWidth > 0 : drawn?.getBoundingClientRect().width > 0) ? [] : [box.textContent];
+    }).concat(new Set([...document.querySelectorAll('.wiki-pic')].map(box => box.offsetHeight)).size === 1 ? [] : ['box sizes differ']));
+  })()`)), []);
   await screenshot('wiki');
   await navigate('/wiki/weapons');
   await evaluate("window.pageErrors=[];addEventListener('error',event=>pageErrors.push(event.message))");
@@ -359,17 +370,18 @@ try {
   await setRow(0, 'stance', 'walk');
   assert.equal(await parts(), '0.2° 10° 2° 30.2°', 'walking');
   // Every skill and modification at its strongest: the gloves' and the body
-  // armour's dispersion add up (−10% each), as the pieces' sum does.
+  // armour's dispersion add up (−10% each), as the pieces' sum does, and the
+  // weapon's Dispersion takes 10% off the base (0.2° -> 0.18°).
   for (const key of await rowKeys(0)) if (/^(skill|mod)-/.test(key)) await strongest(0, key);
   await setRow(0, 'arms', '2');
   const hipAll = await parts();
-  assert.equal(hipAll, `0.2° ${+((10 * .76 + 10 * .4) * .8).toFixed(2)}° 1.6° ${+(0.2 + (10 * .76 + 10 * .4) * .8 + 20).toFixed(2)}°`, 'walking from the hip with all of them');
+  assert.equal(hipAll, `0.18° ${+((10 * .76 + 10 * .4) * .8).toFixed(2)}° 1.6° ${+(0.18 + (10 * .76 + 10 * .4) * .8 + 20).toFixed(2)}°`, 'walking from the hip with all of them');
   await setRow(0, 'aim', 'aiming');
-  assert.equal(await parts(), `0.2° ${+((10 * .88 + 10 * .4) * .8).toFixed(2)}° 1.6° ${+(0.2 + (10 * .88 + 10 * .4) * .8 + 20).toFixed(2)}°`, 'aiming in: the aimed values, no Accuracy');
+  assert.equal(await parts(), `0.18° ${+((10 * .88 + 10 * .4) * .8).toFixed(2)}° 1.6° ${+(0.18 + (10 * .88 + 10 * .4) * .8 + 20).toFixed(2)}°`, 'aiming in: the aimed values, no Accuracy');
   await setRow(0, 'aim', 'aimed');
   for (const stance of ['idle', 'walk', 'crouch', 'crouch_walk', 'run', 'jump']) {
     await setRow(0, 'stance', stance);
-    assert.equal(await parts(), '0.2° 0° 0° 0.2°', `fully aimed, ${stance}: the base only, whatever else`);
+    assert.equal(await parts(), '0.18° 0° 0° 0.18°', `fully aimed, ${stance}: the base only, whatever else`);
   }
   await evaluate("document.querySelector('#recoil-sim .sim-last').click()");
   await screenshot('simulators-aimed');
@@ -398,6 +410,24 @@ try {
     assert.equal(await parts(), '0.2° 0° 0° 0.2° 0.2° 0° 0° 0.2°', 'recoil leaves the spread');
     await setRow(0, 'aim', 'hip');
     assert.equal(await parts(), '0.2° 5° 2° 25.2° 0.2° 0° 0° 0.2°', 'A\'s aim is A\'s');
+    // The weapon's Dispersion (2020..2024, dispersion/base_dispersion x
+    // max(0, 1 + sum)): its own row, five strengths, the base spread alone.
+    const dispersion = 'mod-3-weapon';
+    assert.equal(await evaluate(`document.querySelector('${row(1, dispersion)} .glabel').firstChild.textContent`), 'Dispersion, weapons:', 'the game\'s name, the weapon\'s row');
+    assert.ok((await evaluate(`document.querySelector('${row(1, dispersion)} .glabel').textContent`)).includes('all of the spread fully aimed'), 'its card says what it scales');
+    assert.equal(await evaluate(`[...document.querySelectorAll('${row(1, dispersion)} .gstep')].map(b=>b.textContent).join()`), '−2%,−4%,−6%,−8%,−10%', 'the five strengths');
+    await strongest(1, dispersion);
+    assert.equal(await parts(), '0.2° 5° 2° 25.2° 0.18° 0° 0° 0.18°', 'fully aimed, B\'s whole spread −10%; A\'s as it was');
+    await setRow(1, 'aim', 'hip');
+    assert.equal(await parts(), '0.2° 5° 2° 25.2° 0.18° 5° 2° 25.18°', 'from the hip, the base alone: the stance\'s and a shot\'s parts as they were');
+    await setRow(1, dispersion, '2022');
+    assert.equal(await parts(), '0.2° 5° 2° 25.2° 0.19° 5° 2° 25.19°', '−6%: 0.188°');
+    const [, climbWith] = await ups();
+    await clearRow(1, dispersion);
+    const [, climb] = await ups();
+    assert.equal(climbWith, climb, 'the base spread leaves the kick');
+    await setRow(1, 'aim', 'aimed');
+    assert.equal(await parts(), '0.2° 5° 2° 25.2° 0.2° 0° 0° 0.2°', 'none chosen, the weapon\'s own');
     await screenshot('simulators-same-weapon');
   }
   // A row's card (what it does): on hover, keyboard focus or a tap.
@@ -561,8 +591,10 @@ try {
       if (heading) assert.equal(await evaluate("document.querySelector('#h-result').textContent"), heading, `calculator, ${lang}: its words`);
       const result = () => evaluate("[...document.querySelectorAll('.big.num')].map(e => e.textContent).join(' | ')");
       const first = await result();
-      await evaluate("{const s=document.querySelector('#weapon');s.value=[...s.options].at(-1).value;s.dispatchEvent(new Event('change'))}");
-      await evaluate("{const d=document.querySelector('#dist');d.value='120';d.dispatchEvent(new Event('input'))}");
+      // Another weapon and distance than the page opened with: it keeps the last
+      // language's pick, so a fixed one would change nothing from the second on.
+      await evaluate("{const s=document.querySelector('#weapon');s.value=s.value==='wpn_svd'?'wpn_pm':'wpn_svd';s.dispatchEvent(new Event('change'))}");
+      await evaluate("{const d=document.querySelector('#dist');d.value=d.value==='120'?'30':'120';d.dispatchEvent(new Event('input'))}");
       assert.notEqual(await result(), first, `calculator, ${lang}: a weapon and a distance change the result`);
       const spilled = JSON.parse(await evaluate(`JSON.stringify([...document.querySelectorAll('body *')].filter(e => e.offsetParent && !e.closest('.site, svg')
         && [...e.childNodes].some(n => n.nodeType === 3 && n.textContent.trim()) && getComputedStyle(e).overflow === 'visible'

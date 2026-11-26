@@ -10,6 +10,9 @@ use super::geometry::WorldPoint;
 use super::presentation::{Membership, PresentationEvent, RendererAction, Visibility};
 
 const MAX_BINDINGS: usize = 1024;
+/// The loose visuals of a project (ProjectPlan::loose_visual): School's
+/// three bottles' 24 shards and room to spare.
+pub const MAX_LOOSE: usize = 32;
 
 /// A generated immutable vtable of the native layout T. Only generated
 /// glue constructs one, after checking every replaced slot against the exe.
@@ -78,6 +81,15 @@ impl PhysicsId {
     pub fn made_up(id: u32) -> Self {
         Self(NonZeroU32::new(id).expect("a made-up world's id is not 0"))
     }
+}
+
+/// Where a loose visual is drawn: a row-vector 4x4 (rows i, j, k, place),
+/// every value finite.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct VisualTransform([f32; 16]);
+impl VisualTransform {
+    pub fn parse(matrix: [f32; 16]) -> Option<Self> { matrix.iter().all(|v| v.is_finite()).then_some(Self(matrix)) }
+    pub fn matrix(self) -> [f32; 16] { self.0 }
 }
 
 /// Index in the authored render-visual array, distinct from a lamp id.
@@ -169,7 +181,7 @@ impl<'t> ProjectView<'t> {
             native: self.native, scene: self.native.scene().ok_or(BindingError::MissingScene)?,
             physics: PhysicsId::of(self.frame.physics().ok_or(BindingError::MissingPhysics)?), _thread: self.thread,
         } };
-        Ok(ProjectPlan { project, data, methods, bindings: BoundedVec::new() })
+        Ok(ProjectPlan { project, data, methods, bindings: BoundedVec::new(), loose: BoundedVec::new() })
     }
 }
 
@@ -211,7 +223,11 @@ impl ProbeLight {
 
 #[derive(Clone, Copy)]
 enum NativeObject {
-    Visual(raw::RenderVisual), Light(raw::ObjectLight), AmbientLight(raw::ObjectAmbientLight),
+    Visual(raw::RenderVisual),
+    /// A visual its patch moves ([`Presentation::placement`]): its place is
+    /// written into its transform, and its model moved while it is drawn.
+    Loose(raw::RenderVisual),
+    Light(raw::ObjectLight), AmbientLight(raw::ObjectAmbientLight),
     Particle(raw::ObjectParticleVisual),
     /// Never taken out of the renderer by its lamp: Shown draws it with its
     /// own light, Hidden with the dimmed one.
@@ -221,13 +237,18 @@ impl NativeObject {
     /// The native object's address, its identity.
     fn address(self) -> u32 {
         match self {
-            Self::Visual(v) => v.address(), Self::Light(l) => l.address(), Self::AmbientLight(l) => l.address(),
+            Self::Visual(v) | Self::Loose(v) => v.address(), Self::Light(l) => l.address(), Self::AmbientLight(l) => l.address(),
             Self::Particle(p) => p.address(), Self::Probe(p, _) => p.address(),
         }
     }
 }
 
 struct Binding<K> { object: NativeObject, key: K, membership: Membership }
+
+/// A loose visual's own transform, as the map placed it: where it is drawn
+/// while its patch places it nowhere, and what it is given back.
+#[derive(Clone, Copy)]
+struct Loose { visual: raw::RenderVisual, authored: VisualTransform }
 
 /// An uninstalled, fully owned proposal. Dropping it changes nothing in
 /// the game. Every add resolves and type-checks an object; commit is infallible.
@@ -236,26 +257,41 @@ pub struct ProjectPlan<'t, D, K> {
     data: D,
     methods: MethodTables,
     bindings: BoundedVec<Binding<K>, MAX_BINDINGS>,
+    loose: BoundedVec<Loose, MAX_LOOSE>,
 }
 impl<'t, D, K> ProjectPlan<'t, D, K> {
     pub fn with_data<T>(self, data: T) -> ProjectPlan<'t, T, K> {
-        ProjectPlan { project: self.project, data, methods: self.methods, bindings: self.bindings }
+        ProjectPlan { project: self.project, data, methods: self.methods, bindings: self.bindings, loose: self.loose }
     }
     fn add(&mut self, object: NativeObject, key: K) -> Result<(), BindingError> {
         if self.bindings.iter().any(|binding| binding.object.address() == object.address()) { return Err(BindingError::DuplicateObject); }
         self.bindings.push(Binding { object, key, membership: Membership::Detached }).map_err(|_| BindingError::Capacity)?;
         Ok(())
     }
-    pub fn visual(&mut self, index: VisualIndex, key: K) -> Result<(), BindingError> {
+    fn render_visual(&self, index: VisualIndex) -> Result<raw::RenderVisual, BindingError> {
         // SAFETY: the plan borrows the insertion hook. Count bounds the
         // native contiguous visual array; only its native type is accepted.
-        let visual = unsafe {
+        unsafe {
             if index.0 >= self.project.native.visual_count().read() { return Err(BindingError::InvalidVisual); }
             let visual = self.project.native.visuals().ok_or(BindingError::InvalidVisual)?.at(index.0 as usize);
             if visual.vtable().read() != raw::image::visual_methods().address() { return Err(BindingError::UnknownVisualType); }
-            visual
-        };
+            Ok(visual)
+        }
+    }
+    pub fn visual(&mut self, index: VisualIndex, key: K) -> Result<(), BindingError> {
+        let visual = self.render_visual(index)?;
         self.add(NativeObject::Visual(visual), key)
+    }
+    /// A visual drawn where [`Presentation::placement`] says: the map's
+    /// place until it says another. That place, its transform as loaded.
+    pub fn loose_visual(&mut self, index: VisualIndex, key: K) -> Result<VisualTransform, BindingError> {
+        let visual = self.render_visual(index)?;
+        // SAFETY: a visual of the inserted project; its 16 transform floats.
+        let authored = VisualTransform::parse(unsafe { super::world::floats(visual.transform()) })
+            .ok_or(BindingError::InvalidVisual)?;
+        self.add(NativeObject::Loose(visual), key)?;
+        self.loose.push(Loose { visual, authored }).map_err(|_| BindingError::Capacity)?;
+        Ok(authored)
     }
     /// The project's one object at `position` among those `kind` reads as a
     /// T with its position; `none` or `several` when it is not one.
@@ -316,7 +352,12 @@ impl<'t, D, K> ProjectPlan<'t, D, K> {
 
 /// The patch supplies only the meaning of a binding's key. The registry
 /// remains the sole owner of renderer membership and native object access.
-pub trait Presentation<K> { fn visibility(&self, key: K) -> Visibility; }
+pub trait Presentation<K> {
+    fn visibility(&self, key: K) -> Visibility;
+    /// Where a loose visual's binding is drawn now; None: where the map
+    /// placed it. Asked once a frame, at present.
+    fn placement(&self, _key: K) -> Option<VisualTransform> { None }
+}
 
 enum Registration<D, K> { Empty, Bound(BoundProject<D, K>) }
 struct BoundProject<D, K> {
@@ -325,6 +366,7 @@ struct BoundProject<D, K> {
     scene: raw::GameScene,
     data: D,
     bindings: BoundedVec<Binding<K>, MAX_BINDINGS>,
+    loose: BoundedVec<Loose, MAX_LOOSE>,
 }
 
 // SAFETY: only ProjectRegistry can reach this private owner. Worker access
@@ -372,8 +414,59 @@ unsafe fn drive_probe(probe: raw::ObjectEnvironmentProbe, light: ProbeLight, pre
     }
 }
 
+/// A loose visual's model made a movable one before it is drawn, as
+/// weapon::on_show makes a gun's (set_movable_static 0x243CB0): the
+/// renderer treats a model without it as static (0x172C4B).
+///
+/// # Safety
+/// `visual` is a bound visual of the live registration, on the scene thread.
+unsafe fn make_movable(visual: raw::RenderVisual) {
+    // SAFETY: the visual's model holder and its instance, alive while the
+    // project is; the byte set_movable_static writes.
+    unsafe {
+        if let Some(instance) = visual.model().and_then(|model| model.render_instance().instance()) {
+            instance.movable().write(1);
+        }
+    }
+}
+
+/// Writes `transform` into a loose visual's own; whether it changed.
+///
+/// # Safety
+/// As make_movable.
+unsafe fn place(visual: raw::RenderVisual, transform: VisualTransform) -> bool {
+    // SAFETY: the visual's 16 transform floats, on the scene thread, the
+    // one their readers (the visual's insert and remove) run on.
+    unsafe {
+        let now: [f32; 16] = super::world::floats(visual.transform());
+        if now == transform.0 { return false; }
+        super::world::write_floats(visual.transform(), transform.0);
+        true
+    }
+}
+
+/// Moves a drawn loose visual's model to its transform, where the native
+/// insert adds it (0x285FA0: the scene's scene renderer, the model's
+/// reference, the scene's, the transform twice).
+///
+/// # Safety
+/// As make_movable; `scene` is its project's game scene.
+unsafe fn update_model(visual: raw::RenderVisual, scene: raw::GameScene) {
+    // SAFETY: the visual's model holder; the scene's game, renderer and
+    // scene renderer, alive while the project is drawn. update_model copies
+    // the matrices; it is asked only of a model the scene holds.
+    unsafe {
+        let Some(model) = visual.model() else { return };
+        let reference = model.render_instance();
+        if reference.instance().is_none_or(|instance| super::world::read(instance.in_scene()) == 0) { return; }
+        let Some(renderer) = scene.game().and_then(|game| game.renderer()).and_then(|r| r.scene_renderer()) else { return };
+        let matrix = visual.transform() as *const f32;
+        raw::engine_update_model(Some(renderer), Some(reference), Some(scene.scene_reference()), matrix, matrix);
+    }
+}
+
 impl<D: Presentation<K>, K: Copy> BoundProject<D, K> {
-    fn drive(&mut self, index: usize, event: PresentationEvent) {
+    fn drive(&mut self, index: usize, event: PresentationEvent) -> RendererAction {
         let binding = self.bindings.get_mut(index).expect("owned binding");
         let (next, action) = binding.membership.transition(event);
         let previous = core::mem::replace(&mut binding.membership, next);
@@ -381,7 +474,7 @@ impl<D: Presentation<K>, K: Copy> BoundProject<D, K> {
             // SAFETY: as below; the multipliers are the loaded probe's own
             // fields, which its insert hands to the renderer.
             unsafe { drive_probe(probe, light, previous, next) };
-            return;
+            return RendererAction::Keep;
         }
         // SAFETY: the registration is alive from project insertion until
         // remove/destructor entry. These calls run only on the game's scene
@@ -390,7 +483,13 @@ impl<D: Presentation<K>, K: Copy> BoundProject<D, K> {
         unsafe {
             match (binding.object, action) {
                 (NativeObject::Visual(visual), RendererAction::Add) => raw::engine_visual_insert(Some(visual), Some(self.scene)),
-                (NativeObject::Visual(visual), RendererAction::Remove) => raw::engine_visual_remove(Some(visual), Some(self.scene)),
+                (NativeObject::Loose(visual), RendererAction::Add) => {
+                    make_movable(visual);
+                    raw::engine_visual_insert(Some(visual), Some(self.scene));
+                }
+                (NativeObject::Visual(visual) | NativeObject::Loose(visual), RendererAction::Remove) => {
+                    raw::engine_visual_remove(Some(visual), Some(self.scene));
+                }
                 (NativeObject::Light(light), RendererAction::Add) => raw::engine_light_insert(Some(light)),
                 (NativeObject::Light(light), RendererAction::Remove) => raw::engine_light_remove(Some(light)),
                 (NativeObject::AmbientLight(light), RendererAction::Add) => raw::engine_ambient_light_insert(Some(light)),
@@ -400,6 +499,31 @@ impl<D: Presentation<K>, K: Copy> BoundProject<D, K> {
                 (NativeObject::Probe(..), _) => unreachable!("a probe is driven by drive_probe"),
                 (_, RendererAction::Keep) => {},
             }
+        }
+        action
+    }
+    /// A loose visual's transform as the map placed it.
+    fn authored(&self, visual: raw::RenderVisual) -> VisualTransform {
+        self.loose.iter().find(|l| l.visual.address() == visual.address()).expect("a loose binding has its transform").authored
+    }
+    /// A binding presented this frame. A loose visual is placed first: an
+    /// add draws it there, one drawn already is moved there.
+    fn present(&mut self, index: usize) {
+        let binding = self.bindings.get(index).expect("owned binding");
+        let (object, key) = (binding.object, binding.key);
+        let visibility = self.data.visibility(key);
+        let NativeObject::Loose(visual) = object else {
+            self.drive(index, PresentationEvent::Present(visibility));
+            return;
+        };
+        let transform = self.data.placement(key).unwrap_or_else(|| self.authored(visual));
+        // SAFETY: a bound visual of the live registration, on the scene thread.
+        let moved = unsafe { place(visual, transform) };
+        let action = self.drive(index, PresentationEvent::Present(visibility));
+        let drawn = self.bindings.get(index).expect("owned binding").membership == Membership::Shown;
+        if moved && drawn && action == RendererAction::Keep {
+            // SAFETY: as above; its project's scene.
+            unsafe { update_model(visual, self.scene) };
         }
     }
     /// The binding of the native object at `address` (a hook's `this`).
@@ -417,6 +541,10 @@ impl<D: Presentation<K>, K: Copy> BoundProject<D, K> {
             unsafe {
                 match self.bindings.get(i).expect("owned binding").object {
                     NativeObject::Visual(v) => v.vtable().write(raw::image::visual_methods().address()),
+                    NativeObject::Loose(v) => {
+                        v.vtable().write(raw::image::visual_methods().address());
+                        place(v, self.authored(v));
+                    }
                     NativeObject::Light(l) => l.vtable().write(raw::image::light_methods().address()),
                     NativeObject::AmbientLight(l) => l.vtable().write(raw::image::ambient_light_methods().address()),
                     NativeObject::Particle(p) => p.vtable().write(raw::image::particle_methods().address()),
@@ -443,7 +571,7 @@ impl<D: Presentation<K>, K: Copy> Registration<D, K> {
                     // lifetime; the generated table has the native slot ABIs.
                     unsafe {
                         match binding.object {
-                            NativeObject::Visual(v) => v.vtable().write(plan.methods.visual.address.get()),
+                            NativeObject::Visual(v) | NativeObject::Loose(v) => v.vtable().write(plan.methods.visual.address.get()),
                             NativeObject::Light(l) => l.vtable().write(plan.methods.light.address.get()),
                             NativeObject::AmbientLight(l) => l.vtable().write(plan.methods.ambient_light.address.get()),
                             NativeObject::Particle(p) => p.vtable().write(plan.methods.particle.address.get()),
@@ -452,7 +580,8 @@ impl<D: Presentation<K>, K: Copy> Registration<D, K> {
                     }
                 }
                 *self = Self::Bound(BoundProject { project: ProjectId::of(plan.project.native), physics: plan.project.physics,
-                                                   scene: plan.project.scene, data: plan.data, bindings: plan.bindings });
+                                                   scene: plan.project.scene, data: plan.data, bindings: plan.bindings,
+                                                   loose: plan.loose });
             }
             ProjectEvent::Remove(project) => {
                 if let Self::Bound(bound) = self && bound.project == project { bound.detach(); *self = Self::Empty; }
@@ -489,10 +618,7 @@ impl<D: Presentation<K>, K: Copy> ProjectRegistry<D, K> {
         // game's thread owns renderer changes until native drawing begins.
         self.state.with(ctx.thread(), |s| {
             if let Registration::Bound(bound) = s {
-                for i in 0..bound.bindings.len() {
-                    let visibility = bound.data.visibility(bound.bindings.get(i).expect("owned binding").key);
-                    bound.drive(i, PresentationEvent::Present(visibility));
-                }
+                for i in 0..bound.bindings.len() { bound.present(i); }
             }
         });
     }

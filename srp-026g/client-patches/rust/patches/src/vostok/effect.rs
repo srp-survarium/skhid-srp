@@ -140,6 +140,8 @@ pub fn effect_capacity(ctx: &mut Context<'_>, name: &CStr, instances: u32) {
 pub struct KeptEffect(raw::MedicalEffectResource);
 
 impl KeptEffect {
+    pub(super) fn resource(self) -> raw::MedicalEffectResource { self.0 }
+
     /// Keeps `resource` (a reference of ours taken now).
     ///
     /// # Safety

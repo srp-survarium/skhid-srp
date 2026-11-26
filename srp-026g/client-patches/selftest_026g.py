@@ -1745,9 +1745,11 @@ def test_voice(original, image, before):
           "0xA74E10 is the action table's one entry of 37h: serialize_player_state, kinds 5, kO (a debug "
           "action: no console command of that name)")
     name = P.arena().symbols["ptt_nearby_action"]
-    check(struct.unpack("<5I", image.read(P.VOICE_ACTION, 20)) == (name, 0x37, 8, 0, entry[4])
+    row = P.arena().symbols["actions"] + P.VOICE_ACTION - P.ITEM_HOTKEYS_TABLE
+    check(struct.unpack("<5I", image.read(row, 20)) == (name, 0x37, 8, 0, entry[4])
           and image.read(name, 11) == b"ptt_nearby\0",
-          "in the build it is ptt_nearby (the arena's name), kind 8, its default key O kept")
+          "in the build its row of the moved action table (patch 149's `actions`) is ptt_nearby (the arena's "
+          "name), kind 8, its default key O kept")
     linked = P.arena()
     block = linked.blocks["patches.code"]
     declarations = {h["entry"]: h for h in P.hooks_026g.hooks(exe=P.hooks_026g.original_reader(original))
@@ -1802,6 +1804,51 @@ def test_voice(original, image, before):
           "Disable voice chat (_hide_spam), Use microphone and the voice volume, and hide the microphone's "
           "sensitivity")
 
+
+def test_item_hotkeys(original, image, before):
+    """Check 149: a key per item type uses it (patch 149: the moved action
+    table, the key binder's 60h bindings, item_hotkeys.toml's hook at the input
+    builder's end). check_item_hotkeys_026g.py runs the binder's functions and
+    the input builder on made-up objects beside the original."""
+    stock = Image(original)
+    linked = P.arena()
+    block, actions = linked.blocks["item_hotkeys.data"], linked.symbols["actions"]
+    rows, game = P.ITEM_HOTKEYS_ROWS, P.ITEM_HOTKEYS_GAME_ROWS
+    check(block.va <= actions and actions + 20 * rows <= block.va + block.size,
+          f"`actions` ({actions:#x}): {rows} rows in item_hotkeys.data")
+    moved = [struct.unpack("<5I", image.read(actions + 20 * i, 20)) for i in range(rows)]
+    table = [struct.unpack("<5I", stock.read(P.ITEM_HOTKEYS_TABLE + 20 * i, 20)) for i in range(game)]
+    names = lambda name: linked.symbols[name]
+    # the rows other patches change: patch 78's default kH, patch 152's names and keys kF9, kF11 and
+    # kF12, patch 66's ptt_nearby of kind 8
+    changed = {0x23: lambda r: r[:4] + (0x9FDCA8,),
+               0x19: lambda r: (names("hide_interface_action"),) + r[1:4] + (0x9FDC1C,),
+               0x1A: lambda r: (names("screenshot_action"),) + r[1:4] + (0x9FDF1C,),
+               0x1B: lambda r: (names("screenshot_no_ui_action"),) + r[1:4] + (0x9FDB60,),
+               0x37: lambda r: (names("ptt_nearby_action"), 0x37, 8) + r[3:]}
+    expected = [changed.get(r[1], lambda r: r)(r) for r in table]
+    # patch 149's sixteen; patch 206's scope_next after them, default kY (0x9FDCC8)
+    added = [row for row in P.CONTROLS_ADDED[5:] if row[0] != 0x5A]
+    scope = moved[game + len(added):]
+    cstr = lambda va: image.read(va, 40).split(b"\0")[0]
+    check(moved[:game] == expected and sum(a != b for a, b in zip(table, expected)) == len(changed)
+          and [stock.read(va, len(key)) for va, key in ((0x9FDCA8, b"kH\0"), (0x9FDC1C, b"kF9\0"),
+                                                         (0x9FDF1C, b"kF11\0"), (0x9FDB60, b"kF12\0"))]
+          == [b"kH\0", b"kF9\0", b"kF11\0", b"kF12\0"]
+          and [(r[1], r[2], r[3], r[4]) for r in moved[game:game + len(added)]] == [(action, 5, 0, 0) for action, _ in added]
+          and all(cstr(r[0]) == key[3:-7].encode() for r, (_, key) in zip(moved[game:], added))
+          and [(cstr(r[0]), r[1], r[2], r[3], stock.read(r[4], 3)) for r in scope] == [(b"scope_next", 0x5A, 5, 0, b"kY\0")],
+          "the game's 60 rows (artefact's default key kH; hide_interface kF9, screenshot kF11, screenshot_no_ui "
+          "kF12; ptt_nearby kind 8), then use_onyx .. use_next_medkit, 4Ah..59h, kinds 5, "
+          "no toggle, no default key, and scope_next (5Ah, kinds 5, kY); each a row of `controls` (CONTROLS_ADDED)")
+    check(all(0x4A <= action < P.ITEM_HOTKEYS_BINDINGS for action, _ in P.CONTROLS_ADDED[5:]),
+          f"their ids past the game's (48h the options' none, 49h the binder's) and below the binder's "
+          f"{P.ITEM_HOTKEYS_BINDINGS:#x} bindings")
+    for va, old, new in P.item_hotkeys_table_writes(linked) + P.item_hotkeys_binder_writes():
+        check(stock.read(va, len(old)) == old == before.read(va, len(old)) and image.read(va, len(new)) == new,
+              f"{va:#x}: {old.hex()} in the original, {new.hex()} in the build")
+
+
 def test_hide_ui(original, image, before):
     """Check 62: the key that hides the interface (patch 62,
     HIDE_UI_HOOKS). check_hide_ui_026g.py runs the three entries from the
@@ -1832,24 +1879,23 @@ def test_hide_ui(original, image, before):
     data_block = linked.blocks["hide_ui.data"]
     added = len(P.CONTROLS_ADDED)
     arena_rows = [image.read(controls + 0x68 * i, 0x68) for i in range(count + added)]
-    new_rows = arena_rows[count:]
-    labels = [struct.unpack_from("<I", row, 4)[0] for row in new_rows]
+    # the rows in the options' order: each found by its action
+    heads = {struct.unpack_from("<I", row)[0]: struct.unpack_from("<4I", row) for row in arena_rows}
+    labels = [heads.get(action, (0, 0))[1] for action, _ in P.CONTROLS_ADDED]
     # push-to-talk (47h): the game's row is the chat group's (1) with its key button disabled (type 0);
     # patch 66's key is a game key that can be set (group 2, type 1)
     moved = lambda head: struct.pack("<4I", *struct.unpack("<2I", head[:8]), 2, 1) \
         if head == struct.pack("<4I", 0x47, 0x9FC900, 1, 0) else head
+    expected = [struct.unpack("<4I", moved(row[:16])) for row in original_rows] \
+        + [(action, label, 2, 1) for (action, _), label in zip(P.CONTROLS_ADDED, labels)]
     check(sum(moved(row[:16]) != row[:16] for row in original_rows) == 1 and data_block.va <= controls and controls + 0x68 * (count + added) <= data_block.va + data_block.size
-          and all(arena_rows[i][:16] == moved(original_rows[i][:16]) and arena_rows[i][16:] == empty(controls + 0x68 * i)
-                  for i in range(count))
-          and [struct.unpack_from("<4I", row) for row in new_rows]
-          == [(action, label, 2, 1) for (action, _), label in zip(P.CONTROLS_ADDED, labels)]
-          and all(row[16:] == empty(controls + 0x68 * (count + n)) for n, row in enumerate(new_rows))
+          and len(heads) == count + added and sorted(heads.values()) == sorted(expected)
+          and all(row[16:] == empty(controls + 0x68 * i) for i, row in enumerate(arena_rows))
           and [image.read(label, len(key) + 1) for (_, key), label in zip(P.CONTROLS_ADDED, labels)]
           == [key.encode() + b"\0" for _, key in P.CONTROLS_ADDED],
           f"`controls` ({controls:#x}, hide_ui.data) is the game's 40 rows (push-to-talk's in the game group, "
-          "its key settable), each pointing into itself, a 41st: "
-          "19h, st_hide_interface_action, a 42nd: 23h, st_hold_artifact_action, and a 43rd: 37h, "
-          "st_ptt_nearby_action, group 2, type 1")
+          "its key settable), each pointing into itself, and the added ones (19h st_hide_interface_action, "
+          "23h st_hold_artifact_action, 37h st_ptt_nearby_action, ...), group 2, type 1, in the options' order")
     check("\nedit\tlocalization-1.json\t-\t" in open(os.path.join(HERE, "..", "..", "release", "content.tsv"),
                                                        encoding="utf-8").read(),
           "release/content.tsv makes the label (localization-1.json)")
@@ -3132,6 +3178,7 @@ def test_late_join(original, without, server, source):
     test_artefacts(original, image, before)
     test_match_keys(original, image, before)
     test_hide_ui(original, image, before)
+    test_item_hotkeys(original, image, before)
     test_voice(original, image, before)
     test_kill_feed(original, image, before)
     test_detail(original, image)

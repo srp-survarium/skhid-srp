@@ -16,7 +16,8 @@ rules, the tick list's runner, rules_on_event). Intercepted: the allocator
 (0xE4F90), GetCurrentThreadId, a buffer's resize (0x7AB30), the statistics'
 listener (0x2F5D40), and where a hooked function goes on into the game past
 the site (query_base_resources 0x1EC176, apply_new_input 0x2D86E6,
-can_sprint 0x2DBF4B, and the presentation's sites). The presentation's calls
+can_sprint 0x2DBF4B, render_name's and update_minimap_players' spotted tests
+0x1F2B57 / 0x23950B, and the presentation's sites). The presentation's calls
 into the game are answered here and kept: the query (0xE5B60, its callback
 then called with made-up results), the scene's model and particle calls
 (0x21CD0, 0x21F40, 0x22280, 0x22660, 0x229D0, 0x22B30), the hud sound's emit
@@ -51,6 +52,9 @@ COOKS = research.COOKS
 # where a hooked function goes on into the game after our site's replay
 QUERY_ON, INPUT_ON, SPRINT_ON = 0x1EC176, 0x2D86E6, 0x2DBF4B
 AFTER_MOVE_ON, DEACTIVATE_ON, ICONS_ON, MARK_ON = 0x1F7C41, 0x1F9525, 0x23AA16, 0x1F2D92
+# render_name's and update_minimap_players' spotted tests of an enemy: the game's own compare's
+# jump (each site's replay goes on there), and the minimap's listing (its shown exit)
+NAME_ON, MINIMAP_ON, MINIMAP_SHOWN = 0x1F2B57, 0x23950B, 0x23951B
 # the game's functions the presentation calls: answered here, each call kept
 QUERY_ONE, ADD_MODEL, REMOVE_MODEL, UPDATE_MODEL = 0xE5B60, 0x21CD0, 0x21F40, 0x22280
 PLAY_PARTICLE, REMOVE_PARTICLE, EMIT_HUD, PLAY_VOICE, FREE_VOICE = 0x22660, 0x229D0, 0x65630, 0x5ABA0, 0x5B390
@@ -120,7 +124,7 @@ class Run(research.Run):
             self.word(iat, files + 0x10 * n)
             self.emu.mem_write(files + 0x10 * n, bytes.fromhex(code))
         for address in (QUERY_ON, INPUT_ON, SPRINT_ON, AFTER_MOVE_ON, DEACTIVATE_ON, ICONS_ON,
-                        MARK_ON):
+                        MARK_ON, NAME_ON, MINIMAP_ON):
             self.emu.hook_add(UC_HOOK_CODE, self.past, begin=address, end=address)
         self.drawn, self.queries, self.voices = [], [], []
         self.proxy = None
@@ -427,6 +431,19 @@ def main():
     check("can_sprint refuses the carrier (its own refusal: xor eax / pop ebx / ret 4); another goes on",
           refused and run.stopped == ("past", SPRINT_ON))
 
+    # 8b. The other team sees the carrier on the minimaps alone (the owner, 2026-11-26: "player with
+    # art is still seen in ui, not only on map"): an unspotted enemy carrier's dot is listed, his
+    # marker over his head is the game's own test (an enemy's only while spotted).
+    run.word(taker + 0x348, 0)                              # not spotted
+    run.span(0x1F2B50, 0x1F2B5D, {UC_X86_REG_ESI: taker}, [0] * 8)
+    check("render_name's spotted test of the unspotted carrier: the game's own compare (no marker over "
+          "his head)", run.stopped == ("past", NAME_ON), str(run.stopped))
+    eip, _ = run.span(0x239505, MINIMAP_SHOWN, {UC_X86_REG_EAX: taker, UC_X86_REG_ESI: 0}, [0] * 8)
+    check("update_minimap_players' spotted test of the unspotted carrier: his dot listed (its shown exit)",
+          eip == MINIMAP_SHOWN and run.stopped is None, f"{eip:#x} {run.stopped}")
+    run.span(0x239505, MINIMAP_SHOWN, {UC_X86_REG_EAX: players[11], UC_X86_REG_ESI: 0}, [0] * 8)
+    check("and another enemy's the game's own compare", run.stopped == ("past", MINIMAP_ON), str(run.stopped))
+
     def modifier(player, index):
         profile = run.read(player + 0x6B8)
         container = profile + 0xF4                              # kit 0
@@ -520,7 +537,8 @@ def main():
           "rule's own", stopped == ("past", INPUT_ON) and run.read(CORE + TIME_STATE) == 3
           and camera_state(CORE) == (0x267AEC, 3))
 
-    # 12. A death's delay: the wave after death + 7 s, from the match's start.
+    # 12. A death's delay: the first wave from the match's start after the death's step (its time
+    # the step before's), however near.
     def delay(at_time, native):
         sp = STACK + 0x6000
         run.word(sp + 0x20, at_time)
@@ -530,12 +548,16 @@ def main():
         run.emu.emu_start(0x316B6B, 0x316B71, count=5_000_000)
         return run.emu.reg_read(UC_X86_REG_EAX)
     death = now
-    wave = START + ((death + 7000 - START + 14999) // 15000) * 15000
+    wave = START + ((death + 51 - START + 14999) // 15000) * 15000
     got_delay = delay(death, 15000)
     shifted = delay(death, 12000)
-    check("a death's delay is the wave's: the first 15 s from the start at or after death + 7 s; a -20 % "
-          "modifier 3 s sooner, never under the 7 s", got_delay == wave - death
-          and shifted == max(wave - 3000, death + 7000) - death, f"{got_delay}, {shifted}, wave {wave - death}")
+    near = wave - 4000
+    near_delay = delay(near, 15000)
+    near_shifted = delay(near, 12000)
+    check("a death's delay is the wave's: the first 15 s from the start after the death's step, 4 s before "
+          "it too; a -20 % modifier (the radio) changes nothing",
+          got_delay == wave - death and shifted == got_delay and near_delay == 4000 and near_shifted == 4000,
+          f"{got_delay}, {shifted}, wave {wave - death}, 4 s before {near_delay}, {near_shifted}")
 
     # 13. Slot 17 through the hud's loop: the points, the clock's seconds.
     hud = run.allocate(0x100)
@@ -620,8 +642,10 @@ def main():
     run.queries = []
     frame()
     item = [("item/artefacts/artefact_shining_forest", 15), ("a", 61), ("b", 61), ("c", 61), ("g", 61), ("gf", 61)]
+    # patch 196's death sound (corpse_shot_dark.rs) is asked at the first match step, before it
+    death_sound = [("animations/death_animation_021d_m", 257)]
     check("the first frame of a hunt asks the item's model, its idle, spawn and destroy particles and the carrier's "
-          "glow (on his body, at his own camera) in one query", run.queries == [item], str(run.queries))
+          "glow (on his body, at his own camera) in one query", run.queries == [death_sound, item], str(run.queries))
     # the query's callback (the game's: cdecl (queries_result, its word)) with
     # the six results 2E0h apart at +12Ch: a model and five particle systems
     answer = run.allocate(0x12C + 6 * 0x2E0)

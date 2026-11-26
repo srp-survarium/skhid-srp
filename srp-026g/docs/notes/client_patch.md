@@ -214,6 +214,8 @@ The request is silently not answered when:
 
 Server rules: one request per client at a time; wait for the upload to complete or about 1 s before asking again; keep acking during the burst (up to 69 datagrams, 128 since patch 98, then resends after 500 ms).
 
+**A tick's world (patch 211, since 2026-11-26).** A game of patch 211 keeps every world `hash()` (0x325150) serializes, the last 32 ticks, and takes a 0xF6 of two bytes, `01 <tick>` (the tick's time / 50, modulo 256), as "upload your world of that tick": the same chunks, with that tick's `item_time`; with no such world held, or no room in the packet pool for its chunks, it does what it does for `00`. It says so with the bit 0x04 of its 0xD8 debug byte (0x86, 0x87 with `-debug_hash_mismatch`; the late join's `connect_capability`). An earlier game's message check refuses a 0xF6 of two bytes (`srp_validate::messages`): send one only to a game that said so. The code, the ring and its check: `../../client-patches/README.md`, "The world of a tick"; why: `desync_capture.md`.
+
 Code (added 2026-10-12): `crates/survarium/src/v026g/match_msgs/upload.rs`
 (`Chunk::parse` with exactly these checks, `Reassembler` keyed by
 `item_time`, `split` = what the patch sends); the request is
@@ -330,7 +332,7 @@ builds retain the old behavior too.
   - 0x313B34 `C6 81 60 01 00 00 00` (`mov byte [ecx+160h],0`, between `mov [ecx+15Ch],edx` and `ret 0Ch`) → seven `90`: the containers stay usable.
 - **What is left:** the handler counts every put and take, sets the completion time when a team has all and takes it back when not: 0.21d's handler 0x1FB8A9, with 0.26g's 3 s.
 - **Checked** (`selftest_026g.py` check 13): the instructions around each site, no base relocation on either, no branch into either, `mov byte [reg+160h],0` nowhere else in the rule's code.
-- **Run outside the game** (2026-10-13, `client-patches/run_battery_rule.ps1`, Windows 11): the handler's 238 bytes (0x313A50..0x313B3D; no call, no absolute address) copied out of an exe and called in a 32-bit process on a made-up rule object (ten batteries, `+0x15C` = -1, `+0x160` = 1, a world with no lobby menu). Revision 2 (the players' exe): nine puts 9:0; the tenth 10:0, time t + 3000, byte 0; the count set back to 9 as a rollback does; the same put again: **not counted**, 9:0, byte 0; a take and a put: not counted. Revision 3: the tenth 10:0, time set, byte 1; after the count is set back the same put gives 10:0 again; a take gives 9:0 and time -1; a put 10:0 and a new time; a count set back with no replay leaves the time set until the next event, which takes it back. This is the handler alone: `can_use`, the rollback itself and the server's reading of the world were not run.
+- **Run outside the game** (2026-10-13, `client-patches/run_battery_rule.ps1`, removed 2026-11-26, in the git history; Windows 11): the handler's 238 bytes (0x313A50..0x313B3D; no call, no absolute address) copied out of an exe and called in a 32-bit process on a made-up rule object (ten batteries, `+0x15C` = -1, `+0x160` = 1, a world with no lobby menu). Revision 2 (the players' exe): nine puts 9:0; the tenth 10:0, time t + 3000, byte 0; the count set back to 9 as a rollback does; the same put again: **not counted**, 9:0, byte 0; a take and a put: not counted. Revision 3: the tenth 10:0, time set, byte 1; after the count is set back the same put gives 10:0 again; a take gives 9:0 and time -1; a put 10:0 and a new time; a count set back with no replay leaves the time set until the next event, which takes it back. This is the handler alone: `can_use`, the rollback itself and the server's reading of the world were not run.
 - Full builds only; `--cert-only` keeps the handler.
 - **Builds** (revision 3, with everything of §3.7, §3.8 and §6): section sha256 `eedc5b5c9aa6111c999267eef8c6c27688d012aa203a7c6f6ccdbbc93262cf0d` (12 895 352 bytes), hash-mismatch `59eb5dfb1d1edb78e62d40001de04c47a10d6e3d4c22051f44be023112f49746`; with `--server=skhid.link:1234`, as the players' download is made, the section build is `ac947abd212d05f3172035967076517f057019b9e1499be06c28b622baf36d7b`. That one differs from the exe of the players' download of 2026-10-13 (revision 2, `30e928dd…4883`) in these 13 bytes (file 0x302E62, 0x302F34), the revision byte (file 0x36FC66, `02` → `03`) and the PE checksum, and in nothing else (compared byte by byte). The self-test counts 61 bytes in 17 ranges for the section build and 1220 in 60 for hash-mismatch.
 - **Published:** in the players' download since 2026-10-13 12:22 UTC (a game started through the launcher takes it by itself, a game with an older download keeps the old rule until its player takes the ZIP; old and new games part at the tenth battery, match.md §26). **Not done:** a match of two or more players watched to a team's last battery.
@@ -521,12 +523,12 @@ Reported by the analysis of the evening matches of 2026-10-14 (players' server):
 
 ### 3.21 Team Deathmatch's rule counts a death after its own end (found and written 2026-10-15, patch revision 11) — PROVEN: the handler run outside the game, the live signature made again; not run in a game
 
-- **Why.** match.md §28: in two live matches a team ran out of tickets and its players died one by one, and one dead player of that team stayed in the rule's alive mask for the rest of the match; the server saw a player alive and the match ran to the time limit (930 s and 925 s). The same mechanism as §3.9: the death handler (`tdm_rule_core` event 1, 0x316090) returns at once when the rule's completion time (+0x12C) is not -1; the end test 0x316470 sets it (now + 3000) when a team has no tickets and no player alive; the constructor (0x31601D) is the only other writer and the time is not serialized. A rollback over the death that completed the rule loads the tickets and the masks and not the time, and the replay of that death is skipped: the bit is back and stays, and so do the tickets.
+- **Why.** match.md §37: in two live matches a team ran out of tickets and its players died one by one, and one dead player of that team stayed in the rule's alive mask for the rest of the match; the server saw a player alive and the match ran to the time limit (930 s and 925 s). The same mechanism as §3.9: the death handler (`tdm_rule_core` event 1, 0x316090) returns at once when the rule's completion time (+0x12C) is not -1; the end test 0x316470 sets it (now + 3000) when a team has no tickets and no player alive; the constructor (0x31601D) is the only other writer and the time is not serialized. A rollback over the death that completed the rule loads the tickets and the masks and not the time, and the replay of that death is skipped: the bit is back and stays, and so do the tickets.
 - **Where.** 0x3160F1 `0F 85 E6 00 00 00` (`jnz 3161DDh`, after `cmp dword [esi+12Ch],-1`) → six `90`. The jump of the other event (0x3160E4, "not event 1") stays.
 - **What is left:** the handler counts every death: the ticket, the alive mask, the respawn flag, the recount and the end test, which sets the time again, later, at every death after the first end (the end test also writes it into the field +32Ch of every player in the alive mask, 0x316500, and 0 into +330h; the respawn rule writes the spawn time plus the spawn point's +20h there, 0x316E90, when that is not 0; the player's constructor sets -1 and 0, 0x2E5303, and its load reads both from the world, 0x2E54D3: a serialized field, LIKELY the protection after a spawn, so the end protects who is still alive until the completion time; what reads it was not traced). Nothing reads the time but the rule (`rule_completed` 0x316520, the end test and the guard; the world's save copies `rule_completed` into a history byte nothing reads, modes_maps.md §11); the match's end is the server's, which sets it 3 s after the first snapshot with a team out.
 - **What changes in the 3 s after a real end** (checked 2026-10-15 for the merge): a death there now costs its ticket, clears its bit and runs the end test again, which moves the completion time and the survivors' +32Ch to that death + 3 s. A ticket never goes below 0 (the handler takes one only from a team that has one, 0x31612C). The one case where the result can change: both teams at 0 tickets, one team out, and the other team's last alive players also die in those 3 s: the original's server counted that team the winner (by alive players, 0x316301), revision 11 and the server count a draw (`winner_tdm`). With the survivors protected by +32Ch (LIKELY) such a death should be rare; not seen in the data. Left as it was in 10 and before: a completion time from a world a rollback threw away in which a team was out, but is not out in the replay, stays set (no serialization takes it back); in 10 that client then skips every later death, in 11 it counts them and only writes that stale time into the survivors' +32Ch at each death (a world difference at each such death, which a resync puts right, not a stuck match). Such a rollback was not seen.
 - **Checked** (`selftest_026g.py` check 22): the six bytes are the original's in the build without the late join and nops in the default build; the instructions around them; the handler's only jumps to its return are the two named; no relocation under the six bytes and no branch into them; the rule's code touches +12Ch at seven places (the constructor, the guard, the end test's four, `rule_completed`).
-- **Run outside the game** (2026-10-15, `client-patches/run_tdm_rule.ps1`, 32-bit PowerShell on Windows 11): the code of 0x316000..0x317000 copied to the same addresses of a process and the handler called on a made-up rule (two teams of two, 5 and 1 tickets), the flag setter 0x316630 replaced by `ret 8`. A death of team 1's last ticket, a second death of the same player (out of the alive mask), the death of its last player: tickets 5:0, alive 0011, time set. A rollback loads the tickets and the mask (1011) and not the time. The same death again: **original** (and the build without the late join): alive 1011, time unchanged, and a later death of team 0 is not counted (tickets 5:0 as before): the live signature of 0x1f07c8fb and 0x7ce977cb. **Revision 11**: alive 0011 again, time set again, and the later death counted (tickets 4:0). This is the handler with its recount and end test, not the game: the rollback itself, the respawn rule and a server reading the world were not run.
+- **Run outside the game** (2026-10-15, `client-patches/run_tdm_rule.ps1`, removed 2026-11-26, in the git history; 32-bit PowerShell on Windows 11): the code of 0x316000..0x317000 copied to the same addresses of a process and the handler called on a made-up rule (two teams of two, 5 and 1 tickets), the flag setter 0x316630 replaced by `ret 8`. A death of team 1's last ticket, a second death of the same player (out of the alive mask), the death of its last player: tickets 5:0, alive 0011, time set. A rollback loads the tickets and the mask (1011) and not the time. The same death again: **original** (and the build without the late join): alive 1011, time unchanged, and a later death of team 0 is not counted (tickets 5:0 as before): the live signature of 0x1f07c8fb and 0x7ce977cb. **Revision 11**: alive 0011 again, time set again, and the later death counted (tickets 4:0). This is the handler with its recount and end test, not the game: the rollback itself, the respawn rule and a server reading the world were not run.
 - **Revision 11.** `REVISION` is 11. A game of 11 and one of 10 or before part at the first death after a team is out (the older one does not count it): a server asks for 11 (`SRP_MIN_PATCH_REVISION=11`), put in the same change as the ZIP. Before that match.md §28's fix 1 (a server that reads the team as out from its blocks) works with every revision; both together are harmless, the check then never fires. A build without the late join (`--no-late-join`, `--cave=hash-mismatch`) keeps the original handler and says 4.
 - **Builds** (revision 11 before §3.22, §3.18 to §3.21): 12 907 128 bytes, sha256 `985ca3410f024a9e391a8f6fd5750295d6c0add8185fc244245c15371400b75a` (no server), `b728a80c62a8da6b0dca46de55236d1e7c4b010190f9c0fddf884e0c998d6ece` (`--server=skhid.link:1234`). Against revision 10 made the same way (`c43bfd8a…ef85e`) the exe differs in the six bytes (file 0x3054F1), the revision byte (file 0x36FC66, `0A` → `0B`) and the PE checksum, and in nothing else (compared byte by byte).
 - **Not run: a game.** Not known: whether a rollback crosses the deciding death in every match (the live data say it did in both that ran a team out), and what the field +32Ch does in the 3 s after an end (not traced beyond its writers).
@@ -556,7 +558,7 @@ A battery dropped by a dying carrier can end up under the floor, out of reach fo
 - **The scan.** PROVEN: `base_player::detect_usable_object` (0x2D84C0; called at a use's start 0x2D8900, every tick of a use 0x2D86AD, for the prompt 0x246FCD) casts one ray from the eye (player+47Ch) along the view (+46Ch), `usable_objects_detection_distance` long (2.0 at 0xA710D8), through the collision world's `ray_query` (vtable+4Ch: every hit, sorted nearest first; groups 0x114, mask 0x8A). It ORs each hit's collision group (`get_collision_group`, vtable slot 0; the 0.10b enum: walkable 2, hittable 8, usable 80h); a usable object is the result if its `can_use` (vtable+30h) says yes, and at any other hit it stops once walkable and hittable were both seen (0x2D861C `and al,0Ah; cmp al,0Ah; jz`).
 - **The use.** PROVEN: at the start the hit's point is stored (player+148h); every tick 0x300830 (vtable+38h) checks the player is alive and the eye within the native distance of that point.
 - **A battery.** PROVEN: `victory_item_core::can_use` (0x300710) is at +30h of two vtables only, the usable-object vtables of `victory_item_core` (0xA13E8C) and `victory_item` (0xA0437C). Their +44h, `get_transform` (`usable_object`'s is 0x2F8440), is the battery's own (0x246ED0: `sub ecx,14h; jmp 0x300A20`): the carrier's transform, the container's, or its own.
-- **The patch** (`PICKUP_*` in `patch_026g.py`, `pickup_below_026g.asm` at `.srp`+800h, only in the builds with the late join): the frame grows by 8 for a flag (0x2D84C9); `call reach` at 0x2D84E9 doubles the ray (relocation 0x2D84EB disabled); `solid` at 0x2D861C sets the flag and goes on where the original stops; `candidate` at 0x2D85BE takes a usable object beyond the native distance or the flag only if it is a battery whose centre (vtable+44h) is below the feet (player+43Ch) and at most 1 m from them across, and makes the feet its point; the original otherwise. The 4 m ray from the eye reaches about 2.3 m below the feet, through any number of floors (kept so on purpose).
+- **The patch as it was until 2026-11-07** (the NASM `pickup_below_026g.asm` at `.srp`+800h, gone since: the scan is the Rust patch `use_scan` now, the last two bullets): the frame grows by 8 for a flag (0x2D84C9); `call reach` at 0x2D84E9 doubles the ray (relocation 0x2D84EB disabled); `solid` at 0x2D861C sets the flag and goes on where the original stops; `candidate` at 0x2D85BE takes a usable object beyond the native distance or the flag only if it is a battery whose centre (vtable+44h) is below the feet (player+43Ch) and at most 1 m from them across, and makes the feet its point; the original otherwise. The 4 m ray from the eye reaches about 2.3 m below the feet, through any number of floors (kept so on purpose).
 - **Revision 11.** A use is in what a match computes: a game with it takes a battery an older game leaves. Patch 21 already makes a server ask for 11.
 - **Builds** (revision 11 with §3.21 and §3.22): sha256 `bf289387d1dedf6bf1fd2d8bd41d3d190d1e8bdeae54fa0d6b3e7e882b9842c6` (no server), `6b752ed0a23c03f4eb82111c955fe4bed61f7c087c40f6d78de4c686ecf0c46a` (`--server=skhid.link:1234`). Against §3.22's build: the frame byte, the three hooks, one relocation entry, the PE checksum and the code at `.srp`+800h (compared byte by byte).
 - **Checked:** `selftest_026g.py` check 24 and the late join's byte and relocation checks; `check_pickup_below_026g.py` (31 scans of made-up hits, the original and the build).
@@ -844,7 +846,7 @@ The owner's decision (2026-10-17): the upgrade window of a weapon (the scope slo
 - **One 3D subject.** The lobby menu has three `survarium::lobby_character` objects (ctor 0x284730, 0xD558 bytes): its own at +694h and two squad panels at +698h/+69Ch (`social.md`, the squad window). A character keeps three copies of a profile (0x4634 bytes each at +18h; the current one's index at +D2B4h), the kit it shows at +D2B5h, its player at +D2B8h, the lobby menu at +D2BCh. `setup_profile` 0x284B10 (eax = a profile, then the character and the kit on the stack, `ret 8`) writes the kit to +D2B5h, returns at once when that kit's id and revision are those shown and nothing is pending, and otherwise copies the profile into the next copy and queries the player's resources; `on_player_ready` 0x284F20 makes the new player and, when another call came meanwhile, calls `setup_profile` again (0x2850C5). Its callers are the lobby's refresh (0x222A42: the account's profile, lobby menu+6A0h = lobby client+1E6344h, and its chosen kit, profile+4632h), the squad panels (0x223029) and that re-call: nothing in the stock game shows an item on its own. Of the 112 movie callbacks (names at 0x9C56C8) none does.
 - **What the player holds.** A kit is 23 slots `{u16 item index, u16 amount}` at kit+40h (`lobby.md` §2.5); slot 7 is weapon 1, slot 10 weapon 2 (the server's `WEAPON_SLOTS`), slot 4 the legs armour. The lobby reads the same "slot 7, or slot 10 when 7 is empty" for the squad window's player type (0x22248A, of the first kit). That the lobby's player holds that weapon is LIKELY (the player is the match's own class, spawned with the kit; not traced to the weapon's attach).
 - **The window.** `start_item_upgrade` is the delegate 0x29A870 (callback 5, registered at 0x281843 in the order of the names, as `drop_upgrade_item`'s at 0x2818FA): esi = the lobby ui's character (+694h), edi = the item, then 0x265DE0, which sets the upgrade mode (+D515h = 1; set nowhere else; the ctor's 0x265B40 clears it) and calls the camera's setter 0x2845C0 on the camera (lobby menu+10Ch; ctor 0x283BC0, tick 0x283EF0) with the look-at height in xmm0 (1.3, or 0.8 when the item is the shown kit's slot 4), the side angle 0.37 on the stack and the distance 1.5 in xmm1; the setter keeps the distance it replaces at 0x1F1D9E4 and sets the speeds that move the camera there. Then the input focus, the scene's decal texture and the decal markers (0x265F80, slot 3 skipped). `exit_item_upgrade` (0x29A890 -> 0x265F10) clears the mode and calls the setter with 1.2, 0 and the kept distance. The camera's tick clamps its distance to 1.5..4.6 at three loads of the float at 0xA7AFA4 (1.5, shared with other code): the wheel (0x284081, before a `ja` on the flags of the comparison before it), the step towards the target (0x28428C) and the last clamp (0x284316); the camera's other functions do not read it.
-- **The decal pose** (found after the first build's game run, 2026-10-17: camera in, the weapon's kit shown, but a T-pose and no weapon). The character's update (0x2849F0, every frame) reads its upgrade mode (+D515h, read nowhere else, 0x2849F8) and gives it to its player at +F49Ch (0x284A33; the player's ctor clears it at 0x1F1BFB; nothing else writes it). `player::mt_draw` (0x2474A0) then puts the skeleton's bone matrices in their bind pose (0x2476F8: `[[player+F290h]+108h]` vtable+38h with the matrices and their count: the T-pose) and draws the held item (+128h) with a transform 10 m down, (0, −10, 0) (0x24778F); `player::insert` (0x1F30E2) takes the transform at +F4A0h instead of +40Ch. That is the decal editor's presentation: the decal markers are placed on the base character's collision model (+D504h, `base_character.model/collision`, made at 0x265741 and put into the collision scene +D2C0h by the start), in its bind pose.
+- **The decal pose** (found after the first build's game run, 2026-10-17: camera in, the weapon's kit shown, but a T-pose and no weapon). The character's update (0x2849F0, every frame) reads its upgrade mode (+D515h, read nowhere else, 0x2849F8) and gives it to its player at +F49Ch (0x284A33; the player's ctor clears it at 0x1F1BFB; nothing else writes it). `player::mt_draw` (0x2474A0) then puts the skeleton's bone matrices in their bind pose (0x2476F8: `[[player+F290h]+108h]` vtable+38h with the matrices and their count: the T-pose) and draws the held item (+128h) with a transform 10 m down, (0, −10, 0) (0x24778F); `player::render_model` (0x1F3070; its test of +F49Ch at 0x1F30E2) takes the transform at +F4A0h instead of +40Ch. That is the decal editor's presentation: the decal markers are placed on the base character's collision model (+D504h, `base_character.model/collision`, made at 0x265741 and put into the collision scene +D2C0h by the start), in its bind pose.
 
 **The patch** (`WEAPON_PREVIEW_HOOKS`, `weapon_preview_026g.asm` at `.srp`+2E50h = 0xA427E50, 431 bytes, after the late join's code (it ends at +2E4Eh) and before `.srpd` (+3000h), which stays where the late join was built for; its state at `.srpd`+E00h = 0xA428E00, after the patches' mount's (+800h..+D07h): the mode, the window's item, the least's choice):
 
@@ -904,7 +906,7 @@ The owner's wish: a player can kill their own character in a match, to respawn a
 - **What `commit_suicide` is** (PROVEN). A game action, not a console command or a message: the action table 0xA74AF0..0xA74FB4 (20-byte entries `{name, action, kind, toggle, default key}`) has `commit_suicide` at 0xA74D20, action 1Fh, kind 5, default key `kK`; no other action has K by default. A key bound to an action reaches `player_input_handler::on_keyboard_action` (0x23FE00), which asks `key_binder::get_binded_action` (0x207D50) and pushes `{action, state}` into the handler's event buffer (+98h: the write and read indexes, then 65 pairs; push_back 0x242580); key down is state 0 (0x23FEA4), a repeat 1, up 2. So K puts action 1Fh in the buffer in the original.
 - **Why nothing happened** (PROVEN). `player_input_handler::process_first_person_mode` (0x241250) builds the input's action mask (handler+33Ch, the `actions_mask` the relay carries) by asking `action_present` (0x242460: `(handler, action, &state)`, `ret 0Ch`; true for an action in the buffer, with its state, or held, state 2) for 35 actions, one bit each (the table in `drive.rs::key`). Action 1Fh is not asked, and bit 24 (1000000h) is the one bit of 0..28 it never sets.
 - **What bit 24 does** (PROVEN). `base_player::process_quick_slots` (0x2D8BB0, called only from the input apply 0x2D86E0 at 0x2D8777, which every game runs for every player's input) begins with `test dword [edi+4],1000000h` (0x2D8BC1): with the bit it builds the bone name "brain" (0xA1067C), pushes two floats 1.0 and calls the player's hit receiver (+118h, vtable+20h = `base_player::hit` 0x2D9AE0, which calls `hit_impl` 0x2D9B90), the attacker the player itself (+110h); then it stops if the player is dead (+33Dh). `hit_impl` returns at once for a dead player. `on_player_killed` (0x2F4EB0) counts a kill whose killer is the victim (0x2F4F38) as a death (event 2) and a suicide (event 3), no kill; Team Deathmatch charges it one ticket (0x31614E, `rules.rs::tdm_death_costs_ticket`); the score weighs a suicide 0.
-- **The patch** (`SUICIDE_KEY_HOOK` in `patch_026g.py`; the arena's block `suicide_key.code`: `suicide_key_026g.asm`'s `RUST_HOOK` entry and the Rust crate `rust/suicide_key`, the Rust framework's example, `rust_patches.md`; 40 bytes of NASM at `.srp`+980h before it): the builder's last call, `call 0x242460` for spot (0x242196; ebx the handler, action 22h and &state, the builder's [esp+44h], pushed), becomes `call suicide`. The code asks `action_present` for 1Fh with the same handler and state, sets bit 24 when it is there with state 0 (the key went down: one input, as spot), and jumps to 0x242460 with the original arguments and return address. With spot in the buffer that call writes the state again; without it (al = 0) the builder reads no state (0x24219D `jz 0x2421B0`). `action_present` only looks (`find` in the buffer and the held vector), so asking twice changes nothing.
+- **The patch** (the Rust patch `suicide_key`, `rust/patches/src/suicide_key.rs` and its `suicide_key.toml`, in the arena's block `patches.code`, the Rust framework's example, `rust_patches.md`; its hook at the site `input_builder.spot_query`, `sites_026g.tsv`. It was 40 bytes of NASM at `.srp`+980h, then the crate `rust/suicide_key` behind `suicide_key_026g.asm`'s `RUST_HOOK` entry: both gone): the builder's last call, `call 0x242460` for spot (0x242196; ebx the handler, action 22h and &state, the builder's [esp+44h], pushed), becomes a call of its hook, `suicide_key::on_spot`. The code asks `action_present` for 1Fh with the same handler and state, sets bit 24 when it is there with state 0 (the key went down: one input, as spot), and then makes the spot query the site wanted and returns its answer. With spot in the buffer that call writes the state again; without it (al = 0) the builder reads no state (0x24219D `jz 0x2421B0`). `action_present` only looks (`find` in the buffer and the held vector), so asking twice changes nothing.
 - **Why every game does the same.** The bit is an ordinary input bit: the owner's game applies the input at once and the server relays it unchecked (0xDC/0xDD → 0xEB), as the fire or grenade bit; every game, of any revision, applies it through 0x2D86E0 → 0x2D8BC1 at the input's tick, from what the world holds. A game without the patch cannot send the bit but plays it from the others, so no revision is needed for the match to agree. The server must not take the bit out of a relayed input: the owner has applied it already (as §20 of `match.md` says for any bit).
 - **Replays and recordings.** What a match computes does not change (the simulation is the original's; only the input a key makes does): no row in `simulation_changes.tsv`. The server's bots never send bit 24 (`drive.rs::key::NEVER`).
 - **Rules.** A suicide is a death in the statistics and in Team Deathmatch a ticket, and no one's kill, in the game's own counting; the respawn time is a death's. No server guard: the server cannot drop the bit without parting the worlds, and the game already charges it.
@@ -1638,7 +1640,7 @@ A player's asks (board T29): number keys for the kit choice before a respawn (mi
 A player's ask through the owner: a key that hides the whole interface, the lobby's too, for screenshots.
 
 - **What 0.26g has** (PROVEN). No console command or variable hides the hud (no `hud_draw`, `g_hud`, `ui_hidden`, `r_hud` or `hide_hud` string), and no screenshot key (no action, command or string). It has the action `toggle_replay_ui` (19h, kinds 5, F11; the action table 0xA74AF0, 20-byte entries `{name, id, kinds, toggle, default key}`, entry 0xA74CA8), which shows the replay viewer's controls and cursor (0x25CED1..0x25CF08) and does nothing without the replay's movie. It has `game_world::show_ui(bool)` (0x1F95F0, vtable 0x9FC4F4 slot 8; the activation's show_ui(1) at 0x1F8476, the deactivation's show_ui(0) at 0x1F96D1; state +0A0h, 0 at the construction 0x23DAF1) over the hud movie (+204h) and the player icons' (+20Ch), and `lobby_menu::show_ui` (0x21D570) over the lobby movie (+690h) and +68Ch: render only (base_game_scene show_movie 0x23DC00 / hide_movie 0x23DC70).
-- **Why no new action** (PROVEN). The key binder (the game's +5344h) is 48h bindings of 0Ch bytes indexed by the action id (`get_binded_action` 0x207D50: eax the binder, edi the kinds, esi the DIK key, out the toggle; `ret 4`; 49h for none); ids 0Fh, 10h, 14h and 2Bh..33h are free. But the action table ends where the key names begin (0xA74FA0, read by 15 sites; 0x4B0 bytes counted at others), and the options' controls list is its own 40 entries of 68h bytes at 0xA9DB28 (+0 id, +4 label, +8 group, +0Ch type, +10h a buffer pointer into the entry; counts 28h at 0x201159, 0x20124D, 0x20140B, 0x201A1E, 0x201D0D; refs 0x201151, 0x2013C0, 0x201249, 0x201A1A, 0x201D09), followed by other data. Adding a row to the action table means moving it; `toggle_replay_ui` already is the action "toggle the ui", bound and saved as any other.
+- **Why no new action** (PROVEN). The key binder (the game's +5344h) is 48h bindings of 0Ch bytes indexed by the action id (`get_binded_action` 0x207D50: eax the binder, edi the kinds, esi the DIK key, out the toggle; `ret 4`; 49h for none); ids 0Fh, 10h, 14h and 2Bh..33h are free. But the action table ends where the key names begin (0xA74FA0, read by 15 sites; 0x4B0 bytes counted at others), and the options' controls list is its own 40 entries of 68h bytes at 0xA9DB28 (+0 id, +4 label, +8 group, +0Ch type, +10h a buffer pointer into the entry; counts 28h at 0x201159, 0x20124D, 0x20140B, 0x201A1E, 0x201D0D; refs 0x201151, 0x2013C0, 0x201249, 0x201A1A, 0x201D09), followed by other data. Adding a row to the action table means moving it; `toggle_replay_ui` already is the action "toggle the ui", bound and saved as any other. (Patch 149 moves it and grows the binder: 3.82.)
 - **The controls options' row** (PROVEN; the owner, 2026-10-24: "there is no in settings option to switch it"). The options' table is static data: 28h rows, each `{action, label key, group, type, buffer_string set (+10h: begin, end, buffer end; 32 bytes at +1Ch), buffer_string kept (+3Ch; 32 bytes at +48h)}`, 240 pointers into itself, no initializer. Its six readers, game_options': 0x201150 (`mov eax,table`, count at 0x201159), 0x201248 (`mov esi,table+4`, 0x20124D), 0x2013BF (`add eax,table`, `cmp bl,28h` at 0x20140B), 0x201A19 (`mov esi,table+0Ch`, 0x201A1E), 0x201D05 (`mov [esp+0Ch],table`, 0x201D0D), 0x201F2B (`mov esi,table+10h`, 0x201F34). The movie names an action only (`start_bind_key`, BindKeyRender.as); the key it gets is kept by 0x2013A0 in the row of that action (none: kept nowhere) and accept (0x201F20) issues `bind <id_to_action_name> <key>` / `unbind` only for rows whose +10h changed. The binder's `bind` command (0x207390, cc with bind_key 0x207DC0) saves every bound action of the binder by name (0x207450: `bind <action> <key>`), whatever the table. The patch: `controls` (hide_ui.data) is the 40 rows and a 41st `{19h, "st_hide_interface_action", 2, 1}`, built by NASM with each row's pointers its own; HIDE_UI_TABLE_REFS / HIDE_UI_TABLE_COUNTS repoint the six readers and make the counts 29h. A pointer into an arena data or state block is data, not an install (`arena_data_ranges`, from the lock).
 - **The keys' groups** (PROVEN). The game world asks kind 1 (0x25CD5F); the lobby kind 2 (0x26CCCD); the options list groups 0 lobby, 1 chat, 2 game. Free of every default binding: B, H, J, U, Y, Z, 9, 0, F4, F7..F10, F12, Caps Lock (L is taken by the game world at 0x25CD89, DIK 26h). The lobby movie never gets F1..F12 (the DIK-to-Flash key map made at 0x1FDF20 has 71 keys, no F key, not 9 or Caps Lock).
 - **The patch, the match** (`HIDE_UI_HOOKS[0]`, JUMP at 0x25CED1, ten bytes -> `jmp hide_ui_match` + five nops): the replay test again (to 0x25CEDB with esi the handler); else, the hud the handler's +4, `engine_movie_invoke([[hud+8]+108h]+4, "root.interface_hidden", &answer, 0, 0)` (a bool at the answer's +8) and `root.hide_interface(not that)` (one GFx bool, type 2) to it and to [[hud+10h]+108h]+4, the player icons'; then 0x25CF0D. Whatever the cursor: the kits before the start are hidden too (the owner, 2026-10-24). The first build used the game world's `show_ui` (0x1F95F0): its `hide_movie` (0x23DC70, the renderer's 0x1FBB0) takes the movie out of the scene, which stops advancing it, and when shown it played the kill feed and messages of the whole time at once (the owner's test of 64ce3ce7); the movies hide their own root and keep running.
@@ -2146,7 +2148,7 @@ The owner, 2026-11-09: exact 0.21 rain on Vostok Radar Station v0.21 (`v021d_lev
 - **What changes:** what the 0.21 maps' frames draw. Nothing a match computes; no row in `../../crates/session/src/v026g/simulation_changes.tsv`.
 - **Checked:** `check_rain_v021d_026g.py` (Unicorn 2.1; with the 0.21d exe for the drop parameters; the god-rays pass's entry for both stages, marked and not) under `align_probe_026g.py`; the self-test's test_writes, test_rust_hooks, test_rust_code and test_call_shapes on the default build; `check_lamps_026g.py` (the project sites' chain); the patch crate's tests and Clippy. **Not run in a game.**
 
-### 3.82 The console command `collision` (written 2026-11-16, README patch 156, the next release's revision; the rules: `collision-view.md`) — PROVEN in the code, the registration, the console's execute, update_camera over a made-up physics world (shapes laid out as the game's) and the render site run with Unicorn in both exes, the BVH query stubbed; not run in a game
+### 3.112 The console command `collision` (written 2026-11-16, README patch 156, the next release's revision; the rules: `collision-view.md`) — PROVEN in the code, the registration, the console's execute, update_camera over a made-up physics world (shapes laid out as the game's) and the render site run with Unicorn in both exes, the BVH query stubbed; not run in a game
 
 The owner, 2026-11-16: a console command that shows the invisible collisions and the collisions in general, each group in its own colour. The first build drew the broadphase's boxes; after playing it: "this doesn't give people idea on what is collision and where". It now draws the shapes themselves as lines. Then (the same day): names for the filters ("why 2 a and 8, those are not good UX?"), each filter showing what stops it, and the options printed when it is turned on. `collision` turns it on (every group) and off; `collision walk` shows what stops walking (the walk group 2 and the solid group 0Ah), `collision shot` what stops bullets and the camera (shot 8 and solid), `collision solid` the solid group, `collision anomaly` the damage zones; the name shown again turns it off, another switches. 2026-11-17 (after revision 63): `fill` after any of them (or alone) fills the surfaces too, to find holes, and the room is twice as large (131072 lines).
 
@@ -2569,6 +2571,18 @@ battery's take and put), so the cause is not Blackout's; Blackout only keeps tha
 - **Checked:** `check_use_prompt_026g.py` (Unicorn, `tools/check use-prompt`): the two functions run
   as st_draw calls them in both exes; the original keeps the bar after a use that ends with the
   prompt's key unchanged, the build gives the prompt again; the other sequences as the original.
+
+### 3.105 A key per item type uses it (written 2026-11-15, README patch 149, the next release's revision; the rules: `item-hotkeys.md`) — PROVEN in the code, the binder's functions and the input builder run with Unicorn in both exes; not run in a game
+
+The owner, 2026-11-15: keys for a specific artefact type or medkit; then traps, grenades (a key per grenade type) and oxygen tanks. Fourteen actions, unbound, one Controls row each; a key is the quick-use key of the first quick slot holding its item. Then (the same day) Next artifact and Next medkit: the first item of the group a press would use now.
+
+- **The action table** (PROVEN; "Why no new action" in 3.54). 60 rows of 14h bytes at 0xA74AF0 `{name, id, kinds, toggle, default key's name}`, the key names' table (88h-byte rows) right after it at 0xA74FA0. Its address is read by four functions of the binder only (every immediate in 0xA74AF0..0xA74FA4 of the image: the other 0xA74FA0 references, 0x201D4D, 0x207910, 0x207BF0, 0x207C30, are the key names'): the construction (0x207540: `mov eax,table` 0x20755B, `cmp eax,0xA74FA0` 0x20756C: each row's address into the binding of its id), set_default_controls (0x2078A0: `[ebx+table+10h]`, `[ebx+table]`, `cmp ebx,4B0h`), id_to_action_name (0x2079D0: `[eax+table+4]`, `cmp eax,4B0h`, `[eax*4+table]`), action_name_to_ptr (0x207AD0: `[esi+table]`, `cmp esi,4B0h`, `lea [eax*4+table]`). The rows' names are read from the table only. Everything else reads a row through its binding's description pointer (+4 id, +8 kinds, +0Ch toggle). `actions` (`item_hotkeys_026g.asm`, block item_hotkeys.data) is the 60 rows (the rows other patches change are changed here, their writes into the game's rows gone: artefact's default key kH, patch 78's, the game's row having none; 19h hide_interface kF9, 1Ah screenshot kF11, 1Bh screenshot_no_ui kF12, patch 152's; 37h ptt_nearby kind 8, patch 66's) and the fourteen; `ITEM_HOTKEYS_TABLE_REFS`, `_END`, `_COUNTS` repoint the four (76 rows: the two group keys after the fourteen, 58h and 59h) (the addresses' base relocations stay: still the image's).
+- **The key binder** (PROVEN). A heap object the game's init allocates (0x1EA265 `mov eax,364h` / `call 0xE4F90`, stored at game+5344h 0x1EA288): 48h bindings of 0Ch bytes `{description, key, second key}` indexed by the action id, then the game at +360h. Its readers, from the 16 loads of game+5344h in the image and the bind commands' +64h: get_binded_action (0x207D50, loop `cmp edx,48h` 0x207D87; 49h for none), bind_key (0x207DC0: the key set at `[binder+id*0Ch+4+which*4]`, then a loop of 0Ch passes of 6 bindings, 0x207E8E, clearing that key from every other binding whose kinds meet its own; the first bind calls the key-name translation 0x207910, which reads the game at +360h, 0x207937), the bind command's save (0x207450, `cmp edx,360h` 0x207524), unbind_key (0x207FF0: one binding by its row's id; a name of no row clears binding 49h's key, 0x20801D: past the game's 364h bytes, a heap write of the stock game), the construction (memset 360h 0x207544, the game into +360h 0x20754D), set_default_controls (through bind_key). The options (0x201150's conflicts, 0x201CF0's keys, 0x2013A0), the hud (0x1FF042: binding 35h, use; 0x239DB3: 39h + n, the quick slots' labels), the chat (0x208887), the input handlers (0x23FE2B, 0x23FF72, 0x241040, 0x2494F2), the game world (0x25CD54) and the lobby (0x26CCC2) index one binding by an id or call get_binded_action; the game's destructor frees it without a size (0x1E9FCA, 0x21E8B0). Nothing else holds it. `ITEM_HOTKEYS_BINDER` makes it 60h bindings (a multiple of 6 for bind_key's passes, under 80h for get_binded_action's signed byte): the allocation 484h, the memset and save 480h, the game at +480h, the count 60h, the passes 10h. The array grows in place and the game pointer moves after it (of the owner's two ways, 2026-11-15, the easier: the binder's own allocation made bigger, not an array in the arena, which would leave the binder's +0 and every reader's index to repoint: one object, the same pointer everywhere). 48h stays the options' "no key being set" (game_options +3Ch, 0x20134F, 0x2015E3) and 49h the binder's "none" (its callers compare it: 0x23FE39, 0x23FF84, 0x24104D, patch 62's lobby): no row has them, so their bindings have no description and get_binded_action never answers them. Ours are 4Ah..59h; 5Ah..5Fh are room.
+- **Where a new id goes** (PROVEN). The game world's on_keyboard_action (0x25CD00) asks kind 1 and switches on 11h..19h only (0x25CE10; others 0x25CF0D, the key not taken); the input handler's (0x23FE00) asks its kinds (+360h) and pushes the action and its state (down 0, up 1, hold 2) into its event ring (+98h, push_back 0x242580) and process_dependent_actions (0x240170: the rules at 0xA746E4 name none of ours); the ring is read by action_present (0x242460) alone (find 0x242640's one caller), and action_present's 35 callers are process_first_person_mode's (0x241250), with fixed ids. Rows of kinds 5 (the quick-use keys') reach both; the lobby (2) and the chat (8) never get them.
+- **The quick-use bit** (PROVEN). process_first_person_mode sets bit 14+n for quick_use_n+1 (39h..3Eh, 0x242034..0x2420C7) when action_present answers, whatever the state; process_quick_slots (0x2D8D80) gives a changed bit's quick slot (quick_slot_to_inventory_slot 0x2FE7F0: the pockets 0Dh..12h, then the gear 3, 0, 1, 2, 4..6, each counted with its item's kind +24Ch set and vtable +58h 0; then every artefact container, an empty one too; 17h past them) to inventory::action (0x2FCAA0) with 1 or 0. The hud shows the same slots of the network client's local player (update_local_player_state 0x23B740). The kind +24Ch is the item constructor's second argument (0x2FFBCD): 1 for a grenade set, a booby trap, an artefact, a medkit and an oxygen tank. G's bit (800000h) goes the same way to the first pocket with a grenade set (0x2FE8B0, 0x2D8E18), under the same gate (`[[player+128h]+0Eh]`) as a pocket's quick bit: a grenade's quick bit is G for that grenade.
+- **The patch** (`rust/patches/src/item_hotkeys.rs`, `item_hotkeys.toml`): at `input_builder.end` (0x2421B0, the epilogue and the early exit), order 0 of the chain (patch 78's chord order 1, `artefact_carry.toml`), for each of the fourteen that action_present answers (`InputHandler::action_present`), the first of the six quick slots holding its item (`Inventory::quick_item`: quick_slot_to_inventory_slot's answer parsed against the 23 slots and the containers' allocation, the item's dictionary id, +25Ch's +0, and its class: an oxygen pack is oxygen_tank's vtable 0xA1C874, fields `oxygen_tank_vtable`) gets its quick-use bit (`ActionMask::quick_use`). The inventory is the handler's game world's network client's local player's (`InputHandler::local_inventory`), the hud's. The items: Onyx 76, Spring 74, Lifebone 54, bandages 66, Medikit 67, Military 390, Black Market 1196, Science 391, Antitoxin 82, painkiller 65, RGD-5 5, RDG-M 219, the trap 68, any oxygen pack. The group keys: Next artifact (58h) the first quick slot whose item is an artefact container's in state 3 with no cooldown (+280h, +28Ch: artefact_base::action's test, 0x313300) and among the 4 of its kind that count for its holder (patch 109's `uncounted`: a copy past them never fires), Next medkit (59h) the first holding bandages or one of the four medkits (66, 67, 390, 1196, 391) whose vtable is medkit's with +2B0h (active, the use delay included) clear and, a stack, a count (+260h) left: medkit::action's test (0x33D700: pressed, `cmp byte [esi+2B0h],0`, the entry's stack +22Ah, `word [esi+260h]`). The Controls rows are patch 62's `controls` (16 more, 3Ah rows).
+- **What changes:** only the bits a key makes (14..19). No new bit, nothing a match computes: no row in `simulation_changes.tsv`; others and replays play the relayed bits.
+- **Checked:** `check_item_hotkeys_026g.py` (Unicorn): the table, the allocation (484h, the original 364h), the construction (the game at +480h, nothing past it), id_to_action_name and action_name_to_ptr of every row, bind / get_binded_action (kinds 1 and 4, not 2 or 8), the save, bind_key's pass reaching 57h, unbind, an unknown unbind inside the binder, the options' row and accept; process_first_person_mode whole on four kits and three of ready and busy items (the group keys): each key's mask for down, held, up and held from before is the original's for the slot's quick key (nothing where no slot holds it), two keys, and with H the chord tick by tick; `check_hide_ui_026g.py` (61 rows); `selftest_026g.py`'s test_item_hotkeys (every site's bytes); the crate's tests and Clippy. **Not run:** a game (that the hud's local player is the input's player after a kit change, LIKELY: the hud shows its slots; the labels' width in the Controls list).
 
 ## 4. Mode 3 batteries: not needed in 0.26g
 
@@ -3262,6 +3276,22 @@ late join's), and in use again after a rollback that took the hit back.
 QuickSlots keeps the exhausted stack for it and the renderer tints the slot's
 own icon red (ColorTransform 1, 0.3, 0.3) where phase 1 dims it.
 
+Phase 4 (patch 180, Oxygen Rush; the owner, 2026-11-23: "the number countdown
+should become blue", "similar blue to spring activation", "since both are for
+speed"): the slot's item is an oxygen tank (OXYGEN_TANK_VTABLE) of a living
+holder whose boost word (+294h) is on at the holder's stamina clock
+(`technical::oxygen_rush_on`, the end `oxygen_rush_tick` clears). The movie keeps
+the native slot as the game fills it (its `timer`, the tank's air seconds, from
+the item's vtable +48h at update_quick_slot 0x23A265) and draws only that
+countdown in `Colors.SPEED_BOOST`, 0x9CD8EE, over its own black shadow and in a
+glow of `Colors.HUD_BLUE` (0x079DD5, the hud's text style "blue"; GlowFilter alpha
+0.6, blur 6, strength 1.5). 0x9CD8EE is that blue mixed 60 % with white: the
+saturation (0.35) and value (0.92) of the hud's own green (`Colors.GREEN`, its style
+"current"). Until 2026-11-26 it was the Spring artefact's activation glow, 0x0066FF
+(`fx/artifacts/human_spring`'s light, 0, 0.40, 1); the owner: "this blue is a bit
+too on the nose", a flat fill not in the hud's style. Phase 0 gives the countdown
+its own colour and filters back. Nothing new is saved.
+
 ### Lobby weight explanation
 
 `weight_ui_026g.c`/`.asm` live in the linked `weight_ui.code` and
@@ -3406,8 +3436,13 @@ Recoil modifications 2080..2084 and defect 3060 once targeted
 recoil blocks (`find_modifier_target` 0x2F1430 returns null for missing paths;
 the cook skips them at 0x2F1ABF). The content edit (`weapon-rolls.md`) retargets
 them to the six keys recoil loads at 0x331840 (`min/max_top_recoil` and the
-left/right ranges, type 2), and the card's kick rows show the change. Likewise a base-dispersion
-upgrade (property 2) does not change shot spread, growth or recovery. The scope's
+left/right ranges, type 2), and the card's kick rows show the change. A base-dispersion
+upgrade (property 2: 2020..2024, -2..-10 %, type 2 on `dispersion/base_dispersion`) works in
+stock: the weapon's constructor loads `dispersion` from the cooked config into weapon +3D8h
+(0x330EE0 at 0x2DF1E7, the root the recoil loader reads), and get_static_dispersion 0x331220
+puts it in every bullet's spread, fully aimed too (get_dispersed_bullet_direction 0x2E1D50:
+static + dynamic x k), and in pellet spread (0x2E2120). It does not change a shot's bloom
+(one_shoot_dispersion_amount), the stance's part, growth or recovery. The scope's
 separate view FOV does not change the explicitly labelled base aim-zoom parameter.
 
 ### Artefact score (patch 80)
@@ -4098,7 +4133,7 @@ port + 1. The Rust patch `voice.rs` (`voice.toml`, eleven lohooks; its boundary 
   chat_handler::on_keyboard_action asks at 0x208887, the binder [game+5344h]) `ptt` (47h, P), the
   radio's push-to-talk, and `ptt_nearby` (37h, O: the action table's entry 0xA74E10,
   `serialize_player_state`, a debug action of kinds 5 with no console command, renamed and made
-  kind 8 by patch_026g.py's `VOICE_ACTION`, its default key kept), the 10 m voice's, down
+  kind 8 in patch 149's moved action table, its default key kept), the 10 m voice's, down
   and up; the one held first talks, and the 10 m voice's is let go while the player is not alive. **A mouse button** (`game_world.mouse_key`, 0x25CF70: `mov edi,eax / mov eax,[edi] /
   mov edx,[eax]` after on_mouse_key_action's ask of the keyboard, ESI the game world's input
   handler, the keyboard's: its cursor flag +2E0h is the hud's +2DCh; ESP+14h the key, 151h + the
@@ -4588,8 +4623,10 @@ code is (`rust/patches/src/artefact_hunt.rs`, `artefact_hunt.toml`, `src/vostok/
 - **The carrier**: patch 109's `artefact.shared_modifier(s)` handlers call `shared_modifier(s)` (the
   filter `HOOKED_LISTS`: the Springs' lists and 2): the carrier's kit container gets the item's -0.2
   on list 4 and +0.05 on list 2; `hunt.can_sprint` 0x2DBF45 exits to can_sprint's refusal 0x2DC008;
-  `player_names.enemy_spotted` and `minimap.enemy_spotted` (order 2, after patch 135's) show him;
-  `player_icons.enemy_ids` tells the icons movie `root.srp_show_carriers(hunting)` at every match.
+  `minimap.enemy_spotted` (order 2, after patch 135's) shows his dot to the other team (his marker
+  over his head is the game's own, an enemy's never shown: the owner, 2026-11-26);
+  `player_icons.enemy_ids` tells the icons movie `root.srp_show_carriers(hunting)` at every match
+  (the carrier mark the artefact's).
 - **The hud** (`player_icons.update_start`, order 5; `hud.initialize_match`; `game_world_ui.welcome`):
   `root.artefact_hunt_update` with the 30 Numbers of "HUD calls" (a new `Movie::invoke_numbers`, GFx
   type 5), the cues' messages through `set_parameterized_message`, the prompt `show_artefact_offer`.
@@ -4641,6 +4678,216 @@ code is (`rust/patches/src/artefact_hunt.rs`, `artefact_hunt.toml`, `src/vostok/
 - The orbit's near plane is 0.05 m (update_camera's +8Ch = 0x9CC878, 0x1F3595; the projection 0x242900 reads it).
 - The lobby's camera has a collision (lobby_camera::process_collision 0x2844D0): ray_test from the point it looks at toward the eye, group 10h, mask 8 (the static collision that bullets hit, cgroup 8 / cmask 16), the distance cut to the hit's. The match's orbit has none, and patch 31 made it worse: its nearest distance is the lobby's 1.5 m, the stock warmup's 1.0.
 
-**The patch** (the Rust patch `camera_walls`, a lohook, `sites_026g.tsv` `camera.viewed`, first of its handlers): at 0x1F3650 (`mov edx,[ebx+0F478h]`, six bytes, after the view's update, before camera_director::apply; no branch lands inside it, no relocation under it), in the orbit modes only (the mode is not 0 or 4: update_camera's own test, so the frame's pivot was written), one ray goes from the pivot toward the eye, the orbit's length plus 0.2 m, on the player's physics world (+350h) with the lobby camera's filter. Its hit gives the pull needed: how far in from the orbit the eye must be to stay 0.2 m short of it (at most the whole orbit: the eye at the pivot); no hit, or a hit that is no number, needs none. While the orbit turns (its unit way from the pivot differs from the last frame's of the same orbit, the frames 1 to 100 ms apart), a second ray of the same length and filter goes where the way will be 0.3 s on at that turn (the way plus its change times 0.3 s over the frame's time, at most 0.6 off, 31 degrees; a change under 0.01 is no turn), and its hit gives the pull that wall would need. The pull shown is a state kept between frames (`Pull`: off, or a player's orbit with its pull and the counter's millisecond): a new orbit (the first frame after one in another mode, or another player's) shows the pull it wants at once; an orbit going on moves its pull toward the larger of the two by 1 - e^(-r dt) of the way, r 10 a second in and 3 out, dt the time since its last frame (QueryPerformanceCounter, at most 0.1 s), then takes the pull the wall on the way needs when it has less (at once: the eye is never shown behind that wall), and a pull under 1 mm with none wanted is none. The first version (five parallel rays, the eye put at the hit at once, in and out) threw the eye in and out where a ray met a bar or a branch of the detailed collision near the player (the owner, 2026-11-09, in a local game: "the camera jumps"); the second eased in too (8 a second, one ray) and showed the eye behind a wall for a few frames (the owner, 2026-11-23: "almost good, but camera can briefly clip outside still"; then, of the pull in at once: "maybe we can still smooth, just start smoothing a bit earlier?", hence the ray ahead). The eye is put the pull in from the orbit's distance on its way, the view's turn kept; the handler's distance (+354h) is not changed, so the wheel moves the eye at once. No pull: the view is the game's, untouched. Its ray meets neither players (824h/3) nor hit models (40h/11h) nor grenades (818h/8). Nothing a match computes: the view alone (camera_director::apply and the renderer read +48h; no simulation code does).
+**The patch** (the Rust patch `camera_walls`, a lohook, `sites_026g.tsv` `camera.viewed`, first of its handlers): at 0x1F3650 (`mov edx,[ebx+0F478h]`, six bytes, after the view's update, before camera_director::apply; no branch lands inside it, no relocation under it), in the orbit modes only (the mode is not 0 or 4: update_camera's own test, so the frame's pivot was written), one ray goes from the pivot toward the eye, the orbit's length plus 0.2 m, on the player's physics world (+350h) with the lobby camera's filter. Its hit gives the pull needed: how far in from the orbit the eye must be to stay 0.2 m short of it (at most the whole orbit: the eye at the pivot); no hit, or a hit that is no number, needs none. While the orbit turns (its unit way from the pivot differs from the last frame's of the same orbit, the frames 1 to 100 ms apart), a second ray of the same length and filter goes where the way will be 0.3 s on at that turn (the way plus its change times 0.3 s over the frame's time, at most 0.6 off, 31 degrees; a change under 0.01 is no turn), and its hit gives the pull that wall would need. The pull shown is a state kept between frames (`Pull`: off, or a player's orbit with its pull and the counter's millisecond): a new orbit (the first frame after one in another mode, or another player's) shows the pull it wants at once; an orbit going on moves its pull toward the larger of the two by 1 - e^(-r dt) of the way, r 10 a second in and 3 out, dt the time since its last frame (QueryPerformanceCounter, at most 0.1 s), then takes the pull the wall on the way needs when it has less (at once: the eye is never shown behind that wall), and a pull under 1 mm with none wanted is none. The first version (five parallel rays, the eye put at the hit at once, in and out) threw the eye in and out where a ray met a bar or a branch of the detailed collision near the player (the owner, 2026-11-09, in a local game: "the camera jumps"); the second eased in too (8 a second, one ray) and showed the eye behind a wall for a few frames (the owner, 2026-11-23: "almost good, but camera can briefly clip outside still"; then, of the pull in at once: "maybe we can still smooth, just start smoothing a bit earlier?", hence the ray ahead). The eye is put the pull in from the orbit's distance on its way, the view's turn kept; the handler's distance (+354h) is not changed, so the wheel moves the eye at once. No pull: the view is the game's, untouched.
+
+**The eye in the body** (the owner, 2026-11-23, of revision 72: "camera can still go inside the character (sometimes they are tucked in a corner, where to the back no free space is available)"). The pull had no floor: a wall 0.2 to 0.6 m behind the pivot (the place raised 1.4 m, about the neck) put the eye 0 to 0.4 m from it, inside the capsule (0.76 m wide) and the model drawn round it. **0.69d** (retail exe, `tools/re-kit/v069d/functions.tsv`) has the same orbit: third_person_view_camera_controller's pivot is the player's transform raised (0, 1.4, 0) (0x2002AE6D0), its eye pivot + distance × (0.2 right − forward) (0x2002AE430), its ray from the pivot toward the eye, the distance + 0.2 long, group 10h mask 8, the distance cut 0.2 m short of the hit (0x2002AE080); and its tick (0x2002AE3B0) places the camera only when that distance is above 0.75 m (0x2009E5D0C), else leaves it where it was. The kill camera's preview (0x2002AE7A0) takes the least of two rays (at its angles and turned by 0.1 and 0.5 rad) and, below 0.75 m, places the camera at the last angles that had the room. **Now**: the eye is never nearer the pivot than 0.75 m (or the orbit's distance, if less): where the way has that room, the pull is the same but no deeper; where it has not, the pose shown the frame before (its turn, and its eye from the pivot: a `Pose`, kept in `Pull::On`) is held, tested again by a ray along its own way (as 0.69d's preview, the pose at the room that ray finds); where that has none either (a new orbit in a corner), the game's view turned about the level's up (a yaw: the pitch, the eye's height and distance kept) by 15 degrees to one side and the other, nearest first, up to 180, the first whose ray finds the room (the owner, 2026-11-23, of a first version that raised the eye over the head instead: "shouldn't camera just move sideways for first view?"). None with it: the pose with the most room, in front of its wall. The pull goes on in the hold (the wall on the way's), so a way that has the room again starts the eye at 0.75 m and lets it out as after a wall. Rays a frame: one or two; with no room one more, and the turns' up to 23 when the hold has none. Its ray meets neither players (824h/3) nor hit models (40h/11h) nor grenades (818h/8). Nothing a match computes: the view alone (camera_director::apply and the renderer read +48h; no simulation code does).
 
 **Checked**: `check_camera_walls_026g.py` (Unicorn) runs update_camera from its start in the original and the build on a made-up player (turned 30 degrees, a yaw, a pitch and a distance of 3 m), a frame a call, ray_test a plane square to the way or nothing, the performance counter a clock of its own: with nothing in the way the view and the registers at camera_director::apply are the original's bit for bit, one ray as above; a new orbit with a wall at 1.5, 2.9 or 3.1 m has the eye at once 0.2 m in front of it, at 0.1 m at the pivot, past 3.26 m nothing; in an orbit going on, a wall that comes has the eye in front of it in that frame, and when it goes the pull keeps e^(-0.3) of itself in the next 100 ms; a turn of 0.01 rad of yaw in 10 ms sends the second ray where the way will be in 0.3 s, and a wall only that ray meets pulls the eye in by 1 - e^(-0.1) of what it would need, one ray again and the eye going out once the turn ends, the original's view again bit for bit after a while; modes 0 and 4 and a player without a physics world are the original's with no ray. `cargo test -p patches camera_walls` checks the rule and the steps. RUN in a game (the first version, 2026-11-09: in front of the walls, but jumping; the eased one, 2026-11-23: briefly behind a wall); the ray ahead started for the owner that night.
+
+### 3.104 The kit shown, in one call (written 2026-11-23, README patch 199) — PROVEN in the code and under Unicorn; not run in a game
+
+`lobby_menu::on_profile_changed` (0x222330) is the one place the exe shows the lobby movie a kit,
+and the only caller of `root.fill_player_profile_items` and `root.update_profile_slots_count` (one
+reference to each name in `.text`). It runs on a status from srp (`on_client_status_received`,
+0x21D813: the sign-in, a kit or preset switch, Play, a perk switch's answer) and on a move srp
+accepted (`process_succeeded_inventory_action`, 0x2762BE). It gives the kit in two calls. First
+the items value ([esp+58h], its `profileId` and `items`) at 0x222A23. Then it works out the
+counts: the pockets from modifier 0Fh into lobby_menu+3121h (0x222AE5), the containers from
+modifier 0Eh into [esp+0Fh] (0x222B09), the two held to six quick slots (0x222B18..0x222B5A). It
+gives those at 0x222CD6 (containers, pockets), a call that names no kit. Between them are only
+local branches, so both always run, in that order. The value lives until the function's end
+(released at 0x222F11).
+
+Revision 72's lobby drew the items at once, on the counts of the kit shown before. Pockets that
+kit lacked or had as containers sent their items back (`PaperDollBase.handleQuickSlots`,
+`dropSlot`), and srp took them off the kit (bug report 2026-11-23).
+
+Patch 199 gives the movie the kit in one call:
+
+- A lohook before the items' Invoke (`lobby_menu.profile_items`, 0x222A07) exits past it
+  (0x222A28; EAX, its result, is not read there).
+- A lohook before the counts' Invoke (`lobby_menu.profile_counts`, 0x222CA1; also the target of
+  the je at 0x222C7A) sets the items value's `item_slots` (the pockets, [esp+10h]) and
+  `artifact_slots` (the containers, [esp+0Fh]) with the AS3 interface's SetMember (0x7C6A20). It
+  gives that value to `root.fill_player_profile_items` and exits past the counts' Invoke
+  (0x222CDB).
+- The stock `PlayerProfileBase.fillProfileItems` opens the paper doll's slots from those two
+  members before it sets the items.
+- A value of no AS3 movie gets no members: the items are given alone and the stock counts' call
+  follows.
+
+`check_profile_kit_026g.py` runs both sites to their Invokes' next instruction in both exes
+(`tools/check profile-kit`). Only the lobby: nothing a match computes.
+
+### 3.106 A line when the game cannot take the mouse (written 2026-11-23, README patch 202) — PROVEN in the code and under Unicorn; not run in a game
+
+A Windows player on revision 72 could not aim in matches: his inputs reached the server with
+keys but no mouse rotation, fire or aim, while the menus worked. A restart of the PC fixed it,
+for another player too. The game logged nothing.
+
+The platform mouse (`vostok::input::platform::mouse`, vtable 0xA25518) holds an
+IDirectInputDevice8 at +28h, its window at +24h, a spin lock at +30h and set_exclusive's flag at
++34h. `set_exclusive` (0x3B9800) sets the cooperative level DISCL_FOREGROUND with DISCL_EXCLUSIVE
+when its argument is set (5), else DISCL_NONEXCLUSIVE (6; the constructor's). It then Acquires.
+`mouse::execute` (0x3B9680, the poll; named by its own line's function name, 0xA254B8) reads the
+state with GetDeviceState (vtable+24h, DIMOUSESTATE2):
+
+- read: copied into the mouse (0x3B96DE, 0x3B9610);
+- DIERR_NOTACQUIRED or DIERR_INPUTLOST: Acquire (vtable+1Ch, 0x3B971A), then:
+  - Acquire failed (`jl` at 0x3B971E): return, no input, no line;
+  - Acquire taken, read again: read, or lost again ("mouse device is lost", the engine's line,
+    0x3B97D2), or another failure (0x3B9704);
+- any other failure: return at 0x3B9704, no input, no line.
+
+So a device the game cannot Acquire (DIERR_OTHERAPPHASPRIO while another window is in front of
+a foreground level, for one) leaves every poll empty, silently.
+
+Patch 202 (the Rust patch `mouse_acquire`, `vostok/mouse_device.rs`) writes one line to the
+patches' log each time the poll's outcome changes, never per poll. Three lohooks, nothing
+changed in what they replay:
+
+- `mouse.read` at 0x3B96DE (`lea eax,[esp+14h] / mov ecx,edi`, 6 bytes): read.
+- `mouse.read_failed` at 0x3B9704 (`xor edx,edx / xchg [ebp+0],edx`, 5 bytes): EAX the failed
+  HRESULT, EBP the mouse's lock (mouse + 30h, kept from 0x3B9695 to the returns).
+- `mouse.acquire_join` at 0x3B97E8 (`xor eax,eax / xchg [ebp+0],eax`, 5 bytes): the failed
+  Acquire's `jl` and the lost-device line's two paths join here. Only from the `jl` is ESI the
+  mouse (EBP - 30h) and EAX Acquire's HRESULT. The line's paths leave the device (0x3B9724) or
+  the line's frame (0x3B97DF) in ESI, so a join with ESI not the mouse is no failed Acquire.
+
+The last outcome is one `Poll` (Read, Refused(code), Unread(code)) under a lock; it starts as
+Read, since the game took the mouse before its first poll. A line goes out when a poll's outcome
+differs from it:
+
+```text
+srp: mouse: cannot take the mouse: DIERR_OTHERAPPHASPRIO (0x80070005), exclusive, another window in front
+srp: mouse: cannot read the mouse: DIERR_NOTINITIALIZED (0x80070015), non-exclusive, the game in front
+srp: mouse: taken again
+```
+
+A code has dinput.h's name when it is one the device gives (DIERR_OTHERAPPHASPRIO = E_ACCESSDENIED,
+E_HANDLE, DIERR_NOTACQUIRED, DIERR_OUTOFMEMORY, DIERR_NOTINITIALIZED, DIERR_INPUTLOST,
+DIERR_INVALIDPARAM, DIERR_UNPLUGGED, E_PENDING, DIERR_GENERIC); others are given in hex. The level
+is the mouse's +34h. The window in front is user32's GetForegroundWindow (not imported by the
+game: GetModuleHandleA and GetProcAddress) against the mouse's +24h: "the game", "another window"
+or "no window" (a locked or switching desktop). It is asked only for a line.
+
+`check_mouse_acquire_026g.py` runs execute whole in both exes with the device stubbed
+(`tools/check mouse-acquire`): the same device and engine calls, mouse state, return and kept
+registers in every poll, and the lines above only from the patched exe, once per change. The
+lost-device line's paths are run with a failed HRESULT's look in EAX: no line. A log line only:
+nothing a match computes.
+
+### 3.107 A reload left after the magazine is in (written 2026-11-26, README patch 205) — PROVEN in the code and under Unicorn; not run in a game
+
+The full account, 0.69d0's and the content's seats: `reload-commit.md`.
+
+- **The game's one load.** `weapon_core_reload_state_base::on_animation_end_impl` (0x310E40, thiscall,
+  ret 8: `mov esi,[ecx+120h]` / `call load_magazine` 0x2E17D0 / the recoil's reset 0x332140 / `mov byte
+  [esi+5F5h],0` / `mov byte [[esp+8]],1`) is slot 9 (+24h) of exactly six vtables, the plain 0xA14D14
+  (303), 0xA15088 (311), 0xA151FC (314) and the sound handlers' 0xA04DEC, 0xA050D4, 0xA051CC; the clip
+  end's callback 0x30DB60 calls it and sets the state's ended byte +12Dh. Nothing else of a reload
+  touches the ammunition (its initialize puts a chamber-on-reload gun's round back, 0x30FDD2; its
+  finalize 0x30E420 only unsubscribes).
+- **The subscription the patch adds**, where the game subscribes the state to its clip's end
+  (`"\x01"`): `reload.listen` 0x30DB0F (0x30DA60's `mov byte [ebp+134h],0FFh`, EBP the state) and
+  `reload.listen_again` 0x30DC7C (0x30DBB0's `mov [ebx+134h],cl`, EBX the state), for a state whose
+  vtable's slot 9 is 0x310E40: subscribe_event_channel (0x391C40: ESI the user's animation player
+  +750h, the name `reload_commit`, a functor of the manager 0xA14CBC tagged 1 {the entry, adjustment 0,
+  the state}, the state as the key, a null resource slot, 0; ret 14h). `reload.stop_listening` 0x30E476
+  (0x30E420's `mov byte [esi+134h],0FFh`, ESI the state; the sound handlers' finalize jump there):
+  unsubscribe_event_channel (0x3921A0: EAX the name, the channels, the key; ret 8). The functor's
+  invoker 0x246200 calls the entry thiscall (the state, the animation_callback_params), as 0x30DB60.
+- **The event** (`reload.commit_event`, the runtime callback): params +0 the state's weapon or its user
+  (as 0x30DB74..0x30DB7B accepts), domain +20h 1: 0x310E40 with done bytes of the patch's: the
+  magazine loaded, the recoil reset, +5F5h 0, the state not ended.
+- **The end's load the same as the event's**: `reload.load_at_end` 0x310E41 (`mov esi,[ecx+120h]`,
+  ECX the state): with +5F2h (chamber_a_round_on_reload) and +5F1h (chambered) set, +5E5h += 1 and
+  +5F1h = 0 before the load (as 0x30FDD2..0x30FDD8). load_magazine is then the same twice as once.
+- **Nothing new in a world**: the subscription is the state's own, made again by its deserialize.
+### 3.111 A second sight's side from the lobby movie: `46 05` (written 2026-11-26, README patch 207) — PROVEN in the code and under Unicorn; not run in a game
+
+The Attachments window's Left/Right toggle of a weapon's second sight (UpgradeWindow.onSideButton,
+SightPlace) calls `ExternalInterface.call("srp_set_upgrade_value", host, upgrade, value)` (three
+AS3 uints; the value 0 left, 1 right). The exe makes it the lobby request the decal editor's accept
+sends, `46 05 <active kit> <host> <upgrade> <u64 value>` (lobby_requests.md, items.md §3); the
+server checks the side (session `items_rules::place_upgrade_with`) and sends the account after a
+weapon's `46 05`, or after a refusal, so the movie redraws from what the server holds.
+
+**Where a lobby movie call arrives** (PROVEN): GFx's ExternalInterface handler (0x2AF940) calls slot
+4 of its handler's vtable (0x2AF966) with (movie, method, arguments, count). The lobby menu's handler
+is its `survarium::flash_external_handler` base at +F0h (RTTI 0xA476C4, the hierarchy 0xA47700:
+`handler@input` at +ECh, `flash_external_handler` at +F0h, `flash_function_handler` at +F8h),
+vtable 0x9FFEDC, slot 4 = **lobby_menu::scaleform_callback 0x28C2C0** (thiscall, `ret 10h`): it
+builds the event {movie, name, arguments, count, 0} on its stack and calls
+**lobby_menu_logic::call 0x2812E0** (stdcall(logic, event), `ret 8`) with the logic at
+ECX+5B8h (the menu+6A8h). call compares the name with its 70h names (0x9C56C8) and calls the
+delegate of that index (logic+1C00h+20h×index, 0x2813AB; registered by name at 0x281750..: e.g.
+`mov eax,29A830h` start_decal_edit's handler at 0x2817CC, stored by 0x283610 with the menu,
+logic+2A24h, as its `this`); a name it lacks is logged when the engine's log asks (0x281351) and
+answers al 0. The game's own named events (show_match_statistic, 0x271960) enter call directly,
+not through scaleform_callback. The 0xF8h base's slot (0x28C280) is the function-name handler, a
+second way in, which the patch does not need.
+
+**The site** `lobby.callback` (0x28C2C0, a lohook of 7 bytes: `sub esp,14h / mov eax,[esp+18h]`,
+branch-free; nothing aims inside): ECX the handler, the site's ESP+8 the name, +0Ch the arguments,
++10h the count (`survarium::lobby_callback_frame`). Its exit `done` is the function's own `ret 10h`
+at 0x28C2FD (after its `add esp,14h`, so with the stack as at the entry), as hud.callback's and
+options.callback's. Patch 207 takes `srp_set_upgrade_value` there (EAX 1, the menu's handlers' al
+1; GFx's caller drops it) and leaves every other call to the game, unchanged.
+
+**The engine call: send_apply_decal 0x270950, not accept_decal_edit 0x263950** (both read in full):
+
+- accept_decal_edit (`void(ESI the lobby character, host, decal)`, `ret 8`) does nothing outside a
+  decal edit (`cmp byte [esi+0D514h],0 / je 0x263A68`). In one it ends it: the edit flag off
+  (0x263971), the preview's scene decal 999 taken away (0x263994 → 0x231B0), 0x225130(al 1) on the
+  menu, and it reads the value from the edit's own state (+D548h/+D54Ch) and the record's index
+  from +D52Dh (0x263A1A), then the markers (0x265F80). To use it the patch would have to open an
+  edit's state on the menu's character (the flag, +D52Dh, +D548h) and leave it closed again with
+  the movie's decal editor never told: its state is the decal editor's, not a side's.
+- send_apply_decal (`void(lobby client, kit, host, cosmetic, low, high)`, stdcall, `ret 18h`) is
+  the request and the client's write alone: `46` begun on the lobby link (0x37A0E0, which sends
+  nothing without a link, 0x37A12A), `05`, the four values (0x270984..0x270A10), sent (0x379640);
+  then the host found in the inventory (lc+1EA978h..+1EA97Ch, find_item_by_id 0x277AA0), its first
+  record whose item id is the cosmetic's given the u64 (0x270A70..0x270AC6; nothing without one),
+  and copy_account_items (0x270320: the account's items +1E78ACh made their inventory records
+  again). accept_decal_edit calls it with the network client's lobby client (the client's vtable
+  +3Ch, 0x219960: +1E0h) and its active kit (lc+1EA964h) (0x263A28..0x263A5C). It is the engine
+  call: `engine_send_apply_decal` (engine_026g.tsv).
+
+**The client's own copy.** send_apply_decal writes the bare value into the record whose item id is
+the upgrade's. A weapon's records are srp's weapon kit (`weapon-kit`, weapon-kit.md): its second
+sight is either the kit record's own (no scope, camouflage, muzzle or grip: the record of its item
+id holds the wide kit value, bit 55 the side) or a dict id the kit of another item names (no record
+of its id). In the first case the game's write puts 0 or 1 over the kit (the record becomes a plain
+scope-slot record of the optic, the kit lost until the account comes); in the second it writes
+nothing. So after the send the patch gives the host the records the server will hold — the host's
+records unpacked (`Logical::unpack`), the second sight's side set, packed again
+(`Logical::pack`) — only when they are the host's own with other values (the same count, each the
+same item, dict id and slot), and runs copy_account_items again (`engine_copy_account_items`, ESI
+the lobby client), as the send did after its own write. A host gone after the send (none in the
+game: the send changes no vector) or other records: a line, the account sets it.
+
+**The boundary** (upgrade_value.rs, parsed once): the method's three arguments are whole numbers
+(a GFx uint, an int not below 0, or a Number; the native handlers read the +8 of theirs,
+0x29A837); the value is a `weapon_kit::Side` (0 or 1): any other value sends nothing and writes
+one line to the patches' log, once a run (`srp: upgrade_value: srp_set_upgrade_value(host,
+upgrade, value): the value is no side ...`). The host and the upgrade are items of the account's
+inventory, the host's records a weapon kit (only a weapon's are: srp's servers pack a kit for
+`is_weapon` items alone) whose second sight is the upgrade (its own item id, or the dict id the kit
+names being the upgrade item's): else nothing is sent (a refusal's line, at most one a second).
+The same side again is sent (the server answers the account, the movie redraws).
+
+**Checked:** `check_upgrade_value_026g.py` (`tools/check upgrade-value`, Unicorn): the callback
+from its start to its return in both exes, the lobby menu's handler, logic, game, network client,
+lobby client and inventory made up; the dispatch, the message's begin and send and kernel32's log
+calls stubbed; send_apply_decal, its buffer growth, find_item_by_id and copy_account_items the
+game's own. A weapon whose kit is its second sight's and one whose scope's kit names it (beside a
+decal), each to either side, with uint, int and Number arguments: the request's bytes
+`46 05 <kit> <host> <upgrade> <u64>` sent once, send_apply_decal reached with (the lobby client,
+the kit, the host, the upgrade, the value, 0), the host's kit with the new side and its other
+records as they were, copy_account_items twice; a value 2, 0xFFFFFFFF, 0.5 or -1, another item's
+sight, a missing host or upgrade, an armour, a string or a missing argument: nothing sent, the log
+line once in the run; each returns by `ret 10h` with EBX, ESI, EDI, EBP as at the entry and no
+native dispatch, which the original makes each time; start_decal_edit goes to the native dispatch
+with the same `this` and event in both. With the repair of the client's copy taken out, seven
+cases fail. The patch's logic and the vostok wrapper have cargo tests. **Not run in a game.**

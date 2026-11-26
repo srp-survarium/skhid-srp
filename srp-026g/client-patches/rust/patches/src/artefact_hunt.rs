@@ -13,7 +13,8 @@
 //! - the input (patch 78's `carry.input`, asked first): the frozen
 //!   countdown, the use key's take and delivery, the Drop key;
 //! - the carrier: his two modifiers (patch 109's getter sites), no sprint;
-//!   his marker for both teams;
+//!   his dot on the minimaps for both teams; the artefact's mark on his
+//!   marker (which only his teammates see);
 //! - the hud: `root.artefact_hunt_update`, the messages, the welcome.
 //!
 //! Every game computes the same: what the simulation's hooks read is the
@@ -25,7 +26,7 @@ use core::ffi::CStr;
 
 use artefact_hunt_rule::{
     Action, After, ArtefactView, BaseDef, Cue, Event, Hud, Line, Message, Params, Place, Position, RawParams,
-    RawShape, Reason, Rule, Shift, Spawner, SuddenShown, Team, Time, View, Viewer, MAX_SHAPES, MAX_SPAWNERS,
+    RawShape, Reason, Rule, Spawner, SuddenShown, Team, Time, View, Viewer, MAX_SHAPES, MAX_SPAWNERS,
     PLAYERS, REACH, along,
 };
 
@@ -42,7 +43,7 @@ use crate::vostok::statistics::ScoreEvent;
 use crate::vostok::world::{GameWorld, Player, WorldKey};
 use crate::vostok::{
     ArtefactHuntOnCanSprintExit, ArtefactHuntOnEnemyExit, ArtefactHuntOnMarkExit,
-    ArtefactHuntOnNameExit, Context, Flow, GameCell, GameWorldUi,
+    Context, Flow, GameCell, GameWorldUi,
     Lock, NoExit, OrigTdmCookCreate, OrigTdmCookSize, OrigTdmRuleCompleted, OrigTdmRuleDeserialize, OrigTdmRuleEntered,
     OrigTdmRuleFillHud, OrigTdmRuleLeft, OrigTdmRuleOnEvent, OrigTdmRuleSerialize, OrigTdmRuleSetCore,
     Thread,
@@ -197,7 +198,6 @@ fn read_config(root: &ConfigTable<'_>) -> Result<(Params, Item), &'static str> {
         round_countdown_time: int(c"round_countdown_time")?,
         score: int(c"score")?,
         respawn_time: int(c"respawn_time")?,
-        time_needed_to_respawn: int(c"time_needed_to_respawn")?,
         vi_spawn_time: int(c"vi_spawn_time")?,
         vi_spawn_variation: int(c"vi_spawn_variation")?,
         vi_not_picked_ttl: int(c"vi_not_picked_ttl")?,
@@ -280,7 +280,6 @@ fn read_config(root: &ConfigTable<'_>) -> Result<(Params, Item), &'static str> {
         artefact_hunt_rule::ParamError::RoundCountdownTime => "parameters.round_countdown_time",
         artefact_hunt_rule::ParamError::Score => "parameters.score",
         artefact_hunt_rule::ParamError::RespawnTime => "parameters.respawn_time",
-        artefact_hunt_rule::ParamError::TimeNeededToRespawn => "parameters.time_needed_to_respawn",
         artefact_hunt_rule::ParamError::ViSpawnTime => "parameters.vi_spawn_time",
         artefact_hunt_rule::ParamError::ViNotPickedTtl => "parameters.vi_not_picked_ttl",
         artefact_hunt_rule::ParamError::ViDroppedTtl => "parameters.vi_dropped_ttl",
@@ -528,15 +527,14 @@ pub fn on_completed(_: &OrigTdmRuleCompleted, rule: &mut HuntRule<'_>, time: u32
 
 // ---- the respawn rule ----------------------------------------------------------
 
-/// A death's delay: the wave's time (`Rule::respawn_at`), the native grid
-/// and store after it.
+/// A death's delay: the wave's time (`Rule::respawn_at`, the native delay
+/// and its respawn modifier dropped), the native grid and store after it.
 pub fn on_death_delay(ctx: &mut Context<'_>) -> Flow<NoExit> {
     let Some(mut delay) = DeathDelay::at(ctx) else { return Flow::Continue };
     let Some(world) = delay.world().map(|world| world.key()) else { return Flow::Continue };
     let Some(hunt) = hunt_in(delay.thread(), world) else { return Flow::Continue };
-    let shift = Shift::new(delay.delay() as i32 - delay.respawn_time() as i32);
     let death = Time::from_ms(delay.time());
-    if let Some(at) = hunt.state.respawn_at(&hunt.params, death, shift) {
+    if let Some(at) = hunt.state.respawn_at(&hunt.params, death) {
         delay.set_delay(at.ms().wrapping_sub(death.ms()));
     }
     Flow::Continue
@@ -748,15 +746,11 @@ pub fn on_can_sprint(ctx: &mut Context<'_>) -> Flow<ArtefactHuntOnCanSprintExit>
     }
 }
 
-/// render_name's spotted test of an enemy: the carrier's marker always.
-pub fn on_name(ctx: &mut Context<'_>) -> Flow<ArtefactHuntOnNameExit> {
-    match native::name_enemy(ctx) {
-        Some(player) if carries(&player) => Flow::Exit(ArtefactHuntOnNameExit::Shown),
-        _ => Flow::Continue,
-    }
-}
-
 /// update_minimap_players' spotted test of an enemy: the carrier's dot always.
+/// The minimaps are the only place an enemy carrier is shown: render_name's
+/// spotted test (the marker over his head, which shows through walls) is left
+/// to the game (the owner, 2026-11-26: "player with art is still seen in ui,
+/// not only on map — which is wh and is not interesting gameplay").
 pub fn on_enemy(ctx: &mut Context<'_>) -> Flow<ArtefactHuntOnEnemyExit> {
     match native::minimap_enemy(ctx) {
         Some(player) if carries(&player) => Flow::Exit(ArtefactHuntOnEnemyExit::Shown),
@@ -1385,7 +1379,7 @@ mod tests {
         ];
         let raw = RawParams {
             match_time: 900, time_needed_to_continue_match: 90, draw_additional_time: 180, time_before_new_round: 3,
-            round_countdown_time: 5, score: 5, respawn_time: 15, time_needed_to_respawn: 7, vi_spawn_time: 60,
+            round_countdown_time: 5, score: 5, respawn_time: 15, vi_spawn_time: 60,
             vi_spawn_variation: 10, vi_not_picked_ttl: 120, vi_dropped_ttl: 60, drop_lift: 0.13, usable_radius: 0.3,
         };
         let params = Params::parse(&raw, &spawners, &bases).unwrap();

@@ -593,7 +593,7 @@ pub fn share_active(ctx: &mut Context<'_>) {
                 if kind == crate::artefact_skills::Kind::Lifebone {
                     heal_as_lifebone(item, target.0, time);
                 }
-                if let Some(resource) = item.active_resource() {
+                if let Some(resource) = super::artefact_skills::worn_resource(ctx.thread(), artefact).or_else(|| item.active_resource()) {
                     OwnedEffect::emit(ctx.thread(), resource, Some(length_ms)).play_timed(ctx.thread(), target.0.at, time);
                 }
             }
@@ -625,7 +625,8 @@ unsafe fn heal_as_lifebone(item: raw::MedicalArtefact, target: Player<'_>, time:
         }
         for name in [c"body", c"head", c"pain", c"left_hand", c"right_hand", c"left_leg", c"right_leg"] {
             if let Some(pool) = target.pool(name) {
-                raw::engine_increase_health(Some(pool), time, *pool.maximum());
+                let missing = *pool.maximum() - *pool.health();
+                raw::engine_increase_health(Some(pool), time, missing * super::artefact_skills::wear(item.item().artefact()).firing().power());
             }
         }
     }

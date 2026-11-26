@@ -1,4 +1,6 @@
 //! World context, player heads, rules and statistics. Runtime enforcement is separate.
+mod artefact_wear;
+pub use artefact_wear::ArtefactWear;
 mod bullets;
 mod effects;
 mod frame;

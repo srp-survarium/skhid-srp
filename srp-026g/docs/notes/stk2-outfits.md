@@ -55,15 +55,15 @@ code names none of them (sold as the knit cap, below).
   beanie is": gear of no faction is sold by seller 0 to everyone at no rank, as the cap, at
   its price (Stats, below). They also drop after
   matches: each has its level's drop weight, its category is in the generic drop table, and
-  the table's level rows roll its item level (`prices::tests::the_stk2_outfits_are_sold_to_everyone_at_no_rank`;
-  on the built server data, `drops::tests::the_stk2_outfits_drop_and_are_sold_to_everyone`).
+  the table's level rows roll its item level (on the built server data,
+  `drops::tests::the_stk2_outfits_drop_and_are_sold_to_everyone`).
   Drops are rolled after a match and prices are the lobby's, so nothing a match computes
   changes (no `simulation_changes.tsv` row).
 - **Levels (the owner, 2026-10-31):** the Novice's set 4, the bandit's and the loner's 6.
 - Each item's config is a stock piece's of its slot (card, sounds, rollable modifications)
-  with its own numbers (Stats, below), model, icon, texts and faction (none); no
-  camouflage (the donor textures have no masks); decals as stock jackets and trousers since
-  2026-11-20 (Decals, below); no item takes another slot.
+  with its own numbers (Stats, below), model, icon, texts and faction (none); decals as stock
+  jackets and trousers since 2026-11-20 (Decals, below), a camouflage since stk2-camo@1
+  (Camouflage, below); no item takes another slot.
 
 ## Stats (the owner's, 2026-10-31)
 
@@ -411,4 +411,29 @@ put on armor and pants, not balaclavas".
     body has its two decals on the torso and none on the legs;
   - the Novice's jeans' grown waist repeats the denim below it (4 % of the map's texels): a decal
     put at the very waistline, under a jacket's hem, shows mirrored above it;
-  - no camouflage: its bake needs the `_aoac` mask beside the diffuse map.
+  - no camouflage until stk2-camo@1 (below): its bake needs the `_aoac` mask beside the diffuse map.
+
+## Camouflage (stk2-camo@1, 2026-11-26)
+
+The owner, after the exoskeletons took one (exo-camo, `exo-suits.md`): "let's also add camo to other
+STK2" armour. The seven jackets and trousers (1822, 1864, 1865, 1868, 1870, 1873, 1874) take a
+camouflage as stock ones do; the owner approved the coverage on renders (before, dark woodland, bright
+desert).
+
+- Why they took none: the configs had `parameters/camo_available` false, and the game bakes a
+  camouflage into a surface only when `<diffuse>_aoac.dds` loads beside its diffuse
+  (`weapon-camo.md`, "The engine"); the donor maps have no masks.
+- The pack (`scripts/stk2-camo/make_pack.py`): the flag on the seven configs, and a mask for each
+  set's `torso_diffuse` and `legs_diffuse` (the jacket's and the trousers' own surfaces, every
+  length; the Novice's two jackets share one map), made as exo-camo's: the UV islands under the
+  points `SETS` names and in them the cloth texels, not the straps and the much darker or brighter
+  details (seams, stripes, zips), not the boxes left bare (the loner's shoulder badges and an
+  emblem on his shirt, the Novice's chest logo); B and R keep the cloth's shading.
+- Painted: the bandit's leather jacket and sleeves (the hammer and sickle on the back is embossed
+  and shows through as relief) and his track pants; the loner's hooded shirt (sleeves, body, hood)
+  and camo trousers; the Novice's jacket and sleeves and his jeans.
+- Bare: the loner's vest, bags, holster and nuts bag, the bandit's T-shirt, shoulder straps and
+  forearms (other surfaces); the gloves, boots, the Novice's hood and backpack (other items, as
+  stock ones).
+- The models' file names are their own already (Decals, above): no bake is shared between sets.
+- Not yet seen in a game.

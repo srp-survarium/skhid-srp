@@ -72,7 +72,7 @@ pub fn on_input(ctx: &mut Context<'_>) -> Flow<ArtefactCarryOnInputExit> {
         event(&player, ctx, Event::Gone);
     }
     let artefact = QuickSlot::from_actions(actions).filter(|_| allowed)
-        .and_then(|slot| player.inventory()?.quick_artefact(slot.get()));
+        .and_then(|slot| player.inventory()?.quick_artefact(slot));
     event(&player, ctx, Event::Input { now, actions, artefact });
     if hunt == crate::artefact_hunt::Input::Used {
         consume_use(&player, ctx);

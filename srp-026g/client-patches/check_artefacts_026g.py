@@ -580,13 +580,12 @@ def run(data, patched):
 
     expect(localized("for {s} s.") == "for  s." and localized("{{x") == "{x",
            "the localizer drops {s} (the owner's first test: \"for  s.\")")
-    expect(len(HINTS) == len(LANGUAGES) and all(localized(h) == h and h.count("%s") == 1 and "75" in h for h in HINTS),
+    expect(len(HINTS) == len(LANGUAGES) and all(localized(h) == h and h.count("%s") == 1 for h in HINTS),
            "all Onyx activation hints come through the localizer as they are, one %s each")
     for n in (1, 2, 3):
         ms = 3000 + (n - 1) * 1000 if patched else 3000
         shown = [h.replace("%s", str(math.ceil(ms / 1000))) for h in HINTS]
-        expect(shown[0] == f"Onyx activated! Decreases the damage and armor-piercing of incoming bullets by 75% "
-                          f"for {ms // 1000} s." and all(f" {ms // 1000} " in s for s in shown),
+        expect(shown[0] == f"Onyx activated! Incoming bullets deal less damage and have less armor piercing for {ms // 1000} s." and all(f" {ms // 1000} " in s for s in shown),
                f"{n} Onyx: the hud shows \"{shown[0]}\"")
     return checks
 
