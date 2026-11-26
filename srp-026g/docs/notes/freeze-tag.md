@@ -449,6 +449,10 @@ Rudnya day; the matches record into the world corpus):
 
 Open:
 
+- The last one fighting sometimes not on the other team's map, his body seen (the owner, 2026-11-26):
+  not explained yet. The sync log (`SKHID_SYNC_LOG=on`, patch 210, sync-log.md "The last one fighting
+  on the map") writes, once a second, whether the minimap tested and listed him; one match of an
+  affected player with it says which step drops him.
 - A frozen player who leaves and comes back, and one who enters in the
   pause: not played yet with the entry fix ("No place out of the world").
 - A late joiner's lives count the match's round starts, those before he

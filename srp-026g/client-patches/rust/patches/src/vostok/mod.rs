@@ -36,6 +36,7 @@ pub mod footstep;
 pub mod zone_guard;
 pub mod material;
 pub mod freeze;
+pub mod desync;
 pub mod camera;
 pub mod carry_runtime;
 pub mod carry_ground;
