@@ -503,10 +503,10 @@ Bring it to your own base: 1 point, and the round ends.	Vie se omaan tukikohtaas
 The carrier is slower and seen by everyone.	Kantaja on hitaampi ja kaikkien nähtävissä.
 Respawn in waves every {0} s.	Uudelleensyntyminen aalloissa {0} s:n välein.
 Time limit {0}: the higher score wins; a tie plays {1} of sudden death without respawns.	Aikaraja {0}: suurempi tulos voittaa; tasatilanteessa {1} äkkikuolemaa ilman uudelleensyntymistä.
-Sniper rifles, silenced guns and guns without automatic fire are replaced.	Tarkkuuskiväärit, äänenvaimennetut aseet ja aseet ilman sarjatulta vaihdetaan.
-Rooms up to level {0}: {1}.	Huoneet tasolle {0} asti: {1}.
-Other rooms: {0}.	Muut huoneet: {0}.
-Sight: {0}.	Tähtäin: {0}.
+Everyone fights with an assault rifle: sniper rifles, silenced guns and guns without automatic fire are swapped for an {0} (rooms up to level {1}) or an {2} (higher rooms).	Kaikki taistelevat rynnäkkökivääreillä: tarkkuuskiväärit, äänenvaimennetut aseet ja aseet ilman sarjatulta vaihdetaan aseeseen {0} (huoneet tasolle {1} asti) tai {2} (korkeammat huoneet).
+Each comes with an {0}.	Jokaisessa on {0}.
+a revolver	revolveri
+a lever-action rifle	vipulukkokivääri
 Every kit: {0} only.	Jokainen varustus: vain {0}.
 Every kit: {0} and {1}.	Jokainen varustus: {0} ja {1}.
 Everyone plays the same {0} random kits.	Kaikki pelaavat samoilla {0} satunnaisella varustuksella.

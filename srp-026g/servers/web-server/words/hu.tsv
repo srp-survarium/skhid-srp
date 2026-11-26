@@ -503,10 +503,10 @@ Bring it to your own base: 1 point, and the round ends.	Vidd a saját bázisodra
 The carrier is slower and seen by everyone.	A hordozó lassabb, és mindenki látja.
 Respawn in waves every {0} s.	Újraéledés hullámokban, {0} mp-enként.
 Time limit {0}: the higher score wins; a tie plays {1} of sudden death without respawns.	Időkorlát {0}: a magasabb pontszám nyer; döntetlennél {1} hirtelen halál újraéledés nélkül.
-Sniper rifles, silenced guns and guns without automatic fire are replaced.	A mesterlövészpuskák, a hangtompítós és a sorozatlövés nélküli fegyverek lecserélődnek.
-Rooms up to level {0}: {1}.	{0}. szintig a szobákban: {1}.
-Other rooms: {0}.	Többi szoba: {0}.
-Sight: {0}.	Irányzék: {0}.
+Everyone fights with an assault rifle: sniper rifles, silenced guns and guns without automatic fire are swapped for an {0} (rooms up to level {1}) or an {2} (higher rooms).	Mindenki gépkarabéllyal harcol: a mesterlövészpuskák, a hangtompítós fegyverek és az automata tüzelés nélküli fegyverek helyére {0} (a {1}. szintig terjedő szobákban) vagy {2} (magasabb szobákban) kerül.
+Each comes with an {0}.	Mindegyiken {0} van.
+a revolver	egy revolver
+a lever-action rifle	egy karos zárú puska
 Every kit: {0} only.	Minden felszerelés: csak {0}.
 Every kit: {0} and {1}.	Minden felszerelés: {0} és {1}.
 Everyone plays the same {0} random kits.	Mindenki ugyanazzal a {0} véletlen felszereléssel játszik.

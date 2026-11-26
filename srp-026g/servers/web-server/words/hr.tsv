@@ -503,10 +503,10 @@ Bring it to your own base: 1 point, and the round ends.	Donesite ga u svoju bazu
 The carrier is slower and seen by everyone.	Nositelj je sporiji i svi ga vide.
 Respawn in waves every {0} s.	Oživljavanje u valovima svakih {0} s.
 Time limit {0}: the higher score wins; a tie plays {1} of sudden death without respawns.	Vremensko ograničenje {0}: pobjeđuje veći rezultat; kod neriješenog {1} iznenadne smrti bez oživljavanja.
-Sniper rifles, silenced guns and guns without automatic fire are replaced.	Snajperske puške, oružje s prigušivačem i oružje bez automatske paljbe zamjenjuju se.
-Rooms up to level {0}: {1}.	Sobe do razine {0}: {1}.
-Other rooms: {0}.	Ostale sobe: {0}.
-Sight: {0}.	Nišan: {0}.
+Everyone fights with an assault rifle: sniper rifles, silenced guns and guns without automatic fire are swapped for an {0} (rooms up to level {1}) or an {2} (higher rooms).	Svi se bore jurišnim puškama: snajperske puške, oružje s prigušivačem i oružje bez automatske paljbe zamjenjuju se s {0} (sobe do razine {1}) ili {2} (više sobe).
+Each comes with an {0}.	Svaka ima {0}.
+a revolver	revolver
+a lever-action rifle	puška s polužnim zatvaračem
 Every kit: {0} only.	Svaki komplet: samo {0}.
 Every kit: {0} and {1}.	Svaki komplet: {0} i {1}.
 Everyone plays the same {0} random kits.	Svi igraju iste {0} nasumične komplete.

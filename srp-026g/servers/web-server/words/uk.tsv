@@ -503,10 +503,10 @@ Bring it to your own base: 1 point, and the round ends.	Принесіть йо�
 The carrier is slower and seen by everyone.	Носій повільніший і видимий усім.
 Respawn in waves every {0} s.	Відродження хвилями кожні {0} с.
 Time limit {0}: the higher score wins; a tie plays {1} of sudden death without respawns.	Ліміт часу {0}: перемагає більший рахунок; за нічиєї — {1} раптової смерті без відродження.
-Sniper rifles, silenced guns and guns without automatic fire are replaced.	Снайперські гвинтівки, зброя з глушником і зброя без автоматичного вогню замінюються.
-Rooms up to level {0}: {1}.	Кімнати до рівня {0}: {1}.
-Other rooms: {0}.	Інші кімнати: {0}.
-Sight: {0}.	Приціл: {0}.
+Everyone fights with an assault rifle: sniper rifles, silenced guns and guns without automatic fire are swapped for an {0} (rooms up to level {1}) or an {2} (higher rooms).	Усі б'ються штурмовими гвинтівками: снайперські гвинтівки, зброя з глушником і зброя без автоматичного вогню замінюються на {0} (кімнати до рівня {1}) або {2} (вищі кімнати).
+Each comes with an {0}.	Кожна — з {0}.
+a revolver	револьвер
+a lever-action rifle	гвинтівка з важільним затвором
 Every kit: {0} only.	Кожен набір: лише {0}.
 Every kit: {0} and {1}.	Кожен набір: {0} і {1}.
 Everyone plays the same {0} random kits.	Усі грають тими самими {0} випадковими наборами.

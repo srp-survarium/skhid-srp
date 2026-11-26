@@ -503,10 +503,10 @@ Bring it to your own base: 1 point, and the round ends.	Zanieś go do własnej b
 The carrier is slower and seen by everyone.	Niosący jest wolniejszy i widoczny dla wszystkich.
 Respawn in waves every {0} s.	Odrodzenie falami co {0} s.
 Time limit {0}: the higher score wins; a tie plays {1} of sudden death without respawns.	Limit czasu {0}: wygrywa wyższy wynik; przy remisie {1} nagłej śmierci bez odrodzeń.
-Sniper rifles, silenced guns and guns without automatic fire are replaced.	Karabiny snajperskie, broń z tłumikiem i broń bez ognia automatycznego są zastępowane.
-Rooms up to level {0}: {1}.	Pokoje do poziomu {0}: {1}.
-Other rooms: {0}.	Pozostałe pokoje: {0}.
-Sight: {0}.	Celownik: {0}.
+Everyone fights with an assault rifle: sniper rifles, silenced guns and guns without automatic fire are swapped for an {0} (rooms up to level {1}) or an {2} (higher rooms).	Wszyscy walczą karabinkami szturmowymi: karabiny snajperskie, broń z tłumikiem i broń bez ognia automatycznego zostają zamienione na {0} (pokoje do poziomu {1}) lub {2} (wyższe pokoje).
+Each comes with an {0}.	Każdy ma {0}.
+a revolver	rewolwer
+a lever-action rifle	karabin z zamkiem dźwigniowym
 Every kit: {0} only.	Każdy zestaw: tylko {0}.
 Every kit: {0} and {1}.	Każdy zestaw: {0} i {1}.
 Everyone plays the same {0} random kits.	Wszyscy grają tymi samymi {0} losowymi zestawami.

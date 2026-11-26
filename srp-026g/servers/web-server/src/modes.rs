@@ -359,16 +359,43 @@ fn mode_rules(lang: Lang, mode: GameMode, maps: &[&MapMode]) -> Vec<String> {
 /// An item's name as the game shows it, without the lists' "(premium)":
 /// what a version gives is the same gun whatever copy it is.
 fn item_name(lang: Lang, dict_id: u16) -> String {
-    item_params::item_params(dict_id)
+    let name = item_params::item_params(dict_id)
         .and_then(|params| params.name_key)
-        .map_or_else(|| dict_id.to_string(), |key| modifiers::text(lang, key))
+        .map_or_else(|| dict_id.to_string(), |key| modifiers::text(lang, key));
+    latin_letters(&name)
 }
 
-/// An item's name by its dictionary name, if the data has it.
-fn named_item(lang: Lang, name: &str) -> String {
+/// `text` with each word that mixes Latin and Cyrillic letters (the stock
+/// English names the AK-74N "АК-74N", its А and К Cyrillic) in Latin letters
+/// alone, its Cyrillic letters by the Latin ones they look like. A word of
+/// one script stays as it is, the Cyrillic languages' "АК-74Н" too.
+fn latin_letters(text: &str) -> String {
+    const LOOKALIKES: [(char, char); 18] = [
+        ('А', 'A'), ('В', 'B'), ('Е', 'E'), ('К', 'K'), ('М', 'M'), ('Н', 'H'), ('О', 'O'), ('Р', 'P'), ('С', 'C'),
+        ('Т', 'T'), ('Х', 'X'), ('а', 'a'), ('е', 'e'), ('о', 'o'), ('р', 'p'), ('с', 'c'), ('у', 'y'), ('х', 'x'),
+    ];
+    text.split(' ')
+        .map(|word| {
+            let cyrillic = word.chars().any(|c| ('\u{400}'..='\u{4FF}').contains(&c));
+            let latin = word.chars().any(|c| c.is_ascii_alphabetic());
+            if cyrillic && latin {
+                word.chars()
+                    .map(|c| LOOKALIKES.iter().find(|(from, _)| *from == c).map_or(c, |(_, to)| *to))
+                    .collect()
+            } else {
+                word.to_owned()
+            }
+        })
+        .collect::<Vec<String>>()
+        .join(" ")
+}
+
+/// An item's name by its dictionary name; `None` for one the data does not
+/// have (the tests' data has no shop scopes), never its dictionary name.
+fn named_item(lang: Lang, name: &str) -> Option<String> {
     Dictionary::shared()
         .item_named(name)
-        .map_or_else(|| name.to_owned(), |item| item_name(lang, item.dict_id))
+        .map(|item| item_name(lang, item.dict_id))
 }
 
 /// A free-for-all's version's rules.
@@ -380,25 +407,24 @@ fn version_rules(lang: Lang, mode: LobbyMode) -> Vec<String> {
                 .filter(|&level| Gun::of_room(level) == Gun::Ak74n)
                 .max()
                 .unwrap_or(0);
-            vec![
-                lang.t("Sniper rifles, silenced guns and guns without automatic fire are replaced."),
-                lang.tf(
-                    "Rooms up to level {0}: {1}.",
-                    &[("0", &up_to), ("1", &gun(Gun::Ak74n))],
-                ),
-                lang.tf("Other rooms: {0}.", &[("0", &gun(Gun::Ak12))]),
-                lang.tf("Sight: {0}.", &[("0", &escape(&named_item(lang, racket::SIGHT)))]),
-            ]
+            let swapped = lang.tf(
+                "Everyone fights with an assault rifle: sniper rifles, silenced guns and guns without automatic fire are swapped for an {0} (rooms up to level {1}) or an {2} (higher rooms).",
+                &[("0", &gun(Gun::Ak74n)), ("1", &up_to), ("2", &gun(Gun::Ak12))],
+            );
+            // The sight, where the data has it.
+            let sight = named_item(lang, racket::SIGHT)
+                .map(|sight| lang.tf("Each comes with an {0}.", &[("0", &escape(&sight))]));
+            std::iter::once(swapped).chain(sight).collect()
         }
         LobbyMode::Cowboy(Variation::Colt) => vec![lang.tf(
             "Every kit: {0} only.",
-            &[("0", &escape(&named_item(lang, cowboy::COLT)))],
+            &[("0", &escape(&named_item(lang, cowboy::COLT).unwrap_or_else(|| lang.t("a revolver"))))],
         )],
         LobbyMode::Cowboy(Variation::WinchesterAndColt) => vec![lang.tf(
             "Every kit: {0} and {1}.",
             &[
-                ("0", &escape(&named_item(lang, cowboy::WINCHESTER))),
-                ("1", &escape(&named_item(lang, cowboy::COLT))),
+                ("0", &escape(&named_item(lang, cowboy::WINCHESTER).unwrap_or_else(|| lang.t("a lever-action rifle")))),
+                ("1", &escape(&named_item(lang, cowboy::COLT).unwrap_or_else(|| lang.t("a revolver")))),
             ],
         )],
         LobbyMode::Roulette(_) => {
@@ -516,4 +542,51 @@ pub(crate) fn body(lang: Lang, pools: &Pools) -> String {
         lang.t("Modes"),
         lang.t("Modes"),
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Whether a word mixes Latin and Cyrillic letters.
+    fn mixed(word: &str) -> bool {
+        word.chars().any(|c| c.is_ascii_alphabetic()) && word.chars().any(|c| ('\u{400}'..='\u{4FF}').contains(&c))
+    }
+
+    /// No mode's or version's description shows a dictionary's name
+    /// (`shop_scope_eotech_552`) or a word of two scripts ("АК-74N", the stock
+    /// English name), in any language: the page and every version's rules.
+    #[test]
+    fn descriptions_name_items_in_words_of_one_script() {
+        for lang in Lang::ALL {
+            let page = body(lang, &Pools::every_playable());
+            let mut texts: Vec<String> = LobbyMode::ALL.into_iter().flat_map(|mode| version_rules(lang, mode)).collect();
+            texts.push(page);
+            for text in &texts {
+                for word in text.split(|c: char| c.is_whitespace() || "<>\"(),.:;".contains(c)) {
+                    assert!(!(word.contains('_') && word.chars().all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '.')) || word.starts_with("data-") , "{}: a dictionary name {word:?} in {text:?}", lang.code());
+                    assert!(!mixed(word), "{}: {word:?} mixes scripts", lang.code());
+                }
+            }
+        }
+        // The stock English AK-74N, in Latin letters; a Cyrillic language's own as it is.
+        assert_eq!(latin_letters("АК-74N"), "AK-74N");
+        assert_eq!(latin_letters("АК-74Н"), "АК-74Н", "a word of one script stays");
+        assert_eq!(latin_letters("Набор AK"), "Набор AK");
+    }
+
+    /// The Racket's rules say what it is in a sentence, its sight where the
+    /// data has it, never its dictionary name.
+    #[test]
+    fn the_rackets_rules_are_a_sentence() {
+        let rules = version_rules(Lang::En, LobbyMode::Racket);
+        assert!(rules[0].starts_with("Everyone fights with an assault rifle: "), "{rules:?}");
+        assert!(rules[0].contains("(rooms up to level 10)") && rules[0].contains("(higher rooms)"), "{rules:?}");
+        assert!(rules.iter().all(|rule| !rule.contains(racket::SIGHT)), "{rules:?}");
+        assert_eq!(
+            rules.len(),
+            1 + usize::from(Dictionary::shared().item_named(racket::SIGHT).is_some()),
+            "the sight's line where the data has it"
+        );
+    }
 }

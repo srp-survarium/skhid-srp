@@ -503,10 +503,10 @@ Bring it to your own base: 1 point, and the round ends.	Doneste ho do vlastní z
 The carrier is slower and seen by everyone.	Nosič je pomalejší a vidí ho všichni.
 Respawn in waves every {0} s.	Oživení ve vlnách každých {0} s.
 Time limit {0}: the higher score wins; a tie plays {1} of sudden death without respawns.	Časový limit {0}: vyhrává vyšší skóre; při remíze {1} náhlé smrti bez oživení.
-Sniper rifles, silenced guns and guns without automatic fire are replaced.	Odstřelovací pušky, tlumené zbraně a zbraně bez automatické palby se nahrazují.
-Rooms up to level {0}: {1}.	Místnosti do úrovně {0}: {1}.
-Other rooms: {0}.	Ostatní místnosti: {0}.
-Sight: {0}.	Zaměřovač: {0}.
+Everyone fights with an assault rifle: sniper rifles, silenced guns and guns without automatic fire are swapped for an {0} (rooms up to level {1}) or an {2} (higher rooms).	Všichni bojují útočnými puškami: odstřelovací pušky, zbraně s tlumičem a zbraně bez automatické střelby se nahrazují za {0} (místnosti do úrovně {1}) nebo {2} (vyšší místnosti).
+Each comes with an {0}.	Každá má {0}.
+a revolver	revolver
+a lever-action rifle	puška s pákovým závěrem
 Every kit: {0} only.	Každá sada: jen {0}.
 Every kit: {0} and {1}.	Každá sada: {0} a {1}.
 Everyone plays the same {0} random kits.	Všichni hrají stejné {0} náhodné sady.
