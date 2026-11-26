@@ -39,8 +39,10 @@ use log::{Level, LevelFilter, Log, Metadata, Record};
 /// since retired). `memory` and `modules`: the match server's
 /// lines of those targets, client patch 126's memory reports (about 2.5 KB
 /// a player a match) and patch 125's module reports (about 2 KB), weeks of
-/// them for `release/moderate memory` and `release/moderate modules`.
-const SERVERS: [(&str, u64, u32); 7] = [
+/// them for `release/moderate memory` and `release/moderate modules`;
+/// `resources` the resource checks (`resource_checks`, two lines a player
+/// a match, about 0.4 KB), for `release/moderate resources`.
+const SERVERS: [(&str, u64, u32); 8] = [
     ("login", 2 << 20, 4),
     ("lobby", 4 << 20, 16),
     ("match", 8 << 20, 32),
@@ -48,6 +50,7 @@ const SERVERS: [(&str, u64, u32); 7] = [
     ("srp", 4 << 20, 4),
     ("modules", 4 << 20, 16),
     ("memory", 4 << 20, 16),
+    ("resources", 4 << 20, 16),
 ];
 
 /// Where the files are: unset for `logs`, empty or `off` for nowhere.
@@ -236,12 +239,14 @@ fn civil_from_days(days: u64) -> (u64, u64, u64) {
 }
 
 /// Which server's log a record belongs to, decided from its target prefix
-/// (a client report's kind its own file: `memory`, `modules`).
+/// (a client report's kind its own file: `memory`, `modules`, `resources`).
 fn server_for_target(target: &str) -> &'static str {
     if target == "memory" {
         "memory"
     } else if target == "modules" {
         "modules"
+    } else if target == "resources" {
+        "resources"
     } else if target.starts_with("login_server") {
         "login"
     } else if target.starts_with("lobby_server") || target.starts_with("messaging") {
@@ -317,7 +322,7 @@ mod tests {
 
     #[test]
     fn client_reports_go_to_their_own_files() {
-        for kind in ["memory", "modules"] {
+        for kind in ["memory", "modules", "resources"] {
             assert_eq!(server_for_target(kind), kind);
             assert!(SERVERS.iter().any(|&(server, _, _)| server == kind));
         }

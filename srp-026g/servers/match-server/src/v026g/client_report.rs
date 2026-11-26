@@ -22,6 +22,8 @@ pub fn log(carrier: &Carrier, name: &str, account: u32, match_id: u32) {
     match carrier.body {
         Body::Memory(part) => log::info!(target: MEMORY, "{}", memory_line(carrier, &part, name, account, match_id)),
         Body::Modules(part) => log::info!(target: MODULES, "{}", modules_line(carrier, &part, name, account, match_id)),
+        // Compared, not logged as they come: `resource_checks`.
+        Body::Checks(_) => {}
     }
 }
 
