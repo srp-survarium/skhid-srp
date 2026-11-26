@@ -448,7 +448,7 @@ pub(super) fn draw(
         return None;
     };
     let num = |name| tuning.number(super::plays::PlayKind::Roam, name);
-    let (friend, keep_ms) = (num("friend_factor"), (num("fresh_s") * 1000.0) as u32);
+    let keep_ms = (num("fresh_s") * 1000.0) as u32;
     let points1 = first.points(tactics);
     // Metres of a way's links into the regions the team's held shooters see (none known: 0).
     let exposed = |way: &RegionWay| {
@@ -474,7 +474,9 @@ pub(super) fn draw(
             let team = me.team;
             let alive = |who: Place| view.team(team).any(|p| p.place == who);
             let mates = lanes.mates_on(bot.place, [&stretches[0], &stretches[1]], away, walk.time, keep_ms, alive);
-            let odds = odds(c2 / c1.max(0.1), band, mates, friend);
+            // DIAGNOSTIC (bench only, not for merge): the draw without the teammate weight (a factor of 1: the mates are
+            // counted for the line, not weighed), to see whether the cover the spread costs comes back.
+            let odds = odds(c2 / c1.max(0.1), band, mates, 1.0);
             let number = number(bot.life_key, me.feet, walk.goal);
             let second = number < odds;
             let verdict = Verdict::Two { c2, mates, odds, number, second };
