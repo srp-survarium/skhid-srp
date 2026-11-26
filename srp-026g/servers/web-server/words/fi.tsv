@@ -95,8 +95,6 @@ Not found.	Ei löytynyt.
 Too many wrong tokens; wait a minute.	Liian monta väärää tokenia; odota minuutti.
 Wrong token.	Väärä token.
 No such user.	Käyttäjää ei ole.
-Silver and gold are whole numbers, + or -, or empty.	Hopea ja kulta ovat kokonaislukuja, + tai -, tai tyhjiä.
-{user}: now {silver_now} silver and {gold_now} gold.	{user}: nyt {silver_now} hopeaa ja {gold_now} kultaa.
 New accounts are taken again.	Uusia tilejä otetaan taas vastaan.
 New accounts are refused; existing players sign in as before.	Uusia tilejä ei oteta vastaan; nykyiset pelaajat kirjautuvat kuten ennenkin.
 Maintenance cancelled.	Huolto peruttu.
@@ -138,7 +136,6 @@ Q:	K:
 A:	V:
 If something goes wrong	Jos jokin menee pieleen
 Download the files	Lataa tiedostot
-Download the game	Lataa peli
 The download link is coming soon.	Latauslinkki tulee pian.
 Can't download? Run {script}: it downloads the whole game into a Survarium folder beside it.	Lataus ei onnistu? Suorita {script}: se lataa koko pelin viereensä Survarium-kansioon.
 Get the game	Hanki peli
@@ -155,10 +152,6 @@ Run <code>Skhid.bat</code> and press <b>PLAY</b>.	Käynnistä <code>Skhid.bat</c
 Windows warns about an unknown publisher? Let it run.<br>Linux: <code>bash Skhid.sh launcher</code>, see <code>LINUX.txt</code>.	Varoittaako Windows tuntemattomasta julkaisijasta? Salli suoritus.<br>Linux: <code>bash Skhid.sh launcher</code>, katso <code>LINUX.txt</code>.
 Windows warns about an unknown publisher? Let it run.<br>Linux: <code>bash Skhid.sh</code>, see <code>LINUX.txt</code>.	Varoittaako Windows tuntemattomasta julkaisijasta? Salli suoritus.<br>Linux: <code>bash Skhid.sh</code>, katso <code>LINUX.txt</code>.
 Run <code>play_skhid.bat</code> in <code>game\\binaries\\x86</code>.	Suorita <code>play_skhid.bat</code> kansiossa <code>game\\binaries\\x86</code>.
-Start it with this command line:	Käynnistä se tällä komentorivillä:
-english	finnish
-server address	palvelimen osoite
-language: english, russian, ukrainian	kieli: english, finnish, russian, ukrainian
 Skhid (Ukrainian for “east”) is a community server that lets the Survarium {version} client sign in, trade, form squads and play matches again.	Skhid (ukrainaa, ”itä”) on yhteisöpalvelin, jolla Survarium {version} -asiakasohjelma voi taas kirjautua, käydä kauppaa, muodostaa ryhmiä ja pelata otteluita.
 Project Discord: <a href="https://discord.gg/pxywZfaxRQ">discord.gg/pxywZfaxRQ</a>	Projektin Discord: <a href="https://discord.gg/pxywZfaxRQ">discord.gg/pxywZfaxRQ</a>
 Early test server.	Varhainen testipalvelin.
@@ -167,7 +160,6 @@ How to play	Näin pelaat
 Download our files and unpack them into an empty folder (e.g. D:\\Survarium). <b>You do this only once.</b>	Lataa tiedostomme ja pura ne tyhjään kansioon (esim. D:\\Survarium). <b>Tämä tehdään vain kerran.</b>
 Download our files and unpack them into the game's folder, the one with the <code>game</code> folder, replacing files. <b>You do this only once.</b>	Lataa tiedostomme ja pura ne pelin kansioon, siihen, jossa on <code>game</code>-kansio, korvaten tiedostot. <b>Tämä tehdään vain kerran.</b>
 Download our files and unpack them over the game's <code>game</code> folder.	Lataa tiedostomme ja pura ne pelin <code>game</code>-kansion päälle.
-Download the patched game and unpack it.	Lataa paikattu peli ja pura se.
 Sign in with any name and password: a new name registers itself. Remember the password.	Kirjaudu millä tahansa nimellä ja salasanalla: uusi nimi rekisteröityy itsestään. Muista salasana.
 New accounts are taken.	Uusia tilejä otetaan vastaan.
 Stop new registrations	Lopeta uudet rekisteröitymiset
@@ -177,7 +169,6 @@ Shown once the token is right.	Näytetään, kun token on oikein.
 Password	Salasana
 User name	Käyttäjänimi
 Silver, + or -	Hopea, + tai -
-Gold, + or -	Kulta, + tai -
 Change	Muuta
 Admin	Ylläpito
 Token	Token
@@ -951,3 +942,27 @@ A key fires every ready copy of its kind and restarts the cooldown of the ones s
 Copies of a kind add up (Onyx's passive multiplies); at most 4 count.	Saman lajin kappaleet lasketaan yhteen (Onyksin passiivi kertautuu); enintään 4 lasketaan.
 Spring's and Larkspur's actives add to the passive; Onyx's replaces it.	Jousen ja Ritarinkannuksen aktiivi lisätään passiiviin; Onyksin korvaa sen.
 Onyx fired together: one reduction, 1 s longer per extra copy.	Yhdessä aktivoidut Onyksit: yksi vähennys, 1 s pidempään jokaista lisäkappaletta kohden.
+
+# The maps' anomalies (scripts/maps-tab/ui.js)
+Anomalies	Anomaliat
+Anomaly	Anomalia
+Artefacts come from the anomalies. Each anomaly puts one of its artefacts into one of its free containers, one per time window, until its maximum lies uncollected; a pickup starts the window again. It gives only those of its artefacts that no player is carrying. Point at an anomaly or an artefact (or tap it) for its numbers.	Artefaktit tulevat anomalioista. Kukin anomalia laittaa yhden artefakteistaan yhteen vapaista säiliöistään, yhden aikaikkunaa kohden, kunnes sen enimmäismäärä on keräämättä; poiminta aloittaa ikkunan alusta. Se antaa vain ne artefaktinsa, joita kukaan pelaaja ei kanna. Osoita anomaliaa tai artefaktia (tai napauta sitä) nähdäksesi sen luvut.
+{s} s	{s} s
+{a}–{b} s	{a}–{b} s
+Holds	Sisältää
+First one	Ensimmäinen
+Then every	Sitten joka
+Chance	Mahdollisuus
+Max uncollected	Enintään keräämättä
+Search	Etsintä	artefact
+Zones switch every	Vyöhykkeet vaihtuvat joka
+After a pickup the next one comes {next} later; that container stays empty for {cooldown}.	Poiminnan jälkeen seuraava tulee {next} kuluttua; säiliö pysyy tyhjänä {cooldown}.
+Its own zone does no damage.	Sen oma vyöhyke ei vahingoita.
+Searching a container takes {search}; after a pickup it stays empty for {cooldown}.	Säiliön etsintä kestää {search}; poiminnan jälkeen se pysyy tyhjänä {cooldown}.
+After a pickup the next one comes {next} later.	Poiminnan jälkeen seuraava tulee {next} kuluttua.
+whole body	koko keho
+{n} % a hit, at most every {t}	{n} % osumalta, enintään {t} välein
+deadly	tappava
+{n} % a second	{n} % sekunnissa
+Damage is a share of each body part's health, before armour.	Vahinko on osuus kunkin ruumiinosan terveydestä, ennen panssaria.
+It gives no artefacts.	Se ei anna artefakteja.

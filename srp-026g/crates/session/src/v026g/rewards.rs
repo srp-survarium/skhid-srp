@@ -716,7 +716,7 @@ fn report_key(match_id: u32) -> String {
 /// how many were taken off.
 pub(crate) fn drop_stale_upgrades(report: &mut MatchReport) -> usize {
     use survarium::v026g::scopes::SCOPE_CATEGORY;
-    use survarium::v026g::weapon_modules::{Kind, Modules};
+    use survarium::v026g::weapon_modules::{self, Modules};
     let dictionary = Dictionary::shared();
     let modules = Modules::shared();
     let mut taken = 0;
@@ -727,7 +727,8 @@ pub(crate) fn drop_stale_upgrades(report: &mut MatchReport) -> usize {
             u16::try_from(record.a).ok().is_some_and(|dict_id| {
                 dictionary.item(dict_id).is_some_and(|upgrade| {
                     upgrade.category != SCOPE_CATEGORY
-                        || modules.kind(host, dict_id) == Some(Kind::Scope)
+                        || weapon_modules::kind_of_slot(record.param)
+                            .is_some_and(|kind| kind.sees() && modules.takes(host, dict_id, kind))
                 })
             })
         });

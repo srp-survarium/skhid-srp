@@ -12,14 +12,15 @@ harnesses. The game's own code runs:
 - the action table: the build's `actions` is the game's 60 rows (the rows
   other patches change: artefact's default key kH, patch 78's;
   hide_interface kF9, screenshot kF11 and screenshot_no_ui kF12, patch 152's;
-  ptt_nearby of kind 8, patch 66's), then the sixteen (4Ah..59h); id_to_action_name
+  ptt_nearby of kind 8, patch 66's), then the sixteen (4Ah..59h) and patch
+  206's scope_next (5Ah, default kY); id_to_action_name
   (0x2079D0) and action_name_to_ptr (0x207AD0) answer every row of the build,
   the game's as the original;
 - the key binder's bindings, 60h of them: the game's init allocates the
   binder 60h x 0Ch + 4 bytes (0x1EA265; the original 364h); its construction
   (0x207540 to 0x207573) clears the 60h, gives every id the original gives a
-  description the same row's bytes (the changed rows aside) and the sixteen
-  their rows, 48h, 49h and 58h.. none, and puts the game after the bindings,
+  description the same row's bytes (the changed rows aside) and the
+  seventeen their rows, 48h, 49h and 5Bh.. none, and puts the game after the bindings,
   nothing past it; the binder's bind (0x207DC0, `use_onyx kF5` and
   `use_oxygen_tank kF6` as user.cfg's lines have them) makes them those
   actions' for get_binded_action (0x207D50) with the game world's kind 1 and
@@ -92,6 +93,8 @@ KEYS = (("use_onyx", 0x4A, 76), ("use_spring", 0x4B, 74), ("use_lifebone", 0x4C,
         ("use_antitoxin", 0x52, 82), ("use_painkiller", 0x53, 65), ("use_rgd5", 0x54, 5), ("use_rdgm", 0x55, 219),
         ("use_trap", 0x56, 68), ("use_oxygen_tank", 0x57, OXYGEN))
 GROUPS = (("use_next_artefact", 0x58), ("use_next_medkit", 0x59))   # a group's first ready item
+# patch 206's row after them: the second sight's switch, kinds 5, default kY (the exe's name 0x9FDCC8)
+SCOPE_NEXT = ("scope_next", 0x5A, 0x9FDCC8)
 MEDKIT_VTABLE = 0xA1C79C                            # every drug's (medkit's ctor 0x33CAE6)
 ONYX_VT, SPRING_VT = WORLD + 0xA00, WORLD + 0xB00    # made-up artefact vtables: +80h their kind's enable_active
 # Group kits: (slot or "c" for the next container, dict id, vtable, {offset: (struct format, value)}), then
@@ -319,12 +322,14 @@ def main():
     moved = [row(patched, actions + 20 * i) for i in range(ROWS)]
     named = lambda run, r: (run.string(r[0]),) + r[1:]
     want = [named(patched, built_row(r)) for r in game] \
-        + [(name, action, 5, 0, 0) for name, action, _ in KEYS] + [(name, action, 5, 0, 0) for name, action in GROUPS]
+        + [(name, action, 5, 0, 0) for name, action, _ in KEYS] + [(name, action, 5, 0, 0) for name, action in GROUPS] \
+        + [(SCOPE_NEXT[0], SCOPE_NEXT[1], 5, 0, SCOPE_NEXT[2])]
     report([named(patched, r) for r in moved] == want
            and game == [row(patched, GAME_TABLE + 20 * i) for i in range(GAME_ROWS)],
            f"`actions` ({actions:#x}): the game's {GAME_ROWS} rows (artefact kH, hide_interface kF9, screenshot kF11, "
            "screenshot_no_ui kF12, ptt_nearby kind 8), then the sixteen "
-           "(4Ah..59h, kinds 5, no toggle, no default key); the game's table unchanged in the build")
+           "(4Ah..59h, kinds 5, no toggle, no default key) and scope_next (5Ah, kinds 5, kY); the game's table "
+           "unchanged in the build")
 
     print(f"the key binder's bindings: {BINDINGS:#x} (the game's 48h; 0x1EA265, 0x207540, 0x207D50, 0x207DC0, "
           "0x207450, 0x207FF0)")
@@ -333,7 +338,7 @@ def main():
            f"the game's init allocates the binder: {asked[1][0][0]:#x} bytes ({BINDINGS:#x} bindings and the game), "
            f"the original {asked[0][0][0]:#x}")
     (a, a_bytes), (b, b_bytes) = stock.construct(hide.BINDER), patched.construct(hide.BINDER)
-    new = {action for _, action, _ in KEYS} | {action for _, action in GROUPS}
+    new = {action for _, action, _ in KEYS} | {action for _, action in GROUPS} | {SCOPE_NEXT[1]}
     at = {action: actions + 20 * i for i, (_, action, *_) in enumerate(moved)}
     game_place = lambda written, n: struct.unpack_from("<I", written, 12 * n)[0]
 
@@ -343,12 +348,12 @@ def main():
         want = row(stock, x)
         return y and row(patched, y) == built_row(want)
     report(all(same(i, x, y) for i, (x, y) in enumerate(zip(a[:0x48], b)))
-           and all(b[action] == at[action] for action in new) and not any(b[0x48:0x4A]) and not any(b[0x5A:])
+           and all(b[action] == at[action] for action in new) and not any(b[0x48:0x4A]) and not any(b[0x5B:])
            and all(actions <= y < actions + 20 * ROWS for y in b if y)
            and game_place(b_bytes, BINDINGS) == 0x12345678 and b_bytes[12 * BINDINGS + 4:] == b"\x5a" * (0x600 - 12 * BINDINGS - 4)
            and game_place(a_bytes, 0x48) == 0x12345678 and a_bytes[0x364:] == b"\x5a" * (0x600 - 0x364),
            f"the construction: {BINDINGS:#x} bindings cleared, every game id's description the same row as the "
-           "original's (in `actions`), 4Ah..59h theirs, 48h, 49h and 5Ah.. none; the game at "
+           "original's (in `actions`), 4Ah..5Ah theirs, 48h, 49h and 5Bh.. none; the game at "
            f"+{12 * BINDINGS:#x} (the original's +360h), nothing past it")
     names = [(patched.string(r[0]), r[1]) for r in moved]
     report(all(patched.id_to_name(action) == name for name, action in names)

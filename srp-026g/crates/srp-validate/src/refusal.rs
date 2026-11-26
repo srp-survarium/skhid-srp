@@ -452,6 +452,9 @@ pub enum Reason {
     },
     /// The carry snapshot is of another version.
     TailCarry,
+    /// Bytes after the carry snapshot that are no second sights' record
+    /// (client patch 206, `second_sight::Record`).
+    TailSights,
     TailWeaponAmmo {
         ammo: u8,
         count: u8,
@@ -486,10 +489,6 @@ pub enum Reason {
     /// An input's rotation half (dx or dy) that is no number under 1024.
     RotationNotSane {
         half: u16,
-    },
-    /// An input's actions with bit 29 or 30, which no stock client sets.
-    UnusedActions {
-        actions: u32,
     },
     /// 0xE8's compressed flag: srp sends 0 or 1.
     SnapshotFlag {
@@ -892,6 +891,7 @@ impl fmt::Display for Reason {
             Reason::TailAffect { kind } => write!(f, "a body part affect of type {kind}"),
             Reason::TailBool { at } => write!(f, "a bool at {at} that is not 0x00 or 0xFF"),
             Reason::TailCarry => f.write_str("a carry snapshot of another version"),
+            Reason::TailSights => f.write_str("bytes after the carry snapshot that are no second sights' record"),
             Reason::TailWeaponAmmo { ammo, count } => {
                 write!(
                     f,
@@ -912,10 +912,6 @@ impl fmt::Display for Reason {
             Reason::RotationNotSane { half } => write!(
                 f,
                 "a rotation half {half:#06x} that is no number under 1024"
-            ),
-            Reason::UnusedActions { actions } => write!(
-                f,
-                "actions {actions:#010x} with bit 29 or 30, which no client sets"
             ),
             Reason::SnapshotFlag { flag } => {
                 write!(f, "a compressed flag of {flag:#04x}, not 0 or 1")

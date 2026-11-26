@@ -20,9 +20,9 @@ The Rust server therefore takes them from a SETTING that is EMPTY by default, an
 
 `95` ends with `u8 n2, n2 x {u32 id, str(64) name, u8 flag}` (reader 0x20018AA80, records at L+0x7A33D0). The consumer
 (0x200175C48..0x200175D70) turns each into `root.set_shop_action_tabs {id, name, default_gold = flag}`, AS `StoreScreen.setTabData`.
-Setting `LobbyConfig::store_tabs` (`actions::StoreTab`): default = one tab `{id 1, "Special offers",
+Setting `LobbyConfig::store_tabs` (`actions::StoreTab`): default = one tab `{id 1, "st_special_offer",
 default_gold 1}` (`actions::default_tabs`, CHOICE name / id; `StoreScreen.setTabData` shows `String(name).toUpperCase()`, plain
-text, and the server tabs REPLACE the client's five built-in tabs `StoreScreen.onLocal`). Empty = no server tab. The shop
+text, so a client text key is sent as its English text, and the server tabs REPLACE the client's five built-in tabs `StoreScreen.onLocal`). Empty = no server tab. The shop
 elements of 95 are the premium window's offers (store.md "Store offers and pictures"), not discount actions.
 
 ## 3. `5C 00` get_actions_data -> `BC` sub 0 (PROVEN layouts)
@@ -44,7 +44,7 @@ elements of 95 are the premium window's offers (store.md "Store offers and pictu
   and `bundle {}` or `bundle {items [{dictId, amount}]}` (the full view's "Contains" block: `actions::shown_items`, dict 0 =
   premium hours; store.md "Offer details and the running contract"). With no offers the list is empty (PROVEN safe path: the loop is skipped).
 * Setting `LobbyConfig::store_offers` (`actions::StoreOffer {id, tab, label, description, gold, items, ttl_secs, images, grant}`):
-  default = `actions::default_offers` (the 14-day premium card and the Winner's Contract card, CHOICE).
+  default = `actions::default_offers` (the 7-day premium card and the Winner's Contract card, CHOICE).
 
 ## 4. `5C 01` buy_action -> `BC` sub 1 (PROVEN layouts)
 
@@ -151,9 +151,9 @@ show (the loader 0x2000CC680 is not traced) is untested in the game.
 
 ## 10. To check in the game
 
-* Default: the store shows one tab "SPECIAL OFFERS" with two cards: the big crown card "PREMIUM 14 DAYS" (500 gold) and the small
-  contract card "WINNER'S CONTRACT" (100 gold, the "CONTRACT / DAY 1 / DAY 2" picture). Check that both pictures draw (a blank slot
-  = a wrong file name), the full view opens with the gold button only, buying the premium card adds 14 days to the premium
+* Default: the store shows one tab "SPECIAL OFFER" with two cards: the big crown card "Premium account for 7 days" (300 gold) and
+  the small contract card "Contract with Huckster" (100 gold, the "CONTRACT / DAY 1 / DAY 2" picture). Check that both pictures draw (a blank slot
+  = a wrong file name), the full view opens with the gold button only, buying the premium card adds 7 days to the premium
   button's timer, buying the contract shows the contract button next to the premium button; a second contract purchase is refused.
 * The pocket popup lists unopened consumables with a gold price (100 / 150 / 200 for the first row), buying one opens it for good.
 

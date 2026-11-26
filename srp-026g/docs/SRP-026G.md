@@ -54,8 +54,8 @@ start them: the two login servers share one port.
 | `servers/lobby-server/src/v026g/` | The lobby: `core` (links, sign-in, the tick), `dispatch` (every request answered or refused), `play` (Play, a match made through `MatchHost`), `rooms` (the players' "servers": every PvP match), `social` (chat, friends, squads), `Inbox` (what other servers tell it: a match is over, an account changed, a push, the operator's text) |
 | `servers/match-server/src/v026g/` | The match server: `registry` (the lobby makes a match here), `game` (sync, relay, hashes, resync, the end), `server` (socket and loop) |
 | `servers/srp/src/v026g.rs` | Joins them: `Stack` (the three servers and the session collector, each on a supervised thread), `RegistryHost` (lobby → match server), `Settler` (match result → rewards → database → lobby), `WebLink` (web page → lobby) |
-| `servers/web-server` | The web page. `run_026g` is the 0.26g page (`src/v026g.rs`); `run` is the 0.21d page, kept and tested, not started |
-| `scripts/client-patch-026g/` | `patch_026g.py` (the client patch), `selftest_026g.py`, `make_client_026g.py` (the players' overlay) |
+| `servers/web-server` | The web page (`run_026g`, `src/v026g.rs`). The 0.21d page is `srp-021d`'s |
+| `client-patches/` | `patch_026g.py` (the client patch), `selftest_026g.py`, `make_client_026g.py` (the players' overlay) |
 | `crates/resources-db` | Reads `resources.db` and its patches (`resources.db.patch_<n>`), lays them over one another as the game mounts them, and `srp-game-data` builds the server's game data from them: the `gameplay/` files, the English and Ukrainian localizations and each project's `server_objects`, with what it was made of (`resources.db`, each patch with its URL). `srp` reads it at start (`SRP_GAME_DATA`). `crates/resources-db/README.md` |
 | `resources/game-026g/` | The server's game data of tests and tools: 0.26g's `resources.db` with the test patches 14 to 16 |
 
@@ -182,7 +182,8 @@ that rule is mended when the accounts load, and never plays.
 | `SRP_DB` | on | `off`: everything in memory only |
 | `SRP_LOG_DIR` | `logs` | Each server's lines in `<server>.log` (login, lobby, match, web, srp), dated, added to across restarts; rotated to `.1` (`.1` becomes `.2`, ...) at a size of its server's, about two days of each kept, the lobby about 12 (match 32 x 8 MB, lobby 16 x 4 MB, srp 4 x 4 MB, login 4 x 2 MB, web 2 x 2 MB: 348 MB). `off`: stdout only (the image's default). The compose file sets `/srv/srp/data/logs` (the data volume): a container's own output is gone at every update |
 | `RUST_LOG` | `info` | The log level |
-| `SRP_SNAPSHOT_DIR` | `logs/snapshots` | Where the match server keeps accepted worlds; `off`: nowhere |
+| `SRP_SNAPSHOT_DIR` | `logs/snapshots` | Where the match server keeps the worlds it is sent (accepted, refused, out of step; no cap), and in `captures/` the desync captures (`docs/notes/desync_capture.md`); `off`: nowhere |
+| `SRP_CAPTURE_MAX_MB` | `200` | The desync captures (`<SRP_SNAPSHOT_DIR>/captures`, a folder of 0.05 to 0.2 MB each) over this together: the oldest folders are deleted after each capture |
 | `SRP_RECORD_DIR` | unset (off; the compose file sets `/srv/srp/data/recordings`) | Match recordings: every datagram of a match in and out (no addresses), one LZMA2-packed file per match (`servers/match-server/src/v026g/record.rs` has the format); read with `srp-recording` |
 | `SRP_RECORD_MIN_PLAYERS` | `6` | PvP recordings are kept after this many human players enter, including late joiners. PvE recordings need one human regardless of this setting. Empty matches are discarded |
 | `SRP_RECORD_MAX_MB` | `5000` | Kept recordings over this together: the oldest are deleted |
@@ -237,8 +238,6 @@ Each is an escape hatch for one thing not proven against a live client.
 | `SRP_CLOCK_CORRECTION` | on | `off`: no 0xE7 (the 0xDB clock field is LIKELY) |
 | `SRP_CHECK_INITIAL_WORLD` | on | `off`: take a first world that already has statistics in it |
 | `SRP_MATCH_CLIENT_TIMEOUT_SECONDS` | 10 | A playing client silent this long is gone. A client that loads its level has 60 s, or this if it is longer (since 2026-10-12) |
-| `SRP_RESYNC_WORLD_ONLY` | off | `on`: a playing client is resynced with 0xE8 alone |
-| `SRP_RESTORE_LIMIT` | 0 | Resyncs in a row without agreement after which a client is disconnected; 0: no limit |
 | `SRP_COMPRESS_STATE` | on | `off`: the world (0xE8) goes to the clients as it is, not as LZMA2 (since 2026-10-13; `docs/notes/match.md` section 27) |
 | `SRP_ANTI_AFK` | 180 | A player without input for this many seconds of play (at least 60) is removed from the match as one who leaves; never in a private room's match nor one against bots; `off` or `0`: never (`docs/notes/anti-afk.md`) |
 | `SRP_MAPDATA_DIR` | unset (off; the compose file sets `/srv/srp/data/mapdata`) | The bots' maps: the `<project>.mapdata` files (`docs/notes/player_bots_mapdata.md` section 6; game data, copied into the data volume by hand). A folder that is not there, or a project with no file: bots without maps (a warning) |
@@ -331,9 +330,9 @@ read by the 0.21d browser server and by the compose file's caddy, not by the
   (`SRP_GAME_URL`); step two, the download of the few files that go over it;
   the launch line (`-localization=… -server=<host>:<port>
   -minimum_resources_memory_size=768`); players online; how matches start.
-- `/exchange` (`GET`): a short page saying that silver and gold are
-  exchanged in the game now (the lobby's exchange window,
-  `client-patches/README.md`, "Lobby exchange"), in the language of its
+- `/exchange` (`GET`): a short page saying that there is no gold: everything
+  in the game is bought with silver (since 2026-11-08,
+  `notes/silver-only.md`), in the language of its
   `?lang=` (`en`, `ua`, `ru`, `de`, `pl`, as the launcher sends them; else
   the page's own). The SHOP button of the launchers players already have
   opens it (the launcher has no SHOP button since). The page exchanges
@@ -352,7 +351,7 @@ read by the 0.21d browser server and by the compose file's caddy, not by the
 - `/patches` (`GET`, public): the patches of `resources.db` the players'
   updater keeps in the game folder, as JSON (`{"patch_<n>":{"sha256":…,"urls":[…]},…}`,
   `{}` for none): those the server's game data was made of ("Game data"
-  above). The 0.21d page has no such route.
+  above).
 - `/api/client-files` and `/launcher/…` (since 2026-10-13, for the patched game
   launcher and its updater: `../client-patches/launcher/README.md`). The first answers with the
   SHA-256 and size of the file `/download` hands out (`SRP_DOWNLOAD_FILE`), as
@@ -391,12 +390,10 @@ read by the 0.21d browser server and by the compose file's caddy, not by the
   leaves the page as it is (the launcher does not go to its offline page).
   A place the page does not have is passed over, so a page that stays open
   over a later change of the server keeps what it knows.
-  `/launcher/fresh/<uk|en>` still answers the three places of the page
-  from before the tabs, in its form, for a launcher left open over that
-  deploy. These addresses alone are sent with a `Content-Security-Policy`
+  These addresses alone are sent with a `Content-Security-Policy`
   that lets that one script run, by its SHA-256, and ask this server.
 - The admin page (token, path and address as in the table). Tabs:
-  money (silver and gold, `+500` / `-100`, never below 0, with a reason, a
+  money (silver, `+500` / `-100`, never below 0, with a reason, a
   preview and a confirm: `notes/account-moderation.md`); take items (the
   same: listed, ticked, taken whole or units of a stack, off every kit);
   account (premium hours, set the level, experience, reputation with a
@@ -425,9 +422,8 @@ read by the 0.21d browser server and by the compose file's caddy, not by the
 - Not there: the 0.21d-era console in the srp terminal (`status`, `start`,
   `end`) does not exist in this tree; nothing replaced it.
 
-The page is of one game version by how it is started (`web_server::run` for
-0.21d, `run_026g` for 0.26g), not by a setting: `srp` here starts the 0.26g
-servers only, so a switch would have nothing to switch.
+The page is the 0.26g game's (`web_server::run_026g`); the 0.21d one is in
+`srp-021d`.
 
 ## What is implemented, and what is refused
 
@@ -437,8 +433,8 @@ Implemented (coded and tested):
 |---|---|
 | Login | Sign-in, registration on first sign-in, wrong password, bans with the game's ban reasons, limits, closed registration, wrong build |
 | Lobby account | The sign-in push in the order the client needs; inventory with its three "spent" lists; kits (three, every one usable without premium), move, the autobuy byte (always on), active kit, kit names |
-| Shop | Buy, sell, repair, gold for silver and (srp's lobby exchange) silver for gold (`47 04`); sellers by reputation level |
-| Skills | Set, reset for silver or gold |
+| Shop | Buy, sell, repair, all for silver (no gold since 2026-11-08, `notes/silver-only.md`); sellers by reputation level |
+| Skills | Set, reset for silver |
 | Quests | Choosing a faction, daily quests, progress and pay after a match |
 | Queue and matches | Play alone or as a squad, leave, rejoin after a new sign-in (`MatchRegistry::reseat`) |
 | Results | Rewards (experience, silver, reputation, levels, rating, drops, item wear), the results screen, player details, the drop card |
@@ -472,8 +468,8 @@ srp's own choices (the client does not reveal a rule): the level table is
 0.21d's, 50 levels; the reward rules are 0.21d's; one queue; a second sign-in
 signs the first out; chat limit 10 lines then 1 a second (the client's own
 spam filter is stricter and prints the game's notice itself); a match's
-report is kept while a results screen of it may be open (two hours); silver for gold on
-the page at the game's gold-for-silver rate; the admin's limits above.
+report is kept while a results screen of it may be open (two hours); the admin's
+limits above.
 
 ## Build and test on Windows
 
@@ -499,7 +495,7 @@ not prove the notes agree with the client. Format only the files you touched
 ## Run locally
 
 ```
-cd srp-026g        (the certificates are read from .\certs)
+cd srp-026g
 cargo run --release -p resources-db --bin srp-game-data -- build --dir <the game folder>\game --patch-url http://127.0.0.1/patches --out game-data.db
 set SRP_GAME_DATA=game-data.db
 set SRP_MIN_PATCH_REVISION=<the newest patch's n; leave it out without patches>
@@ -568,7 +564,7 @@ the paragraph above says.
 
 ## The client patch and the players' download
 
-`scripts/client-patch-026g/patch_026g.py <survarium.exe> <survarium_srp.exe>`
+`client-patches/patch_026g.py <survarium.exe> <survarium_srp.exe>`
 builds the patched client from the original exe (its sha256 is checked; each
 site is checked against the original bytes). It patches the code-signing
 certificate check (without it every stock 0.26g client stops with "Resources

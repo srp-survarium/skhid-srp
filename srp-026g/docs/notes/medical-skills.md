@@ -5,7 +5,7 @@ The third skill tab has 37 points in a full build: fourteen skills, of which
 the two tier-5 unlocks exclude each other. Thresholds count points in earlier
 tiers of this branch: 0, 3, 7, 12 and 17. In rows 2-4 the painkiller's skills
 are in column 1 and the antitoxin's in column 4. The 2026-11-19 changes below
-are implemented and checked locally; they have not been played or released.
+were released in revision 68 (#2258).
 
 | Tier | Required points | ID | Skill | Per rank / unlock | Maximum |
 |---|---:|---:|---|---|---|
@@ -110,7 +110,7 @@ own class (`MedicalSkill069<id>`) in `SkillIcon069.as`; `icons-069.tsv` names ev
   Sharp Eye ("Aim time") lines (srp's texts, st_srp_medicine_*);
   Second Wind's is a flat amount and has none.
 - It changes what a match computes: words in `simulation_changes.tsv`'s
-  `next` row.
+  row 68.
 
 ## Brothers in Arms in tier 1 (owner decision, 2026-11-14)
 

@@ -710,7 +710,7 @@ def key_bindings(stock, ours, expect):
     waiting = lambda: (ours.read(menu + 0x3C), ours.read(menu + 0x30))
     invokes, count = ours.callback("srp_keys")
     expect(invokes == [(language.MOVIE, "root.srp_keys", (answer,))] and count == 0 and len(keys) == 135
-           and len(rows) == 61,
+           and len(rows) == 62,
            f"srp_keys: the binder's {len(keys)} keys (kESCAPE first, the wheel's last) and the controls' "
            f"{len(rows)} rows, their keys none yet, one string")
     for argument, state, why in (("4 57", (0, 0), "a key wait running (the menu's +3Ch not 48h)"),

@@ -7,7 +7,7 @@
 //! * **zygote** (started by the front with `--zygote-fd 3`): boots the exe, loads one level project with the null
 //!   render and the null cooks, queries its pre-warm list, then waits for hand-overs and `fork()`s one child per match.
 //!   It never creates a match itself (one match per process: the core is the static 0x20F442760).
-//! * **child**: takes over the exe threads (`run::after_fork`), creates the match from `Create` (client mode,
+//! * **child**: takes over the exe threads (`run::fork_world`), creates the match from `Create` (client mode,
 //!   [`crate::world::MatchWorld`]), answers `Ready`, then runs [`crate::session::Session`] on the connection until
 //!   `Close`, a fault or EOF (EOF = the relay is gone: the child exits). One connection = one match: the child's exit
 //!   is the relay's EOF.

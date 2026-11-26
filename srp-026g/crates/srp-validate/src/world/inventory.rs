@@ -1225,6 +1225,9 @@ impl RecentHit {
 /// u32   m_recent_hits.size(), each u32 timestamp, f32 stopping_speed
 /// bool  m_respawn_disabled
 /// 32    patch 78's carry snapshot, version 2
+/// 11    patch 206's second sights (`second_sight::Record`), when the game
+///       that wrote it kept them: none in an older game's state, nor in one
+///       a game writes after it loaded such a state for that player's life
 /// ```
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct AfterItems<'a> {
@@ -1240,6 +1243,7 @@ pub struct AfterItems<'a> {
     recent_hits: &'a [u8],
     respawn_disabled: bool,
     carry: &'a [u8; CARRY_SNAPSHOT],
+    sights: Option<second_sight::Record>,
 }
 
 impl<'a> AfterItems<'a> {
@@ -1307,6 +1311,13 @@ impl<'a> AfterItems<'a> {
     /// version 2.
     pub fn carry(&self) -> &'a [u8; CARRY_SNAPSHOT] {
         self.carry
+    }
+
+    /// Patch 206's second sights of the player's two weapon slots: what
+    /// each weapon's sights are, settled or switching since a press. `None`
+    /// in a state without them.
+    pub fn sights(&self) -> Option<second_sight::Record> {
+        self.sights
     }
 
     fn read(mut reader: Reader<'a>, alive: bool, body_parts: usize) -> Result<Self, Fault> {
@@ -1378,6 +1389,17 @@ impl<'a> AfterItems<'a> {
         if carry.first() != Some(&CARRY_VERSION) {
             return Err((at, Reason::TailCarry));
         }
+        let at = reader.at();
+        let sights = if reader.is_done() {
+            None
+        } else {
+            let bytes: &[u8; second_sight::Record::BYTES] = reader
+                .take(second_sight::Record::BYTES)
+                .map_err(|_| (at, Reason::TailSights))?
+                .try_into()
+                .map_err(|_| (at, Reason::TailSights))?;
+            Some(second_sight::Record::decode(bytes).ok_or((at, Reason::TailSights))?)
+        };
         if !reader.is_done() {
             let at = reader.at();
             return Err((at, Reason::TailUnread { at }));
@@ -1395,6 +1417,7 @@ impl<'a> AfterItems<'a> {
             recent_hits,
             respawn_disabled,
             carry,
+            sights,
         })
     }
 }

@@ -514,7 +514,7 @@ pub struct MatchStats {
     pub resync_refused: u32,
     pub resync_tripped: u32,
     pub e0_held: u32,
-    /// resync v2 ([`ResyncState`]): first CCs that waited for a confirming second one (rule 2);
+    /// resync v2 ([`ResyncSlot`]): first CCs that waited for a confirming second one (rule 2);
     /// WantDe / host DEs held back by the scripted-step guard (rule 3); resync DEs every part of which the client acked,
     /// or whose lifetime ended first (rule 1); CCs above the floor within 2 s of an ack (a re-trigger, should stay 0)
     pub resync_unconfirmed: u32,
@@ -599,7 +599,7 @@ struct Slot {
     resync_times: VecDeque<Instant>,
     /// resync is off for this client for the rest of the match (its `resync_match_max` DEs are used up)
     resync_off: bool,
-    /// resync v2 state ([`ResyncState`])
+    /// resync v2 state ([`ResyncSlot`])
     rs: ResyncSlot,
     /// rejoin ([`MatchConfig::rejoin`]): the slot dropped out at this time and waits for its client (no leave bit), and
     /// how (TimedOut / Disconnected: its leave reason if it never comes back); None = connected or never dropped

@@ -6,7 +6,7 @@
 //! each client through the handshake, keeps the match clock, relays the
 //! inputs, compares the clients' world hashes, gets world snapshots from
 //! patched clients and starts or resyncs clients from them, and ends the
-//! match. The 0.21d server (`crate::game`, `crate::server`) is the model;
+//! match. The 0.21d server (`srp-021d/servers/match-server`) is the model;
 //! `game.rs` here says what was carried over and what was not.
 //!
 //! - [`MatchRegistry`]: the lobby makes a match ([`MatchSetup`]) and gets
@@ -35,17 +35,14 @@
 //!   the address, as for 0.21d (`vostok::config`);
 //! - `SRP_SNAPSHOT_DIR`: where uploaded worlds are saved (default
 //!   `logs/snapshots`; `off` or empty for none), as for 0.21d;
+//! - `SRP_CAPTURE_MAX_MB` (default 200): the desync captures kept in
+//!   `<SRP_SNAPSHOT_DIR>/captures` together at most, the oldest deleted
+//!   first (`game/desync_capture.rs`);
 //! - `SRP_PACKET_LOG=<dir>`: the transport's raw datagram log;
 //! - `SRP_LATE_INPUTS=relay|discard|move` (default `relay`): what becomes
 //!   of an input that comes after its tick is final: relayed at its own
 //!   tick, dropped (0xF1 / 0xF2, what 0.21d does), or moved to an open tick
 //!   (0xEF / 0xF0, new in 0.26g); [`LateInputs`];
-//! - `SRP_RESYNC_WORLD_ONLY=on|off` (default `off`): resync a playing
-//!   client with the world alone (0xE8 of the next generation, its clock
-//!   left as it is) instead of the time and the world (0xE5, 0xE8);
-//! - `SRP_RESTORE_LIMIT=<n>` (default 0, no limit): disconnect a client
-//!   that is out of sync again after `n` resyncs in a row with no report
-//!   of its that agreed in between;
 //! - `SRP_RESYNC_AFTER_AGREED_SECONDS` (default 5, 3 to 15; 15 = the old
 //!   rule): the least time between two resyncs of a client when its last
 //!   one was agreed with; after one that was not, it stays 15 s, and a
@@ -134,6 +131,9 @@ mod game;
 pub mod world_validation;
 /// Recorded and dumped worlds checked as uploads are (`srp-world-check`).
 pub mod world_check;
+/// What differs between two worlds of one tick (`world_diff::diff`): the
+/// desync capture's summary and `srp-world-diff`.
+pub mod world_diff;
 /// A player's kills of one enemy pay at most 10 times a match.
 mod kill_cap;
 /// Match recordings (`SRP_RECORD_DIR`) and their reader.
@@ -275,17 +275,15 @@ pub(crate) const DEFAULT_PVB_STALL_S: u64 = 60;
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct Settings {
     pub late_inputs: LateInputs,
-    /// Resync a playing client with 0xE8 alone.
-    pub resync_world_only: bool,
-    /// Resyncs in a row without agreement after which a client is
-    /// disconnected; 0 for no limit.
-    pub restore_limit: u32,
     pub clock_correction: bool,
     pub check_initial_world: bool,
     /// The world goes to the clients as LZMA2 where that is smaller
     /// (`SRP_COMPRESS_STATE`).
     pub compress_state: bool,
     pub snapshot_dir: Option<PathBuf>,
+    /// `SRP_CAPTURE_MAX_MB`: the desync captures kept under the snapshot
+    /// folder (`game/desync_capture.rs`) together at most; the oldest go.
+    pub capture_max_bytes: u64,
     /// `SRP_RECORD_DIR`: the match recordings, if any.
     pub record: Option<record::RecordSettings>,
     /// `SRP_RELAY_PACK_MS`: the match link's `Config::gather`.
@@ -304,12 +302,11 @@ impl Default for Settings {
     fn default() -> Self {
         Self {
             late_inputs: LateInputs::Relay,
-            resync_world_only: false,
-            restore_limit: 0,
             clock_correction: true,
             check_initial_world: true,
             compress_state: true,
             snapshot_dir: None,
+            capture_max_bytes: DEFAULT_CAPTURE_MAX_MB << 20,
             record: None,
             pack: Config::for_table(Table::Match).gather,
             maps: None,
@@ -320,6 +317,9 @@ impl Default for Settings {
     }
 }
 
+/// `SRP_CAPTURE_MAX_MB` when unset: some 1000 captures of 0.1 to 0.2 MB.
+const DEFAULT_CAPTURE_MAX_MB: u64 = 200;
+
 /// Where accepted snapshots are kept unless `SRP_SNAPSHOT_DIR` says
 /// otherwise: the 0.21d server's place.
 const SNAPSHOT_DIR: &str = "logs/snapshots";
@@ -329,16 +329,15 @@ impl Settings {
         let var = |name: &str| std::env::var(name).ok();
         Self {
             late_inputs: parse_late_inputs(var("SRP_LATE_INPUTS").as_deref()),
-            resync_world_only: session::switch("SRP_RESYNC_WORLD_ONLY", false),
-            restore_limit: parse_number(
-                "SRP_RESTORE_LIMIT",
-                var("SRP_RESTORE_LIMIT").as_deref(),
-                0,
-            ),
             clock_correction: session::switch("SRP_CLOCK_CORRECTION", true),
             check_initial_world: session::switch("SRP_CHECK_INITIAL_WORLD", true),
             compress_state: session::switch("SRP_COMPRESS_STATE", true),
             snapshot_dir: parse_snapshot_dir(var("SRP_SNAPSHOT_DIR").as_deref()),
+            capture_max_bytes: u64::from(parse_number(
+                "SRP_CAPTURE_MAX_MB",
+                var("SRP_CAPTURE_MAX_MB").as_deref(),
+                DEFAULT_CAPTURE_MAX_MB as u32,
+            )) << 20,
             record: record::RecordSettings::from_env(),
             pack: match var("SRP_RELAY_PACK_MS") {
                 Some(value) => Duration::from_millis(u64::from(

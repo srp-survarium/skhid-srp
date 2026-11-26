@@ -124,7 +124,7 @@ impl Arms {
         let sight = dictionary
             .item_named(SIGHT)
             .map(|scope| scope.dict_id)
-            .filter(|&scope| modules.kind(gun, scope) == Some(Kind::Scope));
+            .filter(|&scope| modules.takes(gun, scope, Kind::Scope));
         Ok(Self {
             gun,
             ammo,

@@ -20,7 +20,9 @@ srp [--config FILE] setup [--game DIR] [--address IP]   check this computer; wri
                                    and the login key; print the players' launch line (setup.rs)
 srp [--config FILE] [run]          world host (if none runs yet) + login + lobby + match server
 srp [--config FILE] check          check the config and the files it names, print the effective settings
-srp [--config FILE] selftest [PROJECT]   a world host of its own builds one start world: OK or the failing part
+srp extract [--game DIR] --out DIR      build the game tables from a game install into DIR (setup does this too)
+srp [--config FILE] selftest [PROJECT]   a world host of its own builds one start world and plays a bot match: OK or
+                                   the failing part
 srp [--config FILE] world-host     the world host daemon alone, in the foreground
 srp [--config FILE] account add|password <name> <password>
 srp [--config FILE] ban <account> <ban|suspend> <reason 0..15> <minutes|0> | unban <account> | comments [account [limit]]

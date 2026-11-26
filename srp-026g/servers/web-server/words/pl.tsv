@@ -95,8 +95,6 @@ Not found.	Nie znaleziono.
 Too many wrong tokens; wait a minute.	Za dużo błędnych tokenów; poczekaj minutę.
 Wrong token.	Błędny token.
 No such user.	Nie ma takiego użytkownika.
-Silver and gold are whole numbers, + or -, or empty.	Srebro i złoto to liczby całkowite, + lub -, albo puste pole.
-{user}: now {silver_now} silver and {gold_now} gold.	{user}: teraz {silver_now} srebra i {gold_now} złota.
 New accounts are taken again.	Nowe konta są znów przyjmowane.
 New accounts are refused; existing players sign in as before.	Nowe konta nie są przyjmowane; obecni gracze logują się jak dotąd.
 Maintenance cancelled.	Przerwa techniczna odwołana.
@@ -138,7 +136,6 @@ Q:	P:
 A:	O:
 If something goes wrong	Jeśli coś pójdzie nie tak
 Download the files	Pobierz pliki
-Download the game	Pobierz grę
 The download link is coming soon.	Link do pobrania pojawi się wkrótce.
 Can't download? Run {script}: it downloads the whole game into a Survarium folder beside it.	Nie możesz pobrać? Uruchom {script}: pobierze całą grę do folderu Survarium obok siebie.
 Get the game	Zdobądź grę
@@ -155,10 +152,6 @@ Run <code>Skhid.bat</code> and press <b>PLAY</b>.	Uruchom <code>Skhid.bat</code>
 Windows warns about an unknown publisher? Let it run.<br>Linux: <code>bash Skhid.sh launcher</code>, see <code>LINUX.txt</code>.	Windows ostrzega przed nieznanym wydawcą? Zezwól na uruchomienie.<br>Linux: <code>bash Skhid.sh launcher</code>, zobacz <code>LINUX.txt</code>.
 Windows warns about an unknown publisher? Let it run.<br>Linux: <code>bash Skhid.sh</code>, see <code>LINUX.txt</code>.	Windows ostrzega przed nieznanym wydawcą? Zezwól na uruchomienie.<br>Linux: <code>bash Skhid.sh</code>, zobacz <code>LINUX.txt</code>.
 Run <code>play_skhid.bat</code> in <code>game\\binaries\\x86</code>.	Uruchom <code>play_skhid.bat</code> w folderze <code>game\\binaries\\x86</code>.
-Start it with this command line:	Uruchom grę takim poleceniem:
-english	english
-server address	adres serwera
-language: english, russian, ukrainian	język: english, russian, ukrainian
 Skhid (Ukrainian for “east”) is a community server that lets the Survarium {version} client sign in, trade, form squads and play matches again.	Skhid (po ukraińsku „wschód”) to serwer społeczności, na którym klient Survarium {version} znów może się logować, handlować, tworzyć brygady i grać mecze.
 Project Discord: <a href="https://discord.gg/pxywZfaxRQ">discord.gg/pxywZfaxRQ</a>	Discord projektu: <a href="https://discord.gg/pxywZfaxRQ">discord.gg/pxywZfaxRQ</a>
 Early test server.	Wczesny serwer testowy.
@@ -167,7 +160,6 @@ How to play	Jak grać
 Download our files and unpack them into an empty folder (e.g. D:\\Survarium). <b>You do this only once.</b>	Pobierz nasze pliki i rozpakuj je do pustego folderu (np. D:\\Survarium). <b>Robisz to tylko raz.</b>
 Download our files and unpack them into the game's folder, the one with the <code>game</code> folder, replacing files. <b>You do this only once.</b>	Pobierz nasze pliki i rozpakuj je do folderu gry, tego z folderem <code>game</code>, zastępując pliki. <b>Robisz to tylko raz.</b>
 Download our files and unpack them over the game's <code>game</code> folder.	Pobierz nasze pliki i rozpakuj je na folder <code>game</code> gry.
-Download the patched game and unpack it.	Pobierz spatchowaną grę i rozpakuj ją.
 Sign in with any name and password: a new name registers itself. Remember the password.	Zaloguj się dowolną nazwą i hasłem: nowa nazwa rejestruje się sama. Zapamiętaj hasło.
 New accounts are taken.	Nowe konta są przyjmowane.
 Stop new registrations	Wstrzymaj rejestrację
@@ -177,7 +169,6 @@ Shown once the token is right.	Widoczne po podaniu prawidłowego tokenu.
 Password	Hasło
 User name	Nazwa użytkownika
 Silver, + or -	Srebro, + lub -
-Gold, + or -	Złoto, + lub -
 Change	Zmień
 Admin	Administrator
 Token	Token
@@ -951,3 +942,27 @@ A key fires every ready copy of its kind and restarts the cooldown of the ones s
 Copies of a kind add up (Onyx's passive multiplies); at most 4 count.	Kopie jednego rodzaju sumują się (pasyw Onyksu się mnoży); liczą się najwyżej 4.
 Spring's and Larkspur's actives add to the passive; Onyx's replaces it.	Aktywacja Sprężyny i Żywokostu dodaje się do pasywu; Onyksu — zastępuje go.
 Onyx fired together: one reduction, 1 s longer per extra copy.	Onyksy aktywowane razem: jedno zmniejszenie, o 1 s dłużej za każdą dodatkową kopię.
+
+# The maps' anomalies (scripts/maps-tab/ui.js)
+Anomalies	Anomalie
+Anomaly	Anomalia
+Artefacts come from the anomalies. Each anomaly puts one of its artefacts into one of its free containers, one per time window, until its maximum lies uncollected; a pickup starts the window again. It gives only those of its artefacts that no player is carrying. Point at an anomaly or an artefact (or tap it) for its numbers.	Artefakty pochodzą z anomalii. Każda anomalia wkłada jeden ze swoich artefaktów do jednego ze swoich wolnych kontenerów, po jednym na okno czasowe, aż leży jej maksimum niezebranych; podniesienie artefaktu zaczyna okno od nowa. Daje tylko te swoje artefakty, których nie niesie żaden gracz. Wskaż anomalię lub artefakt (albo go dotknij), by zobaczyć jej liczby.
+{s} s	{s} s
+{a}–{b} s	{a}–{b} s
+Holds	Zawiera
+First one	Pierwszy
+Then every	Potem co
+Chance	Szansa
+Max uncollected	Maks. niezebranych
+Search	Przeszukanie	artefact
+Zones switch every	Strefy zmieniają się co
+After a pickup the next one comes {next} later; that container stays empty for {cooldown}.	Po podniesieniu następny pojawi się za {next}; ten kontener zostaje pusty przez {cooldown}.
+Its own zone does no damage.	Jej własna strefa nie zadaje obrażeń.
+Searching a container takes {search}; after a pickup it stays empty for {cooldown}.	Przeszukanie kontenera trwa {search}; po podniesieniu zostaje on pusty przez {cooldown}.
+After a pickup the next one comes {next} later.	Po podniesieniu następny pojawi się za {next}.
+whole body	całe ciało
+{n} % a hit, at most every {t}	{n} % na trafienie, najwyżej co {t}
+deadly	śmiertelnie
+{n} % a second	{n} % na sekundę
+Damage is a share of each body part's health, before armour.	Obrażenia to część zdrowia każdej części ciała, przed pancerzem.
+It gives no artefacts.	Nie daje artefaktów.

@@ -44,11 +44,11 @@ answers root.interface_hidden with a bool:
   (st_hide_interface_action, group 2, type 1), patch 78's 23h
   (st_hold_artifact_action), patch 66's 37h (st_ptt_nearby_action),
   patch 152's 1Ah (st_screenshot_action) and 1Bh
-  (st_screenshot_no_ui_action) and patch 149's sixteen (patch_026g.py's
-  CONTROLS_ADDED), in the build's order (each row beside its relatives); the
+  (st_screenshot_no_ui_action), patch 149's sixteen and patch 206's 5Ah
+  (st_srp_scope_next_action; patch_026g.py's CONTROLS_ADDED), in the build's order (each row beside its relatives); the
   keys read from the binder (0x201CF0), one a row in the rows' order, the
   original's 40, (19h, kF9), (23h, kH, its new default), (37h, kO), (1Ah,
-  kF11), (1Bh, kF12) and none for the sixteen; a key kF8 set for 19h
+  kF11), (1Bh, kF12) and none for the sixteen and 5Ah; a key kF8 set for 19h
   (0x2013A0) is kept in its row and in no row of the original; the accept (0x201F20) runs
   `bind hide_interface kF8` through the console (the original nothing); the
   binder's own bind (0x207DC0) binds 19h to kF8, its save (0x207450) writes
@@ -488,7 +488,9 @@ def main():
     s_opt.call(KEYS_FROM_BINDER, [OPTIONS, 1])
     p_opt.call(KEYS_FROM_BINDER, [OPTIONS, 1])
     a_keys, b_keys = s_opt.set_keybind_calls(), p_opt.set_keybind_calls()
-    unbound = [(action, "", 1) for action, _ in base.CONTROLS_ADDED[5:]]      # patch 149's: no default key
+    # patch 149's sixteen and patch 206's scope_next: no key in this binder (BOUND; scope_next's default kY
+    # is the action table's, check_item_hotkeys_026g.py)
+    unbound = [(action, "", 1) for action, _ in base.CONTROLS_ADDED[5:]]
     added_keys = [(0x19, "kF9", 1), (0x23, "kH", 1), (0x37, "kO", 1), (0x1A, "kF11", 1), (0x1B, "kF12", 1)] + unbound
     report(len(a_keys) == 40 and sorted(b_keys) == sorted(a_keys + added_keys)
            and [key[0] for key in b_keys] == [row["action_id"] for row in b_rows],

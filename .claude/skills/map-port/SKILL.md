@@ -5,7 +5,7 @@ description: Port a map from another Survarium build (0.69d, 0.46c2, 0.27d, 0.21
 
 # Porting a map into 0.26g
 
-Rudnya (v0.69) is the worked example: maps 204/216/217/218, pack `rudnya-069d@3`,
+Rudnya (v0.69) is the worked example: maps 204/216/217/218, pack `rudnya-069d@7`,
 resource-porter `ports/survarium-069d-rudnya-to-026g.json`. The longer notes:
 
 - resource-porter `docs/survarium-069d-to-026.md`: every conversion choice, with numbers;
