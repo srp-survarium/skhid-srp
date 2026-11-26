@@ -1,5 +1,5 @@
 //! One 0.26g match, the server's side of the clients' lockstep
-//! (`docs/notes/match.md`). The 0.21d `crate::game` carried over
+//! (`docs/notes/match.md`). The 0.21d server's `game.rs` (`srp-021d`) carried over
 //! to the 0.26g messages; the reasons behind most rules and numbers are in
 //! its comments and in `MATCH-SYNC-021D.md`.
 //!

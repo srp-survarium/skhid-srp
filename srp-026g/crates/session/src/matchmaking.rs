@@ -928,25 +928,6 @@ pub fn quiet_from_env() -> Duration {
         .map_or(DEFAULT_QUIET_PERIOD, Duration::from_secs)
 }
 
-/// `SRP_MATCH_GATHER_SECONDS`: how long the queue gathers players before a
-/// match starts (default 30; 0 starts one at once). Anything else is an
-/// error naming the variable.
-pub fn gather_window_from_env() -> Result<Duration, String> {
-    gather_window(std::env::var("SRP_MATCH_GATHER_SECONDS").ok().as_deref())
-}
-
-fn gather_window(value: Option<&str>) -> Result<Duration, String> {
-    let Some(value) = value else {
-        return Ok(DEFAULT_GATHER_WINDOW);
-    };
-    match value.trim().parse::<u16>() {
-        Ok(seconds) => Ok(Duration::from_secs(seconds.into())),
-        _ => Err(format!(
-            "SRP_MATCH_GATHER_SECONDS is `{value}`; it must be a number of seconds"
-        )),
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1529,14 +1510,5 @@ mod tests {
         // No late joiner.
         assert!(!mm.append_player(id, player(2), 1, |_, _| true));
         assert_eq!(mm.formed_match(id).unwrap().seats.len(), 1);
-    }
-
-    #[test]
-    fn the_gathering_window_is_read_from_the_environment() {
-        assert_eq!(gather_window(None), Ok(DEFAULT_GATHER_WINDOW));
-        assert_eq!(gather_window(Some(" 0 ")), Ok(Duration::ZERO));
-        assert_eq!(gather_window(Some("20")), Ok(Duration::from_secs(20)));
-        let error = gather_window(Some("soon")).unwrap_err();
-        assert!(error.contains("SRP_MATCH_GATHER_SECONDS"), "{error}");
     }
 }

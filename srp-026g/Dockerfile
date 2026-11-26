@@ -33,13 +33,6 @@ RUN apt-get update \
  && chown srp /srv/srp/data
 WORKDIR /srv/srp
 COPY --from=build /srp /usr/local/bin/srp
-# The login server's key and certificate (srp is run from the folder that
-# holds ./certs). The certificate is the game's own, issued again with the
-# same key because the original ran out in 2014: every player's client must
-# have this very file as resources/ssl/survarium_login_server.crt
-# (client-patches/make_client_026g.py puts it there). They are in
-# the repository, so they are not secrets.
-COPY certs ./certs
 
 USER srp
 # The ports the client is told are the ports srp binds (the login answer
@@ -58,7 +51,7 @@ ENV SRP_BIND_HOST=0.0.0.0 \
     SRP_SNAPSHOT_DIR=off \
     SRP_DATA_DIR=/srv/srp/data
 VOLUME /srv/srp/data
-# Login (TLS over TCP), lobby (UDP), match (UDP), voice (UDP, the match port
+# Login (TCP), lobby (UDP), match (UDP), voice (UDP, the match port
 # + 1, SRP_VOICE), web page (HTTP).
 EXPOSE 1234/tcp 1235/udp 1236/udp 1237/udp 8088/tcp
 STOPSIGNAL SIGTERM

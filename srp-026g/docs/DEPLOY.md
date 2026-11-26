@@ -7,7 +7,7 @@
 
 | File | What it does |
 |---|---|
-| `Dockerfile` | Builds `srp` (the 0.26g login server, lobby, match server and web page in one process) in a Rust image and copies the binary and `certs/` into a small Debian image. Runs as a user without rights. The cargo caches are build cache mounts, so a rebuild compiles only what changed (about 1.5 minutes on one CPU; the first build about 6) |
+| `Dockerfile` | Builds `srp` (the 0.26g login server, lobby, match server and web page in one process) in a Rust image and copies the binary into a small Debian image. Runs as a user without rights. The cargo caches are build cache mounts, so a rebuild compiles only what changed (about 1.5 minutes on one CPU; the first build about 6) |
 | `docker-compose.yml` | Compose project `srp26`: the service `srp26` and, with the profile `tls`, `caddy26` (HTTPS for the web page). Ports, the data volume, the settings passed to srp, the container's limits |
 | `.dockerignore` | Keeps build output, data, logs, docs and the client patches out of the build |
 | `deploy/env-026g.example` | The settings to put into `.env` beside the compose file |

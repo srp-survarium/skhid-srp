@@ -26,10 +26,10 @@ send its world, which the client patch adds (`client-patches/`). An unpatched
 0.26g client does not even start: its code-signing certificate ran out in
 2015.
 
-This folder began as a copy of `srp-021d`. Its unused browser-server crate
-has been removed; the remaining 0.21d server code still compiles and is
-tested (the shared crates and several tests use it). `srp` here starts only
-the 0.26g servers. The hosted 0.21d server is built from `srp-021d`.
+This folder began as a copy of `srp-021d`. Its 0.21d servers have been
+removed (they are in `srp-021d`); the shared crates keep the 0.21d account
+and rules the 0.26g code still builds on. `srp` here starts only the 0.26g
+servers. No 0.21d server is hosted now.
 
 ## Build, run, test
 
@@ -75,4 +75,3 @@ test bot stands in for the second (`docs/SRP-026G.md`, "A match alone").
 | `crates/survarium/src/v026g/`, `crates/session/src/v026g/` | Game data and wire formats; the account, the rules, the rewards |
 | `servers/*/src/v026g*` | The 0.26g login server, lobby, match server and web page; `servers/srp` joins them |
 | `crates/resources-db`, `resources/game-026g/` | The players' `resources.db` and the server's game data of a release (`srp-game-data`), read at start; the test copy of it |
-| `certs/` | The certificate and key of the game's own TLS (0.21d's login server; the certificate still ships to players) |

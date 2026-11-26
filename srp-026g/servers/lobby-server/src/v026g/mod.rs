@@ -1,5 +1,5 @@
 //! The 0.26g lobby (`resources/notes/v026g/lobby.md`, `lobby_requests.md`,
-//! `social.md`), beside the 0.21d one.
+//! `social.md`).
 //!
 //! What 0.26g changed: the lobby is one UDP link on the match transport
 //! (`udp-transport`, `Table::Lobby`), whose connect payload is the sign-in

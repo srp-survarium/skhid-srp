@@ -17,7 +17,8 @@ const REPLAY: &[u8] = b"REPLAY BYTES";
 /// In every private file planted; never in an answer.
 const SECRET: &str = "SECRET";
 
-struct Quiet;
+/// A lobby and match server that say nothing: for the page's own tests.
+pub(crate) struct Quiet;
 
 impl LobbyLink for Quiet {
     fn account_changed(&self, _: u32) {}
@@ -103,16 +104,24 @@ fn web(replays: Option<Arc<Replays>>) -> Web {
         replay_failures: Mutex::new(HashMap::new()),
         replay_asks: Mutex::new(HashMap::new()),
         plans: Default::default(),
-        game: Some(Game {
-            accounts: Arc::new(GameAccounts::new()),
-            lobby: Arc::new(Quiet),
-            matches: Arc::new(Quiet),
-            downloads: Arc::new(crate::Downloads::new(Vec::new(), None, None)),
-            min_patch_revision: 0,
+        game: Game {
             replays,
-            results: Arc::new(session::v026g::rewards::Results::new()),
-            pools: crate::Pools::every_playable(),
-        }),
+            ..quiet_game()
+        },
+    }
+}
+
+/// A game whose lobby and match server say nothing, with no replays.
+pub(crate) fn quiet_game() -> Game {
+    Game {
+        accounts: Arc::new(GameAccounts::new()),
+        lobby: Arc::new(Quiet),
+        matches: Arc::new(Quiet),
+        downloads: Arc::new(crate::Downloads::new(Vec::new(), None, None)),
+        min_patch_revision: 0,
+        replays: None,
+        results: Arc::new(session::v026g::rewards::Results::new()),
+        pools: crate::Pools::every_playable(),
     }
 }
 
@@ -498,7 +507,7 @@ fn no_logged_value_of_a_request_can_start_a_line() {
 }
 
 #[test]
-fn replays_off_and_the_0_21d_page_serve_none() {
+fn replays_off_serve_none() {
     let planted = planted("off");
     let token = token(&planted.replays, 1);
     let off = web(None);
@@ -506,11 +515,6 @@ fn replays_off_and_the_0_21d_page_serve_none() {
         get(&off, "GET", &format!("/replays/{token}")),
         REPLAY_NOT_FOUND
     );
-    let mut old = web(Some(planted.replays.clone()));
-    old.game = None;
-    let answer = get(&old, "GET", &format!("/replays/{token}"));
-    assert!(answer.starts_with(b"HTTP/1.0 404 Not Found\r\n"));
-    assert!(!holds(&answer, REPLAY));
 }
 
 /// Every other route of the page, with the same hostile list after it:

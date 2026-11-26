@@ -87,11 +87,11 @@ impl Web {
                 account.last_sign_in,
             )
         };
-        // On the 0.26g page, the name its character has there.
+        // The name its character has in the game.
         let name = self
             .game
-            .as_ref()
-            .and_then(|game| game.accounts.get(account_id))
+            .accounts
+            .get(account_id)
             .map_or(name, |account| account.locked().name.clone());
         Some(Found {
             id: account_id,

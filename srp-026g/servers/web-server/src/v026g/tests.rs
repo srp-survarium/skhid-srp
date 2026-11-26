@@ -191,7 +191,7 @@ fn world_with(accounts: GameAccounts) -> World {
         replay_failures: Mutex::new(std::collections::HashMap::new()),
         replay_asks: Mutex::new(std::collections::HashMap::new()),
         plans: Default::default(),
-        game: Some(Game {
+        game: Game {
             accounts: accounts.clone(),
             lobby: told.clone(),
             matches: told.clone(),
@@ -200,7 +200,7 @@ fn world_with(accounts: GameAccounts) -> World {
             replays: None,
             results: Arc::new(session::v026g::rewards::Results::new()),
             pools: crate::Pools::every_playable(),
-        }),
+        },
     };
     World {
         web,
@@ -913,7 +913,7 @@ fn the_patches_are_listed_for_the_updater_as_json() {
     let mut world = world();
     world.web.token = None;
     world.web.admin_path = None;
-    world.web.game.as_mut().unwrap().downloads = Arc::new(crate::Downloads::new(
+    world.web.game.downloads = Arc::new(crate::Downloads::new(
         vec![
             offered(
                 14,
@@ -964,7 +964,7 @@ fn the_games_archive_is_offered_apart_from_the_patches() {
             "https://archive.org/download/x/survarium_full_026g0.7z".into(),
         ],
     };
-    world.web.game.as_mut().unwrap().downloads = Arc::new(crate::Downloads::new(
+    world.web.game.downloads = Arc::new(crate::Downloads::new(
         vec![offered(14, 'a', &["http://203.0.113.5/p14"])],
         Some(archive),
         None,
@@ -1319,7 +1319,7 @@ fn serve_wiki_preview() {
         crate::unix_now(),
         crowd,
     ));
-    world.web.game.as_mut().unwrap().replays =
+    world.web.game.replays =
         Some(Arc::new(crate::history::tests::preview_replays(&dir)));
     // SRP_PREVIEW_PORT: another port, for two previews side by side.
     let port = std::env::var("SRP_PREVIEW_PORT").unwrap_or_else(|_| "24583".to_owned());

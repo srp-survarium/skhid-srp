@@ -6,7 +6,7 @@
 //! each client through the handshake, keeps the match clock, relays the
 //! inputs, compares the clients' world hashes, gets world snapshots from
 //! patched clients and starts or resyncs clients from them, and ends the
-//! match. The 0.21d server (`crate::game`, `crate::server`) is the model;
+//! match. The 0.21d server (`srp-021d/servers/match-server`) is the model;
 //! `game.rs` here says what was carried over and what was not.
 //!
 //! - [`MatchRegistry`]: the lobby makes a match ([`MatchSetup`]) and gets

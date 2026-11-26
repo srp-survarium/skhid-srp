@@ -54,7 +54,7 @@ start them: the two login servers share one port.
 | `servers/lobby-server/src/v026g/` | The lobby: `core` (links, sign-in, the tick), `dispatch` (every request answered or refused), `play` (Play, a match made through `MatchHost`), `rooms` (the players' "servers": every PvP match), `social` (chat, friends, squads), `Inbox` (what other servers tell it: a match is over, an account changed, a push, the operator's text) |
 | `servers/match-server/src/v026g/` | The match server: `registry` (the lobby makes a match here), `game` (sync, relay, hashes, resync, the end), `server` (socket and loop) |
 | `servers/srp/src/v026g.rs` | Joins them: `Stack` (the three servers and the session collector, each on a supervised thread), `RegistryHost` (lobby → match server), `Settler` (match result → rewards → database → lobby), `WebLink` (web page → lobby) |
-| `servers/web-server` | The web page. `run_026g` is the 0.26g page (`src/v026g.rs`); `run` is the 0.21d page, kept and tested, not started |
+| `servers/web-server` | The web page (`run_026g`, `src/v026g.rs`). The 0.21d page is `srp-021d`'s |
 | `scripts/client-patch-026g/` | `patch_026g.py` (the client patch), `selftest_026g.py`, `make_client_026g.py` (the players' overlay) |
 | `crates/resources-db` | Reads `resources.db` and its patches (`resources.db.patch_<n>`), lays them over one another as the game mounts them, and `srp-game-data` builds the server's game data from them: the `gameplay/` files, the English and Ukrainian localizations and each project's `server_objects`, with what it was made of (`resources.db`, each patch with its URL). `srp` reads it at start (`SRP_GAME_DATA`). `crates/resources-db/README.md` |
 | `resources/game-026g/` | The server's game data of tests and tools: 0.26g's `resources.db` with the test patches 14 to 16 |
@@ -352,7 +352,7 @@ read by the 0.21d browser server and by the compose file's caddy, not by the
 - `/patches` (`GET`, public): the patches of `resources.db` the players'
   updater keeps in the game folder, as JSON (`{"patch_<n>":{"sha256":…,"urls":[…]},…}`,
   `{}` for none): those the server's game data was made of ("Game data"
-  above). The 0.21d page has no such route.
+  above).
 - `/api/client-files` and `/launcher/…` (since 2026-10-13, for the patched game
   launcher and its updater: `../client-patches/launcher/README.md`). The first answers with the
   SHA-256 and size of the file `/download` hands out (`SRP_DOWNLOAD_FILE`), as
@@ -425,9 +425,8 @@ read by the 0.21d browser server and by the compose file's caddy, not by the
 - Not there: the 0.21d-era console in the srp terminal (`status`, `start`,
   `end`) does not exist in this tree; nothing replaced it.
 
-The page is of one game version by how it is started (`web_server::run` for
-0.21d, `run_026g` for 0.26g), not by a setting: `srp` here starts the 0.26g
-servers only, so a switch would have nothing to switch.
+The page is the 0.26g game's (`web_server::run_026g`); the 0.21d one is in
+`srp-021d`.
 
 ## What is implemented, and what is refused
 
@@ -499,7 +498,7 @@ not prove the notes agree with the client. Format only the files you touched
 ## Run locally
 
 ```
-cd srp-026g        (the certificates are read from .\certs)
+cd srp-026g
 cargo run --release -p resources-db --bin srp-game-data -- build --dir <the game folder>\game --patch-url http://127.0.0.1/patches --out game-data.db
 set SRP_GAME_DATA=game-data.db
 set SRP_MIN_PATCH_REVISION=<the newest patch's n; leave it out without patches>
