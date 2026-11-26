@@ -46,6 +46,7 @@ pub mod matchmaking;
 pub mod moderation;
 pub mod names;
 pub mod notices;
+pub mod number_decals;
 pub mod pay;
 pub mod persist;
 pub mod premium;
@@ -328,6 +329,15 @@ impl GameAccounts {
             Account::new(name)
         };
         tutorial::signup_grant_with(&mut account, wear_kit);
+        if let Some(dict_id) = number_decals::give_new(
+            &mut account,
+            account_id,
+            survarium::v026g::dictionary::Dictionary::shared(),
+        ) {
+            log::info!(
+                "Account {account_id} got its number decal ({dict_id}) with its 0.26g account"
+            );
+        }
         let account = Arc::new(Mutex::new(account));
         accounts.insert(account_id, account.clone());
         drop(accounts);
