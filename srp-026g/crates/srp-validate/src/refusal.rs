@@ -487,10 +487,6 @@ pub enum Reason {
     RotationNotSane {
         half: u16,
     },
-    /// An input's actions with bit 29 or 30, which no stock client sets.
-    UnusedActions {
-        actions: u32,
-    },
     /// 0xE8's compressed flag: srp sends 0 or 1.
     SnapshotFlag {
         flag: u8,
@@ -912,10 +908,6 @@ impl fmt::Display for Reason {
             Reason::RotationNotSane { half } => write!(
                 f,
                 "a rotation half {half:#06x} that is no number under 1024"
-            ),
-            Reason::UnusedActions { actions } => write!(
-                f,
-                "actions {actions:#010x} with bit 29 or 30, which no client sets"
             ),
             Reason::SnapshotFlag { flag } => {
                 write!(f, "a compressed flag of {flag:#04x}, not 0 or 1")

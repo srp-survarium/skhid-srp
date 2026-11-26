@@ -3735,10 +3735,9 @@ impl Game {
         }
         // Client patches 85 and 196: a pickup or a corpse shot naming no place
         // of the match. The client never sends one (`weapon_pickup::sane`, its twin).
-        // Use exactly the recipient's input check before any relay. In
-        // particular, unused action bit 30 must not enter another player's
-        // simulation or reach its native input reader.
-        let refused = match srp_validate::messages::input(input.rotation, input.actions) {
+        // Use exactly the recipient's input check before any relay: a turn
+        // no mouse makes must not enter another player's simulation.
+        let refused = match srp_validate::messages::input(input.rotation) {
             Err(reason) => Some(reason.to_string()),
             Ok(()) if !weapon_pickup::sane(input.actions, places) => Some("a pickup or corpse shot of no place of the match".into()),
             // Client patch 180: a throw-back (Return to Sender) from a player none of whose kits

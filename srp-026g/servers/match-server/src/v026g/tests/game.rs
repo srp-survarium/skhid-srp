@@ -386,10 +386,11 @@ fn an_input_refused_by_the_client_validator_never_reaches_other_players() {
     bench.run(100);
     let bad = PlayerInput {
         time: WireTime::tick(bench.clients[0].clock() + 50),
-        rotation: [0; 4],
-        actions: 1 << 30,
+        // a turn of a half's infinity, which no mouse makes
+        rotation: [0x00, 0x7C, 0, 0],
+        actions: 0x20,
     };
-    assert!(srp_validate::messages::input(bad.rotation, bad.actions).is_err());
+    assert!(srp_validate::messages::input(bad.rotation).is_err());
     bench.clients[0].send_input(bad);
     bench.clients[0].send_input(bad);
     bench.run(100);
@@ -399,9 +400,10 @@ fn an_input_refused_by_the_client_validator_never_reaches_other_players() {
         assert_eq!(bench.clients[other].relays_of(0), [good]);
         assert!(discards(&bench.clients[other]).is_empty());
     }
-    // Native bit 31 and the shipped carry/pickup marker in bit 29 stay
-    // accepted. All players continue after the bad input is discarded.
-    for actions in [1 << 31, 1 << 29, 0x20] {
+    // Native bit 31, the shipped carry/pickup marker in bit 29 and the
+    // second sight's switch in bit 30 (client patch 206) stay accepted. All
+    // players continue after the bad input is discarded.
+    for actions in [1 << 31, 1 << 29, 1 << 30, 0x20] {
         let input = bench.clients[0].input(50, actions);
         bench.run(100);
         for other in [1, 2] {
