@@ -909,6 +909,9 @@ pub struct Planning {
     tested: FloorTests,
     /// [CPU hot paths] Its open list, a radix heap ([`mapdata::grid::HotOpen`]), kept across slices.
     queue: mapdata::grid::HotOpen,
+    /// [bot CPU] Ended over the whole grid with no way, every floor it may walk tried: its floor tests ([`Exhausted`]), for
+    /// [`Self::take_exhausted`].
+    exhausted: Option<Exhausted>,
     #[cfg(test)]
     us: f64,
     #[cfg(test)]
@@ -937,6 +940,23 @@ pub fn plan_start(
     weight: Option<&dyn Fn(NodeId) -> f32>,
     iters: &mut usize,
 ) -> Result<Option<Route>, Planning> {
+    plan_start_keeping(grid, regions, hot, from, to, allowed, region_ok, reach, weight, iters).0
+}
+
+/// [`plan_start`], with its [`Exhausted`] when the search ended within this slice over the whole grid with no way.
+#[allow(clippy::result_large_err, clippy::too_many_arguments)]
+pub fn plan_start_keeping(
+    grid: &WalkGrid,
+    regions: &Regions,
+    hot: &mapdata::grid::HotIndex,
+    from: NodeId,
+    to: NodeId,
+    allowed: impl Fn(NodeId) -> bool,
+    region_ok: impl Fn(u32) -> bool,
+    reach: mapdata::Reach,
+    weight: Option<&dyn Fn(NodeId) -> f32>,
+    iters: &mut usize,
+) -> (Result<Option<Route>, Planning>, Option<Exhausted>) {
     #[cfg(test)]
     let (started, started_cpu) = (std::time::Instant::now(), super::cpu_time::thread());
     match regions.start_route_search_reaching(grid, from, to, &allowed, &region_ok, usize::MAX, reach) {
@@ -946,13 +966,7 @@ pub fn plan_start(
                 let cpu_us = spent(started_cpu);
                 count(&found, _stage, started.elapsed().as_secs_f64() * 1e6, cpu_us, 0, 1);
             }
-            let ended = finish(grid, found, allowed, weight);
-            // Answered before a floor was searched: the regions (or the goal's links in) rule the way out.
-            if ended.is_none() {
-                LAST_END.with(|e| e.set(Some(SearchEnd::Regions)));
-                END_SINCE_MARK.with(|e| e.set(Some(SearchEnd::Regions)));
-            }
-            Ok(ended)
+            (Ok(answered_before_search(grid, found, allowed, weight)), None)
         }
         Ok(search) => {
             let mut planning = Planning {
@@ -960,6 +974,7 @@ pub fn plan_start(
                 weighted: weight.is_some(),
                 tested: FloorTests::new(grid.len()),
                 queue: mapdata::grid::HotOpen::hot_open_empty(),
+                exhausted: None,
                 #[cfg(test)]
                 us: started.elapsed().as_secs_f64() * 1e6,
                 #[cfg(test)]
@@ -968,10 +983,97 @@ pub fn plan_start(
                 slices: 0,
             };
             match planning.resume(grid, regions, hot, allowed, region_ok, weight.unwrap_or(&|_| 1.0), iters) {
-                Some(route) => Ok(route),
-                None => Err(planning),
+                Some(route) => {
+                    let exhausted = planning.take_exhausted();
+                    (Ok(route), exhausted)
+                }
+                None => (Err(planning), None),
             }
         }
+    }
+}
+
+/// A search the regions (or the goal's links in) answered before a floor was searched: its route, and the ends as such.
+fn answered_before_search(
+    grid: &WalkGrid,
+    found: Search,
+    allowed: impl Fn(NodeId) -> bool,
+    weight: Option<&dyn Fn(NodeId) -> f32>,
+) -> Option<Route> {
+    let ended = finish(grid, found, allowed, weight);
+    // Answered before a floor was searched: the regions (or the goal's links in) rule the way out.
+    if ended.is_none() {
+        LAST_END.with(|e| e.set(Some(SearchEnd::Regions)));
+        END_SINCE_MARK.with(|e| e.set(Some(SearchEnd::Regions)));
+    }
+    ended
+}
+
+/// [bot CPU] A search's start answered by one that ended over the whole grid with no way (`known`, [`Exhausted`]): the
+/// regions' checks before a floor is searched run as [`plan_start`] runs them (their answer, as theirs); past them the
+/// search would be the one that ended, floor for floor, so it ends the same: no way over the allowed floors, with no floor
+/// searched. The caller holds that the floor test gives every floor `known` tested the same answer ([`Exhausted::holds`]).
+#[allow(clippy::too_many_arguments)]
+pub fn plan_start_known(
+    grid: &WalkGrid,
+    regions: &Regions,
+    from: NodeId,
+    to: NodeId,
+    allowed: impl Fn(NodeId) -> bool,
+    region_ok: impl Fn(u32) -> bool,
+    reach: mapdata::Reach,
+    known: &Exhausted,
+) -> Option<Route> {
+    match regions.start_route_search_reaching(grid, from, to, &allowed, &region_ok, usize::MAX, reach) {
+        Err((found, _stage)) => answered_before_search(grid, found, allowed, None),
+        Ok(_) => {
+            #[cfg(test)]
+            noway_memo::count(noway_memo::HITS, 1);
+            #[cfg(test)]
+            noway_memo::count(noway_memo::FLOORS_SAVED, known.floors as u64);
+            let _ = known;
+            finish(grid, Search::NoWay, allowed, None)
+        }
+    }
+}
+
+/// [bot CPU] A search that ended over the whole grid with no way, every floor it may walk tried (`Search::NoWay` in
+/// `Stage::Whole`): its floor test's answers on every floor it tested ([`FloorTests`]) and the floors it expanded. The floors
+/// it reached from its start are closed under its links and its test, and the goal is not among them: the same search
+/// (start, goal, reach, no weight) whose floor test gives each of these floors the same answer tests the same floors, expands
+/// the same ones, and ends the same ([`Self::holds`]).
+pub struct Exhausted {
+    tests: FloorTests,
+    floors: usize,
+}
+
+impl Exhausted {
+    /// Whether `allowed` gives every floor this search tested the answer it gave.
+    pub fn holds(&self, allowed: impl Fn(NodeId) -> bool) -> bool {
+        self.tests.answers().all(|(node, open)| allowed(node) == open)
+    }
+
+    /// The floors the search expanded.
+    pub fn floors(&self) -> usize {
+        self.floors
+    }
+}
+
+/// [bot CPU] The bench's counts of [`Exhausted`] searches kept and asked again (test builds; logging only).
+#[cfg(test)]
+pub mod noway_memo {
+    use std::sync::atomic::{AtomicU64, Ordering::Relaxed};
+    /// Kept; answered again with no floor searched; the floors those would have expanded; refused (a floor's answer changed).
+    pub const KEPT: usize = 0;
+    pub const HITS: usize = 1;
+    pub const FLOORS_SAVED: usize = 2;
+    pub const REFUSED: usize = 3;
+    static COUNTS: [AtomicU64; 4] = [const { AtomicU64::new(0) }; 4];
+    pub fn count(what: usize, n: u64) {
+        COUNTS[what].fetch_add(n, Relaxed);
+    }
+    pub fn counts() -> [u64; 4] {
+        std::array::from_fn(|k| COUNTS[k].load(Relaxed))
     }
 }
 
@@ -1026,6 +1128,17 @@ impl FloorTests {
         Self((0..floors.div_ceil(32)).map(|_| std::cell::Cell::new(0)).collect())
     }
 
+    /// The floors asked, with their answers, in floor order.
+    fn answers(&self) -> impl Iterator<Item = (NodeId, bool)> + '_ {
+        self.0.iter().enumerate().flat_map(|(w, word)| {
+            let word = word.get();
+            (0..32u32).filter_map(move |k| {
+                let bits = word >> (k * 2);
+                (bits & 1 != 0).then(|| (w as NodeId * 32 + k, bits & 2 != 0))
+            })
+        })
+    }
+
     /// `allowed`, with each floor's answer kept the first time it is asked (a floor past the grid's, asked each time).
     fn kept<'a>(&'a self, allowed: &'a impl Fn(NodeId) -> bool) -> impl Fn(NodeId) -> bool + 'a {
         move |node| {
@@ -1075,17 +1188,28 @@ impl Planning {
             self.cpu_us += spent(started_cpu);
             self.slices += 1;
         }
-        let (found, _stage) = ended?;
+        let (found, stage) = ended?;
         #[cfg(test)]
         count(
             &found,
-            _stage,
+            stage,
             self.us,
             self.cpu_us,
             self.search.expanded() as u64,
             self.slices,
         );
-        Some(finish(grid, found, allowed, weight))
+        let exhaustive = matches!(found, Search::NoWay) && matches!(stage, mapdata::regions::Stage::Whole);
+        let route = finish(grid, found, allowed, weight);
+        if exhaustive {
+            let tests = std::mem::replace(&mut self.tested, FloorTests::new(0));
+            self.exhausted = Some(Exhausted { tests, floors: self.search.expanded() });
+        }
+        Some(route)
+    }
+
+    /// [bot CPU] The search's [`Exhausted`], once it ended over the whole grid with no way (taken).
+    pub fn take_exhausted(&mut self) -> Option<Exhausted> {
+        self.exhausted.take()
     }
 
     /// Floors expanded so far.
