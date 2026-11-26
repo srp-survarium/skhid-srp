@@ -692,18 +692,19 @@ pub struct CombatTuning {
     /// 1.6 reloads a minute against 1.0 of the others).
     pub reload_idle_ms: u32,
     pub reload_some_share: f32,
-    /// [reload in cover] A reload is taken out of the line of fire of the enemies the bot knows of, and a hide lasts as long
-    /// as its reload. Three rules, no number of their own:
+    /// [reload in cover] A tactical reload is taken out of the line of fire of the enemies the bot knows of, and a hide lasts
+    /// as long as its reload. Three rules, no number of their own:
     /// - A tactical reload due while an enemy the bot knows of has a line of fire to where it stands goes to cover first:
     ///   the nearest spot of the hide's ring (`hide_m`) out of the fire of every such enemy, and the reload begins there, or
     ///   as soon as none of them has the line. With no such spot it reloads where it stands, as before. "Knows of": a track
     ///   its own or its team's senses placed within `duel_ms`; the line is the hide's own test (`Tactics::shot_reaches`
     ///   from his place's eye to its own). A carrier and a push keep their way.
-    /// - On the way to cover with a weapon that cannot fire (reloading, or nothing in it), or to the cover of a tactical
-    ///   reload with nobody in sight, the bot looks where it runs, sights down: the client's forward run is 3.5 m/s and its
-    ///   sprint 5.0 (no sprint in a reload: `can_sprint` 0x2DBF40), its side step 2.5, its walk back 3.0, and aimed 2.0 to
-    ///   3.0 (`mapdata::controller::speed`). Before, the view stayed on the enemy's last place and the legs went to the
-    ///   spot sideways or backwards.
+    /// - On that way, with nobody in sight, the bot looks where it runs, sights down, so it may sprint: the client's sprint
+    ///   is 5.0 m/s and needs the view on the way and the sights down (`can_sprint` 0x2DBF40), its side step is 2.5, its walk
+    ///   back 3.0, and aimed 2.0 to 3.0 (`mapdata::controller::speed`). The weapon is not reloading yet, so the sprint is
+    ///   not refused. (The same for a weapon that cannot fire, the magazine out or the reload on, was built and taken out:
+    ///   its probe showed no gain. Of the empty reloads begun in an enemy's line 41.8 % were out of every line within a
+    ///   second before and 39.0 % with it.)
     /// - A hide's wait does not end, and its peek does not begin, while the weapon is reloading: the peek's spot is chosen
     ///   to see the enemy.
     ///
@@ -713,7 +714,7 @@ pub struct CombatTuning {
     /// to a hide spot the bots move at a median 1.5 to 1.8 m/s. Real players (247 live matches, 31,278 reload presses with
     /// a position): 12.2 % of their presses are in an enemy's line (the bots' reloads: 25.2 %), 62 % of those are out of
     /// every line within a second (44 %), at a median 2.9 m/s. Off: the reload wherever the bot stands 400 ms after its
-    /// target is out of sight, the view on him to the hide, and the peek at its wait's end.
+    /// target is out of sight, and the peek at its wait's end.
     pub reload_in_cover: bool,
     /// [A277] The reload key goes in as the client takes it. The client takes a reload only from its weapon's idle, or at
     /// the end of the fire or chamber clip with the key held then (the exits to reload 0x2E3EF0, 0x2E3F70, 0x2E3F40; a key
@@ -2782,7 +2783,7 @@ pub struct ReloadCoverStats {
     pub kept_way: u32,
     /// Hides whose wait a reload under way made longer.
     pub held: u32,
-    /// Hides run to with the view on the way: with a weapon that cannot fire, or for a tactical reload.
+    /// Ways to the cover of a tactical reload run with the view on the way.
     pub ran: u32,
 }
 
@@ -6924,20 +6925,8 @@ impl Reflex {
         self.reload_cover_stats
     }
 
-    /// [reload in cover] On the way to a hide spot with the legs its own: whether the weapon in hand cannot fire (reloading,
-    /// or nothing in it). None: not on such a way, or the rule is off.
-    fn runs_for_cover(&mut self, legs: Option<Legs>, now: u32, c: &CombatTuning) -> Option<bool> {
-        if !c.reload_in_cover
-            || !matches!(self.cover, Cover::Hiding { arrived: None, .. })
-            || !legs.is_some_and(|legs| legs.why == LegsWhy::BreakSight)
-        {
-            return None;
-        }
-        let reloading = now < self.busy_until && self.busy_why == gate::RELOAD;
-        Some(reloading || self.hands().held().rounds == 0)
-    }
-
-    /// [reload in cover] The bot runs for its hide spot with the view on its way, sights down: counted and noted once a hide.
+    /// [reload in cover] The bot runs for the cover of its reload with the view on its way, sights down: counted and noted
+    /// once a hide.
     fn ran_for_cover(&mut self) {
         if let Cover::Hiding { started, .. } = self.cover
             && self.ran_hide != Some(started)
@@ -8861,12 +8850,6 @@ impl Reflex {
             // (its round is counted). The aim held through the look
             // (`aim_carry`).
             let fire = self.trigger(false, fire_allowed, now, c, 0.0, rng);
-            // [reload in cover] On the way to cover with a weapon that cannot fire: the view on the way, sights down.
-            if self.runs_for_cover(legs, now, c) == Some(true) {
-                self.ran_for_cover();
-                self.aim_since = None;
-                return Override { fire, keys: reload & !key::AIM, legs, band_m: self.band, ..Override::default() };
-            }
             let mut keys = reload;
             if c.aim_carry && aim_since.is_some() {
                 self.aim_since = aim_since;
@@ -8911,10 +8894,12 @@ impl Reflex {
             self.held_ms = 0;
             self.strafe = 0;
             self.strafe_until = 0;
-            // [reload in cover] On the way to cover with a weapon that cannot fire, or to the cover of a tactical reload: no
-            // look of its own and no aim key, so the walk faces its way and may sprint (a reload refuses the sprint).
-            if let Some(cannot_fire) = self.runs_for_cover(legs, now, c)
-                && (cannot_fire || matches!(self.reload_cover, ReloadCover::Going { .. }))
+            // [reload in cover] On the way to the cover of a tactical reload: no look of its own and no aim key, so the walk
+            // faces its way and may sprint (the weapon is not reloading yet).
+            if c.reload_in_cover
+                && matches!(self.reload_cover, ReloadCover::Going { .. })
+                && matches!(self.cover, Cover::Hiding { arrived: None, .. })
+                && legs.is_some_and(|legs| legs.why == LegsWhy::BreakSight)
             {
                 self.ran_for_cover();
                 self.aim_since = None;
@@ -9354,12 +9339,6 @@ impl Reflex {
             } else {
                 st.stopped += 1;
             }
-        }
-        // [reload in cover] On the way to cover with a weapon that cannot fire, the enemy in sight: the view on the way.
-        if self.runs_for_cover(legs, now, c) == Some(true) {
-            self.ran_for_cover();
-            self.aim_since = None;
-            return Override { fire, keys: keys & !key::AIM, legs, band_m: self.band, ..Override::default() };
         }
         Override {
             look_at: Some(point),
@@ -14938,26 +14917,22 @@ mod tests {
         assert_eq!(reflex.reload_cover_stats(), ReloadCoverStats::default());
     }
 
-    /// [reload in cover] The magazine out with the enemy in sight: the reload comes at once, as before, and on the way to the
-    /// hide spot the reflex holds no look of its own (the walk faces its way); off, the view stays on him.
+    /// [reload in cover] The magazine out with the enemy in sight: the reload, the hide and the view on him are as they
+    /// were (the rule is the tactical reload's), tick for tick to the reload's end.
     #[test]
-    fn on_the_way_to_cover_with_a_weapon_that_cannot_fire_it_looks_where_it_runs() {
+    fn an_empty_weapons_reload_and_hide_are_as_they_were() {
         let on = CombatTuning::default();
         let off = CombatTuning { reload_in_cover: false, ..CombatTuning::default() };
         let run = |c: &CombatTuning| {
             let (ticks, reflex, ..) = walked_duel(c, 12_000, 12_000);
             let reload = ticks.iter().find(|t| t.1 & key::RELOAD != 0).expect("reloads").0;
-            let way: Vec<_> = ticks.into_iter().filter(|t| t.2 == Some(LegsWhy::BreakSight) && t.0 > reload && t.0 < reload + 1_000).collect();
-            assert!(!way.is_empty(), "it heads for cover with the reload");
-            (reload, way, reflex.reload_cover_stats())
+            let to_its_end: Vec<_> = ticks.into_iter().filter(|t| t.0 <= reload + guns::gun("uzi").unwrap().reload_ms(0, 32)).collect();
+            assert!(to_its_end.iter().any(|t| t.2 == Some(LegsWhy::BreakSight) && t.0 > reload && t.3), "it heads for cover with the view on him");
+            (to_its_end, reflex.reload_cover_stats())
         };
-        let (reload_on, way, stats) = run(&on);
-        assert!(way.iter().all(|t| !t.3 && t.1 & key::AIM == 0), "{way:?}");
-        assert_eq!((stats.ran, stats.went), (1, 0), "{stats:?}");
-        let (reload_off, way, stats) = run(&off);
-        assert!(way.iter().all(|t| t.3), "off: the view on him: {way:?}");
-        assert_eq!(stats, ReloadCoverStats::default());
-        assert_eq!(reload_on, reload_off, "the empty weapon's reload comes when it did");
+        let (with, stats) = run(&on);
+        assert_eq!((stats.went, stats.ran, stats.no_spot), (0, 0, 0), "{stats:?}");
+        assert_eq!(with, run(&off).0);
     }
 
     /// [reload in cover] A hide's wait does not end while the weapon reloads (the peek's spot is chosen to see the enemy);
