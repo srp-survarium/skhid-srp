@@ -64,6 +64,16 @@ pub(super) fn walk_ups() -> Box<dyn RouteTopic> {
     )
 }
 
+/// [route shut] The route checks that looked over a jump or drop leg by its take-off and landing, not its flight.
+pub(super) fn shut_flights() -> Box<dyn RouteTopic> {
+    Delta::of(
+        || super::super::tactics::shut_flights::counts().to_vec(),
+        |d, line| {
+            line.ends.push(format!("shut_checks_over_a_flight {}", d[0]));
+        },
+    )
+}
+
 /// The motor's counts: jumps, look-ahead cuts, side steps, the lip guard; and (at the tail) the walk ticks whose look-ahead ended on a point the body does not walk to in a line, and what the walk did about it.
 pub(super) fn motor() -> Box<dyn RouteTopic> {
     Delta::of(
