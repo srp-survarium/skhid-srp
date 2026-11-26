@@ -9,10 +9,13 @@
 //! - **The lanes, on the regions' graph** (HPA*'s abstract level: the regions of 8 m blocks and their links, a few thousand on a
 //!   map). L1 is the least-cost way between the start's and the goal's regions, its cost the links' (metres between the regions'
 //!   middles plus the link kinds' penalties), counted between the walk's own ends ([`RegionWay::cost_between`]: the end regions'
-//!   middles lie up to half a block off them). When it is longer than [`LaneDrawTuning::long_m`], L2 is the least-cost way with the
-//!   regions near L1 shut: a region whose middle lies within `away_m` of L1's, but within `ends_m` of the walk's ends, where both
-//!   lanes start and end (the C2 probe's rule, by region). Both see only the regions the plain search may enter (the hazards,
-//!   the spawn areas, the filter's regions).
+//!   middles lie up to half a block off them). When it is longer than [`LaneDrawTuning::long_m`], L2 is the plateau method's
+//!   ([`plateau_way`]; Abraham, Delling, Goldberg, Werneck 2010): of the ways through a chain of links on both full trees (forward
+//!   from the start's region, backward from the goal's), the cheapest that is not L1, visits no region twice, has no more leap links
+//!   than L1 and comes the lane test's [`LANE_TEST_M`] or more off L1 somewhere: another passage, not a copy of L1 shifted by
+//!   `away_m` (lane draw v5; v3's shut ring gave a lane within +30 % in 61 of the probe's 177 lane groups, 7 of them 30 m or more off
+//!   L1 on the floors; at `away_m` 30, 13 and 9; the plateaus 35 and 18, the two trees 0.49 ms at the median, once a walk). Both
+//!   see only the regions the plain search may enter (the hazards, the spawn areas, the filter's regions).
 //! - **The floors' search, once.** L1 drawn: the plain search, as before. L2 drawn: the plain search kept to L2's room (its
 //!   regions and the open ones next to them, `RouteFilter::keeping_to`, as K1 keeps its weighed search to the costed corridor).
 //!   So a walk costs one floors' search either way: a second floors' search would not fit the poll's floors (10,000 a team; the
@@ -55,7 +58,8 @@
 //!   303 of 1,763 L2 draws were drawn again within one play when the goal moved over 15 m, 173 of them lost L2 with three quarters
 //!   of the way left).
 //! - **The trace.** One nav line a long walk ([`line`]): the play, the goal, C1, C2 and their ratio, the teammates on each lane, the
-//!   odds and the number drawn, the lane walked (rank 1 or 2) and its cost; or why there is one lane only.
+//!   odds and the number drawn, the lane walked (rank 1 or 2) and its cost; or why there is one lane only; and the plateaus found
+//!   and L2's via region ([`plateau_note`]).
 //!
 //! Roam keeps its human-route draw (its walks are not drawn here), and a carrier's walk home is a race (not drawn).
 //!
@@ -195,33 +199,128 @@ pub fn region_way(tactics: &Tactics, from: u32, to: u32, open: impl Fn(u32) -> b
     None
 }
 
-/// The regions the second lane's way keeps out of (by region): those whose middle lies within `away_m` of a point of the first lane
-/// `first` and `ends_m` or more from both of the walk's `ends`. None when no such point is left (the walk is all ends).
-pub fn shut_near(tactics: &Tactics, first: &[Vec3], ends: [Vec3; 2], set: &LaneDrawTuning) -> Option<Arc<Vec<bool>>> {
-    let (away, ends_m) = (set.away_m.get(), set.ends_m.get());
-    let off_ends = |p: Vec3| ends.iter().all(|e| p.distance_xz(*e) >= ends_m);
-    let middle: Vec<Vec3> = first.iter().copied().filter(|&p| off_ends(p)).collect();
-    if middle.is_empty() {
-        return None;
+/// The lane test's distance, m: two legs within it of each other all the way are one lane (its 30 m one-sided Hausdorff,
+/// `lane-band-humans-v2.py`); [`HUMAN_LEGS`] was counted with it. A second lane is one only somewhere this far off L1.
+pub const LANE_TEST_M: f32 = 30.0;
+
+/// A full tree on the regions from `root` (Dijkstra, no goal; the links' costs as [`region_way`]'s), through the regions `open`
+/// gives true for: each region's cost, and its tree neighbour toward the root with the link's cost. `back`: over the links reversed
+/// (each region's cost to the root).
+fn region_tree(tactics: &Tactics, root: u32, open: &dyn Fn(u32) -> bool, back: bool) -> (Vec<f32>, Vec<Option<(u32, f32)>>) {
+    use std::cmp::Reverse;
+    use std::collections::BinaryHeap;
+    let regions = tactics.regions();
+    let n = regions.len();
+    let mut cost = vec![f32::INFINITY; n];
+    let mut next: Vec<Option<(u32, f32)>> = vec![None; n];
+    let mut closed = vec![false; n];
+    let mut queue = BinaryHeap::new();
+    let key = |c: f32| Reverse(c.max(0.0).to_bits());
+    if root as usize >= n {
+        return (cost, next);
     }
-    // The middle points by `away` square: a region's middle is tested against the points of its square and the eight round it.
-    let key = |p: Vec3| ((p.x / away).floor() as i32, (p.z / away).floor() as i32);
-    let mut squares: std::collections::HashMap<(i32, i32), Vec<Vec3>> = std::collections::HashMap::new();
-    for &p in &middle {
-        squares.entry(key(p)).or_default().push(p);
+    cost[root as usize] = 0.0;
+    queue.push((key(0.0), root));
+    while let Some((_, u)) = queue.pop() {
+        if std::mem::replace(&mut closed[u as usize], true) {
+            continue;
+        }
+        let cu = cost[u as usize];
+        let mut relax = |v: u32, step: f32| {
+            if !closed[v as usize] && open(v) && cu + step < cost[v as usize] {
+                cost[v as usize] = cu + step;
+                next[v as usize] = Some((u, step));
+                queue.push((key(cu + step), v));
+            }
+        };
+        if back {
+            for &v in regions.into(u) {
+                if let Some(&(_, step)) = regions.out(v).iter().find(|&&(w, _)| w == u) {
+                    relax(v, step);
+                }
+            }
+        } else {
+            for &(v, step) in regions.out(u) {
+                relax(v, step);
+            }
+        }
     }
-    let (grid, regions) = (&tactics.world.grid, tactics.regions());
-    let shut = (0..regions.len() as u32)
-        .map(|r| {
-            let m = grid.position(regions.middle(r));
-            let (i, k) = key(m);
-            off_ends(m)
-                && (-1..=1).any(|di| {
-                    (-1..=1).any(|dk| squares.get(&(i + di, k + dk)).is_some_and(|ps| ps.iter().any(|p| p.distance_xz(m) < away)))
-                })
-        })
+    (cost, next)
+}
+
+/// [plateau] The second lane of a walk from region `from` to `to` on the plateau method (Abraham, Delling, Goldberg, Werneck,
+/// "Alternative Routes in Road Networks", 2010): a full tree forward from `from` and one backward from `to` through the regions
+/// `open` gives true for; a plateau is a chain of links on both trees, and each gives a way (the forward tree to it, it, the
+/// backward tree on), its cost the two trees' sum at its regions. The cheapest that is not `first` (L1), visits no region twice,
+/// has no more leap links than L1, and comes `away_m` ([`LANE_TEST_M`] in the draw) or more off L1's regions' middles somewhere
+/// (one-sided Hausdorff): through another passage, not a shifted copy of L1; its cost between the walk's `ends`. With the number of plateaus and the
+/// way's via region (its plateau's first). The band is the caller's (the cheapest kept is the cheapest within it, if any is).
+pub fn plateau_way(
+    tactics: &Tactics,
+    from: u32,
+    to: u32,
+    open: impl Fn(u32) -> bool,
+    first: &RegionWay,
+    ends: [Vec3; 2],
+    away_m: f32,
+) -> (usize, Option<(RegionWay, f32, u32)>) {
+    let open_or_end = |r: u32| r == from || r == to || open(r);
+    let (df, fwd) = region_tree(tactics, from, &open_or_end, false);
+    let (db, bwd) = region_tree(tactics, to, &open_or_end, true);
+    let on_both = |v: u32| fwd[v as usize].is_some_and(|(u, _)| bwd[u as usize].is_some_and(|(w, _)| w == v));
+    // The plateaus' first links' far regions (a plateau's first region on both trees whose tree parent is not), by cost.
+    let mut cands: Vec<(f32, u32)> = (0..tactics.regions().len() as u32)
+        .filter(|&v| on_both(v) && fwd[v as usize].is_some_and(|(u, _)| !on_both(u)))
+        .map(|v| (df[v as usize] + db[v as usize], v))
+        .filter(|(c, _)| c.is_finite())
         .collect();
-    Some(Arc::new(shut))
+    cands.sort_by(|a, b| a.0.total_cmp(&b.0));
+    let plateaus = cands.len();
+    let (points1, leaps1) = (first.points(tactics), first.leaps(tactics));
+    let ids1: Vec<u32> = first.regions.iter().map(|r| r.0).collect();
+    let kept = cands.iter().find_map(|&(_, via)| {
+        let mut regions = vec![];
+        let mut at = via;
+        while let Some((up, step)) = fwd[at as usize] {
+            regions.push((at, step));
+            at = up;
+        }
+        regions.push((at, 0.0));
+        regions.reverse();
+        let mut at = via;
+        while let Some((down, step)) = bwd[at as usize] {
+            regions.push((down, step));
+            at = down;
+        }
+        let ids: Vec<u32> = regions.iter().map(|r| r.0).collect();
+        if ids == ids1 || ids.len() != ids.iter().collect::<std::collections::HashSet<_>>().len() {
+            return None;
+        }
+        let way = RegionWay { cost: regions.iter().map(|r| r.1).sum(), regions };
+        let off = way
+            .points(tactics)
+            .iter()
+            .map(|p| points1.iter().map(|q| p.distance_xz(*q)).fold(f32::INFINITY, f32::min))
+            .fold(0.0, f32::max);
+        (way.leaps(tactics) <= leaps1 && off >= away_m).then(|| {
+            let c2 = way.cost_between(tactics, ends[0], ends[1]);
+            (way, c2, via)
+        })
+    });
+    (plateaus, kept)
+}
+
+/// [plateau] The regions a held plateau lane keeps out of: all but its way's and those linked to them (its [`room`]).
+pub fn outside(tactics: &Tactics, way: &RegionWay) -> Arc<Vec<bool>> {
+    let regions = tactics.regions();
+    let mut shut = vec![true; regions.len()];
+    for &(r, _) in &way.regions {
+        shut[r as usize] = false;
+        for v in regions.out(r).iter().map(|&(v, _)| v).chain(regions.into(r).iter().copied()) {
+            shut[v as usize] = false;
+        }
+    }
+    Arc::new(shut)
 }
 
 /// [pincer] The regions a flank lane keeps out of (by region): off the walk's start (`ends_m` or more from it), those within
@@ -680,10 +779,15 @@ pub enum Verdict {
 }
 
 /// Why a walk has no second lane ([`Verdict::One`]).
-const NO_ROOM: &str = "no room off the ends";
-const NO_WAY: &str = "no way";
+const NO_PLATEAU: &str = "no plateau lane";
 const OVER_BAND: &str = "over the band";
 const MORE_EXPOSED: &str = "more exposed";
+
+/// [plateau] The draw line's tail: the plateaus found and the second lane's via region (none kept: `-`).
+pub fn plateau_note((plateaus, via): (usize, Option<Vec3>)) -> String {
+    let via = via.map_or("-".to_owned(), |v| format!("({:.1}, {:.1})", v.x, v.z));
+    format!("; plateaus {plateaus}, via {via}")
+}
 
 /// The nav line of a drawn walk: `nav: lane draw: <play> to (x, z): C1 m, <verdict>`.
 pub fn line(play: impl std::fmt::Debug, goal: Vec3, c1: f32, verdict: &Verdict) -> String {
@@ -769,15 +873,18 @@ pub(super) fn draw(
     };
     let num = |name| tuning.number(super::plays::PlayKind::Roam, name);
     let (death, keep_ms) = (num("death_factor"), (num("fresh_s") * 1000.0) as u32);
-    // The second way off a first's points: its cost between the ends and the regions it keeps out of.
-    let second_of = |points: &[Vec3]| {
-        let shut = shut_near(tactics, points, ends, set).ok_or(NO_ROOM)?;
-        let way = region_way(tactics, from, to, |r| !shut[r as usize] && (walk.open)(r)).ok_or(NO_WAY)?;
-        let c2 = way.cost_between(tactics, ends[0], ends[1]);
+    // [plateau] The second way off a first: the plateau method's ([`plateau_way`]), its cost between the ends and the regions it
+    // keeps out of (all but its room); the plateaus counted and its via, for the line.
+    let mut plateaus = (0, None);
+    let mut second_of = |first: &RegionWay| {
+        let (n, kept) = plateau_way(tactics, from, to, walk.open, first, ends, LANE_TEST_M);
+        plateaus = (n, kept.as_ref().map(|k| grid.position(regions.middle(k.2))));
+        let (way, c2, _) = kept.ok_or(NO_PLATEAU)?;
+        let shut = outside(tactics, &way);
         Ok::<_, &'static str>((way, c2, shut))
     };
     let mut points1 = first.points(tactics);
-    let mut second = second_of(&points1);
+    let mut second = second_of(&first);
     // L1 the cheaper between the walk's ends: the regions' ranking from the end regions' middles swapped, the second way searched
     // again off the new first.
     let mut swapped = false;
@@ -786,7 +893,7 @@ pub(super) fn draw(
     {
         (first, c1) = (way.clone(), *c2);
         points1 = first.points(tactics);
-        second = second_of(&points1);
+        second = second_of(&first);
         swapped = true;
     }
     // Metres of a way's links into the regions the team's held shooters see (none known: 0).
@@ -823,7 +930,7 @@ pub(super) fn draw(
             (verdict, second.then_some((way, shut)), Arc::new([points1, points2]))
         }
     };
-    bot.nav_log.push(super::nav_log::Kind::Lane, walk.time, line(play, walk.goal, c1, &verdict));
+    bot.nav_log.push(super::nav_log::Kind::Lane, walk.time, format!("{}{}", line(play, walk.goal, c1, &verdict), plateau_note(plateaus)));
     let cap = Cap { metres: band * c1, leaps: leaps1 };
     match lane {
         Some((way, shut)) => {
@@ -1088,8 +1195,8 @@ mod tests {
     }
 
     /// On the test field (80 by 40 m, a wall at x 40 from z 0 to 25): the regions' way from (10, 10) to (70, 10) goes by the gap
-    /// above the wall, its cost no less than the straight distance and with no leap; with the regions near it shut (the ends' 25 m
-    /// open) there is no second way, and a held lane's room is none; with nothing shut the room holds the way's regions.
+    /// above the wall, its cost no less than the straight distance and with no leap; no plateau lane comes 100 m off it on the field,
+    /// and a held lane's room with every region shut is none; with nothing shut the room holds the way's regions.
     #[test]
     fn the_second_way_keeps_off_the_first_and_the_field_has_one_gap() {
         let world = crate::v026g::bots::tactics::tests::field_with(|_| {});
@@ -1104,7 +1211,6 @@ mod tests {
         assert_eq!(way.regions.first().map(|r| r.0), Some(regions.of(a)));
         assert_eq!(way.regions.last().map(|r| r.0), Some(regions.of(b)));
         assert_eq!(way.leaps(&tactics), 0, "a flat field: walk links only");
-        let set = LaneDrawTuning::default();
         let ends = [grid.position(a), grid.position(b)];
         // Between the walk's own ends: no shorter than the straight line, and the way's own cost when the ends are its end
         // regions' middles; one region is the straight leg, one link its kind's penalty on the straight leg.
@@ -1114,9 +1220,9 @@ mod tests {
         assert!((way.cost_between(&tactics, middles[0], middles[1]) - way.cost).abs() < 1e-3);
         let one = RegionWay { regions: vec![(regions.of(a), 0.0)], cost: 0.0 };
         assert!((one.cost_between(&tactics, ends[0], ends[1]) - (ends[1] - ends[0]).length()).abs() < 1e-4);
-        let shut = shut_near(&tactics, &points, ends, &set).unwrap();
-        assert!(shut.iter().any(|&s| s));
-        assert!(region_way(&tactics, regions.of(a), regions.of(b), |r| !shut[r as usize]).is_none(), "one gap");
+        let (_, kept) = plateau_way(&tactics, regions.of(a), regions.of(b), |_| true, &way, ends, 100.0);
+        assert!(kept.is_none(), "nothing 100 m off L1 on an 80 by 40 m field");
+        let shut = vec![true; regions.len()];
         let open = |_: u32| true;
         let walk = Walk { ends: (a, b), goal: grid.position(b), time: 0, open: &open, play: None, objective: None };
         assert!(held_room(&tactics, &shut, 1.15, &walk).is_none());
@@ -1124,8 +1230,38 @@ mod tests {
         assert!(way.regions.iter().all(|&(r, _)| room.regions[r as usize]));
         assert!((room.cap.metres - 1.15 * between).abs() < 1e-3, "nothing shut: L2 is L1, the cap the band on its cost between the ends");
         assert_eq!(room.cap.leaps, 0);
-        // The walk is all ends: no room for a second lane.
-        assert!(shut_near(&tactics, &points[..2], [points[0], points[1]], &set).is_none());
+    }
+
+    /// [plateau] The test field with a second wall at x 40 from z 28 to 37: two gaps (z 25-28, 37-40). From (10, 10) to (70, 10) L1
+    /// goes by the near gap; a plateau lane comes as far off L1 as asked, visits no region twice, has no more leap links and costs no
+    /// less; none when nothing is that far off; its room's regions are open, the rest shut.
+    #[test]
+    fn a_plateau_lane_takes_the_other_passage() {
+        let solids = crate::v026g::bots::body::tests::wall_x(40.0, 28.0, 37.0);
+        let world = crate::v026g::bots::tactics::tests::field_with_solids(&solids, |_| {});
+        let tactics = Tactics::new(world, 1.0);
+        let grid = &tactics.world.grid;
+        let (a, b) = (grid.locate(Vec3::new(10.0, 0.0, 10.0), 1.5).unwrap(), grid.locate(Vec3::new(70.0, 0.0, 10.0), 1.5).unwrap());
+        let regions = tactics.regions();
+        let first = region_way(&tactics, regions.of(a), regions.of(b), |_| true).unwrap();
+        let ends = [grid.position(a), grid.position(b)];
+        let near_gap = |w: &RegionWay| w.points(&tactics).iter().any(|p| (35.0..45.0).contains(&p.x) && p.z < 32.0);
+        assert!(near_gap(&first), "L1 by the near gap");
+        let (plateaus, kept) = plateau_way(&tactics, regions.of(a), regions.of(b), |_| true, &first, ends, 5.0);
+        assert!(plateaus >= 1);
+        let (way, c2, via) = kept.expect("a lane 5 m off L1");
+        let points1 = first.points(&tactics);
+        let off = way.points(&tactics).iter().map(|p| points1.iter().map(|q| p.distance_xz(*q)).fold(f32::INFINITY, f32::min)).fold(0.0, f32::max);
+        assert!(off >= 5.0, "{off}");
+        assert!(way.regions.iter().map(|r| r.0).ne(first.regions.iter().map(|r| r.0)), "not L1");
+        assert!(way.leaps(&tactics) <= first.leaps(&tactics));
+        assert!(way.cost + 1e-3 >= first.cost && c2 > 0.0 && way.regions.iter().any(|r| r.0 == via), "L1 the least-cost way");
+        let ids: Vec<u32> = way.regions.iter().map(|r| r.0).collect();
+        assert_eq!(ids.len(), ids.iter().collect::<std::collections::HashSet<_>>().len(), "no region twice");
+        assert!(plateau_way(&tactics, regions.of(a), regions.of(b), |_| true, &first, ends, 100.0).1.is_none(), "nothing 100 m off L1");
+        let shut = outside(&tactics, &way);
+        assert!(way.regions.iter().all(|&(r, _)| !shut[r as usize]) && shut.iter().any(|&s| s));
+        assert!(plateau_note((plateaus, Some(Vec3::new(40.0, 0.0, 38.5)))).ends_with(&format!("plateaus {plateaus}, via (40.0, 38.5)")));
     }
 
     /// A way's leap links are those whose cost is over its middles' distance by a drop's half penalty or more.
