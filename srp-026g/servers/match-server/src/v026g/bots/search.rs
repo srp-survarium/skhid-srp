@@ -474,6 +474,11 @@ impl Drop for SearchMemory {
             if priced > 0 || taken > 0 {
                 log::info!("Bots' marked walks since the last such line: priced up {priced} times, taken by {taken} routes");
             }
+            // [A334] And the pulled legs held back unwalked because the poll's walk budget was spent.
+            let unknown = path::take_pull_walk_unknown();
+            if unknown > 0 {
+                log::info!("Bots' pulled legs held back unwalked (walk budget spent) since the last such line: {unknown}");
+            }
             if bytes > 0 {
                 log::info!(
                     "No match with bots left: their search arrays given back ({:.1} MB)",
