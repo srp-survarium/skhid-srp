@@ -1,8 +1,7 @@
-The 16 tiles of this folder (classics/catalog.tsv) and initial/mm-14.webp are drawn by
-classics_art.py: 13 are cut from free swatches of real camouflage patterns, four are original
-procedural studies of classic patterns. classics_art.py fetch downloads the swatches and checks
-each one's sha256; classics_art.py build then reproduces every WebP byte for byte (checked
-2026-11-26 with NumPy 2.4.4, Pillow 13.0.0 and SciPy 1.17.1).
+The 12 tiles of this folder (classics/catalog.tsv) and initial/mm-14.webp are cut by
+classics_art.py from free swatches of real camouflage patterns. classics_art.py fetch downloads
+the swatches and checks each one's sha256; classics_art.py build then reproduces every WebP
+byte for byte (checked 2026-11-26 with NumPy 2.4.4, Pillow 13.0.0 and SciPy 1.17.1).
 
 Each swatch tile is a modified copy of its source: cropped, its lighting evened out where
 the source is a photograph (tropentarn, balkan-dpm), made seamless and scaled to 768 px. A
@@ -79,12 +78,9 @@ Netherlands' NFP). The licences cover the drawings and photographs; whether an a
 design right in its pattern is not stated on those pages. The project owner accepted that.
 
 
-Studies (frogskin, alpenflage, klmk, leibermuster): drawn from the seeds and palettes in
-classics_art.py; they read no image. Each recalls a classic family (the 1940s U.S. spot patterns,
-the Swiss TAZ 83, the Soviet KLMK, the 1945 German Leibermuster) without copying a swatch of
-it. They were written on 2026-11-26 by a coding agent, like initial/; no licence has been stated
-for them yet, as for initial/. brushstroke.webp was such a study until the real Rhodesian
-swatch above took its place under the same item.
+Items 3107-3110 were procedural studies of classic patterns (Frogskin, Alpenflage, KLMK,
+Leibermuster); the owner dropped them on 2026-11-26 and their ids stay unused. Item 3106 was
+such a study (Brushstroke) until the real Rhodesian swatch above took its place.
 
 
 Looked at and left out: SnowyCocoon's free packs (every motif is already in art/), ShareTextures

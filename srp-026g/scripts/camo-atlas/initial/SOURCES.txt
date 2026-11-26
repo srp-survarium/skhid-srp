@@ -1,9 +1,11 @@
-13 of the 14 tiles of this folder (initial/catalog.tsv) are procedural: initial_art.py draws
+10 of the 11 tiles of this folder (initial/catalog.tsv) are procedural: initial_art.py draws
 each one from seeded noise and the three to five colours of its catalog row. It reads no
-image or other file, so no third-party artwork is in them. It reproduces those 13 WebPs byte
-for byte (checked 2026-11-26 with NumPy 2.4.4 and Pillow 13.0.0).
+image or other file, so no third-party artwork is in them. It reproduces those 10 WebPs byte
+for byte (checked 2026-11-26 with NumPy 2.4.4 and Pillow 13.0.0). On 2026-11-26 the owner
+dropped three more studies (Reed Rain 2805, Night Grid 2807, Violet Splinter 2811); their
+ids stay unused.
 
-The 14th, mm-14.webp (item 2812), is the real Ukrainian MM-14, cut from a photograph on
+The 11th, mm-14.webp (item 2812), is the real Ukrainian MM-14, cut from a photograph on
 Wikimedia Commons by classics_art.py: File:MM14.jpg by Lucas Cavalcante Mesquita, CC BY-SA 4.0,
 modified (cropped, made seamless, scaled). Its credit and licence are in classics/SOURCES.txt.
 It replaced Pixel Steppe, this script's study of MM-14, under the same item on 2026-11-26.
@@ -20,4 +22,4 @@ National Defence, Ukraine's Ministry of Defence). Nothing was downloaded from th
 into the tiles. Field Mosaic is a colour study in the spirit of Ukraine's MM-25; it is not a
 copy of the pattern, whose sample the Ministry has not published.
 
-No licence has been stated for the 13 procedural tiles. The project owner has to set one.
+No licence has been stated for the 10 procedural tiles. The project owner has to set one.

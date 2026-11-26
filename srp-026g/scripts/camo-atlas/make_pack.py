@@ -2,7 +2,8 @@
 """Build the camo-atlas resource-porter pack from its artwork and the retail 0.26g archive.
 
 python3 make_pack.py --db /path/to/resources.db --reader /path/to/srp-game-data --out /path/to/camo-atlas-5
-Requires Pillow, NumPy and ImageMagick. Catalog order owns the permanent item IDs and icon cells.
+Requires Pillow, NumPy and ImageMagick. Each catalog row's id is its permanent item; the item's
+modification and icon cell follow from it, so a retired item leaves its id, modification and cell unused.
 """
 import argparse
 import csv
@@ -46,15 +47,21 @@ STOCK = {
 
 
 def catalog():
-    seen = set()
+    """(offset from FIRST_ITEM, row, artwork) in id order."""
+    seen, ids, rows = set(), set(), []
     for folder in (HERE / 'initial', HERE / 'art', HERE / 'classics'):
         with (folder / 'catalog.tsv').open(encoding='utf-8', newline='') as stream:
             for row in csv.DictReader(stream, delimiter='\t'):
                 slug = row['slug']
                 if slug in seen or not re.fullmatch(r'[a-z][a-z0-9]*(?:-[a-z0-9]+)*', slug):
                     raise ValueError(f'invalid or duplicate slug {slug!r}')
+                offset = int(row['id']) - FIRST_ITEM
+                if offset in ids or offset < 0:
+                    raise ValueError(f'{slug}: invalid or duplicate id {row["id"]}')
                 seen.add(slug)
-                yield row, folder / (slug + '.webp')
+                ids.add(offset)
+                rows.append((offset, row, folder / (slug + '.webp')))
+    return sorted(rows, key=lambda entry: entry[0])
 
 
 def build(stock, target):
@@ -67,7 +74,7 @@ def build(stock, target):
         dest.write_bytes(data)
         ops.append({'op': 'add_file', 'path': path})
 
-    for index, (row, path) in enumerate(catalog()):
+    for index, row, path in catalog():
         name = 'camo_atlas_' + row['slug'].replace('-', '_')
         key = 'st_' + name
         texture = 'character/human/camo/atlas/' + name
@@ -89,7 +96,7 @@ def build(stock, target):
             add(base + '.dds', stock[CLOTH + role + '.dds'] if role else pbr_026.encoded(pixels, like))
         entries.append(dict(dict_id=FIRST_ITEM + index, name=name, cfg_name=config, item_category=25,
                             is_premium=False, is_stack=False, base_cost=PRICE))
-        images.append(path)
+        images.append((index, path))
     ops.append({'op': 'dictionary_add', 'table': 'items_dict', 'entries': entries})
     ops.extend(icons.icon_operations(target, images))
     manifest = dict(format_version=1, id='camo-atlas', version='5', target_build='0.26g',

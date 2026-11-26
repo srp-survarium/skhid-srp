@@ -1,16 +1,16 @@
 #!/usr/bin/env python3
-"""Draw the tiles of classics/ (768 x 768 WebP): real camouflage patterns and studies of classic ones.
+"""Draw the tiles of classics/ (768 x 768 WebP): real camouflage patterns from free swatches.
 
 python3 classics_art.py fetch DIR                 download the swatches below into DIR
 python3 classics_art.py build --sources DIR [--out DIR]
 
-Swatch rows crop a square of a free swatch from Wikimedia Commons (SWATCHES: the file, its
+Each row crops a square of a free swatch from Wikimedia Commons (SWATCHES: the file, its
 licence and the exact bytes used, by sha256), evening out a photograph's lighting where asked,
-and make it periodic with a minimum-cost seam on the wrapped edges. Study rows are drawn from
-the seeds in this file and read no file. classics/SOURCES.txt says where each one comes from.
+and makes it periodic with a minimum-cost seam on the wrapped edges. classics/SOURCES.txt says
+where each one comes from.
 One swatch replaces an older tile of initial/ and is written there (INITIAL), keeping its item.
 Pillow, NumPy and SciPy; with NumPy 2.4.4, Pillow 13.0.0 and SciPy 1.17.1 it reproduces
-classics/*.webp and initial/mm-14.webp byte for byte. Catalog order is part of the game dictionary.
+classics/*.webp and initial/mm-14.webp byte for byte. Each row's id is its item in the game dictionary.
 """
 import argparse
 import csv
@@ -20,8 +20,8 @@ import urllib.request
 from pathlib import Path
 
 import numpy as np
-from PIL import Image, ImageDraw
-from scipy.ndimage import gaussian_filter, map_coordinates
+from PIL import Image
+from scipy.ndimage import gaussian_filter
 
 HERE = Path(__file__).resolve().parent
 SIZE = 768
@@ -137,153 +137,50 @@ def swatch(sources, name, x, y, n, overlap, repeats=False, light=0):
     return Image.fromarray(periodic(crop, n)).resize((SIZE, SIZE), Image.Resampling.LANCZOS)
 
 
-# Studies: drawn at twice the tile size on a periodic plane and filtered down.
-N = SIZE * 2
-Y, X = np.mgrid[0:N, 0:N].astype(np.float32) / N
-
-
-def field(rng, nx, ny, x=X, y=Y):
-    values = rng.uniform(-1, 1, (ny, nx)).astype(np.float32)
-    return map_coordinates(values, [y * ny, x * nx], order=3, mode='grid-wrap')
-
-
-def fbm(rng, base, octaves, x=X, y=Y, sx=1, sy=1):
-    out = np.zeros_like(X)
-    for octave in range(octaves):
-        scale = base * 2 ** octave
-        out += .5 ** octave * field(rng, max(1, int(scale * sx)), max(1, int(scale * sy)), x, y)
-    return out
-
-
-def polygon(draw, points, ink):
-    points = np.asarray(points, dtype=np.float64)
-    for dx in (-N, 0, N):
-        for dy in (-N, 0, N):
-            moved = points + (dx, dy)
-            if moved[:, 0].max() >= 0 and moved[:, 0].min() <= N and moved[:, 1].max() >= 0 and moved[:, 1].min() <= N:
-                draw.polygon([tuple(p) for p in moved], fill=ink)
-
-
-def frogskin(rng):
-    """Overlapping rounded spots in four inks, the largest first."""
-    image = Image.new('L', (N, N), 0)
-    draw = ImageDraw.Draw(image)
-    for ink, count, low, high in ((1, 70, .028, .06), (2, 95, .018, .045), (3, 120, .010, .028), (4, 60, .008, .02)):
-        for _ in range(count):
-            cx, cy = rng.uniform(0, N, 2)
-            r = rng.uniform(low, high) * N
-            h = rng.normal(0, 1, (4, 2))
-            a = np.linspace(0, 2 * np.pi, 40, endpoint=False)
-            rr = r * (1 + .16 * np.sin(2 * a + h[0, 0]) + .1 * np.sin(3 * a + h[1, 0]) + .06 * np.sin(5 * a + h[2, 0]))
-            stretch = rng.uniform(.8, 1.3)
-            polygon(draw, np.stack([cx + rr * np.cos(a) * stretch, cy + rr * np.sin(a) / stretch], 1), ink)
-    return np.asarray(image)
-
-
-def alpenflage(rng):
-    """Soft green and brown patches under a scatter of small red-brown dots."""
-    a, b, c = fbm(rng, 4, 3), fbm(rng, 5, 3), fbm(rng, 6, 3)
-    image = Image.fromarray(np.select([a > .32, b > .3, c > .28], [1, 2, 3], 0).astype(np.uint8))
-    draw = ImageDraw.Draw(image)
-    for _ in range(420):
-        cx, cy = rng.uniform(0, N, 2)
-        for _ in range(rng.integers(1, 5)):
-            x, y = cx + rng.normal(0, .012 * N), cy + rng.normal(0, .012 * N)
-            r = rng.uniform(.0035, .008) * N
-            a = np.linspace(0, 2 * np.pi, 16, endpoint=False)
-            rr = r * (1 + .1 * rng.normal(0, 1, 16))
-            polygon(draw, np.stack([x + rr * np.cos(a), y + rr * np.sin(a)], 1), 4)
-    return np.asarray(image)
-
-
-def klmk(rng):
-    """Stepped, perforated dark ribbons running across a light ground."""
-    u, v = np.floor(X * 72) / 72, np.floor(Y * 120) / 120
-    a = fbm(rng, 3, 4, u, v, sx=.7, sy=2.4)
-    holes = fbm(rng, 14, 2, u, v, sx=.8, sy=1.4)
-    ink = ((a > 0) & (holes < .42)).astype(np.uint8)
-    ink[(a > -.12) & (a <= 0) & (holes > .2)] = 1
-    return ink
-
-
-def leiber(rng):
-    """Green and red-brown patches, short black squiggles and pale flecks."""
-    green, brown, squiggle, fleck = fbm(rng, 4, 3), fbm(rng, 5, 3), fbm(rng, 5, 4), fbm(rng, 40, 1)
-    ink = np.zeros(X.shape, np.uint8)
-    ink[green > .38] = 1
-    ink[brown > .48] = 2
-    ink[(np.abs(squiggle) < .07) & (fbm(rng, 9, 2) > -.1)] = 3
-    ink[fleck > .78] = 4
-    return ink
-
-
-def study(draw, palette, seed):
-    rng = np.random.default_rng(seed)
-    inks = np.array([list(bytes.fromhex(h)) for h in palette.split()], dtype=np.float32)
-    image = Image.fromarray(inks[draw(rng)].astype(np.uint8)).resize((SIZE, SIZE), Image.Resampling.LANCZOS)
-    # A faint periodic print grain and weave, as on the other drawn tiles.
-    y, x = np.mgrid[0:SIZE, 0:SIZE].astype(np.float32) / SIZE
-    grain = map_coordinates(rng.uniform(-1, 1, (96, 96)).astype(np.float32), [y * 96, x * 96], order=1, mode='grid-wrap')
-    weave = .9 * np.cos(2 * np.pi * (x * 256 + y * 128)) + .8 * np.cos(2 * np.pi * y * 256)
-    pixels = np.asarray(image, dtype=np.float32) + (2 * grain + weave)[:, :, None]
-    return Image.fromarray(np.clip(np.rint(pixels), 0, 255).astype(np.uint8))
-
-
-# slug, name, family, description, how: ('swatch', name, x, y, n, overlap[, repeats]) or ('study', function, palette, seed)
+# id (the item; 3107-3110 were drawn studies, dropped 2026-11-26), slug, name, family, description,
+# and the swatch: (name, x, y, n, overlap[, repeats[, light]])
 ROWS = [
-    ('lizard', 'Lizard', 'Lizard',
+    (3099, 'lizard', 'Lizard', 'Lizard',
      'Brushed horizontal strokes of green and brown over a pale ground, from a 1950s French swatch.',
-     ('swatch', 'lizard', 1280, 0, 1500, 200)),
-    ('erdl-highland', 'ERDL Highland', 'ERDL',
+     ('lizard', 1280, 0, 1500, 200)),
+    (3100, 'erdl-highland', 'ERDL Highland', 'ERDL',
      'Brown-dominant leaf pattern with black branches, from the U.S. ERDL highland swatch.',
-     ('swatch', 'erdl', 704, 0, 1850, 260)),
-    ('three-color-desert', 'Three-Color Desert', 'Desert Tricolor',
+     ('erdl', 704, 0, 1850, 260)),
+    (3101, 'three-color-desert', 'Three-Color Desert', 'Desert Tricolor',
      'Broad khaki clouds and thin brown ridges on sand, from the U.S. desert uniform swatch.',
-     ('swatch', 'dcu', 256, 640, 700, 100, True)),
-    ('urban-brush', 'Urban Brush', 'All-Over Brush',
+     ('dcu', 256, 640, 700, 100, True)),
+    (3102, 'urban-brush', 'Urban Brush', 'All-Over Brush',
      'Sweeping dry-brush marks in plum, rose and cream, from a 2002 U.S. Army trial swatch.',
-     ('swatch', 'brush', 0, 0, 740, 100)),
-    ('centre-europe', 'Centre Europe', 'Centre Europe',
+     ('brush', 0, 0, 740, 100)),
+    (3103, 'centre-europe', 'Centre Europe', 'Centre Europe',
      'Wide horizontal shapes in green, brown, sand and black, from the French CCE swatch.',
-     ('swatch', 'cce', 384, 0, 1091, 128, True)),
-    ('all-terrain', 'All Terrain', 'Multi-Environment',
+     ('cce', 384, 0, 1091, 128, True)),
+    (3104, 'all-terrain', 'All Terrain', 'Multi-Environment',
      'Layered gradients of sand, olive and brown with small bright flecks, from the French BME swatch.',
-     ('swatch', 'bme', 320, 0, 2250, 300)),
-    ('danube-leaf', 'Danube Leaf', 'Leaf Mosaic',
+     ('bme', 320, 0, 2250, 300)),
+    (3105, 'danube-leaf', 'Danube Leaf', 'Leaf Mosaic',
      'Interlocking leaf shapes in ochre, olive and brown with pale veins, from the Hungarian 2015M swatch.',
-     ('swatch', 'hu2015', 0, 0, 960, 140)),
-    ('brushstroke', 'Brushstroke', 'Brushstroke',
+     ('hu2015', 0, 0, 960, 140)),
+    (3106, 'brushstroke', 'Brushstroke', 'Brushstroke',
      'Diagonal green and brown dry-brush strokes on sand, from a Rhodesian brushstroke swatch.',
-     ('swatch', 'rhodesian', 0, 0, 600, 90)),
-    ('frogskin', 'Frogskin', 'Frogskin',
-     'Rounded spots in olive, brown, forest and black on pale green. An original study of the 1940s spot patterns.',
-     ('study', frogskin, 'A9AD84 6E7445 7B5A3B 3E4A2C 2A2A22', 5)),
-    ('alpenflage', 'Alpenflage', 'Alpine Dot',
-     'Soft green and brown patches under a scatter of red-brown dots. An original study of the Swiss TAZ 83.',
-     ('study', alpenflage, 'C7BE9F 8E9A6C 4F5C3B 7A5B3D 9C4A33', 83)),
-    ('klmk', 'KLMK', 'Stepped Ribbon',
-     'Stepped, perforated dark green ribbons across a light ground. An original study of the Soviet KLMK.',
-     ('study', klmk, 'AFB28F 4B5A37', 68)),
-    ('leibermuster', 'Leibermuster', 'Squiggle',
-     'Green and red-brown patches, black squiggles and pale flecks on buff. An original study of the 1945 German pattern.',
-     ('study', leiber, 'C2B994 667346 8A5A3E 24231F E3DDC8', 45)),
-    ('tropentarn', 'Tropentarn', 'Desert Fleck',
+     ('rhodesian', 0, 0, 600, 90)),
+    (3111, 'tropentarn', 'Tropentarn', 'Desert Fleck',
      'Brown, green and sand flecks on a pale khaki ground, from a German Tropentarn fabric photograph.',
-     ('swatch', 'tropentarn', 576, 0, 1150, 150, False, 150)),
-    ('balkan-dpm', 'Balkan DPM', 'Disruptive Pattern',
+     ('tropentarn', 576, 0, 1150, 150, False, 150)),
+    (3112, 'balkan-dpm', 'Balkan DPM', 'Disruptive Pattern',
      'Interlocking brush shapes in brown, olive, grey, navy and cream, from the Bulgarian M2003 DPM.',
-     ('swatch', 'bgdpm', 1792, 768, 1800, 240, False, 150)),
-    ('balkan-splinter', 'Balkan Splinter', 'Splinter Rain',
+     ('bgdpm', 1792, 768, 1800, 240, False, 150)),
+    (3113, 'balkan-splinter', 'Balkan Splinter', 'Splinter Rain',
      'Grey and plum splinters over a beige ground with rain marks, from the Bulgarian splinter pattern.',
-     ('swatch', 'bgsplinter', 1792, 704, 1800, 240)),
-    ('nfp-blue', 'NFP Blue', 'Mottle',
+     ('bgsplinter', 1792, 704, 1800, 240)),
+    (3114, 'nfp-blue', 'NFP Blue', 'Mottle',
      'Fine navy and slate mottling, from the Dutch M19 NFP Blue pattern.',
-     ('swatch', 'nfpblue', 0, 0, 740, 90)),
+     ('nfpblue', 0, 0, 740, 90)),
 ]
 
-# Rows that keep an item of initial/ (its place in initial/catalog.tsv) with a swatch in place of a study.
+# Rows of initial/catalog.tsv whose tile is a swatch made here (it replaced a study under the same item).
 INITIAL = [
-    ('mm-14', ('swatch', 'mm14', 0, 192, 640, 96)),
+    (2812, 'mm-14', ('mm14', 0, 192, 640, 96)),
 ]
 
 
@@ -296,25 +193,20 @@ def palette(image):
 def build(sources, out, initial):
     out.mkdir(parents=True, exist_ok=True)
     rows = []
-    for slug, name, family, description, how in ROWS:
-        if how[0] == 'swatch':
-            image = swatch(sources, *how[1:])
-            file, _, _, licence, author = SWATCHES[how[1]]
-            url, label = COMMONS + file, f'Wikimedia Commons · {author} · {licence}'
-        else:
-            _, draw, inks, seed = how
-            image = study(draw, inks, seed)
-            url, label = '', 'Original study · classics_art.py'
+    for item, slug, name, family, description, how in ROWS:
+        image = swatch(sources, *how)
+        file, _, _, licence, author = SWATCHES[how[0]]
+        url, label = COMMONS + file, f'Wikimedia Commons · {author} · {licence}'
         image.save(out / (slug + '.webp'), quality=94, method=4)
-        rows.append((slug, name, family, description, url, label, palette(image)))
+        rows.append((item, slug, name, family, description, url, label, palette(image)))
         print(slug, flush=True)
-    for slug, how in INITIAL:
-        image = swatch(sources, *how[1:])
+    for item, slug, how in INITIAL:
+        image = swatch(sources, *how)
         image.save(initial / (slug + '.webp'), quality=94, method=4)
         print(f'{slug} (initial/, palette {palette(image)})', flush=True)
     with (out / 'catalog.tsv').open('w', encoding='utf-8', newline='') as stream:
         writer = csv.writer(stream, delimiter='\t', lineterminator='\n')
-        writer.writerow(('slug', 'name', 'family', 'description', 'source_url', 'source_label', 'palette'))
+        writer.writerow(('id', 'slug', 'name', 'family', 'description', 'source_url', 'source_label', 'palette'))
         writer.writerows(rows)
 
 

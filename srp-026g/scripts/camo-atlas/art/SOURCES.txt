@@ -1,4 +1,4 @@
-The 285 additional atlas tiles include 195 based on artwork by SnowyCocoon.
+The 208 additional atlas tiles include 194 based on artwork by SnowyCocoon.
 
 Camouflage Texture Pack 1, FREE edition v1.2
 https://snowycocoon.itch.io/camouflage-texture-pack-1
@@ -9,14 +9,22 @@ https://snowycocoon.itch.io/camouflage-texture-pack-2
 The License.txt in each FREE archive dedicates its artwork to CC0 1.0 Universal:
 https://creativecommons.org/publicdomain/zero/1.0/
 
-87 tiles preserve the creator's original colorways. 33 use atlas color ramps.
+86 tiles preserve the creator's original colorways. 33 use atlas color ramps.
 Another 75 apply atlas inks and overprints to source motifs. The importer
 selects the precise archive PNG, realization and print treatment for each row.
 
-90 tiles use original artwork across ten textile, cartographic and mineral
-families. They are drawn by expanded_art.py. Each catalog row links the
-museum object, USGS description or mineral specimen used as a visual
-reference. The paintings, photographs and maps remain on their source sites.
+14 tiles use original artwork in four textile, cartographic and mineral
+families (soundings, crosscheck, terrazzo, screenprint). They are drawn by
+expanded_art.py. Each catalog row links the museum object, USGS description
+or mineral specimen used as a visual reference. The paintings, photographs
+and maps remain on their source sites.
 
-The first 120 WebPs are 1024 x 1024. Rows 121 to 285 are 768 x 768.
+On 2026-11-26 the owner dropped 77 tiles of this folder: Desert Wave Fan
+(item 2876) and 76 of the 90 original prints, among them every agate, kasuri,
+cloud hex, wax resist, fishbone and beadwork print. Each row's id is its item;
+a dropped tile's id stays unused (import_art.py RETIRED, expanded_art.py
+ORIGINALS).
+
+The WebPs from SnowyCocoon's sheets (rows up to id 2933) are 1024 x 1024;
+the original prints and the reprints (ids 2934 on) are 768 x 768.
 The game builds its own 512 x 512 diffuse textures from these sources.
