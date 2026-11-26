@@ -7,6 +7,7 @@ import unittest
 
 import make_edits as edits
 import make_pack as pack
+import make_bottles as bottles_tool
 
 
 class Lamps(unittest.TestCase):
@@ -326,6 +327,84 @@ class Lamps(unittest.TestCase):
         self.assertAlmostEqual(abs(end[0] - start[0]), abs(end[2] - start[2]), places=5)
         self.assertAlmostEqual(start[1], 5. - .822, places=5)
         self.assertAlmostEqual(end[1], 5. - .822, places=5)
+
+    def test_bottles_side_by_side_are_fixtures_of_their_own(self):
+        # School's table (2026-11-26): three bottles within 0.3 m, in a project
+        # with a lamp table. Each breaks alone, along its own length.
+        def record(value):
+            return (3, [(k, (7 if isinstance(v, list) else 5, v)) for k, v in value.items()])
+        lamp = dict(visual_name='props/light/lamp_on', position=[0., 5., 0.], rotation=[0., 0., 0.], scale=[1., 1., 1.])
+        bottles = [dict(visual_name='props/kitchen/bottle_vodka', position=p, rotation=r, scale=[1., 1., 1.])
+                   for p, r in (([16.98, 19.48, 33.62], [0., 0., 1.5708]), ([17.04, 19.44, 33.77], [0., 0., 1.5708]),
+                                ([16.78, 19.47, 33.72], [0., 0., 0.]))]
+        for v in [lamp] + bottles:
+            v['lib_name'] = v['visual_name']
+        original = bytearray(pack.serialize((3, [('render_visuals', (4, [record(v) for v in [lamp] + bottles])),
+                                                 ('client_objects', (4, []))])))
+        lamp_bounds = {'props/light/lamp_on': ([-.056, -.209, -.056], [.056, 0., .055])}
+        _, additions, spec = edits.author('projects/level_02/day_2/client_project', original, lamp_bounds, 29, 7)
+        data = bytearray(original)
+        for add in additions:
+            edits.c.add_entry(data, add['list'], add['after'], add['like'], add['values'])
+        edits.c.add_value(data, spec['table'], spec['key'], spec['value'])
+        self.assertEqual(len(spec['value']['lamps']), 1)   # the lamp rule leaves bottles alone
+        bottle_bounds = {'props/kitchen/bottle_vodka': ([-.039, .005, -.036], [.037, .305, .04])}
+        rows = bottles_tool.rows('projects/level_02/day_2/client_project', bytes(data), bottle_bounds)
+        self.assertEqual(sorted(rows), ['bottle0', 'bottle1', 'bottle2'])
+        final = edits.tree(bytes(data))['render_visuals']
+        for row in rows.values():
+            self.assertEqual(row['lights'], {})
+            (visual,) = row['visuals'].values()
+            self.assertEqual(visual['state'], 0)
+            self.assertEqual(final[visual['index']]['visual_name'], 'props/kitchen/bottle_vodka')
+            # The burst runs along the bottle: 0.3 m, inside its bounds.
+            ends = [[row[f'glass_{e}_{a}'] for a in 'xyz'] for e in ('from', 'to')]
+            self.assertAlmostEqual(math.dist(*ends), .3, places=3)
+        # A lying bottle's line is level, the standing one's upright.
+        self.assertAlmostEqual(rows['bottle0']['glass_from_y'], rows['bottle0']['glass_to_y'], places=3)
+        self.assertAlmostEqual(abs(rows['bottle2']['glass_to_y'] - rows['bottle2']['glass_from_y']), .3, places=3)
+        for key, row in rows.items():
+            edits.c.add_value(data, 'srp_lamps/lamps', key, row)
+        self.assertEqual(edits.check_built('projects/level_02/day_2/client_project', data), [])
+        # An index a later list shifted onto the lamp is a problem.
+        rows['bottle1']['visuals']['intact0']['index'] = 0
+        shifted = bytearray(original)
+        for add in additions:
+            edits.c.add_entry(shifted, add['list'], add['after'], add['like'], add['values'])
+        edits.c.add_value(shifted, spec['table'], spec['key'], spec['value'])
+        for key, row in rows.items():
+            edits.c.add_value(shifted, 'srp_lamps/lamps', key, row)
+        self.assertEqual(len(edits.check_built('projects/level_02/day_2/client_project', shifted)), 1)
+        with self.assertRaisesRegex(ValueError, 'no lamp table'):
+            bottles_tool.rows('projects/level_02/day_2/client_project', bytes(original), bottle_bounds)
+
+    def test_a_bottles_collision_is_taken_out_and_the_rest_stays(self):
+        # A broken bottle leaves nothing on the table (the owner, 2026-11-26): its
+        # collision and walker collision go, matched by model and position (the
+        # v0.21 port's rotation differs from its visual's by rounding).
+        def record(value):
+            return (3, [(k, (7 if isinstance(v, list) else 5, v)) for k, v in value.items()])
+        name = 'ported/v021d/props/kitchen/bottle_vodka'
+        bottles = [dict(visual_name=name, lib_name=name, position=p, rotation=[3.142, 0.391, 3.142], scale=[1., 1., 1.])
+                   for p in ([16.979, 19.48, 33.619], [17.04, 19.444, 33.768])]
+        table = dict(lib_name='resources/models/props/furniture/table.model/collision', position=[17., 19., 33.7],
+                     rotation=[0., 0., 0.], scale=[1., 1., 1.])
+        objects = [table] + [dict(lib_name=f'resources/models/{name}.model/{part}', position=b['position'],
+                                  rotation=[-3.141, 0.391, -3.141], scale=[1., 1., 1.])
+                             for b in bottles for part in ('collision', 'walker_collision')]
+        data = bytearray(pack.serialize((3, [('render_visuals', (4, [record(v) for v in bottles])),
+                                             ('collision_objects', (4, [record(c) for c in objects]))])))
+        path = 'projects/v021d_level_02/day_2/client_project'
+        rows = bottles_tool.collisions(path, bytes(data))
+        self.assertEqual(len(rows), 4)
+        for row in rows:
+            edits.c.remove_entry(data, row['list'], row['where'])
+        self.assertEqual([c['lib_name'] for c in edits.tree(bytes(data))['collision_objects']], [table['lib_name']])
+        # a bottle whose collision is not the live data's is refused
+        lone = bytearray(pack.serialize((3, [('render_visuals', (4, [record(v) for v in bottles])),
+                                             ('collision_objects', (4, [record(c) for c in objects[:2]]))])))
+        with self.assertRaisesRegex(ValueError, '0 walker_collision objects'):
+            bottles_tool.collisions(path, bytes(lone))
 
     def test_manifest_bindings_are_bounded_and_have_one_owner(self):
         path = Path(__file__).resolve().parents[1] / 'content-edit/breakable-lamps-1.json'

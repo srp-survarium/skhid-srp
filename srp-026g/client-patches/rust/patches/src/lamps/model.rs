@@ -66,8 +66,48 @@ pub use crate::vostok::presentation::{Membership, PresentationEvent, RendererAct
 use ::ragdoll::math::{Pose, Vec3};
 use ::ragdoll::ragdoll::{Level, LoneBody, Motion};
 
-/// The most loose pieces a project's fixtures have (a skeleton's cap).
-pub const MAX_PIECES: usize = 8;
+/// The most loose pieces a project's fixtures have (a skeleton's cap, a
+/// bottle's eight shards: School's three bottles have 24).
+pub const MAX_PIECES: usize = 32;
+// Each piece is a loose visual of the project's registry.
+const _: () = assert!(MAX_PIECES <= crate::vostok::project::MAX_LOOSE);
+
+/// What a loose piece is, and so how it flies off and on.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum PieceKind {
+    /// A figure's headwear (a skeleton's cap): knocked off as a corpse's is.
+    Headwear,
+    /// A glass figure's shard (a bottle's), its place `outward` from the
+    /// figure's middle: thrown out that way and along the push.
+    Shard { outward: Vec3 },
+}
+
+impl PieceKind {
+    /// Its body off its seat by a push along `push` (zero: dropped, a break
+    /// no push of this client's made).
+    fn off(self, seat: Pose, up: Vec3, push: Vec3) -> LoneBody {
+        match self {
+            PieceKind::Headwear => LoneBody::shot_off(seat, up, push),
+            PieceKind::Shard { outward } => {
+                let outward = if push == Vec3::ZERO { Vec3::ZERO } else { outward };
+                LoneBody::shattered(seat, up, push, outward)
+            }
+        }
+    }
+    /// Its body struck again at `from` along `push`.
+    fn kicked(self, from: Pose, up: Vec3, push: Vec3) -> LoneBody {
+        match self {
+            PieceKind::Headwear => LoneBody::kicked(from, up, push),
+            PieceKind::Shard { .. } => LoneBody::shard_kicked(from, up, push),
+        }
+    }
+    /// How near a shot or a blast's reach must come to its centre to knock it
+    /// on: about its half length (a cap's 14 cm, a shard's 6 cm).
+    pub fn reach(self) -> Distance {
+        let metres = match self { PieceKind::Headwear => 0.14, PieceKind::Shard { .. } => 0.06 };
+        Distance::parse(metres).expect("a finite, non-negative distance")
+    }
+}
 
 /// A fixture's loose piece (a skeleton's cap): on its seat while the fixture
 /// is intact, knocked off when it breaks, as a corpse's headwear is shot off
@@ -106,13 +146,14 @@ impl Flight {
     /// at `seat`: an intact fixture's sits there; a broken one's flies off it
     /// (dropped, when the break came from the history and no push of this
     /// client's) and then lies where it rested.
-    pub fn step(self, condition: Condition, seat: Pose, dt: f32, up: Vec3, level: &mut impl Level) -> Flight {
+    pub fn step(self, kind: PieceKind, condition: Condition, seat: Pose, dt: f32, up: Vec3,
+                level: &mut impl Level) -> Flight {
         let flying = match (condition, self) {
             (Condition::Intact, _) => return Flight::Seated,
             (Condition::Broken, Flight::Lying(pose)) => return Flight::Lying(pose),
-            (Condition::Broken, Flight::Seated) => LoneBody::shot_off(seat, up, Vec3::ZERO),
-            (Condition::Broken, Flight::Struck { push }) => LoneBody::shot_off(seat, up, vector(push)),
-            (Condition::Broken, Flight::Kicked { from, push }) => LoneBody::kicked(from, up, vector(push)),
+            (Condition::Broken, Flight::Seated) => kind.off(seat, up, Vec3::ZERO),
+            (Condition::Broken, Flight::Struck { push }) => kind.off(seat, up, vector(push)),
+            (Condition::Broken, Flight::Kicked { from, push }) => kind.kicked(from, up, vector(push)),
             (Condition::Broken, Flight::Flying(body)) => body,
         };
         let mut body = flying;
@@ -345,7 +386,7 @@ mod tests {
     }
     fn fly(mut flight: Flight, condition: Condition, seat: Pose) -> Flight {
         for _ in 0..600 {
-            flight = flight.step(condition, seat, 1.0 / 60.0, Vec3::Y, &mut Floor);
+            flight = flight.step(PieceKind::Headwear, condition, seat, 1.0 / 60.0, Vec3::Y, &mut Floor);
             if !matches!(flight, Flight::Flying(_)) { break; }
         }
         flight
@@ -353,18 +394,18 @@ mod tests {
     #[test]
     fn a_piece_flies_off_along_its_push_and_lies_where_it_rests() {
         let seat = Pose::new(::ragdoll::math::Quat::IDENTITY, Vec3::new(0.0, 0.8, 0.0));
-        assert_eq!(Flight::Seated.step(Condition::Intact, seat, 1.0 / 60.0, Vec3::Y, &mut Floor), Flight::Seated);
+        assert_eq!(Flight::Seated.step(PieceKind::Headwear, Condition::Intact, seat, 1.0 / 60.0, Vec3::Y, &mut Floor), Flight::Seated);
         assert_eq!(Flight::Seated.pose(), None);
         let struck = Flight::Seated.strike(RayDirection::parse([1.0, -0.5, 0.0]).unwrap());
         assert_eq!(struck.pose(), None, "drawn on its seat until stepped");
-        let first = struck.step(Condition::Broken, seat, 1.0 / 60.0, Vec3::Y, &mut Floor);
+        let first = struck.step(PieceKind::Headwear, Condition::Broken, seat, 1.0 / 60.0, Vec3::Y, &mut Floor);
         assert!(matches!(first, Flight::Flying(_)), "{first:?}");
         let Flight::Lying(rest) = fly(first, Condition::Broken, seat) else { panic!("it never rested") };
         assert!(rest.position.x > 0.1 && rest.position.z.abs() < 0.05, "along the push: {:?}", rest.position);
         assert!(rest.position.y < 0.15, "on the floor: {:?}", rest.position);
-        assert_eq!(Flight::Lying(rest).step(Condition::Broken, seat, 1.0 / 60.0, Vec3::Y, &mut Floor), Flight::Lying(rest));
+        assert_eq!(Flight::Lying(rest).step(PieceKind::Headwear, Condition::Broken, seat, 1.0 / 60.0, Vec3::Y, &mut Floor), Flight::Lying(rest));
         // a rollback to intact seats it again; the history's break drops it
-        assert_eq!(Flight::Lying(rest).step(Condition::Intact, seat, 1.0 / 60.0, Vec3::Y, &mut Floor), Flight::Seated);
+        assert_eq!(Flight::Lying(rest).step(PieceKind::Headwear, Condition::Intact, seat, 1.0 / 60.0, Vec3::Y, &mut Floor), Flight::Seated);
         let Flight::Lying(dropped) = fly(Flight::Seated, Condition::Broken, seat) else { panic!("it never rested") };
         assert!(dropped.position.x.abs() < 0.01 && dropped.position.z.abs() < 0.01, "{:?}", dropped.position);
     }
@@ -382,7 +423,7 @@ mod tests {
         assert!(again.position.z > rest.position.z + 0.5 && (again.position.x - rest.position.x).abs() < 0.15,
                 "on along the push: {:?} from {:?}", again.position, rest.position);
         // a flying one goes on from where it is
-        let flying = Flight::Seated.strike(push).step(Condition::Broken, seat, 1.0 / 60.0, Vec3::Y, &mut Floor);
+        let flying = Flight::Seated.strike(push).step(PieceKind::Headwear, Condition::Broken, seat, 1.0 / 60.0, Vec3::Y, &mut Floor);
         let Flight::Flying(body) = flying else { panic!("{flying:?}") };
         assert_eq!(flying.kick(push), Flight::Kicked { from: body.pose(), push });
     }

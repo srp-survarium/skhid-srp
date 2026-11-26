@@ -74,6 +74,21 @@ GLASS = TUBE_GLASS | LANTERN_GLASS
 # with glass; on its own it is scenery.
 HOUSINGS = {prefix + 'props/light/lamp_midle_04' for prefix in ('',) + LONDON_PREFIXES} | {glass.removesuffix('_glass_emit') for glass in LANTERN_GLASS}
 PARTS = REPLACEMENTS.keys() | GLASS | HOUSINGS
+# Glass that is no lamp: School's vodka bottles, each a fixture of its own
+# with its one intact visual (make_bottles.py), outside the lamp rule above,
+# which would merge bottles lying side by side into one fixture.
+BOTTLES = {prefix + 'props/kitchen/bottle_vodka' for prefix in PORT_PREFIXES}
+# A broken bottle's shards (scripts/bottle-shards, pack bottle-shards@1): the
+# loose pieces of its row, kind 'shard', placed as the bottle but at each
+# one's centre. School's bottles (stock and the v0.21 port) have them.
+SHARDS = 8
+# The most loose pieces a project's table may have: the client's MAX_PIECES
+# and its registry's MAX_LOOSE (lamps/model.rs, vostok/project.rs), past
+# which it refuses the map at its load.
+MAX_PIECES = 32
+BOTTLE_SHARDS = {prefix + 'props/kitchen/bottle_vodka':
+                 [prefix + f'props/kitchen/srp_bottle_vodka_shard{k}' for k in range(SHARDS)]
+                 for prefix in ('', 'ported/v021d/')}
 # Figures with a loose piece (scripts/skeleton-cap): the sitting skeleton and
 # its cap. A figure's row is its piece's (its bounds, what a shot or a blast
 # must reach); its broken model is the figure without the piece, placed as
@@ -397,7 +412,8 @@ def check_built(path, data):
     each visual index names its role's model (intact: a breakable lamp inside
     its row's bounds, or a figure; broken: that lamp's broken model, or the
     figure's bare one, placed as it; cone: a light shaft; loose: the figure's
-    piece, turned as it, unscaled and inside the row's bounds), the table's leftover
+    piece or a bottle's shard, of its kind, turned as it, unscaled and inside
+    the row's bounds; at most MAX_PIECES in all), the table's leftover
     'body' exactly when its fixtures are figures, each light position is exactly one light of the map, each
     ambient light position exactly one ambient light and each particle
     position exactly one particle object, each probe position exactly one
@@ -424,7 +440,7 @@ def check_built(path, data):
             if v is None:
                 ok = False
             elif role == 'intact':
-                ok = model in FIGURES or ((model in REPLACEMENTS or model in GLASS) and inside(v))
+                ok = model in FIGURES or ((model in REPLACEMENTS or model in GLASS or model in BOTTLES) and inside(v))
             elif role == 'broken':
                 intact = visual('intact' + key[len(role):])
                 ok = intact is not None and model_name(intact) in broken_of and \
@@ -434,11 +450,14 @@ def check_built(path, data):
                 ok = role == 'cone' and (model == LEGACY_CONE or model.endswith('props/light/cone_light_volume'))
             if not ok:
                 problems.append(f'{path}: {name} {key}: render_visuals[{row["visuals"][key]["index"]}] is {model!r}')
+        pieces_of = {figure: ([models[1]], 'headwear') for figure, models in FIGURES.items()} \
+            | {bottle: (shards, 'shard') for bottle, shards in BOTTLE_SHARDS.items()}
         figures = [visual(key) for key in row['visuals'] if key.startswith('intact')]
-        figures = [v for v in figures if v is not None and model_name(v) in FIGURES]
-        for key in row.get('loose', {}):
+        figures = [v for v in figures if v is not None and model_name(v) in pieces_of]
+        for key, piece in row.get('loose', {}).items():
             v = visual(key, 'loose')
-            ok = v is not None and len(figures) == 1 and model_name(v) == FIGURES[model_name(figures[0])][1] \
+            ok = v is not None and len(figures) == 1 and model_name(v) in pieces_of[model_name(figures[0])][0] \
+                and piece.get('kind', 'headwear') == pieces_of[model_name(figures[0])][1] \
                 and all(v[k] == figures[0][k] for k in ('rotation', 'scale')) and inside(v) \
                 and all(abs(s - 1) < 0.01 for s in v['scale'])     # the client's seat is rigid (2 %)
             if not ok:
@@ -456,6 +475,9 @@ def check_built(path, data):
                     problems.append(f'{path}: {name} {key}: {found} {what} of the map at its position')
     intact = [model_name(visuals[v['index']]) for row in root['srp_lamps']['lamps'].values()
               for key, v in row['visuals'].items() if key.startswith('intact') and 0 <= v['index'] < len(visuals)]
+    pieces = sum(len(row.get('loose', {})) for row in root['srp_lamps']['lamps'].values())
+    if pieces > MAX_PIECES:
+        problems.append(f'{path}: {pieces} loose pieces, more than the client binds ({MAX_PIECES})')
     kinds = {'body' if name in FIGURES else 'glass' for name in intact}
     leftover = root['srp_lamps'].get('leftover', 'glass')
     if kinds != {leftover}:

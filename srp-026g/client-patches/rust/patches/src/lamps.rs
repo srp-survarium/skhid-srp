@@ -17,7 +17,7 @@ use crate::vostok::project::{BindingError, MethodTables, Presentation, ProjectPl
                              VisualIndex, VisualTransform};
 use ::ragdoll::math::{Pose, Vec3};
 use model::{Bounds, BreakEffect, BulletSegment, Condition, Distance, Fixture, Flight, GlassLine, LampCount, LampEvent, LampId,
-            MAX_LAMPS, MAX_PIECES, RayDirection, Snapshot, Visibility, WorldPoint};
+            MAX_LAMPS, MAX_PIECES, PieceKind, RayDirection, Snapshot, Visibility, WorldPoint};
 
 #[derive(Clone, Copy)]
 enum Binding {
@@ -43,7 +43,7 @@ enum Leftover {
 /// A fixture's loose piece: the visual seated at `seat` (its placement in
 /// the map) while the fixture is intact.
 #[derive(Clone, Copy)]
-struct Piece { lamp: LampId, seat: Pose, flight: Flight }
+struct Piece { lamp: LampId, seat: Pose, kind: PieceKind, flight: Flight }
 
 struct Lamps {
     fixtures: BoundedVec<Fixture, MAX_LAMPS>,
@@ -71,12 +71,9 @@ impl Presentation<Binding> for Lamps {
         VisualTransform::parse(crate::ragdoll::matrix_of(self.piece(piece).flight.pose()?))
     }
 }
-/// The level's rays a frame for the pieces (two an end of a moving one).
-const PIECE_RAYS: u32 = 32;
-/// How near a shot or a blast's reach must come to a piece's centre to
-/// knock it on: about a cap's (ragdoll's headwear capsule, 10 cm about a
-/// 8 cm spine) half length.
-fn piece_reach() -> Distance { Distance::parse(0.14).expect("a finite, non-negative distance") }
+/// The level's rays a frame for the pieces (two an end of a moving one: a
+/// bottle's eight shards at once; past them a sweep waits a frame).
+const PIECE_RAYS: u32 = 64;
 fn piece_point(pose: Pose) -> Option<WorldPoint> {
     WorldPoint::parse([pose.position.x, pose.position.y, pose.position.z])
 }
@@ -86,7 +83,7 @@ impl Lamps {
         self.hit(|bounds| bounds.intersects(segment), |_| segment.direction(), shatter);
         // A piece off its seat has no collision: the ray passes it by (to
         // what it hits behind), and knocks it on where it passes near.
-        self.kick(|point| segment.passes_within(point, piece_reach()).then(|| segment.direction()));
+        self.kick(|point, reach| segment.passes_within(point, reach).then(|| segment.direction()));
     }
     /// A blast breaks every fixture whose bounds come within its splash
     /// radius of the centre, where the game's splash reaches them (as it
@@ -97,15 +94,15 @@ impl Lamps {
             let nearest = bounds.nearest(centre);
             centre.within(nearest, radius) && reaches(nearest)
         }, |glass| RayDirection::between(centre, glass.middle()).unwrap_or_else(down), shatter);
-        let Some(reach) = radius.plus(piece_reach()) else { return };
-        self.kick(|point| (centre.within(point, reach) && reaches(point))
+        self.kick(|point, reach| radius.plus(reach).is_some_and(|reach| centre.within(point, reach) && reaches(point))
             .then(|| RayDirection::between(centre, point).unwrap_or_else(down)));
     }
-    /// Each piece off its seat that `push` reaches (at its centre) goes on
-    /// along the push.
-    fn kick(&mut self, push: impl Fn(WorldPoint) -> Option<RayDirection>) {
+    /// Each piece off its seat that `push` reaches (at its centre, within
+    /// its kind's reach) goes on along the push.
+    fn kick(&mut self, push: impl Fn(WorldPoint, Distance) -> Option<RayDirection>) {
         for piece in self.pieces.iter_mut() {
-            if let Some(direction) = piece.flight.pose().and_then(piece_point).and_then(&push) {
+            let reach = piece.kind.reach();
+            if let Some(direction) = piece.flight.pose().and_then(piece_point).and_then(|point| push(point, reach)) {
                 piece.flight = piece.flight.kick(direction);
             }
         }
@@ -131,7 +128,7 @@ impl Lamps {
     /// condition (a rollback seats it again).
     fn fly(&mut self, dt: f32, level: &mut impl ::ragdoll::ragdoll::Level) {
         for piece in self.pieces.iter_mut() {
-            piece.flight = piece.flight.step(self.state.condition(piece.lamp), piece.seat, dt, Vec3::Y, level);
+            piece.flight = piece.flight.step(piece.kind, self.state.condition(piece.lamp), piece.seat, dt, Vec3::Y, level);
         }
     }
     /// Whether a hit's mark would be on a fixture's glass. The game's decal
@@ -171,10 +168,11 @@ static PROJECT: ProjectRegistry<Lamps, Binding> = ProjectRegistry::new();
 
 #[derive(Debug)]
 enum MetadataError { Binding(BindingError), Config(ConfigError), Version, Material, Count, Bounds, Condition, Share, Seat,
-                     Leftover }
+                     Leftover, PieceKind }
 /// The metadata's format: 3 adds effect_material and each fixture's glass
 /// line. Optional keys (the table's leftover, a row's ambient_lights,
-/// particles, probes, loose) need none: a client without them leaves them out.
+/// particles, probes, loose, a piece's kind) need none: a client without them
+/// leaves them out.
 const VERSION: u32 = 3;
 impl MetadataError {
     /// The objects the metadata names are not this map's (a wrong index, a
@@ -250,17 +248,31 @@ fn prepare(project: ProjectView<'_>) -> Result<Option<ProjectPlan<'_, Lamps, Bin
             let visible_when = Condition::parse(visual.required(c"state")?.integer()?).ok_or(MetadataError::Condition)?;
             plan.visual(VisualIndex::from(visual.required(c"index")?.integer()?), Binding::Part { lamp, visible_when })?;
         }
-        // A piece that comes off when the fixture breaks (a skeleton's cap):
-        // a visual of its own, drawn while broken, flying off its seat as a
-        // corpse's headwear is shot off. Its placement in the map is its
-        // seat, rigid (no scale), its origin the body's centre.
+        // A piece that comes off when the fixture breaks (a skeleton's cap, a
+        // bottle's shards): a visual of its own, drawn while broken, flying
+        // off its seat. Its placement in the map is its seat, rigid (no
+        // scale), its origin the body's centre. Its `kind`: "headwear" (the
+        // default) flies as a corpse's headwear is shot off, "shard" out from
+        // the glass's middle.
         if let Some(loose) = row.get(c"loose")? {
             for visual in loose.entries()?.iter() {
-                let index = VisualIndex::from(visual?.table()?.required(c"index")?.integer()?);
+                let visual = visual?.table()?;
+                let index = VisualIndex::from(visual.required(c"index")?.integer()?);
                 let binding = Binding::Loose { piece: pieces.len() };
                 let seat = plan.loose_visual(index, binding)?;
                 let seat = crate::ragdoll::pose_of(&seat.matrix()).ok_or(MetadataError::Seat)?;
-                pieces.push(Piece { lamp, seat, flight: Flight::Seated }).map_err(|_| MetadataError::Count)?;
+                let kind = match visual.get(c"kind")? {
+                    None => PieceKind::Headwear,
+                    Some(kind) => match kind.text()?.to_bytes() {
+                        b"headwear" => PieceKind::Headwear,
+                        b"shard" => {
+                            let [x, y, z] = glass.middle().coordinates();
+                            PieceKind::Shard { outward: seat.position - Vec3::new(x, y, z) }
+                        }
+                        _ => return Err(MetadataError::PieceKind),
+                    },
+                };
+                pieces.push(Piece { lamp, seat, kind, flight: Flight::Seated }).map_err(|_| MetadataError::Count)?;
             }
         }
         for light in row.required(c"lights")?.entries()?.iter() {
