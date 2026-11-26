@@ -4015,7 +4015,6 @@ st_srp_hit_markers_kill	Vain tappomerkki
 st_srp_hud_add_friend	Lisää kaveriksi
 st_srp_hud_artefact_hunt_carrying	Kannat artefaktia
 st_srp_hud_artefact_hunt_sudden_death	Äkkikuolema
-st_srp_hud_artefact_wear	Artefakti heikkeni. Passiivisen vaikutuksen ja seuraavan aktivoinnin teho on %1$s.
 st_srp_hud_blackout_intro	Blackout: tuo akkuja joukkueesi laitteelle. Käyttöliittymä ja osumamerkit on piilotettu eläytymisen vuoksi. Pidä Tab pohjassa: ammukset, terveys, chat; kuolleena varustesarjan valinta.
 st_srp_hud_blackout_start	Blackout\nTuo akkuja joukkueesi laitteelle.\nKäyttöliittymä ja osumamerkit on piilotettu. Pidä Tab pohjassa nähdäksesi ammukset ja terveyden.
 st_srp_hud_freeze_draw	Tasapeli

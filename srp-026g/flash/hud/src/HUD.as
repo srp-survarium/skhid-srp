@@ -1348,10 +1348,6 @@ package
       
       public function set_quick_slot_activity(slot:uint, phase:uint, remaining:uint, duration:uint) : void
       {
-         if(this.quick_slots.takeWearHint(slot,phase,remaining,duration))
-         {
-            this.set_parameterized_message(LocalizationData.format("st_srp_hud_artefact_wear",QuickSlots.powerLabel(remaining)),21,20,3500);
-         }
          if(this.quick_slots.setActivity(slot,phase,remaining,duration) && !this._reflow)
          {
             _reflow = true;

@@ -4015,7 +4015,6 @@ st_srp_hit_markers_kill	Kill marker only
 st_srp_hud_add_friend	Add to friends
 st_srp_hud_artefact_hunt_carrying	You carry the artifact
 st_srp_hud_artefact_hunt_sudden_death	Sudden death
-st_srp_hud_artefact_wear	Artifact weakened. Passive and next activation at %1$s power.
 st_srp_hud_blackout_intro	Blackout: bring batteries to your team’s device. HUD and hitmarkers are hidden for immersion. Hold Tab for ammo, health, chat and kit selection when dead.
 st_srp_hud_blackout_start	Blackout\nBring batteries to your team’s device.\nHUD and hit markers are hidden. Hold Tab to check ammo and health.
 st_srp_hud_freeze_draw	Draw
