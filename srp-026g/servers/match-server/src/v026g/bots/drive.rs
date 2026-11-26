@@ -432,7 +432,21 @@ pub(super) fn drive_tick(
     // [S6] The closed drops of this bot's searches only.
     drop(mapdata::take_falls_closed());
     bot.key_tick = super::key_sources::Tick::default();
+    #[cfg(test)]
+    {
+        use super::intent_counts::{MOVING, TICKS, count, set_stale};
+        let stale = !bot.intent_is_current();
+        if stale {
+            count(TICKS);
+            if matches!(bot.intent.go, Go::To { .. }) {
+                count(MOVING);
+            }
+        }
+        set_stale(stale);
+    }
     let mut decision = drive_tick_inner(bot, me, view, tactics, tuning, time, searching, press);
+    #[cfg(test)]
+    super::intent_counts::set_stale(false);
     // [keys] The unstick replay's keys skip the stages (`key_sources`).
     bot.key_tick.begun_or(super::key_sources::Stage::Unstick, decision.keys);
     log_falls_closed(bot, &tactics.world.grid, time);
@@ -692,7 +706,9 @@ fn drive_tick_inner(
         pitch: Pitch::view(me.pitch, kick).elevation(tuning.kin.pitch_scale),
         ..me.clone()
     };
-    let intent = bot.intent;
+    // [stale intent] An intent made for a play before the one it has now goes nowhere: no search, no walk for the old goal
+    // (its look, fire and keys are kept) until a think puts the new play's in place.
+    let intent = if bot.intent_is_current() { bot.intent } else { Intent { go: Go::Stay, ..bot.intent } };
     #[cfg(test)]
     {
         bot.bench_walk = 0;
