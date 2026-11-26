@@ -2,6 +2,7 @@ package survarium.controls
 {
    import flash.display.MovieClip;
    import flash.utils.Dictionary;
+   import flash.utils.getTimer;
    import scaleform.clik.controls.TileList;
    import scaleform.clik.data.DataProvider;
    import scaleform.clik.layout.LayoutData;
@@ -32,8 +33,24 @@ package survarium.controls
       // in Spring's blue, the rest of the slot as the game gives it).
       public static const ACTIVITY_INTERRUPTED:uint = 3;
       public static const ACTIVITY_BOOSTED:uint = 4;
+      public static const ACTIVITY_WEAR:uint = 5;
+      private var _wearHintShown:Boolean = false;
       private var _nativeSlots:Array = [];
       private var _activities:Array = [];
+
+      public static function powerLabel(uses:uint) : String
+      {
+         var percent:Number = 100 * Math.pow(0.8,uses);
+         return percent < 1 ? "<1%" : Math.round(percent) + "%";
+      }
+
+      public function takeWearHint(slot:uint, phase:uint, uses:uint, id:uint) : Boolean
+      {
+         var old:Object = _activities[slot];
+         if(_wearHintShown || phase != ACTIVITY_WEAR || !old || old.phase != phase || old.id != id || old.uses >= uses) return false;
+         _wearHintShown = true;
+         return true;
+      }
 
       public function setActivity(slot:uint, phase:uint, remaining:uint, duration:uint) : Boolean
       {
@@ -41,6 +58,17 @@ package survarium.controls
          var seconds:uint = phase == 2 ? Math.ceil(remaining / 1000) : 0;
          var activation:uint = phase == 1 && duration > 0 ? Math.min(100,Math.ceil(100 * remaining / duration)) : 0;
          var old:Object = _activities[slot];
+         if(phase == ACTIVITY_WEAR)
+         {
+            var now:int = getTimer();
+            var changed:Boolean = old && old.phase == phase && old.id == duration && old.uses < remaining;
+            var same:Boolean = old && old.phase == phase && old.id == duration && old.uses == remaining;
+            if(same && (!old.previous || now - old.since < 1200)) return false;
+            var label:String = powerLabel(remaining);
+            _activities[slot] = {phase:phase, uses:remaining, power:label, id:duration,
+               previous:changed && label != old.power ? old.power : null, since:now};
+            return _nativeSlots[slot] ? renderSlot(presentation(_nativeSlots[slot])) : false;
+         }
          if(old && old.phase == phase && old.seconds == seconds && old.activation == activation) return false;
          _activities[slot] = {phase:phase, seconds:seconds, activation:activation};
          return _nativeSlots[slot] ? renderSlot(presentation(_nativeSlots[slot])) : false;
@@ -54,12 +82,17 @@ package survarium.controls
          // An exhausted stack still owns its ongoing native effect. Keep its
          // gray icon and native radial sweep during activation, then seconds only;
          // a stopped one keeps its icon, red, while the hook says so.
-         if(activity && activity.phase == ACTIVITY_BOOSTED && !nativeSlot.is_artefact)
+         if(activity && activity.phase == ACTIVITY_WEAR && nativeSlot.is_artefact)
+         {
+            result.wearPower = activity.power;
+            result.previousPower = activity.previous;
+         }
+         else if(activity && activity.phase == ACTIVITY_BOOSTED && !nativeSlot.is_artefact)
          {
             result.activityPhase = activity.phase;
             result.activitySeconds = 0;
          }
-         else if(activity && activity.phase != 0 && !nativeSlot.is_artefact)
+         else if(activity && activity.phase != 0 && activity.phase != ACTIVITY_WEAR && !nativeSlot.is_artefact)
          {
             result.enabled = true;
             result.activityPhase = activity.phase;
@@ -152,7 +185,7 @@ package survarium.controls
                else
                {
                   origin = this._slots_items[i];
-                  if(_p.icon == origin.icon_id && _p.count == origin.count && _p.is_artefact == origin.is_artefact && _p.timer == origin.timer && _p.cooldown == origin.cooldown && _p.enabled == origin.enabled && _p.hotkey == origin.hotkey && _p.activityPhase == origin.activityPhase && _p.activitySeconds == origin.activitySeconds)
+                  if(_p.icon == origin.icon_id && _p.count == origin.count && _p.is_artefact == origin.is_artefact && _p.timer == origin.timer && _p.cooldown == origin.cooldown && _p.enabled == origin.enabled && _p.hotkey == origin.hotkey && _p.activityPhase == origin.activityPhase && _p.activitySeconds == origin.activitySeconds && _p.wearPower == origin.wearPower && _p.previousPower == origin.previousPower)
                   {
                      return false;
                   }
@@ -196,6 +229,7 @@ package survarium.controls
       public function clean() : void
       {
          trace("QS::clean");
+         _wearHintShown = false;
          this._slots_items.length = 0;
          _nativeSlots = [];
          _activities = [];
@@ -294,6 +328,8 @@ package survarium.controls
             timer:value.timer,
             activityPhase:value.activityPhase,
             activitySeconds:value.activitySeconds,
+            wearPower:value.wearPower,
+            previousPower:value.previousPower,
             is_artefact:value.is_artefact
          };
       }

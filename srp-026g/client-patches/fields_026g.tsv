@@ -1938,3 +1938,11 @@ survarium::hud_texts_frame	ui	0x4	ptr<survarium::game_world_ui>	set_localization
 survarium::lobby_texts_frame	menu	0x4	ptr<survarium::lobby_menu>	set_localization_data's argument at its start (0x286260, by the site's ESP): the lobby menu
 survarium::world_hash_frame	data	-0x10	ptr<u8>	game_state_history_item::hash's mutable_buffer {allocator -14h, data -10h, capacity -0Ch, size -8h} by EBP (0x32518A..0x3251A4): the bytes the serialize wrote (patch 98: 0xF000 of them at most)
 survarium::world_hash_frame	size	-0x8	u32	the bytes the serialize wrote: the world, whose CRC hash() makes of them (0x325207..0x32520D)
+survarium::artefact	uses_spent	0x286	u16	Combat artefact wear in alignment padding between the byte container ID (+284h) and aligned spawn timer (+288h), initialized at construction and anomaly spawn.
+survarium::onyx_hit_args	damage	0x8	ptr<survarium::damage_cell>	protect argument 2, writable damage.
+survarium::onyx_hit_args	piercing	0xC	ptr<survarium::damage_cell>	protect argument 3, writable piercing.
+survarium::regen_args	tick	0x4	ptr<survarium::regen_tick>	regeneration_modifier first argument.
+survarium::regen_args	record	0x8	ptr<survarium::lifebone_regeneration>	regeneration_modifier second argument.
+survarium::regen_tick	rate	0	f32	Pool regeneration rate.
+survarium::regen_tick	delay	4	u32	Pool regeneration delay in ms.
+survarium::regen_tick	limit	8	f32	Pool regeneration limit.

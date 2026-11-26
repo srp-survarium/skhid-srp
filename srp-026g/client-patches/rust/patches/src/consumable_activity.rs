@@ -32,6 +32,7 @@ static SEEN: GameCell<[Seen; 6]> = GameCell::new([Seen::Idle; 6]);
 fn step(seen: Seen, observed: Observed, now: GameTime) -> (Seen, Shown) {
     match (seen, observed) {
         (_, Observed::Idle) => (Seen::Idle, Shown::Inactive),
+        (_, Observed::Artefact { id, wear }) => (Seen::Idle, Shown::Artefact { id, wear }),
         (_, Observed::Boosted) => (Seen::Idle, Shown::Boosted),
         (_, Observed::InUse { drug, course }) => (Seen::InUse(drug), Shown::InUse(course)),
         (Seen::InUse(was), Observed::Stopped { drug }) if was == drug => {

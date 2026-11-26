@@ -2079,7 +2079,7 @@ st_on_spawn_victory_artefact	O Artefato apareceu
 st_on_spawn_victory_item	A Bateria está carregada! Leve-a para sua Base.
 st_one_handed	Secundário
 st_online_store	Comprar ouro
-st_onyx_activation_hint	Ônix ativado! Reduz em 75% o dano e a penetração das balas recebidas por %s s.
+st_onyx_activation_hint	Ônix ativado! Por %s s, as balas que atingem você causam menos dano e perfuram menos a armadura.
 st_onyx_pickup_hint	Artefato Ônix. Reduz em 5% o dano e a penetração das balas que atingem o jogador.
 st_open	Abrir
 st_options_2taa	2xTAA
@@ -2684,7 +2684,7 @@ st_special_offer	Oferta especial
 st_speed_booster_description	Bebida energética com cafeína e taurina. Revigora e estimula o sistema nervoso central.
 st_speed_booster_name	Energético Tornado
 st_spot_action	Marcar inimigos
-st_spring_activation_hint	Fonte ativada! Velocidade de movimento e de mira +10%. Regeneração de energia aumentada! As balas não deixam você mais lento!
+st_spring_activation_hint	Mola ativada! Você se move, mira e recupera energia mais rápido. Os tiros reduzem menos sua velocidade.
 st_spring_pickup_hint	Artefato Fonte. Aumenta a velocidade de movimento e de mira em 5%.
 st_sprint_action	Correr (Segurar)
 st_sprint_toggle_action	Correr
@@ -3015,6 +3015,7 @@ st_srp_hit_markers_kill	Só o indicador de abate
 st_srp_hud_add_friend	Adicionar amigo
 st_srp_hud_artefact_hunt_carrying	Você está com o artefato
 st_srp_hud_artefact_hunt_sudden_death	Morte súbita
+st_srp_hud_artefact_wear	O artefato enfraqueceu. O efeito passivo e a próxima ativação têm %1$s de potência.
 st_srp_hud_blackout_intro	Blackout: leve baterias ao dispositivo da sua equipe. HUD e indicadores de acerto ficam ocultos para mais imersão. Segure Tab para ver munição, vida e chat e, quando morto, escolher o kit.
 st_srp_hud_blackout_start	Blackout\nLeve baterias ao dispositivo da sua equipe.\nHUD e indicadores de acerto ficam ocultos. Segure Tab para ver munição e vida.
 st_srp_hud_freeze_draw	Empate

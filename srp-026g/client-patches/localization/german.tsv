@@ -2079,7 +2079,7 @@ st_on_spawn_victory_artefact	Das Artefakt ist erschienen
 st_on_spawn_victory_item	Batterie ist aufgeladen! Bringen Sie sie in die Base.
 st_one_handed	Zubehör
 st_online_store	Gold einkaufen
-st_onyx_activation_hint	Der Onyx ist aktiviert! Verringert den Verlust und Penetration der in den Spieler fliegenden Geschosse um 75 % für %s s.
+st_onyx_activation_hint	Onyx aktiviert! Treffer verursachen %s Sekunden lang weniger Schaden und durchdringen weniger Panzerung.
 st_onyx_pickup_hint	Das Artefakt der Onyx. Verringert den Verlust und Penetration der in den Spieler fliegenden Geschosse um 5 %.
 st_open	Öffnen 
 st_options_2taa	2xTAA
@@ -2684,7 +2684,7 @@ st_special_offer	Sonderangebot
 st_speed_booster_description	Energie Getränke mit höche Koffein -  und Taurinhaltiges Getränk.  Erfrischt!
 st_speed_booster_name	Tornado
 st_spot_action	Feind markieren
-st_spring_activation_hint	Die Feder ist aktiviert! Die Geschwindigkeit der Fortbewegung und des Zielens +15 %. Es erhöht sich die Regeneration der Energie! Geschosse bremsen Sie nicht!
+st_spring_activation_hint	Feder aktiviert! Bewegung, Zielen und Ausdauerregeneration sind schneller. Kugeltreffer bremsen dich weniger.
 st_spring_pickup_hint	Artefakt Feder. Erhöht die Geschwindigkeit der Fortbewegung und des Zielens um 5%.
 st_sprint_action	Sprint (halt.)
 st_sprint_toggle_action	Sprint
@@ -3015,6 +3015,7 @@ st_srp_hit_markers_kill	Nur Abschussanzeige
 st_srp_hud_add_friend	Freunden hinzufügen
 st_srp_hud_artefact_hunt_carrying	Du trägst das Artefakt
 st_srp_hud_artefact_hunt_sudden_death	Sudden Death
+st_srp_hud_artefact_wear	Artefakt geschwächt. Passiver Effekt und nächste Aktivierung haben %1$s Stärke.
 st_srp_hud_blackout_intro	Blackout: Bringe Batterien zum Gerät deines Teams. HUD und Trefferanzeigen sind für mehr Immersion ausgeblendet. Halte Tab für Munition, Gesundheit und Chat sowie die Ausrüstungswahl nach dem Tod.
 st_srp_hud_blackout_start	Blackout\nBringe Batterien zum Gerät deines Teams.\nHUD und Trefferanzeigen sind ausgeblendet. Halte Tab, um Munition und Gesundheit zu sehen.
 st_srp_hud_freeze_draw	Unentschieden
