@@ -1433,18 +1433,19 @@ pub mod fix_gaps {
 }
 
 /// The bench's counts of the stuck recovery's floor test (`UnstickTuning::escape_floor`): recoveries it was on for, escapes
-/// it refused for no floor under their way, recoveries it left with no walk key.
+/// it refused for no floor under their way, recoveries it left with no walk key, and [ledge-drop escape] escapes it took down
+/// off a ledge (`Tactics::drop_free_step`).
 #[cfg(test)]
 pub mod escape_floors {
     use std::sync::atomic::{AtomicU64, Ordering};
 
-    static COUNTS: [AtomicU64; 3] = [const { AtomicU64::new(0) }; 3];
+    static COUNTS: [AtomicU64; 4] = [const { AtomicU64::new(0) }; 4];
 
     pub fn count(kind: usize) {
         COUNTS[kind].fetch_add(1, Ordering::Relaxed);
     }
 
-    pub fn counts() -> [u64; 3] {
+    pub fn counts() -> [u64; 4] {
         std::array::from_fn(|k| COUNTS[k].load(Ordering::Relaxed))
     }
 }

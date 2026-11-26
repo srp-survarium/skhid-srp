@@ -2555,7 +2555,34 @@ impl Bots {
             // [unstick] With `escape_floor`, also a floor under the way the keys go for as long as they are held (0.5-1.3 s at a
             // walk, the sidestep's jump: `stuck::ESCAPE_REACH`), not over an edge or into a wall (A271).
             let floor = self.tunings.of(bot.team).unstick.escape_floor;
+            // [ledge-drop escape] Given up at a lip (the third stop at the spot, a back-off and a sidestep gone first), a way down
+            // off the edge within the harmless fall onto ground the routes go on from is tried before the floor-kept ways
+            // (`Tactics::drop_free_step`): the step off a human takes. The m6 ledge (48.93, 37.05, 157.10), v65 batt-m6-s5: a
+            // body held there 119 s, the floor-kept escapes all west into the wall; the exe's body at those feet stays walking
+            // along the route, back or west, and gets off east, down the ledge, on every gait (rig_real_v3, 2026-11-26).
+            let dropped = match (self.tactics.as_ref(), yaw) {
+                (Some(tactics), Some(yaw))
+                    if floor
+                        && recovery == Recovery::GiveUp
+                        && tactics.world.grid.locate(feet, 1.0).is_some_and(|node| tactics.world.grid.near_lip(node) || tactics.world.grid.is_lip(node)) =>
+                {
+                    escapes.into_iter().find_map(|keys| {
+                        let way = unstick_step(keys, yaw);
+                        if !tactics.zone_free_step(feet, feet + way, time) {
+                            return None;
+                        }
+                        tactics.drop_free_step(feet, feet + way * stuck::ESCAPE_REACH).map(|fall| (keys, fall))
+                    })
+                }
+                _ => None,
+            };
+            if let Some((keys, fall)) = dropped {
+                bot.note(&mut notes, time, format!("unstick: escape keys {keys:#x} down off the ledge, a fall of {fall:.2} m"));
+                #[cfg(test)]
+                stuck::escape_floors::count(3);
+            }
             let escape = match (self.tactics.as_ref(), yaw) {
+                _ if dropped.is_some() => dropped.map_or(0, |(keys, _)| keys),
                 (Some(tactics), Some(yaw)) => {
                     let found = escapes.into_iter().find(|&keys| {
                         let way = unstick_step(keys, yaw);
