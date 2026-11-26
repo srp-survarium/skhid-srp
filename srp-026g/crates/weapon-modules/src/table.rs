@@ -9,8 +9,8 @@
 //! guns       84  dict u16, bones u16, aim bone u16, fits-of gun u16,
 //!                spans: slots, poses, stock, carriers, fits,
 //!                text: the bare body's model,
-//!                the composed model's eye (fallback without a BodyAim slot): bone u16,
-//!                offset 12 x f32
+//!                the composed model's own `aim` (its iron sights' line): bone
+//!                u16, offset 12 x f32
 //! gun slots  51  slot u8, bone u16, offset 12 x f32
 //! poses      50  bone u16, the bone's matrix in the gun's aimed idle pose
 //! stock       3  slot u8, module u16
@@ -117,6 +117,9 @@ pub enum GunFault {
     Fit,
     /// Two fits of one dict id as one kind.
     FitTwice(DictId),
+    /// A fit or a stock part keeps the eye in the gun's eye plane
+    /// ([`AttachEye::InGunPlane`]) and the gun has no `body_aim` slot.
+    NoEyePlane,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -305,9 +308,9 @@ impl<'a> Table<'a> {
             carriers: self.carriers.span(r.span()?)?,
             fits: self.fits.span(r.span()?)?,
             bare: self.text(r.text()?)??,
-            body_aim: Placement { bone: BoneIndex(r.u16()?), offset: r.affine()? },
+            own_aim: Placement { bone: BoneIndex(r.u16()?), offset: r.affine()? },
         };
-        (aim_bone < bones && gun.body_aim.bone.0 < bones && usize::from(fits_of) < self.guns.len()).then_some(gun)
+        (aim_bone < bones && gun.own_aim.bone.0 < bones && usize::from(fits_of) < self.guns.len()).then_some(gun)
     }
 
     fn module_at(&'a self, index: u16) -> Option<Module<'a>> {
@@ -428,7 +431,7 @@ impl<'a> Table<'a> {
                 return Err(F::PoseTwice(bone.0));
             }
         }
-        for bone in [gun.aim_bone, gun.body_aim.bone] {
+        for bone in [gun.aim_bone, gun.own_aim.bone] {
             if gun.pose(bone).is_none() {
                 return Err(F::PoseMissing(bone.0));
             }
@@ -477,6 +480,10 @@ impl<'a> Table<'a> {
             if gun.fits.records().take(nth).filter_map(|bytes| self.fit(bytes)).any(|earlier| same(&earlier)) {
                 return Err(F::FitTwice(module.dict));
             }
+        }
+        let in_plane = |module: Module<'_>| module.attaches().any(|attach| matches!(attach.eye(), Some(AttachEye::InGunPlane(_))));
+        if gun.eye_plane().is_none() && (gun.fits().any(in_plane) || gun.stock().any(|(_, module)| in_plane(module))) {
+            return Err(F::NoEyePlane);
         }
         Ok(())
     }
@@ -541,7 +548,7 @@ pub struct Gun<'t> {
     carriers: Section<'t, CARRIER>,
     fits: Section<'t, FIT>,
     bare: &'t CStr,
-    body_aim: Placement,
+    own_aim: Placement,
 }
 
 impl<'t> Gun<'t> {
@@ -568,10 +575,18 @@ impl<'t> Gun<'t> {
         self.aim_bone
     }
 
-    /// Retail's resolved body_aim slot, expressed on the shipped rig. A table
-    /// without that slot supplies the version 3 gun header's native eye.
-    pub fn body_aim(&self) -> Placement {
-        self.slot(SlotId::BodyAim).unwrap_or(self.body_aim)
+    /// Its whole body's own `aim` locator: the eye the game reads from the
+    /// model with no part moving it, on the line of the gun's own iron
+    /// sights ([`crate::iron_sights`]).
+    pub fn own_aim(&self) -> Placement {
+        self.own_aim
+    }
+
+    /// 0.69d's `body_aim` slot: the plane an eye that keeps the gun's eye
+    /// relief moves to ([`AttachEye::InGunPlane`]). Every gun with a fit or
+    /// a stock part that keeps it has one ([`GunFault::NoEyePlane`]).
+    pub fn eye_plane(&self) -> Option<Placement> {
+        self.slot(SlotId::BodyAim)
     }
 
     /// Its own slots, each where its locator is.

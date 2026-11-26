@@ -2515,6 +2515,7 @@ va	status	ref_021d	name
 0x00201f20	reviewed	0x0015fb1f	survarium::game_options::apply_key_bindings
 0x00020310	observed		vostok::render::functor_with_big_buffer_to_copy_command<draw_scene_params>::ctor
 0x00028460	observed		vostok::render::functor_with_big_buffer_to_copy_command<draw_scene_params>::execute
+0x00028620	observed		vostok::render::functor_with_big_buffer_to_copy_command<draw_scene_params>::on_defer_execution
 0x00263950	reviewed		survarium::lobby_character::accept_decal_edit
 0x00270320	reviewed		survarium::lobby_client::copy_account_items
 0x00270950	reviewed		survarium::lobby_client::send_apply_decal

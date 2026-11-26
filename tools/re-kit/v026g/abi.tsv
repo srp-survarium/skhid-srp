@@ -2843,6 +2843,7 @@ va	name	source	ret_cleanup	result
 0x003b9800	vostok::input::platform::mouse::set_exclusive [descriptive]	manual	4	AL: 1 when SetCooperativeLevel (vtable+34h, 0x3B9846) and Acquire (vtable+1Ch, 0x3B9860) succeeded, else 0; the device Unacquired first (vtable+20h, 0x3B982A), under the mouse's spin lock
 0x00020310	vostok::render::functor_with_big_buffer_to_copy_command<draw_scene_params>::ctor	manual	12	EAX command
 0x00028460	vostok::render::functor_with_big_buffer_to_copy_command<draw_scene_params>::execute	manual	0	void
+0x00028620	vostok::render::functor_with_big_buffer_to_copy_command<draw_scene_params>::on_defer_execution	manual	0	void; vtable 0x9DC800 slot 1: calls the +78h functor with the command itself (push ecx), never a copy; the draw_scene command (0x1F8EE) is made with an empty one (+10h 0)
 0x00270950	survarium::lobby_client::send_apply_decal	manual	24	void: writes 46 05 {kit, host, cosmetic, u64 value} on the lobby link (0x37A0E0 begin, 0x379640 send), then the value into the inventory's record of the cosmetic in the host (0x270A1A..0x270AC6: the host by find_item_by_id, the first record whose item id is the cosmetic's; nothing when either is missing) and copy_account_items (0x270ACC); checks no connection itself
 0x0028c2c0	survarium::lobby_menu::scaleform_callback	manual	16	EAX: lobby_menu_logic::call's AL (GFx's caller 0x2AF969 drops it)
 0x002812e0	survarium::lobby_menu_logic::call	manual	8	AL: the named handler's answer, 0 for a name none of its 70h names (0x281308, logged when the log asks: 0x281351)

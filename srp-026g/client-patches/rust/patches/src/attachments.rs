@@ -38,7 +38,7 @@
 #![forbid(unsafe_code)]
 
 pub(crate) mod view;
-pub use view::{on_foreground, on_view_begin, on_view_camera, on_view_end, on_view_frame, on_view_submit};
+pub use view::{on_foreground, on_view_begin, on_view_camera, on_view_end, on_view_frame, on_view_no_gun, on_view_submit};
 
 use weapon_modules::{Bare, EyeAnchor, Gun, Hand, Loadout, Placement, resolve};
 

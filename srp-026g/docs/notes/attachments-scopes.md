@@ -264,25 +264,86 @@ copies that projection and changes its depth terms. The weapon and reticle there
 ring about **2.25× as wide for the 552** and **2.21× for the XPS2** on the A-545. These are
 geometry estimates at default settings, without a matched retail gameplay capture.
 
-The shipped v3 table already has both locators. Its gun header holds the composed mesh’s
-native eye and its ordinary slots hold the donor’s resolved `BodyAim` on the shipped rig.
-Patch 161 now uses that slot for every `InGunPlane` eye. Older tables without the slot use
-the header. Comparing both resolvers on the shipped table gives 770 changed eyes among
-835 open-sight fits. All 413 `Own` fits retain their eye placement. The corrected
-aimed-idle distances for the A-545 are 39.459 cm and 42.852 cm, and for the M4A1
-20.781 cm and 24.185 cm (552, then XPS2).
+The shipped v3 table already has both locators. Its gun header holds the composed body's
+own `aim` (what the game reads as the eye with no part moving it) and its ordinary slots hold
+the donor's resolved `body_aim` on the shipped rig. Patch 161 takes that slot as the plane of
+every `InGunPlane` eye (`Gun::eye_plane`); the header is never a plane. A table with such a fit
+or stock part and no slot is refused (`GunFault::NoEyePlane`), and a sight whose line never
+meets the plane is a refusal (`Refusal::OffPlane`, where 0.69d0 would leave the eye inside the
+sight); the check `weapon-modules-table` holds the shipped table to both, and to every scope fit
+standing. The corrected aimed-idle distances for the A-545 are 39.459 cm and 42.852 cm, and for
+the M4A1 20.781 cm and 24.185 cm (552, then XPS2).
 
-The shared `srp_weapon_views` dictionary holds both factors for every gun id. This
-keeps the weapon config entry count within its existing bound, including the premium
-Remington 700 already at 565 entries. Check every source pair with
-`scripts/weapon-modules/view_profiles.py --retail-leaves <game.leaves>`.
-The client copies the profiles when the items dictionary loads. In first person the
-camera samples the weapon’s aim progress. The matching scene draw command carries
-its own lens to the render thread. Each foreground pass replaces the two scale
-terms of its private projection matrix, retaining aspect, jitter and depth. Other
-scene views and guns without a profile use their original projection. The attachments
-Unicorn check runs two queued frames through the patched executable, including
-a different view, a missing profile and the restoration after the draw.
+**Which fits move** (both resolvers over `weapon-modules@3`, 2026-11-26). 1,248 scope fits on 102
+guns: 413 take the optic's own eye (`Own`: every magnified scope, the PSO-1, ACOG, Elcan, Leupold
+and 1P69 among them) and are unchanged. 835 keep the gun's eye plane (collimators and the rail
+iron sight): 725 move, 110 do not. Of the 110, none has a missing slot and none meets the
+plane-less case; the header lies in the plane already: AKMSU, FAMAS, G3SG1, KS-23M and PPSh
+drum (header equal to the slot), Beretta 93R, CZ 75, MP-443, SVU-A (within 0.01 mm), Glock 17,
+Rem 700 and its premium, SV-98, VSSK and its camo (the header off the slot by 0.4 to 4.3 cm, but
+in its plane). The moving ones, along the line, negative toward the shooter: the pistols with a
+collimator 43 to 49 cm (Fort-17, APS, PM, TT-33, Magnum), Kriss 26.6, Uzi 23.0, PPSh 21.4, HK416
+17.7, SKS 16.7, Winchester 15.0, VHS-2 13.6, OTs-14 13.4, M4A1 12.8, AEK-919K 11.9, the
+shotguns 9 to 11.5, most rifles and SMGs 2.5 to 10, and forward the VSS (+18.1), A-545 (+13.7),
+MP5 and Val (+6.7, +6.6), VSK-94 (+3.9), Rem 870 (+3.6), Vepr (+1.5), MP-153 (+1.1), SVD (+0.7).
+
+**Iron sights.** No stock part of the shipped table sets the eye, so with no optic (nothing
+fitted, or only a muzzle device or a grip) the eye is the body's own `aim`, moved along its line
+by the gun's `parameters/aim_offset` (`calculate_aim_alignment` 0x244D40; the cook makes the
+matrix at 0x24A8E7). Every 0.69d0 `ironsight` module sets the eye with `plane_slot: body_aim`, so
+0.69d0's iron sights stand at the eye plane. `weapon_modules::iron_sights` gives each gun how far
+its own eye goes along its line to that plane (`scripts/weapon-modules/iron_sights.tsv`), and the
+edit list `iron-sights-1.json` makes it the gun's `aim_offset` (`iron_sights.py`) on the 89 guns
+without an optic of their own; a fitted optic's modification still sets it to 0. Against the
+revision 73 eye: the pistols 38 to 43 cm farther back, Uzi 23, PPSh 22, RPD 20, PKP 16, Winchester
+15, SKS 15, VHS-2 14, OTs-14 13, M4A1 13, Mosin 12, most others 1 to 12; forward MP5 6.7, Val 3.8;
+the A-545 (its `aim_offset` +15 cm already) 1.3; twelve within 0.5 cm. The fourteen guns with an
+optic of their own (SVD, VSS, VSK-94, Rem 700, SV-98, VSSK and their premiums, HK416, MSBS, Kriss
+Vector, P90) keep theirs: it is that optic's eye relief, and their iron sights are never seen.
+
+**The projection.** 0.69d0's first-person camera (`update_camera` 0x2002C2D70) makes two
+projections every frame: the world's, the view setting times the sight's zoom
+(`current_camera_fov_factor`), and the first person's, 65 degrees times the held gun's factor
+interpolated from `weapon_fov_factor` to `aimed_weapon_fov_factor` by the aim, 1 for anything that
+is no gun (the 1.0 at 0x2002C2DC6). `send_camera` 0x2001F7A40 hands both to the render view
+(camera +80h and +C0h). The gun, its modules and its optic go to the foreground together
+(`weapon::set_foreground` 0x2002B7630 through each module's visual), and a rifle scope's visual
+puts its idle and aimed models and its current reticle there alike (`rifle_scope_visual` vtable
+0x200984240, slot 6): **a magnified scope's lens and reticle are drawn with the first person's
+projection**, not the world's. Only the item's two factors feed it (their one reader is the
+weapon cook, 0x2002025C5; the G33 magnifier's `effects_to_override` of `weapon_fov_factor` is the
+one module that would change them, and it is not shipped). The geometry agrees: at 32.5 degrees
+the PSO-1's first-person lens (radius 13.1 mm, 67.7 mm from its eye) spans 0.66 of the half
+height, the 1P69's 0.64, the ACOG's 0.61, inside the 0.7 of the PSO-1's `scope_radius` (its
+exposure mask); at the world's x4 (16.25 degrees) the PSO-1's would span 1.35, past the screen
+(929 px of 720, as seen at revision 73). The world's zoom is the same in both (the shop scopes'
+`fov_factor` 0.25 is 1 / `aim_zoom_factor` 4), so the reticle against the world is 0.69d0's. The
+patch draws every held thing so: a gun at its profile (none: 65 degrees), anything else or nothing
+in hand at 65 degrees (`weapon_view.no_gun` 0x1F3579, the camera's branch with no weapon), so a
+knife, a grenade or a medkit is drawn at 0.69d0's 65 whatever `uro_fov` is, as 0.69d0 draws them.
+**One exception**: a gun drawing an optic of its own (0.26g's PSO-1, Leupold and Giperon items 304,
+69, 362, the EOTech and Walther 2206, 2207) keeps the world's projection, as at revision 73:
+0.26g made those models and their eye relief for it, and 0.69d0 has none of them. The optic is
+the table's exactly when the weapon's config names one by `data/srp_scope` and its parts are held
+(`attachments::scope_fitted`).
+
+The shared `srp_weapon_views` dictionary holds both factors for every gun id
+(`weapon-view-069.json`, made by `scripts/weapon-modules/view_profiles.py` from
+`view_factors_069.tsv`, which `--retail <game.options leaves>` takes from 0.69d0's items). This
+keeps the weapon config entry count within its existing bound, including the premium Remington 700
+already at 565 entries. The client copies the profiles when the items dictionary loads; a row that
+is no `{gun, fov}`, has a factor outside (0, 1] or repeats a gun is left out with a line, the
+others kept. In first person the camera samples the weapon's aim progress. The matching scene draw
+command carries its own lens to the render thread in base_command's padding at +14h, which the
+constructor (0x20310) leaves: every draw_scene command is made at 0x1F8EE, its one caller, and the
+submit site writes the field (0 for no lens) before the push publishes it (0x1F8FF); the render
+channel links the command itself (0x1F2C0), never a copy, and on_defer_execution (0x28620) is
+handed the command (this one is made with an empty defer). Each foreground pass replaces the two
+scale terms of its private projection matrix, retaining aspect, jitter and depth. Other scene
+views use their original projection. The attachments Unicorn check runs queued frames through the
+patched executable: aimed, half aimed, another view, a gun's own optic, a fitted optic, no profile,
+no gun, the bad rows, and a command made by the game's own constructor over garbage, deferred and
+run through its own slots.
 
 Measured in local matches with the EOTech 552, at 1280×720 and `uro_fov 65`.
 Ring diameter is measured across its red band, excluding the centre dot and the four

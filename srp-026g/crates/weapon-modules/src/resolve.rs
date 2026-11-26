@@ -39,15 +39,30 @@ use crate::{AttachEye, DictId, Kind, Role};
 /// the eye to move to it (metres; 0.69d's own bound).
 const PLANE_BEHIND: f32 = -2.0;
 
-/// The step that takes the frame `line` along its own k (its line of sight)
-/// to the plane through `plane`'s origin normal to `plane`'s k, as a
-/// translation in the frames' space; None when it stays: its line runs along
-/// the plane, or the plane is more than 2 m behind it.
-pub(crate) fn slide_to_plane(line: &Affine, plane: &Affine) -> Option<Affine> {
+/// How far the frame `line` goes along its own k (its line of sight) to the
+/// plane through `plane`'s origin normal to `plane`'s k; None when 0.69d
+/// leaves it where it is: its line runs along the plane, or the plane is
+/// more than 2 m behind it.
+pub(crate) fn to_plane(line: &Affine, plane: &Affine) -> Option<f32> {
     let gap = [plane.t[0] - line.t[0], plane.t[1] - line.t[1], plane.t[2] - line.t[2]];
     let along = dot(gap, plane.z) / dot(line.z, plane.z);
-    (along.is_finite() && along >= PLANE_BEHIND)
-        .then(|| Affine::translation(along * line.z[0], along * line.z[1], along * line.z[2]))
+    (along.is_finite() && along >= PLANE_BEHIND).then_some(along)
+}
+
+/// A frame in the gun's aimed idle pose (the model's space).
+fn posed(gun: &Gun<'_>, at: &Placement) -> Option<Affine> {
+    Some(Affine::HALF_TURN.then(&at.offset).then(&gun.pose(at.bone)?))
+}
+
+/// The gun's own iron sights: how far its own eye ([`Gun::own_aim`], which
+/// the game reads with no part moving the eye) goes along its line to the
+/// gun's eye plane, where 0.69d's open sights put the eye (0.69d0's
+/// `ironsight` modules all keep `plane_slot: body_aim`). The game moves
+/// that eye along its line by the gun's `parameters/aim_offset`: the content
+/// gives each gun this (scripts/weapon-modules/iron_sights.py). None for a
+/// gun without an eye plane, or whose line never meets it.
+pub fn iron_sights(gun: Gun<'_>) -> Option<f32> {
+    to_plane(&posed(&gun, &gun.own_aim())?, &posed(&gun, &gun.eye_plane()?)?)
 }
 
 /// The parts of one gun at most: its own, a chain of carriers a kind, the
@@ -116,6 +131,10 @@ pub enum Refusal {
     Taken(SlotId),
     /// The slot's part was displaced by another fitted module's carrier.
     Unseated(SlotId),
+    /// The fitted sight keeps the gun's eye relief, and its line of sight
+    /// runs along the gun's eye plane or meets it more than 2 m behind the
+    /// eye: 0.69d would leave the eye inside the sight.
+    OffPlane,
     /// The table contradicts itself. [`crate::Table::parse`] refuses every
     /// such table; the variant keeps `resolve` total without a panic.
     Broken,
@@ -370,19 +389,19 @@ impl<'t> Build<'t> {
         self.gun.pose(at.bone).ok_or(Refusal::Broken)
     }
 
-    /// `eye` moved along its own line of sight to the plane of the gun's own
-    /// eye, in the gun's aimed idle pose. 0.69d's rule for a slot with a
+    /// `eye` moved along its own line of sight to the gun's eye plane, in
+    /// the gun's aimed idle pose. 0.69d's rule for a slot with a
     /// `plane_slot` (`get_slot_transform` 0x2006CF320 of its exe, read by the
     /// scopes lane: `docs/notes/attachments-scopes.md`): with M the slot's
     /// frame and P the plane slot's, `s = (P.c - M.c)·P.k / M.k·P.k` and
-    /// `M.c += s·M.k`; the axes stay. A line along the plane, or a plane
-    /// more than 2 m behind the eye, leaves the eye where it is.
+    /// `M.c += s·M.k`; the axes stay. Where 0.69d would leave the eye (a
+    /// line along the plane, a plane more than 2 m behind it), a refusal.
     fn in_gun_plane(&self, eye: Placement) -> Result<Placement, Refusal> {
-        let frame = |at: &Placement, bone: &Affine| Affine::HALF_TURN.then(&at.offset).then(bone);
-        let (bone, own) = (self.bone(&eye)?, self.gun.body_aim());
-        let Some(slide) = slide_to_plane(&frame(&eye, &bone), &frame(&own, &self.bone(&own)?)) else {
-            return Ok(eye);
-        };
+        let plane = self.gun.eye_plane().ok_or(Refusal::Broken)?;
+        let (line, plane) = (posed(&self.gun, &eye).ok_or(Refusal::Broken)?, posed(&self.gun, &plane).ok_or(Refusal::Broken)?);
+        let along = to_plane(&line, &plane).ok_or(Refusal::OffPlane)?;
+        let bone = self.bone(&eye)?;
+        let slide = Affine::translation(along * line.z[0], along * line.z[1], along * line.z[2]);
         let offset = eye.offset.then(&bone).then(&slide).then(&bone.inverse().ok_or(Refusal::Broken)?);
         Ok(Placement { bone: eye.bone, offset })
     }
