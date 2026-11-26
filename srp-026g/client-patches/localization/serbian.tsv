@@ -3019,6 +3019,12 @@ st_srp_hud_freeze_draw	Nerešeno
 st_srp_hud_freeze_frozen	Zamrznut (%1$s)
 st_srp_hud_freeze_help	Zamrzni sve protivnike. Pobeđuje prvi tim koji dobije 5 rundi. Stoj 4 sekunde na najviše 2 m od zamrznutog saigrača da ga odmrzneš.
 st_srp_hud_freeze_lose	Poraz — protivnici su dobili pet rundi.
+st_srp_hud_freeze_reveal_enemy	Poslednji protivnik biće otkriven za %1$s s
+st_srp_hud_freeze_reveal_self	Bićeš otkriven za %1$s s
+st_srp_hud_freeze_reveal_teammate	Tvoj poslednji saigrač biće otkriven za %1$s s
+st_srp_hud_freeze_revealed_enemy	Poslednji protivnik je otkriven na mapi
+st_srp_hud_freeze_revealed_self	Otkriven si na mapi
+st_srp_hud_freeze_revealed_teammate	Tvoj poslednji saigrač je otkriven na mapi
 st_srp_hud_freeze_round_draw	Nerešeno. Nova runda za %1$s s.
 st_srp_hud_freeze_round_lose	Runda izgubljena. Sledeća za %1$s s.
 st_srp_hud_freeze_round_win	Runda dobijena. Sledeća za %1$s s.

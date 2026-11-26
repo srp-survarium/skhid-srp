@@ -1029,13 +1029,17 @@ impl<'a> Rules<'a> {
             rest.is_empty().then_some(Respawn { points, ..respawn })
         };
         let (respawn, mode_rule) = match context.game_mode {
-            mode::FREEZE_TAG => match middle.len().checked_sub(super::freeze::FreezeTag::LEN) {
-                Some(at) => (
+            // Version 3's rule or version 4's (FreezeTag::read_back); none read, the respawn
+            // rule before a version 4 rule's length and the rule refused.
+            mode::FREEZE_TAG => match super::freeze::FreezeTag::read_back(middle) {
+                Some((at, rule)) => (
                     respawn_to(at),
-                    middle.get(at..).and_then(super::freeze::FreezeTag::read)
-                        .filter(|rule| rule.fits(places)).map(ModeRule::FreezeTag),
+                    Some(rule).filter(|rule| rule.fits(places)).map(ModeRule::FreezeTag),
                 ),
-                None => (None, None),
+                None => (
+                    middle.len().checked_sub(super::freeze::FreezeTag::LEN).and_then(respawn_to),
+                    None,
+                ),
             },
             mode::TEAM_DEATHMATCH => match middle.len().checked_sub(TDM) {
                 Some(at) => (
@@ -1250,12 +1254,17 @@ pub fn rules(section: &Section, context: &Context) -> Result<(), Refusal> {
 /// What in Freeze Tag's rule its own bytes cannot say against the world's
 /// time `now` (the timelimit's): a round's restart part ends after it, by the
 /// part's whole length at most (each part is timed from the step that entered
-/// it, the world's last at the latest); the match ended at it or before.
+/// it, the world's last at the latest); the match ended at it or before; in
+/// play, a team's down-to-one step is at it or before.
 fn freeze_tag_fault(rule: &super::freeze::FreezeTag, now: u32) -> Option<Reason> {
     use super::freeze::{Phase, TIMING};
+    use crate::Team;
     let now = artefact_hunt_rule::Time::from_ms(now);
     let fits = match rule.phase() {
-        Phase::Playing => true,
+        Phase::Playing => [Team::First, Team::Second]
+            .into_iter()
+            .filter_map(|team| rule.last_fighter(team))
+            .all(|last| now.since(last.since).is_some()),
         Phase::Restart { restart, .. } => restart
             .until()
             .since(now)

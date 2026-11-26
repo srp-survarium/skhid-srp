@@ -3019,6 +3019,12 @@ st_srp_hud_freeze_draw	Draw
 st_srp_hud_freeze_frozen	Frozen (%1$s)
 st_srp_hud_freeze_help	Freeze every opponent. First team to win 5 rounds wins. Stand within 2 m of a frozen teammate for 4 seconds to thaw them.
 st_srp_hud_freeze_lose	Defeat — opponents won five rounds.
+st_srp_hud_freeze_reveal_enemy	Last enemy revealed in %1$s s
+st_srp_hud_freeze_reveal_self	You are revealed in %1$s s
+st_srp_hud_freeze_reveal_teammate	Your last teammate is revealed in %1$s s
+st_srp_hud_freeze_revealed_enemy	Last enemy revealed on the map
+st_srp_hud_freeze_revealed_self	You are revealed on the map
+st_srp_hud_freeze_revealed_teammate	Your last teammate is revealed on the map
 st_srp_hud_freeze_round_draw	Round drawn. Restarting in %1$s s.
 st_srp_hud_freeze_round_lose	Round lost. Next round in %1$s s.
 st_srp_hud_freeze_round_win	Round won. Next round in %1$s s.

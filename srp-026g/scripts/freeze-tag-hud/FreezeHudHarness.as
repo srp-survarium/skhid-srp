@@ -4,7 +4,10 @@ package
    import flash.events.*;
    import flash.net.URLRequest;
    import flash.system.*;
+   import flash.geom.Point;
+   import flash.geom.Rectangle;
    import flash.text.TextField;
+   import flash.utils.getQualifiedClassName;
 
    // Freeze Tag's frozen teammates in the hud movie (docs/notes/freeze-tag.md, "The frozen name"), its
    // own root fed as the game feeds it: a match of mode 12 (the map, the local player's team, the
@@ -17,7 +20,12 @@ package
    // - the Tab list's names of every frozen place ice blue (both teams, as before);
    // - a thaw gives each its own colour back; a dot made while its place is frozen (a class change, a
    //   new player) is blue from the start; a map held (the Tab list closed) draws it when it shows;
-   // - the round's restart (mask 0), another mode and a new match leave nothing blue.
+   // - the round's restart (mask 0), another mode and a new match leave nothing blue;
+   // - the enemy team's last one fighting (11, far; then near): listed, his icon draws nothing until
+   //   root.freeze_tag_revealed names him; then a red mark on the Tab map (on the screen, red there) and
+   //   on the corner minimap by HUD.REVEALED_ON_MINIMAP; a teammate's bit and a spotted enemy unmarked;
+   //   marked when a held Tab map shows; none at mask 0, in another mode or a new match;
+   // - in every language: root.freeze_tag_reveal's countdown under the timer (each side's line, its seconds rounded up, then "revealed", then none).
    // "FREEZE SHOT maps" for check.sh's screenshot; ends with "FREEZE RESULT pass" or "... fail: ...".
    public class FreezeHudHarness extends Sprite
    {
@@ -30,6 +38,9 @@ package
       private var frames:int = 0;
       // The local player's squad mates (their glyph green).
       private var squad:Array = [3,4];
+      // The enemy team's last one fighting (FreezeTag::last_standing): listed by the exe unspotted, far from
+      // the local player (beyond the corner minimap's circle).
+      private static const LAST:int = 11;
 
       public function FreezeHudHarness()
       {
@@ -55,7 +66,7 @@ package
       private static function players() : Array
       {
          return [player(0,0,-20,0),player(1,0,-38,18),player(2,0,-8,22),player(3,0,-30,-22,true),
-            player(4,0,2,-18,true,true),player(10,1,30,4)];
+            player(4,0,2,-18,true,true),player(10,1,30,4),player(LAST,1,95,85)];
       }
 
       private static function row(id:int, name:String, ally:Boolean) : Object
@@ -128,6 +139,136 @@ package
          return colours;
       }
 
+      // What a map draws of a place's dot, its name left out, on the stage: null without a dot, an
+      // empty rectangle for a dot that draws nothing.
+      private function drawn(minimap:*, place:int) : Rectangle
+      {
+         var players:DisplayObjectContainer = minimap.minimap._players;
+         for(var i:int = 0; i < players.numChildren; i++)
+         {
+            var icon:* = players.getChildAt(i);
+            if(icon.index != place) continue;
+            var shown:Rectangle = new Rectangle();
+            for(var j:int = 0; j < icon.numChildren; j++)
+            {
+               var part:DisplayObject = icon.getChildAt(j);
+               if(!(part is TextField) && part.visible) shown = shown.union(part.getBounds(stage));
+            }
+            return shown;
+         }
+         return null;
+      }
+
+      private static function empty(shown:Rectangle) : Boolean
+      {
+         return shown != null && (shown.width < 1 || shown.height < 1);
+      }
+
+      // The screen's colour at the middle of `shown` (the stage drawn as Ruffle shows it).
+      private function colourAt(shown:Rectangle) : uint
+      {
+         var screen:BitmapData = new BitmapData(stage.stageWidth,stage.stageHeight,false,0);
+         screen.draw(stage);
+         return screen.getPixel(int(shown.x + shown.width / 2),int(shown.y + shown.height / 2));
+      }
+
+      private static function red(colour:uint) : Boolean
+      {
+         return (colour >> 16 & 0xFF) >= 180 && (colour >> 8 & 0xFF) <= 90 && (colour & 0xFF) <= 90;
+      }
+
+      // The revealed last fighter: a red mark at least 8 px on the Tab map, on the screen and red
+      // there; on the corner minimap too while HUD.REVEALED_ON_MINIMAP (the one switch), red on the
+      // screen near the local player (beyond its circle the minimap clips him, as every dot).
+      private function revealedShown(what:String, near:Boolean) : void
+      {
+         var tab:* = hud.player_list.minimap;
+         var mark:Rectangle = drawn(tab,LAST);
+         var screen:Rectangle = new Rectangle(0,0,stage.stageWidth,stage.stageHeight);
+         check(mark != null && mark.width >= 8 && mark.height >= 8 && screen.containsRect(mark),
+            what + ": the revealed enemy marked on the Tab map, on the screen (" + mark + ")");
+         var colour:uint = mark == null ? 0 : colourAt(mark);
+         check(red(colour),what + ": the mark red on the screen (0x" + colour.toString(16) + ")");
+         var corner:Rectangle = drawn(hud.minimap,LAST);
+         if(!Object(hud).constructor.REVEALED_ON_MINIMAP)
+         {
+            check(empty(corner),what + ": the corner minimap switched off, nothing drawn for him");
+            return;
+         }
+         check(corner != null && corner.width >= 8,what + ": marked on the corner minimap (" + corner + ")");
+         if(near)
+         {
+            colour = colourAt(corner);
+            check(red(colour),what + ": the corner minimap's mark red on the screen (0x" + colour.toString(16) + ")");
+         }
+      }
+
+      // The hud's own child of a class (its private notices).
+      private function childOf(name:String) : *
+      {
+         for(var i:int = 0; i < hud.numChildren; i++)
+         {
+            if(getQualifiedClassName(hud.getChildAt(i)) == name) return hud.getChildAt(i);
+         }
+         return null;
+      }
+
+      private function setLanguage(language:String) : void
+      {
+         loader.contentLoaderInfo.applicationDomain.getDefinition("survarium.data.LocalizationData")
+            .setData(HarnessText.DATA[language]);
+      }
+
+      // The reveal's countdown for everyone (freeze_tag_reveal), in every language: under the timer, its
+      // seconds rounded up, each side's line, then "revealed", then nothing.
+      private function notices() : void
+      {
+         var reveal:* = childOf("survarium.modes::RevealNotice");
+         var screen:Rectangle = new Rectangle(0,0,stage.stageWidth,stage.stageHeight);
+         for each(var language:String in HarnessText.LANGUAGES)
+         {
+            setLanguage(language);
+            var data:Object = HarnessText.DATA[language];
+            var text:Function = function(key:String, seconds:String = null):String {
+               return seconds == null ? data[key] : String(data[key]).split("%1$s").join(seconds);
+            };
+            hud.reset();
+            hud.set_game_type(12);
+            hud.force_interface_hidden(false);
+            hud.set_match_time("09:59");
+            hud.freeze_tag_reveal(0,0,3,12000);
+            var line:String = reveal == null ? "" : reveal.label.text;
+            check(reveal != null && reveal.visible && line == text("st_srp_hud_freeze_reveal_enemy","12"),
+               language + ": the hunters' countdown: " + line);
+            check(reveal.getBounds(stage).top >= hud.progress_indicator.match_time_2_tdm.getBounds(stage).bottom && screen.containsRect(reveal.getBounds(stage)),
+               language + ": the countdown under the timer, on the screen");
+            hud.freeze_tag_reveal(1,11001,0,0);
+            check(reveal.label.text == text("st_srp_hud_freeze_reveal_self","12"),language + ": the last one's own countdown, rounded up");
+            hud.freeze_tag_reveal(2,500,0,0);
+            check(reveal.label.text == text("st_srp_hud_freeze_reveal_teammate","1"),language + ": his frozen teammates' countdown");
+            hud.freeze_tag_reveal(2,500,3,15000);
+            check(reveal.label.text.split("\r").join("\n") == text("st_srp_hud_freeze_reveal_teammate","1") + "\n" +
+               text("st_srp_hud_freeze_reveal_enemy","15") && reveal.label.textHeight < 120,
+               language + ": both sides down to one: both lines, fitting");
+            hud.freeze_tag_reveal(0,0,3,0);
+            check(reveal.visible && reveal.label.text == text("st_srp_hud_freeze_revealed_enemy"),language + ": revealed");
+            hud.freeze_tag_reveal(1,0,0,0);
+            check(reveal.label.text == text("st_srp_hud_freeze_revealed_self"),language + ": you are revealed");
+            hud.freeze_tag_reveal(2,0,0,0);
+            check(reveal.label.text == text("st_srp_hud_freeze_revealed_teammate"),language + ": your teammate is revealed");
+            hud.freeze_tag_reveal(0,0,0,0);
+            check(!reveal.visible,language + ": nothing after it (a thaw, the notice's 3 s over)");
+         }
+         setLanguage("english");
+         hud.freeze_tag_reveal(0,0,3,12000);
+         hud.set_game_type(1);
+         check(!reveal.visible,"another mode: no countdown");
+         hud.set_game_type(12);
+         hud.freeze_tag_reveal(0,0,3,12000);
+         hud.reset();
+         check(!reveal.visible,"a new match: no countdown");
+      }
+
       private function maps() : Array
       {
          return [{name:"the minimap",map:hud.minimap},{name:"the Tab map",map:hud.player_list.minimap}];
@@ -162,6 +303,7 @@ package
                hud = loader.content;
                ICE = (loader.contentLoaderInfo.applicationDomain.getDefinition("survarium.modes.FrozenPlaces") as Class).COLOR;
                trace("FREEZE hud colour 0x" + ICE.toString(16).toUpperCase());
+               setLanguage("english");
                matchStart();
                dots([],"nobody frozen: every teammate's own colour");
                hud.freeze_tag_rows(frozen([0,1,3,4,10]));
@@ -177,6 +319,36 @@ package
                check(dot(tab,1).name == ICE && dot(tab,3).name == ICE && dot(tab,2).name == 0xFFFFFF,
                   "the Tab map's names: the frozen teammates' ice blue, the others white");
                check(dot(tab,10).name != ICE,"the Tab map's name of the frozen enemy as it is");
+               // The enemy team's last one fighting (freeze-tag.md: on the other team's map at all
+               // times): the exe lists him unspotted, and an enemy's icon draws nothing.
+               check(empty(drawn(tab,LAST)) && empty(drawn(hud.minimap,LAST)),
+                  "before he is told revealed: his dot listed and drawing nothing (no red mark)");
+               var teammate:Rectangle = drawn(tab,1);
+               // Revealed: his place, and a teammate's (the rule's mask is both teams'; never marked).
+               hud.freeze_tag_revealed(1 << LAST | 1 << 1);
+               revealedShown("revealed, far from the local player",false);
+               check(drawn(tab,1).equals(teammate),"a teammate's place in the mask: his dot as it was");
+               check(empty(drawn(tab,10)) && empty(drawn(hud.minimap,10)),
+                  "an enemy listed and not revealed (spotted) as before: nothing drawn");
+               check(dot(tab,LAST).name == 0xFF0000,"his name with Alt red, an enemy's");
+               var label:Rectangle = null;
+               var icon:DisplayObjectContainer = DisplayObjectContainer(tab.minimap._players);
+               for(var k:int = 0; k < icon.numChildren; k++)
+               {
+                  var it:* = icon.getChildAt(k);
+                  for(var n:int = 0; it.index == LAST && n < it.numChildren; n++)
+                     if(it.getChildAt(n) is TextField) label = it.getChildAt(n).getBounds(stage);
+               }
+               check(label != null && label.bottom <= drawn(tab,LAST).top + 3,"his name over the mark");
+               // Near the local player: marked the same.
+               var near:Array = players();
+               near[6] = player(LAST,1,-10,6);
+               hud.update_players(near);
+               revealedShown("revealed, near the local player",true);
+               hud.update_players(players());
+               // The screenshot: the hunters' countdown under the timer.
+               hud.set_match_time("09:45");
+               hud.freeze_tag_reveal(0,0,3,12000);
                phase = 1;
                frames = 0;
                return;
@@ -218,6 +390,20 @@ package
                hud.show_player_list(true);
                check(dot(hud.player_list.minimap,2).glyph == SQUAD && dot(hud.player_list.minimap,5).glyph == ICE,
                   "the Tab map shown again: drawn as the minimap");
+               // A teammate of his thawed (or the round over): revealed nobody, his dot no more
+               // listed; a round later he is revealed while the Tab list is closed: marked when it
+               // shows again.
+               hud.freeze_tag_revealed(0);
+               var unlisted:Array = later.filter(function(p:Object, ...rest):Boolean { return p.player_id != LAST; });
+               hud.update_players(unlisted);
+               check(drawn(hud.player_list.minimap,LAST) == null,"not revealed (a teammate thawed, a team of two): no dot");
+               hud.update_players(later);
+               check(empty(drawn(hud.player_list.minimap,LAST)),"listed while not revealed (spotted): nothing drawn");
+               hud.show_player_list(false);
+               hud.freeze_tag_revealed(1 << LAST);
+               hud.update_players(later);
+               hud.show_player_list(true);
+               revealedShown("revealed while the Tab list was closed, shown again",false);
                // The round's restart: nobody frozen.
                hud.freeze_tag_rows(0);
                dots([],"the round's restart: every own colour back");
@@ -225,11 +411,13 @@ package
                // Another mode: nothing frozen, the next calls of a match not of mode 12 none.
                hud.set_game_type(1);
                dots([],"another mode: every own colour back");
+               check(empty(drawn(hud.player_list.minimap,LAST)),"another mode: nobody marked");
                rows = rowColours();
                check(rows[1] != ICE && rows[3] != ICE,"another mode: the Tab list's names their own");
                // A new match after a frozen one: no dot of the last match drawn again.
                hud.set_game_type(12);
                hud.freeze_tag_rows(frozen([1,3]));
+               hud.freeze_tag_revealed(1 << LAST);
                hud.reset();
                squad = [3,4];
                for each(m in maps())
@@ -239,6 +427,7 @@ package
                hud.show_player_list(true);
                hud.update_players(players());
                dots([],"a new match: nobody frozen");
+               check(empty(drawn(hud.player_list.minimap,LAST)),"a new match: nobody marked");
                // A round's restart, Artifact Hunt's: its 3 s show the round's line; the fade goes
                // black; the countdown shows the kits and its time at once; an artefact offer still
                // waits under the kits.
@@ -260,6 +449,7 @@ package
                check(!hud.contextInfo.visible,"an artefact offer waits under the kits");
                hud.show_artefact_offer("");
                hud.show_profiles_selector(false);
+               notices();
                trace("FREEZE RESULT " + (failures.length ? "fail: " + failures.join("; ") : "pass"));
                phase = 3;
             }

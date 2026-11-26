@@ -1500,9 +1500,14 @@ impl Rules {
             Some((at, rule)) => (Some(at), Some(rule)),
             None => (None, None),
         };
-        let freeze_tag = (game_mode == RuleMode::FreezeTag)
-            .then(|| middle.len().checked_sub(FreezeTag::LEN)).flatten()
-            .and_then(|at| FreezeTag::read(&middle[at..]));
+        // Version 3's rule or version 4's (FreezeTag::read_back).
+        let (freeze_tag_at, freeze_tag) = match (game_mode == RuleMode::FreezeTag)
+            .then(|| FreezeTag::read_back(middle))
+            .flatten()
+        {
+            Some((at, rule)) => (Some(at), Some(rule)),
+            None => (None, None),
+        };
         let free_for_all = (game_mode == RuleMode::FreeForAll)
             .then(|| middle.len().checked_sub(SpawnHistory::LEN))
             .flatten()
@@ -1521,7 +1526,7 @@ impl Rules {
             // Where a mode rule of a size known from the end starts.
             let fixed_at = match game_mode {
                 RuleMode::TeamDeathmatch => Some(middle.len().checked_sub(Tdm::LEN)),
-                RuleMode::FreezeTag => Some(middle.len().checked_sub(FreezeTag::LEN)),
+                RuleMode::FreezeTag => Some(freeze_tag_at),
                 RuleMode::Research => Some(research_at),
                 // No mode rule: the respawn rule ends where the spawn
                 // history begins.

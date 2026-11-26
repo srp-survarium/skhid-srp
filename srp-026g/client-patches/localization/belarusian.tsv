@@ -3019,6 +3019,12 @@ st_srp_hud_freeze_draw	Нічыя
 st_srp_hud_freeze_frozen	Замарожаны (%1$s)
 st_srp_hud_freeze_help	Замарозьце ўсіх супернікаў. Перамагае каманда, якая выйграе 5 раундаў. Стойце ў межах 2 м ад замарожанага саюзніка 4 секунды, каб размарозіць яго.
 st_srp_hud_freeze_lose	Параза — супернікі выйгралі пяць раундаў.
+st_srp_hud_freeze_reveal_enemy	Апошні супернік будзе раскрыты праз %1$s с
+st_srp_hud_freeze_reveal_self	Вас раскрыюць праз %1$s с
+st_srp_hud_freeze_reveal_teammate	Ваш апошні саюзнік будзе раскрыты праз %1$s с
+st_srp_hud_freeze_revealed_enemy	Апошні супернік раскрыты на карце
+st_srp_hud_freeze_revealed_self	Вы раскрыты на карце
+st_srp_hud_freeze_revealed_teammate	Ваш апошні саюзнік раскрыты на карце
 st_srp_hud_freeze_round_draw	Нічыя. Паўтор праз %1$s с.
 st_srp_hud_freeze_round_lose	Раунд прайграны. Наступны праз %1$s с.
 st_srp_hud_freeze_round_win	Раунд выйграны. Наступны праз %1$s с.
