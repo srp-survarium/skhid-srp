@@ -176,10 +176,9 @@ package {
     case 340:
      if(slots.slots_list.getRendererAt(0).count.text != "100%") failures.push("fresh artifact power");
      slots.setActivity(1,5,1,7); break;
-    // The use is paid at the press: while the copy is active, the power it fires with and no hint.
+    // The use is paid at the press: while the copy is active, the power it fires with.
     case 341:
      if(slots.slots_list.getRendererAt(0).count.text != "100%") failures.push("wear switch while active");
-     if(slots.takeWearHint() != null) failures.push("wear hint while active");
      check("12",false);
      var cooling:Object = item(1,true,true); cooling.cooldown = 50; cooling.timer = 0; slots.fillSlot(cooling);
      slots.setActivity(1,5,1,7); break;
@@ -187,8 +186,6 @@ package {
      var label:Object = slots.slots_list.getRendererAt(0).count;
      if(label.textWidth + 4 > label.width) failures.push("clipped wear label: " + label.textWidth + " / " + label.width);
      if(label.text != "100% → 80%") failures.push("wear transition on cooldown");
-     if(slots.takeWearHint() != "80%") failures.push("missing first wear hint");
-     if(slots.takeWearHint() != null) failures.push("repeated wear hint");
      check("",true); slots.fillSlot(item(1,true,true)); slots.setActivity(1,5,4,9); break;
     case 350:
      if(slots.slots_list.getRendererAt(0).count.text != "41%") failures.push("replacement artifact power");

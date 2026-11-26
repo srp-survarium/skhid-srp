@@ -38,8 +38,6 @@ package survarium.controls
       // A use is paid for at the press, but its drop (old -> new power) waits for the copy's
       // cooldown: until then the slot keeps the power it fires with, then shows the switch.
       public static const WEAR_SWITCH_MS:int = 1200;
-      private var _wearHintShown:Boolean = false;
-      private var _wearHint:String = null;
       private var _nativeSlots:Array = [];
       private var _activities:Array = [];
 
@@ -47,14 +45,6 @@ package survarium.controls
       {
          var percent:Number = 100 * Math.pow(0.8,uses);
          return percent < 1 ? "<1%" : Math.round(percent) + "%";
-      }
-
-      // The power a copy fell to, once a match: told when its first switch shows.
-      public function takeWearHint() : String
-      {
-         var power:String = _wearHint;
-         _wearHint = null;
-         return power;
       }
 
       public function setActivity(slot:uint, phase:uint, remaining:uint, duration:uint) : Boolean
@@ -77,11 +67,6 @@ package survarium.controls
                   var native:Object = _nativeSlots[slot];
                   if(!native || !(native.cooldown > 0)) return false;
                   old.since = now;
-                  if(!_wearHintShown)
-                  {
-                     _wearHintShown = true;
-                     _wearHint = old.power;
-                  }
                }
                else if(now - old.since < WEAR_SWITCH_MS) return false;
                else old.previous = null;
@@ -254,8 +239,6 @@ package survarium.controls
       public function clean() : void
       {
          trace("QS::clean");
-         _wearHintShown = false;
-         _wearHint = null;
          this._slots_items.length = 0;
          _nativeSlots = [];
          _activities = [];

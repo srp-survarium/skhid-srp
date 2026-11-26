@@ -4015,7 +4015,6 @@ st_srp_hit_markers_kill	Nur Abschussanzeige
 st_srp_hud_add_friend	Freunden hinzufügen
 st_srp_hud_artefact_hunt_carrying	Du trägst das Artefakt
 st_srp_hud_artefact_hunt_sudden_death	Sudden Death
-st_srp_hud_artefact_wear	Artefakt geschwächt. Passiver Effekt und nächste Aktivierung haben %1$s Stärke.
 st_srp_hud_blackout_intro	Blackout: Bringe Batterien zum Gerät deines Teams. HUD und Trefferanzeigen sind für mehr Immersion ausgeblendet. Halte Tab für Munition, Gesundheit und Chat sowie die Ausrüstungswahl nach dem Tod.
 st_srp_hud_blackout_start	Blackout\nBringe Batterien zum Gerät deines Teams.\nHUD und Trefferanzeigen sind ausgeblendet. Halte Tab, um Munition und Gesundheit zu sehen.
 st_srp_hud_freeze_draw	Unentschieden
