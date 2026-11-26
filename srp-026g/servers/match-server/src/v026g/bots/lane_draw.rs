@@ -224,6 +224,28 @@ pub fn shut_near(tactics: &Tactics, first: &[Vec3], ends: [Vec3; 2], set: &LaneD
     Some(Arc::new(shut))
 }
 
+/// [pincer] The regions a flank lane keeps out of (by region): off the walk's start (`ends_m` or more from it), those within
+/// `away_m` of a point of the teammate's lane `mate`, and those its lane passes (each point's region); within `ends_m` of the goal
+/// only those its lane passes. The goal's own region never: the two lanes share only it at the end.
+pub fn shut_flank(tactics: &Tactics, mate: &[Vec3], ends: [Vec3; 2], goal_region: u32, set: &LaneDrawTuning) -> Arc<Vec<bool>> {
+    let (away, ends_m) = (set.away_m.get(), set.ends_m.get());
+    let (grid, regions) = (&tactics.world.grid, tactics.regions());
+    let on_mate: std::collections::HashSet<u32> = mate.iter().filter_map(|&p| grid.locate(p, 3.0)).map(|n| regions.of(n)).collect();
+    let shut = (0..regions.len() as u32)
+        .map(|r| {
+            let m = grid.position(regions.middle(r));
+            if r == goal_region || m.distance_xz(ends[0]) < ends_m {
+                false
+            } else if m.distance_xz(ends[1]) < ends_m {
+                on_mate.contains(&r)
+            } else {
+                on_mate.contains(&r) || mate.iter().any(|p| p.distance_xz(m) < away)
+            }
+        })
+        .collect();
+    Arc::new(shut)
+}
+
 /// The room of a way for the floors' search (by region): its regions and those linked to them that `open` gives true for and
 /// `shut` does not (as `threat::costed_corridor`'s room).
 pub fn room(tactics: &Tactics, way: &RegionWay, shut: &[bool], open: impl Fn(u32) -> bool) -> Arc<Vec<bool>> {
@@ -298,8 +320,11 @@ pub fn number(life_key: u64, goal: Vec3) -> f32 {
 pub struct LaneHold {
     held: Option<Held>,
     pincer: Option<super::pincer::Pincer>,
-    /// [pincer] The goal a pairing was last refused for (shared): not tried again for a goal near it (a new life forgets it).
+    /// [pincer] The goal cell a flank lane was last refused for (none within the caps): not tried again for a goal near it (a new
+    /// life forgets it).
     refused: Option<Vec3>,
+    /// [pincer] A pincer under way that its walk's end took, and why (for its line, [`Self::take_ended`]).
+    ended: Option<(super::pincer::Pincer, RouteEnd)>,
 }
 
 #[derive(Clone, Debug)]
@@ -354,6 +379,7 @@ impl super::features::Feature for LaneHold {
         self.held = None;
         self.pincer = None;
         self.refused = None;
+        self.ended = None;
     }
 }
 
@@ -382,28 +408,23 @@ impl LaneHold {
         self.held = Some(Held { goal, lane: lane.map(|(shut, cap)| Second { shut, cap }) });
     }
 
-    /// The route ended for `why`: the walk's lane goes with the walk ([`ends_walk`]), and its pincer. An arrival at a pincer's
-    /// stage is the walk going on (the hold, then in).
+    /// The route ended for `why`: the walk's lane goes with the walk ([`ends_walk`]), and its pincer (one under way kept for its
+    /// line, [`Self::take_ended`]). The stage is on the walk's route: the hold keeps the route, nothing ends there.
     pub fn route_ended(&mut self, why: RouteEnd) {
-        use super::pincer::Phase;
-        if why == RouteEnd::Arrived && self.pincer.is_some_and(|p| p.phase != Phase::In) {
-            return;
-        }
         if ends_walk(why) {
             self.held = None;
-            self.pincer = None;
+            if let Some(p) = self.pincer.take().filter(|p| p.phase != super::pincer::Phase::In) {
+                self.ended = Some((p, why));
+            }
         }
     }
 
-    /// The point the walk heads for now: its pincer's stage until it goes in, else the play's `goal`.
-    pub fn goal(&self, goal: Vec3) -> Vec3 {
-        match self.pincer {
-            Some(p) if p.phase != super::pincer::Phase::In => p.stage,
-            _ => goal,
-        }
+    /// [pincer] The pincer under way its walk's end took, and why: once.
+    pub fn take_ended(&mut self) -> Option<(super::pincer::Pincer, RouteEnd)> {
+        self.ended.take()
     }
 
-    /// [pincer] A pairing was refused for its walk to `goal` (shared).
+    /// [pincer] No flank lane within the caps for its walk to `goal`.
     pub fn pincer_refused(&mut self, goal: Vec3) {
         self.refused = Some(goal);
     }
@@ -418,10 +439,11 @@ impl LaneHold {
         self.pincer
     }
 
-    /// Its walk to `goal` is in a pincer from now: held (no lane drawn: the stage is its way), the pincer `p`.
-    pub fn start_pincer(&mut self, goal: Vec3, p: super::pincer::Pincer) {
-        self.held = Some(Held { goal, lane: None });
-        self.pincer = Some(p);
+    /// Its walk held is in the pincer `p` from now (its lane as drawn: the flank's, or its own).
+    pub fn start_pincer(&mut self, p: super::pincer::Pincer) {
+        if self.held.is_some() {
+            self.pincer = Some(p);
+        }
     }
 
     /// Its pincer's phase is `phase` from now.
@@ -429,6 +451,11 @@ impl LaneHold {
         if let Some(p) = self.pincer.as_mut() {
             p.phase = phase;
         }
+    }
+
+    /// [pincer] The goal of its held walk now, if any.
+    pub fn held_goal(&self) -> Option<Vec3> {
+        self.held.as_ref().map(|held| held.goal)
     }
 
     /// Whether it walks a held walk now, and on L2.
@@ -483,24 +510,22 @@ struct Claim {
     objective: Option<super::pincer::Objective>,
     /// [pincer] Its route as its walker publishes it ([`Ahead`]).
     ahead: Option<Ahead>,
-    /// [pincer] Its pincer: the teammate, its stage, the objective's centre, and where it is.
+    /// [pincer] Whether its walker has a target now (no pairing with a walker in a fight).
+    fighting: bool,
+    /// [pincer] Its pincer: the teammate, and where it is.
     pincer: Option<Paired>,
 }
 
-/// [pincer] A walk's route as its walker publishes it for a teammate's pincer: the point [`super::pincer::final_leg_m`] before its
-/// end and the metres to it.
+/// [pincer] A walk's route as its walker publishes it for a teammate's pincer: the metres left to its end.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Ahead {
-    pub stage: Vec3,
-    pub to_stage_m: f32,
+    pub to_end_m: f32,
 }
 
 /// [pincer] A claim's pincer.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Paired {
     pub mate: Place,
-    pub stage: Vec3,
-    pub centre: Vec3,
     pub state: super::pincer::Shared,
 }
 
@@ -551,6 +576,7 @@ impl TeamLanes {
             goal: walk.goal,
             objective: walk.objective,
             ahead: None,
+            fighting: false,
             pincer: None,
         });
     }
@@ -563,10 +589,11 @@ impl TeamLanes {
         self.claims.iter_mut().find(|c| c.who == who && c.died.is_none())
     }
 
-    /// [pincer] `who`'s walk's route facts (`ahead`), as it walks it.
-    pub fn publish(&mut self, who: Place, ahead: Ahead) {
+    /// [pincer] `who`'s walk's route facts (`ahead`, when it has a route), and whether its walker has a target, as it walks it.
+    pub fn publish(&mut self, who: Place, ahead: Option<Ahead>, fighting: bool) {
         if let Some(c) = self.live_mut(who) {
-            c.ahead = Some(ahead);
+            c.ahead = ahead.or(c.ahead);
+            c.fighting = fighting;
         }
     }
 
@@ -576,21 +603,20 @@ impl TeamLanes {
     }
 
     /// [pincer] A teammate's walk (not `who`'s) under way to the same objective as `objective` (`same`), of a pincer's play, in no
-    /// pincer yet, its route published: its walker, goal and route facts.
-    pub fn pincer_mate(&self, who: Place, same: impl Fn(super::pincer::Objective) -> bool) -> Option<(Place, Vec3, Ahead)> {
+    /// pincer yet, its route published, its walker in no fight: its walker, goal, route facts and the lane it walks.
+    pub fn pincer_mate(&self, who: Place, same: impl Fn(super::pincer::Objective) -> bool) -> Option<(Place, Vec3, Ahead, Vec<Vec3>)> {
         self.claims
             .iter()
-            .filter(|c| c.who != who && c.died.is_none() && c.pincer.is_none() && c.play.is_some_and(super::pincer::plays))
-            .find_map(|c| c.objective.filter(|o| same(*o)).and(c.ahead).map(|a| (c.who, c.goal, a)))
+            .filter(|c| c.who != who && c.died.is_none() && c.pincer.is_none() && !c.fighting && c.play.is_some_and(super::pincer::plays))
+            .find_map(|c| c.objective.filter(|o| same(*o)).and(c.ahead).map(|a| (c.who, c.goal, a, c.points().to_vec())))
     }
 
-    /// [pincer] `first` and `second` in one pincer: each claim's teammate, stage and the objective's centre, both walking to their
-    /// stages. `second`'s claim must be under way.
-    pub fn pair(&mut self, first: (Place, Vec3), second: (Place, Vec3), centre: Vec3) {
+    /// [pincer] `first` and `second` in one pincer, both walking to their stages. Both claims must be under way.
+    pub fn pair(&mut self, first: Place, second: Place) {
         use super::pincer::Shared;
-        for (who, mate, stage) in [(first.0, second.0, first.1), (second.0, first.0, second.1)] {
+        for (who, mate) in [(first, second), (second, first)] {
             if let Some(c) = self.live_mut(who) {
-                c.pincer = Some(Paired { mate, stage, centre, state: Shared::Walking });
+                c.pincer = Some(Paired { mate, state: Shared::Walking });
             }
         }
     }
@@ -615,20 +641,19 @@ impl TeamLanes {
             .map_or(Shared::Gone, |q| q.state)
     }
 
-    /// The teammates (not `who`) on each of two lanes (their own stretches): now, each living one of `bodies` (place, feet) by its
-    /// walk's claim ([`walks`]), or with none on either, by its body within `away_m` of one stretch and not the other; died, each
-    /// claim whose walker died within `keep_ms` of `time`.
-    pub fn mates_on(&self, who: Place, stretches: [&[Vec3]; 2], away_m: f32, time: u32, keep_ms: u32, bodies: &[(Place, Vec3)]) -> Mates {
+    /// The teammates (not `who`) on each of two lanes (their own stretches) of a walk to `goal`: now, each living one of `bodies`
+    /// whose walk's claim goes to a goal within `away_m` of `goal`, on the lane its claim walks ([`walks`]); died, each claim whose
+    /// walker died within `keep_ms` of `time`.
+    #[allow(clippy::too_many_arguments)]
+    pub fn mates_on(&self, who: Place, goal: Vec3, stretches: [&[Vec3]; 2], away_m: f32, time: u32, keep_ms: u32, bodies: &[Place]) -> Mates {
         let mut mates = Mates::default();
-        for &(mate, feet) in bodies.iter().filter(|&&(mate, _)| mate != who) {
-            let claimed = self.claims.iter().find(|c| c.who == mate && c.died.is_none()).and_then(|c| walks(c.points(), stretches, away_m));
-            let on = |s: &[Vec3]| s.iter().any(|p| p.distance_xz(feet) < away_m);
-            let body = match (on(stretches[0]), on(stretches[1])) {
-                (true, false) => Some(0),
-                (false, true) => Some(1),
-                _ => None,
-            };
-            if let Some(lane) = claimed.or(body) {
+        for &mate in bodies.iter().filter(|&&mate| mate != who) {
+            let claimed = self
+                .claims
+                .iter()
+                .find(|c| c.who == mate && c.died.is_none() && c.goal.distance_xz(goal) <= away_m)
+                .and_then(|c| walks(c.points(), stretches, away_m));
+            if let Some(lane) = claimed {
                 mates.now[lane] += 1;
             }
         }
@@ -721,14 +746,25 @@ pub(super) fn draw(
     let (from, to) = (regions.of(walk.ends.0), regions.of(walk.ends.1));
     let ends = [grid.position(walk.ends.0), grid.position(walk.ends.1)];
     // The ways' costs between the walk's own ends (`RegionWay::cost_between`).
-    let first = region_way(tactics, from, to, walk.open)
-        .map(|first| {
-            let c1 = first.cost_between(tactics, ends[0], ends[1]);
-            (first, c1)
-        })
-        .filter(|&(_, c1)| c1 > set.long_m.get());
-    let Some((mut first, mut c1)) = first else {
+    let first = region_way(tactics, from, to, walk.open).map(|first| {
+        let c1 = first.cost_between(tactics, ends[0], ends[1]);
+        (first, c1)
+    });
+    // [pincer] A teammate's walk to the same objective: the flank lane, when one is within the caps.
+    if let Some((way, c1)) = first.as_ref()
+        && let Some(room) = flank(bot, me, view, tactics, set, &walk, lanes, way, *c1)
+    {
+        return Some(room);
+    }
+    let long = first.as_ref().is_some_and(|&(_, c1)| c1 > set.long_m.get());
+    // [pincer] A short walk of a pincer's play is claimed too (its one lane), for a teammate's flank to pair with.
+    let short = (!long && walk.play.is_some_and(super::pincer::plays) && walk.objective.is_some())
+        .then(|| first.as_ref().map_or_else(|| vec![ends[0], ends[1]], |(way, _)| way.points(tactics)));
+    let Some((mut first, mut c1)) = first.filter(|_| long) else {
         bot.features.lane.drawn(walk.goal, None);
+        if let Some(points) = short {
+            lanes.claim(bot.place, Arc::new([points, Vec::new()]), false, walk.walk_for());
+        }
         return None;
     };
     let num = |name| tuning.number(super::plays::PlayKind::Roam, name);
@@ -773,8 +809,8 @@ pub(super) fn draw(
         Ok((way, c2, shut)) => {
             let points2 = way.points(tactics);
             let stretches = [own_stretch(&points1, &points2, away), own_stretch(&points2, &points1, away)];
-            let bodies: Vec<(Place, Vec3)> = view.team(me.team).map(|p| (p.place, p.feet)).collect();
-            let mates = lanes.mates_on(bot.place, [&stretches[0], &stretches[1]], away, walk.time, keep_ms, &bodies);
+            let bodies: Vec<Place> = view.team(me.team).map(|p| p.place).collect();
+            let mates = lanes.mates_on(bot.place, walk.goal, [&stretches[0], &stretches[1]], away, walk.time, keep_ms, &bodies);
             let (number, covered) = (number(bot.life_key, walk.goal), cover(mates));
             let (odds, second) = match covered {
                 Some(second) => (if second { 1.0 } else { 0.0 }, second),
@@ -802,6 +838,72 @@ pub(super) fn draw(
             None
         }
     }
+}
+
+/// [pincer] The flank of a new walk ([`super::pincer`]): with a teammate's walk under way to the same objective (a pincer's play,
+/// no carrier, neither in a fight, more than the hold's cap of the round left), a lane off the teammate's lane all the way in
+/// ([`shut_flank`]) within the lane draw's caps on its own L1 (`first`, `c1`: the band on its cost, no more leaps), and the two
+/// arrivals within the cap of each other: held as its L2 for the walk, claimed, the two paired, logged. None (the draw goes on)
+/// with no teammate, or with a refusal logged: a goal with no flank lane within the caps is remembered (not tried again for it).
+#[allow(clippy::too_many_arguments)]
+fn flank(
+    bot: &mut super::Bot,
+    me: &super::view::PlaceView,
+    view: &super::view::MatchView,
+    tactics: &Tactics,
+    set: &LaneDrawTuning,
+    walk: &Walk<'_>,
+    lanes: &mut TeamLanes,
+    first: &RegionWay,
+    c1: f32,
+) -> Option<Room> {
+    use super::pincer::{self, Phase, Pincer};
+    let (away, band) = (set.away_m.get(), set.band.get());
+    let kind = walk.play.filter(|&k| pincer::plays(k))?;
+    let objective = walk.objective?;
+    if me.carrying.is_some()
+        || bot.reflex.target().is_some()
+        || view.time_left_s * 1000.0 <= pincer::HOLD_CAP_MS as f32
+        || bot.features.lane.refused_for(walk.goal, away)
+    {
+        return None;
+    }
+    let enemy_at = |p: Place| view.enemies_of(me.team).find(|e| e.place == p).map(|e| e.feet);
+    let near = |a: Place, b: Place| enemy_at(a).zip(enemy_at(b)).is_some_and(|(x, y)| x.distance_xz(y) <= pincer::CLUSTER_M);
+    let (mate, _, ahead, mate_lane) = lanes.pincer_mate(bot.place, |o| objective.same(o, near, away))?;
+    let (grid, regions) = (&tactics.world.grid, tactics.regions());
+    let (from, to) = (regions.of(walk.ends.0), regions.of(walk.ends.1));
+    let ends = [grid.position(walk.ends.0), grid.position(walk.ends.1)];
+    let shut = shut_flank(tactics, &mate_lane, ends, to, set);
+    let leaps1 = first.leaps(tactics);
+    let way = region_way(tactics, from, to, |r| !shut[r as usize] && (walk.open)(r))
+        .map(|way| {
+            let cf = way.cost_between(tactics, ends[0], ends[1]);
+            let leaps = way.leaps(tactics);
+            (way, cf, leaps)
+        })
+        .filter(|&(_, cf, leaps)| cf <= band * c1 && leaps <= leaps1);
+    let Some((way, cf, leaps)) = way else {
+        bot.features.lane.pincer_refused(walk.goal);
+        let why = format!("no flank lane within the caps: {:.1} m, {leaps1} leaps", band * c1);
+        bot.nav_log.push(super::nav_log::Kind::Lane, walk.time, pincer::lines::shared(kind, mate, &why));
+        return None;
+    };
+    let gap_s = (cf - ahead.to_end_m).abs() / pincer::SPEED_MPS;
+    if gap_s * 1000.0 > pincer::HOLD_CAP_MS as f32 {
+        let why = format!("arrivals {gap_s:.1} s apart: {cf:.1} m against b{mate}'s {:.1} m", ahead.to_end_m);
+        bot.nav_log.push(super::nav_log::Kind::Lane, walk.time, pincer::lines::shared(kind, mate, &why));
+        return None;
+    }
+    let cap = Cap { metres: band * c1, leaps: leaps1 };
+    let room = Room { regions: room(tactics, &way, &shut, walk.open), cap };
+    bot.features.lane.drawn(walk.goal, Some((shut, cap)));
+    lanes.claim(bot.place, Arc::new([first.points(tactics), way.points(tactics)]), true, walk.walk_for());
+    lanes.pair(mate, bot.place);
+    bot.features.lane.start_pincer(Pincer { mate, goal: walk.goal, phase: Phase::ToStage { found: None }, flank: true, since: walk.time });
+    let line = pincer::lines::paired(kind, mate, walk.goal, (cf, leaps), (c1, leaps1), ahead.to_end_m, gap_s);
+    bot.nav_log.push(super::nav_log::Kind::Lane, walk.time, line);
+    Some(room)
 }
 
 /// A held L2's room from where the bot is now (`walk.ends`) to the walk's goal now: its way on the regions kept out of `shut`, its
@@ -926,44 +1028,43 @@ mod tests {
         assert!(matches!(fresh.replan(goal, false), Replan::Held(None)));
     }
 
-    /// Two lanes from (0, 0) to (100, 0): L1 straight, L2 by z 40 from x 20 to 80. A living mate is on the lane its walk's claim
-    /// walks, else on the stretch its body stands on; one who died walking a lane counts on it for the window after the death.
+    /// Two lanes from (0, 0) to (100, 0): L1 straight, L2 by z 40 from x 20 to 80. A living mate walking to the same goal is on the
+    /// lane its walk's claim walks; one walking elsewhere, or with no claim, is on neither; one who died walking a lane counts on it
+    /// for the window after the death.
     #[test]
-    fn mates_are_counted_on_the_lane_they_walk_or_stand_on_and_by_their_deaths() {
+    fn mates_are_counted_on_the_lane_they_walk_to_the_same_goal_and_by_their_deaths() {
         let line = |z: f32| (0..=50).map(|k| Vec3::new(k as f32 * 2.0, 0.0, if (10..=40).contains(&k) { z } else { 0.0 })).collect::<Vec<_>>();
         let (l1, l2) = (line(0.0), line(40.0));
         let (s1, s2) = (own_stretch(&l1, &l2, 15.0), own_stretch(&l2, &l1, 15.0));
         assert!(!s1.is_empty() && !s2.is_empty());
         let both = Arc::new([l1.clone(), l2.clone()]);
         let mut lanes = TeamLanes::default();
-        let w = WalkFor { play: None, goal: Vec3::new(100.0, 0.0, 0.0), objective: None };
+        let goal = Vec3::new(100.0, 0.0, 0.0);
+        let w = WalkFor { play: None, goal, objective: None };
         lanes.claim(1, both.clone(), false, w);
         lanes.claim(2, both.clone(), true, w);
         lanes.claim(3, both.clone(), true, w);
-        let start = Vec3::ZERO;
-        let bodies = |places: &[Place]| places.iter().map(|&p| (p, start)).collect::<Vec<_>>();
+        lanes.claim(5, both.clone(), true, WalkFor { goal: Vec3::new(100.0, 0.0, 40.0), ..w });
         let m = |now: [u32; 2], died: [u32; 2]| Mates { now, died };
         let s = [&s1[..], &s2[..]];
-        assert_eq!(lanes.mates_on(0, s, 15.0, 0, 15_000, &bodies(&[0, 1, 2, 3])), m([1, 2], [0, 0]));
-        assert_eq!(lanes.mates_on(2, s, 15.0, 0, 15_000, &bodies(&[0, 1, 2, 3])), m([1, 1], [0, 0]), "not its own");
+        assert_eq!(lanes.mates_on(0, goal, s, 15.0, 0, 15_000, &[0, 1, 2, 3, 5]), m([1, 2], [0, 0]), "not mate 5: another goal");
+        assert_eq!(lanes.mates_on(0, Vec3::new(100.0, 0.0, 40.0), s, 15.0, 0, 15_000, &[0, 1, 2, 3, 5]), m([0, 1], [0, 0]));
+        assert_eq!(lanes.mates_on(2, goal, s, 15.0, 0, 15_000, &[0, 1, 2, 3]), m([1, 1], [0, 0]), "not its own");
         // Mate 3 dies at 2 s (seen by a teammate's tick): died on L2 till 17 s, then dropped.
         lanes.walking(0, None, 2_000, 15_000, |p| p != 3);
-        assert_eq!(lanes.mates_on(0, s, 15.0, 17_000, 15_000, &bodies(&[0, 1, 2])), m([1, 1], [0, 1]));
+        assert_eq!(lanes.mates_on(0, goal, s, 15.0, 17_000, 15_000, &[0, 1, 2]), m([1, 1], [0, 1]));
         lanes.walking(0, None, 17_001, 15_000, |_| true);
-        assert_eq!(lanes.mates_on(0, s, 15.0, 17_001, 15_000, &bodies(&[0, 1, 2])), m([1, 1], [0, 0]));
+        assert_eq!(lanes.mates_on(0, goal, s, 15.0, 17_001, 15_000, &[0, 1, 2]), m([1, 1], [0, 0]));
         // Its next life's claim does not wipe a death.
         lanes.walking(0, None, 18_000, 15_000, |p| p != 2);
         lanes.claim(2, both.clone(), false, w);
-        assert_eq!(lanes.mates_on(0, s, 15.0, 18_000, 15_000, &bodies(&[0, 1, 2])), m([2, 0], [0, 1]));
-        // Mate 1's walk ends: by its body now, on L1's own stretch, on L2's, or at the shared start (none).
+        assert_eq!(lanes.mates_on(0, goal, s, 15.0, 18_000, 15_000, &[0, 1, 2]), m([2, 0], [0, 1]));
+        // Mate 1's walk ends: with no claim it is on neither.
         lanes.walking(1, None, 19_000, 15_000, |_| true);
-        let on = |feet: Vec3| lanes.mates_on(0, s, 15.0, 19_000, 15_000, &[(1, feet)]);
-        assert_eq!(on(Vec3::new(50.0, 0.0, 2.0)), m([1, 0], [0, 1]));
-        assert_eq!(on(Vec3::new(50.0, 0.0, 38.0)), m([0, 1], [0, 1]));
-        assert_eq!(on(start), m([0, 0], [0, 1]));
+        assert_eq!(lanes.mates_on(0, goal, s, 15.0, 19_000, 15_000, &[1]), m([0, 0], [0, 1]));
         // A walk turned to L1 counts on L1.
         lanes.walking(2, Some(false), 19_000, 15_000, |_| true);
-        assert_eq!(lanes.mates_on(0, s, 15.0, 19_000, 15_000, &bodies(&[2])), m([1, 0], [0, 1]));
+        assert_eq!(lanes.mates_on(0, goal, s, 15.0, 19_000, 15_000, &[2]), m([1, 0], [0, 1]));
         // A lane along neither stretch: no one's.
         assert_eq!(walks(&line(-60.0)[20..=30], [&s1, &s2], 15.0), None);
     }
@@ -1046,8 +1147,9 @@ mod tests {
         assert_eq!(way.leaps(&tactics), 2);
     }
 
-    /// [pincer] A walk to an objective a teammate's walk under way heads for (its route published) pairs with it; the pair's states
-    /// are read by each; a teammate gone (its claim ended) is gone. Walks of other objectives or plays do not pair.
+    /// [pincer] A walk to an objective a teammate's walk under way heads for (its route published, its walker in no fight) pairs
+    /// with it; the pair's states are read by each; a teammate gone (its claim ended) is gone. Walks of other objectives or plays,
+    /// or a walker in a fight, do not pair.
     #[test]
     fn two_walks_to_one_objective_pair_and_read_each_other() {
         use super::super::pincer::{Objective, Shared};
@@ -1057,53 +1159,92 @@ mod tests {
         let walk = |play, objective| WalkFor { play: Some(play), goal: Vec3::new(80.0, 0.0, 0.0), objective: Some(objective) };
         lanes.claim(1, lane.clone(), false, walk(PlayKind::Collect, Objective::Battery(3)));
         lanes.claim(4, lane.clone(), false, walk(PlayKind::Escort, Objective::Battery(3)));
-        let ahead = Ahead { stage: Vec3::new(75.0, 0.0, 0.0), to_stage_m: 60.0 };
+        lanes.claim(6, lane.clone(), false, walk(PlayKind::Crossfire, Objective::Battery(3)));
+        let ahead = Ahead { to_end_m: 60.0 };
         let same = |o: Objective| o == Objective::Battery(3);
         assert_eq!(lanes.pincer_mate(2, same), None, "its route is not published yet");
-        lanes.publish(1, ahead);
-        lanes.publish(4, ahead);
-        assert_eq!(lanes.pincer_mate(2, same), Some((1, Vec3::new(80.0, 0.0, 0.0), ahead)), "not the escort");
+        for who in [1, 4, 6] {
+            lanes.publish(who, Some(ahead), false);
+        }
+        assert_eq!(lanes.pincer_mate(2, same), Some((1, Vec3::new(80.0, 0.0, 0.0), ahead, lane[0].clone())), "not the escort, not a position play");
         assert_eq!(lanes.pincer_mate(2, |o| o == Objective::Battery(4)), None);
-        lanes.claim(2, lane.clone(), false, walk(PlayKind::Cut, Objective::Battery(3)));
-        lanes.pair((1, ahead.stage), (2, Vec3::new(80.0, 0.0, 5.0)), Vec3::new(80.0, 0.0, 0.0));
-        assert_eq!(lanes.paired(2).map(|p| (p.mate, p.stage)), Some((1, Vec3::new(80.0, 0.0, 5.0))));
+        lanes.publish(1, None, true);
+        assert_eq!(lanes.pincer_mate(2, same), None, "its walker in a fight");
+        lanes.publish(1, None, false);
+        assert!(lanes.pincer_mate(2, same).is_some(), "its route facts kept with no route this tick");
+        lanes.claim(2, lane.clone(), true, walk(PlayKind::Collect, Objective::Battery(3)));
+        lanes.pair(1, 2);
+        assert_eq!(lanes.paired(2).map(|p| p.mate), Some(1));
         assert_eq!(lanes.mate_state(2), Shared::Walking);
         assert_eq!(lanes.pincer_mate(3, same), None, "one pincer a walk");
         lanes.share(1, Shared::Staged);
         assert_eq!(lanes.mate_state(2), Shared::Staged);
+        lanes.share(2, Shared::Go);
+        assert_eq!(lanes.mate_state(1), Shared::Go, "the second there lets both go");
         lanes.walking(1, None, 1_000, 15_000, |_| true);
         assert_eq!(lanes.mate_state(2), Shared::Gone, "its teammate's walk ended");
         assert_eq!(lanes.mate_state(9), Shared::Gone, "no pincer");
     }
 
-    /// [pincer] A pincer's walk heads for its stage until it goes in; an arrival at the stage keeps the walk, any other end of the walk
-    /// ends the pincer too.
+    /// [pincer] A pincer is on a held walk; the walk's end takes it, and a pincer under way is kept once for its line; the stage
+    /// ends nothing (the hold keeps the route). A refusal holds for its goal, past the walk's end, not for another goal.
     #[test]
-    fn a_pincers_walk_heads_for_its_stage_until_it_goes_in() {
+    fn a_pincer_goes_with_its_walk_and_its_end_is_told_once() {
         use super::super::pincer::{Phase, Pincer};
         let goal = Vec3::new(80.0, 0.0, 0.0);
-        let stage = Vec3::new(75.0, 0.0, 3.0);
+        let p = Pincer { mate: 1, goal, phase: Phase::ToStage { found: None }, flank: true, since: 0 };
         let mut hold = LaneHold::default();
-        assert_eq!(hold.goal(goal), goal);
-        hold.start_pincer(goal, Pincer { mate: 1, stage, centre: goal, phase: Phase::ToStage { checked_m: None, own: None }, flank: true, since: 0 });
-        assert_eq!(hold.goal(goal), stage);
-        assert!(matches!(hold.replan(stage, false), Replan::Held(None)), "no lane drawn: the stage is its way");
-        hold.route_ended(RouteEnd::Arrived);
-        assert!(hold.pincer().is_some() && hold.walking().is_some(), "at the stage: the walk goes on");
-        hold.pincer_phase(Phase::Staged { since: 5 });
-        assert_eq!(hold.goal(goal), stage);
-        hold.pincer_phase(Phase::In);
-        assert_eq!(hold.goal(goal), goal);
-        hold.route_ended(RouteEnd::Arrived);
-        assert!(hold.pincer().is_none() && hold.walking().is_none(), "in and there: the walk is over");
-        hold.start_pincer(goal, Pincer { mate: 1, stage, centre: goal, phase: Phase::ToStage { checked_m: None, own: None }, flank: true, since: 0 });
+        hold.start_pincer(p);
+        assert!(hold.pincer().is_none(), "no walk held: no pincer");
+        hold.drawn(goal, Some((Arc::new(vec![true]), Cap { metres: 100.0, leaps: 0 })));
+        hold.start_pincer(p);
+        assert_eq!(hold.pincer(), Some(p));
+        assert!(matches!(hold.replan(goal, false), Replan::Held(Some(_))), "the flank's lane held");
+        assert_eq!(hold.held_goal(), Some(goal));
+        hold.route_ended(RouteEnd::Replanned);
+        assert!(hold.pincer().is_some() && hold.take_ended().is_none());
         hold.route_ended(RouteEnd::NewAssignment);
-        assert!(hold.pincer().is_none());
-        // A refusal holds for its goal, past the walk's end (a bot at its goal stands there with no route), not for another goal.
+        assert!(hold.pincer().is_none() && hold.walking().is_none());
+        assert_eq!(hold.take_ended(), Some((p, RouteEnd::NewAssignment)));
+        assert_eq!(hold.take_ended(), None, "once");
+        // One that went in is not told.
+        hold.drawn(goal, None);
+        hold.start_pincer(Pincer { phase: Phase::In, ..p });
+        hold.route_ended(RouteEnd::Arrived);
+        assert_eq!(hold.take_ended(), None);
         hold.pincer_refused(goal);
         assert!(hold.refused_for(goal + Vec3::new(3.0, 0.0, 0.0), 15.0) && !hold.refused_for(Vec3::ZERO, 15.0));
         hold.route_ended(RouteEnd::Arrived);
         assert!(hold.refused_for(goal, 15.0));
+    }
+
+    /// [pincer] On the test field (a wall at x 40 from z 0 to 25, one gap above it): a flank off the regions' way from (10, 10) to
+    /// (70, 10) keeps out of the regions that way passes and those near it, but never the goal's region nor any near the start; near
+    /// the goal only the way's own regions are shut. The field has one gap: no flank way.
+    #[test]
+    fn a_flank_keeps_off_its_teammates_lane_but_shares_the_goals_region() {
+        let world = crate::v026g::bots::tactics::tests::field_with(|_| {});
+        let tactics = Tactics::new(world, 1.0);
+        let grid = &tactics.world.grid;
+        let (a, b) = (grid.locate(Vec3::new(10.0, 0.0, 10.0), 1.5).unwrap(), grid.locate(Vec3::new(70.0, 0.0, 10.0), 1.5).unwrap());
+        let regions = tactics.regions();
+        let way = region_way(&tactics, regions.of(a), regions.of(b), |_| true).unwrap();
+        let points = way.points(&tactics);
+        let set = LaneDrawTuning::default();
+        let ends = [grid.position(a), grid.position(b)];
+        let shut = shut_flank(&tactics, &points, ends, regions.of(b), &set);
+        assert!(!shut[regions.of(b) as usize], "the goal's region");
+        for r in 0..regions.len() as u32 {
+            let m = grid.position(regions.middle(r));
+            if m.distance_xz(ends[0]) < set.ends_m.get() {
+                assert!(!shut[r as usize], "near the start: {m:?}");
+            }
+            if r != regions.of(b) && m.distance_xz(ends[1]) < set.ends_m.get() {
+                assert_eq!(shut[r as usize], way.regions.iter().any(|&(w, _)| w == r), "near the goal only its lane's: {m:?}");
+            }
+        }
+        assert!(way.regions.iter().any(|&(r, _)| shut[r as usize]), "its lane off the ends");
+        assert!(region_way(&tactics, regions.of(a), regions.of(b), |r| !shut[r as usize]).is_none(), "one gap");
     }
 
     #[test]
