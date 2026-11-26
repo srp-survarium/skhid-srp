@@ -118,6 +118,10 @@ OWN_CHECKS = {
                    "it never writes; check_artefact_keeper_026g.py runs it after the game's own "
                    "inventory::deserialize and asserts a mended current kit keeps its loaded +180h/+184h",
     (0x38CD22, 7): "FSM null-state guard owns no serialized bytes; check_deserialize_guards_026g.py",
+    (0x30DC7C, 6): "reload.listen_again (patch 205): after the animation-end-aware state read its bytes, a magazine "
+                   "reload subscribed to its clip's reload_commit channel as the game subscribes it to the clip's "
+                   "end; reads and writes no byte a save writes (the replayed mov [ebx+134h],cl stores the byte as "
+                   "read); check_reload_commit_026g.py runs a world read mid-reload and its seat",
     (0x31B0FF, 9): "anomaly state bounds own no serialized bytes; check_deserialize_guards_026g.py",
     (0x2FE65E, 5): "artefact bounds own no serialized bytes; check_deserialize_guards_026g.py",
     (0x252B48, 6): "deserialize.fire_animation_sound (patch 115): a fire state's m_weapon_animation_index stored as "
