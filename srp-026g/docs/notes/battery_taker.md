@@ -1,6 +1,6 @@
 # Battery last taker survives a world load
 
-Pending fix, 2026-11-03. The native statistics battery record's byte +FD
+The fix of 2026-11-03 (#1155, merged). The native statistics battery record's byte +FD
 identifies the player who last took that battery from a container. Event 26
 (stolen and brought home) checks it against the delivering player, but the
 native snapshot writer and reader omit it. A late joiner therefore can make
