@@ -2588,11 +2588,14 @@ impl Route {
     /// [pull unknown] Tests the unverified legs the body is on or is to walk next ([`VERIFY_LEGS_AHEAD`]) by `verdict`
     /// (`WalkGrid::pull_walk_verdict`, from the poll's walk budget): one the client walks is dropped from the list, one the
     /// budget does not reach waits for a later poll, one that fails is the answer ([`LegCheck::Fails`]: the route ends and
-    /// the body plans again from where it is). A leg the body got past untested is dropped and counted.
+    /// the body plans again from where it is). A leg the body got past untested is dropped and counted. One leg is asked a
+    /// call, the nearest the body is on or walks next (v52: testing both legs ahead was +1.6 ms/s of the bots' CPU); the next
+    /// waits for the next poll.
     pub fn verify_ahead(&mut self, verdict: &mut dyn FnMut(NodeId, NodeId) -> PullWalk) -> LegCheck {
         let segment = self.segment;
         let mut k = 0;
-        while k < self.unverified.len() {
+        let mut asked = false;
+        while k < self.unverified.len() && !asked {
             let (a, b, to) = { let l = &self.unverified[k]; (l.a, l.b, l.to) };
             if to <= segment {
                 self.unverified.remove(k);
@@ -2603,6 +2606,7 @@ impl Route {
                 k += 1;
                 continue;
             }
+            asked = true;
             match verdict(a, b) {
                 PullWalk::Walks => {
                     self.unverified.remove(k);
@@ -3121,6 +3125,10 @@ mod tests {
         assert!(failed.points.len() > 3 * kept.points.len(), "a failing leg is pulled back a floor at a time: {} vs {}", failed.points.len(), kept.points.len());
         assert!(failed.unverified.is_empty());
         let mut route = kept.clone();
+        // One leg a call: the first poll tests the leg the body is on, the next the one after it.
+        let before = route.unverified.len();
+        assert_eq!(route.verify_ahead(&mut |_, _| PullWalk::Walks), LegCheck::Clear);
+        assert_eq!(route.unverified.len(), before - 1, "one leg tested a call");
         assert_eq!(route.verify_ahead(&mut |_, _| PullWalk::Walks), LegCheck::Clear);
         assert!(route.unverified.iter().all(|leg| leg.to > route.segment() + VERIFY_LEGS_AHEAD), "the legs ahead are verified: {:?}", route.unverified);
         assert_eq!(route.points.len(), kept.points.len(), "a verified leg changes nothing");
