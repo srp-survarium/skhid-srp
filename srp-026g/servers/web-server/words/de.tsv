@@ -557,6 +557,7 @@ No effect fully aimed.	Keine Wirkung, wenn voll anvisiert.
 Spread while walking {v} per rank, from the hip or aiming in. Not crouch-walking.	Streuung beim Gehen {v} pro Rang, aus der Hüfte oder beim Anvisieren. Nicht beim Gehen in der Hocke.
 Spread from broken arms {v} per rank.	Streuung durch gebrochene Arme {v} pro Rang.
 This weapon's kick ranges, up and sideways. Not the camera shake.	Rückstoßbereiche dieser Waffe, nach oben und zur Seite. Nicht das Kamerawackeln.
+This weapon's base spread, in every shot: all of the spread fully aimed, little of it from the hip. Not the stance's spread or a shot's.	Die Basisstreuung dieser Waffe, in jedem Schuss: voll anvisiert die ganze Streuung, aus der Hüfte ein kleiner Teil davon. Nicht die Streuung der Haltung oder eines Schusses.
 The stance's spread and each shot's. No effect sprinting, jumping or fully aimed.	Die Streuung der Haltung und die jedes Schusses. Keine Wirkung beim Sprinten, Springen oder voll anvisiert.
 Each shot's kick with any weapon: up, sideways and the camera shake.	Rückstoß jedes Schusses mit jeder Waffe: nach oben, zur Seite und das Kamerawackeln.
 Base	Basis

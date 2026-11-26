@@ -58,6 +58,21 @@ for (const stance of WeaponSpread.STANCES) for (const arms of [0, 1, 2]) {
   assert.equal(state.k, 0, `${stance}: fully aimed, the base only`);
 }
 close(spreadOf('hip', 'walk').stance, 10, 'walking from the hip');
+// The weapon's Dispersion modification (2020..2024, type 2 on
+// dispersion/base_dispersion): the base only, so all of the fully aimed spread.
+{
+  const less = WeaponSpread.parse(WeaponSpread.rolled(ak, -.1), player, true);
+  const at = (aim, stance, kit = none) => WeaponSpread.condition(less, {aim, stance, kit, arms: 0});
+  close(at('aimed', 'idle').base, .2 * .9, 'fully aimed: -10 % of the base');
+  close(at('hip', 'walk', skills).base, .18, 'from the hip: the same base');
+  close(at('hip', 'walk', skills).stance, spreadOf('hip', 'walk', skills).stance, 'the stance\'s part as it was');
+  close(at('hip', 'idle').perShot, spreadOf('hip', 'idle').perShot, 'a shot\'s part as it was');
+  close(WeaponSpread.rolled(ak, -.04 - .06).base_dispersion, .18, 'two strengths add, then scale');
+  close(WeaponSpread.rolled(ak, -2).base_dispersion, 0, 'a sum never below nothing');
+  assert.deepEqual(WeaponSpread.rolled(ak), ak, 'no roll, the weapon\'s own');
+  const shots = WeaponRecoil.simulate(full, 10, 7, {aim: 'aimed', spread: at('aimed', 'idle')});
+  assert.ok(shots.events.every(event => Math.abs(event.spread - .18) < 1e-9), 'fully aimed, every shot\'s spread -10 %');
+}
 close(spreadOf('hip', 'walk', skills).stance, 10 * (1 - .12 - .12) * .9, 'walking from the hip: both skills added, then the gloves');
 close(spreadOf('aiming', 'walk', skills).stance, 10 * .88 * .9, 'walking aiming in: Firm grip, then the gloves');
 close(spreadOf('aiming', 'idle', skills).stance, 5 * .9, 'standing aiming in: the raw value, then the gloves');
@@ -88,6 +103,10 @@ console.log('PASS: native recoil reference, cancellation, recovery, magazine/sin
 if (process.argv[2]) {
   const source=fs.readFileSync(process.argv[2], 'utf8');
   const data=JSON.parse(source.match(/^const DATA = (.+);$/m)[1]);
+  // The weapon's Dispersion row: five strengths on the base, every weapon's.
+  const rolls=data.simulators.mods.filter(m=>m.kind==='mod'&&m.weapon?.spread!==undefined);
+  assert.deepEqual(rolls.map(m=>[m.id,m.weapon]).sort(),[['2020',{spread:-.02}],['2021',{spread:-.04}],['2022',{spread:-.06}],['2023',{spread:-.08}],['2024',{spread:-.1}]],'the Dispersion modifications, on the base spread');
+  for (const m of rolls) assert.deepEqual(m.weapons,Object.keys(data.weapons).sort(),`${m.id}: every weapon rolls it`);
   for (const [id,weapon] of Object.entries(data.weapons)) {
     const parsed=WeaponRecoil.parse({rpm:weapon.rounds_per_minute,magazine:weapon.magazine_capacity,...weapon.recoil});
     const spread=WeaponSpread.parse(weapon.dispersion,data.simulators,weapon.double_handed);

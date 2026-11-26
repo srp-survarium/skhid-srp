@@ -49,7 +49,9 @@ with its card (hover, keyboard focus or a tap). A setup is the aim (from the hip
 aiming in, fully aimed), the stance (standing, walking, crouching, crouch-walking,
 sprinting, jumping), broken arms, the ranks of the skills that change the spread or
 the kick, and a row per modification kind and piece that can have it: the weapon's
-(its kick ranges, the cook's type 2), and each armour slot whose items roll it or come
+(the cook's type 2 on its own values: Weapon recoil its kick ranges, Dispersion its
+`dispersion/base_dispersion`, the base every bullet's spread has, all of it fully
+aimed; `gen_calc_data.py` `WEAPON`), and each armour slot whose items roll it or come
 with it, the pieces adding up in the kit's player modifier (as `apply_modifier` takes
 the sum). A Skhid item has no defects: srp rolls none. The kit's recoil modifier (18)
 scales each axis's step a shot, the camera shake's too (`recoil.js`). `spread.js`
@@ -170,7 +172,10 @@ EN/UK, expanded rows, mobile sizing, images and the site's CSP. It saves review
 screenshots to `/tmp/wiki-weapons-review`.
 
 Focused model checks: `node scripts/wiki/test_recoil.mjs servers/web-server/damage/calc.js`
-and `python3 -m unittest discover -s scripts/wiki -p 'test_*.py'` from `srp-026g`.
+and `python3 -m unittest discover -s scripts/wiki -p 'test_*.py'` from `srp-026g`. `tools/check`
+runs them as `wiki-model` (the models and the released data's weapons and modification rows) and
+`wiki-stats`, and the browser check as `wiki-browser` (`tools/checks/wiki_browser.sh`: its own
+preview, Firefox and ports).
 
 ## Icons
 

@@ -557,6 +557,7 @@ No effect fully aimed.	Teljes célzásnál nincs hatása.
 Spread while walking {v} per rank, from the hip or aiming in. Not crouch-walking.	Szórás járás közben fokozatonként {v}, csípőből és célzás közben. Guggolva járásnál nem.
 Spread from broken arms {v} per rank.	Szórás törött karokkal fokozatonként {v}.
 This weapon's kick ranges, up and sideways. Not the camera shake.	A fegyver visszarúgásának tartományai, felfelé és oldalra. Nem a kamera rázkódása.
+This weapon's base spread, in every shot: all of the spread fully aimed, little of it from the hip. Not the stance's spread or a shot's.	A fegyver alapszórása, minden lövésben: teljes célzásnál a teljes szórás, csípőből annak kis része. Nem a testhelyzet vagy a lövés szórása.
 The stance's spread and each shot's. No effect sprinting, jumping or fully aimed.	A testhelyzet és minden lövés szórása. Sprintnél, ugrásnál és teljes célzásnál nincs hatása.
 Each shot's kick with any weapon: up, sideways and the camera shake.	Minden lövés visszarúgása bármely fegyverrel: felfelé, oldalra és a kamera rázkódása.
 Base	Alap

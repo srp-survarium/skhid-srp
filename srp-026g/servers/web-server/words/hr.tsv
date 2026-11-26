@@ -557,6 +557,7 @@ No effect fully aimed.	Ne djeluje pri potpunom ciljanju.
 Spread while walking {v} per rank, from the hip or aiming in. Not crouch-walking.	Rasipanje pri hodanju {v} po rangu, s boka ili pri ulasku u ciljanje. Ne pri hodanju u čučnju.
 Spread from broken arms {v} per rank.	Rasipanje zbog slomljenih ruku {v} po rangu.
 This weapon's kick ranges, up and sideways. Not the camera shake.	Rasponi trzaja ovog oružja, gore i u stranu. Ne podrhtavanje kamere.
+This weapon's base spread, in every shot: all of the spread fully aimed, little of it from the hip. Not the stance's spread or a shot's.	Osnovno rasipanje ovog oružja, u svakom hicu: cijelo rasipanje pri potpunom ciljanju, mali njegov dio s boka. Ne rasipanje od stava ni od hica.
 The stance's spread and each shot's. No effect sprinting, jumping or fully aimed.	Rasipanje od stava i od svakog hica. Ne djeluje pri sprintu, skoku ni potpunom ciljanju.
 Each shot's kick with any weapon: up, sideways and the camera shake.	Trzaj svakog hica iz bilo kojeg oružja: gore, u stranu i podrhtavanje kamere.
 Base	Osnovno
