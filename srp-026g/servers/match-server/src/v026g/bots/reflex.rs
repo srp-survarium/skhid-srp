@@ -2759,13 +2759,15 @@ pub struct HealNote {
 
 /// [reload in cover] A tactical reload due while a known enemy has a line of fire to the bot
 /// ([`CombatTuning::reload_in_cover`]).
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
 enum ReloadCover {
     /// None is due in a line, or the think has not come to it yet: the reload waits while a known enemy has the line.
     #[default]
     Free,
-    /// On the way to a spot out of their fire: the reload begins there, or as soon as none of them has the line.
-    Going,
+    /// On the way to a spot out of their fire, from this enemy's place: the reload begins there, or as soon as neither that
+    /// place nor a known enemy's has the line. The place stays known on the way whatever its track's age (the way ends at
+    /// the spot or with `hide_give_up_ms`).
+    Going { who: Place, at: Vec3 },
     /// No spot, a carrier or a push: where it stands, as before.
     Here,
 }
@@ -6837,6 +6839,13 @@ impl Reflex {
             .collect();
         lines.sort_by(|a, b| a.1.distance_xz(me.feet).total_cmp(&b.1.distance_xz(me.feet)));
         self.known_line = lines.first().copied();
+        // On the way to cover the place it goes from counts while it has the line, whatever its track's age.
+        if let ReloadCover::Going { who, at } = self.reload_cover
+            && self.known_line.is_none()
+            && tactics.shot_reaches(sit.cover, still_eye(at, false), eye)
+        {
+            self.known_line = Some((who, at));
+        }
         // A tactical reload is due (as `Self::reload` asks): rounds in the weapon and to load, its share fired, nobody seen
         // for the idle time, the hands free.
         let last_seen = self.last_seen;
@@ -6864,7 +6873,7 @@ impl Reflex {
         }
         // A hide under way is the cover.
         if matches!(self.cover, Cover::Hiding { .. }) {
-            self.reload_cover = ReloadCover::Going;
+            self.reload_cover = ReloadCover::Going { who, at };
             return;
         }
         let query = SpotQuery {
@@ -6890,7 +6899,7 @@ impl Reflex {
                     wait_ms: rng.range(c.hide_wait_ms.0 as f32, c.hide_wait_ms.1 as f32) as u32,
                     repeek: true,
                 };
-                self.reload_cover = ReloadCover::Going;
+                self.reload_cover = ReloadCover::Going { who, at };
                 self.reload_cover_stats.went += 1;
                 self.worth_notes.push(format!(
                     "goes to cover to reload: enemy {who}, known {off_m:.1} m off, has a line of fire to it ({} known with one); the spot is {:.1} m off",
@@ -7995,7 +8004,7 @@ impl Reflex {
             && self.known_line.is_some()
             && match self.reload_cover {
                 ReloadCover::Free => true,
-                ReloadCover::Going => matches!(self.cover, Cover::Hiding { arrived: None, .. }),
+                ReloadCover::Going { .. } => matches!(self.cover, Cover::Hiding { arrived: None, .. }),
                 ReloadCover::Here => false,
             };
         let hands = self.hands();
@@ -8905,7 +8914,7 @@ impl Reflex {
             // [reload in cover] On the way to cover with a weapon that cannot fire, or to the cover of a tactical reload: no
             // look of its own and no aim key, so the walk faces its way and may sprint (a reload refuses the sprint).
             if let Some(cannot_fire) = self.runs_for_cover(legs, now, c)
-                && (cannot_fire || self.reload_cover == ReloadCover::Going)
+                && (cannot_fire || matches!(self.reload_cover, ReloadCover::Going { .. }))
             {
                 self.ran_for_cover();
                 self.aim_since = None;
@@ -14913,6 +14922,7 @@ mod tests {
         assert!(in_line(&tactics, enemy, ticks[0].4), "it stood in his line");
         let way: Vec<_> = ticks.iter().filter(|t| t.2 == Some(LegsWhy::BreakSight) && t.0 < reload.0).collect();
         assert!(!way.is_empty(), "it goes to cover before the reload");
+        let went_at = way[0].0;
         assert!(way.iter().all(|t| !t.3 && t.1 & key::AIM == 0), "the view on the way, sights down: {way:?}");
         let stats = reflex.reload_cover_stats();
         assert_eq!((stats.went, stats.no_spot, stats.kept_way), (1, 0, 0), "{stats:?}");
@@ -14924,7 +14934,7 @@ mod tests {
         let (ticks, reflex, tactics, enemy) = walked_duel(&off, 4_500, 12_000);
         let reload = ticks.iter().find(|t| t.1 & key::RELOAD != 0).expect("reloads");
         assert!(in_line(&tactics, enemy, reload.4), "{reload:?}");
-        assert!(reload.0 < 4_500 + off.reload_idle_ms + 300, "{reload:?}");
+        assert!(reload.0 <= went_at, "no later than the way to cover began: {reload:?} {went_at}");
         assert_eq!(reflex.reload_cover_stats(), ReloadCoverStats::default());
     }
 
