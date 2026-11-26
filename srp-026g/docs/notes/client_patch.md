@@ -3283,9 +3283,14 @@ holder whose boost word (+294h) is on at the holder's stamina clock
 (`technical::oxygen_rush_on`, the end `oxygen_rush_tick` clears). The movie keeps
 the native slot as the game fills it (its `timer`, the tank's air seconds, from
 the item's vtable +48h at update_quick_slot 0x23A265) and draws only that
-countdown in `Colors.SPEED_BOOST`, 0x0066FF: the Spring artefact's activation
-glow (`fx/artifacts/human_spring`'s light, 0, 0.40, 1; artefacts.md, "The stock
-glow"). Phase 0 gives the countdown its own colour back. Nothing new is saved.
+countdown in `Colors.SPEED_BOOST`, 0x9CD8EE, over its own black shadow and in a
+glow of `Colors.HUD_BLUE` (0x079DD5, the hud's text style "blue"; GlowFilter alpha
+0.6, blur 6, strength 1.5). 0x9CD8EE is that blue mixed 60 % with white: the
+saturation (0.35) and value (0.92) of the hud's own green (`Colors.GREEN`, its style
+"current"). Until 2026-11-26 it was the Spring artefact's activation glow, 0x0066FF
+(`fx/artifacts/human_spring`'s light, 0, 0.40, 1); the owner: "this blue is a bit
+too on the nose", a flat fill not in the hud's style. Phase 0 gives the countdown
+its own colour and filters back. Nothing new is saved.
 
 ### Lobby weight explanation
 
