@@ -64,6 +64,34 @@ pub struct SpacingTuning {
     /// `gap_m` and lets go of forward inside `stop_m` (Reynolds' "queuing at a doorway"). Off: nothing keeps a gap along the path. On by default (#956's by-side gate, 192
     /// pairs: the young 1 m overlap -44 % z -12.5, the 4v4 opening 26.4 -> 11.4 per 1,000 pair-seconds against the live humans' 12.7, score +0.9 % z +0.6, no guard failed).
     pub queue: Option<QueueTuning>,
+    /// [lane draw] (the lane-spreading root cause, 2026-11-26: every play but Roam walked the one least-cost way, so between the same
+    /// start and end a team's bots and lives took one lane; top lane share 0.878 against the live humans' 0.846): at the start of a
+    /// walk to a new goal over `long_m`, a second lane kept `away_m` off the first is searched, and one of the two is drawn per life,
+    /// weighted by cost within `band` and against the lanes teammates walk now or took lately (`bots/lane_draw.rs`). Off: every walk
+    /// takes the least-cost way.
+    pub lane_draw: Option<LaneDrawTuning>,
+}
+
+/// The lane draw's settings ([`SpacingTuning::lane_draw`]). Each is a measure of the root cause's lane test or of the live humans'
+/// lanes, not a fit (`bots/lane_draw.rs` says why each holds).
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct LaneDrawTuning {
+    /// A walk whose least-cost way is longer than this is a long leg, m: the lane test's long legs (60 m walked).
+    pub long_m: Metres,
+    /// A second lane costs at most this times the least-cost way: the live humans' lanes off their cheapest thin out past +15 %
+    /// (per 5 % of cost: 870, 658, 529 legs to +15 %, then 295; 27,255 legs of 2,712 recordings).
+    pub band: Positive,
+    /// The second lane keeps this far off the first, m: the root cause's C2 search (floors within 15 m of the first lane shut).
+    pub away_m: Metres,
+    /// … but within this of the walk's ends, where both lanes start and end, m (the C2 search's 25 m).
+    pub ends_m: Metres,
+}
+
+impl Default for LaneDrawTuning {
+    fn default() -> Self {
+        Self { long_m: Metres::of(60.0), band: Positive::of(1.15), away_m: Metres::of(15.0), ends_m: Metres::of(25.0) }
+    }
 }
 
 /// The queue's settings (A212): how near a teammate ahead is given way to.
@@ -119,6 +147,7 @@ impl Default for SpacingTuning {
             apart_tie: false,
             lane: None,
             queue: Some(QueueTuning::default()),
+            lane_draw: Some(LaneDrawTuning::default()),
         }
     }
 }

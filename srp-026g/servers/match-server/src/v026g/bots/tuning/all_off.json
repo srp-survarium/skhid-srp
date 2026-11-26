@@ -136,6 +136,7 @@
     "apart": false,
     "apart_tie": false,
     "lane": null,
+    "lane_draw": null,
     "queue": null
   },
   "sense": {
