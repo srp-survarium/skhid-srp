@@ -24,7 +24,7 @@
 ; exe_name, arguments and server are the three zero-filled slots at the end,
 ; ASCII with a zero at the end, filled in by patch_launcher_026g.py.
 ;
-; registry_key::get_string, as its callers use it (launcher-026g.md, 2 and 6):
+; registry_key::get_string, as its callers use it (docs/notes/launcher.md, 2 and 6):
 ;   edi          the buffer, UTF-16
 ;   esi          its size in characters
 ;   [esp+4]      the open key (not used here)

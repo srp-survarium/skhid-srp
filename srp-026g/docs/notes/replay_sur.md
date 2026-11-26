@@ -73,7 +73,7 @@ Every apply carries its time, and the replay skips the "too far in the future" c
 
 ## 5. The converter
 
-`srp-recording-to-sur <file.srprec> --game-modes <dir> [--out <dir>] [--stored] [--every <ms>]` (`cargo run -p match-server --bin srp-recording-to-sur`). `<dir>` holds the game's `gameplay/game_modes/*.options` files under their own names (`tools/re-kit/common/dbgrab get gameplay/game_modes/ <dir>` writes them as `gameplay__game_modes__<name>`; strip the prefix); the one the recording's `map_id` names in `maps_dict` is used. It prints a summary (with every key frame's time) and writes `<name>.sur`.
+`srp-recording-to-sur <file.srprec> [--out <dir>] [--stored] [--every <ms>]` (`cargo run -p match-server --bin srp-recording-to-sur`). The mode's config is the game data's (`SRP_GAME_DATA`, below): the `gameplay/game_modes/` file the recording's `map_id` names in `maps_dict`. It prints a summary (with every key frame's time) and writes `<name>.sur`.
 
 `SRP_GAME_DATA` must name the server game data of the recording's revision (`private/release/rev<n>/content/server-game-data.db`), as for `srp`: the 0xE4 of a match whose kits hold items newer than the test archive's (every live match since the ported weapons) parses only with that dictionary. `--keep-key-frames <ms,...>` keeps the first world and those key frames only, for a replay that must reach one world without loading those before it (a crash repro).
 

@@ -228,3 +228,4 @@ vtable	slot	va	class	base	basis
 0x00a0b8a4	0x3c	0x003198d0	survarium::damage_zone	survarium::collision_sensor	observed: the client damage_zone sensor's on_objects_entered (damage_zone_core's)
 0x00a0b8a4	0x40	0x00319a10	survarium::damage_zone	survarium::collision_sensor	observed: its erase of lost objects (damage_zone_core's)
 0x00a0b8a4	0x44	0x00319780	survarium::damage_zone	survarium::collision_sensor	observed: its on_objects_left (damage_zone_core's)
+0x009ffedc	0x4	0x0028c2c0	survarium::lobby_menu	survarium::flash_external_handler	observed: the lobby menu's flash_external_handler at +F0h (RTTI 0xA476C4, its base at 0xF0 in the menu's hierarchy 0xA47700); GFx's ExternalInterface handler calls slot 4 (0x2AF966)

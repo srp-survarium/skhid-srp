@@ -160,10 +160,9 @@ CONTENT
     New content reaches the players as patches of resources.db
     (game/resources.db.patch_<n>, which the server lists and the updater
     downloads: ../../client/updater/README.md, "Patches"), never in this
-    overlay. The overlay has no file of resources.db either: an archive that
-    did (updater_skhid.resources, a plan of entries rewritten in place) is
-    of before the patches; the updater gives a db changed by it its stock
-    bytes back, once.
+    overlay. The overlay has no file of resources.db either (an archive that
+    did, updater_skhid.resources, a plan of entries rewritten in place, is
+    of before the patches); the updater never changes the game's resources.db.
 
 A player unpacks the overlay into an empty folder, or into the game's folder
 (the one that holds `game`), and starts Skhid.bat (or play_skhid.bat: the game alone, no

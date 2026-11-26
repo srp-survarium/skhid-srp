@@ -97,6 +97,41 @@ package survarium.controls
          return CarryRing.marked(this);
       }
 
+      // Freeze Tag: a revealed enemy's dot (Minimap: a team's last one fighting) marked red
+      // (RevealedMark); his name, if shown, kept over the mark.
+      public function set revealed(value:Boolean) : void
+      {
+         if(value == this.revealed)
+         {
+            return;
+         }
+         RevealedMark.mark(this,value);
+         if(this._label && this._label.parent == this)
+         {
+            this.placeLabel();
+         }
+      }
+
+      public function get revealed() : Boolean
+      {
+         return RevealedMark.marked(this);
+      }
+
+      // The name centred just over what the icon draws (its name left out).
+      private function placeLabel() : void
+      {
+         var icon:Rectangle = new Rectangle();
+         for(var i:int = 0; i < numChildren; i++)
+         {
+            if(getChildAt(i) != this._label)
+            {
+               icon = icon.union(getChildAt(i).getBounds(this));
+            }
+         }
+         this._label.x = -this._label.width / 2;
+         this._label.y = icon.top - this._label.height + 2;
+      }
+
       // The player's name centred over the icon; null shows none. Its text and place change only
       // when the name does.
       public function showName(name:String) : void
@@ -120,10 +155,8 @@ package survarium.controls
             {
                removeChild(this._label);
             }
-            var icon:Rectangle = getBounds(this);
             this._label.text = name;
-            this._label.x = -this._label.width / 2;
-            this._label.y = icon.top - this._label.height + 2;
+            this.placeLabel();
             addChild(this._label);
          }
          this._label.visible = true;

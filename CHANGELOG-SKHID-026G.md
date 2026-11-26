@@ -9,6 +9,41 @@ release that made it what it is now.
 
 ---
 
+## 23 Nov, 17:56 — TODO: the owner's words (update required)
+
+<!-- Revision 73 (026g-rev73), released 2026-11-23 17:56 UTC. To be worded for players; what it shipped: -->
+
+- TODO: #2549 Wiki skills in every language (a built page filled at request time)
+- TODO: #2550 Maps tab in every language
+- TODO: #2551 Damage calculator in every language
+- TODO: #2548 Wiki simulators: a burst's bullets take the camera's wobble of the step before
+- TODO: #2568 death-sound-021d@2: the corpse-shot sound is the scream alone, no body drop
+- TODO: #2569 Patch 199: the lobby is given the kit it shows whole, in one call (rev72 pocket-item regression)
+- TODO: #2573 Item cards: every built-in line in one order, the tank skills' too
+- TODO: #2575 Wiki maps: Artifact Hunt and Freeze Tag
+- TODO: #2572 Artifact Hunt on the ported maps: the stock level's own points, not the batteries' (artefact-hunt-maps@3)
+- TODO: #2574 Patch 132: the camera before the start never inside the character (0.75 m, as 0.69d)
+- TODO: #2577 Oxygen Rush: the tank's countdown in Spring's blue while the boost runs
+- TODO: #2266 Route check: 64 KiB each way per protocol
+- TODO: #2580 Courier: carry artefacts from a kit left alive (round modes' kit switches)
+- TODO: #2576 VSSK Vychlop and SV-1367 Dusk: damage 1.75 -> 1.1; 12.7x54 PT faster
+- TODO: #2581 Weight at level 15: Packrat −3 % a rank, Athlete +1 kg a rank, carry-limit rolls halved
+- TODO: #2322 Automatic route: the relay only when direct really fails
+- TODO: #2582 Artifact Hunt: a death respawns in the wave the timer shows
+- TODO: #2583 Artifact Hunt: no respawn modifier in the waves
+- TODO: #2584 Updater: the launcher's PLAY closes games this folder left running
+- TODO: #2074 Patch 149: a key per item type uses it (artefacts, medicines, grenades, trap, oxygen tank)
+- TODO: #2586 Weight values keep their types: carry-limit rolls +1/+1/+2/+2/+3 kg
+- TODO: #2587 Patch 202: a line in the patches' log when the game cannot take the mouse
+- TODO: #2590 Options > Controls: related keys together
+- TODO: #2554 Rudnya (v0.69) @6: each fill light's own 0.69d facing, three-maps-021-lighting@13
+- TODO: #2579 Rudnya (v0.69) @7: fill-light boxes and cylinders as 0.69d draws them, blends by their own technique; three-maps-021-lighting@14
+- TODO: #2592 Settings > Controls > Bindings: the keyboard, the mouse and every binding in the Settings' skin
+- TODO: #2596 Controls tab: the lobby's keys on the right for reading; the Bindings window match-only
+- TODO: #2595 Wiki: artefacts page
+- TODO: #2589 Artifact Hunt: the carrier shown on the minimaps alone
+- TODO: #2598 Content: Snufkin and Snufkin sitting decals (not sold)
+
 ## 23 Nov, 04:20 — TODO: the owner's words (update required)
 
 <!-- Revision 72 (026g-rev72), released 2026-11-23 04:20 UTC. To be worded for players; what it shipped: -->

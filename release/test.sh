@@ -961,9 +961,6 @@ check "list_numbers: the list's patches, as --required-patches= takes them" test
     "$(lib_eval "use_patches live && read_patch_list && list_numbers")" = "3,12"
 cp "$T/work/r11.zip" "$T/live/download/Survarium-0.26g-srp-files.zip"
 echo "old data" >"$T/live/download/server-game-data.db"
-# The original menus' blobs the updater's restore to stock fetches.
-mkdir -p "$T/live/download/resources"
-for blob in 0ff118a8 ab6f22d8 805ea5f8; do echo "$blob" >"$T/live/download/resources/${blob}0000"; done
 printf 'SRP_ADMIN_TOKEN=very-secret\nSRP_MIN_PATCH_REVISION=11\nOTHER=1' >"$T/live/.env"
 zip12=$T/work/r12.zip
 printf '{"patch_3": {"url": "%s/resources.db.patch_3", "sha256": "%s"}}' "$P" "$sha3" >"$T/site/patches"
@@ -987,10 +984,6 @@ expect_refused "deploy refuses revision 12 without patch_12 (the menus)" "does n
     "$here/deploy" --zip "$zip12" --server-data "$T/work/sgd-no12.db" --revision 12
 expect_refused "deploy refuses data that is not the list's" "does not offer exactly the patches of" \
     "$here/deploy" --zip "$T/work/r11.zip" --server-data "$T/work/sgd-no12.db" --revision 11
-mv "$T/live/download/resources/ab6f22d80000" "$T/ab6f.kept"
-expect_refused "deploy refuses when an original blob is gone from download/resources" "lacks the original blobs .*lobby_menu ab6f22d8" \
-    "$here/deploy" --zip "$zip12" --server-data "$T/work/sgd.db" --revision 12
-mv "$T/ab6f.kept" "$T/live/download/resources/ab6f22d80000"
 # Patch 49: the ZIP's exe requires exactly the patches the data offers.
 cp "$zip12" "$T/work/req.zip"
 python3 "$T/requiring.py" "$T/work/req.zip" 12
@@ -1100,12 +1093,12 @@ git_t clone -q "$T/origin.git" "$T/repo" 2>/dev/null
 git -C "$T/repo" config user.name "the owner"
 git -C "$T/repo" config user.email owner@example.org
 src=$T/repo/srp-026g
-mkdir -p "$src/client-patches" "$src/certs" "$src/crates/a/src" "$src/resources/binary-config-examples" \
+mkdir -p "$src/client-patches" "$src/crates/a/src" "$src/resources/binary-config-examples" \
     "$src/resources/game-026g" "$src/scripts" "$src/servers/srp/src" "$src/docs" "$src/crates/session/src/v026g"
 # The changes of what a match computes (the replays' list), none to come.
 sim=$src/crates/session/src/v026g/simulation_changes.tsv
 printf '# revision\twhat changed\n11\tthe TDM end\n' >"$sim"
-for f in Cargo.toml Cargo.lock Dockerfile .dockerignore docker-compose.yml certs/login.crt crates/a/src/lib.rs \
+for f in Cargo.toml Cargo.lock Dockerfile .dockerignore docker-compose.yml crates/a/src/lib.rs \
     resources/binary-config-examples/a.cfg resources/game-026g/README scripts/run.sh servers/srp/src/main.rs docs/notes.md; do
     echo "$f 1" >"$src/$f"
 done
@@ -1123,7 +1116,6 @@ COPY resources/game-026g resources/game-026g
 COPY resources/not-in-main resources/not-in-main
 FROM debian:bookworm-slim
 COPY --from=build /srp /usr/local/bin/srp
-COPY certs ./certs
 DOCKERFILE
 commit() { # <message>: a commit on main, after the records merged there
     git_t -C "$T/repo" pull -q --ff-only origin main 2>/dev/null || true
@@ -1155,7 +1147,7 @@ for pair in torrent-signing:signing torrent-signing-test:signing-test; do
     echo >>"$T/repo/release/${pair#*:}.pub"
 done
 commit "revision 11, as released"
-git -C "$T/repo" archive HEAD:srp-026g Cargo.toml Cargo.lock Dockerfile .dockerignore docker-compose.yml certs crates \
+git -C "$T/repo" archive HEAD:srp-026g Cargo.toml Cargo.lock Dockerfile .dockerignore docker-compose.yml crates \
     resources/binary-config-examples resources/game-026g scripts servers | tar -x -C "$T/live"
 cat >"$T/build-zip" <<'STANDIN'
 #!/usr/bin/env bash

@@ -37,10 +37,6 @@ package survarium.controls
       // Other modes keep each team in its own column.
       private var _ranked:Boolean = false;
 
-      // Artifact Hunt (HUD.artefact_hunt_update): the carrier's place (a row's id), -1 none; his row
-      // is marked (PlayerListRenderer).
-      private var _carrier:int = -1;
-
       // Freeze Tag (HUD.freeze_tag_rows): a frozen place's row (its id the place) has his name in the
       // ice blue (PlayerListRenderer).
       private var _frozen:FrozenPlaces = FrozenPlaces.NONE;
@@ -103,22 +99,6 @@ package survarium.controls
          }
       }
 
-      public function get carrier() : int
-      {
-         return this._carrier;
-      }
-
-      // A change draws the rows again.
-      public function set carrier(value:int) : void
-      {
-         if(value == this._carrier)
-         {
-            return;
-         }
-         _carrier = value;
-         this.redrawRows();
-      }
-
       public function isFrozen(place:int) : Boolean
       {
          return this._frozen.has(place);
@@ -144,19 +124,6 @@ package survarium.controls
                column.invalidate();
             }
          }
-      }
-
-      // The name of a place's row, null for none.
-      public function nameOf(place:int) : String
-      {
-         for each(var row:Object in this._players)
-         {
-            if(row.id == place)
-            {
-               return row.name;
-            }
-         }
-         return null;
       }
 
       public function get ranked() : Boolean

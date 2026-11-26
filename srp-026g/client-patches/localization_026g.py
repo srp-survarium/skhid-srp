@@ -46,6 +46,61 @@ FLASH_MOVIES = {'lobby_menu': FLASH_PREFIX, 'login_menu': FLASH_PREFIX, 'hud': F
 def flash_rows(keys, prefix=FLASH_PREFIX):
     """The UI mapping rows of srp's own texts of `prefix`: each key as its own UI key."""
     return [[key, key] for key in sorted(keys) if key.startswith(prefix)]
+# A text names a key by its action (exe patch 212, README "Keys in texts"): the game's localizer
+# makes `{NAME}` the name of the key bound to the action NAME (ASCII case aside) in the player's
+# language, the text of KEY_UNBOUND when the action has none, and any other `{...}` nothing. These
+# are the actions a text may name, each with its default key's dictionary key (what
+# item_hotkeys_026g.asm's action table binds it to); check_localization_026g.py checks both against
+# that table, check_key_prompts_026g.py that the built exe's table has each action.
+KEY_ACTIONS = {'USE': 'kE', 'SCOPE_NEXT': 'kY', 'HIDE_INTERFACE': 'kF9'}
+KEY_UNBOUND = 'st_srp_key_unbound'
+KEY_PLACEHOLDER = re.compile(r'\{([^{}]*)\}')
+ACTION_TABLE = Path(__file__).resolve().parent / 'item_hotkeys_026g.asm'
+
+
+def action_defaults(source=ACTION_TABLE):
+    """The action table's rows as item_hotkeys_026g.asm writes them, {name: default key's dictionary
+    key or None}: each row's comment `; <name>, [kind n, ]<key>` (`none` for none); a row of patch
+    149's sixteen, without a comment, is named by its label and has no default key."""
+    rows = {}
+    for line in Path(source).read_text(encoding='utf-8').splitlines():
+        code, _, comment = line.partition(';')
+        fields = re.fullmatch(r'\s*ACTION\s+(.*?)\s*', code)
+        if not fields:
+            continue
+        label, *_, default = [field.strip() for field in fields.group(1).split(',')]
+        named = re.match(r'\s*([a-z_0-9]+),\s*(?:kind \d+,\s*)?(\w+)', comment)
+        name, key = named.groups() if named else (label, 'none' if default == '0' else None)
+        assert key is not None, f'{source}: a row with a default key and no comment: {line}'
+        rows[name] = None if key == 'none' else key
+    return rows
+
+
+def expand_keys(text, strings, keys=None):
+    """`text` as the exe hands it on: each `{NAME}` the text in `strings` (a language's dictionary)
+    of the key `keys` binds the action to ({action: key's dictionary key, or None for no key};
+    the default keys, KEY_ACTIONS, without it), KEY_UNBOUND's text for none, and any other name
+    nothing; `{{` a brace."""
+    keys = KEY_ACTIONS if keys is None else keys
+    out, at = [], 0
+    while at < len(text):
+        if text.startswith('{{', at):
+            out.append('{')
+            at += 2
+        elif text[at] == '{':
+            end = text.find('}', at)
+            end = len(text) if end < 0 else end
+            name = text[at + 1:end].upper()
+            if name in keys:
+                key = keys[name]
+                out.append(strings[key] if key is not None else strings[KEY_UNBOUND])
+            at = end + 1
+        else:
+            out.append(text[at])
+            at += 1
+    return ''.join(out)
+
+
 # These unused directional controls intentionally have no visible label.
 EMPTY_KEYS = frozenset('st_turn_' + direction + '_action'
                        for direction in ('down', 'left', 'up', 'right'))

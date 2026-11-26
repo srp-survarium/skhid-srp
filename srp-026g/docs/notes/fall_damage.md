@@ -41,10 +41,10 @@ The owner's rule and what it changes. Data: `gameplay/players/default.player`
     at the same D, about 0.6, whatever `fatal_damage` is).
 - **Bots:** their map data takes a drop of at most `harmless_height` (5 m),
   unchanged.
-- **Release:** the resources.db patch, made by `scripts/content-edit/content_edit.py`
-  from `scripts/content-edit/character.tsv` (with `default.player` from the
-  live server game data) and `release/build-patch`; the server game data built
-  again with that patch (srp reads `default.player` for the carry limits, and the
+- **Release:** the resources.db patch: `scripts/content-edit/character.tsv`, a row of
+  `release/content.tsv`, which `release/build-content` builds with the server game data (first
+  shipped, before build-content, by `content_edit.py` over the live server game data and
+  `release/build-patch`; srp reads `default.player` for the carry limits, so the
   server data must be the one the players' patches make); and a `next` row of
   `crates/session/src/v026g/simulation_changes.tsv` (a match plays out
   otherwise), so recordings from earlier revisions are no longer watchable

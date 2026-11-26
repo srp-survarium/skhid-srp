@@ -10,6 +10,8 @@ workspace = true
 # Client patch 78 ends each player's state with the carry's snapshot
 # (`v026g::match_msgs::motion`).
 artefact-carry = { path = "../artefact-carry" }
+# client patch 206: the second sights' record a state may end with
+second-sight = { path = "../second-sight" }
 technical-skills = { path = "../technical-skills" }
 # Client patch 85 starts each player's state with its pickup record
 # (`v026g::match_msgs::players::FIELDS_AT`).

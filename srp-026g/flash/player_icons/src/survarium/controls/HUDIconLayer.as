@@ -56,9 +56,9 @@ package survarium.controls
       // docs/notes/replay-map.md). The enemy list is then not consulted.
       public var enemiesShown:Boolean = false;
 
-      // Artifact Hunt (MainTimeline.srp_show_carriers, docs/notes/artefact_hunt.md): an enemy's player
-      // icon shows while he carries the artefact (the game's carrier mark, HUDMarker.carrying), the mark
-      // the artefact's.
+      // Artifact Hunt (MainTimeline.srp_show_carriers, docs/notes/artefact_hunt.md): a carrier's mark
+      // (the game's, HUDMarker.carrying) is the artefact's, not the battery's box. Only on a marker that
+      // shows anyway: an enemy carrier's never does (the owner: the minimaps alone show him).
       protected var _carriersShown:Boolean = false;
       
       protected var _playerTeam:uint = 0;
@@ -99,15 +99,14 @@ package survarium.controls
       }
 
       // Whether the icon of this id may show: an enemy's player icon never (the game's own rule) but in a
-      // replay or while he carries Artifact Hunt's artefact, an object's not while the objects are hidden.
+      // replay, an Artifact Hunt carrier's included; an object's not while the objects are hidden.
       protected function canShow(id:uint, renderer:HUDMarker) : Boolean
       {
          if(_objectsHidden && id >= FIRST_OBJECT)
          {
             return false;
          }
-         return renderer.kind != 0 || this.enemiesShown || this._enemyIds.indexOf(id) == -1
-            || this._carriersShown && renderer.carrying;
+         return renderer.kind != 0 || this.enemiesShown || this._enemyIds.indexOf(id) == -1;
       }
 
       // A player of the other team (the game's enemy list, set_enemy_icon_ids).
@@ -127,17 +126,6 @@ package survarium.controls
          for(var id:* in this._markers)
          {
             HUDMarker(this._markers[id]).artefactCarry = value;
-            this.keepShowable(uint(id));
-         }
-      }
-
-      // A marker that may not show now (its carrier mark gone, the carriers no longer shown) hidden.
-      protected function keepShowable(id:uint) : void
-      {
-         var renderer:HUDMarker = this._markers[id];
-         if(renderer && renderer.visible && !this.canShow(id,renderer))
-         {
-            renderer.visible = false;
          }
       }
 
@@ -276,7 +264,6 @@ package survarium.controls
       public function set_player_icon_container(id:uint, container:Boolean) : void
       {
          this._markers[id].container = container;
-         this.keepShowable(id);
       }
       
       public function set_player_icon_rotation(id:uint, rot:Number) : void
@@ -377,7 +364,7 @@ package survarium.controls
             }
             else
             {
-               // an enemy's icon shown while he carried, his mark gone in this update
+               // an icon that may not show (an enemy's, a carrier's too) stays hidden
                renderer.visible = false;
                return;
             }
@@ -402,7 +389,7 @@ package survarium.controls
                   }
                }
             }
-            // an enemy shown (a replay, Artifact Hunt's carrier) red whatever colour the game sends,
+            // an enemy shown (a replay) red whatever colour the game sends,
             // so that white is the teammates' only
             if(props.rgb != undefined || this.isEnemy(id))
             {

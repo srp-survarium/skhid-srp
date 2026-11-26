@@ -356,7 +356,7 @@ struct Activation {
 /// teammates Cascade gave its active to (the owner, 2026-11-11: "they should get full effect"),
 /// read only while the copy is active (state 4). Every activation of a kind the tree shares sets
 /// it (none reached without Cascade); a world's save writes it with each active copy and its load
-/// reads it back (`artefact.save`, `artefact.load`), so a rollback and a late joiner have the
+/// reads it back (`carry.ground_save`, `carry.ground_load`), so a rollback and a late joiner have the
 /// activation's own.
 static ACTIVATIONS: Lock<[Option<Activation>; 255]> = Lock::new([None; 255]);
 

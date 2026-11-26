@@ -513,7 +513,7 @@ Evidence: the 0.26g exe (VAs) and `flash_movies/lobby_menu.swf` decompiled with 
   may be listed under several sellers. Which level an item needs is not in the client; srp
   uses `item_level` (Scavengers, Black Market) and `item_level - 5` (Renaissance, Edge)
   [LIKELY: gear levels are 1..5 and 6..15, the factions have 5 and 10 levels above 0, and it
-  reproduces the January 2015 wiki ranks in `v021d/shop_ranks.md`].
+  reproduces the January 2015 wiki ranks in `srp-021d/docs/notes/shop_ranks.md`].
 - **Who decides the seller and the rank: the server alone (2026-10-12).** The exe keeps the
   0x8A records as a flat array and gives each to the lobby as `{faction_id, level, dictId,
   cost}` (0x223190); `setupShopItems` files the item under the record's seller with the

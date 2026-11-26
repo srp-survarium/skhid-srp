@@ -13,9 +13,9 @@ package
    // fed as the game feeds it: a match's start (set_game_type 13, the map, the players, the Tab
    // list), then root.artefact_hunt_update with made-up states, each one as the whole state. Checks
    // what each state shows (the bars, the row under them, the round's texts, the fade, the minimaps'
-   // bases, artefact and carrier, the Tab list's carrier row), that a late join draws a state as a
-   // game that saw everything before it does, that a call outside the contract changes nothing, and
-   // that another mode after it shows none of it. Each state is held while check.sh takes its
+   // bases, artefact and carrier), that a late join draws a state as a game that saw everything
+   // before it does, that a call outside the contract changes nothing, and that another mode after
+   // it shows none of it. Each state is held while check.sh takes its
    // screenshot ("HUNT SHOT <name>"). Ends with "HUNT RESULT pass" or "HUNT RESULT fail: ...".
    public class HuntHudHarness extends Sprite
    {
@@ -154,22 +154,6 @@ package
          return false;
       }
 
-      // The Tab list's marked rows' names.
-      private function markedRows() : String
-      {
-         var names:Array = [];
-         for each(var list:* in [hud.player_list.players.team1list,hud.player_list.players.team2list])
-         {
-            list.validateNow();
-            for(var i:int = 0; i < 20; i++)
-            {
-               var r:* = list.getRendererAt(i);
-               if(r != null && r.carrierMarked && r.data) names.push(r.data.name);
-            }
-         }
-         return names.join();
-      }
-
       private function rowTexts() : Object
       {
          return hud.huntRow.texts;
@@ -230,16 +214,14 @@ package
          });
          shot("tab-ally-carrier",{phase:4,art:2,carrier:1,carrierTeam:0},function():void
          {
-            check(rowTexts().caption == "[WLF] Wolf","carried by a teammate: his name under the orb: " + rowTexts().caption);
+            check(rowTexts().caption == "","carried by a teammate: no name under the orb: " + rowTexts().caption);
             check(minimapState(hud.minimap).objects == "Base,BaseEnemy","carried: no artefact on the map");
             check(minimapState(hud.minimap).rings == "1" && minimapState(hud.player_list.minimap).rings == "1","the carrier's dot ringed on both maps");
-            check(markedRows() == "[WLF] Wolf","his row marked in the Tab list: " + markedRows());
          },function():void { hud.show_player_list(true); });
          shot("enemy-carrier",{phase:4,art:2,carrier:11,carrierTeam:1},function():void
          {
-            check(rowTexts().caption == "[BOT] Marauder","carried by an enemy: his name: " + rowTexts().caption);
+            check(rowTexts().caption == "","carried by an enemy: no name: " + rowTexts().caption);
             check(minimapState(hud.minimap).rings == "11","the enemy carrier's dot ringed");
-            check(markedRows() == "[BOT] Marauder","his row marked, the teammate's no more: " + markedRows());
          },function():void { hud.show_player_list(false); });
          shot("you-carry",{phase:4,art:2,carrier:0,carrierTeam:0,me:1},function():void
          {
@@ -348,7 +330,7 @@ package
       {
          var m:Object = minimapState(hud.minimap);
          var t:Object = rowTexts();
-         return [bars(),hud.huntRow.visible,t.wave,t.caption,t.sudden,t.banner,m.objects,m.rings,markedRows(),fade()].join("|");
+         return [bars(),hud.huntRow.visible,t.wave,t.caption,t.sudden,t.banner,m.objects,m.rings,fade()].join("|");
       }
 
       // The wave right after the match time, on its line, clear of both bars.
@@ -420,7 +402,7 @@ package
          hud.update_players([player(0,0,-20,0,true),player(11,1,55,-10)]);
          trace("HUNT another mode: checks");
          var m:Object = minimapState(hud.minimap);
-         check(!hud.huntRow.visible && m.objects == "" && m.rings == "" && fade() == 0 && markedRows() == "",
+         check(!hud.huntRow.visible && m.objects == "" && m.rings == "" && fade() == 0,
             "Team Deathmatch after it: nothing of the mode (" + describe() + ")");
          hud.set_tickets_required(150);
          hud.set_game_progress(150,120);

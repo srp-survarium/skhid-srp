@@ -7,17 +7,22 @@ is excluded. These are eye positions and normalized viewing directions;
 the map is `v011e_level_03/day_2`, dictionary ID 208. The engine's project
 ID 247 is a different identifier.
 
-Use the existing resource-porter workflow in
-`resource-porter-veg-v011/tools/chemical-plant/run_reference_011e.py` and
+Use resource-porter's reference workflow (the srp-survarium/resource-porter
+repository): its `tools/chemical-plant/run_reference_011e.py` and
 `tools/render-compare/`, together with its
-`docs/investigation/original-011e-reference-preparation-20261014.md`.
+`docs/investigation/original-011e-reference-preparation-20261014.md`. They
+are on its branch `fix/veg-drop-paint-mask-v011` (resource-porter PR #11, and
+`port/v011-weathers`, PR #57, stacked on it), not yet on its default branch
+`v0.10b`: check that branch out in a worktree of your resource-porter
+checkout and pass the worktree as `--porter-tree`.
 `capture_views.py` delegates to that workflow's camera protocol, with the
 same poses, 65-degree FOV, 1280x720 aspect and ten-second settling time
 in both engines. It requires a running capture client and control file:
 
 ```sh
+git -C <resource-porter> worktree add <resource-porter>/.worktrees/v011 fix/veg-drop-paint-mask-v011
 python3 srp-026g/scripts/radar-visual-check/capture_views.py \
-  --porter-tree ../resource-porter-veg-v011 \
+  --porter-tree <resource-porter>/.worktrees/v011 \
   --control /path/to/camera.txt --out /path/to/new-capture
 ```
 

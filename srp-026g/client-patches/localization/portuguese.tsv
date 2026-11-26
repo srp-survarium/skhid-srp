@@ -95,7 +95,7 @@ kRMENU	Alt Dir.
 kRSHIFT	Shift Dir.
 kRWIN	Win Dir.
 kS	S
-kSCROLL	ScrollLock
+kSCROLL	ScrLk
 kSEMICOLON	,
 kSLASH	/
 kSPACE	Espaço
@@ -501,6 +501,307 @@ st_buy_premium_with_discount	Compre agora com desconto!
 st_buy_profile_confirmation_text	Criar personagem novo?
 st_buy_profile_price_text	Perfil disponível por:
 st_buy_treasure_maps	Comprar mapa
+st_camo_atlas_all_terrain	Todo terreno
+st_camo_atlas_amber_circuit	Circuito âmbar
+st_camo_atlas_amethyst_wash	Aguada ametista
+st_camo_atlas_arid_lizard	Lagarto árido
+st_camo_atlas_ash_rain	Chuva de cinzas
+st_camo_atlas_aubergine_broadbrush	Pincelada larga berinjela
+st_camo_atlas_aubergine_crackle	Craquelê berinjela
+st_camo_atlas_aubergine_watercolor	Aquarela berinjela
+st_camo_atlas_autumn_flecktarn	Flecktarn outono
+st_camo_atlas_balkan_dpm	DPM balcânico
+st_camo_atlas_balkan_splinter	Estilhaços balcânicos
+st_camo_atlas_basalt_shard	Estilhaço de basalto
+st_camo_atlas_birch_leaf	Folha de bétula
+st_camo_atlas_black_ice	Gelo negro
+st_camo_atlas_black_thicket	Matagal negro
+st_camo_atlas_blue_brush	Pinceladas azuis
+st_camo_atlas_blue_shingle	Telha azul
+st_camo_atlas_blue_tiger_stripe	Listras de tigre azuis
+st_camo_atlas_bruise	Hematoma
+st_camo_atlas_brushstroke	Pincelada
+st_camo_atlas_buntfarben_1918	Buntfarben 1918
+st_camo_atlas_butan	Butan
+st_camo_atlas_carmine_crosscheck	Xadrez cruzado carmim
+st_camo_atlas_carmine_pebble	Pedrisco carmim
+st_camo_atlas_carmine_screenprint	Serigrafia carmim
+st_camo_atlas_carmine_soundings	Batimetria carmim
+st_camo_atlas_carmine_wave_fan	Leque de ondas carmim
+st_camo_atlas_centre_europe	Europa Central
+st_camo_atlas_centre_europe_vehicle	Europa Central, veículos
+st_camo_atlas_cerise_broadbrush	Pincelada larga cereja
+st_camo_atlas_cerise_crackle	Craquelê cereja
+st_camo_atlas_cinnabar_tiger	Tigre cinábrio
+st_camo_atlas_citron_broadbrush	Pincelada larga limão
+st_camo_atlas_citron_crackle	Craquelê limão
+st_camo_atlas_citron_cut	Recorte limão
+st_camo_atlas_cobalt_cloud	Nuvem cobalto
+st_camo_atlas_cobalt_netting	Rede cobalto
+st_camo_atlas_cobalt_shard	Estilhaço cobalto
+st_camo_atlas_cobalt_woodgrain	Veio de madeira cobalto
+st_camo_atlas_copper_mesh	Malha de cobre
+st_camo_atlas_copper_rain	Chuva de cobre
+st_camo_atlas_coral_reeds	Juncos coral
+st_camo_atlas_daguet	Daguet
+st_camo_atlas_danube_leaf	Folha do Danúbio
+st_camo_atlas_desert_broadbrush	Pincelada larga do deserto
+st_camo_atlas_desert_broken_grid	Grade quebrada do deserto
+st_camo_atlas_desert_cloud	Nuvem do deserto
+st_camo_atlas_desert_crackle	Craquelê do deserto
+st_camo_atlas_desert_cut_paper	Papel recortado do deserto
+st_camo_atlas_desert_drybrush	Pincel seco do deserto
+st_camo_atlas_desert_fracture	Rachadura do deserto
+st_camo_atlas_desert_mosaic	Mosaico do deserto
+st_camo_atlas_desert_netting	Rede do deserto
+st_camo_atlas_desert_pebble	Pedrisco do deserto
+st_camo_atlas_desert_pixel_grain	Grão de pixel do deserto
+st_camo_atlas_desert_rain_streak	Risco de chuva do deserto
+st_camo_atlas_desert_reed_stripe	Listra de junco do deserto
+st_camo_atlas_desert_ribbon	Fita do deserto
+st_camo_atlas_desert_riverstone	Seixo de rio do deserto
+st_camo_atlas_desert_rosette	Roseta do deserto
+st_camo_atlas_desert_scribble	Rabisco do deserto
+st_camo_atlas_desert_shard	Estilhaço do deserto
+st_camo_atlas_desert_shingle	Telha do deserto
+st_camo_atlas_desert_starfield	Campo estelar do deserto
+st_camo_atlas_desert_stone_chip	Lasca de pedra do deserto
+st_camo_atlas_desert_tiger_stripe	Tigrado do deserto
+st_camo_atlas_desert_watercolor	Aquarela do deserto
+st_camo_atlas_desert_woodgrain	Veio de madeira do deserto
+st_camo_atlas_dg3	DG3
+st_camo_atlas_dubok	Dubok
+st_camo_atlas_duck_hunter	Caçador de patos
+st_camo_atlas_dune_chip	Lasca de duna
+st_camo_atlas_ember_leaf	Folha em brasa
+st_camo_atlas_erdl_highland	ERDL de planalto
+st_camo_atlas_erdl_lowland	ERDL de planície
+st_camo_atlas_fab_lizard	Lagarto FAB
+st_camo_atlas_fired_clay	Barro cozido
+st_camo_atlas_frogskin	Pele de sapo
+st_camo_atlas_frost_splinter	Estilhaços de geada
+st_camo_atlas_garnet_broken_grid	Grade quebrada granada
+st_camo_atlas_garnet_rosette	Roseta granada
+st_camo_atlas_garnet_shard	Estilhaço granada
+st_camo_atlas_glacial_stone_chip	Lasca de pedra glacial
+st_camo_atlas_glacial_tiger_stripe	Tigrado glacial
+st_camo_atlas_glacial_watercolor	Aquarela glacial
+st_camo_atlas_glacier_cut	Recorte glaciar
+st_camo_atlas_graphite_broken_grid	Grade quebrada grafite
+st_camo_atlas_graphite_rosette	Roseta grafite
+st_camo_atlas_graphite_shard	Estilhaço grafite
+st_camo_atlas_harbor_tiger	Tigre do porto
+st_camo_atlas_hazard_pixel	Pixel de perigo
+st_camo_atlas_honey_rosette	Roseta mel
+st_camo_atlas_icelandic_broadbrush	Pincelada larga islandesa
+st_camo_atlas_icelandic_stone_chip	Lasca de pedra islandesa
+st_camo_atlas_icelandic_watercolor	Aquarela islandesa
+st_camo_atlas_inkstone	Pedra de tinta
+st_camo_atlas_iris_mosaic	Mosaico íris
+st_camo_atlas_jgsdf_desert	JGSDF deserto
+st_camo_atlas_jgsdf_type_ii	JGSDF tipo II
+st_camo_atlas_jgsdf_winter	JGSDF inverno
+st_camo_atlas_juniper_pixel	Pixel zimbro
+st_camo_atlas_k07	K07
+st_camo_atlas_k07_dark	K07 escuro
+st_camo_atlas_k20	K20
+st_camo_atlas_k20_navy	K20 naval
+st_camo_atlas_k20lq	K20LQ
+st_camo_atlas_kingfisher	Martim-pescador
+st_camo_atlas_kingfisher_cut_paper	Papel recortado martim-pescador
+st_camo_atlas_kingfisher_reed_stripe	Listra de junco martim-pescador
+st_camo_atlas_kingfisher_screenprint	Serigrafia martim-pescador
+st_camo_atlas_lagoon_rosette	Roseta laguna
+st_camo_atlas_lapis_cloud	Nuvem lápis-lazúli
+st_camo_atlas_lapis_netting	Rede lápis-lazúli
+st_camo_atlas_lapis_tiger_stripe	Tigrado lápis-lazúli
+st_camo_atlas_lapis_woodgrain	Veio de madeira lápis-lazúli
+st_camo_atlas_lichen_pixel	Pixel líquen
+st_camo_atlas_lime_spots	Manchas de lima
+st_camo_atlas_lizard	Lagarto
+st_camo_atlas_lozenge	Losangos
+st_camo_atlas_lozenge_night	Losangos noturnos
+st_camo_atlas_m05_snow	M05 neve
+st_camo_atlas_m05_woodland	M05 floresta
+st_camo_atlas_m81_woodland	M81 floresta
+st_camo_atlas_m90	M90
+st_camo_atlas_m90k	M90K
+st_camo_atlas_m_01_desert	M/01 deserto
+st_camo_atlas_m_84	M/84
+st_camo_atlas_madder_crackle	Craquelê garança
+st_camo_atlas_madder_cut_paper	Papel recortado garança
+st_camo_atlas_madder_reed_stripe	Listra de junco garança
+st_camo_atlas_malachite	Malaquita
+st_camo_atlas_marigold_broken_grid	Grade quebrada calêndula
+st_camo_atlas_marigold_pebble	Pedrisco calêndula
+st_camo_atlas_marigold_rosette	Roseta calêndula
+st_camo_atlas_marigold_terrazzo	Granilite calêndula
+st_camo_atlas_marine_woodland	Floresta marinha
+st_camo_atlas_maritime_pebble	Pedrisco marítimo
+st_camo_atlas_maritime_rosette	Roseta marítima
+st_camo_atlas_maritime_terrazzo	Granilite marítimo
+st_camo_atlas_maritime_wave_fan	Leque de ondas marítimo
+st_camo_atlas_mauve_static	Estática malva
+st_camo_atlas_mm_14	MM-14
+st_camo_atlas_mm_25	MM-25
+st_camo_atlas_moro	Moro
+st_camo_atlas_mulberry_cloud	Nuvem amora
+st_camo_atlas_nfp_blue	NFP azul
+st_camo_atlas_nfp_cloth	Tecido NFP
+st_camo_atlas_nfp_green	NFP verde
+st_camo_atlas_nfp_multitone	NFP multitom
+st_camo_atlas_night_silk	Seda noturna
+st_camo_atlas_obh	OBH
+st_camo_atlas_ochre_cut	Recorte ocre
+st_camo_atlas_olive_tide	Maré oliva
+st_camo_atlas_opal_fault	Falha opala
+st_camo_atlas_orchid_broken_grid	Grade quebrada orquídea
+st_camo_atlas_orchid_cloud	Nuvem orquídea
+st_camo_atlas_orchid_netting	Rede orquídea
+st_camo_atlas_orchid_shard	Estilhaço orquídea
+st_camo_atlas_orchid_static	Estática orquídea
+st_camo_atlas_oxblood_cloud	Nuvem sangue de boi
+st_camo_atlas_oxblood_stone_chip	Lasca de pedra sangue de boi
+st_camo_atlas_oxblood_terrazzo	Granilite sangue de boi
+st_camo_atlas_oxblood_tiger_stripe	Tigrado sangue de boi
+st_camo_atlas_oxblood_woodgrain	Veio de madeira sangue de boi
+st_camo_atlas_pantera	Pantera
+st_camo_atlas_pantera_desert	Pantera deserto
+st_camo_atlas_persimmon_ink	Tinta caqui
+st_camo_atlas_petal_wash	Aguada de pétalas
+st_camo_atlas_pewter_cut_paper	Papel recortado estanho
+st_camo_atlas_pewter_reed_stripe	Listra de junco estanho
+st_camo_atlas_polar_mesh	Malha polar
+st_camo_atlas_porcelain_tide	Maré de porcelana
+st_camo_atlas_puma	Puma
+st_camo_atlas_quarry	Pedreira
+st_camo_atlas_reef_tiger	Tigre do recife
+st_camo_atlas_riptide_broadbrush	Pincelada larga da ressaca
+st_camo_atlas_riptide_crackle	Craquelê da ressaca
+st_camo_atlas_riptide_cut_paper	Papel recortado da ressaca
+st_camo_atlas_riptide_terrazzo	Granilite da ressaca
+st_camo_atlas_rmp_woodland	RMP floresta
+st_camo_atlas_rose_breccia	Brecha rosa
+st_camo_atlas_russet_crosscheck	Xadrez cruzado acobreado
+st_camo_atlas_russet_screenprint	Serigrafia acobreada
+st_camo_atlas_russet_stone_chip	Lasca de pedra acobreada
+st_camo_atlas_russet_tiger_stripe	Tigrado acobreado
+st_camo_atlas_russet_watercolor	Aquarela acobreada
+st_camo_atlas_russet_woodgrain	Veio de madeira acobreado
+st_camo_atlas_rust_flecktarn	Flecktarn ferrugem
+st_camo_atlas_rust_tiger	Tigre ferrugem
+st_camo_atlas_saffron_gravel	Cascalho açafrão
+st_camo_atlas_saffron_pebble	Pedrisco açafrão
+st_camo_atlas_saffron_soundings	Batimetria açafrão
+st_camo_atlas_saffron_wave_fan	Leque de ondas açafrão
+st_camo_atlas_salt_crater	Cratera de sal
+st_camo_atlas_salt_tiger	Tigre de sal
+st_camo_atlas_sandstone	Arenito
+st_camo_atlas_satsuma_stone_chip	Lasca de pedra tangerina
+st_camo_atlas_satsuma_tiger_stripe	Tigrado tangerina
+st_camo_atlas_satsuma_watercolor	Aquarela tangerina
+st_camo_atlas_savanna_flecktarn	Flecktarn savana
+st_camo_atlas_sea_glass	Vidro do mar
+st_camo_atlas_seafoam_cloud	Nuvem espuma do mar
+st_camo_atlas_seafoam_netting	Rede espuma do mar
+st_camo_atlas_seafoam_woodgrain	Veio de madeira espuma do mar
+st_camo_atlas_shard_earth	Terra de estilhaços
+st_camo_atlas_shard_forest	Floresta de estilhaços
+st_camo_atlas_shard_winter	Inverno de estilhaços
+st_camo_atlas_sienna_wash	Aguada siena
+st_camo_atlas_signal_grid	Grade de sinal
+st_camo_atlas_silver_rosette	Roseta prateada
+st_camo_atlas_snow_terrain	Terreno nevado
+st_camo_atlas_star_ember	Brasa estrelada
+st_camo_atlas_star_forest	Floresta estrelada
+st_camo_atlas_sundown_pebble	Pedrisco do poente
+st_camo_atlas_sundown_reed_stripe	Listra de junco do poente
+st_camo_atlas_sundown_terrazzo	Granilite do poente
+st_camo_atlas_sundown_wave_fan	Leque de ondas do poente
+st_camo_atlas_t_99_winter	T/99 inverno
+st_camo_atlas_taz_07	TAZ 07
+st_camo_atlas_taz_83	TAZ 83
+st_camo_atlas_taz_83_ii	TAZ 83 II
+st_camo_atlas_teal_pixel	Pixel turquesa
+st_camo_atlas_three_color_desert	Deserto tricolor
+st_camo_atlas_tidal_pixel	Pixel de maré
+st_camo_atlas_tropentarn	Tropentarn
+st_camo_atlas_tropentarn_ii	Tropentarn II
+st_camo_atlas_type_07_arid	Tipo 07 árido
+st_camo_atlas_type_07_universal	Tipo 07 universal
+st_camo_atlas_type_07_urban	Tipo 07 urbano
+st_camo_atlas_ultramarine_broken_grid	Grade quebrada ultramar
+st_camo_atlas_ultramarine_netting	Rede ultramar
+st_camo_atlas_ultramarine_rosette	Roseta ultramar
+st_camo_atlas_ultramarine_shard	Estilhaço ultramar
+st_camo_atlas_ultramarine_terrazzo	Granilite ultramar
+st_camo_atlas_ultraviolet_grid	Grade ultravioleta
+st_camo_atlas_urban_blots	Manchas urbanas
+st_camo_atlas_urban_broadbrush	Pincelada larga urbana
+st_camo_atlas_urban_broken_grid	Grade quebrada urbana
+st_camo_atlas_urban_brush	Pincel urbano
+st_camo_atlas_urban_cloud	Nuvem urbana
+st_camo_atlas_urban_crackle	Craquelê urbano
+st_camo_atlas_urban_cut_paper	Papel recortado urbano
+st_camo_atlas_urban_drybrush	Pincel seco urbano
+st_camo_atlas_urban_flecktarn	Flecktarn urbano
+st_camo_atlas_urban_fracture	Rachadura urbana
+st_camo_atlas_urban_knit	Malha urbana
+st_camo_atlas_urban_mosaic	Mosaico urbano
+st_camo_atlas_urban_netting	Rede urbana
+st_camo_atlas_urban_pebble	Pedrisco urbano
+st_camo_atlas_urban_pixel_grain	Grão de pixel urbano
+st_camo_atlas_urban_rain_streak	Risco de chuva urbano
+st_camo_atlas_urban_reed_stripe	Listra de junco urbana
+st_camo_atlas_urban_ribbon	Fita urbana
+st_camo_atlas_urban_riverstone	Seixo de rio urbano
+st_camo_atlas_urban_rosette	Roseta urbana
+st_camo_atlas_urban_scribble	Rabisco urbano
+st_camo_atlas_urban_shard	Estilhaço urbano
+st_camo_atlas_urban_shingle	Telha urbana
+st_camo_atlas_urban_starfield	Campo estelar urbano
+st_camo_atlas_urban_stone_chip	Lasca de pedra urbana
+st_camo_atlas_urban_tiger_stripe	Tigrado urbano
+st_camo_atlas_urban_watercolor	Aquarela urbana
+st_camo_atlas_urban_wave_fan	Leque de ondas urbano
+st_camo_atlas_urban_woodgrain	Veio de madeira urbano
+st_camo_atlas_urban_woodland	Floresta urbana
+st_camo_atlas_vegetato_desert	Vegetato deserto
+st_camo_atlas_vehicle_pixel_2015	Pixel de veículo 2015
+st_camo_atlas_vehicle_pixel_2016	Pixel de veículo 2016
+st_camo_atlas_vehicle_pixel_2021	Pixel de veículo 2021
+st_camo_atlas_verdigris_cut_paper	Papel recortado azinhavre
+st_camo_atlas_verdigris_reed_stripe	Listra de junco azinhavre
+st_camo_atlas_verdigris_terrazzo	Granilite azinhavre
+st_camo_atlas_verdigris_wave_fan	Leque de ondas azinhavre
+st_camo_atlas_vermilion_tide	Maré vermelhão
+st_camo_atlas_walnut_burl	Raiz de nogueira
+st_camo_atlas_woodland_broadbrush	Pincelada larga da floresta
+st_camo_atlas_woodland_broken_grid	Grade quebrada da floresta
+st_camo_atlas_woodland_cloud	Nuvem da floresta
+st_camo_atlas_woodland_crackle	Craquelê da floresta
+st_camo_atlas_woodland_cut_paper	Papel recortado da floresta
+st_camo_atlas_woodland_drybrush	Pincel seco da floresta
+st_camo_atlas_woodland_fracture	Rachadura da floresta
+st_camo_atlas_woodland_mosaic	Mosaico da floresta
+st_camo_atlas_woodland_netting	Rede da floresta
+st_camo_atlas_woodland_pebble	Pedrisco da floresta
+st_camo_atlas_woodland_pixel_grain	Grão de pixel da floresta
+st_camo_atlas_woodland_rain_streak	Risco de chuva da floresta
+st_camo_atlas_woodland_reed_stripe	Listra de junco da floresta
+st_camo_atlas_woodland_ribbon	Fita da floresta
+st_camo_atlas_woodland_riverstone	Seixo de rio da floresta
+st_camo_atlas_woodland_rosette	Roseta da floresta
+st_camo_atlas_woodland_scribble	Rabisco da floresta
+st_camo_atlas_woodland_shard	Estilhaço da floresta
+st_camo_atlas_woodland_shingle	Telha da floresta
+st_camo_atlas_woodland_starfield	Campo estelar da floresta
+st_camo_atlas_woodland_stone_chip	Lasca de pedra da floresta
+st_camo_atlas_woodland_tiger_stripe	Tigrado da floresta
+st_camo_atlas_woodland_watercolor	Aquarela da floresta
+st_camo_atlas_woodland_wave_fan	Leque de ondas da floresta
+st_camo_atlas_woodland_woodgrain	Veio de madeira da floresta
+st_camo_atlas_woven_woodland	Floresta tecida
 st_camo_black_leather_01_name	Corvo
 st_camo_black_leather_name	Morte Negra
 st_camo_blue_leather_name	Brisa
@@ -731,7 +1032,11 @@ st_character_decals_4_73_name	Bandeira da Nigéria
 st_character_decals_4_74_name	Bandeira da África do Sul
 st_character_decals_4_75_name	Bandeira do País de Gales
 st_character_decals_4_76_name	Bandeira do Kosovo
+st_character_decals_4_77_name	Snufkin
+st_character_decals_4_78_name	Snufkin sentado
+st_character_decals_4_79_name	Fumo na garrafa
 st_character_decals_4_7_name	Bandeira da Lituânia
+st_character_decals_4_82_name	Neco-Arc
 st_character_decals_4_8_name	Bandeira da Estónia
 st_character_decals_4_9_name	Bandeira da Moldávia
 st_character_decals_5_10_name	Brasão de Geórgia
@@ -2716,10 +3021,17 @@ st_srp_hud_freeze_draw	Empate
 st_srp_hud_freeze_frozen	Congelado (%1$s)
 st_srp_hud_freeze_help	Congele todos os adversários. A primeira equipe a vencer 5 rodadas ganha. Fique a até 2 m de um aliado congelado por 4 segundos para descongelá-lo.
 st_srp_hud_freeze_lose	Derrota — os adversários venceram cinco rodadas.
+st_srp_hud_freeze_reveal_enemy	Último adversário revelado em %1$s s
+st_srp_hud_freeze_reveal_self	Você será revelado em %1$s s
+st_srp_hud_freeze_reveal_teammate	Seu último aliado será revelado em %1$s s
+st_srp_hud_freeze_revealed_enemy	Último adversário revelado no mapa
+st_srp_hud_freeze_revealed_self	Você está revelado no mapa
+st_srp_hud_freeze_revealed_teammate	Seu último aliado está revelado no mapa
 st_srp_hud_freeze_round_draw	Rodada empatada. Reiniciando em %1$s s.
 st_srp_hud_freeze_round_lose	Rodada perdida. Próxima rodada em %1$s s.
 st_srp_hud_freeze_round_win	Rodada vencida. Próxima rodada em %1$s s.
 st_srp_hud_freeze_standing	Em combate: sua equipe %1$s — adversários %2$s
+st_srp_hud_freeze_start	Pique-Congela\nUm acerto letal congela. Congele toda a equipe adversária para vencer a rodada.\nFique a até 2 m de um aliado congelado por 4 s para descongelá-lo; sozinho, ele descongela após 2 min.\nA primeira equipe a vencer 5 rodadas ganha; se o tempo acabar, vence a equipe que estiver na frente.
 st_srp_hud_freeze_thawing	Descongelando aliado…
 st_srp_hud_freeze_win	Vitória — cinco rodadas vencidas.
 st_srp_hud_friend_not_sent	Pedido de amizade não enviado
@@ -2759,6 +3071,7 @@ st_srp_inventory_sell_duplicates	Vender duplicados
 st_srp_inventory_sell_duplicates_ask	Itens para vender: %1$s
 st_srp_item_props_mps	m/s
 st_srp_key_bindings	Atribuições
+st_srp_key_unbound	sem tecla
 st_srp_keys_combat	Combate
 st_srp_keys_interface	Interface
 st_srp_keys_items	Itens
@@ -2904,7 +3217,7 @@ st_srp_mode_roulette_mid	FFA: Roleta
 st_srp_mode_team_deathmatch	Mata-Mata em Equipe
 st_srp_mouse_lock_option	Travar sensibilidade vertical
 st_srp_mouse_vertical_option	Sensibilidade vertical
-st_srp_muzzle_slot	Dispositivo de boca
+st_srp_muzzle_slot	Disp. de boca
 st_srp_no_muzzle_flash	Sem clarão
 st_srp_optics	Óptica
 st_srp_options_hud	HUD:
@@ -2965,7 +3278,7 @@ st_srp_replay_place_in_line	Posição na fila: %1$s. Aguardando: %2$s s.
 st_srp_replay_ready	O replay desta partida está pronto.\n\nEle é baixado do servidor da partida, que guarda o registro oficial da partida. Uma segunda janela do jogo abre e o reproduz; o lobby continua aberto.\n\nNo replay, pressione F9 para os controles: jogadores, câmera, linha do tempo, velocidade.
 st_srp_replay_ready_size	Replay desta partida: %1$s.\n\nEle é baixado do servidor da partida, que guarda o registro oficial da partida. Uma segunda janela do jogo abre e o reproduz; o lobby continua aberto.\n\nNo replay, pressione F9 para os controles: jogadores, câmera, linha do tempo, velocidade.
 st_srp_replay_size	%1$s.%2$s MB
-st_srp_replay_starting	Iniciando o replay: uma segunda janela do jogo vai abrir; este lobby continua aberto. Se algo der errado, o atualizador mostra o que aconteceu.\n\nNo replay, pressione F9 para os controles.
+st_srp_replay_starting	Iniciando o replay: uma segunda janela do jogo vai abrir; este lobby continua aberto. Se algo der errado, o atualizador mostra o que aconteceu.\n\nNo replay, pressione "Ocultar interface" ({HIDE_INTERFACE}) para os controles.
 st_srp_replay_still_preparing	Ainda em preparação. O servidor continua gerando o replay; abra Assistir replay de novo em um minuto.
 st_srp_replay_title	Assistir replay
 st_srp_replay_waiting	Aguardando: %1$s s.
@@ -3069,10 +3382,17 @@ st_srp_rooms_voting	Votação de mapa
 st_srp_rooms_waiting	Aguardando jogadores
 st_srp_rooms_waiting_owner	Aguardando o criador iniciar.
 st_srp_rooms_waiting_short	Aguardando
+st_srp_scope_next_action	Trocar mira
 st_srp_scope_screen_hint	Arraste uma mira, um dispositivo de boca ou uma empunhadura do inventário para o espaço correspondente
 st_srp_scope_slot	Mira
+st_srp_second_sight	Segunda mira
+st_srp_second_sight_description	Coloca uma segunda mira na lateral da arma.
+st_srp_second_sight_hint	Uma mira no trilho deslocado na lateral da arma. Pressione "Trocar mira" ({SCOPE_NEXT}) enquanto mira para alternar para ela.
+st_srp_second_sight_name	Segunda mira
 st_srp_shop_not_owned	Ocultar adquiridos
 st_srp_shop_not_owned_hint	Mostrar só os itens que você não tem
+st_srp_side_left	Esquerda
+st_srp_side_right	Direita
 st_srp_skills	Habilidades
 st_srp_speed_label	Velocidade
 st_srp_speed_title	Velocidade: %1$s

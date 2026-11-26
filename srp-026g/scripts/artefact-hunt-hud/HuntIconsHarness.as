@@ -9,9 +9,11 @@ package
    // player icons movie's own root, fed as the game feeds it: the match's markers and enemy list
    // (set_enemy_icon_ids), the mode's root.srp_show_carriers(true), then render_name's props with the
    // game's carrier mark (modifier_visible). Checks:
-   // - an enemy's marker shows while he carries (the mark the artefact's orb, not the battery's
-   //   box) and goes when he no longer does, by props or by set_player_icon_container;
-   // - an enemy who does not carry never shows; a teammate as ever, his carry mark the orb;
+   // - a teammate carrying shows as ever, his mark the artefact's orb, not the battery's box;
+   // - an enemy never shows, carrying or not, by props or by set_player_icon_container: the
+   //   minimaps alone show the carrier to the other team (the owner, 2026-11-26: "player with art is
+   //   still seen in ui, not only on map");
+   // - a replay (srp_show_enemies(true)): an enemy carrier shows, red, his mark the orb;
    // - another mode (srp_show_carriers(false)): an enemy carrier hidden, a teammate's mark the box;
    // - told before the root's frame 1 made its layer, the layer takes it.
    // "HUNT SHOT icons" for check.sh's screenshot; ends with "HUNT RESULT pass" or "... fail: ...".
@@ -88,12 +90,11 @@ package
                var enemy:* = root_.iconControl.getChildAt(2);
                var other:* = root_.iconControl.getChildAt(3);
                check(ally.visible && ally.artefactMarkShown && !ally.icon_box.visible,"a teammate carrying: shown, the artefact's mark, not the box");
-               check(enemy.visible && enemy.artefactMarkShown && !enemy.icon_box.visible,"an enemy carrying: shown with the artefact's mark");
+               check(!enemy.visible,"an enemy carrying: never shown (the minimaps alone show him)");
                check(!other.visible,"an enemy not carrying: never shown");
-               check(colour(enemy) == "ff0000/ff0000","the enemy carrier red, though sent white: " + colour(enemy));
                check(colour(ally) == "ffffff/ffffff","the teammate carrier white: " + colour(ally));
-               root_.set_player_color(2,255,255,255);
-               check(colour(enemy) == "ff0000/ff0000","and stays red at set_player_color white: " + colour(enemy));
+               root_.set_player_icon_visible(2,true);
+               check(!enemy.visible,"an enemy carrier at set_player_icon_visible: still hidden");
                phase = 4;
                frames = 0;
                return;
@@ -112,13 +113,17 @@ package
                if(frames < 75) return;
                enemy = root_.iconControl.getChildAt(2);
                root_.set_player_icons_props([props(2,"Raven",0xFF0000,false)]);
-               check(!enemy.visible,"the enemy drops it: hidden in the same update");
-               root_.set_player_icons_props([props(2,"Raven",0xFF0000,true)]);
-               check(enemy.visible,"takes it again: shown");
-               root_.set_player_icon_container(2,false);
-               check(!enemy.visible,"the mark taken away by set_player_icon_container: hidden");
+               root_.set_player_icon_container(2,true);
                root_.set_player_icons_props([props(2,"Raven",0xFF0000)]);
-               check(!enemy.visible,"and stays hidden at the next props without the mark");
+               check(!enemy.visible,"an enemy marked by set_player_icon_container, then props: still hidden");
+               // a replay shows every enemy, the carrier with the artefact's mark, red though sent white
+               root_.srp_show_enemies(true);
+               root_.set_player_icons_props([props(2,"Raven",0xFFFFFF,true)]);
+               check(enemy.visible && enemy.artefactMarkShown && !enemy.icon_box.visible,"a replay: the enemy carrier shown with the artefact's mark");
+               check(colour(enemy) == "ff0000/ff0000","a replay's enemy carrier red, though sent white: " + colour(enemy));
+               root_.set_player_color(2,255,255,255);
+               check(colour(enemy) == "ff0000/ff0000","and stays red at set_player_color white: " + colour(enemy));
+               root_.srp_show_enemies(false);
                // another mode: the battery's game
                root_.srp_show_carriers(false);
                root_.set_player_icons_props([props(1,"Wolf",0xFFFFFF,true),props(2,"Raven",0xFF0000,true)]);

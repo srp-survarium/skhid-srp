@@ -857,50 +857,50 @@
 },
 {
 "html": {
-"en": "<p class=\"skill-now\">Current value:&nbsp;<span class=\"skill-value\">+2kg</span></p><p class=\"skill-now\">Current value:&nbsp;<span class=\"skill-value\">+4kg</span></p><p class=\"skill-now\">Current value:&nbsp;<span class=\"skill-value\">+6kg</span></p><p class=\"skill-now\">Current value:&nbsp;<span class=\"skill-value\">+8kg</span></p><p class=\"skill-now\">Current value:&nbsp;<span class=\"skill-value\">+10kg</span></p>",
-"uk": "<p class=\"skill-now\">Поточне значення:&nbsp;<span class=\"skill-value\">+2кг</span></p><p class=\"skill-now\">Поточне значення:&nbsp;<span class=\"skill-value\">+4кг</span></p><p class=\"skill-now\">Поточне значення:&nbsp;<span class=\"skill-value\">+6кг</span></p><p class=\"skill-now\">Поточне значення:&nbsp;<span class=\"skill-value\">+8кг</span></p><p class=\"skill-now\">Поточне значення:&nbsp;<span class=\"skill-value\">+10кг</span></p>",
-"ru": "<p class=\"skill-now\">Текущее значение:&nbsp;<span class=\"skill-value\">+2кг</span></p><p class=\"skill-now\">Текущее значение:&nbsp;<span class=\"skill-value\">+4кг</span></p><p class=\"skill-now\">Текущее значение:&nbsp;<span class=\"skill-value\">+6кг</span></p><p class=\"skill-now\">Текущее значение:&nbsp;<span class=\"skill-value\">+8кг</span></p><p class=\"skill-now\">Текущее значение:&nbsp;<span class=\"skill-value\">+10кг</span></p>",
-"de": "<p class=\"skill-now\">Aktueller Wert&nbsp;<span class=\"skill-value\">+2kg</span></p><p class=\"skill-now\">Aktueller Wert&nbsp;<span class=\"skill-value\">+4kg</span></p><p class=\"skill-now\">Aktueller Wert&nbsp;<span class=\"skill-value\">+6kg</span></p><p class=\"skill-now\">Aktueller Wert&nbsp;<span class=\"skill-value\">+8kg</span></p><p class=\"skill-now\">Aktueller Wert&nbsp;<span class=\"skill-value\">+10kg</span></p>",
-"pl": "<p class=\"skill-now\">Bieżąca wartość:&nbsp;<span class=\"skill-value\">+2kg</span></p><p class=\"skill-now\">Bieżąca wartość:&nbsp;<span class=\"skill-value\">+4kg</span></p><p class=\"skill-now\">Bieżąca wartość:&nbsp;<span class=\"skill-value\">+6kg</span></p><p class=\"skill-now\">Bieżąca wartość:&nbsp;<span class=\"skill-value\">+8kg</span></p><p class=\"skill-now\">Bieżąca wartość:&nbsp;<span class=\"skill-value\">+10kg</span></p>",
-"sr": "<p class=\"skill-now\">Trenutna vrednost:&nbsp;<span class=\"skill-value\">+2kg</span></p><p class=\"skill-now\">Trenutna vrednost:&nbsp;<span class=\"skill-value\">+4kg</span></p><p class=\"skill-now\">Trenutna vrednost:&nbsp;<span class=\"skill-value\">+6kg</span></p><p class=\"skill-now\">Trenutna vrednost:&nbsp;<span class=\"skill-value\">+8kg</span></p><p class=\"skill-now\">Trenutna vrednost:&nbsp;<span class=\"skill-value\">+10kg</span></p>",
-"cs": "<p class=\"skill-now\">Aktuální hodnota:&nbsp;<span class=\"skill-value\">+2kg</span></p><p class=\"skill-now\">Aktuální hodnota:&nbsp;<span class=\"skill-value\">+4kg</span></p><p class=\"skill-now\">Aktuální hodnota:&nbsp;<span class=\"skill-value\">+6kg</span></p><p class=\"skill-now\">Aktuální hodnota:&nbsp;<span class=\"skill-value\">+8kg</span></p><p class=\"skill-now\">Aktuální hodnota:&nbsp;<span class=\"skill-value\">+10kg</span></p>",
-"hu": "<p class=\"skill-now\">Jelenlegi érték:&nbsp;<span class=\"skill-value\">+2kg</span></p><p class=\"skill-now\">Jelenlegi érték:&nbsp;<span class=\"skill-value\">+4kg</span></p><p class=\"skill-now\">Jelenlegi érték:&nbsp;<span class=\"skill-value\">+6kg</span></p><p class=\"skill-now\">Jelenlegi érték:&nbsp;<span class=\"skill-value\">+8kg</span></p><p class=\"skill-now\">Jelenlegi érték:&nbsp;<span class=\"skill-value\">+10kg</span></p>",
-"fi": "<p class=\"skill-now\">Nykyinen arvo:&nbsp;<span class=\"skill-value\">+2kg</span></p><p class=\"skill-now\">Nykyinen arvo:&nbsp;<span class=\"skill-value\">+4kg</span></p><p class=\"skill-now\">Nykyinen arvo:&nbsp;<span class=\"skill-value\">+6kg</span></p><p class=\"skill-now\">Nykyinen arvo:&nbsp;<span class=\"skill-value\">+8kg</span></p><p class=\"skill-now\">Nykyinen arvo:&nbsp;<span class=\"skill-value\">+10kg</span></p>",
-"be": "<p class=\"skill-now\">Бягучае значэнне:&nbsp;<span class=\"skill-value\">+2кг</span></p><p class=\"skill-now\">Бягучае значэнне:&nbsp;<span class=\"skill-value\">+4кг</span></p><p class=\"skill-now\">Бягучае значэнне:&nbsp;<span class=\"skill-value\">+6кг</span></p><p class=\"skill-now\">Бягучае значэнне:&nbsp;<span class=\"skill-value\">+8кг</span></p><p class=\"skill-now\">Бягучае значэнне:&nbsp;<span class=\"skill-value\">+10кг</span></p>",
-"hr": "<p class=\"skill-now\">Trenutačna vrijednost:&nbsp;<span class=\"skill-value\">+2kg</span></p><p class=\"skill-now\">Trenutačna vrijednost:&nbsp;<span class=\"skill-value\">+4kg</span></p><p class=\"skill-now\">Trenutačna vrijednost:&nbsp;<span class=\"skill-value\">+6kg</span></p><p class=\"skill-now\">Trenutačna vrijednost:&nbsp;<span class=\"skill-value\">+8kg</span></p><p class=\"skill-now\">Trenutačna vrijednost:&nbsp;<span class=\"skill-value\">+10kg</span></p>",
-"pt": "<p class=\"skill-now\">Valor atual:&nbsp;<span class=\"skill-value\">+2kg</span></p><p class=\"skill-now\">Valor atual:&nbsp;<span class=\"skill-value\">+4kg</span></p><p class=\"skill-now\">Valor atual:&nbsp;<span class=\"skill-value\">+6kg</span></p><p class=\"skill-now\">Valor atual:&nbsp;<span class=\"skill-value\">+8kg</span></p><p class=\"skill-now\">Valor atual:&nbsp;<span class=\"skill-value\">+10kg</span></p>"
+"en": "<p class=\"skill-now\">Current value:&nbsp;<span class=\"skill-value\">+1kg</span></p><p class=\"skill-now\">Current value:&nbsp;<span class=\"skill-value\">+2kg</span></p><p class=\"skill-now\">Current value:&nbsp;<span class=\"skill-value\">+3kg</span></p><p class=\"skill-now\">Current value:&nbsp;<span class=\"skill-value\">+4kg</span></p><p class=\"skill-now\">Current value:&nbsp;<span class=\"skill-value\">+5kg</span></p>",
+"uk": "<p class=\"skill-now\">Поточне значення:&nbsp;<span class=\"skill-value\">+1кг</span></p><p class=\"skill-now\">Поточне значення:&nbsp;<span class=\"skill-value\">+2кг</span></p><p class=\"skill-now\">Поточне значення:&nbsp;<span class=\"skill-value\">+3кг</span></p><p class=\"skill-now\">Поточне значення:&nbsp;<span class=\"skill-value\">+4кг</span></p><p class=\"skill-now\">Поточне значення:&nbsp;<span class=\"skill-value\">+5кг</span></p>",
+"ru": "<p class=\"skill-now\">Текущее значение:&nbsp;<span class=\"skill-value\">+1кг</span></p><p class=\"skill-now\">Текущее значение:&nbsp;<span class=\"skill-value\">+2кг</span></p><p class=\"skill-now\">Текущее значение:&nbsp;<span class=\"skill-value\">+3кг</span></p><p class=\"skill-now\">Текущее значение:&nbsp;<span class=\"skill-value\">+4кг</span></p><p class=\"skill-now\">Текущее значение:&nbsp;<span class=\"skill-value\">+5кг</span></p>",
+"de": "<p class=\"skill-now\">Aktueller Wert&nbsp;<span class=\"skill-value\">+1kg</span></p><p class=\"skill-now\">Aktueller Wert&nbsp;<span class=\"skill-value\">+2kg</span></p><p class=\"skill-now\">Aktueller Wert&nbsp;<span class=\"skill-value\">+3kg</span></p><p class=\"skill-now\">Aktueller Wert&nbsp;<span class=\"skill-value\">+4kg</span></p><p class=\"skill-now\">Aktueller Wert&nbsp;<span class=\"skill-value\">+5kg</span></p>",
+"pl": "<p class=\"skill-now\">Bieżąca wartość:&nbsp;<span class=\"skill-value\">+1kg</span></p><p class=\"skill-now\">Bieżąca wartość:&nbsp;<span class=\"skill-value\">+2kg</span></p><p class=\"skill-now\">Bieżąca wartość:&nbsp;<span class=\"skill-value\">+3kg</span></p><p class=\"skill-now\">Bieżąca wartość:&nbsp;<span class=\"skill-value\">+4kg</span></p><p class=\"skill-now\">Bieżąca wartość:&nbsp;<span class=\"skill-value\">+5kg</span></p>",
+"sr": "<p class=\"skill-now\">Trenutna vrednost:&nbsp;<span class=\"skill-value\">+1kg</span></p><p class=\"skill-now\">Trenutna vrednost:&nbsp;<span class=\"skill-value\">+2kg</span></p><p class=\"skill-now\">Trenutna vrednost:&nbsp;<span class=\"skill-value\">+3kg</span></p><p class=\"skill-now\">Trenutna vrednost:&nbsp;<span class=\"skill-value\">+4kg</span></p><p class=\"skill-now\">Trenutna vrednost:&nbsp;<span class=\"skill-value\">+5kg</span></p>",
+"cs": "<p class=\"skill-now\">Aktuální hodnota:&nbsp;<span class=\"skill-value\">+1kg</span></p><p class=\"skill-now\">Aktuální hodnota:&nbsp;<span class=\"skill-value\">+2kg</span></p><p class=\"skill-now\">Aktuální hodnota:&nbsp;<span class=\"skill-value\">+3kg</span></p><p class=\"skill-now\">Aktuální hodnota:&nbsp;<span class=\"skill-value\">+4kg</span></p><p class=\"skill-now\">Aktuální hodnota:&nbsp;<span class=\"skill-value\">+5kg</span></p>",
+"hu": "<p class=\"skill-now\">Jelenlegi érték:&nbsp;<span class=\"skill-value\">+1kg</span></p><p class=\"skill-now\">Jelenlegi érték:&nbsp;<span class=\"skill-value\">+2kg</span></p><p class=\"skill-now\">Jelenlegi érték:&nbsp;<span class=\"skill-value\">+3kg</span></p><p class=\"skill-now\">Jelenlegi érték:&nbsp;<span class=\"skill-value\">+4kg</span></p><p class=\"skill-now\">Jelenlegi érték:&nbsp;<span class=\"skill-value\">+5kg</span></p>",
+"fi": "<p class=\"skill-now\">Nykyinen arvo:&nbsp;<span class=\"skill-value\">+1kg</span></p><p class=\"skill-now\">Nykyinen arvo:&nbsp;<span class=\"skill-value\">+2kg</span></p><p class=\"skill-now\">Nykyinen arvo:&nbsp;<span class=\"skill-value\">+3kg</span></p><p class=\"skill-now\">Nykyinen arvo:&nbsp;<span class=\"skill-value\">+4kg</span></p><p class=\"skill-now\">Nykyinen arvo:&nbsp;<span class=\"skill-value\">+5kg</span></p>",
+"be": "<p class=\"skill-now\">Бягучае значэнне:&nbsp;<span class=\"skill-value\">+1кг</span></p><p class=\"skill-now\">Бягучае значэнне:&nbsp;<span class=\"skill-value\">+2кг</span></p><p class=\"skill-now\">Бягучае значэнне:&nbsp;<span class=\"skill-value\">+3кг</span></p><p class=\"skill-now\">Бягучае значэнне:&nbsp;<span class=\"skill-value\">+4кг</span></p><p class=\"skill-now\">Бягучае значэнне:&nbsp;<span class=\"skill-value\">+5кг</span></p>",
+"hr": "<p class=\"skill-now\">Trenutačna vrijednost:&nbsp;<span class=\"skill-value\">+1kg</span></p><p class=\"skill-now\">Trenutačna vrijednost:&nbsp;<span class=\"skill-value\">+2kg</span></p><p class=\"skill-now\">Trenutačna vrijednost:&nbsp;<span class=\"skill-value\">+3kg</span></p><p class=\"skill-now\">Trenutačna vrijednost:&nbsp;<span class=\"skill-value\">+4kg</span></p><p class=\"skill-now\">Trenutačna vrijednost:&nbsp;<span class=\"skill-value\">+5kg</span></p>",
+"pt": "<p class=\"skill-now\">Valor atual:&nbsp;<span class=\"skill-value\">+1kg</span></p><p class=\"skill-now\">Valor atual:&nbsp;<span class=\"skill-value\">+2kg</span></p><p class=\"skill-now\">Valor atual:&nbsp;<span class=\"skill-value\">+3kg</span></p><p class=\"skill-now\">Valor atual:&nbsp;<span class=\"skill-value\">+4kg</span></p><p class=\"skill-now\">Valor atual:&nbsp;<span class=\"skill-value\">+5kg</span></p>"
 }
 },
 {
 "html": {
-"en": "Portable weight:&nbsp;<span class=\"skill-value\">+2kg</span>",
-"uk": "Переносима вага:&nbsp;<span class=\"skill-value\">+2кг</span>",
-"ru": "Переносимый вес:&nbsp;<span class=\"skill-value\">+2кг</span>",
-"de": "Tragbarer Gewicht&nbsp;<span class=\"skill-value\">+2kg</span>",
-"pl": "Udźwig:&nbsp;<span class=\"skill-value\">+2kg</span>",
-"sr": "Nosivost:&nbsp;<span class=\"skill-value\">+2kg</span>",
-"cs": "Nosnost:&nbsp;<span class=\"skill-value\">+2kg</span>",
-"hu": "Teherbírás:&nbsp;<span class=\"skill-value\">+2kg</span>",
-"fi": "Kantokyky:&nbsp;<span class=\"skill-value\">+2kg</span>",
-"be": "Пераносная вага:&nbsp;<span class=\"skill-value\">+2кг</span>",
-"hr": "Nosivost:&nbsp;<span class=\"skill-value\">+2kg</span>",
-"pt": "Peso máximo:&nbsp;<span class=\"skill-value\">+2kg</span>"
+"en": "Portable weight:&nbsp;<span class=\"skill-value\">+1kg</span>",
+"uk": "Переносима вага:&nbsp;<span class=\"skill-value\">+1кг</span>",
+"ru": "Переносимый вес:&nbsp;<span class=\"skill-value\">+1кг</span>",
+"de": "Tragbarer Gewicht&nbsp;<span class=\"skill-value\">+1kg</span>",
+"pl": "Udźwig:&nbsp;<span class=\"skill-value\">+1kg</span>",
+"sr": "Nosivost:&nbsp;<span class=\"skill-value\">+1kg</span>",
+"cs": "Nosnost:&nbsp;<span class=\"skill-value\">+1kg</span>",
+"hu": "Teherbírás:&nbsp;<span class=\"skill-value\">+1kg</span>",
+"fi": "Kantokyky:&nbsp;<span class=\"skill-value\">+1kg</span>",
+"be": "Пераносная вага:&nbsp;<span class=\"skill-value\">+1кг</span>",
+"hr": "Nosivost:&nbsp;<span class=\"skill-value\">+1kg</span>",
+"pt": "Peso máximo:&nbsp;<span class=\"skill-value\">+1kg</span>"
 }
 },
 {
 "html": {
-"en": "&nbsp;<span class=\"skill-value\">+10kg</span>",
-"uk": "&nbsp;<span class=\"skill-value\">+10кг</span>",
-"ru": "&nbsp;<span class=\"skill-value\">+10кг</span>",
-"de": "&nbsp;<span class=\"skill-value\">+10kg</span>",
-"pl": "&nbsp;<span class=\"skill-value\">+10kg</span>",
-"sr": "&nbsp;<span class=\"skill-value\">+10kg</span>",
-"cs": "&nbsp;<span class=\"skill-value\">+10kg</span>",
-"hu": "&nbsp;<span class=\"skill-value\">+10kg</span>",
-"fi": "&nbsp;<span class=\"skill-value\">+10kg</span>",
-"be": "&nbsp;<span class=\"skill-value\">+10кг</span>",
-"hr": "&nbsp;<span class=\"skill-value\">+10kg</span>",
-"pt": "&nbsp;<span class=\"skill-value\">+10kg</span>"
+"en": "&nbsp;<span class=\"skill-value\">+5kg</span>",
+"uk": "&nbsp;<span class=\"skill-value\">+5кг</span>",
+"ru": "&nbsp;<span class=\"skill-value\">+5кг</span>",
+"de": "&nbsp;<span class=\"skill-value\">+5kg</span>",
+"pl": "&nbsp;<span class=\"skill-value\">+5kg</span>",
+"sr": "&nbsp;<span class=\"skill-value\">+5kg</span>",
+"cs": "&nbsp;<span class=\"skill-value\">+5kg</span>",
+"hu": "&nbsp;<span class=\"skill-value\">+5kg</span>",
+"fi": "&nbsp;<span class=\"skill-value\">+5kg</span>",
+"be": "&nbsp;<span class=\"skill-value\">+5кг</span>",
+"hr": "&nbsp;<span class=\"skill-value\">+5kg</span>",
+"pt": "&nbsp;<span class=\"skill-value\">+5kg</span>"
 }
 },
 {
@@ -1049,50 +1049,50 @@
 },
 {
 "html": {
-"en": "<p class=\"skill-now\">Current value:&nbsp;<span class=\"skill-value\">-5%</span></p><p class=\"skill-now\">Current value:&nbsp;<span class=\"skill-value\">-10%</span></p><p class=\"skill-now\">Current value:&nbsp;<span class=\"skill-value\">-15%</span></p><p class=\"skill-now\">Current value:&nbsp;<span class=\"skill-value\">-20%</span></p><p class=\"skill-now\">Current value:&nbsp;<span class=\"skill-value\">-25%</span></p>",
-"uk": "<p class=\"skill-now\">Поточне значення:&nbsp;<span class=\"skill-value\">-5%</span></p><p class=\"skill-now\">Поточне значення:&nbsp;<span class=\"skill-value\">-10%</span></p><p class=\"skill-now\">Поточне значення:&nbsp;<span class=\"skill-value\">-15%</span></p><p class=\"skill-now\">Поточне значення:&nbsp;<span class=\"skill-value\">-20%</span></p><p class=\"skill-now\">Поточне значення:&nbsp;<span class=\"skill-value\">-25%</span></p>",
-"ru": "<p class=\"skill-now\">Текущее значение:&nbsp;<span class=\"skill-value\">-5%</span></p><p class=\"skill-now\">Текущее значение:&nbsp;<span class=\"skill-value\">-10%</span></p><p class=\"skill-now\">Текущее значение:&nbsp;<span class=\"skill-value\">-15%</span></p><p class=\"skill-now\">Текущее значение:&nbsp;<span class=\"skill-value\">-20%</span></p><p class=\"skill-now\">Текущее значение:&nbsp;<span class=\"skill-value\">-25%</span></p>",
-"de": "<p class=\"skill-now\">Aktueller Wert&nbsp;<span class=\"skill-value\">-5%</span></p><p class=\"skill-now\">Aktueller Wert&nbsp;<span class=\"skill-value\">-10%</span></p><p class=\"skill-now\">Aktueller Wert&nbsp;<span class=\"skill-value\">-15%</span></p><p class=\"skill-now\">Aktueller Wert&nbsp;<span class=\"skill-value\">-20%</span></p><p class=\"skill-now\">Aktueller Wert&nbsp;<span class=\"skill-value\">-25%</span></p>",
-"pl": "<p class=\"skill-now\">Bieżąca wartość:&nbsp;<span class=\"skill-value\">-5%</span></p><p class=\"skill-now\">Bieżąca wartość:&nbsp;<span class=\"skill-value\">-10%</span></p><p class=\"skill-now\">Bieżąca wartość:&nbsp;<span class=\"skill-value\">-15%</span></p><p class=\"skill-now\">Bieżąca wartość:&nbsp;<span class=\"skill-value\">-20%</span></p><p class=\"skill-now\">Bieżąca wartość:&nbsp;<span class=\"skill-value\">-25%</span></p>",
-"sr": "<p class=\"skill-now\">Trenutna vrednost:&nbsp;<span class=\"skill-value\">-5%</span></p><p class=\"skill-now\">Trenutna vrednost:&nbsp;<span class=\"skill-value\">-10%</span></p><p class=\"skill-now\">Trenutna vrednost:&nbsp;<span class=\"skill-value\">-15%</span></p><p class=\"skill-now\">Trenutna vrednost:&nbsp;<span class=\"skill-value\">-20%</span></p><p class=\"skill-now\">Trenutna vrednost:&nbsp;<span class=\"skill-value\">-25%</span></p>",
-"cs": "<p class=\"skill-now\">Aktuální hodnota:&nbsp;<span class=\"skill-value\">-5%</span></p><p class=\"skill-now\">Aktuální hodnota:&nbsp;<span class=\"skill-value\">-10%</span></p><p class=\"skill-now\">Aktuální hodnota:&nbsp;<span class=\"skill-value\">-15%</span></p><p class=\"skill-now\">Aktuální hodnota:&nbsp;<span class=\"skill-value\">-20%</span></p><p class=\"skill-now\">Aktuální hodnota:&nbsp;<span class=\"skill-value\">-25%</span></p>",
-"hu": "<p class=\"skill-now\">Jelenlegi érték:&nbsp;<span class=\"skill-value\">-5%</span></p><p class=\"skill-now\">Jelenlegi érték:&nbsp;<span class=\"skill-value\">-10%</span></p><p class=\"skill-now\">Jelenlegi érték:&nbsp;<span class=\"skill-value\">-15%</span></p><p class=\"skill-now\">Jelenlegi érték:&nbsp;<span class=\"skill-value\">-20%</span></p><p class=\"skill-now\">Jelenlegi érték:&nbsp;<span class=\"skill-value\">-25%</span></p>",
-"fi": "<p class=\"skill-now\">Nykyinen arvo:&nbsp;<span class=\"skill-value\">-5%</span></p><p class=\"skill-now\">Nykyinen arvo:&nbsp;<span class=\"skill-value\">-10%</span></p><p class=\"skill-now\">Nykyinen arvo:&nbsp;<span class=\"skill-value\">-15%</span></p><p class=\"skill-now\">Nykyinen arvo:&nbsp;<span class=\"skill-value\">-20%</span></p><p class=\"skill-now\">Nykyinen arvo:&nbsp;<span class=\"skill-value\">-25%</span></p>",
-"be": "<p class=\"skill-now\">Бягучае значэнне:&nbsp;<span class=\"skill-value\">-5%</span></p><p class=\"skill-now\">Бягучае значэнне:&nbsp;<span class=\"skill-value\">-10%</span></p><p class=\"skill-now\">Бягучае значэнне:&nbsp;<span class=\"skill-value\">-15%</span></p><p class=\"skill-now\">Бягучае значэнне:&nbsp;<span class=\"skill-value\">-20%</span></p><p class=\"skill-now\">Бягучае значэнне:&nbsp;<span class=\"skill-value\">-25%</span></p>",
-"hr": "<p class=\"skill-now\">Trenutačna vrijednost:&nbsp;<span class=\"skill-value\">-5%</span></p><p class=\"skill-now\">Trenutačna vrijednost:&nbsp;<span class=\"skill-value\">-10%</span></p><p class=\"skill-now\">Trenutačna vrijednost:&nbsp;<span class=\"skill-value\">-15%</span></p><p class=\"skill-now\">Trenutačna vrijednost:&nbsp;<span class=\"skill-value\">-20%</span></p><p class=\"skill-now\">Trenutačna vrijednost:&nbsp;<span class=\"skill-value\">-25%</span></p>",
-"pt": "<p class=\"skill-now\">Valor atual:&nbsp;<span class=\"skill-value\">-5%</span></p><p class=\"skill-now\">Valor atual:&nbsp;<span class=\"skill-value\">-10%</span></p><p class=\"skill-now\">Valor atual:&nbsp;<span class=\"skill-value\">-15%</span></p><p class=\"skill-now\">Valor atual:&nbsp;<span class=\"skill-value\">-20%</span></p><p class=\"skill-now\">Valor atual:&nbsp;<span class=\"skill-value\">-25%</span></p>"
+"en": "<p class=\"skill-now\">Current value:&nbsp;<span class=\"skill-value\">-3%</span></p><p class=\"skill-now\">Current value:&nbsp;<span class=\"skill-value\">-6%</span></p><p class=\"skill-now\">Current value:&nbsp;<span class=\"skill-value\">-9%</span></p><p class=\"skill-now\">Current value:&nbsp;<span class=\"skill-value\">-12%</span></p><p class=\"skill-now\">Current value:&nbsp;<span class=\"skill-value\">-15%</span></p>",
+"uk": "<p class=\"skill-now\">Поточне значення:&nbsp;<span class=\"skill-value\">-3%</span></p><p class=\"skill-now\">Поточне значення:&nbsp;<span class=\"skill-value\">-6%</span></p><p class=\"skill-now\">Поточне значення:&nbsp;<span class=\"skill-value\">-9%</span></p><p class=\"skill-now\">Поточне значення:&nbsp;<span class=\"skill-value\">-12%</span></p><p class=\"skill-now\">Поточне значення:&nbsp;<span class=\"skill-value\">-15%</span></p>",
+"ru": "<p class=\"skill-now\">Текущее значение:&nbsp;<span class=\"skill-value\">-3%</span></p><p class=\"skill-now\">Текущее значение:&nbsp;<span class=\"skill-value\">-6%</span></p><p class=\"skill-now\">Текущее значение:&nbsp;<span class=\"skill-value\">-9%</span></p><p class=\"skill-now\">Текущее значение:&nbsp;<span class=\"skill-value\">-12%</span></p><p class=\"skill-now\">Текущее значение:&nbsp;<span class=\"skill-value\">-15%</span></p>",
+"de": "<p class=\"skill-now\">Aktueller Wert&nbsp;<span class=\"skill-value\">-3%</span></p><p class=\"skill-now\">Aktueller Wert&nbsp;<span class=\"skill-value\">-6%</span></p><p class=\"skill-now\">Aktueller Wert&nbsp;<span class=\"skill-value\">-9%</span></p><p class=\"skill-now\">Aktueller Wert&nbsp;<span class=\"skill-value\">-12%</span></p><p class=\"skill-now\">Aktueller Wert&nbsp;<span class=\"skill-value\">-15%</span></p>",
+"pl": "<p class=\"skill-now\">Bieżąca wartość:&nbsp;<span class=\"skill-value\">-3%</span></p><p class=\"skill-now\">Bieżąca wartość:&nbsp;<span class=\"skill-value\">-6%</span></p><p class=\"skill-now\">Bieżąca wartość:&nbsp;<span class=\"skill-value\">-9%</span></p><p class=\"skill-now\">Bieżąca wartość:&nbsp;<span class=\"skill-value\">-12%</span></p><p class=\"skill-now\">Bieżąca wartość:&nbsp;<span class=\"skill-value\">-15%</span></p>",
+"sr": "<p class=\"skill-now\">Trenutna vrednost:&nbsp;<span class=\"skill-value\">-3%</span></p><p class=\"skill-now\">Trenutna vrednost:&nbsp;<span class=\"skill-value\">-6%</span></p><p class=\"skill-now\">Trenutna vrednost:&nbsp;<span class=\"skill-value\">-9%</span></p><p class=\"skill-now\">Trenutna vrednost:&nbsp;<span class=\"skill-value\">-12%</span></p><p class=\"skill-now\">Trenutna vrednost:&nbsp;<span class=\"skill-value\">-15%</span></p>",
+"cs": "<p class=\"skill-now\">Aktuální hodnota:&nbsp;<span class=\"skill-value\">-3%</span></p><p class=\"skill-now\">Aktuální hodnota:&nbsp;<span class=\"skill-value\">-6%</span></p><p class=\"skill-now\">Aktuální hodnota:&nbsp;<span class=\"skill-value\">-9%</span></p><p class=\"skill-now\">Aktuální hodnota:&nbsp;<span class=\"skill-value\">-12%</span></p><p class=\"skill-now\">Aktuální hodnota:&nbsp;<span class=\"skill-value\">-15%</span></p>",
+"hu": "<p class=\"skill-now\">Jelenlegi érték:&nbsp;<span class=\"skill-value\">-3%</span></p><p class=\"skill-now\">Jelenlegi érték:&nbsp;<span class=\"skill-value\">-6%</span></p><p class=\"skill-now\">Jelenlegi érték:&nbsp;<span class=\"skill-value\">-9%</span></p><p class=\"skill-now\">Jelenlegi érték:&nbsp;<span class=\"skill-value\">-12%</span></p><p class=\"skill-now\">Jelenlegi érték:&nbsp;<span class=\"skill-value\">-15%</span></p>",
+"fi": "<p class=\"skill-now\">Nykyinen arvo:&nbsp;<span class=\"skill-value\">-3%</span></p><p class=\"skill-now\">Nykyinen arvo:&nbsp;<span class=\"skill-value\">-6%</span></p><p class=\"skill-now\">Nykyinen arvo:&nbsp;<span class=\"skill-value\">-9%</span></p><p class=\"skill-now\">Nykyinen arvo:&nbsp;<span class=\"skill-value\">-12%</span></p><p class=\"skill-now\">Nykyinen arvo:&nbsp;<span class=\"skill-value\">-15%</span></p>",
+"be": "<p class=\"skill-now\">Бягучае значэнне:&nbsp;<span class=\"skill-value\">-3%</span></p><p class=\"skill-now\">Бягучае значэнне:&nbsp;<span class=\"skill-value\">-6%</span></p><p class=\"skill-now\">Бягучае значэнне:&nbsp;<span class=\"skill-value\">-9%</span></p><p class=\"skill-now\">Бягучае значэнне:&nbsp;<span class=\"skill-value\">-12%</span></p><p class=\"skill-now\">Бягучае значэнне:&nbsp;<span class=\"skill-value\">-15%</span></p>",
+"hr": "<p class=\"skill-now\">Trenutačna vrijednost:&nbsp;<span class=\"skill-value\">-3%</span></p><p class=\"skill-now\">Trenutačna vrijednost:&nbsp;<span class=\"skill-value\">-6%</span></p><p class=\"skill-now\">Trenutačna vrijednost:&nbsp;<span class=\"skill-value\">-9%</span></p><p class=\"skill-now\">Trenutačna vrijednost:&nbsp;<span class=\"skill-value\">-12%</span></p><p class=\"skill-now\">Trenutačna vrijednost:&nbsp;<span class=\"skill-value\">-15%</span></p>",
+"pt": "<p class=\"skill-now\">Valor atual:&nbsp;<span class=\"skill-value\">-3%</span></p><p class=\"skill-now\">Valor atual:&nbsp;<span class=\"skill-value\">-6%</span></p><p class=\"skill-now\">Valor atual:&nbsp;<span class=\"skill-value\">-9%</span></p><p class=\"skill-now\">Valor atual:&nbsp;<span class=\"skill-value\">-12%</span></p><p class=\"skill-now\">Valor atual:&nbsp;<span class=\"skill-value\">-15%</span></p>"
 }
 },
 {
 "html": {
-"en": "The influence of weight on movement speed:&nbsp;<span class=\"skill-value\">-5%</span>",
-"uk": "Вплив ваги на швидкість пересування:&nbsp;<span class=\"skill-value\">-5%</span>",
-"ru": "Влияние веса на скорость передвижения:&nbsp;<span class=\"skill-value\">-5%</span>",
-"de": "Einfluss des Gewichts auf die Bewegungs Geschwindigkeit&nbsp;<span class=\"skill-value\">-5%</span>",
-"pl": "Wpływ wagi na prędkość poruszania się:&nbsp;<span class=\"skill-value\">-5%</span>",
-"sr": "Uticaj težine na brzinu kretanja:&nbsp;<span class=\"skill-value\">-5%</span>",
-"cs": "Vliv hmotnosti na rychlost pohybu:&nbsp;<span class=\"skill-value\">-5%</span>",
-"hu": "Súly hatása a mozgási sebességre:&nbsp;<span class=\"skill-value\">-5%</span>",
-"fi": "Painon vaikutus liikenopeuteen:&nbsp;<span class=\"skill-value\">-5%</span>",
-"be": "Уплыў вагі на хуткасць перамяшчэння:&nbsp;<span class=\"skill-value\">-5%</span>",
-"hr": "Utjecaj težine na brzinu kretanja:&nbsp;<span class=\"skill-value\">-5%</span>",
-"pt": "A influência do peso na velocidade de movimento:&nbsp;<span class=\"skill-value\">-5%</span>"
+"en": "The influence of weight on movement speed:&nbsp;<span class=\"skill-value\">-3%</span>",
+"uk": "Вплив ваги на швидкість пересування:&nbsp;<span class=\"skill-value\">-3%</span>",
+"ru": "Влияние веса на скорость передвижения:&nbsp;<span class=\"skill-value\">-3%</span>",
+"de": "Einfluss des Gewichts auf die Bewegungs Geschwindigkeit&nbsp;<span class=\"skill-value\">-3%</span>",
+"pl": "Wpływ wagi na prędkość poruszania się:&nbsp;<span class=\"skill-value\">-3%</span>",
+"sr": "Uticaj težine na brzinu kretanja:&nbsp;<span class=\"skill-value\">-3%</span>",
+"cs": "Vliv hmotnosti na rychlost pohybu:&nbsp;<span class=\"skill-value\">-3%</span>",
+"hu": "Súly hatása a mozgási sebességre:&nbsp;<span class=\"skill-value\">-3%</span>",
+"fi": "Painon vaikutus liikenopeuteen:&nbsp;<span class=\"skill-value\">-3%</span>",
+"be": "Уплыў вагі на хуткасць перамяшчэння:&nbsp;<span class=\"skill-value\">-3%</span>",
+"hr": "Utjecaj težine na brzinu kretanja:&nbsp;<span class=\"skill-value\">-3%</span>",
+"pt": "A influência do peso na velocidade de movimento:&nbsp;<span class=\"skill-value\">-3%</span>"
 }
 },
 {
 "html": {
-"en": "&nbsp;<span class=\"skill-value\">-25%</span>",
-"uk": "&nbsp;<span class=\"skill-value\">-25%</span>",
-"ru": "&nbsp;<span class=\"skill-value\">-25%</span>",
-"de": "&nbsp;<span class=\"skill-value\">-25%</span>",
-"pl": "&nbsp;<span class=\"skill-value\">-25%</span>",
-"sr": "&nbsp;<span class=\"skill-value\">-25%</span>",
-"cs": "&nbsp;<span class=\"skill-value\">-25%</span>",
-"hu": "&nbsp;<span class=\"skill-value\">-25%</span>",
-"fi": "&nbsp;<span class=\"skill-value\">-25%</span>",
-"be": "&nbsp;<span class=\"skill-value\">-25%</span>",
-"hr": "&nbsp;<span class=\"skill-value\">-25%</span>",
-"pt": "&nbsp;<span class=\"skill-value\">-25%</span>"
+"en": "&nbsp;<span class=\"skill-value\">-15%</span>",
+"uk": "&nbsp;<span class=\"skill-value\">-15%</span>",
+"ru": "&nbsp;<span class=\"skill-value\">-15%</span>",
+"de": "&nbsp;<span class=\"skill-value\">-15%</span>",
+"pl": "&nbsp;<span class=\"skill-value\">-15%</span>",
+"sr": "&nbsp;<span class=\"skill-value\">-15%</span>",
+"cs": "&nbsp;<span class=\"skill-value\">-15%</span>",
+"hu": "&nbsp;<span class=\"skill-value\">-15%</span>",
+"fi": "&nbsp;<span class=\"skill-value\">-15%</span>",
+"be": "&nbsp;<span class=\"skill-value\">-15%</span>",
+"hr": "&nbsp;<span class=\"skill-value\">-15%</span>",
+"pt": "&nbsp;<span class=\"skill-value\">-15%</span>"
 }
 },
 {

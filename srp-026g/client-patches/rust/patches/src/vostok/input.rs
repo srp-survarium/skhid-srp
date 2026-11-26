@@ -38,6 +38,10 @@ impl Action {
     /// screenshot_no_ui: the entry 0xA74CD0, the game's `night_vision`, as
     /// unread; patch 152's F12.
     pub const SCREENSHOT_NO_UI: Action = Action(0x1B);
+    /// scope_next (patch 206's row of the moved action table,
+    /// item_hotkeys_026g.asm, default Y): the switch between a weapon's main
+    /// and second sight.
+    pub const SCOPE_NEXT: Action = Action(0x5A);
     /// The binder's answer for a key without an action (kNOTBINDED; the
     /// game's own test at 0x23FE39).
     pub const NONE: Action = Action(0x49);
@@ -118,6 +122,10 @@ impl ActionMask {
     /// their own head.
     pub const SUICIDE: ActionMask = ActionMask(1 << 24);
     pub const MELEE: ActionMask = ActionMask(1 << 27);
+    /// Patch 206: the second sight's switch, on the key's press only (bit
+    /// 30, which the stock game neither sets nor reads;
+    /// srp_validate::messages::SCOPE_NEXT).
+    pub const SCOPE_NEXT: ActionMask = ActionMask(srp_validate::messages::SCOPE_NEXT);
 
     /// The quick-use bit of `slot` (one of [`QUICK_USE`](Self::QUICK_USE)).
     pub const fn quick_use(slot: QuickSlot) -> ActionMask {

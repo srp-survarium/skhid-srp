@@ -6,8 +6,10 @@ use crate::vostok::log::{self, Piece};
 use crate::vostok::resources::{self, Arrived, KeptParticle, QueryResults, QueryTag};
 use crate::vostok::parse::Reader;
 use artefact_hunt_rule::{Restart, Time};
-use srp_validate::Place;
-use srp_validate::world::freeze::{Actions, Body, Condition, FreezeTag, PLAYERS, Phase, Player, RoundEnd, THAW_MS, TIMING, WINS};
+use srp_validate::{Place, Places};
+use srp_validate::world::freeze::{
+    Actions, Body, Condition, FreezeTag, LastFighter, PLAYERS, Phase, Player, RoundEnd, THAW_MS, TIMING, WINS,
+};
 
 #[derive(Clone, Copy)]
 enum Match {
@@ -19,6 +21,10 @@ static CAMERA: GameCell<vostok::freeze::Camera> = GameCell::new(vostok::freeze::
 // Presentation ownership only: clear labels on a reused movie when leaving
 // this mode. Ordinary matches that never displayed them make no extra calls.
 static MARKERS: GameCell<Option<usize>> = GameCell::new(None);
+// Presentation: the places revealed at this frame's match time (`FreezeTag::revealed`), which
+// on_hud finds at update_ui's start (update_player_icons, every frame) and update_minimap_players'
+// listing (on_enemy) reads later in the same update_ui. None at a match's options.
+static REVEALED: GameCell<Places> = GameCell::new(Places::EMPTY);
 
 /// srp's block after the options names a Freeze Tag match: tag 6, one byte 1,
 /// among its other entries (an entry of another tag is stepped over, a cut one
@@ -38,8 +44,12 @@ fn freeze_tag_in(mut rest: Reader<'_>) -> bool {
 const TAG_FREEZE_TAG: u8 = 6;
 
 fn options(ctx: &Context<'_>, options: Option<OptionsRead<'_>>) {
+    REVEALED.set(ctx.thread(), Places::EMPTY);
     CAMERA.set(ctx.thread(), vostok::freeze::Camera::Native);
     let on = options.is_some_and(|options| freeze_tag_in(options.rest()));
+    if on && matches!(GLOWING.get(ctx.thread()), Halos::Closed) {
+        GLOWING.set(ctx.thread(), Halos::Open([None; PLAYERS]));
+    }
     MATCH.set(
         ctx.thread(),
         if on {
@@ -55,6 +65,22 @@ pub fn on_static_info(ctx: &mut Context<'_>) -> Flow<NoExit> {
 }
 pub fn on_replay_options(ctx: &mut Context<'_>) -> Flow<NoExit> {
     options(ctx, OptionsRead::at_replay(ctx));
+    Flow::Continue
+}
+/// A spawn's end (the respawn rule installed the new kit and reset its health): a place that
+/// enters while a round is in play (a late arrival, a player who comes back) spawns frozen, held
+/// from its first input and tick and frozen at the rule's next step, on a team with nobody
+/// fighting too (that team then loses the round: the owner, 2026-11-26). Only in the rule's
+/// Playing: in the 3 s after a round, the fade, the countdown and after the match an arrival
+/// moves (the owner, 2026-11-22: "only frozen people do"), and the round's respawns and the
+/// countdown's kit switches start as they are (a kit switch spawns inside the rule's tick, before
+/// its step is kept: the state is still the countdown's).
+pub fn on_spawned(ctx: &mut Context<'_>) -> Flow<NoExit> {
+    if let Match::Freeze(state) = MATCH.get(ctx.thread())
+        && state.phase() == Phase::Playing
+    {
+        vostok::freeze::freeze_spawn_in_play(ctx);
+    }
     Flow::Continue
 }
 pub fn on_tick(ctx: &mut Context<'_>) -> Flow<NoExit> {
@@ -105,22 +131,72 @@ pub fn on_tick(ctx: &mut Context<'_>) -> Flow<NoExit> {
         Actions::Wait => {}
     }
     world.set_round_countdown(state.round_countdown());
-    world.publish(state.points(), state.winner());
+    world.publish(state.points(), state.leader());
     MATCH.set(ctx.thread(), Match::Freeze(state));
     Flow::Continue
 }
 /// update_minimap_players' spotted test of an enemy: a team's last one fighting, his teammates
-/// frozen, two at least, his dot on the minimap and the Tab map always, as a spotted enemy's (the
-/// owner, 2026-11-22: "last member is always shown on the map"); never in 1 v 1, 2 v 1 or 2 v 2
-/// ("when 1vs1 we see each other on the map, bad", "2vs1 should also not show"). From the rule
-/// state, the same in every game; nothing simulated.
+/// frozen, two at least, his dot on the minimap and the Tab map, as a spotted enemy's (the owner,
+/// 2026-11-22: "last member is always shown on the map"), from 15 s after his team was down to him
+/// (2026-11-26: "the last person should only be seen after 15 seconds, with a clear timer visible
+/// for everyone"); never in 1 v 1, 2 v 1 or 2 v 2 ("when 1vs1 we see each other on the map, bad",
+/// "2vs1 should also not show"). From the rule state and the match's time (REVEALED, on_hud's of
+/// this frame), the same in every game; nothing simulated.
 pub fn on_enemy(ctx: &mut Context<'_>) -> Flow<FreezeTagOnEnemyExit> {
-    let Match::Freeze(state) = MATCH.get(ctx.thread()) else {
+    let Match::Freeze(_) = MATCH.get(ctx.thread()) else {
         return Flow::Continue;
     };
     match vostok::freeze::Player::at_minimap_enemy(ctx) {
-        Some(player) if state.last_standing(player.place()) => Flow::Exit(FreezeTagOnEnemyExit::Shown),
+        Some(player) if REVEALED.get(ctx.thread()).contains(player.place()) => Flow::Exit(FreezeTagOnEnemyExit::Shown),
         _ => Flow::Continue,
+    }
+}
+/// Whose reveal a notice tells, the hud's numbers (`HUD.freeze_tag_reveal`).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Who {
+    Viewer = 1,
+    Teammate = 2,
+    Enemy = 3,
+}
+/// How long the hud is told a last one fighting is revealed, after his 15 s (its popup's chance: a
+/// late joiner in it gets the popup too).
+const REVEALED_NOTICE_MS: u32 = 3000;
+/// A side's reveal notice for the hud: whose (`who` of his place) and the ms left until he is
+/// revealed while it counts down; 0 left for [`REVEALED_NOTICE_MS`] once he is; `[0, 0]` (none)
+/// before his team is down to him, after that, and once he is no longer last.
+fn reveal_notice(last: Option<LastFighter>, who: impl Fn(Place) -> Who, now: Time) -> [u32; 2] {
+    match last {
+        Some(last) if !last.revealed(now) => [who(last.place) as u32, now.left(last.reveal_at())],
+        Some(last) if now.elapsed(last.reveal_at()) < REVEALED_NOTICE_MS => [who(last.place) as u32, 0],
+        _ => [0, 0],
+    }
+}
+/// The hud's mask of the places `has` names: bit n, place n.
+fn places_mask(has: impl Fn(Place) -> bool) -> u32 {
+    Place::all()
+        .filter(|place| has(*place))
+        .fold(0, |mask, place| mask | (1 << place.index()))
+}
+/// The sync log's view of the map rule (patch 210, `sync_log`): each place the rule shows on the other
+/// team's map now (`FreezeTag::revealed` at this frame's match time, on_hud's [`REVEALED`]: what
+/// [`on_enemy`] answers, 15 s after his team was down to him), with his team; None outside a Freeze
+/// Tag match.
+pub fn last_fighters(thread: &vostok::Thread) -> Option<[Option<srp_validate::Team>; PLAYERS]> {
+    let Match::Freeze(state) = MATCH.get(thread) else { return None };
+    let mut out = [None; PLAYERS];
+    for (place, slot) in Place::all().zip(out.iter_mut()) {
+        if let (true, Player::Fighting(team)) = (REVEALED.get(thread).contains(place), state.player(place)) {
+            *slot = Some(team);
+        }
+    }
+    Some(out)
+}
+/// A place's team in the rule (fighting or frozen); None waiting or outside Freeze Tag.
+pub fn team_of(thread: &vostok::Thread, place: Place) -> Option<srp_validate::Team> {
+    let Match::Freeze(state) = MATCH.get(thread) else { return None };
+    match state.player(place) {
+        Player::Fighting(team) | Player::Frozen { team, .. } => Some(team),
+        Player::Waiting => None,
     }
 }
 fn is_frozen(state: &FreezeTag, place: Place) -> bool {
@@ -209,7 +285,12 @@ enum Load {
 }
 static GLOW: GameCell<Load> = GameCell::new(Load::Unasked);
 /// The body each place's glow is in the scene on, in this game (none: not in the scene).
-static GLOWING: GameCell<[Option<vostok::freeze::BodyId>; PLAYERS]> = GameCell::new([None; PLAYERS]);
+#[derive(Clone, Copy)]
+enum Halos {
+    Closed,
+    Open([Option<vostok::freeze::BodyId>; PLAYERS]),
+}
+static GLOWING: GameCell<Halos> = GameCell::new(Halos::Closed);
 
 /// Each frame after the simulation's move, this game draws the glow itself on every frozen body of
 /// a match in play, at the size its thaw progress gives, from the world's rule state (so every
@@ -223,25 +304,24 @@ fn draw_glow(thread: &vostok::Thread, world: &vostok::world::GameWorld<'_>) {
         Match::Freeze(state) => Some(state),
         Match::Other => None,
     };
-    let shown = GLOWING.get(thread);
+    let Halos::Open(shown) = GLOWING.get(thread) else { return };
     if state.is_none() && shown.iter().all(Option::is_none) {
         return;
     }
     let particles = match GLOW.get(thread) {
         Load::Unasked => {
-            resources::query_particles(thread, &[GLOW_PARTICLE; PLAYERS], crate::vostok::freeze_tag_on_loaded_entry());
             GLOW.set(thread, Load::Asked);
+            resources::query_particles(thread, &[GLOW_PARTICLE; PLAYERS], crate::vostok::freeze_tag_on_loaded_entry());
             return;
         }
         Load::Ready(particles) => particles,
         Load::Asked | Load::Missing => return,
     };
     let Some(scene) = vostok::freeze::GlowScene::of(world, thread) else { return };
-    let in_play = scene.in_play();
+    let state = state.filter(|rule| !rule.complete() && scene.in_play());
     let mut now = [None; PLAYERS];
     for (place, (was, next)) in Place::all().zip(shown.into_iter().zip(now.iter_mut())) {
         let target = state
-            .filter(|_| in_play)
             .and_then(|state| match state.player(place) {
                 Player::Frozen { progress, .. } => Some(progress.millis()),
                 Player::Waiting | Player::Fighting(_) => None,
@@ -262,7 +342,7 @@ fn draw_glow(thread: &vostok::Thread, world: &vostok::world::GameWorld<'_>) {
         }
         *next = target.map(|(_, body)| body.id());
     }
-    GLOWING.set(thread, now);
+    GLOWING.set(thread, Halos::Open(now));
 }
 
 /// The glow's query came back (on the game's thread).
@@ -278,21 +358,32 @@ pub fn on_loaded(results: QueryResults<'_>, tag: QueryTag) {
     }
 }
 
-/// game_world::on_deactivate: the match's scene is left; no glow of ours in it.
-pub fn on_deactivate(ctx: &mut Context<'_>) -> Flow<NoExit> {
-    let thread = ctx.thread();
-    let shown = GLOWING.get(thread);
-    if let Load::Ready(particles) = GLOW.get(thread)
-        && let Some(world) = vostok::world::GameWorld::at_deactivate(ctx)
-        && let Some(scene) = vostok::freeze::GlowScene::of(&world, thread)
+/// The match's end (`game_world.finish`, before its unload detaches the match core) or its scene
+/// left (`game_world.deactivate`): every instance this game played is taken out of the scene,
+/// which outlives the core, and no glow is drawn until a Freeze Tag match's options open it
+/// again; so no body of this match is stopped or moved in the next one's scene. Closed whatever
+/// is there to take out: without a scene (or never loaded) nothing of ours is in one.
+fn close_halos(thread: &vostok::Thread, world: Option<vostok::world::GameWorld<'_>>) {
+    if let Halos::Open(shown) = GLOWING.get(thread)
+        && let Load::Ready(particles) = GLOW.get(thread)
+        && let Some(scene) = world.as_ref().and_then(|world| vostok::freeze::GlowScene::of(world, thread))
     {
-        for (particle, shown) in particles.into_iter().zip(shown) {
-            if shown.is_some() {
+        for (particle, body) in particles.into_iter().zip(shown) {
+            if body.is_some() {
                 scene.stop(particle);
             }
         }
     }
-    GLOWING.set(thread, [None; PLAYERS]);
+    GLOWING.set(thread, Halos::Closed);
+}
+
+pub fn on_finish(ctx: &mut Context<'_>) -> Flow<NoExit> {
+    close_halos(ctx.thread(), vostok::world::GameWorld::at_finish(ctx));
+    Flow::Continue
+}
+
+pub fn on_deactivate(ctx: &mut Context<'_>) -> Flow<NoExit> {
+    close_halos(ctx.thread(), vostok::world::GameWorld::at_deactivate(ctx));
     Flow::Continue
 }
 
@@ -311,12 +402,23 @@ pub fn on_save(ctx: &mut Context<'_>) -> Flow<NoExit> {
     }
     Flow::Continue
 }
+/// The rule's bytes after the respawn rule's, version 4 or 3 (its first byte says its length; the
+/// world check, srp-validate's `FreezeTag::read_back`, reads both alike).
+fn load_rule(ctx: &Context<'_>) -> Option<FreezeTag> {
+    let [version] = vostok::respawn::load::<1>(ctx)?;
+    let len = FreezeTag::len_of(version)?;
+    let mut bytes = [version; FreezeTag::LEN];
+    if len == FreezeTag::LEN {
+        bytes.get_mut(1..)?.copy_from_slice(&vostok::respawn::load::<{ FreezeTag::LEN - 1 }>(ctx)?);
+    } else {
+        bytes.get_mut(1..len)?.copy_from_slice(&vostok::respawn::load::<{ FreezeTag::LEN_V3 - 1 }>(ctx)?);
+    }
+    FreezeTag::read(bytes.get(..len)?)
+}
 pub fn on_load(ctx: &mut Context<'_>) -> Flow<NoExit> {
     if let Match::Freeze(_) = MATCH.get(ctx.thread()) {
         // The world check (patch 87) refused any world whose rule does not read.
-        let state = vostok::respawn::load::<{ FreezeTag::LEN }>(ctx)
-            .and_then(|b| FreezeTag::read(&b))
-            .expect("a checked Freeze Tag world's rule");
+        let state = load_rule(ctx).expect("a checked Freeze Tag world's rule");
         MATCH.set(ctx.thread(), Match::Freeze(state));
     }
     Flow::Continue
@@ -348,6 +450,10 @@ pub fn on_hud(ctx: &mut Context<'_>) -> Flow<NoExit> {
     };
     // The score bars' native source, every frame of the match from its first, whoever is viewed.
     ui.set_team_points(state.points());
+    // The places revealed at the match's time, for this frame's listing (on_enemy) and the hud.
+    let now = Time::from_ms(ui.now().unwrap_or(0));
+    let revealed = Place::all().filter(|place| state.revealed(*place, now)).fold(Places::EMPTY, Places::with);
+    REVEALED.set(ctx.thread(), revealed);
     let Some(viewed) = ui.viewed_place() else {
         return Flow::Continue;
     };
@@ -368,13 +474,16 @@ pub fn on_hud(ctx: &mut Context<'_>) -> Flow<NoExit> {
     };
     let other = team.other();
     let won = |winner: srp_validate::Team| if winner == team { 1 } else { 2 };
-    let now = Time::from_ms(ui.now().unwrap_or(0));
     let left = |restart: &Restart<(), ()>| (now.left(restart.until()), restart.length(TIMING).get());
     // The status (0 play; 1 won, 2 lost, 3 drawn by the time limit; 4, 5, 6 the round won, lost,
     // drawn; 7 the fade, 8 the countdown: Artifact Hunt's phase ids, the movie's RoundFade), what is
     // left of its time and its whole length.
     let (status, remaining, whole) = match state.phase() {
         Phase::Finished { winner, .. } => (won(winner), 0, 0),
+        // The time limit ended the match, in whatever phase: the team with more round wins won
+        // it, even ones drew (the owner, 2026-11-26: "when the timer ends, the team with the most
+        // points wins").
+        _ if matches!(ui.clock(), Some(vostok::MatchClock::Finished)) => (state.leader().map_or(3, won), 0, 0),
         Phase::Restart { ended, restart } => {
             let (remaining, whole) = left(&restart);
             let status = match (ended, restart) {
@@ -389,7 +498,6 @@ pub fn on_hud(ctx: &mut Context<'_>) -> Flow<NoExit> {
             };
             (status, remaining, whole)
         }
-        Phase::Playing if matches!(ui.clock(), Some(vostok::MatchClock::Finished)) => (3, 0, 0),
         Phase::Playing => (0, 0, 0),
     };
     // The rescuer sees the same native collection bar as its frozen teammate.
@@ -410,9 +518,7 @@ pub fn on_hud(ctx: &mut Context<'_>) -> Flow<NoExit> {
             .max()
             .unwrap_or(0)
     };
-    let mask = Place::all()
-        .filter(|place| is_frozen(&state, *place))
-        .fold(0, |mask, place| mask | (1 << place.index()));
+    let mask = places_mask(|place| is_frozen(&state, place));
     if let Some(movie) = ui.hud_movie() {
         movie.invoke_uints(
             c"root.freeze_tag_score",
@@ -424,6 +530,21 @@ pub fn on_hud(ctx: &mut Context<'_>) -> Flow<NoExit> {
         );
         // The Tab list's frozen rows; the movie clears them with the match.
         movie.invoke_uints(c"root.freeze_tag_rows", &[mask]);
+        // The places revealed (a team's last one fighting, 15 s after his team was down to him):
+        // on_enemy lists his dot on the other team's maps, and the hud marks it red (an enemy's
+        // icon alone draws nothing). The rule's, whoever is viewed, as the listing is.
+        movie.invoke_uints(c"root.freeze_tag_revealed", &[revealed.bits()]);
+        // The reveal for everyone, each frame: the viewer's side's last one (himself or a teammate),
+        // the other side's. The hud pops it up once when a side starts counting, with its seconds
+        // then, and once when he is revealed (the owner, 2026-11-26: "no need for it to be a timer,
+        // it should be a small popup for a few seconds").
+        let [own, own_left] = reveal_notice(
+            state.last_fighter(team),
+            |last| if last == viewed { Who::Viewer } else { Who::Teammate },
+            now,
+        );
+        let [enemy, enemy_left] = reveal_notice(state.last_fighter(other), |_| Who::Enemy, now);
+        movie.invoke_uints(c"root.freeze_tag_reveal", &[own, own_left, enemy, enemy_left]);
     }
     if let Some(movie) = ui.icons_movie()
         && movie.invoke_uints(c"root.freeze_tag_markers", &[mask])
@@ -445,5 +566,20 @@ mod tests {
         for off in [&b""[..], b"SRPX", b"SRPX\x06\x01\x00", b"SRPX\x06\x01", b"SRPX\x04\x01\x01", b"SRPX\x02\x01\x01"] {
             assert!(!on(off), "{off:?}");
         }
+    }
+
+    #[test]
+    fn the_reveal_counts_down_fifteen_seconds_then_says_it_three() {
+        let place = Place::new(4).unwrap();
+        let last = LastFighter { place, since: Time::from_ms(10_000) };
+        let who = |p: Place| if p == place { Who::Viewer } else { Who::Teammate };
+        let at = |ms| reveal_notice(Some(last), who, Time::from_ms(ms));
+        assert_eq!(at(10_000), [1, 15_000]);
+        assert_eq!(at(24_950), [1, 50]);
+        assert_eq!(at(25_000), [1, 0]);
+        assert_eq!(at(27_950), [1, 0]);
+        assert_eq!(at(28_000), [0, 0]);
+        assert_eq!(reveal_notice(None, |_| Who::Enemy, Time::from_ms(12_000)), [0, 0]);
+        assert_eq!(reveal_notice(Some(last), |_| Who::Enemy, Time::from_ms(12_000)), [3, 13_000]);
     }
 }

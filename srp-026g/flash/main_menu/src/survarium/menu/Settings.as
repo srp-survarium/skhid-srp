@@ -1192,17 +1192,25 @@ package survarium.menu
          // left under the last one showed as room for one more; the owner, 2026-11-11): as many as
          // fit over the chat's heading, the gap to it the tab's own at most, GAME_LIST_GAP at least
          c.keysGame.height = Math.floor((c.s_chat_keys.y - GAME_LIST_GAP - c.keysGame.y) / c.keysGame.rowHeight) * c.keysGame.rowHeight;
-         // the key bindings are the Bindings window's alone (the owner, 2026-11-23: "we don't need two"): the
-         // tab's lists and their headings hidden, the Bindings button and Default settings in the left column
-         // under Invert mouse ("both options can move to left", "right can be left empty"); the exe still binds
-         // and fills the lists by name: they stay in the timeline
-         for each(var list:String in ["keysGame","keysLobby","keysChat","s_lobby","s_chat_keys","s_game"])
+         // the match's key bindings are the Bindings window's alone (the owner, 2026-11-23: "we don't need two"):
+         // the tab's game and chat lists and their headings hidden, the Bindings button and Default settings in the
+         // left column under Invert mouse ("both options can move to left"); the lobby's keys in the right column,
+         // where the game's list was, for reading ("for lobby just have them on the right where they used to be",
+         // "not bindable either way": its rows take no press nor focus). The exe still binds and fills the hidden
+         // lists by name: they stay in the timeline.
+         for each(var list:String in ["keysGame","keysChat","s_chat_keys","s_game"])
          {
             if(c[list] is DisplayObject)
             {
                DisplayObject(c[list]).visible = false;
             }
          }
+         c.s_lobby.x = c.keysGame.x + space.headingX;
+         c.s_lobby.y = c.keysGame.y;
+         c.keysLobby.x = c.keysGame.x;
+         c.keysLobby.y = c.s_lobby.y + space.list;
+         c.keysLobby.mouseEnabled = c.keysLobby.mouseChildren = false;
+         c.keysLobby.focusable = false;
          var invert:Object = c._setter_inverse_mouse;
          this._keysWindow.layout(c.button_default_controls,c._slider_mouse_sens.x,LEFT_COLUMN_END,
             invert.y + Math.max(invert.textField.y + invert.textField.textHeight + 4,26) + BUTTONS_GAP);

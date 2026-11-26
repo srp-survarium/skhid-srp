@@ -47,7 +47,7 @@ impl<'t> EnemyPin<'t> {
         }
         let thrower = client.player(u32::from(place.get()))?;
         let (ours, theirs) = (super::medical::Player::new(thread, local.this), super::medical::Player::new(thread, thrower.this));
-        // Concentration's opponents (vostok::medical::listener): another place, not on its team.
+        // Opponents only: another place, not on its team.
         if local.this == thrower.this || ours.ally(theirs) {
             return None;
         }

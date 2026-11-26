@@ -93,6 +93,13 @@ Each one a decision; the owner's are marked, the rest are the port's and open to
   moves a player's wave by his modifier (`m` above, its parameter 59); here the radio's -20 %
   (0.26g's parameter 60) does nothing in this mode, so every dead player comes back in the wave the
   timer shows. Modes without waves keep it (the native respawn rule's own delay).
+- **The other team sees the carrier on the minimaps alone** (the owner, 2026-11-23: "it should only
+  be map and maybe minimap"; 2026-11-26: "player with art is still seen in ui, not only on map —
+  which is wh and is not interesting gameplay"). 0.46c2 shows his marker to both teams and marks
+  him in the player list. Here his dot on the corner minimap and the Tab list's map (in the
+  artefact's light) is all; no marker over his head (it showed through walls), no name under the
+  hud's artefact row, no mark in the Tab list. His teammates see his marker as any teammate's, the
+  artefact's mark on it. His glow stays: it is drawn in the world (below, "The carrier").
 
 ## Data (the content pack's contract with the rule)
 
@@ -564,18 +571,28 @@ late join need nothing, and a world gains no byte.
   player's tick (`battery.carrier_tick` 0x2DAAD3, a chain): a living carrier who plays none gets
   one; `medical.effect_clock` ends it when he carries no more. First and third person are the
   effect's own (a composite with a `view` 0 twin, the pack's).
-- **His marker for both teams** (PROVEN sites, patch 135's):
-  - head marker: `player::render_name` shows an enemy only while spotted (0x1F2B50, site
-    `player_names.enemy_spotted`, exit `shown`): the carrier is shown always. The icon's
-    `modifier_visible` (record +388h, from `[inventory+178h] != 0` at 0x1F2D8B) is the native
-    carrier mark: a lohook at 0x1F2D8B (`83 BA 78 01 00 00 00`, 7 bytes) sets it for the carrier.
-    The icons movie hides enemy ids unless told: one new call, `root.srp_show_carriers(true)`, at
-    `player_icons.enemy_ids` 0x235709 (a `flash/player_icons` change);
+- **His dot on the minimaps for both teams, nothing else for the other team** (PROVEN sites,
+  patch 135's; the owner, 2026-11-23 and 2026-11-26, "Differences from 0.46c2"):
   - minimap: `update_minimap_players` 0x239420 lists an enemy only while spotted (0x239505, site
     `minimap.enemy_spotted`): the carrier always; its `is_carrying_item` (0x239521) is left alone,
-    the hud movie marks the dot of the update call's carrier place;
-  - the player list: 0.26g's `root.list_update_player` has no carry member; the hud movie marks the
-    row of the update call's carrier place.
+    the hud movie marks the dot of the update call's carrier place (on both minimaps, the corner's
+    and the Tab list's);
+  - head marker: the game's own. `player::render_name` places an enemy's only while spotted
+    (0x1F2B50, site `player_names.enemy_spotted`; patch 171 hooked it until 2026-11-26 to show the
+    carrier always, the marker the owner called a wallhack), and the icons movie never shows an
+    enemy's player icon but in a replay (`HUDIconLayer.canShow`). A teammate carrier's marker shows
+    as ever, with the carrier mark: the icon's `modifier_visible` (record +388h, from
+    `[inventory+178h] != 0` at 0x1F2D8B) is the native carrier mark, a lohook at 0x1F2D8B
+    (`83 BA 78 01 00 00 00`, 7 bytes) sets it for the carrier; `root.srp_show_carriers(true)` at
+    `player_icons.enemy_ids` 0x235709 makes the mark the artefact's orb, not the battery's box (a
+    `flash/player_icons` change);
+  - nowhere else in the hud: no name under the artefact's row, no mark in the Tab list (the owner,
+    2026-11-23: "it should only be map and maybe minimap").
+  - The glow (above, and "Built after") is no overlay: a particle system of the level's scene
+    (`play_particle_system`), as Forest Protection's on any player. PROVEN: the scene's particles
+    are culled by the hi-Z occlusion query (renderer-026g.md 5.7); LIKELY, not read: the forward
+    particle stages (18, 20) draw against the scene's depth. So it stays, depth-tested as it is: a
+    wall hides it as it hides him.
 - **His death and leaving** are the rule's own slots. PROVEN: event 1 is sent from `hit_impl` at
   0x2D9ED3..0x2D9EF7 when the hit set `pending_death`, the victim still alive and in the world (his
   `on_player_death` runs at his next tick), so his feet are there for the drop; it is the only
@@ -668,8 +685,9 @@ The code is `client_patch.md` "Artifact Hunt (patch 171)"; checked by `check_art
 
 - **Built:** the cook and its registration, the rule and its slots 7, 8, 9, 11, 15, 16, 17, 18, the tick,
   the respawn rule's two sites, the input (freeze, take, delivery, Drop), the carrier's two modifiers,
-  no sprint, his head marker and minimap dot for both teams, `root.srp_show_carriers` at every match
-  start (true in a hunt, false otherwise), the hud's update call, the messages, the prompt, the
+  no sprint, his minimap dot for both teams (his head marker for both until 2026-11-26: the other
+  team's now the game's own), `root.srp_show_carriers` at every match start (true in a hunt, false
+  otherwise: the carrier mark the artefact's), the hud's update call, the messages, the prompt, the
   welcome, the world check's parameters.
 - **After the first local test (2026-11-21, map 309, two windows):**
   - nobody was ever in the match (the rule's `m_sides` 0 in every world): slot 8 comes before the
@@ -898,7 +916,8 @@ re-simulation undoes: Research has the same exposure.
 
   The movie draws from it: the scores (its own branch for game type 13; `set_game_type(13)` is
   native), the minimap's artefact while lying and the bases (its own highlighted with #20), as
-  Research's units are placed (x, -z), the carrier's row and dot, "carrying" for #20, the last
+  Research's units are placed (x, -z), the carrier's dot on the minimaps (#18; #19 colours the
+  row's orb, with no name under it), "carrying" for #20, the last
   players in sudden death, "Round restarts in" with #5 in phase 6 when #7 is 2 (0.46c2's
   `show_round_restart`, `set_round_restart_time`), a full-screen fade over phase 7's #6 (0.46c2's
   `show_fade_animation(1.0, true)`), the countdown's "Awaiting match start: 00:05" with #5 in

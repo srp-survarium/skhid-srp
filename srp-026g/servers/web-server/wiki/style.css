@@ -397,3 +397,22 @@ main.wiki { max-width: 1160px; gap: 0; margin-top: 28px }
 .levels-graph .lv circle { fill:var(--accent); stroke:var(--panel); stroke-width:2 }
 .levels-graph .lv text { fill:var(--ink); font:700 12px var(--data); paint-order:stroke; stroke:var(--panel); stroke-width:4px }
 .levels-graph .lv:hover :is(line,circle,text) { visibility:visible }
+/* Artefacts (src/artefacts.rs): a row an artefact, its effects a list a cell. */
+.artefact-table { border-collapse:collapse; width:100%; font:.85rem var(--body) }
+.artefact-table th,.artefact-table td { padding:8px 10px; border-bottom:1px solid var(--rule); text-align:left; vertical-align:top }
+.artefact-table thead th { font:700 .7rem var(--display); text-transform:uppercase; letter-spacing:.04em; color:var(--ink-3); white-space:nowrap }
+.artefact-table tbody th { font:700 1rem var(--display); white-space:nowrap }
+.artefact-table tbody th img { display:block; width:86px; height:42px; object-fit:contain; margin-bottom:4px }
+.artefact-table ul { list-style:none; margin:0; padding:0 }
+.artefact-table li { margin:0 0 3px; color:var(--ink-2) }
+.artefact-table li b { font:.85rem var(--data); color:var(--ink); white-space:nowrap }
+.artefact-table .num { font:.85rem var(--data); white-space:nowrap }
+.artefact-table td a { color:var(--accent) }
+.artefact-skill { min-width:200px }
+.artefact-skill p { margin:4px 0 0; color:var(--ink-2); font-size:.8rem }
+.artefact-skill a,.artefact-skills a { display:inline-flex; align-items:center; gap:6px; color:var(--ink); text-decoration:none; font:700 .85rem var(--display) }
+.artefact-skill img,.artefact-skills img { width:28px; height:28px; flex:none }
+.artefact-skills { display:flex; flex-wrap:wrap; gap:8px; list-style:none; margin:12px 0 0; padding:0 }
+.artefact-skills li { margin:0 }
+.artefact-skills a { padding:4px 10px 4px 4px; border:1px solid var(--rule); background:var(--panel); color:var(--ink-2) }
+.artefact-skill a:hover,.artefact-skills a:hover { color:var(--accent) }
