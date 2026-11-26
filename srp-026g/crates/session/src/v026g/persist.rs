@@ -174,6 +174,8 @@ const MIGRATIONS: &[&str] = &[
     presets::CONTAINER_MIGRATION,
     // 24: what each kit and preset kit makes of every perk's slot (`presets`).
     presets::PERK_MIGRATION,
+    // 25: the experience each match paid for its play, and its sums (`history`).
+    history::EXPERIENCE_MIGRATION,
 ];
 
 /// The child tables of an account, children of children first.

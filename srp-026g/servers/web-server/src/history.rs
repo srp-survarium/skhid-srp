@@ -87,6 +87,7 @@ fn page_text(lang: Lang) -> Value {
         ("deaths", lang.t("Deaths")),
         ("kd", lang.t("K/D")),
         ("killsPerMinute", lang.t("Kills/min")),
+        ("experiencePerMinute", lang.t("Experience/min")),
         ("assists", lang.t("Assists")),
         ("score", lang.tc("stats", "Score")),
         ("scoreAvg", lang.t("Avg score")),
@@ -873,6 +874,12 @@ fn kd(kills: u64, deaths: u64) -> f64 {
     round(kills as f64 / deaths.max(1) as f64, 2)
 }
 
+/// `count` a minute of `ms`, to `places` decimals; `None` without a
+/// millisecond (the weapons' `kills_per_minute`, the totals' rates).
+fn per_minute(count: u64, ms: u64, places: i32) -> Option<f64> {
+    (ms > 0).then(|| round(count as f64 * 60_000.0 / ms as f64, places))
+}
+
 /// Hits by shots, three decimals; 0 with no shot.
 fn accuracy(shots: u64, hits: u64) -> f64 {
     if shots == 0 {
@@ -938,8 +945,7 @@ fn weapon(totals: &WeaponTotals, lang: Lang) -> Value {
             "kills": counts.kills,
             "deaths": counts.deaths,
             "kd": kd(counts.kills, counts.deaths),
-            "kills_per_minute": (counts.held_ms > 0)
-                .then(|| round(counts.kills as f64 * 60_000.0 / counts.held_ms as f64, 2)),
+            "kills_per_minute": per_minute(counts.kills, counts.held_ms, 2),
             "headshots": counts.headshots,
             "wall_kills": counts.wall_kills,
             "ricochet_kills": counts.ricochet_kills,
@@ -983,6 +989,11 @@ fn kits(kits: &[KitLine], lang: Lang) -> Vec<Value> {
         .collect()
 }
 
+/// Matches added up. `kills_per_minute` is by the players' own time in
+/// them (`played_s`: each line's stays, not the matches' length);
+/// `experience` is what the matches paid for the play (no daily bonus), of
+/// those whose lines have it, and `experience_per_minute` is by those
+/// matches' time alone. Both rates are `null` without a minute to divide by.
 fn totals(totals: &Totals) -> Value {
     let per_match = |value: u64, places| {
         if totals.matches == 0 {
@@ -1002,6 +1013,9 @@ fn totals(totals: &Totals) -> Value {
         "win_rate": per_match(totals.wins, 3),
         "score_avg": per_match(totals.score, 1),
         "played_s": totals.played_ms / 1000,
+        "kills_per_minute": per_minute(totals.kills, totals.played_ms, 2),
+        "experience": totals.earned.experience,
+        "experience_per_minute": per_minute(totals.earned.experience, totals.earned.played_ms, 1),
     });
     extend(&mut value, counters(&totals.counters));
     value
@@ -1072,6 +1086,7 @@ fn line_fields(line: &PlayerLine) -> Value {
         "deaths": line.deaths,
         "kd": kd(line.kills, line.deaths),
         "played_s": line.played_ms / 1000,
+        "experience": line.experience,
     });
     extend(&mut value, counters(&line.counters));
     value

@@ -13,10 +13,6 @@
 //! - `/patches` (the 0.26g page only) is the list of `resources.db`'s patches
 //!   the updater keeps in the game folder: those the server's game data was
 //!   made of ([`patches`]).
-//! - `/resources/<sha256>` (the 0.26g page only) is a blob from the folder
-//!   `resources` beside the download file ([`resource_file`]): the originals
-//!   of the `resources.db` regions earlier updaters wrote, which the
-//!   updater fetches to put the stock db back once when it kept no copy.
 //! - `/replays/<token>` (the 0.26g page only) is the replay file of the
 //!   match a token of the lobby's "Watch replay" is for
 //!   (`session::v026g::replays`): `SRP_REPLAY_DIR/<id:08x>.sur`, named from
@@ -108,7 +104,7 @@ struct Connect {
 }
 
 /// Downloads of that file at one time; more get "busy, try again". The
-/// blobs of `/resources/` have as many slots again, of their own: they never
+/// replays of `/replays/` have as many slots again, of their own: they never
 /// take the archive's.
 const MAX_DOWNLOADS: u32 = 5;
 /// A download slower than this for a minute is cut, so slow readers cannot
@@ -359,28 +355,6 @@ impl Drop for Slot<'_> {
     }
 }
 
-/// The file of `/resources/<name>` beside the download file `download`:
-/// `<its folder>/resources/<name>`, for a name of 64 lower-case hex digits
-/// (the SHA-256 of the blob; `client/updater`, "Resources") and no other.
-/// No other part of a request's path ever names a file.
-fn resource_file(path: &str, download: &Path) -> Option<PathBuf> {
-    let name = path.strip_prefix("/resources/")?;
-    if name.len() != 64 || !name.bytes().all(|c| matches!(c, b'0'..=b'9' | b'a'..=b'f')) {
-        return None;
-    }
-    Some(download.parent()?.join("resources").join(name))
-}
-
-/// The blob a request asks for: a `GET` or `HEAD` of `/resources/<name>`
-/// on the 0.26g page (`v026g`), when there is a download file. Anything
-/// else is the page's to answer, as before there were blobs.
-fn resource_request(v026g: bool, request: &Request, download: Option<&Path>) -> Option<PathBuf> {
-    if !v026g || !matches!(request.method.as_str(), "GET" | "HEAD") {
-        return None;
-    }
-    resource_file(&request.path, download?)
-}
-
 /// Where the replays are handed out: `/replays/<token>` (the 0.26g page;
 /// `docs/notes/replay_watch.md`).
 const REPLAYS: &str = "/replays/";
@@ -530,8 +504,6 @@ struct Web {
     token_failures: Mutex<(u32, Option<Instant>)>,
     connections: AtomicU32,
     downloads: AtomicU32,
-    /// Downloads of `/resources/` blobs now.
-    resource_downloads: AtomicU32,
     /// Downloads of `/replays/` files now: slots of their own.
     replay_downloads: AtomicU32,
     /// Failed `/replays/` lookups by address ([`REPLAY_FAILURES`]).
@@ -664,7 +636,6 @@ pub fn serve_on(
         token_failures: Mutex::new((0, None)),
         connections: AtomicU32::new(0),
         downloads: AtomicU32::new(0),
-        resource_downloads: AtomicU32::new(0),
         replay_downloads: AtomicU32::new(0),
         replay_failures: Mutex::new(HashMap::new()),
         replay_asks: Mutex::new(HashMap::new()),
@@ -807,14 +778,6 @@ impl Web {
             torrent::send_bootstrap(&mut stream, request.method == "HEAD", script);
             return;
         }
-        if let Some(file) = resource_request(
-            self.game.is_some(),
-            &request,
-            available_download().map(PathBuf::as_path),
-        ) {
-            self.resource(&mut stream, &request, &file);
-            return;
-        }
         // The calculator's, the Maps tab's and the skills' files on the 0.26g site; the
         // calculator's fonts, which every page uses, on both.
         let site_file = self.game.is_some() || request.path.starts_with(damage::FONTS);
@@ -893,18 +856,6 @@ impl Web {
     /// download resumes). At most [`MAX_DOWNLOADS`] at once.
     fn download(&self, stream: &mut TcpStream, request: &Request, file: &Path) {
         self.send_file(stream, request, file, &self.downloads, "application/zip");
-    }
-
-    /// Hands out a blob of `/resources/` as the download file is handed
-    /// out, in slots of its own; "not found" when there is no such file.
-    fn resource(&self, stream: &mut TcpStream, request: &Request, file: &Path) {
-        self.send_file(
-            stream,
-            request,
-            file,
-            &self.resource_downloads,
-            "application/octet-stream",
-        );
     }
 
     /// `/replays/<token>`: the replay file of the token's match, as the
@@ -2491,8 +2442,7 @@ mod tests {
             token_failures: Mutex::new((0, None)),
             connections: AtomicU32::new(0),
             downloads: AtomicU32::new(0),
-            resource_downloads: AtomicU32::new(0),
-            replay_downloads: AtomicU32::new(0),
+                replay_downloads: AtomicU32::new(0),
             replay_failures: Mutex::new(HashMap::new()),
             replay_asks: Mutex::new(HashMap::new()),
             plans: Default::default(),
@@ -3155,63 +3105,6 @@ mod tests {
         assert_eq!(counter.load(Ordering::Acquire), 0);
     }
 
-    const BLOB: &str = "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad";
-
-    #[test]
-    fn a_blob_is_named_by_its_checksum_and_nothing_else() {
-        let download = Path::new("/srv/download/files.zip");
-        let blob = format!("/resources/{BLOB}");
-        assert_eq!(
-            resource_file(&blob, download),
-            Some(PathBuf::from("/srv/download/resources").join(BLOB))
-        );
-        for path in [
-            "/resources/".to_owned(),
-            "/resources".to_owned(),
-            format!("/resources/{}", &BLOB[1..]),
-            format!("/resources/{BLOB}0"),
-            format!("/resources/{BLOB}/"),
-            format!("/resources/{}", BLOB.to_ascii_uppercase()),
-            format!("/resources/{}g", &BLOB[1..]),
-            format!("/resources/../{}", &BLOB[3..]),
-            format!("/resources/%2e%2e%2f{}", &BLOB[9..]),
-            format!("/resources//{}", &BLOB[1..]),
-            format!("/Resources/{BLOB}"),
-            format!("/download/{BLOB}"),
-            format!("{blob}.zip"),
-            "/resources/..".to_owned(),
-            // The replays' hostile list (`replay_tests`), here too.
-            format!("/resources/{}\\..", &BLOB[3..]),
-            format!("/resources/{}%5c", &BLOB[3..]),
-            format!("/resources/{}%00", &BLOB[3..]),
-            format!("/resources/{}\0", &BLOB[1..]),
-            format!("/resources/{BLOB}.json"),
-            format!("/resources/{BLOB}#x"),
-            format!("/resources/./{BLOB}"),
-            format!("/resources/{}", "a".repeat(2000)),
-        ] {
-            assert_eq!(resource_file(&path, download), None, "{path}");
-        }
-        // Only a GET or a HEAD of the 0.26g page, with a download file.
-        let get_blob = get(&blob);
-        assert!(resource_request(true, &get_blob, Some(download)).is_some());
-        let head = Request {
-            method: "HEAD".into(),
-            ..get(&blob)
-        };
-        assert!(resource_request(true, &head, Some(download)).is_some());
-        assert_eq!(resource_request(false, &get_blob, Some(download)), None);
-        assert_eq!(resource_request(true, &get_blob, None), None);
-        assert_eq!(
-            resource_request(true, &post(&blob, &[]), Some(download)),
-            None
-        );
-        assert_eq!(
-            resource_request(true, &get("/download"), Some(download)),
-            None
-        );
-    }
-
     /// What `answer` writes to a connection, as a client reads it.
     fn answered(answer: impl FnOnce(&mut TcpStream)) -> Vec<u8> {
         let listener = TcpListener::bind("127.0.0.1:0").unwrap();
@@ -3229,75 +3122,59 @@ mod tests {
     }
 
     #[test]
-    fn a_blob_is_handed_out_as_the_download_is_in_slots_of_its_own() {
-        let dir = std::env::temp_dir().join(format!("srp-web-resources-{}", std::process::id()));
+    fn the_download_is_handed_out_whole_or_in_part_in_its_slots() {
+        let dir = std::env::temp_dir().join(format!("srp-web-download-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
-        std::fs::create_dir_all(dir.join("resources")).unwrap();
+        std::fs::create_dir_all(&dir).unwrap();
         let download = dir.join("files.zip");
         std::fs::write(&download, b"the archive").unwrap();
-        let file = resource_file(&format!("/resources/{BLOB}"), &download).unwrap();
-        std::fs::write(&file, b"abc").unwrap();
         let web = web(None);
-        let request = get(&format!("/resources/{BLOB}"));
-        let whole = answered(|stream| web.resource(stream, &request, &file));
+        let request = get("/download");
+        let whole = answered(|stream| web.download(stream, &request, &download));
         assert_eq!(
             String::from_utf8(whole).unwrap(),
-            format!(
-                "HTTP/1.0 200 OK\r\nContent-Type: application/octet-stream\r\n\
-                 Content-Disposition: attachment; filename=\"{BLOB}\"\r\n\
-                 Accept-Ranges: bytes\r\nContent-Length: 3\r\n\
-                 X-Content-Type-Options: nosniff\r\nConnection: close\r\n\r\nabc"
-            )
-        );
-        // HEAD: the head alone. A range: that part.
-        let head = Request {
-            method: "HEAD".into(),
-            ..get(&format!("/resources/{BLOB}"))
-        };
-        let answer = answered(|stream| web.resource(stream, &head, &file));
-        assert!(answer.ends_with(
-            b"Content-Length: 3\r\nX-Content-Type-Options: nosniff\r\nConnection: close\r\n\r\n"
-        ));
-        let part = Request {
-            range: "bytes=1-".into(),
-            ..get(&format!("/resources/{BLOB}"))
-        };
-        let answer =
-            String::from_utf8(answered(|stream| web.resource(stream, &part, &file))).unwrap();
-        assert!(
-            answer.starts_with("HTTP/1.0 206 Partial Content\r\n"),
-            "{answer}"
-        );
-        assert!(
-            answer.contains("Content-Range: bytes 1-2/3\r\n") && answer.ends_with("\r\n\r\nbc")
-        );
-        // A name of the pattern with no file, or a folder: not found.
-        let missing = dir.join("resources").join(BLOB.replace('a', "0"));
-        for path in [&missing, &dir.join("resources")] {
-            let answer = answered(|stream| web.resource(stream, &request, path));
-            assert_eq!(
-                answer,
-                b"HTTP/1.0 404 Not Found\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"
-            );
-        }
-        // Its slots are its own: full, it is busy, and the archive is not.
-        web.resource_downloads
-            .store(MAX_DOWNLOADS, Ordering::Release);
-        let answer = answered(|stream| web.resource(stream, &request, &file));
-        assert!(answer.starts_with(b"HTTP/1.0 503 Service Unavailable\r\nRetry-After: 60\r\n"));
-        let archive = answered(|stream| web.download(stream, &get("/download"), &download));
-        assert_eq!(
-            String::from_utf8(archive).unwrap(),
             "HTTP/1.0 200 OK\r\nContent-Type: application/zip\r\n\
              Content-Disposition: attachment; filename=\"files.zip\"\r\n\
              Accept-Ranges: bytes\r\nContent-Length: 11\r\n\
              X-Content-Type-Options: nosniff\r\nConnection: close\r\n\r\nthe archive"
         );
-        assert_eq!(web.downloads.load(Ordering::Acquire), 0);
-        assert_eq!(
-            web.resource_downloads.load(Ordering::Acquire),
-            MAX_DOWNLOADS
+        // HEAD: the head alone. A range: that part.
+        let head = Request {
+            method: "HEAD".into(),
+            ..get("/download")
+        };
+        let answer = answered(|stream| web.download(stream, &head, &download));
+        assert!(answer.ends_with(
+            b"Content-Length: 11\r\nX-Content-Type-Options: nosniff\r\nConnection: close\r\n\r\n"
+        ));
+        let part = Request {
+            range: "bytes=4-".into(),
+            ..get("/download")
+        };
+        let answer =
+            String::from_utf8(answered(|stream| web.download(stream, &part, &download))).unwrap();
+        assert!(
+            answer.starts_with("HTTP/1.0 206 Partial Content\r\n"),
+            "{answer}"
         );
+        assert!(
+            answer.contains("Content-Range: bytes 4-10/11\r\n")
+                && answer.ends_with("\r\n\r\narchive")
+        );
+        // No such file, or a folder: not found.
+        for path in [&dir.join("gone.zip"), &dir] {
+            let answer = answered(|stream| web.download(stream, &request, path));
+            assert_eq!(
+                answer,
+                b"HTTP/1.0 404 Not Found\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"
+            );
+        }
+        assert_eq!(web.downloads.load(Ordering::Acquire), 0);
+        // Its slots full: busy, and the slots are left as they were.
+        web.downloads.store(MAX_DOWNLOADS, Ordering::Release);
+        let answer = answered(|stream| web.download(stream, &request, &download));
+        assert!(answer.starts_with(b"HTTP/1.0 503 Service Unavailable\r\nRetry-After: 60\r\n"));
+        assert_eq!(web.downloads.load(Ordering::Acquire), MAX_DOWNLOADS);
         let _ = std::fs::remove_dir_all(&dir);
     }
 

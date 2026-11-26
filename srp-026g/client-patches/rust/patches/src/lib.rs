@@ -88,6 +88,7 @@ pub mod music;
 pub mod game_volume;
 pub mod sound_voices;
 pub mod drug_interrupt;
+pub mod reload_commit;
 // patch 177: a hit breaks the victim's breath hold
 pub mod breath_hit;
 // patch 196: a shot into a corpse, 0.21's death sound and the dead player in the dark
@@ -100,6 +101,8 @@ pub mod footsteps;
 pub mod zone_guards;
 // patch 153: a step on a walker-only floor finds its ground
 pub mod step_ground;
+// patch 210: the sync log (SKHID_SYNC_LOG)
+pub mod sync_log;
 
 pub mod weapon_pickup;
 

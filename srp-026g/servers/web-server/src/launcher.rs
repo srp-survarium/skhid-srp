@@ -5,11 +5,6 @@
 //!   SHA-256 and size, and the least game revision the login server lets in
 //!   (`SRP_MIN_PATCH_REVISION`). The updater compares the archive with what
 //!   it installed last, and the revision with what the game exe says.
-//! - `GET /resources/<sha256>`: the original bytes of a `resources.db`
-//!   region an earlier updater wrote (the resource step, gone with the
-//!   patches), for the updater's one-time restore of the stock db when it
-//!   has no copy of its own; served as `/download` is (`resource_file` in
-//!   `lib.rs`).
 //! - `GET /launcher/…`: the page the launcher shows in its window, in the
 //!   place of the original game's news page: the best players and the
 //!   matches being played, as two tabs, what the server counts, and the

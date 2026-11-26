@@ -13,7 +13,8 @@
 //! - the input (patch 78's `carry.input`, asked first): the frozen
 //!   countdown, the use key's take and delivery, the Drop key;
 //! - the carrier: his two modifiers (patch 109's getter sites), no sprint;
-//!   his marker for both teams;
+//!   his dot on the minimaps for both teams; the artefact's mark on his
+//!   marker (which only his teammates see);
 //! - the hud: `root.artefact_hunt_update`, the messages, the welcome.
 //!
 //! Every game computes the same: what the simulation's hooks read is the
@@ -42,7 +43,7 @@ use crate::vostok::statistics::ScoreEvent;
 use crate::vostok::world::{GameWorld, Player, WorldKey};
 use crate::vostok::{
     ArtefactHuntOnCanSprintExit, ArtefactHuntOnEnemyExit, ArtefactHuntOnMarkExit,
-    ArtefactHuntOnNameExit, Context, Flow, GameCell, GameWorldUi,
+    Context, Flow, GameCell, GameWorldUi,
     Lock, NoExit, OrigTdmCookCreate, OrigTdmCookSize, OrigTdmRuleCompleted, OrigTdmRuleDeserialize, OrigTdmRuleEntered,
     OrigTdmRuleFillHud, OrigTdmRuleLeft, OrigTdmRuleOnEvent, OrigTdmRuleSerialize, OrigTdmRuleSetCore,
     Thread,
@@ -745,15 +746,11 @@ pub fn on_can_sprint(ctx: &mut Context<'_>) -> Flow<ArtefactHuntOnCanSprintExit>
     }
 }
 
-/// render_name's spotted test of an enemy: the carrier's marker always.
-pub fn on_name(ctx: &mut Context<'_>) -> Flow<ArtefactHuntOnNameExit> {
-    match native::name_enemy(ctx) {
-        Some(player) if carries(&player) => Flow::Exit(ArtefactHuntOnNameExit::Shown),
-        _ => Flow::Continue,
-    }
-}
-
 /// update_minimap_players' spotted test of an enemy: the carrier's dot always.
+/// The minimaps are the only place an enemy carrier is shown: render_name's
+/// spotted test (the marker over his head, which shows through walls) is left
+/// to the game (the owner, 2026-11-26: "player with art is still seen in ui,
+/// not only on map — which is wh and is not interesting gameplay").
 pub fn on_enemy(ctx: &mut Context<'_>) -> Flow<ArtefactHuntOnEnemyExit> {
     match native::minimap_enemy(ctx) {
         Some(player) if carries(&player) => Flow::Exit(ArtefactHuntOnEnemyExit::Shown),

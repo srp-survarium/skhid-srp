@@ -122,7 +122,7 @@ unsafe fn place_of(player: raw::Player) -> Place {
     Place::new(unsafe { read(player.place()) }).expect("a player's roster place is one of the twenty")
 }
 
-fn player_at(core: raw::CoreWorld, place: Place) -> Option<raw::Player> {
+pub(super) fn player_at(core: raw::CoreWorld, place: Place) -> Option<raw::Player> {
     // SAFETY: the caller borrows a live core for the hook; bound both the
     // roster vector and kit index before following the current player.
     unsafe {
@@ -210,6 +210,21 @@ impl<'t> Player<'t> {
             // A frozen player who came back spawned fresh: lethal again.
             self.native.pending_death().write(1);
         }
+    }
+}
+
+/// At `courier.spawned` (the spawn's end, its kit installed and its health
+/// reset), in a round the rule plays: the new body lethal, so the tick and
+/// input hooks hold it from its first frame and the rule's next step freezes
+/// it. Not before play (the match start's countdown, whose spawns and kit
+/// switches the rule, not stepped yet, cannot tell apart).
+pub fn freeze_spawn_in_play(ctx: &Context<'_>) {
+    // SAFETY: the site's ESI is the live, newly inserted player.
+    let Some(player) = (unsafe { raw::site::courier_spawned::player(ctx) }) else { return };
+    // SAFETY: the player's world lives for the spawn callback.
+    if unsafe { player.world_core().is_some_and(|core| Play::of(core) == Play::InProcess) } {
+        // SAFETY: the simulation thread has finished initializing this player.
+        unsafe { player.pending_death().write(1) };
     }
 }
 
@@ -310,13 +325,15 @@ impl<'t> World<'t> {
             player.actions().write(0);
         }
     }
-    pub fn publish(&mut self, points: [u16; 2], winner: Option<Team>) {
+    /// The statistics' tail: the round wins and the leader (`m_winner_team`, 2 when even), as every
+    /// mode's rule keeps its leader there.
+    pub fn publish(&mut self, points: [u16; 2], leader: Option<Team>) {
         // SAFETY: the core owns this statistics handler throughout play.
         unsafe {
             let stats = self.core.statistics().expect("a playing world's statistics");
             stats.team_zero_points().write(points[0]);
             stats.team_one_points().write(points[1]);
-            stats.winner().write(winner.map_or(2, |team| team.index() as u8));
+            stats.winner().write(leader.map_or(2, |team| team.index() as u8));
         }
     }
 }
@@ -390,27 +407,27 @@ pub struct BodyId(super::carry_runtime::Bones);
 /// another tick): the game world's scene, and the frozen bodies' matrices from the world.
 pub struct GlowScene<'t> {
     scene: super::carry_runtime::Scene,
-    core: raw::CoreWorld,
+    core: Option<raw::CoreWorld>,
     _thread: &'t Thread,
 }
 impl<'t> GlowScene<'t> {
-    /// At the game world's frame (after its move) or as it is left; None outside a match.
+    /// The scene remains available for cleanup after the match core is gone.
     pub fn of(world: &super::world::GameWorld<'t>, thread: &'t Thread) -> Option<Self> {
         // SAFETY: the live game world of the hook, its renderer, scene and match core.
         unsafe {
             let scene = super::carry_runtime::Scene::of_world(world.this)?;
-            let core = world.this.pvp_match()?.core();
+            let core = world.this.pvp_match().map(|pvp| pvp.core());
             Some(Self { scene, core, _thread: thread })
         }
     }
     /// Whether the match is in play (a round's countdown too): the glow shows only then.
     pub fn in_play(&self) -> bool {
         // SAFETY: the live core of the hook's world.
-        unsafe { Play::of(self.core).in_play() }
+        unsafe { self.core.is_some_and(|core| Play::of(core).in_play()) }
     }
     /// The body at `place`, inserted and alive.
     pub fn body(&self, place: Place) -> Option<FrozenBody> {
-        let player = player_at(self.core, place)?;
+        let player = player_at(self.core?, place)?;
         // SAFETY: the roster's current player of the place, live for the hook.
         unsafe {
             if read(player.inserted()) == 0 || read(player.alive()) == 0 {

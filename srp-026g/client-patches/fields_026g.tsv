@@ -240,6 +240,8 @@ survarium::player	need_to_select_animations	0x33E	u8	m_need_to_select_animations
 survarium::keyboard_action_frame	state	0x10	u32	on_keyboard_action's third argument (ebp+10h), 0.10b input::enum_keyboard_action: 1 down, 2 up, 3 hold (pushed as 0 down 0x23FEA4, 1 up 0x23FF0C, 2 hold 0x23FED8)
 survarium::input_entry_frame	time	0x4	u32	set_input entry first stack argument
 survarium::input_entry_frame	input	0x8	ptr<survarium::native_player_input>	set_input entry second stack argument, immutable eight-byte input
+survarium::input_entry_frame	return_address	0x0	u32	set_input entry return address: 0x1F3731 when player::set_input (0x1F36D0, the only call) made the call
+survarium::input_entry_frame	set_input_return	0x10	u32	where player::set_input (0x1F36D0) returns, when the entry return address is 0x1F3731: past the pushed time, input and set_input's saved ESI (0x1F36DF)
 survarium::native_player_input	actions	0x4	u32	input angles followed by action mask
 survarium::base_player_ctor_frame	player	0x4	u32	base_player constructor first argument; destination
 survarium::game_world	scene	0x4	obj<vostok::scene_reference>	retained render scene, artefact client update 0x25FDA6
@@ -1859,3 +1861,34 @@ vostok::input::mouse	window	0x24	u32	the window (HWND) its DirectInput device's 
 vostok::input::mouse	exclusive	0x34	u8	set_exclusive's (0x3B9800) argument, kept at 0x3B9808: not 0, the device's level is DISCL_EXCLUSIVE | DISCL_FOREGROUND (5); 0, DISCL_NONEXCLUSIVE | DISCL_FOREGROUND (6, 0x3B9833..0x3B983A); the ctor's is 0 (0x3B9535) and level 6 (0x3B9533)
 vostok::input::mouse_lock	mouse	-0x30	obj<vostok::input::mouse>	the mouse whose spin lock (+30h) this is: mouse::execute keeps the lock's address in EBP from 0x3B9695 (lea ebp,[esi+30h]) to its returns
 survarium::image	mouse_vtable	0xA25518	u32	vostok::input::platform::mouse's vtable (its ctor 0x3B94F0 writes it at 0x3B94FC)
+survarium::animation_end_aware_state	weapon	0x120	ptr<survarium::weapon>	the state's weapon, as every weapon_core state's [+120h] (the reload states' get_weapon_lexeme 0x30E23D, initialize 0x30FDBA, on_animation_end_impl 0x310E41; on_animation_end 0x30DB6E compares the event's object with it and its user)
+survarium::weapon_state_methods	on_animation_end	0x24	u32	slot 9, on_animation_end_impl: 0x310E40 (weapon_core_reload_state_base's: load the magazine, reset the recoil, m_need_to_auto_reload 0) in the six reload vtables and only there, the plain 0xA14D14 (state 303), 0xA15088 (311), 0xA151FC (314) and their sound handlers' 0xA04DEC, 0xA050D4, 0xA051CC
+survarium::image	reload_on_animation_end	0x310E40	u32	weapon_core_reload_state_base::on_animation_end_impl, the slot 9 of a magazine reload (303, 311, 314); the shotgun's 306 loads its rounds one by one elsewhere (reload_one_round 0x2E1A00)
+survarium::image	event_member_functor	0xA14CBC	u32	the functor manager of a boost::function<callback_return_type(animation_callback_params&)> holding a bound member function (0x30DCE0 tags it 1, its buffer copied as bytes): [0] the manager 0x30DD30, [4] the invoker 0x246200, which calls buffer+0 thiscall with this = buffer+4 + buffer+8 and the parameters
+survarium::weapon	chamber_on_reload	0x5F2	u8	chamber_a_round_on_reload (load_config_parameters 0x30AC12, a bool): a reload's initialize puts the chambered round back into the magazine (0x30FDC0..0x30FDD8) and load_magazine chambers one again after the top-up (0x2E18B8)
+survarium::player	event_channels	0x750	obj<vostok::animation::event_channels>	its animation player, whose event channels a weapon state subscribes to (0x30DAC4, 0x2548E7)
+vostok::animation::event_channels	channels	0xE108	u32	the list of its channels (name, next, subscriptions) subscribe_event_channel walks (0x391C44) and makes a channel's record in (+E10Ch the room, +E110h what is left)
+vostok::animation::event_functor	manager	0x0	u32	the functor's manager table, bit 0 set when its buffer is copied as bytes (0x30DD12)
+vostok::animation::event_functor	buffer	0x8	obj<vostok::animation::member_bind>	its 24-byte buffer, the address the invoker gets
+vostok::animation::event_functor	size	0x20	size	a boost::function of an animation event: the tagged manager, a pad, the 24-byte buffer (0x30DCE0; a subscription record copies 20h bytes, its +20h the resource pointer, 0x390DC0)
+vostok::animation::member_bind	function	0x0	u32	the member function (thiscall: the object, the parameters; ret 4)
+vostok::animation::member_bind	adjust	0x4	u32	the member pointer's this adjustment (0 for these classes, 0x30DA7E)
+vostok::animation::member_bind	object	0x8	u32	the object the function is called on, as an address (the state, 0x30DA8C)
+vostok::animation::event_resource	resource	0x0	u32	a subscription's resource pointer slot (subscribe_event_channel's fourth argument; every caller's is null, 0x30DACA)
+vostok::animation::event_resource	size	0x4	size	one pointer
+survarium::tick_animations_frame	return_address	0x0	u32	base_player::tick_animations (0x2D8EE0) entry return address: 0x2DAAE0 from base_player::tick, 0x2D8A06 from apply_new_input
+survarium::tick_animations_frame	previous	0x4	u32	tick_animations entry first stack argument: the player's last tick time (+324h)
+survarium::tick_animations_frame	now	0x8	u32	tick_animations entry second stack argument: the time it ticks the animations and the stamina (0x2D8FC2) to
+survarium::world_load_frame	return_address	0x0	u32	game_world_core::deserialize (0x2D2770) entry return address: 0x2D2FF5 and 0x2D357F game_world_core::move, 0x2D0FBE the server's world (0x2D0B70), 0x325296 and 0x325305 load_history_state
+survarium::world_load_frame	core	0x4	ptr<survarium::core_world>	deserialize entry first stack argument: the world core
+survarium::world_load_frame	item	0x8	ptr<survarium::history_item>	deserialize entry second stack argument: the history item (state) it loads
+survarium::history_item	time	0xC0BB0	u32	game_state_history_item's time (move 0x2D3568, deserialize 0x324DA0)
+survarium::image	set_input_applied	0x1F3731	u8	player::set_input's return from its call of base_player::apply_new_input (0x1F372C, the only call of it)
+survarium::image	input_ticked	0x2D8A06	u8	base_player::apply_new_input's return from its call of tick_animations (0x2D8A01: the input's time)
+survarium::image	step_ticked	0x2DAAE0	u8	base_player::tick's return from its call of tick_animations (0x2DAADB)
+survarium::image	rollback_loaded	0x2D2FF5	u8	game_world_core::move's return from deserialize (0x2D2FF0): a state loaded for an input of a past tick
+survarium::image	frame_loaded	0x2D357F	u8	game_world_core::move's return from deserialize (0x2D357A): the newest state loaded again before a frame's step
+survarium::image	server_world_loaded	0x2D0FBE	u8	game_world_core::deserialize (0x2D0B70, the server's world, 0xE8)'s return from deserialize (0x2D0FB9)
+survarium::image	history_loaded	0x325296	u8	load_history_state (0x325270)'s return from deserialize (0x325291)
+survarium::image	history_loaded_again	0x325305	u8	load_history_state (0x325270)'s return from deserialize (0x325300)
+survarium::player	spotted_time	0x348	u32	m_spotted_time_left_in_ms: update_minimap_players lists an enemy while it is above 0 (0x239505; serialized, motion.rs)
