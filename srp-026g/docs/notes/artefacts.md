@@ -26,9 +26,41 @@ Client patch 54 (README section 54, client_patch.md section 3.51) and the table
   (in their passive or active, container order); a fifth (Artifact Container) is never fired and
   stays ready, so its active adds nothing (and it gives no passive).
 - A copy on its cooldown or already active does nothing on that press; it is not fired later.
+- A press that fires a copy starts the cooldown of every other copy of that kind on its cooldown
+  again, the whole of it (the owner, 2026-11-22: "if you get new artifact, you can still activate
+  it, but this resets timer on other artis of the same type"). So a kind is used once a cooldown,
+  however many copies and whenever they were taken.
+  - The report (a player, revision 49): one Onyx taken and fired, then another taken and fired:
+    each cooled down on its own and the two were fired in turns, an Onyx twice as often (three or
+    four, three or four times).
+  - A copy still active is left as it is: it ends and cools down on its own, and the next press
+    that fires another starts its cooldown again.
+  - A press that fires nothing (every copy cooling or active) starts no cooldown again.
+  - Firing the copy that is ready first, while another has seconds left, costs that other its
+    whole cooldown: waiting for both fires them together.
 - The key of a copy that is not ready still fires the ready ones of its kind.
 - Different kinds have their own keys and cooldowns: Onyx, Spring and Lifebone fire on their own.
 - Every game of the match computes this the same way (the press is an input).
+
+## Wear from activation
+
+Each combat artefact starts at full power. A successful activation spends one use of that copy.
+Each activation retains 80% of the previous one's strength. Uses five through ten deliver
+40.96%, 32.77%, 26.21%, 20.97%, 16.78% and 13.42% of full power. The passive drops to the
+next tier immediately, including while the active runs. The copy stays usable whenever its
+normal cooldown ends. An anomaly spawning a new copy restores full power. Passing a copy to
+another kit or player preserves its wear.
+
+Spring scales its bonuses, Onyx the damage and piercing it would prevent, and Larkspur the
+missing health it would restore. Larkspur II's energy is its power's share of the whole bar, capped at full. Larkspur still clears injuries on each successful activation.
+Resonance and Cascade use the source copy's power. Each worn activation plays a particle effect
+with its emission scaled to the nearest 8-bit intensity in both views, including its light emitter.
+
+The quick slot shows passive and next-use power rounded to the nearest percent, and shows
+`<1%` below one percent. While the copy is active it keeps the power it fires with; the change (`100% → 80%`) shows briefly once its cooldown starts (the owner, 2026-11-26). No
+hint text (the owner removed it, 2026-11-26). The count lives at +286h and permits further activations even at the native counter's
+maximum. Counts below 32 use bits 3..7 of the saved state byte. Larger counts use FF followed by
+the little-endian 16-bit count and the native state. Legacy snapshots decode at full strength. The simulation-change entry gates replay playback.
 
 ## Spring
 
@@ -85,11 +117,25 @@ active")
 - "Activation time" read as the active's duration: 0.26g has no delay before an Onyx works (the
   press sets it active on the same tick). Owner to confirm.
 - The +1 s is patch 54's (`ONYX_EXTRA_MS`), not a config key; the 3 s is `active/duration`.
-- The pop-up at activation (its activation hint, the local player only) says 75 % and the real time:
-  "... by 75% for 4 s." for two Onyx. It shows once a press (not once for each Onyx fired) and stays
-  on screen for that time. The text's `%s` is the pop-up's time on screen in seconds, which patch
+- The local activation hint gives the actual duration, such as 4 s for two ready Onyx. It appears
+  once per press and stays on screen for that duration. Each quick slot shows its copy’s remaining power. The text's `%s` is the pop-up's time on screen in seconds, which patch
   54 makes the active's time left; the hud writes it in. (%s, not `{s}`: the game's localizer (0x1FEF90, every text set_parameterized_message shows) makes `{NAME}` the key of the action NAME (`{USE}`) and any other name nothing, and drops a `}` after a character; the
   owner's first test showed "for  s.".)
+
+## The stock glow (0.26g, static reading)
+
+- The item config's `data/effect` names `gameplay/effects/effect_<name>.options` (the cook
+  0x2EC760): one particle effect, type 114, `time_to_finish` 5.
+- Particle systems and light colours (RGB): Lifebone `human_zhivokost` 0.10 0.77 0.00; Spring
+  `human_spring` 0.00 0.40 1.00; Onyx `human_onix` 1.00 0.48 0.00.
+- Each has 10 emitters on the body; `up_light` makes about 20 point lights a second, each about
+  1.7 s, radius about 1.2, no shadows.
+- The press: `artefact_base::action` 0x313300 (state 3 -> 4) -> 0x313350 ->
+  `game_effect_emitter::emit` 0x329050 / `game_effect_player::add` 0x2DE090 on the carrier.
+- It ends when the state leaves 4 (the calculator 0x313640); the living particles fade.
+- Load: `artefact_base::deserialize` 0x313760 links the effect again, or plays it again for an
+  artefact in state 4: late joiners see it.
+- Patch 54: each copy fired plays its own effect.
 
 ## Your own glow (the owner, 2026-10-25: "you see yourself shining (hands and body if you look
 down) when you use artifact? Note that your vision should still be clear")
@@ -144,6 +190,8 @@ down) when you use artifact? Note that your vision should still be clear")
 - Version 13: the leg quarters one particle effect of view 2 each, without the point light and the
   haze (what the carrier saw is what everyone sees), no first-person twin; Forest Protection's smoke
   emitters' Rate and MaxParticles x1.5.
+- Version 15 (14 is the open #1586's): Forest Protection's first-person twin plays its smoke too,
+  beside the rays, at three quarters of the third person's rate (artefact-skills.md).
 - History: version 1 (a lighter copy) and version 2 (with `up_light`'s lights at x0.35) showed
   too little in the first person; version 3, the stock glow without the head, was tested by the
   owner and approved (2026-10-25: "this version is good"). Version 4 is the same files.

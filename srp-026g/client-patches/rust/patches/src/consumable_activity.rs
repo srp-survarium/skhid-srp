@@ -6,6 +6,10 @@
 //! `INTERRUPTED_MS` of the local player's simulation clock after that was
 //! first seen. What is kept between updates is each quick slot's drug
 //! identity and that time: presentation only, nothing of the simulation.
+//!
+//! An oxygen tank's slot shows its countdown in Spring's blue while its
+//! holder's Oxygen Rush runs (patch 180; the owner, 2026-11-23: "since both
+//! are for speed").
 #![forbid(unsafe_code)]
 use crate::vostok::consumable::{DrugId, GameTime, Observed, Shown};
 use crate::vostok::{Context, Flow, GameCell, NoExit, QuickSlotActivity};
@@ -28,6 +32,8 @@ static SEEN: GameCell<[Seen; 6]> = GameCell::new([Seen::Idle; 6]);
 fn step(seen: Seen, observed: Observed, now: GameTime) -> (Seen, Shown) {
     match (seen, observed) {
         (_, Observed::Idle) => (Seen::Idle, Shown::Inactive),
+        (_, Observed::Artefact { id, wear }) => (Seen::Idle, Shown::Artefact { id, wear }),
+        (_, Observed::Boosted) => (Seen::Idle, Shown::Boosted),
         (_, Observed::InUse { drug, course }) => (Seen::InUse(drug), Shown::InUse(course)),
         (Seen::InUse(was), Observed::Stopped { drug }) if was == drug => {
             (Seen::Stopped { drug, at: now }, Shown::Interrupted)
@@ -93,6 +99,12 @@ mod tests {
         assert_eq!(run(&[(using(A), 0), (Observed::Idle, 50), (stopped(A), 8000)])[2], Shown::Inactive);
         assert_eq!(run(&[(stopped(A), 0)])[0], Shown::Inactive);
         assert_eq!(run(&[(using(B), 0), (stopped(A), 50)])[1], Shown::Inactive);
+    }
+
+    #[test]
+    fn a_tank_in_oxygen_rush_shows_blue_until_it_ends() {
+        let shown = run(&[(Observed::Boosted, 0), (Observed::Boosted, 50), (Observed::Idle, 100)]);
+        assert_eq!(shown, [Shown::Boosted, Shown::Boosted, Shown::Inactive]);
     }
 
     #[test]

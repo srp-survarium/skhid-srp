@@ -53,3 +53,5 @@ handler = "on_render_bones"
 [[hook]]
 site = "player.killed_event"
 handler = "on_killed"
+# before Scavenger (patch 180, order 2)
+order = 1

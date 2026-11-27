@@ -47,6 +47,13 @@
 //!   as DXVK's fullscreen and the game's set_size leave it) gets WS_POPUP, so
 //!   the Vulkan swap chain AMD's driver makes through DXGI on it is made
 //!   (docs/notes/dxvk-option.md, "The fullscreen window");
+//! - the game's fullscreen swap chain made fullscreen again when the focus
+//!   comes back (`render_output.fullscreen_back`, the engine's tick, with
+//!   either renderer): the shell's taskbar told the window is fullscreen
+//!   (ITaskbarList2::MarkFullscreenWindow), so it goes under the game
+//!   whenever the game is in front, also when Windows activated the window
+//!   before it covered the monitor again (Alt+Tab back,
+//!   docs/notes/dxvk-option.md "The taskbar after Alt+Tab");
 //! - the engine's DirectDraw probe of the video memory, its number read
 //!   (`video_memory.ddraw_probed`, with either renderer): the DirectDraw
 //!   object it made and never releases is released, so the GPU's own
@@ -71,10 +78,11 @@ use core::ffi::CStr;
 
 use crate::vostok::language::ConsoleString;
 use crate::vostok::log::{Piece, Piece::*, line, line_of};
-use crate::vostok::renderer::{DelayedImport, Gpu, GpuKind, Gpus, Manifests, OutputWindow, ProbeDirectDraw, Vulkan,
-                              VulkanVersion, WindowStyles, best_version, bind_delayed_import, clear_environment,
-                              dxvk_first, dxvk_pick, environment_set, exists_beside_exe, get_environment, is_loaded,
-                              load_beside_exe, look, look_drivers, set_environment, with_user_cfg};
+use crate::vostok::renderer::{DelayedImport, Gpu, GpuKind, Gpus, Manifests, OutputWindow, ProbeDirectDraw, Taskbar,
+                              Vulkan, VulkanVersion, WindowStyles, best_version, bind_delayed_import,
+                              clear_environment, dxvk_first, dxvk_pick, environment_set, exists_beside_exe,
+                              get_environment, is_loaded, load_beside_exe, look, look_drivers, set_environment,
+                              with_user_cfg};
 use crate::vostok::settings::{ConsoleBool, FieldOfView, OptionsCall, SliderSteps, create_file, delete_file, file_exists,
                               save_user_config};
 use crate::vostok::{Context, Flow, GameCell, GameWorldUi, HudOptionsOnOptionsCallExit, Lock, NoExit, Thread};
@@ -529,7 +537,7 @@ const VENDOR_INTEL: u32 = 0x8086;
 /// their file names (`VK_LOADER_DRIVERS_SELECT`'s globs): AMD's
 /// `amd-vulkan32.json` (and an older package's `amdvlk32.json`), NVIDIA's
 /// `nv-vk32.json`, Intel's `igvk32.json`. A name not matched is caught by the
-/// look that follows ([`limit_vulkan_drivers`]).
+/// look that follows ([`look_for_dxvk`]).
 pub fn drivers_of(vendor: u32) -> Option<&'static CStr> {
     match vendor {
         VENDOR_AMD => Some(c"amd*"),
@@ -1058,13 +1066,17 @@ pub static SETTINGS: [&Setting; 7] =
 /// three choices, the stock fixed minimap checkbox's label; then the
 /// Graphics tab's Renderer list's two choices, its note (the Language
 /// choice's "Applies after restart."), the Vulkan options' button and its
-/// five options' hints (in the panel's order).
-pub const TEXTS: [&CStr; 15] = [c"st_srp_options_hud", c"st_srp_hide_quests_option", c"st_srp_crosshair_dynamic",
+/// five options' hints (in the panel's order); then the Controls tab's "Key
+/// bindings" button and window (the main menu's SrpKeysWindow) and the
+/// window's five kinds of action.
+pub const TEXTS: [&CStr; 21] = [c"st_srp_options_hud", c"st_srp_hide_quests_option", c"st_srp_crosshair_dynamic",
                                 c"st_srp_crosshair_static", c"st_srp_crosshair_hidden", c"st_srp_static_minimap_option",
                                 c"st_srp_renderer_dx11", c"st_srp_renderer_dxvk", c"st_srp_language_restart",
                                 c"st_srp_vulkan_options", c"st_srp_vulkan_frame_limit_hint", c"st_srp_vulkan_overlay_hint",
                                 c"st_srp_vulkan_low_latency_hint", c"st_srp_vulkan_tear_free_hint",
-                                c"st_srp_vulkan_dedicated_gpu_hint"];
+                                c"st_srp_vulkan_dedicated_gpu_hint", c"st_srp_key_bindings",
+                                c"st_srp_keys_movement", c"st_srp_keys_combat", c"st_srp_keys_items",
+                                c"st_srp_keys_talk", c"st_srp_keys_interface"];
 
 /// The setting the Settings' call names.
 pub fn setting(name: &CStr) -> Option<&'static Setting> {
@@ -1149,6 +1161,9 @@ pub fn on_options_call(ctx: &mut Context<'_>) -> Flow<HudOptionsOnOptionsCallExi
     let Some(call) = OptionsCall::at(ctx) else { return Flow::Continue };
     let thread = ctx.thread();
     let method = call.method();
+    if crate::key_bindings::on_call(&call, method) {
+        return Flow::Exit(HudOptionsOnOptionsCallExit::Done);
+    }
     if method == c"srp_hud_texts" {
         let mut rooms = [[0; 0x200]; TEXTS.len()];
         let mut texts: [&CStr; TEXTS.len()] = [c""; TEXTS.len()];
@@ -1274,6 +1289,49 @@ pub fn on_present(ctx: &mut Context<'_>) -> Flow<NoExit> {
                Hex(before.extended), Text(") made a popup: style "), Hex(after.style),
                Text(if after.dxgi_takes() { ", DXGI takes it" } else { ", DXGI still refuses it" })]);
     }
+    Flow::Continue
+}
+
+/// The shell's taskbar list, made at the first return to a fullscreen game.
+enum TaskbarList {
+    Unasked,
+    Made(Taskbar),
+    /// COM or the shell refused it (said once): never asked again.
+    Refused,
+}
+
+static TASKBAR: Lock<TaskbarList> = Lock::new(TaskbarList::Unasked);
+
+/// res_render_output::goto_fullscreen after its SetFullscreenState succeeded
+/// (0x3CFE77): the focus is back on a fullscreen game (minimize cleared the
+/// state at the focus loss) and its swap chain is fullscreen again. Windows'
+/// taskbar goes under a window that covers its monitor only when it sees
+/// that window activated so; after Alt+Tab the game is activated first and
+/// made fullscreen in a later tick, so the taskbar stayed over it. The window
+/// is marked fullscreen for the taskbar (MarkFullscreenWindow), which puts
+/// the taskbar under it now and at every later activation; a windowed
+/// output is left alone.
+pub fn on_fullscreen_back(ctx: &mut Context<'_>) -> Flow<NoExit> {
+    let thread = ctx.thread();
+    let Some(window) = OutputWindow::at_fullscreen_back(ctx) else { return Flow::Continue };
+    TASKBAR.with(thread, |list| {
+        if matches!(list, TaskbarList::Unasked) {
+            *list = match Taskbar::make(thread) {
+                Ok(taskbar) => TaskbarList::Made(taskbar),
+                Err(code) => {
+                    line(&[Text("fullscreen: no taskbar list (HRESULT "), Hex(code), Text("): the taskbar is not told")]);
+                    TaskbarList::Refused
+                }
+            };
+        }
+        if let TaskbarList::Made(taskbar) = list {
+            match taskbar.mark_fullscreen(thread, window) {
+                Ok(()) => line(&[Text("fullscreen: back in front, the taskbar told the window is fullscreen")]),
+                Err(code) => line(&[Text("fullscreen: back in front, the taskbar refused the window (HRESULT "),
+                                    Hex(code), Text(")")]),
+            }
+        }
+    });
     Flow::Continue
 }
 

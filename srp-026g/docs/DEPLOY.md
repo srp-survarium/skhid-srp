@@ -7,7 +7,7 @@
 
 | File | What it does |
 |---|---|
-| `Dockerfile` | Builds `srp` (the 0.26g login server, lobby, match server and web page in one process) in a Rust image and copies the binary and `certs/` into a small Debian image. Runs as a user without rights. The cargo caches are build cache mounts, so a rebuild compiles only what changed (about 1.5 minutes on one CPU; the first build about 6) |
+| `Dockerfile` | Builds `srp` (the 0.26g login server, lobby, match server and web page in one process) in a Rust image and copies the binary into a small Debian image. Runs as a user without rights. The cargo caches are build cache mounts, so a rebuild compiles only what changed (about 1.5 minutes on one CPU; the first build about 6) |
 | `docker-compose.yml` | Compose project `srp26`: the service `srp26` and, with the profile `tls`, `caddy26` (HTTPS for the web page). Ports, the data volume, the settings passed to srp, the container's limits |
 | `.dockerignore` | Keeps build output, data, logs, docs and the client patches out of the build |
 | `deploy/env-026g.example` | The settings to put into `.env` beside the compose file |
@@ -40,11 +40,11 @@ preflight stops when it is not.
 | Voice chat (UDP, the match port + 1; `SRP_VOICE=off` for none) | 2237 | 1237 |
 | Web page | `127.0.0.1:8098` | the same, or public through `caddy26` on 443 |
 
-The defaults are a block of their own so that the stack can run beside a
-0.21d server on one host without sharing a name, a volume or a port with it
-(that server has 1234 tcp+udp, 1235 tcp, 1236 udp, 80 and 443). Beside it,
-do not start `caddy26`: port 443 is the other server's. On a host of its own
-use the game's own 1234, 1235, 1236 and 1237 for voice.
+The defaults are a block of their own so that the stack can run beside
+another server on one host without sharing a name, a volume or a port with
+it (it was made to run beside the 0.21d server, hosted until 2026-10-12).
+Beside a server that has port 443, do not start `caddy26`. On a host of its
+own use the game's own 1234, 1235, 1236 and 1237 for voice.
 
 Open every game port in the host's firewall: the login port for TCP, the
 lobby, match and voice ports for UDP. A voice port that is not open leaves
@@ -57,12 +57,10 @@ voice silent and nothing else: the games keep playing.
    fill it in. `SRP_PUBLIC_HOST` is required. Keep `.env` out of any
    repository: it holds the admin page's token and path.
 3. Put the players' download (the zip made as `client-patches/README.md`
-   says) into `./download`, or set `SRP_DOWNLOAD_URL`. A server whose
-   players had a ZIP with resource regions (before the patches) keeps
-   `./download/resources/` as it is: the originals there are what the
-   updater fetches (`/resources/<sha256>`) to put a player's `resources.db`
-   back to stock once, when it kept no copy of its own. A new server needs
-   no such folder.
+   says) into `./download`, or set `SRP_DOWNLOAD_URL`. A folder
+   `./download/resources/` (the blobs earlier updaters fetched to restore
+   `resources.db`) is no longer served: it may be deleted once a server
+   without that route is live.
 4. Put the server's game data (`server-game-data.db`, made by
    `srp-game-data build` of `resources.db` and the patches the players
    mount: "The game's files" below) into `./download` too, and each patch
@@ -267,7 +265,7 @@ login or an admin token, with `Content-Type: application/json` and
 `Cache-Control: no-store`. For example (illustrative counts):
 
 ```json
-{"online":12,"registered":45,"matches":3,"rooms":2,"in_rooms":9,"queued":1,"last_match_ends_in":512}
+{"online":12,"registered":45,"matches":3,"rooms":2,"in_rooms":9,"queued":1,"last_match_ends_in":512,"normal_matches":2,"last_normal_match_ends_in":340}
 ```
 
 - `online`: distinct accounts with an active lobby/chat connection or a
@@ -284,8 +282,17 @@ login or an admin token, with `Content-Type: application/json` and
   countdown, counts its map's whole wait, countdown and match time (925 s);
   0 when none runs. A match can end sooner. `release/release.sh` plans the
   maintenance 30 seconds after it (rounded up to whole minutes).
+- `normal_matches`: of `matches`, the normal ones: neither against the
+  server's bots (Player vs Bots, a PIN room made with bots) nor of a
+  private room (a PIN) (`session::v026g::match_kind::MatchKind`, set where
+  the lobby makes the match).
+- `last_normal_match_ends_in`: `last_match_ends_in` over the normal matches
+  alone. `release/release.sh --end-bot-and-private-matches` plans the
+  maintenance from it and waits for `normal_matches` 0; the other matches
+  end at its swap.
 
-All seven fields are nonnegative integers. Counts are read from live state;
+All nine fields are nonnegative integers; new ones are only added, at the
+end. Counts are read from live state;
 separate locks mean they are not a single atomic snapshot. Reading the endpoint
 never forms a match. No names, identifiers, addresses or credentials are
 returned. It is independent of the page language. Poll about once a minute.

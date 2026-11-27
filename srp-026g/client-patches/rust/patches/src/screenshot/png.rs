@@ -67,6 +67,16 @@ pub enum Refusal {
     TooWide,
 }
 
+impl Refusal {
+    /// What the log says of it.
+    pub fn text(self) -> &'static str {
+        match self {
+            Refusal::Empty => "empty",
+            Refusal::TooWide => "wider than 8192",
+        }
+    }
+}
+
 const SIGNATURE: [u8; 8] = [0x89, b'P', b'N', b'G', b'\r', b'\n', 0x1A, b'\n'];
 /// The PNG filter type of every row.
 const PAETH: u8 = 4;

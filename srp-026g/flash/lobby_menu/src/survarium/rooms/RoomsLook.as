@@ -4,6 +4,7 @@ package survarium.rooms
     import flash.display.BitmapData;
     import flash.display.DisplayObject;
     import flash.display.DisplayObjectContainer;
+    import flash.display.PixelSnapping;
     import flash.display.Shape;
     import flash.display.Sprite;
     import flash.events.Event;
@@ -33,6 +34,10 @@ package survarium.rooms
         // players did not know they were in one): the top menu's tab and
         // the switch to a better room in this, Play turned red (it leaves).
         public static const YELLOW:uint = 0xFFD23F;
+        // The yellow at reduced strengths, for the marks on the perks' slots
+        // (PerkSlotMark): its edge at rest, and its glow's start.
+        public static const YELLOW_HALF:Number = 0.5;
+        public static const YELLOW_GLOW:Number = 0.16;
         // The colours as transforms, for drawn parts (the tab's icon, the
         // game's buttons): yellow and red over their own shading.
         public static const YELLOW_TINT:ColorTransform = new ColorTransform(1, 0.82, 0.25, 1, 60, 45, 0, 0);
@@ -45,15 +50,14 @@ package survarium.rooms
         public static const FOOT_H:Number = 46;
         // The game's bold Calibri (the font of these lists) has U+2026.
         public static const DOTS:String = "…";
-        // The render a level is drawn with: the v0.21 ports with the map they
-        // are an older look of, the v0.11 and v0.69 ones with their one loading image.
-        private static const RENDER_LEVEL:Object = {"10": 3, "11": 6, "25": 2, "26": 5, "29": 1};
-        private static const RENDER_ONE:Object = {"12": "Level_v011e", "13": "Level_v011e", "14": "Level_v069d_rudnya", "15": "Level_cs_mp_bath", "16": "Level_cs_mp_military_1", "17": "Level_cs_training_camp", "18": "Level_cs_mp_rembasa", "19": "Level_soc_ug_station", "20": "Level_soc_ug_depository", "23": "Level_cs_mp_firestation"};
-        private static const RENDER:Object = {"1": "day", "2": "rain", "3": "evn", "4": "night", "5": "prerain"};
+        // What fitSize leaves of a field's width: Scaleform lays the embedded
+        // font out a little wider than it measures (the rooms harness's FIT_MARGIN).
+        internal static const FIT_SPARE:Number = 0.05;
         private static var _renders:Object = {};
         // A vote card's mode tag: the protective devices blue, team
-        // deathmatch red, Research green, Blackout white, free for all amber.
-        private static const MODE_COLOUR:Object = {"4": 0xB23A2A, "5": 0x6E9A3C, "6": 0xE8EEF2, "8": 0xD08A2E, "9": 0xC94FD6, "10": 0xB07A3C, "11": 0xB07A3C};
+        // deathmatch red, Research green, Blackout white, free for all amber, Artifact Hunt
+        // the artefact's forest glow, Roulette's three bands one gold.
+        private static const MODE_COLOUR:Object = {"4": 0xB23A2A, "5": 0x6E9A3C, "6": 0xE8EEF2, "8": 0xD08A2E, "9": 0xC94FD6, "10": 0xB07A3C, "11": 0xB07A3C, "13": 0x3CB4A8, "14": 0xE5C84A, "15": 0xE5C84A, "16": 0xE5C84A};
 
         public static function modeColour(mode:int):uint
         {
@@ -388,11 +392,39 @@ package survarium.rooms
             tf.mouseEnabled = true;
             tf.tabEnabled = true;
             tf.addEventListener(MouseEvent.MOUSE_DOWN, onPress, false, 0, true);
+            tf.addEventListener(MouseEvent.MOUSE_UP, onRelease, false, 0, true);
             route(tf, function(control:DisplayObject, e:MouseEvent):void
             {
-                FocusManager.setFocus(control as TextField);
+                focusAtEnd(control as TextField);
             });
             return tf;
+        }
+
+        // Focus with the caret after the digits (the owner's of 2026-11-19:
+        // a click put it at the start). The click may place it after this
+        // runs: again on release and on the next frame.
+        private function focusAtEnd(tf:TextField):void
+        {
+            FocusManager.setFocus(tf);
+            caretToEnd(tf);
+            tf.addEventListener(Event.ENTER_FRAME, onCaretFrame, false, 0, true);
+        }
+
+        private function onRelease(e:MouseEvent):void
+        {
+            caretToEnd(e.currentTarget as TextField);
+        }
+
+        private function onCaretFrame(e:Event):void
+        {
+            var tf:TextField = e.currentTarget as TextField;
+            tf.removeEventListener(Event.ENTER_FRAME, onCaretFrame);
+            caretToEnd(tf);
+        }
+
+        private static function caretToEnd(tf:TextField):void
+        {
+            tf.setSelection(tf.text.length, tf.text.length);
         }
 
         // A control and what a press on it does, (control, event).
@@ -442,7 +474,7 @@ package survarium.rooms
 
         private function onPress(e:MouseEvent):void
         {
-            FocusManager.setFocus(e.currentTarget as TextField);
+            focusAtEnd(e.currentTarget as TextField);
         }
 
         internal function line(box:Sprite, x:Number, y:Number, w:Number):void
@@ -497,8 +529,20 @@ package survarium.rooms
             return new Bitmap(small);
         }
 
+        // A card window's picture (a lobby's, a face's), made at the card's
+        // shape with more pixels than the card has (twice: a 4K screen draws
+        // the lobby twice its size), shown over w x h at its own pixels,
+        // smoothed: as sharp as the screen draws it.
+        public static function card(picture:BitmapData, w:int, h:int):Bitmap
+        {
+            var shown:Bitmap = new Bitmap(picture, PixelSnapping.NEVER, true);
+            shown.width = w;
+            shown.height = h;
+            return shown;
+        }
+
         // A picture scaled to cover w x h, centred, the rest cut (a vote
-        // card's map, a lobby window's card); `big` is disposed.
+        // card's map); `big` is disposed.
         public static function cover(big:BitmapData, w:int, h:int):BitmapData
         {
             var small:BitmapData = new BitmapData(w, h, false, 0x05080B);
@@ -511,22 +555,57 @@ package survarium.rooms
             return small;
         }
 
-        // The library bitmap of a level in a weather; its day one when that
-        // weather has none.
+        // A row's name by its id in a list of MapRenders.
+        private static function renderName(list:Array, id:int):String
+        {
+            for each (var row:Object in list)
+            {
+                if (row.id == id)
+                    return row.name;
+            }
+            return null;
+        }
+
+        // The library bitmap of a level in a weather, as MapRenders says
+        // (tables/survarium/rooms/MapRenders.tsv, which the site's match
+        // lists are cut by too): its day one when that weather has none.
         private function renderClass(level:int, weather:int):Class
         {
-            var one:String = RENDER_ONE[String(level)] as String;
+            var one:String = renderName(MapRenders.ONE, level);
             if (one != null)
                 return getDefinitionByName(one) as Class;
-            var base:int = RENDER_LEVEL[String(level)] != null ? int(RENDER_LEVEL[String(level)]) : level;
+            var base:String = renderName(MapRenders.LIKE, level);
+            if (base == null)
+                base = "Level" + level;
             try
             {
-                return getDefinitionByName("Level" + base + "_" + RENDER[String(weather)]) as Class;
+                return getDefinitionByName(base + "_" + renderName(MapRenders.WEATHERS, weather)) as Class;
             }
             catch (e:Error)
             {
             }
-            return getDefinitionByName("Level" + base + "_day") as Class;
+            return getDefinitionByName(base + "_day") as Class;
+        }
+
+        // A one-line field's text whole in its width, with FIT_SPARE of it to
+        // spare: its font a point smaller at a time, down to `smallest`, and
+        // only then cut to it (fitName). The points it took off, for the caller
+        // to keep the line where it was.
+        internal static function fitSize(field:TextField, smallest:int):int
+        {
+            var format:TextFormat = field.getTextFormat();
+            var was:int = int(format.size);
+            var size:int = was;
+            while (field.textWidth * (1 + FIT_SPARE) > field.width - 4 && size > smallest)
+            {
+                size--;
+                format.size = size;
+                field.defaultTextFormat = format;
+                field.setTextFormat(format);
+            }
+            if (field.textWidth > field.width - 4)
+                fitName(field, field.text, "");
+            return was - size;
         }
 
         // A name cut to its field by its width in the field's own font and

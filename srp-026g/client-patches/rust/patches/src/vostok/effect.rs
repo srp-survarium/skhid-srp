@@ -140,6 +140,8 @@ pub fn effect_capacity(ctx: &mut Context<'_>, name: &CStr, instances: u32) {
 pub struct KeptEffect(raw::MedicalEffectResource);
 
 impl KeptEffect {
+    pub(super) fn resource(self) -> raw::MedicalEffectResource { self.0 }
+
     /// Keeps `resource` (a reference of ours taken now).
     ///
     /// # Safety
@@ -228,6 +230,24 @@ impl<'t> Player<'t> {
     pub fn damage_zones(&self) -> u8 {
         // SAFETY: the live player's byte, on the hook's thread.
         unsafe { read(self.this.damage_zones()) }
+    }
+
+    /// Whether its eyes are in a toxic smoke cloud now (patch 180's Toxic Smoke, at its stamina's
+    /// clock, the simulation's): Forest Protection takes the cloud for a damage zone. The effect
+    /// clock's player is the presentation's (no world core, no simulated transform): the clouds
+    /// are tested against its place's player in the match's core.
+    pub fn in_toxic_smoke(&self) -> bool {
+        // SAFETY: the live player's place and world core; the core's player (one reference held
+        // while it is read) of a world whose places own their kit players.
+        unsafe {
+            let core = self.this.world_core().or_else(super::artefact_skills::match_core);
+            let Some(owned) = super::medical::Player::in_core(self.thread, core, read(self.this.place())) else {
+                return false;
+            };
+            let simulated = owned.get().get();
+            let now = technical_skills::Clock(read(simulated.stamina().clock()));
+            super::technical_smoke::in_toxic_cloud(simulated, now)
+        }
     }
 
     /// The factor a hit with an owner is given while it is inside a damage

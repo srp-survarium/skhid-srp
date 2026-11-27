@@ -26,10 +26,21 @@ The owner's rule (2026-10-29; the bonus cells of content-edit `armor.tsv`, once 
 
 ## Their order
 
-The card lists an item's built-in bonuses as its `default_modifications` has them, so every armour
-piece and booster keeps them in one order (2026-11-14, the owner: "it should be sorted everywhere
-properly", ammo bags on top): what it carries (ammo bags, item slots, pocket capacity, artefact
-container), then the body (weight limit, movement, energy costs, stamina and health regeneration),
-the gun (accuracy, aim, reload, recoil), the rest. It is the order of the bonus columns of
-`STATS['armor']` and `STATS['boosters']` in `content_edit.py`: the table edit sorts each item's list
-(kinds without a column after them, as they were) and `--check` reports a list out of it.
+Every item keeps its built-in bonuses in one order (2026-11-14, the owner: "it should be sorted
+everywhere properly", ammo bags on top): what it carries (ammo bags, item slots, pocket capacity,
+artefact container), then the body (weight limit, movement, energy costs, stamina and health
+regeneration), the gun (accuracy, aim, reload, recoil), the rest.
+
+- The card: the lobby's `BonusOrder.tsv` (`srp-026g/flash/lobby_menu/tables/survarium/data/`) lists
+  the order by the property each line shows, and `ItemInfoRenderer` puts every built-in line in it:
+  the item's own and what a skill adds to it (an oxygen tank's, `MatchEffects.tankBonuses`). A line
+  whose property has no row stops the card, never goes last; srp's `modifications::tests` holds every
+  modification's property to a row (an `#[ignore]`d one on a built server data file, srp's own
+  modifications too), and the weapon-details harness the tank's card.
+- The data: the bonus columns of `STATS['armor']` and `STATS['boosters']` in `content_edit.py` are in
+  the same order; the table edit sorts each item's `default_modifications` by them (kinds without a
+  column after them, as they were) and `--check` reports a list out of it. The wiki's "Comes with"
+  lists it so.
+- 2026-11-23 (the owner: "oxygen tanks arti slot is now inconsistent"): Tank Container's line was
+  added to the tank's card after the data's sorted list and the other tank skills' lines, so it went
+  last; since then the card orders its lines itself.

@@ -11,19 +11,20 @@ On a handled crash it writes
 `SRP-crash-YYYYMMDD-HHMMSS-mmm-pPID-tTID-N.dmp` **beside the game EXE**, then
 zips it with recent logs to `SRP-crash-…-N.zip` (see Zipped dumps), before callbacks or the
 dialog. Closing the dialog keeps the file. Existing files are
-never overwritten. If the EXE folder is unwritable, it tries the Windows temporary
+never overwritten. Each folder keeps the newest ten crashes' files (see Old
+crashes). If the EXE folder is unwritable, it tries the Windows temporary
 folder; the dialog shows the filename and folder in separate labeled fields,
 or a failure message. Long folders use middle ellipsis. It uses static text
 without scrollbars; only the crash details (see Crash details) can be
 selected. The layout follows the original C++
 `IDD_SIMPLE_DLG`: an explicit 8-point Tahoma font with smoothing, white message panel, thin divider,
-and gray footer with Open Discord, Copy and Close buttons. The panel is taller to fit
+and gray footer with Open Discord, Open folder, Copy and Close buttons. The panel is taller to fit
 the dump details; the original Mail and More controls are omitted. The original
 green beetle icon (`vostok/sources/BugTrap/res/Bug.ico`) is embedded in the DLL
 and used in both the message panel and the localized Survarium window title.
-Both button labels are centered horizontally and vertically. Open Discord uses
-the same measured character advances for painting, avoiding the caption offset
-seen under Wine.
+All button labels are centered horizontally and vertically. Open Discord and
+Open folder use the same measured character advances for painting, avoiding
+the caption offset seen under Wine.
 
 Open Discord opens [SRP Discord](https://discord.gg/QUmJg3gBhg) in the default
 browser, only when clicked. The dialog tells the player to find the named file
@@ -31,6 +32,18 @@ in the displayed folder and send it to **#bugreports**. This applies to both a
 ZIP and a raw dump kept after compression failed. If saving failed, it asks
 them to describe the crash in that channel instead. A browser-launch failure
 shows the invite address and manual instructions.
+
+Open folder, only when clicked, shows the saved file (the ZIP, the raw dump
+kept when compression failed, the text report when no dump was saved, or a
+full dump's report) selected in its folder, the game's or the temporary one:
+`explorer.exe /select,"<path>"` from the Windows folder, through
+`ShellExecuteW` (already imported for the browser link). Explorer runs as a
+process of its own, so a slow shell cannot hold the dialog. If it cannot be
+started, the folder is opened alone; if that fails too, nothing else happens.
+Without a file (saving failed, or a full dump with no report) the button is
+not there and Copy takes its place. Under Wine (11.8 Staging) Wine's own
+explorer window opens the folder, letters outside ASCII included, with the
+file listed; it does not call the Linux file manager.
 
 The whole dialog (title, status, file/folder labels, instructions, buttons and
 errors) is localized in English, Russian, Ukrainian, German and Polish. It
@@ -173,9 +186,38 @@ All file and folder calls of this DLL are the Windows wide (W) calls.
 Nothing is uploaded automatically. Email/upload entry points fail with
 `ERROR_NOT_SUPPORTED`, and legacy support destinations are discarded. The DLL
 imports `kernel32.dll`, `user32.dll`, `gdi32.dll`, `shell32.dll` (for the browser
-link and the Documents folder of the start-up notice), and `ntdll.dll` and
+link, Open folder and the Documents folder of the start-up notice), and `ntdll.dll` and
 `api-ms-win-core-synch-l1-2-0.dll` (the standard library's), no C runtime DLL; it loads `dbghelp.dll` by absolute path from beside the EXE or the Windows
 system directory when capturing a dump.
+
+## Old crashes
+
+A folder keeps the files of its newest ten crashes (`KEEP` in
+`src/crash_files.rs`); nothing tells the player.
+
+- When: at every capture (a crash or `BT_SaveSnapshot`), on the report worker,
+  once this crash's files are written, closed and zipped, and before the
+  callbacks and the dialog.
+- Where: beside the game exe and in the temporary folder, each counted on its
+  own: one listing of `SRP-crash-*` in each, no subfolder.
+- Ours: only names the reporter writes, exactly:
+  `SRP-crash-YYYYMMDD-HHMMSS-mmm-p<pid>-t<tid>-<n>` (the numbers as it
+  writes them, no leading zero) and `.zip`, `.dmp`, `.txt` or `.zip.part`. The
+  files of one name are one crash: a ZIP and its report, a raw dump kept when
+  zipping failed and its report, a report alone (no dump), a full-memory dump
+  (`SKHID_CRASH_DUMP=full`, 1 to 3 GB each) and its report: the full dumps
+  follow the same rule. Anything else (an unpacked ZIP's folder, `… (1).zip`,
+  another case or extension) is not ours and is left.
+- Which go: the crashes are dated by their newest file's last write; the
+  newest ten stay whole and every file of the older ones is deleted, with
+  every `.zip.part` left by a game that died while zipping. The files of
+  this process (its id is in the name: this crash, an earlier snapshot) are
+  never deleted and do not count among the ten.
+- Bounded: up to 512 files of ours are looked at in a folder at one crash
+  (the listing's first; past them, a later crash takes more). A file Windows
+  does not delete (open, read-only, held by an antivirus) is passed over,
+  and an error ends it quietly. The decision is a pure function over the
+  listed names and times, without allocation (`src/crash_files.rs`).
 
 ## Start-up notice: the game cannot save its files
 
@@ -556,7 +598,11 @@ partial report, failed save, a capture refused as an antivirus refuses it
 Cyrillic and Polish letters, failed browser launch and failed dialog creation,
 plus automatic locale selection with absent or conflicting game-language options.
 It measures text against control bounds, checks translated labels
-and buttons, and intercepts the browser call so no browser or network is used.
+and buttons and that the footer's buttons stand in one row without overlapping,
+and intercepts the browser and Explorer calls so no browser, Explorer or network
+is used. It clicks Open folder and checks that Explorer is asked to select the
+file the dialog names (with Explorer refused, browser-failure, that the folder
+alone is opened), and that the button is absent when there is no file.
 In each, it presses Copy and reads the clipboard back (the code block, no
 log lines), and checks the text report beside the dump, or in its place.
 An optional second argument saves dialog screenshots as BMPs for inspection.
@@ -635,6 +681,15 @@ rustc --edition 2024 --test tests/sanitize_tests.rs -o /tmp/sanitize-tests
 rustc --edition 2024 --test tests/run_name_tests.rs -o /tmp/run-name-tests
 /tmp/run-name-tests
 ```
+
+Which old crashes' files go (Old crashes): the names that are ours, ten or
+fewer kept, the oldest going whole, this process's never, a `.zip.part`,
+look-alike names, mixed kinds, two folders apart and the bound:
+
+```sh
+rustc --edition 2024 --test tests/crash_files_tests.rs -o /tmp/crash-files-tests
+/tmp/crash-files-tests
+```
 Python `zipfile` checks every member and its CRC.
 
 The text report of a real, unhandled crash: build `tests/report_probe.cpp`
@@ -671,6 +726,22 @@ Run on 2026-11-15 for the runs' logs (Linux, Wine 11.8 Staging, the probes
 built with Nix's MinGW g++): `check_logs.py` and `check_report.py` pass,
 `check_abi.py` passes, and so do the host tests (`sanitize_tests.rs`,
 `run_name_tests.rs`); the other checks were not run again.
+
+Run on 2026-11-22 for Open folder (Linux, Wine Staging 11.8, an Xorg dummy
+display with openbox; `ui_probe.exe` built with MinGW g++): `check_abi.py` and
+`check_localization.py` (62 dialogs) pass; the other checks were not run again.
+By hand, the same `ShellExecuteW` call under Wine returned at once (33, in
+6 ms) and Wine's explorer window showed the folder `Игра-Żółw` with the ZIP
+listed (not highlighted); no Linux program was started.
+
+Run on 2026-11-23 for Old crashes (same setup): `crash_files_tests.rs` (10),
+`check_abi.py` and `check_localization.py` pass. The probe's crash in a folder
+with twelve older crashes of other processes (ZIPs, raw dumps, their
+reports, one `.zip.part`, three look-alike names, an unpacked folder, the
+oldest crash's report read-only) and three in the temporary folder: the
+newest ten old crashes stayed with the new one, the eleventh went whole,
+the twelfth's ZIP went and its read-only report stayed, the `.zip.part` went,
+the look-alikes, the folder and the temporary folder's three were left.
 
 Run on 2026-10-21 (Linux, Wine, Xvfb), the build with the standard library
 and the C runtime linked in, the C++ probes built with `clang-cl` against the

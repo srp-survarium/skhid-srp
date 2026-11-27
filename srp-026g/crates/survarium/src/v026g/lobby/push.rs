@@ -5,6 +5,7 @@
 use std::num::NonZeroU16;
 
 use super::super::dictionary::{Dictionary, MapId};
+use super::super::faces::{Face, Faces};
 use super::super::lzma2;
 use super::super::modifications::Modifications;
 use super::super::prices::PriceItem;
@@ -287,6 +288,12 @@ pub struct OwnAccount {
     pub exp_total: u32,
     pub exp_level_start: u32,
     pub exp_next_level: u32,
+    /// srp's first byte after the rest: the account's face, which the exe
+    /// draws the lobby's character by (`face-choice.md`).
+    pub face: Face,
+    /// srp's second byte: how many faces the game data lists, which the
+    /// exe gives the lobby movie with the face (its Face button).
+    pub faces: Faces,
 }
 
 /// `80`: the lobby has signed the client in (`lobby.md` §2.1). The client
@@ -450,16 +457,22 @@ pub fn own_account(account: &OwnAccount) -> Result<ServerMessage, WireError> {
         .u8(account.level)
         .u32(account.exp_total)
         .u32(account.exp_level_start)
-        .u32(account.exp_next_level);
+        .u32(account.exp_next_level)
+        .u8(account.face.index())
+        .u8(account.faces.count());
     Ok(writer.done(ServerId::Account))
 }
 
 /// `88`: a squad mate's account, the answer to `34 00 <account> <kit>`
-/// (`lobby.md` §2.8).
-pub fn squad_member_account(body: &AccountBody, revision: u32) -> Result<ServerMessage, WireError> {
+/// (`lobby.md` §2.8), then srp's byte: the mate's face (`face-choice.md`).
+pub fn squad_member_account(
+    body: &AccountBody,
+    revision: u32,
+    face: Face,
+) -> Result<ServerMessage, WireError> {
     let mut writer = Writer::new();
     write_account_body(&mut writer, body)?;
-    writer.u32(revision);
+    writer.u32(revision).u8(face.index());
     Ok(writer.done(ServerId::SquadMemberAccount))
 }
 
@@ -732,7 +745,8 @@ pub fn ranking_flush(top: &[Ranked]) -> Option<Result<ServerMessage, WireError>>
 /// [`PVB_CHOOSE_BASE`]), the rooms (`rooms::ROOMS_FIRST` to
 /// `rooms::ROOMS_LAST`), the kit presets (`presets::PRESETS_FIRST` to
 /// `presets::PRESETS_LAST`), the ask of the shop's "Hide owned" box
-/// (`shop_filter::SHOP_FILTER_FIRST`) and the replay poll ([`REPLAY_START`])
+/// (`shop_filter::SHOP_FILTER_FIRST`), the faces (`faces::FACES_FIRST` to
+/// `faces::FACES_LAST`) and the replay poll ([`REPLAY_START`])
 /// are answered (a lobby pick, `lobby_pick::LOBBY_PICK_BASE` + id, is kept and
 /// shown back in `0xA1`, and the box's click, the next two starts, is kept,
 /// not answered); every other one gets no answer (the "matches now" list and
@@ -978,8 +992,8 @@ pub fn pvb_choose_no(
 /// conversion line while preparing (1 being made now, 0 not known), else
 /// 0. The movie's
 /// `PlayerRanking.fillPlayers` routes an `R1;` header to the History, as
-/// `M2;` and `J1;` go to the matches' window. **srp's own**, as safe for
-/// the client as [`join_answer`]: 45 bytes at the most (the longest word is
+/// `M2;` and `J1;` go to the matches' window. **srp's own**, safe for
+/// the client: 45 bytes at the most (the longest word is
 /// 12 letters, a u64 20 digits), the place a u32 the movie tells apart from
 /// a ranking row.
 pub fn replay_answer(status: &str, match_id: u32, size: u64) -> Result<ServerMessage, WireError> {

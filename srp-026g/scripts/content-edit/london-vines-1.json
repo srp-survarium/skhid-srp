@@ -1,0 +1,127 @@
+{
+ "_about": "London evening's vine bushes as 0.31a2 draws them (the owner, 2026-11-19, evening_3: a pile of plain grey sheets under a balcony). The evening projects place six flora/vine bushes with their second material set (visual name `[1]`), as 0.31a2's evening does; 0.26g ships those models without that set ('Incompatible model settings ... material not found'), so their leaves drew with no material. Each model takes 0.31a2's set 1 (`material_settings_1`, the same surfaces), and its dried-leaves material flora/vine_leaves_v2_desiccated is 0.26g's flora/vine_leaves_v2 with 0.31a2's diffuse flora/vine_leaves_v2_new (pack london-vines@1). The models' first set, and every map that uses it, are unchanged.",
+ "copy": [
+  {
+   "files": "material_instances/flora/vine_leaves_v2.material",
+   "from": "material_instances/flora/vine_leaves_v2.material",
+   "to": "material_instances/flora/vine_leaves_v2_desiccated.material"
+  }
+ ],
+ "replace_string": [
+  {
+   "files": "material_instances/flora/vine_leaves_v2_desiccated.material",
+   "from": "flora/vine_leaves_v2",
+   "to": "flora/vine_leaves_v2_new"
+  }
+ ],
+ "add_value": [
+  {
+   "files": [
+    "models/flora/vine/bush_big.model/settings"
+   ],
+   "table": "",
+   "key": "material_settings_1",
+   "value": {
+    "lod_s": {
+     "material_name": "flora/vine_leaves_v2_desiccated"
+    },
+    "orig_vc": {
+     "material_name": "flora/vine_leaves_v2_desiccated"
+    },
+    "vine_leaves_v2tile_aref_vc": {
+     "material_name": "flora/vine_leaves_v2tile_aref_op_vc"
+    }
+   }
+  },
+  {
+   "files": [
+    "models/flora/vine/bush_corner_in.model/settings"
+   ],
+   "table": "",
+   "key": "material_settings_1",
+   "value": {
+    "lod_s": {
+     "material_name": "flora/vine_leaves_v2_desiccated"
+    },
+    "orig_vc": {
+     "material_name": "flora/vine_leaves_v2_desiccated"
+    },
+    "vine_leaves_v2_nowind": {
+     "material_name": "flora/vine_leaves_v2_nowind"
+    },
+    "vine_leaves_v2tile_aref_vc": {
+     "material_name": "flora/vine_leaves_v2tile_aref_op_vc"
+    }
+   }
+  },
+  {
+   "files": [
+    "models/flora/vine/bush_low.model/settings"
+   ],
+   "table": "",
+   "key": "material_settings_1",
+   "value": {
+    "lod_s": {
+     "material_name": "flora/vine_leaves_v2_desiccated"
+    },
+    "orig_vc": {
+     "material_name": "flora/vine_leaves_v2_desiccated"
+    },
+    "vine_leaves_v2tile_aref_vc": {
+     "material_name": "flora/vine_leaves_v2tile_aref_op_vc"
+    }
+   }
+  },
+  {
+   "files": [
+    "models/flora/vine/bush_small.model/settings"
+   ],
+   "table": "",
+   "key": "material_settings_1",
+   "value": {
+    "lod_s": {
+     "material_name": "flora/vine_leaves_v2_desiccated"
+    },
+    "orig_vc": {
+     "material_name": "flora/vine_leaves_v2_desiccated"
+    },
+    "vine_leaves_v2tile_aref_vc": {
+     "material_name": "flora/vine_leaves_v2tile_aref_op_vc"
+    }
+   }
+  },
+  {
+   "files": [
+    "models/flora/vine/bush_thin.model/settings"
+   ],
+   "table": "",
+   "key": "material_settings_1",
+   "value": {
+    "lod_s": {
+     "material_name": "flora/vine_leaves_v2_desiccated"
+    },
+    "orig_vc": {
+     "material_name": "flora/vine_leaves_v2_desiccated"
+    }
+   }
+  },
+  {
+   "files": [
+    "models/flora/vine/bush_wide.model/settings"
+   ],
+   "table": "",
+   "key": "material_settings_1",
+   "value": {
+    "lod_s": {
+     "material_name": "flora/vine_leaves_v2_desiccated"
+    },
+    "orig_vc": {
+     "material_name": "flora/vine_leaves_v2_desiccated"
+    },
+    "vine_leaves_v2tile_aref_vc": {
+     "material_name": "flora/vine_leaves_v2tile_aref_op_vc"
+    }
+   }
+  }
+ ]
+}

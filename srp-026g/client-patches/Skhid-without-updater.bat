@@ -350,10 +350,16 @@ function Invoke-Step {
             return
         }
     }
-    foreach ($file in $files) {
+    # What is missing or damaged first, so that each download says which of how many.
+    $missing = @($files | Where-Object {
+        $place = Join-Path $here ('game\' + $_.Name)
+        -not ((Test-Path -LiteralPath $place) -and (Get-Sha $place) -eq $_.Sha)
+    })
+    $number = 0
+    foreach ($file in $missing) {
         $place = Join-Path $here ('game\' + $file.Name)
-        if ((Test-Path -LiteralPath $place) -and (Get-Sha $place) -eq $file.Sha) { continue }
-        Write-Host ('Downloading ' + $file.Name + '...')
+        $number++
+        Write-Host ('Downloading ' + $file.Name + ' (' + $number + '/' + $missing.Count + ')...')
         if (-not (Get-File $file.Name ('game\' + $file.Name + '.part') $file.Sha $file.Size $file.Urls)) {
             Show-Failed $file.Name
             return

@@ -15,6 +15,7 @@ order = 2
 [[hook]]
 site = "render.flash_ui"
 handler = "on_interface"
+order = 1
 
 # each Present, after patches 83's and 125's (orders 1 and 2): the frame as
 # the screen shows it

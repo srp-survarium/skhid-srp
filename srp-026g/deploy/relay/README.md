@@ -6,28 +6,61 @@ cipher's secret key. Source addresses travel in a strict IPv4 PROXY v2 envelope;
 only configured WireGuard peers may supply it. Direct players still use the
 original sockets and wire format. This changes no simulation or world data.
 
+The servers know a peer by its address and the route it came by, direct or
+through a given relay (`udp_transport::relay::Peer`): login, lobby, match seats
+and voice all key by it, and an answer leaves by the route its peer came by.
+Datagrams that name an address by another route are another peer's: they never
+continue, redirect or displace a link that came the other way. Limits and bans
+still count the client's own address (the PROXY header's for a relayed peer).
+srp parses `SRP_RELAYS` once at its start and gives the result to the four
+servers; a wrong value starts none of them.
+
+The player picks the route in the launcher's "Relay" row (auto, on, off:
+Automatic, the relay, direct; `client/updater/README.md`, "The route"); a player who never
+picked has Automatic in Russia (the Windows region) and direct elsewhere;
+direct found blocked while the relay answers becomes Automatic by itself.
 Automatic fallback runs before PLAY starts the game. With `updater_skhid.relay`
-installed, the updater probes direct login TCP and lobby/match UDP concurrently,
-then tries the relay if any fails. The server echoes a 22-byte nonce challenge
-without creating an account, session or match. A successful route is passed as
+installed and Automatic, the updater probes direct login TCP and lobby/match UDP concurrently,
+in rounds, and tries the relay only when no round answers whole (3 rounds when
+nothing answers, 5 when a part does, one more after a game played direct; 35 s
+at most; `client/updater/README.md`, "The check"): through the relay the ping
+is higher, so one lost packet must not choose it. Each probe carries 64 KiB
+each way within its 5 s round (login TCP one stream, lobby and match UDP 130
+datagrams of 508 bytes, missing ones sent again), since some providers cut a
+flow to foreign hosting after its first tens of KB: a small echo would pass and
+the game then fail. The server echoes exactly what it got, as it gets it (a
+login connection up to 64 KiB, a datagram that starts `SKHID-ROUTE-1:` up to
+508 bytes), without creating an account, session or match. The relay's
+per-address budgets carry the burst. A successful route is passed as
 `-server=IP:port`; the origin advertises the relay for lobby and match, and voice
 uses match + 1. Explicit `-server=` and replay options bypass route selection.
 A failed route never switches a running match: launch again to choose anew.
 
 The updater's HTTPS requests to the configured login hostname on port 443 also
-fall back, on network errors only, to the relay's port 8080 CONNECT service.
+fall back (Automatic), on network errors only, to the relay's port 8080 CONNECT
+service; with the relay chosen they go through it only, with direct never.
+Under Wine a request through it has the whole address in its request line
+(`GET https://skhid.link:443/...`), which Caddy answers as the path alone.
 It permits only `skhid.link:443` (or the configured `--https-origin`). TLS stays
 end to end, with normal hostname/certificate verification. Other download hosts
 retain their existing mirror behavior. This is not a general HTTP proxy and does
 not change browser or system proxy settings. A new player needs the release
 containing this updater/configuration before automatic fallback is available.
 
+Browsers get the site under a name of the relay's own (`playskhid.link`): the
+same web service passes its port 443 through the tunnel to the origin's Caddy,
+unopened. The certificate and its key stay on the origin, and the relay sees
+no page and no password. Caddy takes the visitor's address from the PROXY
+header, from the tunnel addresses of `SRP_RELAYS` only; anyone else's header is
+read and ignored (`check_site.py`). Downloads through that name count against
+the relay's traffic.
+
 ## Installation
 
 The default tunnel addresses are origin `10.77.0.1/32`, relay `10.77.0.2/32`.
 Check they do not overlap either host's networks. Origin initiates WireGuard to
 the relay on UDP 51820 with a 25-second keepalive, so it needs no new inbound
-provider firewall port. The relay needs inbound TCP 1234/8080, UDP 1235–1237/51820.
+provider firewall port. The relay needs inbound TCP 443/1234/8080, UDP 1235–1237/51820.
 Only IPv4 players and consecutive game ports are supported by this first setup.
 
 1. Build the native bundle (command below) and install
@@ -65,17 +98,46 @@ The server processes invalid envelopes as dropped packets, not fatal socket
 errors. Both ends bound their return-address tables and expire idle entries;
 UDP replies go only to clients observed on that frontend within 120 seconds.
 
+## The site under the relay's name
+
+1. Point the name's A record (`playskhid.link`, the owner's own domain; `www` too if it is to
+   answer) at the relay, in place of the registrar's parking records. The game's relay address
+   stays an IPv4 address (`--relay`): the name is the site's only.
+2. On both hosts run `bash setup.sh configure ...` again with the same
+   arguments: it reloads the tunnel's firewall with port 443 (the tunnel stays
+   up), and on the relay installs this forwarder and its service. Nothing else
+   may hold the relay's port 443 (`ss -ltn 'sport = :443'` is empty): the web
+   service does not start without it, the updater's port 8080 neither. Then
+   `systemctl restart skhid-relay-web` there, which cuts the updater downloads
+   running through it: once players have the relay, on the owner's go.
+3. On the origin add the name to `SRP_WEB_DOMAIN` in `.env` (`SRP_RELAYS` is
+   step 4 above) and make Caddy anew with this compose file:
+   `docker compose --profile tls up -d --no-deps caddy26`. The site's HTTPS is
+   away for a few seconds, so this needs the owner's go; a release does not do
+   it (it makes only `srp26` anew). The name's certificate comes by TLS-ALPN
+   through the relay, so steps 1 and 2 come first. Caddy reads `SRP_RELAYS`
+   only when it is made: make it anew whenever that setting changes.
+4. Check `https://playskhid.link/api/stats`, then that the page sees the
+   visitor and not the relay: the admin page must answer the jump host under
+   this name too. If it does not, Caddy sees another source than the relay's
+   tunnel address (Docker's published port keeps it) and ignores the header.
+
+To take it away: remove the name from `SRP_WEB_DOMAIN`, make `caddy26` anew,
+remove the A record.
+
 ## Checks and rollback
 
 `tools/check regional-relay relay-packaging cargo:udp-transport
 cargo:login-server cargo:lobby-server cargo:match-server updater-replays`
 checks parsing, forged headers, concurrent clients, TCP/UDP round trips, address
-advertising, fallback selection, Windows build and release packaging. Run the
+advertising, fallback selection, Windows build and release packaging;
+`tools/check relay-site` the site through a relay against a real Caddy. Run the
 normal `tools/check` before a PR too.
 
 To stop forwarding: `systemctl disable --now skhid-relay skhid-relay-web`. Remove the fallback
 setting for a later player release. Direct connections keep working. Remove
-`SRP_RELAYS` in a normal server release before dismantling the tunnel. Its
+`SRP_RELAYS` in a normal server release before dismantling the tunnel, and
+make `caddy26` anew then: until that it believes the tunnel address. Its
 anti-spoof rules deliberately remain even when the interface goes down.
 To remove it later, stop/disable `wg-quick@skhid-relay` and delete only the
 `inet skhid_relay` nftables table and this setup's files. Keep SSH access and the

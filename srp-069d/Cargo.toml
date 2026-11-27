@@ -1,0 +1,49 @@
+[workspace]
+members = [
+  "crates/udp-transport",
+  "crates/protocol",
+  "crates/game-data",
+  "crates/client-files",
+  "crates/data-extract",
+  "crates/accounts",
+  "crates/local-match",
+  "crates/world-host-proto",
+  "servers/login-server",
+  "servers/lobby-server",
+  "servers/match-server",
+  "servers/srp",
+  "servers/world-host",
+]
+resolver = "3"
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+
+[workspace.dependencies]
+clap = { version = "4.5.41", features = ["derive", "env"] }
+crc32fast = "1.4.2"
+log = "0.4"
+env_logger = "0.10"
+thiserror = "2.0.12"
+serde = { version = "1.0.219", features = ["derive"] }
+serde_json = { version = "1.0.140", features = ["std"] }
+rusqlite = { version = "0.37", features = ["bundled"] }
+argon2 = { version = "0.5", features = ["std"] }
+password-hash = { version = "0.5", features = ["getrandom"] }
+lzma-rs = "0.3"
+rsa = "0.9"
+rand = "0.8"
+ctrlc = { version = "3.4", features = ["termination"] }
+
+udp-transport = { path = "crates/udp-transport" }
+protocol = { path = "crates/protocol" }
+game-data = { path = "crates/game-data" }
+client-files = { path = "crates/client-files" }
+data-extract = { path = "crates/data-extract" }
+accounts = { path = "crates/accounts" }
+local-match = { path = "crates/local-match" }
+world-host-proto = { path = "crates/world-host-proto" }
+login-server = { path = "servers/login-server" }
+lobby-server = { path = "servers/lobby-server" }
+match-server = { path = "servers/match-server" }

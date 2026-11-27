@@ -17,6 +17,7 @@ use ::ragdoll::math::Pose;
 
 use super::geometry::{Aabb, WorldPoint};
 use super::shape::Shape;
+use super::step::GroundMaterial;
 use super::hook::Thread;
 use super::options::MapId;
 use super::ui::{Movie, movie_of};
@@ -89,6 +90,13 @@ impl<'t> GameWorld<'t> {
         Some(NetworkClient { this, thread: self.thread })
     }
 
+    /// The physics world its players are in (the ragdolls' level, patch 76):
+    /// the first place's player's; none without one.
+    pub fn physics_world(&self) -> Option<PhysicsWorld<'t>> {
+        let client = self.network_client()?;
+        (0..client.places()).find_map(|place| client.player(place)?.physics_world())
+    }
+
     /// The world of the player at `minimap.enemy_spotted` (update_minimap_players' spotted test).
     pub fn at_minimap_enemy(ctx: &'t Context<'_>) -> Option<GameWorld<'t>> {
         // SAFETY: the context is this site's: a place's player in the world and alive, which
@@ -149,6 +157,11 @@ impl Places {
     pub fn each(self) -> [bool; Places::COUNT] {
         core::array::from_fn(|place| self.0 >> place & 1 != 0)
     }
+
+    /// How many places are in.
+    pub fn count(self) -> usize {
+        self.0.count_ones() as usize
+    }
 }
 
 /// What the game plays, from its network client's class (its vtable), read at each ask: there is
@@ -168,6 +181,17 @@ pub struct NetworkClient<'t> {
     pub(in crate::vostok) thread: &'t Thread,
 }
 
+/// What a network client plays, by its class (vtable +0): every field past
+/// it but the vtable's own calls is a live client's (a replay's client is
+/// 0x5AB18 bytes; the live one's options holder is at +1F1C48h).
+pub(in crate::vostok) fn playback_of(client: raw::NetworkClient) -> Playback {
+    // SAFETY: a client alive for the hook; its vtable is its first word.
+    match unsafe { read(client.vtable()) } {
+        raw::image::REPLAY_CLIENT_VTABLE => Playback::Replay,
+        _ => Playback::Match,
+    }
+}
+
 impl<'t> NetworkClient<'t> {
     /// The client a site's typed register holds, on its hook's thread.
     pub(in crate::vostok) fn of(this: raw::NetworkClient, thread: &'t Thread) -> NetworkClient<'t> {
@@ -176,11 +200,7 @@ impl<'t> NetworkClient<'t> {
 
     /// What it plays: its class (vtable +0), the one field both kinds of client share.
     pub fn playback(&self) -> Playback {
-        // SAFETY: the client, alive for the hook; its vtable is its first word.
-        match unsafe { read(self.this.vtable()) } {
-            raw::image::REPLAY_CLIENT_VTABLE => Playback::Replay,
-            _ => Playback::Match,
-        }
+        playback_of(self.this)
     }
 
     /// The match's places' count (0 without match options).
@@ -256,11 +276,12 @@ impl<'t> NetworkClient<'t> {
     /// is_local, set at 0x27BE5F), if any: the options' own bytes, read
     /// without the local player's object.
     pub fn local_profile(&self) -> Option<u8> {
-        // SAFETY: the client's options and their places live as long as the
-        // client, on the hook's thread; a place below the count (at most the
-        // 20 of the array) is one of them.
+        // SAFETY: the client's options (its own virtual, a live and a replay
+        // client alike) and their places live as long as the client, on the
+        // hook's thread; a place below the count (at most the 20 of the
+        // array) is one of them.
         unsafe {
-            let options = self.this.options_holder()?.options();
+            let options = raw::engine_match_options(Some(self.this))?;
             let places = read(options.places()).min(20);
             (0..places).find(|&p| read(options.first_place().at(usize::from(p)).is_local()) != 0)
         }
@@ -698,6 +719,45 @@ impl<'t> PhysicsWorld<'t> {
         }
     }
 
+    /// A ray against the level's collision that bullets hit (`SHOT_GROUP`,
+    /// `SHOT_MASK`): its first hit on a triangle whose game material is not
+    /// one `passed` lets the ray through (a bush's leaves). After such a hit
+    /// the ray goes on from `PAST_LEAF` behind it, through at most
+    /// `MOST_LEAVES` of them (then nothing is met).
+    pub fn shot_ray_test_past(&self, origin: [f32; 3], direction: [f32; 3], length: f32,
+                              passed: impl Fn(GroundMaterial) -> bool)
+                              -> Option<RayHit> {
+        let _ = self.thread;
+        let mut gone = 0.0;
+        for _ in 0..MOST_LEAVES {
+            let rest = length - gone;
+            if rest <= 0.0 {
+                break;
+            }
+            let from = [0, 1, 2].map(|i| origin[i] + direction[i] * gone);
+            let mut room = raw::RayResultStorage::zeroed();
+            let result = room.handle();
+            // SAFETY: as ray_test; the object hit is alive in the world. Its
+            // triangle's material is read as on_step reads its ground's
+            // (0x248B6A) and a bullet its hit's (0x32D837), whose rays meet
+            // every object this filter can: the projects' 8/16 and 10/20,
+            // a trap's body 808h/10h, a battery 0A18h/418h. Another filter
+            // could meet a ghost object, whose vtable has no such slot.
+            unsafe {
+                raw::engine_ray_test(Some(self.this), Some(result), from.as_ptr(), direction.as_ptr(), rest, SHOT_GROUP,
+                                     SHOT_MASK, core::ptr::null(), 0);
+                let object = result.object()?;
+                let material =
+                    raw::engine_triangle_material(Some(object), read(result.part()), u32::from(read(result.part_kind())));
+                if !passed(GroundMaterial::of(material)) {
+                    return Some(RayHit { point: floats(result.point()), normal: floats(result.normal()) });
+                }
+                gone += read(result.fraction()) * rest + PAST_LEAF;
+            }
+        }
+        None
+    }
+
     /// Each object of the world (m_collisionObjects, in its order) that is
     /// in its broadphase: its filter group, whether it is static, the box
     /// the broadphase holds for it (the game's frame), its pose and shape
@@ -726,6 +786,16 @@ impl<'t> PhysicsWorld<'t> {
         }
     }
 }
+
+/// The level's collision that bullets hit (cgroup 8 / cmask 16), which
+/// follows the drawn surfaces (lobby_camera::process_collision 0x2844E4).
+const SHOT_GROUP: u32 = 0x10;
+const SHOT_MASK: u32 = 0x08;
+/// The most leaves [`PhysicsWorld::shot_ray_test_past`] goes through, and
+/// how far behind one its ray goes on (m): past the leaf itself, short of
+/// a surface the leaf lies on.
+const MOST_LEAVES: usize = 16;
+const PAST_LEAF: f32 = 0.001;
 
 /// m_collisionFlags' CF_STATIC_OBJECT.
 const STATIC_OBJECT: u32 = 1;

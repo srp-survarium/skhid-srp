@@ -4,3 +4,18 @@ va	name	source	ret_cleanup	result
 0x20014bb60	survarium::loading_screen::on_music_loaded	manual	0	void
 0x20062a8f0	vostok::sound::sound_instance_proxy::fade_out	manual	0	void
 0x20023ece0	survarium::player_input_handler::on_mouse_move	manual	0	AL 0; this+86D0h/+86D2h the turn (halves), queued at this+2C0h
+0x2002f1480	survarium::game_world_core::remote_player_delay_in_ms	manual	0	EAX u32 delay in ms, clamped to [tick, max remote delay]
+0x2002f1400	survarium::game_world_core::own_confirmation_delay	manual	0	EAX u32 ms
+0x200306550	survarium::base_player::get_damage_collision_for_query	manual	0	RAX collision wrapper or null
+0x200307450	survarium::base_player::recompute_damage_collision_bones_for_time_ctr	manual	0	void
+0x200236710	survarium::game_world::interpolate_players_at	manual	0	void
+0x20022e610	survarium::base_player::root_transform_at	manual	0	void; float4x4 written to RDX
+0x20038ebb0	survarium::weapon_core_reload_state_base::on_user_may_shoot_event	manual	0	EAX 0; the params' handled byte +34h := 1
+0x2006d6c50	survarium::weapon_core::load_magazine	manual	0	void
+0x2002c2d70	survarium::first_person_view_camera_controller::update_camera	manual	0	void
+0x2006cc8a0	survarium::weapon::effective_aim_progress	manual	0	XMM0 effective aim progress
+0x2006cdb40	survarium::weapon::current_camera_fov_factor	manual	0	XMM0 world FOV factor
+0x2005a91b0	vostok::math::create_perspective_projection	manual	0	RAX output matrix
+0x2006cd490	survarium::weapon::request_aim_slot_switch	manual	0	void
+0x2006d87d0	survarium::weapon::start_aim_slot_switch	manual	0	void
+0x2006cc810	survarium::weapon::current_zoom_factor	manual	0	XMM0 aim zoom factor

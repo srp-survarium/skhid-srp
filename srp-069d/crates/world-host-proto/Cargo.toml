@@ -1,0 +1,8 @@
+[package]
+name = "world-host-proto"
+version.workspace = true
+edition.workspace = true
+description = "Frames and messages between the 0.69d relay (match-server) and the world host daemon (srp-world-host)"
+
+# No dependencies on purpose: the world host builds this crate on its own.
+[dependencies]

@@ -445,7 +445,7 @@ Reader 0x271860 → `lobby_menu::set_online_stats` 0x225E80 (0.21d `read_online_
 - **== 0 → system message `st_maintenance` (0x21E680); the game no longer quits** (0.21d called `game::exit_and_launch_launcher`).
 - ≤ 30 → Play disabled (2.2). Then `update_play_button_state`.
 
-Initial value 0 → Play stays disabled until the first 0x9F. **Send ≥ 60** (31..59 shows the warning). 0x9F is the lobby's one send-once message (transport.md §4.1: no x byte, never resent), so a lost one would leave Play off: srp sends the counts again every 5 s, changed or not (`servers/lobby-server/src/v026g/core.rs`).
+Initial value 0 → Play stays disabled until the first 0x9F. **Send ≥ 60** (31..59 shows the warning). 0x9F is the lobby's one send-once message (transport.md §4.1: no x byte, never resent), so a lost one would leave Play off: srp sends the counts again every 5 s, changed or not (`servers/lobby-server/src/v026g/core.rs`), but none to a player in a match: each 0x9F runs `update_play_button_state` (§2.2), which in a match (state 2) logs `PlayBtn disabled reason is: state=2 ...`, a line every 5 s for the whole match; the counts go again once it is back in the lobby.
 
 ---
 

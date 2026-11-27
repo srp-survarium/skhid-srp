@@ -92,7 +92,8 @@ strength = (kills at L + 10 * overall) / (deaths at L + 10)
   sides; nothing is balanced there), one with no trusted result, one a whole side left, one
   called off, and one the server does not know the level of (made before a restart).
 - The overall balance rating (`Account::balance`) is still moved and written in the log's "sides"
-  lines, for `scripts/balance-refit`; it no longer counts for the sides.
+  lines; it no longer counts for the sides. (`scripts/balance-refit`, which fitted the old weights
+  from those lines, was retired: K/D balancing superseded it.)
 
 ## Kept
 

@@ -456,10 +456,10 @@ Dispatch: `jmp [0x1609E + (type-1)*4]` (0x15BB5) with **no range check**; the ta
 | 4 | wide string (drive letter or path), u64 available bytes, u8 | 0x15C27 | stored; pending prompt kind = 4 |
 | 5 | narrow string | 0x15CDA | **`MessageBoxA(NULL, text, "Updater error:", MB_ICONERROR)`**, modal; last-type = 5; state unchanged |
 | 6, 7, 8, 9 | narrow string (file name or command) | 0x15D0D | if longer than 48 chars it becomes `...` + its last 44 chars (`std::rotate` 0x18345 called at 0x15D55, then three dots); converted with `mbstowcs_s` into this+0x4FE4; last-type = type; `refresh_status` |
-| 10..13 | (ignored) | 0x16093 | nothing |
+| 10..13 | (ignored) | 0x16093 | nothing (the Skhid launcher: 10 is the "Relay" row's view, `client-patches/launcher/README.md` patch 16; 11 is which file of how many is downloaded, two u16, its patch 17) |
 | 14 | none | 0x15D94 | shows the pending prompt (5.2) and answers with 0x1C or 0x1D |
 | 15, 16, 17, 18 | none | 0x15C44.. | pending prompt kind = 0x0F, 0x10, 0x11, 0x12 |
-| 19 | u8 seconds | 0x15FAE | this+0x2BA0, `refresh_status` (text 0xB9 in updater state 23) |
+| 19 | u8 seconds | 0x15FAE | this+0x2BA0, `refresh_status` (text 0xB9 in updater state 23; the Skhid launcher: also the count of "The server is restarting. Next try in N s." in launcher state 7, `client-patches/launcher/README.md` patch 16) |
 | 20 | none | 0x15FC6 | port rejected: re-shows the settings window, settings "port ok" flag = 0, MessageBoxW text 0xB8 if the stored port string is empty else 0xB7 |
 | 21 | none | 0x16067 | port accepted: flag = 1, `WM_CLOSE` posted to the settings window |
 | 22 | none | 0x15C80 | pending prompt kind = 0x16 |
@@ -492,6 +492,7 @@ launcher sends 0x1C, anything else -> 0x1D; pending kind reset to 0.
 | 0x1C | none | 0x1611D | Retry in the prompt |
 | 0x1D | none | 0x16119 | Cancel in the prompt |
 | 0x21 | u16 port (decimal parse of the settings port string) | `send_port_message` 0x173B1 | settings saved with a changed port while connected (0x17309) |
+| 0x22, 0x23, 0x24 | none | `send_simple_message` 0x1749F | the Skhid launcher only: its "Relay" menu's row picked: auto, on, off (patch 16) |
 
 Wire examples: abort = `01 00 1B`; retry = `01 00 1C`; port 6881 = `03 00 21 E1 1A`. Nothing else is
 sent, in particular nothing at connect.
@@ -1075,7 +1076,7 @@ C. **No temp copy**: B + the three patches of 1.8 (`0x1474A`, `0x14442`, string 
 - The original updater's behaviour (what it sends in which order, what `copy` copies exactly, what the
   service does with `StartServiceW` arguments) was only skimmed from its strings; the launcher-side
   contract in sections 4 and 5 is what is proven. A separate note on the updater side,
-  `notes\updater-026g.md`, was being written by another task at the same time and was not
+  `launcher_updater.md`, was being written by another task at the same time and was not
   cross-checked against this one.
 - What the installer wrote into `file to execute`, `arguments`, `working folder`, `update server`,
   `launcher` on a real installation (no registry export was available).

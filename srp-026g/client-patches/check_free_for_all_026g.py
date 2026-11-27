@@ -14,10 +14,13 @@ harness: Scaleform's Invoke 0x511600 a stub that records each call):
 - the whole select_respawn_points (0x3171D0, ret 18h) for a vector of
   free-for-all players, with the game's own clear test (0x2F4800, its sqrt,
   the players' transforms through their vtables) and push_back (0x3174C0):
-  each due player chooses among all points that pass the clear test and
-  have no point already given at this tick inside their enemy radius, using
-  a deterministic integer mix of time and place; with none he gets
-  one of the five best-separated points; every due player gets a point. Hand-made cases, and
+  each due player chooses among the points that pass the clear test and
+  have no point already given at this tick inside their enemy radius,
+  the nearest max(3, ceil(n x players / 10)) of their n to the living for
+  the match's players (the world core's places, rule+134h, +18FD8h); when
+  that is all, or with nobody living, all in map order; using a deterministic integer mix of
+  time and place; with none he gets one of the five best-separated points;
+  every due player gets a point. Hand-made cases, and
   300 seeded random ones against this file's own model of the rule. The
   callee-saved registers and the stack as the game's ret 18h leaves them. A
   vector of teams 0 and 1 takes the game's own path;
@@ -266,11 +269,12 @@ class Run(blackout.Run):
         assert self.stopped == RETURN and sp_after == sp + 12, hex(self.stopped or 0)
         assert self.read(RULE + 0x138 + 4 * place) == time
 
-    def select(self, points, due, living, time, team=0, fresh=True):
+    def select(self, points, due, living, time, team=0, fresh=True, players=20):
         """points: (position, enemy radius) of the team-2 group (ally radius
-        1); due, living: player indices. The chosen points' indices. Fresh:
-        in a free-for-all just read, so that nobody has spawned yet; else
-        after the selections before."""
+        1); due, living: player indices; players: the places in the match
+        (its world core's, the rule's +134h). The chosen points' indices.
+        Fresh: in a free-for-all just read, so that nobody has spawned yet;
+        else after the selections before."""
         if fresh:
             self.options_read()
         self.emu.mem_write(RULE, bytes(0x1000))
@@ -282,6 +286,9 @@ class Run(blackout.Run):
             self.emu.mem_write(p + 0x30, struct.pack("<2f", 1.0, radius))
         self.word(RULE + 0x190, first if points else 0)
         self.word(RULE + 0x19C, len(points))
+        self.word(RULE + 0x134, CORE)
+        active = self.read(CORE + 0x18FD8)
+        self.word(CORE + 0x18FD8, (1 << players) - 1)
         self.vector(DUE_V, DUE_A, [player(i) for i in due])
         self.vector(LIVING_V, LIVING_A, [player(i) for i in living])
         self.vector(CHOSEN_V, CHOSEN_A, [])
@@ -289,6 +296,7 @@ class Run(blackout.Run):
         self.emu.mem_write(sp, struct.pack("<7I", RETURN, team, DUE_V, LIVING_V, 0x12345, time, CHOSEN_V))
         regs = {**hide.GAME, UC_X86_REG_ECX: RULE}
         after, sp_after = self.run(SELECT, (RETURN,), sp, regs)
+        self.word(CORE + 0x18FD8, active)
         assert self.stopped == RETURN, hex(self.stopped or 0)
         assert sp_after == sp + 0x1C, hex(sp_after - sp)
         for reg in (UC_X86_REG_EBX, UC_X86_REG_ESI, UC_X86_REG_EDI, UC_X86_REG_EBP):
@@ -364,13 +372,17 @@ class Run(blackout.Run):
         return kept, self.native_messages, ours
 
 
-def model(points, due, living, time, last=None):
+def model(points, due, living, time, last=None, players=20):
     """This file's own statement of the rule: for each due (place) in order,
     the point he gets. points: (position, radius); living: positions. The
     coordinates are multiples of 0.25 m, so every square and sum is exact.
     last: {place: [his latest point, the one before]}, which the choices
     update (None: nobody has spawned); neither the pool nor the fallback
-    offers them, unless every point of the map is one of them."""
+    offers them, unless every point of the map is one of them. players: the
+    places in the match; the pool is cut to its nearest max(3, ceil(n x
+    players / 10)) to the living, nearest first (those 30 m away or more
+    first, then the nearer ones, the farthest of them first); when that is all, or with
+    nobody living, it stays whole in map order."""
     def d2(a, b):
         return sum((x - y) ** 2 for x, y in zip(a, b))
     last = {} if last is None else last
@@ -383,6 +395,12 @@ def model(points, due, living, time, last=None):
         passing = [j for j, (p, r) in enumerate(points)
                    if j not in chosen and j not in excluded and all(d2(p, o) >= r * r for o in others)]
         best = sorted(range(len(points)), key=lambda j: (-rank[j], j))[:5]
+        near = max(3, -(-len(passing) * players // 10))
+        if living and near < len(passing):
+            def nearest(j):
+                d = min(d2(points[j][0], o) for o in living)
+                return d < 900, abs(d - 900), j
+            passing = sorted(passing, key=nearest)[:near]
         pool = passing or [j for j in best if j not in excluded]
         mixed = (time + place * 0x9e3779b9) & 0xffffffff
         mixed = ((mixed ^ (mixed >> 16)) * 0x7feb352d) & 0xffffffff
@@ -522,6 +540,21 @@ def main():
     assert seen == {1, 2}, seen
     print('ok 20 m exclusion: 19.75 m refused, 20.25 m eligible alongside far points')
 
+    # Closer when few (ffa.md "Choice"): a living player at 0, nine clear points.
+    points = line(200, 30, 10, 300, 45, 100, 35, 150, 60, 400)
+    seen = lambda players, living=(20,): {
+        r.select(points, [0], list(living), time, players=players)[0] for time in range(0, 20_000, 50)}
+    for players, near in ((2, {1, 4, 6}), (6, {1, 4, 5, 6, 7, 8}), (10, {0, 1, 3, 4, 5, 6, 7, 8, 9}),
+                          (20, {0, 1, 3, 4, 5, 6, 7, 8, 9})):
+        assert seen(players) == near, (players, seen(players))
+    assert seen(2, ()) == set(range(10)), seen(2, ())
+    for time in range(0, 5_000, 50):
+        for players in (1, 2, 5, 9, 10, 13):
+            assert r.select(points, [0], [20], time, players=players) == \
+                model(points, [0], [(0, 0, 0)], time, players=players)
+    print('ok a match of few: the nearest clear points (2 players the 3, 6 the 6), 10 or more all, '
+          'nobody living all')
+
     rng = random.Random(140)
     grid = lambda: (rng.randrange(-800, 801) / 4, rng.randrange(0, 41) / 4, rng.randrange(-800, 801) / 4)
     for case in range(300):
@@ -533,9 +566,12 @@ def main():
         for place in due:
             r.make_player(place, 4 + place, place, grid())
         time = rng.randrange(0, 900_000)
-        got = r.select(points, due, list(range(20, 20 + len(living))), time)
-        assert got == model(points, due, living, time), (case, got, model(points, due, living, time))
-    print('ok 300 random matches (1 to 33 points, up to 19 living, up to 20 due): the points this file\'s model gives')
+        players = rng.randrange(1, 21)
+        got = r.select(points, due, list(range(20, 20 + len(living))), time, players=players)
+        want = model(points, due, living, time, players=players)
+        assert got == want, (case, got, want)
+    print('ok 300 random matches (1 to 33 points, up to 19 living, up to 20 due, 1 to 20 players): the points '
+          'this file\'s model gives')
 
     # Never the last two (ffa.md "Choice"): the game's own select, tick after tick of one match.
     r.make_player(20, 30, 10, (0, 0, 0))
@@ -572,8 +608,9 @@ def main():
         for place in due:
             r.make_player(place, 4 + place, place, grid())
         time = rng.randrange(0, 900_000)
-        got = r.select(points, due, list(range(20, 20 + len(living))), time, fresh=False)
-        assert got == model(points, due, living, time, last), (case, got)
+        players = rng.randrange(1, 21)
+        got = r.select(points, due, list(range(20, 20 + len(living))), time, fresh=False, players=players)
+        assert got == model(points, due, living, time, last, players), (case, got)
     print('ok 300 random ticks of one match, each place by his own last two: the points this file\'s model gives')
 
     # The history is the world's: after the respawn rule's own bytes, read back by a game that joins late, and by

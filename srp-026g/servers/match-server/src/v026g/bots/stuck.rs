@@ -23,7 +23,8 @@
 //! walk into the same trap again. Once is not enough: the spot may be the
 //! only door to the other side, and a body caught there once by another
 //! player gets through the next time; and where every route passes a spot,
-//! the bot takes one anyway (`Bot::choose`).
+//! the bot takes one anyway (`drive_tick` for a first search,
+//! `Bots::go_on_searching` for a resumed one).
 
 use mapdata::Vec3;
 

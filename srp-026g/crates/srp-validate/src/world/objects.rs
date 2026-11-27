@@ -31,8 +31,11 @@
 //! grenade_core           serialize 0x303DA0, deserialize 0x303F80
 //!   u8   current_state   bit 0: in the physics world (+0x138 set),
 //!                        bit 1: thrown (+0x13C m_explode_time_ms not -1),
-//!                        bit 2: +0x144 (meaning unknown); no other bit
+//!                        bit 2: +0x144 (meaning unknown),
+//!                        bit 3: exe patch 180's toxic cloud; no other bit
 //!   bit 1:  u32 m_explode_time_ms, u32 m_id
+//!   bit 3:  u32 the blast's ms, f32 x3 its centre (Toxic Smoke 441,
+//!           technical_skills::smoke::Cloud; technical-skills.md)
 //!   bit 0:  f32 x16 m_transform, f32 x3 linear_velocity,
 //!           f32 x3 angular_velocity
 //!
@@ -96,13 +99,15 @@
 //!                        three kits with a player object
 //!   when that kit has a player: u8 m_slot_id, its inventory slot, an
 //!                        artefact slot 13..18 ([`ArtefactSlot`])
-//!   u8   m_state         0 free, 1 spawning in a container, 2 ready in
-//!                        it, 3 taken, 4 active, 5 (below); no other
+//!   u8   wear << 3 | m_state for 0..31 uses, else FF, u16 use count, u8 m_state
+//!                        0 free, 1 spawning in a container, 2 ready in
+//!                        it, 3 taken, 4 active, 5 disabled, 6 dropped
 //!   1, 2: u8 m_container_id; 1: u32 m_time_left_to_spawn
 //!   else: u32 m_time_left_to_cool
 //!   4: u32 reached       client patch 109's, written at 0x313735 and read
 //!                        at 0x3137EC: the places Cascade's activation of
 //!                        the copy reached ([`Places`]: no bit past the 20)
+//!   6: 20 bytes of ground release (origin, floor and release time) or all FF
 //!   u32  m_last_activation_time_ms
 //!   4: what its core saves of its own, by its item's data.type (the
 //!   artefact cook's switch 0x2EE95F):
@@ -523,9 +528,10 @@ impl UsableObject {
 }
 
 /// A grenade's `grenade_core`.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub struct GrenadeCore {
     thrown: Option<Thrown>,
+    cloud: Option<technical_skills::smoke::Cloud>,
     motion: Option<Motion>,
     flag_144: bool,
 }
@@ -584,18 +590,34 @@ impl GrenadeCore {
     const IN_PHYSICS: u8 = 1;
     const THROWN: u8 = 2;
     const FLAG_144: u8 = 4;
+    /// Exe patch 180's: a toxic cloud follows the thrown fields.
+    const CLOUD: u8 = 8;
 
     fn read(reader: &mut Reader) -> Result<Self, ObjectFault> {
         let state = bits(
             reader,
             "grenade current_state",
-            Self::IN_PHYSICS | Self::THROWN | Self::FLAG_144,
+            Self::IN_PHYSICS | Self::THROWN | Self::FLAG_144 | Self::CLOUD,
         )?;
         let thrown = if state & Self::THROWN != 0 {
             Some(Thrown {
                 explode_time_ms: reader.u32()?,
                 id: reader.u32()?,
             })
+        } else {
+            None
+        };
+        let cloud = if state & Self::CLOUD != 0 {
+            let at = reader.at();
+            let mut bytes = [0; technical_skills::smoke::Cloud::BYTES];
+            for byte in &mut bytes {
+                *byte = reader.u8()?;
+            }
+            let centre = ObjectFault::NotNumber {
+                at: at.saturating_add(4),
+                field: "toxic cloud centre",
+            };
+            Some(technical_skills::smoke::Cloud::parse(bytes).ok_or(centre)?)
         } else {
             None
         };
@@ -606,6 +628,7 @@ impl GrenadeCore {
         };
         Ok(Self {
             thrown,
+            cloud,
             motion,
             flag_144: state & Self::FLAG_144 != 0,
         })
@@ -614,6 +637,11 @@ impl GrenadeCore {
     /// Set when it was thrown (bit 1 of `current_state`).
     pub fn thrown(&self) -> Option<Thrown> {
         self.thrown
+    }
+
+    /// Exe patch 180's toxic cloud kept on it since its last blast (bit 3).
+    pub fn cloud(&self) -> Option<technical_skills::smoke::Cloud> {
+        self.cloud
     }
 
     /// Set while it is in the physics world (bit 0).
@@ -1157,6 +1185,8 @@ pub enum ArtefactState {
     },
     /// 5: its holder's player down (LIKELY, the module doc).
     Disabled { time_left_to_cool: u32 },
+    /// 6: patch 78's ground copy. A missing release is saved as twenty FF bytes.
+    Dropped { time_left_to_cool: u32, release: Option<artefact_carry::ground::Drop> },
 }
 
 /// The `m_state` byte, before what its state saves.
@@ -1168,6 +1198,7 @@ enum StateByte {
     Taken,
     Active,
     Disabled,
+    Dropped,
 }
 
 impl StateByte {
@@ -1179,6 +1210,7 @@ impl StateByte {
             3 => StateByte::Taken,
             4 => StateByte::Active,
             5 => StateByte::Disabled,
+            6 => StateByte::Dropped,
             _ => return None,
         })
     }
@@ -1188,6 +1220,7 @@ impl StateByte {
 /// active, its core's own.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct ArtefactBase {
+    wear: super::ArtefactWear,
     amount: u16,
     owner: Option<Owner>,
     state: ArtefactState,
@@ -1239,8 +1272,21 @@ impl ArtefactBase {
         let cooling = |reader: &mut Reader| -> Result<(u32, u32), ObjectFault> {
             Ok((reader.u32()?, reader.u32()?))
         };
+        let at = reader.at();
+        let tag = reader.u8()?;
+        let (raw_state, wear) = if tag == super::ArtefactWear::EXTENDED {
+            let wear = super::ArtefactWear::new(reader.u16()?);
+            let state = reader.u8()?;
+            if wear.inline(state).is_some() {
+                return Err(ObjectFault::Value { at, field: "extended artefact wear", value: tag });
+            }
+            (state, wear)
+        } else { super::ArtefactWear::from_inline(tag) };
+        let state_byte = StateByte::of(raw_state).filter(|state|
+            !matches!(state, StateByte::Spawning | StateByte::Ready) || wear == super::ArtefactWear::FRESH
+        ).ok_or(ObjectFault::Value { at, field: "artefact m_state", value: raw_state })?;
         let (state, last_activation_time_ms) =
-            match byte(reader, "artefact m_state", StateByte::of)? {
+            match state_byte {
                 StateByte::Free => {
                     let (time_left_to_cool, last) = cooling(reader)?;
                     (ArtefactState::Free { time_left_to_cool }, last)
@@ -1277,6 +1323,17 @@ impl ArtefactBase {
                     };
                     (state, last)
                 }
+                StateByte::Dropped => {
+                    let time_left_to_cool = reader.u32()?;
+                    let at = reader.at();
+                    let bytes = reader.array::<20>()?;
+                    let release = if bytes == [0xff; 20] { None } else {
+                        Some(artefact_carry::ground::Drop::restore(bytes).ok_or(ObjectFault::Value {
+                            at, field: "artefact ground release", value: raw_state,
+                        })?)
+                    };
+                    (ArtefactState::Dropped { time_left_to_cool, release }, reader.u32()?)
+                }
                 StateByte::Disabled => {
                     let (time_left_to_cool, last) = cooling(reader)?;
                     (ArtefactState::Disabled { time_left_to_cool }, last)
@@ -1284,11 +1341,14 @@ impl ArtefactBase {
             };
         Ok(Self {
             amount,
+            wear,
             owner,
             state,
             last_activation_time_ms,
         })
     }
+
+    pub fn wear(&self) -> super::ArtefactWear { self.wear }
 
     /// `m_amount`.
     pub fn amount(&self) -> u16 {
@@ -1775,6 +1835,8 @@ mod tests {
             objects,
             artefacts: None,
             inventory: None,
+            dict_ids: None,
+            artefact_hunt: None,
         }
     }
 
@@ -2015,11 +2077,44 @@ mod tests {
         nan[9..13].copy_from_slice(&f32::NAN.to_le_bytes());
         assert_eq!(field(&list, &nan), Some("m_transform"));
         let mut flag = bytes.clone();
-        flag[0] |= 8;
+        flag[0] |= 16;
         assert_eq!(field(&list, &flag), Some("grenade current_state"));
         let mut trap = bytes.clone();
         trap[1 + 8 + 88] = 4;
         assert_eq!(field(&list, &trap), Some("m_trap_state"));
+    }
+
+    #[test]
+    fn a_spent_smoke_keeps_its_toxic_cloud() {
+        let empty = Map {
+            damage_zones: 0,
+            resupply_zones: 0,
+            anomalies: &[],
+        };
+        let list = Objects {
+            held: &[Held::Grenade],
+            map: &empty,
+        };
+        let cloud = technical_skills::smoke::Cloud {
+            blast: technical_skills::Clock(12_050),
+            centre: [3.0, 1.5, -7.25],
+        };
+        let mut bytes = std::vec![GrenadeCore::FLAG_144 | GrenadeCore::CLOUD];
+        bytes.extend(cloud.to_bytes());
+        assert_eq!(reason(&list, &bytes), None);
+        let read = GameObjects::read(&section(&bytes), &list).unwrap();
+        let GameObject::Grenade(grenade) = read.objects().next().unwrap() else {
+            panic!("a grenade")
+        };
+        assert_eq!(
+            (grenade.cloud(), grenade.thrown(), grenade.motion()),
+            (Some(cloud), None, None)
+        );
+        // a centre that is not a number; a cloud cut short
+        let mut nan = bytes.clone();
+        nan[9..13].copy_from_slice(&f32::NAN.to_le_bytes());
+        assert_eq!(field(&list, &nan), Some("toxic cloud centre"));
+        assert!(reason(&list, &bytes[..10]).is_some());
     }
 
     #[test]
@@ -2068,6 +2163,29 @@ mod tests {
         ));
         let ArtefactState::Active { reached, .. } = cores[0] else { panic!("active") };
         assert_eq!(reached.iter().map(Place::get).collect::<Vec<_>>(), [0, 19]);
+        // Replace the first active state byte only. Old, inline and extended
+        // wear all leave the core and the following artefact in the right place.
+        for (count, encoded) in [(0, std::vec![4]), (5, std::vec![44]), (31, std::vec![252]),
+                                 (32, std::vec![255, 32, 0, 4]), (256, std::vec![255, 0, 1, 4])] {
+            let mut saved = bytes.clone();
+            saved.splice(artefacts + 3..artefacts + 4, encoded);
+            assert_eq!(reason(&LIST, &saved), None);
+            let parsed = GameObjects::read(&section(&saved), &LIST).unwrap();
+            let Some(GameObject::Anomaly(anomaly)) = parsed.objects().last() else { panic!("anomaly") };
+            let copy = anomaly.artefacts().unwrap().artefacts().next().unwrap();
+            assert_eq!(copy.wear().uses(), count);
+            assert_eq!(copy.state(), cores[0]);
+        }
+        let mut ground = bytes.clone();
+        let mut dropped = std::vec![255, 32, 0, 6];
+        dropped.extend([0; 4]); // cooldown
+        dropped.extend([255; 20]); // no release
+        dropped.extend([0; 4]); // previous activation time
+        ground.splice(artefacts + 3..artefacts + active(8).len(), dropped);
+        assert_eq!(reason(&LIST, &ground), None);
+        let first = artefacts + 3;
+        ground[first + 1] = 0;
+        assert_eq!(field(&LIST, &ground), Some("extended artefact wear"));
         // A place past the 20: its byte named.
         for (nth, byte) in [(2, 0x10), (3, 0x01)] {
             let mut bad = bytes.clone();
@@ -2105,7 +2223,8 @@ mod tests {
             (artefact + 4, 12, "m_slot_id"),
             (artefact + 4, 19, "m_slot_id"),
             (artefact + 4, 200, "m_slot_id"),
-            (artefact + 5, 6, "artefact m_state"),
+            (artefact + 5, 7, "artefact m_state"),
+            (artefact + 5, 1 | 1 << 3, "artefact m_state"),
         ] {
             assert_eq!(field(&LIST, &mutate(offset, byte)), Some(name), "{name}");
         }

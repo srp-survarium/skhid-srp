@@ -8,13 +8,19 @@
 //!
 //! Choosing changes the kits the way a move does: the client is sent the
 //! inventory and the account ([`Core::push_account`]), as after `46 00`,
-//! and squad mates see the new kits.
+//! and squad mates see the new kits. So does a kit's perk slot taken or declined (Artifact
+//! Container's container, Deep Pockets' or Supply Pocket's pocket; `artefact-skills.md`), on the
+//! same wire.
 
 use session::LockExt;
+use session::v026g::account::{PerkSlot, SlotPerk};
 use session::v026g::presets::{self, Applied, PresetError};
 use session::v026g::quests;
 use session::v026g::rules;
-use survarium::v026g::lobby::presets::{self as wire, PresetDone, PresetRequest, PresetRow};
+use survarium::v026g::lobby::presets::{
+    self as wire, PresetDone, PresetList, PresetRequest, PresetRow,
+};
+use survarium::v026g::skills::SkillsTree;
 
 use super::core::{Core, Who};
 
@@ -27,6 +33,15 @@ impl Core<'_> {
                 Ok(_) => (PresetDone::Chosen, preset),
                 Err(_) => (PresetDone::Refused, preset),
             },
+            // The list answers the click by name (its request in `preset`), set or refused, its
+            // `K` row what the kits are now: the movie takes no other list for it.
+            PresetRequest::Perk { kit, perk, slot } => {
+                let named = request.perk_request().unwrap_or(0);
+                match self.perk_slot(who, kit, perk, slot) {
+                    true => (PresetDone::PerkSet, named),
+                    false => (PresetDone::PerkRefused, named),
+                }
+            }
         };
         self.send_presets(who, done, preset);
     }
@@ -77,7 +92,7 @@ impl Core<'_> {
     pub(super) fn send_presets(&mut self, who: &Who, done: PresetDone, preset: u8) {
         let minutes = self.store.minutes_to_maintenance();
         let blocks = self.entry_blocks(who);
-        let (rows, active, uses) = {
+        let (rows, active, uses, perks) = {
             let account = who.account.locked();
             let levels = presets::levels(&account, quests::now());
             let rows: Vec<PresetRow> = (1..=presets::PRESETS as u8)
@@ -87,11 +102,59 @@ impl Core<'_> {
                     level,
                 })
                 .collect();
-            (rows, account.active_preset, presets::uses(&account))
+            let held = SlotPerk::ALL.map(|perk| account.has_perk(perk));
+            let perks: Vec<(u32, [Option<PerkSlot>; 2])> = account
+                .kits
+                .iter()
+                .map(|kit| {
+                    let choice = |perk: SlotPerk| held[perk.index()].then_some(kit.perks.get(perk));
+                    (kit.id, SlotPerk::ALL.map(choice))
+                })
+                .collect();
+            let uses = presets::uses(&account);
+            (rows, account.active_preset, uses, perks)
         };
-        self.send_made(
-            who.addr,
-            wire::preset_list(done, preset, active, blocks, minutes, &rows, &uses),
-        );
+        let list = PresetList {
+            done,
+            preset,
+            active,
+            blocks,
+            minutes,
+            rows: &rows,
+            perks: &perks,
+            uses: &uses,
+        };
+        self.send_made(who.addr, wire::preset_list(&list));
+    }
+
+    /// The asker's kit at `kit` takes or declines `perk`'s slot (`Account::set_perk_slot`),
+    /// not while it is in a match or on its way to one, as a
+    /// preset choice. Changed: the client gets the inventory and the account (the kit's pockets
+    /// and containers), and squad mates the kits.
+    fn perk_slot(&mut self, who: &Who, kit: u8, perk: SlotPerk, slot: PerkSlot) -> bool {
+        let free = self
+            .player(who.addr)
+            .is_some_and(|player| player.in_match.is_none() && player.connect.is_none());
+        if !free {
+            log::info!("{}: kit {kit}'s {perk:?} {slot:?}: refused, busy", who.name);
+            return false;
+        }
+        let changed = who
+            .account
+            .locked()
+            .set_perk_slot(usize::from(kit), perk, slot, SkillsTree::shared());
+        match changed {
+            Ok(true) => {
+                log::info!("{}: kit {kit}'s {perk:?} {slot:?}", who.name);
+                self.push_account(who);
+                self.squads_dirty = true;
+                true
+            }
+            Ok(false) => true,
+            Err(error) => {
+                log::info!("{}: kit {kit}'s {perk:?} {slot:?}: refused ({error})", who.name);
+                false
+            }
+        }
     }
 }

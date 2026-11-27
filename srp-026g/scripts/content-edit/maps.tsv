@@ -8,6 +8,7 @@ level_06	6	2000	3000	3000	6	80
 level_07	6	3000	0	3000	6	80
 level_08	6	3000	0	3000		
 level_09	6			3000		
+v032a_level_09	6			3000		
 lobby_scene						
 v011e_level_03	6			3000	6	80
 v011e_level_04	6			3000	6	80
@@ -16,6 +17,8 @@ v021d_level_06	6			3000	5	80
 v021d_level_01	6	2000	2000	3000	5	80
 v021d_level_02	6	2000	2000	3000	5	80
 v021d_level_05	6	2000	2000	3000	5	80
+v021d_level_04	6	2000	2000	3000	5	80
+v044a_level_09	6			3000		
 v069d_level_01	6	2000	2000	3000	6	80
 v010b_cs_mp_bath	6			3000		
 v010b_cs_mp_firestation	6					

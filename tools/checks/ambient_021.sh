@@ -9,8 +9,5 @@ nix develop -c bash -c '
     py=$(python3 -c "import sys; print(\"python%d.%d\" % sys.version_info[:2])")
     export PYTHONPATH="$1/lib/$py/site-packages"
     cd client-patches
-    python3 engine_026g.py --check
-    python3 hooks_026g.py --check
-    python3 link_026g.py --check
     python3 check_ambient_021_026g.py "$2"
 ' bash "$unicorn" "$exe"

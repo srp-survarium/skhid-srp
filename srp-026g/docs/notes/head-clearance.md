@@ -25,6 +25,23 @@ not let camera clip in in similar situations".
     drawn (the lobby camera's filter: not players, not invisible walk-only walls).
   - A hit puts the eye 0.12 m short of it on that way, at once, so the inside is never shown.
   - When the way clears, the eye eases back (95 % in 0.5 s).
+  - Leaves do not stop the ray (the owner, 2026-11-18: "in many bushes your hands jump upwards").
+    Stock's vine bushes (`models/flora/vine/bush_*`: the Fort has 147, Vector 319) are shot
+    collision with no walker collision around their leaves, so a walker goes into them and the ray
+    met a leaf: the eye dropped up to 0.4 m, at once, at every leaf, and the hands (drawn at the
+    real eye) jumped up the screen. A hit on a triangle of a leaves' game material
+    (foliage_coniferous 24, foliage_deciduous 44, foliage_dry 49) is passed: the ray goes on from
+    1 mm behind it (a surface the leaf lies on is still met), through 16 leaves at most (then
+    nothing is met).
+  - foliage_dry is two things in the live maps' collision (read from the stock db, 2026-11-18).
+    Upright leaves standing free: level 06's `object_1` has 410 m² of them, 94 % with no other
+    collision within 2 m along the face's normal, and Vector's `centre_lab` 505 m² (76 % more
+    than 15 cm off any). And leaves lying level: some the ground's own faces (level 06's `ground_1_4`, 98 % level,
+    70 % with nothing under them within 2 m), some over a floor (Vector's `base_v_outdoor`;
+    Cologne's ICE cars, most 5 cm or more over the car's other collision; a campfire's cloth).
+    It is passed for the first: a lying leaf is under the feet, not on the ray's way, and a floor
+    under leaves is met behind them. What is given up: a ground of foliage_dry faces alone
+    hanging over a crouched head.
   - A wall a player stands against never comes into it: the capsule keeps the eye 0.25 m from
     walls.
 - **What it does not change:**
@@ -40,8 +57,8 @@ not let camera clip in in similar situations".
   - The crosshair still aims from the real eye: a few centimetres of difference, too little to
     matter at any range.
 - **Not covered:**
-  - geometry with no shot collision at all (bushes, grass, foliage): they are meant to be walked
-    through;
+  - bushes, grass and foliage, with shot collision (passed, above) or without: they are meant to be
+    walked through;
   - drawn surfaces that stand off their collision. At the owner's second spot (level_06/day_8,
     `where` 14.681 35.905 142.948, crouched in a wedge under a bank), the terrain's blend layer
     `ground_02_s_alpha_vc` of `level/06_v1/terain1` hangs up to 0.24 m off the terrain's
@@ -51,4 +68,5 @@ not let camera clip in in similar situations".
     in every direction around the eye was tried and dropped: it would not have caught this lip,
     and no real case needed it;
   - a scope's zoom (the near plane is 0.05 m times the zoom, so up to about 0.2 m when aiming).
-- **Not played:** run with Unicorn only (`check_head_clearance_026g.py`).
+- **Played:** the owner, 2026-11-17, at the log (rev63). The leaves' pass is run with Unicorn only
+  (`check_head_clearance_026g.py`).

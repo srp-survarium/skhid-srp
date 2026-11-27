@@ -5,6 +5,7 @@
 use core::sync::atomic::{AtomicU32, Ordering};
 
 use artefact_carry::{Artefact, ArtefactId, ContainerIndex, Refused};
+use artefact_carry::carry::QuickSlot;
 
 
 use super::hook::Thread;
@@ -13,6 +14,50 @@ use crate::raw;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ContainerSpace { Missing, Full, Available }
+
+/// An item's dictionary id (items_dict: its entry's u16 at +0; the id the
+/// lobby and the server name it by, scripts/content-edit/items.tsv).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct DictId(pub u16);
+
+/// Whether a press of an item's quick key would use it now.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Readiness {
+    Ready,
+    /// In use, cooling down, or used up.
+    Busy,
+}
+
+/// The class of an item, where a patch tells classes apart: an artefact (an
+/// artefact container's), a medicine (medkit's vtable: every drug), an oxygen
+/// pack (oxygen_tank's vtable, whatever its dictionary id), or another.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ItemClass {
+    /// Ready: passive (state 3) with no cooldown left, what artefact_base::action
+    /// (0x313300, patch 54's entry) fires, and one of the 4 of its kind that
+    /// count for its holder (patch 109: a copy past them never fires).
+    Artefact(Readiness),
+    /// Ready: not active (+2B0h) and, a stack, not empty: what medkit::action
+    /// (0x33D700) uses.
+    Medicine(Readiness),
+    OxygenTank,
+    Other,
+}
+
+/// What a quick slot holds: its item's dictionary id and class.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct QuickItem {
+    pub id: DictId,
+    pub class: ItemClass,
+}
+
+/// Where a quick slot's item is: one of the 23 fixed slots, or an artefact
+/// container (their own allocation).
+#[derive(Clone, Copy)]
+enum QuickPlace {
+    Slot(raw::InventorySlot),
+    Container(ContainerIndex),
+}
 
 /// A player's inventory on the simulation thread. These views are not
 /// stored between hooks; a later interaction resolves the player again.
@@ -92,27 +137,88 @@ impl<'t> Inventory<'t> {
         self.passive_item(expected).map(|item| item.address())
     }
 
-    /// Resolve a quick-use ordinal with the native ordering, then require a
-    /// passive, owned artefact. Medkits and empty containers return None.
-    pub fn quick_artefact(&self, quick: u8) -> Option<Artefact> {
-        if quick >= 6 || !self.alive() {
-            return None;
-        }
+    /// Where quick-use ordinal `quick` is, by the game's ordering
+    /// (quick_slot_to_inventory_slot 0x2FE7F0, as the hud's quick slots and
+    /// process_quick_slots read it: the pockets, the gear's quick items, then
+    /// every artefact container, an empty one too). The game's answer is a
+    /// fixed slot, or a container's place relative to the fixed slots (native
+    /// wrapping arithmetic); it is parsed against the 23 slots and the
+    /// containers' allocation before anything is read through it.
+    fn quick_place(&self, quick: QuickSlot) -> Option<QuickPlace> {
         // SAFETY: native lookup, verified ABI; it only reads this inventory.
-        let slot = unsafe { raw::engine_quick_inventory_slot(Some(self.this), u32::from(quick)) };
-        if slot == 23 {
+        let slot = unsafe { raw::engine_quick_inventory_slot(Some(self.this), u32::from(quick.get())) };
+        self.place_of_slot(slot)
+    }
+
+    fn place_of_slot(&self, slot: u32) -> Option<QuickPlace> {
+        if slot == u32::from(SLOTS) {
             return None;
         }
-        let containers = self.containers()?;
-        // Reconstruct an address using native wrapping arithmetic, then
-        // parse it against the external allocation before dereferencing.
+        // The containers first: their place relative to the fixed slots is
+        // the game's own arithmetic, whatever the allocation's address.
+        // SAFETY: the slots' address as a value, never read through here.
         let base = unsafe { self.this.slots().address() };
         let entry = base.wrapping_add(slot.wrapping_mul(4));
-        let offset = entry.checked_sub(containers.first.address())?;
-        if offset % 4 != 0 {
+        let container = self.containers().and_then(|containers| {
+            let offset = entry.checked_sub(containers.first.address())?;
+            if offset % 4 != 0 {
+                return None;
+            }
+            let index = ContainerIndex::parse(u8::try_from(offset / 4).ok()?)?;
+            containers.entry(index).map(|_| QuickPlace::Container(index))
+        });
+        // SAFETY: one of this live inventory's 23 slots (+10Ch + 4 x slot).
+        container.or_else(|| (slot < u32::from(SLOTS)).then(|| QuickPlace::Slot(unsafe { self.this.slots().at(slot as usize) })))
+    }
+
+    pub(super) fn slot_wear(&self, slot: u32) -> Option<(u8, srp_validate::world::ArtefactWear)> {
+        let QuickPlace::Container(index) = self.place_of_slot(slot)? else { return None };
+        let item = self.item_in(index)?;
+        super::artefact_skills::kind_of(item)?;
+        // SAFETY: the live container holds this registered artefact.
+        Some((unsafe { *item.id() }, super::artefact_skills::wear(item)))
+    }
+
+    /// The item quick-use ordinal `quick` holds, as the hud shows it
+    /// (game_world_ui::update_local_player_state 0x23B740): none past the last
+    /// quick slot, or for an empty artefact container.
+    pub fn quick_item(&self, quick: QuickSlot) -> Option<QuickItem> {
+        let ready = |ready: bool| if ready { Readiness::Ready } else { Readiness::Busy };
+        let place = self.quick_place(quick)?;
+        let entry = match place {
+            QuickPlace::Slot(entry) => entry,
+            QuickPlace::Container(index) => self.containers()?.entry(index)?,
+        };
+        // SAFETY: a slot of this live inventory, its item alive while the slot
+        // holds it, its vtable its own, its dictionary entry the game's (static
+        // data); a container's item is an artefact, a medkit's fields read only
+        // after its vtable says it is one.
+        unsafe {
+            let item = entry.item()?;
+            let dictionary = item.entry()?;
+            let class = if let QuickPlace::Container(_) = place {
+                let artefact = item.artefact();
+                ItemClass::Artefact(ready(read(artefact.state()) == 3 && read(artefact.cooldown_left()) == 0
+                    && !super::artefact_skills::uncounted(artefact)))
+            } else {
+                match read(item.vtable()) {
+                    raw::image::MEDKIT_VTABLE => ItemClass::Medicine(ready(
+                        read(item.medkit().active()) == 0 && (read(dictionary.stack()) == 0 || read(item.count()) > 0))),
+                    raw::image::OXYGEN_TANK_VTABLE => ItemClass::OxygenTank,
+                    _ => ItemClass::Other,
+                }
+            };
+            Some(QuickItem { id: DictId(read(dictionary.dict_id())), class })
+        }
+    }
+
+    /// Resolve a quick-use ordinal with the native ordering, then require a
+    /// passive, owned artefact. Medkits and empty containers return None.
+    pub fn quick_artefact(&self, quick: QuickSlot) -> Option<Artefact> {
+        if !self.alive() {
             return None;
         }
-        let slot = ContainerIndex::parse(u8::try_from(offset / 4).ok()?)?;
+        let QuickPlace::Container(slot) = self.quick_place(quick)? else { return None };
         let item = self.item_in(slot)?;
         // SAFETY: the item came from a native artefact slot, not a drug slot.
         let id = ArtefactId::parse(unsafe { read(item.id()) })?;
@@ -218,6 +324,100 @@ impl<'t> Inventory<'t> {
             raw::engine_inventory_take_artefact(Some(recipient.this), &mut incoming);
         }
         Ok(())
+    }
+
+    /// Courier (crate::artefact_courier): the artefacts of the kit `donor` the place left into
+    /// this alive kit's empty containers, in the donor's container order, as many as there are
+    /// empty ones.
+    ///
+    /// The donor is out of the world by then, dead or alive when it left: the respawn rule's tick
+    /// takes a kit's player out (0x31699B, base_player::remove 0x2DA790 with 1) before its spawn
+    /// (a round's start spawns everyone), as patch 31's switch does in a countdown. remove_alive
+    /// (0x2D99C0) writes alive 0; unload_to_profile clears the container range (0x2FDBE8..0x2FDBF2:
+    /// +168h 0, +16Ch 0) and leaves the artefacts as they were. Its slots keep their items, so the
+    /// donor's are found in its 23 slots: an item of `world`'s registered artefacts whose owner and
+    /// slot are that slot's, in slot order (the containers' order: their range is a run of slots).
+    ///
+    /// Each leaves as its state says ([`Held`]), then the game's own take_artefact (as a pickup:
+    /// set_item, on_taken links the passive, state 3). A free container keeps take_artefact off
+    /// its evicting path.
+    pub(super) fn take_from_kit(&mut self, donor: &mut Inventory<'t>, world: raw::CoreWorld) -> crate::artefact_courier::Carried {
+        let mut carried = crate::artefact_courier::Carried::default();
+        if self.player.address() == donor.player.address() || self.this.address() == donor.this.address() {
+            return carried;
+        }
+        if !self.alive() || donor.alive() {
+            return carried;
+        }
+        for slot in 0..SLOTS {
+            // SAFETY: one of the donor's 23 slots (+10Ch + 4 x slot).
+            let entry = unsafe { donor.this.slots().at(usize::from(slot)) };
+            // SAFETY: the slot's item, if any; read as an artefact only once it is a registered one.
+            let Some(address) = (unsafe { entry.item() }).map(|item| item.address()) else { continue };
+            let Some((_, item)) = super::keeper::registered(world).find(|(_, item)| item.address() == address) else {
+                continue;
+            };
+            // SAFETY: a registered artefact's inventory_item's and artefact_base's fields.
+            let held = unsafe {
+                (item.item().inventory() == Some(donor.this) && read(item.item().inventory_slot()) == u32::from(slot))
+                    .then(|| Held::parse(read(item.state())))
+                    .flatten()
+            };
+            let Some(held) = held else { continue };
+            if self.container_space() != ContainerSpace::Available {
+                carried.left += 1;
+                continue;
+            }
+            let retained = RetainedItem::new(item, self.thread);
+            // SAFETY: the donor's occupied slot (`entry`) and its item, retained by `retained`
+            // across the empty-slot interval; the recipient has an empty container.
+            unsafe {
+                match held {
+                    Held::Live => raw::engine_inventory_remove(Some(donor.this), u32::from(slot)),
+                    Held::Dead => {
+                        item.item().set_inventory(None);
+                        item.item().inventory_slot().write_volatile(u32::from(SLOTS));
+                        item.state().write_volatile(0);
+                        entry.set_item(None);
+                        drop(RetainedItem::adopt(item, self.thread));
+                        donor.this.weight_dirty().write_volatile(1);
+                    }
+                }
+                let mut incoming = Some(retained.this);
+                raw::engine_inventory_take_artefact(Some(self.this), &mut incoming);
+                if item.item().inventory() == Some(self.this) {
+                    carried.moved += 1;
+                }
+            }
+        }
+        carried
+    }
+}
+
+/// How an artefact sits in the kit Courier takes it from (artefact_base +280h).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Held {
+    /// Its passive linked (3), its active too (4): the kit left alive (a countdown's switch, a
+    /// round's start). It leaves as remove_item (0x2FC680) takes it: on_removed (vtable+34h,
+    /// 0x313490) ends the active, unlinks the passive and writes 0; then the owner, the slot, the
+    /// reference and the weight.
+    Live,
+    /// Its holder's death switched it off (5: artefact_base::tick 0x3132E5 unlinks its passive,
+    /// vtable+84h, then writes 5; nothing else writes 5). It leaves as remove_item takes an item
+    /// but without on_removed, whose vtable+84h would unlink the passive a second time: Spring's
+    /// list removal (0x2D5D00) is not idempotent (an unlinked node empties its list's head). So:
+    /// no owner and slot 23 (the set_owner remove_item calls, 0x243590), state 0 (on_removed's
+    /// end), the slot and its reference released, the weight to recalculate.
+    Dead,
+}
+
+impl Held {
+    fn parse(state: u32) -> Option<Held> {
+        match state {
+            3 | 4 => Some(Held::Live),
+            5 => Some(Held::Dead),
+            _ => None,
+        }
     }
 }
 

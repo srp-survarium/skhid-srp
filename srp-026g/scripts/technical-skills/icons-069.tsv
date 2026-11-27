@@ -1,0 +1,21 @@
+# The technical tree's icons in 0.69d0's skill-icon style. A donor path: Original Survarium 0.69d0 skill artwork, unchanged (Claude's picks of 2026-11-08 and 2026-11-15). "made by make_icons.py": composed by scripts/technical-skills/make_icons.py (2026-11-21, the owner: item skills from the items' lobby renders, the others in the original style), its sources named.
+# An indexed or interlaced donor PNG is converted losslessly to 8-bit RGBA for Flash (every decoded pixel equal); the others are the donor bytes.
+# skill	name	donor path	donor sha256	Flash PNG sha256
+401	Dexterous Hands	made by make_icons.py: 0.69d0 skills/utility/14.fw.png + stopwatch badge	-	bd0fc023259a21edb434d353a44f132266b7a6bebe8ef471521a502e8ec58cd5
+402	Dense Smoke	made by make_icons.py: lobby AmmoIcons RDG-2 + grey cloud + stopwatch badge	-	1878a0bb7a1f68d13f7927c047f8f06e7d9e403da10f2e16818979ea9a775f7c
+403	Steady Breath	made by make_icons.py: lobby EquipmentIcons scav_oxygen_2 + 0.69d0 modifiers/7.png (crosshair)	-	b559442a262dc42056b3245dbd82cb9a0ec118162d57210e0bb77533da0c7c8c
+404	Blast Drill	made by make_icons.py: lobby AmmoIcons F1 + 0.69d0 modifiers/0.png (shield)	-	fa8efff087c494529f9abcc412d0fcc904e9be214abd4068d0de155b3006f7ce
+411	Sapper	flash_movies/textures/ui_icons/skills/engineering/14.png	0efacb772d431fc5adbf5f08466c7a629128d9b88f590fe7838e09bf21a1b2de	0efacb772d431fc5adbf5f08466c7a629128d9b88f590fe7838e09bf21a1b2de
+412	Sharp Ears	flash_movies/textures/ui_icons/skills/engineering/1.png	94fc4eebaca2b90cd5a3803e2e3a811dc74c3ccd44184d88e5e483ae8b1b40d9	94fc4eebaca2b90cd5a3803e2e3a811dc74c3ccd44184d88e5e483ae8b1b40d9
+413	Tank Pocket	made by make_icons.py: lobby EquipmentIcons scav_oxygen_2 + plus badge	-	af43d9dd2114004cab5c3ee46f7ba0810010d48e8eff4da38001ab08ba6ec99b
+414	Tank Depth	made by make_icons.py: lobby EquipmentIcons scav_oxygen_2 + green bars in a circle badge	-	14c9e656e18c774fef3672694df68d8313899f97827ff5f5352847b77da8e30d
+422	Return to Sender	flash_movies/textures/ui_icons/skills/utility/0.png	a48f113eaf75ac9d7d7850889505e6b3e6e381bb4ed0517b68d459113040deba	a48f113eaf75ac9d7d7850889505e6b3e6e381bb4ed0517b68d459113040deba
+423	Trophy Trap	made by make_icons.py: lobby AmmoIcons trap + return arrow badge	-	2001c85ce676d4747327516d3d03f33fd529c10d715381f1f3c38f2544a4cf2b
+431	Deep Breaths	made by make_icons.py: lobby EquipmentIcons scav_oxygen_2 + 0.69d0 modifiers/10.png (lungs)	-	9832ec4f8a9513a005d34e71be723ee24d7aff80936c51def6b326261e225525
+432	Dead Man's Switch	made by make_icons.py: lobby AmmoIcons RDG-2 + 0.69d0 boosters/booster_hero_1_2.png (skull)	-	666bcbec3c3fe00fae6d5bb6527caf783e87cb0da6d0be3a1d3b7749e0c4affc
+433	Rearm	made by make_icons.py: lobby AmmoIcons trap + stopwatch badge	-	c0bbf4906575e75a94a9fa64baeac276afeb66581068472a0ab942e71d1deb7b
+441	Toxic Smoke	made by make_icons.py: lobby AmmoIcons RDG-2 + green cloud + 0.69d0 modifiers/18.png (gas mask)	-	46c2ebe8bc9866eec8141946370fe7e82c47616849215560c3dc93f479bad60c
+442	Oxygen Rush	made by make_icons.py: lobby EquipmentIcons scav_oxygen_2 + 0.69d0 modifiers/11.png (runner, clock)	-	ce9cb0850a0aaa25020499ad4eef196a17c3281a71322096ea3f55d5b45738dc
+443	Scavenger	made by make_icons.py: lobby AmmoIcons F1 + return arrow badge	-	6e23af7223091157e29e90cd0de607a81ab7ea15d0734db647ac4299dedb4269
+444	Bear Trap	made by make_icons.py: lobby AmmoIcons trap + broken bone badge	-	d6cc201bcace544bf523dc5591c84b9b6e485ed3a2bc667f802bcfdf7e661a74
+445	Tank Container	made by make_icons.py: lobby EquipmentIcons scav_oxygen_2 + a cut gem in the badge (an artefact container)	-	940f391258bebcd3e40a11b4d9f8705f01f8fc01da8c4484c4fb44b1c52fcbaa

@@ -1,0 +1,11 @@
+[package]
+name = "second-sight"
+version.workspace = true
+edition.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+# the inventory's two weapon slots (7, 10): the record holds a state for each
+weapon-pickup = { path = "../weapon-pickup" }

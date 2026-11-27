@@ -41,3 +41,43 @@ and energy costs to their second-strongest rows):
   (`item_params::MOST_DEFAULT_MODIFICATIONS`, the item's constructor 0x2CB310) and stops at start on a
   ninth; the two buffs above made nine each. Both suits lose regeneration +15 % (1094) (the owner's
   pick), eight each. srp and `srp-check-game-data` refuse an item with more.
+- **Decals** (2026-11-20, the owner: "allow to put decals on stk2 equipment that we added too"): both
+  suits take two decals as a stock vest does (pack `exo-decals@1`: `parameters/decal_available` and
+  an empty `data/decals`), on the body's own surface (`torso_s`: the chest, back and sleeves). The
+  frame, the back unit, the chest disc and the legs are additional models and take none; the
+  helmet, gloves and boots take none, as stock ones. The Freedom body's model is
+  `ported/freedom_026/freedom_exo_torso_s1` since then (Duty's mesh under a file name of its own:
+  the game names baked textures after the model's file name). `stk2-outfits.md`, Decals.
+- **Camouflage** (2026-11-26, the owner: "maybe we can add camo to the exoskeleton too", "needs to
+  be tasteful"; pack `exo-camo@1`, `scripts/exo-camo/make_pack.py`): both bodies take a camouflage
+  as a stock vest does, on the sleeves' and trousers' cloth only (the owner's pick of three
+  coverages shown to him: minimal; moderate added the chest and back panel and the shoulder and
+  knee pads, fuller the waist band, pouches and chest disc).
+  - Why they took none: the configs had no `camo_available`, and the game bakes a camouflage into
+    a surface only when `<diffuse>_aoac.dds` loads beside its diffuse (`weapon-camo.md`, "The
+    engine"); the STK2 textures had none.
+  - The masks: `ported/{duty,freedom}_026/{torso,legs}_diffuse_aoac`, made from the body's UV
+    islands (the sleeves on `torso_s`, the trousers on `legs_s`) and, in them, the cloth texels
+    only: not the black straps and webbing (darker than 0.55 of the part around them) and not the
+    faction's red or orange stripes (saturated). B and R carry the texture's fine and broad
+    shading (the weapon masks' rule), so the camouflage keeps the cloth's folds and wear. 10.5 %
+    of each torso map and 35 % of each legs map are painted.
+  - Bare: the frame and the back unit (`attach_diffuse`: no mask), the chest sign, the plate
+    carrier, the shoulder and knee pads, the straps, stripes, pouches and the PDA; the gloves,
+    boots and helmet are other items and take none, as stock ones. STK2 and 0.69d have no camouflaged
+    exoskeleton to follow (0.69d has no exoskeleton).
+  - The Freedom legs' model is `ported/freedom_026/freedom_exo_legs_s1` (its six files again, byte
+    for byte): both suits' legs were `duty_03_legs_s1`, and the game names a bake after the model's
+    file name, so with the same camouflage the suit seen second would have worn the other's legs.
+  - **The legs** (2026-11-27, the owner: "applying camo to exoskeleton doesn't paint legs"). The legs
+    are an additional model of the body (Duty's `additional_models[3]`, Freedom's `[2]`). The game
+    bakes an item's camouflage into the item's own surface alone: the cook gives an additional model's
+    record no camouflage and no bake flag (`client_patch.md` 3.114). In revision 74 a camouflage
+    painted the sleeves, and the trousers stayed bare on both suits: the owner's baked files hold only
+    `…duty_03_torso_s1` bakes.
+  - The fix: exe patch 217 (`additional_camo`) gives an additional model whose entry has
+    `camo_available: true` the item's camouflage, under a bake name of its own (the camouflage's file
+    name and the model's: `…duty_03_legs_s1`, `…freedom_exo_legs_s1`). exo-camo@2 sets the key on the
+    legs' entry in the four data tables of both bodies. Its masks are @1's, byte for byte. Without
+    patch 217 the key is read by nothing.
+  - Not yet seen in a game: the bake on both suits, the legs too, in the lobby and in a match.

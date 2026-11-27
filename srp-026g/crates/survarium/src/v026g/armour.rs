@@ -36,7 +36,22 @@ pub enum BodyPart {
 }
 
 impl BodyPart {
-    fn parse(key: &str) -> Option<Self> {
+    pub const ALL: [BodyPart; 12] = [
+        Self::Brain,
+        Self::Face,
+        Self::Front,
+        Self::Back,
+        Self::LeftForearm,
+        Self::RightForearm,
+        Self::LeftArm,
+        Self::RightArm,
+        Self::LeftHip,
+        Self::RightHip,
+        Self::LeftFoot,
+        Self::RightFoot,
+    ];
+
+    pub(crate) fn parse(key: &str) -> Option<Self> {
         Some(match key {
             "brain" => Self::Brain,
             "face" => Self::Face,
@@ -78,7 +93,7 @@ impl HitType {
         Self::Toxic,
     ];
 
-    fn parse(key: &str) -> Option<Self> {
+    pub(crate) fn parse(key: &str) -> Option<Self> {
         Some(match key {
             "ranged" => Self::Ranged,
             "slash" => Self::Slash,

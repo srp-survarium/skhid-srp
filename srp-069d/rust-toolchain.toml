@@ -1,0 +1,5 @@
+# The Rust release the server is built, tested and released with. rustup installs it by itself on the first `cargo`
+# command in this folder. The Nix dev shell (flake.nix) brings its own toolchain and does not read this file.
+[toolchain]
+channel = "1.99.1"
+profile = "minimal"

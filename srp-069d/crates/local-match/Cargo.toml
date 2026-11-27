@@ -1,0 +1,13 @@
+[package]
+name = "local-match"
+version.workspace = true
+edition.workspace = true
+description = "0.69d local matches: Training-with-bots and tutorial match options (83 5B), results message 97 and rewards"
+
+[dependencies]
+game-data.workspace = true
+protocol.workspace = true
+thiserror.workspace = true
+
+[dev-dependencies]
+serde_json.workspace = true

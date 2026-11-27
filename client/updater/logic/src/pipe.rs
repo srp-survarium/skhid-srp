@@ -9,6 +9,7 @@
 //! count of UTF-16 units and the units.
 
 use alloc::vec::Vec;
+use core::num::NonZeroU16;
 
 /// The updater's states the launcher knows (`02 <state>`). Only the ones
 /// this updater reports are named.
@@ -55,6 +56,24 @@ pub mod disk {
     pub const CANNOT_WRITE: u8 = 3;
 }
 
+/// Which file of how many a step is downloading, the first being 1: the
+/// launcher's "(5/69)" ([`ToLauncher::FileOf`]).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct FileOf {
+    file: NonZeroU16,
+    of: NonZeroU16,
+}
+
+impl FileOf {
+    /// The file at `index` (from 0) of `count`; `None` for one past the
+    /// last, or more files than the message can say.
+    pub fn at(index: usize, count: usize) -> Option<Self> {
+        let file = NonZeroU16::new(u16::try_from(index.checked_add(1)?).ok()?)?;
+        let of = NonZeroU16::new(u16::try_from(count).ok()?)?;
+        (file <= of).then_some(Self { file, of })
+    }
+}
+
 /// A message of the updater.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ToLauncher<'a> {
@@ -93,6 +112,18 @@ pub enum ToLauncher<'a> {
     PortBusy,
     /// `15`: it is listened on: the launcher closes its settings.
     PortOk,
+    /// `13`: the seconds to the next try while the server restarts, after
+    /// [`state::MAINTENANCE`]: the launcher's line counts them (launcher
+    /// patch 16; the original keeps the byte and shows nothing of it); 0:
+    /// no count, "Server maintenance..." again.
+    NextTry(u8),
+    /// `0A`: what the "Relay" row shows (`crate::route::Shown::byte`;
+    /// launcher patch 16). The original launcher ignores 0A..0D.
+    Route(crate::route::Shown),
+    /// `0B`: the file being downloaded and how many there are, two 16-bit
+    /// numbers, shown after the downloading line's "... left" as "(5/69)"
+    /// (launcher patch 17); `None`, 0 of 0: no count.
+    FileOf(Option<FileOf>),
 }
 
 fn narrow(out: &mut Vec<u8>, text: &str) {
@@ -164,6 +195,14 @@ pub fn frame(message: ToLauncher) -> Vec<u8> {
         // (`launcher.md` 5.1).
         ToLauncher::PortBusy => out.push(0x14),
         ToLauncher::PortOk => out.push(0x15),
+        ToLauncher::NextTry(seconds) => out.extend_from_slice(&[0x13, seconds]),
+        ToLauncher::Route(shown) => out.extend_from_slice(&[0x0A, shown.byte()]),
+        ToLauncher::FileOf(count) => {
+            out.push(0x0B);
+            let (file, of) = count.map_or((0, 0), |count| (count.file.get(), count.of.get()));
+            out.extend_from_slice(&file.to_le_bytes());
+            out.extend_from_slice(&of.to_le_bytes());
+        }
     }
     let length = (out.len() - 2) as u16;
     out[..2].copy_from_slice(&length.to_le_bytes());
@@ -184,6 +223,9 @@ pub enum FromLauncher {
     Port(u16),
     /// `1E`: bytes a second; `None` for 0, no limit.
     UploadLimit(Option<u64>),
+    /// `22`, `23`, `24`: the relay menu's row picked: auto, on, off
+    /// (launcher patch 16).
+    RouteChosen(crate::route::Choice),
     /// Any other id.
     Other(u8),
 }
@@ -250,6 +292,10 @@ impl Reader {
                     FromLauncher::UploadLimit((limit != 0).then_some(limit.min(0x7FFF_FFFF)))
                 }
                 0x1B => FromLauncher::Abort,
+                id @ 0x22..=0x24 => match crate::route::Choice::of_message(id) {
+                    Some(choice) => FromLauncher::RouteChosen(choice),
+                    None => FromLauncher::Other(id),
+                },
                 0x1C => FromLauncher::Yes,
                 0x1D => FromLauncher::No,
                 0x21 if payload.len() >= 3 => {
@@ -268,6 +314,11 @@ mod tests {
     #[test]
     fn frames_are_length_id_fields() {
         assert_eq!(frame(ToLauncher::State(state::LATEST)), [2, 0, 0x02, 0x0E]);
+        assert_eq!(frame(ToLauncher::Route(crate::route::Shown::Relay)), [2, 0, 0x0A, 5]);
+        assert_eq!(frame(ToLauncher::NextTry(5)), [2, 0, 0x13, 5]);
+        assert_eq!(frame(ToLauncher::FileOf(FileOf::at(4, 69))), [5, 0, 0x0B, 5, 0, 69, 0]);
+        assert_eq!(frame(ToLauncher::FileOf(None)), [5, 0, 0x0B, 0, 0, 0, 0]);
+        assert_eq!(FileOf::at(69, 69), None);
         assert_eq!(frame(ToLauncher::Question), [1, 0, 0x0E]);
         assert_eq!(frame(ToLauncher::CannotMoveFile), [1, 0, 0x11]);
         let progress = frame(ToLauncher::Progress {
@@ -327,6 +378,7 @@ mod tests {
             3, 0, 0x21, 0x39, 0x30, // port 12345
             9, 0, 0x1E, 0, 4, 0, 0, 0, 0, 0, 0, // 1 KiB a second
             2, 0, 0x1A, 0, // torrent allowed
+            1, 0, 0x23, // the relay menu: on
             4, 0, 0x99, 1, 2, 3, // unknown
         ];
         let expected = [
@@ -337,6 +389,7 @@ mod tests {
             FromLauncher::Port(12345),
             FromLauncher::UploadLimit(Some(1024)),
             FromLauncher::AllowTorrent(true),
+            FromLauncher::RouteChosen(crate::route::Choice::Relay),
             FromLauncher::Other(0x99),
         ];
         let mut reader = Reader::default();

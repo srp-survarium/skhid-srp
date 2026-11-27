@@ -79,6 +79,8 @@ fn context(time: u32, game_mode: u8, batteries: usize, respawn: usize) -> Contex
         artefacts: None,
         objects: None,
         inventory: None,
+        dict_ids: None,
+        artefact_hunt: None,
     }
 }
 

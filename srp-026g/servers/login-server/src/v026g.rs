@@ -1,5 +1,5 @@
-//! The login server of the 0.26g client (build 2777, January 2015), beside
-//! 0.21d's in `lib.rs`. What differs (`docs/notes/login_chat.md`
+//! The login server of the 0.26g client (build 2777, January 2015). What
+//! differs from 0.21d's (`srp-021d`; `docs/notes/login_chat.md`
 //! §4): the version, the password message (a SHA-1 digest, with the password
 //! itself only when it was typed), the answer (the session and the lobby's
 //! UDP address, no browser server) and the numbers of the refusals. The
@@ -214,9 +214,9 @@ impl Lobby {
     }
 
     fn address_for_origin(&self, origin: Peer, reached: Option<IpAddr>) -> (Ipv4Addr, u16) {
-        match origin.route {
-            Route::Direct => self.address_for(origin.address.ip(), reached),
-            Route::Relayed(public) => (public, self.lobby.port),
+        match origin.route() {
+            Route::Direct => self.address_for(origin.ip(), reached),
+            Route::Relay(relay) => (relay.public(), self.lobby.port),
         }
     }
 
@@ -254,7 +254,7 @@ pub fn run(store: Arc<SessionStore>) -> io::Result<()> {
     let config = config::get();
     let lobby = Lobby::new(&config.login_server, &config.lobby_server)?;
     let listener = TcpListener::bind(config.login_server.bind_addr())?;
-    accept(&listener, store, key, lobby, RevisionGate::default())
+    accept(&listener, store, key, lobby, RevisionGate::default(), Relays::from_env()?)
 }
 
 /// Where a login server started with [`serve`] sends its clients, and the
@@ -275,6 +275,9 @@ pub struct Endpoint {
     pub key: ServerKey,
     /// The games refused for their patch revision (the default: none).
     pub revision_gate: RevisionGate,
+    /// The relays whose tunnel addresses may say a sign-in's own address
+    /// (`SRP_RELAYS`, parsed once by the caller).
+    pub relays: Relays,
 }
 
 /// [`run`] on a listener already bound (a caller that picks the address
@@ -307,6 +310,7 @@ pub fn serve(
         Arc::new(key),
         lobby,
         endpoint.revision_gate.clone(),
+        endpoint.relays.clone(),
     )
 }
 
@@ -317,6 +321,7 @@ fn accept(
     key: Arc<ServerKey>,
     lobby: Lobby,
     gate: RevisionGate,
+    relays: Relays,
 ) -> io::Result<()> {
     log::info!(
         "0.26g sign-ins on TCP {}; the lobby is at UDP {}:{}",
@@ -331,7 +336,7 @@ fn accept(
         );
     }
     let gate = Arc::new(gate);
-    let relays = Arc::new(Relays::from_env()?);
+    let relays = Arc::new(relays);
 
     for stream in listener.incoming() {
         let stream = match stream {
@@ -356,9 +361,9 @@ fn accept(
 }
 
 /// End the sessions nothing was seen of for too long, as 0.21d's
-/// `run_presence` does between its pings. The 0.26g client sends the login
-/// server nothing once signed in, so a session is seen only through its
-/// lobby and match connections (`SessionStore::hold`, `touch`,
+/// `run_presence` (`srp-021d`) does between its pings. The 0.26g client
+/// sends the login server nothing once signed in, so a session is seen only
+/// through its lobby and match connections (`SessionStore::hold`, `touch`,
 /// `seen_in_match`); one whose client never reached the lobby ends here.
 pub fn run_collector(store: Arc<SessionStore>) {
     let mut next_collect = Instant::now() + COLLECT_INTERVAL;
@@ -410,13 +415,7 @@ fn handle_client(
         return;
     }
     if request_type[0] == udp_transport::relay::PROBE_PREFIX[0] {
-        let mut probe = [0; 22];
-        probe[0] = request_type[0];
-        if io::Read::read_exact(&mut stream, &mut probe[1..]).is_ok()
-            && udp_transport::relay::is_probe(&probe)
-        {
-            let _ = stream.write_all(&probe);
-        }
+        let _ = echo_probe(stream, request_type[0]);
         return;
     }
     // The 0.26g client connects only to sign in: it signs out without a word
@@ -428,6 +427,42 @@ fn handle_client(
             "Unknown login request type {}; dropped the connection",
             request_type[0]
         );
+    }
+}
+
+/// The updater's route check: its bytes echoed as they come, so never more
+/// than were sent, up to `PROBE_BYTES` and for `PROBE_TIME` at most.
+fn echo_probe(mut stream: TcpStream, first: u8) -> io::Result<()> {
+    use udp_transport::relay::{PROBE_BYTES, PROBE_PREFIX};
+    const PROBE_TIME: std::time::Duration = std::time::Duration::from_secs(30);
+    let deadline = Instant::now() + PROBE_TIME;
+    // The time left, or a timed-out error once there is none.
+    let wait = || {
+        Some(deadline.saturating_duration_since(Instant::now()))
+            .filter(|wait| !wait.is_zero())
+            .ok_or_else(|| io::Error::from(io::ErrorKind::TimedOut))
+    };
+    let mut buffer = [0; 16384];
+    buffer[0] = first;
+    io::Read::read_exact(&mut stream, &mut buffer[1..PROBE_PREFIX.len()])?;
+    if &buffer[..PROBE_PREFIX.len()] != PROBE_PREFIX {
+        return Ok(());
+    }
+    let mut length = PROBE_PREFIX.len();
+    let mut left = PROBE_BYTES;
+    loop {
+        stream.set_write_timeout(Some(wait()?))?;
+        stream.write_all(&buffer[..length])?;
+        left -= length as u64;
+        if left == 0 {
+            return Ok(());
+        }
+        stream.set_read_timeout(Some(wait()?))?;
+        let want = buffer.len().min(usize::try_from(left).unwrap_or(usize::MAX));
+        length = io::Read::read(&mut stream, &mut buffer[..want])?;
+        if length == 0 {
+            return Ok(());
+        }
     }
 }
 
@@ -566,7 +601,7 @@ fn handle_sign_in(
     mut stream: TcpStream,
 ) {
     let mut buffer = [0; 1024];
-    let peer = origin.address;
+    let peer = origin.address();
     let reached = stream.local_addr().ok().map(|reached| reached.ip());
     let len = match read_message(&mut stream, &mut buffer, sign_in_length) {
         Ok(len) => len,
@@ -721,6 +756,34 @@ mod tests {
     const DIGEST_1: &[u8; 40] = b"f5358b98af5ac658c4a219f518bd0fa5ed2ffd65";
     const DIGEST_2: &[u8; 40] = b"0000000000000000000000000000000000000000";
 
+    #[test]
+    fn the_route_check_is_echoed_whole_and_then_ends() {
+        use udp_transport::relay::{PROBE_BYTES, PROBE_PREFIX};
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let address = listener.local_addr().unwrap();
+        let mut sent = PROBE_PREFIX.to_vec();
+        sent.extend((0..PROBE_BYTES - PROBE_PREFIX.len() as u64).map(|i| i as u8));
+        std::thread::scope(|scope| {
+            scope.spawn(|| {
+                let (mut stream, _) = listener.accept().unwrap();
+                let mut first = [0];
+                stream.read_exact(&mut first).unwrap();
+                echo_probe(stream, first[0]).unwrap();
+            });
+            let mut stream = TcpStream::connect(address).unwrap();
+            stream
+                .set_read_timeout(Some(std::time::Duration::from_secs(5)))
+                .unwrap();
+            let (mut writer, sent) = (stream.try_clone().unwrap(), &sent);
+            let sending = scope.spawn(move || writer.write_all(sent));
+            // The server ends the connection once it has echoed the check.
+            let mut echo = Vec::new();
+            stream.read_to_end(&mut echo).unwrap();
+            sending.join().unwrap().unwrap();
+            assert!(echo == *sent);
+        });
+    }
+
     /// A 0.26g sign-in after its type byte, as `sign_in_on_connected` writes it.
     fn sign_in_message(email: &[u8], version: &[u8], eula: u8, queue: u32) -> Vec<u8> {
         let mut sign_in = vec![email.len() as u8];
@@ -758,12 +821,14 @@ mod tests {
     fn relay_sign_in_advertises_its_lobby_without_changing_the_client_ip() {
         let lobby = Lobby::new(server("203.0.113.67", 1234, false),
                                server("203.0.113.67", 1235, false)).unwrap();
-        let address = "198.51.100.9:45000".parse().unwrap();
-        let relay: Ipv4Addr = "203.0.113.8".parse().unwrap();
-        let peer = Peer { address, route: Route::Relayed(relay) };
-        assert_eq!(lobby.address_for_origin(peer, Some("10.77.0.1".parse().unwrap())), (relay, 1235));
-        assert_eq!(peer.address, address);
-        assert_eq!(lobby.address_for_origin(Peer { address, route: Route::Direct }, None),
+        let address: std::net::SocketAddrV4 = "198.51.100.9:45000".parse().unwrap();
+        let relay = Relays::parse("10.77.0.2=203.0.113.8").unwrap()
+            .relay("10.77.0.2".parse().unwrap()).unwrap();
+        let peer = Peer::relayed(address, relay);
+        assert_eq!(lobby.address_for_origin(peer, Some("10.77.0.1".parse().unwrap())),
+                   ("203.0.113.8".parse().unwrap(), 1235));
+        assert_eq!(peer.address(), std::net::SocketAddr::V4(address));
+        assert_eq!(lobby.address_for_origin(Peer::direct(std::net::SocketAddr::V4(address)), None),
                    ("203.0.113.67".parse().unwrap(), 1235));
     }
 

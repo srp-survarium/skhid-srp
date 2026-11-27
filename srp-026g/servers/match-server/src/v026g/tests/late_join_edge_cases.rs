@@ -32,7 +32,7 @@ fn reserve(bench: &mut Bench) -> usize {
         .push(Client::growing(session_of(place), place + 1, MAP_BATTERIES));
     bench
         .addrs
-        .push(SocketAddr::from(([127, 0, 0, 1], 40_000 + place as u16)));
+        .push(super::direct_peer(40_000 + place as u16));
     place
 }
 
@@ -99,7 +99,7 @@ fn a_newcomer_can_reconnect_while_existing_peers_are_preparing() {
     bench.run(100);
     assert!(bench.registry.seat(session_of(place)).is_some());
     bench.clients[place] = Client::growing(session_of(place), place + 1, MAP_BATTERIES);
-    bench.addrs[place].set_port(43_000 + place as u16);
+    bench.addrs[place] = super::direct_peer(43_000 + place as u16);
     load(&mut bench, place);
     bench.run(500);
     assert!(bench.clients[place].snapshots().is_empty());
@@ -198,7 +198,7 @@ fn a_growing_roster_prepares_and_catches_up_over_real_udp() {
         let stop = stop.clone();
         std::thread::spawn(move || {
             serve(
-                &socket,
+                crate::v026g::server::listen(&socket, Default::default()).unwrap(),
                 server.port(),
                 registry,
                 store(),

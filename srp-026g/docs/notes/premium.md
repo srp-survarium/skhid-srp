@@ -59,7 +59,7 @@ Record 0xD0 bytes, reader of the UI 0x227F60. PROVEN:
 **What the 14 bundles are** (PROVEN, the localization's own texts): ids 1..7 premium time: 3 days "(72 hours)", a week, a month "(30 days)", 3 months "(90 days)", 6 months "(180 days)", a year "(365 days)", a day "(24 hours)". Ids 8..14, by their descriptions: Bandit (jacket, pants, enhanced Uzi, 2000 × 9x19 Parabellum), AK-74N (2000 × 5.45x39 7N6M), MP-27M Lancaster (1000 × 12x70 buckshot), SR-3M Vikhr (2000 × SP-6), PP-19-01 Vityaz (2000 × 9x19), VSS (1000 × SP-5), Survivor (jacket, pants, improved Kiparis, 1000 × 9x18 PM). That "improved" means the dictionary's `*_premium` copies is LIKELY. Their weapons are golden weapons ([golden_weapons.md](golden_weapons.md)), the Bandit and Survivor jackets and pants premium armour ([premium_armour.md](premium_armour.md)): srp gives them their bonuses as modifications of their own.
 
 **Prices are not in the client.** From the sources of the time (`progression_sources.md` §6; changed 2026-10-12):
-- Bundles, PROVEN (the wiki's `Bundles` page of 2015-01-22, revision 7866, 0.26h): AK-74N 1,500, Bandit 2,000, Survivor 2,000, MP-27M Lancaster 300, Vityaz 700, SR-3M Vikhr 5,000, VSS Vintorez 5,000 gold (`shop_offers.rs` `Bundle::gold`). Until 2026-10-12 srp charged the premium copies' `base_cost` (1,200 / 1,500 / 1,500 / 500 / 1,000 / 2,500 / 2,500); that `base_cost` is still what the lobby shows for selling such an item back.
+- Bundles, PROVEN (the wiki's `Bundles` page of 2015-01-22, revision 7866, 0.26h): AK-74N 1,500, Bandit 2,000, Survivor 2,000, MP-27M Lancaster 300, Vityaz 700, SR-3M Vikhr 5,000, VSS Vintorez 5,000 gold (`shop_offers.rs`; `Bundle::silver` since gold went, 2026-11-08). Until 2026-10-12 srp charged the premium copies' `base_cost` (1,200 / 1,500 / 1,500 / 500 / 1,000 / 2,500 / 2,500); that `base_cost` is still what the lobby shows for selling such an item back.
 - Premium for 90 days: 2,500 gold, LIKELY (official sale news of January 2015: three months at 40 % off save $10, so $25; 1,000 gold was $10).
 - The other premium times are srp's own choice (0.21d srp's; no source found; the owner confirmed them 2026-10-12): 250 a day, 600 for 3 days, 1,200 a week, 3,000 a month, 13,500 for 6 months, 24,000 a year (`SRP_PREMIUM_PRICES`). So 90 days cost less than 30 by default.
 
@@ -167,9 +167,9 @@ PROVEN: the state becomes `state_choose_faction` when the account has no quest f
 
 | variable | default | |
 |---|---|---|
-| `SRP_PREMIUM_PRICES` | `10000,20000,40000,100000,250000,450000,800000` (the gold prices of 2026-10-12 times 100; gold is gone, 2026-11-08) | silver for a day, 3 days, a week, a month, 3, 6 months, a year |
-| `SRP_PREMIUM_DISCOUNT` | 0 | percent off premium time, offered by `A9` / `A8`; 0 offers none |
-| `SRP_PREMIUM_OFFER_SECONDS` | 3600 | how long the offer after a match stands |
+| `SRP_PREMIUM_PRICES` | gone with premium (2026-11-09); was `10000,20000,40000,100000,250000,450000,800000` (the gold prices of 2026-10-12 times 100; gold is gone, 2026-11-08) | silver for a day, 3 days, a week, a month, 3, 6 months, a year |
+| `SRP_PREMIUM_DISCOUNT` | gone with premium (2026-11-09); was 0 | percent off premium time, offered by `A9` / `A8`; 0 offers none |
+| `SRP_PREMIUM_OFFER_SECONDS` | gone with premium (2026-11-09); was 3600 | how long the offer after a match stands |
 | `SRP_RENAME_COST` | 25000 | silver for a nickname change |
 | `SRP_AMMO_USE` | on | `off`: a match takes nothing off the stacks |
 

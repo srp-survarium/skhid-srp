@@ -224,6 +224,9 @@ pub enum Reason {
     /// A free-for-all's rules without exe patch 142's spawn history, or
     /// with one that does not read.
     NoSpawnHistory,
+    NoFreezeTagRule,
+    /// Freeze Tag's restart deadline or end against the world's time.
+    FreezeTagTime,
     /// A place's last spawn names a point past the map's team-2 group.
     SpawnPointPast {
         place: usize,
@@ -233,6 +236,29 @@ pub enum Reason {
     ResearchMaskPast {
         places: usize,
     },
+    /// A world of mode 13 checked without the map's Artifact Hunt
+    /// parameters: its rule cannot be read.
+    NoArtefactHuntParams,
+    /// Artifact Hunt's rule bytes are no state of the map's rule (the
+    /// crate's refusal).
+    ArtefactHuntRule {
+        error: artefact_hunt_rule::WireError,
+    },
+    /// Its sides name a place past the match's.
+    ArtefactHuntSidesPast {
+        places: usize,
+    },
+    /// Its stage against the timelimit's: idle exactly while the timelimit
+    /// is not in play, and in play from the timelimit's start.
+    ArtefactHuntStage,
+    /// The blackboard's two flags against the rule: both
+    /// `Rule::respawns()` in play, both true before it, equal once over.
+    ArtefactHuntFlags {
+        flags: [bool; 2],
+    },
+    /// The statistics' `m_team_points` or `m_winner_team` are not the
+    /// rule's scores and leader.
+    ArtefactHuntStanding,
     Batteries {
         found: usize,
         map: usize,
@@ -426,6 +452,9 @@ pub enum Reason {
     },
     /// The carry snapshot is of another version.
     TailCarry,
+    /// Bytes after the carry snapshot that are no second sights' record
+    /// (client patch 206, `second_sight::Record`).
+    TailSights,
     TailWeaponAmmo {
         ammo: u8,
         count: u8,
@@ -461,13 +490,13 @@ pub enum Reason {
     RotationNotSane {
         half: u16,
     },
-    /// An input's actions with bit 29 or 30, which no stock client sets.
-    UnusedActions {
-        actions: u32,
-    },
     /// 0xE8's compressed flag: srp sends 0 or 1.
     SnapshotFlag {
         flag: u8,
+    },
+    /// 0xF6 of two bytes whose first is not 1 (`messages::UploadRequest`).
+    UploadRequestForm {
+        first: u8,
     },
 
     // 0xE4's options.
@@ -646,6 +675,8 @@ impl fmt::Display for Reason {
             Reason::NoGatherRule => f.write_str("no gather rule"),
             Reason::NoResearchRule => f.write_str("no research rule"),
             Reason::NoSpawnHistory => f.write_str("no free-for-all spawn history"),
+            Reason::NoFreezeTagRule => f.write_str("invalid Freeze Tag state"),
+            Reason::FreezeTagTime => f.write_str("the Freeze Tag rule's time is not of the world's"),
             Reason::SpawnPointPast {
                 place,
                 point,
@@ -657,6 +688,25 @@ impl fmt::Display for Reason {
             Reason::ResearchMaskPast { places } => {
                 write!(f, "a research mask names a place past the {places} places")
             }
+            Reason::NoArtefactHuntParams => {
+                f.write_str("an artifact hunt world checked without its map's parameters")
+            }
+            Reason::ArtefactHuntRule { error } => {
+                write!(f, "the artifact hunt rule does not read: {error:?}")
+            }
+            Reason::ArtefactHuntSidesPast { places } => {
+                write!(f, "the artifact hunt sides name a place past the {places} places")
+            }
+            Reason::ArtefactHuntStage => {
+                f.write_str("the artifact hunt rule's stage is not the timelimit's")
+            }
+            Reason::ArtefactHuntFlags { flags } => write!(
+                f,
+                "the blackboard's respawn flags {flags:?} are not the artifact hunt rule's"
+            ),
+            Reason::ArtefactHuntStanding => f.write_str(
+                "the statistics' team points or winner are not the artifact hunt rule's",
+            ),
             Reason::Batteries { found, map } => write!(f, "{found} batteries, the map has {map}"),
             Reason::BatteryNotNumber { battery } => {
                 write!(f, "battery {battery}'s position is no number")
@@ -845,6 +895,7 @@ impl fmt::Display for Reason {
             Reason::TailAffect { kind } => write!(f, "a body part affect of type {kind}"),
             Reason::TailBool { at } => write!(f, "a bool at {at} that is not 0x00 or 0xFF"),
             Reason::TailCarry => f.write_str("a carry snapshot of another version"),
+            Reason::TailSights => f.write_str("bytes after the carry snapshot that are no second sights' record"),
             Reason::TailWeaponAmmo { ammo, count } => {
                 write!(
                     f,
@@ -866,12 +917,11 @@ impl fmt::Display for Reason {
                 f,
                 "a rotation half {half:#06x} that is no number under 1024"
             ),
-            Reason::UnusedActions { actions } => write!(
-                f,
-                "actions {actions:#010x} with bit 29 or 30, which no client sets"
-            ),
             Reason::SnapshotFlag { flag } => {
                 write!(f, "a compressed flag of {flag:#04x}, not 0 or 1")
+            }
+            Reason::UploadRequestForm { first } => {
+                write!(f, "an upload request of form {first:#04x}, not 1")
             }
             Reason::OptionsTooLarge { len } => {
                 write!(f, "{len} bytes, over the client's 0x578a0")

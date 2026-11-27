@@ -1,0 +1,115 @@
+{
+ "_about": "The key exe patch 178 (composition_v044a) reads to draw the two ported Londons' deferred composition as 0.44a5 and 0.32a4 draw it (docs/notes/client_patch.md 3.98; the programs: pack composition-v044a): srp_composition_v044a at the root of each of their 20 client projects, the four settings of its donor's environment, the first key frame (both of each donor's frames set the same): direct_translucency_color (r, g, b) and direct_translucency_intensity, sun_dir_vs_normal_factor, translucency_power, rain_shadow_diffuse_multiplier. London (v0.42) from 0.44a5's level_09 day/rain/evn projects, London (v0.32) from 0.32a4's (its Free for All day_8, a copy of day_4, too). 0.44a5's day and evening set no rain_shadow_diffuse_multiplier: its default, 0.85 (the environment loader's defaults, 0x65F163), as 0.26g's programs hard-code it. After ffa-london-v032-1.json, which makes day_8. Native projects have no such key.",
+ "add_value": [
+  {
+   "files": [
+    "projects/v044a_level_09/day_2/client_project",
+    "projects/v044a_level_09/day_3/client_project",
+    "projects/v044a_level_09/day_4/client_project"
+   ],
+   "table": "",
+   "key": "srp_composition_v044a",
+   "value": {
+    "direct_translucency_r": 0.573,
+    "direct_translucency_g": 0.561,
+    "direct_translucency_b": 0.4,
+    "direct_translucency_intensity": 1.2,
+    "sun_dir_vs_normal_factor": 0.5,
+    "translucency_power": 0.37,
+    "rain_shadow_diffuse_multiplier": 0.85
+   }
+  },
+  {
+   "files": [
+    "projects/v044a_level_09/rain_2/client_project",
+    "projects/v044a_level_09/rain_3/client_project",
+    "projects/v044a_level_09/rain_4/client_project"
+   ],
+   "table": "",
+   "key": "srp_composition_v044a",
+   "value": {
+    "direct_translucency_r": 0.475,
+    "direct_translucency_g": 0.573,
+    "direct_translucency_b": 0.773,
+    "direct_translucency_intensity": 1.4,
+    "sun_dir_vs_normal_factor": 0.5,
+    "translucency_power": 0.8,
+    "rain_shadow_diffuse_multiplier": 0.95
+   }
+  },
+  {
+   "files": [
+    "projects/v044a_level_09/evening_2/client_project",
+    "projects/v044a_level_09/evening_3/client_project",
+    "projects/v044a_level_09/evening_4/client_project"
+   ],
+   "table": "",
+   "key": "srp_composition_v044a",
+   "value": {
+    "direct_translucency_r": 0.824,
+    "direct_translucency_g": 0.463,
+    "direct_translucency_b": 0.322,
+    "direct_translucency_intensity": 1.0,
+    "sun_dir_vs_normal_factor": 0.15,
+    "translucency_power": 0.5,
+    "rain_shadow_diffuse_multiplier": 0.85
+   }
+  },
+  {
+   "files": [
+    "projects/v032a_level_09/day_2/client_project",
+    "projects/v032a_level_09/day_3/client_project",
+    "projects/v032a_level_09/day_4/client_project",
+    "projects/v032a_level_09/day_5/client_project",
+    "projects/v032a_level_09/day_8/client_project"
+   ],
+   "table": "",
+   "key": "srp_composition_v044a",
+   "value": {
+    "direct_translucency_r": 0.573,
+    "direct_translucency_g": 0.561,
+    "direct_translucency_b": 0.4,
+    "direct_translucency_intensity": 1.17,
+    "sun_dir_vs_normal_factor": 0.5,
+    "translucency_power": 0.31,
+    "rain_shadow_diffuse_multiplier": 0.85
+   }
+  },
+  {
+   "files": [
+    "projects/v032a_level_09/rain_2/client_project",
+    "projects/v032a_level_09/rain_3/client_project",
+    "projects/v032a_level_09/rain_4/client_project"
+   ],
+   "table": "",
+   "key": "srp_composition_v044a",
+   "value": {
+    "direct_translucency_r": 0.475,
+    "direct_translucency_g": 0.573,
+    "direct_translucency_b": 0.773,
+    "direct_translucency_intensity": 1.4,
+    "sun_dir_vs_normal_factor": 0.5,
+    "translucency_power": 0.8,
+    "rain_shadow_diffuse_multiplier": 0.95
+   }
+  },
+  {
+   "files": [
+    "projects/v032a_level_09/evening_2/client_project",
+    "projects/v032a_level_09/evening_3/client_project",
+    "projects/v032a_level_09/evening_4/client_project"
+   ],
+   "table": "",
+   "key": "srp_composition_v044a",
+   "value": {
+    "direct_translucency_r": 0.824,
+    "direct_translucency_g": 0.463,
+    "direct_translucency_b": 0.322,
+    "direct_translucency_intensity": 1.0,
+    "sun_dir_vs_normal_factor": 0.15,
+    "translucency_power": 0.5,
+    "rain_shadow_diffuse_multiplier": 0.85
+   }
+  }
+ ]
+}

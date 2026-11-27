@@ -1,6 +1,6 @@
 # Badges in the shop
 
-The owner's rules (2026-11-07). Code: `prices::is_badge` and `sellers_of_in`
+The owner's rules (2026-11-07). Code: `prices::is_badge` and `sellers_of_with`
 (`crates/survarium/src/v026g/prices.rs`); data: `scripts/content-edit/items.tsv` (prices),
 `scripts/content-edit/shop.tsv` (sellers and ranks).
 
