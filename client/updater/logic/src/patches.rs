@@ -88,6 +88,95 @@ impl Patch {
     pub fn file_name(&self) -> String {
         alloc::format!("{FILE_PREFIX}{}", self.number)
     }
+
+    /// Its download until it is whole and checked, in the game folder:
+    /// `.skhid-patch_12.<sha256>.part`, a name the game does not mount and
+    /// no `resources.db.patch_*`. The SHA-256 in it ties the bytes to this
+    /// one file: a list that names another file for patch 12 never goes on
+    /// from them.
+    pub fn part_name(&self) -> String {
+        let hex = to_hex(&self.sha256);
+        alloc::format!(
+            "{PART_PREFIX}{}.{}{PART_SUFFIX}",
+            self.number,
+            core::str::from_utf8(&hex).expect("hex")
+        )
+    }
+}
+
+/// The parts of patch downloads in the game folder ([`Patch::part_name`]).
+pub const PART_PATTERN: &str = ".skhid-patch_*";
+const PART_PREFIX: &str = ".skhid-patch_";
+const PART_SUFFIX: &str = ".part";
+
+/// The patch number and SHA-256 a part's name says (of either case), or
+/// `None` for a name that is no part's.
+pub fn part_of(name: &str) -> Option<(u8, [u8; 32])> {
+    let lower = name.to_ascii_lowercase();
+    let rest = lower.strip_prefix(PART_PREFIX)?.strip_suffix(PART_SUFFIX)?;
+    let (digits, hex) = rest.split_once('.')?;
+    Some((number(digits)?, from_hex(hex.as_bytes())?))
+}
+
+/// What is on disk of a patch's download, in its part.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Part {
+    /// Nothing: a try asks for the file from byte 0.
+    Nothing,
+    /// The file's first n bytes (n > 0): a try goes on from byte n.
+    Partial(u64),
+}
+
+impl Part {
+    /// A part of `size` bytes.
+    pub fn of_size(size: u64) -> Self {
+        if size == 0 { Self::Nothing } else { Self::Partial(size) }
+    }
+
+    /// The byte a try goes on from.
+    pub fn from(self) -> u64 {
+        match self {
+            Self::Nothing => 0,
+            Self::Partial(have) => have,
+        }
+    }
+}
+
+/// How one try of an address ended, as the download saw it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Tried {
+    /// The body came to its end; the part now has `end` bytes.
+    Complete { end: u64 },
+    /// It broke off, failed or was stopped with `end` bytes in the part
+    /// (fewer than before when a `200` started the file again).
+    Broke { end: u64 },
+    /// The address has no byte past the part (a `416`): the file's size,
+    /// when it said it.
+    PastEnd(Option<u64>),
+}
+
+/// What is done with the part after a try.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Next {
+    /// The bytes may be the whole file: hashed, the list's SHA-256 decides
+    /// (another one deletes the part).
+    Hash,
+    /// Kept: the next try, at this address or the next, the next round or
+    /// the next run, goes on from it.
+    Keep(Part),
+    /// Longer than the address's file: deleted, the next try from byte 0.
+    Delete,
+}
+
+/// The part's next state, from what it held before a try and how the try
+/// ended.
+pub fn after(part: Part, tried: Tried) -> Next {
+    match tried {
+        Tried::Complete { .. } => Next::Hash,
+        Tried::Broke { end } => Next::Keep(Part::of_size(end)),
+        Tried::PastEnd(Some(size)) if size == part.from() => Next::Hash,
+        Tried::PastEnd(_) => Next::Delete,
+    }
 }
 
 /// The server's list: its patches, in the order of their numbers.
@@ -472,6 +561,8 @@ pub struct Fetch {
     /// A file is there with other bytes (or cannot be read): it is deleted
     /// first.
     pub damaged: bool,
+    /// What its part holds of it, from an earlier try.
+    pub part: Part,
 }
 
 /// What is to be done with the game folder.
@@ -482,6 +573,10 @@ pub struct Todo {
     pub delete: Vec<String>,
     /// The listed patches that are missing or damaged, in order.
     pub fetch: Vec<Fetch>,
+    /// The parts no patch to download has: of a patch the list has not, of
+    /// another file of its number, of one that is in place, a name that is
+    /// no part's.
+    pub stale: Vec<String>,
 }
 
 impl Todo {
@@ -502,27 +597,49 @@ pub fn extra(list: &List, files: &[String]) -> Vec<String> {
         .collect()
 }
 
-/// What to do: `files` are the names found in the game folder, `look`
-/// hashes a listed patch's file.
-pub fn todo(list: &List, files: &[String], look: &mut dyn FnMut(&Patch) -> Local) -> Todo {
+/// What to do: `files` are the names found in the game folder, `parts` the
+/// [`PART_PATTERN`] files there with their sizes, `look` hashes a listed
+/// patch's file.
+pub fn todo(
+    list: &List,
+    files: &[String],
+    parts: &[(String, u64)],
+    look: &mut dyn FnMut(&Patch) -> Local,
+) -> Todo {
+    let mut taken = Vec::new();
     let fetch = list
         .patches
         .iter()
-        .filter_map(|patch| match look(patch) {
-            Local::Found(sha256) if sha256 == patch.sha256 => None,
-            Local::Missing => Some(Fetch {
+        .filter_map(|patch| {
+            let damaged = match look(patch) {
+                Local::Found(sha256) if sha256 == patch.sha256 => return None,
+                Local::Missing => false,
+                Local::Found(_) | Local::Unreadable => true,
+            };
+            let part = parts
+                .iter()
+                .position(|(name, _)| part_of(name) == Some((patch.number, patch.sha256)))
+                .map_or(Part::Nothing, |at| {
+                    taken.push(at);
+                    Part::of_size(parts[at].1)
+                });
+            Some(Fetch {
                 patch: patch.clone(),
-                damaged: false,
-            }),
-            Local::Found(_) | Local::Unreadable => Some(Fetch {
-                patch: patch.clone(),
-                damaged: true,
-            }),
+                damaged,
+                part,
+            })
         })
+        .collect();
+    let stale = parts
+        .iter()
+        .enumerate()
+        .filter(|(at, _)| !taken.contains(at))
+        .map(|(_, (name, _))| name.clone())
         .collect();
     Todo {
         delete: extra(list, files),
         fetch,
+        stale,
     }
 }
 
@@ -1070,7 +1187,7 @@ mod tests {
     fn a_fresh_folder_downloads_every_patch_gaps_and_all() {
         let list = list(&[(1, b"one"), (14, b"fourteen"), (255, b"last")]);
         let (files, mut look) = folder(&[("resources.db", b"db")]);
-        let todo = todo(&list, &files, &mut look);
+        let todo = todo(&list, &files, &[], &mut look);
         assert_eq!(todo.delete, Vec::<String>::new());
         assert_eq!(
             todo.fetch
@@ -1090,11 +1207,11 @@ mod tests {
             ("resources.db.patch_14", b"fourteen"),
             ("RESOURCES.DB.PATCH_17", b"seventeen"),
         ]);
-        assert!(todo(&list, &files, &mut look).is_empty());
+        assert!(todo(&list, &files, &[], &mut look).is_empty());
         assert_eq!(check(&list, &files, &mut look), Ok(()));
         // No list entry, no file: also nothing.
         let (files, mut look) = folder(&[("resources.db", b"db")]);
-        assert!(todo(&List::default(), &files, &mut look).is_empty());
+        assert!(todo(&List::default(), &files, &[], &mut look).is_empty());
         assert_eq!(check(&List::default(), &files, &mut look), Ok(()));
     }
 
@@ -1105,13 +1222,14 @@ mod tests {
             ("resources.db.patch_14", b"fourteen"),
             ("resources.db.patch_20", b"twenty"),
         ]);
-        let todo = todo(&list, &files, &mut look);
+        let todo = todo(&list, &files, &[], &mut look);
         assert_eq!(todo.delete, Vec::<String>::new());
         assert_eq!(
             todo.fetch,
             [Fetch {
                 patch: patch(17, b"seventeen"),
-                damaged: false
+                damaged: false,
+                part: Part::Nothing,
             }]
         );
         assert_eq!(check(&list, &files, &mut look), Err(Problem::Missing(17)));
@@ -1124,20 +1242,21 @@ mod tests {
             ("resources.db.patch_14", b"fourteen, but damaged"),
             ("resources.db.patch_17", b"seventeen"),
         ]);
-        let todo = todo(&list, &files, &mut look);
+        let todo = todo(&list, &files, &[], &mut look);
         assert_eq!(todo.delete, Vec::<String>::new());
         assert_eq!(
             todo.fetch,
             [Fetch {
                 patch: patch(14, b"fourteen"),
-                damaged: true
+                damaged: true,
+                part: Part::Nothing,
             }]
         );
         assert_eq!(check(&list, &files, &mut look), Err(Problem::Damaged(14)));
         // One that cannot be read counts as damaged.
         let mut unreadable = |_: &Patch| Local::Unreadable;
         assert!(
-            super::todo(&list, &files, &mut unreadable)
+            super::todo(&list, &files, &[], &mut unreadable)
                 .fetch
                 .iter()
                 .all(|f| f.damaged)
@@ -1165,7 +1284,7 @@ mod tests {
             ("resources.db.skhid-new", b"x"),
             ("readme.txt", b"x"),
         ]);
-        let todo = todo(&list, &files, &mut look);
+        let todo = todo(&list, &files, &[], &mut look);
         assert_eq!(
             todo.delete,
             names(&[
@@ -1184,9 +1303,98 @@ mod tests {
         // An empty list: every patch goes.
         let (files, mut look) = folder(&[("resources.db.patch_14", b"fourteen")]);
         assert_eq!(
-            super::todo(&List::default(), &files, &mut look).delete,
+            super::todo(&List::default(), &files, &[], &mut look).delete,
             names(&["resources.db.patch_14"])
         );
+    }
+
+    #[test]
+    fn a_part_is_named_by_its_patch_and_its_files_sha256() {
+        let fourteen = patch(14, b"fourteen");
+        let name = fourteen.part_name();
+        assert_eq!(name, alloc::format!(".skhid-patch_14.{}.part", hex(b"fourteen")));
+        assert_eq!(part_of(&name), Some((14, fourteen.sha256)));
+        assert_eq!(part_of(&name.to_ascii_uppercase()), Some((14, fourteen.sha256)));
+        // Neither the game nor the patch files' rules take it for a patch.
+        assert!(!is_patch_file(&name));
+        assert_eq!(file_number(&name), None);
+        for bad in [
+            ".skhid-patch_14.part",
+            ".skhid-patch_014.0000000000000000000000000000000000000000000000000000000000000000.part",
+            ".skhid-patch_14.00.part",
+            ".skhid-patch_14.0000000000000000000000000000000000000000000000000000000000000000",
+            "resources.db.patch_14.skhid-part",
+        ] {
+            assert_eq!(part_of(bad), None, "{bad}");
+        }
+    }
+
+    #[test]
+    fn a_part_of_the_listed_file_is_gone_on_from_and_any_other_is_dropped() {
+        let list = list(&[(14, b"fourteen"), (17, b"seventeen"), (20, b"twenty")]);
+        let (files, mut look) = folder(&[("resources.db.patch_20", b"twenty")]);
+        let parts = [
+            (patch(14, b"fourteen").part_name(), 2_833_252_352),
+            // Another file for patch 17: an earlier list's.
+            (patch(17, b"seventeen before").part_name(), 1000),
+            // A patch the list has not.
+            (patch(15, b"fifteen").part_name(), 1000),
+            // One whose patch is in place.
+            (patch(20, b"twenty").part_name(), 10),
+            (String::from(".skhid-patch_x"), 5),
+        ];
+        let todo = todo(&list, &files, &parts, &mut look);
+        assert_eq!(
+            todo.fetch
+                .iter()
+                .map(|f| (f.patch.number, f.part))
+                .collect::<Vec<_>>(),
+            [(14, Part::Partial(2_833_252_352)), (17, Part::Nothing)]
+        );
+        assert_eq!(
+            todo.stale,
+            [
+                parts[1].0.clone(),
+                parts[2].0.clone(),
+                parts[3].0.clone(),
+                parts[4].0.clone()
+            ]
+        );
+        // An empty part is no bytes.
+        let parts = [(patch(14, b"fourteen").part_name(), 0)];
+        assert_eq!(todo_parts(&list, &parts), [Part::Nothing, Part::Nothing]);
+    }
+
+    fn todo_parts(list: &List, parts: &[(String, u64)]) -> Vec<Part> {
+        super::todo(list, &[], parts, &mut |_| Local::Missing)
+            .fetch
+            .iter()
+            .map(|f| f.part)
+            .take(2)
+            .collect()
+    }
+
+    #[test]
+    fn after_a_try_the_part_is_kept_hashed_or_dropped() {
+        let have = Part::Partial(2_833_252_352);
+        // Broke off: the bytes stay, the next try goes on from them.
+        assert_eq!(
+            after(have, Tried::Broke { end: 3_526_639_616 }),
+            Next::Keep(Part::Partial(3_526_639_616))
+        );
+        // A 200 started the file again and broke off: from its bytes.
+        assert_eq!(
+            after(have, Tried::Broke { end: 65_536 }),
+            Next::Keep(Part::Partial(65_536))
+        );
+        assert_eq!(after(Part::Nothing, Tried::Broke { end: 0 }), Next::Keep(Part::Nothing));
+        // Whole: the SHA-256 decides.
+        assert_eq!(after(have, Tried::Complete { end: 3_698_326_100 }), Next::Hash);
+        // Nothing past the part: the whole file when it is the file's size...
+        assert_eq!(after(have, Tried::PastEnd(Some(2_833_252_352))), Next::Hash);
+        // ... else longer than it, or of a size not said: dropped.
+        assert_eq!(after(have, Tried::PastEnd(Some(1000))), Next::Delete);
+        assert_eq!(after(have, Tried::PastEnd(None)), Next::Delete);
     }
 
     #[test]

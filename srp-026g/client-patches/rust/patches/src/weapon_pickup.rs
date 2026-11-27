@@ -858,7 +858,7 @@ pub fn on_remove(ctx: &mut Context<'_>) -> Flow<NoExit> {
     let Some((world, place)) = located(&player) else { return Flow::Continue };
     update_record(thread, world, place, |r| *r = r.respawned());
     if let Some(gun) = record_at(thread, world, place).drop.gun()
-        && first_line(&REMOVALS_SAID, thread, usize::from(place.get()), player.time()) {
+        && first_line(&REMOVALS_SAID, thread, usize::from(place.get()), player.spawned()) {
         log_recipe("its body left the world: the drop stays, alone,", gun.recipe,
                    &[Text(" of place "), Dec(u32::from(place.get())), Text(" at "), Dec(player.time()), Text(" ms")]);
     }
@@ -867,10 +867,13 @@ pub fn on_remove(ctx: &mut Context<'_>) -> Flow<NoExit> {
 
 // ---- the death and the pickup -----------------------------------------------------------------
 
-/// The last death (its life and time) and removal (its time) each place's
-/// line said: a rollback runs both hooks again at each tick it simulates
-/// again, the same death or removal, and its line is said once.
-static DEATHS_SAID: GameCell<[Option<(u32, u32)>; PLACES as usize]> = GameCell::new([None; PLACES as usize]);
+/// The life whose death and whose removal each place's line last said: a
+/// rollback runs both hooks again at each tick it simulates again, the same
+/// death or removal at another time, and its line is said once a life. A
+/// death's breadcrumb is recorded once a life too: recorded at every pass, one
+/// death filled the crash report's ring 10 to 18 times (2026-11-26's report:
+/// 864 of its 901 events).
+static DEATHS_SAID: GameCell<[Option<u32>; PLACES as usize]> = GameCell::new([None; PLACES as usize]);
 static REMOVALS_SAID: GameCell<[Option<u32>; PLACES as usize]> = GameCell::new([None; PLACES as usize]);
 
 /// Whether `key` is not what `place`'s last line in `said` said (it is from
@@ -896,8 +899,8 @@ fn first_line<K: Copy + PartialEq>(said: &GameCell<[Option<K>; PLACES as usize]>
 /// is there (a rollback replaying the death). The ragdoll draws the gun in
 /// its hands; the prompt's box is the copy's, the same gun.
 pub fn died(player: &Player<'_>, thread: &Thread) {
-    breadcrumbs::record(thread, Crumb::Death { place: player.place(), life: player.spawned(), time: player.time() });
-    if first_line(&DEATHS_SAID, thread, usize::from(player.place()), (player.spawned(), player.time())) {
+    if first_line(&DEATHS_SAID, thread, usize::from(player.place()), player.spawned()) {
+        breadcrumbs::record(thread, Crumb::Death { place: player.place(), life: player.spawned(), time: player.time() });
         log(&[Text("death hook: place "), Dec(u32::from(player.place())), Text(" life "), Dec(player.spawned()),
               Text(" at "), Dec(player.time()), Text(" ms")]);
     }

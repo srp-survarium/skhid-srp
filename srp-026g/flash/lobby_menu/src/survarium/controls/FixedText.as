@@ -39,7 +39,11 @@ package survarium.controls
       protected var _resize:Boolean = false;
       
       protected var _tweenLite:TweenLite;
+
+      protected var _fullSize:int = 0;
       
+      protected var _fitted:String = null;
+
       public function FixedText()
       {
          super();
@@ -167,6 +171,39 @@ package survarium.controls
          }
       }
       
+      // Skhid: an item's name longer than its field is made smaller first, down to 80 % of the field's
+      // own size, and scrolls only if it still does not fit.
+      public function set fittedText(value:String) : void
+      {
+         // the same name again (a card refreshed) keeps its size and its scroll
+         if(value == this._fitted && value == this._text)
+         {
+            return;
+         }
+         this._fitted = value;
+         var color:uint = this.textField.textColor;
+         var format:TextFormat = this.textField.defaultTextFormat;
+         if(this._fullSize == 0)
+         {
+            this._fullSize = int(format.size);
+         }
+         var least:int = Math.max(9,Math.round(this._fullSize * 0.8));
+         var size:int = this._fullSize;
+         format.size = size;
+         this.textField.defaultTextFormat = format;
+         this.textField.text = value;
+         while(this.textField.textWidth >= this._sw && size > least)
+         {
+            size--;
+            format.size = size;
+            this.textField.defaultTextFormat = format;
+            this.textField.text = value;
+         }
+         this.textField.textColor = color;
+         this._text = null;
+         this.text = value;
+      }
+
       protected function onTimer(event:TimerEvent) : void
       {
          if(!this.textField)

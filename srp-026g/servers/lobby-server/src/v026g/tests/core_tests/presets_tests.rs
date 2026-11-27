@@ -5,7 +5,7 @@
 //! choosing it before the join.
 
 use session::v026g::{matchmaking, quests};
-use survarium::v026g::lobby::presets::{PRESET_CHOOSE_BASE, PRESETS_FIRST};
+use survarium::v026g::lobby::presets::{PERK_BASE, PRESET_CHOOSE_BASE, PRESETS_FIRST};
 use survarium::v026g::lobby::rooms::{
     ROOM_JOIN_BASE, ROOM_LEAVE, ROOM_MEMBERS_BASE, ROOM_OFFER_BASE, ROOM_PIN_BASE, ROOM_PLAY,
     ROOM_PRESET_BASE, ROOM_QUEUE_BASE, ROOM_STATE, ROOMS_LIST, RoomSpec,
@@ -771,4 +771,51 @@ fn a_full_rooms_queue_offers_nothing_where_join_would_not() {
         rows(&mut world, rae, ROOM_QUEUE_BASE + high, 1),
         [format!("S1;N;0;{high};1")]
     );
+}
+
+/// A perk's slot (`artefact-skills.md`, `medical-skills.md`): a click asks for a kit's slot as
+/// the perk's or the one it replaced, answered with the account (the kit's new slots) and the
+/// list, whose `K` row says every kit's choice of each perk; without the skill nothing changes
+/// and the row says none.
+#[test]
+fn a_kit_takes_or_declines_a_perks_slot() {
+    use session::v026g::account::{ARTIFACT_CONTAINER, DEEP_POCKETS, KitPerks, PerkSlot, SlotPerk};
+    let mut world = World::new();
+    let alice = world.connect("Alice");
+    let k_row = |list: &[String]| list.iter().find(|row| row.starts_with("K;")).cloned();
+
+    // Each switch's list names it (`done` 3 set or 4 refused, `preset` the request), so the
+    // movie takes no other list (one it asked at an account, say) as that click's answer.
+    let header = |list: &[String]| list[0].split(';').take(4).collect::<Vec<_>>().join(";");
+    let (lists, decoded) = asked(&mut world, alice, PERK_BASE + 10 + 2);
+    assert_eq!(k_row(&lists[0]).as_deref(), Some("K;1:0:0,2:0:0,3:0:0"));
+    assert_eq!(header(&lists[0]), "P2;L;4;12");
+    assert!(!sent_account(&decoded));
+
+    world.change(alice, |account| account.skills = vec![(ARTIFACT_CONTAINER, 1), (DEEP_POCKETS, 1)]);
+    let (lists, decoded) = asked(&mut world, alice, PERK_BASE + 10 + 2);
+    assert_eq!(k_row(&lists[0]).as_deref(), Some("K;1:1:1,2:2:1,3:1:1"));
+    assert_eq!(header(&lists[0]), "P2;L;3;12");
+    // The switch's account goes before its answer: the movie's hold ends on the answer with
+    // the new pockets already counted.
+    let account = decoded
+        .iter()
+        .position(|m| matches!(m, Decoded::Account(_)));
+    let list = decoded
+        .iter()
+        .position(|m| matches!(m, Decoded::EloList(_)));
+    assert!(account.is_some() && account < list, "{decoded:?}");
+    let (lists, _) = asked(&mut world, alice, PERK_BASE + 4);
+    assert_eq!(k_row(&lists[0]).as_deref(), Some("K;1:1:2,2:2:1,3:1:1"));
+    assert_eq!(
+        world.account(alice).kits[0].perks,
+        KitPerks::ALL_TAKEN.with(SlotPerk::WeaponPocket, PerkSlot::Declined)
+    );
+
+    // Asked again: nothing to change, nothing sent but the list, which says it is so.
+    let (lists, decoded) = asked(&mut world, alice, PERK_BASE + 10 + 2);
+    assert!(!sent_account(&decoded));
+    assert_eq!(header(&lists[0]), "P2;L;3;12");
+    let (lists, _) = asked(&mut world, alice, PERK_BASE + 10 + 1);
+    assert_eq!(k_row(&lists[0]).as_deref(), Some("K;1:1:2,2:1:1,3:1:1"));
 }

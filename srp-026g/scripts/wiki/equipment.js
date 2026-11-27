@@ -38,8 +38,7 @@
       return url;
     };
     history.replaceState(null, '', keep(new URL(location.href)));
-    const language = document.querySelector('a.lang');
-    if (language) language.href = keep(new URL(language.href));
+    for (const language of document.querySelectorAll('.lang a')) language.href = keep(new URL(language.href));
   }
   function update() {
     for (const button of buttons) button.setAttribute('aria-pressed', String(button.dataset.slot === slot));

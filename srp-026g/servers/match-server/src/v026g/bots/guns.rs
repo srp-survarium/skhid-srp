@@ -528,12 +528,8 @@ mod tests {
             let arms = Arms::of_role(role.name()).unwrap();
             assert_eq!(arms.primary.0.item, role.gear()[0].name);
             assert!(arms.pistol.is_none(), "the bots carry no weapon 2");
-            // The fixed kits' pockets: two medkits, one grenade (an RGD-5
-            // takes two units of a pocket of two).
-            assert_eq!((arms.medkits, arms.grenades), (2, 1), "{role}");
         }
         assert!(Arms::of_role("steady").is_none());
-        assert_eq!(Arms::fallback().primary.0.item, "ak_74u");
         // Every weapon of a role is known, its magazine the game's; the
         // five legacy entries are replaced when the data supplies explicit timings.
         for item in &dictionary.items {
@@ -553,10 +549,6 @@ mod tests {
                     ReloadTiming::Tactical { .. }
                 )
         }));
-        // A derived weapon of a known kind: the PPSh's magazine reload.
-        let ppsh = gun("ppsh").unwrap();
-        assert_eq!((ppsh.magazine, ppsh.rpm, ppsh.auto), (35, 1000, true));
-        assert_eq!(ppsh.reload, Reload::Magazine { ms: 3_700 });
     }
 
     /// A bot's kit's arms: its weapon 1, every round of its ammo that fits

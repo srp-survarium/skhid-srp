@@ -32,13 +32,15 @@ mod play;
 mod gate;
 mod http;
 mod install;
+mod leftover;
 mod libtorrent;
 mod log;
+mod old_restore;
 mod patches;
 mod pipe;
 mod replay;
 mod replay_association;
-mod resources;
+mod route;
 mod seed;
 mod signed;
 mod text;
@@ -57,15 +59,18 @@ use updater_logic::manifest::{
     damage, parse_installed, parse_manifest, verdict, write_installed,
 };
 use updater_logic::pipe::{FromLauncher, ToLauncher, Torrenting, state, step};
+use updater_logic::diagnosis::{Diagnosis, next_try};
 use updater_logic::problem::{Failed, Fault, Miss, Problem, Removal, Where};
+use updater_logic::route::{self as routing, Event, Probed, Shown};
 use updater_logic::sha256::{digest, to_hex};
 use updater_logic::url::{self, Url};
 use updater_logic::zip;
 use windows_sys::Win32::System::Environment::GetCommandLineW;
-use windows_sys::Win32::System::Threading::ExitProcess;
+use windows_sys::Win32::System::Threading::{ExitProcess, GetCurrentThreadId};
 use windows_sys::Win32::UI::WindowsAndMessaging::{
-    IDRETRY, MB_ICONERROR, MB_ICONWARNING, MB_OK, MB_RETRYCANCEL, MB_SETFOREGROUND, MB_TOPMOST,
-    MESSAGEBOX_RESULT, MESSAGEBOX_STYLE, MessageBoxW,
+    FindWindowW, GetWindowThreadProcessId, IDRETRY, MB_ICONERROR, MB_ICONWARNING, MB_OK, MB_RETRYCANCEL,
+    MB_SETFOREGROUND, MB_TOPMOST, MESSAGEBOX_RESULT, MESSAGEBOX_STYLE, MessageBoxW, PostMessageW,
+    SetDlgItemTextW, WM_COMMAND,
 };
 
 use crate::http::HttpError;
@@ -126,6 +131,9 @@ struct Session {
     run: Run,
     last_progress: u64,
     started: u64,
+    /// The bytes done at the first report since [`Session::begin_progress`]
+    /// (those of a download gone on from): the speed counts from them.
+    counted_from: Option<u64>,
     /// The launcher's line names a file ("Extracting file <name>") that the
     /// next state message must clear.
     named_file: bool,
@@ -138,6 +146,16 @@ struct Session {
     trouble: Option<Failed>,
     /// The launcher's torrent settings, and the torrent engine (`torrent.rs`).
     torrents: torrent::Torrents,
+    /// The launcher's "Relay" row, in a download with a relay.
+    route: Option<RouteBox>,
+}
+
+/// What the "Relay" row shows (launcher patch 16), and the probe that
+/// runs for it in Automatic.
+struct RouteBox {
+    config: &'static relay_client::Config,
+    shown: Shown,
+    probing: Option<mpsc::Receiver<Probed>>,
 }
 
 /// Whether the update pass goes on.
@@ -176,6 +194,10 @@ impl Session {
                 failure,
             }),
             Err(miss @ Miss::Answered(Fault::Insecure)) => Failed::of_file(&server.host, &[miss]),
+            // The site's proxy: the game server behind it is down.
+            Err(Miss::Answered(Fault::Status(502..=504))) => Some(Failed::Behind {
+                what: Where::Server(server.host.clone()),
+            }),
             _ => None,
         };
     }
@@ -191,6 +213,37 @@ impl Session {
         }
     }
 
+    /// The row's transition: shown, saved, probed.
+    fn route(&mut self, event: Option<Event>) {
+        let Some(route) = &mut self.route else { return };
+        let step = match event {
+            None => Shown::start(route::choice()),
+            Some(event) => route.shown.on(event),
+        };
+        let routing::Step { shown, save, probe } = step;
+        if shown != route.shown || event.is_none() {
+            log!("route: the row shows {shown:?}");
+        }
+        route.shown = shown;
+        if let Some(choice) = save {
+            route::set(choice);
+        }
+        if probe {
+            route.probing = Some(route::probe(route.config));
+        }
+        self.send(ToLauncher::Route(shown));
+    }
+
+    /// The direct route is blocked while the relay answers: the row turns
+    /// to auto by itself (saved also with no launcher to show it).
+    fn blocked(&mut self) {
+        if self.route.is_some() {
+            self.route(Some(Event::Blocked));
+        } else {
+            route::blocked();
+        }
+    }
+
     fn state(&mut self, state: u8) {
         log!("state {state:#04x}");
         self.send(ToLauncher::State(state));
@@ -199,6 +252,7 @@ impl Session {
     /// Reads what the launcher wrote. `false` once it asked to stop or
     /// closed the pipe.
     fn pump(&mut self) -> bool {
+        let mut chosen = None;
         if let Some(pipe) = &mut self.pipe {
             for message in pipe.receive() {
                 match message {
@@ -218,6 +272,7 @@ impl Session {
                             self.run = Run::Again;
                         }
                     }
+                    FromLauncher::RouteChosen(choice) => chosen = Some(choice),
                     other => log!("launcher message ignored: {other:?}"),
                 }
             }
@@ -226,6 +281,34 @@ impl Session {
                 self.run = Run::Stopped;
             }
         }
+        // The menu's pick (the last, of several): saved; the update runs
+        // again by it (its HTTPS goes the new way).
+        if let Some(choice) = chosen
+            && self.route.as_ref().is_some_and(|route| route.shown.choice() != choice)
+        {
+            self.route(Some(Event::Chosen(choice)));
+            if self.run == Run::Going {
+                log!("route changed: the update runs again");
+                self.run = Run::Again;
+            }
+        }
+        let probed = self.route.as_mut().and_then(|route| {
+            let answer = route.probing.as_ref()?.try_recv();
+            match answer {
+                Ok(probed) => {
+                    route.probing = None;
+                    Some(probed)
+                }
+                Err(mpsc::TryRecvError::Empty) => None,
+                Err(mpsc::TryRecvError::Disconnected) => {
+                    route.probing = None;
+                    Some(Probed::Neither)
+                }
+            }
+        });
+        if let Some(probed) = probed {
+            self.route(Some(Event::Probed(probed)));
+        }
         // A port asked for is answered once the session listens on it.
         if let Some(answer) = self.torrents.service()
             && let Some(pipe) = &mut self.pipe
@@ -233,6 +316,25 @@ impl Session {
             pipe.send(answer);
         }
         !self.stopped()
+    }
+
+    /// The server restarts: after "Server maintenance..." the launcher's
+    /// line counts the seconds to the next try (launcher patch 16), until
+    /// the site answers by the player's route. `false` when told to stop.
+    fn await_server(&mut self, server: Option<&Url>) -> bool {
+        let answered = 'asked: loop {
+            for left in (1..=RESTART_WAIT_S).rev() {
+                self.send(ToLauncher::NextTry(left));
+                if !self.pause(1000) {
+                    break 'asked false;
+                }
+            }
+            if server.is_none_or(route::site_answers) {
+                break true;
+            }
+        };
+        self.send(ToLauncher::NextTry(0));
+        answered
     }
 
     /// Sleeps, looking at the pipe meanwhile. `false` when told to stop.
@@ -250,6 +352,7 @@ impl Session {
     fn begin_progress(&mut self) {
         self.started = win::ticks();
         self.last_progress = 0;
+        self.counted_from = None;
         self.send(ToLauncher::Progress {
             done: 0,
             total: 0,
@@ -258,16 +361,29 @@ impl Session {
         });
     }
 
+    /// A new request of the same file (another address, a new try): its
+    /// speed is measured anew from its first report, the bar kept as it is.
+    fn restart_speed(&mut self) {
+        self.counted_from = None;
+    }
+
     /// Reports bytes done of a total, four times a second at most (always
     /// at the end). `false` when told to stop.
     fn progress(&mut self, done: u64, total: u64) -> bool {
         let now = win::ticks();
+        // The first report, or a file started again from byte 0: the speed
+        // is of the bytes from here on.
+        if self.counted_from.is_none_or(|from| done < from) {
+            self.counted_from = Some(done);
+            self.started = now;
+        }
         if done < total && now < self.last_progress + 250 {
             return !self.stopped();
         }
         self.last_progress = now;
         let elapsed = now.saturating_sub(self.started).max(1);
-        let speed = done.saturating_mul(1000) / elapsed;
+        let counted = done.saturating_sub(self.counted_from.unwrap_or(done));
+        let speed = counted.saturating_mul(1000) / elapsed;
         let eta = if speed == 0 || total < done {
             u64::MAX
         } else {
@@ -350,6 +466,62 @@ fn warning_box(caption: &str, message: &str) {
 /// Windows' Retry and Cancel. `true`: Retry.
 fn retry_box(caption: &str, message: &str) -> bool {
     show_box(caption, message, MB_RETRYCANCEL | MB_ICONWARNING) == IDRETRY
+}
+
+/// Between tries while the server restarts.
+const RESTART_WAIT_S: u8 = 5;
+
+/// The box of a server that restarts (`Diagnosis::Restarting`): Retry and
+/// Cancel as [`retry_box`]'s, and under `message` a line that counts the
+/// seconds to the next try. While it is open `back` is asked every
+/// [`RESTART_WAIT_S`] seconds, and once it says yes the box presses its own
+/// Retry. `true`: Retry, the player's or its own.
+fn waiting_box(caption: &str, message: &str, language: Option<u32>, back: impl Fn() -> bool + Sync) -> bool {
+    use core::sync::atomic::{AtomicBool, Ordering};
+    /// A message box's window class, and its text's control.
+    const DIALOG: &str = "#32770";
+    const TEXT: i32 = 0xFFFF;
+    let language = language.unwrap_or(0);
+    let text = |seconds: u8| format!("{message}\n{}", next_try(language, seconds.into()));
+    let title = win::wide(caption);
+    let owner = unsafe { GetCurrentThreadId() };
+    // This thread's box with that title, once it is shown.
+    let shown = || {
+        let window = unsafe { FindWindowW(win::wide(DIALOG).as_ptr(), title.as_ptr()) };
+        let ours = !window.is_null() && unsafe { GetWindowThreadProcessId(window, core::ptr::null_mut()) } == owner;
+        ours.then_some(window)
+    };
+    let closed = AtomicBool::new(false);
+    std::thread::scope(|scope| {
+        scope.spawn(|| {
+            let mut left = RESTART_WAIT_S;
+            loop {
+                for _ in 0..10 {
+                    if closed.load(Ordering::Relaxed) {
+                        return;
+                    }
+                    win::sleep(100);
+                }
+                left -= 1;
+                if left == 0 {
+                    if back() {
+                        log!("the server answers: the box's Retry");
+                        if let Some(window) = shown() {
+                            unsafe { PostMessageW(window, WM_COMMAND, IDRETRY as usize, 0) };
+                        }
+                        return;
+                    }
+                    left = RESTART_WAIT_S;
+                }
+                if let Some(window) = shown() {
+                    unsafe { SetDlgItemTextW(window, TEXT, win::wide(&text(left)).as_ptr()) };
+                }
+            }
+        });
+        let answer = show_box(caption, &text(RESTART_WAIT_S), MB_RETRYCANCEL | MB_ICONWARNING);
+        closed.store(true, Ordering::Relaxed);
+        answer == IDRETRY
+    })
 }
 
 /// The server to ask: the one named in `updater_skhid.url`, else the one of
@@ -663,9 +835,8 @@ enum Done {
     Stop(Stop, String),
 }
 
-/// The update: the overlay, then the revision gate (`gate::behind`), the
-/// restore of resources.db and the patch step, all under the installation
-/// lock.
+/// The update: the overlay, then the revision gate (`gate::behind`) and the
+/// patch step, all under the installation lock.
 fn update(session: &mut Session, layout: &Layout, patch_look: patches::Look) -> Done {
     session.trouble = None;
     let _lock = match win::install_lock(&layout.exe_dir) {
@@ -690,10 +861,9 @@ fn update(session: &mut Session, layout: &Layout, patch_look: patches::Look) -> 
     if let Done::Installed { .. } = done {
         patches::overlay_changed(layout);
     }
-    // The restore and the patch step run at every start the game may be
-    // played after, with the server only when the server answered. When this
-    // updater or the launcher was replaced, the new ones start at once and
-    // do them.
+    // The patch step runs at every start the game may be played after, with
+    // the server only when the server answered. When this updater or the
+    // launcher was replaced, the new ones start at once and do it.
     match &done {
         Done::UpToDate | Done::Installed { restart: false, .. } | Done::Offline(_) => {}
         Done::Installed { restart: true, .. } => {
@@ -719,12 +889,9 @@ fn update(session: &mut Session, layout: &Layout, patch_look: patches::Look) -> 
         None => Ok(&server),
         Some(why) => Err(why.as_str()),
     };
-    // Best effort: what an earlier updater wrote into resources.db in place
-    // gets its stock bytes back, once.
-    match resources::run(session, layout, server.ok()) {
-        resources::Outcome::Done => {}
-        resources::Outcome::Stopped => return Done::Stopped,
-    }
+    // What the updaters of before the patches left beside this one goes;
+    // the game's resources.db is never changed.
+    old_restore::sweep(layout);
     // The patches of resources.db the server lists: required, every one of
     // them checked before the game is played.
     let installed = read_installed(layout);
@@ -1363,11 +1530,25 @@ fn run() -> u32 {
         run: Run::Going,
         last_progress: 0,
         started: 0,
+        counted_from: None,
         named_file: false,
         seen: None,
         trouble: None,
         torrents: torrent::Torrents::new(options.torrenting, &layout),
+        route: None,
     };
+    // The "Relay" row, shown only to a launcher (one that knows it, patch
+    // 16) in a download with a relay.
+    if session.pipe.is_some() && !options.copy {
+        match play::config() {
+            Ok(Some(config)) => {
+                session.route = Some(RouteBox { config, shown: Shown::Direct, probing: None });
+                session.route(None);
+            }
+            Ok(None) => {}
+            Err(message) => log!("route: {message}"),
+        }
+    }
 
     if options.copy {
         // The original copied the launcher and itself to a temp folder to
@@ -1417,8 +1598,14 @@ fn pass(session: &mut Session, layout: &Layout, look: patches::Look, product: Op
             removal,
         }
     };
+    /// Who presses Retry in the pass's box.
+    enum Retry {
+        Player,
+        /// The player, or the box once this server answers (it restarts).
+        Server(Url),
+    }
     loop {
-        let (caption, message) = match (&done, session.trouble.clone()) {
+        let (caption, message, retry) = match (&done, session.trouble.clone()) {
             // A file blocked by Windows Security or held by another program:
             // PLAY stays off; the box says what to do, and Retry runs the
             // update again.
@@ -1435,9 +1622,9 @@ fn pass(session: &mut Session, layout: &Layout, look: patches::Look, product: Op
                 match stop {
                     Stop::Virus => {
                         let problem = antivirus(name, Removal::Blocked);
-                        (problem.caption(), problem.message(language, &log_path))
+                        (problem.caption(), problem.message(language, &log_path), Retry::Player)
                     }
-                    Stop::InUse => (text::TITLE.into(), file_error::in_use(language, file)),
+                    Stop::InUse => (text::TITLE.into(), file_error::in_use(language, file), Retry::Player),
                 }
             }
             // Every address of the server, or of a file, failed: the box
@@ -1453,20 +1640,55 @@ fn pass(session: &mut Session, layout: &Layout, look: patches::Look, product: Op
                 if session.quiet || session.stopped() {
                     break;
                 }
-                let problem = Problem::of(failed, || {
-                    let probe = http::probe();
-                    log!("a site that is always up, asked: {probe:?}");
-                    probe
+                let diagnose = || match server(layout) {
+                    Ok(server) => route::diagnose_site(&server),
+                    Err(_) => Some(Diagnosis::Unclear),
+                };
+                // `None`: it answers now, as after a restart.
+                let problem = Problem::of(failed.clone(), diagnose).unwrap_or_else(|| {
+                    Problem::of(failed, || Some(Diagnosis::Restarting)).expect("unreached")
                 });
+                let retry = match problem {
+                    Problem::Unreached { diagnosis: Diagnosis::Restarting, .. } if session.pipe.is_some() => {
+                        // Back in a minute: the launcher's line says so
+                        // and counts to each next try (PLAY off), and the
+                        // update runs again once the server answers, or
+                        // the launcher is closed.
+                        log!("the server is restarting: asked again every {RESTART_WAIT_S} s");
+                        session.state(state::MAINTENANCE);
+                        if !session.await_server(server(layout).ok().as_ref()) {
+                            // Stopped, or to run again (another route picked):
+                            // nothing is told of a wait that was cut.
+                            done = Done::Stopped;
+                            break;
+                        }
+                        log!("the server answers: the update runs again");
+                        done = update(session, layout, look);
+                        continue;
+                    }
+                    // By hand: the box waits for it.
+                    Problem::Unreached { diagnosis: Diagnosis::Restarting, .. } => {
+                        server(layout).map_or(Retry::Player, Retry::Server)
+                    }
+                    Problem::Unreached { diagnosis: Diagnosis::Blocked, .. } => {
+                        session.blocked();
+                        Retry::Player
+                    }
+                    _ => Retry::Player,
+                };
                 log!("the player is told: {}", problem.title(None));
-                (problem.caption(), problem.message(language, &log_path))
+                (problem.caption(), problem.message(language, &log_path), retry)
             }
             _ => break,
         };
         if session.quiet || session.stopped() {
             break;
         }
-        if !retry_box(&caption, &message) || !session.pump() {
+        let again = match retry {
+            Retry::Player => retry_box(&caption, &message),
+            Retry::Server(server) => waiting_box(&caption, &message, language, || route::site_answers(&server)),
+        };
+        if !again || !session.pump() {
             said = true;
             break;
         }
@@ -1514,8 +1736,8 @@ fn pass(session: &mut Session, layout: &Layout, look: patches::Look, product: Op
     }
     let (code, watch) = match done {
         Done::UpToDate => {
-            // "Checking" clears a file name the restore or the patch step
-            // left in the launcher's line.
+            // "Checking" clears a file name the patch step left in the
+            // launcher's line.
             if session.named_file {
                 session.state(state::CHECKING);
             }
@@ -1525,8 +1747,7 @@ fn pass(session: &mut Session, layout: &Layout, look: patches::Look, product: Op
         Done::Installed { restart: true, .. } => match product {
             // The launcher or this updater was replaced: the launcher
             // closes, and its new file is started, which starts the new
-            // updater: that one restores resources.db and does the patch
-            // step.
+            // updater: that one does the patch step.
             Some(product) if session.pipe.is_some() => {
                 restart_launcher(session, layout, product);
                 return exit::OK;
@@ -1613,8 +1834,8 @@ fn register_replays(arguments: &[String]) -> u32 {
 }
 
 /// `check` by hand (no launcher) replaced this updater: the new one is run,
-/// as it was started, to finish the update (the restore and the patch step,
-/// which this one leaves to it); its exit code is this one's.
+/// as it was started, to finish the update (the patch step, which this one
+/// leaves to it); its exit code is this one's.
 fn finish_by_new(session: &mut Session, layout: &Layout) -> u32 {
     let exe = format!("{}\\{}", layout.exe_dir, layout.exe_name);
     let command = format!(

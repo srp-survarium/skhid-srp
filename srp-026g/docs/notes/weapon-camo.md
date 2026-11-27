@@ -50,6 +50,10 @@ where the premium (camouflaged) weapons have their paint; the tooling to do that
   weapon's own normal texture is used as it is (until 2026-11-11 a third, the normal with the
   camouflage's weave, 11 MB together).
 
+## Decals on shared material pixels
+
+Several distant faces of a weapon can use the same metal texture pixels. On the AK-12 this duplicated the Snufkin decal even with camouflage unequipped. The dual-UV content pack and client patch give each face its own place in a decal bake. The original material coordinates still determine the camouflage pattern, its mask and the relief. The local AK-12 comparison and pack generator are in [Weapon decal coordinates](../../scripts/weapon-decal-uv/README.md).
+
 ## The weapon's upgrade window (patches 32 and 45)
 
 The owner (2026-10-21): "the camera would flow to the working table and the 3d model of the weapon
@@ -195,6 +199,13 @@ three upgrades an item: "let's remove one decal instead for now". Two again sinc
 - A camouflage item's modification adds `camouflage` to the host config's `data` table (modifier
   type 3, path `data`); a host config without `data` drops it (0x2F1430). Weapon configs have no
   `data`: the data patch adds one (holding `camo_scale`).
+- A character's bake is a record's: profile_skin_visual_cook (0x204560) gives an item's own record
+  (its first surface, `part_name`) its camouflage and the bake flag (+C04h), and its
+  `additional_models` records neither, so bake_decals (0x129830) never paints them. [srp] Patch 217
+  (`additional_camo`, `client_patch.md` 3.114): an additional model whose entry has
+  `camo_available: true` takes its item's camouflage (no decals), under a bake name of the
+  camouflage's and its model's file names. Its surface still needs its own `<diffuse>_aoac`. The
+  exoskeleton bodies' legs use it (exo-camo@2, `exo-suits.md`).
 - Only the character's parts (0x204560 → 0x129830) and the lobby's decal editor (0x2641A0) ask for
   a bake; weapon_cook never did. Patch 44 (`client-patches/weapon_camo_026g.asm`, client_patch.md
   §3.41) asks for one per weapon surface, as the editor does.

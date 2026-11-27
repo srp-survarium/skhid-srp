@@ -1,0 +1,12 @@
+[package]
+name = "match-server"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+udp-transport = { workspace = true }
+protocol = { workspace = true }
+crc32fast = { workspace = true }
+log = { workspace = true }
+thiserror = { workspace = true }
+world-host-proto = { workspace = true }

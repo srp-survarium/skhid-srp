@@ -70,9 +70,14 @@ impl<'a> Connection<'a> {
     pub(super) fn of(client: raw::NetworkClient, thread: &'a Thread) -> Option<Self> {
         Self::any(client, thread).filter(Self::live)
     }
-    /// The client's connection, whatever its transport's state.
+    /// The client's connection, whatever its transport's state; none for a
+    /// replay's client (its class), which is smaller than a live one: its
+    /// +1F1C48h is past its 0x5AB18 bytes (a replay's start crashed here).
     fn any(client: raw::NetworkClient, thread: &'a Thread) -> Option<Self> {
-        // SAFETY: the synchronous dispatch/load boundary owns this client.
+        if super::world::playback_of(client) == super::world::Playback::Replay {
+            return None;
+        }
+        // SAFETY: as above, and a live match's client has these fields.
         unsafe {
             let holder = client.options_holder()?;
             let (client_key, seed) = (client.address() as usize, read(holder.match_seed()));
@@ -195,6 +200,31 @@ impl<'a> Connection<'a> {
     pub(crate) fn executable(&self, carrier: srp_validate::executable::Carrier<'_>) -> bool {
         self.live() && self.room_for(1) && carrier.encode().is_some_and(|(bytes, len)| self.carry(&bytes[..len]))
     }
+
+    /// A world as the snapshot upload sends one (client_patch.md §3.4): 0xE0
+    /// chunks of `u32 time, u16 offset, u16 total`, then up to 480 of its
+    /// bytes, all of them or none (`false`: the transport is no longer the
+    /// match's, the world is empty or over 0xF000 bytes, or the pool has no
+    /// room for every chunk and the sixteen spare).
+    pub(crate) fn world(&self, time: u32, body: &[u8]) -> bool {
+        const CHUNK: usize = 480;
+        let Ok(total) = u16::try_from(body.len()) else { return false };
+        if body.is_empty() || body.len() > world_frame::MAX_BODY { return false; }
+        let chunks = body.len().div_ceil(CHUNK) as u32;
+        if !(self.live() && self.room_for(chunks)) { return false; }
+        let mut carrier = [0u8; 8 + CHUNK];
+        body.chunks(CHUNK).enumerate().all(|(index, data)| {
+            let offset = (index * CHUNK) as u16;
+            carrier[..4].copy_from_slice(&time.to_le_bytes());
+            carrier[4..6].copy_from_slice(&offset.to_le_bytes());
+            carrier[6..8].copy_from_slice(&total.to_le_bytes());
+            carrier[8..8 + data.len()].copy_from_slice(data);
+            self.carry(&carrier[..8 + data.len()])
+        })
+    }
+
+    /// The hook's thread.
+    pub(crate) fn thread(&self) -> &'a Thread { self.thread }
 
     /// The pool has room for `packets` more 0xE0 carriers and the sixteen
     /// entries late join's prepared send keeps free. Asked before begin,

@@ -94,13 +94,15 @@ impl Skills {
     const CASCADE: u16 = 1 << 8;
     const SIGHT: u16 = 1 << 12;
     const LATE: u16 = 1 << 13;
+    const COURIER: u16 = 1 << 14;
 
     /// Bits: 0..2 Resistance, 3 Keeper, 4 Resonance, 5 Spring II, 6 Onyx II, 7 Larkspur II,
     /// 8 Cascade, 9..11 the match's Keeper draw 1..6 (0 none; with the skill or not), 12 Artifact
-    /// Sight, 13 a late joiner's kit (srp's mark, survarium::v026g::keeper::LATE). Anything else (a
-    /// fraction, a negative, a rank past 5, a draw of 7, a bit past 13) is no skill at all.
+    /// Sight, 13 a late joiner's kit (srp's mark, survarium::v026g::keeper::LATE), 14 Courier.
+    /// Anything else (a fraction, a negative, a rank past 5, a draw of 7, a bit past 14) is no skill
+    /// at all.
     pub fn parse(value: f32) -> Option<Self> {
-        if !(0.0..16384.0).contains(&value) || value != (value as u32) as f32 {
+        if !(0.0..32768.0).contains(&value) || value != (value as u32) as f32 {
             return None;
         }
         let bits = value as u16;
@@ -131,6 +133,12 @@ impl Skills {
     /// Keeper of the Artifacts taken.
     pub fn keeper(self) -> bool {
         self.has(Self::KEEPER)
+    }
+
+    /// Courier taken: at a respawn into another kit, the artefacts of the kit that died come
+    /// along into the new kit's empty containers (crate::artefact_courier).
+    pub fn courier(self) -> bool {
+        self.has(Self::COURIER)
     }
 
     /// The match's Keeper draw (srp writes it into every kit of the match), none in the lobby.
@@ -295,6 +303,9 @@ impl Room {
 /// time 49, stamina regeneration 3 and spending 19, stopping power 42, reload 13. The getters'
 /// other indices have nothing shared.
 pub const SPRING_LISTS: [u32; 6] = [4, 49, 3, 19, 42, 13];
+/// The lists the getter sites call their handlers for: the Springs', and
+/// Artifact Hunt's carrier's (patch 171: 2 health regeneration, 4 movement).
+pub const HOOKED_LISTS: [u32; 7] = [4, 49, 3, 19, 42, 13, 2];
 
 /// What an Onyx does to a hit it protects against (its protect 0x312BF0), read once from a
 /// carried Onyx: its passive's or its active's numbers.
@@ -309,6 +320,11 @@ pub struct OnyxProtection {
 }
 
 impl OnyxProtection {
+    pub fn at_power(self, power: f32, damage: f32, piercing: f32) -> (f32, f32) {
+        let (d, p) = self.protect(damage, piercing);
+        if power == 1.0 { (d, p) } else { (damage + (d - damage) * power, piercing + (p - piercing) * power) }
+    }
+
     /// A hit's (damage, piercing) after it: the passive (D + a) x m; the active
     /// D - min(absorb, D - (D + a) x m); the piercing (P + a) x m either way.
     pub fn protect(self, damage: f32, piercing: f32) -> (f32, f32) {
@@ -347,6 +363,17 @@ pub struct LifeboneRegeneration {
 }
 
 impl LifeboneRegeneration {
+    pub fn at_power(self, tick: Regeneration, power: f32) -> Regeneration {
+        if power == 0.0 { return tick; }
+        let full = self.apply(tick);
+        if power == 1.0 { return full; }
+        Regeneration {
+            rate: tick.rate + (full.rate - tick.rate) * power,
+            limit: tick.limit + (full.limit - tick.limit) * power,
+            delay_ms: (tick.delay_ms as f32 + (full.delay_ms as f32 - tick.delay_ms as f32) * power) as u32,
+        }
+    }
+
     pub fn apply(self, tick: Regeneration) -> Regeneration {
         // As the callback: the delay as an unsigned float, each step a float, truncated to 64
         // bits (fistp, rounding toward 0) of which the low 32 are kept (a negative wraps).
@@ -453,12 +480,14 @@ pub fn on_world_loaded(ctx: &mut Context<'_>) -> Flow<NoExit> {
 /// to which the shared Springs' nodes of that list are added.
 pub fn on_shared_modifier(ctx: &mut Context<'_>) -> Flow<NoExit> {
     artefact_skills::shared_modifier(ctx);
+    crate::artefact_hunt::shared_modifier(ctx);
     Flow::Continue
 }
 
 /// The same in apply_modifiers' loop (0x2D5C18), for each of its indices.
 pub fn on_shared_modifiers(ctx: &mut Context<'_>) -> Flow<NoExit> {
     artefact_skills::shared_modifiers(ctx);
+    crate::artefact_hunt::shared_modifiers(ctx);
     Flow::Continue
 }
 
@@ -546,6 +575,59 @@ pub fn on_spring_reload(ctx: &mut Context<'_>) -> Flow<NoExit> {
     Flow::Continue
 }
 
+pub fn on_wear_init(ctx: &mut Context<'_>) -> Flow<NoExit> {
+    artefact_skills::wear_init(ctx);
+    Flow::Continue
+}
+
+pub fn on_wear_spawn(ctx: &mut Context<'_>) -> Flow<NoExit> {
+    artefact_skills::wear_spawn(ctx);
+    Flow::Continue
+}
+
+pub fn on_wear_save(ctx: &mut Context<'_>) -> Flow<NoExit> {
+    artefact_skills::wear_save(ctx);
+    Flow::Continue
+}
+
+pub fn on_wear_load(ctx: &mut Context<'_>) -> Flow<NoExit> {
+    artefact_skills::wear_load(ctx);
+    Flow::Continue
+}
+
+pub fn on_wear_use(ctx: &mut Context<'_>) -> Flow<NoExit> {
+    artefact_skills::wear_use(ctx);
+    Flow::Continue
+}
+
+pub fn on_onyx_passive(ctx: &mut Context<'_>) -> Flow<crate::vostok::ArtefactSkillsOnOnyxPassiveExit> {
+    if artefact_skills::onyx_passive(ctx) { Flow::Exit(crate::vostok::ArtefactSkillsOnOnyxPassiveExit::Done) } else { Flow::Continue }
+}
+
+pub fn on_onyx_active(ctx: &mut Context<'_>) -> Flow<crate::vostok::ArtefactSkillsOnOnyxActiveExit> {
+    if artefact_skills::onyx_active(ctx) { Flow::Exit(crate::vostok::ArtefactSkillsOnOnyxActiveExit::Done) } else { Flow::Continue }
+}
+
+pub fn on_heal_amount(ctx: &mut Context<'_>) -> Flow<NoExit> {
+    artefact_skills::heal_amount(ctx);
+    Flow::Continue
+}
+
+pub fn on_wear_glow(ctx: &mut Context<'_>) -> Flow<crate::vostok::ArtefactSkillsOnWearGlowExit> {
+    if artefact_skills::wear_glow(ctx) { Flow::Exit(crate::vostok::ArtefactSkillsOnWearGlowExit::Selected) }
+    else { Flow::Continue }
+}
+
+pub fn on_fall(ctx: &mut Context<'_>) -> Flow<NoExit> {
+    artefact_skills::fall(ctx);
+    Flow::Continue
+}
+
+pub fn on_fatal_fall(ctx: &mut Context<'_>) -> Flow<NoExit> {
+    artefact_skills::fatal_fall(ctx);
+    Flow::Continue
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -585,7 +667,7 @@ mod tests {
 
     #[test]
     fn parses_the_packed_ranks_only_exactly() {
-        for bad in [-1.0, 0.5, 6.0, 7.0, 510.0, 7.0 * 512.0, 8.0 + 7.0 * 512.0, 16384.0, 16384.0 + 508.0, f32::INFINITY, f32::NAN] {
+        for bad in [-1.0, 0.5, 6.0, 7.0, 510.0, 7.0 * 512.0, 8.0 + 7.0 * 512.0, 32768.0, 32768.0 + 508.0, f32::INFINITY, f32::NAN] {
             assert_eq!(Skills::parse(bad), None, "{bad}");
         }
         assert_eq!(Skills::parse(0.0), Some(Skills::default()));
@@ -610,12 +692,17 @@ mod tests {
         // A late joiner's kit, bit 13.
         assert!(Skills::parse(8192.0 + 8.0 + 512.0).unwrap().late());
         assert!(!all.late());
+        // Courier, bit 14: alone and with every other bit.
+        assert!(Skills::parse(16384.0).unwrap().courier());
+        let every = Skills::parse(16384.0 + 8192.0 + 4096.0 + 508.0 + 6.0 * 512.0).unwrap();
+        assert!(every.courier() && every.late() && every.sight() && every.keeper());
+        assert!(!all.courier());
     }
 
     #[test]
     fn every_valid_payload_keeps_each_bit_and_every_other_is_none() {
         // Kept packed: each skill as its own decode of the payload's bits.
-        for bits in 0..16384u32 {
+        for bits in 0..32768u32 {
             let parsed = Skills::parse(bits as f32);
             let valid = bits & 7 <= 5 && (bits >> 9) & 7 <= 6;
             assert_eq!(parsed.is_some(), valid, "{bits}");
@@ -623,8 +710,8 @@ mod tests {
             let bit = |n: u32| bits & (1 << n) != 0;
             assert_eq!(skills.resistance(), Resistance((bits & 7) as u8));
             assert_eq!(skills.draw().map(Draw::get), Some((bits >> 9) & 7).filter(|&draw| draw != 0).map(|draw| draw as u8));
-            assert_eq!([skills.keeper(), skills.onyx(), skills.larkspur(), skills.sight(), skills.late()],
-                       [bit(3), bit(6), bit(7), bit(12), bit(13)], "{bits}");
+            assert_eq!([skills.keeper(), skills.onyx(), skills.larkspur(), skills.sight(), skills.late(), skills.courier()],
+                       [bit(3), bit(6), bit(7), bit(12), bit(13), bit(14)], "{bits}");
             assert_eq!(skills.spring_reload(), if bit(5) { (0.05, 0.10) } else { (0.0, 0.0) });
             assert_eq!((skills.reach(Phase::Passive).is_some(), skills.reach(Phase::Active).is_some()), (bit(4), bit(8)));
             assert_eq!(Skills::parse(bits as f32 + 0.5), None);

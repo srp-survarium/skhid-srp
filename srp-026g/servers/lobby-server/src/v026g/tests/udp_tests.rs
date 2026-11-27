@@ -49,6 +49,7 @@ impl Server {
         };
         let lobby = Lobby::bind(
             settings,
+            Default::default(),
             store.clone(),
             accounts.clone(),
             Arc::new(session::v026g::rewards::Results::new()),

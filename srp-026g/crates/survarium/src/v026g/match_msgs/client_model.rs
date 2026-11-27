@@ -15,7 +15,7 @@ use super::super::lzma2;
 use super::snapshot::Sections;
 use super::static_info::{self, MatchOptions, StaticInfoError};
 use super::{
-    BatchInput, Generation, Length, MAX_PLAYERS, PlayerInput, ServerMessage, TICK_MS, TimeReply,
+    BatchInput, Generation, Length, MAX_PLAYERS, PlayerInput, ServerMessage, TICK_MS, TimeReply, UploadWanted,
     WireTime, id, mask_bytes, player_inputs_len, server_length,
 };
 
@@ -254,13 +254,9 @@ pub fn decode_server(id: u8, payload: &[u8], roster: u8) -> Result<ServerMessage
             to_tick: payload[1],
         },
         id::DISCARD_PROFILE_INPUT => ServerMessage::DiscardProfileInput { tick: payload[0] },
-        // 0xF6: the length getter refuses an empty one.
-        _ => {
-            if payload.is_empty() {
-                return Err(wrong_length);
-            }
-            ServerMessage::UploadRequest
-        }
+        // 0xF6: the length getter refuses an empty one; srp sends one byte
+        // or 1 and a tick.
+        _ => ServerMessage::UploadRequest(UploadWanted::parse(payload).ok_or(wrong_length)?),
     })
 }
 
@@ -531,7 +527,7 @@ impl ClientModel {
                 self.syncs += 1;
                 time = Some(*snapshot_time);
             }
-            ServerMessage::UploadRequest => {
+            ServerMessage::UploadRequest(_) => {
                 if !self.patched {
                     return Ok(Taken::Skipped(Skip::NotPatched));
                 }
@@ -620,6 +616,8 @@ mod tests {
                 ..MatchItem::default()
             }],
             squad: 0,
+            face: crate::v026g::faces::Face::DEFAULT,
+            notice: crate::v026g::match_msgs::static_info::Notice::Skipped,
         }
     }
 
@@ -744,7 +742,8 @@ mod tests {
                 to_tick: 4,
             },
             ServerMessage::DiscardProfileInput { tick: 3 },
-            ServerMessage::UploadRequest,
+            ServerMessage::UploadRequest(UploadWanted::Horizon),
+            ServerMessage::UploadRequest(UploadWanted::Tick(9)),
         ];
         let mut ids = Vec::new();
         for message in messages {
@@ -754,6 +753,7 @@ mod tests {
         }
         // Every server id was covered.
         ids.sort_unstable();
+        ids.dedup();
         assert_eq!(ids, (0xE3..=0xF6).collect::<Vec<u8>>());
     }
 
@@ -903,7 +903,7 @@ mod tests {
         assert_eq!(client.syncs, 1);
         // A stock client skips the upload request.
         assert_eq!(
-            skipped(&mut client, &ServerMessage::UploadRequest),
+            skipped(&mut client, &ServerMessage::UploadRequest(UploadWanted::Horizon)),
             Skip::NotPatched
         );
     }
@@ -999,7 +999,7 @@ mod tests {
         applied(&mut client, &ServerMessage::ClockOffset(-30));
         assert_eq!(client.clock, Some(370));
         // The patched client takes the upload request.
-        applied(&mut client, &ServerMessage::UploadRequest);
+        applied(&mut client, &ServerMessage::UploadRequest(UploadWanted::Horizon));
     }
 
     #[test]

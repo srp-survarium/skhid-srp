@@ -1,0 +1,100 @@
+# Patch 203: a 0.69d scene's local environment probes composed as 0.69d
+# composes them (probe_tiers.rs; docs/notes/probe-tiers-069d.md). The sites
+# are sites_026g.tsv's.
+name = "probe_tiers"
+patch = 203
+[[hook]]
+site = "probe_lighting_1000.begin_pass0"
+handler = "on_pass0_1000"
+[[hook]]
+site = "probe_lighting_1000.begin_pass1"
+handler = "on_pass1_1000"
+[[hook]]
+site = "probe_lighting_1000.blend0"
+handler = "on_blend0_1000"
+[[hook]]
+site = "probe_lighting_1000.blend1"
+handler = "on_blend1_1000"
+[[hook]]
+site = "probe_lighting_1000.texture0"
+handler = "on_texture0_1000"
+[[hook]]
+site = "probe_lighting_1000.texture1"
+handler = "on_texture1_1000"
+[[hook]]
+site = "probe_lighting_1000.compiled"
+handler = "on_compiled_1000"
+[[hook]]
+site = "probe_lighting_1010.begin_pass0"
+handler = "on_pass0_1010"
+[[hook]]
+site = "probe_lighting_1010.begin_pass1"
+handler = "on_pass1_1010"
+[[hook]]
+site = "probe_lighting_1010.blend0"
+handler = "on_blend0_1010"
+[[hook]]
+site = "probe_lighting_1010.blend1"
+handler = "on_blend1_1010"
+[[hook]]
+site = "probe_lighting_1010.texture0"
+handler = "on_texture0_1010"
+[[hook]]
+site = "probe_lighting_1010.texture1"
+handler = "on_texture1_1010"
+[[hook]]
+site = "probe_lighting_1010.compiled"
+handler = "on_compiled_1010"
+[[hook]]
+site = "probe_lighting_1001.begin_pass0"
+handler = "on_pass0_1001"
+[[hook]]
+site = "probe_lighting_1001.begin_pass1"
+handler = "on_pass1_1001"
+[[hook]]
+site = "probe_lighting_1001.blend0"
+handler = "on_blend0_1001"
+[[hook]]
+site = "probe_lighting_1001.blend1"
+handler = "on_blend1_1001"
+[[hook]]
+site = "probe_lighting_1001.texture0"
+handler = "on_texture0_1001"
+[[hook]]
+site = "probe_lighting_1001.texture1"
+handler = "on_texture1_1001"
+[[hook]]
+site = "probe_lighting_1001.compiled"
+handler = "on_compiled_1001"
+[[hook]]
+site = "probe_lighting_1011.begin_pass0"
+handler = "on_pass0_1011"
+[[hook]]
+site = "probe_lighting_1011.begin_pass1"
+handler = "on_pass1_1011"
+[[hook]]
+site = "probe_lighting_1011.blend0"
+handler = "on_blend0_1011"
+[[hook]]
+site = "probe_lighting_1011.blend1"
+handler = "on_blend1_1011"
+[[hook]]
+site = "probe_lighting_1011.texture0"
+handler = "on_texture0_1011"
+[[hook]]
+site = "probe_lighting_1011.texture1"
+handler = "on_texture1_1011"
+[[hook]]
+site = "probe_lighting_1011.compiled"
+handler = "on_compiled_1011"
+
+# The draw: the local probes three times, one tier a run.
+[[hook]]
+site = "env_probes.next"
+handler = "on_probe"
+[[hook]]
+site = "env_probes.technique"
+handler = "on_technique"
+[[hook]]
+site = "env_probes.done"
+handler = "on_probe_done"

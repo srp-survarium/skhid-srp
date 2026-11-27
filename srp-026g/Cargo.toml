@@ -5,10 +5,13 @@ members = [
   "crates/binary-config-parser",
   "crates/mapdata",
   "crates/research-rule",
+  "crates/artefact-hunt-rule",
   "crates/resources-db",
   "crates/session",
   "crates/artefact-carry",
   "crates/weapon-pickup",
+  "crates/second-sight",
+  "crates/technical-skills",
   "crates/ragdoll",
   "crates/voice-abi",
   "client-voice",
@@ -16,6 +19,7 @@ members = [
   "crates/udp-transport",
   "crates/vostok",
   "crates/weapon-kit",
+  "crates/weapon-modules",
   "crates/srp-validate",
   "crates/world-frame",
 
@@ -26,6 +30,8 @@ members = [
   "servers/web-server",
 
   "scripts/binary-config-cli",      # Parser for binary config files
+  "scripts/ffa-mode/check-points",  # FFA spawn points against the maps' collision
+  "scripts/stalker-maps/ffa-points", # STALKER maps' FFA spawn planner
 ]
 exclude = []
 resolver = "3"
@@ -66,7 +72,6 @@ socket2 = { version = "0.5", features = ["all"] }
 thiserror = "2.0.12"
 
 actix-web = "4.10.2"
-env_logger = "0.10"
 log = "0.4"
 sqlx = { version = "0.8", features = [ "runtime-tokio" ] }
 
@@ -75,6 +80,7 @@ resources-db = { path = "crates/resources-db" }
 # The mapdata dump's reader of the shipped archive (hard links resolved);
 # kept beside the in-tree crate above under its own name.
 vostok-resources-db = { package = "resources-db", git = "https://github.com/srp-survarium/vostok-resources-db", rev = "9498aca14014ef74460429f51eb41a6af333522c" }
+artefact-hunt-rule = { path = "crates/artefact-hunt-rule" }
 ban-reason = { path = "crates/ban-reason" }
 sign-in-cipher = { path = "crates/sign-in-cipher" }
 session = { path = "crates/session" }
@@ -84,6 +90,7 @@ udp-transport = { path = "crates/udp-transport" }
 vostok = { path = "crates/vostok" }
 world-frame = { path = "crates/world-frame" }
 weapon-kit = { path = "crates/weapon-kit" }
+weapon-modules = { path = "crates/weapon-modules" }
 
 # Password hashing runs in srp's debug build too: unoptimized, argon2 takes
 # seconds a sign-in.

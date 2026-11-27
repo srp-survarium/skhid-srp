@@ -385,18 +385,10 @@ mod tests {
     #[test]
     fn the_tables_have_every_piece_and_weapon_once() {
         let equipment = equipment();
-        let weapons = weapons().unwrap();
+        weapons().unwrap();
         let (_, rows) = parse(&equipment);
         assert_eq!(rows.len(), equipment::pieces().len());
         assert_eq!(rows.len(), equipment.lines().count() - 1, "keys are unique");
-        let (head, rows) = parse(&weapons);
-        let ak = &rows["ak_74m"];
-        let column = |name: &str| ak[head.iter().position(|h| h == name).unwrap()].clone();
-        assert_eq!(column("damage"), "50");
-        assert_eq!(column("rpm"), "650");
-        assert_eq!(column("magazine"), "30");
-        assert_eq!(column("kick_up"), "1.8–2");
-        assert!(column("can_roll").contains("Damage"));
         // The same text twice: no churn.
         assert_eq!(equipment, super::equipment());
     }

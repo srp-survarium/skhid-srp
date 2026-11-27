@@ -1,5 +1,5 @@
-//! The 0.26g lobby (`resources/notes/v026g/lobby.md`, `lobby_requests.md`,
-//! `social.md`), beside the 0.21d one.
+//! The 0.26g lobby (`srp-026g/docs/notes/lobby.md`, `lobby_requests.md`,
+//! `social.md`).
 //!
 //! What 0.26g changed: the lobby is one UDP link on the match transport
 //! (`udp-transport`, `Table::Lobby`), whose connect payload is the sign-in
@@ -98,6 +98,7 @@ mod away;
 mod clans;
 mod core;
 mod dispatch;
+mod faces;
 mod gear;
 mod items;
 mod patch_check;
@@ -208,8 +209,8 @@ impl Settings {
         let modes = match var("SRP_MATCH_MODES") {
             Some(value) => parse_modes(&value).unwrap_or_else(|| {
                 log::error!(
-                    "SRP_MATCH_MODES is `{value}`; it must list modes of 2 to 8 (6 Blackout, 8 free for all). Using \
-                     2,3,4,5,6"
+                    "SRP_MATCH_MODES is `{value}`; it must list modes of 2 to 8, 12 or 13 (6 Blackout, 8 free for all, \
+                     12 Freeze Tag, 13 Artifact Hunt). Using every mode"
                 );
                 DEFAULT_MODES.to_vec()
             }),
@@ -341,7 +342,8 @@ fn parse_weight(value: &str) -> Option<f64> {
         .filter(|weight| weight.is_finite() && (0.0..=1000.0).contains(weight))
 }
 
-/// `SRP_MATCH_MODES`: modes by their lobby numbers, 2 to 8 (6 Blackout, 8 free for all;
+/// `SRP_MATCH_MODES`: modes by their lobby numbers, 2 to 8, 12 and 13 (6 Blackout, 8 free for all,
+/// 12 Freeze Tag, 13 Artifact Hunt;
 /// `maps::GameMode::lobby_number`), at least one.
 fn parse_modes(value: &str) -> Option<Vec<maps::GameMode>> {
     let modes: Option<Vec<maps::GameMode>> = value
@@ -512,6 +514,8 @@ pub struct Lobby {
     host: Arc<dyn MatchHost>,
     inbox: Arc<Inbox>,
     settings: Settings,
+    /// The relays whose tunnel addresses may say a datagram's own address.
+    relays: udp_transport::relay::Relays,
     /// "Watch replay" (`replay`): srp's replays, shared with the match
     /// server and the web page; none, every ask is answered `off`.
     replays: Option<Arc<Replays>>,
@@ -523,6 +527,7 @@ const WAIT: Duration = Duration::from_millis(2);
 impl Lobby {
     pub fn bind(
         settings: Settings,
+        relays: udp_transport::relay::Relays,
         store: Arc<SessionStore>,
         accounts: Arc<GameAccounts>,
         results: Arc<Results>,
@@ -539,6 +544,7 @@ impl Lobby {
             host,
             inbox,
             settings,
+            relays,
             replays: None,
         })
     }
@@ -573,12 +579,12 @@ impl Lobby {
         core.packet_log = PacketLog::from_env();
         core.replays = self.replays.as_deref();
         let mut socket = udp_transport::relay::Datagrams::new(
-            &self.socket, udp_transport::relay::Relays::from_env()?,
+            &self.socket, self.relays.clone(),
         )?;
         let mut buffer = [0_u8; 2048];
         while !self.inbox.stopped() {
             match socket.recv_from(&mut buffer) {
-                Ok((len, peer)) => core.datagram_via(peer, &buffer[..len], Instant::now()),
+                Ok((len, peer)) => core.datagram(peer, &buffer[..len], Instant::now()),
                 Err(error)
                     if matches!(
                         error.kind(),
@@ -614,5 +620,6 @@ pub fn run(
     host: Arc<dyn MatchHost>,
     inbox: Arc<Inbox>,
 ) -> io::Result<()> {
-    Lobby::bind(Settings::from_env(), store, accounts, results, host, inbox)?.run()
+    let relays = udp_transport::relay::Relays::from_env()?;
+    Lobby::bind(Settings::from_env(), relays, store, accounts, results, host, inbox)?.run()
 }

@@ -11,6 +11,7 @@ package survarium.controls
    import survarium.constants.Colors;
    import survarium.constants.SquadState;
    import survarium.constants.TeamSide;
+   import survarium.modes.FrozenPlaces;
    
    public class PlayerListRenderer extends Button implements IListItemRenderer
    {
@@ -168,6 +169,10 @@ package survarium.controls
             if(_data.color != undefined)
             {
                this.ui_name.textColor = _data.color;
+            }
+            if(this.board != null && _data.id != undefined && this.board.isFrozen(int(_data.id)))
+            {
+               this.ui_name.textColor = FrozenPlaces.COLOR;
             }
          }
          else

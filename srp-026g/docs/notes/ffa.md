@@ -62,8 +62,8 @@ kills wins, no elimination phases (not 0.31's "The Last Stand"). His rules of th
     kill feed, kills, assists, spotting.
   - **Voice for all** (the owner, 2026-11-13: "in FFA I would enable voice chat for all"; until
     then nobody heard anyone): every player hears every other of the match, by the team modes'
-    rule of near and far (plain in the world under 10 m, the radio from it or dead;
-    voice-chat.md). The game decides it from the options' free-for-all entry (patch 66's
+    rule of near and far (until 2026-11-16 plain in the world under 10 m, the radio from it
+    or dead; voice-chat.md). The game decides it from the options' free-for-all entry (patch 66's
     `channel`, by patch 142's `free_for_all::running`): everyone a mate. The relay sends every
     match whole since 2026-11-15, when opponents near became heard in the team modes too (it
     decided by the mode until then, `registry::VoiceChannel::of`). The Tab menu's voice mute and the
@@ -118,8 +118,9 @@ A match's first spawn and every respawn go through the same respawn tick, so bot
   - every point that passes the game's clear test (no other player within its
     enemy radius: 20 m on every map), and has no point already assigned
     at this tick inside that radius, enters the pool in map order;
-  - choose from the whole safe pool, without favouring greater distance;
-    safe central points are as eligible as safe edge points;
+  - closer when few ("Closer when few", below): the pool, nearest to a living player first (from
+    30 m), is cut to its nearest max(3, ceil(pool x players / 10)); a match of 10 players or more, or one
+    with nobody living, keeps the whole pool in map order, without favouring greater distance;
   - a wrapping u32 integer mix of match milliseconds and player place picks
     the pool index. Mixing before modulo avoids locking regular respawns
     to a subset of points. It needs no persistent random state;
@@ -127,6 +128,40 @@ A match's first spawn and every respawn go through the same respawn tick, so bot
     nearest living player or spawn already assigned at this tick, using the
     same mix. Equal ranks keep map order; smaller maps use all their points;
   - neither offers the player's last two points ("Never the last two", below).
+- **Closer when few** (the owner, 2026-11-15: "I want when there are not many people for spawns to
+  be closer"): with 2-4 players on a map of 50-70 points the whole pool put them far apart, running
+  round an empty map.
+  - What stays: the clear test (20 m), the tick's separation, the last two, the crowded fallback,
+    the turn (no unsynchronized randomness).
+  - Order: the pool's points by the squared distance to the nearest living player (any other: in a
+    free-for-all every one is an enemy), nearest first, equal ones by the point's index; the
+    points 30 m away or more before the nearer ones (the owner, 2026-11-23, of "still 20 m away":
+    "change it to 30m"), these the farthest first, so a 20-30 m point only when too few are 30 m
+    away. The clear test and the maps' radius stay 20 m, and a full match is as before.
+  - How many: the nearest max(3, ceil(pool x players / 10)), at most the pool; players are the
+    places in the match (the world core's active places, `[rule+134h]+18FD8h`: the core the
+    respawn tick asks each place's player of, world state, so every game, late joiner and replay
+    counts alike). 2 players on a pool of 50: the nearest 10; 4: 20; 8: 40; 10 or more: all.
+  - All of them (10 players or more), or nobody living (the match's start, or everyone dead at
+    once): the whole pool in map order, the very point of before.
+  - Tuned offline (mine; a sketch, not in the repo) on the team-2 points of a rev-61 content
+    build: the others alive, each within 15 m of a random spawn; the median distance from a
+    respawn to the nearest living enemy, before -> now (of the 20 m order, before the 30 m one):
+
+    | Map (points) | 2 players | 4 | 8 | 16 |
+    |---|---|---|---|---|
+    | Rudnya (60) | 81 -> 36 m | 49 -> 32 | 35 -> 32 | 28 (same) |
+    | Training Camp (47) | 36 -> 24 | 27 -> 23 | 23 -> 22.5 | 21 (same) |
+    | Vostok (75) | 58 -> 29 | 40 -> 27 | 31.5 -> 29 | 28 (same) |
+    | Experimental Pool (28) | 40 -> 25 | 28 -> 23.5 | 23 -> 22.7 | 15 (same) |
+
+    Divisor 12 (the first try): two players at 23-34 m; 8: 24-39 m, but no change from 8 players
+    on. 10, chosen: two players at 24-36 m (the small dense maps at the 20 m radius's edge), a
+    little closer up to 9, no change from 10 on. The minimum of 3 does not bind on these maps
+    (their pools are larger); it keeps a choice when few points are clear.
+  - Release impact: a simulation change of patch 142, Free for All only (simulation_changes.tsv
+    `next`); no world-format change. Offline only (Rust tests, the Unicorn check); not played. To
+    try in a game: a Free for All of two players, respawns near the other one (just past 30 m).
 - **Never the last two** (the owner, 2026-11-15: "players never repeat their last 2 spawns"): a
   player's respawn point is never one of the two points he last spawned at.
   - When: every spawn of a free-for-all, the first included; the clear pool and the crowded
@@ -577,28 +612,25 @@ and spatial review; they still need multiplayer playtesting for balance.
 
 - **Rooms:** a mode of the pool, as Research is: in every room's default pool, a mode tick of the
   create window.
-  - **Always the vote's third card** (the owner, 2026-11-12: "ffa should be a third pane always,
-    blackout should be in general pool"; before, each free-for-all was one more entry the three
-    cards were drawn from alike, and Blackout had the third card, 2026-11-02): every vote, public
-    or private, of a room whose pool has a free-for-all.
-    - Cards 1 and 2: drawn from the rest of the pool, of two modes while it has them (the owner,
-      2026-11-15: "no mode repeats", `rooms.md`, "Each card is drawn from pools"); never a
-      free-for-all.
-    - Card 3: one of the pool's free-for-alls at random, on a map cards 1 and 2 are not while
-      there is one; won, its match is a free-for-all (as below). Drawn map first, then weather
-      (the owner, 2026-11-15: "make 3 new stalker maps 3 times as likely in FFA", "the pick
-      should be first map, then weather"; Training Camp had been played twice in about 35
-      free-for-alls): every free-for-all map alike, so Experimental Pool, Military Warehouses
-      and Training Camp (one weather each) come as often as a levels 1-8 map (three); before,
-      every id alike, a third as often (`rooms.md`, "Each card is drawn from pools").
-    - No switch. A pool without one (a private room's maker unticked the mode, or the server's
-      `SRP_MATCH_MODES` leaves 8 out) or of free-for-alls alone: its three cards drawn as before.
-      A public room's pool has them (the default pool is every playable map).
+  - **A mode of the general pool, on one card at the most** (the owner, 2026-11-22: "all columns
+    should draw from a general pool", "there can only be one ffa (or none)", "first choose ffa,
+    then its version"): every vote, public or private, draws each card's mode alike among the
+    pool's modes no card shows, Free for All one of them, on any card; then its map, then its
+    weather (`rooms.md`, "Each card is drawn from pools"), and on a free-for-all card of an open
+    room its twist (below). From 2026-11-12 to then it was always the third card ("ffa should be
+    a third pane always"); before, each free-for-all was one more entry the cards were drawn
+    from alike, and Blackout had the third card, 2026-11-02.
+    - One free-for-all card or none, plain or of any twist: Free for All comes on a second card
+      only when the pool has no other mode left (a private pool of free-for-alls alone).
+    - Its map alike among the pool's free-for-all maps (the owner, 2026-11-15: "make 3 new
+      stalker maps 3 times as likely in FFA", "the pick should be first map, then weather"):
+      Experimental Pool, Military Warehouses and Training Camp (one weather each) come as often
+      as a levels 1-8 map (three).
     - A room with bots keeps only maps with a bots' map file in its pool: no free-for-all for now
-      (below), so its three cards are drawn as for a pool without one.
-    - The card is there whatever the room's size and members: the match seats every member who
-      can play, as below. Nothing is offered that a room cannot start.
-    - The mode is named in one place, `session::v026g::rooms::THIRD_CARD` (`Rooms::draw`).
+      (below).
+    - The card can be there whatever the room's size and members: the match seats every member
+      who can play, as below. Nothing is offered that a room cannot start.
+    - Named in one place with Blackout, `session::v026g::rooms::ONE_CARD_AT_MOST` (`Rooms::draw`).
   - A room's free-for-all seats every member who can play, as a match of two teams: a room holds
     20 at the most, the most a match has, so nobody waits for the next match (until 2026-11-13 it
     seated 10, the others first next time). A late joiner comes in as into a match of two teams.
@@ -640,13 +672,17 @@ rules, spawns, pay and results, every kit's guns changed by the server.
   is what a match plays: a map, and on a free-for-all's a twist or none (no other mode's map can
   hold one).
 - **Where:** in the server's rooms (Play's, the open ones) alone, each free-for-all card of a
-  vote (the third card; all three in a pool of free-for-alls alone) draws its twist with the card,
-  by its share (`twist::shares`, `twist::draw`):
-  - plain Free for all 40 %, **Racket** 40 % (my pick: as often as each other);
-  - **Cowboy**, "Saloon" in the lobby, 20 % (the owner, 2026-11-15: "let's make saloon 20% with
+  vote (any card; all three in a pool of free-for-alls alone) draws its twist after its map,
+  by its share (`twist::SHARES`, `twist::draw`, armed for the room):
+  - plain Free for all 30 % (the owner, 2026-11-22: plain 30, Racket 30, Roulette 30; 50 and 40
+    before Roulette), **Racket** 30 %;
+  - **Roulette** 30 % (`ffa-roulette.md`): a level band the room allows and one hand of three kits
+    of it, every player's;
+  - **Cowboy**, "Saloon" in the lobby, 10 % since 2026-11-22 (20 % from 2026-11-15, the owner: "let's make saloon 20% with
     two variations (no need to name them)"; 10 % before, 2026-11-14: "cowboy version should be
     rare with only 10% chance"), in two variations (the owner, 2026-11-14: "saloon should have
-    two variations with winchesters and colts or just with colts"), the Winchester and Colt 15 %
+    two variations with winchesters and colts or just with colts"), the Winchester and Colt 5 %
+    (the owner, 2026-11-22: "winchester should become 5% again on FFA"; 15 from 2026-11-15)
     and the Colt alone 5 % (the owner, 2026-11-15, once each had its own name: "and now since
     those are two modes, simple saloon can stay at 5, and new one get 15"; half and half before,
     my pick, `twist::Armed`): every kit a Winchester 1894 and a Colt Python, or a Colt Python alone
@@ -656,6 +692,23 @@ rules, spawns, pay and results, every kit's guns changed by the server.
     based on this"): "FFA: Saloon (Winchester)" and "FFA: Saloon" (the Colt alone).
 
   Won, the card's match plays its twist.
+- **Military Warehouses: a twist only** (the owner, 2026-11-22: "military warehouses should not be
+  playable on general ffa, only ffa: racket and other variants"). A property of the map's data, not
+  of the code: srp's key `mode.srp_twists_only = true` in its Free for All config
+  (`ffa/v010b_cs_mp_military_1_day_8.options`, maps_dict 43; `content-edit/ffa-twists-only-1.json`),
+  which the server reads as `maps::MapMode::twists_only` (refused on a config of another mode); the
+  game does not read it. Another map takes it by the same key.
+  - A card draws its map first, as any (`rooms.md`, "Each card is drawn from pools"), then its
+    twist: on such a map the plain share is taken out and the twists keep theirs, so Racket 42.9 %,
+    Roulette 42.9 % (its band one the room allows), each Saloon 7.1 % (`twist::draw`; Racket 80 % and
+    each Saloon 10 % before Roulette). My pick of the two orders: the map comes as often as any
+    free-for-all map, always twisted; drawing the twist first would have left it out of half the
+    free-for-all cards (the plain ones), and every other map's twist shares stay as they are. Of
+    all free-for-all cards, plain falls from 30 % to about 29.1 % (one map in 33).
+  - A private room's free-for-all is plain (below), so its pool never holds such a map: the
+    create window does not list it (`Core::private_entries`), and a private room's pool leaves it
+    out whatever it was made with (`Rooms::create_with_pool`: a saved window with it, the default
+    pool). Plain Play and clan matches play no free-for-all; Player vs Bots none either.
 - **Not in private rooms** (the owner, 2026-11-15: "we can also remove from private lobbies FFA:
   Saloon and FFA: Racket"; they were ticks of the create window from 2026-11-14, "they are not
   present in private room creations"): a private room's free-for-all card is always plain Free for
@@ -672,11 +725,28 @@ rules, spawns, pay and results, every kit's guns changed by the server.
   (Винчестер), Салун (Вінчестер) (uk), Салун (Вінчэстар) (be), Saloon (Winchester) (pl, de, cs,
   hu), Salun (Winchester), Saluuna (Winchester) (the game's own words for the Winchester: its
   item's and its ammunition's).
-  The lobby's mode numbers 9 Racket, 10 Saloon (the Colt alone) and 11 Saloon (Winchester)
+  `st_srp_mode_roulette_low`, `_mid`, `_high` FFA: Roulette, the band not shown (Рулетка in ru, uk,
+  be; `ffa-roulette.md` has every language).
+  The lobby's mode numbers 9 Racket, 10 Saloon (the Colt alone), 11 Saloon (Winchester) and 14,
+  15, 16 Roulette by its band
   (`Armed::lobby_number`: the twist as it arms; 7 is Scarcity's; the two Saloons' tags one
   colour): a card's tag and colour, the room's banner of its match (`lobby.md`, rooms' `C` and `L`
   rows), the log's "mode". The game's own screens (loading, results, the HUD) say Free for all:
   they read the map's config.
+- **Mode icons** (the owner's picks, 2026-11-22; until then all four showed Team Deathmatch's skull):
+  the loading screen shows the lobby movie's `SrvGameModeIcons` frame `ui.icon` + 1. Free for
+  All's configs have `ui.icon` 5, frame 6 (a bone skull with a bullet hole; content edit
+  `ffa-icon-1`, after every list that makes a Free for All config). A twist has no config: while
+  the room's match plays one (the room state's `L` row in the match's phase, its lobby mode), the
+  loading screen shows its own frame for Free for All's (`SrvGameModeIcons.forTwist`): 7 Racket
+  (crossed AK-12s), 8 Saloon (a cowboy hat), 9 Saloon (Winchester) (the hat over a Winchester), 10
+  Roulette (two dice). The bitmaps are `flash/lobby_menu/bitmaps/GameModeIcon*.png`, 61 x 56.
+  - From the loading screen's first frame (the owner, 2026-11-22: never the skull first): when a
+    room's match is made the lobby server marks the room in it and sends each of its players the
+    room's state, its `L` row this match's mode, before it sends them to the match
+    (`room_send_to_match`), so the movie knows the twist (`LobbyGameLoad.twist`) before the game
+    opens the loading screen and calls `set_mm_level`. Later states (the 2 s poll) keep it; out of
+    a room, or a room not in its match, it is none.
 - **The kits:** the server owns what spawns: the static info's profiles, which every game cooks
   each life from. The match server arms every profile it gives (the first players', each late
   joiner's) before the Keeper's draw; the clients, late joiners and replays get the armed ones.
@@ -688,6 +758,12 @@ rules, spawns, pay and results, every kit's guns changed by the server.
     shot the others hear as the AS Val's muffled `weapons/val_m` (`states.fire.sounds.third_view`):
     the Val, the MP7 with its silencer and its Legend, the ported Kriss Vector. Loud: the SR-3M,
     the 9A-91, the MSBS (shots of their own).
+  - And every assault rifle, SMG and machine gun that fires no automatic mode (the owner,
+    2026-11-22: Racket's guns "should just be proper automatic weapons"; "remove g3sg from it and
+    replace with ak12", "check that socom is not available too"): its `parameters.fire_queue_types`
+    has no -1 (`item_params::ItemParams::automatic`, `racket::AUTOMATIC_CLASSES`), the G3SG/1 and
+    the SOCOM 16 among them. Shotguns and pistols stay as they are. Racket's own two guns must fire
+    automatic, or srp refuses to start (`racket::check`).
   - The gun, by the room's level (`racket::Gun::of_room`, the room's max level when its card is
     dealt, carried in the match's `twist::Armed::Racket`; the owner, 2026-11-15: "also racket on
     lvl10 room should not give AK-12 and instead AK74N with 7N10 ammo and eotech collimator"): a
@@ -696,11 +772,11 @@ rules, spawns, pay and results, every kit's guns changed by the server.
     every kit and slot that held it (the second slot takes it: assault rifles fit slot 10), with
     the EOTech 552 sight on it and no other modification or upgrade (the owner, 2026-11-14: "also
     for ak-12, people should have eotech collimator set on replaced weapons"). The sight is the
-    shop's `shop_scope_eotech_552`, on the gun by the variant the game data makes for it
-    (`fit_ak_12_eotech_552`, `fit_ak_74n_eotech_552`, `ScopeFits::variant`): the gun's one scope
+    shop's `shop_scope_eotech_552`, on the gun when the game data's modules table fits it to the gun
+    (`Modules::kind`, in `racket::Arms::of`): the gun's one scope
     record in slot 3, packed as an owned scope's (`weapon_scopes.md`, `weapon-kit.md`), its item
     id none of the profile's (an owned scope is in no kit either). Nobody needs to own one.
-    Without that variant in the data the gun goes bare; nothing refuses such data (the owner,
+    Without that fit in the data the gun goes bare; nothing refuses such data (the owner,
     2026-11-14: "since it is just enforced the behvaiour", "not correctness").
   - Its ammo, the simplest way (the owner, 2026-11-14: "make it the simplest way"): in each kit
     that held a replaced gun, every ammo slot whose ammo none of the kit's guns fires now is
@@ -815,7 +891,7 @@ rules, spawns, pay and results, every kit's guns changed by the server.
 
 - Kills, not score, decide the end, the winner and the ranking, so the top row is the winner.
 - No player minimum (0.31's mode had 3).
-- No FFA-only card filter: the third card is a free-for-all in a room of any size.
+- No FFA-only card filter: a free-for-all card is offered in a room of any size.
 - Player vs Bots offers the day free-for-alls only.
 
 

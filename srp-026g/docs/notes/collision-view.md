@@ -126,4 +126,4 @@ easier to find holes", and "just slightly bigger buffers for all meshes".
 ## How
 
 - Exe patch 156 (`client-patches/rust/patches/src/collision_view.rs`, `client_patch.md`
-  section 3.82, `check_collision_view_026g.py`). Nothing a match computes changes.
+  section 3.112, `check_collision_view_026g.py`). Nothing a match computes changes.

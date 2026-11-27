@@ -261,12 +261,21 @@ class LocalizationTests(unittest.TestCase):
         self.assertTrue(any('the replay_player movie is not given' in issue for issue in issues))
 
     def test_srp_texts_take_no_braces(self):
-        # The game's localizer drops {...} (but an action's {NAME}) from every text it hands a movie.
-        self.catalog({'st_srp_test': 'Loadout {n}', 'st_test': 'Use {USE}'})
+        # The game's localizer makes an action's {NAME} its key (exe patch 212) and drops any other
+        # {...} from every text: a text names a key of KEY_ACTIONS in capitals, nothing else in braces.
+        keys = {'kE': 'E', 'kY': 'Y', 'st_srp_key_unbound': 'unbound'}
+        self.catalog({'st_srp_test': 'Loadout {n}', 'st_test': 'Use {USE}', **keys})
         report = checker.audit_catalog(self.root)
         self.assertEqual(report['languages']['english']['braces'], ['st_srp_test'])
-        self.catalog({'st_srp_test': 'Loadout %1$s', 'st_test': 'Use {USE}'})
+        self.catalog({'st_srp_test': 'Loadout %1$s', 'st_test': 'Use {USE}', **keys})
         self.assertFalse(checker.failed(checker.audit_catalog(self.root)))
+        self.catalog({'st_srp_test': 'Switch ({SCOPE_NEXT}) or {USE}', **keys})
+        self.assertFalse(checker.failed(checker.audit_catalog(self.root)))
+        self.catalog({'st_srp_test': 'Switch {scope_next} {SECOND}', **keys})
+        self.assertEqual(checker.audit_catalog(self.root)['languages']['english']['braces'], ['st_srp_test'])
+        # A text naming a key needs the texts it may become: the default key's and "unbound".
+        self.catalog({'st_srp_test': 'Switch ({SCOPE_NEXT})', 'kE': 'E'})
+        self.assertEqual(checker.audit_catalog(self.root)['languages']['english']['key_texts'], ['st_srp_test'])
 
     def mapping(self, tables):
         """A binary UI mapping, {table: [[ui key, dictionary key], ...]}, as the game's files keep it."""

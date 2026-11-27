@@ -25,6 +25,7 @@ package survarium.rooms
     import survarium.constants.ChatChannel;
     import survarium.constants.ChatTab;
     import survarium.data.LocalizationData;
+    import survarium.gsearch.LobbyGameLoad;
 
     // Rooms, the players' "servers" (srp's own; the wire is lobby.md 2.16.3,
     // contract S1, RoomsWire), the only way PvP matches are made. The top
@@ -134,8 +135,8 @@ package survarium.rooms
         // The list as last drawn, but its times: a change redraws it.
         private var _listSig:String = "";
         private var _windowsSeen:Object = {};
-        // A state answered while a chain (PIN, pool bits, then its create or
-        // join) is on its way: the chain goes on (a poll asked before it may
+        // A state answered while a join's chain (its PIN, then the join) is on
+        // its way: the chain goes on (a poll asked before it may
         // answer meanwhile). One with nothing left is done; the button
         // pressed is given back by the redraw.
         internal var _stepsAt:int = 0;
@@ -934,7 +935,7 @@ package survarium.rooms
             }
             else if (kind == "F")
             {
-                // `S1;F;<saved>;<size>;<min side>;<max level>;<wait>;<modes off>`,
+                // `S1;F;<saved>;<size>;<min side>;<max level>;<wait>;<modes off>;<pin>`,
                 // then `E;<chunk>;<bits>`: a pool entry's tile is in by its bit.
                 var bits:Array = [];
                 for (var fb:int = 1; fb < rows.length; fb++)
@@ -966,6 +967,7 @@ package survarium.rooms
                 settle();
                 var had:Boolean = _room != null;
                 _room = null;
+                LobbyGameLoad.twist = 0;
                 _roomSig = "";
                 var code:int = int(head[2]);
                 var queueKey:int = int(head[3]);
@@ -1063,6 +1065,8 @@ package survarium.rooms
                 // here, said once; our own word (a PIN not of 4 digits) stays
                 // while we stay.
                 RoomsLook.markSquads(_room.members, squads);
+                // The loading screen's icon of a free-for-all's twist: the match the room is in.
+                LobbyGameLoad.twist = _room.phase == RoomPhase.IN_MATCH ? _room.lastMode : 0;
                 var roomCode:int = head.length > 16 ? int(head[16]) : RoomCode.NONE;
                 if (roomCode == RoomCode.NONE && _code < RoomCode.NONE && was != null && was.key == _room.key)
                     roomCode = _code;

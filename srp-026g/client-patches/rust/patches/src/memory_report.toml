@@ -7,7 +7,7 @@ site = "world_load.loaded"
 handler = "on_loaded"
 order = 3
 
-# close_current_match's entry, its world still there, before patch 97 forgets the connection (order 2)
+# close_current_match's entry, its world still there, before patch 97 forgets the connection (order 3)
 [[hook]]
 site = "match_recovery.close"
 handler = "on_close"

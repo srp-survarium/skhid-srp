@@ -1,0 +1,25 @@
+# Patch 214: a mode's notice only in each account's first three matches of the
+# mode (docs/notes/mode_introductions.md). The sites are sites_026g.tsv's; the
+# logic is mode_notice.rs. The options reads are patches 154's, 65's, 86's,
+# 83's, 88's, 142's, 123's and 160's too (orders -1 to 6): this one only reads
+# srp's block, after them. The enemy list's site is patches 135's, 171's and
+# 194's too (orders 1 to 3): the hud is told after them.
+name = "mode_notice"
+patch = 214
+
+[[hook]]
+site = "static_info.options_read"
+handler = "on_static_info"
+order = 7
+
+[[hook]]
+site = "replay.options_read"
+handler = "on_replay_options"
+order = 7
+
+# initialize_match as it sends the icons movie its enemy list: after the hud's
+# root.reset, before the match's first frame.
+[[hook]]
+site = "player_icons.enemy_ids"
+handler = "on_enemy_ids"
+order = 4

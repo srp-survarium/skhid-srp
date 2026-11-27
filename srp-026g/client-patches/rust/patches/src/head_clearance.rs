@@ -14,7 +14,9 @@
 //! ragdoll's, patch 76's, is left as it is): one ray from a point inside the
 //! capsule, `BELOW_EYE` under the eye on the body's up, to the eye and
 //! `CLEARANCE` past it, against the level's collision that bullets hit (the
-//! drawn walls, the lobby camera's filter). A hit puts the eye `CLEARANCE`
+//! drawn walls, the lobby camera's filter), going through a bush's leaves
+//! (stock's vine bushes are shot collision a walker goes into: the Fort has
+//! 147, Vector 319). A hit puts the eye `CLEARANCE`
 //! short of it on that way, at once; when the way clears the eye goes back
 //! at `OUT_RATE`. Only the view moves: the eyes' transform, the shots, the
 //! hit models and the controller are the game's. Nothing a match computes.
@@ -24,13 +26,10 @@
 use ragdoll::math::{Vec3, clamp, exp_neg};
 
 use crate::vostok::camera;
+use crate::vostok::step::GroundMaterial;
 use crate::vostok::world::PlayerId;
 use crate::vostok::{Context, Flow, GameCell, NoExit, clock};
 
-/// The level's collision that bullets hit (cgroup 8 / cmask 16), which
-/// follows the drawn surfaces (lobby_camera::process_collision 0x2844E4).
-const GROUP: u32 = 0x10;
-const MASK: u32 = 0x08;
 /// How far short of a surface the eye stays (m): the near plane's corners
 /// (0.05 m ahead, 0.057 x 0.032 across at 65 degrees and 16:9) and a margin.
 const CLEARANCE: f32 = 0.12;
@@ -72,7 +71,7 @@ pub fn on_eye(ctx: &mut Context<'_>) -> Flow<NoExit> {
     let hit = player.physics_world().and_then(|world| {
         let (from, along) = (way.from, way.along);
         world
-            .ray_test([from.x, from.y, from.z], [along.x, along.y, along.z], way.length + CLEARANCE, GROUP, MASK)
+            .shot_ray_test_past([from.x, from.y, from.z], [along.x, along.y, along.z], way.length + CLEARANCE, GroundMaterial::is_leaves)
             .map(|hit| (Vec3::new(hit.point[0], hit.point[1], hit.point[2]) - from).dot(along))
     });
     let next = step(PULL.get(thread), player.id(), wanted_pull(way.length, hit), clock::milliseconds(thread));

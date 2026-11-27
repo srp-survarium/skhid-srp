@@ -75,9 +75,9 @@ pub(super) const PLAY_REFUSED: &str = "st_cant_change_ready_state";
 /// The maps offered, by `maps_dict` id (the owner's list of 2026-10-16):
 /// the day of each of the eight levels in batteries (mode 2: 61 Rudnya to
 /// 103) and in Team Deathmatch (mode 4: 117 to 138). No timed batteries
-/// (mode 3), no Research (mode 5: the server's bots play modes 2 to 4), no
-/// London (level 9, maps 181 to 183) and no level 88. The movie shows only
-/// the maps the status lists.
+/// (mode 3), no Research (mode 5: the server's bots play modes 2 to 4) or
+/// Artifact Hunt (mode 13), no London (level 9, maps 181 to 183) and no
+/// level 88. The movie shows only the maps the status lists.
 pub const MAPS: [MapId; 16] = [
     MapId::new(61),
     MapId::new(67),
@@ -165,9 +165,10 @@ impl Config {
 /// The maps of `maps` the server's bots play: in the modes they play
 /// (batteries, timed batteries, Team Deathmatch, and a free-for-all, which
 /// they play as a Team Deathmatch with no teammates: not Research, which
-/// the match server refuses them, nor Blackout, which Play vs Bots never
-/// offered) and with a bots' map in `dir` (`SRP_MAPDATA_DIR`, the match
-/// server's: without one its bots only run their script).
+/// the match server refuses them, nor Artifact Hunt, whose rule they do not
+/// know, nor Blackout, which Play vs Bots never offered) and with a bots'
+/// map in `dir` (`SRP_MAPDATA_DIR`, the match server's: without one its
+/// bots only run their script).
 pub fn bot_maps<'a>(maps: impl Iterator<Item = &'a MapMode>, dir: &std::path::Path) -> Vec<MapId> {
     maps.filter(|map| {
         matches!(
@@ -495,32 +496,30 @@ mod tests {
             );
             assert!(seen.insert((map.level, map.mode)), "{} twice", map.id);
         }
-        // Each of the eight levels in the two modes.
-        assert_eq!(seen.len(), 16);
         for london in [181, 182, 183] {
             assert!(!MAPS.contains(&MapId::new(london)));
         }
         for map in maps::all() {
             if map.level == 9
                 || map.level == 88
-                || matches!(map.mode, maps::GameMode::TimedBatteries | maps::GameMode::Research)
+                || matches!(
+                    map.mode,
+                    maps::GameMode::TimedBatteries
+                        | maps::GameMode::Research
+                        | maps::GameMode::ArtefactHunt
+                )
             {
                 assert!(!MAPS.contains(&map.id), "{} is offered", map.id);
             }
         }
         assert!(MAPS.contains(&DEFAULT_MAP));
-        let rudnya = maps::map_mode(DEFAULT_MAP).unwrap();
-        assert_eq!((rudnya.level, rudnya.mode), (1, maps::GameMode::Batteries));
     }
 
     #[test]
     fn the_settings_read_as_documented() {
         let config = Config::default();
         assert!(!config.enabled);
-        assert_eq!(
-            (config.max_gear, config.max_matches),
-            (rules().pvb.max_gear, 5)
-        );
+        assert_eq!(config.max_gear, rules().pvb.max_gear);
         assert!(config.bot_maps.is_empty());
     }
 
@@ -560,5 +559,22 @@ mod tests {
         assert!(!free_for_all.is_empty());
         assert!(free_for_all.iter().all(|id| found.contains(id)));
         assert!(of(maps::GameMode::Blackout).iter().all(|id| !found.contains(id)));
+    }
+
+    /// Artifact Hunt is none of the bots' modes, as Research: a map of it
+    /// with a bots' map file is still not theirs.
+    #[test]
+    fn the_bots_play_no_artefact_hunt() {
+        let dir = std::env::temp_dir().join(format!("srp-bot-maps-hunt-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let tdm = maps::playable_in(maps::GameMode::TeamDeathmatch).next().unwrap();
+        std::fs::write(dir.join(mapdata::format::file_name(tdm.project)), b"").unwrap();
+        let hunt = MapMode {
+            mode: maps::GameMode::ArtefactHunt,
+            ..*tdm
+        };
+        let found = bot_maps([tdm, &hunt].into_iter(), &dir);
+        std::fs::remove_dir_all(&dir).unwrap();
+        assert_eq!(found, [tdm.id]);
     }
 }

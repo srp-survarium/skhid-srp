@@ -1,0 +1,10 @@
+# Patch 195: a use's progress bar ends with the use (docs/notes/client_patch.md
+# "The use prompt after a use"). The site is sites_026g.tsv's; the logic is
+# use_prompt.rs.
+name = "use_prompt"
+patch = 195
+
+# set_using_progress_message's start: every frame a use shows its progress.
+[[hook]]
+site = "use_prompt.progress"
+handler = "on_progress"

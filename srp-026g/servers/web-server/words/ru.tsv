@@ -1,0 +1,1003 @@
+# The site's own words in Russian (README.md here): English as in the code, Russian, a context if any.
+Head	Голова
+Face	Лицо
+Chest	Грудь
+Back	Спина
+Arms	Руки
+Hands	Кисти
+Legs	Ноги
+Feet	Ступни
+Bullets	Пули
+Melee	Холодное оружие
+Explosions	Взрывы
+Fire	Огонь
+Radiation	Радиация
+Electricity	Электричество
+Toxins	Токсины
+Armour	Броня
+Isolation	Изоляция
+Protection	Защита
+Level	Уровень
+Faction	Группировка
+Matchmaking level	Уровень подбора матча
+Also takes	Также занимает
+Oxygen	Кислород
+Gas filter	Газовый фильтр
+{0}: hits up to {1} stopped, the rest ×{2}	{0}: попадания до {1} останавливаются, остальные ×{2}
+Fatal headshot	Смертельное попадание в голову
+flies off	слетает
+About it	О предмете
+premium	премиум
+level	уровень
+Weight	Вес
+Details	Подробнее
+Its modifiers	Его модификаторы
+Slot	Слот
+All	Все
+Find	Найти
+Search by name…	Поиск по названию…
+All factions	Все группировки
+Level from	Уровень от
+to	до
+Sort by	Сортировка
+Name	Название
+Weight: low to high	Вес: по возрастанию
+Armour: high to low	Броня: по убыванию
+Isolation: high to low	Изоляция: по убыванию
+Group	Группировать
+No groups	Без групп
+By set	По набору
+By slot	По слоту
+Wiki	Вики
+Equipment	Экипировка
+Equipment reference	Справочник экипировки
+pieces	предметов
+Nothing matches.	Ничего не найдено.
+Stats	Статистика
+Public matches	Публичные матчи
+The stats need JavaScript.	Для статистики нужен JavaScript.
+Skhid	Skhid
+mode {0}	режим {0}
+No match is being played now.	Сейчас не идёт ни одного матча.
+waiting	ожидание
+starting	старт
+just now	только что
+{minutes} min ago	{minutes} мин назад
+&le; {minutes} min	&le; {minutes} мин
+{0} v {1}	{0} на {1}
+and {more} more	и ещё {more}
+Match	Матч
+Players	Игроки
+Started	Начало
+Time left	До конца
+Score	Счёт
+No battle has been fought yet. Be the first.	Ещё не было ни одного боя. Будьте первыми.
+Player	Игрок
+Rating	Рейтинг
+online	онлайн
+rooms	комнат
+in rooms	в комнатах
+matches now	матчей сейчас
+players	игроков
+battles fought	проведено боёв
+clans	кланов
+Maintenance: the server is down	Технические работы: сервер выключен
+Maintenance in {minutes} min	Технические работы через {minutes} мин
+On the server now	Сейчас на сервере
+Since the server opened	С открытия сервера
+TEST SERVER	ТЕСТОВЫЙ СЕРВЕР
+Unofficial community server. Not affiliated with or endorsed by Vostok Games. Survarium is a trademark of its owners. An early test: accounts and progress can be reset at any time.	Неофициальный комьюнити-сервер. Не связан с Vostok Games и не одобрен ими. Survarium является торговой маркой её владельцев. Ранний тест: аккаунты и прогресс могут быть сброшены в любой момент.
+Top 10 players	Топ-10 игроков
+Matches now	Матчи сейчас
+Skhid &middot; Survarium <i>0.26g</i> community server	Skhid &middot; комьюнити-сервер Survarium <i>0.26g</i>
+Legal notice	Правовая информация
+Not found.	Не найдено.
+Too many wrong tokens; wait a minute.	Слишком много неверных токенов; подождите минуту.
+Wrong token.	Неверный токен.
+No such user.	Нет такого пользователя.
+New accounts are taken again.	Новые аккаунты снова принимаются.
+New accounts are refused; existing players sign in as before.	Новые аккаунты не принимаются; игроки с аккаунтом входят как раньше.
+Maintenance cancelled.	Технические работы отменены.
+No maintenance was planned.	Технические работы не были запланированы.
+Minutes: a whole number from 1 to {MAX_MAINTENANCE_MINUTES}.	Минуты: целое число от 1 до {MAX_MAINTENANCE_MINUTES}.
+Maintenance starts in {minutes} min, at {0} UTC.	Технические работы начнутся через {minutes} мин, в {0} UTC.
+for {hours} h	на {hours} ч
+for good	навсегда
+Address {net} banned {how_long}; {kicked} session(s) ended.	Адрес {net} заблокирован {how_long}; завершено сессий: {kicked}.
+No such user or address. A name several accounts share needs the user name they sign in with.	Нет такого пользователя или адреса. Если это имя у нескольких аккаунтов, укажите имя для входа.
+{target} banned {how_long}; {kicked} session(s) ended.	{target} заблокирован {how_long}; завершено сессий: {kicked}.
+ Its address {net} too ({more} more session(s) ended).	 И его адрес {net} (завершено ещё сессий: {more}).
+ Its address is not known, so no address was banned.	 Его адрес неизвестен, поэтому адрес не заблокирован.
+Address {net} unbanned.	Адрес {net} разблокирован.
+{net} was not banned (a range is lifted as it was banned).	{net} не был заблокирован (диапазон снимается в том виде, в каком его заблокировали).
+No such user or address.	Нет такого пользователя или адреса.
+{target} unbanned.	{target} разблокирован.
+{target} was not banned.	{target} не был заблокирован.
+ Its address {ip} too.	 И его адрес {ip}.
+The players' server:	Сервер для игроков:
+Test server.	Тестовый сервер.
+Changes are tried here before they reach the players: it can restart at any moment, and accounts and progress here can be reset.	Здесь проверяются изменения, прежде чем они попадут к игрокам: сервер может перезапуститься в любой момент, а аккаунты и прогресс здесь могут быть сброшены.
+Damage calculator	Калькулятор урона
+Maps	Карты
+TEST	ТЕСТ
+Home	Главная
+Community server, unofficial. Not affiliated with or endorsed by Vostok Games. Survarium is a trademark of its owners.	Неофициальный комьюнити-сервер. Не связан с Vostok Games и не одобрен ими. Survarium является торговой маркой её владельцев.
+“Game files removed by antivirus: …”	«Файлы игры удалены антивирусом: …»
+Run <code>Skhid-defender-setup.cmd</code>.	Запустите <code>Skhid-defender-setup.cmd</code>.
+“Download failed: …”	«Загрузка не удалась: …»
+Start <code>Skhid.bat</code> again. Still failing? Run <code>Skhid-without-updater.bat</code>: it downloads the game and its updates without the launcher, then starts it.	Запустите <code>Skhid.bat</code> снова. Не помогло? Запустите <code>Skhid-without-updater.bat</code>: он скачает игру и её обновления без лаунчера, а затем запустит её.
+“No connection: …”	«Нет соединения: …»
+Run <code>Skhid-network-setup.cmd</code>.	Запустите <code>Skhid-network-setup.cmd</code>.
+“Blocked on this network: …”	«Заблокировано в этой сети: …»
+Your provider blocks our server. The launcher has already switched to our relay, a way around the block (<b>Relay: auto</b>, bottom left). Just press <b>Retry</b>.	Ваш провайдер блокирует наш сервер. Лаунчер уже сам переключился на наш релей, который обходит блокировку (<b>Релей: авто</b>, слева внизу). Просто нажмите <b>«Повторить»</b>.
+Nothing works.	Ничего не работает.
+Run <code>Skhid-collect-logs.cmd</code> and send the zip it makes to us on Discord: <a href="https://discord.gg/QUmJg3gBhg">discord.gg/QUmJg3gBhg</a>.	Запустите <code>Skhid-collect-logs.cmd</code> и отправьте zip, который он создаст, нам в Discord: <a href="https://discord.gg/QUmJg3gBhg">discord.gg/QUmJg3gBhg</a>.
+Q:	В:
+A:	О:
+If something goes wrong	Если что-то пошло не так
+Download the files	Скачать файлы
+The download link is coming soon.	Ссылка на скачивание скоро появится.
+Chrome or your antivirus refuses the download? Try this script: {script}. It downloads the whole game into a Survarium folder beside it.	Chrome или антивирус не даёт скачать? Попробуйте этот скрипт: {script}. Он сам скачает всю игру в папку Survarium рядом с собой.
+Get the game	Получить игру
+The link is coming soon.	Ссылка скоро появится.
+Get the original Survarium 0.26g (build 2777) and unpack it.	Найдите оригинальный Survarium 0.26g (сборка 2777) и распакуйте его.
+Maintenance.	Технические работы.
+The server is down for maintenance.	Сервер на технических работах.
+The game closes in {minutes} min; Play is locked in the last 30.	Игра закроется через {minutes} мин; в последние 30 мин кнопка «Играть» недоступна.
+New registrations are closed for now. Existing players can sign in and play.	Новые регистрации временно закрыты. Игроки с аккаунтом могут входить и играть.
+players online	игроков онлайн
+registered	зарегистрировано
+Run <code>Skhid.bat</code> and press <b>PLAY</b>. The first start downloads the game.	Запустите <code>Skhid.bat</code> и нажмите <b>PLAY</b>. При первом запуске лаунчер скачает игру.
+Run <code>Skhid.bat</code> and press <b>PLAY</b>.	Запустите <code>Skhid.bat</code> и нажмите <b>PLAY</b>.
+Windows warns about an unknown publisher? Let it run.<br>Linux: <code>bash Skhid.sh launcher</code>, see <code>LINUX.txt</code>.	Windows предупреждает о неизвестном издателе? Разрешите запуск.<br>Linux: <code>bash Skhid.sh launcher</code>, см. <code>LINUX.txt</code>.
+Windows warns about an unknown publisher? Let it run.<br>Linux: <code>bash Skhid.sh</code>, see <code>LINUX.txt</code>.	Windows предупреждает о неизвестном издателе? Разрешите запуск.<br>Linux: <code>bash Skhid.sh</code>, см. <code>LINUX.txt</code>.
+Run <code>play_skhid.bat</code> in <code>game\\binaries\\x86</code>.	Запустите <code>play_skhid.bat</code> в папке <code>game\\binaries\\x86</code>.
+Skhid (Ukrainian for “east”) is a community server that lets the Survarium {version} client sign in, trade, form squads and play matches again.	Skhid («восток» по-украински) — комьюнити-сервер, на котором клиент Survarium {version} снова может входить, торговать, собирать отряды и играть матчи.
+Project Discord: <a href="https://discord.gg/pxywZfaxRQ">discord.gg/pxywZfaxRQ</a>	Discord проекта: <a href="https://discord.gg/pxywZfaxRQ">discord.gg/pxywZfaxRQ</a>
+Early test server.	Ранний тестовый сервер.
+It has bugs and may not work fully. Your progress, items and accounts can be lost or reset at any time, and the server may be stopped at any time. By playing you accept this.	Возможны ошибки и сбои. Ваш прогресс, предметы и аккаунты могут пропасть или быть сброшены в любой момент, а сервер могут остановить в любой момент. Играя, вы с этим соглашаетесь.
+How to play	Как играть
+Download our files and unpack them into an empty folder (e.g. D:\\Survarium). <b>You do this only once.</b>	Скачайте наши файлы и распакуйте их в пустую папку (напр. D:\\Survarium). <b>Это нужно сделать только один раз.</b>
+Download our files and unpack them into the game's folder, the one with the <code>game</code> folder, replacing files. <b>You do this only once.</b>	Скачайте наши файлы и распакуйте их в папку игры, ту, где лежит папка <code>game</code>, с заменой файлов. <b>Это нужно сделать только один раз.</b>
+Download our files and unpack them over the game's <code>game</code> folder.	Скачайте наши файлы и распакуйте их поверх папки <code>game</code> игры.
+Sign in with any name and password: a new name registers itself. Remember the password.	Войдите с любым именем и паролем: новое имя регистрируется само. Запомните пароль.
+New accounts are taken.	Новые аккаунты принимаются.
+Stop new registrations	Остановить новые регистрации
+New accounts are refused for now.	Новые аккаунты сейчас не принимаются.
+Take new registrations	Принимать новые регистрации
+Shown once the token is right.	Показываются после верного токена.
+Password	Пароль
+User name	Имя пользователя
+Silver, + or -	Серебро, + или -
+Change	Изменить
+Admin	Администратор
+Token	Токен
+Money	Деньги
+Ban	Бан
+Unban	Разбан
+Bans	Баны
+Maintenance	Работы
+Signups	Регистрация
+User name, or an address or range (1.2.3.4, 1.2.3.0/24)	Имя пользователя, адрес или диапазон (1.2.3.4, 1.2.3.0/24)
+Hours (empty: for good)	Часы (пусто — навсегда)
+Reason (only admins see it)	Причина (видят только админы)
+Also ban the address it last signed in from	Также заблокировать адрес, с которого он входил последним
+Ban	Заблокировать	button
+User name, or an address or range	Имя пользователя, адрес или диапазон
+Also lift the ban of its last address	Также разблокировать его последний адрес
+Unban	Разблокировать	button
+Refresh	Обновить
+Existing players keep signing in and playing either way. Registration is open by default; a restart goes back to that (or to SRP_REGISTRATION=closed).	Игроки с аккаунтом входят и играют в любом случае. По умолчанию регистрация открыта; перезапуск возвращает её к этому (или к SRP_REGISTRATION=closed).
+Starts in (minutes)	Начнутся через (минут)
+Players see the minutes left from 60 on, cannot press Play from 30, and the game closes at 0. Restarting srp cancels it.	Игроки видят оставшиеся минуты, начиная с 60, не могут нажать «Играть», начиная с 30, а на 0 игра закрывается. Перезапуск srp отменяет работы.
+Plan	Запланировать
+Cancel	Отменить
+Account	Аккаунт
+Give item	Выдать предмет
+Take items	Забрать предметы
+Text	Текст
+Mute chat	Отключить чат
+Rename	Переименовать
+Shown now:	Сейчас показано:
+No text is shown.	Текст не показан.
+Set the level (0 to {0})	Установить уровень (0–{0})
+Experience, + or -	Опыт, + или -
+Faction (1 to 4)	Группировка (1–4)
+Reputation with it, + or -	Репутация в ней, + или -
+Empty fields change nothing. An open game is sent the account again.	Пустые поля ничего не меняют. Открытая игра получит аккаунт заново.
+Item: its id in the 0.26g dictionary, or its exact name	Предмет: его id в словаре 0.26g или точное название
+Count (rounds for ammo; up to 8 of anything else)	Количество (патроны для боеприпасов; до 8 для остального)
+Give	Выдать
+First line	Первая строка
+Second line	Вторая строка
+Everyone in the lobby sees it, and whoever signs in, until it is cleared or srp restarts.	Его видят все в лобби и все, кто входит, пока его не уберут или srp не перезапустится.
+Show	Показать
+Clear	Убрать
+No maintenance is planned.	Технические работы не запланированы.
+Maintenance has started: the game closes for everyone who signs in.	Технические работы начались: игра закрывается у всех, кто входит.
+Hours: a whole number up to {MAX_BAN_HOURS}, or empty for good.	Часы: целое число до {MAX_BAN_HOURS}, или пусто — навсегда.
+until {at} UTC	до {at} UTC
+None.	Нет.
+Accounts	Аккаунты
+Until	До
+Reason	Причина
+Last address	Последний адрес
+Addresses	Адреса
+Address	Адрес
+Chat mutes	Отключённые чаты
+ The database was busy: srp's saver writes it within seconds (the history below is shown next time).	 База была занята: srp запишет это в течение нескольких секунд (история ниже появится в следующий раз).
+ Error: the change stands in memory only: the database refused it ({error}). srp retries the write; check its log.	 Ошибка: изменение есть только в памяти: база его не приняла ({error}). srp повторит запись; проверьте его журнал.
+No 0.26g account has that id.	Ни у одного аккаунта 0.26g нет такого id.
+More than one account has that character name: type its user name or #id.	Это имя персонажа есть у нескольких аккаунтов: введите имя для входа или #id.
+Silver is a whole number, + or -, or empty.	Серебро — целое число, + или -, либо пусто.
+{0}: silver {1} → {2} ({3}).	{0}: серебро {1} → {2} ({3}).
+Type the silver to add (+) or take (-). The balance is below.	Введите серебро, чтобы добавить (+) или забрать (-). Баланс ниже.
+Nothing would change: the account has none of it left to take.	Ничего не изменится: у аккаунта этого уже нет.
+A reason is required: nothing was changed.	Нужна причина: ничего не изменено.
+The account changed since the preview, or the fields did: nothing was changed. Check the new preview below and apply again.	Аккаунт или поля изменились после просмотра: ничего не изменено. Проверьте новый просмотр ниже и примените снова.
+Check the change below; type a reason to apply it.	Проверьте изменение ниже; введите причину, чтобы применить его.
+Check the change below, then press Apply. Nothing is changed until then.	Проверьте изменение ниже, затем нажмите «Применить». До этого ничего не меняется.
+Type the account: its user name, its character name, or #id.	Введите аккаунт: имя для входа, имя персонажа или #id.
+Units are a whole number above 0, or empty for all of it.	Единицы — целое число больше 0, или пусто — всё.
+Tick the items to take (and the units of a stack, or all of it), type a reason, then press Preview.	Отметьте предметы (и сколько единиц стопки, или всю), введите причину, затем нажмите «Просмотреть».
+{0}: {1} item(s) taken.	{0}: забрано предметов: {1}.
+The items or the choice changed since the preview: nothing was changed. Check the new preview below and apply again.	Предметы или выбор изменились после просмотра: ничего не изменено. Проверьте новый просмотр ниже и примените снова.
+Check what would be taken below; type a reason to apply it.	Проверьте ниже, что будет забрано; введите причину, чтобы применить.
+Check what would be taken below, then press Apply. Nothing is changed until then.	Проверьте ниже, что будет забрано, затем нажмите «Применить». До этого ничего не меняется.
+A reason is required: the player is told it.	Нужна причина: её покажут игроку.
+{name}'s chat muted {0}.	Чат {name} отключён {0}.
+{name}'s chat was not muted.	Чат {name} не был отключён.
+{name}'s chat unmuted.	Чат {name} включён.
+Account: user name or character name	Аккаунт: имя для входа или имя персонажа
+Reason (the player is told it)	Причина (её покажут игроку)
+Nobody gets its chat lines, on any channel; it gets "muted for &lt;reason&gt;" (or "muted until &lt;time&gt; UTC: &lt;reason&gt;") back instead. Unmute needs the account only.	Его строки чата не получает никто ни в одном канале; вместо этого он получает "muted for &lt;причина&gt;" (или "muted until &lt;время&gt; UTC: &lt;причина&gt;"). Для снятия нужен только аккаунт.
+Mute	Отключить чат
+Unmute	Включить чат
+This preview was used already or is older than 10 minutes: nothing was changed. Check the new preview below and apply again.	Этот просмотр уже использован или старше 10 минут: ничего не изменено. Проверьте новый просмотр ниже и примените снова.
+No item was ticked.	Ни один предмет не отмечен.
+At most {0} items at once.	Не больше {0} предметов за раз.
+The account has no item {item_id} now (sold or taken meanwhile): nothing was changed. Check the list again.	У аккаунта сейчас нет предмета {item_id} (продан или забран): ничего не изменено. Проверьте список снова.
+Item {item_id} is named twice.	Предмет {item_id} указан дважды.
+0 units of item {item_id}: leave it empty for all of it.	0 единиц предмета {item_id}: оставьте пустым, чтобы забрать всё.
+yes: its game is sent the change at once	да: игра получит изменение сразу
+no: it sees the change at its next sign-in	нет: увидит изменение при следующем входе
+User name	Имя для входа	sign-in
+Character	Персонаж
+Account id	Id аккаунта
+ID	ID
+Earlier names	Прежние имена
+until {}	до {}
+In the game now	Сейчас в игре
+Earlier moderation of this account	Прошлая модерация этого аккаунта
+not shown ({error})	не показано ({error})
+none	нет
+What	Что
+Change	Изменение	what
+; {0} asked, never below 0	; запрошено {0}, не ниже 0
+Apply to {0}	Применить к {0}
+Done	Готово
+Preview	Просмотр
+Silver	Серебро
+Account: user name, character name or #id	Аккаунт: имя для входа, имя персонажа или #id
+Reason (required; only admins see it)	Причина (обязательно; видят только админы)
+Preview shows the balance before and after; nothing changes until Apply. A balance never goes below 0. An open game shows the change at once.	Просмотр показывает баланс до и после; до «Применить» ничего не меняется. Баланс не опускается ниже 0. Открытая игра сразу покажет изменение.
+Preview	Просмотреть	button
+the item	предмет
+all {0} units	все {0} ед.
+{0} of {1} units ({2} left)	{0} из {1} ед. (останется {2})
+taken off its kits	снят с комплектов
+Apply: take them from {0}	Применить: забрать у {0}
+Taken	Забрано
+Would be taken	Будет забрано
+Item	Предмет
+Item id	Id предмета
+Kits	Комплекты
+{0} units	{0} ед.
+all	все
+cosmetic {id}	косметика {id}
+Items	Предметы
+Tick what to take. A stack takes the units typed, or all of it when empty. Kit * is the one it plays.	Отметьте, что забрать. Из стопки берётся введённое количество, или вся, если пусто. Комплект * — тот, которым он играет.
+Dict id	Id словаря
+Units / condition	Единицы / состояние
+Worn	Надето
+Modifications	Модификации
+First the list, then a preview of what is taken; nothing changes until Apply. A worn item is taken off every kit, as when it is sold. An open game shows the change at once.	Сначала список, затем просмотр того, что будет забрано; до «Применить» ничего не меняется. Надетый предмет снимается со всех комплектов, как при продаже. Открытая игра сразу покажет изменение.
+List / preview	Список / просмотр
+(premium)	(премиум)
+{0} of {1}	{0} из {1}
+Choose an item…	Выберите предмет…
+By item	По предмету
+level {0}	уровень {0}
+Can roll	Может выпасть
+Comes with	Есть изначально
+Modifiers	Модификаторы
+An item rolls up to three modifiers, each of a different kind. The stronger, the rarer.	На предмет выпадает до трёх модификаторов, каждый своего вида. Чем сильнее, тем реже.
+Weapons	Оружие
+Strengths from common to rare.	Сила от обычной до редкой.
+Built into some items	Встроены в некоторые предметы
+These never roll.	Эти никогда не выпадают.
+No account signs in with that user name (character names are not looked up).	Ни один аккаунт не входит с таким именем (имена персонажей не ищутся).
+Type the user name the player signs in with.	Введите имя, с которым игрок входит в игру.
+Check the account below, then press the reset button.	Проверьте аккаунт ниже, затем нажмите кнопку сброса.
+That user name now means another account: nothing was changed. Check it below.	Это имя теперь означает другой аккаунт: ничего не изменено. Проверьте его ниже.
+The password of {login} is cleared; {ended} session(s) ended. Their next sign-in, with any password, sets the new one.	Пароль {login} сброшен; завершено сессий: {ended}. Следующий вход, с любым паролем, задаст новый.
+The password of {login} is cleared; {ended} session(s) ended. The database was busy: srp's saver writes it within seconds. Their next sign-in, with any password, sets the new one.	Пароль {login} сброшен; завершено сессий: {ended}. База была занята: srp запишет его в течение нескольких секунд. Следующий вход, с любым паролем, задаст новый.
+Error: the password of {login} is cleared and {ended} session(s) ended, but only in memory: the database was not written ({error}). srp retries the write; check its log before the player signs in.	Ошибка: пароль {login} сброшен и завершено сессий: {ended}, но только в памяти: база не записана ({error}). srp повторит запись; проверьте его журнал, прежде чем игрок войдёт.
+not since srp started	не с момента запуска srp
+unknown	неизвестен
+yes: its game is signed out	да: игра выйдет из аккаунта
+no	нет
+Last sign-in	Последний вход
+Signed in now	Сейчас в игре
+Reset the password of {0}	Сбросить пароль {0}
+User name the player signs in with (not the character name)	Имя, с которым игрок входит (не имя персонажа)
+Clears the password: the player's next sign-in, with any password, sets it as the new one (owner's decision, 2026-10-18). Whoever signs in first takes it, so reset when the player is ready to sign in. A game signed in with the account is signed out. Case does not matter.	Сбрасывает пароль: следующий вход игрока, с любым паролем, задаёт его как новый (решение владельца, 2026-10-18). Кто войдёт первым, тот его и задаст, поэтому сбрасывайте, когда игрок готов войти. Игра, вошедшая в этот аккаунт, выйдет из него. Регистр не важен.
+Quests	Задания
+Pay by match level	Оплата по уровню матча
+Enter an account ID.	Введите ID аккаунта.
+Invalid nickname: at least 3 characters, at most 63 UTF-8 bytes, no spaces or control characters.	Некорректный ник: минимум 3 символа, не больше 63 байт UTF-8, без пробелов и управляющих символов.
+A reason is required.	Нужна причина.
+That nickname or a Cyrillic/Latin lookalike is already taken.	Этот ник или его кириллический/латинский двойник уже занят.
+No such account ID.	Нет такого ID аккаунта.
+Account #{account_id} renamed: {0} → {1}.	Аккаунт #{account_id} переименован: {0} → {1}.
+Account ID	ID аккаунта
+New nickname	Новый ник
+Reason (admin history only)	Причина (только в истории администратора)
+Changes the nickname immediately, free of charge. Login and progress stay the same. Duplicate and Cyrillic/Latin lookalike names are refused.	Меняет ник сразу и бесплатно. Логин и прогресс сохраняются. Одинаковые ники и кириллические/латинские двойники запрещены.
+Levels	Уровни
+This level	Этот уровень
+Total	Всего
+Matches	Матчей
+Hours	Часов
+Total experience by level	Суммарный опыт по уровням
+That account has not signed in to the 0.26g lobby yet: it has nothing to change.	Этот аккаунт ещё не входил в лобби 0.26g: менять нечего.
+Experience and reputation are whole numbers, + or -; the level is 0 to {MAX_LEVEL}; the faction is 1 to 4.	Опыт и репутация — целые числа, + или -; уровень от 0 до {MAX_LEVEL}; группировка от 1 до 4.
+That level is under the skill points the account has spent; reset its skills in the game first.	Этот уровень ниже потраченных очков навыков; сначала сбросьте навыки в игре.
+{user}: level {level_now} ({exp_now} experience).	{user}: уровень {level_now} ({exp_now} опыта).
+ Reputation with faction {faction}: {points}.	 Репутация в группировке {faction}: {points}.
+No such item in the 0.26g dictionary (give its id or its exact name).	Такого предмета нет в словаре 0.26g (укажите id или точное название).
+The count for this item is 1 to {most}.	Количество для этого предмета: от 1 до {most}.
+That stack would overflow.	Эта стопка переполнится.
+{user}: given {count} of {0} (id {1}).	{user}: выдано {count} × {0} (id {1}).
+The text is cleared.	Текст убран.
+Each line is at most {MAX_TEXT_LEN} bytes (a Cyrillic letter is 2) with no control characters.	Каждая строка — не больше {MAX_TEXT_LEN} байт (кириллическая буква — 2), без управляющих символов.
+The text is shown to everyone in the lobby, and to who signs in, until cleared.	Текст показан всем в лобби и тем, кто входит, пока его не уберут.
+Simulators	Симуляторы
+Skills	Навыки
+Browse weapons, compare base stats and explore their damage and handling.	Просматривайте оружие, сравнивайте базовые характеристики, изучайте урон и управляемость.
+Recoil and spread of any weapon: aim, stance, skills, gear and injuries.	Отдача и разброс любого оружия: прицеливание, положение, навыки, экипировка и ранения.
+Every armour piece: protection, weight, built-in bonuses and what it can roll.	Вся экипировка: защита, вес, встроенные бонусы и модификаторы, которые могут выпасть.
+Every modifier, its strengths and the items that can get it.	Все модификаторы, их сила и предметы, на которые они выпадают.
+Levels and the experience they take; every skill tree: thresholds, ranks and what each rank gives.	Уровни и сколько опыта они требуют; все ветки навыков: пороги, ранги и что даёт каждый ранг.
+Every faction quest: its goal at each reputation level and what it pays.	Все задания группировок: цель на каждом уровне репутации и награда.
+Shots to kill a target in any armour, at any distance.	Сколько попаданий нужно, чтобы убить цель в любой броне на любой дистанции.
+Spawns, batteries, chargers, containers and artefacts on every map.	Точки возрождения, батареи, зарядники, контейнеры и артефакты на каждой карте.
+Skhid wiki	Вики Skhid
+Skhid · Survarium {version} community server	Skhid · комьюнити-сервер Survarium {version}
+Skhid · Survarium {version} TEST server	Skhid · ТЕСТОВЫЙ сервер Survarium {version}
+COMMUNITY SERVER FOR SURVARIUM	КОМЬЮНИТИ-СЕРВЕР SURVARIUM
+TEST SERVER FOR SURVARIUM	ТЕСТОВЫЙ СЕРВЕР SURVARIUM
+{text} is not an item id: nothing was changed.	{text} — не id предмета: ничего не изменено.
+Exp	Опыт	formula
+Total	Всего	formula
+Experience gives levels, and every level gives one skill point.	Опыт даёт уровни, а каждый уровень — одно очко навыков.
+Clan	Клан
+Matches	Матчи	stats
+Player name	Имя игрока
+Clan tag	Тег клана
+Match number	Номер матча
+Clans	Кланы
+Best matches	Лучшие матчи
+Latest matches	Последние матчи
+Hour	Час
+Day	День
+Experience	Опыт
+Wins	Победы
+Losses	Поражения
+Win rate	Процент побед
+Kills	Убийства
+Deaths	Смерти
+K/D	K/D
+Kills/min	Убийств/мин
+Experience/min	Опыт/мин
+Assists	Помощь
+Score	Очки	stats
+Avg score	Ср. очки
+Headshots	В голову
+Grenade kills	Гранатами
+Melee kills	В ближнем бою
+Batteries	Батареи
+Captures	Захваты
+Artefacts	Артефакты
+Members	Участники
+Commander	Командир
+Overall	В целом
+In matches	В матчах
+Last 30 days	Последние 30 дней
+Ended	Конец
+Duration	Длительность
+Map	Карта
+Mode	Режим
+Result	Результат
+Place	Место
+Team	Команда
+Points	Счёт
+Win	Победа
+Loss	Поражение
+Draw	Ничья
+Left	Вышел
+won	победила
+More players	Больше игроков
+Older matches	Более ранние матчи
+Hours played	Часов в игре
+Replay	Повтор
+Preparing…	Готовим…
+Download	Скачать
+Recorded by an older game version	Записан более старой версией игры
+Busy, try again in a minute	Занято, попробуйте через минуту
+No replay	Повтора нет
+Daily leaders	Лидеры дня
+All time	За всё время
+Shots fired	Выстрелы
+Accuracy	Точность
+Weapon	Оружие
+Kit	Комплект
+Favourite equipment	Любимая экипировка
+1000+ shots	1000+ выстрелов
+5+ matches	5+ матчей
+HS %	В голову %
+Avg distance	Ср. дистанция
+Through walls	Сквозь стены
+Ricochets	Рикошетом
+No weapons counted yet.	Оружие ещё не подсчитано.
+No public matches yet.	Публичных матчей ещё нет.
+No player with public matches named “{}”.	Игрока с публичными матчами по имени «{}» нет.
+No clan tagged [{}].	Клана [{}] нет.
+No public match {}.	Публичного матча {} нет.
+This server keeps no match history.	Этот сервер не хранит историю матчей.
+Could not load the stats. Reload the page.	Не удалось загрузить статистику. Обновите страницу.
+Nobody yet.	Пока никого.
+
+# The wiki's modes (src/modes.rs).
+Modes	Режимы
+Every mode: its rules, numbers and maps.	Все режимы: правила, числа и карты.
+Versions	Версии
+Public rooms only	Только публичные комнаты
+Private rooms only	Только приватные комнаты
+Not offered now	Сейчас не предлагается
+Respawn after {0} s.	Возрождение через {0} с.
+Batteries lie on the map.	Батареи лежат на карте.
+Carry them to your team's container.	Несите их к контейнеру своей команды.
+First to {0} batteries wins.	Побеждает первая команда с {0} батареями.
+Time limit {0}: more batteries wins.	Лимит времени {0}: побеждает команда с большим числом батарей.
+Batteries come out of {0} active chargers.	Батареи появляются из {0} активных зарядников.
+A new battery every {0} s, give or take {1} s.	Новая батарея каждые {0} с, плюс-минус {1} с.
+Protective device rules: batteries, no chargers.	Правила защитного устройства: батареи, без зарядников.
+No interface: no ammo, health, crosshair or minimap.	Без интерфейса: ни патронов, ни здоровья, ни прицела, ни миникарты.
+Teammates' markers stay; enemies have none.	Метки союзников остаются; у врагов их нет.
+Hold Tab for ammo, body state, the clock and the team list.	Держите Tab: патроны, состояние тела, время и список команды.
+Each team has {0} tickets.	У каждой команды {0} билетов.
+A death costs one ticket; a teamkill costs none.	Смерть стоит один билет; убийство союзника — ни одного.
+Out of tickets, a team stops respawning and loses when its last player dies.	Без билетов команда больше не возрождается и проигрывает, когда гибнет её последний игрок.
+Time limit {0}: more tickets wins.	Лимит времени {0}: побеждает команда с большим числом билетов.
+Capture research units: be inside with no enemy there.	Захватывайте исследовательские установки: будьте внутри, когда там нет врагов.
+Owned units earn points; more units, faster.	Захваченные установки приносят очки; чем больше установок, тем быстрее.
+First to {0} points wins.	Побеждает первая команда с {0} очками.
+Time limit {0}: more points wins.	Лимит времени {0}: побеждает команда с большим числом очков.
+Every player for himself.	Каждый сам за себя.
+First to {0} kills wins.	Побеждает первый, кто наберёт {0} убийств.
+Time limit {0}: most kills wins.	Лимит времени {0}: побеждает тот, у кого больше всего убийств.
+Public rooms: each FFA card draws a version.	Публичные комнаты: каждая карточка FFA получает свою версию.
+Private rooms: plain FFA only.	Приватные комнаты: только обычный FFA.
+A lethal hit freezes you in place.	Смертельное попадание замораживает на месте.
+A teammate within {0} m thaws you in {1} s.	Союзник в пределах {0} м размораживает за {1} с.
+A thaw counts as a kill.	Разморозка засчитывается как убийство.
+A frozen player thaws by himself after {0}.	Замороженный игрок размораживается сам через {0}.
+A team's last fighter shows on the enemies' map.	Последнего бойца команды видно на карте противников.
+Freeze the whole enemy team to win the round.	Заморозьте всю команду противника, чтобы выиграть раунд.
+{0} s after a round ends, then everyone respawns and waits {1} s at the spawns.	{0} с после конца раунда, затем все возрождаются и ждут {1} с на точках появления.
+First to {0} rounds wins.	Побеждает первая команда, выигравшая {0} раундов.
+Time limit {0}: an unfinished series is a draw.	Лимит времени {0}: незавершённая серия — ничья.
+One artefact at a time, {0}–{1} s into a round.	Один артефакт за раз, через {0}–{1} с после начала раунда.
+Bring it to your own base: 1 point, and the round ends.	Принесите его на свою базу: 1 очко, и раунд заканчивается.
+The carrier is slower and seen by everyone.	Носитель медленнее и виден всем.
+Respawn in waves every {0} s.	Возрождение волнами каждые {0} с.
+Time limit {0}: the higher score wins; a tie plays {1} of sudden death without respawns.	Лимит времени {0}: побеждает больший счёт; при ничьей — {1} внезапной смерти без возрождения.
+Everyone fights with an assault rifle: sniper rifles, silenced guns and guns without automatic fire are swapped for an {0} (rooms up to level {1}) or an {2} (higher rooms).	Все сражаются штурмовыми винтовками: снайперские винтовки, оружие с глушителем и оружие без автоматического огня заменяются на {0} (комнаты до уровня {1}) или {2} (более высокие комнаты).
+Each comes with an {0}.	На каждом — {0}.
+a revolver	револьвер
+a lever-action rifle	винтовка с рычажным затвором
+Every kit: {0} only.	Каждый комплект: только {0}.
+Every kit: {0} and {1}.	Каждый комплект: {0} и {1}.
+Everyone plays the same {0} random kits.	Все играют одними и теми же {0} случайными комплектами.
+Level bands: {0}.	Диапазоны уровней: {0}.
+A room draws bands up to its level.	Комната получает диапазоны до своего уровня.
+Each kit a gun of another class, with random bonuses and attachments.	В каждом комплекте оружие другого класса со случайными бонусами и обвесом.
+{0} % of deals: pistols only.	{0} % раздач: только пистолеты.
+Plain FFA: {0} % of FFA cards.	Обычный FFA: {0} % карточек FFA.
+{0} % of FFA cards.	{0} % карточек FFA.
+FFA: Roulette	FFA: Рулетка
+
+# The wiki's weapons and simulators (pages built at a release: scripts/site-texts)
+Search weapons	Поиск оружия
+No weapons match.	Оружие не найдено.
+lvl {n}	ур. {n}
+Search…	Поиск…
+Search items	Поиск предметов
+No items match.	Предметы не найдены.
+s	с	unit
+Search rounds	Поиск патронов
+No rounds match.	Патроны не найдены.
+shots	выстрелы
+up	вверх
+side	вбок
+spread	разброс
+Play	Воспроизвести
+Pause	Пауза
+Recoil and spread	Отдача и разброс
+Weapon {side}	Оружие {side}
+Choose a weapon…	Выберите оружие…
+Round	Патрон
+Clear	Очистить	list
+Choose a weapon; a second one to compare.	Выберите оружие; второе — для сравнения.
+Aim	Прицеливание
+From the hip	От бедра
+Aiming in	Прицеливание
+Fully aimed	Полное прицеливание
+Stance	Положение
+Standing	Стоя
+Walking	Ходьба
+Crouching	В приседе
+Crouch-walking	Ходьба в приседе
+Sprinting	Спринт
+Jumping	Прыжок
+Broken arms	Сломанные руки
+Spread from the hip {v} per rank, sprinting and jumping included. Not while aiming.	Разброс от бедра {v} за ранг, в том числе при спринте и в прыжке. Не при прицеливании.
+No effect fully aimed.	Не действует при полном прицеливании.
+Spread while walking {v} per rank, from the hip or aiming in. Not crouch-walking.	Разброс при ходьбе {v} за ранг, от бедра и при прицеливании. Не при ходьбе в приседе.
+Spread from broken arms {v} per rank.	Разброс от сломанных рук {v} за ранг.
+This weapon's kick ranges, up and sideways. Not the camera shake.	Пределы отдачи этого оружия, вверх и вбок. Не тряска камеры.
+This weapon's base spread, in every shot: all of the spread fully aimed, little of it from the hip. Not the stance's spread or a shot's.	Базовый разброс этого оружия, в каждом выстреле: весь разброс при полном прицеливании, малая его часть от бедра. Не разброс от положения или от выстрела.
+The stance's spread and each shot's. No effect sprinting, jumping or fully aimed.	Разброс от положения и от каждого выстрела. Не действует при спринте, в прыжке и при полном прицеливании.
+Each shot's kick with any weapon: up, sideways and the camera shake.	Отдача каждого выстрела из любого оружия: вверх, вбок и тряска камеры.
+Base	Базовый
+A shot	За выстрел
+At most	Максимум
+Vertical kick	Отдача вверх
+game units	игровые единицы
+Horizontal kick	Отдача вбок
+Trigger	Спуск
+Hold	Зажать
+Click, {n} a second	Нажатия, {n} в секунду
+Sample seed	Зерно выборки
+Spread	Разброс
+degrees	градусы
+Last shot	Последний выстрел
+Reset	Сбросить
+Timeline	Шкала времени
+Crosshair	Прицел
+degrees of view	градусы обзора
+Target	Цель
+None	Нет
+Enemy at {m} m	Противник в {m} м
+Recoil parameters are unavailable for this selection.	Параметры отдачи для выбранного оружия недоступны.
+Rounds	Патроны
+Sniper rifle	Снайперская винтовка
+Submachine gun	Пистолет-пулемёт
+Pistol	Пистолет
+Shotgun	Дробовик
+Assault rifle	Штурмовая винтовка
+Machine gun	Пулемёт
+Skhid revision {revision}	Skhid, ревизия {revision}
+Stat	Характеристика
+Better	Лучше
+Worse	Хуже
+weapons	ед. оружия	count
+Compare weapons or expand a row for damage, handling, accuracy, recoil and aim sway.	Сравнивайте оружие или раскройте строку, чтобы увидеть урон, управляемость, точность, отдачу и раскачивание прицела.
+Values with the chosen round, the weapon’s standard one first. Upgrades and character bonuses are not included. The game’s card shows the highest damage and the highest penetration among all the weapon’s rounds.	Значения с выбранным патроном, сначала со стандартным для оружия. Улучшения и бонусы персонажа не учтены. Карточка в игре показывает наибольший урон и наибольшую бронебойность среди всех патронов оружия.
+Find a weapon	Найти оружие
+Weapon class	Класс оружия
+All classes	Все классы
+Damage: high to low	Урон: по убыванию
+Fire rate: high to low	Скорострельность: по убыванию
+Compare weapons	Сравнение оружия
+Only differences	Только различия
+Color better / worse values	Выделять лучшие / худшие значения
+Recoil and spread →	Отдача и разброс →
+Choose two weapons to compare. Equal values and neutral traits keep their normal color.	Выберите два оружия для сравнения. Одинаковые значения и нейтральные свойства сохраняют обычный цвет.
+No differences in the displayed stats.	В показанных характеристиках различий нет.
+m	м	unit
+kg	кг	unit
+Single shot	Одиночный
+Damage & range	Урон и дальность
+Damage	Урон
+Armor penetration	Бронебойность
+Full damage up to	Полный урон до
+Minimum damage from	Минимальный урон от
+Minimum damage retained	Минимальный остаток урона
+Stopping power	Останавливающая сила
+Stamina damage	Урон по энергии
+Firing & handling	Стрельба и управляемость
+rpm	выстр./мин	unit
+Fire rate	Скорострельность
+Magazine capacity	Ёмкость магазина
+Reload time	Время перезарядки
+Aim time	Время прицеливания
+Draw time	Время доставания
+Holster time	Время убирания
+Movement speed modifier	Модификатор скорости передвижения
+Base aim zoom	Базовое увеличение прицела
+Fire modes	Режимы стрельбы
+Accuracy & spread	Точность и разброс
+Spread values use the game's own units. Growth and recovery parameters are shown without a better/worse rating.	Значения разброса даны в игровых единицах. Параметры роста и сведения показаны без оценки «лучше/хуже».
+Base dispersion	Базовый разброс
+Hip-fire spread multiplier	Множитель разброса от бедра
+Spread added per shot	Разброс от выстрела
+Spread limit	Предел разброса
+Spread growth parameter	Параметр роста разброса
+Spread recovery parameter	Параметр сведения
+Recoil	Отдача
+Base kick in game units, not degrees. Horizontal kick is right minus left; variability is its standard deviation. These do not describe an entire burst.	Базовая отдача в игровых единицах, не в градусах. Отдача вбок — правая минус левая; колебания — её стандартное отклонение. Это не описывает всю очередь.
+Base vertical kick range	Диапазон базовой отдачи вверх
+Horizontal kick range	Диапазон отдачи вбок
+Horizontal kick variability	Колебания отдачи вбок
+Horizontal bias (− left / + right)	Смещение вбок (− влево / + вправо)
+Recoil accumulation exponent	Показатель накопления отдачи
+Recovery response (P)	Отклик восстановления (P)
+Recovery accumulation (I)	Накопление восстановления (I)
+Recovery damping (D)	Затухание восстановления (D)
+Aim sway	Раскачивание прицела
+Horizontal sway	Раскачивание в стороны
+Vertical sway	Раскачивание вверх-вниз
+Aim sway period	Период раскачивания прицела
+Magazine	Магазин
+Set as weapon A	Выбрать как оружие A
+Set as weapon B	Выбрать как оружие B
+Automatic	Автоматический
+{m}-round burst	Очередь по {m}
+pellets	дробин
+No weapons match. Try another name or class.	Оружие не найдено. Попробуйте другое название или класс.
+
+# The wiki's simulators: the shot's motions and the custom gun (pages built at a release: scripts/site-texts)
+Left	Влево	direction
+Right	Вправо	direction
+Back	Назад	direction
+where it aims as the shot moves it	куда целится под действием выстрела
+from the side, the bullet from the eye along the view	сбоку: пуля от глаза вдоль взгляда
+custom	своё
+Up	Вверх
+Side	Вбок
+Rate	Темп
+Power	Степень
+Camera wobble	Качание камеры
+Gun kick	Толчок оружия
+Custom gun	Своё оружие
+Speed	Скорость
+bullet	пуля
+sight	прицел
+hit	попадание
+
+# The wiki's skills (a page built at a release: scripts/site-texts)
+Points	Очки	skills
+matches	матчей	skills
+h	ч	unit
+Tap a skill, then + or −.	Нажмите на навык, затем + или −.
+Click a skill to add a rank, right-click to take one back.	Клик добавляет ранг, правый клик убирает.
+{n} point	{n} очко	one
+{n} points	{n} очка	few
+{n} points	{n} очков	many
+Maximum:	Максимум:
+or	или	skill
+
+# The Maps tab (a page built at a release: scripts/site-texts)
+Player spawns	Точки возрождения
+Battery spawns	Появление батарей
+Chargers	Зарядники
+Containers	Контейнеры
+Research units	Исследовательские установки
+Ammo stashes	Пополнение боеприпасов
+Survarium maps	Карты Survarium
+chargers	зарядники
+Minimap	Миникарта
+From above	Сверху
+{n} active	{n} активных
+{n} batteries to win.	{n} батарей для победы.
+team {n}	команда {n}
+any team	любая команда
+Ammo stash	Пополнение боеприпасов
+Container	Контейнер
+Battery spawn	Появление батареи
+Charger	Зарядник
+Research unit	Установка
+Spawn	Возрождение
+Glow of the Forest	Сияние Леса
+Bases	Базы
+Base	База	hunt
+
+# The damage calculator (a page built at a release: scripts/site-texts)
+Feet	Ступни	parts
+m/s	м/с	unit
+HP/s	ОЗ/с	unit
+active	активный
+passive	пассивный
+Damage ×{damage}, penetration ×{pierce}, before armour: lower penetration makes the armour stop more.	Урон ×{damage}, бронебойность ×{pierce}, до брони: при меньшей бронебойности броня останавливает больше.
+{drug}: {pool} takes ×{k} for {s} s after use ({delay} s to kick in).	{drug}: {pool} получает ×{k} в течение {s} с после применения (действует через {delay} с).
+Inside an anomaly: damage ×{k}, before armour.	В аномалии: урон ×{k}, до брони.
+This weapon takes no damage bonuses.	У этого оружия нет бонусов урона.
+Comes with the weapon; cannot be changed.	Идёт вместе с оружием; изменить нельзя.
+An item holds at most 3 modifications. Bonuses on one stat add up before they apply.	На предмете не больше 3 модификаций. Бонусы к одной характеристике складываются до применения.
+This item takes no armour bonuses.	У этого предмета нет бонусов брони.
+Nothing worn covers the {part}.	Ничто из надетого не защищает: {part}.
+Drugs	Препараты
+Assault rifles	Штурмовые винтовки
+Submachine guns	Пистолеты-пулемёты
+Shotguns	Дробовики
+Bolt-action & sniper rifles	Магазинные и снайперские винтовки
+Pistols & revolvers	Пистолеты и револьверы
+Helmet	Шлем
+Mask	Маска
+Jacket	Куртка
+Gloves	Перчатки
+Trousers	Штаны
+Boots	Ботинки
+Backpack	Рюкзак
+Chest & neck	Грудь и шея
+Right arm	Правая рука
+Left arm	Левая рука
+Right hand	Правая кисть
+Left hand	Левая кисть
+Right leg	Правая нога
+Left leg	Левая нога
+Right foot	Правая ступня
+Left foot	Левая ступня
+Body	Тело
+Pain	Боль
+Infection	Инфекция
+death	смерть
+bleeding	кровотечение
+concussion	контузия
+hand injury	травма руки
+leg injury	травма ноги
+infection	инфекция
+blindness	слепота
+Search	Поиск
+— none —	— ничего —
+nothing worn	ничего не надето
+back	сзади
+front	спереди
+after shot	выстрел
+of	из
+dead	мёртв
+Glass	Стекло
+Car	Автомобиль
+Plywood	Фанера
+Tinplate	Жесть
+Brick, steel	Кирпич, сталь
+Concrete	Бетон
+Stone	Камень
+<none>	<нет>
+armour	броня
+{n} left	осталось {n}
+damage	урон
+penetration	бронебойность
+full damage to	полный урон до
+minimum from	минимум от
+minimum	минимум
+muzzle	скорость пули
+rate	темп
+magazine	магазин
+Gets through: k {k}, D {D} · P {P}.	Пробивает: k {k}, D {D} · P {P}.
+Does not get through: penetration {P}, armour {A}.	Не пробивает: бронебойность {P}, броня {A}.
+here	здесь
+not here	не здесь
+taken by {item}	занято: {item}
+Covers the {part}.	Защищает: {part}.
+Does not cover the {part}.	Не защищает: {part}.
+Click to aim at the {part}.	Нажмите, чтобы прицелиться: {part}.
+aim at the {part}	прицелиться: {part}
+Full damage at this range.	На этой дистанции урон полный.
+Fully fallen off: minimum damage.	Полностью спал: минимальный урон.
+Falling off: {share} of the way from minimum to full.	Спадает: {share} пути от минимума до полного.
+Orange band: damage falls from {from} m to {to} m.	Оранжевая полоса: урон спадает с {from} м до {to} м.
+per shot (all pellets)	за выстрел (все дробины)
+per hit	за попадание
+{pool} damage {per}	{pool}: урон {per}
+of {n} {pool} left	из {n} оставшихся ({pool})
+of {n} {pool}	из {n} ({pool})
+Hits to kill	Попаданий до смерти
+dies when {pool} reaches 0	погибает, когда {pool} доходит до 0
+this shot cannot kill	этот выстрел не убивает
+Time to kill	Время до смерти
+every shot lands, no reload	все попадают, без перезарядки
+Leaves the barrel	Вылет из ствола
+Weapon damage × ammo <code>k_damage</code>, weapon pierce × ammo <code>k_arp</code>.	Урон оружия × <code>k_damage</code> патрона, бронебойность оружия × <code>k_arp</code> патрона.
+Each of the {n} pellets carries this.	Так у каждой из {n} дробин.
+Flies {m} m	Летит {m} м
+Speed {v0} → {v} m/s. Damage slides from full ({full}) to minimum ({min}) by speed between {from} and {to} m: here {share}. Penetration stays.	Скорость {v0} → {v} м/с. Урон спадает от полного ({full}) до минимального ({min}) по скорости между {from} и {to} м: здесь {share}. Бронебойность не меняется.
+Through {wall}	Сквозь: {wall}
+stopped	остановлено
+Penetration {P}, armour {A}. Damage, penetration and speed × k; then damage no higher than at {v} m/s.	Бронебойность {P}, броня {A}. Урон, бронебойность и скорость × k; затем урон не выше, чем при {v} м/с.
+Penetration {P} is not above armour {A}: the bullet stops.	Бронебойность {P} не выше брони {A}: пуля останавливается.
+No armour here, the full amount goes in.	Брони здесь нет: проходит всё.
+Armour {A} is not above penetration {P}: nothing is stopped.	Броня {A} не выше бронебойности {P}: ничего не остановлено.
+Armour exceeds penetration by a full 100: the bullet does nothing.	Броня выше бронебойности на полные 100: пуля ничего не делает.
+Armour {A} − penetration {P} = {gap}% of the damage is stopped.	Броня {A} − бронебойность {P} = остановлено {gap}% урона.
+Hits {part}	Попадает: {part}
+Every hit anywhere also drains the shared pain pool. Pain at 0 kills.	Любое попадание также отнимает общий пул боли. Боль на 0 убивает.
+Body at 0 kills.	Тело на 0 убивает.
+Head holds only 40: at 0 it kills, below 20 it concusses.	У головы всего 40: на 0 убивает, ниже 20 — контузия.
+Limbs do not kill by themselves: an empty limb injures, the pain it carries can kill.	Конечности сами не убивают: опустевшая конечность травмируется, а её боль может убить.
+Second chance	Второй шанс
+The skill leaves the target alive once.	Навык один раз оставляет цель в живых.
+× {n} pellets	× {n} дробин
+Each pellet is its own bullet: when several land, their damage adds up.	Каждая дробина — отдельная пуля: если попадает несколько, их урон складывается.
+kills	убивает
+breaks	ломает
+below	ниже
+empty	на нуле
+movement	движение
+shot	выстрел
+Damage over distance	Урон по дистанции
+after armour	после брони
+Body part	Часть тела
+Stopped	Остановлено
+Limb	Конечность
+Also	Также
+injury	травма
+best ammo	лучший патрон
+default ammo	стандартный патрон
+Ammo	Патрон
+Pen. here	Бронеб. здесь
+Damage / hit	Урон / попад.
+RPM	Выстр./мин
+Bullet	Пуля
+D, P = weapon × ammo, D falling with distance	D, P = оружие × патрон, D спадает с дистанцией
+{n} pellets	{n} дробин
+Wall	Стена
+P ≤ A: the bullet stays in the wall · else D, P × (1 − (A / P)²)	P ≤ A: пуля застревает в стене · иначе D, P × (1 − (A / P)²)
+stays in the wall	застревает в стене
+each	каждый
+rank	ранг
+inside an anomaly	в аномалии
+D × (1 − (armour − P) / 100)	D × (1 − (броня − P) / 100)
+{part}, armour {A} − P {P}	{part}, броня {A} − P {P}
+Pools	Пулы
+chest, back → body · head, face → head · leg, foot → leg · arm, hand → hand	грудь, спина → тело · голова, лицо → голова · нога, ступня → нога · рука, кисть → кисть
+× 1 chest, head, arms · 0.9 legs · 0.8 hands, feet	× 1 грудь, голова, руки · 0.9 ноги · 0.8 кисти, ступни
+Death	Смерть
+body, head or pain at 0	тело, голова или боль на 0
+{n} hits	попаданий: {n}
+at 0	на 0
+does not kill	не убивает
+wall armour	броня стены
+One bullet through several parts: each pool loses only its biggest hit, not the sum (hands 40 + 40, chest 35 → pain −40, not −115).	Одна пуля через несколько частей: каждый пул теряет только самое большое попадание, а не сумму (кисти 40 + 40, грудь 35 → боль −40, а не −115).
+full	полностью
+fixed	лечит
+{s} s without hits	{s} с без попаданий
+By itself	Само по себе
+ends after {s} s without hits	проходит через {s} с без попаданий
+carried	в слоте
+activated	активирован
+at once, every {s} s	сразу, раз в {s} с
+{delay} s after use, for {s} s	через {delay} с, на {s} с
+stops at {n}	до {n}
+From empty to full	От нуля до полного
+Leg or hand	Нога или кисть
+No Larkspur	Без Живокоста
+Starts	Начинает
+Legs, hands	Ноги, кисти
+Broken leg, hand	Сломанная нога, кисть
+Top-down view of	Вид сверху:
+<b>{m} m</b> ({across} across, {sign}{height} height). Click again to start over.	<b>{m} м</b> ({across} по горизонтали, {sign}{height} по высоте). Нажмите ещё раз, чтобы начать заново.
+Now click the target.	Теперь нажмите на цель.
+Click the shooter, then the target.	Нажмите на стрелка, затем на цель.
+Orange ring: full damage to {from} m; dashed: minimum from {to} m.	Оранжевое кольцо: полный урон до {from} м; пунктирное: минимум от {to} м.
+health shown ×100 (body 100, head 40)	здоровье ×100 (тело 100, голова 40)
+Shooter	Стрелок
+fires	стреляет
+Distance to target	Дистанция до цели
+Wall in front of the target	Стена перед целью
+Weapon bonuses	Бонусы оружия
+— — HIT — →	— — ПОПАДАНИЕ — →
+takes the hit	получает попадание
+Current pain	Текущая боль
+Pain the target already carries from earlier hits. It drains back to none at 10 a second once 8 s pass without a hit.	Боль, которую цель уже получила от прошлых попаданий. Спадает до нуля по 10 в секунду, когда 8 с нет попаданий.
+Armour bonuses	Бонусы брони
+Artefacts, drugs & skills	Артефакты, препараты и навыки
+Measure on a map	Измерить на карте
+Clear points	Очистить точки
+bullet before armour	пуля до брони
+after this armour	после этой брони
+Every body part, this shot	Все части тела, этот выстрел
+Every weapon against this target	Всё оружие против этой цели
+Same distance, wall, body part, armour and target effects. Each gun uses its best ammo for this target unless you pick "default ammo". Click a row to load that gun.	Та же дистанция, стена, часть тела, броня и эффекты цели. Каждое оружие берёт свой лучший патрон для этой цели, если не выбран «стандартный патрон». Нажмите на строку, чтобы выбрать это оружие.
+Formula	Формула
+Healing	Лечение
+Previous shot	Предыдущий выстрел
+Next shot	Следующий выстрел
+Damage calculator	Калькулятор урона Survarium	title
+# The wiki's artefacts (src/artefacts.rs)
+Every artefact: what it gives carried and fired, how copies stack, where it is found.	Каждый артефакт: что он даёт при себе и при активации, как складываются копии, где его найти.
+Artefact	Артефакт
+Passive	Пассивный
+Active	Активный
+Active time	Время действия
+Cooldown	Перезарядка
+Skill	Навык
+Rules	Правила
+Movement speed	Скорость передвижения
+Stamina regeneration	Регенерация энергии
+Stamina use	Расход энергии
+Slowdown from hits	Замедление от попаданий
+Against	Против
+Body parts	Части тела
+Penetration	Бронебойность
+Health	Здоровье
+Cures injuries	Лечит травмы
+Regeneration	Регенерация
+Regeneration delay	Задержка регенерации
+Regenerates up to	Восстанавливается до
+HP	ОЗ	unit
+Carried in a container: passive. A death leaves them in that kit.	В контейнере: пассив. После смерти они остаются в том комплекте.
+A key fires every ready copy of its kind and restarts the cooldown of the ones still cooling.	Клавиша активирует все готовые копии своего вида и заново запускает перезарядку тех, что ещё перезаряжаются.
+Copies of a kind add up (Onyx's passive multiplies); at most 4 count.	Копии одного вида складываются (пассив Оникса перемножается); действуют не больше 4.
+Spring's and Larkspur's actives add to the passive; Onyx's replaces it.	Активация Пружины и Живокоста добавляется к пассиву; Оникса — заменяет его.
+Onyx fired together: one reduction, 1 s longer per extra copy.	Ониксы, активированные вместе: одно уменьшение, на 1 с дольше за каждую лишнюю копию.
+
+# The maps' anomalies (scripts/maps-tab/ui.js)
+Anomalies	Аномалии
+Anomaly	Аномалия
+Artefacts come from the anomalies. Each anomaly puts one of its artefacts into one of its free containers, one per time window, until its maximum lies uncollected; a pickup starts the window again. It gives only those of its artefacts that no player is carrying. Point at an anomaly or an artefact (or tap it) for its numbers.	Артефакты дают аномалии. Каждая аномалия кладёт один из своих артефактов в один из своих свободных контейнеров, по одному за промежуток времени, пока её максимум не будет лежать несобранным; подбор артефакта запускает промежуток заново. Она даёт только те свои артефакты, которые не несёт ни один игрок. Наведите на аномалию или артефакт (или коснитесь), чтобы увидеть её числа.
+{s} s	{s} с
+{a}–{b} s	{a}–{b} с
+Holds	Содержит
+First one	Первый
+Then every	Далее каждые
+Chance	Шанс
+Max uncollected	Максимум несобранных
+Search	Поиск	artefact
+Zones switch every	Зоны сменяются каждые
+After a pickup the next one comes {next} later; that container stays empty for {cooldown}.	После подбора следующий появится через {next}; этот контейнер остаётся пустым {cooldown}.
+Its own zone does no damage.	Её собственная зона не наносит урона.
+Searching a container takes {search}; after a pickup it stays empty for {cooldown}.	Обыск контейнера длится {search}; после подбора он остаётся пустым {cooldown}.
+After a pickup the next one comes {next} later.	После подбора следующий появится через {next}.
+whole body	всё тело
+{n} % a hit, at most every {t}	{n} % за удар, не чаще раза в {t}
+deadly	смертельно
+{n} % a second	{n} % в секунду
+Damage is a share of each body part's health, before armour.	Урон — доля здоровья каждой части тела, до брони.
+It gives no artefacts.	Она не даёт артефактов.
+
+# The stats' Maps and Modes boards.
+Last 7 days	Последние 7 дней
+Last 24 hours	Последние 24 часа
+Avg length	Ср. длительность
+Sides	Стороны
+No result	Без результата
+Share	Доля
+Trend	Динамика
+by hour	по часам
+by day	по дням
+by week	по неделям
+Most played maps and modes	Самые популярные карты и режимы
+
+# The modes and weathers as the game names them (client-patches/localization: the stats' Maps and Modes boards, the match lists).
+Protective device	Защитное устройство
+Protective device: chargers	Защитное устройство: зарядники
+Team Deathmatch	Командный бой
+Research	Исследование
+Protective device: blackout	Защитное устройство: блэкаут
+Free for all	Все против всех
+Freeze Tag	Заморозка
+Artifact Hunt	Охота за артефактом
+FFA: Racket	FFA: Движ
+FFA: Saloon	FFA: Салун
+FFA: Saloon (Winchester)	FFA: Салун (Винчестер)
+Mode {0}	Режим {0}
+day	день	weather
+rain	дождь	weather
+evening	вечер	weather
+night	ночь	weather
+before rain	перед дождём	weather
+Weathers	Погода
+Variants	Варианты

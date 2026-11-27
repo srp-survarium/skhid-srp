@@ -17,7 +17,7 @@
 
 use super::context::{Context, Reg};
 use super::hook::Thread;
-use super::world::{floats, read};
+use super::world::{floats, read, Places};
 use crate::raw;
 
 /// A player's side, from his profile's team: one of a match's two teams, or
@@ -61,6 +61,26 @@ impl Side {
 unsafe fn side_of(player: raw::Player) -> Option<Side> {
     // SAFETY: the caller's: a live player and its match profile.
     unsafe { Some(Side::of(read(player.profile()?.team()))) }
+}
+
+/// The place's next spawn time (the respawn rule's, u32::MAX for none), none in a match without
+/// a respawn rule.
+///
+/// # Safety
+/// `core` is the live world core of a hook.
+pub(super) unsafe fn respawn_time(core: raw::CoreWorld, place: u8) -> Option<u32> {
+    // SAFETY: the core's rule vector and its rules live with the core; the respawn rule's array of
+    // a u32 a place (20) only after its vtable says it is one.
+    unsafe {
+        let begin = core.rules_begin()?;
+        let count = core.rules_end()?.index_from(begin)?;
+        (0..count).find_map(|n| {
+            let rule = begin.at(n).rule()?;
+            let table = read(rule.vtable());
+            let respawn = table == raw::image::RESPAWN_RULE_VTABLE || table == raw::image::RESPAWN_CLIENT_RULE_VTABLE;
+            (respawn && place < 20).then(|| read(rule.respawn_times().add(usize::from(place))))
+        })
+    }
 }
 
 /// At `respawn.due_team`: the due player's side (EAX, his team).
@@ -170,6 +190,14 @@ impl<'t> RespawnSelect<'t> {
                 unsafe { Some(floats::<3>(first.at(i).player()?.feet())) }
             })
         })
+    }
+
+    /// The places in the match now: the bits of the world core the tick
+    /// asks each place's player of (core_active_player 0x2D0AB0), the
+    /// world's, so every game counts alike. None without a core.
+    pub fn places_in_match(&self) -> Option<Places> {
+        // SAFETY: the rule's world core, alive for the hook; a plain value of it.
+        unsafe { Some(Places(read(self.rule.core()?.active_places()))) }
     }
 
     /// The team-2 group's size.

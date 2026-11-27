@@ -23,13 +23,21 @@
 //!
 //! It grows with what the patches need, and no further.
 
+pub mod attachments;
+pub mod reload;
+pub mod weapon_view;
 pub mod back_buffer;
 pub mod baker;
+pub mod aim;
 pub mod breadcrumbs;
 pub mod bullet;
 pub mod explosion;
 pub mod files;
 pub mod footstep;
+pub mod zone_guard;
+pub mod material;
+pub mod freeze;
+pub mod desync;
 pub mod camera;
 pub mod carry_runtime;
 pub mod carry_ground;
@@ -48,33 +56,52 @@ pub mod crc32;
 mod context;
 pub mod draw;
 pub mod headwear;
+pub mod grenade_icons;
+pub mod hit_marker;
+pub mod world_event;
 mod hook;
 mod hud_input;
 mod input;
 pub mod inventory;
 mod keyboard;
 pub mod keyboard_layout;
+pub mod key_text;
 pub mod language;
 pub mod lobby;
 pub mod lobby_camera;
 pub mod lobby_menu;
+mod lobby_call;
+pub use lobby_call::{LobbyCall, LobbyInventory, LobbyItem, NotGiven};
 pub mod login;
 pub mod openssl;
 pub mod mouse;
+pub mod mouse_device;
+pub mod game_log;
 pub mod log;
 pub mod run_log;
 pub mod melee;
 pub mod battery;
+pub mod artefact_hunt;
+pub mod round_countdown;
 pub mod memory;
 pub mod memory_profile;
 mod options;
 pub mod parse;
 pub mod resources;
+pub mod skin_cook;
 pub mod renderer;
+pub mod render_stage;
+pub mod probe_tiers;
+pub mod effect_compile;
 pub mod gun_cook;
 pub mod pickup;
+pub mod profile_kit;
+pub mod use_prompt;
 pub mod use_scan;
 pub mod streaming;
+pub mod texture_pool;
+pub mod occlusion;
+pub mod motion_vectors;
 pub mod ray_test;
 mod rt;
 pub mod sound;
@@ -112,7 +139,7 @@ mod generated {
     #[allow(unused_imports)]
     use crate::raw;
     #[allow(unused_imports)]
-    use super::{RenderVisual, ObjectLight, GameScene};
+    use super::{RenderVisual, ObjectLight, ObjectAmbientLight, ObjectParticleVisual, ObjectEnvironmentProbe, GameScene};
     #[allow(unused_imports)]
     use super::resources::{QueryResults, QueryTag};
     #[allow(unused_imports)]
@@ -121,6 +148,11 @@ mod generated {
     use super::battery::{BatteryState, PredicateBuffer};
     #[allow(unused_imports)]
     use super::shape::{Triangle, TriangleSink};
+    #[allow(unused_imports)]
+    use super::artefact_hunt::{HudState, HuntCook, HuntRule, RuleCore, RuleEvent, RuleQuery, RuleReader, RuleWriter, TickRule};
+    use super::attachments::FingerCorrector;
+    #[allow(unused_imports)]
+    use super::reload::{AnimationEvent, ReloadEventState};
     #[allow(unused_imports)]
     use core::ffi::c_void;
     include!("../../../../hooks_026g.rs");
@@ -135,7 +167,7 @@ pub use input::{Action, ActionMask, ActionState, InputChange, InputHandler, Keyb
 pub use keyboard::{Dik, GameWorldButton, GameWorldKey, GameWorldKeys, KeyEvents, KeyKind, KeyMoves, KeyName, TabTest};
 pub use hud_input::{CursorMovie, Hud, HudCall, HudView, MenuChange, MenuClose};
 pub use lobby::{Lobby, MuteChoice, Muted, NotConnected};
-pub use options::{MapId, OptionsRead};
+pub use options::{MapId, OptionsRead, PLACES, Places};
 pub use world_load::WorldLoad;
 pub use upgrades::{AttachedPairs, CookQuery, FlashUpgrade, PreviewApply, PreviewChange, Records};
 pub use rt::c_u32;
@@ -144,6 +176,7 @@ pub use match_rules::MatchClock;
 
 pub mod consumable;
 pub mod drawable_image;
+pub mod scaleform_filter;
 pub use consumable::QuickSlotActivity;
 
 pub mod config;
@@ -153,18 +186,29 @@ pub mod geometry;
 pub mod presentation;
 
 pub mod project;
-pub use project::{RenderVisual, ObjectLight, GameScene};
+pub use project::{RenderVisual, ObjectLight, ObjectAmbientLight, ObjectParticleVisual, ObjectEnvironmentProbe, GameScene};
 
 pub mod history;
 pub mod drug;
+pub mod breath;
+pub mod protection;
 mod artefact;
 pub use artefact::{ArtefactPickup, Slots};
 pub mod statistics;
+pub mod weapon_stats;
+pub mod second_sight;
+pub mod sight_view;
 pub use statistics::{Band, Batteries, Battery, BatteryCarry, Cell, Delivery, Held, Life, Progress, Saving, ScoreEvent, Team, BATTERIES};
 
 pub mod medical;
 pub mod artefact_skills;
+pub mod technical;
+pub mod technical_sharp_ears;
+pub mod technical_return_to_sender;
+pub mod technical_dead_man;
+pub mod technical_smoke;
 pub mod keeper;
+pub mod courier;
 pub mod effect;
 pub mod animation_id;
 pub mod bake_gpu;
@@ -173,6 +217,7 @@ pub mod effect_presenter;
 
 pub mod match_message;
 pub mod packet_recovery;
+pub mod exact_world;
 pub mod match_close;
 pub mod seeding;
 

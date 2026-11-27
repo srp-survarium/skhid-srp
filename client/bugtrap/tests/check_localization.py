@@ -14,11 +14,11 @@ import zipfile
 
 # Independent expected UI strings, including Cyrillic and Polish diacritics.
 LANGUAGES = {
-    "english": ("0409", "The game has crashed.", "Open Discord", "Close", "File:", "Folder:", "Windows error", "Could not open your browser.", "Copy", "Copied"),
-    "russian": ("0419", "В игре произошёл сбой.", "Открыть Discord", "Закрыть", "Файл:", "Папка:", "Ошибка Windows", "Не удалось открыть браузер.", "Копировать", "Скопировано"),
-    "polish": ("0415", "Gra uległa awarii.", "Otwórz Discord", "Zamknij", "Plik:", "Folder:", "Błąd systemu Windows", "Nie udało się otworzyć przeglądarki.", "Kopiuj", "Skopiowano"),
-    "ukrainian": ("0422", "У грі стався збій.", "Відкрити Discord", "Закрити", "Файл:", "Папка:", "Помилка Windows", "Не вдалося відкрити браузер.", "Копіювати", "Скопійовано"),
-    "german": ("0807", "Das Spiel ist abgestürzt.", "Discord öffnen", "Schließen", "Datei:", "Ordner:", "Windows-Fehler", "Der Browser konnte nicht geöffnet werden.", "Kopieren", "Kopiert"),
+    "english": ("0409", "The game has crashed.", "Open Discord", "Close", "File:", "Folder:", "Windows error", "Could not open your browser.", "Copy", "Copied", "Open folder"),
+    "russian": ("0419", "В игре произошёл сбой.", "Открыть Discord", "Закрыть", "Файл:", "Папка:", "Ошибка Windows", "Не удалось открыть браузер.", "Копировать", "Скопировано", "Открыть папку"),
+    "polish": ("0415", "Gra uległa awarii.", "Otwórz Discord", "Zamknij", "Plik:", "Folder:", "Błąd systemu Windows", "Nie udało się otworzyć przeglądarki.", "Kopiuj", "Skopiowano", "Otwórz folder"),
+    "ukrainian": ("0422", "У грі стався збій.", "Відкрити Discord", "Закрити", "Файл:", "Папка:", "Помилка Windows", "Не вдалося відкрити браузер.", "Копіювати", "Скопійовано", "Відкрити папку"),
+    "german": ("0807", "Das Spiel ist abgestürzt.", "Discord öffnen", "Schließen", "Datei:", "Ordner:", "Windows-Fehler", "Der Browser konnte nicht geöffnet werden.", "Kopieren", "Kopiert", "Ordner öffnen"),
 }
 
 
@@ -101,7 +101,8 @@ def main():
             controls = {int(line.split(" ", 2)[1]): line.split(" ", 2)[2]
                         for line in output.splitlines() if line.startswith("TEXT ")}
             clips = [line[5:] for line in output.splitlines() if line.startswith("CLIP ")]
-            _, intro, button, close, file_label, folder_label, error, browser_error, copy, copied = LANGUAGES[language]
+            _, intro, button, close, file_label, folder_label, error, browser_error, copy, copied, open_folder = LANGUAGES[language]
+            shells = [line[6:].split(" ", 1) for line in output.splitlines() if line.startswith("SHELL ")]
             new = set(root.glob("SRP-crash-*")) - before
             texts = [p for p in new if p.suffix == ".txt"]
             if state == "dialog-failure":
@@ -116,6 +117,20 @@ def main():
                 continue
             assert controls[1030] == intro and controls[1013] == button and controls[2] == close, controls
             assert controls[1041] == copy and controls[-2] == copied, controls
+            # Open folder: only with a file to show, Explorer selecting it;
+            # when Explorer cannot start (browser-failure), the folder alone.
+            if state in ("failure", "full-no-report"):
+                assert 1043 not in controls and not shells, (controls, shells)
+            else:
+                folder = str(root).replace("/", "\\") + "\\"
+                assert controls[1043] == open_folder, controls
+                kind, selected = shells[0]
+                assert kind == "select" and selected.startswith('/select,"'), shells
+                assert selected.endswith(folder + controls[1034] + '"'), (selected, controls)
+                if state == "browser-failure":
+                    assert shells[1][0] == "folder" and shells[1][1].endswith(folder), shells
+                    assert shells[1][1] == selected[len('/select,"'):-len(controls[1034]) - 1], shells
+                assert len(shells) == (2 if state == "browser-failure" else 1), shells
             if state == "unicode":
                 assert controls[1042].startswith(WARNING[language]) and "Игра-Żółw" in controls[1042], controls
                 assert "C:\\Games\\Survarium" in controls[1042], controls

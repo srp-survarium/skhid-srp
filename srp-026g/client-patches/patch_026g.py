@@ -106,10 +106,9 @@ USAGE (this script never touches the source exe):
     its own, 0xFC0 of the late join's state page, checked).
     The arena, `.srpx` (Research, the artefacts' code, the engine-function
     library, the kit keys and the match chat option, the hide-the-interface
-    key), is linked from its C and
-    NASM sources at every build
-    (link_026g.py: gcc -m32, GNU ld and NASM 2.16 are needed) and must be
-    arena_026g.lock.json's (`python link_026g.py --write` after a change).
+    key), is linked from its C and NASM sources at every build (link_026g.py:
+    gcc -m32, GNU ld and NASM 2.16 are needed), its generated sources written
+    first (generate_sources).
     The late-join code is late_join_026g.section.bin, checked in too; it is
     made by `late_join_026g.py --write-bin`, which needs nasm, a C compiler
     for x86 and GNU ld (--late-join-bin=<file> names another one).
@@ -264,7 +263,7 @@ Patches:
   death that completed the rule left it set and the replay of that death
   was skipped: one dead player of the team that was out stayed in the alive
   mask, the server saw a player alive and the match ran to the time limit
-  (match.md section 28). The `jnz` at 0x3160F1 becomes six nops, as the
+  (match.md section 37). The `jnz` at 0x3160F1 becomes six nops, as the
   battery rule's does;
 - the resources.db file table's signature is not checked (patch revision
   12, client_patch.md section 0.1): verify_sign's call of verify_sign_impl
@@ -487,7 +486,8 @@ Patches:
   increase_health as a medkit). An artefact's
   press (artefact_base::action 0x313300, at its entry) activates every
   ready artefact of the pressed one's class in the artefact slots, so one
-  key fires all of a kind that are ready, even when the pressed one is not.
+  key fires all of a kind that are ready, even when the pressed one is not;
+  a press that fires one starts the cooldown of the kind's cooling ones again.
   Onyx: n fired together are each active 1 s longer per other one (3 s + (n
   - 1) s), and only the first active Onyx of the slots reduces a hit (its
   hit callback 0x312BF0, at 0x312C03), so n active Onyx reduce it once; its
@@ -561,6 +561,32 @@ Patches:
   min(player_step's dt, 0.05), not x 0.05 at every step, so a tick the
   world steps in parts (each precise input) adds one tick of speed in all;
   whole ticks bit for bit as before. A simulation change;
+- a part of a tick moves a body as a whole tick does (patch 166, with the
+  late join; docs/notes/fall_damage.md "A part of a tick moves a body at
+  rest"): bullet_character_controller::updateAction (0x7B730) ran
+  player_step for a step shorter than a tick only when the body had moved
+  in its step before, so a body at rest took no walk, strafe, jump or
+  crouch of its player in a tick the world steps in parts; STEP_PARTS
+  (0x7B76B, one branch) runs player_step for every step, and its own test
+  (can_skeep_player_step 0x7C7E0) leaves a body with nothing to do where it
+  is. A simulation change;
+- a part of a tick walks, and says a player's speed, as a whole tick does
+  (patch 168, the Rust patch tick_parts; docs/notes/fall_damage.md "A part
+  of a tick: its least walk and the speed read from it"): the least walk's
+  test asks a part what its tick would be asked at its pace (0x7C823), so no
+  part of a walking body is skipped, and only the step that ends a tick
+  writes m_linear_horizontal_speed (0x2D9541), which a jump reads as it
+  begins. A simulation change;
+- a bullet's armour penetration does not fall with distance (patch 173,
+  docs/notes/client_patch.md section 3.94): update_bullet_position's
+  falloff by speed (0x32EE90) no longer writes the bullet's piercing
+  (PIERCE_DISTANCE, 0x32F174); its damage falls as before. Walls and
+  ricochets lower it as before. A simulation change;
+- every wall costs a bullet something (patch 175, docs/notes/client_patch.md
+  section 3.96): try_pierce's k is 1 - (A / P)^2 (PIERCE_WALLS, 0x32D99E),
+  not 1 - (1 - clamp((P - A) / A, 0, 1))^2, which was 1 from P = 2A on.
+  A = 0 still lets a bullet through whole, P <= A still stops it. A
+  simulation change;
 - a thrown grenade stays above the ground (patch 105, with the late join;
   docs/notes/grenade_ccd.md): grenade_core::load's continuous collision
   sweeps a sphere of 0.04 m (GRENADE_CCD, 0x303A13), not 0.01 m, inside the
@@ -643,6 +669,45 @@ Patches:
   walk (no engine call), to srp_patches.log and in 0xE0 carriers
   (srp_validate::report); the server only logs them. Nothing a match
   computes;
+- a key per item type uses it (patch 149, item_hotkeys; docs/notes/item-hotkeys.md):
+  sixteen actions (use_onyx .. use_oxygen_tank: the artefacts, medicines,
+  grenades, the trap, the oxygen tank; use_next_artefact and use_next_medkit:
+  a group's first ready item), unbound, one row each in the options'
+  controls, ids 4Ah..59h; the game's action table moved into the
+  arena (item_hotkeys_026g.asm, ITEM_HOTKEYS_TABLE_REFS) with them appended,
+  and the key binder's bindings 60h instead of 48h (ITEM_HOTKEYS_BINDER); at
+  the input builder's end (0x2421B0) a key of them that is present sets the
+  quick-use bit of the first quick slot holding its item, as that slot's
+  key does, before patch 78's chord. Only the input a key makes;
+- the ported 0.21 maps render the 0.21 way (patch 130, the Rust patch
+  v021d_render; docs/notes/client_patch.md section 3.82): effect_wet_surface
+  and effect_rain compile 0.21 twins of their techniques after their own
+  (0x1CE5BE, 0x1D3E30: the wet pass with wet_surface_v021d.ps, the drops
+  with ported/v021d/engine/rain_drop); on the scene of a project whose
+  config says srp_renderer_v021d, stage_pre_rain's wet pass runs at any
+  shading quality (0x17CB1B) with technique 3 (0x17CB90), stage_rain's drops
+  with technique 2 (0x1ADFA4) and 0.21d's half-float
+  rain_drops_parameters1.zw (0x1ADF7D); compile_begin gives a grassmesh pass
+  of a material with srp_grass_v021d its 0.21 vertex shader family
+  (0x1CD1B6), the forward water of one with srp_water_v021d 0.21's wave
+  normals (0x1E603C). Nothing a match computes;
+- the ported Londons' deferred composition is 0.44a5's (patch 178, the
+  Rust patch composition_v044a; docs/notes/client_patch.md section 3.98):
+  the eight effect_composition compiles compile a twin of their technique
+  after their own (0x1A95C8 and the same offset in each: 0.44a5's
+  composition_v044a.ps, its sun shadow as t_sun_shadow); on the scene of a
+  project whose config has srp_composition_v044a, stage_composition's
+  execute applies the twin (0x1A85B4) and sets its four constants from that
+  table (0x1A85D6). Nothing a match computes;
+- every player drawn with srp's face of the account (patch 123, faces;
+  docs/notes/client_patch.md section 3.87): the faces srp gives, the
+  account's and its squad's by name (0x87's and 0x88's byte), a match's or
+  replay's by place (the options' entry 5) until its scene is left
+  (0x1F9520); profile_skin_visual_cook's
+  head (0x205662) made from body_parts.heads[face], its mask or helmet
+  variant by the kit's models, its hair, `f<face>_` in the skin's name;
+  a worn helmet's or mask's entry its config's data_head_<face> when it
+  has one (0x204B36). Nothing a match computes;
 - the baked camouflage and decal textures are kept from game to game, and
   a texture asked for again while its bake or load is under way is made
   once (patch 70, with the late join; docs/notes/baked-textures.md). The
@@ -697,6 +762,8 @@ Each site is checked against the original bytes first, so a different build
 or an already patched file is refused rather than patched twice.
 """
 
+import array
+import bisect
 import collections
 import hashlib
 import os
@@ -860,7 +927,7 @@ WORLD_UNPACK = (
 # its "Release revision <n>" commit), never a feature change: a release
 # builds with --revision=<n>, the live exe's + 1, which changes the revision
 # byte alone, and records <n> here once it went out.
-REVISION = 64
+REVISION = 74
 # The first revision whose default build takes the lobby's replay link
 # (REPLAY_LINK): the server's replay rule asks for it
 # (session::v026g::replays::MIN_REVISION).
@@ -893,7 +960,7 @@ GATHER = (GATHER_EVENTS, GATHER_LOCK)
 # alive mask) -> the jnz becomes nops, as for the battery rule above. The
 # completion time is not serialized (the constructor's 0x31601D is the only
 # write of -1), so a rollback over the death that completed the rule keeps
-# it, and the replay of that death is skipped (match.md section 28).
+# it, and the replay of that death is skipped (match.md section 37).
 TDM_DEATHS = (0x3160F1, bytes.fromhex("0f85e6000000"), b"\x90" * 6)
 
 # camouflage_decal_texture_type_baker_cook::check_loaded_baked_texture
@@ -921,6 +988,28 @@ BAKED_TEXTURE_MISSING = (0x131C1E, bytes.fromhex("7553"), bytes.fromhex("eb53"))
 AI_ARENA_VA = 0x1E8CCB
 AI_ARENA_SIZE = 0x400000
 AI_ARENA = (AI_ARENA_VA, bytes.fromhex("c744241800000400"), bytes.fromhex("c744241800004000"))
+
+# Patch 161: the arena an upgraded item's config is rebuilt in.
+# configs::create_binary_config_buffer (0x358AA0; its one caller the item
+# config cook, 0x2F1E1B) builds the config's items, with the upgrades'
+# modifications applied, in a stack arena "create_binary_config_buffer:
+# items": `mov eax,4000h` / `call _alloca_probe` at 0x358AA8, then
+# base_allocator::initialize (0xE53B0) with `push 4000h` at 0x358ABC. The
+# allocator (vtable 0x9E7E54) is a bump of its pointer and nothing else
+# (0xEFC80: no bound, no header; its free 0x2DED60 returns), so past 16 KiB
+# the items run over the function's own frame (the 587-entry KS-23M with a
+# camouflage and decals, 2026-11-01). An item is 24 bytes, a table or list
+# 12 more (construct 0x3584E0: 0x35873B, 0x358772), and an added value (a
+# type 3 modification) one item more in its table (0x358713): each fitted
+# module adds one, and six guns' configs are within 5 entries of what 16 KiB
+# holds with a camouflage and decals. 64 KiB: the function takes 0x50000 of
+# stack after it anyway (0x358B1B, 0x358B25) and an engine thread's stack is
+# THREAD_STACK_MIB. Numbers, no relocation under them.
+ITEM_CONFIG_ARENA = 0x10000
+ITEM_CONFIG_ARENAS = (
+    (0x358AA8, bytes.fromhex("b800400000"), b"\xb8" + struct.pack("<I", ITEM_CONFIG_ARENA)),
+    (0x358ABC, bytes.fromhex("6800400000"), b"\x68" + struct.pack("<I", ITEM_CONFIG_ARENA)),
+)
 
 # The game world's sound scene (game_world::load 0x1F8CA0, its
 # sound_scene_creation_params on the stack: proxies [ebp-10h], propagators
@@ -1401,7 +1490,8 @@ READ_ORDER_SHA256 = "3c49ddd03438f137bbf3ec844d41ed3c4247d6d815595f1d494a515e112
 #   ctor clears it at 0x1F1BFB, nothing else writes it): set, the player is
 #   drawn for the decal editor, its skeleton in the bind pose (mt_draw
 #   0x2474A0 at 0x2476F8: the T-pose) and its held item 10 m under it
-#   (0x24778F), with another transform (insert 0x1F30E2). The six bytes are
+#   (0x24778F), with another transform (render_model 0x1F3070, at
+#   0x1F30E2). The six bytes are
 #   a call of weapon_draw_026g.asm's player_mode (WEAPON_DRAW_OFFSET of
 #   `.srp`, in the first page after the forward effect's scrolling) and a
 #   nop: 0 while a weapon is shown (the state's mode), the window's mode
@@ -1661,6 +1751,57 @@ FALL_GRAVITY = (
      bytes.fromhex("f30f10586c" "f30f5cd9" "f30f104870" "f30f5cca" "f30f114870" "f30f104874" "f30f5cc8"
                    "f30f11586c" "f30f114874" "eb10" "8b4d00" "f30f105908" "f30f5d18" "eb9c" "cccc")),
 )
+
+# A part of a tick moves a body at rest (patch 166, ../docs/notes/fall_damage.md
+# "A part of a tick moves a body at rest"). updateAction 0x7B730 calls
+# player_step 0x7BDA0 when the step's dt is the tick (+2C704h, 0x7B760:
+# `jnp 0x7B7A9`), and for any other dt only when the body's position (+0B0h)
+# is not m_last_pos (+50h, which player_step sets to the position at its
+# start, 0x7BE7C: the body moved in its step before); else it goes to
+# 0x7B7BA, which zeroes the movement asked for this step (+20h..+3Ch, the
+# desired walk and air control vectors) as after every step. So in a tick the
+# world steps in parts (each precise input, tick_events 0x2D21E0) a body at
+# rest was not stepped at all: its player's keys did nothing until a tick
+# that was whole. player_step itself moves a body by dt / 0.05 of the tick's
+# step (0x7C13B, 0x7C603, 0x7C734) and returns at once for one with nothing
+# to do (can_skeep_player_step 0x7C7E0 at 0x7C1AE: no walk vector, no
+# velocity, no slide, not jumping, no push). STEP_PARTS makes the branch a
+# `jmp`: every step runs player_step. The compare of the position against
+# m_last_pos (0x7B76D..0x7B7A7) is no longer reached. No base relocation
+# under the site; the branch's target is the original's.
+STEP_PARTS = (0x7B76B, bytes.fromhex("7b3c"), bytes.fromhex("eb3c"))
+
+# A bullet's armour penetration does not fall with distance (patch 173,
+# ../docs/notes/client_patch.md section 3.94). update_bullet_position 0x32EE90
+# ends every move with the falloff by speed: u = clamp((speed - +7Ch) /
+# (+78h - +7Ch), 0, 1), damage +70h = min(+70h, Dmin + (Dmax - Dmin) u)
+# (0x32F0E0) and piercing +74h likewise from weapon +520h x ammo +24h and
+# their minimum x weapon +534h x ammo +20h (0x32F174). The bullet's +74h is
+# written only there, by the constructor (0x32BB7B), a record's load
+# (0x32BCDE), try_pierce (0x32DAA1, a wall's or a body's k) and try_reflect
+# (0x32E3C6, a ricochet's minimum). PIERCE_DISTANCE makes the last store of
+# update_bullet_position a five-byte nop: damage falls as before, piercing
+# keeps what the muzzle, walls and ricochets left it. Nothing branches into
+# the site; no base relocation under it.
+PIERCE_DISTANCE = (0x32F174, bytes.fromhex("f30f114f74"), bytes.fromhex("0f1f440000"))
+
+# Every wall costs a bullet something (patch 175, ../docs/notes/client_patch.md
+# section 3.96). try_pierce 0x32D960 gives a wall's k = 1 - (1 - t)^2, t =
+# clamp((P - A) / A, 0, 1): 1 once P >= 2A, so with patch 173 a strong round
+# went through brick and concrete for nothing at any range. PIERCE_WALLS makes
+# it k = 1 - (A / P)^2 in place (0x32D99E..0x32D9CE): xmm0 is 1.0, xmm1 P,
+# xmm2 A, xmm3 0 and AH the flags of A against 0. A = 0 still jumps to the
+# store with k = 1 (also for P = 0, which would be 0 / 0); P <= A gives k <= 0
+# and the bullet stops as before. Only the site's own branches land in it; no
+# base relocation under it; xmm1 and xmm2 are dead after it.
+PIERCE_WALLS = (0x32D99E,
+                bytes.fromhex("f6c4447b17f30f5ccaf30f5eca0f2fd972050f28cbeb080f2fc173030f28c8"
+                              "0f28d0f30f5cd10f28caf30f59caf30f5cc1"),
+                bytes.fromhex("f6c4447b2c"              # test ah,44h / jnp 0x32D9CF (A = 0: k = 1)
+                              "f30f5ed1"                # divss xmm2,xmm1: A / P
+                              "f30f59d2"                # mulss xmm2,xmm2
+                              "f30f5cc2"                # subss xmm0,xmm2: k = 1 - (A / P)^2
+                              + "0f1f840000000000" * 4))
 
 # A thrown grenade stays above the ground (patch 105, ../docs/notes/grenade_ccd.md).
 # grenade_core::load 0x303890 gives the grenade (RGD-5 and RDG-M) a capsule of
@@ -2092,8 +2233,8 @@ PREGAME_PROGRESS = (PREGAME_PROGRESS_VA, bytes.fromhex("e9f4000000"),
 # `st_fov_option` in all five languages, and names its console variable by
 # `mov eax,offset "fov"` (0x262930; "fov" at 0xA0659C, read nowhere else).
 # No console variable is called "fov", so the slider was never shown (the
-# menu has no instance of it either: fov_slider_026g.py adds one to
-# main_menu.swf). `uro_fov` (float at 0xA6FA28, 65.0, saved in user.cfg; the
+# menu has no instance of it either; main_menu's own Gameplay slider is
+# flash/main_menu/src/SrpFieldOfView.as). `uro_fov` (float at 0xA6FA28, 65.0, saved in user.cfg; the
 # console variable at 0xAA6510, its name "uro_fov" at 0xA281D0) is
 # registered with the range 0 to 100 and read by nothing. Option 7 stays the
 # original's, dead: the Gameplay tab's slider (exe patch 83, `uro_fov` in
@@ -2317,9 +2458,17 @@ WEAPON_TABLE_HOOKS = (
 # - the character's mouse key handler, 0x265C20 (`push ebp / mov ebp,esp /
 #   and esp,-8`, the entry; in the input vtable 0xA09F6C): `jmp click` and a
 #   nop: the left button places the decal on a click, not after a drag.
+# Two of them hold for armour too (the owner's crash of 2026-11-26, a "change"
+# clicked before the server's answer): start goes on only when the host
+# holds the edited decal, and the preview's textures, `call 0x264F80` at
+# 0x264F4D in the host's config callback 0x264EA0: textures, only when the
+# merged config has the decal's entry (else the edit ends, the callback's
+# bake skipped: WEAPON_DECALS_AFTER_HOST_BAKE).
 # No base relocation is under a site and no branch aims inside one.
 WEAPON_DECALS_OFFSET = 0x1200                  # 0x1000 until patch 45 read the lobby's spot (2026-10-29)
-WEAPON_DECALS_ENTRIES = (0x0, 0x5, 0xA, 0xF, 0x14, 0x19, 0x1E)  # lookup, fill, pick, decode, bake, start, click
+WEAPON_DECALS_ENTRIES = (0x0, 0x5, 0xA, 0xF, 0x14, 0x19, 0x1E, 0x23)  # lookup, fill, pick, decode, bake, start,
+#                                                                       click, textures
+WEAPON_DECALS_AFTER_HOST_BAKE = 0x264F68       # textures' way back when it ends the edit: 0x264EA0's epilogue
 WEAPON_DECALS_STATE_OFFSET = 0xFC0            # 0xFA0 until patch 45's state grew (2026-10-29)
 WEAPON_DECALS_STATE_SIZE = 12
 WEAPON_DECALS_HOOKS = (
@@ -2328,6 +2477,7 @@ WEAPON_DECALS_HOOKS = (
     (0x2641A0, bytes.fromhex("558bec83e4f8"), 0x14, 0xE9),      # the editor's bake
     (0x263938, bytes.fromhex("e8b3130000"), 0x19, 0xE8),        # the start's query
     (0x265C20, bytes.fromhex("558bec83e4f8"), 0x1E, 0xE9),      # the mouse key handler
+    (0x264F4D, bytes.fromhex("e82e000000"), 0x23, 0xE8),        # the preview's textures
 )
 WEAPON_CAMO_DECALS_CALLS = (0x0, 0x5)                           # the entries patch 44 calls
 
@@ -2389,7 +2539,8 @@ ARTEFACTS_HOOKS = (
 )
 ARTEFACTS_BACKS = (0x33AE1A, 0x311BCA, 0x311DA5, 0x3122B0, 0x31330A, 0x2DBD91, 0x312C0A,
                    0x25F9E8, 0x311ADA, 0x311D15)  # where each goes on (the pop-up's skip: 0x25F9F8)
-ARTEFACTS_EXITS = (0x25F9F8,)                   # the Onyx pop-up's skip past set_parameterized_message (POPUP_SKIP)
+ARTEFACTS_EXITS = (0x25F9F8,                    # the Onyx pop-up's skip past set_parameterized_message (POPUP_SKIP)
+                   0x3135BD)                    # an active's end from its cooldown on (COOLDOWN_START: recool)
 ARTEFACTS_SPRING_SIZE = 0x3F8                  # the active's two nodes at +3B8h and +3C8h, Spring II's at +3D8h, +3E8h
 ARTEFACTS_SIZES = (
     (0x25E7A8, bytes.fromhex("b8b8030000"), b"\xB8" + struct.pack("<I", ARTEFACTS_SPRING_SIZE)),
@@ -2420,12 +2571,12 @@ ARTEFACTS_SIZES = (
 # world's tick (0x3B7BD0) calls for every handler after it polled the devices
 # and before they hand out the keys: match_keys_poll sets the kits' screen's
 # state from the hud's cursor and GetTickCount (CLOSED; OPENING from the
-# first poll the kits are up at, with its time; OPEN from the first poll 300
-# ms, KIT_KEYS_DELAY, after it), and a key picks a kit only in OPEN: a key
+# first poll the kits are up at, with its time; OPEN from the first poll 1
+# s, KIT_KEYS_DELAY, after it), and a key picks a kit only in OPEN: a key
 # that went down in the frame the kits came, in play, is handed out in their
-# first tick and picks nothing, nor does one pressed in their first 300 ms
+# first tick and picks nothing, nor does one pressed in their first second
 # (the owner, 2026-10-25: "I press 3 mid-fight to heal with the medkit, I
-# die, and I swap to my 3rd kit"; then: ignore them for 300 ms).
+# die, and I swap to my 3rd kit"; then: ignore them for 300 ms; 1 s since 2026-11-18).
 MATCH_KEYS_HOOKS = (
     (0x25CD41, bytes.fromhex("837d1001" "0f85c2010000"), "match_keys_keyboard", 0xE9),   # on_keyboard_action: the kind
     (0x1F6845, bytes.fromhex("e8c6cf0300"), "match_keys_hud", 0xE8),          # the hud's constructor call
@@ -2465,9 +2616,8 @@ HIDE_UI_HOOKS = (
     (0x234AE8, bytes.fromhex("e813cb2d00"), "hide_ui_reset", 0xE8),                 # a match's root.reset
 )
 # The options' controls (the same patch): the six functions of game_options
-# that read the table of 28h rows at 0xA9DB28 read `controls` (hide_ui.data,
-# 2Dh rows, the 29h hide_interface, the 2Ah patch 78's artefact, the 2Bh
-# patch 66's ptt_nearby, the 2Ch and 2Dh patch 152's two screenshot keys)
+# that read the table of 28h rows at 0xA9DB28 read `controls` (hide_ui.data:
+# the game's rows and CONTROLS_ADDED, in the order the options list them)
 # instead: (site, its bytes, where in
 # them the address is, the row's field it names) and (site, its bytes, where
 # the count 28h is).
@@ -2502,17 +2652,119 @@ def hide_ui_table_writes(linked):
     return out
 
 
-# The rows `controls` adds after the game's 28h: (action, label key).
+# The rows `controls` adds to the game's 28h: (action, label key). Patch
+# 78's carry key (../docs/notes/held_artefact_transfer.md) is the game's own
+# action `artefact` (23h), which nothing in the game reads; its default H is in
+# its row of the moved action table (patch 149's `actions`, below), the game's
+# row having none. Patch 149's sixteen
+# (../docs/notes/item-hotkeys.md) are `actions`' (below).
 CONTROLS_ADDED = ((0x19, "st_hide_interface_action"), (0x23, "st_hold_artifact_action"),
                   (0x37, "st_ptt_nearby_action"), (0x1A, "st_screenshot_action"),
-                  (0x1B, "st_screenshot_no_ui_action"))
-# Patch 78's carry key (../docs/notes/held_artefact_transfer.md): the game's
-# own action `artefact` (23h, kinds 5; action table entry 0xA74D5C), which
-# nothing in the game reads and had no default key, gets H (the binder's
-# set_default_controls 0x2078A0 binds each entry's +10h at its construction,
-# before user.cfg; a key name the exe has, "kH" at 0x9FDCA8). Its row is the
-# 42nd of `controls`.
-ARTEFACT_KEY_DEFAULT = (0xA74D6C, bytes(4), struct.pack("<I", 0x9FDCA8))
+                  (0x1B, "st_screenshot_no_ui_action"),
+                  (0x4A, "st_use_onyx_action"),
+                  (0x4B, "st_use_spring_action"),
+                  (0x4C, "st_use_lifebone_action"),
+                  (0x4D, "st_use_bandages_action"),
+                  (0x4E, "st_use_medkit_action"),
+                  (0x4F, "st_use_military_medkit_action"),
+                  (0x50, "st_use_blackmarket_medkit_action"),
+                  (0x51, "st_use_science_medkit_action"),
+                  (0x52, "st_use_antitoxin_action"),
+                  (0x53, "st_use_painkiller_action"),
+                  (0x54, "st_use_rgd5_action"),
+                  (0x55, "st_use_rdgm_action"),
+                  (0x56, "st_use_trap_action"),
+                  (0x57, "st_use_oxygen_tank_action"),
+                  (0x58, "st_use_next_artefact_action"),
+                  (0x59, "st_use_next_medkit_action"),
+                  (0x5A, "st_srp_scope_next_action"))     # patch 206's second sight switch, default Y
+
+# A key per item type uses it (patch 149, README; client_patch.md section
+# 3.105; the rules: ../docs/notes/item-hotkeys.md). The game's action table (60
+# rows of 20 bytes at 0xA74AF0: name, id, kinds, toggle, default key's name)
+# ends where the key names' table begins (0xA74FA0), so its rows are moved:
+# `actions` (item_hotkeys_026g.asm, the arena's block item_hotkeys.data) is the
+# game's 60, sixteen more (ids 4Ah..59h, ITEM_HOTKEYS_BINDER below) and patch 206's scope_next (5Ah,
+# default Y). The four functions of the key binder that read the table by its
+# address read `actions`: (site, its bytes, where in them the address is, the
+# row's field it names); the binder's construction compares its pointer with
+# the table's end (ITEM_HOTKEYS_TABLE_END), the other three count its bytes,
+# 4B0h (ITEM_HOTKEYS_TABLE_COUNTS: site, bytes, where the count is). Every
+# other reader takes a row through a binding's description pointer. Patch 78's
+# default H for `artefact` (set_default_controls 0x2078A0 binds a row's +10h at
+# the binder's construction, before user.cfg) is in the moved row: the game's
+# row 0xA74D5C has none and is no longer read. Each address has its base
+# relocation, kept: the new one is the image's too (the arena); no relocation
+# is under a count.
+ITEM_HOTKEYS_TABLE = 0xA74AF0
+ITEM_HOTKEYS_GAME_ROWS = 60
+ITEM_HOTKEYS_ROWS = 77
+ITEM_HOTKEYS_TABLE_REFS = (
+    (0x20755B, bytes.fromhex("b8f04aa700"), 1, 0x0),           # the binder's construction: mov eax,table
+    (0x2078AB, bytes.fromhex("8b83004ba700"), 2, 0x10),        # set_default_controls: mov eax,[ebx+table+10h]
+    (0x2078B5, bytes.fromhex("8bbbf04aa700"), 2, 0x0),         # its name: mov edi,[ebx+table]
+    (0x2079E5, bytes.fromhex("3b90f44aa700"), 2, 0x4),         # id_to_action_name: cmp edx,[eax+table+4]
+    (0x207A52, bytes.fromhex("8b0485f04aa700"), 3, 0x0),       # its name: mov eax,[eax*4+table]
+    (0x207AE6, bytes.fromhex("8b86f04aa700"), 2, 0x0),         # action_name_to_ptr: mov eax,[esi+table]
+    (0x207B65, bytes.fromhex("8d0485f04aa700"), 3, 0x0),       # its row: lea eax,[eax*4+table]
+)
+ITEM_HOTKEYS_TABLE_END = (0x20756C, bytes.fromhex("3da04fa700"), 1)    # the construction: cmp eax,table end
+ITEM_HOTKEYS_TABLE_COUNTS = (
+    (0x2078F0, bytes.fromhex("81fbb0040000"), 2),              # set_default_controls: cmp ebx,4B0h
+    (0x2079F1, bytes.fromhex("3db0040000"), 1),                # id_to_action_name: cmp eax,4B0h
+    (0x207B01, bytes.fromhex("81feb0040000"), 2),              # action_name_to_ptr: cmp esi,4B0h
+)
+
+
+def item_hotkeys_table_writes(linked):
+    """[(site, its bytes, the new bytes)] of the four functions' table, end
+    and counts, `actions` being the link's."""
+    table, size = linked.symbols["actions"], 20 * ITEM_HOTKEYS_ROWS
+    put = lambda old, at, value: old[:at] + struct.pack("<I", value) + old[at + 4:]
+    out = [(va, old, put(old, at, table + field)) for va, old, at, field in ITEM_HOTKEYS_TABLE_REFS]
+    va, old, at = ITEM_HOTKEYS_TABLE_END
+    out.append((va, old, put(old, at, table + size)))
+    out += [(va, old, put(old, at, size)) for va, old, at in ITEM_HOTKEYS_TABLE_COUNTS]
+    return out
+
+
+# The key binder's bindings, more of them (the same patch). The binder (a heap
+# object of 364h bytes, game+5344h) is 48h bindings of 0Ch bytes indexed by
+# the action id ({description, key, second key}), then the game at +360h. Its
+# readers (every load of game+5344h, 16, and the bind commands' +64h): the
+# allocation (0x1EA265), the construction (0x207544 the memset, 0x20754D the
+# game's place), get_binded_action (0x207D87, its loop over the bindings),
+# bind_key (0x207E8E: its loop clearing the key from the others, 6 bindings a
+# pass), the bind command's save (0x207524), the key names' translation
+# (0x207937, the game at +360h); the options, the hud, the chat and the input
+# handlers index a binding by an action id (layout unchanged), unbind
+# (0x207FF0) too. The binder becomes ITEM_HOTKEYS_BINDINGS bindings (a multiple
+# of 6, under 80h: get_binded_action's count is a signed byte), the game after
+# them. 48h and 49h stay without an action: 48h is the options' "no key being
+# set" (game_options +3Ch), 49h get_binded_action's "none", and the binding an
+# unbind of an unknown name clears (0x20801D: in the game, past the binder's
+# 364h bytes). (site, its bytes, where in them the value is, its size, what it
+# is: "bytes" the bindings' size, "end" the game's place (the same), "object"
+# the allocation, "count" the bindings, "passes" bind_key's passes of 6.)
+ITEM_HOTKEYS_BINDINGS = 0x60
+ITEM_HOTKEYS_BINDER = (
+    (0x1EA265, bytes.fromhex("b864030000"), 1, 4, "object"),          # the game's init: mov eax,364h / call alloc
+    (0x207544, bytes.fromhex("6860030000"), 1, 4, "bytes"),            # the construction: push 360h (memset)
+    (0x20754D, bytes.fromhex("898660030000"), 2, 4, "end"),            # mov [esi+360h],eax (the game)
+    (0x207524, bytes.fromhex("81fa60030000"), 2, 4, "bytes"),          # the bind command's save: cmp edx,360h
+    (0x207937, bytes.fromhex("8b8860030000"), 2, 4, "end"),            # the key names: mov ecx,[eax+360h]
+    (0x207D87, bytes.fromhex("83fa48"), 2, 1, "count"),                # get_binded_action: cmp edx,48h
+    (0x207E8E, bytes.fromhex("c744240c0c000000"), 4, 4, "passes"),     # bind_key: mov dword [esp+0Ch],0Ch
+)
+
+
+def item_hotkeys_binder_writes():
+    """[(site, its bytes, the new bytes)] of the binder's readers."""
+    n = ITEM_HOTKEYS_BINDINGS
+    assert n % 6 == 0 and n < 0x80
+    values = {"object": 12 * n + 4, "bytes": 12 * n, "end": 12 * n, "count": n, "passes": n // 6}
+    return [(va, old, old[:at] + values[what].to_bytes(size, "little") + old[at + size:])
+            for va, old, at, size, what in ITEM_HOTKEYS_BINDER]
 
 
 # The screenshot keys (patch 152, README "Two keys save a screenshot"; the
@@ -2527,20 +2779,8 @@ ARTEFACT_KEY_DEFAULT = (0xA74D6C, bytes(4), struct.pack("<I", 0x9FDCA8))
 # key for every player: a saved user.cfg's `bind toggle_replay_ui kF11` names
 # no action now, so bind_key (0x207DC0) binds nothing and the three defaults
 # stand; with the old name it would take F11 back from `screenshot` (a key
-# has one action of a kind). Each: (the entry, its bytes {name, id, kinds,
-# toggle, default key}, the arena's name, the default key's name in the exe).
-SCREENSHOT_ACTIONS = (
-    (0xA74CA8, struct.pack("<5I", 0x9FDF24, 0x19, 5, 0, 0x9FDF1C), "hide_interface_action", 0x9FDC1C),    # kF9
-    (0xA74CBC, struct.pack("<5I", 0x9FDF14, 0x1A, 5, 0, 0), "screenshot_action", 0x9FDF1C),               # kF11
-    (0xA74CD0, struct.pack("<5I", 0x9FDF04, 0x1B, 5, 0, 0), "screenshot_no_ui_action", 0x9FDB60),         # kF12
-)
-
-
-def screenshot_action_writes(linked):
-    """[(VA, its bytes, the new bytes)] of the three entries: the name the
-    link's, the id, the kinds and the toggle as they were, the default key."""
-    return [(va, old, struct.pack("<I", linked.symbols[name]) + old[4:16] + struct.pack("<I", key))
-            for va, old, name, key in SCREENSHOT_ACTIONS]
+# has one action of a kind). The three rows are in the moved action table
+# (patch 149's `actions`, item_hotkeys_026g.asm), their names hide_ui_026g.asm's.
 
 
 HIDE_UI_BACKS = (0x25CEDB, 0x25CF0D, 0x26CCAE, 0x26CDD2)
@@ -2557,21 +2797,12 @@ HIDE_UI_BACKS = (0x25CEDB, 0x25CF0D, 0x26CCAE, 0x26CDD2)
 # debug action whose console command does not exist), which becomes
 # ptt_nearby, kind 8, its default key O kept (in a match only that debug
 # action had it; the lobby's `options`, kind 2, has it too, as C is both
-# crouch_toggle's and the lobby's `character`'s). Its Controls row is the
-# 43rd of `controls` (CONTROLS_ADDED).
-# The action table's entry {name, id, kinds, toggle, default key}: 37h.
+# crouch_toggle's and the lobby's `character`'s). It has a Controls row
+# (CONTROLS_ADDED), beside the radio's push-to-talk. Its row is in the moved action table
+# (patch 149's `actions`, item_hotkeys_026g.asm). The game's row
+# {name, id, kinds, toggle, default key} of 37h, no longer read:
 VOICE_ACTION = 0xA74E10
 VOICE_ACTION_OLD = struct.pack("<5I", 0x9FDDF8, 0x37, 5, 0, 0x9FDDF4)
-VOICE_ACTION_KINDS = 8
-# The entry as an install row (the build's write index names its owner by it).
-VOICE_ACTION_ENTRY = (VOICE_ACTION, VOICE_ACTION_OLD)
-
-
-def voice_action_write(linked):
-    """(VA, its bytes, the new bytes) of the action's entry: the name the
-    link's ptt_nearby_action, kind 8, the default key as it was."""
-    name = linked.symbols["ptt_nearby_action"]
-    return VOICE_ACTION, VOICE_ACTION_OLD, struct.pack("<5I", name, 0x37, VOICE_ACTION_KINDS, 0, 0x9FDDF4)
 
 
 # The kill feed's wall, ricochet and pain icons (patch 67, README; client_patch.md
@@ -2790,6 +3021,7 @@ INSTALLS = {
     0x2641A0: (ENTRY, "the decal editor's bake: bake", None, None),
     0x263938: (CALLEE, "the decal editor's start query: start", None, None),
     0x265C20: (ENTRY, "the lobby character's mouse keys: click", None, None),
+    0x264F4D: (CALLEE, "the decal editor's host config callback, its textures' query: textures", None, None),
     0x29A9B2: (INLINE, "relocate_upgrade_item: relocate", None, None),
     0x29AACF: (INLINE, "drop_upgrade_item: drop", None, None),
     0x270313: (CALLEE, "the 0x87 reader's last call: account", None, None),
@@ -2881,11 +3113,15 @@ MATCH_STAT_MAP_HOOKS = (
 )
 INSTALLS[0x29ABE1] = (JUMP, "fill_match_statistic's map name (lobby_menu+313Ch, NULL until a match is loaded) as \"\"; "
                             "replay mov ecx,[esi+313Ch]", None, None)
-# expand_text's {USE} with no key bound (0x207BF0 finds no entry) translated
-# NULL (0x1FF09D); the branch goes to its unknown-placeholder path instead,
-# which appends nothing: what translate_text("") gives (0.31+ translate
-# st_key_use_not_assigned, a key 0.26g's dictionary does not have).
-EXPAND_TEXT_UNBOUND = (0x1FF073, bytes.fromhex("741b"), bytes.fromhex("7436"))   # je 1FF090 -> je 1FF0AB
+# Patch 212 (README "Keys in texts"): expand_text (0x1FEF90) makes a text's
+# {USE} the key bound to Use and any other {NAME} nothing. Its jne at
+# 0x1FF037 (a name other than USE) becomes a jmp: every name goes to that
+# path, 0x1FF0AB, where the Rust lohook `text_translator.expand_name`
+# (key_prompts.rs) makes it the key bound to the action of that name, or
+# st_srp_key_unbound. The stock USE path (0x1FF039..0x1FF0A9) is no longer
+# run: its unbound {USE} translated NULL (0x1FF09D), which the build's
+# EXPAND_TEXT_UNBOUND (0x1FF073) sent to the empty path before.
+EXPAND_TEXT_NAMES = (0x1FF037, bytes.fromhex("7572"), bytes.fromhex("eb72"))   # jne 1FF0AB -> jmp 1FF0AB
 # The battery's cook asks for its clips in room for 64 requests (patch 143,
 # ../docs/notes/battery-hit.md "The cook's requests"). victory_item_core's
 # cook (0x2FA050) gathers its resource requests in a buffer_vector on its
@@ -2946,6 +3182,9 @@ for _va, _what in ((0xED30F, "sin x"), (0xED31F, "cos x"), (0xED32F, "sin y"), (
 INSTALLS[0x742A5] = (CALLEE, "quaternion::quaternion(axis, angle)'s sin: animation_math (Rust `call` hook)", None, None)
 INSTALLS[0x742B5] = (CALLEE, "quaternion::quaternion(axis, angle)'s cos: animation_math (Rust `call` hook)", None, None)
 INSTALLS[0x743B2] = (CALLEE, "get_axis_and_angle's atan2: animation_math (Rust `call` hook)", None, None)
+INSTALLS[0x298664] = (CALLEE, "correct_fingers' set_weapon_model 0x390620 (stdcall, the corrector, the instance, the "
+                              "view; `ret 0Ch`) at a change of view: attachments (Rust `call` hook), the function, "
+                              "then a grip's finger sets", None, None)
 INSTALLS[0x3B3340] = (ENTRY, "time_channel::domain: animation_math_domain, the same search without a division "
                              "per step", None, None)
 
@@ -2973,6 +3212,11 @@ DETAIL_HOOKS = (
     (0x158D26, bytes.fromhex("8b81e8000000"), "detail_shader", 0xE9),
     (0x1605E0, bytes.fromhex("f30f105150"), "detail_grass", 0xE9),
     (0x3D9C43, bytes.fromhex("8b9194810800"), "detail_texture", 0xE9),
+    # The sun's shadow cascades: per-cascade caster cull, grass shadow LOD and distance.
+    (0x175212, bytes.fromhex("0f84f6000000"), "detail_shadow_cull", 0xE9),
+    (0x17528E, bytes.fromhex("f30f11442410"), "detail_shadow_threshold", 0xE9),
+    (0x1CCB4C, bytes.fromhex("83fe1a750140"), "detail_grass_shadow_lod", 0xE9),
+    (0x175724, bytes.fromhex("8b5424586a01"), "detail_grass_shadow_distance", 0xE9),
 )
 DETAIL_PATCHES = (
     (0x261373, bytes.fromhex("80f90a"), bytes.fromhex("80f90b")),
@@ -3075,13 +3319,12 @@ def our_ranges(data, writes):
     return ours + [(va, va + len(new)) for va, old, new in writes if is_cave(old) or va == HASH_MISMATCH_VA]
 
 
-def arena_data_ranges():
-    """[(lo, hi)] of the arena's data and state blocks (arena_026g.lock.json,
-    which every build's link must be): no code is there, so an address of one
-    the game is given (a table it reads) is data, not an install."""
-    lock = linker.read_lock()
-    blocks = lock["blocks"].values() if lock else ()
-    return [(int(b["va"], 16), int(b["va"], 16) + b["size"]) for b in blocks if b["kind"] != "code"]
+def arena_data_ranges(linked):
+    """[(lo, hi)] of the data and state blocks of the arena `linked` (none
+    without one): no code is there, so an address of one the game is given
+    (a table it reads) is data, not an install."""
+    blocks = linked.blocks.values() if linked is not None else ()
+    return [(b.va, b.va + b.size) for b in blocks if b.kind != "code"]
 
 
 def installs_of(data, writes):
@@ -3089,9 +3332,10 @@ def installs_of(data, writes):
     function build() made the game call, found at any offset of any write
     into the game's sections: a `call` (E8) or `jmp` (E9) rel32 to our code,
     any other 4 bytes that name our code ("pointer": a slot, a delegate, a
-    `push imm32`, a `mov imm32`), and a body replaced in place ("body")."""
+    `push imm32`, a `mov imm32`), and a body replaced in place ("body").
+    The arena is the last build's (BUILT_ARENA)."""
     ours = our_ranges(data, writes)
-    data_blocks = arena_data_ranges()
+    data_blocks = arena_data_ranges(BUILT_ARENA[0])
     inside = lambda target: any(lo <= target < hi for lo, hi in ours) \
         and not any(lo <= target < hi for lo, hi in data_blocks)
     out = {}
@@ -3169,21 +3413,25 @@ for _va, _owner, _what in hooks_026g.lohook_sites():
 # (arena_target), so no block keeps a VA of its own: the exe is made whole
 # for every release and never rebased, and nothing outside it holds an
 # address of the arena. The file holds the whole arena (a state block as
-# zeros), only the section's sizes and SizeOfImage grow, and the linked bytes
-# must be arena_026g.lock.json's (arena()). With no block declared there
-# would be no `.srpx` at all.
+# zeros), and only the section's sizes and SizeOfImage grow. With no block
+# declared there would be no `.srpx` at all.
 #   ArenaBlock(name, kind, align, sources): name "<patch>.<what>", unique;
 #   kind "code" (the sources' .text and .rodata, int3 after them), "data"
 #   (their .data) or "state" (their .bss: zeros); align a power of two from
 #   16, 0x1000 for a page of its own; sources the .c and .asm files.
 # A new patch adds its blocks (anywhere: the order is only the layout's) and
-# its source files, then `python link_026g.py --write`.
+# its source files.
 ARENA_NAME = b".srpx\0\0\0"
 ARENA_CHARACTERISTICS = 0xE0000060              # code, initialized data, execute, read, write
 ARENA_VA = 0xA42D000                            # weapon_camo_va + .srpw's three pages
 # The most the arena may take: a block of a runaway size (a state array, a
 # table) stops the link instead of growing the image. Raise it on purpose.
-ARENA_LIMIT = 0x180000                          # 0x100000 until patch 121 took the arena past it
+# It is our own number: `.srpx` is the image's last section, nothing follows
+# it in the file's layout, and only its sizes and SizeOfImage grow with it.
+# What a larger arena costs is its own bytes of the game's address space, at
+# the image's end, where the engine's arenas and the video driver take theirs
+# from what is free (memory-report.md).
+ARENA_LIMIT = 0x300000                          # 0x100000 until patch 121, 0x180000 until patch 161
 ArenaBlock = linker.ArenaBlock
 
 ARENA = (
@@ -3201,7 +3449,8 @@ ARENA = (
     ArenaBlock("match_keys.code", "code", 0x1000, ("match_keys_026g.asm",)),     # patch 58
     ArenaBlock("match_keys.state", "state", 0x1000, ("match_keys_026g.asm",)),   # its option's variable
     ArenaBlock("hide_ui.code", "code", 0x1000, ("hide_ui_026g.asm",)),           # patch 62
-    ArenaBlock("hide_ui.data", "data", 0x1000, ("hide_ui_026g.asm",)),           # the options' 43 controls
+    ArenaBlock("hide_ui.data", "data", 0x1000, ("hide_ui_026g.asm",)),           # the options' 61 controls
+    ArenaBlock("item_hotkeys.data", "data", 0x10, ("item_hotkeys_026g.asm",)),   # patch 149: the action table
     ArenaBlock("kill_feed.code", "code", 0x1000, ("kill_feed_026g.asm",)),       # patch 67
     ArenaBlock("audio_device.code", "code", 0x1000, ("audio_device_026g.c", "audio_device_engine_026g.c")),  # patch 100
     ArenaBlock("audio_device.state", "state", 0x10, ("audio_device_026g.c", "audio_device_engine_026g.c")),  # its engine
@@ -3224,10 +3473,37 @@ ARENA = (
 )
 
 
+_GENERATED = []
+
+
+def generate_sources(original=None):
+    """Writes the arena's generated sources, never committed (srp-026g/.gitignore):
+    engine_026g.py's library and `raw` layer, hooks_026g.py's entries and shims
+    (a span hook's bytes from `original`, the exe built from, else the one
+    SRP_026G_EXE names) and patch 79's language table (localization_026g.py).
+    Once a process, before its first link; a file that already holds its bytes
+    is left alone (cargo and rust-analyzer see no change)."""
+    if _GENERATED:
+        return
+    import engine_026g
+    import localization_026g
+    try:
+        files = {**engine_026g.outputs(),
+                 **hooks_026g.outputs(exe=hooks_026g.original_reader(original) if original else None),
+                 localization_026g.RUST_TABLE: localization_026g.rust_table().encode()}
+    except (engine_026g.Refused, hooks_026g.Bad, ValueError) as error:
+        sys.exit(f"the arena's generated sources: {error}")
+    for path, content in files.items():
+        if not path.is_file() or path.read_bytes() != content:
+            path.write_bytes(content)
+    _GENERATED.append(True)
+
+
 def arena(blocks=None, tools=None):
     """The linked arena (link_026g.Linked) of `blocks` (ARENA when None, or
-    the self-test's made-up arenas); the build stops when it cannot be
-    linked, or when ARENA's is not arena_026g.lock.json's."""
+    the self-test's made-up arenas), its generated sources written first; the
+    build stops when it cannot be linked."""
+    generate_sources()
     default = blocks is None
     blocks = ARENA if default else tuple(blocks)
     if default:
@@ -3236,16 +3512,9 @@ def arena(blocks=None, tools=None):
         except hooks_026g.Bad as error:
             sys.exit(f"the Rust patches: {error}")
     try:
-        linked = linker.link(blocks, ARENA_VA, ARENA_LIMIT, tools)
+        return linker.link(blocks, ARENA_VA, ARENA_LIMIT, tools)
     except linker.LinkError as error:
         sys.exit(f".srpx: {error}")
-    if default:
-        why = linker.lock_differs(linked, linker.read_lock())
-        if why is not None:
-            sys.exit(f".srpx: the arena linked from its sources is not {linker.LOCK.name}'s: {why}. After a "
-                     "change of an arena source: python link_026g.py --write (and commit the lock); with no "
-                     "change, the tools differ from the lock's")
-    return linked
 
 
 def arena_target(linked, symbol):
@@ -3363,6 +3632,8 @@ def data_file_offset(va):
 # Every write of build() into the original's sections: (VA, the original's
 # bytes, the new ones), in order. audit_installs reads it.
 WRITES = []
+# The arena build() linked (None: a build without one).
+BUILT_ARENA = [None]
 
 # The one place build() writes (docs/notes/rust_patches.md, "The build"):
 # every write into the original's bytes (an install, a data or constant
@@ -3531,9 +3802,59 @@ def pe_checksum(data, checksum_at):
     return total + len(data)
 
 
+# The relocation table is read once, not once a call (hundreds a build): the
+# HIGHLOW entries of the last tables read, by VA, and the table the last
+# call left (the one read, with the entries this function turned to type 0).
+_RELOC_READ = {}                # {table bytes: (array of VAs, array of offsets in the table)}, the last few
+_RELOC_NOW = [None, None]       # [the table as the last call left it, its entry in _RELOC_READ]
+
+
+def _reloc_entries(table):
+    """(VAs, offsets in the table) of a base relocation table's HIGHLOW
+    entries, sorted by VA; None for a table whose blocks do not end at its
+    end (read entry by entry then)."""
+    entries, o = [], 0
+    while o < len(table):
+        if o + 8 > len(table):
+            return None
+        page, block = struct.unpack_from("<II", table, o)
+        if block < 8:
+            break
+        if o + block > len(table):
+            return None
+        for at in range(o + 8, o + block - 1, 2):
+            e = struct.unpack_from("<H", table, at)[0]
+            if e >> 12 == 3:
+                entries.append((IMAGE_BASE + page + (e & 0xFFF), at))
+        o += block
+    entries.sort()
+    return array.array("I", (va for va, _ in entries)), array.array("I", (at for _, at in entries))
+
+
+def _reloc_candidates(data, start, end, ranges):
+    """[(file offset, VA)] in the table's order of the entries that were
+    HIGHLOW when the table was read and overlap a range; None when the table
+    cannot be indexed."""
+    table = data[start:end]
+    if _RELOC_NOW[0] != table:
+        key = bytes(table)
+        if key not in _RELOC_READ:
+            while len(_RELOC_READ) >= 4:
+                del _RELOC_READ[next(iter(_RELOC_READ))]
+            _RELOC_READ[key] = _reloc_entries(key)
+        _RELOC_NOW[:] = bytearray(key), _RELOC_READ[key]
+    if _RELOC_NOW[1] is None:
+        return None
+    vas, ats = _RELOC_NOW[1]
+    # an entry's dword [va, va + 4) overlaps [lo, hi): lo - 4 < va < hi
+    return sorted({(start + ats[i], vas[i]) for lo, hi in ranges
+                   for i in range(bisect.bisect_right(vas, lo - 4), bisect.bisect_left(vas, hi))})
+
+
 def neutralize_relocs(data, ranges):
     """Turn HIGHLOW base relocations that overlap a [lo, hi) VA range into
-    type 0 (skip). Returns the VAs of the changed entries."""
+    type 0 (skip). Returns the VAs of the changed entries, in the table's
+    order."""
     headers = Headers(data)
     rva, size = struct.unpack_from("<II", data, headers.reloc_at)
     base_off = None
@@ -3542,7 +3863,31 @@ def neutralize_relocs(data, ranges):
             base_off = rva - srva + raw
     if base_off is None:
         sys.exit("no .reloc section")
-    o, end, changed = base_off, base_off + size, []
+    ranges = list(ranges)
+    candidates = _reloc_candidates(data, base_off, base_off + size, ranges)
+    if candidates is None:
+        candidates = _reloc_walk(data, base_off, base_off + size, ranges)
+    changed = []
+    for at, va in candidates:
+        e = struct.unpack_from("<H", data, at)[0]
+        if e >> 12 != 3:                                  # turned to type 0 by an earlier call
+            continue
+        # owned by the write the relocated dword is under
+        if _BUILDING[0]:
+            owner = next((w.owner for w in APPLIED if w.kind == "write" and w.va is not None
+                          and w.va <= va < w.va + len(w.new)), None) or instance_of(va)
+            _claim(owner, "relocation", va, at, struct.pack("<H", e & 0xFFF))
+        struct.pack_into("<H", data, at, e & 0xFFF)
+        if _RELOC_NOW[1] is not None:
+            struct.pack_into("<H", _RELOC_NOW[0], at - base_off, e & 0xFFF)
+        changed.append(va)
+    return changed
+
+
+def _reloc_walk(data, o, end, ranges):
+    """[(file offset, VA)] of the HIGHLOW entries that overlap a range, the
+    table read entry by entry (a table _reloc_entries does not take)."""
+    found = []
     while o < end:
         page, block = struct.unpack_from("<II", data, o)
         if block < 8:
@@ -3552,15 +3897,9 @@ def neutralize_relocs(data, ranges):
             e = struct.unpack_from("<H", data, at)[0]
             va = IMAGE_BASE + page + (e & 0xFFF)
             if e >> 12 == 3 and any(va + 4 > lo and va < hi for lo, hi in ranges):
-                # owned by the write the relocated dword is under
-                if _BUILDING[0]:
-                    owner = next((w.owner for w in APPLIED if w.kind == "write" and w.va is not None
-                                  and w.va <= va < w.va + len(w.new)), None) or instance_of(va)
-                    _claim(owner, "relocation", va, at, struct.pack("<H", e & 0xFFF))
-                struct.pack_into("<H", data, at, e & 0xFFF)
-                changed.append(va)
+                found.append((at, va))
         o += block
-    return changed
+    return found
 
 
 def split_code(code):
@@ -3675,10 +4014,11 @@ def add_code_section(data, name, va, code, characteristics):
 
 def build(*args, **kwargs):
     """build_image() with every write recorded by apply() (APPLIED, its
-    owners and spans, overlaps refused); APPLIED and WRITES stay this build's
-    after it returns."""
+    owners and spans, overlaps refused); APPLIED, WRITES and BUILT_ARENA stay
+    this build's after it returns."""
     WRITES.clear()
     APPLIED.clear()
+    BUILT_ARENA[0] = None
     _BUILDING[0] = True
     try:
         return build_image(*args, **kwargs)
@@ -3710,9 +4050,8 @@ def build_image(original, mode, code=None, server=None, late_join=None, revision
     offered patches); none when not given. It is the mount's bitmap and
     nothing else.
     arena_blocks: the blocks of `.srpx` instead of ARENA (the self-test's made-up
-    arenas: ARENA's own reordered, or more blocks after them; no lock is
-    compared, ARENA's own hooks are made); () for none; the build with the
-    late join only."""
+    arenas: ARENA's own reordered, or more blocks after them; ARENA's own hooks
+    are made); () for none; the build with the late join only."""
     if hashlib.sha256(original).hexdigest() != EXE_SHA256:
         sys.exit("the source is not the original 0.26g survarium.exe (sha256 mismatch)")
     if server is not None:
@@ -3876,7 +4215,7 @@ def build_image(original, mode, code=None, server=None, late_join=None, revision
         for site in MEMORY_DEFAULTS + ARENA_DEFAULTS + THREAD_STACKS + MT_ARENA:
             patch(data, *site)
             sites.append((site[0], site[0] + len(site[1])))
-        for site in SOUND_POOLS:
+        for site in SOUND_POOLS + ITEM_CONFIG_ARENAS:
             patch(data, *site)
             sites.append((site[0], site[0] + len(site[1])))
         patch(data, *SPOT_COOLDOWN)
@@ -3884,6 +4223,12 @@ def build_image(original, mode, code=None, server=None, late_join=None, revision
         for site in FALL_GRAVITY:
             patch(data, *site)
             sites.append((site[0], site[0] + len(site[1])))
+        patch(data, *STEP_PARTS)
+        sites.append((STEP_PARTS[0], STEP_PARTS[0] + len(STEP_PARTS[1])))
+        patch(data, *PIERCE_DISTANCE)
+        sites.append((PIERCE_DISTANCE[0], PIERCE_DISTANCE[0] + len(PIERCE_DISTANCE[1])))
+        patch(data, *PIERCE_WALLS)
+        sites.append((PIERCE_WALLS[0], PIERCE_WALLS[0] + len(PIERCE_WALLS[1])))
         # An address of .rdata for another: its relocation stays.
         patch(data, *GRENADE_CCD)
         for site in MOUSE_BUTTONS:
@@ -4212,7 +4557,9 @@ def build_image(original, mode, code=None, server=None, late_join=None, revision
         upgrade_preview = open(upgrade_preview_bin(), "rb").read()
         # `.srpx`, the arena, linked here: patch 48's kit_apply takes patch
         # 68's weapon_kit_preview_apply (UPGRADE_PREVIEW_KIT_APPLY; 0 without it).
+        generate_sources(original)
         linked = arena(arena_blocks) if arena_blocks != () else None
+        BUILT_ARENA[0] = linked
         upgrade_preview = with_kit_apply(upgrade_preview, linked)
         weapon_camo = with_bake_name(weapon_camo, bake_name_at, linked)
         upgrade_preview_state = late_join_state_va(late_join) + UPGRADE_PREVIEW_STATE_OFFSET
@@ -4293,15 +4640,13 @@ def build_image(original, mode, code=None, server=None, late_join=None, revision
                 patch_section_value(data, slot, old, struct.pack("<I", arena_target(linked, symbol)))
                 slot, old, symbol = MODULE_WATCH_TLS_SLOT
                 callbacks = linked.symbols.get(symbol)
-                if callbacks is None or not any(lo <= callbacks < hi for lo, hi in arena_data_ranges()):
+                if callbacks is None or not any(lo <= callbacks < hi for lo, hi in arena_data_ranges(linked)):
                     sys.exit(f".srpx: {symbol!r} is no symbol of a data block of the arena")
                 patch_section_value(data, slot, old, struct.pack("<I", callbacks))
                 for va, old, new in hide_ui_table_writes(linked):
                     patch(data, va, old, new)
-                patch_section_value(data, *ARTEFACT_KEY_DEFAULT)
-                patch_section_value(data, *voice_action_write(linked))
-                for write in screenshot_action_writes(linked):
-                    patch_section_value(data, *write)
+                for va, old, new in item_hotkeys_table_writes(linked) + item_hotkeys_binder_writes():
+                    patch(data, va, old, new)
                 for change in DETAIL_PATCHES:
                     patch(data, *change)
                 patch(data, *KILL_FEED_ARGUMENT)
@@ -4314,7 +4659,7 @@ def build_image(original, mode, code=None, server=None, late_join=None, revision
                 if neutralize_relocs(data, [(va, va + len(old)) for va, old, _ in MAP_ID_READERS]):
                     sys.exit("a base relocation under a reader of the options' map")
                 patch(data, *EMPTY_SHOT_QUIET)
-                patch(data, *EXPAND_TEXT_UNBOUND)
+                patch(data, *EXPAND_TEXT_NAMES)
                 for change in BATTERY_COOK_REQUESTS:
                     patch(data, *change)
                 if neutralize_relocs(data, [(va, va + len(old)) for va, old, _ in BATTERY_COOK_REQUESTS]):
@@ -4371,6 +4716,7 @@ def build_image(original, mode, code=None, server=None, late_join=None, revision
                      f"an engine thread's stack is {THREAD_STACK_MIB} MiB, "
                      f"the multithreaded arena at least {MT_ARENA_MIB} MiB, "
                      f"the game world's sound scene has {SOUND_INSTANCES} sound instances and propagators, "
+                     f"an upgraded item's config is rebuilt in {ITEM_CONFIG_ARENA >> 10} KiB, "
                      "a history item's six world sections grow on the heap, "
                      "a weapon's upgrade window shows the weapon, "
                      "the commit_suicide key (K) kills one's own player, "
@@ -4386,7 +4732,7 @@ def build_image(original, mode, code=None, server=None, late_join=None, revision
                      "an upgrade dropped on a weapon in its window is shown at once, "
                      f"Research (mode 5: rule class {RESEARCH_CLASS:#x}, its hud and messages), "
                      "a Spring's passive and active take aim time from its config and its active takes the bullets' slow away, a Lifebone's active fills "
-                     "every body part's pool, and one press fires every artefact of its kind, "
+                     "every body part's pool, and one press fires every artefact of its kind and starts its cooling ones' cooldown again, "
                      "Onyx fired together each 1 s longer per other one and reducing a hit once, "
                      "their activation hint shown once a press for their active time, "
                      "the keys 1, 2 and 3 pick a kit while the kits are shown (none for a key pressed before "

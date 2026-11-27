@@ -369,7 +369,7 @@ impl SpawnHistory {
     }
 }
 
-/// A research unit (`rr_write`): 96 bytes.
+/// A research unit (`research_rule::write`): 96 bytes.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct ResearchUnit {
     progress: u32,
@@ -415,8 +415,8 @@ impl ResearchUnit {
     }
 }
 
-/// Research's rule (exe patch 53, `rr_write` / `rr_read`): two points, two
-/// shown scores, the end, the entered places, the unit count, the units.
+/// Research's rule (exe patch 53, `research_rule::write` / `research_rule::read`):
+/// two points, two shown scores, the end, the entered places, the unit count, the units.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Research {
     points: [u32; 2],
@@ -446,7 +446,7 @@ impl Research {
         })
     }
 
-    /// A rule of `units` units that fills `bytes`, as `rr_read` takes it.
+    /// A rule of `units` units that fills `bytes`, as `research_rule::read` takes it.
     fn read(bytes: &[u8], units: usize) -> Option<Self> {
         let mut reader = Reader::new(bytes, 0);
         let points = [reader.u32().ok()?, reader.u32().ok()?];
@@ -934,6 +934,7 @@ const FREE_FLOATS: usize = 16 + 16 + 3 + 3 + 1;
 /// The mode's own rule, between the respawn rule and the kd stats.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ModeRule {
+    FreezeTag(super::freeze::FreezeTag),
     /// Modes 2 and 3.
     Gather(Gather),
     /// Mode 4.
@@ -943,6 +944,10 @@ pub enum ModeRule {
     /// A free-for-all (mode 8): no rule of its own; exe patch 142's spawn
     /// history follows the respawn rule, then the kd stats.
     FreeForAll(SpawnHistory),
+    /// Mode 13: Artifact Hunt's rule, read by its own crate
+    /// (`artefact_hunt_rule::Rule::read_back`, the one definition of its
+    /// bytes) with the map's parameters.
+    ArtefactHunt(artefact_hunt_rule::Rule),
 }
 
 /// A roster place in `kd_stats_rule`.
@@ -1024,6 +1029,18 @@ impl<'a> Rules<'a> {
             rest.is_empty().then_some(Respawn { points, ..respawn })
         };
         let (respawn, mode_rule) = match context.game_mode {
+            // Version 3's rule or version 4's (FreezeTag::read_back); none read, the respawn
+            // rule before a version 4 rule's length and the rule refused.
+            mode::FREEZE_TAG => match super::freeze::FreezeTag::read_back(middle) {
+                Some((at, rule)) => (
+                    respawn_to(at),
+                    Some(rule).filter(|rule| rule.fits(places)).map(ModeRule::FreezeTag),
+                ),
+                None => (
+                    middle.len().checked_sub(super::freeze::FreezeTag::LEN).and_then(respawn_to),
+                    None,
+                ),
+            },
             mode::TEAM_DEATHMATCH => match middle.len().checked_sub(TDM) {
                 Some(at) => (
                     respawn_to(at),
@@ -1045,6 +1062,17 @@ impl<'a> Rules<'a> {
                 ),
                 None => (None, None),
             },
+            // Its last byte says where it starts: no other split, so what
+            // does not read is the rule's own refusal.
+            mode::ARTEFACT_HUNT => {
+                let params = context
+                    .artefact_hunt
+                    .ok_or_else(|| refuse(Reason::NoArtefactHuntParams))?;
+                match artefact_hunt_rule::Rule::read_back(params, middle) {
+                    Ok((rule, at)) => (respawn_to(at), Some(ModeRule::ArtefactHunt(rule))),
+                    Err(error) => return Err(refuse(Reason::ArtefactHuntRule { error })),
+                }
+            }
             _ => {
                 let batteries = battery_records(context);
                 let read = |at: usize| {
@@ -1084,6 +1112,8 @@ impl<'a> Rules<'a> {
                 mode::TEAM_DEATHMATCH => Reason::NoTdmRule,
                 mode::RESEARCH => Reason::NoResearchRule,
                 mode::FREE_FOR_ALL => Reason::NoSpawnHistory,
+                mode::FREEZE_TAG => Reason::NoFreezeTagRule,
+                mode::ARTEFACT_HUNT => Reason::NoRespawnAndModeRule,
                 _ => Reason::NoGatherRule,
             })
         })?;
@@ -1178,6 +1208,10 @@ pub fn rules(section: &Section, context: &Context) -> Result<(), Refusal> {
         return refuse(Reason::RespawnTimePast { place, places });
     }
     match read.mode_rule() {
+        ModeRule::FreezeTag(rule) => match freeze_tag_fault(rule, read.timelimit().current_time_ms()) {
+            Some(reason) => refuse(reason),
+            None => Ok(()),
+        },
         ModeRule::Tdm(tdm) => {
             if tdm.alive_players().past(places).is_some()
                 || tdm.active_players().past(places).is_some()
@@ -1188,6 +1222,10 @@ pub fn rules(section: &Section, context: &Context) -> Result<(), Refusal> {
         }
         ModeRule::Research(research) => match research.places().past(places) {
             Some(_) => refuse(Reason::ResearchMaskPast { places }),
+            None => Ok(()),
+        },
+        ModeRule::ArtefactHunt(rule) => match artefact_hunt_fault(rule, &read, places) {
+            Some(reason) => refuse(reason),
             None => Ok(()),
         },
         ModeRule::Gather(gather) => match gather_fault(gather, context) {
@@ -1209,6 +1247,89 @@ pub fn rules(section: &Section, context: &Context) -> Result<(), Refusal> {
                 }),
                 None => Ok(()),
             }
+        }
+    }
+}
+
+/// What in Freeze Tag's rule its own bytes cannot say against the world's
+/// time `now` (the timelimit's): a round's restart part ends after it, by the
+/// part's whole length at most (each part is timed from the step that entered
+/// it, the world's last at the latest); the match ended at it or before; in
+/// play, a team's down-to-one step is at it or before.
+fn freeze_tag_fault(rule: &super::freeze::FreezeTag, now: u32) -> Option<Reason> {
+    use super::freeze::{Phase, TIMING};
+    use crate::Team;
+    let now = artefact_hunt_rule::Time::from_ms(now);
+    let fits = match rule.phase() {
+        Phase::Playing => [Team::First, Team::Second]
+            .into_iter()
+            .filter_map(|team| rule.last_fighter(team))
+            .all(|last| now.since(last.since).is_some()),
+        Phase::Restart { restart, .. } => restart
+            .until()
+            .since(now)
+            .is_some_and(|left| left > 0 && left <= restart.length(TIMING).get()),
+        Phase::Finished { at, .. } => now.since(at).is_some(),
+    };
+    (!fits).then_some(Reason::FreezeTagTime)
+}
+
+/// What in Artifact Hunt's rule its own bytes cannot say against the rest of
+/// the rules (`artefact_hunt.md`, "Wire"): its sides within the match's
+/// places; its stage idle exactly while the timelimit is not in play, and in
+/// play from the timelimit's start (the native clock's start is the rule's
+/// `Start`); the blackboard's two flags, which only the rule sets in this mode:
+/// the constructor's true before play, both `Rule::respawns()` in play (the
+/// rule's tick sets them, and nothing after it in a step changes whether
+/// deaths respawn but an end), and equal once over (a delivery in sudden
+/// death ends it with them false).
+fn artefact_hunt_fault(
+    rule: &artefact_hunt_rule::Rule,
+    read: &Rules,
+    places: usize,
+) -> Option<Reason> {
+    let sides = Places::new(rule.sides().all().bits()).unwrap_or_default();
+    if sides.past(places).is_some() {
+        return Some(Reason::ArtefactHuntSidesPast { places });
+    }
+    let started = match read.timelimit().phase() {
+        Phase::InProcess { since_ms } => Some(since_ms),
+        Phase::Inactive | Phase::WaitingForPlayers { .. } | Phase::Countdown { .. } => None,
+    };
+    let flags = read.team_respawn();
+    let flags_fit = match (rule.stage(), started) {
+        (artefact_hunt_rule::Stage::Idle, None) => flags == [true; 2],
+        (artefact_hunt_rule::Stage::Play(play), Some(start)) if play.start().ms() == start => {
+            flags == [rule.respawns(); 2]
+        }
+        (artefact_hunt_rule::Stage::Over(_), Some(_)) => flags[0] == flags[1],
+        _ => return Some(Reason::ArtefactHuntStage),
+    };
+    (!flags_fit).then_some(Reason::ArtefactHuntFlags { flags })
+}
+
+/// Whether the statistics' tail is Artifact Hunt's standing: the rule writes
+/// its scores into `m_team_points` and its leader into `m_winner_team` after
+/// every transition, at its start and after a load. Before play the scores
+/// are 0 and the leader is the start's draw or not yet written (3, or 0xFF
+/// before the handler's match init).
+pub fn artefact_hunt_standing(rule: &artefact_hunt_rule::Rule, tail: &super::Tail) -> bool {
+    use super::Winner;
+    let leader = match rule.leader() {
+        artefact_hunt_rule::Outcome::Winner(artefact_hunt_rule::Team::Zero) => Winner::Team(Team::First),
+        artefact_hunt_rule::Outcome::Winner(artefact_hunt_rule::Team::One) => Winner::Team(Team::Second),
+        artefact_hunt_rule::Outcome::Draw => Winner::Draw,
+    };
+    let score = rule.score().map(u16::from);
+    if tail.team_points() != score {
+        return false;
+    }
+    match rule.stage() {
+        artefact_hunt_rule::Stage::Idle => {
+            matches!(tail.winner_team(), Winner::Draw | Winner::Undecided | Winner::Unset)
+        }
+        artefact_hunt_rule::Stage::Play(_) | artefact_hunt_rule::Stage::Over(_) => {
+            tail.winner_team() == leader
         }
     }
 }
@@ -1279,10 +1400,12 @@ mod tests {
             artefacts: None,
             objects: None,
             inventory: None,
+            dict_ids: None,
+            artefact_hunt: None,
         }
     }
 
-    /// Research's rule as `rr_write` puts it: team 0 owns unit A, team 1
+    /// Research's rule as `research_rule::write` puts it: team 0 owns unit A, team 1
     /// takes unit B with the places of `inside_b`, unit C is nobody's.
     fn research(units: usize, inside_b: u32) -> Vec<u8> {
         let mut out = Vec::new();
@@ -1428,6 +1551,37 @@ mod tests {
     }
 
     #[test]
+    fn freeze_tag_rounds_are_parsed_in_the_native_rule_envelope() {
+        use super::super::freeze::{Body, Condition, FreezeTag, PLAYERS};
+        use crate::Team;
+        let mut freeze = FreezeTag::EMPTY;
+        let mut bodies = [Body::Absent; PLAYERS];
+        bodies[0] = Body::Present { team: Team::First, position: [0.0; 3], condition: Condition::Fighting };
+        bodies[1] = Body::Present { team: Team::Second, position: [10.0; 3], condition: Condition::Lethal };
+        freeze.step(artefact_hunt_rule::Time::from_ms(TIME), &bodies, &[[false; PLAYERS]; PLAYERS], 50);
+        let block = freeze.bytes();
+        assert_eq!(check(&block, mode::FREEZE_TAG, Some(3)), Ok(()));
+        // The round's 3 s from the world's time: a deadline past them, or
+        // reached, is no world's.
+        for (until, ok) in [(TIME + 3000, true), (TIME + 1, true), (TIME + 3001, false), (TIME, false)] {
+            let mut moved = block;
+            moved[5..9].copy_from_slice(&until.to_le_bytes());
+            assert_eq!(check(&moved, mode::FREEZE_TAG, Some(3)).is_ok(), ok, "{until}");
+        }
+        let bytes = bytes(&block);
+        let read = Rules::read(&Section { at: 0, bytes: &bytes }, &context(mode::FREEZE_TAG, Some(3))).unwrap();
+        assert_eq!(read.mode_rule(), &ModeRule::FreezeTag(freeze));
+        let mut broken = block;
+        broken[2] = 4; // More round wins than a best-of-five permits.
+        assert_eq!(reason(check(&broken, mode::FREEZE_TAG, Some(3))), Some(Reason::NoFreezeTagRule));
+        // A third participant outside this match's two-place roster.
+        bodies[2] = bodies[0];
+        freeze = FreezeTag::EMPTY;
+        freeze.step(artefact_hunt_rule::Time::from_ms(TIME), &bodies, &[[false; PLAYERS]; PLAYERS], 50);
+        assert_eq!(reason(check(&freeze.bytes(), mode::FREEZE_TAG, Some(3))), Some(Reason::NoFreezeTagRule));
+    }
+
+    #[test]
     fn a_places_last_spawns_are_the_latest_two_and_start_again_when_it_enters() {
         let place = Place::new(5).unwrap();
         let mut history = SpawnHistory::EMPTY;
@@ -1517,7 +1671,7 @@ mod tests {
             reason(check(&research(3, 0b100), mode::RESEARCH, None)),
             Some(Reason::ResearchMaskPast { places: 2 })
         );
-        // A place past the 20: no rule `rr_read` takes.
+        // A place past the 20: no rule `research_rule::read` takes.
         let past = research(3, 1 << 20);
         assert_eq!(
             reason(check(&past, mode::RESEARCH, None)),
@@ -1555,5 +1709,243 @@ mod tests {
         let tdm = [97, 0, 100, 0, 3, 0, 0, 0, 3, 0, 0, 0];
         assert_eq!(check(&tdm, mode::TEAM_DEATHMATCH, Some(3)), Ok(()));
         assert!(check(&tdm, mode::RESEARCH, None).is_err());
+    }
+
+    mod artefact_hunt {
+        use super::*;
+        use artefact_hunt_rule::{
+            BaseDef, Event, Params, Place as HuntPlace, Position, RawParams, RawShape, Rule,
+            Spawner, Team as HuntTeam, Time,
+        };
+
+        /// 0.46c2's parameters, the goal 1: a delivery ends the match.
+        fn params() -> Params {
+            let raw = RawParams {
+                match_time: 900,
+                time_needed_to_continue_match: 90,
+                draw_additional_time: 180,
+                time_before_new_round: 3,
+                round_countdown_time: 5,
+                score: 1,
+                respawn_time: 15,
+                vi_spawn_time: 60,
+                vi_spawn_variation: 10,
+                vi_not_picked_ttl: 120,
+                vi_dropped_ttl: 60,
+                drop_lift: 0.13,
+                usable_radius: 0.3,
+            };
+            let shape = |x: f32| RawShape {
+                kind: 1,
+                position: [x, 0.5, 0.0],
+                axes: [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]],
+                half: [0.5; 3],
+            };
+            let (zero, one) = ([shape(-30.0)], [shape(30.0)]);
+            let bases = [
+                BaseDef { team: 0, position: [-30.0, 0.0, 0.0], shapes: &zero },
+                BaseDef { team: 1, position: [30.0, 0.0, 0.0], shapes: &one },
+            ];
+            Params::parse(&raw, &[Spawner { position: [0.0, 0.0, 0.0] }], &bases).unwrap()
+        }
+
+        /// The timelimit's start (TIMELIMIT: in play since 21 000 ms).
+        const START: u32 = 0x5208;
+
+        fn t(ms: u32) -> Time {
+            Time::from_ms(ms)
+        }
+
+        /// Play from the timelimit's start, places 0 and 1 of the two teams.
+        fn playing(params: &Params) -> Rule {
+            let place = |n| HuntPlace::new(n).unwrap();
+            let mut rule = Rule::new(7);
+            for event in [
+                Event::Entered { place: place(0), team: HuntTeam::Zero, now: t(START - 1000) },
+                Event::Entered { place: place(1), team: HuntTeam::One, now: t(START - 1000) },
+                Event::Start { now: t(START) },
+            ] {
+                rule = rule.step(params, event).0;
+            }
+            rule
+        }
+
+        /// Ticks the rule from `from` until `until` says it is done.
+        fn ticked(params: &Params, mut rule: Rule, from: u32, until: impl Fn(&Rule) -> bool) -> (Rule, u32) {
+            let mut now = from;
+            while !until(&rule) {
+                now += 50;
+                assert!(now < START + 1_000_000, "the rule never got there");
+                rule = rule.step(params, Event::Tick { now: t(now) }).0;
+            }
+            (rule, now)
+        }
+
+        /// A delivery by place 0: the match over, team 0 its winner.
+        fn over(params: &Params) -> Rule {
+            let place = HuntPlace::new(0).unwrap();
+            let (rule, now) = ticked(params, playing(params), START, |rule| {
+                matches!(rule.artefact(params), artefact_hunt_rule::ArtefactView::Lying { .. })
+            });
+            let rule = rule.step(params, Event::Take { place, now: t(now) }).0;
+            let ground = Position::from_metres([-30.0, 0.0, 0.0]).unwrap();
+            let rule = rule.step(params, Event::Deliver { place, now: t(now), ground }).0;
+            ticked(params, rule, now, |rule| rule.result().is_some()).0
+        }
+
+        fn bytes_of(rule: &Rule) -> Vec<u8> {
+            let mut out = [0; artefact_hunt_rule::MAX_BYTES];
+            let len = rule.write(&mut out).unwrap();
+            out[..len].to_vec()
+        }
+
+        /// The section with `rule` and the two flags `flags`.
+        fn section(rule: &[u8], flags: [u8; 2]) -> Vec<u8> {
+            let mut bytes = bytes(rule);
+            let at = bytes.len() - 2;
+            bytes[at..].copy_from_slice(&flags);
+            bytes
+        }
+
+        fn checked(section: &[u8], params: Option<&Params>) -> Result<(), Refusal> {
+            let context = Context {
+                artefact_hunt: params,
+                ..context(mode::ARTEFACT_HUNT, Some(3))
+            };
+            rules(&Section { at: 0, bytes: section }, &context)
+        }
+
+        #[test]
+        fn its_rule_reads_through_its_crate_with_the_maps_parameters() {
+            let params = params();
+            for rule in [playing(&params), over(&params)] {
+                let section = section(&bytes_of(&rule), [0xFF; 2]);
+                assert_eq!(checked(&section, Some(&params)), Ok(()));
+                let read = Rules::read(&Section { at: 0, bytes: &section }, &context(mode::ARTEFACT_HUNT, Some(3)));
+                assert_eq!(read.map(|_| ()).unwrap_err().reason, Reason::NoArtefactHuntParams);
+                let context = Context { artefact_hunt: Some(&params), ..context(mode::ARTEFACT_HUNT, Some(3)) };
+                let read = Rules::read(&Section { at: 0, bytes: &section }, &context).unwrap();
+                assert_eq!(read.mode_rule(), &ModeRule::ArtefactHunt(rule));
+                assert_eq!(read.respawn().points().len(), 3);
+            }
+            assert_eq!(over(&params).score(), [1, 0]);
+        }
+
+        #[test]
+        fn a_wrong_rule_is_refused_by_its_crate() {
+            let params = params();
+            let good = bytes_of(&playing(&params));
+            // The stage byte (after the seed, the scores, the round starts, the sides).
+            let mut stage = good.clone();
+            stage[18] = 3;
+            assert!(matches!(
+                reason(checked(&section(&stage, [0xFF; 2]), Some(&params))),
+                Some(Reason::ArtefactHuntRule { .. })
+            ));
+            // A size that is not the bytes before it.
+            let mut size = good.clone();
+            *size.last_mut().unwrap() += 1;
+            assert!(checked(&section(&size, [0xFF; 2]), Some(&params)).is_err());
+            // A score past the goal.
+            let mut score = bytes_of(&over(&params));
+            score[4] = 2;
+            assert!(matches!(
+                reason(checked(&section(&score, [0xFF; 2]), Some(&params))),
+                Some(Reason::ArtefactHuntRule { error: artefact_hunt_rule::WireError::Score })
+            ));
+            // More round starts than the points could have begun.
+            let mut rounds = bytes_of(&over(&params));
+            rounds[6] = 9;
+            assert!(matches!(
+                reason(checked(&section(&rounds, [0xFF; 2]), Some(&params))),
+                Some(Reason::ArtefactHuntRule { error: artefact_hunt_rule::WireError::RoundStarts })
+            ));
+            // Any bytes, any length: refused, never a panic.
+            for len in 0..=good.len() + 3 {
+                for fill in [0x00, 0x01, 0x7F, 0xFF] {
+                    let mut noise = std::vec![fill; len];
+                    if let Some(last) = noise.last_mut() {
+                        *last = (len.saturating_sub(1)) as u8;
+                    }
+                    let _ = checked(&section(&noise, [0xFF; 2]), Some(&params));
+                }
+            }
+        }
+
+        #[test]
+        fn its_stage_is_the_timelimits_and_its_sides_the_matchs() {
+            let params = params();
+            // Idle while the timelimit is in play: the rule missed its start.
+            let idle = bytes_of(&Rule::new(7));
+            assert_eq!(
+                reason(checked(&section(&idle, [0xFF; 2]), Some(&params))),
+                Some(Reason::ArtefactHuntStage)
+            );
+            // Idle before play.
+            let mut waiting = section(&idle, [0xFF; 2]);
+            waiting[12] = 2;
+            assert_eq!(checked(&waiting, Some(&params)), Ok(()));
+            // In play from another time than the timelimit's start.
+            let mut late = Rule::new(7);
+            late = late.step(&params, Event::Start { now: t(START + 50) }).0;
+            assert_eq!(
+                reason(checked(&section(&bytes_of(&late), [0xFF; 2]), Some(&params))),
+                Some(Reason::ArtefactHuntStage)
+            );
+            // A side past the match's two places.
+            let far = HuntPlace::new(5).unwrap();
+            let wide = playing(&params).step(&params, Event::Entered { place: far, team: HuntTeam::One, now: t(START + 50) }).0;
+            assert_eq!(
+                reason(checked(&section(&bytes_of(&wide), [0xFF; 2]), Some(&params))),
+                Some(Reason::ArtefactHuntSidesPast { places: 2 })
+            );
+        }
+
+        #[test]
+        fn the_respawn_flags_are_the_rules() {
+            let params = params();
+            let play = bytes_of(&playing(&params));
+            // In regular play both may respawn; one or both cleared is no
+            // world of this mode.
+            for flags in [[0x00, 0xFF], [0xFF, 0x00], [0x00, 0x00]] {
+                assert_eq!(
+                    reason(checked(&section(&play, flags), Some(&params))),
+                    Some(Reason::ArtefactHuntFlags { flags: flags.map(|flag| flag == 0xFF) })
+                );
+            }
+            // Over: as the last tick of play left them, the two alike.
+            let over = bytes_of(&over(&params));
+            for flags in [[0xFF; 2], [0x00; 2]] {
+                assert_eq!(checked(&section(&over, flags), Some(&params)), Ok(()));
+            }
+            assert!(checked(&section(&over, [0x00, 0xFF]), Some(&params)).is_err());
+        }
+
+        #[test]
+        fn the_statistics_standing_is_the_rules() {
+            let params = params();
+            let tail = |points: [u16; 2], winner: u8| {
+                let winner = match winner {
+                    0 => super::super::super::Winner::Team(Team::First),
+                    2 => super::super::super::Winner::Draw,
+                    3 => super::super::super::Winner::Undecided,
+                    _ => super::super::super::Winner::Unset,
+                };
+                super::super::super::Tail::of(points, winner)
+            };
+            let over = over(&params);
+            assert!(artefact_hunt_standing(&over, &tail([1, 0], 0)));
+            assert!(!artefact_hunt_standing(&over, &tail([1, 0], 2)));
+            assert!(!artefact_hunt_standing(&over, &tail([0, 0], 0)));
+            let play = playing(&params);
+            assert!(artefact_hunt_standing(&play, &tail([0, 0], 2)));
+            assert!(!artefact_hunt_standing(&play, &tail([0, 0], 3)));
+            // Before play the rule has written nothing yet, or the draw.
+            let idle = Rule::new(7);
+            for winner in [2, 3, 0xFF] {
+                assert!(artefact_hunt_standing(&idle, &tail([0, 0], winner)));
+            }
+            assert!(!artefact_hunt_standing(&idle, &tail([0, 0], 0)));
+        }
     }
 }

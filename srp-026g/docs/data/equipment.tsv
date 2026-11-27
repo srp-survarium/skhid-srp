@@ -109,21 +109,21 @@ edge_torso_5	Bulletproof vest "Keeper"	body	14	The Fringe Settlers		Chest/Back/A
 edge_torso_5_special	Keeper Of The Sun Vest	body	14	The Fringe Settlers	yes	Chest/Back/Arms: armour 70, isolation 25	10	Ammo bags +1, Item slots +1	Armor, Isolation, Weight, Regeneration, Stamina regeneration, Movement speed, Weight limit, Energy costs	
 ren_torso_5	"OZK-18KB" Vest	body	14	The Renaissance Army		Chest/Back/Arms: armour 70, isolation 75	13.5	Item slots +1, Pocket capacity +1	Armor, Isolation, Weight, Regeneration, Stamina regeneration, Movement speed, Weight limit, Energy costs	
 scav_toro_9	Firefighter Bulletproof Vest	body	14	Scavengers		Chest/Back/Arms: armour 70, isolation 70	12	Item slots +1, Pocket capacity +1	Armor, Isolation, Weight, Regeneration, Stamina regeneration, Movement speed, Weight limit, Energy costs	
-duty_exo_suit	Duty exoskeleton	body	15	The Renaissance Army		Chest/Back/Arms/Legs: armour 87, isolation 70	22	Ammo bags +2, Item slots +2, Pocket capacity +2, Artifact container +1, Weight limit +5 kg, Aiming speed -10%, Reload speed +15%, Weapon recoil -10%	Armor, Isolation, Weight, Regeneration, Stamina regeneration, Movement speed, Energy costs	
+duty_exo_suit	Duty exoskeleton	body	15	The Renaissance Army		Chest/Back/Arms/Legs: armour 87, isolation 70	22	Ammo bags +2, Item slots +2, Pocket capacity +2, Artifact container +1, Weight limit +3 kg, Aiming speed -10%, Reload speed +15%, Weapon recoil -10%	Armor, Isolation, Weight, Regeneration, Stamina regeneration, Movement speed, Energy costs	
 edge_torso_6	"Pilgrim" bulletproof vest	body	15	The Fringe Settlers		Chest/Back/Arms: armour 85, isolation 90	17	Artifact container +1	Armor, Isolation, Weight, Regeneration, Stamina regeneration, Movement speed, Weight limit, Energy costs	
 eq046_blackmarket_torso_10	Heavy armored vest	body	15	Black Market		Chest/Back/Arms: armour 88, isolation 20	14	Ammo bags +1, Item slots +2	Armor, Isolation, Weight, Regeneration, Stamina regeneration, Movement speed, Weight limit, Energy costs	
-freedom_exo_suit	Freedom exoskeleton	body	15	The Fringe Settlers		Chest/Back/Arms/Legs: armour 88, isolation 80	17	Ammo bags +2, Item slots +2, Pocket capacity +2, Artifact container +1, Weight limit +5 kg, Movement speed +5%, Energy costs -10%, Dispersion off the hip -10%	Armor, Isolation, Weight, Regeneration, Stamina regeneration	
+freedom_exo_suit	Freedom exoskeleton	body	15	The Fringe Settlers		Chest/Back/Arms/Legs: armour 88, isolation 80	17	Ammo bags +2, Item slots +2, Pocket capacity +2, Artifact container +1, Weight limit +3 kg, Movement speed +5%, Energy costs -10%, Dispersion off the hip -10%	Armor, Isolation, Weight, Regeneration, Stamina regeneration	
 ren_torso_6	"Zubr UM-4" bulletproof vest	body	15	The Renaissance Army		Chest/Back/Arms: armour 90, isolation 50	20	Ammo bags +2, Pocket capacity +1	Armor, Isolation, Weight, Regeneration, Stamina regeneration, Movement speed, Weight limit, Energy costs	
 scav_torso_10	Nomad Vest	body	15	Scavengers		Chest/Back/Arms: armour 80, isolation 30	10	Item slots +1, Regeneration +12%	Armor, Isolation, Weight, Stamina regeneration, Movement speed, Weight limit, Energy costs	
 scav_back_1	Backpack with container	backpack	1	Scavengers			3	Artifact container +1	Weight, Regeneration, Weight limit	
 bm_back_1	"Marodeur" container	backpack	3	Scavengers			5	Item slots +1, Pocket capacity +1	Weight, Regeneration, Weight limit	
-scav_oxygen_1	Oxygen tank	backpack	3	Scavengers			8		Weight, Weight limit, Energy costs, Oxygen capacity	
+scav_oxygen_1	Oxygen tank	backpack	3	Scavengers			6		Weight, Weight limit, Energy costs, Oxygen capacity	
 stk2_novice_026_back	Novice's backpack	backpack	4	Independent traders			4.5	Item slots +1, Pocket capacity +1	Weight, Regeneration, Weight limit	
 eq069_leagues_back_2	Medic's bag	backpack	5	Black Market			4.5	Item slots +1, Pocket capacity +1	Weight, Regeneration, Weight limit	
 edge_hunter_back_1	Dar 2M container	backpack	6	The Fringe Settlers			6	Artifact container +2	Weight, Regeneration, Weight limit	
 ren_back_8	Paratrooper backpack	backpack	6	The Renaissance Army			2.5	Item slots +1	Weight, Regeneration, Weight limit	
-edge_back_3	"Breeze" respiratory system	backpack	8	The Fringe Settlers			6		Weight, Weight limit, Energy costs, Oxygen capacity	
-ren_back_3	Cylinder "Zarya 4N"	backpack	8	The Renaissance Army			5		Weight, Weight limit, Energy costs, Oxygen capacity	
+edge_back_3	"Breeze" respiratory system	backpack	8	The Fringe Settlers			4.5		Weight, Weight limit, Energy costs, Oxygen capacity	
+ren_back_3	Cylinder "Zarya 4N"	backpack	8	The Renaissance Army			4		Weight, Weight limit, Energy costs, Oxygen capacity	
 bm_back_6	Watchman backpack	backpack	9	Black Market			4	Item slots +1, Pocket capacity +1	Weight, Regeneration, Weight limit	
 eq046_edge_back_6	Stalker's backpack	backpack	9	The Fringe Settlers			4.5	Ammo bags +1, Item slots +1	Weight, Regeneration, Weight limit	
 scav_back_7	Field radio	backpack	9	Scavengers			4	Respawn time -0.25	Weight, Regeneration, Weight limit	
@@ -134,8 +134,8 @@ bm_back_9	Antiradar Veil	backpack	14	Black Market			4	Item slots +1, Respawn tim
 edge_back_5	"Wanderer" Container	backpack	14	The Fringe Settlers			4	Item slots +1, Pocket capacity +1, Artifact container +1	Weight, Regeneration, Weight limit	
 eq069_leagues_back_5	Soldier's backpack	backpack	14	Scavengers			8	Ammo bags +2, Item slots +1, Pocket capacity +2	Weight, Regeneration, Weight limit	
 ren_back_1	Assault fighter's backpack	backpack	14	The Renaissance Army			8	Item slots +2, Pocket capacity +2	Weight, Regeneration, Weight limit	
-ren_back_5	"UKV-1" cylinder	backpack	14	The Renaissance Army			8		Weight, Weight limit, Energy costs, Oxygen capacity	
-scav_oxygen_2	Double cylinder	backpack	14	Scavengers			9		Weight, Weight limit, Energy costs, Oxygen capacity	
+ren_back_5	"UKV-1" cylinder	backpack	14	The Renaissance Army			6		Weight, Weight limit, Energy costs, Oxygen capacity	
+scav_oxygen_2	Double cylinder	backpack	14	Scavengers			7		Weight, Weight limit, Energy costs, Oxygen capacity	
 edge_back_6	"Pilgrim" container	backpack	15	The Fringe Settlers			7	Artifact container +1, Regeneration +15%	Weight, Weight limit, Energy costs	
 eq046_bm_back_10	Backpack for ammo	backpack	15	Black Market			4	Ammo bags +2, Item slots +1	Weight, Regeneration, Weight limit, Energy costs	
 bm_gloves_1	Biker gloves	gloves	1	Black Market		Hands: armour 10, isolation 5	0.2	Reload speed +12%	Armor, Isolation, Weight, Dispersion off the hip, Aiming speed, Collection time, Weapon recoil	

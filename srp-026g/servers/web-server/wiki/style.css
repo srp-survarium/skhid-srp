@@ -20,9 +20,14 @@ main.wiki { max-width: 1160px; gap: 0; margin-top: 28px }
 .weapon-title { display:grid; gap:5px; min-width:0 }
 .weapon-title strong { font:700 1.2rem/1.15 var(--display); overflow-wrap:anywhere }
 .weapon-title>span { color:var(--ink-3); font-size:.76rem }
-.quick-stats { margin:0; display:grid; grid-template-columns:repeat(4,1fr); gap:12px }
-.quick-stats dt { font:700 .66rem var(--display); text-transform:uppercase; color:var(--ink-3); letter-spacing:.06em; margin-bottom:5px }
-.quick-stats dd { margin:0; font:.95rem var(--data); white-space:nowrap }
+/* The same tracks in every row, whatever its texts (minmax(0,…): no column grows with its
+   content), split so that every language's headers fit whole from a 960 px window (the widest,
+   "СКОРОСТРЕЛЬНОСТЬ", 93 px), the damage value's room next. A header is one line, cut with an
+   ellipsis where its column is narrower (its title has it whole), so a row's values share a line;
+   a value wraps in its column (a shotgun's "20 × 10 Schrotkugeln"). */
+.quick-stats { margin:0; display:grid; grid-template-columns:minmax(0,2.1fr) minmax(0,1.5fr) minmax(0,1fr) minmax(0,.9fr); gap:12px }
+.quick-stats dt { font:700 .66rem var(--display); text-transform:uppercase; color:var(--ink-3); letter-spacing:.06em; margin-bottom:5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis }
+.quick-stats dd { margin:0; font:.95rem var(--data); overflow-wrap:break-word }
 .quick-stats small { display:block; font:.62rem var(--body); margin-top:2px }
 .expand-label { color:var(--accent); font-size:.75rem; text-align:right }
 .expand-label>span { font:1.25rem var(--body); display:inline-block; margin-left:6px }
@@ -35,11 +40,25 @@ main.wiki { max-width: 1160px; gap: 0; margin-top: 28px }
 .weapon-details dd { margin:0; text-align:right; font:.85rem var(--data) }
 .weapon-details dd small { font:.75rem var(--body) }
 .wiki-stamp { margin:28px 0; font:.75rem var(--data); color:var(--ink-3) }
-.wiki-sections { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); grid-auto-rows:1fr; gap:16px; margin:24px 0 }
-.wiki-link { display:block; text-decoration:none; border:1px solid var(--rule); background:var(--panel); padding:24px }
-.wiki-link:hover { border-color:var(--accent) }
-.wiki-link h2 { color:var(--accent); font-size:1.5rem }
-.wiki-link p { color:var(--ink-2); margin-bottom:0 }
+/* The index (src/wiki.rs): a tile a section, its picture in a box of one size with its name on a
+   strip along the bottom, its line under them. */
+.wiki-sections { display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); grid-auto-rows:1fr; gap:16px; margin:24px 0 }
+.wiki-link { display:flex; flex-direction:column; min-width:0; text-decoration:none; border:1px solid var(--rule); background:var(--panel) }
+.wiki-link:hover,.wiki-link:focus-visible { border-color:var(--accent) }
+.wiki-link:focus-visible { outline:2px solid var(--accent); outline-offset:2px }
+.wiki-pic { display:flex; flex-direction:column; height:180px; background:var(--bg); border-bottom:1px solid var(--rule) }
+.wiki-pic>img,.wiki-pic>svg,.wiki-glyphs { flex:1; min-height:0; width:100%; padding:10px 12px 8px; object-fit:contain }
+.wiki-pic>img { width:min(100%,220px); align-self:center }
+.wiki-pic h2 { display:flex; align-items:center; justify-content:center; min-height:2.6em; padding:4px 8px; text-align:center; font-size:1.05rem; line-height:1.1; color:var(--accent); background:var(--panel); border-top:1px solid var(--rule); overflow-wrap:anywhere; hyphens:auto }
+.wiki-link:hover .wiki-pic h2 { color:var(--accent-ink); background:var(--accent); border-top-color:var(--accent) }
+.wiki-link p { margin:0; padding:10px 12px 12px; font-size:.85rem; line-height:1.45; color:var(--ink-2) }
+.wiki-glyphs { display:grid; grid-template-columns:repeat(3,40px); place-content:center; gap:12px 20px }
+.wiki-glyphs .glyph { width:40px; height:40px; color:var(--accent) }
+.wiki-pic .doll rect { fill:var(--accent) }
+.wiki-pic .doll .outline { fill:var(--ink-3) }
+@media(max-width:1000px) {
+ .wiki-sections { grid-template-columns:repeat(2,minmax(0,1fr)) }
+}
 [hidden] { display:none !important }
 .stat-note { font-size:.78rem; color:var(--ink-3); line-height:1.5; margin:0 0 12px }
 .comparison { border-top:2px solid var(--ink); margin:12px 0 28px; padding-top:18px; scroll-margin-top:20px }
@@ -139,12 +158,49 @@ main.wiki { max-width: 1160px; gap: 0; margin-top: 28px }
 .sim-trail.series-1 { stroke:#3684bd }
 .sim-cross { stroke:var(--accent); stroke-width:2.2; fill:var(--accent) }
 .sim-cross.series-1 { stroke:#3684bd; fill:#3684bd }
+/* The shot's motions: which are shown, the gun's sight, and the view from the side */
+.sim-layers { display:flex; flex-wrap:wrap; gap:8px 24px; margin:12px 0; font:.85rem var(--body) }
+.sim-layers label { display:inline-flex; align-items:center; gap:8px; margin:0; text-transform:none; letter-spacing:normal; white-space:nowrap; width:auto; font:.85rem var(--body); color:var(--ink) }
+.sim-layers input { accent-color:var(--accent) }
+.sim-gunsight { fill:none; stroke:var(--ink); stroke-width:1.6 }
+.sim-gunsight-dot { fill:var(--ink); stroke:none }
+.sim-sight svg.sim-side { margin-top:6px }
+.sim-wall { stroke:var(--ink-3); stroke-width:3 }
+.sim-eye { fill:var(--bg); stroke:var(--ink); stroke-width:1.4 }
+.sim-eye-pupil { fill:var(--ink) }
+.sim-side-view { stroke:var(--accent); stroke-width:1.6; stroke-dasharray:5 4 }
+.sim-side-view.series-1 { stroke:#3684bd }
+.sim-side-sight { stroke:var(--ink); stroke-width:1 }
+.sim-bullet { fill:var(--accent); stroke:none }
+.sim-bullet.series-1 { fill:#3684bd }
+.sim-landed { fill:none; stroke:var(--accent); stroke-width:1.4 }
+.sim-landed.series-1 { stroke:#3684bd }
+.sim-key { display:flex; flex-wrap:wrap; justify-content:center; gap:4px 20px; margin:8px 0 0; font:.75rem var(--data); color:var(--ink-3) }
+.sim-key span { display:inline-flex; align-items:center; gap:6px }
+.sim-sight .sim-key svg { width:14px; height:14px; fill:none; stroke-width:2; background:none; border:0 }
+.sim-key-view,.sim-key-hit { stroke:var(--accent) }
+.sim-key-sight { stroke:var(--ink) }
+/* A custom gun: the weapon's values, each the visitor's own */
+.sim-custom { margin-top:10px; border:1px solid var(--rule); background:var(--bg); padding:8px 12px }
+.sim-custom summary { cursor:pointer; font:700 .75rem var(--display); text-transform:uppercase; letter-spacing:.06em }
+.sim-custom-group { margin:10px 0 0; font:.72rem var(--data); color:var(--ink) }
+.sim-custom-fields { display:grid; grid-template-columns:repeat(auto-fit,minmax(84px,1fr)); gap:8px 10px; margin:6px 0 10px }
+.sim-custom-fields label { display:block; margin:0; font:.72rem var(--body); text-transform:none; letter-spacing:normal; color:var(--ink-3) }
+.sim-custom-fields input { display:block; width:100%; margin-top:4px; padding:6px 8px; background:var(--panel); color:var(--ink); border:1px solid var(--rule); font:.85rem var(--data) }
+.sim-custom button { margin:0; padding:8px 14px; font-size:.75rem }
 /* Each weapon's setup: the calculator's panel of rows (hud.css), side by side */
 .sim-setups { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,420px),1fr)); gap:16px; margin:16px 0 }
 .sim-setup { min-width:0 }
 .sim-setup-name { margin:0 0 6px; font:.75rem var(--data); color:var(--accent) }
 .sim-setup-name.series-1 { color:#3684bd }
 .sim-setup .gamemods { max-width:100% }
+/* Its rows in the page's own colours (the calculator keeps the lobby's; a row's card stays a lobby card) */
+.sim-setup > .gamemods.rows { background:var(--bg); border:1px solid var(--rule); color:var(--ink); text-shadow:none; font:400 .85rem/1.2 var(--body) }
+.sim-setup > .gamemods.rows .gstep { color:var(--ink); border-color:var(--rule); background:var(--panel); opacity:1; text-shadow:none }
+.sim-setup > .gamemods.rows .gstep:hover { border-color:var(--ink-3) }
+.sim-setup > .gamemods.rows .gstep[aria-pressed=true] { color:var(--accent); border-color:var(--accent); background:var(--panel) }
+.sim-setup > .gamemods.rows > .gmrow > img.gico[src^="data:"] { filter:invert(1) }
+@media(prefers-color-scheme:dark) { .sim-setup > .gamemods.rows > .gmrow > img.gico[src^="data:"] { filter:none } }
 .sim-parts { width:100%; table-layout:fixed; margin:12px 0 0; border:1px solid var(--rule); background:var(--bg) }
 .sim-parts caption { text-align:left; font:700 .8rem var(--display); margin-bottom:8px; text-transform:uppercase; letter-spacing:.06em }
 .sim-parts th,.sim-parts td { padding:6px 8px; font:.8rem var(--data); text-align:right; hyphens:auto }
@@ -208,7 +264,13 @@ main.wiki { max-width: 1160px; gap: 0; margin-top: 28px }
 @media(max-width:560px) {
  .wiki-heading h1 { font-size:2.1rem }
  .wpick-btn small { display:none }
- .wiki-sections { grid-template-columns:1fr }
+ .wiki-sections { grid-template-columns:repeat(2,minmax(0,1fr)); grid-auto-rows:auto; gap:12px }
+ .wiki-pic { height:136px }
+ .wiki-pic>img,.wiki-pic>svg,.wiki-glyphs { padding:10px 10px 8px }
+ .wiki-pic h2 { font-size:.95rem }
+ .wiki-glyphs { grid-template-columns:repeat(3,30px); gap:6px 12px }
+ .wiki-glyphs .glyph { width:30px; height:30px }
+ .wiki-link p { padding:8px 10px 10px; font-size:.8rem }
  .catalogue-tools { grid-template-columns:1fr 1fr; gap:12px }
  .catalogue-tools label:first-child { grid-column:1 / -1 }
  .weapon summary { padding:12px; grid-template-columns:84px 1fr 62px }
@@ -226,7 +288,7 @@ main.wiki { max-width: 1160px; gap: 0; margin-top: 28px }
 .slot-filter button:focus-visible { outline:2px solid var(--accent); outline-offset:2px }
 .slot-filter .glyph { width:34px; height:18px }
 .gear-tools { grid-template-columns:repeat(auto-fit,minmax(150px,1fr)) }
-.gear .quick-stats { grid-template-columns:repeat(3,1fr) }
+.gear .quick-stats { grid-template-columns:repeat(3,minmax(0,1fr)) }
 .gear-group { margin:22px 0 8px; font-size:1.1rem; border-bottom:1px solid var(--rule); padding-bottom:4px }
 .table-scroll { overflow-x:auto }
 .protection { border-collapse:collapse; font:.82rem var(--data); width:100% }
@@ -246,6 +308,26 @@ main.wiki { max-width: 1160px; gap: 0; margin-top: 28px }
 .quest-levels b { font:700 1rem var(--display); color:var(--accent) }
 .quest-levels .quest-levels-key { text-align:left; font:.75rem/1.75 var(--body); color:var(--ink-3) }
 .quest-levels .quest-levels-key b { font:700 .75rem/1.75 var(--body); color:var(--ink-3) }
+/* Modes (src/modes.rs): an index of chips, then a section a mode as the modifiers', its rules
+   beside its maps; a free-for-all's versions as cards under it. */
+.mode-index { display:flex; flex-wrap:wrap; gap:8px; margin:18px 0 0 }
+.mode-index a { display:inline-flex; align-items:center; gap:6px; padding:4px 10px 4px 4px; border:1px solid var(--rule); background:var(--panel); color:var(--ink-2); text-decoration:none; font:700 .8rem var(--display) }
+.mode-index a:hover { border-color:var(--accent); color:var(--accent) }
+.mode-index .mode-icon { width:28px; height:28px }
+.mode { scroll-margin-top:20px }
+.mode>h2,.mode-version>h3 { display:flex; align-items:center; gap:10px }
+.mode-icon { width:44px; height:44px; object-fit:contain; flex:none }
+.mode-rooms { margin:0 0 10px; font:700 .72rem var(--display); text-transform:uppercase; letter-spacing:.08em; color:var(--accent) }
+.mode-body { display:block }
+.mode-body h3,.mode-versions { font-size:.85rem; margin:0 0 6px; color:var(--ink-3); text-transform:uppercase; letter-spacing:.08em }
+.mode-versions { margin-top:22px }
+.mode-rules { margin:0; padding-left:1.1em; color:var(--ink-2) }
+.mode-rules li { margin:0 0 4px }
+.mode-maps em { color:var(--accent); font-size:.8rem }
+.mode-version { margin:12px 0 0; padding:14px 18px; border:1px solid var(--rule); background:var(--panel); scroll-margin-top:20px }
+.mode-version h3 { margin:0 0 4px; font:700 1.1rem var(--display); text-transform:none; letter-spacing:normal }
+.mode-version .mode-icon { width:36px; height:36px }
+@media(max-width:700px) { .mode-body { grid-template-columns:1fr } }
 /* Skills: each branch a card of the wiki's (.wiki-link), its skills the lobby's own (the
    skill renderer's icons, states and rank indicator; PerkTipRenderer's tooltip). A tree is
    never reflowed: a card that does not fit goes to the next row, and one wider than the
@@ -293,7 +375,8 @@ main.wiki { max-width: 1160px; gap: 0; margin-top: 28px }
 @media(hover:hover) { .skill:hover .skill-over { display:block } }
 .skill-or { position:absolute; top:0; left:0; font:700 calc(10 * var(--u)) var(--display); text-transform:uppercase; letter-spacing:.06em;
   background:var(--panel); color:var(--bad); border:1px solid var(--bad); border-radius:2px; padding:0 calc(3 * var(--u)) }
-.skill-name { font:700 calc(11 * var(--u))/1.2 var(--body); color:var(--ink); overflow-wrap:normal; word-break:normal; hyphens:manual }
+/* A word too long for its track (Russian "обезболивающее") is hyphenated in the page's language; English and Ukrainian names need none. */
+.skill-name { font:700 calc(11 * var(--u))/1.2 var(--body); color:var(--ink); overflow-wrap:normal; word-break:normal; hyphens:auto }
 .skill.locked .skill-name { color:var(--ink-3) }
 .skill:focus-visible .skill-disc { outline:2px solid var(--accent); outline-offset:-2px; border-radius:50% }
 /* The tooltip (skills.js): out of the page's flow, placed by the script. */
@@ -334,3 +417,22 @@ main.wiki { max-width: 1160px; gap: 0; margin-top: 28px }
 .levels-graph .lv circle { fill:var(--accent); stroke:var(--panel); stroke-width:2 }
 .levels-graph .lv text { fill:var(--ink); font:700 12px var(--data); paint-order:stroke; stroke:var(--panel); stroke-width:4px }
 .levels-graph .lv:hover :is(line,circle,text) { visibility:visible }
+/* Artefacts (src/artefacts.rs): a row an artefact, its effects a list a cell. */
+.artefact-table { border-collapse:collapse; width:100%; font:.85rem var(--body) }
+.artefact-table th,.artefact-table td { padding:8px 10px; border-bottom:1px solid var(--rule); text-align:left; vertical-align:top }
+.artefact-table thead th { font:700 .7rem var(--display); text-transform:uppercase; letter-spacing:.04em; color:var(--ink-3); white-space:nowrap }
+.artefact-table tbody th { font:700 1rem var(--display); white-space:nowrap }
+.artefact-table tbody th img { display:block; width:86px; height:42px; object-fit:contain; margin-bottom:4px }
+.artefact-table ul { list-style:none; margin:0; padding:0 }
+.artefact-table li { margin:0 0 3px; color:var(--ink-2) }
+.artefact-table li b { font:.85rem var(--data); color:var(--ink); white-space:nowrap }
+.artefact-table .num { font:.85rem var(--data); white-space:nowrap }
+.artefact-table td a { color:var(--accent) }
+.artefact-skill { min-width:200px }
+.artefact-skill p { margin:4px 0 0; color:var(--ink-2); font-size:.8rem }
+.artefact-skill a,.artefact-skills a { display:inline-flex; align-items:center; gap:6px; color:var(--ink); text-decoration:none; font:700 .85rem var(--display) }
+.artefact-skill img,.artefact-skills img { width:28px; height:28px; flex:none }
+.artefact-skills { display:flex; flex-wrap:wrap; gap:8px; list-style:none; margin:12px 0 0; padding:0 }
+.artefact-skills li { margin:0 }
+.artefact-skills a { padding:4px 10px 4px 4px; border:1px solid var(--rule); background:var(--panel); color:var(--ink-2) }
+.artefact-skill a:hover,.artefact-skills a:hover { color:var(--accent) }

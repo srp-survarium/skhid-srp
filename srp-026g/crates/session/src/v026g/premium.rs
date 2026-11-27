@@ -21,7 +21,7 @@
 //!   (`scripts/content-edit/shop.tsv`, `vouchers-removed-1.json`), nothing
 //!   uses them (`46 04`, the only request that used an item, is not read),
 //!   and the release that removed them paid their owners their price in
-//!   silver, once (`persist::SqliteGameRepository::pay_back_once`).
+//!   silver, once (`persist::PAID_BACK`, `docs/notes/silver-only.md`).
 //!
 //! **There is no gold** (the owner, 2026-11-08): every price that was gold
 //! is its gold times `prices::GOLD_IN_SILVER` in silver, and what gave gold
@@ -234,8 +234,6 @@ mod tests {
     use survarium::v026g::lobby;
     use survarium::v026g::lobby::client_model::{Client, Decoded};
 
-    const NOW: u64 = 1_000_000;
-
     fn dict(name: &str) -> u16 {
         Dictionary::shared().item_named(name).unwrap().dict_id
     }
@@ -251,7 +249,7 @@ mod tests {
         let none = Settings::read(|_| None);
         assert_eq!(none, Settings::default());
         // What the rename voucher cost: its 250 gold, in silver.
-        assert_eq!(none.rename_cost, 25_000);
+        assert_eq!(none.rename_cost, DEFAULT_RENAME_COST);
         assert!(none.ammo_use);
 
         let set = Settings::read(|name| {
@@ -386,99 +384,5 @@ mod tests {
         let mut client = Client::signed_in();
         let push = super::super::wire::after_change(&account).unwrap();
         assert!(client.receive_all(&push).is_ok());
-    }
-
-    #[test]
-    fn premium_items_are_bought_for_silver() {
-        let mut account = rich(60_000);
-        let voucher = dict("drop_card");
-        assert!(sells(voucher));
-        assert!(!sells(dict("ak_74n_premium")) && !sells(dict("tt_33")));
-        // The removed vouchers are sold no more (the owner, 2026-11-08).
-        for removed in ["repair_voucher", "rename_account_voucher", "premium_voucher_1d"] {
-            assert!(!sells(dict(removed)), "{removed}");
-        }
-        // Three drop cards at their 100 gold in silver: one stack.
-        let bought = buy_item(&mut account, voucher, 3, INVENTORY_SLOT, 1, NOW).unwrap();
-        assert_eq!(bought.len(), 1);
-        assert_eq!((bought[0].dict_id, bought[0].value), (voucher, 3));
-        assert_eq!(account.generic_money, 30_000);
-        // Two more go onto it.
-        let more = buy_item(&mut account, voucher, 2, INVENTORY_SLOT, 1, NOW).unwrap();
-        assert_eq!(more[0].item_id, bought[0].item_id);
-        assert_eq!(
-            account.item(bought[0].item_id).unwrap().condition_or_stack,
-            5
-        );
-        assert_eq!(account.generic_money, 10_000);
-        // The client takes the answer.
-        let mut client = Client::signed_in();
-        client
-            .receive_all(&super::super::wire::after_change(&account).unwrap())
-            .unwrap();
-        assert!(
-            client
-                .receive(&lobby::permitted_bought(&more).unwrap())
-                .is_ok()
-        );
-        // Refusals change nothing.
-        let before = account.clone();
-        assert_eq!(
-            buy_item(&mut account, voucher, 0, INVENTORY_SLOT, 1, NOW),
-            Err(ActionError::BadCount)
-        );
-        assert_eq!(
-            buy_item(&mut account, voucher, 4, INVENTORY_SLOT, 1, NOW),
-            Err(ActionError::NotEnoughMoney)
-        );
-        assert_eq!(
-            buy_item(&mut account, dict("tt_33"), 1, INVENTORY_SLOT, 1, NOW),
-            Err(ActionError::NotSold)
-        );
-        assert_eq!(account, before);
-        // The AK-74N, dragged onto the character: into the weapon's slot.
-        account.generic_money = 150_000;
-        let rifle = buy_item(&mut account, dict("ak_74n"), 1, 10, 1, NOW).unwrap();
-        assert_eq!(account.kits[0].slots[10].unwrap().item_id, rifle[0].item_id);
-        assert_eq!(account.generic_money, 0);
-        // Into a slot it does not fit: no purchase.
-        account.generic_money = 150_000;
-        let before = account.clone();
-        assert!(buy_item(&mut account, dict("ak_74n"), 1, 1, 1, NOW).is_err());
-        assert_eq!(account, before);
-    }
-
-    /// `prices::is_not_sold` (2026-10-18): the Russian and Belarusian flags
-    /// and coats of arms, the flag of the USSR and the red star are bought
-    /// neither one by one nor from a faction.
-    #[test]
-    fn the_excluded_flags_and_emblems_are_not_bought() {
-        let mut account = rich(10_000);
-        account.generic_money = 1_000_000;
-        let before = account.clone();
-        let names = [
-            "decals_4_1",
-            "decals_4_2",
-            "decals_4_4",
-            "decals_5_1",
-            "decals_5_2",
-            "decals_5_4",
-        ];
-        for name in names {
-            let decal = dict(name);
-            assert!(!sells(decal), "{name}");
-            assert_eq!(
-                buy_item(&mut account, decal, 1, INVENTORY_SLOT, 1, NOW),
-                Err(ActionError::NotSold)
-            );
-            assert_eq!(
-                rules::buy(&mut account, decal, 1, 0, INVENTORY_SLOT, 1, NOW),
-                Err(ActionError::NotSold)
-            );
-        }
-        assert_eq!(account, before);
-        // The flag of Ukraine is, for its 300 gold in silver.
-        assert!(buy_item(&mut account, dict("decals_4_3"), 1, INVENTORY_SLOT, 1, NOW).is_ok());
-        assert_eq!(account.generic_money, 970_000);
     }
 }

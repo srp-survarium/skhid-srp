@@ -7,9 +7,13 @@
 //!   map's team-2 group (0.31's free-for-all points, content edit ffa-1).
 //!   Every point that passes the game's own clear test (no living player
 //!   inside the enemy radius, 20 m) and has no point given
-//!   earlier at this tick inside that radius is eligible. A deterministic
-//!   integer mix of match time and player place chooses from that whole
-//!   pool: safe central points compete equally with safe edge points.
+//!   earlier at this tick inside that radius is eligible. Closer when few
+//!   (the owner, 2026-11-15): the eligible points, nearest to a living
+//!   player first (those 30 m away or more before nearer ones, 2026-11-23),
+//!   are cut to their nearest max(3, ceil(eligible x players / 10)),
+//!   players the places in the match (the world core's); a match of
+//!   10 or more, or one with nobody living, keeps them all. A deterministic
+//!   integer mix of match time and player place chooses from those.
 //!   With no safe point, choose among the five best-separated points from
 //!   the nearest living or newly spawned player. A player never takes one
 //!   of the two points he last spawned at (the owner, 2026-11-15), in the
@@ -45,6 +49,7 @@ use srp_validate::world::{SpawnHistory, SpawnPoint};
 
 use crate::vostok::parse::Reader;
 use crate::vostok::types::Place;
+use crate::vostok::world::Places;
 use crate::vostok::{
     respawn, Context, Due, Flow, FreeForAllOnKillEventExit, FreeForAllOnSelectExit, GameCell, GameWorldUi,
     MatchClock, NoExit, OptionsRead, Point, RespawnSelect, Side, Thread,
@@ -96,25 +101,57 @@ fn turn(time: u32, place: u8, count: usize) -> usize {
     ((mixed ^ (mixed >> 16)) as usize) % count
 }
 
+/// A match of this many players or more chooses among all its clear points;
+/// one of fewer among the clear points nearest to someone living, a share of
+/// them as its players are of this (the owner, 2026-11-15: "when there are
+/// not many people for spawns to be closer").
+const FULL_MATCH: usize = 10;
+/// A match of few players still chooses among this many nearest points.
+const NEAR_POINTS: usize = 3;
+/// A match of few takes the nearest points at least this far from everyone
+/// living (squared, 30 m; the owner, 2026-11-23: "change it to 30m"); nearer
+/// ones, the farthest of them first, only when too few are that far.
+const NEAR_DISTANCE_SQUARED: f32 = 30.0 * 30.0;
+
+/// A clear point's place in a match of few's order, by its squared distance
+/// to the nearest living: those at [`NEAR_DISTANCE_SQUARED`] or more first,
+/// each group the nearest to 30 m first.
+fn near_order(distance: f32) -> (bool, f32) {
+    (distance < NEAR_DISTANCE_SQUARED, (distance - NEAR_DISTANCE_SQUARED).abs())
+}
+
+/// How many of `eligible` clear points, nearest to the living first, a match
+/// of `players` chooses among: ceil(eligible x players / [`FULL_MATCH`]), at
+/// least [`NEAR_POINTS`], at most all.
+fn near_count(eligible: usize, players: usize) -> usize {
+    (eligible * players).div_ceil(FULL_MATCH).max(NEAR_POINTS).min(eligible)
+}
+
 /// For each due player in order, the point he respawns at; returns how many
 /// of `chosen` are set (every due player, unless the map has no point).
 ///
-/// A point's rank is the squared distance to the nearest of `living` and of
-/// the points chosen before at this tick. A point passes when it is not
-/// chosen yet, no chosen point is inside its enemy radius, and `clear` (the
-/// game's test against the living) holds for the player's side. He takes one
-/// of all points that pass, by [`turn`], without ranking safe points by
-/// distance. With none, he chooses among the five best-separated points;
-/// equal fallback ranks go by the point's index. Neither offers one of the
-/// two points he last spawned at (`spawns`, which each choice updates):
-/// the pool leaves them out, the fallback is the five less them (three at
-/// least, on a map of five points or more). Only on a map where every point
-/// is one of them (two points or fewer) are they offered. `points` is
-/// bounded by `MAX_POINTS` at the boundary.
+/// A point passes when it is not chosen yet, no point chosen before at this
+/// tick is inside its enemy radius, and `clear` (the game's test against the
+/// living) holds for the player's side. He takes one of the [`near_count`]
+/// that pass in [`near_order`] of their distance to the nearest of `living`
+/// (equal ones by the point's index) for the match's `players` (the places in
+/// it), by [`turn`]: in a match of few, a point just past 30 m from someone.
+/// When that is all of them (a full match), or with nobody living (the
+/// match's start), one of all that pass, in map order, as before. With none
+/// passing, he chooses among the five best-separated points (the squared
+/// distance to the nearest of `living` and of the points chosen before at
+/// this tick); equal fallback ranks go by the point's index. Neither offers
+/// one of the two points he last spawned at (`spawns`, which each choice
+/// updates): the pool leaves them out, the fallback is the five less them
+/// (three at least, on a map of five points or more). Only on a map where
+/// every point is one of them (two points or fewer) are they offered.
+/// `points` is bounded by `MAX_POINTS` at the boundary.
+#[allow(clippy::too_many_arguments)]
 fn plan(
     due: &[Due],
     points: &[Point],
     living: &[[f32; 3]],
+    players: usize,
     time: u32,
     clear: impl Fn(usize, Side) -> bool,
     spawns: &mut SpawnHistory,
@@ -139,13 +176,12 @@ fn plan(
             given.iter().all(|&k| k != j && distance_squared(points[k].position, points[j].position) >= radius)
                 && clear(j, player.side)
         };
-        // Keep every clear point in stable map order. Distance matters only
-        // for the fallback; equal fallback ranks keep the lower index.
         let mut fallback = [(0usize, 0.0f32); FALLBACK_POINTS];
         let mut fallback_count = 0;
-        let mut safe = [0usize; MAX_POINTS];
+        // Each point that passes and its squared distance to the nearest living.
+        let mut safe = [(0usize, 0.0f32); MAX_POINTS];
         let mut held = 0;
-        for j in 0..points.len() {
+        for (j, point) in points.iter().enumerate() {
             let ranked = (j, rank(j));
             let insert = fallback[..fallback_count].iter()
                 .position(|&(_, distance)| ranked.1.total_cmp(&distance) == Ordering::Greater)
@@ -160,7 +196,7 @@ fn plan(
             if recent(j) || !passes(j) {
                 continue;
             }
-            safe[held] = j;
+            safe[held] = (j, nearest(point.position, living.iter().copied()));
             held += 1;
         }
         let j = if held == 0 {
@@ -173,7 +209,15 @@ fn plan(
             }
             offer[turn(time, player.place, offers)]
         } else {
-            safe[turn(time, player.place, held)]
+            let near = if living.is_empty() { held } else { near_count(held, players) };
+            let safe = &mut safe[..held];
+            if near < held {
+                safe.sort_unstable_by(|a, b| {
+                    let (a_near, b_near) = (near_order(a.1), near_order(b.1));
+                    a_near.0.cmp(&b_near.0).then(a_near.1.total_cmp(&b_near.1)).then(a.0.cmp(&b.0))
+                });
+            }
+            safe[turn(time, player.place, near)].0
         };
         if let (Some(place), Some(point)) = (place, SpawnPoint::new(j)) {
             spawns.spawned(place, point);
@@ -226,6 +270,8 @@ pub fn on_select(ctx: &mut Context<'_>) -> Flow<FreeForAllOnSelectExit> {
         &due[..due_count],
         &points[..point_count],
         &living[..living_count],
+        // The match's players; the tick's own without a core (none in a match).
+        select.places_in_match().map_or(due_count + living_count, Places::count),
         select.time(),
         |j, side| select.point(j).is_some_and(|(at, _)| select.is_clear(at, side)),
         &mut game.spawns,
@@ -564,7 +610,8 @@ mod tests {
         planned_after(&mut spawns, due, points, living, time, clear)
     }
 
-    /// A tick's plan with the places' last spawns `spawns`, which it updates.
+    /// A tick's plan of a full match with the places' last spawns `spawns`,
+    /// which it updates.
     fn planned_after(
         spawns: &mut SpawnHistory,
         due: &[Due],
@@ -573,8 +620,21 @@ mod tests {
         time: u32,
         clear: impl Fn(usize, Side) -> bool,
     ) -> Vec<usize> {
+        planned_of(Place::COUNT, spawns, due, points, living, time, clear)
+    }
+
+    /// A tick's plan of a match of `players`.
+    fn planned_of(
+        players: usize,
+        spawns: &mut SpawnHistory,
+        due: &[Due],
+        points: &[Point],
+        living: &[[f32; 3]],
+        time: u32,
+        clear: impl Fn(usize, Side) -> bool,
+    ) -> Vec<usize> {
         let mut chosen = [0; MAX_DUE];
-        let count = plan(due, points, living, time, clear, spawns, &mut chosen);
+        let count = plan(due, points, living, players, time, clear, spawns, &mut chosen);
         chosen[..count].to_vec()
     }
 
@@ -928,6 +988,90 @@ mod tests {
     fn the_clear_test_gets_the_players_own_side() {
         let points = [at(0.0)];
         assert_eq!(planned(&[solo(3)], &points, &[], 0, |_, side| side == Side::Own(7)), [0]);
+    }
+
+    // ffa.md "Choice": closer when few.
+
+    #[test]
+    fn the_nearest_share_grows_with_the_players() {
+        assert_eq!([2, 4, 8, 9, 10, 16, 20].map(|players| near_count(50, players)), [10, 20, 40, 45, 50, 50, 50]);
+        assert_eq!([1, 2, 4, 5].map(|players| near_count(10, players)), [3, 3, 4, 5]);
+        assert_eq!([near_count(2, 2), near_count(1, 20)], [2, 1]);
+    }
+
+    /// The points a place is given at many ticks, each his first spawn.
+    fn seen_of(players: usize, points: &[Point], living: &[[f32; 3]]) -> Vec<usize> {
+        let mut seen = std::collections::BTreeSet::new();
+        for time in (0..50_000).step_by(50) {
+            let mut spawns = SpawnHistory::EMPTY;
+            seen.extend(planned_of(players, &mut spawns, &[solo(0)], points, living, time, clear_of(points, living)));
+        }
+        seen.into_iter().collect()
+    }
+
+    #[test]
+    fn a_match_of_few_spawns_near_the_living() {
+        // A living player at 0: nine clear points, the nearest 30, 35, 45, 60.
+        let points: Vec<_> = [200.0, 30.0, 10.0, 300.0, 45.0, 100.0, 35.0, 150.0, 60.0, 400.0]
+            .into_iter().map(at).collect();
+        let living = [[0.0; 3]];
+        // Two players the three nearest, six the six nearest, ten or more all.
+        assert_eq!(seen_of(2, &points, &living), [1, 4, 6]);
+        assert_eq!(seen_of(6, &points, &living), [1, 4, 5, 6, 7, 8]);
+        assert_eq!(seen_of(10, &points, &living), [0, 1, 3, 4, 5, 6, 7, 8, 9]);
+        // Ten or more: the very point of before (the pool in map order).
+        let pool = [0, 1, 3, 4, 5, 6, 7, 8, 9];
+        for time in (0..5_000).step_by(50) {
+            for players in [10, 12, 20] {
+                assert_eq!(planned_of(players, &mut { SpawnHistory::EMPTY }, &[solo(4)], &points, &living, time,
+                    clear_of(&points, &living)), [pool[turn(time, 4, pool.len())]]);
+            }
+        }
+        // Near any of the living: one at 0, one at 1000; equal distances by the index.
+        let points: Vec<_> = [500.0, 965.0, 700.0, 35.0, 940.0, 300.0, 50.0, 850.0].into_iter().map(at).collect();
+        assert_eq!(seen_of(2, &points, &[[0.0; 3], [1000.0, 0.0, 0.0]]), [1, 3, 6]);
+        let points: Vec<_> = [-50.0, 50.0, 100.0, -50.0, 50.0].into_iter().map(at).collect();
+        assert_eq!(seen_of(2, &points, &living), [0, 1, 3]);
+    }
+
+    #[test]
+    fn a_match_of_few_spawns_30_m_away_first() {
+        // A 20 m radius: 22, 25, 28 and 40 m from the living all clear.
+        let points: Vec<_> = [22.0, 25.0, 28.0, 40.0, 31.0]
+            .into_iter().map(|x| Point { position: [x, 0.0, 0.0], enemy_radius: 20.0 }).collect();
+        let living = [[0.0; 3]];
+        // Two players, three points: 31 and 40 m, then 28 m (the farthest under 30).
+        assert_eq!(seen_of(2, &points, &living), [2, 3, 4]);
+        // Eight, four points: then 25 m.
+        assert_eq!(seen_of(8, &points, &living), [1, 2, 3, 4]);
+        assert_eq!([900.0, 961.0, 784.0, 484.0].map(near_order), [(false, 0.0), (false, 61.0), (true, 116.0), (true, 416.0)]);
+    }
+
+    #[test]
+    fn with_nobody_living_a_match_of_few_has_the_whole_pool() {
+        let points: Vec<_> = (0..12).map(|i| at(i as f32 * 40.0)).collect();
+        assert_eq!(seen_of(2, &points, &[]), (0..12).collect::<Vec<_>>());
+    }
+
+    #[test]
+    fn a_match_of_few_keeps_the_last_two_and_the_ticks_separation() {
+        // 25 m apart from a living player at 0: the first (25 m) not clear.
+        let points: Vec<_> = (1..=10).map(|i| at(i as f32 * 25.0)).collect();
+        let living = [[0.0; 3]];
+        let mut spawns = SpawnHistory::EMPTY;
+        let mut history: Vec<usize> = Vec::new();
+        for event in 0..300 {
+            let j = planned_of(2, &mut spawns, &[solo(1)], &points, &living, event * 5_000, clear_of(&points, &living))[0];
+            assert!(!history.iter().rev().take(2).any(|&k| k == j), "{event}: {j} after {history:?}");
+            // The three nearest clear points less his last two: of the five nearest.
+            assert!((1..=5).contains(&j), "{event}: {j}");
+            history.push(j);
+        }
+        for time in (0..5_000).step_by(50) {
+            let chosen = planned_of(2, &mut { SpawnHistory::EMPTY }, &[solo(0), solo(1)], &points, &living, time,
+                clear_of(&points, &living));
+            assert!(distance_squared(points[chosen[0]].position, points[chosen[1]].position) >= 900.0, "{chosen:?}");
+        }
     }
 
     fn target(bytes: &[u8]) -> Option<u16> {

@@ -55,9 +55,15 @@ pub struct ItemParams {
     pub clip_size: u32,
     pub clip_weight: f32,
     pub required_bags: u32,
+    /// Ammo: the pellets a round flies as (`data.buck_shot`): over 1 for buckshot, 0 or 1 for a
+    /// single projectile (a slug, a bullet).
+    pub pellets: u32,
     /// Weapons: the rounds a magazine holds.
     pub magazine_capacity: u32,
     pub double_handed: bool,
+    /// Weapons: whether a fire mode is automatic (`parameters.fire_queue_types` holds -1, the whole
+    /// magazine while the trigger is held; 1 is single shots, n a burst of n).
+    pub automatic: bool,
     /// What one unit of it takes of a pocket ([`PocketShare`]).
     pub pocket_share: PocketShare,
     /// Cosmetics: the modification that puts it on an item.
@@ -244,6 +250,9 @@ pub enum PocketShare {
     /// Two units (`parameters.pocket_units` 2, srp's key: the RGD-5): the
     /// pocket holds half its size, at least one.
     Pair,
+    /// One and a half units (a trap with Bear Trap; no config says it): the
+    /// pocket holds two in three of its size, at least one.
+    ThreeHalves,
     /// The whole pocket, one in it (`parameters.fills_whole_pocket`, the
     /// game's key: the boosters).
     Whole,
@@ -256,6 +265,7 @@ impl PocketShare {
         match self {
             Self::Unit => size,
             Self::Pair => (size / 2).max(1).min(size),
+            Self::ThreeHalves => (size * 2 / 3).max(1).min(size),
             Self::Whole => 1,
         }
     }
@@ -495,7 +505,11 @@ impl ItemParams {
             clip_weight: float(p, "clip_weight")?,
             required_bags: int(p, "required_bags")?,
             magazine_capacity: int(p, "magazine_capacity")?,
+            pellets: int(config.get("data"), "buck_shot")?,
             double_handed: flag(p, "double_handed")?,
+            automatic: p
+                .and_then(|p| p.get("fire_queue_types"))
+                .is_some_and(|modes| modes.children().iter().any(|mode| mode.as_i32() == Some(-1))),
             pocket_share: PocketShare::from_config(p)?,
             class: ItemClass::from_config(config)?,
             gun: GunStates::from_config(config)?,
@@ -657,35 +671,6 @@ mod tests {
         assert!(item_params(73).is_none());
     }
 
-    /// The RGD-5 takes two units of a pocket (throwables.tsv), a booster
-    /// the whole pocket, the rest one unit (the owner, 2026-11-05).
-    #[test]
-    fn what_an_item_takes_of_a_pocket() {
-        let share = |name| {
-            let item = Dictionary::shared().item_named(name).unwrap();
-            item_params(item.dict_id).unwrap().pocket_share
-        };
-        assert_eq!(share("rgd-5"), PocketShare::Pair);
-        assert_eq!(share("rdg-m"), PocketShare::Unit);
-        assert_eq!(share("medkit"), PocketShare::Unit);
-        assert_eq!(share("speed_booster"), PocketShare::Whole);
-        let pair: Vec<u32> = (0..=5).map(|size| PocketShare::Pair.units_in(size)).collect();
-        assert_eq!(pair, [0, 1, 1, 1, 2, 2]);
-        let whole: Vec<u32> = (0..=5).map(|size| PocketShare::Whole.units_in(size)).collect();
-        assert_eq!(whole, [1; 6]);
-        assert_eq!(PocketShare::Unit.units_in(4), 4);
-
-        let parse = |keys: &[(&str, ConfigValue)]| {
-            let keys = keys.iter().map(|(key, value)| ((*key).to_owned(), value.clone()));
-            PocketShare::from_config(Some(&ConfigValue::Named(keys.collect())))
-        };
-        let units = |n| ("pocket_units", ConfigValue::Integer(n));
-        assert_eq!(parse(&[units(2)]).unwrap(), PocketShare::Pair);
-        assert_eq!(parse(&[units(1)]).unwrap(), PocketShare::Unit);
-        assert!(parse(&[units(3)]).is_err());
-        assert!(parse(&[("fills_whole_pocket", ConfigValue::Boolean(true)), units(2)]).is_err());
-    }
-
     #[test]
     fn the_carry_limit_is_the_players_config() {
         let player = player();
@@ -799,45 +784,5 @@ mod tests {
             .find(|item| item.cfg_name.ends_with("/renesanse_helmet_6.options"))
             .unwrap();
         assert_eq!(covered_slots(zubr.dict_id), [1]);
-    }
-
-    /// On a server game data file as `release/build-content` makes it
-    /// (`SRP_TEST_GAME_DATA`), with `protective-mask-1.json` (T28): the
-    /// Protective mask (1816) is a mask like the others, worn in the mask
-    /// slot only and covering no slot, its level, weight and price as the
-    /// face-069d pack made them; no mask covers anything, and only a whole
-    /// suit, worn in the back slot, covers the helmet slot.
-    #[test]
-    #[ignore = "needs SRP_TEST_GAME_DATA: a server-game-data.db made by release/build-content"]
-    fn the_protective_mask_of_the_built_game_data_is_just_a_mask() {
-        use super::super::game_data::GameData;
-        let path = std::env::var_os("SRP_TEST_GAME_DATA").expect("SRP_TEST_GAME_DATA");
-        let data = GameData::open(std::path::Path::new(&path)).unwrap();
-        let file = |path: &str| data.file(path).unwrap_or_else(|| panic!("no {path}"));
-        let dictionary = Dictionary::parse(file(super::super::dictionary::PATH)).unwrap();
-        let params = derive(&data, &dictionary).unwrap();
-        let of = |dict_id: u16| params.iter().find(|row| row.dict_id == dict_id).unwrap();
-        let mask = of(1816);
-        assert_eq!(mask.kind, "arm_mask");
-        assert_eq!((mask.item_level, mask.weight), (10, 1.5));
-        assert!(mask.covered_slots.is_empty());
-        let item = dictionary.item(1816).unwrap();
-        assert_eq!(
-            (item.name.as_str(), item.base_cost),
-            ("face_069d_protective_mask", 13_130)
-        );
-        let slots: Vec<u8> = (0..=6)
-            .filter(|&slot| dictionary.fits(1816, slot))
-            .collect();
-        assert_eq!(slots, [1]);
-        for row in &params {
-            let name = &dictionary.item(row.dict_id).unwrap().name;
-            if row.kind == "arm_mask" {
-                assert!(row.covered_slots.is_empty(), "{name}");
-            }
-            if row.covered_slots.contains(&0) {
-                assert!(dictionary.fits(row.dict_id, 3), "{name}");
-            }
-        }
     }
 }

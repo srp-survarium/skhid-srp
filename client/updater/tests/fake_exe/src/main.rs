@@ -13,6 +13,9 @@
 //!   `<release>` is there.
 //! - `fake-exe.exe lock <file> <held> <release>`: the same, but nobody else
 //!   may even read the file (share mode 0), as some antivirus scans do.
+//! - `fake-exe.exe window <held> <release>`: the game with its window, as
+//!   the launcher's PLAY finds one left running: makes `<held>` once it is
+//!   shown, ends when it is closed (WM_CLOSE) or once `<release>` is there.
 //! - `fake-exe.exe launcher <name> <updater> <out> <stop> [<ok> [<extra> <say>]]`: the launcher's
 //!   end of its pipe: makes `\\.\pipe\vostok_updater_pipe-<name>`, starts
 //!   `<updater> update <pipe>`, writes every byte the updater sends into
@@ -135,6 +138,38 @@ fn hold(path: &str, held: &str, release: &str, share: u32) -> u32 {
         unsafe { Sleep(10) };
     }
     unsafe { CloseHandle(file) };
+    0
+}
+
+/// The game with its window: makes the file `<held>` once the window is
+/// shown, and ends (0) when the window is closed (WM_CLOSE), or (5) once the
+/// file `<release>` is there.
+fn window(held: &str, release: &str) -> u32 {
+    use windows_sys::Win32::UI::WindowsAndMessaging::{
+        CreateWindowExW, DispatchMessageW, IsWindow, MSG, PM_REMOVE, PeekMessageW, TranslateMessage,
+        WS_OVERLAPPEDWINDOW, WS_VISIBLE,
+    };
+    let window = unsafe {
+        CreateWindowExW(0, wide("STATIC").as_ptr(), wide("fake game").as_ptr(), WS_OVERLAPPEDWINDOW | WS_VISIBLE,
+                        0, 0, 200, 100, null_mut(), null_mut(), null_mut(), null())
+    };
+    if window.is_null() {
+        return 4;
+    }
+    unsafe { CloseHandle(create(held, 0)) };
+    let mut message: MSG = unsafe { core::mem::zeroed() };
+    while unsafe { IsWindow(window) } != 0 {
+        while unsafe { PeekMessageW(&mut message, null_mut(), 0, 0, PM_REMOVE) } != 0 {
+            unsafe {
+                TranslateMessage(&message);
+                DispatchMessageW(&message);
+            }
+        }
+        if exists(release) {
+            return 5;
+        }
+        unsafe { Sleep(10) };
+    }
     0
 }
 
@@ -376,6 +411,7 @@ fn main() {
             )),
             "game" => ExitProcess(game(argument(2), argument(3), argument(4), argument(5))),
             "lock" => ExitProcess(hold(argument(2), argument(3), argument(4), 0)),
+            "window" => ExitProcess(window(argument(2), argument(3))),
             "launcher" => ExitProcess(launcher(
                 argument(2),
                 argument(3),

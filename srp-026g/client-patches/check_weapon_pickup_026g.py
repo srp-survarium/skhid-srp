@@ -278,6 +278,25 @@ def slot_word(snapshot, kit, slot):
     return struct.unpack_from("<HH", snapshot, at)
 
 
+def death_crumbs(r, data, place):
+    """The crash report's breadcrumbs of `place`'s deaths (vostok/breadcrumbs.rs: the ring found by its
+    header, its own address then that xor "BRCS"; an entry 32 bytes after the 64 of the header, kind 7
+    a death, its place the entry's +5): their lives."""
+    check = int.from_bytes(b"BRCS", "little")
+    for name, rva, vsize, _, _, _ in base.Headers(data).sections(data):
+        if not name.startswith(b".srp"):
+            continue
+        start = base.IMAGE_BASE + rva
+        memory = r.emu.mem_read(start, vsize & ~3)
+        for at in range(0, len(memory) - 0x40, 4):
+            first, second = struct.unpack_from("<II", memory, at)
+            if first == start + at and second == first ^ check:
+                count = struct.unpack_from("<I", memory, at + 0x10)[0]
+                entries = [memory[at + 0x40 + 32 * i:at + 0x60 + 32 * i] for i in range(min(count, 1024))]
+                return [struct.unpack_from("<I", e, 16)[0] for e in entries if e[4] == 7 and e[5] == place]
+    return []
+
+
 def main():
     original = open(sys.argv[1], 'rb').read()
     for va, hexbytes in ORIGINAL.items():
@@ -323,7 +342,10 @@ def main():
     r.death()
     assert r.queries == [], "a replayed death asks again"
     assert sum("pickup: death hook: place 5 " in l for l in r.log) == 1, r.log
-    print("ok the same life's death again (a rollback replaying it): no second cook, its line said once")
+    crumbs = death_crumbs(r, patched, 5)
+    assert len(crumbs) == 1, f"the death's breadcrumbs: {crumbs}"
+    print("ok the same life's death again (a rollback replaying it): no second cook, its line said once, "
+          "its breadcrumb recorded once")
 
     r.complete(q, COOKED)
     assert r.read(COOKED + 0xD0) == 2 and recipe in r.frees and copy in r.live

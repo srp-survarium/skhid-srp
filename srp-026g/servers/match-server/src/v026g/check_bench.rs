@@ -25,10 +25,13 @@ impl Match {
             score_weights: options.score_weights,
             info,
             formed_at: std::time::Instant::now(),
+            replay_id: session::v026g::replays::ReplayId::new(
+                options.match_id,
+                std::time::SystemTime::now(),
+            ),
             growing_roster: false,
             initial_players,
-            vs_bots: false,
-            private: false,
+            kind: session::v026g::match_kind::MatchKind::Normal,
             room_minimum: None,
             // Keeper's draw gives a late joiner's kits (registry::Formed::keeper); the bench only
             // checks uploads, whose profiles carry the match's draw already.

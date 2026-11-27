@@ -25,9 +25,15 @@ def main():
     g.emu.mem_write(obj + 0x16d, b'\xa5')
     count = 0
     names = [(f'v021d_level_0{level}/day_{mode}', True)
-             for level in (1, 2, 3, 5, 6) for mode in (2, 4, 8)]
+             for level in (1, 2, 3, 4, 5, 6) for mode in (2, 4, 8)]
+    names += [(f'v021d_level_0{level}/{weather}_{mode}', True)
+              for level in (1, 2, 3, 4, 5, 6) for weather in ('rain', 'evening') for mode in (2, 4)]
     names += [(name, False) for name in ('', 'v021d', 'level_01/day_2',
-              'v021d_level_04/day_2', 'v021d_level_01/rain_2',
+              'v021d_level_07/day_2', 'v021d_level_00/rain_2',
+              'level_01/rain_2', 'level_05/evening_4',
+              'v021d_level_01/rain_8', 'v021d_level_01/evening_8',
+              'v021d_level_01/rain_20', 'v021d_level_01/evening_4/extra',
+              'v021d_level_01/rain_', 'v021d_level_01/evening',
               'v021d_level_01/day_20', 'v021d_level_01/day_2/extra')]
     for name, legacy in names:
         g.emu.mem_write(game + 0x55ec, name.encode() + b'\0')

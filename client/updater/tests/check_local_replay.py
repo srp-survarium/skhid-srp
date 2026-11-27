@@ -5,6 +5,7 @@ Run after build.sh: python tests/check_local_replay.py --wine /path/to/wine
 Uses only a stand-in game. Keeps its temporary directory as evidence.
 """
 import argparse
+import getpass
 import hashlib
 import http.server
 import json
@@ -46,12 +47,12 @@ def main():
     def win(path):
         return 'Z:' + str(path).replace('/', '\\')
 
-    def run(*argv, expected=0):
+    def run(*argv, expected=0, timeout=60):
         # Wine's persistent server/children may inherit stdout. A regular file
         # avoids waiting for pipe EOF after the invoked process has exited.
         with tempfile.TemporaryFile() as output:
             done = subprocess.run([args.wine, *map(str, argv)], env=env, cwd=root,
-                                  stdout=output, stderr=subprocess.STDOUT, timeout=60)
+                                  stdout=output, stderr=subprocess.STDOUT, timeout=timeout)
             output.seek(0)
             data = output.read()
         assert done.returncode == expected, (argv, done.returncode, data,
@@ -152,8 +153,14 @@ def main():
     finally:
         server.shutdown()
         server.server_close()
+    # The updater keeps the player's route in Documents\survarium: a folder of
+    # the test's own, never the one Wine links to this user's home.
+    documents = root / 'prefix' / 'drive_c' / 'users' / getpass.getuser() / 'Documents'
+    if documents.is_symlink():
+        documents.unlink()
+    (documents / 'survarium').mkdir(parents=True, exist_ok=True)
     import relay_play
-    relay_play.check(run, updater, x86, started, log, win)
+    relay_play.check(run, updater, x86, started, log, win, documents / 'survarium')
     assert hashlib.sha256(file.read_bytes()).hexdigest() == digest
     (root / 'result.json').write_text(json.dumps({'passed': True, 'updater_sha256':
         hashlib.sha256(updater.read_bytes()).hexdigest()}, indent=2) + '\n')

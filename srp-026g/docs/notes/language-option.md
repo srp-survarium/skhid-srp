@@ -9,7 +9,7 @@ the main menu movie (`flash/main_menu/src/SrpLanguage.as`).
 
 - **Where:** Settings, Gameplay tab, the bottom panel, centred: the label "Language:" (styled as
   the tab's option labels), a list of every registered language by its own name (English,
-  Українська, Русский, Deutsch, Polski, Srpski, Čeština, Magyar, Suomi, Беларуская, Hrvatski), the saved one selected
+  Українська, Русский, Deutsch, Polski, Srpski, Čeština, Magyar, Suomi, Беларуская, Hrvatski, Português), the saved one selected
   (in Ruffle: `../images/language-option.png`).
 - **The panel's old options are hidden:** "Enable seeding", "Limit upload speed" (the old launcher's
   torrent) and "Enable statistics collection" (nothing in the 0.26g exe reads it). Hidden, not
@@ -71,14 +71,14 @@ The language, once, before the dictionary loads:
 ## One list
 
 - The languages, their resource names, their own names, their Windows locale rules and their
-  two-letter codes are `LANGUAGES` in `client-patches/localization_026g.py`. `python3
-  localization_026g.py --write` generates the exe's table (`client-patches/languages_026g.rs`) and the
-  launcher's (`client-patches/launcher/launcher_languages_026g.inc`; then assemble the launcher's .bin
-  again); `check_localization_026g.py` fails when either is stale.
+  two-letter codes are `LANGUAGES` in `client-patches/localization_026g.py`. The builds generate the
+  exe's table (`client-patches/languages_026g.rs`, every link of the arena) and the launcher's
+  (`launcher_languages_026g.inc`, assembled into the launcher by `patch_launcher_026g.py`); neither is
+  committed.
 - The movie lists what the exe answers (`root.srp_language`): label, note, saved, running, then each
   language's name and own name. No list in the movie.
 - A new language: its `LANGUAGES` row (with its own name, primary id or tuple of exact LANGIDs, and code), its complete TSV (the two Settings texts
-  `st_srp_language_option`, `st_srp_language_restart` included), `--write`.
+  `st_srp_language_option`, `st_srp_language_restart` included).
 
 ## Known limits
 

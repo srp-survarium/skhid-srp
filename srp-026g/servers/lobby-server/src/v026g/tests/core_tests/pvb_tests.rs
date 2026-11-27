@@ -118,15 +118,13 @@ fn gear_5_gets_an_8_v_8_with_15_bots_on_the_map_chosen() {
         .map(|row| row.split(';').next().unwrap().parse().unwrap())
         .collect();
     assert_eq!(listed, MAPS);
-    assert_eq!(maps[0], "61;1;2;5");
-    assert_eq!(maps[8], "117;1;4;5");
 
     let (ticket, team) = play_vs_bots(&mut world, alice, 8, MapId::new(61));
     assert_eq!(team, 0);
     let made = world.host.made.locked();
     let (id, setup) = made.last().unwrap();
     assert_eq!(*id, ticket);
-    assert!(setup.vs_bots);
+    assert_eq!(setup.kind, session::v026g::match_kind::MatchKind::VsBots);
     assert_eq!(setup.played.map().id, MapId::new(61));
     assert_eq!(setup.players.len(), 16);
     assert_eq!(setup.players[0].account_id, world.ids[alice].0);
@@ -483,4 +481,39 @@ fn a_level_15_player_plays_level_15_bots_in_the_top_players_kits() {
             .iter()
             .all(|&each| each == session::v026g::level_stats::BOT_STRENGTH)
     );
+}
+
+/// The faces of a match against bots (`face-choice.md`): the player's is
+/// the account's, each bot's the draw of the second the match is made and
+/// the bot's number in it (`Faces::bot_face`).
+#[test]
+fn the_bots_of_a_match_are_made_with_their_drawn_faces() {
+    use survarium::v026g::faces::Faces;
+    let faces = Faces::shared();
+    let mut world = world_with(5);
+    let alice = world.connect("Alice");
+    with_gear(&mut world, alice, 5);
+    world.change(alice, |account| {
+        account.choose_face(faces.face(1).unwrap());
+    });
+    let before = quests::now();
+    play_vs_bots(&mut world, alice, 8, MapId::new(61));
+    let after = quests::now();
+    let made = world.host.made.locked();
+    let (_, setup) = made.last().unwrap();
+    assert_eq!(setup.players[0].profile.face, faces.face(1).unwrap());
+    let drawn: Vec<_> = setup.players[1..]
+        .iter()
+        .map(|bot| bot.profile.face)
+        .collect();
+    assert_eq!(drawn.len(), 15);
+    assert!(
+        (before..=after).any(|unix| drawn
+            .iter()
+            .enumerate()
+            .all(|(n, &face)| face == faces.bot_face(unix, n + 1))),
+        "{drawn:?}"
+    );
+    // Fifteen bots over the test data's three faces: not one face for all.
+    assert!(drawn.iter().any(|&face| face != drawn[0]), "{drawn:?}");
 }

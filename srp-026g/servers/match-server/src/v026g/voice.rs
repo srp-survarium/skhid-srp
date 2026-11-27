@@ -4,8 +4,8 @@
 //! The players' games (`skhid_voice.dll`, `srp-026g/client-voice`) send
 //! their talk here as utterances (START, AUDIO, END) and get the match's.
 //! The relay knows a talker by the session of its match connection (the
-//! 0xD8), and takes its datagrams only from the network that connection came
-//! from ([`VoiceSeat::ip`], [`same_network`]). An utterance is on one of two
+//! 0xD8), and takes its datagrams only by the route and from the network that
+//! connection came from ([`VoiceSeat::connection`], [`same_network`]). An utterance is on one of two
 //! channels, by the key its talker holds (the owner, 2026-11-16: "two voice
 //! buttons one for 10m one for radio", "radio is team only", "or in ffa for
 //! everyone", "10m is the one everyone can hear"; [`Audience`]):
@@ -76,7 +76,9 @@
 
 use std::collections::HashMap;
 use std::io;
-use std::net::{IpAddr, SocketAddr, UdpSocket};
+use std::net::{IpAddr, UdpSocket};
+
+use udp_transport::relay::{Peer, Route};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, Instant};
 
@@ -421,7 +423,8 @@ pub enum Dropped {
     /// A session with no seat.
     NoSeat,
     /// From another network than its seat's match connection
-    /// ([`same_network`]).
+    /// ([`same_network`]), or by another route
+    /// ([`super::registry::Connection::admits`]).
     WrongIp,
     /// A talker over [`MAX_PER_SECOND`].
     RateLimit,
@@ -448,7 +451,7 @@ impl std::fmt::Display for Dropped {
                 FAILED_LOOKUPS.per_second
             ),
             Self::NoSeat => write!(f, "no seat"),
-            Self::WrongIp => write!(f, "not its seat's network"),
+            Self::WrongIp => write!(f, "not its seat's network or route"),
             Self::RateLimit => write!(f, "over {MAX_PER_SECOND} a second"),
             Self::AudioRate => write!(f, "audio over {} a second", AUDIO_RATE.per_second),
         }
@@ -723,6 +726,9 @@ fn muted(mask: u32, slot: u8) -> bool {
         .is_some_and(|bit| mask & bit != 0)
 }
 
+/// A refused session's source: its IP, the route it came by, the session.
+type RefusalKey = (IpAddr, Route, u32);
+
 /// Half-range ordering of wrapping client and relay utterance counters.
 fn newer_utterance(a: u16, b: u16) -> bool {
     (a.wrapping_sub(b) as i16) > 0
@@ -733,7 +739,7 @@ fn header(kind: u8) -> Vec<u8> {
 }
 
 struct Listener {
-    addr: SocketAddr,
+    addr: Peer,
     seat: VoiceSeat,
     hears: bool,
     muted: u32,
@@ -789,7 +795,9 @@ pub struct Relay<S: Seats> {
     other_sources: Source,
     /// Sessions refused from a source IP lately ([`REFUSED_FOR`]): when,
     /// why, and the match of the seat (when there was one).
-    refused: HashMap<(IpAddr, u32), (Instant, Dropped, Option<u32>)>,
+    /// By the source IP, the route it came by and the session: a refusal by
+    /// one route never holds back the same IP's game by another.
+    refused: HashMap<RefusalKey, (Instant, Dropped, Option<u32>)>,
     /// The voice ids' key ([`voice_id`]).
     id_key: [u8; 32],
     next_housekeeping: Instant,
@@ -867,16 +875,17 @@ impl<S: Seats> Relay<S> {
     /// and counted (for the seat's match, when it has one).
     fn refuse(
         &mut self,
-        source: IpAddr,
+        from: Peer,
         session: u32,
         reason: Dropped,
         match_id: Option<u32>,
         now: Instant,
     ) {
+        let source = from.ip().to_canonical();
         self.source(source, now).failed.take(now);
         if self.refused.len() < SOURCES {
             self.refused
-                .insert((source, session), (now, reason, match_id));
+                .insert((source, from.route(), session), (now, reason, match_id));
         }
         self.reject(source, match_id, reason);
     }
@@ -897,10 +906,10 @@ impl<S: Seats> Relay<S> {
     /// One datagram from `addr`: what to send, and where.
     pub fn receive(
         &mut self,
-        addr: SocketAddr,
+        addr: Peer,
         datagram: &[u8],
         now: Instant,
-    ) -> Vec<(SocketAddr, Vec<u8>)> {
+    ) -> Vec<(Peer, Vec<u8>)> {
         let mut out = Vec::new();
         let source = addr.ip().to_canonical();
         // Before anything else (the registry's lock above all): the source's
@@ -923,7 +932,7 @@ impl<S: Seats> Relay<S> {
             | Datagram::End { session, .. } => *session,
         };
         // A session refused from this source lately is not looked up again.
-        if let Some(&(at, reason, match_id)) = self.refused.get(&(source, session))
+        if let Some(&(at, reason, match_id)) = self.refused.get(&(source, addr.route(), session))
             && now.saturating_duration_since(at) < REFUSED_FOR
         {
             self.reject(source, match_id, reason);
@@ -931,10 +940,12 @@ impl<S: Seats> Relay<S> {
         }
         // One not known from this source is looked up only when the
         // source's failed lookups have room.
-        let known = self
-            .listeners
-            .get(&session)
-            .is_some_and(|listener| listener.seat.ip.is_some_and(|ip| same_network(ip, source)));
+        let known = self.listeners.get(&session).is_some_and(|listener| {
+            listener
+                .seat
+                .connection
+                .is_some_and(|connection| connection.admits(addr))
+        });
         if !known && !self.source(source, now).failed.has_room(now) {
             self.reject(source, None, Dropped::Lookups);
             return out;
@@ -944,17 +955,17 @@ impl<S: Seats> Relay<S> {
         // in the drop log, by its source).
         let Some(seat) = self.seats.voice_seat(session) else {
             self.listeners.remove(&session);
-            self.refuse(source, session, Dropped::NoSeat, None, now);
+            self.refuse(addr, session, Dropped::NoSeat, None, now);
             return out;
         };
-        match seat.ip {
-            Some(ip) if same_network(ip, source) => (),
+        match seat.connection {
+            Some(connection) if connection.admits(addr) => (),
             // The game starts voice as it connects to the match, before its
             // 0xD8 gives the seat its IP: too early, not malformed. Neither
             // counted nor logged; the game says HELLO again until WELCOME.
             None => return out,
             Some(_) => {
-                self.refuse(source, session, Dropped::WrongIp, Some(seat.match_id), now);
+                self.refuse(addr, session, Dropped::WrongIp, Some(seat.match_id), now);
                 return out;
             }
         }
@@ -1088,7 +1099,7 @@ impl<S: Seats> Relay<S> {
         utt: u16,
         channel: Channel,
         now: Instant,
-        out: &mut Vec<(SocketAddr, Vec<u8>)>,
+        out: &mut Vec<(Peer, Vec<u8>)>,
     ) {
         let Some(talker) = self.talkers.get(&session) else {
             return;
@@ -1156,7 +1167,7 @@ impl<S: Seats> Relay<S> {
         session: u32,
         reason: EndReason,
         now: Instant,
-        out: &mut Vec<(SocketAddr, Vec<u8>)>,
+        out: &mut Vec<(Peer, Vec<u8>)>,
     ) {
         let Some(talker) = self.talkers.get_mut(&session) else {
             return;
@@ -1189,7 +1200,7 @@ impl<S: Seats> Relay<S> {
         speaker: u32,
         datagram: &[u8],
         now: Instant,
-        out: &mut Vec<(SocketAddr, Vec<u8>)>,
+        out: &mut Vec<(Peer, Vec<u8>)>,
     ) {
         for (session, listener) in &self.listeners {
             // The registry (a lock the match thread shares) is asked last: only
@@ -1208,7 +1219,7 @@ impl<S: Seats> Relay<S> {
         }
     }
 
-    fn send_texts(&self, tap_out: RelayOut, now: Instant, out: &mut Vec<(SocketAddr, Vec<u8>)>) {
+    fn send_texts(&self, tap_out: RelayOut, now: Instant, out: &mut Vec<(Peer, Vec<u8>)>) {
         for (utterance, last, lang, text) in tap_out.texts {
             let mut datagram = header(kind::TEXT);
             datagram.push(utterance.speaker);
@@ -1231,7 +1242,7 @@ impl<S: Seats> Relay<S> {
     /// The time-outs and cuts due at `now`, and once a second the seats
     /// checked again, each match that is over logged and forgotten, and
     /// the drop log written when due.
-    pub fn poll(&mut self, now: Instant) -> Vec<(SocketAddr, Vec<u8>)> {
+    pub fn poll(&mut self, now: Instant) -> Vec<(Peer, Vec<u8>)> {
         let mut out = Vec::new();
         if now >= self.next_housekeeping {
             self.next_housekeeping = now + HOUSEKEEPING;
@@ -1257,7 +1268,7 @@ impl<S: Seats> Relay<S> {
         out
     }
 
-    fn housekeeping(&mut self, now: Instant, out: &mut Vec<(SocketAddr, Vec<u8>)>) {
+    fn housekeeping(&mut self, now: Instant, out: &mut Vec<(Peer, Vec<u8>)>) {
         // A source back to its whole rate is forgotten.
         self.sources.retain(|_, rates| !rates.is_full(now));
         self.refused
@@ -1317,22 +1328,23 @@ pub fn port_for(match_port: u16) -> Option<u16> {
 }
 
 /// The relay on `socket` until `stop` is set. Returns only on a socket error.
+/// `relays`: the relays whose tunnel addresses may say a datagram's own
+/// address (`SRP_RELAYS`, parsed once by the caller).
 pub fn run(
     socket: &UdpSocket,
     seats: impl Seats,
     id_key: [u8; 32],
+    relays: udp_transport::relay::Relays,
     stop: &AtomicBool,
 ) -> io::Result<()> {
     socket.set_read_timeout(Some(RECEIVE_WAIT))?;
     log::info!("Voice relay on UDP {}", socket.local_addr()?);
     let mut relay = Relay::new(seats, Instant::now()).with_id_key(id_key);
-    let mut socket = udp_transport::relay::Datagrams::new(
-        socket, udp_transport::relay::Relays::from_env()?,
-    )?;
+    let mut socket = udp_transport::relay::Datagrams::new(socket, relays)?;
     let mut buffer = [0; 2048];
     while !stop.load(Ordering::Relaxed) {
         let sends = match socket.recv_from(&mut buffer) {
-            Ok((len, peer)) => relay.receive(peer.address, &buffer[..len], Instant::now()),
+            Ok((len, peer)) => relay.receive(peer, &buffer[..len], Instant::now()),
             Err(error)
                 if matches!(
                     error.kind(),

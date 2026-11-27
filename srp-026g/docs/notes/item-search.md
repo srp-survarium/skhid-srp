@@ -7,7 +7,7 @@ nice to have".
 
 Code, in `flash/lobby_menu/src` ([lobby-source.md](lobby-source.md)):
 
-- `survarium/controls/InventoryList`: the box (`makeSearch`, `onSearchKey`, `closeSearch`,
+- `survarium/controls/InventoryList`: the box (`makeSearch`, `onSearchKey`, `clearSearch`,
   `applySearch`), its tip (`showSearchTip`, `SEARCH_TIP`) and the matching (`searchItems`,
   `searchQuery` into a `SearchQuery`, `searchAdmits`, `searchFactions`, `searchBonuses` with
   `SEARCH_BONUSES`, `searchForm`, `wordScore`, `spreadSpan`, `typoCount`);

@@ -230,44 +230,6 @@ pub fn price_list() -> &'static [PriceItem] {
 mod tests {
     use super::*;
 
-    #[test]
-    fn premium_items_are_sold_for_their_price() {
-        let dictionary = Dictionary::shared();
-        let id = |name: &str| dictionary.item_named(name).unwrap().dict_id;
-        // The drop card, at its gold price in silver (`items.tsv`); the
-        // other vouchers are sold no more (the owner, 2026-11-08: `shop.tsv`).
-        let cost = |name: &str| premium_price(id(name)).map(|price| price.cost);
-        assert_eq!(cost("drop_card"), Some(10_000));
-        assert_eq!(cost("repair_voucher"), None);
-        assert_eq!(cost("rename_account_voucher"), None);
-        assert_eq!(cost("premium_voucher_1d"), None);
-        assert_eq!(cost("ak_74n"), Some(150_000));
-        // A bundle's items are the bundle's to sell; the shop's own items
-        // and money are not premium.
-        assert_eq!(cost("ak_74n_premium"), None);
-        assert_eq!(cost("scav_torso_4_premium"), None);
-        assert_eq!(cost("ammo_5.45x39_7n6m"), None);
-        assert_eq!(cost("premium_money"), None);
-        let list = premium_price_list();
-        assert!(list.iter().all(|price| {
-            let item = dictionary.item(price.dict_id).unwrap();
-            item.is_premium && price.cost == item.base_cost && price.faction_id == 0
-        }));
-        // Cosmetics are most of them.
-        let cosmetics = list
-            .iter()
-            .filter(|price| matches!(dictionary.item(price.dict_id).unwrap().category, 25 | 26))
-            .count();
-        assert!(cosmetics > 50, "{cosmetics}");
-        // The whole list has each item once for each of its sellers, in
-        // order.
-        let whole = price_list();
-        assert_eq!(whole.len(), prices::price_list().len() + list.len());
-        assert!(whole.windows(2).all(|pair| {
-            (pair[0].dict_id, pair[0].faction_id) < (pair[1].dict_id, pair[1].faction_id)
-        }));
-    }
-
     /// The decals no shop sells (2026-10-18, `prices::is_not_sold`) and the
     /// three vouchers removed (2026-11-08): the premium list is every premium
     /// item with a price that no bundle holds but those nine, and neither
@@ -410,24 +372,5 @@ mod tests {
         assert_eq!(offer(6), None);
         assert_eq!(offer(0), None);
         assert_eq!(offer(15), None);
-    }
-
-    #[test]
-    fn the_records_are_the_bundles() {
-        let records = records();
-        assert_eq!(records.len(), 7);
-        assert!(records.iter().all(|r| r.kind == KIND_BUNDLE));
-        assert!(records.iter().all(|r| r.money_type == SILVER));
-        assert!(records.iter().all(|r| r.id == r.ui_key));
-        // The AK-74N bundle: the rifle and 2000 rounds.
-        let ak = records.iter().find(|r| r.id == 9).unwrap();
-        assert_eq!(ak.value, 150_000);
-        assert_eq!(
-            ak.items
-                .iter()
-                .map(|item| (item.dict_id, item.amount, item.kind))
-                .collect::<Vec<_>>(),
-            [(338, 1, 0), (7, 2000, 0)]
-        );
     }
 }

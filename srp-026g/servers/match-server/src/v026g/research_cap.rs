@@ -9,8 +9,8 @@ use super::battery_cap::cut;
 /// Base objective allowance, plus forty points per paid kill and twenty per
 /// assist. Apply the repeated-kill limit first (see `reward_caps`).
 pub(crate) const MOST_SCORE: u32 = 200;
-const PER_KILL: u32 = 40;
-const PER_ASSIST: u32 = 20;
+pub(crate) const PER_KILL: u32 = 40;
+pub(crate) const PER_ASSIST: u32 = 20;
 
 /// A player's Research score cut: the place, what it scored and what it is
 /// paid, whole points.

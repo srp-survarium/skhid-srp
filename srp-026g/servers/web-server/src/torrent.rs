@@ -1,5 +1,5 @@
 //! The torrent inside the ZIP at `/download`, handed to people's own
-//! BitTorrent clients as `GET /torrent` and the home page's magnet link
+//! BitTorrent clients as `GET /torrent`
 //! (`docs/notes/torrent-downloads.md`, "The format"). The updater needs
 //! none of this: it takes the torrent from the ZIP it installed. One that
 //! cannot be read whole as a torrent is as if there were none.
@@ -24,14 +24,6 @@ const MAX_DEPTH: usize = 32;
 
 pub(super) struct Torrent {
     pub bytes: Vec<u8>,
-    /// `btih`: the SHA-1 of `info`.
-    pub v1: [u8; 20],
-    /// `btmh`: the SHA-256 of `info`.
-    pub v2: [u8; 32],
-    /// `info.name`.
-    pub name: String,
-    /// `announce-list` in order, else `announce`.
-    pub trackers: Vec<String>,
 }
 
 pub(super) fn in_zip(download: &Path) -> Option<Torrent> {
@@ -154,7 +146,7 @@ fn entry(download: &Path) -> Entry {
 enum Value<'a> {
     Int,
     Bytes(&'a [u8]),
-    List(Vec<Value<'a>>),
+    List,
     Dict(Vec<(&'a [u8], Value<'a>)>),
 }
 
@@ -188,7 +180,7 @@ fn value(data: &[u8], at: usize, depth: usize) -> Option<(Value<'_>, usize)> {
             if depth >= MAX_DEPTH {
                 return None;
             }
-            let (mut at, mut list, mut dict) = (at + 1, Vec::new(), Vec::new());
+            let (mut at, mut dict) = (at + 1, Vec::new());
             while *data.get(at)? != b'e' {
                 if kind == b'd' {
                     let (Value::Bytes(key), next) = value(data, at, depth + 1)? else {
@@ -198,16 +190,14 @@ fn value(data: &[u8], at: usize, depth: usize) -> Option<(Value<'_>, usize)> {
                     dict.push((key, item));
                     at = next;
                 } else {
-                    let (item, next) = value(data, at, depth + 1)?;
-                    list.push(item);
-                    at = next;
+                    at = value(data, at, depth + 1)?.1;
                 }
             }
             Some((
                 if kind == b'd' {
                     Value::Dict(dict)
                 } else {
-                    Value::List(list)
+                    Value::List
                 },
                 at + 1,
             ))
@@ -222,88 +212,23 @@ fn value(data: &[u8], at: usize, depth: usize) -> Option<(Value<'_>, usize)> {
     }
 }
 
-/// One dictionary, all of the file, with an `info` whose `name` is text,
-/// and text trackers.
+/// One dictionary, all of the file, with an `info` whose `name` is text.
 fn parse(bytes: Vec<u8>) -> Option<Torrent> {
     if bytes.first() != Some(&b'd') {
         return None;
     }
-    // Offsets kept: the info hash is of `info` exactly as the file has it.
-    let (mut at, mut info, mut trackers) = (1, None, Vec::new());
-    let mut announce = None;
+    let (mut at, mut named) = (1, false);
     while *bytes.get(at)? != b'e' {
         let (Value::Bytes(key), start) = value(&bytes, at, 1)? else {
             return None;
         };
         let (item, end) = value(&bytes, start, 1)?;
-        match key {
-            b"info" => info = Some((start, end, item)),
-            b"announce" => announce = Some(item.text()?.to_owned()),
-            b"announce-list" => {
-                let Value::List(tiers) = item else {
-                    return None;
-                };
-                for tier in &tiers {
-                    let Value::List(urls) = tier else { return None };
-                    for url in urls {
-                        trackers.push(url.text()?.to_owned());
-                    }
-                }
-            }
-            _ => {}
+        if key == b"info" {
+            named = item.get(b"name")?.text().is_some();
         }
         at = end;
     }
-    if at + 1 != bytes.len() {
-        return None;
-    }
-    let (start, end, info) = info?;
-    let name = info.get(b"name")?.text()?.to_owned();
-    if trackers.is_empty() {
-        trackers.extend(announce);
-    }
-    let raw = &bytes[start..end];
-    Some(Torrent {
-        v1: openssl::sha::sha1(raw),
-        v2: openssl::sha::sha256(raw),
-        name,
-        trackers,
-        bytes,
-    })
-}
-
-fn hex(bytes: &[u8]) -> String {
-    bytes.iter().map(|byte| format!("{byte:02x}")).collect()
-}
-
-/// Unreserved characters as they are, every other byte `%XX`.
-fn component(text: &str) -> String {
-    text.bytes()
-        .map(|b| {
-            if b.is_ascii_alphanumeric() || b"-._~".contains(&b) {
-                char::from(b).to_string()
-            } else {
-                format!("%{b:02X}")
-            }
-        })
-        .collect()
-}
-
-impl Torrent {
-    /// `btmh` is the multihash `1220<SHA-256>`.
-    pub(super) fn magnet(&self) -> String {
-        let mut link = format!(
-            "magnet:?xt=urn:btih:{}&xt=urn:btmh:1220{}&dn={}",
-            hex(&self.v1),
-            hex(&self.v2),
-            component(&self.name)
-        );
-        for tracker in &self.trackers {
-            link += "&tr=";
-            link += &component(tracker);
-        }
-        link
-    }
+    (named && at + 1 == bytes.len()).then_some(Torrent { bytes })
 }
 
 /// Named after the revision the server lets in: the torrent is put in place
@@ -356,23 +281,6 @@ mod tests {
         bytes.extend_from_slice(info);
         bytes.extend_from_slice(rest);
         bytes
-    }
-
-    #[test]
-    fn the_info_hashes_are_of_info_as_the_file_has_it() {
-        let torrent = parse(file(INFO, b"12:piece layersdee")).unwrap();
-        assert_eq!(torrent.v1, openssl::sha::sha1(INFO));
-        assert_eq!(torrent.v2, openssl::sha::sha256(INFO));
-        assert_eq!(torrent.name, "Survarium");
-        assert_eq!(torrent.trackers, ["udp:x", "http://y/"]);
-        assert_eq!(
-            torrent.magnet(),
-            format!(
-                "magnet:?xt=urn:btih:{}&xt=urn:btmh:1220{}&dn=Survarium&tr=udp%3Ax&tr=http%3A%2F%2Fy%2F",
-                hex(&openssl::sha::sha1(INFO)),
-                hex(&openssl::sha::sha256(INFO))
-            )
-        );
     }
 
     #[test]
@@ -449,10 +357,7 @@ mod tests {
         let readme: (&[u8], &[u8], u16) = (b"README.txt", b"read me", 0);
         assert!(with(&[readme]).is_none(), "an older ZIP: none");
         let found = with(&[readme, (ENTRY, &torrent, 0)]).unwrap();
-        assert_eq!(
-            (found.name.as_str(), found.bytes.as_slice()),
-            ("Survarium", torrent.as_slice())
-        );
+        assert_eq!(found.bytes, torrent);
         assert!(with(&[(ENTRY, &torrent, 8)]).is_none(), "compressed");
         assert!(with(&[(ENTRY, b"not a torrent", 0)]).is_none());
         let large = vec![b'x'; MAX_SIZE as usize + 1];

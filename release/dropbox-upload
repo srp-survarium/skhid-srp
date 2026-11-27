@@ -1,0 +1,184 @@
+#!/usr/bin/env bash
+# usage: release/dropbox-upload [--dry-run] <file>...
+#        release/dropbox-upload --login
+#
+# Puts each file on the owner's Dropbox, at $SKHID_DROPBOX_DIR/<name>
+# (default /patches, in the app's folder), and prints `<name> <url>` with a
+# tab between: an address players download it from, for its row
+# (release/patches.tsv, release/game.tsv, release/bootstrap.tsv) or for
+# release/add-mirror. The owner's order of a file's addresses: Google
+# Drive's, Dropbox's, the patches server's, archive.org's.
+#   1. a file of that name there already, of the same size, is taken as
+#      published (step 4 checks its bytes); of another size it is refused: a
+#      published file is never replaced;
+#   2. the upload, in parts of 128 MiB (mode add: never over a file);
+#   3. its public link, made or the one it has, in the form the players'
+#      updater takes:
+#        https://dl.dropboxusercontent.com/scl/fi/<id>/<name>?rlkey=<key>&dl=1
+#      which answers with the file at once. The www.dropbox.com form of the
+#      same link redirects to an address that ends in `#`, which the updater
+#      refuses;
+#   4. GET of that address as the updater fetches it must answer 200 with
+#      the file's size and sha256 (a whole download).
+# Nothing is asked: nothing here is offered to a player until its address is
+# in a list. --dry-run says what would be uploaded.
+#
+# The account, in release.env: $SKHID_DROPBOX_APP_KEY,
+# $SKHID_DROPBOX_APP_SECRET and $SKHID_DROPBOX_REFRESH_TOKEN (they do not run
+# out); or $SKHID_DROPBOX_TOKEN, an access token of the app's page (it runs
+# out in four hours), in release.env or the environment. The app
+# (https://www.dropbox.com/developers/apps): scoped access, its permissions
+# files.content.write, files.content.read, sharing.write, sharing.read.
+#
+#   --login   makes the refresh token, once: says the page to open, reads the
+#             code it shows, and writes SKHID_DROPBOX_REFRESH_TOKEN into
+#             release.env (the app's key and secret must be there). Nothing
+#             of it is printed.
+#
+# Dropbox Plus: 1 TB of downloads a day over all links; past it every link
+# is paused for a day (the file's other addresses serve meanwhile).
+. "$(dirname "$0")/lib.sh"
+
+PART=$((128 * 1024 * 1024))
+login=0 files=()
+while (($#)); do
+    case $1 in
+    -h | --help) usage ;;
+    --dry-run) DRY_RUN=1; shift ;;
+    --login) login=1; shift ;;
+    -*) die "unknown option $1 (--help)" ;;
+    *) files+=("$1"); shift ;;
+    esac
+done
+need_cmds curl jq sha256sum
+load_env
+work=$(mktemp -d)
+trap 'rm -rf "$work"' EXIT
+
+# POST to the token endpoint with the app's key and secret: the answer's
+# JSON into $work/token.json; dies with Dropbox's words otherwise.
+token_request() {
+    local status
+    status=$(curl -sS -o "$work/token.json" -w '%{http_code}' https://api.dropboxapi.com/oauth2/token \
+        -u "$SKHID_DROPBOX_APP_KEY:$SKHID_DROPBOX_APP_SECRET" "$@") || die "Dropbox cannot be reached"
+    [[ $status == 200 ]] ||
+        die "Dropbox gave no token ($status: $(jq -r '.error_description // .error // "no reason"' "$work/token.json" 2>/dev/null))"
+}
+
+if ((login)); then
+    ((${#files[@]} == 0)) || usage 1
+    load_env SKHID_DROPBOX_APP_KEY SKHID_DROPBOX_APP_SECRET
+    say "Open this page, allow the app, and paste the code it shows:"
+    say "  https://www.dropbox.com/oauth2/authorize?client_id=$SKHID_DROPBOX_APP_KEY&response_type=code&token_access_type=offline"
+    read -r -p "Code: " code </dev/tty
+    [[ $code =~ ^[A-Za-z0-9_-]+$ ]] || die "that is not a code"
+    token_request -d grant_type=authorization_code -d "code=$code"
+    refresh=$(jq -r '.refresh_token // empty' "$work/token.json")
+    [[ $refresh =~ ^[A-Za-z0-9_-]+$ ]] || die "Dropbox's answer has no refresh token"
+    grep -q '^SKHID_DROPBOX_REFRESH_TOKEN=' "$RELEASE_ENV" &&
+        die "$RELEASE_ENV has a SKHID_DROPBOX_REFRESH_TOKEN already: take the line out first"
+    if [[ -n $(tail -c 1 "$RELEASE_ENV") ]]; then echo >>"$RELEASE_ENV"; fi
+    printf 'SKHID_DROPBOX_REFRESH_TOKEN=%s\n' "$refresh" >>"$RELEASE_ENV"
+    say "SKHID_DROPBOX_REFRESH_TOKEN written into $RELEASE_ENV"
+    exit 0
+fi
+((${#files[@]})) || usage 1
+
+folder=${SKHID_DROPBOX_DIR:-/patches}
+[[ $folder =~ ^(/[A-Za-z0-9._-]+)+$ ]] || die "SKHID_DROPBOX_DIR ($folder) must be /<folder> of plain characters"
+for file in "${files[@]}"; do
+    [[ -f $file ]] || die "$file: no such file"
+    [[ ${file##*/} =~ ^[A-Za-z0-9._-]+$ ]] || die "${file##*/}: a name of letters, digits, . _ - only"
+done
+
+# The access token, as curl's header file (never on a command line).
+if [[ -z ${SKHID_DROPBOX_TOKEN:-} ]]; then
+    load_env SKHID_DROPBOX_APP_KEY SKHID_DROPBOX_APP_SECRET SKHID_DROPBOX_REFRESH_TOKEN
+    token_request -d grant_type=refresh_token -d "refresh_token=$SKHID_DROPBOX_REFRESH_TOKEN"
+    SKHID_DROPBOX_TOKEN=$(jq -r '.access_token // empty' "$work/token.json")
+    [[ -n $SKHID_DROPBOX_TOKEN ]] || die "Dropbox's answer has no access token"
+fi
+(umask 077 && printf 'Authorization: Bearer %s\n' "$SKHID_DROPBOX_TOKEN" >"$work/auth")
+
+# api <endpoint> <json>: the answer into $work/answer.json; its status.
+api() {
+    curl -sS -o "$work/answer.json" -w '%{http_code}' "https://api.dropboxapi.com/2/$1" \
+        -H @"$work/auth" -H 'Content-Type: application/json' -d "$2" || true
+}
+
+# content <endpoint> <json argument>: stdin is the body; the answer into
+# $work/answer.json; dies unless 200.
+content() {
+    local status
+    status=$(curl -sS -o "$work/answer.json" -w '%{http_code}' "https://content.dropboxapi.com/2/$1" \
+        -H @"$work/auth" -H 'Content-Type: application/octet-stream' -H "Dropbox-API-Arg: $2" --data-binary @- || true)
+    [[ $status == 200 ]] || die "Dropbox: $1 answered $status ($(why))"
+}
+
+why() { jq -r '.error_summary // "no reason"' "$work/answer.json" 2>/dev/null || head -c 200 "$work/answer.json"; }
+
+upload() {
+    local file=$1 path=$2 size=$3 session offset=0 cursor
+    content files/upload_session/start '{"close":false}' </dev/null
+    session=$(jq -r .session_id "$work/answer.json")
+    while ((offset < size)); do
+        cursor=$(jq -cn --arg s "$session" --argjson o "$offset" '{cursor:{session_id:$s,offset:$o},close:false}')
+        # dd, not tail | head: a writer cut short by head ends the script (pipefail).
+        dd if="$file" bs=1M skip=$((offset >> 20)) count=$((PART >> 20)) iflag=fullblock status=none |
+            content files/upload_session/append_v2 "$cursor"
+        offset=$((offset + PART < size ? offset + PART : size))
+        say "  $((offset * 100 / size))% ($offset of $size bytes)"
+    done
+    cursor=$(jq -cn --arg s "$session" --argjson o "$size" --arg p "$path" \
+        '{cursor:{session_id:$s,offset:$o},commit:{path:$p,mode:"add",autorename:false,mute:true}}')
+    content files/upload_session/finish "$cursor" </dev/null
+}
+
+# The file's public link in the updater's form.
+address() {
+    local path=$1 name=$2 status link form='^https://www\.dropbox\.com/scl/fi/([a-z0-9]+)/([^?]+)\?(.*&)?rlkey=([a-z0-9]+)(&.*)?$'
+    status=$(api sharing/create_shared_link_with_settings \
+        "$(jq -cn --arg p "$path" '{path:$p,settings:{requested_visibility:"public",audience:"public",access:"viewer"}}')")
+    if [[ $status == 200 ]]; then
+        link=$(jq -r .url "$work/answer.json")
+    elif [[ $status == 409 && $(why) == shared_link_already_exists* ]]; then
+        status=$(api sharing/list_shared_links "$(jq -cn --arg p "$path" '{path:$p,direct_only:true}')")
+        [[ $status == 200 ]] || die "Dropbox: the links of $path cannot be listed ($status: $(why))"
+        link=$(jq -r '[.links[] | select(.link_permissions.resolved_visibility[".tag"] == "public")][0].url // empty' "$work/answer.json")
+        [[ -n $link ]] || die "Dropbox: $path has a link that is not public: make it public, or remove it"
+    else
+        die "Dropbox: no link for $path ($status: $(why))"
+    fi
+    [[ $link =~ $form && ${BASH_REMATCH[2]} == "$name" ]] || die "Dropbox: a link of another form than expected for $path"
+    printf 'https://dl.dropboxusercontent.com/scl/fi/%s/%s?rlkey=%s&dl=1\n' "${BASH_REMATCH[1]}" "$name" "${BASH_REMATCH[4]}"
+}
+
+for file in "${files[@]}"; do
+    name=${file##*/} path=$folder/${file##*/}
+    size=$(size_of "$file")
+    status=$(api files/get_metadata "$(jq -cn --arg p "$path" '{path:$p}')")
+    if [[ $status == 200 ]]; then
+        there=$(jq -r '.size // "a folder"' "$work/answer.json")
+        [[ $there == "$size" ]] ||
+            die "$path is on Dropbox already and is $there bytes, not $size: a published file is never replaced"
+        say "$name: on Dropbox already ($size bytes)" >&2
+    elif [[ $status == 409 && $(why) == path/not_found* ]]; then
+        if ((DRY_RUN)); then
+            say "[dry run] $name: $size bytes to $path" >&2
+            continue
+        fi
+        say "$name: uploading $size bytes to $path" >&2
+        upload "$file" "$path" "$size" >&2
+    else
+        die "Dropbox: $path cannot be looked at ($status: $(why))"
+    fi
+    url=$(address "$path" "$name")
+    is_patch_url "$url" || die "$url is not an address the players' updater takes"
+    sha=$(sha256_of "$file")
+    got=$({ curl -sS "${CURL_AS_UPDATER[@]}" --connect-timeout 30 --speed-limit 10240 --speed-time 120 \
+        -w '%{stderr}%{http_code} %{size_download}\n' "$url" 2>"$work/get" || true; } | sha256sum | cut -d' ' -f1)
+    [[ $(tail -n 1 "$work/get") == "200 $size" && $got == "$sha" ]] ||
+        die "GET $url gave $(tail -n 1 "$work/get") (status, bytes) with sha256 $got, not 200 $size with $sha"
+    say "$name: $url gives it (200, sha256 $sha)" >&2
+    printf '%s\t%s\n' "$name" "$url"
+done

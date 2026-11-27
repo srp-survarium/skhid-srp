@@ -1,6 +1,6 @@
 # Damage calculator
 
-A single-page shooter-vs-target damage calculator for 0.26g, in English and Ukrainian. The website serves it at `/wiki/calculator`, a section of the wiki (`srp-026g/servers/web-server/src/damage.rs`, spec in `docs/notes/damage_calculator.md`). It covers:
+A single-page shooter-vs-target damage calculator for 0.26g, in every language of the site's. The website serves it at `/wiki/calculator`, a section of the wiki (`srp-026g/servers/web-server/src/damage.rs`, spec in `docs/notes/damage_calculator.md`). It covers:
 
 - every weapon, ammo and armour piece, and every body part and distance
 - weapon and armour modifications (bonuses only)
@@ -8,7 +8,7 @@ A single-page shooter-vs-target damage calculator for 0.26g, in English and Ukra
 - Onyx (passive and active), and drugs (the anesthetic)
 - recovery: regeneration and medicines with the Larkspurs, the Rations, the gear's regeneration bonuses and the medical skills, in any mix
 
-The rules follow the client's hit code as the reverse-engineering notes record it (`tools/re-kit/v026g/damage/`, not part of this folder): `formula.txt` for the pipeline, the other `*.md` files for pain, limbs, drugs, artefacts, modifications and coverage, checked against the original exe in unicorn.
+The rules follow the client's hit code: its functions are named in re-kit (`tools/re-kit/v026g/`: `bullet::bullet`, `bullet::compute_damage_speed`, `bullet::try_pierce`, `body_part_parameters::hit_by_type`, `player_params_modifiers_container::apply_modifier`), and `srp-026g/docs/notes/` records the parts: `pierce_line.md` (damage, penetration, walls), `armour-params.md` (protection and coverage), `alt-weapon-stats.md` (modifications), `artefacts.md`, `regeneration-booster.md` and `medical-skills.md` (recovery).
 
 ## Files
 
@@ -42,7 +42,7 @@ nix shell nixpkgs#jdk21 -c <python with pillow and numpy> -I srp-026g/scripts/da
 # a patch not in the list yet: add --with <its resources.db.patch_<n>>
 ```
 
-It extracts `gameplay/`, `game_materials/game.materials` (the walls), the English and Ukrainian texts and `lobby_menu.swf` (newest archive wins), then runs `dump_json.py`, `gen_calc_data.py`, the icons (FFDec, `assets/tools/build_icons.py`) and `build_page.py --site` into `srp-026g/servers/web-server/damage/`, and writes `built-from.tsv` there. On main the patches in `built-from.tsv` are exactly the offered ones: the web-server test `the_maps_and_the_calculator_are_built_from_the_offered_patches` fails a PR otherwise. `python -I build_page.py calc-data.json damage-calc.html icons/icons 22` still makes one standalone file.
+It extracts `gameplay/`, `game_materials/game.materials` (the walls), every language's texts and `lobby_menu.swf` (newest archive wins), then runs `dump_json.py`, `gen_calc_data.py`, the icons (FFDec, `assets/tools/build_icons.py`) and `build_page.py --site` into `srp-026g/servers/web-server/damage/`, and writes `built-from.tsv` there. On main the patches in `built-from.tsv` are exactly the offered ones: the web-server test `the_site_pages_are_built_from_the_offered_patches` fails a PR otherwise. `python -I build_page.py calc-data.json damage-calc.html icons/icons 22` still makes one standalone file.
 
 The server binary includes `srp-026g/servers/web-server/damage/`: a content patch reaches it through the release's rebuild, and a PR that changes the page's code commits its own (`release/build-site --tree .`, or the command above). The page names each file it loads with `?v=<its hash>`.
 
@@ -50,4 +50,4 @@ The item dictionary (`gameplay/db_static_dictionaries`) decides which items exis
 
 The standalone page loads `maps/<key>.webp` from beside itself. `assets/maps/maps.json` holds each map's pixel↔world affine (from the HUD minimap frame), a 64×64 ground-height grid, and how the scale was checked. `assets/hud-doll/` holds the HUD doll's bitmaps and placement. Without an icons dir the page has no item pictures.
 
-Text: `T(en, uk)` in `ui.js` and `rules.js`, `data-uk` on the template's own text. Item, map and modification names come from the game's localization (`name_uk`, `label_uk`). The page takes its language from `?lang=`, else from the document (the website sets it).
+Text: the site's words (`servers/web-server/words/`, `scripts/site-texts/README.md`): `T("…")`, `Tc`, `Tf` in `ui.js` and `rules.js`, which the server gives the page as `page-words`, and `data-t` on the template's own text, which `build_page.py --site` makes the page's places (`damage.texts.json`). Item, map and modification names come from the game's localization in every language (`name_<code>`, `label_<code>`). The page's language is the document's (the website sets it); the standalone page is English.

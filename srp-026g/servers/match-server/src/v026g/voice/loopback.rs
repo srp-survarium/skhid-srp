@@ -39,7 +39,7 @@ fn two_clients_pass_opus_audio_through_the_udp_relay() {
                 match_id: ticket.match_id,
                 place,
             },
-            "127.0.0.1".parse().unwrap(),
+            udp_transport::relay::Peer::direct("127.0.0.1:1".parse().unwrap()),
         );
     }
     let socket = UdpSocket::bind("127.0.0.1:0").unwrap();
@@ -49,7 +49,7 @@ fn two_clients_pass_opus_audio_through_the_udp_relay() {
     let _server = Server {
         stop,
         thread: Some(std::thread::spawn(move || {
-            run(&socket, registry, [7; 32], &worker_stop)
+            run(&socket, registry, [7; 32], Default::default(), &worker_stop)
         })),
     };
     let games: Vec<_> = (0..2)

@@ -17,15 +17,15 @@ import zlib
 # (a new player starts in the language of his Windows user locale,
 # patch 79) and its two-letter code (the launcher's button, and its pages' and
 # the site's ?lang= where the launcher has a page in it), in the list's order.
-# After a new row, `python3 localization_026g.py --write` regenerates RUST_TABLE
-# and LAUNCHER_TABLE (then assemble the launcher's .bin again).
+# The exe's table (RUST_TABLE) and the launcher's (launcher_table) are made from
+# it by their builds.
 LANGUAGES = (
     ('english', 'English', 0x09, 'en'), ('ukrainian', 'Українська', 0x22, 'ua'),
     ('russian', 'Русский', 0x19, 'ru'), ('german', 'Deutsch', 0x07, 'de'), ('polish', 'Polski', 0x15, 'pl'),
     # Serbian remains the fallback for primary 0x1A; exact Croatian locales take precedence.
     ('serbian', 'Srpski', 0x1A, 'sr'), ('czech', 'Čeština', 0x05, 'cs'), ('hungarian', 'Magyar', 0x0E, 'hu'),
     ('finnish', 'Suomi', 0x0B, 'fi'), ('belarusian', 'Беларуская', 0x23, 'be'),
-    ('croatian', 'Hrvatski', (0x041A, 0x101A), 'hr'),
+    ('croatian', 'Hrvatski', (0x041A, 0x101A), 'hr'), ('portuguese', 'Português', 0x16, 'pt'),
 )
 # Languages written in Cyrillic; every other dictionary is Latin.
 CYRILLIC = frozenset({'ukrainian', 'russian', 'belarusian'})
@@ -46,9 +46,70 @@ FLASH_MOVIES = {'lobby_menu': FLASH_PREFIX, 'login_menu': FLASH_PREFIX, 'hud': F
 def flash_rows(keys, prefix=FLASH_PREFIX):
     """The UI mapping rows of srp's own texts of `prefix`: each key as its own UI key."""
     return [[key, key] for key in sorted(keys) if key.startswith(prefix)]
+# A text names a key by its action (exe patch 212, README "Keys in texts"): the game's localizer
+# makes `{NAME}` the name of the key bound to the action NAME (ASCII case aside) in the player's
+# language, the text of KEY_UNBOUND when the action has none, and any other `{...}` nothing. These
+# are the actions a text may name, each with its default key's dictionary key (what
+# item_hotkeys_026g.asm's action table binds it to); check_localization_026g.py checks both against
+# that table, check_key_prompts_026g.py that the built exe's table has each action.
+KEY_ACTIONS = {'USE': 'kE', 'SCOPE_NEXT': 'kY', 'HIDE_INTERFACE': 'kF9'}
+KEY_UNBOUND = 'st_srp_key_unbound'
+KEY_PLACEHOLDER = re.compile(r'\{([^{}]*)\}')
+ACTION_TABLE = Path(__file__).resolve().parent / 'item_hotkeys_026g.asm'
+
+
+def action_defaults(source=ACTION_TABLE):
+    """The action table's rows as item_hotkeys_026g.asm writes them, {name: default key's dictionary
+    key or None}: each row's comment `; <name>, [kind n, ]<key>` (`none` for none); a row of patch
+    149's sixteen, without a comment, is named by its label and has no default key."""
+    rows = {}
+    for line in Path(source).read_text(encoding='utf-8').splitlines():
+        code, _, comment = line.partition(';')
+        fields = re.fullmatch(r'\s*ACTION\s+(.*?)\s*', code)
+        if not fields:
+            continue
+        label, *_, default = [field.strip() for field in fields.group(1).split(',')]
+        named = re.match(r'\s*([a-z_0-9]+),\s*(?:kind \d+,\s*)?(\w+)', comment)
+        name, key = named.groups() if named else (label, 'none' if default == '0' else None)
+        assert key is not None, f'{source}: a row with a default key and no comment: {line}'
+        rows[name] = None if key == 'none' else key
+    return rows
+
+
+def expand_keys(text, strings, keys=None):
+    """`text` as the exe hands it on: each `{NAME}` the text in `strings` (a language's dictionary)
+    of the key `keys` binds the action to ({action: key's dictionary key, or None for no key};
+    the default keys, KEY_ACTIONS, without it), KEY_UNBOUND's text for none, and any other name
+    nothing; `{{` a brace."""
+    keys = KEY_ACTIONS if keys is None else keys
+    out, at = [], 0
+    while at < len(text):
+        if text.startswith('{{', at):
+            out.append('{')
+            at += 2
+        elif text[at] == '{':
+            end = text.find('}', at)
+            end = len(text) if end < 0 else end
+            name = text[at + 1:end].upper()
+            if name in keys:
+                key = keys[name]
+                out.append(strings[key] if key is not None else strings[KEY_UNBOUND])
+            at = end + 1
+        else:
+            out.append(text[at])
+            at += 1
+    return ''.join(out)
+
+
 # These unused directional controls intentionally have no visible label.
 EMPTY_KEYS = frozenset('st_turn_' + direction + '_action'
                        for direction in ('down', 'left', 'up', 'right'))
+
+
+def may_be_empty(key):
+    """Whether a text may be empty: those above, and a muzzle device's description, which is empty
+    where the device changes no stat (scripts/muzzle-devices/texts.py: its card's lines say it all)."""
+    return key in EMPTY_KEYS or key.startswith('st_muzzle_') and key.endswith('_description')
 
 
 def unique_object(pairs):
@@ -194,8 +255,8 @@ def discover(root):
 
 
 # The registry as the exe's Language patch (79, rust/patches/src/language.rs)
-# reads it: generated, never edited. `--write` writes it, `--check` (and
-# check_localization_026g.py) says whether it is current.
+# reads it: written by every link of the arena (patch_026g.py's
+# generate_sources), never committed.
 RUST_TABLE = Path(__file__).resolve().parent / 'languages_026g.rs'
 
 
@@ -244,9 +305,8 @@ def rust_table():
             f'pub const LANGUAGES: [Language; {len(LANGUAGES)}] = [\n{rows}];\n')
 
 
-# The registry as the launcher (launcher/launcher_values_026g.asm) includes it:
-# generated, never edited.
-LAUNCHER_TABLE = Path(__file__).resolve().parent / 'launcher' / 'launcher_languages_026g.inc'
+# The registry as the launcher (launcher/launcher_values_026g.asm) includes it,
+# launcher_languages_026g.inc: made by the launcher's build (patch_launcher_026g.py).
 # The launcher's own languages: its five string tables (`.rsrc`, LANGIDs at
 # 0x3E098) and its local pages (launcher/launcher_pages.py CODES). Another
 # language shows the launcher in English.
@@ -254,7 +314,7 @@ LAUNCHER_UI = {'en': 0x0409, 'ru': 0x0419, 'ua': 0x0422, 'de': 0x0407, 'pl': 0x0
 
 
 def launcher_table():
-    """The NASM source of LAUNCHER_TABLE: per registered language, in the
+    """The NASM source of launcher_languages_026g.inc: per registered language, in the
     registry's order, its resource name (what user.cfg's `localization` line
     holds), its button label, its own name for the menu, the code of the
     launcher's page and the LANGID of the launcher's texts, and the Windows
@@ -296,27 +356,5 @@ def launcher_table():
     return '\n'.join(lines)
 
 
-def rust_table_issue():
-    """None when RUST_TABLE and LAUNCHER_TABLE are current, else what is wrong."""
-    for path, text in ((RUST_TABLE, rust_table()), (LAUNCHER_TABLE, launcher_table())):
-        try:
-            current = path.read_text(encoding='utf-8')
-        except OSError:
-            current = None
-        if current != text:
-            return f'{path.name} is not the registry: run python3 localization_026g.py --write'
-    return None
-
-
-if __name__ == '__main__':
-    import sys
-    if sys.argv[1:] == ['--write']:
-        RUST_TABLE.write_text(rust_table(), encoding='utf-8')
-        LAUNCHER_TABLE.write_text(launcher_table(), encoding='utf-8')
-        print(f'wrote {RUST_TABLE} and {LAUNCHER_TABLE}')
-    elif sys.argv[1:] == ['--check']:
-        issue = rust_table_issue()
-        print(issue or f'{RUST_TABLE.name}, {LAUNCHER_TABLE.name}: current')
-        sys.exit(1 if issue else 0)
-    else:
-        sys.exit('usage: localization_026g.py --write | --check')
+if __name__ == "__main__":
+    raise SystemExit(f"{__file__}: its files are written by every build (python link_026g.py --generate)")

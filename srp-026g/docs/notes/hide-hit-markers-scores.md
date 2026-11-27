@@ -82,7 +82,7 @@ better names too"). Exe patch 83
   markers" is checked separately. The existing saved `srp_hide_crosshair` choice applies.
 - Weapon/spread updates and respawning keep the cross hidden. Changing back to Dynamic or
   Static respects the game's current aiming/death visibility; it cannot reveal a cross that
-  the game currently suppresses. F11 and Blackout still hide the complete HUD.
+  the game currently suppresses. F9 (hide interface) and Blackout still hide the complete HUD.
 
 ## The hit marker list
 
@@ -95,6 +95,8 @@ better names too"). Exe patch 83
   `../images/kill-marker-only.png`; the list
   `../images/hit-marker-list.png`).
 - **Hidden hit markers:** none.
+- **Through a wall** (exe patch 167, `hit-marker-walls.md`): with All a hit through a surface
+  other than leaves shows nothing and a kill there what Kill marker only shows.
 - A marker on screen when the choice changes is cleared.
 - Unchanged: the marks of where the player is hit from, the kill feed, every sound.
 - The marker is the hud movie's: the exe only invokes `root.crosshair_enemy_hit` (at 0x238387 in
@@ -120,7 +122,7 @@ better names too"). Exe patch 83
 - **Separate settings**, not part of the Interface level selector (Full / Minimal / Disabled,
   branch `feat/interface-level`, not merged): the selector decides which parts of the hud show;
   these change what the crosshair and the Tab list show when they do. Disabled hides both anyway.
-- **F11 (hide interface):** unchanged; both options apply again when the interface shows.
+- **F9 (hide interface):** unchanged; both options apply again when the interface shows.
 - **Blackout:** its interface is forced hidden (no crosshair); its Tab view has the list (since
   2026-11-09, `blackout.md`) always by names only, as "Hide player scores" shows it, whatever the
   option says. The saved choice is kept for the next match.
@@ -138,7 +140,9 @@ better names too"). Exe patch 83
     `root.srp_check_option(name, label, "1"|"0")`; with "1" or "0" it saves that first (user.cfg at
     once); `srp_hide_hit_markers` answers `root.srp_check_option(name, "", saved index, saved
     index, three texts)`, with "0", "1" or "2" saving that choice's word first; `srp_hud_texts` answers `root.srp_hud_texts(heading, Hide quests, Dynamic, Static,
-    Hidden, Static minimap)`;
+    Hidden, Static minimap, ...)`: `hud_options::TEXTS` in order, the Renderer's and the Vulkan
+    options' texts after them, then the Controls tab's Key bindings button and window and its five
+    kinds of action (the main menu's SrpKeysWindow);
   - `player_icons.update_start` (update_player_icons' start, every frame of a match, after patch
     65): `root.srp_hud_options(hit markers, hide scores, hide crosshair, map names)` to the hud movie,
     once for each new hud movie or change;

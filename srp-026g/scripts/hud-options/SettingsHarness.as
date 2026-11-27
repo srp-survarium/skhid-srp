@@ -1591,9 +1591,8 @@ package
         // default), the vertical slider greyed and showing the main one x 0.5625 as it is dragged;
         // unticked, its own from that value, the main one staying when it is dragged; pending until
         // Apply, Cancel putting the saved state back; the exe's answers; the tab's left column (main
-        // slider, the box, the vertical slider, Invert mouse, the lobby's keys) and right column (the
-        // game's keys, the chat's over the default button) spaced as the tab's own, every
-        // dictionary's labels inside the left column.
+        // slider, the box, the vertical slider, Invert mouse) spaced as the tab's own, every
+        // dictionary's labels inside it; the key lists hidden (the Bindings window has them).
         private function checkControls(root:*, settings:*, texts:Array, domain:ApplicationDomain):void
         {
             var c:* = settings.settings_content;
@@ -1670,33 +1669,24 @@ package
             root.srp_check_option("srp_mouse_vertical_locked", texts[0][17], "1");
             root.srp_slider_option("srp_mouse_vertical", texts[0][18], "100");
             require(!settings.btn_accept.enabled, "controls: nothing pending at a new visit of the frame");
-            var left:Array = [main, box, vertical, c._setter_inverse_mouse, c.s_lobby, c.keysLobby];
-            var right:Array = [c.keysGame, c.s_chat_keys, c.keysChat, c.button_default_controls];
-            var bottom:Number = Math.max(c.button_default_controls.y + c.button_default_controls.height, c.keysLobby.y + c.keysLobby.height);
-            for each (var column:Array in [left, right])
+            // the key bindings are the Bindings window's (SrpKeysWindow): the tab's lists and their headings hidden
+            var left:Array = [main, box, vertical, c._setter_inverse_mouse];
+            for (var i:int = 0; i < left.length; ++i)
             {
-                for (var i:int = 0; i < column.length; ++i)
+                require(left[i].visible, "controls: " + left[i].name + " shown");
+                if (i + 1 < left.length)
                 {
-                    require(column[i].visible, "controls: " + column[i].name + " shown");
-                    if (i + 1 < column.length)
-                    {
-                        // the game's and the chat's lists as sized (they redraw at their next frame)
-                        var sized:Function = function(item:*):Array {
-                            return item == c.keysGame || item == c.keysChat ? [item.y, item.y + item.height] : span(item);
-                        };
-                        var here:Array = sized(column[i]);
-                        var next:Array = sized(column[i + 1]);
-                        require(here[1] <= next[0] + 1, "controls: " + column[i].name + " (" + here + ") over " + column[i + 1].name + " (" + next + ")");
-                    }
+                    require(span(left[i])[1] <= span(left[i + 1])[0] + 1, "controls: " + left[i].name + " over " + left[i + 1].name);
                 }
             }
-            require(span(c.keysLobby)[1] <= 400 && c.keysChat.y + c.keysChat.height <= c.button_default_controls.y,
-                "controls: the lobby's keys in the window, the chat's above the default button: " + span(c.keysLobby) + ", "
-                + (c.keysChat.y + c.keysChat.height));
-            require(c.keysGame.height >= 9 * c.keysGame.rowHeight && c.keysGame.height % c.keysGame.rowHeight == 0,
-                "controls: the game's list is whole rows, 9 or more (its scroll bar no taller than its rows): " + c.keysGame.height);
-            require(near(box.x, c._setter_inverse_mouse.x) && near(vertical.x, main.x) && near(c.keysChat.x, c.keysGame.x),
-                "controls: the box at Invert mouse's x, the vertical slider at the main one's, the chat's keys at the game's");
+            for each (var hidden:* in [c.keysGame, c.keysLobby, c.keysChat, c.s_lobby, c.s_chat_keys])
+            {
+                require(!hidden.visible, "controls: " + hidden.name + " hidden (the Bindings window has the keys)");
+            }
+            require(c.button_default_controls.visible && c.button_default_controls.y + c.button_default_controls.height <= 400,
+                "controls: Default settings shown in the window");
+            require(near(box.x, c._setter_inverse_mouse.x) && near(vertical.x, main.x),
+                "controls: the box at Invert mouse's x, the vertical slider at the main one's");
             var edge:Number = 297;                       // the column divider
             for each (var row:Array in texts)
             {
@@ -1710,10 +1700,7 @@ package
             box.validateNow();
             vertical.label = texts[0][18];
             trace("SETTINGS controls layout: slider " + main.y + ", box " + box.y + ", vertical " + vertical.y + ", invert "
-                + c._setter_inverse_mouse.y + ", lobby " + c.s_lobby.y + " to " + span(c.keysLobby)[1] + "; game to " + (c.keysGame.y + c.keysGame.height)
-                + ", chat " + c.s_chat_keys.y + " to " + span(c.keysChat)[1] + ", button " + c.button_default_controls.y
-                + "; game list at " + c.keysGame.y + ", " + c.keysGame.height + " high, rows of " + c.keysGame.rowHeight
-                + ", chat list at " + c.keysChat.y);
+                + c._setter_inverse_mouse.y + ", default settings " + c.button_default_controls.y);
         }
 
         // The two sliders at their borders (the stock mouse_sensitivity's 0.01 to 10, from its console
