@@ -230,8 +230,9 @@ data/srp_reticle {
   0.69d0's four dot sizes as ratios to `ncstar_4_dot_04`.
 - Brightness is not in the data: it is 0..10 everywhere, default 6 (0.69d0's), and the exe maps it
   to the emissive multiplier.
-- Index 0 of each list must look like today's reticle: the dot, or the EOTech ring, in the optic's
-  first colour.
+- Index 0 of each list must look like today's reticle: the dot, or the EOTech ring, in red
+  (every dot is red today). So red comes first on all ten, although 0.69d0 put green first on the
+  Docter, DeltaPoint, RSA-S and Walther; the owner can change the order in `reticles.tsv`.
 
 ### The server
 
