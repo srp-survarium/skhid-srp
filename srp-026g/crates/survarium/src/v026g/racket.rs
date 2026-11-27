@@ -9,7 +9,7 @@
 use super::dictionary::Dictionary;
 use super::game_data::{GameData, GameDataError};
 use super::item_params::{self, ItemClass};
-use super::loadouts::{self, AMMO_SLOTS, KitLayout, bot_gear::category};
+use super::loadouts::{self, AMMO_SLOTS, KitLayout, category};
 use super::match_msgs::static_info::{
     FULL_CONDITION, MatchItem, MatchKit, MatchProfile, Upgrade,
 };

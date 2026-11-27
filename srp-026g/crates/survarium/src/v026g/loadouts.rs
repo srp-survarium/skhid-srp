@@ -50,6 +50,19 @@ use weapon_pickup::CarryRule;
 /// Its path in the archive.
 pub const PATH: &str = "gameplay/test_player_profiles.options";
 
+/// The weapon categories of the dictionary (`categories_dict`, the shop's weapon tabs), as main's twists read them
+/// (`racket`, `roulette`; main kept them in its `loadouts::bot_gear`, which the bots branch has not). Read in the data:
+/// the AK-74U and the AS Val are of the assault rifles, the PPSh-41 of the SMGs, the SVD and the Mosin of the sniper
+/// rifles, the RPD and the RPK of the machine guns, the TT-33 of the pistols.
+pub mod category {
+    pub const ASSAULT_RIFLES: u8 = 8;
+    pub const SNIPER_RIFLES: u8 = 13;
+    pub const SHOTGUNS: u8 = 14;
+    pub const SMGS: u8 = 15;
+    pub const MACHINE_GUNS: u8 = 16;
+    pub const PISTOLS: u8 = 17;
+}
+
 /// What the stock account's first kit wears, `(slot, item)`: the TT-33 in
 /// weapon slot 1 and a clip of its free ammo in that weapon's first ammo
 /// slot. See the module.

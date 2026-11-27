@@ -10,7 +10,7 @@ use super::dictionary::{Dictionary, Item, PROFILE_SLOTS};
 use super::drops::{Drops, Rng};
 use super::game_data::{GameData, GameDataError};
 use super::item_params::{self, ItemClass};
-use super::loadouts::{self, KitLayout, POCKET_SLOTS, bot_gear::category};
+use super::loadouts::{self, KitLayout, POCKET_SLOTS, category};
 use super::match_msgs::static_info::{
     FULL_CONDITION, KIT_USABLE, MatchItem, MatchKit, MatchProfile, Upgrade,
 };
