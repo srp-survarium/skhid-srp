@@ -493,13 +493,14 @@ name = "match-server"
 version = "0.1.0"
 dependencies = [
  "artefact-hunt-rule",
+ "client-body",
  "crc32fast",
  "libc",
  "log",
  "mapdata",
  "mapdata-srchash",
  "openssl",
- "resources-db 0.1.0",
+ "resources-db",
  "rusqlite",
  "serde",
  "serde_json",
@@ -857,7 +858,7 @@ dependencies = [
  "encoding_rs",
  "log",
  "lzma-rust2",
- "resources-db 0.1.0",
+ "resources-db",
  "second-sight",
  "serde",
  "serde_json",
@@ -983,7 +984,7 @@ version = "0.1.0"
 dependencies = [
  "log",
  "openssl",
- "resources-db 0.1.0",
+ "resources-db",
  "serde_json",
  "session",
  "srp-validate",
