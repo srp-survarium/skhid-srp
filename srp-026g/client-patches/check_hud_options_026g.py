@@ -751,10 +751,11 @@ def main():
     head_before = ours.read(language.LIST_HEAD)
     a_regs, a_sp, a_head = stock.start()
     b_regs, b_sp, b_head = ours.start()
-    # patch 81's `srp_lobby`, a later member of the site's chain, registers after these; patch
+    # patch 81's `srp_lobby` and `srp_room_rain`, a later member of the site's chain, register after these; patch
     # 133's command `where` (order 6), then patch 66's voice variables (order 7), the game volume's and patch 156's
     # `collision` last, at the head
-    nodes = [node for node in registered(ours, b_head, head_before) if ours.text(ours.read(node + 0x10)) != b"srp_lobby"]
+    lobby_scene = (b"srp_lobby", b"srp_room_rain")
+    nodes = [node for node in registered(ours, b_head, head_before) if ours.text(ours.read(node + 0x10)) not in lobby_scene]
     names = [ours.text(ours.read(node + 0x10)).decode() for node in nodes]
     variables = {name: console_bool(ours, node) for name, node in zip(names, nodes) if name in SETTINGS}
     expect(a_regs == b_regs and a_sp == b_sp and a_head == head_before
@@ -772,7 +773,7 @@ def main():
     expect(all(size in (8, 16) and saved == 1 and ours.read(buffer, 1) == b"\0" for _, buffer, size, saved in lists.values()),
            f"configs.start: the three lists saved cc_strings, empty (the first choice) ({lists})")
     _, _, again = ours.start()
-    again_nodes = [node for node in registered(ours, again, head_before) if ours.text(ours.read(node + 0x10)) != b"srp_lobby"]
+    again_nodes = [node for node in registered(ours, again, head_before) if ours.text(ours.read(node + 0x10)) not in lobby_scene]
     expect(again_nodes == nodes, "configs.start again: each registered once")
     expect(ours.calls_made == [], f"configs.start opens no file ({ours.calls_made})")
 

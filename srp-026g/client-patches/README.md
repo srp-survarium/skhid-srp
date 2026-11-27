@@ -4124,6 +4124,17 @@ squad; the stock reader stops before them), and the patch reads them
 srp without a pick (the sign-in) is sent the saved one (the lobby client's
 0x270070). In a squad the lobby is the commander's pick.
 
+The Room is secretly four (`../docs/notes/room-weather.md`):
+`lobby_scene/camp_069`, `camp_069_rain`, `camp_069_evening` and
+`camp_069_night`, decided by this client alone at each entry to the lobby
+(the start's query, the return from a match) and at nothing else: the
+evening (18:00 to 21:00) and the night (21:00 to 06:00) by the local time,
+by day a rain spell (a roll of 15 in 100 rains that entry and the next
+three; `srp_room_rain` in user.cfg keeps the entries left), else the day. A
+return into another Room has the black on at once and the new Room loaded
+behind it. The environment's `SKHID_ROOM_WEATHER=day|rain|evening|night`
+makes every entry that weather (unset, as players have it: nothing).
+
 A change shows at once: at the lobby camera's tick (0x2840F2, after patch
 45's flight) with another lobby wanted than the one shown, the scene fades to
 black under every panel (the movie's `srp_scene_fade`, stepped a frame each,

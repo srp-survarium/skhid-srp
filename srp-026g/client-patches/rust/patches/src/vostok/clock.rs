@@ -122,6 +122,28 @@ pub struct LocalTime {
     pub second: u8,
 }
 
+/// A minute of the local day: 0 (00:00) to 1439 (23:59).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub struct DayMinute(u16);
+
+impl DayMinute {
+    /// `hour`:`minute`, each cut to its last (23, 59).
+    pub const fn at(hour: u16, minute: u16) -> DayMinute {
+        let hour = if hour > 23 { 23 } else { hour };
+        let minute = if minute > 59 { 59 } else { minute };
+        DayMinute(hour * 60 + minute)
+    }
+}
+
+/// The minute of the day the player's machine shows now (the time zone and
+/// summer time its); midday if kernel32 refuses the conversion.
+pub fn local_day_minute(thread: &Thread) -> DayMinute {
+    match FileTime::now(thread).local(thread) {
+        Some(time) => DayMinute::at(u16::from(time.hour), u16::from(time.minute)),
+        None => DayMinute::at(12, 0),
+    }
+}
+
 /// `n / d` by shifts and subtractions: the arena links no `__udivdi3`.
 fn divide(n: u64, d: u64) -> u64 {
     let (mut quotient, mut rest) = (0u64, 0u64);
