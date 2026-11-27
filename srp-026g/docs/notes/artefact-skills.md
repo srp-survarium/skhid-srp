@@ -686,7 +686,9 @@ chooses each.
 ## Larkspur II (533)
 
 - The activation (artefact_base's action, 0x313333, never a restore or a visual) sets the
-  holder's stamina to its maximum. Repeat presses during a cooldown and key-up do nothing.
+  holder's stamina to its maximum. A worn copy adds its power's share of the whole bar, never past
+  full (the owner, 2026-11-26: a 51% Larkspur gives +51% energy, not 51% of what is missing).
+  Repeat presses during a cooldown and key-up do nothing.
 - Cascade shares it (the owner, 2026-11-12): the teammates that activation reached (the places
   Medic's share just healed, the copy's `ACTIVATIONS`) get their stamina's maximum too, when the
   holder has Larkspur II.

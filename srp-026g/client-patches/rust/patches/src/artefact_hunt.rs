@@ -383,12 +383,24 @@ pub fn on_event(_: &OrigTdmRuleOnEvent, rule: &mut HuntRule<'_>, kind: u32, data
     });
 }
 
-/// Slot 8: a player entered the match, of his profile's team. In a match the
-/// place's player has no team of the two yet here (2026-11-21's test: nobody
-/// was ever in the match): the tick takes him in once he has one.
+/// The place slots 8 and 9 are given: the low byte of their dword. The game's
+/// roster loop (0x2D2180) keeps the place in its second argument's stack slot
+/// with `mov [esp+1Ch],bl` (0x2D218B) and pushes the whole dword (0x2D2194),
+/// so its upper three bytes are that argument's, a pointer's; every native
+/// rule reads the byte alone (tdm_rule_core 0x3165D3 `mov cl,[esp+8]`,
+/// kd_stats_rule 0x323A00 `movzx`). Taken whole, no leave and no entry ever
+/// reached the rule (live, 2026-11-26, match 0x45331d4d: a carrier left, came
+/// back at his base still carrying the artefact and delivered it).
+fn slot_place(dword: u32) -> Option<Place> {
+    Place::new(dword as u8)
+}
+
+/// Slot 8: a player entered the match, of his profile's team. A new place's
+/// player may have no team of the two yet here (2026-11-21's test): the tick
+/// takes him in once he has one.
 pub fn on_entered(_: &OrigTdmRuleEntered, rule: &mut HuntRule<'_>, place: u32, time: u32) {
     let Some(world) = rule.world() else { return };
-    let Some(place) = u8::try_from(place).ok().and_then(Place::new) else { return };
+    let Some(place) = slot_place(place) else { return };
     let Some(team) = world.body(place.get()).and_then(|body| Team::from_raw(body.team)) else { return };
     with_rule(rule, |hunt| step(&world, hunt, Event::Entered { place, team, now: Time::from_ms(time) }));
 }
@@ -407,13 +419,23 @@ fn take_in(world: &HuntWorld<'_>, hunt: &mut Hunt, now: Time) {
     }
 }
 
-/// Slot 9: a player left (the place still holds his player).
+/// Slot 9: a player left. The place still holds his player, in the world's
+/// active places until the loop's end (0x2D214E): a carrier lets go of the
+/// artefact where he stood, as at a death. Every way out of a match comes
+/// here: the leaver's 0xE0, a closed link, the client timeout and a new
+/// connection for the place each make the match server's 0xEA
+/// (`Game::leave`; client_patch.md, "How a leave reaches the other games").
 pub fn on_left(_: &OrigTdmRuleLeft, rule: &mut HuntRule<'_>, place: u32, time: u32) {
     let Some(world) = rule.world() else { return };
-    let Some(place) = u8::try_from(place).ok().and_then(Place::new) else { return };
+    let Some(place) = slot_place(place) else { return };
     with_rule(rule, |hunt| {
-        let ground = (hunt.state.carrier() == Some(place)).then(|| ground_of(&world, place.get())).flatten();
-        step(&world, hunt, Event::Left { place, now: Time::from_ms(time), ground });
+        let carried = hunt.state.carrier() == Some(place);
+        let ground = carried.then(|| ground_of(&world, place.get())).flatten();
+        let now = Time::from_ms(time);
+        step(&world, hunt, Event::Left { place, now, ground });
+        if carried {
+            decision(world.thread(), Decision::Left, place, CARRIED.get(world.thread()), now);
+        }
     });
 }
 
@@ -647,13 +669,15 @@ fn decide_input(player: &Player<'_>, now: u32, use_pressed: bool, drop_pressed: 
     decided.unwrap_or(Input::Game)
 }
 
-/// One line for a press the hunt decided on (a re-simulation logs it again).
+/// One line for a press the hunt decided on, or a carrier's leave (a re-simulation
+/// logs it again).
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Decision {
     Take,
     Refused,
     Deliver,
     Drop,
+    Left,
 }
 
 impl Decision {
@@ -663,6 +687,7 @@ impl Decision {
             Decision::Refused => "may not take it (not in the match, or fallen)",
             Decision::Deliver => "delivers it",
             Decision::Drop => "drops it",
+            Decision::Left => "leaves the match with it, which lies where he stood",
         }
     }
 }
@@ -1368,6 +1393,17 @@ pub fn on_mark(ctx: &mut Context<'_>) -> Flow<ArtefactHuntOnMarkExit> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Slots 8 and 9 get the place in a dword whose upper three bytes are
+    /// another argument's (0x2D2180): the low byte is the place.
+    #[test]
+    fn a_slots_place_is_its_dwords_low_byte() {
+        assert_eq!(slot_place(11), Place::new(11));
+        let junk = |place| u32::from_le_bytes([place, 0xC7, 0x3B, 0x0A]);
+        assert_eq!(slot_place(junk(0)), Place::new(0));
+        assert_eq!(slot_place(junk(19)), Place::new(19));
+        assert_eq!(slot_place(junk(20)), None, "20 places");
+    }
 
     #[test]
     fn the_update_has_30_values_in_the_contracts_order() {

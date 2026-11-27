@@ -9,6 +9,63 @@ release that made it what it is now.
 
 ---
 
+## 26 Nov, 20:38 — TODO: the owner's words (update required)
+
+<!-- Revision 74 (026g-rev74), released 2026-11-26 20:38 UTC. To be worded for players; what it shipped: -->
+
+- TODO: #2607 Calculator: VSSK's built-in bonus beside the ones it rolls
+- TODO: #2613 srp-069d: Skhid (Схід) server for Survarium 0.69d
+- TODO: #2614 tools/check: srp-069d rows (cargo test, check-public) and its AGENTS.md section
+- TODO: #2628 Add Bottled fumo and Neco-Arc as give-only decals
+- TODO: #2637 Add 299 camouflage patterns and rebalance match rewards
+- TODO: #2627 Freeze Tag: clear halos on exit and freeze mid-round joiners
+- TODO: #2643 Camouflage atlas: drop-only items, translated names, real drop-rate edits
+- TODO: #2638 Fix weapon decals appearing on faces that share texture coordinates
+- TODO: #2648 Stats: Kills/min and Experience/min in the In matches panel
+- TODO: #2649 Artifact Hunt: no marker over an enemy carrier's head, the minimaps alone
+- TODO: #2651 Updater and server: drop the one-time restore of resources.db
+- TODO: #2653 Patch 205: a reload left after the magazine is in keeps the new magazine (reload-commit-1)
+- TODO: #2658 Patch 210: the sync log (SKHID_SYNC_LOG), the owner's desync and map diagnostic
+- TODO: #2645 Wiki maps: anomalies, and how each gives its artefacts
+- TODO: #2650 Restore 0.69d0's sight size for every gun: eye plane and first-person projection
+- TODO: #2666 Match server: the desync capture, both sides' worlds at a split with their first differing field
+- TODO: #2662 Second sights: an optic on the gun's side (0.69d0's MPR45), switched with Y, simulated as retail
+- TODO: #2670 Remove an approved batch of dead code (0.21d stack in srp-026g, mode intro, small items)
+- TODO: #2668 Docs that no longer match the code: AGENTS.md, skills, READMEs, notes
+- TODO: #2659 srp-069d: docs and comments that no longer match the code
+- TODO: #2667 Comments that no longer match the code (srp-026g, client)
+- TODO: #2671 Freeze Tag: the last fighter's red mark on the maps after 15 s with a countdown for everyone, and a mode notice
+- TODO: #2652 Camouflage atlas: the owner's selection, 301 items (camo-atlas@5)
+- TODO: #2672 Cleanup answers: retire the standalone downloader and balance-refit, fix stale references
+- TODO: #2673 Freeze Tag: the last fighter's reveal as a short popup, no countdown
+- TODO: #2676 Camouflage atlas: MM-25 stitched at its own scale
+- TODO: #2675 Site: Skhid-get.bat link says it is for blocked downloads
+- TODO: #2680 Patch 211: the world of a tick, so the desync capture gets the split's own tick
+- TODO: #2678 Prompts name the bound key, in the player's language (patch 212)
+- TODO: #2681 AGENTS.md: the full tools/check only for a release
+- TODO: #2683 Rooms: four vote cards; every version of a map one map on the cards
+- TODO: #2685 equipment-069@6: the Snow-20 vest and pants take a camouflage
+- TODO: #2686 Rudnya's sitting skeleton's cap flies off when shot
+- TODO: #2687 exo-camo@1: the Duty and Freedom exoskeleton bodies take a camouflage
+- TODO: #2689 Apply progressive wear to combat artifacts
+- TODO: #2691 stk2-camo@1: the STK2 jackets and trousers take a camouflage
+- TODO: #2693 armour-camo-069d@1: 0.69d's camouflage maps for the seven pieces without them
+- TODO: #2690 Stats: Maps and Modes boards (side win rates by map and mode, mode popularity)
+- TODO: #2697 School's vodka bottles shatter into shards
+- TODO: #2694 Red dot flicker: no hi-Z occlusion for first-person surfaces (patch 213); unfaded collimator reticle (weapon-modules@8)
+- TODO: #2593 Rudnya (v0.69) @8: the sun's colour as the game reads it
+- TODO: #2682 three-maps-021-lighting@15: Rudnya (v0.69)'s shade as 0.69d shows it (0.26g's tone curve is 1 - 2^(-x))
+- TODO: #2699 Oxygen Rush: the boosted countdown in the hud's own blue, not Spring's flat blue
+- TODO: #2700 Mode notices: only in each account's first three matches of the mode
+- TODO: #2704 Number decals: Number 1 to 1000, given by account id
+- TODO: #2701 wiki: index as picture tiles, sections in play order
+- TODO: #2703 Wiki simulators: the weapon's Dispersion roll, on its base spread
+- TODO: #2710 Artefact wear: the power switch shows once the copy is on cooldown
+- TODO: #2707 Second sights: the scope's overlay by the switch's effective aim (the gun no longer vanishes on the way back)
+- TODO: #2709 Freeze Tag notice: shorter, 20 s on screen
+- TODO: #2558 Scopes: the idle optics' glass, dark coated glass you see through (pack weapon-modules@9)
+- TODO: #2711 Snufkin, Bottled fumo and Neco-Arc decals: sold for 10,000,000 silver each
+
 ## 23 Nov, 17:56 — TODO: the owner's words (update required)
 
 <!-- Revision 73 (026g-rev73), released 2026-11-23 17:56 UTC. To be worded for players; what it shipped: -->

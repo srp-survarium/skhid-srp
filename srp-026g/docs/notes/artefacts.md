@@ -52,7 +52,7 @@ normal cooldown ends. An anomaly spawning a new copy restores full power. Passin
 another kit or player preserves its wear.
 
 Spring scales its bonuses, Onyx the damage and piercing it would prevent, and Larkspur the
-missing health it would restore. Larkspur still clears injuries on each successful activation.
+missing health it would restore. Larkspur II's energy is its power's share of the whole bar, capped at full. Larkspur still clears injuries on each successful activation.
 Resonance and Cascade use the source copy's power. Each worn activation plays a particle effect
 with its emission scaled to the nearest 8-bit intensity in both views, including its light emitter.
 

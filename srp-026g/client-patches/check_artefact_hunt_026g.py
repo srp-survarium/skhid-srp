@@ -781,6 +781,55 @@ def main():
           eip == 0x2D214A and moved == 0 and before[1] & 1 << 11 and sides == (before[0], before[1] & ~(1 << 11)),
           f"esp moved {moved}, sides {before} -> {sides}")
 
+    # 19b. The carrier leaves through the game's own roster loop
+    # (game_world_core 0x2D2180 -> on_player_left_match 0x2D2040 -> the
+    # rules' slot 9), as every game takes a 0xEA. The loop keeps the place in
+    # its second argument's stack slot (mov [esp+1Ch],bl at 0x2D218B) and
+    # pushes the whole dword: its upper bytes are the events pointer's (live,
+    # 2026-11-26: taken whole, no leave reached the rule, and a carrier came
+    # back at his base with the artefact). It lies where he stood, he is out of
+    # his side, and back in he carries nothing.
+    carrier = decoded(state(run, rule)).get("carrier")
+    run.emu.mem_write(taker + 0x43C, struct.pack("<3f", 45.0, 0.0, 0.0))
+    events = run.allocate(0x200)                            # 20 places x 14h: bit 1 a leave; +1BCh the time
+    run.emu.mem_write(events + 0x14 * 10, b"\x02")
+    run.word(events + 0x1BC, now)
+    node = run.allocate(0x10)                               # the events' mask list: one node before now
+    run.word(node + 8, run.read(CORE + research.ACTIVE_PLACES))
+    run.word(node + 0xC, now - 1000)
+    run.word(CORE + 0x12280, 1)
+    run.word(CORE + 0x12284, node)
+    run.word(CORE + 0x12288, node)
+    given = []
+    # its pool's next node (0x2D4350: eax the list, a node back) and the
+    # place dword on_player_left_match is given
+    run.emu.hook_add(UC_HOOK_CODE, lambda emu, a, s, u: run.ret(run.allocate(0x10), 0), begin=0x2D4350, end=0x2D4350)
+    run.emu.hook_add(UC_HOOK_CODE, lambda emu, a, s, u: given.append(run.read(emu.reg_read(UC_X86_REG_ESP) + 8)),
+                     begin=0x2D2040, end=0x2D2040)
+    run.call(0x2D2180, args=(CORE, events), until=0x2D214A)
+    blob = state(run, rule)
+    got = decoded(blob)
+    dropped = struct.unpack_from("<3i", blob, 25) if got.get("round") == 5 else None
+    sides = struct.unpack_from("<II", blob, 10)
+    check("driven: the roster loop 0x2D2180 gives slot 9 the place with the events pointer's upper bytes",
+          carrier == 10 and len(given) == 1 and given[0] & 0xFF == 10 and given[0] >> 8 == events >> 8 != 0,
+          f"carrier {carrier}, given {[hex(g) for g in given]}")
+    check("the carrier who leaves lets go of it where he stood (0.13 m over his feet, no ground ray), out of "
+          "team 1's side", dropped == (45000, 130, 0) and not sides[1] & 1 << 10 and got.get("carrier") is None,
+          f"{got} dropped {dropped}, sides {sides[0]:#x} {sides[1]:#x}")
+    eip, moved = run.span(0x2D1FFF, 0x2D202A, {UC_X86_REG_EDI: CORE}, [0] * 8 + [(events & ~0xFF) | 10, now])
+    got = decoded(state(run, rule))
+    sides = struct.unpack_from("<II", state(run, rule), 10)
+    check("back in through slot 8 with the same upper bytes: on team 1's side again, nothing carried",
+          eip == 0x2D202A and moved == 0 and sides[1] & 1 << 10 and got.get("round") == 5, f"{got}, sides {sides}")
+    score = got["score"]
+    look(taker, (98.8, 1.5, 0.0), (0.8, -0.6, 0.0))                 # case 9's look at his crate
+    press(taker, 0, now)
+    press(taker, 1 << 21, now)
+    check("and the use key at his base delivers nothing: the score as before",
+          decoded(state(run, rule))["score"] == score and decoded(state(run, rule)).get("round") == 5,
+          str(decoded(state(run, rule))))
+
     # 20. The match's scene left (it drops the hunt, #2376: last).
     run.drawn = []
     run.span(0x1F9520, DEACTIVATE_ON, {UC_X86_REG_ECX: game_world}, [0] * 8)

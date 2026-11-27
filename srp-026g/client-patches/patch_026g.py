@@ -927,7 +927,7 @@ WORLD_UNPACK = (
 # its "Release revision <n>" commit), never a feature change: a release
 # builds with --revision=<n>, the live exe's + 1, which changes the revision
 # byte alone, and records <n> here once it went out.
-REVISION = 73
+REVISION = 74
 # The first revision whose default build takes the lobby's replay link
 # (REPLAY_LINK): the server's replay rule asks for it
 # (session::v026g::replays::MIN_REVISION).
@@ -2458,9 +2458,17 @@ WEAPON_TABLE_HOOKS = (
 # - the character's mouse key handler, 0x265C20 (`push ebp / mov ebp,esp /
 #   and esp,-8`, the entry; in the input vtable 0xA09F6C): `jmp click` and a
 #   nop: the left button places the decal on a click, not after a drag.
+# Two of them hold for armour too (the owner's crash of 2026-11-26, a "change"
+# clicked before the server's answer): start goes on only when the host
+# holds the edited decal, and the preview's textures, `call 0x264F80` at
+# 0x264F4D in the host's config callback 0x264EA0: textures, only when the
+# merged config has the decal's entry (else the edit ends, the callback's
+# bake skipped: WEAPON_DECALS_AFTER_HOST_BAKE).
 # No base relocation is under a site and no branch aims inside one.
 WEAPON_DECALS_OFFSET = 0x1200                  # 0x1000 until patch 45 read the lobby's spot (2026-10-29)
-WEAPON_DECALS_ENTRIES = (0x0, 0x5, 0xA, 0xF, 0x14, 0x19, 0x1E)  # lookup, fill, pick, decode, bake, start, click
+WEAPON_DECALS_ENTRIES = (0x0, 0x5, 0xA, 0xF, 0x14, 0x19, 0x1E, 0x23)  # lookup, fill, pick, decode, bake, start,
+#                                                                       click, textures
+WEAPON_DECALS_AFTER_HOST_BAKE = 0x264F68       # textures' way back when it ends the edit: 0x264EA0's epilogue
 WEAPON_DECALS_STATE_OFFSET = 0xFC0            # 0xFA0 until patch 45's state grew (2026-10-29)
 WEAPON_DECALS_STATE_SIZE = 12
 WEAPON_DECALS_HOOKS = (
@@ -2469,6 +2477,7 @@ WEAPON_DECALS_HOOKS = (
     (0x2641A0, bytes.fromhex("558bec83e4f8"), 0x14, 0xE9),      # the editor's bake
     (0x263938, bytes.fromhex("e8b3130000"), 0x19, 0xE8),        # the start's query
     (0x265C20, bytes.fromhex("558bec83e4f8"), 0x1E, 0xE9),      # the mouse key handler
+    (0x264F4D, bytes.fromhex("e82e000000"), 0x23, 0xE8),        # the preview's textures
 )
 WEAPON_CAMO_DECALS_CALLS = (0x0, 0x5)                           # the entries patch 44 calls
 
@@ -3012,6 +3021,7 @@ INSTALLS = {
     0x2641A0: (ENTRY, "the decal editor's bake: bake", None, None),
     0x263938: (CALLEE, "the decal editor's start query: start", None, None),
     0x265C20: (ENTRY, "the lobby character's mouse keys: click", None, None),
+    0x264F4D: (CALLEE, "the decal editor's host config callback, its textures' query: textures", None, None),
     0x29A9B2: (INLINE, "relocate_upgrade_item: relocate", None, None),
     0x29AACF: (INLINE, "drop_upgrade_item: drop", None, None),
     0x270313: (CALLEE, "the 0x87 reader's last call: account", None, None),
