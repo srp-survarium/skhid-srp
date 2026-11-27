@@ -72,6 +72,26 @@ impl Bridges {
     }
 }
 
+/// The new bridges over a crack the grid crossed by a drop ([`Body::crack_bridges`]), as (from, to).
+type OverDrop = std::collections::HashSet<(u32, u32)>;
+
+/// [later bridges] The side links and off links as the walk check's cut left them: what [`WalkGrid::later_bridges`] tells the
+/// floors whose links a later pass changed by.
+pub(super) struct SideLinks {
+    links: Vec<[u32; 8]>,
+    kinds: Vec<[LinkKind; 8]>,
+    /// (from, to), sorted.
+    off: Vec<(u32, u32)>,
+}
+
+impl SideLinks {
+    pub(super) fn of(wide: &Wide) -> Self {
+        let mut off: Vec<(u32, u32)> = wide.off.iter().map(|l| (l.from, l.to)).collect();
+        off.sort_unstable();
+        Self { links: wide.links.clone(), kinds: wide.kinds.clone(), off }
+    }
+}
+
 /// What the controller pass did ([`BuildStats`]).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct ControlledStats {
@@ -80,6 +100,11 @@ pub struct ControlledStats {
     pub bridges_added: usize,
     /// Bridges the controller walks in a run narrower than [`BRIDGE_MIN_RUN`]: not walked (a gap link stays pressed).
     pub bridges_narrow: usize,
+    /// [later bridges] The new-bridge candidates tried again for the floors a later pass cut a link of
+    /// ([`WalkGrid::later_bridges`]).
+    pub bridges_later_tried: usize,
+    /// [later bridges] Of those, the walked bridges added.
+    pub bridges_later: usize,
     pub checks: usize,
     pub checks_dropped: usize,
     /// Failed checks kept as a floor's only way in or back (`WalkGrid::cut_keeping_reach`).
@@ -804,55 +829,8 @@ impl WalkGrid {
         // Bridges with no link yet: two cells on, a floor within a step, the cell between with no floor near that height (a
         // crack no face covers, a cell holding only a riser), walked by the controller: a walked off-mesh link.
         wide.off.sort_by_key(|l| (l.from, l.to));
-        let mut new: Vec<(u32, u32)> = Vec::new();
-        // The new bridges over a crack the grid crossed by a drop ([`Body::crack_bridges`]): kept whatever their run's width (the
-        // drop they stand beside was as narrow a way).
-        let mut over_drop: std::collections::HashSet<(u32, u32)> = std::collections::HashSet::new();
-        for a in 0..self.height.len() {
-            let (i, k) = self.cell_xz(self.cell_of[a] as usize);
-            let ha = self.height[a];
-            for (d, &(di, dk)) in DIRS.iter().enumerate() {
-                // A side with a link is tried only when it is a drop into the cells between ([A329] a crack: the drop is the way
-                // the grid had across it, and the client walks over it; `drop_check` takes such a drop away when the body never
-                // drops there).
-                let link = wide.links[a][d];
-                let drop_at = (link != NONE && wide.kinds[a][d] == LinkKind::Drop).then(|| self.cell_of[link as usize] as usize);
-                if link != NONE && !(body.crack_bridges && drop_at.is_some()) {
-                    continue;
-                }
-                // [A364 C2 row 52] Across 1 to [`BRIDGE_MAX_CELLS`] cells with no floor within a step of the take-off's (a level
-                // gap the client walks over), to the first cell beyond with one.
-                let stride = self.cell * ((di * di + dk * dk) as f32).sqrt();
-                for g in 1..=BRIDGE_MAX_CELLS as i32 {
-                    let Some(cg) = self.cell_index(i + g * di, k + g * dk) else { break };
-                    if (self.start[cg]..self.start[cg + 1]).any(|m| (self.height[m as usize] - ha).abs() <= body.step) {
-                        break;
-                    }
-                    let Some(c3) = self.cell_index(i + (g + 1) * di, k + (g + 1) * dk) else { break };
-                    // The gap's span between the two floors' cells, at most: `g` cells of no floor.
-                    if g as f32 * stride > BRIDGE_GAP_M + 1e-4 {
-                        break;
-                    }
-                    let into_crack = drop_at.is_some_and(|c| (1..=g).any(|j| self.cell_index(i + j * di, k + j * dk) == Some(c)));
-                    if link != NONE && !into_crack {
-                        continue;
-                    }
-                    let mut found = false;
-                    for b in self.start[c3]..self.start[c3 + 1] {
-                        if (self.height[b as usize] - ha).abs() <= body.step && wide.off.binary_search_by_key(&(a as u32, b), |l| (l.from, l.to)).is_err() {
-                            new.push((a as u32, b));
-                            found = true;
-                            if into_crack {
-                                over_drop.insert((a as u32, b));
-                            }
-                        }
-                    }
-                    if found || (self.start[c3]..self.start[c3 + 1]).any(|m| (self.height[m as usize] - ha).abs() <= body.step) {
-                        break;
-                    }
-                }
-            }
-        }
+        let floors: Vec<usize> = (0..self.height.len()).collect();
+        let (new, over_drop) = self.bridge_candidates(wide, &floors);
         stats.bridges_tried += new.len();
         let walked = parallel(&new, |&(a, b)| walk_lines(world, s, start, self.position(a), self.position(b)).1);
         let new: Vec<(u32, u32)> = new.iter().zip(walked).filter(|&(_, ok)| ok).map(|(&p, _)| p).collect();
@@ -1181,6 +1159,141 @@ impl WalkGrid {
             }
         }
         LinkWalk { passes: lines >= 2, share, chain_failed: chain_failed && lines < 2, refused, crouched }
+    }
+
+    /// The new bridges' candidates out of `floors`: two cells on or more, a floor within a step, the cells between with no floor
+    /// near that height, on a side with no link or (with [`Body::crack_bridges`]) a drop into those cells, and no off link of
+    /// the pair yet (`wide.off` sorted by take-off then landing). With them, those over a crack the grid crossed by a drop: kept
+    /// whatever their run's width (the drop they stand beside was as narrow a way).
+    fn bridge_candidates(&self, wide: &Wide, floors: &[usize]) -> (Vec<(u32, u32)>, OverDrop) {
+        let body = self.body;
+        let mut new: Vec<(u32, u32)> = Vec::new();
+        let mut over_drop = OverDrop::new();
+        for &a in floors {
+            let (i, k) = self.cell_xz(self.cell_of[a] as usize);
+            let ha = self.height[a];
+            for (d, &(di, dk)) in DIRS.iter().enumerate() {
+                // A side with a link is tried only when it is a drop into the cells between ([A329] a crack: the drop is the way
+                // the grid had across it, and the client walks over it; `drop_check` takes such a drop away when the body never
+                // drops there).
+                let link = wide.links[a][d];
+                let drop_at = (link != NONE && wide.kinds[a][d] == LinkKind::Drop).then(|| self.cell_of[link as usize] as usize);
+                if link != NONE && !(body.crack_bridges && drop_at.is_some()) {
+                    continue;
+                }
+                // [A364 C2 row 52] Across 1 to [`BRIDGE_MAX_CELLS`] cells with no floor within a step of the take-off's (a level
+                // gap the client walks over), to the first cell beyond with one.
+                let stride = self.cell * ((di * di + dk * dk) as f32).sqrt();
+                for g in 1..=BRIDGE_MAX_CELLS as i32 {
+                    let Some(cg) = self.cell_index(i + g * di, k + g * dk) else { break };
+                    if (self.start[cg]..self.start[cg + 1]).any(|m| (self.height[m as usize] - ha).abs() <= body.step) {
+                        break;
+                    }
+                    let Some(c3) = self.cell_index(i + (g + 1) * di, k + (g + 1) * dk) else { break };
+                    // The gap's span between the two floors' cells, at most: `g` cells of no floor.
+                    if g as f32 * stride > BRIDGE_GAP_M + 1e-4 {
+                        break;
+                    }
+                    let into_crack = drop_at.is_some_and(|c| (1..=g).any(|j| self.cell_index(i + j * di, k + j * dk) == Some(c)));
+                    if link != NONE && !into_crack {
+                        continue;
+                    }
+                    let mut found = false;
+                    for b in self.start[c3]..self.start[c3 + 1] {
+                        if (self.height[b as usize] - ha).abs() <= body.step && wide.off.binary_search_by_key(&(a as u32, b), |l| (l.from, l.to)).is_err() {
+                            new.push((a as u32, b));
+                            found = true;
+                            if into_crack {
+                                over_drop.insert((a as u32, b));
+                            }
+                        }
+                    }
+                    if found || (self.start[c3]..self.start[c3 + 1]).any(|m| (self.height[m as usize] - ha).abs() <= body.step) {
+                        break;
+                    }
+                }
+            }
+        }
+        (new, over_drop)
+    }
+
+    /// [later bridges] The new-bridge search of [`Self::controlled_links`] again, after the passes that cut links once it ran
+    /// (the walk-off links, the re-aimed drops, the drop check's cut), for the floors whose side link or off link they changed
+    /// since `before`: the same candidates ([`Self::bridge_candidates`]), walked on the same three lines ([`walk_lines`]), kept
+    /// by the same run rule ([`Self::bridge_run`] over every walked bridge now), added as walked GapJump WalkOff bridges.
+    /// It only adds: a crack the bridge pass skipped for the link it had across it then, and a later pass cut, is walked
+    /// over again; a pair that was an off link then (a bridge a later pass tested and took away) is not given back. Batt-m3's spawn exit (level_03 day 2): 99 crack pairs walked on all three lines in a run of 3 or more had no
+    /// link at the end; 34 of them a long Walk across the crack when the bridge pass ran (so it tried nothing there), cut by
+    /// the re-aimed drops (23) and the drop check's cut (11), and 3 of them a bridge the walk-off links cut. Returns (tried,
+    /// added).
+    pub(super) fn later_bridges(
+        &self,
+        wide: &mut Wide,
+        triangles: &[Triangle],
+        shapes: Option<&Collision>,
+        before: &SideLinks,
+    ) -> (usize, usize) {
+        let n = self.height.len();
+        assert_eq!(before.links.len(), n, "the snapshot is of this grid's floors");
+        wide.off.sort_by_key(|l| (l.from, l.to));
+        let mut changed = vec![false; n];
+        for a in 0..n {
+            changed[a] = (0..DIRS.len()).any(|d| {
+                before.links[a][d] != NONE && (wide.links[a][d] != before.links[a][d] || wide.kinds[a][d] != before.kinds[a][d])
+            });
+        }
+        for &(a, b) in &before.off {
+            if wide.off.binary_search_by_key(&(a, b), |l| (l.from, l.to)).is_err() {
+                changed[a as usize] = true;
+            }
+        }
+        let floors: Vec<usize> = (0..n).filter(|&a| changed[a]).collect();
+        if floors.is_empty() {
+            return (0, 0);
+        }
+        let (mut new, over_drop) = self.bridge_candidates(wide, &floors);
+        // A pair that was an off link then and is gone now was taken away by a pass that tested it (the walk-off links' landing
+        // test): not given back.
+        new.retain(|p| before.off.binary_search(p).is_err());
+        if new.is_empty() {
+            return (0, 0);
+        }
+        let body = self.body;
+        let (caster, s) = body.controller();
+        let start = body.walk_start();
+        let walker = shapes.is_none().then(|| Collision::build(triangles).with_caster(caster));
+        let world: &Collision = shapes.or(walker.as_ref()).expect("a world");
+        let s = &s;
+        let walked = parallel(&new, |&(a, b)| walk_lines(world, s, start, self.position(a), self.position(b)).1);
+        let tried = new.len();
+        let new: Vec<(u32, u32)> = new.iter().zip(walked).filter(|&(_, ok)| ok).map(|(&p, _)| p).collect();
+        let cells_apart = |a: u32, b: u32| {
+            let (ia, ka) = self.cell_xz(self.cell_of[a as usize] as usize);
+            let (ib, kb) = self.cell_xz(self.cell_of[b as usize] as usize);
+            (ia - ib).abs().max((ka - kb).abs())
+        };
+        // Every walked bridge the grid has now, these with them.
+        let all = Bridges::of(
+            wide.off
+                .iter()
+                .filter(|l| {
+                    l.kind == LinkKind::GapJump
+                        && matches!(l.press, Takeoff::WalkOff)
+                        && (self.height[l.from as usize] - self.height[l.to as usize]).abs() <= body.step
+                        && (2..=BRIDGE_MAX_CELLS as i32 + 1).contains(&cells_apart(l.from, l.to))
+                })
+                .map(|l| (l.from, l.to))
+                .chain(new.iter().copied()),
+        );
+        let mut added = 0;
+        for &(a, b) in &new {
+            if over_drop.contains(&(a, b)) || self.bridge_run(&all, a, b) >= BRIDGE_MIN_RUN {
+                wide.off.push(OffLink { from: a, to: b, kind: LinkKind::GapJump, press: Takeoff::WalkOff, share: Share::UNFLOWN, walk: None, aim: super::gap::Aim::STRAIGHT, way: None });
+                added += 1;
+            }
+        }
+        wide.off.sort_by_key(|l| (l.from, l.to));
+        (tried, added)
     }
 
     /// How many bridges of `all` are side by side with the bridge `a` -> `b`, it included, counted out to [`BRIDGE_MIN_RUN`]
@@ -1528,6 +1641,54 @@ mod tests {
         );
         let (a, b) = (at(4.875, 3.375), at(5.375, 3.375));
         assert!(grid.off_link(a, b).is_some_and(|l| l.press == Takeoff::WalkOff), "the row beside it: {:?}", grid.off_link(a, b));
+    }
+
+    /// [later bridges] A one-cell crack (x 5.0-5.25, no floor in it) between two level floors 6 m wide, as the bridge pass sees
+    /// it on batt-m3's spawn exit (level_03 day 2): each row's floor before the crack has a long Walk over it to the floor
+    /// past it, so the pass tries no bridge there; a later pass (the re-aimed drops, the drop check's cut) takes those Walks
+    /// away. The search again for the floors that lost them bridges the crack, walked off; with the Walks kept, or nothing
+    /// cut, nothing is added.
+    #[test]
+    fn a_crack_whose_walk_a_later_pass_cuts_is_bridged_again() {
+        let mut tris = Vec::new();
+        floor(&mut tris, 0.0, 0.0, 5.0, 6.0, 0.0);
+        floor(&mut tris, 5.25, 0.0, 10.0, 6.0, 0.0);
+        let body = Body { client_controller: true, ..Body::client() };
+        let (grid, _) = WalkGrid::build_kept_with_links(&tris, [0.0, 0.0, 10.0, 6.0], 0.25, body, &[], &[], OffMeshLinks::Gaps);
+        let at = |x: f32, z: f32| grid.locate_within(Vec3::new(x, 0.0, z), 0.05, 0.1);
+        let rows: Vec<(u32, u32)> =
+            (2..22).map(|r| 0.125 + 0.25 * r as f32).filter_map(|z| Some((at(4.875, z)?, at(5.375, z)?))).collect();
+        assert_eq!(rows.len(), 20, "a floor each side of the crack on every row");
+        let n = grid.height.len();
+        // The links as the bridge pass saw them: each row's long Walk over the crack (+x, `DIRS[0]`).
+        let mut wide = grid.link(&vec![false; n]);
+        for &(a, b) in &rows {
+            assert_eq!(wide.links[a as usize][0], NONE, "nothing in the crack's cell");
+            wide.links[a as usize][0] = b;
+            wide.kinds[a as usize][0] = LinkKind::Walk;
+        }
+        let before = SideLinks::of(&wide);
+        // Kept: nothing to bridge again.
+        assert_eq!(grid.later_bridges(&mut wide, &tris, None, &before), (0, 0));
+        // Cut by a later pass.
+        for &(a, _) in &rows {
+            wide.links[a as usize][0] = NONE;
+        }
+        let (tried, added) = grid.later_bridges(&mut wide, &tris, None, &before);
+        assert!(tried >= rows.len() && added >= rows.len() - 2, "tried {tried}, added {added}");
+        for &(a, b) in &rows[2..rows.len() - 2] {
+            let l = wide.off.iter().find(|l| (l.from, l.to) == (a, b));
+            assert!(l.is_some_and(|l| l.kind == LinkKind::GapJump && l.press == Takeoff::WalkOff), "row bridge {a} -> {b}: {l:?}");
+        }
+        // A bridge a later pass took away is not given back.
+        let bridged = SideLinks::of(&wide);
+        let (a0, b0) = rows[5];
+        wide.off.retain(|l| (l.from, l.to) != (a0, b0));
+        let (_, readded) = grid.later_bridges(&mut wide, &tris, None, &bridged);
+        assert_eq!(readded, 0, "the cut bridge {a0} -> {b0} stays cut");
+        // Once bridged, the same snapshot adds nothing more.
+        let again = SideLinks::of(&wide);
+        assert_eq!(grid.later_bridges(&mut wide, &tris, None, &again), (0, 0));
     }
 
     /// [S7] The walk check's crouched retry ([`WalkGrid::walk_link`] with [`Body::walk_ceiling_stalls`]) over a 0.785 m vertical
