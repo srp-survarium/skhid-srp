@@ -392,7 +392,7 @@ no gun, the bad rows, and a command made by the game's own constructor over garb
 run through its own slots.
 
 The player can scale these angles, draw everything held at the world's projection again, and move
-an iron sight's or collimator's eye along its line (patch 218, `weapon-view-settings.md`); the
+an iron sight's or collimator's eye along its line (patch 219, `weapon-view-settings.md`); the
 defaults are what this section says.
 
 Measured in local matches with the EOTech 552, at 1280×720 and `uro_fov 65`.

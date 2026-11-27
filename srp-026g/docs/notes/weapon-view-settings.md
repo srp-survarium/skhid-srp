@@ -1,4 +1,4 @@
-# The player's weapon view (patch 218)
+# The player's weapon view (patch 219)
 
 The owner, 2026-11-27, after revision 74 (#2650 gave the sights 0.69d0's size): "one problem with
 scopes is that some people would prefer the old version. How can we satisfy them?" Asked what he
@@ -86,7 +86,7 @@ Nothing a match computes changes; no `simulation_changes.tsv` row.
     the eye record does.
   - `vostok::trig::focal_length` now takes half-angles to 90 degrees (100 at the hip is 50). Up to
     45 its floats are the same as before.
-- **The eye** (patch 218).
+- **The eye** (patch 219).
   - The move is the player's centimetres along the eye's line (an `aim_offset` that much less:
     farther), clamped per sight: `weapon_modules::Relief::shift` over the table's `along` (how far
     behind its reticle `Build::in_gun_plane` puts the eye) for a sight in the gun's plane; for iron

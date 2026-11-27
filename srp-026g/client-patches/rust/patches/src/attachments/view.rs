@@ -15,7 +15,7 @@
 //! projection, as before: 0.26g made those models and their eye relief
 //! (the gun's `aim_offset`) for it, and 0.69d0 has none of them.
 //!
-//! Patch 218's player settings (`crate::weapon_view_options`,
+//! Patch 219's player settings (`crate::weapon_view_options`,
 //! `docs/notes/weapon-view-settings.md`) scale those angles (1 by default:
 //! 0.69d0's exactly), or draw everything held at the world's projection as
 //! revision 73 did; and its sight distance moves the eye of iron sights and
@@ -376,7 +376,7 @@ fn alignment_move(shift: f32, line: [f32; 3]) -> [f32; 3] {
     line.map(|axis| -shift * axis)
 }
 
-/// `hands_ik.aim_alignment` (patch 218, after patch 172): the move of this
+/// `hands_ik.aim_alignment` (patch 219, after patch 172): the move of this
 /// alignment, when the camera has one for this weapon.
 pub(crate) fn eye_shift(ctx: &Context<'_>) {
     let aligning = engine::aligning(ctx);

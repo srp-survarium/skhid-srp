@@ -1,4 +1,4 @@
-//! Patch 218: the player's weapon view (`docs/notes/weapon-view-settings.md`).
+//! Patch 219: the player's weapon view (`docs/notes/weapon-view-settings.md`).
 //! The owner, 2026-11-27: some players prefer the sights as revision 73 drew
 //! them; "it shouldn't be old/new, it should be more customizable". The hooks
 //! are `weapon_view_options.toml`'s:

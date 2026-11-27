@@ -1,4 +1,4 @@
-# Patch 218: the player's weapon view (weapon_view_options.rs;
+# Patch 219: the player's weapon view (weapon_view_options.rs;
 # docs/notes/weapon-view-settings.md): the held gun's own angles at the hip,
 # over sights and through magnified scopes, the world's projection instead,
 # and the sight distance toward revision 73's eye, kept in user.cfg. Only the
@@ -6,7 +6,7 @@
 # patch's registrations (orders 1 to 9), options.callback after patches 79,
 # 83, 112 and 66 (1 to 4); patch 161's lens reads the values at its camera.
 name = "weapon_view_options"
-patch = 218
+patch = 219
 
 [[hook]]
 site = "configs.start"

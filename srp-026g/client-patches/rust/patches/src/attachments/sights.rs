@@ -182,7 +182,7 @@ pub fn on_sight_zoom(ctx: &mut Context<'_>) -> Flow<NoExit> {
 }
 
 /// `weapon_view.camera`'s gun with its aim as the switch lowers it, and the
-/// second sight's share of the view (0 for a gun of one sight): patch 218's
+/// second sight's share of the view (0 for a gun of one sight): patch 219's
 /// angle and eye move blend by it as the eye does.
 pub(crate) fn switched(ctx: &Context<'_>, gun: HeldGun) -> (HeldGun, f32) {
     let view = SightedGun::at_view_camera(ctx).and_then(|sighted| view_now(&sighted, ctx.thread()));

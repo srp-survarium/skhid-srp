@@ -3,7 +3,7 @@
 //! A gun's bare model, its bind pose's bones, and each named fitted scope's parts,
 //! optic, frame and eye (with its relief along the eye line) as this crate resolves
 //! them: JSON for scripts/weapon-view-preview/layers.py (the Weapon view window's
-//! preview, patch 218). With no scope named, it lists the gun's fits on stderr.
+//! preview, patch 219). With no scope named, it lists the gun's fits on stderr.
 use weapon_modules::{Affine, BoneIndex, DictId, EyeAnchor, Kind, Loadout, Placement, Relief, Role, Table, Wanted, resolve};
 
 fn affine(a: &Affine) -> String {

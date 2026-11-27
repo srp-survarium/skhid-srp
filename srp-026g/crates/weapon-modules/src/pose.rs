@@ -99,7 +99,7 @@ pub enum EyeAnchor {
 pub const LEAST_RELIEF: f32 = 0.06;
 
 /// Where an eye's relief comes from, and so what the player's sight distance
-/// (patch 218, `docs/notes/weapon-view-settings.md`) may do with it.
+/// (patch 219, `docs/notes/weapon-view-settings.md`) may do with it.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Relief {
     /// The optic's own eye (a magnified scope): the optic brings its eye

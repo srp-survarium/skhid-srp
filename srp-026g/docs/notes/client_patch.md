@@ -5103,7 +5103,7 @@ cook data made by the game's constructor (0x127C30), then bake_decals' record lo
 
 **Not run:** a game. The bake's look on the legs was only rendered offline for #2687.
 
-### 3.115 The player's weapon view (written 2026-11-27, README patch 218) — PROVEN in the code and under Unicorn; not run in a game
+### 3.115 The player's weapon view (written 2026-11-27, README patch 219) — PROVEN in the code and under Unicorn; not run in a game
 
 The owner, 2026-11-27: the sights of revision 74 should be customizable, not old or new. The settings,
 their defaults and ranges, the scopes' surround and what to look at are in `weapon-view-settings.md`.
@@ -5120,7 +5120,7 @@ their defaults and ranges, the scopes' surround and what to look at are in `weap
 - `trig::focal_length` takes half-angles up to 90 degrees: past 45 it is sin / cos of the
   complement, each fdlibm kernel within its range; to 45 its floats are unchanged.
 
-**The eye** (patch 218, two lohooks):
+**The eye** (patch 219, two lohooks):
 
 - `hands_ik.aim_alignment` (0x295AA5, order 2, after patch 172) reads the call's pushed argument:
   `[esp]`, the `Item` bone's matrix (EDI = [ebp+0Ch] plus its index x 40h, pushed at 0x295AA4;

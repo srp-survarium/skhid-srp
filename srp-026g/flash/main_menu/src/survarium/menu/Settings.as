@@ -116,7 +116,7 @@ package survarium.menu
       // of the right column under the HUD group (layoutGameplay). A move is a change of the tab, saved by Apply.
       protected var _fov:SrpFieldOfView;
 
-      // The gameplay tab's "Weapon view" (exe patch 218): a button under the field of view opening a
+      // The gameplay tab's "Weapon view" (exe patch 219): a button under the field of view opening a
       // window in the Settings window's skin, as Key bindings' (layoutGameplay). A move or a toggle is a change
       // of the tab, saved by Apply.
       protected var _weaponView:SrpWeaponView;
@@ -366,7 +366,7 @@ package survarium.menu
          this.layoutVoice();
       }
       
-      // The weapon view's texts (root.srp_weapon_view_texts, patch 218): its heading.
+      // The weapon view's texts (root.srp_weapon_view_texts, patch 219): its heading.
       public function setWeaponViewTexts(values:Array) : void
       {
          this._weaponView.answerTexts(values);

@@ -17,7 +17,7 @@ package
     import scaleform.clik.events.ButtonEvent;
     import scaleform.clik.events.IndexEvent;
 
-    // The Gameplay tab's "Weapon view" (exe patch 218, docs/notes/weapon-view-settings.md): how the
+    // The Gameplay tab's "Weapon view" (exe patch 219, docs/notes/weapon-view-settings.md): how the
     // held gun is drawn, apart from the world's field of view (the "World FOV:" slider above it). The
     // tab's standard button (SetingsButton, the Optimal and Default buttons' symbol at their width) under
     // the World FOV slider opens a window in the Settings window's own skin, as the Controls tab's Key

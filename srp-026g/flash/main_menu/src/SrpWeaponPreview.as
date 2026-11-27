@@ -6,7 +6,7 @@ package
     import flash.display.Sprite;
     import flash.utils.Dictionary;
 
-    // The Weapon view window's preview (exe patch 218, docs/notes/weapon-view-settings.md): the AK-12 aimed
+    // The Weapon view window's preview (exe patch 219, docs/notes/weapon-view-settings.md): the AK-12 aimed
     // over its iron sights, an EOTech 552 or a 1P69 Hyperon, in Vostok Radar Station where a player stands,
     // a soldier 30 m ahead down a lane, as the window's values would draw it. Offline renders
     // (scripts/weapon-view-preview): the held gun's layers, each at a few angles (its tiers: the widest its
@@ -126,7 +126,7 @@ package
         public function draw(hip:Number, sights:Number, scopes:Number, atWorld:Boolean, distance:Number, uroFov:Number):void
         {
             // before the exe's answers the sliders hold what their range was: the defaults (the exe's ranges:
-            // patch 218's, patch 22's uro_fov 50 to 100)
+            // patch 219's, patch 22's uro_fov 50 to 100)
             hip = within(hip, 40, 100, 65);
             sights = within(sights, 20, 65, 32.5);
             scopes = within(scopes, 16.25, 32.5, 32.5);

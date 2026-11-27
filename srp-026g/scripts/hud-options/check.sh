@@ -11,7 +11,7 @@
 #   moved, every dictionary's label in the column, Apply, Cancel) and its Vulkan options... button under it: disabled
 #   while the list shows DirectX 11, its panel over the column (the five options, every dictionary's texts
 #   inside it), closed by a press outside it or Esc, each option pending until Apply, Cancel, the note;
-# - SettingsHarness.as also: patch 218's Weapon view (docs/notes/weapon-view-settings.md): the tab's standard
+# - SettingsHarness.as also: patch 219's Weapon view (docs/notes/weapon-view-settings.md): the tab's standard
 #   button under the field of view, its window in the Settings' skin (Key bindings' frame, title and close
 #   button) at 1280x720 and the movie scaled 1.5, the tab's slider and checkbox look, every dictionary's labels
 #   and note inside it, Apply, Cancel, Esc, the checkbox greying the angles; its preview (the slider moved picks

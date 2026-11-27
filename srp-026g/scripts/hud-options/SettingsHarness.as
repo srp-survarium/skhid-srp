@@ -115,7 +115,7 @@ package
                     if (settings.btn_accept.enabled) trace("SETTINGS RESULT fail: Apply enabled before the screenshot");
                     trace("SETTINGS SHOT settings");
                 }
-                // the weapon view's window open (patch 218)
+                // the weapon view's window open (patch 219)
                 if (frames == 40)
                 {
                     click(settings.settings_content.getChildByName("_srp_weapon_view"));
@@ -306,7 +306,7 @@ package
 
         // A visible control's or text's top and bottom in the tab content: a checkbox's box and drawn
         // label (its label's field runs on below), a text's drawn lines, a list's or slider's own height.
-        // Patch 218's weapon view (SrpWeaponView): hidden until the exe's answers; then the tab's standard button
+        // Patch 219's weapon view (SrpWeaponView): hidden until the exe's answers; then the tab's standard button
         // (SetingsButton, the Optimal button's width) under the field of view, in the right column, above the
         // window's bottom; its window in the Settings window's skin (SrpKeysWindow's: SrpSettingsGround's frame, the
         // title in the Settings' title look, the close button) at the screen's centre, every control inside its
@@ -717,7 +717,7 @@ package
             // Names on map (the last box) with the map's rows, over Static minimap
             var right:Array = [heading, cross, hits, boxes[0], c._setter_static_show_quests, boxes[1], c._setter_static_minimap,
                 c._setter_static_minimap_position, fov];
-            // the weapon view's button under the field of view, once the exe has answered (patch 218)
+            // the weapon view's button under the field of view, once the exe has answered (patch 219)
             var weaponButton:* = content.getChildByName("_srp_weapon_view");
             if (weaponButton != null && weaponButton.visible) right.push(weaponButton);
             var bottom:Number = c.bottomContainer.getBounds(content).bottom;

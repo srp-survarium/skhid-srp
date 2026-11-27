@@ -1,6 +1,6 @@
 # The Weapon view window's preview pictures
 
-The 44 bitmaps of `flash/main_menu/bitmaps/SrpPreview*` that `SrpWeaponPreview.as` draws (patch 218,
+The 44 bitmaps of `flash/main_menu/bitmaps/SrpPreview*` that `SrpWeaponPreview.as` draws (patch 219,
 `docs/notes/weapon-view-settings.md`, "The preview"). Made once, offline; nothing here runs in a
 build or a check. NumPy and Pillow, `scripts/sight-alignment`'s renderer, the weapon-modules pack
 `release/content.tsv` ships (`private/content-packs/weapon-modules-<version>/files`), and the stock

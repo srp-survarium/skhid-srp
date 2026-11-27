@@ -86,7 +86,7 @@ fn kernel_cos(r: f64) -> f64 {
 
 /// Vertical focal length of a perspective projection with half-angle in
 /// (0, pi/2): cos / sin up to pi/4, beyond it sin / cos of the angle's
-/// complement (each kernel within its own range; patch 218's widest held
+/// complement (each kernel within its own range; patch 219's widest held
 /// angle, 100 degrees at the hip, is a half-angle of 50).
 pub fn focal_length(half_angle: f64) -> Option<f32> {
     if !(half_angle > 0.0 && half_angle < FRAC_PI_2) { return None; }

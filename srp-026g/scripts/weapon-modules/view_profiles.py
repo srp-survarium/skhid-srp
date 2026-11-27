@@ -17,7 +17,7 @@ view_factors_069.tsv holds the two of every 0.69d0 item ../remodel-069/items.tsv
 
 Each gun whose iron sights ../content-edit/iron-sights-1.json moves to 0.69d0's eye also gets
 `aim_offset_026g`: its parameters/aim_offset before that edit (the edit's `from`; 0 for a gun that had
-none, which the edit adds), the iron sights' eye of revision 73. The player's sight distance (patch 218,
+none, which the edit adds), the iron sights' eye of revision 73. The player's sight distance (patch 219,
 docs/notes/weapon-view-settings.md) moves the eye toward it. The guns with an optic of their own, which
 the edit leaves out, have none.
 """

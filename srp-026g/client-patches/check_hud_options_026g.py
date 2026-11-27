@@ -753,7 +753,7 @@ def main():
     b_regs, b_sp, b_head = ours.start()
     # patch 81's `srp_lobby`, a later member of the site's chain, registers after these; patch
     # 133's command `where` (order 6), then patch 66's voice variables (order 7), the game volume's and patch 156's
-    # `collision`, then patch 218's five (order 10) last, at the head
+    # `collision`, then patch 219's five (order 10) last, at the head
     nodes = [node for node in registered(ours, b_head, head_before) if ours.text(ours.read(node + 0x10)) != b"srp_lobby"]
     names = [ours.text(ours.read(node + 0x10)).decode() for node in nodes]
     variables = {name: console_bool(ours, node) for name, node in zip(names, nodes) if name in SETTINGS}

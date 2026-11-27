@@ -5,7 +5,7 @@
 //! scene's draw command carries to the render thread (`weapon_view.submit`,
 //! read back at `weapon_view.begin`) and the foreground pass's projection
 //! (`weapon_view.foreground`); the guns' profiles, the dictionary's
-//! `srp_weapon_views` ([`load_profiles`]); patch 218's eye move at the hands'
+//! `srp_weapon_views` ([`load_profiles`]); patch 219's eye move at the hands'
 //! aim alignment (`hands_ik.aim_alignment`, `hands_ik.aim_aligned`).
 use core::{mem, ptr::NonNull, slice};
 use weapon_modules::DictId;

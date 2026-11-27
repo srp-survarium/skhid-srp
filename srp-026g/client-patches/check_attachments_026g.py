@@ -46,7 +46,7 @@ by the crate's test): nothing here works a loadout out again.
 - delete_resource (0x24B190): the parts out of the scene, their references
   given back once, the weapon forgotten;
 - a weapon without any of it, and every site in the original: as the game;
-- patch 218, the player's weapon view: on_configs_loaded's start (0x1EA210)
+- patch 219, the player's weapon view: on_configs_loaded's start (0x1EA210)
   registers its five variables at their defaults; set by their own setters as user.cfg's
   lines are (0xECB70, 0xECA30), the camera's lens
   scales by them (a rifle's hip and aimed angles, a fitted magnified
@@ -711,7 +711,7 @@ def weapon_projection(exe, patched, report):
 def fitted_optic_projection(run, weapon, report, scope=None):
     """A gun whose optic is the table's (its config's data/srp_scope, its
     parts held) aimed through it: the lens, though the weapon has an optic
-    (+1808h); the gun has no profile here, so 65 degrees (with patch 218's
+    (+1808h); the gun has no profile here, so 65 degrees (with patch 219's
     scope angle `scope`, 65 times it over 32.5)."""
     player, world, entry, view, command = (run.block(n) for n in (0xF480, 0x10, 0x118, 0x100, 0xB8))
     run.u32(player + 0xF474, world)
@@ -733,7 +733,7 @@ def fitted_optic_projection(run, weapon, report, scope=None):
     want[0] = world_projection[0] / world_projection[5] * want[5]
     report(close(run.floats(STACK + 0x28), want),
            f"a fitted optic aimed (the PSO-1 on the AK-74M): the lens, {angle:g} degrees"
-           + (f" (patch 218's scope angle {scope:g})" if scope else ""))
+           + (f" (patch 219's scope angle {scope:g})" if scope else ""))
 
 
 # the hands' alignment's made-up rig: the aim's place on bone 1, the bone, the camera
@@ -764,7 +764,7 @@ def align(run, weapon, aim_offset):
 
 
 def weapon_view_settings(original, built, report):
-    """Patch 218 (weapon_view_options.rs): its variables, the lens they make,
+    """Patch 219 (weapon_view_options.rs): its variables, the lens they make,
     the sight distance's move of the hands' alignment."""
     r = Run(built)
     stopped, values = r.settings()

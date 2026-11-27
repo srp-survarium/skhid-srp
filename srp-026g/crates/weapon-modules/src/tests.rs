@@ -1171,7 +1171,7 @@ fn an_eye_turns_toward_another() {
     assert!(mid.x[0] < -0.98, "{mid:?}");
 }
 
-/// The player's sight distance (patch 218): nothing at 0; farther by
+/// The player's sight distance (patch 219): nothing at 0; farther by
 /// exactly the distance; closer by it, but never nearer the sight than
 /// [`LEAST_RELIEF`] nor nearer than this resolver's eye where that is nearer
 /// already; a magnified scope's own eye never moves.

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Patch 218 (the Rust patch weapon_view_options, rust/patches/src/weapon_view_options.rs):
+"""Patch 219 (the Rust patch weapon_view_options, rust/patches/src/weapon_view_options.rs):
 the player's weapon view kept in user.cfg (../docs/notes/weapon-view-settings.md).
 
     python check_weapon_view_options_026g.py <original survarium.exe>

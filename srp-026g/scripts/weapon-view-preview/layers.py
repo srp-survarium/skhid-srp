@@ -5,7 +5,7 @@ python layers.py <scripts/sight-alignment> <weapon-modules pack files> <preview_
 
 The AK-12 (363) aimed, as patch 161 draws it (a JPEG and its alpha, <class>.jpg and <class>.alpha.png):
 - over its iron sights: the gun's `aim` locator with its aim_offset (iron-sights-1.json's -0.0506;
-  revision 73's 0, weapon-view-069.json's aim_offset_026g: patch 218 moves it no nearer than that),
+  revision 73's 0, weapon-view-069.json's aim_offset_026g: patch 219 moves it no nearer than that),
   at -20, 0, +25 and +50 cm of sight distance (SrpPreviewIron<cm><tier>);
 - through the EOTech 552: the bare gun with the fit's parts and optic at the crate's placements, the eye
   moved along its line by Relief::shift (pose.rs) at the same distances (SrpPreviewRedDot<cm><tier>);
