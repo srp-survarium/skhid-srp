@@ -4513,6 +4513,7 @@ st_srp_weapon_sway_cycle	Период раскачивания
 st_srp_weapon_sway_horizontal	Раскачивание в стороны
 st_srp_weapon_sway_vertical	Раскачивание вверх-вниз
 st_srp_weapon_view_heading	Вид оружия
+st_srp_weapon_view_hip	От бедра
 st_srp_weapon_view_iron	Мушка
 st_srp_weapon_view_red_dot	Коллиматор
 st_srp_weapon_view_scope	Оптика

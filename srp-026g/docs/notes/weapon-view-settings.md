@@ -119,52 +119,63 @@ Nothing a match computes changes; no `simulation_changes.tsv` row.
   game's Scaleform measuring the text wider. Negative values take a plain hyphen, as the stock sliders'
   numbers do; the unit is the dictionary's `st_srp_unit_cm` ("%1$s cm", "%1$s см"), answered with the
   window's texts.
-- **The texts**: twelve keys in the twelve dictionaries (`st_srp_weapon_view_heading`,
+- **The texts**: thirteen keys in the twelve dictionaries (`st_srp_weapon_view_heading`,
   `st_srp_weapon_fov_option`, `_aimed_option`, `_scope_option`, `_world_option`,
   `st_srp_sight_distance_option`, `st_srp_sight_distance_note`, `st_srp_unit_cm`, `st_srp_world_fov_option`;
-  the preview's `st_srp_weapon_view_iron`, `_red_dot` and `_scope`).
+  the preview's `st_srp_weapon_view_hip`, `_iron`, `_red_dot` and `_scope`).
 
 ## The preview
 
 The window has two columns (1180 px wide at 1x, inside the screen at 1280x720 and scaled 1.5): on the
-left the Settings window's own tabs (Iron sights, Red dot, Scope; its tab bar's renderer, the
-selected one lit with the orange line under it), centred over an 800x450 picture of the AK-12 fully
-aimed (`SrpWeaponPreview.as`) over its iron sights, an EOTech 552 or the 1P69 Hyperon (one gun in
-every view; the AK-12 takes no PSO-1); on the right the controls, the first label's text at the
-picture's top (the owner: "text can be on the level of the image"). No note under the picture (the
-owner had it taken out). There is no hip view. Moving a slider shows its view: the scopes'
-slider the scope, the sights' and the distance's the iron sights (or the red dot when it is shown);
-the hip slider and the checkbox only draw it again. The World FOV slider's value, pending or not,
-draws the world.
+left the Settings window's own tabs (Hip, Iron sights, Red dot, Scope; its tab bar's renderer, the
+selected one lit with the orange line under it), centred over an 800x450 picture of the AK-12
+(`SrpWeaponPreview.as`): at the hip, or fully aimed over its iron sights, an EOTech 552 or the 1P69
+Hyperon (one gun in every view; the AK-12 takes no PSO-1); on the right the controls, the first label's
+text at the picture's top (the owner: "text can be on the level of the image"). No note under the
+picture (the owner had it taken out). Moving a slider shows its view: the hip slider the hip, the
+scopes' slider the scope, the sights' and the distance's the iron sights (or the red dot when it is
+shown); the checkbox draws it again. The World FOV slider's value, pending or not, draws the world.
 
-- **The pictures** are offline renders and captures, 40 bitmaps of the movie, about 4.2 MB
+- **The pictures** are offline renders and captures, 44 bitmaps of the movie, about 5.3 MB
   (`flash/main_menu/bitmaps/SrpPreview*`, made by `scripts/weapon-view-preview`):
   - the gun's layers, 1600x900 at JPEG quality 95, each with its alpha (`<class>.jpg` and `<class>.alpha.png`:
     one DefineBitsJPEG3, a tenth of a lossless bitmap), drawn at twice that and downsampled
-    (anti-aliased edges). Each view at a few angles, its tiers: the widest its sliders reach (the iron
-    sights' 94.8, the World FOV checkbox at World FOV 100; the EOTech's 77.7; the scope's 32.5), so
-    the whole gun is there at every setting (the owner: raising the sights' angle had shown the gun
-    "without its new parts"), and narrower ones down to the sliders' narrowest (iron 94.8, 74.16,
-    55.42, 40.11, 28.47; the EOTech 77.7, 57.71, 41.3, 28.91; the scope 32.5, 23.06: each at most 1.47
-    times the next's half-angle tangent), so the narrowest tier at or over the angle always shows at
-    least 610 of its 900 rows: the pane's 450 rows are 600 on the screen at 1440p (UI scale 1.33), so
-    nothing is enlarged there at any setting. Drawn as patch 161 draws
-    it: the iron sights at the gun's `aim` locator and aim_offset, the EOTech's eye from this crate's
-    resolve, the 1P69's aimed model alone at its own eye; the iron sights and the EOTech at -20, 0,
-    +25 and +50 cm of sight distance (the exe's clamps: the AK-12's iron eye no nearer than revision
-    73's, the EOTech's no nearer than 6 cm). Emissive materials are drawn in their constant emissive
-    colour over the rest, as the game's additive pass shows them: the EOTech's reticle red (the owner:
-    "red dot is white");
-  - the world: two headless captures of Vostok (map 123, `scripts/capture`) at 2560x1440 and the
-    game's highest settings (textures, geometry and draw distance Maximum, shadows 3, ambient
-    occlusion 3, anisotropy 16, anti-aliasing), from where a player stands (the owner: "location can
-    be chosen in playable game area"): a lane between two walls, the eye 1.6 m over a floor the walk
-    grid reaches from a spawn (`crates/mapdata`), out of every damage zone, a place reached from a
-    spawn 30 m ahead, seen whole from the eye. At 100 degrees vertical (the widest world drawn: the
-    iron sights' at uro_fov 100 is 94.8; stored 2250x1266: its narrowest view, 45.9 degrees at World
-    FOV 50, is 610 rows of it) and at 20 for the scope (1440x810), JPEG at quality 95, with a stock soldier (a scavenger's outfit, the lobby's idle
-    pose) rendered offline into both standing at that point: so the iron sights and the red dot sit
-    on him, and the scope shows him at its zoom.
+    (anti-aliased edges). Each view at a few angles, its tiers: the widest its sliders reach (the hip's
+    100; the iron sights' 94.8, the World FOV checkbox at World FOV 100; the EOTech's 77.7; the
+    scope's 32.5), so the whole gun is there at every setting (the owner: raising the sights' angle
+    had shown the gun "without its new parts"), and narrower ones down to the sliders' narrowest (hip
+    100, 77.5, 56.78; iron 94.8, 74.16, 55.42, 40.11, 28.47; the EOTech 77.7, 57.71, 41.3, 28.91; the
+    scope 32.5, 23.06: each at most 1.485 times the next's half-angle tangent), so the narrowest tier
+    at or over the angle always shows at least 606 of its 900 rows: the pane's 450 rows are 600 on the
+    screen at 1440p (UI scale 1.33), so nothing is enlarged there at any setting. Drawn as patch 161
+    draws it: the iron sights at the gun's `aim` locator and aim_offset, the EOTech's eye from this
+    crate's resolve, the 1P69's aimed model alone at its own eye; the iron sights and the EOTech at
+    -20, 0, +25 and +50 cm of sight distance (the exe's clamps: the AK-12's iron eye no nearer than
+    revision 73's, the EOTech's no nearer than 6 cm). Emissive materials are drawn in their constant
+    emissive colour over the rest, as the game's additive pass shows them: the EOTech's reticle red
+    (the owner: "red dot is white");
+  - the hip (the quick version the owner chose): the gun at the skeleton's Weapon bone and the scavenger
+    04's hands, both in the AK's `on_site_idle` at its first frame (the hip's idle; the aimed one is
+    the same pose, the game's hand IK aims it), seen from the Head bone looking straight ahead. The
+    game's first person camera is its computed head transform, not read for this, so a few cm or
+    degrees may differ; the hands are the clip's, without the game's hand IK;
+  - the world: three headless captures of Vostok (map 123, `scripts/capture`) at the game's highest
+    settings (textures, geometry and draw distance Maximum, shadows 3, ambient occlusion 3, anisotropy
+    16, anti-aliasing), from where a player stands (the owner: "location can be chosen in playable
+    game area"): a lane between two walls, the eye 1.6 m over a floor the walk grid reaches from a
+    spawn (`crates/mapdata`), out of every damage zone. At 100 degrees vertical for worlds past 60
+    (stored 2250x1266: the narrowest such, 60.1 degrees, is 615 of its rows), at 60 for 60 and less
+    (1920x1080: the narrowest, the iron sights' 45.9 at World FOV 50, is 792 rows) and at 20 for the
+    scope (1440x810), JPEG at quality 95;
+  - two stock soldiers in them (`soldiers.py`, the owner: "properly placed characters, holding weapon
+    and with bright colorful decals"): the scavenger 04 outfit posed by the AK's third person aimed
+    idle, the AK-12 at his shoulder, standing on the walk grid's floor (its height at that spot)
+    facing the camera turned 25 to 35 degrees (so the rifle shows its side), with decals on the chest
+    and the thighs (Snufkin, the bottled fumo, Neco-Arc, the number stencils: the content packs' own
+    pictures, each a square 1.5 cm off the outfit moving with its bone; the renderer cannot bake them
+    as the game does). One 30 m ahead where the sights point (in the reticle, in the scope at its
+    zoom), one 10 m ahead beside the sights (beside the front sight and the EOTech, inside the scope's
+    circle at 16.25).
 - **The angles are exact.** A tier made at `t` degrees drawn at angle `a` is the tier scaled about
   the centre by tan(t / 2) / tan(a / 2): the game's held projection is that same scale of everything
   held. The world is scaled the same way to its angle at the sight's zoom (patch 22: 65 z + (uro_fov -
@@ -176,12 +187,17 @@ draws the world.
   so at any UI scale (MainMenu scales the movie above 1080p: 1.33 at 1440p, 2 at 4K) they are
   filtered from their own pixels. Revision 80 drew them into one BitmapData of the pane's size, which
   the game's Scaleform then enlarged without filtering at 1440p (the owner: "the drawing quality is
-  atrocious"). A layer is made only while shown (5.8 MB decoded; the world 11.4 MB) and let go after.
+  atrocious"). A layer is made only while shown (5.8 MB decoded; the world up to 11.4 MB) and let go after.
 - The window has no bottom band (the Settings' button bar is not part of its frame).
-- **Default** (the Graphics tab's Default button: its symbol, width and the exe's own label of it)
-  under the controls sets the five values back to revision 74's (65, 32.5, 32.5, off, 0 cm), each a
-  move pending until Apply as the player's, and draws the preview again.
-- **Apply** beside it (the Settings window's own Apply button: its symbol and the exe's label of it)
+- **The buttons** (the owner: "default settings, new line, apply close"): "Default settings" on a line of
+  its own under the controls (the tab's standard button; the game's own text, the Controls tab's
+  `st_options_default_controls`, which the exe answers with the window's texts) sets the five values
+  back to revision 74's (65, 32.5, 32.5, off, 0 cm), each a move pending until Apply as the player's,
+  and draws the preview again. Under it Apply and Close side by side, the Settings window's own Apply
+  and Cancel/Exit buttons (their symbols; Close the game's `st_close`). Close closes the window as its
+  cross does, its changes still pending. Each button is wider only for its text (16 px), every
+  dictionary's inside the window.
+- **Apply** (its label the Settings' Apply's)
   saves this window's pending values only, as the Settings' Apply does them, and keeps the window
   open; the other tabs' pending changes stay pending (the Settings' Apply saves everything pending,
   every tab's, so the window's could not be it). Disabled while none of its values is pending.

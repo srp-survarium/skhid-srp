@@ -20,8 +20,9 @@
 //!   sign before a negative one), the checkbox's `root.srp_check_option(name,
 //!   label, saved)`, each saving its argument first when it is one (user.cfg
 //!   at once); `srp_weapon_view_texts` answers the window's title, the
-//!   sight distance's note, the dictionary's centimetres and the preview's
-//!   three views (`root.srp_weapon_view_texts`);
+//!   sight distance's note, the dictionary's centimetres, the preview's
+//!   four views and the buttons' "Default settings" and "Close"
+//!   (`root.srp_weapon_view_texts`);
 //! - the hands' aim alignment (`hands_ik.aim_alignment` after patch 172, and
 //!   its call's return, `hands_ik.aim_aligned`): the eye moved along its own
 //!   line by the sight distance ([`crate::attachments::view`]).
@@ -84,8 +85,10 @@ const WORLD_LABEL: &CStr = c"st_srp_weapon_fov_world_option";
 const HEADING: &CStr = c"st_srp_weapon_view_heading";
 const DISTANCE_NOTE: &CStr = c"st_srp_sight_distance_note";
 const CENTIMETRES: &CStr = c"st_srp_unit_cm";
-/// The preview's three views (SrpWeaponPreview).
-const PREVIEW: [&CStr; 3] = [c"st_srp_weapon_view_iron", c"st_srp_weapon_view_red_dot", c"st_srp_weapon_view_scope"];
+/// The preview's four views (SrpWeaponPreview), then the window's two buttons of the game's own texts:
+/// "Default settings" (the Controls tab's) and "Close".
+const PREVIEW: [&CStr; 6] = [c"st_srp_weapon_view_hip", c"st_srp_weapon_view_iron", c"st_srp_weapon_view_red_dot",
+                             c"st_srp_weapon_view_scope", c"st_options_default_controls", c"st_close"];
 
 static SLIDERS: [Slider; 4] = [
     Slider { name: HIP_NAME, label: c"st_srp_weapon_fov_option", value: &HIP, least: 40.0, most: 100.0, per_unit: 1 },
@@ -311,9 +314,11 @@ pub fn on_options_call(ctx: &mut Context<'_>) -> Flow<WeaponViewOptionsOnOptions
         let heading = call.translate(HEADING, &mut label);
         let note = call.translate(DISTANCE_NOTE, &mut note);
         let unit = call.translate(CENTIMETRES, &mut unit);
-        let [iron, red_dot, scope] = &mut rooms;
-        let views = [call.translate(PREVIEW[0], iron), call.translate(PREVIEW[1], red_dot), call.translate(PREVIEW[2], scope)];
-        call.answer(c"root.srp_weapon_view_texts", &[heading, note, unit, views[0], views[1], views[2]]);
+        let [hip, iron, red_dot, scope, default, close] = &mut rooms;
+        let texts = [call.translate(PREVIEW[0], hip), call.translate(PREVIEW[1], iron), call.translate(PREVIEW[2], red_dot),
+                     call.translate(PREVIEW[3], scope), call.translate(PREVIEW[4], default), call.translate(PREVIEW[5], close)];
+        call.answer(c"root.srp_weapon_view_texts",
+                    &[heading, note, unit, texts[0], texts[1], texts[2], texts[3], texts[4], texts[5]]);
     } else if method == WORLD_NAME {
         if let Some(on) = call.string_argument(0).and_then(choice) {
             WORLD.set(thread, on);

@@ -130,7 +130,7 @@ package
                     wv.close();
                     root.scaleX = root.scaleY = 2;
                     click(settings.settings_content.getChildByName("_srp_weapon_view"));
-                    wv.tabs[1].dispatchEvent(new (loader.contentLoaderInfo.applicationDomain.getDefinition("scaleform.clik.events.ButtonEvent") as Class)("buttonClick"));
+                    wv.tabs[2].dispatchEvent(new (loader.contentLoaderInfo.applicationDomain.getDefinition("scaleform.clik.events.ButtonEvent") as Class)("buttonClick"));
                     var pane:* = wv.preview.frame.getBounds(stage);
                     trace("SETTINGS weapon view at 2: the preview " + Math.round(pane.width) + "x" + Math.round(pane.height) + " on the screen");
                 }
@@ -326,7 +326,7 @@ package
             var answers:Array = [["65", "40", "100", "1"], ["325", "200", "650", "10"], ["3250", "1625", "3250", "100"],
                 ["0", "-20", "50", "1"]];
             var answer:Function = function(t:Array):void {
-                root.srp_weapon_view_texts(t[37], t[43], t[44], t[45], t[46], t[47]);
+                root.srp_weapon_view_texts(t[37], t[43], t[44], t[48], t[45], t[46], t[47], "Default settings", "Close");
                 root.srp_check_option("srp_weapon_fov_world", t[41], "0");
                 for (var n:int = 0; n < 4; ++n)
                 {
@@ -381,7 +381,7 @@ package
                     when + ": the window on the screen (" + area + ")");
                 // two columns: the preview's (its tabs, the picture) left of the controls'
                 var columns:Array = [[window.tabs[0], window.preview.frame],
-                    [sliders[0], sliders[1], sliders[2], box, sliders[3], window.note, window.resetButton]];
+                    [sliders[0], sliders[1], sliders[2], box, sliders[3], window.note, window.resetButton, window.applyButton]];
                 var inner:Rectangle = new Rectangle(area.left + 6, area.top + 39 * panel.scaleY, area.width - 12,
                     area.height - (39 + 6) * panel.scaleY);
                 for each (var rows:Array in columns)
@@ -397,7 +397,11 @@ package
                         }
                     }
                 }
-                var right:Number = Math.max(window.tabs[2].getBounds(stage).right, window.preview.frame.getBounds(stage).right);
+                var right:Number = Math.max(window.tabs[3].getBounds(stage).right, window.preview.frame.getBounds(stage).right);
+                // Close beside Apply, on its row, inside the frame
+                var apply:Rectangle = window.applyButton.getBounds(stage), shut:Rectangle = window.closeButton2.getBounds(stage);
+                require(shut.left >= apply.right - 1 && Math.abs(shut.top - apply.top) <= 2 && shut.right <= inner.right + 1
+                    && shut.bottom <= inner.bottom + 1, when + ": Close beside Apply, inside the frame (" + shut + ", " + apply + ")");
                 for each (var control:* in columns[1])
                 {
                     require(right <= control.getBounds(stage).left + 1, when + ": the preview's column left of " + control.name);
@@ -409,7 +413,7 @@ package
                 var labelTop:Number = sliders[0].textField.getBounds(stage).top + 2 * panel.scaleY;
                 require(Math.abs(labelTop - picture.top) <= 2 * panel.scaleY, when + ": the first label at the picture's top ("
                     + labelTop + ", " + picture.top + ")");
-                var tabsSpan:Rectangle = window.tabs[0].getBounds(stage).union(window.tabs[2].getBounds(stage));
+                var tabsSpan:Rectangle = window.tabs[0].getBounds(stage).union(window.tabs[3].getBounds(stage));
                 require(Math.abs((tabsSpan.left + tabsSpan.right) / 2 - (picture.left + picture.right) / 2) <= 2,
                     when + ": the tabs centred over the picture (" + tabsSpan + ", " + picture + ")");
             };
@@ -499,7 +503,7 @@ package
                 && close(sliders[2].selectedIndex, 32.5) && close(sliders[3].selectedIndex, 0) && sliders[1].alpha == 1
                 && settings.btn_accept.enabled && calls.length == 0 && window.visible,
                 "Default: 65, 32.5, 32.5, off, 0 cm, pending, nothing sent yet (" + calls + ")");
-            require(window.preview.shown == 0 && close(held.held, 32.5) && held.alpha == 1 && window.preview.drawn.length == 2,
+            require(window.preview.shown == 1 && close(held.held, 32.5) && held.alpha == 1 && window.preview.drawn.length == 2,
                 "Default: the preview at once, the iron sights at 32.5 and 0 cm (" + held.held + ")");
             // the window's Apply (the Settings' Apply button's symbol and label): its own values saved, the window
             // open, another tab's pending change left pending (a HUD checkbox), then nothing pending here
@@ -557,27 +561,40 @@ package
             var layer:Function = function():Array {
                 return preview.drawn.slice(1);
             };
+            var press:Function = function(tab:*):void {
+                tab.dispatchEvent(new (loader.contentLoaderInfo.applicationDomain.getDefinition("scaleform.clik.events.ButtonEvent") as Class)("buttonClick"));
+            };
+            // the tabs: Hip, Iron sights, Red dot, Scope
             sliders[2].slider.value = 20;
-            require(preview.shown == Preview.SCOPE && window.tabs[2].selected && !window.tabs[0].selected,
+            require(preview.shown == Preview.SCOPE && window.tabs[3].selected && !window.tabs[1].selected,
                 "the scope slider moved: the scope view, its tab selected");
             var TabClass:Class = loader.contentLoaderInfo.applicationDomain.getDefinition("InventoryTabButton") as Class;
-            require(window.tabs[2] is TabClass && window.tabs[2].currentLabel != window.tabs[0].currentLabel,
+            require(window.tabs[3] is TabClass && window.tabs[3].currentLabel != window.tabs[1].currentLabel,
                 "the tabs the Settings window's (InventoryTabButton), the selected one drawn in its own state ("
-                + window.tabs[2].currentLabel + ", " + window.tabs[0].currentLabel + ")");
+                + window.tabs[3].currentLabel + ", " + window.tabs[1].currentLabel + ")");
             var shown:Array = layer();
-            require(shown.length == 1 && shown[0].made == Preview.TIERS[2][1] && Math.abs(shown[0].scale - Preview.scaleOf(Preview.TIERS[2][1], 20)) < 1e-3,
+            require(shown.length == 1 && shown[0].made == Preview.TIERS[3][1] && Math.abs(shown[0].scale - Preview.scaleOf(Preview.TIERS[3][1], 20)) < 1e-3,
                 "the scope at 20 degrees: its narrower layer (" + shown[0].made + ") scaled to it (" + (shown.length ? shown[0].scale : -1) + ")");
-            require(Math.abs(preview.drawn[0].scale - Preview.scaleOf(20, Preview.worldAngle(65, 0.25))) < 1e-3,
+            require(preview.drawn[0].made == 20 && Math.abs(preview.drawn[0].scale - Preview.scaleOf(20, Preview.worldAngle(65, 0.25))) < 1e-3,
                 "the scope's world at the 1P69's 16.25 degrees");
-            sliders[1].slider.value = 52;
-            require(preview.shown == Preview.IRON && window.tabs[0].selected, "the sights' slider moved: the iron sights' view");
+            // the hip slider: the hip's view, its layer the narrowest tier at or over the angle; its world the
+            // 100 degree capture past 60 (World FOV 65 at the hip), the 60 one up to it (the iron sights' 59.1)
+            sliders[0].slider.value = 90;
             shown = layer();
-            // the narrowest tier at or over the angle, scaled to it: 52 is the iron sights' middle tier
-            require(shown.length == 1 && shown[0].made == Preview.TIERS[0][2] && shown[0].made >= 52
+            require(preview.shown == Preview.HIP && window.tabs[0].selected && shown.length == 1 && shown[0].made == Preview.TIERS[0][0]
+                && Math.abs(shown[0].scale - Preview.scaleOf(Preview.TIERS[0][0], 90)) < 1e-3 && preview.drawn[0].made == 100
+                && Preview.tierOf(0, 100) == 0 && Preview.tierOf(0, 40) == 2,
+                "the hip slider moved to 90: the hip's view, its " + Preview.TIERS[0][0] + " layer (" + (shown.length ? shown[0].made : -1) + "), the 100 degree world at World FOV 65 (" + preview.drawn[0].made + ")");
+            sliders[0].slider.value = 65;
+            sliders[1].slider.value = 52;
+            require(preview.shown == Preview.IRON && window.tabs[1].selected, "the sights' slider moved: the iron sights' view");
+            shown = layer();
+            // the narrowest tier at or over the angle, scaled to it: 52 is the iron sights' third tier
+            require(shown.length == 1 && shown[0].made == Preview.TIERS[1][2] && shown[0].made >= 52 && preview.drawn[0].made == 60
                 && Math.abs(shown[0].scale - Preview.scaleOf(shown[0].made, 52)) < 1e-3
-                && Preview.tierOf(0, 94.8) == 0 && Preview.tierOf(0, 74) == 1 && Preview.tierOf(0, 20) == 4 && Preview.tierOf(1, 65) == 0
-                && Preview.tierOf(2, 16.25) == 1,
-                "the iron sights at 52 degrees: the layer " + Preview.scaleOf(32.5, 52) + " times (" + (shown.length ? shown[0].scale : -1) + ", " + shown.length + " layers, " + sliders[1].selectedIndex + ")");
+                && Preview.tierOf(1, 94.8) == 0 && Preview.tierOf(1, 74) == 1 && Preview.tierOf(1, 20) == 4 && Preview.tierOf(2, 65) == 0
+                && Preview.tierOf(3, 16.25) == 1,
+                "the iron sights at 52 degrees: the layer (" + (shown.length ? shown[0].made + ", " + shown[0].scale : -1) + ")");
             sliders[3].slider.value = 10;
             shown = layer();
             require(shown.length == 2 && Math.abs(shown[1].alpha - 0.4) < 0.02, "10 cm: the 0 and +25 cm renders crossfaded ("
@@ -586,25 +603,50 @@ package
             window.refresh();
             shown = layer();
             var world:Number = Preview.worldAngle(65, 0.909);
-            require(shown[0].made == Preview.TIERS[0][Preview.tierOf(0, world)] && Math.abs(shown[0].scale - Preview.scaleOf(shown[0].made, world)) < 1e-3, "the checkbox: the gun at the world's "
+            require(shown[0].made == Preview.TIERS[1][Preview.tierOf(1, world)] && Math.abs(shown[0].scale - Preview.scaleOf(shown[0].made, world)) < 1e-3, "the checkbox: the gun at the world's "
                 + world + " degrees");
             box.selected = false;
-            window.tabs[1].dispatchEvent(new (loader.contentLoaderInfo.applicationDomain.getDefinition("scaleform.clik.events.ButtonEvent") as Class)("buttonClick"));
-            require(preview.shown == Preview.RED_DOT && window.tabs[1].selected, "the red dot's tab: its view");
+            press(window.tabs[2]);
+            require(preview.shown == Preview.RED_DOT && window.tabs[2].selected, "the red dot's tab: its view");
+            press(window.tabs[0]);
+            require(preview.shown == Preview.HIP && window.tabs[0].selected, "the hip's tab: its view");
             sliders[1].slider.value = 32.5;
             sliders[2].slider.value = 32.5;
             sliders[3].slider.value = 0;
+            var tabKeys:Array = [48, 45, 46, 47];
             for each (var row:Array in texts)
             {
-                for (var t:int = 0; t < 3; ++t)
+                for (var t:int = 0; t < 4; ++t)
                 {
                     var tab:* = window.tabs[t];
-                    tab.label = row[45 + t];
+                    tab.label = row[tabKeys[t]];
                     tab.validateNow();
-                    require(tab.textField.textWidth + 10 <= tab.textField.width * tab.scaleX + 0.01, row[45 + t]
+                    require(tab.textField.textWidth + 10 <= tab.textField.width * tab.scaleX + 0.01, row[tabKeys[t]]
                         + " in its tab with 10 px to spare (" + tab.textField.textWidth + " of " + tab.textField.width * tab.scaleX + ")");
                 }
             }
+            // "Default settings" and "Close": the game's own texts (st_options_default_controls, st_close) of
+            // every dictionary, in their buttons with 10 px to spare, inside the frame
+            var stock:Array = [["Default settings", "Close"], ["Базові налаштунки", "Закрити"], ["Базовые настройки", "Закрыть"],
+                ["Basis Einstellungen", "Schließen"], ["Ustawienia domyślne", "Zamknij"], ["Podrazumevana podešavanja", "Zatvori"],
+                ["Zadane postavke", "Zatvori"], ["Výchozí nastavení", "Zavřít"], ["Alapbeállítások", "Bezárás"],
+                ["Oletusasetukset", "Sulje"], ["Базавыя налады", "Закрыць"], ["Configurações padrões", "Fechar"]];
+            var first:Array = texts[0];
+            for each (var pair:Array in stock)
+            {
+                window.answerTexts([first[37], first[43], first[44], first[48], first[45], first[46], first[47], pair[0], pair[1]]);
+                window.close();
+                click(window.button);
+                var frameBox:Rectangle = window.frame.getBounds(stage);
+                for each (var b:* in [window.resetButton, window.applyButton, window.closeButton2])
+                {
+                    var r:Rectangle = b.getBounds(stage);
+                    require(b.textField.textWidth + 10 <= b.textField.width * b.scaleX + 0.01 && r.right <= frameBox.right - 6,
+                        b.label + " in its button with 10 px to spare, inside the window (" + b.textField.textWidth + " of "
+                        + b.textField.width * b.scaleX + ", " + r.right + " of " + frameBox.right + ")");
+                }
+            }
+            window.answerTexts([first[37], first[43], first[44], first[48], first[45], first[46], first[47], "Default settings", "Close"]);
             trace("SETTINGS weapon view preview pass");
         }
 

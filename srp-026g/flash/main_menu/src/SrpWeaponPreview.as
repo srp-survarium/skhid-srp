@@ -27,21 +27,27 @@ package
     // Scaleform at 1440p), made only while shown (a 1600x900 layer is 5.8 MB decoded, the world 11.4 MB).
     public class SrpWeaponPreview extends Sprite
     {
-        public static const IRON:int = 0;
-        public static const RED_DOT:int = 1;
-        public static const SCOPE:int = 2;
+        public static const HIP:int = 0;
+        public static const IRON:int = 1;
+        public static const RED_DOT:int = 2;
+        public static const SCOPE:int = 3;
         public static const WIDTH:Number = 800;
         public static const HEIGHT:Number = 450;
-        private static const WORLD_FOV:Number = 100;
+        // The worlds, each the capture at its angle: the 100 degree one past 60, the 60 one up to it (so none
+        // is ever shown from fewer of its rows than the pane has at 1440p), the scope's 20.
+        private static const WORLDS:Array = [[100, SrpPreviewWorld], [60, SrpPreviewWorld60]];
         private static const SCOPE_WORLD_FOV:Number = 20;
-        // Each view's sight zoom (its fov_factor), and the AK-12's aimed factor over a rifle's (both 0.5).
-        private static const ZOOM:Array = [0.909, 0.8, 0.25];
+        // Each view's sight zoom (its fov_factor; the hip's none), and the AK-12's factors a rifle's (1 at the
+        // hip, 0.5 aimed).
+        private static const ZOOM:Array = [1, 0.909, 0.8, 0.25];
         private static const DISTANCES:Array = [-20, 0, 25, 50];
         // Each view's tiers' angles, widest first (layers.py's TIERS: the widest its sliders reach, then each
         // at most 1.47 times the next's half-angle tangent, the last over the narrowest by as much).
-        public static const TIERS:Array = [[94.8, 74.16, 55.42, 40.11, 28.47], [77.7, 57.71, 41.3, 28.91], [32.5, 23.06]];
+        public static const TIERS:Array = [[100, 77.5, 56.78], [94.8, 74.16, 55.42, 40.11, 28.47], [77.7, 57.71, 41.3, 28.91],
+            [32.5, 23.06]];
         // The layers' classes by view, distance and tier (named here so the build keeps them).
         private static const LAYERS:Array = [
+            [[SrpPreviewHipA, SrpPreviewHipB, SrpPreviewHipC]],
             [[SrpPreviewIronM20A, SrpPreviewIronM20B, SrpPreviewIronM20C, SrpPreviewIronM20D, SrpPreviewIronM20E],
              [SrpPreviewIron0A, SrpPreviewIron0B, SrpPreviewIron0C, SrpPreviewIron0D, SrpPreviewIron0E],
              [SrpPreviewIron25A, SrpPreviewIron25B, SrpPreviewIron25C, SrpPreviewIron25D, SrpPreviewIron25E],
@@ -117,18 +123,32 @@ package
 
         // The preview of the window's values: the sights' and the scopes' degrees (a rifle's), the checkbox,
         // the sight distance in cm, the player's World FOV.
-        public function draw(sights:Number, scopes:Number, atWorld:Boolean, distance:Number, uroFov:Number):void
+        public function draw(hip:Number, sights:Number, scopes:Number, atWorld:Boolean, distance:Number, uroFov:Number):void
         {
             // before the exe's answers the sliders hold what their range was: the defaults (the exe's ranges:
             // patch 218's, patch 22's uro_fov 50 to 100)
+            hip = within(hip, 40, 100, 65);
             sights = within(sights, 20, 65, 32.5);
             scopes = within(scopes, 16.25, 32.5, 32.5);
             uroFov = within(uroFov, 50, 100, 65);
             var worldAt:Number = worldAngle(uroFov, ZOOM[view]);
-            var held:Number = atWorld ? worldAt : (view == SCOPE ? scopes : sights);
+            var held:Number = atWorld ? worldAt : (view == SCOPE ? scopes : view == HIP ? hip : sights);
             var scoped:Boolean = view == SCOPE;
             drawn = [];
-            var Picture:Class = scoped ? SrpPreviewWorldScope : SrpPreviewWorld;
+            var worldFov:Number = SCOPE_WORLD_FOV;
+            var Picture:Class = SrpPreviewWorldScope;
+            if (!scoped)
+            {
+                // the narrowest world at or over the angle
+                for each (var one:Array in WORLDS)
+                {
+                    if (one[0] >= worldAt - 1e-6)
+                    {
+                        worldFov = one[0];
+                        Picture = one[1];
+                    }
+                }
+            }
             if (worldClass != Picture)
             {
                 if (world != null)
@@ -140,9 +160,8 @@ package
                 worldClass = Picture;
                 pane.addChildAt(world, 0);
             }
-            place(world, scaleOf(scoped ? SCOPE_WORLD_FOV : WORLD_FOV, worldAt));
-            drawn.push({held: worldAt, made: scoped ? SCOPE_WORLD_FOV : WORLD_FOV,
-                scale: scaleOf(scoped ? SCOPE_WORLD_FOV : WORLD_FOV, worldAt), alpha: 1});
+            place(world, scaleOf(worldFov, worldAt));
+            drawn.push({held: worldAt, made: worldFov, scale: scaleOf(worldFov, worldAt), alpha: 1});
             var tier:int = tierOf(view, held);
             var made:Number = TIERS[view][tier];
             var rows:Array = LAYERS[view];

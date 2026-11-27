@@ -4513,6 +4513,7 @@ st_srp_weapon_sway_cycle	Період розгойдування
 st_srp_weapon_sway_horizontal	Розгойдування в сторони
 st_srp_weapon_sway_vertical	Розгойдування вгору-вниз
 st_srp_weapon_view_heading	Вигляд зброї
+st_srp_weapon_view_hip	Від стегна
 st_srp_weapon_view_iron	Мушка
 st_srp_weapon_view_red_dot	Коліматор
 st_srp_weapon_view_scope	Оптика

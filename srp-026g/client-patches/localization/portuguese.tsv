@@ -4513,6 +4513,7 @@ st_srp_weapon_sway_cycle	Ciclo de balanço
 st_srp_weapon_sway_horizontal	Balanço horizontal
 st_srp_weapon_sway_vertical	Balanço vertical
 st_srp_weapon_view_heading	Visão da arma
+st_srp_weapon_view_hip	Quadril
 st_srp_weapon_view_iron	Mira aberta
 st_srp_weapon_view_red_dot	Ponto verm.
 st_srp_weapon_view_scope	Luneta

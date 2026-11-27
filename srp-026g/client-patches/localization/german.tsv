@@ -4513,6 +4513,7 @@ st_srp_weapon_sway_cycle	Verwackelperiode
 st_srp_weapon_sway_horizontal	Horizontales Verwackeln
 st_srp_weapon_sway_vertical	Vertikales Verwackeln
 st_srp_weapon_view_heading	Waffenansicht
+st_srp_weapon_view_hip	Hüfte
 st_srp_weapon_view_iron	Kimme
 st_srp_weapon_view_red_dot	Rotpunkt
 st_srp_weapon_view_scope	Zielfernrohr

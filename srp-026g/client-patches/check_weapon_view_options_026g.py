@@ -35,8 +35,8 @@ LABELS = {"st_srp_weapon_fov_option": "Weapon FOV at the hip",
           "st_srp_sight_distance_option": "Sight distance",
           "st_srp_sight_distance_note": "+ farther, - closer",
           "st_srp_unit_cm": "%1$s cm",
-          "st_srp_weapon_view_iron": "Iron sights", "st_srp_weapon_view_red_dot": "Red dot",
-          "st_srp_weapon_view_scope": "Scope",
+          "st_srp_weapon_view_hip": "Hip", "st_srp_weapon_view_iron": "Iron sights", "st_srp_weapon_view_red_dot": "Red dot",
+          "st_srp_weapon_view_scope": "Scope", "st_options_default_controls": "Default settings", "st_close": "Close",
           "st_srp_weapon_fov_world_option": "Weapon at the world FOV",
           "st_srp_weapon_view_heading": "Weapon view"}
 language.ENGLISH.update({key: text.encode() for key, text in LABELS.items()})
@@ -110,8 +110,9 @@ def main():
     invokes, count = new.callback("srp_weapon_view_texts")
     expect(invokes == [(language.MOVIE, "root.srp_weapon_view_texts",
                         tuple(LABELS[key] for key in ("st_srp_weapon_view_heading", "st_srp_sight_distance_note",
-                                                      "st_srp_unit_cm", "st_srp_weapon_view_iron",
-                                                      "st_srp_weapon_view_red_dot", "st_srp_weapon_view_scope")))]
+                                                      "st_srp_unit_cm", "st_srp_weapon_view_hip", "st_srp_weapon_view_iron",
+                                                      "st_srp_weapon_view_red_dot", "st_srp_weapon_view_scope",
+                                                      "st_options_default_controls", "st_close")))]
            and count == 0, "srp_weapon_view_texts: the title and the sight distance's note, nothing saved")
     for name in list(SLIDERS) + [WORLD, "srp_weapon_view_texts"]:
         invokes, count = old.callback(name, "1")

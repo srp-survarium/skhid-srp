@@ -758,17 +758,10 @@ package survarium.menu
          {
             weaponViewChanged(null);
          };
-         // its Default button's text: the Graphics tab's Default button's, as the exe names it
-         this._weaponView.defaultLabel = function():String
+         // its Close: the window's own Cancel/Exit button's look
+         this._weaponView.closeFrom = function():Object
          {
-            for each(var label:Object in _labels)
-            {
-               if(label.name == "button_default_video")
-               {
-                  return String(label.label);
-               }
-            }
-            return null;
+            return btn_cancel;
          };
          for each(var weaponControl:Object in this._weaponView.controls)
          {

@@ -86,6 +86,8 @@ package
         private static const ROW_GAP:Number = 12;
         // The preview's tabs: the Settings tab bar's height (its buttons side by side, no room between).
         private static const TAB_HEIGHT:Number = 40;
+        // Between two buttons, and between their rows.
+        private static const BUTTON_GAP:Number = 8;
         private static const BOX_ROW:Number = 35;
 
         // The tab's button that opens the window.
@@ -98,16 +100,21 @@ package
         public var tabs:Array = [];
         // The player's World FOV (Settings gives the World FOV slider's value), for the preview's world.
         public var worldFov:Function = null;
-        // The Default button (the Graphics tab's, its symbol and width; its text the Settings' own label of
-        // it, which Settings gives): every value back to revision 74's, pending until Apply.
+        // Under the controls, on a line of its own, "Default settings" (the tab's standard button, the
+        // game's own text, the Controls tab's st_options_default_controls): every value back to revision
+        // 74's, pending until Apply. Under it Apply and Close, the Settings window's own buttons
+        // (`applyFrom` and `closeFrom` give them: their symbols; Apply its label, Close the game's st_close):
+        // Apply saves this window's pending values only (the other tabs' stay pending) and keeps it open
+        // (`applied` tells Settings, which counts what is pending; disabled while nothing is); Close closes
+        // it as its corner's cross does, the changes still pending.
         public var resetButton:SetingsButton;
-        public var defaultLabel:Function = null;
-        // Apply beside it: the Settings window's own Apply button (`applyFrom` gives it: its symbol and the
-        // exe's label of it), saving this window's pending values only (the other tabs' stay pending) and
-        // keeping it open; `applied` tells Settings, which counts what is pending. Disabled while nothing is.
         public var applyButton:Button;
+        public var closeButton2:Button;
         public var applyFrom:Function = null;
+        public var closeFrom:Function = null;
         public var applied:Function = null;
+        private var defaultText:String = "Default settings";
+        private var closeText:String = "Close";
         private var content:MovieClip;
         private var backdrop:Sprite;
         private var panel:Sprite;
@@ -193,7 +200,7 @@ package
             panel.addChild(resetButton);
             preview = new SrpWeaponPreview();
             panel.addChild(preview);
-            for (var view:int = 0; view < 3; view++)
+            for (var view:int = 0; view < 4; view++)
             {
                 // the Settings window's own tab (its tab bar's renderer: the lit label and the orange line under
                 // the one selected)
@@ -210,7 +217,7 @@ package
             sliders[SIGHTS].addEventListener(IndexEvent.INDEX_CHANGE, function(e:Event):void { pick(-1); });
             sliders[SCOPES].addEventListener(IndexEvent.INDEX_CHANGE, function(e:Event):void { pick(SrpWeaponPreview.SCOPE); });
             sliders[DISTANCE].addEventListener(IndexEvent.INDEX_CHANGE, function(e:Event):void { pick(-1); });
-            sliders[HIP].addEventListener(IndexEvent.INDEX_CHANGE, refresh);
+            sliders[HIP].addEventListener(IndexEvent.INDEX_CHANGE, function(e:Event):void { pick(SrpWeaponPreview.HIP); });
             box.addEventListener(Event.SELECT, refresh);
         }
 
@@ -219,7 +226,8 @@ package
         {
             if (view < 0)
             {
-                view = preview.shown == SrpWeaponPreview.SCOPE ? SrpWeaponPreview.IRON : preview.shown;
+                view = preview.shown == SrpWeaponPreview.SCOPE || preview.shown == SrpWeaponPreview.HIP
+                    ? SrpWeaponPreview.IRON : preview.shown;
             }
             preview.shown = view;
             refresh();
@@ -238,7 +246,7 @@ package
                 tabs[view].selected = view == preview.shown;
             }
             var uro:Number = worldFov != null ? Number(worldFov()) : 65;
-            preview.draw(sliders[SIGHTS].selectedIndex, sliders[SCOPES].selectedIndex, box.selected,
+            preview.draw(sliders[HIP].selectedIndex, sliders[SIGHTS].selectedIndex, sliders[SCOPES].selectedIndex, box.selected,
                 sliders[DISTANCE].selectedIndex, uro > 0 ? uro : 65);
             if (applyButton != null)
             {
@@ -328,6 +336,12 @@ package
             for (var view:int = 0; view < tabs.length && 3 + view < values.length; view++)
             {
                 tabs[view].label = String(values[3 + view]);
+            }
+            // the buttons' texts: "Default settings", "Close"
+            if (values.length >= 9)
+            {
+                defaultText = String(values[7]);
+                closeText = String(values[8]);
             }
             shown();
         }
@@ -506,6 +520,29 @@ package
             refresh();
         }
 
+        // A copy of one of the Settings window's buttons (its symbol), in this window.
+        private function made(source:Object, name:String, click:Function):Button
+        {
+            var Kind:Class = source.constructor as Class;
+            var button:Button = new Kind() as Button;
+            button.name = name;
+            button.addEventListener(ButtonEvent.CLICK, click);
+            panel.addChild(button);
+            return button;
+        }
+
+        // A button at `width`, wider only for its text (16 px to spare, as the tab's button).
+        private static function fit(button:Button, width:Number):void
+        {
+            button.width = width;
+            button.validateNow();
+            if (button.textField != null && button.textField.textWidth + 16 > button.textField.width * button.scaleX)
+            {
+                button.width = width + button.textField.textWidth + 16 - button.textField.width * button.scaleX;
+                button.validateNow();
+            }
+        }
+
         private function onClose(event:ButtonEvent):void
         {
             close();
@@ -590,38 +627,47 @@ package
             note.width = INSIDE;
             note.y = at - ROW_GAP + 2;
             at = note.y + note.textHeight + 4 + ROW_GAP;
-            // the Default button under them, as wide as the Graphics tab's (wider only for its text)
-            resetButton.label = defaultLabel != null && defaultLabel() ? String(defaultLabel()) : "Default";
+            // "Default settings" under them, on a line of its own, as wide as the Graphics tab's buttons (wider
+            // only for its text)
+            resetButton.label = defaultText;
             resetButton.alpha = 1;
             resetButton.x = left;
             resetButton.y = at;
-            resetButton.width = BUTTON_WIDTH;
-            resetButton.validateNow();
-            if (resetButton.textField != null && resetButton.textField.textWidth + 16 > resetButton.textField.width * resetButton.scaleX)
-            {
-                resetButton.width = BUTTON_WIDTH + resetButton.textField.textWidth + 16 - resetButton.textField.width * resetButton.scaleX;
-                resetButton.validateNow();
-            }
-            // Apply beside it, the Settings window's own
+            fit(resetButton, BUTTON_WIDTH);
+            at = resetButton.y + resetButton.height + BUTTON_GAP;
+            // Apply and Close under it, side by side: the Settings window's own
             if (applyButton == null && applyFrom != null && applyFrom() != null)
             {
-                var source:Button = applyFrom() as Button;
-                var Kind:Class = Object(source).constructor as Class;
-                applyButton = new Kind() as Button;
-                applyButton.name = NAME + "_apply";
-                applyButton.addEventListener(ButtonEvent.CLICK, onApply);
-                panel.addChild(applyButton);
+                applyButton = made(applyFrom(), NAME + "_apply", onApply);
             }
+            if (closeButton2 == null && closeFrom != null && closeFrom() != null)
+            {
+                closeButton2 = made(closeFrom(), NAME + "_close_button", onClose);
+            }
+            var rowX:Number = left;
+            var rowBottom:Number = at;
             if (applyButton != null)
             {
                 applyButton.label = (applyFrom() as Button).label;
                 applyButton.alpha = 1;
-                applyButton.x = resetButton.x + resetButton.width + 8;
-                applyButton.y = resetButton.y + Math.round((resetButton.height - applyButton.height) / 2);
+                applyButton.x = rowX;
+                applyButton.y = at;
+                fit(applyButton, (applyFrom() as Button).width);
                 applyButton.enabled = changed();
-                applyButton.validateNow();
+                rowX += applyButton.width + BUTTON_GAP;
+                rowBottom = Math.max(rowBottom, applyButton.y + applyButton.height);
             }
-            at = Math.max(resetButton.y + resetButton.height, previewBottom);
+            if (closeButton2 != null)
+            {
+                closeButton2.label = closeText;
+                closeButton2.alpha = 1;
+                closeButton2.x = rowX;
+                closeButton2.y = at;
+                fit(closeButton2, (closeFrom() as Button).width);
+                rowBottom = Math.max(rowBottom, closeButton2.y + closeButton2.height);
+            }
+            at = rowBottom;
+            at = Math.max(at, previewBottom);
             var w:Number = FRAME_LEFT + FRAME_RIGHT + 2 * SIDE + SrpWeaponPreview.WIDTH + COLUMN_GAP + INSIDE;
             var h:Number = at + SPACE + FRAME_BOTTOM;
             drawFrame(w, h);

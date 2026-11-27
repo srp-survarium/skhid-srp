@@ -1,10 +1,11 @@
 # The Weapon view window's preview pictures
 
-The 27 bitmaps of `flash/main_menu/bitmaps/SrpPreview*` that `SrpWeaponPreview.as` draws (patch 218,
+The 44 bitmaps of `flash/main_menu/bitmaps/SrpPreview*` that `SrpWeaponPreview.as` draws (patch 218,
 `docs/notes/weapon-view-settings.md`, "The preview"). Made once, offline; nothing here runs in a
 build or a check. NumPy and Pillow, `scripts/sight-alignment`'s renderer, the weapon-modules pack
 `release/content.tsv` ships (`private/content-packs/weapon-modules-<version>/files`), and the stock
-character models (`srp-game-data get` of `models/character/human/...` and the lobby's animation).
+character models (`srp-game-data get` of `models/character/human/...`, the skeleton and the AK's third
+person clips), the decal packs (`private/content-packs`) and Vostok's walk grid (`crates/mapdata`).
 
 1. The AK-12's eyes as the crate resolves them:
 
@@ -12,16 +13,17 @@ character models (`srp-game-data get` of `models/character/human/...` and the lo
 
 2. The gun's layers (`SrpPreviewIron<cm><tier>`, `SrpPreviewRedDot<cm><tier>`, `SrpPreviewScope`; each a JPEG and its `.alpha.png`):
 
-       python layers.py ../sight-alignment <pack> ak12.json <out>
+       python layers.py ../sight-alignment <pack> ak12.json <out> <character assets>
 
-3. The world: Vostok (map 123) from `vostok.json`'s two poses (one view at 100 and 20 degrees), headless (`scripts/capture`):
+3. The world: Vostok (map 123) from `vostok.json`'s three poses (one view at 100, 60 and 20 degrees), headless (`scripts/capture`);
+   lane-60 at 1920x1080 (the poses' file says 2560x1440 for the others):
 
        ~/.cache/skhid-heavy/run --gpu python3 ../capture/capture.py --map 123 --poses vostok.json \
            --out <shots> --game <game folder> --exe <exe with patch 176> --game-data <server-game-data.db>
 
-4. A soldier standing at the poses' target, and the two world JPEGs (`SrpPreviewWorld`, the frame at
-   100 degrees; `SrpPreviewWorldScope`, the 20-degree one):
+4. The soldiers of `vostok.json` (`soldiers.py`; their places the walk grid's floor) laid over the three,
+   the world JPEGs (`SrpPreviewWorld`, `SrpPreviewWorld60`, `SrpPreviewWorldScope`):
 
-       python world.py ../sight-alignment <character assets> <shots> vostok.json <out>
+       python world.py ../sight-alignment <character assets> <shots> vostok.json <out> <pack> <content packs> ak12.json
 
-Copy the PNGs and the JPEGs into `flash/main_menu/bitmaps/` under their names.
+Copy the JPEGs and their `.alpha.png` files into `flash/main_menu/bitmaps/` under their names.

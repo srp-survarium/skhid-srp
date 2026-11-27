@@ -1,50 +1,53 @@
-"""The Weapon view window's world (flash/main_menu/bitmaps/SrpPreviewWorld*.jpg), from two captures.
+"""The Weapon view window's worlds (flash/main_menu/bitmaps/SrpPreviewWorld*.jpg), from three captures.
 
 python world.py <scripts/sight-alignment> <character assets> <captures folder> <poses JSON> <out folder>
+                <weapon-modules pack files> <content packs folder> <preview_eyes JSON>
 
-The poses JSON (vostok.json) holds one view twice: "lane" at 100 degrees vertical (the widest world the
-preview draws: the iron sights' at uro_fov 100 is 94.8) and "lane-scope" at 20 (the 1P69's 16.25,
-sharp); the folder holds capture.py's lane.png and lane-scope.png of it (2560x1440, the game's highest
-settings). A stock soldier (a scavenger's outfit, the lobby's idle pose with an AK) is rendered at the
-pose's "target" facing the camera with each capture's projection and laid over it: SrpPreviewWorld at
-2250x1266 (the narrowest world it shows, the iron sights' at World FOV 50, 45.9 degrees, is 610 px of it:
-the 800x450 pane is 600 at 1440p) and SrpPreviewWorldScope at 1440x810 (16.25 of its 20 degrees: 650
-px), baseline JPEGs at quality 95 as flash_tree.py takes them.
-The character assets are a folder of `srp-game-data get`'s models/character/human/{scavengers,base}/...
-and the animation below, with their textures.
+The poses JSON (vostok.json) holds one view three times: "lane" at 100 degrees vertical (the widest world
+the preview draws: the iron sights' at uro_fov 100 is 94.8), "lane-60" at 60 (the worlds of 60 degrees
+and less: the narrowest, the iron sights' at World FOV 50, 45.9, is 792 of its 1080 rows) and
+"lane-scope" at 20 (the 1P69's 16.25). The folder holds capture.py's lane.png, lane-60.png and
+lane-scope.png of them (2560x1440, 1920x1080 and 2560x1440; the game's highest settings).
+
+Its "soldiers" (soldiers.py) are rendered with each capture's projection and laid over it: each standing
+on the walk grid's floor (crates/mapdata: a floor a spawn reaches, its height there) facing the camera
+turned a little, the AK-12 at his shoulder (the third person's aimed idle), bright decals on his outfit.
+The renderer lights flatly; the capture's sunlit ground is brighter (BRIGHTER). Saved: SrpPreviewWorld
+2250x1266 (lane: its narrowest view, 60.1 degrees, is 615 rows), SrpPreviewWorld60 1920x1080 and
+SrpPreviewWorldScope 1440x810 (16.25 of its 20 degrees: 650 rows), baseline JPEGs at quality 95 as
+flash_tree.py takes them: the 800x450 pane is 600 rows at 1440p.
+The character assets are a folder of `srp-game-data get`'s models/character/human/{scavengers,base}/...,
+the skeleton and the AK's third person clips, with their textures.
 """
-import json, math, sys
+import json
+import math
+import sys
 from pathlib import Path
+
 import numpy as np
 from PIL import Image, ImageEnhance
+
 sys.path.insert(0, sys.argv[1])
-import model, render
-from model import matrix, TO_VIEW
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import render  # noqa: E402
+import soldiers  # noqa: E402
+from model import TO_VIEW  # noqa: E402
 
 root, captures, out = Path(sys.argv[2]), Path(sys.argv[3]), Path(sys.argv[5])
-poses = {p["name"]: p for p in json.loads(Path(sys.argv[4]).read_text())["poses"]}
+spec = json.loads(Path(sys.argv[4]).read_text())
+poses = {p["name"]: p for p in spec["poses"]}
+pack, packs = Path(sys.argv[6]), Path(sys.argv[7])
+bare = json.loads(Path(sys.argv[8]).read_text())["bare"]
 out.mkdir(exist_ok=True)
-ANIMATION = "resources/animations/single/weapons/ak/player/stand/3rd_view/on_site/idle_lobby"
-PARTS = ["scavengers/scavenger_04_torso_s1", "scavengers/scavenger_04_legs_s1", "scavengers/scavenger_04_hand",
-         "base/base_character_head"]
-SIZES = {"lane": (2250, 1266), "lane-scope": (1440, 810)}
-# The renderer lights flatly; the capture's sunlit ground is brighter.
+SIZES = {"lane": (2250, 1266), "lane-60": (1920, 1080), "lane-scope": (1440, 810)}
+BITMAPS = {"lane": "SrpPreviewWorld", "lane-60": "SrpPreviewWorld60", "lane-scope": "SrpPreviewWorldScope"}
 BRIGHTER = 1.35
 
-
-def soldier(pose):
-    """The soldier's meshes standing at the pose's target, facing its camera."""
-    eye, target = np.array(pose["position"], dtype=float), np.array(pose["target"], dtype=float)
-    at = matrix(tuple(target), angles=(0, math.atan2(eye[0] - target[0], eye[2] - target[2]), 0))
-    meshes = []
-    for part in PARTS:
-        folder = root / f"models/character/human/{part}.skinned_model"
-        for m in model.meshes(folder, model.bones(root, folder, ANIMATION, 0.0)):
-            meshes.append(model.Mesh(m.name, model.transform(m.points, at), m.triangles, m.uv, m.material))
-    return meshes
+render.texture = soldiers.texture(render.texture)
+people = soldiers.soldiers(root, pack, bare, spec["soldiers"], packs)
 
 
-def world(name, bitmap):
+def world(name):
     pose = poses[name]
     eye, forward = np.array(pose["position"], dtype=float), np.array(pose["forward"], dtype=float)
     # the camera's rows: right, up, forward, place
@@ -56,14 +59,13 @@ def world(name, bitmap):
     scene = Image.open(captures / f"{name}.png").convert("RGB")
     W, H = scene.size
     focal = (H / 2) / math.tan(math.radians(pose["fov"]) / 2)
-    image, depth = render.render(soldier(pose), np.linalg.inv(camera) @ TO_VIEW, (W, H), focal, [root])
+    image, depth = render.render(people, np.linalg.inv(camera) @ TO_VIEW, (W, H), focal, [root, pack])
     scene.paste(ImageEnhance.Brightness(image).enhance(BRIGHTER), (0, 0),
                 Image.fromarray(np.where(np.isfinite(depth), 255, 0).astype(np.uint8)))
-    ys, xs = np.nonzero(np.isfinite(depth))
-    print(name, "the soldier at", xs.min(), xs.max(), ys.min(), ys.max())
     scene.save(out / f"{name}-full.png")
-    scene.resize(SIZES[name], Image.LANCZOS).save(out / f"{bitmap}.jpg", quality=95, progressive=False)
+    scene.resize(SIZES[name], Image.LANCZOS).save(out / f"{BITMAPS[name]}.jpg", quality=95, progressive=False)
+    print(name, "written")
 
 
-world("lane", "SrpPreviewWorld")
-world("lane-scope", "SrpPreviewWorldScope")
+for name in BITMAPS:
+    world(name)

@@ -40,6 +40,25 @@
    ]
   },
   {
+   "name": "lane-60",
+   "fov": 60,
+   "position": [
+    -29.092,
+    7.259,
+    32.24
+   ],
+   "forward": [
+    0.99996,
+    -0.00923,
+    0.0
+   ],
+   "target": [
+    0.908,
+    5.982,
+    32.24
+   ]
+  },
+  {
    "name": "lane-scope",
    "fov": 20,
    "position": [
@@ -56,6 +75,44 @@
     0.908,
     5.982,
     32.24
+   ]
+  }
+ ],
+ "soldiers": [
+  {
+   "place": [
+    0.908,
+    5.982,
+    32.24
+   ],
+   "facing": [
+    -29.092,
+    7.259,
+    32.24
+   ],
+   "turn": 35,
+   "decals": [
+    "snufkin-decals-1/files/textures/character/human/decal/4_77.dds",
+    "fumo-neco-decals-3/files/textures/character/human/decal/4_79.dds",
+    "number-decals-1/files/textures/character/human/decal/num_0217.dds"
+   ]
+  },
+  {
+   "place": [
+    -19.092,
+    5.612,
+    33.49
+   ],
+   "facing": [
+    -29.092,
+    7.259,
+    32.24
+   ],
+   "turn": 25,
+   "decals": [
+    "fumo-neco-decals-3/files/textures/character/human/decal/4_82.dds",
+    "snufkin-decals-1/files/textures/character/human/decal/4_78.dds",
+    "number-decals-1/files/textures/character/human/decal/num_0007.dds"
    ]
   }
  ]
