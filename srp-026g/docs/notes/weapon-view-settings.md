@@ -126,10 +126,11 @@ Nothing a match computes changes; no `simulation_changes.tsv` row.
 
 ## The preview
 
-At the window's top, three of the tab's standard buttons (Iron sights, Red dot, Scope) over a
-300x169 picture of the AK-12 fully aimed (`SrpWeaponPreview.as`) over its iron sights, an EOTech 552
+The window has two columns (940 px wide at 1x, inside the screen at 1280x720 and scaled 1.5): on the
+left the Settings window's own tabs (Iron sights, Red dot, Scope; its tab bar's renderer, the
+selected one lit with the orange line under it) over a 560x315 picture of the AK-12 fully aimed (`SrpWeaponPreview.as`) over its iron sights, an EOTech 552
 or the 1P69 Hyperon (one gun in every view; the AK-12 takes no PSO-1), and the note "AK-12 preview;
-the sight distance approximate". There is no hip view. Moving a slider shows its view: the scopes'
+the sight distance approximate"; the controls on the right. There is no hip view. Moving a slider shows its view: the scopes'
 slider the scope, the sights' and the distance's the iron sights (or the red dot when it is shown);
 the hip slider and the checkbox only draw it again. The World FOV slider's value, pending or not,
 draws the world.

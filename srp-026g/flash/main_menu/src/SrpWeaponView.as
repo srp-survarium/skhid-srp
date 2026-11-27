@@ -77,13 +77,14 @@ package
         // unnecessary").
         private static const ART_INSIDE_END:Number = 543;
         private static const TITLE_Y:Number = 6.75, CLOSE_RIGHT:Number = 34.5, CLOSE_SCALE:Number = 0.756;
-        // Inside the frame's sides and over its bottom; the window's inside width; to the screen's edges.
+        // Inside the frame's sides and over its bottom; the controls' column's width; to the screen's edges.
         private static const SIDE:Number = 22, SPACE:Number = 12, INSIDE:Number = 300, MARGIN:Number = 12;
+        // Between the preview's column (on the left, SrpWeaponPreview.WIDTH) and the controls' column.
+        private static const COLUMN_GAP:Number = 24;
         // The rows: a slider's next row under its track, the checkbox's row (the HUD group's step).
         private static const ROW_GAP:Number = 12;
-        // The preview's tabs: SetingsButton's height, the room between two.
-        private static const TAB_HEIGHT:Number = 26;
-        private static const TAB_GAP:Number = 4;
+        // The preview's tabs: the Settings tab bar's height (its buttons side by side, no room between).
+        private static const TAB_HEIGHT:Number = 40;
         private static const BOX_ROW:Number = 35;
 
         // The tab's button that opens the window.
@@ -91,7 +92,7 @@ package
         public var sliders:Object = {};
         public var box:CheckBoxSkinned;
         public var note:TextField;
-        // The preview (SrpWeaponPreview), its three views' tabs (the tab's standard buttons) and its note.
+        // The preview (SrpWeaponPreview), its three views' tabs (the Settings window's tabs) and its note.
         public var preview:SrpWeaponPreview;
         public var tabs:Array = [];
         public var previewNote:TextField;
@@ -176,12 +177,13 @@ package
             panel.addChild(preview);
             for (var view:int = 0; view < 3; view++)
             {
-                var tab:SetingsButton = new SetingsButton();
+                // the Settings window's own tab (its tab bar's renderer: the lit label and the orange line under
+                // the one selected)
+                var tab:InventoryTabButton = new InventoryTabButton();
                 tab.name = NAME + "_tab" + view;
                 tab.autoSize = "none";
                 tab.toggle = true;
                 tab.focusable = true;
-                tab.alpha = 1;
                 tab.addEventListener(ButtonEvent.CLICK, onTab);
                 panel.addChild(tab);
                 tabs.push(tab);
@@ -476,17 +478,19 @@ package
             g.drawRect(from.x, from.y, screenWidth, screenHeight);
             g.endFill();
             var left:Number = FRAME_LEFT + SIDE;
-            var at:Number = FRAME_TOP + SPACE;
-            // the preview's tabs, the tab's standard buttons side by side across the inside, the preview under them
-            var tabWidth:Number = (INSIDE - 2 * TAB_GAP) / tabs.length;
+            var top:Number = FRAME_TOP + SPACE;
+            var at:Number = top;
+            // the preview's column: the tabs side by side at their own width from its left (the Settings
+            // window's tab bar: no room between), the preview under them, its note
+            var tabX:Number = left;
             for (var view:int = 0; view < tabs.length; view++)
             {
-                tabs[view].x = left + view * (tabWidth + TAB_GAP);
+                tabs[view].x = tabX;
                 tabs[view].y = at;
-                tabs[view].width = tabWidth;
                 tabs[view].validateNow();
+                tabX += tabs[view].width;
             }
-            at += TAB_HEIGHT + 6;
+            at += TAB_HEIGHT + 4;
             preview.x = left;
             preview.y = at;
             at += SrpWeaponPreview.HEIGHT + 4;
@@ -494,9 +498,12 @@ package
             previewNote.setTextFormat(previewNote.defaultTextFormat);
             previewNote.embedFonts = true;
             previewNote.x = left;
-            previewNote.width = INSIDE;
+            previewNote.width = SrpWeaponPreview.WIDTH;
             previewNote.y = at;
-            at = previewNote.y + previewNote.textHeight + 4 + ROW_GAP;
+            var previewBottom:Number = previewNote.y + previewNote.textHeight + 4;
+            // the controls' column, right of it
+            left += SrpWeaponPreview.WIDTH + COLUMN_GAP;
+            at = top + 4;
             for each (var key:String in SLIDERS)
             {
                 var slider:SrvOptionSlider = sliders[key];
@@ -523,8 +530,8 @@ package
             note.x = left;
             note.width = INSIDE;
             note.y = at - ROW_GAP + 2;
-            at = note.y + note.textHeight + 4;
-            var w:Number = FRAME_LEFT + FRAME_RIGHT + 2 * SIDE + INSIDE;
+            at = Math.max(note.y + note.textHeight + 4, previewBottom);
+            var w:Number = FRAME_LEFT + FRAME_RIGHT + 2 * SIDE + SrpWeaponPreview.WIDTH + COLUMN_GAP + INSIDE;
             var h:Number = at + SPACE + FRAME_BOTTOM;
             drawFrame(w, h);
             titleField.text = title;

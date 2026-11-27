@@ -360,20 +360,31 @@ package
                 var area:Rectangle = panel.getBounds(stage);
                 require(area.left >= 0 && area.top >= 0 && area.right <= stage.stageWidth && area.bottom <= stage.stageHeight,
                     when + ": the window on the screen (" + area + ")");
-                var rows:Array = [window.tabs[0], window.preview, window.previewNote, sliders[0], sliders[1], sliders[2], box,
-                    sliders[3], window.note];
+                // two columns: the preview's (its tabs, the picture, its note) left of the controls'
+                var columns:Array = [[window.tabs[0], window.preview, window.previewNote],
+                    [sliders[0], sliders[1], sliders[2], box, sliders[3], window.note]];
                 var inner:Rectangle = new Rectangle(area.left + 6, area.top + 39 * panel.scaleY, area.width - 12,
                     area.height - (39 + 6) * panel.scaleY);
-                for (var k:int = 0; k < rows.length; ++k)
+                for each (var rows:Array in columns)
                 {
-                    var r:Rectangle = rows[k].getBounds(stage);
-                    require(r.left >= inner.left && r.right <= inner.right + 1 && r.top >= inner.top - 1 && r.bottom <= inner.bottom + 1,
-                        when + ": " + rows[k].name + " inside the frame (" + r + " in " + inner + ")");
-                    if (k > 0)
+                    for (var k:int = 0; k < rows.length; ++k)
                     {
-                        require(rows[k - 1].getBounds(stage).bottom <= r.top + 1, when + ": " + rows[k - 1].name + " over " + rows[k].name);
+                        var r:Rectangle = rows[k].getBounds(stage);
+                        require(r.left >= inner.left && r.right <= inner.right + 1 && r.top >= inner.top - 1 && r.bottom <= inner.bottom + 1,
+                            when + ": " + rows[k].name + " inside the frame (" + r + " in " + inner + ")");
+                        if (k > 0)
+                        {
+                            require(rows[k - 1].getBounds(stage).bottom <= r.top + 1, when + ": " + rows[k - 1].name + " over " + rows[k].name);
+                        }
                     }
                 }
+                var right:Number = Math.max(window.tabs[2].getBounds(stage).right, window.preview.getBounds(stage).right,
+                    window.previewNote.getBounds(stage).right);
+                for each (var control:* in columns[1])
+                {
+                    require(right <= control.getBounds(stage).left + 1, when + ": the preview's column left of " + control.name);
+                }
+                require(window.preview.width >= 560 * panel.scaleX - 1, when + ": the preview 560 wide (" + window.preview.width + ")");
             };
             inside("at 1280x720");
             checkPreview(window, sliders, box, texts);
@@ -474,7 +485,7 @@ package
             trace("SETTINGS weapon view pass: the button at " + button.x + "," + button.y + ", " + button.width + " wide");
         }
 
-        // The preview (SrpWeaponPreview): its tabs the tab's standard buttons, the one shown selected, the
+        // The preview (SrpWeaponPreview): its tabs the Settings window's, the one shown selected and drawn so, the
         // slider being moved picking its view; the gun's layer filling the pane at 32.5 degrees and
         // tan(16.25) / tan(a / 2) of it at a, the world at the World FOV's angle for the sight; the checkbox
         // the gun at the world's angle; the distance two renders crossfaded; every dictionary's tab names
@@ -490,6 +501,10 @@ package
             sliders[2].slider.value = 20;
             require(preview.shown == Preview.SCOPE && window.tabs[2].selected && !window.tabs[0].selected,
                 "the scope slider moved: the scope view, its tab selected");
+            var TabClass:Class = loader.contentLoaderInfo.applicationDomain.getDefinition("InventoryTabButton") as Class;
+            require(window.tabs[2] is TabClass && window.tabs[2].currentLabel != window.tabs[0].currentLabel,
+                "the tabs the Settings window's (InventoryTabButton), the selected one drawn in its own state ("
+                + window.tabs[2].currentLabel + ", " + window.tabs[0].currentLabel + ")");
             var shown:Array = layer();
             require(shown.length == 1 && Math.abs(shown[0].scale - Preview.scaleOf(32.5, 20)) < 1e-3,
                 "the scope at 20 degrees: its layer " + Preview.scaleOf(32.5, 20) + " times (" + (shown.length ? shown[0].scale : -1) + ")");

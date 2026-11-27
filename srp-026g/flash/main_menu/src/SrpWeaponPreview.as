@@ -26,8 +26,8 @@ package
         public static const IRON:int = 0;
         public static const RED_DOT:int = 1;
         public static const SCOPE:int = 2;
-        public static const WIDTH:Number = 300;
-        public static const HEIGHT:Number = 169;
+        public static const WIDTH:Number = 560;
+        public static const HEIGHT:Number = 315;
         // The renders' angle (0.69d0's aimed rifle) and the captures'.
         private static const RENDER_FOV:Number = 32.5;
         private static const WORLD_FOV:Number = 100;
