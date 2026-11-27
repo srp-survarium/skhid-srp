@@ -232,7 +232,8 @@ by set (a faction's tier: `<family>_<slot>_<tier>` configs) or slot.
 quests page: one page, a section a mode in the lobby's order, each with its
 anchor (`#team-deathmatch`, `#protective-device`, `#chargers`, `#blackout`,
 `#research`, `#free-for-all`, `#freeze-tag`, `#artifact-hunt`) and the free-for-all's
-versions under it (`#racket`, `#saloon`, `#saloon-winchester`, `#roulette`). A
+versions under it, a plaque each, the plain one's first (`#plain`, `#racket`, `#saloon`,
+`#saloon-winchester`, `#roulette`, `#pistols`). A
 section has the mode's loading-screen icon (`icons/modes/`, above), its game
 name, the rooms that offer it, its rules a short line each, and its maps with
 their weathers, each linked to the Maps tab (`#<project folder>/<mode>`) when
@@ -246,7 +247,7 @@ the tab has it. Nothing in it is typed in that the server has:
   constants (`srp_validate::world::freeze`);
 - a free-for-all's versions: their shares (`twist::SHARES`), Racket's guns and
   sight (`racket`), Saloon's (`cowboy`), Roulette's kits, bands and pistol share
-  (`roulette`);
+  (`roulette`), Pistols' kits and each band's pistols (`pistols`);
 - the rooms: the running lobby's pools (`SRP_MATCH_MAPS`,
   `SRP_ROOMS_EXTRA_MAPS`; srp hands them to the page as `web_server::Pools`):
   a mode is public with a map of the match pool, private only with an

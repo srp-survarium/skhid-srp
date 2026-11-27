@@ -674,10 +674,13 @@ rules, spawns, pay and results, every kit's guns changed by the server.
 - **Where:** in the server's rooms (Play's, the open ones) alone, each free-for-all card of a
   vote (any card; all three in a pool of free-for-alls alone) draws its twist after its map,
   by its share (`twist::SHARES`, `twist::draw`, armed for the room):
-  - plain Free for all 30 % (the owner, 2026-11-22: plain 30, Racket 30, Roulette 30; 50 and 40
-    before Roulette), **Racket** 30 %;
-  - **Roulette** 30 % (`ffa-roulette.md`): a level band the room allows and one hand of three kits
-    of it, every player's;
+  - plain Free for all 25 % (the owner, 2026-11-27, of Pistols: "take 5% from roulette and 5% from
+    FFA normal"; 30 from 2026-11-22, 50 and 40 before Roulette), **Racket** 30 %;
+  - **Roulette** 25 % (`ffa-roulette.md`; 30 from 2026-11-22): a level band the room allows and one
+    hand of three kits of it, every player's;
+  - **Pistols** 10 % since 2026-11-27 (`ffa-pistols.md`; the owner: "it should be 10% of FFA
+    cards"): Roulette's band and its draw, two kits of it, a pistol each, every player's, the third
+    kit not loaded;
   - **Cowboy**, "Saloon" in the lobby, 10 % since 2026-11-22 (20 % from 2026-11-15, the owner: "let's make saloon 20% with
     two variations (no need to name them)"; 10 % before, 2026-11-14: "cowboy version should be
     rare with only 10% chance"), in two variations (the owner, 2026-11-14: "saloon should have
@@ -699,12 +702,13 @@ rules, spawns, pay and results, every kit's guns changed by the server.
   which the server reads as `maps::MapMode::twists_only` (refused on a config of another mode); the
   game does not read it. Another map takes it by the same key.
   - A card draws its map first, as any (`rooms.md`, "Each card is drawn from pools"), then its
-    twist: on such a map the plain share is taken out and the twists keep theirs, so Racket 42.9 %,
-    Roulette 42.9 % (its band one the room allows), each Saloon 7.1 % (`twist::draw`; Racket 80 % and
-    each Saloon 10 % before Roulette). My pick of the two orders: the map comes as often as any
+    twist: on such a map the plain share is taken out and the twists keep theirs, so Racket 40 %,
+    Roulette 33.3 %, Pistols 13.3 % (their band one the room allows), each Saloon 6.7 %
+    (`twist::draw`; Racket 42.9 %, Roulette 42.9 %, each Saloon 7.1 % before Pistols; Racket 80 %
+    and each Saloon 10 % before Roulette). My pick of the two orders: the map comes as often as any
     free-for-all map, always twisted; drawing the twist first would have left it out of half the
     free-for-all cards (the plain ones), and every other map's twist shares stay as they are. Of
-    all free-for-all cards, plain falls from 30 % to about 29.1 % (one map in 33).
+    all free-for-all cards, plain falls from 25 % to about 24.2 % (one map in 33).
   - A private room's free-for-all is plain (below), so its pool never holds such a map: the
     create window does not list it (`Core::private_entries`), and a private room's pool leaves it
     out whatever it was made with (`Rooms::create_with_pool`: a saved window with it, the default
@@ -726,9 +730,10 @@ rules, spawns, pay and results, every kit's guns changed by the server.
   hu), Salun (Winchester), Saluuna (Winchester) (the game's own words for the Winchester: its
   item's and its ammunition's).
   `st_srp_mode_roulette_low`, `_mid`, `_high` FFA: Roulette, the band not shown (Рулетка in ru, uk,
-  be; `ffa-roulette.md` has every language).
-  The lobby's mode numbers 9 Racket, 10 Saloon (the Colt alone), 11 Saloon (Winchester) and 14,
-  15, 16 Roulette by its band
+  be; `ffa-roulette.md` has every language). `st_srp_mode_pistols` FFA: Pistols, the game's own word
+  of the shop's pistols filter (`st_filter_pistol`) in each language (`ffa-pistols.md`).
+  The lobby's mode numbers 9 Racket, 10 Saloon (the Colt alone), 11 Saloon (Winchester), 14,
+  15, 16 Roulette by its band and 18 Pistols (17 is the unmerged Instagib branch's)
   (`Armed::lobby_number`: the twist as it arms; 7 is Scarcity's; the two Saloons' tags one
   colour): a card's tag and colour, the room's banner of its match (`lobby.md`, rooms' `C` and `L`
   rows), the log's "mode". The game's own screens (loading, results, the HUD) say Free for all:
@@ -740,7 +745,8 @@ rules, spawns, pay and results, every kit's guns changed by the server.
   the room's match plays one (the room state's `L` row in the match's phase, its lobby mode), the
   loading screen shows its own frame for Free for All's (`SrvGameModeIcons.forTwist`): 7 Racket
   (crossed AK-12s), 8 Saloon (a cowboy hat), 9 Saloon (Winchester) (the hat over a Winchester), 10
-  Roulette (two dice). The bitmaps are `flash/lobby_menu/bitmaps/GameModeIcon*.png`, 61 x 56.
+  Roulette (two dice), 11 Pistols (two TT-33s crossed, `ffa-pistols.md`). The bitmaps are
+  `flash/lobby_menu/bitmaps/GameModeIcon*.png`, 61 x 56.
   - From the loading screen's first frame (the owner, 2026-11-22: never the skull first): when a
     room's match is made the lobby server marks the room in it and sends each of its players the
     room's state, its `L` row this match's mode, before it sends them to the match

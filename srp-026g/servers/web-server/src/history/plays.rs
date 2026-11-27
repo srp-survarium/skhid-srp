@@ -270,7 +270,7 @@ fn is_free_for_all(mode: KeptMode) -> bool {
 }
 
 /// A match's mode as the boards count it: its own, but every free-for-all
-/// (plain, the Racket, the Saloon, the Roulette) one, the free-for-all (the
+/// (plain, the Racket, the Saloon, the Roulette, the Pistols) one, the free-for-all (the
 /// owner, 2026-11-26: all of them one Free for all, each version under it).
 /// The match lists still name a match by its own.
 fn counted_as(mode: KeptMode) -> KeptMode {
@@ -815,6 +815,7 @@ mod tests {
             played(free.id, LobbyMode::Roulette(Band::Low), Winner::MostKills, 1),
             played(free.id, LobbyMode::Roulette(Band::High), Winner::MostKills, 3),
             played(free.id, LobbyMode::Racket, Winner::MostKills, 1),
+            played(free.id, LobbyMode::Pistols, Winner::MostKills, 1),
         ];
         if let Some(tdm) = tdm {
             played_list.push(played(tdm.id, LobbyMode::Plain(GameMode::TeamDeathmatch), Winner::FirstTeam, 1));
@@ -836,7 +837,7 @@ mod tests {
             .find(|mode| mode["mode"] == "Free for all")
             .unwrap();
         assert!(board["modes"].as_array().unwrap().iter().all(|mode| !mode["mode"].as_str().unwrap().starts_with("FFA:")), "no version a mode of its own");
-        assert_eq!(ffa["matches"], 7, "the plain, the Roulette's and the Racket's");
+        assert_eq!(ffa["matches"], 8, "the plain, the Roulette's, the Racket's and the Pistols'");
         assert_eq!(ffa["trend"][6], 6);
         assert_eq!(ffa["trend"][5], 1);
         assert_eq!(ffa["mode_url"], json!(crate::modes::url(Lang::En, plain)));
@@ -846,12 +847,16 @@ mod tests {
             .iter()
             .map(|row| (row["mode"].as_str().unwrap(), row["matches"].as_u64().unwrap(), row["trend"][6].as_u64().unwrap()))
             .collect();
-        assert_eq!(versions, [("Free for all", 2, 2), ("FFA: Racket", 1, 0), ("FFA: Roulette", 4, 4)], "each version, the Roulette's bands one");
+        assert_eq!(
+            versions,
+            [("Free for all", 2, 2), ("FFA: Racket", 1, 0), ("FFA: Roulette", 4, 4), ("FFA: Pistols", 1, 0)],
+            "each version, the Roulette's bands one"
+        );
         assert_eq!(ffa["versions"][1]["trend"][5], 1);
         let shares: f64 = ffa["versions"].as_array().unwrap().iter().map(|row| row["share"].as_f64().unwrap()).sum();
         assert!((shares - ffa["share"].as_f64().unwrap()).abs() < 0.002);
         let pair = board["pairs"].as_array().unwrap().iter().find(|pair| pair["mode"] == "Free for all").unwrap();
-        assert_eq!(pair["matches"], 7);
+        assert_eq!(pair["matches"], 8);
         // On its map: one Free for all, its versions under it, each with its weathers.
         let board = maps(&plays, Span::Week, Lang::En, &atlas, &[]);
         let map = board["maps"]
@@ -862,16 +867,16 @@ mod tests {
             .unwrap();
         assert_eq!(map["matches"], if tdm.is_some() { 1 } else { 0 }, "a free-for-all has no sides on the map's row");
         let ffa = map["modes"].as_array().unwrap().iter().find(|mode| mode["mode"] == "Free for all").unwrap();
-        assert_eq!(ffa["matches"], 7);
+        assert_eq!(ffa["matches"], 8);
         assert!(ffa["sides"].is_null());
-        assert_eq!(ffa["weathers"][0]["matches"], 7);
+        assert_eq!(ffa["weathers"][0]["matches"], 8);
         let versions: Vec<(&str, u64)> = ffa["versions"]
             .as_array()
             .unwrap()
             .iter()
             .map(|row| (row["mode"].as_str().unwrap(), row["matches"].as_u64().unwrap()))
             .collect();
-        assert_eq!(versions, [("Free for all", 2), ("FFA: Racket", 1), ("FFA: Roulette", 4)]);
+        assert_eq!(versions, [("Free for all", 2), ("FFA: Racket", 1), ("FFA: Roulette", 4), ("FFA: Pistols", 1)]);
         assert_eq!(ffa["versions"][2]["weathers"][0]["matches"], 4);
         assert!(map["modes"].as_array().unwrap().iter().all(|mode| mode["mode"] == "Free for all" || mode.get("versions").is_none()), "only the free-for-all has versions");
     }
@@ -941,7 +946,10 @@ mod tests {
                 KeptMode::Unknown(_) => unreachable!(),
             })
             .collect();
-        assert_eq!(names, ["Free for all", "FFA: Racket", "FFA: Saloon", "FFA: Saloon (Winchester)", "FFA: Roulette"]);
+        assert_eq!(
+            names,
+            ["Free for all", "FFA: Racket", "FFA: Saloon", "FFA: Saloon (Winchester)", "FFA: Roulette", "FFA: Pistols"]
+        );
     }
 
     /// Every mode and weather is named in the site's own words, and those

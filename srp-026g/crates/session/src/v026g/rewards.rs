@@ -2529,9 +2529,9 @@ impl<'a> Shared<'a> {
             // armour, `items_rules::kit_bonuses`): the screen's "premium
             // items" column. [GUESS: the
             // three bytes are the percents.]
-            // None in Roulette: its kits were not the account's.
+            // None in Roulette and Pistols: their kits were not the account's.
             let gear = match self.result.twist {
-                Some(Armed::Roulette(_)) => survarium::v026g::modifications::Bonuses::default(),
+                Some(twist) if !twist.keeps_own_items() => survarium::v026g::modifications::Bonuses::default(),
                 _ => items_rules::kit_bonuses(account, kit),
             };
             let gear_reputation = match faction {
