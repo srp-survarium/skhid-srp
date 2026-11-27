@@ -1088,6 +1088,56 @@ def apply_edits(rows, tree, base, work, world, cache):
             world.put(path, data, f'edit {name}', digests[path])
 
 
+# The binary configs laid out again from their record trees after the edit lists
+# (config_compact.py): the bytes content_edit.py's edits leave behind that no record reaches go,
+# which the game would otherwise hold in its unmanaged arena with the config (memory budget).
+# Rev75: the dictionary (65,017,848 bytes, 896,505 compacted) and Vector Laboratory's 18
+# projects (about 30 MB each, 1.2 MB compacted). The edit lists still run on the files as the
+# rows above leave them, each build, and this step after them. The consolidated resources.db that
+# follows rev75 keeps each file's bytes as they are, these dead bytes included: it has to re-lay
+# every config an edit list makes the same way (or this list grows to them all).
+COMPACTED = ('gameplay/db_static_dictionaries',
+             *(f'projects/level_07/{weather}_{mode}/client_project'
+               for weather in ('day', 'evening', 'rain') for mode in (2, 3, 4, 5, 8, 'ah')))
+
+
+def compact_configs(world, cache):
+    """Every file of COMPACTED, as the edit lists made it, laid out again (config_compact.py; its
+    tree, every key, value, type and order, the same or no patch). Each is one the build makes: a
+    path of the list no edit list makes is a Problem (the list names files that are edited). Cached
+    by the file's bytes and the compactor's."""
+    import importlib.util
+    spec = importlib.util.spec_from_file_location(
+        'config_compact', str(Path(__file__).resolve().parent / 'config_compact.py'))
+    cc = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(cc)
+    missing = [p for p in COMPACTED if p not in world]
+    if missing:
+        raise Problem(f'COMPACTED names {len(missing)} file(s) no edit list makes: ' + ', '.join(missing))
+    before = after = 0
+    for path in COMPACTED:
+        digest = world.sha256(path)
+        key = Cache.key('compacted', files_digest([Path(spec.origin)]), code_digest(compact_configs), digest)
+        made = cache.get(key)
+        if made:
+            files, said = made
+            world.put_cached(path, files[path], 'compacted')
+        else:
+            data = world.data(path)
+            try:
+                out = cc.compact(path, data)
+            except ValueError as e:
+                raise Problem(str(e)) from None
+            said = f'{len(data)} -> {len(out)} bytes'
+            out_digest = sha256(out)
+            cache.put(key, {path: out}, said, {path: out_digest})
+            world.put(path, out, 'compacted', out_digest)
+        old, new = (int(n) for n in said.replace(' bytes', '').split(' -> '))
+        before, after = before + old, after + new
+        print(f'  compacted {path}: {said}')
+    print(f'compacted: {len(COMPACTED)} config(s), {before} -> {after} bytes, the same trees')
+
+
 def type_check(rows, tree, base, world, cache, whole):
     """Every file the manifest makes keeps the value type of each key path the
     base/live version has, and a new key uses a 0.26g type for its path or is
@@ -1510,13 +1560,6 @@ MEMORY_KNOWN = {
         "Dark Valley's grass (patch 57): all of it within 49 m of walkable ground"),
     'projects/v010b_cs_mp_bath': (40_472_928,
         "Bath's grass (patch 57): none beyond 116 m of walkable ground"),
-    'gameplay/db_static_dictionaries': (72 << 20,
-        "the dictionary, 65,017,848 bytes at rev75 of which its tree reaches 947,429: every edit "
-        "list's appends; compacted after the edit lists (config_compact.py) it is 896,505"),
-    **{f'projects/level_07/{weather}_{mode}/client_project': (32 << 20,
-        "Vector Laboratory's projects, about 30 MB each at rev75 (#2751's lab glass) of which about "
-        '1.4 MiB is reached; compacted (config_compact.py) about 1.25 MB')
-       for weather in ('day', 'evening', 'rain') for mode in (2, 3, 4, 5, 8, 'ah')},
 }
 
 
@@ -1813,6 +1856,8 @@ def main():
         try:
             with timed('the edit lists'):
                 apply_edits(rows, args.tree, base_layers, work, world, cache)
+            with timed('the compacted configs'):
+                compact_configs(world, cache)
 
             # The value types every changed file keeps (content_type_check.py):
             # a key that exists in the base/live version keeps its type, a new key
