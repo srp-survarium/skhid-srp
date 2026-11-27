@@ -5,7 +5,7 @@
 //! ```text
 //! picks --db <resources.db> --patch <resources.db.patch_12> ... \
 //!     --points <tsv> [--roofs 49,8,10,42] [--stranded-ok 13] [--harmful-ok 45] [--as-stood 12] \
-//!     [--shift 1.5] [--roof-at 24.563,0.912,30.789] [--team 1] \
+//!     [--shift 1.5] [--roof-at 24.563,0.912,30.789] [--team 1] [--add] \
 //!     --project level_01/day_8 [--project level_01/evening_8 ...]
 //! ```
 //!
@@ -29,7 +29,10 @@
 //! owner's picks, 2026-11-23) point ids in order (only position and rotation change, as
 //! `ffa-center-1`); picks past those get new points with the ids after the
 //! project's last; solo spawns left over (the highest ids, the project's last
-//! entries) go. `--roofs`: after them, a new point on the roof of the
+//! entries) go. `--add`: every kept pick is a new point after the project's
+//! last, and the team's points stay as they are (more picks on a map whose
+//! points are already his: London (v0.32)'s Free for All, 2026-11-27).
+//! `--roofs`: after them, a new point on the roof of the
 //! building at each of these picks ([`roof`]), its facing the longest view,
 //! the nearest spawn said; `--stranded-ok`: those of these picks whose roof
 //! may have no way down within 5 m drops. `--roof-at <x>,<y>,<z>` (repeatable):
@@ -361,6 +364,7 @@ fn run() -> Result<(), String> {
     let mut roof_at = Vec::<Vec3>::new();
     let mut shift = 0f32;
     let mut team = 2i32;
+    let mut add = false;
     let numbers = |value: &str, flag: &str| -> Result<Vec<u32>, String> {
         value
             .split(',')
@@ -368,6 +372,10 @@ fn run() -> Result<(), String> {
             .collect()
     };
     while let Some(flag) = args.next() {
+        if flag == "--add" {
+            add = true;
+            continue;
+        }
         let value = args.next().ok_or_else(|| format!("{flag} needs a value"))?;
         match flag.as_str() {
             "--db" | "--patch" => layers.push(PathBuf::from(value)),
@@ -414,6 +422,9 @@ fn run() -> Result<(), String> {
             .map(|s| s.point_id)
             .collect();
         ids.sort_unstable();
+        if add {
+            ids.clear();
+        }
         // `--shift`: the nearest place within `shift` m in plan of a pick
         // the checks drop where it passes them all (rings 0.25 m apart).
         let shifted = |at: Vec3| -> Option<(Vec3, f32)> {

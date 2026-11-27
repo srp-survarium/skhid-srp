@@ -411,6 +411,29 @@ A match's first spawn and every respawn go through the same respawn tick, so bot
   - Every one on its ground (0 to 22 cm: 6, 9 and 24 lowered), body clear and 2 m from harmful
     zones; 39 hold the spawn rule, 18, 31 and 34 have no cover, kept as his. 16 and 28 stand
     0.35 m apart, both kept.
+  - 2026-11-27, nine more (43-51;
+    `private/spawn-examples/fire-station-2026-11-27.tsv`: the 42 and the 9, as the list is made
+    again from the projects the rows above it leave): the list retuned, 42-47 his 43-48 in the
+    points the list removed before, 49-51 new points 48-50 (copies of point 0: 20 m exclusion,
+    500 ms protection; named `ffa_fire_station_<id>`, the team named with the id: the STALKER
+    maps count point ids anew in each team). 48 -> 51 points. All nine on their ground where he
+    stood, body clear, 2 m from harmful zones; 44, 46 and 48 have no cover, kept as his. 43 stands
+    2.2 m from 6 (0.8 m lower, facing within 3 degrees of it) and 45 2.4 m from 30 (facing within
+    1 degree): near, both kept as every pick; the others 4.5 m or more from any spawn.
+- **London (v0.32) at the owner's picks more** (2026-11-27: 26 `where` places on
+  `v032a_level_09/day_8`, `private/spawn-examples/london-v032-2026-11-27.tsv`). Content edit
+  `ffa-london-v032-picks-1`, from `scripts/ffa-mode/london-v032-picks.tsv` (`picks --add --shift
+  1.5 --project v032a_level_09/day_8`, on the project as players have it) and `make_picks_edits.py
+  london-v032` (its `Map` `adds`), after `ffa-london-v032-1`, which makes the project; Free for
+  All has only that weather (map 163):
+  - All 26 facing as he faced, as new points 70-95 after the 50 there (`--add`: those stay as
+    they are), copies of point 20 (20 m exclusion, 500 ms protection, its int ally radius 1, as
+    the 50). 50 -> 76 points, within the respawn's 128 (exe patch 142).
+  - Every one on its ground (0 to 12 cm: 13 lowered), body clear, 2 m from harmful zones; 24
+    0.75 m off his place (his has no floor the walk grid reaches from the other spawns; `--shift`
+    found the nearest that does, at his height). 19 of them hold the spawn rule; 6, 10, 16, 17, 22
+    and 24 stand in the perimeter band and 19 has no cover, kept as his. Each 4.1 m or more from
+    any other spawn and 14.7 m or more from the 50 there: places the 50 left empty.
 - **Chemical Plant at the owner's picks** (2026-11-16: 97 `where` places on day_8,
   `private/spawn-examples/chemical-plant-2026-11-16.txt`). Content edit
   `ffa-chemical-plant-picks-1`, from `scripts/ffa-mode/chemical-plant-picks.tsv` (`picks --project

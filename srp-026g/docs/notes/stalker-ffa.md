@@ -19,7 +19,7 @@ reaches. The list removes its ammo stashes from the `day_8` copy itself (as no-a
 Depository's 48 points stay in the table, held (the owner, 2026-11-21: "only station is fine"); move
 it from `THIRD.held` to `THIRD.maps` to offer it as 32.
 
-Fire Station (pack `stalker-maps-2`, maps_dict 39, `ffa-stalker-2.json`; its 48 points by the spawn rule are the owner's 42 picks since `ffa-fire-station-picks-1`, `ffa.md`) is in `stalker-maps.md`, "Four more maps"; Dark Valley, Vehicle Station (47 points) and Sports Center are held there.
+Fire Station (pack `stalker-maps-2`, maps_dict 39, `ffa-stalker-2.json`; its 48 points by the spawn rule are the owner's picks since `ffa-fire-station-picks-1`, 51 since 2026-11-27, `ffa.md`) is in `stalker-maps.md`, "Four more maps"; Dark Valley, Vehicle Station (47 points) and Sports Center are held there.
 
 This integrates the previously unmerged `stalker-maps@6` pack, which supplies
 six TDM ports. The other three are Repair Depot, Station and Depository. Only

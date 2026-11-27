@@ -41,9 +41,12 @@ v010b_cs_mp_firestation/day_8	38	-27.839	17.19	23.848	0	2.3474681	0	20	0	moved		
 v010b_cs_mp_firestation/day_8	39	-17.997	3.12	6.359	0	-1.7435842	0	20	0	moved		the owner's pick 40 (where yaw 99.9, on its ground); body clear; harmful zones >=2m; cover roof; holds the spawn rule; 14.0 m clear ahead
 v010b_cs_mp_firestation/day_8	40	19.663	4.202	3.93	0	0.055850983	0	20	0	moved		the owner's pick 41 (where yaw 356.8, on its ground); body clear; harmful zones >=2m; cover side; holds the spawn rule; 14.7 m clear ahead
 v010b_cs_mp_firestation/day_8	41	13.628	9.01	39.556	0	1.9547691	0	20	0	moved		the owner's pick 42 (where yaw 248.0, on its ground); body clear; harmful zones >=2m; cover side; holds the spawn rule; >20 m clear ahead
-v010b_cs_mp_firestation/day_8	42	-3.8550034	6.562451	34.215	0	2.9452431	0	20	0	removed		one solo spawn more than the picks kept
-v010b_cs_mp_firestation/day_8	43	6.6449966	5.8773828	10.215	0	-0.39269906	0	20	0	removed		one solo spawn more than the picks kept
-v010b_cs_mp_firestation/day_8	44	0.14499664	6.5096674	42.215	0	2.552544	0	20	0	removed		one solo spawn more than the picks kept
-v010b_cs_mp_firestation/day_8	45	24.144997	-0.653445	16.215	0	-1.3744467	0	20	0	removed		one solo spawn more than the picks kept
-v010b_cs_mp_firestation/day_8	46	4.6449966	4.2836	-3.7849998	0	0.19634955	0	20	0	removed		one solo spawn more than the picks kept
-v010b_cs_mp_firestation/day_8	47	-15.855003	6.6723423	28.215	0	1.3744469	0	20	0	removed		one solo spawn more than the picks kept
+v010b_cs_mp_firestation/day_8	42	18.831	1.479	-6.489	0	1.6406097	0	20	0	moved		the owner's pick 43 (where yaw 266.0, on its ground); body clear; harmful zones >=2m; cover roof; holds the spawn rule; 5.1 m clear ahead
+v010b_cs_mp_firestation/day_8	43	28.111	4.667	13.617	0	0.2600541	0	20	0	moved		the owner's pick 44 (where yaw 345.1, on its ground); body clear; harmful zones >=2m; cover none; no cover (fails the spawn rule); 13.6 m clear ahead
+v010b_cs_mp_firestation/day_8	44	1.487	6.634	44.293	0	-3.0979593	0	20	0	moved		the owner's pick 45 (where yaw 177.5, on its ground); body clear; harmful zones >=2m; cover roof; holds the spawn rule; 7.8 m clear ahead
+v010b_cs_mp_firestation/day_8	45	-14.936	6.923	53.288	0	-2.5883234	0	20	0	moved		the owner's pick 46 (where yaw 148.3, on its ground); body clear; harmful zones >=2m; cover none; no cover (fails the spawn rule); >20 m clear ahead
+v010b_cs_mp_firestation/day_8	46	-28.155	6.818	55.056	0	-1.3089967	0	20	0	moved		the owner's pick 47 (where yaw 75.0, on its ground); body clear; harmful zones >=2m; cover side; holds the spawn rule; 15.4 m clear ahead
+v010b_cs_mp_firestation/day_8	47	-42.039	6.997	55.904	0	2.532473	0	20	0	moved		the owner's pick 48 (where yaw 214.9, on its ground); body clear; harmful zones >=2m; cover none; no cover (fails the spawn rule); 3.2 m clear ahead
+v010b_cs_mp_firestation/day_8	48	-56.364	7.043	47.169	0	-1.092576	0	20	0	added		the owner's pick 49 (where yaw 62.6, on its ground); body clear; harmful zones >=2m; cover side; holds the spawn rule; 13.1 m clear ahead
+v010b_cs_mp_firestation/day_8	49	-60.996	10.314	-5.457	0	-0.78888893	0	20	0	added		the owner's pick 50 (where yaw 45.2, on its ground); body clear; harmful zones >=2m; cover roof; holds the spawn rule; >20 m clear ahead
+v010b_cs_mp_firestation/day_8	50	-27.406	4.682	15.202	0	2.8152163	0	20	0	added		the owner's pick 51 (where yaw 198.7, on its ground); body clear; harmful zones >=2m; cover corner; holds the spawn rule; >20 m clear ahead
