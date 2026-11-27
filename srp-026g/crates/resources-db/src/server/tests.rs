@@ -114,7 +114,8 @@ fn game(folder: &Folder) -> (PathBuf, PathBuf, PathBuf) {
             ("projects/level_01/day/client_project", &project(3).0),
             ("projects/level_01/day/level.bin", b"not read"),
             ("localization/english/localization", b"english"),
-            ("localization/german/localization", b"not read"),
+            // Of a language, its texts alone are read.
+            ("localization/german/eula", b"not read"),
             ("textures/a.dds", b"not read"),
         ]),
     );
@@ -213,7 +214,20 @@ fn the_server_data_is_the_files_srp_reads_of_the_patches_over_the_db() {
     let (db, two, fourteen) = game(&folder);
     // Given out of order: laid in the game's order all the same.
     let built = build(&db, &[patch(&fourteen), patch(&two)], None).unwrap();
-    let files = all_files(&built.bytes);
+    let mut files = all_files(&built.bytes);
+    // What a match checks: the projects have no vegetation, the game no
+    // startup.cfg, so each project's client_project alone, whole.
+    let checked = files.remove(crate::checked::CHECKED).expect("the checked files");
+    let checked = crate::checked::Checked::parse(&String::from_utf8(checked).unwrap()).unwrap();
+    assert_eq!(
+        checked.paths_of("level_01/day").collect::<Vec<_>>(),
+        ["@table/resources.db", "@table/resources.db.patch_14", "@table/resources.db.patch_2", "projects/level_01/day/client_project"]
+    );
+    assert_eq!(
+        checked.files["projects/level_01/day/client_project"],
+        crate::checked::Sum::of(&project(3).0).unwrap()
+    );
+    assert_eq!(built.checked, 5);
     let mut expected: BTreeMap<String, Vec<u8>> = [
         ("gameplay/db_static_dictionaries", "dictionary 0"),
         ("gameplay/items/armour/mask/new.options", "fourteen"),
@@ -395,13 +409,23 @@ fn the_same_inputs_give_the_same_bytes_and_other_inputs_other_bytes() {
         changed.provenance.patches[0].input.sha256,
         first.provenance.patches[0].input.sha256
     );
-    // Its files are those of 14 alone over the db, but the data names it.
-    let without = |bytes: &[u8]| {
+    // Patch 2 changes the archive index fingerprint even with identical effective gameplay.
+    let without_table_two = |bytes: &[u8]| {
         let mut files = all_files(bytes);
         files.remove(PROVENANCE);
-        files
+        let text = String::from_utf8(files.remove(crate::checked::CHECKED).unwrap()).unwrap();
+        let mut checked = crate::checked::Checked::parse(&text).unwrap();
+        let table = "@table/resources.db.patch_2";
+        let sum = checked.files.remove(table);
+        assert_eq!(checked.always.remove(table), sum.is_some());
+        (files, checked, sum)
     };
-    assert_eq!(without(&changed.bytes), without(&alone.bytes));
+    let (changed_files, changed_refs, new_table) = without_table_two(&changed.bytes);
+    let (alone_files, alone_refs, no_table) = without_table_two(&alone.bytes);
+    assert_eq!(changed_files, alone_files);
+    assert_eq!(changed_refs, alone_refs);
+    assert!(new_table.is_some() && no_table.is_none());
+    assert_ne!(new_table, without_table_two(&first.bytes).2);
     assert_ne!(changed.bytes, alone.bytes);
     // No patch at all.
     let bare = build(&db, &[], None).unwrap();

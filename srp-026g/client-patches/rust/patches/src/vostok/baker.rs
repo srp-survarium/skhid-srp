@@ -17,7 +17,7 @@
 //! look-up takes one for a query it keeps waiting), a texture while a
 //! reference to it is held. Only a site's view makes one.
 
-use core::ffi::c_void;
+use core::ffi::{CStr, c_void};
 use core::ptr::null_mut;
 use core::sync::atomic::{AtomicU32, Ordering};
 
@@ -287,7 +287,7 @@ impl Parameters {
 }
 
 /// Who asked for a bake. Its files' name says: patch 44 names a weapon's
-/// `srpw<n>_...` (weapon_camo_026g.asm's name_format); the game's own bakes
+/// `srpw<n>_...` (the Rust patch weapon_camo's BakedName); the game's own bakes
 /// (a character's part, the decal editor's) are named of the part and never
 /// begin so.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -304,6 +304,85 @@ impl Asker {
 
     fn of_name(name: &[u8]) -> Asker {
         if name.starts_with(Asker::WEAPON) { Asker::Weapon } else { Asker::Character }
+    }
+}
+
+/// A weapon's bake of one surface, its parameters filled by patch 44's
+/// bake_surface (weapon_camo_026g.asm) before it asks for the bake
+/// (`weapon_camo.bake_name`): what the baker will bake, read once.
+pub struct WeaponBake<'c> {
+    parameters: raw::CookParameters,
+    pub inputs: BakeInputs<'c>,
+}
+
+/// What a weapon's bake of one surface is made of.
+pub struct BakeInputs<'c> {
+    /// The weapon's model path (object/model of its merged config).
+    pub model: &'c CStr,
+    pub surface: u32,
+    /// The camouflage's scale on the surface.
+    pub scale: f32,
+    /// The two decals' layers, then the camouflage's; none for a layer with
+    /// no texture (no decal there, no camouflage).
+    pub layers: [Option<BakeLayer<'c>>; 3],
+}
+
+/// One layer of a bake, which has a texture: where its textures lie, and
+/// their names.
+pub struct BakeLayer<'c> {
+    pub matrix: [f32; 16],
+    /// Diffuse, normal, fresnel, smoothness; an empty name is no texture
+    /// (one of them at least has a name).
+    pub textures: [&'c CStr; 4],
+}
+
+impl<'c> BakeLayer<'c> {
+    /// The layer of these texture names: none when it has no texture. Only
+    /// a layer with a texture has a matrix: the parameters' constructor
+    /// (0x119760) writes none, patch 44 writes the camouflage's and a
+    /// decal's with its names (weapon_decals_026g.asm's fill), and the
+    /// baker reads a layer's only for a texture it names. So an empty
+    /// layer's is what the allocation held before, and `matrix` is not
+    /// asked for it.
+    fn of(textures: [&'c CStr; 4], matrix: impl FnOnce() -> [f32; 16]) -> Option<BakeLayer<'c>> {
+        textures.iter().any(|name| !name.is_empty()).then(|| BakeLayer { matrix: matrix(), textures })
+    }
+}
+
+impl<'c> WeaponBake<'c> {
+    /// `weapon_camo.bake_name`'s: the parameters and the model's path its
+    /// caller pushed; none when either is not there or a name is no C string
+    /// of a bake's (then nothing names the files, and patch 44 bakes none).
+    pub fn at(ctx: &'c Context<'_>) -> Option<WeaponBake<'c>> {
+        // SAFETY: the entry's frame: patch 44's call pushed the parameters it
+        // allocated and filled, and the model's path of the weapon's merged
+        // config, both alive until the call returns, which outlives `ctx`.
+        unsafe {
+            let frame = raw::site::weapon_camo_bake_name::frame(ctx)?;
+            let parameters = frame.parameters()?;
+            let model = c_string(frame.model(), RECORD_TEXT)?;
+            let first = parameters.layers();
+            // the outer none: a name that is no C string; the inner: no texture
+            let layer = |index| -> Option<Option<BakeLayer<'c>>> {
+                let layer = first.at(index);
+                let text = |string: raw::BufferString| c_string(string.begin(), RECORD_TEXT);
+                let textures =
+                    [text(layer.diffuse())?, text(layer.normal())?, text(layer.fresnel())?, text(layer.smoothness())?];
+                Some(BakeLayer::of(textures, || core::array::from_fn(|i| read(layer.matrix().add(i)))))
+            };
+            let layers = [layer(0)?, layer(1)?, layer(2)?];
+            let inputs =
+                BakeInputs { model, surface: read(parameters.surface()), scale: read(parameters.scale()), layers };
+            Some(WeaponBake { parameters, inputs })
+        }
+    }
+
+    /// Names its baked files (before the type's letter).
+    pub fn name(&self, name: &CStr) {
+        // SAFETY: buffer_string::assign on the parameters' own name, which
+        // patch 44 left empty; a weapon's name is far shorter than its
+        // buffer (104h with its NUL).
+        unsafe { raw::engine_string_assign(Some(self.parameters.name()), name.as_ptr().cast()) };
     }
 }
 
@@ -560,9 +639,162 @@ impl FreeRecord {
     }
 }
 
+/// What the list holds: its records, the records it has room for, and the
+/// bytes of its records' files.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Held {
+    pub records: u32,
+    pub room: u32,
+    pub bytes: u32,
+}
+
+/// A record's bytes.
+pub const RECORD_BYTES: usize = raw::BakedTextureData::SIZE;
+
+impl List {
+    /// The list's first record and how many it holds; none for a list
+    /// with no begin or an end before it.
+    fn records() -> Option<(raw::BakedTextureData, usize)> {
+        let baker = raw::image::baker();
+        // SAFETY: the baker static's list.
+        let (begin, end) = unsafe { (baker.list_begin()?, baker.list_end()?) };
+        Some((begin, (end.address().checked_sub(begin.address())? as usize) / RECORD_BYTES))
+    }
+
+    /// What the list holds; none for a list with no begin.
+    pub fn held() -> Option<Held> {
+        let (begin, records) = List::records()?;
+        let baker = raw::image::baker();
+        // SAFETY: the baker static's list.
+        let (capacity, bytes) = unsafe { (baker.list_capacity()?, read(baker.list_bytes())) };
+        let room = (capacity.address().checked_sub(begin.address())? as usize) / RECORD_BYTES;
+        Some(Held { records: records as u32, room: room as u32, bytes })
+    }
+
+    /// The list's records moved into `room` (zeroed bytes of ours, kept for
+    /// good), which has room for more records than the list holds: each
+    /// copied in its order, its path's pointers into its new self, then the
+    /// list's begin, end and capacity set. The game's own storage is 1024
+    /// records inside the baker, and its push_back writes past a full list
+    /// (0x132640: an assertion, then the write); the game reads the list
+    /// through its begin, end and capacity alone (its storage's address is
+    /// in its constructor 0x12CCE0 and nowhere else). The storage before is
+    /// left as it is (the baker's own, or pages kept for good): a record the
+    /// game was given before stays readable. Whether it moved.
+    pub fn move_to(room: &'static mut [u8]) -> bool {
+        let (baker, count) = (raw::image::baker(), room.len() / RECORD_BYTES);
+        let Some((old, records)) = List::records() else { return false };
+        if !room.as_ptr().cast::<raw::BakedTextureDataStorage>().is_aligned() || count <= records {
+            return false;
+        }
+        // SAFETY: `count` records' bytes of ours alone, aligned, for good,
+        // more than the list's records; each record of begin..end read and
+        // copied into its own room; then the baker static's list.
+        unsafe {
+            let rooms = core::slice::from_raw_parts_mut(room.as_mut_ptr().cast::<raw::BakedTextureDataStorage>(), count);
+            let Some(first) = raw::BakedTextureDataStorage::first(rooms) else { return false };
+            for index in 0..records {
+                copy_record(old.at(index), first.at(index));
+            }
+            baker.set_list_begin(Some(first));
+            baker.set_list_end(Some(first.at(records)));
+            baker.set_list_capacity(Some(first.at(count)));
+        }
+        true
+    }
+
+    /// The list's last record: right after the bake's tail listed its
+    /// texture (push_back 0x132640 writes at the list's end), that one.
+    pub fn newest() -> Option<Record> {
+        let (begin, records) = List::records()?;
+        // SAFETY: the last record of begin..end.
+        records.checked_sub(1).map(|last| Record(unsafe { begin.at(last) }))
+    }
+
+    /// The record of the least age with no load of it under way (the one
+    /// remove_unwanted_files lets go first); none when every record is
+    /// loading, or the list is empty.
+    pub fn oldest() -> Option<Record> {
+        let (begin, records) = List::records()?;
+        // SAFETY: each record of begin..end.
+        (0..records)
+            .map(|index| unsafe { begin.at(index) })
+            .filter(|&record| unsafe { read(record.loading()) } == 0)
+            .min_by_key(|&record| unsafe { read(record.age()) })
+            .map(Record)
+    }
+}
+
+/// A record in the list.
+pub struct Record(raw::BakedTextureData);
+
+impl Record {
+    /// Its path (user_data/streamed_textures/<name>.dds); none without a
+    /// NUL in its text.
+    pub fn path(&self) -> Option<&[u8]> {
+        // SAFETY: the record's text, its own 104h bytes, while it is in the
+        // list (the borrow is this Record's; remove takes it).
+        unsafe { c_string(self.0.text(), RECORD_TEXT).map(|text| text.to_bytes()) }
+    }
+
+    /// The record out of the list: the list's last record takes its place
+    /// (the game's look-up walks the list by path, and its own trim sorts
+    /// it: no order is kept), the list's end one record back, its bytes
+    /// less this record's. Its file's bytes.
+    pub fn remove(self) -> u32 {
+        let (record, baker) = (self.0, raw::image::baker());
+        let Some((begin, records)) = List::records().filter(|&(_, records)| records > 0) else { return 0 };
+        // SAFETY: the record and the last one, both in begin..end (the
+        // list has records, and a Record is one of them); then the list's
+        // fields.
+        unsafe {
+            let (bytes, last) = (read(record.file_bytes()), begin.at(records - 1));
+            if last != record {
+                copy_record(last, record);
+            }
+            baker.set_list_end(Some(last));
+            baker.list_bytes().write_volatile(read(baker.list_bytes()).wrapping_sub(bytes));
+            bytes
+        }
+    }
+}
+
+/// `to` made a copy of the record `from`: its text, its path's pointers
+/// into `to`'s own text (the same length, at most its room less the NUL),
+/// the '/', CRC, size, age and loading mark.
+///
+/// # Safety
+/// Both are whole records, `from` read and `to` written, not the same.
+unsafe fn copy_record(from: raw::BakedTextureData, to: raw::BakedTextureData) {
+    // SAFETY: the caller's: two records' bytes.
+    unsafe {
+        let (text, length) = (to.text(), (from.path_end() as usize).wrapping_sub(from.text() as usize));
+        core::ptr::copy_nonoverlapping(from.text().cast_const(), text, RECORD_TEXT);
+        to.set_path_begin(text);
+        to.set_path_end(text.wrapping_add(length.min(RECORD_TEXT - 1)));
+        to.set_path_capacity(text.wrapping_add(RECORD_TEXT));
+        to.separator().write_volatile(read(from.separator()));
+        to.crc().write_volatile(read(from.crc()));
+        to.file_bytes().write_volatile(read(from.file_bytes()));
+        to.age().write_volatile(read(from.age()));
+        to.loading().write_volatile(read(from.loading()));
+    }
+}
+
 #[cfg(test)]
 mod tests {
-    use super::Asker;
+    use super::{Asker, BakeLayer};
+
+    #[test]
+    fn a_layer_with_no_texture_has_no_matrix_and_its_is_never_read() {
+        assert!(BakeLayer::of([c""; 4], || panic!("an empty layer's matrix was read")).is_none());
+        for named in 0..4 {
+            let mut textures = [c""; 4];
+            textures[named] = c"character/human/decal_3";
+            let layer = BakeLayer::of(textures, || [0.5; 16]).expect("a layer with a texture");
+            assert_eq!((layer.matrix, layer.textures), ([0.5; 16], textures));
+        }
+    }
 
     #[test]
     fn a_bake_is_a_weapon_s_by_its_name() {

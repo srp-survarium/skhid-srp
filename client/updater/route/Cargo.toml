@@ -1,0 +1,7 @@
+[package]
+name = "relay-client"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+updater_logic = { package = "skhid-updater-logic", path = "../logic" }

@@ -73,7 +73,7 @@ Every apply carries its time, and the replay skips the "too far in the future" c
 
 ## 5. The converter
 
-`srp-recording-to-sur <file.srprec> --game-modes <dir> [--out <dir>] [--stored] [--every <ms>]` (`cargo run -p match-server --bin srp-recording-to-sur`). `<dir>` holds the game's `gameplay/game_modes/*.options` files under their own names (`tools/re-kit/common/dbgrab get gameplay/game_modes/ <dir>` writes them as `gameplay__game_modes__<name>`; strip the prefix); the one the recording's `map_id` names in `maps_dict` is used. It prints a summary (with every key frame's time) and writes `<name>.sur`.
+`srp-recording-to-sur <file.srprec> [--out <dir>] [--stored] [--every <ms>]` (`cargo run -p match-server --bin srp-recording-to-sur`). The mode's config is the game data's (`SRP_GAME_DATA`, below): the `gameplay/game_modes/` file the recording's `map_id` names in `maps_dict`. It prints a summary (with every key frame's time) and writes `<name>.sur`.
 
 `SRP_GAME_DATA` must name the server game data of the recording's revision (`private/release/rev<n>/content/server-game-data.db`), as for `srp`: the 0xE4 of a match whose kits hold items newer than the test archive's (every live match since the ported weapons) parses only with that dictionary. `--keep-key-frames <ms,...>` keeps the first world and those key frames only, for a replay that must reach one world without loading those before it (a crash repro).
 
@@ -82,7 +82,7 @@ Every apply carries its time, and the replay skips the "too far in the future" c
 | chunk 1 | the stored LZMA2 stream of the 0xE4 of the place that got the **largest roster** (with late joins, the roster grows: 6 to 20 seen), without its first byte |
 | chunk 4 | the mode config file |
 | body | the relays the server sent to the places: 0xEB, 0xEC, 0xED, 0xEE (inputs), 0xF3 (kit choice), 0xE9, 0xEA (enter, leave), every message of every place put together and a copy of one dropped (one input at one time of one player is one input: 1.5 to 4.3 million copies in a match, **0 conflicts**) |
-| key frames | the uploaded worlds (0xE0 chunks of patched clients, `Reassembler`), one body for each item time (the most common one when clients disagree: 1 to 2 times in a match), the first world, one at least every 10 s, and **one soon after each late joiner enters**, at most 128 |
+| key frames | the uploaded worlds (0xE0 chunks of patched clients, `Reassembler`) the match server took as the match's (a recording's `ACCEPTED_WORLD` records, time and SHA-256; in a recording from before them, the uploads that pass the server's world check against its own roster), one body for each item time (the most common one when clients disagree: 1 to 2 times in a match), the first world, one at least every 10 s, and **one soon after each late joiner enters**, at most 128 |
 
 Choices, each one in the summary:
 

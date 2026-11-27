@@ -12,11 +12,16 @@ log = { workspace = true }
 openssl = { workspace = true }
 # The URLs the players' updater takes (`server::is_url`), for `mirrors.tsv`.
 resources-db = { workspace = true }
+# The stats API's answers (`history`), the built pages' tables (`built`).
+serde_json = { workspace = true }
+# Freeze Tag's rule (`srp_validate::world::freeze`), for the wiki's modes.
+srp-validate = { workspace = true }
 
 session = { workspace = true }
 survarium = { workspace = true }
-vostok = { workspace = true }
 
 [dev-dependencies]
 # Sessions without a sign-in, for the tests (`SessionStore::create_session`).
 session = { workspace = true, features = ["test-support"] }
+# Maps laid over the test data (ported versions of a level) for the stats' Maps board.
+survarium = { workspace = true, features = ["fixtures"] }

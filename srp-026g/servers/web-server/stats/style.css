@@ -1,0 +1,138 @@
+/* The stats page (src/history.rs, history.js), over the wiki's look. */
+#stats { min-width:0 }
+.stats-find { grid-template-columns:2fr 1fr 1fr auto; align-items:end; margin-top:20px }
+.stats-find button { margin:0; padding:10px 22px }
+.stats-keys[hidden] { display:none }
+.stats-panels { grid-template-columns:repeat(auto-fit,minmax(240px,1fr)); border:1px solid var(--rule); background:var(--panel); margin-top:20px }
+.stats-heading { margin:26px 0 10px; font-size:1.1rem }
+/* A player's lists (matches, weapons): the buttons where a heading would be. */
+.stats-tabs { margin:26px 0 10px }
+.stats-weapons .stats-table td.l { width:100% }
+.stats-skills .skill:not(.locked) { cursor:default }
+.stats-table { border-collapse:collapse; width:100%; font:.82rem var(--data); background:var(--panel); border:1px solid var(--rule) }
+.stats-table th,.stats-table td { padding:6px; border-bottom:1px solid var(--rule); text-align:right; white-space:nowrap; vertical-align:middle }
+.stats-table thead th { font:700 .7rem var(--display); text-transform:uppercase; letter-spacing:.04em; color:var(--ink-3) }
+.stats-table .l { text-align:left; font-family:var(--body) }
+.stats-table .sorted { color:var(--accent) }
+/* A heading that sorts: the heading's own look, the sorted one marked. */
+.stats-table th button { all:unset; cursor:pointer }
+.stats-table th button:hover { color:var(--ink) }
+.stats-table th button:focus-visible { outline:2px solid var(--accent); outline-offset:2px }
+.stats-table th.sorted button { color:inherit }
+.stats-table th.sorted button::after { content:' \25BE' }
+.stats-table th.sorted.up button::after { content:' \25B4' }
+.stats-table tbody tr:hover { background:color-mix(in srgb,var(--accent) 4%,transparent) }
+.stats-table .stats-open { cursor:pointer }
+.stats-table a { text-decoration:none }
+.stats-table a:hover { text-decoration:underline }
+.stats-paged button,.stats-board>button { margin-top:12px }
+.stats-empty { margin:20px 0 0; padding:18px; border:1px solid var(--rule); background:var(--panel); color:var(--ink-2) }
+.stats-note { margin:-4px 0 10px; color:var(--ink-3); font-size:.8rem }
+.slot-filter .stats-note { align-self:center; margin:0 0 0 4px }
+.stats-kit { display:block; overflow:hidden; text-overflow:ellipsis; color:var(--ink-2) }
+/* The weapons column takes the width the others leave, cut short if need be. */
+.stats-table .kits { width:100%; max-width:0 }
+.stats-under { display:block; font:.72rem var(--body); color:var(--ink-3) }
+.stats-kit.stats-under { max-width:22em }
+.stats-favourites { display:grid; grid-template-columns:1fr 1fr; gap:16px }
+.stats-favourites .stats-table td.l { width:100% }
+@media(max-width:700px) {
+ .stats-favourites { grid-template-columns:1fr }
+ .stats-table .kits { width:auto; max-width:none }
+ .stats-table .kits .stats-kit { max-width:10em }
+ .stats-find { grid-template-columns:1fr 1fr }
+ .stats-find label:first-child,.stats-find button { grid-column:1 / -1 }
+}
+/* A match's two teams, in the Maps page's colours (maps-tab/template.html; a test holds them together). */
+#stats { --team0: #3b82f6; --team1: #e5484d }
+.stats-team { padding-left:10px; border-left:4px solid var(--team) }
+.stats-team + .table-scroll .stats-table { border-top:2px solid var(--team) }
+.stats-team0 { --team:var(--team0) }
+.stats-team1 { --team:var(--team1) }
+/* The names a player left: the button that opens the rest, a word among them. */
+.stats-names button { margin:0; padding:0 6px; font:inherit }
+/* A heading with its choice at the other end of its line. */
+.stats-heading-row { display:flex; align-items:center; justify-content:space-between; gap:12px; margin:26px 0 10px }
+.stats-heading-row .stats-heading,.stats-heading-row .slot-filter { margin:0 }
+.stats-sizes button { padding:4px 10px }
+/* The day's leaders: five lists, three a row on a desktop, wide enough for the players' names whole;
+   the rank and the number narrow, every list's columns alike, one line a row. The number's heading
+   reaches over the name's; a name longer than its list is cut short (whole in its title). */
+.stats-leaders { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(300px,100%),1fr)); gap:12px }
+.stats-leaders .stats-table { table-layout:fixed }
+.stats-leaders .stats-table th:first-child { width:1.75rem }
+.stats-leaders .stats-table th:last-child { width:3.75rem }
+.stats-leaders .stats-table td.l { overflow:hidden; text-overflow:ellipsis }
+.stats-leaders .stats-over { display:inline-block; margin-left:-10rem }
+/* Everything added up: one row, each number as wide as the next. */
+.stats-all { margin-bottom:22px }
+.stats-all .stats-table { table-layout:fixed }
+.stats-all .stats-table td { font-size:1rem; padding:10px 6px }
+/* A match's map: the rooms' picture of it beside its name and mode. */
+.stats-map-cell { display:flex; align-items:center; gap:10px }
+.stats-item-cell { display:flex; align-items:center; gap:10px }
+.stats-item { flex:none; display:block; width:54px; height:26px; object-fit:contain }
+.stats-map { flex:none; display:block; width:64px; height:36px; background:var(--rule); object-fit:cover }
+.stats-panels .stats-map-cell { justify-content:flex-end }
+.stats-panels dl>div:has(.stats-map) { align-items:center }
+/* A match's replay: Download, a link in look (a line's height, so its row is as tall loading or not). */
+.stats-replay button { all:unset; cursor:pointer; color:var(--accent); text-decoration:underline }
+.stats-replay button:focus-visible { outline:2px solid var(--accent); outline-offset:2px }
+/* A team's word or number in its colour (the result, the points). */
+.stats-side { color:var(--team); font-weight:700 }
+.stats-map-link { flex:none; display:block }
+/* The Maps and Modes boards. The Maps table: its columns fixed, so that rows opening move none; a
+   map's row (its picture, a 16:9 box it covers, never stretched, by its name), its modes' rows and
+   a mode's weathers' under it, closed until their buttons open them. */
+.stats-map.stats-map-big { width:112px; height:63px }
+.stats-plays .stats-table th { white-space:normal; overflow-wrap:normal; word-break:normal; hyphens:auto }
+.stats-plays .stats-table td.stats-mode-cell { white-space:normal; min-width:6.5em }
+.stats-maps-table { table-layout:fixed }
+.stats-maps-table .stats-col-map { width:38% }
+.stats-maps-table .stats-col-n { width:11% }
+.stats-maps-table .stats-col-sides { width:40% }
+.stats-maps-table tr.stats-map-row td { border-top:2px solid var(--rule) }
+.stats-place-name { font-size:.95rem }
+.stats-maps-table tr.stats-mode-row td { background:color-mix(in srgb,var(--rule) 25%,transparent) }
+.stats-maps-table tr.stats-mode-row td:first-child { padding-left:18px }
+/* A free-for-all's versions (the Racket, the Saloon, the Roulette), under it on both boards. */
+.stats-table tr.stats-version-row td { background:color-mix(in srgb,var(--rule) 18%,transparent) }
+.stats-table tr.stats-version-row td.stats-mode-cell { padding-left:26px }
+.stats-maps-table tr.stats-weather td { background:color-mix(in srgb,var(--rule) 12%,transparent) }
+.stats-maps-table tr.stats-weather td:first-child { padding-left:34px }
+/* Their openers (`.stats-opener`, "Modes (n) ▾") are the site's (src/lib.rs STYLE), the wiki's folded tables' too. */
+/* A bar of shares on its track, soft (the owner, 2026-11-26: "blue and red lines are a bit too
+   strong"): a side's wins in its team's colour at 60%, the draws a neutral grey; a share of all the
+   matches. Its numbers are under it at full strength. */
+.stats-bar { display:flex; width:100%; min-width:64px; height:6px; background:color-mix(in srgb,var(--rule) 60%,transparent); overflow:hidden; border-radius:3px }
+.stats-bar-part { display:block; height:100%; background:var(--team, var(--accent)); opacity:.6 }
+.stats-bar-part.stats-draw { background:var(--ink-3); opacity:.45 }
+.stats-bar-part.stats-unknown { background:var(--ink-3); opacity:.2 }
+.stats-sides { display:flex; flex-direction:column; gap:4px }
+.stats-table td.stats-sides-cell { white-space:normal; min-width:120px }
+.stats-legend { display:flex; flex-wrap:wrap; gap:0 10px; font:.72rem var(--body); color:var(--ink-2) }
+.stats-legend-item b { color:var(--team, var(--ink-2)) }
+.stats-share { display:flex; flex-direction:column; align-items:flex-end; gap:3px; min-width:56px }
+.stats-table td.stats-share-cell { width:22% }
+/* A mode's trend: a column a step, as tall as its share of the busiest. */
+.stats-trend { display:flex; align-items:flex-end; gap:1px; height:26px; min-width:72px }
+.stats-trend-bar { flex:1; min-width:1px; height:1px; background:var(--rule) }
+.stats-trend-bar:not(.zero) { background:var(--accent) }
+.stats-table td.stats-trend-cell { width:34% }
+.stats-trend-note { margin:6px 0 0 }
+@media(max-width:700px) {
+ .stats-map.stats-map-big { width:80px; height:45px }
+ .stats-table td.stats-sides-cell { min-width:0 }
+ .stats-maps-table .stats-col-map { width:36% }
+ .stats-maps-table .stats-col-n { width:13% }
+ .stats-maps-table .stats-col-sides { width:38% }
+ .stats-plays .stats-table th,.stats-plays .stats-table td { padding:6px 4px }
+ /* A weather: its name, without its picture (its map's is over it). */
+ .stats-maps-table tr.stats-weather .stats-map { display:none }
+ /* A map: its picture over its name, so that the name has the column's width. */
+ .stats-maps-table tr.stats-map-row .stats-map-cell { flex-direction:column; align-items:flex-start; gap:4px }
+ .stats-maps-table .stats-place-name { overflow-wrap:normal; word-break:normal }
+ .stats-maps-table tr.stats-mode-row td:first-child { padding-left:8px }
+ .stats-maps-table tr.stats-weather td:first-child { padding-left:14px }
+ .stats-table tr.stats-version-row td.stats-mode-cell { padding-left:12px }
+}

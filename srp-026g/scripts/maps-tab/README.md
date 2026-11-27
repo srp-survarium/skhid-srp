@@ -4,13 +4,16 @@ The website's `/wiki/maps`, a section of the wiki (`srp-026g/servers/web-server/
 `docs/notes/maps_tab.md`). It shows every playable map, by mode, with these
 points, each kind toggled on its own:
 
-- respawn points, by team;
+- respawn points, by team (Free for All: its own spawns, one kind);
 - battery spawns (the battery mode) and chargers (the mode with chargers:
   its batteries come out of them, so it has no battery spawns to show);
 - the teams' battery containers;
 - Research's three units (mode 5), lettered A to C;
+- Artifact Hunt's artefact spawns and the teams' bases (mode 13);
 - the teams' ammo stashes (resupply zones);
-- artefact spawns, one toggle per artefact.
+- artefact spawns, one toggle per artefact;
+- the anomalies the artefacts come from: each one's zones, and a card (pointing at
+  the anomaly or one of its artefacts, or tapping it) with when and how it gives them.
 
 Player spawns are drawn as the HUD's player triangle, turned the way the
 player faces at spawn. The markers are the game's own HUD minimap icons,
@@ -45,7 +48,7 @@ release/build-site --tree . [--with <resources.db.patch_<n>>]
 or, without that file, this tab on its own:
 
 ```
-nix build --impure -o py --expr 'with import <nixpkgs>{}; python3.withPackages(p:[p.pillow])'
+nix build --impure -o py --expr 'with import <nixpkgs>{}; python3.withPackages(p:[p.pillow p.numpy])'
 nix shell nixpkgs#jdk21 -c py/bin/python3 -I srp-026g/scripts/maps-tab/build.py \
   --stock "$SKHID_STOCK_DB" --patches <folder with the list's patches> \
   --dbgrab tools/re-kit/common/dbgrab/target/release/dbgrab --ffdec <ffdec-cli.jar> \
@@ -61,7 +64,7 @@ It writes `srp-026g/servers/web-server/maps/`:
 - `built-from.tsv`.
 
 The patches in `built-from.tsv` are exactly the offered ones on main. The
-web-server test `the_maps_and_the_calculator_are_built_from_the_offered_patches`
+web-server test `the_site_pages_are_built_from_the_offered_patches`
 fails a PR otherwise. A PR that changes the page's code commits its rebuild
 (`release/build-site --tree .`, or the commands above). FFDec is 26.0.0: it makes the committed
 icons byte for byte.
@@ -70,13 +73,16 @@ What comes from where:
 
 | what | where in the game data |
 |---|---|
-| maps, modes, names | `maps_dict` ids whose `gameplay/game_modes/` config is mode 2 to 5 and whose project exists (the server's rule, `crates/survarium/src/v026g/maps.rs`); names from the localization |
+| maps, modes, names | `maps_dict` ids whose `gameplay/game_modes/` config is mode 2 to 5, 8 (Free for All), 12 (Freeze Tag) or 13 (Artifact Hunt) and whose project exists (the server's rule, `crates/survarium/src/v026g/maps.rs`); names from the localization. A map played in one mode alone (the STALKER ports, in Free for All) has that one mode |
 | respawn points, battery spawns, chargers, containers | the project's `server_objects`, shown only where the mode's `rules` read them (88 gather, 89 timed with chargers); a container where its collision zone is (its own position can be a pivot far off: level_04, level_06 and four more) |
+| Free for All's spawns | of its own project (`<weather>_8`, a copy of Team Deathmatch's), the team-2 respawn points alone: each player spawns there and nowhere else (exe patch 142, `docs/notes/ffa.md`). The two teams' points the copy keeps are not shown. The page draws a mode with no team's spawn as one kind: one colour, one swatch, no team in the tooltip |
 | Research units | the mode config's `parameters.capture_zones` (`cp_id`, `position`), shown where the mode's `rules` have Research's (480; `docs/notes/research_mode.md`) |
+| Artifact Hunt's artefact spawns and bases | the mode config's `artefact_hunt.spawners[].position` and `.bases[] {team, position}`, shown where the mode's `rules` have Artifact Hunt's (481; `docs/notes/artefact_hunt.md`); the artefact drawn as the HUD's minimap draws it lying (`ArtefactMinimapPoint`: an orb in its pale gold), a base as the HUD's `Base` by team |
 | ammo stashes | `client_objects`: each `resupply_zone`'s collision zone, by team |
-| marker icons | `hud.swf` `Minimap._icons` (`PlayerBlue`, `Base`, `SpawnIcon`, `ResupplyIcon`), as SVG (FFDec), with each one's lightness and opacity so the page paints them in one blue and one red; the battery (the game's electrobox) is drawn flat after the real one, as the game has no flat icon of it (only a 96x64 photo-like one and an 11x9 glyph) |
+| marker icons | `hud.swf` `Minimap._icons` (`PlayerBlue`, `Base`, `SpawnIcon`, `ResupplyIcon`), as SVG (FFDec), with each one's lightness and opacity so the page paints them in one blue and one red; the battery: the kill feed's battery icon without its burst (the game's electrobox mesh, `models/weapons/electrobox.skinned_model/render/electrobox_s/converted_model`, in three-quarter view), traced as a vector SVG by `scripts/kill-feed-icons/make_battery_icon.py` (the owner, 2026-11-15: "we can use the same icon on website (without strike)") |
 | spawn facing | the respawn point's rotation: yaw = y, or pi - y when x and z are pi; forward (-sin yaw, cos yaw) in x/z (on every map the points face the enemy's side) |
 | artefact spawns | `client_objects`: each `artefact_container`'s collision zone, its artefacts from the `generic_anomaly_core` that lists it; names from `st_<artefact>_pickup_hint` |
+| anomalies | `client_objects`: each `generic_anomaly_core` with `artefacts_enabled` and containers. Its card: `artefacts` (a kind and its count), `artefacts_first_spawn_time_sec` and `_respawn_time_sec` ± `_respawn_variation_sec` (never below 0), `artefacts_respawn_chance`, `max_artefacts_count`, its containers' `artefacts_search_time_sec` and `artefacts_cooldown_time_sec`, a sequential zone group's `min/max_active_time_sec`. Its area: the `damage_zone`s its states' groups name, each `collision_geometry`'s meshes seen from above (a sphere or upright cylinder a circle, else the hull of its corners), filled where `max_hit` is above 0, dashed where not |
 | minimap and its frame | `flash_movies/hud.swf`, `survarium.controls.Minimap` (`_minimapProps`, `_levels`) by the project's `project_name`, as the HUD picks it (exported with FFDec) |
 | top-down render | `srp-026g/scripts/damage-calc/assets/maps/` (its README) and the site copy in `servers/web-server/damage/maps/`: the one input not read from the game |
 
@@ -86,7 +92,8 @@ A map without a render stops the build. Render it first, add it to
 The build also stops in these cases, rather than guess:
 
 - the weathers of one map and mode hold different objects;
-- the modes of one map hold different artefact spawns.
+- the modes of one map hold different artefact spawns;
+- the configs of one map's Artifact Hunt hold different artefact spawns or bases.
 
 `--work <dir>` keeps the extracted files between runs while you work on the
 page. `--allow-missing-renders` is for the same purpose: a map without a

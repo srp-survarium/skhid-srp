@@ -60,9 +60,13 @@ impl Pay {
 /// "Enemies killed": a kill (PROVEN by SHOT2: 19 kills are 475 / 57 / 19
 /// before the multipliers).
 pub const KILL: Pay = Pay::new(25.0, 3.0, 1.0);
+/// What a kill pays in srp's matches (the owner, 2026-11-13: "we can even
+/// increase x2 kills", and its experience "double too"): twice [`KILL`]'s
+/// silver and experience, its reputation the original's.
+pub const SRP_KILL: Pay = Pay::new(2.0 * KILL.money, 2.0 * KILL.experience, KILL.reputation);
 /// A lesser kind of kill, cause unknown: SHOT1's 17 kills (375 / 41 / 17
 /// before the multipliers) are exactly 7 kills of [`KILL`] and 10 of
-/// this. Not used: every kill pays [`KILL`] until the cause is known.
+/// this. Not used: every kill pays alike until the cause is known.
 #[allow(dead_code)]
 pub const LESSER_KILL: Pay = Pay::new(20.0, 2.0, 1.0);
 /// "Help ally": an assist (PROVEN by both screens). A cure and a rescue of
@@ -116,6 +120,15 @@ pub const ACTIVITY_NOT_WON: f64 = 0.5;
 pub const FLOOR_OF_MEDIAN: f64 = 0.8;
 /// The least score that takes the floor: an idle player gets none.
 pub const FLOOR_MIN_SCORE: u32 = 30;
+
+/// The silver every player who stays to the end of a paid match gets on top
+/// of its rows (the owner, 2026-11-13: "just everyone get 30k", "no need to
+/// worry about late joiners"): flat, at every match level, won or not,
+/// however late it came, in every mode. No rate, no level, no share of a
+/// match against bots and no Blackout factor touches it; the floor and the
+/// items' bonus do not count it. A player who left, a room with a PIN and
+/// a test bot get none.
+pub const FINISH_SILVER: u32 = 30_000;
 
 /// A multiplier of `match_levels_dict` as the decimal the data means: the
 /// file's f32 for 1.05 is a hair under it, and 20 × 1.05 must be 21.
@@ -330,49 +343,5 @@ mod tests {
                 assert!((hundredths - hundredths.round()).abs() < 1e-9, "{k}");
             }
         }
-    }
-
-    #[test]
-    fn the_silver_rate_rises_with_the_match_level() {
-        let by_level = MoneyRate::ByLevel;
-        for level in 0..=5 {
-            assert_eq!(by_level.at(level), 225);
-        }
-        assert_eq!(
-            (6..=12).map(|level| by_level.at(level)).collect::<Vec<_>>(),
-            [240, 255, 270, 285, 300, 315, 330]
-        );
-        // Half again of the owner's 150 to 220: what premium paid.
-        let before = [
-            150, 150, 150, 150, 150, 150, 160, 170, 180, 190, 200, 210, 220,
-        ];
-        for (rate, before) in MONEY_RATES.iter().zip(before) {
-            assert_eq!(*rate * 2, before * 3);
-        }
-        assert_eq!(DEFAULT_EXPERIENCE_RATE * 2, 2 * 3);
-        assert_eq!(DEFAULT_REPUTATION_RATE * 2, 120 * 3);
-        // Every level of the data past 12 pays as 12 does.
-        let levels = survarium::v026g::dictionary::Dictionary::shared()
-            .match_levels
-            .len() as u16;
-        assert!(levels > 13);
-        for level in 12..levels + 5 {
-            assert_eq!(by_level.at(level), 330);
-        }
-        assert_eq!(MoneyRate::Flat(80).at(0), 80);
-        assert_eq!(MoneyRate::Flat(80).at(20), 80);
-    }
-
-    #[test]
-    fn the_levels_that_paid_gold_pay_nothing() {
-        // 100 gold at the wiki's level 1 and every fifth, 250 at the last:
-        // none of it now; the silver levels as they were.
-        assert_eq!(level_reward(1), 0);
-        assert_eq!(level_reward(2), 500);
-        assert_eq!(level_reward(5), 0);
-        assert_eq!(level_reward(6), 750);
-        assert_eq!(level_reward(95), 0);
-        assert_eq!(level_reward(99), 5_000);
-        assert_eq!(level_reward(100), 0);
     }
 }

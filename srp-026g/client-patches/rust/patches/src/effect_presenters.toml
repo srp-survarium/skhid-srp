@@ -14,3 +14,7 @@ handler = "on_sound_update"
 [[hook]]
 site = "effect_presenter.particle_stop"
 handler = "on_particle_stop"
+
+[[hook]]
+site = "effect_presenter.particle_read_entry"
+handler = "on_particle_read_entry"

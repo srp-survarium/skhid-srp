@@ -23,7 +23,7 @@ package
     // The Settings' gameplay tab with its "HUD:" group (exe patch 83,
     // docs/notes/hide-hit-markers-scores.md) in the rebuilt main menu: the
     // exe's answers (root.srp_check_option, root.srp_hud_texts), the tab's two
-    // columns (Friends and Language; HUD: the crosshair list, Hide hit markers,
+    // columns (Friends and Language; HUD: the crosshair list, the hit marker list,
     // Hide player scores, Hide quests, Static minimap, the minimap position
     // list), their edges, spacing and fit in every dictionary; Hide quests as
     // the stock quest progress inverted; the crosshair list's Dynamic and
@@ -35,9 +35,11 @@ package
     // pass" or "SETTINGS RESULT fail: ...". No game or server.
     public class SettingsHarness extends Sprite
     {
-        private static const NAMES:Array = ["srp_hide_hit_markers", "srp_hide_scores", "srp_map_names"];
+        private static const NAMES:Array = ["srp_hide_scores", "srp_map_names"];
         // Each name's label in a row of check.sh's texts.
-        private static const LABELS:Array = [0, 1, 13];
+        private static const LABELS:Array = [1, 13];
+        // The hit marker list's three choices in a row of check.sh's texts.
+        private static const HIT_CHOICES:Array = [0, 35, 36];
 
         private static const STOCK_LABELS:Array = ["Invitations from friends only", "Notify when friends are online",
             "Enable message censorship", "Accept private messages from friends only", "Hide chat in match", "Hide spam",
@@ -113,6 +115,33 @@ package
                     if (settings.btn_accept.enabled) trace("SETTINGS RESULT fail: Apply enabled before the screenshot");
                     trace("SETTINGS SHOT settings");
                 }
+                // the weapon view's window open (patch 219)
+                if (frames == 40)
+                {
+                    click(settings.settings_content.getChildByName("_srp_weapon_view"));
+                    trace("SETTINGS weapon view shot: " + settings.getChildByName("_srp_weapon_view_window").visible);
+                }
+                if (frames == 45) trace("SETTINGS SHOT weapon-view");
+                // the movie scaled 2 (MainMenu's UI scale; the window fitted to the screen: the preview about
+                // its size at 2560x1440), the red dot's view: the pictures drawn at the screen's pixels
+                if (frames == 50)
+                {
+                    var wv:* = settings.getChildByName("_srp_weapon_view_window");
+                    wv.close();
+                    root.scaleX = root.scaleY = 2;
+                    click(settings.settings_content.getChildByName("_srp_weapon_view"));
+                    wv.tabs[2].dispatchEvent(new (loader.contentLoaderInfo.applicationDomain.getDefinition("scaleform.clik.events.ButtonEvent") as Class)("buttonClick"));
+                    var pane:* = wv.preview.frame.getBounds(stage);
+                    trace("SETTINGS weapon view at 2: the preview " + Math.round(pane.width) + "x" + Math.round(pane.height) + " on the screen");
+                }
+                if (frames == 55) trace("SETTINGS SHOT weapon-view-2x");
+                if (frames == 76)
+                {
+                    settings.getChildByName("_srp_weapon_view_window").close();
+                    root.scaleX = root.scaleY = 1;
+                    click(settings.settings_content.getChildByName("_srp_weapon_view"));
+                }
+                if (frames == 78) settings.getChildByName("_srp_weapon_view_window").close();
                 if (frames == 80)
                 {
                     settings.settings_content.getChildByName("_srp_hide_scores").selected = true;
@@ -121,9 +150,15 @@ package
                 if (frames == 100) trace("SETTINGS SHOT checked");
                 if (frames == 110) settings.settings_content.getChildByName("_srp_crosshair").open();
                 if (frames == 130) trace("SETTINGS SHOT open");
-                if (frames == 200)
+                if (frames == 150)
                 {
                     settings.settings_content.getChildByName("_srp_crosshair").close();
+                    settings.settings_content.getChildByName("_srp_hit_markers").open();
+                }
+                if (frames == 160) trace("SETTINGS SHOT hits");
+                if (frames == 200)
+                {
+                    settings.settings_content.getChildByName("_srp_hit_markers").close();
                     settings.settings_content._setter_static_minimap_position.open();
                 }
                 if (frames == 230) trace("SETTINGS SHOT minimap");
@@ -271,6 +306,350 @@ package
 
         // A visible control's or text's top and bottom in the tab content: a checkbox's box and drawn
         // label (its label's field runs on below), a text's drawn lines, a list's or slider's own height.
+        // Patch 219's weapon view (SrpWeaponView): hidden until the exe's answers; then the tab's standard button
+        // (SetingsButton, the Optimal button's width) under the field of view, in the right column, above the
+        // window's bottom; its window in the Settings window's skin (SrpKeysWindow's: SrpSettingsGround's frame, the
+        // title in the Settings' title look, the close button) at the screen's centre, every control inside its
+        // frame, none over the next, the stock slider and checkbox in the tab's look (the World FOV slider's label
+        // format, the HUD checkboxes' size); every dictionary's labels and the distance's note inside it; the
+        // distance (-20 to 50) and its value in cm with a sign; a move pending until Apply (the exe's calls: the value in its steps), Cancel
+        // putting the saved value back and closing it; the checkbox greying the three angles; the close button and
+        // Esc closing it; the same at the movie scaled 1.5 (the UI scale above 1080p, MainMenu.onStageResize).
+        private function checkWeaponView(root:*, settings:*, content:MovieClip, texts:Array):void
+        {
+            var button:* = content.getChildByName("_srp_weapon_view");
+            var window:* = settings.getChildByName("_srp_weapon_view_window");
+            require(button != null && window != null && !button.visible && !window.visible,
+                "weapon view: hidden until the exe answers");
+            var names:Array = ["srp_weapon_fov", "srp_weapon_fov_aimed", "srp_weapon_fov_scope", "srp_sight_distance"];
+            var labels:Array = [38, 39, 40, 42];
+            var answers:Array = [["65", "40", "100", "1"], ["325", "200", "650", "10"], ["3250", "1625", "3250", "100"],
+                ["0", "-20", "50", "1"]];
+            var answer:Function = function(t:Array):void {
+                root.srp_weapon_view_texts(t[37], t[43], t[44], t[48], t[45], t[46], t[47], "Default settings", "Close");
+                root.srp_check_option("srp_weapon_fov_world", t[41], "0");
+                for (var n:int = 0; n < 4; ++n)
+                {
+                    root.srp_slider_option(names[n], t[labels[n]], answers[n][0], answers[n][1], answers[n][2], answers[n][3]);
+                }
+            };
+            answer(texts[0]);
+            var stockButton:* = new (loader.contentLoaderInfo.applicationDomain.getDefinition("SetingsButton") as Class)();
+            require(button.visible && button.label == texts[0][37] && !window.visible && !settings.btn_accept.enabled
+                && getQualifiedClassName(button) == getQualifiedClassName(stockButton) && near(button.width, 127),
+                "weapon view: the tab's standard button labelled " + button.label + " (" + getQualifiedClassName(button)
+                + ", " + button.width + " wide), closed, nothing pending");
+            var fov:* = content.getChildByName("_srp_fov");
+            var bottom:Number = content.bottomContainer.getBounds(content).bottom;
+            var at:Rectangle = button.getBounds(content);
+            require(at.top >= fov.getBounds(content).bottom - 1 && at.bottom <= bottom,
+                "weapon view: the button under the field of view, above the window's bottom (" + at + ", " + bottom + ")");
+            click(button);
+            require(window.visible, "weapon view: the button opens its window");
+            var sliders:Array = names.map(function(name:String, ...rest):* { return window.sliders[name]; });
+            var box:* = window.box;
+            var values:Array = [65, 32.5, 32.5, 0];
+            for (var i:int = 0; i < 4; ++i)
+            {
+                require(sliders[i].visible && close(sliders[i].selectedIndex, values[i]),
+                    names[i] + ": shown at " + values[i] + " (" + sliders[i].selectedIndex + ")");
+            }
+            require(sliders[3].textFieldValue.text == "0 cm" && close(sliders[3].slider.minimum, -20)
+                && close(sliders[3].slider.maximum, 50), "the sight distance -20 to 50, its value in cm: "
+                + sliders[3].textFieldValue.text);
+            require(close(sliders[2].slider.minimum, 16.25) && close(sliders[2].slider.maximum, 32.5)
+                && close(sliders[1].slider.snapInterval, 0.5), "the scope slider 16.25 to 32.5, the sights' snap 0.5");
+            // the tab's look: the World FOV slider's label format, the HUD checkboxes' size, the Settings' title
+            var heading:Object = fov.textField.getTextFormat();
+            for each (var slider:* in sliders)
+            {
+                var format:Object = slider.textField.getTextFormat();
+                require(format.font == heading.font && format.size == heading.size && format.color == heading.color
+                    && slider.textField.filters.length == fov.textField.filters.length && slider.scaleX == 1,
+                    slider.name + ": its label in World FOV's look");
+            }
+            var hud:* = content.getChildByName("_srp_hide_scores");
+            require(Math.abs(box.width - hud.width) < 1 && Math.abs(box.height - hud.height) < 1,
+                "the checkbox the HUD group's size (" + box.width + "x" + box.height + ", " + hud.width + "x" + hud.height + ")");
+            var title:TextField = window.getChildByName("_srp_weapon_view_window_panel").getChildByName("_srp_weapon_view_window_title");
+            var stockTitle:Object = settings.textFieldLabel.getTextFormat();
+            require(title.text == texts[0][37] && title.getTextFormat().font == stockTitle.font, "the window's title in the Settings' title font: " + title.text);
+            var inside:Function = function(when:String):void {
+                var panel:* = window.getChildByName("_srp_weapon_view_window_panel");
+                var area:Rectangle = window.frame.getBounds(stage);
+                require(area.left >= 0 && area.top >= 0 && area.right <= stage.stageWidth && area.bottom <= stage.stageHeight,
+                    when + ": the window on the screen (" + area + ")");
+                // two columns: the preview's (its tabs, the picture) left of the controls'
+                var columns:Array = [[window.tabs[0], window.preview.frame],
+                    [sliders[0], sliders[1], sliders[2], box, sliders[3], window.note, window.resetButton, window.applyButton]];
+                var inner:Rectangle = new Rectangle(area.left + 6, area.top + 39 * panel.scaleY, area.width - 12,
+                    area.height - (39 + 6) * panel.scaleY);
+                for each (var rows:Array in columns)
+                {
+                    for (var k:int = 0; k < rows.length; ++k)
+                    {
+                        var r:Rectangle = rows[k].getBounds(stage);
+                        require(r.left >= inner.left && r.right <= inner.right + 1 && r.top >= inner.top - 1 && r.bottom <= inner.bottom + 1,
+                            when + ": " + rows[k].name + " inside the frame (" + r + " in " + inner + ")");
+                        if (k > 0)
+                        {
+                            require(rows[k - 1].getBounds(stage).bottom <= r.top + 1, when + ": " + rows[k - 1].name + " over " + rows[k].name);
+                        }
+                    }
+                }
+                var right:Number = Math.max(window.tabs[3].getBounds(stage).right, window.preview.frame.getBounds(stage).right);
+                // Close beside Apply, on its row, inside the frame
+                var apply:Rectangle = window.applyButton.getBounds(stage), shut:Rectangle = window.closeButton2.getBounds(stage);
+                require(shut.left >= apply.right - 1 && Math.abs(shut.top - apply.top) <= 2 && shut.right <= inner.right + 1
+                    && shut.bottom <= inner.bottom + 1, when + ": Close beside Apply, inside the frame (" + shut + ", " + apply + ")");
+                for each (var control:* in columns[1])
+                {
+                    require(right <= control.getBounds(stage).left + 1, when + ": the preview's column left of " + control.name);
+                }
+                require(window.preview.frame.width >= 799, when + ": the preview 800 wide (" + window.preview.frame.width + ")");
+                // the first label's text at the picture's top; the tabs centred over the picture
+                var picture:Rectangle = window.preview.frame.getBounds(stage);
+                // (a text field's text starts 2 px under its top)
+                var labelTop:Number = sliders[0].textField.getBounds(stage).top + 2 * panel.scaleY;
+                require(Math.abs(labelTop - picture.top) <= 2 * panel.scaleY, when + ": the first label at the picture's top ("
+                    + labelTop + ", " + picture.top + ")");
+                var tabsSpan:Rectangle = window.tabs[0].getBounds(stage).union(window.tabs[3].getBounds(stage));
+                require(Math.abs((tabsSpan.left + tabsSpan.right) / 2 - (picture.left + picture.right) / 2) <= 2,
+                    when + ": the tabs centred over the picture (" + tabsSpan + ", " + picture + ")");
+            };
+            inside("at 1280x720");
+            checkPreview(window, sliders, box, texts);
+            // every dictionary's labels and note inside the window
+            for each (var row:Array in texts)
+            {
+                answer(row);
+                click(button);
+                click(button);
+                var room:Number = window.note.x + window.note.width;
+                for (i = 0; i < 4; ++i)
+                {
+                    var end:Number = sliders[i].x + sliders[i].textField.x + sliders[i].textField.textWidth;
+                    require(end < room, row[labels[i]] + " inside the window (" + end + " of " + room + ")");
+                }
+                box.validateNow();
+                var boxEnd:Number = box.x + box.textField.x + box.textField.textWidth;
+                require(boxEnd < room, row[41] + " inside the window (" + boxEnd + " of " + room + ")");
+                require(window.note.numLines <= 2 && window.note.text == row[43], row[43] + ": the note in two lines at most");
+                // every value a slider shows, in this dictionary's unit, inside its field with the margin the
+                // game's Scaleform needs (it measured "-16 cm" wider than Ruffle: "-16 cr"), the field inside the
+                // window's frame
+                var frameRight:Number = window.getChildByName("_srp_weapon_view_window_panel").width - 6 - 4;
+                for (i = 0; i < 4; ++i)
+                {
+                    var field:TextField = sliders[i].textFieldValue;
+                    var kept:String = field.text;
+                    for each (var sample:String in window.samples(names[i]))
+                    {
+                        field.text = sample;
+                        require(field.textWidth + 10 <= field.width + 0.01 && !field.wordWrap && field.numLines == 1,
+                            names[i] + ": " + sample + " in its field with 10 px to spare (" + field.textWidth + " of "
+                            + field.width + ")");
+                    }
+                    field.text = kept;
+                    var fieldRight:Number = sliders[i].x + field.x + field.width;
+                    require(fieldRight <= frameRight, names[i] + ": its value field inside the frame (" + fieldRight + " of "
+                        + frameRight + ")");
+                }
+                require(window.withUnit(-16) == row[44].split("%1$s").join("-16"), "-16 in the dictionary's unit: "
+                    + window.withUnit(-16));
+                require(button.textField.textWidth + 4 < button.textField.width * button.scaleX || button.width > 127,
+                    row[37] + " fits the button");
+            }
+            answer(texts[0]);
+            inside("every dictionary shown, back in the first");
+            window.close();
+            // a move pending until Apply, Cancel putting it back and closing it
+            var calls:Array = [];
+            var exe:Class = loader.contentLoaderInfo.applicationDomain.getDefinition("SrpExe") as Class;
+            exe.standIn = function(name:String, value:String):void { calls.push(name + "=" + value); };
+            click(button);
+            sliders[1].slider.value = 52;
+            require(settings.btn_accept.enabled, "the sights' angle moved to 52: a change");
+            click(settings.btn_cancel);
+            require(close(sliders[1].selectedIndex, 32.5) && !settings.btn_accept.enabled && !window.visible,
+                "Cancel: 32.5 back, closed");
+            click(button);
+            sliders[1].slider.value = 52;
+            sliders[3].slider.value = -5;
+            require(sliders[3].textFieldValue.text == "-5 cm", "the sight distance's value in cm: " + sliders[3].textFieldValue.text);
+            sliders[3].slider.value = 25;
+            require(sliders[3].textFieldValue.text == "+25 cm", "the sight distance's value in cm, a sign: "
+                + sliders[3].textFieldValue.text);
+            require(settings.closePanel() && !window.visible && settings.btn_accept.enabled,
+                "Esc closes the window, its changes still pending");
+            click(settings.btn_accept);
+            require(calls.indexOf("srp_weapon_fov_aimed=520") >= 0 && calls.indexOf("srp_sight_distance=25") >= 0
+                && !settings.btn_accept.enabled && !window.visible,
+                "Apply: the exe given 520 tenths and 25 cm (" + calls + ")");
+            exe.standIn = null;
+            root.srp_slider_option(names[1], texts[0][39], "520", "200", "650", "10");
+            root.srp_slider_option(names[3], texts[0][42], "25", "-20", "50", "1");
+            require(close(sliders[1].selectedIndex, 52) && close(sliders[3].selectedIndex, 25) && !settings.btn_accept.enabled,
+                "the exe's answers keep 52 and 25, nothing pending");
+            // Default: revision 74's values (65, 32.5, 32.5, off, 0 cm), pending until Apply, the preview at once
+            click(button);
+            box.selected = true;
+            sliders[2].slider.value = 20;
+            calls.length = 0;
+            exe.standIn = function(name:String, value:String):void { calls.push(name + "=" + value); };
+            click(window.resetButton);
+            var held:* = window.preview.drawn[1];
+            require(!box.selected && close(sliders[0].selectedIndex, 65) && close(sliders[1].selectedIndex, 32.5)
+                && close(sliders[2].selectedIndex, 32.5) && close(sliders[3].selectedIndex, 0) && sliders[1].alpha == 1
+                && settings.btn_accept.enabled && calls.length == 0 && window.visible,
+                "Default: 65, 32.5, 32.5, off, 0 cm, pending, nothing sent yet (" + calls + ")");
+            require(window.preview.shown == 1 && close(held.held, 32.5) && held.alpha == 1 && window.preview.drawn.length == 2,
+                "Default: the preview at once, the iron sights at 32.5 and 0 cm (" + held.held + ")");
+            // the window's Apply (the Settings' Apply button's symbol and label): its own values saved, the window
+            // open, another tab's pending change left pending (a HUD checkbox), then nothing pending here
+            var Accept:Class = Object(settings.btn_accept).constructor as Class;
+            var hide:* = content.getChildByName("_srp_hide_scores");
+            hide.selected = !hide.selected;
+            require(window.applyButton is Accept && window.applyButton.label == settings.btn_accept.label && window.applyButton.enabled,
+                "the window's Apply the Settings' (" + window.applyButton.label + "), enabled");
+            click(window.applyButton);
+            // the values that differ from the saved ones (52, 25; the checkbox and the scopes' were saved at theirs)
+            require(calls.length == 2 && calls.indexOf("srp_weapon_fov_aimed=325") >= 0 && calls.indexOf("srp_sight_distance=0") >= 0
+                && window.visible && !window.applyButton.enabled && settings.btn_accept.enabled,
+                "the window's Apply: the exe given 325 tenths and 0 cm only, the window open, the HUD change still pending (" + calls + ")");
+            hide.selected = !hide.selected;
+            require(!settings.btn_accept.enabled, "the HUD change taken back: nothing pending");
+            window.close();
+            exe.standIn = null;
+            root.srp_slider_option(names[1], texts[0][39], "325", "200", "650", "10");
+            root.srp_slider_option(names[3], texts[0][42], "0", "-20", "50", "1");
+            click(button);
+            box.selected = true;
+            require(sliders[0].alpha < 1 && sliders[1].alpha < 1 && sliders[2].alpha < 1 && sliders[3].alpha == 1
+                && settings.btn_accept.enabled, "the checkbox ticked: the three angles greyed, the distance not, a change");
+            click(settings.btn_cancel);
+            require(!box.selected && sliders[0].alpha == 1 && !settings.btn_accept.enabled, "Cancel: unticked, the angles back");
+            root.srp_slider_option(names[1], texts[0][39], "325", "200", "650", "10");
+            root.srp_slider_option(names[3], texts[0][42], "-3", "-20", "50", "1");
+            require(close(sliders[3].selectedIndex, -3) && sliders[3].textFieldValue.text == "-3 cm", "a saved -3 cm shown");
+            root.srp_slider_option(names[3], texts[0][42], "0", "-20", "50", "1");
+            root.srp_slider_option(names[2], texts[0][40], "3300", "1625", "3250", "100");
+            require(close(sliders[2].selectedIndex, 32.5), "an answer out of its range is ignored");
+            click(button);
+            click(window.getChildByName("_srp_weapon_view_window_panel").getChildByName("_srp_weapon_view_window_close"));
+            require(!window.visible, "the close button closes it");
+            // the UI scale (MainMenu scales the whole movie above 1080p): the window on the screen, its rows in place
+            var was:Number = root.scaleX;
+            root.scaleX = root.scaleY = 1.5;
+            click(button);
+            inside("scaled 1.5");
+            window.close();
+            root.scaleX = root.scaleY = was;
+            trace("SETTINGS weapon view pass: the button at " + button.x + "," + button.y + ", " + button.width + " wide");
+        }
+
+        // The preview (SrpWeaponPreview): its tabs the Settings window's, the one shown selected and drawn so, the
+        // slider being moved picking its view; the gun's layer filling the pane at 32.5 degrees and
+        // tan(16.25) / tan(a / 2) of it at a, the world at the World FOV's angle for the sight; the checkbox
+        // the gun at the world's angle; the distance two renders crossfaded; every dictionary's tab names
+        // inside their buttons with the game's margin.
+        private function checkPreview(window:*, sliders:Array, box:*, texts:Array):void
+        {
+            var preview:* = window.preview;
+            var Preview:* = loader.contentLoaderInfo.applicationDomain.getDefinition("SrpWeaponPreview");
+            // the gun's layers the last draw drew (the world is the first), each {scale, alpha}
+            var layer:Function = function():Array {
+                return preview.drawn.slice(1);
+            };
+            var press:Function = function(tab:*):void {
+                tab.dispatchEvent(new (loader.contentLoaderInfo.applicationDomain.getDefinition("scaleform.clik.events.ButtonEvent") as Class)("buttonClick"));
+            };
+            // the tabs: Hip, Iron sights, Red dot, Scope
+            sliders[2].slider.value = 20;
+            require(preview.shown == Preview.SCOPE && window.tabs[3].selected && !window.tabs[1].selected,
+                "the scope slider moved: the scope view, its tab selected");
+            var TabClass:Class = loader.contentLoaderInfo.applicationDomain.getDefinition("InventoryTabButton") as Class;
+            require(window.tabs[3] is TabClass && window.tabs[3].currentLabel != window.tabs[1].currentLabel,
+                "the tabs the Settings window's (InventoryTabButton), the selected one drawn in its own state ("
+                + window.tabs[3].currentLabel + ", " + window.tabs[1].currentLabel + ")");
+            var shown:Array = layer();
+            require(shown.length == 1 && shown[0].made == Preview.TIERS[3][1] && Math.abs(shown[0].scale - Preview.scaleOf(Preview.TIERS[3][1], 20)) < 1e-3,
+                "the scope at 20 degrees: its narrower layer (" + shown[0].made + ") scaled to it (" + (shown.length ? shown[0].scale : -1) + ")");
+            require(preview.drawn[0].made == 20 && Math.abs(preview.drawn[0].scale - Preview.scaleOf(20, Preview.worldAngle(65, 0.25))) < 1e-3,
+                "the scope's world at the 1P69's 16.25 degrees");
+            // the hip slider: the hip's view, its layer the narrowest tier at or over the angle; its world the
+            // 100 degree capture past 60 (World FOV 65 at the hip), the 60 one up to it (the iron sights' 59.1)
+            sliders[0].slider.value = 90;
+            shown = layer();
+            require(preview.shown == Preview.HIP && window.tabs[0].selected && shown.length == 1 && shown[0].made == Preview.TIERS[0][0]
+                && Math.abs(shown[0].scale - Preview.scaleOf(Preview.TIERS[0][0], 90)) < 1e-3 && preview.drawn[0].made == 100
+                && Preview.tierOf(0, 100) == 0 && Preview.tierOf(0, 40) == 2,
+                "the hip slider moved to 90: the hip's view, its " + Preview.TIERS[0][0] + " layer (" + (shown.length ? shown[0].made : -1) + "), the 100 degree world at World FOV 65 (" + preview.drawn[0].made + ")");
+            sliders[0].slider.value = 65;
+            sliders[1].slider.value = 52;
+            require(preview.shown == Preview.IRON && window.tabs[1].selected, "the sights' slider moved: the iron sights' view");
+            shown = layer();
+            // the narrowest tier at or over the angle, scaled to it: 52 is the iron sights' third tier
+            require(shown.length == 1 && shown[0].made == Preview.TIERS[1][2] && shown[0].made >= 52 && preview.drawn[0].made == 60
+                && Math.abs(shown[0].scale - Preview.scaleOf(shown[0].made, 52)) < 1e-3
+                && Preview.tierOf(1, 94.8) == 0 && Preview.tierOf(1, 74) == 1 && Preview.tierOf(1, 20) == 4 && Preview.tierOf(2, 65) == 0
+                && Preview.tierOf(3, 16.25) == 1,
+                "the iron sights at 52 degrees: the layer (" + (shown.length ? shown[0].made + ", " + shown[0].scale : -1) + ")");
+            sliders[3].slider.value = 10;
+            shown = layer();
+            require(shown.length == 2 && Math.abs(shown[1].alpha - 0.4) < 0.02, "10 cm: the 0 and +25 cm renders crossfaded ("
+                + shown.length + ")");
+            box.selected = true;
+            window.refresh();
+            shown = layer();
+            var world:Number = Preview.worldAngle(65, 0.909);
+            require(shown[0].made == Preview.TIERS[1][Preview.tierOf(1, world)] && Math.abs(shown[0].scale - Preview.scaleOf(shown[0].made, world)) < 1e-3, "the checkbox: the gun at the world's "
+                + world + " degrees");
+            box.selected = false;
+            press(window.tabs[2]);
+            require(preview.shown == Preview.RED_DOT && window.tabs[2].selected, "the red dot's tab: its view");
+            press(window.tabs[0]);
+            require(preview.shown == Preview.HIP && window.tabs[0].selected, "the hip's tab: its view");
+            sliders[1].slider.value = 32.5;
+            sliders[2].slider.value = 32.5;
+            sliders[3].slider.value = 0;
+            var tabKeys:Array = [48, 45, 46, 47];
+            for each (var row:Array in texts)
+            {
+                for (var t:int = 0; t < 4; ++t)
+                {
+                    var tab:* = window.tabs[t];
+                    tab.label = row[tabKeys[t]];
+                    tab.validateNow();
+                    require(tab.textField.textWidth + 10 <= tab.textField.width * tab.scaleX + 0.01, row[tabKeys[t]]
+                        + " in its tab with 10 px to spare (" + tab.textField.textWidth + " of " + tab.textField.width * tab.scaleX + ")");
+                }
+            }
+            // "Default settings" and "Close": the game's own texts (st_options_default_controls, st_close) of
+            // every dictionary, in their buttons with 10 px to spare, inside the frame
+            var stock:Array = [["Default settings", "Close"], ["Базові налаштунки", "Закрити"], ["Базовые настройки", "Закрыть"],
+                ["Basis Einstellungen", "Schließen"], ["Ustawienia domyślne", "Zamknij"], ["Podrazumevana podešavanja", "Zatvori"],
+                ["Zadane postavke", "Zatvori"], ["Výchozí nastavení", "Zavřít"], ["Alapbeállítások", "Bezárás"],
+                ["Oletusasetukset", "Sulje"], ["Базавыя налады", "Закрыць"], ["Configurações padrões", "Fechar"]];
+            var first:Array = texts[0];
+            for each (var pair:Array in stock)
+            {
+                window.answerTexts([first[37], first[43], first[44], first[48], first[45], first[46], first[47], pair[0], pair[1]]);
+                window.close();
+                click(window.button);
+                var frameBox:Rectangle = window.frame.getBounds(stage);
+                for each (var b:* in [window.resetButton, window.applyButton, window.closeButton2])
+                {
+                    var r:Rectangle = b.getBounds(stage);
+                    require(b.textField.textWidth + 10 <= b.textField.width * b.scaleX + 0.01 && r.right <= frameBox.right - 6,
+                        b.label + " in its button with 10 px to spare, inside the window (" + b.textField.textWidth + " of "
+                        + b.textField.width * b.scaleX + ", " + r.right + " of " + frameBox.right + ")");
+                }
+            }
+            window.answerTexts([first[37], first[43], first[44], first[48], first[45], first[46], first[47], "Default settings", "Close"]);
+            trace("SETTINGS weapon view preview pass");
+        }
+
         private function span(item:*):Array
         {
             if (item is TextField)
@@ -309,7 +688,7 @@ package
         }
 
         // The gameplay tab's two columns: on the left "Friends:", then Language (its note under the list
-        // while it shows); on the right "HUD:": the crosshair list, Hide hit markers, Hide player scores,
+        // while it shows); on the right "HUD:": the crosshair list, the hit marker list, Hide player scores,
         // Hide quests (the stock quest progress checkbox), Static minimap (the stock fixed minimap
         // checkbox), the minimap position list. Not shown: the stock "Crosshair:" and "Quest progress:"
         // headings, the static crosshair checkbox, the quest progress transparency slider. Each heading
@@ -322,6 +701,7 @@ package
             var heading:TextField = content.getChildByName("_srp_check_group") as TextField;
             var menu:* = content.getChildByName("_srp_language");
             var cross:* = content.getChildByName("_srp_crosshair");
+            var hits:* = content.getChildByName("_srp_hit_markers");
             var language:TextField = null, note:TextField = null;
             for (var i:int = 0; i < content.numChildren; ++i)
             {
@@ -335,8 +715,11 @@ package
                 c._hide_spam, language, menu];
             if (note.visible) left.push(note);
             // Names on map (the last box) with the map's rows, over Static minimap
-            var right:Array = [heading, cross, boxes[0], boxes[1], c._setter_static_show_quests, boxes[2], c._setter_static_minimap,
+            var right:Array = [heading, cross, hits, boxes[0], c._setter_static_show_quests, boxes[1], c._setter_static_minimap,
                 c._setter_static_minimap_position, fov];
+            // the weapon view's button under the field of view, once the exe has answered (patch 219)
+            var weaponButton:* = content.getChildByName("_srp_weapon_view");
+            if (weaponButton != null && weaponButton.visible) right.push(weaponButton);
             var bottom:Number = c.bottomContainer.getBounds(content).bottom;
             for each (var column:Array in [left, right])
             {
@@ -362,7 +745,8 @@ package
             {
                 require(near(control.x, stock.rightControl), when + ": " + control.name + " at the right controls' x");
             }
-            require(near(cross.x, stock.rightControl + stock.dropdownX) && near(c._setter_static_minimap_position.x, stock.rightControl + stock.dropdownX),
+            require(near(cross.x, stock.rightControl + stock.dropdownX) && near(hits.x, stock.rightControl + stock.dropdownX)
+                && near(c._setter_static_minimap_position.x, stock.rightControl + stock.dropdownX),
                 when + ": the right column's lists one further");
             // spacing: as the tab's own
             require(near(language.y - c._hide_spam.y, stock.gap) && near(menu.y - language.y, stock.leftFirst),
@@ -382,7 +766,7 @@ package
                 + Number(theirs.color).toString(16) + ", size " + mine.size + " / " + theirs.size + ", font " + mine.font + " / "
                 + theirs.font + ", filters " + fov.textField.filters.length + " / " + language.filters.length + ")");
             require(near(cross.y - heading.y, stock.rightFirst), when + ": the crosshair list under the heading as Crosshair's first control was");
-            var steps:Array = [cross, boxes[0], boxes[1], c._setter_static_show_quests, boxes[2], c._setter_static_minimap];
+            var steps:Array = [cross, hits, boxes[0], c._setter_static_show_quests, boxes[1], c._setter_static_minimap];
             for (i = 1; i < steps.length; ++i)
             {
                 require(near(steps[i].y - steps[i - 1].y, stock.step), when + ": the HUD rows a step apart (" + steps[i].name + ")");
@@ -436,7 +820,7 @@ package
             trace("SETTINGS layout " + when + ": left Friends " + c.s_friends.y + ", Language " + language.y + " (list " + menu.y
                 + (note.visible ? ", note " + note.y : "") + ", to " + span(left[left.length - 1])[1]
                 + "); right HUD " + heading.y
-                + " (crosshair " + cross.y + ", " + boxes.map(function(b:*, ...rest):Number { return b.y; }).join(", ") + ", quests " + c._setter_static_show_quests.y
+                + " (crosshair " + cross.y + ", hit markers " + hits.y + ", " + boxes.map(function(b:*, ...rest):Number { return b.y; }).join(", ") + ", quests " + c._setter_static_show_quests.y
                 + ", minimap " + c._setter_static_minimap.y + ", position " + c._setter_static_minimap_position.y
                 + ", field of view " + (fov.y + fov.textField.y) + ", to "
                 + span(right[right.length - 1])[1] + "); bottom " + bottom);
@@ -1169,7 +1553,7 @@ package
 
         private function check():void
         {
-            // [[hit markers' label, scores' label, the group's heading, "Language:", its restart note, "Hide quests",
+            // [[the hit marker list's first choice, scores' label, the group's heading, "Language:", its restart note, "Hide quests",
             //   the crosshair list's three choices, "Static minimap", the minimap position list's three
             //   (st_minimap_off, _bottom, _top)], ...] for every dictionary
             texts = JSON.parse(loaderInfo.parameters.texts) as Array;
@@ -1225,6 +1609,18 @@ package
             }
             var cross:* = content.getChildByName("_srp_crosshair");
             require(cross != null && !cross.visible, "the crosshair list waits for the exe's answers");
+            var hits:* = content.getChildByName("_srp_hit_markers");
+            require(hits != null && !hits.visible, "the hit marker list waits for the exe's answer");
+            var hitAnswer:Function = function(saved:String):void {
+                root.srp_check_option("srp_hide_hit_markers", "", saved, saved, texts[0][HIT_CHOICES[0]],
+                    texts[0][HIT_CHOICES[1]], texts[0][HIT_CHOICES[2]]);
+            };
+            root.srp_check_option("srp_hide_hit_markers", "", "3", "3", "a", "b", "c");
+            require(!hits.visible, "the hit marker list ignores an index past its choices");
+            hitAnswer("0");
+            require(hits.visible && hits.alpha == 1 && hits.dataProvider.length == 3 && hits.selectedIndex == 0
+                && hits.dataProvider[0] == texts[0][0] && hits.dataProvider[1] == texts[0][35] && hits.dataProvider[2] == texts[0][36]
+                && !settings.btn_accept.enabled, "the hit marker list: the exe's three choices, the saved one (All) shown");
             for (i = 0; i < NAMES.length; ++i)
             {
                 root.srp_check_option(NAMES[i], texts[0][LABELS[i]], "0");
@@ -1269,6 +1665,7 @@ package
             require(fovSlider.selectedIndex == 65 && !settings.btn_accept.enabled, "the field of view: an answer with no range is "
                 + "ignored");
             trace("SETTINGS field of view: Gameplay, the stock slider at " + fovSlider.x + "," + fovSlider.y + ", Apply and Cancel");
+            checkWeaponView(root, settings, content, texts);
             // the restart note shown (a saved language not the running one)
             root.srp_language(texts[0][3], "Applies after restart.", "ukrainian", "english", "english", "English",
                 "ukrainian", "Українська");
@@ -1296,6 +1693,20 @@ package
                         + cross.textField.textWidth + " of " + cross.textField.width * cross.scaleX + ")");
                 }
             }
+            // every dictionary's hit marker choices inside their list
+            for each (row in texts)
+            {
+                hits.dataProvider = new (domain.getDefinition("scaleform.clik.data.DataProvider") as Class)(
+                    HIT_CHOICES.map(function(n:int, ...rest):String { return row[n]; }));
+                for (i = 0; i < 3; ++i)
+                {
+                    hits.selectedIndex = i;
+                    hits.validateNow();
+                    require(hits.textField.textWidth + 4 < hits.textField.width * hits.scaleX, row[HIT_CHOICES[i]]
+                        + " fits the hit marker list (" + hits.textField.textWidth + " of " + hits.textField.width * hits.scaleX + ")");
+                }
+            }
+            hitAnswer("0");
             // every dictionary's minimap position choices inside their list
             var position:* = c._setter_static_minimap_position;
             var positions:Object = position.dataProvider;
@@ -1407,6 +1818,29 @@ package
             require(!cross.selected, "a press outside closes the crosshair list");
             trace("SETTINGS crosshair list: Dynamic/Static the stock checkbox, Hidden patch 83's, Apply and Cancel, closes outside");
 
+            // the hit marker list: a pick pending until Apply, Cancel puts the saved one back
+            pick(hits, 1);
+            require(hits.selectedIndex == 1 && settings.btn_accept.enabled, "Kill marker only picked: Apply enabled");
+            pick(hits, 0);
+            require(!settings.btn_accept.enabled, "All picked back: nothing pending");
+            pick(hits, 2);
+            click(settings.btn_cancel);
+            require(hits.selectedIndex == 0 && !settings.btn_accept.enabled, "Cancel: All back");
+            pick(hits, 1);
+            click(settings.btn_accept);
+            require(hits.selectedIndex == 1 && !settings.btn_accept.enabled, "Apply saves Kill marker only");
+            hitAnswer("1");
+            require(hits.selectedIndex == 1 && !settings.btn_accept.enabled && crosshair(content).join() == "1,true",
+                "the exe's answer keeps it, the crosshair list unchanged");
+            pick(hits, 2);
+            require(settings.btn_accept.enabled, "from Kill marker only, Hidden: pending");
+            click(settings.btn_accept);
+            hitAnswer("2");
+            require(hits.selectedIndex == 2 && !settings.btn_accept.enabled, "Apply: Hidden");
+            hitAnswer("0");
+            require(hits.selectedIndex == 0 && !settings.btn_accept.enabled, "the exe's All shown");
+            trace("SETTINGS hit marker list: three choices, each pending until Apply, Cancel");
+
             for (i = 0; i < boxes.length; ++i)
             {
                 box = boxes[i];
@@ -1435,11 +1869,13 @@ package
             content.gotoAndStop(2);
             root.set_settings(0, settingsList);
             root.set_values(0, values);
-            require(!boxes.some(function(b:*, ...rest):Boolean { return b.visible; }) && !cross.visible, "not on another tab");
+            require(!boxes.some(function(b:*, ...rest):Boolean { return b.visible; }) && !cross.visible && !hits.visible,
+                "not on another tab");
             content.gotoAndStop(1);
             root.set_settings(0, settingsList);
             root.set_values(0, values);
-            require(boxes.every(function(b:*, ...rest):Boolean { return b.visible; }) && cross.visible, "back on the gameplay tab");
+            require(boxes.every(function(b:*, ...rest):Boolean { return b.visible; }) && cross.visible && hits.visible
+                && hits.selectedIndex == 0, "back on the gameplay tab");
             require(c._setter_static_show_quests.label == texts[0][5] && !c._setter_static_show_quests.selected
                 && crosshair(content).join() == "1,true", "the new tab content: Hide quests and the crosshair list as before");
             var panelIndex:int = content.getChildIndex(content.bottomContainer);
@@ -1530,9 +1966,8 @@ package
         // default), the vertical slider greyed and showing the main one x 0.5625 as it is dragged;
         // unticked, its own from that value, the main one staying when it is dragged; pending until
         // Apply, Cancel putting the saved state back; the exe's answers; the tab's left column (main
-        // slider, the box, the vertical slider, Invert mouse, the lobby's keys) and right column (the
-        // game's keys, the chat's over the default button) spaced as the tab's own, every
-        // dictionary's labels inside the left column.
+        // slider, the box, the vertical slider, Invert mouse) spaced as the tab's own, every
+        // dictionary's labels inside it; the key lists hidden (the Bindings window has them).
         private function checkControls(root:*, settings:*, texts:Array, domain:ApplicationDomain):void
         {
             var c:* = settings.settings_content;
@@ -1609,33 +2044,24 @@ package
             root.srp_check_option("srp_mouse_vertical_locked", texts[0][17], "1");
             root.srp_slider_option("srp_mouse_vertical", texts[0][18], "100");
             require(!settings.btn_accept.enabled, "controls: nothing pending at a new visit of the frame");
-            var left:Array = [main, box, vertical, c._setter_inverse_mouse, c.s_lobby, c.keysLobby];
-            var right:Array = [c.keysGame, c.s_chat_keys, c.keysChat, c.button_default_controls];
-            var bottom:Number = Math.max(c.button_default_controls.y + c.button_default_controls.height, c.keysLobby.y + c.keysLobby.height);
-            for each (var column:Array in [left, right])
+            // the key bindings are the Bindings window's (SrpKeysWindow): the tab's lists and their headings hidden
+            var left:Array = [main, box, vertical, c._setter_inverse_mouse];
+            for (var i:int = 0; i < left.length; ++i)
             {
-                for (var i:int = 0; i < column.length; ++i)
+                require(left[i].visible, "controls: " + left[i].name + " shown");
+                if (i + 1 < left.length)
                 {
-                    require(column[i].visible, "controls: " + column[i].name + " shown");
-                    if (i + 1 < column.length)
-                    {
-                        // the game's and the chat's lists as sized (they redraw at their next frame)
-                        var sized:Function = function(item:*):Array {
-                            return item == c.keysGame || item == c.keysChat ? [item.y, item.y + item.height] : span(item);
-                        };
-                        var here:Array = sized(column[i]);
-                        var next:Array = sized(column[i + 1]);
-                        require(here[1] <= next[0] + 1, "controls: " + column[i].name + " (" + here + ") over " + column[i + 1].name + " (" + next + ")");
-                    }
+                    require(span(left[i])[1] <= span(left[i + 1])[0] + 1, "controls: " + left[i].name + " over " + left[i + 1].name);
                 }
             }
-            require(span(c.keysLobby)[1] <= 400 && c.keysChat.y + c.keysChat.height <= c.button_default_controls.y,
-                "controls: the lobby's keys in the window, the chat's above the default button: " + span(c.keysLobby) + ", "
-                + (c.keysChat.y + c.keysChat.height));
-            require(c.keysGame.height >= 9 * c.keysGame.rowHeight && c.keysGame.height % c.keysGame.rowHeight == 0,
-                "controls: the game's list is whole rows, 9 or more (its scroll bar no taller than its rows): " + c.keysGame.height);
-            require(near(box.x, c._setter_inverse_mouse.x) && near(vertical.x, main.x) && near(c.keysChat.x, c.keysGame.x),
-                "controls: the box at Invert mouse's x, the vertical slider at the main one's, the chat's keys at the game's");
+            for each (var hidden:* in [c.keysGame, c.keysLobby, c.keysChat, c.s_lobby, c.s_chat_keys])
+            {
+                require(!hidden.visible, "controls: " + hidden.name + " hidden (the Bindings window has the keys)");
+            }
+            require(c.button_default_controls.visible && c.button_default_controls.y + c.button_default_controls.height <= 400,
+                "controls: Default settings shown in the window");
+            require(near(box.x, c._setter_inverse_mouse.x) && near(vertical.x, main.x),
+                "controls: the box at Invert mouse's x, the vertical slider at the main one's");
             var edge:Number = 297;                       // the column divider
             for each (var row:Array in texts)
             {
@@ -1649,10 +2075,7 @@ package
             box.validateNow();
             vertical.label = texts[0][18];
             trace("SETTINGS controls layout: slider " + main.y + ", box " + box.y + ", vertical " + vertical.y + ", invert "
-                + c._setter_inverse_mouse.y + ", lobby " + c.s_lobby.y + " to " + span(c.keysLobby)[1] + "; game to " + (c.keysGame.y + c.keysGame.height)
-                + ", chat " + c.s_chat_keys.y + " to " + span(c.keysChat)[1] + ", button " + c.button_default_controls.y
-                + "; game list at " + c.keysGame.y + ", " + c.keysGame.height + " high, rows of " + c.keysGame.rowHeight
-                + ", chat list at " + c.keysChat.y);
+                + c._setter_inverse_mouse.y + ", default settings " + c.button_default_controls.y);
         }
 
         // The two sliders at their borders (the stock mouse_sensitivity's 0.01 to 10, from its console

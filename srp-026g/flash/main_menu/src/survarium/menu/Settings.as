@@ -1,5 +1,6 @@
 package survarium.menu
 {
+   import flash.display.DisplayObject;
    import flash.display.Graphics;
    import flash.display.MovieClip;
    import flash.events.Event;
@@ -78,12 +79,12 @@ package survarium.menu
       protected var _language:SrpLanguage;
       
       // The gameplay tab's "HUD:" group: the checkboxes the exe keeps in user.cfg
-      // (patch 83: "Hide hit markers", "Hide player scores", "Names on map"), with the stock
+      // (patch 83: "Hide player scores", "Names on map"), with the stock
       // quest progress and minimap controls under them (layoutGameplay). A
       // toggle is a change of the tab as the Language pick is, saved by Apply.
       protected var _hudGroup:SrpCheckGroup;
       
-      private static const HUD_OPTIONS:Array = ["srp_hide_hit_markers","srp_hide_scores","srp_map_names"];
+      private static const HUD_OPTIONS:Array = ["srp_hide_scores","srp_map_names"];
 
       // The HUD group's option that goes with the map's controls, over Static minimap (layoutGameplay).
       private static const MAP_OPTION:String = "srp_map_names";
@@ -94,6 +95,9 @@ package survarium.menu
       
       // The HUD group's crosshair list (Dynamic, Static: the stock static crosshair; Hidden: patch 83).
       protected var _crosshair:SrpCrosshairChoice;
+      
+      // The HUD group's hit marker list (patch 83: All hit markers, Kill marker only, Hidden hit markers).
+      protected var _hitMarkers:SrpHitMarkerChoice;
       
       // The Graphics tab's Renderer list (patch 83's `srp_dxvk`, which the game reads at its next
       // start: docs/notes/dxvk-option.md) and its Vulkan options' button, under Monitor (SrpVideoTab). A
@@ -111,10 +115,27 @@ package survarium.menu
       // The gameplay tab's "Field of view" slider (patch 22's uro_fov, kept by exe patch 83), a group
       // of the right column under the HUD group (layoutGameplay). A move is a change of the tab, saved by Apply.
       protected var _fov:SrpFieldOfView;
+
+      // The gameplay tab's "Weapon view" (exe patch 219): a button under the field of view opening a
+      // window in the Settings window's skin, as Key bindings' (layoutGameplay). A move or a toggle is a change
+      // of the tab, saved by Apply.
+      protected var _weaponView:SrpWeaponView;
+      
+      // The sound tab's "Test microphone" button (exe patch 66), under the Microphone list. Not a
+      // setting: a press is no change of the tab.
+      protected var _micTest:SrpMicTest;
+      
+      // The sound tab's "Microphone" list (exe patch 66), between "Use microphone" and the test
+      // button, in the hidden sensitivity slider's place: a pick is used at once (the test and push-to-talk) and is a change of the tab as the
+      // Language pick is, saved by Apply; its revert (Cancel, leaving without Apply) uses the saved one.
+      protected var _microphone:SrpMicrophone;
       
       // The controls tab's places, read from its timeline the first time it is laid out
       // (layoutControls); null until then.
       protected var _controlsSpacing:Object = null;
+      
+      // The controls tab's "Bindings" button and its window: the keyboard, the mouse and every key row (SrpKeysWindow).
+      protected var _keysWindow:SrpKeysWindow;
       
       public function Settings()
       {
@@ -245,6 +266,13 @@ package survarium.menu
          {
             this.settings_content.keysGame.invalidateData();
          }
+         this._keysWindow.refresh();
+      }
+      
+      // The exe's table of the keys for the Bindings window (root.srp_keys, key_bindings.rs).
+      public function setBindingKeys(table:String) : void
+      {
+         this._keysWindow.answerKeys(table);
       }
       
       // The exe's answer to the Language choice (root.srp_language): the saved
@@ -261,6 +289,12 @@ package survarium.menu
       // its name, label and saved state (shown, so no change is pending).
       public function setCheckOption(values:Array) : void
       {
+         if(values.length > 0 && values[0] == SrpWeaponView.WORLD)
+         {
+            this._weaponView.answerCheck(values.slice(1));
+            this.weaponViewChanged(null);
+            return;
+         }
          if(values.length > 0 && values[0] == SrpMouseVertical.LOCKED)
          {
             this._mouse.answerLock(values.slice(1));
@@ -272,6 +306,12 @@ package survarium.menu
          {
             this._crosshair.answer(values.slice(1));
             this.crosshairChanged(null);
+            return;
+         }
+         if(values.length > 0 && values[0] == SrpHitMarkerChoice.NAME)
+         {
+            this._hitMarkers.answer(values.slice(1));
+            this.hitMarkersChanged(null);
             return;
          }
          if(values.length > 0 && SrpRendererChoice.named(values[0]))
@@ -299,14 +339,44 @@ package survarium.menu
             this.layoutGameplay();
             return;
          }
+         if(values.length > 0 && SrpWeaponView.owns(values[0]))
+         {
+            this._weaponView.answerSlider(values);
+            this.weaponViewChanged(null);
+            this.layoutGameplay();
+            return;
+         }
          this._mouse.answerVertical(values);
          this.mouseChanged(null);
          this.layoutControls();
       }
       
+      // The exe's word of the microphone test (root.srp_mic_test): its button's text now.
+      public function setMicTest(text:String) : void
+      {
+         this._micTest.answer(text);
+      }
+      
+      // The exe's answer to the Microphone list (root.srp_microphone): the shown device selected, so
+      // no pick is pending (unless one not applied yet is still listed).
+      public function setMicrophone(values:Array) : void
+      {
+         this._microphone.answer(values);
+         this.microphoneChanged(null);
+         this.layoutVoice();
+      }
+      
+      // The weapon view's texts (root.srp_weapon_view_texts, patch 219): its heading.
+      public function setWeaponViewTexts(values:Array) : void
+      {
+         this._weaponView.answerTexts(values);
+         this.layoutGameplay();
+      }
+      
       // The HUD group's own texts (root.srp_hud_texts): the heading, "Hide quests", the crosshair
       // list's three choices, "Static minimap"; then the Renderer list's two choices, its note, and
-      // the Vulkan options' button and its five options' hints.
+      // the Vulkan options' button and its five options' hints; then the Key bindings button's text
+      // and its window's five kinds of action (SrpKeysWindow).
       public function setHudTexts(values:Array) : void
       {
          if(values.length >= 15)
@@ -314,6 +384,10 @@ package survarium.menu
             _hudTexts = values;
             this.applyHudTexts();
             this._renderer.texts(values[6],values[7],values[8],values[9],values.slice(10,15));
+         }
+         if(values.length >= 21)
+         {
+            this._keysWindow.texts(values[15],values.slice(16,21));
          }
       }
       
@@ -362,6 +436,9 @@ package survarium.menu
       {
          var messageData:Object;
          this._renderer.close();
+         this._keysWindow.close();
+         this._weaponView.close();
+         this._micTest.stop();
          if(this.btn_accept.enabled)
          {
             messageData = {
@@ -504,6 +581,7 @@ package survarium.menu
             {
                this.settings_content.keysLobby.height = this.settings_content.keysLobby.dataProvider.length * this.settings_content.keysLobby.rowHeight;
             }
+            this._keysWindow.rows(this._keys);
             // the chat's rows decide where its group stands in the right column
             this.layoutControls();
          }
@@ -528,9 +606,17 @@ package survarium.menu
                {
                   this._crosshair.save();
                }
+               else if(control == this._hitMarkers.menu)
+               {
+                  this._hitMarkers.save();
+               }
                else if(control == this._fov.slider)
                {
                   this._fov.save();
+               }
+               else if(this._weaponView.controls.indexOf(control) >= 0)
+               {
+                  this._weaponView.save();
                }
                else if(control == this._mouse.check.box || control == this._mouse.slider)
                {
@@ -539,6 +625,10 @@ package survarium.menu
                else if(control == this._renderer.menu)
                {
                   this._renderer.save();
+               }
+               else if(control == this._microphone.menu)
+               {
+                  this._microphone.save();
                }
                else if(this.checkOf(control) != null)
                {
@@ -593,9 +683,12 @@ package survarium.menu
             option.revert();
          }
          this._crosshair.revert();
+         this._hitMarkers.revert();
          this._mouse.revert();
          this._fov.revert();
+         this._weaponView.revert();
          this._renderer.revert();
+         this._microphone.revert();
          this.btn_accept.enabled = false;
          this.btn_cancel.label = this._exitLabel;
          _changes = 0;
@@ -629,7 +722,7 @@ package survarium.menu
          this._element_map[1] = ["_setter_inverse_mouse","_slider_mouse_sens","_default_button","keysLobby","keysChat","keysGame"];
          // index 7, the video options' "FOV" (the original's dead "fov" again): no control; the field of
          // view is the gameplay tab's (SrpFieldOfView, patch 83's uro_fov)
-         this._element_map[2] = ["_select_monitor","_fscr_resolution","_fullscreen","_vsync","_antialias","_filtering","gamma_option","","_overall_graphics","_texture_q","_geometry_q","_shadow_q","_lighting_q","_water_q","_decorations","_post_process","_ao_q","_particples_q","_motion_blur"];
+         this._element_map[2] = ["_select_monitor","_fscr_resolution","_fullscreen","_vsync","_antialias","_filtering","gamma_option","","_overall_graphics","_texture_q","_geometry_q","_shadow_q","_lighting_q","_water_q","_decorations","_post_process","_ao_q","_particples_q","_motion_blur","_distance_detail"];
          this._element_map[3] = ["_total_volume","_game_volume","_sound_volume","_sound_сhat","_use_mik","_mic_sens","_ptt"];
          this._hudGroup = new SrpCheckGroup(this.settings_content,this.settings_content.s_friends,HUD_OPTIONS);
          for each(var option:SrpCheckOption in this._hudGroup.options)
@@ -640,12 +733,46 @@ package survarium.menu
          this._crosshair = new SrpCrosshairChoice(this.settings_content);
          this._changed[this._crosshair.menu] = 0;
          this._crosshair.menu.addEventListener(ListEvent.INDEX_CHANGE,this.onCrosshairPick);
+         this._hitMarkers = new SrpHitMarkerChoice(this.settings_content);
+         this._changed[this._hitMarkers.menu] = 0;
+         this._hitMarkers.menu.addEventListener(ListEvent.INDEX_CHANGE,this.hitMarkersChanged);
          this._mouse = new SrpMouseVertical(this.settings_content);
          this._changed[this._mouse.check.box] = 0;
          this._changed[this._mouse.slider] = 0;
          this._fov = new SrpFieldOfView(this.settings_content);
          this._changed[this._fov.slider] = 0;
          this._fov.slider.addEventListener(IndexEvent.INDEX_CHANGE,this.fovChanged);
+         this._weaponView = new SrpWeaponView(this.settings_content);
+         addChild(this._weaponView);
+         // its preview's world at the World FOV slider's value (pending too)
+         this._weaponView.worldFov = function():Number
+         {
+            return _fov.slider.visible ? _fov.slider.selectedIndex : 65;
+         };
+         // its Apply: the window's own Apply button's look and label; what it saved no longer pending here
+         this._weaponView.applyFrom = function():Object
+         {
+            return btn_accept;
+         };
+         this._weaponView.applied = function():void
+         {
+            weaponViewChanged(null);
+         };
+         // its Close: the window's own Cancel/Exit button's look
+         this._weaponView.closeFrom = function():Object
+         {
+            return btn_cancel;
+         };
+         for each(var weaponControl:Object in this._weaponView.controls)
+         {
+            this._changed[weaponControl] = 0;
+            weaponControl.addEventListener(weaponControl == this._weaponView.box ? Event.SELECT : IndexEvent.INDEX_CHANGE,
+               this.weaponViewChanged);
+         }
+         this._micTest = new SrpMicTest(this.settings_content);
+         this._microphone = new SrpMicrophone(this.settings_content);
+         this._changed[this._microphone.menu] = 0;
+         this._microphone.menu.addEventListener(ListEvent.INDEX_CHANGE,this.microphoneChanged);
          this._mouse.check.box.addEventListener(Event.SELECT,this.mouseChanged);
          this._mouse.slider.addEventListener(IndexEvent.INDEX_CHANGE,this.mouseChanged);
          this._renderer = new SrpRendererChoice(this.settings_content);
@@ -654,6 +781,8 @@ package survarium.menu
          this._language = new SrpLanguage(this.settings_content,this.settings_content.s_friends);
          this._changed[this._language.menu] = 0;
          this._language.menu.addEventListener(ListEvent.INDEX_CHANGE,this.languageChanged);
+         this._keysWindow = new SrpKeysWindow(this.settings_content);
+         addChild(this._keysWindow);
          this.tabs.addEventListener(IndexEvent.INDEX_CHANGE,this.takeAction);
       }
       
@@ -662,7 +791,12 @@ package survarium.menu
          this._hudGroup.place();
          this._mouse.place();
          this._fov.place();
+         this._weaponView.place();
+         this._micTest.place();
+         this._keysWindow.place();
+         this._microphone.place();
          this._renderer.place();
+         SrpDistanceDetail.apply(this);
          this._language.place();
          var key:Object;
          var tabIndex:uint;
@@ -695,22 +829,22 @@ package survarium.menu
                {
                   control.label = setting.label;
                }
-               if(settings[i].dataProvider && ((!(settings[i].dataProvider is Array)) || settings[i].dataProvider is Array && settings[i].dataProvider.length))
+               if(setting.dataProvider && ((!(setting.dataProvider is Array)) || setting.dataProvider is Array && setting.dataProvider.length))
                {
                   if(control is OptionSlider)
                   {
-                     control.dataProvider = settings[i].dataProvider;
+                     control.dataProvider = setting.dataProvider;
                   }
                   else
                   {
                      items = new Array();
                      j = 0;
-                     while(j < settings[i].dataProvider.length)
+                     while(j < setting.dataProvider.length)
                      {
-                        if(!(settings[i].dataProvider[j] is String))
+                        if(!(setting.dataProvider[j] is String))
                         {
                            items[j] = new Object();
-                           source = settings[i].dataProvider[j];
+                           source = setting.dataProvider[j];
                            for(field in source)
                            {
                               items[j][field] = source[field];
@@ -718,7 +852,7 @@ package survarium.menu
                         }
                         else
                         {
-                           items[j] = settings[i].dataProvider[j];
+                           items[j] = setting.dataProvider[j];
                         }
                         j++;
                      }
@@ -772,13 +906,60 @@ package survarium.menu
                option.enabled = true;
             }
          }
+         // The sound tab's stock "PTT" checkbox (its option 6, s_ptt_button: the stock game's
+         // push-to-talk or open microphone switch) is never shown: voice is push-to-talk only and
+         // the option names no variable, so it did nothing, greyed (the owner, 2026-11-14: "let's
+         // remove the button then"). The exe's options still bind it by name: it stays in the
+         // timeline, hidden after each bind. The push-to-talk key is the Controls tab's.
+         var ptt:DisplayObject = this.settings_content["_ptt"] as DisplayObject;
+         if(ptt)
+         {
+            ptt.visible = false;
+         }
+         // Nor is the sound tab's stock "Microphone sensitivity" slider (its option 5, s_mic_sens):
+         // every listener's game brings each speaker to one loudness itself, so the slider moved
+         // nothing anyone heard (the owner, 2026-11-16: "if you are sure sensitivity option now
+         // doesn't matter, remove it"). The exe registers no variable of its name any more; it
+         // stays in the timeline, hidden after each bind, and marks the voice column's place.
+         var sensitivity:DisplayObject = this.settings_content["_mic_sens"] as DisplayObject;
+         if(sensitivity)
+         {
+            sensitivity.visible = false;
+         }
          SrpVideoTab.finish(this,this._renderer);
-         // the HUD group, after the tab's settings are bound (their labels set)
+         SrpDistanceDetail.finish(this);
+         // the HUD group, after the tab's settings are bound (their labels set); the crosshair list
+         // over the hit marker list under it, so it opens over it
+         this._hitMarkers.place();
          this._crosshair.place();
          this.applyHudTexts();
          this.layoutGameplay();
          this._mouse.bind();
          this.layoutControls();
+         this.layoutVoice();
+      }
+      
+      // Between the Microphone list and the "Test microphone" button under it.
+      private static const VOICE_GAP:Number = 12;
+      
+      // The sound tab's voice column under "Use microphone", the stock sensitivity slider and PTT
+      // checkbox hidden: in the slider's place the Microphone list, its label where the slider's was
+      // and in its look, the list where the slider's bar was, then the "Test microphone" button (in
+      // the label's place while the list is not shown: no voice DLL).
+      protected function layoutVoice() : void
+      {
+         var c:MovieClip = this.settings_content;
+         var sensitivity:OptionSlider = c.currentFrame == 4 ? c["_mic_sens"] as OptionSlider : null;
+         if(!sensitivity)
+         {
+            return;
+         }
+         var top:Number = sensitivity.y + sensitivity.textField.y;
+         if(this._microphone.menu.visible)
+         {
+            top = VOICE_GAP + this._microphone.layout(sensitivity.textField,sensitivity.x,top,sensitivity.slider.y - sensitivity.textField.y,sensitivity.getBounds(c).right - sensitivity.x);
+         }
+         this._micTest.layout(top);
       }
       
       protected function someOneSelected(event:Event) : void
@@ -860,10 +1041,11 @@ package survarium.menu
          this.listChanged(this._language.menu,this._language.pending);
       }
       
-      // Esc: the Vulkan options' panel closed, when it is open (MainMenu closes the window otherwise).
+      // Esc: the Key bindings window, the Weapon view window or the Vulkan options' panel closed, when it is open (MainMenu closes
+      // the Settings window otherwise).
       public function closePanel() : Boolean
       {
-         return this._renderer.close();
+         return this._keysWindow.close() || this._weaponView.close() || this._renderer.close();
       }
       
       // A Renderer pick or a Vulkan option changed, the same way.
@@ -872,10 +1054,26 @@ package survarium.menu
          this.listChanged(this._renderer.menu,this._renderer.pending);
       }
       
+      // A Microphone pick, the same way.
+      protected function microphoneChanged(event:Event) : void
+      {
+         this.listChanged(this._microphone.menu,this._microphone.pending);
+      }
+      
       // A move of the field of view slider, the same way.
       protected function fovChanged(event:Event) : void
       {
          this.listChanged(this._fov.slider,this._fov.pending);
+         this._weaponView.refresh();
+      }
+
+      // A move or a toggle of the weapon view's, each control pending while it is not the saved value.
+      protected function weaponViewChanged(event:Event) : void
+      {
+         for each(var control:Object in this._weaponView.controls)
+         {
+            this.listChanged(control,this._weaponView.pending(control));
+         }
       }
 
       // One of srp's lists (or the field of view slider) counts as a changed option while `pending`.
@@ -899,8 +1097,8 @@ package survarium.menu
       
       // The gameplay tab's groups in its two columns, each group's heading over its controls, at the
       // tab's own spacing (the timeline's, read once): on the left "Friends:" and the Language choice;
-      // on the right srp's "HUD:" group: the crosshair list (Dynamic, Static, Hidden), Hide hit
-      // markers, Hide player scores, then the stock quest progress checkbox (shown as "Hide quests")
+      // on the right srp's "HUD:" group: the crosshair list (Dynamic, Static, Hidden), the hit
+      // marker list (All, Kill marker only, Hidden), Hide player scores, then the stock quest progress checkbox (shown as "Hide quests")
       // and the stock minimap controls ("Static minimap", the minimap position list), moved here with
       // their own bindings. Not shown: the stock "Crosshair:" and "Quest progress:" headings, the
       // static crosshair checkbox (the crosshair list sets it) and the quest progress transparency
@@ -939,7 +1137,7 @@ package survarium.menu
          // as the minimap's is), a list one further right as the timeline has them; the map's rows
          // (Names on map, Static minimap, the minimap position list) last
          this._hudGroup.layout(c.s_friends,space.rightHeading,space.top);
-         var rows:Array = [this._crosshair.menu];
+         var rows:Array = [this._crosshair.menu,this._hitMarkers.menu];
          for each(var option:SrpCheckOption in this._hudGroup.options)
          {
             if(option.name != MAP_OPTION)
@@ -955,7 +1153,8 @@ package survarium.menu
             var list:Boolean = rows[i] is DropdownMenu;
             if(i > 0)
             {
-               y += list ? space.dropdown : space.step;
+               // a list under a checkbox as the minimap's is; under a list a step, as a checkbox is
+               y += list && !(rows[i - 1] is DropdownMenu) ? space.dropdown : space.step;
             }
             rows[i].x = space.rightControl + (list ? space.dropdownX : 0);
             rows[i].y = y;
@@ -963,6 +1162,10 @@ package survarium.menu
          // then the field of view, a group of its own: its label a heading as the others (their
          // look), at the column's headings' x the tab's gap under the minimap list, the slider under it
          this._fov.layout(c.s_friends,space.rightHeading,c._setter_static_minimap_position.y + space.gap);
+         // then the weapon view's button (the tab's standard one) under the field of view's slider, at the
+         // right controls' x; its window's labels in the headings' look, as the field of view's
+         var fovBottom:Number = this._fov.slider.getBounds(c).bottom;
+         this._weaponView.layout(c.s_friends,space.rightControl,fovBottom + space.gap / 2);
          c.s_cross.visible = c._setter_static_cross.visible = false;
          c.s_quest_propgress.visible = c._slider_quest_alpha.visible = false;
          c.bottomContainer.visible = false;
@@ -979,6 +1182,12 @@ package survarium.menu
       protected function crosshairChanged(event:Event) : void
       {
          this.listChanged(this._crosshair.menu,this._crosshair.pending);
+      }
+      
+      // A pick in the hit marker list: pending while it is not the saved one.
+      protected function hitMarkersChanged(event:Event) : void
+      {
+         this.listChanged(this._hitMarkers.menu,this._hitMarkers.pending);
       }
       
       // A toggle of "Lock vertical sensitivity" or a move of its slider: each pending while it is
@@ -1010,6 +1219,10 @@ package survarium.menu
       // lobby's keys, at the tab's own spacing (the timeline's, read once). The chat's keys go to the
       // right column under the game's, whose list (it scrolls) ends where they begin.
       protected static const GAME_LIST_GAP:Number = 4;
+
+      // The controls tab's left column's right end (its divider), and Invert mouse to the buttons under it.
+      protected static const LEFT_COLUMN_END:Number = 289;
+      protected static const BUTTONS_GAP:Number = 18;
 
       protected function layoutControls() : void
       {
@@ -1052,6 +1265,28 @@ package survarium.menu
          // left under the last one showed as room for one more; the owner, 2026-11-11): as many as
          // fit over the chat's heading, the gap to it the tab's own at most, GAME_LIST_GAP at least
          c.keysGame.height = Math.floor((c.s_chat_keys.y - GAME_LIST_GAP - c.keysGame.y) / c.keysGame.rowHeight) * c.keysGame.rowHeight;
+         // the match's key bindings are the Bindings window's alone (the owner, 2026-11-23: "we don't need two"):
+         // the tab's game and chat lists and their headings hidden, the Bindings button and Default settings in the
+         // left column under Invert mouse ("both options can move to left"); the lobby's keys in the right column,
+         // where the game's list was, for reading ("for lobby just have them on the right where they used to be",
+         // "not bindable either way": its rows take no press nor focus). The exe still binds and fills the hidden
+         // lists by name: they stay in the timeline.
+         for each(var list:String in ["keysGame","keysChat","s_chat_keys","s_game"])
+         {
+            if(c[list] is DisplayObject)
+            {
+               DisplayObject(c[list]).visible = false;
+            }
+         }
+         c.s_lobby.x = c.keysGame.x + space.headingX;
+         c.s_lobby.y = c.keysGame.y;
+         c.keysLobby.x = c.keysGame.x;
+         c.keysLobby.y = c.s_lobby.y + space.list;
+         c.keysLobby.mouseEnabled = c.keysLobby.mouseChildren = false;
+         c.keysLobby.focusable = false;
+         var invert:Object = c._setter_inverse_mouse;
+         this._keysWindow.layout(c.button_default_controls,c._slider_mouse_sens.x,LEFT_COLUMN_END,
+            invert.y + Math.max(invert.textField.y + invert.textField.textHeight + 4,26) + BUTTONS_GAP);
       }
       
       // The option of the HUD group whose checkbox `control` is, or null.
@@ -1179,13 +1414,22 @@ package survarium.menu
          }
          this._changed[this._crosshair.menu] = 0;
          this._crosshair.revert();
+         this._changed[this._hitMarkers.menu] = 0;
+         this._hitMarkers.revert();
          this._changed[this._mouse.check.box] = 0;
          this._changed[this._mouse.slider] = 0;
          this._mouse.revert();
          this._changed[this._fov.slider] = 0;
          this._fov.revert();
+         for each(var weaponControl:Object in this._weaponView.controls)
+         {
+            this._changed[weaponControl] = 0;
+         }
+         this._weaponView.revert();
          this._changed[this._renderer.menu] = 0;
          this._renderer.revert();
+         this._changed[this._microphone.menu] = 0;
+         this._microphone.revert();
          this.checkButtons();
          this.settings_content.gotoAndStop(this.tabs.selectedIndex + 1);
          this.create_labels(this.tabs.selectedIndex);

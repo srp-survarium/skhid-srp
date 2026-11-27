@@ -1,7 +1,8 @@
 name = "message_check"
 patch = 114
-uses = ["packet_recovery"]
+uses = ["packet_recovery", "executable_report", "file_check"]
 
 [[hook]]
 site = "match_dispatch.message"
 handler = "on_message"
+order = 1                           # before faces.toml's late joiner

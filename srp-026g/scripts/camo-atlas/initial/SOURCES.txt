@@ -1,0 +1,27 @@
+9 of the 11 tiles of this folder (initial/catalog.tsv) are procedural: initial_art.py draws
+each one from seeded noise and the three to five colours of its catalog row. It reads no
+image or other file, so no third-party artwork is in them. It reproduces those 9 WebPs byte
+for byte (checked 2026-11-26 with NumPy 2.4.4 and Pillow 13.0.0). On 2026-11-26 the owner
+dropped three more studies (Reed Rain 2805, Night Grid 2807, Violet Splinter 2811); their
+ids stay unused.
+
+mm-14.webp (item 2812) is the real Ukrainian MM-14, cut from a photograph on Wikimedia Commons
+by classics_art.py: File:MM14.jpg by Lucas Cavalcante Mesquita, CC BY-SA 4.0, modified
+(cropped, made seamless, scaled). Its credit and licence are in classics/SOURCES.txt. It
+replaced Pixel Steppe, this script's study of MM-14, under the same item on 2026-11-26.
+
+mm-25.webp (item 2813) is Ukraine's MM-25, cut by classics_art.py from the explanation graphic
+the Ukrainian Ministry of Defence published on 4 Aug 2025 (its source is in classics/SOURCES.txt).
+It replaced Field Mosaic, this script's study of MM-25, under the same item on 2026-11-26.
+
+The procedural tiles were made on 2026-11-25 as colourway proposals for the camouflage gallery that came
+before this pack: a coding agent wrote the script and chose the names and palettes. The
+script's only copy was in /tmp, and it was added here unchanged apart from its output path
+and the removal of a preview contact sheet.
+
+The source_url and source_label of each procedural tile's row point to the camouflage family or
+issued pattern the tile was meant to recall (TURBO DESIGN, Made Good Designs, British
+Material Unit, the U.S. Army, Soviet Uniform, Militaria Plaza, Canada's Department of
+National Defence). Nothing was downloaded from those pages into the procedural tiles.
+
+No licence has been stated for the 9 procedural tiles. The project owner has to set one.

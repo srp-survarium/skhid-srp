@@ -7,8 +7,8 @@ use srp_validate::{messages, world::{self, Block, Context}};
 fn main() {
     let context = Context {
         time: 4500, places: 20, game_mode: 4, batteries: 0,
-        respawn_points: Some(3), profiles: None, artefacts: None,
-        objects: None, inventory: None,
+        respawn_points: Some(3), team_2_points: None, profiles: None, artefacts: None,
+        objects: None, inventory: None, dict_ids: None, artefact_hunt: None,
     };
     let mut timings = Vec::new();
     let mut refused = 0;
@@ -29,7 +29,7 @@ fn main() {
     timings.sort_by(f64::total_cmp);
     println!("{} bounded player-state patterns ({} refused), ns/player: median {:.0}, p99 {:.0}, max {:.0}",
         timings.len(), refused, timings[timings.len()/2], timings[timings.len()*99/100], timings[timings.len()-1]);
-    for (name, bytes) in [("valid input", [0u8;10]), ("unused action bit", [0,0,0,0,0,0,0,0,0,0x40])] {
+    for (name, bytes) in [("valid input", [0u8;10]), ("a nan turn", [0,0,0,0x7c,0,0,0,0,0,0])] {
         let start = Instant::now();
         for _ in 0..1_000_000 { black_box(messages::check(black_box(0xeb), black_box(&bytes))).ok(); }
         println!("{name}: {:.1} ns/message over 1,000,000 calls", start.elapsed().as_nanos() as f64 / 1_000_000.0);

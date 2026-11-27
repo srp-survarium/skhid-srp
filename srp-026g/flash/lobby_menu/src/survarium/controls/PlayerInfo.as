@@ -39,24 +39,53 @@ package survarium.controls
 
       private static var additionalMedicine:Boolean = false;
 
+      // Toxic Smoke (441): a grenade of one unit takes one and a half of a pocket's units; Bear Trap
+      // (444): a trap does (the server's KitLayout, PocketShare).
+      private static var heavyGrenades:Boolean = false;
+
+      private static var heavyTraps:Boolean = false;
+
       // Supply Pocket (331) taken: the skill that closes the second weapon slot, where Deep
       // Pockets does not.
       public static var supplyPocket:Boolean = false;
 
+      // Tank Container (445) taken: a kit that wears an oxygen tank has one more artefact
+      // container (srp's kit block; the tank's card lists it).
+      public static var tankContainer:Boolean = false;
+
       // Only committed skill values affect equipment, never unspent previews.
-      public static function medicalSkills(value:Array) : void
+      public static function committedSkills(value:Array) : void
       {
          additionalMedicine = false;
          supplyPocket = false;
+         tankContainer = false;
+         heavyGrenades = false;
+         heavyTraps = false;
          for each(var skill:Object in value)
          {
-            if(skill != null && skill.id == 331 && skill.value > 0)
+            if(skill == null || skill.value <= 0)
+            {
+               continue;
+            }
+            if(skill.id == 331)
             {
                supplyPocket = true;
             }
-            if(skill != null && skill.id == 322 && skill.value > 0)
+            if(skill.id == 322)
             {
                additionalMedicine = true;
+            }
+            if(skill.id == 441)
+            {
+               heavyGrenades = true;
+            }
+            if(skill.id == 444)
+            {
+               heavyTraps = true;
+            }
+            if(skill.id == 445)
+            {
+               tankContainer = true;
             }
          }
       }
@@ -66,12 +95,34 @@ package survarium.controls
          // Boosters share category 10 with drugs, but fill a whole pocket.
          if(size == QuickSlotSize.WHOLE)
             return 1;
+         var total:int = pocketTotal(category,base);
+         // An item of more than one unit: as many as its units go into the pocket's, at least one
+         // (the server's PocketShare: a pair half the pocket, one and a half two in three). In
+         // halves, whole numbers: 2 x total / (2 x units).
+         var halves:int = int(itemUnits(category,size) * 2);
+         return Math.min(total,Math.max(1,int(2 * total / halves)));
+      }
+
+      // A pocket's units, whatever its items take.
+      public static function pocketTotal(category:uint, base:int = -1) : int
+      {
          var units:int = base < 0 ? pocketSize : base;
-         var total:int = Math.max(0,Math.min(MAX_POCKET_UNITS,units + (additionalMedicine && category == ItemCategory.MEDKITS ? 1 : 0)));
-         // An item of two units (the RGD-5): half the pocket, at least one (the server's PocketShare).
-         if(size == QuickSlotSize.PAIR)
-            return Math.min(total,Math.max(1,int(total / 2)));
-         return total;
+         return Math.max(0,Math.min(MAX_POCKET_UNITS,units + (medicineBonus(category) ? 1 : 0)));
+      }
+
+      // Whether a pocket of `category` has Additional Medicine's extra unit.
+      public static function medicineBonus(category:uint) : Boolean
+      {
+         return additionalMedicine && category == ItemCategory.MEDKITS;
+      }
+
+      // The pocket units one item takes: 2 for the RGD-5 (its own, with or without Toxic Smoke),
+      // 1.5 for another grenade with Toxic Smoke and a trap with Bear Trap; else 1.
+      public static function itemUnits(category:uint, size:Number) : Number
+      {
+         if(size == QuickSlotSize.PAIR) return 2;
+         if((heavyGrenades && category == ItemCategory.GRENADES) || (heavyTraps && category == ItemCategory.BOOBY_TRAPS)) return 1.5;
+         return 1;
       }
       
       public static var currentLevel:int = 0;

@@ -10,9 +10,10 @@
 //! The files are in `SRP_LOG_DIR` (default `logs`; `off`: stdout only), as
 //! `<server>.log`, appended to across restarts: a container's own output is
 //! gone when the container is made anew, which every update does, so the
-//! compose file puts them in the data volume. A file that reaches
-//! [`MAX_FILE_BYTES`] becomes `<server>.log.1` (the `.1` before it `.2`, and
-//! so on); [`KEPT_FILES`] files per server are kept, the oldest deleted.
+//! compose file puts them in the data volume. A file that reaches its size
+//! in [`SERVERS`] becomes `<server>.log.1` (the `.1` before it `.2`, and so
+//! on); as many files of each server as [`SERVERS`] says are kept, the
+//! oldest deleted.
 //!
 //! What a line costs: stdout as before (one write of the line), and for the
 //! file a copy into an 8 KiB buffer, an add and a compare for the size. The
@@ -34,19 +35,23 @@ use log::{Level, LevelFilter, Log, Metadata, Record};
 /// files of it are kept (`<server>.log`, `.1` ...). About two days of each
 /// at the heaviest seen (2026-11-01 to 11-02, 116-127 MB a day in all, of
 /// it about 95 % match, 4 % lobby, 1.5 % srp, under 0.2 % login and web);
-/// the lobby's about 12 days, the balance refit's input
-/// (scripts/balance-refit). `memory` and `modules`: the match server's
+/// the lobby's about 12 days (it was the input of scripts/balance-refit,
+/// since retired). `memory` and `modules`: the match server's
 /// lines of those targets, client patch 126's memory reports (about 2.5 KB
 /// a player a match) and patch 125's module reports (about 2 KB), weeks of
-/// them for `release/moderate memory` and `release/moderate modules`.
-const SERVERS: [(&str, u64, u32); 7] = [
+/// them for `release/moderate memory` and `release/moderate modules`;
+/// `resources` the resource checks (`resource_checks`, two lines a player
+/// a match, about 0.4 KB), for `release/moderate resources`.
+const SERVERS: [(&str, u64, u32); 9] = [
     ("login", 2 << 20, 4),
     ("lobby", 4 << 20, 16),
     ("match", 8 << 20, 32),
     ("web", 2 << 20, 2),
     ("srp", 4 << 20, 4),
+    ("input", 4 << 20, 16),
     ("modules", 4 << 20, 16),
     ("memory", 4 << 20, 16),
+    ("resources", 4 << 20, 16),
 ];
 
 /// Where the files are: unset for `logs`, empty or `off` for nowhere.
@@ -235,12 +240,16 @@ fn civil_from_days(days: u64) -> (u64, u64, u64) {
 }
 
 /// Which server's log a record belongs to, decided from its target prefix
-/// (a client report's kind its own file: `memory`, `modules`).
+/// (client reports have their own files: `memory`, `modules`, `input`, `resources`).
 fn server_for_target(target: &str) -> &'static str {
     if target == "memory" {
         "memory"
+    } else if target == "input" {
+        "input"
     } else if target == "modules" {
         "modules"
+    } else if target == "resources" {
+        "resources"
     } else if target.starts_with("login_server") {
         "login"
     } else if target.starts_with("lobby_server") || target.starts_with("messaging") {
@@ -316,7 +325,7 @@ mod tests {
 
     #[test]
     fn client_reports_go_to_their_own_files() {
-        for kind in ["memory", "modules"] {
+        for kind in ["memory", "modules", "input", "resources"] {
             assert_eq!(server_for_target(kind), kind);
             assert!(SERVERS.iter().any(|&(server, _, _)| server == kind));
         }

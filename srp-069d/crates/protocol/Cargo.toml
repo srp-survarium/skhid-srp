@@ -1,0 +1,11 @@
+[package]
+name = "protocol"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+thiserror = { workspace = true }
+lzma-rs = { workspace = true }
+
+[dev-dependencies]
+serde_json = { workspace = true }

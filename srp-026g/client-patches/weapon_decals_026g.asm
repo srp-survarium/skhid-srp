@@ -24,8 +24,8 @@
 ;               camouflage nor a decal to paint
 ;   +5  fill    patch 44's bake_surface, edi = the parameters P: the
 ;               camouflage's layer (P+4E0h) when there is one, a layer
-;               (P + i*270h) for each of the first two `data/decals`, and the
-;               decals' part of the baked files' name
+;               (P + i*270h) for each of the first two `data/decals` (the
+;               Rust patch weapon_camo names the baked files of them all)
 ;   +A  pick    0x265999 `call 0x264960` in lobby_character's per-frame
 ;               decal preview (0x265980): for the weapon above the workbench
 ;               (patch 45) the mouse's ray meets the weapon's long axis, in
@@ -42,17 +42,29 @@
 ;               place. Its other calls (the start's, the cancel's) bake
 ;               nothing on a weapon.
 ;   +19 start   0x263938 `call 0x264CF0` at the end of the editor's start
-;               (0x2636B0, esi = the character): on a weapon, the decal's
-;               index in `data/decals` (+D52Ch) counts the records of slots 0
-;               and 1 only (the stock counts every record but slot 3's, and a
-;               weapon's camouflage is in slot 2)
+;               (0x2636B0, esi = the character), armour's and a weapon's:
+;               the edit goes on only when the host holds the decal (its
+;               record at +D52Dh, in a decal's slot); otherwise it is off and
+;               the movie leaves it, nothing queried (a "change" clicked
+;               before the server's answer put the record there: the stock
+;               kept the last edit's index, a crash, 2026-11-26). On a weapon
+;               the decal's index in `data/decals` (+D52Ch) counts the
+;               records of slots 0 and 1 only (the stock counts every record
+;               but slot 3's, and a weapon's camouflage is in slot 2)
 ;   +1E click   0x265C20, the character's mouse key handler: in a weapon's
 ;               edit the left button's release places the decal only after a
 ;               click (the cursor within 5 pixels of the press), not after a
 ;               drag, which turns the weapon (patch 45's left button)
+;   +23 textures 0x264F4D `call 0x264F80` in the host's config callback
+;               (0x264EA0), armour's and a weapon's: the preview reads
+;               `data/decals[+D52Ch]` only when the merged config has that
+;               entry with a texture; otherwise the edit is off, the movie
+;               leaves it and neither the textures' query nor the host's
+;               bake after it runs
 ; A weapon's decal edit: patch 45's table on, patch 32's weapon shown, the
 ; character's upgrade window open (+D515h) and the edit's host (+D520h)
-; that window's item. Anything else: the original's code.
+; that window's item. Anything else: the original's code, but for start's
+; and textures' checks, which hold for every host.
 BITS 32
 ORG CAVE
 
@@ -79,9 +91,12 @@ ACCEPT              equ 0x263950    ; esi = character, stdcall (host, decal): th
 MOVIE_CALL          equ 0x511600    ; ecx = the movie, stdcall (name, 0, 0, 0)
 FIND_ITEM           equ 0x277AA0    ; ecx = begin, edi = end, cdecl (&id): eax = the item or end
 START_QUERY         equ 0x264CF0    ; esi = character: the host's config and the decal's textures
+QUERY_TEXTURES      equ 0x264F80    ; stdcall (character): `data/decals[+D52Ch]`'s four textures; `ret 4`
+AFTER_HOST_BAKE     equ 0x264F68    ; 0x264EA0 after the host's bake (`pop edi`, its epilogue)
 BAKE_BODY           equ 0x2641A6    ; after the bake's `push ebp / mov ebp,esp / and esp,-8`
 EXIT_DECAL_EDIT     equ 0xA0BD7C    ; "root.exit_decal_edit"
 KEY_CAMOUFLAGE      equ 0x9FD704
+KEY_DATA            equ 0x9FD6C4
 KEY_DECALS          equ 0x9F146C
 EMPTY               equ 0x9DB708    ; ""
 FORMAT_STRING       equ 0x9EDC00    ; "%s%s"
@@ -100,7 +115,6 @@ LAYER_NORMAL        equ 0xCC
 LAYER_FRESNEL       equ 0x158
 LAYER_SMOOTHNESS    equ 0x1E4
 P_CAMO              equ 2 * LAYER_SIZE
-P_NAME              equ 0x7A4
 MAX_DECALS          equ 2
 
 ; patch 44's frame (weapon_camo_026g.asm, ebp = esp after its pushad)
@@ -113,6 +127,7 @@ EDITING             equ 0xD514      ; 1 while a decal is placed
 UPGRADE_MODE        equ 0xD515      ; 1 while an upgrade window is open
 EDIT_HOST           equ 0xD520      ; the edit's item and decal
 EDIT_DECAL          equ 0xD524
+HOST_CONFIG         equ 0xD528      ; the host's merged config (a resource: +108h its root)
 DECAL_INDEX         equ 0xD52C      ; the decal's index in the host's `data/decals`
 RECORD_INDEX        equ 0xD52D      ; its record's index in the host's records
 POINT               equ 0xD530      ; the pick's point and normal
@@ -126,6 +141,9 @@ INVENTORY           equ 0x1EA978    ; begin, end: items of B4h
 RECORDS             equ 0x60        ; item: begin, end of {id, dict id, u64, u8 slot} 18h each
 RECORD_SIZE         equ 0x18
 RECORD_SLOT         equ 0x10
+RECORD_ID           equ 0           ; the upgrade's item id
+CAMO_SLOT           equ 3           ; armour's camouflage (the stock's count skips it)
+CONFIG_ROOT         equ 0x108       ; a config resource: its root value
 
 ; the mouse
 LEFT_KEY            equ 0x151       ; the left button's code (0x3B9CA0)
@@ -162,6 +180,7 @@ PRESS_Y             equ 8
     jmp near bake
     jmp near start
     jmp near click
+    jmp near textures
 
 ; ---------------------------------------------------------------- the bake
 
@@ -224,7 +243,7 @@ decals:
     xor ecx, ecx
     ret
 
-; patch 44's bake_surface, edi = P (its name begun), ebp = patch 44's frame.
+; patch 44's bake_surface, edi = P, ebp = patch 44's frame.
 ; Every register kept.
 ; Of a camouflage the weapon takes the colours and the `_smap`, not the
 ; `_nmap`: that is the weave of the cloth the camouflages were drawn for,
@@ -318,16 +337,7 @@ fill:
     push SUFFIX_SMAP
     lea eax, [eax+LAYER_SMOOTHNESS]
     call suffixed
-    pop eax
-    pop eax                         ; low
-    pop edx                         ; high
-    push eax
-    push edx
-    push esi
-    push name_decal
-    lea eax, [ebx+P_NAME]
-    call string_appendf
-    add esp, 16
+    add esp, 12                     ; the layer, the u64
 .next:
     inc edi
     cmp edi, [esp+4]
@@ -805,14 +815,21 @@ bake:
     ret 10h
 
 ; 0x263938 `call 0x264CF0` (esi = the character) at the end of the editor's
-; start: on a weapon, +D52Ch = the records of slots 0 and 1 before the
-; edited one (+D52Dh), the decals' order in `data/decals`; a record of
-; another slot is not a decal's: the edit is off again and nothing is
-; queried. Then the original's call.
+; start (0x2636B0; the host +D520h, the decal +D524h), for every host. The
+; start writes the decal's index (+D52Ch), its record's (+D52Dh) and value
+; (+D548h) only when it finds the decal's record among the host's (the
+; inventory's copy); with none, they are the last edit's. That is so when the
+; movie's "change" is clicked on a decal just dropped into a slot (the movie
+; shows it at once) before the server's answer puts its record there: the
+; preview then read `data/decals` past its end (the owner's crash at
+; 0x26517A, 2026-11-26: index 1 of an empty table). So the record at +D52Dh
+; must be the decal's, in a decal's slot (a weapon's 0 or 1; armour's not 3,
+; the slot the stock skips): else the edit is off again, the movie leaves it
+; (leave_edit) and nothing is queried; a "change" after the answer edits.
+; On a weapon +D52Ch = the records of slots 0 and 1 before it, the decals'
+; order in `data/decals` (the stock counts a weapon's camouflage, slot 2).
+; Then the original's call.
 start:
-    mov eax, esi
-    call is_weapon_edit
-    jz START_QUERY
     pushad
     mov eax, [esi+MENU]
     mov eax, [eax+9Ch]
@@ -826,16 +843,27 @@ start:
     call FIND_ITEM
     add esp, 8
     cmp eax, edi
-    je .query                       ; no such item: as the original
+    je .query                       ; no such item: as the original (whose start read its records)
     mov edx, [eax+RECORDS]
     mov ecx, [eax+RECORDS+4]
     sub ecx, edx
     movzx edi, byte [esi+RECORD_INDEX]
     imul eax, edi, RECORD_SIZE
     cmp eax, ecx
-    jae .not_decal
-    cmp byte [edx+eax+RECORD_SLOT], 1
-    ja .not_decal
+    jae .refused
+    lea ebx, [edx+eax]              ; the record
+    mov eax, [esi+EDIT_DECAL]
+    cmp [ebx+RECORD_ID], eax
+    jne .refused                    ; another's: the host does not hold the decal (yet)
+    mov eax, esi
+    call is_weapon_edit
+    jnz .weapon
+    cmp byte [ebx+RECORD_SLOT], CAMO_SLOT
+    je .refused
+    jmp .query
+.weapon:
+    cmp byte [ebx+RECORD_SLOT], 1
+    ja .refused
     xor ebx, ebx                    ; the decals before it
 .count:
     test edi, edi
@@ -852,10 +880,96 @@ start:
 .query:
     popad
     jmp START_QUERY
-.not_decal:
-    mov byte [esi+EDITING], 0
+.refused:
+    call leave_edit
     popad
     ret
+
+; esi = a lobby_character: its decal edit off (+D514h 0: no preview, no
+; pick, no cancel) and the movie out of it (root.exit_decal_edit, as the
+; bake's callback 0x2648E0 leaves it: the window's controls unlocked).
+; Keeps every register.
+leave_edit:
+    pushad
+    mov byte [esi+EDITING], 0
+    mov eax, [esi+MENU]
+    mov ecx, [eax+690h]
+    mov ecx, [ecx+108h]
+    mov ecx, [ecx+4]
+    push 0
+    push 0
+    push 0
+    push EXIT_DECAL_EDIT
+    call MOVIE_CALL
+    popad
+    ret
+
+; 0x264F4D `call 0x264F80` in 0x264EA0, the host's merged config loaded
+; (stdcall (character), `ret 4`; the character's +D528h holds it), for every
+; host: 0x264F80 reads the texture of `data/decals[+D52Ch]` (each entry
+; {texture, low, high}) with no bound and no type. Only an entry there, a
+; table whose first value is a text, goes on to it; otherwise (a config
+; without the edited decal's entry) the edit is off, the movie leaves it, and
+; the return skips the host's bake that follows (0x264F52..0x264F67, the
+; start's bake without the edited decal): 0x264F68, the callback's end.
+textures:
+    pushad
+    mov ebx, [esp+24h]              ; the character
+    mov eax, [ebx+HOST_CONFIG]
+    test eax, eax
+    jz .refused
+    mov ebp, [eax+CONFIG_ROOT]
+    test ebp, ebp
+    jz .refused
+    cmp word [ebp+14h], T_TABLE
+    jne .refused
+    mov eax, ebp
+    mov esi, KEY_DATA
+    call has_key
+    test al, al
+    jz .refused
+    mov eax, ebp
+    mov edi, KEY_DATA
+    call child
+    cmp word [eax+14h], T_TABLE
+    jne .refused
+    mov ebp, eax
+    mov esi, KEY_DECALS
+    call has_key
+    test al, al
+    jz .refused
+    mov eax, ebp
+    mov edi, KEY_DECALS
+    call child
+    cmp word [eax+14h], T_TABLE
+    je .entries
+    cmp word [eax+14h], T_LIST
+    jne .refused
+.entries:
+    movzx ecx, byte [ebx+DECAL_INDEX]
+    cmp cx, [eax+16h]
+    jae .refused                    ; past its entries
+    mov eax, [eax]
+    lea ecx, [ecx+ecx*2]
+    lea eax, [eax+ecx*8]            ; the entry
+    cmp word [eax+14h], T_TABLE
+    je .entry
+    cmp word [eax+14h], T_LIST
+    jne .refused
+.entry:
+    cmp word [eax+16h], 0
+    je .refused
+    mov eax, [eax]
+    cmp word [eax+14h], T_STRING    ; its texture
+    jne .refused
+    popad
+    jmp QUERY_TEXTURES
+.refused:
+    mov esi, ebx
+    call leave_edit
+    popad
+    mov dword [esp], AFTER_HOST_BAKE
+    ret 4
 
 ; 0x265C20, the character's mouse key handler (thiscall ecx = the character;
 ; the input world, the code, the kind; al; `ret 0Ch`) -> jmp click + nop.
@@ -931,4 +1045,3 @@ least_across:       dd 1.0e-4       ; a ray within 0.6 degrees of the axis is ta
 reach_squared:      dd 0.0625       ; REACH: 0.25 m from the axis
 z_min:              dd -0.6         ; Z_MIN, Z_MAX: a rifle's stock to beyond a long muzzle
 z_max:              dd 1.4
-name_decal:         db "_%s_%08x%08x", 0

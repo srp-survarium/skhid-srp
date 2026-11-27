@@ -11,9 +11,9 @@ The general rules, on every build (cert-only, section, hash-mismatch, with
 and without an embedded server, the default build with the late join): what
 a build changed is what build() recorded (patch_026g.py APPLIED: every write
 a named instance's), so a patch that declares its writes needs no line here.
- - the checked-in .bin files are what nasm makes today, the engine library's
-   and the hooks' generated files what their tables give, the arena the
-   lock's (test_bins, test_late_join_bin);
+ - the checked-in .bin files are what nasm makes today; the arena's SHA-256
+   printed (`arena sha256 <hex>`: release.sh compares it with the shipped
+   exe's) (test_bins, test_late_join_bin);
  - the PE parses: the section table, alignments, SizeOfImage, the data
    directories, the certificate table last and the original's (test_pe and
    the sections of test_late_join);
@@ -54,8 +54,7 @@ server, the revision (worked out from the instructions that fill the
 version field), --revision and --required-patches. On Windows, imagehlp's
 checksum and the certificate the client reads (test_windows).
 The engine-function library (engine_026g.py, the arena's block engine.code;
-client_patch.md section 0.5): its files are what engine_026g.tsv and the
-re-kit's ABI rows give, and engine_026g.py refuses a spec row whose
+client_patch.md section 0.5): engine_026g.py refuses a spec row whose
 parameters are not where the re-kit's roles say (each names a word of its
 location's role: two parameters swapped are refused) and a cleanup that is
 no number. check_engine_026g.py
@@ -142,6 +141,27 @@ BRANCH = re.compile(r"^(call|jmp|j[a-z]+|loop[a-z]*)\s+(?:near |short )?(0x[0-9a
 def branch_target(text):
     match = BRANCH.match(text)
     return int(match.group(2), 16) if match else None
+
+
+SWITCH = re.compile(r"^jmp (?:dword )?\[e[a-z]{2}\*4\+(0x[0-9a-f]+)\]$")
+
+
+def switch_targets(image, entry, text):
+    """The cases of a compiler's switch, `jmp [reg*4+table]` with the table
+    right after the function's code (MSVC's): the table's dwords from its
+    start while each is a place in [entry, table). [] for any other jump."""
+    match = SWITCH.match(text)
+    table = int(match.group(1), 16) if match else 0
+    targets = []
+    while table > entry:
+        try:
+            case = struct.unpack("<I", image.read(table + 4 * len(targets), 4))[0]
+        except (ValueError, struct.error):
+            break
+        if not entry <= case < table:
+            break
+        targets.append(case)
+    return targets
 
 
 class Image:
@@ -338,32 +358,20 @@ def test_bins():
         fresh = open(out, "rb").read()
     check(fresh == open(P.upgrade_preview_bin(), "rb").read(),
           f"{os.path.basename(P.upgrade_preview_bin())} is current ({len(fresh)} bytes)")
-    import engine_026g
-    try:
-        stale = engine_026g.stale()
-    except engine_026g.Refused as error:
-        stale = [f"refused: {error}"]
-    check(not stale, "engine_026g.h, .inc, .asm and .rs are what engine_026g.tsv and the re-kit's ABI rows give "
-          "(engine_026g.py --write)" + (": not " + ", ".join(stale) if stale else ""))
     import hooks_026g
     try:
-        hook_stale = hooks_026g.stale()
         hooks_026g.check_layers()
         layers = None
     except hooks_026g.Bad as error:
-        hook_stale, layers = [], str(error)
-    check(not hook_stale and layers is None,
-          "hooks_026g.rs and hook_entries_026g.asm are what the patches' TOML gives (hooks_026g.py --write), and "
+        layers = str(error)
+    check(layers is None,
           "the Rust patches keep the raw/vostok/patches layers (no address or hand-made binding outside raw, each "
-          "patch module forbids unsafe and names only vostok)"
-          + (": stale " + ", ".join(hook_stale) if hook_stale else "") + (f": {layers}" if layers else ""))
+          "patch module forbids unsafe and names only vostok)" + (f": {layers}" if layers else ""))
     # The arena (Research, the artefacts, the engine library) is linked from
-    # its sources here, as by every build, and is the lock's.
+    # its sources here, as by every build; release.sh compares this line
+    # with the arena of the exe it ships.
     linked = P.arena()
-    check(P.linker.lock_differs(linked, P.linker.read_lock()) is None,
-          f"the arena linked from its sources is {P.linker.LOCK.name}'s ({linked.size:#x} bytes, SHA-256 "
-          f"{linked.sha256[:16]}..., blocks {', '.join(f'{b.name} {b.va:#x}' for b in linked.blocks.values())}; "
-          "link_026g.py --write)")
+    print(f"arena sha256 {linked.sha256}")
     with tempfile.TemporaryDirectory() as tmp:
         out = os.path.join(tmp, "out.bin")
         subprocess.run([tool("nasm"), "-f", "bin", f"-DCAVE={P.WEAPON_DRAW_VA:#x}", f"-DSTATE={state:#x}",
@@ -572,6 +580,22 @@ def version_field(image):
     return out
 
 
+def test_detail(original, image):
+    """Native detail hooks, option/label counts, relocations and entrances."""
+    stock = Image(original)
+    symbols = P.arena().symbols
+    for va, old, symbol, opcode in P.DETAIL_HOOKS:
+        wanted = bytes([opcode]) + struct.pack('<i', symbols[symbol] - va - 5) + b'\x90' * (len(old) - 5)
+        check(stock.read(va, len(old)) == old and image.read(va, len(old)) == wanted,
+              f"detail {symbol}: original bytes and symbolic jump at {va:#x}")
+        check(not [rva for kind, rva in stock.relocations().values()
+                   if kind == 3 and rva + 4 > va and rva < va + len(old)],
+              f"detail {symbol}: no relocation under hook")
+    for va, old, new in P.DETAIL_PATCHES:
+        check(stock.read(va, len(old)) == old and image.read(va, len(new)) == new,
+              f"detail: option/label count extended to twenty at {va:#x}")
+
+
 def test_revision(original, image, mode, revision, late_join=False):
     """The patch revision in the sign-in (client_patch.md section 6), worked
     out from the instructions that fill the version field. late_join: the
@@ -699,7 +723,11 @@ def function_pops(image, entry, limit=20000):
             target = branch_target(text)
             if op == "jmp":
                 if target is None:
-                    lost.append(f"{va:#x}: {text}")
+                    cases = switch_targets(image, entry, text)
+                    if cases:                              # a switch: each case followed
+                        todo.extend(cases)
+                    else:
+                        lost.append(f"{va:#x}: {text}")
                     break
                 ways = lohook_dispatch(image, target)
                 if ways is not None:                       # a generated lohook entry: its `ret` is a jump
@@ -1084,7 +1112,10 @@ def test_weapon_camo(original, image, before):
     check_weapon_camo_026g.py runs the site and the code on made-up configs
     and models."""
     camo_va = P.weapon_camo_va(open(P.late_join_bin(), "rb").read())
-    check_piece(original, image, "weapon_camo_026g.section.bin", camo_va, open(P.weapon_camo_bin(), "rb").read())
+    camo = open(P.weapon_camo_bin(), "rb").read()
+    # its last dword, bake_name, is the build's: the arena's entry of weapon_camo.bake_name
+    check_piece(original, image, "weapon_camo_026g.section.bin", camo_va,
+                P.with_bake_name(camo, len(camo) - 4, P.arena()))
 
 
 def test_weapon_table(original, image, before):
@@ -1130,6 +1161,20 @@ def test_weapon_decals(original, image, before):
     check_piece(original, image, "patch 47 (weapon_decals_026g.section.bin)", decals_va, code,
                 code.index(struct.pack("<4I", 0x20080000, 0x8A30CE00, 0x20080200, 0x8A30CE00)),
                 P.WEAPON_DECALS_ENTRIES)
+    # textures' way back when it ends the edit: past the rest of 0x264EA0's body after the call it
+    # replaces (the host's bake: four pushes and a call of 0x2641A0, `ret 10h` as patch 47's bake) to
+    # its epilogue, the stack as the bake's return leaves it; the code writes that address over its own
+    # return address once
+    after = P.WEAPON_DECALS_AFTER_HOST_BAKE
+    body = bytes.fromhex("57e82e000000" "8b874cd50000" "8b8f48d50000" "6a01" "50" "51" "57" "e838f2ffff" "5f5e5b8be55d")
+    check(bytes(original[P.file_offset(0x264F4C):P.file_offset(0x264F4C) + len(body)]) == body
+          and after == 0x264F4C + len(body) - 6
+          and image.read(0x264F52, 0x264F72 - 0x264F52) == bytes(original[P.file_offset(0x264F52):
+                                                                         P.file_offset(0x264F72)])
+          and code.count(b"\xC7\x04\x24" + struct.pack("<I", after)) == 1,
+          f"patch 47's textures (0x264F4D): its way back {after:#x} is 0x264EA0's epilogue after the host's "
+          "bake (push edi; call; four pushes; call 0x2641A0, ret 10h; pop edi), unchanged in the build, "
+          "written once over its return address")
 
 
 def test_upgrade_preview(original, image, before):
@@ -1634,23 +1679,23 @@ def test_artefacts(original, image, before):
     check(P.artefacts_backs(linked) == list(P.ARTEFACTS_BACKS) and not unknown,
           "its entries go on where they came from (" + ", ".join(hex(a) for a in P.ARTEFACTS_BACKS)
           + "); its calls are known targets" + "".join(f"; {t:#x}" for t in unknown))
-    heals = artefacts_va + names + 47
-    check(code[names:] == b"aim_time_mod\0stopping_power_mod\0pain\0body\0head\0"
-          + struct.pack("<III", *(artefacts_va + names + at for at in (32, 37, 42)))
+    heals = artefacts_va + names + 87
+    check(code[names:] == b"aim_time_mod\0stopping_power_mod\0pain\0body\0head\0left_hand\0right_hand\0left_leg\0"
+          b"right_leg\0" + struct.pack("<7I", *(artefacts_va + names + at for at in (32, 37, 42, 47, 57, 68, 77)))
           and f"mov ebp,{artefacts_va + names + 13:#x}" in texts
           and f"mov ebp,{artefacts_va + names:#x}" in texts and f"mov ebx,{heals:#x}" in texts
-          and f"cmp ebx,{heals + 12:#x}" in texts,
+          and f"cmp ebx,{heals + 28:#x}" in texts,
           "its data: the keys aim_time_mod and stopping_power_mod, and the pools Lifebone's active fills (pain, "
-          "body, head)")
+          "body, head, both hands, both legs)")
     hud_source = open(os.path.join(HERE, "..", "flash", "hud", "src", "HUD.as"), encoding="utf-8").read()
     from localization_026g import CATALOG, LANGUAGES, read_translations
     hints = [read_translations(CATALOG / f'{language}.tsv')['st_onyx_activation_hint']
              for language, *_ in LANGUAGES]
     check('text = text.split("%s").join(String(Math.ceil(time / 1000)));' in hud_source.split(
               "public function set_parameterized_message(")[1].split("public function")[0]
-          and len(hints) == len(LANGUAGES) and all(h.count("%s") == 1 and "75" in h for h in hints),
-          "the hud's set_parameterized_message writes a message's %s as its time on screen in seconds, and the "
-          "all Onyx activation hints say 75 % for %s")
+          and len(hints) == len(LANGUAGES) and all(h.count("%s") == 1 for h in hints),
+          "the hud's set_parameterized_message writes a message's %s as its time on screen in seconds, and "
+          "every language's Onyx activation hint has one %s, that time (its strength wears, #2689: no number)")
 
 
 def test_match_keys(original, image, before):
@@ -1685,8 +1730,9 @@ def test_match_keys(original, image, before):
 
 
 def test_voice(original, image, before):
-    """Check 66: voice chat (patch 66: voice.toml's eight lohooks; its key the
-    game's ptt, a key or a mouse button, the action table the game's), the movies' side."""
+    """Check 66: voice chat (patch 66: voice.toml's eleven lohooks; its two keys, a key or
+    a mouse button each: the game's ptt and the action entry VOICE_ACTION, whose Controls
+    row is test_hide_ui's), the movies' side."""
     print("voice chat (patch 66)")
     stock = Image(original)
     rows = lambda source, va, size: [text for _, _, text in ndisasm(source.read(va, size), va)]
@@ -1706,16 +1752,29 @@ def test_voice(original, image, before):
     check(cstr(ptt[0]) == b"ptt" and ptt[1:4] == (0x47, 8, 0) and cstr(ptt[4]) == b"kP"
           and image.read(0xA74F8C, 20) == stock.read(0xA74F8C, 20),
           "the action table's entry 0xA74F8C is the game's ptt (47h, kind 8, kP), unchanged in the build")
+    entry = struct.unpack("<5I", stock.read(P.VOICE_ACTION, 20))
+    check(stock.read(P.VOICE_ACTION, 20) == P.VOICE_ACTION_OLD == before.read(P.VOICE_ACTION, 20)
+          and cstr(entry[0]) == b"serialize_player_state" and entry[1:4] == (0x37, 5, 0) and cstr(entry[4]) == b"kO"
+          and [struct.unpack("<5I", stock.read(0xA74AF0 + 20 * i, 20))[1] for i in range(60)].count(0x37) == 1,
+          "0xA74E10 is the action table's one entry of 37h: serialize_player_state, kinds 5, kO (a debug "
+          "action: no console command of that name)")
+    name = P.arena().symbols["ptt_nearby_action"]
+    row = P.arena().symbols["actions"] + P.VOICE_ACTION - P.ITEM_HOTKEYS_TABLE
+    check(struct.unpack("<5I", image.read(row, 20)) == (name, 0x37, 8, 0, entry[4])
+          and image.read(name, 11) == b"ptt_nearby\0",
+          "in the build its row of the moved action table (patch 149's `actions`) is ptt_nearby (the arena's "
+          "name), kind 8, its default key O kept")
     linked = P.arena()
     block = linked.blocks["patches.code"]
     declarations = {h["entry"]: h for h in P.hooks_026g.hooks(exe=P.hooks_026g.original_reader(original))
                     if any(m["patch"] == "voice" for m in h.get("chain", [h]))}
     hooks = [h for h in P.rust_hooks(original) if h[2] in declarations]
-    check(len(hooks) == 8 and {h[0] for h in hooks} == {0x1EA210, 0x27A1B0, 0x1F96F0, 0x1F9520, 0x1F7C3C, 0x25CD00,
-                                                       0x25CF70, 0x233D30},
-          "voice.toml's eight lohooks: configs.start, match_client.connect, game_world.finish and .deactivate, "
+    check(len(hooks) == 11 and {h[0] for h in hooks} == {0x1EA210, 0x27A1B0, 0x1F96F0, 0x1F9520, 0x1F7C3C, 0x25CD00,
+                                                        0x25CF70, 0x233D30, 0x1FF5D0, 0x201040, 0x1EC8EC},
+          "voice.toml's eleven lohooks: configs.start, match_client.connect, game_world.finish and .deactivate, "
           "game_world.after_move, tab_cursor.key, game_world.mouse_key (0x25CF70, past patch 31's jump; the key at "
-          "ESP+14h, its kind at +18h), hud.callback")
+          "ESP+14h, its kind at +18h), hud.callback; the options' microphone test's options.callback, "
+          "options.deactivate and game.tick")
     for va, old, symbol, opcode in hooks:
         target = linked.symbols[symbol]
         hook = P.hook_bytes(target, va, old, 0, opcode)
@@ -1726,7 +1785,23 @@ def test_voice(original, image, before):
     hud = here("flash", "hud", "src", "HUD.as")
     menu = here("flash", "hud", "src", "survarium", "controls", "PlayerRowMenu.as")
     timeline = here("flash", "main_menu", "src", "main_menu_fla", "settingsTabs_15.as")
-    check("public function srp_voice_talking(... names)" in hud
+    mic_test = here("flash", "main_menu", "src", "SrpMicTest.as")
+    check("public function srp_mic_test(text:String)" in here("flash", "main_menu", "src", "MainMenu.as")
+          and 'public static const NAME:String = "srp_mic_test";' in mic_test and "SrpExe.call(NAME, null);" in mic_test
+          and 'SrpExe.call(NAME, String(Math.round(volume.selectedIndex)));' in mic_test
+          and 'private static const STOP:String = "stop";' in mic_test and "SrpExe.call(NAME, STOP);" in mic_test,
+          "the main menu has root.srp_mic_test; the sound tab's Test microphone button asks srp_mic_test, sends a "
+          "press with the voice chat volume slider's steps and says stop as the Settings window closes")
+    microphone = here("flash", "main_menu", "src", "SrpMicrophone.as")
+    check("public function srp_microphone(... values)" in here("flash", "main_menu", "src", "MainMenu.as")
+          and 'public static const NAME:String = "srp_microphone";' in microphone and "SrpExe.call(NAME, null);" in microphone
+          and "SrpExe.call(NAME, saved);" in microphone
+          and 'private static const USE:String = "srp_microphone_use";' in microphone
+          and "SrpExe.call(USE, pending ? ids[menu.selectedIndex] : null);" in microphone
+          and "SrpExe.call(USE, null);" in microphone,
+          "the main menu has root.srp_microphone; the sound tab's Microphone list asks srp_microphone, sends "
+          "Apply's pick by its id, a pick at once by srp_microphone_use and the saved one again at its revert")
+    check("public function srp_voice_talking(... speakers)" in hud
           and "public function srp_voice_menu(place:uint, offered:uint, muted:uint)" in hud
           and "public function srp_voice_mute(place:uint, done:uint)" in hud
           and 'this.call("srp_voice_menu",String(row.id));' in menu
@@ -1735,10 +1810,58 @@ def test_voice(original, image, before):
           in here("flash", "main_menu", "src", "survarium", "menu", "Settings.as")
           and "this._hide_spam.enabled = true;" in timeline and "this._use_mik.enabled = true;" in timeline
           and "this._sound_сhat.slider.enabled = false;" not in timeline
-          and "this._mic_sens.slider.enabled = false;" not in timeline,
+          and ('var sensitivity:DisplayObject = this.settings_content["_mic_sens"] as DisplayObject;\n'
+               '         if(sensitivity)\n         {\n            sensitivity.visible = false;\n         }')
+          in here("flash", "main_menu", "src", "survarium", "menu", "Settings.as"),
           "the hud has root.srp_voice_talking and the Tab menu's root.srp_voice_menu and "
           "root.srp_voice_mute, its row menu asks srp_voice_menu and sends srp_voice_mute; the options enable "
-          "Disable voice chat (_hide_spam), Use microphone, the voice volume and the microphone's sensitivity")
+          "Disable voice chat (_hide_spam), Use microphone and the voice volume, and hide the microphone's "
+          "sensitivity")
+
+
+def test_item_hotkeys(original, image, before):
+    """Check 149: a key per item type uses it (patch 149: the moved action
+    table, the key binder's 60h bindings, item_hotkeys.toml's hook at the input
+    builder's end). check_item_hotkeys_026g.py runs the binder's functions and
+    the input builder on made-up objects beside the original."""
+    stock = Image(original)
+    linked = P.arena()
+    block, actions = linked.blocks["item_hotkeys.data"], linked.symbols["actions"]
+    rows, game = P.ITEM_HOTKEYS_ROWS, P.ITEM_HOTKEYS_GAME_ROWS
+    check(block.va <= actions and actions + 20 * rows <= block.va + block.size,
+          f"`actions` ({actions:#x}): {rows} rows in item_hotkeys.data")
+    moved = [struct.unpack("<5I", image.read(actions + 20 * i, 20)) for i in range(rows)]
+    table = [struct.unpack("<5I", stock.read(P.ITEM_HOTKEYS_TABLE + 20 * i, 20)) for i in range(game)]
+    names = lambda name: linked.symbols[name]
+    # the rows other patches change: patch 78's default kH, patch 152's names and keys kF9, kF11 and
+    # kF12, patch 66's ptt_nearby of kind 8
+    changed = {0x23: lambda r: r[:4] + (0x9FDCA8,),
+               0x19: lambda r: (names("hide_interface_action"),) + r[1:4] + (0x9FDC1C,),
+               0x1A: lambda r: (names("screenshot_action"),) + r[1:4] + (0x9FDF1C,),
+               0x1B: lambda r: (names("screenshot_no_ui_action"),) + r[1:4] + (0x9FDB60,),
+               0x37: lambda r: (names("ptt_nearby_action"), 0x37, 8) + r[3:]}
+    expected = [changed.get(r[1], lambda r: r)(r) for r in table]
+    # patch 149's sixteen; patch 206's scope_next after them, default kY (0x9FDCC8)
+    added = [row for row in P.CONTROLS_ADDED[5:] if row[0] != 0x5A]
+    scope = moved[game + len(added):]
+    cstr = lambda va: image.read(va, 40).split(b"\0")[0]
+    check(moved[:game] == expected and sum(a != b for a, b in zip(table, expected)) == len(changed)
+          and [stock.read(va, len(key)) for va, key in ((0x9FDCA8, b"kH\0"), (0x9FDC1C, b"kF9\0"),
+                                                         (0x9FDF1C, b"kF11\0"), (0x9FDB60, b"kF12\0"))]
+          == [b"kH\0", b"kF9\0", b"kF11\0", b"kF12\0"]
+          and [(r[1], r[2], r[3], r[4]) for r in moved[game:game + len(added)]] == [(action, 5, 0, 0) for action, _ in added]
+          and all(cstr(r[0]) == key[3:-7].encode() for r, (_, key) in zip(moved[game:], added))
+          and [(cstr(r[0]), r[1], r[2], r[3], stock.read(r[4], 3)) for r in scope] == [(b"scope_next", 0x5A, 5, 0, b"kY\0")],
+          "the game's 60 rows (artefact's default key kH; hide_interface kF9, screenshot kF11, screenshot_no_ui "
+          "kF12; ptt_nearby kind 8), then use_onyx .. use_next_medkit, 4Ah..59h, kinds 5, "
+          "no toggle, no default key, and scope_next (5Ah, kinds 5, kY); each a row of `controls` (CONTROLS_ADDED)")
+    check(all(0x4A <= action < P.ITEM_HOTKEYS_BINDINGS for action, _ in P.CONTROLS_ADDED[5:]),
+          f"their ids past the game's (48h the options' none, 49h the binder's) and below the binder's "
+          f"{P.ITEM_HOTKEYS_BINDINGS:#x} bindings")
+    for va, old, new in P.item_hotkeys_table_writes(linked) + P.item_hotkeys_binder_writes():
+        check(stock.read(va, len(old)) == old == before.read(va, len(old)) and image.read(va, len(new)) == new,
+              f"{va:#x}: {old.hex()} in the original, {new.hex()} in the build")
+
 
 def test_hide_ui(original, image, before):
     """Check 62: the key that hides the interface (patch 62,
@@ -1770,23 +1893,23 @@ def test_hide_ui(original, image, before):
     data_block = linked.blocks["hide_ui.data"]
     added = len(P.CONTROLS_ADDED)
     arena_rows = [image.read(controls + 0x68 * i, 0x68) for i in range(count + added)]
-    new_rows = arena_rows[count:]
-    labels = [struct.unpack_from("<I", row, 4)[0] for row in new_rows]
+    # the rows in the options' order: each found by its action
+    heads = {struct.unpack_from("<I", row)[0]: struct.unpack_from("<4I", row) for row in arena_rows}
+    labels = [heads.get(action, (0, 0))[1] for action, _ in P.CONTROLS_ADDED]
     # push-to-talk (47h): the game's row is the chat group's (1) with its key button disabled (type 0);
     # patch 66's key is a game key that can be set (group 2, type 1)
     moved = lambda head: struct.pack("<4I", *struct.unpack("<2I", head[:8]), 2, 1) \
         if head == struct.pack("<4I", 0x47, 0x9FC900, 1, 0) else head
+    expected = [struct.unpack("<4I", moved(row[:16])) for row in original_rows] \
+        + [(action, label, 2, 1) for (action, _), label in zip(P.CONTROLS_ADDED, labels)]
     check(sum(moved(row[:16]) != row[:16] for row in original_rows) == 1 and data_block.va <= controls and controls + 0x68 * (count + added) <= data_block.va + data_block.size
-          and all(arena_rows[i][:16] == moved(original_rows[i][:16]) and arena_rows[i][16:] == empty(controls + 0x68 * i)
-                  for i in range(count))
-          and [struct.unpack_from("<4I", row) for row in new_rows]
-          == [(action, label, 2, 1) for (action, _), label in zip(P.CONTROLS_ADDED, labels)]
-          and all(row[16:] == empty(controls + 0x68 * (count + n)) for n, row in enumerate(new_rows))
+          and len(heads) == count + added and sorted(heads.values()) == sorted(expected)
+          and all(row[16:] == empty(controls + 0x68 * i) for i, row in enumerate(arena_rows))
           and [image.read(label, len(key) + 1) for (_, key), label in zip(P.CONTROLS_ADDED, labels)]
           == [key.encode() + b"\0" for _, key in P.CONTROLS_ADDED],
           f"`controls` ({controls:#x}, hide_ui.data) is the game's 40 rows (push-to-talk's in the game group, "
-          "its key settable), each pointing into itself, a 41st: "
-          "19h, st_hide_interface_action, and a 42nd: 23h, st_hold_artifact_action, group 2, type 1")
+          "its key settable), each pointing into itself, and the added ones (19h st_hide_interface_action, "
+          "23h st_hold_artifact_action, 37h st_ptt_nearby_action, ...), group 2, type 1, in the options' order")
     check("\nedit\tlocalization-1.json\t-\t" in open(os.path.join(HERE, "..", "..", "release", "content.tsv"),
                                                        encoding="utf-8").read(),
           "release/content.tsv makes the label (localization-1.json)")
@@ -1860,19 +1983,20 @@ def test_hide_ui(original, image, before):
     check(all("public function hide_interface(hidden:Boolean) : void" in t and "visible = !hidden;" in t
               for t in (hud, icons)) and "public function interface_hidden() : Boolean" in hud
           and hud_adds == [("HUD.as", "stage", "this._keptLayer"), ("HUD.as", "stage", "this.deathEyes"),
-                           ("HUD.as", "stage", "this.effectContainer")]
+                           ("HUD.as", "stage", "this.effectContainer"), ("HUD.as", "stage", "this.roundFade")]
           and not icon_adds
           and "stage.addChildAt(this.effectContainer,stage.getChildIndex(this));" in hud
           and "stage.addChildAt(this.deathEyes,stage.getChildIndex(this));" in hud
+          and "stage.addChildAt(this.roundFade,stage.getChildIndex(this));" in hud
           and "this._stageLayer.addChild(this.gameInfo);" in hud and "place.concat(this.transform.matrix);" in hud
           and all(f"override public function {f}" in hud for f in ("addChild(", "addChildAt(", "setChildIndex("))
           and "InterfaceHider" not in "".join(tree("hud").values()) + "".join(tree("player_icons").values())
           and all(f"this.effects[this.{name}] = " in hud for name in ("BLOOD_EFFECT", "BLOOD_DRIP1", "GRENADE_EFFECT")),
           "the hud's and the player icons' interface is their root, hidden in one step (root.hide_interface; the "
-          "hud's interface_hidden); the hud's fps line is in the root's _stageLayer; the two things on the hud's "
-          "stage beside the root are the screen effects' container (add_effect's blood, its drips, the grenade's "
-          "flash), below the root, placed as the root is scaled: the scene's, so it stays (the owner, 2026-10-24), "
-          "and the death fade (DeathEyes, #529) between them, which F11 leaves too")
+          "hud's interface_hidden); the hud's fps line is in the root's _stageLayer; below the root on the hud's "
+          "stage are the screen effects' container (add_effect's blood, its drips, the grenade's flash), placed as "
+          "the root is scaled: the scene's, so it stays (the owner, 2026-10-24), then the death fade (DeathEyes, "
+          "#529) and Artifact Hunt's round fade (RoundFade, #2363), which F11 leaves too")
     check("public function toggle_interface() : void" in lobby and "public function interface_hidden() : Boolean" in lobby,
           "the lobby movie has root.toggle_interface and root.interface_hidden")
 
@@ -2604,18 +2728,13 @@ def test_call_shapes_negative(original):
           "a `push imm32` of our code's address inside a write (at +3) is found and, undeclared, rejected")
 
 
-def link_refusal(blocks, tools=None, lock=None):
-    """The text the arena of `blocks` (ARENA's when None, compared with
-    `lock` when given) is refused with; None when it links."""
-    saved = P.linker.read_lock
-    if lock is not None:
-        P.linker.read_lock = lambda: lock
+def link_refusal(blocks, tools=None):
+    """The text the arena of `blocks` (ARENA's when None) is refused with;
+    None when it links."""
     try:
         P.arena(blocks, P.linker.toolchain(**tools) if tools else None)
     except (SystemExit, P.linker.LinkError) as stop:
         return str(stop)
-    finally:
-        P.linker.read_lock = saved
     return None
 
 
@@ -2776,10 +2895,6 @@ def test_arena(original):
     except SystemExit as stop:
         text = str(stop)
     check(text is not None and "nowhere_026g" in text, "a hook whose symbol the link lacks stops the build")
-    lock = P.linker.read_lock()
-    text = link_refusal(None, lock=dict(lock, sha256="0" * 64))
-    check(lock is not None and text is not None and P.linker.LOCK.name in text,
-          f"an arena whose bytes are not the lock's stops the build: {(text or 'built')[:160]}")
 
 
 def test_apply(original):
@@ -2996,6 +3111,7 @@ def test_late_join(original, without, server, source):
           "dword patch 112's entry of the arena) and int3 padding, code | execute | read, on the page after .srpd, its "
           "file bytes right after .srp's")
     camo = open(P.weapon_camo_bin(), "rb").read()
+    camo = P.with_bake_name(camo, len(camo) - 4, P.arena())
     camo = camo + b"\xCC" * (P.WEAPON_STASH_OFFSET - len(camo)) + open(P.weapon_stash_bin(), "rb").read()
     camo = camo + b"\xCC" * (P.WEAPON_TABLE_OFFSET - len(camo)) + open(P.weapon_table_bin(), "rb").read()
     camo = camo + b"\xCC" * (P.WEAPON_DECALS_OFFSET - len(camo)) + open(P.weapon_decals_bin(), "rb").read()
@@ -3076,8 +3192,10 @@ def test_late_join(original, without, server, source):
     test_artefacts(original, image, before)
     test_match_keys(original, image, before)
     test_hide_ui(original, image, before)
+    test_item_hotkeys(original, image, before)
     test_voice(original, image, before)
     test_kill_feed(original, image, before)
+    test_detail(original, image)
     test_weapon_kit(original, image, before)
     test_weapon_flight(original, image, before)
     test_revision(original, image, "section", P.REVISION, late_join=True)
@@ -3219,6 +3337,7 @@ def _run_part(index):
 def main():
     source = sys.argv[1] if len(sys.argv) > 1 else ORIGINAL
     os.environ["SRP_026G_EXE"] = os.path.abspath(source)     # the Rust span hooks' bytes (hooks_026g.py)
+    os.environ["SRP_ARENA_CACHE"] = "off"                    # every arena here is built from its sources (link_026g.py)
     original = open(source, "rb").read()
     os.makedirs(SCRATCH, exist_ok=True)
     game = os.path.abspath(os.path.dirname(source))

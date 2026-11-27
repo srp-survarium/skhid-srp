@@ -12,10 +12,11 @@ Nothing is stubbed. lobby_menu+313Ch NULL (no match loaded): the stock game
 faults reading address 0 at 0xF6C47 (the live crash), the patched one shows
 "". A map key, translated or not, gives the same text in both.
 
-expand_text's {USE}: the key bound to the translator's action is looked up in
-the key table (0x207BF0, 0xA74FA0) and its name translated. Bound, both builds
-give the key's text; unbound (no entry), the stock game translates NULL
-(0x1FF09D) and faults at 0xF6C47, the patched one leaves the placeholder empty.
+expand_text's {USE}: the key bound to Use is looked up in the key table
+(0x207BF0, 0xA74FA0) and its name translated. Bound, both builds give the
+key's text; unbound (no entry), the stock game translates NULL (0x1FF09D) and
+faults at 0xF6C47, the patched one (patch 212, check_key_prompts_026g.py)
+names it st_srp_key_unbound's text.
 """
 import struct
 import sys
@@ -35,7 +36,7 @@ MENU, HOLDER, OWNER, ROOT, NODES, STRINGS, INPUT, BINDS, ACTIONS, ACTION = (
 TRANSLATOR = HOLDER + 0x52A8
 KEYS, KEY_STRIDE = 0xA74FA0, 0x88                  # the key table 0x207BF0 searches: +0 name, +4 code
 DICTIONARY = {b"mp_bath": b"Bath", b"mp_rudnya": b"Rudnya", b"st_pickup_item": b"Pick up ({USE})",
-              b"kb_key_f": b"F"}
+              b"kb_key_f": b"F", b"st_srp_key_unbound": b"unbound"}
 
 
 class Game:
@@ -61,11 +62,15 @@ class Game:
         self.word(OWNER + 0x108, ROOT)
         self.word(TRANSLATOR, OWNER)
         self.word(MENU + 0x9C, HOLDER)
-        # expand_text's {USE}: translator+8, +0B4h, +5344h, +280h: the action,
-        # whose +4 is the key's code. The table: one key, code 0x21.
-        for at, value in ((TRANSLATOR + 8, INPUT), (INPUT + 0xB4, BINDS), (BINDS + 0x5344, ACTIONS),
-                          (ACTIONS + 0x280, ACTION), (KEYS, self.string(b"kb_key_f")), (KEYS + 4, 0x21),
-                          (KEYS + KEY_STRIDE, 0)):
+        # expand_text's {USE}: translator+8 the game (INPUT here), its +0B4h
+        # the game again (its world's), +5344h the binder, whose binding 35h
+        # is {its action's row, its key}: the row's name "use" (patch 212
+        # finds the action by it), the key's +4 its code. The table: one key,
+        # code 0x21.
+        use_row = self.string(struct.pack("<II", self.string(b"use"), 0x35))
+        for at, value in ((TRANSLATOR + 8, INPUT), (INPUT + 0xB4, INPUT), (INPUT + 0x5344, ACTIONS),
+                          (ACTIONS + 0x27C, use_row), (ACTIONS + 0x280, ACTION),
+                          (KEYS, self.string(b"kb_key_f")), (KEYS + 4, 0x21), (KEYS + KEY_STRIDE, 0)):
             self.word(at, value)
 
     def bind(self, code): self.word(ACTION + 4, code)
@@ -113,17 +118,17 @@ def checks(original, built):
     for name, text in ((b"mp_bath", "Bath"), (b"mp_rudnya", "Rudnya"), (b"mp_unknown", "mp_unknown")):
         assert stock.results(name) == fixed.results(name) == text, name
     assert fixed.results(None) == "", "and again after a named map"
-    assert bytes(stock.u.mem_read(0x1FF073, 2)) == bytes.fromhex("741b")
-    assert bytes(fixed.u.mem_read(0x1FF073, 2)) == bytes.fromhex("7436")
+    assert bytes(stock.u.mem_read(0x1FF037, 2)) == bytes.fromhex("7572")
+    assert bytes(fixed.u.mem_read(0x1FF037, 2)) == bytes.fromhex("eb72")
     for code, text in ((0x21, "Pick up (F)"), (0x22, None), (0x21, "Pick up (F)")):
         for game in (stock, fixed): game.bind(code)
         if text is None:
             assert stock.results(b"st_pickup_item") == FAULT, "the stock game translates NULL for an unbound {USE}"
-            assert fixed.results(b"st_pickup_item") == "Pick up ()", "the patched one leaves it empty"
+            assert fixed.results(b"st_pickup_item") == "Pick up (unbound)", "the patched one says unbound"
         else:
             assert stock.results(b"st_pickup_item") == fixed.results(b"st_pickup_item") == text
     print("ok: stock faults at 0xF6C47 on a NULL map name and on an unbound {USE}; patched shows \"\" and "
-          "\"Pick up ()\"; map names and a bound {USE} unchanged")
+          "\"Pick up (unbound)\"; map names and a bound {USE} unchanged")
 
 
 if __name__ == "__main__":

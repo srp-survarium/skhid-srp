@@ -13,7 +13,7 @@
 //! the regions (a few thousand, against up to 2.3 million floors on the
 //! real maps) answers it in well under a millisecond.
 //!
-//! [`WalkGrid::route_search`] uses it: the regions' search gives the
+//! [`Regions::route_search`] uses it: the regions' search gives the
 //! corridor, the floors' A* runs inside the corridor only (what it expands
 //! is the corridor's few thousand floors, not the map's), and its route is
 //! the floors' own, so it bends no worse than a search of the whole grid
@@ -413,7 +413,7 @@ pub(crate) fn marks_bytes() -> usize {
         .unwrap_or(0)
 }
 
-/// How a [`WalkGrid::route_search`] went, for the logs and tests.
+/// How a [`Regions::route_search`] went, for the logs and tests.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum Stage {
     /// No way between the regions: answered without a floor searched.

@@ -63,6 +63,9 @@ PROVEN by the data:
   0.03/s (body, head, arms, legs; pain 0.1/s), with the same 8 s timeout and
   cap (body 50 %). Body 0 -> 50 %: 16.7 s, 15.9 s at +5 %, 14.5 s at +15 %,
   11.5 s with three +15 % pieces. It works as its card says; it is small.
+  Pain: 0.1/s up to 100 %, 8 s after its last hit, with this bonus (0 -> 100 %
+  in 10 s, 6.9 s with three +15 % pieces). Index 36 `pain_regeneration_speed`
+  is read once, in the ctor (0x2D7043); no item or skill sets it.
 - 47 items (every vest and every pair of trousers) have `camo_available`
   and `decal_available`; `items_compatibility` pairs no cosmetic with
   anything.
@@ -111,7 +114,7 @@ own timer; `ItemControlPanel` shows `rerollTime / 60` minutes). srp sends
 |---|---|---|
 | `46 01` | u32 active kit, **u32 host item, u32 cosmetic item, u8 slot**, u64 0 | `relocate_upgrade_item(item, upgrade, slot)` (0x29A984: args 0, 1, 2 in order) |
 | `46 02` | u32 active kit, u32 cosmetic item; **u32 host item** with patch 30 (§6) | `drop_upgrade_item(item, upgrade)`: the stock exe sends only the second (0x29AAD5 → 0x2708C0; 0x29A9E1 reads the first for a log line) |
-| `46 05` | u32 active kit, **u32 host item, u32 cosmetic item**, u64 value | the decal editor 0x263950; the client then finds the host and the cosmetic's record and writes the value itself (0x270A1A..0x270AC6) |
+| `46 05` | u32 active kit, **u32 host item, u32 cosmetic item**, u64 value | the decal editor 0x263950; the client then finds the host and the cosmetic's record and writes the value itself (0x270A1A..0x270AC6); patch 207 sends it for a second sight's side (`srp_set_upgrade_value`, client_patch.md 3.111) |
 | `46 06` | u32 item | `item_reroll_opened` |
 | `46 07` | u32 item, u32 modification id (`item.mods[index]`), **bool gold** | `reroll_item_modifier(item, index, money type)` |
 | `46 08` | u32 item, u32 old modification id, **u32 the place of the choice (0..2)**; srp's window sends 3 to keep the old one ([reroll-keep-old.md](reroll-keep-old.md)) | `modifier_choosed(item, index, modifiersList2.selectedIndex)`: the third is an index into the three offered, not an id |

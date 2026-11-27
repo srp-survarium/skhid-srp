@@ -551,3 +551,16 @@ fn a_map_without_its_bots_built_files_is_not_offered_and_a_play_on_it_is_redirec
     assert_eq!(denial(&decoded, 0x2F).as_deref(), Some(PLAY_REFUSED));
     let _ = std::fs::remove_dir_all(dir);
 }
+
+/// No free-for-all against bots (the owner, 2026-11-13): its maps are
+/// projects of their own with no bots' map file (`ffa.md`), so none is
+/// offered, and a choice of one is refused as a map not offered.
+#[test]
+fn a_free_for_all_is_not_offered_against_bots() {
+    let mut world = world_with(5);
+    let player = world.connect("P");
+    for map in maps::playable_in(maps::GameMode::FreeForAll) {
+        assert_eq!(choose(&mut world, player, 8, map.id), "B2;no;10;0;15;0;5", "{}", map.id);
+    }
+    world.assert_clean();
+}

@@ -24,6 +24,8 @@ handler = "on_initialize"
 [[hook]]
 site = "medical.movement"
 handler = "on_movement"
+# Before Oxygen Rush (patch 180, order 2) multiplies the result.
+order = 1
 
 [[hook]]
 site = "medical.hit"
@@ -37,6 +39,8 @@ handler = "on_heal"
 [[hook]]
 site = "medical.wound"
 handler = "on_wound"
+# Before Bear Trap (patch 180, order 2) breaks the leg.
+order = 1
 
 [[hook]]
 site = "medical.artefact"
@@ -50,6 +54,8 @@ handler = "on_protection"
 [[hook]]
 site = "medical.pocket_count"
 handler = "on_pocket_count"
+# After Tank Pocket or Tank Depth (patch 180, order 1) adds to it: the clamp to the six pockets of five.
+order = 2
 
 # The game effect cook's instances and the default clock: the shared
 # activation glows' (order 1), then Forest Protection's glow (patch 111, order 2).
@@ -66,6 +72,7 @@ order = 1
 [[hook]]
 site = "medical.sprint"
 handler = "on_sprint"
+order = 1
 
 [[hook]]
 site = "medical.medicine_heal"
@@ -77,10 +84,36 @@ handler = "on_medicine_heal"
 site = "medical.stopping"
 handler = "on_stopping"
 
-# Concentration: the aimed weapon's sway while the painkiller is active.
+# Concentration: every reload state's clip speed while an antitoxin is active.
 [[hook]]
-site = "medical.sway"
-handler = "on_sway"
+site = "medical.reload"
+handler = "on_reload"
+
+[[hook]]
+site = "medical.reload_double"
+handler = "on_reload_double"
+
+[[hook]]
+site = "medical.reload_pistol"
+handler = "on_reload_pistol"
+
+[[hook]]
+site = "medical.reload_shotgun"
+handler = "on_reload_shotgun"
+
+# Sharp Eye: the sight's aim time, up and down, while an antitoxin is active.
+[[hook]]
+site = "medical.aim_start"
+handler = "on_aim_start"
+
+[[hook]]
+site = "medical.aim_end"
+handler = "on_aim_end"
+
+# Second Wind: an antitoxin's active time begins.
+[[hook]]
+site = "medical.drug_begin"
+handler = "on_drug_begin"
 
 [[hook]]
 site = "medical.regenerate"

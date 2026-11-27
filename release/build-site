@@ -18,9 +18,9 @@
 #      $SKHID_DBGRAB);
 #   3. the calculator's build (srp-026g/scripts/damage-calc/build_site.py:
 #      its lobby icons), the Maps tab's (srp-026g/scripts/maps-tab/build.py,
-#      with those icons), then the calculator's again (it takes the maps'
-#      names, order and minimaps from the Maps tab), and the skills'
-#      (srp-026g/scripts/skills-tab/build.py);
+#      with those icons), the skills' (srp-026g/scripts/skills-tab/build.py),
+#      then the calculator's again (it takes the maps' names, order and
+#      minimaps from the Maps tab and its skills' icons from the skills);
 #   4. each built-from.tsv must name exactly the list's patches (and
 #      --with's), in any order (release.sh compares them so too); else it
 #      fails.
@@ -118,10 +118,10 @@ say "the calculator (its icons)"
 build srp-026g/scripts/damage-calc/build_site.py "${args[@]}" --work "$work/calc" || die "the calculator's build failed"
 say "the Maps tab"
 build srp-026g/scripts/maps-tab/build.py "${args[@]}" --icons "$work/calc/icons/icons" --work "$work/maps" || die "the Maps tab's build failed"
-say "the calculator (the Maps tab's maps)"
-build srp-026g/scripts/damage-calc/build_site.py "${args[@]}" --work "$work/calc" || die "the calculator's build failed"
 say "the skills"
 build srp-026g/scripts/skills-tab/build.py "${args[@]}" --work "$work/skills" || die "the skills' build failed"
+say "the calculator (the Maps tab's maps, the skills' icons)"
+build srp-026g/scripts/damage-calc/build_site.py "${args[@]}" --work "$work/calc" || die "the calculator's build failed"
 
 # 4. What they were built from.
 want=$(site_wants "$with")

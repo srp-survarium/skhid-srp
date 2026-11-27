@@ -1,0 +1,18 @@
+# Patch 190: the hi-Z occlusion never drops an environment probe or ambient
+# light, and drops a point or spot light only after four occluded answers in
+# a row (renderer-026g.md 5.7). The sites are sites_026g.tsv's; the logic is
+# light_occlusion.rs.
+name = "light_occlusion"
+patch = 190
+
+[[hook]]
+site = "hiz.probe_answer"
+handler = "on_probe_answer"
+
+[[hook]]
+site = "hiz.ambient_light_answer"
+handler = "on_ambient_light_answer"
+
+[[hook]]
+site = "hiz.light_answer"
+handler = "on_light_answer"

@@ -13,14 +13,27 @@
 //!   `<release>` is there.
 //! - `fake-exe.exe lock <file> <held> <release>`: the same, but nobody else
 //!   may even read the file (share mode 0), as some antivirus scans do.
-//! - `fake-exe.exe launcher <name> <updater> <out> <stop> [<ok>]`: the launcher's
+//! - `fake-exe.exe window <held> <release>`: the game with its window, as
+//!   the launcher's PLAY finds one left running: makes `<held>` once it is
+//!   shown, ends when it is closed (WM_CLOSE) or once `<release>` is there.
+//! - `fake-exe.exe launcher <name> <updater> <out> <stop> [<ok> [<extra> <say>]]`: the launcher's
 //!   end of its pipe: makes `\\.\pipe\vostok_updater_pipe-<name>`, starts
 //!   `<updater> update <pipe>`, writes every byte the updater sends into
 //!   `<out>`, says stop (the launcher's abort) once the file `<stop>` is
 //!   there, and ends with the updater's exit code once it is gone. With
 //!   `<ok>` it also holds the launcher's instance mutex until the pipe
 //!   closes, and takes the updater's words as a modal box: nothing more is
-//!   read until the file `<ok>` is there.
+//!   read until the file `<ok>` is there. `<extra>`: more arguments of the
+//!   updater's (as the launcher's 3rd to 13th: its "Allow torrent" and
+//!   port); `<say>`: whenever that file is there, its bytes are written to
+//!   the pipe (frames of the launcher's) and it is deleted.
+//! - `fake-exe.exe game <updater> <out> <stop> <say>`: the patched game's
+//!   end of its seeding pipe: makes `\\.\pipe\skhid_seed-<its pid>` (byte
+//!   mode, one instance), starts `<updater> seed <pipe>` in the updater's
+//!   folder, writes every byte the updater sends into `<out>`, writes the
+//!   file `<say>`'s bytes to the pipe whenever it is there, and once the
+//!   file `<stop>` is there closes the pipe (as entering a match does) and
+//!   ends with the updater's exit code once it is gone.
 #![windows_subsystem = "windows"]
 
 extern crate alloc;
@@ -43,7 +56,7 @@ use windows_sys::Win32::System::LibraryLoader::GetModuleFileNameW;
 use windows_sys::Win32::System::Pipes::{ConnectNamedPipe, CreateNamedPipeW, PeekNamedPipe};
 use windows_sys::Win32::System::Threading::{
     CreateMutexW, CreateProcessW, ExitProcess, GetExitCodeProcess, INFINITE, PROCESS_INFORMATION,
-    STARTUPINFOW, Sleep, WaitForSingleObject,
+    STARTUPINFOW, GetCurrentProcessId, Sleep, WaitForSingleObject,
 };
 
 /// What `get_local_version` of the launcher looks for in the game exe: the
@@ -128,12 +141,52 @@ fn hold(path: &str, held: &str, release: &str, share: u32) -> u32 {
     0
 }
 
+/// The game with its window: makes the file `<held>` once the window is
+/// shown, and ends (0) when the window is closed (WM_CLOSE), or (5) once the
+/// file `<release>` is there.
+fn window(held: &str, release: &str) -> u32 {
+    use windows_sys::Win32::UI::WindowsAndMessaging::{
+        CreateWindowExW, DispatchMessageW, IsWindow, MSG, PM_REMOVE, PeekMessageW, TranslateMessage,
+        WS_OVERLAPPEDWINDOW, WS_VISIBLE,
+    };
+    let window = unsafe {
+        CreateWindowExW(0, wide("STATIC").as_ptr(), wide("fake game").as_ptr(), WS_OVERLAPPEDWINDOW | WS_VISIBLE,
+                        0, 0, 200, 100, null_mut(), null_mut(), null_mut(), null())
+    };
+    if window.is_null() {
+        return 4;
+    }
+    unsafe { CloseHandle(create(held, 0)) };
+    let mut message: MSG = unsafe { core::mem::zeroed() };
+    while unsafe { IsWindow(window) } != 0 {
+        while unsafe { PeekMessageW(&mut message, null_mut(), 0, 0, PM_REMOVE) } != 0 {
+            unsafe {
+                TranslateMessage(&message);
+                DispatchMessageW(&message);
+            }
+        }
+        if exists(release) {
+            return 5;
+        }
+        unsafe { Sleep(10) };
+    }
+    0
+}
+
 /// The launcher's end of the pipe, and the updater it starts. With `clicked`
 /// (a path), as the real launcher: it holds its instance mutex
 /// (`<name>_or_its_installer_is_already_running`) until the pipe closes, and
 /// an updater's words (message 05) are a modal box: nothing more is read
 /// from the pipe until the file `clicked` is there (the player's click).
-fn launcher(name: &str, updater: &str, out: &str, stop: &str, clicked: &str) -> u32 {
+fn launcher(
+    name: &str,
+    updater: &str,
+    out: &str,
+    stop: &str,
+    clicked: &str,
+    extra: &str,
+    say: &str,
+) -> u32 {
     let mutex = if clicked.is_empty() {
         null_mut()
     } else {
@@ -160,7 +213,10 @@ fn launcher(name: &str, updater: &str, out: &str, stop: &str, clicked: &str) -> 
         Some(at) => &updater[..at],
         None => ".",
     };
-    let mut command = wide(&alloc::format!("\"{updater}\" \"update\" \"{pipe_name}\""));
+    let mut command = wide(&alloc::format!(
+        "\"{updater}\" \"update\" \"{pipe_name}\"{}{extra}",
+        if extra.is_empty() { "" } else { " " }
+    ));
     let folder = wide(folder);
     let mut startup: STARTUPINFOW = unsafe { core::mem::zeroed() };
     startup.cb = core::mem::size_of::<STARTUPINFOW>() as u32;
@@ -223,6 +279,13 @@ fn launcher(name: &str, updater: &str, out: &str, stop: &str, clicked: &str) -> 
             }
             continue;
         }
+        if !say.is_empty() && exists(say) {
+            // What the tests have the launcher say: the file's bytes, as
+            // they are (whole frames).
+            let bytes = std::fs::read(say).unwrap_or_default();
+            let _ = std::fs::remove_file(say);
+            unsafe { write(pipe, bytes.as_ptr(), bytes.len()) };
+        }
         if !stopped && exists(stop) {
             // The launcher's abort: a frame of one byte, 0x1B.
             let abort = [1_u8, 0, 0x1b];
@@ -250,6 +313,80 @@ fn launcher(name: &str, updater: &str, out: &str, stop: &str, clicked: &str) -> 
     code
 }
 
+/// The patched game's seeding pipe (see the top).
+fn game(updater: &str, out: &str, stop: &str, say: &str) -> u32 {
+    let pipe_name = alloc::format!("\\\\.\\pipe\\skhid_seed-{}", unsafe { GetCurrentProcessId() });
+    let pipe = unsafe {
+        CreateNamedPipeW(
+            wide(&pipe_name).as_ptr(),
+            PIPE_ACCESS_DUPLEX | FILE_FLAG_FIRST_PIPE_INSTANCE,
+            0,
+            1,
+            0x10000,
+            0x10000,
+            0,
+            null(),
+        )
+    };
+    if pipe == INVALID_HANDLE_VALUE {
+        return 5;
+    }
+    let folder = match updater.rfind('\\') {
+        Some(at) => &updater[..at],
+        None => ".",
+    };
+    let mut command = wide(&alloc::format!("\"{updater}\" seed {pipe_name}"));
+    let folder = wide(folder);
+    let mut startup: STARTUPINFOW = unsafe { core::mem::zeroed() };
+    startup.cb = core::mem::size_of::<STARTUPINFOW>() as u32;
+    let mut process: PROCESS_INFORMATION = unsafe { core::mem::zeroed() };
+    let started = unsafe {
+        CreateProcessW(null(), command.as_mut_ptr(), null(), null(), 0, 0x0800_0000, null(), folder.as_ptr(), &startup, &mut process)
+    };
+    if started == 0 {
+        return 6;
+    }
+    if unsafe { ConnectNamedPipe(pipe, null_mut()) } == 0 && unsafe { GetLastError() } != ERROR_PIPE_CONNECTED {
+        return 7;
+    }
+    let output = create(out, FILE_SHARE_READ);
+    let mut buffer = [0_u8; 4096];
+    while !exists(stop) {
+        let mut waiting = 0_u32;
+        if unsafe { PeekNamedPipe(pipe, null_mut(), 0, null_mut(), &mut waiting, null_mut()) } == 0 {
+            break;
+        }
+        if waiting > 0 {
+            let mut read = 0_u32;
+            let want = waiting.min(buffer.len() as u32);
+            if unsafe { ReadFile(pipe, buffer.as_mut_ptr(), want, &mut read, null_mut()) } == 0 {
+                break;
+            }
+            unsafe { write(output, buffer.as_ptr(), read as usize) };
+            continue;
+        }
+        if exists(say) {
+            let bytes = std::fs::read(say).unwrap_or_default();
+            let _ = std::fs::remove_file(say);
+            unsafe { write(pipe, bytes.as_ptr(), bytes.len()) };
+        }
+        unsafe { Sleep(5) };
+    }
+    unsafe {
+        CloseHandle(output);
+        CloseHandle(pipe);
+    }
+    let mut code = 8;
+    unsafe {
+        if WaitForSingleObject(process.hProcess, INFINITE) == WAIT_OBJECT_0 {
+            GetExitCodeProcess(process.hProcess, &mut code);
+        }
+        CloseHandle(process.hThread);
+        CloseHandle(process.hProcess);
+    }
+    code
+}
+
 fn main() {
     std::panic::set_hook(Box::new(fatal_panic));
     unsafe {
@@ -258,19 +395,31 @@ fn main() {
         let arguments = updater_logic::args::split(&line);
         let argument = |at: usize| arguments.get(at).map_or("", String::as_str);
         match argument(1) {
+            "open-replay-file" => {
+                // Exercise Explorer's association without cmd/start quoting.
+                let result = windows_sys::Win32::UI::Shell::ShellExecuteW(
+                    null_mut(), wide("open").as_ptr(), wide(argument(2)).as_ptr(),
+                    null(), null(), 1,
+                ) as usize;
+                ExitProcess(if result > 32 { 0 } else { result as u32 });
+            }
             "hold" => ExitProcess(hold(
                 argument(2),
                 argument(3),
                 argument(4),
                 FILE_SHARE_READ | FILE_SHARE_WRITE,
             )),
+            "game" => ExitProcess(game(argument(2), argument(3), argument(4), argument(5))),
             "lock" => ExitProcess(hold(argument(2), argument(3), argument(4), 0)),
+            "window" => ExitProcess(window(argument(2), argument(3))),
             "launcher" => ExitProcess(launcher(
                 argument(2),
                 argument(3),
                 argument(4),
                 argument(5),
                 argument(6),
+                argument(7),
+                argument(8),
             )),
             _ => {}
         }

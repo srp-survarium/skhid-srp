@@ -41,6 +41,10 @@ package survarium.controls
       // one, shown in the frame's place. A ported weapon's icon is one bitmap and its class, no list here.
       private static var _moreWeapons:Object = {};
       
+      // A kill by a battery strike (exe patch 143, battery.rs KILL_FEED_ICON): the battery, past every
+      // weapon's icon.
+      private static const BATTERY_ICON:int = 200;
+      
       private var _weaponIcon:Bitmap = new Bitmap(null,PixelSnapping.ALWAYS);
       
       public var who_name:TextField;
@@ -103,7 +107,8 @@ package survarium.controls
          this.makeLayout();
       }
       
-      // The bitmap of icon `icon` (CombatLogWeapon<icon>), made once; null when the movie has none.
+      // The bitmap of icon `icon` (CombatLogWeapon<icon>, CombatLogBatteryIcon for BATTERY_ICON), made
+      // once; null when the movie has none.
       private static function moreWeapon(icon:int) : BitmapData
       {
          if(!(icon in _moreWeapons))
@@ -111,7 +116,8 @@ package survarium.controls
             var made:BitmapData = null;
             try
             {
-               made = new (getDefinitionByName("CombatLogWeapon" + icon) as Class)() as BitmapData;
+               var name:String = icon == BATTERY_ICON ? "CombatLogBatteryIcon" : "CombatLogWeapon" + icon;
+               made = new (getDefinitionByName(name) as Class)() as BitmapData;
             }
             catch(error:Error)
             {

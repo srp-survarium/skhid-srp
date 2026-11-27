@@ -1,0 +1,13 @@
+[package]
+name = "login-server"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+crc32fast = { workspace = true }
+log = { workspace = true }
+rand = { workspace = true }
+rsa = { workspace = true }
+
+[dev-dependencies]
+serde_json = { workspace = true }

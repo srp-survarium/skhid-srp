@@ -107,6 +107,20 @@ class MedicalGame(Game):
         self.emu.mem_write(item+0x2b0,bytes([int(active)]))
         self.word(inventory+0x10c+slot*4,item)
         return item
+    def healing(self,pools,active,slot=7):
+        # A carried drug whose data/influences heal `pools` (medkit+280h, 14h a
+        # record, its pool's name inline at +0, the amount at +10h), beside the
+        # medkit template's other pools at 0 as the real configs keep them:
+        # ('infection',) the antitoxin.
+        item=self.carried(False,active,slot)
+        template=['head','body','pain','left_hand','right_hand','left_leg','right_leg']
+        names=template+[p for p in pools if p not in template]
+        records=self.block(0x14*len(names))
+        for i,name in enumerate(names):
+            self.emu.mem_write(records+0x14*i,name.encode()+b'\0')
+            self.word(records+0x14*i+0x10,bits(.5 if name in pools else 0))
+        self.word(item+0x280,records);self.emu.mem_write(item+0x288,bytes([len(names)]))
+        return item
     def crouch(self,effective):
         # player+494h -> bt_character_controller -> its Bullet controller +201h
         wrapper=self.read(PLAYER+0x494)
@@ -218,10 +232,18 @@ def run(data,padding=0,kit=0):
     for rank in range(8):
         g.ranks(3|(rank<<3))
         close(g.step(0x33d486,6,xmm=1000,ebp=healing,ebx=PLAYER),1000*(1-.05*rank) if rank<=2 else 1000)
+    # Metabolism 4 ranks of 1 s (5 refused: no skill at all).
     g.ranks((5<<6)|(5<<17)|(3<<12))
     g.step(0x2d706f,7,ebp=PLAYER)
+    assert all(g.read(pool+0xac)==8000 for pool in g.pools[PLAYER].values())
+    g=MedicalGame(data,padding)
+    g.emu.mem_write(PLAYER+0x115,bytes([kit]))
+    g.emu.mem_write(g.places+0xc,bytes([kit]))
+    g.word(g.places+kit*4,PLAYER)
+    g.ranks((4<<6)|(5<<17)|(3<<12))
+    g.step(0x2d706f,7,ebp=PLAYER)
     for name,pool in g.pools[PLAYER].items():
-        assert g.read(pool+0xac)==5500
+        assert g.read(pool+0xac)==4000
         if name.endswith(('hand','leg')):
             close(g.float(pool+0x9c),.75);close(g.float(pool+0xa0),.75)
     # Native respawn reset restores the derived maximum, without compounding.
@@ -241,15 +263,18 @@ def run(data,padding=0,kit=0):
     ally=g.player(1,0,(0,6,0));far=g.player(2,0,(6.01,0,0));enemy=g.player(3,1,(1,0,0));dead=g.player(4,0,(1,0,0))
     g.emu.mem_write(dead+0x33c,b'\0')
     hit=g.block(0x50);owner=g.block(0x20);g.word(hit+0x20,owner)
-    g.ranks(2<<21)
-    for place,expected in [(0,.8),(1,.4),(2,.4),(3,.8),(19,.8)]:
-        g.word(owner+4,place)
-        g.step(0x2e50c7,5,stack=(0,0,bits(.8)),edi=g.read(PLAYER+0x2e0),esi=hit)
-        close(g.float(STACK-0x100+8),expected)
+    # Brothers in Arms, one rank (its three bits at 21): a teammate's hit does half its damage;
+    # 2..7 are refused (no skill at all) and the hit stays whole.
+    for rank in range(8):
+        g.ranks(rank<<21)
+        for place,halved in [(0,.8),(1,.4),(2,.4),(3,.8),(19,.8)]:
+            g.word(owner+4,place)
+            g.step(0x2e50c7,5,stack=(0,0,bits(.8)),edi=g.read(PLAYER+0x2e0),esi=hit)
+            close(g.float(STACK-0x100+8),halved if rank==1 else .8)
     assert all(g.read(p+0xd0)==10 for p in [PLAYER,ally,far,enemy,dead])
     item=g.block(0x500);vt=g.block(0x100);g.word(item,vt);g.word(vt+0x80,0x312250)
     for at in [PLAYER,ally,far,enemy,dead]:
-        for name in ['body','head','pain']:g.word(g.pools[at][name]+0xa0,bits(.1))
+        for name in g.pools[at]:g.word(g.pools[at][name]+0xa0,bits(.1))
     resource=g.effect_resource();g.word(item+0x290,resource);g.word(item+0x494,3000)
     inventory=g.block(0x200);g.word(item+0x250,inventory);g.word(inventory+0x174,PLAYER+0x108)
     second=g.player(5,0,(1,0,0))
@@ -313,7 +338,8 @@ def run(data,padding=0,kit=0):
     print('Medic clock: full activation duration, wrapping time, local pointer restore, ordinary clocks unchanged: PASS')
     print('Medic: insertion-independent recipients; independent native resource emission; retained references balanced: PASS')
     for at in [PLAYER,far,enemy,dead]:close(g.float(g.pools[at]['body']+0xa0),.1)
-    for name in ['body','head','pain']:close(g.float(g.pools[ally][name]+0xa0),g.float(g.pools[ally][name]+0x9c))
+    # Every body part of a recipient is full, the limbs too (the owner, 2026-11-14).
+    for name in g.pools[ally]:close(g.float(g.pools[ally][name]+0xa0),g.float(g.pools[ally][name]+0x9c))
     assert all(g.read(p+0xd0)==10 for p in [PLAYER,ally,far,enemy,dead])
     # The old visual-helper hook was reachable from native deserialize. Running
     # that exact point again must not heal or emit additional teammate effects.
@@ -328,7 +354,7 @@ def run(data,padding=0,kit=0):
     for at in [ally,second]:close(g.float(g.pools[at]['body']+0xa0),g.float(g.pools[at]['body']+0x9c))
     assert g.effects==before
     print('Medic: activation-only healing; visual reconstruction never heals; missing visuals do not disable healing: PASS')
-    print('medical skills: ranks 0..3/0..2/0..5, out-of-range refused; duration start/tick/restore; healing-only activation; protection; limb health; regeneration; Adrenalin damage/heal; allied damage; Medic radius/team/life filters and references: PASS')
+    print('medical skills: ranks 0..3/0..2/0..4, out-of-range refused; duration start/tick/restore; healing-only activation; protection; limb health; regeneration; Adrenalin damage/heal; allied damage; Medic radius/team/life filters and references: PASS')
 
     return (
         tuple(tuple((name,g.read(pool+0xa0)) for name,pool in g.pools[at].items())
@@ -410,38 +436,97 @@ def check_pressed_entry(data):
     assert g.read(ally+0xd0)==10
     print('Medic: real detoured action entry, multiple Larkspurs, key-up, active/ready mix and references: PASS')
 
-# Concentration (patch 94): breath_vibration_calculator::tick from after its
-# profiler call to the store of apply_modifier's result (0x31D72D), the real
-# getter of modifier 61 between: the site 0x31D727 is inside.
-SWAY_FROM, SWAY_TO = 0x31D6F1, 0x31D72D
+# Concentration (patch 94): each reload state's get_weapon_lexeme from its
+# entry to the store of apply_modifier's result, the real getter of modifier 13
+# between: the sites (after the call) are inside. (entry, store, clip speed's offset)
+RELOADS = [(0x30E1F0, 0x30E26A, 0x138), (0x30F5A0, 0x30F62D, 0x138),
+           (0x30FE90, 0x30FF17, 0x138), (0x311070, 0x3110F0, 0x14C)]
+RELOAD_BONUS = [0, .10, .15, .20]
 
-def check_sway(data,kit=0):
-    # The dispersion B (the tick's first argument), the kit's sway sum S
-    # (modifier 61, the gear's -20 % among them), Concentration's ranks 0..7
-    # (5..7 refused: no skill at all) with or without Unflinching (refused
-    # beside it), painkiller on/off: B x max(0, 1 + S - 0.05 x rank).
+def check_reload(data,kit=0):
+    # The clip speed B (the state's), the kit's reload sum S (modifier 13),
+    # Concentration's ranks 0..7 in three bits at 7 (4..7 refused: no skill at
+    # all) beside Unflinching 4 (no longer exclusive), an antitoxin on/off (a
+    # painkiller and a science medkit are none): B x max(0, 1 + S + bonus).
     outcome=[]
     for concentration in range(8):
-        for unflinching in (0,1):
-            for active in (False,True):
+        for antitoxin in (False,True):
+            g=MedicalGame(data)
+            g.emu.mem_write(PLAYER+0x115,bytes([kit]))
+            g.combo((concentration<<7)|(4<<4))
+            g.carried(True,True,3)                        # an active painkiller is no antitoxin
+            g.healing(('infection','body'),True,4)        # nor the science medkit
+            g.healing(('infection',),antitoxin)
+            rank=concentration if concentration<=3 else 0
+            weapon=g.block(0x600);g.word(weapon+8,PLAYER)
+            for entry,store,speed in RELOADS:
+                state=g.block(0x200);g.word(state+0x120,weapon);g.word(state+0x130,state+0x144)
+                for s in (0,.12,-.5,-1.5):
+                    g.ranks(s,13)
+                    for base in (0,.8):
+                        g.word(state+speed,bits(base))
+                        clip=g.step(entry,store-entry,edi=state)
+                        bonus=RELOAD_BONUS[rank] if antitoxin and 1+s>0 else 0
+                        close(clip,base*(max(0,1+s)+bonus))
+                        outcome.append((concentration,antitoxin,entry,s,base,clip))
+    print('Concentration reload: modifier 13 +10/+15/+20% added to the kit\'s (0, +12%, -50%, -150%) at all four reload states, 0..3 (4..7 refused), beside Unflinching, an antitoxin on/off (a painkiller, a science medkit none), no clip speed none: PASS')
+    return outcome
+
+# Sharp Eye: weapon_core::instant_aim_start / _end from after their first call to
+# just past the site (its replayed movss xmm2), the real getter of modifier 49 between.
+AIMS = [(0x2E1B66, 0x2E1BA7), (0x2E1C07, 0x2E1C48)]
+AIM_BONUS = [0, .05, .10, .15]
+
+def check_aim(data,kit=0):
+    # The sight's time B (weapon+5F8h), the kit's aim sum S (modifier 49),
+    # Sharp Eye's ranks 0..3 in two bits at 12, an antitoxin on/off (a
+    # painkiller none): B x max(0, 1 + S - bonus), up and down.
+    outcome=[]
+    for rank in range(4):
+        for antitoxin in (False,True):
+            g=MedicalGame(data)
+            g.emu.mem_write(PLAYER+0x115,bytes([kit]))
+            g.combo((rank<<12)|(3<<10)|(3<<7))
+            g.carried(True,True,3)
+            g.healing(('infection',),antitoxin)
+            weapon=g.block(0x700);g.word(weapon+8,PLAYER)
+            for entry,end in AIMS:
+                for s in (0,-.12,-.9,-1.5):
+                    g.ranks(s,49)
+                    for base in (0,.4):
+                        g.word(weapon+0x5f8,bits(base))
+                        time=g.step(entry,end-entry,edi=weapon)
+                        bonus=AIM_BONUS[rank] if antitoxin and 1+s>0 else 0
+                        close(time,base*max(0,max(0,1+s)-bonus))
+                        outcome.append((rank,antitoxin,entry,s,base,time))
+    print('Sharp Eye: modifier 49 -5/-10/-15% added to the kit\'s (0, -12%, -90%, -150%) as the sight comes up and goes down, an antitoxin on/off (a painkiller none), never below 0: PASS')
+    return outcome
+
+# Second Wind: medkit::tick's first tick of the active time, after remove_affects.
+DRUG_BEGIN = 0x33D872
+
+def check_second_wind(data,kit=0):
+    # Ranks 0..3 in two bits at 10; the drug beginning an antitoxin, a science
+    # medkit, a painkiller or a bandage; the stamina (player+6C0h: +0 its most,
+    # +6Ch now) raised by 20/30/40, never past the most.
+    outcome=[]
+    for rank in range(4):
+        for kind in ('antitoxin','science','painkiller','bandage'):
+            for current in (10,80):
                 g=MedicalGame(data)
                 g.emu.mem_write(PLAYER+0x115,bytes([kit]))
-                g.combo((concentration<<7)|(unflinching<<4))
-                g.carried(False,True,3)          # an active bandage is no painkiller
-                g.carried(True,active)
-                valid=concentration<=4 and not (unflinching and concentration)
-                rank=concentration if valid and active else 0
-                calculator=g.block(0x80);g.word(calculator+0x3c,PLAYER)
-                frame=g.block(0x20);g.word(frame+0xc,50)
-                for s in (0,-.2,-.9,-1.5):
-                    g.ranks(s,61)
-                    for base in (0,.3,2):
-                        g.word(frame+8,bits(base))
-                        sway=g.step(SWAY_FROM,SWAY_TO-SWAY_FROM,edi=calculator,ebp=frame)
-                        close(sway,base*max(0,1+s-.05*rank))
-                        assert g.read(frame+8)==bits(base)
-                        outcome.append((concentration,unflinching,active,s,base,sway))
-    print('Concentration sway: modifier 61 -5% a rank added to the kit\'s (0 and -20% gear, -90%, -150%), 0..4 (5..7 and with Unflinching refused), painkiller on/off (a bandage none), no dispersion none, never below 0: PASS')
+                g.combo((rank<<10)|(3<<7))
+                item={'antitoxin':lambda:g.healing(('infection',),True),
+                      'science':lambda:g.healing(('infection','body','head'),True),
+                      'painkiller':lambda:g.carried(True,True),
+                      'bandage':lambda:g.healing(('body',),True)}[kind]()
+                g.word(PLAYER+0x6c0,bits(100));g.word(PLAYER+0x6c0+0x6c,bits(current))
+                g.step(DRUG_BEGIN,7,edi=item,ebp=PLAYER)
+                energy=[0,20,30,40][rank] if kind=='antitoxin' else 0
+                close(g.float(PLAYER+0x6c0+0x6c),min(100,current+energy))
+                close(g.float(PLAYER+0x6c0),100)
+                outcome.append((rank,kind,current,g.read(PLAYER+0x6c0+0x6c)))
+    print('Second Wind: an antitoxin\'s active time begins: +20/+30/+40 energy up to the most; a science medkit, a painkiller, a bandage none: PASS')
     return outcome
 
 def check_regeneration(data,kit=0):
@@ -458,36 +543,38 @@ def check_regeneration(data,kit=0):
         g.word(container+10*4,bits(-2 if on else 0))
         g.word(node+4,0);g.word(node+0xc,bits(1 if on else 0))
         g.word(container+0x110+9*0x14+4,node);g.emu.mem_write(container+0x120+9*0x14,b'\1')
-    g.ranks(5<<6)
+    g.ranks(4<<6)
     g.step(0x2d706f,7,ebp=PLAYER)
     pools=g.pools[PLAYER]
     for on in [False,True]:
         booster(on)
         for name,rate,limit in [('body',.03,.5),('head',.03,.5),('left_leg',.03,.2),('pain',.1,1),('right_hand',0,0)]:
             pool=pools[name];delay=g.read(pool+0xac)
-            assert delay==5500
+            assert delay==4000
             stack=[0]*12;stack[4]=bits(rate);stack[5]=delay;stack[6]=bits(limit);stack[9]=12345
             g.step(0x32a53f,6,stack=stack,eax=delay,edi=pool)
             regenerates=on and rate>0
-            assert g.emu.reg_read(UC_X86_REG_EAX)==(3500 if regenerates else 5500),name
+            assert g.emu.reg_read(UC_X86_REG_EAX)==(2000 if regenerates else 4000),name
             close(g.float(STACK-0x100+0x18),1 if regenerates else limit)
             assert g.emu.reg_read(UC_X86_REG_EBP)==12345
     # The native regenerates the body from 10 %: to its 50 % without the
     # booster, to full with it; never before the delay.
     body=pools['body']
-    for on,now,expected in [(False,5000,.1),(False,200000,.5),(True,3400,.1),(True,200000,1)]:
+    for on,now,expected in [(False,3900,.1),(False,200000,.5),(True,1900,.1),(True,200000,1)]:
         booster(on)
         g.word(body+0xa0,bits(.1));g.word(body+0xa4,bits(.03));g.word(body+0xa8,bits(.5));g.word(body+0xb0,0)
         g.call(0x32a4b0,(now,now),edi=body)
         close(g.float(body+0xa0),expected)
         close(g.float(body+0xa8),.5)
-    print('Regeneration booster: delay after Metabolism 5.5 -> 3.5 s, limit 50 %/20 % -> 100 %, pools without regeneration and kits without it unchanged; native regenerate to full: PASS')
+    print('Regeneration booster: delay after Metabolism 4 -> 2 s, limit 50 %/20 % -> 100 %, pools without regeneration and kits without it unchanged; native regenerate to full: PASS')
 
 def main():
     original=open(sys.argv[1],'rb').read()
     patched,_=base.build(original,'section',open(base.default_bin('section'),'rb').read(),None,open(base.late_join_bin(),'rb').read())
     check_pressed_entry(patched)
-    assert check_sway(patched)==check_sway(patched,2)
+    assert check_reload(patched)==check_reload(patched,2)
+    assert check_second_wind(patched)==check_second_wind(patched,2)
+    assert check_aim(patched)==check_aim(patched,2)
     check_particle_capacity(patched)
     check_regeneration(patched);check_regeneration(patched,2)
     assert check_combo(patched)==check_combo(patched,2)

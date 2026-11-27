@@ -44,6 +44,12 @@ pub struct Fnv(u64);
 const FNV_BASIS: u64 = u64::from_be_bytes([0xCB, 0xF2, 0x9C, 0xE4, 0x84, 0x22, 0x23, 0x25]);
 const FNV_PRIME: u64 = 1 << 40 | 0x1B3;
 
+impl Default for Fnv {
+    fn default() -> Fnv {
+        Fnv::new()
+    }
+}
+
 impl Fnv {
     pub const fn new() -> Fnv {
         Fnv(FNV_BASIS)

@@ -22,7 +22,7 @@ use survarium::v026g::loadouts::POCKET_SLOTS;
 use survarium::v026g::lobby::requests::{INVENTORY_SLOT, Relocation};
 use survarium::v026g::lobby::rooms::PRESET_COUNT;
 
-use super::account::{Account, KIT_SLOTS, KITS};
+use super::account::{Account, KIT_SLOTS, KITS, KitPerks};
 use super::matchmaking;
 use super::rules::{self, ActionError};
 
@@ -42,16 +42,38 @@ pub struct PresetSlot {
     pub count: u32,
 }
 
-/// The three kits' slots, in the order of the account's kits.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+/// The three kits' slots, in the order of the account's kits, what each made of its perks' slots,
+/// and each kit's name: a preset is its kits, the choices too (the owner's pick of 2026-11-22),
+/// so a pocket or a second weapon a preset filled is there again when it is put on; and its
+/// names (the owner's of 2026-11-27: a kit renamed in one loadout keeps its old name in the
+/// others).
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Preset {
     pub kits: [[Option<PresetSlot>; KIT_SLOTS]; KITS],
+    pub perks: [KitPerks; KITS],
+    /// Each kit's name, as [`Kit::name`](super::account::Kit::name): empty, the client's own.
+    pub names: [String; KITS],
 }
 
+/// A kit's name left to the client.
+const NO_NAME: String = String::new();
+
 impl Preset {
+    /// Nothing in it: every slot empty, every kit's choice the default, no names.
+    pub const EMPTY: Preset = Preset {
+        kits: [[None; KIT_SLOTS]; KITS],
+        perks: [KitPerks::ALL_TAKEN; KITS],
+        names: [NO_NAME; KITS],
+    };
+
     /// How many slots it fills.
     pub fn slots(&self) -> usize {
         self.kits.iter().flatten().flatten().count()
+    }
+
+    /// Whether it holds anything: a slot, a kit's perk declined, or a kit's name.
+    pub fn is_empty(&self) -> bool {
+        *self == Preset::EMPTY
     }
 }
 
@@ -86,10 +108,16 @@ fn index(number: u8) -> Result<usize, PresetError> {
 
 /// The three kits as they are now; none when they hold nothing.
 pub fn snapshot(account: &Account) -> Option<Preset> {
-    let mut preset = Preset {
-        kits: [[None; KIT_SLOTS]; KITS],
-    };
-    for (kit, saved) in account.kits.iter().zip(preset.kits.iter_mut()) {
+    let mut preset = Preset::EMPTY;
+    for (((kit, saved), perks), name) in account
+        .kits
+        .iter()
+        .zip(preset.kits.iter_mut())
+        .zip(preset.perks.iter_mut())
+        .zip(preset.names.iter_mut())
+    {
+        *perks = kit.perks;
+        name.clone_from(&kit.name);
         for (held, slot) in kit.slots.iter().zip(saved.iter_mut()) {
             *slot = held.and_then(|held| {
                 account.item(held.item_id).map(|item| PresetSlot {
@@ -100,7 +128,7 @@ pub fn snapshot(account: &Account) -> Option<Preset> {
             });
         }
     }
-    (preset.slots() > 0).then_some(preset)
+    (!preset.is_empty()).then_some(preset)
 }
 
 /// Preset `number` as it is now: the active one is the kits; none: empty.
@@ -109,7 +137,7 @@ pub fn preset(account: &Account, number: u8) -> Result<Option<Preset>, PresetErr
     Ok(if number == account.active_preset {
         snapshot(account)
     } else {
-        account.presets[index]
+        account.presets[index].clone()
     })
 }
 
@@ -165,7 +193,8 @@ fn owned(account: &Account, saved: &PresetSlot) -> Option<u32> {
 /// leaves its slot empty; a stack gets the units saved, at most those owned;
 /// a type a pocket of the kit already holds stays out of a second one; an
 /// item that no longer fits its slot (the game's data changed since) stays
-/// out, as the repair at load takes it off a kit. Nothing is bought, made
+/// out, as the repair at load takes it off a kit. Each kit takes the
+/// preset's name (none: the client's own). Nothing is bought, made
 /// or taken: the inventory and the money stay as they are. The kit played
 /// is then one that can play ([`play_a_playable_kit`]).
 fn put_on(account: &mut Account, preset: &Preset, now: u64) -> Result<Applied, PresetError> {
@@ -200,7 +229,19 @@ fn put_on(account: &mut Account, preset: &Preset, now: u64) -> Result<Applied, P
                 count_in_inventory: saved.count.max(1),
             });
         }
+        // The kit's perk slots first: they decide which pockets and weapon slots there are.
+        let perks = preset.perks[kit_index];
+        let new_perks = changed.kits[kit_index].perks != perks;
+        changed.kits[kit_index].perks = perks;
         rules::fill_kit(&mut changed, kit_index, &moves).map_err(PresetError::Rule)?;
+        // The kit's name is the preset's; the client draws a new one at a new revision.
+        let name = &preset.names[kit_index];
+        let new_name = changed.kits[kit_index].name != *name;
+        changed.kits[kit_index].name.clone_from(name);
+        if new_perks || new_name {
+            let kit = &mut changed.kits[kit_index];
+            kit.revision = kit.revision.wrapping_add(1);
+        }
         let filled = changed.kits[kit_index].slots.iter().flatten().count();
         let wanted = saved.iter().flatten().count();
         empty += wanted.saturating_sub(filled) as u32;
@@ -238,7 +279,7 @@ fn play_a_playable_kit(account: &mut Account, now: u64) -> bool {
 /// Make preset `number` the active one, all or nothing. The kits as they
 /// are stay with the preset left (its snapshot); the chosen one is put on
 /// them ([`put_on`]). An empty preset chosen starts empty: the three kits
-/// emptied, their items left in the inventory as they are (a kit names
+/// emptied and unnamed, their items left in the inventory as they are (a kit names
 /// owned items, it holds none), stacks whole (the owner's of 2026-10-23:
 /// "empty presets should start empty and not copy items from previous
 /// preset"). The active one chosen again changes nothing.
@@ -250,9 +291,7 @@ pub fn choose(account: &mut Account, number: u8, now: u64) -> Result<Applied, Pr
     }
     let left = usize::from(account.active_preset - 1);
     let mut changed = account.clone();
-    let chosen = account.presets[index].unwrap_or(Preset {
-        kits: [[None; KIT_SLOTS]; KITS],
-    });
+    let chosen = account.presets[index].clone().unwrap_or(Preset::EMPTY);
     let applied = put_on(&mut changed, &chosen, now)?;
     changed.presets[left] = snapshot(account);
     changed.presets[index] = None;
@@ -301,7 +340,7 @@ pub fn uses(account: &Account) -> Vec<(u32, u8)> {
                     *uses.entry(held.item_id).or_default() |= bit;
                 }
             }
-        } else if let Some(saved) = account.presets[usize::from(number - 1)] {
+        } else if let Some(saved) = &account.presets[usize::from(number - 1)] {
             for slot in saved.kits.iter().flatten().flatten() {
                 if let Some(item_id) = owned(account, slot) {
                     *uses.entry(item_id).or_default() |= bit;

@@ -1,6 +1,6 @@
 //! Medical skill decisions. Two unused profile modifiers transport exact
 //! integers: 43 the tree's original ranks, 45 the combo skills' (Numb Legs,
-//! Take Cover, Unflinching or Concentration). Two more, 9 and 10, are summed
+//! Take Cover, Unflinching, Concentration, Second Wind). Two more, 9 and 10, are summed
 //! from the kit's items like any modifier: their regeneration (the
 //! Regeneration booster). No new world state or snapshot side table.
 #![forbid(unsafe_code)]
@@ -55,6 +55,14 @@ pub enum Painkiller {
     Active,
 }
 
+/// Whether one of the player's antitoxins is active (the same flag; an
+/// antitoxin is a drug that heals the infection pool and nothing else).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Antitoxin {
+    Inactive,
+    Active,
+}
+
 /// The player's effective crouch (the controller's, which stays crouched
 /// under a low ceiling), not the crouch key.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -83,10 +91,11 @@ impl Field {
 }
 
 /// Modifier 43's layout, unchanged since the tree shipped (the five-rank
-/// fields kept three bits when their skills went down to two or three ranks).
+/// fields kept three bits when their skills went down to two or three ranks,
+/// and Brothers in Arms its three as the one-rank unlock it is now).
 const PAINKILLER: Field = Field::new(0, 3, 3);
 const BANDAGING: Field = Field::new(3, 3, 2);
-const METABOLISM: Field = Field::new(6, 3, 5);
+const METABOLISM: Field = Field::new(6, 3, 4);
 const TRAINING: Field = Field::new(9, 3, 3);
 const ADRENALIN: Field = Field::new(12, 3, 3);
 const MEDICINE: Field = Field::new(15, 1, 1);
@@ -94,35 +103,24 @@ const SUPPLY: Field = Field::new(16, 1, 1);
 const BONES: Field = Field::new(17, 3, 5);
 /// Medic left the tree (it returns in another one): its bit stays decoded.
 const MEDIC: Field = Field::new(20, 1, 1);
-const BROTHERS: Field = Field::new(21, 3, 2);
+const BROTHERS: Field = Field::new(21, 3, 1);
 /// Modifier 45: Numb Legs and Take Cover two bits each, Unflinching and
-/// Concentration three each (four ranks); every combination below 1024.
+/// Concentration three each, Second Wind and Sharp Eye two; every combination
+/// below 16384. Take Cover left the tree (2026-11-19, to be rethought): its
+/// field stays decoded.
 const NUMB_LEGS: Field = Field::new(0, 2, 2);
 const TAKE_COVER: Field = Field::new(2, 2, 2);
 const UNFLINCHING: Field = Field::new(4, 3, 4);
-const CONCENTRATION: Field = Field::new(7, 3, 4);
+const CONCENTRATION: Field = Field::new(7, 3, 3);
+const SECOND_WIND: Field = Field::new(10, 2, 3);
+const SHARP_EYE: Field = Field::new(12, 2, 3);
 
-/// Tier 4's pair that excludes each other (the tree's antiskills): at most
-/// one of them, 1..=4 ranks.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-enum Focus {
-    #[default]
-    Neither,
-    Unflinching(u8),
-    Concentration(u8),
-}
-
-impl Focus {
-    /// Both held is no set the tree makes: refused.
-    fn parse(unflinching: u8, concentration: u8) -> Option<Focus> {
-        match (unflinching, concentration) {
-            (0, 0) => Some(Focus::Neither),
-            (rank, 0) => Some(Focus::Unflinching(rank)),
-            (0, rank) => Some(Focus::Concentration(rank)),
-            _ => None,
-        }
-    }
-}
+/// Concentration: reload speed added while an antitoxin is active, by rank.
+const RELOAD_BONUS: [f32; 4] = [0.0, 0.10, 0.15, 0.20];
+/// Second Wind: energy given as an antitoxin's active time begins, by rank.
+const ENERGY: [f32; 4] = [0.0, 20.0, 30.0, 40.0];
+/// Sharp Eye: aim time taken off while an antitoxin is active, by rank.
+const AIM_BONUS: [f32; 4] = [0.0, 0.05, 0.10, 0.15];
 
 /// A packed modifier: an exact integer of `bits` bits, nothing else.
 fn packed(value: f32, bits: u32) -> Option<u32> {
@@ -143,17 +141,20 @@ pub struct Skills {
     supply: bool,
     bones: u8,
     medic: bool,
-    brothers: u8,
+    brothers: bool,
     numb_legs: u8,
     take_cover: u8,
-    focus: Focus,
+    unflinching: u8,
+    concentration: u8,
+    second_wind: u8,
+    sharp_eye: u8,
 }
 
 impl Skills {
     /// Modifiers 43 and 45 of the kit; None when either is not a valid set.
     pub fn parse(medical: f32, combo: f32) -> Option<Self> {
         let medical = packed(medical, 24)?;
-        let combo = packed(combo, 10)?;
+        let combo = packed(combo, 14)?;
         Some(Self {
             painkiller: PAINKILLER.rank(medical)?,
             bandaging: BANDAGING.rank(medical)?,
@@ -164,10 +165,13 @@ impl Skills {
             supply: SUPPLY.unlock(medical)?,
             bones: BONES.rank(medical)?,
             medic: MEDIC.unlock(medical)?,
-            brothers: BROTHERS.rank(medical)?,
+            brothers: BROTHERS.unlock(medical)?,
             numb_legs: NUMB_LEGS.rank(combo)?,
             take_cover: TAKE_COVER.rank(combo)?,
-            focus: Focus::parse(UNFLINCHING.rank(combo)?, CONCENTRATION.rank(combo)?)?,
+            unflinching: UNFLINCHING.rank(combo)?,
+            concentration: CONCENTRATION.rank(combo)?,
+            second_wind: SECOND_WIND.rank(combo)?,
+            sharp_eye: SHARP_EYE.rank(combo)?,
         })
     }
 
@@ -192,7 +196,7 @@ impl Skills {
     }
 
     pub fn regeneration_delay_ms(self, native: u32) -> u32 {
-        native.saturating_sub(u32::from(self.metabolism) * 500)
+        native.saturating_sub(u32::from(self.metabolism) * 1000)
     }
 
     pub fn movement_speed(self, native: f32, health: f32) -> f32 {
@@ -207,8 +211,9 @@ impl Skills {
         native * (1.0 + f32::from(self.bones) * 0.1)
     }
 
+    /// Brothers in Arms: a teammate's hit does half its damage.
     pub fn allied_damage(self, native: f32) -> f32 {
-        native * (1.0 - f32::from(self.brothers) * 0.25)
+        if self.brothers { native * 0.5 } else { native }
     }
 
     /// Numb Legs: the sprint's stamina a second.
@@ -229,25 +234,44 @@ impl Skills {
 
     /// Unflinching: the recent hits' stopping power (the slow).
     pub fn stopping_power(self, native: f32, painkiller: Painkiller) -> f32 {
-        match (painkiller, self.focus) {
-            (Painkiller::Active, Focus::Unflinching(rank)) => native * (1.0 - f32::from(rank) * 0.1),
-            _ => native,
+        match painkiller {
+            Painkiller::Active => native * (1.0 - f32::from(self.unflinching) * 0.1),
+            Painkiller::Inactive => native,
         }
     }
 
-    /// Concentration: the aim's sway (breath_vibration_calculator::tick's
-    /// dispersion through modifier 61 breath_vibration). The game gave
-    /// `modified` = `base` x max(0, 1 + S), S the kit's sway bonuses (the
-    /// gear's -20 % among them); Concentration adds -0.05 a rank to S, so
-    /// base x max(0, 1 + S - 0.05 x rank) = max(0, modified - 0.05 x rank x base).
-    /// A base or a modified value of 0 (or anything else not above 0) stays.
-    pub fn sway(self, modified: f32, base: f32, painkiller: Painkiller) -> f32 {
-        match (painkiller, self.focus) {
-            (Painkiller::Active, Focus::Concentration(rank)) if modified > 0.0 && base > 0.0 => {
-                (modified - base * f32::from(rank) * 0.05).max(0.0)
+    /// Concentration: a reload's clip speed (a reload state's speed through
+    /// modifier 13 reload_speed). The game gave `modified` = B x `factor`,
+    /// `factor` = max(0, 1 + S), S the kit's reload bonuses; Concentration adds
+    /// its bonus to S: B x (factor + bonus). A factor or a speed not above 0 stays.
+    pub fn reload_speed(self, modified: f32, factor: f32, antitoxin: Antitoxin) -> f32 {
+        let bonus = RELOAD_BONUS[usize::from(self.concentration)];
+        match antitoxin {
+            Antitoxin::Active if bonus > 0.0 && modified > 0.0 && factor > 0.0 => {
+                modified / factor * (factor + bonus)
             }
             _ => modified,
         }
+    }
+
+    /// Sharp Eye: a sight's aim time, raising or lowering it (weapon_core's
+    /// instant_aim_start / _end through modifier 49 aim_time). The game gave
+    /// `modified` = B x `factor`, `factor` = max(0, 1 + S); Sharp Eye takes its
+    /// bonus off S: B x max(0, factor - bonus). A factor or a time not above 0 stays.
+    pub fn aim_time(self, modified: f32, factor: f32, antitoxin: Antitoxin) -> f32 {
+        let bonus = AIM_BONUS[usize::from(self.sharp_eye)];
+        match antitoxin {
+            Antitoxin::Active if bonus > 0.0 && modified > 0.0 && factor > 0.0 => {
+                modified / factor * (factor - bonus).max(0.0)
+            }
+            _ => modified,
+        }
+    }
+
+    /// Second Wind: the stamina once an antitoxin's active time begins,
+    /// `current` raised by the rank's energy, never past `maximum` (nor lowered).
+    pub fn second_wind(self, current: f32, maximum: f32) -> f32 {
+        current.max((current + ENERGY[usize::from(self.second_wind)]).min(maximum))
     }
 }
 
@@ -345,9 +369,35 @@ pub fn on_stopping(ctx: &mut Context<'_>) -> Flow<NoExit> {
     medical::stopping(ctx);
     Flow::Continue
 }
-/// Concentration at the aimed weapon's breath tick, after its sway modifier.
-pub fn on_sway(ctx: &mut Context<'_>) -> Flow<NoExit> {
-    medical::sway(ctx);
+/// Concentration at each reload state's clip speed, after its reload modifier.
+pub fn on_reload(ctx: &mut Context<'_>) -> Flow<NoExit> {
+    medical::reload(ctx);
+    Flow::Continue
+}
+pub fn on_reload_double(ctx: &mut Context<'_>) -> Flow<NoExit> {
+    medical::reload_double(ctx);
+    Flow::Continue
+}
+pub fn on_reload_pistol(ctx: &mut Context<'_>) -> Flow<NoExit> {
+    medical::reload_pistol(ctx);
+    Flow::Continue
+}
+pub fn on_reload_shotgun(ctx: &mut Context<'_>) -> Flow<NoExit> {
+    medical::reload_shotgun(ctx);
+    Flow::Continue
+}
+/// Sharp Eye as the sight comes up and goes down, after the aim-time modifier.
+pub fn on_aim_start(ctx: &mut Context<'_>) -> Flow<NoExit> {
+    medical::aim_start(ctx);
+    Flow::Continue
+}
+pub fn on_aim_end(ctx: &mut Context<'_>) -> Flow<NoExit> {
+    medical::aim_end(ctx);
+    Flow::Continue
+}
+/// Second Wind as a drug's active time begins (its affects just removed).
+pub fn on_drug_begin(ctx: &mut Context<'_>) -> Flow<NoExit> {
+    medical::drug_begin(ctx);
     Flow::Continue
 }
 
@@ -360,7 +410,7 @@ mod tests {
     #[test]
     fn ranks_are_exact_and_invalid_profiles_are_refused() {
         // (shift, most) of modifier 43's ranked fields, then modifier 45's.
-        for (shift, most) in [(0, 3), (3, 2), (6, 5), (9, 3), (12, 3), (17, 5), (21, 2)] {
+        for (shift, most) in [(0, 3), (3, 2), (6, 4), (9, 3), (12, 3), (17, 5), (21, 1)] {
             for rank in 0..=most {
                 assert!(Skills::parse(medical(&[(rank, shift)]), 0.0).is_some());
             }
@@ -368,9 +418,9 @@ mod tests {
                 assert!(Skills::parse(medical(&[(rank, shift)]), 0.0).is_none(), "{shift} {rank}");
             }
         }
-        // (shift, most) of modifier 45's fields; past the most is no set,
-        // Unflinching's and Concentration's 5..7 (their third bit) too.
-        for (shift, most, width) in [(0, 2, 2), (2, 2, 2), (4, 4, 3), (7, 4, 3)] {
+        // (shift, most, width) of modifier 45's fields; past the most is no
+        // set, Unflinching's 5..7 and Concentration's 4..7 (its old fourth rank) too.
+        for (shift, most, width) in [(0, 2, 2), (2, 2, 2), (4, 4, 3), (7, 3, 3), (10, 3, 2), (12, 3, 2)] {
             for rank in 0..=most {
                 assert!(Skills::parse(0.0, (rank << shift) as f32).is_some());
             }
@@ -381,31 +431,28 @@ mod tests {
         for invalid in [-1.0, 0.5, f32::NAN, f32::INFINITY, 16_777_216.0] {
             assert!(Skills::parse(invalid, 0.0).is_none());
         }
-        for invalid in [-1.0, 0.5, f32::NAN, f32::INFINITY, 1024.0] {
+        for invalid in [-1.0, 0.5, f32::NAN, f32::INFINITY, 16384.0] {
             assert!(Skills::parse(0.0, invalid).is_none());
         }
-        let ranks = medical(&[(3, 0), (2, 3), (5, 6), (3, 9), (3, 12), (1, 15), (1, 16), (5, 17), (2, 21)]);
-        let full = Skills::parse(ranks, 74.0).unwrap();
-        assert_eq!((full.numb_legs, full.take_cover, full.focus), (2, 2, Focus::Unflinching(4)));
+        let ranks = medical(&[(3, 0), (2, 3), (4, 6), (3, 9), (3, 12), (1, 15), (1, 16), (5, 17), (1, 21)]);
+        // The tree's full set: Numb Legs 2, Unflinching 4, Concentration 3,
+        // Second Wind 3 and Sharp Eye 3, 2 + 4 x 16 + 3 x 128 + 3 x 1024 + 3 x 4096.
+        let full = Skills::parse(ranks, 15810.0).unwrap();
+        assert_eq!(
+            (full.numb_legs, full.take_cover, full.unflinching, full.concentration, full.second_wind, full.sharp_eye),
+            (2, 0, 4, 3, 3, 3)
+        );
         assert!(!full.is_medic());
-        // Concentration instead: 2 + 8 + 4 x 128.
-        let concentrating = Skills::parse(ranks, 522.0).unwrap();
-        assert_eq!(concentrating.focus, Focus::Concentration(4));
-        // Unflinching and Concentration both held is no set: refused.
-        for (unflinching, concentration) in [(1, 1), (4, 4), (2, 3)] {
-            let combo = (unflinching << 4) | (concentration << 7);
-            assert!(Skills::parse(0.0, combo as f32).is_none(), "{combo}");
-        }
     }
     #[test]
     fn top_rank_effects_and_thresholds() {
         let s = Skills {
             painkiller: 3,
             bandaging: 2,
-            metabolism: 5,
+            metabolism: 4,
             adrenalin: 3,
             bones: 5,
-            brothers: 2,
+            brothers: true,
             ..Skills::default()
         };
         assert!((s.pain_coefficient(0.9) - 0.87).abs() < 0.000001);
@@ -418,18 +465,20 @@ mod tests {
         assert_eq!(Skills::default().pain_coefficient(0.9), 0.9);
         assert_eq!(s.pain_duration_ms(10_000.0), 14_500.0);
         assert!((s.use_time(1000.0) - 900.0).abs() < 0.001);
-        assert_eq!(s.regeneration_delay_ms(8_000), 5_500);
-        assert_eq!(s.regeneration_delay_ms(1_000), 0);
+        assert_eq!(s.regeneration_delay_ms(8_000), 4_000);
+        assert_eq!(s.regeneration_delay_ms(3_000), 0);
         assert_eq!(s.movement_speed(4.0, 0.3), 4.0);
         assert!((s.movement_speed(4.0, 0.299) - 4.6).abs() < 0.00001);
         assert!((s.movement_speed(4.0, 0.199) - 4.6).abs() < 0.00001);
         assert_eq!(s.movement_speed(4.0, 0.0), 4.0);
         assert_eq!(s.limb_health(0.5), 0.75);
+        // Brothers in Arms' one rank: the half its two ranks of 25% gave.
         assert_eq!(s.allied_damage(0.6), 0.3);
+        assert_eq!(Skills::default().allied_damage(0.6), 0.6);
     }
     #[test]
     fn regeneration_starts_sooner_and_goes_to_full_health() {
-        // The booster: -2 s, +100 % of the limit; Metabolism's 5 ranks are
+        // The booster: -2 s, +100 % of the limit; a Metabolism is
         // already in the pool's delay (8 s - 2.5 s).
         let booster = Regeneration::parse(-2.0, 1.0).unwrap();
         assert_eq!(booster.apply(0.03, 8_000, 0.5), (6_000, 1.0));
@@ -459,38 +508,69 @@ mod tests {
             assert!((s.medicine_heal(0.5, Stance::Crouched) - 0.5 * (1.0 + 0.1 * r)).abs() < 1e-6);
         }
         for rank in 0..=4u8 {
-            let s = Skills { focus: Focus::parse(rank, 0).unwrap(), ..Skills::default() };
+            let s = Skills { unflinching: rank, ..Skills::default() };
             let r = f32::from(rank);
             assert_eq!(s.stopping_power(0.4, Painkiller::Inactive), 0.4);
             assert!((s.stopping_power(0.4, Painkiller::Active) - 0.4 * (1.0 - 0.1 * r)).abs() < 1e-6);
         }
         // Four ranks of 10%: the same -40% the two ranks of 20% gave.
-        let top = Skills { focus: Focus::Unflinching(4), ..Skills::default() };
+        let top = Skills { unflinching: 4, ..Skills::default() };
         assert!((top.stopping_power(1.0, Painkiller::Active) - 0.6).abs() < 1e-6);
-        // Concentration is no Unflinching.
-        let focus = Skills { focus: Focus::Concentration(4), ..Skills::default() };
-        assert_eq!(focus.stopping_power(0.4, Painkiller::Active), 0.4);
     }
     #[test]
-    fn concentration_adds_to_the_sway_bonuses_while_the_painkiller_is_active() {
-        // base 0.5; S 0 (no gear) and S -0.2 (the gear's -20 %): the game's
-        // modified value base x (1 + S), then -0.05 a rank added to S.
-        for (s, modified) in [(0.0, 0.5), (-0.2, 0.4)] {
-            for rank in 0..=4u8 {
-                let skills = Skills { focus: Focus::parse(0, rank).unwrap(), ..Skills::default() };
-                let want = 0.5 * (1.0 + s - 0.05 * f32::from(rank));
-                assert!((skills.sway(modified, 0.5, Painkiller::Active) - want).abs() < 1e-6, "{s} {rank}");
-                assert_eq!(skills.sway(modified, 0.5, Painkiller::Inactive), modified);
+    fn concentration_adds_to_the_reload_bonuses_while_an_antitoxin_is_active() {
+        // Clip speed B 0.8; S 0 (no gear) and S +0.12 (Quick Hands 3): the
+        // game's B x (1 + S), then +0.10/+0.15/+0.20 added to S.
+        for s in [0.0, 0.12] {
+            let factor = 1.0 + s;
+            for (rank, bonus) in [(0, 0.0), (1, 0.10), (2, 0.15), (3, 0.20)] {
+                let skills = Skills { concentration: rank, ..Skills::default() };
+                let want = 0.8 * (factor + bonus);
+                assert!((skills.reload_speed(0.8 * factor, factor, Antitoxin::Active) - want).abs() < 1e-6, "{s} {rank}");
+                assert_eq!(skills.reload_speed(0.8 * factor, factor, Antitoxin::Inactive), 0.8 * factor);
             }
         }
-        let top = Skills { focus: Focus::Concentration(4), ..Skills::default() };
-        // Never below no sway; no sway or no dispersion stays as it is.
-        assert_eq!(top.sway(0.05, 0.5, Painkiller::Active), 0.0);
-        assert_eq!(top.sway(0.0, 0.5, Painkiller::Active), 0.0);
-        assert_eq!(top.sway(0.0, 0.0, Painkiller::Active), 0.0);
-        assert!(top.sway(f32::NAN, 0.5, Painkiller::Active).is_nan());
+        let top = Skills { concentration: 3, ..Skills::default() };
+        // A reload the kit stopped (factor 0) or a clip of no speed stays.
+        assert_eq!(top.reload_speed(0.0, 0.0, Antitoxin::Active), 0.0);
+        assert_eq!(top.reload_speed(0.0, 1.0, Antitoxin::Active), 0.0);
+        assert!(top.reload_speed(f32::NAN, 1.0, Antitoxin::Active).is_nan());
         // Unflinching is no Concentration.
-        let unflinching = Skills { focus: Focus::Unflinching(4), ..Skills::default() };
-        assert_eq!(unflinching.sway(0.5, 0.5, Painkiller::Active), 0.5);
+        let unflinching = Skills { unflinching: 4, ..Skills::default() };
+        assert_eq!(unflinching.reload_speed(0.8, 1.0, Antitoxin::Active), 0.8);
+    }
+    #[test]
+    fn sharp_eye_takes_off_the_aim_time_while_an_antitoxin_is_active() {
+        // Aim time B 0.4 s; S 0 and S -0.12 (Accuracy 3): the game's
+        // B x (1 + S), then -0.05/-0.10/-0.15 added to S.
+        for s in [0.0, -0.12] {
+            let factor = 1.0 + s;
+            for (rank, bonus) in [(0, 0.0), (1, 0.05), (2, 0.10), (3, 0.15)] {
+                let skills = Skills { sharp_eye: rank, ..Skills::default() };
+                let want = 0.4 * (factor - bonus);
+                assert!((skills.aim_time(0.4 * factor, factor, Antitoxin::Active) - want).abs() < 1e-6, "{s} {rank}");
+                assert_eq!(skills.aim_time(0.4 * factor, factor, Antitoxin::Inactive), 0.4 * factor);
+            }
+        }
+        let top = Skills { sharp_eye: 3, ..Skills::default() };
+        // Never below an instant aim; none or a stopped one stays.
+        assert_eq!(top.aim_time(0.04, 0.1, Antitoxin::Active), 0.0);
+        assert_eq!(top.aim_time(0.0, 1.0, Antitoxin::Active), 0.0);
+        assert_eq!(top.aim_time(0.0, 0.0, Antitoxin::Active), 0.0);
+        // Concentration is no Sharp Eye.
+        let concentration = Skills { concentration: 3, ..Skills::default() };
+        assert_eq!(concentration.aim_time(0.4, 1.0, Antitoxin::Active), 0.4);
+    }
+    #[test]
+    fn second_wind_gives_its_energy_up_to_the_maximum() {
+        for (rank, energy) in [(0, 0.0), (1, 20.0), (2, 30.0), (3, 40.0)] {
+            let s = Skills { second_wind: rank, ..Skills::default() };
+            assert_eq!(s.second_wind(10.0, 100.0), 10.0 + energy, "{rank}");
+        }
+        let top = Skills { second_wind: 3, ..Skills::default() };
+        assert_eq!(top.second_wind(80.0, 100.0), 100.0);
+        assert_eq!(top.second_wind(100.0, 100.0), 100.0);
+        // Above a lowered maximum it is not taken away.
+        assert_eq!(top.second_wind(90.0, 70.0), 90.0);
     }
 }

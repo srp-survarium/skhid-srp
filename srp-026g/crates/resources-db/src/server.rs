@@ -39,6 +39,7 @@ use std::path::{Path, PathBuf};
 
 use sha2::{Digest, Sha256};
 
+use crate::checked::{CHECKED, Checked};
 use crate::overlay::Overlay;
 use crate::{Archive, Error, crc32};
 
@@ -84,11 +85,24 @@ pub const UNSAVED_OBJECTS: [&str; 17] = [
     "volume_fog",
     "wire_set",
 ];
-/// The game's texts in the languages of srp's web page (its names of the
-/// maps and modes), read whole.
-pub const LOCALIZATIONS: [&str; 2] = [
+/// The game's texts in the languages of srp's web page, which are the
+/// game's own twelve (its names of the maps, modes and items), read whole;
+/// in the order of the game's language list (`localization_026g.py`
+/// `LANGUAGES`). Data made before a language was listed has no file of it:
+/// its texts are then the English ones.
+pub const LOCALIZATIONS: [&str; 12] = [
     "localization/english/localization",
     "localization/ukrainian/localization",
+    "localization/russian/localization",
+    "localization/german/localization",
+    "localization/polish/localization",
+    "localization/serbian/localization",
+    "localization/czech/localization",
+    "localization/hungarian/localization",
+    "localization/finnish/localization",
+    "localization/belarusian/localization",
+    "localization/croatian/localization",
+    "localization/portuguese/localization",
 ];
 /// What the data was made of ([`Provenance`]).
 pub const PROVENANCE: &str = "srp/provenance";
@@ -679,6 +693,9 @@ pub struct Built {
     pub clips_unread: usize,
     /// What each archive gave: `resources.db`, then the patches in order.
     pub given: Vec<Given>,
+    /// The files a match asks the players' games to hash
+    /// ([`crate::checked`]), each once.
+    pub checked: usize,
 }
 
 /// `patches` in the game's order, by their n. A patch must be called as the
@@ -761,10 +778,12 @@ pub fn build(db: &Path, patches: &[PatchFile], game: Option<&GameArchive>) -> Re
     let mut opened = Vec::new();
     let mut given = Vec::new();
     let mut seen = BTreeSet::new();
-    for path in paths {
+    let mut tables = BTreeMap::new();
+    for (path, name) in paths.into_iter().zip(&names) {
         let at = |cause: &dyn std::fmt::Display| content(format!("{}: {cause}", path.display()));
         let file = File::open(path).map_err(|cause| at(&cause))?;
-        let archive = Archive::new(file).map_err(|cause| at(&cause))?;
+        let (archive, table) = Archive::with_table(file).map_err(|cause| at(&cause))?;
+        tables.insert(format!("@table/{name}"), crate::checked::Sum::of(&table).map_err(|cause| at(&cause))?);
         let mut files = 0;
         let mut replaced = 0;
         for (file, _) in archive.files_under("").filter(|(file, _)| is_read(file)) {
@@ -817,6 +836,10 @@ pub fn build(db: &Path, patches: &[PatchFile], game: Option<&GameArchive>) -> Re
     let (lengths, clips_unread) = clip_lengths(&mut overlay, &names)?;
     let clips = lengths.len();
     files.insert(CLIP_LENGTHS.to_owned(), lengths.text().into_bytes());
+    let mut checked = Checked::of(&mut overlay)?;
+    checked.always.extend(tables.keys().cloned());
+    checked.files.extend(tables);
+    files.insert(CHECKED.to_owned(), checked.text().into_bytes());
     files.insert(PROVENANCE.to_owned(), provenance.text().into_bytes());
     Ok(Built {
         bytes: crate::write::write(&files)?,
@@ -826,6 +849,7 @@ pub fn build(db: &Path, patches: &[PatchFile], game: Option<&GameArchive>) -> Re
         clips,
         clips_unread,
         given,
+        checked: checked.files.len(),
     })
 }
 

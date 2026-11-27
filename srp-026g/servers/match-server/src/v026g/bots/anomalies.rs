@@ -1754,7 +1754,7 @@ pub(super) mod tests {
             let (Some(id), Some(map_id)) = (fields.get(2), fields.get(3)) else {
                 continue;
             };
-            let (Ok(match_id), Ok(map_id)) = (u32::from_str_radix(id, 16), map_id.parse::<u8>())
+            let (Ok(match_id), Ok(map_id)) = (u32::from_str_radix(id, 16), map_id.parse::<survarium::v026g::maps::MapId>())
             else {
                 continue;
             };

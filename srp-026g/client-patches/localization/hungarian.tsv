@@ -14,14 +14,17 @@ k9	9
 kA	A
 kADD	+
 kAPOSTROPHE	'
+kAPPS	Menu
 kB	B
 kBACK	Backspace
 kBACKSLASH	\\
 kC	C
+kCAPITAL	CapsLock
 kCOMMA	,
 kD	D
 kDECIMAL	.
 kDELETE	Delete
+kDIVIDE	Num/
 kDOWN	Down
 kE	E
 kEND	End
@@ -55,10 +58,14 @@ kL	L
 kLBRACKET	<
 kLCONTROL	LCtrl
 kLEFT	Left
+kLMENU	LAlt
 kLSHIFT	LShift
+kLWIN	LWin
 kM	M
 kMINUS	-
+kMULTIPLY	Num*
 kN	N
+kNEXT	PgDn
 kNUMLOCK	NumLock
 kNUMPAD0	Num0
 kNUMPAD1	Num1
@@ -77,19 +84,23 @@ kO	O
 kP	P
 kPAUSE	Pause
 kPERIOD	.
+kPRIOR	PgUp
 kQ	Q
 kR	R
 kRBRACKET	>
 kRCONTROL	RControl
 kRETURN	Enter
 kRIGHT	Right
+kRMENU	RAlt
 kRSHIFT	RShift
+kRWIN	RWin
 kS	S
-kSCROLL	ScrollLock
+kSCROLL	ScrLk
 kSEMICOLON	,
 kSLASH	/
 kSPACE	Space
 kSUBTRACT	-
+kSYSRQ	PrtSc
 kT	T
 kTAB	Tab
 kU	U
@@ -155,6 +166,8 @@ st_ak74u_description	Az AK74 rövidített változata, 5.45x39 lőszerrel. Kis m�
 st_ak74u_name	AKS-74U
 st_ak74u_premium_description	Az AK74 rövidített változata, 5.45x39 lőszerrel. Kis mérete miatt széles körben használták az ejtőernyősök, a belügyminisztérium és biztonsági szolgálatok. Egyes és sorozatlövésre képes. Prémium változat különleges álcafestéssel.
 st_ak74u_premium_name	AKS-74U Corsair
+st_ak_zenit_rk2_foregrip_desc	Visszarúgás -3%. Célzási idő +1%.
+st_ak_zenit_rk2_foregrip_name	Zenit RK-2 taktikai markolat
 st_akmn_description	7.62x39 mm-es lőszerhez módosított Kalasnyikov gépkarabély. Ereje és megbízhatósága ma is hasznos fegyverré teszi. Egyes és sorozatlövésre képes.
 st_akmn_name	AKM
 st_akmn_premium_2_description	7.62x39 mm-es lőszerhez módosított Kalasnyikov gépkarabély. Ereje és megbízhatósága ma is hasznos fegyverré teszi. Egyes és sorozatlövésre képes. Prémium változat különleges álcafestéssel.
@@ -265,6 +278,16 @@ st_artcontainer_time_corr_perc_name	Begyűjtési idő
 st_artefact_activated_message	Artefaktum aktiválva
 st_artefact_booster_description	Az artefaktumok begyűjtésére barkácsolt eszköz második változata. A beépített anomáliaelnyomó felgyorsítja a kinyerést.
 st_artefact_booster_name	Artefaktummester
+st_artefact_hunt_draw	Döntetlen. Lejárt az idő
+st_artefact_hunt_enemy_delivered	Az ellenfél csapata leszállította az artefaktumot
+st_artefact_hunt_lost_collected	Vereség. Minden artefaktum összegyűjtve
+st_artefact_hunt_lost_time_out	Vereség. Lejárt az idő
+st_artefact_hunt_lost_wiped	Vereség. A csapatod kiesett
+st_artefact_hunt_team_delivered	A csapatod leszállította az artefaktumot
+st_artefact_hunt_won_collected	Győzelem! Minden artefaktum összegyűjtve
+st_artefact_hunt_won_time_out	Győzelem! Lejárt az idő
+st_artefact_hunt_won_wiped	Győzelem! Az ellenfél csapata kiesett
+st_artefact_hunt_you_picked	Felvetted az artefaktumot
 st_artefact_no_free_slots	Nincs szabad rekesz az artefaktumnak!
 st_artefact_search_failed	Nem találtál artefaktumot
 st_artefact_search_success	Szereztél egy artefaktumot! 
@@ -478,6 +501,307 @@ st_buy_premium_with_discount	Vedd meg most kedvezménnyel!
 st_buy_profile_confirmation_text	Új karakter létrehozása? 
 st_buy_profile_price_text	A profil ára: 
 st_buy_treasure_maps	Térkép vásárlása
+st_camo_atlas_all_terrain	Minden terep
+st_camo_atlas_amber_circuit	Borostyán áramkör
+st_camo_atlas_amethyst_wash	Ametiszt lavírozás
+st_camo_atlas_arid_lizard	Sivatagi gyík
+st_camo_atlas_ash_rain	Hamueső
+st_camo_atlas_aubergine_broadbrush	Padlizsánlila ecsetvonás
+st_camo_atlas_aubergine_crackle	Padlizsánlila krakelé
+st_camo_atlas_aubergine_watercolor	Padlizsánlila akvarell
+st_camo_atlas_autumn_flecktarn	Őszi flecktarn
+st_camo_atlas_balkan_dpm	Balkáni DPM
+st_camo_atlas_balkan_splinter	Balkáni szilánkok
+st_camo_atlas_basalt_shard	Bazaltszilánk
+st_camo_atlas_birch_leaf	Nyírfalevél
+st_camo_atlas_black_ice	Fekete jég
+st_camo_atlas_black_thicket	Fekete bozót
+st_camo_atlas_blue_brush	Kék ecsetvonások
+st_camo_atlas_blue_shingle	Kék zsindely
+st_camo_atlas_blue_tiger_stripe	Kék tigriscsíkok
+st_camo_atlas_bruise	Zúzódás
+st_camo_atlas_brushstroke	Ecsetvonás
+st_camo_atlas_buntfarben_1918	Buntfarben 1918
+st_camo_atlas_butan	Butan
+st_camo_atlas_carmine_crosscheck	Kárminvörös keresztkocka
+st_camo_atlas_carmine_pebble	Kárminvörös kavics
+st_camo_atlas_carmine_screenprint	Kárminvörös szitanyomat
+st_camo_atlas_carmine_soundings	Kárminvörös mélységvonalak
+st_camo_atlas_carmine_wave_fan	Kárminvörös hullámlegyező
+st_camo_atlas_centre_europe	Közép-Európa
+st_camo_atlas_centre_europe_vehicle	Közép-Európa, jármű
+st_camo_atlas_cerise_broadbrush	Cseresznyepiros ecsetvonás
+st_camo_atlas_cerise_crackle	Cseresznyepiros krakelé
+st_camo_atlas_cinnabar_tiger	Cinóbertigris
+st_camo_atlas_citron_broadbrush	Citromsárga ecsetvonás
+st_camo_atlas_citron_crackle	Citromsárga krakelé
+st_camo_atlas_citron_cut	Citromsárga kivágás
+st_camo_atlas_cobalt_cloud	Kobaltkék felhő
+st_camo_atlas_cobalt_netting	Kobaltkék háló
+st_camo_atlas_cobalt_shard	Kobaltkék szilánk
+st_camo_atlas_cobalt_woodgrain	Kobaltkék faerezet
+st_camo_atlas_copper_mesh	Rézháló
+st_camo_atlas_copper_rain	Rézeső
+st_camo_atlas_coral_reeds	Korallnád
+st_camo_atlas_daguet	Daguet
+st_camo_atlas_danube_leaf	Dunai levél
+st_camo_atlas_desert_broadbrush	Sivatagi ecsetvonás
+st_camo_atlas_desert_broken_grid	Sivatagi tört rács
+st_camo_atlas_desert_cloud	Sivatagi felhő
+st_camo_atlas_desert_crackle	Sivatagi krakelé
+st_camo_atlas_desert_cut_paper	Sivatagi papírkivágás
+st_camo_atlas_desert_drybrush	Sivatagi száraz ecset
+st_camo_atlas_desert_fracture	Sivatagi repedés
+st_camo_atlas_desert_mosaic	Sivatagi mozaik
+st_camo_atlas_desert_netting	Sivatagi háló
+st_camo_atlas_desert_pebble	Sivatagi kavics
+st_camo_atlas_desert_pixel_grain	Sivatagi pixelszemcse
+st_camo_atlas_desert_rain_streak	Sivatagi esőcsík
+st_camo_atlas_desert_reed_stripe	Sivatagi nádcsík
+st_camo_atlas_desert_ribbon	Sivatagi szalag
+st_camo_atlas_desert_riverstone	Sivatagi folyami kő
+st_camo_atlas_desert_rosette	Sivatagi rozetta
+st_camo_atlas_desert_scribble	Sivatagi firka
+st_camo_atlas_desert_shard	Sivatagi szilánk
+st_camo_atlas_desert_shingle	Sivatagi zsindely
+st_camo_atlas_desert_starfield	Sivatagi csillagmező
+st_camo_atlas_desert_stone_chip	Sivatagi kőzúzalék
+st_camo_atlas_desert_tiger_stripe	Sivatagi tigriscsík
+st_camo_atlas_desert_watercolor	Sivatagi akvarell
+st_camo_atlas_desert_woodgrain	Sivatagi faerezet
+st_camo_atlas_dg3	DG3
+st_camo_atlas_dubok	Dubok
+st_camo_atlas_duck_hunter	Kacsavadász
+st_camo_atlas_dune_chip	Dűnezúzalék
+st_camo_atlas_ember_leaf	Parázslevél
+st_camo_atlas_erdl_highland	Hegyvidéki ERDL
+st_camo_atlas_erdl_lowland	Alföldi ERDL
+st_camo_atlas_fab_lizard	FAB gyík
+st_camo_atlas_fired_clay	Égetett agyag
+st_camo_atlas_frogskin	Békabőr
+st_camo_atlas_frost_splinter	Fagyszilánkok
+st_camo_atlas_garnet_broken_grid	Gránátvörös tört rács
+st_camo_atlas_garnet_rosette	Gránátvörös rozetta
+st_camo_atlas_garnet_shard	Gránátvörös szilánk
+st_camo_atlas_glacial_stone_chip	Jeges kőzúzalék
+st_camo_atlas_glacial_tiger_stripe	Jeges tigriscsík
+st_camo_atlas_glacial_watercolor	Jeges akvarell
+st_camo_atlas_glacier_cut	Gleccserkivágás
+st_camo_atlas_graphite_broken_grid	Grafitszürke tört rács
+st_camo_atlas_graphite_rosette	Grafitszürke rozetta
+st_camo_atlas_graphite_shard	Grafitszürke szilánk
+st_camo_atlas_harbor_tiger	Kikötői tigris
+st_camo_atlas_hazard_pixel	Veszélypixel
+st_camo_atlas_honey_rosette	Mézrozetta
+st_camo_atlas_icelandic_broadbrush	Izlandi ecsetvonás
+st_camo_atlas_icelandic_stone_chip	Izlandi kőzúzalék
+st_camo_atlas_icelandic_watercolor	Izlandi akvarell
+st_camo_atlas_inkstone	Tintakő
+st_camo_atlas_iris_mosaic	Íriszmozaik
+st_camo_atlas_jgsdf_desert	JGSDF sivatagi
+st_camo_atlas_jgsdf_type_ii	JGSDF II. típus
+st_camo_atlas_jgsdf_winter	JGSDF téli
+st_camo_atlas_juniper_pixel	Borókapixel
+st_camo_atlas_k07	K07
+st_camo_atlas_k07_dark	K07 sötét
+st_camo_atlas_k20	K20
+st_camo_atlas_k20_navy	K20 haditengerészeti
+st_camo_atlas_k20lq	K20LQ
+st_camo_atlas_kingfisher	Jégmadár
+st_camo_atlas_kingfisher_cut_paper	Jégmadárkék papírkivágás
+st_camo_atlas_kingfisher_reed_stripe	Jégmadárkék nádcsík
+st_camo_atlas_kingfisher_screenprint	Jégmadárkék szitanyomat
+st_camo_atlas_lagoon_rosette	Lagúnarozetta
+st_camo_atlas_lapis_cloud	Lazúrkék felhő
+st_camo_atlas_lapis_netting	Lazúrkék háló
+st_camo_atlas_lapis_tiger_stripe	Lazúrkék tigriscsík
+st_camo_atlas_lapis_woodgrain	Lazúrkék faerezet
+st_camo_atlas_lichen_pixel	Zuzmópixel
+st_camo_atlas_lime_spots	Limezöld pöttyök
+st_camo_atlas_lizard	Gyík
+st_camo_atlas_lozenge	Rombuszok
+st_camo_atlas_lozenge_night	Éjszakai rombuszok
+st_camo_atlas_m05_snow	M05 havas
+st_camo_atlas_m05_woodland	M05 erdei
+st_camo_atlas_m81_woodland	M81 erdei
+st_camo_atlas_m90	M90
+st_camo_atlas_m90k	M90K
+st_camo_atlas_m_01_desert	M/01 sivatagi
+st_camo_atlas_m_84	M/84
+st_camo_atlas_madder_crackle	Buzérvörös krakelé
+st_camo_atlas_madder_cut_paper	Buzérvörös papírkivágás
+st_camo_atlas_madder_reed_stripe	Buzérvörös nádcsík
+st_camo_atlas_malachite	Malachit
+st_camo_atlas_marigold_broken_grid	Körömvirág-sárga tört rács
+st_camo_atlas_marigold_pebble	Körömvirág-sárga kavics
+st_camo_atlas_marigold_rosette	Körömvirág-sárga rozetta
+st_camo_atlas_marigold_terrazzo	Körömvirág-sárga terrazzo
+st_camo_atlas_marine_woodland	Tengeri erdő
+st_camo_atlas_maritime_pebble	Tengeri kavics
+st_camo_atlas_maritime_rosette	Tengeri rozetta
+st_camo_atlas_maritime_terrazzo	Tengeri terrazzo
+st_camo_atlas_maritime_wave_fan	Tengeri hullámlegyező
+st_camo_atlas_mauve_static	Mályvaszínű zaj
+st_camo_atlas_mm_14	MM-14
+st_camo_atlas_mm_25	MM-25
+st_camo_atlas_moro	Moro
+st_camo_atlas_mulberry_cloud	Szederfelhő
+st_camo_atlas_nfp_blue	Kék NFP
+st_camo_atlas_nfp_cloth	NFP szövet
+st_camo_atlas_nfp_green	Zöld NFP
+st_camo_atlas_nfp_multitone	Többtónusú NFP
+st_camo_atlas_night_silk	Éjselyem
+st_camo_atlas_obh	OBH
+st_camo_atlas_ochre_cut	Okker kivágás
+st_camo_atlas_olive_tide	Olajzöld dagály
+st_camo_atlas_opal_fault	Opálvető
+st_camo_atlas_orchid_broken_grid	Orchidealila tört rács
+st_camo_atlas_orchid_cloud	Orchidealila felhő
+st_camo_atlas_orchid_netting	Orchidealila háló
+st_camo_atlas_orchid_shard	Orchidealila szilánk
+st_camo_atlas_orchid_static	Orchidealila zaj
+st_camo_atlas_oxblood_cloud	Bordó felhő
+st_camo_atlas_oxblood_stone_chip	Bordó kőzúzalék
+st_camo_atlas_oxblood_terrazzo	Bordó terrazzo
+st_camo_atlas_oxblood_tiger_stripe	Bordó tigriscsík
+st_camo_atlas_oxblood_woodgrain	Bordó faerezet
+st_camo_atlas_pantera	Pantera
+st_camo_atlas_pantera_desert	Sivatagi Pantera
+st_camo_atlas_persimmon_ink	Datolyaszilva-tinta
+st_camo_atlas_petal_wash	Sziromlavírozás
+st_camo_atlas_pewter_cut_paper	Ónszürke papírkivágás
+st_camo_atlas_pewter_reed_stripe	Ónszürke nádcsík
+st_camo_atlas_polar_mesh	Sarki háló
+st_camo_atlas_porcelain_tide	Porcelándagály
+st_camo_atlas_puma	Puma
+st_camo_atlas_quarry	Kőfejtő
+st_camo_atlas_reef_tiger	Zátonytigris
+st_camo_atlas_riptide_broadbrush	Örvénylő ecsetvonás
+st_camo_atlas_riptide_crackle	Örvénylő krakelé
+st_camo_atlas_riptide_cut_paper	Örvénylő papírkivágás
+st_camo_atlas_riptide_terrazzo	Örvénylő terrazzo
+st_camo_atlas_rmp_woodland	RMP erdei
+st_camo_atlas_rose_breccia	Rózsabreccsa
+st_camo_atlas_russet_crosscheck	Rozsdabarna keresztkocka
+st_camo_atlas_russet_screenprint	Rozsdabarna szitanyomat
+st_camo_atlas_russet_stone_chip	Rozsdabarna kőzúzalék
+st_camo_atlas_russet_tiger_stripe	Rozsdabarna tigriscsík
+st_camo_atlas_russet_watercolor	Rozsdabarna akvarell
+st_camo_atlas_russet_woodgrain	Rozsdabarna faerezet
+st_camo_atlas_rust_flecktarn	Rozsdás flecktarn
+st_camo_atlas_rust_tiger	Rozsdatigris
+st_camo_atlas_saffron_gravel	Sáfránykavics
+st_camo_atlas_saffron_pebble	Sáfránysárga kavics
+st_camo_atlas_saffron_soundings	Sáfránysárga mélységvonalak
+st_camo_atlas_saffron_wave_fan	Sáfránysárga hullámlegyező
+st_camo_atlas_salt_crater	Sókráter
+st_camo_atlas_salt_tiger	Sótigris
+st_camo_atlas_sandstone	Homokkő
+st_camo_atlas_satsuma_stone_chip	Mandarinsárga kőzúzalék
+st_camo_atlas_satsuma_tiger_stripe	Mandarinsárga tigriscsík
+st_camo_atlas_satsuma_watercolor	Mandarinsárga akvarell
+st_camo_atlas_savanna_flecktarn	Szavanna flecktarn
+st_camo_atlas_sea_glass	Tengeri üveg
+st_camo_atlas_seafoam_cloud	Tajtékos felhő
+st_camo_atlas_seafoam_netting	Tajtékos háló
+st_camo_atlas_seafoam_woodgrain	Tajtékos faerezet
+st_camo_atlas_shard_earth	Szilánkföld
+st_camo_atlas_shard_forest	Szilánkerdő
+st_camo_atlas_shard_winter	Szilánktél
+st_camo_atlas_sienna_wash	Sziéna lavírozás
+st_camo_atlas_signal_grid	Jelzőrács
+st_camo_atlas_silver_rosette	Ezüstrozetta
+st_camo_atlas_snow_terrain	Havas terep
+st_camo_atlas_star_ember	Csillagparázs
+st_camo_atlas_star_forest	Csillagerdő
+st_camo_atlas_sundown_pebble	Alkonyi kavics
+st_camo_atlas_sundown_reed_stripe	Alkonyi nádcsík
+st_camo_atlas_sundown_terrazzo	Alkonyi terrazzo
+st_camo_atlas_sundown_wave_fan	Alkonyi hullámlegyező
+st_camo_atlas_t_99_winter	T/99 téli
+st_camo_atlas_taz_07	TAZ 07
+st_camo_atlas_taz_83	TAZ 83
+st_camo_atlas_taz_83_ii	TAZ 83 II
+st_camo_atlas_teal_pixel	Türkiz pixel
+st_camo_atlas_three_color_desert	Háromszínű sivatag
+st_camo_atlas_tidal_pixel	Árapálypixel
+st_camo_atlas_tropentarn	Tropentarn
+st_camo_atlas_tropentarn_ii	Tropentarn II
+st_camo_atlas_type_07_arid	Type 07 sivatagi
+st_camo_atlas_type_07_universal	Type 07 univerzális
+st_camo_atlas_type_07_urban	Type 07 városi
+st_camo_atlas_ultramarine_broken_grid	Ultramarinkék tört rács
+st_camo_atlas_ultramarine_netting	Ultramarinkék háló
+st_camo_atlas_ultramarine_rosette	Ultramarinkék rozetta
+st_camo_atlas_ultramarine_shard	Ultramarinkék szilánk
+st_camo_atlas_ultramarine_terrazzo	Ultramarinkék terrazzo
+st_camo_atlas_ultraviolet_grid	Ultraibolya rács
+st_camo_atlas_urban_blots	Városi foltok
+st_camo_atlas_urban_broadbrush	Városi ecsetvonás
+st_camo_atlas_urban_broken_grid	Városi tört rács
+st_camo_atlas_urban_brush	Városi ecset
+st_camo_atlas_urban_cloud	Városi felhő
+st_camo_atlas_urban_crackle	Városi krakelé
+st_camo_atlas_urban_cut_paper	Városi papírkivágás
+st_camo_atlas_urban_drybrush	Városi száraz ecset
+st_camo_atlas_urban_flecktarn	Városi flecktarn
+st_camo_atlas_urban_fracture	Városi repedés
+st_camo_atlas_urban_knit	Városi kötött
+st_camo_atlas_urban_mosaic	Városi mozaik
+st_camo_atlas_urban_netting	Városi háló
+st_camo_atlas_urban_pebble	Városi kavics
+st_camo_atlas_urban_pixel_grain	Városi pixelszemcse
+st_camo_atlas_urban_rain_streak	Városi esőcsík
+st_camo_atlas_urban_reed_stripe	Városi nádcsík
+st_camo_atlas_urban_ribbon	Városi szalag
+st_camo_atlas_urban_riverstone	Városi folyami kő
+st_camo_atlas_urban_rosette	Városi rozetta
+st_camo_atlas_urban_scribble	Városi firka
+st_camo_atlas_urban_shard	Városi szilánk
+st_camo_atlas_urban_shingle	Városi zsindely
+st_camo_atlas_urban_starfield	Városi csillagmező
+st_camo_atlas_urban_stone_chip	Városi kőzúzalék
+st_camo_atlas_urban_tiger_stripe	Városi tigriscsík
+st_camo_atlas_urban_watercolor	Városi akvarell
+st_camo_atlas_urban_wave_fan	Városi hullámlegyező
+st_camo_atlas_urban_woodgrain	Városi faerezet
+st_camo_atlas_urban_woodland	Városi erdő
+st_camo_atlas_vegetato_desert	Sivatagi Vegetato
+st_camo_atlas_vehicle_pixel_2015	Járműpixel 2015
+st_camo_atlas_vehicle_pixel_2016	Járműpixel 2016
+st_camo_atlas_vehicle_pixel_2021	Járműpixel 2021
+st_camo_atlas_verdigris_cut_paper	Patinás papírkivágás
+st_camo_atlas_verdigris_reed_stripe	Patinás nádcsík
+st_camo_atlas_verdigris_terrazzo	Patinás terrazzo
+st_camo_atlas_verdigris_wave_fan	Patinás hullámlegyező
+st_camo_atlas_vermilion_tide	Cinóberdagály
+st_camo_atlas_walnut_burl	Diógyökér
+st_camo_atlas_woodland_broadbrush	Erdei ecsetvonás
+st_camo_atlas_woodland_broken_grid	Erdei tört rács
+st_camo_atlas_woodland_cloud	Erdei felhő
+st_camo_atlas_woodland_crackle	Erdei krakelé
+st_camo_atlas_woodland_cut_paper	Erdei papírkivágás
+st_camo_atlas_woodland_drybrush	Erdei száraz ecset
+st_camo_atlas_woodland_fracture	Erdei repedés
+st_camo_atlas_woodland_mosaic	Erdei mozaik
+st_camo_atlas_woodland_netting	Erdei háló
+st_camo_atlas_woodland_pebble	Erdei kavics
+st_camo_atlas_woodland_pixel_grain	Erdei pixelszemcse
+st_camo_atlas_woodland_rain_streak	Erdei esőcsík
+st_camo_atlas_woodland_reed_stripe	Erdei nádcsík
+st_camo_atlas_woodland_ribbon	Erdei szalag
+st_camo_atlas_woodland_riverstone	Erdei folyami kő
+st_camo_atlas_woodland_rosette	Erdei rozetta
+st_camo_atlas_woodland_scribble	Erdei firka
+st_camo_atlas_woodland_shard	Erdei szilánk
+st_camo_atlas_woodland_shingle	Erdei zsindely
+st_camo_atlas_woodland_starfield	Erdei csillagmező
+st_camo_atlas_woodland_stone_chip	Erdei kőzúzalék
+st_camo_atlas_woodland_tiger_stripe	Erdei tigriscsík
+st_camo_atlas_woodland_watercolor	Erdei akvarell
+st_camo_atlas_woodland_wave_fan	Erdei hullámlegyező
+st_camo_atlas_woodland_woodgrain	Erdei faerezet
+st_camo_atlas_woven_woodland	Szőtt erdő
 st_camo_black_leather_01_name	Holló
 st_camo_black_leather_name	Fekete halál
 st_camo_blue_leather_name	Szellő
@@ -707,7 +1031,12 @@ st_character_decals_4_72_name	Angola zászlaja
 st_character_decals_4_73_name	Nigéria zászlaja
 st_character_decals_4_74_name	Dél-Afrika zászlaja
 st_character_decals_4_75_name	Wales zászlaja
+st_character_decals_4_76_name	Koszovó zászlaja
+st_character_decals_4_77_name	Kószász
+st_character_decals_4_78_name	Ülő Kószász
+st_character_decals_4_79_name	Fumo a palackban
 st_character_decals_4_7_name	Litvánia zászlaja
+st_character_decals_4_82_name	Neco-Arc
 st_character_decals_4_8_name	Észtország zászlaja
 st_character_decals_4_9_name	Moldova zászlaja
 st_character_decals_5_10_name	Grúzia címere
@@ -746,6 +1075,7 @@ st_character_decals_5_3_name	Ukrajna címere
 st_character_decals_5_40_name	Írország címere
 st_character_decals_5_41_name	Horvátország címere
 st_character_decals_5_42_name	Bosznia-Hercegovina címere
+st_character_decals_5_43_name	Koszovó címere
 st_character_decals_5_4_name	Fehéroroszország címere
 st_character_decals_5_5_name	Kazahsztán címere
 st_character_decals_5_6_name	Lettország címere
@@ -763,6 +1093,1006 @@ st_character_decals_7_35_name	Véres kéz
 st_character_decals_7_37_name	Őrző
 st_character_decals_7_9_name	Gyógynövények
 st_character_decals_generic_desc	A mellények és nadrágok kinézetablakában matricákkal változtathatod meg a megjelenésüket.
+st_character_decals_num_0001_name	1-es szám
+st_character_decals_num_0002_name	2-es szám
+st_character_decals_num_0003_name	3-as szám
+st_character_decals_num_0004_name	4-es szám
+st_character_decals_num_0005_name	5-ös szám
+st_character_decals_num_0006_name	6-os szám
+st_character_decals_num_0007_name	7-es szám
+st_character_decals_num_0008_name	8-as szám
+st_character_decals_num_0009_name	9-es szám
+st_character_decals_num_0010_name	10-es szám
+st_character_decals_num_0011_name	11-es szám
+st_character_decals_num_0012_name	12-es szám
+st_character_decals_num_0013_name	13-as szám
+st_character_decals_num_0014_name	14-es szám
+st_character_decals_num_0015_name	15-ös szám
+st_character_decals_num_0016_name	16-os szám
+st_character_decals_num_0017_name	17-es szám
+st_character_decals_num_0018_name	18-as szám
+st_character_decals_num_0019_name	19-es szám
+st_character_decals_num_0020_name	20-as szám
+st_character_decals_num_0021_name	21-es szám
+st_character_decals_num_0022_name	22-es szám
+st_character_decals_num_0023_name	23-as szám
+st_character_decals_num_0024_name	24-es szám
+st_character_decals_num_0025_name	25-ös szám
+st_character_decals_num_0026_name	26-os szám
+st_character_decals_num_0027_name	27-es szám
+st_character_decals_num_0028_name	28-as szám
+st_character_decals_num_0029_name	29-es szám
+st_character_decals_num_0030_name	30-as szám
+st_character_decals_num_0031_name	31-es szám
+st_character_decals_num_0032_name	32-es szám
+st_character_decals_num_0033_name	33-as szám
+st_character_decals_num_0034_name	34-es szám
+st_character_decals_num_0035_name	35-ös szám
+st_character_decals_num_0036_name	36-os szám
+st_character_decals_num_0037_name	37-es szám
+st_character_decals_num_0038_name	38-as szám
+st_character_decals_num_0039_name	39-es szám
+st_character_decals_num_0040_name	40-es szám
+st_character_decals_num_0041_name	41-es szám
+st_character_decals_num_0042_name	42-es szám
+st_character_decals_num_0043_name	43-as szám
+st_character_decals_num_0044_name	44-es szám
+st_character_decals_num_0045_name	45-ös szám
+st_character_decals_num_0046_name	46-os szám
+st_character_decals_num_0047_name	47-es szám
+st_character_decals_num_0048_name	48-as szám
+st_character_decals_num_0049_name	49-es szám
+st_character_decals_num_0050_name	50-es szám
+st_character_decals_num_0051_name	51-es szám
+st_character_decals_num_0052_name	52-es szám
+st_character_decals_num_0053_name	53-as szám
+st_character_decals_num_0054_name	54-es szám
+st_character_decals_num_0055_name	55-ös szám
+st_character_decals_num_0056_name	56-os szám
+st_character_decals_num_0057_name	57-es szám
+st_character_decals_num_0058_name	58-as szám
+st_character_decals_num_0059_name	59-es szám
+st_character_decals_num_0060_name	60-as szám
+st_character_decals_num_0061_name	61-es szám
+st_character_decals_num_0062_name	62-es szám
+st_character_decals_num_0063_name	63-as szám
+st_character_decals_num_0064_name	64-es szám
+st_character_decals_num_0065_name	65-ös szám
+st_character_decals_num_0066_name	66-os szám
+st_character_decals_num_0067_name	67-es szám
+st_character_decals_num_0068_name	68-as szám
+st_character_decals_num_0069_name	69-es szám
+st_character_decals_num_0070_name	70-es szám
+st_character_decals_num_0071_name	71-es szám
+st_character_decals_num_0072_name	72-es szám
+st_character_decals_num_0073_name	73-as szám
+st_character_decals_num_0074_name	74-es szám
+st_character_decals_num_0075_name	75-ös szám
+st_character_decals_num_0076_name	76-os szám
+st_character_decals_num_0077_name	77-es szám
+st_character_decals_num_0078_name	78-as szám
+st_character_decals_num_0079_name	79-es szám
+st_character_decals_num_0080_name	80-as szám
+st_character_decals_num_0081_name	81-es szám
+st_character_decals_num_0082_name	82-es szám
+st_character_decals_num_0083_name	83-as szám
+st_character_decals_num_0084_name	84-es szám
+st_character_decals_num_0085_name	85-ös szám
+st_character_decals_num_0086_name	86-os szám
+st_character_decals_num_0087_name	87-es szám
+st_character_decals_num_0088_name	88-as szám
+st_character_decals_num_0089_name	89-es szám
+st_character_decals_num_0090_name	90-es szám
+st_character_decals_num_0091_name	91-es szám
+st_character_decals_num_0092_name	92-es szám
+st_character_decals_num_0093_name	93-as szám
+st_character_decals_num_0094_name	94-es szám
+st_character_decals_num_0095_name	95-ös szám
+st_character_decals_num_0096_name	96-os szám
+st_character_decals_num_0097_name	97-es szám
+st_character_decals_num_0098_name	98-as szám
+st_character_decals_num_0099_name	99-es szám
+st_character_decals_num_0100_name	100-as szám
+st_character_decals_num_0101_name	101-es szám
+st_character_decals_num_0102_name	102-es szám
+st_character_decals_num_0103_name	103-as szám
+st_character_decals_num_0104_name	104-es szám
+st_character_decals_num_0105_name	105-ös szám
+st_character_decals_num_0106_name	106-os szám
+st_character_decals_num_0107_name	107-es szám
+st_character_decals_num_0108_name	108-as szám
+st_character_decals_num_0109_name	109-es szám
+st_character_decals_num_0110_name	110-es szám
+st_character_decals_num_0111_name	111-es szám
+st_character_decals_num_0112_name	112-es szám
+st_character_decals_num_0113_name	113-as szám
+st_character_decals_num_0114_name	114-es szám
+st_character_decals_num_0115_name	115-ös szám
+st_character_decals_num_0116_name	116-os szám
+st_character_decals_num_0117_name	117-es szám
+st_character_decals_num_0118_name	118-as szám
+st_character_decals_num_0119_name	119-es szám
+st_character_decals_num_0120_name	120-as szám
+st_character_decals_num_0121_name	121-es szám
+st_character_decals_num_0122_name	122-es szám
+st_character_decals_num_0123_name	123-as szám
+st_character_decals_num_0124_name	124-es szám
+st_character_decals_num_0125_name	125-ös szám
+st_character_decals_num_0126_name	126-os szám
+st_character_decals_num_0127_name	127-es szám
+st_character_decals_num_0128_name	128-as szám
+st_character_decals_num_0129_name	129-es szám
+st_character_decals_num_0130_name	130-as szám
+st_character_decals_num_0131_name	131-es szám
+st_character_decals_num_0132_name	132-es szám
+st_character_decals_num_0133_name	133-as szám
+st_character_decals_num_0134_name	134-es szám
+st_character_decals_num_0135_name	135-ös szám
+st_character_decals_num_0136_name	136-os szám
+st_character_decals_num_0137_name	137-es szám
+st_character_decals_num_0138_name	138-as szám
+st_character_decals_num_0139_name	139-es szám
+st_character_decals_num_0140_name	140-es szám
+st_character_decals_num_0141_name	141-es szám
+st_character_decals_num_0142_name	142-es szám
+st_character_decals_num_0143_name	143-as szám
+st_character_decals_num_0144_name	144-es szám
+st_character_decals_num_0145_name	145-ös szám
+st_character_decals_num_0146_name	146-os szám
+st_character_decals_num_0147_name	147-es szám
+st_character_decals_num_0148_name	148-as szám
+st_character_decals_num_0149_name	149-es szám
+st_character_decals_num_0150_name	150-es szám
+st_character_decals_num_0151_name	151-es szám
+st_character_decals_num_0152_name	152-es szám
+st_character_decals_num_0153_name	153-as szám
+st_character_decals_num_0154_name	154-es szám
+st_character_decals_num_0155_name	155-ös szám
+st_character_decals_num_0156_name	156-os szám
+st_character_decals_num_0157_name	157-es szám
+st_character_decals_num_0158_name	158-as szám
+st_character_decals_num_0159_name	159-es szám
+st_character_decals_num_0160_name	160-as szám
+st_character_decals_num_0161_name	161-es szám
+st_character_decals_num_0162_name	162-es szám
+st_character_decals_num_0163_name	163-as szám
+st_character_decals_num_0164_name	164-es szám
+st_character_decals_num_0165_name	165-ös szám
+st_character_decals_num_0166_name	166-os szám
+st_character_decals_num_0167_name	167-es szám
+st_character_decals_num_0168_name	168-as szám
+st_character_decals_num_0169_name	169-es szám
+st_character_decals_num_0170_name	170-es szám
+st_character_decals_num_0171_name	171-es szám
+st_character_decals_num_0172_name	172-es szám
+st_character_decals_num_0173_name	173-as szám
+st_character_decals_num_0174_name	174-es szám
+st_character_decals_num_0175_name	175-ös szám
+st_character_decals_num_0176_name	176-os szám
+st_character_decals_num_0177_name	177-es szám
+st_character_decals_num_0178_name	178-as szám
+st_character_decals_num_0179_name	179-es szám
+st_character_decals_num_0180_name	180-as szám
+st_character_decals_num_0181_name	181-es szám
+st_character_decals_num_0182_name	182-es szám
+st_character_decals_num_0183_name	183-as szám
+st_character_decals_num_0184_name	184-es szám
+st_character_decals_num_0185_name	185-ös szám
+st_character_decals_num_0186_name	186-os szám
+st_character_decals_num_0187_name	187-es szám
+st_character_decals_num_0188_name	188-as szám
+st_character_decals_num_0189_name	189-es szám
+st_character_decals_num_0190_name	190-es szám
+st_character_decals_num_0191_name	191-es szám
+st_character_decals_num_0192_name	192-es szám
+st_character_decals_num_0193_name	193-as szám
+st_character_decals_num_0194_name	194-es szám
+st_character_decals_num_0195_name	195-ös szám
+st_character_decals_num_0196_name	196-os szám
+st_character_decals_num_0197_name	197-es szám
+st_character_decals_num_0198_name	198-as szám
+st_character_decals_num_0199_name	199-es szám
+st_character_decals_num_0200_name	200-as szám
+st_character_decals_num_0201_name	201-es szám
+st_character_decals_num_0202_name	202-es szám
+st_character_decals_num_0203_name	203-as szám
+st_character_decals_num_0204_name	204-es szám
+st_character_decals_num_0205_name	205-ös szám
+st_character_decals_num_0206_name	206-os szám
+st_character_decals_num_0207_name	207-es szám
+st_character_decals_num_0208_name	208-as szám
+st_character_decals_num_0209_name	209-es szám
+st_character_decals_num_0210_name	210-es szám
+st_character_decals_num_0211_name	211-es szám
+st_character_decals_num_0212_name	212-es szám
+st_character_decals_num_0213_name	213-as szám
+st_character_decals_num_0214_name	214-es szám
+st_character_decals_num_0215_name	215-ös szám
+st_character_decals_num_0216_name	216-os szám
+st_character_decals_num_0217_name	217-es szám
+st_character_decals_num_0218_name	218-as szám
+st_character_decals_num_0219_name	219-es szám
+st_character_decals_num_0220_name	220-as szám
+st_character_decals_num_0221_name	221-es szám
+st_character_decals_num_0222_name	222-es szám
+st_character_decals_num_0223_name	223-as szám
+st_character_decals_num_0224_name	224-es szám
+st_character_decals_num_0225_name	225-ös szám
+st_character_decals_num_0226_name	226-os szám
+st_character_decals_num_0227_name	227-es szám
+st_character_decals_num_0228_name	228-as szám
+st_character_decals_num_0229_name	229-es szám
+st_character_decals_num_0230_name	230-as szám
+st_character_decals_num_0231_name	231-es szám
+st_character_decals_num_0232_name	232-es szám
+st_character_decals_num_0233_name	233-as szám
+st_character_decals_num_0234_name	234-es szám
+st_character_decals_num_0235_name	235-ös szám
+st_character_decals_num_0236_name	236-os szám
+st_character_decals_num_0237_name	237-es szám
+st_character_decals_num_0238_name	238-as szám
+st_character_decals_num_0239_name	239-es szám
+st_character_decals_num_0240_name	240-es szám
+st_character_decals_num_0241_name	241-es szám
+st_character_decals_num_0242_name	242-es szám
+st_character_decals_num_0243_name	243-as szám
+st_character_decals_num_0244_name	244-es szám
+st_character_decals_num_0245_name	245-ös szám
+st_character_decals_num_0246_name	246-os szám
+st_character_decals_num_0247_name	247-es szám
+st_character_decals_num_0248_name	248-as szám
+st_character_decals_num_0249_name	249-es szám
+st_character_decals_num_0250_name	250-es szám
+st_character_decals_num_0251_name	251-es szám
+st_character_decals_num_0252_name	252-es szám
+st_character_decals_num_0253_name	253-as szám
+st_character_decals_num_0254_name	254-es szám
+st_character_decals_num_0255_name	255-ös szám
+st_character_decals_num_0256_name	256-os szám
+st_character_decals_num_0257_name	257-es szám
+st_character_decals_num_0258_name	258-as szám
+st_character_decals_num_0259_name	259-es szám
+st_character_decals_num_0260_name	260-as szám
+st_character_decals_num_0261_name	261-es szám
+st_character_decals_num_0262_name	262-es szám
+st_character_decals_num_0263_name	263-as szám
+st_character_decals_num_0264_name	264-es szám
+st_character_decals_num_0265_name	265-ös szám
+st_character_decals_num_0266_name	266-os szám
+st_character_decals_num_0267_name	267-es szám
+st_character_decals_num_0268_name	268-as szám
+st_character_decals_num_0269_name	269-es szám
+st_character_decals_num_0270_name	270-es szám
+st_character_decals_num_0271_name	271-es szám
+st_character_decals_num_0272_name	272-es szám
+st_character_decals_num_0273_name	273-as szám
+st_character_decals_num_0274_name	274-es szám
+st_character_decals_num_0275_name	275-ös szám
+st_character_decals_num_0276_name	276-os szám
+st_character_decals_num_0277_name	277-es szám
+st_character_decals_num_0278_name	278-as szám
+st_character_decals_num_0279_name	279-es szám
+st_character_decals_num_0280_name	280-as szám
+st_character_decals_num_0281_name	281-es szám
+st_character_decals_num_0282_name	282-es szám
+st_character_decals_num_0283_name	283-as szám
+st_character_decals_num_0284_name	284-es szám
+st_character_decals_num_0285_name	285-ös szám
+st_character_decals_num_0286_name	286-os szám
+st_character_decals_num_0287_name	287-es szám
+st_character_decals_num_0288_name	288-as szám
+st_character_decals_num_0289_name	289-es szám
+st_character_decals_num_0290_name	290-es szám
+st_character_decals_num_0291_name	291-es szám
+st_character_decals_num_0292_name	292-es szám
+st_character_decals_num_0293_name	293-as szám
+st_character_decals_num_0294_name	294-es szám
+st_character_decals_num_0295_name	295-ös szám
+st_character_decals_num_0296_name	296-os szám
+st_character_decals_num_0297_name	297-es szám
+st_character_decals_num_0298_name	298-as szám
+st_character_decals_num_0299_name	299-es szám
+st_character_decals_num_0300_name	300-as szám
+st_character_decals_num_0301_name	301-es szám
+st_character_decals_num_0302_name	302-es szám
+st_character_decals_num_0303_name	303-as szám
+st_character_decals_num_0304_name	304-es szám
+st_character_decals_num_0305_name	305-ös szám
+st_character_decals_num_0306_name	306-os szám
+st_character_decals_num_0307_name	307-es szám
+st_character_decals_num_0308_name	308-as szám
+st_character_decals_num_0309_name	309-es szám
+st_character_decals_num_0310_name	310-es szám
+st_character_decals_num_0311_name	311-es szám
+st_character_decals_num_0312_name	312-es szám
+st_character_decals_num_0313_name	313-as szám
+st_character_decals_num_0314_name	314-es szám
+st_character_decals_num_0315_name	315-ös szám
+st_character_decals_num_0316_name	316-os szám
+st_character_decals_num_0317_name	317-es szám
+st_character_decals_num_0318_name	318-as szám
+st_character_decals_num_0319_name	319-es szám
+st_character_decals_num_0320_name	320-as szám
+st_character_decals_num_0321_name	321-es szám
+st_character_decals_num_0322_name	322-es szám
+st_character_decals_num_0323_name	323-as szám
+st_character_decals_num_0324_name	324-es szám
+st_character_decals_num_0325_name	325-ös szám
+st_character_decals_num_0326_name	326-os szám
+st_character_decals_num_0327_name	327-es szám
+st_character_decals_num_0328_name	328-as szám
+st_character_decals_num_0329_name	329-es szám
+st_character_decals_num_0330_name	330-as szám
+st_character_decals_num_0331_name	331-es szám
+st_character_decals_num_0332_name	332-es szám
+st_character_decals_num_0333_name	333-as szám
+st_character_decals_num_0334_name	334-es szám
+st_character_decals_num_0335_name	335-ös szám
+st_character_decals_num_0336_name	336-os szám
+st_character_decals_num_0337_name	337-es szám
+st_character_decals_num_0338_name	338-as szám
+st_character_decals_num_0339_name	339-es szám
+st_character_decals_num_0340_name	340-es szám
+st_character_decals_num_0341_name	341-es szám
+st_character_decals_num_0342_name	342-es szám
+st_character_decals_num_0343_name	343-as szám
+st_character_decals_num_0344_name	344-es szám
+st_character_decals_num_0345_name	345-ös szám
+st_character_decals_num_0346_name	346-os szám
+st_character_decals_num_0347_name	347-es szám
+st_character_decals_num_0348_name	348-as szám
+st_character_decals_num_0349_name	349-es szám
+st_character_decals_num_0350_name	350-es szám
+st_character_decals_num_0351_name	351-es szám
+st_character_decals_num_0352_name	352-es szám
+st_character_decals_num_0353_name	353-as szám
+st_character_decals_num_0354_name	354-es szám
+st_character_decals_num_0355_name	355-ös szám
+st_character_decals_num_0356_name	356-os szám
+st_character_decals_num_0357_name	357-es szám
+st_character_decals_num_0358_name	358-as szám
+st_character_decals_num_0359_name	359-es szám
+st_character_decals_num_0360_name	360-as szám
+st_character_decals_num_0361_name	361-es szám
+st_character_decals_num_0362_name	362-es szám
+st_character_decals_num_0363_name	363-as szám
+st_character_decals_num_0364_name	364-es szám
+st_character_decals_num_0365_name	365-ös szám
+st_character_decals_num_0366_name	366-os szám
+st_character_decals_num_0367_name	367-es szám
+st_character_decals_num_0368_name	368-as szám
+st_character_decals_num_0369_name	369-es szám
+st_character_decals_num_0370_name	370-es szám
+st_character_decals_num_0371_name	371-es szám
+st_character_decals_num_0372_name	372-es szám
+st_character_decals_num_0373_name	373-as szám
+st_character_decals_num_0374_name	374-es szám
+st_character_decals_num_0375_name	375-ös szám
+st_character_decals_num_0376_name	376-os szám
+st_character_decals_num_0377_name	377-es szám
+st_character_decals_num_0378_name	378-as szám
+st_character_decals_num_0379_name	379-es szám
+st_character_decals_num_0380_name	380-as szám
+st_character_decals_num_0381_name	381-es szám
+st_character_decals_num_0382_name	382-es szám
+st_character_decals_num_0383_name	383-as szám
+st_character_decals_num_0384_name	384-es szám
+st_character_decals_num_0385_name	385-ös szám
+st_character_decals_num_0386_name	386-os szám
+st_character_decals_num_0387_name	387-es szám
+st_character_decals_num_0388_name	388-as szám
+st_character_decals_num_0389_name	389-es szám
+st_character_decals_num_0390_name	390-es szám
+st_character_decals_num_0391_name	391-es szám
+st_character_decals_num_0392_name	392-es szám
+st_character_decals_num_0393_name	393-as szám
+st_character_decals_num_0394_name	394-es szám
+st_character_decals_num_0395_name	395-ös szám
+st_character_decals_num_0396_name	396-os szám
+st_character_decals_num_0397_name	397-es szám
+st_character_decals_num_0398_name	398-as szám
+st_character_decals_num_0399_name	399-es szám
+st_character_decals_num_0400_name	400-as szám
+st_character_decals_num_0401_name	401-es szám
+st_character_decals_num_0402_name	402-es szám
+st_character_decals_num_0403_name	403-as szám
+st_character_decals_num_0404_name	404-es szám
+st_character_decals_num_0405_name	405-ös szám
+st_character_decals_num_0406_name	406-os szám
+st_character_decals_num_0407_name	407-es szám
+st_character_decals_num_0408_name	408-as szám
+st_character_decals_num_0409_name	409-es szám
+st_character_decals_num_0410_name	410-es szám
+st_character_decals_num_0411_name	411-es szám
+st_character_decals_num_0412_name	412-es szám
+st_character_decals_num_0413_name	413-as szám
+st_character_decals_num_0414_name	414-es szám
+st_character_decals_num_0415_name	415-ös szám
+st_character_decals_num_0416_name	416-os szám
+st_character_decals_num_0417_name	417-es szám
+st_character_decals_num_0418_name	418-as szám
+st_character_decals_num_0419_name	419-es szám
+st_character_decals_num_0420_name	420-as szám
+st_character_decals_num_0421_name	421-es szám
+st_character_decals_num_0422_name	422-es szám
+st_character_decals_num_0423_name	423-as szám
+st_character_decals_num_0424_name	424-es szám
+st_character_decals_num_0425_name	425-ös szám
+st_character_decals_num_0426_name	426-os szám
+st_character_decals_num_0427_name	427-es szám
+st_character_decals_num_0428_name	428-as szám
+st_character_decals_num_0429_name	429-es szám
+st_character_decals_num_0430_name	430-as szám
+st_character_decals_num_0431_name	431-es szám
+st_character_decals_num_0432_name	432-es szám
+st_character_decals_num_0433_name	433-as szám
+st_character_decals_num_0434_name	434-es szám
+st_character_decals_num_0435_name	435-ös szám
+st_character_decals_num_0436_name	436-os szám
+st_character_decals_num_0437_name	437-es szám
+st_character_decals_num_0438_name	438-as szám
+st_character_decals_num_0439_name	439-es szám
+st_character_decals_num_0440_name	440-es szám
+st_character_decals_num_0441_name	441-es szám
+st_character_decals_num_0442_name	442-es szám
+st_character_decals_num_0443_name	443-as szám
+st_character_decals_num_0444_name	444-es szám
+st_character_decals_num_0445_name	445-ös szám
+st_character_decals_num_0446_name	446-os szám
+st_character_decals_num_0447_name	447-es szám
+st_character_decals_num_0448_name	448-as szám
+st_character_decals_num_0449_name	449-es szám
+st_character_decals_num_0450_name	450-es szám
+st_character_decals_num_0451_name	451-es szám
+st_character_decals_num_0452_name	452-es szám
+st_character_decals_num_0453_name	453-as szám
+st_character_decals_num_0454_name	454-es szám
+st_character_decals_num_0455_name	455-ös szám
+st_character_decals_num_0456_name	456-os szám
+st_character_decals_num_0457_name	457-es szám
+st_character_decals_num_0458_name	458-as szám
+st_character_decals_num_0459_name	459-es szám
+st_character_decals_num_0460_name	460-as szám
+st_character_decals_num_0461_name	461-es szám
+st_character_decals_num_0462_name	462-es szám
+st_character_decals_num_0463_name	463-as szám
+st_character_decals_num_0464_name	464-es szám
+st_character_decals_num_0465_name	465-ös szám
+st_character_decals_num_0466_name	466-os szám
+st_character_decals_num_0467_name	467-es szám
+st_character_decals_num_0468_name	468-as szám
+st_character_decals_num_0469_name	469-es szám
+st_character_decals_num_0470_name	470-es szám
+st_character_decals_num_0471_name	471-es szám
+st_character_decals_num_0472_name	472-es szám
+st_character_decals_num_0473_name	473-as szám
+st_character_decals_num_0474_name	474-es szám
+st_character_decals_num_0475_name	475-ös szám
+st_character_decals_num_0476_name	476-os szám
+st_character_decals_num_0477_name	477-es szám
+st_character_decals_num_0478_name	478-as szám
+st_character_decals_num_0479_name	479-es szám
+st_character_decals_num_0480_name	480-as szám
+st_character_decals_num_0481_name	481-es szám
+st_character_decals_num_0482_name	482-es szám
+st_character_decals_num_0483_name	483-as szám
+st_character_decals_num_0484_name	484-es szám
+st_character_decals_num_0485_name	485-ös szám
+st_character_decals_num_0486_name	486-os szám
+st_character_decals_num_0487_name	487-es szám
+st_character_decals_num_0488_name	488-as szám
+st_character_decals_num_0489_name	489-es szám
+st_character_decals_num_0490_name	490-es szám
+st_character_decals_num_0491_name	491-es szám
+st_character_decals_num_0492_name	492-es szám
+st_character_decals_num_0493_name	493-as szám
+st_character_decals_num_0494_name	494-es szám
+st_character_decals_num_0495_name	495-ös szám
+st_character_decals_num_0496_name	496-os szám
+st_character_decals_num_0497_name	497-es szám
+st_character_decals_num_0498_name	498-as szám
+st_character_decals_num_0499_name	499-es szám
+st_character_decals_num_0500_name	500-as szám
+st_character_decals_num_0501_name	501-es szám
+st_character_decals_num_0502_name	502-es szám
+st_character_decals_num_0503_name	503-as szám
+st_character_decals_num_0504_name	504-es szám
+st_character_decals_num_0505_name	505-ös szám
+st_character_decals_num_0506_name	506-os szám
+st_character_decals_num_0507_name	507-es szám
+st_character_decals_num_0508_name	508-as szám
+st_character_decals_num_0509_name	509-es szám
+st_character_decals_num_0510_name	510-es szám
+st_character_decals_num_0511_name	511-es szám
+st_character_decals_num_0512_name	512-es szám
+st_character_decals_num_0513_name	513-as szám
+st_character_decals_num_0514_name	514-es szám
+st_character_decals_num_0515_name	515-ös szám
+st_character_decals_num_0516_name	516-os szám
+st_character_decals_num_0517_name	517-es szám
+st_character_decals_num_0518_name	518-as szám
+st_character_decals_num_0519_name	519-es szám
+st_character_decals_num_0520_name	520-as szám
+st_character_decals_num_0521_name	521-es szám
+st_character_decals_num_0522_name	522-es szám
+st_character_decals_num_0523_name	523-as szám
+st_character_decals_num_0524_name	524-es szám
+st_character_decals_num_0525_name	525-ös szám
+st_character_decals_num_0526_name	526-os szám
+st_character_decals_num_0527_name	527-es szám
+st_character_decals_num_0528_name	528-as szám
+st_character_decals_num_0529_name	529-es szám
+st_character_decals_num_0530_name	530-as szám
+st_character_decals_num_0531_name	531-es szám
+st_character_decals_num_0532_name	532-es szám
+st_character_decals_num_0533_name	533-as szám
+st_character_decals_num_0534_name	534-es szám
+st_character_decals_num_0535_name	535-ös szám
+st_character_decals_num_0536_name	536-os szám
+st_character_decals_num_0537_name	537-es szám
+st_character_decals_num_0538_name	538-as szám
+st_character_decals_num_0539_name	539-es szám
+st_character_decals_num_0540_name	540-es szám
+st_character_decals_num_0541_name	541-es szám
+st_character_decals_num_0542_name	542-es szám
+st_character_decals_num_0543_name	543-as szám
+st_character_decals_num_0544_name	544-es szám
+st_character_decals_num_0545_name	545-ös szám
+st_character_decals_num_0546_name	546-os szám
+st_character_decals_num_0547_name	547-es szám
+st_character_decals_num_0548_name	548-as szám
+st_character_decals_num_0549_name	549-es szám
+st_character_decals_num_0550_name	550-es szám
+st_character_decals_num_0551_name	551-es szám
+st_character_decals_num_0552_name	552-es szám
+st_character_decals_num_0553_name	553-as szám
+st_character_decals_num_0554_name	554-es szám
+st_character_decals_num_0555_name	555-ös szám
+st_character_decals_num_0556_name	556-os szám
+st_character_decals_num_0557_name	557-es szám
+st_character_decals_num_0558_name	558-as szám
+st_character_decals_num_0559_name	559-es szám
+st_character_decals_num_0560_name	560-as szám
+st_character_decals_num_0561_name	561-es szám
+st_character_decals_num_0562_name	562-es szám
+st_character_decals_num_0563_name	563-as szám
+st_character_decals_num_0564_name	564-es szám
+st_character_decals_num_0565_name	565-ös szám
+st_character_decals_num_0566_name	566-os szám
+st_character_decals_num_0567_name	567-es szám
+st_character_decals_num_0568_name	568-as szám
+st_character_decals_num_0569_name	569-es szám
+st_character_decals_num_0570_name	570-es szám
+st_character_decals_num_0571_name	571-es szám
+st_character_decals_num_0572_name	572-es szám
+st_character_decals_num_0573_name	573-as szám
+st_character_decals_num_0574_name	574-es szám
+st_character_decals_num_0575_name	575-ös szám
+st_character_decals_num_0576_name	576-os szám
+st_character_decals_num_0577_name	577-es szám
+st_character_decals_num_0578_name	578-as szám
+st_character_decals_num_0579_name	579-es szám
+st_character_decals_num_0580_name	580-as szám
+st_character_decals_num_0581_name	581-es szám
+st_character_decals_num_0582_name	582-es szám
+st_character_decals_num_0583_name	583-as szám
+st_character_decals_num_0584_name	584-es szám
+st_character_decals_num_0585_name	585-ös szám
+st_character_decals_num_0586_name	586-os szám
+st_character_decals_num_0587_name	587-es szám
+st_character_decals_num_0588_name	588-as szám
+st_character_decals_num_0589_name	589-es szám
+st_character_decals_num_0590_name	590-es szám
+st_character_decals_num_0591_name	591-es szám
+st_character_decals_num_0592_name	592-es szám
+st_character_decals_num_0593_name	593-as szám
+st_character_decals_num_0594_name	594-es szám
+st_character_decals_num_0595_name	595-ös szám
+st_character_decals_num_0596_name	596-os szám
+st_character_decals_num_0597_name	597-es szám
+st_character_decals_num_0598_name	598-as szám
+st_character_decals_num_0599_name	599-es szám
+st_character_decals_num_0600_name	600-as szám
+st_character_decals_num_0601_name	601-es szám
+st_character_decals_num_0602_name	602-es szám
+st_character_decals_num_0603_name	603-as szám
+st_character_decals_num_0604_name	604-es szám
+st_character_decals_num_0605_name	605-ös szám
+st_character_decals_num_0606_name	606-os szám
+st_character_decals_num_0607_name	607-es szám
+st_character_decals_num_0608_name	608-as szám
+st_character_decals_num_0609_name	609-es szám
+st_character_decals_num_0610_name	610-es szám
+st_character_decals_num_0611_name	611-es szám
+st_character_decals_num_0612_name	612-es szám
+st_character_decals_num_0613_name	613-as szám
+st_character_decals_num_0614_name	614-es szám
+st_character_decals_num_0615_name	615-ös szám
+st_character_decals_num_0616_name	616-os szám
+st_character_decals_num_0617_name	617-es szám
+st_character_decals_num_0618_name	618-as szám
+st_character_decals_num_0619_name	619-es szám
+st_character_decals_num_0620_name	620-as szám
+st_character_decals_num_0621_name	621-es szám
+st_character_decals_num_0622_name	622-es szám
+st_character_decals_num_0623_name	623-as szám
+st_character_decals_num_0624_name	624-es szám
+st_character_decals_num_0625_name	625-ös szám
+st_character_decals_num_0626_name	626-os szám
+st_character_decals_num_0627_name	627-es szám
+st_character_decals_num_0628_name	628-as szám
+st_character_decals_num_0629_name	629-es szám
+st_character_decals_num_0630_name	630-as szám
+st_character_decals_num_0631_name	631-es szám
+st_character_decals_num_0632_name	632-es szám
+st_character_decals_num_0633_name	633-as szám
+st_character_decals_num_0634_name	634-es szám
+st_character_decals_num_0635_name	635-ös szám
+st_character_decals_num_0636_name	636-os szám
+st_character_decals_num_0637_name	637-es szám
+st_character_decals_num_0638_name	638-as szám
+st_character_decals_num_0639_name	639-es szám
+st_character_decals_num_0640_name	640-es szám
+st_character_decals_num_0641_name	641-es szám
+st_character_decals_num_0642_name	642-es szám
+st_character_decals_num_0643_name	643-as szám
+st_character_decals_num_0644_name	644-es szám
+st_character_decals_num_0645_name	645-ös szám
+st_character_decals_num_0646_name	646-os szám
+st_character_decals_num_0647_name	647-es szám
+st_character_decals_num_0648_name	648-as szám
+st_character_decals_num_0649_name	649-es szám
+st_character_decals_num_0650_name	650-es szám
+st_character_decals_num_0651_name	651-es szám
+st_character_decals_num_0652_name	652-es szám
+st_character_decals_num_0653_name	653-as szám
+st_character_decals_num_0654_name	654-es szám
+st_character_decals_num_0655_name	655-ös szám
+st_character_decals_num_0656_name	656-os szám
+st_character_decals_num_0657_name	657-es szám
+st_character_decals_num_0658_name	658-as szám
+st_character_decals_num_0659_name	659-es szám
+st_character_decals_num_0660_name	660-as szám
+st_character_decals_num_0661_name	661-es szám
+st_character_decals_num_0662_name	662-es szám
+st_character_decals_num_0663_name	663-as szám
+st_character_decals_num_0664_name	664-es szám
+st_character_decals_num_0665_name	665-ös szám
+st_character_decals_num_0666_name	666-os szám
+st_character_decals_num_0667_name	667-es szám
+st_character_decals_num_0668_name	668-as szám
+st_character_decals_num_0669_name	669-es szám
+st_character_decals_num_0670_name	670-es szám
+st_character_decals_num_0671_name	671-es szám
+st_character_decals_num_0672_name	672-es szám
+st_character_decals_num_0673_name	673-as szám
+st_character_decals_num_0674_name	674-es szám
+st_character_decals_num_0675_name	675-ös szám
+st_character_decals_num_0676_name	676-os szám
+st_character_decals_num_0677_name	677-es szám
+st_character_decals_num_0678_name	678-as szám
+st_character_decals_num_0679_name	679-es szám
+st_character_decals_num_0680_name	680-as szám
+st_character_decals_num_0681_name	681-es szám
+st_character_decals_num_0682_name	682-es szám
+st_character_decals_num_0683_name	683-as szám
+st_character_decals_num_0684_name	684-es szám
+st_character_decals_num_0685_name	685-ös szám
+st_character_decals_num_0686_name	686-os szám
+st_character_decals_num_0687_name	687-es szám
+st_character_decals_num_0688_name	688-as szám
+st_character_decals_num_0689_name	689-es szám
+st_character_decals_num_0690_name	690-es szám
+st_character_decals_num_0691_name	691-es szám
+st_character_decals_num_0692_name	692-es szám
+st_character_decals_num_0693_name	693-as szám
+st_character_decals_num_0694_name	694-es szám
+st_character_decals_num_0695_name	695-ös szám
+st_character_decals_num_0696_name	696-os szám
+st_character_decals_num_0697_name	697-es szám
+st_character_decals_num_0698_name	698-as szám
+st_character_decals_num_0699_name	699-es szám
+st_character_decals_num_0700_name	700-as szám
+st_character_decals_num_0701_name	701-es szám
+st_character_decals_num_0702_name	702-es szám
+st_character_decals_num_0703_name	703-as szám
+st_character_decals_num_0704_name	704-es szám
+st_character_decals_num_0705_name	705-ös szám
+st_character_decals_num_0706_name	706-os szám
+st_character_decals_num_0707_name	707-es szám
+st_character_decals_num_0708_name	708-as szám
+st_character_decals_num_0709_name	709-es szám
+st_character_decals_num_0710_name	710-es szám
+st_character_decals_num_0711_name	711-es szám
+st_character_decals_num_0712_name	712-es szám
+st_character_decals_num_0713_name	713-as szám
+st_character_decals_num_0714_name	714-es szám
+st_character_decals_num_0715_name	715-ös szám
+st_character_decals_num_0716_name	716-os szám
+st_character_decals_num_0717_name	717-es szám
+st_character_decals_num_0718_name	718-as szám
+st_character_decals_num_0719_name	719-es szám
+st_character_decals_num_0720_name	720-as szám
+st_character_decals_num_0721_name	721-es szám
+st_character_decals_num_0722_name	722-es szám
+st_character_decals_num_0723_name	723-as szám
+st_character_decals_num_0724_name	724-es szám
+st_character_decals_num_0725_name	725-ös szám
+st_character_decals_num_0726_name	726-os szám
+st_character_decals_num_0727_name	727-es szám
+st_character_decals_num_0728_name	728-as szám
+st_character_decals_num_0729_name	729-es szám
+st_character_decals_num_0730_name	730-as szám
+st_character_decals_num_0731_name	731-es szám
+st_character_decals_num_0732_name	732-es szám
+st_character_decals_num_0733_name	733-as szám
+st_character_decals_num_0734_name	734-es szám
+st_character_decals_num_0735_name	735-ös szám
+st_character_decals_num_0736_name	736-os szám
+st_character_decals_num_0737_name	737-es szám
+st_character_decals_num_0738_name	738-as szám
+st_character_decals_num_0739_name	739-es szám
+st_character_decals_num_0740_name	740-es szám
+st_character_decals_num_0741_name	741-es szám
+st_character_decals_num_0742_name	742-es szám
+st_character_decals_num_0743_name	743-as szám
+st_character_decals_num_0744_name	744-es szám
+st_character_decals_num_0745_name	745-ös szám
+st_character_decals_num_0746_name	746-os szám
+st_character_decals_num_0747_name	747-es szám
+st_character_decals_num_0748_name	748-as szám
+st_character_decals_num_0749_name	749-es szám
+st_character_decals_num_0750_name	750-es szám
+st_character_decals_num_0751_name	751-es szám
+st_character_decals_num_0752_name	752-es szám
+st_character_decals_num_0753_name	753-as szám
+st_character_decals_num_0754_name	754-es szám
+st_character_decals_num_0755_name	755-ös szám
+st_character_decals_num_0756_name	756-os szám
+st_character_decals_num_0757_name	757-es szám
+st_character_decals_num_0758_name	758-as szám
+st_character_decals_num_0759_name	759-es szám
+st_character_decals_num_0760_name	760-as szám
+st_character_decals_num_0761_name	761-es szám
+st_character_decals_num_0762_name	762-es szám
+st_character_decals_num_0763_name	763-as szám
+st_character_decals_num_0764_name	764-es szám
+st_character_decals_num_0765_name	765-ös szám
+st_character_decals_num_0766_name	766-os szám
+st_character_decals_num_0767_name	767-es szám
+st_character_decals_num_0768_name	768-as szám
+st_character_decals_num_0769_name	769-es szám
+st_character_decals_num_0770_name	770-es szám
+st_character_decals_num_0771_name	771-es szám
+st_character_decals_num_0772_name	772-es szám
+st_character_decals_num_0773_name	773-as szám
+st_character_decals_num_0774_name	774-es szám
+st_character_decals_num_0775_name	775-ös szám
+st_character_decals_num_0776_name	776-os szám
+st_character_decals_num_0777_name	777-es szám
+st_character_decals_num_0778_name	778-as szám
+st_character_decals_num_0779_name	779-es szám
+st_character_decals_num_0780_name	780-as szám
+st_character_decals_num_0781_name	781-es szám
+st_character_decals_num_0782_name	782-es szám
+st_character_decals_num_0783_name	783-as szám
+st_character_decals_num_0784_name	784-es szám
+st_character_decals_num_0785_name	785-ös szám
+st_character_decals_num_0786_name	786-os szám
+st_character_decals_num_0787_name	787-es szám
+st_character_decals_num_0788_name	788-as szám
+st_character_decals_num_0789_name	789-es szám
+st_character_decals_num_0790_name	790-es szám
+st_character_decals_num_0791_name	791-es szám
+st_character_decals_num_0792_name	792-es szám
+st_character_decals_num_0793_name	793-as szám
+st_character_decals_num_0794_name	794-es szám
+st_character_decals_num_0795_name	795-ös szám
+st_character_decals_num_0796_name	796-os szám
+st_character_decals_num_0797_name	797-es szám
+st_character_decals_num_0798_name	798-as szám
+st_character_decals_num_0799_name	799-es szám
+st_character_decals_num_0800_name	800-as szám
+st_character_decals_num_0801_name	801-es szám
+st_character_decals_num_0802_name	802-es szám
+st_character_decals_num_0803_name	803-as szám
+st_character_decals_num_0804_name	804-es szám
+st_character_decals_num_0805_name	805-ös szám
+st_character_decals_num_0806_name	806-os szám
+st_character_decals_num_0807_name	807-es szám
+st_character_decals_num_0808_name	808-as szám
+st_character_decals_num_0809_name	809-es szám
+st_character_decals_num_0810_name	810-es szám
+st_character_decals_num_0811_name	811-es szám
+st_character_decals_num_0812_name	812-es szám
+st_character_decals_num_0813_name	813-as szám
+st_character_decals_num_0814_name	814-es szám
+st_character_decals_num_0815_name	815-ös szám
+st_character_decals_num_0816_name	816-os szám
+st_character_decals_num_0817_name	817-es szám
+st_character_decals_num_0818_name	818-as szám
+st_character_decals_num_0819_name	819-es szám
+st_character_decals_num_0820_name	820-as szám
+st_character_decals_num_0821_name	821-es szám
+st_character_decals_num_0822_name	822-es szám
+st_character_decals_num_0823_name	823-as szám
+st_character_decals_num_0824_name	824-es szám
+st_character_decals_num_0825_name	825-ös szám
+st_character_decals_num_0826_name	826-os szám
+st_character_decals_num_0827_name	827-es szám
+st_character_decals_num_0828_name	828-as szám
+st_character_decals_num_0829_name	829-es szám
+st_character_decals_num_0830_name	830-as szám
+st_character_decals_num_0831_name	831-es szám
+st_character_decals_num_0832_name	832-es szám
+st_character_decals_num_0833_name	833-as szám
+st_character_decals_num_0834_name	834-es szám
+st_character_decals_num_0835_name	835-ös szám
+st_character_decals_num_0836_name	836-os szám
+st_character_decals_num_0837_name	837-es szám
+st_character_decals_num_0838_name	838-as szám
+st_character_decals_num_0839_name	839-es szám
+st_character_decals_num_0840_name	840-es szám
+st_character_decals_num_0841_name	841-es szám
+st_character_decals_num_0842_name	842-es szám
+st_character_decals_num_0843_name	843-as szám
+st_character_decals_num_0844_name	844-es szám
+st_character_decals_num_0845_name	845-ös szám
+st_character_decals_num_0846_name	846-os szám
+st_character_decals_num_0847_name	847-es szám
+st_character_decals_num_0848_name	848-as szám
+st_character_decals_num_0849_name	849-es szám
+st_character_decals_num_0850_name	850-es szám
+st_character_decals_num_0851_name	851-es szám
+st_character_decals_num_0852_name	852-es szám
+st_character_decals_num_0853_name	853-as szám
+st_character_decals_num_0854_name	854-es szám
+st_character_decals_num_0855_name	855-ös szám
+st_character_decals_num_0856_name	856-os szám
+st_character_decals_num_0857_name	857-es szám
+st_character_decals_num_0858_name	858-as szám
+st_character_decals_num_0859_name	859-es szám
+st_character_decals_num_0860_name	860-as szám
+st_character_decals_num_0861_name	861-es szám
+st_character_decals_num_0862_name	862-es szám
+st_character_decals_num_0863_name	863-as szám
+st_character_decals_num_0864_name	864-es szám
+st_character_decals_num_0865_name	865-ös szám
+st_character_decals_num_0866_name	866-os szám
+st_character_decals_num_0867_name	867-es szám
+st_character_decals_num_0868_name	868-as szám
+st_character_decals_num_0869_name	869-es szám
+st_character_decals_num_0870_name	870-es szám
+st_character_decals_num_0871_name	871-es szám
+st_character_decals_num_0872_name	872-es szám
+st_character_decals_num_0873_name	873-as szám
+st_character_decals_num_0874_name	874-es szám
+st_character_decals_num_0875_name	875-ös szám
+st_character_decals_num_0876_name	876-os szám
+st_character_decals_num_0877_name	877-es szám
+st_character_decals_num_0878_name	878-as szám
+st_character_decals_num_0879_name	879-es szám
+st_character_decals_num_0880_name	880-as szám
+st_character_decals_num_0881_name	881-es szám
+st_character_decals_num_0882_name	882-es szám
+st_character_decals_num_0883_name	883-as szám
+st_character_decals_num_0884_name	884-es szám
+st_character_decals_num_0885_name	885-ös szám
+st_character_decals_num_0886_name	886-os szám
+st_character_decals_num_0887_name	887-es szám
+st_character_decals_num_0888_name	888-as szám
+st_character_decals_num_0889_name	889-es szám
+st_character_decals_num_0890_name	890-es szám
+st_character_decals_num_0891_name	891-es szám
+st_character_decals_num_0892_name	892-es szám
+st_character_decals_num_0893_name	893-as szám
+st_character_decals_num_0894_name	894-es szám
+st_character_decals_num_0895_name	895-ös szám
+st_character_decals_num_0896_name	896-os szám
+st_character_decals_num_0897_name	897-es szám
+st_character_decals_num_0898_name	898-as szám
+st_character_decals_num_0899_name	899-es szám
+st_character_decals_num_0900_name	900-as szám
+st_character_decals_num_0901_name	901-es szám
+st_character_decals_num_0902_name	902-es szám
+st_character_decals_num_0903_name	903-as szám
+st_character_decals_num_0904_name	904-es szám
+st_character_decals_num_0905_name	905-ös szám
+st_character_decals_num_0906_name	906-os szám
+st_character_decals_num_0907_name	907-es szám
+st_character_decals_num_0908_name	908-as szám
+st_character_decals_num_0909_name	909-es szám
+st_character_decals_num_0910_name	910-es szám
+st_character_decals_num_0911_name	911-es szám
+st_character_decals_num_0912_name	912-es szám
+st_character_decals_num_0913_name	913-as szám
+st_character_decals_num_0914_name	914-es szám
+st_character_decals_num_0915_name	915-ös szám
+st_character_decals_num_0916_name	916-os szám
+st_character_decals_num_0917_name	917-es szám
+st_character_decals_num_0918_name	918-as szám
+st_character_decals_num_0919_name	919-es szám
+st_character_decals_num_0920_name	920-as szám
+st_character_decals_num_0921_name	921-es szám
+st_character_decals_num_0922_name	922-es szám
+st_character_decals_num_0923_name	923-as szám
+st_character_decals_num_0924_name	924-es szám
+st_character_decals_num_0925_name	925-ös szám
+st_character_decals_num_0926_name	926-os szám
+st_character_decals_num_0927_name	927-es szám
+st_character_decals_num_0928_name	928-as szám
+st_character_decals_num_0929_name	929-es szám
+st_character_decals_num_0930_name	930-as szám
+st_character_decals_num_0931_name	931-es szám
+st_character_decals_num_0932_name	932-es szám
+st_character_decals_num_0933_name	933-as szám
+st_character_decals_num_0934_name	934-es szám
+st_character_decals_num_0935_name	935-ös szám
+st_character_decals_num_0936_name	936-os szám
+st_character_decals_num_0937_name	937-es szám
+st_character_decals_num_0938_name	938-as szám
+st_character_decals_num_0939_name	939-es szám
+st_character_decals_num_0940_name	940-es szám
+st_character_decals_num_0941_name	941-es szám
+st_character_decals_num_0942_name	942-es szám
+st_character_decals_num_0943_name	943-as szám
+st_character_decals_num_0944_name	944-es szám
+st_character_decals_num_0945_name	945-ös szám
+st_character_decals_num_0946_name	946-os szám
+st_character_decals_num_0947_name	947-es szám
+st_character_decals_num_0948_name	948-as szám
+st_character_decals_num_0949_name	949-es szám
+st_character_decals_num_0950_name	950-es szám
+st_character_decals_num_0951_name	951-es szám
+st_character_decals_num_0952_name	952-es szám
+st_character_decals_num_0953_name	953-as szám
+st_character_decals_num_0954_name	954-es szám
+st_character_decals_num_0955_name	955-ös szám
+st_character_decals_num_0956_name	956-os szám
+st_character_decals_num_0957_name	957-es szám
+st_character_decals_num_0958_name	958-as szám
+st_character_decals_num_0959_name	959-es szám
+st_character_decals_num_0960_name	960-as szám
+st_character_decals_num_0961_name	961-es szám
+st_character_decals_num_0962_name	962-es szám
+st_character_decals_num_0963_name	963-as szám
+st_character_decals_num_0964_name	964-es szám
+st_character_decals_num_0965_name	965-ös szám
+st_character_decals_num_0966_name	966-os szám
+st_character_decals_num_0967_name	967-es szám
+st_character_decals_num_0968_name	968-as szám
+st_character_decals_num_0969_name	969-es szám
+st_character_decals_num_0970_name	970-es szám
+st_character_decals_num_0971_name	971-es szám
+st_character_decals_num_0972_name	972-es szám
+st_character_decals_num_0973_name	973-as szám
+st_character_decals_num_0974_name	974-es szám
+st_character_decals_num_0975_name	975-ös szám
+st_character_decals_num_0976_name	976-os szám
+st_character_decals_num_0977_name	977-es szám
+st_character_decals_num_0978_name	978-as szám
+st_character_decals_num_0979_name	979-es szám
+st_character_decals_num_0980_name	980-as szám
+st_character_decals_num_0981_name	981-es szám
+st_character_decals_num_0982_name	982-es szám
+st_character_decals_num_0983_name	983-as szám
+st_character_decals_num_0984_name	984-es szám
+st_character_decals_num_0985_name	985-ös szám
+st_character_decals_num_0986_name	986-os szám
+st_character_decals_num_0987_name	987-es szám
+st_character_decals_num_0988_name	988-as szám
+st_character_decals_num_0989_name	989-es szám
+st_character_decals_num_0990_name	990-es szám
+st_character_decals_num_0991_name	991-es szám
+st_character_decals_num_0992_name	992-es szám
+st_character_decals_num_0993_name	993-as szám
+st_character_decals_num_0994_name	994-es szám
+st_character_decals_num_0995_name	995-ös szám
+st_character_decals_num_0996_name	996-os szám
+st_character_decals_num_0997_name	997-es szám
+st_character_decals_num_0998_name	998-as szám
+st_character_decals_num_0999_name	999-es szám
+st_character_decals_num_1000_name	1000-es szám
 st_characteristics_label	A játékos statisztikái
 st_chat_channel_clan	Klánchat
 st_chat_channel_clan_team	Kláncsapat
@@ -883,6 +2213,14 @@ st_crosshair_static_option	Statikus célkereszt
 st_crosshair_type_option	Célkereszt
 st_crouch_action	Guggolás (nyomva tartva)
 st_crouch_toggle_action	Guggolás
+st_cs_mp_atp_name	Vehicle Station
+st_cs_mp_bath_name	Experimental Pool
+st_cs_mp_darkvalley_name	Dark Valley
+st_cs_mp_firestation_name	Fire Station
+st_cs_mp_military_1_name	Military Warehouses
+st_cs_mp_rembasa_name	Repair Depot
+st_cs_mp_sport_center_name	Sports Center
+st_cs_training_camp_name	Training Camp
 st_ct_max_members_count_error	Nem adható hozzá több játékos. A kláncsapat megtelt.
 st_current_value	\nJelenlegi érték:
 st_cz_75_description	Cseh öntöltő pisztoly, lőszer: 9x19. A hidegháború egyik legtöbbet másolt pisztolya.
@@ -916,6 +2254,10 @@ st_dispersion_from_hip_description	Csípőlövés pontossága:
 st_dispersion_from_hip_name	Pontosság
 st_dispersion_movement_influence_description	Pontosság mozgás közben:
 st_dispersion_movement_influence_name	Biztos fogás
+st_distance_detail_high	Magas
+st_distance_detail_maximum	Maximális
+st_distance_detail_normal	Normál
+st_distance_detail_option	Távoli részletek
 st_dont_have_permission	Nincs jogosultságod ehhez a művelethez.
 st_drop	Levétel
 st_drop_action	Eldobás
@@ -1115,6 +2457,10 @@ st_exp_reward_match	Szerzett tapasztalat
 st_exp_reward_premium	Prémium bónusz
 st_experience	Tapasztalat
 st_experience_modifier	Kapott tapasztalat
+st_fabdefence_miki_foregrip_desc	Visszarúgás -3%. Célzási idő +1%.
+st_fabdefence_miki_foregrip_name	FAB-Defense MIKI előmarkolat
+st_fabdefence_ptk_foregrip_desc	Visszarúgás -3.5%. Célzási idő +1.2%.
+st_fabdefence_ptk_foregrip_name	FAB-Defense PTK előmarkolat
 st_face_069d_balaclava_3_hole_desc	Kötött maszk szem- és szájnyílásokkal. Melegen tart és elrejti az arcot.
 st_face_069d_balaclava_3_hole_name	Háromlyukú maszk
 st_face_069d_balaclava_desc	Szorosan illeszkedő katonai maszk egy szemnyílással, sisak alá tervezve.
@@ -1189,6 +2535,8 @@ st_finish_match_mode_04_winner_message	Győzelem! Minden ellenséget legyőztete
 st_finish_match_mode_05_draw_message	Döntetlen. Mindkét csapat ugyanannyit kutatott
 st_finish_match_mode_05_loser_message	Vereség. Az ellenség befejezte az anomáliák kutatását
 st_finish_match_mode_05_winner_message	Győzelem! A csapatod befejezte az anomáliák kutatását
+st_finish_match_mode_08_loser_message	Vereség. Nem neked van a legtöbb ölésed
+st_finish_match_mode_08_winner_message	Győzelem! Neked van a legtöbb ölésed
 st_first_weapon_action	1. fegyver
 st_fix	Javítás
 st_fn_fnc_description	Belga gépkarabély, 5.56x45 lőszerrel. Az FN Herstal fejlesztette az 1970-es években, a belga hadsereg rendszeresítette. Licencelt változatai Svédországban és Indonéziában szolgálnak. 30 lőszeres tár, egyes és sorozatlövés.
@@ -1197,6 +2545,8 @@ st_fn_minimi_description	Belga golyószóró, 5.56x45 lőszerrel. Az FN Herstal 
 st_fn_minimi_name	FN Minimi
 st_fn_p90_description	Belga önvédelmi fegyver, 5.7x28 lőszerrel. Az FN Herstal 1990 körül fejlesztette saját lőszerével együtt. Bullpup kialakítás, felül hosszirányban fekvő 50 lőszeres tár. Sok ország rendőrsége és különleges egysége használja. Egyes és sorozatlövés.
 st_fn_p90_name	FN P90
+st_fort401_foregrip_desc	Visszarúgás -3.5%. Célzási idő +1.2%.
+st_fort401_foregrip_name	Fort-401 gyári előmarkolat
 st_fort_17_description	Ukrán öntöltő pisztoly, 9x18 lőszerrel. Gyártása 2004-ben indult. A belügyi csapatok és egyes különleges egységek használták. 12 lőszeres tár. 
 st_fort_17_name	Fort 17
 st_fort_401_description	Ukrán könnyű géppuska, lőszer: 7,62x51. Vinnicjában licenc alapján gyártott Negev, 100 töltényes dobozzal.
@@ -1220,6 +2570,8 @@ st_friendly_user_compliment	Barátságos
 st_friends_online	Online barátok
 st_friends_signin_notification_option	Értesítés a barátok belépéséről
 st_fullscreen_option	Teljes képernyő
+st_gandp_ris_foregrip_desc	Visszarúgás -3%. Célzási idő +1%.
+st_gandp_ris_foregrip_name	G&P RIS előmarkolat
 st_general_volume_option	Fő hangerő
 st_generic_money_name	Rubel
 st_geometry_quality_option	Geometria minősége
@@ -1266,6 +2618,8 @@ st_hud_tutorial_frame_6_text_1	Harcra fel!
 st_hud_tutorial_frame_6_text_2	Elvégezted a harci alapkiképzést.\nSok szerencsét!
 st_hud_tutorial_frame_6_text_3	A jutalmad:
 st_ignored	Tiltólista
+st_imi_fsg2_foregrip_desc	Visszarúgás -2.5%. Célzási idő +0.8%.
+st_imi_fsg2_foregrip_name	FSG2 előmarkolat
 st_in_develepoment_hint	Fejlesztés alatt
 st_ingame_volume_option	Játék
 st_injury_penalty_description	Szórásbüntetés sérült kéznél:
@@ -1405,12 +2759,17 @@ st_level_05_name	Tarakanovi erőd
 st_level_06_name	Mamajev-kurgán
 st_level_07_name	Vektor laboratórium
 st_level_08_name	Köln
-st_level_09_name	London
+st_level_09_name	London (v0.32)
 st_level_10_name	Vosztok radarállomás (v0.21)
 st_level_11_name	Mamajev-kurgán (v0.21)
 st_level_12_name	Vegyi üzem (v0.11)
 st_level_13_name	Vosztok radarállomás (v0.11)
 st_level_14_name	Rudnya (v0.69)
+st_level_25_name	Iskola (v0.21)
+st_level_26_name	Tarakanovi erőd (v0.21)
+st_level_29_name	Rudnya (v0.21)
+st_level_31_name	Vegyi üzem (v0.21)
+st_level_32_name	London (v0.42)
 st_lifebone_activation_hint	Szarkaláb aktiválva! Minden súlyos seb begyógyult! Életerő helyreállítva!
 st_lifebone_pickup_hint	Szarkaláb artefaktum. Gyorsítja az életerő regenerálódását. 
 st_lightning_quality_option	Megvilágítás minősége
@@ -1421,7 +2780,7 @@ st_login_menu_accept	Elfogadás
 st_login_menu_cancel	Mégse
 st_login_menu_status_access_level_restriction	Nincs megfelelő hozzáférésed a belépéshez.
 st_login_menu_status_connecting	Bejelentkezés…
-st_login_menu_status_error_connection	A Skhid szerver nem érhető el. Engedélyezd a játékot a tűzfalon (Skhid-network-setup.cmd). Oroszországban használj VPN-t, és add hozzá a játék .exe fájljait (VPN.txt).
+st_login_menu_status_error_connection	A Skhid szerver nem érhető el. Indítsd a játékot a launcherből: megmutatja az okot.
 st_login_menu_status_invalid_user_or_password	Hibás becenév vagy jelszó
 st_login_menu_status_invalid_version	Elavult játékverziót használsz.
 st_login_menu_status_sign_in_already_online	 A felhasználó már játékban van
@@ -1435,8 +2794,13 @@ st_m4a1_description	Amerikai karabély, 5.56x45 lőszerrel. Az M16 rövidebb, k�
 st_m4a1_name	M4A1
 st_magnum_description	Hatlövetű .357 Magnum revolver, 1955-ben mutatták be. Sokan kategóriája egyik legjobbjának tartják. Finom elsütésével és nagy pontosságával tűnik ki.
 st_magnum_name	Colt Python
+st_magpul_afg1_foregrip_desc	Visszarúgás -3.5%. Célzási idő +1.2%.
+st_magpul_afg1_foregrip_name	AFG-1 előmarkolat
 st_maintenance	Szerverkarbantartás folyik. Az alkalmazás bezárul.
 st_map	Pálya
+st_map_hint_13_1	Keresd meg az "Erdő Ragyogása" artefaktumot
+st_map_hint_13_2	Vidd az "Erdő Ragyogását" a bázisodra
+st_map_hint_13_3	Gyűjts össze 5 artefaktumot a győzelemhez
 st_match_items_found	Megtalálva
 st_match_making_level	Meccsszint
 st_match_rewards	Harci jutalom
@@ -1459,6 +2823,8 @@ st_match_settings_checkbox_training_match	Gyakorlómeccs
 st_match_settings_checkbox_training_match_hint	Gyakorlószoba mód
 st_match_settings_clan_match	Klánmeccs
 st_match_time_is_up	Lejárt a meccsidő!
+st_mauser_m712_foregrip_desc	Visszarúgás -3.5%. Célzási idő +1.2%.
+st_mauser_m712_foregrip_name	Mauser M.712 markolat
 st_max_carried_weight_description	Teherbírás:
 st_max_carried_weight_name	Erőember
 st_max_carried_weight_ultimate_description	A cipelt súly már nem lassít, de nem sprintelhetsz.
@@ -1513,6 +2879,12 @@ st_mode_04_description	Szilárdítsd meg csapatod állásait minél több ellens
 st_mode_04_name	Csapatos deathmatch
 st_mode_05_description	Foglaljátok el a mobil kutatóegységeket. Minden elfoglalt egység anomáliakutatási pontokat termel a csapatnak. A meccs végén a legtöbb ponttal rendelkező csapat nyer.
 st_mode_05_name	Kutatás
+st_mode_08_description	Mindenki magáért harcol. A meccs véget ér, amikor valaki eléri a szükséges ölésszámot, vagy lejár az idő. Az a harcos nyer, akinek a legtöbb ölése van.
+st_mode_08_name	Mindenki mindenki ellen
+st_mode_12_description	Fagyaszd meg az összes ellenfelet. Az első 5 kört megnyerő csapat győz. Állj 4 másodpercig egy fagyott csapattárs 2 méteres körzetében a kiolvasztásához.
+st_mode_12_name	Fagyasztó fogó
+st_mode_13_description	Keresd meg az "Erdő Ragyogása" artefaktumot, és vidd a bázisodra. Gyűjts össze 5 artefaktumot a győzelemhez.
+st_mode_13_name	Artefaktumvadászat
 st_modification_screen_edit_decal_hint	A matrica méretéhez és helyéhez kattints a rekeszére
 st_modification_screen_hint	Húzd az álcázást vagy matricát a leltárból a tárgy módosítási rekeszébe
 st_modified	Módosítva
@@ -1562,6 +2934,114 @@ st_multiplicative_stamina_spending_modifier	Állóképesség-fogyasztás
 st_munition	Felszerelés
 st_music_volume_option	Zene
 st_must_be_in_clan_team	Kláncsapatban kell lenned.
+st_muzzle_aek919k_m12x1l_muzzlebrake_description	Visszarúgás -4 %. Célzási idő +3 %.
+st_muzzle_aek919k_m12x1l_muzzlebrake_name	AEK-919K csőszájfék, M12x1L
+st_muzzle_akmsu_m24x15_muzzlebrake_description	
+st_muzzle_akmsu_m24x15_muzzlebrake_name	AKMSU lángrejtő, M24x1.5
+st_muzzle_aks74u_m24x15_muzzlebrake_description	
+st_muzzle_aks74u_m24x15_muzzlebrake_name	AKS-74U lángrejtő, M24x1.5
+st_muzzle_aws_rapira_m24x15_muzzlebrake_description	Visszarúgás -4 %. Célzási idő +3 %.
+st_muzzle_aws_rapira_m24x15_muzzlebrake_name	Rapira csőszájfék, M24x1.5
+st_muzzle_cncwarrior_rofh_m14x1l_firearrestor_description	
+st_muzzle_cncwarrior_rofh_m14x1l_firearrestor_name	ROFH lángrejtő, M14x1L
+st_muzzle_cncwarrior_rofh_m16x1l_firearrestor_description	
+st_muzzle_cncwarrior_rofh_m16x1l_firearrestor_name	ROFH lángrejtő, M16x1L
+st_muzzle_custom_01_doublevert_m22x075_choke_description	Szórás -20 %. Célzási idő +2.5 %.
+st_muzzle_custom_01_doublevert_m22x075_choke_name	Custom 01 szűkítő, M22x0.75 O/U
+st_muzzle_custom_01_duckbill_description	Szórás -15 %. Célzási idő +1.9 %.
+st_muzzle_custom_01_duckbill_name	Custom 01 kacsacsőr, M22x0.75
+st_muzzle_custom_01_m14x1l_clamp_muzzlebrake_description	Visszarúgás -4 %. Célzási idő +3 %.
+st_muzzle_custom_01_m14x1l_clamp_muzzlebrake_name	Custom 01 csőszájfék, M14x1L
+st_muzzle_custom_01_m22x075_choke_description	Szórás -20 %. Célzási idő +2.5 %.
+st_muzzle_custom_01_m22x075_choke_name	Custom 01 szűkítő, M22x0.75
+st_muzzle_custom_01_m30x1_clamp_muzzlebrake_description	Visszarúgás -4 %. Célzási idő +3 %.
+st_muzzle_custom_01_m30x1_clamp_muzzlebrake_name	Custom 01 csőszájfék, M30x1
+st_muzzle_custom_02_duckbill_description	Szórás -15 %. Célzási idő +1.9 %.
+st_muzzle_custom_02_duckbill_name	Custom 02 kacsacsőr, M22x0.75
+st_muzzle_custom_02_m14x1l_firearrestor_description	
+st_muzzle_custom_02_m14x1l_firearrestor_name	Custom 02 lángrejtő, M14x1L
+st_muzzle_custom_02_m24x15_firearrestor_description	
+st_muzzle_custom_02_m24x15_firearrestor_name	Custom 02 lángrejtő, M24x1.5
+st_muzzle_custom_03_duckbill_description	Szórás -15 %. Célzási idő +1.9 %.
+st_muzzle_custom_03_duckbill_name	Custom 03 kacsacsőr, M22x0.75
+st_muzzle_custom_03_m14x1l_clamp_firearrestor_description	
+st_muzzle_custom_03_m14x1l_clamp_firearrestor_name	Custom 03 lángrejtő, M14x1L
+st_muzzle_custom_04_i05x28_clamp_firearrestor_description	
+st_muzzle_custom_04_i05x28_clamp_firearrestor_name	Custom 04 lángrejtő, 1/2"x28
+st_muzzle_custom_04_i06x24_clamp_firearrestor_description	
+st_muzzle_custom_04_i06x24_clamp_firearrestor_name	Custom 04 lángrejtő, 5/8"x24
+st_muzzle_custom_04_m14x1l_clamp_firearrestor_description	
+st_muzzle_custom_04_m14x1l_clamp_firearrestor_name	Custom 04 lángrejtő, M14x1L
+st_muzzle_custom_doublevert_01_duckbill_description	Szórás -15 %. Célzási idő +1.9 %.
+st_muzzle_custom_doublevert_01_duckbill_name	Custom 01 kacsacsőr, M22x0.75 O/U
+st_muzzle_custom_doublevert_02_duckbill_description	Szórás -15 %. Célzási idő +1.9 %.
+st_muzzle_custom_doublevert_02_duckbill_name	Custom 02 kacsacsőr, M22x0.75 O/U
+st_muzzle_custom_doublhor_01_duckbill_description	Szórás -15 %. Célzási idő +1.9 %.
+st_muzzle_custom_doublhor_01_duckbill_name	Custom 01 kacsacsőr, M22x0.75 SxS
+st_muzzle_diamondhead_tbrake_i05x28_muzzlebrake_description	Visszarúgás -4 %. Célzási idő +3 %.
+st_muzzle_diamondhead_tbrake_i05x28_muzzlebrake_name	T-Brake csőszájfék, 1/2"x28
+st_muzzle_diamondhead_tbrake_m14x1l_muzzlebrake_description	Visszarúgás -4 %. Célzási idő +3 %.
+st_muzzle_diamondhead_tbrake_m14x1l_muzzlebrake_name	T-Brake csőszájfék, M14x1L
+st_muzzle_grizzlygunworks_defcon1_i05x28_clamp_muzzlebrake_description	Visszarúgás -4 %. Célzási idő +3 %.
+st_muzzle_grizzlygunworks_defcon1_i05x28_clamp_muzzlebrake_name	Defcon 1 csőszájfék, 1/2"x28
+st_muzzle_grizzlygunworks_defcon1_m16x1l_clamp_muzzlebrake_description	Visszarúgás -4 %. Célzási idő +3 %.
+st_muzzle_grizzlygunworks_defcon1_m16x1l_clamp_muzzlebrake_name	Defcon 1 csőszájfék, M16x1L
+st_muzzle_grizzlygunworks_defcon1_m30x1_clamp_muzzlebrake_description	Visszarúgás -4 %. Célzási idő +3 %.
+st_muzzle_grizzlygunworks_defcon1_m30x1_clamp_muzzlebrake_name	Defcon 1 csőszájfék, M30x1
+st_muzzle_gunsru_custom_m22x075_muzzlebrake_description	Szórás -16 %. Célzási idő +2 %.
+st_muzzle_gunsru_custom_m22x075_muzzlebrake_name	Guns.ru csőszájfék, M22x0.75
+st_muzzle_hartman_kochevnik_m22x075_muzzlebrake_description	Szórás -16 %. Célzási idő +2 %.
+st_muzzle_hartman_kochevnik_m22x075_muzzlebrake_name	Kochevnik csőszájfék, M22x0.75
+st_muzzle_kkm_i05x28_muzzlebrake_description	Visszarúgás -4 %. Célzási idő +3 %.
+st_muzzle_kkm_i05x28_muzzlebrake_name	KKM csőszájfék, 1/2"x28
+st_muzzle_lantac_dragon_i05x28_muzzlebrake_description	Visszarúgás -4 %. Célzási idő +3 %.
+st_muzzle_lantac_dragon_i05x28_muzzlebrake_name	Dragon csőszájfék, 1/2"x28
+st_muzzle_lantac_dragon_i06x24_muzzlebrake_description	Visszarúgás -4 %. Célzási idő +3 %.
+st_muzzle_lantac_dragon_i06x24_muzzlebrake_name	Dragon csőszájfék, 5/8"x24
+st_muzzle_lantac_drakon_m14x1l_muzzlebrake_description	Visszarúgás -4 %. Célzási idő +3 %.
+st_muzzle_lantac_drakon_m14x1l_muzzlebrake_name	Dragon csőszájfék, M14x1L
+st_muzzle_manticorearms_nightbrake_i05x28_firearrestor_description	
+st_muzzle_manticorearms_nightbrake_i05x28_firearrestor_name	NightBrake lángrejtő, 1/2"x28
+st_muzzle_manticorearms_nightbrake_i06x24_firearrestor_description	
+st_muzzle_manticorearms_nightbrake_i06x24_firearrestor_name	NightBrake lángrejtő, 5/8"x24
+st_muzzle_manticorearms_nightbrake_m12x1l_firearrestor_description	
+st_muzzle_manticorearms_nightbrake_m12x1l_firearrestor_name	NightBrake lángrejtő, M12x1L
+st_muzzle_manticorearms_nightbrake_m141l_firearrestor_description	
+st_muzzle_manticorearms_nightbrake_m141l_firearrestor_name	NightBrake lángrejtő, M14x1L
+st_muzzle_polychoke_ventedcollar_m22x075_choke_description	Szórás -20 %. Célzási idő +2.5 %.
+st_muzzle_polychoke_ventedcollar_m22x075_choke_name	Polychoke szűkítő, M22x0.75
+st_muzzle_redheat_ilgynagk01_m22x075_muzzlebrake_description	Szórás -16 %. Célzási idő +2 %.
+st_muzzle_redheat_ilgynagk01_m22x075_muzzlebrake_name	Ilgynag K01 csőszájfék, M22x0.75
+st_muzzle_redheat_krymske2_m24x15_firearrestor_description	
+st_muzzle_redheat_krymske2_m24x15_firearrestor_name	Krymsk-2 lángrejtő, M24x1.5
+st_muzzle_redheat_shturm_m14x1l_muzzlebrake_description	Visszarúgás -4 %. Célzási idő +3 %.
+st_muzzle_redheat_shturm_m14x1l_muzzlebrake_name	Shturm csőszájfék, M14x1L
+st_muzzle_redheat_shturm_m24x15_muzzlebrake_description	Visszarúgás -4 %. Célzási idő +3 %.
+st_muzzle_redheat_shturm_m24x15_muzzlebrake_name	Shturm csőszájfék, M24x1.5
+st_muzzle_remington_doublehor_m22x075_choke_description	Szórás -20 %. Célzási idő +2.5 %.
+st_muzzle_remington_doublehor_m22x075_choke_name	Remington szűkítő, M22x0.75 SxS
+st_muzzle_remington_doublevert_m22x075_choke_description	Szórás -20 %. Célzási idő +2.5 %.
+st_muzzle_remington_doublevert_m22x075_choke_name	Remington szűkítő, M22x0.75 O/U
+st_muzzle_remington_m22x075_choke_description	Szórás -20 %. Célzási idő +2.5 %.
+st_muzzle_remington_m22x075_choke_name	Remington szűkítő, M22x0.75
+st_muzzle_spikestactical_dynacomp_m24x15_firearrestor_description	
+st_muzzle_spikestactical_dynacomp_m24x15_firearrestor_name	Dynacomp lángrejtő, M24x1.5
+st_muzzle_stone_shurhit_m22x075_choke_description	Szórás -20 %. Célzási idő +2.5 %.
+st_muzzle_stone_shurhit_m22x075_choke_name	Sure-Hit szűkítő, M22x0.75
+st_muzzle_taktikatula_saiga419_m22x075_firearrestor_description	
+st_muzzle_taktikatula_saiga419_m22x075_firearrestor_name	TT-419 lángrejtő, M22x0.75
+st_muzzle_venometactical_antidote_m14x1l_firearrestor_description	
+st_muzzle_venometactical_antidote_m14x1l_firearrestor_name	Antidote lángrejtő, M14x1L
+st_muzzle_zenit_dtk2_m24x15_muzzlebrake_description	Visszarúgás -4 %. Célzási idő +3 %.
+st_muzzle_zenit_dtk2_m24x15_muzzlebrake_name	Zenit DTK-2 csőszájfék, M24x1.5
+st_muzzle_zenit_dtk3_m24x15_muzzlebrake_description	Visszarúgás -4 %. Célzási idő +3 %.
+st_muzzle_zenit_dtk3_m24x15_muzzlebrake_name	Zenit DTK-3 csőszájfék, M24x1.5
+st_muzzle_zenit_dtk4_m24x15_clamp_muzzlebrake_description	Visszarúgás -4 %. Célzási idő +3 %.
+st_muzzle_zenit_dtk4_m24x15_clamp_muzzlebrake_name	Zenit DTK-4 csőszájfék, M24x1.5 clamp
+st_muzzle_zenit_dtk4_m24x15_muzzlebrake_description	Visszarúgás -4 %. Célzási idő +3 %.
+st_muzzle_zenit_dtk4_m24x15_muzzlebrake_name	Zenit DTK-4 csőszájfék, M24x1.5
+st_muzzle_zenit_dtk4_m30x1_clamp_firearrestor_description	
+st_muzzle_zenit_dtk4_m30x1_clamp_firearrestor_name	Zenit DTK-4 lángrejtő, M30x1
 st_my_place	Saját helyezés
 st_neostead_description	Dél-afrikai pumpás sörétes puska, 12-es kaliberrel. Tony Neophytou tervezte az 1990-es években, bullpup elrendezéssel. Két csőtár a cső felett, az előagy előretolásával tölthető újra. 12 lőszer, csak egyes lövés.
 st_neostead_name	NeoStead 2000
@@ -1593,11 +3073,13 @@ st_novice_026_helmet_desc	Kezdő sztalker kötött sapkája a törölt S.T.A.L.K
 st_novice_026_helmet_name	Újonc kötött sapkája
 st_of	/
 st_ok	OK
+st_on_destroyed_victory_artefact	Az artefaktum megsemmisült
 st_on_enemy_theft_item	Az ellenség ellopott egy akkumulátort a bázisotokról. Állítsd meg!
+st_on_spawn_victory_artefact	Megjelent az artefaktum
 st_on_spawn_victory_item	Az akkumulátor feltöltődött! Vidd a bázisodra.
 st_one_handed	Másodlagos
 st_online_store	Arany vásárlása
-st_onyx_activation_hint	Ónix aktiválva! %s mp-ig 75%-kal csökkenti a beérkező lövedékek sebzését és páncélátütését.
+st_onyx_activation_hint	Ónix aktiválva! A becsapódó lövedékek sebzése és páncélátütése %s másodpercig csökken.
 st_onyx_pickup_hint	Ónix artefaktum. 5%-kal csökkenti a játékost érő lövedékek sebzését és páncélátütését.
 st_open	Megnyitás
 st_options_2taa	2xTAA
@@ -1681,6 +3163,8 @@ st_picatinny_scope_medium_name	Távcsövek / irányzékok
 st_pickup_item	Felvétel ({USE})
 st_ping_postfix	ms
 st_pkp_pecheneg_description	Orosz általános célú géppuska, 7.62x54R lőszerrel. A CNIITOCSMAS fejlesztette a PKM alapján, 2001-ben rendszeresítették. Kényszerléghűtéses nehéz csöve hosszú sorozatokat enged csőcsere nélkül. 100 lőszeres heveder, egyes és sorozatlövés.
+st_pkp_pecheneg_foregrip_desc	Visszarúgás -3.5%. Célzási idő +1.2%.
+st_pkp_pecheneg_foregrip_name	PKP gyári előmarkolat
 st_pkp_pecheneg_name	PKP "Pecheneg"
 st_place	Hely
 st_play_button	Játék
@@ -1765,8 +3249,9 @@ st_profile_selection_warning	Profilváltáskor +20 másodperc újraéledési id�
 st_profile_warning_weapon	A profil nem aktív: nincs fegyver
 st_profile_warning_weapon_ammo	A profil nem aktív: kevés a lőszer a hátizsákban
 st_profile_warning_weapon_ammo_in_inv	A profil nem aktív: kevés a lőszer a raktárban
-st_ptt_action	Beszéd (nyomva tartva)
+st_ptt_action	Beszéd (rádió)
 st_ptt_button_option	PTT
+st_ptt_nearby_action	Beszéd (közelben)
 st_put_item	Lerakás ({USE})
 st_quest_change_warning	Figyelem! A feladatcsere csökkenti a frakcióhűséged!
 st_quest_completed	Feladat teljesítve!
@@ -1974,6 +3459,7 @@ st_rgd5_name	RGD-5 gránát
 st_rgo_descr	A leírás még nem érhető el.
 st_rgo_name	RGO
 st_right_strafe_action	Oldalazás jobbra
+st_round_restart_in	A kör újraindul:
 st_rpd_description	A leírás még nem érhető el.
 st_rpd_name	RPD
 st_rpk_description	A leírás még nem érhető el.
@@ -2076,6 +3562,8 @@ st_scavengers_win_x_games_obj	Nyerj meccseket:
 st_science_medkit_description	Teljesen meggyógyítja a karokat, a lábakat, a törzset és a fejet. 50%-kal csökkenti a fájdalmat. Meggyógyítja a mérgezést és a sugárbetegséget.
 st_science_medkit_name	Tudományos elsősegélycsomag
 st_scientists_faction	Intézet
+st_screenshot_action	Képernyőkép
+st_screenshot_no_ui_action	Képernyőkép UI nélkül
 st_search_label	Keresés
 st_search_range	Meccsszint
 st_second_weapon_action	2. fegyver
@@ -2097,10 +3585,16 @@ st_shop	Bolt
 st_shop_label	Bolt
 st_shop_scope_1p69_hyperon_description	4x nagyítású távcső
 st_shop_scope_1p69_hyperon_name	Zenit Hyperion távcső, 4x
+st_shop_scope_acog_ta01_description	4x nagyítású távcső
+st_shop_scope_acog_ta01_name	TA01 távcső, 4x
 st_shop_scope_acog_ta31_description	4x nagyítású távcső
 st_shop_scope_acog_ta31_name	TA31 távcső, 4x
 st_shop_scope_aimpoint_compm4_description	Svéd vöröspontos irányzék 2 MOA ponttal, akár nyolc év folyamatos használatra elég elemmel. Az amerikai hadsereg M68 CCO néven rendszeresítette. Picatinny-sínre szerelhető.
-st_shop_scope_aimpoint_compm4_name	CompM4 irányzék
+st_shop_scope_aimpoint_compm4_name	CompM4 irányzék, 2x
+st_shop_scope_aperture_description	3x nagyítású távcső
+st_shop_scope_aperture_name	Aperture távcső, 3x
+st_shop_scope_belomo_pk01_description	2x nagyítású vöröspontos irányzék.
+st_shop_scope_belomo_pk01_name	PK-01VI irányzék, 2x
 st_shop_scope_cobra_ekp_8_description	Orosz irányzék négy választható vörös célképpel. Gyors célzást tesz lehetővé két nyitott szemmel. Kalasnyikov-típusú fegyverek oldalsínjére szerelhető.
 st_shop_scope_cobra_ekp_8_name	Kobra EKP-8 irányzék
 st_shop_scope_docter_description	Kompakt német nyitott reflexirányzék vörös ponttal. Könnyű és gyorsan célozható, sörétes puskákhoz, pisztolyokhoz és rövid fegyverekhez készült.
@@ -2109,10 +3603,18 @@ st_shop_scope_elcan_specterdr_description	4x nagyítású távcső
 st_shop_scope_elcan_specterdr_name	SpecterDR távcső, 4x
 st_shop_scope_eotech_552_description	Amerikai holografikus irányzék: 65 MOA gyűrű, középen 1 MOA ponttal, AA elemekkel. Gyors célzás közeli és közepes távolságon. Picatinny-sínre szerelhető.
 st_shop_scope_eotech_552_name	EOTech 552 irányzék
+st_shop_scope_eotech_xps2_description	Vöröspontos irányzék a gyors célzáshoz.
+st_shop_scope_eotech_xps2_name	EOTech XPS2 irányzék
+st_shop_scope_hensoldt_rsas_description	2x nagyítású vöröspontos irányzék.
+st_shop_scope_hensoldt_rsas_name	RSA-S irányzék, 2x
+st_shop_scope_leupold_3_7_description	6x nagyítású távcső
+st_shop_scope_leupold_3_7_name	Leupold 3-7 távcső, 6x
 st_shop_scope_leupold_deltapoint_description	Kompakt amerikai reflexirányzék vörös háromszög céljellel. Pisztolyokhoz és könnyű fegyverekhez készült, kis mérete nem zavarja a használatot.
 st_shop_scope_leupold_deltapoint_name	Leupold DeltaPoint irányzék
 st_shop_scope_leupold_mk4_description	4x nagyítású távcső
 st_shop_scope_leupold_mk4_name	Leupold MK4 távcső, 4x
+st_shop_scope_ncstar_4_description	Vöröspontos irányzék a gyors célzáshoz.
+st_shop_scope_ncstar_4_name	NcSTAR 4 irányzék
 st_shop_scope_pso_1_description	4x nagyítású távcső
 st_shop_scope_pso_1_name	PSO-1 távcső, 4x
 st_shop_scope_pso_1_old_description	4x nagyítású távcső
@@ -2162,6 +3664,8 @@ st_snp_steady_breath_desc	Gyorsabban regenerálódsz a lélegzet visszatartása 
 st_snp_steady_breath_name	Egyenletes kilégzés
 st_snp_steady_grip_desc	Növeli a lövési pontosságot mozgás közben.
 st_snp_steady_grip_name	Biztos fogás
+st_soc_ug_depository_name	Depository
+st_soc_ug_station_name	Station
 st_soc_vepr_description	Orosz öntöltő Vepr-karabély, 7.62x39 lőszerrel. A vjatszkije poljani Molot gyár készíti vadász- és sportfegyverként, az RPK géppuska megerősített tokjára építve. 10 lőszeres tár, csak egyes lövés.
 st_soc_vepr_name	SOK-94
 st_socom16_description	A leírás még nem érhető el.
@@ -2180,7 +3684,7 @@ st_special_offer	Különleges ajánlat
 st_speed_booster_description	Koffeines, taurinos energiaital. Élénkít és serkenti a központi idegrendszert.
 st_speed_booster_name	Tornado energiaital
 st_spot_action	Ellenség megjelölése
-st_spring_activation_hint	Rugó aktiválva! Mozgási és célzási sebesség +10%. Gyorsabb állóképesség-regeneráció! A lövedékek nem lassítanak!
+st_spring_activation_hint	Rugó aktiválva! Gyorsabban mozogsz, célzol és nyered vissza az energiádat. A találatok kevésbé lassítanak.
 st_spring_pickup_hint	Rugó artefaktum. 5%-kal növeli a mozgási és célzási sebességet.
 st_sprint_action	Sprint (nyomva tartva)
 st_sprint_toggle_action	Sprint 
@@ -2220,11 +3724,14 @@ st_srp_artefact_532_description	Nincs esési sebzés, amíg egy Ónix aktív.
 st_srp_artefact_532_name	Ónix II
 st_srp_artefact_533_description	A Szarkaláb aktiválása visszaadja az összes állóképességet.
 st_srp_artefact_533_name	Szarkaláb II
+st_srp_artefact_534_description	Halál után a felszerelés artefaktumai átkerülnek abba a felszerelésbe, amellyel újraéledsz, amennyi a tárolóiba fér.
+st_srp_artefact_534_name	Futár
 st_srp_artefact_541_description	Artefaktumaid passzív hatása az élő csapattársakra is hat 9 m-en belül.
 st_srp_artefact_541_name	Rezonancia
 st_srp_artefact_542_description	Az aktivált artefaktumok az élő csapattársakra is hatnak 6 m-en belül. "Ők ragyognak, te tündökölsz"
 st_srp_artefact_542_name	Kaszkád
 st_srp_artefact_points	 pont
+st_srp_attach_unfit	Nem illik a fegyver csőszájeszközéhez vagy markolatához.
 st_srp_attachments	Szerelékek
 st_srp_ban_reason_account_trading	Fiók eladása vagy eladásának kísérlete.
 st_srp_ban_reason_administration	Az adminisztrátorok döntése.
@@ -2497,12 +4004,36 @@ st_srp_equipment069_snow_20_legs_7_desc	A leírás még nem érhető el.
 st_srp_equipment069_snow_20_legs_7_name	„Hó-20” nadrág
 st_srp_equipment069_snow_20_torso_7_desc	A leírás még nem érhető el.
 st_srp_equipment069_snow_20_torso_7_name	„Hó-20” golyóálló mellény
-st_srp_hide_hit_markers_option	Találatjelzők elrejtése
+st_srp_face	Arc
+st_srp_face_card	Arc %1$s
+st_srp_grip_slot	Markolat
 st_srp_hide_quests_option	Feladatok elrejtése
 st_srp_hide_scores_option	Pontszámok elrejtése
+st_srp_hit_markers_all	Minden találatjelző
+st_srp_hit_markers_hidden	Rejtett találatjelzők
+st_srp_hit_markers_kill	Csak ölésjelző
 st_srp_hud_add_friend	Hozzáadás a barátokhoz
+st_srp_hud_artefact_hunt_carrying	Nálad van az artefaktum
+st_srp_hud_artefact_hunt_sudden_death	Hirtelen halál
 st_srp_hud_blackout_intro	Blackout: vigyél akkumulátorokat a csapatod készülékéhez. A beleélés érdekében nincs HUD és találatjelzés. Tartsd nyomva a Tabot: lőszer, életerő, csevegés; halál után felszerelésválasztás.
 st_srp_hud_blackout_start	Blackout\nVigyél akkumulátorokat a csapatod készülékéhez.\nA HUD és a találatjelzések rejtve vannak. Tartsd nyomva a Tabot a lőszer és az életerő megtekintéséhez.
+st_srp_hud_freeze_draw	Döntetlen
+st_srp_hud_freeze_frozen	Megfagyva (%1$s)
+st_srp_hud_freeze_help	Fagyaszd meg az összes ellenfelet. Az első 5 kört megnyerő csapat győz. Állj 4 másodpercig egy fagyott csapattárs 2 méteres körzetében a kiolvasztásához.
+st_srp_hud_freeze_lose	Vereség — az ellenfél öt kört nyert.
+st_srp_hud_freeze_reveal_enemy	Az utolsó ellenfél %1$s mp múlva lelepleződik
+st_srp_hud_freeze_reveal_self	%1$s mp múlva lelepleződsz
+st_srp_hud_freeze_reveal_teammate	Utolsó csapattársad %1$s mp múlva lelepleződik
+st_srp_hud_freeze_revealed_enemy	Az utolsó ellenfél látszik a térképen
+st_srp_hud_freeze_revealed_self	Látszol a térképen
+st_srp_hud_freeze_revealed_teammate	Utolsó csapattársad látszik a térképen
+st_srp_hud_freeze_round_draw	Döntetlen. Újrakezdés: %1$s mp.
+st_srp_hud_freeze_round_lose	Elvesztett kör. Következő: %1$s mp.
+st_srp_hud_freeze_round_win	Megnyert kör. Következő: %1$s mp.
+st_srp_hud_freeze_standing	Harcban: saját csapat %1$s — ellenfelek %2$s
+st_srp_hud_freeze_start	Fagyasztó fogó\nA halálos találat megfagyaszt. Fagyaszd meg a teljes ellenfél csapatot a kör megnyeréséhez.\nÁllj egy fagyott csapattárs mellé a kiolvasztásához.\nAz a csapat nyer, amelyik elsőként nyer 5 kört.
+st_srp_hud_freeze_thawing	Csapattárs kiolvasztása…
+st_srp_hud_freeze_win	Győzelem — öt megnyert kör.
 st_srp_hud_friend_not_sent	A barátkérelem nincs elküldve
 st_srp_hud_friend_sent	Barátkérelem elküldve
 st_srp_hud_mute_hide	Chat elrejtése
@@ -2523,7 +4054,7 @@ st_srp_inv_fuse_time	Gyújtási idő
 st_srp_inv_material_pierce	Átüti
 st_srp_inv_pellets	Sörétek
 st_srp_inv_pocket_units	Zsebhelyek
-st_srp_inv_pocket_units_whole	∞
+st_srp_inv_pocket_units_whole	Mind
 st_srp_inv_stamina_damage	Állóképesség-sebzés
 st_srp_inv_throw_speed	Dobási sebesség
 st_srp_inventory_search	Keresés
@@ -2536,7 +4067,16 @@ st_srp_inventory_search_tip_kind	sisakok vagy bakancsok
 st_srp_inventory_search_tip_kind_example	+sisak +bakancs
 st_srp_inventory_search_tip_level	10-es vagy 11-es szintű tárgyak
 st_srp_inventory_search_tip_level_example	+10 +11
+st_srp_inventory_sell_duplicates	Duplikátumok eladása
+st_srp_inventory_sell_duplicates_ask	Eladandó tárgyak: %1$s
 st_srp_item_props_mps	m/s
+st_srp_key_bindings	Kiosztás
+st_srp_key_unbound	nincs hozzárendelve
+st_srp_keys_combat	Harc
+st_srp_keys_interface	Felület
+st_srp_keys_items	Tárgyak
+st_srp_keys_movement	Mozgás
+st_srp_keys_talk	Kommunikáció
 st_srp_language_option	Nyelv:
 st_srp_language_restart	Újraindítás után lép életbe.
 st_srp_loadout_block_ammo	Kevés lőszer az egyik fegyverhez
@@ -2551,6 +4091,10 @@ st_srp_loadout_sell_and	 és
 st_srp_loadout_sell_item	%1$s. összeállítás
 st_srp_loadout_sell_many	Ezekben használod: %1$s. Így is eladod?
 st_srp_loadout_sell_one	A(z) %1$s. összeállításban használod. Így is eladod?
+st_srp_loadout_slot_skill	Hely: %1$s
+st_srp_loadout_slot_to_container	Jobb klikk: artefaktumtároló
+st_srp_loadout_slot_to_pocket	Jobb klikk: zseb
+st_srp_loadout_slot_to_weapon	Jobb klikk: második fegyver
 st_srp_loadout_title	Összeállítás
 st_srp_loadout_unfit	nem használható
 st_srp_lobby_basement	Pince
@@ -2563,15 +4107,30 @@ st_srp_login_ban_ends	Lejár: %1$s (%2$s múlva).
 st_srp_login_ban_forever	A tiltás végleges.
 st_srp_map_chemical_plant	Vegyi üzem
 st_srp_map_chemical_plant_v011	Vegyi üzem (v0.11)
+st_srp_map_chemical_plant_v021	Vegyi üzem (v0.21)
 st_srp_map_cologne	Köln
-st_srp_map_london	London
+st_srp_map_cs_mp_atp	Vehicle Station
+st_srp_map_cs_mp_bath	Experimental Pool
+st_srp_map_cs_mp_darkvalley	Dark Valley
+st_srp_map_cs_mp_firestation	Fire Station
+st_srp_map_cs_mp_military_1	Military Warehouses
+st_srp_map_cs_mp_rembasa	Repair Depot
+st_srp_map_cs_mp_sport_center	Sports Center
+st_srp_map_cs_training_camp	Training Camp
+st_srp_map_london	London (v0.32)
+st_srp_map_london_v042	London (v0.42)
 st_srp_map_mamayev_kurgan	Mamajev-kurgán
 st_srp_map_mamayev_kurgan_v021	Mamajev-kurgán (v0.21)
 st_srp_map_names_option	Nevek a térképen
 st_srp_map_rudnya	Rudnya
+st_srp_map_rudnya_v021	Rudnya (v0.21)
 st_srp_map_rudnya_v069	Rudnya (v0.69)
 st_srp_map_school	Iskola
+st_srp_map_school_v021	Iskola (v0.21)
+st_srp_map_soc_ug_depository	Depository
+st_srp_map_soc_ug_station	Station
 st_srp_map_tarakanovsky_fort	Tarakanovi erőd
+st_srp_map_tarakanovsky_fort_v021	Tarakanovi erőd (v0.21)
 st_srp_map_vector	Vektor laboratórium
 st_srp_map_vostok	Vosztok radarállomás
 st_srp_map_vostok_v011	Vosztok radarállomás (v0.11)
@@ -2610,33 +4169,56 @@ st_srp_medical_312_description	Az elsősegélycsomagok és kötszerek által vis
 st_srp_medical_312_name	Egészségügyi képzés
 st_srp_medical_313_description	Az elsősegélycsomagok és kötszerek által visszaállított életerő bónusza guggolás közben:
 st_srp_medical_313_name	Fedezékbe
+st_srp_medical_314_description	Antitoxin hatása alatt a célzási idő csökkenése:
+st_srp_medical_314_name	Éles szem
 st_srp_medical_321_description	Mozgási sebesség bónusza 30 alatti életerőnél:
 st_srp_medical_321_name	Adrenalin
 st_srp_medical_322_description	Minden gyógyszert tartalmazó zsebben eggyel több tárgy fér el.
 st_srp_medical_322_name	Több gyógyszer
 st_srp_medical_323_description	Fájdalomcsillapító hatása alatt az ellenséges találatok megállítóerejének csökkenése:
 st_srp_medical_323_name	Rendíthetetlen
+st_srp_medical_324_description	Amikor az antitoxin hatni kezd, visszanyert állóképesség:
+st_srp_medical_324_name	Második szél
 st_srp_medical_331_description	A másodlagos fegyver helyét egy további felszerelészsebre cseréli.
 st_srp_medical_331_name	Felszerelészseb
-st_srp_medical_332_description	A karok és lábak maximális életerejének bónusza:
+st_srp_medical_332_description	A karok és lábak maximális életerejének bónusza (a fájdalomküszöböt nem növeli):
 st_srp_medical_332_name	Erős csontok
-st_srp_medical_333_description	Fájdalomcsillapító hatása alatt az irányzék kilengésének csökkenése:
+st_srp_medical_333_description	Antitoxin hatása alatt az újratöltési sebesség bónusza:
 st_srp_medical_333_name	Összpontosítás
 st_srp_medical_342_description	A szövetségesektől kapott sebzés csökkenése:
 st_srp_medical_342_name	Fegyvertársak
 st_srp_medical_seconds	 mp
+st_srp_medicine_aim_time	Célzási idő
 st_srp_medicine_crouched_healing	Gyógyulás guggolva
 st_srp_medicine_hit_slow	Lassítás golyóktól
-st_srp_medicine_sight_sway	Irányzék kilengése
+st_srp_medicine_reload_speed	Újratöltési sebesség
 st_srp_medicine_sprint_stamina	Sprint állóképesség
 st_srp_melee_knockback	Tusütés lökőereje
+st_srp_mic_test	Mikrofon tesztelése
+st_srp_mic_test_no_microphone	Nincs mikrofon
+st_srp_mic_test_no_playback	Nincs hangkimenet
+st_srp_mic_test_playing	Lejátszás %1$s
+st_srp_mic_test_recording	Felvétel %1$s
+st_srp_microphone	Mikrofon
+st_srp_microphone_default	Alapértelmezett
+st_srp_mode_artefact_hunt	Artefaktumvadászat
 st_srp_mode_blackout	Védelmi berendezés: áramszünet
 st_srp_mode_chargers	Védelmi berendezés: töltők
+st_srp_mode_cowboy	FFA: Saloon
+st_srp_mode_cowboy_winchester	FFA: Saloon (Winchester)
+st_srp_mode_free_for_all	Mindenki mindenki ellen
+st_srp_mode_freeze_tag	Fagyasztó fogó
 st_srp_mode_protective_device	Védelmi berendezés
+st_srp_mode_racket	FFA: Zsivaj
 st_srp_mode_research	Kutatás
+st_srp_mode_roulette_high	FFA: Rulett
+st_srp_mode_roulette_low	FFA: Rulett
+st_srp_mode_roulette_mid	FFA: Rulett
 st_srp_mode_team_deathmatch	Csapatos deathmatch
 st_srp_mouse_lock_option	Függőleges érzékenység rögzítése
 st_srp_mouse_vertical_option	Függőleges érzékenység
+st_srp_muzzle_slot	Csőszájeszköz
+st_srp_no_muzzle_flash	Nincs torkolattűz
 st_srp_optics	Távcsövek
 st_srp_options_hud	HUD:
 st_srp_pierce_brick	Tégla, acél
@@ -2693,10 +4275,10 @@ st_srp_replay_not_yours	Csak olyan meccset nézhetsz vissza, amelyen részt vett
 st_srp_replay_off	A visszajátszás ki van kapcsolva ezen a szerveren.
 st_srp_replay_old_game	Ez a játékverzió nem támogatja a visszajátszást. Frissítsd a játékot: indítsd újra az indítóprogramból.
 st_srp_replay_place_in_line	Helyed a sorban: %1$s. Várakozás: %2$s mp.
-st_srp_replay_ready	A meccs visszajátszása elkészült.\n\nA meccs hiteles felvételét tároló szerverről töltődik le. Egy második játékablakban indul el, a lobby nyitva marad.\n\nLejátszás közben az F11 nyitja meg a vezérlőket: játékosok, kamera, tekerés, sebesség.
-st_srp_replay_ready_size	A meccs felvétele: %1$s.\n\nA meccs hiteles felvételét tároló szerverről töltődik le. Egy második játékablakban indul el, a lobby nyitva marad.\n\nLejátszás közben az F11 nyitja meg a vezérlőket: játékosok, kamera, tekerés, sebesség.
+st_srp_replay_ready	A meccs visszajátszása elkészült.\n\nA meccs hiteles felvételét tároló szerverről töltődik le. Egy második játékablakban indul el, a lobby nyitva marad.\n\nLejátszás közben az F9 nyitja meg a vezérlőket: játékosok, kamera, tekerés, sebesség.
+st_srp_replay_ready_size	A meccs felvétele: %1$s.\n\nA meccs hiteles felvételét tároló szerverről töltődik le. Egy második játékablakban indul el, a lobby nyitva marad.\n\nLejátszás közben az F9 nyitja meg a vezérlőket: játékosok, kamera, tekerés, sebesség.
 st_srp_replay_size	%1$s,%2$s MB
-st_srp_replay_starting	A visszajátszás indul: egy második játékablak nyílik meg, a lobby nyitva marad. Ha hiba történik, a frissítőprogram jelzi az okát.\n\nLejátszás közben az F11 nyitja meg a vezérlőket.
+st_srp_replay_starting	A visszajátszás indul: egy második játékablak nyílik meg, a lobby nyitva marad. Ha hiba történik, a frissítőprogram jelzi az okát.\n\nLejátszás közben a „Kezelőfelület elrejtése” ({HIDE_INTERFACE}) gomb nyitja meg a vezérlőket.
 st_srp_replay_still_preparing	A szerver még készíti a felvételt. Egy perc múlva nyisd meg újra a Visszajátszás ablakot.
 st_srp_replay_title	Visszajátszás
 st_srp_replay_waiting	Várakozás: %1$s mp.
@@ -2772,7 +4354,7 @@ st_srp_rooms_pin_hint	4 számjegy szükséges
 st_srp_rooms_players	Játékosok
 st_srp_rooms_playing	Meccs folyamatban
 st_srp_rooms_pool	Pályakészlet
-st_srp_rooms_pool_hint	Ezek közül 3 kerül szavazásra.
+st_srp_rooms_pool_hint	Ezek közül 4 kerül szavazásra.
 st_srp_rooms_private_room	Privát szoba: max. 20 játékos; te osztod a csapatokat és indítasz.
 st_srp_rooms_queue	Sor
 st_srp_rooms_queue_room	Sorba állás
@@ -2800,14 +4382,69 @@ st_srp_rooms_voting	Szavazás
 st_srp_rooms_waiting	Várakozás a játékosokra
 st_srp_rooms_waiting_owner	Várakozás, hogy a szoba létrehozója elindítsa a meccset.
 st_srp_rooms_waiting_short	Várakozás
-st_srp_scope_screen_hint	Húzz egy távcsövet a leltárból a fegyver módosítási rekeszébe
+st_srp_scope_next_action	Irányzékváltás
+st_srp_scope_screen_hint	Húzz egy távcsövet, csőszájeszközt vagy markolatot a leltárból a rekeszébe
 st_srp_scope_slot	Irányzék
+st_srp_second_sight	Második irányzék
+st_srp_second_sight_description	Második irányzékot szerel a fegyver oldalára.
+st_srp_second_sight_hint	Irányzék a fegyver oldalán lévő eltolt sínen. Célzás közben nyomd meg az „Irányzékváltás” ({SCOPE_NEXT}) gombot, hogy átválts rá.
+st_srp_second_sight_name	Második irányzék
 st_srp_shop_not_owned	Meglévők elrejtése
 st_srp_shop_not_owned_hint	Csak a még nem birtokolt tárgyak mutatása
+st_srp_side_left	Bal
+st_srp_side_right	Jobb
+st_srp_sight_distance_note	+ távolabb, - közelebb
+st_srp_sight_distance_option	Irányzék távolsága
 st_srp_skills	Képességek
 st_srp_speed_label	Sebesség
 st_srp_speed_title	Mozgási sebesség: %1$s
 st_srp_static_minimap_option	Statikus minitérkép
+st_srp_technical_401_description	Akkumulátor felvételének és a lőszeresládánál való feltöltés sebessége:
+st_srp_technical_401_name	Ügyes kezek
+st_srp_technical_402_description	A füstfelhő időtartama:
+st_srp_technical_402_name	Sűrű füst
+st_srp_technical_403_description	Amíg az oxigénpalack működik, a fegyver imbolygása és szórása:
+st_srp_technical_403_name	Nyugodt légzés
+st_srp_technical_404_description	Saját és csapattársak gránátjaiból kapott sebzés:
+st_srp_technical_404_name	Robbantási gyakorlat
+st_srp_technical_411_description	Csapdák hatástalanításának sebessége:
+st_srp_technical_411_name	Utász
+st_srp_technical_412_description	Hallod a biztosítószeget, amikor egy közeli ellenség gránátot kezd dobni.
+st_srp_technical_412_name	Éles fül
+st_srp_technical_413_description	Oxigénpalackkal a felszerelésben:
+st_srp_technical_413_name	Palackzseb
+st_srp_technical_414_description	Oxigénpalackkal a felszerelésben:
+st_srp_technical_414_name	Mély zsebek
+st_srp_technical_422_description	Vegyél fel egy élesített gránátot a közeledben a használat gombbal, és dobd vissza. A gyújtó tovább ég.
+st_srp_technical_422_name	Vissza a feladónak
+st_srp_technical_423_description	Az általad hatástalanított csapda, a sajátod vagy az ellenségé, a zsebedbe kerül, ha van benne hely.
+st_srp_technical_423_name	Zsákmánycsapda
+st_srp_technical_431_description	Amíg az oxigénpalack működik, a sprint energiafogyasztása:
+st_srp_technical_431_name	Mély lélegzetek
+st_srp_technical_432_description	Halálod után nyomd meg a dobás gombot, hogy ledobd egy füstgránátodat ott, ahol elestél.
+st_srp_technical_432_name	Halottkapcsoló
+st_srp_technical_433_description	A csapdáid, amelyekre lőttek, újra kinyílnak ennyi idő után:
+st_srp_technical_433_name	Újrafeszítés
+st_srp_technical_441_description	A füstöd enyhén zöld és mérgezi a benne lévő ellenségeket; az oxigénpalack véd. Egy füstgránát 1,5 zsebhelyet foglal. Mérgező sebzés:
+st_srp_technical_441_name	Mérgező füst
+st_srp_technical_442_description	Az oxigénpalack minden 20 mp folyamatos használata után és amikor kiürül: +10% sebesség 20 mp-ig és teljes energia.
+st_srp_technical_442_name	Oxigénroham
+st_srp_technical_443_description	Egy gránátoddal szerzett ölés visszaad egy gránátot.
+st_srp_technical_443_name	Dögevő
+st_srp_technical_444_description	A csapdád eltöri annak a lábát, aki belelép. Egy csapda 1,5 zsebhelyet foglal.
+st_srp_technical_444_name	Medvecsapda
+st_srp_technical_445_description	Oxigénpalackkal a felszerelésben: még egy artefaktumtároló.
+st_srp_technical_445_name	Palacktároló
+st_srp_technical_disarm_speed	Csapdahatástalanítás sebessége
+st_srp_technical_friendly_blast	Sebzés a saját gránátoktól
+st_srp_technical_oxygen_rush	Sebesség 20 mp palackhasználat után és a végén
+st_srp_technical_per_second	 másodpercenként
+st_srp_technical_pocket_size	 zsebméret
+st_srp_technical_pockets	 zseb
+st_srp_technical_rearm	Lövés után újra kinyílik
+st_srp_technical_smoke_duration	Füst időtartama
+st_srp_technical_toxic_damage	Mérgező sebzés
+st_srp_unit_cm	%1$s cm
 st_srp_unit_days	%1$s nap
 st_srp_unit_hours	%1$s óra
 st_srp_unit_kg	%1$s kg
@@ -2847,6 +4484,10 @@ st_srp_weapon069_ppsh_drum_name	PPSH-41 „Dob”
 st_srp_weapon_aim_zoom	Alap célzási nagyítás
 st_srp_weapon_chamber	Csőre töltési idő
 st_srp_weapon_draw_time	Elővételi idő
+st_srp_weapon_fov_aimed_option	Fegyver FOV célzáskor
+st_srp_weapon_fov_option	Fegyver FOV csípőből
+st_srp_weapon_fov_scope_option	Fegyver FOV távcsőben
+st_srp_weapon_fov_world_option	Fegyver a világ FOV-jával
 st_srp_weapon_full_damage	Teljes sebzés hatótávja
 st_srp_weapon_hip_spread	Csípőlövés szórása
 st_srp_weapon_holster_time	Elrakási idő
@@ -2871,6 +4512,11 @@ st_srp_weapon_stats	A fegyver statisztikái
 st_srp_weapon_sway_cycle	Kilengési ciklus
 st_srp_weapon_sway_horizontal	Vízszintes kilengés
 st_srp_weapon_sway_vertical	Függőleges kilengés
+st_srp_weapon_view_heading	Fegyvernézet
+st_srp_weapon_view_hip	Csípőből
+st_srp_weapon_view_iron	Irányzék
+st_srp_weapon_view_red_dot	Vöröspont
+st_srp_weapon_view_scope	Távcső
 st_srp_weapon_with_kit	Összeállítással
 st_srp_weapon_with_kit_skills	Összeállítással és képességekkel
 st_srp_weather_before_rain	eső előtt
@@ -2885,6 +4531,7 @@ st_srp_weight_penalty	%1$s% súlybüntetés
 st_srp_weight_speed	Mozgási sebesség
 st_srp_weight_sprint_stamina	Állóképesség-fogyasztás sprinteléskor
 st_srp_weight_title	A súly hatásai
+st_srp_world_fov_option	Világ FOV
 st_stamina_boost_name	Újult erő
 st_stamina_boost_time_description	Ellenségöléssel visszanyert állóképesség:
 st_stamina_loss_on_hit_description	Állóképesség-büntetés sérüléskor.
@@ -2896,9 +4543,11 @@ st_stamina_spending_speed_description	Állóképesség-fogyasztás:
 st_stamina_spending_speed_name	Állóképesség
 st_start_chat_action	Chat
 st_start_match_welcome_message	Keress akkumulátorokat, és vidd őket a bázisodra!
+st_start_match_welcome_message_13	Artefaktumvadászat. Vidd az artefaktumot a csapatod bázisára
 st_start_match_welcome_message_2	Keresd meg és védd az akkumulátortöltő állomásokat!
 st_start_match_welcome_message_3	Iktass ki minél több ellenséget!
 st_start_match_welcome_message_5	Keresd meg és foglald el a kutatóegységeket!
+st_start_match_welcome_message_8	Mindenki mindenki ellen. Az nyer, aki elsőként ér el %1$s ölést
 st_statistic_sync_text	Meccsstatisztikák fogadása
 st_statistics_daily_bonus	Napi bónusz
 st_statistics_equipment_bonus	Felszerelésbónusz
@@ -2974,7 +4623,7 @@ st_team_member_is_not_commander	A csapattag nem parancsnok.
 st_texture_quality_option	Textúrák minősége
 st_there_is_no_item_in_inventory	A tárgy nem található a leltárban
 st_thief_item	Tároló felvétele
-st_throw_grenade_action	Gránát használata
+st_throw_grenade_action	Következő gránát
 st_time_current	Játékosok keresése:
 st_time_was_resynchronized	Kapcsolat helyreállítása…
 st_to_all	Mindenkinek
@@ -2989,6 +4638,8 @@ st_toz66_description	Lefűrészelt csövű vadászduplapuska, 12x70 lőszerrel. 
 st_toz66_name	TOZ-66
 st_trap_damage	Csapdasebzés
 st_treasure_map_advert	Használd a rejtekhelytérképet további tárgyakért.
+st_troy_modular_foregrip_desc	Visszarúgás -3.5%. Célzási idő +1.2%.
+st_troy_modular_foregrip_name	Troy Modular előmarkolat
 st_tt_description	Az 1933-ban bevezetett Tulai Tokarev 7.62x25 mm lőszert használ. Az 1930-as években tervezték az első szovjet öntöltő katonai pisztolynak. 8 lőszeres tárral.
 st_tt_name	TT-33
 st_turn_down_action	
@@ -3017,12 +4668,28 @@ st_ump45_name	H&K UMP45
 st_unknown_faction	Semleges
 st_unlimited_upload	korlátlan
 st_use_action	Használat
+st_use_antitoxin_action	Antitoxin használata
 st_use_artefact_container	Artefaktum begyűjtése ({USE})
+st_use_bandages_action	Kötszercsomag használata
+st_use_blackmarket_medkit_action	Feketepiaci elsősegélycsomag használata
 st_use_fix_voucher	Javítókészlet
 st_use_item_message	Biztosan használod ezt a tárgyat?
 st_use_ladder	Létra
+st_use_lifebone_action	Szarkaláb használata
+st_use_medkit_action	Elsősegélycsomag használata
 st_use_microphone_option	Mikrofon használata
+st_use_military_medkit_action	Katonai elsősegélycsomag használata
+st_use_next_artefact_action	Következő artefaktum
+st_use_next_medkit_action	Következő elsősegélycsomag
+st_use_onyx_action	Ónix használata
+st_use_oxygen_tank_action	Oxigénpalack használata
+st_use_painkiller_action	Érzéstelenítő használata
+st_use_rdgm_action	Füstgránát dobása
 st_use_resupply_zone	Lőszer feltöltése ({USE})
+st_use_rgd5_action	RGD-5 gránát dobása
+st_use_science_medkit_action	Tudományos elsősegélycsomag használata
+st_use_spring_action	Rugó használata
+st_use_trap_action	Csapda használata
 st_use_two_double_handed_weapons_description	Két kétkezes fegyvert vihetsz a meccsbe.
 st_use_two_double_handed_weapons_name	Terminátor
 st_using_progress_message	Haladás:

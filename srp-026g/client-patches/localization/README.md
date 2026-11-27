@@ -1,9 +1,9 @@
 # Game localization (0.26g)
 
-All ten native game dictionaries live here as UTF-8 TSVs: English, Ukrainian,
-Russian, German, Polish, Serbian Latin, Czech, Hungarian, Finnish and Belarusian
-(Cyrillic, standard orthography). Every file
-has the same 3,082 keys, sorted by full key name. These are the build sources,
+All twelve native game dictionaries live here as UTF-8 TSVs: English, Ukrainian,
+Russian, German, Polish, Serbian Latin, Czech, Hungarian, Finnish, Belarusian
+(Cyrillic, standard orthography), Croatian and Brazilian Portuguese. Every file
+has the same 3,054 keys, sorted by full key name. These are the build sources,
 including unchanged weapon names and key labels; there are no separate keep lists
 or per-language dictionary patches. The engine's `original` dictionary is built
 from `russian.tsv`.
@@ -12,7 +12,7 @@ from `russian.tsv`.
 
 1. Edit the appropriate `<language>.tsv`. For a new item, add its name and description
    keys to **every** TSV, in key order, and use those keys in the item's config.
-2. Preserve placeholders (`{USE}`, `%s`, `%d`, etc.) and markup. Review every
+2. Preserve placeholders (`{USE}`, `{SCOPE_NEXT}`, `%s`, `%d`, etc.) and markup. Review every
    translation when the English meaning changes; format checks cannot detect stale wording.
 3. From the repository root, run this single command (Python 3, no dependencies or game assets):
 
@@ -66,9 +66,19 @@ changing a language never touches an `.as` file.
 - **Values** are `%1$s`, `%2$s`, ... in the text, in any order a language needs; every
   language keeps the same ones. Never `{name}`: the game's localizer (0x1FEF90) drops
   any `{...}` that is not an action's key from the texts it hands a movie.
+- **Keys** are never written out ("press Y", "(E)"): a text names the action, and the game's
+  localizer puts in the key the player has bound to it, in his language (exe patch 212,
+  `../README.md` "Keys in texts"): `{USE}`, `{SCOPE_NEXT}`, `{HIDE_INTERFACE}`, in capitals,
+  the actions `KEY_ACTIONS` in `localization_026g.py` lists (add one there, with its default
+  key, to name it). An action with no key becomes `st_srp_key_unbound`'s text ("unbound"), so
+  write the key where that reads well too: after the action's Settings name, in brackets
+  (`press "Switch sight" ({SCOPE_NEXT})`, `Pick up ({USE})`). Movies get the texts with the keys
+  in, again whenever the bindings change. A key the game does not let the player bind (Tab's
+  list, Alt, Shift in the lobby's cards) stays written out.
 - **The check** fails a key a movie names that the dictionaries lack, an `st_srp_` key
-  named by another movie (it is not given srp's texts), and an `st_srp_` text with
-  braces. With a compiled resource tree it also fails an `st_srp_` key that the lobby's
+  named by another movie (it is not given srp's texts), any text with braces but a key
+  of `KEY_ACTIONS`, and a text naming a key whose dictionary lacks its default key's or
+  `st_srp_key_unbound`'s text. With a compiled resource tree it also fails an `st_srp_` key that the lobby's
   or the login's mapping does not map to itself.
 - **Fit and terms.** A label, header or button text fits its place on one line wherever the
   English does; prefer a shorter natural wording to an abbreviation, and name things with the
@@ -111,6 +121,17 @@ its absence is reported. All registered languages are required by default;
 `--catalog` and `--flash-source` select alternate source directories.
 Exit codes: 0 clean, 1 coverage/content defects, 2 invalid input.
 
+Croatian is translated from the English catalog, including the original item
+and faction names and descriptions; Serbian-specific jokes and Easter eggs
+are not carried over. Model identifiers, keycaps and units stay as written in
+English. Native-speaker review and an in-game layout pass are still needed.
+
+Brazilian Portuguese is retail 0.69d0's own dictionary (`localization/portuguese`) for every key
+whose English or Russian text is the same there (about half of the keys, the stock game's), and
+translated from the English for the rest (the later keys and srp's own) with that dictionary's
+words. Both Portuguese Windows locales select it. Native-speaker review and an in-game layout
+pass are still needed.
+
 The migration preserves the existing translations and the reviewed Serbian wording.
 It fills the two missing Polish and two missing Ukrainian entries, repairs the
 German `st_reach_level` closing tag and English quest text's invalid encoding,
@@ -128,15 +149,20 @@ it applies at the next start (exe patch 79, `../../docs/notes/language-option.md
 `play_skhid.bat` / `localization=czech` in `play_skhid.sh`) starts the game in it
 and saves it as the choice. The overlay builder accepts `--localization=czech`
 and the other resource names (the scripts' default; none by default). The
-launcher's dropdown keeps its five choices for its own texts. Website and
-launcher UI translations are separate.
+launcher's dropdown offers the same languages; its own UI has five translations
+and uses English for the others. Website and launcher UI translations are separate.
 
-To add a language, register its resource name, Flash constant and own name in
-`LANGUAGES` in `localization_026g.py` (and in `CYRILLIC` for a Cyrillic one), run
-`python3 localization_026g.py --write` (the exe's table, `languages_026g.rs`), add its
+To add a language, register its resource name, own name, Windows locale rule and two-letter
+code in `LANGUAGES` in `localization_026g.py` (and in `CYRILLIC` for a Cyrillic one; the
+builds make the exe's and the launcher's tables from it), add its
 complete TSV here (with every `st_srp_` text, the Settings' two
-`st_srp_language_option` and `st_srp_language_restart` among them). No Flash source
-changes. The content compiler
+`st_srp_language_option` and `st_srp_language_restart` among them). For most languages the Windows rule is a primary language id; for a language
+sharing one with another, use a tuple of exact LANGIDs instead. Exact matches
+win over primary fallbacks. Croatian is `croatian`, `Hrvatski`,
+`(0x041A, 0x101A)`, `hr`: both Croatian Windows locales select it, while Serbian
+and Bosnian keep the Serbian fallback. An existing saved choice always wins.
+Regenerate the launcher table too and reassemble its `.bin` (see `../launcher/README.md`).
+No Flash source changes. The content compiler
 creates its resource directory automatically. Existing languages retain their
 support files; new languages inherit English EULA and profanity data, which
 are support resources, not translated text.

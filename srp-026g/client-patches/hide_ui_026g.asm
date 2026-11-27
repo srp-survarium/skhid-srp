@@ -53,19 +53,39 @@
 ; each counting 28h rows. A key set for an action without a row is kept
 ; nowhere (0x2013A0 finds no row) and never applied. `controls` below is that
 ; table again, the same 40 rows (each row's pointers its own; push-to-talk's
-; alone changed, to the game group and a key that can be set), a 41st:
-; toggle_replay_ui in the game group, labelled st_hide_interface_action
-; (its text in client-patches/localization/*.tsv), and a 42nd for patch 78:
-; artefact (23h, default H, its default key patch_026g.py's
-; ARTEFACT_KEY_DEFAULT), st_hold_artifact_action; patch_026g.py points the six
-; functions at it and makes their counts 2Ah. The binding is the binder's
-; as any other: applied with `bind toggle_replay_ui <key>`, saved and read
-; back by the binder's own bind command (its save 0x207450 writes every bound
-; action).
+; alone changed, to the game group and a key that can be set), and rows of its
+; own: toggle_replay_ui in the game group, labelled st_hide_interface_action
+; (its text in client-patches/localization/*.tsv), patch 78's
+; artefact (23h, default H, its default key in the moved action table's row,
+; item_hotkeys_026g.asm), st_hold_artifact_action, patch 66's
+; ptt_nearby (37h, default O, kind 8: its row in that table), the 10 m voice's
+; push-to-talk, st_ptt_nearby_action, patch 152's
+; screenshot (1Ah, default F11) and screenshot_no_ui (1Bh, default F12),
+; st_screenshot_action and st_screenshot_no_ui_action, and patch 149's
+; sixteen (use_onyx .. use_next_medkit, no default key,
+; labelled st_use_<item>_action); patch_026g.py points the six functions at
+; it and makes their counts 3Eh (patch 206's scope_next too). The rows stand in the order the options list
+; them: the movie (Settings.as) puts each row in its group's list (game, lobby,
+; chat) in the table's order, and nothing takes a row by its place (the movie,
+; root.set_keybind and the six functions name a row by its action, user.cfg
+; by the action's name). The binding is the binder's as any other:
+; applied with `bind hide_interface <key>`, saved and read back by the
+; binder's own bind command (its save 0x207450 writes every bound action).
+;
+; The action's name and key since patch 152: F11 is the screenshot's, so the
+; action table's row of 19h (item_hotkeys_026g.asm's `actions`) is named
+; hide_interface and its default key is F9. The new name is what moves the
+; key for a player who had it: the old `bind toggle_replay_ui kF11` of a
+; saved user.cfg names no action now and binds nothing (bind_key 0x207DC0
+; returns on a name the table does not have), where the same name would have
+; taken F11 back from the screenshot.
 BITS 32
 %include "engine_026g.inc"
 global hide_ui_match, hide_ui_lobby, hide_ui_reset
-global controls                    ; the options' controls, 42 rows (patch_026g.py's HIDE_UI_TABLE_REFS)
+global controls                    ; the options' controls, 62 rows (patch_026g.py's HIDE_UI_TABLE_REFS)
+global controls_end                ; their end (the Rust hud_options' key bindings read the rows)
+global ptt_nearby_action           ; the action table's row 37h's name (item_hotkeys_026g.asm's `actions`)
+global hide_interface_action, screenshot_action, screenshot_no_ui_action   ; the rows 19h, 1Ah and 1Bh's
 section .text
 
 %define REPLAY_TOGGLE 0x25CEDB     ; the case 19h after its replay test: the replay's controls
@@ -82,6 +102,9 @@ section .text
 %define NO_ACTION 0x49             ; the binder's answer for a key without an action
 %define TOGGLE_UI 0x19             ; toggle_replay_ui
 %define HOLD_ARTIFACT 0x23         ; artefact: unused by the game; patch 78 holds it with a quick-use key
+%define PTT_NEARBY 0x37            ; serialize_player_state renamed by patch 66 (VOICE_ACTION), a chat key
+%define SCREENSHOT 0x1A            ; torch and night_vision: unread by the game; patch 152's two keys
+%define SCREENSHOT_NO_UI 0x1B
 %define MATCH_KINDS 1              ; the kind the game world asks (0x25CD5F)
 
 ; The case of action 19h in on_keyboard_action, at 0x25CED1 (`mov esi,[esp+10h] /
@@ -294,6 +317,66 @@ hide_interface_label:
 hold_artifact_label:
     db "st_hold_artifact_action", 0
 
+ptt_nearby_label:
+    db "st_ptt_nearby_action", 0
+
+screenshot_label:
+    db "st_screenshot_action", 0
+
+screenshot_no_ui_label:
+    db "st_screenshot_no_ui_action", 0
+
+use_onyx_label:
+    db "st_use_onyx_action", 0
+
+use_spring_label:
+    db "st_use_spring_action", 0
+
+use_lifebone_label:
+    db "st_use_lifebone_action", 0
+
+use_bandages_label:
+    db "st_use_bandages_action", 0
+
+use_medkit_label:
+    db "st_use_medkit_action", 0
+
+use_military_medkit_label:
+    db "st_use_military_medkit_action", 0
+
+use_blackmarket_medkit_label:
+    db "st_use_blackmarket_medkit_action", 0
+
+use_science_medkit_label:
+    db "st_use_science_medkit_action", 0
+
+use_antitoxin_label:
+    db "st_use_antitoxin_action", 0
+
+use_painkiller_label:
+    db "st_use_painkiller_action", 0
+
+use_rgd5_label:
+    db "st_use_rgd5_action", 0
+
+use_rdgm_label:
+    db "st_use_rdgm_action", 0
+
+use_trap_label:
+    db "st_use_trap_action", 0
+
+use_oxygen_tank_label:
+    db "st_use_oxygen_tank_action", 0
+
+use_next_artefact_label:
+    db "st_use_next_artefact_action", 0
+
+use_next_medkit_label:
+    db "st_use_next_medkit_action", 0
+
+scope_next_label:
+    db "st_srp_scope_next_action", 0
+
 ; A row of the controls: the action, its label's key, the group, the type, and
 ; two empty buffer_strings (begin, end, the buffer's end; 32 bytes).
 %macro CONTROL 4
@@ -307,39 +390,82 @@ hold_artifact_label:
 
 section .data
 align 4
-controls:                          ; the game's 40 rows (0xA9DB28), in their order
-    CONTROL 0x04, 0x9FCC70, 2, 1   ; st_jump_action
-    CONTROL 0x05, 0x9FCC5C, 2, 1   ; st_crouch_action
-    CONTROL 0x06, 0x9FCC44, 2, 1   ; st_crouch_toggle_action
-    CONTROL 0x29, 0x9FCC2C, 2, 1   ; st_aim_toggle_action
-    CONTROL 0x08, 0x9FCC14, 2, 1   ; st_sprint_toggle_action
-    CONTROL 0x07, 0x9FCC00, 2, 1   ; st_sprint_action
-    CONTROL 0x09, 0x9FCBE4, 2, 1   ; st_next_fire_queue_action
-    CONTROL 0x0A, 0x9FCBD0, 2, 1   ; st_next_ammo_action
-    CONTROL 0x24, 0x9FCBC0, 2, 1   ; st_next_weapon
-    CONTROL 0x25, 0x9FCBB0, 2, 1   ; st_prev_weapon
+controls:                          ; the rows in the order the options list them (each group its own list)
+    ; movement
     CONTROL 0x0B, 0x9FCB98, 2, 1   ; st_move_forward_action
     CONTROL 0x0C, 0x9FCB80, 2, 1   ; st_move_backward_action
     CONTROL 0x0D, 0x9FCB68, 2, 1   ; st_left_strafe_action
     CONTROL 0x0E, 0x9FCB50, 2, 1   ; st_right_strafe_action
+    CONTROL 0x04, 0x9FCC70, 2, 1   ; st_jump_action
+    CONTROL 0x05, 0x9FCC5C, 2, 1   ; st_crouch_action
+    CONTROL 0x06, 0x9FCC44, 2, 1   ; st_crouch_toggle_action
+    CONTROL 0x07, 0x9FCC00, 2, 1   ; st_sprint_action
+    CONTROL 0x08, 0x9FCC14, 2, 1   ; st_sprint_toggle_action
+
+    ; the weapon
+    CONTROL 0x26, 0x9FCAD0, 2, 1   ; st_weapon_fire_action
+    CONTROL 0x28, 0x9FCAA0, 2, 1   ; st_weapon_aim_action
+    CONTROL 0x29, 0x9FCC2C, 2, 1   ; st_aim_toggle_action
+    CONTROL 0x5A, scope_next_label, 2, 1   ; st_srp_scope_next_action (Y): patch 206's second sight switch
+    CONTROL 0x2A, 0x9FCA88, 2, 1   ; st_dealy_breath_action
+    CONTROL 0x27, 0x9FCAB8, 2, 1   ; st_weapon_reload_action
+    CONTROL 0x09, 0x9FCBE4, 2, 1   ; st_next_fire_queue_action
+    CONTROL 0x0A, 0x9FCBD0, 2, 1   ; st_next_ammo_action
     CONTROL 0x1D, 0x9FCB38, 2, 1   ; st_first_weapon_action
     CONTROL 0x1E, 0x9FCB20, 2, 1   ; st_second_weapon_action
-    CONTROL 0x20, 0x9FCB08, 2, 1   ; st_throw_grenade_action
+    CONTROL 0x24, 0x9FCBC0, 2, 1   ; st_next_weapon
+    CONTROL 0x25, 0x9FCBB0, 2, 1   ; st_prev_weapon
+
+    ; melee, use
     CONTROL 0x21, 0x9FCAF8, 2, 1   ; st_melee_action
-    CONTROL 0x22, 0x9FCAE8, 2, 1   ; st_spot_action
-    CONTROL 0x26, 0x9FCAD0, 2, 1   ; st_weapon_fire_action
-    CONTROL 0x27, 0x9FCAB8, 2, 1   ; st_weapon_reload_action
-    CONTROL 0x28, 0x9FCAA0, 2, 1   ; st_weapon_aim_action
-    CONTROL 0x2A, 0x9FCA88, 2, 1   ; st_dealy_breath_action
+    CONTROL 0x35, 0x9FC9D0, 2, 1   ; st_use_action
+    CONTROL 0x36, 0x9FC9C0, 2, 1   ; st_drop_action
+    CONTROL HOLD_ARTIFACT, hold_artifact_label, 2, 1   ; st_hold_artifact_action (H): patch 78's carry chord
+
+    ; the items' "next" keys together (the owner, 2026-11-23: "next medkit, next grenade, next art should
+    ; be close by"): the next grenade, the next medkit, the next artefact
+    CONTROL 0x20, 0x9FCB08, 2, 1   ; st_throw_grenade_action ("Next grenade")
+    CONTROL 0x59, use_next_medkit_label, 2, 1   ; st_use_next_medkit_action
+    CONTROL 0x58, use_next_artefact_label, 2, 1   ; st_use_next_artefact_action
+
+    ; the quick slots
     CONTROL 0x39, 0x9FCA70, 2, 1   ; st_quick_use_action_1
     CONTROL 0x3A, 0x9FCA58, 2, 1   ; st_quick_use_action_2
     CONTROL 0x3B, 0x9FCA40, 2, 1   ; st_quick_use_action_3
     CONTROL 0x3C, 0x9FCA28, 2, 1   ; st_quick_use_action_4
     CONTROL 0x3D, 0x9FCA10, 2, 1   ; st_quick_use_action_5
     CONTROL 0x3E, 0x9FC9F8, 2, 1   ; st_quick_use_action_6
+
+    ; patch 149's sixteen but the two "next" above (item_hotkeys_026g.asm's `actions`), no default
+    ; key: artefacts, medicines, grenades, the others
+    CONTROL 0x4A, use_onyx_label, 2, 1   ; st_use_onyx_action
+    CONTROL 0x4B, use_spring_label, 2, 1   ; st_use_spring_action
+    CONTROL 0x4C, use_lifebone_label, 2, 1   ; st_use_lifebone_action
+    CONTROL 0x4D, use_bandages_label, 2, 1   ; st_use_bandages_action
+    CONTROL 0x4E, use_medkit_label, 2, 1   ; st_use_medkit_action
+    CONTROL 0x4F, use_military_medkit_label, 2, 1   ; st_use_military_medkit_action
+    CONTROL 0x50, use_blackmarket_medkit_label, 2, 1   ; st_use_blackmarket_medkit_action
+    CONTROL 0x51, use_science_medkit_label, 2, 1   ; st_use_science_medkit_action
+    CONTROL 0x52, use_antitoxin_label, 2, 1   ; st_use_antitoxin_action
+    CONTROL 0x53, use_painkiller_label, 2, 1   ; st_use_painkiller_action
+    CONTROL 0x54, use_rgd5_label, 2, 1   ; st_use_rgd5_action
+    CONTROL 0x55, use_rdgm_label, 2, 1   ; st_use_rdgm_action
+    CONTROL 0x56, use_trap_label, 2, 1   ; st_use_trap_action
+    CONTROL 0x57, use_oxygen_tank_label, 2, 1   ; st_use_oxygen_tank_action
+
+    ; communication: the spot, the chat, the radio and the 10 m voice
+    CONTROL 0x22, 0x9FCAE8, 2, 1   ; st_spot_action
     CONTROL 0x3F, 0x9FC9E0, 2, 1   ; st_start_chat_action
-    CONTROL 0x35, 0x9FC9D0, 2, 1   ; st_use_action
-    CONTROL 0x36, 0x9FC9C0, 2, 1   ; st_drop_action
+    CONTROL 0x47, 0x9FC900, 2, 1   ; st_ptt_action: the game's row is group 1 (chat), type 0 (its key button
+                                   ; disabled, BindKeyRender.as); patch 66's push-to-talk is a game key, rebindable
+    CONTROL PTT_NEARBY, ptt_nearby_label, 2, 1   ; st_ptt_nearby_action (O): patch 66's 10 m voice
+
+    ; the interface and screenshots
+    CONTROL TOGGLE_UI, hide_interface_label, 2, 1   ; st_hide_interface_action (F9)
+    CONTROL SCREENSHOT, screenshot_label, 2, 1   ; st_screenshot_action (F11): patch 152
+    CONTROL SCREENSHOT_NO_UI, screenshot_no_ui_label, 2, 1   ; st_screenshot_no_ui_action (F12)
+
+    ; the lobby's (group 0) and the chat's (group 1)
     CONTROL 0x40, 0x9FC9A4, 0, 1   ; st_show_character_action
     CONTROL 0x41, 0x9FC988, 0, 1   ; st_show_inventory_action
     CONTROL 0x42, 0x9FC974, 0, 1   ; st_show_shop_action
@@ -347,7 +473,13 @@ controls:                          ; the game's 40 rows (0xA9DB28), in their ord
     CONTROL 0x44, 0x9FC944, 0, 1   ; st_show_friends_action
     CONTROL 0x45, 0x9FC92C, 1, 0   ; st_send_message_action
     CONTROL 0x46, 0x9FC910, 1, 0   ; st_select_send_to_action
-    CONTROL 0x47, 0x9FC900, 2, 1   ; st_ptt_action: the game's row is group 1 (chat), type 0 (its key button
-                                   ; disabled, BindKeyRender.as); patch 66's push-to-talk is a game key, rebindable
-    CONTROL TOGGLE_UI, hide_interface_label, 2, 1   ; st_hide_interface_action (F11)
-    CONTROL HOLD_ARTIFACT, hold_artifact_label, 2, 1   ; st_hold_artifact_action (H): patch 78's carry chord
+controls_end:
+
+ptt_nearby_action:                 ; in data: the action table (item_hotkeys_026g.asm) points at it
+    db "ptt_nearby", 0
+hide_interface_action:
+    db "hide_interface", 0
+screenshot_action:
+    db "screenshot", 0
+screenshot_no_ui_action:
+    db "screenshot_no_ui", 0

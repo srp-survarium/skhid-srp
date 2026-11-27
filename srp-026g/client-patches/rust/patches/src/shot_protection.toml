@@ -1,0 +1,16 @@
+# Patch 179: a shot ends the shooter's protection, and a base's zone gives
+# none back (docs/notes/shot-protection.md). The sites are sites_026g.tsv's;
+# the logic is shot_protection.rs.
+name = "shot_protection"
+patch = 179
+
+# base_player::on_fire, shared with patch 165 (after its count)
+[[hook]]
+site = "weapon_stats.fired"
+handler = "on_fired"
+order = 1
+
+# the effect zone's stores of an own-team player's protection
+[[hook]]
+site = "effect_zone.protect"
+handler = "on_zone_protect"

@@ -450,9 +450,9 @@ package {
    bandages:[[19,"1.0"],[18,"1.0"],[135,"100"],[136,"35"],[137,"35"],[15,"0.1"]],
    medkit:[[19,"2.0"],[18,"3.0"],[135,"100"],[136,"100"],[137,"40"],[15,"0.2"]],
    military_medkit:[[19,"2.0"],[18,"1.0"],[135,"100"],[136,"60"],[137,"50"],[15,"0.3"]],
-   blackmarket_medkit:[[19,"2.0"],[18,"2.0"],[135,"0"],[136,"100"],[137,"100"],[15,"0.3"]],
+   blackmarket_medkit:[[19,"2.0"],[18,"1.0"],[135,"0"],[136,"100"],[137,"100"],[15,"0.3"]],
    science_medkit:[[19,"2.0"],[18,"3.0"],[135,"100"],[136,"100"],[137,"50"],[13,"100"],[15,"0.3"]],
-   antitoxin:[[13,"50"],[19,"1.0"],[18,"10.0"],[15,"0.1"]],
+   antitoxin:[[13,"50"],[19,"1.0"],[18,"15.0"],[15,"0.1"]],
    painkiller:[[17,"10"],[19,"1.0"],[18,"10.0"],[15,"0.1"]]
   };
   private static const MEDICINE_LABELS:Object={13:"Intoxication",17:"Pain protection",18:"Duration",19:"Activation",135:"Healing: arms / legs",136:"Healing: body / head",137:"Pain relief",15:"Weight"};
@@ -595,65 +595,74 @@ package {
    require(medicineLines(cards[0],d).join()==released.painkiller,"refused ranks change nothing");
    profile.setKitModifiers(kitFloats({43:3,45:3}));d=medicine("painkiller");shows(d,other);
    require(medicineLines(cards[0],d).join()==released.painkiller,"refused combo ranks change nothing");
+   // Brothers in Arms' three bits at 21, one rank since 2026-11-14: rank 2 of 1 is refused, its
+   // one rank beside Potent Painkiller 3 is a valid set.
+   profile.setKitModifiers(kitFloats({43:3|2<<21}));d=medicine("painkiller");shows(d,other);
+   require(medicineLines(cards[0],d).join()==released.painkiller,"Brothers in Arms 2 refused");
+   profile.setKitModifiers(kitFloats({43:3|1<<21}));d=medicine("painkiller");shows(d,other);
+   require(medicineLines(cards[0],d).join()==expect("painkiller",painkiller.painkiller.split(",")),"Brothers in Arms 1 valid: "+medicineLines(cards[0],d).join());
    // Unflinching's three bits at 4: rank 5 of 4 is refused; every combo skill at its most (74) is
    // a valid set beside Potent Painkiller 3.
    profile.setKitModifiers(kitFloats({43:3,45:5<<4}));d=medicine("painkiller");shows(d,other);
    require(medicineLines(cards[0],d).join()==released.painkiller,"Unflinching 5 refused");
    profile.setKitModifiers(kitFloats({43:3,45:74}));d=medicine("painkiller");shows(d,other);
    require(medicineLines(cards[0],d,2).join()==kept(expect("painkiller",painkiller.painkiller.split(",")),medicineLines(cards[0],d,2)),"full combo ranks valid: "+medicineLines(cards[0],d,2).join());
-   // Concentration's three bits at 7: rank 5 of 4 is refused, and so is Concentration beside
-   // Unflinching (they exclude each other); its full set (2 + 8 + 4 x 128 = 522) is valid.
-   for each(var refused:int in [5<<7,(1<<4)|(1<<7),(4<<4)|(4<<7)]) {
+   // Concentration's three bits at 7: rank 4 of 3 is refused (no longer beside Unflinching
+   // alone); every combo skill at its most (2 + 8 + 4 x 16 + 3 x 128 + 3 x 1024 + 3 x 4096) is valid.
+   const FULL:int=2+8+(4<<4)+(3<<7)+(3<<10)+(3<<12);
+   for each(var refused:int in [4<<7,(4<<4)|(4<<7)]) {
     profile.setKitModifiers(kitFloats({43:3,45:refused}));d=medicine("painkiller");shows(d,other);
     require(medicineLines(cards[0],d).join()==released.painkiller,"combo "+refused+" refused");
    }
-   profile.setKitModifiers(kitFloats({43:3,45:522}));d=medicine("painkiller");shows(d,other);
-   require(medicineLines(cards[0],d,2).join()==kept(expect("painkiller",painkiller.painkiller.split(",")),medicineLines(cards[0],d,2)),"Concentration set valid: "+medicineLines(cards[0],d,2).join());
-   // The skills that act while a painkiller is active or as a medicine heals (float 45: Numb Legs,
-   // Take Cover, Unflinching, Concentration): lines below the card's own, in % of the game's own,
-   // each as medical_skills.rs applies it; none without a rank, none once Alt is let go.
+   profile.setKitModifiers(kitFloats({43:3,45:FULL}));d=medicine("painkiller");shows(d,other);
+   require(medicineLines(cards[0],d,2).join()==kept(expect("painkiller",painkiller.painkiller.split(",")),medicineLines(cards[0],d,2)),"full set valid: "+medicineLines(cards[0],d,2).join());
+   // The skills that act while a painkiller or an antitoxin is active or as a medicine heals
+   // (float 45: Numb Legs, Take Cover, Unflinching, Concentration, Sharp Eye; Second Wind has no
+   // line): lines below the card's own, in % of the game's own, each as medical_skills.rs applies
+   // it; none without a rank, none once Alt is let go.
    var E:Object=HarnessText.DATA.english;
-   var sprint:String=E.st_srp_medicine_sprint_stamina,slow:String=E.st_srp_medicine_hit_slow,sway:String=E.st_srp_medicine_sight_sway;
+   var sprint:String=E.st_srp_medicine_sprint_stamina,slow:String=E.st_srp_medicine_hit_slow;
+   var reload:String=E.st_srp_medicine_reload_speed,aim:String=E.st_srp_medicine_aim_time;
    var crouched:String=E.st_srp_medicine_crouched_healing;
-   // [float 45, the painkiller's lines, every other medicine's (each heals)].
+   // [float 45, the painkiller's lines, the antitoxin's, every other medicine's (each heals)].
    var combos:Array=[
-    [0,[],[]],
-    [1,[sprint+"=100 -> 80%"],[]],[2,[sprint+"=100 -> 60%"],[]],
-    [1<<2,[],[crouched+"=100 -> 110%"]],[2<<2,[],[crouched+"=100 -> 120%"]],
-    [1<<4,[slow+"=100 -> 90%"],[]],[3<<4,[slow+"=100 -> 70%"],[]],[4<<4,[slow+"=100 -> 60%"],[]],
-    [1<<7,[sway+"=100 -> 95%"],[]],[4<<7,[sway+"=100 -> 80%"],[]],
-    [74,[sprint+"=100 -> 60%",slow+"=100 -> 60%"],[crouched+"=100 -> 120%"]],
-    [522,[sprint+"=100 -> 60%",sway+"=100 -> 80%"],[crouched+"=100 -> 120%"]]
+    [0,[],[],[]],
+    [1,[sprint+"=100 -> 80%"],[],[]],[2,[sprint+"=100 -> 60%"],[],[]],
+    [1<<2,[],[crouched+"=100 -> 110%"],[crouched+"=100 -> 110%"]],[2<<2,[],[crouched+"=100 -> 120%"],[crouched+"=100 -> 120%"]],
+    [1<<4,[slow+"=100 -> 90%"],[],[]],[3<<4,[slow+"=100 -> 70%"],[],[]],[4<<4,[slow+"=100 -> 60%"],[],[]],
+    [1<<7,[],[reload+"=100 -> 110%"],[]],[3<<7,[],[reload+"=100 -> 120%"],[]],
+    [3<<10,[],[],[]],
+    [1<<12,[],[aim+"=100 -> 95%"],[]],[3<<12,[],[aim+"=100 -> 85%"],[]],
+    [FULL,[sprint+"=100 -> 60%",slow+"=100 -> 60%"],[reload+"=100 -> 120%",aim+"=100 -> 85%",crouched+"=100 -> 120%"],[crouched+"=100 -> 120%"]]
    ];
    for each(var combo:Array in combos){
     profile.setKitModifiers(kitFloats({43:3|2<<3,45:combo[0]}));
     for each(name in names){
      d=medicine(name);Scene.isAlt=true;shows(d,other);
-     var skills:Array=name=="painkiller"?combo[1]:combo[2];
+     var skills:Array=name=="painkiller"?combo[1]:name=="antitoxin"?combo[2]:combo[3];
      var own:Array=medicineLines(cards[0],d,skills.length),wanted:String=own.concat(skills).join();
      require(cardLines(cards[0]).join()==wanted,"combo "+combo[0]+" "+name+": "+cardLines(cards[0]).join()+" (want "+wanted+")");
      Scene.isAlt=false;shows(d,other);
      require(cardLines(cards[0]).join()==released[name],"released with combo "+combo[0]+": "+name+" "+cardLines(cards[0]).join());
     }
    }
-   // Refused ranks (Unflinching beside Concentration) add no line, as in a match.
-   profile.setKitModifiers(kitFloats({45:(4<<4)|(4<<7)}));d=medicine("painkiller");Scene.isAlt=true;shows(d,other);
-   require(cardLines(cards[0]).join()==released.painkiller,"refused combo: no skill line");
-   // Better is green: less stamina, slow and sway, more healing.
-   profile.setKitModifiers(kitFloats({45:522}));shows(d,other);
-   for each(var label:String in [sprint,sway])require(changeColours(nativeField(cards[0],label)).join()==[NEUTRAL,NEUTRAL,GREEN].join(),label+" is green");
-   profile.setKitModifiers(kitFloats({45:74}));shows(d,other);
-   require(changeColours(nativeField(cards[0],slow)).join()==[NEUTRAL,NEUTRAL,GREEN].join(),slow+" is green");
+   // Refused ranks (Concentration 4 of 3) add no line, as in a match.
+   profile.setKitModifiers(kitFloats({45:(4<<4)|(4<<7)}));d=medicine("antitoxin");Scene.isAlt=true;shows(d,other);
+   require(cardLines(cards[0]).join()==released.antitoxin,"refused combo: no skill line");
+   // Better is green: less stamina, slow and aim time, faster reloads, more healing.
+   profile.setKitModifiers(kitFloats({45:FULL}));d=medicine("painkiller");shows(d,other);
+   for each(var label:String in [sprint,slow])require(changeColours(nativeField(cards[0],label)).join()==[NEUTRAL,NEUTRAL,GREEN].join(),label+" is green");
+   d=medicine("antitoxin");shows(d,other);
+   for each(label in [reload,aim])require(changeColours(nativeField(cards[0],label)).join()==[NEUTRAL,NEUTRAL,GREEN].join(),label+" is green");
    d=medicine("bandages");shows(d,other);
    require(changeColours(nativeField(cards[0],crouched)).join()==[NEUTRAL,NEUTRAL,GREEN].join(),crouched+" is green");
    // Every language's line fits beside its value.
    var misses:Array=[];
    for each(var language:String in HarnessText.LANGUAGES){
     Loc.setData(texts(language));
-    for each(var floats:int in [74,522]){
-     profile.setKitModifiers(kitFloats({45:floats}));
-     shows(medicine("painkiller"),medicine("bandages"));misses=misses.concat(barOverflows(cards[0],language),barOverflows(cards[1],language));
-    }
+    profile.setKitModifiers(kitFloats({45:FULL}));
+    shows(medicine("painkiller"),medicine("bandages"));misses=misses.concat(barOverflows(cards[0],language),barOverflows(cards[1],language));
+    shows(medicine("antitoxin"),medicine("bandages"));misses=misses.concat(barOverflows(cards[0],language));
    }
    Loc.setData(texts("english"));
    for each(var miss:String in misses)trace("DETAILS OVERFLOW "+miss);
@@ -815,6 +824,40 @@ package {
    var field:TextField=card.defaultModifiersList.container.getChildAt(index).textFieldLabel,at:int=field.text.indexOf(": ")+2;
    return uint(field.getTextFormat(at,at+1).color)&0xFFFFFF;
   }
+  // An oxygen tank ("Breeze") with its own built-in lines `defaults` ([prop, label] each).
+  private function oxygenTank(defaults:Array):Object {
+   var Data:Class=domain.getDefinition("survarium.data.ItemData") as Class;
+   var d:Object=new Data();d.name="Breeze";d.category=4;d.superCategory=domain.getDefinition("survarium.item.ItemFactory").getCategory(d.category);d.descriptor=100;
+   d.properties=[{prop_id:11,prop_value:"80"},{prop_id:15,prop_value:"3.82"}];d.modifiers=[];
+   for each(var line:Array in defaults)d.modifiers.push({state:0,isDefault:true,icon:33,textValue:line[1]+"\n",props:[{prop_id:line[0],prop_value:"1"}]});
+   d.modifiersDefault=d.modifiers;
+   return d;
+  }
+  // The built-in lines of an oxygen tank's card, its own and the tank skills' (MatchEffects.tankBonuses), in
+  // BonusOrder's one order (2026-11-23: Tank Container's "Artifact container" was drawn last, after the
+  // other skills' lines, not beside "Pocket capacity").
+  private function tankChecks():void {
+   Scene.isShift=false;Scene.isAlt=false;
+   var Info:Object=domain.getDefinition("survarium.controls.PlayerInfo");
+   // float 47: Steady Breath 2 (x16), Tank Depth 2 (x3456), Deep Breaths 3 (x41472); Tank Container is PlayerInfo's
+   profile.setKitModifiers(kitFloats({47:2*16+2*3456+3*41472}));
+   Info.tankContainer=true;
+   shows(oxygenTank([]),oxygenTank([]));
+   var want:String="Pocket capacity: +2|Artifact container: +1|Energy costs: -40%|Dispersion off the hip: -20%|Sight sway: -20%";
+   require(defaultLines(cards[0])[0]==want,"the tank skills' lines in BonusOrder: "+defaultLines(cards[0])[0]);
+   // The tank's own built-in lines among them: ammo bags first, the movement after the container.
+   shows(oxygenTank([[105,"Movement speed: +5%"],[20,"Ammo bags: +1"]]),oxygenTank([]));
+   want="Ammo bags: +1|Pocket capacity: +2|Artifact container: +1|Movement speed: +5%|Energy costs: -40%|Dispersion off the hip: -20%|Sight sway: -20%";
+   require(defaultLines(cards[0])[0]==want,"the tank's own lines and the skills' in one order: "+defaultLines(cards[0])[0]);
+   Info.tankContainer=false;shows(oxygenTank([]),oxygenTank([]));
+   require(defaultLines(cards[0])[0]=="Pocket capacity: +2|Energy costs: -40%|Dispersion off the hip: -20%|Sight sway: -20%","no Tank Container: "+defaultLines(cards[0])[0]);
+   // A built-in line of a property BonusOrder has no row of stops the card; it is never drawn last.
+   var stopped:String=null;
+   try{shows(oxygenTank([[999,"Unknown: +1"]]),oxygenTank([]));}catch(err:Error){stopped=err.message;}
+   require(stopped!=null && stopped.indexOf("999")>=0,"a line without a row stops the card: "+stopped);
+   profile.setKitModifiers(kitFloats({}));shows(oxygenTank([]),oxygenTank([]));
+   require(defaultLines(cards[0])[0]=="","no skills: no tank lines");
+  }
   private var heavy:Object;
   private function bearArmsChecks():void {
    // The kit's armour (altChecks') has no Bear Arms: float 62 alone says it.
@@ -822,7 +865,7 @@ package {
    heavy=movingWeapon(true,"-0.05");
    var light:Object=movingWeapon(false,"0.03");
    // Another built-in line beside the movement (a golden weapon's silver): never changed.
-   var silver:Object={state:0,isDefault:true,icon:33,textValue:"Silver: <green>+10%</green>\n",props:[{prop_id:31,prop_value:"0.1"}]};
+   var silver:Object={state:0,isDefault:true,icon:33,textValue:"Silver: <green>+10%</green>\n",props:[{prop_id:126,prop_value:"0.1"}]};
    var both:Object=movingWeapon(true,"-0.05");both.modifiersDefault.push(silver);both.modifiers=both.modifiersDefault;
    var off:Object=kitFloats({}),on:Object=kitFloats({62:1});
    profile.setKitModifiers(on);
@@ -883,6 +926,8 @@ package {
     for each(id in [102,115,119])list.push({prop_id:id,comparable:false,modifier_type:1});
     // A weapon's own movement line (weapon-movement-ui-1), higher is better.
     list.push({prop_id:105,prop_name:"Movement speed",direction:1,comparable:false,modifier_type:1});
+    // An oxygen tank's lines (tankChecks): its oxygen, and the bonuses the tank skills add.
+    for each(spec in [[11,"Oxygen capacity",0],[117,"Pocket capacity",0],[9,"Artifact container",0],[116,"Energy costs",1],[101,"Dispersion off the hip",1],[125,"Sight sway",1]])list.push({prop_id:spec[0],prop_name:spec[1],comparable:false,modifier_type:spec[2]});
     props.setPropertiesDictionary(list);domain.getDefinition("survarium.controls.ItemCompare").setPropsDescriptor(props);
     var Container:Class=domain.getDefinition("survarium.data.IconContainer") as Class;
     var Atlas:Class=domain.getDefinition("LobbyMenu_ModifierIcons") as Class;
@@ -1108,6 +1153,7 @@ package {
      throwableChecks();
      medicineChecks();
      isolationChecks();
+     tankChecks();
      bearArmsChecks();
     }
     if(frame==140){Scene.isAlt=true;}

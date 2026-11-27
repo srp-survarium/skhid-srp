@@ -1,6 +1,6 @@
 # Player bots: behaviour design (0.26g)
 
-What server-driven bots (`player_bots.md`) should do in a match, built on the data the server really has. How to build it: `player_bots_research.md`. A design, nothing of it is built yet. Tags as elsewhere: PROVEN, LIKELY, GUESS; "players' word" is what people who play the game told us.
+What server-driven bots (`player_bots.md`) should do in a match, built on the data the server really has. How to build it: `player_bots_research.md`. A design, first written before any of it was built; the bots of `player_bots.md` §6 (stage 3) are built on it, and the sections marked "built" say what is. Tags as elsewhere: PROVEN, LIKELY, GUESS; "players' word" is what people who play the game told us.
 
 ## 1. Game facts this rests on
 

@@ -7,9 +7,26 @@ import unittest
 
 import make_edits as edits
 import make_pack as pack
+import make_bottles as bottles_tool
+import fixtures
 
 
 class Lamps(unittest.TestCase):
+    def test_restored_lights_bind_once_without_mutating_fixtures(self):
+        fixture = dict(min_x=-0.1, min_y=-0.1, min_z=-0.1,
+                       max_x=0.1, max_y=0.1, max_z=0.1,
+                       lights={'old': {'name': 'native'}})
+        lamps = {'lamp000': fixture}
+        before = json.dumps(lamps, sort_keys=True)
+        lights = [dict(game_object_type='light', position=[0., 0.2, 0.], full_name='donor'),
+                  dict(game_object_type='light', position=[20., 0., 0.], full_name='distant'),
+                  dict(game_object_type='ambient_light', position=[0., 0., 0.], full_name='ambient')]
+        self.assertEqual(edits.rebound_lights('map', lamps, lights), {
+            'lamp000': {'light0': dict(x=0., y=0.2, z=0., name='donor')}})
+        self.assertEqual(json.dumps(lamps, sort_keys=True), before)
+        with self.assertRaisesRegex(ValueError, 'ambiguous'):
+            edits.rebound_lights('map', dict(lamp000=fixture, lamp001=fixture), lights)
+
     def test_legacy_glow_follows_bulb_and_break_state(self):
         # Reproduce v0.11 Vostok's offset shaft above a hanging lamp.
         # Another shaft far away belongs to scenery and must stay separate.
@@ -95,6 +112,109 @@ class Lamps(unittest.TestCase):
         lamp['lights']['light0']['y'] += .1
         problems = edits.check_built('p', built(spec))
         self.assertEqual(len(problems), 3, problems)  # the intact model, its broken one, the light
+
+    def test_a_lit_alarm_owns_the_red_ambient_light_beside_it(self):
+        # Vector's alarm lamp (screenshot 2026-11-15-20-23-12: broken, its red
+        # glow stayed) beside a room's grey fill, a red glow too far away and
+        # an unlit alarm lamp, which glows through a light object if at all.
+        alarm = dict(visual_name='props/light/alarm_red_light', position=[10.675, 15.371, -6.341],
+                     rotation=[0., 0., 0.], scale=[1., 1., 1.])
+        unlit = dict(alarm, visual_name='props/light/alarm_red', position=[30., 15., 0.])
+        def ambient(name, position, colour):
+            return dict(game_object_type='ambient_light', full_name=name, position=position,
+                        color=colour & 0xffffffff)   # the serializer packs an i32's bits
+        objects = [ambient('glow', [10.911, 14.843, -6.414], -15857931),   # red 245, green 6, blue 14
+                   ambient('fill', [10.5, 15., -6.], -9737365),            # grey
+                   ambient('far', [14., 15.371, -6.341], -15857931),
+                   ambient('unlit', [30.3, 15., 0.], -15857931)]
+        def record(value):
+            kinds = {list: 7, int: 1, str: 5}
+            return (3, [(k, (kinds[type(v)], v)) for k, v in value.items()])
+        for v in (alarm, unlit):
+            v['lib_name'] = v['visual_name']
+        original = bytearray(pack.serialize((3, [('render_visuals', (4, [record(alarm), record(unlit)])),
+                                                 ('client_objects', (4, [record(o) for o in objects]))])))
+        box = ([-.1, -.2, -.1], [.1, 0., .1])
+        _, additions, spec = edits.author('p', original, {alarm['visual_name']: box, unlit['visual_name']: box}, 29, 7)
+        lit, other = spec['value']['lamps'].values()
+        self.assertEqual([light['name'] for light in lit['ambient_lights'].values()], ['glow'])
+        self.assertNotIn('ambient_lights', other)
+        data = bytearray(original)
+        for add in additions:
+            edits.c.add_entry(data, add['list'], add['after'], add['like'], add['values'])
+        built = bytearray(data)
+        edits.c.add_value(built, spec['table'], spec['key'], spec['value'])
+        self.assertEqual(edits.check_built('p', built), [])
+        lit['ambient_lights']['light0']['y'] += .1   # the map editor moved it
+        edits.c.add_value(data, spec['table'], spec['key'], spec['value'])
+        self.assertEqual(len(edits.check_built('p', data)), 1)
+
+    def test_a_kerosene_lamp_is_its_lit_glass_and_its_flame(self):
+        # London's lamp (screenshot 2026-11-15-20-44-11): the frame stays,
+        # the glass and the flame in it go. An unlit frame is scenery, and a
+        # flame of no lamp (the Fort has one) is nobody's.
+        frame = dict(visual_name='props/light/stand_group_batlamp', position=[46., 9.562, -18.825],
+                     rotation=[0., 0., 0.], scale=[1., 1., 1.])
+        glass = dict(frame, visual_name='props/light/stand_group_batlamp_glass_emit')
+        unlit = dict(frame, position=[60., 9.562, 0.])
+        def flame(name, position):
+            return dict(game_object_type='particle', lib_name=edits.FLAME, full_name=name, position=position)
+        def record(value):
+            return (3, [(k, (7 if isinstance(v, list) else 5, v)) for k, v in value.items()])
+        for v in (frame, glass, unlit):
+            v['lib_name'] = v['visual_name']
+        objects = [flame('lamp/oil_lamp', [46., 9.69, -18.825]), flame('lone/oil_lamp', [50., 9.69, -18.825])]
+        original = bytearray(pack.serialize((3, [('render_visuals', (4, [record(v) for v in (frame, glass, unlit)])),
+                                                 ('client_objects', (4, [record(o) for o in objects]))])))
+        bounds = {frame['visual_name']: ([-.12, 0., -.12], [.12, .62, .12]),
+                  glass['visual_name']: ([-.07, .11, -.07], [.07, .39, .07])}
+        _, additions, spec = edits.author('p', original, bounds, 29, 7)
+        lamp, = spec['value']['lamps'].values()
+        self.assertEqual(additions, [])   # nothing replaces the glass
+        self.assertEqual(list(lamp['visuals'].values()), [{'index': 1, 'state': 0}])   # the glass, intact only
+        self.assertEqual([p['name'] for p in lamp['particles'].values()], ['lamp/oil_lamp'])
+        self.assertAlmostEqual(lamp['max_y'], 9.562 + .62, places=5)   # a shot into the frame breaks it
+        self.assertAlmostEqual(lamp['glass_to_y'] - lamp['glass_from_y'], .28, places=5)
+        built = bytearray(original)
+        edits.c.add_value(built, spec['table'], spec['key'], spec['value'])
+        self.assertEqual(edits.check_built('p', built), [])
+
+    def test_a_weather_made_from_a_lamp_day_is_authored_over_its_carried_table(self):
+        # London's rain: a pack's copy of the day with the day's broken model
+        # and table, and a kerosene lamp the day's table does not bind.
+        bulb = dict(visual_name='props/light/lamp_on', position=[0., 5., 0.], rotation=[0., 0., 0.], scale=[1., 1., 1.])
+        frame = dict(bulb, visual_name='props/light/stand_group_batlamp', position=[20., 0., 0.])
+        glass = dict(frame, visual_name='props/light/stand_group_batlamp_glass_emit')
+        flame = dict(game_object_type='particle', lib_name=edits.FLAME, full_name='f', position=[20., .2, 0.])
+        def record(value):
+            return (3, [(k, (7 if isinstance(v, list) else 5, v)) for k, v in value.items()])
+        for v in (bulb, frame, glass):
+            v['lib_name'] = v['visual_name']
+        bounds = {bulb['visual_name']: ([-.056, -.209, -.056], [.056, 0., .055]),
+                  frame['visual_name']: ([-.12, 0., -.12], [.12, .62, .12]),
+                  glass['visual_name']: ([-.07, .11, -.07], [.07, .39, .07])}
+        def day(*visuals):
+            data = bytearray(pack.serialize((3, [('render_visuals', (4, [record(v) for v in visuals])),
+                                                 ('client_objects', (4, [record(flame)]))])))
+            _, additions, spec = edits.author('day', data, bounds, 29, 7)
+            for add in additions:
+                edits.c.add_entry(data, add['list'], add['after'], add['like'], add['values'])
+            edits.c.add_value(data, spec['table'], spec['key'], spec['value'])
+            return data
+        self.assertEqual(edits.author('rain', day(bulb, frame, glass), bounds, 29, 7), ([], [], None))
+        moves, additions, spec = edits.author('rain', day(bulb, frame), bounds, 29, 7)
+        self.assertEqual((moves, additions, spec), ([], [], None))
+        carried = day(bulb)
+        rain = bytearray(pack.serialize((3, [('render_visuals', (4, [record(v) for v in
+                                                                    edits.tree(carried)['render_visuals'] + [frame, glass]])),
+                                             ('client_objects', (4, [record(flame)]))])))
+        edits.c.add_value(rain, '', 'srp_lamps', edits.tree(carried)['srp_lamps'])
+        moves, additions, spec = edits.author('rain', rain, bounds, 29, 7)
+        self.assertEqual((moves, additions, spec.pop('replaces')), ([], [], True))
+        self.assertEqual(sorted(len(row.get('particles', {})) for row in spec['value']['lamps'].values()), [0, 1])
+        edits.c.remove_key(rain, 'srp_lamps')
+        edits.c.add_value(rain, spec['table'], spec['key'], spec['value'])
+        self.assertEqual(edits.check_built('rain', rain), [])
 
     def assert_glow_alignment(self, fixture, cone, box, expected_tip, moves_expected=1):
         scenery = dict(cone, position=[100., 10., 100.])
@@ -209,6 +329,164 @@ class Lamps(unittest.TestCase):
         self.assertAlmostEqual(start[1], 5. - .822, places=5)
         self.assertAlmostEqual(end[1], 5. - .822, places=5)
 
+    def test_bottles_side_by_side_are_fixtures_of_their_own(self):
+        # School's table (2026-11-26): three bottles within 0.3 m, in a project
+        # with a lamp table. Each breaks alone, along its own length.
+        def record(value):
+            return (3, [(k, (7 if isinstance(v, list) else 5, v)) for k, v in value.items()])
+        lamp = dict(visual_name='props/light/lamp_on', position=[0., 5., 0.], rotation=[0., 0., 0.], scale=[1., 1., 1.])
+        bottles = [dict(visual_name='props/kitchen/bottle_vodka', position=p, rotation=r, scale=[1., 1., 1.])
+                   for p, r in (([16.98, 19.48, 33.62], [0., 0., 1.5708]), ([17.04, 19.44, 33.77], [0., 0., 1.5708]),
+                                ([16.78, 19.47, 33.72], [0., 0., 0.]))]
+        for v in [lamp] + bottles:
+            v['lib_name'] = v['visual_name']
+        original = bytearray(pack.serialize((3, [('render_visuals', (4, [record(v) for v in [lamp] + bottles])),
+                                                 ('client_objects', (4, []))])))
+        lamp_bounds = {'props/light/lamp_on': ([-.056, -.209, -.056], [.056, 0., .055])}
+        _, additions, spec = edits.author('projects/level_02/day_2/client_project', original, lamp_bounds, 29, 7)
+        data = bytearray(original)
+        for add in additions:
+            edits.c.add_entry(data, add['list'], add['after'], add['like'], add['values'])
+        edits.c.add_value(data, spec['table'], spec['key'], spec['value'])
+        self.assertEqual(len(spec['value']['lamps']), 1)   # the lamp rule leaves bottles alone
+        bottle_bounds = {'props/kitchen/bottle_vodka': ([-.039, .005, -.036], [.037, .305, .04])}
+        rows = bottles_tool.rows('projects/level_02/day_2/client_project', bytes(data), bottle_bounds)
+        self.assertEqual(sorted(rows), ['bottle0', 'bottle1', 'bottle2'])
+        final = edits.tree(bytes(data))['render_visuals']
+        for row in rows.values():
+            self.assertEqual(row['lights'], {})
+            (visual,) = row['visuals'].values()
+            self.assertEqual(visual['state'], 0)
+            self.assertEqual(final[visual['index']]['visual_name'], 'props/kitchen/bottle_vodka')
+            # The burst runs along the bottle: 0.3 m, inside its bounds.
+            ends = [[row[f'glass_{e}_{a}'] for a in 'xyz'] for e in ('from', 'to')]
+            self.assertAlmostEqual(math.dist(*ends), .3, places=3)
+        # A lying bottle's line is level, the standing one's upright.
+        self.assertAlmostEqual(rows['bottle0']['glass_from_y'], rows['bottle0']['glass_to_y'], places=3)
+        self.assertAlmostEqual(abs(rows['bottle2']['glass_to_y'] - rows['bottle2']['glass_from_y']), .3, places=3)
+        for key, row in rows.items():
+            edits.c.add_value(data, 'srp_lamps/lamps', key, row)
+        self.assertEqual(edits.check_built('projects/level_02/day_2/client_project', data), [])
+        # An index a later list shifted onto the lamp is a problem.
+        rows['bottle1']['visuals']['intact0']['index'] = 0
+        shifted = bytearray(original)
+        for add in additions:
+            edits.c.add_entry(shifted, add['list'], add['after'], add['like'], add['values'])
+        edits.c.add_value(shifted, spec['table'], spec['key'], spec['value'])
+        for key, row in rows.items():
+            edits.c.add_value(shifted, 'srp_lamps/lamps', key, row)
+        self.assertEqual(len(edits.check_built('projects/level_02/day_2/client_project', shifted)), 1)
+        with self.assertRaisesRegex(ValueError, 'no lamp table'):
+            bottles_tool.rows('projects/level_02/day_2/client_project', bytes(original), bottle_bounds)
+
+    def test_a_bottles_collision_is_taken_out_and_the_rest_stays(self):
+        # A broken bottle leaves nothing on the table (the owner, 2026-11-26): its
+        # collision and walker collision go, matched by model and position (the
+        # v0.21 port's rotation differs from its visual's by rounding).
+        def record(value):
+            return (3, [(k, (7 if isinstance(v, list) else 5, v)) for k, v in value.items()])
+        name = 'ported/v021d/props/kitchen/bottle_vodka'
+        bottles = [dict(visual_name=name, lib_name=name, position=p, rotation=[3.142, 0.391, 3.142], scale=[1., 1., 1.])
+                   for p in ([16.979, 19.48, 33.619], [17.04, 19.444, 33.768])]
+        table = dict(lib_name='resources/models/props/furniture/table.model/collision', position=[17., 19., 33.7],
+                     rotation=[0., 0., 0.], scale=[1., 1., 1.])
+        objects = [table] + [dict(lib_name=f'resources/models/{name}.model/{part}', position=b['position'],
+                                  rotation=[-3.141, 0.391, -3.141], scale=[1., 1., 1.])
+                             for b in bottles for part in ('collision', 'walker_collision')]
+        data = bytearray(pack.serialize((3, [('render_visuals', (4, [record(v) for v in bottles])),
+                                             ('collision_objects', (4, [record(c) for c in objects]))])))
+        path = 'projects/v021d_level_02/day_2/client_project'
+        rows = bottles_tool.collisions(path, bytes(data))
+        self.assertEqual(len(rows), 4)
+        for row in rows:
+            edits.c.remove_entry(data, row['list'], row['where'])
+        self.assertEqual([c['lib_name'] for c in edits.tree(bytes(data))['collision_objects']], [table['lib_name']])
+        # a bottle whose collision is not the live data's is refused
+        lone = bytearray(pack.serialize((3, [('render_visuals', (4, [record(v) for v in bottles])),
+                                             ('collision_objects', (4, [record(c) for c in objects[:2]]))])))
+        with self.assertRaisesRegex(ValueError, '0 walker_collision objects'):
+            bottles_tool.collisions(path, bytes(lone))
+
+    def later_list_project(self, things, table_leftover=None):
+        """A project of a lamp, `things` (visuals) and a lamp table of the lamp alone."""
+        def record(value):
+            return (3, [(k, (7 if isinstance(v, list) else 5, v)) for k, v in value.items()])
+        lamp = dict(visual_name='props/light/lamp_on', position=[0., 5., 0.], rotation=[0., 0., 0.], scale=[1., 1., 1.])
+        visuals = [lamp] + things
+        for v in visuals:
+            v.setdefault('lib_name', v['visual_name'])
+        data = bytearray(pack.serialize((3, [('render_visuals', (4, [record(v) for v in visuals])),
+                                             ('client_objects', (4, []))])))
+        row = fixtures.row([-.1, 4.8, -.1], [.1, 5.01, .1], [0., 4.9, 0.], [0., 4.9, 0.],
+                           visuals={'intact0': {'index': 0, 'state': 0}}, lights={})
+        table = {'version': 3, 'break_material': 29, 'effect_material': 7, 'lamps': {'lamp0': row}}
+        if table_leftover:
+            table['leftover'] = table_leftover
+        edits.c.add_value(data, '', 'srp_lamps', table)
+        return data
+
+    def test_a_tin_can_jumps_off_whole_its_capsule_the_client_s(self):
+        # kitchen-ware-1 (the owner, 2026-11-27, "shoot the can"): the can's
+        # loose copy at its centre, unscaled, kind 'ware' with its capsule.
+        can = dict(visual_name='props/kitchen/can', position=[3., 1., 0.], rotation=[0., .5, 0.], scale=[1., 1., 1.])
+        data = self.later_list_project([can])
+        placer = fixtures.Placer('p', edits.tree(bytes(data))['render_visuals'])
+        loose = placer.place(can, edits.WARE_LOOSE['props/kitchen/can'], [3., 1.157, 0.])
+        self.assertEqual((loose, placer.entries[0]['at_end']), (2, True))
+        for entry in placer.entries:
+            edits.c.add_entry(data, entry['list'], None, entry['like'], entry['values'])
+        piece = {'index': loose, 'kind': 'ware', 'half': .059, 'radius': .1, 'axis': 'y'}
+        row = fixtures.row([2.9, 1., -.1], [3.1, 1.32, .1], [3., 1.157, 0.], [3., 1.157, 0.], break_material=17,
+                           effect_material=7, leftover='glass', visuals={'intact0': {'index': 1, 'state': 0}},
+                           lights={}, loose={'piece0': piece})
+        good = bytearray(data)
+        edits.c.add_value(good, 'srp_lamps/lamps', 'ware0', row)
+        self.assertEqual(edits.check_built('p', good), [])
+        for wrong in ({'axis': 'w'}, {'radius': 0}, {'half': .7}):
+            bad = bytearray(data)
+            edits.c.add_value(bad, 'srp_lamps/lamps', 'ware0', dict(row, loose={'piece0': dict(piece, **wrong)}))
+            self.assertEqual(len(edits.check_built('p', bad)), 1, wrong)
+
+    def test_a_bell_rings_with_nothing_bound_and_needs_its_bell(self):
+        bell = dict(visual_name='props/electric/bell_school', position=[10., 2., 0.], rotation=[0., 0., 0.],
+                    scale=[1., 1., 1.])
+        data = self.later_list_project([bell])
+        row = fixtures.row([9.8, 1.98, -.1], [10.2, 2.31, .02], [10., 2.15, -.04], [10., 2.15, -.04],
+                           reaction='ring', ring_every=4.0, visuals={}, lights={})
+        good = bytearray(data)
+        edits.c.add_value(good, 'srp_lamps/lamps', 'bell0', row)
+        self.assertEqual(edits.check_built('p', good), [])
+        for wrong in ({'ring_every': 0}, {'min_x': 10.5, 'max_x': 11.}, {'visuals': {'intact0': {'index': 1, 'state': 0}}}):
+            bad = bytearray(data)
+            edits.c.add_value(bad, 'srp_lamps/lamps', 'bell0', dict(row, **wrong))
+            self.assertTrue(edits.check_built('p', bad), wrong)
+
+    def test_each_row_marks_by_its_own_leftover(self):
+        # A skeleton's cap in a table of lamps says leftover body itself; a
+        # lamp in a table of figures (Rudnya's) glass itself.
+        skeleton = dict(visual_name='character/human/static/remains/skeleton_sitting1', position=[5., 0., 5.],
+                        rotation=[0., 0., 0.], scale=[1., 1., 1.])
+        cap = dict(row=fixtures.row([5.1, .6, 5.1], [5.3, .9, 5.3], [5.2, .76, 5.2], [5.2, .76, 5.2],
+                                    visuals={'intact0': {'index': 1, 'state': 0}}, lights={}))
+        for leftover, problems in ((None, 1), ('body', 0)):
+            data = self.later_list_project([dict(skeleton)])
+            row = dict(cap['row'], **({'leftover': leftover} if leftover else {}))
+            edits.c.add_value(data, 'srp_lamps/lamps', 'skeleton_cap0', row)
+            self.assertEqual(len(edits.check_built('p', data)), problems, leftover)
+        data = self.later_list_project([dict(skeleton)], table_leftover='body')
+        self.assertEqual(len(edits.check_built('p', data)), 1, 'the lamp of a figures table says glass itself')
+
+    def test_at_end_places_after_a_twin_last_visual(self):
+        # Rudnya's Research projects end in two transmitter slots at one place:
+        # "after" would match both.
+        slot = dict(visual_name='item/quest/transmitter_slot', position=[1., 1., 1.], rotation=[0., 0., 0.],
+                    scale=[1., 1., 1.])
+        can = dict(visual_name='props/kitchen/can', position=[3., 1., 0.], rotation=[0., 0., 0.], scale=[1., 1., 1.])
+        data = self.later_list_project([can, dict(slot), dict(slot)])
+        self.assertEqual(edits.c.add_entry(data, 'render_visuals', None, fixtures.where(dict(can, lib_name=can['visual_name'])),
+                                           {'visual_name': 'x', 'lib_name': 'x'}), 4)
+        self.assertEqual(edits.tree(bytes(data))['render_visuals'][-1]['visual_name'], 'x')
+
     def test_manifest_bindings_are_bounded_and_have_one_owner(self):
         path = Path(__file__).resolve().parents[1] / 'content-edit/breakable-lamps-1.json'
         source = json.loads(path.read_text())
@@ -233,8 +511,22 @@ class Lamps(unittest.TestCase):
             self.assertEqual(len(light_positions), len(set(light_positions)))
             self.assertLessEqual(len(visual_ids) + len(light_positions), 1024)
         self.assertEqual(maps, {f'level_0{i}' for i in range(2, 10)} |
-                         {'v011e_level_03', 'v011e_level_04', 'v021d_level_03', 'v021d_level_06'})
-        self.assertEqual(len(source['add_value']), 96)
+                         {'v011e_level_03', 'v011e_level_04', 'v021d_level_02', 'v021d_level_04',
+                          'v021d_level_03', 'v021d_level_05', 'v021d_level_06'})
+        # School/Fort/Chemical Plant battery and TDM projects, and the rain and evening of London
+        # and of Fort and Chemical Plant v0.21 (their kerosene lamps), whose tables replace the
+        # day's they carry.
+        self.assertEqual(len(source['add_value']), 116)
+        weathers = [f'projects/{level}/{w}_{m}/client_project' for level, modes in
+                    (('level_09', (2, 3, 4)), ('v021d_level_04', (2, 4)), ('v021d_level_05', (2, 4)))
+                    for w in ('evening', 'rain') for m in modes]
+        self.assertEqual(sorted(e['files'] for e in source['remove_key']), sorted(weathers))
+        # Every lit kerosene lamp of every map, the 0.21 ports' copies of the models included.
+        flames = {project['files'][0].split('/')[1]: sum(len(lamp.get('particles', {}))
+                                                         for lamp in project['value']['lamps'].values())
+                  for project in source['add_value'] if '/day_4/' in project['files'][0]}
+        self.assertEqual({k: v for k, v in flames.items() if v},
+                         {'level_04': 1, 'level_05': 9, 'level_09': 10, 'v021d_level_04': 1, 'v021d_level_05': 9})
         # Each of Vostok v0.11's ten hanging-lamp shafts must disappear
         # with its fixture. The two outdoor scenery shafts have no owner.
         for project in source['add_value']:

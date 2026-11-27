@@ -1,0 +1,3967 @@
+{
+ "_about": "<live folder> holds the game's files at their game paths: London (v0.32)'s rain_2 project (the spread) and London (v0.42)'s day_2, rain_2 and evening_2 projects, as players have them.",
+ "set_entry": [
+  {
+   "file": "projects/v044a_level_09/day_2/client_project",
+   "list": "server_objects/victory_item_spawners",
+   "where": {
+    "point_id": 0
+   },
+   "from": {
+    "position": [
+     11.199,
+     5.94,
+     39.52
+    ],
+    "spawned_item/position": [
+     11.334,
+     5.94,
+     39.568001
+    ]
+   },
+   "to": {
+    "name": "victory_item_spawner(27)",
+    "full_name": "logic/modes/items_random/mode_2/victory_item_spawner(27)",
+    "position": [
+     -15.071,
+     15.084,
+     -13.142
+    ],
+    "rotation": [
+     -3.141185,
+     0.785,
+     -3.141185
+    ],
+    "spawned_item/position": [
+     -15.071,
+     15.227,
+     -13.142
+    ],
+    "spawned_item/rotation": [
+     3.142,
+     0.785,
+     3.142
+    ]
+   }
+  },
+  {
+   "file": "projects/v044a_level_09/day_2/client_project",
+   "list": "server_objects/victory_item_spawners",
+   "where": {
+    "point_id": 1
+   },
+   "from": {
+    "position": [
+     10.944,
+     5.94,
+     40.241001
+    ],
+    "spawned_item/position": [
+     11.079,
+     5.94,
+     40.289001
+    ]
+   },
+   "to": {
+    "name": "victory_item_spawner(16)",
+    "full_name": "logic/modes/items_random/mode_2/victory_item_spawner(16)",
+    "position": [
+     -20.27,
+     4.955,
+     -31.118999
+    ],
+    "rotation": [
+     2.472,
+     1.09,
+     -2.566
+    ],
+    "spawned_item/position": [
+     -20.275,
+     5.092,
+     -31.16
+    ],
+    "spawned_item/rotation": [
+     2.472,
+     1.09,
+     -2.566
+    ]
+   }
+  },
+  {
+   "file": "projects/v044a_level_09/day_2/client_project",
+   "list": "server_objects/victory_item_spawners",
+   "where": {
+    "point_id": 2
+   },
+   "from": {
+    "position": [
+     -10.918,
+     4.977,
+     -38.724998
+    ],
+    "spawned_item/position": [
+     -10.918,
+     4.986,
+     -38.582001
+    ]
+   },
+   "to": {
+    "name": "victory_item_spawner(18)",
+    "full_name": "logic/modes/items_random/mode_2/victory_item_spawner(18)",
+    "position": [
+     -11.52,
+     1.376,
+     -13.099
+    ],
+    "rotation": [
+     -3.018,
+     0.344,
+     3.02
+    ],
+    "spawned_item/position": [
+     -11.531,
+     1.518,
+     -13.082
+    ],
+    "spawned_item/rotation": [
+     -3.018,
+     0.344,
+     3.02
+    ]
+   }
+  },
+  {
+   "file": "projects/v044a_level_09/day_2/client_project",
+   "list": "server_objects/victory_item_spawners",
+   "where": {
+    "point_id": 3
+   },
+   "from": {
+    "position": [
+     10.433,
+     5.94,
+     42.342999
+    ],
+    "spawned_item/position": [
+     10.576,
+     5.94,
+     42.332001
+    ]
+   },
+   "to": {
+    "name": "victory_item_spawner(10)",
+    "full_name": "logic/modes/items_random/mode_2/victory_item_spawner(10)",
+    "position": [
+     3.208,
+     14.059,
+     2.763
+    ],
+    "rotation": [
+     0.0,
+     -0.892,
+     0.0
+    ],
+    "spawned_item/position": [
+     3.208,
+     14.202,
+     2.763
+    ],
+    "spawned_item/rotation": [
+     0.0,
+     -0.892,
+     0.0
+    ]
+   }
+  },
+  {
+   "file": "projects/v044a_level_09/day_2/client_project",
+   "list": "server_objects/victory_item_spawners",
+   "where": {
+    "point_id": 4
+   },
+   "from": {
+    "position": [
+     -2.142,
+     0.857,
+     -1.094
+    ],
+    "spawned_item/position": [
+     -2.074,
+     0.857,
+     -1.22
+    ]
+   },
+   "to": {
+    "name": "victory_item_spawner(40)",
+    "full_name": "logic/modes/items_random/mode_2/victory_item_spawner(40)",
+    "position": [
+     38.674999,
+     6.39,
+     1.479
+    ],
+    "rotation": [
+     -0.003,
+     -0.628,
+     0.007
+    ],
+    "spawned_item/position": [
+     38.675999,
+     6.533,
+     1.479
+    ],
+    "spawned_item/rotation": [
+     -0.003,
+     -0.628,
+     0.007
+    ]
+   }
+  },
+  {
+   "file": "projects/v044a_level_09/day_2/client_project",
+   "list": "server_objects/victory_item_spawners",
+   "where": {
+    "point_id": 5
+   },
+   "from": {
+    "position": [
+     0.976,
+     0.857,
+     -1.861
+    ],
+    "spawned_item/position": [
+     1.119,
+     0.857,
+     -1.861
+    ]
+   },
+   "to": {
+    "name": "victory_item_spawner(4)",
+    "full_name": "logic/modes/items_random/mode_2/victory_item_spawner(4)",
+    "position": [
+     -9.952,
+     10.497,
+     19.622999
+    ],
+    "rotation": [
+     -0.161,
+     -1.173,
+     -0.051
+    ],
+    "spawned_item/position": [
+     -9.938,
+     10.639,
+     19.632
+    ],
+    "spawned_item/rotation": [
+     -0.161,
+     -1.173,
+     -0.051
+    ]
+   }
+  },
+  {
+   "file": "projects/v044a_level_09/day_2/client_project",
+   "list": "server_objects/victory_item_spawners",
+   "where": {
+    "point_id": 6
+   },
+   "from": {
+    "position": [
+     10.977,
+     5.94,
+     42.084
+    ],
+    "spawned_item/position": [
+     11.12,
+     5.94,
+     42.084
+    ]
+   },
+   "to": {
+    "name": "victory_item_spawner(7)",
+    "full_name": "logic/modes/items_random/mode_2/victory_item_spawner(7)",
+    "position": [
+     -0.601,
+     14.059,
+     -1.948
+    ],
+    "rotation": [
+     0.0,
+     -0.309,
+     0.0
+    ],
+    "spawned_item/position": [
+     -0.601,
+     14.202,
+     -1.948
+    ],
+    "spawned_item/rotation": [
+     0.0,
+     -0.309,
+     0.0
+    ]
+   }
+  },
+  {
+   "file": "projects/v044a_level_09/day_2/client_project",
+   "list": "server_objects/victory_item_spawners",
+   "where": {
+    "point_id": 7
+   },
+   "from": {
+    "position": [
+     1.667,
+     14.327,
+     -0.231
+    ],
+    "spawned_item/position": [
+     1.81,
+     14.327,
+     -0.231
+    ]
+   },
+   "to": {
+    "name": "victory_item_spawner(43)",
+    "full_name": "logic/modes/items_random/mode_2/victory_item_spawner(43)",
+    "position": [
+     -17.094999,
+     10.82,
+     15.532
+    ],
+    "rotation": [
+     0.0,
+     0.817,
+     0.0
+    ],
+    "spawned_item/position": [
+     -17.094999,
+     10.963,
+     15.532
+    ],
+    "spawned_item/rotation": [
+     0.0,
+     0.817,
+     0.0
+    ]
+   }
+  },
+  {
+   "file": "projects/v044a_level_09/day_2/client_project",
+   "list": "server_objects/victory_item_spawners",
+   "where": {
+    "point_id": 8
+   },
+   "from": {
+    "position": [
+     0.279,
+     0.857,
+     -1.546
+    ],
+    "spawned_item/position": [
+     0.335,
+     0.857,
+     -1.414
+    ]
+   },
+   "to": {
+    "name": "victory_item_spawner(20)",
+    "full_name": "logic/modes/items_random/mode_2/victory_item_spawner(20)",
+    "position": [
+     -0.944,
+     1.018,
+     14.266
+    ],
+    "rotation": [
+     -0.071,
+     0.86,
+     0.013
+    ],
+    "spawned_item/position": [
+     -0.95,
+     1.161,
+     14.273
+    ],
+    "spawned_item/rotation": [
+     -0.071,
+     0.86,
+     0.013
+    ]
+   }
+  },
+  {
+   "file": "projects/v044a_level_09/day_2/client_project",
+   "list": "server_objects/victory_item_spawners",
+   "where": {
+    "point_id": 9
+   },
+   "from": {
+    "position": [
+     -10.225,
+     5.068,
+     -37.769001
+    ],
+    "spawned_item/position": [
+     -10.083,
+     5.085,
+     -37.769001
+    ]
+   },
+   "to": {
+    "name": "victory_item_spawner(24)",
+    "full_name": "logic/modes/items_random/mode_2/victory_item_spawner(24)",
+    "position": [
+     20.177999,
+     1.257,
+     -3.207
+    ],
+    "rotation": [
+     0.208,
+     0.106,
+     0.001
+    ],
+    "spawned_item/position": [
+     20.181,
+     1.397,
+     -3.236
+    ],
+    "spawned_item/rotation": [
+     0.208,
+     0.106,
+     0.001
+    ]
+   }
+  },
+  {
+   "file": "projects/v044a_level_09/day_2/client_project",
+   "list": "server_objects/victory_item_spawners",
+   "where": {
+    "point_id": 10
+   },
+   "from": {
+    "position": [
+     1.667,
+     14.327,
+     0.534
+    ],
+    "spawned_item/position": [
+     1.81,
+     14.327,
+     0.534
+    ]
+   },
+   "to": {
+    "name": "victory_item_spawner(15)",
+    "full_name": "logic/modes/items_random/mode_2/victory_item_spawner(15)",
+    "position": [
+     -11.176,
+     11.115,
+     -20.438
+    ],
+    "rotation": [
+     -3.141185,
+     0.518,
+     3.141185
+    ],
+    "spawned_item/position": [
+     -11.176,
+     11.258,
+     -20.438
+    ],
+    "spawned_item/rotation": [
+     3.142,
+     0.518,
+     -3.142
+    ]
+   }
+  },
+  {
+   "file": "projects/v044a_level_09/day_2/client_project",
+   "list": "server_objects/victory_item_spawners",
+   "where": {
+    "point_id": 11
+   },
+   "from": {
+    "position": [
+     -12.352,
+     4.978,
+     -36.563
+    ],
+    "spawned_item/position": [
+     -12.21,
+     4.992,
+     -36.549
+    ]
+   },
+   "to": {
+    "name": "victory_item_spawner(14)",
+    "full_name": "logic/modes/items_random/mode_2/victory_item_spawner(14)",
+    "position": [
+     -22.943001,
+     11.468,
+     -38.564999
+    ],
+    "rotation": [
+     0.0,
+     1.155,
+     0.0
+    ],
+    "spawned_item/position": [
+     -22.943001,
+     11.611,
+     -38.564999
+    ],
+    "spawned_item/rotation": [
+     0.0,
+     1.155,
+     0.0
+    ]
+   }
+  },
+  {
+   "file": "projects/v044a_level_09/day_2/client_project",
+   "list": "server_objects/victory_item_spawners",
+   "where": {
+    "point_id": 12
+   },
+   "from": {
+    "position": [
+     0.976,
+     0.857,
+     -2.626
+    ],
+    "spawned_item/position": [
+     1.119,
+     0.857,
+     -2.626
+    ]
+   },
+   "to": {
+    "name": "victory_item_spawner(35)",
+    "full_name": "logic/modes/items_random/mode_2/victory_item_spawner(35)",
+    "position": [
+     18.249001,
+     8.532,
+     15.116
+    ],
+    "rotation": [
+     -0.431,
+     -0.768,
+     -0.096
+    ],
+    "spawned_item/position": [
+     18.278,
+     8.665,
+     15.159
+    ],
+    "spawned_item/rotation": [
+     -0.431,
+     -0.768,
+     -0.096
+    ]
+   }
+  },
+  {
+   "file": "projects/v044a_level_09/day_2/client_project",
+   "list": "server_objects/victory_item_spawners",
+   "where": {
+    "point_id": 13
+   },
+   "from": {
+    "position": [
+     -10.233,
+     5.131,
+     -37.007
+    ],
+    "spawned_item/position": [
+     -10.091,
+     5.148,
+     -37.007
+    ]
+   },
+   "to": {
+    "name": "victory_item_spawner(34)",
+    "full_name": "logic/modes/items_random/mode_2/victory_item_spawner(34)",
+    "position": [
+     -3.811,
+     5.99,
+     37.306999
+    ],
+    "rotation": [
+     3.054,
+     -1.202,
+     -3.003
+    ],
+    "spawned_item/position": [
+     -3.78,
+     6.13,
+     37.301998
+    ],
+    "spawned_item/rotation": [
+     3.054,
+     -1.202,
+     -3.003
+    ]
+   }
+  },
+  {
+   "file": "projects/v044a_level_09/day_2/client_project",
+   "list": "server_objects/victory_item_spawners",
+   "where": {
+    "point_id": 14
+   },
+   "from": {
+    "position": [
+     -12.427,
+     4.992,
+     -35.801998
+    ],
+    "spawned_item/position": [
+     -12.285,
+     5.006,
+     -35.787998
+    ]
+   },
+   "to": {
+    "name": "victory_item_spawner(6)",
+    "full_name": "logic/modes/items_random/mode_2/victory_item_spawner(6)",
+    "position": [
+     -12.08,
+     15.084,
+     4.286
+    ],
+    "rotation": [
+     -3.141185,
+     -1.185,
+     -3.141185
+    ],
+    "spawned_item/position": [
+     -12.08,
+     15.227,
+     4.286
+    ],
+    "spawned_item/rotation": [
+     3.142,
+     -1.185,
+     3.142
+    ]
+   }
+  },
+  {
+   "file": "projects/v044a_level_09/day_2/client_project",
+   "list": "server_objects/victory_item_spawners",
+   "where": {
+    "point_id": 15
+   },
+   "from": {
+    "position": [
+     10.977,
+     5.94,
+     41.319
+    ],
+    "spawned_item/position": [
+     11.12,
+     5.94,
+     41.319
+    ]
+   },
+   "to": {
+    "name": "victory_item_spawner(8)",
+    "full_name": "logic/modes/items_random/mode_2/victory_item_spawner(8)",
+    "position": [
+     11.349,
+     15.033,
+     16.292999
+    ],
+    "rotation": [
+     -3.141185,
+     -0.898,
+     -3.141185
+    ],
+    "spawned_item/position": [
+     11.349,
+     15.176,
+     16.292999
+    ],
+    "spawned_item/rotation": [
+     3.142,
+     -0.898,
+     3.142
+    ]
+   }
+  },
+  {
+   "file": "projects/v044a_level_09/day_2/client_project",
+   "list": "server_objects/victory_item_spawners",
+   "where": {
+    "point_id": 16
+   },
+   "from": {
+    "position": [
+     -10.154,
+     5.0,
+     -38.724998
+    ],
+    "spawned_item/position": [
+     -10.154,
+     5.009,
+     -38.582001
+    ]
+   },
+   "to": {
+    "name": "victory_item_spawner(33)",
+    "full_name": "logic/modes/items_random/mode_2/victory_item_spawner(33)",
+    "position": [
+     27.612,
+     6.853,
+     19.382999
+    ],
+    "rotation": [
+     0.086,
+     -0.596,
+     0.001
+    ],
+    "spawned_item/position": [
+     27.605,
+     6.996,
+     19.372999
+    ],
+    "spawned_item/rotation": [
+     0.086,
+     -0.596,
+     0.001
+    ]
+   }
+  },
+  {
+   "file": "projects/v044a_level_09/day_2/client_project",
+   "list": "server_objects/victory_item_spawners",
+   "where": {
+    "point_id": 17
+   },
+   "from": {
+    "position": [
+     1.08,
+     14.327,
+     0.534
+    ],
+    "spawned_item/position": [
+     1.223,
+     14.327,
+     0.534
+    ]
+   },
+   "to": {
+    "name": "victory_item_spawner(26)",
+    "full_name": "logic/modes/items_random/mode_2/victory_item_spawner(26)",
+    "position": [
+     -7.09,
+     15.084,
+     -10.796
+    ],
+    "rotation": [
+     0.0,
+     -0.561,
+     0.0
+    ],
+    "spawned_item/position": [
+     -7.09,
+     15.227,
+     -10.796
+    ],
+    "spawned_item/rotation": [
+     0.0,
+     -0.561,
+     0.0
+    ]
+   }
+  },
+  {
+   "file": "projects/v044a_level_09/day_2/client_project",
+   "list": "server_objects/victory_item_spawners",
+   "where": {
+    "point_id": 18
+   },
+   "from": {
+    "position": [
+     10.377,
+     5.94,
+     41.581001
+    ],
+    "spawned_item/position": [
+     10.52,
+     5.94,
+     41.57
+    ]
+   },
+   "to": {
+    "name": "victory_item_spawner(32)",
+    "full_name": "logic/modes/items_random/mode_2/victory_item_spawner(32)",
+    "position": [
+     29.478001,
+     6.488,
+     23.419001
+    ],
+    "rotation": [
+     -1.683,
+     -1.557,
+     -1.857
+    ],
+    "spawned_item/position": [
+     29.452999,
+     6.629,
+     23.421
+    ],
+    "spawned_item/rotation": [
+     -1.683,
+     -1.557,
+     -1.857
+    ]
+   }
+  },
+  {
+   "file": "projects/v044a_level_09/day_2/client_project",
+   "list": "server_objects/victory_item_spawners",
+   "where": {
+    "point_id": 19
+   },
+   "from": {
+    "position": [
+     1.08,
+     14.327,
+     -0.231
+    ],
+    "spawned_item/position": [
+     1.223,
+     14.327,
+     -0.231
+    ]
+   },
+   "to": {
+    "name": "victory_item_spawner(25)",
+    "full_name": "logic/modes/items_random/mode_2/victory_item_spawner(25)",
+    "position": [
+     -22.830999,
+     1.907,
+     3.669
+    ],
+    "rotation": [
+     -0.335,
+     0.052,
+     0.161
+    ],
+    "spawned_item/position": [
+     -22.812,
+     2.041,
+     3.716
+    ],
+    "spawned_item/rotation": [
+     -0.335,
+     0.052,
+     0.161
+    ]
+   }
+  },
+  {
+   "file": "projects/v044a_level_09/day_2/client_project",
+   "list": "server_objects/victory_item_spawners",
+   "where": {
+    "point_id": 20
+   },
+   "from": {
+    "position": [
+     0.479,
+     14.326,
+     -0.231
+    ],
+    "spawned_item/position": [
+     0.622,
+     14.326,
+     -0.231
+    ]
+   },
+   "to": {
+    "name": "victory_item_spawner(41)",
+    "full_name": "logic/modes/items_random/mode_2/victory_item_spawner(41)",
+    "position": [
+     8.95,
+     11.193,
+     6.342
+    ],
+    "rotation": [
+     0.049,
+     -0.157,
+     0.145
+    ],
+    "spawned_item/position": [
+     8.97,
+     11.335,
+     6.335
+    ],
+    "spawned_item/rotation": [
+     0.049,
+     -0.157,
+     0.145
+    ]
+   }
+  },
+  {
+   "file": "projects/v044a_level_09/day_2/client_project",
+   "list": "server_objects/victory_item_spawners",
+   "where": {
+    "point_id": 21
+   },
+   "from": {
+    "position": [
+     -1.47,
+     0.857,
+     -0.73
+    ],
+    "spawned_item/position": [
+     -1.402,
+     0.857,
+     -0.856
+    ]
+   },
+   "to": {
+    "name": "victory_item_spawner(12)",
+    "full_name": "logic/modes/items_random/mode_2/victory_item_spawner(12)",
+    "position": [
+     -9.537,
+     8.577,
+     -44.756001
+    ],
+    "rotation": [
+     -3.141185,
+     0.417,
+     3.141185
+    ],
+    "spawned_item/position": [
+     -9.537,
+     8.72,
+     -44.756001
+    ],
+    "spawned_item/rotation": [
+     3.142,
+     0.417,
+     -3.142
+    ]
+   }
+  },
+  {
+   "file": "projects/v044a_level_09/day_2/client_project",
+   "list": "server_objects/victory_item_spawners",
+   "where": {
+    "point_id": 22
+   },
+   "from": {
+    "position": [
+     0.479,
+     14.326,
+     0.533
+    ],
+    "spawned_item/position": [
+     0.622,
+     14.326,
+     0.533
+    ]
+   },
+   "to": {
+    "name": "victory_item_spawner(17)",
+    "full_name": "logic/modes/items_random/mode_2/victory_item_spawner(17)",
+    "position": [
+     -24.110001,
+     7.105,
+     -20.348
+    ],
+    "rotation": [
+     2.938,
+     -1.086,
+     2.949
+    ],
+    "spawned_item/position": [
+     -24.112,
+     7.248,
+     -20.361
+    ],
+    "spawned_item/rotation": [
+     2.938,
+     -1.086,
+     2.949
+    ]
+   }
+  },
+  {
+   "file": "projects/v044a_level_09/day_2/client_project",
+   "list": "server_objects/victory_item_spawners",
+   "where": {
+    "point_id": 23
+   },
+   "from": {
+    "position": [
+     -0.424,
+     0.857,
+     -1.245
+    ],
+    "spawned_item/position": [
+     -0.368,
+     0.857,
+     -1.113
+    ]
+   },
+   "to": {
+    "name": "victory_item_spawner(5)",
+    "full_name": "logic/modes/items_random/mode_2/victory_item_spawner(5)",
+    "position": [
+     12.274,
+     5.612,
+     32.591
+    ],
+    "rotation": [
+     1.571,
+     -1.561,
+     1.554
+    ],
+    "spawned_item/position": [
+     12.272,
+     5.755,
+     32.59
+    ],
+    "spawned_item/rotation": [
+     1.571,
+     -1.561,
+     1.554
+    ]
+   }
+  },
+  {
+   "file": "projects/v044a_level_09/rain_2/client_project",
+   "list": "server_objects/victory_item_spawners",
+   "where": {
+    "point_id": 0
+   },
+   "from": {
+    "position": [
+     11.199,
+     5.94,
+     39.52
+    ],
+    "spawned_item/position": [
+     11.334,
+     5.94,
+     39.568001
+    ]
+   },
+   "to": {
+    "name": "victory_item_spawner(27)",
+    "full_name": "logic/modes/items_random/mode_2/victory_item_spawner(27)",
+    "position": [
+     -15.071,
+     15.084,
+     -13.142
+    ],
+    "rotation": [
+     -3.141185,
+     0.785,
+     -3.141185
+    ],
+    "spawned_item/position": [
+     -15.071,
+     15.227,
+     -13.142
+    ],
+    "spawned_item/rotation": [
+     3.142,
+     0.785,
+     3.142
+    ]
+   }
+  },
+  {
+   "file": "projects/v044a_level_09/rain_2/client_project",
+   "list": "server_objects/victory_item_spawners",
+   "where": {
+    "point_id": 1
+   },
+   "from": {
+    "position": [
+     10.944,
+     5.94,
+     40.241001
+    ],
+    "spawned_item/position": [
+     11.079,
+     5.94,
+     40.289001
+    ]
+   },
+   "to": {
+    "name": "victory_item_spawner(16)",
+    "full_name": "logic/modes/items_random/mode_2/victory_item_spawner(16)",
+    "position": [
+     -20.27,
+     4.955,
+     -31.118999
+    ],
+    "rotation": [
+     2.472,
+     1.09,
+     -2.566
+    ],
+    "spawned_item/position": [
+     -20.275,
+     5.092,
+     -31.16
+    ],
+    "spawned_item/rotation": [
+     2.472,
+     1.09,
+     -2.566
+    ]
+   }
+  },
+  {
+   "file": "projects/v044a_level_09/rain_2/client_project",
+   "list": "server_objects/victory_item_spawners",
+   "where": {
+    "point_id": 2
+   },
+   "from": {
+    "position": [
+     -10.918,
+     4.977,
+     -38.724998
+    ],
+    "spawned_item/position": [
+     -10.918,
+     4.986,
+     -38.582001
+    ]
+   },
+   "to": {
+    "name": "victory_item_spawner(18)",
+    "full_name": "logic/modes/items_random/mode_2/victory_item_spawner(18)",
+    "position": [
+     -11.52,
+     1.376,
+     -13.099
+    ],
+    "rotation": [
+     -3.018,
+     0.344,
+     3.02
+    ],
+    "spawned_item/position": [
+     -11.531,
+     1.518,
+     -13.082
+    ],
+    "spawned_item/rotation": [
+     -3.018,
+     0.344,
+     3.02
+    ]
+   }
+  },
+  {
+   "file": "projects/v044a_level_09/rain_2/client_project",
+   "list": "server_objects/victory_item_spawners",
+   "where": {
+    "point_id": 3
+   },
+   "from": {
+    "position": [
+     10.433,
+     5.94,
+     42.342999
+    ],
+    "spawned_item/position": [
+     10.576,
+     5.94,
+     42.332001
+    ]
+   },
+   "to": {
+    "name": "victory_item_spawner(10)",
+    "full_name": "logic/modes/items_random/mode_2/victory_item_spawner(10)",
+    "position": [
+     3.208,
+     14.059,
+     2.763
+    ],
+    "rotation": [
+     0.0,
+     -0.892,
+     0.0
+    ],
+    "spawned_item/position": [
+     3.208,
+     14.202,
+     2.763
+    ],
+    "spawned_item/rotation": [
+     0.0,
+     -0.892,
+     0.0
+    ]
+   }
+  },
+  {
+   "file": "projects/v044a_level_09/rain_2/client_project",
+   "list": "server_objects/victory_item_spawners",
+   "where": {
+    "point_id": 4
+   },
+   "from": {
+    "position": [
+     -2.142,
+     0.857,
+     -1.094
+    ],
+    "spawned_item/position": [
+     -2.074,
+     0.857,
+     -1.22
+    ]
+   },
+   "to": {
+    "name": "victory_item_spawner(40)",
+    "full_name": "logic/modes/items_random/mode_2/victory_item_spawner(40)",
+    "position": [
+     38.674999,
+     6.39,
+     1.479
+    ],
+    "rotation": [
+     -0.003,
+     -0.628,
+     0.007
+    ],
+    "spawned_item/position": [
+     38.675999,
+     6.533,
+     1.479
+    ],
+    "spawned_item/rotation": [
+     -0.003,
+     -0.628,
+     0.007
+    ]
+   }
+  },
+  {
+   "file": "projects/v044a_level_09/rain_2/client_project",
+   "list": "server_objects/victory_item_spawners",
+   "where": {
+    "point_id": 5
+   },
+   "from": {
+    "position": [
+     0.976,
+     0.857,
+     -1.861
+    ],
+    "spawned_item/position": [
+     1.119,
+     0.857,
+     -1.861
+    ]
+   },
+   "to": {
+    "name": "victory_item_spawner(4)",
+    "full_name": "logic/modes/items_random/mode_2/victory_item_spawner(4)",
+    "position": [
+     -9.952,
+     10.497,
+     19.622999
+    ],
+    "rotation": [
+     -0.161,
+     -1.173,
+     -0.051
+    ],
+    "spawned_item/position": [
+     -9.938,
+     10.639,
+     19.632
+    ],
+    "spawned_item/rotation": [
+     -0.161,
+     -1.173,
+     -0.051
+    ]
+   }
+  },
+  {
+   "file": "projects/v044a_level_09/rain_2/client_project",
+   "list": "server_objects/victory_item_spawners",
+   "where": {
+    "point_id": 6
+   },
+   "from": {
+    "position": [
+     10.977,
+     5.94,
+     42.084
+    ],
+    "spawned_item/position": [
+     11.12,
+     5.94,
+     42.084
+    ]
+   },
+   "to": {
+    "name": "victory_item_spawner(7)",
+    "full_name": "logic/modes/items_random/mode_2/victory_item_spawner(7)",
+    "position": [
+     -0.601,
+     14.059,
+     -1.948
+    ],
+    "rotation": [
+     0.0,
+     -0.309,
+     0.0
+    ],
+    "spawned_item/position": [
+     -0.601,
+     14.202,
+     -1.948
+    ],
+    "spawned_item/rotation": [
+     0.0,
+     -0.309,
+     0.0
+    ]
+   }
+  },
+  {
+   "file": "projects/v044a_level_09/rain_2/client_project",
+   "list": "server_objects/victory_item_spawners",
+   "where": {
+    "point_id": 7
+   },
+   "from": {
+    "position": [
+     1.667,
+     14.327,
+     -0.231
+    ],
+    "spawned_item/position": [
+     1.81,
+     14.327,
+     -0.231
+    ]
+   },
+   "to": {
+    "name": "victory_item_spawner(43)",
+    "full_name": "logic/modes/items_random/mode_2/victory_item_spawner(43)",
+    "position": [
+     -17.094999,
+     10.82,
+     15.532
+    ],
+    "rotation": [
+     0.0,
+     0.817,
+     0.0
+    ],
+    "spawned_item/position": [
+     -17.094999,
+     10.963,
+     15.532
+    ],
+    "spawned_item/rotation": [
+     0.0,
+     0.817,
+     0.0
+    ]
+   }
+  },
+  {
+   "file": "projects/v044a_level_09/rain_2/client_project",
+   "list": "server_objects/victory_item_spawners",
+   "where": {
+    "point_id": 8
+   },
+   "from": {
+    "position": [
+     0.279,
+     0.857,
+     -1.546
+    ],
+    "spawned_item/position": [
+     0.335,
+     0.857,
+     -1.414
+    ]
+   },
+   "to": {
+    "name": "victory_item_spawner(20)",
+    "full_name": "logic/modes/items_random/mode_2/victory_item_spawner(20)",
+    "position": [
+     -0.944,
+     1.018,
+     14.266
+    ],
+    "rotation": [
+     -0.071,
+     0.86,
+     0.013
+    ],
+    "spawned_item/position": [
+     -0.95,
+     1.161,
+     14.273
+    ],
+    "spawned_item/rotation": [
+     -0.071,
+     0.86,
+     0.013
+    ]
+   }
+  },
+  {
+   "file": "projects/v044a_level_09/rain_2/client_project",
+   "list": "server_objects/victory_item_spawners",
+   "where": {
+    "point_id": 9
+   },
+   "from": {
+    "position": [
+     -10.225,
+     5.068,
+     -37.769001
+    ],
+    "spawned_item/position": [
+     -10.083,
+     5.085,
+     -37.769001
+    ]
+   },
+   "to": {
+    "name": "victory_item_spawner(24)",
+    "full_name": "logic/modes/items_random/mode_2/victory_item_spawner(24)",
+    "position": [
+     20.177999,
+     1.257,
+     -3.207
+    ],
+    "rotation": [
+     0.208,
+     0.106,
+     0.001
+    ],
+    "spawned_item/position": [
+     20.181,
+     1.397,
+     -3.236
+    ],
+    "spawned_item/rotation": [
+     0.208,
+     0.106,
+     0.001
+    ]
+   }
+  },
+  {
+   "file": "projects/v044a_level_09/rain_2/client_project",
+   "list": "server_objects/victory_item_spawners",
+   "where": {
+    "point_id": 10
+   },
+   "from": {
+    "position": [
+     1.667,
+     14.327,
+     0.534
+    ],
+    "spawned_item/position": [
+     1.81,
+     14.327,
+     0.534
+    ]
+   },
+   "to": {
+    "name": "victory_item_spawner(15)",
+    "full_name": "logic/modes/items_random/mode_2/victory_item_spawner(15)",
+    "position": [
+     -11.176,
+     11.115,
+     -20.438
+    ],
+    "rotation": [
+     -3.141185,
+     0.518,
+     3.141185
+    ],
+    "spawned_item/position": [
+     -11.176,
+     11.258,
+     -20.438
+    ],
+    "spawned_item/rotation": [
+     3.142,
+     0.518,
+     -3.142
+    ]
+   }
+  },
+  {
+   "file": "projects/v044a_level_09/rain_2/client_project",
+   "list": "server_objects/victory_item_spawners",
+   "where": {
+    "point_id": 11
+   },
+   "from": {
+    "position": [
+     -12.352,
+     4.978,
+     -36.563
+    ],
+    "spawned_item/position": [
+     -12.21,
+     4.992,
+     -36.549
+    ]
+   },
+   "to": {
+    "name": "victory_item_spawner(14)",
+    "full_name": "logic/modes/items_random/mode_2/victory_item_spawner(14)",
+    "position": [
+     -22.943001,
+     11.468,
+     -38.564999
+    ],
+    "rotation": [
+     0.0,
+     1.155,
+     0.0
+    ],
+    "spawned_item/position": [
+     -22.943001,
+     11.611,
+     -38.564999
+    ],
+    "spawned_item/rotation": [
+     0.0,
+     1.155,
+     0.0
+    ]
+   }
+  },
+  {
+   "file": "projects/v044a_level_09/rain_2/client_project",
+   "list": "server_objects/victory_item_spawners",
+   "where": {
+    "point_id": 12
+   },
+   "from": {
+    "position": [
+     0.976,
+     0.857,
+     -2.626
+    ],
+    "spawned_item/position": [
+     1.119,
+     0.857,
+     -2.626
+    ]
+   },
+   "to": {
+    "name": "victory_item_spawner(35)",
+    "full_name": "logic/modes/items_random/mode_2/victory_item_spawner(35)",
+    "position": [
+     18.249001,
+     8.532,
+     15.116
+    ],
+    "rotation": [
+     -0.431,
+     -0.768,
+     -0.096
+    ],
+    "spawned_item/position": [
+     18.278,
+     8.665,
+     15.159
+    ],
+    "spawned_item/rotation": [
+     -0.431,
+     -0.768,
+     -0.096
+    ]
+   }
+  },
+  {
+   "file": "projects/v044a_level_09/rain_2/client_project",
+   "list": "server_objects/victory_item_spawners",
+   "where": {
+    "point_id": 13
+   },
+   "from": {
+    "position": [
+     -10.233,
+     5.131,
+     -37.007
+    ],
+    "spawned_item/position": [
+     -10.091,
+     5.148,
+     -37.007
+    ]
+   },
+   "to": {
+    "name": "victory_item_spawner(34)",
+    "full_name": "logic/modes/items_random/mode_2/victory_item_spawner(34)",
+    "position": [
+     -3.811,
+     5.99,
+     37.306999
+    ],
+    "rotation": [
+     3.054,
+     -1.202,
+     -3.003
+    ],
+    "spawned_item/position": [
+     -3.78,
+     6.13,
+     37.301998
+    ],
+    "spawned_item/rotation": [
+     3.054,
+     -1.202,
+     -3.003
+    ]
+   }
+  },
+  {
+   "file": "projects/v044a_level_09/rain_2/client_project",
+   "list": "server_objects/victory_item_spawners",
+   "where": {
+    "point_id": 14
+   },
+   "from": {
+    "position": [
+     -12.427,
+     4.992,
+     -35.801998
+    ],
+    "spawned_item/position": [
+     -12.285,
+     5.006,
+     -35.787998
+    ]
+   },
+   "to": {
+    "name": "victory_item_spawner(6)",
+    "full_name": "logic/modes/items_random/mode_2/victory_item_spawner(6)",
+    "position": [
+     -12.08,
+     15.084,
+     4.286
+    ],
+    "rotation": [
+     -3.141185,
+     -1.185,
+     -3.141185
+    ],
+    "spawned_item/position": [
+     -12.08,
+     15.227,
+     4.286
+    ],
+    "spawned_item/rotation": [
+     3.142,
+     -1.185,
+     3.142
+    ]
+   }
+  },
+  {
+   "file": "projects/v044a_level_09/rain_2/client_project",
+   "list": "server_objects/victory_item_spawners",
+   "where": {
+    "point_id": 15
+   },
+   "from": {
+    "position": [
+     10.977,
+     5.94,
+     41.319
+    ],
+    "spawned_item/position": [
+     11.12,
+     5.94,
+     41.319
+    ]
+   },
+   "to": {
+    "name": "victory_item_spawner(8)",
+    "full_name": "logic/modes/items_random/mode_2/victory_item_spawner(8)",
+    "position": [
+     11.349,
+     15.033,
+     16.292999
+    ],
+    "rotation": [
+     -3.141185,
+     -0.898,
+     -3.141185
+    ],
+    "spawned_item/position": [
+     11.349,
+     15.176,
+     16.292999
+    ],
+    "spawned_item/rotation": [
+     3.142,
+     -0.898,
+     3.142
+    ]
+   }
+  },
+  {
+   "file": "projects/v044a_level_09/rain_2/client_project",
+   "list": "server_objects/victory_item_spawners",
+   "where": {
+    "point_id": 16
+   },
+   "from": {
+    "position": [
+     -10.154,
+     5.0,
+     -38.724998
+    ],
+    "spawned_item/position": [
+     -10.154,
+     5.009,
+     -38.582001
+    ]
+   },
+   "to": {
+    "name": "victory_item_spawner(33)",
+    "full_name": "logic/modes/items_random/mode_2/victory_item_spawner(33)",
+    "position": [
+     27.612,
+     6.853,
+     19.382999
+    ],
+    "rotation": [
+     0.086,
+     -0.596,
+     0.001
+    ],
+    "spawned_item/position": [
+     27.605,
+     6.996,
+     19.372999
+    ],
+    "spawned_item/rotation": [
+     0.086,
+     -0.596,
+     0.001
+    ]
+   }
+  },
+  {
+   "file": "projects/v044a_level_09/rain_2/client_project",
+   "list": "server_objects/victory_item_spawners",
+   "where": {
+    "point_id": 17
+   },
+   "from": {
+    "position": [
+     1.08,
+     14.327,
+     0.534
+    ],
+    "spawned_item/position": [
+     1.223,
+     14.327,
+     0.534
+    ]
+   },
+   "to": {
+    "name": "victory_item_spawner(26)",
+    "full_name": "logic/modes/items_random/mode_2/victory_item_spawner(26)",
+    "position": [
+     -7.09,
+     15.084,
+     -10.796
+    ],
+    "rotation": [
+     0.0,
+     -0.561,
+     0.0
+    ],
+    "spawned_item/position": [
+     -7.09,
+     15.227,
+     -10.796
+    ],
+    "spawned_item/rotation": [
+     0.0,
+     -0.561,
+     0.0
+    ]
+   }
+  },
+  {
+   "file": "projects/v044a_level_09/rain_2/client_project",
+   "list": "server_objects/victory_item_spawners",
+   "where": {
+    "point_id": 18
+   },
+   "from": {
+    "position": [
+     10.377,
+     5.94,
+     41.581001
+    ],
+    "spawned_item/position": [
+     10.52,
+     5.94,
+     41.57
+    ]
+   },
+   "to": {
+    "name": "victory_item_spawner(32)",
+    "full_name": "logic/modes/items_random/mode_2/victory_item_spawner(32)",
+    "position": [
+     29.478001,
+     6.488,
+     23.419001
+    ],
+    "rotation": [
+     -1.683,
+     -1.557,
+     -1.857
+    ],
+    "spawned_item/position": [
+     29.452999,
+     6.629,
+     23.421
+    ],
+    "spawned_item/rotation": [
+     -1.683,
+     -1.557,
+     -1.857
+    ]
+   }
+  },
+  {
+   "file": "projects/v044a_level_09/rain_2/client_project",
+   "list": "server_objects/victory_item_spawners",
+   "where": {
+    "point_id": 19
+   },
+   "from": {
+    "position": [
+     1.08,
+     14.327,
+     -0.231
+    ],
+    "spawned_item/position": [
+     1.223,
+     14.327,
+     -0.231
+    ]
+   },
+   "to": {
+    "name": "victory_item_spawner(25)",
+    "full_name": "logic/modes/items_random/mode_2/victory_item_spawner(25)",
+    "position": [
+     -22.830999,
+     1.907,
+     3.669
+    ],
+    "rotation": [
+     -0.335,
+     0.052,
+     0.161
+    ],
+    "spawned_item/position": [
+     -22.812,
+     2.041,
+     3.716
+    ],
+    "spawned_item/rotation": [
+     -0.335,
+     0.052,
+     0.161
+    ]
+   }
+  },
+  {
+   "file": "projects/v044a_level_09/rain_2/client_project",
+   "list": "server_objects/victory_item_spawners",
+   "where": {
+    "point_id": 20
+   },
+   "from": {
+    "position": [
+     0.479,
+     14.326,
+     -0.231
+    ],
+    "spawned_item/position": [
+     0.622,
+     14.326,
+     -0.231
+    ]
+   },
+   "to": {
+    "name": "victory_item_spawner(41)",
+    "full_name": "logic/modes/items_random/mode_2/victory_item_spawner(41)",
+    "position": [
+     8.95,
+     11.193,
+     6.342
+    ],
+    "rotation": [
+     0.049,
+     -0.157,
+     0.145
+    ],
+    "spawned_item/position": [
+     8.97,
+     11.335,
+     6.335
+    ],
+    "spawned_item/rotation": [
+     0.049,
+     -0.157,
+     0.145
+    ]
+   }
+  },
+  {
+   "file": "projects/v044a_level_09/rain_2/client_project",
+   "list": "server_objects/victory_item_spawners",
+   "where": {
+    "point_id": 21
+   },
+   "from": {
+    "position": [
+     -1.47,
+     0.857,
+     -0.73
+    ],
+    "spawned_item/position": [
+     -1.402,
+     0.857,
+     -0.856
+    ]
+   },
+   "to": {
+    "name": "victory_item_spawner(12)",
+    "full_name": "logic/modes/items_random/mode_2/victory_item_spawner(12)",
+    "position": [
+     -9.537,
+     8.577,
+     -44.756001
+    ],
+    "rotation": [
+     -3.141185,
+     0.417,
+     3.141185
+    ],
+    "spawned_item/position": [
+     -9.537,
+     8.72,
+     -44.756001
+    ],
+    "spawned_item/rotation": [
+     3.142,
+     0.417,
+     -3.142
+    ]
+   }
+  },
+  {
+   "file": "projects/v044a_level_09/rain_2/client_project",
+   "list": "server_objects/victory_item_spawners",
+   "where": {
+    "point_id": 22
+   },
+   "from": {
+    "position": [
+     0.479,
+     14.326,
+     0.533
+    ],
+    "spawned_item/position": [
+     0.622,
+     14.326,
+     0.533
+    ]
+   },
+   "to": {
+    "name": "victory_item_spawner(17)",
+    "full_name": "logic/modes/items_random/mode_2/victory_item_spawner(17)",
+    "position": [
+     -24.110001,
+     7.105,
+     -20.348
+    ],
+    "rotation": [
+     2.938,
+     -1.086,
+     2.949
+    ],
+    "spawned_item/position": [
+     -24.112,
+     7.248,
+     -20.361
+    ],
+    "spawned_item/rotation": [
+     2.938,
+     -1.086,
+     2.949
+    ]
+   }
+  },
+  {
+   "file": "projects/v044a_level_09/rain_2/client_project",
+   "list": "server_objects/victory_item_spawners",
+   "where": {
+    "point_id": 23
+   },
+   "from": {
+    "position": [
+     -0.424,
+     0.857,
+     -1.245
+    ],
+    "spawned_item/position": [
+     -0.368,
+     0.857,
+     -1.113
+    ]
+   },
+   "to": {
+    "name": "victory_item_spawner(5)",
+    "full_name": "logic/modes/items_random/mode_2/victory_item_spawner(5)",
+    "position": [
+     12.274,
+     5.612,
+     32.591
+    ],
+    "rotation": [
+     1.571,
+     -1.561,
+     1.554
+    ],
+    "spawned_item/position": [
+     12.272,
+     5.755,
+     32.59
+    ],
+    "spawned_item/rotation": [
+     1.571,
+     -1.561,
+     1.554
+    ]
+   }
+  },
+  {
+   "file": "projects/v044a_level_09/evening_2/client_project",
+   "list": "server_objects/victory_item_spawners",
+   "where": {
+    "point_id": 0
+   },
+   "from": {
+    "position": [
+     11.199,
+     5.94,
+     39.52
+    ],
+    "spawned_item/position": [
+     11.334,
+     5.94,
+     39.568001
+    ]
+   },
+   "to": {
+    "name": "victory_item_spawner(27)",
+    "full_name": "logic/modes/items_random/mode_2/victory_item_spawner(27)",
+    "position": [
+     -15.071,
+     15.084,
+     -13.142
+    ],
+    "rotation": [
+     -3.141185,
+     0.785,
+     -3.141185
+    ],
+    "spawned_item/position": [
+     -15.071,
+     15.227,
+     -13.142
+    ],
+    "spawned_item/rotation": [
+     3.142,
+     0.785,
+     3.142
+    ]
+   }
+  },
+  {
+   "file": "projects/v044a_level_09/evening_2/client_project",
+   "list": "server_objects/victory_item_spawners",
+   "where": {
+    "point_id": 1
+   },
+   "from": {
+    "position": [
+     10.944,
+     5.94,
+     40.241001
+    ],
+    "spawned_item/position": [
+     11.079,
+     5.94,
+     40.289001
+    ]
+   },
+   "to": {
+    "name": "victory_item_spawner(16)",
+    "full_name": "logic/modes/items_random/mode_2/victory_item_spawner(16)",
+    "position": [
+     -20.27,
+     4.955,
+     -31.118999
+    ],
+    "rotation": [
+     2.472,
+     1.09,
+     -2.566
+    ],
+    "spawned_item/position": [
+     -20.275,
+     5.092,
+     -31.16
+    ],
+    "spawned_item/rotation": [
+     2.472,
+     1.09,
+     -2.566
+    ]
+   }
+  },
+  {
+   "file": "projects/v044a_level_09/evening_2/client_project",
+   "list": "server_objects/victory_item_spawners",
+   "where": {
+    "point_id": 2
+   },
+   "from": {
+    "position": [
+     -10.918,
+     4.977,
+     -38.724998
+    ],
+    "spawned_item/position": [
+     -10.918,
+     4.986,
+     -38.582001
+    ]
+   },
+   "to": {
+    "name": "victory_item_spawner(18)",
+    "full_name": "logic/modes/items_random/mode_2/victory_item_spawner(18)",
+    "position": [
+     -11.52,
+     1.376,
+     -13.099
+    ],
+    "rotation": [
+     -3.018,
+     0.344,
+     3.02
+    ],
+    "spawned_item/position": [
+     -11.531,
+     1.518,
+     -13.082
+    ],
+    "spawned_item/rotation": [
+     -3.018,
+     0.344,
+     3.02
+    ]
+   }
+  },
+  {
+   "file": "projects/v044a_level_09/evening_2/client_project",
+   "list": "server_objects/victory_item_spawners",
+   "where": {
+    "point_id": 3
+   },
+   "from": {
+    "position": [
+     10.433,
+     5.94,
+     42.342999
+    ],
+    "spawned_item/position": [
+     10.576,
+     5.94,
+     42.332001
+    ]
+   },
+   "to": {
+    "name": "victory_item_spawner(10)",
+    "full_name": "logic/modes/items_random/mode_2/victory_item_spawner(10)",
+    "position": [
+     3.208,
+     14.059,
+     2.763
+    ],
+    "rotation": [
+     0.0,
+     -0.892,
+     0.0
+    ],
+    "spawned_item/position": [
+     3.208,
+     14.202,
+     2.763
+    ],
+    "spawned_item/rotation": [
+     0.0,
+     -0.892,
+     0.0
+    ]
+   }
+  },
+  {
+   "file": "projects/v044a_level_09/evening_2/client_project",
+   "list": "server_objects/victory_item_spawners",
+   "where": {
+    "point_id": 4
+   },
+   "from": {
+    "position": [
+     -2.142,
+     0.857,
+     -1.094
+    ],
+    "spawned_item/position": [
+     -2.074,
+     0.857,
+     -1.22
+    ]
+   },
+   "to": {
+    "name": "victory_item_spawner(40)",
+    "full_name": "logic/modes/items_random/mode_2/victory_item_spawner(40)",
+    "position": [
+     38.674999,
+     6.39,
+     1.479
+    ],
+    "rotation": [
+     -0.003,
+     -0.628,
+     0.007
+    ],
+    "spawned_item/position": [
+     38.675999,
+     6.533,
+     1.479
+    ],
+    "spawned_item/rotation": [
+     -0.003,
+     -0.628,
+     0.007
+    ]
+   }
+  },
+  {
+   "file": "projects/v044a_level_09/evening_2/client_project",
+   "list": "server_objects/victory_item_spawners",
+   "where": {
+    "point_id": 5
+   },
+   "from": {
+    "position": [
+     0.976,
+     0.857,
+     -1.861
+    ],
+    "spawned_item/position": [
+     1.119,
+     0.857,
+     -1.861
+    ]
+   },
+   "to": {
+    "name": "victory_item_spawner(4)",
+    "full_name": "logic/modes/items_random/mode_2/victory_item_spawner(4)",
+    "position": [
+     -9.952,
+     10.497,
+     19.622999
+    ],
+    "rotation": [
+     -0.161,
+     -1.173,
+     -0.051
+    ],
+    "spawned_item/position": [
+     -9.938,
+     10.639,
+     19.632
+    ],
+    "spawned_item/rotation": [
+     -0.161,
+     -1.173,
+     -0.051
+    ]
+   }
+  },
+  {
+   "file": "projects/v044a_level_09/evening_2/client_project",
+   "list": "server_objects/victory_item_spawners",
+   "where": {
+    "point_id": 6
+   },
+   "from": {
+    "position": [
+     10.977,
+     5.94,
+     42.084
+    ],
+    "spawned_item/position": [
+     11.12,
+     5.94,
+     42.084
+    ]
+   },
+   "to": {
+    "name": "victory_item_spawner(7)",
+    "full_name": "logic/modes/items_random/mode_2/victory_item_spawner(7)",
+    "position": [
+     -0.601,
+     14.059,
+     -1.948
+    ],
+    "rotation": [
+     0.0,
+     -0.309,
+     0.0
+    ],
+    "spawned_item/position": [
+     -0.601,
+     14.202,
+     -1.948
+    ],
+    "spawned_item/rotation": [
+     0.0,
+     -0.309,
+     0.0
+    ]
+   }
+  },
+  {
+   "file": "projects/v044a_level_09/evening_2/client_project",
+   "list": "server_objects/victory_item_spawners",
+   "where": {
+    "point_id": 7
+   },
+   "from": {
+    "position": [
+     1.667,
+     14.327,
+     -0.231
+    ],
+    "spawned_item/position": [
+     1.81,
+     14.327,
+     -0.231
+    ]
+   },
+   "to": {
+    "name": "victory_item_spawner(43)",
+    "full_name": "logic/modes/items_random/mode_2/victory_item_spawner(43)",
+    "position": [
+     -17.094999,
+     10.82,
+     15.532
+    ],
+    "rotation": [
+     0.0,
+     0.817,
+     0.0
+    ],
+    "spawned_item/position": [
+     -17.094999,
+     10.963,
+     15.532
+    ],
+    "spawned_item/rotation": [
+     0.0,
+     0.817,
+     0.0
+    ]
+   }
+  },
+  {
+   "file": "projects/v044a_level_09/evening_2/client_project",
+   "list": "server_objects/victory_item_spawners",
+   "where": {
+    "point_id": 8
+   },
+   "from": {
+    "position": [
+     0.279,
+     0.857,
+     -1.546
+    ],
+    "spawned_item/position": [
+     0.335,
+     0.857,
+     -1.414
+    ]
+   },
+   "to": {
+    "name": "victory_item_spawner(20)",
+    "full_name": "logic/modes/items_random/mode_2/victory_item_spawner(20)",
+    "position": [
+     -0.944,
+     1.018,
+     14.266
+    ],
+    "rotation": [
+     -0.071,
+     0.86,
+     0.013
+    ],
+    "spawned_item/position": [
+     -0.95,
+     1.161,
+     14.273
+    ],
+    "spawned_item/rotation": [
+     -0.071,
+     0.86,
+     0.013
+    ]
+   }
+  },
+  {
+   "file": "projects/v044a_level_09/evening_2/client_project",
+   "list": "server_objects/victory_item_spawners",
+   "where": {
+    "point_id": 9
+   },
+   "from": {
+    "position": [
+     -10.225,
+     5.068,
+     -37.769001
+    ],
+    "spawned_item/position": [
+     -10.083,
+     5.085,
+     -37.769001
+    ]
+   },
+   "to": {
+    "name": "victory_item_spawner(24)",
+    "full_name": "logic/modes/items_random/mode_2/victory_item_spawner(24)",
+    "position": [
+     20.177999,
+     1.257,
+     -3.207
+    ],
+    "rotation": [
+     0.208,
+     0.106,
+     0.001
+    ],
+    "spawned_item/position": [
+     20.181,
+     1.397,
+     -3.236
+    ],
+    "spawned_item/rotation": [
+     0.208,
+     0.106,
+     0.001
+    ]
+   }
+  },
+  {
+   "file": "projects/v044a_level_09/evening_2/client_project",
+   "list": "server_objects/victory_item_spawners",
+   "where": {
+    "point_id": 10
+   },
+   "from": {
+    "position": [
+     1.667,
+     14.327,
+     0.534
+    ],
+    "spawned_item/position": [
+     1.81,
+     14.327,
+     0.534
+    ]
+   },
+   "to": {
+    "name": "victory_item_spawner(15)",
+    "full_name": "logic/modes/items_random/mode_2/victory_item_spawner(15)",
+    "position": [
+     -11.176,
+     11.115,
+     -20.438
+    ],
+    "rotation": [
+     -3.141185,
+     0.518,
+     3.141185
+    ],
+    "spawned_item/position": [
+     -11.176,
+     11.258,
+     -20.438
+    ],
+    "spawned_item/rotation": [
+     3.142,
+     0.518,
+     -3.142
+    ]
+   }
+  },
+  {
+   "file": "projects/v044a_level_09/evening_2/client_project",
+   "list": "server_objects/victory_item_spawners",
+   "where": {
+    "point_id": 11
+   },
+   "from": {
+    "position": [
+     -12.352,
+     4.978,
+     -36.563
+    ],
+    "spawned_item/position": [
+     -12.21,
+     4.992,
+     -36.549
+    ]
+   },
+   "to": {
+    "name": "victory_item_spawner(14)",
+    "full_name": "logic/modes/items_random/mode_2/victory_item_spawner(14)",
+    "position": [
+     -22.943001,
+     11.468,
+     -38.564999
+    ],
+    "rotation": [
+     0.0,
+     1.155,
+     0.0
+    ],
+    "spawned_item/position": [
+     -22.943001,
+     11.611,
+     -38.564999
+    ],
+    "spawned_item/rotation": [
+     0.0,
+     1.155,
+     0.0
+    ]
+   }
+  },
+  {
+   "file": "projects/v044a_level_09/evening_2/client_project",
+   "list": "server_objects/victory_item_spawners",
+   "where": {
+    "point_id": 12
+   },
+   "from": {
+    "position": [
+     0.976,
+     0.857,
+     -2.626
+    ],
+    "spawned_item/position": [
+     1.119,
+     0.857,
+     -2.626
+    ]
+   },
+   "to": {
+    "name": "victory_item_spawner(35)",
+    "full_name": "logic/modes/items_random/mode_2/victory_item_spawner(35)",
+    "position": [
+     18.249001,
+     8.532,
+     15.116
+    ],
+    "rotation": [
+     -0.431,
+     -0.768,
+     -0.096
+    ],
+    "spawned_item/position": [
+     18.278,
+     8.665,
+     15.159
+    ],
+    "spawned_item/rotation": [
+     -0.431,
+     -0.768,
+     -0.096
+    ]
+   }
+  },
+  {
+   "file": "projects/v044a_level_09/evening_2/client_project",
+   "list": "server_objects/victory_item_spawners",
+   "where": {
+    "point_id": 13
+   },
+   "from": {
+    "position": [
+     -10.233,
+     5.131,
+     -37.007
+    ],
+    "spawned_item/position": [
+     -10.091,
+     5.148,
+     -37.007
+    ]
+   },
+   "to": {
+    "name": "victory_item_spawner(34)",
+    "full_name": "logic/modes/items_random/mode_2/victory_item_spawner(34)",
+    "position": [
+     -3.811,
+     5.99,
+     37.306999
+    ],
+    "rotation": [
+     3.054,
+     -1.202,
+     -3.003
+    ],
+    "spawned_item/position": [
+     -3.78,
+     6.13,
+     37.301998
+    ],
+    "spawned_item/rotation": [
+     3.054,
+     -1.202,
+     -3.003
+    ]
+   }
+  },
+  {
+   "file": "projects/v044a_level_09/evening_2/client_project",
+   "list": "server_objects/victory_item_spawners",
+   "where": {
+    "point_id": 14
+   },
+   "from": {
+    "position": [
+     -12.427,
+     4.992,
+     -35.801998
+    ],
+    "spawned_item/position": [
+     -12.285,
+     5.006,
+     -35.787998
+    ]
+   },
+   "to": {
+    "name": "victory_item_spawner(6)",
+    "full_name": "logic/modes/items_random/mode_2/victory_item_spawner(6)",
+    "position": [
+     -12.08,
+     15.084,
+     4.286
+    ],
+    "rotation": [
+     -3.141185,
+     -1.185,
+     -3.141185
+    ],
+    "spawned_item/position": [
+     -12.08,
+     15.227,
+     4.286
+    ],
+    "spawned_item/rotation": [
+     3.142,
+     -1.185,
+     3.142
+    ]
+   }
+  },
+  {
+   "file": "projects/v044a_level_09/evening_2/client_project",
+   "list": "server_objects/victory_item_spawners",
+   "where": {
+    "point_id": 15
+   },
+   "from": {
+    "position": [
+     10.977,
+     5.94,
+     41.319
+    ],
+    "spawned_item/position": [
+     11.12,
+     5.94,
+     41.319
+    ]
+   },
+   "to": {
+    "name": "victory_item_spawner(8)",
+    "full_name": "logic/modes/items_random/mode_2/victory_item_spawner(8)",
+    "position": [
+     11.349,
+     15.033,
+     16.292999
+    ],
+    "rotation": [
+     -3.141185,
+     -0.898,
+     -3.141185
+    ],
+    "spawned_item/position": [
+     11.349,
+     15.176,
+     16.292999
+    ],
+    "spawned_item/rotation": [
+     3.142,
+     -0.898,
+     3.142
+    ]
+   }
+  },
+  {
+   "file": "projects/v044a_level_09/evening_2/client_project",
+   "list": "server_objects/victory_item_spawners",
+   "where": {
+    "point_id": 16
+   },
+   "from": {
+    "position": [
+     -10.154,
+     5.0,
+     -38.724998
+    ],
+    "spawned_item/position": [
+     -10.154,
+     5.009,
+     -38.582001
+    ]
+   },
+   "to": {
+    "name": "victory_item_spawner(33)",
+    "full_name": "logic/modes/items_random/mode_2/victory_item_spawner(33)",
+    "position": [
+     27.612,
+     6.853,
+     19.382999
+    ],
+    "rotation": [
+     0.086,
+     -0.596,
+     0.001
+    ],
+    "spawned_item/position": [
+     27.605,
+     6.996,
+     19.372999
+    ],
+    "spawned_item/rotation": [
+     0.086,
+     -0.596,
+     0.001
+    ]
+   }
+  },
+  {
+   "file": "projects/v044a_level_09/evening_2/client_project",
+   "list": "server_objects/victory_item_spawners",
+   "where": {
+    "point_id": 17
+   },
+   "from": {
+    "position": [
+     1.08,
+     14.327,
+     0.534
+    ],
+    "spawned_item/position": [
+     1.223,
+     14.327,
+     0.534
+    ]
+   },
+   "to": {
+    "name": "victory_item_spawner(26)",
+    "full_name": "logic/modes/items_random/mode_2/victory_item_spawner(26)",
+    "position": [
+     -7.09,
+     15.084,
+     -10.796
+    ],
+    "rotation": [
+     0.0,
+     -0.561,
+     0.0
+    ],
+    "spawned_item/position": [
+     -7.09,
+     15.227,
+     -10.796
+    ],
+    "spawned_item/rotation": [
+     0.0,
+     -0.561,
+     0.0
+    ]
+   }
+  },
+  {
+   "file": "projects/v044a_level_09/evening_2/client_project",
+   "list": "server_objects/victory_item_spawners",
+   "where": {
+    "point_id": 18
+   },
+   "from": {
+    "position": [
+     10.377,
+     5.94,
+     41.581001
+    ],
+    "spawned_item/position": [
+     10.52,
+     5.94,
+     41.57
+    ]
+   },
+   "to": {
+    "name": "victory_item_spawner(32)",
+    "full_name": "logic/modes/items_random/mode_2/victory_item_spawner(32)",
+    "position": [
+     29.478001,
+     6.488,
+     23.419001
+    ],
+    "rotation": [
+     -1.683,
+     -1.557,
+     -1.857
+    ],
+    "spawned_item/position": [
+     29.452999,
+     6.629,
+     23.421
+    ],
+    "spawned_item/rotation": [
+     -1.683,
+     -1.557,
+     -1.857
+    ]
+   }
+  },
+  {
+   "file": "projects/v044a_level_09/evening_2/client_project",
+   "list": "server_objects/victory_item_spawners",
+   "where": {
+    "point_id": 19
+   },
+   "from": {
+    "position": [
+     1.08,
+     14.327,
+     -0.231
+    ],
+    "spawned_item/position": [
+     1.223,
+     14.327,
+     -0.231
+    ]
+   },
+   "to": {
+    "name": "victory_item_spawner(25)",
+    "full_name": "logic/modes/items_random/mode_2/victory_item_spawner(25)",
+    "position": [
+     -22.830999,
+     1.907,
+     3.669
+    ],
+    "rotation": [
+     -0.335,
+     0.052,
+     0.161
+    ],
+    "spawned_item/position": [
+     -22.812,
+     2.041,
+     3.716
+    ],
+    "spawned_item/rotation": [
+     -0.335,
+     0.052,
+     0.161
+    ]
+   }
+  },
+  {
+   "file": "projects/v044a_level_09/evening_2/client_project",
+   "list": "server_objects/victory_item_spawners",
+   "where": {
+    "point_id": 20
+   },
+   "from": {
+    "position": [
+     0.479,
+     14.326,
+     -0.231
+    ],
+    "spawned_item/position": [
+     0.622,
+     14.326,
+     -0.231
+    ]
+   },
+   "to": {
+    "name": "victory_item_spawner(41)",
+    "full_name": "logic/modes/items_random/mode_2/victory_item_spawner(41)",
+    "position": [
+     8.95,
+     11.193,
+     6.342
+    ],
+    "rotation": [
+     0.049,
+     -0.157,
+     0.145
+    ],
+    "spawned_item/position": [
+     8.97,
+     11.335,
+     6.335
+    ],
+    "spawned_item/rotation": [
+     0.049,
+     -0.157,
+     0.145
+    ]
+   }
+  },
+  {
+   "file": "projects/v044a_level_09/evening_2/client_project",
+   "list": "server_objects/victory_item_spawners",
+   "where": {
+    "point_id": 21
+   },
+   "from": {
+    "position": [
+     -1.47,
+     0.857,
+     -0.73
+    ],
+    "spawned_item/position": [
+     -1.402,
+     0.857,
+     -0.856
+    ]
+   },
+   "to": {
+    "name": "victory_item_spawner(12)",
+    "full_name": "logic/modes/items_random/mode_2/victory_item_spawner(12)",
+    "position": [
+     -9.537,
+     8.577,
+     -44.756001
+    ],
+    "rotation": [
+     -3.141185,
+     0.417,
+     3.141185
+    ],
+    "spawned_item/position": [
+     -9.537,
+     8.72,
+     -44.756001
+    ],
+    "spawned_item/rotation": [
+     3.142,
+     0.417,
+     -3.142
+    ]
+   }
+  },
+  {
+   "file": "projects/v044a_level_09/evening_2/client_project",
+   "list": "server_objects/victory_item_spawners",
+   "where": {
+    "point_id": 22
+   },
+   "from": {
+    "position": [
+     0.479,
+     14.326,
+     0.533
+    ],
+    "spawned_item/position": [
+     0.622,
+     14.326,
+     0.533
+    ]
+   },
+   "to": {
+    "name": "victory_item_spawner(17)",
+    "full_name": "logic/modes/items_random/mode_2/victory_item_spawner(17)",
+    "position": [
+     -24.110001,
+     7.105,
+     -20.348
+    ],
+    "rotation": [
+     2.938,
+     -1.086,
+     2.949
+    ],
+    "spawned_item/position": [
+     -24.112,
+     7.248,
+     -20.361
+    ],
+    "spawned_item/rotation": [
+     2.938,
+     -1.086,
+     2.949
+    ]
+   }
+  },
+  {
+   "file": "projects/v044a_level_09/evening_2/client_project",
+   "list": "server_objects/victory_item_spawners",
+   "where": {
+    "point_id": 23
+   },
+   "from": {
+    "position": [
+     -0.424,
+     0.857,
+     -1.245
+    ],
+    "spawned_item/position": [
+     -0.368,
+     0.857,
+     -1.113
+    ]
+   },
+   "to": {
+    "name": "victory_item_spawner(5)",
+    "full_name": "logic/modes/items_random/mode_2/victory_item_spawner(5)",
+    "position": [
+     12.274,
+     5.612,
+     32.591
+    ],
+    "rotation": [
+     1.571,
+     -1.561,
+     1.554
+    ],
+    "spawned_item/position": [
+     12.272,
+     5.755,
+     32.59
+    ],
+    "spawned_item/rotation": [
+     1.571,
+     -1.561,
+     1.554
+    ]
+   }
+  }
+ ],
+ "add_entry": [
+  {
+   "files": "projects/v044a_level_09/day_2/client_project",
+   "list": "server_objects/victory_item_spawners",
+   "after": {
+    "point_id": 23
+   },
+   "like": {
+    "point_id": 0
+   },
+   "expected_files": 1,
+   "values": {
+    "name": "victory_item_spawner(23)",
+    "full_name": "logic/modes/items_random/mode_2/victory_item_spawner(23)",
+    "position": [
+     -14.805,
+     1.798,
+     10.94
+    ],
+    "rotation": [
+     0.0,
+     -1.281,
+     0.0
+    ],
+    "spawned_item/position": [
+     -14.805,
+     1.941,
+     10.94
+    ],
+    "spawned_item/rotation": [
+     0.0,
+     -1.281,
+     0.0
+    ],
+    "point_id": 24
+   }
+  },
+  {
+   "files": "projects/v044a_level_09/day_2/client_project",
+   "list": "server_objects/victory_item_spawners",
+   "after": {
+    "point_id": 24
+   },
+   "like": {
+    "point_id": 0
+   },
+   "expected_files": 1,
+   "values": {
+    "name": "victory_item_spawner(36)",
+    "full_name": "logic/modes/items_random/mode_2/victory_item_spawner(36)",
+    "position": [
+     -0.151,
+     15.022,
+     -19.729
+    ],
+    "rotation": [
+     3.141185,
+     0.051,
+     3.141185
+    ],
+    "spawned_item/position": [
+     -0.151,
+     15.165,
+     -19.729
+    ],
+    "spawned_item/rotation": [
+     -3.142,
+     0.051,
+     -3.142
+    ],
+    "point_id": 25
+   }
+  },
+  {
+   "files": "projects/v044a_level_09/day_2/client_project",
+   "list": "server_objects/victory_item_spawners",
+   "after": {
+    "point_id": 25
+   },
+   "like": {
+    "point_id": 0
+   },
+   "expected_files": 1,
+   "values": {
+    "name": "victory_item_spawner(9)",
+    "full_name": "logic/modes/items_random/mode_2/victory_item_spawner(9)",
+    "position": [
+     -6.133,
+     15.022,
+     11.529
+    ],
+    "rotation": [
+     3.141185,
+     0.048,
+     -3.141185
+    ],
+    "spawned_item/position": [
+     -6.133,
+     15.165,
+     11.529
+    ],
+    "spawned_item/rotation": [
+     -3.142,
+     0.048,
+     3.142
+    ],
+    "point_id": 26
+   }
+  },
+  {
+   "files": "projects/v044a_level_09/day_2/client_project",
+   "list": "server_objects/victory_item_spawners",
+   "after": {
+    "point_id": 26
+   },
+   "like": {
+    "point_id": 0
+   },
+   "expected_files": 1,
+   "values": {
+    "name": "victory_item_spawner(21)",
+    "full_name": "logic/modes/items_random/mode_2/victory_item_spawner(21)",
+    "position": [
+     9.353,
+     1.798,
+     -2.377
+    ],
+    "rotation": [
+     0.0,
+     -0.97,
+     0.0
+    ],
+    "spawned_item/position": [
+     9.353,
+     1.941,
+     -2.377
+    ],
+    "spawned_item/rotation": [
+     0.0,
+     -0.97,
+     0.0
+    ],
+    "point_id": 27
+   }
+  },
+  {
+   "files": "projects/v044a_level_09/day_2/client_project",
+   "list": "server_objects/victory_item_spawners",
+   "after": {
+    "point_id": 27
+   },
+   "like": {
+    "point_id": 0
+   },
+   "expected_files": 1,
+   "values": {
+    "name": "victory_item_spawner(13)",
+    "full_name": "logic/modes/items_random/mode_2/victory_item_spawner(13)",
+    "position": [
+     9.762,
+     11.475,
+     -53.709999
+    ],
+    "rotation": [
+     3.141185,
+     0.386,
+     3.141185
+    ],
+    "spawned_item/position": [
+     9.762,
+     11.618,
+     -53.709999
+    ],
+    "spawned_item/rotation": [
+     -3.142,
+     0.386,
+     -3.142
+    ],
+    "point_id": 28
+   }
+  },
+  {
+   "files": "projects/v044a_level_09/day_2/client_project",
+   "list": "server_objects/victory_item_spawners",
+   "after": {
+    "point_id": 28
+   },
+   "like": {
+    "point_id": 0
+   },
+   "expected_files": 1,
+   "values": {
+    "name": "victory_item_spawner(37)",
+    "full_name": "logic/modes/items_random/mode_2/victory_item_spawner(37)",
+    "position": [
+     18.249001,
+     8.532,
+     15.116
+    ],
+    "rotation": [
+     -0.431,
+     -0.768,
+     -0.096
+    ],
+    "spawned_item/position": [
+     18.278,
+     8.665,
+     15.159
+    ],
+    "spawned_item/rotation": [
+     -0.431,
+     -0.768,
+     -0.096
+    ],
+    "point_id": 29
+   }
+  },
+  {
+   "files": "projects/v044a_level_09/day_2/client_project",
+   "list": "server_objects/victory_item_spawners",
+   "after": {
+    "point_id": 29
+   },
+   "like": {
+    "point_id": 0
+   },
+   "expected_files": 1,
+   "values": {
+    "name": "victory_item_spawner",
+    "full_name": "logic/modes/items_random/mode_2/victory_item_spawner",
+    "position": [
+     2.947,
+     10.025,
+     -23.209
+    ],
+    "rotation": [
+     3.092,
+     -0.211,
+     2.947
+    ],
+    "spawned_item/position": [
+     2.921,
+     10.166,
+     -23.216
+    ],
+    "spawned_item/rotation": [
+     3.092,
+     -0.211,
+     2.947
+    ],
+    "point_id": 30
+   }
+  },
+  {
+   "files": "projects/v044a_level_09/day_2/client_project",
+   "list": "server_objects/victory_item_spawners",
+   "after": {
+    "point_id": 30
+   },
+   "like": {
+    "point_id": 0
+   },
+   "expected_files": 1,
+   "values": {
+    "name": "victory_item_spawner(19)",
+    "full_name": "logic/modes/items_random/mode_2/victory_item_spawner(19)",
+    "position": [
+     -1.983,
+     1.518,
+     -15.945
+    ],
+    "rotation": [
+     -0.112,
+     -0.059,
+     0.034
+    ],
+    "spawned_item/position": [
+     -1.977,
+     1.66,
+     -15.929
+    ],
+    "spawned_item/rotation": [
+     -0.112,
+     -0.059,
+     0.034
+    ],
+    "point_id": 31
+   }
+  },
+  {
+   "files": "projects/v044a_level_09/rain_2/client_project",
+   "list": "server_objects/victory_item_spawners",
+   "after": {
+    "point_id": 23
+   },
+   "like": {
+    "point_id": 0
+   },
+   "expected_files": 1,
+   "values": {
+    "name": "victory_item_spawner(23)",
+    "full_name": "logic/modes/items_random/mode_2/victory_item_spawner(23)",
+    "position": [
+     -14.805,
+     1.798,
+     10.94
+    ],
+    "rotation": [
+     0.0,
+     -1.281,
+     0.0
+    ],
+    "spawned_item/position": [
+     -14.805,
+     1.941,
+     10.94
+    ],
+    "spawned_item/rotation": [
+     0.0,
+     -1.281,
+     0.0
+    ],
+    "point_id": 24
+   }
+  },
+  {
+   "files": "projects/v044a_level_09/rain_2/client_project",
+   "list": "server_objects/victory_item_spawners",
+   "after": {
+    "point_id": 24
+   },
+   "like": {
+    "point_id": 0
+   },
+   "expected_files": 1,
+   "values": {
+    "name": "victory_item_spawner(36)",
+    "full_name": "logic/modes/items_random/mode_2/victory_item_spawner(36)",
+    "position": [
+     -0.151,
+     15.022,
+     -19.729
+    ],
+    "rotation": [
+     3.141185,
+     0.051,
+     3.141185
+    ],
+    "spawned_item/position": [
+     -0.151,
+     15.165,
+     -19.729
+    ],
+    "spawned_item/rotation": [
+     -3.142,
+     0.051,
+     -3.142
+    ],
+    "point_id": 25
+   }
+  },
+  {
+   "files": "projects/v044a_level_09/rain_2/client_project",
+   "list": "server_objects/victory_item_spawners",
+   "after": {
+    "point_id": 25
+   },
+   "like": {
+    "point_id": 0
+   },
+   "expected_files": 1,
+   "values": {
+    "name": "victory_item_spawner(9)",
+    "full_name": "logic/modes/items_random/mode_2/victory_item_spawner(9)",
+    "position": [
+     -6.133,
+     15.022,
+     11.529
+    ],
+    "rotation": [
+     3.141185,
+     0.048,
+     -3.141185
+    ],
+    "spawned_item/position": [
+     -6.133,
+     15.165,
+     11.529
+    ],
+    "spawned_item/rotation": [
+     -3.142,
+     0.048,
+     3.142
+    ],
+    "point_id": 26
+   }
+  },
+  {
+   "files": "projects/v044a_level_09/rain_2/client_project",
+   "list": "server_objects/victory_item_spawners",
+   "after": {
+    "point_id": 26
+   },
+   "like": {
+    "point_id": 0
+   },
+   "expected_files": 1,
+   "values": {
+    "name": "victory_item_spawner(21)",
+    "full_name": "logic/modes/items_random/mode_2/victory_item_spawner(21)",
+    "position": [
+     9.353,
+     1.798,
+     -2.377
+    ],
+    "rotation": [
+     0.0,
+     -0.97,
+     0.0
+    ],
+    "spawned_item/position": [
+     9.353,
+     1.941,
+     -2.377
+    ],
+    "spawned_item/rotation": [
+     0.0,
+     -0.97,
+     0.0
+    ],
+    "point_id": 27
+   }
+  },
+  {
+   "files": "projects/v044a_level_09/rain_2/client_project",
+   "list": "server_objects/victory_item_spawners",
+   "after": {
+    "point_id": 27
+   },
+   "like": {
+    "point_id": 0
+   },
+   "expected_files": 1,
+   "values": {
+    "name": "victory_item_spawner(13)",
+    "full_name": "logic/modes/items_random/mode_2/victory_item_spawner(13)",
+    "position": [
+     9.762,
+     11.475,
+     -53.709999
+    ],
+    "rotation": [
+     3.141185,
+     0.386,
+     3.141185
+    ],
+    "spawned_item/position": [
+     9.762,
+     11.618,
+     -53.709999
+    ],
+    "spawned_item/rotation": [
+     -3.142,
+     0.386,
+     -3.142
+    ],
+    "point_id": 28
+   }
+  },
+  {
+   "files": "projects/v044a_level_09/rain_2/client_project",
+   "list": "server_objects/victory_item_spawners",
+   "after": {
+    "point_id": 28
+   },
+   "like": {
+    "point_id": 0
+   },
+   "expected_files": 1,
+   "values": {
+    "name": "victory_item_spawner(37)",
+    "full_name": "logic/modes/items_random/mode_2/victory_item_spawner(37)",
+    "position": [
+     18.249001,
+     8.532,
+     15.116
+    ],
+    "rotation": [
+     -0.431,
+     -0.768,
+     -0.096
+    ],
+    "spawned_item/position": [
+     18.278,
+     8.665,
+     15.159
+    ],
+    "spawned_item/rotation": [
+     -0.431,
+     -0.768,
+     -0.096
+    ],
+    "point_id": 29
+   }
+  },
+  {
+   "files": "projects/v044a_level_09/rain_2/client_project",
+   "list": "server_objects/victory_item_spawners",
+   "after": {
+    "point_id": 29
+   },
+   "like": {
+    "point_id": 0
+   },
+   "expected_files": 1,
+   "values": {
+    "name": "victory_item_spawner",
+    "full_name": "logic/modes/items_random/mode_2/victory_item_spawner",
+    "position": [
+     2.947,
+     10.025,
+     -23.209
+    ],
+    "rotation": [
+     3.092,
+     -0.211,
+     2.947
+    ],
+    "spawned_item/position": [
+     2.921,
+     10.166,
+     -23.216
+    ],
+    "spawned_item/rotation": [
+     3.092,
+     -0.211,
+     2.947
+    ],
+    "point_id": 30
+   }
+  },
+  {
+   "files": "projects/v044a_level_09/rain_2/client_project",
+   "list": "server_objects/victory_item_spawners",
+   "after": {
+    "point_id": 30
+   },
+   "like": {
+    "point_id": 0
+   },
+   "expected_files": 1,
+   "values": {
+    "name": "victory_item_spawner(19)",
+    "full_name": "logic/modes/items_random/mode_2/victory_item_spawner(19)",
+    "position": [
+     -1.983,
+     1.518,
+     -15.945
+    ],
+    "rotation": [
+     -0.112,
+     -0.059,
+     0.034
+    ],
+    "spawned_item/position": [
+     -1.977,
+     1.66,
+     -15.929
+    ],
+    "spawned_item/rotation": [
+     -0.112,
+     -0.059,
+     0.034
+    ],
+    "point_id": 31
+   }
+  },
+  {
+   "files": "projects/v044a_level_09/evening_2/client_project",
+   "list": "server_objects/victory_item_spawners",
+   "after": {
+    "point_id": 23
+   },
+   "like": {
+    "point_id": 0
+   },
+   "expected_files": 1,
+   "values": {
+    "name": "victory_item_spawner(23)",
+    "full_name": "logic/modes/items_random/mode_2/victory_item_spawner(23)",
+    "position": [
+     -14.805,
+     1.798,
+     10.94
+    ],
+    "rotation": [
+     0.0,
+     -1.281,
+     0.0
+    ],
+    "spawned_item/position": [
+     -14.805,
+     1.941,
+     10.94
+    ],
+    "spawned_item/rotation": [
+     0.0,
+     -1.281,
+     0.0
+    ],
+    "point_id": 24
+   }
+  },
+  {
+   "files": "projects/v044a_level_09/evening_2/client_project",
+   "list": "server_objects/victory_item_spawners",
+   "after": {
+    "point_id": 24
+   },
+   "like": {
+    "point_id": 0
+   },
+   "expected_files": 1,
+   "values": {
+    "name": "victory_item_spawner(36)",
+    "full_name": "logic/modes/items_random/mode_2/victory_item_spawner(36)",
+    "position": [
+     -0.151,
+     15.022,
+     -19.729
+    ],
+    "rotation": [
+     3.141185,
+     0.051,
+     3.141185
+    ],
+    "spawned_item/position": [
+     -0.151,
+     15.165,
+     -19.729
+    ],
+    "spawned_item/rotation": [
+     -3.142,
+     0.051,
+     -3.142
+    ],
+    "point_id": 25
+   }
+  },
+  {
+   "files": "projects/v044a_level_09/evening_2/client_project",
+   "list": "server_objects/victory_item_spawners",
+   "after": {
+    "point_id": 25
+   },
+   "like": {
+    "point_id": 0
+   },
+   "expected_files": 1,
+   "values": {
+    "name": "victory_item_spawner(9)",
+    "full_name": "logic/modes/items_random/mode_2/victory_item_spawner(9)",
+    "position": [
+     -6.133,
+     15.022,
+     11.529
+    ],
+    "rotation": [
+     3.141185,
+     0.048,
+     -3.141185
+    ],
+    "spawned_item/position": [
+     -6.133,
+     15.165,
+     11.529
+    ],
+    "spawned_item/rotation": [
+     -3.142,
+     0.048,
+     3.142
+    ],
+    "point_id": 26
+   }
+  },
+  {
+   "files": "projects/v044a_level_09/evening_2/client_project",
+   "list": "server_objects/victory_item_spawners",
+   "after": {
+    "point_id": 26
+   },
+   "like": {
+    "point_id": 0
+   },
+   "expected_files": 1,
+   "values": {
+    "name": "victory_item_spawner(21)",
+    "full_name": "logic/modes/items_random/mode_2/victory_item_spawner(21)",
+    "position": [
+     9.353,
+     1.798,
+     -2.377
+    ],
+    "rotation": [
+     0.0,
+     -0.97,
+     0.0
+    ],
+    "spawned_item/position": [
+     9.353,
+     1.941,
+     -2.377
+    ],
+    "spawned_item/rotation": [
+     0.0,
+     -0.97,
+     0.0
+    ],
+    "point_id": 27
+   }
+  },
+  {
+   "files": "projects/v044a_level_09/evening_2/client_project",
+   "list": "server_objects/victory_item_spawners",
+   "after": {
+    "point_id": 27
+   },
+   "like": {
+    "point_id": 0
+   },
+   "expected_files": 1,
+   "values": {
+    "name": "victory_item_spawner(13)",
+    "full_name": "logic/modes/items_random/mode_2/victory_item_spawner(13)",
+    "position": [
+     9.762,
+     11.475,
+     -53.709999
+    ],
+    "rotation": [
+     3.141185,
+     0.386,
+     3.141185
+    ],
+    "spawned_item/position": [
+     9.762,
+     11.618,
+     -53.709999
+    ],
+    "spawned_item/rotation": [
+     -3.142,
+     0.386,
+     -3.142
+    ],
+    "point_id": 28
+   }
+  },
+  {
+   "files": "projects/v044a_level_09/evening_2/client_project",
+   "list": "server_objects/victory_item_spawners",
+   "after": {
+    "point_id": 28
+   },
+   "like": {
+    "point_id": 0
+   },
+   "expected_files": 1,
+   "values": {
+    "name": "victory_item_spawner(37)",
+    "full_name": "logic/modes/items_random/mode_2/victory_item_spawner(37)",
+    "position": [
+     18.249001,
+     8.532,
+     15.116
+    ],
+    "rotation": [
+     -0.431,
+     -0.768,
+     -0.096
+    ],
+    "spawned_item/position": [
+     18.278,
+     8.665,
+     15.159
+    ],
+    "spawned_item/rotation": [
+     -0.431,
+     -0.768,
+     -0.096
+    ],
+    "point_id": 29
+   }
+  },
+  {
+   "files": "projects/v044a_level_09/evening_2/client_project",
+   "list": "server_objects/victory_item_spawners",
+   "after": {
+    "point_id": 29
+   },
+   "like": {
+    "point_id": 0
+   },
+   "expected_files": 1,
+   "values": {
+    "name": "victory_item_spawner",
+    "full_name": "logic/modes/items_random/mode_2/victory_item_spawner",
+    "position": [
+     2.947,
+     10.025,
+     -23.209
+    ],
+    "rotation": [
+     3.092,
+     -0.211,
+     2.947
+    ],
+    "spawned_item/position": [
+     2.921,
+     10.166,
+     -23.216
+    ],
+    "spawned_item/rotation": [
+     3.092,
+     -0.211,
+     2.947
+    ],
+    "point_id": 30
+   }
+  },
+  {
+   "files": "projects/v044a_level_09/evening_2/client_project",
+   "list": "server_objects/victory_item_spawners",
+   "after": {
+    "point_id": 30
+   },
+   "like": {
+    "point_id": 0
+   },
+   "expected_files": 1,
+   "values": {
+    "name": "victory_item_spawner(19)",
+    "full_name": "logic/modes/items_random/mode_2/victory_item_spawner(19)",
+    "position": [
+     -1.983,
+     1.518,
+     -15.945
+    ],
+    "rotation": [
+     -0.112,
+     -0.059,
+     0.034
+    ],
+    "spawned_item/position": [
+     -1.977,
+     1.66,
+     -15.929
+    ],
+    "spawned_item/rotation": [
+     -0.112,
+     -0.059,
+     0.034
+    ],
+    "point_id": 31
+   }
+  }
+ ]
+}

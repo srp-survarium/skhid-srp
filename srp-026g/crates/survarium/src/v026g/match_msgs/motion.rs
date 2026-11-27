@@ -15,6 +15,7 @@
 //! u32 n, n x {u32 time, f32 stopping speed}: m_recent_hits  0x2DB385..0x2DB42F
 //! bool m_respawn_disabled                                   0x2DB445
 //! the artefact carry's state, 32 bytes, version byte 2      client patch 78
+//! [the second sights' record, 11 bytes, version byte last]  client patch 206
 //! ```
 //!
 //! PROVEN in the exe; read back on the worlds of real matches. Client
@@ -439,11 +440,17 @@ fn damage_model(s: &[u8], head: usize, inserted_at: usize, now: u32) -> Option<D
 }
 
 /// The state as the game wrote it, without client patch 78's carry
-/// snapshot at its end (None without a valid one).
+/// snapshot at its end (None without a valid one), nor patch 206's second
+/// sights after it when the state ends with their record.
 fn native_state(state: &[u8]) -> Option<&[u8]> {
-    let (native, carry) = state.split_at_checked(state.len().checked_sub(Carry::SNAPSHOT_SIZE)?)?;
-    Carry::restore(carry.try_into().ok()?)?;
-    Some(native)
+    fn carried(state: &[u8]) -> Option<&[u8]> {
+        let (native, carry) = state.split_at_checked(state.len().checked_sub(Carry::SNAPSHOT_SIZE)?)?;
+        Carry::restore(carry.try_into().ok()?)?;
+        Some(native)
+    }
+    second_sight::Record::split_end(state)
+        .and_then(|(before, _)| carried(before))
+        .or_else(|| carried(state))
 }
 
 /// The end of a state as [`Motion::read`] reads it, for tests and tools
@@ -648,6 +655,21 @@ mod tests {
 
     /// Client patch 78 ends every state with the carry's snapshot: read
     /// past it, never into it, and not without it.
+    /// Client patch 206 may end a state with the second sights' record
+    /// after the carry: read past both.
+    #[test]
+    fn the_second_sights_after_the_carry_are_skipped() {
+        use second_sight::{GameTime, Record, Sight, State};
+        let hits = [(100_000, 0.3)];
+        let plain = state(true, 5, 0.5, &hits);
+        let mut bytes = plain.clone();
+        let record = Record::new(State::Switching { to: Sight::Second, pressed: GameTime(NOW) }, State::MAIN);
+        bytes.extend(record.encode());
+        assert_eq!(Motion::read(&bytes, 5), Motion::read(&plain, 5));
+        assert!(Motion::read(&bytes, 5).is_some());
+        assert_eq!(Motion::find(&bytes, NOW).map(|(items, _)| items), Some(5));
+    }
+
     #[test]
     fn the_carry_snapshot_at_the_end_is_skipped_and_required() {
         let hits = [(100_000, 0.3)];

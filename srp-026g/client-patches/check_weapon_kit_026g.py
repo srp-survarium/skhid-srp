@@ -27,16 +27,16 @@ are, the arena with them.
     kit), then one entry for each dict id the kit names (its camouflage,
     muzzle and grip, in that order), the value 0; never more than six; none
     for a dict id the dictionary lacks; the item's own records and list
-    unchanged, the list in the room A0h below translate_query's esp, above
+    unchanged, the list in the room C0h below translate_query's esp, above
     the entries' alloca;
-  - a malformed kit (its own slot outside 2..5, naming its own slot, a slot
+  - a malformed kit (its own slot outside its layout's, naming its own slot, a slot
     or dict id twice, two kits): the original's entries;
   - 0x2F2060 refusing (al 0): the original's way.
 - the lobby's upgrades to Flash (0x288180), from 0x2882E3 (after an object's
   `param`) to 0x2882E9 (its PushBack), on a made-up stack and GFx object
   whose interface is the AS3 one (its vtable 0x8FC288; SetMember 0x7C6A20 a
-  stub): a kit record's object gets kit_own, kit_camo, kit_muzzle and
-  kit_grip (uint, the object's display flag as the bridge's own); any other
+  stub): a kit record's object gets kit_own, kit_camo, kit_muzzle, kit_grip,
+  kit_second and kit_side (uint, the object's display flag as the bridge's own); any other
   record's nothing, nor an object of another interface; ecx, eax and the
   stack as the original's.
 - patch 48's apply (upgrade_preview_026g.asm, its kit_apply dword the build
@@ -69,11 +69,18 @@ CREATE_OBJECT, CREATE_ARRAY = 0x511700, 0x511710
 GET_QUERY, ITEM_BY_ID, CHILD = 0x2F2060, 0x1F0090, 0x0F6B10
 BRIDGE_SITE, BRIDGE_BACK = 0x2882E3, 0x2882E9
 AS3_INTERFACE, SET_MEMBER = 0x8FC288, 0x7C6A20   # the AS3 object interface's vtable, its SetMember (slot 5)
-ROOM = 0xA0                            # weapon_kit_026g.asm: six records and their vector
+ROOM = 0xC0                            # weapon_kit_026g.asm: seven records and their vector
+ROOM_LIST = 0xA8                       # the vector after the seven records (fields_026g.tsv)
+EXPANDED = 7
 KIT_MAGIC = 0xA7
+KIT_MAGIC_WIDE = 0xA8                  # the wide kit: a second sight named or its own
 FIELD_SLOTS = (2, 4, 5)                # camouflage, muzzle, grip
 FIELD_SHIFTS = (0, 16, 32)
-KIT_ORDER = (3, 2, 4, 5)               # the kit's own: the first of scope, camouflage, muzzle, grip
+WIDE_SLOTS = (2, 4, 5, 6)              # and the second sight, 12 bits each
+WIDE_SHIFTS = (0, 12, 24, 36)
+SECOND_SIGHT = 6
+SECOND_SIGHT_ITEM = 2676               # weapon-kit's SECOND_SIGHT_ITEM: the cook's record of a second sight
+KIT_ORDER = (3, 2, 4, 5, 6)            # the kit's own: the first of scope, camouflage, muzzle, grip, second sight
 
 STACK, STOP = 0x21000000, 0x21100000
 MENU, CLIENT = 0x32000000, 0x34000000
@@ -94,17 +101,26 @@ class Malformed(Exception):
 
 
 def kit_of(r):
-    """None for a plain record; (own slot, [(dict id, slot) named]); Malformed."""
-    if r[3] != 3 or r[2] >> 56 != KIT_MAGIC:
+    """None for a plain record; (own slot, [(dict id, slot) named], side); Malformed."""
+    if r[3] != 3 or r[2] >> 56 not in (KIT_MAGIC, KIT_MAGIC_WIDE):
         return None
-    own = (r[2] >> 48) & 0xFF
-    if own not in KIT_ORDER:
-        raise Malformed(f"own slot {own}")
-    named = [((r[2] >> shift) & 0xFFFF, slot) for slot, shift in zip(FIELD_SLOTS, FIELD_SHIFTS)
-             if (r[2] >> shift) & 0xFFFF]
+    byte = (r[2] >> 48) & 0xFF
+    if r[2] >> 56 == KIT_MAGIC:
+        own, side, slots, shifts, mask = byte, 0, FIELD_SLOTS, FIELD_SHIFTS, 0xFFFF
+        if own not in KIT_ORDER[:4]:
+            raise Malformed(f"own slot {own}")
+    else:
+        if byte & 0x70:
+            raise Malformed(f"own byte {byte:#x}")
+        own, side, slots, shifts, mask = byte & 0x0F, byte >> 7, WIDE_SLOTS, WIDE_SHIFTS, 0xFFF
+        if own not in KIT_ORDER:
+            raise Malformed(f"own slot {own}")
+    named = [((r[2] >> shift) & mask, slot) for slot, shift in zip(slots, shifts) if (r[2] >> shift) & mask]
     if any(slot == own for _, slot in named):
         raise Malformed("names its own slot")
-    return own, named
+    if r[2] >> 56 == KIT_MAGIC_WIDE and own != SECOND_SIGHT and all(slot != SECOND_SIGHT for _, slot in named):
+        raise Malformed("a wide kit without a second sight")
+    return own, named, side
 
 
 def unpack(wire):
@@ -126,16 +142,19 @@ def unpack(wire):
     for r in wire:
         k = kit_of(r)
         if k is None:
-            if r[3] > 5:
+            if r[3] > SECOND_SIGHT:
                 raise Malformed(f"slot {r[3]}")
+            if r[3] == SECOND_SIGHT and r[2] not in (0, 1):
+                raise Malformed(f"side {r[2]}")
             put(r[3], r[:3])
             continue
         kits += 1
         if kits > 1:
             raise Malformed("two kits")
-        put(k[0], (r[0], r[1], 0))
+        side = k[2]
+        put(k[0], (r[0], r[1], side if k[0] == SECOND_SIGHT else 0))
         for d, slot in k[1]:
-            put(slot, (0, d, 0), named=True)
+            put(slot, (0, d, side if slot == SECOND_SIGHT else 0), named=True)
     return logical
 
 
@@ -143,10 +162,19 @@ def pack(logical):
     wire = [(*logical[slot], slot) for slot in (0, 1) if slot in logical]
     own = next((slot for slot in KIT_ORDER if slot in logical), None)
     if own is not None:
-        value = KIT_MAGIC << 56 | own << 48
-        for slot, shift in zip(FIELD_SLOTS, FIELD_SHIFTS):
-            if slot in logical and slot != own:
-                value |= (logical[slot][1] & 0xFFFF) << shift
+        second = SECOND_SIGHT in logical and (own == SECOND_SIGHT or logical[SECOND_SIGHT][1] < 0x1000)
+        wide = second and all(logical[s][1] < 0x1000 for s in WIDE_SLOTS if s in logical and s != own)
+        if wide:
+            side = logical[SECOND_SIGHT][2] if logical[SECOND_SIGHT][2] in (0, 1) else 0
+            value = KIT_MAGIC_WIDE << 56 | side << 55 | own << 48
+            for slot, shift in zip(WIDE_SLOTS, WIDE_SHIFTS):
+                if slot in logical and slot != own:
+                    value |= logical[slot][1] << shift
+        else:
+            value = KIT_MAGIC << 56 | own << 48
+            for slot, shift in zip(FIELD_SLOTS, FIELD_SHIFTS):
+                if slot in logical and slot != own:
+                    value |= (logical[slot][1] & 0xFFFF) << shift
         wire.append((logical[own][0], logical[own][1], value, 3))
     return wire
 
@@ -164,7 +192,7 @@ def apply(wire, changes):
         if slot == 0xFF:
             logical = {s: h for s, h in logical.items() if not held_is(h, up, d)}
             continue
-        if slot > 5:
+        if slot > SECOND_SIGHT:
             continue
         if slot in logical and held_is(logical[slot], up, d) and logical[slot][1] == d:
             continue
@@ -184,12 +212,33 @@ def expand(wire, known):
         unpack(wire)
     except Malformed:
         return None
-    out = [(r[0], r[1], 0, r[3]) if kit_of(r) else r for r in wire]
-    return out + [(0, d, 0, slot) for d, slot in kits[0][1] if d in known]
+    own, named, side = kits[0]
+    second = SECOND_SIGHT_ITEM in known
+    out = []
+    for r in wire:
+        if not kit_of(r):
+            out.append(r)
+        elif own != SECOND_SIGHT:
+            out.append((r[0], r[1], 0, r[3]))
+        elif second and r[1] in known:
+            out.append((0, SECOND_SIGHT_ITEM, side << 32 | r[1], SECOND_SIGHT))
+    for d, slot in named:
+        if d not in known:
+            continue
+        if slot != SECOND_SIGHT:
+            out.append((0, d, 0, slot))
+        elif second:
+            out.append((0, SECOND_SIGHT_ITEM, side << 32 | d, SECOND_SIGHT))
+    return out
 
 
 def kit(own, own_slot, camo=0, muzzle=0, grip=0):
     return (own[0], own[1], KIT_MAGIC << 56 | own_slot << 48 | grip << 32 | muzzle << 16 | camo, 3)
+
+
+def wide_kit(own, own_slot, side, camo=0, muzzle=0, grip=0, second=0):
+    value = KIT_MAGIC_WIDE << 56 | side << 55 | own_slot << 48 | second << 36 | grip << 24 | muzzle << 12 | camo
+    return (own[0], own[1], value, 3)
 
 
 # ------------------------------------------------------------ the runs
@@ -331,7 +380,7 @@ class Run:
         self.items[501] = self.items.get(501, ENTRIES + 0xF000)
         self.refuse = refuse
         ebp = STACK
-        sp = ebp - 0xA0
+        sp = ebp - ROOM
         emu.mem_write(STACK - 0x20000, bytes(0x40000))
         before = bytes(emu.mem_read(ITEM, 0xB4))
         regs, esp = self.run(CALL_SITE, (QUERY_BACK,), sp,
@@ -446,8 +495,9 @@ def main():
         print(f"  {'ok' if ok else 'FAIL'}  {text}")
 
     # dict ids: decals 603, 604; camouflages 601, 602; a scope variant 2002;
-    # a muzzle 2201; a grip 2301; 2999 the dictionary lacks
-    known = (501, 601, 602, 603, 604, 2002, 2201, 2301)
+    # a muzzle 2201; a grip 2301; an optic 2112 (a second sight) and the second
+    # sight item; 2999 the dictionary lacks
+    known = (501, 601, 602, 603, 604, 2002, 2112, 2201, 2301, SECOND_SIGHT_ITEM)
     for run in (stock, patched):
         run.dictionary(known)
     DECAL0, DECAL1 = (1603, 603, 0x0102030405060708, 0), (1604, 604, 0x1112131415161718, 1)
@@ -487,6 +537,9 @@ def main():
         ("the dictionary lacks one it names (left out)", [kit(CAMO, 2, grip=2999)]),
         ("a kit with nothing named: its own alone", [DECAL0, kit(SCOPE, 3)]),
         ("the same decal twice beside the kit", [DECAL0, (1606, 603, 0x22, 1), kit(SCOPE, 3, camo=601)]),
+        ("decal, decal, the wide kit: scope, camouflage, muzzle, grip, a second sight on the right",
+         [DECAL0, DECAL1, wide_kit(SCOPE, 3, 1, camo=601, muzzle=2201, grip=2301, second=2112)]),
+        ("the second sight alone, on the left: the wide kit's own", [wide_kit((1607, 2112), 6, 0)]),
     ]
     for name, records in kits:
         a, b = stock.translate(records), patched.translate(records)
@@ -497,11 +550,11 @@ def main():
             and [d for d, _ in got] == [r[1] for r in want] \
             and [v for _, v in got] == [r[2] for r in want] \
             and [d for d, _ in a[1][0]] == [r[1] for r in records] \
-            and len(got) <= 6 and room == a[0][0] - ROOM and list_at == room + 0x90 \
+            and len(got) <= EXPANDED and room == a[0][0] - ROOM and list_at == room + ROOM_LIST \
             and b[1][1] + 16 * len(got) <= room
         report(ok, f"{name}: the entries {[d for d, _ in got] if got else '?'} (the original's "
                    f"{[d for d, _ in a[1][0]] if a and a[1] else '?'}), the kit's own valued 0, the list in "
-                   f"the room A0h below translate_query's esp (above the entries' alloca), the item's own "
+                   f"the room C0h below translate_query's esp (above the entries' alloca), the item's own "
                    f"records unchanged")
 
     six = [DECAL0, DECAL1, kit(SCOPE, 3, camo=601, muzzle=2201, grip=2301)]
@@ -533,14 +586,15 @@ def main():
                     and all(a[2][r] == b[2][r] for r in (UC_X86_REG_EBX, UC_X86_REG_ESI, UC_X86_REG_EDI,
                                                          UC_X86_REG_EBP, UC_X86_REG_EDX))
                 display = 1 if (kind & 0x8F) == 0x0A else 0
-                members = (("kit_own", 3), ("kit_camo", 601), ("kit_muzzle", 2201), ("kit_grip", 2301))
+                members = (("kit_own", 3), ("kit_camo", 601), ("kit_muzzle", 2201), ("kit_grip", 2301),
+                           ("kit_second", 0), ("kit_side", 0))
                 want = [(GFX, 0x6D6D6D6D, name, 4, value, display) for name, value in members] \
                     if index == 2 and as3 else []
                 report(same and not a[4] and b[4] == want,
                        f"record {index} ({'the kit' if index == 2 else 'a decal'}), the object "
                        f"{'a display object' if display else 'plain'}, "
                        f"{'the AS3 interface' if as3 else 'another interface'}: "
-                       + ("kit_own, kit_camo, kit_muzzle, kit_grip set" if want else "nothing set")
+                       + ("kit_own, kit_camo, kit_muzzle, kit_grip, kit_second, kit_side set" if want else "nothing set")
                        + ", registers and stack the original's")
 
     print("patch 48's apply (its kit_apply slot the build's weapon_kit_preview_apply)")

@@ -43,6 +43,8 @@ fn account(items: Vec<ItemDescr>) -> OwnAccount {
         exp_total: 10,
         exp_level_start: 5,
         exp_next_level: 20,
+        face: crate::v026g::faces::Face::DEFAULT,
+        faces: crate::v026g::faces::Faces::shared(),
     }
 }
 
@@ -108,7 +110,7 @@ fn the_account_needs_its_items_in_the_inventory_first() {
 fn raw_accounts_the_client_would_misread() {
     let mut client = Client::signed_in();
     client.receive(&inventory(&[pistol(1)]).unwrap()).unwrap();
-    let tail = "01000000 01000000 01 01 00000000 00000000 01000000";
+    let tail = "01000000 01000000 01 01 00000000 00000000 01000000 00 03";
     let kit = |mask: &str, slots: &str| {
         format!("00 01000000 00 {mask} {slots} 0000000000000000 0000000000000000")
     };
@@ -171,7 +173,19 @@ fn raw_accounts_the_client_would_misread() {
         Err(ModelError::UnknownItem(9999))
     );
     // An active kit id that is none of the kits.
-    let other_kit = good.replace(tail, "01000000 09000000 00 01 00000000 00000000 01000000");
+    let other_kit = good.replace(tail, "01000000 09000000 00 01 00000000 00000000 01000000 00 03");
+    // A face the game data does not list (the test data has three).
+    let unlisted = good.replace(tail, "01000000 01000000 01 01 00000000 00000000 01000000 03 03");
+    assert!(matches!(
+        send(&mut client, &unlisted),
+        Err(ModelError::Bad(ServerId::Account, _))
+    ));
+    // A count of faces that is not the game data's.
+    let miscounted = good.replace(tail, "01000000 01000000 01 01 00000000 00000000 01000000 00 04");
+    assert!(matches!(
+        send(&mut client, &miscounted),
+        Err(ModelError::Bad(ServerId::Account, _))
+    ));
     assert!(matches!(
         send(&mut client, &other_kit),
         Err(ModelError::Bad(ServerId::Account, _))

@@ -71,6 +71,12 @@ SRP_WEB_TRUST_PROXY=off
 # SRP_RECORD_MAX_MB.
 # SRP_REPLAY_MAX_MB=1000
 
+# The desync captures (both sides' worlds where the games split, with their
+# first differing field; docs/notes/desync_capture.md) in
+# /srv/srp/data/snapshots/captures over this many MB together: the oldest
+# are deleted.
+# SRP_CAPTURE_MAX_MB=200
+
 # Resources. Beside another server on a small host, check `free -m` first.
 SRP26_CPUS=1
 SRP26_MEMORY=512m

@@ -21,10 +21,15 @@ unplugged), the game has no sound until it is restarted. Survarium 0.59g1's chan
   ends the flushed buffers on a later pass, which a dead or stopped engine never runs: the rebuild
   gives their OnBufferEnd to the game itself (so 0x5DDE0's order lets the decoded chunk go), with
   the old engine gone and no source voice on the new one yet.
+- Under Wine (FAudio) a voice is mixed with its locks let go around every voice callback, the
+  buffer it decodes held: a Stop and FlushSourceBuffers in that time empty the list under the
+  pass (DecodeBuffers then reads `NULL->next`, xaudio2_7+0xE8DD, and the audio thread dies). The
+  engine callback counts the processing passes; a stopped voice is flushed, and the rebuild's
+  stopped sources destroyed, only once the pass running has ended (no later pass mixes them).
 - The device is picked by the game's own rule (`initialize_xaudio`): the last device of the
   DefaultMultimediaDevice role, else device 0; the mastering voice gets the game's own
   arguments (default channels, 44100 Hz).
-- Each event is a line in `srp_patches.log` (`srp: audio_device: ...`).
+- Each event is a line in the patches' log, the run's `srp_patches.<stamp>.log` (`srp: audio_device: ...`), written through the Rust log (`log.c_line`, patch 147).
 - Sound only: nothing a match computes. No setting.
 
 ## 0.26g (static RE of the original exe)

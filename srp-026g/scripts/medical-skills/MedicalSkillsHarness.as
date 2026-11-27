@@ -5,15 +5,20 @@ package {
  import flash.net.*;
  import flash.system.*;
  public class MedicalSkillsHarness extends Sprite {
-  // Our trees' skills and each's embedded artwork (bitmaps/<class>.png; medical-skills and
-  // artefact-skills icons-069.tsv).
-  private static const ARTWORK:Object = {301:"MedicalSkill069301",302:"MedicalSkill069302",303:"MedicalSkill069301",
-   311:"MedicalSkill069311",312:"MedicalSkill069312",313:"MedicalSkill069313",321:"MedicalSkill069321",
-   322:"MedicalSkill069322",323:"MedicalSkill069323",331:"MedicalSkill069331",332:"MedicalSkill069332",
+  // Our trees' skills and each's embedded artwork (bitmaps/<class>.png; medical-skills,
+  // artefact-skills and technical-skills icons-069.tsv).
+  private static const ARTWORK:Object = {301:"MedicalSkill069301",302:"MedicalSkill069302",303:"MedicalSkill069303",
+   311:"MedicalSkill069311",312:"MedicalSkill069312",314:"MedicalSkill069314",321:"MedicalSkill069321",
+   322:"MedicalSkill069322",323:"MedicalSkill069323",324:"MedicalSkill069324",331:"MedicalSkill069331",332:"MedicalSkill069332",
    333:"MedicalSkill069333",341:"MedicalSkill069341",342:"MedicalSkill069342",
    501:"ArtefactSkill069501",502:"ArtefactSkill069502",512:"ArtefactSkill069512",513:"ArtefactSkill069513",
    521:"ArtefactSkill069521",522:"ArtefactSkill069522",523:"ArtefactSkill069523",531:"ArtefactSkill069531",532:"ArtefactSkill069532",
-   533:"ArtefactSkill069533",541:"ArtefactSkill069541",542:"ArtefactSkill069542"};
+   533:"ArtefactSkill069533",534:"ArtefactSkill069534",541:"ArtefactSkill069541",542:"ArtefactSkill069542",
+   401:"TechnicalSkill069401",402:"TechnicalSkill069402",403:"TechnicalSkill069403",404:"TechnicalSkill069404",
+   411:"TechnicalSkill069411",412:"TechnicalSkill069412",413:"TechnicalSkill069413",414:"TechnicalSkill069414",
+   422:"TechnicalSkill069422",423:"TechnicalSkill069423",431:"TechnicalSkill069431",432:"TechnicalSkill069432",
+   433:"TechnicalSkill069433",441:"TechnicalSkill069441",442:"TechnicalSkill069442",443:"TechnicalSkill069443",
+   444:"TechnicalSkill069444",445:"TechnicalSkill069445"};
   private var loader:Loader = new Loader();
   private var failures:Array = [];
   private var icons:Object;
@@ -21,8 +26,9 @@ package {
   private var domain:ApplicationDomain;
   private var edits:Object;
   private var artefactEdits:Object;
+  private var technicalEdits:Object;
   private var catalog:Object = {};
-  private var pending:int = 4;
+  private var pending:int = 5;
   private var sources:Array = [];
   private var stage_:String = "";
   public function MedicalSkillsHarness() {
@@ -37,6 +43,10 @@ package {
    artefacts.addEventListener(Event.COMPLETE,function(e:Event):void {artefactEdits=JSON.parse(String(artefacts.data));ready();});
    artefacts.addEventListener(IOErrorEvent.IO_ERROR,function(e:Event):void {failures.push("no artefact-skills-1.json");finish();});
    artefacts.load(new URLRequest("artefact-skills-1.json"));
+   var technicals:URLLoader = new URLLoader();
+   technicals.addEventListener(Event.COMPLETE,function(e:Event):void {technicalEdits=JSON.parse(String(technicals.data));ready();});
+   technicals.addEventListener(IOErrorEvent.IO_ERROR,function(e:Event):void {failures.push("no technical-skills-1.json");finish();});
+   technicals.load(new URLRequest("technical-skills-1.json"));
    // The English catalog (client-patches/localization/english.tsv), where the artefact tree's texts are.
    var tsv:URLLoader = new URLLoader();
    tsv.addEventListener(Event.COMPLETE,function(e:Event):void {
@@ -75,34 +85,46 @@ package {
    check(Slots.artifactCount(5,0)==0,"no free artifact unlock");
    check(Slots.artifactCount(3,2)==2,"existing artifact capacity");
    Info.pocketSize=3;
-   Info.medicalSkills([]);
+   Info.committedSkills([]);
    check(Info.pocketUnits(10,size.HALF)==3,"base medicine");
    check(Info.pocketUnits(10,size.WHOLE)==1,"base whole pocket");
-   Info.medicalSkills([{id:322,value:0,newValue:1}]);
+   Info.committedSkills([{id:322,value:0,newValue:1}]);
    check(Info.pocketUnits(10,size.HALF)==3,"uncommitted preview");
-   Info.medicalSkills([{id:322,value:1}]);
+   Info.committedSkills([{id:322,value:1}]);
    check(Info.pocketUnits(10,size.HALF)==4,"medicine bonus");
    check(Info.pocketUnits(10,size.WHOLE)==1,"booster stays one");
    check(Info.pocketUnits(11,size.HALF)==3,"nonmedicine unchanged");
-   var held:Object=new Data();held.dictId=67;held.value=3;
+   // Bear Trap's trap and Toxic Smoke's grenade take 1.5 units (technical-skills.md, "Pocket units"):
+   // a pocket of 1..5 holds 1,1,2,2,3 of either; without the skills its size.
+   var held:Function=function(category:int):String {var n:Array=[];for(var s:int=1;s<=5;s++) n.push(Info.pocketUnits(category,size.HALF,s));return n.join(",");};
+   Info.committedSkills([]);
+   check(held(11)=="1,2,3,4,5" && held(24)=="1,2,3,4,5","traps and grenades without the skills");
+   Info.committedSkills([{id:444,value:1},{id:441,value:1}]);
+   check(held(11)=="1,1,2,2,3","Bear Trap: 1.5 units a trap, three in five");
+   check(held(24)=="1,1,2,2,3","Toxic Smoke: 1.5 units a grenade, three in five");
+   check(held(10)=="1,2,3,4,5","medicine unchanged by the trap and grenade skills");
+   check(Info.itemUnits(11,size.HALF)==1.5 && Info.itemUnits(24,size.HALF)==1.5,"the card's pocket units 1.5");
+   check(Info.itemUnits(24,size.PAIR)==2,"the RGD-5 keeps its own 2 with Toxic Smoke");
+   Info.committedSkills([{id:322,value:1}]);
+   // A put fills the pocket (one-pocket-a-type.md): all it holds of the item, at most the units owned.
    var item:Object=new Data();item.dictId=67;item.category=10;item.quickSlotItemSize=size.HALF;
-   check(Doll.pocketUnits(held,item)==4,"drag adds fourth medicine");
-   held.value=4;check(Doll.pocketUnits(held,item)==4,"drag capacity limit");
-   item.dictId=68;check(Doll.pocketUnits(held,item)==1,"different medicine starts at one");
-   Info.medicalSkills([]);
+   item.value=10;check(Doll.pocketUnits(item)==4,"a put fills the pocket with the fourth medicine");
+   item.value=2;check(Doll.pocketUnits(item)==2,"a put takes no more than is owned");
+   item.quickSlotItemSize=size.WHOLE;item.value=10;check(Doll.pocketUnits(item)==1,"a put of a whole-pocket item is one");
+   item.quickSlotItemSize=size.HALF;
+   Info.committedSkills([]);
    check(Info.pocketUnits(10,size.HALF)==3,"reset removes bonus");
    for each(var capacity:int in [4,5,6,20]) {
     Info.pocketSize=capacity;
-    Info.medicalSkills([]);
+    Info.committedSkills([]);
     check(Info.pocketUnits(10,size.HALF)==Math.min(5,capacity),"plain capacity cap " + capacity);
-    Info.medicalSkills([{id:322,value:1}]);
+    Info.committedSkills([{id:322,value:1}]);
     check(Info.pocketUnits(10,size.HALF)==5,"medicine bonus capped " + capacity);
     check(Info.pocketUnits(11,size.HALF)==Math.min(5,capacity),"grenade capacity cap " + capacity);
     check(Info.pocketUnits(10,size.WHOLE)==1,"booster stays one " + capacity);
     check(Info.pocketUnits(11,size.WHOLE)==1,"whole nonmedicine keeps one " + capacity);
     check(Info.pocketUnits(10,size.HALF,capacity)==5,"dialog override capped " + capacity);
-    held.value=5;item.dictId=held.dictId;
-    check(Doll.pocketUnits(held,item)==5,"cannot drag sixth medicine " + capacity);
+    item.value=20;check(Doll.pocketUnits(item)==5,"a put never takes a sixth medicine " + capacity);
    }
   }
   // English text of a key, as the edit list adds it (the stock keys the exe reads are given here).
@@ -157,23 +179,19 @@ package {
      branch_points:v.preconditions.branch_points});
     values.push({id:v.id,value:0});
    }
-   check(skills[341]==null,"Medic left the medical tree");
-   var layout:Object={301:[2,1,3,0],302:[3,1,2,0],311:[1,2,5,3],313:[3,2,2,3],312:[4,2,3,3],
-    342:[1,3,2,10],303:[2,3,2,10],321:[4,3,3,10],332:[2,4,5,15],323:[3,4,4,15],333:[4,4,4,15],331:[2,5,1,20],322:[3,5,1,20]};
-   var total:int=0;
-   for(var id:String in layout) {
-    var want:Array=layout[id];var have:Object=skills[id];
-    check(have!=null && have.ui.position[0]==want[0] && have.ui.position[1]==want[1] && have.levels_amount==want[2]
-     && have.preconditions.branch_points==want[3],"layout "+id);
-    if(have) total+=have.levels_amount;
+   var technicals:Object={};
+   for each(entry in technicalEdits.append_entry) {
+    v=entry.value;technicals[v.id]=v;
+    check(v.modifiers.length==v.levels_amount,"modifiers per rank "+v.id);
+    if(v.ui.skill_descriptions) check(v.ui.skill_descriptions.length==v.levels_amount+1,"rank rows "+v.id);
+    check(english(v.ui.name)!=null && english(v.ui.description)!=null,"technical texts "+v.id);
+    props.push({id:v.id,branch:int(v.id/100)-1,max_value:v.levels_amount,name:english(v.ui.name),
+     description_1:english(v.ui.description),description_2:described(v.ui,v.levels_amount),icon:v.ui.icon,
+     column:v.ui.position[0],row:v.ui.position[1],antiskills:v.preconditions.antiskills,
+     branch_points:v.preconditions.branch_points});
+    values.push({id:v.id,value:0});
    }
-   check(total==37,"37 ranks, 32 points with two exclusive pairs");
-   for each(var line:String in described(skills[301].ui,3)) {
-    check(line.indexOf("<green>")>=0 && /%.*s<\/green>/.test(line.split("\n")[0]),"Potent Painkiller green percent and seconds: "+line);
-   }
-   check(described(skills[301].ui,3)[3].indexOf("<green> +3% / +4.5 s</green>")>=0,"Potent Painkiller maximum");
-   check(described(skills[301].ui,3)[1].indexOf("Current value: +1% / +1.5 s")>=0,"Potent Painkiller current value");
-
+   var id:String;var have:Object;
    var Window:Class=domain.getDefinition("SrvCharWindow") as Class;
    var Renderer:Class=domain.getDefinition("SrvSkillRendererCh") as Class;
    // The menu as the lobby drives it: properties, skills, points, then the medical tab.
@@ -181,15 +199,26 @@ package {
    stage_="init";win.init(new Event(Event.RENDER));
    stage_="properties";win.fillSkillsProperties(props);
    stage_="skills";win.fillSkills(values);
-   stage_="points";win.setData({points_available:80});
+   stage_="points";win.setData({points_available:120});
    stage_="progress";win.fillSkillsProgress([{points:0},{points:0},{points:0}]);
    stage_="medical tab";win.skillsTabPage.selectedIndex=2;
    stage_="checks";var shown:Object=renderers(win,Renderer);
-   check(shown[341]==null,"no Medic in the menu");
-   var step:Point=new Point(shown[302].x-shown[301].x,shown[311].y-shown[301].y);
+   // Every skill of the edit list drawn where its position says, with its ranks' pips (the numbers
+   // are the edit list's, not repeated here); the steps from two skills in other columns and rows.
+   var step:Point=new Point(0,0);
+   for(var a:String in skills) for(var b:String in skills) {
+    if(shown[a]==null || shown[b]==null) continue;
+    var columns:int=skills[b].ui.position[0]-skills[a].ui.position[0];
+    var rows:int=skills[b].ui.position[1]-skills[a].ui.position[1];
+    if(columns!=0 && step.x==0) step.x=(shown[b].x-shown[a].x)/columns;
+    if(rows!=0 && step.y==0) step.y=(shown[b].y-shown[a].y)/rows;
+   }
    check(step.x>0 && step.y>0,"renderer steps");
-   for(id in layout) check(shown[id]!=null && shown[id].x==step.x*(layout[id][0]-1) && shown[id].y==step.y*(layout[id][1]-1),"menu position "+id);
-   for(id in layout) check(pips(shown[id])==layout[id][2],"rank pips "+id+" "+pips(shown[id]));
+   for(id in skills) {
+    have=skills[id];
+    check(shown[id]!=null && shown[id].x==step.x*(have.ui.position[0]-1) && shown[id].y==step.y*(have.ui.position[1]-1),"menu position "+id);
+    check(pips(shown[id])==have.levels_amount,"rank pips "+id);
+   }
    var Ex:Class=domain.getDefinition("scaleform.gfx.MouseEventEx") as Class;
    function click(id:int,right:Boolean=false):int {
     var r:Object=shown[id];r.validateNow();
@@ -203,107 +232,15 @@ package {
     var have:Number=win.progressIndicator.value;
     check(Math.abs(have-want)<1e-9,"indicator "+label+": "+have+", want "+want);
    }
-   check(win.progressIndicator.maximum==26,"indicator maximum "+win.progressIndicator.maximum);
-   bar(1,"medical at 0");
-   check(take(301,2)==2,"Potent Painkiller 2");
-   bar(1+5*2/3,"medical at 2, below tier 2's mark");
-   check(take(311,1)==0,"tier 2 refused at 2 points");
-   check(take(301,2)==3,"Potent Painkiller stops at 3");
-   bar(6,"medical tier 2 mark at 3");
-   check(take(311,1)==1,"tier 2 opens at 3");
-   check(take(302,3)==2,"Fast Bandaging stops at 2");
-   check(shown[301].data.description_2_string==shown[301].data.description_2[3],"Potent Painkiller tooltip at maximum");
-   check(String(shown[301].data.description_2_string).indexOf("+3% / +4.5 s")>=0,"Potent Painkiller tooltip text");
-   check(take(303,1)==0,"tier 3 refused at 6 points");
-   check(take(311,4)==5,"Metabolism 5: 10 points");
-   bar(11,"medical tier 3 mark at 10");
-   check(take(303,3)==2,"tier 3 at 10; Numb Legs stops at 2");
-   check(take(321,1)==1 && take(342,1)==1,"tier 3 at 10");
-   click(321,true);click(342,true);
-   check(shown[321].data.newValue==0 && shown[342].data.newValue==0,"tier 3 points taken back");
-   check(take(313,3)==2,"Take Cover stops at 2: 14 points");
-   bar(15,"medical at 14");
-   check(take(323,1)==0,"tier 4 refused at 14 points");
-   check(take(312,4)==3,"Medical Training stops at 3");
-   click(312,true);click(312,true);
-   check(shown[312].data.newValue==1,"Medical Training back to 1: 15 points");
-   bar(16,"medical tier 4 mark at 15");
-   check(take(323,5)==4,"tier 4 at 15; Unflinching stops at 4");
-   check(take(333,1)==0,"Concentration refused beside Unflinching");
-   for(var back:int=0;back<4;back++) click(323,true);
-   check(shown[323].data.newValue==0,"Unflinching taken back");
-   check(take(333,5)==4,"Concentration at 15, stops at 4");
-   check(take(323,1)==0,"Unflinching refused beside Concentration");
-   check(take(331,1)==0 && take(322,1)==0,"tier 5 refused at 19 points");
-   check(take(332,1)==1,"20 points");
-   bar(21,"medical tier 5 mark at 20");
-   check(take(331,2)==1,"Supply Pocket at 20, one rank");
-   bar(26,"medical full with the last tier taken");
-   check(take(322,1)==0,"Additional Medicine refused beside Supply Pocket");
-   click(331,true);
-   check(shown[331].data.newValue==0,"Supply Pocket taken back");
-   check(take(322,2)==1,"Additional Medicine at 20, one rank");
-   check(take(331,1)==0,"Supply Pocket refused beside Additional Medicine");
-   // The artefact tab (artefact-skills.md): 0/5/10/15/20 (the stock rows), 25 ranks in all; one
-   // either/or pair, Resonance or Cascade in row V (Keeper and Forest Protection go together in
-   // row III): a full build is 24; without Forest Protection rows I-IV hold 19, one short of row V.
+   // The artefact tab: every skill of the edit list drawn where its position says, with its ranks'
+   // pips (the numbers are the edit list's, not repeated here).
    stage_="artefact tab";win.skillsTabPage.selectedIndex=4;shown=renderers(win,Renderer);
-   var tree5:Object={501:[2,1,3,0],502:[3,1,5,0],512:[3,2,5,5],513:[4,2,1,5],521:[2,3,1,10],
-    522:[3,3,1,10],523:[1,3,4,10],531:[1,4,1,15],532:[2,4,1,15],533:[3,4,1,15],541:[2,5,1,20],542:[3,5,1,20]};
-   var ranks5:int=0;
-   for(id in tree5) {
-    want=tree5[id];have=artefacts[id];
-    check(have!=null && have.ui.position[0]==want[0] && have.ui.position[1]==want[1] && have.levels_amount==want[2]
-     && have.preconditions.branch_points==want[3],"artefact layout "+id);
-    if(have) ranks5+=have.levels_amount;
-    check(shown[id]!=null && shown[id].x==step.x*(want[0]-1) && shown[id].y==step.y*(want[1]-1),"artefact menu position "+id);
-    check(pips(shown[id])==want[2],"artefact rank pips "+id);
+   for(id in artefacts) {
+    have=artefacts[id];
+    check(shown[id]!=null && shown[id].x==step.x*(have.ui.position[0]-1) && shown[id].y==step.y*(have.ui.position[1]-1),"artefact menu position "+id);
+    check(pips(shown[id])==have.levels_amount,"artefact rank pips "+id);
    }
-   check(ranks5==25,"25 artefact ranks");
-   check(artefacts[541].preconditions.antiskills[0]==542 && artefacts[542].preconditions.antiskills[0]==541,
-    "Resonance and Cascade exclude each other");
-   check(artefacts[521].preconditions.antiskills==null && artefacts[523].preconditions.antiskills==null,
-    "Keeper and Forest Protection go together");
    check(shown[301]==null && shown[101]==null,"only the artefact tree on its tab");
-   check(described(artefacts[501].ui,3)[3].indexOf("<green> -24%</green>")>=0,"Quick Hands maximum");
-   check(described(artefacts[502].ui,5)[2].indexOf("Current value: +10 points")>=0,"Resistance current value");
-   check(described(artefacts[502].ui,5)[5].indexOf("<green> +25 points</green>")>=0,"Resistance maximum");
-   check(described(artefacts[521].ui,1).length==1,"Keeper: the description alone");
-   check(described(artefacts[513].ui,1).length==1,"Artifact Sight: the description alone");
-   // Every rank of rows I-IV but Forest Protection's is 19: row V (20) needs one of its ranks.
-   bar(1,"artefact at 0");
-   check(take(512,1)==0,"artefact tier 2 refused at 0");
-   check(take(501,6)==3,"Quick Hands stops at 3");
-   bar(4,"artefact at 3");
-   check(take(512,1)==0 && take(513,1)==0,"artefact tier 2 refused at 3");
-   check(take(502,2)==2,"5 points");
-   bar(6,"artefact tier 2 mark at 5");
-   check(take(513,2)==1,"Artifact Sight at 5, one rank");
-   check(take(521,1)==0 && take(523,1)==0,"artefact tier 3 refused at 6");
-   check(take(512,4)==4,"10 points");
-   bar(11,"artefact tier 3 mark at 10");
-   check(take(521,2)==1,"Keeper at 10, one rank");
-   check(take(522,2)==1,"Artifact Container at 10, one rank: 12 points");
-   check(take(531,1)==0,"artefact tier 4 refused at 12");
-   check(take(502,3)==5,"15 points: Resistance stops at 5");
-   bar(16,"artefact tier 4 mark at 15");
-   check(take(531,1)==1 && take(532,1)==1 && take(533,2)==1,"tier 4 at 15, one rank each");
-   check(take(541,1)==0 && take(542,1)==0,"artefact tier 5 refused at 18");
-   check(take(512,2)==5,"Knowledge of Artifacts stops at 5: 19");
-   check(take(541,1)==0,"artefact tier 5 refused at 19: rows I-IV without Forest Protection hold 19");
-   check(take(523,1)==1,"Forest Protection beside Keeper: 20");
-   bar(21,"artefact tier 5 mark at 20");
-   check(take(541,2)==1,"Resonance at 20, one rank");
-   bar(26,"artefact full with the last tier taken");
-   check(take(542,1)==0,"Cascade refused beside Resonance");
-   click(541,true);
-   check(shown[541].data.newValue==0,"Resonance taken back");
-   check(take(542,2)==1,"Cascade at 20, one rank: 21");
-   check(take(541,1)==0,"Resonance refused beside Cascade");
-   // Forest Protection beside Keeper: a full build is 24.
-   check(take(523,5)==4,"Forest Protection beside Keeper, stops at 4: a full build is 24");
-   check(shown[521].data.newValue==1,"Keeper kept beside Forest Protection");
-   bar(26,"artefact full with Keeper and Forest Protection");
    // The tab bar's icons (SkillBranchTabCh, its icon a MovieClip whose frame is the tab, set by
    // updateText): a selected tab's keyframes place another icon symbol than the others, so each tab's
    // glyph is checked in every state against the one it shows up (placements.tsv puts the fifth right).

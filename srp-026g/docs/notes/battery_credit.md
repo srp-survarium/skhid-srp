@@ -31,7 +31,7 @@ The owner's rule against farming battery events and how srp keeps it. Code:
     24 solo delivery and 26 own steal (weight 0, but quests 6 and 7 count them): at most N
     each.
   - A cut is shared among the kits by what each counted, and every kit that counted keeps at
-    least 1: it is still a kit used in the match (its wear, its part of the pay).
+    least 1: it is still a kit used in the match (its part of the pay).
   - Each cut is logged once per player and kind ("counted T, paid K").
 - **The catch (the owner: "sure, this is fine"):** a very active honest carrier who delivers
   more than N batteries in one match stops earning from the (N+1)th.

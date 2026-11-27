@@ -1,0 +1,16 @@
+[package]
+name = "accounts"
+version.workspace = true
+edition.workspace = true
+description = "0.69d accounts and profiles in SQLite (argon2 passwords, inventories, money, factions, friends)"
+
+[dependencies]
+rusqlite.workspace = true
+argon2.workspace = true
+password-hash.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+
+[dev-dependencies]
+tempfile = "3.10"

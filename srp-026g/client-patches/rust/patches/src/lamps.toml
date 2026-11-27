@@ -4,12 +4,15 @@ patch = 81
 [[hook]]
 site = "project.insert"
 handler = "on_bind"
+order = 1
 [[hook]]
 site = "project.removed"
 handler = "on_remove"
+order = 1
 [[hook]]
 site = "project.destroy"
 handler = "on_destroy"
+order = 1
 [[hook]]
 site = "game_world.after_move"
 handler = "on_present"
@@ -18,6 +21,10 @@ order = 1
 site = "bullet.ray_traced"
 handler = "on_ray"
 order = 1
+# the bells' ring's query: its sound kept
+[[hook]]
+site = "resources.query_done"
+handler = "on_loaded"
 [[hook]]
 site = "bullet_history.saved"
 handler = "on_save"
@@ -32,6 +39,18 @@ check = "check_lamps_026g.py"
 [[vtable]]
 name = "light"
 source = "light_methods"
+check = "check_lamps_026g.py"
+[[vtable]]
+name = "ambient_light"
+source = "ambient_light_methods"
+check = "check_lamps_026g.py"
+[[vtable]]
+name = "particle"
+source = "particle_methods"
+check = "check_lamps_026g.py"
+[[vtable]]
+name = "probe"
+source = "probe_methods"
 check = "check_lamps_026g.py"
 
 [[hook]]
@@ -50,6 +69,30 @@ proof = "light insert through project loop"
 site = "light.remove"
 handler = "on_light_remove"
 proof = "light remove through project loop"
+[[hook]]
+site = "ambient_light.insert"
+handler = "on_ambient_light_insert"
+proof = "ambient light insert through project loop"
+[[hook]]
+site = "ambient_light.remove"
+handler = "on_ambient_light_remove"
+proof = "ambient light remove through project loop"
+[[hook]]
+site = "particle.insert"
+handler = "on_particle_insert"
+proof = "particle insert through project loop"
+[[hook]]
+site = "particle.remove"
+handler = "on_particle_remove"
+proof = "particle remove through project loop"
+[[hook]]
+site = "probe.insert"
+handler = "on_probe_insert"
+proof = "probe insert through project loop"
+[[hook]]
+site = "probe.remove"
+handler = "on_probe_remove"
+proof = "probe remove through project loop"
 
 # Bullet decals: a glass mark inside a fixture's bounds is never queued.
 [[hook]]

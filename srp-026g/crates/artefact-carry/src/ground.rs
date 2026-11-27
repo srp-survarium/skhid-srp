@@ -4,6 +4,8 @@ use crate::carry::Time;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Drop { origin: [f32; 3], floor: f32, released: Time }
+// All coordinates are finite by construction. Float equality is reflexive on this domain.
+impl Eq for Drop {}
 impl Drop {
     pub fn new(origin: [f32; 3], floor: f32, released: Time) -> Option<Self> {
         (origin.iter().all(|x| x.is_finite()) && floor.is_finite() && floor <= origin[1])

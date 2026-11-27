@@ -370,15 +370,7 @@ pub struct Picks {
 /// `reader` is a live reader of the message, for the hook.
 unsafe fn picks_at(reader: raw::BufferReader) -> Option<Picks> {
     // SAFETY: the caller's reader.
-    let (begin, cursor, size) = unsafe { (reader.begin(), reader.cursor(), *reader.size()) };
-    let (first, at) = (begin as usize, cursor as usize);
-    let end = first.wrapping_add(size as usize);
-    if cursor.is_null() || at < first || at > end || end < first {
-        return None;
-    }
-    // SAFETY: begin..begin+size are the message's bytes, alive for the hook,
-    // and cursor..end lies inside them.
-    let mut rest = unsafe { Reader::of_memory(cursor, end - at) };
+    let mut rest = unsafe { super::options::unread(reader) };
     Some(Picks { own: rest.u8()?, commander: rest.u8()? })
 }
 
@@ -459,5 +451,88 @@ impl<'t> SquadRead<'t> {
     pub fn send(&self, start: u32) {
         // SAFETY: the lobby client of the handler.
         unsafe { send_start(self.client, start) }
+    }
+}
+
+/// A player's name: 64 bytes with its zero.
+const PROFILE_NAME_LIMIT: usize = 64;
+
+/// The account `0x87` just gave, at `lobby_client.own_account`
+/// (process_own_account 0x270260 after its last field: the lobby client in
+/// EBX, its profile read; the message's reader in ESI, past the field).
+pub struct OwnAccountRead<'t> {
+    client: raw::LobbyClient,
+    reader: raw::BufferReader,
+    _thread: &'t Thread,
+}
+
+impl<'t> OwnAccountRead<'t> {
+    pub fn at(ctx: &'t Context<'_>) -> Option<OwnAccountRead<'t>> {
+        use raw::site::lobby_client_own_account as site;
+        // SAFETY: the context is this site's: the lobby client and the
+        // message's reader, alive while the handler runs on the game's thread.
+        let (client, reader) = unsafe { (site::client(ctx)?, site::reader(ctx)?) };
+        Some(OwnAccountRead { client, reader, _thread: ctx.thread() })
+    }
+
+    /// The account's name, as its profile holds it.
+    pub fn name(&self) -> Option<&'t CStr> {
+        // SAFETY: the lobby client's own profile, just read; its name a C
+        // string in its 64 bytes.
+        unsafe { super::ui::c_string(self.client.own_profile().name(), PROFILE_NAME_LIMIT) }
+    }
+
+    /// srp's bytes after the account (its face, the faces' count), as far
+    /// as the message has them.
+    pub fn srp_bytes(&self) -> Reader<'t> {
+        // SAFETY: the live reader, its message alive while the handler runs.
+        unsafe { super::options::unread(self.reader) }
+    }
+
+    /// Gives the lobby movie the account's face and the faces' count
+    /// (`root.srp_faces`): the Face button and the faces' window. The
+    /// lobby menu is the one the dispatch gives the account to next
+    /// (on_client_status_received 0x21D720 fills its movie), so its movie
+    /// is there now.
+    pub fn tell_lobby(&self, face: u8, count: u8) {
+        // SAFETY: the lobby client of the handler; its game and the game's
+        // lobby menu live as long as the game, on its thread.
+        let movie = unsafe { self.client.game().and_then(|game| game.lobby_menu()).and_then(|menu| lobby_movie(menu)) };
+        if let Some(movie) = movie {
+            movie.invoke_uints(c"root.srp_faces", &[u32::from(face), u32::from(count)]);
+        }
+    }
+}
+
+/// A squad member's account `0x88` just gave, at `lobby_client.squad_member`
+/// (0x274BCE after the revision: the message's reader in ESI, past it; the
+/// member's profile in EDI, read).
+pub struct SquadMemberRead<'t> {
+    reader: raw::BufferReader,
+    profile: raw::PlayerProfile,
+    _thread: &'t Thread,
+}
+
+impl<'t> SquadMemberRead<'t> {
+    pub fn at(ctx: &'t Context<'_>) -> Option<SquadMemberRead<'t>> {
+        use raw::site::lobby_client_squad_member as site;
+        // SAFETY: the context is this site's: the message's reader and the
+        // handler's profile, alive while it runs on the game's thread.
+        let (reader, profile) = unsafe { (site::reader(ctx)?, site::profile(ctx)?) };
+        Some(SquadMemberRead { reader, profile, _thread: ctx.thread() })
+    }
+
+    /// The member's name, as the profile holds it.
+    pub fn name(&self) -> Option<&'t CStr> {
+        // SAFETY: the handler's profile, just read; its name a C string in
+        // its 64 bytes.
+        unsafe { super::ui::c_string(self.profile.name(), PROFILE_NAME_LIMIT) }
+    }
+
+    /// srp's byte after the account (the member's face), when the message
+    /// has it.
+    pub fn srp_byte(&self) -> Option<u8> {
+        // SAFETY: the live reader.
+        unsafe { super::options::unread(self.reader) }.u8()
     }
 }

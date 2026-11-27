@@ -1,6 +1,7 @@
 # Player bots driven by the server (0.26g)
 
-Status 2026-10-14: **planned**. Stage 0 (a test bot that sends inputs,
+Status 2026-10-14: **planned** (since then stages 1 to 3 are built, §6, and the bots play in
+"Player vs Bots", §8). Stage 0 (a test bot that sends inputs,
 `srp-bot --drive`) is built and not yet run against a real client. Tags:
 PROVEN (code, bytes or data read), LIKELY (strong inference or a few real
 samples), GUESS.

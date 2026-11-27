@@ -34,7 +34,7 @@ starts empty with its native maximum of 1.0.
 | Blue Military Medkit | 2 + 1 s | 50% | 50% |
 | Green Black Market Medkit | 2 + 2 s | 100% | 100% (clamped) |
 | Bandages | 1 + 1 s | 35% | 35% |
-| Antitoxin | 1 + 10 s | None | None (50% infection healing) |
+| Antitoxin | 1 + 10 s (15 s since 2026-11-20) | None | None (50% infection healing) |
 | Painkiller | 1 + 10 s | None | None (protection only) |
 
 This confirms under-healing, **not** a yellow-specific zero-healing result.
@@ -64,8 +64,8 @@ correctly derived rates; medicine cards calculate total / pool maximum.
 - One table for all of them ("we can just rebuild it completely for all items").
 - Yellow heals intoxication and radiation, always completely; gradually is fine.
 - Pain (the owner, 2026-10-31): orange 40 %, blue and yellow 50 %, green 100 %, bandages 35 %.
-- A bullet hit stops a drug's use or its healing: an exe patch of its own (branch
-  `feat/drug-hit-interrupt`), for every drug.
+- A bullet hit stops a drug's use or its healing: an exe patch of its own (patch 84,
+  `drug-interrupt.md`), for every drug.
 
 ## The table (the owner's, 2026-10-31)
 
@@ -105,8 +105,8 @@ reads them too); `scripts/medicines/medicines.tsv` holds each one's ids, keys, i
   medkits, 1 for the bandages, as before: a kit with one is matched as before.
 - Sellers: a config's `parameters/faction` (the coloured ones); srp sells a supply whose config
   names a faction from that faction, as gear (`prices.rs`); no stock supply names one. The bandages
-  and the Medikit stay the Scavengers' (`EXCEPTIONS`).
-- The match changes: the Medikit's pain heal (`simulation_changes.tsv` `next` row). The new items
+  and the Medikit stay the Scavengers' (`scripts/content-edit/shop.tsv`).
+- The match changes: the Medikit's pain heal (`simulation_changes.tsv` row 40). The new items
   change no older game (none has one).
 
 ## Intoxication and radiation (PROVEN in the data and the exe's tables)
@@ -124,7 +124,10 @@ reads them too); `scripts/medicines/medicines.tsv` holds each one's ids, keys, i
   and toxic hits both give poisoning (0 of 698,871 saved worlds hold affect 7; 53,231 hold poisoning,
   `drugs_zones_artefacts.md`). Yellow's removal of 7 does nothing.
 - The antitoxin keeps its own place: the light cure (0.1 kg) that also halves toxic damage for
-  10 s.
+  its active time: 15 s (the owner, 2026-11-20: "it should last 15 seconds"; 10 s before), its
+  50 % of the infection pool spread over them (the total is the config's, the rate follows the
+  time). The one antitoxin of the data: `gameplay/items/drugs/antitoxin.options` (item 82), 0.26g's
+  own; no pack adds another. A bullet does not stop it (drug-interrupt.md).
 - A press takes the unit at once; a press while the same item is active is ignored and spends nothing
   (`medkit::action` 0x33D70A); the heal starts at the first tick past the delay, and the wounds go then
   (0x33D86D).

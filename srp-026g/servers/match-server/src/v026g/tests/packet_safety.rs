@@ -202,3 +202,103 @@ fn a_first_world_its_game_cannot_read_is_answered_with_a_newer_one() {
         bench.assert_no_faults();
     }
 }
+
+#[test]
+fn executable_exchange_keeps_playing_and_rejects_bad_hashes_and_other_matches() {
+    use srp_validate::executable::{Answer, Carrier, Identity, Upload, MAGIC};
+    let mut bench = Bench::growing(3, MAP_BATTERIES, Settings::default());
+    bench.join_all();
+    assert!(bench.until(10_000, |b| b.stages() == "LLL"));
+    let match_id = bench.clients[0].model.options.as_ref().unwrap().match_id;
+    let identity = Identity::new(7, [0x17; 32]).unwrap();
+    for id in [match_id ^ 1, match_id] {
+        let (bytes, len) = Carrier { match_id: id, upload: Upload::Offer(identity) }.encode().unwrap();
+        bench.clients[0].send(id::LEAVE, &bytes[..len], true);
+        bench.run(500);
+        if id != match_id { assert!(bench.clients[0].executable_replies.is_empty()); }
+    }
+    assert!(bench.clients[0].executable_replies.iter().any(|r| r.answer == Answer::Need(0)));
+    assert!(bench.clients[1].executable_replies.is_empty());
+    let (bytes, len) = Carrier { match_id, upload: Upload::Data { sha256: identity.sha256, offset: 0, bytes: b"MZwrong" } }.encode().unwrap();
+    for _ in 0..3 { bench.clients[0].send(id::LEAVE, &bytes[..len], true); }
+    bench.clients[0].send(id::LEAVE, &MAGIC, true); // malformed is no leave
+    bench.run(1000);
+    assert!(bench.clients[0].executable_replies.iter().any(|r| r.answer == Answer::Refused));
+    assert_eq!(bench.stages(), "LLL");
+    bench.assert_no_faults();
+}
+
+#[test]
+fn injected_input_totals_are_deduplicated_and_scoped_to_the_reporting_peer_and_match() {
+    use srp_validate::input_report::{Counts, Summary, When};
+    use srp_validate::modules::Minute;
+    use srp_validate::report::Report;
+
+    let mut bench = Bench::growing(3, MAP_BATTERIES, Settings::default());
+    bench.join_all();
+    assert!(bench.until(10_000, |b| b.stages() == "LLL"));
+    let match_id = bench.clients[0].model.options.as_ref().unwrap().match_id;
+    for moment in [When::Minute(Minute::FIRST), When::Ended] {
+        let report = Report::Input(Summary { moment, counts: Counts { key_down: 1, button_down: 3, mouse_move: 2 } });
+        for _ in 0..2 {
+            let (bytes, len) = report.part(match_id, 0).unwrap();
+            bench.clients[0].send(id::LEAVE, &bytes[..len], true);
+            let (other, len) = report.part(match_id ^ 1, 0).unwrap();
+            bench.clients[1].send(id::LEAVE, &other[..len], true);
+        }
+    }
+    bench.run(2_000);
+    assert_eq!(bench.game().report_parts_heard(0), 2);
+    assert_eq!(bench.game().report_parts_heard(1), 0);
+    assert_eq!(bench.stages(), "LLL");
+    bench.assert_no_faults();
+}
+
+/// A game that offers a resource check is asked its project's files once,
+/// whatever copies of its offer come; its answer, each part with copies,
+/// is logged once; a game that offers nothing is asked nothing.
+#[test]
+fn a_resource_check_asks_the_game_that_offered_and_takes_its_answer_once() {
+    use srp_validate::checks::{Answer, Mounts, PREFIX, Report as Checks, Request};
+    use srp_validate::report::Report;
+    let mut bench = Bench::growing(3, MAP_BATTERIES, Settings::default());
+    bench.join_all();
+    assert!(bench.until(10_000, |b| b.stages() == "LLL"));
+    let data = survarium::v026g::game_data::shared();
+    let patches: Vec<u8> = data.provenance.patches.iter().map(|patch| patch.number as u8).collect();
+    let mounts = Mounts::of(&patches).unwrap();
+    let match_id = bench.clients[0].model.options.as_ref().unwrap().match_id;
+    let send = |bench: &mut Bench, report: &Report| {
+        for _ in 0..3 {
+            for part in 0..report.parts() {
+                let (bytes, len) = report.part(match_id, part).unwrap();
+                bench.clients[0].send(id::LEAVE, &bytes[..len], true);
+            }
+        }
+    };
+    send(&mut bench, &Report::Checks(Checks::offer(mounts)));
+    bench.run(2_000);
+    assert_eq!(bench.clients[0].check_requests.len(), 1);
+    assert!(bench.clients[1].check_requests.is_empty());
+    assert_eq!(bench.game().resource_check(0), Some("asked"));
+    assert_eq!(bench.game().resource_check(1), Some("unoffered"));
+
+    // The game's answer: every file as the release has it.
+    let request = Request::parse(&bench.clients[0].check_requests[0]).unwrap();
+    assert_eq!(request.match_id, match_id);
+    let mut answer = Checks::new(mounts);
+    let mut paths = request.paths();
+    while let Some(path) = paths.next_path() {
+        let sum = data.checked().files[std::str::from_utf8(path).unwrap()];
+        let sha256 = sum.sha256[..PREFIX].try_into().unwrap();
+        answer.add(Answer::Hashed { size: sum.size, sha256 }).unwrap();
+    }
+    assert!(answer.answers().len() >= 2, "startup.cfg and the project");
+    send(&mut bench, &Report::Checks(answer));
+    bench.run(2_000);
+    assert_eq!(bench.game().resource_check(0), Some("logged"));
+    assert_eq!(bench.clients[0].check_requests.len(), 1, "asked once");
+    assert_eq!(bench.stages(), "LLL");
+    assert!(bench.clients.iter().all(|c| !c.closed && !c.disconnected));
+    bench.assert_no_faults();
+}

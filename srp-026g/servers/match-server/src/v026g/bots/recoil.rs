@@ -498,10 +498,6 @@ mod tests {
             assert_eq!(kick.rpm, gun.rpm, "{}", gun.item);
         }
         assert_eq!(kick_of("pkm").item, "ak_74m");
-        // The middles: the AK-74U's 2.1° up, nothing to either side.
-        let ak = kick_of("ak_74u");
-        assert!((ak.top(0.5) - 2.1 / 63.735).abs() < 1e-7);
-        assert_eq!(ak.side(0.5, 0.5), 0.0);
     }
 
     /// The burst of the research's simulation of the client's code

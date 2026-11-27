@@ -82,16 +82,16 @@ impl Web {
             let account = account.locked();
             (
                 account.login.clone(),
-                account.name.clone(),
+                account.name().to_owned(),
                 account.last_ip,
                 account.last_sign_in,
             )
         };
-        // On the 0.26g page, the name its character has there.
+        // The name its character has in the game.
         let name = self
             .game
-            .as_ref()
-            .and_then(|game| game.accounts.get(account_id))
+            .accounts
+            .get(account_id)
             .map_or(name, |account| account.locked().name.clone());
         Some(Found {
             id: account_id,
@@ -118,16 +118,10 @@ impl Web {
             found: None,
         };
         let no_such = || {
-            lang.tr(
-                "No account signs in with that user name (character names are not looked up).",
-                "Жоден акаунт не входить з таким ім'ям (імена персонажів не шукаються).",
-            )
+            lang.t("No account signs in with that user name (character names are not looked up).")
         };
         if typed.is_empty() {
-            let message = lang.tr(
-                "Type the user name the player signs in with.",
-                "Введіть ім'я, з яким гравець входить у гру.",
-            );
+            let message = lang.t("Type the user name the player signs in with.");
             return (message, view);
         }
         // By the user name only, in any case (`persist::user_name_key`, as
@@ -138,18 +132,12 @@ impl Web {
         let confirmed = request.field("reset_id");
         if confirmed.is_empty() {
             view.found = self.found(account_id);
-            let message = lang.tr(
-                "Check the account below, then press the reset button.",
-                "Перевірте акаунт нижче, потім натисніть кнопку скидання.",
-            );
+            let message = lang.t("Check the account below, then press the reset button.");
             return (message, view);
         }
         if confirmed.parse::<u32>().ok() != Some(account_id) {
             view.found = self.found(account_id);
-            let message = lang.tr(
-                "That user name now means another account: nothing was changed. Check it below.",
-                "Це ім'я тепер означає інший акаунт: нічого не змінено. Перевірте його нижче.",
-            );
+            let message = lang.t("That user name now means another account: nothing was changed. Check it below.");
             return (message, view);
         }
         let Some(reset) = self.reset(account_id, peer) else {
@@ -162,40 +150,9 @@ impl Web {
         } = reset;
         view.typed.clear();
         let message = match written {
-            ResetWrite::Written => lang.tr(
-                &format!(
-                    "The password of {login} is cleared; {ended} session(s) ended. \
-                     Their next sign-in, with any password, sets the new one."
-                ),
-                &format!(
-                    "Пароль {login} скинуто; завершено сесій: {ended}. \
-                     Наступний вхід, з будь-яким паролем, встановить новий."
-                ),
-            ),
-            ResetWrite::Pending => lang.tr(
-                &format!(
-                    "The password of {login} is cleared; {ended} session(s) ended. The \
-                     database was busy: srp's saver writes it within seconds. Their next \
-                     sign-in, with any password, sets the new one."
-                ),
-                &format!(
-                    "Пароль {login} скинуто; завершено сесій: {ended}. База була зайнята: \
-                     srp запише його за кілька секунд. Наступний вхід, з будь-яким паролем, \
-                     встановить новий."
-                ),
-            ),
-            ResetWrite::Failed(error) => lang.tr(
-                &format!(
-                    "Error: the password of {login} is cleared and {ended} session(s) ended, \
-                     but only in memory: the database was not written ({error}). srp retries \
-                     the write; check its log before the player signs in."
-                ),
-                &format!(
-                    "Помилка: пароль {login} скинуто і завершено сесій: {ended}, але лише в \
-                     пам'яті: базу не записано ({error}). srp повторить запис; перевірте його \
-                     журнал, перш ніж гравець увійде."
-                ),
-            ),
+            ResetWrite::Written => lang.tf("The password of {login} is cleared; {ended} session(s) ended. Their next sign-in, with any password, sets the new one.", &[("login", &login), ("ended", &ended)]),
+            ResetWrite::Pending => lang.tf("The password of {login} is cleared; {ended} session(s) ended. The database was busy: srp's saver writes it within seconds. Their next sign-in, with any password, sets the new one.", &[("login", &login), ("ended", &ended)]),
+            ResetWrite::Failed(error) => lang.tf("Error: the password of {login} is cleared and {ended} session(s) ended, but only in memory: the database was not written ({error}). srp retries the write; check its log before the player signs in.", &[("login", &login), ("ended", &ended), ("error", &error)]),
         };
         (message, view)
     }
@@ -252,18 +209,15 @@ pub(crate) fn panel(lang: Lang, view: &super::AdminView) -> String {
         Some(found) if !view.token.is_empty() => {
             let last_sign_in = match found.last_sign_in {
                 Some(at) => format!("{} {} UTC", date_utc(at), clock_utc(at)),
-                None => lang.tr("not since srp started", "не відколи srp запущено"),
+                None => lang.t("not since srp started"),
             };
             let last_ip = found
                 .last_ip
-                .map_or_else(|| lang.tr("unknown", "невідома"), |ip| ip.to_string());
+                .map_or_else(|| lang.t("unknown"), |ip| ip.to_string());
             let online = if found.online {
-                lang.tr(
-                    "yes: its game is signed out",
-                    "так: гру буде виведено з акаунта",
-                )
+                lang.t("yes: its game is signed out")
             } else {
-                lang.tr("no", "ні")
+                lang.t("no")
             };
             format!(
                 "<table>\
@@ -275,24 +229,21 @@ pub(crate) fn panel(lang: Lang, view: &super::AdminView) -> String {
                  <tr><th>{}</th><td>{}</td></tr>\
                  </table>\
                  <button name=reset_id value={}>{}</button>",
-                lang.tr("User name", "Ім'я для входу"),
+                lang.tc("sign-in", "User name"),
                 escape(&found.login),
-                lang.tr("Character", "Персонаж"),
+                lang.t("Character"),
                 escape(&found.name),
-                lang.tr("Account id", "Id акаунта"),
+                lang.t("Account id"),
                 found.id,
                 found.id,
-                lang.tr("Last sign-in", "Останній вхід"),
+                lang.t("Last sign-in"),
                 escape(&last_sign_in),
-                lang.tr("Last address", "Остання адреса"),
+                lang.t("Last address"),
                 escape(&last_ip),
-                lang.tr("Signed in now", "Зараз у грі"),
+                lang.t("Signed in now"),
                 escape(&online),
                 found.id,
-                escape(&lang.tr(
-                    &format!("Reset the password of {}", found.login),
-                    &format!("Скинути пароль {}", found.login),
-                )),
+                escape(&lang.tf("Reset the password of {0}", &[("0", &found.login)])),
             )
         }
         _ => String::new(),
@@ -301,21 +252,9 @@ pub(crate) fn panel(lang: Lang, view: &super::AdminView) -> String {
         "<div class=\"panel p-password\">\
          <label for=pu>{}</label><input id=pu name=reset_user maxlength=99 value=\"{}\">\
          <small>{}</small><br><button>{}</button>{confirm}</div>",
-        lang.tr(
-            "User name the player signs in with (not the character name)",
-            "Ім'я, з яким гравець входить (не ім'я персонажа)"
-        ),
+        lang.t("User name the player signs in with (not the character name)"),
         escape(&reset.typed),
-        lang.tr(
-            "Clears the password: the player's next sign-in, with any password, sets it as the \
-             new one (owner's decision, 2026-10-18). Whoever signs in first takes it, so reset \
-             when the player is ready to sign in. A game signed in with the account is signed \
-             out. Case does not matter.",
-            "Скидає пароль: наступний вхід гравця, з будь-яким паролем, встановлює його як \
-             новий (рішення власника, 2026-10-18). Хто ввійде першим, той його і встановить, \
-             тож скидайте, коли гравець готовий увійти. Гру, що зараз у цьому акаунті, буде \
-             виведено. Регістр не важливий."
-        ),
-        lang.tr("Find", "Знайти"),
+        lang.t("Clears the password: the player's next sign-in, with any password, sets it as the new one (owner's decision, 2026-10-18). Whoever signs in first takes it, so reset when the player is ready to sign in. A game signed in with the account is signed out. Case does not matter."),
+        lang.t("Find"),
     )
 }

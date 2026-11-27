@@ -26,6 +26,37 @@ pub fn milliseconds(thread: &Thread) -> u32 {
     (u128::from(counter(thread)) * 1000 / u128::from(frequency)) as u32
 }
 
+/// A frame clock: the real time from one frame's tick to the next.
+#[derive(Clone, Copy)]
+pub struct FrameClock(Ticking);
+#[derive(Clone, Copy)]
+enum Ticking {
+    Unstarted,
+    Running { ticks: u32, frequency: u32 },
+}
+
+impl FrameClock {
+    pub const UNSTARTED: FrameClock = FrameClock(Ticking::Unstarted);
+
+    /// The real time since the last tick, s (1/60 the first time).
+    pub fn tick(&mut self, thread: &Thread) -> f32 {
+        let ticks = counter(thread) as u32;
+        match self.0 {
+            Ticking::Running { ticks: last, frequency } => {
+                self.0 = Ticking::Running { ticks, frequency };
+                ticks.wrapping_sub(last) as f32 / frequency as f32
+            }
+            Ticking::Unstarted => {
+                let frequency = frequency(thread);
+                if frequency > 0 && frequency <= u64::from(u32::MAX) {
+                    self.0 = Ticking::Running { ticks, frequency: frequency as u32 };
+                }
+                1.0 / 60.0
+            }
+        }
+    }
+}
+
 /// A moment of the wall clock: kernel32's FILETIME, 100 ns since 1601 UTC.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct FileTime(u64);
@@ -69,22 +100,26 @@ impl FileTime {
                 && (raw::engine_file_time_to_system_time)(local.as_ptr(), parts.as_mut_ptr()) != 0
         };
         done.then(|| LocalTime {
+            year: parts[0] as u16,
             month: (parts[0] >> 16) as u8,
             day: (parts[1] >> 16) as u8,
             hour: parts[2] as u8,
             minute: (parts[2] >> 16) as u8,
+            second: parts[3] as u8,
         })
     }
 }
 
-/// A wall-clock moment as the player's machine shows it, to the minute (the
-/// year left out: what a ban's end needs).
+/// A wall-clock moment as the player's machine shows it, to the second (a
+/// ban's end shows its minute, a run's logs are named by its second).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct LocalTime {
+    pub year: u16,
     pub month: u8,
     pub day: u8,
     pub hour: u8,
     pub minute: u8,
+    pub second: u8,
 }
 
 /// `n / d` by shifts and subtractions: the arena links no `__udivdi3`.

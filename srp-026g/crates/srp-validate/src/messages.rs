@@ -22,8 +22,8 @@ pub trait Dictionary {
     /// it does not have (`items_dictionary::item_by_id` 0x1F0090 finds
     /// nothing, and the client crashes later).
     fn item(&self, dict_id: u16) -> Option<bool>;
-    /// Whether the client has the map (a maps_dict id).
-    fn map(&self, map_id: u8) -> bool;
+    /// Whether the client has the map (a maps_dict id, up to `u16::MAX`).
+    fn map(&self, map_id: u16) -> bool;
 }
 
 /// The ids srp sends and a client takes. 0xE2 and every id outside
@@ -69,16 +69,54 @@ pub const fn fixed_length(id: u8) -> Option<usize> {
         id::PROFILE_INPUT_RELAY => 3,
         id::MOVE_PROFILE_INPUT => 2,
         id::DISCARD_PROFILE_INPUT => 1,
-        // srp's 0xF6 is one byte the patch ignores (the client's length
-        // getter refuses an empty one).
-        id::UPLOAD_REQUEST => 1,
         _ => return None,
     })
 }
 
-/// Bit 30 is unused. Bit 29 is the shipped artefact-carry/weapon-pickup
-/// command marker; bit 31 is the native per-input flag. Both are valid.
-pub const UNUSED_ACTIONS: u32 = 1 << 30;
+/// What an upload request (0xF6) asks a patched game for. The client's
+/// length getter refuses an empty payload; srp sends one of two:
+/// - one byte (0): the game's event-horizon world of the moment (client
+///   patch §3.4, `snapshot_upload_026g.asm`, which reads no payload: any one
+///   byte means that);
+/// - 1 and a tick: the game's world of that tick from the ring of the worlds
+///   it hashed (patch 211, `exact_world`), else the event-horizon world as
+///   above. Only a game that says [`EXACT_WORLDS`] in its 0xD8 is sent this:
+///   an earlier game refuses two bytes here.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum UploadRequest {
+    Horizon,
+    /// The tick's byte: its time / 50, modulo 256.
+    Tick(u8),
+}
+
+impl UploadRequest {
+    pub fn parse(payload: &[u8]) -> Option<Self> {
+        match *payload {
+            [_] => Some(Self::Horizon),
+            [1, tick] => Some(Self::Tick(tick)),
+            _ => None,
+        }
+    }
+
+    /// Its payload: the bytes and how many of them.
+    pub fn encode(self) -> ([u8; 2], usize) {
+        match self {
+            Self::Horizon => ([0, 0], 1),
+            Self::Tick(tick) => ([1, tick], 2),
+        }
+    }
+}
+
+/// The bit of 0xD8's debug byte by which a game says it answers
+/// [`UploadRequest::Tick`] (patch 211), beside the dialect's 0x80 and the
+/// world receipts' 0x02 ([`crate::recovery::CONNECT_CAPABILITY`]).
+pub const EXACT_WORLDS: u8 = 0x04;
+
+/// Bit 30 of an input's actions: the second sight's switch key
+/// (`scope_next`, client patch 206), on its press only. With bit 29 (client
+/// patches 78 and 85's command marker) and bit 31 (the native per-input flag)
+/// every bit of the mask is an action a client sends.
+pub const SCOPE_NEXT: u32 = 1 << 30;
 
 /// A half float's exponent field, and that of 1024.0.
 const HALF_EXPONENT: u16 = 0x7C00;
@@ -96,8 +134,9 @@ pub fn rotation_is_sane(rotation: [u8; 4]) -> bool {
         .all(|half| half & HALF_EXPONENT < HALF_EXPONENT_1024)
 }
 
-/// A relayed input's rotation and actions (relay_trust.md 0xDC/0xDD).
-pub fn input(rotation: [u8; 4], actions: u32) -> Result<(), Reason> {
+/// A relayed input's rotation (relay_trust.md 0xDC/0xDD); its actions take
+/// every bit ([`SCOPE_NEXT`]).
+pub fn input(rotation: [u8; 4]) -> Result<(), Reason> {
     if !rotation_is_sane(rotation) {
         let [a, b, c, d] = rotation;
         let [dx, dy] = [u16::from_le_bytes([a, b]), u16::from_le_bytes([c, d])];
@@ -107,9 +146,6 @@ pub fn input(rotation: [u8; 4], actions: u32) -> Result<(), Reason> {
             dy
         };
         return Err(Reason::RotationNotSane { half });
-    }
-    if actions & UNUSED_ACTIONS != 0 {
-        return Err(Reason::UnusedActions { actions });
     }
     Ok(())
 }
@@ -124,6 +160,13 @@ pub fn check(message: u8, payload: &[u8]) -> Result<(), Refusal> {
     let len = payload.len();
     if matches!(message, id::INPUTS_RELAY | id::INPUTS_RELAY_PRECISE) {
         return Err(refuse(0, Reason::NeverSent));
+    }
+    if message == id::UPLOAD_REQUEST {
+        return match (UploadRequest::parse(payload), payload) {
+            (Some(_), _) => Ok(()),
+            (None, [first, _]) => Err(refuse(0, Reason::UploadRequestForm { first: *first })),
+            (None, _) => Err(refuse(0, Reason::MessageLength { len, wanted: len.clamp(1, 2) })),
+        };
     }
     if let Some(wanted) = fixed_length(message) {
         if len != wanted {
@@ -155,9 +198,9 @@ pub fn check(message: u8, payload: &[u8]) -> Result<(), Refusal> {
                 reader.skip(at.saturating_add(1))?;
                 Ok::<_, Short>((reader.array::<4>()?, reader.u32()?))
             })();
-            let (rotation, actions) =
+            let (rotation, _actions) =
                 read.map_err(|_| refuse(0, Reason::MessageLength { len, wanted: len }))?;
-            input(rotation, actions).map_err(|reason| refuse(at.saturating_add(1), reason))
+            input(rotation).map_err(|reason| refuse(at.saturating_add(1), reason))
         }
         id::PROFILE_INPUT_RELAY => place(1),
         // The local index, then the LZMA2 stream of the options: it decodes
@@ -166,7 +209,10 @@ pub fn check(message: u8, payload: &[u8]) -> Result<(), Refusal> {
         // The late join's profile proposal (`late_join::Prepare`, every
         // client of the dialect): its magic, the match, the serial, the
         // place, the squad, then the profile, which the late join's own
-        // check takes (`late_join_validate_026g.c`). Here the header: a
+        // check takes (`late_join_validate_026g.c`), and srp's block with
+        // the faces entry of the one place when its face is not 0 (read and
+        // taken off at the dispatch by the faces patch, which steps over the
+        // profile with the items dictionary: `faces.rs`). Here the header: a
         // place the first player cannot have, under 20, a serial not 0.
         id::STATIC_INFO if payload.starts_with(&LATE_JOIN_PREPARE) => {
             if len < LATE_JOIN_HEADER {
@@ -384,7 +430,7 @@ pub fn options(bytes: &[u8], dictionary: &dyn Dictionary) -> Result<u8, Refusal>
         }
     }
     let at = reader.at();
-    let map = reader.u8().map_err(short)?;
+    let map_byte = reader.u8().map_err(short)?;
     let roster = reader.u8().map_err(short)?;
     if !(1..=MAX_PLAYERS).contains(&usize::from(roster)) {
         return Err(refuse(
@@ -392,12 +438,19 @@ pub fn options(bytes: &[u8], dictionary: &dyn Dictionary) -> Result<u8, Refusal>
             Reason::OptionsRoster { roster },
         ));
     }
-    if !dictionary.map(map) {
-        return Err(refuse(at, Reason::OptionsMap { map }));
-    }
+    // The roster's teams: the match's two (0 and 1), or in a free-for-all
+    // each place a side of its own ([`crate::own_side`]); never a mix of
+    // the two, and never 2 or 3, which the game reads as "neutral" and
+    // "none".
+    let own_sides = teams.first().is_some_and(|&team| team > 1);
     for (place, (held, team)) in places.iter().zip(teams).enumerate() {
         if place < usize::from(roster) {
-            if team > 1 {
+            let fits = if own_sides {
+                team == crate::own_side(place)
+            } else {
+                team <= 1
+            };
+            if !fits {
                 return Err(refuse(held.at, Reason::OptionsTeam { place, team }));
             }
             if held.kits == 0 {
@@ -417,34 +470,75 @@ pub fn options(bytes: &[u8], dictionary: &dyn Dictionary) -> Result<u8, Refusal>
     }
     // The squad bytes.
     reader.skip(MAX_PLAYERS).map_err(short)?;
-    // Shipped patch 65 appends an SRPX block for Blackout matches.
+    // srp appends an SRPX block for a Blackout match (shipped patch 65), for
+    // a free-for-all (its kill target), for a map id over a byte (patch
+    // 154: the whole id, the options' byte its low byte), for the roster's
+    // faces when one is not face 0 (the faces patch), for a Freeze Tag match
+    // (patch 160) and for the places' mode notices (patch 214).
     // Keep this in sync with static_info::read_srp_block on the server.
+    let mut wide = None;
     if !reader.is_done() {
         let at = reader.at();
-        let invalid = || {
-            refuse(
-                at,
-                Reason::OptionsTrailing {
-                    len: reader.rest().len(),
-                },
-            )
-        };
+        let trailing = |reader: &Reader| refuse(at, Reason::OptionsTrailing { len: reader.rest().len() });
         if !reader.rest().starts_with(b"SRPX") {
-            return Err(invalid());
+            return Err(trailing(&reader));
         }
         reader.skip(4).map_err(short)?;
+        // Entries `{tag, len, bytes}`, each tag once: the whole map id's
+        // `{4, 2, id}` (over a byte, its low byte the options' byte),
+        // Blackout's `{2, 1, 1}`, Freeze Tag's `{6, 1, 1}` or a
+        // free-for-all's `{3, 2, kills to win}` (a u16, never 0), which only
+        // a roster of own sides has, the faces' `{5, roster, a face a place}`
+        // (not every one face 0; a face the game's data does not list is
+        // drawn as face 0), and after Blackout's or Freeze Tag's entry the
+        // notices' `{7, roster, 0 or 1 a place}`.
+        let (mut mode, mut faces, mut notices) = (false, false, false);
+        // The mode's entry is one of a mode with a notice.
+        let mut noticed = false;
         while !reader.is_done() {
-            let at = reader.at();
-            let entry = reader.array::<3>().map_err(short)?;
-            if entry != [2, 1, 1] {
-                return Err(refuse(
-                    at,
-                    Reason::OptionsTrailing {
-                        len: reader.rest().len().saturating_add(3),
-                    },
-                ));
+            let fits = match reader.rest() {
+                [4, 2, low, high, ..] => {
+                    let id = u16::from_le_bytes([*low, *high]);
+                    id > u16::from(u8::MAX) && *low == map_byte && wide.replace(id).is_none()
+                }
+                [2 | 6, 1, 1, ..] => {
+                    noticed = true;
+                    !own_sides && !core::mem::replace(&mut mode, true)
+                }
+                [7, len, entry @ ..] if *len == roster => {
+                    noticed
+                        && entry
+                            .get(..usize::from(roster))
+                            .is_some_and(|entry| entry.iter().all(|&notice| notice <= 1))
+                        && !core::mem::replace(&mut notices, true)
+                }
+                [3, 2, low, high, ..] => {
+                    own_sides && (*low, *high) != (0, 0) && !core::mem::replace(&mut mode, true)
+                }
+                [5, len, entry @ ..] if *len == roster => {
+                    entry
+                        .get(..usize::from(roster))
+                        .is_some_and(|entry| entry.iter().any(|&face| face != 0))
+                        && !core::mem::replace(&mut faces, true)
+                }
+                _ => false,
+            };
+            if !fits {
+                return Err(trailing(&reader));
             }
+            let [_tag, len] = reader.array().map_err(short)?;
+            reader.skip(usize::from(len)).map_err(short)?;
         }
+        if !mode && (own_sides || (wide.is_none() && !faces)) {
+            return Err(trailing(&reader));
+        }
+    } else if own_sides {
+        // A free-for-all's options always carry its entry.
+        return Err(refuse(reader.at(), Reason::OptionsTrailing { len: 0 }));
+    }
+    let map = wide.unwrap_or(u16::from(map_byte));
+    if !dictionary.map(map) {
+        return Err(refuse(at, Reason::OptionsMap { map }));
     }
     Ok(roster)
 }
@@ -581,5 +675,21 @@ mod tests {
             reason(id::STATIC_INFO, &wrong),
             Some(Reason::PlacePast { place: 255 })
         );
+    }
+
+    #[test]
+    fn an_upload_request_is_one_byte_or_one_and_a_tick() {
+        assert_eq!(check(id::UPLOAD_REQUEST, &[0]), Ok(()));
+        // Any one byte: the horizon (the upload code reads none of it).
+        assert_eq!(UploadRequest::parse(&[7]), Some(UploadRequest::Horizon));
+        assert_eq!(check(id::UPLOAD_REQUEST, &[1, 200]), Ok(()));
+        assert_eq!(UploadRequest::parse(&[1, 200]), Some(UploadRequest::Tick(200)));
+        for request in [UploadRequest::Horizon, UploadRequest::Tick(9)] {
+            let (bytes, len) = request.encode();
+            assert_eq!(UploadRequest::parse(&bytes[..len]), Some(request));
+        }
+        assert_eq!(reason(id::UPLOAD_REQUEST, &[2, 5]), Some(Reason::UploadRequestForm { first: 2 }));
+        assert_eq!(reason(id::UPLOAD_REQUEST, &[]), Some(Reason::MessageLength { len: 0, wanted: 1 }));
+        assert_eq!(reason(id::UPLOAD_REQUEST, &[1, 2, 3]), Some(Reason::MessageLength { len: 3, wanted: 2 }));
     }
 }

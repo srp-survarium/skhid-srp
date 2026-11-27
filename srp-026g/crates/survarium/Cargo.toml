@@ -10,13 +10,21 @@ workspace = true
 # Client patch 78 ends each player's state with the carry's snapshot
 # (`v026g::match_msgs::motion`).
 artefact-carry = { path = "../artefact-carry" }
+# client patch 206: the second sights' record a state may end with
+second-sight = { path = "../second-sight" }
+technical-skills = { path = "../technical-skills" }
 # Client patch 85 starts each player's state with its pickup record
 # (`v026g::match_msgs::players::FIELDS_AT`).
 weapon-pickup = { path = "../weapon-pickup" }
 # A weapon's upgrades packed as the client reads them (`v026g::weapon_kit`;
 # the client's arena builds the same crate, patch 68).
 weapon-kit = { workspace = true }
+# A weapon's fitted modules: the table and `resolve` the client's arena builds too
+# (`v026g::weapon_modules`, patch 161).
+weapon-modules = { workspace = true }
 binary-config-parser = { workspace = true }
+# Artifact Hunt (mode 13): its maps' parameters and its rule in a world.
+artefact-hunt-rule = { workspace = true }
 # The game's localizations are UTF-8 read as Windows-1251 (`v026g::localization`).
 encoding_rs = { workspace = true }
 resources-db = { workspace = true }
@@ -38,8 +46,12 @@ udp-transport = { workspace = true }
 [features]
 # Game data made up for tests (`v026g::maps::fixtures`), for the tests of
 # the crates that use this one.
-fixtures = []
+fixtures = ["weapon-modules/encode"]
 # What only the tests use: the kit and upgrade switches set for one thread (`v026g::loadouts::KitSwitches::scope`), so tests of
 # the old kit and of the new run in one process. Enabled by the dev-dependencies of the crates whose tests need it.
 test-support = []
+
+[dev-dependencies]
+# `v026g::weapon_modules::fixtures` writes its made-up tables.
+weapon-modules = { workspace = true, features = ["encode"] }
 

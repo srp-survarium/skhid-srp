@@ -56,13 +56,16 @@ impl Mode {
         RuleMode::of_config(id).ok_or(Unsupported(id)).and_then(Self::of_rules)
     }
 
-    /// The mode of a match's typed rules (`RuleMode`): Research is none the bots play.
+    /// The mode of a match's typed rules (`RuleMode`): Research, Free for All (every place its own side; the bots
+    /// know two teams only), Freeze Tag and Artifact Hunt are none the bots play.
     pub fn of_rules(rules: RuleMode) -> Result<Self, Unsupported> {
         match rules {
             RuleMode::Batteries => Ok(Self::Batteries),
             RuleMode::TimedBatteries => Ok(Self::TimedBatteries),
             RuleMode::TeamDeathmatch => Ok(Self::TeamDeathmatch),
-            RuleMode::Research => Err(Unsupported(rules.number())),
+            RuleMode::Research | RuleMode::FreeForAll | RuleMode::FreezeTag | RuleMode::ArtefactHunt => {
+                Err(Unsupported(rules.number()))
+            }
         }
     }
 

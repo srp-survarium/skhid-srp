@@ -5,6 +5,7 @@
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct CapacityExceeded;
 
+#[derive(Clone, Copy)]
 pub struct BoundedVec<T, const N: usize> { slots: [Option<T>; N], len: usize }
 
 impl<T, const N: usize> Default for BoundedVec<T, N> {

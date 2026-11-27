@@ -25,7 +25,7 @@ The original must give the original's answers (a Spring's passive node 2
 max_carried_weight, no aim node; Lifebone heals no pool; one press fires one
 artefact; n active Onyx reduce a hit n times, each 3 s), the build: aim
 time from the config in the passive and the active, the active's linked and
-unlinked with the others, pain, body and head full after Lifebone's active,
+unlinked with the others, every body part's pool full after Lifebone's active,
 no slow from hits while a Spring is active, a press fires every ready
 artefact of its class, and n Onyx fired together are each active 3 s +
 (n - 1) s, reduce a hit once (x0.25) and show the activation hint once a
@@ -317,12 +317,16 @@ def run(data, patched):
            "an active Spring: no slow" if patched else "an active Spring: the slow as ever")
     expect(stagger([(100, 0.6), (200, 0.3)], True) == (0.0 if patched else -0.5), "an active Spring, big hits")
 
-    # Lifebone's active: pain, body and head full, the limbs left to their
-    # remove_affects; a pool that is full or not there is left alone.
+    # Lifebone's active: every body part full (pain, body, head, both hands,
+    # both legs), each to its own maximum (a limb's 0.5, or the 0.75 Strong Bones
+    # makes it); `infection` is not one and is left, as is a pool that is full
+    # or not there.
     cases = (
         # {pool: (Hmax, H before)} -> H after in the build
-        ({"pain": (1.0, 0.3), "body": (1.0, 0.3), "head": (0.4, 0.1), "left_leg": (0.5, 0.1)},
-         {"pain": 1.0, "body": 1.0, "head": 0.4, "left_leg": 0.1}),
+        ({"pain": (1.0, 0.3), "body": (1.0, 0.3), "head": (0.4, 0.1), "left_hand": (0.5, 0.0),
+          "right_hand": (0.5, 0.5), "left_leg": (0.75, 0.25), "right_leg": (0.5, 0.25), "infection": (1.0, 0.4)},
+         {"pain": 1.0, "body": 1.0, "head": 0.4, "left_hand": 0.5, "right_hand": 0.5, "left_leg": 0.75,
+          "right_leg": 0.5, "infection": 0.4}),
         ({"pain": (1.0, 1.0), "body": (1.0, 0.7), "head": (0.4, 0.35)},
          {"pain": 1.0, "body": 1.0, "head": 0.4}),
         ({"pain": (1.0, 1.0), "body": (1.0, 1.0), "head": (0.4, 0.4)},
@@ -371,6 +375,7 @@ def run(data, patched):
         g.word(a + 0x250, inventory)
         g.word(a + 0x280, state)
         g.word(a + 0x28C, cooldown)
+        g.word(a + 0x274, 40000)               # cooldown_sec x 1000
         g.word(inventory + 0x10C + 4 * slot, a)
         return a
 
@@ -386,6 +391,10 @@ def run(data, patched):
     expect(sorted(g.pressed) == sorted([a, b, c] if patched else [a]), "enable_active once for each fired")
     expect(all(g.read(x + 0x2A0) == 1234 for x in ([a, b, c] if patched else [a])), "their activation time")
     expect(g.read(onyx + 0x280) == 3 and g.read(cooling + 0x280) == 3, "the Onyx and the cooling Spring stay")
+    # The press starts the cooling Spring's cooldown again (the whole 40 s); the Onyx, another
+    # kind, and a ready one keep theirs.
+    expect(g.read(cooling + 0x28C) == (40000 if patched else 500),
+           "the cooling Spring's cooldown " + ("starts again" if patched else "goes on"))
     # The Onyx pressed: it alone (no other Onyx).
     g.pressed = []
     g.call(ACTION, (1, 1300), ecx=onyx)
@@ -395,14 +404,23 @@ def run(data, patched):
     g.call(ACTION, (0, 1400), ecx=cooling)
     g.call(ACTION, (1, 1400), ecx=a)
     expect(g.pressed == [], "a key-up or an active one: nothing")
+    # A press that fires nothing starts no cooldown again.
+    g.word(cooling + 0x28C, 500)
+    g.call(ACTION, (1, 1450), ecx=cooling)
+    expect(g.pressed == [] and g.read(cooling + 0x28C) == 500, "nothing ready: the cooling one's cooldown goes on")
     # A press of a cooling Spring's key, a ready one beside it: the ready one
     # fires in the build, nothing in the original.
     g.word(cooling + 0x28C, 500)
+    g.word(onyx + 0x280, 3)                    # another kind on its cooldown: left as it is
+    g.word(onyx + 0x28C, 700)
     ready = artefact(13, spring_vt)
     g.pressed = []
     g.call(ACTION, (1, 1500), ecx=cooling)
+    expect(g.read(onyx + 0x28C) == 700, "a cooling Onyx's cooldown goes on at a Spring's press")
     expect(g.pressed == ([ready] if patched else []) and g.read(ready + 0x280) == (4 if patched else 3)
            and g.read(cooling + 0x280) == 3, "a cooling one's key fires the ready one of its kind")
+    expect(g.read(cooling + 0x28C) == (40000 if patched else 500),
+           "the pressed cooling one's cooldown " + ("starts again" if patched else "goes on"))
 
     # Through the game's own callers, with what they pass: inventory::action
     # 0x2FCAA0 (edi = the inventory; slot, pressed, time) calls the pressed
@@ -461,6 +479,7 @@ def run(data, patched):
             g.word(o + 0x250, inventory)
             g.word(o + 0x280, state)
             g.word(o + 0x28C, cooldown)
+            g.word(o + 0x274, 60000)
             for at, value in ONYX.items():
                 g.emu.mem_write(o + at, struct.pack("<f" if isinstance(value, float) else "<I", value))
             g.word(inventory + 0x10C + 4 * slot, o)
@@ -535,6 +554,8 @@ def run(data, patched):
     g.call(ACTION, (1, 4000), ecx=ready_one)
     expect(g.read(cool + 0x280) == 3 and g.read(ready_one + 0x280) == 4 and g.read(ready_one + 0xF14) == 3000,
            "a cooling Onyx beside: the ready one alone, 3 s")
+    expect(g.read(cool + 0x28C) == (60000 if patched else 500),
+           "the cooling Onyx's cooldown " + ("starts again: 60 s" if patched else "goes on"))
     expect(hit(g, (cool, ready_one)) == (0.2375, 0.11875), "the cooling one's passive x0.95, the active x0.25")
     # Two Onyx active from two presses (the second once ready): one share.
     g, (a1, a2) = onyx_game([(3, 0), (3, 500)])
@@ -559,13 +580,12 @@ def run(data, patched):
 
     expect(localized("for {s} s.") == "for  s." and localized("{{x") == "{x",
            "the localizer drops {s} (the owner's first test: \"for  s.\")")
-    expect(len(HINTS) == len(LANGUAGES) and all(localized(h) == h and h.count("%s") == 1 and "75" in h for h in HINTS),
+    expect(len(HINTS) == len(LANGUAGES) and all(localized(h) == h and h.count("%s") == 1 for h in HINTS),
            "all Onyx activation hints come through the localizer as they are, one %s each")
     for n in (1, 2, 3):
         ms = 3000 + (n - 1) * 1000 if patched else 3000
         shown = [h.replace("%s", str(math.ceil(ms / 1000))) for h in HINTS]
-        expect(shown[0] == f"Onyx activated! Decreases the damage and armor-piercing of incoming bullets by 75% "
-                          f"for {ms // 1000} s." and all(f" {ms // 1000} " in s for s in shown),
+        expect(shown[0] == f"Onyx activated! Incoming bullets deal less damage and have less armor piercing for {ms // 1000} s." and all(f" {ms // 1000} " in s for s in shown),
                f"{n} Onyx: the hud shows \"{shown[0]}\"")
     return checks
 

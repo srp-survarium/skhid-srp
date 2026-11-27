@@ -22,16 +22,24 @@ distinguish teams… this is the new battery mode". The owner's changes of 2026-
   no chargers), on its maps; the battery rules unchanged. Not the chargers' mode (3).
 - **Part of the standard pool** (the owner, 2026-10-25): in the create window's defaults, in every
   room Play makes; Play puts players into rooms that offer it; a room's maker may untick it.
-- **Always the vote's third card** (the owner, 2026-11-02: "offers blackout in voting always as a
-  third choice"; before, each Blackout map was one more entry the three cards were drawn from
-  alike, so about half of the votes had a Blackout card, anywhere): every vote, public or
-  private, of a room whose pool has Blackout.
-  - Cards 1 and 2: drawn from the rest of the pool, as before; never Blackout.
-  - Card 3: one of the pool's Blackout maps at random, on a map cards 1 and 2 are not while
-    there is one; won, its match is Blackout (as any Blackout card's).
-  - No switch: Blackout is a mode like the others. A pool without it (a private room's maker
-    unticked it, or ticked no battery map) or of Blackout alone: its three cards drawn as
-    before. A public room's pool always has it (the live pool has 25 battery maps).
+- **In the vote, a mode of the pool like any other** (the owner, 2026-11-12: "blackout should be
+  in general pool"; 2026-11-22: "all columns should draw from a general pool"): every card is
+  drawn from the whole pool, Blackout and Free for All among its modes (`ffa.md`, "Where it is
+  played"). Won, a Blackout card's match is Blackout.
+  - **On one card of a vote at the most** (the owner, 2026-11-12: "Make it so blackout cannot be
+    on two cards at the same time"), as Free for All (2026-11-22).
+    - Since 2026-11-15 a case of "no mode repeats" (the owner: "the mode/map picks should come
+      from pools", `rooms.md`, "Each card is drawn from pools"): a card's mode is drawn alike
+      among the modes no card shows, so Blackout is on two cards only when the pool has no
+      other mode left, and is the last mode to come again (with Free for All). Until then the cards were drawn with
+      Blackout's maps as any other's, and a second Blackout card gave its place to a map of
+      another mode.
+    - While there is one: a pool that leaves nothing else to show (Blackout and free-for-alls
+      alone, Blackout alone) keeps its Blackout cards, never a card fewer.
+    - The mode is named in one place: `session::v026g::rooms::ONE_CARD_AT_MOST`.
+  - From 2026-11-02 until then Blackout had the third card itself (the owner, 2026-11-02:
+    "offers blackout in voting always as a third choice"), and Free for All from 2026-11-12 to
+    2026-11-22.
 - **Bots:** not offered (Play vs Bots lists its own maps).
 
 ## In the match
@@ -46,7 +54,7 @@ distinguish teams… this is the new battery mode". The owner's changes of 2026-
   - **Still hidden:** the corner minimap (its teammates' dots too: the minimap is the hud's, not a
     marker), the match's objects' markers in the world (the batteries and the like, marked or
     not), Research markers, and everything else below. The Tab list's own map shows on Tab (below).
-- **No interface:** the rest of what F11 hides (patch 62) for the whole match, from its first
+- **No interface:** the rest of what the hide-interface key (F9, patch 62) hides for the whole match, from its first
   frame: ammo, health, score, crosshair, minimap, kill feed, chat (but while typed in and on Tab), Tab list (but on Tab), the match clock (but on Tab), the
   kits and the death screen with its respawn timer.
 - **One exception, the pre-match countdown** ("… 00:15"): shown while it runs, hidden with the
@@ -56,6 +64,9 @@ distinguish teams… this is the new battery mode". The owner's changes of 2026-
   opening the input. It explains batteries, the hidden HUD and hitmarkers, and Tab's controls.
   The allowance persists across logins; retries and reconnects do not spend it again in the
   same match. See [mode introductions](mode_introductions.md) for copy, protocol and checks.
+  Superseded the same day by the HUD notice; the server side was removed on 2026-11-26, and the
+  same day the HUD notice was limited to each account's first three Blackout matches again (exe
+  patch 214, the lobby's count; never in a replay).
 - **The use prompt and its progress, always** (the owner, 2026-11-02: "picking up artifact and
   refilling ammo should have ui in blackout"): the prompt at what the player can use (an artefact
   container, an ammo stash) and the bar filling while it is used (the search, the refill), as in a
@@ -110,7 +121,7 @@ distinguish teams… this is the new battery mode". The owner's changes of 2026-
   went.
 - **Kept:** the screen effects (pain edges, blood, grenade flash), the Esc menu, the kit screen's
   cursor; keys 1 to 3 pick a kit.
-- **F11 does nothing**; a replay's controls still toggle with it.
+- **The hide-interface key (F9) does nothing**; a replay's controls still toggle with it.
 - **Esc works as in any match** (the owner, 2026-10-25: "so people could leave"): the Esc menu is
   the main menu movie (its leave_match, settings and exit_to_os callbacks, game_options
   0x1FF5D0) and its cursor its own movie; the forced hiding touches the hud and the markers'
@@ -171,9 +182,9 @@ distinguish teams… this is the new battery mode". The owner's changes of 2026-
     chord, then patch 85's pickup), which had run there through this patch's handler.
   - **Beside the other patches:** patch 63 (team damage, #370) reads srp's block at
     `match_options::deserialize`'s end (0x1F0F30), Research's markers (#367) wrap update_ui's call
-    of update_player_icons (0x23B207), patch 62 (F11) keeps its reset (0x234AE8) and key: each owns
+    of update_player_icons (0x23B207), patch 62 (F9) keeps its reset (0x234AE8) and key: each owns
     another site, so they land beside Blackout unchanged (each site has one owner; none is a
-    chain). The forced interface's F11 lock and its reset are the movies' (below).
+    chain). The forced interface's F9 lock and its reset are the movies' (below).
 - **The Tab list's feed:** nothing of patch 65. The rows: initialize_match's list and
   `list_update_player` (update_ui, while +0BAh is set). The map's objects: update_ui calls
   game_world_ui::update_minimap_objects (0x238530; `abi.tsv`) whenever the checksum of the hud
@@ -183,7 +194,7 @@ distinguish teams… this is the new battery mode". The owner's changes of 2026-
   gives it to the corner minimap and the Tab map alike (`HUD.update_objects`). The players:
   update_minimap_players (0x239420). The world's battery markers are the player icons movie's
   (ids from 37), hidden while forced.
-- **The hud movie:** `force_interface_hidden` hides the root as F11 does; what it keeps is
+- **The hud movie:** `force_interface_hidden` hides the root as F9 does; what it keeps is
   `ForcedView`'s (`survarium/controls/ForcedView.as`: the parts by the forced state, Tab held and the
   chat typed in, `focus_chat`; the chat kept while typed in or on Tab, its history held on for Tab):
   the countdown
@@ -200,13 +211,13 @@ distinguish teams… this is the new battery mode". The owner's changes of 2026-
   66: shown only on Tab while forced; the owner, 2026-11-11) and, alive, the ammo (`ammoInd`) and the quick-use
   slots or, while the game shows the kits (`show_profiles_selector`: the death screen, before the
   start), the kits (`_profilePanel`, over the list) into that layer and back (`keptOnTab`: what it
-  kept is given back as it was). Forced, `hide_interface` (F11, patch 62; a match's reset) does
+  kept is given back as it was). Forced, `hide_interface` (F9, patch 62; a match's reset) does
   nothing: the interface stays forced until the exe tells the movie otherwise (a match without
   Blackout: `force_interface_hidden(false)` at its first frame, which puts every kept part back).
 - **The player icons' movie:** forced (`force_interface_hidden`), it hides the match's objects'
   icons (ids from 37, `HUDIconLayer.FIRST_OBJECT`: the game gives a player's icon his index and its
   objects' from 25h) and keeps the players' as in a plain match (the teammates'; an enemy's never,
-  `HUDIconLayer.canShow` with the game's `set_enemy_icon_ids`); forced, `hide_interface` (F11, a
+  `HUDIconLayer.canShow` with the game's `set_enemy_icon_ids`); forced, `hide_interface` (F9, a
   match's reset) does nothing.
 - **Checks in Ruffle:** `scripts/blackout-kits/check.sh <hud.swf> <player_icons.swf>`: the hud's kit
   panel and body doll in its `KeptLayer` (a kit key, a real click), the Tab list kept with either
@@ -214,7 +225,7 @@ distinguish teams… this is the new battery mode". The owner's changes of 2026-
   its map drawing a marked battery) and given back with Tab up, the use prompt kept there with its
   progress and given back when unforced, the player icons movie told each
   state: the teammate's marker shown, forced or not, the enemy's never, the object's not while
-  forced (and F11 doing nothing while forced).
+  forced (and F9 doing nothing while forced).
 - **The lobby movie:** `GameMode.BLACKOUT`, its names; the create window ticks the modes the pool
   offers; a mode's colour on the vote card from one table.
 - **With the interface levels** (`feat/interface-level`, its own patch 64): Blackout's telling the

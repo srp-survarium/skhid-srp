@@ -1,0 +1,9 @@
+# Patch 182: a streamed texture whose full size has no free pool slot takes the largest smaller
+# size that has one, instead of keeping the mips it has (client_patch.md 3.99). The site is
+# sites_026g.tsv's; the logic is texture_pool.rs.
+name = "texture_pool"
+patch = 182
+
+[[hook]]
+site = "streaming.no_slot"
+handler = "on_no_slot"

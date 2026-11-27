@@ -61,7 +61,7 @@ def hit(g, kind, armour, piercing, damage, pool):
 def check_resistance(data, kit):
     outcomes = []
     for payload, rank in [(0, 0), (1, 1), (2, 2), (3, 3), (4, 4), (5, 5), (5 + 8 + 256, 5), (4096 + 5, 5),
-                          (6, 0), (7, 0), (2.5, 0), (-1, 0), (16384, 0), (16384 + 5, 0), (8192 + 5, 5), (512 + 1, 1),
+                          (6, 0), (7, 0), (2.5, 0), (-1, 0), (32768, 0), (32768 + 5, 0), (16384 + 5, 5), (8192 + 5, 5), (512 + 1, 1),
                           (7 * 512 + 1, 0), (8 + 7 * 512 + 5, 0), (8 + 6 * 512 + 5, 5)]:
         g = MedicalGame(data)
         g.emu.mem_write(PLAYER + 0x115, bytes([kit]))
@@ -76,7 +76,7 @@ def check_resistance(data, kit):
                     close(have, want)
                     outcomes.append((payload, name, kind, armour, piercing, round(have, 4)))
     print(f'Resistance kit {kit}: anomalous hits (4..7) A + 0.05 a rank 0..5 before piercing and the clamp, '
-          'other types and refused payloads (6, 7, 2.5, -1, 16384, a draw of 7) unchanged, a draw without Keeper, Artifact Sight (bit 12) and the late mark (bit 13) accepted: PASS')
+          'other types and refused payloads (6, 7, 2.5, -1, 32768, a draw of 7) unchanged, a draw without Keeper, Artifact Sight (bit 12), the late mark (bit 13) and Courier (bit 14) accepted: PASS')
     return outcomes
 
 
@@ -110,6 +110,26 @@ def artefact(g, inv, slot, enable_active, state):
     return item
 
 
+def lands(g):
+    """The player's landing (0x2D8220): whether the game's landing, its fall damage, goes on."""
+    # Harmless and fatal speeds the landing compares with: 100 m/s, a landing at 1 m/s
+    # does nothing in the game either, so only the hook decides whether it goes on.
+    g.word(PLAYER + 0x30C, bits(100.0))
+    g.word(PLAYER + 0x310, bits(100.0))
+    reached = []
+    hook = g.emu.hook_add(UC_HOOK_CODE, lambda *a: reached.append(1), begin=LANDING_BODY, end=LANDING_BODY)
+    esp = STACK - 0x300
+    g.word(esp, STOP)
+    g.word(esp + 4, bits(1.0))
+    g.emu.reg_write(UC_X86_REG_ESP, esp)
+    g.emu.reg_write(UC_X86_REG_ECX, PLAYER)
+    g.emu.emu_start(LANDING, STOP, count=500_000)
+    g.emu.hook_del(hook)
+    assert g.emu.reg_read(UC_X86_REG_EIP) == STOP
+    assert g.emu.reg_read(UC_X86_REG_ESP) == esp + 8, "ret 4 either way"
+    return bool(reached)
+
+
 def check_onyx(data, kit):
     outcomes = []
     for payload in [0, ONYX_II, ONYX_II + 5 + 32 + 128, LARKSPUR_II, ONYX_II + 0.5]:
@@ -121,23 +141,8 @@ def check_onyx(data, kit):
             inv = inventory(g)
             for slot, (kind, state) in enumerate(carried, 13):
                 artefact(g, inv, slot, kind, state)
-            # Harmless and fatal speeds the landing compares with: 100 m/s, a landing at 1 m/s
-            # does nothing in the game either, so only the hook decides whether it goes on.
-            g.word(PLAYER + 0x30C, bits(100.0))
-            g.word(PLAYER + 0x310, bits(100.0))
-            reached = []
-            hook = g.emu.hook_add(UC_HOOK_CODE, lambda *a: reached.append(1), begin=LANDING_BODY, end=LANDING_BODY)
-            esp = STACK - 0x300
-            g.word(esp, STOP)
-            g.word(esp + 4, bits(1.0))
-            g.emu.reg_write(UC_X86_REG_ESP, esp)
-            g.emu.reg_write(UC_X86_REG_ECX, PLAYER)
-            g.emu.emu_start(LANDING, STOP, count=500_000)
-            g.emu.hook_del(hook)
-            assert g.emu.reg_read(UC_X86_REG_EIP) == STOP
-            assert g.emu.reg_read(UC_X86_REG_ESP) == esp + 8, "ret 4 either way"
             protected = payload in (ONYX_II, ONYX_II + 5 + 32 + 128) and (ONYX_ACTIVE, 4) in carried
-            assert bool(reached) != protected, (payload, carried)
+            assert lands(g) != protected, (payload, carried)
             outcomes.append((payload, len(carried), protected))
     print(f"Onyx II kit {kit}: the landing skipped only with the skill and an active Onyx (passive Onyx, "
           "another kind active, no skill, a refused payload: the game's landing): PASS")
@@ -167,6 +172,19 @@ def check_larkspur(data, kit):
             g.call(ACTION, (pressed, 2234), ecx=item)
             close(g.float(stamina + 0x6C), 10.0)
         outcomes.append((payload, kind, filled))
+    # A worn copy (2 uses spent: it fires at 0.8 ** 2) adds its power's share of the whole bar, capped.
+    for start, expected in [(10.0, 10.0 + 64.0), (50.0, 100.0)]:
+        g = MedicalGame(data)
+        g.emu.mem_write(PLAYER + 0x115, bytes([kit]))
+        g.ranks(LARKSPUR_II, RANKS)
+        g.word(DM, g.read(PLAYER + 0x2E0))
+        item = artefact(g, inventory(g), 13, LIFEBONE_ACTIVE, 3)
+        g.emu.mem_write(item + 0x286, bytes([2, 0]))
+        stamina = PLAYER + 0x6C0
+        g.word(stamina, bits(100.0))
+        g.word(stamina + 0x6C, bits(start))
+        g.call(ACTION, (1, 1234), ecx=item)
+        close(g.float(stamina + 0x6C), expected)
     print(f"Larkspur II kit {kit}: a Larkspur's activation fills the stamina with the skill only; "
           "a repeated press, a key-up, another kind and a refused payload do nothing: PASS")
     return outcomes
@@ -903,7 +921,7 @@ def check_active_cap(data):
     assert press(m4, four, 0) == [4] * 4
     want = sums(m4)
     for index, value in zip(SPRING_LISTS + [20, 2], want):
-        close(value, max(0.0, 1 + spring_sum(index, 4, 4)))
+        close(value, max(0.0, 1 + spring_sum(index, 4 * .8, 4)))
     for at in (0, 4):
         m, five = springs_match([3] * 5)
         assert press(m, five, at) == [4, 4, 4, 4, 3], ('Spring', at)
@@ -952,7 +970,7 @@ def check_active_cap(data):
             m.spring(at, state)
         have = sums(m)
         for index, value in zip(SPRING_LISTS + [20, 2], have):
-            close(value, max(0.0, 1 + spring_sum(index, own, own + shared)))
+            close(value, max(0.0, 1 + spring_sum(index, own * .8, own + shared)))
         outcomes.append(('Cascade', own, shared))
 
     # A carrier shares only its copies that count for it: five Springs, the fifth active (loaded
@@ -1032,8 +1050,8 @@ def check_share_matrix(data):
     - Lifebone: its passive at the part's regeneration tick;
     - the activation (artefact_base::action's hook 0x313333, Medic's path, every kind since the
       owner's rev51 games): the recipient plays the kind's activation glow (the copy's
-      active_resource, the active's length, the timed clock) and a Lifebone's heals it (body, head,
-      pain full). On main only a Lifebone's did: a Spring's and an Onyx's played nothing.
+      active_resource, the active's length, the timed clock) and a Lifebone's heals it (every body
+      part full). On main only a Lifebone's did: a Spring's and an Onyx's played nothing.
     Up to the reach and past it: Resonance 9 m, Cascade 6 m (the owner, 2026-11-07; were 8 m and
     5 m, so 8.5 m and 5.5 m fail before it)."""
     outcomes = []
@@ -1093,8 +1111,8 @@ def check_share_matrix(data):
                 item = m.artefact(at, enable, 4)
                 g.word(item + 0x290, g.effect_resource())
                 g.word(item + left, length)
-                for name in ('body', 'head', 'pain'):
-                    g.word(g.pools[PLAYER][name] + 0xA0, bits(0.1))
+                for pool in g.pools[PLAYER].values():
+                    g.word(pool + 0xA0, bits(0.1))
                 g.effects.clear()
                 g.step(0x313333, 6, esi=item, edi=1234)
                 gets = shared and skill == CASCADE
@@ -1102,8 +1120,8 @@ def check_share_matrix(data):
                 if gets:
                     close(g.float(g.effect_instances[-1] + 0x24), length / 1000)
                 healed = gets and kind == 'Lifebone'
-                for name, maximum in (('body', 1.0), ('head', 0.4), ('pain', 1.0)):
-                    close(g.float(g.pools[PLAYER][name] + 0xA0), maximum if healed else 0.1)
+                for pool in g.pools[PLAYER].values():      # the limbs too (the owner, 2026-11-14)
+                    close(g.float(pool + 0xA0), g.float(pool + 0x9C) if healed else 0.1)
                 outcomes.append((kind, 'activation', skill, distance, gets))
     print("Resonance and Cascade, every kind: a teammate on kit 1 (kit objects of their own) gives a "
           "recipient on kit 1 its Spring's passive (Resonance) or whole active (Cascade: every list through "
@@ -1202,6 +1220,131 @@ def check_cascade_activation(data):
           "bytes: PASS")
 
 
+def check_cascade_seconds(data):
+    """Onyx II and Larkspur II go with what their holder's Cascade shares, by the holder's skill (as
+    Spring II's reload nodes, check_resonance_springs): a teammate an Onyx's activation reached lands
+    unhurt while that Onyx is active, wherever the carrier goes; one a Larkspur's activation reached
+    has its stamina filled, as the holder's. Not without the carrier's skill (the recipient's own is
+    for its own copies), without Cascade (Resonance shares passives), for a copy in its passive, out
+    of reach at the activation, for an enemy, or for another kind."""
+    near, far = (0.0, 4.0, 0.0), (0.0, 30.0, 0.0)
+    for team, skills, own, make, start, unhurt in [
+            (0, CASCADE + ONYX_II, 0, lambda m, at: onyx(m, at, 4), near, True),
+            (0, CASCADE, ONYX_II, lambda m, at: onyx(m, at, 4), near, False),
+            (0, ONYX_II, 0, lambda m, at: onyx(m, at, 4), near, False),
+            (0, RESONANCE + ONYX_II, 0, lambda m, at: onyx(m, at, 4), near, False),
+            (0, CASCADE + ONYX_II, 0, lambda m, at: onyx(m, at, 3), near, False),
+            (0, CASCADE + ONYX_II, 0, lambda m, at: m.artefact(at, LIFEBONE_ACTIVE_, 4), near, False),
+            (0, CASCADE + ONYX_II, 0, lambda m, at: onyx(m, at, 4), (0.0, 7.0, 0.0), False),
+            (1, CASCADE + ONYX_II, 0, lambda m, at: onyx(m, at, 4), near, False)]:
+        m = Match(data)
+        m.g.ranks(own, RANKS)
+        at = m.player(1, team, start, skills)
+        make(m, at)
+        m.g.emu.mem_write(at + 0x43C, struct.pack('<fff', *far))
+        assert lands(m.g) != unhurt, (team, skills, own, start)
+    stamina = 0x6C0   # a player's stamina: its maximum, +6Ch the current
+    for team, skills, kind, start, filled in [
+            (0, CASCADE + LARKSPUR_II, LIFEBONE_ACTIVE_, near, True),
+            (0, CASCADE, LIFEBONE_ACTIVE_, near, False),
+            (0, LARKSPUR_II, LIFEBONE_ACTIVE_, near, False),
+            (0, RESONANCE + LARKSPUR_II, LIFEBONE_ACTIVE_, near, False),
+            (0, CASCADE + LARKSPUR_II, SPRING_ACTIVE, near, False),
+            (0, CASCADE + LARKSPUR_II, LIFEBONE_ACTIVE_, (0.0, 7.0, 0.0), False),
+            (1, CASCADE + LARKSPUR_II, LIFEBONE_ACTIVE_, near, False)]:
+        m = Match(data)
+        g = m.g
+        g.ranks(LARKSPUR_II if not skills & LARKSPUR_II else 0, RANKS)
+        at = m.player(1, team, start, skills)
+        distant = m.player(2, 0, far)
+        for who in (PLAYER, at, distant):
+            g.word(who + stamina, bits(100.0))
+            g.word(who + stamina + 0x6C, bits(10.0))
+        m.artefact(at, kind, 4)
+        close(g.float(PLAYER + stamina + 0x6C), 100.0 if filled else 10.0)
+        close(g.float(at + stamina + 0x6C), 100.0 if skills & LARKSPUR_II and kind == LIFEBONE_ACTIVE_ else 10.0)
+        close(g.float(distant + stamina + 0x6C), 10.0)
+    print("Cascade, Onyx II and Larkspur II: a teammate an Onyx's activation reached lands unhurt while it is "
+          "active, wherever the carrier goes, and one a Larkspur's reached has its stamina filled, by the "
+          "carrier's skill; not without it (the recipient's own alone), without Cascade, for a passive copy, "
+          "another kind, a teammate out of reach then, or an enemy: PASS")
+
+
+def check_wear(data):
+    m = Match(data)
+    g = m.g
+    item = m.spring(PLAYER, 3)
+    # Install the stub for the engine's byte writer. The outer writer normally
+    # supplies the state byte immediately after our optional prefix.
+    save(m, item)
+    writer = g.block(0x20)
+    for uses in range(1, 36):
+        power = .8 ** (uses - 1)
+        g.call(0x313300, (1, 1000 * uses), ecx=item)
+        assert g.read(item + 0x280) == 4
+        assert int.from_bytes(g.emu.mem_read(item + 0x286, 2), 'little') == uses
+        g.call(0x313300, (0, 1000 * uses), ecx=item)
+        g.call(0x313300, (1, 1000 * uses + 1), ecx=item)
+        assert int.from_bytes(g.emu.mem_read(item + 0x286, 2), 'little') == uses
+        remaining = power * .8
+        close(m.getter(4), 1 + .05 * remaining + .1 * power)
+        # Native writer's state local, then the loader's dispatch and a second save.
+        for state in (4, 3, 5, 6):
+            m.saved.clear()
+            g.step(0x3136a3, 5, eax=state, esi=item, edi=writer)
+            wire = bytes(m.saved) + bytes(g.emu.mem_read(STACK - 0x100 + 0x1f, 1))
+            assert wire == (bytes([(uses << 3) | state]) if uses < 32 else b'\xff' + uses.to_bytes(2, 'little') + bytes([state]))
+            restored, reader, tail = g.block(0x400), g.block(12), g.block(4)
+            g.emu.mem_write(tail, wire[1:] + b'\x00')
+            for off, value in ((0, tail), (4, tail), (8, len(wire) - 1)):
+                g.word(reader + off, value)
+            g.step(0x3137a0, 6, eax=wire[0], ebx=restored, edi=reader)
+            assert g.read(restored + 0x280) == state
+            assert int.from_bytes(g.emu.mem_read(restored + 0x286, 2), 'little') == uses
+            assert g.read(reader + 4) == tail + len(wire) - 1
+        g.call(0x311970, ecx=item)
+        g.word(item + 0x280, 3)
+        g.word(item + 0x28c, 500)
+        g.call(0x313300, (1, 1000 * uses + 10), ecx=item)
+        assert int.from_bytes(g.emu.mem_read(item + 0x286, 2), 'little') == uses
+        g.word(item + 0x28c, 0)
+        close(m.getter(4), 1 + .05 * remaining)
+    g.step(0x3134c0, 7, eax=item)
+    assert g.emu.mem_read(item + 0x286, 2) == bytes(2)
+    # A very worn copy and a fresh sibling both fire and each advances independently.
+    g.emu.mem_write(item + 0x286, (255).to_bytes(2, 'little'))
+    fresh = m.spring(PLAYER, 3)
+    g.word(fresh, g.read(item))
+    g.call(ACTION, (1, 40000), ecx=item)
+    assert g.read(fresh + 0x280) == 4 and g.emu.mem_read(fresh + 0x286, 2) == bytes([1, 0])
+    assert g.read(item + 0x280) == 4 and g.emu.mem_read(item + 0x286, 2) == bytes([0, 1])
+    # A worn Onyx scales the benefit (damage prevented), including its absorb cap.
+    for uses in range(1, 12):
+        m = Match(data)
+        stone = onyx(m, PLAYER, 3)
+        full = native_protect(m, stone, 4, 7, 100.0, .4)
+        m.g.emu.mem_write(stone + 0x286, uses.to_bytes(2, 'little'))
+        have = native_protect(m, stone, 4, 7, 100.0, .4)
+        for before, after, actual in zip((100.0, .4), full, have):
+            close(actual, before + (after - before) * .8 ** (uses - 1))
+    # Both the holder and a Cascade recipient regain the same fraction of each pool's deficit.
+    m = Match(data)
+    g = m.g
+    ally = m.player(1, 0, (1., 0., 0.))
+    g.word(DM, g.read(PLAYER + 0x2E0))
+    g.ranks(1 << 20, 43)
+    bone = m.artefact(PLAYER, LIFEBONE_ACTIVE, 3)
+    g.emu.mem_write(bone + 0x286, bytes([8, 0]))
+    for at in (PLAYER, ally):
+        for pool in g.pools[at].values():
+            g.word(pool + 0xa0, bits(g.float(pool + 0x9c) / 2))
+    g.call(ACTION, (1, 1234), ecx=bone)
+    for at in (PLAYER, ally):
+        for pool in g.pools[at].values():
+            close(g.float(pool + 0xa0), g.float(pool + 0x9c) * (.5 + .5 * .8 ** 8))
+    print('35 real Spring activations, progressive passive and active strength, ignored presses, spawn and compact/extended codec: PASS')
+
+
 def main():
     original = open(sys.argv[1], 'rb').read()
     patched, _ = base.build(original, 'section', open(base.default_bin('section'), 'rb').read(), None,
@@ -1209,6 +1352,7 @@ def main():
     assert check_resistance(patched, 0) == check_resistance(patched, 2)
     assert check_onyx(patched, 0) == check_onyx(patched, 2)
     assert check_larkspur(patched, 0) == check_larkspur(patched, 2)
+    check_wear(patched)
     check_spring(patched)
     print('Artefact skills: identical outcomes on two kits: PASS')
     check_resonance_springs(patched)
@@ -1217,6 +1361,7 @@ def main():
     check_resonance_lifebone(patched)
     check_share_matrix(patched)
     check_cascade_activation(patched)
+    check_cascade_seconds(patched)
     check_own_cap(patched)
     check_active_cap(patched)
 
