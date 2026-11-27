@@ -5,6 +5,8 @@
 //! third of what is left); the rooms' vote draws one for its free-for-all cards
 //! (`session::v026g::rooms`), and the lobby names it by its own mode number.
 
+use binary_config_parser::tree::ConfigValue;
+
 use super::cowboy::Variation;
 use super::maps::{GameMode, MapMode, MatchMap};
 use super::match_msgs::static_info::MatchProfile;
@@ -19,6 +21,59 @@ pub enum Pick {
     Racket,
     Cowboy(Variation),
     Roulette,
+}
+
+impl Pick {
+    /// The twist it plays, if any.
+    const fn twist(self) -> Option<Twist> {
+        match self {
+            Self::Plain => None,
+            Self::Racket => Some(Twist::Racket),
+            Self::Cowboy(_) => Some(Twist::Cowboy),
+            Self::Roulette => Some(Twist::Roulette),
+        }
+    }
+}
+
+/// What an open room's free-for-all card on a map plays ([`MapMode::open_play`], its config's
+/// `mode.srp_twists_only`). A private room's plays the plain mode on every map.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum OpenPlay {
+    /// The plain mode or a twist, by [`SHARES`] (no `srp_twists_only`, or `false`).
+    Any,
+    /// A twist alone, by their shares (`true`: Military Warehouses).
+    Twisted,
+    /// This twist alone (its name: Station's `"racket"`). Only a twist every room can play: one
+    /// whose card a room might not deal (Roulette's band) would leave such a card nothing.
+    Only(Twist),
+}
+
+impl OpenPlay {
+    /// A config's `srp_twists_only`: a bool, or the name of the one twist an open room plays.
+    pub fn of_config(value: &ConfigValue) -> Result<Self, String> {
+        if let Some(only) = value.as_bool() {
+            return Ok(if only { Self::Twisted } else { Self::Any });
+        }
+        match value.as_str() {
+            Some("racket") => Ok(Self::Only(Twist::Racket)),
+            Some("saloon") => Ok(Self::Only(Twist::Cowboy)),
+            Some("roulette") => {
+                Err("`srp_twists_only` \"roulette\": a room that allows no band has no Roulette".into())
+            }
+            Some(other) => Err(format!("`srp_twists_only` {other:?} is no twist (racket, saloon)")),
+            None => Err("`srp_twists_only` is neither a bool nor a twist's name".into()),
+        }
+    }
+
+    /// Whether an open room's card on the map may play `pick`.
+    const fn allows(self, pick: Pick) -> bool {
+        match (self, pick.twist()) {
+            (Self::Any, _) => true,
+            (Self::Twisted | Self::Only(_), None) => false,
+            (Self::Twisted, Some(_)) => true,
+            (Self::Only(only), Some(twist)) => only as u8 == twist as u8,
+        }
+    }
 }
 
 /// The shares of a free-for-all card's draw ([`draw`]), in hundredths (the owner, 2026-11-22):
@@ -38,17 +93,21 @@ pub const SHARES: [(Pick, u32); 5] = [
 /// What a free-for-all card of a server's room of `max_level` plays on `map`, drawn after it: the
 /// plain mode and each twist by its [`SHARES`], armed for the room (Racket with the room's gun,
 /// `racket::Gun::of_room`; Roulette with a band the room allows and a hand of it, dealt with the
-/// same rolls). On a map played with a twist only ([`MapMode::twists_only`]) the twists alone, by
-/// their shares (the plain mode's taken out, so the map comes as often as any, always twisted);
-/// Roulette only in a room that allows a band ([`Band::allowed`]). `below(n)` is a roll below `n`.
+/// same rolls). On a map played with a twist only ([`MapMode::open_play`]) the twists alone, by
+/// their shares (the plain mode's taken out, so the map comes as often as any, always twisted), or
+/// its one twist; Roulette only in a room that allows a band ([`Band::allowed`]). `below(n)` is a
+/// roll below `n`.
 /// A private room's never draws: its free-for-all is plain, and its pool has no such map
 /// (`session::v026g::rooms`).
 pub fn draw(map: MatchMap, max_level: u8, below: &mut impl FnMut(usize) -> usize) -> Played {
     let banded = Band::allowed(max_level).next().is_some();
-    let drawn = SHARES.iter().filter(|&&(pick, _)| match pick {
-        Pick::Plain => !map.map().twists_only,
-        Pick::Roulette => banded,
-        Pick::Racket | Pick::Cowboy(_) => true,
+    let open = map.map().open_play;
+    let drawn = SHARES.iter().filter(|&&(pick, _)| {
+        open.allows(pick)
+            && match pick {
+                Pick::Roulette => banded,
+                Pick::Plain | Pick::Racket | Pick::Cowboy(_) => true,
+            }
     });
     let total: u32 = drawn.clone().map(|(_, share)| share).sum();
     let mut roll = below(total as usize) as u32 % total;
@@ -334,7 +393,7 @@ mod tests {
             assert_eq!(twisted.is_some(), map.mode == GameMode::FreeForAll, "{}", map.id);
             assert_eq!(Played::plain(played).lobby_number(), map.mode.lobby_number());
         }
-        let ffa = playable_in(GameMode::FreeForAll).find(|map| !map.twists_only).unwrap();
+        let ffa = playable_in(GameMode::FreeForAll).find(|map| map.open_play == OpenPlay::Any).unwrap();
         let racket = Armed::Racket(Gun::Ak12);
         let racket = Played::twisted(MatchMap::of(ffa.id).unwrap(), racket).unwrap();
         assert_eq!((racket.lobby_number(), racket.mode()), (9, GameMode::FreeForAll));
@@ -363,10 +422,25 @@ mod tests {
         let racket = draw(plain, 10, &mut |n| if n == 100 { 30 } else { 0 }).armed();
         assert_eq!(racket, Some(Armed::Racket(Gun::Ak74n)));
         // A map played with a twist only: the twists alone, Roulette's too.
-        for map in playable_in(GameMode::FreeForAll).filter(|map| map.twists_only) {
-            let map = MatchMap::of(map.id).unwrap();
+        let twisted = |open: OpenPlay| {
+            playable_in(GameMode::FreeForAll)
+                .filter(move |map| map.open_play == open)
+                .map(|map| MatchMap::of(map.id).unwrap())
+        };
+        assert_eq!(twisted(OpenPlay::Twisted).count(), 1);
+        for map in twisted(OpenPlay::Twisted) {
             assert_eq!(rolls(map, 15).count(), 70);
             assert_eq!((count(map, 15, 8), count(map, 15, 14)), (0, 30));
+        }
+        // A map played with Racket alone (Station): every card Racket, in a room with Roulette's
+        // bands and in one without; Racket's gun by the room.
+        assert_eq!(twisted(OpenPlay::Only(Twist::Racket)).count(), 1);
+        for map in twisted(OpenPlay::Only(Twist::Racket)) {
+            for max_level in [15, 4] {
+                assert_eq!(rolls(map, max_level).count(), 30);
+                assert_eq!(count(map, max_level, 9), 30);
+            }
+            assert_eq!(draw(map, 10, &mut |_| 0).armed(), Some(Armed::Racket(Gun::Ak74n)));
         }
         // Each twist as it arms its own number; none a mode's (nor Scarcity's 7, not on main).
         for number in [9, 10, 11, 14, 15, 16] {
