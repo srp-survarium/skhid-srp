@@ -41,13 +41,20 @@ one missing file), across 12 parts and 1,272 ticks. A duplicate request
 produced one answer. Closing and loading again produced a fresh offer.
 The fixture and its output are in `private/resource-check/native/`.
 
-The match server, wire parser, archive crate, Rust patches and local
-moderation reader passed their focused tests. The broader `cargo:srp`
-check reproduced the previously recorded 17 vs 25 bot-map failure.
-For a local match, set `SRP_GAME_DATA` to the database above and use the
-paired executables. Read the server log with
-`release/moderate resources --log-file logs/resources.log`. A played match
-and native Windows testing remain pending. Local build only.
+The match server, wire parser, archive crate, Rust patches and moderation
+reader passed their focused tests. The reader also passed against the local
+launcher's combined log format. The native executable-report and mouse
+hooks passed. The game and host world validators agreed on all 6,739
+sampled worlds and their mutations. The broader world-corpus check
+reproduced the earlier 20,357 passes, 25,435 refusals and 3,700 unchecked.
+The server integration suite reproduced the earlier 17 vs 25 bot-map count.
+
+A separate loopback run used the local revision 75 executable and the
+quick-build content patch and reference database produced by the checks.
+The game reached the sign-in screen under Wine. A full match and native
+Windows testing remain unverified. For the local launcher's log, use
+`release/moderate resources --log-file runtime/server.log` from its setup
+directory. Local builds only.
 
 ## 2026-11-27 — match input summaries integrated on current main
 
