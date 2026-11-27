@@ -246,8 +246,14 @@ data/srp_reticle {
   - The server parses the request into the existing second-sight side or a `SetReticle`. A value
     outside the lists is refused.
   - Either way the server answers with the account, then the reticles message.
-- **The answer.** An srp lobby message after every account the server sends (sign-in, every
-  answer). It is `<id>` followed by `u16 count`, then `count` entries, one for each scope item the
+- **The answer.** An srp lobby message, id **0xA9**, sent before the inventory (0x89) in every push:
+  at sign-in and after every change. That way `setup_inventory_data` already sees the table when it
+  runs.
+  - 0xA9 is 0.26g's unused premium-discount id; its transport class is "ordered".
+  - The client takes it at the dispatcher, at 0x274A39, before the jump table.
+  - 0x81 and 0xA0 were rejected because they are only "unique".
+
+  The message is the id followed by `u16 count`, then `count` entries, one for each scope item the
   account owns that has lists:
 
 ```text
@@ -265,6 +271,11 @@ u8 n colours × { u8 name length, name, f32 r, f32 g, f32 b }
 - **The table.** The patch keeps the last reticles message, parsed once into a typed table (by item
   id and by dict id), in the arena. It lives for the process, so the lobby and the match read the
   same table.
+  - The table sits in a `vostok::Lock`, because drawing may run on another thread.
+  - The drawing side asks `drawn_for_dict(thread: &Thread, dict: u16) -> Option<Drawn>`, where
+    `Drawn { model: &'static CStr, scale: f32, rgb: [f32; 3], brightness: Brightness }`.
+    `model` comes from an append-only pool. `Brightness` is a 0..=10 newtype with
+    `get() -> u8`.
 - **The window's side.**
   - `srp_set_reticle(item, pattern, size, colour, brightness)` (an ExternalInterface call from the
     lobby movie) sends the `46 05` above through `engine_send_apply_decal`, after checking it
