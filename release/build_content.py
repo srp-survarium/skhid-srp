@@ -68,17 +68,19 @@ LOBBY = 'lobby_menu'
 # configs have both there: content_type_check.number_either).
 # Rudnya v0.21 (pack maps-021d-rudnya): numbers 0.21d authored as floats where 0.26g's own projects
 # happen to have whole numbers.
+# Mode 8: Rudnya's and Chemical Plant's (v021d_level_04) Free for All projects are the Team
+# Deathmatch ones copied as they are (ffa-rudnya-v021-1.json, ffa-chemical-plant-v021-1.json).
 TYPE_ALLOWLIST = {
     **{(f'projects/v021d_level_01/day_{mode}/client_project',
         '/client_objects[environment]/properties/sky_clouds_color_multiplier'):
        "0.21d's 1.28 in its day environment (a 0.21d key 0.26g does not read; its environment loader "
        'load_environment_properties_impl 0x34E1E0 reads a float as it is and an int through cvtsi2ss)'
-       for mode in (2, 4, 'ah')},
+       for mode in (2, 4, 8, 'ah')},
     **{(f'projects/v021d_level_01/day_{mode}/client_project', '/client_objects[damage_zone]/max_armor_piercing'):
        "0.21d's 0.02 on the swamp anomaly's fourth sensor: a fraction the hit takes with max_hit "
        '(damage_zone_core::hit_objects 0x319AF0, +1C4h beside the float +1C0h), as srp reads it '
        "(mapdata's f32_or); 0.26g's own zones have a whole 0 there"
-       for mode in (2, 4, 'ah')},
+       for mode in (2, 4, 8, 'ah')},
     # London's evening (pack london-weathers): 0.31a2's stratosphere turns at 0.62, a fraction where
     # 0.26g's corpus has whole numbers; the reader takes either (stratosphere 0x34E84F). `ah`:
     # Artifact Hunt's copy of evening_4 (artefact-hunt-1.json), the same value.
@@ -129,7 +131,8 @@ TYPE_ALLOWLIST = {
     # projects/keys that differ from the 0.26 corpus. The native reader tests
     # binary-config type 2 then uses movss; otherwise it uses cvtsi2ss. Keep
     # fractional donor values instead of rounding them to the corpus's ints.
-    # `ah`: Artifact Hunt's copies of the Team Deathmatch projects (artefact-hunt-maps-1.json).
+    # `ah`: Artifact Hunt's copies of the Team Deathmatch projects (artefact-hunt-maps-1.json);
+    # 8: Rudnya's and Chemical Plant's Free for All copies (above).
     **{(f'projects/v021d_level_{level}/{weather}_{mode}/client_project',
         f'/client_objects[environment]/properties/{key}'):
        "Original 0.21d weather scalar; load_environment_properties_impl 0x34E1E0 "
@@ -149,11 +152,11 @@ TYPE_ALLOWLIST = {
            ('05', 'rain', ('mie_fog_base_height', 'rain_u_scale', 'sky_clouds_color_multiplier', 'stratosphere_rotation')),
            ('06', 'evening', ('mie_fog_base_height', 'stratosphere_rotation')),
            ('06', 'rain', ('mie_fog_base_height', 'sky_clouds_color_multiplier', 'stratosphere_rotation')),
-       ) for mode in (2, 4, 'ah') for key in keys},
+       ) for mode in (2, 4, 'ah') + ((8,) if level in ('01', '04') else ()) for key in keys},
     **{(f'projects/v021d_level_01/{weather}_{mode}/client_project', '/client_objects[damage_zone]/max_armor_piercing'):
        "Same authored Rudnya day swamp sensor's 0.02; damage_zone_core::hit_objects 0x319AF0 "
        "reads float +1C4h beside max_hit +1C0h (mapdata f32_or), retained in both original weathers"
-       for weather in ('rain', 'evening') for mode in (2, 4, 'ah')},
+       for weather in ('rain', 'evening') for mode in (2, 4, 8, 'ah')},
 }
 
 SIMULATION_CHANGES = 'srp-026g/crates/session/src/v026g/simulation_changes.tsv'
