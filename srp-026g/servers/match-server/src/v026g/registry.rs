@@ -21,7 +21,7 @@ use survarium::v026g::keeper;
 use survarium::v026g::twist::{Armed, Played};
 use survarium::v026g::dictionary::Dictionary;
 use survarium::v026g::loadouts::BotPocketKit;
-use survarium::v026g::maps::{self, GameMode, MatchMap};
+use survarium::v026g::maps::{self, GameMode};
 use survarium::v026g::match_msgs::MAX_PLAYERS;
 use survarium::v026g::match_msgs::players::Supplies;
 use survarium::v026g::match_msgs::snapshot::{PlayerStatistics, Standing, WeaponCounts};

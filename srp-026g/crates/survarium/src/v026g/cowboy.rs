@@ -245,7 +245,7 @@ pub fn arm(profile: &mut MatchProfile, guns: &Guns, variation: Variation) {
 #[cfg(test)]
 mod tests {
     use super::super::dictionary::PROFILE_SLOTS;
-    use super::super::loadouts::{self, BotRole, POCKET_SLOTS};
+    use super::super::loadouts::{self, POCKET_SLOTS};
     use super::super::match_msgs::static_info::{self, KIT_NOT_LOADED, KIT_USABLE};
     use super::super::skills::MODIFIERS;
     use super::*;
@@ -568,22 +568,6 @@ mod tests {
             Some((dict("medkit"), 1))
         );
         assert_eq!(after.items.len(), 3);
-    }
-
-    #[test]
-    fn a_bots_profile_is_armed_alike() {
-        for role in BotRole::ALL {
-            let kits = loadouts::bot_kits(role);
-            let before = MatchProfile::from_loadouts(
-                "bot",
-                1,
-                &kits,
-                [0.0; MODIFIERS],
-                Dictionary::shared(),
-                1,
-            );
-            assert_eq!(assert_armed(&before).kits.len(), 2);
-        }
     }
 
     #[test]

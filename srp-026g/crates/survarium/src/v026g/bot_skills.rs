@@ -1003,6 +1003,8 @@ mod tests {
             row,
             levels: vec![vec![(0, 1.0)]; usize::from(ranks)],
             unknown_modifiers: Vec::new(),
+            name: String::new(),
+            description: String::new(),
         };
         let tree = SkillsTree {
             skills: vec![skill(201, 3, 0, 1), skill(204, 3, 0, 1), skill(209, 5, 5, 2), skill(211, 3, 15, 4)],

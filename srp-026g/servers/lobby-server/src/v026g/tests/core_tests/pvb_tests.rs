@@ -531,7 +531,7 @@ fn a_map_without_its_bots_built_files_is_not_offered_and_a_play_on_it_is_redirec
 
     // 67's files go after the choice: the Play is made on 61.
     assert_eq!(choose(&mut world, alice, 8, MapId::new(67)), "B2;ok;8;67");
-    std::fs::remove_file(dir.join(&names(67)[1])).unwrap();
+    std::fs::remove_file(dir.join(&names(MapId::new(67))[1])).unwrap();
     world.take(alice);
     world.ask(alice, request::play(1));
     world.advance(Duration::from_secs(1));
@@ -544,7 +544,7 @@ fn a_map_without_its_bots_built_files_is_not_offered_and_a_play_on_it_is_redirec
     let bob = world.connect("Bob");
     with_gear(&mut world, bob, 5);
     assert_eq!(choose(&mut world, bob, 8, MapId::new(61)), "B2;ok;8;61");
-    std::fs::remove_file(dir.join(&names(61)[0])).unwrap();
+    std::fs::remove_file(dir.join(&names(MapId::new(61))[0])).unwrap();
     world.take(bob);
     world.ask(bob, request::play(1));
     world.advance(Duration::from_secs(1));
