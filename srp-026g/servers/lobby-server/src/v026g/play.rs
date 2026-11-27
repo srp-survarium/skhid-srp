@@ -1614,7 +1614,7 @@ mod tests {
             // tier and the role read back from what it read.
             let options = MatchOptions {
                 players: bots.iter().map(|bot| bot.profile.clone()).collect(),
-                map: maps::MatchMap::of(maps::playable().next().unwrap().id).unwrap(),
+                map: two_team_map(),
                 match_id: 0x1234,
                 match_level: 1,
                 score_weights: SCORE_WEIGHTS,
