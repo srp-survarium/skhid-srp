@@ -22,7 +22,7 @@ meets:
   on Head) set `remove_head_model` and end at 1.523 m in front, 1.56-1.59 m at the sides and back.
   The exo body's own collar (`duty_03_torso_s1` `torso_s`, 86 vertices on Neck, 1.525-1.578 m) was
   their neck. Over any other torso the band between is empty: horizontal rays from the neck's axis
-  passed through 26 of the 59 other torsos at 10 degrees and 1 cm (29 at 5 degrees and 5 mm),
+  passed through 26 of the 59 other torsos at 10 degrees and 1 cm (31 at 5 degrees and 5 mm),
   mostly at the throat; from below (the lobby camera's height) the gap shows on every torso. The
   helmet's bind pose is the native one (0.0 mm): it sits where it always did, with no neck under
   it. Stock's two helmets with `remove_head_model` (`renesanse_helmet_4`, `_6`) each bring a
@@ -55,8 +55,11 @@ meets:
   v 372-500), u round the neck mirrored front to back (no seam), v down it; tangents from those
   UVs. On the exo body it is inside the body's collar (renders: no change). An additional model of
   a helmet is hidden in first person with it.
-- **The legs into the boots.** Positions only, in both legs files (replace_file, checked against
-  the released bytes): the closed bottom (below 0.245 m) moved 0.105 m down (to 0.105-0.14 m, under
+- **The legs into the boots.** Positions only, in both legs meshes: Duty's file in place
+  (replace_file, checked against the released bytes); Freedom's, which pack exo-camo added (a later
+  pack may not replace an earlier one's file: vostok-port refuses it), as a model of its own,
+  `ported/freedom_026/freedom_exo_legs_s2`, which edit list `exo-joins-1.json` points the Freedom
+  body's four sleeve tables at (its baked camouflage and decals are named after the new file). Both: the closed bottom (below 0.245 m) moved 0.105 m down (to 0.105-0.14 m, under
   the lowest boot's top, 0.151 m), the trousers from there up to 0.42 m stretched to meet it (1.6
   times), and below 0.24 m narrowed over 5 cm towards the native tucked trousers (`_s3`) plus 4 mm,
   along each shin's axis (the bind pose's Leg to Foot): they go into tall shafts as stock trousers
@@ -76,7 +79,8 @@ meets:
   axis over 10 cm above its bottom; every torso that covers the trousers' slot with each pair of
   boots, rays from each shin's axis from 0.10 to 0.32 m; a ray through everything is a hole. Live
   (revision 74): 68 of 568 pairs have one (26 torsos with each exo helmet, 8 boots with each exo
-  body); with the pack: none. About 45 s on the whole game data. Not in build-content's gate yet
+  body); with the pack and the edit list: none. At 5 degrees and 5 mm: 78 (31 torsos, 8 boots)
+  and none. About 45 s on the whole game data. Not in build-content's gate yet
   (it needs numpy, which build-content's Python is not given).
 - It does not see clipping, nor gaps that open only in a pose: renders in the lobby idle
   (`ak/player/stand/3rd_view/on_site/idle_lobby` at 0.5, resource-porter's

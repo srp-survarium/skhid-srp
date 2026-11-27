@@ -1,0 +1,6 @@
+{
+ "_about": "The Freedom exoskeleton body wears the legs pack exo-joins lowered into every boot (docs/notes/exo-joins.md): ported/freedom_026/freedom_exo_legs_s2, a model of its own, as pack exo-camo added freedom_exo_legs_s1 and a later pack may not replace an earlier one's file. The legs' additional model in all four sleeve tables.",
+ "replace_string": [
+  {"files": "gameplay/items/armour/torso/freedom_exo_026.options", "from": "ported/freedom_026/freedom_exo_legs_s1", "to": "ported/freedom_026/freedom_exo_legs_s2"}
+ ]
+}

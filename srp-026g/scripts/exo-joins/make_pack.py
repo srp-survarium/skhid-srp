@@ -25,7 +25,10 @@ with any other armour. Each piece still ends where its exo partner took over:
   top, 0.151 m) and stretches the trousers above it, as far as 0.42 m, to meet it: the same
   vertices, triangles and UVs (the camouflage masks and decals stay where they are), the skin
   near the ankle the native full-length trousers' Leg/Foot blend; below 0.24 m they narrow towards
-  the native tucked trousers (`_s3`), so they go into tall shafts as stock trousers do.
+  the native tucked trousers (`_s3`), so they go into tall shafts as stock trousers do. Duty's
+  file in place; Freedom's, which pack exo-camo added (a later pack may not replace an earlier
+  one's file), as a model of its own, `freedom_exo_legs_s2`, which edit list exo-joins-1.json
+  points the Freedom body at.
 
 Each file it replaces is checked against the released one (LIVE); the configs are set by path.
 """
@@ -57,6 +60,12 @@ NECK = 'ported/{suit}_026/exo_helmet_neck'
 NECK_PART = 'neck_s'
 LEGS = {'duty': 'models/ported/duty_026/duty_03_legs_s1.skinned_model',
         'freedom': 'models/ported/freedom_026/freedom_exo_legs_s1.skinned_model'}
+# Where each suit's lowered legs go: Duty's in place (a file of patch 17's duty-exo); Freedom's,
+# which pack exo-camo added (a later pack may not replace an earlier one's file), as a model of
+# their own that edit list exo-joins-1.json points the Freedom body at.
+LOWERED = {'duty': LEGS['duty'], 'freedom': 'models/ported/freedom_026/freedom_exo_legs_s2.skinned_model'}
+# The model's files that the lowering leaves as they are.
+KEPT = ('render/bind_pose', 'settings', 'skeleton')
 # The released files read (patch 17's packs duty-exo and freedom-exo, exo-camo's Freedom legs).
 LIVE = {
     ANKLE:
@@ -101,6 +110,12 @@ LIVE = {
         'ef66e7e0d6cf485f370c41414a8300aa6f2ebf4fa4df859e31f97cbfb8057ec3',
     'models/ported/freedom_026/freedom_exo_legs_s1.skinned_model/render/export_properties':
         '6922840be31cab7a87413c409493ffb368e7d8cc45ee922a4ed1efd45de1470e',
+    'models/ported/freedom_026/freedom_exo_legs_s1.skinned_model/render/bind_pose':
+        '72d6130cddfe7dfa66f46a5c9f709d4c0d068b57d2f53a9fb74757ed197c6e93',
+    'models/ported/freedom_026/freedom_exo_legs_s1.skinned_model/settings':
+        '83dfb88d2232d0b49f5dcf98e6b8256aee81dd595de14f5d53cfea1bbfdc88e2',
+    'models/ported/freedom_026/freedom_exo_legs_s1.skinned_model/skeleton':
+        '2a952e1632dd4209fc310032c295ede5682f5e46488014d7837fcadf23acdd0c',
     f'{HELMETS}/duty_exo_026.options':
         'fd0aebde0ee811b607529446085ff27a7b23ce980980832b15a66828e5eabfa2',
     f'{HELMETS}/freedom_exo_026.options':
@@ -197,14 +212,23 @@ def main():
             sys.exit(f'{mesh_path}: not written back byte for byte')
         lowered = joins.lower_hem(legs, DROP, CAP_TOP, BLEND_TOP, ankle, shins, TUCK_TOP, TUCK_SPAN, TUCK_GAP)
         made = {
-            mesh_path: joins.write_mesh(lowered),
-            f'{model}/render/legs_s/export_properties':
+            'render/legs_s/converted_model': joins.write_mesh(lowered),
+            'render/legs_s/export_properties':
                 with_bounds(live[f'{model}/render/legs_s/export_properties'], lowered, True),
-            f'{model}/render/export_properties': with_bounds(live[f'{model}/render/export_properties'], lowered),
+            'render/export_properties': with_bounds(live[f'{model}/render/export_properties'], lowered),
         }
-        for path, data in made.items():
-            files[path] = data
-            operations.append({'op': 'replace_file', 'path': path, 'base_sha256': sha256(live[path])})
+        target = LOWERED[suit]
+        if target == model:
+            for name, data in made.items():
+                path = f'{model}/{name}'
+                files[path] = data
+                operations.append({'op': 'replace_file', 'path': path, 'base_sha256': sha256(live[path])})
+        else:
+            for name in KEPT:
+                made[name] = live[f'{model}/{name}']
+            for name, data in sorted(made.items()):
+                files[f'{target}/{name}'] = data
+                operations.append({'op': 'add_file', 'path': f'{target}/{name}'})
 
     pack = {
         'format_version': 1,
@@ -214,7 +238,8 @@ def main():
         'description': 'the Duty and Freedom exoskeleton helmets with a neck of their own (exo_helmet_neck: '
                        'the native neck, in the gas mask hood\'s rubber), so they no longer float over '
                        'other bodies; the exoskeleton legs\' closed bottom moved 0.105 m down into every boot '
-                       '(the trousers stretched to meet it, UVs kept), so no gap shows over low boots',
+                       '(the trousers stretched to meet it and narrowed into the ankle, UVs kept), so no gap shows '
+                       'over low boots (Freedom\'s as freedom_exo_legs_s2: edit list exo-joins-1.json)',
         'operations': operations,
     }
     for path, data in files.items():
