@@ -1,24 +1,23 @@
-//! The login server of the 0.26g client (build 2777, January 2015), beside
-//! 0.21d's in `lib.rs`. What differs (`docs/notes/login_chat.md`
+//! The login server of the 0.26g client (build 2777, January 2015). What
+//! differs from 0.21d's (`srp-021d`; `docs/notes/login_chat.md`
 //! §4): the version, the password message (a SHA-1 digest, with the password
 //! itself only when it was typed), the answer (the session and the lobby's
 //! UDP address, no browser server) and the numbers of the refusals. The
 //! client neither pings the login server nor signs out: a session ends when
 //! its lobby connection does.
 
-use openssl::ssl::SslContext;
 use std::io::{self, Write};
 use std::net::{IpAddr, Ipv4Addr, SocketAddr, TcpListener, TcpStream, ToSocketAddrs};
 use std::sync::Arc;
 use std::time::Instant;
 
+use ban_reason::{BanEnd, BanReason, BanTold};
 use session::{SESSION_IDLE_LIMIT, SessionStore, SignInError};
 use vostok::config::{self, ServerConfig};
 
-use super::{
-    CERT_PATH, COLLECT_INTERVAL, GONE_CHECK_INTERVAL, PKEY_PATH, accept_tls, parse_sign_in,
-    read_message, sign_in_length, tls_context, tls_context_from,
-};
+use super::sealed::{self, Sealed, ServerKey};
+use udp_transport::relay::{Peer, Relays, Route};
+use super::{COLLECT_INTERVAL, GONE_CHECK_INTERVAL, parse_sign_in, read_message, sign_in_length};
 
 /// The version field of a 0.26g sign-in (`sign_in_on_connected` 0x3807D0
 /// copies it from 0x9DAE98 into 12 zeroed bytes).
@@ -134,33 +133,54 @@ impl RevisionGate {
 /// game"; its text in client-patches/localization/*.tsv is neutral).
 const BANNED: u8 = login_server_message_types_enum::ban_reason_administrator as u8;
 
-/// The client's ban reasons, each with the words an admin's reason
-/// (`Ban::reason`, free text) is taken for it by. The first row with a word
-/// in the reason wins; none: [`BANNED`].
+/// srp's ban reasons (crates/ban-reason), each with the words an admin's
+/// reason (`Ban::reason`, free text) is taken for it by. The first row with a
+/// word in the reason wins; none: [`BanReason::Administration`].
 #[rustfmt::skip]
-const BAN_REASONS: &[(login_server_message_types_enum, &[&str])] = &[
-    (login_server_message_types_enum::ban_reason_cheating,          &["cheat", "hack", "aimbot", "wallhack", "exploit"]),
-    (login_server_message_types_enum::ban_reason_teamkilling,       &["teamkill", "team kill", "team-kill"]),
-    (login_server_message_types_enum::ban_reason_account_trading,   &["trading", "account sale", "selling"]),
-    (login_server_message_types_enum::ban_reason_reallife_treating, &["threat", "treating", "real life", "reallife"]),
-    (login_server_message_types_enum::ban_reason_discuss_admins,    &["discuss"]),
-    (login_server_message_types_enum::ban_reason_incorrect_info,    &["incorrect", "false info", "misinform"]),
-    (login_server_message_types_enum::ban_reason_faschism,          &["fascism", "faschism", "nazi"]),
-    (login_server_message_types_enum::ban_reason_politics,          &["politic"]),
-    (login_server_message_types_enum::ban_reason_advertising,       &["advert"]),
-    (login_server_message_types_enum::ban_reason_flood,             &["flood", "spam"]),
-    (login_server_message_types_enum::ban_reason_nickname,          &["nickname", "nick name", "user name", "username"]),
-    (login_server_message_types_enum::ban_reason_insult,            &["insult", "abus", "harass"]),
-    (login_server_message_types_enum::ban_reason_bad_language,      &["language", "swear", "profan", "obscen"]),
+const BAN_WORDS: &[(BanReason, &[&str])] = &[
+    (BanReason::FarmPressure,     &["farm"]),
+    (BanReason::Cheating,         &["cheat", "hack", "aimbot", "wallhack", "exploit"]),
+    (BanReason::Teamkilling,      &["teamkill", "team kill", "team-kill"]),
+    (BanReason::AccountTrading,   &["trading", "account sale", "selling"]),
+    (BanReason::Threats,          &["threat", "treating", "real life", "reallife"]),
+    (BanReason::FalseInformation, &["incorrect", "false info", "misinform"]),
+    (BanReason::Racism,           &["racism", "fascism", "faschism", "nazi"]),
+    (BanReason::Politics,         &["politic"]),
+    (BanReason::Advertising,      &["advert"]),
+    (BanReason::Flood,            &["flood", "spam"]),
+    (BanReason::Nickname,         &["nickname", "nick name", "user name", "username"]),
+    (BanReason::Insults,          &["insult", "abus", "harass"]),
+    (BanReason::BadLanguage,      &["language", "swear", "profan", "obscen"]),
 ];
 
-/// What a banned player is told: the client's reason closest to the admin's.
-fn ban_code(reason: &str) -> u8 {
+/// The reason a banned player is told: the first whose word the admin's has.
+fn ban_reason(reason: &str) -> BanReason {
     let reason = reason.to_lowercase();
-    BAN_REASONS
+    BAN_WORDS
         .iter()
         .find(|(_, words)| words.iter().any(|word| reason.contains(word)))
-        .map_or(BANNED, |(code, _)| *code as u8)
+        .map_or(BanReason::Administration, |(told, _)| *told)
+}
+
+/// The game's own reason closest to srp's: what a game without patch 116
+/// shows.
+fn ban_code(reason: BanReason) -> u8 {
+    use login_server_message_types_enum as code;
+    (match reason {
+        BanReason::Administration | BanReason::FarmPressure => code::ban_reason_administrator,
+        BanReason::Cheating => code::ban_reason_cheating,
+        BanReason::Teamkilling => code::ban_reason_teamkilling,
+        BanReason::Insults => code::ban_reason_insult,
+        BanReason::BadLanguage => code::ban_reason_bad_language,
+        BanReason::Flood => code::ban_reason_flood,
+        BanReason::Advertising => code::ban_reason_advertising,
+        BanReason::AccountTrading => code::ban_reason_account_trading,
+        BanReason::Threats => code::ban_reason_reallife_treating,
+        BanReason::Nickname => code::ban_reason_nickname,
+        BanReason::Racism => code::ban_reason_faschism,
+        BanReason::Politics => code::ban_reason_politics,
+        BanReason::FalseInformation => code::ban_reason_incorrect_info,
+    }) as u8
 }
 
 /// Where a signed-in client is sent: the lobby, which 0.26g reaches over UDP
@@ -193,6 +213,13 @@ impl Lobby {
         })
     }
 
+    fn address_for_origin(&self, origin: Peer, reached: Option<IpAddr>) -> (Ipv4Addr, u16) {
+        match origin.route() {
+            Route::Direct => self.address_for(origin.ip(), reached),
+            Route::Relay(relay) => (relay.public(), self.lobby.port),
+        }
+    }
+
     /// The lobby's address for a client at `peer` that reached the login
     /// server at `reached`: see `ServerConfig::host_for`.
     fn address_for(&self, peer: IpAddr, reached: Option<IpAddr>) -> (Ipv4Addr, u16) {
@@ -220,23 +247,20 @@ fn resolve_ipv4(host: &str, port: u16) -> Option<Ipv4Addr> {
 /// The 0.26g login server: sign-ins on the login server's TCP address, each
 /// answered with a session and the lobby's UDP address.
 pub fn run(store: Arc<SessionStore>) -> io::Result<()> {
-    // Once, so a missing or bad certificate stops the server here rather
-    // than failing every sign-in.
-    let tls = Arc::new(tls_context().map_err(|error| {
-        io::Error::other(format!(
-            "cannot load {CERT_PATH} and {PKEY_PATH} (run srp from the repo root): {error}"
-        ))
-    })?);
+    // Once, so a missing or bad key stops the server here rather than
+    // failing every sign-in.
+    let key = Arc::new(sealed::key_from_env().map_err(io::Error::other)?);
+    sealed::log_key(&key);
     let config = config::get();
     let lobby = Lobby::new(&config.login_server, &config.lobby_server)?;
     let listener = TcpListener::bind(config.login_server.bind_addr())?;
-    accept(&listener, store, tls, lobby, RevisionGate::default())
+    accept(&listener, store, key, lobby, RevisionGate::default(), Relays::from_env()?)
 }
 
 /// Where a login server started with [`serve`] sends its clients, and the
-/// certificate it shows them: what [`run`] takes from `vostok::config` and
-/// `./certs`.
-#[derive(Clone, Debug, PartialEq, Eq)]
+/// key it reads their passwords with: what [`run`] takes from
+/// `vostok::config` and the environment.
+#[derive(Clone, Debug)]
 pub struct Endpoint {
     /// The login server's own public host: a client on this machine's
     /// network is told the address it reached srp at for the lobby too
@@ -247,11 +271,13 @@ pub struct Endpoint {
     pub lobby_host: String,
     pub lobby_port: u16,
     pub local_peers: bool,
-    /// The login server's private key and certificate (PEM).
-    pub key: std::path::PathBuf,
-    pub certificate: std::path::PathBuf,
+    /// The login server's key of the sign-in cipher.
+    pub key: ServerKey,
     /// The games refused for their patch revision (the default: none).
     pub revision_gate: RevisionGate,
+    /// The relays whose tunnel addresses may say a sign-in's own address
+    /// (`SRP_RELAYS`, parsed once by the caller).
+    pub relays: Relays,
 }
 
 /// [`run`] on a listener already bound (a caller that picks the address
@@ -261,17 +287,8 @@ pub fn serve(
     store: Arc<SessionStore>,
     endpoint: &Endpoint,
 ) -> io::Result<()> {
-    let tls = tls_context_from(
-        &endpoint.key.to_string_lossy(),
-        &endpoint.certificate.to_string_lossy(),
-    )
-    .map_err(|error| {
-        io::Error::other(format!(
-            "cannot load {} and {}: {error}",
-            endpoint.certificate.display(),
-            endpoint.key.display()
-        ))
-    })?;
+    let key = endpoint.key.clone();
+    sealed::log_key(&key);
     let port = listener.local_addr()?.port();
     // The two addresses live as long as the process, as the configured
     // ones do: every connection's thread reads them.
@@ -290,9 +307,10 @@ pub fn serve(
     accept(
         listener,
         store,
-        Arc::new(tls),
+        Arc::new(key),
         lobby,
         endpoint.revision_gate.clone(),
+        endpoint.relays.clone(),
     )
 }
 
@@ -300,9 +318,10 @@ pub fn serve(
 fn accept(
     listener: &TcpListener,
     store: Arc<SessionStore>,
-    tls: Arc<SslContext>,
+    key: Arc<ServerKey>,
     lobby: Lobby,
     gate: RevisionGate,
+    relays: Relays,
 ) -> io::Result<()> {
     log::info!(
         "0.26g sign-ins on TCP {}; the lobby is at UDP {}:{}",
@@ -317,6 +336,7 @@ fn accept(
         );
     }
     let gate = Arc::new(gate);
+    let relays = Arc::new(relays);
 
     for stream in listener.incoming() {
         let stream = match stream {
@@ -327,9 +347,10 @@ fn accept(
                 continue;
             }
         };
-        let (store, tls, gate) = (store.clone(), tls.clone(), gate.clone());
+        let (store, key, gate) = (store.clone(), key.clone(), gate.clone());
+        let relays = relays.clone();
         std::thread::spawn(move || {
-            if std::panic::catch_unwind(|| handle_client(&store, &tls, lobby, &gate, stream))
+            if std::panic::catch_unwind(|| handle_client(&store, &key, lobby, &gate, &relays, stream))
                 .is_err()
             {
                 log::error!("Connection handler panicked; dropped the connection");
@@ -340,9 +361,9 @@ fn accept(
 }
 
 /// End the sessions nothing was seen of for too long, as 0.21d's
-/// `run_presence` does between its pings. The 0.26g client sends the login
-/// server nothing once signed in, so a session is seen only through its
-/// lobby and match connections (`SessionStore::hold`, `touch`,
+/// `run_presence` (`srp-021d`) does between its pings. The 0.26g client
+/// sends the login server nothing once signed in, so a session is seen only
+/// through its lobby and match connections (`SessionStore::hold`, `touch`,
 /// `seen_in_match`); one whose client never reached the lobby ends here.
 pub fn run_collector(store: Arc<SessionStore>) {
     let mut next_collect = Instant::now() + COLLECT_INTERVAL;
@@ -372,20 +393,38 @@ pub fn run_collector(store: Arc<SessionStore>) {
 
 fn handle_client(
     store: &SessionStore,
-    tls: &SslContext,
+    key: &ServerKey,
     lobby: Lobby,
     gate: &RevisionGate,
+    relays: &Relays,
     mut stream: TcpStream,
 ) {
+    let peer = match relays.accept(&mut stream) {
+        Ok(peer) => peer,
+        Err(error) => {
+            log::warn!("Login relay header refused: {error}");
+            return;
+        }
+    };
+    if stream.set_read_timeout(Some(std::time::Duration::from_secs(10))).is_err() {
+        return;
+    }
     let mut request_type = [0_u8];
     if let Err(error) = io::Read::read_exact(&mut stream, &mut request_type) {
         log::info!("Login connection closed before its request: {error}");
         return;
     }
+    if request_type[0] == udp_transport::relay::PROBE_PREFIX[0] {
+        let start = Instant::now();
+        let probe = echo_probe(stream, request_type[0]);
+        let seconds = start.elapsed().as_secs_f64();
+        log::info!("Route check from {peer}: {seconds:.1} s, {probe}");
+        return;
+    }
     // The 0.26g client connects only to sign in: it signs out without a word
     // (`login_client_impl::sign_out` 0x385860 just closes).
     if request_type[0] == SIGN_IN {
-        handle_sign_in(store, tls, lobby, gate, stream);
+        handle_sign_in(store, key, lobby, gate, peer, stream);
     } else {
         log::warn!(
             "Unknown login request type {}; dropped the connection",
@@ -394,7 +433,86 @@ fn handle_client(
     }
 }
 
-/// The password message, after the TLS handshake: its kind, the digest, and
+const PROBE_TIME: std::time::Duration = std::time::Duration::from_secs(30);
+
+/// A route check's bytes echoed and how it ended.
+struct Probe {
+    echoed: u64,
+    end: ProbeEnd,
+}
+enum ProbeEnd {
+    /// All of `PROBE_BYTES`, the check's whole.
+    Whole,
+    /// The client closed before.
+    Closed,
+    /// Its first bytes are not the check's.
+    NotAProbe,
+    /// A read or write failed, or `PROBE_TIME` passed.
+    Failed(io::Error),
+}
+impl std::fmt::Display for Probe {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{} bytes echoed, ", self.echoed)?;
+        match &self.end {
+            ProbeEnd::Whole => f.write_str("whole"),
+            ProbeEnd::Closed => f.write_str("closed by the client before the whole"),
+            ProbeEnd::NotAProbe => f.write_str("not a route check"),
+            // The deadline, or a socket timeout set to the time left to it.
+            ProbeEnd::Failed(error)
+                if matches!(error.kind(), io::ErrorKind::TimedOut | io::ErrorKind::WouldBlock) =>
+            {
+                write!(f, "cut at {} s", PROBE_TIME.as_secs())
+            }
+            ProbeEnd::Failed(error) => write!(f, "{error}"),
+        }
+    }
+}
+
+/// The updater's route check: its bytes echoed as they come, so never more
+/// than were sent, up to `PROBE_BYTES` and for `PROBE_TIME` at most.
+fn echo_probe(stream: TcpStream, first: u8) -> Probe {
+    let mut echoed = 0;
+    let end = match echo_probe_counted(stream, first, &mut echoed) {
+        Ok(end) => end,
+        Err(error) => ProbeEnd::Failed(error),
+    };
+    Probe { echoed, end }
+}
+fn echo_probe_counted(mut stream: TcpStream, first: u8, echoed: &mut u64) -> io::Result<ProbeEnd> {
+    use udp_transport::relay::{PROBE_BYTES, PROBE_PREFIX};
+    let deadline = Instant::now() + PROBE_TIME;
+    // The time left, or a timed-out error once there is none.
+    let wait = || {
+        Some(deadline.saturating_duration_since(Instant::now()))
+            .filter(|wait| !wait.is_zero())
+            .ok_or_else(|| io::Error::from(io::ErrorKind::TimedOut))
+    };
+    let mut buffer = [0; 16384];
+    buffer[0] = first;
+    io::Read::read_exact(&mut stream, &mut buffer[1..PROBE_PREFIX.len()])?;
+    if &buffer[..PROBE_PREFIX.len()] != PROBE_PREFIX {
+        return Ok(ProbeEnd::NotAProbe);
+    }
+    let mut length = PROBE_PREFIX.len();
+    let mut left = PROBE_BYTES;
+    loop {
+        stream.set_write_timeout(Some(wait()?))?;
+        stream.write_all(&buffer[..length])?;
+        left -= length as u64;
+        *echoed += length as u64;
+        if left == 0 {
+            return Ok(ProbeEnd::Whole);
+        }
+        stream.set_read_timeout(Some(wait()?))?;
+        let want = buffer.len().min(usize::try_from(left).unwrap_or(usize::MAX));
+        length = io::Read::read(&mut stream, &mut buffer[..want])?;
+        if length == 0 {
+            return Ok(ProbeEnd::Closed);
+        }
+    }
+}
+
+/// The password message, after the hellos: its kind, the digest, and
 /// behind kind 3 the password with its u8 length. A kind the client has not
 /// is one byte long: `parse_password` refuses it.
 fn password_length(buffer: &[u8]) -> Option<usize> {
@@ -480,36 +598,55 @@ fn connection_info(session_id: u32, ip: Ipv4Addr, port: u16) -> [u8; 11] {
 /// What the client is told of a refused sign-in. A wrong password, a name
 /// locked out for too many of them and a name no account can have get the
 /// same answer, so a guesser learns nothing more.
-fn refusal_code(store: &SessionStore, user_name: &str, error: SignInError) -> u8 {
-    match error {
+fn refusal(store: &SessionStore, user_name: &str, error: SignInError) -> Vec<u8> {
+    let code = match error {
         SignInError::WrongPassword
         | SignInError::TooManyAttempts
         | SignInError::InvalidUserName => INVALID_USER_NAME_OR_PASSWORD,
         SignInError::TooManyFromAddress | SignInError::RegistrationLimit => TOO_MANY_ATTEMPTS,
         SignInError::RegistrationsClosed => REGISTRATION_CLOSED,
         // A ban lifted this very moment has no reason left to tell.
-        SignInError::Banned => store
-            .account_id_by_name(user_name)
-            .and_then(|account_id| store.account_ban(account_id))
-            .map_or(BANNED, |ban| ban_code(&ban.reason)),
-    }
+        SignInError::Banned => {
+            return store
+                .account_id_by_name(user_name)
+                .and_then(|account_id| store.account_ban(account_id))
+                .map_or_else(|| vec![BANNED], |ban| ban_answer(&ban, unix_now()));
+        }
+    };
+    vec![code]
+}
+
+/// A banned account's answer: the game's closest reason's code, then srp's
+/// reason and, for a ban that ends, the seconds it has left (at most
+/// u32::MAX; crates/ban-reason). The game reads byte 0 alone; patch 116
+/// shows srp's reason and the end instead of the game's reason.
+fn ban_answer(ban: &session::Ban, now: u64) -> Vec<u8> {
+    let reason = ban_reason(&ban.reason);
+    let end = match ban.until {
+        None => BanEnd::Never,
+        Some(until) => BanEnd::In(u32::try_from(until.saturating_sub(now)).unwrap_or(u32::MAX)),
+    };
+    let (tail, len) = BanTold { reason, end }.encode();
+    let mut answer = vec![ban_code(reason)];
+    answer.extend_from_slice(&tail[..len]);
+    answer
+}
+
+fn unix_now() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or(0, |since| since.as_secs())
 }
 
 fn handle_sign_in(
     store: &SessionStore,
-    tls: &SslContext,
+    key: &ServerKey,
     lobby: Lobby,
     gate: &RevisionGate,
+    peer: Peer,
     mut stream: TcpStream,
 ) {
     let mut buffer = [0; 1024];
-    let peer = match stream.peer_addr() {
-        Ok(peer) => peer,
-        Err(error) => {
-            log::info!("Sign-in dropped: {error}");
-            return;
-        }
-    };
     let reached = stream.local_addr().ok().map(|reached| reached.ip());
     let len = match read_message(&mut stream, &mut buffer, sign_in_length) {
         Ok(len) => len,
@@ -566,7 +703,7 @@ fn handle_sign_in(
             "Sign-in of {user_name} from banned address {peer} ({}) refused",
             ban.net
         );
-        let _ = stream.write_all(&[ban_code(&ban.ban.reason)]);
+        let _ = stream.write_all(&[ban_code(ban_reason(&ban.ban.reason))]);
         return;
     }
     // A name no account can have is refused before the password, as the
@@ -581,13 +718,18 @@ fn handle_sign_in(
         return;
     }
 
-    let Some(mut ssl_stream) = accept_tls(tls, stream) else {
-        return;
+    // The sign-in cipher from here on (docs/notes/sign-in-cipher.md).
+    let mut sealed = match Sealed::accept(key, stream) {
+        Ok(sealed) => sealed,
+        Err(error) => {
+            log::warn!("Sign-in of {user_name} from {peer} dropped at the hellos: {error}");
+            return;
+        }
     };
     // Neither the password nor its digest is ever logged; only a hash of
     // the digest is kept.
     let mut buffer = [0; 1 + DIGEST_LEN + 1 + 255];
-    let len = match read_message(&mut ssl_stream, &mut buffer, password_length) {
+    let len = match read_message(&mut sealed, &mut buffer, password_length) {
         Ok(len) => len,
         Err(error) => {
             log::warn!("Sign-in of {user_name} dropped before the password: {error}");
@@ -598,7 +740,7 @@ fn handle_sign_in(
         Ok(digest) => digest,
         Err(error) => {
             log::warn!("Sign-in of {user_name} from {peer} refused: {error:?}");
-            let _ = ssl_stream.write_all(&[INVALID_USER_NAME_OR_PASSWORD]);
+            let _ = sealed.write_all(&[INVALID_USER_NAME_OR_PASSWORD]);
             return;
         }
     };
@@ -624,7 +766,7 @@ fn handle_sign_in(
                         log::warn!("Sign-in of banned account {user_name} from {peer} refused");
                     }
                 }
-                let _ = ssl_stream.write_all(&[refusal_code(store, &user_name, error)]);
+                let _ = sealed.write_all(&refusal(store, &user_name, error));
                 return;
             }
         };
@@ -633,32 +775,60 @@ fn handle_sign_in(
     // sign-in that got its session is where the account last signed in.
     let Some(session_id) = store.create_signed_in_session(signed_in, sign_in.patch_revision) else {
         log::warn!("Sign-in of {user_name} refused: its password was reset meanwhile");
-        let _ = ssl_stream.write_all(&[INVALID_USER_NAME_OR_PASSWORD]);
+        let _ = sealed.write_all(&[INVALID_USER_NAME_OR_PASSWORD]);
         return;
     };
     store.signed_in_from(account_id, peer.ip());
-    let (lobby_ip, lobby_port) = lobby.address_for(peer.ip(), reached);
+    let (lobby_ip, lobby_port) = lobby.address_for_origin(peer, reached);
     log::info!(
-        "Sign-in: account={account_id:#x} session={session_id:#x}, \
+        "Sign-in: account={account_id:#x} from {peer} session={session_id:#x}, \
          sent to the lobby at UDP {lobby_ip}:{lobby_port}"
     );
 
     // The client reads the reply with one read of at most 82 bytes.
     let reply = connection_info(session_id, lobby_ip, lobby_port);
-    if let Err(error) = ssl_stream.write_all(&reply) {
+    if let Err(error) = sealed.write_all(&reply) {
         log::warn!("Sign-in for session {session_id:#x} dropped before the reply: {error}");
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::super::tls_context_from;
     use super::*;
     use std::io::Read;
 
     /// SHA-1 of `test-password-1`, and a digest of no password used here.
     const DIGEST_1: &[u8; 40] = b"f5358b98af5ac658c4a219f518bd0fa5ed2ffd65";
     const DIGEST_2: &[u8; 40] = b"0000000000000000000000000000000000000000";
+
+    #[test]
+    fn the_route_check_is_echoed_whole_and_then_ends() {
+        use udp_transport::relay::{PROBE_BYTES, PROBE_PREFIX};
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let address = listener.local_addr().unwrap();
+        let mut sent = PROBE_PREFIX.to_vec();
+        sent.extend((0..PROBE_BYTES - PROBE_PREFIX.len() as u64).map(|i| i as u8));
+        std::thread::scope(|scope| {
+            scope.spawn(|| {
+                let (mut stream, _) = listener.accept().unwrap();
+                let mut first = [0];
+                stream.read_exact(&mut first).unwrap();
+                let probe = echo_probe(stream, first[0]);
+                assert_eq!(probe.to_string(), "65536 bytes echoed, whole");
+            });
+            let mut stream = TcpStream::connect(address).unwrap();
+            stream
+                .set_read_timeout(Some(std::time::Duration::from_secs(5)))
+                .unwrap();
+            let (mut writer, sent) = (stream.try_clone().unwrap(), &sent);
+            let sending = scope.spawn(move || writer.write_all(sent));
+            // The server ends the connection once it has echoed the check.
+            let mut echo = Vec::new();
+            stream.read_to_end(&mut echo).unwrap();
+            sending.join().unwrap().unwrap();
+            assert!(echo == *sent);
+        });
+    }
 
     /// A 0.26g sign-in after its type byte, as `sign_in_on_connected` writes it.
     fn sign_in_message(email: &[u8], version: &[u8], eula: u8, queue: u32) -> Vec<u8> {
@@ -693,6 +863,21 @@ mod tests {
         message
     }
 
+    #[test]
+    fn relay_sign_in_advertises_its_lobby_without_changing_the_client_ip() {
+        let lobby = Lobby::new(server("203.0.113.67", 1234, false),
+                               server("203.0.113.67", 1235, false)).unwrap();
+        let address: std::net::SocketAddrV4 = "198.51.100.9:45000".parse().unwrap();
+        let relay = Relays::parse("10.77.0.2=203.0.113.8").unwrap()
+            .relay("10.77.0.2".parse().unwrap()).unwrap();
+        let peer = Peer::relayed(address, relay);
+        assert_eq!(lobby.address_for_origin(peer, Some("10.77.0.1".parse().unwrap())),
+                   ("203.0.113.8".parse().unwrap(), 1235));
+        assert_eq!(peer.address(), std::net::SocketAddr::V4(address));
+        assert_eq!(lobby.address_for_origin(Peer::direct(std::net::SocketAddr::V4(address)), None),
+                   ("203.0.113.67".parse().unwrap(), 1235));
+    }
+
     fn server(public_host: &str, port: u16, local_peers: bool) -> &'static ServerConfig {
         Box::leak(Box::new(ServerConfig {
             bind_host: "127.0.0.1".into(),
@@ -718,31 +903,25 @@ mod tests {
 
     /// [`start`], refusing the games `gate` refuses.
     fn start_gated(store: Arc<SessionStore>, lobby: Lobby, gate: RevisionGate) -> SocketAddr {
-        let certs = concat!(env!("CARGO_MANIFEST_DIR"), "/../../certs");
-        let tls = tls_context_from(
-            &format!("{certs}/survarium_login_server.key"),
-            &format!("{certs}/survarium_login_server.crt"),
-        )
-        .unwrap();
+        let key = sealed::test_key();
         let listener = TcpListener::bind("127.0.0.1:0").unwrap();
         let addr = listener.local_addr().unwrap();
         std::thread::spawn(move || {
             for stream in listener.incoming().flatten() {
-                handle_client(&store, &tls, lobby, &gate, stream);
+                handle_client(&store, &key, lobby, &gate, &Relays::default(), stream);
             }
         });
         addr
     }
 
-    /// Sign in the way the 0.26g client does; returns the plain answer and,
-    /// past the TLS handshake, the reply to the password message.
+    /// Sign in the way the patched 0.26g client does; returns the plain
+    /// answer and, past the hellos, the reply to the password message.
     fn sign_in_as(
         addr: SocketAddr,
         version: &[u8],
         user_name: &[u8],
         password_message: &[u8],
     ) -> (u8, Vec<u8>) {
-        use openssl::ssl::{SslConnector, SslMethod, SslVerifyMode};
         let mut stream = TcpStream::connect(addr).unwrap();
         let mut message = vec![0x01];
         message.extend(sign_in_message(user_name, version, 0, u32::MAX));
@@ -756,19 +935,7 @@ mod tests {
             assert!(rest.is_empty());
             return (answer[0], Vec::new());
         }
-        let mut connector = SslConnector::builder(SslMethod::tls()).unwrap();
-        connector.set_security_level(0);
-        connector.set_verify(SslVerifyMode::NONE);
-        let mut tls = connector
-            .build()
-            .configure()
-            .unwrap()
-            .verify_hostname(false)
-            .connect("localhost", stream)
-            .unwrap();
-        tls.write_all(password_message).unwrap();
-        let mut reply = Vec::new();
-        let _ = tls.read_to_end(&mut reply);
+        let reply = sealed::ask(stream, sealed::test_key().public(), password_message).unwrap();
         (answer[0], reply)
     }
 
@@ -945,37 +1112,46 @@ mod tests {
     }
 
     #[test]
-    fn a_ban_reason_becomes_the_clients_closest_one() {
-        for (reason, code) in [
-            ("", 0x1C),
-            ("test", 0x1C),
-            ("<aimbot>", 0x1E),
-            ("Cheating in ranked matches", 0x1E),
-            ("teamkilling", 0x1F),
-            ("bad language", 0x12),
-            ("insults in chat", 0x13),
-            ("nazi symbols", 0x14),
-            ("politics", 0x15),
-            ("chat flood", 0x16),
-            ("advertising", 0x17),
-            ("discussing the admins", 0x18),
-            ("real life threats", 0x19),
-            ("account trading", 0x1A),
-            ("incorrect info", 0x1B),
-            ("offensive nickname", 0x1D),
+    fn a_ban_reason_becomes_srps_and_the_clients_closest_one() {
+        use BanReason::*;
+        for (reason, told, code) in [
+            ("", Administration, 0x1C),
+            ("test", Administration, 0x1C),
+            (
+                "farm: teamkilled the players who did not",
+                FarmPressure,
+                0x1C,
+            ),
+            ("harassed non-farmers in chat", FarmPressure, 0x1C),
+            ("harassed players in chat", Insults, 0x13),
+            ("<aimbot>", Cheating, 0x1E),
+            ("Cheating in ranked matches", Cheating, 0x1E),
+            ("teamkilling", Teamkilling, 0x1F),
+            ("bad language", BadLanguage, 0x12),
+            ("insults in chat", Insults, 0x13),
+            ("nazi symbols", Racism, 0x14),
+            ("politics", Politics, 0x15),
+            ("chat flood", Flood, 0x16),
+            ("advertising", Advertising, 0x17),
+            ("discussing the admins", Administration, 0x1C),
+            ("real life threats", Threats, 0x19),
+            ("account trading", AccountTrading, 0x1A),
+            ("incorrect info", FalseInformation, 0x1B),
+            ("offensive nickname", Nickname, 0x1D),
         ] {
-            assert_eq!(ban_code(reason), code, "{reason}");
+            assert_eq!(ban_reason(reason), told, "{reason}");
+            assert_eq!(ban_code(told), code, "{reason}");
         }
         // Every reason is one the client has a text for.
-        for (code, _) in BAN_REASONS {
-            assert!((0x12..=0x1F).contains(&(*code as u8)));
+        for reason in BanReason::ALL {
+            assert!((0x12..=0x1F).contains(&ban_code(reason)));
         }
     }
 
     #[test]
     fn each_refusal_gets_its_0_26g_number() {
         let store = SessionStore::new();
-        let code = |error| refusal_code(&store, "nobody", error);
+        let code = |error| refusal(&store, "nobody", error)[0];
         assert_eq!(code(SignInError::WrongPassword), 0x0A);
         assert_eq!(code(SignInError::TooManyAttempts), 0x0A);
         assert_eq!(code(SignInError::InvalidUserName), 0x0A);
@@ -994,7 +1170,7 @@ mod tests {
             last = store.sign_in_with_digest_from(name, DIGEST_1, from, now);
         }
         assert_eq!(last, Err(SignInError::RegistrationLimit));
-        assert_eq!(refusal_code(&store, "four", last.unwrap_err()), 0x0C);
+        assert_eq!(refusal(&store, "four", last.unwrap_err()), [0x0C]);
     }
 
     #[test]
@@ -1177,15 +1353,46 @@ mod tests {
         assert!(store.has_ended(session));
         // Told only once the password is right, over TLS.
         let (answer, reply) = sign_in(addr, b"cheater", &remembered(DIGEST_1));
-        assert_eq!((answer, reply), (0x0B, vec![0x1E]));
+        assert_eq!(
+            (answer, reply),
+            (0x0B, vec![0x1E, BanReason::Cheating.id()])
+        );
         let (_, reply) = sign_in(addr, b"cheater", &remembered(DIGEST_2));
         assert_eq!(reply, [0x0A]);
         // Each reason the client has, and none.
-        for (reason, code) in [("teamkilling", 0x1F), ("chat flood", 0x16), ("", 0x1C)] {
+        for (reason, code, told) in [
+            ("teamkilling", 0x1F, BanReason::Teamkilling),
+            ("chat flood", 0x16, BanReason::Flood),
+            ("", 0x1C, BanReason::Administration),
+        ] {
             store.ban_account(id, ban(reason));
             let (_, reply) = sign_in(addr, b"cheater", &typed(b"test-password-1"));
-            assert_eq!(reply, [code], "{reason}");
+            assert_eq!(reply, [code, told.id()], "{reason}");
         }
+        // srp's reason after the code, and a ban that ends its seconds left.
+        store.ban_account(id, ban("farm pressure"));
+        let (_, reply) = sign_in(addr, b"cheater", &typed(b"test-password-1"));
+        let told = |reply: &[u8]| BanTold::decode(&reply[1..]).unwrap();
+        assert_eq!(
+            told(&reply),
+            BanTold {
+                reason: BanReason::FarmPressure,
+                end: BanEnd::Never
+            }
+        );
+        store.ban_account(
+            id,
+            session::Ban {
+                until: Some(unix_now() + 1800),
+                reason: String::new(),
+            },
+        );
+        let (_, reply) = sign_in(addr, b"cheater", &typed(b"test-password-1"));
+        assert_eq!(reply[0], 0x1C);
+        let BanEnd::In(left) = told(&reply).end else {
+            panic!("{reply:?}")
+        };
+        assert!((1790..=1800).contains(&left), "{left}");
         assert_eq!(store.session_count(), 0);
 
         // A banned address: before the password, and nobody registers.

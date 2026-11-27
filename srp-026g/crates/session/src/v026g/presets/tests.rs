@@ -47,12 +47,11 @@ fn owned_id(account: &Account, name: &str) -> u32 {
 
 /// What choosing may never change: the items owned (ids, types, units,
 /// modifications), the next item id and the money.
-fn owned(account: &Account) -> (Vec<Item>, u32, u32, u32) {
+fn owned(account: &Account) -> (Vec<Item>, u32, u32) {
     (
         account.inventory.clone(),
         account.next_item_id,
         account.generic_money,
-        account.premium_money,
     )
 }
 
@@ -341,9 +340,7 @@ fn a_stack_gets_what_is_owned_and_never_more() {
 }
 
 fn empty_preset() -> Preset {
-    Preset {
-        kits: [[None; KIT_SLOTS]; KITS],
-    }
+    Preset::EMPTY
 }
 
 /// A preset whose data names what the account does not own (another
@@ -399,6 +396,16 @@ fn an_item_type_goes_into_one_pocket() {
     let grenades = account.add_item(dict("rgd-5"), 3);
     let booster = account.add_item(dict("speed_booster"), 2);
     let mut preset = empty_preset();
+    // Gear that opens the pockets, as the kit wears it.
+    account.wear_roomy_gear(0);
+    for slot in [2, 3] {
+        let held = account.kits[0].slots[slot].unwrap();
+        preset.kits[0][slot] = Some(PresetSlot {
+            item_id: held.item_id,
+            dict_id: account.item(held.item_id).unwrap().dict_id,
+            count: 1,
+        });
+    }
     // Kept from before the rule: grenades in two pockets, a booster in two.
     for (pocket, item_id, dict_id, count) in [
         (13, grenades, dict("rgd-5"), 1),
@@ -755,4 +762,32 @@ fn the_items_the_presets_use_are_listed_for_the_sale_question() {
     // An empty preset uses nothing.
     choose(&mut account, 2, NOW).unwrap();
     assert!(uses(&account).iter().all(|(_, presets)| presets & 2 == 0));
+}
+
+/// A preset is its kits, the perks' slots too (the owner's pick, 2026-11-22): each preset's kit
+/// keeps its own choices, and a preset put on gives its kits theirs.
+#[test]
+fn each_presets_kit_keeps_its_perk_slots() {
+    use crate::v026g::account::{ARTIFACT_CONTAINER, DEEP_POCKETS, KitPerks, PerkSlot, SlotPerk};
+    let pocket = KitPerks::ALL_TAKEN.with(SlotPerk::ArtifactContainer, PerkSlot::Declined);
+    let weapon = KitPerks::ALL_TAKEN.with(SlotPerk::WeaponPocket, PerkSlot::Declined);
+    let mut account = alice();
+    account.skills = vec![(ARTIFACT_CONTAINER, 1), (DEEP_POCKETS, 1)];
+    account.kits[0].perks = pocket;
+    let revision = account.kits[0].revision;
+
+    choose(&mut account, 2, NOW).unwrap();
+    assert!(account.kits.iter().all(|kit| kit.perks == KitPerks::ALL_TAKEN));
+    assert_ne!(account.kits[0].revision, revision);
+    assert_eq!(
+        account.presets[0].map(|preset| preset.perks),
+        Some([pocket, KitPerks::ALL_TAKEN, KitPerks::ALL_TAKEN])
+    );
+    account.kits[2].perks = weapon;
+
+    choose(&mut account, 1, NOW).unwrap();
+    assert_eq!(account.kits[0].perks, pocket);
+    assert_eq!(account.kits[2].perks, KitPerks::ALL_TAKEN);
+    // Preset 2 held nothing but its third kit's second weapon slot: kept all the same.
+    assert_eq!(account.presets[1].map(|preset| preset.perks[2]), Some(weapon));
 }

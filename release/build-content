@@ -1,5 +1,10 @@
 #!/usr/bin/env bash
 # usage: release/build-content <revision> [--out <folder>] [--tree <checkout>] [--site] [--manifest <file>]
+#                              [--no-cache] [--full | --slow [--delta-from <folder>]]
+#
+# For a test of a few changed files: tools/test-patch <setup> <inputs> (a minute) packs only them
+# into a local game. This builds the whole manifest (~20 min): the release's build (--full), or with
+# --slow a local one (without either it is refused, and says so).
 #
 # The next content patch, from the manifest of everything that should be
 # live in players' resources.db (release/content.tsv: the base patches, the
@@ -22,8 +27,9 @@
 #      (release/build-patch), then builds the server game data of the stock
 #      db, the list's patches and it (srp-game-data build, the new patch at
 #      $SKHID_PATCHES_URL/<its name>, where release/upload-patch puts it),
-#      and checks that players' files with it over them are the manifest's;
-#   5. what else the game data makes, from the same patches: the item
+#      and (--full) checks that players' files with it over them are the
+#      manifest's;
+#   5. (--full) what else the game data makes, from the same patches: the item
 #      tables (srp-item-tables on the new server data) into <--out>/item-tables/,
 #      the tables of <tree>'s srp-026g/docs/data/ rewritten only where an
 #      item changed, each change said (the release's record commits them);
@@ -39,28 +45,112 @@
 #   --out <folder>      a new folder for resources.db.patch_<revision>,
 #                       server-game-data.db, files.tsv (every file made:
 #                       its status, path, why, the archive players have it
-#                       from) and item-tables/; default ./content-rev<revision>
+#                       from), digests.tsv (the patch's sha256, then each of
+#                       its files' sha256 and path: what a --delta-from over
+#                       this folder reads of it) and item-tables/; default
+#                       ./content-rev<revision>
 #   --tree <checkout>   the sources (edit lists, content_edit.py, Flash
 #                       trees, the manifest) of another checkout; default
 #                       this one
 #   --site              also builds the site's pages in <tree> (a preview;
 #                       git shows what changed there, never for a PR)
 #   --manifest <file>   another manifest; default <tree>/release/content.tsv
+#   --no-cache          runs every step; by default a step whose inputs are
+#                       the same bytes as in an earlier build takes what it
+#                       made or found then from ~/.cache/skhid-release/
+#                       build-content/ (the same files: release/test.sh checks
+#                       it; delete it any time). Each step's key:
+#                       a movie: its tree, its original's archive (sha256),
+#                         the build's programs and tools.json;
+#                       the packs: vostok-port runs apart (three at once) on
+#                         the operations that share a path, a pack's files
+#                         with those of the packs it requires or refers to
+#                         (build_content.py pack_runs), each kept by the base
+#                         archives' sha256s, its operations, the pack files
+#                         they read (path, size, time), vostok-port and the
+#                         graphics of the movies they edit (flash_tree.py
+#                         graphics: the tree's movie without its code, keyed by
+#                         its original, the tree but src/ and tables/, and the
+#                         programs); the code goes into the composed movie
+#                         after them (flash_tree.py code, keyed by both), so a
+#                         code edit of the lobby composes no pack again;
+#                       an edit list: its bytes, content_edit.py and its
+#                         modules (not their tests; a localization list also
+#                         client-patches' localization modules and its folder)
+#                         and the bytes of each file it reads, as the rows
+#                         above leave them (a change upstream reruns only the
+#                         lists that read a file it changed);
+#                       the value types: each made file by its path, its
+#                         bytes, its previous version's bytes, its list keys
+#                         and the corpus (the bytes of every base config);
+#                         --full checks every file again;
+#                       the stats checks: each category by its configs' and
+#                         table's bytes and players' bytes of those changed,
+#                         within it each row by its cells and its configs'
+#                         bytes, each config's card lines by its bytes;
+#                       the lamps, walker twins and grass: each file by its
+#                         bytes; the comparison with players' files: each
+#                         file by its bytes, for the same players' archives;
+#                       the files left by earlier versions of the packs:
+#                         players' archives and, for each live file no row
+#                         makes, the earlier versions' files of its path
+#                         (size, time);
+#                       the checks' code: their own functions' source (an
+#                         edit elsewhere in build_content.py keeps them);
+#                       the server game data: srp-game-data and every
+#                         archive's sha256 and URLs (the last 8 kept).
+#                       A base or players' file is known by its bytes'
+#                       sha256, read once per archive (by its sha256) and
+#                       srp-game-data.
+#   --full              the release's build: every check and the item tables.
+#   --slow              without --full, a quick build for a local test: the same
+#                       patch, server game data and files.tsv, without the
+#                       check of players' files with the patch (step 4's
+#                       last) and without the item tables (step 5); --out
+#                       holds QUICK-BUILD, and release.sh and upload-patch
+#                       refuse a patch beside it
+#   --delta-from <folder>
+#                       a local test's micro-patch: the build of the manifest
+#                       as without it, but resources.db.patch_<revision> holds
+#                       only what the game, with <folder>'s patch (and, if it
+#                       is a delta too, the ones under it: its delta-of) over
+#                       players' files, sees otherwise than this build's own
+#                       patch would show it: a file made otherwise, or one the
+#                       earlier patch changed that this build leaves as players
+#                       have it (their bytes again; a file it added that
+#                       players lack and this build does not make cannot be
+#                       taken away: refused, build it whole). Mounted over the
+#                       earlier patches, the game sees what a quick build of
+#                       this tree gives it (the earlier patch's files known by
+#                       its folder's digests.tsv, or read once and kept by its
+#                       sha256); it still builds the whole manifest (a
+#                       small edit's test is tools/test-patch's). delta.tsv
+#                       says each file and why;
+#                       the server game data (of the list, the earlier patches
+#                       and it) only when a file the server reads is in it,
+#                       else the earlier build's serves. QUICK-BUILD and
+#                       delta-of in --out; not with --full
 #
 # Settings (release.env): SKHID_STOCK_DB, SKHID_PATCHES_URL (the list's
 # server); SKHID_FLASH_TOOLS, the tools.json naming java and Flex 4.16.1
 # (default private/actionscript/tools.json of the main checkout); with packs
 # to compose, SKHID_VOSTOK_PORT (resource-porter's vostok-port) and
 # SKHID_PACKS_DIR (the packs' folders, <id>-<version>).
-# Writes --out (and the cache), with --site <tree>'s site pages. A failure
-# after the patch is made leaves --out: remove it to run again. Next:
-# release/release.sh --resources <folder>/resources.db.patch_<revision>.
+# Writes --out (and the caches), with --site <tree>'s site pages. A failure
+# after the patch is made leaves --out: remove it to run again. Next (of a
+# --full build): release/release.sh --resources <folder>/resources.db.patch_<revision>.
 . "$(dirname "$0")/lib.sh"
 here=$(cd "$(dirname "$0")" && pwd)
 STOCK_SHA=${SKHID_TEST_STOCK_SHA256:-$STOCK_DB_SHA256}
+# `time: <step> <s> s` in the log: how long each step took since the last.
+step_start=$EPOCHREALTIME
+took() {
+    say "time: $1 $(awk -v a="$step_start" -v b="$EPOCHREALTIME" 'BEGIN { printf "%.1f", b - a }') s"
+    step_start=$EPOCHREALTIME
+}
 BUILD_SITE=${SKHID_TEST_BUILD_SITE:-$here/build-site}
 
-revision='' out='' tree=$ROOT site=0 manifest=''
+revision='' out='' tree=$ROOT site=0 manifest='' cached=1 full=0 slow=0 delta_from=''
 while (($#)); do
     case $1 in
     -h | --help) usage ;;
@@ -68,11 +158,18 @@ while (($#)); do
     --tree) (($# >= 2)) || usage 1; tree=$2; shift 2 ;;
     --site) site=1; shift ;;
     --manifest) (($# >= 2)) || usage 1; manifest=$2; shift 2 ;;
+    --no-cache) cached=0; shift ;;
+    --full) full=1; shift ;;
+    --slow) slow=1; shift ;;
+    --delta-from) (($# >= 2)) || usage 1; delta_from=$2; shift 2 ;;
     -*) die "unknown option $1 (--help)" ;;
     *) [[ -z $revision ]] || usage 1; revision=$1; shift ;;
     esac
 done
 [[ -n $revision ]] || usage 1
+pointer="for a test of a few changed files: tools/test-patch <setup> <inputs> (a minute)"
+((full || slow)) || die "$pointer; to build the whole content anyway (~20 min): add --slow (a release: --full)"
+((full)) || say "build-content: $pointer; this build takes ~20 min"
 is_revision "$revision" || die "$revision: a revision is a number from 1 to 255"
 tree=$(cd "$tree" 2>/dev/null && pwd) || die "--tree: no such folder"
 manifest=${manifest:-$tree/release/content.tsv}
@@ -86,30 +183,77 @@ lower_priority
 load_env SKHID_STOCK_DB
 use_patches live
 [[ -f $SKHID_STOCK_DB ]] || die "SKHID_STOCK_DB: $SKHID_STOCK_DB: no such file"
-[[ $(stock_sha256 "$SKHID_STOCK_DB") == "$STOCK_SHA" ]] ||
+[[ $(cached_sha256 "$SKHID_STOCK_DB") == "$STOCK_SHA" ]] ||
     die "SKHID_STOCK_DB: $SKHID_STOCK_DB is not the stock 0.26g resources.db (sha256 $STOCK_SHA)"
 read_patch_list
 ((revision > LIST_TOP)) || die "$name: the list has patches up to $LIST_TOP; the next is above them"
+# --delta-from: the earlier builds' patches the game mounts under this one (each folder's delta-of
+# names the one before it), ascending; each above the list's and below this one.
+chain=()
+if [[ -n $delta_from ]]; then
+    ((!full)) || die "--delta-from is for a local test; a release builds the whole patch (--full)"
+    from=$delta_from
+    while [[ -n $from ]]; do
+        [[ -f $from/files.tsv ]] || die "--delta-from: $from is no build-content folder (no files.tsv)"
+        from=$(cd "$from" && pwd)
+        for patch in "$from"/resources.db.patch_*; do
+            [[ -f $patch ]] || continue
+            n=${patch##*_}
+            ((n > LIST_TOP)) || die "--delta-from: $patch is not above the list's patches (up to $LIST_TOP): build it whole"
+            if ((${#chain[@]})) && ((n >= ${chain[0]##*_})); then
+                die "--delta-from: $patch is not below the build after it"
+            fi
+            chain=("$patch" "${chain[@]}")
+        done
+        from=$(cat "$from/delta-of" 2>/dev/null || true)
+    done
+    if ((${#chain[@]})) && ((revision <= ${chain[-1]##*_})); then
+        die "$name: the earlier build has ${chain[-1]##*/}; a delta over it is above it"
+    fi
+fi
 cache_patches
+took "the offered patches"
 bin=$(game_data_bin)
-tables_bin=$(item_tables_bin)
+tables_bin=''
+((!full)) || tables_bin=$(item_tables_bin)
+took "the tools (srp-game-data$( ((!full)) || printf ', srp-item-tables'))"
 common=$(dirname "$(git -C "$ROOT" rev-parse --path-format=absolute --git-common-dir)")
 tools=${SKHID_FLASH_TOOLS:-$common/private/actionscript/tools.json}
 mkdir -p "$out"
 out=$(cd "$out" && pwd)
+# A quick build's folder says so before anything is in it (release.sh refuses a patch beside it).
+((full)) || printf '%s\n' "release/build-content without --full: players' files with the patch not checked, no item tables;" \
+    "for a local test only (release.sh refuses it); a release builds with --full" >"$out/$QUICK_MARK"
+if [[ -n $delta_from ]]; then
+    printf '%s\n' "a delta over $(cd "$delta_from" && pwd): mounted over its patches only, never alone" >>"$out/$QUICK_MARK"
+    (cd "$delta_from" && pwd) >"$out/delta-of"
+fi
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
 
 args=(--stock "$SKHID_STOCK_DB" --patches "$PATCH_CACHE" --list "$PATCH_LIST" --bin "$bin"
     --tree "$tree" --manifest "$manifest" --work "$work/build" --tools "$tools")
+args+=(--stock-sha256 "$STOCK_SHA")
+# srp-game-data built here is known to the cache by its sources (another checkout's build of them
+# reads the same), one named by SRP_GAME_DATA_BIN by its bytes.
+[[ -n ${SRP_GAME_DATA_BIN:-} ]] || args+=(--bin-source "$ROOT/srp-026g")
+((!cached)) || args+=(--cache "${XDG_CACHE_HOME:-$HOME/.cache}/skhid-release/build-content")
+((full)) || args+=(--quick)
+if [[ -n $delta_from ]]; then
+    args+=(--delta-over)
+    for patch in "${chain[@]}"; do args+=("$patch=$(cached_sha256 "$patch")"); done
+fi
 [[ -z ${SKHID_VOSTOK_PORT:-} ]] || args+=(--vostok-port "$SKHID_VOSTOK_PORT")
 [[ -z ${SKHID_PACKS_DIR:-} ]] || args+=(--packs "$SKHID_PACKS_DIR")
 say "building $(basename "$manifest") of $tree ($(git -C "$tree" rev-parse --short HEAD 2>/dev/null || echo 'no git'))"
 if ! python -I "$here/build_content.py" "${args[@]}"; then
+    rm -f "$out/$QUICK_MARK" "$out/delta-of"
     rmdir "$out" 2>/dev/null || true
     die "no patch made"
 fi
 cp "$work/build/files.tsv" "$out/files.tsv"
+[[ -z $delta_from ]] || cp "$work/build/delta.tsv" "$out/delta.tsv"
+took "the manifest (build_content.py)"
 
 # 5. The site's pages of the list's patches and <with> (if any), in --tree:
 # only with --site (never a checkout unasked: a content PR would carry them).
@@ -135,31 +279,85 @@ if [[ ! -d $work/build/patch ]]; then
 fi
 
 say
-"$here/build-patch" "$work/build/patch" "$revision" --out "$out/$name" | grep -v "^next: "
+SRP_GAME_DATA_BIN=$bin "$here/build-patch" "$work/build/patch" "$revision" --out "$out/$name" | grep -v "^next: "
+patch_sha=$(cached_sha256 "$out/$name")
+# Each file's sha256 under the patch's: what a later --delta-from over this folder reads of it.
+{ printf '# %s %s\n' "$name" "$patch_sha"; cat "$work/build/digests.tsv"; } >"$out/digests.tsv"
+took "the patch (build-patch)"
 say
 patches=()
 layers=(--db "$SKHID_STOCK_DB")
+# The server game data's cache key: srp-game-data (build_content.py's name of it) and every archive
+# it is built of, by its sha256, with its URLs.
+data_key="$(cat "$work/build/game-data-id") $STOCK_SHA"
 while read -r row sha size urls; do
     [[ -n $row ]] || continue
     patches+=(--patch "$PATCH_CACHE/$row=$urls")
     layers+=(--patch "$PATCH_CACHE/$row")
+    data_key+=" $row $sha $urls"
 done <<<"$LIST"
-url="$PATCHES_URL/$name"
-"$bin" build --db "$SKHID_STOCK_DB" "${patches[@]}" --patch "$out/$name=$url" --out "$out/$DATA_NAME" |
-    sed -n '/^resources\.db\.patch_[0-9]*: /p;/server-game-data\.db: /p'
+extra=''
+for patch in "${chain[@]}" "$out/$name"; do
+    url="$PATCHES_URL/${patch##*/}"
+    patches+=(--patch "$patch=$url")
+    sha=$(cached_sha256 "$patch")
+    extra+=${extra:+$'\n'}"${patch##*/} $sha $(size_of "$patch") $url"
+    data_key+=" ${patch##*/} $sha $url"
+done
+data_key=$(sha256sum <<<"$data_key" | cut -c1-64)
+data_cache=${XDG_CACHE_HOME:-$HOME/.cache}/skhid-release/build-content/server-data
+# A delta's server game data only when a file the server reads changed (resources_db::server::is_read:
+# gameplay/, a project's client_project, a localization dictionary); else the earlier build's serves.
+# grep without -q reads all of cut's output: an early exit would kill cut (SIGPIPE) and pipefail
+# would read that as no match.
+if [[ -n $delta_from ]] && ! cut -f1 "$out/delta.tsv" | grep -E '^(gameplay/|projects/.*/client_project$|localization/[^/]*/localization$)' >/dev/null; then
+    for patch in "${chain[@]}"; do
+        [[ ! -f ${patch%/*}/$DATA_NAME ]] || earlier_data=${patch%/*}/$DATA_NAME
+    done
+    say "$out/$name: $(size_of "$out/$name") bytes, sha256 $patch_sha: a delta over ${chain[*]##*/}"
+    say "the server game data: not made, no file the server reads changed: ${earlier_data:-the earlier build} serves it"
+    say "a local test build: mount $name over ${chain[*]##*/}; release.sh refuses it ($QUICK_MARK)"
+    exit 0
+fi
+if ((cached)) && [[ -f $data_cache/$data_key && $(sha256_of "$data_cache/$data_key") == $(cat "$data_cache/$data_key.sha256" 2>/dev/null) ]]; then
+    cp "$data_cache/$data_key" "$out/$DATA_NAME"
+    say "$out/$DATA_NAME: as an earlier build of the same archives made it (the cache)"
+else
+    "$bin" build --db "$SKHID_STOCK_DB" "${patches[@]}" --out "$out/$DATA_NAME" |
+        sed -n '/^resources\.db\.patch_[0-9]*: /p;/server-game-data\.db: /p'
+    if ((cached)); then
+        # The last few kept (each tens of MB).
+        mkdir -p "$data_cache"
+        cp "$out/$DATA_NAME" "$data_cache/.$data_key.$$" && mv "$data_cache/.$data_key.$$" "$data_cache/$data_key" &&
+            sha256_of "$data_cache/$data_key" >"$data_cache/$data_key.sha256"
+        find "$data_cache" -maxdepth 1 -name "*.sha256" -printf "%T@ %p\n" | sort -rn | tail -n +9 | while read -r _ old; do rm -f "$old" "${old%.sha256}"; done
+    fi
+fi
+took "the server game data"
 info=$("$bin" info "$out/$DATA_NAME")
-[[ $(offered_in "$info") == "$(offered_of_list "$name $(sha256_of "$out/$name") $(size_of "$out/$name") $url")" ]] ||
-    die "$out/$DATA_NAME does not offer exactly the list's patches and $name"
-# Players' files with the new patch over them: every file made, as made.
-compared=$("$bin" compare "${layers[@]}" --patch "$out/$name" --dir "$work/build/world")
-others=$(grep -v '^same ' <<<"$compared" || true)
-[[ -z $others ]] || die "players' files with $name are not the manifest's: $others"
-say "with $name over players' files, all $(grep -c . <<<"$compared") files the manifest makes are as it makes them"
-say "$out/$name: $(size_of "$out/$name") bytes, sha256 $(sha256_of "$out/$name")"
+[[ $(offered_in "$info") == "$(offered_of_list "$extra")" ]] ||
+    die "$out/$DATA_NAME does not offer exactly the list's patches${chain[*]:+, the earlier builds} and $name"
+# Players' files with the new patch over them: every file made, as made (--full only).
+if ((!full)); then
+    say "with $name over players' files: not checked (a quick build; --full checks it)"
+else
+    compared=$("$bin" compare "${layers[@]}" --patch "$out/$name" --dir "$work/build/world")
+    others=$(grep -v '^same ' <<<"$compared" || true)
+    [[ -z $others ]] || die "players' files with $name are not the manifest's: $others"
+    say "with $name over players' files, all $(grep -c . <<<"$compared") files the manifest makes are as it makes them"
+    took "players' files with the patch"
+fi
+say "$out/$name: $(size_of "$out/$name") bytes, sha256 $patch_sha"
 say "$out/$DATA_NAME: sha256 $(sha256_of "$out/$DATA_NAME") (offers the list's patches and $name at $url)"
 say
 rerun="the patch and the server data in $out are made; to run it all again: rm -rf $(q "$out")"
 site_pages "$out/$name"
+if ((!full)); then
+    say "the item tables: not made (a quick build; --full makes them)"
+    if ((site)); then say "a preview of it all: SRP_GAME_DATA=$out/$DATA_NAME in $tree (scripts/wiki/README.md)"; fi
+    say "a quick build, for a local test: $out/$name with SRP_GAME_DATA=$out/$DATA_NAME; release.sh refuses it ($QUICK_MARK): a release builds with --full"
+    exit 0
+fi
 # The item tables of the new server data, in --out: the tree's as they are,
 # rewritten where an item changed (the release's record commits them).
 mkdir -p "$out/item-tables"
@@ -168,6 +366,7 @@ for file in "$tree/$ITEM_TABLES_DIR"/*.tsv; do
 done
 tables=$("$tables_bin" "$out/$DATA_NAME" --dir "$out/item-tables" 2>&1) ||
     die "the item tables: $tables — $rerun"
+took "the item tables"
 say "the item tables ($out/item-tables, against $ITEM_TABLES_DIR of $tree):"
 say "  ${tables//$'\n'/$'\n'  }"
 if ((site)); then say "a preview of it all: SRP_GAME_DATA=$out/$DATA_NAME in $tree (scripts/wiki/README.md)"; fi

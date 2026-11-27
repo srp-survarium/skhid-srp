@@ -93,6 +93,12 @@ package survarium.constants
       // not a category of the dictionary: the lobby gives its shop bundles this one
       public static const BUNDLE:int = 100;
       
+      // not categories of the dictionary: the Upgrades filters of a muzzle device and a grip, items of
+      // SCOPES by their kind (UpgradeWindow.filterCategory)
+      public static const MUZZLE_DEVICES:int = 101;
+      
+      public static const GRIPS:int = 102;
+      
       public function ItemCategory()
       {
          super();

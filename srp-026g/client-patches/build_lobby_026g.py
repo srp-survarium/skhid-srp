@@ -13,9 +13,8 @@ fonts and symbol bindings are revision 24's. About 5 seconds.
 
 The input is `flash_movies/lobby_menu.swf` of `resources.db.patch_24` (revision
 24, BASE_SHA256). The output is the movie for the next resources.db.patch_<n>
-(`srp-game-data pack`). The build says whether the movie is RESULT_SHA256, the
-one last checked in the game (the build is deterministic: the same tree and
-tools give the same bytes). Requires a JDK and Apache Flex 4.16.1, named in a
+(`srp-game-data pack`). The build is deterministic: the same tree and tools give
+the same bytes. Requires a JDK and Apache Flex 4.16.1, named in a
 tools.json (tools/actionscript/README.md).
 """
 import argparse
@@ -38,15 +37,6 @@ OLDER = {
     "12f0ee1dae4301d18405e956678ad1c9aa2c975ce2639c408722f5708548856b": "revision 23's (resources.db.patch_23)",
     "ab6f22d80d32fa4928403d19e3e054bd5316b2370e2550cefec0c9d22b959850": "the retail",
 }
-# The movie last checked in the game: the build says whether it made this one
-# (a note, not a gate). Set it when the owner has checked a new one, with a
-# line on what it holds. RESULT (2026-10-21): the tree of 6064476c (the lobby's
-# features in the game's classes, the rooms in survarium/rooms, the craft and
-# upgrade windows' own right-click menus, Buy asking the shop, Sell on all but
-# the last of a kind), one Flex run. The owner checked c3898574…, built from
-# this tree before the build compiled every tree from one place: the same
-# code laid out by compc in another order ("good, it works").
-RESULT_SHA256 = "f9c8fb082bc724884638022f327a08d592a6dc20d789549df73eb8f5a0c22146"
 
 
 def build(movie, tools, report=print):
@@ -78,9 +68,7 @@ def main():
     with args.output.open("xb") as output:
         output.write(movie)
     sha = hashlib.sha256(movie).hexdigest()
-    checked = ("RESULT_SHA256, the movie last checked in the game" if sha == RESULT_SHA256 else
-               "a new movie, not RESULT_SHA256: check it in the game, then set RESULT_SHA256 to it")
-    print(f"Created {args.output}: the lobby movie from source ({len(movie)} bytes, sha256 {sha}): {checked}")
+    print(f"Created {args.output}: the lobby movie from source ({len(movie)} bytes, sha256 {sha})")
 
 
 if __name__ == "__main__":

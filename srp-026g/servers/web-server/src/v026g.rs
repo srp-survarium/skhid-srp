@@ -2,15 +2,14 @@
 //! 0.26g accounts ([`GameAccounts`]) and tells the lobby, so an open game
 //! shows the change.
 //!
-//! - Silver and gold are exchanged in the game only: the lobby's exchange
-//!   window (`client-patches/exchange`, `47 04`, `rules::exchange_premium`
-//!   and `rules::buy_premium`). `GET /exchange`, which the SHOP button of
-//!   the launchers already in players' hands opens, says so in the
-//!   launcher's language ([`in_the_game_now`]); nothing else of it is left.
+//! - There is no gold (the owner, 2026-11-08): everything is bought with
+//!   silver. `GET /exchange`, which the SHOP button of the launchers already
+//!   in players' hands opens, says so in the launcher's language
+//!   ([`no_gold`]); nothing else of an exchange is left.
 //! - The admin's tabs: money and items taken away (`crate::moderation`: a
-//!   reason, a preview and a confirm), the account (premium time,
-//!   experience or level, reputation), an item by its `items_dict` id or
-//!   name, and the operator's text (`A5` / `A6`) for everyone in the lobby.
+//!   reason, a preview and a confirm), the account (experience or level,
+//!   reputation; no premium time: there is no premium account), an item by
+//!   its `items_dict` id or name, and the operator's text (`A5` / `A6`) for everyone in the lobby.
 //!   Bans, maintenance and registration are the store's, which the 0.26g
 //!   login server and lobby read: they are the same code as for 0.21d.
 
@@ -23,7 +22,7 @@ use session::v026g::account::{self, Account, MAX_LEVEL};
 use survarium::v026g::dictionary::Dictionary;
 use survarium::v026g::lobby::FULL_CONDITION;
 
-use super::{AdminView, Form, Lang, Request, Response, Stats, Web, apply, delta, page, unix_now};
+use super::{Form, Lang, Request, Response, Stats, Web, apply, delta, page};
 
 /// What the page tells the 0.26g lobby. srp joins it to the lobby's inbox
 /// (`lobby_server::v026g::Inbox`); this crate does not know the lobby.
@@ -50,11 +49,17 @@ pub trait MatchCounter: Send + Sync {
 /// with it the rules of what is listed (`session::v026g::matches_now`).
 pub use session::v026g::matches_now::Phase as LivePhase;
 
+/// Who a match is for: a release waits for the normal ones alone with
+/// `release.sh --end-bot-and-private-matches` (`GET /api/stats`).
+pub use session::v026g::match_kind::MatchKind as LiveKind;
+
 /// A match as the launcher's page shows it: no player is named.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct LiveMatch {
     /// The `maps_dict` id: the map and the mode.
-    pub map_id: u8,
+    pub map_id: survarium::v026g::maps::MapId,
+    /// Who it is for, as the lobby made it.
+    pub kind: LiveKind,
     pub phase: LivePhase,
     /// Each team's players who have not left.
     pub players: [u8; 2],
@@ -122,6 +127,12 @@ pub struct Game {
     /// takes (`session::v026g::replays`); `None`: every such request is
     /// "not found".
     pub replays: Option<Arc<session::v026g::replays::Replays>>,
+    /// The matches the lobby keeps the results of: what a match gives now,
+    /// for the skills page's levels ([`crate::skills`]).
+    pub results: Arc<session::v026g::rewards::Results>,
+    /// Where the rooms offer each map (the lobby's pools), for the wiki's
+    /// modes ([`crate::modes`]).
+    pub pools: crate::Pools,
 }
 
 /// The longest line of the operator's text: the client's buffers are 64
@@ -165,26 +176,20 @@ impl Web {
                     online: self.store.players_present(),
                     maintenance: self.store.minutes_to_maintenance(),
                     registrations_open: self.store.registrations_open(),
-                    v026g: true,
                     launcher: crate::launcher::offers_launcher(),
                     installs_game: crate::launcher::offers_game_install(),
                 }),
                 "",
             ),
             ("GET", "/exchange") => page(lang, Form::InTheGame26(launcher_code(request)), ""),
-            ("GET", path) if self.is_admin_page(path, request) => page(
-                lang,
-                Form::Admin(Box::new(AdminView {
-                    g26: true,
-                    ..AdminView::default()
-                })),
-                "",
-            ),
+            ("GET", path) if self.is_admin_page(path, request) => {
+                page(lang, Form::Admin(Box::default()), "")
+            }
             ("POST", path) if self.is_admin_page(path, request) => self.admin(request, peer),
             _ => Response {
                 status: "404 Not Found",
                 content_type: super::ContentType::Html,
-                body: page(lang, Form::None26, &lang.tr("Not found.", "Не знайдено.")).body,
+                body: page(lang, Form::None26, &lang.t("Not found.")).body,
             },
         }
     }
@@ -209,14 +214,11 @@ impl Web {
             found.next().is_none().then_some(first)
         };
         let Some(account_id) = self.store.find_account(text).or_else(by_nickname) else {
-            return Err(lang.tr("No such user.", "Такого користувача немає."));
+            return Err(lang.t("No such user."));
         };
         match game.accounts.get(account_id) {
             Some(account) => Ok((account_id, account)),
-            None => Err(lang.tr(
-                "That account has not signed in to the 0.26g lobby yet: it has nothing to change.",
-                "Цей акаунт ще не входив у лобі 0.26g: змінювати нічого.",
-            )),
+            None => Err(lang.t("That account has not signed in to the 0.26g lobby yet: it has nothing to change.")),
         }
     }
 
@@ -226,30 +228,18 @@ impl Web {
         game.lobby.account_changed(account_id);
     }
 
-    /// Premium time, experience or level, reputation: each field that is
-    /// filled is applied; nothing is when one of them is wrong.
+    /// Experience or level, reputation: each field that is filled is
+    /// applied; nothing is when one of them is wrong.
     pub(crate) fn admin_account_026g(&self, request: &Request, peer: &str) -> String {
         let lang = request.lang;
-        let Some(game) = &self.game else {
-            return String::new();
-        };
+        let game = &self.game;
         let user = request.field("acc_user");
         let (account_id, account) = match self.find_026g(game, lang, user) {
             Ok(found) => found,
             Err(message) => return message,
         };
-        let bad = lang.tr(
-            &format!(
-                "Premium hours, experience and reputation are whole numbers, + or -; the level \
-                 is 0 to {MAX_LEVEL}; the faction is 1 to 4."
-            ),
-            &format!(
-                "Години преміуму, досвід і репутація — цілі числа, + або -; рівень від 0 до \
-                 {MAX_LEVEL}; фракція від 1 до 4."
-            ),
-        );
-        let (Some(hours), Some(experience), Some(reputation)) = (
-            delta(request.field("premium_hours")),
+        let bad = lang.tf("Experience and reputation are whole numbers, + or -; the level is 0 to {MAX_LEVEL}; the faction is 1 to 4.", &[("MAX_LEVEL", &MAX_LEVEL)]);
+        let (Some(experience), Some(reputation)) = (
             delta(request.field("experience")),
             delta(request.field("reputation")),
         ) else {
@@ -269,7 +259,6 @@ impl Web {
                 _ => return bad,
             },
         };
-        let now = unix_now();
         let summary = {
             let mut account = account.locked();
             let mut changed = account.clone();
@@ -279,19 +268,7 @@ impl Web {
             }
             changed.exp_total = apply(changed.exp_total, experience);
             if u32::from(changed.level()) < spent_skill_points(&changed) {
-                return lang.tr(
-                    "That level is under the skill points the account has spent; reset its \
-                     skills in the game first.",
-                    "Цей рівень нижчий за витрачені очки навичок; спершу скиньте навички в грі.",
-                );
-            }
-            if hours != 0 {
-                let until = i64::try_from(changed.premium_until.max(now)).unwrap_or(i64::MAX);
-                let until = until.saturating_add(hours.saturating_mul(3600));
-                changed.premium_until = u64::try_from(until)
-                    .ok()
-                    .filter(|at| *at > now)
-                    .unwrap_or(0);
+                return lang.t("That level is under the skill points the account has spent; reset its skills in the game first.");
             }
             if let Some(faction) = faction {
                 if reputation >= 0 {
@@ -308,28 +285,18 @@ impl Web {
             (
                 account.level(),
                 account.exp_total,
-                account.premium_hours(now).unwrap_or(0),
                 faction.map(|faction| (faction, account.reputation(faction))),
             )
         };
         self.changed_026g(game, account_id);
-        let (level_now, exp_now, premium_now, reputation_now) = summary;
+        let (level_now, exp_now, reputation_now) = summary;
         log::info!(
-            "Admin from {peer}: {user:?} premium {hours:+} h, experience {experience:+}, level \
-             {level:?}, reputation {reputation:+} with {faction:?} (now level {level_now}, \
-             {exp_now} experience, {premium_now} h premium)"
+            "Admin from {peer}: {user:?} experience {experience:+}, level {level:?}, reputation \
+             {reputation:+} with {faction:?} (now level {level_now}, {exp_now} experience)"
         );
-        let mut message = lang.tr(
-            &format!(
-                "{user}: level {level_now} ({exp_now} experience), {premium_now} h of premium."
-            ),
-            &format!("{user}: рівень {level_now} ({exp_now} досвіду), {premium_now} год преміуму."),
-        );
+        let mut message = lang.tf("{user}: level {level_now} ({exp_now} experience).", &[("user", &user), ("level_now", &level_now), ("exp_now", &exp_now)]);
         if let Some((faction, points)) = reputation_now {
-            message += &lang.tr(
-                &format!(" Reputation with faction {faction}: {points}."),
-                &format!(" Репутація у фракції {faction}: {points}."),
-            );
+            message += &lang.tf(" Reputation with faction {faction}: {points}.", &[("faction", &faction), ("points", &points)]);
         }
         message
     }
@@ -338,9 +305,7 @@ impl Web {
     /// whole, into the inventory.
     pub(crate) fn admin_item_026g(&self, request: &Request, peer: &str) -> String {
         let lang = request.lang;
-        let Some(game) = &self.game else {
-            return String::new();
-        };
+        let game = &self.game;
         let user = request.field("item_user");
         let (account_id, account) = match self.find_026g(game, lang, user) {
             Ok(found) => found,
@@ -354,10 +319,7 @@ impl Web {
             Err(_) => dictionary.item_named(wanted),
         };
         let Some(item) = item else {
-            return lang.tr(
-                "No such item in the 0.26g dictionary (give its id or its exact name).",
-                "Такого предмета немає в словнику 0.26g (вкажіть id або точну назву).",
-            );
+            return lang.t("No such item in the 0.26g dictionary (give its id or its exact name).");
         };
         let most = if item.is_stack {
             MAX_GIVEN_UNITS
@@ -369,10 +331,7 @@ impl Web {
             text => match text.parse::<u32>() {
                 Ok(count) if (1..=most).contains(&count) => count,
                 _ => {
-                    return lang.tr(
-                        &format!("The count for this item is 1 to {most}."),
-                        &format!("Кількість для цього предмета від 1 до {most}."),
-                    );
+                    return lang.tf("The count for this item is 1 to {most}.", &[("most", &most)]);
                 }
             },
         };
@@ -388,7 +347,7 @@ impl Web {
                 match owned {
                     Some(owned) => {
                         let Some(total) = owned.condition_or_stack.checked_add(count) else {
-                            return lang.tr("That stack would overflow.", "Ця купа переповниться.");
+                            return lang.t("That stack would overflow.");
                         };
                         owned.condition_or_stack = total;
                     }
@@ -409,28 +368,17 @@ impl Web {
             item.dict_id,
             item.name
         );
-        lang.tr(
-            &format!(
-                "{user}: given {count} of {} (id {}).",
-                item.name, item.dict_id
-            ),
-            &format!(
-                "{user}: видано {count} × {} (id {}).",
-                item.name, item.dict_id
-            ),
-        )
+        lang.tf("{user}: given {count} of {0} (id {1}).", &[("user", &user), ("count", &count), ("0", &item.name), ("1", &item.dict_id)])
     }
 
     /// The operator's text for everyone in the lobby: set, or cleared.
     pub(crate) fn admin_text_026g(&self, request: &Request, peer: &str) -> String {
         let lang = request.lang;
-        let Some(game) = &self.game else {
-            return String::new();
-        };
+        let game = &self.game;
         if !request.field("clear_text").is_empty() {
             game.lobby.clear_admin_text();
             log::warn!("Admin from {peer}: cleared the text for all players");
-            return lang.tr("The text is cleared.", "Текст прибрано.");
+            return lang.t("The text is cleared.");
         }
         let (first, second) = (request.field("line1"), request.field("line2"));
         if first.is_empty() && second.is_empty() {
@@ -438,23 +386,11 @@ impl Web {
         }
         let fits = |line: &str| line.len() <= MAX_TEXT_LEN && !line.chars().any(char::is_control);
         if !fits(first) || !fits(second) {
-            return lang.tr(
-                &format!(
-                    "Each line is at most {MAX_TEXT_LEN} bytes (a Cyrillic letter is 2) with no \
-                     control characters."
-                ),
-                &format!(
-                    "Кожен рядок — щонайбільше {MAX_TEXT_LEN} байти (кирилична літера — 2), без \
-                     керівних символів."
-                ),
-            );
+            return lang.tf("Each line is at most {MAX_TEXT_LEN} bytes (a Cyrillic letter is 2) with no control characters.", &[("MAX_TEXT_LEN", &MAX_TEXT_LEN)]);
         }
         game.lobby.set_admin_text(first, second);
         log::warn!("Admin from {peer}: text for all players: {first:?} / {second:?}");
-        lang.tr(
-            "The text is shown to everyone in the lobby, and to who signs in, until cleared.",
-            "Текст показано всім у лобі й тим, хто входить, доки його не приберуть.",
-        )
+        lang.t("The text is shown to everyone in the lobby, and to who signs in, until cleared.")
     }
 }
 
@@ -480,40 +416,36 @@ pub(crate) fn launcher_code(request: &Request) -> &'static str {
     }
 }
 
-/// `/exchange`: the exchange is in the game now. The launchers already in
-/// players' hands open this address with their SHOP button, so it answers
-/// in the launcher's five languages (`code` of [`launcher_code`]).
-pub(crate) fn in_the_game_now(code: &str) -> String {
+/// `/exchange`: there is no gold to exchange; everything is bought with
+/// silver. The launchers already in players' hands open this address with
+/// their SHOP button, so it answers in the launcher's five languages (`code`
+/// of [`launcher_code`]).
+pub(crate) fn no_gold(code: &str) -> String {
     let (code, title, text) = match code {
         "uk" => (
             "uk",
-            "Тепер у грі",
-            "Срібло й золото тепер обмінюються в грі: у лобі натисніть на своє золото чи \
-             срібло вгорі екрана.",
+            "Лише срібло",
+            "Золота більше немає: усе в грі купується за срібло.",
         ),
         "ru" => (
             "ru",
-            "Теперь в игре",
-            "Серебро и золото теперь обмениваются в игре: в лобби нажмите на своё золото или \
-             серебро вверху экрана.",
+            "Только серебро",
+            "Золота больше нет: всё в игре покупается за серебро.",
         ),
         "de" => (
             "de",
-            "Jetzt im Spiel",
-            "Silber und Gold werden jetzt im Spiel getauscht: Klicke in der Lobby oben auf dein \
-             Gold oder Silber.",
+            "Nur Silber",
+            "Gold gibt es nicht mehr: Im Spiel wird alles mit Silber gekauft.",
         ),
         "pl" => (
             "pl",
-            "Teraz w grze",
-            "Srebro i złoto wymienia się teraz w grze: w lobby kliknij swoje złoto lub srebro u \
-             góry ekranu.",
+            "Tylko srebro",
+            "Złota już nie ma: w grze wszystko kupuje się za srebro.",
         ),
         _ => (
             "en",
-            "In the game now",
-            "Silver and gold are exchanged in the game now: in the lobby, click your gold or \
-             silver at the top of the screen.",
+            "Silver only",
+            "There is no gold any more: everything in the game is bought with silver.",
         ),
     };
     format!("<section class=card lang={code}><h1>{title}</h1><p>{text}</p></section>")

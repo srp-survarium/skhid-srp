@@ -16,7 +16,7 @@
 //!   the less the result was to be expected: the side with a player more
 //!   is expected to win ([`PLAYER`]), so winning with it moves little.
 //!   The sides counted it until 2026-11-01; it is still kept and written
-//!   in the log's "sides" lines (`scripts/balance-refit`), and the matches
+//!   in the log's "sides" lines, and the matches
 //!   that move it are the ones that count kills and deaths.
 //! - **A match of few players moves none** ([`RATED_PLAYERS`],
 //!   [`players_in`]): one against one and two against one say nothing of
@@ -30,7 +30,7 @@
 //!   [`Weights::expected`] is the chance the whole count gives a side; the
 //!   lobby writes it in its log each minute, to be fitted again.
 
-use survarium::v026g::maps::mode;
+use survarium::v026g::maps::RuleMode;
 use survarium::v026g::match_msgs::rules::DRAW;
 
 use crate::Strength;
@@ -231,8 +231,8 @@ impl Weights {
     /// What each side's lead counts for in a match of `game_mode` that
     /// stands at `points` (batteries home, tickets left, or Research's
     /// points): nothing for the side that trails.
-    pub fn lead(&self, game_mode: u8, points: [u16; 2]) -> [Strength; 2] {
-        let each = if matches!(game_mode, mode::TEAM_DEATHMATCH | mode::RESEARCH) {
+    pub fn lead(&self, game_mode: RuleMode, points: [u16; 2]) -> [Strength; 2] {
+        let each = if matches!(game_mode, RuleMode::TeamDeathmatch | RuleMode::Research) {
             self.ticket_lead
         } else {
             self.battery_lead
@@ -371,25 +371,25 @@ mod tests {
     fn a_lead_counts_for_the_side_that_has_it() {
         let weights = Weights::default();
         // Batteries: 0.55 of a player each, a player being one K/D.
-        assert_eq!(weights.lead(mode::BATTERIES, [5, 3]), milli([1100, 0]));
+        assert_eq!(weights.lead(RuleMode::Batteries, [5, 3]), milli([1100, 0]));
         assert_eq!(
-            weights.lead(mode::TIMED_BATTERIES, [0, 5]),
+            weights.lead(RuleMode::TimedBatteries, [0, 5]),
             milli([0, 2750])
         );
-        assert_eq!(weights.lead(mode::BATTERIES, [4, 4]), milli([0, 0]));
+        assert_eq!(weights.lead(RuleMode::Batteries, [4, 4]), milli([0, 0]));
         // Tickets: a fifth of a player.
         assert_eq!(
-            weights.lead(mode::TEAM_DEATHMATCH, [80, 93]),
+            weights.lead(RuleMode::TeamDeathmatch, [80, 93]),
             milli([0, 2600])
         );
         // Research's points as tickets.
-        assert_eq!(weights.lead(mode::RESEARCH, [93, 80]), milli([2600, 0]));
+        assert_eq!(weights.lead(RuleMode::Research, [93, 80]), milli([2600, 0]));
         // With no weight for a player there is no lead to count.
         let none = Weights {
             player: 0.0,
             ..weights
         };
-        assert_eq!(none.lead(mode::BATTERIES, [9, 0]), milli([0, 0]));
+        assert_eq!(none.lead(RuleMode::Batteries, [9, 0]), milli([0, 0]));
         assert_eq!(none.expected(Strength::from_milli(5000)), 0.5);
     }
 

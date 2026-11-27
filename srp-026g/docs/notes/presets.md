@@ -11,9 +11,12 @@ applies it, and adding equipment to it saves things". Code: `session::v026g::pre
 §2.16.4.
 
 - **Five presets an account, one active,** kept with it in srp.db (`g26_preset_slots`,
-  `g26_preset_active`).
+  `g26_preset_active`, `g26_preset_declined`).
 - **A preset** is the contents of the three kits (Profile 1, 2, 3: every slot, weapons, ammo,
-  armour, pockets): the owned item in each slot, and for a stack its units. Not the kits' names,
+  armour, pockets): the owned item in each slot, and for a stack its units, and what each kit made
+  of its perks' slots (Artifact Container, Deep Pockets or Supply Pocket; `artefact-skills.md`;
+  the owner's pick of 2026-11-22: each preset's kit keeps its own; a preset that holds only that is
+  kept too). Not the kits' names,
   nor which kit is played [choice].
 - **The active preset is the kits.** It is kept nowhere else, so every change of a kit (a move,
   the ammo window, a purchase dropped onto a slot, a sale or craft that takes an item, a match's
@@ -70,8 +73,7 @@ applies it, and adding equipment to it saves things". Code: `session::v026g::pre
   added in the future and it is better to have all of them documented"). The presets list carries
   them as bits (`<blocks>`, `lobby.md` 2.16.4), worked out by the server's own functions, the same
   that refuse at the door, so the movie's greying and the server can not disagree. A greyed Play,
-  Join, Queue or New room shows every reason that holds in its tip (the game's tooltip, as
-  Autobuy's), a line each, with no full stop at a line's end (the game's own texts trimmed
+  Join, Queue or New room shows every reason that holds in its tip (the game's tooltip), a line each, with no full stop at a line's end (the game's own texts trimmed
   too) and the text's left margin as wide as its right (`ReasonsTip`: the renderer's own margin
   setting; the owner's, 2026-10-23: "no need for dot in the end and a bit more padding from the
   left"). The kit's reasons are `rules::PlayBlock` (`rules::play_blocks` of the
@@ -96,7 +98,7 @@ applies it, and adding equipment to it saves things". Code: `session::v026g::pre
     max level the movie does not know) is greyed by any reason, not lit for a loadout the popup
     could offer. "Switch room" is not offered while a reason holds (`room_switch`
     asks the door's `room_enter_fit`). A queued player whose kit can not play when a place
-    frees keeps its place, passed over, and the next goes in (`next_ready_in_queue`).
+    frees keeps its place, passed over, and the next goes in (`Rooms::take_from_queue`).
   - Until the first list the reasons are not known: Play, Join, Queue and New room start greyed,
     with no tip (the owner's, 2026-10-23: "the game starts with Play red, and you can quickly
     click on it before it is blocked"). The list comes within about 2 s (it is asked again every
@@ -106,7 +108,7 @@ applies it, and adding equipment to it saves things". Code: `session::v026g::pre
     rooms window and is refused for the kit (code 15) within 6 s closes it again; a poll's plain
     answer before Play's own does not end that, a room, another code, the window closed, or a
     Join or New room in it do. The empty list's hint says "press Play" only while Play is really
-    lit (`noneNoPlay`, `noneQuiet` when New room is greyed too).
+    lit (`st_srp_rooms_none_no_play`, `st_srp_rooms_none_quiet` when New room is greyed too).
   - N, the minutes, come with the list (`<minutes>`); while a maintenance is planned the movie asks
     for the list every minute, so N and the rule's start follow.
   - **A new reason** gets a bit (`PlayBlock` or a lobby bit next to `BLOCK_MAINTENANCE`), a row

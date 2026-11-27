@@ -38,7 +38,7 @@ Status words (`session::v026g::replays::Status`): `preparing` (being converted o
 - The recording writer (`record.rs`) tells the replays (`session::v026g::replays::Replays`) of each file it closes: kept, dropped under the minimum, deleted by the cap (its `.sur` and `.json` are deleted too). At start, replays whose recording is gone and `.part` files of a stopped server are deleted.
 - Checked before the recording is unpacked whole: its size against `SRP_REPLAY_MAX_RECORDING_MB`, then its header (the first record, in the first block, `record::read_header`) for the map, and so the mode's `.options` file. Only then are the notes read and the file converted.
 - When a failure is tried again (`replays::Failure`): a missing or unreadable mode file (the operator may add the files) after 10 minutes; a reading or writing error of the disk after 10 minutes, then 20, 40, ... 4 hours at most; anything of the recording itself (over the size cap, damaged, no known map, the conversion's own error) not again until a restart.
-- `sur_convert::convert_file` with the mode's `.options` from `SRP_GAME_MODES_DIR` (the file the map's `maps_dict` row names). Written: `SRP_REPLAY_DIR/<id:08x>.sur`, then the sidecar `<id:08x>.json` `{match_id, size, sha256, revisions (by place), account_ids (every place, late joiners too), made_at}`, each under `.part` first. A sidecar means its `.sur` is whole.
+- `sur_convert::convert_file` with the mode's `.options` of the server's game data (`gameplay/game_modes/` + the file the map's `maps_dict` row names, `game_data::shared`: the file the map's row was made of, so every map and mode srp plays has one). Written: `SRP_REPLAY_DIR/<id:08x>.sur`, then the sidecar `<id:08x>.json` `{match_id, size, sha256, revisions (by place), account_ids (every place, late joiners too), made_at}`, each under `.part` first. A sidecar means its `.sur` is whole.
 - The replays' own cap, `SRP_REPLAY_MAX_MB` (default 1000): after each conversion and at start, while the `<8 hex>.sur` and `.json` files are over it together, the oldest (by the `.sur`'s time) are deleted, the sidecar first; the one just made stays. A replay deleted so is made again from its recording when asked for.
 - The thread runs at the lowest priority on Linux: nice 19 for that thread itself (`setpriority(PRIO_PROCESS, gettid, 19)`, logged once if it fails; nothing on other systems). The container has one CPU (`SRP26_CPUS`) for the lobby, the web page and every match's ticks, which must never wait for a conversion; the first viewer waits longer while matches run.
 
@@ -64,7 +64,7 @@ The second-largest (10 MB, 10 places) peaks at 57 MiB (233 MiB before), in 1.3 s
 - Only a `GET` or `HEAD` whose target, **exactly as sent**, is `/replays/` + 32 lower-case hex digits is looked up (no query, no fragment, no escapes, no suffix). The token gives a match id; the file is `SRP_REPLAY_DIR/<id:08x>.sur`, its name built from that u32 alone, served only if it is a regular file (not a link, not a folder) whose real path is in the replay folder. No part of the request is ever joined to a folder.
 - Everything else (malformed, unknown, expired or used-up token, a token of another server, replays off, the file gone) gets the same 64 bytes: `HTTP/1.0 404 Not Found`, `Content-Length: 0`, no body.
 - Failed lookups are counted per address: 30 in a minute, then `429` for a minute. Behind the proxy, `SRP_WEB_TRUST_PROXY=on` is needed for the address to be the player's.
-- Own slots (5 at once, as `/download` and `/resources/` have); `Range` as `/download`. A second download of a token while its first runs gets `503 Service Unavailable` with `Retry-After: 10` (not a failed lookup, none of its downloads taken).
+- Own slots (5 at once, as `/download` has); `Range` as `/download`. A second download of a token while its first runs gets `503 Service Unavailable` with `Retry-After: 10` (not a failed lookup, none of its downloads taken).
 - The log line of a replay handed out shows the `Range` escaped (`{:?}`): the request's header lines are split at `\r\n` alone, so a bare `\n` or another control character in it cannot start a forged log line. The other values in it are checked first (the method, the token's 6 hex digits, the parsed address); the other routes log request values (user names, the admin text) with `{:?}` too.
 - `SRP_REPLAY_DIR` must be a folder of its own: equal to `SRP_RECORD_DIR`, inside it or around it, replays are off (logged).
 
@@ -74,11 +74,10 @@ The second-largest (10 MB, 10 places) peaks at 57 MiB (233 MiB before), in 1.3 s
 |---|---|---|---|
 | `/replays/<token>` (0.26g) | GET, HEAD | `SRP_REPLAY_DIR/<id:08x>.sur` of a live token's match | the name is built from the token's u32; the `.json`, recordings, `.part` files and any other name are never opened; regular files in the folder only |
 | `/download` | GET, HEAD | the one file `SRP_DOWNLOAD_FILE` (read-only mount) | exact path match; the file is the operator's setting, no part of the request names it |
-| `/resources/<64 hex>` (0.26g) | GET, HEAD | `<folder of SRP_DOWNLOAD_FILE>/resources/<64 hex>` | only 64 lower-case hex digits name a file there (`resource_file`); that folder holds the update blobs only |
 | `/api/client-files` (0.26g) | GET | the SHA-256 and size of `SRP_DOWNLOAD_FILE` | the archive's checksum, nothing else |
 | `/patches` (0.26g) | GET | the list of `resources.db`'s patches the server's game data was made of (name, SHA-256, address), built in memory at start-up (`srp::v026g::offered_patches`) | no file; exact path match; the patch files themselves are served by another host |
 | `/api/stats` (0.26g) | GET | counts from the store and the registry | no file |
-| `/launcher…`, `/launcher/places/<lang>`, `/launcher/fresh/<lang>` (0.26g) | GET | the board and counts; the skin is compiled in (`include_bytes!`) | no file; the language is read from the path, nothing else |
+| `/launcher…`, `/launcher/places/<lang>` (0.26g) | GET | the board and counts; the skin is compiled in (`include_bytes!`) | no file; the language is read from the path, nothing else |
 | `/`, `/exchange` | GET | the store's counts (`/exchange` only says the exchange is in the game now) | pages; no file |
 | `/<SRP_ADMIN_PATH>` | GET, POST | accounts, bans, maintenance (with `SRP_ADMIN_TOKEN`, from `SRP_ADMIN_IPS` only) | no file; any other address gets the plain "not found" |
 | anything else | any | nothing | "not found" page |
@@ -91,7 +90,7 @@ It holds what every player of the match was sent (`sur_convert`'s chunks): chunk
 
 ## 8. Settings
 
-`SRP_REPLAY_DIR`, `SRP_GAME_MODES_DIR` (both needed, with `SRP_RECORD_DIR`; else `off`), `SRP_REPLAY_MAX_RECORDING_MB` (24), `SRP_REPLAY_MAX_MB` (1000: the replays' `.sur` and `.json` files together, outside `SRP_RECORD_MAX_MB`; the oldest go first). The compose file sets `SRP_REPLAY_DIR=/srv/srp/data/replays` and leaves `SRP_GAME_MODES_DIR` empty: replays are off until the operator copies the 79 `.options` files into the data volume and names that folder. The mode files are game data and are never put in the repository.
+`SRP_REPLAY_DIR` (needed, with `SRP_RECORD_DIR`; else `off`), `SRP_REPLAY_MAX_RECORDING_MB` (24), `SRP_REPLAY_MAX_MB` (1000: the replays' `.sur` and `.json` files together, outside `SRP_RECORD_MAX_MB`; the oldest go first). The compose file sets `SRP_REPLAY_DIR=/srv/srp/data/replays`. The mode files are the game data's (`SRP_GAME_DATA`): until 2026-11-10 they were a folder copied by hand (`SRP_GAME_MODES_DIR`), which no release refilled, so no map or mode added after it (Research, Blackout, the 0.21, 0.11 and 0.69 maps) could be converted.
 
 ## 9. Not proven
 

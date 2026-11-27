@@ -1,0 +1,13 @@
+# Patch 217: an additional model whose entry has `camo_available: true`
+# takes its item's camouflage: its record gets the item's camouflage layer,
+# the bake flag and a bake name of its own, so bake_decals bakes its surface
+# too (the exoskeleton bodies' legs, docs/notes/exo-suits.md, Camouflage).
+# Only the decisions: which site, and the handler. The site is
+# sites_026g.tsv's; the logic is additional_camo.rs and vostok/skin_cook.rs.
+name = "additional_camo"
+patch = 217
+
+# profile_skin_visual_cook::on_configs_loaded at the end of a kit slot.
+[[hook]]
+site = "skin_cook.item_done"
+handler = "on_item_done"

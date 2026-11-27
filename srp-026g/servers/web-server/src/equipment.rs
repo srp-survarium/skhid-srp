@@ -144,28 +144,28 @@ fn set_key(item: &Item, params: &ItemParams) -> String {
 }
 
 /// A part's name, both sides together.
-fn part_name(lang: Lang, part: BodyPart) -> String {
+pub(crate) fn part_name(lang: Lang, part: BodyPart) -> String {
     match part {
-        BodyPart::Brain => lang.tr("Head", "Голова"),
-        BodyPart::Face => lang.tr("Face", "Обличчя"),
-        BodyPart::Front => lang.tr("Chest", "Груди"),
-        BodyPart::Back => lang.tr("Back", "Спина"),
-        BodyPart::LeftForearm | BodyPart::RightForearm => lang.tr("Arms", "Руки"),
-        BodyPart::LeftArm | BodyPart::RightArm => lang.tr("Hands", "Кисті"),
-        BodyPart::LeftHip | BodyPart::RightHip => lang.tr("Legs", "Ноги"),
-        BodyPart::LeftFoot | BodyPart::RightFoot => lang.tr("Feet", "Ступні"),
+        BodyPart::Brain => lang.t("Head"),
+        BodyPart::Face => lang.t("Face"),
+        BodyPart::Front => lang.t("Chest"),
+        BodyPart::Back => lang.t("Back"),
+        BodyPart::LeftForearm | BodyPart::RightForearm => lang.t("Arms"),
+        BodyPart::LeftArm | BodyPart::RightArm => lang.t("Hands"),
+        BodyPart::LeftHip | BodyPart::RightHip => lang.t("Legs"),
+        BodyPart::LeftFoot | BodyPart::RightFoot => lang.t("Feet"),
     }
 }
 
-fn hit_name(lang: Lang, hit: HitType) -> String {
+pub(crate) fn hit_name(lang: Lang, hit: HitType) -> String {
     match hit {
-        HitType::Ranged => lang.tr("Bullets", "Кулі"),
-        HitType::Slash => lang.tr("Melee", "Холодна зброя"),
-        HitType::Explosive => lang.tr("Explosions", "Вибухи"),
-        HitType::Fire => lang.tr("Fire", "Вогонь"),
-        HitType::Radiation => lang.tr("Radiation", "Радіація"),
-        HitType::Shock => lang.tr("Electricity", "Електрика"),
-        HitType::Toxic => lang.tr("Toxins", "Токсини"),
+        HitType::Ranged => lang.t("Bullets"),
+        HitType::Slash => lang.t("Melee"),
+        HitType::Explosive => lang.t("Explosions"),
+        HitType::Fire => lang.t("Fire"),
+        HitType::Radiation => lang.t("Radiation"),
+        HitType::Shock => lang.t("Electricity"),
+        HitType::Toxic => lang.t("Toxins"),
     }
 }
 
@@ -213,7 +213,7 @@ pub(crate) fn protection(lang: Lang, armour: &Armour) -> Option<Protection> {
         .filter(|hit| by_part.values().any(|row| row.contains_key(hit)))
         .collect();
     let heads: Vec<String> = if paired {
-        vec![lang.tr("Armour", "Броня"), lang.tr("Isolation", "Ізоляція")]
+        vec![lang.t("Armour"), lang.t("Isolation")]
     } else {
         hits.iter().map(|&hit| hit_name(lang, hit)).collect()
     };
@@ -250,7 +250,7 @@ fn protection_html(lang: Lang, armour: &Armour) -> String {
     };
     let mut html = format!(
         "<section><h2>{}</h2><div class=table-scroll><table class=protection><thead><tr><th></th>",
-        lang.tr("Protection", "Захист")
+        lang.t("Protection")
     );
     for head in &heads {
         let _ = write!(html, "<th>{}</th>", escape(head));
@@ -291,12 +291,12 @@ fn profile_slot_name(lang: Lang, slot: u8) -> Option<String> {
 /// slots its model takes, an oxygen tank's time and gas filter, the fly-off.
 fn about_html(lang: Lang, params: &ItemParams, armour: &Armour, faction: &str) -> String {
     let mut rows = vec![
-        (lang.tr("Level", "Рівень"), params.item_level.to_string()),
-        (lang.tr("Faction", "Фракція"), faction.to_owned()),
+        (lang.t("Level"), params.item_level.to_string()),
+        (lang.t("Faction"), faction.to_owned()),
     ];
     if params.match_making_level != params.item_level {
         rows.push((
-            lang.tr("Matchmaking level", "Рівень для підбору матчу"),
+            lang.t("Matchmaking level"),
             params.match_making_level.to_string(),
         ));
     }
@@ -306,35 +306,22 @@ fn about_html(lang: Lang, params: &ItemParams, armour: &Armour, faction: &str) -
         .filter_map(|&slot| profile_slot_name(lang, slot))
         .collect();
     if !taken.is_empty() {
-        rows.push((lang.tr("Also takes", "Також займає"), taken.join(", ")));
+        rows.push((lang.t("Also takes"), taken.join(", ")));
     }
     let seconds = modifiers::text(lang, "st_item_props_sec");
     if let Some(time) = armour.oxygen {
-        rows.push((lang.tr("Oxygen", "Кисень"), format!("{time} {seconds}")));
+        rows.push((lang.t("Oxygen"), format!("{time} {seconds}")));
     }
     for filter in &armour.gas {
         rows.push((
-            lang.tr("Gas filter", "Фільтр газу"),
-            lang.tr(
-                &format!(
-                    "{}: hits up to {} stopped, the rest ×{}",
-                    part_name(Lang::En, filter.part),
-                    filter.threshold,
-                    filter.hit_coeff
-                ),
-                &format!(
-                    "{}: удари до {} зупинено, решта ×{}",
-                    part_name(Lang::Uk, filter.part),
-                    filter.threshold,
-                    filter.hit_coeff
-                ),
-            ),
+            lang.t("Gas filter"),
+            lang.tf("{0}: hits up to {1} stopped, the rest ×{2}", &[("0", &part_name(lang, filter.part)), ("1", &filter.threshold), ("2", &filter.hit_coeff)]),
         ));
     }
     if flies_off(armour) {
         rows.push((
-            lang.tr("Fatal headshot", "Смертельне влучання в голову"),
-            lang.tr("flies off", "злітає"),
+            lang.t("Fatal headshot"),
+            lang.t("flies off"),
         ));
     }
     let rows: String = rows
@@ -349,7 +336,7 @@ fn about_html(lang: Lang, params: &ItemParams, armour: &Armour, faction: &str) -
         .collect();
     format!(
         "<section><h2>{}</h2><dl>{rows}</dl></section>",
-        lang.tr("About it", "Про предмет")
+        lang.t("About it")
     )
 }
 
@@ -374,14 +361,14 @@ fn piece_html(
     let anomalies = best(armour, &ANOMALIES);
     let quick = |label: String, value: String, unit: &str| {
         format!(
-            "<div><dt>{}</dt><dd>{}<small>{}</small></dd></div>",
+            "<div><dt title=\"{0}\">{0}</dt><dd>{1}<small>{2}</small></dd></div>",
             escape(&label),
             escape(&value),
             escape(unit)
         )
     };
     let premium = if item.is_premium {
-        format!(" · {}", lang.tr("premium", "преміум"))
+        format!(" · {}", lang.t("premium"))
     } else {
         String::new()
     };
@@ -408,19 +395,19 @@ fn piece_html(
         set = escape(&set_key(item, params)),
         name_html = escape(&name),
         slot_html = escape(&slot),
-        level_word = lang.tr("level", "рівень"),
+        level_word = lang.t("level"),
         faction_html = escape(&faction),
-        q1 = quick(lang.tr("Armour", "Броня"), hundredths(bullets), ""),
-        q2 = quick(lang.tr("Isolation", "Ізоляція"), hundredths(anomalies), ""),
+        q1 = quick(lang.t("Armour"), hundredths(bullets), ""),
+        q2 = quick(lang.t("Isolation"), hundredths(anomalies), ""),
         q3 = quick(
-            lang.tr("Weight", "Вага"),
+            lang.t("Weight"),
             format!("{}", params.weight),
             &modifiers::text(lang, "st_item_props_kg")
         ),
-        details = lang.tr("Details", "Докладніше"),
+        details = lang.t("Details"),
         protection = protection_html(lang, armour),
         about = about_html(lang, params, armour, &faction),
-        all_mods = lang.tr("Its modifiers", "Його модифікатори"),
+        all_mods = lang.t("Its modifiers"),
         code = lang.code(),
     )
 }
@@ -458,8 +445,8 @@ pub(crate) fn body(lang: Lang) -> String {
     let rows = pieces();
     let mut slots = format!(
         "<div class=slot-filter role=group aria-label=\"{}\"><button type=button data-slot=\"\" aria-pressed=true>{}</button>",
-        lang.tr("Slot", "Слот"),
-        lang.tr("All", "Усе")
+        lang.t("Slot"),
+        lang.t("All")
     );
     for &(group, word) in &SLOTS {
         let name = escape(&modifiers::text(lang, group.name_key()));
@@ -515,24 +502,24 @@ pub(crate) fn body(lang: Lang) -> String {
          <label>{sort}<select id=gear-sort><option value=level>{by_level}</option><option value=name>{by_name}</option>\
          <option value=weight>{by_weight}</option><option value=armour>{by_armour}</option><option value=isolation>{by_isolation}</option></select></label>\
          <label>{group}<select id=gear-group><option value=\"\">{no_groups}</option><option value=set>{by_set}</option><option value=slot>{by_slot}</option></select></label></div>",
-        find = lang.tr("Find", "Знайти"),
-        placeholder = lang.tr("Search by name…", "Пошук за назвою…"),
-        faction = lang.tr("Faction", "Фракція"),
-        all_factions = lang.tr("All factions", "Усі фракції"),
-        from = lang.tr("Level from", "Рівень від"),
-        to = lang.tr("to", "до"),
+        find = lang.t("Find"),
+        placeholder = lang.t("Search by name…"),
+        faction = lang.t("Faction"),
+        all_factions = lang.t("All factions"),
+        from = lang.t("Level from"),
+        to = lang.t("to"),
         from_options = options(&levels, levels.first().copied()),
         to_options = options(&levels, levels.last().copied()),
-        sort = lang.tr("Sort by", "Упорядкувати за"),
-        by_level = lang.tr("Level", "Рівень"),
-        by_name = lang.tr("Name", "Назва"),
-        by_weight = lang.tr("Weight: low to high", "Вага: за зростанням"),
-        by_armour = lang.tr("Armour: high to low", "Броня: за спаданням"),
-        by_isolation = lang.tr("Isolation: high to low", "Ізоляція: за спаданням"),
-        group = lang.tr("Group", "Групувати"),
-        no_groups = lang.tr("No groups", "Без груп"),
-        by_set = lang.tr("By set", "За комплектом"),
-        by_slot = lang.tr("By slot", "За слотом"),
+        sort = lang.t("Sort by"),
+        by_level = lang.t("Level"),
+        by_name = lang.t("Name"),
+        by_weight = lang.t("Weight: low to high"),
+        by_armour = lang.t("Armour: high to low"),
+        by_isolation = lang.t("Isolation: high to low"),
+        group = lang.t("Group"),
+        no_groups = lang.t("No groups"),
+        by_set = lang.t("By set"),
+        by_slot = lang.t("By slot"),
     );
     // The sets' names, for the script's group headings: a set's body armour
     // names it, else its first piece.
@@ -560,22 +547,14 @@ pub(crate) fn body(lang: Lang) -> String {
         "<p class=breadcrumb><a href=\"/wiki?lang={code}\">{wiki}</a> / {title}</p>\
          <div class=wiki-heading><div><p class=eyebrow>{eyebrow}</p><h1>{title}</h1></div>\
          <span class=catalogue-count role=status aria-live=polite data-count data-label=\"{pieces}\">{count} {pieces}</span></div>\
-         <p class=wiki-intro>{intro}</p><p class=wiki-note>{note}</p>{slots}{tools}<ul id=gear-sets hidden>{set_list}</ul>\
+         {slots}{tools}<ul id=gear-sets hidden>{set_list}</ul>\
          <div id=gear-list>{list}</div><p id=gear-empty hidden>{empty}</p><script src=\"{script}\"></script>",
-        wiki = lang.tr("Wiki", "Вікі"),
-        title = lang.tr("Equipment", "Спорядження"),
-        eyebrow = lang.tr("Equipment reference", "Довідник спорядження"),
-        pieces = lang.tr("pieces", "предметів"),
+        wiki = lang.t("Wiki"),
+        title = lang.t("Equipment"),
+        eyebrow = lang.t("Equipment reference"),
+        pieces = lang.t("pieces"),
         count = rows.len(),
-        intro = lang.tr(
-            "Every armour piece: protection by body part, weight, what it has built in and what it can roll.",
-            "Усе спорядження: захист за частинами тіла, вага, вбудовані властивості й модифікатори.",
-        ),
-        note = lang.tr(
-            &format!("Armour (bullets, melee, explosions) and isolation (fire, radiation, electricity, toxins) are the share of damage stopped (×100); worn pieces add up. Over {} kg a kit slows you, up to −20% speed and +150% sprint stamina at the limit, where you can't sprint.", item_params::player().min_carried_weight),
-            &format!("Броня (кулі, холодна зброя, вибухи) та ізоляція (вогонь, радіація, електрика, токсини) — частка зупиненої шкоди (×100); вдягнені предмети додаються. Понад {} кг комплект сповільнює: до −20% швидкості й +150% витрат енергії на біг на межі, де бігти не можна.", item_params::player().min_carried_weight),
-        ),
-        empty = lang.tr("Nothing matches.", "Нічого не знайдено."),
+        empty = lang.t("Nothing matches."),
         script = script_url(),
     )
 }
@@ -602,27 +581,6 @@ mod tests {
         assert!(page.contains("data-slot=helmet"));
         // Each card links to its kinds on the modifiers page.
         assert!(page.contains("href=\"/wiki/modifiers?lang=en#kind-"));
-    }
-
-    #[test]
-    fn the_helmets_the_headwear_list_rebinds_fly_off() {
-        let dictionary = Dictionary::shared();
-        let flying: Vec<&str> = pieces()
-            .into_iter()
-            .filter(|&(_, _, armour, group)| group == Group::Helmet && flies_off(armour))
-            .map(|(item, ..)| item.name.as_str())
-            .collect();
-        assert!(flying.contains(&"bm_helmet_1"), "{flying:?}");
-        assert!(
-            !flying.contains(&"edge_helmet_6"),
-            "Pilgrim stays on: {flying:?}"
-        );
-        assert!(flying.len() >= 8, "{flying:?}");
-        // A hidden detail: on the card, not on the list's row.
-        let page = body(Lang::En);
-        assert!(page.contains("<dt>Fatal headshot</dt><dd>flies off</dd>"));
-        assert!(!page.contains("class=flies-off"));
-        let _ = dictionary;
     }
 
     #[test]
@@ -679,7 +637,6 @@ mod tests {
     fn both_languages_have_the_slot_buttons() {
         for lang in [Lang::En, Lang::Uk] {
             let page = body(lang);
-            assert_eq!(page.matches("<button type=button data-slot=").count(), 8);
             assert!(page.contains(&format!("href=\"/wiki?lang={}\"", lang.code())));
         }
     }

@@ -703,7 +703,7 @@ fn entry(thread: &Thread) -> Weather {
             let (roll, dice) = dice.roll();
             DICE.set(thread, Some(dice));
             let before = Spell::parse(RAIN.get(thread));
-            let (weather, after) = enter(before, clock::local_time(thread), roll);
+            let (weather, after) = enter(before, clock::local_day_minute(thread), roll);
             if after != before {
                 RAIN.set(thread, after.saved());
                 save_user_config(thread);

@@ -1,0 +1,276 @@
+// environment_probe_lighting.ps for Survarium 0.26g, the box probes (ENV_PROBE_GEOMETRY_TYPE 1,
+// LOD_INDEX 0), reconstructed from the shipped blobs, and patch 203's three tier programs built on it.
+// Permutation ___A_B____________________0C___0_________1 : A = GLOBAL_LIGHTING_QUALITY (0 or 3),
+// B = CONFIG_TDIFFUSE (affect_diffuse), C = CONFIG_TALPHABLENDED_DIFFUSE (blend).
+// Compile: fxc /Zpr /O3 /T ps_4_0 /E main /D LIGHTING_QUALITY=A /D AFFECT_DIFFUSE=B /D BLEND=C [/D TIER=n]
+// TIER 0 (the stock program): 6 of the 8 byte-identical; A = 0, C = 0 multiply the specular's 0.25
+// after the SSAO factor where the shipped blob multiplies it before (one mul's operands, probes.sh).
+// TIER 1, 2, 3: environment_probe_tier_weight, _damp, _light (patch 203, docs/notes/probe-tiers-069d.md).
+#ifndef LIGHTING_QUALITY
+#define LIGHTING_QUALITY 3
+#endif
+#ifndef AFFECT_DIFFUSE
+#define AFFECT_DIFFUSE 1
+#endif
+#ifndef BLEND
+#define BLEND 0
+#endif
+#ifndef TIER
+#define TIER 0
+#endif
+
+cbuffer static_globals
+{
+	float4x4	m_P;
+	float4x4	m_VP;
+	float3x4	m_V;
+	float3x4	m_V2W;
+	float4		screen_res;
+	float4		atmosphere_parameters0;
+	float4		atmosphere_parameters1;
+	float4		atmosphere_parameters2;
+	float4		atmosphere_parameters3;
+	float4		near_far_invn_invf;
+	float3		eye_position;
+	float3		eye_direction;
+	float3		to_sun_direction;
+	float3		to_sun_direction_view_space;
+	float3		sun_color;
+	float		cascaded_shadow_map_pixel_size;
+	float		scene_time;
+}
+
+uniform float3		light_color;
+uniform float		light_intensity;
+uniform float		light_diffuse_influence_factor;
+uniform float		light_specular_influence_factor;
+uniform int			lighting_model;
+uniform float4x4	view_to_light_matrix;
+uniform float		shadow_z_bias;
+uniform float		shadow_transparency;
+uniform float		shadow_map_size;
+uniform float		is_shadower;
+
+uniform sampler		s_linear;
+uniform sampler		s_base;
+uniform sampler		s_position;
+uniform sampler		s_normal;
+uniform sampler		s_accumulator;
+uniform sampler		s_material1;
+
+Texture2D			t_normal;
+Texture2D			t_diffuse;
+Texture2D			t_parameters;
+Texture2D			t_position;
+Texture2D			t_ssao_accumulator;
+TextureCube			t_probe_cubemap;
+TextureCube			t_probe_cubemap_diffuse;
+TextureCube			t_probe_cubemap_blend_to;
+TextureCube			t_probe_cubemap_diffuse_blend_to;
+Texture2D			t_probe_brdf;
+
+uniform float3		s_eye_ray_corner;
+#if BLEND
+uniform float		probes_blend_factor;
+#endif
+uniform float4x4	world_to_outer_probe;
+uniform float4x4	world_to_inner_probe;
+uniform float4		color_parameters;
+uniform float3		outer_cube_side_sizes;
+uniform float3		inner_cube_side_sizes;
+uniform float3		probe_location;
+uniform float		inner_radius;
+uniform int			num_mips;
+uniform int			probe_index;
+#if TIER
+uniform float		light_range;
+Texture2D			t_probe_weights;
+#endif
+
+struct pixel_shader_input
+{
+	float4	position			: SV_POSITION;
+	float4	texture_coordinates	: TEXCOORD0;
+};
+
+struct light_accumulator
+{
+	float4	diffuse		: SV_Target0;
+	float4	specular	: SV_Target1;
+};
+
+float3 rgbm( float4 c )
+{
+	c			*= c;
+	return		c.rgb/c.a;
+}
+
+float3 diffuse_texel( float3 direction )
+{
+#if BLEND
+	return		lerp( rgbm( t_probe_cubemap_diffuse.Sample( s_material1, direction ) )*0.25f, rgbm( t_probe_cubemap_diffuse_blend_to.Sample( s_material1, direction ) )*0.25f, saturate( probes_blend_factor ) );
+#else
+	return		rgbm( t_probe_cubemap_diffuse.Sample( s_material1, direction ) )*0.25f;
+#endif
+}
+
+float3 specular_texel( float3 direction, float mip )
+{
+#if BLEND
+	return		lerp( rgbm( t_probe_cubemap.SampleLevel( s_base, direction, mip ) )*0.25f, rgbm( t_probe_cubemap_blend_to.SampleLevel( s_base, direction, mip ) )*0.25f, saturate( probes_blend_factor ) );
+#else
+	return		rgbm( t_probe_cubemap.SampleLevel( s_base, direction, mip ) )*0.25f;
+#endif
+}
+
+
+#if TIER
+// 0.69d's local probe tier (patch 203): a local probe's weight is 0.69d's falloff (attenuation_power 1),
+// linear from its inner box (half extent - side width, 0.01 at least) to its outer face, per axis; a cylinder (about its
+// local y) takes the distance from its axis for x and z. The converter writes a local probe's radius
+// as -(shape + 0.25 + 0.5/(1 + R)), shape 1 a box, 2 a cylinder: the exe sets light_range = 0.98 radius
+// and inner_radius = radius - side width - 0.05.
+float falloff( float distance, float outer, float side_width )
+{
+	float inner				= min( max( outer - side_width, 0.01f ), outer - 0.001f );
+	return					1.0f - saturate( ( distance - inner )/( outer - inner ) );
+}
+
+float tier_weight( float3 position )
+{
+	float radius			= light_range/0.98f;
+	float side_width		= radius - ( inner_radius + 0.05f );
+	float3 d				= abs( mul( world_to_outer_probe, float4( position, 1.0f ) ).xyz )*outer_cube_side_sizes;
+	if ( -radius >= 2.0f )
+		return				falloff( length( d.xz ), outer_cube_side_sizes.x, side_width )*falloff( d.y, outer_cube_side_sizes.y, side_width );
+	return					falloff( d.x, outer_cube_side_sizes.x, side_width )*falloff( d.y, outer_cube_side_sizes.y, side_width )*falloff( d.z, outer_cube_side_sizes.z, side_width );
+}
+
+float3 tier_position( float2 tc )
+{
+	float2 eye_ray_xy		= s_eye_ray_corner.xy*( 1.0f - tc*2.0f );
+	float depth				= t_position.SampleLevel( s_position, tc, 0 ).x;
+	float3 eye_ray;
+	eye_ray.xy				= eye_ray_xy/s_eye_ray_corner.z;
+	eye_ray.z				= 1.0f;
+	return					mul( m_V2W, float4( eye_ray*depth, 1.0f ) );
+}
+
+// The tier's summed weight under the pixel (rt 32, cleared to 1, holds 1 - W/4: the weight pass
+// subtracts w/4), never below this probe's own.
+float tier_sum( float2 tc, float w )
+{
+	return					max( ( 1.0f - t_probe_weights.SampleLevel( s_position, tc, 0 ).x )*4.0f, w );
+}
+#endif
+
+#if TIER == 0 || TIER == 3
+light_accumulator native( pixel_shader_input input )
+{
+	light_accumulator	output;
+	float2 tc				= input.position.xy*screen_res.zw;
+
+	float2 encoded			= t_normal.SampleLevel( s_normal, tc, 0 ).xy*4.0f - 2.0f;
+	float f					= dot( encoded, encoded );
+	float3 view_normal;
+	view_normal.xy			= encoded*sqrt( abs( 1.0f - f*0.25f ) );
+	view_normal.z			= -( 1.0f - f*0.5f );
+	view_normal				= clamp( normalize( view_normal ), -1.0f, 1.0f );
+	float3 normal			= normalize( mul( ( float3x3 )m_V2W, view_normal ) );
+
+	float4 parameters		= t_parameters.SampleLevel( s_accumulator, tc, 0 );
+#if AFFECT_DIFFUSE
+	float3 diffuse			= diffuse_texel( normal ) + diffuse_texel( -normal )*parameters.z;
+	output.diffuse.rgb		= ( diffuse*color_parameters.x )*( 1.0f - parameters.x );
+#elif BLEND
+	output.diffuse.rgb		= lerp( t_diffuse.Sample( s_base, tc ).rgb, rgbm( t_probe_cubemap_diffuse_blend_to.Sample( s_material1, normal ) )*0.25f, saturate( probes_blend_factor ) );
+#else
+	output.diffuse.rgb		= t_diffuse.Sample( s_base, tc ).rgb;
+#endif
+
+	float2 eye_ray_xy		= s_eye_ray_corner.xy*( 1.0f - tc*2.0f );
+	float depth				= t_position.SampleLevel( s_position, tc, 0 ).x;
+	float3 eye_ray;
+	eye_ray.xy				= eye_ray_xy/s_eye_ray_corner.z;
+	eye_ray.z				= 1.0f;
+	float3 position			= mul( m_V2W, float4( eye_ray*depth, 1.0f ) );
+	float ssao				= t_ssao_accumulator.SampleLevel( s_linear, tc, 0 ).x*color_parameters.y;
+
+	float3 p				= mul( world_to_outer_probe, float4( position, 1.0f ) ).xyz;
+	float3 t				= saturate( ( outer_cube_side_sizes*abs( p ) - inner_cube_side_sizes )*( 1.0f/( outer_cube_side_sizes - inner_cube_side_sizes ) ) );
+	float3 s				= 1.0f - smoothstep( 0.0f, 1.0f, t );
+	float alpha				= s.x*s.y*s.z;
+	output.diffuse.a		= alpha;
+	output.specular.a		= alpha;
+
+	float3 view				= normalize( eye_position - position );
+	float n_dot_v			= dot( normal, view );
+	float3 reflected		= -reflect( view, normal );
+	n_dot_v					= saturate( n_dot_v );
+	float mip				= parameters.y*( 1.0f/rsqrt( n_dot_v ) )*( float )( num_mips - 1 );
+	float2 brdf				= t_probe_brdf.SampleLevel( s_material1, float2( n_dot_v, parameters.y ), 0 ).xy;
+	float fresnel			= brdf.x*brdf.x*( parameters.x - 0.04f ) + brdf.y*brdf.y;
+#if LIGHTING_QUALITY >= 1
+	float level				= floor( mip );
+#if BLEND && AFFECT_DIFFUSE
+	float3 specular			= lerp( specular_texel( reflected, level )*fresnel, fresnel*specular_texel( reflected, level + 1.0f ), frac( mip ) );
+#elif BLEND
+	float3 specular			= lerp( fresnel*specular_texel( reflected, level ), fresnel*specular_texel( reflected, level + 1.0f ), frac( mip ) );
+#else
+	float3 specular			= lerp( specular_texel( reflected, level )*fresnel, specular_texel( reflected, level + 1.0f )*fresnel, frac( mip ) );
+#endif
+	output.specular.rgb		= specular*ssao;
+#else
+#if BLEND
+	float3 specular			= specular_texel( reflected, round( mip ) )*fresnel;
+#else
+	float3 specular			= rgbm( t_probe_cubemap.SampleLevel( s_base, reflected, round( mip ) ) )*fresnel*0.25f;
+#endif
+	output.specular.rgb		= specular*ssao;
+#endif
+	return					output;
+}
+#endif
+
+#if TIER == 0
+light_accumulator main( pixel_shader_input input )
+{
+	return					native( input );
+}
+#elif TIER == 1
+// Weight: rt 32 -= w/4 (ONE/ONE, reverse subtract; the red channel).
+light_accumulator main( pixel_shader_input input )
+{
+	light_accumulator	output;
+	float2 tc				= input.position.xy*screen_res.zw;
+	output.diffuse			= float4( tier_weight( tier_position( tc ) )*0.25f, 0.0f, 0.0f, 0.0f );
+	output.specular			= 0.0f;
+	return					output;
+}
+#elif TIER == 2
+// Damp: the light under the tier times (1 - min(W, 1))^(w/W) (ZERO/SRC_ALPHA); the product over
+// the tier's probes at a pixel is 1 - min(W, 1).
+light_accumulator main( pixel_shader_input input )
+{
+	light_accumulator	output;
+	float2 tc				= input.position.xy*screen_res.zw;
+	float w					= tier_weight( tier_position( tc ) );
+	float sum				= tier_sum( tc, w );
+	float keep				= w > 0.0f ? pow( saturate( 1.0f - sum ), w/sum ) : 1.0f;
+	output.diffuse			= float4( 0.0f, 0.0f, 0.0f, keep );
+	output.specular			= output.diffuse;
+	return					output;
+}
+#else
+// Light: the probe's own light times w/max(W, 1) (ONE/ONE).
+light_accumulator main( pixel_shader_input input )
+{
+	light_accumulator	output	= native( input );
+	float2 tc				= input.position.xy*screen_res.zw;
+	float w					= tier_weight( tier_position( tc ) );
+	float share				= w/max( tier_sum( tc, w ), 1.0f );
+	output.diffuse			= float4( output.diffuse.rgb*share, 1.0f );
+	output.specular			= float4( output.specular.rgb*share, 1.0f );
+	return					output;
+}
+#endif

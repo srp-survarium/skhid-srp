@@ -8,6 +8,7 @@
 static HMODULE bugtrap;
 static HWND report;
 static LONG browserCalls;
+static LONG folderCalls;
 static bool browserFailure;
 static bool clicked;
 static bool sawBrowserError;
@@ -37,7 +38,7 @@ static void Fits(HWND control, int id, bool wrap)
               DT_CALCRECT | DT_NOPREFIX | (wrap ? DT_WORDBREAK : DT_SINGLELINE));
     SelectObject(dc, old);
     ReleaseDC(control, dc);
-    int padding = id == 1013 || id == IDCANCEL ? 8 : 0;
+    int padding = id == 1013 || id == 1043 || id == IDCANCEL ? 8 : 0;
     if (measured.right > bounds.right - padding || measured.bottom > bounds.bottom) {
         fprintf(stderr, "clipped control %d: needs %ldx%ld, has %ldx%ld\n", id,
                 measured.right, measured.bottom, bounds.right, bounds.bottom);
@@ -45,12 +46,54 @@ static void Fits(HWND control, int id, bool wrap)
     }
 }
 
+// The footer's buttons, left to right, on one row, apart and inside the dialog.
+static void Footer(HWND window)
+{
+    int ids[] = {1013, 1043, 1041, IDCANCEL};
+    RECT client, last = {0};
+    GetClientRect(window, &client);
+    for (int i = 0; i < 4; ++i) {
+        HWND control = GetDlgItem(window, ids[i]);
+        if (!control || !IsWindowVisible(control)) continue;
+        RECT r;
+        GetWindowRect(control, &r);
+        MapWindowPoints(NULL, window, (POINT*)&r, 2);
+        if (r.left <= last.right || r.right >= client.right || (last.bottom && r.top != last.top)) {
+            fprintf(stderr, "footer button %d at %ld..%ld overlaps or leaves the row\n", ids[i], r.left, r.right);
+            ExitProcess(83);
+        }
+        last = r;
+    }
+}
+
+static void PrintShell(const char* kind, LPCWSTR text)
+{
+    char utf8[8192];
+    WideCharToMultiByte(CP_UTF8, 0, text, -1, utf8, sizeof(utf8), NULL, NULL);
+    printf("SHELL %s %s\n", kind, utf8);
+}
+
+// Discord's invite in the browser, or Open folder: Explorer with the file
+// selected and, when that fails (browser-failure), the folder alone.
 static HINSTANCE WINAPI Browser(HWND, LPCWSTR verb, LPCWSTR url, LPCWSTR args, LPCWSTR dir, INT)
 {
-    if (wcscmp(verb, L"open") || wcscmp(url, L"https://discord.gg/Pxa4prXfwu") || args || dir)
-        ExitProcess(72);
-    InterlockedIncrement(&browserCalls);
-    return (HINSTANCE)(browserFailure ? 31 : 33);
+    size_t n = wcslen(url);
+    if (wcscmp(verb, L"open") || dir) ExitProcess(72);
+    if (!args && !wcscmp(url, L"https://discord.gg/QUmJg3gBhg")) {
+        InterlockedIncrement(&browserCalls);
+        return (HINSTANCE)(browserFailure ? 31 : 33);
+    }
+    if (args && n > 13 && !_wcsicmp(url + n - 13, L"\\explorer.exe") && !wcsncmp(args, L"/select,\"", 9)) {
+        InterlockedIncrement(&folderCalls);
+        PrintShell("select", args);
+        return (HINSTANCE)(browserFailure ? 2 : 33);
+    }
+    if (!args && n && url[n - 1] == '\\') {
+        InterlockedIncrement(&folderCalls);
+        PrintShell("folder", url);
+        return (HINSTANCE)33;
+    }
+    ExitProcess(72);
 }
 static BOOL WINAPI RefuseMove(LPCWSTR, LPCWSTR, DWORD)
 { SetLastError(ERROR_ACCESS_DENIED); return FALSE; }
@@ -173,20 +216,27 @@ static BOOL CALLBACK Inspect(HWND window, LPARAM)
         // Wait until WM_INITDIALOG has populated the file/status fields.
         if (!GetWindowTextLengthW(GetDlgItem(window, 1031))) return TRUE;
         PrintText(0, window);
-        int ids[] = {1030, 1031, 1034, 1035, 1036, 1037, 1038, 1040, 1042, 1013, 1041, IDCANCEL};
-        for (int i = 0; i < 12; ++i) {
+        int ids[] = {1030, 1031, 1034, 1035, 1036, 1037, 1038, 1040, 1042, 1013, 1043, 1041, IDCANCEL};
+        for (int i = 0; i < 13; ++i) {
             HWND control = GetDlgItem(window, ids[i]);
             if (!IsWindowVisible(control)) continue;
             PrintText(ids[i], control);
             if (ids[i] != 1034 && ids[i] != 1035)
                 Fits(control, ids[i], ids[i] == 1030 || ids[i] == 1031 || ids[i] == 1036 || ids[i] == 1040 || ids[i] == 1042);
         }
+        Footer(window);
         Screenshot(window);
         // Copy: the details reach the clipboard and the button says so.
         SendMessage(window, WM_COMMAND, 1041, 0);
         PrintClipboard();
         PrintText(-2, GetDlgItem(window, 1041));
         if (browserCalls) ExitProcess(76);
+        // Open folder: Explorer, only on its click (the shell call is hooked).
+        if (folderCalls) ExitProcess(81);
+        if (IsWindowVisible(GetDlgItem(window, 1043))) {
+            SendMessage(window, WM_COMMAND, 1043, 0);
+            if (!folderCalls || browserCalls) ExitProcess(82);
+        }
         clicked = true;
         PostMessage(window, WM_COMMAND, 1013, 0);
     } else if (browserCalls == 1 && (!browserFailure || (sawBrowserError && IsWindowEnabled(window)))) {
@@ -196,6 +246,17 @@ static BOOL CALLBACK Inspect(HWND window, LPARAM)
         return FALSE;
     }
     return TRUE;
+}
+// "full-no-report": the dump is written, its text report (a new .txt) is not.
+static HANDLE WINAPI RefuseReport(LPCWSTR name, DWORD access, DWORD share, LPSECURITY_ATTRIBUTES security,
+                                  DWORD disposition, DWORD flags, HANDLE source)
+{
+    size_t n = wcslen(name);
+    if (disposition == CREATE_NEW && n > 4 && !_wcsicmp(name + n - 4, L".txt")) {
+        SetLastError(ERROR_ACCESS_DENIED);
+        return INVALID_HANDLE_VALUE;
+    }
+    return CreateFileW(name, access, share, security, disposition, flags, source);
 }
 static DWORD WINAPI InspectUI(PVOID)
 {
@@ -219,7 +280,9 @@ int main(int argc, char** argv)
     dialogFailure = !strcmp(argv[1], "dialog-failure");
     if (dialogFailure) ReplaceImport("DialogBoxIndirectParamW", (void*)RefuseDialog);
     if (!strcmp(argv[1], "raw")) ReplaceImport("MoveFileExW", (void*)RefuseMove);
-    if (!strcmp(argv[1], "partial")) ReplaceImport("FlushFileBuffers", (void*)RefuseFlush);
+    if (!strcmp(argv[1], "partial") || !strcmp(argv[1], "full-partial"))
+        ReplaceImport("FlushFileBuffers", (void*)RefuseFlush);
+    if (!strcmp(argv[1], "full-no-report")) ReplaceImport("CreateFileW", (void*)RefuseReport);
     if (!strcmp(argv[1], "failure")) ReplaceImport("CreateFileW", (void*)RefuseCreate);
     if (!strcmp(argv[1], "blocked")) ReplaceImport("GetProcAddress", (void*)CaptureRefused);
     typedef void (WINAPI *SetValue)(DWORD);

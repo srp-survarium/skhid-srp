@@ -1,0 +1,365 @@
+//! Production encoders are an independent compatibility oracle for the guard.
+use srp_validate::messages::{self, Dictionary as GuardDictionary};
+use survarium::v026g::{dictionary::Dictionary, maps, match_msgs::static_info as info};
+
+struct Data(&'static Dictionary);
+impl GuardDictionary for Data {
+    fn item(&self, id: u16) -> Option<bool> {
+        self.0.item(id).map(|item| item.is_stack)
+    }
+    fn map(&self, id: u16) -> bool {
+        maps::map_mode(maps::MapId::new(id)).is_some_and(|map| map.is_playable())
+    }
+}
+
+fn options(blackout: bool) -> info::MatchOptions {
+    let mut kit = info::MatchKit::empty(1, "kit");
+    kit.slots[7] = Some((0, 1));
+    info::MatchOptions {
+        players: vec![info::MatchProfile {
+            team: 0,
+            name: "alice".into(),
+            clan_tag: String::new(),
+            protection: info::NO_PROTECTION,
+            kits: vec![kit],
+            items: vec![info::MatchItem {
+                instance_id: 1,
+                dict_id: Dictionary::shared().item_named("tt_33").unwrap().dict_id,
+                condition_or_stack: 100,
+                ..info::MatchItem::default()
+            }],
+            squad: 0,
+            face: survarium::v026g::faces::Face::DEFAULT,
+            notice: info::Notice::Skipped,
+        }],
+        // Blackout is its maps' mode (#1243): the options carry its SRPX entry.
+        map: if blackout {
+            maps::playable()
+                .find(|map| map.mode == maps::GameMode::Blackout)
+                .and_then(|map| maps::MatchMap::of(map.id))
+                .expect("a Blackout map")
+        } else {
+            maps::MatchMap::of(maps::MapId::new(61)).unwrap()
+        },
+        match_id: 0x1234_5678,
+        match_level: 3,
+        score_weights: info::SCORE_WEIGHTS,
+    }
+}
+
+/// The options of every playable map, as the server writes them, pass the
+/// clients' check: an entry of srp's block a map or a mode adds
+/// (`static_info::options_bytes`) fails here until the check knows it.
+#[test]
+fn the_options_of_every_map_are_accepted() {
+    let data = Data(Dictionary::shared());
+    let mut modes = Vec::new();
+    for map in maps::playable() {
+        let options = options_on(maps::MatchMap::of(map.id).unwrap());
+        let bytes = info::options_bytes(&options, data.0).unwrap();
+        assert_eq!(messages::options(&bytes, &data), Ok(1), "map {}", map.id);
+        if !modes.contains(&map.mode) {
+            modes.push(map.mode);
+        }
+    }
+    // The test archive's: Research's maps come with a pack.
+    assert!(modes.contains(&maps::GameMode::Blackout), "{modes:?}");
+    assert!(modes.contains(&maps::GameMode::FreeForAll), "{modes:?}");
+    assert!(modes.len() >= 5, "{modes:?}");
+}
+
+/// The options of a match on `map`: its one player on team 0, or in a
+/// free-for-all on his own side.
+fn options_on(map: maps::MatchMap) -> info::MatchOptions {
+    let mut options = info::MatchOptions { map, ..options(false) };
+    if map.mode() == maps::GameMode::FreeForAll {
+        options.players[0].team = maps::free_for_all_team(0);
+    }
+    options
+}
+
+/// A free-for-all's options: each place on its own side, and srp's entry
+/// with the kills that win. Neither goes without the other, at the server
+/// or at the clients' check.
+#[test]
+fn a_free_for_alls_own_sides_and_kill_target_go_together() {
+    let data = Data(Dictionary::shared());
+    let map = maps::playable()
+        .find(|map| map.mode == maps::GameMode::FreeForAll)
+        .and_then(|map| maps::MatchMap::of(map.id))
+        .expect("a free-for-all map");
+    let options = options_on(map);
+    assert_eq!(options.players[0].team, 4);
+    let bytes = info::options_bytes(&options, data.0).unwrap();
+    let entry = b"SRPX\x03\x02\x1e\x00";
+    assert!(bytes.ends_with(entry), "30 kills win");
+    assert_eq!(messages::options(&bytes, &data), Ok(1));
+    assert_eq!(info::parse_options(&bytes, data.0).unwrap(), options);
+    // The server writes no free-for-all with a team of the two, and no
+    // other mode with a side of one's own.
+    let mut teams = options.clone();
+    teams.players[0].team = 0;
+    assert_eq!(
+        info::options_bytes(&teams, data.0),
+        Err(info::StaticInfoError::Team { player: 0, team: 0 })
+    );
+    let mut own = options_on(maps::MatchMap::of(maps::MapId::new(61)).unwrap());
+    own.players[0].team = 4;
+    assert_eq!(
+        info::options_bytes(&own, data.0),
+        Err(info::StaticInfoError::Team { player: 0, team: 4 })
+    );
+    // The clients' check: own sides without the entry, with Blackout's, or
+    // with no kills to win; the entry with the two teams.
+    let native = &bytes[..bytes.len() - entry.len()];
+    for suffix in [
+        &b""[..],
+        b"SRPX\x02\x01\x01",
+        b"SRPX\x03\x02\x00\x00",
+        b"SRPX\x03\x01\x1e",
+        b"SRPX\x03\x02\x1e\x00\x02\x01\x01",
+    ] {
+        let bad = [native, suffix].concat();
+        assert!(messages::options(&bad, &data).is_err(), "{suffix:?}");
+        assert!(info::parse_options(&bad, data.0).is_err(), "{suffix:?}");
+    }
+    let plain = info::options_bytes(&options_on(maps::MatchMap::of(maps::MapId::new(61)).unwrap()), data.0).unwrap();
+    let bad = [&plain[..], entry].concat();
+    assert!(messages::options(&bad, &data).is_err());
+    assert!(info::parse_options(&bad, data.0).is_err());
+}
+
+#[test]
+fn current_server_options_and_blackout_are_accepted() {
+    let data = Data(Dictionary::shared());
+    for blackout in [false, true] {
+        let bytes = info::options_bytes(&options(blackout), data.0).unwrap();
+        assert_eq!(messages::options(&bytes, &data), Ok(1));
+        let mut payload = vec![0];
+        payload.extend(survarium::v026g::lzma2::stored(&bytes));
+        assert_eq!(messages::check(messages::id::STATIC_INFO, &payload), Ok(()));
+        // Every truncation of the mandatory native options is rejected.
+        // Blackout's entry and its notices (alice's not shown).
+        let native_len = bytes.len() - if blackout { 10 } else { 0 };
+        for len in 0..native_len {
+            assert!(
+                messages::options(&bytes[..len], &data).is_err(),
+                "prefix {len}"
+            );
+        }
+        if blackout {
+            for suffix in [
+                &b"SRPX\x02\x01\x00"[..],
+                b"SRPX\x09\x00",
+                b"SRPY\x02\x01\x01",
+            ] {
+                let mut bad = bytes[..native_len].to_vec();
+                bad.extend(suffix);
+                assert!(messages::options(&bad, &data).is_err());
+            }
+        }
+    }
+}
+
+/// The roster's faces (`face-choice.md`): srp's entry `{5, roster, a face a
+/// place}`, last, as the server writes it when a face is not 0. The clients'
+/// check refuses another length than the roster's, every face 0, and the
+/// entry twice; a face the data does not list (the test data has three) is
+/// taken, and read as face 0.
+#[test]
+fn the_faces_entry_is_a_face_a_place_of_the_roster() {
+    use survarium::v026g::faces::Faces;
+    let data = Data(Dictionary::shared());
+    for blackout in [false, true] {
+        let mut options = options(blackout);
+        let mut bob = options.players[0].clone();
+        bob.name = "bob".into();
+        bob.team = 1;
+        bob.face = Faces::shared().face(2).unwrap();
+        options.players.push(bob);
+        let bytes = info::options_bytes(&options, data.0).unwrap();
+        let entry = b"\x05\x02\x00\x02";
+        // Blackout's notices after it (neither place's shown).
+        let notices: &[u8] = if blackout { b"\x07\x02\x00\x00" } else { b"" };
+        assert!(bytes.ends_with(&[&entry[..], notices].concat()));
+        assert_eq!(messages::options(&bytes, &data), Ok(2));
+        assert_eq!(info::parse_options(&bytes, data.0).unwrap(), options);
+        // The options to the entry: the block's magic, and Blackout's entry.
+        let before = &bytes[..bytes.len() - entry.len() - notices.len()];
+        let block: &[u8] = if blackout { b"SRPX\x02\x01\x01" } else { b"SRPX" };
+        assert!(before.ends_with(block));
+        let unlisted = [before, &b"\x05\x02\x00\x03"[..], notices].concat();
+        assert_eq!(messages::options(&unlisted, &data), Ok(2));
+        let read = info::parse_options(&unlisted, data.0).unwrap();
+        assert_eq!(read.players[1].face, survarium::v026g::faces::Face::DEFAULT);
+        for suffix in [
+            &b"\x05\x01\x02"[..],
+            b"\x05\x03\x00\x02\x01",
+            b"\x05\x02\x00",
+            b"\x05\x02\x00\x00",
+            b"\x05\x02\x00\x02\x05\x02\x00\x02",
+        ] {
+            let bad = [before, suffix, notices].concat();
+            assert!(messages::options(&bad, &data).is_err(), "{suffix:?}");
+            assert!(info::parse_options(&bad, data.0).is_err(), "{suffix:?}");
+        }
+    }
+}
+
+/// Each place's mode notice (`mode_introductions.md`, patch 214): srp's
+/// entry `{7, roster, 0 or 1 a place}`, after the entry of a mode with a
+/// notice, as the server writes it in every match of such a mode. The
+/// clients' check refuses it on another mode, of another length than the
+/// roster's, with another byte, and twice.
+#[test]
+fn the_notices_entry_is_a_notice_a_place_of_a_notice_mode() {
+    let data = Data(Dictionary::shared());
+    let mut options = options(true);
+    let mut bob = options.players[0].clone();
+    bob.name = "bob".into();
+    bob.team = 1;
+    bob.notice = info::Notice::Shown;
+    options.players.push(bob);
+    let bytes = info::options_bytes(&options, data.0).unwrap();
+    let entry = b"\x07\x02\x00\x01";
+    assert!(bytes.ends_with(b"SRPX\x02\x01\x01\x07\x02\x00\x01"));
+    assert_eq!(messages::options(&bytes, &data), Ok(2));
+    assert_eq!(info::parse_options(&bytes, data.0).unwrap(), options);
+    let before = &bytes[..bytes.len() - entry.len()];
+    for suffix in [
+        &b"\x07\x01\x00"[..],
+        b"\x07\x03\x00\x00\x00",
+        b"\x07\x02\x00\x02",
+        b"\x07\x02\x00",
+        b"\x07\x02\x00\x01\x07\x02\x00\x01",
+    ] {
+        let bad = [before, suffix].concat();
+        assert!(messages::options(&bad, &data).is_err(), "{suffix:?}");
+        assert!(info::parse_options(&bad, data.0).is_err(), "{suffix:?}");
+    }
+    // On a map of a mode without a notice.
+    let mut plain = options.clone();
+    plain.map = maps::MatchMap::of(maps::MapId::new(61)).unwrap();
+    let plain = info::options_bytes(&plain, data.0).unwrap();
+    let bad = [&plain[..], b"SRPX", entry].concat();
+    assert!(messages::options(&bad, &data).is_err());
+    assert!(info::parse_options(&bad, data.0).is_err());
+}
+
+#[test]
+fn every_action_bit_is_allowed_but_a_nan_turn_is_not() {
+    for id in [messages::id::INPUT_RELAY, messages::id::INPUT_RELAY_PRECISE] {
+        let mut payload = vec![0; messages::fixed_length(id).unwrap()];
+        let actions = payload.len() - 4;
+        payload[actions..].copy_from_slice(&((1u32 << 29) | (3 << 14)).to_le_bytes());
+        assert_eq!(messages::check(id, &payload), Ok(()));
+        // the second sight's switch (client patch 206), and every bit at once
+        for bits in [messages::SCOPE_NEXT, u32::MAX] {
+            payload[actions..].copy_from_slice(&bits.to_le_bytes());
+            assert_eq!(messages::check(id, &payload), Ok(()));
+        }
+        payload[actions..].fill(0);
+        payload[actions - 4..actions - 2].copy_from_slice(&0x7c00u16.to_le_bytes());
+        assert!(messages::check(id, &payload).is_err());
+    }
+}
+
+#[test]
+fn current_emitted_messages_and_late_join_headers_are_accepted() {
+    use survarium::v026g::match_msgs::{PlayerInput, ServerMessage as M, UploadWanted, WireTime, late_join};
+    let tick = WireTime::tick(5000);
+    let precise = WireTime::precise(5049);
+    let mut messages = vec![
+        M::Ports { min: 1236, max: 1236 },
+        M::SetTime { generation: 7, echo: 21, match_time: 5000 },
+        M::Ping { a: 8, b: 9 }, M::ClockOffset(-50),
+        M::PlayerEntered { tick: 3, player: 19 },
+        M::PlayerLeft { tick: 4, player: 19 },
+        M::ProfileInputRelay { tick: 3, player: 19, value: 2 },
+        M::MoveProfileInput { from_tick: 3, to_tick: 4 },
+        M::DiscardProfileInput { tick: 3 }, M::UploadRequest(UploadWanted::Horizon),
+        M::UploadRequest(UploadWanted::Tick(77)),
+    ];
+    for time in [tick, precise] {
+        messages.extend([
+            M::InputRelay { player: 19, input: PlayerInput {
+                time, rotation: [0; 4], actions: 1 << 29,
+            }},
+            M::MoveInput { from: tick, to: time },
+            M::DiscardInput { time },
+        ]);
+    }
+    for packed in [false, true] {
+        messages.push(M::Snapshot { generation: 7, time: 5000, body: vec![0; 4000], packed });
+    }
+    for message in messages {
+        let payload = message.payload();
+        assert_eq!(messages::check(message.id(), &payload), Ok(()), "{message:?}");
+        if messages::fixed_length(message.id()).is_some() {
+            for len in 0..payload.len() {
+                assert!(messages::check(message.id(), &payload[..len]).is_err());
+            }
+            let mut over = payload.clone(); over.push(0);
+            assert!(messages::check(message.id(), &over).is_err());
+        }
+    }
+    let prepare = late_join::Prepare {
+        proposal: late_join::Proposal { match_id: 42, serial: 1, place: 19 },
+        profile: options(false).players.remove(0),
+    }.encode(Dictionary::shared()).unwrap();
+    assert_eq!(messages::check(messages::id::STATIC_INFO, &prepare), Ok(()));
+    for len in 0..14 {
+        assert!(messages::check(messages::id::STATIC_INFO, &prepare[..len]).is_err());
+    }
+    let mut bad = prepare.clone(); bad[8..12].fill(0);
+    assert!(messages::check(messages::id::STATIC_INFO, &bad).is_err());
+    // A face but 0: srp's block after the profile, the header as before.
+    let mut faced = options(false).players.remove(0);
+    faced.face = survarium::v026g::faces::Faces::shared().face(1).unwrap();
+    let faced = late_join::Prepare {
+        proposal: late_join::Proposal { match_id: 42, serial: 1, place: 19 },
+        profile: faced,
+    }.encode(Dictionary::shared()).unwrap();
+    assert_eq!(faced, [&prepare[..], b"SRPX\x05\x01\x01"].concat());
+    assert_eq!(messages::check(messages::id::STATIC_INFO, &faced), Ok(()));
+}
+
+/// The test archive with a map 300 more: the map an id over a byte names.
+struct Wide(Data);
+impl GuardDictionary for Wide {
+    fn item(&self, id: u16) -> Option<bool> {
+        self.0.item(id)
+    }
+    fn map(&self, id: u16) -> bool {
+        id == 300 || self.0.map(id)
+    }
+}
+
+/// A map id over a byte (exe patch 154): the options' byte its low byte,
+/// srp's entry `{4, 2, id}` the whole id the client loads, before a
+/// free-for-all's entry as the server writes them. The clients' check takes
+/// the whole id, and refuses another low byte, an id of a byte in the
+/// entry, the entry twice, or the wide id of a map the client lacks.
+#[test]
+fn a_map_id_over_a_byte_is_its_low_byte_and_srps_entry() {
+    let data = Wide(Data(Dictionary::shared()));
+    let plain = info::options_bytes(&options_on(maps::MatchMap::of(maps::MapId::new(61)).unwrap()), data.0.0).unwrap();
+    // The map's byte: the first of the 140 after the profiles.
+    let at = plain.len() - 140;
+    let wide = |byte: u8, block: &[u8]| {
+        let mut bytes = [&plain[..], block].concat();
+        bytes[at] = byte;
+        bytes
+    };
+    assert_eq!(messages::options(&wide(44, b"SRPX\x04\x02\x2c\x01"), &data), Ok(1));
+    assert!(messages::options(&wide(44, b"SRPX\x04\x02\x2d\x01"), &data).is_err(), "map 301");
+    for (byte, block) in [
+        (61, &b"SRPX\x04\x02\x2c\x01"[..]),
+        (61, b"SRPX\x04\x02\x3d\x00"),
+        (44, b"SRPX\x04\x02\x2c\x01\x04\x02\x2c\x01"),
+        (44, b"SRPX\x04\x01\x2c"),
+        (44, b"SRPX"),
+    ] {
+        assert!(messages::options(&wide(byte, block), &data).is_err(), "{byte} {block:?}");
+    }
+}

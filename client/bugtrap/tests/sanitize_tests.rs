@@ -158,6 +158,16 @@ fn a_tail_starts_at_a_record_never_inside_a_continuation() {
         tail.len() - 37
     );
 }
+#[test]
+fn a_patch_log_line_is_a_record_of_its_own() {
+    // srp_patches.log: a sensitive line goes, the next `srp: ` line stays.
+    let log = b"srp: a\r\nsrp: token=SYNTHETIC\r\nsrp: b\r\n";
+    let (out, removed) = filter(log, 5).unwrap();
+    assert_eq!(removed, 1);
+    assert!(!out.windows(9).any(|b| b == b"SYNTHETIC"));
+    assert!(out.starts_with(b"srp: a\r\n") && out.ends_with(b"srp: b\r\n"));
+    assert!(sanitize::from_record(b"cut\r\nsrp: c\r\n").starts_with(b"srp: c"));
+}
 // The DLL transcodes with MultiByteToWideChar/WideCharToMultiByte (logs.rs,
 // run by check_logs.py under Wine); here, the letters these tests use.
 fn test_transcode(code_page: u32, line: &mut [u8], len: usize) -> Result<usize, u32> {

@@ -1,0 +1,9 @@
+# Skhid-get.bat's three files (srp-026g/docs/notes/torrent-downloads.md,
+# "Bootstrap"): the URLs tried, in order, when no peer gives a file (8 at
+# most; Google Drive's first, the owner's rule). release/build-bootstrap
+# writes a file's row, release/add-mirror adds a URL; both make the script
+# again: commit the three together.
+# name	sha256	size	urls
+7zr.exe	256feca8e274e5da655e2a284fabafd9f554365eb164862089dacd4e8276d282	602624	https://dl.dropboxusercontent.com/scl/fi/7k7li4c9dm7evm3jza6uf/7zr.exe?rlkey=lau3xb69jwony0kwfuuyvx12w&dl=1 http://2.28.121.133:8090/bootstrap/256feca8e274e5da655e2a284fabafd9f554365eb164862089dacd4e8276d282/7zr.exe
+skhid_torrent.dll	0f32badb1a11fa3b5116b56efd4e33726f6b4e9dcc1763f4d0a1c118b6110667	2442752	https://dl.dropboxusercontent.com/scl/fi/jc55dccdnhwcr0ldfh8ch/skhid_torrent.dll?rlkey=7inuu713pcvle14iejz032pef&dl=1 http://2.28.121.133:8090/bootstrap/0f32badb1a11fa3b5116b56efd4e33726f6b4e9dcc1763f4d0a1c118b6110667/skhid_torrent.dll
+updater_skhid.exe	c69ecc7d091ca66b94502e53f19eb88c48a78d616f47574d80f8b5fab1946ed7	807936	https://dl.dropboxusercontent.com/scl/fi/p6k7pabkiydt9xdl4se5t/updater_skhid.exe?rlkey=yj395iatxi7hanozdr3oej847&dl=1 http://2.28.121.133:8090/bootstrap/c69ecc7d091ca66b94502e53f19eb88c48a78d616f47574d80f8b5fab1946ed7/updater_skhid.exe

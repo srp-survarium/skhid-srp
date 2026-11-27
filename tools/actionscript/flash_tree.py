@@ -7,6 +7,12 @@
     flash_tree.py [--tools T] build <movie dir> <original.swf> <out.swf>
         compile the whole tree (src/) in one Flex run and put the code into
         the original movie in place of all of its code
+    flash_tree.py graphics <movie dir> <original.swf> <out.swf>
+        the movie build makes, without its code (a tag marks its place): what
+        a content pack draws into, the same whatever the code
+    flash_tree.py code <drawn.swf> <built.swf> <out.swf>
+        a graphics movie (as a pack drew into it) with the code of build's
+        movie of the same tree: build's movie with what the pack drew
 
 A tree is the movie's complete ActionScript; movie.json names the original
 movie, whose graphics, fonts, sounds and symbol bindings (everything but the
@@ -14,7 +20,11 @@ code) the build keeps. A bitmap the original lacks is bitmaps/<class>.png
 (lossless) or bitmaps/<class>.jpg (a baseline JPEG, as the game's own renders are: a picture)
 beside src/: the build adds it, bound to <class> (a BitmapData of the
 tree, as the original's bitmaps are). A table is tables/<package path>/<Class>.tsv beside
-src/: the build makes it the class <Class> of src/ (table_class: one Array of rows a list). The
+src/: the build makes it the class <Class> of src/ (table_class: one Array of rows a list). Data
+the movie shows that the game's data holds is not written in the tree: movie.json's `data`
+({"<package path>/<Class>": "<a table of the repository>"}, e.g. scripts/content-edit's
+modifications.tsv) makes each such table the class <Class> (data_class: one Object a column, its
+rows' cells by their first column), so the movie and the game read the same file. The
 build is one `compc` run of Apache Flex 4.16.1
 over src/ (strict, optimized, no debug information, the original's SWF
 version), against the Flash Player API (playerglobal.swc) only: every class
@@ -28,6 +38,7 @@ import json
 from pathlib import Path
 import re
 import shutil
+import struct
 import subprocess
 import sys
 import tempfile
@@ -182,7 +193,49 @@ def table_class(path, package, name):
     return '\n'.join(source + ['   }', '}', ''])
 
 
+def data_sources(movie_dir):
+    """{<package path>/<Class>: the repository's table} of movie.json's `data`, the repository the
+    tree's (srp-026g/flash/<movie>, three levels up)."""
+    if not (movie_dir / 'movie.json').is_file():
+        return {}
+    repo = movie_dir.resolve().parents[2]
+    return {name: repo / path for name, path in load(movie_dir).get('data', {}).items()}
+
+
+def data_class(path, package, name):
+    """The ActionScript of a data table (tab-separated, `#` lines comments, the header first): a class
+    whose `public static const <column>:Object` is, for each column but the first, its cells (texts) by
+    the first column's, as the table has them."""
+    header, rows = read_table(path)
+    if any(not IDENTIFIER.match(column) for column in header[1:]):
+        raise ValueError(f'{path}: a column is not a name')
+    keys = [row[0] for row in rows]
+    if len(set(keys)) != len(keys):
+        raise ValueError(f'{path}: a key twice in its first column')
+    source = [f'package {package}', '{',
+              f'   // Made by the build (tools/actionscript/flash_tree.py) from {path.name} (movie.json data): '
+              'edit that.', f'   public class {name}', '   {']
+    for i, column in enumerate(header[1:], 1):
+        cells = ',\n'.join(f'         {json.dumps(row[0])}:{json.dumps(row[i])}' for row in rows)
+        source += [f'      public static const {column}:Object = {{', cells, '      };']
+    return '\n'.join(source + ['   }', '}', ''])
+
+
 def tables(movie_dir):
+    """{path under src/: ActionScript} of the tree's tables/<package path>/<Class>.tsv and of its
+    movie.json's data tables."""
+    out = {}
+    for name, path in data_sources(movie_dir).items():
+        relative = Path(name + '.as')
+        if not all(IDENTIFIER.match(part) for part in Path(name).parts):
+            raise ValueError(f'movie.json data {name}: not <package path>/<Class>')
+        if (movie_dir / 'src' / relative).exists():
+            raise ValueError(f'movie.json data {name}: src/{relative} is a class of the tree already')
+        out[relative] = data_class(path, '.'.join(relative.parts[:-1]), relative.stem)
+    return out | table_classes(movie_dir)
+
+
+def table_classes(movie_dir):
     """{path under src/: ActionScript} of the tree's tables/<package path>/<Class>.tsv."""
     folder = movie_dir / 'tables'
     out = {}
@@ -196,13 +249,81 @@ def tables(movie_dir):
     return out
 
 
-def assemble(original_data, code, added=()):
+@dataclass(frozen=True)
+class Placement:
+    """A row of placements.tsv: in sprite `sprite`'s frame `frame` (from 1), the PlaceObject2 at `depth`
+    places `to` where the original places `old`; `to` None (`-` in the file): it places nothing, the
+    PlaceObject2 is left out."""
+    sprite: int
+    frame: int
+    depth: int
+    old: int
+    to: int | None
+
+
+def placements(movie_dir):
+    """[Placement] of the tree's placements.tsv (`sprite frame depth from to`, tab-separated; `#` lines
+    and a trailing `# why` are comments): characters the original places wrongly, put right."""
+    path = movie_dir / 'placements.tsv'
+    if not path.is_file():
+        return []
+    out = []
+    for n, line in enumerate(path.read_text(encoding='utf-8').splitlines(), 1):
+        row = line.split('#', 1)[0].strip()
+        if not row:
+            continue
+        cells = [c.strip() for c in row.split('\t')]
+        if len(cells) != 5 or not all(c.isdigit() for c in cells[:4]) or not (cells[4].isdigit() or cells[4] == '-'):
+            raise ValueError(f'{path}:{n}: sprite, frame, depth, from and to, five numbers (to may be -)')
+        out.append(Placement(*(int(c) for c in cells[:4]), None if cells[4] == '-' else int(cells[4])))
+    return out
+
+
+def placed_right(tags, fixes):
+    """`tags` with each of `fixes` applied: every one must match exactly one PlaceObject2 of its sprite,
+    frame and depth that places its `old` character, and `to` must be a character the movie defines; a fix
+    whose `to` is None leaves that PlaceObject2 out."""
+    left = {(f.sprite, f.frame, f.depth): f for f in fixes}
+    defined = swf.character_ids(tags)
+    for f in fixes:
+        if f.to is not None and f.to not in defined:
+            raise ValueError(f'placements.tsv: character {f.to} is not defined')
+    out = []
+    for kind, raw in tags:
+        if kind == swf.DEFINE_SPRITE and left:
+            body = swf.payload(raw)
+            sprite, = struct.unpack_from('<H', body)
+            mine = {key: fix for key, fix in left.items() if key[0] == sprite}
+            if mine:
+                frame, inner = 1, []
+                for sub_kind, sub in swf.tags_of(body[4:]):
+                    if sub_kind == swf.SHOW_FRAME:
+                        frame += 1
+                    elif sub_kind == swf.PLACE_OBJECT2:
+                        depth, cid = swf.placed(sub)
+                        fix = mine.get((sprite, frame, depth))
+                        if fix and cid == fix.old:
+                            del left[(sprite, frame, depth)]
+                            if fix.to is None:
+                                continue
+                            sub = swf.with_character(sub, fix.to)
+                    inner.append(sub)
+                raw = swf.tag(kind, body[:4] + b''.join(inner))
+        out.append((kind, raw))
+    if left:
+        f = next(iter(left.values()))
+        raise ValueError(f'placements.tsv: sprite {f.sprite} frame {f.frame} depth {f.depth} places no {f.old}')
+    return out
+
+
+def assemble(original_data, code, added=(), fixes=()):
     """The original movie with `code` (DoABC tags) in place of all of its code, where its code began.
 
     `added` (bitmaps()) are new bitmaps: each a DefineBitsLossless2 or a DefineBitsJPEG2 of a new
     character id before the code, bound to its class (a BitmapData of the tree) by one SymbolClass
-    after it."""
+    after it. `fixes` (placements()) put right characters the original places wrongly."""
     header, tags = swf.split(original_data)
+    tags = placed_right(tags, fixes)
     first = next(i for i, (kind, _) in enumerate(tags) if kind in (swf.DO_ABC, swf.DO_ABC_OLD))
     taken = swf.character_ids(tags)
     if {name for _, name in swf.symbol_classes(tags)} & {b.name for b in added}:
@@ -258,10 +379,39 @@ def build(movie_dir, original_swf, tools, report=print):
         finally:
             shutil.rmtree(place / 'src')
     added = bitmaps(movie_dir)
-    movie = assemble(data, code, added)
+    fixes = placements(movie_dir)
+    movie = assemble(data, code, added, fixes)
     report(f'{movie_dir.name}: {check(movie)} classes in {len(code)} ABC blocks over the original\'s graphics'
-           + (f', {len(added)} bitmaps added' if added else ''))
+           + (f', {len(added)} bitmaps added' if added else '') + (f', {len(fixes)} placements put right' if fixes else ''))
     return movie
+
+
+# Where graphics() leaves the code out: a DoABC tag of its own, which with_code() replaces.
+CODE_PLACE = swf.tag(swf.DO_ABC, struct.pack('<I', 0) + b"srp: the tree's code goes here\0")
+
+
+def graphics(movie_dir, original_swf):
+    """The tree's movie without its code (bytes): build()'s, with CODE_PLACE where its code is. What
+    a content pack draws into (vostok-port's lobby icons), so that a change of the code alone leaves
+    it as it was; with_code() of it and build()'s movie is build()'s movie."""
+    spec = load(movie_dir)
+    data = original_swf.read_bytes()
+    if sha(data) != spec['movie_sha256']:
+        raise ValueError(f"Not the original of {spec['movie']} (sha256 {sha(data)})")
+    return assemble(data, [(swf.DO_ABC, CODE_PLACE)], bitmaps(movie_dir), placements(movie_dir))
+
+
+def with_code(drawn, built):
+    """`drawn` (graphics() of a tree, as a pack may have drawn into it) with the code of `built`
+    (build()'s movie of the same tree) in its CODE_PLACE, compressed as `built` is: build()'s movie
+    with what the pack drew."""
+    header, tags = swf.split(drawn)
+    places = [i for i, (_, raw) in enumerate(tags) if raw == CODE_PLACE]
+    if len(places) != 1:
+        raise ValueError('Not a movie of graphics(): no single place for the code')
+    code = [t for t in swf.split(built)[1] if t[0] in (swf.DO_ABC, swf.DO_ABC_OLD)]
+    at = places[0]
+    return swf.compressed(swf.join(header, tags[:at] + code + tags[at + 1:]), built)
 
 
 def main():
@@ -277,10 +427,24 @@ def main():
     make.add_argument('movie_dir', type=Path)
     make.add_argument('original', type=Path)
     make.add_argument('output', type=Path)
+    drawn = commands.add_parser('graphics')
+    drawn.add_argument('movie_dir', type=Path)
+    drawn.add_argument('original', type=Path)
+    drawn.add_argument('output', type=Path)
+    coded = commands.add_parser('code')
+    coded.add_argument('drawn', type=Path)
+    coded.add_argument('built', type=Path)
+    coded.add_argument('output', type=Path)
     args = parser.parse_args()
     if args.command == 'original':
         original(args.movie_dir, args.archive, args.output)
         print(f'Wrote {args.output}')
+    elif args.command in ('graphics', 'code'):
+        data = graphics(args.movie_dir, args.original) if args.command == 'graphics' else \
+            with_code(args.drawn.read_bytes(), args.built.read_bytes())
+        with args.output.open('xb') as stream:
+            stream.write(data)
+        print(f'Created {args.output}: sha256 {sha(data)}')
     else:
         if args.output.exists():
             raise ValueError('Output already exists; choose a new path')

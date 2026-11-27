@@ -3,15 +3,6 @@
 version = 4
 
 [[package]]
-name = "aho-corasick"
-version = "1.1.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8e60d3430d3a69478ad0993f19238d2df97c507009a52b3c10addcd7f6bcb916"
-dependencies = [
- "memchr",
-]
-
-[[package]]
 name = "anstream"
 version = "0.6.20"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -84,10 +75,18 @@ name = "artefact-carry"
 version = "0.1.0"
 
 [[package]]
+name = "artefact-hunt-rule"
+version = "0.1.0"
+
+[[package]]
 name = "autocfg"
 version = "1.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c08606f8c3cbf4ce6ec8e28fb0014a2c086708fe954eaa885384a6165172e7e8"
+
+[[package]]
+name = "ban-reason"
+version = "0.1.0"
 
 [[package]]
 name = "base64ct"
@@ -114,7 +113,6 @@ dependencies = [
  "encoding_rs",
  "num-derive",
  "num-traits",
- "serde",
  "serde_json",
 ]
 
@@ -310,19 +308,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "env_logger"
-version = "0.10.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4cd405aab171cb85d6735e5c8d9db038c17d3ca007a4d2c25f337935c3d90580"
-dependencies = [
- "humantime",
- "is-terminal",
- "log",
- "regex",
- "termcolor",
-]
-
-[[package]]
 name = "fallible-iterator"
 version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -333,6 +318,14 @@ name = "fallible-streaming-iterator"
 version = "0.1.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7360491ce676a36bf9bb3c56c1aa791658183a54d2744120f27285738d90465a"
+
+[[package]]
+name = "ffa-check-points"
+version = "0.1.0"
+dependencies = [
+ "binary-config-parser",
+ "mapdata",
+]
 
 [[package]]
 name = "foldhash"
@@ -401,29 +394,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2304e00983f87ffb38b55b444b5e3b60a884b5d30c0fca7d82fe33449bbe55ea"
 
 [[package]]
-name = "hermit-abi"
-version = "0.5.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fc0fef456e4baa96da950455cd02c081ca953b141298e41db3fc7e36b1da849c"
-
-[[package]]
-name = "humantime"
-version = "2.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9b112acc8b3adf4b107a8ec20977da0273a8c386765a3ec0229bd500a1443f9f"
-
-[[package]]
-name = "is-terminal"
-version = "0.4.16"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e04d7f318608d35d4b61ddd75cbdaee86b023ebe2bd5a66ee0915f0bf93095a9"
-dependencies = [
- "hermit-abi",
- "libc",
- "windows-sys 0.59.0",
-]
-
-[[package]]
 name = "is_terminal_polyfill"
 version = "1.70.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -456,13 +426,10 @@ dependencies = [
 name = "lobby-server"
 version = "0.1.0"
 dependencies = [
- "bytemuck",
- "env_logger",
  "log",
- "openssl",
+ "mapdata",
  "session",
  "survarium",
- "thiserror",
  "udp-transport",
  "vostok",
 ]
@@ -477,10 +444,12 @@ checksum = "13dc2df351e3202783a1fe0d44375f7295ffb4049267b0f3018346dc122a1d94"
 name = "login-server"
 version = "0.1.0"
 dependencies = [
- "env_logger",
+ "ban-reason",
  "log",
  "openssl",
  "session",
+ "sign-in-cipher",
+ "udp-transport",
  "vostok",
 ]
 
@@ -494,6 +463,7 @@ checksum = "7277c9742229dc25243236d578b6471a798c554512c6f6a04365ec2e87c2a3bb"
 name = "mapdata"
 version = "0.1.0"
 dependencies = [
+ "artefact-carry",
  "binary-config-parser",
  "clap",
  "resources-db 0.1.0 (git+https://github.com/srp-survarium/vostok-resources-db?rev=9498aca14014ef74460429f51eb41a6af333522c)",
@@ -505,6 +475,7 @@ dependencies = [
 name = "match-server"
 version = "0.1.0"
 dependencies = [
+ "artefact-hunt-rule",
  "crc32fast",
  "libc",
  "log",
@@ -513,8 +484,12 @@ dependencies = [
  "serde",
  "serde_json",
  "session",
+ "skhid-voice",
+ "srp-validate",
  "survarium",
+ "technical-skills",
  "udp-transport",
+ "voice-abi",
  "vostok",
  "weapon-pickup",
  "world-frame",
@@ -672,35 +647,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "regex"
-version = "1.11.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b544ef1b4eac5dc2db33ea63606ae9ffcfac26c1416a2806ae0bf5f56b201191"
-dependencies = [
- "aho-corasick",
- "memchr",
- "regex-automata",
- "regex-syntax",
-]
-
-[[package]]
-name = "regex-automata"
-version = "0.4.9"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "809e8dc61f6de73b46c85f4c96486310fe304c434cfa43669d7b40f711150908"
-dependencies = [
- "aho-corasick",
- "memchr",
- "regex-syntax",
-]
-
-[[package]]
-name = "regex-syntax"
-version = "0.8.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2b15c43186be67a4fd63bee50d0303afffcef381492ebe2c5d87f324e1b8815c"
-
-[[package]]
 name = "research-rule"
 version = "0.1.0"
 
@@ -741,6 +687,13 @@ name = "ryu"
 version = "1.0.20"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "28d3b2b1366ec20994f1fd18c3c594f05c5dd4bc44d8bb0c1c632c8d6829481f"
+
+[[package]]
+name = "second-sight"
+version = "0.1.0"
+dependencies = [
+ "weapon-pickup",
+]
 
 [[package]]
 name = "serde"
@@ -806,6 +759,18 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0fda2ff0d084019ba4d7c6f371c95d8fd75ce3524c3cb8fb653a3023f6323e64"
 
 [[package]]
+name = "sign-in-cipher"
+version = "0.1.0"
+
+[[package]]
+name = "skhid-voice"
+version = "0.1.0"
+dependencies = [
+ "voice-abi",
+ "windows-sys 0.61.2",
+]
+
+[[package]]
 name = "smallvec"
 version = "1.15.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -825,6 +790,7 @@ dependencies = [
 name = "srp"
 version = "0.1.0"
 dependencies = [
+ "ban-reason",
  "ctrlc",
  "lobby-server",
  "log",
@@ -832,9 +798,31 @@ dependencies = [
  "match-server",
  "openssl",
  "session",
+ "socket2",
  "survarium",
+ "udp-transport",
  "vostok",
  "web-server",
+]
+
+[[package]]
+name = "srp-validate"
+version = "0.1.0"
+dependencies = [
+ "artefact-carry",
+ "artefact-hunt-rule",
+ "second-sight",
+ "survarium",
+ "technical-skills",
+ "weapon-pickup",
+ "world-frame",
+]
+
+[[package]]
+name = "stalker-ffa-points"
+version = "0.1.0"
+dependencies = [
+ "mapdata",
 ]
 
 [[package]]
@@ -854,15 +842,20 @@ name = "survarium"
 version = "0.1.0"
 dependencies = [
  "artefact-carry",
+ "artefact-hunt-rule",
  "binary-config-parser",
  "encoding_rs",
  "log",
  "lzma-rust2",
  "resources-db 0.1.0",
+ "second-sight",
  "serde",
  "serde_json",
+ "srp-validate",
+ "technical-skills",
  "udp-transport",
  "weapon-kit",
+ "weapon-modules",
  "weapon-pickup",
 ]
 
@@ -878,12 +871,10 @@ dependencies = [
 ]
 
 [[package]]
-name = "termcolor"
-version = "1.4.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "06794f8f6c5c898b3275aebefa6b8a1cb24cd2c6c79397ab15774837a0bc5755"
+name = "technical-skills"
+version = "0.1.0"
 dependencies = [
- "winapi-util",
+ "weapon-pickup",
 ]
 
 [[package]]
@@ -916,7 +907,9 @@ checksum = "1dccffe3ce07af9386bfd29e80c0ab1a8205a2fc34e4bcd40364df902cfa8f3f"
 name = "udp-transport"
 version = "0.1.0"
 dependencies = [
+ "libc",
  "log",
+ "srp-validate",
 ]
 
 [[package]]
@@ -944,6 +937,10 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0b928f33d975fc6ad9f86c8f283853ad26bdd5b10b7f1542aa2fa15e2289105a"
 
 [[package]]
+name = "voice-abi"
+version = "0.1.0"
+
+[[package]]
 name = "vostok"
 version = "0.1.0"
 dependencies = [
@@ -963,6 +960,10 @@ name = "weapon-kit"
 version = "0.1.0"
 
 [[package]]
+name = "weapon-modules"
+version = "0.1.0"
+
+[[package]]
 name = "weapon-pickup"
 version = "0.1.0"
 
@@ -973,18 +974,10 @@ dependencies = [
  "log",
  "openssl",
  "resources-db 0.1.0",
+ "serde_json",
  "session",
+ "srp-validate",
  "survarium",
- "vostok",
-]
-
-[[package]]
-name = "winapi-util"
-version = "0.1.9"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cf221c93e13a30d793f7645a0e7762c55d169dbb0a49671918a2319d289b10bb"
-dependencies = [
- "windows-sys 0.59.0",
 ]
 
 [[package]]
@@ -1004,15 +997,6 @@ name = "windows-sys"
 version = "0.52.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "282be5f36a8ce781fad8c8ae18fa3f9beff57ec1b52cb3de0789201425d9a33d"
-dependencies = [
- "windows-targets 0.52.6",
-]
-
-[[package]]
-name = "windows-sys"
-version = "0.59.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1e38bc4d79ed67fd075bcc251a1c39b32a1776bbe92e5bef1f0bf1f8c531853b"
 dependencies = [
  "windows-targets 0.52.6",
 ]

@@ -1,0 +1,354 @@
+{
+  "name": "School, layout B",
+  "edits": "research-school-b-1.json",
+  "level": "level_02",
+  "folder": "research_b",
+  "project": "5b",
+  "maps": [
+    {
+      "weather": "day",
+      "config": "level_02_day_5.options",
+      "id": 500
+    },
+    {
+      "weather": "evening",
+      "config": "level_02_evn_5.options",
+      "id": 501
+    },
+    {
+      "weather": "rain",
+      "config": "level_02_rain_5.options",
+      "id": 502
+    }
+  ],
+  "units": [
+    {
+      "cp_id": 0,
+      "what": "the north wing's hall under the broken roof, second floor",
+      "marker": [
+        20.3,
+        131.0
+      ],
+      "floor": 20.74,
+      "yaw": 0,
+      "zone": {
+        "type": 1,
+        "position": [
+          20.3,
+          22.545,
+          131.0
+        ],
+        "half": [
+          4.5,
+          1.925,
+          3.1
+        ]
+      },
+      "antenna": [
+        14.0,
+        29.9,
+        131.0
+      ],
+      "props": [
+        {
+          "what": "the east corner: lockers on the east wall, a cargo crate squared against their end at the hall's mouth",
+          "model": "props/furniture/logjam_03",
+          "at": [
+            24.7,
+            20.72,
+            131.3
+          ],
+          "yaw": 270
+        },
+        {
+          "model": "props/box/woodbox_cargo_big_01",
+          "at": [
+            22.85,
+            20.72,
+            132.8
+          ],
+          "yaw": 0
+        },
+        {
+          "what": "a sandbag wall in the breach's middle bay, towards the courtyard",
+          "model": "props/bag/sandbag_tile",
+          "at": [
+            20.1,
+            20.8,
+            128.9
+          ],
+          "yaw": 0
+        },
+        {
+          "what": "a couch against the west wall",
+          "model": "props/furniture/coach_05",
+          "at": [
+            16.1,
+            20.72,
+            132.4
+          ],
+          "yaw": 270
+        }
+      ]
+    },
+    {
+      "cp_id": 1,
+      "what": "the terrace east of the school, between its two stairways",
+      "marker": [
+        82.0,
+        104.3
+      ],
+      "floor": 19.6,
+      "yaw": 0,
+      "zone": {
+        "type": 2,
+        "position": [
+          82.0,
+          21.3,
+          104.3
+        ],
+        "half": [
+          5.5,
+          1.774,
+          5.5
+        ]
+      },
+      "cover": [
+        {
+          "what": "the crates north of the station: by the bush towards the north stairs, the first cover of who comes up them",
+          "from": [
+            42.0,
+            110.5,
+            45.0,
+            112.5
+          ],
+          "shift": [
+            -2.2,
+            0.0,
+            2.8
+          ]
+        },
+        {
+          "what": "the crates south of it: past the big tree, the first cover from the south stairs",
+          "from": [
+            42.8,
+            97.0,
+            47.0,
+            98.6
+          ],
+          "shift": [
+            1.1,
+            0.0,
+            -2.5
+          ]
+        }
+      ],
+      "props": [
+        {
+          "what": "the generator's fuel barrels beside it",
+          "model": "props/barrel/barrel_metal01",
+          "at": [
+            80.2,
+            19.58,
+            103.6
+          ],
+          "yaw": 0
+        },
+        {
+          "model": "props/barrel/barrel_metal01",
+          "at": [
+            79.8,
+            19.58,
+            104.3
+          ],
+          "yaw": 40
+        },
+        {
+          "model": "props/barrel/barrel_metal02",
+          "at": [
+            80.4,
+            19.58,
+            105.0
+          ],
+          "yaw": 0
+        },
+        {
+          "what": "the parapet towards the school sandbagged: two lengths and their ends",
+          "model": "props/bag/sandbag_tile",
+          "at": [
+            77.2,
+            19.58,
+            102.6
+          ],
+          "yaw": 90
+        },
+        {
+          "model": "props/bag/sandbag_tile",
+          "at": [
+            77.2,
+            19.58,
+            105.25
+          ],
+          "yaw": 90
+        },
+        {
+          "model": "props/bag/sandbag_tile_end_1",
+          "at": [
+            77.2,
+            19.58,
+            101.34
+          ],
+          "yaw": 90
+        },
+        {
+          "model": "props/bag/sandbag_tile_end_2",
+          "at": [
+            77.2,
+            19.58,
+            107.0
+          ],
+          "yaw": 90
+        },
+        {
+          "what": "north, as Rudnya's bus stop unit has its east: a full cover along the zone's edge, a low cover inside it, a half cover carrying the line on",
+          "model": "props/box/full_cover",
+          "at": [
+            84.0,
+            19.58,
+            109.6
+          ],
+          "yaw": -20
+        },
+        {
+          "model": "props/box/low_cover_rect",
+          "at": [
+            83.4,
+            19.58,
+            108.1
+          ],
+          "yaw": -20
+        },
+        {
+          "model": "props/box/half_cover_square",
+          "at": [
+            86.6,
+            19.58,
+            107.4
+          ],
+          "yaw": -70
+        },
+        {
+          "what": "north-west: a corner half cover open towards the north stairs, as Rudnya's by the car is open outwards",
+          "model": "props/box/half_cover_corner",
+          "at": [
+            79.5,
+            19.58,
+            110.1
+          ],
+          "yaw": 262
+        },
+        {
+          "what": "south, as Rudnya's south: a full cover along the zone's edge and a corner half cover open towards the station, against the big tree",
+          "model": "props/box/full_cover",
+          "at": [
+            84.3,
+            19.58,
+            98.9
+          ],
+          "yaw": 16
+        },
+        {
+          "model": "props/box/half_cover_corner",
+          "at": [
+            79.0,
+            19.58,
+            100.2
+          ],
+          "yaw": 192
+        },
+        {
+          "what": "east, by the gate: a cargo crate",
+          "model": "props/box/woodbox_cargo_big_02",
+          "at": [
+            86.7,
+            19.58,
+            103.3
+          ],
+          "yaw": 85
+        },
+        {
+          "what": "tyres under the north tree",
+          "model": "props/cover/tyres_cover_c",
+          "at": [
+            86.2,
+            19.58,
+            113.2
+          ],
+          "yaw": -30
+        }
+      ]
+    },
+    {
+      "cp_id": 2,
+      "what": "the south wing's hall under the broken roof, second floor",
+      "marker": [
+        20.3,
+        79.6
+      ],
+      "floor": 20.74,
+      "yaw": 0,
+      "zone": {
+        "type": 1,
+        "position": [
+          20.3,
+          22.545,
+          79.6
+        ],
+        "half": [
+          4.5,
+          1.925,
+          3.1
+        ]
+      },
+      "antenna": [
+        14.0,
+        29.9,
+        79.6
+      ],
+      "props": [
+        {
+          "what": "the west corner: shelving on the west wall, a cargo crate squared against it at the hall's mouth",
+          "model": "props/furniture/shelv_stend_big_01_02",
+          "at": [
+            16.15,
+            20.72,
+            78.9
+          ],
+          "yaw": 90
+        },
+        {
+          "model": "props/furniture/shelv_stend_big_01_02",
+          "at": [
+            16.15,
+            20.72,
+            80.2
+          ],
+          "yaw": 90
+        },
+        {
+          "model": "props/box/woodbox_cargo_big_01",
+          "at": [
+            17.95,
+            20.72,
+            77.8
+          ],
+          "yaw": 0
+        }
+      ]
+    }
+  ],
+  "examples": [
+    "level_02/day_4",
+    "level_01/day_5"
+  ]
+}

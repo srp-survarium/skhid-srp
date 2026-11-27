@@ -9,6 +9,9 @@ package survarium.interfaces
       function set _relocateFunction(value:Function) : void;
       
       function get _relocateFunction() : Function;
+
+      // Asks the game for `moves` (each made by Relocation.move).
+      function relocate(moves:Array) : void;
       
       function get paperDoll() : ILocalPaperDoll;
       

@@ -21,12 +21,15 @@ the font; the icons dir holds the item icons as <config name>.webp
 """
 import base64
 import hashlib
+import html
 import json
 import os
 import re
 import sys
 
 here = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, os.path.join(here, "..", "site-texts"))
+from texts import CODES, WORDS, Texts  # noqa: E402
 assets = os.path.join(here, "assets")
 site = sys.argv[1] == "--site"
 if site:
@@ -81,20 +84,34 @@ data["hud_doll"] = {
     "zones": {"front": zones(os.path.join(assets, "doll", "doll_front.svg")),
               "back": zones(os.path.join(assets, "doll", "doll_back.svg"))},
 }
+# The skills' icons, as the lobby's skill renderer draws them: the
+# skills page's own (srp-026g/scripts/skills-tab/build.py, run first).
+skill_icons = os.path.join(here, "..", "..", "servers", "web-server", "skills", "icons")
+data["skill_icons"] = {str(s["id"]): uri(os.path.join(skill_icons, f"{s['id']}.webp"), "image/webp")
+                       for s in (data.get("skills") or {}).values()
+                       if os.path.isfile(os.path.join(skill_icons, f"{s['id']}.webp"))}
 data["mod_icons"] = {name.removeprefix("mod_icon_").removesuffix(".png"): uri(os.path.join(assets, "mod_icons", name), "image/png")
                      for name in os.listdir(os.path.join(assets, "mod_icons"))}
+# assets/mod_icons are cells of lobby_menu.swf's LobbyMenu_ModifierIcons
+# (character 3279, 38 px, column-major): one for each the page shows.
+recovery = data.get("recovery") or {}
+shown = {m["icon"] for m in data["mods"].values()} | {(recovery.get("gear") or {}).get("icon")} \
+    | {line.get("icon") for b in (recovery.get("boosters") or {}).values() for line in b["card"]}
+missing = sorted(str(i) for i in shown - {None} if str(i) not in data["mod_icons"])
+if missing:
+    sys.exit(f"no assets/mod_icons/mod_icon_<n>.png for modification icons {', '.join(missing)}")
 # Top-down maps: the scale and heights go in the page, the images ship beside
 # it as maps/<key>.webp and load when a map is picked.
 with open(os.path.join(assets, "maps", "maps.json"), encoding="utf-8") as f:
     maps = json.load(f)["maps"]
-def map_name_uk(key):
-    """The game's name for the map, with the version the English name gives."""
+def map_names(key):
+    """The game's names for the map in each language, with the version the English name gives."""
     base = key.removeprefix("v021d_")
-    uk = (data.get("level_names", {}).get(base) or {}).get("uk")
-    return uk and (uk + (" (v0.21)" if base != key else ""))
+    names = data.get("level_names", {}).get(base) or {}
+    return {f"name_{code}": names.get(code) and (names[code] + (" (v0.21)" if base != key else "")) for code in CODES[1:]}
 
 
-data["maps"] = {key: {"name": m["name"], "name_uk": map_name_uk(key),
+data["maps"] = {key: {"name": m["name"], **map_names(key),
                       "image": ("/damage/maps/" if site else "maps/") + m["image"], "size": m["image_size_px"],
                       "mpp": m["metres_per_pixel"], "p2w": m["pixel_to_world_affine"], "w2p": m["world_to_pixel_affine"],
                       "bounds": m["world_bounds"], "play": m.get("play_area_px"),
@@ -105,9 +122,26 @@ if icons_dir:
                      for name in os.listdir(icons_dir) if name.endswith(".webp")}
 
 if revision:
-    data["stamp"] = f"Skhid revision {revision}"
-    data["stamp_uk"] = f"Схід, ревізія {revision}"
-engine = read("engine.js").split('if (typeof module !== "undefined")')[0]
+    data["revision"] = int(revision)
+# The page's words come first (site-texts/words.js).
+engine = read(os.path.join("..", "site-texts", "words.js")) + read("engine.js").split('if (typeof module !== "undefined")')[0]
+
+
+def site_texts(markup, texts):
+    """The template's own texts as the site's (site-texts): the English text of each element
+    marked `data-t` (`data-t-label`: its aria-label) a place of `texts`."""
+    def text(m):
+        assert "<" not in m.group(3), m.group(0)
+        return f"{m.group(1)}{m.group(2)}{texts.t(html.unescape(m.group(3).strip()))}<"
+    markup = re.sub(r'(<[^<>]*?) data-t([^<>-][^<>]*>|>)([^<]*)<', text, markup)
+    markup = re.sub(r'aria-label="([^"]*)" data-t-label', lambda m: f'aria-label="{texts.t(html.unescape(m.group(1)))}"', markup)
+    assert " data-t" not in markup, "a data-t the build does not read"
+    return markup
+
+
+def english(markup):
+    """The template's own texts in English (the standalone page)."""
+    return re.sub(r' data-t(-label)?(?=[\s>])', "", markup)
 if site:
     # The page's fonts, served by the site: the ones Google Fonts gives the
     # standalone page, PT Sans, PT Sans Narrow and PT Mono, plus Carlito.
@@ -119,17 +153,18 @@ if site:
     faces = "\n".join(f'@font-face {{ font-family: "{family}"; font-weight: {weight}; font-style: {style}; '
                        f'font-display: swap; src: url("/damage/fonts/{file}.woff2?v={version(fonts[file])}") format("woff2"); }}'
                        for family, weight, style, file in FONTS)
-    # The Maps tab's build (srp-026g/scripts/maps-tab, run first): every
-    # map's name from the game's modes and its HUD minimap, in its order.
+    # The Maps tab's build (srp-026g/scripts/maps-tab, run first): its maps
+    # (a render of a map no longer played is left out), each one's name from
+    # the game's modes and its HUD minimap, in its order.
     tab = os.path.join(out_path, "..", "maps", "maps.js")
     if os.path.isfile(tab):
         with open(tab, encoding="utf-8") as f:
             tab_maps = json.loads(re.search(r"const MAPS = (.*);\n", f.read()).group(1))["maps"]
-        order = [t["key"] for t in tab_maps if t["key"] in data["maps"]]
-        data["maps"] = {key: data["maps"][key] for key in order + [k for k in data["maps"] if k not in order]}
+        data["maps"] = {t["key"]: data["maps"][t["key"]] for t in tab_maps if t["key"] in data["maps"]}
         for t in tab_maps:
             if t["key"] in data["maps"]:
-                data["maps"][t["key"]].update(name=t["name"]["en"], name_uk=t["name"]["uk"], minimap=t["minimap"])
+                data["maps"][t["key"]].update(name=t["name"]["en"], minimap=t["minimap"],
+                                              **{f"name_{code}": t["name"].get(code) for code in CODES[1:]})
     images = {}
     for key, m in data["maps"].items():
         name = m["image"].rsplit("/", 1)[1]
@@ -138,19 +173,23 @@ if site:
     template = read("template.html")
     head, body = template.split("<style>", 1)
     style, rest = body.split("</style>", 1)
-    title = re.search(r"<title>.*?</title>", head).group(0)
-    markup = rest.split('<script id="calc-data"')[0]
+    texts = Texts()
+    title = f"<title>{texts.t('Damage calculator', 'title')}</title>"
+    markup = site_texts(rest.split('<script id="calc-data"')[0], texts)
+    markup = markup.replace('<script type="application/json" id="page-words">{}</script>',
+                            f'<script type="application/json" id="page-words">{WORDS}</script>')
     script = ('"use strict";\n// Built by srp-026g/scripts/damage-calc/build_page.py --site; do not edit.\n'
               f"const DATA = {json.dumps(data, ensure_ascii=False, separators=(',', ':'))};\n"
-              f'{engine}\n{read("rules.js")}\n{read("ui.js")}')
+              f'{engine}\n{read("hud.js")}\n{read("rules.js")}\n{read("ui.js")}')
     page = ('<!doctype html>\n<html lang="{{LANG}}">\n<meta charset="utf-8">\n'
             '<meta name="viewport" content="width=device-width,initial-scale=1">\n'
-            f"{title}\n<style>\n{style.replace('/*__FONT__*/', faces)}</style>\n<!--SITE-HEADER-->\n"
+            f"{title}\n<style>\n{style.replace('/*__FONT__*/', faces).replace('/*__HUD__*/', read('hud.css'))}</style>\n<!--SITE-HEADER-->\n"
             f'{markup.strip()}\n<script src="/damage/calc.js?v={version(script.encode())}"></script>\n')
     for sub_dir in ("fonts", "maps"):
         os.makedirs(os.path.join(out_path, sub_dir), exist_ok=True)
     with open(os.path.join(out_path, "damage.html"), "w", encoding="utf-8") as f:
         f.write(page)
+    texts.write(os.path.join(out_path, "damage.texts.json"))
     with open(os.path.join(out_path, "calc.js"), "w", encoding="utf-8") as f:
         f.write(script)
     for sub_dir, blobs in (("fonts", {k + ".woff2": v for k, v in fonts.items()}), ("maps", images)):
@@ -163,11 +202,12 @@ if site:
 # '</' would end the inline <script>.
 payload = json.dumps(data, ensure_ascii=False, separators=(",", ":")).replace("</", "<\\/")
 font = uri(os.path.join(assets, "fonts", "carlito-bold.woff2"), "font/woff2")
-page = (read("template.html")
+page = (english(read("template.html"))
         .replace("/*__FONT__*/", f'@font-face {{ font-family: "Carlito"; font-weight: 700; src: url("{font}") format("woff2"); }}')
         .replace("/*__DATA__*/", payload)
+        .replace("/*__HUD__*/", read("hud.css"))
         .replace("/*__ENGINE__*/", engine)
-        .replace("/*__RULES__*/", read("rules.js"))
+        .replace("/*__RULES__*/", read("hud.js") + "\n" + read("rules.js"))
         .replace("/*__UI__*/", read("ui.js")))
 with open(out_path, "w", encoding="utf-8") as f:
     f.write(page)

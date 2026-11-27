@@ -1,22 +1,18 @@
 //! A small website for the people running srp.
 //!
 //! - `/` is a home page: what the project is and where it came from.
-//! - `/exchange` (the 0.26g page only, `GET`) says that silver and gold are
-//!   exchanged in the game now: the SHOP button of the launchers already in
-//!   players' hands opens it ([`v026g::in_the_game_now`]). Nothing is
-//!   exchanged on the page; on the 0.21d page it is "not found".
-//! - `/launcher/…` and `/api/client-files` (the 0.26g page only) are for the
-//!   patched game launcher and its updater ([`launcher`]): the page it shows
-//!   in its window, and which archive `/download` hands out now.
-//! - `/patches` (the 0.26g page only) is the list of `resources.db`'s patches
-//!   the updater keeps in the game folder: those the server's game data was
-//!   made of ([`patches`]).
-//! - `/resources/<sha256>` (the 0.26g page only) is a blob from the folder
-//!   `resources` beside the download file ([`resource_file`]): the originals
-//!   of the `resources.db` regions earlier updaters wrote, which the
-//!   updater fetches to put the stock db back once when it kept no copy.
-//! - `/replays/<token>` (the 0.26g page only) is the replay file of the
-//!   match a token of the lobby's "Watch replay" is for
+//! - `/exchange` (`GET`) says that there is no gold: everything is bought
+//!   with silver. The SHOP button of the launchers already in players' hands
+//!   opens it ([`v026g::no_gold`]). Nothing is exchanged on the page.
+//! - `/launcher/…` and `/api/client-files` are for the patched game launcher
+//!   and its updater ([`launcher`]): the page it shows in its window, and
+//!   which archive `/download` hands out now.
+//! - `/torrent` and `/Skhid-get.bat`: the download file's torrent and the
+//!   bootstrap script, when there are ([`torrent`]).
+//! - `/patches` is the list of `resources.db`'s patches the updater keeps in
+//!   the game folder: those the server's game data was made of ([`patches`]).
+//! - `/replays/<token>` is the replay file of the match a token of the
+//!   lobby's "Watch replay" is for
 //!   (`session::v026g::replays`): `SRP_REPLAY_DIR/<id:08x>.sur`, named from
 //!   the token's match id alone ([`replay_file`]); anything else under
 //!   `/replays` is one and the same "not found", and an address that fails
@@ -35,27 +31,36 @@
 //! its own credentials, so there are no cookies and nothing to forge across
 //! sites.
 //!
-//! The page is of one game version, by how it is started: [`run`] is the
-//! 0.21d page (balances of `session::Account::game`, `-client=`), and
-//! [`run_026g`] the 0.26g one ([`v026g`]: the 0.26g accounts, the lobby told
-//! of every change, `-server=`). `srp` starts the 0.26g one.
+//! It is the 0.26g game's page ([`run_026g`], [`v026g`]: the 0.26g
+//! accounts, the lobby told of every change), as `srp` starts it. The 0.21d
+//! page is in `srp-021d/servers/web-server`.
 
+mod artefacts;
+mod built;
 mod damage;
+mod equipment;
+mod history;
 mod icons;
 pub mod item_tables;
 mod launcher;
 mod maps;
 mod moderation;
-mod equipment;
+mod modes;
 mod modifiers;
 mod password_reset;
 mod patches;
+mod quests;
+mod rename;
+mod skills;
 mod stats;
+mod torrent;
 mod v026g;
 mod wiki;
+mod words;
 
+pub use modes::Pools;
 pub use patches::{Downloads, OfferedPatch};
-pub use v026g::{Game, LiveMatch, LivePhase, LiveStanding, LobbyLink, MatchCounter};
+pub use v026g::{Game, LiveKind, LiveMatch, LivePhase, LiveStanding, LobbyLink, MatchCounter};
 
 use std::collections::HashMap;
 use std::fs::File;
@@ -70,11 +75,10 @@ use std::time::{Duration, Instant};
 use session::utc::{clock as clock_utc, date as date_utc};
 use session::v026g::replays::{Refused, Replays};
 use session::{Ban, LockExt, Net, SessionStore};
+use survarium::v026g::localization::Language;
 
 /// What the home page tells a new player, fixed at start-up.
 struct Connect {
-    /// The login server as the client is told to reach it (`host:port`).
-    address: String,
     /// `SRP_DOWNLOAD_URL`: where the patched game can be had.
     download_url: Option<String>,
     /// `SRP_DOWNLOAD_SHA256`: its checksum.
@@ -95,7 +99,7 @@ struct Connect {
 }
 
 /// Downloads of that file at one time; more get "busy, try again". The
-/// blobs of `/resources/` have as many slots again, of their own: they never
+/// replays of `/replays/` have as many slots again, of their own: they never
 /// take the archive's.
 const MAX_DOWNLOADS: u32 = 5;
 /// A download slower than this for a minute is cut, so slow readers cannot
@@ -127,43 +131,139 @@ const TOKEN_LOCKOUT: Duration = Duration::from_secs(60);
 const POLICY: &str =
     "default-src 'none'; style-src 'unsafe-inline'; font-src 'self'; form-action 'self'";
 
-/// The page's languages: Ukrainian and English only.
+/// The page's languages: the game's twelve, in its order. A page is asked
+/// for in one of them, names the game's things in it ([`Lang::game`]) and
+/// says its own words in it where its file has them ([`Lang::t`],
+/// `words`), in English where not.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 enum Lang {
     En,
     Uk,
+    Ru,
+    De,
+    Pl,
+    Sr,
+    Cs,
+    Hu,
+    Fi,
+    Be,
+    Hr,
+    Pt,
 }
 
 impl Lang {
-    /// `?lang=` or the form's `lang`, else the browser's `Accept-Language`
-    /// (Ukrainian when it comes first), else English. (`ua` is what the
-    /// game's launcher calls Ukrainian in the addresses it opens.)
+    const ALL: [Self; 12] = [
+        Self::En,
+        Self::Uk,
+        Self::Ru,
+        Self::De,
+        Self::Pl,
+        Self::Sr,
+        Self::Cs,
+        Self::Hu,
+        Self::Fi,
+        Self::Be,
+        Self::Hr,
+        Self::Pt,
+    ];
+
+    /// `?lang=` or the form's `lang`, else the first of the browser's
+    /// `Accept-Language` the site has (as the browser orders them), else
+    /// English.
     fn pick(chosen: &str, accept: &str) -> Self {
-        match chosen {
-            "uk" | "ua" => return Self::Uk,
-            "en" => return Self::En,
-            _ => {}
-        }
-        let first = accept.split(',').next().unwrap_or("").trim().to_lowercase();
-        if first.starts_with("uk") {
-            Self::Uk
-        } else {
-            Self::En
-        }
+        Self::of_code(chosen)
+            .or_else(|| {
+                accept
+                    .split(',')
+                    .filter_map(|tag| tag.split(';').next())
+                    .find_map(|tag| Self::of_code(tag.trim().split('-').next().unwrap_or("")))
+            })
+            .unwrap_or(Self::En)
     }
 
+    /// The language of a code, in any case. (`ua` is what the game's
+    /// launcher calls Ukrainian in the addresses it opens.)
+    fn of_code(code: &str) -> Option<Self> {
+        let code = code.to_ascii_lowercase();
+        if code == "ua" {
+            return Some(Self::Uk);
+        }
+        Self::ALL.into_iter().find(|lang| lang.code() == code)
+    }
+
+    /// Its code: the page's `lang`, and `?lang=`.
     fn code(self) -> &'static str {
         match self {
             Self::En => "en",
             Self::Uk => "uk",
+            Self::Ru => "ru",
+            Self::De => "de",
+            Self::Pl => "pl",
+            Self::Sr => "sr",
+            Self::Cs => "cs",
+            Self::Hu => "hu",
+            Self::Fi => "fi",
+            Self::Be => "be",
+            Self::Hr => "hr",
+            Self::Pt => "pt",
         }
     }
 
-    fn tr(self, en: &str, uk: &str) -> String {
+    /// Its name in itself, as the game's settings and launcher name it.
+    fn native(self) -> &'static str {
         match self {
-            Self::En => en.to_owned(),
-            Self::Uk => uk.to_owned(),
+            Self::En => "English",
+            Self::Uk => "Українська",
+            Self::Ru => "Русский",
+            Self::De => "Deutsch",
+            Self::Pl => "Polski",
+            Self::Sr => "Srpski",
+            Self::Cs => "Čeština",
+            Self::Hu => "Magyar",
+            Self::Fi => "Suomi",
+            Self::Be => "Беларуская",
+            Self::Hr => "Hrvatski",
+            Self::Pt => "Português",
         }
+    }
+
+    /// The game's language of it: whose names of maps, modes and items the
+    /// page shows.
+    fn game(self) -> Language {
+        match self {
+            Self::En => Language::English,
+            Self::Uk => Language::Ukrainian,
+            Self::Ru => Language::Russian,
+            Self::De => Language::German,
+            Self::Pl => Language::Polish,
+            Self::Sr => Language::Serbian,
+            Self::Cs => Language::Czech,
+            Self::Hu => Language::Hungarian,
+            Self::Fi => Language::Finnish,
+            Self::Be => Language::Belarusian,
+            Self::Hr => Language::Croatian,
+            Self::Pt => Language::Portuguese,
+        }
+    }
+
+    /// `english`, a text of the site's own, in this language: as its file
+    /// has it (`words`), else as it is.
+    fn t(self, english: &str) -> String {
+        self.tc("", english)
+    }
+
+    /// [`Self::t`] of a text with two meanings, by its context ("button":
+    /// the button "Ban", not the noun).
+    fn tc(self, context: &str, english: &str) -> String {
+        words::text(self, context, english)
+            .unwrap_or(english)
+            .to_owned()
+    }
+
+    /// [`Self::t`] of a text with `{places}`, each filled with its value:
+    /// a translation may order them as it reads best.
+    fn tf(self, english: &str, values: &[(&str, &dyn std::fmt::Display)]) -> String {
+        words::filled(&self.t(english), values)
     }
 }
 
@@ -175,37 +275,23 @@ struct Stats {
     /// The minutes to a planned maintenance.
     maintenance: Option<u32>,
     registrations_open: bool,
-    /// The 0.26g page.
-    v026g: bool,
-    /// The download holds the launcher (0.26g): the page tells players to
+    /// The download holds the launcher: the page tells players to
     /// start that, and keeps the start script for those who want it.
     launcher: bool,
-    /// The download's launcher brings the original game itself (0.26g):
+    /// The download's launcher brings the original game itself:
     /// the page tells players to unpack into an empty folder, and names
     /// the game's own archive only as the way out when that fails.
     installs_game: bool,
 }
 
 enum Form {
-    None,
     Home(Stats),
     Admin(Box<AdminView>),
-    /// The 0.26g page's "not found".
+    /// "Not found".
     None26,
-    /// The 0.26g page's `/exchange`: in the game now, in the launcher's
-    /// language ([`v026g::launcher_code`]).
+    /// `/exchange`: no gold, in the launcher's language
+    /// ([`v026g::launcher_code`]).
     InTheGame26(&'static str),
-}
-
-impl Form {
-    fn is_026g(&self) -> bool {
-        match self {
-            Self::None => false,
-            Self::None26 | Self::InTheGame26(_) => true,
-            Self::Home(stats) => stats.v026g,
-            Self::Admin(view) => view.g26,
-        }
-    }
 }
 
 /// The admin page as shown: before the token (all empty), or after it.
@@ -222,15 +308,13 @@ struct AdminView {
     maintenance: String,
     /// Whether new accounts are taken, for the form's buttons.
     registrations_open: bool,
-    /// The 0.26g page: the account, item and text tabs too.
-    g26: bool,
-    /// The operator's text that stands (0.26g, after the token only).
+    /// The operator's text that stands (after the token only).
     admin_text: Option<(String, String)>,
     /// The password tab: the account to confirm, or the user name typed.
     reset: password_reset::ResetView,
-    /// The 0.26g Money tab: the change previewed or made.
+    /// The Money tab: the change previewed or made.
     money: moderation::MoneyView,
-    /// The 0.26g Take items tab: the listing, the take previewed or made.
+    /// The Take items tab: the listing, the take previewed or made.
     items: moderation::ItemsView,
 }
 
@@ -248,28 +332,6 @@ impl Drop for Slot<'_> {
     fn drop(&mut self) {
         self.0.fetch_sub(1, Ordering::AcqRel);
     }
-}
-
-/// The file of `/resources/<name>` beside the download file `download`:
-/// `<its folder>/resources/<name>`, for a name of 64 lower-case hex digits
-/// (the SHA-256 of the blob; `client/updater`, "Resources") and no other.
-/// No other part of a request's path ever names a file.
-fn resource_file(path: &str, download: &Path) -> Option<PathBuf> {
-    let name = path.strip_prefix("/resources/")?;
-    if name.len() != 64 || !name.bytes().all(|c| matches!(c, b'0'..=b'9' | b'a'..=b'f')) {
-        return None;
-    }
-    Some(download.parent()?.join("resources").join(name))
-}
-
-/// The blob a request asks for: a `GET` or `HEAD` of `/resources/<name>`
-/// on the 0.26g page (`v026g`), when there is a download file. Anything
-/// else is the page's to answer, as before there were blobs.
-fn resource_request(v026g: bool, request: &Request, download: Option<&Path>) -> Option<PathBuf> {
-    if !v026g || !matches!(request.method.as_str(), "GET" | "HEAD") {
-        return None;
-    }
-    resource_file(&request.path, download?)
 }
 
 /// Where the replays are handed out: `/replays/<token>` (the 0.26g page;
@@ -347,6 +409,20 @@ fn replay_log_line(request: &Request, match_id: u32, token: &str) -> String {
     )
 }
 
+/// Asks for a replay (`/api/history/replay`) an address may make in
+/// [`REPLAY_ASK_WINDOW`]: the stats page asks again every two seconds while
+/// one is being made.
+const REPLAY_ASKS: u32 = 40;
+const REPLAY_ASK_WINDOW: Duration = Duration::from_secs(60);
+/// Addresses whose asks are remembered, at most.
+const REPLAY_ASK_ADDRESSES: usize = 4096;
+
+/// The asks for a replay of one address, since the first of the minute.
+struct ReplayAsks {
+    count: u32,
+    since: Instant,
+}
+
 /// The failed `/replays/` lookups of one address.
 struct ReplayFailures {
     count: u32,
@@ -407,16 +483,16 @@ struct Web {
     token_failures: Mutex<(u32, Option<Instant>)>,
     connections: AtomicU32,
     downloads: AtomicU32,
-    /// Downloads of `/resources/` blobs now.
-    resource_downloads: AtomicU32,
     /// Downloads of `/replays/` files now: slots of their own.
     replay_downloads: AtomicU32,
     /// Failed `/replays/` lookups by address ([`REPLAY_FAILURES`]).
     replay_failures: Mutex<HashMap<Option<IpAddr>, ReplayFailures>>,
+    /// Asks for a replay by address ([`REPLAY_ASKS`]).
+    replay_asks: Mutex<HashMap<Option<IpAddr>, ReplayAsks>>,
     /// The admin's moderation previews waiting for their confirm.
     plans: moderation::Plans,
-    /// `Some`: the page of the 0.26g stack.
-    game: Option<Game>,
+    /// The 0.26g stack the page is of.
+    game: Game,
 }
 
 /// Who may use the admin page, and how.
@@ -432,26 +508,11 @@ pub struct Admin {
     pub trust_proxy: bool,
 }
 
-/// The 0.21d page, as the environment asks for it.
-pub fn run(store: Arc<SessionStore>) -> io::Result<()> {
-    run_from_env(store, None)
-}
-
-/// The 0.26g page, as the environment asks for it (the same settings).
+/// The page, as the environment asks for it.
 pub fn run_026g(store: Arc<SessionStore>, game: Game) -> io::Result<()> {
-    run_from_env(store, Some(game))
-}
-
-fn run_from_env(store: Arc<SessionStore>, game: Option<Game>) -> io::Result<()> {
     let bind = std::env::var("SRP_WEB_BIND").unwrap_or_else(|_| "127.0.0.1".into());
     let port = std::env::var("SRP_WEB_PORT").unwrap_or_else(|_| "8088".into());
-    let address = vostok::config::load().map_or_else(
-        |_| "127.0.0.1:1234".into(),
-        |config| config.login_server.public_addr(),
-    );
-    log::info!("Home page tells players to connect to {address}");
     let _ = CONNECT.set(Connect {
-        address,
         download_url: env_text("SRP_DOWNLOAD_URL").filter(|url| url.starts_with("https://")),
         download_file: env_text("SRP_DOWNLOAD_FILE").map(PathBuf::from),
         sha256: env_text("SRP_DOWNLOAD_SHA256")
@@ -511,25 +572,20 @@ fn run_from_env(store: Arc<SessionStore>, game: Option<Game>) -> io::Result<()> 
     )
 }
 
-/// Serve the page on `listener` until it fails: the 0.26g page with a
-/// `game`, else the 0.21d one. (What the home page tells of the address and
-/// the download comes from the environment, through [`run`] / [`run_026g`]
-/// only.)
+/// Serve the page on `listener` until it fails. (What the home page tells
+/// of the address and the download comes from the environment, through
+/// [`run_026g`] only.)
 pub fn serve_on(
     listener: &TcpListener,
     store: Arc<SessionStore>,
     admin: Admin,
-    game: Option<Game>,
+    game: Game,
 ) -> io::Result<()> {
     let admin_state = match (&admin.token, &admin.path) {
         (Some(_), Some(_)) => format!("admin on for {} address(es)", admin.ips.len()),
         _ => "admin off: SRP_ADMIN_TOKEN and SRP_ADMIN_PATH are needed".to_owned(),
     };
-    log::info!(
-        "Web server on {} ({} page, {admin_state})",
-        listener.local_addr()?,
-        if game.is_some() { "0.26g" } else { "0.21d" }
-    );
+    log::info!("Web server on {} ({admin_state})", listener.local_addr()?);
     let web = Arc::new(Web {
         store,
         token: admin.token,
@@ -539,9 +595,9 @@ pub fn serve_on(
         token_failures: Mutex::new((0, None)),
         connections: AtomicU32::new(0),
         downloads: AtomicU32::new(0),
-        resource_downloads: AtomicU32::new(0),
         replay_downloads: AtomicU32::new(0),
         replay_failures: Mutex::new(HashMap::new()),
+        replay_asks: Mutex::new(HashMap::new()),
         plans: Default::default(),
         game,
     });
@@ -622,6 +678,29 @@ struct Response {
     body: String,
 }
 
+/// The file at `path` (the target before any `?`) that the pages load, sent to be kept: the
+/// calculator's, the Maps tab's, the wiki's, the stats' and the skills' files, the icons, and the
+/// calculator's fonts, which every page uses.
+fn static_file(path: &str) -> Option<(&'static str, &'static [u8])> {
+    damage::file(path)
+        .or_else(|| maps::file(path))
+        .or_else(|| wiki::file(path))
+        .or_else(|| history::file(path))
+        .or_else(|| skills::file(path))
+        .or_else(|| icons::file(path))
+}
+
+/// The address of the file at `path` ([`static_file`]) with its version (`?v=`, as the
+/// pages name their files), if there is one.
+fn versioned(path: &str) -> Option<String> {
+    let (_, bytes) = static_file(path)?;
+    let version: String = openssl::sha::sha256(bytes)[..6]
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect();
+    Some(format!("{path}?v={version}"))
+}
+
 fn locked<T>(mutex: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
     mutex
         .lock()
@@ -649,7 +728,7 @@ impl Web {
         } else {
             connection
         };
-        if self.game.is_some() && replay_route(&request) {
+        if replay_route(&request) {
             self.replay(&mut stream, &request, Instant::now());
             return;
         }
@@ -660,31 +739,34 @@ impl Web {
             self.download(&mut stream, &request, file);
             return;
         }
-        if let Some(file) = resource_request(
-            self.game.is_some(),
-            &request,
-            available_download().map(PathBuf::as_path),
-        ) {
-            self.resource(&mut stream, &request, &file);
+        if request.path == torrent::PATH
+            && matches!(request.method.as_str(), "GET" | "HEAD")
+            && let Some(found) = available_download().and_then(|file| torrent::in_zip(file))
+        {
+            torrent::send(
+                &mut stream,
+                request.method == "HEAD",
+                &found,
+                self.game.min_patch_revision,
+            );
             return;
         }
-        // The calculator's and the Maps tab's files on the 0.26g site; the
-        // calculator's fonts, which every page uses, on both.
-        let site_file = self.game.is_some() || request.path.starts_with(damage::FONTS);
-        if site_file && matches!(request.method.as_str(), "GET" | "HEAD") {
-            let file = damage::file(&request.path)
-                .or_else(|| self.game.as_ref().and_then(|_| maps::file(&request.path)))
-                .or_else(|| self.game.as_ref().and_then(|_| wiki::file(&request.path)))
-                .or_else(|| self.game.as_ref().and_then(|_| icons::file(&request.path)));
-            if let Some((content_type, bytes)) = file {
-                damage::send(&mut stream, request.method == "HEAD", content_type, bytes);
-                return;
-            }
+        if request.path == torrent::BOOTSTRAP_PATH
+            && matches!(request.method.as_str(), "GET" | "HEAD")
+            && let Some(script) = torrent::BOOTSTRAP
+        {
+            torrent::send_bootstrap(&mut stream, request.method == "HEAD", script);
+            return;
+        }
+        if matches!(request.method.as_str(), "GET" | "HEAD")
+            && let Some((content_type, bytes)) = static_file(&request.path)
+        {
+            damage::send(&mut stream, request.method == "HEAD", content_type, bytes);
+            return;
         }
         // A page's address from before it was the wiki's: the page where it
         // is now, in the same language (the browser keeps a `#` itself).
-        if self.game.is_some()
-            && matches!(request.method.as_str(), "GET" | "HEAD")
+        if matches!(request.method.as_str(), "GET" | "HEAD")
             && let Some(path) = wiki::moved(&request.path)
         {
             let head = format!(
@@ -698,18 +780,26 @@ impl Web {
             return;
         }
         let response = self.route(&request, &peer);
-        let policy = if self.game.is_some() && launcher::serves(&request.path) {
+        let policy = if launcher::serves(&request.path) {
             launcher::policy()
-        } else if self.game.is_some() && request.path == damage::PATH {
+        } else if request.path == damage::PATH {
             damage::POLICY
-        } else if self.game.is_some() && request.path == maps::PATH {
+        } else if request.path == maps::PATH {
             maps::POLICY
-        } else if self.game.is_some()
-            && matches!(
-                request.path.as_str(),
-                wiki::PATH | wiki::WEAPONS | wiki::MODIFIERS | wiki::EQUIPMENT
-            )
-        {
+        } else if request.path == history::PATH {
+            history::POLICY
+        } else if matches!(
+            request.path.as_str(),
+            wiki::PATH
+                | wiki::WEAPONS
+                | wiki::SIMULATORS
+                | wiki::MODIFIERS
+                | wiki::EQUIPMENT
+                | artefacts::PATH
+                | skills::PATH
+                | quests::PATH
+                | modes::PATH
+        ) {
             damage::POLICY
         } else {
             POLICY
@@ -736,18 +826,6 @@ impl Web {
         self.send_file(stream, request, file, &self.downloads, "application/zip");
     }
 
-    /// Hands out a blob of `/resources/` as the download file is handed
-    /// out, in slots of its own; "not found" when there is no such file.
-    fn resource(&self, stream: &mut TcpStream, request: &Request, file: &Path) {
-        self.send_file(
-            stream,
-            request,
-            file,
-            &self.resource_downloads,
-            "application/octet-stream",
-        );
-    }
-
     /// `/replays/<token>`: the replay file of the token's match, as the
     /// download file is handed out (a `Range` resumes), in slots of its own;
     /// each `GET` takes one of the token's downloads, and a token has one
@@ -764,7 +842,7 @@ impl Web {
             );
             return;
         }
-        let replays = self.game.as_ref().and_then(|game| game.replays.as_deref());
+        let replays = self.game.replays.as_deref();
         let token = replay_token(&request.method, &request.target);
         let taken = match replays.zip(token) {
             Some((replays, token)) => replays
@@ -805,6 +883,24 @@ impl Web {
         );
         // The token's one download is over.
         drop(download);
+    }
+
+    /// One ask for a replay of an address: whether it is within
+    /// [`REPLAY_ASKS`] of this minute.
+    fn replay_ask_allowed(&self, client: Option<IpAddr>, now: Instant) -> bool {
+        let mut all = locked(&self.replay_asks);
+        if all.len() >= REPLAY_ASK_ADDRESSES && !all.contains_key(&client) {
+            all.retain(|_, asks| now.saturating_duration_since(asks.since) < REPLAY_ASK_WINDOW);
+            if all.len() >= REPLAY_ASK_ADDRESSES {
+                return false;
+            }
+        }
+        let asks = all.entry(client).or_insert(ReplayAsks { count: 0, since: now });
+        if now.saturating_duration_since(asks.since) >= REPLAY_ASK_WINDOW {
+            *asks = ReplayAsks { count: 0, since: now };
+        }
+        asks.count += 1;
+        asks.count <= REPLAY_ASKS
     }
 
     /// Whether an address is waiting out its failed `/replays/` lookups.
@@ -960,79 +1056,70 @@ impl Web {
     }
 
     fn route(&self, request: &Request, peer: &str) -> Response {
-        if let Some(game) = &self.game {
-            if request.method == "GET" {
-                match request.path.as_str() {
-                    "/api/stats" => return stats::response(&self.store, game),
-                    "/patches" => return patches::response(&game.downloads),
-                    "/game" => {
-                        if let Some(response) = patches::game_response(&game.downloads) {
-                            return response;
-                        }
-                    }
-                    "/api/client-files" => {
-                        return launcher::client_files(game.min_patch_revision);
-                    }
-                    damage::PATH => return damage_page(request.lang),
-                    maps::PATH => return maps_page(request.lang),
-                    path @ (wiki::PATH | wiki::WEAPONS | wiki::MODIFIERS | wiki::EQUIPMENT) => {
-                        return wiki_page(path, &request.target, request.lang);
-                    }
-                    path if path.starts_with(launcher::FRESH) => {
-                        return launcher::fresh(
-                            launcher::language(path, request.lang),
-                            &self.store,
-                            game,
-                        );
-                    }
-                    path if path.starts_with(launcher::FRESH_BEFORE) => {
-                        return launcher::fresh_before(
-                            launcher::language(path, request.lang),
-                            &self.store,
-                            game,
-                        );
-                    }
-                    path if launcher::serves(path) => {
-                        return launcher::page(
-                            launcher::language(path, request.lang),
-                            &self.store,
-                            game,
-                        );
-                    }
-                    _ => {}
+        let game = &self.game;
+        if request.method == "GET" {
+            match request.path.as_str() {
+                "/api/stats" => return stats::response(&self.store, game),
+                history::PATH => return stats_page(request.lang, &request.target),
+                history::REPLAY
+                    if !self.replay_ask_allowed(request.client, Instant::now()) =>
+                {
+                    return history::too_many();
                 }
+                path if path.starts_with(history::PREFIX) => {
+                    let query = request
+                        .target
+                        .split_once('?')
+                        .map_or("", |(_, query)| query);
+                    return history::response(
+                        path,
+                        query,
+                        request.lang,
+                        &self.store,
+                        game,
+                        unix_now(),
+                    );
+                }
+                "/patches" => return patches::response(&game.downloads),
+                "/game" => {
+                    if let Some(response) = patches::game_response(&game.downloads) {
+                        return response;
+                    }
+                }
+                "/api/client-files" => {
+                    return launcher::client_files(game.min_patch_revision);
+                }
+                damage::PATH => return damage_page(request.lang),
+                maps::PATH => return maps_page(request.lang),
+                path @ (wiki::PATH
+                | wiki::WEAPONS
+                | wiki::SIMULATORS
+                | wiki::MODIFIERS
+                | wiki::EQUIPMENT
+                | artefacts::PATH
+                | skills::PATH
+                | quests::PATH
+                | modes::PATH) => {
+                    return wiki_page(path, &request.target, request.lang, game);
+                }
+                path if path.starts_with(launcher::FRESH) => {
+                    return launcher::fresh(
+                        launcher::language(path, request.lang),
+                        &self.store,
+                        game,
+                    );
+                }
+                path if launcher::serves(path) => {
+                    return launcher::page(
+                        launcher::language(path, request.lang),
+                        &self.store,
+                        game,
+                    );
+                }
+                _ => {}
             }
-            return self.route_026g(request, peer);
         }
-        match (request.method.as_str(), request.path.as_str()) {
-            ("GET", "/") => page(
-                request.lang,
-                Form::Home(Stats {
-                    registered: self.store.registered_accounts(),
-                    online: self.store.players_present(),
-                    maintenance: self.store.minutes_to_maintenance(),
-                    registrations_open: self.store.registrations_open(),
-                    v026g: false,
-                    launcher: false,
-                    installs_game: false,
-                }),
-                "",
-            ),
-            ("GET", path) if self.is_admin_page(path, request) => {
-                page(request.lang, Form::Admin(Box::default()), "")
-            }
-            ("POST", path) if self.is_admin_page(path, request) => self.admin(request, peer),
-            _ => Response {
-                status: "404 Not Found",
-                content_type: ContentType::Html,
-                body: page(
-                    request.lang,
-                    Form::None,
-                    &request.lang.tr("Not found.", "Не знайдено."),
-                )
-                .body,
-            },
-        }
+        self.route_026g(request, peer)
     }
 
     /// Whether `path` is the admin page and `request` may see it.
@@ -1053,16 +1140,14 @@ impl Web {
         let lang = request.lang;
         // The tab the form was on says what to do: Enter in any field
         // submits the form, whichever button that presses.
-        let g26 = self.game.is_some();
         let tab = match request.field("tab") {
-            tab @ ("money" | "ban" | "unban" | "bans" | "maint" | "signups" | "password") => tab,
-            tab @ ("account" | "item" | "items" | "text" | "mute") if g26 => tab,
+            tab @ ("money" | "ban" | "unban" | "bans" | "maint" | "signups" | "password"
+            | "account" | "item" | "items" | "text" | "mute" | "rename") => tab,
             _ => "money",
         };
         let refused = |message: String| {
             let view = AdminView {
                 tab: tab.to_owned(),
-                g26,
                 ..AdminView::default()
             };
             page(lang, Form::Admin(Box::new(view)), &message)
@@ -1070,13 +1155,10 @@ impl Web {
         match self.check_token(request, peer) {
             Ok(()) => {}
             Err(TokenRefused::Locked) => {
-                return refused(lang.tr(
-                    "Too many wrong tokens; wait a minute.",
-                    "Забагато хибних токенів; зачекайте хвилину.",
-                ));
+                return refused(lang.t("Too many wrong tokens; wait a minute."));
             }
             Err(TokenRefused::Wrong) => {
-                return refused(lang.tr("Wrong token.", "Неправильний токен."));
+                return refused(lang.t("Wrong token."));
             }
         }
         let given = request.field("token");
@@ -1103,12 +1185,12 @@ impl Web {
             "item" => self.admin_item_026g(request, peer),
             "text" => self.admin_text_026g(request, peer),
             "mute" => self.admin_chat_mute(request, peer),
-            _ if g26 => {
+            "rename" => self.admin_rename(request, peer),
+            _ => {
                 let (message, view) = self.admin_moderate_money(request, peer);
                 money = view;
                 message
             }
-            _ => self.admin_money(request, peer),
         };
         let view = AdminView {
             token: given.to_owned(),
@@ -1116,8 +1198,7 @@ impl Web {
             bans: bans_table(lang, &self.store),
             maintenance: maintenance_line(lang, &self.store),
             registrations_open: self.store.registrations_open(),
-            g26,
-            admin_text: self.game.as_ref().and_then(|game| game.lobby.admin_text()),
+            admin_text: self.game.lobby.admin_text(),
             reset,
             money,
             items,
@@ -1142,43 +1223,6 @@ impl Web {
         Ok(())
     }
 
-    fn admin_money(&self, request: &Request, peer: &str) -> String {
-        let lang = request.lang;
-        let user = request.field("user").trim();
-        let no_such = lang.tr("No such user.", "Такого користувача немає.");
-        let Some(account_id) = self.store.find_account(user) else {
-            return no_such;
-        };
-        let (Some(silver), Some(gold)) =
-            (delta(request.field("silver")), delta(request.field("gold")))
-        else {
-            return lang.tr(
-                "Silver and gold are whole numbers, + or -, or empty.",
-                "Срібло і золото — цілі числа, + або -, або порожньо.",
-            );
-        };
-        let Some(account) = self.store.account(account_id) else {
-            return no_such;
-        };
-        let (silver_now, gold_now) = {
-            let mut account = locked(&account);
-            let game = &mut account.game;
-            game.generic_money = apply(game.generic_money, silver);
-            game.premium_money = apply(game.premium_money, gold);
-            (game.generic_money, game.premium_money)
-        };
-        self.store.mark_dirty(account_id);
-        self.store.save_soon();
-        log::info!(
-            "Admin from {peer}: {user:?} silver {silver:+}, gold {gold:+} \
-             (now {silver_now} silver, {gold_now} gold)"
-        );
-        lang.tr(
-            &format!("{user}: now {silver_now} silver and {gold_now} gold."),
-            &format!("{user}: тепер {silver_now} срібла і {gold_now} золота."),
-        )
-    }
-
     /// Open or close registration of new accounts.
     fn admin_signups(&self, request: &Request, peer: &str) -> String {
         let lang = request.lang;
@@ -1193,15 +1237,9 @@ impl Web {
             if open { "opened" } else { "closed" }
         );
         if open {
-            lang.tr(
-                "New accounts are taken again.",
-                "Нові акаунти знову приймаються.",
-            )
+            lang.t("New accounts are taken again.")
         } else {
-            lang.tr(
-                "New accounts are refused; existing players sign in as before.",
-                "Нові акаунти не приймаються; гравці з акаунтом входять як раніше.",
-            )
+            lang.t("New accounts are refused; existing players sign in as before.")
         }
     }
 
@@ -1218,12 +1256,9 @@ impl Web {
                 log::warn!("Admin from {peer}: cancelled the maintenance");
             }
             return if was {
-                lang.tr("Maintenance cancelled.", "Технічні роботи скасовано.")
+                lang.t("Maintenance cancelled.")
             } else {
-                lang.tr(
-                    "No maintenance was planned.",
-                    "Технічних робіт не було заплановано.",
-                )
+                lang.t("No maintenance was planned.")
             };
         }
         let minutes = request.field("minutes").trim();
@@ -1232,24 +1267,12 @@ impl Web {
             .ok()
             .filter(|minutes| (1..=MAX_MAINTENANCE_MINUTES).contains(minutes))
         else {
-            return lang.tr(
-                &format!("Minutes: a whole number from 1 to {MAX_MAINTENANCE_MINUTES}."),
-                &format!("Хвилини: ціле число від 1 до {MAX_MAINTENANCE_MINUTES}."),
-            );
+            return lang.tf("Minutes: a whole number from 1 to {MAX_MAINTENANCE_MINUTES}.", &[("MAX_MAINTENANCE_MINUTES", &MAX_MAINTENANCE_MINUTES)]);
         };
         let at = unix_now() + minutes * 60;
         self.store.set_maintenance(Some(at));
         log::warn!("Admin from {peer}: maintenance planned in {minutes} min");
-        lang.tr(
-            &format!(
-                "Maintenance starts in {minutes} min, at {} UTC.",
-                clock_utc(at)
-            ),
-            &format!(
-                "Технічні роботи почнуться через {minutes} хв, о {} UTC.",
-                clock_utc(at)
-            ),
-        )
+        lang.tf("Maintenance starts in {minutes} min, at {0} UTC.", &[("minutes", &minutes), ("0", &clock_utc(at))])
     }
 
     /// Ban an account (and, if asked, the address it last signed in from),
@@ -1264,8 +1287,8 @@ impl Web {
         let reason: String = request.field("reason").trim().chars().take(200).collect();
         let ban = Ban { until, reason };
         let how_long = match until {
-            Some(_) => lang.tr(&format!("for {hours} h"), &format!("на {hours} год")),
-            None => lang.tr("for good", "назавжди"),
+            Some(_) => lang.tf("for {hours} h", &[("hours", &hours)]),
+            None => lang.t("for good"),
         };
         if let Some(net) = Net::parse(target) {
             let kicked = self.store.ban_net(net, ban.clone());
@@ -1274,16 +1297,10 @@ impl Web {
                  {kicked} session(s) ended",
                 ban.reason
             );
-            return lang.tr(
-                &format!("Address {net} banned {how_long}; {kicked} session(s) ended."),
-                &format!("Адресу {net} заблоковано {how_long}; завершено сесій: {kicked}."),
-            );
+            return lang.tf("Address {net} banned {how_long}; {kicked} session(s) ended.", &[("net", &net), ("how_long", &how_long), ("kicked", &kicked)]);
         }
         let Some(account_id) = self.store.find_account(target) else {
-            return lang.tr(
-                "No such user or address. A name several accounts share needs the user name they sign in with.",
-                "Немає такого користувача чи адреси. Якщо ім'я мають кілька акаунтів, вкажіть ім'я для входу.",
-            );
+            return lang.t("No such user or address. A name several accounts share needs the user name they sign in with.");
         };
         let kicked = self.store.ban_account(account_id, ban.clone());
         log::warn!(
@@ -1291,10 +1308,7 @@ impl Web {
              {kicked} session(s) ended",
             ban.reason
         );
-        let mut message = lang.tr(
-            &format!("{target} banned {how_long}; {kicked} session(s) ended."),
-            &format!("{target} заблоковано {how_long}; завершено сесій: {kicked}."),
-        );
+        let mut message = lang.tf("{target} banned {how_long}; {kicked} session(s) ended.", &[("target", &target), ("how_long", &how_long), ("kicked", &kicked)]);
         if request.field("with_ip") == "on" {
             let last_ip = self
                 .store
@@ -1307,16 +1321,10 @@ impl Web {
                     log::warn!(
                         "Admin from {peer}: banned address {net} too; {more} more session(s) ended"
                     );
-                    message += &lang.tr(
-                        &format!(" Its address {net} too ({more} more session(s) ended)."),
-                        &format!(" І його адресу {net} (ще завершено сесій: {more})."),
-                    );
+                    message += &lang.tf(" Its address {net} too ({more} more session(s) ended).", &[("net", &net), ("more", &more)]);
                 }
                 None => {
-                    message += &lang.tr(
-                        " Its address is not known, so no address was banned.",
-                        " Його адреса невідома, тож адресу не заблоковано.",
-                    );
+                    message += &lang.t(" Its address is not known, so no address was banned.");
                 }
             }
         }
@@ -1329,36 +1337,19 @@ impl Web {
         if let Some(net) = Net::parse(target) {
             return if self.store.unban_net(net) {
                 log::warn!("Admin from {peer}: lifted the ban of address {net}");
-                lang.tr(
-                    &format!("Address {net} unbanned."),
-                    &format!("Адресу {net} розблоковано."),
-                )
+                lang.tf("Address {net} unbanned.", &[("net", &net)])
             } else {
-                lang.tr(
-                    &format!("{net} was not banned (a range is lifted as it was banned)."),
-                    &format!(
-                        "{net} не була заблокована (діапазон знімається таким, яким його заблокували)."
-                    ),
-                )
+                lang.tf("{net} was not banned (a range is lifted as it was banned).", &[("net", &net)])
             };
         }
         let Some(account_id) = self.store.find_account(target) else {
-            return lang.tr(
-                "No such user or address.",
-                "Немає такого користувача чи адреси.",
-            );
+            return lang.t("No such user or address.");
         };
         let mut message = if self.store.unban_account(account_id) {
             log::warn!("Admin from {peer}: lifted the ban of account {target:?} ({account_id})");
-            lang.tr(
-                &format!("{target} unbanned."),
-                &format!("{target} розблоковано."),
-            )
+            lang.tf("{target} unbanned.", &[("target", &target)])
         } else {
-            lang.tr(
-                &format!("{target} was not banned."),
-                &format!("{target} не був заблокований."),
-            )
+            lang.tf("{target} was not banned.", &[("target", &target)])
         };
         if request.field("unban_ip") == "on"
             && let Some(ip) = self
@@ -1368,10 +1359,7 @@ impl Web {
             && self.store.unban_net(Net::single(ip))
         {
             log::warn!("Admin from {peer}: lifted the ban of address {ip}");
-            message += &lang.tr(
-                &format!(" Its address {ip} too."),
-                &format!(" І його адресу {ip}."),
-            );
+            message += &lang.tf(" Its address {ip} too.", &[("ip", &ip)]);
         }
         message
     }
@@ -1558,24 +1546,21 @@ fn other_server_link(lang: Lang, version: &str, url: Option<&str>) -> String {
 
 /// The page's title: a test server says so (`SRP_TEST_SERVER`).
 fn page_title(lang: Lang, version: &str, test: bool) -> String {
-    match (test, lang) {
-        (false, Lang::En) => format!("Skhid · Survarium {version} community server"),
-        (false, Lang::Uk) => format!("Схід · ком'юніті сервер Survarium {version}"),
-        (true, Lang::En) => format!("Skhid · Survarium {version} TEST server"),
-        (true, Lang::Uk) => format!("Схід · ТЕСТОВИЙ сервер Survarium {version}"),
+    if test {
+        lang.tf("Skhid · Survarium {version} TEST server", &[("version", &version)])
+    } else {
+        lang.tf("Skhid · Survarium {version} community server", &[("version", &version)])
     }
 }
 
-/// The line beside the name in the header.
-fn page_tag(lang: Lang, version: &str, test: bool) -> String {
-    let version = version.to_uppercase();
-    match (test, lang) {
-        (false, Lang::En) => {
-            format!("SKHID · COMMUNITY SERVER FOR SURVARIUM {version} · UNOFFICIAL")
-        }
-        (false, Lang::Uk) => format!("КОМ'ЮНІТІ СЕРВЕР SURVARIUM {version} · НЕОФІЦІЙНИЙ"),
-        (true, Lang::En) => format!("SKHID · TEST SERVER FOR SURVARIUM {version} · UNOFFICIAL"),
-        (true, Lang::Uk) => format!("ТЕСТОВИЙ СЕРВЕР SURVARIUM {version} · НЕОФІЦІЙНИЙ"),
+/// The line beside the name in the header: what the site is, no more (the
+/// owner, 2026-11-20: the name, the version and "unofficial" there are
+/// unnecessary; the footer says the last).
+fn page_tag(lang: Lang, test: bool) -> String {
+    if test {
+        lang.t("TEST SERVER FOR SURVARIUM")
+    } else {
+        lang.t("COMMUNITY SERVER FOR SURVARIUM")
     }
 }
 
@@ -1585,7 +1570,7 @@ fn test_server_notice(lang: Lang, players_url: Option<&str>) -> String {
     let players = players_url.map_or_else(String::new, |url| {
         format!(
             " {} <a href=\"{}/?lang={}\">{}</a>.",
-            lang.tr("The players' server:", "Сервер для гравців:"),
+            lang.t("The players' server:"),
             escape(url),
             lang.code(),
             escape(url.trim_start_matches("https://")),
@@ -1593,13 +1578,8 @@ fn test_server_notice(lang: Lang, players_url: Option<&str>) -> String {
     });
     format!(
         "<p class=\"note test\"><b>{}</b> {}{players}</p>",
-        lang.tr("Test server.", "Тестовий сервер."),
-        lang.tr(
-            "Changes are tried here before they reach the players: it can restart at any \
-             moment, and accounts and progress here can be reset.",
-            "Тут перевіряються зміни, перш ніж вони потраплять до гравців: сервер може \
-             перезапуститися будь-якої миті, а облікові записи й прогрес можуть бути скинуті.",
-        ),
+        lang.t("Test server."),
+        lang.t("Changes are tried here before they reach the players: it can restart at any moment, and accounts and progress here can be reset."),
     )
 }
 
@@ -1614,22 +1594,49 @@ fn page(lang: Lang, form: Form, message: &str) -> Response {
 fn damage_page(lang: Lang) -> Response {
     damage::page(
         lang,
-        &tool_header(lang, &lang.tr("Damage calculator", "Калькулятор шкоди")),
+        &tool_header(lang, &lang.t("Damage calculator")),
     )
 }
 
 /// The maps: their page under the site's header.
 fn maps_page(lang: Lang) -> Response {
-    maps::page(lang, &tool_header(lang, &lang.tr("Maps", "Мапи")))
+    maps::page(lang, &tool_header(lang, &lang.t("Maps")))
 }
 
-fn wiki_page(path: &str, target: &str, lang: Lang) -> Response {
+/// The stats: their page under the site's header, a tab of its own, for the request's `target`.
+fn stats_page(lang: Lang, target: &str) -> Response {
     let connect = CONNECT.get();
     let test = connect.is_some_and(|connect| connect.test_server);
     let other_url = connect.and_then(|connect| connect.other_url.as_deref());
-    let (header, notice) = site_header(lang, true, test, other_url, wiki::PATH);
+    let (header, notice) = site_header(lang, test, other_url, history::PATH);
     let query = target.split_once('?').map_or("", |(_, query)| query);
-    wiki::page(path, query, lang, &format!("{header}{notice}"))
+    history::page(lang, &format!("{header}{notice}"), query)
+}
+
+fn wiki_page(path: &str, target: &str, lang: Lang, game: &Game) -> Response {
+    let connect = CONNECT.get();
+    let test = connect.is_some_and(|connect| connect.test_server);
+    let other_url = connect.and_then(|connect| connect.other_url.as_deref());
+    let (header, notice) = site_header(lang, test, other_url, wiki::PATH);
+    if path == modes::PATH {
+        return wiki::framed(
+            lang,
+            &lang.t("Modes"),
+            &lang.t("Skhid wiki"),
+            &format!("{header}{notice}"),
+            &modes::body(lang, &game.pools),
+        );
+    }
+    let query = target.split_once('?').map_or("", |(_, query)| query);
+    let now = if path == skills::PATH {
+        skills::Now {
+            per_match: game.results.per_match(),
+            takers: game.accounts.skill_takers(),
+        }
+    } else {
+        skills::Now::default()
+    };
+    wiki::page(path, query, lang, &format!("{header}{notice}"), &now)
 }
 
 /// The site's header over a wiki page of its own look (the calculator's, the
@@ -1638,49 +1645,60 @@ fn tool_header(lang: Lang, name: &str) -> String {
     let connect = CONNECT.get();
     let test = connect.is_some_and(|connect| connect.test_server);
     let other_url = connect.and_then(|connect| connect.other_url.as_deref());
-    let (header, test_notice) = site_header(lang, true, test, other_url, wiki::PATH);
+    let (header, test_notice) = site_header(lang, test, other_url, wiki::PATH);
     format!(
         "<div class=site><style>{}</style>{header}{test_notice}\
          <p class=breadcrumb><a href=\"{}?lang={}\">{}</a> / {}</p></div>",
         damage::HEADER_STYLE,
         wiki::PATH,
         lang.code(),
-        lang.tr("Wiki", "Вікі"),
+        lang.t("Wiki"),
         escape(name),
     )
 }
 
-/// Every page's header (the 0.26g site's or the 0.21d's), and what a test
-/// server says under it. `current`: the path of the tab shown, if one is.
+/// Every page's header, and what a test server says under it. `current`:
+/// the path of the tab shown, if one is.
 fn site_header(
     lang: Lang,
-    v026g: bool,
     test: bool,
     other_url: Option<&str>,
     current: &str,
 ) -> (String, String) {
     let code = lang.code();
-    let (other, other_name) = match lang {
-        Lang::En => ("uk", "Українська"),
-        Lang::Uk => ("en", "English"),
-    };
-    let version = if v026g { "0.26g" } else { "0.21d" };
-    let other_version = if v026g { "0.21d" } else { "0.26g" };
+    // The languages: the one shown, and under it the others, each the same
+    // address in it. No script: a page's own may keep the rest of the address
+    // (`.lang a`).
+    let others: String = Lang::ALL
+        .into_iter()
+        .filter(|other| *other != lang)
+        .map(|other| {
+            format!(
+                "<a href=\"?lang={0}\" lang={0} hreflang={0}>{1}</a>",
+                other.code(),
+                other.native()
+            )
+        })
+        .collect();
+    let languages = format!(
+        "<details class=lang><summary>{}</summary><div>{others}</div></details>",
+        lang.native()
+    );
     // A test server names the other server in its notice, as the players'.
     let (other_link, badge, test_notice) = if test {
         (
             String::new(),
-            format!(" <span class=badge>{}</span>", lang.tr("TEST", "ТЕСТ")),
+            format!(" <span class=badge>{}</span>", lang.t("TEST")),
             test_server_notice(lang, other_url),
         )
     } else {
         (
-            other_server_link(lang, other_version, other_url),
+            other_server_link(lang, "0.21d", other_url),
             String::new(),
             String::new(),
         )
     };
-    // The wiki (the calculator and the maps are in it) is the 0.26g game's.
+    // The wiki (the calculator and the maps are in it) and the stats.
     let tab = |path: &str, name: &str| {
         format!(
             "<a href=\"{path}?lang={code}\"{}>{name}</a>",
@@ -1691,17 +1709,13 @@ fn site_header(
             },
         )
     };
-    let home_link = tab("/", &lang.tr("Home", "Головна"));
-    let wiki_link = if v026g {
-        tab(wiki::PATH, &lang.tr("Wiki", "Вікі"))
-    } else {
-        String::new()
-    };
+    let home_link = tab("/", &lang.t("Home"));
+    let wiki_link = tab(wiki::PATH, &lang.t("Wiki")) + &tab(history::PATH, &lang.t("Stats"));
     let header = format!(
         "<header><a class=brand href=\"/?lang={code}\">СХІД</a>{badge}\
          <span class=tag>{}</span>\
-         <nav>{home_link}{wiki_link}{other_link}</nav> <a class=lang href=\"?lang={other}\">{other_name}</a></header>",
-        page_tag(lang, version, test),
+         <nav>{home_link}{wiki_link}{other_link}</nav> {languages}</header>",
+        page_tag(lang, test),
     );
     (header, test_notice)
 }
@@ -1714,25 +1728,19 @@ fn page_as(lang: Lang, form: Form, message: &str, test: bool, other_url: Option<
         format!("<p class=note>{}</p>", escape(message))
     };
     let code = lang.code();
-    let version = if form.is_026g() { "0.26g" } else { "0.21d" };
     let current = if matches!(form, Form::Home(_)) {
         "/"
     } else {
         ""
     };
-    let (header, test_notice) = site_header(lang, form.is_026g(), test, other_url, current);
+    let (header, test_notice) = site_header(lang, test, other_url, current);
     let body = match form {
-        Form::InTheGame26(code) => v026g::in_the_game_now(code),
+        Form::InTheGame26(code) => v026g::no_gold(code),
         Form::Admin(view) => admin_form(lang, &view),
         Form::Home(stats) => home(lang, stats),
-        Form::None | Form::None26 => String::new(),
+        Form::None26 => String::new(),
     };
-    let disclaimer = lang.tr(
-        "Community server, unofficial. Not affiliated with or endorsed by Vostok Games. \
-         Survarium is a trademark of its owners.",
-        "Неофіційний ком'юніті сервер. Не пов'язаний із Vostok Games і не схвалений ними. \
-         Survarium є торговельною маркою її власників.",
-    );
+    let disclaimer = lang.t("Community server, unofficial. Not affiliated with or endorsed by Vostok Games. Survarium is a trademark of its owners.");
     Response {
         status: "200 OK",
         content_type: ContentType::Html,
@@ -1743,7 +1751,7 @@ fn page_as(lang: Lang, form: Form, message: &str, test: bool, other_url: Option<
              {header}\
              <main>{test_notice}{notice}{body}</main>\
              <footer>{}</footer></html>",
-            escape(&page_title(lang, version, test)),
+            escape(&page_title(lang, "0.26g", test)),
             damage::font_faces(),
             escape(&disclaimer),
         ),
@@ -1762,11 +1770,12 @@ header{display:flex;flex-wrap:wrap;align-items:center;gap:.5rem 1.4rem;padding:.
 .brand{font:700 1.5rem var(--display);letter-spacing:.24em;color:var(--accent);text-decoration:none}.tag{font:.72rem var(--data);color:var(--ink-3);flex:1;min-width:12rem}\
 nav{display:flex;flex-wrap:wrap;align-items:center;row-gap:.3rem}nav a{font:700 .85rem var(--display);text-transform:uppercase;letter-spacing:.1em;color:var(--ink-2);text-decoration:none;padding:0 .8rem;line-height:1.1}\
 nav a+a{border-left:2px solid var(--ink-3)}nav a:first-child{padding-left:0}nav a:hover{color:var(--ink)}nav a[aria-current]{color:var(--accent)}\
-.lang{font:.8rem var(--body);color:var(--ink-2);text-decoration:none;border:1px solid var(--rule);background:var(--bg);padding:.15rem .7rem;border-radius:999px}.lang:hover{border-color:var(--ink-3);color:var(--ink)}\
+.lang{position:relative;font:.8rem var(--body)}.lang summary{list-style:none;cursor:pointer;color:var(--ink-2);border:1px solid var(--rule);background:var(--bg);padding:.15rem .7rem;border-radius:999px}.lang summary::-webkit-details-marker{display:none}.lang summary::after{content:'';display:inline-block;width:.36em;height:.36em;margin:0 0 .2em .55em;border:solid currentColor;border-width:0 1.5px 1.5px 0;transform:rotate(45deg)}.lang[open] summary::after{margin-bottom:0;transform:rotate(-135deg)}.lang summary:hover,.lang[open] summary{border-color:var(--ink-3);color:var(--ink)}.lang div{position:absolute;right:0;top:calc(100% + 4px);z-index:20;display:grid;min-width:9.5rem;background:var(--bg);border:1px solid var(--ink-3);padding:.25rem 0}.lang div a{color:var(--ink-2);text-decoration:none;padding:.3rem .8rem}.lang div a:hover{color:var(--ink);background:var(--rule)}\
 main{max-width:46rem;margin:22px auto;padding:0 16px;display:grid;gap:22px}a{color:var(--accent)}\
 h1,h2,h3{font-family:var(--display);font-weight:700;margin:0;text-transform:uppercase;letter-spacing:.06em;color:var(--ink)}h1{font-size:1.35rem}h2{font-size:1.15rem}\
 .card{background:var(--panel);border:1px solid var(--rule);padding:16px;display:grid;gap:12px;align-content:start;min-width:0}\
 .card>h1:first-child,.card>h2:first-child{border-bottom:1px solid var(--rule);padding-bottom:8px}.card p{margin:0}\
+.qa{display:grid;grid-template-columns:max-content 1fr;gap:.2rem .7rem;margin:0}.qa dt{font:700 1em/1.55 var(--data);color:var(--accent)}.qa dd{margin:0;min-width:0}.qa dt.q:not(:first-child),.qa dt.q:not(:first-child)+dd{margin-top:.9rem}\
 ol{padding-left:1.3rem;margin:0}.rules{padding-left:1.1rem;margin:0}.opts{font-size:.85rem;color:var(--ink-2);padding-left:1.1rem}li{margin:.6rem 0}li>p{margin:.4rem 0}\
 pre,code{background:var(--code);border:1px solid var(--rule);border-radius:2px;color:var(--ink);font:.85rem var(--data)}pre{padding:.6rem .8rem;margin:.4rem 0;white-space:pre-wrap;word-break:break-all}code{padding:.05rem .3rem;word-break:break-all}\
 .dl{display:flex;flex-direction:column;align-items:flex-start;gap:.5rem;margin:.6rem 0}.dl .button{margin:0}.hash{display:block;max-width:100%;font-size:.78rem;padding:.35rem .5rem}\
@@ -1783,95 +1792,74 @@ label.check{display:flex;gap:.5rem;align-items:center;font:inherit;font-size:.85
 .tabs>label{display:inline-block;margin:0 .25rem 0 0;padding:.45rem .9rem;border:1px solid var(--rule);border-bottom:0;border-radius:2px 2px 0 0;cursor:pointer;color:var(--ink-2);background:var(--bg)}\
 .tabs>input:checked+label{color:var(--accent-ink);background:var(--accent);border-color:var(--accent)}.tabs>input:focus-visible+label{outline:2px solid var(--accent)}\
 .panel{display:none;border:1px solid var(--rule);border-top:2px solid var(--accent);padding:.2rem 1rem 1rem;background:var(--panel)}\
-#tab-money:checked~.p-money,#tab-ban:checked~.p-ban,#tab-unban:checked~.p-unban,#tab-bans:checked~.p-bans,#tab-maint:checked~.p-maint,#tab-signups:checked~.p-signups,#tab-account:checked~.p-account,#tab-item:checked~.p-item,#tab-text:checked~.p-text,#tab-password:checked~.p-password,#tab-items:checked~.p-items,#tab-mute:checked~.p-mute{display:block}.scroll{overflow-x:auto}.p-items td input{width:auto}.p-items td input.units{width:6.5rem;padding:.2rem .3rem}\
+#tab-money:checked~.p-money,#tab-ban:checked~.p-ban,#tab-unban:checked~.p-unban,#tab-bans:checked~.p-bans,#tab-maint:checked~.p-maint,#tab-signups:checked~.p-signups,#tab-account:checked~.p-account,#tab-item:checked~.p-item,#tab-text:checked~.p-text,#tab-password:checked~.p-password,#tab-items:checked~.p-items,#tab-mute:checked~.p-mute,#tab-rename:checked~.p-rename{display:block}.scroll{overflow-x:auto}.p-items td input{width:auto}.p-items td input.units{width:6.5rem;padding:.2rem .3rem}\
 button.quiet{background:0;color:var(--accent);border:1px solid var(--accent)}button.quiet:hover{background:color-mix(in srgb,var(--accent) 12%,transparent)}\
 table{width:100%;border-collapse:collapse;font-size:.85rem}th,td{text-align:left;padding:.35rem .4rem;border-bottom:1px solid var(--rule);vertical-align:top;word-break:break-word}\
 th{font:700 .72rem var(--display);letter-spacing:.1em;text-transform:uppercase;color:var(--ink-3)}\
-details{margin-top:.6rem}summary{cursor:pointer;font:700 .78rem var(--display);letter-spacing:.1em;text-transform:uppercase;color:var(--ink-2)}\
 footer{max-width:46rem;margin:2rem auto;padding:1rem 16px;border-top:1px solid var(--rule);font-size:.75rem;color:var(--ink-3)}";
 
-/// A file's size as the download button shows it.
-fn file_size(bytes: u64) -> String {
-    if bytes >= 1_000_000_000 {
-        format!("{:.2} GB", bytes as f64 / 1e9)
-    } else {
-        format!("{:.1} MB", bytes as f64 / 1e6)
-    }
-}
-
-/// The list under "How matches start" for 0.26g: every match is a room's,
-/// the players' "servers" (`lobby_server::v026g::rooms`; the owner's of
-/// 2026-10-17).
-fn room_rules(lang: Lang) -> String {
-    let vote = session::v026g::rooms::VOTE.as_secs();
-    let cards = session::v026g::rooms::CARDS;
-    let items = [
-        lang.tr(
-            "Press Play for a public 8 v 8 room, join one from Rooms, or create a private room with a PIN and your choice of maps.",
-            "Натисніть «Грати» для відкритої кімнати 8 на 8, приєднайтеся через список кімнат або створіть приватну кімнату з PIN і вибраними мапами.",
+/// The home page's "if something goes wrong", after the steps, for a
+/// download with the launcher (whose ZIP has these files: `make_client_026g.py`):
+/// a question and its answer a case, their labels in a column of their own.
+/// The question is the title of the updater's box, its opening words before
+/// what failed (`client/updater/logic/src/problem.rs`, in the launcher's
+/// language); the answer what to run, the last one where to send what it
+/// makes.
+fn faq(lang: Lang) -> String {
+    let cases = [
+        (
+            lang.t("“Game files removed by antivirus: …”"),
+            lang.t("Run <code>Skhid-defender-setup.cmd</code>."),
         ),
-        lang.tr(
-            "Play uses rooms capped at equipment level 10 or 15, creating the first room when needed. Full rooms have a queue; six waiting Play users in the same bracket open another room. Players up to level 10 can also choose a level-15 room from Rooms.",
-            "«Грати» підбирає кімнату з максимальним рівнем спорядження 10 або 15, створюючи першу за потреби. У повні кімнати є черга; шість гравців, що очікують через «Грати» в одній групі рівнів, відкривають нову кімнату. Гравці до 10-го рівня також можуть вибрати кімнату до 15-го через список кімнат.",
+        (
+            lang.t("“Download failed: …”"),
+            lang.t("Start <code>Skhid.bat</code> again. Still failing? Run <code>Skhid-without-updater.bat</code>: it downloads the game and its updates without the launcher, then starts it."),
         ),
-        lang.tr(
-            &format!(
-                "Once a room has its players, they vote for {vote} s between {cards} maps, and the match starts after the room's wait."
-            ),
-            &format!(
-                "Коли в кімнаті досить гравців, вони {vote} с голосують за одну з {cards} мап, і матч починається після очікування кімнати."
-            ),
+        (
+            lang.t("“No connection: …”"),
+            lang.t("Run <code>Skhid-network-setup.cmd</code>."),
         ),
-        lang.tr(
-            "Join a room while its match is played: you see the room, then go into the match (on the side with fewer players) until its last 30 s. After a match everyone is back in the room.",
-            "Хто приєднується до кімнати під час матчу, бачить кімнату, а потім потрапляє в матч (на сторону, де менше гравців) — до його останніх 30 с. Після матчу всі повертаються в кімнату.",
+        (
+            lang.t("“Blocked on this network: …”"),
+            lang.t("Your provider blocks our server. The launcher has already switched to our relay, a way around the block (<b>Relay: auto</b>, bottom left). Just press <b>Retry</b>."),
         ),
-        lang.tr(
-            "Teams are balanced by gear, level and past results.",
-            "Команди вирівнюються за спорядженням, рівнем і результатами минулих матчів.",
-        ),
-        lang.tr(
-            "Private rooms (with a PIN) give no rewards. Their creator starts the match, with any number of players.",
-            "Приватні кімнати (з PIN) не дають нагород. Матч у них починає творець, з будь-якою кількістю гравців.",
-        ),
-        lang.tr(
-            "Squads are of two, led by their leader: the leader's Play or Join takes the squad mate along, into the same room and team; a room without two places on one team puts both in its queue.",
-            "Загони — по двоє, веде їх командир: його «Грати» чи приєднання бере напарника з собою, у ту саму кімнату й команду; якщо в кімнаті немає двох місць в одній команді, обоє стають у її чергу.",
+        (
+            lang.t("Nothing works."),
+            lang.t("Run <code>Skhid-collect-logs.cmd</code> and send the zip it makes to us on Discord: <a href=\"https://discord.gg/QUmJg3gBhg\">discord.gg/QUmJg3gBhg</a>."),
         ),
     ];
-    items
-        .iter()
-        .map(|item| format!("<li>{item}</li>"))
-        .collect()
+    let (q, a) = (lang.t("Q:"), lang.t("A:"));
+    format!(
+        "<section class=card><h2>{}</h2><dl class=qa>{}</dl></section>",
+        lang.t("If something goes wrong"),
+        cases
+            .iter()
+            .map(|(question, answer)| {
+                format!("<dt class=q>{q}</dt><dd class=q><b>{question}</b></dd><dt>{a}</dt><dd>{answer}</dd>")
+            })
+            .collect::<String>(),
+    )
 }
 
+/// The home page: what the server is, then the steps a player follows
+/// (download, start, sign in) and nothing more, then, with the launcher,
+/// what to do when something goes wrong ([`faq`]).
 fn home(lang: Lang, stats: Stats) -> String {
-    let v026g = stats.v026g;
     let with_launcher = stats.launcher;
     let installs_game = with_launcher && stats.installs_game;
     let connect = CONNECT.get();
-    let address = connect.map_or("127.0.0.1:1234", |connect| connect.address.as_str());
-    let local = available_download().and_then(|file| std::fs::metadata(file).ok());
-    let download_label = if v026g {
-        lang.tr("Download the files", "Завантажити файли")
-    } else {
-        lang.tr("Download the game", "Завантажити гру")
-    };
+    let download_label = lang.t("Download the files");
     let download = match connect.and_then(|connect| connect.download_url.as_deref()) {
-        _ if local.is_some() => format!(
-            "<a class=button href=\"/download\">{download_label} ({})</a>",
-            file_size(local.as_ref().map_or(0, |meta| meta.len()))
-        ),
+        _ if available_download().is_some() => {
+            format!("<a class=button href=\"/download\">{download_label}</a>")
+        }
         Some(url) => format!(
             "<a class=button href=\"{}\" rel=noopener>{download_label}</a>",
             escape(url),
         ),
         None => format!(
             "<em>{}</em>",
-            lang.tr(
-                "The download link is coming soon.",
-                "Посилання на завантаження скоро з'явиться."
-            )
+            lang.t("The download link is coming soon.")
         ),
     };
     let hash = match connect.and_then(|connect| connect.sha256.as_deref()) {
@@ -1882,38 +1870,38 @@ fn home(lang: Lang, stats: Stats) -> String {
         ),
         None => String::new(),
     };
-    // 0.26g: the game itself comes from elsewhere (step one); this server
-    // hands out only the files that go over it.
-    // With a download whose launcher brings the game there is no such
-    // step: the link is the way out, in the small print of the download.
-    let game_link = connect
-        .and_then(|connect| connect.game_url.as_deref())
-        .map(|url| {
-            format!(
-                "<a href=\"{}\" rel=noopener>{}</a>",
-                escape(url),
-                lang.tr("the original game", "оригінальну гру")
+    // For a browser or an antivirus that refuses the ZIP, the script that
+    // gets it all by itself, when there is one.
+    let bootstrap = if torrent::BOOTSTRAP.is_some() {
+        let script = format!("<a href=\"{}\">Skhid-get.bat</a>", torrent::BOOTSTRAP_PATH);
+        format!(
+            "<small>{}</small>",
+            lang.tf(
+                "Chrome or your antivirus refuses the download? Try this script: {script}. It downloads the whole game into a Survarium folder beside it.",
+                &[("script", &script)]
             )
-        })
-        .unwrap_or_else(|| lang.tr("the original game", "оригінальну гру").to_string());
-    let original = if v026g && !installs_game {
+        )
+    } else {
+        String::new()
+    };
+    // The game itself comes from elsewhere (step one); this server hands
+    // out only the files that go over it. A download whose launcher brings
+    // the game has no such step.
+    let original = if !installs_game {
         let link = match connect.and_then(|connect| connect.game_url.as_deref()) {
             Some(url) => format!(
                 "<div class=dl><a class=button href=\"{}\" rel=noopener>{}</a></div>",
                 escape(url),
-                lang.tr("Get the game", "Отримати гру")
+                lang.t("Get the game")
             ),
             None => format!(
                 "<p><em>{}</em></p>",
-                lang.tr("The link is coming soon.", "Посилання скоро з'явиться.")
+                lang.t("The link is coming soon.")
             ),
         };
         format!(
             "<li>{}{link}</li>",
-            lang.tr(
-                "Get the original Survarium 0.26g (build 2777) and unpack it (a .7z archive: 7-Zip opens it).",
-                "Отримайте оригінальну Survarium 0.26g (збірка 2777) і розпакуйте її (архів .7z: відкривається 7-Zip)."
-            )
+            lang.t("Get the original Survarium 0.26g (build 2777) and unpack it.")
         )
     } else {
         String::new()
@@ -1922,181 +1910,71 @@ fn home(lang: Lang, stats: Stats) -> String {
     if let Some(minutes) = stats.maintenance {
         notices += &format!(
             "<p class=note><b>{}</b> {}</p>",
-            lang.tr("Maintenance.", "Технічні роботи."),
+            lang.t("Maintenance."),
             if minutes == 0 {
-                lang.tr(
-                    "The server is down for maintenance.",
-                    "Сервер на технічних роботах.",
-                )
+                lang.t("The server is down for maintenance.")
             } else {
-                lang.tr(
-                    &format!("The game closes in {minutes} min; Play is locked in the last 30."),
-                    &format!("Гра закриється через {minutes} хв; за 30 хв «Грати» вимикається."),
-                )
+                lang.tf("The game closes in {minutes} min; Play is locked in the last 30.", &[("minutes", &minutes)])
             }
         );
     }
     if !stats.registrations_open {
         notices += &format!(
             "<p class=note>{}</p>",
-            lang.tr(
-                "New registrations are closed for now. Existing players can sign in and play.",
-                "Нові реєстрації тимчасово закриті. Гравці з акаунтом можуть входити й грати.",
-            )
+            lang.t("New registrations are closed for now. Existing players can sign in and play.")
         );
     }
     let stats = format!(
         "{notices}<div class=stats><div><b>{}</b><span>{}</span></div><div><b>{}</b><span>{}</span></div></div>",
         stats.online,
-        lang.tr("players online", "гравців онлайн"),
+        lang.t("players online"),
         stats.registered,
-        lang.tr("registered", "зареєстровано"),
+        lang.t("registered"),
     );
-    let version = if v026g { "0.26g" } else { "0.21d" };
-    // 0.21d: the start command, typed by hand. 0.26g's exe has the server and
-    // the memory sizes built in and its language is chosen in its Settings, so
-    // its page names no command line.
-    let command_line = format!(
-        "{}<pre>survarium.exe -localization={} -client={}</pre><ul class=opts><li><code>-client</code> {}</li><li><code>-localization</code> {}</li></ul>",
-        lang.tr(
-            "Start it with this command line:",
-            "Запустіть гру з такою командою:"
-        ),
-        lang.tr("english", "ukrainian"),
-        escape(address),
-        lang.tr("server address", "адреса сервера"),
-        lang.tr(
-            "language: english, russian, ukrainian",
-            "мова: english, russian, ukrainian"
-        ),
-    );
-    let language = format!(
-        "<p>{}</p>",
-        lang.tr(
-            "Language: in the game, <b>Settings</b>, <b>Game</b>, <b>Language</b> (applies after a restart).",
-            "Мова: у грі, <b>Опції</b>, <b>Гра</b>, <b>Мова</b> (діє після перезапуску).",
-        )
-    );
-    let without_launcher = lang.tr(
-        "<code>play_skhid.bat</code> in <code>game\\binaries\\x86</code> starts the game without updating it.",
-        "<code>play_skhid.bat</code> у теці <code>game\\binaries\\x86</code> запускає гру без оновлення.",
-    );
-    // With the launcher in the download a player starts that and types
-    // nothing; the start script stays, folded away.
+    // With the launcher a player starts that and types nothing (the exe has
+    // the server and the memory sizes built in, so the page names no command
+    // line).
     let start = if with_launcher {
         format!(
-            "{}<p><small>{}</small></p>{language}<details><summary>{}</summary><p>{without_launcher}</p></details>",
+            "{}<p><small>{}</small></p>",
             if installs_game {
-                lang.tr(
-                    "Run <code>Skhid.bat</code> and press <b>PLAY</b>. The first time, the launcher downloads the game (2.9 GB, from Google Drive), which takes a while. It keeps itself up to date.",
-                    "Запустіть <code>Skhid.bat</code> і натисніть <b>PLAY</b>. Першого разу лаунчер завантажує гру (2,9 ГБ, з Google Drive), на що потрібен час. Оновлюється він сам.",
-                )
+                lang.t("Run <code>Skhid.bat</code> and press <b>PLAY</b>. The first start downloads the game.")
             } else {
-                lang.tr(
-                    "Run <code>Skhid.bat</code> and press <b>PLAY</b>. The launcher keeps itself up to date.",
-                    "Запустіть <code>Skhid.bat</code> і натисніть <b>PLAY</b>. Лаунчер оновлюється сам.",
-                )
+                lang.t("Run <code>Skhid.bat</code> and press <b>PLAY</b>.")
             },
             if installs_game {
-                lang.tr(
-                    "Windows warns about an unknown publisher? Let it run.<br>Linux: <code>bash Skhid.sh launcher</code>, see <code>LINUX.txt</code>.",
-                    "Windows попереджає про невідомого видавця? Дозвольте запуск.<br>Linux: <code>bash Skhid.sh launcher</code>, див. <code>LINUX.txt</code>.",
-                )
+                lang.t("Windows warns about an unknown publisher? Let it run.<br>Linux: <code>bash Skhid.sh launcher</code>, see <code>LINUX.txt</code>.")
             } else {
-                lang.tr(
-                    "Windows warns about an unknown publisher? Let it run.<br>Linux: <code>bash Skhid.sh</code>, see <code>LINUX.txt</code>.",
-                    "Windows попереджає про невідомого видавця? Дозвольте запуск.<br>Linux: <code>bash Skhid.sh</code>, див. <code>LINUX.txt</code>.",
-                )
+                lang.t("Windows warns about an unknown publisher? Let it run.<br>Linux: <code>bash Skhid.sh</code>, see <code>LINUX.txt</code>.")
             },
-            lang.tr("Without the launcher", "Без лаунчера"),
         )
-    } else if v026g {
-        format!("<p>{without_launcher}</p>{language}")
-    } else {
-        command_line
-    };
-    let window = session::gather_window_from_env()
-        .unwrap_or(session::DEFAULT_GATHER_WINDOW)
-        .as_secs();
-    let fill = session::fill_from_env();
-    let quiet = session::quiet_from_env().as_secs();
-    let max = session::MAX_PLAYERS_PER_MATCH;
-    let rules = if v026g {
-        room_rules(lang)
     } else {
         format!(
-            "<li>{}</li><li>{}</li><li>{}</li><li>{}</li>",
-            lang.tr(
-                &format!("{max} players: the match starts at once."),
-                &format!("{max} гравців: матч починається одразу.")
-            ),
-            lang.tr(
-                &format!(
-                    "{fill} to {} players: it starts when nobody has pressed Play for {quiet} s, or when {window} s are up, whichever is first.",
-                    max - 1
-                ),
-                &format!(
-                    "від {fill} до {} гравців: матч починається, коли {quiet} с ніхто не натискав «Грати», або через {window} с, що настане раніше.",
-                    max - 1
-                )
-            ),
-            lang.tr(
-                &format!("2 to {} players: they wait the full {window} s.", fill - 1),
-                &format!("від 2 до {} гравців: чекають повні {window} с.", fill - 1)
-            ),
-            lang.tr(
-                "One player alone: no match starts until another joins.",
-                "Один гравець: матч не починається, доки не приєднається ще хтось."
-            ),
+            "<p>{}</p>",
+            lang.t("Run <code>play_skhid.bat</code> in <code>game\\binaries\\x86</code>.")
         )
     };
+    let faq = if with_launcher {
+        faq(lang)
+    } else {
+        String::new()
+    };
     format!(
-        "<section class=card><h1>{}</h1><p>{}</p><p>{}</p><p class=note><b>{}</b> {}</p>{stats}</section> <section class=card><h2>{}</h2><ol> {original}<li>{}<div class=dl>{download}{hash}</div></li> <li>{start}</li> <li>{}</li></ol></section> <section class=card><h2>{}</h2><ul class=rules>{rules}</ul></section>",
-        lang.tr("Skhid", "Схід"),
-        lang.tr(
-            &format!("Skhid (Ukrainian for \u{201c}east\u{201d}) is a small community server that lets the Survarium {version} client sign in, trade, form squads and play matches again."),
-            &format!("Схід \u{2014} невеликий ком'юніті сервер, на якому клієнт Survarium {version} знову може входити, торгувати, збирати загони й грати матчі.")
-        ),
-        lang.tr(
-            "Project Discord: <a href=\"https://discord.gg/pxywZfaxRQ\">discord.gg/pxywZfaxRQ</a>",
-            "Discord проєкту: <a href=\"https://discord.gg/pxywZfaxRQ\">discord.gg/pxywZfaxRQ</a>"
-        ),
-        lang.tr("Early test server.", "Тестовий сервер."),
-        lang.tr(
-            "It has bugs and may not work fully. Your progress, items and accounts can be lost or reset at any time, and the server may be stopped at any time. By playing you accept this.",
-            "Можливі помилки та збої. Ваш прогрес, предмети й акаунти можуть зникнути або бути скинуті будь-коли, а сервер можуть зупинити будь-коли. Граючи, ви з цим погоджуєтесь."
-        ),
-        lang.tr("How to play", "Як зіграти"),
+        "<section class=card><h1>{}</h1><p>{}</p><p>{}</p><p class=note><b>{}</b> {}</p>{stats}</section> <section class=card><h2>{}</h2><ol> {original}<li>{}<div class=dl>{download}{hash}{bootstrap}</div></li> <li>{start}</li> <li>{}</li></ol></section>{faq}",
+        lang.t("Skhid"),
+        lang.tf("Skhid (Ukrainian for “east”) is a community server that lets the Survarium {version} client sign in, trade, form squads and play matches again.", &[("version", &"0.26g")]),
+        lang.t("Project Discord: <a href=\"https://discord.gg/pxywZfaxRQ\">discord.gg/pxywZfaxRQ</a>"),
+        lang.t("Early test server."),
+        lang.t("It has bugs and may not work fully. Your progress, items and accounts can be lost or reset at any time, and the server may be stopped at any time. By playing you accept this."),
+        lang.t("How to play"),
         if installs_game {
-            format!(
-                "{}<p><small>{}</small></p>",
-                lang.tr(
-                    "Download our files and unpack them into an empty folder with about 10 GB free. <b>You do this only once.</b>",
-                    "Завантажте наші файли й розпакуйте їх у порожню теку, де вільно близько 10 ГБ. <b>Це робиться лише один раз.</b>"
-                ),
-                lang.tr(
-                    &format!("Already have Survarium 0.26g (build 2777)? Unpack into its folder, the one with the <code>game</code> folder. Launcher can't get the game? Get {game_link} and do the same."),
-                    &format!("Уже маєте Survarium 0.26g (збірка 2777)? Розпакуйте в її теку, ту, де лежить тека <code>game</code>. Лаунчер не може отримати гру? Завантажте {game_link} і зробіть так само.")
-                ),
-            )
+            lang.t("Download our files and unpack them into an empty folder (e.g. D:\\Survarium). <b>You do this only once.</b>")
         } else if with_launcher {
-            lang.tr(
-                "Download our files and unpack them into the game's folder, the one with the <code>game</code> folder, replacing files. <b>You do this only once.</b>",
-                "Завантажте наші файли й розпакуйте їх у теку гри, ту, де лежить тека <code>game</code>, із заміною файлів. <b>Це робиться лише один раз.</b>"
-            )
-        } else if v026g {
-            lang.tr(
-                "Download our files and unpack them over the game's <code>game</code> folder. They add <code>survarium_skhid.exe</code>, <code>play_skhid.bat</code> and, for Linux, <code>play_skhid.sh</code> beside the game's own exe, and replace two of the game's files: <code>bugtrap.dll</code> (the crash reporter) and one certificate. Keep copies of those two if you want the originals back; nothing else changes.",
-                "Завантажте наші файли й розпакуйте їх поверх теки <code>game</code> гри. Вони додають <code>survarium_skhid.exe</code>, <code>play_skhid.bat</code> і, для Linux, <code>play_skhid.sh</code> поруч із exe гри та замінюють два файли гри: <code>bugtrap.dll</code> (звіти про збої) і один сертифікат. Збережіть копії цих двох файлів, якщо хочете повернути оригінали; більше нічого не змінюється."
-            )
+            lang.t("Download our files and unpack them into the game's folder, the one with the <code>game</code> folder, replacing files. <b>You do this only once.</b>")
         } else {
-            lang.tr("Download the patched game and unpack it.", "Завантажте пропатчену гру та розпакуйте її.")
+            lang.t("Download our files and unpack them over the game's <code>game</code> folder.")
         },
-        lang.tr(
-            "Sign in with any name and password: a new name registers itself. Remember the password.",
-            "Увійдіть з будь-яким іменем і паролем: нове ім'я реєструється саме. Запам'ятайте пароль."
-        ),
-        lang.tr("How matches start", "Як починаються матчі"),
+        lang.t("Sign in with any name and password: a new name registers itself. Remember the password."),
     )
 }
 
@@ -2114,18 +1992,15 @@ fn admin_form(lang: Lang, view: &AdminView) -> String {
     };
     let (signups_state, signups_to, signups_button) = if view.registrations_open {
         (
-            lang.tr("New accounts are taken.", "Нові акаунти приймаються."),
+            lang.t("New accounts are taken."),
             "closed",
-            lang.tr("Stop new registrations", "Зупинити нові реєстрації"),
+            lang.t("Stop new registrations"),
         )
     } else {
         (
-            lang.tr(
-                "New accounts are refused for now.",
-                "Нові акаунти зараз не приймаються.",
-            ),
+            lang.t("New accounts are refused for now."),
             "open",
-            lang.tr("Take new registrations", "Приймати нові реєстрації"),
+            lang.t("Take new registrations"),
         )
     };
     let maintenance = if view.token.is_empty() {
@@ -2136,38 +2011,16 @@ fn admin_form(lang: Lang, view: &AdminView) -> String {
     let bans = if view.token.is_empty() {
         format!(
             "<p><small>{}</small></p>",
-            lang.tr(
-                "Shown once the token is right.",
-                "Показуються після правильного токена."
-            )
+            lang.t("Shown once the token is right.")
         )
     } else {
         view.bans.clone()
     };
-    let (extra_tabs, extra_panels) = if view.g26 {
-        admin_extras_026g(lang, view, &tab)
-    } else {
-        (String::new(), String::new())
-    };
-    let password_tab = tab("password", lang.tr("Password", "Пароль"));
+    let (extra_tabs, extra_panels) = admin_extras_026g(lang, view, &tab);
+    let password_tab = tab("password", lang.t("Password"));
     let password_panel = password_reset::panel(lang, view);
-    // The 0.26g page's money is moderation's: a reason, a preview, a
-    // confirm. The 0.21d page's changes at once, for testing.
-    let money_panel = if view.g26 {
-        moderation::money_panel(lang, view)
-    } else {
-        format!(
-            "<div class=\"panel p-money\">\
-             <label for=u>{}</label><input id=u name=user maxlength=99>\
-             <label for=s>{}</label><input id=s name=silver placeholder=+10000>\
-             <label for=g>{}</label><input id=g name=gold placeholder=+500>\
-             <button>{}</button></div>",
-            lang.tr("User name", "Ім'я користувача"),
-            lang.tr("Silver, + or -", "Срібло, + або -"),
-            lang.tr("Gold, + or -", "Золото, + або -"),
-            lang.tr("Change", "Змінити"),
-        )
-    };
+    // The money is moderation's: a reason, a preview, a confirm.
+    let money_panel = moderation::money_panel(lang, view);
     format!(
         "<h1>{}</h1><form method=post action=\"\" autocomplete=off>\
          <input type=hidden name=lang value={code}>\
@@ -2192,50 +2045,29 @@ fn admin_form(lang: Lang, view: &AdminView) -> String {
          <small>{}</small><br>\
          <button>{}</button> <button name=cancel value=1 class=quiet>{}</button></div>\
          {extra_panels}{password_panel}</div></form>",
-        lang.tr("Admin", "Адміністратор"),
-        lang.tr("Token", "Токен"),
+        lang.t("Admin"),
+        lang.t("Token"),
         escape(&view.token),
-        tab("money", lang.tr("Money", "Гроші")),
-        tab("ban", lang.tr("Ban", "Бан")),
-        tab("unban", lang.tr("Unban", "Розбан")),
-        tab("bans", lang.tr("Bans", "Бани")),
-        tab("maint", lang.tr("Maintenance", "Роботи")),
-        tab("signups", lang.tr("Signups", "Реєстрація")),
-        lang.tr(
-            "User name, or an address or range (1.2.3.4, 1.2.3.0/24)",
-            "Ім'я, або адреса чи діапазон (1.2.3.4, 1.2.3.0/24)"
-        ),
-        lang.tr("Hours (empty: for good)", "Години (порожньо — назавжди)"),
-        lang.tr(
-            "Reason (only admins see it)",
-            "Причина (бачать лише адміни)"
-        ),
-        lang.tr(
-            "Also ban the address it last signed in from",
-            "Також заблокувати адресу, з якої він входив востаннє"
-        ),
-        lang.tr("Ban", "Заблокувати"),
-        lang.tr(
-            "User name, or an address or range",
-            "Ім'я, або адреса чи діапазон"
-        ),
-        lang.tr(
-            "Also lift the ban of its last address",
-            "Також розблокувати його останню адресу"
-        ),
-        lang.tr("Unban", "Розблокувати"),
-        lang.tr("Refresh", "Оновити"),
-        lang.tr(
-            "Existing players keep signing in and playing either way. Registration is open by default; a restart goes back to that (or to SRP_REGISTRATION=closed).",
-            "Гравці з акаунтом входять і грають у будь-якому разі. За замовчуванням реєстрація відкрита; перезапуск повертає це (або SRP_REGISTRATION=closed)."
-        ),
-        lang.tr("Starts in (minutes)", "Почнуться через (хвилин)"),
-        lang.tr(
-            "Players see the minutes left from 60 on, cannot press Play from 30, and the game closes at 0. Restarting srp cancels it.",
-            "Гравці бачать залишок хвилин за годину, не можуть натиснути «Грати» за 30, а гра закривається на 0. Перезапуск srp скасовує."
-        ),
-        lang.tr("Plan", "Запланувати"),
-        lang.tr("Cancel", "Скасувати"),
+        tab("money", lang.t("Money")),
+        tab("ban", lang.t("Ban")),
+        tab("unban", lang.t("Unban")),
+        tab("bans", lang.t("Bans")),
+        tab("maint", lang.t("Maintenance")),
+        tab("signups", lang.t("Signups")),
+        lang.t("User name, or an address or range (1.2.3.4, 1.2.3.0/24)"),
+        lang.t("Hours (empty: for good)"),
+        lang.t("Reason (only admins see it)"),
+        lang.t("Also ban the address it last signed in from"),
+        lang.tc("button", "Ban"),
+        lang.t("User name, or an address or range"),
+        lang.t("Also lift the ban of its last address"),
+        lang.tc("button", "Unban"),
+        lang.t("Refresh"),
+        lang.t("Existing players keep signing in and playing either way. Registration is open by default; a restart goes back to that (or to SRP_REGISTRATION=closed)."),
+        lang.t("Starts in (minutes)"),
+        lang.t("Players see the minutes left from 60 on, cannot press Play from 30, and the game closes at 0. Restarting srp cancels it."),
+        lang.t("Plan"),
+        lang.t("Cancel"),
     )
 }
 
@@ -2247,31 +2079,31 @@ fn admin_extras_026g(
     tab: &dyn Fn(&str, String) -> String,
 ) -> (String, String) {
     let tabs = format!(
-        "{}{}{}{}{}",
-        tab("account", lang.tr("Account", "Акаунт")),
-        tab("item", lang.tr("Give item", "Видати предмет")),
-        tab("items", lang.tr("Take items", "Забрати предмети")),
-        tab("text", lang.tr("Text", "Текст")),
-        tab("mute", lang.tr("Mute chat", "Вимкнути чат")),
+        "{}{}{}{}{}{}",
+        tab("account", lang.t("Account")),
+        tab("item", lang.t("Give item")),
+        tab("items", lang.t("Take items")),
+        tab("text", lang.t("Text")),
+        tab("mute", lang.t("Mute chat")),
+        tab("rename", lang.t("Rename")),
     );
     let standing = match &view.admin_text {
         Some((first, second)) => format!(
             "<p class=note>{}<br>{}<br>{}</p>",
-            lang.tr("Shown now:", "Зараз показано:"),
+            lang.t("Shown now:"),
             escape(first),
             escape(second)
         ),
         None if view.token.is_empty() => String::new(),
         None => format!(
             "<p><small>{}</small></p>",
-            lang.tr("No text is shown.", "Текст не показано.")
+            lang.t("No text is shown.")
         ),
     };
     let max = v026g::MAX_TEXT_LEN;
     let panels = format!(
         "<div class=\"panel p-account\">\
          <label for=au>{}</label><input id=au name=acc_user maxlength=99>\
-         <label for=ph>{}</label><input id=ph name=premium_hours placeholder=+24>\
          <label for=lv>{}</label><input id=lv name=level inputmode=numeric>\
          <label for=xp>{}</label><input id=xp name=experience placeholder=+500>\
          <label for=fa>{}</label><input id=fa name=faction inputmode=numeric>\
@@ -2287,42 +2119,26 @@ fn admin_extras_026g(
          <label for=l2>{}</label><input id=l2 name=line2 maxlength={max}>\
          <small>{}</small><br>\
          <button>{}</button> <button name=clear_text value=1 class=quiet>{}</button></div>{}{}",
-        lang.tr("User name", "Ім'я користувача"),
-        lang.tr("Premium hours, + or -", "Години преміуму, + або -"),
-        lang.tr(
-            &format!("Set the level (0 to {})", session::v026g::account::MAX_LEVEL),
-            &format!("Встановити рівень (0–{})", session::v026g::account::MAX_LEVEL)
-        ),
-        lang.tr("Experience, + or -", "Досвід, + або -"),
-        lang.tr("Faction (1 to 4)", "Фракція (1–4)"),
-        lang.tr("Reputation with it, + or -", "Репутація в ній, + або -"),
-        lang.tr(
-            "Empty fields change nothing. An open game is sent the account again.",
-            "Порожні поля нічого не змінюють. Відкрита гра отримає акаунт знову."
-        ),
-        lang.tr("Change", "Змінити"),
-        lang.tr("User name", "Ім'я користувача"),
-        lang.tr(
-            "Item: its id in the 0.26g dictionary, or its exact name",
-            "Предмет: id у словнику 0.26g або точна назва"
-        ),
-        lang.tr(
-            "Count (rounds for ammo; up to 8 of anything else)",
-            "Кількість (набої для боєприпасів; до 8 для решти)"
-        ),
-        lang.tr("Give", "Видати"),
-        lang.tr("First line", "Перший рядок"),
-        lang.tr("Second line", "Другий рядок"),
-        lang.tr(
-            "Everyone in the lobby sees it, and whoever signs in, until it is cleared or srp restarts.",
-            "Його бачать усі в лобі й ті, хто входить, доки його не приберуть або srp не перезапустять."
-        ),
-        lang.tr("Show", "Показати"),
-        lang.tr("Clear", "Прибрати"),
+        lang.t("User name"),
+        lang.tf("Set the level (0 to {0})", &[("0", &session::v026g::account::MAX_LEVEL)]),
+        lang.t("Experience, + or -"),
+        lang.t("Faction (1 to 4)"),
+        lang.t("Reputation with it, + or -"),
+        lang.t("Empty fields change nothing. An open game is sent the account again."),
+        lang.t("Change"),
+        lang.t("User name"),
+        lang.t("Item: its id in the 0.26g dictionary, or its exact name"),
+        lang.t("Count (rounds for ammo; up to 8 of anything else)"),
+        lang.t("Give"),
+        lang.t("First line"),
+        lang.t("Second line"),
+        lang.t("Everyone in the lobby sees it, and whoever signs in, until it is cleared or srp restarts."),
+        lang.t("Show"),
+        lang.t("Clear"),
         moderation::items_panel(lang, view),
         moderation::mute_panel(lang),
     );
-    (tabs, panels)
+    (tabs, panels + &rename::panel(lang))
 }
 
 /// What is planned, as a line for the admin and the home page.
@@ -2330,29 +2146,14 @@ fn maintenance_line(lang: Lang, store: &SessionStore) -> String {
     let Some(minutes) = store.minutes_to_maintenance() else {
         return format!(
             "<p><small>{}</small></p>",
-            lang.tr(
-                "No maintenance is planned.",
-                "Технічних робіт не заплановано."
-            )
+            lang.t("No maintenance is planned.")
         );
     };
     let at = store.maintenance_at().unwrap_or_default();
     let text = if minutes == 0 {
-        lang.tr(
-            "Maintenance has started: the game closes for everyone who signs in.",
-            "Технічні роботи почалися: гра закривається в усіх, хто входить.",
-        )
+        lang.t("Maintenance has started: the game closes for everyone who signs in.")
     } else {
-        lang.tr(
-            &format!(
-                "Maintenance starts in {minutes} min, at {} UTC.",
-                clock_utc(at)
-            ),
-            &format!(
-                "Технічні роботи почнуться через {minutes} хв, о {} UTC.",
-                clock_utc(at)
-            ),
-        )
+        lang.tf("Maintenance starts in {minutes} min, at {0} UTC.", &[("minutes", &minutes), ("0", &clock_utc(at))])
     };
     format!("<p class=note>{}</p>", escape(&text))
 }
@@ -2362,10 +2163,7 @@ struct BadHours;
 
 impl BadHours {
     fn text(lang: Lang) -> String {
-        lang.tr(
-            &format!("Hours: a whole number up to {MAX_BAN_HOURS}, or empty for good."),
-            &format!("Години: ціле число до {MAX_BAN_HOURS}, або порожньо — назавжди."),
-        )
+        lang.tf("Hours: a whole number up to {MAX_BAN_HOURS}, or empty for good.", &[("MAX_BAN_HOURS", &MAX_BAN_HOURS)])
     }
 }
 
@@ -2387,26 +2185,26 @@ fn ban_end(lang: Lang, ban: &Ban) -> String {
     match ban.until {
         Some(at) => {
             let at = format!("{} {}", date_utc(at), clock_utc(at));
-            lang.tr(&format!("until {at} UTC"), &format!("до {at} UTC"))
+            lang.tf("until {at} UTC", &[("at", &at)])
         }
-        None => lang.tr("for good", "назавжди"),
+        None => lang.t("for good"),
     }
 }
 
 /// The bans in force, as tables: accounts, addresses, chat mutes.
 fn bans_table(lang: Lang, store: &SessionStore) -> String {
     let (accounts, nets) = store.bans();
-    let none = format!("<p><small>{}</small></p>", lang.tr("None.", "Немає."));
-    let mut html = format!("<h2>{}</h2>", lang.tr("Accounts", "Акаунти"));
+    let none = format!("<p><small>{}</small></p>", lang.t("None."));
+    let mut html = format!("<h2>{}</h2>", lang.t("Accounts"));
     if accounts.is_empty() {
         html += &none;
     } else {
         html += &format!(
             "<table><tr><th>{}</th><th>{}</th><th>{}</th><th>{}</th></tr>",
-            lang.tr("Account", "Акаунт"),
-            lang.tr("Until", "Доки"),
-            lang.tr("Reason", "Причина"),
-            lang.tr("Last address", "Остання адреса"),
+            lang.t("Account"),
+            lang.t("Until"),
+            lang.t("Reason"),
+            lang.t("Last address"),
         );
         for (_, login, name, ban, ip) in &accounts {
             html += &format!(
@@ -2420,15 +2218,15 @@ fn bans_table(lang: Lang, store: &SessionStore) -> String {
         }
         html += "</table>";
     }
-    html += &format!("<h2>{}</h2>", lang.tr("Addresses", "Адреси"));
+    html += &format!("<h2>{}</h2>", lang.t("Addresses"));
     if nets.is_empty() {
         html += &none;
     } else {
         html += &format!(
             "<table><tr><th>{}</th><th>{}</th><th>{}</th></tr>",
-            lang.tr("Address", "Адреса"),
-            lang.tr("Until", "Доки"),
-            lang.tr("Reason", "Причина"),
+            lang.t("Address"),
+            lang.t("Until"),
+            lang.t("Reason"),
         );
         for ban in &nets {
             html += &format!(
@@ -2441,15 +2239,15 @@ fn bans_table(lang: Lang, store: &SessionStore) -> String {
         html += "</table>";
     }
     let muted = store.chat_bans();
-    html += &format!("<h2>{}</h2>", lang.tr("Chat mutes", "Вимкнені чати"));
+    html += &format!("<h2>{}</h2>", lang.t("Chat mutes"));
     if muted.is_empty() {
         html += &none;
     } else {
         html += &format!(
             "<table><tr><th>{}</th><th>{}</th><th>{}</th></tr>",
-            lang.tr("Account", "Акаунт"),
-            lang.tr("Until", "Доки"),
-            lang.tr("Reason", "Причина"),
+            lang.t("Account"),
+            lang.t("Until"),
+            lang.t("Reason"),
         );
         for (_, login, name, ban) in &muted {
             html += &format!(
@@ -2495,11 +2293,11 @@ mod tests {
             token_failures: Mutex::new((0, None)),
             connections: AtomicU32::new(0),
             downloads: AtomicU32::new(0),
-            resource_downloads: AtomicU32::new(0),
-            replay_downloads: AtomicU32::new(0),
+                replay_downloads: AtomicU32::new(0),
             replay_failures: Mutex::new(HashMap::new()),
+            replay_asks: Mutex::new(HashMap::new()),
             plans: Default::default(),
-            game: None,
+            game: crate::replay_tests::quiet_game(),
         }
     }
 
@@ -2525,63 +2323,6 @@ mod tests {
             form: Vec::new(),
             ..post(path, &[])
         }
-    }
-
-    fn balances(web: &Web, user: &str) -> (u32, u32) {
-        let id = web.store.account_id_by_name(user).unwrap();
-        let account = web.store.account(id).unwrap();
-        let account = locked(&account);
-        (account.game.generic_money, account.game.premium_money)
-    }
-
-    #[test]
-    fn the_0_21d_page_has_no_exchange() {
-        let web = web(None);
-        web.store.sign_in("fighter", b"secret").unwrap();
-        let before = balances(&web, "fighter");
-        assert_eq!(web.route(&get("/exchange"), "t").status, "404 Not Found");
-        let sent = web.route(
-            &post(
-                "/exchange",
-                &[("user", "fighter"), ("password", "secret"), ("gold", "1")],
-            ),
-            "t",
-        );
-        assert_eq!(sent.status, "404 Not Found");
-        assert_eq!(balances(&web, "fighter"), before);
-        let home = web.route(&get("/"), "t").body;
-        assert!(!home.contains("/exchange"), "{home}");
-    }
-
-    #[test]
-    fn the_admin_needs_its_token_and_changes_balances() {
-        let web = web(Some("tok"));
-        web.store.sign_in("tester", b"secret").unwrap();
-        let (silver, gold) = balances(&web, "tester");
-        let refused = web.admin(
-            &post(
-                "/hidden",
-                &[("token", "bad"), ("user", "tester"), ("gold", "+9")],
-            ),
-            "t",
-        );
-        assert!(refused.body.contains("Wrong token"));
-        assert_eq!(balances(&web, "tester"), (silver, gold));
-
-        let done = web.admin(
-            &post(
-                "/hidden",
-                &[
-                    ("token", "tok"),
-                    ("user", "tester"),
-                    ("gold", "+500"),
-                    ("silver", "-999999999"),
-                ],
-            ),
-            "t",
-        );
-        assert!(done.body.contains("now 0 silver"), "{}", done.body);
-        assert_eq!(balances(&web, "tester"), (0, gold + 500));
     }
 
     #[test]
@@ -3023,46 +2764,41 @@ mod tests {
     }
 
     #[test]
-    fn the_language_is_ukrainian_or_english_only() {
+    fn the_language_is_one_of_the_games_twelve() {
         assert_eq!(Lang::pick("uk", "en"), Lang::Uk);
+        assert_eq!(Lang::pick("ua", "en"), Lang::Uk, "the launcher's code");
         assert_eq!(Lang::pick("en", "uk"), Lang::En);
-        assert_eq!(Lang::pick("de", "uk-UA,uk;q=0.9"), Lang::Uk);
-        assert_eq!(Lang::pick("", "ru-RU,ru"), Lang::En);
+        assert_eq!(Lang::pick("de", "uk-UA,uk;q=0.9"), Lang::De);
+        assert_eq!(Lang::pick("", "ru-RU,ru"), Lang::Ru);
+        assert_eq!(Lang::pick("", "pt-BR,pt;q=0.9,en;q=0.8"), Lang::Pt);
+        // The first the site has, as the browser orders them; none: English.
+        assert_eq!(Lang::pick("", "fr-FR,fr;q=0.9,pl;q=0.8,en;q=0.7"), Lang::Pl);
+        assert_eq!(Lang::pick("xx", "ja,zh"), Lang::En);
         assert_eq!(Lang::pick("", ""), Lang::En);
-    }
-
-    #[test]
-    fn the_rooms_are_told_as_they_are() {
-        let en = room_rules(Lang::En);
-        assert!(en.contains("vote for 15 s between 3 maps"));
-        assert!(en.contains("until its last 30 s"));
-        assert!(en.contains("Squads are of two, led by their leader"));
-        assert!(en.contains("Private rooms (with a PIN) give no rewards."));
-        // Nothing of the queue's rules is left in it.
-        assert!(!en.contains("countdown"));
-        assert!(!en.contains("JOIN"));
-        assert!(!en.contains("minutes are left"));
-
-        let uk = room_rules(Lang::Uk);
-        assert!(uk.contains("15 с голосують за одну з 3 мап"));
-        assert!(uk.contains("Загони — по двоє"));
-        assert!(uk.contains("Приватні кімнати (з PIN) не дають нагород."));
-        assert_eq!(en.matches("<li>").count(), uk.matches("<li>").count());
+        for lang in Lang::ALL {
+            assert_eq!(Lang::of_code(lang.code()), Some(lang));
+            assert_eq!(lang.game() as usize, Lang::ALL.iter().position(|l| *l == lang).unwrap());
+        }
+        // The header offers every other language, each by its own name.
+        let (header, _) = site_header(Lang::Pl, false, None, "/");
+        assert!(header.contains("<summary>Polski</summary>"));
+        assert!(header.contains("<a href=\"?lang=ru\" lang=ru hreflang=ru>Русский</a>"));
+        assert!(!header.contains("hreflang=pl"));
     }
 
     #[test]
     fn a_test_server_says_so_on_every_page() {
-        let plain = page_as(Lang::En, Form::None, "", false, None).body;
-        assert!(plain.contains("<title>Skhid · Survarium 0.21d community server</title>"));
+        let plain = page_as(Lang::En, Form::None26, "", false, None).body;
+        assert!(plain.contains("<title>Skhid · Survarium 0.26g community server</title>"));
         assert!(!plain.contains("class=badge>"));
         assert!(!plain.contains("Test server."));
 
         let url = Some("https://skhid.link");
-        for form in [Form::None, Form::InTheGame26("en"), Form::None26] {
+        for form in [Form::InTheGame26("en"), Form::None26] {
             let test = page_as(Lang::En, form, "", true, url).body;
             assert!(test.contains(" TEST server</title>"), "{test}");
             assert!(test.contains("<span class=badge>TEST</span>"));
-            assert!(test.contains("TEST SERVER FOR SURVARIUM 0."));
+            assert!(test.contains("TEST SERVER FOR SURVARIUM<"));
             assert!(test.contains("<b>Test server.</b>"));
             assert!(test.contains("accounts and progress here can be reset"));
             // The other server is the players', named in the notice and
@@ -3083,31 +2819,10 @@ mod tests {
     }
 
     #[test]
-    fn the_damage_calculator_is_the_026g_sites_only() {
-        let web = web(None);
-        assert_eq!(web.route(&get(damage::PATH), "t").status, "404 Not Found");
-        let home = web.route(&get("/"), "t").body;
-        assert!(!home.contains("href=\"/wiki"));
-        // The site's fonts are the calculator's, served on both servers.
+    fn every_page_has_the_calculators_fonts() {
+        let home = web(None).route(&get("/"), "t").body;
         assert!(home.contains("src: url(\"/damage/fonts/pt-sans-regular.woff2?v="));
         assert!(crate::damage::file("/damage/fonts/pt-sans-regular.woff2").is_some());
-    }
-
-    #[test]
-    fn the_maps_are_the_026g_sites_only() {
-        let web = web(None);
-        assert_eq!(web.route(&get(maps::PATH), "t").status, "404 Not Found");
-        // The old address leads nowhere either.
-        assert_eq!(web.route(&get("/maps"), "t").status, "404 Not Found");
-    }
-
-    #[test]
-    fn the_wiki_is_only_on_the_026g_site() {
-        let web = web(None);
-        for path in ["/wiki", "/wiki/weapons"] {
-            assert_eq!(web.route(&get(path), "t").status, "404 Not Found");
-        }
-        assert!(!web.route(&get("/"), "t").body.contains("href=\"/wiki"));
     }
 
     #[test]
@@ -3127,19 +2842,10 @@ mod tests {
         );
         // Without the setting the pages are as they were.
         assert!(
-            !page(Lang::En, Form::None, "")
+            !page(Lang::En, Form::None26, "")
                 .body
-                .contains("Survarium 0.26g</a>")
+                .contains("Survarium 0.21d</a>")
         );
-    }
-
-    #[test]
-    fn pages_are_branded_unofficial_and_localized() {
-        let en = page(Lang::En, Form::None, "").body;
-        let uk = page(Lang::Uk, Form::None, "").body;
-        assert!(en.contains("СХІД") && en.contains("SKHID") && en.contains("unofficial"));
-        assert!(uk.contains("СХІД") && uk.contains("Неофіційний ком'юніті"));
-        assert!(uk.contains("Головна") && en.contains(">Home</a>"));
     }
 
     #[test]
@@ -3172,63 +2878,6 @@ mod tests {
         assert_eq!(counter.load(Ordering::Acquire), 0);
     }
 
-    const BLOB: &str = "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad";
-
-    #[test]
-    fn a_blob_is_named_by_its_checksum_and_nothing_else() {
-        let download = Path::new("/srv/download/files.zip");
-        let blob = format!("/resources/{BLOB}");
-        assert_eq!(
-            resource_file(&blob, download),
-            Some(PathBuf::from("/srv/download/resources").join(BLOB))
-        );
-        for path in [
-            "/resources/".to_owned(),
-            "/resources".to_owned(),
-            format!("/resources/{}", &BLOB[1..]),
-            format!("/resources/{BLOB}0"),
-            format!("/resources/{BLOB}/"),
-            format!("/resources/{}", BLOB.to_ascii_uppercase()),
-            format!("/resources/{}g", &BLOB[1..]),
-            format!("/resources/../{}", &BLOB[3..]),
-            format!("/resources/%2e%2e%2f{}", &BLOB[9..]),
-            format!("/resources//{}", &BLOB[1..]),
-            format!("/Resources/{BLOB}"),
-            format!("/download/{BLOB}"),
-            format!("{blob}.zip"),
-            "/resources/..".to_owned(),
-            // The replays' hostile list (`replay_tests`), here too.
-            format!("/resources/{}\\..", &BLOB[3..]),
-            format!("/resources/{}%5c", &BLOB[3..]),
-            format!("/resources/{}%00", &BLOB[3..]),
-            format!("/resources/{}\0", &BLOB[1..]),
-            format!("/resources/{BLOB}.json"),
-            format!("/resources/{BLOB}#x"),
-            format!("/resources/./{BLOB}"),
-            format!("/resources/{}", "a".repeat(2000)),
-        ] {
-            assert_eq!(resource_file(&path, download), None, "{path}");
-        }
-        // Only a GET or a HEAD of the 0.26g page, with a download file.
-        let get_blob = get(&blob);
-        assert!(resource_request(true, &get_blob, Some(download)).is_some());
-        let head = Request {
-            method: "HEAD".into(),
-            ..get(&blob)
-        };
-        assert!(resource_request(true, &head, Some(download)).is_some());
-        assert_eq!(resource_request(false, &get_blob, Some(download)), None);
-        assert_eq!(resource_request(true, &get_blob, None), None);
-        assert_eq!(
-            resource_request(true, &post(&blob, &[]), Some(download)),
-            None
-        );
-        assert_eq!(
-            resource_request(true, &get("/download"), Some(download)),
-            None
-        );
-    }
-
     /// What `answer` writes to a connection, as a client reads it.
     fn answered(answer: impl FnOnce(&mut TcpStream)) -> Vec<u8> {
         let listener = TcpListener::bind("127.0.0.1:0").unwrap();
@@ -3246,75 +2895,59 @@ mod tests {
     }
 
     #[test]
-    fn a_blob_is_handed_out_as_the_download_is_in_slots_of_its_own() {
-        let dir = std::env::temp_dir().join(format!("srp-web-resources-{}", std::process::id()));
+    fn the_download_is_handed_out_whole_or_in_part_in_its_slots() {
+        let dir = std::env::temp_dir().join(format!("srp-web-download-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
-        std::fs::create_dir_all(dir.join("resources")).unwrap();
+        std::fs::create_dir_all(&dir).unwrap();
         let download = dir.join("files.zip");
         std::fs::write(&download, b"the archive").unwrap();
-        let file = resource_file(&format!("/resources/{BLOB}"), &download).unwrap();
-        std::fs::write(&file, b"abc").unwrap();
         let web = web(None);
-        let request = get(&format!("/resources/{BLOB}"));
-        let whole = answered(|stream| web.resource(stream, &request, &file));
+        let request = get("/download");
+        let whole = answered(|stream| web.download(stream, &request, &download));
         assert_eq!(
             String::from_utf8(whole).unwrap(),
-            format!(
-                "HTTP/1.0 200 OK\r\nContent-Type: application/octet-stream\r\n\
-                 Content-Disposition: attachment; filename=\"{BLOB}\"\r\n\
-                 Accept-Ranges: bytes\r\nContent-Length: 3\r\n\
-                 X-Content-Type-Options: nosniff\r\nConnection: close\r\n\r\nabc"
-            )
-        );
-        // HEAD: the head alone. A range: that part.
-        let head = Request {
-            method: "HEAD".into(),
-            ..get(&format!("/resources/{BLOB}"))
-        };
-        let answer = answered(|stream| web.resource(stream, &head, &file));
-        assert!(answer.ends_with(
-            b"Content-Length: 3\r\nX-Content-Type-Options: nosniff\r\nConnection: close\r\n\r\n"
-        ));
-        let part = Request {
-            range: "bytes=1-".into(),
-            ..get(&format!("/resources/{BLOB}"))
-        };
-        let answer =
-            String::from_utf8(answered(|stream| web.resource(stream, &part, &file))).unwrap();
-        assert!(
-            answer.starts_with("HTTP/1.0 206 Partial Content\r\n"),
-            "{answer}"
-        );
-        assert!(
-            answer.contains("Content-Range: bytes 1-2/3\r\n") && answer.ends_with("\r\n\r\nbc")
-        );
-        // A name of the pattern with no file, or a folder: not found.
-        let missing = dir.join("resources").join(BLOB.replace('a', "0"));
-        for path in [&missing, &dir.join("resources")] {
-            let answer = answered(|stream| web.resource(stream, &request, path));
-            assert_eq!(
-                answer,
-                b"HTTP/1.0 404 Not Found\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"
-            );
-        }
-        // Its slots are its own: full, it is busy, and the archive is not.
-        web.resource_downloads
-            .store(MAX_DOWNLOADS, Ordering::Release);
-        let answer = answered(|stream| web.resource(stream, &request, &file));
-        assert!(answer.starts_with(b"HTTP/1.0 503 Service Unavailable\r\nRetry-After: 60\r\n"));
-        let archive = answered(|stream| web.download(stream, &get("/download"), &download));
-        assert_eq!(
-            String::from_utf8(archive).unwrap(),
             "HTTP/1.0 200 OK\r\nContent-Type: application/zip\r\n\
              Content-Disposition: attachment; filename=\"files.zip\"\r\n\
              Accept-Ranges: bytes\r\nContent-Length: 11\r\n\
              X-Content-Type-Options: nosniff\r\nConnection: close\r\n\r\nthe archive"
         );
-        assert_eq!(web.downloads.load(Ordering::Acquire), 0);
-        assert_eq!(
-            web.resource_downloads.load(Ordering::Acquire),
-            MAX_DOWNLOADS
+        // HEAD: the head alone. A range: that part.
+        let head = Request {
+            method: "HEAD".into(),
+            ..get("/download")
+        };
+        let answer = answered(|stream| web.download(stream, &head, &download));
+        assert!(answer.ends_with(
+            b"Content-Length: 11\r\nX-Content-Type-Options: nosniff\r\nConnection: close\r\n\r\n"
+        ));
+        let part = Request {
+            range: "bytes=4-".into(),
+            ..get("/download")
+        };
+        let answer =
+            String::from_utf8(answered(|stream| web.download(stream, &part, &download))).unwrap();
+        assert!(
+            answer.starts_with("HTTP/1.0 206 Partial Content\r\n"),
+            "{answer}"
         );
+        assert!(
+            answer.contains("Content-Range: bytes 4-10/11\r\n")
+                && answer.ends_with("\r\n\r\narchive")
+        );
+        // No such file, or a folder: not found.
+        for path in [&dir.join("gone.zip"), &dir] {
+            let answer = answered(|stream| web.download(stream, &request, path));
+            assert_eq!(
+                answer,
+                b"HTTP/1.0 404 Not Found\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"
+            );
+        }
+        assert_eq!(web.downloads.load(Ordering::Acquire), 0);
+        // Its slots full: busy, and the slots are left as they were.
+        web.downloads.store(MAX_DOWNLOADS, Ordering::Release);
+        let answer = answered(|stream| web.download(stream, &request, &download));
+        assert!(answer.starts_with(b"HTTP/1.0 503 Service Unavailable\r\nRetry-After: 60\r\n"));
+        assert_eq!(web.downloads.load(Ordering::Acquire), MAX_DOWNLOADS);
         let _ = std::fs::remove_dir_all(&dir);
     }
 
@@ -3354,125 +2987,6 @@ mod tests {
         assert!(web.store.hold(session).is_some());
         let shown = count(&web);
         assert!(shown.contains("| 2 registered"), "{shown}");
-    }
-
-    #[test]
-    fn the_home_page_says_how_to_start_what_the_download_holds() {
-        let stats = |launcher| Stats {
-            registered: 0,
-            online: 0,
-            maintenance: None,
-            registrations_open: true,
-            v026g: true,
-            launcher,
-            installs_game: false,
-        };
-        // With the launcher: one file to start, nothing to type, and the
-        // download is needed once; how to change the language. The script
-        // is folded away below.
-        for (lang, press, once, folded) in [
-            (
-                Lang::En,
-                "press <b>PLAY</b>",
-                "You do this only once",
-                "Without the launcher",
-            ),
-            (
-                Lang::Uk,
-                "натисніть <b>PLAY</b>",
-                "лише один раз",
-                "Без лаунчера",
-            ),
-        ] {
-            let page = home(lang, stats(true));
-            let steps = page.split("<ol>").nth(1).unwrap();
-            let (shown, hidden) = steps.split_once("<details>").unwrap();
-            assert!(shown.contains("<code>Skhid.bat</code>"), "{shown}");
-            assert!(shown.contains(press), "{shown}");
-            assert!(shown.contains(once), "{shown}");
-            assert!(!shown.contains("binaries"), "{shown}");
-            // Where to unpack is said by what the folder holds, not by a
-            // name a player may read as "inside game".
-            assert!(!shown.contains("over the game's"), "{shown}");
-            assert!(!shown.contains("поверх теки"), "{shown}");
-            assert!(!shown.contains("<pre>"), "{shown}");
-            assert!(!shown.contains("play_skhid.bat"), "{shown}");
-            assert!(hidden.contains(&format!("<summary>{folded}</summary>")));
-            assert!(hidden.contains("play_skhid.bat"));
-            assert!(shown.contains("<b>Language</b>") || shown.contains("<b>Мова</b>"), "{shown}");
-            assert!(!steps.contains("-localization"), "{steps}");
-            assert!(!steps.contains("<pre>"), "{steps}");
-            assert_eq!(steps.matches("<details>").count(), 1);
-            assert_eq!(steps.matches("</details>").count(), 1);
-        }
-        // A download whose launcher brings the game: no step that sends a
-        // player for the game first; an empty folder, the room it needs, and
-        // that the first start downloads. The game's own archive is named
-        // only as the way out, and the folder of a game a player has already.
-        for (lang, empty, first, have, way_out) in [
-            (
-                Lang::En,
-                "into an empty folder with about 10 GB free",
-                "The first time, the launcher downloads the game",
-                "Already have Survarium 0.26g",
-                "Launcher can't get the game?",
-            ),
-            (
-                Lang::Uk,
-                "у порожню теку, де вільно близько 10 ГБ",
-                "Першого разу лаунчер завантажує гру",
-                "Уже маєте Survarium 0.26g",
-                "Лаунчер не може отримати гру?",
-            ),
-        ] {
-            let page = home(
-                lang,
-                Stats {
-                    installs_game: true,
-                    ..stats(true)
-                },
-            );
-            let steps = page.split("<ol>").nth(1).unwrap();
-            let steps = steps.split("</ol>").next().unwrap();
-            // The first step is the download, not the game.
-            let first_step = steps.split("</li>").next().unwrap();
-            assert!(first_step.contains(empty), "{first_step}");
-            assert!(first_step.contains("class=dl"), "{first_step}");
-            assert!(!steps.contains("Get the original Survarium"), "{steps}");
-            assert!(!steps.contains("Отримайте оригінальну"), "{steps}");
-            for said in [empty, first, have, way_out, "2.9", "Google Drive"] {
-                let said = if lang == Lang::Uk && said == "2.9" {
-                    "2,9"
-                } else {
-                    said
-                };
-                assert!(steps.contains(said), "{said}: {steps}");
-            }
-            assert!(steps.contains("<code>Skhid.bat</code>"), "{steps}");
-            assert!(
-                steps.contains("<code>bash Skhid.sh launcher</code>"),
-                "{steps}"
-            );
-            assert_eq!(steps.matches("<details>").count(), 1);
-        }
-        // An archive with the extractor and no launcher is not such a one.
-        let page = home(
-            Lang::En,
-            Stats {
-                installs_game: true,
-                ..stats(false)
-            },
-        );
-        assert!(page.contains("Get the original Survarium"));
-        assert!(!page.contains("empty folder"));
-        // Without it: the page as it was.
-        let page = home(Lang::En, stats(false));
-        assert!(!page.contains("launcher_skhid.exe"));
-        assert!(!page.contains("<details>"));
-        assert!(!page.contains("command line"));
-        assert!(!page.contains("-localization"));
-        assert!(page.contains("<code>play_skhid.bat</code>"));
-        assert!(page.contains("<b>Settings</b>, <b>Game</b>, <b>Language</b>"));
     }
 
     #[test]

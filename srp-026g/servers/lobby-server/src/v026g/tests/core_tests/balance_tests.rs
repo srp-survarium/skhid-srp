@@ -40,13 +40,13 @@ fn with_an_odd_count_the_stronger_players_are_the_side_of_fewer() {
 
     let mut world = World::new();
     let players = five(&mut world);
-    // Carol and Erin kill two for each death, over many: each counts for
-    // 2, the others (new) for 1, and a player for 1 more. The two on the
-    // side of fewer: 2 + 4 against 3 + 3.
+    // Carol and Erin kill three for each two deaths, over many: each counts
+    // for 1.5 (not strong), the others (new) for 1, and a player for 1
+    // more. The two on the side of fewer: 2 + 3 against 3 + 3.
     for strong in [players[2], players[4]] {
         world.change(strong, |account| {
             account.level_stats = everywhere(KillsDeaths {
-                kills: 2000,
+                kills: 1500,
                 deaths: 1000,
             });
         });

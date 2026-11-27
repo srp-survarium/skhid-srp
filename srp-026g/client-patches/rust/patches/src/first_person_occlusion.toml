@@ -1,0 +1,9 @@
+# Patch 213: the hi-Z occlusion never leaves a first-person surface out (the
+# gun, its parts, its optic and the optic's reticle; renderer-026g.md 5.7).
+# The site is sites_026g.tsv's; the logic is first_person_occlusion.rs.
+name = "first_person_occlusion"
+patch = 213
+
+[[hook]]
+site = "hiz.model_answer"
+handler = "on_model_answer"

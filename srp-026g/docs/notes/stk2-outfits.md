@@ -5,7 +5,7 @@ The owner (2026-10-30): "let's port what wasn't ported yet" of the STK2 characte
 `examples/build-stk2-outfits-026` (`src/stk2_outfits_026.rs`, its
 `docs/stk2-outfits-026.md`); one content pack per outfit. srp reads each item's faction
 (none), level, slots, stats and drop weight from its config in the server game data; its
-code only names the 14 in `prices::EXCEPTIONS` (sold as the knit cap, below).
+code names none of them (sold as the knit cap, below).
 
 ## What the export holds
 
@@ -52,18 +52,18 @@ code only names the 14 in `prices::EXCEPTIONS` (sold as the knit cap, below).
 - **No faction, sold as the knit cap, and dropped (the owner, 2026-10-31):** every item's
   `parameters.faction` is 0, as the Novice's knit cap's: the Independent traders' (the item
   tables show them so). First drop only; then "let's make them buyable the same way the
-  beanie is": each has a `prices::EXCEPTIONS` row `(0, 0)`, as the cap, so seller 0 sells it
-  to everyone at no rank, at its price (Stats, below); the 14 names are in
-  `prices::UNRELEASED` until the release that ships the packs. They also drop after
+  beanie is": gear of no faction is sold by seller 0 to everyone at no rank, as the cap, at
+  its price (Stats, below). They also drop after
   matches: each has its level's drop weight, its category is in the generic drop table, and
-  the table's level rows roll its item level (`prices::tests::the_stk2_outfits_are_sold_to_everyone_at_no_rank`;
-  on the built server data, `drops::tests::the_stk2_outfits_drop_and_are_sold_to_everyone`).
+  the table's level rows roll its item level (on the built server data,
+  `drops::tests::the_stk2_outfits_drop_and_are_sold_to_everyone`).
   Drops are rolled after a match and prices are the lobby's, so nothing a match computes
   changes (no `simulation_changes.tsv` row).
 - **Levels (the owner, 2026-10-31):** the Novice's set 4, the bandit's and the loner's 6.
 - Each item's config is a stock piece's of its slot (card, sounds, rollable modifications)
-  with its own numbers (Stats, below), model, icon, texts and faction (none); camouflage
-  and decals off (the donor textures have no masks); no item takes another slot.
+  with its own numbers (Stats, below), model, icon, texts and faction (none); decals as stock
+  jackets and trousers since 2026-11-20 (Decals, below), a camouflage since stk2-camo@1
+  (Camouflage, below); no item takes another slot.
 
 ## Stats (the owner's, 2026-10-31)
 
@@ -305,3 +305,155 @@ against 10.1.
   `stk2-loner-12`), built as
   resource-porter's `docs/stk2-outfits-026.md` says, byte for byte.
 - The item texts are in the ten catalog TSVs (`client-patches/localization`).
+
+## Pinched shins and the shared fitter (2026-11-02)
+
+The owner's screenshot showed the Loner's calves squeezed above the boots,
+like the earlier exoskeleton problem. This time the boot class was valid:
+the porter fitted the trousers against an incomplete boot-cuff profile.
+`limb_fit` accepted only 12 of 48 angular samples as a complete ring and
+interpolated the missing circumference, including narrow inner cuff lips.
+That false constraint also narrowed visible cloth above the opening.
+
+The generic correction requires at least 36 samples with no missing arc
+over six samples; only small cracks interpolate. First/last reliable rings
+bound the profile and no constraint continues beyond its distal end. This
+applies to trousers, sleeves, glove cuffs and boot shafts. No item-specific
+fit exceptions were added. All three outfits were rebuilt, not just the
+Loner's pants: `stk2-bandit@14`, `stk2-novice@13`, `stk2-loner@13`.
+
+Measured on the Loner's right trouser leg at 35 cm above the ground, its
+medium-boot variant changes from 15.2 x 15.2 cm to 17.9 x 19.1 cm and its
+tall-boot variant from 9.8 x 9.7 cm to 14.7 x 15.2 cm. The full-length reference
+shape there is 18.0 x 20.3 cm. Item config operations, materials, textures
+and statistics are unchanged; this needs no simulation-change row.
+
+The distinct exoskeleton failure is guarded too: `release/build-content`
+measures each composed boot mesh against the native boots of the class its
+config selects. Medium/tall shafts more than 2 cm below that class's shortest
+native shaft stop the build. Full-length trousers can cover taller shafts,
+as with the Novice's boots. The audit covers 37 boot items from stock,
+equipment-029, equipment-046, the exoskeletons and the three STK2 outfits;
+none currently has that class/height mismatch. Later-build garments retain
+their donor geometry; they do not use the STK2 limb fitter.
+
+Checks and reproducible offline pair renders are in
+`scripts/clothing-fit/README.md`. These check geometry and native clip
+poses; they do not substitute for an in-game lobby/match fitting pass.
+
+## Novice hood neckline (2026-11-03)
+
+`stk2-novice@14` removes the generated cowl and throat bridge that caused the
+stripe below the hood. It retains the STK2 donor's original open neckline and
+head/mask fitting. Other equipment meshes and item parameters are unchanged.
+
+## Decals (2026-11-20)
+
+The owner: "allow to put decals on stk2 equipment that we added too"; then "decals can only be
+put on armor and pants, not balaclavas".
+
+- **What a stock piece has** (stock `resources.db`, the exe; `client_patch.md` 3.44, `items.md`):
+  - all 24 vests and all 23 pairs of trousers have `parameters/decal_available` true and an empty
+    `data/decals` table; no helmet, mask, backpack, glove or boot config has either key;
+  - the flag gives the item its two decal slots: the lobby's upgrade window shows them for it
+    (`UpgradeWindow.as`, `decalAvailable`), srp lets a decal into slots 0 and 1 of such an item
+    (`modifications::cosmetic_slots`). Both read the item's config; neither has a list of items;
+  - a decal's modification appends its texture and place to `data/decals` of the item wearing it;
+    a config without the table drops it. The character's cook bakes whatever the table holds
+    (0x204E54; it does not read the flag);
+  - there are no fixed places, no anchors on a model and no mask: the player clicks where the decal
+    goes (a box projected along the surface's normal, size and turn by the wheel); one never
+    placed is on the chest (record value 0). The bake paints the piece's first surface
+    (`part_name`) in that surface's UV space; `additional_models` (a vest's fur, straps) take
+    none (0x2054C9). The `_aoac` mask is the camouflage's alone. A camouflage likewise paints the
+    first surface alone, unless an additional model's entry has `camo_available` (exe patch 217,
+    `client_patch.md` 3.114).
+- **What the STK2 torso and legs items lacked:**
+  - those two keys. Their ports wrote `decal_available` false and took `data/decals` out ("the
+    donor textures have no masks": true of the camouflage, not needed for a decal);
+  - a model file name of their own. The game keeps each baked texture in
+    `streamed_textures/<each decal's texture and place><the model's file name><d, n, f or s>.dds`
+    (`4_4205_7-8172320283889761536torso_s3d.dds`), the model's name without its folder, and
+    keeps the files from game to game (`baked-textures.md`). Every stock vest and trousers model
+    has a file name no other has; of the 324 the live game's vests and trousers use, the only
+    shared ones were the outfits' (`torso`, `legs` and their `_s2`, `_s3`, in three folders) and
+    the two exoskeleton bodies' (`duty_03_torso_s1`, in two). Seen in the first test game
+    (2026-11-20): the Novice's jacket, built after the bandit's with the same two decals, wore the
+    bandit's baked leather.
+- **The items:** the four jackets and three pairs of trousers of the outfits (1822, 1864, 1868,
+  1873; 1865, 1870, 1874) and the two exoskeleton bodies (1805, 1807), which are torso items.
+  Every STK2 item of another slot stays without, as stock ones: the hood, the knit cap, the exo
+  helmets, both balaclavas, the backpack, gloves and boots.
+- **The rule is the porter's** (`src/decals_026.rs`): a ported piece takes decals when the stock
+  pieces of its slot do, on its first surface, and the build stops unless that surface is the
+  garment (the piece's largest), its UVs are inside the map and at most 5 % of its texels are
+  painted from two places (a decal on such a texel shows at both), and unless the piece's models
+  have file names no other model of the game has. The outfits' builder, the exoskeleton sets'
+  and the masks' and helmets' all call it.
+- **The outfits' packs** (`stk2-bandit@16`, `stk2-novice@16`, `stk2-loner@15`), rebuilt as
+  resource-porter's `docs/stk2-outfits-026.md` says, on the stock db and patches 12 to 39 (the
+  outfits' ids are taken from patch 40 on). The seven items' configs have the two keys, and
+  their models are named after their outfits (`ported/stk2_bandit_026/stk2_bandit_026_torso`,
+  `..._torso_s2`, `..._legs_s3`, ...): the same files at new paths, byte for byte but each
+  model's `render/export_properties`, which names its own path (the old ones stay in players'
+  archives, unused). Every other file, the icons included, is the live pack's (`@14`, `@14`,
+  `@13`).
+- **The exoskeleton bodies' pack** (`exo-decals@1`, `scripts/exo-decals/make_pack.py`): the two
+  keys in both configs, and the Freedom body's model (Duty's mesh in other textures) again as
+  `ported/freedom_026/freedom_exo_torso_s1`, its ten released files byte for byte, with the
+  Freedom config pointed at it. Duty keeps `duty_03_torso_s1`.
+- **Nothing in srp, the movies or the exe.** No simulation change (cosmetics; a match's bake is
+  each game's own), no `simulation_changes.tsv` row.
+- **Limits, as stock:**
+  - a decal goes on the garment's own surface. Where the click lands on an additional model
+    (the bandit's shoulder straps, sleeve pocket and bare forearms, the Novice's belt kit, the
+    loner's pouches, an exoskeleton's frame, back unit and chest disc), that model stays as it is
+    and the decal shows around it, as around a stock vest's straps;
+  - the exoskeleton bodies take the trousers' slot, and their legs are an additional model: a
+    body has its two decals on the torso and none on the legs. A camouflage paints the legs only
+    through exe patch 217, which gives an additional model with `camo_available` its item's
+    camouflage, never its decals (exo-camo@2, `exo-suits.md`);
+  - the Novice's jeans' grown waist repeats the denim below it (4 % of the map's texels): a decal
+    put at the very waistline, under a jacket's hem, shows mirrored above it;
+  - no camouflage until stk2-camo@1 (below): its bake needs the `_aoac` mask beside the diffuse map.
+
+## Camouflage (stk2-camo@1, 2026-11-26; @2, 2026-11-27)
+
+The owner, after the exoskeletons took one (exo-camo, `exo-suits.md`): "let's also add camo to other
+STK2" armour. The seven jackets and trousers (1822, 1864, 1865, 1868, 1870, 1873, 1874) take a
+camouflage as stock ones do; the owner approved the coverage on renders (before, dark woodland, bright
+desert).
+
+- Why they took none: the configs had `parameters/camo_available` false, and the game bakes a
+  camouflage into a surface only when `<diffuse>_aoac.dds` loads beside its diffuse
+  (`weapon-camo.md`, "The engine"); the donor maps have no masks.
+- The pack (`scripts/stk2-camo/make_pack.py`): the flag on the seven configs, and a mask for each
+  set's `torso_diffuse` and `legs_diffuse` (the jacket's and the trousers' own surfaces, every
+  length; the Novice's two jackets share one map), made as exo-camo's: the UV islands under the
+  points `SETS` names and in them the cloth texels, not the straps and the much darker or brighter
+  details (seams, stripes, zips, the belt); B and R keep the cloth's shading. A garment of one
+  cloth is painted whole, at any shade (the loner's hood, scarf, sleeves and knitted sweater, the
+  Novice's collar), the loner's shirt also where his vest's UV islands hold it (shoulders, sides,
+  hem: its light cloth there), and his shoulder badges are left bare by their own dark patches.
+- Painted: the bandit's leather jacket and sleeves (the hammer and sickle on the back is embossed
+  and shows through as relief) and his track pants; the loner's hooded shirt (sleeves, shoulders,
+  sides, hem, hood, scarf), his knitted sweater and camo trousers; the Novice's jacket, its sleeves,
+  back print and collar, and his jeans.
+- Bare: the loner's vest, its straps and buckles, his shoulder badges, bags, holster and nuts bag;
+  the bandit's T-shirt (on the jacket's own surface: a garment of its own), his shoulder straps and
+  forearms (other surfaces); the Novice's turtleneck under the collar and his belt; the gloves,
+  boots, the Novice's hood and backpack (other items, as stock ones).
+- @2 (the owner, 2026-11-27: the Novice's jacket "leaves a square at the back"; on the loner's,
+  "places where it doesn't apply at all, even though this is the same textile", "scarf is done not
+  fully"): @1 left three boxes bare that were not what they were taken for. The Novice's "chest
+  logo" was the faded stencil on his back, and the box cut across it; the loner's "emblem on his
+  shirt" was the front of his scarf (the scarf's inside at the throat is an island of its own,
+  which no point picked); and the badge boxes took the whole shoulder caps. @1 also painted no
+  cloth inside other islands (the loner's shirt in his vest's) and the darkness test, comparing
+  with the cloth within 24 texels, dropped the shaded folds of the hood, scarf and sleeves; the
+  Novice's collar is two islands no point picked. The two jackets' cloth is now compared within 8
+  texels (broad shading kept, thin details bare). The bandit's and the trousers' masks are @1's,
+  byte for byte. Checked on offline renders with the game's bake (front, back, three-quarter
+  close-ups of the neck and collar), the owner's picks (2026-11-27).
+- The models' file names are their own already (Decals, above): no bake is shared between sets.
+- Not yet seen in a game.

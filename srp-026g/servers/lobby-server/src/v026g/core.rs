@@ -38,6 +38,7 @@ use session::{LockExt, SessionHold, SessionStore};
 use survarium::v026g::drops::Rng;
 use survarium::v026g::lobby::requests::{self, ClientMessage, ParseError};
 use survarium::v026g::lobby::{self, LobbyPick, MINUTES_TO_MAINTENANCE, ServerMessage, WireError};
+use udp_transport::relay::{Peer, Route};
 use udp_transport::{Direction, Event, PacketLog, State, Table, Transport};
 
 use super::play::{MatchHost, Running};
@@ -48,11 +49,29 @@ use super::{Inbox, Notice, Settings};
 /// refused or closed): datagrams from more addresses are dropped.
 const MAX_LINKS: usize = 4096;
 const MAX_CLOSING: usize = 256;
-/// The online counts go to each client again this often, changed or not,
-/// and once more on the first pass after its sign-in.
+/// The online counts go to each client in the lobby again this often,
+/// changed or not, and once more on the first pass after its sign-in.
 const ONLINE_STATS_EVERY: Duration = Duration::from_secs(5);
 /// How long a link being signed out waits for its `AA` to be acked.
 const SIGN_OUT_WAIT: Duration = Duration::from_secs(1);
+
+/// Where this client's connection entered the server: its link's route,
+/// with what the match server's address for it is made of.
+pub(super) enum Arrival {
+    /// The local address it reached srp at, if that could be found.
+    Direct(Option<IpAddr>),
+    /// The relay's public address.
+    Relayed(std::net::Ipv4Addr),
+}
+
+impl Arrival {
+    fn of(peer: Peer) -> Self {
+        match peer.route() {
+            Route::Direct => Self::Direct(reached_address(peer.address())),
+            Route::Relay(relay) => Self::Relayed(relay.public()),
+        }
+    }
+}
 
 /// A signed-in client.
 pub(super) struct Player<'a> {
@@ -65,7 +84,7 @@ pub(super) struct Player<'a> {
     _hold: SessionHold<'a>,
     /// The address the client reached srp at, if it could be found: what a
     /// client on this machine's network is told for the match server too.
-    pub reached: Option<IpAddr>,
+    pub arrival: Arrival,
     /// The chat channels' ids (`4F`); all 0 until the client subscribes.
     pub channel_ids: [u32; 10],
     /// The game's language, as `4F` and `45` give it (0 English, 1
@@ -88,8 +107,8 @@ pub(super) struct Player<'a> {
     /// The squad info (0xA1 body) the client has, and its send.
     pub squad_sent: Option<Vec<u8>>,
     pub squad_serial: Option<u64>,
-    /// The balance the client has.
-    pub money_sent: (u32, u32),
+    /// The silver the client has.
+    pub money_sent: u32,
     /// The count of ranked players the client's ranking page has.
     pub ranked_sent: u32,
     /// The ranking pages it was sent, newest last, as (the index of the
@@ -169,7 +188,7 @@ impl Link<'_> {
 /// the handler may change the links.
 #[derive(Clone)]
 pub(super) struct Who {
-    pub addr: SocketAddr,
+    pub addr: Peer,
     pub session_id: u32,
     pub account_id: u32,
     pub name: String,
@@ -186,9 +205,9 @@ pub(super) struct Core<'a> {
     inbox: &'a Inbox,
     pub settings: Settings,
     pub packet_log: Option<PacketLog>,
-    pub links: HashMap<SocketAddr, Link<'a>>,
+    pub links: HashMap<Peer, Link<'a>>,
     /// The link of each account in the lobby.
-    pub by_account: HashMap<u32, SocketAddr>,
+    pub by_account: HashMap<u32, Peer>,
     /// Friend requests and squad invites waiting for an answer, by message
     /// id (`social`).
     pub requests: BTreeMap<u32, Request>,
@@ -200,9 +219,6 @@ pub(super) struct Core<'a> {
     /// The premium shop's settings (`session::v026g::premium`): the
     /// environment's.
     pub shop: premium::Settings,
-    /// The offer made with a match's results (`A8`), by account: the match
-    /// and when the offer ends, Unix seconds (`shop`).
-    pub premium_offers: HashMap<u32, (u32, u64)>,
     next_tick: Instant,
     /// The ranked players, and the count of accounts they were counted at.
     ranked: (usize, u32),
@@ -232,15 +248,14 @@ pub(super) struct Core<'a> {
     pub replays: Option<&'a Replays>,
     /// The rooms (`rooms`).
     pub rooms: session::v026g::rooms::Rooms,
-    /// The room matches being made, by the queue's match id: the map their
-    /// vote chose, the room's minimum of players and whether the room has a
-    /// PIN (its match pays nothing) (`rooms`, `play::launch`).
-    pub room_launching: HashMap<u32, (u8, u8, bool)>,
+    /// The room matches being made, by the queue's match id (`rooms`,
+    /// `play::launch`).
+    pub room_launching: HashMap<u32, super::rooms::RoomLaunch>,
     /// Why a request or a Play left the account outside a room, said once
     /// with its next room state (`rooms`).
     pub room_codes: HashMap<u32, survarium::v026g::lobby::rooms::RoomCode>,
     /// When a member who came while its room's match is played goes into
-    /// it (`rooms::LATE_JOIN_WAIT` after it came, or at once on its ask).
+    /// it (`RoomRules::late_join_wait` after it came, or at once on its ask).
     pub room_join_at: HashMap<u32, Instant>,
     /// Each member's room at the last tick: who came and went is said in
     /// the room's chat (`room_chat`).
@@ -281,7 +296,6 @@ impl<'a> Core<'a> {
             matches: HashMap::new(),
             rng: Rng::from_time(),
             shop: *premium::settings(),
-            premium_offers: HashMap::new(),
             ranked: (usize::MAX, 0),
             squads_dirty: false,
             clan: Default::default(),
@@ -305,21 +319,21 @@ impl<'a> Core<'a> {
 
     // ------------------------------------------------------------ lookups
 
-    pub fn player(&self, addr: SocketAddr) -> Option<&Player<'a>> {
+    pub fn player(&self, addr: Peer) -> Option<&Player<'a>> {
         match &self.links.get(&addr)?.stage {
             Stage::Player(player) => Some(player),
             _ => None,
         }
     }
 
-    pub fn player_mut(&mut self, addr: SocketAddr) -> Option<&mut Player<'a>> {
+    pub fn player_mut(&mut self, addr: Peer) -> Option<&mut Player<'a>> {
         match &mut self.links.get_mut(&addr)?.stage {
             Stage::Player(player) => Some(player),
             _ => None,
         }
     }
 
-    pub fn who(&self, addr: SocketAddr) -> Option<Who> {
+    pub fn who(&self, addr: Peer) -> Option<Who> {
         let player = self.player(addr)?;
         Some(Who {
             addr,
@@ -336,7 +350,7 @@ impl<'a> Core<'a> {
     }
 
     /// The addresses of the signed-in players.
-    pub fn players(&self) -> Vec<SocketAddr> {
+    pub fn players(&self) -> Vec<Peer> {
         self.links
             .iter()
             .filter(|(_, link)| matches!(link.stage, Stage::Player(_)))
@@ -349,7 +363,7 @@ impl<'a> Core<'a> {
         if let Some(account) = self.accounts.get(account_id) {
             return Some(account.locked().name.clone());
         }
-        Some(self.store.account(account_id)?.locked().name.clone())
+        Some(self.store.account(account_id)?.locked().name().to_owned())
     }
 
     /// The account's clan tag (none: srp has no clans yet).
@@ -363,11 +377,11 @@ impl<'a> Core<'a> {
     // ------------------------------------------------------------ sending
 
     /// Queue a message for a link.
-    pub fn send(&mut self, to: SocketAddr, message: ServerMessage) -> Option<u64> {
+    pub fn send(&mut self, to: Peer, message: ServerMessage) -> Option<u64> {
         self.links.get_mut(&to)?.push(message)
     }
 
-    pub fn send_all(&mut self, to: SocketAddr, messages: impl IntoIterator<Item = ServerMessage>) {
+    pub fn send_all(&mut self, to: Peer, messages: impl IntoIterator<Item = ServerMessage>) {
         for message in messages {
             self.send(to, message);
         }
@@ -375,7 +389,7 @@ impl<'a> Core<'a> {
 
     /// Queue a message a writer made; a writer's refusal is a bug of the
     /// caller's and is logged.
-    pub fn send_made(&mut self, to: SocketAddr, message: Result<ServerMessage, WireError>) {
+    pub fn send_made(&mut self, to: Peer, message: Result<ServerMessage, WireError>) {
         match message {
             Ok(message) => {
                 self.send(to, message);
@@ -385,7 +399,7 @@ impl<'a> Core<'a> {
     }
 
     /// `84 <op> 00 <key>`: refused, with the game's own text for it.
-    pub fn deny(&mut self, to: SocketAddr, op: u8, key: &str) {
+    pub fn deny(&mut self, to: Peer, op: u8, key: &str) {
         self.send(to, lobby::denied(op, key));
     }
 
@@ -395,10 +409,7 @@ impl<'a> Core<'a> {
     pub fn push_account(&mut self, who: &Who) {
         let (push, balance) = {
             let account = who.account.locked();
-            (
-                wire::after_change(&account, quests::now()),
-                (account.generic_money, account.premium_money),
-            )
+            (wire::after_change(&account), account.generic_money)
         };
         self.accounts.mark_dirty(who.account_id);
         match push {
@@ -414,8 +425,9 @@ impl<'a> Core<'a> {
 
     // ----------------------------------------------------------- datagrams
 
-    /// One datagram from `from`.
-    pub fn datagram(&mut self, from: SocketAddr, bytes: &[u8], now: Instant) {
+    /// One datagram from `from`: a peer is its address and its route, so a
+    /// link is only ever continued by datagrams that came the way it did.
+    pub fn datagram(&mut self, from: Peer, bytes: &[u8], now: Instant) {
         let events = match self.links.get_mut(&from) {
             Some(link) => link.transport.receive(bytes, now),
             None => {
@@ -433,6 +445,7 @@ impl<'a> Core<'a> {
                     }
                     match requests::parse(id, &payload) {
                         Ok(message) => self.handle(from, message, now),
+                        Err(ParseError::InvalidComment { .. }) => self.refuse_comment(from),
                         Err(ParseError::Trailing { message, extra }) => {
                             log::warn!("Lobby message {id:#04X} has {extra} bytes too many");
                             self.handle(from, *message, now);
@@ -464,7 +477,7 @@ impl<'a> Core<'a> {
     /// sign-in. Returns what else the datagram carried.
     fn first_datagram(
         &mut self,
-        from: SocketAddr,
+        from: Peer,
         bytes: &[u8],
         now: Instant,
     ) -> Option<Vec<Event>> {
@@ -490,7 +503,7 @@ impl<'a> Core<'a> {
     /// A request that could not be read. The client waits for the answer
     /// of an inventory, shop or skills request before it shows the result,
     /// so those are refused with the game's text for the kind.
-    fn unreadable(&mut self, from: SocketAddr, id: u8) {
+    fn unreadable(&mut self, from: Peer, id: u8) {
         let key = match id {
             requests::id::INVENTORY => "st_cannot_relocate_item",
             requests::id::SHOP => "st_cannot_buy_item",
@@ -504,7 +517,7 @@ impl<'a> Core<'a> {
 
     /// A sign-in refused before anything of it was taken: `FD`, and the
     /// link closes. The client counts it a failed try (transport.md §6.1).
-    fn refuse_sign_in(&mut self, from: SocketAddr, mut transport: Transport, now: Instant) {
+    fn refuse_sign_in(&mut self, from: Peer, mut transport: Transport, now: Instant) {
         let closing = self
             .links
             .values()
@@ -527,7 +540,7 @@ impl<'a> Core<'a> {
 
     fn sign_in(
         &mut self,
-        from: SocketAddr,
+        from: Peer,
         mut transport: Transport,
         session_id: u32,
         need_shop_items: bool,
@@ -558,7 +571,7 @@ impl<'a> Core<'a> {
         };
         let (account_id, login_name) = {
             let account = account.locked();
-            (account.id, account.name.clone())
+            (account.id, account.name().to_owned())
         };
 
         // The account's other link: another game signed in with it (the
@@ -596,7 +609,9 @@ impl<'a> Core<'a> {
             .or(still_in_match)
             .filter(|id| self.matches.contains_key(id));
 
-        let (game, made) = self.accounts.sign_up(account_id, &login_name);
+        let Some((game, made)) = self.store.sign_up_026g(self.accounts, account_id) else {
+            return;
+        };
         let unix = quests::now();
         // A test bot (`SRP_BOT_ACCOUNTS`) starts no run of bonus days.
         let bot = self.accounts.is_bot(account_id);
@@ -609,7 +624,7 @@ impl<'a> Core<'a> {
             // The account is seen today: its run of days for the daily
             // bonus is brought up to the day before the pushes.
             if !bot {
-                bonus::visit(&mut game, unix, &mut self.rng);
+                bonus::visit(&mut game, unix);
             }
             let notices = quests::refresh(&mut game, unix, &mut self.rng);
             // A new account's first quests are part of its start: in its
@@ -638,7 +653,7 @@ impl<'a> Core<'a> {
             };
             (
                 wire::sign_in_push(&game, &info),
-                (game.generic_money, game.premium_money),
+                game.generic_money,
             )
         };
         let mut push = match push {
@@ -671,7 +686,7 @@ impl<'a> Core<'a> {
             name: name.clone(),
             account: game,
             _hold: hold,
-            reached: reached_address(from),
+            arrival: Arrival::of(from),
             channel_ids: [0; 10],
             language: None,
             queued_since: None,
@@ -738,7 +753,7 @@ impl<'a> Core<'a> {
             self.notify(&who, &notices);
             // Its clan, and the clan invites that waited.
             self.clan_sign_in(&who);
-            // The daily bonus and a premium discount (`shop`).
+            // The daily bonus (`shop`).
             self.sign_in_extras(&who);
         }
         // A match that ended while the account was away: its screen. The
@@ -768,13 +783,13 @@ impl<'a> Core<'a> {
     /// The player of a link is no more: out of its clan team's wait, and
     /// (unless its game goes on with another link) its session and its
     /// room ended. The link itself stays for the transport to finish.
-    pub fn retire(&mut self, addr: SocketAddr, why: &str, end_session: bool) {
+    pub fn retire(&mut self, addr: Peer, why: &str, end_session: bool) {
         self.retire_link(addr, why, end_session, end_session);
     }
 
     /// [`Self::retire`], its room ended or not apart from its session (an
     /// account that signed in again from a game started anew keeps it).
-    fn retire_link(&mut self, addr: SocketAddr, why: &str, end_session: bool, room_ends: bool) {
+    fn retire_link(&mut self, addr: Peer, why: &str, end_session: bool, room_ends: bool) {
         let Some(link) = self.links.get_mut(&addr) else {
             return;
         };
@@ -811,7 +826,7 @@ impl<'a> Core<'a> {
     /// disconnect.
     /// `room_ends`: its room ends with it (not for an account that signed in
     /// again).
-    pub fn sign_out(&mut self, addr: SocketAddr, why: &str, now: Instant, room_ends: bool) {
+    pub fn sign_out(&mut self, addr: Peer, why: &str, now: Instant, room_ends: bool) {
         self.retire_link(addr, why, true, room_ends);
         if let Some(link) = self.links.get_mut(&addr) {
             let serial = link.push(lobby::signed_out());
@@ -836,7 +851,7 @@ impl<'a> Core<'a> {
     // ------------------------------------------------------------ the loop
 
     /// What is due at `now`; returns the datagrams to send.
-    pub fn step(&mut self, now: Instant) -> Vec<(SocketAddr, Vec<u8>)> {
+    pub fn step(&mut self, now: Instant) -> Vec<(Peer, Vec<u8>)> {
         for notice in self.inbox.take() {
             self.notice(notice, now);
         }
@@ -926,7 +941,7 @@ impl<'a> Core<'a> {
     /// The pass made every [`Settings::tick`].
     fn tick(&mut self, now: Instant) {
         // Sessions ended elsewhere (a ban, the admin's kick).
-        let ended: Vec<SocketAddr> = self
+        let ended: Vec<Peer> = self
             .links
             .iter()
             .filter_map(|(addr, link)| match &link.stage {
@@ -955,10 +970,7 @@ impl<'a> Core<'a> {
             let Some(player) = self.player(addr) else {
                 continue;
             };
-            let balance = {
-                let account = player.account.locked();
-                (account.generic_money, account.premium_money)
-            };
+            let balance = player.account.locked().generic_money;
             // Somebody registered: the ranking page asks for rows by the
             // count it has, so it is told the new one before it is opened
             // (`8F` stores it, the `9D` after it hands it to the page;
@@ -980,29 +992,30 @@ impl<'a> Core<'a> {
             // 0x9F is the one message sent once and never again
             // (transport.md §4.1), and until the client has one its Play
             // is off (it takes the minutes to maintenance as 0,
-            // `social.md` §4): it is repeated.
-            let stats_due = player
-                .online_at
-                .is_none_or(|at| now.saturating_duration_since(at) >= ONLINE_STATS_EVERY);
+            // `social.md` §4): it is repeated. Not in a match: Play is off
+            // there, and each 0x9F has the client log why (`PlayBtn
+            // disabled reason is: state=2`, social.md §2.2); the counts go
+            // when it is back in the lobby.
+            let stats_due = player.in_match.is_none()
+                && (online != online_sent
+                    || player
+                        .online_at
+                        .is_none_or(|at| now.saturating_duration_since(at) >= ONLINE_STATS_EVERY));
             // The web page, or a match's rewards, changed the balance.
             if balance != money_sent {
-                self.send(addr, lobby::money(balance.0, balance.1));
+                self.send(addr, lobby::money(balance));
             }
-            if online != online_sent || stats_due {
+            if stats_due {
                 self.send(addr, lobby::online_stats(online.0, online.1, online.2));
             }
             if let Some(player) = self.player_mut(addr) {
                 player.money_sent = balance;
-                if online != online_sent || stats_due {
+                if stats_due {
                     player.online_sent = online;
                     player.online_at = Some(now);
                 }
             }
             self.friend_statuses(addr);
-            // A repair that is over (`items`).
-            if let Some(who) = self.who(addr) {
-                self.item_timers(&who);
-            }
             // A match that ended after its player had left it.
             let in_lobby = self
                 .player(addr)
@@ -1030,7 +1043,13 @@ impl<'a> Core<'a> {
                     self.send_all(addr, messages.clone());
                 }
             }
+            Notice::IdleRemoved {
+                match_id,
+                account_id,
+                name,
+            } => self.idle_removed(match_id, account_id, &name),
             Notice::AccountChanged { account_id } => {
+                self.refresh_nickname(account_id);
                 let Some(who) = self.who_is(account_id) else {
                     return;
                 };

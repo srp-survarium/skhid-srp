@@ -10,21 +10,27 @@ package survarium.controls
    import scaleform.clik.interfaces.IDataRenderer;
    import survarium.Util;
    import survarium.constants.Colors;
+   import survarium.data.BonusOrder;
    import survarium.item.ItemFactory;
-   import survarium.item.WeaponDetails;
-   import survarium.item.WeaponDetailsView;
+   import survarium.item.ModificationRolls;
+   import survarium.data.PropertiesDescriptor;
+   import survarium.item.ItemDetailsView;
+   import survarium.item.WeaponMovement;
    import survarium.player.LocalPlayerProfile;
    import survarium.player.MatchEffects;
    import survarium.core.Icon;
    import survarium.data.IconContainer;
    import survarium.data.ItemData;
    import survarium.data.ItemDescriptor;
+   import survarium.data.PropertiesDescriptor;
+   import survarium.item.ModificationRolls;
    import survarium.data.LocalizationData;
    import survarium.upgrade.UpgradeWindow;
+   import survarium.upgrade.SightPlace;
+   import survarium.constants.CosmeticSlot;
    import survarium.constants.ItemCategory;
    import survarium.constants.ItemPlace;
    import survarium.constants.ItemRank;
-   import survarium.constants.ModificationState;
    import survarium.constants.SuperCategory;
    
    public class ItemInfoRenderer extends Sprite implements IDataRenderer
@@ -76,9 +82,14 @@ package survarium.controls
       
       protected var _displayOrange:Boolean = false;
 
-      private var _weaponDetails:WeaponDetails;
-      private var _detailsText:WeaponDetailsView;
+      // The card's detail rows (ItemDetailsView.read): a weapon's or a round's; null for others.
+      private var _details:Object;
+      private var _detailsText:ItemDetailsView;
       private var _detailsMode:String = "none";
+
+      // A muzzle device's or a grip's card: its stats are bonus lines under the title, and the guns it
+      // fits (textFieldDescription) a section of their own under them.
+      private var _listBelow:Boolean = false;
       
       public function ItemInfoRenderer()
       {
@@ -104,32 +115,33 @@ package survarium.controls
          if(mode == _detailsMode) return;
          itemCompare.refreshComparison();
          updateDetailsText();
+         if(_data is ItemData) fillModifiers();
          layoutDetails();
          dispatchEvent(new Event(Event.RESIZE));
       }
 
       // What the card shows: its rows (none, compact or expanded with Shift), neutral colours
-      // (Ctrl), a weapon's stats in a match (Alt, docs/notes/alt-weapon-stats.md).
+      // (Ctrl), a weapon's or a medicine's stats in a match (Alt, docs/notes/alt-weapon-stats.md).
       private function detailsMode() : String
       {
          if(_data == null) return "none";
-         var rows:String = _weaponDetails == null ? "none" : MainScene.isShift ? "expanded" : "compact";
-         return rows + (MainScene.isCtrl ? "-neutral" : "") + (MainScene.isAlt && _data.isWeapon ? "-match" : "");
+         var rows:String = _details == null ? "none" : MainScene.isShift ? "expanded" : "compact";
+         return rows + (MainScene.isCtrl ? "-neutral" : "") + (MainScene.isAlt && MatchEffects.covers(_data) ? "-match" : "");
       }
 
       private function updateDetailsText() : void
       {
          _detailsMode = detailsMode();
-         if(_detailsText == null && _weaponDetails != null)
+         if(_detailsText == null && _details != null)
          {
-            _detailsText = new WeaponDetailsView();
+            _detailsText = new ItemDetailsView();
             addChild(_detailsText);
          }
          if(_detailsText != null)
          {
-            _detailsText.visible = _weaponDetails != null;
+            _detailsText.visible = _details != null;
             var effects:MatchEffects = LocalPlayerProfile.heldMatchEffects(_data);
-            _detailsText.show(effects == null ? _weaponDetails : WeaponDetails.read(_data,effects),MainScene.isShift,itemCompare,effects);
+            _detailsText.show(effects == null ? _details : ItemDetailsView.read(_data,effects),MainScene.isShift,itemCompare,effects);
          }
       }
 
@@ -180,34 +192,64 @@ package survarium.controls
          this.itemAmmoName.textField.styleSheet = styleSheet;
          this.modifiersList.setMaxFit(true);
          this.defaultModifiersList.setMaxFit(true);
-         this.criticalModifiersList.setMaxFit(true);
+         // No defects ("critical damages"): items never wear (the owner, 2026-11-08); their list and
+         // separator, timeline children, stay hidden.
+         this.criticalModifiersList.visible = false;
+         this.criticalSeparator.visible = false;
          this.itemCompare.addEventListener(Event.RESIZE,this.layoutDetails);
          addChildAt(this._spr,5);
       }
       
-      protected function sortModifiers(regularModifiers:Array, defaultModifiers:Array, criticalModifiers:Array) : void
+      protected function sortModifiers(regularModifiers:Array, defaultModifiers:Array) : void
       {
          var allModifiers:Array = this._data.modifiers != null ? this._data.modifiers : [];
          var icons:IconContainer = IconContainer.getInstance("modifiers");
+         // Held Alt: a bonus line a match changes (a weapon's movement under Bear Arms) as a match has it.
+         var effects:MatchEffects = LocalPlayerProfile.heldMatchEffects(_data);
          var i:uint = 0;
          var modifier:Object;
          var modifierIcon:Icon;
          var entry:Object;
+         // a muzzle device's or a grip's stats: built-in lines as the game's weapon roll of each key shows
+         // them, its icon and its words (the owner, 2026-11-22: "exactly this one: 'Item slots: +1'")
+         if(!_data.isWeapon)
+         {
+            var properties:PropertiesDescriptor = PropertiesDescriptor.getPropertiesDescriptor("properties");
+            for each(var stat:Object in UpgradeWindow.attachmentStats(int(_data.dictId)))
+            {
+               if(Boolean(stat.label))
+               {
+                  // a line with no stat (a flash hider's): its icon and its words
+                  defaultModifiers.push({icon:icons.getIcon(stat.icon),label:LocalizationData.getName(stat.label)});
+                  continue;
+               }
+               // the roll's line gives the value and its colour, `words` the name of what it is a share of
+               var description:Object = properties.getPropertyDescription(stat.prop);
+               var words:Object = properties.getPropertyDescription(stat.words);
+               var share:Number = Number(stat.share);
+               if(!description || !words)
+               {
+                  continue;
+               }
+               defaultModifiers.push({
+                  icon:icons.getIcon(stat.icon),
+                  label:words.prop_name + ": " + Util.styledChar(ModificationRolls.format(description,share),ModificationRolls.style(description,stat.prop,share))
+               });
+            }
+         }
+         // the built-in lines, {prop, entry}: the item's own, then what the skills add to it
+         var builtIn:Array = [];
          while(i < allModifiers.length)
          {
             modifier = allModifiers[i];
             modifierIcon = icons.getIcon(modifier.icon);
             entry = {
                icon:modifierIcon,
-               label:modifier.textValue
+               label:effects == null ? modifier.textValue : WeaponMovement.inMatch(_data,modifier,effects)
             };
-            if(modifier.state == ModificationState.DEFECT)
+            if(modifier.isDefault)
             {
-               criticalModifiers.push(entry);
-            }
-            else if(modifier.isDefault)
-            {
-               defaultModifiers.push(entry);
+               builtIn.push({prop:int(modifier.props[0].prop_id),entry:entry});
             }
             else
             {
@@ -215,6 +257,40 @@ package survarium.controls
             }
             i++;
          }
+         // An oxygen tank: what the tank skills add, as a built-in bonus reads.
+         var names:PropertiesDescriptor = PropertiesDescriptor.getPropertiesDescriptor("properties");
+         for each(var bonus:Object in MatchEffects.tankBonuses(_data))
+         {
+            var description:Object = names.getPropertyDescription(bonus.prop_id);
+            if(description == null) continue;
+            builtIn.push({prop:int(bonus.prop_id),entry:{icon:icons.getIcon(bonus.icon),label:description.prop_name + ": " + Util.styledChar(ModificationRolls.format(description,bonus.value),ModificationRolls.style(description,bonus.prop_id,bonus.value))}});
+         }
+         for each(entry in inBonusOrder(builtIn))
+         {
+            defaultModifiers.push(entry);
+         }
+      }
+
+      // The entries of `lines` ({prop, entry}) in the one order of the built-in lines (BonusOrder),
+      // those of one property as they came. A line whose property has no row is an error: it is
+      // never drawn last (a skill's line went last so, 2026-11-23).
+      private static function inBonusOrder(lines:Array) : Array
+      {
+         var out:Array = [];
+         var placed:Object = {};
+         for each(var row:Object in BonusOrder.lines)
+         {
+            placed[row.prop] = true;
+            for each(var line:Object in lines)
+            {
+               if(line.prop == row.prop) out.push(line.entry);
+            }
+         }
+         for each(line in lines)
+         {
+            if(!placed[line.prop]) throw new Error("built-in line of property " + line.prop + ": no row in BonusOrder");
+         }
+         return out;
       }
       
       public function displayOrange(show:Boolean) : void
@@ -238,22 +314,43 @@ package survarium.controls
          var hint:String = "";
          if(item.isWeapon)
          {
+            // what the weapon holds, each kind under its own heading: the scope (or its stock one), the
+            // muzzle device, the grip
+            var lines:Array = [];
+            var module:Object = null;
             scope = UpgradeWindow.attachedScope(item);
             if(Boolean(scope))
             {
-               return LocalizationData.getName("scope_slot") + ": " + scope.name;
+               lines.push(LocalizationData.getName("scope_slot") + ": " + scope.name);
             }
-            if(Boolean(UpgradeWindow.stockScopes[item.dictId]))
+            else if(Boolean(UpgradeWindow.stockScopes[item.dictId]))
             {
-               return LocalizationData.getName("scope_slot") + ": " + LocalizationData.getName("default_scope");
+               lines.push(LocalizationData.getName("scope_slot") + ": " + LocalizationData.getName("default_scope"));
             }
-            return null;
+            // the second sight with its side: "Second sight: <optic> (Left)"
+            module = UpgradeWindow.attachedIn(item,CosmeticSlot.SECOND_SIGHT);
+            if(Boolean(module))
+            {
+               lines.push(LocalizationData.getName("st_srp_second_sight") + ": " + module.name + " (" + LocalizationData.getName(SightPlace.labelKey(UpgradeWindow.secondSightSide(item))) + ")");
+            }
+            module = UpgradeWindow.attachedIn(item,CosmeticSlot.MUZZLE);
+            if(Boolean(module))
+            {
+               lines.push(LocalizationData.getName("st_srp_muzzle_slot") + ": " + module.name);
+            }
+            module = UpgradeWindow.attachedIn(item,CosmeticSlot.GRIP);
+            if(Boolean(module))
+            {
+               lines.push(LocalizationData.getName("st_srp_grip_slot") + ": " + module.name);
+            }
+            return lines.length > 0 ? lines.join("\n") : null;
          }
          if(item.category != ItemCategory.SCOPES)
          {
             return null;
          }
-         if(Boolean(item.itemDescription))
+         // a device's or a grip's stats are its bonus lines (sortModifiers), not its description's words
+         if(Boolean(item.itemDescription) && UpgradeWindow.attachmentStats(int(item.dictId)).length == 0)
          {
             hint = item.itemDescription;
          }
@@ -287,11 +384,13 @@ package survarium.controls
             }
             i = ++i;
          }
-         if(names.length > 0)
+         // not while the window is open for a weapon: what it lists fits that weapon (the owner, 2026-11-22)
+         var inWindow:Boolean = Boolean(UpgradeWindow.instance) && UpgradeWindow.instance.visible && UpgradeWindow.hostDictId >= 0;
+         if(names.length > 0 && !inWindow)
          {
             hint += (hint.length > 0 ? "\n" : "") + LocalizationData.getName("can_be_installed_on") + ": " + names.join(", ");
          }
-         if(Boolean(item.itemId) && Boolean(UpgradeWindow.instance) && item.descriptor != ItemPlace.SHOP)
+         if(Boolean(item.itemId) && Boolean(UpgradeWindow.instance) && item.descriptor != ItemPlace.SHOP && !inWindow)
          {
             names = UpgradeWindow.wearers(item);
             if(Boolean(names) && names.length > 0)
@@ -305,11 +404,10 @@ package survarium.controls
       public function set data(value:Object) : void
       {
          var nameColor:uint = 0;
-         var criticalModifiers:Array = null;
          var iconFrame:uint = 0;
          this._data = value;
          var item:ItemData = this._data as ItemData;
-         _weaponDetails = WeaponDetails.read(item);
+         _details = ItemDetailsView.read(item);
          updateDetailsText();
          if(!item)
          {
@@ -342,11 +440,11 @@ package survarium.controls
             nameColor = Colors.GOLD;
          }
          this.itemName.textField.textColor = nameColor;
-         this.itemName.text = item.name;
+         this.itemName.fittedText = item.name;
          this.sellerIcon = Boolean(item.sellerIcon) ? (item.sellerIcon as Icon).clone() : null;
          this.orangeOverlay.visible = false;
          this.itemName.x = this.itemAmmoName.x = Boolean(item.sellerIcon) ? 30 : 10;
-         if(Boolean(item.itemDescription && (item.category == ItemCategory.MEDKITS || item.superCategory == SuperCategory.UPGRADES || item.category == ItemCategory.BUNDLE) && item.category != ItemCategory.GENERIC_MONEY) && Boolean(item.category != ItemCategory.PREMIUM_MONEY) && item.category != ItemCategory.PREMIUM_MONEY)
+         if(Boolean(item.itemDescription && (item.category == ItemCategory.MEDKITS || item.superCategory == SuperCategory.UPGRADES || item.category == ItemCategory.BUNDLE) && item.category != ItemCategory.GENERIC_MONEY) && item.category != ItemCategory.PREMIUM_MONEY)
          {
             this.textFieldDescription.y = item.isStack && item.descriptor < ItemPlace.INVENTORY ? 52 : 32;
             this.textFieldDescription.x = 11;
@@ -366,16 +464,16 @@ package survarium.controls
             trace("isWeapon::",item.ammoText);
             this.itemAmmoName.text = item.ammoText;
          }
-         else if(item.isStack && item.descriptor < ItemPlace.INVENTORY && item.category != ItemCategory.PREMIUM_MONEY)
-         {
-            this.itemAmmoName.text = item.tipText;
-            this.itemAmmoName.visible = true;
-         }
          else
          {
             this.itemAmmoName.visible = false;
          }
          var scopeText:String = this.scopeHintText(item);
+         _listBelow = !item.isWeapon && UpgradeWindow.attachmentStats(int(item.dictId)).length > 0;
+         if(!Boolean(scopeText) && _listBelow)
+         {
+            this.textFieldDescription.visible = false;
+         }
          if(Boolean(scopeText))
          {
             this.textFieldDescription.y = item.isWeapon ? 52 : 32;
@@ -399,7 +497,8 @@ package survarium.controls
             trace("b",item.category);
             this.textFieldItemLevel.visible = true;
          }
-         else if(item.superCategory == SuperCategory.AMMO)
+         // By its category: the kit's ammo list's rounds have no superCategory.
+         else if(ItemFactory.getCategory(item.category) == SuperCategory.AMMO)
          {
             this.textFieldItemLevel.visible = true;
          }
@@ -411,18 +510,7 @@ package survarium.controls
          this.layoutHeader(this.naturalHeaderHeight());
          this.itemCompare.setPrimaryWeapon(item);
          trace("updateIIR::2",this._data.name,this._data.modifiers);
-         var regularModifiers:Array = [];
-         var defaultModifiers:Array = [];
-         criticalModifiers = [];
-         this.sortModifiers(regularModifiers,defaultModifiers,criticalModifiers);
-         InventoryList.logModifiers(criticalModifiers);
-         trace("modifiersList",this.modifiersList,this.defaultModifiersList,this.criticalModifiersList);
-         this.modifiersList.dataProvider = new DataProvider(regularModifiers);
-         this.modifiersList.validateNow();
-         this.defaultModifiersList.dataProvider = new DataProvider(defaultModifiers);
-         this.defaultModifiersList.validateNow();
-         this.criticalModifiersList.dataProvider = new DataProvider(criticalModifiers);
-         this.criticalModifiersList.validateNow();
+         this.fillModifiers();
          this.layoutDetails();
          trace("ItemHint::",item.name,item.descriptor);
          if(item.descriptor == ItemPlace.SHOP)
@@ -440,9 +528,21 @@ package survarium.controls
 
       }
 
+      // The card's bonus and built-in lines, as the card's mode shows them (sortModifiers).
+      private function fillModifiers() : void
+      {
+         var regularModifiers:Array = [];
+         var defaultModifiers:Array = [];
+         this.sortModifiers(regularModifiers,defaultModifiers);
+         this.modifiersList.dataProvider = new DataProvider(regularModifiers);
+         this.modifiersList.validateNow();
+         this.defaultModifiersList.dataProvider = new DataProvider(defaultModifiers);
+         this.defaultModifiersList.validateNow();
+      }
+
       private function naturalHeaderHeight() : Number
       {
-         return textFieldDescription.visible ? textFieldDescription.y + textFieldDescription.height : (itemAmmoName.visible ? 55 : 37);
+         return textFieldDescription.visible && !_listBelow ? textFieldDescription.y + textFieldDescription.height : (itemAmmoName.visible ? 55 : 37);
       }
 
       private function layoutHeader(headerHeight:Number) : void
@@ -453,13 +553,13 @@ package survarium.controls
          itemCompare.y = propsTopLine.y + 10;
       }
 
-      // Optics descriptions can wrap. Reserve the taller natural header on
-      // both weapon cards so every comparison row starts at the same height.
+      // Descriptions can wrap. Reserve the taller natural header on both cards
+      // so every comparison row starts at the same height.
       public function alignComparisonHeader(peer:ItemInfoRenderer) : void
       {
          var ownHeight:Number = naturalHeaderHeight();
          var peerHeight:Number = peer == null ? 0 : peer.naturalHeaderHeight();
-         if(peer != null && _data != null && peer._data != null && _data.isWeapon && peer._data.isWeapon)
+         if(peer != null && _data != null && peer._data != null)
             ownHeight = peerHeight = Math.max(ownHeight,peerHeight);
          layoutHeader(ownHeight);
          layoutDetails();
@@ -476,36 +576,38 @@ package survarium.controls
       {
          // Native timeline children can dispatch RESIZE before this card has
          // data/providers. The final data setter lays it out once all exist.
-         if(_data == null || modifiersList.dataProvider == null || defaultModifiersList.dataProvider == null || criticalModifiersList.dataProvider == null) return;
-         if(modifiersList.container == null || defaultModifiersList.container == null || criticalModifiersList.container == null) return;
+         if(_data == null || modifiersList.dataProvider == null || defaultModifiersList.dataProvider == null) return;
+         if(modifiersList.container == null || defaultModifiersList.container == null) return;
          if(e != null) updateDetailsText();
          var regularHeight:uint = this.modifiersList.container.height * this.modifiersList.scaleY;
          var defaultHeight:uint = this.defaultModifiersList.container.height * this.defaultModifiersList.scaleY;
-         var criticalHeight:uint = this.criticalModifiersList.container.height * this.criticalModifiersList.scaleY;
          var hasDefaultModifiers:Boolean = this.defaultModifiersList.dataProvider.length > 0;
-         var hasCriticalModifiers:Boolean = this.criticalModifiersList.dataProvider.length > 0;
-         var hasModifiers:Boolean = Boolean(regularHeight) || Boolean(criticalHeight) || Boolean(defaultHeight);
+         var hasModifiers:Boolean = Boolean(regularHeight) || Boolean(defaultHeight);
          trace("IIR::FRED",this.itemCompare,this.defaultModfiersBack,this.propsBottomLine,this.bottomBackContainer,this.bottomLine,this.background);
          this.defaultModfiersBack.height = defaultHeight + 11;
          this.propsBottomLine.y = Math.max(this.itemCompare.y + this.itemCompare.height + (this.itemCompare.height > 5 ? 5 : -15),this.propsTopLine.y);
          if(_detailsText != null && _detailsText.visible)
          {
-            _detailsText.y = this.propsBottomLine.y + 2;
+            // Without bars above them (a round's card) the rows start clear of the title band.
+            _detailsText.y = this.propsBottomLine.y + (this.itemCompare.height > 5 ? 2 : 8);
             this.propsBottomLine.y = _detailsText.y + _detailsText.height + 6;
          }
          this.bottomBackContainer.y = this.propsBottomLine.y;
-         this.bottomBackContainer.height = regularHeight + criticalHeight + defaultHeight + (hasModifiers ? 14 : 0) + (hasCriticalModifiers ? 40 : 0) + (Boolean(regularHeight) || Boolean(criticalHeight) ? 5 : 0);
+         this.bottomBackContainer.height = regularHeight + defaultHeight + (hasModifiers ? 14 : 0) + (Boolean(regularHeight) ? 5 : 0);
          this.bottomLine.y = this.bottomBackContainer.y + this.bottomBackContainer.height;
          this.bottomLine.visible = false;
          this.background.height = this.bottomLine.y + 5;
-         this.criticalSeparator.visible = hasCriticalModifiers;
+         if(_listBelow && this.textFieldDescription.visible)
+         {
+            // the guns it fits under its lines, past the card's own line
+            this.bottomLine.visible = true;
+            this.textFieldDescription.y = this.bottomLine.y + 6;
+            this.background.height = this.textFieldDescription.y + this.textFieldDescription.height + 6;
+         }
          this.defaultModfiersBack.visible = this.defaultModifiersList.visible = hasDefaultModifiers;
          this.defaultModifiersList.y = this.propsBottomLine.y + 10;
          this.defaultModfiersBack.y = this.propsBottomLine.y + 2;
          this.modifiersList.y = this.defaultModifiersList.y + defaultHeight + (hasDefaultModifiers ? 5 : 0);
-         this.criticalSeparator.y = this.modifiersList.y + regularHeight + 15;
-         this.criticalModifiersList.y = this.criticalSeparator.visible ? this.criticalSeparator.y + this.criticalSeparator.height - 10 : this.modifiersList.y;
-         this.criticalSeparator.textField.text = LocalizationData.getName("critical_damages");
          if(this._displayOrange)
          {
             this.orangeOverlay.y = this.propsTopLine.y;

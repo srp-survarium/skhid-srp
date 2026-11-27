@@ -24,7 +24,7 @@ fn load(map_id: u8) -> Option<MapData> {
     };
     assert_eq!(resources.unresolved_links, 0);
     let materials = Materials::load(&mut resources).unwrap();
-    let project = maps::map_mode(map_id).unwrap().project;
+    let project = maps::map_mode(maps::MapId::from(map_id)).unwrap().project;
     let t = Instant::now();
     let map = MapData::load(&mut resources, &materials, project).unwrap();
     eprintln!("{project}: loaded in {:.2} s", t.elapsed().as_secs_f32());

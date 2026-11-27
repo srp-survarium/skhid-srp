@@ -655,6 +655,8 @@ fn a_commanders_play_leaves_its_mate_in_a_queue_of_its_own() {
 #[test]
 fn a_soldier_cannot_queue_so_nobody_is_jumped() {
     let mut world = World::new();
+    // One room: its queue does not open another.
+    world.core.settings.rooms.max_rooms = 1;
     let owner = world.connect("Owner");
     let key = create(&mut world, owner, spec(6), None);
     let members = fill(&mut world, key, 0);
@@ -872,4 +874,43 @@ fn a_queued_pair_follows_its_squad_and_nobody_loses_a_place() {
     rows(&mut world, bob, ROOM_JOIN_BASE + other, 1);
     assert_eq!(room_of(&world, alice), Some(other));
     assert_eq!(queued(&world, single), Some((key, 1)));
+}
+
+/// A squad made while its commander is in a room already: its mate, free in
+/// the lobby, comes into that room beside it, and into the room's match on
+/// its commander's side when one is played. A soldier joins no room on its
+/// own, and the commander in its room makes no Play or Join that would take
+/// it: the report of 2026-11-01 (the commander played, the mate could not
+/// come).
+#[test]
+fn a_squad_made_in_a_room_brings_the_mate_in_and_into_its_match() {
+    let mut world = World::new();
+    let alice = world.connect("Alice");
+    let key = create(&mut world, alice, spec(6), None);
+    let bob = world.connect("Bob");
+    form_squad(&mut world, alice, bob);
+    assert_eq!(room_of(&world, bob), Some(key));
+    let room = world.core.rooms.get(key).unwrap();
+    assert_eq!(room.members, [world.ids[alice].0, world.ids[bob].0]);
+
+    let owner = world.connect("Owner");
+    let other = world.connect("Other");
+    let key = create(&mut world, owner, spec(6), None);
+    rows(&mut world, other, ROOM_JOIN_BASE + key, 1);
+    world.advance(VOTE_AND_WAIT);
+    let (ticket, _) = sent_to_match(&world.take(owner)).expect("a match");
+    let (&id, _) = world
+        .core
+        .matches
+        .iter()
+        .find(|(_, running)| running.ticket.match_id == ticket)
+        .unwrap();
+    let carol = world.connect("Carol");
+    form_squad(&mut world, owner, carol);
+    assert_eq!(room_of(&world, carol), Some(key));
+    let teams = late_teams(&mut world, ticket, id, &[carol]);
+    let session = world.ids[owner].1;
+    let seats = &world.core.matches[&id].seats;
+    let owners = seats.iter().find(|(s, _)| *s == session).unwrap().1;
+    assert_eq!(teams, [owners]);
 }

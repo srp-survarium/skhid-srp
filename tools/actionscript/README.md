@@ -26,6 +26,12 @@ python3 tools/actionscript/flash_tree.py original srp-026g/flash/<movie> <archiv
   A picture (a render, a capture) is `bitmaps/<class>.jpg` instead, a baseline JPEG: the
   build adds the file whole as a DefineBitsJPEG2, as compact as the game's own map renders
   (JPEG, DefineBits); a progressive JPEG is refused (Flash does not read it).
+- A character the original places wrongly is a row of `placements.tsv` beside `src/`
+  (`sprite frame depth from to`, tab-separated, `#` comments): in that DefineSprite's frame (from 1)
+  the PlaceObject2 at that depth places `to` where the original places `from`; `to` `-` places
+  nothing (that PlaceObject2 is left out). A row that matches no such placement, or names a character
+  the movie lacks, fails the build. The lobby's skills tabs: the selected icon's fifth frame placed a
+  campfire, not the leaf; its item panel: the stock Fix button (srp has no repair) is placed nowhere.
 - **Tables.** Data the movie's code reads, which other tools read too (the
   lobby's shop filters, which the wiki's icons take), is a table
   `tables/<package path>/<Class>.tsv` beside `src/`: the build writes the
@@ -35,10 +41,23 @@ python3 tools/actionscript/flash_tree.py original srp-026g/flash/<movie> <archiv
   class whose static constant the cell names, compiled as `Class.NAME`). Each
   list is `public static const <list>:Array` of `{field: value}` rows, in the
   file's order. Other tools read it with `flash_tree.read_table`.
+- **Data.** What the movie shows that the game's data holds (a modification's value) is
+  not written in the tree: `movie.json`'s `data`, `{"<package path>/<Class>": "<a table of the
+  repository>"}`, makes the build write each such table as the class `<Class>`, one
+  `public static const <column>:Object` a column but the first, the cells (texts) by the first
+  column's. The lobby reads `scripts/content-edit/modifications.tsv` so
+  (`survarium.data.ModificationValues`): the movie and the game read one file. build-content
+  keys the movie's cache by those tables too.
 - The build checks what the movie needs to load: every ABC block parses, and
   every class a SymbolClass tag binds is defined, once.
 - `original` cuts the original movie (the one whose graphics the build keeps)
   from the archive `movie.json` names.
+- `graphics <movie dir> <original.swf> <out.swf>` is the movie `build` makes without its code
+  (one DoABC tag marks its place), and `code <drawn.swf> <built.swf> <out.swf>` puts the code of
+  `build`'s movie into it: `code` of `graphics` and `build`'s movie is `build`'s movie, byte for
+  byte. A content pack draws into a movie's graphics (vostok-port's lobby icons), so
+  release/build-content composes the packs over `graphics` and puts the code in after: a code
+  edit leaves the packs' runs as the cache has them.
 - Whether a movie works is checked in the game: the build proves that it
   compiles and defines its classes, not what Scaleform does with them.
 
@@ -123,9 +142,28 @@ corner minimap none; the names following their icons over 100 updates with the s
 Alt let go and held again; a player lost from sight, one spotted, an ally taking the battery, the
 rows made again; and Blackout (the list kept hidden): none on screen.
 
+### Enemies in a replay
+
+`tests/ReplayEnemiesHarness.as` checks the player icons movie's part of exe patch 135
+(`srp-026g/docs/notes/replay-map.md`) with the movie's own root, fed as the game feeds it. Put the
+newly built `player_icons.swf` beside its output, compile and run it as above. It traces
+`ENEMIES ... ok` lines and `ENEMIES RESULT pass` or `ENEMIES RESULT fail: ...`: in a live match
+(`srp_show_enemies(false)`) an ally's marker shows and an enemy's never; in a replay
+(`srp_show_enemies(true)`, before the enemy list, and the list sent again) the enemy's marker shows,
+its name red and shown after the marker's delay; told before the root's frame 1 made its layer, the
+layer takes it. `TabMapNamesHarness.as` checks the Tab map's enemy names red, allies' white.
+
 ### Weapon upgrade window
 
 `srp-026g/scripts/weapon-kit/check.sh <lobby_menu.swf> [work dir]` checks the lobby's weapon upgrade window with the weapon kit (two decal slots, the kit's records, a drop shown at once, every language's texts fitting) and prints `WEAPONKIT RESULT pass` or `WEAPONKIT RESULT fail: ...`.
+
+### Face picker
+
+`srp-026g/scripts/face-picker/check.sh <lobby_menu.swf> [work dir] [atlas.png]` checks the player panel's FACE button and the faces' window (`docs/notes/face-choice.md`: hidden until srp answers and with one face, the LOBBY button's size and look left of it, every language's word fitting on the button, the title and the cards, the window of the lobby window's kind in the middle as a modal, a card a face with srp's framed gold, a press choosing at once and closing with the last pick kept while a choice is asked, a refusal, fewer faces, the equipment atlas's cells as portraits and the number without one; an `atlas.png` given, such as the faces pack's `LobbyMenu_EquipmentIcons`, shows the real portraits) and prints `FACE RESULT pass` or `FACE RESULT fail: ...`.
+
+### Item search
+
+`srp-026g/scripts/item-search/check.sh <lobby_menu.swf> [work dir]` checks the item lists' search (`docs/notes/item-search.md`: the "+" words in the inventory and the shop, every language's hint on one line in the box and its and the tip's examples finding what they name, the tip on the empty box only) and prints `ITEMSEARCH RESULT pass` or `ITEMSEARCH RESULT fail: ...`.
 
 ## History
 

@@ -4,10 +4,101 @@
 use super::*;
 use crate::math::Quat;
 use crate::ragdoll::tests::{Ground, standing};
+use crate::ragdoll::Off;
 use crate::shot::Shot;
 use crate::skeleton::BONE_COUNT;
 
 const UP: Vec3 = Vec3::Y;
+
+/// A draw over a whole game skeleton (`skeleton` the game's in, the drawn out).
+trait DrawGame {
+    fn draw_game(&mut self, skeleton: &mut Skeleton) -> Drawn;
+}
+
+impl DrawGame for Slot {
+    fn draw_game(&mut self, skeleton: &mut Skeleton) -> Drawn {
+        let game = *skeleton;
+        self.draw(|bone| game[bone.index()], skeleton)
+    }
+}
+
+#[test]
+fn a_draw_asks_the_game_only_for_the_bones_its_stage_reads() {
+    use core::cell::Cell;
+    let mut corpses = Corpses::new();
+    let mut ground = Ground::flat();
+    let places = [dead(7)];
+    let asked = Cell::new(0u32);
+    let (mut dying, mut moving, mut settled_draws) = (0, 0, 0);
+    for _ in 0..1200 {
+        frame(&mut corpses, &places, None, &mut ground);
+        let Corpse::Body { slot, .. } = corpses.place(0) else { panic!("missing body") };
+        let game = standing(Quat::IDENTITY, Vec3::new(5.0, 0.0, 0.0));
+        let slot = corpses.slot_mut(slot);
+        let (stage, moved) = (stage_of(slot), slot.moves());
+        asked.set(0);
+        // `out` starts as nothing a draw may read: a ragdoll's bones are its own
+        let mut out = [Pose::new(Quat::IDENTITY, Vec3::new(f32::NAN, 0.0, 0.0)); BONE_COUNT];
+        let mut copy = *slot;
+        let drawn = slot.draw(
+            |bone| {
+                asked.set(asked.get() + 1);
+                game[bone.index()]
+            },
+            &mut out,
+        );
+        let mut over = game;
+        assert_eq!(copy.draw_game(&mut over), drawn);
+        if drawn == Drawn::Ragdoll {
+            assert_eq!(out, over, "a ragdoll's bones depend on nothing of the game's");
+        }
+        match stage {
+            "dying" => {
+                dying += 1;
+                assert_eq!(asked.get(), BONE_COUNT as u32);
+                assert!(moved);
+            }
+            "ragdoll" => {
+                moving += 1;
+                assert_eq!(asked.get(), PARTS as u32);
+                assert!(moved);
+            }
+            "settled" => {
+                settled_draws += 1;
+                assert_eq!(asked.get(), 0);
+                // drawn once since it settled (the frame's draw), its bones are given
+                assert!(!moved && !slot.moves(), "a settled body drawn once needs no draw");
+                break;
+            }
+            other => panic!("{other}"),
+        }
+    }
+    assert!(dying > 0 && moving > 0 && settled_draws == 1, "{dying} {moving} {settled_draws}");
+}
+
+#[test]
+fn a_settled_body_needs_its_first_draw_and_a_shot_moves_it_again() {
+    let mut corpses = Corpses::new();
+    let mut ground = Ground::flat();
+    let places = [dead(7)];
+    for _ in 0..1200 {
+        corpses.step(&Frame { dt: 1.0 / 60.0, up: UP, places: &places, local: None }, &mut ground);
+        let Corpse::Body { slot, .. } = corpses.place(0) else { panic!("missing body") };
+        if stage_of(corpses.slot(slot)) == "settled" {
+            assert!(corpses.slot(slot).moves(), "settled, not drawn yet");
+            let mut skeleton = standing(Quat::IDENTITY, Vec3::ZERO);
+            assert_eq!(corpses.slot_mut(slot).draw_game(&mut skeleton), Drawn::Ragdoll);
+            assert!(!corpses.slot(slot).moves(), "its pose given");
+            let body = corpses.slot(slot).body().unwrap().poses().0[0];
+            assert!(corpses.push(0, DeathKey(7), Part::Torso, body.position, Vec3::new(0.0, 0.0, 30.0)).is_some());
+            assert!(corpses.slot(slot).moves(), "a shot wakes it");
+            return;
+        }
+        let mut skeleton = standing(Quat::IDENTITY, Vec3::ZERO);
+        corpses.slot_mut(slot).draw_game(&mut skeleton);
+    }
+    panic!("never settled");
+}
 
 #[test]
 fn headwear_belongs_to_one_death_and_rollback_discards_it() {
@@ -16,7 +107,7 @@ fn headwear_belongs_to_one_death_and_rollback_discards_it() {
     let Seen::Dead(mut death) = dead(7) else {
         unreachable!()
     };
-    death.headwear = Some(HeadwearShape);
+    death.headwear = Some(HeadwearShape::ShotOff);
     let places = [Seen::Dead(death)];
     for _ in 0..30 {
         frame(&mut corpses, &places, None, &mut ground);
@@ -24,7 +115,7 @@ fn headwear_belongs_to_one_death_and_rollback_discards_it() {
     let Corpse::Body { slot, .. } = corpses.place(0) else {
         panic!("missing body")
     };
-    let pose = corpses.slot(slot).body().unwrap().headwear_pose().unwrap();
+    let (pose, _) = corpses.slot(slot).body().unwrap().headwear_pose().unwrap();
     frame(&mut corpses, &places, None, &mut ground);
     assert!(
         (corpses
@@ -33,7 +124,7 @@ fn headwear_belongs_to_one_death_and_rollback_discards_it() {
             .unwrap()
             .headwear_pose()
             .unwrap()
-            .position
+            .0.position
             - pose.position)
             .length()
             < 0.2
@@ -53,7 +144,7 @@ fn headwear_belongs_to_one_death_and_rollback_discards_it() {
             .unwrap()
             .headwear_pose()
             .unwrap()
-            .position
+            .0.position
             .y
             > 1.5
     );
@@ -88,7 +179,7 @@ fn frame(
     for (place, o) in out.iter_mut().enumerate() {
         if let Corpse::Body { slot, .. } = corpses.place(place) {
             let mut skeleton = standing(Quat::IDENTITY, Vec3::new(place as f32 * 3.0, 0.0, 0.0));
-            *o = corpses.slot_mut(slot).draw(&mut skeleton);
+            *o = corpses.slot_mut(slot).draw_game(&mut skeleton);
         }
     }
     out
@@ -98,12 +189,16 @@ fn stage(corpses: &Corpses, place: usize) -> &'static str {
     match corpses.place(place) {
         Corpse::Alive => "alive",
         Corpse::Canned { .. } => "canned",
-        Corpse::Body { slot, .. } => match corpses.slot(slot) {
-            Slot::Free => "free",
-            Slot::Dying { .. } => "dying",
-            Slot::Ragdoll { .. } => "ragdoll",
-            Slot::Settled { .. } => "settled",
-        },
+        Corpse::Body { slot, .. } => stage_of(corpses.slot(slot)),
+    }
+}
+
+fn stage_of(slot: &Slot) -> &'static str {
+    match slot {
+        Slot::Free => "free",
+        Slot::Dying { .. } => "dying",
+        Slot::Ragdoll { .. } => "ragdoll",
+        Slot::Settled { .. } => "settled",
     }
 }
 
@@ -188,7 +283,7 @@ fn a_corpse_holding_no_item_is_still_drawn_and_settles() {
         // the same skeleton as a draw over the game's would give
         let mut over = standing(Quat::IDENTITY, Vec3::new(5.0, 0.0, 0.0));
         let mut copy = *corpses.slot(slot);
-        copy.draw(&mut over);
+        copy.draw_game(&mut over);
         assert_eq!(skeleton, over, "every bone is the ragdoll's");
         first.get_or_insert(skeleton);
         step(&mut corpses, &mut ground);
@@ -251,7 +346,7 @@ fn the_pool_gives_the_oldest_settled_slot_to_a_new_death() {
     let mut seen = [Seen::Alive; MAX_PLACES];
     // POOL deaths, settled in order
     for place in 0..POOL {
-        seen[place] = dead(100 + place as u32);
+        seen[place] = if place == 0 { armed(100) } else { dead(100 + place as u32) };
         corpses.step(
             &Frame {
                 dt: 1.0 / 60.0,
@@ -263,7 +358,7 @@ fn the_pool_gives_the_oldest_settled_slot_to_a_new_death() {
         );
         for _ in 0..3 {
             if let Corpse::Body { slot, .. } = corpses.place(place) {
-                corpses.slot_mut(slot).draw(&mut standing(
+                corpses.slot_mut(slot).draw_game(&mut standing(
                     Quat::IDENTITY,
                     Vec3::new(place as f32 * 3.0, 0.0, 0.0),
                 ));
@@ -305,6 +400,9 @@ fn the_pool_gives_the_oldest_settled_slot_to_a_new_death() {
     assert_eq!(stage(&corpses, POOL), "dying");
     assert_eq!(stage(&corpses, 0), "canned");
     assert_eq!(stage(&corpses, 1), "settled");
+    // its gun stays where it lay, alone, through the canned body and its respawn
+    let kept = corpses.gun(0);
+    assert!(matches!(corpses.lone[0], Lone::Resting { death: DeathKey(100), .. }) && kept.is_some());
     // the canned corpse stays canned for its death, and is dropped at its respawn
     corpses.step(
         &Frame {
@@ -327,6 +425,7 @@ fn the_pool_gives_the_oldest_settled_slot_to_a_new_death() {
         &mut ground,
     );
     assert_eq!(stage(&corpses, 0), "alive");
+    assert_eq!(corpses.gun(0), kept);
     // places past MAX_PLACES are ignored
     let many = [dead(5); MAX_PLACES + 4];
     corpses.step(
@@ -386,7 +485,7 @@ fn cost_of_twenty_ragdolls() {
         for p in 0..20 {
             if let Corpse::Body { slot, .. } = corpses.place(p) {
                 let mut s = standing(turn(p), Vec3::new(p as f32 * 3.0, 0.0, 0.0));
-                corpses.slot_mut(slot).draw(&mut s);
+                corpses.slot_mut(slot).draw_game(&mut s);
             }
         }
     }
@@ -414,7 +513,7 @@ fn cost_of_twenty_ragdolls() {
         let start = Instant::now();
         for p in 0..20 {
             if let Corpse::Body { slot, .. } = corpses.place(p) {
-                corpses.slot_mut(slot).draw(&mut clip[p]);
+                corpses.slot_mut(slot).draw_game(&mut clip[p]);
             }
         }
         let draw = start.elapsed();
@@ -475,7 +574,11 @@ fn the_local_players_camera_follows_its_ragdoll_and_stops_at_the_respawn() {
             (eye.position - last).length() < 0.15,
             "a jump of the camera"
         );
-        assert!(eye.position.y > 0.15);
+        // on the hidden head, never trailing it (a camera off the head shows
+        // the body headless), and above the ground
+        let head = part_pose(&corpses, 1, Part::Head).position;
+        assert!((eye.position - head).length() < 0.3, "off the head: {eye:?} {head:?}");
+        assert!(eye.position.y > 0.07);
         last = eye.position;
     }
     // someone else's place: no camera
@@ -553,6 +656,45 @@ fn a_shot_pushes_the_part_it_hits_and_wakes_a_settled_body_that_settles_again() 
     assert!(frames < 6 * 60, "settled again in {frames} frames");
     // still on the ground, not through it
     assert!(part_pose(&corpses, 0, Part::Head).position.y > 0.05);
+}
+
+#[test]
+fn a_head_shot_into_a_corpse_takes_its_headwear_off_once() {
+    let mut corpses = Corpses::new();
+    let mut ground = Ground::flat();
+    let Seen::Dead(mut death) = dead(7) else { unreachable!() };
+    death.headwear = Some(HeadwearShape::Worn);
+    let d = [Seen::Dead(death)];
+    until_settled(&mut corpses, &d, &mut ground);
+    let hat = |c: &Corpses| ragdoll_of(c).headwear_pose();
+    assert!(hat(&corpses).is_none(), "a body shot's death leaves it on");
+    let along = Vec3::new(1.0, 0.0, 0.0);
+    let j = crate::shot::impulse(along, 0.02, 800.0);
+    let torso = corpses.trace(&shot_at(&corpses, Part::Torso, along)).unwrap();
+    corpses.push(0, DeathKey(7), torso.hit.part, torso.hit.point, j);
+    assert!(hat(&corpses).is_none(), "a shot elsewhere leaves it on");
+    let head = corpses.trace(&shot_at(&corpses, Part::Head, along)).unwrap();
+    assert_eq!(head.hit.part, Part::Head);
+    corpses.push(0, DeathKey(7), Part::Head, head.hit.point, j);
+    let (start, by) = hat(&corpses).expect("off");
+    assert_eq!(by, Off::CorpseShot);
+    let mut drawn = [Pose::IDENTITY; BONE_COUNT];
+    ragdoll_of(&corpses).draw(&mut drawn);
+    assert!((start.position - drawn[HEAD.index()].position).length() < 1e-4, "from the head");
+    for _ in 0..10 {
+        frame(&mut corpses, &d, None, &mut ground);
+    }
+    let (flying, _) = hat(&corpses).unwrap();
+    assert!((flying.position - start.position).dot(along) > 0.03, "along the shot");
+    // another head shot neither puts it back nor starts it again
+    let head = corpses.trace(&shot_at(&corpses, Part::Head, along)).unwrap();
+    corpses.push(0, DeathKey(7), Part::Head, head.hit.point, j);
+    assert_eq!(hat(&corpses).unwrap().0, flying);
+}
+
+fn ragdoll_of(corpses: &Corpses) -> &Ragdoll {
+    let Corpse::Body { slot, .. } = corpses.place(0) else { panic!("no body") };
+    corpses.slot(slot).body().expect("a ragdoll")
 }
 
 #[test]
@@ -780,7 +922,7 @@ fn frame20(corpses: &mut Corpses, places: &[Seen], ground: &mut Ground) {
     for place in 0..places.len() {
         if let Corpse::Body { slot, .. } = corpses.place(place) {
             let mut skeleton = standing(Quat::IDENTITY, Vec3::new(place as f32 * 3.0, 0.0, 0.0));
-            corpses.slot_mut(slot).draw(&mut skeleton);
+            corpses.slot_mut(slot).draw_game(&mut skeleton);
         }
     }
 }
@@ -803,6 +945,7 @@ fn a_lying_body_comes_to_rest_and_stays_still_on_every_surface() {
         death.hits[0] = crate::shot::Hit {
             point: Vec3::new(0.0, 1.3, -0.12),
             impulse: crate::shot::impulse(Vec3::Z, 0.02, 800.0),
+            blow: None,
         };
         death.hit_count = 1;
         let d = [Seen::Dead(death)];
@@ -828,7 +971,7 @@ fn a_lying_body_comes_to_rest_and_stays_still_on_every_surface() {
                 panic!("no body")
             };
             let mut skeleton = standing(Quat::IDENTITY, Vec3::ZERO);
-            corpses.slot_mut(slot).draw(&mut skeleton);
+            corpses.slot_mut(slot).draw_game(&mut skeleton);
             skeleton
         };
         let mut last = step(&mut corpses, &mut scene, &mut n, &mut t);
@@ -921,5 +1064,116 @@ fn a_lying_body_comes_to_rest_and_stays_still_on_every_surface() {
             scene.name,
             t - burst_end - 10.0
         );
+    }
+}
+
+fn armed(key: u32) -> Seen {
+    Seen::Dead(Death::new(DeathKey(key), Cause::Unknown, Some(GunShape::RIFLE), Some((Vec3::ZERO, UP))))
+}
+
+/// The `Weapon` bone the last draw of a place's ragdoll gave.
+fn drawn_weapon(corpses: &Corpses, place: usize) -> Pose {
+    let Corpse::Body { slot, .. } = corpses.place(place) else { panic!("no body") };
+    let mut skeleton = standing(Quat::IDENTITY, Vec3::new(place as f32 * 3.0, 0.0, 0.0));
+    corpses.slot(slot).draw_alone(&mut skeleton);
+    skeleton[crate::skeleton::WEAPON.index()]
+}
+
+#[test]
+fn a_respawn_while_the_gun_falls_leaves_it_falling_until_it_rests() {
+    let mut corpses = Corpses::new();
+    let mut ground = Ground::flat();
+    let d = [armed(7)];
+    // the ragdoll starts (two draws of the clip), one frame of its fall
+    for _ in 0..4 {
+        frame(&mut corpses, &d, None, &mut ground);
+    }
+    assert_eq!(stage(&corpses, 0), "ragdoll");
+    let last = drawn_weapon(&corpses, 0);
+    assert!(last.position.y > 0.5, "the gun still in the air: {:?}", last.position);
+    assert!((corpses.gun(0).unwrap().1.position - last.position).length() < 1e-5, "on the body: the gun it draws");
+    // the respawn: the body goes, the gun goes on from where it was drawn
+    frame(&mut corpses, &[Seen::Alive], None, &mut ground);
+    assert_eq!(stage(&corpses, 0), "alive");
+    let Lone::Moving { death, .. } = corpses.lone[0] else { panic!("{:?}", corpses.lone[0]) };
+    assert_eq!(death, DeathKey(7));
+    let (_, handed) = corpses.gun(0).unwrap();
+    assert!((handed.position - last.position).length() < 0.1, "no jump: {:?} {:?}", handed.position, last.position);
+    let mut frames = 0;
+    while matches!(corpses.lone[0], Lone::Moving { .. }) {
+        frame(&mut corpses, &[Seen::Alive], None, &mut ground);
+        frames += 1;
+        assert!(frames < 400, "never rested");
+    }
+    assert!(matches!(corpses.lone[0], Lone::Resting { .. }));
+    assert!(corpses.gun(0).unwrap().1.position.y < 0.2, "at rest on the ground");
+    let rest = corpses.gun(0).unwrap().1.position;
+    for _ in 0..30 {
+        frame(&mut corpses, &[Seen::Alive], None, &mut ground);
+    }
+    assert_eq!(corpses.gun(0).unwrap().1.position, rest, "kept where it lies");
+    // the place's next death ends it
+    frame(&mut corpses, &[armed(9)], None, &mut ground);
+    assert_eq!(corpses.lone[0], Lone::None);
+}
+
+#[test]
+fn a_respawn_after_the_ragdoll_settled_leaves_the_gun_at_rest() {
+    let mut corpses = Corpses::new();
+    let mut ground = Ground::flat();
+    let d = [armed(7)];
+    for _ in 0..3 {
+        frame(&mut corpses, &d, None, &mut ground);
+    }
+    until_settled(&mut corpses, &d, &mut ground);
+    let last = drawn_weapon(&corpses, 0);
+    frame(&mut corpses, &[Seen::Alive], None, &mut ground);
+    let Lone::Resting { .. } = corpses.lone[0] else { panic!("{:?}", corpses.lone[0]) };
+    assert!((corpses.gun(0).unwrap().1.position - last.position).length() < 1e-5);
+    // a rollback that undoes the respawn brings the body back (its ragdoll
+    // starts again): only another death ends the gun
+    frame(&mut corpses, &d, None, &mut ground);
+    assert!(matches!(corpses.lone[0], Lone::Resting { .. }));
+    assert_eq!(stage(&corpses, 0), "dying");
+    frame(&mut corpses, &[armed(8)], None, &mut ground);
+    assert_eq!(corpses.lone[0], Lone::None);
+}
+
+#[test]
+fn a_body_that_had_no_gun_or_no_ragdoll_leaves_none() {
+    let mut corpses = Corpses::new();
+    let mut ground = Ground::flat();
+    for _ in 0..4 {
+        frame(&mut corpses, &[dead(7)], None, &mut ground);
+    }
+    frame(&mut corpses, &[Seen::Alive], None, &mut ground);
+    assert_eq!(corpses.lone[0], Lone::None, "no gun dropped");
+    // a respawn before the ragdoll started (still dying)
+    frame(&mut corpses, &[armed(8)], None, &mut ground);
+    frame(&mut corpses, &[Seen::Alive], None, &mut ground);
+    assert_eq!(corpses.lone[0], Lone::None);
+}
+
+#[test]
+fn a_lone_gun_is_of_its_match_only() {
+    // match one: place 0 dies (spawn time 7), falls, respawns: its gun lies alone
+    let one = || {
+        let mut corpses = Corpses::new();
+        let mut ground = Ground::flat();
+        for _ in 0..4 {
+            frame(&mut corpses, &[armed(7)], None, &mut ground);
+        }
+        frame(&mut corpses, &[Seen::Alive], None, &mut ground);
+        assert!(corpses.gun(0).is_some());
+        (corpses, ground)
+    };
+    // its end, a frame without the place, or the next world (the patch resets the corpses at a world's
+    // change), then match two's death at the same spawn time: no gun of match one
+    for end in [|c: &mut Corpses, g: &mut Ground| { frame(c, &[], None, g); }, |c: &mut Corpses, _: &mut Ground| c.reset()] {
+        let (mut corpses, mut ground) = one();
+        end(&mut corpses, &mut ground);
+        assert_eq!(corpses.gun(0), None);
+        frame(&mut corpses, &[armed(7)], None, &mut ground);
+        assert_eq!(corpses.gun(0), None, "dying: no gun body yet, none of match one");
     }
 }

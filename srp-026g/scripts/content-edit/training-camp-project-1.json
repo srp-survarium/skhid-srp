@@ -1,0 +1,22 @@
+{
+  "_about": "Training Camp's team project under a name the client loads (2026-11-22: maps_dict 212's first match crashed both players at its load). The client cuts a project name to 31 characters; training-camp-teams-1's v010b_cs_training_camp/day_teams is 32, so the client looked for day_team, found no project config and crashed in create_game_objects (0x22C11E). This list copies day_teams' project, as training-camp-teams-1 leaves it, to day_tdm (30 characters) and points Team Deathmatch's config (212) and Freeze Tag's (450) at it. day_teams stays as players have it, named by no config (release/build_content.py's project name check refuses a longer name).",
+  "copy": [
+    {
+      "files": "projects/v010b_cs_training_camp/day_teams/client_project",
+      "from": "projects/v010b_cs_training_camp/day_teams/",
+      "to": "projects/v010b_cs_training_camp/day_tdm/"
+    }
+  ],
+  "replace_string": [
+    {
+      "files": "gameplay/game_modes/v010b_cs_training_camp_level_03_day_4.options",
+      "from": "v010b_cs_training_camp/day_teams",
+      "to": "v010b_cs_training_camp/day_tdm"
+    },
+    {
+      "files": "gameplay/game_modes/freeze/v010b_cs_training_camp_level_03_day_4.options",
+      "from": "v010b_cs_training_camp/day_teams",
+      "to": "v010b_cs_training_camp/day_tdm"
+    }
+  ]
+}

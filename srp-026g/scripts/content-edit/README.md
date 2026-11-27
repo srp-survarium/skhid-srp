@@ -32,6 +32,28 @@ only `gameplay/` (the server game data holds only the files srp reads).
 `content_edit.py` runs on its own for a check (`--check`) on a folder of files at their game paths
 (`srp-game-data get --db <resources.db> --patch <patch>... --out live/ <path>...`).
 
+### Explicit reload durations
+
+`weapon-stats.tsv` owns the times in seconds. `reload` maps to the native
+`parameters/reload_time`: tactical for a two-clip state-314 weapon, the ordinary
+reload for a single-clip weapon. The optional `reload_empty` column maps to
+`parameters/reload_empty_time`. Fill both columns to author an independent pair;
+leave `reload_empty` blank to retain the existing animation-derived behavior.
+
+`reload-timings-1.json`, immediately after the table in `release/content.tsv`,
+compiles each explicit pair into private hands and item animations under
+`animations/single/weapons/srp_reload/<weapon>/`. It scales every bone curve's
+time coordinates and every event timestamp, preserving poses, event payloads,
+bone names and the original hands/item phase relationship. All four hands pairs
+must agree. The native first-clip normalization and reload-speed modifiers then
+produce the authored pair; no extra gameplay timer or executable hook is needed.
+The compiler also refreshes lobby property 162's empty/tactical ratio. Bots read
+the explicit pair from the same weapon config.
+
+Change the two table cells for future tuning; do not edit generated animations.
+The paths remain stable across retunes. Such changes require a `next` simulation
+row and the normal `release/build-content` validation.
+
 ### Headwear render assets
 
 `headwear-1.json` uses `append_headwear_bind` (`file`) and `rigid_headwear`
@@ -82,11 +104,6 @@ every vector (float2/3/4) as an indexed table through a `json.loads(json.dumps(.
 the game, which reads vectors raw, loaded scrambled levels. A vector rewritten as a list is exactly
 what it refuses (`release/test.sh` has the negative test; today's content passes it unchanged).
 
-Then run `weapon_balance_1_changes_only_its_values`
-(`crates/survarium/src/v026g/maps.rs`, ignored: it needs `SRP_TEST_RESOURCES_DB`,
-`SRP_TEST_SKHID_PATCHES` and `SRP_TEST_PATCH_WEAPON_BALANCE_1`) when a change touches its files. The
-server game data carries no localization tables: the test reads the texts in the patches themselves.
-
 ### Map edit lists
 
 The map editor (`~/Projects/survarium/map-editor`) saves one edit list per map: moves and turns
@@ -110,6 +127,11 @@ edit the cell. `content_edit.py` `STATS` says what a row is and maps each column
 cards, refuses a config that differs from its row, and a changed match column without the `next` row.
 `content_edit.py --dump-stats <table> <folder>` prints a table from configs; values that differ within a
 row are refused there (a cell unifies them).
+
+A key/value table is read by srp's server from its game data; the client is told what it shows in
+srp's messages, so no copy is kept in code. `rooms.tsv` (`gameplay/srp/rooms.options`): the rooms'
+and Player vs Bots' settings (`RoomRules`); `new-account.tsv` (`gameplay/srp/new_account.options`):
+what a new account is given (`survarium::v026g::new_account`). Each header says each key.
 
 ## weapon-balance-1.json (2026-10-18)
 
@@ -141,25 +163,9 @@ The movie (`flash_movies/lobby_menu.swf`, 40,009,816 bytes, sha256 `b4c1a4b7…4
 and `survarium.controls.ItemCompare`'s constructor, re-imported as FFDec p-code, adds
 `getChildByName("diff_9")` to its rows when there is one.
 
-## backpacks-1.json (2026-10-19)
-
-| change | why |
-|---|---|
-| The six backpacks (`bm_back_1` Marauder, `scavenger_back_1`, `ren_back_1`, `edge_back_1`, `edge_back_5`, `edge_back_6`) may also roll health regeneration: modification type 21 (+5 % to +15 %, ids 1090-1094), character 20 of `parameters/available_modifications_mask` set (`0000000000000011110000010000100100000000` -> `0000000000000011110010010000100100000000`) | they rolled three types only (weight, carried weight, durability); the owner's choice of a fourth. Only srp reads the masks (the client draws whatever modification the server sends), so the patch changes what the server rolls on upgrades, rerolls and drops. The oxygen tanks and the exo back pieces keep theirs |
-
-Applied to revision 22's live files: 6 files edited, 0 unexpected differences. Weapon balance 1 is in patch 22, so nothing else waits for the same files.
-
 ## duty-name-uk-1.json (2026-10-20)
 
 Removed: its text is in `client-patches/localization/*.tsv`.
-
-## battery-pickup-1.json (2026-10-20)
-
-| change | why |
-|---|---|
-| `gameplay/victory_items/default.options` `states[0]/take_time` 0.6 -> 0.5 (an indexed table's item: the `set` path's `name[i]`) | the owner: the battery pick-up animation 20 % faster (1.2 times the speed). The take state time-scales its animation to last `take_time`, so it plays faster, not cut (`docs/notes/battery_pickup.md`); `put_time` stays 0.6 |
-
-Applied to revision 24's server game data (`gameplay/victory_items/`): 1 file edited, 0 unexpected differences.
 
 ## weapon-camo-1.json (2026-10-20)
 
@@ -182,17 +188,6 @@ differences.
 Applied to the stock resources.db's nine `.raw_options` (no Skhid patch up to 27 carries them):
 9 files edited, 0 unexpected differences. Sound only: no simulation change, nothing in the
 server game data.
-
-## golden-weapons-1.json (2026-10-21)
-
-| change | why |
-|---|---|
-| The 22 golden weapons (`wpn_*_premium`, `wpn_*_premium_2`, `wpn_neostead`: every weapon whose first default modification is 1230, +10 % silver; and `wpn_mp7_silencer_special`, default 2004, the owner: it joins them): every `default_modifications` item taken off (`remove_item`; the table stays, empty, as the empty `additional_model_slots` of other item configs), `parameters/base_rarity_level` 3 -> 0 | the owner: "remove modifiers except for silver from all premium weapons", upgradable "just like any other weapon but with the first golden bonus already set", "modifications on premium weapons can be rolled too (even silver)". srp gives each golden weapon 1230 as a modification of its own, the first ([`../../docs/notes/golden_weapons.md`](../../docs/notes/golden_weapons.md)): the client never offers a default for a reroll, and the lobby's rank is `min(3, base_rarity_level + modifications)`, so a base of 3 forbade every craft |
-
-Applied to revision 26's server game data (`gameplay/items/weapons/`): 22 files edited, 0
-unexpected differences; server data built with it and the patches before passes `srp-check-game-data`. srp and
-`release/build-server-db` refuse data without it (`golden::check`). The patch also
-carries the lobby movie built from the tree (the craft result shows the item upgraded, not the donor).
 
 ## death-poses-1.json (2026-10-21)
 
@@ -268,40 +263,6 @@ edited, 0 unexpected differences; in `release/build-content 27` (2026-10-21, aft
 tables and duty-name-uk-1): the same. Text only; the lobby movie of the same change is built from
 its tree.
 
-## battery-respawn-1.json (2026-10-21)
-
-| change | why |
-|---|---|
-| `mode/parameters/respawn_time` 8 -> 10 (an int, kept) in the 56 configs of `gameplay/game_modes/` whose `mode/mode` is 2 or 3 ("Protective device", "Protective device: chargers"): levels 1 to 8 in every weather (level_08's night too), London, the 0.21d and v0.11e maps | the owner: "in batteries mode respawns should take 10 seconds". The respawn rule reads it from the config (0x316700, in ms), the base the kit's modifiers scale (the radio's -20 %: 8 s); the HUD's countdown is the rule's ([`../../docs/notes/battery_respawn.md`](../../docs/notes/battery_respawn.md)). Team Deathmatch (mode 4) and the test maps keep theirs |
-
-Applied to the live configs (the stock resources.db and patches 12 to 27; the game modes are the
-stock db's and patches 14, 20 and 22's): 56 files edited, 0 unexpected differences, one byte each.
-The simulation changes (the `next` row of `simulation_changes.tsv`).
-
-## v011e-spawn-protection-1.json (2026-10-21)
-
-| change | why |
-|---|---|
-| `server_objects/respawn_points[i]/invulnerability_time` 2 -> 6 (an int, kept) on every respawn point of `projects/v011e_level_03/{day_2,day_4}/client_project` (43 each) and `projects/v011e_level_04/{day_2,day_4}/client_project` (44 each): 174 values | the owner: the v0.11 maps' spawn protection drops off too fast, "just make it 6 s and that's it". The respawn point's loader reads it as an int in seconds (0x2F4580, kept in ms); 0.26g's maps author 6, the 0.11e source 2 s ([`../../docs/notes/v011e_spawn_protection.md`](../../docs/notes/v011e_spawn_protection.md)). No base zone, no check radii |
-
-Applied to the live projects (`v011e_level_03`'s from patch 23, `v011e_level_04`'s from patch 22;
-no later patch has them): 4 files edited, 174 values, 0 unexpected differences, one byte a point;
-in `release/build-content 28` (2026-10-22): the same, the four projects packed and the server game
-data with 6 on all 174 points.
-The simulation changes (its words in the `next` row of `simulation_changes.tsv`).
-
-## premium-armour-1.json (2026-10-22)
-
-| change | why |
-|---|---|
-| The four premium armour pieces (`blackmarket_torso_4_premium`, `blackmarket_legs_4_premium`, `scavenger_torso_4_premium`, `scavenger_legs_4_premium`: every armour config with a base rarity): 1240 (+5 % experience) and 1250 / 1260 (+5 % reputation with the Scavengers / the Black Market) taken off `default_modifications` (`remove_item`; the plain piece's one default, 1030, 1050 or 1160, stays), `parameters/base_rarity_level` 3 -> 0 | the owner: the golden weapons' treatment for the premium armour, so that the Modification button works on it. srp gives each piece both bonuses as modifications of its own, the first two ([`../../docs/notes/premium_armour.md`](../../docs/notes/premium_armour.md)): the client never offers a default for a reroll, and a base of 3 forbade every craft |
-
-Applied in `release/build-content 28` (2026-10-22, a dry run after v011e-spawn-protection-1): 4
-files edited, 0 unexpected differences (the four configs are patch 21's); the server game data built
-with it passes `srp-check-game-data`. srp and `release/build-server-db` refuse data without it
-(`golden::check`). The patch also carries the lobby movie built from the tree (the pieces' bonuses on
-shop and bundle entries, gold background and name, the plain piece as a craft donor). Not a
-simulation change.
 
 ## lobby-scene-2.json (2026-10-22)
 
@@ -382,21 +343,6 @@ scene, which the game does not read) is left as it is.
 
 Removed: its text is in `client-patches/localization/*.tsv`.
 
-## third-mod-1.json (2026-10-23)
-
-| change | why |
-|---|---|
-| The 15 masks and respirators (the stock nine, `bandit_026` 1810, the 0.69d masks 1812-1816, `army_026` 1823) may roll type 13 Armor (1000-1004: +2, +3, +4, +5, +8; a mask has only its face values), character 12 of `parameters/available_modifications_mask` set (`0000000000000000010000000000010100000000` -> `0000000000001000010000000000010100000000`) | reliability (type 32) no longer rolls (wear is off since #35, `docs/notes/no-reliability-roll.md`), which left them weight and anomaly filters only; the owner's pick (2026-10-23) |
-| The four oxygen packs (`scavenger_oxygen_1`, `edge_back_3`, `ren_back_3`, `ren_back_5`) may roll type 24 Weight limit (1120-1124: +1..+5 kg) and type 28 Energy costs (1160-1164: −2..−10 %), characters 23 and 27 (`0000000000000000010000000000001100000000` -> `0000000000000000010000010001001100000000`) | the same: weight and oxygen were left; the owner's pick |
-| The Pilgrim container (`edge_back_6`) may roll type 28 Energy costs, character 27 (`backpacks-1.json`'s `0000000000000011110010010000100100000000` -> `0000000000000011110010010001100100000000`) | its default Regeneration (1094) takes the type `backpacks-1.json` added, so it was left with weight and weight limit; the owner's pick |
-
-Only srp reads the masks: the client shows whatever modification the server sends, from its own
-`modifications.options`. Applied to revision 29's live files (from the stock db and patches 12 to
-29, after `backpacks-1.json`): 20 files edited, 0 unexpected differences. With it every item that
-rolls has three types or more besides reliability
-(`modifications::tests::every_item_of_the_built_game_data_rolls_three_types` on the built server
-game data). No simulation change: a match applies only the modifications an item has.
-
 ## artefact-texts-1.json (2026-10-23)
 
 Removed: its text is in `client-patches/localization/*.tsv`.
@@ -426,7 +372,7 @@ Removed: its text is in `client-patches/localization/*.tsv`.
 
 | change | why |
 |---|---|
-| `gameplay/items/drugs/bandages.options` `data/influences`: hands and legs `amount` 0.3 -> 1 (per second), and three new entries made like `right_leg`'s, after it: `body` 0.35, `head` 0.14, `pain` 0.35 | the owner: bandages heal legs and hands fully, and pain, body and head by 35 %. An influence is the pool's health added per second for `activity_time_sec` (1 s; `medkit::tick` 0x33D790). 1/s fills a 0.5 limb pool, as the medkit's 1/s does. 0.35, 0.14 and 0.35 are 35 % of the body (1.0), head (0.4) and pain (1.0) pools ([`../../docs/notes/bandages.md`](../../docs/notes/bandages.md)) |
+| `gameplay/items/drugs/bandages.options` `data/influences`: hands and legs `amount` 0.3 -> 1 (course total), and three new entries made like `right_leg`'s, after it: `body` 0.35, `head` 0.14, `pain` 0.35 | the owner: bandages heal legs and hands fully, and pain, body and head by 35 %. An influence is total health over `activity_time_sec` (1 s here); the constructor 0x33CAC0 divides it by duration before `medkit::tick` 0x33D790 applies it. A total of 1 fills a 0.5 limb pool. 0.35, 0.14 and 0.35 are 35 % of the body (1.0), head (0.4) and pain (1.0) pools ([`../../docs/notes/bandages.md`](../../docs/notes/bandages.md)) |
 | `st_base_bandages_description` in the six localization tables: "Fully heals arms and legs. Restores 35% of body, head and pain." (Heilt Arme und Beine vollständig. Stellt 35% von Körper, Kopf und Schmerz wieder her. / W pełni leczy ręce i nogi. Przywraca 35% zdrowia tułowia, głowy i bólu. / Полностью лечит руки и ноги. Восстанавливает 35% здоровья тела, головы и боли. / Повністю лікує руки і ноги. Відновлює 35% здоров'я тіла, голови та болю.) | the owner, 2026-10-25: the description says what a bandage now heals. Each text uses only characters its table already has |
 | the card's "Heal amount" line taken out: `ui_desc/props_list` entry `prop_id` 12 ("30") | the owner, 2026-10-25: one number can't describe full and 35 %, so the line would contradict the text. The card keeps use time, active time and weight |
 
@@ -450,7 +396,8 @@ batteries, batteries with chargers, Team Deathmatch and Research). Each of the s
 loses its core, artefact container, damage zone and the two collision geometries: 35 entries per
 project. The damage zones own their idle sound and particles. The decorative rock piles stay.
 The battery modes also lose the two old outdoor spawn-protection zones and their boxes; each
-spawn point keeps its own 6 seconds of invulnerability.
+spawn point keeps its original invulnerability: 6 seconds in batteries, batteries with chargers
+and Research, and 3 seconds in Team Deathmatch.
 
 The 20 spawn points come from the owner's map-editor placement. `set_entry` changes only their
 positions and rotations, retaining their names, order, teams and other properties. All four
@@ -480,3 +427,104 @@ same content by `release/build-site`.
 `feat/dynamic-anomalies` (not shipped) removes the same seven anomalies for timed ones, and
 PR #369's `sponge/spots.tsv` selects their containers. Both must drop their London entries
 before they can ship on top of this list.
+
+## rifle-scopes-1.json (2026-10-26; the variants' part retired 2026-11-21)
+
+| change | why |
+|---|---|
+| `data/fov_factor` 0.8 -> 0.5 in the Aimpoint CompM4's item and its 25 variants (its name with x2 is in `../../client-patches/localization/*.tsv`) | the owner (2026-10-26): the CompM4 at x2, as 0.46c2 and 0.69d0 have it (the coordinator's pick: the item itself, so its owners get x2) |
+
+Its 184 `items_compatibility` rows are `scope-modules-1.json`'s now. The 25 variants are retired
+with every scope variant (`../../docs/notes/attachments-scopes.md`, "The variants retired"); their
+rows stay here, and `scope-centering-1.json` stays whole, because `release/build-content` cannot
+take an edit off a file: a file no row makes is never packed again. `scope-fits-1.json` and
+`scope-coverage-1.json` are gone: their compatibility rows are `scope-modules-1.json`'s, and their
+`addons { mount: 1 }` placeholders (a variant's type-3 modifier needed a table with a child) are
+not needed by a scope item's modification, which adds to `data`.
+
+## weapon-camo-031-1.json (2026-11-01)
+
+| change | why |
+|---|---|
+| The four configs of pack weapons-031 (the 0.31a2 guns, `../../docs/notes/weapons-031.md`): `parameters/camo_available` true, a `data` table with `camo_scale` 4.0, `parameters/decal_available` true and an empty `data/decals` | they wear a camouflage and a decal as the live weapons do (weapon-camo-1 and weapon-decals-1 for them); their `_aoac` masks are pack weapons-031-camo (`../weapons-031/camo.tsv`), so no shared list or pack changes |
+
+## weapon-camo-046-1.json (2026-11-01)
+
+| change | why |
+|---|---|
+| The ten configs of pack weapons-046 (the 0.46c2 guns, `../../docs/notes/weapons-046.md`): `parameters/camo_available` true, a `data` table with `camo_scale` 4.0, `parameters/decal_available` true and an empty `data/decals` | they wear a camouflage and a decal as the live weapons do (weapon-camo-1 and weapon-decals-1 for these configs); their `_aoac` masks are the pack weapons-046-camo, made by `../weapon-camo/weapon_camo.py` from `../weapons-046/camo.tsv` (the parts it suggests: no premium copy to learn from; the picker chooses others) |
+
+## weapon-camo-069-1.json (2026-11-01)
+
+| change | why |
+|---|---|
+| The six configs of pack weapons-069 (the 0.69d0 guns, `../../docs/notes/weapons-069.md`): `parameters/camo_available` true, a `data` table with `camo_scale` 4.0, `parameters/decal_available` true and an empty `data/decals` | they wear a camouflage and a decal as the live weapons do (weapon-camo-1 and weapon-decals-1 for them); their `_aoac` masks are pack weapons-069-camo (`../weapons-069/camo.tsv`), so no shared list or pack changes |
+
+## blackout-mode-1.json (2026-11-05)
+
+| change | why |
+|---|---|
+| Each playable battery config (mode 2) of `maps_dict`, 30 live, copied to `gameplay/game_modes/blackout/<its name>`; in the copy `mode/srp_variant` "blackout" and `mode/ui/mode_name` `st_srp_mode_blackout` (the localizations' "Protective device: blackout"); a `maps_dict` row each, `cfg_mode_name` `blackout/<its name>`, ids 219 to 248 in the order of the battery maps' ids (61 to 109, then 166, 175, 181, 206, 208, 216). level_08 at night (no project) has none | Blackout (`../../docs/notes/blackout.md`) is a mode of its own maps, as the other modes are: the lobby, the match server, the results and replays know it by the map's id. Before, its maps were ids of the lobby's own counted down from 255 that the server turned back into the battery map with a flag beside it. srp reads `srp_variant` (`survarium::v026g::maps::GameMode::of_config`, `VARIANTS`) and sends the static info's Blackout entry for these maps; the client loads them as the battery maps they copy (rules 93, 91, 88, 94; the same project) |
+
+Applied to the live files of revision 46 (`--check`): 30 new files, the dictionary edited, 0
+unexpected differences. No simulation change: the copies play the battery rules unchanged. A new
+battery map ported later gets its Blackout config by a row here (its copy, its `add_value` file
+and a dictionary entry), or none.
+
+## sight-alignment-1.json (2026-11-05)
+
+| change | why |
+|---|---|
+| The `aim` locator (`set_entry` of `locators` where `name` is `aim`: position and rotation) of `weapons/a9_91/a9_91_cobra_ekp_8`, the 9A-91's Cobra EKP-8 variant model: rotation (0.009, 0, -0.006) -> (-0.01476, 0, -0.00607), the turn its idle pose gives the gun; position 3.8 mm down and 0.5 mm aside, onto the dot's line | the dot showed 14.5 px above the screen's centre at 720 lines, where the bullets go (the owner's report). The fault is in retail 0.29a3's data, which base patch 19 shipped as it was: the eye kept the iron sights' turn where the idle pose turns the gun the other way. Checked in the game by the owner (2026-11-05): centred |
+
+Made by `../sight-alignment/align.py plan` and `export` (`../../docs/notes/sight-alignment.md`) on the
+players' files (the stock db and patches 12 to 47 of release/patches.tsv; revision 48 is live), then
+cut to this one entry. `content_edit.py --check` on them: 1 file edited, 0 unexpected differences.
+The other collimators the plan found off stay as they are, by the owner's choice (the note lists
+them). View only: no simulation change.
+
+## physical-skills-1.json (2026-11-06)
+
+| change | why |
+|---|---|
+| `gameplay/skills/skills_tree.options`: the entries of Sledgehammer (206, `meele_hit_ultimate_modifier`, 3 ranks) and Jump with a knife (210, `meele_hit_range_modifier`, 0 ranks) taken out (`remove_entry` by `id`); their localization strings stay | the owner (2026-11-06): both ask for `branch_points` 50, past the 25 the skills window unlocks, so nobody can learn them, and their two modifiers are not among the exe's 68. The original developers took them out by 0.46c2 (both in 0.31a2's tree, neither in 0.46c2's; 0.69 keeps only their strings) |
+| Packrat (202, `overweight_penalty`): `ui/position` [3, 3] -> [4, 3] (`set_entry` by `id`; the position is [column, row]) | with 206 ([4, 2]) and 210 ([4, 3]) gone, column 4 of the physical tree would be empty; Packrat takes Jump with a knife's place in its own row, its threshold (10), ranks and modifiers as before. Athlete (209) is unchanged |
+
+Applied to the live tree of patch 45 (`content_edit.py`): 1 file edited, `/skills_tree` 36 -> 34,
+`/skills_tree[14]/ui/position[0]` 3 -> 4 (202), 0 unexpected differences. No account can hold either skill
+(the server's `SkillsTree::validate` refused every point in them as `Locked`; now as `Unknown`), so
+none is repaired; the walk that unlocks a branch's rows skipped them, so no other skill's threshold
+moves. Presentation only: no simulation change.
+
+## pierce-line-1.json (2026-11-05)
+
+| change | why |
+|---|---|
+| `ui_properties` line 174 (`st_srp_inv_material_pierce`, "Pierces", made like the clip size line 16, not comparable) | the owner's: each weapon card says the hardest wall its bullet gets through and the damage it keeps there (`../../docs/notes/pierce_line.md`) |
+| a `props_list` line 174 on every round the item dictionary pairs with a weapon (`items_compatibility`): `<weapon dict_id>:<rank>:<key>:<percent> ...`, the tier (`st_srp_pierce_glass` .. `_stone`) and the damage kept for each of its weapons | computed, not written in the list (`add_entry`'s `pierce_line`, `content_edit.py` `pierce_lines`): bullet_pierce x k_arp above each tier material's `armor` in `game_materials/game.materials` (try_pierce 0x32D960 stops at P <= A), percent round(100 x k). The rank (0 the softest) orders the lobby's best round and its comparison |
+| no weapon config changed | several are within 3 entries (one line) of the 565 the client rebuilds an upgraded item in (`tables.rs` `MAX_CONFIG_ENTRIES`): with a line on every weapon the SV-98 had 566 and build-content stopped |
+
+The last edit row, so it reads the weapons (declared in `_inputs`), rounds and dictionary as every
+row above leaves them: a retune of `weapon-stats.tsv` or `ammo.tsv`, or a new gun or round, needs no
+change here. `release/build-content` (`pierce_check`) computes every line again from the final files
+and stops when one differs. On the players' files (the stock db and the patches of
+release/patches.tsv up to 49): 40 files edited (39 rounds), 0 unexpected differences; each weapon's
+best round: 82 Concrete, 11 Plywood, 7 Brick, 2 Stone (the VSSKs' VPS), 1 Tinplate. Presentation
+only: no simulation change.
+
+## scope-modules-1.json (2026-11-21)
+
+Made by `../scope-fits/modules_edit.py` from the record of the weapon-modules pack's build
+(resource-porter's `port-modules`, its `modules-069d.json`); make it again with every version of the
+pack, not this file (`modules_edit.py --check`, `tools/check scope-modules`, says when it is not the
+listed pack's). It names
+the pack's models, so it comes after the pack
+(`../../docs/notes/attachments-scopes.md`).
+
+| change | why |
+|---|---|
+| each shop scope item's `data/idle_model` and `data/aimed_model` (the optics of the record) | one pair of models an optic, 0.69d0's own, their origin the optic's slot: the modules table places them on every gun; the items showed one variant's pair before |
+| each shop scope item's modification, now 994000 + its dict id (it was 991000 + it): its `[srp_scope_noop]` set 0 stays first (no key changes its type) and two modifiers follow: a type 3 add of `[srp_scope, <its dict id>]` to the weapon's `data` and a type 0 set of the weapon's `parameters/aim_offset` to 0 | an upgrade record of a scope now holds the scope item's own dict id; the game fits the scope from `data/srp_scope` (patch 161) and the eye is the table's alone |
+| an `items_compatibility` row (`compatibility_<scope><weapon>`) for each pair of the table, but the 169 whose row a base patch's dictionary has (`../scope-fits/released-pairs.tsv` less `retired-variants.tsv`) | the lobby movie greys a scope by these rows |
+
+A view-only change: no simulation row.

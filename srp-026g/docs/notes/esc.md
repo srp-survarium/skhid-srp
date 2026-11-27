@@ -20,8 +20,7 @@ window: "we fixed that a few times already, but ... not from a single place".
   shown: Esc closes it before the results.
 - **A message's Esc is what its own close does** (`MessageBase.cancelByEsc`): its Cancel or X
   (`onNo` runs: the Upgrade window's donor with more modifiers leaves its slot), an OK box's OK
-  (it tells the game). The tutorial-complete box only closes (its Cancel would repeat the
-  tutorial). An invite (squad, clan, clan team) does what its hide button does: the box closes,
+  (it tells the game). An invite (squad, clan, clan team) does what its hide button does: the box closes,
   nothing is sent (no decline) and the invite stays in the list.
 - **Modals that keep Esc out stay:** a message not closable now (`closable` false: a reroll being
   paid), the reroll's choice of modifier (its X is off).
@@ -33,7 +32,8 @@ window: "we fixed that a few times already, but ... not from a single place".
   the character panel's presets list, a dropdown's open list): Esc closes the top one before anything else; they are not modals, and
   a modal opening closes them.
 - **A match found or loading** (`set_mm_sync_state`, `set_loading_level`) closes the message up
-  with `Message.close`, not as Esc: nothing is answered.
+  with `Message.close`, not as Esc: nothing is answered. With no message up, the loading closes the
+  top modal with `Modals.escape`, never through `close_active_window` (an Esc press: see below).
 
 ## The modals
 
@@ -47,7 +47,7 @@ window: "we fixed that a few times already, but ... not from a single place".
 | Squad's player search | LOBBY | `SquadList.onItemClick` | closes it |
 | Rooms window | LOBBY | `RoomsWindow.show` | hides it |
 | Rooms join popup (loadout offer) | LOBBY | `RoomsWindow.takeOffer` | its Exit (no join) |
-| Tutorial slides | LOBBY | `LobbyMenu.show_tutorial` | ends them |
+| Card windows (the lobby scene, the faces) | LOBBY | `CardWindow.toggle` | its `close` |
 | Message box (any type) | MESSAGE | `Message.addMessageToStage` | `cancelByEsc` |
 | Right-click menu | MENU | `SrvContextMenu.show` | hides it |
 
@@ -55,6 +55,14 @@ window: "we fixed that a few times already, but ... not from a single place".
 
 - The exe, on every key, calls `root.has_active_window` (true: a transient window, a modal or a
   text box) and on Esc then `root.close_active_window` (`tools/re-kit/v026g/abi.tsv`, 0x26CB80).
-- `LobbyMenu.handleInput` (CLIK) calls the same two; `_escapeHandled` makes one press act once.
+- The exe's answer decides Esc (0x26CB80): `has_active_window` true calls `close_active_window`
+  (with the results up, lobby_menu+313Ah, as soon as the key comes; else at 0x26CE1D); false calls
+  0x1EDBC0, the game's menu. The key does not reach the movie then. The exe asks only in the lobby
+  (game state 0 or 4, 0x26CBB6..0x26CBC8): never during a match or its loading.
+- `LobbyMenu.handleInput` (CLIK) calls the same two; `_escapeHandled` makes one press act once: set by
+  `close_active_window`, cleared by the exe's next `has_active_window` (the key's release) or the
+  next key event `handleInput` sees. Only an Esc press may call `close_active_window`: before the
+  fix of 2026-11-09 the loading called it, the flag outlived the match, and the first Esc back in the
+  lobby got false and opened the game's menu over the results (a second Esc then closed both).
 - No other Esc handler: the messages', the friends list's, the squad search's, the player
   search's and CLIK's `DropdownMenu`'s own Esc cases are gone.

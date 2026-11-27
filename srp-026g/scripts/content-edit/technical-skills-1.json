@@ -1,0 +1,789 @@
+{
+  "_about": "Technical tree (the owner, 2026-11-08 and 2026-11-15; docs/notes/technical-skills.md): the fourth tab (Technical skills), thresholds 0/5/10/15/20, eighteen skills, 27 points (Tank Pocket (413) or Tank Depth (414), an either/or pair in row II). Every skill travels packed in the unused native modifier 47 (spot_enemy_traps), one value a rank at its bit, which exe patch 180 and srp parse: 401 bit 0..1, 402 bit 2..3, 403 bit 4..5, 404 bit 6..7, 411 bit 8..9, 412 bit 10, 413 bit 11, 414 bit 12, 444 bit 13, 422 bit 14, 423 bit 15, 431 bit 16..17, 432 bit 18, 433 bit 19, 441 bit 20..21, 442 bit 22, 443 bit 23. Tank Container (445, row V) has no bit: its data is the container (artefact_slots +1, as 522), which srp leaves out of the block of a kit that wears no oxygen tank. Names and descriptions are st_srp_technical_* in client-patches/localization.",
+  "append_entry": [
+    {
+      "file": "gameplay/skills/skills_tree.options",
+      "list": "skills_tree",
+      "expected_count": 51,
+      "unique_key": "id",
+      "value": {
+        "id": 401,
+        "levels_amount": 3,
+        "preconditions": {
+          "branch_points": 0
+        },
+        "ui": {
+          "position": [
+            3,
+            1
+          ],
+          "name": "st_srp_technical_401_name",
+          "description": "st_srp_technical_401_description",
+          "icon": 0,
+          "invert_sign": 1,
+          "postfix": "st_percent_postfix",
+          "skill_descriptions": [
+            [
+              " <green>+10",
+              " 0",
+              "</green>",
+              ""
+            ],
+            [
+              " <green>+10",
+              " +10",
+              "</green>",
+              ""
+            ],
+            [
+              " <green>+10",
+              " +20",
+              "</green>",
+              ""
+            ],
+            [
+              "<green> +30",
+              0,
+              "</green>",
+              ""
+            ]
+          ]
+        },
+        "modifiers": [
+          {
+            "spot_enemy_traps_modifier": 1
+          },
+          {
+            "spot_enemy_traps_modifier": 1
+          },
+          {
+            "spot_enemy_traps_modifier": 1
+          }
+        ]
+      }
+    },
+    {
+      "file": "gameplay/skills/skills_tree.options",
+      "list": "skills_tree",
+      "expected_count": 52,
+      "unique_key": "id",
+      "value": {
+        "id": 402,
+        "levels_amount": 3,
+        "preconditions": {
+          "branch_points": 0
+        },
+        "ui": {
+          "position": [
+            1,
+            1
+          ],
+          "name": "st_srp_technical_402_name",
+          "description": "st_srp_technical_402_description",
+          "icon": 0,
+          "invert_sign": 1,
+          "postfix": "st_percent_postfix",
+          "skill_descriptions": [
+            [
+              " <green>+10",
+              " 0",
+              "</green>",
+              ""
+            ],
+            [
+              " <green>+10",
+              " +10",
+              "</green>",
+              ""
+            ],
+            [
+              " <green>+10",
+              " +20",
+              "</green>",
+              ""
+            ],
+            [
+              "<green> +30",
+              0,
+              "</green>",
+              ""
+            ]
+          ]
+        },
+        "modifiers": [
+          {
+            "spot_enemy_traps_modifier": 4
+          },
+          {
+            "spot_enemy_traps_modifier": 4
+          },
+          {
+            "spot_enemy_traps_modifier": 4
+          }
+        ]
+      }
+    },
+    {
+      "file": "gameplay/skills/skills_tree.options",
+      "list": "skills_tree",
+      "expected_count": 53,
+      "unique_key": "id",
+      "value": {
+        "id": 403,
+        "levels_amount": 2,
+        "preconditions": {
+          "branch_points": 0
+        },
+        "ui": {
+          "position": [
+            4,
+            1
+          ],
+          "name": "st_srp_technical_403_name",
+          "description": "st_srp_technical_403_description",
+          "icon": 0,
+          "invert_sign": 1,
+          "postfix": "st_percent_postfix",
+          "skill_descriptions": [
+            [
+              " <green>-10",
+              " 0",
+              "</green>",
+              ""
+            ],
+            [
+              " <green>-10",
+              " -10",
+              "</green>",
+              ""
+            ],
+            [
+              "<green> -20",
+              0,
+              "</green>",
+              ""
+            ]
+          ]
+        },
+        "modifiers": [
+          {
+            "spot_enemy_traps_modifier": 16
+          },
+          {
+            "spot_enemy_traps_modifier": 16
+          }
+        ]
+      }
+    },
+    {
+      "file": "gameplay/skills/skills_tree.options",
+      "list": "skills_tree",
+      "expected_count": 54,
+      "unique_key": "id",
+      "value": {
+        "id": 404,
+        "levels_amount": 2,
+        "preconditions": {
+          "branch_points": 0
+        },
+        "ui": {
+          "position": [
+            2,
+            1
+          ],
+          "name": "st_srp_technical_404_name",
+          "description": "st_srp_technical_404_description",
+          "icon": 0,
+          "invert_sign": 1,
+          "postfix": "st_percent_postfix",
+          "skill_descriptions": [
+            [
+              " <green>-25",
+              " 0",
+              "</green>",
+              ""
+            ],
+            [
+              " <green>-25",
+              " -25",
+              "</green>",
+              ""
+            ],
+            [
+              "<green> -50",
+              0,
+              "</green>",
+              ""
+            ]
+          ]
+        },
+        "modifiers": [
+          {
+            "spot_enemy_traps_modifier": 48
+          },
+          {
+            "spot_enemy_traps_modifier": 48
+          }
+        ]
+      }
+    },
+    {
+      "file": "gameplay/skills/skills_tree.options",
+      "list": "skills_tree",
+      "expected_count": 55,
+      "unique_key": "id",
+      "value": {
+        "id": 411,
+        "levels_amount": 3,
+        "preconditions": {
+          "branch_points": 4
+        },
+        "ui": {
+          "position": [
+            3,
+            2
+          ],
+          "name": "st_srp_technical_411_name",
+          "description": "st_srp_technical_411_description",
+          "icon": 0,
+          "invert_sign": 1,
+          "postfix": "st_percent_postfix",
+          "skill_descriptions": [
+            [
+              " <green>+15",
+              " 0",
+              "</green>",
+              ""
+            ],
+            [
+              " <green>+15",
+              " +15",
+              "</green>",
+              ""
+            ],
+            [
+              " <green>+15",
+              " +30",
+              "</green>",
+              ""
+            ],
+            [
+              "<green> +45",
+              0,
+              "</green>",
+              ""
+            ]
+          ]
+        },
+        "modifiers": [
+          {
+            "spot_enemy_traps_modifier": 144
+          },
+          {
+            "spot_enemy_traps_modifier": 144
+          },
+          {
+            "spot_enemy_traps_modifier": 144
+          }
+        ]
+      }
+    },
+    {
+      "file": "gameplay/skills/skills_tree.options",
+      "list": "skills_tree",
+      "expected_count": 56,
+      "unique_key": "id",
+      "value": {
+        "id": 412,
+        "levels_amount": 1,
+        "preconditions": {
+          "branch_points": 4
+        },
+        "ui": {
+          "position": [
+            2,
+            2
+          ],
+          "name": "st_srp_technical_412_name",
+          "description": "st_srp_technical_412_description",
+          "icon": 0
+        },
+        "modifiers": [
+          {
+            "spot_enemy_traps_modifier": 576
+          }
+        ]
+      }
+    },
+    {
+      "file": "gameplay/skills/skills_tree.options",
+      "list": "skills_tree",
+      "expected_count": 57,
+      "unique_key": "id",
+      "value": {
+        "id": 413,
+        "levels_amount": 2,
+        "preconditions": {
+          "branch_points": 4,
+          "antiskills": [
+            414
+          ]
+        },
+        "ui": {
+          "position": [
+            4,
+            2
+          ],
+          "name": "st_srp_technical_413_name",
+          "description": "st_srp_technical_413_description",
+          "icon": 0,
+          "skill_descriptions": [
+            [
+              " <green>+1",
+              " 0",
+              "</green>",
+              ""
+            ],
+            [
+              " <green>+1",
+              " +1",
+              "</green>",
+              ""
+            ],
+            [
+              "<green> +2",
+              0,
+              "</green>",
+              ""
+            ]
+          ],
+          "postfix": "st_srp_technical_pockets"
+        },
+        "modifiers": [
+          {
+            "spot_enemy_traps_modifier": 1152
+          },
+          {
+            "spot_enemy_traps_modifier": 1152
+          }
+        ]
+      }
+    },
+    {
+      "file": "gameplay/skills/skills_tree.options",
+      "list": "skills_tree",
+      "expected_count": 58,
+      "unique_key": "id",
+      "value": {
+        "id": 414,
+        "levels_amount": 2,
+        "preconditions": {
+          "branch_points": 4,
+          "antiskills": [
+            413
+          ]
+        },
+        "ui": {
+          "position": [
+            1,
+            2
+          ],
+          "name": "st_srp_technical_414_name",
+          "description": "st_srp_technical_414_description",
+          "icon": 0,
+          "skill_descriptions": [
+            [
+              " <green>+1",
+              " 0",
+              "</green>",
+              ""
+            ],
+            [
+              " <green>+1",
+              " +1",
+              "</green>",
+              ""
+            ],
+            [
+              "<green> +2",
+              0,
+              "</green>",
+              ""
+            ]
+          ],
+          "postfix": "st_srp_technical_pocket_size"
+        },
+        "modifiers": [
+          {
+            "spot_enemy_traps_modifier": 3456
+          },
+          {
+            "spot_enemy_traps_modifier": 3456
+          }
+        ]
+      }
+    },
+    {
+      "file": "gameplay/skills/skills_tree.options",
+      "list": "skills_tree",
+      "expected_count": 59,
+      "unique_key": "id",
+      "value": {
+        "id": 422,
+        "levels_amount": 1,
+        "preconditions": {
+          "branch_points": 8
+        },
+        "ui": {
+          "position": [
+            2,
+            3
+          ],
+          "name": "st_srp_technical_422_name",
+          "description": "st_srp_technical_422_description",
+          "icon": 0
+        },
+        "modifiers": [
+          {
+            "spot_enemy_traps_modifier": 10368
+          }
+        ]
+      }
+    },
+    {
+      "file": "gameplay/skills/skills_tree.options",
+      "list": "skills_tree",
+      "expected_count": 60,
+      "unique_key": "id",
+      "value": {
+        "id": 423,
+        "levels_amount": 1,
+        "preconditions": {
+          "branch_points": 8
+        },
+        "ui": {
+          "position": [
+            3,
+            3
+          ],
+          "name": "st_srp_technical_423_name",
+          "description": "st_srp_technical_423_description",
+          "icon": 0
+        },
+        "modifiers": [
+          {
+            "spot_enemy_traps_modifier": 20736
+          }
+        ]
+      }
+    },
+    {
+      "file": "gameplay/skills/skills_tree.options",
+      "list": "skills_tree",
+      "expected_count": 61,
+      "unique_key": "id",
+      "value": {
+        "id": 431,
+        "levels_amount": 3,
+        "preconditions": {
+          "branch_points": 8
+        },
+        "ui": {
+          "position": [
+            4,
+            3
+          ],
+          "name": "st_srp_technical_431_name",
+          "description": "st_srp_technical_431_description",
+          "icon": 0,
+          "invert_sign": 1,
+          "postfix": "st_percent_postfix",
+          "skill_descriptions": [
+            [
+              " <green>-20",
+              " 0",
+              "</green>",
+              ""
+            ],
+            [
+              " <green>-10",
+              " -20",
+              "</green>",
+              ""
+            ],
+            [
+              " <green>-10",
+              " -30",
+              "</green>",
+              ""
+            ],
+            [
+              "<green> -40",
+              0,
+              "</green>",
+              ""
+            ]
+          ]
+        },
+        "modifiers": [
+          {
+            "spot_enemy_traps_modifier": 41472
+          },
+          {
+            "spot_enemy_traps_modifier": 41472
+          },
+          {
+            "spot_enemy_traps_modifier": 41472
+          }
+        ]
+      }
+    },
+    {
+      "file": "gameplay/skills/skills_tree.options",
+      "list": "skills_tree",
+      "expected_count": 62,
+      "unique_key": "id",
+      "value": {
+        "id": 432,
+        "levels_amount": 1,
+        "preconditions": {
+          "branch_points": 12
+        },
+        "ui": {
+          "position": [
+            1,
+            4
+          ],
+          "name": "st_srp_technical_432_name",
+          "description": "st_srp_technical_432_description",
+          "icon": 0
+        },
+        "modifiers": [
+          {
+            "spot_enemy_traps_modifier": 165888
+          }
+        ]
+      }
+    },
+    {
+      "file": "gameplay/skills/skills_tree.options",
+      "list": "skills_tree",
+      "expected_count": 63,
+      "unique_key": "id",
+      "value": {
+        "id": 433,
+        "levels_amount": 2,
+        "preconditions": {
+          "branch_points": 12
+        },
+        "ui": {
+          "position": [
+            3,
+            4
+          ],
+          "name": "st_srp_technical_433_name",
+          "description": "st_srp_technical_433_description",
+          "icon": 0,
+          "postfix": "st_srp_medical_seconds",
+          "skill_descriptions": [
+            [
+              " <green>30",
+              " 0",
+              "</green>",
+              ""
+            ],
+            [
+              " <green>20",
+              " 30",
+              "</green>",
+              ""
+            ],
+            [
+              "<green> 20",
+              0,
+              "</green>",
+              ""
+            ]
+          ]
+        },
+        "modifiers": [
+          {
+            "spot_enemy_traps_modifier": 331776
+          },
+          {
+            "spot_enemy_traps_modifier": 331776
+          }
+        ]
+      }
+    },
+    {
+      "file": "gameplay/skills/skills_tree.options",
+      "list": "skills_tree",
+      "expected_count": 64,
+      "unique_key": "id",
+      "value": {
+        "id": 441,
+        "levels_amount": 3,
+        "preconditions": {
+          "branch_points": 16
+        },
+        "ui": {
+          "position": [
+            1,
+            5
+          ],
+          "name": "st_srp_technical_441_name",
+          "description": "st_srp_technical_441_description",
+          "icon": 0,
+          "invert_sign": 1,
+          "postfix": "st_srp_technical_per_second",
+          "skill_descriptions": [
+            [
+              " <green>+5",
+              " 0",
+              "</green>",
+              ""
+            ],
+            [
+              " <green>+1",
+              " +5",
+              "</green>",
+              ""
+            ],
+            [
+              " <green>+1",
+              " +6",
+              "</green>",
+              ""
+            ],
+            [
+              "<green> +7",
+              0,
+              "</green>",
+              ""
+            ]
+          ]
+        },
+        "modifiers": [
+          {
+            "spot_enemy_traps_modifier": 995328
+          },
+          {
+            "spot_enemy_traps_modifier": 995328
+          },
+          {
+            "spot_enemy_traps_modifier": 995328
+          }
+        ]
+      }
+    },
+    {
+      "file": "gameplay/skills/skills_tree.options",
+      "list": "skills_tree",
+      "expected_count": 65,
+      "unique_key": "id",
+      "value": {
+        "id": 442,
+        "levels_amount": 1,
+        "preconditions": {
+          "branch_points": 12
+        },
+        "ui": {
+          "position": [
+            4,
+            4
+          ],
+          "name": "st_srp_technical_442_name",
+          "description": "st_srp_technical_442_description",
+          "icon": 0
+        },
+        "modifiers": [
+          {
+            "spot_enemy_traps_modifier": 3981312
+          }
+        ]
+      }
+    },
+    {
+      "file": "gameplay/skills/skills_tree.options",
+      "list": "skills_tree",
+      "expected_count": 66,
+      "unique_key": "id",
+      "value": {
+        "id": 443,
+        "levels_amount": 1,
+        "preconditions": {
+          "branch_points": 16
+        },
+        "ui": {
+          "position": [
+            2,
+            5
+          ],
+          "name": "st_srp_technical_443_name",
+          "description": "st_srp_technical_443_description",
+          "icon": 0
+        },
+        "modifiers": [
+          {
+            "spot_enemy_traps_modifier": 7962624
+          }
+        ]
+      }
+    },
+    {
+      "file": "gameplay/skills/skills_tree.options",
+      "list": "skills_tree",
+      "expected_count": 67,
+      "unique_key": "id",
+      "value": {
+        "id": 444,
+        "levels_amount": 1,
+        "preconditions": {
+          "branch_points": 16
+        },
+        "ui": {
+          "position": [
+            3,
+            5
+          ],
+          "name": "st_srp_technical_444_name",
+          "description": "st_srp_technical_444_description",
+          "icon": 0
+        },
+        "modifiers": [
+          {
+            "spot_enemy_traps_modifier": -15925248
+          }
+        ]
+      }
+    },
+    {
+      "file": "gameplay/skills/skills_tree.options",
+      "list": "skills_tree",
+      "expected_count": 68,
+      "unique_key": "id",
+      "value": {
+        "id": 445,
+        "levels_amount": 1,
+        "preconditions": {
+          "branch_points": 16
+        },
+        "ui": {
+          "position": [
+            4,
+            5
+          ],
+          "name": "st_srp_technical_445_name",
+          "description": "st_srp_technical_445_description",
+          "icon": 0
+        },
+        "modifiers": [
+          {
+            "artefact_slots_modifier": 1
+          }
+        ]
+      }
+    }
+  ]
+}

@@ -14,11 +14,21 @@ import zipfile
 
 # Independent expected UI strings, including Cyrillic and Polish diacritics.
 LANGUAGES = {
-    "english": ("0409", "The game has crashed.", "Open Discord", "Close", "File:", "Folder:", "Windows error", "Could not open your browser.", "Copy", "Copied"),
-    "russian": ("0419", "В игре произошёл сбой.", "Открыть Discord", "Закрыть", "Файл:", "Папка:", "Ошибка Windows", "Не удалось открыть браузер.", "Копировать", "Скопировано"),
-    "polish": ("0415", "Gra uległa awarii.", "Otwórz Discord", "Zamknij", "Plik:", "Folder:", "Błąd systemu Windows", "Nie udało się otworzyć przeglądarki.", "Kopiuj", "Skopiowano"),
-    "ukrainian": ("0422", "У грі стався збій.", "Відкрити Discord", "Закрити", "Файл:", "Папка:", "Помилка Windows", "Не вдалося відкрити браузер.", "Копіювати", "Скопійовано"),
-    "german": ("0807", "Das Spiel ist abgestürzt.", "Discord öffnen", "Schließen", "Datei:", "Ordner:", "Windows-Fehler", "Der Browser konnte nicht geöffnet werden.", "Kopieren", "Kopiert"),
+    "english": ("0409", "The game has crashed.", "Open Discord", "Close", "File:", "Folder:", "Windows error", "Could not open your browser.", "Copy", "Copied", "Open folder"),
+    "russian": ("0419", "В игре произошёл сбой.", "Открыть Discord", "Закрыть", "Файл:", "Папка:", "Ошибка Windows", "Не удалось открыть браузер.", "Копировать", "Скопировано", "Открыть папку"),
+    "polish": ("0415", "Gra uległa awarii.", "Otwórz Discord", "Zamknij", "Plik:", "Folder:", "Błąd systemu Windows", "Nie udało się otworzyć przeglądarki.", "Kopiuj", "Skopiowano", "Otwórz folder"),
+    "ukrainian": ("0422", "У грі стався збій.", "Відкрити Discord", "Закрити", "Файл:", "Папка:", "Помилка Windows", "Не вдалося відкрити браузер.", "Копіювати", "Скопійовано", "Відкрити папку"),
+    "german": ("0807", "Das Spiel ist abgestürzt.", "Discord öffnen", "Schließen", "Datei:", "Ordner:", "Windows-Fehler", "Der Browser konnte nicht geöffnet werden.", "Kopieren", "Kopiert", "Ordner öffnen"),
+}
+
+
+# A full-memory dump (SKHID_CRASH_DUMP=full): the status line as it starts.
+FULL = {
+    "english": "The full-memory crash dump is kept here, for the developer:",
+    "russian": "Полный дамп памяти сохранён здесь, для разработчика:",
+    "ukrainian": "Повний дамп пам'яті збережено тут, для розробника:",
+    "german": "Der vollständige Speicher-Dump bleibt hier, für den Entwickler:",
+    "polish": "Pełny zrzut pamięci zostaje tutaj, dla programisty:",
 }
 
 
@@ -44,14 +54,16 @@ def check_details(controls, clip):
                  "|Thread:    ", "|Registers: EAX=", "|Game:      ui_probe.exe, patch revision unknown, sha256 ",
                  "|Reporter:  ", "|Windows:   ", "|Dump:      "):
         assert line in clip, (line, clip)
-    assert "Game log:" not in clip, clip
+    assert "Game log:" not in clip and "Events:" not in clip, clip
+    # One Discord message: at most 2000 characters, the code block's fences in it.
+    assert len(clip.replace("|", "\r\n")) <= 2000, len(clip)
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("build", type=Path)
     parser.add_argument("screenshots", type=Path, nargs="?")
-    parser.add_argument("--states", nargs="+", default=["success", "raw", "partial", "failure", "blocked", "unicode", "browser-failure", "dialog-failure"])
+    parser.add_argument("--states", nargs="+", default=["success", "full", "full-partial", "full-no-report", "raw", "partial", "failure", "blocked", "unicode", "browser-failure", "dialog-failure"])
     options = parser.parse_args()
     build = options.build.resolve()
     screenshots = options.screenshots.resolve() if options.screenshots else None
@@ -76,6 +88,9 @@ def main():
             root = unicode if state == "unicode" else base
             before = set(root.glob("SRP-crash-*"))
             env = os.environ.copy()
+            env.pop("SKHID_CRASH_DUMP", None)
+            if state.startswith("full"):
+                env["SKHID_CRASH_DUMP"] = "full"
             if screenshots and state in ("success", "blocked", "failure", "unicode") and args:
                 env["SRP_UI_SCREENSHOT"] = "Z:" + str(screenshots / f"{language}-{state}.bmp")
             result = subprocess.run(["wine", str(root / "ui_probe.exe"), state, windows, *args],
@@ -86,13 +101,14 @@ def main():
             controls = {int(line.split(" ", 2)[1]): line.split(" ", 2)[2]
                         for line in output.splitlines() if line.startswith("TEXT ")}
             clips = [line[5:] for line in output.splitlines() if line.startswith("CLIP ")]
-            _, intro, button, close, file_label, folder_label, error, browser_error, copy, copied = LANGUAGES[language]
+            _, intro, button, close, file_label, folder_label, error, browser_error, copy, copied, open_folder = LANGUAGES[language]
+            shells = [line[6:].split(" ", 1) for line in output.splitlines() if line.startswith("SHELL ")]
             new = set(root.glob("SRP-crash-*")) - before
             texts = [p for p in new if p.suffix == ".txt"]
             if state == "dialog-failure":
                 [report] = new - set(texts)
                 assert report.name in controls[-1] and report.suffix == ".zip", controls
-                assert "discord.gg/Pxa4prXfwu" in controls[-1] and "#bugreports" in controls[-1], controls
+                assert "discord.gg/QUmJg3gBhg" in controls[-1] and "#bugreports" in controls[-1], controls
                 assert re.search(r"ACCESS_VIOLATION.*\s+at \S+\.(dll|exe)\+0x", controls[-1]), controls
                 assert button not in controls[-1], "fallback must not refer to a missing button"
                 for p in new:
@@ -101,6 +117,20 @@ def main():
                 continue
             assert controls[1030] == intro and controls[1013] == button and controls[2] == close, controls
             assert controls[1041] == copy and controls[-2] == copied, controls
+            # Open folder: only with a file to show, Explorer selecting it;
+            # when Explorer cannot start (browser-failure), the folder alone.
+            if state in ("failure", "full-no-report"):
+                assert 1043 not in controls and not shells, (controls, shells)
+            else:
+                folder = str(root).replace("/", "\\") + "\\"
+                assert controls[1043] == open_folder, controls
+                kind, selected = shells[0]
+                assert kind == "select" and selected.startswith('/select,"'), shells
+                assert selected.endswith(folder + controls[1034] + '"'), (selected, controls)
+                if state == "browser-failure":
+                    assert shells[1][0] == "folder" and shells[1][1].endswith(folder), shells
+                    assert shells[1][1] == selected[len('/select,"'):-len(controls[1034]) - 1], shells
+                assert len(shells) == (2 if state == "browser-failure" else 1), shells
             if state == "unicode":
                 assert controls[1042].startswith(WARNING[language]) and "Игра-Żółw" in controls[1042], controls
                 assert "C:\\Games\\Survarium" in controls[1042], controls
@@ -108,15 +138,25 @@ def main():
             else:
                 assert 1042 not in controls and "Paths:" not in clips[0], (controls, clips)
             assert "#bugreports" in controls[1036] and button in controls[1036] and copy in controls[1036], controls
+            # Not a dump to post: only a full one's instructions name the .dmp.
+            assert (".dmp" in controls[1036]) == state.startswith("full"), controls
             [clip] = clips
             check_details(controls, clip)
-            if state in ("partial", "failure", "blocked"):
+            if state in ("partial", "full-partial", "failure", "blocked"):
                 assert error in controls[1031], controls
             if state == "failure":
                 # Neither a dump nor a text report could be written: shown only.
                 assert not new and all(i not in controls for i in (1034, 1035, 1037, 1038)), controls
                 assert "|Dump:      not saved, the file could not be written, error 5" in clip, clip
                 assert "#bugreports" not in controls[1031], controls
+            elif state == "full-no-report":
+                # The dump kept, no report beside it: no file to send, the
+                # dump named as one to keep, the details still to copy.
+                [dump] = new
+                assert dump.suffix == ".dmp" and dump.read_bytes()[:4] == b"MDMP", new
+                assert all(i not in controls for i in (1034, 1035, 1037, 1038)), controls
+                assert controls[1031] == FULL[language] + "  " + dump.name, controls
+                dump.unlink()
             elif state == "blocked":
                 # The capture was refused: the antivirus message and the text report.
                 assert "0x8007001F" in controls[1031] and "#bugreports" in controls[1031], controls
@@ -130,11 +170,22 @@ def main():
                 assert controls[1037] == file_label and controls[1038] == folder_label, controls
                 [text] = texts
                 [report] = new - {text}
-                assert controls[1034] == report.name and str(root).replace("/", "\\") in controls[1035], controls
+                shown = text if state.startswith("full") else report
+                assert controls[1034] == shown.name and str(root).replace("/", "\\") in controls[1035], controls
                 assert text.stem == report.stem, (text, report)
                 content = text.read_bytes()
                 assert content.startswith(b"Skhid crash report") and b"\r\nDump:      saved" in content
-                if state in ("raw", "partial"):
+                if state.startswith("full"):
+                    # The report to send is named; the dump stays, named in the
+                    # status (a partial one too, its error after it).
+                    [dump] = new - {text}
+                    report = dump
+                    assert controls[1034] == text.name and dump.suffix == ".dmp", controls
+                    assert controls[1031].startswith(FULL[language] + "  " + dump.name), controls
+                    assert (controls[1031] == FULL[language] + "  " + dump.name) == (state == "full"), controls
+                    assert dump.read_bytes()[:4] == b"MDMP"
+                    assert b"full-memory dumps (SKHID_CRASH_DUMP=full)" in content
+                elif state in ("raw", "partial"):
                     assert report.suffix == ".dmp" and report.read_bytes()[:4] == b"MDMP"
                 else:
                     assert report.suffix == ".zip"
@@ -145,7 +196,7 @@ def main():
                 text.unlink()
             if state == "browser-failure":
                 assert controls[-1].startswith(browser_error), controls
-                assert "discord.gg/Pxa4prXfwu" in controls[-1] and "#bugreports" in controls[-1]
+                assert "discord.gg/QUmJg3gBhg" in controls[-1] and "#bugreports" in controls[-1]
             print(f"PASS {language}: {state}, {'automatic despite game option' if args else 'automatic without game option'}", flush=True)
 
 

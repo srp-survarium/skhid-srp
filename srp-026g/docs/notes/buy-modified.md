@@ -11,11 +11,10 @@ would just buy a normal unmodified item").
   its seller); the modified one stays as it is.
 - **When Buy is listed:** as for an unmodified item: the shop sells the item and the account has
   unlocked it at the seller (`canBuy`). Stacks (ammo, consumables) as before.
-- **No "already purchased" question** for the right-click menu's Buy on an owned item (an
-  inventory row, a kit slot): buying on the item you have says you want another. The owner's
-  rule: 2026-10-20 ("'the item is already purchased' should not show up"); 2026-11-01: "it should
-  only skip from rmb on item in your inventory, since there it is a voluntary action". The card's
-  Buy, a double click and every buy in the shop ask (`items.md` §6).
+- **No "already purchased" question** for a buy from an owned item (an inventory row, a kit slot:
+  the right-click menu's Buy, the card's Buy, a double click): buying on the item you have says you
+  want another. The owner's rule: 2026-10-20 ("'the item is already purchased' should not show
+  up"); 2026-11-05: only a buy started in the shop asks (`items.md` §6).
 - **Only owned items change:** shop entries, bundles and a bundle's contents keep the old rule
   (Buy when not of a rarity), so the shop's and the bundles' menus are as before.
 - **Not changed:** the shop list (a shop item whose owned copy is modified is still listed in the

@@ -26,6 +26,102 @@ pub fn milliseconds(thread: &Thread) -> u32 {
     (u128::from(counter(thread)) * 1000 / u128::from(frequency)) as u32
 }
 
+/// A frame clock: the real time from one frame's tick to the next.
+#[derive(Clone, Copy)]
+pub struct FrameClock(Ticking);
+#[derive(Clone, Copy)]
+enum Ticking {
+    Unstarted,
+    Running { ticks: u32, frequency: u32 },
+}
+
+impl FrameClock {
+    pub const UNSTARTED: FrameClock = FrameClock(Ticking::Unstarted);
+
+    /// The real time since the last tick, s (1/60 the first time).
+    pub fn tick(&mut self, thread: &Thread) -> f32 {
+        let ticks = counter(thread) as u32;
+        match self.0 {
+            Ticking::Running { ticks: last, frequency } => {
+                self.0 = Ticking::Running { ticks, frequency };
+                ticks.wrapping_sub(last) as f32 / frequency as f32
+            }
+            Ticking::Unstarted => {
+                let frequency = frequency(thread);
+                if frequency > 0 && frequency <= u64::from(u32::MAX) {
+                    self.0 = Ticking::Running { ticks, frequency: frequency as u32 };
+                }
+                1.0 / 60.0
+            }
+        }
+    }
+}
+
+/// A moment of the wall clock: kernel32's FILETIME, 100 ns since 1601 UTC.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub struct FileTime(u64);
+
+/// FILETIME's ticks a second.
+const FILE_TIME_SECOND: u64 = 10u64.pow(7);
+
+impl FileTime {
+    /// Now (GetSystemTimeAsFileTime).
+    pub fn now(_: &Thread) -> FileTime {
+        let mut out = [0u32; 2];
+        // SAFETY: the exe's import; it writes the 8 bytes it is given.
+        unsafe { (raw::engine_get_system_time_as_file_time)(out.as_mut_ptr()) };
+        FileTime(u64::from(out[0]) | u64::from(out[1]) << 32)
+    }
+
+    /// `seconds` later.
+    pub fn after_seconds(self, seconds: u32) -> FileTime {
+        FileTime(self.0.saturating_add(u64::from(seconds) * FILE_TIME_SECOND))
+    }
+
+    /// The whole seconds from `self` to `later` (at most u32::MAX); 0 when
+    /// it is not later.
+    pub fn seconds_until(self, later: FileTime) -> u32 {
+        let seconds = divide(later.0.saturating_sub(self.0), FILE_TIME_SECOND);
+        u32::try_from(seconds).unwrap_or(u32::MAX)
+    }
+
+    /// The moment in the machine's time zone (FileTimeToLocalFileTime, then
+    /// FileTimeToSystemTime); None when kernel32 refuses it.
+    pub fn local(self, _: &Thread) -> Option<LocalTime> {
+        let utc = [self.0 as u32, (self.0 >> 32) as u32];
+        let mut local = [0u32; 2];
+        // SYSTEMTIME: eight u16, two to a word: year, month; weekday, day;
+        // hour, minute; second, milliseconds.
+        let mut parts = [0u32; 4];
+        // SAFETY: the exe's imports; each reads the 8 bytes of its first
+        // argument and writes its second's 8 (16) bytes.
+        let done = unsafe {
+            (raw::engine_file_time_to_local_file_time)(utc.as_ptr(), local.as_mut_ptr()) != 0
+                && (raw::engine_file_time_to_system_time)(local.as_ptr(), parts.as_mut_ptr()) != 0
+        };
+        done.then(|| LocalTime {
+            year: parts[0] as u16,
+            month: (parts[0] >> 16) as u8,
+            day: (parts[1] >> 16) as u8,
+            hour: parts[2] as u8,
+            minute: (parts[2] >> 16) as u8,
+            second: parts[3] as u8,
+        })
+    }
+}
+
+/// A wall-clock moment as the player's machine shows it, to the second (a
+/// ban's end shows its minute, a run's logs are named by its second).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct LocalTime {
+    pub year: u16,
+    pub month: u8,
+    pub day: u8,
+    pub hour: u8,
+    pub minute: u8,
+    pub second: u8,
+}
+
 /// A minute of the local day: 0 (00:00) to 1439 (23:59).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct DayMinute(u16);
@@ -39,13 +135,39 @@ impl DayMinute {
     }
 }
 
-/// The machine's local time of day now (kernel32's GetLocalTime, its
-/// SYSTEMTIME's hour and minute: the player's clock, the time zone and
-/// summer time its).
-pub fn local_time(_: &Thread) -> DayMinute {
-    // SYSTEMTIME: year, month, day of week, day, hour, minute, second, ms
-    let mut time = [0u16; 8];
-    // SAFETY: the exe's import; it writes the 16 bytes of a SYSTEMTIME.
-    unsafe { (raw::engine_get_local_time)(time.as_mut_ptr().cast()) };
-    DayMinute::at(time[4], time[5])
+/// The minute of the day the player's machine shows now (the time zone and
+/// summer time its); midday if kernel32 refuses the conversion.
+pub fn local_day_minute(thread: &Thread) -> DayMinute {
+    match FileTime::now(thread).local(thread) {
+        Some(time) => DayMinute::at(u16::from(time.hour), u16::from(time.minute)),
+        None => DayMinute::at(12, 0),
+    }
+}
+
+/// `n / d` by shifts and subtractions: the arena links no `__udivdi3`.
+fn divide(n: u64, d: u64) -> u64 {
+    let (mut quotient, mut rest) = (0u64, 0u64);
+    for bit in (0..64).rev() {
+        rest = rest << 1 | (n >> bit & 1);
+        if rest >= d {
+            rest -= d;
+            quotient |= 1 << bit;
+        }
+    }
+    quotient
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn seconds_between_file_times() {
+        let start = FileTime(133_000_000_000_000_000);
+        assert_eq!(start.seconds_until(start.after_seconds(1800)), 1800);
+        assert_eq!(start.after_seconds(1800).seconds_until(start), 0);
+        assert_eq!(start.seconds_until(FileTime(start.after_seconds(1).0 - 1)), 0);
+        assert_eq!(start.seconds_until(start.after_seconds(u32::MAX)), u32::MAX);
+        assert_eq!(divide(u64::MAX, 3), u64::MAX / 3);
+    }
 }

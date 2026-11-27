@@ -1,0 +1,22 @@
+[package]
+name = "srp-validate"
+version.workspace = true
+edition.workspace = true
+description = "Shared allocation-free validation of match messages and worlds"
+
+[lints]
+workspace = true
+
+[dependencies]
+world-frame = { workspace = true }
+weapon-pickup = { path = "../weapon-pickup" }
+technical-skills = { path = "../technical-skills" }
+# Client patch 78's carry snapshot: its size and version byte, as written.
+artefact-carry = { path = "../artefact-carry" }
+# Client patch 206's second sights: the record after the carry snapshot.
+second-sight = { path = "../second-sight" }
+# Artifact Hunt's rule (mode 13): the one definition of its bytes (`Rule::read_back`).
+artefact-hunt-rule = { path = "../artefact-hunt-rule" }
+
+[dev-dependencies]
+survarium = { workspace = true }

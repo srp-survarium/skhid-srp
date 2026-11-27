@@ -34,7 +34,8 @@ package survarium.rooms
         // kick (answered with the state, whose `A;<sides>` row has the teams).
         public static const MOVE:int = FIRST + 20000;
         public static const QUEUE:int = FIRST + 200000;
-        public static const VOTE:int = FIRST + 3;
+        // A vote: VOTE + card, 0 to CARDS - 1 (FIRST + 3 to + 5 until the fourth card).
+        public static const VOTE:int = FIRST + 50;
         public static const POOL:int = FIRST + 10;
         public static const KICK:int = FIRST + 100;
         public static const PIN:int = FIRST + 10000;
@@ -47,40 +48,67 @@ package survarium.rooms
         // "Switch and enter": PRESET + (preset - 1) * PRESET_STEP + key (0: Play).
         public static const PRESET:int = FIRST + 500000;
         public static const PRESET_STEP:int = 100000;
-        public static const BITS:int = FIRST + 1000000;
-        public static const CREATE:int = FIRST + 10000000;
         public static const LAST:int = FIRST + 19999999;
-        public static const WAITS:Array = [15, 20, 25, 30, 35, 40, 45, 50, 55, 60];
-        // The vote's own time before the wait (srp's rooms::VOTE).
-        public static const VOTE_SECS:int = 15;
         // The rows asked of the list (the server's LIST_ROWS, 31 rooms, and
         // the header) and of a pool page (POOL_PAGE_ROWS, 30, and the header).
         public static const LIST_ASK_ROWS:int = 32;
         public static const POOL_ASK_ROWS:int = 31;
-        // A room's sizes (players a side; the server's SIZES 6..=10), most
-        // members, sides to start (MIN_SIDES 1..=3) and its max level
-        // (LEVEL_MAX; 0: any).
-        public static const SIZE_MIN:int = 6;
+        // A room's most members (two sides of 10) and a max level of "any".
         public static const MEMBERS_MAX:int = 20;
-        public static const MIN_SIDES:int = 3;
         public static const LEVEL_ANY:int = 0;
-        public static const LEVEL_MAX:int = 15;
-        // The create code: ((((size - SIZE_MIN) * LEVELS + max) * WAIT_COUNT
-        // + wait index) * 2 + PIN) * MIN_SIDES + min side - 1.
-        public static const LEVELS:int = 16;
-        public static const WAIT_COUNT:int = 10;
-        // The pool in CHUNKS pieces of BITS_PER_CHUNK entries (POOL_BITS in
-        // all), each sent at BITS + chunk * CHUNK_STEP + its bits.
-        public static const BITS_PER_CHUNK:int = 20;
-        public static const CHUNKS:int = 8;
-        public static const POOL_BITS:int = 160;
-        public static const CHUNK_STEP:int = 1048576;
+        // The form's pool rows (`E;<chunk>;<bits>`) of BITS_PER_CHUNK entries; a create names
+        // POOL_BITS entries at most (the server's POOL_BITS). 512: every playable map (333 on
+        // 2026-11-22; 256 cut off the maps after the 0.21 ones).
+        public static const BITS_PER_CHUNK:int = 16;
+        public static const POOL_BITS:int = 512;
         // A PIN's digits (PIN_MAX 9999).
         public static const PIN_DIGITS:int = 4;
-        // The vote's cards: 0 to LAST_CARD (the server's CARDS, 3).
-        public static const LAST_CARD:int = 2;
+        // The vote's cards (the server's CARDS: 4 since the owner's of 2026-11-26, 3 before).
+        public static const CARDS:int = 4;
         // A kick: KICK + place + MEMBERS_MAX * (the room's serial % KICK_CHECKS).
         public static const KICK_CHECKS:int = 495;
+
+        // A private room's create in one request (the server's RoomCreate; the owner's of
+        // 2026-11-20: "a single very fast request"): `S1C;<P or B><PIN>;<pool>`, B with bots, the
+        // pool entries `picked` (their indexes) in hex, character k entries 4k to 4k + 3, entry
+        // 4k + b by bit b. Until then a PIN, a bits request a 16 entries and the create, one after
+        // another on the game's 500 ms lobby tick: 4 to 8 s.
+        public static function createText(pin:String, bots:Boolean, picked:Array):String
+        {
+            var nibbles:Array = [];
+            for each (var index:int in picked)
+            {
+                if (index < 0 || index >= POOL_BITS)
+                    continue;
+                var k:int = index >> 2;
+                while (nibbles.length <= k)
+                    nibbles.push(0);
+                nibbles[k] |= 1 << (index & 3);
+            }
+            var pool:String = "";
+            for (var n:int = 0; n < nibbles.length; n++)
+                pool += int(nibbles[n]).toString(16);
+            return "S1C;" + (bots ? "B" : "P") + pin + ";" + pool;
+        }
+
+        // A create's text goes as the game's player search (`find_players`, sent as it is, the
+        // lobby.md 2.16.3 create in one request): the server answers it with the state.
+        public static function sendCreate(text:String):void
+        {
+            try
+            {
+                ExternalInterface.call("find_players", text);
+            }
+            catch (e:Error)
+            {
+            }
+        }
+
+        // Whether pool entry `index` is in by a form's `bits` (chunk n's bits at bits[n]).
+        public static function bitIn(bits:Array, index:int):Boolean
+        {
+            return (uint(bits[int(index / BITS_PER_CHUNK)]) & (1 << (index % BITS_PER_CHUNK))) != 0;
+        }
 
         public static function send(start:int, count:int):void
         {

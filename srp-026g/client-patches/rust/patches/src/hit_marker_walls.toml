@@ -1,0 +1,17 @@
+# Patch 167: no white hit marker for a hit through a wall
+# (docs/notes/hit-marker-walls.md). The sites are sites_026g.tsv's; the logic
+# is hit_marker_walls.rs.
+name = "hit_marker_walls"
+patch = 167
+
+[[hook]]
+site = "bullet.pierced"
+handler = "on_pierced"
+
+[[hook]]
+site = "damage_collector.hit"
+handler = "on_hit"
+
+[[hook]]
+site = "damage_collector.draw"
+handler = "on_draw"

@@ -1,11 +1,11 @@
 //! The 0.26g match server's socket: one UDP port for every match. A
 //! datagram goes to the match of the client that sent it; a new client is
 //! placed by the session in its 0xD8, through the registry the lobby made
-//! the match in. (0.21d: `crate::server`.)
+//! the match in. (0.21d: `srp-021d/servers/match-server/src/server.rs`.)
 
 use std::collections::{HashMap, HashSet};
 use std::io;
-use std::net::{SocketAddr, UdpSocket};
+use std::net::UdpSocket;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, Instant};
@@ -13,6 +13,7 @@ use std::time::{Duration, Instant};
 use session::SessionStore;
 use session::v026g::replays::Replays;
 use survarium::v026g::match_msgs::{ClientMessage, id, parse_client};
+use udp_transport::relay::Peer;
 use udp_transport::{Config, Event, PacketLog, Table, Transport};
 
 use super::Settings;
@@ -54,6 +55,28 @@ struct Stray {
     told: bool,
 }
 
+/// The players who gave their place in `game` up: by their own word
+/// (0xE0), not by a link or a game that broke, or removed as idle
+/// (anti-AFK, as a player who leaves). Each session can be put in another
+/// match, and the queue no longer sends it back to this one when it presses
+/// Play. (Until 2026-10-12 it did, for as long as the match ran: live, a
+/// player who left a match of two was sent back to it three times.) The
+/// place stays in the roster, and the lobby takes the player out of its
+/// room; joining it again while the match is played puts it in as a new
+/// place (the owner's of 2026-10-19), and the result counts its latest
+/// place only.
+fn release_quits(game: &mut Game, registry: &MatchRegistry, store: &SessionStore) {
+    for (session_id, account_id) in game.take_quits() {
+        registry.release(session_id);
+        store.matchmaking().leave_match(account_id);
+        log::info!(
+            "Match {:#x}: session {session_id:#x} gave its place up (it left by its own word, \
+             0xE0, or was removed as idle), and its room if it was in one",
+            game.id
+        );
+    }
+}
+
 /// The 0.26g match server: runs every match the lobby makes in `registry`
 /// on the configured UDP port (`SRP_BIND_HOST`, `SRP_MATCH_PORT`), and
 /// hands each finished one to `results`. Returns only on a socket error.
@@ -79,7 +102,7 @@ pub fn run(
         settings.pack.as_millis()
     );
     serve(
-        &socket,
+        listen(&socket, udp_transport::relay::Relays::from_env()?)?,
         config.match_server.port,
         registry,
         store,
@@ -100,17 +123,21 @@ pub fn run_on(
     results: impl ResultsSink + 'static,
     stop: &AtomicBool,
 ) -> io::Result<()> {
-    run_on_with_replays(socket, registry, store, results, stop, None)
+    let relays = udp_transport::relay::Relays::from_env()?;
+    run_on_with_replays(socket, registry, store, results, relays, stop, None)
 }
 
 /// [`run_on`] whose recordings' writer tells `replays` of every file it
 /// keeps, drops or deletes (`SRP_REPLAY_DIR`, `super::replay`): srp's, one
-/// for the process, which its lobby and web page share.
+/// for the process, which its lobby and web page share. `relays`: the
+/// relays whose tunnel addresses may say a datagram's own address
+/// (`SRP_RELAYS`, parsed once by the caller).
 pub fn run_on_with_replays(
     socket: &UdpSocket,
     registry: Arc<MatchRegistry>,
     store: Arc<SessionStore>,
     results: impl ResultsSink + 'static,
+    relays: udp_transport::relay::Relays,
     stop: &AtomicBool,
     replays: Option<Arc<Replays>>,
 ) -> io::Result<()> {
@@ -130,7 +157,7 @@ pub fn run_on_with_replays(
     );
     let port = registry.port();
     serve(
-        socket,
+        listen(socket, relays)?,
         port,
         registry,
         store,
@@ -140,10 +167,21 @@ pub fn run_on_with_replays(
     )
 }
 
-/// The loop of [`run`] on a socket already bound, until `stop` is set.
-/// `port` is the one the clients are told (0xE3).
-pub(crate) fn serve(
+/// `socket` as [`serve`] reads it: by peer, `relays`' tunnel addresses
+/// saying their datagrams' own addresses, and a receive that returns in
+/// time for the loop's timers.
+pub(crate) fn listen(
     socket: &UdpSocket,
+    relays: udp_transport::relay::Relays,
+) -> io::Result<udp_transport::relay::Datagrams<'_>> {
+    socket.set_read_timeout(Some(RECEIVE_WAIT))?;
+    udp_transport::relay::Datagrams::new(socket, relays)
+}
+
+/// The loop of [`run`] on a socket already bound ([`listen`]), until `stop`
+/// is set. `port` is the one the clients are told (0xE3).
+pub(crate) fn serve(
+    mut socket: udp_transport::relay::Datagrams<'_>,
     port: u16,
     registry: Arc<MatchRegistry>,
     store: Arc<SessionStore>,
@@ -151,13 +189,12 @@ pub(crate) fn serve(
     settings: Settings,
     stop: &AtomicBool,
 ) -> io::Result<()> {
-    socket.set_read_timeout(Some(RECEIVE_WAIT))?;
     let mut server = Server::new(port, registry, store, results, settings, Instant::now());
     server.packet_log = PacketLog::from_env();
     let mut buffer = [0; RECEIVE_BUFFER];
     while !stop.load(Ordering::Relaxed) {
         match socket.recv_from(&mut buffer) {
-            Ok((len, addr)) => server.receive(addr, &buffer[..len], Instant::now()),
+            Ok((len, peer)) => server.receive(peer, &buffer[..len], Instant::now()),
             Err(error)
                 if matches!(
                     error.kind(),
@@ -187,14 +224,14 @@ pub(crate) struct Server {
     recorder: Option<Recorder>,
     pub(crate) games: HashMap<u32, Game>,
     /// Clients not yet placed: their 0xD8 hasn't come.
-    pending: HashMap<SocketAddr, Transport>,
+    pending: HashMap<Peer, Transport>,
     /// Each placed client's match and roster place.
-    routes: HashMap<SocketAddr, (u32, usize)>,
+    routes: HashMap<Peer, (u32, usize)>,
     /// Addresses already logged as sending without being placed.
-    strays_logged: HashSet<SocketAddr>,
+    strays_logged: HashSet<Peer>,
     /// The addresses that send without being placed or connecting, while
     /// each has a transport in `pending`.
-    stray_datagrams: HashMap<SocketAddr, Stray>,
+    stray_datagrams: HashMap<Peer, Stray>,
     next_housekeeping: Instant,
     next_live: Instant,
     /// For tests: the patch revision of a session the store does not hold.
@@ -252,7 +289,7 @@ impl Server {
         }
     }
 
-    pub fn receive(&mut self, addr: SocketAddr, datagram: &[u8], now: Instant) {
+    pub fn receive(&mut self, addr: Peer, datagram: &[u8], now: Instant) {
         if let Some(&(match_id, index)) = self.routes.get(&addr) {
             // A game that left its place and was given a new one (it left
             // by its own word and came again, the owner's of 2026-10-19)
@@ -268,26 +305,7 @@ impl Server {
                     })
             {
                 game.receive(index, datagram, now);
-                for (session_id, account_id) in game.take_quits() {
-                    // The player left by its own word (0xE0), not by a
-                    // link or a game that broke: it has given its place
-                    // up. Its session can be put in another match, and the
-                    // queue no longer sends it back to this one when it
-                    // presses Play. (Until 2026-10-12 it did, for as long
-                    // as the match ran: live, a player who left a match of
-                    // two was sent back to it three times.) The place
-                    // stays in the roster, and the lobby takes the player
-                    // out of its room; joining it again while the match is
-                    // played puts it in as a new place (the owner's of
-                    // 2026-10-19), and the result counts its latest place
-                    // only.
-                    self.registry.release(session_id);
-                    self.store.matchmaking().leave_match(account_id);
-                    log::info!(
-                        "Match {match_id:#x}: player {index} left by its own word (0xE0): its \
-                         place is given up (and its room left, if it was in one)"
-                    );
-                }
+                release_quits(game, &self.registry, &self.store);
                 return;
             }
             self.routes.remove(&addr);
@@ -355,7 +373,7 @@ impl Server {
     /// If the same host is placed under another port, its client's port
     /// changed after the first datagram (a NAT), and nothing it sends gets
     /// through.
-    fn log_stray(&mut self, addr: SocketAddr, len: usize) {
+    fn log_stray(&mut self, addr: Peer, len: usize) {
         let placed = self.routes.keys().find(|other| other.ip() == addr.ip());
         let Some(placed) = placed.copied() else {
             return;
@@ -372,7 +390,7 @@ impl Server {
     }
 
     /// A client's 0xD8: put it in its place in its match.
-    fn connect(&mut self, addr: SocketAddr, session_id: u32, debug: u8, now: Instant) {
+    fn connect(&mut self, addr: Peer, session_id: u32, debug: u8, now: Instant) {
         let Some(mut transport) = self.pending.remove(&addr) else {
             return;
         };
@@ -395,9 +413,9 @@ impl Server {
             log::info!(
                 "Match {:#x}: map {} ({}), mode {}, {} players",
                 formed.match_id,
-                formed.map.id,
-                formed.map.name,
-                formed.map.mode,
+                formed.played.map().id,
+                formed.played.map().name,
+                formed.played.lobby_number(),
                 formed.places.len()
             );
             let mut game = Game::new(formed, self.port, self.settings.clone(), now);
@@ -407,7 +425,7 @@ impl Server {
             self.games.insert(seat.match_id, game);
         }
         let growing = survarium::v026g::match_msgs::late_join::has_connect_capability(debug);
-        if (growing && debug == 0x81) || (!growing && debug != 0) {
+        if (growing && debug & 1 != 0) || (!growing && debug != 0) {
             log::info!(
                 "{addr} (session {session_id:#x}) runs with -debug_hash_mismatch: a stock client \
                  like it would read an upload request (0xF6) as a world to compare"
@@ -427,7 +445,14 @@ impl Server {
             game.sync_roster(formed, now);
         }
         game.attach(index, addr, session_id, revision, transport, now);
+        if survarium::v026g::match_msgs::late_join::has_world_receipts(debug) { game.enable_world_receipts(index); }
+        // It answers an upload request for a tick (patch 211): the desync
+        // capture asks it for the split's own tick.
+        if survarium::v026g::match_msgs::late_join::has_exact_worlds(debug) { game.enable_exact_worlds(index); }
         self.routes.insert(addr, (seat.match_id, index));
+        // The voice relay takes the place's talk only from this IP's
+        // network and by this route.
+        self.registry.set_connection(seat, addr);
         self.store.seen_in_match(session_id);
     }
 
@@ -443,7 +468,7 @@ impl Server {
         self.store.client_revision(session_id).unwrap_or(0)
     }
 
-    pub fn poll(&mut self, now: Instant) -> Vec<(SocketAddr, Vec<u8>)> {
+    pub fn poll(&mut self, now: Instant) -> Vec<(Peer, Vec<u8>)> {
         let mut datagrams = Vec::new();
         let mut results = Vec::new();
         let tell_live = now >= self.next_live;
@@ -455,13 +480,24 @@ impl Server {
                 game.sync_roster(formed, now);
             }
             datagrams.extend(game.poll(now));
+            // A player removed as idle (anti-AFK) gives its place up there,
+            // and the chat says so (the lobby, through srp).
+            release_quits(game, &self.registry, &self.store);
+            for removed in game.take_idle_removed() {
+                self.results.idle_removed(removed);
+            }
             for (place, account_id) in game.take_rejected_joins() {
                 if self.registry.release_place(game.id, place) {
                     self.store.matchmaking().join_failed(account_id);
                 }
             }
-            self.registry
-                .set_admitting(game.id, game.roster_size(), game.admission(now));
+            // The phase with the admission, in one record: a join reads both (Keeper's late joiner).
+            self.registry.set_admitting(
+                game.id,
+                game.roster_size(),
+                game.admission(now),
+                game.live_phase(),
+            );
             if tell_live {
                 self.registry.set_live(game.id, game.live_now(now));
             }
@@ -525,8 +561,10 @@ impl Server {
                 log::info!("Match {match_id:#x}: no client came; given up");
                 self.results.match_ended(MatchResult {
                     match_id,
-                    map_id: formed.map.id,
-                    game_mode: formed.map.mode,
+                    replay_id: formed.replay_id.clone(),
+                    map_id: formed.played.map().id,
+                    mode: formed.played.mode(),
+                    twist: formed.played.armed(),
                     match_level: formed.match_level,
                     // A room's: called off, as one everyone left before its
                     // countdown (`Game::called_off`).
@@ -537,13 +575,13 @@ impl Server {
                     },
                     winner: None,
                     team_points: [0, 0],
+                    round_starts: 0,
                     duration_ms: 0,
                     played_ms: None,
                     trusted_snapshot_ms: None,
                     trusted_by: 0,
-                    vs_bots: formed.vs_bots,
-                    private: formed.private,
-                    blackout: formed.blackout,
+                    vs_bots: formed.kind.vs_bots(),
+                    private: formed.kind.private(),
                     players: formed
                         .places
                         .iter()
@@ -567,6 +605,7 @@ impl Server {
                             longest_killstreak: 0,
                             kit_changes: 0,
                             supplies: None,
+                            weapons: Vec::new(),
                         })
                         .collect(),
                 });

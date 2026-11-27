@@ -1,0 +1,49 @@
+# Patch 205: a magazine reload counts the new ammunition at its clip's
+# reload_commit event (the seat), not only at the clip's end, so a reload left
+# after the seat (a melee, a sprint, a switch) keeps the new magazine
+# (docs/notes/reload-commit.md). The sites are sites_026g.tsv's; the logic is
+# reload_commit.rs over vostok/reload.rs.
+name = "reload_commit"
+patch = 205
+
+# subscribed where the game subscribes a state to its clip's end
+[[hook]]
+site = "reload.listen"
+handler = "on_initialize"
+
+[[hook]]
+site = "reload.listen_again"
+handler = "on_deserialize"
+
+# unsubscribed where the game unsubscribes it
+[[hook]]
+site = "reload.stop_listening"
+handler = "on_finalize"
+
+# the end's load, the same twice as once
+[[hook]]
+site = "reload.load_at_end"
+handler = "on_load_at_end"
+
+# the event
+[[hook]]
+site = "reload.commit_event"
+handler = "on_event"
+
+# the clips the reload picked first, kept after the seat changed the rounds
+# (314 tactical or empty, 311 one shell or two)
+[[hook]]
+site = "reload.pick_empty"
+handler = "on_pick_empty"
+
+[[hook]]
+site = "reload.pick_empty_hands"
+handler = "on_pick_empty_hands"
+
+[[hook]]
+site = "reload.pick_two_shells"
+handler = "on_pick_two_shells"
+
+[[hook]]
+site = "reload.pick_two_shells_hands"
+handler = "on_pick_two_shells_hands"

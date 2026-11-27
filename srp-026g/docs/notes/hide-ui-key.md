@@ -5,16 +5,16 @@ too, for screenshots.
 
 ## The key
 
-- **F11 hides the interface and shows it again.** It is the game's own action
-  `toggle_replay_ui` (shown and hid only the replay viewer's controls before), so a replay keeps
-  F11 as it was.
+- **F9 hides the interface and shows it again** (F11 until the screenshot keys took it,
+  2026-11-16: `screenshots.md`; F9 below wherever this note says "the key"). It is the game's own
+  action `toggle_replay_ui` (shown and hid only the replay viewer's controls before), so in a
+  replay the same key opens the replay's controls.
 - **Options, Controls, "Hide interface"** (Скрыть интерфейс, Сховати інтерфейс, Oberfläche
-  ausblenden, Ukryj interfejs): the last row of the game keys, F11 by default. Rebound there like
-  any other key, saved and read back as the others (`bind toggle_replay_ui <key>` in `user.cfg`).
+  ausblenden, Ukryj interfejs): a row of the game keys, F9 by default. Rebound there like any
+  other key, saved and read back as the others (`bind hide_interface <key>` in `user.cfg`; the
+  name `toggle_replay_ui` an older build saved is dropped, so every player starts at F9).
   The owner, 2026-10-24: "there is no in settings option to switch it".
-- **Why F11:** the game has no screenshot key; F12 is Steam's, Print Screen Windows'. F11 did
-  nothing in a match or the lobby. Free in every group otherwise: B, H, J, U, Y, Z, 9, 0, F4,
-  F7-F10, F12, Caps Lock (L is the game's in a match).
+- **Why F9:** free in every group, and not F10 (Windows' menu key).
 
 ## In a match
 
@@ -24,16 +24,16 @@ too, for screenshots.
 - **Kept, the screen effects** (the owner, 2026-10-24: "part of the scene feel, not UI"): the
   pain's red edges, the blood drips, the grenade's flash (the hud's effects, `add_effect`); the
   game's own post-effects are not touched.
-- **F11 again** shows it.
+- **The key again** shows it.
 - **Unseen, not held back:** the hud keeps running while hidden; kill-feed lines and messages of
   that time come and go unseen, and showing it shows only what is current.
 - **Before the start and after a death:** the kits and the death screen hide with the rest; the
   start, a death and a respawn keep what the player chose (the owner, 2026-10-24: "when you die,
-  the UI comes back" was not wanted). Keys 1, 2 and 3 still pick a kit while hidden; F11 shows
+  the UI comes back" was not wanted). Keys 1, 2 and 3 still pick a kit while hidden; the key shows
   it. The mouse cursor of the kit screen is its own movie and shows.
 - **The next match** starts with the interface shown (the hud's reset; patch 62 shows the
   markers' movie with it).
-- **Not taken:** the key also goes on to the game as before (nothing uses F11 there).
+- **Not taken:** the key also goes on to the game as before (nothing uses it there).
 
 ## In the lobby
 
@@ -43,13 +43,13 @@ too, for screenshots.
   window and message, as in the stock lobby); one coming up while hidden stays hidden. Only the character and the scene stay; drag and
   wheel still turn and zoom the camera.
 - **Clicks** land on nothing hidden.
-- **Shown again by:** F11, any key the lobby movie gets (letters, digits, arrows, Enter,
+- **Shown again by:** the key, any key the lobby movie gets (letters, digits, arrows, Enter,
   Backspace...), Esc, a match found, its loading, the results.
 - **The key that shows it does nothing else**, neither its press nor its release: Enter does not
   press Play nor answer a message hidden with the interface, R does not open the rooms, a letter
   does not start the search, C, I, S, F and O open no window.
 - **Other F keys** (the movie never gets them) do nothing while hidden: F6 does not press Play.
-- **Not while typing:** in a text box F11 is the box's, as before.
+- **Not while typing:** in a text box the key is the box's, as before.
 - **The cursor stays** (its own movie); move it aside for a picture.
 
 ## How
@@ -71,7 +71,7 @@ too, for screenshots.
 ## Later: a match without UI
 
 A prototype is built (2026-10-24): `blackout.md` (a server switch and the static info's flag,
-everything hidden as F11 hides it but the players' markers; the bands parked). The spec below was the
+everything hidden as the key hides it but the players' markers; the bands parked). The spec below was the
 first plan: "the no-UI battery mode", Battery Hunt's rules
 with no UI for anyone; the teams told apart by coloured bands on the characters.
 
@@ -85,7 +85,7 @@ with no UI for anyone; the teams told apart by coloured bands on the characters.
 - **Kept:** the kit screen (after a death, before the start, keys 1-3), the respawn and start
   countdowns, the Tab list's rows, chat, the start and end messages, the Esc menu, the lobby's
   results screen.
-- **F11** (patch 62) still hides what is left; it never brings a hidden part back.
+- **The hide key** (patch 62) still hides what is left; it never brings a hidden part back.
 - **Bots:** not offered (srp's bots play modes 2 to 4).
 
 ### Enforcing it

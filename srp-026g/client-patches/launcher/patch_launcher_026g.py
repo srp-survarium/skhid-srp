@@ -8,18 +8,16 @@ USAGE (this script never touches the source exe):
     python patch_launcher_026g.py <game>/binaries/x86/survarium_launcher.exe <out>/launcher_skhid.exe
         [--site=https://skhid.link]     the server's web page (HTTPS)
         [--game-exe=survarium_skhid.exe] what PLAY starts, beside the launcher
-        [--arguments="-mt_allocator=768 -minimum_resources_memory_size=768"]
-        [--bin=<file>]                  another launcher_values_026g.bin
+        [--arguments="-minimum_resources_memory_size=768"]
     python patch_launcher_026g.py <survarium_launcher.exe> --check [...]
         every check and patch in memory, nothing written
     python selftest_launcher_026g.py
         builds it, re-parses and disassembles every patched site
 
     <survarium_launcher.exe> must be the ORIGINAL 0.26g launcher (the sha256
-    is checked); the output must be another file. The new code comes from
-    launcher_values_026g.asm:
-        nasm -f bin -DCAVE=0x49A000 launcher_values_026g.asm -o launcher_values_026g.bin
-    (the .bin is checked in).
+    is checked); the output must be another file. The new code is
+    launcher_values_026g.asm, assembled by every build (code(): NASM, the
+    dev shell's).
 
 What is changed and why, patch by patch, with the evidence for every
 address: README.md beside this file. Each site is compared with the original
@@ -30,7 +28,9 @@ import hashlib
 import os
 import re
 import struct
+import subprocess
 import sys
+import tempfile
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.dirname(HERE))
@@ -46,16 +46,18 @@ UPDATER_NAME = "updater_skhid.exe"
 PAGES_DIR = "launcher_skhid"
 DEFAULT_SITE = "https://skhid.link"
 DEFAULT_GAME_EXE = "survarium_skhid.exe"
-DEFAULT_ARGUMENTS = "-mt_allocator=768 -minimum_resources_memory_size=768"
+DEFAULT_ARGUMENTS = "-minimum_resources_memory_size=768"
 
 # The new section, right after .reloc (the original image ends there).
 SECTION_NAME = b".skhid\0\0"
 SECTION_RVA = 0x48A000
 SECTION_VA = IMAGE_BASE + SECTION_RVA           # 0x49A000, the CAVE of the .bin
 SECTION_CHARACTERISTICS = 0x60000020            # code, execute, read (as .text)
+SECTION_PAGES = 4                               # its pages at most (the code and the site's addresses)
 
 # launcher_values_026g.bin: the code, three zero-filled ASCII slots, then the
-# language code (LANGUAGE_ENTRIES_AT on) with the generated language table.
+# entries (ENTRIES_AT on), the language code with the generated language
+# table and the box's code (patch 15).
 SLOTS = {"exe_name": (304, 32), "arguments": (336, 160), "server": (496, 64)}
 INSTALL_STATUS_AT = 560
 INSTALL_STATUS = 0x16D06
@@ -78,10 +80,10 @@ ENTER_KEY_DONE = 0x14F26
 # The language is the game's own `localization` line of user.cfg, every
 # language of the game in the launcher's menu (launcher_values_026g.asm,
 # "The language"). Each site becomes a call or a jump to its entry of
-# `language_entries`, 8 bytes each from LANGUAGE_ENTRIES_AT, in this order;
+# `language_entries`, 8 bytes each from ENTRIES_AT, in this order;
 # the relocations of the replaced instructions are disabled.
 # (VA, original bytes, "call" or "jmp", what)
-LANGUAGE_ENTRIES_AT = 0x260
+ENTRIES_AT = 0x260
 LANGUAGE_HOOKS = [
     (0x19663, "8b04c580820400", "call", "language_menu: the button's label of every language"),
     (0x150B3, "0fb7344598e00300", "call", "on_language_changed: the LANGID of every language"),
@@ -91,6 +93,57 @@ LANGUAGE_HOOKS = [
     (0x19A08, "568b742408", "jmp", "language_menu: the button opens a menu of every language"),
 ]
 LANGUAGE_RELOCATIONS = [0x19666, 0x150B7, 0x1A84C]
+
+# 15. "Allow torrent" is a box on the main window, in the bottom panel left
+# of the status line: YouTube's control (gone since 8) with the settings
+# window's pictures and text (launcher_values_026g.asm, "Allow torrent"),
+# kept in user.cfg as the language is (`enable_torrent_seeding on`/`off`,
+# read with it at the start: settings::reload_language's hook above). Their
+# entries follow the language's, in this order; no relocation is under any
+# of them.
+TORRENT_HOOKS = [
+    (0x1AD78, "e8c373ffff", "call", "launcher_form: the bottom panel's picture gets the box's text"),
+    (0x1AE1F, "e82477ffff", "call", "launcher_form: YouTube's control is the box, ticked as settings+0 says"),
+    (0x1B4D9, "e80277ffff", "call", "set_status_texts: the panel's picture made anew, then the box's text"),
+    (0x1BD03, "837c240400", "jmp", "YouTube's click is the box's: Allow torrent toggled, saved, told"),
+    (0x1AEA3, "e8a076ffff", "call", "launcher_form: Twitter's control, over the box's text, is opaque"),
+]
+# 16. "Relay: auto / on / off" is a row under "Allow torrent": VK's control
+# (gone since 8) with the settings gear's pictures, and a text beside it;
+# what it shows is said by the updater (message 0A, the dispatch table's
+# entry below), its click opens a menu of the three and the pick is sent to
+# the updater (22, 23, 24) (launcher_values_026g.asm, "Relay"). The status line's text of the
+# launcher's states 6 and 7 goes through `restart_text`: "Server
+# maintenance..." counts the updater's seconds to its next try (message 13h)
+# while a server restarts. Their entries follow the torrent's; no relocation
+# is under any.
+RELAY_HOOKS = [
+    (0x1AEE5, "e85e76ffff", "call", "launcher_form: VK's control is the relay button, shown as the updater said"),
+    (0x1BD3C, "837c240400", "jmp", "VK's click is the relay button's: the menu, its pick to the updater"),
+    (0x1687C, "e827cfffff", "call", "refresh_status: \"Server maintenance...\" counts the updater's seconds to its next try"),
+]
+# 17. "(5/69)" after the downloading line's "... left": which file of how
+# many, as the updater says it (message 0B, the dispatch table's entry
+# below). The line's `load_string` call for "%s left" goes through
+# `count_text`. No relocation is under it.
+COUNT_HOOKS = [
+    (0x16ADF, "e8c4ccffff", "call", "refresh_status: \"... left\" says which file of how many"),
+]
+ENTRY_HOOKS = LANGUAGE_HOOKS + TORRENT_HOOKS + RELAY_HOOKS + COUNT_HOOKS
+# on_updater_message's dispatch table (0x1609E, `jmp [0x1609E + (id-1)*4]`):
+# message 0A's entry (it pointed at the handlers' common end, as 0B..0D
+# still do) becomes the entry after the hooks' (`route_message`). A
+# relocated dword, and it stays one.
+ROUTE_TABLE = (0x160C2, 0x16093, "on_updater_message: message 0A is what the relay box shows")
+ROUTE_ENTRY = len(ENTRY_HOOKS)
+# Message 0B's (`count_message`), the entry after it.
+COUNT_TABLE = (0x160C6, 0x16093, "on_updater_message: message 0B is which file of how many")
+MESSAGE_TABLES = [ROUTE_TABLE, COUNT_TABLE]     # their entries from ROUTE_ENTRY, in this order
+# The relay row's state (launcher_values_026g.asm RELAY_STATE, 0x4A800..
+# 0x4A810) is in .data past its last variable: its VirtualSize grows into
+# the page that was already there, zero and unused. The file count (FILE_COUNT,
+# 0x4A810..0x4A814) follows it.
+DATA_SECTION = (2, b".data\0\0\0", 0x67FC, 0x6814)
 
 # (VA, original bytes, new bytes, what): code and read-only data, in place.
 PATCHES = [
@@ -137,10 +190,29 @@ PATCHES = [
     # is in the lobby now: they do nothing (and are moved out of sight below).
     (0x1BBEF, "55", "c3", "SHOP click: ret"),
     (0x1BC45, "55", "c3", "CREATE ACCOUNT click: ret"),
-    (0x1BD03, "83", "c3", "YouTube click: ret"),
     (0x1BD16, "83", "c3", "Facebook click: ret"),
-    (0x1BD29, "83", "c3", "Twitter click: ret"),
-    (0x1BD3C, "83", "c3", "VK click: ret"),
+    (0x1BD29, "837c", "ebd8", "Twitter click (the box's text, 15): jmp 0x1BD03, the box's"),
+    # 15. The box is YouTube's control: the settings window's pictures of
+    # its box in the place of YouTube's (unticked, under the pointer,
+    # pressed) and of Facebook's first (ticked), and its 20 by 20 pixels.
+    (0x1AAFC, "6848010000", "685b010000", "launcher_form: YouTube's picture is PNG 347, the box unticked"),
+    (0x1AB0F, "6849010000", "6859010000", "launcher_form: YouTube's under the pointer is PNG 345"),
+    (0x1AB22, "684a010000", "685a010000", "launcher_form: YouTube's pressed is PNG 346"),
+    (0x1AB35, "684b010000", "6858010000", "launcher_form: Facebook's first picture is PNG 344, the box ticked"),
+    (0x3A715, "83c01b", "83c014", "YouTube's rect: add eax,20 (the box's width)"),
+    (0x3A722, "83c01b", "83c014", "YouTube's rect: add eax,20 (the box's height)"),
+    # Twitter's control lies over the box's text, its rect all static (the
+    # widest text, Russian, is 134 pixels; its initializer adds at most 127).
+    (0x3A746, "a1", "c3", "Twitter's rect: its initializer returns at once"),
+    (0x458CC, "0000000000000000", "bb00000028000000", "Twitter's rect: right 187, bottom 40"),
+    # 16. The relay button is VK's control: the settings gear's pictures (the
+    # launcher's own: PNG 308, under the pointer 309, pressed 310) in VK's
+    # place, and its 20 by 20 pixels.
+    (0x1ABA7, "6851010000", "6834010000", "launcher_form: VK's picture is PNG 308, the gear"),
+    (0x1ABBA, "6852010000", "6835010000", "launcher_form: VK's under the pointer is PNG 309"),
+    (0x1ABCD, "6853010000", "6836010000", "launcher_form: VK's pressed is PNG 310"),
+    (0x3A766, "83c01b", "83c014", "VK's rect: add eax,20 (the relay button's width)"),
+    (0x3A773, "83c01b", "83c014", "VK's rect: add eax,20 (the relay button's height)"),
 ]
 
 # start_updater, when no version could be read (the game exe PLAY starts is
@@ -202,19 +274,23 @@ URLS = [
     (0x1BCBA, 0x3F630, "http://survarium.com/", "/?lang=", "PROJECT WEBSITE"),
 ]
 
-# (rect VA, original left, original top, new left, what): where a button is
-# on its panel. 30000 is far outside the panel: the button is never drawn
-# and never under the mouse.
+# (rect VA, original left, original top, new left, new top, what): where a
+# button is on its panel. 30000 is far outside the panel: the button is
+# never drawn and never under the mouse.
 GONE = 30000
 RECTS = [
-    (0x45814, 819, 12, GONE, "settings (torrent, port): nothing of it applies"),
-    (0x45844, 750, 47, GONE, "SHOP: silver and gold are exchanged in the lobby"),
-    (0x45854, 614, 47, GONE, "CREATE ACCOUNT: an account is made by the first sign-in"),
-    (0x45864, 478, 47, 750, "PROJECT WEBSITE: moved to SHOP's place, at the right"),
-    (0x458A4, 32, 28, GONE, "YouTube"),
-    (0x458B4, 68, 28, GONE, "Facebook"),
-    (0x458C4, 104, 28, GONE, "Twitter"),
-    (0x458D4, 140, 28, GONE, "VK"),
+    (0x45814, 819, 12, GONE, 12, "settings (the gear): its Allow torrent is on the main window (15)"),
+    (0x45844, 750, 47, GONE, 47, "SHOP: silver and gold are exchanged in the lobby"),
+    (0x45854, 614, 47, GONE, 47, "CREATE ACCOUNT: an account is made by the first sign-in"),
+    (0x45864, 478, 47, 750, 47, "PROJECT WEBSITE: moved to SHOP's place, at the right"),
+    # The bottom panel's left part, where the social buttons were: the two
+    # boxes in line with the page's left column, the pair centred on the
+    # status line and PLAY; their text (25 pixels right) ends before the
+    # status line (x 200).
+    (0x458A4, 32, 28, 28, 20, "YouTube's: the Allow torrent box (15)"),
+    (0x458B4, 68, 28, GONE, 28, "Facebook"),
+    (0x458C4, 104, 28, 53, 20, "Twitter's: over the Allow torrent text, clickable (15)"),
+    (0x458D4, 140, 28, 28, 46, "VK's: the relay button (16), hidden until the updater says"),
 ]
 
 
@@ -320,8 +396,8 @@ def add_section(data, content):
     # The certificate table is the only thing after the last section.
     if security_offset != raw or security_offset + security_size != len(data) or raw % headers.file_alignment:
         sys.exit("unexpected layout after the last section")
-    if len(content) > headers.section_alignment:
-        sys.exit(f"the new section is {len(content)} bytes; one page fits")
+    if len(content) > SECTION_PAGES * headers.section_alignment:
+        sys.exit(f"the new section is {len(content)} bytes; {SECTION_PAGES} pages fit")
     raw_size = align(len(content), headers.file_alignment)
     out = bytearray(data[:raw]) + content + b"\0" * (raw_size - len(content))
     out[slot:slot + 40] = SECTION_NAME + struct.pack(
@@ -374,16 +450,25 @@ def build(original, code, site=DEFAULT_SITE, game_exe=DEFAULT_GAME_EXE, argument
         at = image.expect(va, utf16(old) + b"\0\0", "the address of a removed button")
         image.data[at:at + len(utf16(old))] = b"\0" * len(utf16(old))
 
-    for va, left, top, new_left, what in RECTS:
-        image.patch(va, struct.pack("<ii", left, top), struct.pack("<i", new_left), what)
+    for va, left, top, new_left, new_top, what in RECTS:
+        image.patch(va, struct.pack("<ii", left, top), struct.pack("<ii", new_left, new_top), what)
 
-    # The language's sites call or jump to their entries.
-    if len(code) < LANGUAGE_ENTRIES_AT + 8 * len(LANGUAGE_HOOKS):
-        sys.exit(f"launcher_values_026g.bin is {len(code)} bytes: no language entries")
-    for number, (va, expected, kind, what) in enumerate(LANGUAGE_HOOKS):
-        entry = LANGUAGE_ENTRIES_AT + 8 * number
+    # The language's sites, and the box's, call or jump to their entries.
+    if len(code) < ENTRIES_AT + 8 * len(ENTRY_HOOKS):
+        sys.exit(f"launcher_values_026g.bin is {len(code)} bytes: no entries")
+    for va, expected, _, what in TORRENT_HOOKS + RELAY_HOOKS + COUNT_HOOKS:
+        if any(va <= at + 3 and at < va + len(bytes.fromhex(expected)) for at in relocations):
+            sys.exit(f"{va:#x} ({what}): a relocation overlaps the hook")
+    for number, (va, old, what) in enumerate(MESSAGE_TABLES, ROUTE_ENTRY):
+        if len(code) < ENTRIES_AT + 8 * (number + 1) or code[ENTRIES_AT + 8 * number] != 0xE9:
+            sys.exit(f"launcher_values_026g.bin: no entry after the hooks' ({what})")
+        if va not in relocations:
+            sys.exit(f"{va:#x} ({what}): the table's entry is not relocated")
+        image.patch(va, struct.pack("<I", old), struct.pack("<I", SECTION_VA + ENTRIES_AT + 8 * number), what)
+    for number, (va, expected, kind, what) in enumerate(ENTRY_HOOKS):
+        entry = ENTRIES_AT + 8 * number
         if code[entry] != 0xE9:
-            sys.exit(f"launcher_values_026g.bin: language entry {number} at {entry:#x} is not a jump")
+            sys.exit(f"launcher_values_026g.bin: entry {number} at {entry:#x} is not a jump")
         expected = bytes.fromhex(expected)
         opcode = b"\xE8" if kind == "call" else b"\xE9"
         new = opcode + struct.pack("<i", SECTION_VA + entry - va - 5) + b"\x90" * (len(expected) - 5)
@@ -440,6 +525,15 @@ def build(original, code, site=DEFAULT_SITE, game_exe=DEFAULT_GAME_EXE, argument
         sys.exit("launcher_values_026g.bin does not come back to the message loop "
                  f"(was it assembled with -DCAVE={SECTION_VA:#x}?)")
 
+    number, name, old_size, new_size = DATA_SECTION
+    headers = P.Headers(image.data)
+    entry = headers.table + 40 * number
+    if bytes(image.data[entry:entry + 8]) != name or struct.unpack_from("<I", image.data, entry + 8)[0] != old_size:
+        sys.exit(".data is not where it was, or not of its size")
+    if (old_size + 0xFFF) // 0x1000 != (new_size + 0xFFF) // 0x1000:
+        sys.exit(".data would grow into another page")
+    struct.pack_into("<I", image.data, entry + 8, new_size)
+
     data = add_section(image.data, bytes(section))
     headers = P.Headers(data)
     struct.pack_into("<I", data, headers.checksum_at, P.pe_checksum(data, headers.checksum_at))
@@ -447,18 +541,36 @@ def build(original, code, site=DEFAULT_SITE, game_exe=DEFAULT_GAME_EXE, argument
                   f"the installer's values from {len(code)} bytes of new code in .skhid at {SECTION_VA:#x}, "
                   f"site {site}, PLAY (or Enter) starts {game_exe} {arguments}, updater {UPDATER_NAME}, "
                   f"the language in user.cfg ({len(LANGUAGE_HOOKS)} sites), "
+                  f"Allow torrent on the main window ({len(TORRENT_HOOKS)} sites), "
+                  f"Relay: auto/on/off under it ({len(RELAY_HOOKS)} sites and message 0A), "
+                  f"the file count of a download ({len(COUNT_HOOKS)} site and message 0B), "
                   f"local pages in {PAGES_DIR}, {sum(1 for r in RECTS if r[3] == GONE)} buttons removed, "
                   "signature removed")
 
 
-def default_bin():
-    return os.path.join(HERE, "launcher_values_026g.bin")
+def code():
+    """launcher_values_026g.asm assembled at CAVE by the arena's NASM (link_026g.py's
+    toolchain: 2.16, NASM or NASM_DIR), with the game's languages
+    (launcher_languages_026g.inc, from localization_026g.py's LANGUAGES)."""
+    import localization_026g
+    try:
+        nasm = P.linker.toolchain()["nasm"]
+    except P.linker.LinkError as error:
+        sys.exit(f"the launcher's code: {error}")
+    with tempfile.TemporaryDirectory(prefix="srp-launcher-") as folder:
+        with open(os.path.join(folder, "launcher_languages_026g.inc"), "w", encoding="utf-8") as table:
+            table.write(localization_026g.launcher_table())
+        out = os.path.join(folder, "launcher_values_026g.bin")
+        subprocess.run([nasm, "-f", "bin", f"-DCAVE={SECTION_VA:#x}", "-I", folder + os.sep,
+                        os.path.join(HERE, "launcher_values_026g.asm"), "-o", out], check=True)
+        with open(out, "rb") as file:
+            return file.read()
 
 
 def main():
     args = [a for a in sys.argv[1:] if not a.startswith("--") or a == "--check"]
     options = [a for a in sys.argv[1:] if a.startswith("--") and a != "--check"]
-    settings, bin_path = {}, None
+    settings = {}
     for option in options:
         name, _, value = option.partition("=")
         if name == "--site":
@@ -467,8 +579,6 @@ def main():
             settings["game_exe"] = value
         elif name == "--arguments":
             settings["arguments"] = value
-        elif name == "--bin":
-            bin_path = value
         else:
             sys.exit(f"unknown option {option}\n\n{__doc__}")
     if len(args) != 2:
@@ -476,11 +586,9 @@ def main():
     source, target = args
     if target != "--check" and os.path.exists(target) and os.path.samefile(source, target):
         sys.exit("the output must not be the original exe")
-    with open(bin_path or default_bin(), "rb") as file:
-        code = file.read()
     with open(source, "rb") as file:
         original = file.read()
-    data, description = build(original, code, **settings)
+    data, description = build(original, code(), **settings)
     if target != "--check":
         with open(target, "wb") as out:
             out.write(data)

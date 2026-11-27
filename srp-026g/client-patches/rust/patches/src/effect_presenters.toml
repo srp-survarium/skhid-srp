@@ -1,0 +1,16 @@
+# A presenter given an event for an effect it holds no entry of ignores it
+# (README "A presenter ignores an effect it does not hold").
+name = "effect_presenters"
+patch = 117
+
+[[hook]]
+site = "effect_presenter.sound_stop"
+handler = "on_sound_stop"
+
+[[hook]]
+site = "effect_presenter.sound_update"
+handler = "on_sound_update"
+
+[[hook]]
+site = "effect_presenter.particle_stop"
+handler = "on_particle_stop"

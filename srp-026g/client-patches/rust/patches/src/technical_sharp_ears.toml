@@ -1,0 +1,22 @@
+# Patch 180: Sharp Ears (412; docs/notes/technical-skills.md). The logic is technical_sharp_ears.rs.
+name = "technical_sharp_ears"
+patch = 180
+
+# A match frame after the simulation's move (the game's thread): the long-range pin pull asked for
+# at the first (after every other handler of the site, orders 0 to 6).
+[[hook]]
+site = "game_world.after_move"
+handler = "on_frame"
+order = 8
+
+# A weapon sound was made (mt_draw's tasks): an enemy's pin pull also plays the copy at the
+# thrower, for a local player with the skill (the site's only handler).
+[[hook]]
+site = "weapon_sound.made"
+handler = "on_weapon_sound"
+order = 2
+
+# The copy's query: its sound kept.
+[[hook]]
+site = "resources.query_done"
+handler = "on_loaded"

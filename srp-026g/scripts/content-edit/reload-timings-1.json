@@ -1,0 +1,16 @@
+{
+  "_comment": "Compile explicit reload/reload_empty seconds from weapon-stats.tsv into synchronized hands, item and event times. Apply after weapon-stats.tsv.",
+  "retime_reload": [
+    {
+      "files": "gameplay/items/weapons/wpn_*.options"
+    }
+  ],
+  "_inputs": [
+    {
+      "files": "animations/single/weapons/*reload*.b-spline"
+    },
+    {
+      "files": "animations/single/weapons/*reload*.bones_names"
+    }
+  ]
+}

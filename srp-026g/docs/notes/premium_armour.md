@@ -2,10 +2,15 @@
 
 The owner's rule of 2026-10-22: give the premium armour the golden weapons' treatment
 ([golden_weapons.md](golden_weapons.md)), so that the Modification (reroll) button works on it. Code:
-`survarium::v026g::golden` (`PREMIUM_ARMOUR`), `session::v026g::items_rules`
-(`give_premium_armour_bonuses`), `Account::add_item`; the data:
-`scripts/content-edit/premium-armour-1.json`; the lobby: `ItemDictId.PREMIUM_ARMOUR*`,
+`survarium::v026g::golden`, `session::v026g::items_rules`, `Account::add_item` (owned pieces got
+their bonuses once in 2026-10); the data:
+`scripts/content-edit/armor.tsv` (rarity 0, no experience or reputation cell), `items.tsv` (`like`,
+`start`); the lobby: `ItemDictId.PREMIUM_ARMOUR*`,
 `ItemFactory` (`isGolden`, `plainOf`, `startingModifiers`, `BONUS_UI`).
+
+**The bonuses' values** (the owner's of 2026-11-08, "a general update to those types of bonuses"):
+experience +20 % (1240) and reputation +50 % (1250 to 1280), each +5 % in 0.26g; every item that
+holds one, the Keeper of the Sun's too (`modifications.tsv`). The +5 % below is the 0.26g value.
 
 - **The items:** every armour piece with a base rarity in the game's data, the jackets and trousers
   of the Bandit (8) and Survivor (14) bundles. Nothing else gold-sold is armour with premium bonuses:
@@ -34,7 +39,7 @@ The owner's rule of 2026-10-22: give the premium armour the golden weapons' trea
   `scav_legs_4`.
 - **The other choice** (the owner may switch to it): keep only +5 % experience (1240, the bonus all
   four share, as the silver one all golden weapons share), the reputation bonus goes; rank 1, two
-  craft places. It changes the patch (1250 / 1260 removed, not granted), `PREMIUM_ARMOUR`'s bonuses
+  craft places. It changes the patch (1250 / 1260 removed, not granted), the pieces' `start` in `items.tsv`
   and the lobby's `PREMIUM_ARMOUR_BONUSES`; the one-time grant would then give 1240 only.
 - **Upgradable as the plain piece:** same item level, so the same craft and reroll prices and
   chances; the premium bonuses reroll as any modification (a failed craft takes none, owner
@@ -46,7 +51,8 @@ The owner's rule of 2026-10-22: give the premium armour the golden weapons' trea
   descriptor's rarity is 0 now).
 - **Shop and bundles** show the two bonuses on a piece not owned (`ItemFactory.startingModifiers`;
   a test holds the icons and props to the data). Owned ones show the server's.
-- **Owned before:** at the first start of the srp with this rule each premium piece gets the bonuses
+- **Owned before** (a one-time grant that ran; its code went on 2026-11-08): at the first start
+  of the srp with this rule each premium piece gets the bonuses
   it lacks (none of that modification type held) as its first modifications, once (`g26_meta`
   `premium_armour_given`, written only after the changed accounts are; an account not written stops
   srp, and the next start gives them again to the pieces still without them). Each account changed is

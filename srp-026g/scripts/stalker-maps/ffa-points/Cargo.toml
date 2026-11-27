@@ -1,0 +1,8 @@
+[package]
+name = "stalker-ffa-points"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[dependencies]
+mapdata = { path = "../../../crates/mapdata" }

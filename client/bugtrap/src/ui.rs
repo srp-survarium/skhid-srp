@@ -7,6 +7,7 @@ use windows_sys::Win32::{
     System::{
         DataExchange::{CloseClipboard, EmptyClipboard, OpenClipboard, SetClipboardData},
         Memory::{GMEM_MOVEABLE, GlobalAlloc, GlobalLock, GlobalUnlock},
+        SystemInformation::GetWindowsDirectoryW,
         SystemServices::*,
     },
     UI::{Controls::*, Shell::ShellExecuteW, WindowsAndMessaging::*},
@@ -65,6 +66,8 @@ struct DialogData {
     small_icon: HICON,
     folder: *const u16,
     filename: *const u16,
+    /// The whole path of the file shown, for "Open folder".
+    path: *const [u16],
     have_dump: bool,
     text: &'static crash_text::Text,
     /// The short details the dialog shows, and what "Copy" copies.
@@ -128,7 +131,8 @@ unsafe extern "system" fn dialog(window: HWND, msg: u32, wp: usize, lp: isize) -
                 data.font = CreateFontIndirectW(&font);
                 if !data.font.is_null() {
                     for id in [
-                        1030, 1031, 1034, 1035, 1036, 1037, 1038, 1040, 1041, 1042, 1013, IDCANCEL,
+                        1030, 1031, 1034, 1035, 1036, 1037, 1038, 1040, 1041, 1042, 1013, 1043,
+                        IDCANCEL,
                     ] {
                         SendDlgItemMessageW(window, id, WM_SETFONT, data.font as usize, 1);
                     }
@@ -179,7 +183,7 @@ unsafe extern "system" fn dialog(window: HWND, msg: u32, wp: usize, lp: isize) -
             SetBkColor(wp as HDC, GetSysColor(COLOR_WINDOW));
             GetSysColorBrush(COLOR_WINDOW) as isize
         }
-        WM_DRAWITEM if wp == 1013 => {
+        WM_DRAWITEM if wp == 1013 || wp == 1043 => {
             let item = &*(lp as *const DRAWITEMSTRUCT);
             let saved = SaveDC(item.hDC);
             let mut rect = item.rcItem;
@@ -253,7 +257,7 @@ unsafe extern "system" fn dialog(window: HWND, msg: u32, wp: usize, lp: isize) -
             let result = ShellExecuteW(
                 window,
                 windows_sys::w!("open"),
-                windows_sys::w!("https://discord.gg/Pxa4prXfwu"),
+                windows_sys::w!("https://discord.gg/QUmJg3gBhg"),
                 core::ptr::null(),
                 core::ptr::null(),
                 SW_SHOWNORMAL,
@@ -275,6 +279,11 @@ unsafe extern "system" fn dialog(window: HWND, msg: u32, wp: usize, lp: isize) -
                     MB_OK | MB_ICONINFORMATION,
                 );
             }
+            1
+        }
+        WM_COMMAND if wp as u16 == 1043 => {
+            let data = &*(GetWindowLongW(window, DWL_USER as i32) as *const DialogData);
+            show_in_folder(window, &*data.path, data.folder);
             1
         }
         WM_COMMAND if wp as u16 == 1041 => {
@@ -353,7 +362,7 @@ unsafe fn tighten(window: HWND) {
     lift(
         window,
         &[
-            1039, 1040, 1042, 1037, 1034, 1038, 1035, 1036, 1033, 1013, 1041, IDCANCEL,
+            1039, 1040, 1042, 1037, 1034, 1038, 1035, 1036, 1033, 1013, 1043, 1041, IDCANCEL,
         ],
         slack,
     );
@@ -408,6 +417,40 @@ unsafe fn lift(window: HWND, ids: &[i32], slack: i32) {
     );
 }
 
+/// Shows `path` selected in its folder: Explorer's `/select`, a process of
+/// its own, so a slow shell cannot hold the dialog. Failing that, the folder
+/// alone; failing that, nothing.
+unsafe fn show_in_folder(window: HWND, path: &[u16], folder: *const u16) {
+    let mut explorer = Wide::<300>::new();
+    explorer.len = GetWindowsDirectoryW(explorer.buf.as_mut_ptr(), 260) as usize;
+    let mut select = Wide::<32800>::new();
+    if (1..260).contains(&explorer.len)
+        && write!(explorer, "\\explorer.exe").is_ok()
+        && write!(select, "/select,\"").is_ok()
+        && select.wide(path).is_ok()
+        && write!(select, "\"").is_ok()
+        && ShellExecuteW(
+            window,
+            windows_sys::w!("open"),
+            explorer.ptr(),
+            select.ptr(),
+            core::ptr::null(),
+            SW_SHOWNORMAL,
+        ) as isize
+            > 32
+    {
+        return;
+    }
+    ShellExecuteW(
+        window,
+        windows_sys::w!("open"),
+        folder,
+        core::ptr::null(),
+        core::ptr::null(),
+        SW_SHOWNORMAL,
+    );
+}
+
 /// Puts `text` on the clipboard as Unicode text.
 unsafe fn copy(window: HWND, text: &[u16]) -> bool {
     const CF_UNICODETEXT: u32 = 13;
@@ -434,10 +477,23 @@ unsafe fn copy(window: HWND, text: &[u16]) -> bool {
     ok
 }
 
+/// A kept full-memory dump (`SKHID_CRASH_DUMP=full`): the player keeps it
+/// for the developer and does not post it.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum FullDump {
+    /// Its text report beside it, of the same name: `path` names the report.
+    WithReport,
+    /// No report could be written: `path` names the dump, not shown as a
+    /// file to send.
+    WithoutReport,
+}
+
 /// `path`: the kept dump (ZIP or `.dmp`), or with none the text report, or
-/// empty. `capture`: the last dump error came from the capture itself.
+/// empty; with `full`, as [`FullDump`] says. `capture`: the last dump error
+/// came from the capture itself.
 pub unsafe fn show(
     path: &Wide<32768>,
+    full: Option<FullDump>,
     saved: bool,
     partial: bool,
     error: u32,
@@ -455,18 +511,30 @@ pub unsafe fn show(
     let mut folder = Wide::<32768>::new();
     let _ = folder.wide(&path.buf[..split]);
     let failure = details::failure(capture, error);
-    let _ = write!(
-        message,
-        "{}",
-        crash_text::status(text, saved, partial, failure)
-    );
+    if full.is_some() {
+        // The dump's name: the report's, its `.txt` the dump's `.dmp`.
+        let name = &path.buf[split..path.len];
+        let _ = write!(message, "{}\r\n", text.full_saved);
+        let _ = message.wide(&name[..name.len().saturating_sub(4)]);
+        let _ = write!(message, ".dmp");
+    } else {
+        let _ = write!(
+            message,
+            "{}",
+            crash_text::status(text, saved, partial, failure)
+        );
+    }
     if !saved {
         let _ = write!(message, "\r\n({} ", text.error);
         let _ = details::write_code(&mut message, error);
         let _ = write!(message, ")");
     }
-    let have_file = path.len > 0;
-    let instructions = if have_file {
+    let have_file = path.len > 0 && full != Some(FullDump::WithoutReport);
+    let instructions = if full == Some(FullDump::WithReport) {
+        text.full_instructions
+    } else if full == Some(FullDump::WithoutReport) {
+        text.full_no_file
+    } else if have_file {
         text.instructions
     } else {
         text.no_file
@@ -500,8 +568,8 @@ pub unsafe fn show(
             | DS_CENTER as u32,
     );
     t.dword(0);
-    // The number of controls below.
-    t.word(if extra != 0 { 15 } else { 14 });
+    // The number of controls below: Open folder only with a file to show.
+    t.word(14 + (extra != 0) as u16 + have_file as u16);
     t.word(0);
     t.word(0);
     t.word(380);
@@ -615,9 +683,18 @@ pub unsafe fn show(
         0x80,
         text.discord,
     );
+    if have_file {
+        t.control(
+            WS_CHILD | WS_VISIBLE | WS_TABSTOP | BS_OWNERDRAW as u32,
+            [99, 177 + extra, 86, 16],
+            1043,
+            0x80,
+            text.open_folder,
+        );
+    }
     t.control(
         WS_CHILD | WS_VISIBLE | WS_TABSTOP | (BS_PUSHBUTTON | BS_CENTER | BS_VCENTER) as u32,
-        [99, 177 + extra, 70, 16],
+        [if have_file { 191 } else { 99 }, 177 + extra, 70, 16],
         1041,
         0x80,
         text.copy,
@@ -629,6 +706,7 @@ pub unsafe fn show(
         small_icon: null_mut(),
         folder: folder.ptr(),
         filename: path.buf.as_ptr().add(split),
+        path: &path.buf[..path.len],
         have_dump: have_file,
         text,
         details: short.ptr(),

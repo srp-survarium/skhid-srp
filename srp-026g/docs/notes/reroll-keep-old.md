@@ -67,13 +67,23 @@ locked into one". Code: `items_rules::reroll`; the lobby: `MessageRerollItem.upd
 ## The item's stats on hover
 
 The owner, 2026-10-23: "when in modification, when hovering over the weapon, it should show its
-stats". The lobby: `MessageRerollItem.configUI`, `updateModifiers`.
+stats". The lobby: `MessageRerollItem.configUI`, `updateModifiers`, `LobbyMenu.showRerollItemHint`.
 
-- **Rule:** hovering the item's picture (top left of the window) shows the lobby's item tip
-  (`SrvItemHintRednerer`, as on a profile's items): name, stats with its modifications applied,
-  the modifications. Weapons and armour alike.
-- **After a change:** the tip's modifications are the ones the window was filled with last (on
+- **Rule:** hovering the item's picture (top left of the window) shows the inventory's item card
+  (`LobbyMenu.showKitCard`, as a kit slot's), uncompared: name, stats with its modifications
+  applied, the modifications. Weapons and armour alike. It stands left of the window at its top
+  (right of it when the left has no room) and stays on the screen as the inventory's card does
+  when Shift or Alt change its height.
+- **The size (the owner, 2026-11-06):** "when hovering over weapon in modifications window, it is
+  open with too big font/size". Until then the window showed a tooltip (`SrvItemHintRednerer`),
+  drawn at the lobby's scale twice (`ItemTipRenderer`'s `scaleFactor` inside the tooltips'
+  container at `overlayScale`) and kept on the screen only when shown; the window now sends
+  `MessageRerollItem.SHOW_CARD` / `HIDE_CARD` and the lobby shows its one card.
+- **After a change:** the card's modifications are the ones the window was filled with last (on
   opening, after a choice or Cancel), with the item kind's own: the stats follow the new one.
-  While the three are offered the item is unchanged, so is the tip.
-- **The Upgrade (craft) window:** its slots already show the item's tip, compared with the other
-  slot's (craft-menu.md); unchanged.
+  While the three are offered the item is unchanged, so is the card.
+- **The Upgrade (craft) window:** its slots already show the inventory's card, compared with the
+  other slot's (craft-menu.md); unchanged. The Repair and Attachments windows show none.
+- **Check:** `scripts/modification-card/check.sh <lobby tree> <revision 24's lobby_menu.swf>`
+  (Ruffle at 2560 x 1440): the card is the inventory's at its size, beside the window, on the
+  screen also when resized; gone with the pointer and the window; an item tip at the lobby's scale.

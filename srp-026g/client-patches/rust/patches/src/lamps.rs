@@ -5,56 +5,130 @@
 pub mod model;
 
 use crate::vostok::{self, Context, Flow, NoExit};
+use crate::vostok::clock::FrameClock;
+use crate::vostok::world::GameWorld;
 use crate::vostok::bullet::{BulletDecal, BulletRay, DecalSite, MaterialId, SurfaceBreakEffects};
 use crate::vostok::explosion::Explosion;
 use crate::vostok::collection::BoundedVec;
 use crate::vostok::config::{ConfigError, ConfigTable};
 use crate::vostok::history::{HistoryReader, HistoryWriter};
 use crate::vostok::log::Piece::Text;
-use crate::vostok::project::{BindingError, MethodTables, Presentation, ProjectPlan, ProjectRegistry, ProjectView, VisualIndex};
-use model::{Bounds, BreakEffect, BulletSegment, Condition, Distance, Fixture, GlassLine, LampCount, LampEvent, LampId,
-            MAX_LAMPS, RayDirection, Snapshot, Visibility, WorldPoint};
+use crate::vostok::project::{BindingError, MethodTables, Presentation, ProjectPlan, ProjectRegistry, ProjectView, Share,
+                             VisualIndex, VisualTransform};
+use ::ragdoll::math::{Pose, Vec3};
+use model::{Bounds, BreakEffect, BulletSegment, Condition, Distance, Fixture, Flight, GlassLine, LampCount, LampEvent, LampId,
+            MAX_LAMPS, MAX_PIECES, PieceKind, RayDirection, Snapshot, Visibility, WorldPoint};
 
 #[derive(Clone, Copy)]
-struct Binding { lamp: LampId, visible_when: Condition }
+enum Binding {
+    /// Drawn while its fixture is in `visible_when` (a model, a light).
+    Part { lamp: LampId, visible_when: Condition },
+    /// A broken fixture's loose piece, `pieces[piece]`: drawn where its flight is.
+    Loose { piece: usize },
+}
+
+/// What is left of a fixture's collision once it broke, and so whether a
+/// mark of the break material in its bounds is drawn.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Leftover {
+    /// The glass's collision stays where the glass was (every lamp): a mark
+    /// there would hang in the air, intact or broken.
+    Glass,
+    /// The figure's own collision, which the broken model still covers (a
+    /// skeleton's head without its cap): marked once broken, never while the
+    /// piece that flies off is on it.
+    Body,
+}
+
+/// A fixture's loose piece: the visual seated at `seat` (its placement in
+/// the map) while the fixture is intact.
+#[derive(Clone, Copy)]
+struct Piece { lamp: LampId, seat: Pose, kind: PieceKind, flight: Flight }
 
 struct Lamps {
     fixtures: BoundedVec<Fixture, MAX_LAMPS>,
+    pieces: BoundedVec<Piece, MAX_PIECES>,
+    /// The pieces' frames: the real time between two presents.
+    clock: FrameClock,
     state: Snapshot,
     /// The fixtures' glass (their collision's material).
     material: MaterialId,
     /// The material whose pair with the glass plays a break, whatever broke
     /// it: bullet x glass, the game's own glass shards and sound.
     effect: MaterialId,
+    leftover: Leftover,
 }
 impl Presentation<Binding> for Lamps {
     fn visibility(&self, binding: Binding) -> Visibility {
-        if self.state.condition(binding.lamp) == binding.visible_when { Visibility::Visible } else { Visibility::Hidden }
+        let (lamp, visible_when) = match binding {
+            Binding::Part { lamp, visible_when } => (lamp, visible_when),
+            Binding::Loose { piece } => (self.piece(piece).lamp, Condition::Broken),
+        };
+        if self.state.condition(lamp) == visible_when { Visibility::Visible } else { Visibility::Hidden }
+    }
+    fn placement(&self, binding: Binding) -> Option<VisualTransform> {
+        let Binding::Loose { piece } = binding else { return None };
+        VisualTransform::parse(crate::ragdoll::matrix_of(self.piece(piece).flight.pose()?))
     }
 }
+/// The level's rays a frame for the pieces (two an end of a moving one: a
+/// bottle's eight shards at once; past them a sweep waits a frame).
+const PIECE_RAYS: u32 = 64;
+fn piece_point(pose: Pose) -> Option<WorldPoint> {
+    WorldPoint::parse([pose.position.x, pose.position.y, pose.position.z])
+}
 impl Lamps {
-    fn shoot(&mut self, segment: BulletSegment, mut shatter: impl FnMut(GlassLine, RayDirection)) {
-        self.hit(|bounds| bounds.intersects(segment), |glass| shatter(glass, segment.direction()));
+    fn piece(&self, index: usize) -> &Piece { self.pieces.get(index).expect("a bound piece") }
+    fn shoot(&mut self, segment: BulletSegment, shatter: impl FnMut(GlassLine, RayDirection)) {
+        self.hit(|bounds| bounds.intersects(segment), |_| segment.direction(), shatter);
+        // A piece off its seat has no collision: the ray passes it by (to
+        // what it hits behind), and knocks it on where it passes near.
+        self.kick(|point, reach| segment.passes_within(point, reach).then(|| segment.direction()));
     }
     /// A blast breaks every fixture whose bounds come within its splash
     /// radius of the centre, where the game's splash reaches them (as it
     /// would a player's bone there: walls stop it, glass does not).
     fn explode(&mut self, centre: WorldPoint, radius: Distance, reaches: impl Fn(WorldPoint) -> bool,
-               mut shatter: impl FnMut(GlassLine, RayDirection)) {
+               shatter: impl FnMut(GlassLine, RayDirection)) {
         self.hit(|bounds| {
             let nearest = bounds.nearest(centre);
             centre.within(nearest, radius) && reaches(nearest)
-        }, |glass| shatter(glass, RayDirection::between(centre, glass.middle()).unwrap_or_else(down)));
+        }, |glass| RayDirection::between(centre, glass.middle()).unwrap_or_else(down), shatter);
+        self.kick(|point, reach| radius.plus(reach).is_some_and(|reach| centre.within(point, reach) && reaches(point))
+            .then(|| RayDirection::between(centre, point).unwrap_or_else(down)));
+    }
+    /// Each piece off its seat that `push` reaches (at its centre, within
+    /// its kind's reach) goes on along the push.
+    fn kick(&mut self, push: impl Fn(WorldPoint, Distance) -> Option<RayDirection>) {
+        for piece in self.pieces.iter_mut() {
+            let reach = piece.kind.reach();
+            if let Some(direction) = piece.flight.pose().and_then(piece_point).and_then(|point| push(point, reach)) {
+                piece.flight = piece.flight.kick(direction);
+            }
+        }
     }
     /// The one transition of every break, a bullet's or a blast's: a first
-    /// hit of an intact fixture shatters it, once.
-    fn hit(&mut self, struck: impl Fn(Bounds) -> bool, mut shatter: impl FnMut(GlassLine)) {
+    /// hit of an intact fixture shatters it, once, and knocks its loose
+    /// pieces off along the push.
+    fn hit(&mut self, struck: impl Fn(Bounds) -> bool, push: impl Fn(GlassLine) -> RayDirection,
+           mut shatter: impl FnMut(GlassLine, RayDirection)) {
         for (i, fixture) in self.fixtures.iter().enumerate() {
             let lamp = self.state.count().id(i).expect("fixtures and history have the same authored count");
             if self.state.condition(lamp) == Condition::Intact && struck(fixture.bounds)
                 && self.state.transition(lamp, LampEvent::Hit) == BreakEffect::Shatter {
-                shatter(fixture.glass);
+                let direction = push(fixture.glass);
+                for piece in self.pieces.iter_mut().filter(|piece| piece.lamp == lamp) {
+                    piece.flight = piece.flight.strike(direction);
+                }
+                shatter(fixture.glass, direction);
             }
+        }
+    }
+    /// The pieces' frame of `dt` s in the level: each follows its fixture's
+    /// condition (a rollback seats it again).
+    fn fly(&mut self, dt: f32, level: &mut impl ::ragdoll::ragdoll::Level) {
+        for piece in self.pieces.iter_mut() {
+            piece.flight = piece.flight.step(piece.kind, self.state.condition(piece.lamp), piece.seat, dt, Vec3::Y, level);
         }
     }
     /// Whether a hit's mark would be on a fixture's glass. The game's decal
@@ -62,9 +136,18 @@ impl Lamps {
     /// air, or on the broken model behind it, once the glass is gone. A shot
     /// at a fixture's glass breaks it, so none is drawn there, intact or
     /// broken: the rule needs no lamp state, and rollback, resimulation and
-    /// late joins (which carry no decals) agree with it.
+    /// late joins (which carry no decals) agree with it. A figure's (Leftover::
+    /// Body) is its piece's while intact and its own once broken: marked then.
     fn marks_glass(&self, surface: MaterialId, point: WorldPoint) -> bool {
-        surface == self.material && self.fixtures.iter().any(|fixture| fixture.bounds.holds(point, mark_tolerance()))
+        surface == self.material && self.fixtures.iter().enumerate().any(|(i, fixture)| {
+            fixture.bounds.holds(point, mark_tolerance()) && match self.leftover {
+                Leftover::Glass => true,
+                Leftover::Body => {
+                    let lamp = self.state.count().id(i).expect("fixtures and history have the same authored count");
+                    self.state.condition(lamp) == Condition::Intact
+                }
+            }
+        })
     }
 }
 /// A blast at a fixture's glass throws its shards down.
@@ -84,8 +167,12 @@ fn mark_tolerance() -> Distance { Distance::parse(0.01).expect("a finite, non-ne
 static PROJECT: ProjectRegistry<Lamps, Binding> = ProjectRegistry::new();
 
 #[derive(Debug)]
-enum MetadataError { Binding(BindingError), Config(ConfigError), Version, Material, Count, Bounds, Condition }
-/// The metadata's format: 3 adds effect_material and each fixture's glass line.
+enum MetadataError { Binding(BindingError), Config(ConfigError), Version, Material, Count, Bounds, Condition, Share, Seat,
+                     Leftover, PieceKind }
+/// The metadata's format: 3 adds effect_material and each fixture's glass
+/// line. Optional keys (the table's leftover, a row's ambient_lights,
+/// particles, probes, loose, a piece's kind) need none: a client without them
+/// leaves them out.
 const VERSION: u32 = 3;
 impl MetadataError {
     /// The objects the metadata names are not this map's (a wrong index, a
@@ -97,6 +184,12 @@ impl MetadataError {
             Self::Binding(BindingError::UnknownVisualType) => Some("a visual index naming another kind of visual"),
             Self::Binding(BindingError::UnknownLight) => Some("a light position no light of the map has"),
             Self::Binding(BindingError::AmbiguousLight) => Some("a light position two lights of the map have"),
+            Self::Binding(BindingError::UnknownAmbientLight) => Some("an ambient light position no ambient light of the map has"),
+            Self::Binding(BindingError::AmbiguousAmbientLight) => Some("an ambient light position two ambient lights of the map have"),
+            Self::Binding(BindingError::UnknownParticle) => Some("a particle position no particle of the map has"),
+            Self::Binding(BindingError::AmbiguousParticle) => Some("a particle position two particles of the map have"),
+            Self::Binding(BindingError::UnknownProbe) => Some("a probe position no environment probe of the map has"),
+            Self::Binding(BindingError::AmbiguousProbe) => Some("a probe position two environment probes of the map have"),
             Self::Binding(BindingError::DuplicateObject) => Some("one object bound twice"),
             _ => None,
         }
@@ -125,11 +218,22 @@ fn prepare(project: ProjectView<'_>) -> Result<Option<ProjectPlan<'_, Lamps, Bin
     if spec.required(c"version")?.integer()? != VERSION { return Err(MetadataError::Version); }
     let material = MaterialId::parse(spec.required(c"break_material")?.integer()?).ok_or(MetadataError::Material)?;
     let effect = MaterialId::parse(spec.required(c"effect_material")?.integer()?).ok_or(MetadataError::Material)?;
+    let leftover = match spec.get(c"leftover")? {
+        None => Leftover::Glass,
+        Some(value) => match value.text()?.to_bytes() {
+            b"glass" => Leftover::Glass,
+            b"body" => Leftover::Body,
+            _ => return Err(MetadataError::Leftover),
+        },
+    };
     let rows = spec.required(c"lamps")?.entries()?;
     let count = LampCount::parse(rows.len() as u32).ok_or(MetadataError::Count)?;
-    let methods = MethodTables::new(vostok::lamps_visual_vtable_handle(), vostok::lamps_light_vtable_handle());
+    let methods = MethodTables::new(vostok::lamps_visual_vtable_handle(), vostok::lamps_light_vtable_handle(),
+                                    vostok::lamps_ambient_light_vtable_handle(), vostok::lamps_particle_vtable_handle(),
+                                    vostok::lamps_probe_vtable_handle());
     let mut plan = project.plan((), methods)?;
     let mut fixtures = BoundedVec::new();
+    let mut pieces = BoundedVec::new();
     for (i, row) in rows.iter().enumerate() {
         let row = row?.table()?;
         let lamp = count.id(i).expect("entry belongs to the parsed count");
@@ -142,14 +246,67 @@ fn prepare(project: ProjectView<'_>) -> Result<Option<ProjectPlan<'_, Lamps, Bin
         for visual in row.required(c"visuals")?.entries()?.iter() {
             let visual = visual?.table()?;
             let visible_when = Condition::parse(visual.required(c"state")?.integer()?).ok_or(MetadataError::Condition)?;
-            plan.visual(VisualIndex::from(visual.required(c"index")?.integer()?), Binding { lamp, visible_when })?;
+            plan.visual(VisualIndex::from(visual.required(c"index")?.integer()?), Binding::Part { lamp, visible_when })?;
+        }
+        // A piece that comes off when the fixture breaks (a skeleton's cap, a
+        // bottle's shards): a visual of its own, drawn while broken, flying
+        // off its seat. Its placement in the map is its seat, rigid (no
+        // scale), its origin the body's centre. Its `kind`: "headwear" (the
+        // default) flies as a corpse's headwear is shot off, "shard" out from
+        // the glass's middle.
+        if let Some(loose) = row.get(c"loose")? {
+            for visual in loose.entries()?.iter() {
+                let visual = visual?.table()?;
+                let index = VisualIndex::from(visual.required(c"index")?.integer()?);
+                let binding = Binding::Loose { piece: pieces.len() };
+                let seat = plan.loose_visual(index, binding)?;
+                let seat = crate::ragdoll::pose_of(&seat.matrix()).ok_or(MetadataError::Seat)?;
+                let kind = match visual.get(c"kind")? {
+                    None => PieceKind::Headwear,
+                    Some(kind) => match kind.text()?.to_bytes() {
+                        b"headwear" => PieceKind::Headwear,
+                        b"shard" => {
+                            let [x, y, z] = glass.middle().coordinates();
+                            PieceKind::Shard { outward: seat.position - Vec3::new(x, y, z) }
+                        }
+                        _ => return Err(MetadataError::PieceKind),
+                    },
+                };
+                pieces.push(Piece { lamp, seat, kind, flight: Flight::Seated }).map_err(|_| MetadataError::Count)?;
+            }
         }
         for light in row.required(c"lights")?.entries()?.iter() {
             let position = position(&light?.table()?, [c"x", c"y", c"z"])?;
-            plan.light_at(position, Binding { lamp, visible_when: Condition::Intact })?;
+            plan.light_at(position, Binding::Part { lamp, visible_when: Condition::Intact })?;
+        }
+        // A glow that is an ambient light (an alarm lamp's): few fixtures
+        // have one, the others' rows have no table.
+        if let Some(lights) = row.get(c"ambient_lights")? {
+            for light in lights.entries()?.iter() {
+                let position = position(&light?.table()?, [c"x", c"y", c"z"])?;
+                plan.ambient_light_at(position, Binding::Part { lamp, visible_when: Condition::Intact })?;
+            }
+        }
+        // A kerosene lamp's flame, a particle: the same, in a table of its own.
+        if let Some(particles) = row.get(c"particles")? {
+            for particle in particles.entries()?.iter() {
+                let position = position(&particle?.table()?, [c"x", c"y", c"z"])?;
+                plan.particle_at(position, Binding::Part { lamp, visible_when: Condition::Intact })?;
+            }
+        }
+        // The room's environment probe a lamp's light is baked into: once the
+        // lamp is broken it is drawn with the share of its light that is not
+        // the lamp's (`keeps`, authored from its cubemap).
+        if let Some(probes) = row.get(c"probes")? {
+            for probe in probes.entries()?.iter() {
+                let probe = probe?.table()?;
+                let keeps = Share::parse(probe.required(c"keeps")?.number()?).ok_or(MetadataError::Share)?;
+                plan.probe_at(position(&probe, [c"x", c"y", c"z"])?, keeps, Binding::Part { lamp, visible_when: Condition::Intact })?;
+            }
         }
     }
-    Ok(Some(plan.with_data(Lamps { fixtures, state: Snapshot::intact(count), material, effect })))
+    Ok(Some(plan.with_data(Lamps { fixtures, pieces, clock: FrameClock::UNSTARTED, state: Snapshot::intact(count), material,
+                                   effect, leftover })))
 }
 
 pub fn on_bind(ctx: &mut Context<'_>) -> Flow<NoExit> {
@@ -161,7 +318,19 @@ pub fn on_bind(ctx: &mut Context<'_>) -> Flow<NoExit> {
 }
 pub fn on_remove(ctx: &mut Context<'_>) -> Flow<NoExit> { PROJECT.removed(ctx); Flow::Continue }
 pub fn on_destroy(ctx: &mut Context<'_>) -> Flow<NoExit> { PROJECT.destroying(ctx); Flow::Continue }
-pub fn on_present(ctx: &mut Context<'_>) -> Flow<NoExit> { PROJECT.present(ctx); Flow::Continue }
+pub fn on_present(ctx: &mut Context<'_>) -> Flow<NoExit> {
+    // The pieces' step: the bullets' workers have joined, the level is the
+    // world's own (the ragdolls', patch 76), the frame the real time.
+    if let Some(world) = GameWorld::at_after_move(ctx) && let Some(physics) = world.physics_world() {
+        let thread = ctx.thread();
+        PROJECT.with_physics(thread, physics.id(), |lamps| {
+            let dt = lamps.clock.tick(thread);
+            if !lamps.pieces.is_empty() { lamps.fly(dt, &mut crate::ragdoll::GameLevel::new(Some(physics), PIECE_RAYS)); }
+        });
+    }
+    PROJECT.present(ctx);
+    Flow::Continue
+}
 pub fn on_ray(ctx: &mut Context<'_>) -> Flow<NoExit> {
     if let Some(ray) = BulletRay::at(ctx) && let Some(physics) = ray.physics() {
         let segment = (|| {
@@ -237,3 +406,21 @@ pub fn on_visual_remove(_: &vostok::OrigVisualRemove, visual: &mut vostok::Rende
 }
 pub fn on_light_insert(_: &vostok::OrigLightInsert, light: &mut vostok::ObjectLight<'_>) { PROJECT.light_insert(light); }
 pub fn on_light_remove(_: &vostok::OrigLightRemove, light: &mut vostok::ObjectLight<'_>) { PROJECT.light_remove(light); }
+pub fn on_ambient_light_insert(_: &vostok::OrigAmbientLightInsert, light: &mut vostok::ObjectAmbientLight<'_>) {
+    PROJECT.ambient_light_insert(light);
+}
+pub fn on_ambient_light_remove(_: &vostok::OrigAmbientLightRemove, light: &mut vostok::ObjectAmbientLight<'_>) {
+    PROJECT.ambient_light_remove(light);
+}
+pub fn on_particle_insert(_: &vostok::OrigParticleInsert, particle: &mut vostok::ObjectParticleVisual<'_>) {
+    PROJECT.particle_insert(particle);
+}
+pub fn on_particle_remove(_: &vostok::OrigParticleRemove, particle: &mut vostok::ObjectParticleVisual<'_>) {
+    PROJECT.particle_remove(particle);
+}
+pub fn on_probe_insert(_: &vostok::OrigProbeInsert, probe: &mut vostok::ObjectEnvironmentProbe<'_>) {
+    PROJECT.probe_insert(probe);
+}
+pub fn on_probe_remove(_: &vostok::OrigProbeRemove, probe: &mut vostok::ObjectEnvironmentProbe<'_>) {
+    PROJECT.probe_remove(probe);
+}
