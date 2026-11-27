@@ -27,7 +27,7 @@ use core::ffi::CStr;
 use artefact_hunt_rule::{
     Action, After, ArtefactView, BaseDef, Cue, Event, Hud, Line, Message, Params, Place, Position, RawParams,
     RawShape, Reason, Rule, Spawner, SuddenShown, Team, Time, View, Viewer, MAX_SHAPES, MAX_SPAWNERS,
-    PLAYERS, REACH, along,
+    PLAYERS, REACH, along, seconds_shown,
 };
 
 use crate::vostok::artefact_hunt::{
@@ -534,11 +534,12 @@ pub fn on_deserialize(_: &OrigTdmRuleDeserialize, rule: &mut HuntRule<'_>, reade
 }
 
 /// Slot 17: the teams' points and the clock's seconds (the match time's,
-/// sudden death's own), after the time rule's fill.
+/// sudden death's own; rounded up as the wave's, `Hud::clock_seconds`),
+/// after the time rule's fill.
 pub fn on_fill_hud(_: &OrigTdmRuleFillHud, rule: &mut HuntRule<'_>, hud: &HudState<'_>, time: u32) {
     with_rule(rule, |hunt| {
         let shown = hunt.state.hud(&hunt.params, Time::from_ms(time));
-        hud.fill(hunt.state.score(), shown.clock_ms / 1000);
+        hud.fill(hunt.state.score(), shown.clock_seconds());
     });
 }
 
@@ -855,11 +856,6 @@ fn message_key(message: Message) -> &'static CStr {
     }
 }
 
-/// The ms a value is told in: whole seconds, rounded up.
-fn seconds(ms: u32) -> u32 {
-    ms.div_ceil(1000)
-}
-
 /// The update call's 30 values ("HUD calls").
 fn update_values(hud: &Hud, params: &Params, viewer: Viewer, viewed_carries: bool) -> [f64; 30] {
     let own = viewer.team.unwrap_or(Team::Zero);
@@ -922,7 +918,7 @@ fn update_values(hud: &Hud, params: &Params, viewer: Viewer, viewed_carries: boo
 /// A checksum of what the movie was told: the ms values as whole seconds.
 fn checksum(values: &[f64; 30]) -> u32 {
     values.iter().enumerate().fold(0u32, |sum, (i, &value)| {
-        let value = if matches!(i, 5 | 8 | 21) { f64::from(seconds(value as u32)) } else { value };
+        let value = if matches!(i, 5 | 8 | 21) { f64::from(seconds_shown(value as u32)) } else { value };
         let bits = value.to_bits();
         (sum.rotate_left(7) ^ (bits as u32)).rotate_left(11) ^ ((bits >> 32) as u32)
     })
@@ -1442,5 +1438,21 @@ mod tests {
         assert_eq!(checksum(&shown), checksum(&later));
         later[8] = 3600.0;
         assert_ne!(checksum(&shown), checksum(&later));
+        // Both teams are told one clock and one wave (the owner, 2026-11-27:
+        // "make sure both teams have the timer synchronized").
+        let mut rule = rule;
+        for (raw, team) in [(0, Team::Zero), (10, Team::One)] {
+            let place = Place::new(raw).unwrap();
+            rule = rule.step(&params, Event::Entered { place, team, now: Time::from_ms(0) }).0;
+        }
+        rule = rule.step(&params, Event::Start { now: Time::from_ms(20_000) }).0;
+        for at in [20_000, 26_500, 34_950, 35_000] {
+            let hud = rule.hud(&params, Time::from_ms(at));
+            let told = |team| update_values(&hud, &params, Viewer { place: None, team: Some(team) }, false);
+            let (zero, one) = (told(Team::Zero), told(Team::One));
+            assert_eq!(zero[8..11], one[8..11], "the clock at {at}");
+            assert_eq!(zero[21..23], one[21..23], "the wave at {at}");
+            assert!(zero[22] == 15_000.0 && zero[21] > 0.0, "a wave comes at {at}");
+        }
     }
 }

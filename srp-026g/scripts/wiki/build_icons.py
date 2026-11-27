@@ -39,6 +39,13 @@ release makes them again from its own patches. Writes <out>/ anew:
   lobby's bitmaps/<class>.png, the ones the movie is built with; and modes/twist-<lobby mode>.webp,
   the frame SrvGameModeIcons.forTwist shows for a free-for-all's twist (its lobby mode number),
   in their colours;
+- tiles/: the pictures of the wiki index's tiles that the sets above have too small for a tile
+  (about 196x116 CSS pixels): tiles/maps.webp and tiles/maps@2x.webp, level 1's day picture
+  (the Maps tile's, as maps/1_1) covering 220x124 and 440x248 from the 1920-wide bitmap; and
+  tiles/quests.webp, the four factions' emblems side by side as the lobby's factionIconsBig has
+  them (66x66 cells, IconContainer("factionIconsBig", 66, 66, ..., 2, 2): the middle column
+  is their normal state), at their own size: the quest window's faction tab draws a 38x51
+  bitmap, which no tile could show sharp;
 - files.rs: those files, for the server's include (servers/web-server/src/icons.rs).
 
 The modification and filter icons are light glyphs with a dark drop shadow.
@@ -252,6 +259,24 @@ def map_pictures(lobby, images):
     return found
 
 
+# The wiki index's tiles (servers/web-server/src/wiki.rs `sections`).
+TILE_MAP = (1, 1)
+TILE_MAP_SIZE = (220, 124)
+FACTION_ATLAS = "3274_LobbyMenu_FactionIconsBig.png"
+FACTION_CELL, FACTION_STEP, FACTION_COLUMN = 66, 68, 1
+TILE_FACTIONS = range(1, 5)
+TILE_GAP = 8
+
+
+def faction_row(atlas):
+    """The factions' emblems (rows TILE_FACTIONS of the atlas, its FACTION_COLUMN) in a row."""
+    row = Image.new("RGBA", (len(TILE_FACTIONS) * (FACTION_CELL + TILE_GAP) - TILE_GAP, FACTION_CELL))
+    for at, faction in enumerate(TILE_FACTIONS):
+        left, top = FACTION_COLUMN * FACTION_STEP, faction * FACTION_STEP
+        row.paste(atlas.crop((left, top, left + FACTION_CELL, top + FACTION_CELL)), (at * (FACTION_CELL + TILE_GAP), 0))
+    return row
+
+
 def covered(image, size):
     """`image` scaled to cover `size` and cut to it about its centre, as the rooms' cards are
     (RoomsLook.cover)."""
@@ -341,12 +366,20 @@ def main():
             write(f"modes/twist-{number}.webp", webp(mode_square(pictures[frame])))
 
     small = {}
-    for (level, weather), picture in sorted(map_pictures(args.lobby, args.images).items()):
+    pictures = map_pictures(args.lobby, args.images)
+    for (level, weather), picture in sorted(pictures.items()):
         if picture not in small:
             data = io.BytesIO()
             covered(Image.open(picture).convert("RGB"), MAP_SIZE).save(data, "WEBP", quality=82, method=6)
             small[picture] = data.getvalue()
         write(f"maps/{level}_{weather}.webp", small[picture])
+
+    whole = Image.open(pictures[TILE_MAP]).convert("RGB")
+    for name, scale in (("maps", 1), ("maps@2x", 2)):
+        data = io.BytesIO()
+        covered(whole, (TILE_MAP_SIZE[0] * scale, TILE_MAP_SIZE[1] * scale)).save(data, "WEBP", quality=85, method=6)
+        write(f"tiles/{name}.webp", data.getvalue())
+    write("tiles/quests.webp", webp(faction_row(Image.open(args.images / FACTION_ATLAS).convert("RGBA"))))
 
     (out / "files.rs").write_text(
         "// Built by srp-026g/scripts/wiki/build_icons.py; do not edit. The wiki's icons.\n"

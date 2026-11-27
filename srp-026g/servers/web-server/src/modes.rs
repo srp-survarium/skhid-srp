@@ -34,7 +34,7 @@ pub(crate) const PATH: &str = "/wiki/modes";
 
 /// Where the rooms offer the maps: the lobby's pools as the server runs
 /// them (`SRP_MATCH_MAPS` and `SRP_ROOMS_EXTRA_MAPS`; the lobby's
-/// `Core::room_entries` and `private_entries`).
+/// `Core::room_entries`).
 #[derive(Clone, Debug)]
 pub struct Pools {
     /// The match pool: every public room's, and a private room's too.
@@ -95,12 +95,12 @@ impl Pools {
         Self::new(&ids, &[])
     }
 
-    /// Where `map` is offered: a map played with a free-for-all's versions
-    /// only is never a private room's (`private_entries`).
+    /// Where `map` is offered (a map played with a free-for-all's versions
+    /// only too: a private room plays it plain).
     fn offer(&self, map: &MapMode) -> Option<Offer> {
         if self.public.contains(&map.id) {
             Some(Offer::Public)
-        } else if self.experimental.contains(&map.id) && !map.twists_only {
+        } else if self.experimental.contains(&map.id) {
             Some(Offer::PrivateOnly)
         } else {
             None
@@ -112,26 +112,22 @@ impl Pools {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Rooms {
     Both,
-    PublicOnly,
     PrivateOnly,
     None,
 }
 
 impl Rooms {
-    /// A mode's, from its maps: public with a map of the match pool, private
-    /// with one a private room may hold.
+    /// A mode's, from its maps: in every room with a map of the match pool
+    /// (a private room may hold any map a public one plays), in private rooms
+    /// only with an experimental map alone.
     fn of(pools: &Pools, maps: &[&MapMode]) -> Self {
-        let offers: Vec<(Offer, bool)> = maps
-            .iter()
-            .filter_map(|map| pools.offer(map).map(|offer| (offer, map.twists_only)))
-            .collect();
-        let public = offers.iter().any(|&(offer, _)| offer == Offer::Public);
-        let private = offers.iter().any(|&(_, twists_only)| !twists_only);
-        match (public, private) {
-            (true, true) => Self::Both,
-            (true, false) => Self::PublicOnly,
-            (false, true) => Self::PrivateOnly,
-            (false, false) => Self::None,
+        let offers: Vec<Offer> = maps.iter().filter_map(|map| pools.offer(map)).collect();
+        if offers.contains(&Offer::Public) {
+            Self::Both
+        } else if offers.is_empty() {
+            Self::None
+        } else {
+            Self::PrivateOnly
         }
     }
 
@@ -139,7 +135,6 @@ impl Rooms {
     fn line(self, lang: Lang) -> String {
         let text = match self {
             Self::Both => return String::new(),
-            Self::PublicOnly => lang.t("Public rooms only"),
             Self::PrivateOnly => lang.t("Private rooms only"),
             Self::None => lang.t("Not offered now"),
         };

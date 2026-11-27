@@ -237,8 +237,8 @@ areas the minimaps' frames) made twice as many by the spawn rule
 47 (its point 14 stood on the roof only clmbl#4 reaches and is left out,
 `EXCLUDED_2`). Run on that build, `to_cover --times 1` keeps all 191 as
 they are, and the released Free for All maps test passes on its server data.
-Fire Station's 48 are replaced by the owner's 42 picks (`ffa-fire-station-picks-1`,
-`ffa.md`).
+Fire Station's 48 are replaced by the owner's 51 picks (`ffa-fire-station-picks-1`,
+`ffa.md`; 42 on 2026-11-16, 9 more on 2026-11-27).
 
 ```sh
 stalker-ffa-points <layers> --project v010b_cs_mp_<map>/day_4 ... --plots P > planned.tsv

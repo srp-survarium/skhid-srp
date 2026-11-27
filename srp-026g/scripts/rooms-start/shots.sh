@@ -3,7 +3,8 @@
 # as the lobby movie draws it (RoomsShots.as) in Ruffle (CPU only: lavapipe on its own virtual X
 # display, never the GPU), at the game's resolutions (default 1920x1080 and 1280x720): 1, 3, 10 and
 # 20 members, as the room's owner and as a member, the owner's room playing its match, 10 with
-# squads marked, and Artifact Hunt's vote card and create window tick. One PNG a case, <out>/<w>x<h>-<case>.png. Java and Flex from
+# squads marked, Artifact Hunt's vote card and create window tick, and a card on Military Warehouses
+# (a map only an open room shows). One PNG a case, <out>/<w>x<h>-<case>.png. Java and Flex from
 # private/actionscript/tools.json, or SRP_AS_TOOLS.
 set -euo pipefail
 here=$(dirname "$(readlink -f "$0")")
@@ -53,6 +54,9 @@ cases=(
     # Artifact Hunt (artefact_hunt.md): its vote card (the second, map 63) and the create window.
     "vote-artefact-hunt 5 0 01010 3 - S1;M;4;0|0;61;5;5;2;0|1;63;12;3;13;0|2;117;1;1;4;0|3;65;1;2;2;0"
     "create-artefact-hunt 1 0 0 0 - S1;M;7;0|0;61;5;5;2;0|1;62;13;5;3;1|2;63;12;3;6;0|3;117;1;1;4;0|4;184;8;1;5;0|5;12;7;1;8;0|6;300;1;1;13;0 create"
+    # A map only an open room's card shows (Military Warehouses, maps_dict 43, a free-for-all played
+    # with a twist only: `offered` 0): its card, an FFA: Racket (mode 9), drawn with its picture.
+    "vote-twists-only 5 0 01010 3 - S1;M;4;0|0;61;5;5;3;0;0;1|1;117;1;1;4;0;0;1|2;63;12;3;8;0;0;1|3;43;16;1;8;0;0;0 - C;0;61;1;0;3|C;1;43;2;0;9|C;2;117;0;0;4|C;3;63;0;0;8"
 )
 for size in "${sizes[@]}"; do
     w=${size%x*}
@@ -62,8 +66,9 @@ for size in "${sizes[@]}"; do
     xvfb_pid=$!
     sleep 1
     for case in "${cases[@]}"; do
-        read -r name members owner teams phase squads pool view <<<"$case"
+        read -r name members owner teams phase squads pool view cards <<<"$case"
         [[ ${squads:-} != - ]] || squads=
+        [[ ${view:-} != - ]] || view=
         log=$work/$size-$name.log
         (
             cd "$work"
@@ -71,7 +76,7 @@ for size in "${sizes[@]}"; do
             DISPLAY=$display VK_ICD_FILENAMES=$lvp VK_DRIVER_FILES=$lvp RUST_LOG=info \
                 exec timeout 120 "$ruffle/bin/ruffle" -g vulkan -p low --storage memory --scale no-scale \
                 --width "$w" --height "$h" -Pmovie=lobby_menu.swf -Pmembers="$members" -Powner="$owner" \
-                -Pteams="$teams" -Pphase="$phase" -Psquads="${squads:-}" -Ppool="${pool:-}" -Pview="${view:-}" RoomsShots.swf
+                -Pteams="$teams" -Pphase="$phase" -Psquads="${squads:-}" -Ppool="${pool:-}" -Pview="${view:-}" -Pcards="${cards:-}" RoomsShots.swf
         ) >"$log" 2>&1 &
         ruffle_pid=$!
         for _ in $(seq 900); do grep -q 'SHOT ' "$log" && break; sleep 0.1; done

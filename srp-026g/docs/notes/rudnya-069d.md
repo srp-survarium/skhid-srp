@@ -144,6 +144,9 @@ own project and options, made by the porter from the manifest (`map.modes`):
     on rubble that differs by up to 0.5 m (the props rest on one another); the six team-deathmatch
     covers near team 2's spawn (four half, two low), which native's battery modes do not have.
 - **Battery respawn** 10 s in both battery modes (`modes.tsv`, as every map).
+- **Free for All** (maps_dict 169, `v069d_level_01/day_8`, `ffa-ported-1` and the Free for All lists after
+  it): native Rudnya's 60 spawns since `ffa-rudnya-v069-picks-1` (the owner, 2026-11-27: "can rudnya 69 use
+  the same ffa spots as 26?"), the same places in the same frame; `ffa.md`, "Rudnya's picks on Rudnya (v0.69)".
 
 ## What comes from 0.26g
 
