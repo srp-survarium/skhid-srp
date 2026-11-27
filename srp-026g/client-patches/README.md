@@ -264,7 +264,7 @@ release's. The "Result" row is the build of the revision named in it.
 | `weapon_preview_026g.asm`, `weapon_preview_026g.section.bin` | The source of patch 32's code (a weapon's upgrade window shows the weapon) and that code assembled for 0x2E50 of `.srp`, its state at 0xE00 of `.srpd`, `-DFIND` the stash code's address and `-DCAMERA` patch 45's camera (weapon_table_026g.asm), which `patch_026g.py` reads. Assembling the source again gives the same bytes |
 | `weapon_stash_026g.asm`, `weapon_stash_026g.section.bin`, `check_weapon_stash_026g.py` | Patch 32's find_kit grown: a weapon no kit holds is shown in the chosen kit's hands from a scratch copy of the account's profile; assembled for 0x360 of `.srpw`; its check runs it with the game's own profile and record copies (needs Unicorn) |
 | `weapon_table_026g.asm`, `weapon_table_026g.section.bin`, `check_weapon_table_026g.py` | Patch 45: a weapon's upgrade window shows the weapon in the air above the lobby's workbench (the spot and the view from the lobby project's `srp_lobby`), turning about its middle, the camera flown there once it is, and a drag (the left button too, off the movie) turning it; assembled for 0x6B0 of `.srpw` (0x800 until round 5d), its state at 0xF00 of `.srpd`; its check runs the lobby's handlers, the camera's constructor and tick, its drag buttons and mt_draw's two sites with the game's own code (needs Unicorn) |
-| `weapon_decals_026g.asm`, `weapon_decals_026g.section.bin`, `check_weapon_decals_026g.py` | Patch 47: a weapon wears a decal (the bake patch 44 asks for paints it; the code takes two, the server gives one slot) and the lobby's decal editor places them on the weapon above the workbench; assembled for 0x1200 of `.srpw` (after patch 45's code; 0x1000 until patch 45's round 6), its state at 0xFC0 of `.srpd`; its check runs the bake with the game's own unpacking and the editor's four sites with the game's own encode (needs Unicorn) |
+| `weapon_decals_026g.asm`, `weapon_decals_026g.section.bin`, `check_weapon_decals_026g.py` | Patch 47: a weapon wears a decal (the bake patch 44 asks for paints it; the code takes two, the server gives one slot) and the lobby's decal editor places them on the weapon above the workbench; on armour too, the editor starts only on a decal its item holds and its preview reads only a `data/decals` entry there is; assembled for 0x1200 of `.srpw` (after patch 45's code; 0x1000 until patch 45's round 6), its state at 0xFC0 of `.srpd`; its check runs the bake with the game's own unpacking, the editor's sites with the game's own encode and the preview's textures' guard (needs Unicorn) |
 | `upgrade_preview_026g.asm`, `upgrade_preview_026g.section.bin`, `check_upgrade_preview_026g.py` | Patch 48: an upgrade dropped on a weapon in its upgrade window is shown at once (the character made again from patch 32's scratch with the change, before the request leaves), the server's account staying the truth; on_player_ready logs the time the lobby character's player took; assembled for 0x2000 of `.srpw` (its third page), its state at 0xD60 of `.srpd`; its check runs the six sites with the game's own setup_profile, profile copy and config lookups (needs Unicorn) |
 | `weapon_draw_026g.asm`, `weapon_draw_026g.section.bin` | The source of patch 32's draw (a weapon's window draws the player as the lobby does) and that code assembled for 0xD20 of `.srp`, which `patch_026g.py` reads. Assembling the source again gives the same bytes |
 | `check_weapon_preview_026g.py` | Runs the original's and patch 32's upgrade window start and close (with the lobby camera's own setter), `setup_profile`'s entry, the lobby camera's three distance clamps and the player's decal pose on a made-up lobby, loaded as is and rebased (needs Unicorn) |
@@ -2982,9 +2982,9 @@ the data: `../docs/notes/weapon-camo.md`, `../scripts/content-edit/weapon-decals
 weapon config with `data` gets `parameters/decal_available` and an empty `data/decals`, as
 armour's).
 
-`weapon_decals_026g.asm` at `.srpw`+1200h (3145 bytes, after patch 45's code; +1000h, the section's
+`weapon_decals_026g.asm` at `.srpw`+1200h (3360 bytes, after patch 45's code; +1000h, the section's
 second page, until patch 45's round 6), its state (12 bytes, the left button's press) at `.srpd`+FC0h
-(+FA0h until then); it begins with seven `jmp near`, its entries:
+(+FA0h until then); it begins with eight `jmp near`, its entries:
 
 - **lookup** (+0) and **fill** (+5), called by patch 44 (`weapon_camo_026g.asm`, -DDECALS): what a
   weapon's bake paints. lookup: the camouflage (`data/camouflage`, as patch 44 read it) and the
@@ -3010,15 +3010,28 @@ second page, until patch 45's round 6), its state (12 bytes, the left button's p
   (0x263950: the record, `46 05`) and tells the movie (`root.exit_decal_edit`); the start's and
   the cancel's bakes do nothing (the weapon keeps its textures). The server sends the account
   after a weapon's `46 05`, the lobby builds the weapon again and patch 44 bakes the new place.
-- **start** (+19h): the start's `call 0x264CF0` at 0x263938 (5 bytes): on a weapon the decal's
-  index in `data/decals` counts the records of slots 0 and 1 (a weapon's camouflage is in slot
-  2); a record of another slot ends the edit with nothing queried.
+- **start** (+19h): the start's `call 0x264CF0` at 0x263938 (5 bytes), for armour and a weapon:
+  the edit goes on only when the record at +D52Dh is the edited decal's (its id +D524h) in a
+  decal's slot (a weapon's 0 or 1; armour's not 3). The game's start writes the decal's index and
+  record only when it finds the record, so a "change" clicked on a decal just dropped into a slot,
+  before the server's answer put its record on the item, kept the last edit's index and the
+  preview read `data/decals` past its end (the owner's crash of 2026-11-26 at 0x26517A, on
+  trousers with only a camouflage). Otherwise the edit is off (+D514h 0), the movie leaves it
+  (`root.exit_decal_edit`: the window's controls unlock) and nothing is queried; a "change" once
+  the answer is in edits. On a weapon the decal's index in `data/decals` counts the records of
+  slots 0 and 1 (a weapon's camouflage is in slot 2).
 - **click** (+1Eh): the character's mouse key handler, 0x265C20 (6 bytes, `jmp click` and a nop),
   which places the edit's decal on the left button's release: in a weapon's edit only when the
   cursor is within 5 pixels of where the button went down. A drag (patch 45's left button turns
   the weapon) places nothing; a release with no press seen (the movie's "change") neither.
+- **textures** (+23h): the host's config callback's `call 0x264F80` at 0x264F4D (5 bytes; 0x264EA0,
+  armour's and a weapon's): 0x264F80 reads the texture of `data/decals[+D52Ch]` with no bound. It
+  is called only when the merged config has that entry, a table whose first value is a text;
+  otherwise the edit ends as start ends it, and the return skips the callback's bake of the host
+  (to 0x264F68, `WEAPON_DECALS_AFTER_HOST_BAKE`), so the character keeps the look it has.
 
-Everything else, armour's decals, the squad panels and a match: the original's code. No base
+Everything else, armour's decals but for start's and textures' checks, the squad panels and a
+match: the original's code. No base
 relocation is under a site and no branch aims inside one; the code holds absolute addresses (the
 exe is never rebased). The movie: a weapon's upgrade window shows one decal slot when it has
 `decal_available` (`UpgradeWindow.as`, `WEAPON_DECALS`). Rendering and the lobby only: no row in
@@ -3028,7 +3041,9 @@ without its decals. `../docs/notes/client_patch.md` section 3.44.
 Checked: `selftest_026g.py` check 47 (the sites in the original and the build, their callers,
 nothing aiming inside, no relocation, the code's calls and branches, `.srpw`'s two pages) and
 check 44; `check_weapon_decals_026g.py` (Unicorn, the cases in its header, with patch 45's own
-transform: 202 checks) and
+transform: 233 checks, the owner's crash among them; the crash's full dump replayed with this build's
+code, 2026-11-26: the start ends the edit, the callback goes back past the bake, where revision 74
+faults at 0x26517A with EAX 102h, and the jacket's edit still queries) and
 `check_weapon_camo_026g.py` (the camouflage alone as before). **Not run in a game**: the preview on
 a weapon, the place the click gives and the bake of a decal on a weapon are read and emulated
 only.

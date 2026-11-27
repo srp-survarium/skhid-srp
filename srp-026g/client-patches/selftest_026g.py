@@ -1161,6 +1161,20 @@ def test_weapon_decals(original, image, before):
     check_piece(original, image, "patch 47 (weapon_decals_026g.section.bin)", decals_va, code,
                 code.index(struct.pack("<4I", 0x20080000, 0x8A30CE00, 0x20080200, 0x8A30CE00)),
                 P.WEAPON_DECALS_ENTRIES)
+    # textures' way back when it ends the edit: past the rest of 0x264EA0's body after the call it
+    # replaces (the host's bake: four pushes and a call of 0x2641A0, `ret 10h` as patch 47's bake) to
+    # its epilogue, the stack as the bake's return leaves it; the code writes that address over its own
+    # return address once
+    after = P.WEAPON_DECALS_AFTER_HOST_BAKE
+    body = bytes.fromhex("57e82e000000" "8b874cd50000" "8b8f48d50000" "6a01" "50" "51" "57" "e838f2ffff" "5f5e5b8be55d")
+    check(bytes(original[P.file_offset(0x264F4C):P.file_offset(0x264F4C) + len(body)]) == body
+          and after == 0x264F4C + len(body) - 6
+          and image.read(0x264F52, 0x264F72 - 0x264F52) == bytes(original[P.file_offset(0x264F52):
+                                                                         P.file_offset(0x264F72)])
+          and code.count(b"\xC7\x04\x24" + struct.pack("<I", after)) == 1,
+          f"patch 47's textures (0x264F4D): its way back {after:#x} is 0x264EA0's epilogue after the host's "
+          "bake (push edi; call; four pushes; call 0x2641A0, ret 10h; pop edi), unchanged in the build, "
+          "written once over its return address")
 
 
 def test_upgrade_preview(original, image, before):
