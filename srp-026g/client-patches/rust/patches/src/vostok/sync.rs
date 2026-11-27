@@ -35,6 +35,11 @@ impl<T> Lock<T> {
 
     /// Runs `f` on the value, the lock held for it.
     pub fn with<R>(&self, _: &Thread, f: impl FnOnce(&mut T) -> R) -> R {
+        self.with_current(f)
+    }
+
+    /// Platform callbacks can share locked data without acquiring a game-thread token.
+    pub(super) fn with_current<R>(&self, f: impl FnOnce(&mut T) -> R) -> R {
         let me = thread_id();
         loop {
             match self.owner.compare_exchange_weak(0, me, Ordering::Acquire, Ordering::Relaxed) {
@@ -61,6 +66,10 @@ pub struct ThreadId(u32);
 impl ThreadId {
     /// The hook's thread.
     pub fn current(_: &Thread) -> ThreadId {
+        Self::calling()
+    }
+
+    pub(super) fn calling() -> ThreadId {
         ThreadId(thread_id())
     }
 

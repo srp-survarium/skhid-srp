@@ -102,7 +102,7 @@ impl Moment {
     }
 
     /// Every byte is one.
-    fn of(byte: u8) -> Moment {
+    pub(crate) fn of(byte: u8) -> Moment {
         match byte.checked_sub(1) {
             None => Moment::Loaded,
             Some(0) => Moment::Ended,

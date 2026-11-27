@@ -1523,7 +1523,6 @@ function mapDistance() {
 
 // ---------- wiring ----------
 fillWeapons(); fillWalls(); fillArmour(); drawDoll(); fillMaps(); fillHealPick();
-if (DATA.revision) $("source").textContent = Tf("Skhid revision {revision}", { revision: DATA.revision });
 $("dollprev").addEventListener("click", () => { state.dollShot = (state.dollShot || 1) - 1; update(); });
 $("dollnext").addEventListener("click", () => { state.dollShot = (state.dollShot || 1) + 1; update(); });
 if (RULES.renderExtras) RULES.renderExtras(state, update);

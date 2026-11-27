@@ -103,7 +103,7 @@ fn choosing_a_preset_keeps_the_kits_with_the_one_left() {
     assert_eq!(all_worn(&account), starter);
     assert_eq!(account.presets[0], None);
     assert_eq!(
-        account.presets[1].unwrap().kits[1][10],
+        account.presets[1].as_ref().unwrap().kits[1][10],
         Some(PresetSlot {
             item_id: owned_id(&account, "mosin_nagant"),
             dict_id: dict("mosin_nagant"),
@@ -780,7 +780,7 @@ fn each_presets_kit_keeps_its_perk_slots() {
     assert!(account.kits.iter().all(|kit| kit.perks == KitPerks::ALL_TAKEN));
     assert_ne!(account.kits[0].revision, revision);
     assert_eq!(
-        account.presets[0].map(|preset| preset.perks),
+        account.presets[0].as_ref().map(|preset| preset.perks),
         Some([pocket, KitPerks::ALL_TAKEN, KitPerks::ALL_TAKEN])
     );
     account.kits[2].perks = weapon;
@@ -789,5 +789,56 @@ fn each_presets_kit_keeps_its_perk_slots() {
     assert_eq!(account.kits[0].perks, pocket);
     assert_eq!(account.kits[2].perks, KitPerks::ALL_TAKEN);
     // Preset 2 held nothing but its third kit's second weapon slot: kept all the same.
-    assert_eq!(account.presets[1].map(|preset| preset.perks[2]), Some(weapon));
+    assert_eq!(account.presets[1].as_ref().map(|preset| preset.perks[2]), Some(weapon));
+}
+
+/// The owner's report of 2026-11-27 (live rev74): "I had equip3 kit1 renamed to 'bot farmer
+/// 8000k', then in the same session I switched to equip1 and there kit1 name stayed". A kit's
+/// name is its preset's: each loadout keeps its own, and the kit's revision changes with it so
+/// the client draws it.
+#[test]
+fn a_kit_renamed_in_one_preset_keeps_its_name_in_the_others() {
+    let mut account = alice();
+    let kit_1 = account.kits[0].id;
+    rules::rename_kit(&mut account, kit_1, "Starter").unwrap();
+    choose(&mut account, 3, NOW).unwrap();
+    // Preset 3 was empty: it starts unnamed, and preset 1 keeps its name.
+    assert!(account.kits.iter().all(|kit| kit.name.is_empty()));
+    assert_eq!(account.presets[0].as_ref().unwrap().names[0], "Starter");
+
+    rules::rename_kit(&mut account, kit_1, "bot farmer 8000k").unwrap();
+    let revision = account.kits[0].revision;
+    choose(&mut account, 1, NOW).unwrap();
+    assert_eq!(account.kits[0].name, "Starter");
+    assert!(account.kits[1..].iter().all(|kit| kit.name.is_empty()));
+    assert_ne!(account.kits[0].revision, revision);
+    assert_eq!(
+        account.presets[2].as_ref().unwrap().names,
+        ["bot farmer 8000k".to_string(), String::new(), String::new()]
+    );
+
+    choose(&mut account, 3, NOW).unwrap();
+    assert_eq!(account.kits[0].name, "bot farmer 8000k");
+    assert_eq!(account.presets[0].as_ref().unwrap().names[0], "Starter");
+}
+
+/// A preset that holds nothing but a kit's name is kept, and gives the name back.
+#[test]
+fn a_preset_of_only_a_name_is_kept() {
+    let mut account = alice();
+    choose(&mut account, 2, NOW).unwrap();
+    let kit_2 = account.kits[1].id;
+    rules::rename_kit(&mut account, kit_2, "Empty").unwrap();
+    assert!(!snapshot(&account).unwrap().is_empty());
+    choose(&mut account, 1, NOW).unwrap();
+    let left = account.presets[1].as_ref().unwrap();
+    assert_eq!(left.slots(), 0);
+    assert_eq!(left.names[1], "Empty");
+    assert!(account.kits.iter().all(|kit| kit.name.is_empty()));
+    choose(&mut account, 2, NOW).unwrap();
+    assert_eq!(account.kits[1].name, "Empty");
+
+    // Its name taken back: nothing is left of it.
+    rules::rename_kit(&mut account, kit_2, "").unwrap();
+    assert_eq!(snapshot(&account), None);
 }

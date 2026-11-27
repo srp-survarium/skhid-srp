@@ -4181,7 +4181,7 @@ st_srp_medical_324_description	Коли антитоксин починає ді
 st_srp_medical_324_name	Друге дихання
 st_srp_medical_331_description	Замінює комірку додаткової зброї додатковою кишенею для припасів.
 st_srp_medical_331_name	Кишеня для припасів
-st_srp_medical_332_description	Бонус до максимального здоров'я рук і ніг:
+st_srp_medical_332_description	Бонус до максимального здоров'я рук і ніг (больовий поріг не підвищує):
 st_srp_medical_332_name	Міцні кістки
 st_srp_medical_333_description	Поки діє антитоксин, бонус до швидкості перезарядки:
 st_srp_medical_333_name	Зосередженість
