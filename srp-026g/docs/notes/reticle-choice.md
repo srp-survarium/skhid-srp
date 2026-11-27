@@ -309,7 +309,7 @@ u8 n colours × { u8 name length, name, f32 r, f32 g, f32 b }
   and Brightness. They appear when the item in the scope slot has a `srp_reticle` member.
 - A stepper wraps around its list. Brightness goes from 0 to 10 and does not wrap.
 - A step calls `srp_set_reticle` with all four values and waits for the account to redraw.
-- The texts are `st_srp_reticle_title` ("Reticle"), `_pattern`, `_size`, `_colour`, `_brightness`,
+- The texts are `st_srp_reticle_title` ("Change reticle:", 0.69d0's words), `_pattern`, `_size`, `_colour`, `_brightness`,
   and one key for each pattern and colour name, in the 12 languages of
   `client-patches/localization/`.
 
