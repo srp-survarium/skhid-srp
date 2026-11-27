@@ -1,0 +1,19 @@
+# Patch 216: a Scaleform filter whose temporary render target Direct3D did not
+# make is drawn without its filter (PushFilters) or not at all this frame
+# (drawCachedFilter's cached pass), never pushed as a null target that the
+# next PopRenderTarget reads (revision 73's crash at 0x2B3777, 2026-11-26).
+# Only the decisions: which sites, and the handlers. The sites are
+# sites_026g.tsv's; the logic is scaleform_temp_target.rs and
+# vostok/scaleform_filter.rs.
+name = "scaleform_temp_target"
+patch = 216
+
+# PushFilters after its CreateTempRenderTarget.
+[[hook]]
+site = "scaleform.filter_target"
+handler = "on_filter_target"
+
+# drawCachedFilter after the CreateTempRenderTarget of its last pass.
+[[hook]]
+site = "scaleform.cached_filter_target"
+handler = "on_cached_filter_target"

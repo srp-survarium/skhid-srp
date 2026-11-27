@@ -91,6 +91,7 @@ pub mod resources;
 pub mod skin_cook;
 pub mod renderer;
 pub mod render_stage;
+pub mod probe_tiers;
 pub mod effect_compile;
 pub mod gun_cook;
 pub mod pickup;
@@ -100,6 +101,7 @@ pub mod use_scan;
 pub mod streaming;
 pub mod texture_pool;
 pub mod occlusion;
+pub mod motion_vectors;
 pub mod ray_test;
 mod rt;
 pub mod sound;
@@ -174,6 +176,7 @@ pub use match_rules::MatchClock;
 
 pub mod consumable;
 pub mod drawable_image;
+pub mod scaleform_filter;
 pub use consumable::QuickSlotActivity;
 
 pub mod config;

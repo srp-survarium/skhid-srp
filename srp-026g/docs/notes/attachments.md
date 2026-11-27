@@ -378,7 +378,9 @@ models of their own: asked for by the weapon cook's own query, and put in the sc
   the flash at each draw).
 - **Drawn as the weapon's model is.** Each draw copies the two bytes that put the gun in the
   first-person pass and make it movable (`weapon::set_foreground` 0x243D40,
-  `set_movable_static` 0x243CB0) to each part before it is added or updated.
+  `set_movable_static` 0x243CB0) to each part before it is added or updated. The parts and the
+  optics are static models: patch 215 gives their motion vectors the gun's (none), so TAA keeps
+  them whole (renderer-026g.md 10.1).
 - **A written bone is bounded by the game's own model**: where the records are written, the
   model's bone count (its skeleton render model's inverse binds) must be the table's gun's or more;
   else the weapon is forgotten with a line.

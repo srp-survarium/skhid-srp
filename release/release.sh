@@ -197,8 +197,9 @@
 # removed (the folder stays, state stopped), the image tag put back; the
 # server is as it was (a published patch stays, with its row in the list:
 # none is ever deleted; before the go no server offered it: its row goes,
-# and the file too when this run uploaded it, so the revision can be made
-# again with other bytes).
+# the file stays on the patches server, unlisted, which no player is
+# offered: a run with the same --resources takes it as it is, one with
+# other bytes replaces it, never listed and never offered).
 #
 #   --resources <file>  new content: resources.db.patch_<rev>, published first
 #                       (made by release/build-content <rev> --full)
@@ -991,28 +992,19 @@ record_release() {
 }
 
 # A stop before the go: the row upload-patch added goes from the list (no
-# server offered the patch), and the file with it when this run uploaded it
-# (PATCH_UPLOADED: the preflight found none there) and /patches did not
-# offer it: the revision can then be made again with other bytes. A file
-# published before the run stays.
-PATCH_UPLOADED=0
+# server offered the patch). The file stays on the patches server, unlisted
+# (no player is offered it): the next run with the same --resources takes it
+# as it is, without uploading it again; one with other bytes replaces it
+# (REPLACE_UNOFFERED: never listed, never offered).
+REPLACE_UNOFFERED=0
 unlist_patch() {
-    local name=$1 sha
+    local name=$1
     if awk -F '\t' -v n="$name" '$1 != n' "$PATCH_LIST" >"$PATCH_LIST.new" && mv "$PATCH_LIST.new" "$PATCH_LIST"; then
         say "$name: its row is out of $PATCH_LIST again (stopped before the go, never offered)"
     else
         say "$name: its row is NOT out of $PATCH_LIST: take it out by hand before the next run with --resources"
     fi
-    if ((!PATCH_UPLOADED)) || [[ $OLD_PATCHES == *"\"patch_${name##*_}\""* ]]; then
-        say "$name: the file stays on $PATCHES_LABEL (there before this run); a run with the same --resources takes it as it is"
-        return
-    fi
-    sha=$(sha256_of "$resources")
-    if on_patches "cd $(q "$PATCHES_DIR") && test \"\$(sha256sum < $(q "$name"))\" = $(q "$sha  -") && rm -f $(q "$name")"; then
-        say "$name: the file this run uploaded is off $PATCHES_LABEL again (never offered): the revision can be made again"
-    else
-        say "$name: the file is NOT off $PATCHES_LABEL: a run with other bytes is refused until it is (cd $PATCHES_DIR && rm $name, never offered)"
-    fi
+    say "$name: the file stays on $PATCHES_LABEL, unlisted (never offered): a run with the same --resources takes it as it is, one with other bytes replaces it"
 }
 
 # What a stop does, by phase.
@@ -1048,8 +1040,8 @@ on_exit() {
         fi
         if ((maint_planned)); then cancel_maintenance; fi
         if [[ -n $resources && -n ${published:-} ]] && ((!go_given)); then
-            # Before the go no server offered it: its row goes, and the file
-            # with it when this run uploaded it (unlist_patch).
+            # Before the go no server offered it: its row goes; the file
+            # stays, unlisted (unlist_patch).
             unlist_patch "${resources##*/}"
         elif [[ -n $resources && -n ${published:-} ]]; then
             say "${resources##*/} stays published on $PATCHES_LABEL, with its row in $PATCH_LIST (patches are never deleted); the server does not offer it yet. Next time: no --resources."
@@ -1300,10 +1292,12 @@ if [[ -n $resources ]]; then
     if ((patches_ok)) && [[ -f $resources ]]; then
         there=$(on_patches "cd $(q "$PATCHES_DIR") && if test -e $(q "$name"); then sha256sum < $(q "$name"); else echo none; fi" || echo "unknown")
         if [[ $there == none ]]; then
-            PATCH_UPLOADED=1
             okay "--resources: not on $PATCHES_LABEL yet"
         elif [[ ${there%% *} == "$(sha256_of "$resources")" ]]; then
             okay "--resources: on $PATCHES_LABEL already, these same bytes, not in $PATCH_LIST: taken as it is (and kept at a stop)"
+        elif [[ -z $(list_row "$name") && $(served_patches) != *"\"patch_${name##*_}\""* ]]; then
+            REPLACE_UNOFFERED=1
+            okay "--resources: on $PATCHES_LABEL with other bytes (${there%% *}), never listed or offered (a stopped run's): replaced at the publish"
         else
             problem "--resources: $name is already published with OTHER bytes (${there%% *}); a published patch is never replaced: make the next revision"
         fi
@@ -1775,6 +1769,10 @@ dry=()
 ((DRY_RUN)) && dry=(--dry-run)
 if [[ -n $resources ]]; then
     progress "2. publishing ${resources##*/} on $PATCHES_LABEL"
+    if ((REPLACE_UNOFFERED)); then
+        # A stopped run's upload of other bytes, never listed or offered.
+        write_on patches "cd $(q "$PATCHES_DIR") && rm -f $(q "${resources##*/}")"
+    fi
     "$here/upload-patch" "${step_flags[@]}" "${dry[@]}" "$resources" </dev/null || die "upload-patch failed"
     if ((!DRY_RUN)); then
         published=1

@@ -568,10 +568,17 @@ accum_diffuse and RT1 accum_specular. Constants (0x18137B..0x181609): `light_ran
 `world_to_inner_probe`, `probe_index`, `probes_blend_factor` (scene+126154h; blend_to used when
 0 < f < 0.999, the blend_to textures alone when f >= 0.999). PROVEN.
 
-Shader `environment_probe_lighting.ps`, 32 permutations; path digits: pos 3 lighting model (0 in
-all 16 effects), pos 5 TDIFFUSE = affect_diffuse, pos 26-27 TALPHABLENDED_DIFFUSE = blend,
-pos 31 LOD_INDEX = smart_attenuation, pos 41 ENV_PROBE_GEOMETRY_TYPE (macro bits from the
-config setter around 0x3D936B; effect configs 0x18A310.. set exactly these bits). Read:
+Shader `environment_probe_lighting.ps`, 32 permutations; its mask (`shaders/masks`):
+CONFIG_ENV_PROBE_GEOMETRY_TYPE, CONFIG_LOD_INDEX, CONFIG_TALPHABLENDED_DIFFUSE, CONFIG_TDIFFUSE,
+GLOBAL_LIGHTING_QUALITY, CONFIG_SHADOWED_LIGHT; path digits: pos 3 GLOBAL_LIGHTING_QUALITY (0 or
+3: the db holds both sets of 16, and the quality setting picks one at every compile; the 3 set
+interpolates two specular mips, the 0 set takes the nearest one), pos 5 TDIFFUSE = affect_diffuse,
+pos 27 TALPHABLENDED_DIFFUSE = blend (pos 26 CONFIG_SHADOWED_LIGHT, always 0), pos 31 LOD_INDEX =
+smart_attenuation, pos 41 ENV_PROBE_GEOMETRY_TYPE (macro bits from the config setter around
+0x3D936B; effect configs 0x18A310.. set exactly these bits; corrected 2026-11-23, earlier this
+said "pos 3 lighting model, 0 in all 16 effects"). The box programs (geometry 1, LOD_INDEX 0) are
+reconstructed as HLSL in `srp-026g/shaders/sm_4_0/environment_probe_lighting.ps` (`probes.sh
+check`: 6 of the 8 byte-identical, the other two one mul's operands apart). Read:
 
 ```
 sphere alpha  (91f1723c...47c5df)  t = sat((|P - probe_location| - inner_radius)
@@ -1024,6 +1031,48 @@ PROVEN for the shaders quoted and the label order; which branches run (AA method
 at 0x1B2D20, motion blur `r_motion_blur_quality` opt+E4h, lens flares, radial blur,
 `effect_aberration_and_sharpen<a,b,c>`) depends on the user options and was not traced branch by
 branch. There is no separate gamma pass: the encode is in the sharpen / copy shaders.
+
+### 10.1 Motion vectors and TAA
+
+**The surfaces.** `accumulate_motion_vectors` (0x1B1B50) draws into `$user$object_motion_vectors`
+the surfaces of two lists of the scene view (+4170h), each filtered by
+`is_not_motion_vector_surface` (0x1B1840): from the G-buffer's surfaces (+84ACh) the skinned ones
+(render surface key +48h 8, 10h, 20h, 40h), from the models the scene moved since the last frame
+(+494h: `select_models`' second query, 0x150220, takes a tree item whose moved flag +2Ch is set; the
+loose octree sets it at every insert and move, 0x39509, 0x3A6DC..0x3A711, and `unmove_all` 0x396C0
+clears it at the end of every `renderer::render`, 0x13DE6B) the rest. `render_models` (0x1B18B0)
+draws the world's, then `foreground_begin` and the first person's (the model's foreground byte
++114h or the surface's +63h against its second argument). The first person's static surfaces are in
+the lists every frame: a weapon's draw moves them. PROVEN (code; counted in a capture, an AK-12
+with an ACOG and a side sight: 10 first-person surfaces, 6 static, in every frame's list). The
+model's `movable` byte (+115h) is read only by the shadow cache (0x172C4B), not here.
+
+**What each writes** (`motion_vectors_accumulation.ps`, the 0.26g blobs): a skinned surface's
+permutation writes (0, 0, 1, 0): no motion, the object flag. A static one's projects its
+model-space position through the previous transform (cb0, the constant [view+138h]: its world
+matrix of the frame before, kept in the scene view's map +25374h by surface, times the view matrix
+of the frame before, stage +10h, copied from context +4E18h at the end of each post-process,
+0x1B34ED) with this frame's projection, and writes the pixel's position less that, with the object
+flag. PROVEN (bytecode, code).
+
+**TAA** (`temporal_antialiasing.ps`): the camera's motion from the linear depth and the view of the
+frame before, or, where the object flag is set, minus the object's motion (and the object's where
+the reprojected pixel lands on one); then half of the history there while the motion is under 1 %
+of the screen (weight 0.5 x (1 - 100 |motion|), 0 off the screen), nothing past it. There is no
+clamp of the history to the pixel's neighbours. PROVEN (bytecode).
+
+**First person** (patch 215, `first_person_motion`). The gun and the hands are skinned: no motion,
+their own pixel's history. 0.69d0's modules (patch 161's optics and parts) are static models, and
+their written motion was a share of the view's: in turns, steps and the gun's sway TAA took half
+of their pixels from the world beside them (the optic half see-through, the motion blur smearing it
+the same way). OBSERVED (headless captures of an AK-12 with an ACOG TA01 and a DeltaPoint second
+sight, revision 74 content: see-through with TAA and no motion blur, whole with motion blur and no
+TAA; an SVD's own PSO-1, also static, drawn at the world's projection, whole). Why the static path's
+motion is wrong for them was not found: the previous transform's formula holds for a model fixed
+to the view. The patch gives a first-person surface's previous transform its world and view
+matrices of this frame (site `motion_vectors.previous`, 0x1B1A1D): a motion of 0 with the object
+flag, the gun's. A first-person thing that moves on the screen (the gun's bob in a strafe) then
+keeps half of its last frame's image in TAA, as the gun always has.
 
 ## 11. The captured frame
 

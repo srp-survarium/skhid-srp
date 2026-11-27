@@ -172,6 +172,19 @@ def check_larkspur(data, kit):
             g.call(ACTION, (pressed, 2234), ecx=item)
             close(g.float(stamina + 0x6C), 10.0)
         outcomes.append((payload, kind, filled))
+    # A worn copy (2 uses spent: it fires at 0.8 ** 2) adds its power's share of the whole bar, capped.
+    for start, expected in [(10.0, 10.0 + 64.0), (50.0, 100.0)]:
+        g = MedicalGame(data)
+        g.emu.mem_write(PLAYER + 0x115, bytes([kit]))
+        g.ranks(LARKSPUR_II, RANKS)
+        g.word(DM, g.read(PLAYER + 0x2E0))
+        item = artefact(g, inventory(g), 13, LIFEBONE_ACTIVE, 3)
+        g.emu.mem_write(item + 0x286, bytes([2, 0]))
+        stamina = PLAYER + 0x6C0
+        g.word(stamina, bits(100.0))
+        g.word(stamina + 0x6C, bits(start))
+        g.call(ACTION, (1, 1234), ecx=item)
+        close(g.float(stamina + 0x6C), expected)
     print(f"Larkspur II kit {kit}: a Larkspur's activation fills the stamina with the skill only; "
           "a repeated press, a key-up, another kind and a refused payload do nothing: PASS")
     return outcomes

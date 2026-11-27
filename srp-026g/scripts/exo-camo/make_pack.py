@@ -33,6 +33,11 @@ them) and not the faction's red or orange stripes (saturated). On a painted texe
 texture's fine shading and R its broad shading (the weapon masks' rule, weapon_camo.aoac), so the
 camouflage keeps the suit's wear and folds.
 
+The legs are an additional model of the body, which the game's bake leaves out (it paints an item's own
+surface alone): the pack sets `camo_available` true on the legs' entry of `additional_models` in the
+four data tables (LEGS_ENTRY), and exe patch 217 (additional_camo) gives such an entry the item's
+camouflage. Without patch 217 the key is read by nothing and the legs stay bare (exo-camo@1).
+
 The Freedom body's legs get a model file name of their own, `ported/freedom_026/freedom_exo_legs_s1`
 (the legs' six files again, byte for byte): the game names an item's baked textures after its
 models' file names without their folders, and both suits' legs are `duty_03_legs_s1` (exo-decals did
@@ -53,7 +58,7 @@ sys.path.insert(0, str(HERE.parent / 'weapon-camo'))
 import weapon_camo  # noqa: E402  (dds_dxt1: the stock masks' DXT1 with mips)
 
 PACK_ID = 'exo-camo'
-VERSION = '1'
+VERSION = '2'
 SUITS = ('duty', 'freedom')
 CONFIGS = 'gameplay/items/armour/torso'
 # Each texture a body's own surface draws and the surface whose UVs lay it out (one mesh, both suits).
@@ -76,6 +81,11 @@ OPTIONS = 'textures/character/human/black_market_01/black_market_01_torso_aoac.o
 LEGS_OLD = 'ported/freedom_026/duty_03_legs_s1'
 LEGS_NEW = 'ported/freedom_026/freedom_exo_legs_s1'
 TABLES = ('data', 'data_full', 'data_short', 'data_long')
+# The legs' entry of each body's additional_models (in all four tables): the game bakes an item's
+# camouflage into its own surface alone, and the legs are an additional model; exe patch 217
+# (client-patches/rust/patches/src/additional_camo.rs) gives an entry with camo_available true the
+# item's camouflage (exo-camo@2; @1 painted the sleeves only).
+LEGS_ENTRY = {'duty': 3, 'freedom': 2}
 # The released files read, by sha256 (the live game data of patch 73; read() refuses others).
 LIVE = {
     'models/ported/duty_026/duty_03_legs_s1.skinned_model/render/legs_s/converted_model': '2aa237d776d2ce625777fcacf2f0fb774e697e50e32066fc4af20eb3ada0c1a8',
@@ -215,15 +225,19 @@ def main():
     operations = [{'op': 'add_file', 'path': path} for path in sorted(files)]
     camo = {'parameters.camo_available': True}
     legs = {f'{table}.additional_models.2.base_model': LEGS_NEW for table in TABLES}
+    painted = {suit: {f'{table}.additional_models.{LEGS_ENTRY[suit]}.camo_available': True for table in TABLES}
+               for suit in SUITS}
     operations += [
-        {'op': 'config_set', 'path': f'{CONFIGS}/duty_exo_026.options', 'values': camo},
-        {'op': 'config_set', 'path': f'{CONFIGS}/freedom_exo_026.options', 'values': {**camo, **legs}},
+        {'op': 'config_set', 'path': f'{CONFIGS}/duty_exo_026.options', 'values': {**camo, **painted['duty']}},
+        {'op': 'config_set', 'path': f'{CONFIGS}/freedom_exo_026.options',
+         'values': {**camo, **legs, **painted['freedom']}},
     ]
     pack = {
         'format_version': 1, 'id': PACK_ID, 'version': VERSION, 'target_build': '0.26g',
         'description': 'the Duty and Freedom exoskeleton bodies take a camouflage (parameters/camo_available and '
                        f'the _aoac masks of their torso and legs maps, {a.level} coverage: the cloth and plates, not '
-                       f'the frame, straps or stripes); the Freedom legs under a file name of their own ({LEGS_NEW})',
+                       f'the frame, straps or stripes; the legs\' additional model with camo_available, which exe '
+                       f'patch 217 paints); the Freedom legs under a file name of their own ({LEGS_NEW})',
         'operations': operations,
     }
     for path, data in files.items():

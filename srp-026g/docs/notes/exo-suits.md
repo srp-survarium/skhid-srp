@@ -69,4 +69,15 @@ and energy costs to their second-strongest rows):
   - The Freedom legs' model is `ported/freedom_026/freedom_exo_legs_s1` (its six files again, byte
     for byte): both suits' legs were `duty_03_legs_s1`, and the game names a bake after the model's
     file name, so with the same camouflage the suit seen second would have worn the other's legs.
-  - Not yet seen in a game: the bake on both suits in the lobby and in a match.
+  - **The legs** (2026-11-27, the owner: "applying camo to exoskeleton doesn't paint legs"). The legs
+    are an additional model of the body (Duty's `additional_models[3]`, Freedom's `[2]`). The game
+    bakes an item's camouflage into the item's own surface alone: the cook gives an additional model's
+    record no camouflage and no bake flag (`client_patch.md` 3.114). In revision 74 a camouflage
+    painted the sleeves, and the trousers stayed bare on both suits: the owner's baked files hold only
+    `…duty_03_torso_s1` bakes.
+  - The fix: exe patch 217 (`additional_camo`) gives an additional model whose entry has
+    `camo_available: true` the item's camouflage, under a bake name of its own (the camouflage's file
+    name and the model's: `…duty_03_legs_s1`, `…freedom_exo_legs_s1`). exo-camo@2 sets the key on the
+    legs' entry in the four data tables of both bodies. Its masks are @1's, byte for byte. Without
+    patch 217 the key is read by nothing.
+  - Not yet seen in a game: the bake on both suits, the legs too, in the lobby and in a match.

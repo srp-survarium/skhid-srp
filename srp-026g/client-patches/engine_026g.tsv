@@ -364,3 +364,6 @@ engine_subscribe_event_channel	0x391c40	ESI:channels ESP+4:name ESP+8:functor ES
 engine_unsubscribe_event_channel	0x3921a0	EAX:name ESP+4:channels ESP+8:subscriber	void engine_unsubscribe_event_channel(const char *name, struct event_channels *channels, const void *subscriber)	thunk	
 engine_hud_texts	0x2346e0	ESP+4:hud	void engine_hud_texts(struct game_world_ui *ui)	stdcall	
 engine_lobby_texts	0x286260	ESP+4:lobby	void engine_lobby_texts(struct lobby_menu *menu)	stdcall	
+engine_context_om_set_depth_stencil_state	ID3D11DeviceContext+0x90	-	void engine_context_om_set_depth_stencil_state(struct immediate_context *context, struct depth_stencil_state *state, unsigned int reference)	com	
+engine_filter_set_cache_results	0x5298c0	ECX:primitive ESP+4:state ESP+8:results ESP+12:count	void engine_filter_set_cache_results(struct filter_primitive *primitive, unsigned int state, const void *results, unsigned int count)	thiscall	
+engine_ambient_clear_surfaces	0x180820	ECX:receiver	void engine_ambient_clear_surfaces(struct stage_ambient_lighting *stage)	thunk	

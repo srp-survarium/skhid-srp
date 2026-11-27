@@ -962,7 +962,7 @@ The owner's report: "battery marking sometimes works, sometimes doesn't"; the de
 
 Seen live since the rooms (#203): a player who left a running match (Leave match, 0xE0) and came back into it as a new place had two rows in the others' scoreboard, the left one greyed. The owner: "once they leave their previous entry should be removed".
 
-- **How a leave reaches the other games** (PROVEN, the server's code and the exe): `Game::leave` (match-server `game.rs`; for the leaver's 0xE0, a closed link, `SRP_MATCH_CLIENT_TIMEOUT_SECONDS` of silence, 10 s by default, or a new connection for the place) sends every other live game 0xEA `{tick, place}` for a tick 300 ms ahead (`roster_change`, `ROSTER_LEAD_MS`; a game in a resync gets it with its replay). The client's 0xEA handler (`network_client::process_player_left_match` 0x27C690) gives it to `game_world_core::leave_match` 0x2D18A0, and at that tick `game_world_core::on_player_left_match` 0x2D2040 calls slot +24h of every rule of the core (the vector at core+18824h..+18828h, 0x2D2119..0x2D2148); `kd_stats_rule::on_player_left_match` 0x323A00 clears the place's `online` (rule+114h + 8 × place; vtable 0xA177D4, whose +20h, on_player_entered_match 0x3239F0, sets it on 0xE9). It is in the world (snapshot_rules.md §2.7), so a late joiner or a resynced game has it too, and every game has it at the same tick. `kd_stats_rule::fill_match_hud_state` 0x323980 (+44h) copies kills, deaths and `online` of every place into the hud's state at +98h + 8 × place, the state being hud+24h..+2D8h (`update_ui` hashes it, 0x23B2D2): `online` of place i is hud+0C0h + 8i. A lost link and a leave look the same to the other games: one 0xEA, after 10 s of silence or at once; a lost game that comes back to its place is entered again (0xE9) and `online` is set again.
+- **How a leave reaches the other games** (PROVEN, the server's code and the exe): `Game::leave` (match-server `game.rs`; for the leaver's 0xE0, a closed link, `SRP_MATCH_CLIENT_TIMEOUT_SECONDS` of silence, 10 s by default, or a new connection for the place) sends every other live game 0xEA `{tick, place}` for a tick 300 ms ahead (`roster_change`, `ROSTER_LEAD_MS`; a game in a resync gets it with its replay). The client's 0xEA handler (`network_client::process_player_left_match` 0x27C690) gives it to `game_world_core::leave_match` 0x2D18A0, and at that tick `game_world_core::on_player_left_match` 0x2D2040 calls slot +24h of every rule of the core (the vector at core+18824h..+18828h, 0x2D2119..0x2D2148); `kd_stats_rule::on_player_left_match` 0x323A00 clears the place's `online` (rule+114h + 8 × place; vtable 0xA177D4, whose +20h, on_player_entered_match 0x3239F0, sets it on 0xE9). It is in the world (snapshot_rules.md §2.7), so a late joiner or a resynced game has it too, and every game has it at the same tick. `kd_stats_rule::fill_match_hud_state` 0x323980 (+44h) copies kills, deaths and `online` of every place into the hud's state at +98h + 8 × place, the state being hud+24h..+2D8h (`update_ui` hashes it, 0x23B2D2): `online` of place i is hud+0C0h + 8i. A lost link and a leave look the same to the other games: one 0xEA, after 10 s of silence or at once; a lost game that comes back to its place is entered again (0xE9) and `online` is set again. A game started anew that connects to its place before the server saw the old one go replaces the old link: its leave is sent first, its entry at a later tick (the match server's test `a_new_connection_for_a_live_place_is_its_leave_then_its_entry`). The place reaches slot +24h (and +20h) as a dword whose upper three bytes are not the place's (`process_events` 0x2D2180 keeps the place in the low byte of an argument's stack slot, 0x2D218B, and pushes the dword, 0x2D2194): a rule reads its low byte, as kd stats' `movzx` does (Artifact Hunt, patch 171, "The place of slots 8 and 9").
 - **What the stock game did with it** (PROVEN): `game_world_ui::initialize_match` 0x234880 (once at the match's start, again after a late join's install, §3.13) puts a row for every place below the count into the scoreboard's array by SetElement (the value interface's vtable+34h, index = the place, 0x23537A..0x23538A), and nothing ever takes one out. `update_ui` 0x23B200 (the name LIKELY: 0.10b's `game_world_ui::update_ui` loops over the places while `m_players_list_visible` and calls `set_player_online_status`, as this does; 0.10b's `initialize_match` skipped places of no team and put the rest in at a running index; the label is new in `tools/re-kit/v026g/inferred.tsv`), while the list is shown (hud+0BAh) and the state changed, calls `set_player_online_status` 0x23A7F0 (`root.set_online_player(name, online)`) and `set_player_stats_info` 0x236D30 (`root.list_update_player`) for every place below the count (0x23B42C..0x23B475). In the movie (`hud.swf`, `PlayerList.set_online_player`, `PlayerListRenderer.updateData`) a row whose `online` is false gets the name colour 0x999999: a left place stayed as a grey row, and a place not yet entered too. `set_online_player` finds the row by its name, so with two places of one name the old place's call set the new place's row (the first of that name) and the new place's call set it back.
 - **The patch** (`TAB_LIST_HOOKS`, `TAB_LIST_LOOP`, the builds with the late join; its code in `late_join_026g.asm`, with no C change, so `late_join_026g.section.bin` differs in its first 4096 bytes alone, assembled by NASM 2.16.03, the C part kept):
   - `tab_row` (late-join page +2480): 0x23537A's 16 bytes (`lea eax,[esp+58h]` / `push eax` / `mov eax,[esp+138h]` / `push ebx` / `push eax` / `call edx`) become a call of it and nops. It appends the row (PushBack, vtable+3Ch, the call the enemies' ids already use at 0x234F2D; the interface's order is Scaleform's `Value::ObjectInterface`: +34h SetElement, +38h VisitElements, +3Ch PushBack) when the place's hud byte is not 0, so the array is dense and in place order; and it sets the state dword (`.srpd`+0E40h, `TAB_LIST_STATE_OFFSET`) to -1 at every row: a list was made.
@@ -1310,12 +1310,12 @@ The owner's request (2026-10-21): "implement and allow put two decals on weapons
 - **The record and the config.** A decal is an upgrade record in slot 0 or 1 (items.md §2) whose u64 is the editor's value. The decal item's modification (`gameplay/items/upgrades/decals/char_decal_*.options`: modification 200101, type 3, path `data/decals`, value `[-1, {texture, "<low_param>", "<high_param>"}]`) appends an entry to the host config's `data/decals` (armour configs have an empty `data/decals`); the config merge puts the record's u64 halves, as integers, where the two texts were (0x3584E0: 0x35854C..0x3585D5, type 1, count 4); the merged config's name holds a CRC of the item's three records' u64s (0x2F14C0, `_%d`).
 - **The u64** (pack 0x263B60, unpack 0x263D00; their round trip run with Unicorn): bits 0-9 yaw ((a + pi/2) * 162.97), 10-19 pitch ((a + pi) * 162.97), 20-26 roll (* 20.37), 27-30 size (* 32; unpacked / 32, clamped 0.05..0.5), 31-41 x ((x + 1.5) * 682.67), 42-52 y (* 1024), 53-63 z as x. The float4x4 (rows, v * M): right * size, up * size, forward * 1.5, the point - 0.75 * forward: a projector box 0.75 m either side of the point, up the world's up for a level forward; u64 0 unpacks as 0x76961E1C98074123 (a place on the chest).
 - **The bake.** camouflage_decal_cook_parameters (P, ctor 0x119760): two decal layers of 270h at P+0 and P+270h, the camouflage's at P+4E0h (each a float4x4, then buffer_strings 8Ch apart: the diffuse +40h, `_nmap` +CCh, `_fmap` +158h, `_smap` +1E4h); P+750h is the model's transform for the bake: rotY(pi) for each of the profile's visual's parts (0x2045C6..0x20460D, the matches' bake), rotY(the lobby character's yaw, pi) in the editor (0x2646F3). So a decal's place is in the model's space turned by pi about y: the vertices as the `converted_model` files hold them with x and z negated (the `export_properties` bounding boxes are the vertices' mirrored in x and z: AK-12 vertices z -0.265..0.673, export -0.673..0.265). The baker's occlusion (0x1307B0) renders a 256x256 depth map along each decal's matrix (an orthographic view the size of its axes) with the model drawn at P+750h (0x12F5B0), and sets `decal_transform` and `local_to_occlusion` (baker+49274h, +49278h, 0x130C3C): a decal paints the first surface its projector sees. The textures pass (0x12E510) needs the `_aoac` only with a camouflage (0x12E8E9); decals alone bake on any surface. A match's character bakes its decals from its merged config (0x204560 fills the layers, 0x2050E5 unpacks), on every game.
-- **The editor.** The movie's start_decal_edit (UpgradeWindow's "change" on a decal slot) -> 0x29A830 -> start 0x2636B0 (eax = the host): the edit on (+D514h), the host +D520h, the decal +D524h, its record's u64 +D548h (and +D550h for the cancel), its index among the host's records not in slot 3 (+D52Ch: its entry of `data/decals`) and its record's index (+D52Dh), the size from the decal's `default_size` (+D518h, clamped 0.05..0.4), the roll 0 (+D51Ch); then 0x264CF0 queries the host's merged config (callback 0x264EA0: +D528h, then 0x264F80 queries `data/decals[+D52Ch]`'s four textures for the preview, with no bounds check, and 0x2641A0 bakes the host without the edited decal). Each frame (the character's update, 0x284A8E) 0x265980 picks (0x264960: the mouse's ray 0x26D130 against the character's collision model, mask 20h; the point +D530h, the normal +D53Ch), packs (0x264A10, the direction the normal reversed), unpacks and shows the box as a scene decal (0x265860, id 999; taken away on a miss). The wheel with a modifier key (0x265CB0) changes the size by 0.05 (0.05..0.4) or the roll by 0.1 (wrapped). The click (key 151h, 0x265C20): 0x2641A0(1, 0, 0) picks again, keeps the u64 (+D548h) and bakes; its callback (0x2648E0) accepts (0x263950: the record's u64 in the inventory's copy, `46 05`, the markers) and calls the movie's `root.exit_decal_edit`. The cancel (cancel_decal_edit -> 0x29A850 -> 0x263A70): the record's old u64 back and baked again.
+- **The editor.** The movie's start_decal_edit (UpgradeWindow's "change" on a decal slot) -> 0x29A830 -> start 0x2636B0 (eax = the host): the edit on (+D514h), the host +D520h, the decal +D524h, its record's u64 +D548h (and +D550h for the cancel), its index among the host's records not in slot 3 (+D52Ch: its entry of `data/decals`) and its record's index (+D52Dh), these three only when the host's records hold the decal (else the last edit's stay: the crash below), the size from the decal's `default_size` (+D518h, clamped 0.05..0.4), the roll 0 (+D51Ch); then 0x264CF0 queries the host's merged config (callback 0x264EA0: +D528h, then 0x264F80 queries `data/decals[+D52Ch]`'s four textures for the preview, with no bounds check, and 0x2641A0 bakes the host without the edited decal). Each frame (the character's update, 0x284A8E) 0x265980 picks (0x264960: the mouse's ray 0x26D130 against the character's collision model, mask 20h; the point +D530h, the normal +D53Ch), packs (0x264A10, the direction the normal reversed), unpacks and shows the box as a scene decal (0x265860, id 999; taken away on a miss). The wheel with a modifier key (0x265CB0) changes the size by 0.05 (0.05..0.4) or the roll by 0.1 (wrapped). The click (key 151h, 0x265C20): 0x2641A0(1, 0, 0) picks again, keeps the u64 (+D548h) and bakes; its callback (0x2648E0) accepts (0x263950: the record's u64 in the inventory's copy, `46 05`, the markers) and calls the movie's `root.exit_decal_edit`. The cancel (cancel_decal_edit -> 0x29A850 -> 0x263A70): the record's old u64 back and baked again.
 - **The server answers no `46 05`**, and the client writes only the inventory's copy (profile+4634h), not the kits' item table (profile+1568h) the lobby's character is built from: an armour shows its new place by the editor's own bake.
 
 **What a weapon lacked**: `decal_available` and `data/decals` in its config (the data patch); a bake of decals (patch 44 baked a camouflage only); a place to pick (weapons have no collision model: a weapon's `.skinned_model` holds its render surfaces, bind pose and skeleton only), and the editor's bake goes to the character's model (its player's +F290h, surface +D52Eh); its index (+D52Ch) counts a weapon's camouflage record (slot 2) as a decal, which would read past `data/decals`.
 
-**The patch** (`weapon_decals_026g.asm` at `.srpw`+1000h = 0xA42B000, 3145 bytes, the section's second page (+1200h = 0xA42B200 since patch 45's round 6, 2026-10-29); its state, 12 bytes, at `.srpd`+FA0h = 0xA428FA0 (+FC0h since then), after patch 45's: the left button's press; it reads patch 32's mode and item and patch 45's table, READY and published transform). It begins with seven `jmp near`:
+**The patch** (`weapon_decals_026g.asm` at `.srpw`+1000h = 0xA42B000, 3145 bytes, the section's second page (+1200h = 0xA42B200 since patch 45's round 6, 2026-10-29); its state, 12 bytes, at `.srpd`+FA0h = 0xA428FA0 (+FC0h since then), after patch 45's: the left button's press; it reads patch 32's mode and item and patch 45's table, READY and published transform). It begins with seven `jmp near` (eight since 2026-11-26, `textures` +23h):
 
 | site | original | patched | code |
 |---|---|---|---|
@@ -1325,7 +1325,8 @@ The owner's request (2026-10-21): "implement and allow put two decals on weapons
 | 0x2659B2 | `call 0x263D00` | `call 0xA42B00F` | `decode`: for the weapon, the preview's box is `weapon_matrix` times `weapon_transform`; otherwise the original |
 | 0x265C20 | `push ebp / mov ebp,esp / and esp,-8` | `jmp 0xA42B01E` + nop | `click`: the character's mouse key handler (input vtable 0xA09F6C slot 2; ecx = the character, the code, the kind; `ret 0Ch`), which bakes the edit's place on the left button's release (151h, kind 1; 0 is the press, 2 held). In a weapon's edit: the press keeps the cursor (lobby menu +8Ch, +90h); the release goes on to the original (the place) only within 5 pixels of it, else al 0 and nothing placed (the drag turned the weapon: patch 45's left button); a release with no press seen (the movie's "change") places nothing. Otherwise the original |
 | 0x2641A0 | `push ebp / mov ebp,esp / and esp,-8` | `jmp 0xA42B014` + nop | `bake`: for the weapon, the click (1, 0) picks, packs (0x264A10) into +D548h, accepts (0x263950 with the host and the decal) and calls `root.exit_decal_edit` (0x511600), al 1; a miss al 0 (the edit stays on); the start's and the cancel's calls nothing, al 1; `ret 10h`. Otherwise the three instructions and on at 0x2641A6 |
-| 0x263938 | `call 0x264CF0` | `call 0xA42B019` | `start`: for the weapon, +D52Ch = the records of slots 0 and 1 before the edited one (the decals' order in `data/decals`), or, for a record of another slot, the edit off and no query; then 0x264CF0 |
+| 0x263938 | `call 0x264CF0` | `call 0xA42B019` | `start`, for every host (since 2026-11-26): the record at +D52Dh must be the edited decal's (id +D524h) in a decal's slot (a weapon's 0 or 1, armour's not 3), else the edit off, `root.exit_decal_edit` and no query; for the weapon, +D52Ch = the records of slots 0 and 1 before the edited one (the decals' order in `data/decals`); then 0x264CF0 |
+| 0x264F4D | `call 0x264F80` | `call 0xA42B023` | `textures` (2026-11-26), for every host: 0x264F80 only when `data/decals[+D52Ch]` of the merged config (+D528h) is there, a table whose first value is a text; else the edit off, `root.exit_decal_edit`, and back at 0x264F68 past the callback's bake of the host |
 
 - **The weapon's transform** (`weapon_transform`, PROVEN in the code, emulated): patch 45 publishes the transform it draws the held weapon with at its state's +50h (rows, v * M; a stamp at +48h), valid while +0 (TABLE) and +28h (READY) are 1. The drawn weapon is skinned: a vertex goes through invbind_i * pose_i of its bone, then that transform (update_render_matrices 0x15A590: 0xEE700 multiplies the model's inverse bind +140h by the bone of the frame, 0x58B70 transposes it into the render instance's +229Ch, 0x15A7EC..0x15A810). The decal is baked on the bind pose's vertices, so the vertices' space is reached through bone 1 (`offset`, the body's in every weapon of the data; the PM's idle moves it 20 cm): out = S1 * W, S1 read back from +229Ch + 40h (transposed) of the held weapon's render instance (player +128h, a `weapon` (vtable 0xA04174), +1810h, +108h, vtable 0x9F0F24), the identity when any of them is not there. Inverted for the pick by cofactors (no rigidity assumed).
 - **The weapon above the bench:** patch 45's table on, patch 32's weapon shown, the character's upgrade window open (+D515h) and the edit's host (+D520h) the window's item (patch 32's state +4). Armour, the squad panels, a weapon window without patch 45's table: every site is the original's code.
@@ -1333,11 +1334,12 @@ The owner's request (2026-10-21): "implement and allow put two decals on weapons
 - **The pick is no hit test** [srp]: the point is on the ray where it passes the weapon's long axis; the decal's projector (0.75 m either side along the ray) and its occlusion put it on the first surface the ray meets. A click in the air within 0.25 m of the axis places a decal that paints whatever its box reaches (maybe nothing).
 - **The new place on screen:** the weapon's bake is not done by the click; the server sends the account after a weapon's `46 05` (`lobby-server` items.rs), its kits' revisions changed: the lobby's refresh rebuilds the character (patch 32's kit or scratch profile), weapon_cook runs and patch 44 bakes the decals with the new u64. Until then the weapon shows its old decals (the accept takes the preview's scene decal, id 999, away: 0x263950); a game whose server does not send the account shows the new place at its next refresh.
 - **A decal dragged from one slot to the other** (found 2026-10-21 in the owner's game, a Mosin, `weapon-camo-27/runtime/packets`: "move the same decal into another slot ... it doesn't appear any longer"; PROVEN in the packets and the movie, not in the exe): the movie sent `46 01` (the new slot) and `46 02` (the slot it left) in one datagram, in that order (CLIK's DragManager: the target's handleDropEvent, then the source's handleDragEndEvent, whose dropSlot gives UpgradeWindow.onItemUpdated a drop_upgrade_item); the server moved the decal and then took it off the weapon; every later bake had no decal. Neither patch 47 nor patch 48 is in this: the same happens to armour's decals. Fixed in the movie (onItemUpdated sends no drop for a cosmetic another slot of the window holds) and the server (a move to another slot of the host keeps the record's u64, its place, and answers it in `83 46 01`; the client's record takes the value from the answer). `check_weapon_decals_026g.py` adds the start's index for a decal moved to slot 1 (its record last); `items_tests.rs` the sequence.
+- **A "change" before the server's answer: the editor's stale index** (the owner's crash of 2026-11-26, revision 74, "when I was putting decal on pants"; PROVEN in the full-memory dump and replayed in it with Unicorn). The movie shows a dropped decal in its slot at once (`UpgradeWindow.put`, the stock's `onItemDropped`) and its "change" calls start_decal_edit (0x2636B0) at once; the server's `46 01` answer, which puts the record on the client's copy of the item, came 70..420 ms after a drop that evening. The start writes +D52Ch, +D52Dh and +D548h only when a record of the host has the decal's id (0x2637C0..0x26382E); with none they are the last edit's. The dump: trousers 826 (dict 940, scav_legs_9) holding only the camouflage 1775 (dict 3184, camo_atlas_teal_pixel) in slot 3, the decal 1505 (dict 1897, Snufkin sitting) in no record, +D52Ch 1 and +D52Dh 2 from the jacket's (763) Fumo edit before; the merged config's `data/decals` empty, its entries' pointer `sounds`' (the next table); 0x264F80 read entry 1, `sounds[1]`, whose first value is the integer 102h, as the texture's address (0x26517A, EAX 102h). A host with no decal crashed at index 0 too; one with decals could preview another decal's textures. The stock's (patch 47's `start` passed armour through unchanged); it needs a "change" in the round trip (or after a refused attach). Since then `start` checks the record at +D52Dh for every host and `textures` bounds the read; a refused start ends the edit in the movie (`root.exit_decal_edit`) and a "change" after the answer edits. The weapon's own `start` used +D52Dh without the id check: a stale one could count another decal's index, and a record of another slot ended the edit without the movie's exit (its controls stayed locked).
 - **A click places, a drag turns** (the owner's left-button drag of patch 45 round 2): see `click`; the press and the release are the input world's mouse kinds (0x3B9D90, section 3.29's warmup keys). Armour's edit is the original's (its release places, as before).
 - **Relocations:** none under the five sites; nothing aims inside them (the bake's three callers 0x263B46, 0x264F63, 0x265C4C call its first byte; the key handler is reached through its vtable alone). The code holds absolute addresses (the states, its constants, the game's strings), as patch 44's (the exe is never rebased).
 - **GUESS:** that the body of every weapon is bone 1's alone (a part on another bone, a magazine, takes a click by the body's pose: off by what its own pose moves it). That the scene's decal (the preview) draws on a weapon. That the bake's occlusion and accumulation use P+750h alike (the identity here).
 - **Limits:** a surface without `_aoac` of a weapon with a camouflage takes neither (the baker refuses the type); without a camouflage decals go on any surface.
-- **Checked:** `selftest_026g.py` check 47 (the five sites in the original and the build without the late join, nothing aiming inside them, no relocation; the preview's, the start's and the key handler's code around them, the handler's vtable; the bake's three callers; the code's calls and jumps; the two pages of `.srpw`), check 44 (patch 44's calls include lookup and fill) and both `.section.bin` current; `check_weapon_decals_026g.py` (Unicorn, 202 checks; patch 45's own `matrix` run to publish the transform, a held weapon whose bone 1 is turned and moved 25 cm; the cases in its header); `check_weapon_camo_026g.py` (a camouflage alone as before) and patch 45's, 32's and the stash's checks on the merged branch (feat/weapon-camo e71eb9f7). **Not run in a game.**
+- **Checked:** `selftest_026g.py` check 47 (the five sites in the original and the build without the late join, nothing aiming inside them, no relocation; since 2026-11-26 the sixth, textures', and its way back past the host's bake in the original and the build; the preview's, the start's and the key handler's code around them, the handler's vtable; the bake's three callers; the code's calls and jumps; the two pages of `.srpw`), check 44 (patch 44's calls include lookup and fill) and both `.section.bin` current; `check_weapon_decals_026g.py` (Unicorn, 233 checks since 2026-11-26, the start's record check and the textures' bound with the owner's crash among them; patch 45's own `matrix` run to publish the transform, a held weapon whose bone 1 is turned and moved 25 cm; the cases in its header); `check_weapon_camo_026g.py` (a camouflage alone as before) and patch 45's, 32's and the stash's checks on the merged branch (feat/weapon-camo e71eb9f7). **Not run in a game.**
 
 ### 3.45 An upgrade dropped on a weapon in its window is shown at once (written 2026-10-21, README patch 48, the next release's revision) — PROVEN in the code, the six sites run with Unicorn with the game's own setup_profile, profile copy and config lookups; not run in a game
 
@@ -4657,7 +4659,18 @@ code is (`rust/patches/src/artefact_hunt.rs`, `artefact_hunt.toml`, `src/vostok/
   in the world's places whose player has a team the rule does not have him on (slot 8 comes before
   the team: nobody was ever in the match, so no take); one log line a take, delivery, drop and entry;
   the prompt gives the hud its key; a wiped team's end is reason 2 with its own texts.
-- Checked: `check_artefact_hunt_026g.py` (42 cases through the game's own callers), the crate's tests,
+- **The place of slots 8 and 9** (PROVEN, the exe; live 2026-11-26, match 0x45331d4d): the roster
+  loop `game_world_core::process_events` 0x2D2180 keeps its place counter in its second argument's
+  stack slot (`mov [esp+1Ch],bl` 0x2D218B) and pushes the whole dword as the place (0x2D2194);
+  `on_player_entered_match` / `on_player_left_match` give it on whole to every rule (0x2D201C,
+  0x2D213C), so its upper three bytes are the roster records' pointer's. The native rules read the
+  byte (tdm 0x3165D3, kd stats 0x323A00); the hunt took the dword whole and refused it, so no leave
+  ever reached the rule: a carrier who left kept the artefact out of the world and came back at
+  his base with it, and the use key there scored. `slot_place` takes the low byte: a carrier's
+  leave drops it where he stood, as a death (`artefact_hunt.md` "His death and leaving").
+  `engine_026g.tsv`'s rows keep `place: u32` (the generator has no byte argument); the module reads
+  it once, at the slot. Check case 19b drives 0x2D2180 with a carrier's leave.
+- Checked: `check_artefact_hunt_026g.py` (55 cases through the game's own callers), the crate's tests,
   `cargo test` / clippy of the patches. Not run in a game.
 
 ### 3.102 A damage zone and its players out of step no longer move memory (written 2026-11-22, README patch 192) — PROVEN in the code and under Unicorn; the trigger NOT established; not run in a game
@@ -4804,6 +4817,30 @@ The full account, 0.69d0's and the content's seats: `reload-commit.md`.
   ECX the state): with +5F2h (chamber_a_round_on_reload) and +5F1h (chambered) set, +5E5h += 1 and
   +5F1h = 0 before the load (as 0x30FDD2..0x30FDD8). load_magazine is then the same twice as once.
 - **Nothing new in a world**: the subscription is the state's own, made again by its deserialize.
+- **The clips stay the first pick's** (added 2026-11-27, after rev74's report "broken when weapon
+  shoots all bullets and does full reload"). Each selection of the player's animation
+  (`base_player::select_animations` 0x2D9690, run by tick_animations 0x2D8EE0 while
+  m_need_to_select_animations +33Eh is set: an input change 0x2D899D, the aim's tick 0x2E0A59, ...)
+  calls the state's slot 8, and a two-clip reload picks its clips there from the rounds now:
+  314's `get_weapon_lexeme` 0x30FE90 the empty clips for `weapon+5E5h == 0` (`sete bl` 0x30FEAC) and
+  its slot 8 0x30FDF0 the empty hands (+168h, else +164h) the same way (`sete al` 0x30FE21); 311's
+  0x30F5A0 the two shells' for `+5E5h != 1` (`setne cl` 0x30F5C4), its hands 0x30F4F0 for that and a
+  stack (+538h, entry +22Ah) whose count (+260h) is not 1. The weapon pick writes
+  m_index_of_animation_to_wait (+134h) = `(pick*8 + state+144h - [+130h]) >> 2` (0x30FEE4, 0x30F5FA),
+  whose handle the end callback 0x30DB60 waits for (0x30DB8E). After patch 205's seat the rounds
+  changed: an empty 314 reload picked the tactical clips at the next selection, started them, and
+  waited for their end (a tactical reload played from its start, no bolt); a 311 one-shell reload
+  the two shells'. The four lohooks `reload.pick_empty` 0x30FEC9 (EBX), `reload.pick_empty_hands`
+  0x30FE24 (EAX), `reload.pick_two_shells` 0x30F5D7 (ECX), `reload.pick_two_shells_hands` 0x30F571
+  (ESI), EDI the state each, set the pick to the clip set +134h names once it is not 0FFh (the
+  weapon's: the last pick; the hands': this one's weapon pick, written before them). +134h is 0FFh
+  from initialize (0x30DA60) and finalize (0x30E476), written by the first selection (the reload's
+  start: its live counts, the game's pick), and a world's (0x30DC90 writes it, 0x30DC7C reads it).
+  The 311 hands: the first pick's (its one-shell exception, an empty gun with one shell left) is
+  kept without a state: with the two shells' clips the gun held none (a reload starts below capacity,
+  0x2E3E01), so 0 rounds now is before the seat (the game's own pick), 1 the one shell's hands, 2 the
+  two shells'. 303 (0x30E1F0, hands +154h) picks by the posture alone. 0.69d0 keeps its pick in a
+  byte of the state (+2D8h, +2E0h; its expressions 0x2003904A0, 0x200390B60), serialized.
 ### 3.111 A second sight's side from the lobby movie: `46 05` (written 2026-11-26, README patch 207) — PROVEN in the code and under Unicorn; not run in a game
 
 Since scope-mounts.md the same call sets a weapon's scope's way onto its gun too
@@ -4896,3 +4933,177 @@ line once in the run; each returns by `ret 10h` with EBX, ESI, EDI, EBP as at th
 native dispatch, which the original makes each time; start_decal_edit goes to the native dispatch
 with the same `this` and event in both. With the repair of the client's copy taken out, seven
 cases fail. The patch's logic and the vostok wrapper have cargo tests. **Not run in a game.**
+
+### 3.113 A filter whose temporary target was not made (written 2026-11-27, README patch 216) — PROVEN in the code and under Unicorn; not run in a game
+
+**The report** (revision 73, 2026-11-26, an Artifact Hunt match, AMD, Windows 10, 2560x1440): an
+access violation reading 10h at 0x2B3777 on the game's first thread (WinMainCRTStartup ->
+engine_world::tick -> one_way_render_channel::render_process_commands -> renderer::render ->
+render_flash_ui 0x13CED0 -> flash_renderer::present 0x2AF0F0 -> Renderer2D::Display 0x50D6A0 ->
+the render queue -> PopFilters 0x527AC0 (HAL vtable +A8h) -> drawUncachedFilter 0x2B3E40
+(+ACh, returning to 0x527C6B) -> PopRenderTarget 0x2B35F0 (+5Ch, returning to 0x2B4326); every
+return address checked against its call). The players' dump holds the HAL (EDI 0x0CDB59E0): its
+render-target stack (+1E8h data, +1ECh size, 2F0h an entry, the target at +0) after the pop is
+[the main 2560x1440 target, **0**, the filter's 64x64 temporary just popped], its filter stack
+(+1F4h, +1F8h size) empty, HALState (+8) 2BFh. EAX=2 EDX=0 ESI=3 EBP=0 as PopRenderTarget leaves
+them reading the new top's `pRenderTargetData` (+10h).
+
+**The stock defect** (PROVEN, the bodies read and run with Unicorn):
+
+- `HAL::PushFilters` (0x2B3A50), an uncached primitive (cache state +18h 0, 0x2B3C64): with
+  MaskStackTop (+1E4h) not 0 and no mask of its own it disables the masks (0x2B3C16..0x2B3C58:
+  OMSetDepthStencilState, context vtable +90h, with +FC24h when the stencil is available +FB79h,
+  else +FC28h when the depth buffer is +FB7Ah, the reference MaskStackTop), sets HS_DrawingFilter
+  80h (0x2B3C5A), asks CreateTempRenderTarget (HAL +50h = 0x2B2BD0, call at 0x2B3CF0, the size at
+  ESP+30h/+34h) and pushes its result with PushRenderTarget (+58h, 0x2B3D38) unchecked; with a mask
+  of its own it then reads [result+10h] (0x2B3D7A); last, the filter stack gets {primitive, result}
+  (0x2B3DFD).
+- `HAL::PushRenderTarget` (0x2B3240) given 0 pushes the entry (its saved viewport and matrices) and
+  returns (0x2B33C4..0x2B340D), the matrices already changed.
+- `HAL::CreateTempRenderTarget` (0x2B2BD0) returns 0 when the buffer manager's
+  (`RBGenericImpl::RenderBufferManager::CreateTempRenderTarget` 0x528900: sizes rounded up to 32,
+  no memory limit here, +14h 0) texture creation fails, or when CreateRenderTargetView fails
+  (0x2B2C49): Direct3D's refusal, out of memory or past its size limit.
+- PopFilters (0x527AC0) pops the filter stack's entry, then drawUncachedFilter returns at once for a
+  primitive without a target (0x2B3E7D -> 0x2B44C8): its PopRenderTarget (0x2B4324) never runs, and
+  the null entry stays. PopFilters clears HS_DrawingFilter when its filter stack is empty (0x527C74).
+- The next filter pushes a real target over it; its PopRenderTarget reads the new top's target, 0
+  (0x2B3765..0x2B3777): the report's fault. A null entry on top (a filter nested in the failed one)
+  is read by PopRenderTarget's first lines instead (0x2B3655, reading 8).
+- `HAL::drawCachedFilter` (0x2B44E0), a primitive cached one pass from its target (state 1,
+  0x2B4532): CreateTempRenderTarget for the last pass (0x2B4861, size ESP+2Ch/+30h), pushed
+  unchecked (0x2B48F9) and popped (0x2B4A2A): a 0 faults at 0x2B3655.
+
+**The patch** (the Rust patch `scaleform_temp_target`, two lohooks, `sites_026g.tsv`):
+
+- `scaleform.filter_target` (0x2B3CFC, `mov esi,eax / mov eax,[ebx] / mov edx,[eax+58h]`): with EAX
+  0, the masks' state set again as drawUncachedFilter sets it after its pop (0x2B4326..0x2B4360),
+  HS_DrawingFilter cleared when the filter stack is empty, and the exit `unfiltered` to 0x2B3DFD:
+  the filter stack gets {primitive, 0}, nothing is pushed, and PopFilters' drawUncachedFilter
+  returns at its start as before. The content is drawn into the target below, unfiltered.
+- `scaleform.cached_filter_target` (0x2B4863, `mov ecx,[esp+38h] / mov esi,eax`): with EAX 0,
+  `FilterPrimitive::SetCacheResults` (0x5298C0) with 0, none, 0 (drawUncachedFilter's uncached
+  result, 0x2B4312), and the exit `skipped` to 0x2B4A77: the end's loop sets its temporaries not in
+  use and lets them go (the second still 0). The primitive is not drawn that frame; the next draws it
+  through PushFilters.
+- Each failure is logged with the size asked for, the 1st, 10th, 100th, ... of the run.
+
+The trigger in the report is not known: the size asked for is the next report's. Rendering only: no
+row in `../../crates/session/src/v026g/simulation_changes.tsv`.
+
+**Checked:** `check_scaleform_temp_target_026g.py` (`tools/check scaleform-temp-target`) runs the
+HAL's own PushFilters, PopFilters with drawUncachedFilter, PushRenderTarget, PopRenderTarget and
+drawCachedFilter in both exes on a made-up HAL (its vtable's GetEvent, shouldRenderFilters,
+CreateTempRenderTarget, the context's methods and the arrays' helpers answered): a failed target
+with no mask, under a mask, with the primitive's own mask and nested in another filter leaves both
+stacks as they were, the masks set again (stencil state, reference 2) and one log line; the next
+filter's pop, the outer filter's pop and a made target as the original's; a failed cached pass lets
+the cache go and leaves the stack. The original leaks the null entry and faults at 0x2B3777 (EAX=2
+EDX=0 ESI=3 EBP=0), 0x2B3D7A and 0x2B3655. Two builds with a site's bytes the original's fail their
+cases.
+
+**Also** (the report's breadcrumbs): `weapon_pickup::died` recorded a death's breadcrumb at every
+pass that simulates it (the frame's prediction and each rollback's re-simulation), 10 to 18 times a
+death (864 of the report's 901 events); it is recorded once a life now, under the log line's guard
+(`DEATHS_SAID`). `check_weapon_pickup_026g.py` checks one breadcrumb for a death replayed.
+
+### 3.108 A 0.69d scene's local probes as 0.69d composes them (written 2026-11-23, README patch 203) — PROVEN in the code of 0.26g and the data; the 0.69d side from the earlier bytecode read; captured headless (probe-tiers-069d.md)
+
+0.69d averages the probes of its local tier by their weights (`sum(w L) / max(W, 1)`) and shows the
+global tier only where `1 - W` remains; 0.26g lerps each probe over the ones before it, so between two
+abutting local probes the outdoor light of the global ones showed through (Rudnya's church nave, the
+tester's reports of 2026-11-23). The whole of it: `probe-tiers-069d.md`.
+
+- **The gate** (PROVEN): a probe with a radius below 0 (the 0.69d converter's mark of a local probe)
+  in a scene whose `mie_fog_base_height` (scene_view+280h) is a 0.69d exposure profile's marker
+  (33000 to 33999). Stock level_07's probe of radius -0.4 is in no such scene.
+- **The compiles** (Rust `probe_tiers`, sites `probe_lighting_<gsba>.*`): the four box effects without
+  smart attenuation compile techniques 2 to 7 after their own, three rounds through patch 178's
+  return-to-the-technique's-start, each with its pixel shader (`environment_probe_tier_*`, content
+  three-maps-021-lighting@16), blend and the weights' texture (rt 32).
+- **The draw** (sites `env_probes.next`, `.technique`, `.done` in render_environment_probes
+  0x180980): from the first local probe on, the local probes run three times (weights into rt 32,
+  the light under them damped by what the weights cover, their light shared by the weights), then
+  rt 32 is cleared back to 1 by the stage's own clear_surfaces (0x180820, a new `engine_026g.tsv`
+  row) and the loop's render targets are bound again.
+- **What changes:** the local probes of a 0.69d map (Rudnya v0.69's 62). Every other scene and probe
+  draws as before. Rendering only: nothing a match computes or a world holds changes (no
+  `simulation_changes.tsv` row, no world format change). Needs the lighting pack's programs: the exe
+  patch, three-maps-021-lighting@16 and the map's pack (rudnya-069d@9, its local probes marked) ship together.
+- **Checked:** `cargo test -p patches probe_tiers` (the rounds, the transitions, the gate). Captures
+  (patch 176) of the reports page's views and the kept poses before and after, and of unmarked maps
+  with and without the patch and the content (probe-tiers-069d.md). No Unicorn check.
+
+### 3.114 An additional model takes its item's camouflage (written 2026-11-27, README patch 217) — PROVEN in the code and under Unicorn; not run in a game
+
+**The report** (the owner, 2026-11-27, revision 74): "applying camo to exoskeleton doesn't paint
+legs". exo-camo@1 (#2687) gave both exoskeleton bodies (1805, 1807) `camo_available` and `_aoac`
+masks for their torso and legs maps. The torso was baked; the legs never were. The owner's
+`streamed_textures` held about fifteen `<camo>4_7783…duty_03_torso_s1{d,f,n,s}.dds` bakes
+from 11-27 04:47..04:49, one for each camouflage tried, and no `duty_03_legs_s1` bake. The log
+asks for no legs `_aoac` and logs no failure: the bake was never asked for.
+
+**Why** (PROVEN, the bodies read and run with Unicorn):
+
+- profile_skin_visual_cook::on_configs_loaded (0x204560) begins each kit slot at record n, the count
+  (0x204A20..0x204A58: EBX and [esp+18h]). For the slot's item it fills record n's
+  camouflage_decal_cook_parameters (+34Ch):
+  - its bake flag +C04h: `parameters/camo_available` (0x204BC4), 1 with decals (0x204F23);
+  - with `data/camouflage`, the camouflage layer's names (0x204BEC..0x204D54: the name, `_nmap`, no
+    fresnel, `_smap`, at P+520h, +5ACh, +638h, +6C4h);
+  - the camouflage's file name in the bake's name (P+7A4h, 0x204DD2..0x204DF8), then the decals'
+    part (0x204E54..).
+- It counts the record (0x2054C3). Each `additional_models` entry is then a record of its own
+  (0x205520..0x205607): its tag, base_model and part_name (or the `_hud` pair) and material. The
+  entry gets nothing more: no camouflage, no flag, no name. An entry with neither model is skipped
+  (0x205596).
+- Then the item's bake name gets its model's file name (0x205622..0x205638: 0x204500 gives the text
+  after the path's last `/`) and the slot ends at 0x20563D.
+- bake_decals (0x129830) asks a class-6Ch bake for each record whose +C04h is set (0x1298EB), with
+  the surface the record's index (P+794h, 0x129935). An additional model is never baked, so a
+  camouflage paints an item's first surface (`part_name`) alone. The exoskeleton bodies' legs are
+  such a model (Duty's `additional_models[3]`, Freedom's `[2]`).
+- camouflage_decal_cook_parameters (0x119760, 8B8h bytes): two decal layers of 270h at +0, the
+  camouflage's four names (8Ch buffer_strings, 80h of room) at +520h..+6C4h, an identity float4x4 at
+  +750h, the bake's name at +7A4h over 104h bytes.
+
+**The patch** (the Rust patch `additional_camo`, one lohook, `sites_026g.tsv`):
+
+- `skin_cook.item_done` (0x20563D, `mov eax,[esp+6Ch] / mov [esp+70h],eax`, 8 bytes).
+  - No relocation falls in it (the .reloc table).
+  - Three jumps land on its first byte and none inside it: 0x204A9F (an empty slot), 0x2051C5, and
+    0x20540A (an item without a model).
+  - EBX is record n. The slot made a record when the count is past n.
+- When record n bakes a named camouflage (+C04h set, P+520h not empty), the handler reads the frame's
+  entry ([esp+20h]). It classifies each of its `additional_models` entries as the native does: a
+  model (the `_hud` pair or `base_model`) or skipped. Each model that has `camo_available: true`
+  gets the item's camouflage on its record (n + 1 + its index among the models):
+  - the four names and both matrices (P+4E0h, P+750h);
+  - +C04h set;
+  - a bake name of the camouflage's file name and its model's (`camo_atlas_m81_woodlandduty_03_legs_s1`);
+  - no decals: they are placed on the item's own surface.
+- An entry that is no table, or entries that make another count of records than the cook's: nothing
+  is painted, and a line is logged (the 1st, 10th, 100th, ...). An entry without the key is as
+  before, and no stock entry has it.
+- bake_decals then bakes the record's surface as it bakes the item's: the surface's own
+  `<diffuse>_aoac` decides what is painted, and none leaves it as it is (0x12E8E9).
+- The two exoskeletons' legs have file names no other model has (`duty_03_legs_s1`,
+  `freedom_exo_legs_s1`, exo-camo@1). So their bakes are theirs, as the item's are.
+- Content: exo-camo@2 sets `camo_available` on the legs' entry in the four data tables of both bodies.
+
+Cosmetic: the look only, the lobby's and a match's. No row in
+`../../crates/session/src/v026g/simulation_changes.tsv`, and nothing in what a game writes.
+
+**Checked:** `check_additional_camo_026g.py` (`tools/check additional-camo`) runs the game's own code
+from the item's additional_models read (0x2054C9) through the site to the loop's test (0x205645), on a
+cook data made by the game's constructor (0x127C30), then bake_decals' record loop
+(0x1298CC..0x1299B8) on it.
+- The Duty and Freedom bodies' legs bake with the item's camouflage and their own names. So does a
+  HUD model after a skipped entry. The original bakes the item's surface alone.
+- These leave the cook data byte for byte the original's: no key, `camo_available: false`, an item
+  that bakes no named camouflage (no flag, decals only), a slot with no record, and entries that do
+  not tell which record is whose (logged).
+- The registers and the stack after the site are the original's.
+- A build without the hook fails the Duty, Freedom and HUD cases.
+
+**Not run:** a game. The bake's look on the legs was only rendered offline for #2687.

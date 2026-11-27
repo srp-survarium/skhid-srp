@@ -22,7 +22,11 @@ use crate::raw;
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct CompilerId(NonZeroU32);
 
-impl CompilerId {}
+impl CompilerId {
+    pub(in crate::vostok) fn of(id: NonZeroU32) -> CompilerId {
+        CompilerId(id)
+    }
+}
 
 /// The compile sites whose EBX is the compiler.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
