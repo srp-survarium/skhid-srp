@@ -24,7 +24,9 @@
 //! `window` opens (or closes) the lobby window then. A line `return <day,
 //! rain, evening or night>` plays a return from a match into that Room's
 //! weather when the next pose starts (patch 81's own events, the lobby
-//! hidden and shown again, without a match: room-weather.md).
+//! hidden and shown again, without a match: room-weather.md). An orbit's
+//! pose after a flight's puts the camera back where it was before the
+//! flight, the stock camera's again, so a change of lobby after it plays.
 
 #![forbid(unsafe_code)]
 
@@ -242,6 +244,8 @@ impl Sweep {
 
 static SWEEP: GameCell<Sweep> = GameCell::new(Sweep::Unread);
 static READ: GameCell<Script> = GameCell::new(Script::EMPTY);
+/// The camera before the flight poses it is at, while it is at one.
+static HOME: GameCell<Option<CameraPose>> = GameCell::new(None);
 
 /// `lobby_camera.view`, after patch 45's flight (its chain).
 pub fn on_view(ctx: &mut Context<'_>) -> Flow<NoExit> {
@@ -270,8 +274,18 @@ pub fn on_view(ctx: &mut Context<'_>) -> Flow<NoExit> {
     let (next, pose) = sweep.step(&script, if first { 0.0 } else { dt });
     if let Some((pose, new)) = pose {
         match pose.eye {
-            Eye::Orbit => camera.look(pose.yaw, pose.pitch, pose.distance),
+            Eye::Orbit => {
+                if let Some(home) = HOME.get(thread) {
+                    HOME.set(thread, None);
+                    camera.set(&home, Steps::Released);
+                    WeaponTableState::of(thread).set_flight(FlightWord::Stock);
+                }
+                camera.look(pose.yaw, pose.pitch, pose.distance)
+            }
             Eye::Flight { point, side } => {
+                if HOME.get(thread).is_none() {
+                    HOME.set(thread, Some(camera.pose()));
+                }
                 let at = CameraPose {
                     point: Vec3::new(point[0], point[1], point[2]),
                     yaw: pose.yaw,
