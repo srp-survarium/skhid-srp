@@ -6,7 +6,7 @@
 //! picks --db <resources.db> --patch <resources.db.patch_12> ... \
 //!     [--roof-place 10=26.8,25.926,2.816] \
 //!     --points <tsv> [--roofs 49,8,10,42] [--stranded-ok 13] [--harmful-ok 45] [--as-stood 12] \
-//!     [--shift 1.5] [--roof-at 24.563,0.912,30.789] [--team 1] [--add] \
+//!     [--shift 1.5] [--roof-at 24.563,0.912,30.789] [--team 1] [--add [--cap 128]] \
 //!     --project level_01/day_8 [--project level_01/evening_8 ...]
 //! ```
 //!
@@ -33,6 +33,11 @@
 //! entries) go. `--add`: every kept pick is a new point after the project's
 //! last, and the team's points stay as they are (more picks on a map whose
 //! points are already his: London (v0.32)'s Free for All, 2026-11-27).
+//! `--cap <n>` with it: where the team's points and the kept picks pass `n`
+//! (128, the most exe patch 142 chooses among), the team's points nearest a
+//! pick (those the spawn check drops first, then in 3D the nearest; ties by id) give their ids to picks
+//! (`moved`) until they fit, the kept picks taking them in order and the
+//! others new ids (Station, 2026-11-27: his 60 "too", over its 96).
 //! `--roofs`: after them, a new point on the roof of the
 //! building at each of these picks ([`roof`]), its facing the longest view,
 //! the nearest spawn said; `--stranded-ok`: those of these picks whose roof
@@ -92,6 +97,26 @@ impl Ground {
         match self {
             Ground::AsStood(_) => "body as he stood",
             Ground::On | Ground::Nudged(_) | Ground::Shifted { .. } => "body clear",
+        }
+    }
+}
+
+/// Why a team's point gives its id to a pick (`--cap`).
+enum Gave {
+    /// The spawn check drops it, for this.
+    Fails(String),
+    /// It stands this far from the nearest pick.
+    Near(f32),
+}
+
+impl Gave {
+    /// Who gives first: a dropped point, then the nearest a pick.
+    fn order(&self, other: &Self) -> std::cmp::Ordering {
+        match (self, other) {
+            (Gave::Fails(_), Gave::Fails(_)) => std::cmp::Ordering::Equal,
+            (Gave::Fails(_), Gave::Near(_)) => std::cmp::Ordering::Less,
+            (Gave::Near(_), Gave::Fails(_)) => std::cmp::Ordering::Greater,
+            (Gave::Near(a), Gave::Near(b)) => a.total_cmp(b),
         }
     }
 }
@@ -396,6 +421,7 @@ fn run() -> Result<(), String> {
     let mut shift = 0f32;
     let mut team = 2i32;
     let mut add = false;
+    let mut cap = None::<usize>;
     let numbers = |value: &str, flag: &str| -> Result<Vec<u32>, String> {
         value
             .split(',')
@@ -430,6 +456,7 @@ fn run() -> Result<(), String> {
                 _ => return Err(format!("bad --roof-place {value}")),
             },
             "--team" => team = value.parse().map_err(|_| format!("bad --team {value}"))?,
+            "--cap" => cap = Some(value.parse().map_err(|_| format!("bad --cap {value}"))?),
             "--shift" => {
                 shift = value
                     .parse()
@@ -441,6 +468,9 @@ fn run() -> Result<(), String> {
         }
     }
     let picks = read(&points.ok_or("--points is required")?)?;
+    if cap.is_some() && !add {
+        return Err("--cap is --add's".into());
+    }
     if let Some((n, _)) = roof_place.iter().find(|(n, _)| !roofs.contains(n)) {
         return Err(format!("--roof-place {n}: not one of --roofs"));
     }
@@ -532,6 +562,32 @@ fn run() -> Result<(), String> {
             });
         }
         let kept: Vec<usize> = (0..placed.len()).collect();
+        // `--cap`: the team's points nearest a pick give their ids to picks until all fit.
+        let mut gave = std::collections::BTreeMap::<i32, Gave>::new();
+        if let Some(cap) = cap {
+            let team_points: Vec<_> = map.data.spawns.iter().filter(|s| s.team == team).collect();
+            let over = (team_points.len() + kept.len()).saturating_sub(cap);
+            if over > team_points.len() {
+                return Err(format!("{project}: {} picks pass --cap {cap} alone", kept.len()));
+            }
+            // A point the spawn check drops first, then the nearest a pick.
+            let mut near: Vec<(i32, Gave)> = team_points
+                .iter()
+                .map(|s| match map.check(s.position) {
+                    Verdict::Dropped(why) => (s.point_id, Gave::Fails(why)),
+                    Verdict::Kept | Verdict::Nudged { .. } => {
+                        let d = kept
+                            .iter()
+                            .map(|&i| (placed[i].feet - s.position).length())
+                            .fold(f32::INFINITY, f32::min);
+                        (s.point_id, Gave::Near(d))
+                    }
+                })
+                .collect();
+            near.sort_by(|a, b| a.1.order(&b.1).then(a.0.cmp(&b.0)));
+            gave.extend(near.into_iter().take(over));
+            ids = gave.keys().copied().collect();
+        }
         // The solo spawns' ids, then new ones after the project's last point.
         let last = map.data.spawns.iter().map(|s| s.point_id).max().ok_or("no respawn point")?;
         let new_ids = (last + 1..).take(kept.len().saturating_sub(ids.len()));
@@ -560,7 +616,7 @@ fn run() -> Result<(), String> {
             // list copies them).
             let radii = if team == 2 { "20\t0" } else { "-\t-" };
             println!(
-                "{project}\t{id}\t{}\t{}\t{}\t0\t{}\t0\t{radii}\t{verdict}\t\tthe owner's pick {} (where yaw {:.1}, {}); {}; {}; cover {}; {rule}; {ahead} m clear ahead",
+                "{project}\t{id}\t{}\t{}\t{}\t0\t{}\t0\t{radii}\t{verdict}\t\tthe owner's pick {} (where yaw {:.1}, {}); {}; {}; cover {}; {rule}; {ahead} m clear ahead{}",
                 p.feet.x,
                 p.feet.y,
                 p.feet.z,
@@ -570,7 +626,11 @@ fn run() -> Result<(), String> {
                 p.ground.said(),
                 p.ground.body(),
                 p.harm.as_deref().unwrap_or("harmful zones >=2m"),
-                place.cover.name()
+                place.cover.name(),
+                gave.get(&id).map_or(String::new(), |gave| match gave {
+                    Gave::Fails(why) => format!("; in the place of the team's point {id}, which the spawn check drops: {why} (--cap)"),
+                    Gave::Near(d) => format!("; in the place of the team's point {id}, {d:.1} m from the nearest pick (--cap)"),
+                })
             );
         }
         for id in ids.iter().skip(kept.len()) {
