@@ -552,8 +552,20 @@ impl Default for VictoryItemStatus {
     }
 }
 
+/// How a world's battery records are laid out ([`VictoryItemStatus`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum BatteryRecords {
+    /// With exe patch 92's progress and held steps: every game srp plays
+    /// with, and the one layout a live match reads ([`decode`]).
+    Patch92,
+    /// The native record alone, as the games of before exe patch 92 wrote
+    /// it (October 2026). Read only offline, of old recordings
+    /// (`srp-history-backfill`, [`decode_as`]).
+    BeforePatch92,
+}
+
 impl VictoryItemStatus {
-    fn read(reader: &mut Reader, players: usize) -> Option<Self> {
+    fn read(reader: &mut Reader, players: usize, layout: BatteryRecords) -> Option<Self> {
         let mut status = Self::default();
         for distances in &mut status.carried_distances {
             read_masked_f32(reader, players, distances)?;
@@ -561,6 +573,9 @@ impl VictoryItemStatus {
         status.nearest_positions = [reader.f32()?, reader.f32()?];
         status.owner_team = reader.u8()?;
         status.first_finder = reader.u8()?;
+        if layout == BatteryRecords::BeforePatch92 {
+            return Some(status);
+        }
         status.progress = [reader.u8()?, reader.u8()?];
         let count = reader.u8()?;
         status.last_taker = if count & 0x80 == 0 {
@@ -737,6 +752,17 @@ impl Statistics {
     /// Reads a section of a match with `players` roster places and
     /// `batteries` batteries. `None` unless it fills `bytes` exactly.
     pub fn decode(bytes: &[u8], players: usize, batteries: usize) -> Option<Self> {
+        Self::decode_as(bytes, players, batteries, BatteryRecords::Patch92)
+    }
+
+    /// [`Statistics::decode`] of a section whose battery records are
+    /// `layout`'s.
+    pub fn decode_as(
+        bytes: &[u8],
+        players: usize,
+        batteries: usize,
+        layout: BatteryRecords,
+    ) -> Option<Self> {
         if players > MAX_PLAYERS {
             return None;
         }
@@ -746,7 +772,7 @@ impl Statistics {
                 .map(|_| PlayerStatistics::read(&mut reader))
                 .collect::<Option<_>>()?,
             victory_items: (0..batteries)
-                .map(|_| VictoryItemStatus::read(&mut reader, players))
+                .map(|_| VictoryItemStatus::read(&mut reader, players, layout))
                 .collect::<Option<_>>()?,
             tail: StatisticsTail::read(&mut reader)?,
             // To the section's exact end, by the block's own length.
@@ -1774,6 +1800,26 @@ pub fn decode(
     game_mode: RuleMode,
     batteries: usize,
 ) -> Option<Decoded<'_>> {
+    decode_as(
+        time,
+        body,
+        players,
+        game_mode,
+        batteries,
+        BatteryRecords::Patch92,
+    )
+}
+
+/// [`decode`] of a body whose battery records are `layout`'s: an old
+/// recording's ([`BatteryRecords::BeforePatch92`]), read offline.
+pub fn decode_as(
+    time: u32,
+    body: &[u8],
+    players: usize,
+    game_mode: RuleMode,
+    batteries: usize,
+    layout: BatteryRecords,
+) -> Option<Decoded<'_>> {
     let batteries = if game_mode.has_batteries() {
         batteries
     } else {
@@ -1787,8 +1833,9 @@ pub fn decode(
         } else {
             // With no gather rule object the client writes no battery
             // records at all.
-            let Some(statistics) = Statistics::decode(sections.statistics, players, batteries)
-                .or_else(|| Statistics::decode(sections.statistics, players, 0))
+            let Some(statistics) =
+                Statistics::decode_as(sections.statistics, players, batteries, layout)
+                    .or_else(|| Statistics::decode_as(sections.statistics, players, 0, layout))
             else {
                 continue;
             };
@@ -2071,6 +2118,35 @@ mod tests {
         assert_eq!(Statistics::decode(&bytes, 2, 2), None);
     }
 
+    /// A game of before exe patch 92 wrote a battery's native record alone
+    /// (no progress, no held steps): read as such offline, and never by a
+    /// live match's reading, nor such a game's section as patch 92's.
+    #[test]
+    fn batteries_of_before_patch_92_read_only_as_such() {
+        let native = &battery_bytes()[..26];
+        let mut bytes = EMPTY_PLAYER.to_vec();
+        bytes.extend(EMPTY_PLAYER);
+        bytes.extend(native);
+        // An untouched battery: three masks, two positions, two bytes.
+        bytes.extend([0; 22]);
+        bytes.extend(TAIL);
+        let old = BatteryRecords::BeforePatch92;
+        let statistics = Statistics::decode_as(&bytes, 2, 2, old).unwrap();
+        let first = &statistics.victory_items[0];
+        assert_eq!(first.carried_distances[0][1], 2.0);
+        assert_eq!((first.owner_team, first.first_finder), (1, 0));
+        assert_eq!((first.progress, first.held.len()), ([0, 0], 0));
+        assert_eq!(statistics.victory_items[1], VictoryItemStatus::default());
+        assert_eq!(Statistics::decode(&bytes, 2, 2), None);
+        // And a section of patch 92's is not one of before it.
+        let mut new = EMPTY_PLAYER.to_vec();
+        new.extend(EMPTY_PLAYER);
+        new.extend(battery_bytes());
+        new.extend([0; 25]);
+        new.extend(TAIL);
+        assert_eq!(Statistics::decode_as(&new, 2, 2, old), None);
+    }
+
     #[test]
     fn battery_taker_roundtrips_without_changing_legacy_bytes() {
         for taker in [BatteryTaker::NotRecorded, BatteryTaker::Saved(None),
@@ -2081,7 +2157,7 @@ mod tests {
                 bytes.insert(29, place.map_or(255, BatteryPlace::index));
             }
             let mut reader = Reader::new(&bytes);
-            let record = VictoryItemStatus::read(&mut reader, 2).unwrap();
+            let record = VictoryItemStatus::read(&mut reader, 2, BatteryRecords::Patch92).unwrap();
             assert_eq!(record.last_taker, taker);
             assert_eq!(reader.at, bytes.len());
             let mut encoded = Vec::new();
@@ -2089,16 +2165,27 @@ mod tests {
             assert_eq!(encoded, bytes);
             // Every truncation must be refused, including a missing taker.
             for end in 0..bytes.len() {
-                assert!(VictoryItemStatus::read(&mut Reader::new(&bytes[..end]), 2).is_none());
+                assert!(
+                    VictoryItemStatus::read(
+                        &mut Reader::new(&bytes[..end]),
+                        2,
+                        BatteryRecords::Patch92
+                    )
+                    .is_none()
+                );
             }
         }
         let mut bytes = battery_bytes();
         bytes[28] |= 0x80;
         bytes.insert(29, 20);
-        assert!(VictoryItemStatus::read(&mut Reader::new(&bytes), 2).is_none());
+        assert!(
+            VictoryItemStatus::read(&mut Reader::new(&bytes), 2, BatteryRecords::Patch92).is_none()
+        );
         bytes[29] = 19;
         bytes[28] = 0xC0; // Count 64, beyond the 60 cells.
-        assert!(VictoryItemStatus::read(&mut Reader::new(&bytes), 2).is_none());
+        assert!(
+            VictoryItemStatus::read(&mut Reader::new(&bytes), 2, BatteryRecords::Patch92).is_none()
+        );
     }
 
     #[test]

@@ -1001,3 +1001,5 @@ night	yö	weather
 before rain	ennen sadetta	weather
 Weathers	Säät
 Variants	Muunnelmat
+History since {0}.	Historia {0} alkaen.
+History since {0}, plus {1} earlier matches made again from their recordings, from {2} on; the matches of before {0} are not all there.	Historia {0} alkaen sekä {1} aiempaa ottelua tallenteistaan palautettuina, {2} alkaen; ennen {0} pelatut ottelut eivät ole kaikki mukana.
