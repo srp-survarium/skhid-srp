@@ -92,7 +92,14 @@ package survarium.rooms
         internal var _room:Object = null;
         internal var _roomAt:int = 0;
         internal var _code:int = RoomCode.NONE;
+        // The pool's entries a private room may hold (`offered`): the create
+        // window's tiles, each by its bit (`index`).
         internal var _pool:Array = [];
+        // The maps only an open room's card shows (a free-for-all played
+        // with a twist only: Military Warehouses), in no create window: the
+        // cards, rooms and matches on them are named and drawn by these.
+        internal var _onlyShown:Array = [];
+        // Both lists' rows.
         internal var _poolTotal:int = -1;
         // The create window's start (RoomsCreate.formOf): the player's last
         // room made by hand, or the defaults (`S1;F`), fitted by the server
@@ -813,7 +820,7 @@ package survarium.rooms
         // Every page of the pool is in.
         private function poolIn():Boolean
         {
-            return _poolTotal >= 0 && _pool.length >= _poolTotal;
+            return _poolTotal >= 0 && _pool.length + _onlyShown.length >= _poolTotal;
         }
 
         // The form is wanted anew: asked now if the pool is in (it names
@@ -910,16 +917,21 @@ package survarium.rooms
                 _poolTotal = int(head[2]);
                 var page:int = int(head[3]);
                 if (page == 0)
+                {
                     _pool = [];
+                    _onlyShown = [];
+                }
                 for (var j:int = 1; j < rows.length; j++)
                 {
                     var p:Array = RoomsWire.fields(rows[j]);
                     if (p.length < 6 || hasEntry(int(p[0])))
                         continue;
-                    _pool.push({"index": int(p[0]), "map": int(p[1]), "level": int(p[2]), "weather": int(p[3]),
-                        "mode": int(p[4]), "extra": p[5] == "1", "bots": p[6] == "1"});
+                    // `offered` 0: only shown; a server before it offers every row.
+                    var offered:Boolean = p.length < 8 || p[7] != "0";
+                    (offered ? _pool : _onlyShown).push({"index": int(p[0]), "map": int(p[1]), "level": int(p[2]),
+                        "weather": int(p[3]), "mode": int(p[4]), "extra": p[5] == "1", "bots": p[6] == "1"});
                 }
-                if (_pool.length < _poolTotal && rows.length > 1)
+                if (_pool.length + _onlyShown.length < _poolTotal && rows.length > 1)
                     ask(RoomsWire.POOL + page + 1, RoomsWire.POOL_ASK_ROWS);
                 else
                 {
@@ -1117,19 +1129,24 @@ package survarium.rooms
             return say("st_srp_rooms_waiting_short");
         }
 
+        // A row of the pool by its index, either list's.
         internal function hasEntry(index:int):Boolean
         {
-            for (var i:int = 0; i < _pool.length; i++)
-                if (_pool[i].index == index)
-                    return true;
+            for each (var list:Array in [_pool, _onlyShown])
+                for (var i:int = 0; i < list.length; i++)
+                    if (list[i].index == index)
+                        return true;
             return false;
         }
 
+        // A map by its maps_dict id: a private room's or one only an open
+        // room shows (a card, a room's next or last map); null for none.
         internal function entry(id:int):Object
         {
-            for (var i:int = 0; i < _pool.length; i++)
-                if (_pool[i].map == id)
-                    return _pool[i];
+            for each (var list:Array in [_pool, _onlyShown])
+                for (var i:int = 0; i < list.length; i++)
+                    if (list[i].map == id)
+                        return list[i];
             return null;
         }
 

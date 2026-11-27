@@ -263,6 +263,12 @@ pub(super) fn by_build(entries: Vec<(maps::Build, PoolEntry)>) -> Vec<PoolEntry>
         .collect()
 }
 
+/// A private room's pool may hold the entry: not a free-for-all played with a twist only
+/// (`MapMode::twists_only`), since a private room's free-for-all is plain.
+fn private(entry: &PoolEntry) -> bool {
+    maps::map_mode(entry.map_id).is_some_and(|map| !map.twists_only)
+}
+
 impl Core<'_> {
     /// The maps a pool may hold, in the order their bits name them and the
     /// create window lists them: the match pool (Blackout's maps too, mode
@@ -306,13 +312,10 @@ impl Core<'_> {
 
     /// The maps a private room's pool may hold, in the order their bits name them: what the
     /// create window lists (players create private rooms only). [`Self::room_entries`] but the
-    /// free-for-alls played with a twist only (`MapMode::twists_only`): a private room's
-    /// free-for-all is plain.
+    /// free-for-alls played with a twist only ([`private`]). The pool the movie is sent has
+    /// those too, after these: its cards, rooms and matches are drawn by it.
     pub(super) fn private_entries(&self) -> Vec<PoolEntry> {
-        self.room_entries()
-            .into_iter()
-            .filter(|entry| maps::map_mode(entry.map_id).is_some_and(|map| !map.twists_only))
-            .collect()
+        self.room_entries().into_iter().filter(private).collect()
     }
 
     /// The mate a squad's action takes along (the owner's of 2026-10-31:
@@ -517,9 +520,12 @@ impl Core<'_> {
                 self.send_made(who.addr, list);
             }
             RoomRequest::State => self.send_room_state(who, RoomCode::None, now),
+            // Every map a room shows: the private ones, whose bits a create
+            // names, then the ones only an open room's card shows.
             RoomRequest::Pool { page } => {
-                let entries = self.private_entries();
-                self.send_made(who.addr, wire::room_pool(&entries, page));
+                let (offered, shown): (Vec<_>, Vec<_>) =
+                    self.room_entries().into_iter().partition(private);
+                self.send_made(who.addr, wire::room_pool(&offered, &shown, page));
             }
             // The movie put up its "Room Chat" tab: the room's last lines,
             // and its new ones from now on (`room_chat`).
