@@ -943,6 +943,19 @@ A key fires every ready copy of its kind and restarts the cooldown of the ones s
 Copies of a kind add up (Onyx's passive multiplies); at most 4 count.	Копії одного виду додаються (пасив Онікса множиться); діють щонайбільше 4.
 Spring's and Larkspur's actives add to the passive; Onyx's replaces it.	Активація Пружини й Живокосту додається до пасиву; Онікса — замінює його.
 Onyx fired together: one reduction, 1 s longer per extra copy.	Онікси, активовані разом: одне зменшення, на 1 с довше за кожну додаткову копію.
+Power per activation	Сила після активацій
+Activations	Активації
+Power	Сила	artefact
+Next activation	Наступна активація
+Regeneration limit	Межа регенерації
+Missing health restored	Відновлення втраченого здоров'я
+Each activation leaves an artefact 80% of the power it had: 100%, 80%, 64%, 51.2% and so on. Its passive drops at once; the activation itself still works at the power from before it.	Кожна активація лишає артефакту 80% сили, яку він мав: 100%, 80%, 64%, 51.2% і так далі. Пасив слабшає одразу; сама активація ще діє з силою, що була до неї.
+Only a copy a press fires loses power, each copy its own share. One cooling down, already active or past the 4 that count loses nothing.	Силу втрачає лише копія, яку активувала клавіша, кожна копія — свою частку. Та, що перезаряджається, уже активна або понад 4, що діють, нічого не втрачає.
+It never runs out: the copy stays usable all match. Active time, cooldown and weight stay the same, and Larkspur cures injuries on every activation.	Він не вичерпується: копія придатна весь матч. Час дії, перезарядка й вага не змінюються, а Живокіст лікує травми при кожній активації.
+The power stays with the copy: through deaths, kit changes ({courier} too) and in another player's hands. A new copy starts at 100%: one from an anomaly, and the one {keeper} gives.	Сила лишається з копією: після смертей, зміни комплекту ({courier} теж) і в руках іншого гравця. Нова копія починає зі 100%: з аномалії та та, яку дає {keeper}.
+The skills that work through a copy wear with it: {skills}.	Навички, що діють через копію, слабшають разом із нею: {skills}.
+A row: after that many activations, the passive now and what the next activation gives.	Рядок: після стількох активацій — пасив зараз і що дасть наступна активація.
+Regeneration limit adds to each body part's own limit, never past full.	Межа регенерації додається до власної межі кожної частини тіла, але не понад повну.
 
 # The maps' anomalies (scripts/maps-tab/ui.js)
 Anomalies	Аномалії

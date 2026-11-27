@@ -943,6 +943,19 @@ A key fires every ready copy of its kind and restarts the cooldown of the ones s
 Copies of a kind add up (Onyx's passive multiplies); at most 4 count.	Kopie jednego rodzaju sumują się (pasyw Onyksu się mnoży); liczą się najwyżej 4.
 Spring's and Larkspur's actives add to the passive; Onyx's replaces it.	Aktywacja Sprężyny i Żywokostu dodaje się do pasywu; Onyksu — zastępuje go.
 Onyx fired together: one reduction, 1 s longer per extra copy.	Onyksy aktywowane razem: jedno zmniejszenie, o 1 s dłużej za każdą dodatkową kopię.
+Power per activation	Siła po aktywacjach
+Activations	Aktywacje
+Power	Siła	artefact
+Next activation	Następna aktywacja
+Regeneration limit	Limit regeneracji
+Missing health restored	Przywrócone brakujące zdrowie
+Each activation leaves an artefact 80% of the power it had: 100%, 80%, 64%, 51.2% and so on. Its passive drops at once; the activation itself still works at the power from before it.	Każda aktywacja zostawia artefaktowi 80% siły, którą miał: 100%, 80%, 64%, 51.2% i tak dalej. Jego pasyw słabnie od razu; sama aktywacja działa jeszcze z siłą sprzed niej.
+Only a copy a press fires loses power, each copy its own share. One cooling down, already active or past the 4 that count loses nothing.	Siłę traci tylko kopia aktywowana klawiszem, każda kopia swoją część. Odnawiająca się, już aktywna lub ponad 4 liczone nie traci nic.
+It never runs out: the copy stays usable all match. Active time, cooldown and weight stay the same, and Larkspur cures injuries on every activation.	Nigdy się nie wyczerpuje: kopia działa przez cały mecz. Czas działania, odnowienie i waga się nie zmieniają, a Żywokost leczy urazy przy każdej aktywacji.
+The power stays with the copy: through deaths, kit changes ({courier} too) and in another player's hands. A new copy starts at 100%: one from an anomaly, and the one {keeper} gives.	Siła zostaje przy kopii: po śmierciach, zmianie zestawu (także {courier}) i w rękach innego gracza. Nowa kopia zaczyna od 100%: z anomalii oraz ta, którą daje {keeper}.
+The skills that work through a copy wear with it: {skills}.	Umiejętności działające przez kopię słabną razem z nią: {skills}.
+A row: after that many activations, the passive now and what the next activation gives.	Wiersz: po tylu aktywacjach — pasyw teraz i to, co da następna aktywacja.
+Regeneration limit adds to each body part's own limit, never past full.	Limit regeneracji dodaje się do własnego limitu każdej części ciała, nigdy ponad pełny.
 
 # The maps' anomalies (scripts/maps-tab/ui.js)
 Anomalies	Anomalie

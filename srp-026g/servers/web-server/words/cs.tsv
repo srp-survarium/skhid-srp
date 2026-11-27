@@ -943,6 +943,19 @@ A key fires every ready copy of its kind and restarts the cooldown of the ones s
 Copies of a kind add up (Onyx's passive multiplies); at most 4 count.	Kopie jednoho druhu se sčítají (pasiv Onyxu se násobí); počítají se nejvýše 4.
 Spring's and Larkspur's actives add to the passive; Onyx's replaces it.	Aktivace Pružiny a Ostrožky se přičítá k pasivu; aktivace Onyxu ho nahrazuje.
 Onyx fired together: one reduction, 1 s longer per extra copy.	Onyxy aktivované společně: jedno snížení, o 1 s déle za každou další kopii.
+Power per activation	Síla po aktivacích
+Activations	Aktivace
+Power	Síla	artefact
+Next activation	Další aktivace
+Regeneration limit	Mez regenerace
+Missing health restored	Obnovené chybějící zdraví
+Each activation leaves an artefact 80% of the power it had: 100%, 80%, 64%, 51.2% and so on. Its passive drops at once; the activation itself still works at the power from before it.	Každá aktivace nechá artefaktu 80% síly, kterou měl: 100%, 80%, 64%, 51.2% a tak dále. Jeho pasiv zeslábne hned; samotná aktivace ještě působí silou z doby před ní.
+Only a copy a press fires loses power, each copy its own share. One cooling down, already active or past the 4 that count loses nothing.	Sílu ztrácí jen kopie, kterou klávesa aktivuje, každá kopie svůj díl. Kopie v době obnovy, už aktivní nebo nad 4 počítané neztrácí nic.
+It never runs out: the copy stays usable all match. Active time, cooldown and weight stay the same, and Larkspur cures injuries on every activation.	Nikdy se nevyčerpá: kopie zůstává použitelná celý zápas. Doba účinku, doba obnovy a hmotnost se nemění a Ostrožka léčí zranění při každé aktivaci.
+The power stays with the copy: through deaths, kit changes ({courier} too) and in another player's hands. A new copy starts at 100%: one from an anomaly, and the one {keeper} gives.	Síla zůstává u kopie: po smrti, změně sady (i {courier}) i v rukou jiného hráče. Nová kopie začíná na 100%: ta z anomálie a ta, kterou dává {keeper}.
+The skills that work through a copy wear with it: {skills}.	Dovednosti, které působí přes kopii, slábnou spolu s ní: {skills}.
+A row: after that many activations, the passive now and what the next activation gives.	Řádek: po tolika aktivacích — pasiv teď a co dá další aktivace.
+Regeneration limit adds to each body part's own limit, never past full.	Mez regenerace se přičítá k vlastní mezi každé části těla, nikdy nad plnou.
 
 # The maps' anomalies (scripts/maps-tab/ui.js)
 Anomalies	Anomálie

@@ -604,7 +604,25 @@ try {
       assert.equal(await evaluate("JSON.stringify(pageErrors)"), '[]', `calculator, ${lang}: no script errors`);
     }
   }
-  console.log(`PASS: ${total} weapons; image choosers/search/keyboard/mobile, catalogue, full stat comparison, equality/neutral colors, same weapon, simulators: recoil step/scrub/reset, spread by aim, stance, skills, gloves and arms, recoil modifications, help lines (hover, keyboard, tap), EN/UK/RU, the list's columns in RU/DE, the skills' trees in EN/RU/DE/FI, the Maps tab in EN/RU, the calculator in EN/RU/DE, 360 px and CSP.`);
+  // The artefacts' power per activation in English and Ukrainian: the power row, each kind's
+  // table folded until its summary opens it, a row an activation 0..10, the page no wider than
+  // a phone with every table open.
+  for (const width of [1280, 390]) {
+    await send('browsingContext.setViewport', {context, viewport: {width, height: 900}, devicePixelRatio: 1});
+    for (const [lang, heading] of [['en', 'Power per activation'], ['uk', 'Сила після активацій']]) {
+      await navigate(`/wiki/artefacts?lang=${lang}`);
+      assert.equal(await evaluate("document.querySelector('#wear h2').textContent"), heading, `artefacts, ${lang}: the power section`);
+      assert.equal(await evaluate("[...document.querySelectorAll('.wear-steps b')].slice(1, 5).map(b => b.textContent).join()"), '100%,80%,64%,51.2%');
+      assert.equal(await evaluate("document.querySelectorAll('.wear-kind').length"), 3, `artefacts, ${lang}: a table a kind`);
+      assert.equal(await evaluate("document.querySelectorAll('.wear-kind[open]').length"), 0, `artefacts, ${lang}: folded`);
+      await evaluate("document.querySelectorAll('.wear-kind summary').forEach(s => s.click())");
+      assert.equal(await evaluate("[...document.querySelectorAll('.wear-kind[open] tbody')].every(b => b.rows.length === 11)"), true, `artefacts, ${lang}: 0..10 activations`);
+      assert.equal(await evaluate("document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1"), true, `artefacts, ${lang} at ${width}: no sideways scroll`);
+      assert.equal(await evaluate("document.documentElement.innerHTML.includes('⟦')"), false, `artefacts, ${lang}: no place left`);
+      if (lang === 'en') await screenshot(`artefacts-${width}`);
+    }
+  }
+  console.log(`PASS: ${total} weapons; image choosers/search/keyboard/mobile, catalogue, full stat comparison, equality/neutral colors, same weapon, simulators: recoil step/scrub/reset, spread by aim, stance, skills, gloves and arms, recoil modifications, help lines (hover, keyboard, tap), EN/UK/RU, the list's columns in RU/DE, the skills' trees in EN/RU/DE/FI, the Maps tab in EN/RU, the calculator in EN/RU/DE, the artefacts' power tables in EN/UK, 360 px and CSP.`);
   await send('session.end');
 } finally {
   await send('session.end').catch(() => {});

@@ -943,6 +943,19 @@ A key fires every ready copy of its kind and restarts the cooldown of the ones s
 Copies of a kind add up (Onyx's passive multiplies); at most 4 count.	Копии одного вида складываются (пассив Оникса перемножается); действуют не больше 4.
 Spring's and Larkspur's actives add to the passive; Onyx's replaces it.	Активация Пружины и Живокоста добавляется к пассиву; Оникса — заменяет его.
 Onyx fired together: one reduction, 1 s longer per extra copy.	Ониксы, активированные вместе: одно уменьшение, на 1 с дольше за каждую лишнюю копию.
+Power per activation	Сила после активаций
+Activations	Активации
+Power	Сила	artefact
+Next activation	Следующая активация
+Regeneration limit	Предел регенерации
+Missing health restored	Восстановление недостающего здоровья
+Each activation leaves an artefact 80% of the power it had: 100%, 80%, 64%, 51.2% and so on. Its passive drops at once; the activation itself still works at the power from before it.	Каждая активация оставляет артефакту 80% силы, которая у него была: 100%, 80%, 64%, 51.2% и так далее. Пассив слабеет сразу; сама активация ещё действует с силой, которая была до неё.
+Only a copy a press fires loses power, each copy its own share. One cooling down, already active or past the 4 that count loses nothing.	Силу теряет только копия, которую активировала клавиша, каждая копия — свою долю. Та, что перезаряжается, уже активна или сверх 4 действующих, ничего не теряет.
+It never runs out: the copy stays usable all match. Active time, cooldown and weight stay the same, and Larkspur cures injuries on every activation.	Он не истощается: копия остаётся годной весь матч. Время действия, перезарядка и вес не меняются, а Живокост лечит травмы при каждой активации.
+The power stays with the copy: through deaths, kit changes ({courier} too) and in another player's hands. A new copy starts at 100%: one from an anomaly, and the one {keeper} gives.	Сила остаётся с копией: после смертей, смены комплекта ({courier} тоже) и в руках другого игрока. Новая копия начинает со 100%: из аномалии и та, что даёт {keeper}.
+The skills that work through a copy wear with it: {skills}.	Навыки, которые действуют через копию, слабеют вместе с ней: {skills}.
+A row: after that many activations, the passive now and what the next activation gives.	Строка: после стольких активаций — пассив сейчас и что даст следующая активация.
+Regeneration limit adds to each body part's own limit, never past full.	Предел регенерации прибавляется к собственному пределу каждой части тела, но не выше полного.
 
 # The maps' anomalies (scripts/maps-tab/ui.js)
 Anomalies	Аномалии

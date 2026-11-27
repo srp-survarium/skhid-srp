@@ -943,6 +943,19 @@ A key fires every ready copy of its kind and restarts the cooldown of the ones s
 Copies of a kind add up (Onyx's passive multiplies); at most 4 count.	Kopien einer Art addieren sich (das Passiv von Onyx multipliziert sich); höchstens 4 zählen.
 Spring's and Larkspur's actives add to the passive; Onyx's replaces it.	Das Aktiv von Feder und Lebknochen kommt zum Passiv hinzu; das von Onyx ersetzt es.
 Onyx fired together: one reduction, 1 s longer per extra copy.	Zusammen aktivierte Onyx: eine Verringerung, je weitere Kopie 1 s länger.
+Power per activation	Stärke pro Aktivierung
+Activations	Aktivierungen
+Power	Stärke	artefact
+Next activation	Nächste Aktivierung
+Regeneration limit	Regenerationsgrenze
+Missing health restored	Wiederhergestellte fehlende Gesundheit
+Each activation leaves an artefact 80% of the power it had: 100%, 80%, 64%, 51.2% and so on. Its passive drops at once; the activation itself still works at the power from before it.	Jede Aktivierung lässt einem Artefakt 80% der Stärke, die es hatte: 100%, 80%, 64%, 51.2% und so weiter. Sein Passiv sinkt sofort; die Aktivierung selbst wirkt noch mit der Stärke von davor.
+Only a copy a press fires loses power, each copy its own share. One cooling down, already active or past the 4 that count loses nothing.	Nur eine Kopie, die ein Tastendruck aktiviert, verliert Stärke, jede Kopie ihren eigenen Anteil. Eine abklingende, bereits aktive oder über die 4 zählenden hinaus verliert nichts.
+It never runs out: the copy stays usable all match. Active time, cooldown and weight stay the same, and Larkspur cures injuries on every activation.	Es verbraucht sich nie ganz: Die Kopie bleibt das ganze Match nutzbar. Wirkdauer, Abklingzeit und Gewicht bleiben gleich, und Lebknochen heilt Verletzungen bei jeder Aktivierung.
+The power stays with the copy: through deaths, kit changes ({courier} too) and in another player's hands. A new copy starts at 100%: one from an anomaly, and the one {keeper} gives.	Die Stärke bleibt bei der Kopie: über Tode, Kitwechsel (auch {courier}) und in der Hand eines anderen Spielers. Eine neue Kopie beginnt bei 100%: eine aus einer Anomalie und die, die {keeper} gibt.
+The skills that work through a copy wear with it: {skills}.	Die Fertigkeiten, die über eine Kopie wirken, schwächen sich mit ihr ab: {skills}.
+A row: after that many activations, the passive now and what the next activation gives.	Eine Zeile: nach so vielen Aktivierungen das Passiv jetzt und was die nächste Aktivierung gibt.
+Regeneration limit adds to each body part's own limit, never past full.	Die Regenerationsgrenze kommt zur eigenen Grenze jedes Körperteils hinzu, nie über voll hinaus.
 
 # The maps' anomalies (scripts/maps-tab/ui.js)
 Anomalies	Anomalien
