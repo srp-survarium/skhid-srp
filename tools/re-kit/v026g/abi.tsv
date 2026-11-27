@@ -1067,6 +1067,8 @@ va	name	source	ret_cleanup	result
 0x00264960	survarium::lobby_character::pick_decal_place	manual	20	AL = hit; point and normal written
 0x00264a10	survarium::lobby_character::decal_value	manual	0	EDX:EAX the u64 of +D530h (point), -(+D53Ch) (direction), +D518h (size), +D51Ch (roll)
 0x00264cf0	survarium::lobby_character::query_decal_host	manual	0	
+0x00264ea0	survarium::lobby_character::on_decal_host_loaded	manual	4	
+0x00264f80	survarium::lobby_character::query_decal_textures	manual	4	
 0x00265860	survarium::lobby_character::show_decal_preview	manual	4	
 0x00265980	survarium::lobby_character::update_decal_preview	manual	0	
 0x00267a40	survarium::timelimit_rule::timelimit_rule	manual	4	EAX: this; the vtable 0xA06E8C (RTTI timelimit_rule) stored at 0x267A61 over the core's 0xA06E2C

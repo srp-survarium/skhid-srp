@@ -2553,6 +2553,7 @@ va	name	location	role	basis
 0x002636b0	survarium::lobby_character::start_decal_edit	EAX	the host item id	observed
 0x002636b0	survarium::lobby_character::start_decal_edit	entry ESP+4	lobby_character	observed
 0x002636b0	survarium::lobby_character::start_decal_edit	entry ESP+8	the decal item id	observed
+0x002636b0	survarium::lobby_character::start_decal_edit	entry ESP+8 at 0x2637C0	looked for among the host's records (the inventory's copy, find_item_by_id) not in slot 3: +D52Ch (the records not in slot 3 before it), +D52Dh (its index) and +D548h/+D550h (its u64) are written only when one has its id, else the last edit's stay; +D514h is set either way (patch 47's start checks the record at +D52Dh)	observed
 0x00263950	survarium::lobby_character::accept_decal_edit	ESI	lobby_character (editing, +D514h)	observed
 0x00263950	survarium::lobby_character::accept_decal_edit	entry ESP+4	the host item id	observed
 0x00263950	survarium::lobby_character::accept_decal_edit	entry ESP+8	the decal item id	observed
@@ -2573,6 +2574,9 @@ va	name	location	role	basis
 0x00264960	survarium::lobby_character::pick_decal_place	entry ESP+20	out object id or 0	observed
 0x00264a10	survarium::lobby_character::decal_value	ESI	lobby_character	observed
 0x00264cf0	survarium::lobby_character::query_decal_host	ESI	lobby_character (+D520h the host)	observed
+0x00264ea0	survarium::lobby_character::on_decal_host_loaded	ECX	lobby_character (mov edi,ecx): +D528h takes the merged config, then query_decal_textures (0x264F4D) and bake_decals(+D548h, +D54Ch, 1) (0x264F63)	observed
+0x00264ea0	survarium::lobby_character::on_decal_host_loaded	entry ESP+4	the queries_result: +12Ch the host's merged config (its count +D0h raised)	observed
+0x00264f80	survarium::lobby_character::query_decal_textures	entry ESP+4	lobby_character: the texture of `data/decals[+D52Ch]` of +D528h (its root +108h), the entry's first value, read with no bound and no type (an index past the entries: the read of 0x26517A, the owner's crash of 2026-11-26), then its _nmap, _fmap, _smap queried for the preview (callback 0x265420)	observed
 0x00265860	survarium::lobby_character::show_decal_preview	EAX	the preview box float4x4 (world)	observed
 0x00265860	survarium::lobby_character::show_decal_preview	entry ESP+4	lobby_character	observed
 0x00265980	survarium::lobby_character::update_decal_preview	EAX	lobby_character	observed
