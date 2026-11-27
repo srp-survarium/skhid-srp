@@ -4181,7 +4181,7 @@ st_srp_medical_324_description	Gdy antytoksyna zaczyna działać, przywrócona e
 st_srp_medical_324_name	Drugi oddech
 st_srp_medical_331_description	Zastępuje miejsce na broń dodatkową dodatkową kieszenią na zapasy.
 st_srp_medical_331_name	Kieszeń na zapasy
-st_srp_medical_332_description	Premia do maksymalnego zdrowia rąk i nóg:
+st_srp_medical_332_description	Premia do maksymalnego zdrowia rąk i nóg (nie zwiększa progu bólu):
 st_srp_medical_332_name	Mocne kości
 st_srp_medical_333_description	Gdy działa antytoksyna, premia do szybkości przeładowania:
 st_srp_medical_333_name	Koncentracja

@@ -4181,7 +4181,7 @@ st_srp_medical_324_description	Когда антитоксин начинает 
 st_srp_medical_324_name	Второе дыхание
 st_srp_medical_331_description	Заменяет ячейку дополнительного оружия дополнительным карманом для припасов.
 st_srp_medical_331_name	Карман для припасов
-st_srp_medical_332_description	Бонус к максимальному здоровью рук и ног:
+st_srp_medical_332_description	Бонус к максимальному здоровью рук и ног (болевой порог не повышает):
 st_srp_medical_332_name	Крепкие кости
 st_srp_medical_333_description	Пока действует антитоксин, бонус к скорости перезарядки:
 st_srp_medical_333_name	Концентрация
