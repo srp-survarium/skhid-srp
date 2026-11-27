@@ -155,6 +155,7 @@ release's. The "Result" row is the build of the revision named in it.
 | `check_tab_list_026g.py` | Runs the original's and patch 39's refresh of the scoreboard's rows (update_ui 0x23B421..0x23B477), with the game's own list code of initialize_match made again, on made-up huds whose places enter and leave (needs Unicorn) |
 | `check_tab_self_026g.py` | Runs the original's and patch 43's end of game_world::on_activate, where the hud gets its player's name (the Tab list's own row gold), on a made-up world with the journal off, recording and played back (needs Unicorn) |
 | `check_weapon_show_026g.py` | Runs the original's and patch 91's weapon::on_show and the next weapon::draw's scope (add and remove of the aimed sight, the game's own) on made-up weapons, aimed and not, first person and not, no optic, a red dot and a full-screen scope, with the renderer's in-scene byte kept (needs Unicorn) |
+| `rust/patches/src/additional_camo.rs`, `src/additional_camo.toml`, `src/vostok/skin_cook.rs`, `check_additional_camo_026g.py` | Patch 217: an additional model whose `additional_models` entry has `camo_available: true` takes its item's camouflage (the exoskeleton bodies' legs, exo-camo@2): one lohook at the end of a kit slot of the character's cook (`skin_cook.item_done`, 0x20563D) gives its record the item's camouflage layer, the bake flag and a name of its own, and bake_decals bakes it; its check runs the cook's additional models, the slot's end and bake_decals' loop in the original and the build, and a broken build (needs Unicorn; `tools/check additional-camo`) |
 | `rust/patches/src/scaleform_temp_target.rs`, `src/scaleform_temp_target.toml`, `src/vostok/scaleform_filter.rs`, `check_scaleform_temp_target_026g.py` | Patch 216: a Scaleform filter whose temporary render target Direct3D did not make is drawn without its filter (HAL::PushFilters) or, cached one pass from its target, not drawn that frame and its cache let go (drawCachedFilter), never pushed as a null target (revision 73's crash at 0x2B3777): two lohooks at CreateTempRenderTarget's returns; its check runs PushFilters, PopFilters, PushRenderTarget, PopRenderTarget and drawCachedFilter on a made-up HAL, the original and two broken builds beside (needs Unicorn; `tools/check scaleform-temp-target`) |
 | `rust/patches/src/scaleform_capture.rs`, `src/scaleform_capture.toml`, `src/vostok/drawable_image.rs`, `check_scaleform_capture_026g.py` | Patch 93: the render thread's walk of a Scaleform DrawableImageContext's command queues (OnNextCapture 0x572660) never reaches a queue being destroyed (the rev-40 crash at a match's end): two lohooks; its check runs OnNextCapture and the queue's destructor on made-up contexts, the original beside (needs Unicorn) |
 | `rust/patches/src/use_scan.rs`, `src/use_scan/rule.rs`, `src/use_scan.toml`, `src/vostok/use_scan.rs`, `check_use_scan_026g.py` | Patch 23 and the use scan it lives in: `base_player::detect_usable_object` (0x2D84C0) whole in Rust, a lohook at its start leaving by its `ret 8` (section 23); the rule (`rule.rs`) is pure, the game's calls `vostok`'s; patch 85 asks it whether Use is the game's |
@@ -7137,3 +7138,31 @@ scene, and any probe of a radius at or above 0, draws as before (stock level_07 
 radius -0.4: it stays 0.26g's). The exe patch, the lighting pack and the map's pack ship together.
 Rendering only: nothing a match computes or a world holds changes
 (`../docs/notes/probe-tiers-069d.md`, `../docs/notes/client_patch.md` section 3.108).
+
+## An additional model takes its item's camouflage (patch 217, unreleased)
+
+The owner, 2026-11-27 (revision 74): "applying camo to exoskeleton doesn't paint legs". The game
+bakes an item's camouflage into the item's own surface (`part_name`) alone. The character's cook gives
+each of its `additional_models` a record with no camouflage and no bake flag, and bake_decals bakes
+only flagged records. The Duty and Freedom exoskeleton bodies (1805, 1807) draw their legs as an
+additional model, so exo-camo@1's legs masks were never used.
+
+Patch 217 hooks the end of each kit slot of the cook (`skin_cook.item_done`, 0x20563D). When the
+slot's item bakes a named camouflage, each additional model whose entry says `camo_available: true`
+gets:
+- the item's camouflage layer;
+- the bake flag;
+- a bake name of the camouflage's file name and the model's (`camo_atlas_m81_woodlandduty_03_legs_s1`);
+- never the item's decals.
+
+The surface's own `<diffuse>_aoac` mask decides what is painted, as for the item. An entry without the
+key, every stock one, is as before. exo-camo@2 sets the key on both bodies' legs.
+
+Entries that do not tell which record is whose (an entry that is no table) paint nothing and write:
+
+```text
+srp: additional_camo: an item's camouflage not given to its additional models: its additional models do not tell which record is whose; refusal 1
+```
+
+The look only: nothing a match computes. Checked with `check_additional_camo_026g.py` (Unicorn;
+`tools/check additional-camo`); not run in a game. The addresses: `../docs/notes/client_patch.md` 3.114.

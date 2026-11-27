@@ -365,7 +365,9 @@ put on armor and pants, not balaclavas".
     goes (a box projected along the surface's normal, size and turn by the wheel); one never
     placed is on the chest (record value 0). The bake paints the piece's first surface
     (`part_name`) in that surface's UV space; `additional_models` (a vest's fur, straps) take
-    none (0x2054C9). The `_aoac` mask is the camouflage's alone.
+    none (0x2054C9). The `_aoac` mask is the camouflage's alone. A camouflage likewise paints the
+    first surface alone, unless an additional model's entry has `camo_available` (exe patch 217,
+    `client_patch.md` 3.114).
 - **What the STK2 torso and legs items lacked:**
   - those two keys. Their ports wrote `decal_available` false and took `data/decals` out ("the
     donor textures have no masks": true of the camouflage, not needed for a decal);
@@ -408,7 +410,9 @@ put on armor and pants, not balaclavas".
     loner's pouches, an exoskeleton's frame, back unit and chest disc), that model stays as it is
     and the decal shows around it, as around a stock vest's straps;
   - the exoskeleton bodies take the trousers' slot, and their legs are an additional model: a
-    body has its two decals on the torso and none on the legs;
+    body has its two decals on the torso and none on the legs. A camouflage paints the legs only
+    through exe patch 217, which gives an additional model with `camo_available` its item's
+    camouflage, never its decals (exo-camo@2, `exo-suits.md`);
   - the Novice's jeans' grown waist repeats the denim below it (4 % of the map's texels): a decal
     put at the very waistline, under a jacket's hem, shows mirrored above it;
   - no camouflage until stk2-camo@1 (below): its bake needs the `_aoac` mask beside the diffuse map.
