@@ -27,6 +27,10 @@
 #   server holds; a kit whose own is the second sight; the slot chosen: its optics bright, the
 #   rest dim, a double click into it; a weapon without rows: no such slot; second.png, the window
 #   with all four;
+# - real clicks (xdotool) on the Appearance page as its right-click's entry opens it: the list shows a
+#   slot's own kind, a camouflage slot's the camouflages, empty or filled (its middle is its change
+#   button), after a decal slot's click and a decal edit too; a decal's change button starts its edit
+#   (start_decal_edit), a camouflage's never;
 # - the window's texts in every language of client-patches/localization fitting their fields.
 # Exits 0 when it says pass; prints its lines. A work dir given is kept (the harness, Ruffle's log).
 # Java and Flex from private/actionscript/tools.json (tools/actionscript/README.md), or SRP_AS_TOOLS.
@@ -88,11 +92,28 @@ EOF
 harness_compile "$here/WeaponKitHarness.as" 1280,720 -source-path+="$work"
 # The native Scaleform placements Ruffle refuses, so the window's named children exist.
 "${PYTHON:-python3}" "$here/../medical-cards/ruffle_movie.py" "$lobby" "$work/lobby_menu.swf"
-harness_display 1280x720 imagemagick
+harness_display 1280x720 imagemagick xdotool
 harness_run WeaponKitHarness.log -p low --width 1280 --height 720 WeaponKitHarness.swf
 if wait_for WeaponKitHarness.log 'WEAPONKIT shot second'; then
     sleep 1
     DISPLAY=$display import -window root "$work/second.png" 2>/dev/null || true
+fi
+# The real clicks (xdotool on the Ruffle window, the one window on this display): one where the window
+# puts the stage (a menu bar above it), then each "click <n> at <x>,<y>" (stage) the harness asks for.
+log=$work/WeaponKitHarness.log
+if wait_for WeaponKitHarness.log 'WEAPONKIT calibrate'; then
+    window=$(DISPLAY=$display timeout 20 xdotool search --sync --onlyvisible --name "." | head -1 || true)
+    DISPLAY=$display xdotool mousemove --window "$window" 1200 700 click 1 || true
+    wait_for WeaponKitHarness.log 'WEAPONKIT mouse down at' 600 || true
+    read -r sx sy < <(sed -n 's/.*WEAPONKIT mouse down at \([0-9]*\),\([0-9]*\).*/\1 \2/p' "$log" | head -1) \
+        || echo "the harness saw no click: see $log" >&2
+    n=0
+    while [[ -n ${sy:-} ]] && wait_for WeaponKitHarness.log "WEAPONKIT click $n at\|WEAPONKIT RESULT" 600 \
+        && grep -q "WEAPONKIT click $n at" "$log"; do
+        read -r tx ty < <(sed -n "s/.*WEAPONKIT click $n at \([0-9]*\),\([0-9]*\).*/\1 \2/p" "$log")
+        DISPLAY=$display xdotool mousemove --window "$window" $((tx + 1200 - sx)) $((ty + 700 - sy)) click 1 || true
+        n=$((n + 1))
+    done
 fi
 wait_for WeaponKitHarness.log 'WEAPONKIT RESULT' || true
 harness_stop
