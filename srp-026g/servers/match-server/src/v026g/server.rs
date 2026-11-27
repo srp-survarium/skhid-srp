@@ -158,6 +158,8 @@ pub fn bot_tuning_from_env() -> io::Result<Arc<LiveTuning>> {
 /// (`SRP_RELAYS`, parsed once by the caller). `bot_tuning` is what the
 /// matches' bots run on ([`bot_tuning_from_env`]): parsed by the caller, so that a
 /// restart of this server keeps the store the admin page changes.
+// main's `relays` beside the bots' `bot_tuning`: each parsed once by the caller, srp.
+#[allow(clippy::too_many_arguments)]
 pub fn run_on_with_replays(
     socket: &UdpSocket,
     registry: Arc<MatchRegistry>,
