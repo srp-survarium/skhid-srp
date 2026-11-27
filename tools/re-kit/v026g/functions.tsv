@@ -2553,3 +2553,8 @@ va	status	ref_021d	name
 0x0030f4f0	reviewed		survarium::double_barreled_weapon_core_reload_state::get_hands_lexeme [descriptive]
 0x0030fdf0	reviewed	0x001f314e	survarium::pistol_weapon_core_reload_state::weapon_and_hands_expression
 0x00244d40	verified		survarium::weapon::calculate_aim_alignment
+0x00274a00	reviewed		survarium::lobby_client::on_message_received
+0x00511700	observed		Scaleform::GFx::Movie::CreateObject
+0x00511710	observed		Scaleform::GFx::Movie::CreateArray
+0x00798340	observed		Scaleform::GFx::AS3ValueObjectInterface::SetElement
+0x0078e610	observed		Scaleform::GFx::AS3ValueObjectInterface::ObjectRelease

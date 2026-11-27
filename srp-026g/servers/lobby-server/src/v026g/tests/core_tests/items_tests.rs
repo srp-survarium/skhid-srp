@@ -188,7 +188,7 @@ fn a_camouflage_and_decals_go_on_a_vest() {
     let decal = give(&mut world, alice, &decal_name, &[]);
 
     world.ask(alice, ask::attach(vest, camo, 3));
-    assert_eq!(world.client(alice).ids, [0x83, 0x89, 0x87, 0x8B]);
+    assert_eq!(world.client(alice).ids, [0x83, 0xA9, 0x89, 0x87, 0x8B]);
     let decoded = world.take(alice);
     assert_eq!(
         decoded[0],
@@ -650,7 +650,7 @@ fn a_weapons_upgrade_change_is_answered_with_the_inventory_alone() {
     assert_eq!(weapon_kit::unpack(&sent).map(|logical| logical.len()), Ok(4));
 
     world.ask(alice, ask::detach(rifle, camo));
-    assert_eq!(world.client(alice).ids, [0x89, 0x87, 0x8B]);
+    assert_eq!(world.client(alice).ids, [0xA9, 0x89, 0x87, 0x8B]);
     world.take(alice);
     assert_same_items(&mut world, alice);
     let held = world
@@ -1041,7 +1041,7 @@ fn an_item_is_crafted_with_a_donor() {
     // gold chances; its 50 gold in silver; the stock window's gold byte
     // pays silver too).
     world.ask(alice, ask::craft(rifle, donor, true));
-    assert_eq!(world.client(alice).ids, [0x83, 0x89, 0x87, 0x8B]);
+    assert_eq!(world.client(alice).ids, [0x83, 0xA9, 0x89, 0x87, 0x8B]);
     let decoded = world.take(alice);
     let Decoded::Permitted(Permitted::Crafted {
         item_id,
@@ -1064,5 +1064,25 @@ fn an_item_is_crafted_with_a_donor() {
         );
     }
     assert_same_items(&mut world, alice);
+    world.assert_clean();
+}
+
+/// `46 05` with a scope item as host and upgrade is a reticle (`session::v026g::reticles`): the
+/// test data's scopes have no lists, so it is refused, and the client gets the reticles, the
+/// inventory and the account to put its steppers right.
+#[test]
+fn a_reticle_for_a_scope_without_lists_is_refused_with_the_account() {
+    let mut world = World::new();
+    let alice = world.connect("Alice");
+    let mut scope = 0;
+    world.change(alice, |account| {
+        scope = account.add_item(69, FULL_CONDITION);
+    });
+    world.take(alice);
+    let value = survarium::v026g::reticles::Reticle::DEFAULT.value();
+    world.ask(alice, ask::place(scope, scope, value));
+    assert_eq!(world.client(alice).ids, [0x84, 0xA9, 0x89, 0x87, 0x8B]);
+    world.take(alice);
+    assert_eq!(world.account(alice).reticles.chosen().count(), 0);
     world.assert_clean();
 }

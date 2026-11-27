@@ -8,3 +8,4 @@ patch = 207
 [[hook]]
 site = "lobby.callback"
 handler = "on_lobby_call"
+order = 1                           # before reticle.toml's: each takes its own method

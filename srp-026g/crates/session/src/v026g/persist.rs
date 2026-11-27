@@ -36,6 +36,7 @@ mod mode_intro;
 mod presets;
 mod faces;
 mod results;
+mod reticles;
 mod room_settings;
 
 /// The schema, step by step. Never change a step that shipped: add one.
@@ -181,6 +182,8 @@ const MIGRATIONS: &[&str] = &[
     // 27: matches of before the history, their source, a line's unknown
     // rating, and the order by the matches' end (`history`).
     history::BACKFILL_MIGRATION,
+    // 28: the reticle each account chose for each of its scope items (`reticles`).
+    reticles::MIGRATION,
 ];
 
 /// The child tables of an account, children of children first.
@@ -674,6 +677,7 @@ impl GameRepository for SqliteGameRepository {
                         presets: [const { None }; super::presets::PRESETS],
                         active_preset: super::presets::FIRST_PRESET,
                         face: Default::default(),
+                        reticles: Default::default(),
                     },
                 ))
             })?;
@@ -815,6 +819,13 @@ impl GameRepository for SqliteGameRepository {
                 })?;
                 account.quest_cooldowns = rows.collect::<Result<_, _>>()?;
             }
+            // After the inventory: a choice is held against its item's scope lists.
+            account.reticles = reticles::load(
+                &transaction,
+                account_id,
+                &account.inventory,
+                survarium::v026g::reticles::Reticles::shared(),
+            )?;
         }
         transaction.commit()?;
         Ok(accounts)
@@ -955,6 +966,7 @@ fn write_account(
     presets::save(transaction, account_id, &account.presets)?;
     presets::save_active(transaction, account_id, account.active_preset)?;
     faces::save(transaction, account_id, account.face)?;
+    reticles::save(transaction, account_id, &account.reticles)?;
     for (seq, &(skill_id, points)) in account.skills.iter().enumerate() {
         transaction.execute(
             "INSERT INTO g26_skills (account_id, seq, skill_id, points)

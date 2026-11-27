@@ -44,6 +44,7 @@ pub mod faces;
 pub mod lobby_pick;
 pub mod presets;
 pub mod push;
+pub mod reticles;
 pub mod requests;
 pub mod results;
 pub mod rooms;
@@ -55,6 +56,7 @@ pub mod tutorial_model;
 mod tests;
 
 pub use push::*;
+pub use reticles::{ScopeReticle, scope_reticles};
 pub use requests::{ClientMessage, ParseError, parse};
 pub use results::*;
 pub use social::*;
@@ -128,10 +130,13 @@ pub enum ServerId {
     Important = 0xA4,
     AdminText = 0xA5,
     AdminTextClear = 0xA6,
-    /// `A8`, `A9`: the premium offers; srp makes neither (there is no
-    /// premium account).
+    /// `A8`: the premium store; srp never makes it (there is no premium
+    /// account).
     PremiumStore = 0xA8,
-    PremiumDiscount = 0xA9,
+    /// `A9`: 0.26g's premium discount, which srp never makes; srp's own
+    /// message of the account's scope reticles ([`reticles`]), which the
+    /// patched client takes before its dispatch (patch `reticle`).
+    ScopeReticles = 0xA9,
     SignedOut = 0xAA,
 }
 
@@ -175,7 +180,7 @@ impl ServerId {
         Self::AdminText,
         Self::AdminTextClear,
         Self::PremiumStore,
-        Self::PremiumDiscount,
+        Self::ScopeReticles,
         Self::SignedOut,
     ];
 

@@ -8,7 +8,7 @@
 //! |---|---|---|
 //! | `46 01` attach | `83 46 01`, then the inventory and the account; on a weapon the inventory and the account alone | `84 46` `st_cannot_upgrade_item`, then the inventory and the account (the window showed the cosmetic in its slot already) |
 //! | `46 02` detach | `83 46 02`, then the same (also for a cosmetic that is gone: sold, Flash's `on_item_sold` asks after the sale); on a weapon the inventory and the account alone | the same |
-//! | `46 05` place a decal | nothing: the client wrote the value itself and has no handler for an answer; on a weapon the inventory and the account (patch 47: the lobby builds the weapon again with it) | `84 46`, then the inventory and the account |
+//! | `46 05` place a decal | nothing: the client wrote the value itself and has no handler for an answer; on a weapon the inventory and the account (patch 47: the lobby builds the weapon again with it); a scope item's reticle (host = upgrade = the scope item) the reticles (`A9`), the inventory and the account | `84 46`, then the same |
 //! | `46 06` window opened | `83 46 06`, and `83 46 07` again for a change not chosen yet | `84 46` `st_cannot_select_rerolled_modification` |
 //! | `46 07` reroll | `83 46 07` and the money | `84 46`, then `83 46 06`: the window is locked until it is filled again |
 //! | `46 08` choose | `83 46 08` (the client changes its copies itself; keeping the old one: the old one into itself) | `84 46`, then `83 46 06` (and `07`) |
@@ -27,7 +27,7 @@
 //! (patch 48's preview waits for the account).
 
 use session::LockExt;
-use session::v026g::items_rules::{self, Detached, ItemError, RerollWindow};
+use session::v026g::items_rules::{self, Detached, ItemError, Placed, RerollWindow};
 use session::v026g::wire;
 use survarium::v026g::lobby::requests::id;
 use survarium::v026g::lobby::{self, Crafted};
@@ -104,12 +104,15 @@ impl Core<'_> {
     /// client has written it into its own copy and reads no answer. A
     /// weapon's: the account too, which builds the weapon of the lobby's
     /// view again with the decal's new place (patch 47; the stock editor
-    /// baked an armour's itself).
+    /// baked an armour's itself). A scope item's reticle (host and upgrade
+    /// the scope item, `session::v026g::reticles`): the account, whose `A9`
+    /// the movie's steppers redraw from; nobody else sees it.
     pub(super) fn place_upgrade(&mut self, who: &Who, host: u32, upgrade: u32, value: u64) {
         let placed = items_rules::place_upgrade(&mut who.account.locked(), host, upgrade, value);
         match placed {
-            Ok(true) => self.item_changed(who),
-            Ok(false) => {
+            Ok(Placed::Upgrade { weapon: true }) => self.item_changed(who),
+            Ok(Placed::Reticle) => self.push_account(who),
+            Ok(Placed::Upgrade { weapon: false }) => {
                 self.accounts.mark_dirty(who.account_id);
                 self.squads_dirty = true;
             }

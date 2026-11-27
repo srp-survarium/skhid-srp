@@ -1,12 +1,27 @@
-# Patch <reticle> (placeholder number, claimed when the PR is nearly done): a
-# collimator's reticle chosen per scope (docs/notes/reticle-choice.md, "The
-# build's contract"). The drawing: the chosen pattern's model in the scene
-# exactly while the optic's aimed model is, at its `aim` place, in the chosen
-# colour and brightness (reticle/draw.rs; the game's side vostok/reticle.rs).
+# Patch <patch> (the number is claimed when the PR is nearly done; 0 until then): a collimator's
+# reticle chosen per scope item (reticle/; docs/notes/reticle-choice.md, "The build's contract").
+# The table (reticle/table.rs): srp's A9 taken at the lobby's dispatcher before its jump table,
+# srp_set_reticle at the lobby movie's every call, each scope item's srp_reticle as the lobby
+# gives the movie its inventory.
 name = "reticle"
-patch = 220
+patch = 0
 
-# after patch 161's draw, which put the second sight's aimed model in place
+[[hook]]
+site = "lobby_client.dispatch"
+handler = "on_lobby_message"
+
+[[hook]]
+site = "lobby.callback"
+handler = "on_lobby_call"
+order = 2                           # after upgrade_value.toml's (order 1): each takes its own method
+
+[[hook]]
+site = "lobby_menu.inventory_item"
+handler = "on_inventory_item"
+
+# The drawing (reticle/draw.rs; the game's side vostok/reticle.rs): the chosen pattern's model in
+# the scene exactly while the optic's aimed model is, at its `aim` place, in the chosen colour
+# and brightness. After patch 161's draw, which put the second sight's aimed model in place.
 [[hook]]
 site = "attachments.draw"
 handler = "on_draw"

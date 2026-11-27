@@ -4283,6 +4283,24 @@ st_srp_replay_still_preparing	Záznam se ještě připravuje na serveru. Za minu
 st_srp_replay_title	Přehrát záznam
 st_srp_replay_waiting	Čekání: %1$s s.
 st_srp_reroll_description	Kterýkoli bonus předmětu můžeš změnit, kolikrát chceš. Potom si vybereš jeden ze tří náhodných bonusů.
+st_srp_reticle_brightness	Jas
+st_srp_reticle_colour	Barva
+st_srp_reticle_colour_blue	Modrá
+st_srp_reticle_colour_green	Zelená
+st_srp_reticle_colour_red	Červená
+st_srp_reticle_pattern	Typ
+st_srp_reticle_pattern_cobra_cross	Kříž Kobra
+st_srp_reticle_pattern_cobra_tick	Stříška
+st_srp_reticle_pattern_cobra_tick_dot	Stříška s tečkou
+st_srp_reticle_pattern_dot	Tečka
+st_srp_reticle_pattern_dppro_triangle	Trojúhelník
+st_srp_reticle_pattern_eotech_ring	Kruh
+st_srp_reticle_pattern_eotech_xr308	Kruh XR308
+st_srp_reticle_pattern_ncstar_bullseye	Terč
+st_srp_reticle_pattern_ncstar_cross	Kříž
+st_srp_reticle_pattern_ncstar_starburst	Hvězdice
+st_srp_reticle_size	Velikost
+st_srp_reticle_title	Změna obrazce:
 st_srp_rooms_all	Všechny
 st_srp_rooms_all_rooms	Všechny místnosti
 st_srp_rooms_any	Libovolná

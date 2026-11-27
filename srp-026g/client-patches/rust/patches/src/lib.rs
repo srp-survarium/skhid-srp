@@ -212,5 +212,6 @@ pub mod weapon_view_options;
 pub mod geometry_share;
 // patch 161: a weapon's scope, eye, left hand and shells where its fitted modules put them
 pub mod attachments;
-// patch <reticle>: a collimator's reticle chosen per scope, drawn in the aimed optic
+// patch <patch>: a collimator's reticle chosen per scope item (the server's table, the lobby's
+// steppers, the aimed view's drawing)
 pub mod reticle;

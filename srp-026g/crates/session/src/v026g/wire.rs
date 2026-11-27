@@ -242,9 +242,13 @@ pub fn craft_tables() -> ServerMessage {
 
 /// What the client must be sent after an action changed the account: it
 /// never asks for its inventory, account or money (`lobby_requests.md` §3).
-/// The inventory comes first: the account's items are looked up in it.
+/// The inventory comes first: the account's items are looked up in it. Before
+/// it, srp's scope reticles (`A9`, [`super::reticles`]): the patched client
+/// gives the movie's scope items their `srp_reticle` when the inventory
+/// comes.
 pub fn after_change(account: &Account) -> Result<Vec<ServerMessage>, WireError> {
     Ok(vec![
+        super::reticles::message(account)?,
         inventory(account)?,
         own_account(account)?,
         money(account),
@@ -315,6 +319,8 @@ pub fn sign_in_push(account: &Account, info: &SignInInfo) -> Result<Vec<ServerMe
         push.push(lobby::shop(&shop_offers::records())?);
     }
     push.extend([
+        // srp's scope reticles, before the inventory (`after_change`).
+        super::reticles::message(account)?,
         inventory(account)?,
         own_account(account)?,
         level_and_skills(account)?,
@@ -443,8 +449,8 @@ mod tests {
         assert_eq!(
             ids,
             [
-                0x80, 0x8F, 0x90, 0x8B, 0x96, 0x8E, 0x8D, 0x94, 0x8A, 0x8E, 0x95, 0x89, 0x87, 0x8C,
-                0x92, 0x9C, 0x9D, 0x9F, 0x9B, 0x85
+                0x80, 0x8F, 0x90, 0x8B, 0x96, 0x8E, 0x8D, 0x94, 0x8A, 0x8E, 0x95, 0xA9, 0x89, 0x87,
+                0x8C, 0x92, 0x9C, 0x9D, 0x9F, 0x9B, 0x85
             ]
         );
         // The craft tables, byte for byte: the twelve chances (for an
@@ -465,7 +471,7 @@ mod tests {
         ] {
             tables.extend(price.to_le_bytes());
         }
-        assert_eq!(bytes(&push[18]), tables);
+        assert_eq!(bytes(&push[19]), tables);
         assert_eq!(tables.len(), 1 + 112);
         assert_eq!(bytes(&push[0]), [0x80, 0, 0]);
         assert_eq!(bytes(push.last().unwrap()), [0x85, 0]);
@@ -473,6 +479,9 @@ mod tests {
         // reputations.
         let at = |id: u8| ids.iter().position(|&other| other == id).unwrap();
         assert!(at(0x89) < at(0x87));
+        // srp's scope reticles before the inventory, whose arrival gives the
+        // movie its items.
+        assert!(at(0xA9) < at(0x89));
         assert!(at(0x96) < at(0x8E));
         // The reputations once more after the price list: the movie fills
         // its shop list only on a reputations push (`GangShop.draw`), so the
@@ -495,7 +504,7 @@ mod tests {
         assert_eq!(read.len(), push.len());
         assert_eq!(client.inventory().len(), 5);
         assert!(matches!(
-            &read[12],
+            &read[13],
             Decoded::Account(own) if own.body.kits.len() == 3 && own.active_kit == 1
         ));
         // Without the shop when the client has it.
@@ -509,7 +518,7 @@ mod tests {
         // The maintenance minutes leave Play enabled (over 30) with no
         // warning (60 or more).
         assert!(matches!(
-            read[17],
+            read[18],
             Decoded::OnlineStats {
                 minutes_to_maintenance: 1440,
                 ..
@@ -635,17 +644,17 @@ mod tests {
         ]);
         let read = client.receive_all(&push).unwrap();
         // The kits carry the skills' modifiers.
-        let Decoded::Account(own) = &read[1] else {
-            panic!("{:?}", read[1]);
+        let Decoded::Account(own) = &read[2] else {
+            panic!("{:?}", read[2]);
         };
         assert!(own.body.kits[0].modifiers.iter().any(|&value| value != 0.0));
         assert_eq!(own.body.kits[0].modifiers, own.body.kits[2].modifiers);
         assert_eq!(own.level, account.level());
         assert!(matches!(
-            &read[4],
+            &read[5],
             Decoded::Reputations { quest_active_faction: 3, reputations } if reputations[0] == (1, 40_000)
         ));
-        assert!(matches!(&read[5], Decoded::Quests(list) if list.len() == 3 && list[0].active));
+        assert!(matches!(&read[6], Decoded::Quests(list) if list.len() == 3 && list[0].active));
     }
 
     #[test]

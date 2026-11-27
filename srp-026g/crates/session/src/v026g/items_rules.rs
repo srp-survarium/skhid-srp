@@ -122,6 +122,7 @@ use survarium::v026g::item_params::item_params;
 use survarium::v026g::lobby::requests::KEEP_OLD_MODIFICATION;
 use survarium::v026g::lobby::{Crafted, limits};
 use survarium::v026g::modifications::{self, Bonuses, MAX_RANK, Modifications};
+use survarium::v026g::reticles::{Numbers, Reticle, Reticles};
 use survarium::v026g::scopes::{SCOPE_CATEGORY, SCOPE_SLOT};
 use survarium::v026g::weapon_kit;
 use survarium::v026g::weapon_modules::{self, Fitted, Kind, Modules};
@@ -596,31 +597,113 @@ pub fn detach_upgrade(
     Ok(Detached::Off)
 }
 
+/// What a `46 05` did ([`place_upgrade`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Placed {
+    /// A cosmetic's value on its host (the decal editor's place, a second sight's side). `weapon`
+    /// when the host is a weapon: the client's copy is the inventory's, and its lobby shows the
+    /// weapon with the new value only when it is sent the account (patch 47 bakes the decal when
+    /// the weapon is built).
+    Upgrade { weapon: bool },
+    /// A scope item's reticle ([`super::reticles`]): the client sees it in the account's `A9`.
+    Reticle,
+}
+
+/// A `46 05 <kit> <host> <upgrade> <u64>` parsed against the account.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Placement {
+    /// srp's: the host is the upgrade, a scope item with reticle lists, and the value a
+    /// reticle its lists hold (`reticles::Numbers::of_value`).
+    SetReticle { item_id: u32, reticle: Reticle },
+    /// The decal editor's (and patch 207's second sight's side): a value for a cosmetic on an
+    /// item.
+    Value { host_item_id: u32, upgrade_item_id: u32, value: u64 },
+}
+
+/// The request's meaning. An item is never its own cosmetic, so a host that is the upgrade is
+/// a reticle or nothing.
+fn placement(
+    account: &Account,
+    reticles: &Reticles,
+    host_item_id: u32,
+    upgrade_item_id: u32,
+    value: u64,
+) -> Result<Placement, ItemError> {
+    if host_item_id != upgrade_item_id {
+        return Ok(Placement::Value {
+            host_item_id,
+            upgrade_item_id,
+            value,
+        });
+    }
+    let item = account
+        .item(host_item_id)
+        .ok_or(ItemError::Upgrade("a reticle for an item the account lacks"))?;
+    let lists = reticles
+        .of(item.dict_id)
+        .ok_or(ItemError::Upgrade("a reticle for an item with no reticle lists"))?;
+    let reticle = Numbers::of_value(value)
+        .and_then(|numbers| lists.reticle(numbers))
+        .ok_or(ItemError::Upgrade("a reticle its scope's lists do not hold"))?;
+    Ok(Placement::SetReticle {
+        item_id: host_item_id,
+        reticle,
+    })
+}
+
 /// `46 05 <kit> <host> <upgrade> <u64>`: the decal editor's value for a
 /// cosmetic on an item (the client has written it into its own copy, and
-/// expects no answer). Each item wearing the cosmetic has its own. True
-/// when the host is a weapon: the client's copy is the inventory's, and
-/// its lobby shows the weapon with the new place only when it is sent the
-/// account (patch 47 bakes the decal when the weapon is built).
+/// expects no answer; each item wearing the cosmetic has its own), or srp's
+/// reticle of a scope item (host and upgrade the scope item).
 pub fn place_upgrade(
     account: &mut Account,
     host_item_id: u32,
     upgrade_item_id: u32,
     value: u64,
-) -> Result<bool, ItemError> {
-    place_upgrade_with(account, Modules::shared(), host_item_id, upgrade_item_id, value)
+) -> Result<Placed, ItemError> {
+    place_upgrade_with(
+        account,
+        Modules::shared(),
+        Reticles::shared(),
+        host_item_id,
+        upgrade_item_id,
+        value,
+    )
 }
 
-/// [`place_upgrade`] with `modules`. A weapon's second sight's value is its
+/// [`place_upgrade`] with `modules` and `reticles`. A weapon's second sight's value is its
 /// side (0 left, 1 right): another value is refused, and so is a side the
-/// weapon cannot hold it on with what it holds ([`Modules::check`]).
+/// weapon cannot hold it on with what it holds ([`Modules::check`]). A reticle is refused unless
+/// the item is a scope item of the account with lists that hold it.
 pub fn place_upgrade_with(
+    account: &mut Account,
+    modules: &Modules,
+    reticles: &Reticles,
+    host_item_id: u32,
+    upgrade_item_id: u32,
+    value: u64,
+) -> Result<Placed, ItemError> {
+    match placement(account, reticles, host_item_id, upgrade_item_id, value)? {
+        Placement::SetReticle { item_id, reticle } => {
+            account.reticles.choose(item_id, reticle);
+            Ok(Placed::Reticle)
+        }
+        Placement::Value {
+            host_item_id,
+            upgrade_item_id,
+            value,
+        } => place_value(account, modules, host_item_id, upgrade_item_id, value),
+    }
+}
+
+/// A cosmetic's value on its host.
+fn place_value(
     account: &mut Account,
     modules: &Modules,
     host_item_id: u32,
     upgrade_item_id: u32,
     value: u64,
-) -> Result<bool, ItemError> {
+) -> Result<Placed, ItemError> {
     if let Some(host) = account.item(host_item_id)
         && is_weapon(host.dict_id)
         && host.upgrades.iter().any(|held| held.id == upgrade_item_id && held.param == weapon_modules::slot_of(Kind::SecondSight))
@@ -644,7 +727,7 @@ pub fn place_upgrade_with(
     let weapon = account
         .item(host_item_id)
         .is_some_and(|host| is_weapon(host.dict_id));
-    Ok(weapon)
+    Ok(Placed::Upgrade { weapon })
 }
 
 // -------------------------------------------------------------- reroll

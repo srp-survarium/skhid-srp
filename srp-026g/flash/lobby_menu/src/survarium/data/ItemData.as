@@ -1,6 +1,7 @@
 package survarium.data
 {
    import survarium.core.Icon;
+   import survarium.upgrade.ReticleChoice;
    
    public class ItemData
    {
@@ -124,6 +125,10 @@ package survarium.data
       public var decalItem:Array;
       
       public var additionalSlots:Array;
+
+      // a collimator scope's reticle (the exe's srp_reticle, parsed once: InventoryList); null for an
+      // item without the choice
+      public var reticle:ReticleChoice;
       
       public var content:Array;
       
@@ -228,6 +233,7 @@ package survarium.data
          itemData.equipped = origin.equipped;
          itemData.fromBundle = origin.fromBundle;
          itemData.additionalSlots = origin.additionalSlots;
+         itemData.reticle = origin.reticle;
          return itemData;
       }
    }

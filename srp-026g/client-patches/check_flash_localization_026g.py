@@ -5,6 +5,8 @@ LocalizationData.getName("st_srp_...") or LocalizationData.format("st_srp_...", 
 content compile maps every st_srp_ key of the movie's prefix to itself for it
 (localization_026g.FLASH_MOVIES: the hud's st_srp_hud_ only). Every key a movie names must be in the
 dictionaries and of its movie's prefix; no other movie may name one (it is not given srp's texts).
+A key ending in `_` is the prefix of a family a movie completes with a name from the game (the
+reticle's `st_srp_reticle_pattern_<name>`): the dictionaries must have a key of that family.
 """
 from pathlib import Path
 import re
@@ -28,7 +30,9 @@ def audit_flash(root, keys):
                 issues.append(f'{where}: {match[1]}: the {movie} movie is not given srp\'s texts')
             elif not match[1].startswith(FLASH_MOVIES[movie]):
                 issues.append(f'{where}: {match[1]}: the {movie} movie is given {FLASH_MOVIES[movie]}* texts only')
-            elif match[1] not in keys:
+            elif match[1].endswith('_') and not any(key.startswith(match[1]) for key in keys):
+                issues.append(f'{where}: {match[1]}: the dictionaries have no key of this family')
+            elif not match[1].endswith('_') and match[1] not in keys:
                 issues.append(f'{where}: {match[1]} is not in the dictionaries')
             used.add(match[1])
     return {'checked': len(used), 'issues': issues}
