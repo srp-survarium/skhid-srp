@@ -82,9 +82,10 @@ The rules, as Rudnya @4's:
 - light: the donor's 7 probe volumes with their own cubemaps and SH, the largest also as the
   map-wide sphere; its ambient lights as 0.26g ambient lights (113 adding, 20 darkening; the ones it
   fades out farther than every spawn left out); its sun (0.85 at 38 degrees, through its atmosphere);
-- exposure: 0.69d's range EV 10 to 12 as exposure profile 33003 of `three-maps-021-lighting@17`
+- exposure: 0.69d's range EV 10 to 12 as exposure profile 33003 of `three-maps-021-lighting@18`
   (floor 0.026042, ceiling 0.104167, key 0.1232), metered as 0.69d meters, and the scene's own colour
-  grading texture from its grading and curve;
+  grading texture from its grading and curve; and 0.69d's vignette (`vignette_intensity` 0.12, k 1.2:
+  the light times `1 / (1 + (k (u - 0.5))^2 + (k (v - 0.5))^2)^2` before the curve), lighting @18;
 - materials by the two builds' shading (gloss, Fresnel 0.04, metal maps made texel by texel). New for
   Vostok: a material with no metalness map and a constant metalness above 0.1 is a metal surface too,
   its maps made with that value in every texel (the barbed wire, `tiled/metal/metal_egoza`, 0.7); at
