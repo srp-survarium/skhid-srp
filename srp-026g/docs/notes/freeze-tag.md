@@ -61,14 +61,35 @@ three). No artifact rescue in this version (owner, 2026-11-17).
   - **A popup, for everyone** (both teams, a spectator and a replay
     following a player; the owner, 2026-11-26: "no need for it to be a timer,
     it should be a small popup for a few seconds"): when his team goes down to
-    him, the game's short message (`set_parameterized_message`, small, 30%
-    down the screen) for 4 s, "Last enemy revealed in 15 s" for the other team,
+    him, the game's short message (its art, small, 30% down the screen; a
+    copy of its own, `HUD.freeze_tag_reveal`), "Last enemy revealed in 15 s" for the other team,
     "You are revealed in 15 s" for him and "Your last teammate is revealed in
     15 s" for his frozen teammates; the seconds left at that moment, rounded
     (a late joiner's or a resynced game's real number); no countdown after
-    it. When he is revealed, "... revealed on the map" for 3 s. Both sides
-    down to one in the same frame: both lines. (#2671's first version counted
-    down under the timer.)
+    it. When he is revealed, "... revealed on the map". Each is fully shown
+    for 4 s between the stock fades (0.5 s in, 0.5 s out); one told again
+    while shown is refreshed (a full 4 s from then, no fade from nothing).
+    Both sides down to one in the same frame: both lines. (#2671's first
+    version counted down under the timer.)
+  - **Its time is the hud's clock** (`ShortMessage`; the owner, 2026-11-27:
+    "freeze messages like you are revealed disappear almost immediately",
+    "the same is true for FFA end message (victory or loss)"). #2673's popup
+    was the shared message (`set_parameterized_message`, contextInfo3) whose
+    whole life was its clip's timeline: fade in, stop at frame 15, a timeout
+    plays "hide", and frame 30's script takes the clip off the display list.
+    The next message put it back and started it with `gotoAndPlay(0)`, a frame
+    that does not exist; Scaleform 4.2's gotoAndPlay (0x760120) makes a
+    number n the frame index n-1, so 0 is 0xFFFFFFFF, never the current
+    frame, and always gets a goto (where its sprite's GotoFrame takes it is
+    not read). Both reports are a match's second message or later in that
+    clip: "revealed" after the count's popup, Free for All's verdict after its
+    welcome. Ruffle shows them their whole time (frame 1), and patch 160 calls
+    the hud once a frame with nothing that hides or replaces the message, so
+    the cut is the game's alone. Now every short message (Freeze Tag's popup,
+    and the shared one for every caller: welcomes, ends, Artifact Hunt's cues,
+    the Onyx hint) stays on the display list held at frame 15 and fades by its
+    alpha from the time it was told; no frame script runs again and no timeout
+    ends it.
   - The game's own spotted-enemy path: `minimap.enemy_spotted`
     (update_minimap_players' test of an enemy's spotted time, 0x239505) lists
     his dot as a spotted enemy's, as Artifact Hunt's carrier and a replay's
@@ -402,8 +423,12 @@ at 105 px (`Minimap.update_objects`).
   language the mode notice under the timer and the reveal's popups: one with
   the seconds then, rounded (a late join's 7), unchanged by the next frames'
   times, both sides' lines at once, "revealed" for the side revealed, the
-  sides forgotten in another mode and a new match; told each frame as the
-  exe does, shown at 3 s and gone at 6 s.
+  sides forgotten in another mode and a new match; and a timeline at the
+  exe's cadence (on_hud's five calls every 40 ms): the count's popup, then
+  the revealed one (told again at 8 s), and the shared message's welcome
+  then Free for All's verdict (its second message), each fully shown between
+  its fades, the refresh with no dip, each gone after its fade, the shared
+  clip never off the display list.
 
 **The mode notice.** A Freeze Tag match shows how the mode works under the
 match timer, as Blackout's (`ModeNotice`, `mode_introductions.md` "HUD notice
