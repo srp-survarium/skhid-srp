@@ -1366,6 +1366,58 @@ pub mod camper {
 /// body at the plan and at the last think (the truth, any enemy, seen or not, as the live record measures humans), the bot's own
 /// nearest track at the plan (metres, age, who), and the reflex look the trap look took the view over first (`look_over_heard`).
 /// The deaths are joined with the stand-in game's kills by the bench (the killer).
+/// [halt probe] Counts only: how long the view takes to come onto a look.
+#[cfg(test)]
+pub mod probe {
+    use crate::v026g::bots::kin::TICK_S;
+    use crate::v026g::bots::motor::Feel;
+
+    /// Seconds for the view to close a yaw gap of `gap` radians to `tolerance`: the motor's own ease (`Motor::turn_fed`: a rate
+    /// asked of `gap / turn_time_s`, within the speed cap of the bot's skill and `max_turn_accel`), tick by tick, from rest.
+    pub fn turn_in_s(gap: f32, feel: &Feel, skill: f32, tolerance: f32) -> f32 {
+        let turn_time = feel.turn_time_s.max(0.02);
+        let cap = feel.max_turn_speed + skill.clamp(0.0, 1.0) * (feel.max_turn_speed_top - feel.max_turn_speed).max(0.0);
+        let (mut left, mut rate, mut ticks) = (gap.abs(), 0.0f32, 0u32);
+        while left > tolerance && ticks < 200 {
+            let want = (left / turn_time).min(cap);
+            let step = feel.max_turn_accel * TICK_S;
+            rate += (want - rate).clamp(-step, step);
+            left -= (rate * TICK_S).min(left);
+            ticks += 1;
+        }
+        ticks as f32 * TICK_S
+    }
+
+    /// [halt look] The placer halts only while it looks or presses, calm, walking (not staying) and with no enemy known within
+    /// 15 m; never with the switch off.
+    #[test]
+    fn a_placer_halts_for_its_look_only_where_the_pass_allows_it() {
+        use super::{halts_for_look, State, TrapLegs, TrapTuning};
+        use mapdata::Vec3;
+        let on = TrapTuning::default();
+        assert!(on.halt_look, "on by default");
+        let looking = State::Looking { yaw: 0.0, spot: Vec3::ZERO, since: 0, last: None };
+        let down = State::Down { yaw: 0.0, spot: Vec3::ZERO, crouched: false };
+        assert!(halts_for_look(&on, looking, true, false, false));
+        assert!(halts_for_look(&on, down, true, false, false), "through the press to the release");
+        assert!(!halts_for_look(&on, State::Idle, true, false, false));
+        assert!(!halts_for_look(&on, looking, false, false, false), "called away: not calm");
+        assert!(!halts_for_look(&on, looking, true, true, false), "a bot that stays keeps its play's legs");
+        assert!(!halts_for_look(&on, looking, true, false, true), "an enemy within 15 m");
+        let off = TrapTuning { halt_look: false, ..TrapTuning::default() };
+        assert!(!halts_for_look(&off, looking, true, false, false));
+        assert!(TrapLegs::Halt.stay() && TrapLegs::AfterPress.stay() && !TrapLegs::Walk.stay());
+    }
+
+    #[test]
+    fn a_wider_gap_takes_longer_and_none_takes_none() {
+        let feel = Feel::default();
+        assert_eq!(turn_in_s(0.01, &feel, 0.5, 0.07), 0.0);
+        let (a, b) = (turn_in_s(0.5, &feel, 0.5, 0.07), turn_in_s(1.7, &feel, 0.5, 0.07));
+        assert!(a > 0.0 && b > a, "{a} {b}");
+    }
+}
+
 #[cfg(test)]
 pub mod placing {
     use std::sync::Mutex;
@@ -1382,6 +1434,17 @@ pub mod placing {
         pub truth_last_m: Option<f32>,
         pub track: Option<(f32, u32, usize)>,
         pub heard: Option<OverHeard>,
+        /// [halt probe] (a) A candidate passes `choose` from the feet the bot will have at the press (feet + velocity times
+        /// the view's predicted turn-in, [`super::probe::turn_in_s`]), and that turn-in, ms.
+        pub predicted: Option<(bool, u32)>,
+        /// [halt probe] (b) At the look's first tick, a press from the body halted there with the view on the look: `None` the
+        /// press is ready (every landing rule passes), else the rule that keeps it back.
+        pub halt: Option<Option<super::Why>>,
+        /// [halt probe] When the view first came onto the look (yaw within the tolerance, pitch within the slack): the time a
+        /// halt would hold the legs.
+        pub turned: Option<u32>,
+        /// [halt look] How long the legs were held for this look and its press, ms.
+        pub halted_ms: u32,
     }
 
     impl Ctx {
@@ -1393,24 +1456,57 @@ pub mod placing {
                 Some(OverHeard::Glance { m }) => format!("glance {m:.1}"),
                 None => "none".to_string(),
             };
+            let predicted = self.predicted.map_or("-".to_string(), |(yes, ms)| format!("{} {ms}", if yes { "yes" } else { "no" }));
+            let halt = match self.halt {
+                None => "-".to_string(),
+                Some(None) => "ready".to_string(),
+                Some(Some(why)) => why.name().replace(' ', "_"),
+            };
+            let turned = self.turned.map_or("-".to_string(), |at| at.saturating_sub(self.planned).to_string());
             format!(
-                "place {} team {} planned {} last {} look {:.1} s truth_plan {} truth_last {} track {track} over {heard}",
+                "place {} team {} planned {} last {} look {:.1} s truth_plan {} truth_last {} track {track} over {heard} probe predicted {predicted} halt {halt} turned_ms {turned} halted_ms {}",
                 self.place,
                 self.team,
                 self.planned,
                 self.last,
                 self.last.saturating_sub(self.planned) as f32 / 1000.0,
                 m(self.truth_plan_m),
-                m(self.truth_last_m)
+                m(self.truth_last_m),
+                self.halted_ms
             )
         }
     }
 
     static DEATHS: Mutex<Vec<Ctx>> = Mutex::new(Vec::new());
 
+    /// [halt look] The looks whose legs were held, by how they ended (placed, called away, gave up), and the time held, ms.
+    static HALTS: [std::sync::atomic::AtomicU64; 4] = [const { std::sync::atomic::AtomicU64::new(0) }; 4];
+
     /// A look ended (`placed`, `called away`, `gave up`): its line at once.
     pub fn ended(c: &Ctx, how: &str) {
         eprintln!("  trap look end: {how} {}", c.line());
+        if c.halted_ms > 0 {
+            use std::sync::atomic::Ordering::Relaxed;
+            let k = match how {
+                "placed" => 0,
+                "called_away" => 1,
+                _ => 2,
+            };
+            HALTS[k].fetch_add(1, Relaxed);
+            HALTS[3].fetch_add(u64::from(c.halted_ms), Relaxed);
+        }
+    }
+
+    /// [halt look] The bench's line of the halted looks since the last call, set back to 0.
+    pub fn halts_line() -> String {
+        use std::sync::atomic::Ordering::Relaxed;
+        let [placed, called, gave_up, ms] = [0, 1, 2, 3].map(|k| HALTS[k].swap(0, Relaxed));
+        let looks = placed + called + gave_up;
+        format!(
+            "looks halted {looks}: placed {placed}, called away {called}, gave up {gave_up}; legs held {:.1} s ({:.2} s a look)",
+            ms as f32 / 1000.0,
+            if looks == 0 { 0.0 } else { ms as f32 / 1000.0 / looks as f32 }
+        )
     }
 
     /// A life ended in the middle of a look or a press.
@@ -3274,6 +3370,15 @@ pub(super) fn think(bot: &mut Bot, due: &Due, state: &mut TeamState, notes: &mut
                 truth_last_m: truth,
                 track,
                 heard: None,
+                // [halt probe] (a) The same choice from where the feet will be when the view has turned onto the chosen look.
+                predicted: {
+                    let s = probe::turn_in_s(turn(me.yaw, chosen.yaw).abs(), &due.tuning.feel, bot.skill, t.tolerance_rad);
+                    let feet = Vec3::new(me.feet.x + me.velocity[0] * s, me.feet.y, me.feet.z + me.velocity[1] * s);
+                    Some((choose(&Search { feet, ..search }).is_some(), (s * 1000.0) as u32))
+                },
+                halt: None,
+                turned: None,
+                halted_ms: 0,
             });
         }
         // [A309] The bench's record of the plan for its press line.
@@ -3896,8 +4001,21 @@ pub(super) fn drive(
             look: None,
             key: 0,
             crouch: None,
-            hold,
+            legs: TrapLegs::AfterPress,
         });
+    }
+    // [halt look] A walking placer halts for its look and its press, where the trap in passing is allowed: calm, no enemy known
+    // within PASS_ENEMY_M (one seen is not calm), and not a bot that stays (its legs are its play's).
+    let halt = halts_for_look(
+        t,
+        state,
+        calm,
+        is_staying(bot, me),
+        bot.memory.tracks().iter().any(|track| track.at.distance_xz(me.feet) < PASS_ENEMY_M),
+    );
+    #[cfg(test)]
+    if halt && let Some(c) = bot.features.traps.look_ctx.as_mut() {
+        c.halted_ms += (super::kin::TICK_S * 1000.0) as u32;
     }
     let kit = bot.features.traps.habit.kit()?;
     // [traps.look_over_heard] The look took the view over a heard aim or a glance: one note a look.
@@ -3942,6 +4060,28 @@ pub(super) fn drive(
     #[cfg(test)]
     if let Some(c) = bot.features.traps.look_ctx.as_mut() {
         c.last = now;
+    }
+    // [halt probe] (b) Counts only: at the look's first tick, the press of the body halted where it is with the view on the look
+    // (the same `aim_of`, its velocity 0); and the tick the view itself comes onto the look (the time a halt holds the legs).
+    #[cfg(test)]
+    if let State::Looking { yaw, .. } = state
+        && let Aim::Look { pitch, .. } = aim
+    {
+        if bot.features.traps.look_ctx.is_some_and(|c| c.halt.is_none()) {
+            let halted = PlaceView { velocity: [0.0, 0.0], yaw, pitch: pitch.view(), ..me.clone() };
+            let press = match aim_of(bot, &halted, crouched, t, mesh) {
+                Aim::Look { press: Press::Ready, .. } => None,
+                Aim::Look { press: Press::Wait(why), .. } => Some(why),
+                _ => Some(Why::NoLook),
+            };
+            if let Some(c) = bot.features.traps.look_ctx.as_mut() {
+                c.halt = Some(press);
+            }
+        }
+        let on = turn(me.yaw, yaw).abs() <= t.tolerance_rad && (Down::of_view(me.pitch).0 - pitch.0).abs() <= PRESS_SLACK;
+        if on && let Some(c) = bot.features.traps.look_ctx.as_mut() && c.turned.is_none() {
+            c.turned = Some(now);
+        }
     }
     if let Some(ended) = out.ended {
         bot.features.traps.habit.record(ended);
@@ -4061,11 +4201,18 @@ pub(super) fn drive(
         },
         Aim::Steepest | Aim::NoLook => LookAt::Point(look_point(me.eye(), yaw, STEEPEST.0)),
     });
+    let legs = if hold || (t.after_press.is_some() && out.placed.is_some()) {
+        TrapLegs::AfterPress
+    } else if halt && out.ended.is_none() {
+        TrapLegs::Halt
+    } else {
+        TrapLegs::Walk
+    };
     Some(TrapDrive {
         look,
         key: if out.key_down { kit.key } else { 0 },
         crouch: out.hold_crouch,
-        hold: hold || (t.after_press.is_some() && out.placed.is_some()),
+        legs,
     })
 }
 
@@ -4195,8 +4342,32 @@ pub(super) struct TrapDrive {
     pub key: u32,
     /// The crouch key as it was at the press, held to the release (with the landing rule).
     pub crouch: Option<bool>,
-    /// [A292 S4a] The legs stay this tick (`TrapTuning::after_press`).
-    pub hold: bool,
+    /// What the legs do this tick.
+    pub legs: TrapLegs,
+}
+
+/// What a trap's look and press ask of the legs.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum TrapLegs {
+    /// The play's walk.
+    Walk,
+    /// [A292 S4a] They stay from the press until the next think re-plans the route round the trap (`TrapTuning::after_press`).
+    AfterPress,
+    /// [halt look] They stay for the look and its press, the route kept (`TrapTuning::halt_look`).
+    Halt,
+}
+
+impl TrapLegs {
+    /// The legs stay (no walk, the reflex's own legs wait too).
+    pub fn stay(self) -> bool {
+        !matches!(self, Self::Walk)
+    }
+}
+
+/// [halt look] Whether a placer halts this tick (`TrapTuning::halt_look`): while it looks and presses, calm, not a bot that stays
+/// (its legs are its play's), and no enemy known within [`PASS_ENEMY_M`] (the trap in passing's own rule).
+fn halts_for_look(t: &TrapTuning, state: State, calm: bool, staying: bool, enemy_near: bool) -> bool {
+    t.halt_look && matches!(state, State::Looking { .. } | State::Down { .. }) && calm && !staying && !enemy_near
 }
 
 /// Where the view is turned.

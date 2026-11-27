@@ -971,8 +971,10 @@ fn drive_tick_inner(
         };
         intent.crouch |= react.crouch;
     }
-    // [traps, A292 S4a] Just after its trap's press the legs stay until the next think re-plans round it (`traps.after_press`).
-    if trap.is_some_and(|trap| trap.hold) {
+    // [traps, A292 S4a] Just after its trap's press the legs stay until the next think re-plans round it (`traps.after_press`);
+    // [halt look] a walking placer halts for its look and press, its route kept (`traps.halt_look`).
+    let trap_legs = trap.map_or(traps::TrapLegs::Walk, |trap| trap.legs);
+    if trap_legs.stay() {
         intent.go = Go::Stay;
     }
     #[cfg(test)]
@@ -985,12 +987,13 @@ fn drive_tick_inner(
     }
     // The bench's stand-in camper and a script keep to their spots; [A292 S4a] so does a placer just after its trap's press (the
     // reflex's own legs, a side step or a peek, would walk it onto the trap: they took 11 of 158 traps' placers in a bench).
-    let held = bot.control.holds_legs() || trap.is_some_and(|trap| trap.hold);
-    // [smoke] Standing to throw a smoke keeps the route it was planned for (`smoke.throw_keeps_route`).
+    let held = bot.control.holds_legs() || trap_legs.stay();
+    // [smoke] Standing to throw a smoke keeps the route it was planned for (`smoke.throw_keeps_route`); [halt look] so does a
+    // placer halted for its look: it walks on along it after the press.
     // [#24] The fight's stand gives way to the play's walk for the objective (a take's walk and use, a press, the way into their base).
     let play = bot.assignment.as_ref().map(|a| a.kind);
     let legs = over.legs.filter(|legs| !using && !held && !Gates::stand_yields(legs, &intent, play));
-    let keeps_route = Gates::keeps_route(legs, tuning.smoke.throw_keeps_route);
+    let keeps_route = Gates::keeps_route(legs, tuning.smoke.throw_keeps_route) || trap_legs == traps::TrapLegs::Halt;
     if let Some(legs) = legs {
         intent.go = Go::To {
             at: legs.at,

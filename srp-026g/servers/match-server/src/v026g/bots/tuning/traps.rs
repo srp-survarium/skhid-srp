@@ -145,6 +145,13 @@ pub struct TrapTuning {
     /// route round it, at most `hold_ms`. Without it the bot walks on its old route for that time: in the S1 bench 13 of 298
     /// traps caught their own placer 0-3 s after the press, landing 0.85-1.25 m from its feet. Off by default.
     pub after_press: Option<AfterPress>,
+    /// [halt look] A walking placer halts for its look: from the plan to the release the legs stay and the route is kept, where the
+    /// trap in passing is allowed (no enemy within 15 m, `traps::PASS_ENEMY_M`), as a player stops to put a trap down. Walking on,
+    /// the look's view takes 0.65 s (p50; 0.78 p90) to come onto its yaw while the body goes on 2-3 m at 3 m/s, so the landing leaves
+    /// the vetted spot and the press rules refuse it (on its route ahead, a slope): 39 of 91 looks gave up in 16 cells (8 maps
+    /// x both modes, seed 1, tip ef9e69d9a). A body halted at the look's first tick lands on the vetted spot, and its press was
+    /// ready in 30 of the 39 (the halt probe, `traps::placing::Ctx::halt`). Off: the placer walks on through its look.
+    pub halt_look: bool,
     /// [A292 S4c] Whether a bot that stays (holds a spot, no route ahead) puts a trap down: `place` (today) or `never`. A stayer's
     /// trap lands about a metre from its feet (its look reaches no farther), and the reflex's side steps and peeks do not keep off
     /// the team's trap field: in the S1 + `after_press` + ring 2.0 bench 17 of 23 self-catches were stayers 4-32 s after their
@@ -606,6 +613,7 @@ impl Default for TrapTuning {
             lanes: TrapLanes::Facing,
             sensed_near: Some(SensedNear { within_m: 40.0 }),
             after_press: None,
+            halt_look: true,
             stayer: Stayer::Place,
             forward: None,
             fresh_ring: Some(FreshRing::default()),
