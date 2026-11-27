@@ -40,6 +40,19 @@ pistol 314 one 0xA051CC, a double barrel's 311 one 0xA050D4, the plain 314
 7. a world read mid-reload (deserialize, the late joiner's game): the
    reload subscribed again, its seat counting;
 8. an event of another object, or of another domain: nothing.
+
+And the two-clip reloads' picks (slot 8's: the weapon's get_weapon_lexeme and
+the hands' pick, as each rebuild of the player's animation runs them), before
+and after the seat: the picks after it are the reload's first (the clips the
+animation plays, and the one whose end ends the reload), never the ones the
+seat's rounds would pick, in the plain and the sound-handler classes:
+9.  314: an empty reload stays empty (posture 0 and 1), a tactical one tactical;
+10. 311: one shell stays one, two shells two, with stacks of 10, 3 and 1 (a stack
+    of 3 leaves one shell, which the game's hands pick would turn to one shell's
+    hands; a stack of 1 loads one, which its weapon pick would turn to one
+    shell's clips: the empty gun with one shell left has two shells' clips and
+    one shell's hands, as the game picks them at the start);
+11. a world read mid-reload, before and after the seat: the world's pick kept.
 """
 import struct
 import sys
@@ -69,7 +82,18 @@ STACK = 0x21000000
 EVENTS = PLAYER + 0x750
 
 CAPACITY = 30
-HANDLE = 0x0BADC0DE                       # the clip the state waits the end of
+HANDLE = 0x0BADC0DE                       # the clip the state waits the end of (handles HANDLE + index)
+
+# The two-clip reloads' picks, as slot 8 runs them: (start, stop) of the weapon's
+# pick (get_weapon_lexeme to just after it writes +134h) and of the hands' (to
+# the lea ecx of their clip set, state + 164h or + 168h).
+PICKS = {
+    314: ((0x30FE90, 0x30FEEA), (0x30FE12, 0x30FE34)),
+    311: ((0x30F5A0, 0x30F600), (0x30F4F0, 0x30F583)),
+}
+TWO_CLIP_VTABLES = {"314 (sound handler)": (314, 0xA051CC), "314 (plain)": (314, 0xA151FC),
+                    "311 (sound handler)": (311, 0xA050D4), "311 (plain)": (311, 0xA15088)}
+FIRST_HANDS, SECOND_HANDS = 0x164, 0x168      # tactical / empty, one shell / two
 
 
 class Machine:
@@ -111,7 +135,7 @@ class Machine:
 
     # ---- the made-up objects ----
 
-    def setup(self, vtable, loaded, stack, chamber_on_reload=False, chambered=False):
+    def setup(self, vtable, loaded, stack, chamber_on_reload=False, chambered=False, capacity=CAPACITY):
         self.emu.mem_write(DATA, bytes(0x40000))
         self.emu.mem_write(STUBS, bytes([0xC3]) * 0x20)
         self.emu.mem_write(THREAD, bytes.fromhex("b801000000c3"))     # GetCurrentThreadId: mov eax,1 / ret
@@ -120,7 +144,7 @@ class Machine:
         self.word(EVENTS + CHANNELS_LEFT, 0x10000)
         self.word(WEAPON + 0x8, PLAYER)                 # its user
         self.word(WEAPON + 0x538, AMMO)                 # the retained ammunition stack
-        self.byte(WEAPON + 0x5E4, CAPACITY)
+        self.byte(WEAPON + 0x5E4, capacity)
         self.byte(WEAPON + 0x5E5, loaded)
         self.byte(WEAPON + 0x5F1, 1 if chambered else 0)
         self.byte(WEAPON + 0x5F2, 1 if chamber_on_reload else 0)
@@ -132,7 +156,8 @@ class Machine:
         self.word(STATE, vtable)
         self.word(STATE + 0x120, WEAPON)
         self.word(STATE + 0x130, STATE + 0x144)         # its handles (every constructor)
-        self.word(STATE + 0x144, HANDLE)
+        for index in range(8):
+            self.word(STATE + 0x144 + 4 * index, HANDLE + index)
 
     def ammo(self):
         return (self.read(WEAPON + 0x5E5, 1), self.read(WEAPON + 0x5F1, 1), self.read(AMMO + 0x260, 2))
@@ -146,16 +171,17 @@ class Machine:
     def method(self, slot):
         return self.read(self.read(STATE) + slot)
 
-    def initialize(self):
+    def initialize(self, picked=True):
         self.call(self.method(0x4), ecx=STATE)
-        self.byte(STATE + 0x134, 0)                     # get_weapon_lexeme's pick: the first handle
+        if picked:
+            self.byte(STATE + 0x134, 0)                 # get_weapon_lexeme's pick: the first handle
 
     def finalize(self):
         self.call(self.method(0xC), ecx=STATE)
 
-    def deserialize(self):
-        """A world's bytes of the state: its end not yet, its index 0, the sounds' last index 0FFh."""
-        self.emu.mem_write(BYTES, bytes([0, 0, 0xFF, 0, 0, 0]))
+    def deserialize(self, index=0):
+        """A world's bytes of the state: its end not yet, its index, the sounds' last index 0FFh."""
+        self.emu.mem_write(BYTES, bytes([0, index, 0xFF, 0, 0, 0]))
         self.word(READER + 4, BYTES)
         self.call(self.method(0x14), ecx=STATE, args=(READER, READER, 0))
 
@@ -191,9 +217,29 @@ class Machine:
     def seat(self, obj=WEAPON, domain=1):
         self.event(b"reload_commit", obj, domain)
 
-    def end(self):
-        self.event(b"\x01", PLAYER, 0, HANDLE)
+    def end(self, clip=HANDLE):
+        self.event(b"\x01", PLAYER, 0, clip)
         assert self.read(STATE + 0x12D, 1) == 1, "the clip's end ended the reload"
+
+    def segment(self, start, stop, posture):
+        """The game's code from `start` to `stop`, EDI the state, the stack a pick's arguments
+        (the lexeme out, the buffer, the posture)."""
+        sp = STACK + 0x1E000
+        for i, value in enumerate([RETURN, 0, 0, posture]):
+            self.word(sp + 4 * i, value)
+        regs = {UC_X86_REG_ESP: sp, UC_X86_REG_EDI: STATE, UC_X86_REG_EAX: 0, UC_X86_REG_EBX: 0, UC_X86_REG_ECX: 0,
+                UC_X86_REG_EDX: 0, UC_X86_REG_ESI: 0, UC_X86_REG_EBP: 0x0019FF00}
+        for reg, value in regs.items():
+            self.emu.reg_write(reg, value)
+        self.emu.emu_start(start, stop, count=2_000_000)
+
+    def picks(self, kind, posture=0):
+        """Slot 8's picks of a rebuild: the weapon's (+134h after it) and the hands' clip set."""
+        weapon, hands = PICKS[kind]
+        self.segment(*weapon, posture)
+        index = self.read(STATE + 0x134, 1)
+        self.segment(*hands, posture)
+        return index, self.emu.reg_read(UC_X86_REG_ECX) - STATE
 
     def unload(self):
         self.call(UNLOAD_AMMO, eax=WEAPON)
@@ -304,6 +350,57 @@ def main():
         assert old.ammo() == (29, 1, 80)
         print("  ok a chamber-on-reload weapon: the seat loads 29 and chambers one, the end the same (the"
               " original's one end too)")
+    # The two-clip reloads' picks before and after the seat.
+    def picked(m, kind, vtable, loaded, stack, capacity):
+        m.setup(vtable, loaded, stack, capacity=capacity)
+        m.initialize(picked=False)
+        assert m.read(STATE + 0x134, 1) == 0xFF, "no pick before the first rebuild"
+        return m.picks(kind)
+
+    two_clip = {
+        314: [(0, 120, "empty", (2, SECOND_HANDS)), (12, 120, "tactical", (0, FIRST_HANDS))],
+        311: [(1, 10, "one shell", (0, FIRST_HANDS)), (0, 10, "two shells, a stack of 10", (2, SECOND_HANDS)),
+              (0, 3, "two shells, a stack of 3", (2, SECOND_HANDS)),
+              (0, 1, "an empty gun with one shell left", (2, FIRST_HANDS))],
+    }
+    for label, (kind, vtable) in TWO_CLIP_VTABLES.items():
+        capacity = 2 if kind == 311 else CAPACITY
+        print(f"two-clip reload {label} {vtable:#x}")
+        for loaded, stack, what, first in two_clip[kind]:
+            assert picked(old, kind, vtable, loaded, stack, capacity) == first, (label, what, "the game's own")
+            assert picked(new, kind, vtable, loaded, stack, capacity) == first, (label, what, "the first pick")
+            assert new.picks(kind) == first, (label, what, "a rebuild before the seat")
+            new.seat()
+            full = topped(loaded, stack, capacity)
+            assert new.ammo() == (full[0], 0, full[1]), (label, what, new.ammo())
+            assert new.picks(kind) == first, (label, what, "a rebuild after the seat", new.picks(kind))
+            aimed = new.picks(kind, posture=1)
+            assert aimed == (first[0] + 4, first[1]), (label, what, "aimed after the seat", aimed)
+            assert new.picks(kind) == first, (label, what, "back from the aim")
+            new.end(HANDLE + first[0])
+            assert new.ammo() == (full[0], 0, full[1]), (label, what, "the end loads nothing more")
+            new.finalize()
+            assert new.read(STATE + 0x134, 1) == 0xFF, "the finalize forgets the pick"
+            print(f"  ok {what}: {loaded} + {stack}, the first pick +134h {first[0]}, hands +{first[1]:X}h (as the"
+                  f" original); after the seat ({full[0]} in the gun) the same, aimed +134h {first[0] + 4}; the first"
+                  " clip's end ends the reload")
+
+        # A world read mid-reload (a late joiner's game): the world's pick, before and after the seat.
+        loaded, stack, what, first = two_clip[kind][0]
+        full = topped(loaded, stack, capacity)
+        new.setup(vtable, loaded, stack, capacity=capacity)
+        new.deserialize(index=first[0])
+        assert new.picks(kind) == first, (label, "a world before the seat")
+        new.seat()
+        assert new.picks(kind) == first, (label, "a world before the seat, then the seat")
+        new.end(HANDLE + first[0])
+        new.finalize()
+        new.setup(vtable, *full, capacity=capacity)
+        new.deserialize(index=first[0])
+        assert new.picks(kind) == first, (label, "a world after the seat", new.picks(kind))
+        new.end(HANDLE + first[0])
+        new.finalize()
+        print(f"  ok a world read mid-reload, {what}: its pick kept before and after the seat, its clip's end ends it")
     print("reload_commit: every check passed")
 
 

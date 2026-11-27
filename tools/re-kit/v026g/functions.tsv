@@ -2549,3 +2549,6 @@ va	status	ref_021d	name
 0x00220a00	reviewed		survarium::lobby_menu::update_ui
 0x001b1840	reviewed		vostok::render::stage_postprocess::is_not_motion_vector_surface [descriptive]
 0x000396c0	reviewed	0x0002a30a	vostok::collision::loose_oct_tree::unmove_all
+0x0030f5a0	reviewed	0x001f2a4d	survarium::double_barreled_weapon_core_reload_state::get_weapon_lexeme
+0x0030f4f0	reviewed		survarium::double_barreled_weapon_core_reload_state::get_hands_lexeme [descriptive]
+0x0030fdf0	reviewed	0x001f314e	survarium::pistol_weapon_core_reload_state::weapon_and_hands_expression

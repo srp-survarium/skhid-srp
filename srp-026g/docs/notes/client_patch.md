@@ -4817,6 +4817,30 @@ The full account, 0.69d0's and the content's seats: `reload-commit.md`.
   ECX the state): with +5F2h (chamber_a_round_on_reload) and +5F1h (chambered) set, +5E5h += 1 and
   +5F1h = 0 before the load (as 0x30FDD2..0x30FDD8). load_magazine is then the same twice as once.
 - **Nothing new in a world**: the subscription is the state's own, made again by its deserialize.
+- **The clips stay the first pick's** (added 2026-11-27, after rev74's report "broken when weapon
+  shoots all bullets and does full reload"). Each selection of the player's animation
+  (`base_player::select_animations` 0x2D9690, run by tick_animations 0x2D8EE0 while
+  m_need_to_select_animations +33Eh is set: an input change 0x2D899D, the aim's tick 0x2E0A59, ...)
+  calls the state's slot 8, and a two-clip reload picks its clips there from the rounds now:
+  314's `get_weapon_lexeme` 0x30FE90 the empty clips for `weapon+5E5h == 0` (`sete bl` 0x30FEAC) and
+  its slot 8 0x30FDF0 the empty hands (+168h, else +164h) the same way (`sete al` 0x30FE21); 311's
+  0x30F5A0 the two shells' for `+5E5h != 1` (`setne cl` 0x30F5C4), its hands 0x30F4F0 for that and a
+  stack (+538h, entry +22Ah) whose count (+260h) is not 1. The weapon pick writes
+  m_index_of_animation_to_wait (+134h) = `(pick*8 + state+144h - [+130h]) >> 2` (0x30FEE4, 0x30F5FA),
+  whose handle the end callback 0x30DB60 waits for (0x30DB8E). After patch 205's seat the rounds
+  changed: an empty 314 reload picked the tactical clips at the next selection, started them, and
+  waited for their end (a tactical reload played from its start, no bolt); a 311 one-shell reload
+  the two shells'. The four lohooks `reload.pick_empty` 0x30FEC9 (EBX), `reload.pick_empty_hands`
+  0x30FE24 (EAX), `reload.pick_two_shells` 0x30F5D7 (ECX), `reload.pick_two_shells_hands` 0x30F571
+  (ESI), EDI the state each, set the pick to the clip set +134h names once it is not 0FFh (the
+  weapon's: the last pick; the hands': this one's weapon pick, written before them). +134h is 0FFh
+  from initialize (0x30DA60) and finalize (0x30E476), written by the first selection (the reload's
+  start: its live counts, the game's pick), and a world's (0x30DC90 writes it, 0x30DC7C reads it).
+  The 311 hands: the first pick's (its one-shell exception, an empty gun with one shell left) is
+  kept without a state: with the two shells' clips the gun held none (a reload starts below capacity,
+  0x2E3E01), so 0 rounds now is before the seat (the game's own pick), 1 the one shell's hands, 2 the
+  two shells'. 303 (0x30E1F0, hands +154h) picks by the posture alone. 0.69d0 keeps its pick in a
+  byte of the state (+2D8h, +2E0h; its expressions 0x2003904A0, 0x200390B60), serialized.
 ### 3.111 A second sight's side from the lobby movie: `46 05` (written 2026-11-26, README patch 207) — PROVEN in the code and under Unicorn; not run in a game
 
 The Attachments window's Left/Right toggle of a weapon's second sight (UpgradeWindow.onSideButton,

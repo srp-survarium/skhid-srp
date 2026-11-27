@@ -97,6 +97,52 @@ reload.
   pulled out are in the count; a chamber-on-reload gun goes to its chamber-a-round state, as before).
 - **Changes the simulation:** `simulation_changes.tsv`'s `next` row.
 
+## The clips stay the reload's (the fix after rev74)
+
+The owner, 2026-11-26, playing rev74: "there is problem w/reload animation right now, it is broken
+when weapon shoots all bullets and does full reload". PROVEN in the code and under Unicorn; not run
+in a game.
+
+- **A two-clip reload picks its clips from the rounds now, at every selection.** The player's
+  animation is selected again (`base_player::select_animations` 0x2D9690, the state's slot 8 through
+  `weapon_core::selected_animations` 0x2E10B0, then the animation player's set_target) whenever
+  tick_animations (0x2D8EE0) finds m_need_to_select_animations (+33Eh) set: an input that changes
+  the actions (set_input 0x2D899D: a move key, an aim, a crouch), the aim's tick (weapon_core::tick
+  0x2E0A59), the weapon's logic (0x2E0B6E), the player's states. The weapon's clips of state 314
+  (`get_weapon_lexeme` 0x30FE90) are the empty ones for `weapon+5E5h == 0`, the hands' (slot 8
+  0x30FDF0) the empty set +168h the same way, else the tactical +164h; state 311's
+  (0x30F5A0) the two shells' for `+5E5h != 1`, its hands (0x30F4F0) for that and a stack (retained
+  +538h, entry +22Ah) whose count (+260h) is not 1. State 303 (0x30E1F0) picks by the posture alone.
+  The weapon pick is written to m_index_of_animation_to_wait (+134h, `(pick*8 + state+144h -
+  [+130h]) >> 2`, 0x30FEE4, 0x30F5FA): the handle whose end the end callback 0x30DB60 waits for.
+- **The seat changed the rounds mid-clip.** In the stock game nothing does, so the picks never
+  changed within a reload. After the seat, an empty 314 reload's next selection picked the tactical
+  clips (Unicorn: loaded 0 gives +134h 2 and hands +168h, 30 gives 0 and +164h): the animation
+  player started them as new clips, and the end callback waited for the tactical clip's end. A
+  player who moved or aimed after the magazine went in saw the reload again from its start as a
+  tactical one (the magazine out and in, its sounds), no bolt, longer (AK-74M: the seat at 46.4 of
+  102 frames, then the tactical 72); one who stood still saw it whole. A tactical reload kept its
+  clips (rounds before and after). A 311 one-shell reload went on as a two-shell one; a two-shell
+  one with a stack of 3 got the one shell's hands on the two shells' gun, with a stack of 1 the one
+  shell's gun.
+- **The fix: the first pick.** `reload.pick_empty` 0x30FEC9 (EBX the pick, before +134h is
+  written), `reload.pick_empty_hands` 0x30FE24 (EAX, after), `reload.pick_two_shells` 0x30F5D7
+  (ECX, before), `reload.pick_two_shells_hands` 0x30F571 (ESI, after), EDI the state each: once
+  +134h names a clip set of the table (not 0FFh), the pick is that one. +134h is 0FFh from the
+  reload's initialize (0x30DA60) and its finalize (0x30E476); the first selection, at the reload's
+  start, writes the game's own pick from the live counts; a world carries it (written 0x30DC90, read
+  0x30DC7C), so a late joiner keeps the pick the others play. No state of the patch's, nothing new in
+  a world.
+- **311's hands, without a state.** The game's first hands pick has one exception to the weapon's:
+  an empty gun with one shell left, the two shells' gun and the one shell's hands. With the two
+  shells' clips the gun held none at the start (a reload starts only below capacity, 0x2E3E01), so
+  now: 0 rounds, before the seat, the game's own pick (the counts are the start's); 1, the stack's
+  last shell loaded, the one shell's hands; 2, the two shells'. With the one shell's clips, the one
+  shell's hands.
+- **0.69d0 keeps its pick** in a byte of the two-clip states (+2D8h, +2E0h): its expressions
+  0x2003904A0 and 0x200390B60 index by it, its finalize sets it to 0FFh (0x2002123A0, 0x200212A40),
+  its deserialize reads it (0x200390440, 0x200390AB0).
+
 ## Checked
 
 - `check_reload_commit_026g.py` (`tools/check reload-commit`, Unicorn): the four kinds of reload
@@ -111,6 +157,12 @@ reload.
   shells, strippers, no seat, the channel added with the tracks kept.
 - The edit list run over players' files (stock db and patches 12..73): 154 clips of 103 configs, 0
   unexpected differences.
+- The two-clip picks (`check_reload_commit_026g.py`, the same check): slot 8's weapon and hands
+  picks run in the game's code before and after the seat, aimed and not, in the plain and the
+  sound-handler classes of 314 and 311: 314 empty and tactical; 311 one shell, two shells with
+  stacks of 10, 3 and 1; a world read before and after the seat; the first pick the original's, and
+  the end of its clip ends the reload. Without the four pick hooks the empty, one-shell, stack-3,
+  stack-1 and world cases fail (the tactical and the stack of 10 are the same either way).
 - **Not run in a game.** To test: a local match; empty and tactical reloads of a rifle (AK-74M), a
   pistol, the PKP and a double barrel, each left by a melee just after the magazine goes in (the
   `mag_in`/`mag_set` sound) and just before; the count after each.
