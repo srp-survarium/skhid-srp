@@ -1170,3 +1170,97 @@ fn an_eye_turns_toward_another() {
     let mid = back.toward(&far, 0.5).unwrap().offset;
     assert!(mid.x[0] < -0.98, "{mid:?}");
 }
+
+/// The player's sight distance (patch 218): nothing at 0, all the way to
+/// revision 73's eye at 1, between them on the way, never nearer the sight
+/// than [`LEAST_RELIEF`]; a magnified scope's own eye never moves.
+#[test]
+fn the_sight_distance_goes_toward_the_026g_eye() {
+    let relief = Relief::InGunPlane { along: -0.21, along_026g: -0.08 };
+    assert_eq!(relief.shift(0.0).to_bits(), 0.0_f32.to_bits());
+    assert_eq!(relief.shift(-1.0), 0.0);
+    assert_eq!(relief.shift(f32::NAN), 0.0);
+    assert_eq!(relief.shift(1.0), -0.08 - -0.21);
+    assert_eq!(relief.shift(2.0), relief.shift(1.0));
+    assert!((relief.shift(0.5) - 0.065).abs() < 1e-6);
+    // revision 73's eye nearer than the least relief: as near as that
+    let close = Relief::InGunPlane { along: -0.20, along_026g: -0.01 };
+    assert!((close.shift(1.0) - (-LEAST_RELIEF + 0.20)).abs() < 1e-6);
+    // farther (the A-545's): all the way
+    let far = Relief::InGunPlane { along: -0.39, along_026g: -0.53 };
+    assert!((far.shift(1.0) + 0.14).abs() < 1e-6);
+    // an eye already nearer than the least: never nearer
+    let near = Relief::InGunPlane { along: -0.04, along_026g: -0.01 };
+    assert_eq!(near.shift(1.0), 0.0);
+    assert_eq!(Relief::Own.shift(1.0), 0.0);
+}
+
+/// The shipped table (`SRP_WEAPON_MODULES_TABLE`, as `the_shipped_table`):
+/// the sight distance at 1 gives revision 73's eye on the guns the owner
+/// looks at. Revision 73's camera to the EOTech 552's reticle was 7.99 cm
+/// on the M4A1 and 53.16 cm on the A-545 (attachments-scopes.md, "Why the
+/// EOTech looks small"), this resolver's 20.78 and 39.46; a pistol's and
+/// the SKS's collimator went 43 to 49 and 16.7 cm toward the shooter; a
+/// fitted PSO-1 keeps its own eye.
+#[test]
+fn the_shipped_table_at_the_026g_eye() {
+    let Some(path) = std::env::var_os("SRP_WEAPON_MODULES_TABLE") else { return };
+    let bytes = std::fs::read(path).unwrap();
+    let table = Table::parse(&bytes).unwrap();
+    let fitted = |gun: u16, model: &str| {
+        let gun = table.gun(DictId::new(gun).unwrap()).unwrap();
+        let module = gun
+            .fits()
+            .find(|module| module.role() == Role::Fitted(Kind::Scope) && module.model().to_str().unwrap().contains(model))
+            .unwrap_or_else(|| panic!("gun {}: no {model}", gun.dict().get()));
+        match resolve(gun, Wanted { scope: Some(module.dict()), ..Wanted::default() }) {
+            Ok(Loadout::Bare(bare)) => bare.eye.unwrap().relief(),
+            _ => panic!("gun {}: {model} refused", gun.dict().get()),
+        }
+    };
+    let gun_plane = |relief: Relief| match relief {
+        Relief::InGunPlane { along, along_026g } => (along, along_026g),
+        Relief::Own => panic!("a sight in the gun's plane has its own eye"),
+    };
+    for (gun, now, then) in [(2217, 0.20781, 0.0799), (220, 0.39459, 0.5316)] {
+        let relief = fitted(gun, "eotech_552");
+        let (along, along_026g) = gun_plane(relief);
+        assert!((-along - now).abs() < 1e-3 && (-along_026g - then).abs() < 1e-3, "gun {gun}: {along} {along_026g}");
+        assert_eq!(relief.shift(0.0), 0.0);
+        assert!((along + relief.shift(1.0) - along_026g).abs() < 1e-6, "gun {gun}: revision 73's eye at 1");
+    }
+    for (gun, least, most) in [(89, 0.43, 0.49), (109, 0.16, 0.175)] {
+        let relief = table
+            .gun(DictId::new(gun).unwrap())
+            .unwrap()
+            .fits()
+            .filter(|module| module.role() == Role::Fitted(Kind::Scope))
+            .find_map(|module| {
+                let gun = table.gun(DictId::new(gun).unwrap()).unwrap();
+                match resolve(gun, Wanted { scope: Some(module.dict()), ..Wanted::default() }) {
+                    Ok(Loadout::Bare(bare)) => bare.eye.map(|eye| eye.relief()).filter(|relief| *relief != Relief::Own),
+                    _ => None,
+                }
+            })
+            .unwrap_or_else(|| panic!("gun {gun}: no collimator"));
+        let (along, along_026g) = gun_plane(relief);
+        assert!((least..=most).contains(&(along_026g - along)), "gun {gun}: {along} {along_026g}");
+        assert!((along + relief.shift(1.0) - along_026g).abs() < 1e-6, "gun {gun}: revision 73's eye at 1");
+    }
+    assert_eq!(fitted(3, "scopes/pso_1_scope/"), Relief::Own, "a fitted PSO-1 on the AK-74M: its own eye");
+    // every sight in the gun's plane: revision 73's eye at 1, but where it was nearer the reticle than the least
+    let (mut fits, mut clamped) = (0, Vec::new());
+    for gun in table.guns() {
+        for module in gun.fits().filter(|module| module.role() == Role::Fitted(Kind::Scope)) {
+            let Ok(Loadout::Bare(bare)) = resolve(gun, Wanted { scope: Some(module.dict()), ..Wanted::default() }) else { continue };
+            let Some(Relief::InGunPlane { along, along_026g }) = bare.eye.map(|eye| eye.relief()) else { continue };
+            fits += 1;
+            let shift = Relief::InGunPlane { along, along_026g }.shift(1.0);
+            if (along + shift - along_026g).abs() > 1e-6 {
+                clamped.push((gun.dict().get(), module.dict().get(), along_026g));
+            }
+        }
+    }
+    std::println!("{fits} sights in the gun's plane; revision 73's eye nearer than {LEAST_RELIEF} m: {clamped:?}");
+    assert!(fits > 800);
+}

@@ -4393,6 +4393,7 @@ st_srp_shop_not_owned	Ocultar adquiridos
 st_srp_shop_not_owned_hint	Mostrar só os itens que você não tem
 st_srp_side_left	Esquerda
 st_srp_side_right	Direita
+st_srp_sight_distance_option	Distância da mira (0.69 - 0.26)
 st_srp_skills	Habilidades
 st_srp_speed_label	Velocidade
 st_srp_speed_title	Velocidade: %1$s
@@ -4481,6 +4482,10 @@ st_srp_weapon069_ppsh_drum_name	PPSH-41 "Tambor"
 st_srp_weapon_aim_zoom	Zoom base da mira
 st_srp_weapon_chamber	Tempo de engatilhar
 st_srp_weapon_draw_time	Tempo para sacar
+st_srp_weapon_fov_aimed_option	FOV da arma ao mirar
+st_srp_weapon_fov_option	FOV da arma no quadril
+st_srp_weapon_fov_scope_option	FOV da arma na luneta
+st_srp_weapon_fov_world_option	Arma no FOV do mundo
 st_srp_weapon_full_damage	Dano total até
 st_srp_weapon_hip_spread	Dispersão da cintura
 st_srp_weapon_holster_time	Tempo para guardar
@@ -4505,6 +4510,7 @@ st_srp_weapon_stats	Atributos da arma
 st_srp_weapon_sway_cycle	Ciclo de balanço
 st_srp_weapon_sway_horizontal	Balanço horizontal
 st_srp_weapon_sway_vertical	Balanço vertical
+st_srp_weapon_view_heading	Visão da arma
 st_srp_weapon_with_kit	Com kit
 st_srp_weapon_with_kit_skills	Com kit e habilidades
 st_srp_weather_before_rain	antes da chuva
@@ -4519,6 +4525,7 @@ st_srp_weight_penalty	%1$s% de penalidade de peso
 st_srp_weight_speed	Velocidade de movimento
 st_srp_weight_sprint_stamina	Gasto de estamina na corrida
 st_srp_weight_title	Efeitos do peso
+st_srp_world_fov_option	FOV do mundo
 st_stamina_boost_name	Segundo vento
 st_stamina_boost_time_description	Recuperação de estamina ao matar um inimigo:
 st_stamina_loss_on_hit_description	Perda de estamina ao ser ferido.

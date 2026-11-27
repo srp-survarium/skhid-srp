@@ -59,7 +59,7 @@ mod tests;
 use core::num::NonZeroU16;
 
 pub use math::Affine;
-pub use pose::{Eye, EyeAnchor, FINGERS, Hand, Placement, locator_frame};
+pub use pose::{Eye, EyeAnchor, FINGERS, Hand, LEAST_RELIEF, Placement, Relief, locator_frame};
 pub use resolve::{Bare, Loadout, Optic, Part, Refusal, SecondSight, Shape, Side, Wanted, iron_sights, resolve};
 pub use slot::SlotId;
 pub use table::{Attach, Gun, GunFault, HAND_LOCATORS, MAGIC, MAX_CHAIN, MAX_STOCK, Malformed, Module, ModuleFault, OLDEST, Table, VERSION};

@@ -45,7 +45,16 @@ by the crate's test): nothing here works a loadout out again.
   again; the shell effect (0x2443EE): the frame the scope had;
 - delete_resource (0x24B190): the parts out of the scene, their references
   given back once, the weapon forgotten;
-- a weapon without any of it, and every site in the original: as the game.
+- a weapon without any of it, and every site in the original: as the game;
+- patch 218, the player's weapon view: on_configs_loaded's start (0x1EA210)
+  registers its five variables at their defaults; set, the camera's lens
+  scales by them (a rifle's hip and aimed angles, a fitted magnified
+  scope's), the checkbox gives no lens at all (the world's projection);
+  the sight distance at 0, 50 and 100 % moves the hands' alignment
+  (process_hands_ik 0x295AA5 through calculate_aim_alignment to 0x295AB8)
+  to what the original gives with the aim_offset 0 %, half and all of the
+  way to the row's aim_offset_026g (100 %: bit for bit the default at 0;
+  revision 73's at 100), and not for a weapon the camera did not sample.
 """
 import math
 import struct
@@ -83,7 +92,10 @@ BARREL, SCOPE, AIM, FRAME, HAND_RECORDS, FINGER_SETS = 0x6E0, 0x744, 0x7A8, 0x66
 
 VIEW_CAMERA, VIEW_NO_GUN, VIEW_SUBMIT, VIEW_BEGIN, VIEW_END, FOREGROUND = 0x1F3505, 0x1F3579, 0x1F8F7, 0x1F796, 0x1F7BA, 0x13E0C2
 VIEW_ENDS = (VIEW_CAMERA + 6, VIEW_NO_GUN + 6, VIEW_SUBMIT + 6, VIEW_BEGIN + 8, VIEW_END + 6, FOREGROUND + 7)
-ENDS = VIEW_ENDS + (DICT_QUERY_END, DICT_CONFIGS_END, COOK_WEAPON, ASKED_END, READY_END, LOADED_END, DRAW_END, CULLED_END,
+CONFIGS_START, CONFIGS_START_END = 0x1EA210, 0x1EA216     # on_configs_loaded's start, after its replayed prologue
+ALIGN, ALIGNED = 0x295AA5, 0x295AB8                       # process_hands_ik before calculate_aim_alignment; after
+LIST_HEAD = 0x1F1D66C                                     # the console's list of variables
+ENDS = VIEW_ENDS + (CONFIGS_START_END, ALIGNED, DICT_QUERY_END, DICT_CONFIGS_END, COOK_WEAPON, ASKED_END, READY_END, LOADED_END, DRAW_END, CULLED_END,
         HIDDEN_END, HANDS_END, FINGERS_VIEW_END, SHELLS_END, RELEASE_END, SCOPE_RESULT_END, SCOPE_RESULT_SCOPED)
 
 AK_ID = 3        # the sample's AK-74M
@@ -331,6 +343,19 @@ class Run:
         self.emu.emu_start(start, STOP, count=400_000_000)
         self.ends = ()
         return self.emu.reg_read(UC_X86_REG_EIP)
+
+    def settings(self):
+        """on_configs_loaded's start: where it stopped and {name: value
+        address} of the variables it registered."""
+        before = self.u32(LIST_HEAD)
+        sp = STACK - 0x2000
+        self.u32(sp, STOP)
+        stopped = self.run(CONFIGS_START, (CONFIGS_START_END,), sp)
+        out, node = {}, self.u32(LIST_HEAD)
+        while node and node != before:
+            out[self.text(self.u32(node + 0x10)).decode()] = self.u32(node + 0x40)
+            node = self.u32(node + 0x0C)
+        return stopped, out
 
     # -------------------------------------------------- the table
 
@@ -654,10 +679,11 @@ def weapon_projection(exe, patched, report):
                f"foreground draw, {what}: {want} (patched={patched}), the world's after it")
 
 
-def fitted_optic_projection(run, weapon, report):
+def fitted_optic_projection(run, weapon, report, scope=None):
     """A gun whose optic is the table's (its config's data/srp_scope, its
     parts held) aimed through it: the lens, though the weapon has an optic
-    (+1808h); the gun has no profile here, so 65 degrees."""
+    (+1808h); the gun has no profile here, so 65 degrees (with patch 218's
+    scope angle `scope`, 65 times it over 32.5)."""
     player, world, entry, view, command = (run.block(n) for n in (0xF480, 0x10, 0x118, 0x100, 0xB8))
     run.u32(player + 0xF474, world)
     run.u32(world + 8, view)
@@ -673,9 +699,144 @@ def fitted_optic_projection(run, weapon, report):
     run.put_floats(STACK + 0x28, world_projection)
     run.run(FOREGROUND, VIEW_ENDS, STACK)
     want = world_projection.copy()
-    want[5] = 1.0 / math.tan(math.radians(32.5))
+    angle = 65.0 * (scope / 32.5 if scope else 1.0)
+    want[5] = 1.0 / math.tan(math.radians(angle) / 2)
     want[0] = world_projection[0] / world_projection[5] * want[5]
-    report(close(run.floats(STACK + 0x28), want), "a fitted optic aimed (the PSO-1 on the AK-74M): the lens, 65 degrees")
+    report(close(run.floats(STACK + 0x28), want),
+           f"a fitted optic aimed (the PSO-1 on the AK-74M): the lens, {angle:g} degrees"
+           + (f" (patch 218's scope angle {scope:g})" if scope else ""))
+
+
+# the hands' alignment's made-up rig: the aim's place on bone 1, the bone, the camera
+ALIGN_LOCATOR = multiply(rotation_y(0.009), translate(0.0089, 0.1019, 0.1328))
+ALIGN_BONE = multiply(rotation_y(-0.0148), translate(0.0088, 0.0214, 0.05))
+ALIGN_ITEM = multiply(rotation_y(0.3), translate(1.0, 1.5, -2.0))
+
+
+def align(run, weapon, aim_offset):
+    """process_hands_ik from its site before calculate_aim_alignment to the
+    blend's test after it (0x295AA5 to 0x295AB8): the weapon's aim offset
+    matrix a translation (0, 0, aim_offset), its aim record on bone 1; the
+    alignment in the frame."""
+    bones, item = run.block(0x80), run.block(0x40)
+    run.put_floats(weapon + 0x6A0, translate(0.0, 0.0, aim_offset))
+    run.record(weapon + AIM, 1, ALIGN_LOCATOR)
+    run.put_floats(bones, IDENTITY)
+    run.put_floats(bones + 0x40, ALIGN_BONE)
+    run.put_floats(item, ALIGN_ITEM)
+    sp = STACK - 0x3000
+    run.emu.mem_write(sp, bytes(0x100))
+    run.u32(sp, item)                       # the pushed Item bone
+    run.u32(sp + 0x14, 0x77770000)          # the controller: not read
+    run.u32(sp + 0x1C, weapon)
+    run.put_floats(sp + 0x10, [1.0])        # [esp+0Ch] after the call's ret 4: the aim's progress
+    stopped = run.run(ALIGN, (ALIGNED,), sp, ecx=bones)
+    return stopped, run.floats(sp + 0x24)
+
+
+def weapon_view_settings(original, built, report):
+    """Patch 218 (weapon_view_options.rs): its variables, the lens they make,
+    the sight distance's move of the hands' alignment."""
+    r = Run(built)
+    stopped, values = r.settings()
+    defaults = {"srp_weapon_fov": 65.0, "srp_weapon_fov_aimed": 32.5, "srp_weapon_fov_scope": 32.5,
+                "srp_sight_distance": 0.0}
+    report(stopped == CONFIGS_START_END and all(name in values and r.floats(values[name], 1)[0] == value
+                                                for name, value in defaults.items())
+           and "srp_weapon_fov_world" in values and r.byte(values["srp_weapon_fov_world"]) == 0,
+           "configs.start: srp_weapon_fov 65, srp_weapon_fov_aimed and srp_weapon_fov_scope 32.5, srp_sight_distance 0, "
+           "srp_weapon_fov_world off")
+    stock = Run(original)
+    _, none = stock.settings()
+    report(not any(name.startswith(("srp_weapon_fov", "srp_sight")) for name in none), "the original registers none")
+
+    def put(name, value):
+        if name == "srp_weapon_fov_world":
+            r.emu.mem_write(values[name], bytes([value]))
+        else:
+            r.put_floats(values[name], [value])
+
+    player, world, entry, config, view = (r.block(n) for n in (0xF480, 0x10, 0x118, 0x10C, 0x100))
+    r.u32(player + 0xF474, world)
+    r.u32(world + 8, view)
+    pair = r.block(8)
+    r.put_floats(pair, (1.0, 0.5))
+    offset_026g = r.node(2, struct.unpack("<I", struct.pack("<f", 0.15))[0])
+    rows = [{"gun": r.node(T_INT, 220), "fov": r.node(6, pair, 8), "aim_offset_026g": offset_026g}]
+    array = r.block(0x18 * len(rows))
+    for n, entries in enumerate(rows):
+        at = array + 0x18 * n
+        r.u32(at, r.block(0x18 * len(entries)))
+        r.emu.mem_write(at + 0x14, struct.pack("<HH", T_TABLE, len(entries)))
+        for name, child in entries.items():
+            r.children[(at, name.encode())] = child
+    r.u32(config + 0x108, r.table({"srp_weapon_views": r.node(T_TABLE, array, len(rows))}))
+    r.dictionary_configs(5, None, config)
+    report(b"weapon views" not in r.logged, "a row with aim_offset_026g is taken")
+
+    def gun(to):
+        weapon = r.block(0x1900)
+        r.u32(weapon + 0x26C, entry)
+        r.u32(entry, 220)
+        r.put_floats(weapon + 0x6A0, translate(0.0, 0.0, to))
+        return weapon
+
+    world_projection = [1.125, 0, 0, 0, 0, 2, 0, 0, 0.001, -0.002, 1.01, 1, 0, 0, -0.1, 0]
+
+    def drawn(weapon=None, progress=1.0):
+        if weapon is None:
+            r.run(VIEW_NO_GUN, VIEW_ENDS, STACK, ebx=player)
+        else:
+            r.put_floats(weapon + 0x5FC, [progress])
+            r.run(VIEW_CAMERA, VIEW_ENDS, STACK, eax=weapon, ebx=player)
+        command = r.block(0xB8)
+        r.u32(command + 0x9C, view)
+        r.run(VIEW_SUBMIT, VIEW_ENDS, STACK, eax=command, ebx=RENDERER)
+        r.run(VIEW_BEGIN, VIEW_ENDS, STACK, esi=command + 0x98)
+        r.put_floats(STACK + 0x28, world_projection)
+        r.run(FOREGROUND, VIEW_ENDS, STACK)
+        got = r.floats(STACK + 0x28)
+        r.run(VIEW_END, VIEW_ENDS, STACK)
+        return got
+
+    def lens(angle):
+        out = world_projection.copy()
+        if angle:
+            out[5] = 1.0 / math.tan(math.radians(angle) / 2)
+            out[0] = world_projection[0] / world_projection[5] * out[5]
+        return out
+
+    a545 = gun(0.137)
+    put("srp_weapon_fov", 90.0)
+    put("srp_weapon_fov_aimed", 52.0)
+    for weapon, progress, angle, what in ((a545, 1.0, 52.0, "aimed over its iron sights"),
+                                          (a545, 0.0, 90.0, "at the hip"), (None, 0.0, 90.0, "no gun")):
+        report(close(drawn(weapon, progress), lens(angle)), f"srp_weapon_fov 90, srp_weapon_fov_aimed 52: {what}, "
+                                                            f"{angle:g} degrees")
+    put("srp_weapon_fov_world", 1)
+    report(close(drawn(a545), lens(None)) and close(drawn(None), lens(None)),
+           "srp_weapon_fov_world on: the world's projection, a gun's and no gun's")
+    put("srp_weapon_fov_world", 0)
+    put("srp_weapon_fov", 65.0)
+    put("srp_weapon_fov_aimed", 32.5)
+    report(close(drawn(a545), lens(32.5)), "back at 65 and 32.5: 0.69d0's 32.5 degrees aimed")
+
+    # the sight distance: the A-545's iron sights, 0.137 (0.69d0's eye) toward 0.15 (revision 73's)
+    for percent, want_offset in ((0.0, 0.137), (50.0, 0.1435), (100.0, 0.15)):
+        put("srp_sight_distance", percent)
+        drawn(a545)
+        stopped, ours = align(r, a545, 0.137)
+        stock = Run(original)
+        stock_stopped, theirs = align(stock, stock.block(0x1900), want_offset)
+        exact = ours == theirs if percent == 0.0 else close(ours, theirs, 2e-6)
+        report(stopped == stock_stopped == ALIGNED and exact,
+               f"srp_sight_distance {percent:g}: the alignment the original makes with aim_offset {want_offset:g}"
+               + (" bit for bit" if percent == 0.0 else "") + (" (revision 73's)" if percent == 100.0 else ""))
+    other = gun(0.137)
+    stopped, ours = align(r, other, 0.137)
+    stock = Run(original)
+    _, theirs = align(stock, stock.block(0x1900), 0.137)
+    report(stopped == ALIGNED and ours == theirs, "a weapon the camera did not sample: its alignment the original's")
 
 
 def main():
@@ -696,6 +857,7 @@ def main():
 
     for data, patched in [(original, False), (built, True)]:
         weapon_projection(data, patched, report)
+    weapon_view_settings(original, built, report)
 
     def with_table(data=built):
         run = Run(data)
@@ -852,6 +1014,10 @@ def main():
         report(False, "the PSO-1 on the AK-74M: the callback did not reach its sites")
     else:
         fitted_optic_projection(made[0], made[1], report)
+        _, values = made[0].settings()
+        made[0].put_floats(values["srp_weapon_fov_scope"], [20.0])
+        made[0].put_floats(values["srp_weapon_fov_aimed"], [50.0])
+        fitted_optic_projection(made[0], made[1], report, scope=20.0)
     run = with_table()
     weapon, _ = run.weapon(4, GAME_RECORDS)
     resource, _ = run.config(named(AK))

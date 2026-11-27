@@ -115,6 +115,10 @@ package survarium.menu
       // The gameplay tab's "Field of view" slider (patch 22's uro_fov, kept by exe patch 83), a group
       // of the right column under the HUD group (layoutGameplay). A move is a change of the tab, saved by Apply.
       protected var _fov:SrpFieldOfView;
+
+      // The gameplay tab's "Weapon view" (exe patch 218): a button under the field of view opening a
+      // panel over the left column (layoutGameplay). A move or a toggle is a change of the tab, saved by Apply.
+      protected var _weaponView:SrpWeaponView;
       
       // The sound tab's "Test microphone" button (exe patch 66), under the Microphone list. Not a
       // setting: a press is no change of the tab.
@@ -284,6 +288,12 @@ package survarium.menu
       // its name, label and saved state (shown, so no change is pending).
       public function setCheckOption(values:Array) : void
       {
+         if(values.length > 0 && values[0] == SrpWeaponView.WORLD)
+         {
+            this._weaponView.answerCheck(values.slice(1));
+            this.weaponViewChanged(null);
+            return;
+         }
          if(values.length > 0 && values[0] == SrpMouseVertical.LOCKED)
          {
             this._mouse.answerLock(values.slice(1));
@@ -328,6 +338,13 @@ package survarium.menu
             this.layoutGameplay();
             return;
          }
+         if(values.length > 0 && SrpWeaponView.owns(values[0]))
+         {
+            this._weaponView.answerSlider(values);
+            this.weaponViewChanged(null);
+            this.layoutGameplay();
+            return;
+         }
          this._mouse.answerVertical(values);
          this.mouseChanged(null);
          this.layoutControls();
@@ -346,6 +363,13 @@ package survarium.menu
          this._microphone.answer(values);
          this.microphoneChanged(null);
          this.layoutVoice();
+      }
+      
+      // The weapon view's texts (root.srp_weapon_view_texts, patch 218): its heading.
+      public function setWeaponViewTexts(values:Array) : void
+      {
+         this._weaponView.answerTexts(values);
+         this.layoutGameplay();
       }
       
       // The HUD group's own texts (root.srp_hud_texts): the heading, "Hide quests", the crosshair
@@ -588,6 +612,10 @@ package survarium.menu
                {
                   this._fov.save();
                }
+               else if(this._weaponView.controls.indexOf(control) >= 0)
+               {
+                  this._weaponView.save();
+               }
                else if(control == this._mouse.check.box || control == this._mouse.slider)
                {
                   this._mouse.save();
@@ -656,6 +684,7 @@ package survarium.menu
          this._hitMarkers.revert();
          this._mouse.revert();
          this._fov.revert();
+         this._weaponView.revert();
          this._renderer.revert();
          this._microphone.revert();
          this.btn_accept.enabled = false;
@@ -711,6 +740,13 @@ package survarium.menu
          this._fov = new SrpFieldOfView(this.settings_content);
          this._changed[this._fov.slider] = 0;
          this._fov.slider.addEventListener(IndexEvent.INDEX_CHANGE,this.fovChanged);
+         this._weaponView = new SrpWeaponView(this.settings_content);
+         for each(var weaponControl:Object in this._weaponView.controls)
+         {
+            this._changed[weaponControl] = 0;
+            weaponControl.addEventListener(weaponControl == this._weaponView.box ? Event.SELECT : IndexEvent.INDEX_CHANGE,
+               this.weaponViewChanged);
+         }
          this._micTest = new SrpMicTest(this.settings_content);
          this._microphone = new SrpMicrophone(this.settings_content);
          this._changed[this._microphone.menu] = 0;
@@ -733,6 +769,7 @@ package survarium.menu
          this._hudGroup.place();
          this._mouse.place();
          this._fov.place();
+         this._weaponView.place();
          this._micTest.place();
          this._keysWindow.place();
          this._microphone.place();
@@ -1007,6 +1044,15 @@ package survarium.menu
          this.listChanged(this._fov.slider,this._fov.pending);
       }
 
+      // A move or a toggle of the weapon view's, each control pending while it is not the saved value.
+      protected function weaponViewChanged(event:Event) : void
+      {
+         for each(var control:Object in this._weaponView.controls)
+         {
+            this.listChanged(control,this._weaponView.pending(control));
+         }
+      }
+
       // One of srp's lists (or the field of view slider) counts as a changed option while `pending`.
       protected function listChanged(menu:Object, pending:Boolean) : void
       {
@@ -1093,6 +1139,12 @@ package survarium.menu
          // then the field of view, a group of its own: its label a heading as the others (their
          // look), at the column's headings' x the tab's gap under the minimap list, the slider under it
          this._fov.layout(c.s_friends,space.rightHeading,c._setter_static_minimap_position.y + space.gap);
+         // then the weapon view's button under the field of view's slider, at the right controls' x, its
+         // panel over the left column, from its heading's top to the window's bottom (the bottom panel's, which the columns run over)
+         var fovBottom:Number = this._fov.slider.getBounds(c).bottom;
+         this._weaponView.layout(c.s_friends,space.rightControl,fovBottom + space.gap / 2,
+            c._setter_static_minimap_position.width,space.leftHeading - 8,c.s_friends.y - 8,
+            space.rightHeading - space.leftHeading - 4,c.bottomContainer.getBounds(c).bottom - 4);
          c.s_cross.visible = c._setter_static_cross.visible = false;
          c.s_quest_propgress.visible = c._slider_quest_alpha.visible = false;
          c.bottomContainer.visible = false;
@@ -1348,6 +1400,11 @@ package survarium.menu
          this._mouse.revert();
          this._changed[this._fov.slider] = 0;
          this._fov.revert();
+         for each(var weaponControl:Object in this._weaponView.controls)
+         {
+            this._changed[weaponControl] = 0;
+         }
+         this._weaponView.revert();
          this._changed[this._renderer.menu] = 0;
          this._renderer.revert();
          this._changed[this._microphone.menu] = 0;

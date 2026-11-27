@@ -4393,6 +4393,7 @@ st_srp_shop_not_owned	Meglévők elrejtése
 st_srp_shop_not_owned_hint	Csak a még nem birtokolt tárgyak mutatása
 st_srp_side_left	Bal
 st_srp_side_right	Jobb
+st_srp_sight_distance_option	Irányzék távolsága (0.69 - 0.26)
 st_srp_skills	Képességek
 st_srp_speed_label	Sebesség
 st_srp_speed_title	Mozgási sebesség: %1$s
@@ -4481,6 +4482,10 @@ st_srp_weapon069_ppsh_drum_name	PPSH-41 „Dob”
 st_srp_weapon_aim_zoom	Alap célzási nagyítás
 st_srp_weapon_chamber	Csőre töltési idő
 st_srp_weapon_draw_time	Elővételi idő
+st_srp_weapon_fov_aimed_option	Fegyver FOV célzáskor
+st_srp_weapon_fov_option	Fegyver FOV csípőből
+st_srp_weapon_fov_scope_option	Fegyver FOV távcsőben
+st_srp_weapon_fov_world_option	Fegyver a világ FOV-jával
 st_srp_weapon_full_damage	Teljes sebzés hatótávja
 st_srp_weapon_hip_spread	Csípőlövés szórása
 st_srp_weapon_holster_time	Elrakási idő
@@ -4505,6 +4510,7 @@ st_srp_weapon_stats	A fegyver statisztikái
 st_srp_weapon_sway_cycle	Kilengési ciklus
 st_srp_weapon_sway_horizontal	Vízszintes kilengés
 st_srp_weapon_sway_vertical	Függőleges kilengés
+st_srp_weapon_view_heading	Fegyvernézet
 st_srp_weapon_with_kit	Összeállítással
 st_srp_weapon_with_kit_skills	Összeállítással és képességekkel
 st_srp_weather_before_rain	eső előtt
@@ -4519,6 +4525,7 @@ st_srp_weight_penalty	%1$s% súlybüntetés
 st_srp_weight_speed	Mozgási sebesség
 st_srp_weight_sprint_stamina	Állóképesség-fogyasztás sprinteléskor
 st_srp_weight_title	A súly hatásai
+st_srp_world_fov_option	Világ FOV
 st_stamina_boost_name	Újult erő
 st_stamina_boost_time_description	Ellenségöléssel visszanyert állóképesség:
 st_stamina_loss_on_hit_description	Állóképesség-büntetés sérüléskor.

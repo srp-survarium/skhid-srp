@@ -4393,6 +4393,7 @@ st_srp_shop_not_owned	Hide owned
 st_srp_shop_not_owned_hint	Show only the items you do not own
 st_srp_side_left	Left
 st_srp_side_right	Right
+st_srp_sight_distance_option	Sight distance (0.69 - 0.26)
 st_srp_skills	Skills
 st_srp_speed_label	Speed
 st_srp_speed_title	Movement speed: %1$s
@@ -4481,6 +4482,10 @@ st_srp_weapon069_ppsh_drum_name	PPSH-41 "Drum"
 st_srp_weapon_aim_zoom	Base aim zoom
 st_srp_weapon_chamber	Chambering time
 st_srp_weapon_draw_time	Draw time
+st_srp_weapon_fov_aimed_option	Weapon FOV over sights
+st_srp_weapon_fov_option	Weapon FOV at the hip
+st_srp_weapon_fov_scope_option	Weapon FOV in scopes
+st_srp_weapon_fov_world_option	Weapon at the world FOV
 st_srp_weapon_full_damage	Full damage up to
 st_srp_weapon_hip_spread	Hip-fire spread
 st_srp_weapon_holster_time	Holster time
@@ -4505,6 +4510,7 @@ st_srp_weapon_stats	Weapon stats
 st_srp_weapon_sway_cycle	Sway cycle
 st_srp_weapon_sway_horizontal	Horizontal sway
 st_srp_weapon_sway_vertical	Vertical sway
+st_srp_weapon_view_heading	Weapon view
 st_srp_weapon_with_kit	With kit
 st_srp_weapon_with_kit_skills	With kit and skills
 st_srp_weather_before_rain	before rain
@@ -4519,6 +4525,7 @@ st_srp_weight_penalty	%1$s% weight penalty
 st_srp_weight_speed	Movement speed
 st_srp_weight_sprint_stamina	Sprint stamina use
 st_srp_weight_title	Weight effects
+st_srp_world_fov_option	World FOV
 st_stamina_boost_name	Second wind
 st_stamina_boost_time_description	Energy recovered by killing the enemy:
 st_stamina_loss_on_hit_description	Stamina penalty when wounded.

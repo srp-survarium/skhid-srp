@@ -391,6 +391,10 @@ patched executable: aimed, half aimed, another view, a gun's own optic, a fitted
 no gun, the bad rows, and a command made by the game's own constructor over garbage, deferred and
 run through its own slots.
 
+The player can scale these angles, draw everything held at the world's projection again, and move
+an iron sight's or collimator's eye toward revision 73's (patch 218, `weapon-view-settings.md`); the
+defaults are what this section says.
+
 Measured in local matches with the EOTech 552, at 1280×720 and `uro_fov 65`.
 Ring diameter is measured across its red band, excluding the centre dot and the four
 cardinal marks. The retail column is the geometric prediction from the 0.69d0 assets

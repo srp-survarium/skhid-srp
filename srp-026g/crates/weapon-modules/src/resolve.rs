@@ -30,7 +30,7 @@ use core::ffi::CStr;
 
 use crate::math::Affine;
 use crate::math::dot;
-use crate::pose::{Eye, Hand, Placement};
+use crate::pose::{Eye, Hand, Placement, Relief};
 use crate::slot::SlotId;
 use crate::table::{Attach, Gun, MAX_CHAIN, MAX_STOCK, Module};
 use crate::{AttachEye, DictId, Kind, Role};
@@ -376,13 +376,13 @@ impl<'t> Build<'t> {
 
     /// The eye a part's attach gives, in the gun's terms.
     fn eye(&self, at: Placement, eye: AttachEye) -> Result<Eye, Refusal> {
-        let eye = match eye {
-            AttachEye::Own(locator) => at.child(&locator),
+        let (eye, relief) = match eye {
+            AttachEye::Own(locator) => (at.child(&locator), Relief::Own),
             AttachEye::InGunPlane(locator) => self.in_gun_plane(at.child(&locator))?,
         };
         let aim = self.gun.aim_bone();
         let aim_pose = self.gun.pose(aim).ok_or(Refusal::Broken)?;
-        Eye::new(eye, &self.bone(&eye)?, (aim, &aim_pose)).ok_or(Refusal::Broken)
+        Eye::new(eye, &self.bone(&eye)?, (aim, &aim_pose), relief).ok_or(Refusal::Broken)
     }
 
     fn bone(&self, at: &Placement) -> Result<Affine, Refusal> {
@@ -396,14 +396,20 @@ impl<'t> Build<'t> {
     /// frame and P the plane slot's, `s = (P.c - M.c)·P.k / M.k·P.k` and
     /// `M.c += s·M.k`; the axes stay. Where 0.69d would leave the eye (a
     /// line along the plane, a plane more than 2 m behind it), a refusal.
-    fn in_gun_plane(&self, eye: Placement) -> Result<Placement, Refusal> {
+    ///
+    /// With it, where revision 73's resolver had that eye ([`Relief`]): the
+    /// plane of the gun's own `aim` (the header), the eye left at the
+    /// locator where its line never meets that plane, by the same rule.
+    fn in_gun_plane(&self, eye: Placement) -> Result<(Placement, Relief), Refusal> {
         let plane = self.gun.eye_plane().ok_or(Refusal::Broken)?;
         let (line, plane) = (posed(&self.gun, &eye).ok_or(Refusal::Broken)?, posed(&self.gun, &plane).ok_or(Refusal::Broken)?);
         let along = to_plane(&line, &plane).ok_or(Refusal::OffPlane)?;
+        let own = posed(&self.gun, &self.gun.own_aim()).ok_or(Refusal::Broken)?;
+        let along_026g = to_plane(&line, &own).unwrap_or(0.0);
         let bone = self.bone(&eye)?;
         let slide = Affine::translation(along * line.z[0], along * line.z[1], along * line.z[2]);
         let offset = eye.offset.then(&bone).then(&slide).then(&bone.inverse().ok_or(Refusal::Broken)?);
-        Ok(Placement { bone: eye.bone, offset })
+        Ok((Placement { bone: eye.bone, offset }, Relief::InGunPlane { along, along_026g }))
     }
 
     fn loadout(&self) -> Result<Bare<'t>, Refusal> {
