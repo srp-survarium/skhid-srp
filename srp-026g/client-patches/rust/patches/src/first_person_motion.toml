@@ -1,0 +1,9 @@
+# Patch 215: everything held in first person moves with the view in TAA, as
+# the gun and the hands do (renderer-026g.md 10.1).
+# The site is sites_026g.tsv's; the logic is first_person_motion.rs.
+name = "first_person_motion"
+patch = 215
+
+[[hook]]
+site = "motion_vectors.previous"
+handler = "on_previous"

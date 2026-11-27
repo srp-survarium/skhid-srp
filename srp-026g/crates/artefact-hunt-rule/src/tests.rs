@@ -688,6 +688,56 @@ fn a_carriers_death_and_leaving_drop_it() {
     assert!(matches!(game.artefact(), Artefact::Waiting { .. }));
 }
 
+/// A carrier who leaves and comes back (live, 2026-11-26, match 0x45331d4d):
+/// the artefact lies where he stood, the other team may take it, and he comes
+/// back at his base with nothing to deliver. The rule needs the leave for it:
+/// an entry of a place still on its side changes nothing, so a leave the game
+/// never gave the rule (patch 171 took slot 9's place dword whole, its upper
+/// bytes another argument's) let him spawn at his base still the carrier, and
+/// the use key there scored.
+#[test]
+fn a_carrier_who_leaves_and_comes_back_comes_back_without_it() {
+    let mut game = Match::started(1);
+    game.spawned();
+    game.take(2);
+    game.run_for(5_000);
+    game.send(Event::Left {
+        place: place(2),
+        now: t(game.now),
+        ground: Some(at(44.0)),
+    });
+    assert!(
+        matches!(game.artefact(), Artefact::Lying { spot: Spot::Dropped(p), .. } if p.mm() == [44_000, 130, 0])
+    );
+    assert_eq!(game.rule.carrier(), None);
+    assert_eq!(game.rule.sides().team_of(place(2)), None);
+    game.run_for(2_000);
+    game.send(Event::Entered {
+        place: place(2),
+        team: Team::Zero,
+        now: t(game.now),
+    });
+    assert_eq!(game.rule.sides().team_of(place(2)), Some(Team::Zero));
+    assert_eq!(game.rule.carrier(), None);
+    assert!(game.deliver(2).is_empty(), "his base takes nothing");
+    assert_eq!(game.rule.score(), [0, 0]);
+    // The other team takes it where he left it.
+    game.take(12);
+    assert_eq!(game.rule.carrier(), Some(place(12)));
+
+    // Without the leave, his entry again is nothing to the rule: he is still
+    // the carrier wherever the game spawns him.
+    let mut game = Match::started(1);
+    game.spawned();
+    game.take(2);
+    game.send(Event::Entered {
+        place: place(2),
+        team: Team::Zero,
+        now: t(game.now),
+    });
+    assert_eq!(game.rule.carrier(), Some(place(2)));
+}
+
 #[test]
 fn a_delivery_ends_the_round_3_s_then_a_fade_then_a_frozen_countdown() {
     let mut game = Match::started(1);

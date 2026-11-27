@@ -29,3 +29,21 @@ handler = "on_load_at_end"
 [[hook]]
 site = "reload.commit_event"
 handler = "on_event"
+
+# the clips the reload picked first, kept after the seat changed the rounds
+# (314 tactical or empty, 311 one shell or two)
+[[hook]]
+site = "reload.pick_empty"
+handler = "on_pick_empty"
+
+[[hook]]
+site = "reload.pick_empty_hands"
+handler = "on_pick_empty_hands"
+
+[[hook]]
+site = "reload.pick_two_shells"
+handler = "on_pick_two_shells"
+
+[[hook]]
+site = "reload.pick_two_shells_hands"
+handler = "on_pick_two_shells_hands"

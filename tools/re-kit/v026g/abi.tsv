@@ -1067,6 +1067,8 @@ va	name	source	ret_cleanup	result
 0x00264960	survarium::lobby_character::pick_decal_place	manual	20	AL = hit; point and normal written
 0x00264a10	survarium::lobby_character::decal_value	manual	0	EDX:EAX the u64 of +D530h (point), -(+D53Ch) (direction), +D518h (size), +D51Ch (roll)
 0x00264cf0	survarium::lobby_character::query_decal_host	manual	0	
+0x00264ea0	survarium::lobby_character::on_decal_host_loaded	manual	4	
+0x00264f80	survarium::lobby_character::query_decal_textures	manual	4	
 0x00265860	survarium::lobby_character::show_decal_preview	manual	4	
 0x00265980	survarium::lobby_character::update_decal_preview	manual	0	
 0x00267a40	survarium::timelimit_rule::timelimit_rule	manual	4	EAX: this; the vtable 0xA06E8C (RTTI timelimit_rule) stored at 0x267A61 over the core's 0xA06E2C
@@ -2858,3 +2860,6 @@ va	name	source	ret_cleanup	result
 0x002346e0	survarium::game_world_ui::set_localization_data	manual	4	void; the hud movie (+8) gets root.set_localization_data of an object: each row of flash_movies_localizations.options' hud_strings (0xA03320) under its UI key, its dictionary key translated (translate_text 0x1FF0F0, so its {NAME}s expanded)
 0x00286260	survarium::lobby_menu::set_localization_data	manual	4	void; the lobby movie (+690h) gets root.set_localization_data of its lobby_menu_strings (0xA0A0A8) rows, translated as the hud's
 0x00220a00	survarium::lobby_menu::update_ui	manual	4	void
+0x001b1840	vostok::render::stage_postprocess::is_not_motion_vector_surface [descriptive]	manual	4	AL: 1 leaves the surface out (accumulate_motion_vectors' remove_if 0x1B66B0 / 0x1B65D0): no G-buffer effect (effects +2Ch 0), or a skinned key (render surface +48h 8, 10h, 20h, 40h) that the list does not keep or a static one that it does not
+0x000396c0	vostok::collision::loose_oct_tree::unmove_all	manual	0	none; every item's moved flag (+2Ch) cleared through 0x396B0 (0x3A890 walks the tree); renderer::render calls it on the scene's tree (scene +9B7664h, vtable +34h) at the end of each frame (0x13DE6B)
+0x005298c0	Scaleform::Render::FilterPrimitive::SetCacheResults	manual	12	void; writes the state (+18h), takes up to two of the results (AddRef) into +1Ch/+20h and lets the old ones go (Release), 0 for the rest
