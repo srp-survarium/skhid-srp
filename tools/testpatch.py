@@ -34,6 +34,7 @@ import os
 from pathlib import Path
 import re
 import shutil
+import struct
 import subprocess
 import sys
 import tempfile
@@ -129,13 +130,35 @@ def chosen(lines, laid_on):
     return packed, left
 
 
+def without_bitmaps(movie, names):
+    """`movie` without the bitmaps bound to `names`: their defining tags and their SymbolClass entries."""
+    import swf
+    header, tags = swf.split(movie)
+    gone = {cid for cid, name in swf.symbol_classes(tags) if name in names}
+    kept = []
+    for kind, raw in tags:
+        if kind in (swf.DEFINE_BITS_LOSSLESS2, swf.DEFINE_BITS_JPEG2, swf.DEFINE_BITS_JPEG3) \
+                and struct.unpack_from('<H', swf.payload(raw))[0] in gone:
+            continue
+        if kind == swf.SYMBOL_CLASS:
+            left = [(cid, name) for cid, name in swf.symbol_classes([(kind, raw)]) if name not in names]
+            if not left:
+                continue
+            raw = swf.symbol_class(left)
+        kept.append((kind, raw))
+    return swf.compressed(swf.join(header, kept), movie)
+
+
 def code_into(current, built, tree=None):
     """The setup's movie `current` with the code of `built`: its graphics (the packs' icons) kept,
-    and the bitmaps of `tree` (the movie tree built) it lacks added."""
+    and the bitmaps of `tree` (the movie tree built) put in: added where it lacks them, in place of
+    its own where they differ (a tree's bitmaps/ are its source: an earlier test's stay otherwise)."""
     import flash_tree
     import swf
     code_tags = [t for t in swf.split(built)[1] if t[0] in (swf.DO_ABC, swf.DO_ABC_OLD)]
     bound = lambda movie: {name for _, name in swf.symbol_classes(swf.split(movie)[1])}
+    if tree:
+        current = without_bitmaps(current, {b.name for b in flash_tree.bitmaps(tree)})
     new = bound(built) - bound(current)
     added = [b for b in flash_tree.bitmaps(tree) if b.name in new] if tree else []
     if new - {b.name for b in added}:

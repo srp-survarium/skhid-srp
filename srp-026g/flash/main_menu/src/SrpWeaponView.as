@@ -97,10 +97,15 @@ package
         public var tabs:Array = [];
         // The player's World FOV (Settings gives the World FOV slider's value), for the preview's world.
         public var worldFov:Function = null;
+        // The Default button (the Graphics tab's, its symbol and width; its text the Settings' own label of
+        // it, which Settings gives): every value back to revision 74's, pending until Apply.
+        public var resetButton:SetingsButton;
+        public var defaultLabel:Function = null;
         private var content:MovieClip;
         private var backdrop:Sprite;
         private var panel:Sprite;
-        private var frame:Shape;
+        // The window's frame (its bounds are the window's; the preview's pictures past its pane are masked).
+        public var frame:Shape;
         private var titleField:TextField;
         private var closeButton:ButtonCloseWindow2;
         private var title:String = "";
@@ -172,6 +177,13 @@ package
             note.multiline = true;
             note.autoSize = TextFieldAutoSize.LEFT;
             panel.addChild(note);
+            resetButton = new SetingsButton();
+            resetButton.name = NAME + "_default";
+            resetButton.autoSize = "none";
+            resetButton.focusable = true;
+            resetButton.toggle = false;
+            resetButton.addEventListener(ButtonEvent.CLICK, onDefault);
+            panel.addChild(resetButton);
             preview = new SrpWeaponPreview();
             panel.addChild(preview);
             for (var view:int = 0; view < 3; view++)
@@ -435,6 +447,25 @@ package
             build();
         }
 
+        // Default: the checkbox off and every slider at revision 74's value, each a move of its own (pending
+        // until Apply, as the player's), the preview drawn again.
+        private function onDefault(event:ButtonEvent):void
+        {
+            if (box.selected)
+            {
+                box.selected = false;
+            }
+            for each (var key:String in SLIDERS)
+            {
+                var slider:SrvOptionSlider = sliders[key];
+                if (slider.selectedIndex != DEFAULTS[key])
+                {
+                    slider.slider.value = DEFAULTS[key];
+                }
+            }
+            refresh();
+        }
+
         private function onClose(event:ButtonEvent):void
         {
             close();
@@ -518,7 +549,20 @@ package
             note.x = left;
             note.width = INSIDE;
             note.y = at - ROW_GAP + 2;
-            at = Math.max(note.y + note.textHeight + 4, previewBottom);
+            at = note.y + note.textHeight + 4 + ROW_GAP;
+            // the Default button under them, as wide as the Graphics tab's (wider only for its text)
+            resetButton.label = defaultLabel != null && defaultLabel() ? String(defaultLabel()) : "Default";
+            resetButton.alpha = 1;
+            resetButton.x = left;
+            resetButton.y = at;
+            resetButton.width = BUTTON_WIDTH;
+            resetButton.validateNow();
+            if (resetButton.textField != null && resetButton.textField.textWidth + 16 > resetButton.textField.width * resetButton.scaleX)
+            {
+                resetButton.width = BUTTON_WIDTH + resetButton.textField.textWidth + 16 - resetButton.textField.width * resetButton.scaleX;
+                resetButton.validateNow();
+            }
+            at = Math.max(resetButton.y + resetButton.height, previewBottom);
             var w:Number = FRAME_LEFT + FRAME_RIGHT + 2 * SIDE + SrpWeaponPreview.WIDTH + COLUMN_GAP + INSIDE;
             var h:Number = at + SPACE + FRAME_BOTTOM;
             drawFrame(w, h);

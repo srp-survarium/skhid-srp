@@ -1,6 +1,6 @@
 # The Weapon view window's preview pictures
 
-The 11 bitmaps of `flash/main_menu/bitmaps/SrpPreview*` that `SrpWeaponPreview.as` draws (patch 218,
+The 27 bitmaps of `flash/main_menu/bitmaps/SrpPreview*` that `SrpWeaponPreview.as` draws (patch 218,
 `docs/notes/weapon-view-settings.md`, "The preview"). Made once, offline; nothing here runs in a
 build or a check. NumPy and Pillow, `scripts/sight-alignment`'s renderer, the weapon-modules pack
 `release/content.tsv` ships (`private/content-packs/weapon-modules-<version>/files`), and the stock
@@ -10,7 +10,7 @@ character models (`srp-game-data get` of `models/character/human/...` and the lo
 
        cargo run -p weapon-modules --example preview_eyes -- <pack>/gameplay/weapon_modules.srpm 363 eotech_552 zenit_1p69 > ak12.json
 
-2. The gun's layers (`SrpPreviewIron*`, `SrpPreviewRedDot*`, `SrpPreviewScope`, PNG with alpha):
+2. The gun's layers (`SrpPreviewIron<cm><tier>`, `SrpPreviewRedDot<cm><tier>`, `SrpPreviewScope`; each a JPEG and its `.alpha.png`):
 
        python layers.py ../sight-alignment <pack> ak12.json <out>
 

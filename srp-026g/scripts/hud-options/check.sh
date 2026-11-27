@@ -16,7 +16,7 @@
 #   button) at 1280x720 and the movie scaled 1.5, the tab's slider and checkbox look, every dictionary's labels
 #   and note inside it, Apply, Cancel, Esc, the checkbox greying the angles; its preview (the slider moved picks
 #   its view, the tabs, the held and world scales, the distance's crossfade, every dictionary's tab names
-#   fitting); screenshot settings-weapon-view.png;
+#   fitting); screenshots settings-weapon-view.png and settings-weapon-view-2x.png (the movie scaled 2, the red dot);
 # - HudHarness.as: the crosshair's hit marker: all, a kill's mark only, none (a kill through a wall,
 #   exe patch 167, as a kill's mark only); the Tab list off as today,
 #   on names only, each team by clan tag then name (clanless next, bots last; case-insensitive);
@@ -76,6 +76,7 @@ shot() { ffmpeg -loglevel error -y -f x11grab -draw_mouse 0 -video_size 1280x720
 run SettingsHarness
 wait_for SettingsHarness.log 'SETTINGS SHOT settings' && shot settings.png
 wait_for SettingsHarness.log 'SETTINGS SHOT weapon-view' && shot settings-weapon-view.png
+wait_for SettingsHarness.log 'SETTINGS SHOT weapon-view-2x' && shot settings-weapon-view-2x.png
 wait_for SettingsHarness.log 'SETTINGS SHOT checked' && shot settings-checked.png
 wait_for SettingsHarness.log 'SETTINGS SHOT open' && shot settings-crosshair-open.png
 wait_for SettingsHarness.log 'SETTINGS SHOT hits' && shot settings-hit-markers-open.png

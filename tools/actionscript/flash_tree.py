@@ -124,21 +124,45 @@ class Jpeg:
         return swf.DEFINE_BITS_JPEG2, swf.jpeg(cid, self.data)[0]
 
 
+@dataclass(frozen=True)
+class JpegAlpha:
+    """A bitmap of bitmaps/<name>.jpg with bitmaps/<name>.alpha.png: the JPEG whole, and its alpha (the
+    PNG's red, one byte a pixel)."""
+    name: str
+    data: bytes
+    alpha: bytes
+
+    def define(self, cid):
+        return swf.DEFINE_BITS_JPEG3, swf.jpeg_alpha(cid, self.data, self.alpha)
+
+
 def bitmaps(movie_dir):
-    """[Lossless | Jpeg] of the tree's bitmaps/<class>.png and <class>.jpg, by name."""
+    """[Lossless | Jpeg | JpegAlpha] of the tree's bitmaps/<class>.png, <class>.jpg and <class>.jpg with
+    <class>.alpha.png, by name."""
     folder = movie_dir / 'bitmaps'
     if not folder.is_dir():
         return []
     out = []
     for path in sorted(folder.iterdir()):
+        if path.name.endswith('.alpha.png'):
+            if not path.with_name(path.name[:-len('.alpha.png')] + '.jpg').is_file():
+                raise ValueError(f'{path}: an alpha without its <class>.jpg')
+            continue
         if path.suffix not in ('.png', '.jpg') or not path.stem.isidentifier():
             raise ValueError(f'{path}: a bitmap is <class name>.png or <class name>.jpg')
         data = path.read_bytes()
         if path.suffix == '.png':
             out.append(Lossless(path.stem, *swf.png(data)))
         else:
-            swf.jpeg(0, data)
-            out.append(Jpeg(path.stem, data))
+            _, (width, height) = swf.jpeg(0, data)
+            alpha = path.with_name(path.stem + '.alpha.png')
+            if alpha.is_file():
+                w, h, rgba = swf.png(alpha.read_bytes())
+                if (w, h) != (width, height):
+                    raise ValueError(f'{alpha}: {w} x {h}, its JPEG {width} x {height}')
+                out.append(JpegAlpha(path.stem, data, rgba[0::4]))
+            else:
+                out.append(Jpeg(path.stem, data))
     if len({b.name for b in out}) != len(out):
         raise ValueError(f'{folder}: a class with both a .png and a .jpg')
     return out

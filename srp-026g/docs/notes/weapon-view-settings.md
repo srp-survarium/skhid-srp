@@ -137,14 +137,21 @@ slider the scope, the sights' and the distance's the iron sights (or the red dot
 the hip slider and the checkbox only draw it again. The World FOV slider's value, pending or not,
 draws the world.
 
-- **The pictures** are offline renders and captures, 11 bitmaps of the movie, about 1.2 MB
+- **The pictures** are offline renders and captures, 27 bitmaps of the movie, about 1.8 MB
   (`flash/main_menu/bitmaps/SrpPreview*`, made by `scripts/weapon-view-preview`):
-  - the gun's layers (PNG with alpha, 840x473: the pane at 1.5 times, sharp at the narrowest angles
-    too) at 0.69d0's 32.5 degrees, drawn as patch 161 draws
+  - the gun's layers, 1440x810, each a JPEG with its alpha (`<class>.jpg` and `<class>.alpha.png`:
+    one DefineBitsJPEG3, a tenth of a lossless bitmap), drawn at twice that and downsampled
+    (anti-aliased edges). Each view at a few angles, its tiers: the widest its sliders reach (the iron
+    sights' 94.8, the World FOV checkbox at World FOV 100; the EOTech's 77.7; the scope's 32.5), so
+    the whole gun is there at every setting (the owner: raising the sights' angle had shown the gun
+    "without its new parts"), and narrower ones (52 and 28; 45 and 26), so the narrowest tier at or
+    over the angle is never enlarged more than 2.3 times its own pixels. Drawn as patch 161 draws
     it: the iron sights at the gun's `aim` locator and aim_offset, the EOTech's eye from this crate's
     resolve, the 1P69's aimed model alone at its own eye; the iron sights and the EOTech at -20, 0,
     +25 and +50 cm of sight distance (the exe's clamps: the AK-12's iron eye no nearer than revision
-    73's, the EOTech's no nearer than 6 cm);
+    73's, the EOTech's no nearer than 6 cm). Emissive materials are drawn in their constant emissive
+    colour over the rest, as the game's additive pass shows them: the EOTech's reticle red (the owner:
+    "red dot is white");
   - the world: two headless captures of Vostok (map 123, `scripts/capture`) at 2560x1440 and the
     game's highest settings (textures, geometry and draw distance Maximum, shadows 3, ambient
     occlusion 3, anisotropy 16, anti-aliasing), from where a player stands (the owner: "location can
@@ -155,15 +162,25 @@ draws the world.
     quality 92, with a stock soldier (a scavenger's outfit, the lobby's idle
     pose) rendered offline into both standing at that point: so the iron sights and the red dot sit
     on him, and the scope shows him at its zoom.
-- **The angles are exact.** A layer made at 32.5 degrees drawn at angle `a` is the layer scaled about
-  the centre by tan(16.25) / tan(a / 2): the game's held projection is that same scale of everything
+- **The angles are exact.** A tier made at `t` degrees drawn at angle `a` is the tier scaled about
+  the centre by tan(t / 2) / tan(a / 2): the game's held projection is that same scale of everything
   held. The world is scaled the same way to its angle at the sight's zoom (patch 22: 65 z + (uro_fov -
   65) max(0, (z - 0.25) / 0.75); the iron sights' zoom 0.909, the EOTech's 0.8, the 1P69's 0.25).
   "Weapon at the world FOV" draws the gun at that world angle.
 - **The distance is approximate**: the two renders around it crossfaded (10 cm: the 0 cm one with
   the +25 cm one at 40 %).
-- The picture is drawn into one bitmap of its size, so nothing reaches past the pane; the window has
-  no bottom band (the Settings' button bar is not part of its frame).
+- **Drawn at the screen's pixels.** The pictures are smoothed Bitmaps scaled on the GPU under a mask,
+  so at any UI scale (MainMenu scales the movie above 1080p: 1.33 at 1440p, 2 at 4K) they are
+  filtered from their own pixels. Revision 80 drew them into one BitmapData of the pane's size, which
+  the game's Scaleform then enlarged without filtering at 1440p (the owner: "the drawing quality is
+  atrocious"). A layer is made only while shown (4.6 MB decoded) and let go after.
+- The window has no bottom band (the Settings' button bar is not part of its frame).
+- **Default** (the Graphics tab's Default button: its symbol, width and the exe's own label of it)
+  under the controls sets the five values back to revision 74's (65, 32.5, 32.5, off, 0 cm), each a
+  move pending until Apply as the player's, and draws the preview again.
+- **Test builds:** `tools/test-patch` used to keep a setup's bitmaps of a name it had already, so a
+  changed picture of the tree never reached the test (revision 80 showed revision 79's world); a
+  movie tree's bitmaps now take the place of the setup's own.
 
 ## The log
 

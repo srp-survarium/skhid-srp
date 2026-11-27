@@ -122,6 +122,25 @@ package
                     trace("SETTINGS weapon view shot: " + settings.getChildByName("_srp_weapon_view_window").visible);
                 }
                 if (frames == 45) trace("SETTINGS SHOT weapon-view");
+                // the movie scaled 2 (MainMenu's UI scale; the window fitted to the screen: the preview about
+                // its size at 2560x1440), the red dot's view: the pictures drawn at the screen's pixels
+                if (frames == 50)
+                {
+                    var wv:* = settings.getChildByName("_srp_weapon_view_window");
+                    wv.close();
+                    root.scaleX = root.scaleY = 2;
+                    click(settings.settings_content.getChildByName("_srp_weapon_view"));
+                    wv.tabs[1].dispatchEvent(new (loader.contentLoaderInfo.applicationDomain.getDefinition("scaleform.clik.events.ButtonEvent") as Class)("buttonClick"));
+                    var pane:* = wv.preview.frame.getBounds(stage);
+                    trace("SETTINGS weapon view at 2: the preview " + Math.round(pane.width) + "x" + Math.round(pane.height) + " on the screen");
+                }
+                if (frames == 55) trace("SETTINGS SHOT weapon-view-2x");
+                if (frames == 76)
+                {
+                    settings.getChildByName("_srp_weapon_view_window").close();
+                    root.scaleX = root.scaleY = 1;
+                    click(settings.settings_content.getChildByName("_srp_weapon_view"));
+                }
                 if (frames == 78) settings.getChildByName("_srp_weapon_view_window").close();
                 if (frames == 80)
                 {
@@ -357,12 +376,12 @@ package
             require(title.text == texts[0][37] && title.getTextFormat().font == stockTitle.font, "the window's title in the Settings' title font: " + title.text);
             var inside:Function = function(when:String):void {
                 var panel:* = window.getChildByName("_srp_weapon_view_window_panel");
-                var area:Rectangle = panel.getBounds(stage);
+                var area:Rectangle = window.frame.getBounds(stage);
                 require(area.left >= 0 && area.top >= 0 && area.right <= stage.stageWidth && area.bottom <= stage.stageHeight,
                     when + ": the window on the screen (" + area + ")");
                 // two columns: the preview's (its tabs, the picture) left of the controls'
-                var columns:Array = [[window.tabs[0], window.preview],
-                    [sliders[0], sliders[1], sliders[2], box, sliders[3], window.note]];
+                var columns:Array = [[window.tabs[0], window.preview.frame],
+                    [sliders[0], sliders[1], sliders[2], box, sliders[3], window.note, window.resetButton]];
                 var inner:Rectangle = new Rectangle(area.left + 6, area.top + 39 * panel.scaleY, area.width - 12,
                     area.height - (39 + 6) * panel.scaleY);
                 for each (var rows:Array in columns)
@@ -378,14 +397,14 @@ package
                         }
                     }
                 }
-                var right:Number = Math.max(window.tabs[2].getBounds(stage).right, window.preview.getBounds(stage).right);
+                var right:Number = Math.max(window.tabs[2].getBounds(stage).right, window.preview.frame.getBounds(stage).right);
                 for each (var control:* in columns[1])
                 {
                     require(right <= control.getBounds(stage).left + 1, when + ": the preview's column left of " + control.name);
                 }
-                require(window.preview.width >= 560 * panel.scaleX - 1, when + ": the preview 560 wide (" + window.preview.width + ")");
+                require(window.preview.frame.width >= 559, when + ": the preview 560 wide (" + window.preview.frame.width + ")");
                 // the first label's text at the picture's top; the tabs centred over the picture
-                var picture:Rectangle = window.preview.getBounds(stage);
+                var picture:Rectangle = window.preview.frame.getBounds(stage);
                 // (a text field's text starts 2 px under its top)
                 var labelTop:Number = sliders[0].textField.getBounds(stage).top + 2 * panel.scaleY;
                 require(Math.abs(labelTop - picture.top) <= 2 * panel.scaleY, when + ": the first label at the picture's top ("
@@ -468,6 +487,27 @@ package
             root.srp_slider_option(names[3], texts[0][42], "25", "-20", "50", "1");
             require(close(sliders[1].selectedIndex, 52) && close(sliders[3].selectedIndex, 25) && !settings.btn_accept.enabled,
                 "the exe's answers keep 52 and 25, nothing pending");
+            // Default: revision 74's values (65, 32.5, 32.5, off, 0 cm), pending until Apply, the preview at once
+            click(button);
+            box.selected = true;
+            sliders[2].slider.value = 20;
+            calls.length = 0;
+            exe.standIn = function(name:String, value:String):void { calls.push(name + "=" + value); };
+            click(window.resetButton);
+            var held:* = window.preview.drawn[1];
+            require(!box.selected && close(sliders[0].selectedIndex, 65) && close(sliders[1].selectedIndex, 32.5)
+                && close(sliders[2].selectedIndex, 32.5) && close(sliders[3].selectedIndex, 0) && sliders[1].alpha == 1
+                && settings.btn_accept.enabled && calls.length == 0 && window.visible,
+                "Default: 65, 32.5, 32.5, off, 0 cm, pending, nothing sent yet (" + calls + ")");
+            require(window.preview.shown == 0 && close(held.held, 32.5) && held.alpha == 1 && window.preview.drawn.length == 2,
+                "Default: the preview at once, the iron sights at 32.5 and 0 cm (" + held.held + ")");
+            click(settings.btn_accept);
+            // the values that differ from the saved ones (52, 25; the checkbox and the scopes' were saved at theirs)
+            require(calls.length == 2 && calls.indexOf("srp_weapon_fov_aimed=325") >= 0 && calls.indexOf("srp_sight_distance=0") >= 0
+                && !settings.btn_accept.enabled, "Default, Apply: the exe given 325 tenths and 0 cm (" + calls + ")");
+            exe.standIn = null;
+            root.srp_slider_option(names[1], texts[0][39], "325", "200", "650", "10");
+            root.srp_slider_option(names[3], texts[0][42], "0", "-20", "50", "1");
             click(button);
             box.selected = true;
             require(sliders[0].alpha < 1 && sliders[1].alpha < 1 && sliders[2].alpha < 1 && sliders[3].alpha == 1
@@ -514,14 +554,16 @@ package
                 "the tabs the Settings window's (InventoryTabButton), the selected one drawn in its own state ("
                 + window.tabs[2].currentLabel + ", " + window.tabs[0].currentLabel + ")");
             var shown:Array = layer();
-            require(shown.length == 1 && Math.abs(shown[0].scale - Preview.scaleOf(32.5, 20)) < 1e-3,
-                "the scope at 20 degrees: its layer " + Preview.scaleOf(32.5, 20) + " times (" + (shown.length ? shown[0].scale : -1) + ")");
+            require(shown.length == 1 && shown[0].made == 32.5 && Math.abs(shown[0].scale - Preview.scaleOf(32.5, 20)) < 1e-3,
+                "the scope at 20 degrees: its 32.5 layer " + Preview.scaleOf(32.5, 20) + " times (" + (shown.length ? shown[0].scale : -1) + ")");
             require(Math.abs(preview.drawn[0].scale - Preview.scaleOf(20, Preview.worldAngle(65, 0.25))) < 1e-3,
                 "the scope's world at the 1P69's 16.25 degrees");
             sliders[1].slider.value = 52;
             require(preview.shown == Preview.IRON && window.tabs[0].selected, "the sights' slider moved: the iron sights' view");
             shown = layer();
-            require(shown.length == 1 && Math.abs(shown[0].scale - Preview.scaleOf(32.5, 52)) < 1e-3,
+            // the narrowest tier at or over the angle, scaled to it: 52 is the iron sights' middle tier
+            require(shown.length == 1 && shown[0].made == 52 && Math.abs(shown[0].scale - 1) < 1e-3
+                && Preview.tierOf(0, 52.5) == 0 && Preview.tierOf(0, 20) == 2 && Preview.tierOf(1, 65) == 0,
                 "the iron sights at 52 degrees: the layer " + Preview.scaleOf(32.5, 52) + " times (" + (shown.length ? shown[0].scale : -1) + ", " + shown.length + " layers, " + sliders[1].selectedIndex + ")");
             sliders[3].slider.value = 10;
             shown = layer();
@@ -531,7 +573,7 @@ package
             window.refresh();
             shown = layer();
             var world:Number = Preview.worldAngle(65, 0.909);
-            require(Math.abs(shown[0].scale - Preview.scaleOf(32.5, world)) < 1e-3, "the checkbox: the gun at the world's "
+            require(shown[0].made == 94.8 && Math.abs(shown[0].scale - Preview.scaleOf(94.8, world)) < 1e-3, "the checkbox: the gun at the world's "
                 + world + " degrees");
             box.selected = false;
             window.tabs[1].dispatchEvent(new (loader.contentLoaderInfo.applicationDomain.getDefinition("scaleform.clik.events.ButtonEvent") as Class)("buttonClick"));

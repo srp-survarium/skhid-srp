@@ -7,7 +7,7 @@ package
    public dynamic class SrpPreviewScope extends BitmapData
    {
 
-      public function SrpPreviewScope(w:int = 840, h:int = 473)
+      public function SrpPreviewScope(w:int = 1440, h:int = 810)
       {
          super(w,h);
       }
