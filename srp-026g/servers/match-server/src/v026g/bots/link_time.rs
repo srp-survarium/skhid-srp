@@ -502,7 +502,9 @@ static COUNTS: [[[AtomicU64; FIELDS]; BANDS]; 7] = [const { [const { [const { At
 
 /// The links given up by how the route walked ended: the index in `RouteEnd::ALL`, or [`ENDED_NONE`] if it did not.
 static ENDED: [[AtomicU64; ENDED_NONE + 1]; 7] = [const { [const { AtomicU64::new(0) }; ENDED_NONE + 1] }; 7];
-pub const ENDED_NONE: usize = 16;
+/// The slot after every route end's own (`RouteEnd as usize`, its place in `RouteEnd::ALL`): a route not ended while the link
+/// was watched. It was 16 while `ALL` grew to 18: `JumpRefused` (16) shared it, and `LegUnwalked` (17) ran past the tables.
+pub const ENDED_NONE: usize = super::route_end::RouteEnd::ALL.len();
 /// The same for the links of a rise of 0.8 to 1.2 m.
 static ENDED_FACE: [[AtomicU64; ENDED_NONE + 1]; 7] = [const { [const { AtomicU64::new(0) }; ENDED_NONE + 1] }; 7];
 /// A link given up with the body this near its take-off stayed at the face.
@@ -572,6 +574,20 @@ pub const FIELD_COUNT: usize = FIELDS;
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Every route end has a slot of its own in the given-up tables (its index is its place in `RouteEnd::ALL`), below the
+    /// slot of a route not ended, and the tables hold that slot too.
+    #[test]
+    fn every_route_end_has_its_own_slot_before_the_none_slot() {
+        use super::super::route_end::RouteEnd;
+        for (at, &end) in RouteEnd::ALL.iter().enumerate() {
+            assert_eq!(end as usize, at, "{end:?} is not at its own place in ALL");
+            assert!((end as usize) < ENDED_NONE, "{end:?} reaches the none slot {ENDED_NONE}");
+        }
+        assert_eq!(ENDED[0].len(), ENDED_NONE + 1);
+        assert_eq!(ENDED_FACE[0].len(), ENDED_NONE + 1);
+        assert_eq!(GHOST[0].len(), ENDED_NONE + 1);
+    }
 
     fn link(kind: Kind, rise: f32) -> Link {
         Link { kind, take_off: Vec3::new(5.0, 0.0, 0.0), landing: Vec3::new(5.4, rise, 0.0), top: Some(3.0) }

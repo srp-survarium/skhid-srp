@@ -134,6 +134,15 @@ impl Route {
     }
 
     /// Whether the leg into point `k` is a plain walk (no jump, no low floor, no drop).
+    /// [walk lane] Whether `at` is a point of a lane walk ([`Route::lane_walks`]): the foot's centre the side step leaves from,
+    /// or the side line's start or end. The line is the walk check's own: no corner moves off it and no leg of it gets one.
+    fn lane_point(&self, grid: &WalkGrid, at: Vec3) -> bool {
+        self.lane_walks.iter().any(|&(foot, top, lane)| {
+            let (start, end) = lane.line(grid.position(foot), grid.position(top));
+            at == grid.position(foot) || at == start || at == end
+        })
+    }
+
     fn walked_into(&self, k: usize) -> bool {
         let (a, b) = (self.points[k - 1], self.points[k]);
         b.jump.is_none() && !b.low && b.at.y - a.at.y > -DROP_LINK_MIN_M
@@ -166,7 +175,13 @@ impl Route {
         // 1. The corners.
         for k in 1..n - 1 {
             let p = points[k];
-            if !self.walked_into(k) || !self.walked_into(k + 1) || self.takes_off(k + 1) || self.keyed(p.at) || edge(grid, p.node) {
+            if !self.walked_into(k)
+                || !self.walked_into(k + 1)
+                || self.takes_off(k + 1)
+                || self.keyed(p.at)
+                || self.lane_point(grid, p.at)
+                || edge(grid, p.node)
+            {
                 continue;
             }
             let Some(here) = grid.wall_clearance(p.node) else { continue };
@@ -206,7 +221,12 @@ impl Route {
         let mut corner: Vec<Option<Waypoint>> = vec![None; n];
         for k in 1..n {
             let (a, b) = (points[k - 1], points[k]);
-            if !self.walked_into(k) || self.takes_off(k) || a.at.distance_xz(b.at) < LEG_MIN_M || self.gates.contains(&a.at) && self.gates.contains(&b.at) {
+            if !self.walked_into(k)
+                || self.takes_off(k)
+                || a.at.distance_xz(b.at) < LEG_MIN_M
+                || self.gates.contains(&a.at) && self.gates.contains(&b.at)
+                || self.lane_point(grid, a.at) && self.lane_point(grid, b.at)
+            {
                 continue;
             }
             let Some((dip, at)) = least_clearance(grid, a.at, b.at) else { continue };
@@ -285,7 +305,14 @@ impl Route {
             crouch_climbs,
             planned,
             walk_offs,
+            lane_walks,
+            unverified,
+            leg_paths,
         } = self;
+        // [pull unknown] The unverified legs end at the same waypoints, now after the corners put in before them (a corner put in
+        // on such a leg splits it: the leg is still tested by its own floors before the body walks to its end).
+        let shift = |to: usize| to + corner[..=to].iter().filter(|c| c.is_some()).count();
+        let unverified = unverified.into_iter().map(|leg| super::UnverifiedLeg { to: shift(leg.to), ..leg }).collect();
         add(Count::WalkOffs, walk_offs.len() as u64);
         add(Count::Risers, risers.len() as u64);
         add(Count::CrouchClimbs, crouch_climbs.len() as u64);
@@ -305,6 +332,9 @@ impl Route {
             crouch_climbs,
             planned,
             walk_offs,
+            lane_walks,
+            unverified,
+            leg_paths,
         }
     }
 }

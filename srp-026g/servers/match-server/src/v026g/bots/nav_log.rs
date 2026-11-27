@@ -518,6 +518,12 @@ pub fn arrival_down_line(goal: Vec3, drop: f32, feet: Vec3) -> String {
     format!("{PREFIX}goal down kept: goal {}, its floor {drop:.2} m under the feet {}, {:.2} m across", at(goal), at(feet), goal.distance_xz(feet))
 }
 
+/// [walk lane] `nav: lane walk: (..) -> (..) on its <Minus|Plus> line (O m across), feet (..)`: the route walks a Walk link on the
+/// walk check's side line (`WalkGrid::walk_lane`, `Route::lane_walk_on`), once a link.
+pub fn lane_walk_line(from: Vec3, to: Vec3, lane: mapdata::grid::controlled::WalkLane, feet: Vec3) -> String {
+    format!("{PREFIX}lane walk: {} -> {} on its {lane:?} line ({:+.2} m across), feet {}", at(from), at(to), lane.offset_m(), at(feet))
+}
+
 /// [T3] `nav: route end under the feet: end (..), O m under the feet (..), A m across: walked on`: the motor's route end within its
 /// reach across but more than `motor::ARRIVE_OVER_M` under the feet, not arrived at (`Motor::take_over_end`).
 pub fn over_end_line(end: Vec3, over: f32, feet: Vec3) -> String {

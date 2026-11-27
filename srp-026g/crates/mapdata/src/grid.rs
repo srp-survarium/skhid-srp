@@ -1447,6 +1447,10 @@ pub struct WalkGrid {
     /// [`Body::walk_ceiling_stalls`] The Walk links only a crouching body walks ([`WalkGait::Crouch`], [`Self::walk_crouched`]), as
     /// (from, to), sorted. In the file (after the marked walks) and the digest. Empty without the switch.
     walk_crouched: Vec<(NodeId, NodeId)>,
+    /// [walk lane] [`Body::walk_every_link`] The Walk links the client's walk tick makes only from a side line of the walk
+    /// check ([`controlled::WalkLane`], [`Self::walk_lane`]), as (from, to, lane), sorted by (from, to). In the file (the last
+    /// table, after the run-ins) and the digest. Empty without the switch.
+    walk_lanes: Vec<(NodeId, NodeId, controlled::WalkLane)>,
     /// [A385 rule (d)] [`Body::rim_jumps`] The risers' presses ([`Self::riser`]), as (from, to, how), sorted by (from, to): every
     /// Walk link rising [`Body::walked_step`] or more, still a Walk link that is not crouched. In
     /// the file (after the crouched walks) and the digest. Empty without the switch.
@@ -1488,8 +1492,8 @@ pub struct WalkGrid {
     /// [`Self::pull_tight`]): derived, set after the grid is built or read. In neither the file nor the digest. None without it.
     pull_hold: Option<f32>,
     /// [A334] Whether a route's pulled legs are walked by the client's walker ([`Self::with_pull_walk`],
-    /// [`Self::pull_walk_fails`]): derived, set after the grid is built or read. In neither the file nor the digest.
-    /// The grid's own number for [`Self::pull_walk_fails`]'s cache (unique in the process), when it is set.
+    /// [`Self::pull_walk_verdict`]): derived, set after the grid is built or read. In neither the file nor the digest.
+    /// The grid's own number for [`Self::pull_walk_verdict`]'s cache (unique in the process), when it is set.
     pull_walk: Option<u64>,
 }
 
@@ -1532,6 +1536,8 @@ struct Wide {
     marked: Vec<(u32, u32)>,
     /// [`Body::walk_ceiling_stalls`]: the Walk links the walk check passes only crouched, as (from, to), sorted.
     crouch: Vec<(u32, u32)>,
+    /// [walk lane] [`Body::walk_every_link`]: the Walk links the walk check passes only on a side line, with it, sorted.
+    lanes: Vec<(u32, u32, controlled::WalkLane)>,
     /// [A385 rule (d)] The risers' presses ([`WalkGrid::fly_risers`]), as (from, to, how), sorted.
     riser: Vec<(u32, u32, Riser)>,
     /// [S6] The held floors' drops' landing speeds ([`WalkGrid::add_unheld_drops`]), as (from, to, speed), sorted.
@@ -1968,6 +1974,7 @@ impl WalkGrid {
             walled_exits: Vec::new(),
             walk_marked: Vec::new(),
             walk_crouched: Vec::new(),
+            walk_lanes: Vec::new(),
             riser: Vec::new(),
             rim_unmade: Vec::new(),
             drop_lips: Vec::new(),
@@ -2079,7 +2086,7 @@ impl WalkGrid {
         }
         clock.lap("slip landings");
         if body.client_controller {
-            let (controlled, failing) = grid.controlled_links(&mut wide, triangles, shapes);
+            let (controlled, failing) = grid.controlled_links(&mut wide, triangles, shapes, memo);
             stats.controlled = controlled;
             clock.lap("walk check");
             // The walk links the client's body does not walk go, but none that is a floor's only way in from the seeds and spawns
@@ -2102,7 +2109,7 @@ impl WalkGrid {
         // [bot traps, ledge line-up] The low risers no walk gets up: a riser where a press lands, else marked. After the walk
         // check (its cut and its marks, which it sets whole) and the risers' flight (with the rim jumps' presses).
         if let Some(world) = world.filter(|_| body.walk_gait && body.rim_jumps && gaps) {
-            stats.walk_gait = grid.walk_gait_links(&mut wide, world, &s);
+            stats.walk_gait = grid.walk_gait_links(&mut wide, world, &s, memo);
         }
         clock.lap("low risers (walk gait)");
         drop(solids);
@@ -2284,6 +2291,7 @@ impl WalkGrid {
             aside: Vec::new(),
             marked: Vec::new(),
             crouch: Vec::new(),
+            lanes: Vec::new(),
             riser: Vec::new(),
             drop_speed: Vec::new(),
             held: Vec::new(),
@@ -3157,6 +3165,10 @@ impl WalkGrid {
         for p in &mut wide.crouch {
             remap(p, &mut tables.crouched);
         }
+        // [walk lane] Not in the build's log tables (a lane is no link's verdict the give-back can break).
+        for (a, b, _) in &mut wide.lanes {
+            (*a, *b) = pair((*a, *b));
+        }
         for p in &mut wide.lips {
             remap(p, &mut tables.lips);
         }
@@ -3462,6 +3474,11 @@ impl WalkGrid {
             *a = new_id[*a as usize];
             *b = new_id[*b as usize];
         }
+        wide.lanes.retain(|&(a, b, _)| alive[a as usize] && alive[b as usize]);
+        for (a, b, _) in &mut wide.lanes {
+            *a = new_id[*a as usize];
+            *b = new_id[*b as usize];
+        }
         wide.riser.retain(|&(a, b, _)| alive[a as usize] && alive[b as usize]);
         for (a, b, _) in &mut wide.riser {
             *a = new_id[*a as usize];
@@ -3678,6 +3695,15 @@ impl WalkGrid {
                 digest.u32(b);
             }
         }
+        // [walk lane] A grid with no side-line walks digests as before there were any.
+        if !self.walk_lanes.is_empty() {
+            digest.len(self.walk_lanes.len());
+            for &(a, b, lane) in &self.walk_lanes {
+                digest.u32(a);
+                digest.u32(b);
+                digest.u32(0x574c_0000 | u32::from(lane.byte()));
+            }
+        }
         // [S6] A grid with no drop landing speeds digests as before there were any.
         if !self.drop_speed.is_empty() {
             digest.len(self.drop_speed.len());
@@ -3779,7 +3805,7 @@ impl WalkGrid {
                 && self.walk_marked.is_empty()
                 && self.walk_crouched.is_empty()
                 && self.riser.is_empty()
-                && self.drop_lips.is_empty() && self.held_taken.is_empty() && self.drop_speed.is_empty() && self.line_tops.is_empty() && masks.is_empty() && self.run_ins.is_empty()
+                && self.drop_lips.is_empty() && self.held_taken.is_empty() && self.drop_speed.is_empty() && self.line_tops.is_empty() && masks.is_empty() && self.run_ins.is_empty() && self.walk_lanes.is_empty()
             {
                 return Ok(());
             }
@@ -3800,12 +3826,12 @@ impl WalkGrid {
                 bytes
             })?;
             // [A304] The ramp slopes, when the grid has them (an empty table before the walled exits).
-            if self.ramp.is_empty() && self.walled_exits.is_empty() && self.walk_marked.is_empty() && self.walk_crouched.is_empty() && self.riser.is_empty() && self.drop_lips.is_empty() && self.held_taken.is_empty() && self.drop_speed.is_empty() && self.line_tops.is_empty() && masks.is_empty() && self.run_ins.is_empty() {
+            if self.ramp.is_empty() && self.walled_exits.is_empty() && self.walk_marked.is_empty() && self.walk_crouched.is_empty() && self.riser.is_empty() && self.drop_lips.is_empty() && self.held_taken.is_empty() && self.drop_speed.is_empty() && self.line_tops.is_empty() && masks.is_empty() && self.run_ins.is_empty() && self.walk_lanes.is_empty() {
                 return Ok(());
             }
             out.plain(&self.ramp, |&v| [v])?;
             // [A347] The walled exits, when the grid has them (an empty table before the marked walks).
-            if self.walled_exits.is_empty() && self.walk_marked.is_empty() && self.walk_crouched.is_empty() && self.riser.is_empty() && self.drop_lips.is_empty() && self.held_taken.is_empty() && self.drop_speed.is_empty() && self.line_tops.is_empty() && masks.is_empty() && self.run_ins.is_empty() {
+            if self.walled_exits.is_empty() && self.walk_marked.is_empty() && self.walk_crouched.is_empty() && self.riser.is_empty() && self.drop_lips.is_empty() && self.held_taken.is_empty() && self.drop_speed.is_empty() && self.line_tops.is_empty() && masks.is_empty() && self.run_ins.is_empty() && self.walk_lanes.is_empty() {
                 return Ok(());
             }
             let pair = |&(a, b): &(NodeId, NodeId)| {
@@ -3816,17 +3842,17 @@ impl WalkGrid {
             };
             out.plain(&self.walled_exits, pair)?;
             // [2c] The marked walks, when the grid has them (an empty table before the crouched walks).
-            if self.walk_marked.is_empty() && self.walk_crouched.is_empty() && self.riser.is_empty() && self.drop_lips.is_empty() && self.held_taken.is_empty() && self.drop_speed.is_empty() && self.line_tops.is_empty() && masks.is_empty() && self.run_ins.is_empty() {
+            if self.walk_marked.is_empty() && self.walk_crouched.is_empty() && self.riser.is_empty() && self.drop_lips.is_empty() && self.held_taken.is_empty() && self.drop_speed.is_empty() && self.line_tops.is_empty() && masks.is_empty() && self.run_ins.is_empty() && self.walk_lanes.is_empty() {
                 return Ok(());
             }
             out.plain(&self.walk_marked, pair)?;
             // [`Body::walk_ceiling_stalls`] The crouched walks, when the grid has them.
-            if self.walk_crouched.is_empty() && self.riser.is_empty() && self.drop_lips.is_empty() && self.held_taken.is_empty() && self.drop_speed.is_empty() && self.line_tops.is_empty() && masks.is_empty() && self.run_ins.is_empty() {
+            if self.walk_crouched.is_empty() && self.riser.is_empty() && self.drop_lips.is_empty() && self.held_taken.is_empty() && self.drop_speed.is_empty() && self.line_tops.is_empty() && masks.is_empty() && self.run_ins.is_empty() && self.walk_lanes.is_empty() {
                 return Ok(());
             }
             out.plain(&self.walk_crouched, pair)?;
             // [A385 rule (d)] The risers' presses, when the grid has them: from, to, press (as an off-mesh link's), share, a zero.
-            if self.riser.is_empty() && self.drop_lips.is_empty() && self.held_taken.is_empty() && self.drop_speed.is_empty() && self.line_tops.is_empty() && masks.is_empty() && self.run_ins.is_empty() {
+            if self.riser.is_empty() && self.drop_lips.is_empty() && self.held_taken.is_empty() && self.drop_speed.is_empty() && self.line_tops.is_empty() && masks.is_empty() && self.run_ins.is_empty() && self.walk_lanes.is_empty() {
                 return Ok(());
             }
             out.plain(&self.riser, |&(a, b, r)| {
@@ -3839,12 +3865,12 @@ impl WalkGrid {
                 bytes
             })?;
             // [A377] The lips by where the body stops, when the grid has them.
-            if self.drop_lips.is_empty() && self.held_taken.is_empty() && self.drop_speed.is_empty() && self.line_tops.is_empty() && masks.is_empty() && self.run_ins.is_empty() {
+            if self.drop_lips.is_empty() && self.held_taken.is_empty() && self.drop_speed.is_empty() && self.line_tops.is_empty() && masks.is_empty() && self.run_ins.is_empty() && self.walk_lanes.is_empty() {
                 return Ok(());
             }
             out.plain(&self.drop_lips, pair)?;
             // [A389] The floors `held_floors` took, as feet, when the grid has them (a log's only: not in the digest).
-            if self.held_taken.is_empty() && self.drop_speed.is_empty() && self.line_tops.is_empty() && masks.is_empty() && self.run_ins.is_empty() {
+            if self.held_taken.is_empty() && self.drop_speed.is_empty() && self.line_tops.is_empty() && masks.is_empty() && self.run_ins.is_empty() && self.walk_lanes.is_empty() {
                 return Ok(());
             }
             out.plain(&self.held_taken, |p| {
@@ -3855,7 +3881,7 @@ impl WalkGrid {
                 bytes
             })?;
             // [S6] The held floors' drops' landing speeds, when the grid has them: from, to, cm/s.
-            if self.drop_speed.is_empty() && self.line_tops.is_empty() && masks.is_empty() && self.run_ins.is_empty() {
+            if self.drop_speed.is_empty() && self.line_tops.is_empty() && masks.is_empty() && self.run_ins.is_empty() && self.walk_lanes.is_empty() {
                 return Ok(());
             }
             out.plain(&self.drop_speed, |&(a, b, v)| {
@@ -3866,20 +3892,31 @@ impl WalkGrid {
                 bytes
             })?;
             // [S3] The line tops, when the grid has them.
-            if self.line_tops.is_empty() && masks.is_empty() && self.run_ins.is_empty() {
+            if self.line_tops.is_empty() && masks.is_empty() && self.run_ins.is_empty() && self.walk_lanes.is_empty() {
                 return Ok(());
             }
             out.plain(&self.line_tops, |(f, t)| line_tops::LineTop::bytes(*f, t))?;
             // [F1b] The flown shares' neighbourhood masks ([`Self::share_masks`]), when any share is flown.
-            if masks.is_empty() && self.run_ins.is_empty() {
+            if masks.is_empty() && self.run_ins.is_empty() && self.walk_lanes.is_empty() {
                 return Ok(());
             }
             out.plain(&masks, |m| m.to_le_bytes())?;
             // [body physics S5b] The stored run-ins' steps ([`Self::run_in`]), when recorded.
-            if self.run_ins.is_empty() {
+            if self.run_ins.is_empty() && self.walk_lanes.is_empty() {
                 return Ok(());
             }
-            out.plain(&self.run_ins, |r| r.to_le_bytes())
+            out.plain(&self.run_ins, |r| r.to_le_bytes())?;
+            // [walk lane] The side-line walks, when the grid has them: from, to, the lane's byte.
+            if self.walk_lanes.is_empty() {
+                return Ok(());
+            }
+            out.plain(&self.walk_lanes, |&(a, b, lane)| {
+                let mut bytes = [0u8; 9];
+                bytes[..4].copy_from_slice(&a.to_le_bytes());
+                bytes[4..8].copy_from_slice(&b.to_le_bytes());
+                bytes[8] = lane.byte();
+                bytes
+            })
         }
     }
 
@@ -3990,6 +4027,7 @@ impl WalkGrid {
                             (word(0), word(4))
                         })?
                     },
+                    walk_lanes: Vec::new(),
                     walk_crouched: if input.ends() {
                         Vec::new()
                     } else {
@@ -4055,6 +4093,17 @@ impl WalkGrid {
                     return Err(format!("{} run-ins for {} off links", run_ins.len(), grid.off.len()));
                 }
                 grid.run_ins = run_ins;
+                // [walk lane] The side-line walks, when the file has them. A byte that is no lane makes a walk from a floor to
+                // itself, which `check` rejects.
+                if !input.ends() {
+                    grid.walk_lanes = input.plain(|bytes: [u8; 9]| {
+                        let word = |i: usize| u32::from_le_bytes([bytes[i], bytes[i + 1], bytes[i + 2], bytes[i + 3]]);
+                        match controlled::WalkLane::from_byte(bytes[8]) {
+                            Some(lane) => (word(0), word(4), lane),
+                            None => (word(0), word(0), controlled::WalkLane::Minus),
+                        }
+                    })?;
+                }
                 grid.check()?;
                 grid.body = build;
                 grid.warm();
@@ -4190,6 +4239,11 @@ impl WalkGrid {
         }
         if self.walk_crouched.iter().any(|&(a, b)| a as usize >= n || b as usize >= n) || self.walk_crouched.windows(2).any(|w| w[0] >= w[1]) {
             return Err("bad crouched walks".into());
+        }
+        if self.walk_lanes.iter().any(|&(a, b, _)| a as usize >= n || b as usize >= n || a == b)
+            || self.walk_lanes.windows(2).any(|w| (w[0].0, w[0].1) >= (w[1].0, w[1].1))
+        {
+            return Err("bad side-line walks".into());
         }
         if self.riser.iter().any(|&(a, b, _)| a as usize >= n || b as usize >= n || a == b)
             || self.riser.windows(2).any(|w| (w[0].0, w[0].1) >= (w[1].0, w[1].1))
@@ -4860,6 +4914,16 @@ impl WalkGrid {
             .collect();
         self.riser = riser;
         self.walk_crouched = crouched;
+        // [walk lane] The side-line walks still Walk links (one lane a link: the first a pass recorded).
+        let mut lanes: Vec<(NodeId, NodeId, controlled::WalkLane)> = wide
+            .lanes
+            .iter()
+            .copied()
+            .filter(|&(a, b, _)| (0..DIRS.len()).any(|d| wide.links[a as usize][d] == b && wide.kinds[a as usize][d] == LinkKind::Walk))
+            .collect();
+        lanes.sort_by_key(|&(a, b, _)| (a, b));
+        lanes.dedup_by_key(|&mut (a, b, _)| (a, b));
+        self.walk_lanes = lanes;
         // [A377] The lips by where the body stops, whose link is still there.
         let mut lips: Vec<(NodeId, NodeId)> = wide.lips.iter().copied().filter(|&(a, b)| wide.out(a as usize).any(|x| x == b)).collect();
         lips.sort_unstable();
@@ -4942,6 +5006,33 @@ impl WalkGrid {
     /// back ([`Body::walk_every_link`]): a body is likely held on it.
     pub fn walk_marked(&self, a: NodeId, b: NodeId) -> bool {
         self.walk_marked.binary_search(&(a, b)).is_ok()
+    }
+
+    /// [walk lane] The side line of the walk check the client's walk tick makes the Walk link `a` -> `b` from, when its centre
+    /// line it does not ([`controlled::WalkLane`]): a route walks the link on it.
+    pub fn walk_lane(&self, a: NodeId, b: NodeId) -> Option<controlled::WalkLane> {
+        self.walk_lanes.binary_search_by_key(&(a, b), |&(x, y, _)| (x, y)).ok().map(|i| self.walk_lanes[i].2)
+    }
+
+    /// [walk lane] This grid with `lanes` as its side-line walks ([`Self::walk_lane`]), for tests and tools that set them on a
+    /// grid built without the walk check: each must be a Walk link of the grid, one lane a link.
+    pub fn with_walk_lanes(mut self, mut lanes: Vec<(NodeId, NodeId, controlled::WalkLane)>) -> Result<Self, String> {
+        lanes.sort_by_key(|&(a, b, _)| (a, b));
+        if let Some(&(a, b, _)) = lanes.iter().find(|&&(a, b, _)| {
+            a as usize >= self.len() || !self.links(a).any(|(n, kind)| n == b && kind == LinkKind::Walk)
+        }) {
+            return Err(format!("{a} -> {b} is no Walk link"));
+        }
+        if lanes.windows(2).any(|w| (w[0].0, w[0].1) == (w[1].0, w[1].1)) {
+            return Err("two lanes for one link".into());
+        }
+        self.walk_lanes = lanes;
+        Ok(self)
+    }
+
+    /// [walk lane] How many Walk links are walked on a side line ([`Self::walk_lane`]).
+    pub fn walk_lane_count(&self) -> usize {
+        self.walk_lanes.len()
     }
 
     /// [`Body::walk_ceiling_stalls`] Whether the Walk link `a` -> `b` is one only a crouching body walks ([`WalkGait::Crouch`]).
@@ -5114,13 +5205,26 @@ impl WalkGrid {
                 }
             }
             match next {
-                Some((v, ni, nk)) if allowed(v) || v == b => {
+                // [bot traps, ledge line-up] A riser (a Walk link a sprint or a jump climbs: [`Self::riser`], or rising
+                // [`Body::walked_step`] or more) or a marked walk ([`Self::walk_marked`]) is no walk: a line over it is not walked
+                // straight, so the pull and the look-ahead stop at its foot.
+                Some((v, ni, nk)) if (allowed(v) || v == b) && !self.climbed_not_walked(node as NodeId, v) => {
                     (node, i, k) = (v as usize, ni, nk);
                 }
                 _ => return false,
             }
         }
         node == b as usize
+    }
+
+    /// [bot traps, ledge line-up] Whether the Walk link `a` -> `b` is one no walk crosses: a riser ([`Self::riser`], or rising
+    /// [`Body::walked_step`] or more: a sprint or a jump climbs it) or a marked walk ([`Self::walk_marked`]: the client's tick
+    /// does not walk it).
+    pub fn climbed_not_walked(&self, a: NodeId, b: NodeId) -> bool {
+        self.height[b as usize] - self.height[a as usize] >= self.body.walked_step()
+            || self.riser_of(a, b).is_some()
+            || self.walk_marked(a, b)
+            || self.walk_lane(a, b).is_some()
     }
 
     /// [`Self::links`], each with the way back from the floor it reaches
@@ -5457,20 +5561,27 @@ impl WalkGrid {
         let reach = (max_distance / self.cell).ceil() as i32;
         let mut best: Option<(NodeId, f32)> = None;
         for ring in 0..=reach {
+            // [bot CPU] M8: the ring's cells only, in the order the whole square was walked in (a row at a time, each row from
+            // its least column): the rows at the ring's edge whole, the others their two end cells; a tie keeps the first found.
             for dk in -ring..=ring {
-                for di in -ring..=ring {
-                    if di.abs() != ring && dk.abs() != ring {
-                        continue;
-                    }
+                let edge_row = dk.abs() == ring;
+                let step = if edge_row || ring == 0 { 1 } else { (2 * ring) as usize };
+                for di in (-ring..=ring).step_by(step) {
                     let Some(c) = self.cell_index(i + di, k + dk) else {
                         continue;
                     };
+                    // [bot CPU] M8: a cell's floors share its column and row: their place across is the cell's
+                    // ([`Self::position`]'s own sums, made once a cell, not once a floor).
+                    let (x, z) = (
+                        self.x0 + ((i + di) as f32 + 0.5) * self.cell,
+                        self.z0 + ((k + dk) as f32 + 0.5) * self.cell,
+                    );
                     for node in self.start[c]..self.start[c + 1] {
                         let h = self.height[node as usize];
                         if h > point.y + above || point.y - h > 2.5 {
                             continue;
                         }
-                        let p = self.position(node);
+                        let p = Vec3::new(x, h, z);
                         if p.distance_xz(point) > max_distance {
                             continue;
                         }
@@ -6200,6 +6311,91 @@ impl Open {
 pub(crate) mod tests {
     use super::*;
 
+    /// [bot CPU] M8: [`WalkGrid::locate_within`] as it was (every cell of the square, each floor's place from
+    /// [`WalkGrid::position`]): the reference the new one is held to.
+    fn locate_within_reference(grid: &WalkGrid, point: Vec3, max_distance: f32, above: f32) -> Option<NodeId> {
+        if !point.is_finite() {
+            return None;
+        }
+        let i = ((point.x - grid.x0) / grid.cell).floor() as i32;
+        let k = ((point.z - grid.z0) / grid.cell).floor() as i32;
+        let reach = (max_distance / grid.cell).ceil() as i32;
+        let mut best: Option<(NodeId, f32)> = None;
+        for ring in 0..=reach {
+            for dk in -ring..=ring {
+                for di in -ring..=ring {
+                    if di.abs() != ring && dk.abs() != ring {
+                        continue;
+                    }
+                    let Some(c) = grid.cell_index(i + di, k + dk) else {
+                        continue;
+                    };
+                    for node in grid.start[c]..grid.start[c + 1] {
+                        let h = grid.height[node as usize];
+                        if h > point.y + above || point.y - h > 2.5 {
+                            continue;
+                        }
+                        let p = grid.position(node);
+                        if p.distance_xz(point) > max_distance {
+                            continue;
+                        }
+                        let d = (p - point).length();
+                        if best.is_none_or(|(_, bd)| d < bd) {
+                            best = Some((node, d));
+                        }
+                    }
+                }
+            }
+            if let Some((_, d)) = best
+                && d <= ring as f32 * grid.cell
+            {
+                break;
+            }
+        }
+        best.map(|(node, _)| node)
+    }
+
+    /// [bot CPU] M8: the ring's cells alone, and the floors' place across from their cell, find the floor the whole
+    /// square and each floor's own place found, for points on, over, under, off and between floors of several storeys and on
+    /// the cells' edges and centres, at every reach and height asked (ties at the cell's spacing included).
+    #[test]
+    fn locate_within_is_the_reference_on_every_point_reach_and_height() {
+        let mut tris = Vec::new();
+        tris.extend(floor(0.0, 0.0, 30.0, 12.0, 0.0));
+        tris.extend(wall_x(15.0, 0.0, 5.0, 3.0));
+        tris.extend(floor(10.0, 8.0, 20.0, 12.0, 3.0));
+        tris.extend(floor(4.0, 2.0, 8.0, 6.0, 1.0));
+        tris.extend(floor(20.0, 1.0, 26.0, 7.0, 2.4));
+        let grid = WalkGrid::build(&tris, [0.0, 0.0, 30.0, 12.0], 0.25, Body::default());
+        let mut x = 0x2545_F491_4F6C_DD1Du64;
+        let mut next = move || {
+            x ^= x << 13;
+            x ^= x >> 7;
+            x ^= x << 17;
+            (x >> 11) as f32 / (1u64 << 53) as f32
+        };
+        let (mut checked, mut found) = (0, 0);
+        for n in 0..20_000 {
+            let mut point = Vec3::new(-2.0 + 34.0 * next(), -1.0 + 6.0 * next(), -2.0 + 16.0 * next());
+            // A share on the cells' edges and centres, where ties fall.
+            match n % 4 {
+                1 => point = Vec3::new((point.x * 4.0).round() / 4.0, point.y, (point.z * 4.0).round() / 4.0),
+                2 => point = Vec3::new((point.x * 4.0).floor() / 4.0 + 0.125, point.y, (point.z * 4.0).floor() / 4.0 + 0.125),
+                _ => {}
+            }
+            if n % 5 == 0 {
+                point.y = [0.0, 1.0, 2.4, 3.0][n % 4];
+            }
+            let max_distance = [0.01, 0.125, 0.2, 0.5, 1.0, 1.5, 3.0, 6.0][n % 8];
+            let above = [0.01, 0.3, 1.0, 2.0, 3.5][n % 5];
+            let want = locate_within_reference(&grid, point, max_distance, above);
+            assert_eq!(grid.locate_within(point, max_distance, above), want, "{point:?} {max_distance} {above}");
+            checked += 1;
+            found += usize::from(want.is_some());
+        }
+        assert!(found > checked / 3, "{found} of {checked} found a floor");
+    }
+
     /// Two 15 x 12 m rooms side by side, the wall between them at x = 15
     /// with a 2 m door at z 5-7.
     pub(crate) fn two_rooms() -> WalkGrid {
@@ -6512,6 +6708,39 @@ pub(crate) mod tests {
         let before = grid.digest();
         grid.off[0].walk = Some((gap::PressLead::from_metres(0.3), gap::Share::landed(4)));
         assert_ne!(grid.digest(), before, "the digest takes the walking mask, not only its count");
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    /// [walk lane] A written grid's side-line walks read back with their lanes (the last table, after no run-ins), the digest
+    /// takes them, and a file whose lane byte is no lane is refused.
+    #[test]
+    fn side_line_walks_read_back_and_a_bad_lane_is_refused() {
+        let dir = std::env::temp_dir().join(format!("srp-grid-lane-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join(crate::built::grid_file_name(7));
+        let mut grid = two_rooms();
+        let before = grid.digest();
+        grid.walk_lanes = vec![(0, 1, controlled::WalkLane::Plus), (2, 3, controlled::WalkLane::Minus)];
+        assert_ne!(grid.digest(), before, "the digest takes the lanes");
+        grid.write(&path, 7).unwrap();
+        let read = WalkGrid::read(&path, 7, Body::default()).unwrap();
+        assert_eq!(read.walk_lanes, grid.walk_lanes);
+        assert_eq!(read.walk_lane(0, 1), Some(controlled::WalkLane::Plus));
+        assert_eq!(read.walk_lane(1, 0), None);
+        assert_eq!(read.digest(), grid.digest());
+        let written = grid.digest();
+        grid.walk_lanes[1].2 = controlled::WalkLane::Plus;
+        assert_ne!(grid.digest(), written, "the digest takes each lane");
+        grid.walk_lanes[1].2 = controlled::WalkLane::Minus;
+        // The last lane's byte made no lane: refused.
+        let mut bytes = std::fs::read(&path).unwrap();
+        let at = bytes.windows(9).rposition(|w| w[..8] == [2, 0, 0, 0, 3, 0, 0, 0] && w[8] == 1).expect("the last record");
+        bytes[at + 8] = 7;
+        std::fs::write(&path, &bytes).unwrap();
+        assert!(WalkGrid::read(&path, 7, Body::default()).is_err());
+        // A grid with none writes and digests as before there were any.
+        grid.walk_lanes.clear();
+        assert_eq!(grid.digest(), before);
         let _ = std::fs::remove_dir_all(dir);
     }
 
@@ -7466,6 +7695,50 @@ pub(crate) mod tests {
         let mut ledge = floor(0.0, 0.0, 10.0, 10.0, 3.0).to_vec();
         ledge.extend(floor(10.0, 0.0, 24.0, 10.0, 0.0));
         assert_eq!(edge_drop(&ledge, 3.0), (true, true));
+    }
+
+    /// [bot traps, ledge line-up] A line over a 0.3 m step is walked straight; over the same Walk link marked
+    /// ([`WalkGrid::walk_marked`]) or in the risers' table ([`WalkGrid::riser`]) it is not: the pull and the look-ahead stop at
+    /// its foot.
+    #[test]
+    fn a_straight_line_stops_at_a_marked_walk_and_at_a_riser() {
+        let mut tris = floor(0.0, 0.0, 5.0, 10.0, 0.0).to_vec();
+        tris.extend(floor(5.0, 0.0, 10.0, 10.0, 0.3));
+        tris.extend(wall_x(5.0, 0.0, 10.0, 0.3));
+        let build = || WalkGrid::build(&tris, AREA, 0.25, Body::client());
+        let grid = build();
+        let at = |p: Vec3| grid.locate(p, 0.05).unwrap();
+        let (from, to) = (at(Vec3::new(3.875, 0.0, 5.125)), at(Vec3::new(6.125, 0.3, 5.125)));
+        let (low, top) = (at(Vec3::new(4.875, 0.0, 5.125)), at(Vec3::new(5.125, 0.3, 5.125)));
+        assert!(grid.walks_straight(from, to, 10.0, |_| true));
+        assert!(!grid.climbed_not_walked(low, top));
+        let mut marked = build();
+        marked.walk_marked = vec![(low, top)];
+        assert!(marked.climbed_not_walked(low, top));
+        assert!(!marked.walks_straight(from, to, 10.0, |_| true));
+        let mut riser = build();
+        riser.riser = vec![(low, top, Riser::NoPress)];
+        assert!(!riser.walks_straight(from, to, 10.0, |_| true));
+    }
+
+    /// [A334] A pulled leg past this thread's walk budget is [`PullWalk::Unknown`], not walked; with budget it is walked and the
+    /// answer kept, so a later look-up past the budget has it.
+    #[test]
+    fn a_pulled_leg_past_the_walk_budget_is_unknown() {
+        use super::controlled::{set_pull_walk_budget, PullWalk};
+        let mut tris = floor(0.0, 0.0, 5.0, 10.0, 0.0).to_vec();
+        tris.extend(floor(5.0, 0.0, 10.0, 10.0, 0.3));
+        tris.extend(wall_x(5.0, 0.0, 10.0, 0.3));
+        let grid = WalkGrid::build(&tris, AREA, 0.25, Body::client()).with_client_walker(&tris).with_pull_walk();
+        let at = |p: Vec3| grid.locate(p, 0.05).unwrap();
+        let (from, to) = (at(Vec3::new(3.875, 0.0, 5.125)), at(Vec3::new(6.125, 0.3, 5.125)));
+        set_pull_walk_budget(0);
+        assert_eq!(grid.pull_walk_verdict(from, to), PullWalk::Unknown);
+        set_pull_walk_budget(1_000);
+        let known = grid.pull_walk_verdict(from, to);
+        assert_ne!(known, PullWalk::Unknown);
+        set_pull_walk_budget(0);
+        assert_eq!(grid.pull_walk_verdict(from, to), known);
     }
 
     /// [A364 C2 rows 1, 38] With the clients' numbers a vertical riser up to the step (0.80) is a Walk link both ways (a

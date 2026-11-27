@@ -21,11 +21,13 @@
 //! get a press, 30,095 none.
 
 use super::controlled::walk_share;
-use super::rim::Riser;
+use super::memo::{Codec, Memo, MemoCodec, MemoInput, Mode, Site, StableIds, Windows};
+use super::rim::{gap_leads, Riser, OWN_TOP_FLAT_M};
 use super::{LinkKind, WalkGrid, Wide, DIRS, NONE};
 use crate::controller::tick::{Controller, Settings};
 use crate::motion::{self, ClientBody, Input, Kin, Pass};
 use crate::controller::Collision;
+use crate::digest::Digest128;
 use crate::math::Vec3;
 
 /// A link rising more than this is judged, m: the walk check's riser ([`super::controlled::CUT_RISE_M`]).
@@ -82,7 +84,7 @@ pub fn exe_walk(world: &Collision, s: &Settings, from: Vec3, to: Vec3) -> bool {
 
 /// A link's verdict ([`WalkGrid::walk_gait_links`]).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-enum Verdict {
+pub(super) enum GaitVerdict {
     /// The walk check's test walks it.
     #[default]
     Walks,
@@ -96,7 +98,7 @@ enum Verdict {
 
 impl WalkGrid {
     /// The low risers of `wide` judged (module documentation): the pressed ones join the risers' table, the others are marked.
-    pub(super) fn walk_gait_links(&self, wide: &mut Wide, world: &Collision, s: &Settings) -> WalkGaitStats {
+    pub(super) fn walk_gait_links(&self, wide: &mut Wide, world: &Collision, s: &Settings, memo: &mut Memo) -> WalkGaitStats {
         let walked = self.body.walked_step();
         let start = self.body.walk_start();
         let crouch = &wide.crouch;
@@ -115,34 +117,21 @@ impl WalkGrid {
                 }
             }
         }
-        let verdicts = super::controlled::parallel(&todo, |&(a, b, d)| {
-            let (pa, pb) = (self.position(a), self.position(b));
-            if walk_share(world, s, start, pa, pb).1 {
-                return Verdict::Walks;
-            }
-            // The exe's walk from the take-off's centre as the rig puts it (not moved out of the walls as the walk check's start).
-            if exe_walk(world, s, pa, pb) {
-                return Verdict::ExeWalks;
-            }
-            match self.walk_gait_press(world, s, a, b, d) {
-                Some(riser) => Verdict::Pressed(riser),
-                None => Verdict::Unwalked,
-            }
-        });
+        let verdicts = self.walk_gait_memo(world, s, start, &todo, memo);
         let mut stats = WalkGaitStats { judged: todo.len(), ..WalkGaitStats::default() };
         for (&(a, b, _), v) in todo.iter().zip(&verdicts) {
             match *v {
-                Verdict::Walks => {}
-                Verdict::ExeWalks => {
+                GaitVerdict::Walks => {}
+                GaitVerdict::ExeWalks => {
                     stats.unwalked += 1;
                     stats.exe_walked += 1;
                 }
-                Verdict::Pressed(riser) => {
+                GaitVerdict::Pressed(riser) => {
                     stats.unwalked += 1;
                     stats.pressed += 1;
                     wide.riser.push((a, b, riser));
                 }
-                Verdict::Unwalked => {
+                GaitVerdict::Unwalked => {
                     stats.unwalked += 1;
                     stats.marked += 1;
                     wide.marked.push((a, b));
@@ -154,6 +143,137 @@ impl WalkGrid {
         wide.marked.sort_unstable();
         wide.marked.dedup();
         stats
+    }
+
+    /// [body physics S6c] The verdicts of `todo` (take-off, top, way) through the memo's site `walk.gait` ([`walk_gait_job`]), each
+    /// at its link's place. Its window is the rim line site's ([`WalkGrid::flight_reach_m`]: the press flights read the floors
+    /// that far, the walks only the two floors' places); with the memo on, a press point or a flight past it stops the build.
+    fn walk_gait_memo(&self, world: &Collision, s: &Settings, start: super::controlled::WalkStart, todo: &[(u32, u32, usize)], memo: &mut Memo) -> Vec<GaitVerdict> {
+        let on = memo.mode() != Mode::Off;
+        let reach_m = self.flight_reach_m();
+        let window_cells = ((reach_m + self.body.radius + OWN_TOP_FLAT_M + self.cell) / self.cell).ceil() as i64;
+        let windows = on.then(|| Windows::of_floors(self));
+        let leads = gap_leads();
+        if on {
+            let n = crate::controller::jump::neighbourhood();
+            let press_m = leads.iter().copied().fold(0.0f32, f32::max)
+                + n.iter().map(|n| n.lead.abs()).fold(0.0f32, f32::max)
+                + n.iter().map(|n| n.side.abs()).fold(0.0f32, f32::max);
+            assert!(press_m <= reach_m, "memo: ERROR site walk.gait: a press point {press_m} m from its take-off, past the window's {reach_m} m");
+        }
+        let items: Vec<WalkGaitItem> = todo
+            .iter()
+            .map(|&(a, b, d)| WalkGaitItem {
+                a,
+                b,
+                d,
+                window: windows.as_ref().map_or(0, |w| w.around(self.cell_of[a as usize] as usize, window_cells)),
+            })
+            .collect();
+        let kits = crate::controller::jump::Kits { body: crate::controller::jump::WALK_CAP_MS, fastest: self.body.fastest_walk_cap };
+        let ctx = WalkGaitCtx { leads, kits, reach_m, window_cells, grid: self, world, s, start };
+        let site = Site { id: "walk.gait", source: crate::source::site("walk.gait") };
+        let out = memo.run(site, self, &ctx, &items, walk_gait_key, walk_gait_job);
+        if on {
+            let farthest = out.iter().map(|o| o.reach_m).fold(0.0f32, f32::max);
+            eprintln!("memo: walk.gait: {} links, the farthest flight {farthest:.2} m from its take-off (window {reach_m} m, {window_cells} cells)", out.len());
+            assert!(farthest <= reach_m, "memo: ERROR site walk.gait: a flight {farthest} m from its take-off, past the window's {reach_m} m");
+        }
+        out.into_iter().map(|o| o.verdict).collect()
+    }
+}
+
+/// [body physics S6c] One job of the memo site `walk.gait` ([`walk_gait_job`]): the low riser (take-off `a`, top `b`, way `d`)
+/// and the digest of the floors in its window ([`Windows::of_floors`]).
+#[derive(Clone, Debug)]
+pub(super) struct WalkGaitItem {
+    a: super::NodeId,
+    b: super::NodeId,
+    d: usize,
+    window: u128,
+}
+
+crate::memo_ctx! {
+    /// [body physics S6c] The walk gait site's context: the press leads, the walk caps, the reach and the window (hashed), and the
+    /// grid, the world, the tick's settings and the start, read through the items' windows and the memo's global inputs.
+    pub(super) struct WalkGaitCtx<'a> {
+        leads: Vec<f32>,
+        kits: crate::controller::jump::Kits,
+        reach_m: f32,
+        window_cells: i64,
+    } through {
+        grid: &'a WalkGrid,
+        world: &'a Collision,
+        s: &'a Settings,
+        start: super::controlled::WalkStart,
+    }
+}
+
+/// [body physics S6c] A walk gait job's result: the verdict, and how far from the take-off its press flights went (the window's
+/// check; 0 when no press was flown).
+#[derive(Clone, Copy, Debug, Default)]
+pub(super) struct WalkGaitOut {
+    verdict: GaitVerdict,
+    reach_m: f32,
+}
+
+/// [body physics S6c] The walk gait site's key of a job: its floors by their stable ids, its way and its window.
+fn walk_gait_key(_: &WalkGaitCtx<'_>, ids: &StableIds, item: &WalkGaitItem) -> u128 {
+    let mut d = Digest128::default();
+    ids.id(item.a).feed(&mut d);
+    ids.id(item.b).feed(&mut d);
+    d.u64(item.d as u64);
+    d.u128(item.window);
+    d.finish()
+}
+
+/// [body physics S6c] The walk gait site's job (module documentation's three steps): the walk check's test, the exe's walk, the
+/// risers' flight.
+fn walk_gait_job(ctx: &WalkGaitCtx<'_>, item: &WalkGaitItem) -> WalkGaitOut {
+    let grid = ctx.grid;
+    let (pa, pb) = (grid.position(item.a), grid.position(item.b));
+    if walk_share(ctx.world, ctx.s, ctx.start, pa, pb).1 {
+        return WalkGaitOut { verdict: GaitVerdict::Walks, reach_m: 0.0 };
+    }
+    // The exe's walk from the take-off's centre as the rig puts it (not moved out of the walls as the walk check's start).
+    if exe_walk(ctx.world, ctx.s, pa, pb) {
+        return WalkGaitOut { verdict: GaitVerdict::ExeWalks, reach_m: 0.0 };
+    }
+    let reach = std::cell::Cell::new(0.0f32);
+    let verdict = match grid.walk_gait_press(ctx.world, ctx.s, item.a, item.b, item.d, &reach) {
+        Some(riser) => GaitVerdict::Pressed(riser),
+        None => GaitVerdict::Unwalked,
+    };
+    WalkGaitOut { verdict, reach_m: reach.get() }
+}
+
+/// [body physics S6c] The walk gait site's results as the memo stores them: every field.
+impl MemoCodec for WalkGaitOut {
+    const TAG: u32 = 0x5747_4f01;
+    fn encode(&self, out: &mut Codec<'_>) {
+        match self.verdict {
+            GaitVerdict::Walks => out.put_u8(0),
+            GaitVerdict::ExeWalks => out.put_u8(1),
+            GaitVerdict::Unwalked => out.put_u8(2),
+            GaitVerdict::Pressed(Riser::Pressed { press, share }) => {
+                out.put_u8(3);
+                press.encode(out);
+                share.encode(out);
+            }
+            GaitVerdict::Pressed(Riser::NoPress) => out.put_u8(4),
+        }
+        out.put_f32(self.reach_m);
+    }
+    fn decode(input: &mut Codec<'_>) -> Option<Self> {
+        let verdict = match input.u8()? {
+            0 => GaitVerdict::Walks,
+            1 => GaitVerdict::ExeWalks,
+            2 => GaitVerdict::Unwalked,
+            3 => GaitVerdict::Pressed(Riser::Pressed { press: MemoCodec::decode(input)?, share: MemoCodec::decode(input)? }),
+            4 => GaitVerdict::Pressed(Riser::NoPress),
+            _ => return None,
+        };
+        Some(WalkGaitOut { verdict, reach_m: input.f32()? })
     }
 }
 
@@ -202,6 +322,76 @@ mod tests {
         assert_eq!(stats.walk_gait.unwalked, 0, "{:?}", stats.walk_gait);
         let (a, b) = (grid.locate(Vec3::new(4.875, 0.0, 3.125), 0.05).unwrap(), grid.locate(Vec3::new(5.125, 0.3, 3.125), 0.05).unwrap());
         assert_eq!(grid.link_gait(a, b), Some(WalkGait::Any));
+    }
+
+    /// [body physics S6c] The walk check and the walk gait through the memo build the full build's grid, written, used and
+    /// verified: the 0.3 m step (its low risers are judged) and a 0.5 m one (a riser the walk check walks by its wall), with the
+    /// walk check on every link.
+    #[test]
+    fn a_walk_memo_build_is_the_full_build() {
+        use crate::grid::memo::{Memo, Mode, SiteStats};
+        let body = Body { client_controller: true, walk_start_clear: true, walk_every_link: true, ..body() };
+        for top in [0.3f32, 0.5] {
+            let tris = step(top);
+            let start = [Vec3::new(1.0, 0.0, 3.0)];
+            let name = format!("walk-memo-{top}");
+            let dir = std::env::temp_dir().join(format!("srp-memo-{name}-{}", std::process::id()));
+            let build = |memo: &mut Memo| WalkGrid::build_kept_memo(&tris, None, [-2.0, 0.0, 12.0, 6.0], 0.25, body, &start, &start, OffMeshLinks::Gaps, memo).0;
+            let full_grid = build(&mut Memo::off());
+            let (full, full_off) = (full_grid.digest_full(), full_grid.off_links().to_vec());
+            let check = |memo: &Memo, grid: WalkGrid, what: &str, ok: &dyn Fn(&SiteStats) -> bool| {
+                assert_eq!(grid.digest_full(), full, "{name} {what}");
+                assert_eq!(grid.off_links(), &full_off[..], "{name} {what}: the off links in memory, every field");
+                for site in ["walk.link", "walk.gait"] {
+                    assert!(memo.stats.iter().any(|s| s.site == site && s.items > 0), "{name} {what}: site {site} ran with items: {:?}", memo.stats);
+                }
+                for s in &memo.stats {
+                    assert!(ok(s), "{name} {what}: {s:?}");
+                }
+            };
+            let mut written = Memo::new(Mode::WriteOnly, dir.clone(), 13);
+            let g = build(&mut written);
+            check(&written, g, "write-only", &|s| s.written == s.items && s.hits == 0);
+            let mut used = Memo::new(Mode::Use, dir.clone(), 13);
+            let g = build(&mut used);
+            check(&used, g, "use", &|s| s.hits == s.items && s.misses == 0 && s.errors == 0);
+            let mut verified = Memo::new(Mode::Verify { per_million: 1_000_000 }, dir.clone(), 13);
+            let g = build(&mut verified);
+            check(&verified, g, "verify=1", &|s| s.verified == s.items && s.errors == 0);
+            let _ = std::fs::remove_dir_all(dir);
+        }
+    }
+
+    /// [body physics S6c] The walk gait's whole job through the memo, its press path too: on a 1.2 m step the walk check's test
+    /// and the exe's walk do not get up, so the risers' flight is flown (exe_walk, walk_gait_press, best_press, riser_lands_on);
+    /// written, used and verified, the memo gives the job's own verdict.
+    #[test]
+    fn the_walk_gait_press_path_through_the_memo_is_the_job() {
+        use crate::grid::memo::{Memo, Mode};
+        let tris = step(1.2);
+        let start = [Vec3::new(1.0, 0.0, 3.0)];
+        let (grid, _) = WalkGrid::build_kept_with_links(&tris, [-2.0, 0.0, 12.0, 6.0], 0.25, body(), &start, &start, OffMeshLinks::Gaps);
+        let (a, b) = (grid.locate(Vec3::new(4.4, 0.0, 3.1), 0.6).expect("a floor before the step"), grid.locate(Vec3::new(5.6, 1.2, 3.1), 0.6).expect("a floor on its top"));
+        let d = DIRS.iter().position(|&dir| dir == (1, 0)).expect("the +x way");
+        let (caster, s) = grid.body.controller();
+        let world = Collision::build(&tris).with_caster(caster);
+        let start = grid.body.walk_start();
+        let todo = [(a, b, d)];
+        let full = grid.walk_gait_memo(&world, &s, start, &todo, &mut Memo::off());
+        assert!(matches!(full[0], GaitVerdict::Pressed(_) | GaitVerdict::Unwalked), "the press path ran: {full:?}");
+        let dir = std::env::temp_dir().join(format!("srp-memo-walk-gait-press-{}", std::process::id()));
+        for (mode, what) in [(Mode::WriteOnly, "write-only"), (Mode::Use, "use"), (Mode::Verify { per_million: 1_000_000 }, "verify=1")] {
+            let mut memo = Memo::new(mode, dir.clone(), 17);
+            assert_eq!(grid.walk_gait_memo(&world, &s, start, &todo, &mut memo), full, "{what}");
+            let site = memo.stats.iter().find(|st| st.site == "walk.gait").expect("the site ran");
+            let ok = match mode {
+                Mode::WriteOnly => site.written == 1,
+                Mode::Use => site.hits == 1 && site.errors == 0,
+                _ => site.verified == 1 && site.errors == 0,
+            };
+            assert!(ok, "{what}: {site:?}");
+        }
+        let _ = std::fs::remove_dir_all(dir);
     }
 
     /// A low riser in the risers' table (what the pass stores where a press lands) is climbed by a sprint or a jump.

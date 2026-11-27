@@ -1247,10 +1247,12 @@ fn drive_tick_inner(
             if at != asked {
                 bot.bench_why |= why::WALK_ON;
             }
-            let replan = bot
-                .route
-                .as_ref()
-                .is_none_or(|(_, planned)| planned.distance_xz(at) > REPLAN_MOVED_M);
+            // [pull unknown] A route cut back before a leg that failed ahead (`Bot::leg_cut`): planned again now, walked meanwhile.
+            let replan = bot.leg_cut.is_some()
+                || bot
+                    .route
+                    .as_ref()
+                    .is_none_or(|(_, planned)| planned.distance_xz(at) > REPLAN_MOVED_M);
             // [zones] A zone ahead on its route that is on when it gets
             // there (one that came on, or it is late): planned again.
             // On a crossing to this goal (`crossing.rs`): its zones' floors
@@ -2287,6 +2289,70 @@ fn drive_tick_inner(
             if let Some(line) = crossing::past_shuts_ended(&mut bot.features.crossing, route_goal, me.health, me.feet, time) {
                 bot.nav_log.push(super::nav_log::Kind::Route, time, line);
             }
+            // [pull unknown] The legs the route kept straight with no walk test: tested before the body walks them (the one it is
+            // on and the next), from the poll's walk budget. One failing ahead cuts the route back to its foot: the body walks on
+            // along the verified legs while a plan from it is made (`Bot::leg_cut`: a search due at once, the cut route kept
+            // meanwhile). One failing under the body ends the route; the body plans again from where it is, and stands meanwhile
+            // (no step on toward the leg's lip).
+            let leg_check = bot.route.as_mut().map(|(route, _)| route.verify_ahead(&mut |a, b| tactics.world.grid.pull_walk_verdict(a, b)));
+            // [pull unknown] A failing leg laid again in place from the search's own floors of it (`Route::relaid_leg`): the route
+            // goes on, no search. Only when it cannot be (no floors kept, no way between them) the handling below.
+            let relaid = match leg_check {
+                Some(path::LegCheck::FailsAhead { leg, from, to, .. }) | Some(path::LegCheck::FailsUnderBody { leg, from, to }) => {
+                    let under_body = matches!(leg_check, Some(path::LegCheck::FailsUnderBody { .. }));
+                    let grid = &tactics.world.grid;
+                    let laid = bot.route.as_ref().and_then(|(route, _)| route.relaid_leg(leg, grid, me.feet, &|a, b| grid.pull_walk_verdict(a, b)));
+                    match laid {
+                        Some(new) => {
+                            path::unverified::relaid(under_body);
+                            let line = format!(
+                                "nav: route leg {} -> {} unwalked by the client's walk ({}): laid again from its floors in place ({} points), walked on from {}",
+                                super::nav_log::at(from),
+                                super::nav_log::at(to),
+                                if under_body { "the body on it" } else { "ahead" },
+                                new.points().len(),
+                                super::nav_log::at(me.feet)
+                            );
+                            bot.nav_log.push(super::nav_log::Kind::Route, time, line);
+                            if let Some((route, _)) = bot.route.as_mut() {
+                                *route = new;
+                            }
+                            true
+                        }
+                        None => {
+                            path::unverified::relay_none();
+                            false
+                        }
+                    }
+                }
+                _ => false,
+            };
+            match leg_check.filter(|_| !relaid) {
+                Some(path::LegCheck::FailsAhead { from, to, start, .. }) => {
+                    if let Some((route, _)) = bot.route.as_mut() {
+                        route.cut_before(start);
+                    }
+                    bot.leg_cut = Some(time);
+                    let line = format!(
+                        "nav: route leg {} -> {} unwalked by the client's walk (ahead): route cut back to its foot, walked on while it plans again from {}",
+                        super::nav_log::at(from),
+                        super::nav_log::at(to),
+                        super::nav_log::at(me.feet)
+                    );
+                    bot.nav_log.push(super::nav_log::Kind::Route, time, line);
+                }
+                Some(path::LegCheck::FailsUnderBody { from, to, .. }) => {
+                    let line = format!(
+                        "nav: route leg {} -> {} unwalked by the client's walk (the body on it): planned again from {}",
+                        super::nav_log::at(from),
+                        super::nav_log::at(to),
+                        super::nav_log::at(me.feet)
+                    );
+                    bot.nav_log.push(super::nav_log::Kind::Route, time, line);
+                    bot.end_route(RouteEnd::LegUnwalked, time);
+                }
+                Some(path::LegCheck::Clear) | None => {}
+            }
             match bot.route.as_mut() {
                 Some((route, route_at)) => {
                     // `route_at` is the goal's `at`, copied unchanged where
@@ -2484,6 +2550,11 @@ fn drive_tick_inner(
                     if let Some((end, over)) = bot.motor.take_over_end() {
                         let line = super::nav_log::over_end_line(end, over, me.feet);
                         bot.nav_log.push_once(super::nav_log::Kind::Arrival, super::nav_log::key(("over end", end.x.to_bits(), end.y.to_bits(), end.z.to_bits())), time, line);
+                    }
+                    // [walk lane] On a Walk link walked on its side line (once a link).
+                    if let Some((from, to, lane)) = route.lane_walk_on() {
+                        let line = super::nav_log::lane_walk_line(from, to, lane, me.feet);
+                        bot.nav_log.push_once(super::nav_log::Kind::Route, super::nav_log::key(("lane walk", from.x.to_bits(), from.z.to_bits(), to.x.to_bits(), to.z.to_bits())), time, line);
                     }
                     // Pressing against something while walking the route: counted, nothing is decided from it.
                     let counted = bot.contact.tick(time, walks_the_route && walked == Walked::OnTheWay, decision.keys, me.speed());

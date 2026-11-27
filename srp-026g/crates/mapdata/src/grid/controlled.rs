@@ -26,6 +26,8 @@ use crate::controller::tick::{Controller, Settings, TickInput};
 use crate::controller::speed;
 use crate::controller::{Capsule, Collision, Shape};
 use crate::motion::{self, ClientBody, Input, Kin, Pass};
+use super::memo::{Codec, Memo, MemoCodec, MemoInput, Mode, Site, StableIds, Windows};
+use crate::digest::Digest128;
 
 /// The walk speed the controller is driven at, m/s (a run's root motion; over the client's 3 m/s floor).
 pub const WALK_MPS: f32 = 3.5;
@@ -38,6 +40,70 @@ pub const CHECK_REACH_M: f32 = 0.15;
 /// The lines the controller walks a leg on: from the floor's centre, and this far either side of it across the leg, m. A
 /// check fails, and a bridge is walked, only when every line does.
 pub const STARTS: [f32; 3] = [0.0, -0.1, 0.1];
+
+/// [walk lane] The side line of [`STARTS`] a checked Walk link was walked on when its centre line was not
+/// ([`WalkGrid::walk_lane`]): the client's walk tick makes the link only from there. batt-m3's floor 421325 (-38.78, 11.161,
+/// -7.295) up to 421323 (-39.03, 11.760, -7.295): the centre and the -0.1 m line stay at 11.1, the +0.1 m line goes up, on the
+/// port and on the exe alike (feed_steps_v2 on rig_real_v3, 6 of 6 lines equal); bots walking the centre pushed there at 0 m/s.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum WalkLane {
+    /// [`STARTS`]`[1]` across the link ([`link_side`]).
+    Minus,
+    /// [`STARTS`]`[2]` across the link.
+    Plus,
+}
+
+impl WalkLane {
+    /// The lane of a side line's offset (one of [`STARTS`] but the centre's).
+    fn of_offset(off: f32) -> Option<Self> {
+        if off == STARTS[1] {
+            Some(Self::Minus)
+        } else if off == STARTS[2] {
+            Some(Self::Plus)
+        } else {
+            None
+        }
+    }
+
+    /// How far across the link ([`link_side`]) the line runs, m.
+    pub fn offset_m(self) -> f32 {
+        match self {
+            Self::Minus => STARTS[1],
+            Self::Plus => STARTS[2],
+        }
+    }
+
+    /// The file's byte.
+    pub fn byte(self) -> u8 {
+        match self {
+            Self::Minus => 1,
+            Self::Plus => 2,
+        }
+    }
+
+    /// The lane of a file's byte; None for any other.
+    pub fn from_byte(b: u8) -> Option<Self> {
+        match b {
+            1 => Some(Self::Minus),
+            2 => Some(Self::Plus),
+            _ => None,
+        }
+    }
+
+    /// The line's ends for the link from `from` to `to`: both moved [`Self::offset_m`] across it.
+    pub fn line(self, from: Vec3, to: Vec3) -> (Vec3, Vec3) {
+        let side = link_side(from, to);
+        (from + side * self.offset_m(), to + side * self.offset_m())
+    }
+}
+
+/// The unit vector across a link from `from` to `to` on the ground plane that [`STARTS`]' offsets move its lines along (zero
+/// for a link with no flat length).
+pub fn link_side(from: Vec3, to: Vec3) -> Vec3 {
+    let flat = Vec3::new(to.x - from.x, 0.0, to.z - from.z);
+    let l = flat.length();
+    if l > 1e-4 { Vec3::new(-flat.z / l, 0.0, flat.x / l) } else { Vec3::ZERO }
+}
 /// The body is at the target when its feet are this near it flat and this near it in height, m.
 const AT_FLAT_M: f32 = 0.15;
 const AT_HEIGHT_M: f32 = 0.2;
@@ -88,6 +154,11 @@ pub struct ControlledStats {
 type Held = Vec<(NodeId, NodeId)>;
 /// [`Body::walk_ceiling_stalls`] The Walk links the walk check passes only crouched, as (from, to).
 type Crouched = Vec<(u32, u32)>;
+/// [walk lane] The Walk links the walk check passed only on a side line, as (from, to, lane).
+type Lanes = Vec<(u32, u32, WalkLane)>;
+/// [`WalkGrid::walk_every_link`]'s answer: the stats, the failing links (floor, direction, share), the held, the crouched and
+/// the side-line walks.
+type WalkEveryLink = (ControlledStats, Vec<(u32, usize, f32)>, Held, Crouched, Lanes);
 
 /// [2c] One walk check's answer ([`WalkGrid::walk_link`]).
 #[derive(Clone, Copy, Debug, Default)]
@@ -102,6 +173,80 @@ struct LinkWalk {
     /// [`Body::walk_ceiling_stalls`]: how many of the passing lines arrived only crouched (the standing body refused under a low
     /// ceiling, walked again crouched).
     crouched: usize,
+    /// [walk lane] The first side line that arrived when the centre line did not ([`WalkLane`]); None when the centre arrived
+    /// or no line did.
+    lane: Option<WalkLane>,
+}
+
+/// [body physics S6c] The walk check's results as the memo stores them: every field. 02: [walk lane] the lane.
+impl MemoCodec for LinkWalk {
+    const TAG: u32 = 0x574c_4b02;
+    fn encode(&self, out: &mut Codec<'_>) {
+        self.passes.encode(out);
+        out.put_f32(self.share);
+        self.chain_failed.encode(out);
+        out.put_u32(u32::try_from(self.refused).expect("a link's lines fit 32 bits"));
+        out.put_u32(u32::try_from(self.crouched).expect("a link's lines fit 32 bits"));
+        out.put_u32(u32::from(self.lane.map_or(0, WalkLane::byte)));
+    }
+    fn decode(input: &mut Codec<'_>) -> Option<Self> {
+        Some(LinkWalk {
+            passes: bool::decode(input)?,
+            share: input.f32()?,
+            chain_failed: bool::decode(input)?,
+            refused: input.u32()? as usize,
+            crouched: input.u32()? as usize,
+            lane: match input.u32()? {
+                0 => None,
+                b => Some(WalkLane::from_byte(u8::try_from(b).ok()?)?),
+            },
+        })
+    }
+}
+
+/// [body physics S6c] One job of the walk check's memo site `walk.link` ([`walk_link_job`]): the link's floors (from `a` to `b`,
+/// and `before`, the floor of the Walk link into `a` along the same way, the chained walk's start) and the digest of the floors in
+/// its window ([`Windows::of_floors`], [`WALK_LINK_WINDOW_CELLS`] about `a`'s cell). The job reads the grid only through those
+/// floors' places and rooms ([`WalkGrid::position`], [`WalkGrid::stance`]); the world, the body and the tick's settings are the
+/// memo's global inputs.
+#[derive(Clone, Debug)]
+pub(super) struct WalkLinkItem {
+    a: NodeId,
+    b: NodeId,
+    before: Option<NodeId>,
+    window: u128,
+}
+
+/// [body physics S6c] The cells about the take-off's cell a walk check's window holds: the link's floors are its own and its
+/// neighbours' ([`DIRS`] is one cell over), checked as the items are made.
+const WALK_LINK_WINDOW_CELLS: i64 = 1;
+
+crate::memo_ctx! {
+    /// [body physics S6c] The walk check site's context: the window (hashed), and the grid, the world, the tick's settings and the
+    /// start (the body's, [`Body::walk_start`]), read through the items' windows and the memo's global inputs.
+    pub(super) struct WalkLinkCtx<'a> {
+        window_cells: i64,
+    } through {
+        grid: &'a WalkGrid,
+        world: &'a Collision,
+        s: &'a Settings,
+        start: WalkStart,
+    }
+}
+
+/// [body physics S6c] The walk check site's key of a job: its floors by their stable ids and its window.
+fn walk_link_key(_: &WalkLinkCtx<'_>, ids: &StableIds, item: &WalkLinkItem) -> u128 {
+    let mut d = Digest128::default();
+    ids.id(item.a).feed(&mut d);
+    ids.id(item.b).feed(&mut d);
+    item.before.map(|q| ids.id(q)).feed(&mut d);
+    d.u128(item.window);
+    d.finish()
+}
+
+/// [body physics S6c] The walk check site's job: [`WalkGrid::walk_link_floors`] of the item's floors.
+fn walk_link_job(ctx: &WalkLinkCtx<'_>, item: &WalkLinkItem) -> LinkWalk {
+    ctx.grid.walk_link_floors(ctx.world, ctx.s, ctx.start, item.a as usize, item.b as usize, item.before.map(|q| q as usize))
 }
 
 /// [2c] A face no body walks on within this of a floor's capsule makes its links walked ([`Body::walk_every_link`]), m: the
@@ -166,14 +311,25 @@ pub(crate) fn out_of_walls(world: &Collision, feet: Vec3) -> Vec3 {
     at
 }
 
+/// [A334] What [`WalkGrid::pull_walk_verdict`] knows of a pulled leg.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum PullWalk {
+    /// The client's walk tick walks it (or the switch is off).
+    Walks,
+    /// It does not.
+    Fails,
+    /// Not walked now: this thread's budget is spent ([`set_pull_walk_budget`]). A pull does not take the leg straight.
+    Unknown,
+}
+
 thread_local! {
-    /// [A334] [`WalkGrid::pull_walk_fails`]'s answers by (the grid's number, from, to): a pure function of that grid's floors,
+    /// [A334] [`WalkGrid::pull_walk_verdict`]'s answers by (the grid's number, from, to): a pure function of that grid's floors,
     /// walker and body, so caching changes no answer. Cleared at [`PULL_WALKS_MAX`] entries.
     static PULL_WALKS: std::cell::RefCell<std::collections::HashMap<(u64, NodeId, NodeId), bool>> =
         std::cell::RefCell::new(std::collections::HashMap::new());
 }
 
-/// [A334] This thread's budget of walk ticks for [`WalkGrid::pull_walk_fails`]: set by the bots' poll each tick
+/// [A334] This thread's budget of walk ticks for [`WalkGrid::pull_walk_verdict`]: set by the bots' poll each tick
 /// ([`set_pull_walk_budget`]), so the worst tick's walk work is bounded (a long route's pull back ran hundreds of walks of
 /// up to 68 ticks each in one poll: 13 s). Empty until first set: a walk outside a poll is not run.
 #[derive(Clone, Copy, Default)]
@@ -618,7 +774,7 @@ impl WalkGrid {
         self
     }
 
-    /// [A334] The grid with the routes' pulled legs walked by the client's walker ([`Self::pull_walk_fails`]); it needs the
+    /// [A334] The grid with the routes' pulled legs walked by the client's walker ([`Self::pull_walk_verdict`]); it needs the
     /// walker ([`Self::with_client_walker`]), and without it nothing fails.
     pub fn with_pull_walk(mut self) -> Self {
         static NEXT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
@@ -631,23 +787,26 @@ impl WalkGrid {
         self.pull_walk.is_some()
     }
 
-    /// [A334] Whether a route's straight leg from floor `a` to floor `b` is one the client's walk tick does not walk: the
-    /// controller pass's walk test ([`walk_share`]: a standing body from `a`'s centre at the walk speed, with the exe's
-    /// collision rules) with the grid's walker. False without [`Self::with_pull_walk`] or the walker.
-    pub fn pull_walk_fails(&self, a: NodeId, b: NodeId) -> bool {
-        let (Some(id), Some(world)) = (self.pull_walk, self.walker.as_deref()) else { return false };
+    /// [A334] Whether the client's walk tick walks a route's straight leg from floor `a` to floor `b`: the controller pass's walk
+    /// test ([`walk_share`]: a standing body from `a`'s centre at the walk speed, with the exe's collision rules) with the grid's
+    /// walker ([`PullWalk`]). [`PullWalk::Walks`] without [`Self::with_pull_walk`] or the walker (the switch off); [`PullWalk::Unknown`]
+    /// past this thread's budget ([`set_pull_walk_budget`]): the leg is not walked now and nothing is kept, so a later pull walks it.
+    /// Before, a leg past the budget read as walked, and a route could keep a leg the client does not walk (level_06 day 4's
+    /// (62.03, 33.59, 120.24) -> (62.10, 34.10, 120.62): the bots held forward 4 s and more, the exe's tick gets up at neither the
+    /// walk nor the sprint; the budget is 40 ticks a poll for all bots of the match).
+    pub fn pull_walk_verdict(&self, a: NodeId, b: NodeId) -> PullWalk {
+        let (Some(id), Some(world)) = (self.pull_walk, self.walker.as_deref()) else { return PullWalk::Walks };
         // The answer is the floors' own (the walker and the body are the grid's): kept per thread by the grid's number and the
         // floors, so a leg pulled again (most are: the same ways are planned again and again) costs a look-up.
         let key = (id, a, b);
-        if let Some(known) = PULL_WALKS.with(|c| c.borrow().get(&key).copied()) {
-            return known;
+        if let Some(fails) = PULL_WALKS.with(|c| c.borrow().get(&key).copied()) {
+            return if fails { PullWalk::Fails } else { PullWalk::Walks };
         }
-        // The walk's ticks at most (as [`walk_share`] counts them), taken from this thread's budget up front: past the budget
-        // the leg is not walked now (it walks, as with the switch off) and nothing is kept, so a later pull walks it.
+        // The walk's ticks at most (as [`walk_share`] counts them), taken from this thread's budget up front.
         let (pa, pb) = (self.position(a), self.position(b));
         let ticks = (Vec3::new(pb.x - pa.x, 0.0, pb.z - pa.z).length() / (WALK_MPS * 0.05)).ceil() as u32 + 2;
         if !take_pull_walk(ticks) {
-            return false;
+            return PullWalk::Unknown;
         }
         let (_, s) = self.body.controller();
         let fails = !walk_share(world, &s, self.body.walk_start(), pa, pb).1;
@@ -658,7 +817,7 @@ impl WalkGrid {
             }
             c.insert(key, fails);
         });
-        fails
+        if fails { PullWalk::Fails } else { PullWalk::Walks }
     }
 
     /// [A318] The heap [`Self::with_client_walker`] keeps, bytes (0 without it).
@@ -745,6 +904,7 @@ impl WalkGrid {
         wide: &mut Wide,
         triangles: &[Triangle],
         shapes: Option<&Collision>,
+        memo: &mut Memo,
     ) -> (ControlledStats, Vec<(u32, usize, f32)>) {
         let body = self.body;
         let (caster, s) = body.controller();
@@ -861,11 +1021,14 @@ impl WalkGrid {
         }
         wide.off.sort_by_key(|l| (l.from, l.to));
         if body.walk_every_link {
-            let (stats, failing, held, mut crouch) = self.walk_every_link(wide, world, s, start, stats);
+            let (stats, failing, held, mut crouch, mut lanes) = self.walk_every_link(wide, world, s, start, stats, memo);
             // The risers with no walking way round stay, marked (the caller marks the cut's kept ones beside them).
             wide.marked = held;
             crouch.sort_unstable();
             wide.crouch = crouch;
+            // [walk lane] The links walked only on a side line, with it (a cut one leaves the table when the grid is made).
+            lanes.sort_unstable();
+            wide.lanes = lanes;
             return (stats, failing);
         }
         // Checks: the floors with a face no body walks on near their capsule.
@@ -911,7 +1074,8 @@ impl WalkGrid {
         s: &Settings,
         start: WalkStart,
         mut stats: ControlledStats,
-    ) -> (ControlledStats, Vec<(u32, usize, f32)>, Held, Crouched) {
+        memo: &mut Memo,
+    ) -> WalkEveryLink {
         let n = self.height.len();
         let floors: Vec<usize> = (0..n).collect();
         let near = parallel(&floors, |&a| {
@@ -933,7 +1097,7 @@ impl WalkGrid {
         }
         stats.checks = checks.len();
         stats.checks_crouched = checks.iter().filter(|&&(a, d)| self.stance(a, wide.links[a][d] as usize) == Stance::Crouched).count();
-        let walked = parallel(&checks, |&(a, d)| self.walk_link(wide, world, s, start, a, d));
+        let walked = self.walk_links_memo(wide, world, s, start, &checks, memo);
         // [`Body::walk_ceiling_stalls`]: the passing links two of whose lines arrived only crouched: a route crosses them crouched.
         let crouch: Vec<(u32, u32)> = if self.body.walk_ceiling_stalls {
             checks
@@ -945,6 +1109,8 @@ impl WalkGrid {
         } else {
             Vec::new()
         };
+        // [walk lane] The links whose centre line the client's tick does not walk and a side line it does.
+        let lanes: Lanes = checks.iter().zip(&walked).filter_map(|(&(a, d), w)| Some((a as u32, wide.links[a][d], w.lane?))).collect();
         stats.checks_chain_failed = walked.iter().filter(|w| w.chain_failed).count();
         stats.checks_failed_crouched = checks
             .iter()
@@ -972,7 +1138,7 @@ impl WalkGrid {
         let (round, held): (Vec<_>, Vec<_>) = failing.into_iter().zip(other_way).partition(|&(_, round)| round);
         stats.checks_no_way_round = held.len();
         let held = held.into_iter().map(|((a, d, _), _)| (a, wide.links[a as usize][d])).collect();
-        (stats, round.into_iter().map(|(f, _)| f).collect(), held, crouch)
+        (stats, round.into_iter().map(|(f, _)| f).collect(), held, crouch, lanes)
     }
 
     /// [given-back walks] The Walk links the wall give-back made ([`Body::wall_give_back`]: out of each given-back floor, and
@@ -1021,6 +1187,9 @@ impl WalkGrid {
             (0..n).flat_map(|a| (0..8).map(move |d| (a, d))).filter(|&(a, d)| made(a, d) && self.walk_checked(a, wide.links[a][d] as usize, &near)).collect();
         stats.given_back_checks = checks.len();
         let walked = parallel(&checks, |&(a, d)| self.walk_link(wide, world, s, start, a, d));
+        // [walk lane] Their side-line walks too, as the walk check's.
+        wide.lanes.extend(checks.iter().zip(&walked).filter_map(|(&(a, d), w)| Some((a as u32, wide.links[a][d], w.lane?))));
+        wide.lanes.sort_unstable();
         let failing: Vec<(u32, usize, f32)> = checks.iter().zip(walked).filter(|(_, w)| !w.passes).map(|(&(a, d), w)| (a as u32, d, w.share)).collect();
         let cut: std::collections::HashSet<(u32, u32)> = failing.iter().map(|&(a, d, _)| (a, wide.links[a as usize][d])).collect();
         let other_way = parallel(&failing, |&(a, d, _)| self.walk_way_round(wide, a, wide.links[a as usize][d], &cut));
@@ -1035,6 +1204,45 @@ impl WalkGrid {
         wide.marked.extend(marked);
         wide.marked.sort_unstable();
         wide.marked.dedup();
+    }
+
+    /// [body physics S6c] The walk checks of `checks` (a floor and a direction each, [`Self::walk_link`]) through the memo's site
+    /// `walk.link` ([`walk_link_job`]), each result at its check's place. With the memo on, a link's floor outside the window of
+    /// its take-off's cell stops the build: the window would not hold every floor its job read.
+    fn walk_links_memo(
+        &self,
+        wide: &Wide,
+        world: &Collision,
+        s: &Settings,
+        start: WalkStart,
+        checks: &[(usize, usize)],
+        memo: &mut Memo,
+    ) -> Vec<LinkWalk> {
+        let on = memo.mode() != Mode::Off;
+        let windows = on.then(|| Windows::of_floors(self));
+        let nx = self.nx.max(1) as i64;
+        let within = |a: usize, n: usize| {
+            let (ca, cn) = (self.cell_of[a] as i64, self.cell_of[n] as i64);
+            (ca % nx - cn % nx).abs() <= WALK_LINK_WINDOW_CELLS && (ca / nx - cn / nx).abs() <= WALK_LINK_WINDOW_CELLS
+        };
+        let items: Vec<WalkLinkItem> = checks
+            .iter()
+            .map(|&(a, d)| {
+                let (b, before) = Self::link_floors(wide, a, d);
+                if on {
+                    assert!(
+                        within(a, b) && before.is_none_or(|q| within(a, q)),
+                        "memo: ERROR site walk.link: a floor of the link {a} -> {b} (before {before:?}) outside its window of \
+                         {WALK_LINK_WINDOW_CELLS} cells"
+                    );
+                }
+                let window = windows.as_ref().map_or(0, |w| w.around(self.cell_of[a] as usize, WALK_LINK_WINDOW_CELLS));
+                WalkLinkItem { a: a as NodeId, b: b as NodeId, before: before.map(|q| q as NodeId), window }
+            })
+            .collect();
+        let ctx = WalkLinkCtx { window_cells: WALK_LINK_WINDOW_CELLS, grid: self, world, s, start };
+        let site = Site { id: "walk.link", source: crate::source::site("walk.link") };
+        memo.run(site, self, &ctx, &items, walk_link_key, walk_link_job)
     }
 
     /// [2c] Whether a walking way leads from `a` to `b` within [`ROUND_HOPS`] links without the links `cut` (Walk links only).
@@ -1088,6 +1296,13 @@ impl WalkGrid {
     /// the walks that got 90 % of the way and did not arrive within 0.2 m, 178,181 of 182,878 stood 0.2-0.8 m over the far
     /// floor, a few hundred higher; asking for 0.2 m cut 52,383 links, 17 times the old check's 3,031.
     fn walk_link(&self, wide: &Wide, world: &Collision, s: &Settings, start: WalkStart, a: usize, d: usize) -> LinkWalk {
+        let (b, before) = Self::link_floors(wide, a, d);
+        self.walk_link_floors(world, s, start, a, b, before)
+    }
+
+    /// [body physics S6c] The floors [`Self::walk_link`] walks for the link out of `a` along `d`: its far floor, and the floor of the
+    /// Walk link into `a` along the same way (the chained walk's start), when `a`'s link back along it is that link's reverse.
+    fn link_floors(wide: &Wide, a: usize, d: usize) -> (usize, Option<usize>) {
         let b = wide.links[a][d] as usize;
         let back = wide.links[a][d ^ 1];
         let before = (back != NONE
@@ -1095,14 +1310,20 @@ impl WalkGrid {
             && wide.links[back as usize][d] == a as u32
             && wide.kinds[back as usize][d] == LinkKind::Walk)
             .then_some(back as usize);
+        (b, before)
+    }
+
+    /// [body physics S6c] [`Self::walk_link`] of the link from `a` to `b`, `before` the chained walk's start: it reads the grid
+    /// only through these floors' places and rooms (the memo site `walk.link`'s window).
+    fn walk_link_floors(&self, world: &Collision, s: &Settings, start: WalkStart, a: usize, b: usize, before: Option<usize>) -> LinkWalk {
         let stance = match before {
             Some(q) if self.stance(q, a) == Stance::Crouched => Stance::Crouched,
             _ => self.stance(a, b),
         };
         let (pa, pb) = (self.position(a as NodeId), self.position(b as NodeId));
-        let flat = Vec3::new(pb.x - pa.x, 0.0, pb.z - pa.z);
-        let l = flat.length();
-        let side = if l > 1e-4 { Vec3::new(-flat.z / l, 0.0, flat.x / l) } else { Vec3::ZERO };
+        let side = link_side(pa, pb);
+        // [walk lane] Whether the centre line arrived, and the first side line that did.
+        let (mut centre_arrived, mut lane) = (false, None);
         // [`Body::walk_ceiling_stalls`]: a refusal under a low ceiling is the client's own stall, not a pass.
         let stalls = self.body.walk_ceiling_stalls;
         let arrives = |w: Walked| matches!(w, Walked::At | Walked::AtEnd(_)) || (w == Walked::Ceiling && !stalls);
@@ -1153,6 +1374,12 @@ impl WalkGrid {
                     || arrives(walk_on(world, s, &mut c, line, from, to, SPARE_TICKS, self.body.step))
             });
             if chained {
+                match WalkLane::of_offset(off) {
+                    None => centre_arrived = true,
+                    Some(side_line) => {
+                        lane = lane.or(Some(side_line));
+                    }
+                }
                 lines += 1;
                 crouched += only_crouched as usize;
                 // Two lines pass: the link passes whatever the third does (its share counts only for a failing link).
@@ -1163,7 +1390,14 @@ impl WalkGrid {
                 chain_failed = true;
             }
         }
-        LinkWalk { passes: lines >= 2, share, chain_failed: chain_failed && lines < 2, refused, crouched }
+        LinkWalk {
+            passes: lines >= 2,
+            share,
+            chain_failed: chain_failed && lines < 2,
+            refused,
+            crouched,
+            lane: lane.filter(|_| !centre_arrived),
+        }
     }
 
     /// How many bridges of `all` are side by side with the bridge `a` -> `b`, it included, counted out to [`BRIDGE_MIN_RUN`]
@@ -1494,6 +1728,71 @@ mod tests {
         let (low, stats) = build(0.65);
         assert_eq!(low.walk_crouched_count(), 0, "{:?}", stats.controlled);
         assert!(low.reached(low.locate(Vec3::new(8.0, 0.65, 3.0), 0.3).expect("the top")));
+    }
+
+    /// [walk lane] batt-m3 (level_03 day_2): the Walk link from floor 421325 (-38.78, 11.161, -7.295) up to 421323 (-39.03,
+    /// 11.760, -7.295). On the map's own shapes the walk check's centre line and its z -7.395 line stay under the riser and its
+    /// z -7.195 line goes up, as the exe's tick does on each (feed_steps_v2 on rig_real_v3, every line equal to the port): that
+    /// line is [`WalkLane::Minus`] of the link, and the check's lane is it.
+    #[test]
+    #[ignore = "needs SRP_MAPDATA_DIR (the map files with their shapes)"]
+    fn a_walk_made_only_from_a_side_line_records_that_line() {
+        let Some(dir) = std::env::var_os("SRP_MAPDATA_DIR").map(std::path::PathBuf::from) else {
+            eprintln!("skipping: SRP_MAPDATA_DIR is not set");
+            return;
+        };
+        let map = crate::MapData::from_bytes(&std::fs::read(dir.join("level_03_day_2.mapdata")).unwrap()).unwrap();
+        let world = Collision::build_exe(&map).unwrap();
+        // The bench's grid body's walk: the exe's collision (its wall normals by rays, the start witness) and the clear start.
+        let body = Body { exe_collision: true, start_witness: true, walk_start_clear: true, ..Body::client() };
+        let (_, s) = body.controller();
+        let (pa, pb) = (Vec3::new(-38.78, 11.161, -7.295), Vec3::new(-39.03, 11.760, -7.295));
+        let walk = |(from, to): (Vec3, Vec3)| {
+            let mut c = put_at(&world, body.walk_start(), Stance::Standing, from, yaw_toward(from, to));
+            walk_on(&world, &s, &mut c, Stance::Standing, from, to, SPARE_TICKS, body.step)
+        };
+        let up = |w: Walked| matches!(w, Walked::At | Walked::AtEnd(_));
+        let centre = walk((pa, pb));
+        assert!(!up(centre), "centre: {centre:?}");
+        let (minus, plus) = (WalkLane::Minus.line(pa, pb), WalkLane::Plus.line(pa, pb));
+        assert!((minus.0.z - -7.195).abs() < 1e-4 && (plus.0.z - -7.395).abs() < 1e-4, "{minus:?} {plus:?}");
+        assert!(up(walk(minus)), "z -7.195: {:?}", walk(minus));
+        assert!(!up(walk(plus)), "z -7.395: {:?}", walk(plus));
+        // The lane the walk check keeps for the link, and its line for the route: its first side line that arrived.
+        let lines: Vec<(f32, bool)> = STARTS.iter().map(|&off| (off, up(walk((pa + link_side(pa, pb) * off, pb + link_side(pa, pb) * off))))).collect();
+        let lane = if lines[0].1 { None } else { lines.iter().find(|l| l.1).and_then(|l| WalkLane::of_offset(l.0)) };
+        assert_eq!(lane, Some(WalkLane::Minus));
+    }
+
+    /// [walk lane] A link's lanes are its two side lines of [`STARTS`], across the link; the memo stores a check's lane.
+    #[test]
+    fn a_links_lanes_are_its_side_lines_and_the_memo_keeps_them() {
+        let (a, b) = (Vec3::new(0.0, 1.0, 0.0), Vec3::new(-0.25, 1.6, 0.0));
+        assert_eq!(link_side(a, b), Vec3::new(0.0, 0.0, -1.0));
+        for (lane, off) in [(WalkLane::Minus, STARTS[1]), (WalkLane::Plus, STARTS[2])] {
+            assert_eq!(WalkLane::of_offset(off), Some(lane));
+            assert_eq!(WalkLane::from_byte(lane.byte()), Some(lane));
+            let (f, t) = lane.line(a, b);
+            assert_eq!((f, t), (a + link_side(a, b) * off, b + link_side(a, b) * off));
+        }
+        assert_eq!(WalkLane::of_offset(STARTS[0]), None);
+        assert_eq!(WalkLane::from_byte(0), None);
+        let (p, q, r) = (Vec3::new(0.0, 0.0, 0.0), Vec3::new(4.0, 0.0, 0.0), Vec3::new(4.0, 0.0, 4.0));
+        let tris = [
+            Triangle { v: [p, q, r], walker: WalkerBehaviour::BySlope },
+            Triangle { v: [p, r, Vec3::new(0.0, 0.0, 4.0)], walker: WalkerBehaviour::BySlope },
+        ];
+        let g = WalkGrid::build(&tris, [0.0, 0.0, 4.0, 4.0], 0.25, Body::default());
+        let ids = StableIds::of(&g).expect("stable floor names");
+        for lane in [None, Some(WalkLane::Minus), Some(WalkLane::Plus)] {
+            let w = LinkWalk { passes: false, share: 1.0, chain_failed: false, refused: 0, crouched: 0, lane };
+            let mut out = Codec::writer(&ids);
+            w.encode(&mut out);
+            let bytes = out.into_bytes();
+            let mut input = Codec::reader(&ids, &bytes);
+            assert_eq!(LinkWalk::decode(&mut input).expect("decodes").lane, lane);
+            assert!(input.done());
+        }
     }
 
     /// [S7] The two live edges a crouched body climbs and a standing walker cannot (exactness's real-memory rig, the exe's own

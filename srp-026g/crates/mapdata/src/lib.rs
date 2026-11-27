@@ -191,8 +191,10 @@ pub const RAMP_FACES_ALGO: u32 = 0x5304_0101;
 /// the walks are checked on the game's shapes where the build has them (`grid::controlled` `controlled_links`), the world every
 /// other pass walks and flies the body on, not the walker triangles (a primitive's drawn stand-in). 0009: [row 6] a walk's share
 /// counts the way along only while the feet are on the way's level (`grid::controlled` `walk_on_at`): a body sliding down beside
-/// a riser no longer keeps it from the cut.
-pub const CLIENT_CONTROLLER_ALGO: u32 = 0x5313_0009;
+/// a riser no longer keeps it from the cut. 000a: [walk lane] the walk check records the side line a Walk link is made from when
+/// its centre line is not (`grid::controlled::WalkLane`, the grid's new last table): a grid file of 0009 has no such table and
+/// is not read for this key.
+pub const CLIENT_CONTROLLER_ALGO: u32 = 0x5313_000a;
 /// The same for the walk-off walls with the steep `walk` faces ([`Body::drop_room_walk_faces`], A304), in [`grid_key_with_links`]
 /// only for a body that asks for it. A value of its own.
 pub const DROP_ROOM_WALK_FACES_ALGO: u32 = 0x5304_0201;

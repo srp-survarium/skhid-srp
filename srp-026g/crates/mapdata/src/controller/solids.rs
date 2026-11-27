@@ -695,7 +695,12 @@ impl Solids {
 
     /// Every part's first contact with `shape` moved by `by` (both in the map frame), as `objectQuerySingle` 0xA14E0
     /// reports it to a callback that takes every hit (the sweep's allowed penetration 0, `convexSweepTest` 0xA34E8).
-    pub(super) fn sweep_each(&self, shape: Shape, way: Way, mut each: impl FnMut(Contact)) {
+    ///
+    /// [bot CPU] `each` answers each contact with the fraction past which no later contact matters to it (the closest one it
+    /// keeps so far; 1 for every one), and the later casts give up there ([`exe_cast::cast_triangle_within`]): the contacts
+    /// at or under the bound are the full sweep's, in its order; none over it is handed on.
+    pub(super) fn sweep_within(&self, shape: Shape, way: Way, mut each: impl FnMut(Contact) -> f32) {
+        let mut upto = 1.0f32;
         let by = way.by(shape);
         let mut cast = exe_cast_of(shape, by);
         cast.from = flip(cast.from);
@@ -750,8 +755,8 @@ impl Solids {
             match leaf.part {
                 Part::Primitive { shape: id, on } => {
                     let primitive = &self.primitives[id as usize];
-                    match exe_cast::cast_convex(&cast, &primitive.shape, primitive.margin, &leaf.transform, 0.0, 1.0) {
-                        CastEnd::Hit { fraction, normal, point } => each(out(fraction, normal, point, on, None)),
+                    match exe_cast::cast_convex_within(&cast, &primitive.shape, primitive.margin, &leaf.transform, 0.0, 1.0, upto) {
+                        CastEnd::Hit { fraction, normal, point } => upto = each(out(fraction, normal, point, on, None)),
                         CastEnd::Miss => {}
                     }
                 }
@@ -765,11 +770,11 @@ impl Solids {
                             return;
                         }
                         // A mesh's margin is 0 (the game's `btBvhTriangleMeshShape`), the callback's fraction 1.
-                        match exe_cast::cast_triangle(&cast, &exe_gjk::Triangle(triangle.v), 0.0, &leaf.transform, 0.0, 1.0) {
+                        match exe_cast::cast_triangle_within(&cast, &exe_gjk::Triangle(triangle.v), 0.0, &leaf.transform, 0.0, 1.0, upto) {
                             CastEnd::Hit { fraction, normal, point } => {
                                 let face = placed(&leaf.transform, triangle);
                                 let rank = mesh.rank.as_ref().map(|r| r[k]);
-                                each(out(fraction, normal, point, Surface::Face { walker: face.walker, normal: face.normal }, rank));
+                                upto = each(out(fraction, normal, point, Surface::Face { walker: face.walker, normal: face.normal }, rank));
                             }
                             CastEnd::Miss => {}
                         }
@@ -1117,5 +1122,62 @@ mod tests {
             found += every.len();
         }
         assert!(sweeps > 200 && found > 200, "{sweeps} sweeps, {found} hits");
+    }
+
+    /// [bot CPU] The closest accepted contact of a bounded sweep (its casts give up past the closest accepted so far) is the
+    /// one the full sweep's contacts give, to the bit and the part, with and without a filter; and the bound leaves casts out.
+    #[test]
+    fn a_bounded_sweep_keeps_the_full_sweeps_closest_contact() {
+        let mut dice = Dice(23);
+        let triangles: Vec<MeshTriangle> = (0..400)
+            .map(|k| {
+                let (about, size) = (dice.point(6.0), if k % 10 == 0 { 8.0 } else { 1.2 });
+                let v = [0, 1, 2].map(|_| {
+                    let p = dice.point(size);
+                    [about[0] + p[0], about[1] + p[1], about[2] + p[2]]
+                });
+                MeshTriangle::new(v, WalkerBehaviour::Walk).expect("finite corners")
+            })
+            .collect();
+        let (sin, cos) = 0.6f32.sin_cos();
+        let transform = Transform { basis: [[cos, 0.0, sin], [0.0, 1.0, 0.0], [-sin, 0.0, cos]], origin: [1.5, -0.5, 2.0] };
+        let mut builder = Builder::default();
+        let mesh = builder.mesh(triangles, None);
+        builder.object();
+        builder.place_mesh(transform, transform, mesh, None);
+        let shapes = world(builder.finish());
+
+        let key = |c: &Contact| (c.t.to_bits(), c.point.to_array().map(f32::to_bits), c.normal.to_array().map(f32::to_bits), c.part, c.rank);
+        let (mut kept, mut full, mut bounded) = (0, 0usize, 0usize);
+        for round in 0..1500 {
+            let centre = Vec3::from_array(dice.point(7.0));
+            let by = Vec3::from_array(dice.point(if round % 3 == 0 { 2.5 } else { 0.4 }));
+            let shape = match round % 4 {
+                0 => Shape::Sphere { centre, radius: 0.3 },
+                1 => Shape::Cylinder { centre, half: 0.5, radius: 0.3, margin: 0.04 },
+                _ => Shape::CapsuleAt { centre, radius: 0.38, half_height: 0.52 },
+            };
+            let to = crate::controller::cast_origin(shape) + by;
+            let filters: [&dyn Fn(&Contact) -> bool; 2] = [&|_| true, &|c| c.normal.y > 0.0];
+            for accept in filters {
+                let mut every: Option<Contact> = None;
+                shapes.sweep_each_to(shape, to, |c| {
+                    full += 1;
+                    if accept(&c) && every.is_none_or(|b| c.replaces(&b)) {
+                        every = Some(c);
+                    }
+                });
+                let mut handed = 0usize;
+                let closest = shapes.sweep_closest_to(shape, to, |c| {
+                    handed += 1;
+                    accept(c)
+                });
+                bounded += handed;
+                assert_eq!(closest.as_ref().map(key), every.as_ref().map(key), "{shape:?} to {to:?}");
+                kept += usize::from(closest.is_some());
+            }
+        }
+        assert!(kept > 200, "{kept} kept");
+        assert!(bounded < full, "the bound left no cast out: {bounded} of {full}");
     }
 }

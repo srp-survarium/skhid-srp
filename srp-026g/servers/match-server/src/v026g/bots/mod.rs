@@ -534,6 +534,10 @@ pub struct Bot {
     /// [N1] Since when its reckoned body has been in the air on its own (the kept controller's verdict) while a search was due:
     /// none is started then ([`drive::IN_FLIGHT_HOLD_MS`]).
     in_flight_since: Option<u32>,
+    /// [pull unknown] When its route was cut back before a leg that failed its walk test ahead of the body
+    /// ([`path::LegCheck::FailsAhead`]): a plan from the body is due at once, the cut route walked meanwhile; none once a
+    /// route is set or ends.
+    leg_cut: Option<u32>,
     /// [press forecast] Its own reckoned body before this tick's decision and its speed level ([`body::BodyTrack::level`]): what
     /// the motor's forecast presses fly from (`motor::PressFlyer`).
     reckoned: Option<(body::Estimate, f32)>,
@@ -787,6 +791,7 @@ impl Bot {
             creep: None,
             reckoned_kept: None,
             in_flight_since: None,
+            leg_cut: None,
             reckoned: None,
             reckoned_creep: body::Creep::Unknown,
             reckon_error: body::MeasuredError::default(),
@@ -2820,6 +2825,18 @@ impl Bots {
             nav_log::PREFIX
         ));
         // [F42] The reckoned steps of bodies with both legs broken by their crouch selector state.
+        // [pull unknown] The legs routes kept straight with no walk test, and what their tests said (`path::unverified`).
+        let [kept, walked, ahead, on_leg, passed] = path::unverified::take();
+        lines.push(format!(
+            "{}unverified pulled legs since the last match end (every match on this server): kept {kept}, walked {walked}, failed ahead {ahead}, failed with the body on them {on_leg}, passed untested {passed}",
+            nav_log::PREFIX
+        ));
+        // [pull unknown] The failing ones laid again in place from their floors, and those that could not be (cut or ended).
+        let [relaid_ahead, relaid_under, relay_none] = path::unverified::take_relays();
+        lines.push(format!(
+            "{}failing unverified legs laid again in place since the last match end (every match on this server): ahead {relaid_ahead}, under the body {relaid_under}, none (cut or ended) {relay_none}",
+            nav_log::PREFIX
+        ));
         // [keys] The walk keys' and the crouch key's changes by the stage that made them (`key_sources`).
         lines.extend(key_sources::lines().into_iter().map(|line| format!("{}{line}", nav_log::PREFIX)));
         let (steady, unparks) = drive::steady_creeps::take();
