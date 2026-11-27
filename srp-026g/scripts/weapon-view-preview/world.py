@@ -7,8 +7,9 @@ preview draws: the iron sights' at uro_fov 100 is 94.8) and "lane-scope" at 20 (
 sharp); the folder holds capture.py's lane.png and lane-scope.png of it (2560x1440, the game's highest
 settings). A stock soldier (a scavenger's outfit, the lobby's idle pose with an AK) is rendered at the
 pose's "target" facing the camera with each capture's projection and laid over it: SrpPreviewWorld at
-1440x810 (the iron sights' world at World FOV 65, 59 degrees, is about 380 px of it for the 315 px
-pane) and SrpPreviewWorldScope at 800x450, baseline JPEGs at quality 92 as flash_tree.py takes them.
+2250x1266 (the narrowest world it shows, the iron sights' at World FOV 50, 45.9 degrees, is 610 px of it:
+the 800x450 pane is 600 at 1440p) and SrpPreviewWorldScope at 1440x810 (16.25 of its 20 degrees: 650
+px), baseline JPEGs at quality 95 as flash_tree.py takes them.
 The character assets are a folder of `srp-game-data get`'s models/character/human/{scavengers,base}/...
 and the animation below, with their textures.
 """
@@ -26,7 +27,7 @@ out.mkdir(exist_ok=True)
 ANIMATION = "resources/animations/single/weapons/ak/player/stand/3rd_view/on_site/idle_lobby"
 PARTS = ["scavengers/scavenger_04_torso_s1", "scavengers/scavenger_04_legs_s1", "scavengers/scavenger_04_hand",
          "base/base_character_head"]
-SIZES = {"lane": (1440, 810), "lane-scope": (800, 450)}
+SIZES = {"lane": (2250, 1266), "lane-scope": (1440, 810)}
 # The renderer lights flatly; the capture's sunlit ground is brighter.
 BRIGHTER = 1.35
 
@@ -61,7 +62,7 @@ def world(name, bitmap):
     ys, xs = np.nonzero(np.isfinite(depth))
     print(name, "the soldier at", xs.min(), xs.max(), ys.min(), ys.max())
     scene.save(out / f"{name}-full.png")
-    scene.resize(SIZES[name], Image.LANCZOS).save(out / f"{bitmap}.jpg", quality=92, progressive=False)
+    scene.resize(SIZES[name], Image.LANCZOS).save(out / f"{bitmap}.jpg", quality=95, progressive=False)
 
 
 world("lane", "SrpPreviewWorld")

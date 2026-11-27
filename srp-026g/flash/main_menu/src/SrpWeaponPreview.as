@@ -24,35 +24,39 @@ package
     // - The sight distance crossfades the two renders around it: approximate.
     // The pictures are smoothed Bitmaps scaled on the GPU under a mask (drawn at the screen's own pixels at
     // any UI scale; a BitmapData drawn at the pane's size was enlarged without filtering by the game's
-    // Scaleform at 1440p), made only while shown (a 1440x810 layer is 4.6 MB decoded).
+    // Scaleform at 1440p), made only while shown (a 1600x900 layer is 5.8 MB decoded, the world 11.4 MB).
     public class SrpWeaponPreview extends Sprite
     {
         public static const IRON:int = 0;
         public static const RED_DOT:int = 1;
         public static const SCOPE:int = 2;
-        public static const WIDTH:Number = 560;
-        public static const HEIGHT:Number = 315;
+        public static const WIDTH:Number = 800;
+        public static const HEIGHT:Number = 450;
         private static const WORLD_FOV:Number = 100;
         private static const SCOPE_WORLD_FOV:Number = 20;
         // Each view's sight zoom (its fov_factor), and the AK-12's aimed factor over a rifle's (both 0.5).
         private static const ZOOM:Array = [0.909, 0.8, 0.25];
         private static const DISTANCES:Array = [-20, 0, 25, 50];
-        // Each view's tiers' angles, widest first (layers.py's TIERS).
-        public static const TIERS:Array = [[94.8, 52, 28], [77.7, 45, 26], [32.5]];
+        // Each view's tiers' angles, widest first (layers.py's TIERS: the widest its sliders reach, then each
+        // at most 1.47 times the next's half-angle tangent, the last over the narrowest by as much).
+        public static const TIERS:Array = [[94.8, 74.16, 55.42, 40.11, 28.47], [77.7, 57.71, 41.3, 28.91], [32.5, 23.06]];
         // The layers' classes by view, distance and tier (named here so the build keeps them).
         private static const LAYERS:Array = [
-            [[SrpPreviewIronM20W, SrpPreviewIronM20M, SrpPreviewIronM20N], [SrpPreviewIron0W, SrpPreviewIron0M, SrpPreviewIron0N],
-             [SrpPreviewIron25W, SrpPreviewIron25M, SrpPreviewIron25N], [SrpPreviewIron50W, SrpPreviewIron50M, SrpPreviewIron50N]],
-            [[SrpPreviewRedDotM20W, SrpPreviewRedDotM20M, SrpPreviewRedDotM20N],
-             [SrpPreviewRedDot0W, SrpPreviewRedDot0M, SrpPreviewRedDot0N],
-             [SrpPreviewRedDot25W, SrpPreviewRedDot25M, SrpPreviewRedDot25N],
-             [SrpPreviewRedDot50W, SrpPreviewRedDot50M, SrpPreviewRedDot50N]],
-            [[SrpPreviewScope]]];
+            [[SrpPreviewIronM20A, SrpPreviewIronM20B, SrpPreviewIronM20C, SrpPreviewIronM20D, SrpPreviewIronM20E],
+             [SrpPreviewIron0A, SrpPreviewIron0B, SrpPreviewIron0C, SrpPreviewIron0D, SrpPreviewIron0E],
+             [SrpPreviewIron25A, SrpPreviewIron25B, SrpPreviewIron25C, SrpPreviewIron25D, SrpPreviewIron25E],
+             [SrpPreviewIron50A, SrpPreviewIron50B, SrpPreviewIron50C, SrpPreviewIron50D, SrpPreviewIron50E]],
+            [[SrpPreviewRedDotM20A, SrpPreviewRedDotM20B, SrpPreviewRedDotM20C, SrpPreviewRedDotM20D],
+             [SrpPreviewRedDot0A, SrpPreviewRedDot0B, SrpPreviewRedDot0C, SrpPreviewRedDot0D],
+             [SrpPreviewRedDot25A, SrpPreviewRedDot25B, SrpPreviewRedDot25C, SrpPreviewRedDot25D],
+             [SrpPreviewRedDot50A, SrpPreviewRedDot50B, SrpPreviewRedDot50C, SrpPreviewRedDot50D]],
+            [[SrpPreviewScopeA, SrpPreviewScopeB]]];
         private static const EDGE:uint = 0x585A5D;
 
         private var pane:Sprite = new Sprite();
+        // The world shown (the capture's, or the scope's closer one), made while shown.
         private var world:Bitmap;
-        private var scopeWorld:Bitmap;
+        private var worldClass:Class;
         // The gun's layers made, by class.
         private var made:Dictionary = new Dictionary();
         private var view:int = IRON;
@@ -66,10 +70,6 @@ package
         {
             name = "_srp_weapon_preview";
             addChild(pane);
-            world = bitmap(new SrpPreviewWorld());
-            scopeWorld = bitmap(new SrpPreviewWorldScope());
-            pane.addChild(world);
-            pane.addChild(scopeWorld);
             var clip:Shape = new Shape();
             clip.graphics.beginFill(0);
             clip.graphics.drawRect(0, 0, WIDTH, HEIGHT);
@@ -128,9 +128,19 @@ package
             var held:Number = atWorld ? worldAt : (view == SCOPE ? scopes : sights);
             var scoped:Boolean = view == SCOPE;
             drawn = [];
-            world.visible = !scoped;
-            scopeWorld.visible = scoped;
-            place(scoped ? scopeWorld : world, scaleOf(scoped ? SCOPE_WORLD_FOV : WORLD_FOV, worldAt));
+            var Picture:Class = scoped ? SrpPreviewWorldScope : SrpPreviewWorld;
+            if (worldClass != Picture)
+            {
+                if (world != null)
+                {
+                    pane.removeChild(world);
+                    world.bitmapData.dispose();
+                }
+                world = bitmap(new Picture());
+                worldClass = Picture;
+                pane.addChildAt(world, 0);
+            }
+            place(world, scaleOf(scoped ? SCOPE_WORLD_FOV : WORLD_FOV, worldAt));
             drawn.push({held: worldAt, made: scoped ? SCOPE_WORLD_FOV : WORLD_FOV,
                 scale: scaleOf(scoped ? SCOPE_WORLD_FOV : WORLD_FOV, worldAt), alpha: 1});
             var tier:int = tierOf(view, held);
@@ -230,7 +240,7 @@ package
 
         private static function bitmap(data:BitmapData):Bitmap
         {
-            var b:Bitmap = new Bitmap(data, "auto", true);
+            var b:Bitmap = new Bitmap(data, "never", true);
             b.smoothing = true;
             return b;
         }

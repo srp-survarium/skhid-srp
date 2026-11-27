@@ -7,7 +7,7 @@ package
    public dynamic class SrpPreviewWorld extends BitmapData
    {
 
-      public function SrpPreviewWorld(w:int = 1440, h:int = 810)
+      public function SrpPreviewWorld(w:int = 2250, h:int = 1266)
       {
          super(w,h);
       }

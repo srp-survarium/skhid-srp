@@ -7,7 +7,7 @@ package
    public dynamic class SrpPreviewWorldScope extends BitmapData
    {
 
-      public function SrpPreviewWorldScope(w:int = 800, h:int = 450)
+      public function SrpPreviewWorldScope(w:int = 1440, h:int = 810)
       {
          super(w,h);
       }

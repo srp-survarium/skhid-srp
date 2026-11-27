@@ -12,10 +12,10 @@ The AK-12 (363) aimed, as patch 161 draws it (a JPEG and its alpha, <class>.jpg 
   hands; a magnified scope's eye never moves) (SrpPreviewScope).
 Each view's layer is made at a few angles (TIERS): the widest its sliders reach (the iron sights' at
 "Weapon at the world FOV" and World FOV 100: 94.8; the EOTech's 77.7; the scope's 32.5), so the whole
-gun is there at every setting, and narrower ones, so the preview, which draws the narrowest tier at or
-over the angle, never enlarges a tier more than its next one's ratio (at most 2.3 times its pixels at
-the widest step, about the pane's on-screen size at 1440p). 1440x810, drawn at twice that and
-downsampled (anti-aliased edges). Emissive materials (the EOTech's dot, the 1P69's) are drawn in their
+gun is there at every setting, and narrower ones down to the narrowest (TIERS), so the preview, which
+draws the narrowest tier at or over the angle, always shows at least 610 of a tier's 900 rows: the pane's
+450 rows are 600 on the screen at 1440p, so nothing is ever enlarged there. 1600x900, drawn at twice that
+and downsampled (anti-aliased edges), JPEG quality 95. Emissive materials (the EOTech's dot, the 1P69's) are drawn in their
 constant emissive colour over the rest, as the game's additive forward pass shows them (the
 collimator's red).
 The JSON is `cargo run -p weapon-modules --example preview_eyes -- <weapon_modules.srpm> 363 eotech_552
@@ -33,11 +33,23 @@ pack = Path(sys.argv[2])
 dump = json.loads(Path(sys.argv[3]).read_text())
 out = Path(sys.argv[4])
 out.mkdir(exist_ok=True)
-W, H = 1440, 810
+W, H = 1600, 900
 SUPER = 2
-# Each view's tiers: (suffix, degrees), widest first.
-TIERS = {"Iron": [("W", 94.8), ("M", 52.0), ("N", 28.0)], "RedDot": [("W", 77.7), ("M", 45.0), ("N", 26.0)],
-         "Scope": [("", 32.5)]}
+QUALITY = 95
+
+
+def tiers(widest, narrowest, count):
+    """`count` angles from `widest` down, their half-angles' tangents in one ratio, the last over
+    `narrowest` by that ratio too: (suffix A, B, ..., degrees)."""
+    ratio = (math.tan(math.radians(widest / 2)) / math.tan(math.radians(narrowest / 2))) ** (1 / count)
+    return [(chr(65 + i), round(2 * math.degrees(math.atan(math.tan(math.radians(widest / 2)) / ratio ** i)), 2))
+            for i in range(count)]
+
+
+# Each view's tiers, widest first: from the widest angle its sliders reach to the narrowest (the sights'
+# 20, the scopes' 16.25), each at most 1.47 times the next's tangent, so the narrowest tier at or over
+# an angle, 900 px high, shows at least 610 px of it: the 800x450 pane at 1440p (1.33) is 600.
+TIERS = {"Iron": tiers(94.8, 20, 5), "RedDot": tiers(77.7, 20, 4), "Scope": tiers(32.5, 16.25, 2)}
 AIM_OFFSET, AIM_OFFSET_026G = -0.0506, 0.0
 DISTANCES = {-20: "M20", 0: "0", 25: "25", 50: "50"}
 LEAST_RELIEF = 0.06
@@ -111,7 +123,7 @@ def shot(meshes, camera, view, name):
         # a JPEG of the colour premultiplied by the alpha (black where transparent), and the alpha beside
         # it (<class>.alpha.png, grey): one DefineBitsJPEG3, a tenth of a lossless bitmap's size
         premultiplied = np.clip(colour * a[..., None] / 255, 0, 255).astype(np.uint8)
-        Image.fromarray(premultiplied, "RGB").save(out / f"{name}{suffix}.jpg", quality=92, progressive=False)
+        Image.fromarray(premultiplied, "RGB").save(out / f"{name}{suffix}.jpg", quality=QUALITY, progressive=False)
         grey = np.clip(a, 0, 255).astype(np.uint8)
         Image.fromarray(np.dstack([grey] * 3), "RGB").save(out / f"{name}{suffix}.alpha.png", optimize=True)
         print(name + suffix)

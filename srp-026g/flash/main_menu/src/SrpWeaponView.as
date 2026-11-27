@@ -13,6 +13,7 @@ package
     import flash.text.TextFieldAutoSize;
     import flash.text.TextFormat;
     import flash.text.TextFormatAlign;
+    import scaleform.clik.controls.Button;
     import scaleform.clik.events.ButtonEvent;
     import scaleform.clik.events.IndexEvent;
 
@@ -101,6 +102,12 @@ package
         // it, which Settings gives): every value back to revision 74's, pending until Apply.
         public var resetButton:SetingsButton;
         public var defaultLabel:Function = null;
+        // Apply beside it: the Settings window's own Apply button (`applyFrom` gives it: its symbol and the
+        // exe's label of it), saving this window's pending values only (the other tabs' stay pending) and
+        // keeping it open; `applied` tells Settings, which counts what is pending. Disabled while nothing is.
+        public var applyButton:Button;
+        public var applyFrom:Function = null;
+        public var applied:Function = null;
         private var content:MovieClip;
         private var backdrop:Sprite;
         private var panel:Sprite;
@@ -233,6 +240,33 @@ package
             var uro:Number = worldFov != null ? Number(worldFov()) : 65;
             preview.draw(sliders[SIGHTS].selectedIndex, sliders[SCOPES].selectedIndex, box.selected,
                 sliders[DISTANCE].selectedIndex, uro > 0 ? uro : 65);
+            if (applyButton != null)
+            {
+                applyButton.enabled = changed();
+            }
+        }
+
+        // Whether any of this window's values is pending.
+        public function changed():Boolean
+        {
+            for each (var control:Object in controls)
+            {
+                if (pending(control))
+                {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        private function onApply(event:ButtonEvent):void
+        {
+            send();
+            if (applied != null)
+            {
+                applied();
+            }
+            refresh();
         }
 
         // Whether `name` is one of this group's sliders.
@@ -379,6 +413,13 @@ package
         // Apply: every pending value saved (the exe sets it, writes user.cfg and answers); closed.
         public function save():void
         {
+            send();
+            close();
+        }
+
+        // Every pending value saved, the window left as it is.
+        private function send():void
+        {
             var calls:Array = [];
             if (pending(box))
             {
@@ -398,7 +439,6 @@ package
             {
                 SrpExe.call(call[0], call[1]);
             }
-            close();
         }
 
         // Cancel: the saved values back; closed.
@@ -561,6 +601,25 @@ package
             {
                 resetButton.width = BUTTON_WIDTH + resetButton.textField.textWidth + 16 - resetButton.textField.width * resetButton.scaleX;
                 resetButton.validateNow();
+            }
+            // Apply beside it, the Settings window's own
+            if (applyButton == null && applyFrom != null && applyFrom() != null)
+            {
+                var source:Button = applyFrom() as Button;
+                var Kind:Class = Object(source).constructor as Class;
+                applyButton = new Kind() as Button;
+                applyButton.name = NAME + "_apply";
+                applyButton.addEventListener(ButtonEvent.CLICK, onApply);
+                panel.addChild(applyButton);
+            }
+            if (applyButton != null)
+            {
+                applyButton.label = (applyFrom() as Button).label;
+                applyButton.alpha = 1;
+                applyButton.x = resetButton.x + resetButton.width + 8;
+                applyButton.y = resetButton.y + Math.round((resetButton.height - applyButton.height) / 2);
+                applyButton.enabled = changed();
+                applyButton.validateNow();
             }
             at = Math.max(resetButton.y + resetButton.height, previewBottom);
             var w:Number = FRAME_LEFT + FRAME_RIGHT + 2 * SIDE + SrpWeaponPreview.WIDTH + COLUMN_GAP + INSIDE;

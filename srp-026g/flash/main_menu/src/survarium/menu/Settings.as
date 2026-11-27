@@ -749,6 +749,15 @@ package survarium.menu
          {
             return _fov.slider.visible ? _fov.slider.selectedIndex : 65;
          };
+         // its Apply: the window's own Apply button's look and label; what it saved no longer pending here
+         this._weaponView.applyFrom = function():Object
+         {
+            return btn_accept;
+         };
+         this._weaponView.applied = function():void
+         {
+            weaponViewChanged(null);
+         };
          // its Default button's text: the Graphics tab's Default button's, as the exe names it
          this._weaponView.defaultLabel = function():String
          {

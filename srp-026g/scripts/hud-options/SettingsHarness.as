@@ -402,7 +402,7 @@ package
                 {
                     require(right <= control.getBounds(stage).left + 1, when + ": the preview's column left of " + control.name);
                 }
-                require(window.preview.frame.width >= 559, when + ": the preview 560 wide (" + window.preview.frame.width + ")");
+                require(window.preview.frame.width >= 799, when + ": the preview 800 wide (" + window.preview.frame.width + ")");
                 // the first label's text at the picture's top; the tabs centred over the picture
                 var picture:Rectangle = window.preview.frame.getBounds(stage);
                 // (a text field's text starts 2 px under its top)
@@ -501,10 +501,21 @@ package
                 "Default: 65, 32.5, 32.5, off, 0 cm, pending, nothing sent yet (" + calls + ")");
             require(window.preview.shown == 0 && close(held.held, 32.5) && held.alpha == 1 && window.preview.drawn.length == 2,
                 "Default: the preview at once, the iron sights at 32.5 and 0 cm (" + held.held + ")");
-            click(settings.btn_accept);
+            // the window's Apply (the Settings' Apply button's symbol and label): its own values saved, the window
+            // open, another tab's pending change left pending (a HUD checkbox), then nothing pending here
+            var Accept:Class = Object(settings.btn_accept).constructor as Class;
+            var hide:* = content.getChildByName("_srp_hide_scores");
+            hide.selected = !hide.selected;
+            require(window.applyButton is Accept && window.applyButton.label == settings.btn_accept.label && window.applyButton.enabled,
+                "the window's Apply the Settings' (" + window.applyButton.label + "), enabled");
+            click(window.applyButton);
             // the values that differ from the saved ones (52, 25; the checkbox and the scopes' were saved at theirs)
             require(calls.length == 2 && calls.indexOf("srp_weapon_fov_aimed=325") >= 0 && calls.indexOf("srp_sight_distance=0") >= 0
-                && !settings.btn_accept.enabled, "Default, Apply: the exe given 325 tenths and 0 cm (" + calls + ")");
+                && window.visible && !window.applyButton.enabled && settings.btn_accept.enabled,
+                "the window's Apply: the exe given 325 tenths and 0 cm only, the window open, the HUD change still pending (" + calls + ")");
+            hide.selected = !hide.selected;
+            require(!settings.btn_accept.enabled, "the HUD change taken back: nothing pending");
+            window.close();
             exe.standIn = null;
             root.srp_slider_option(names[1], texts[0][39], "325", "200", "650", "10");
             root.srp_slider_option(names[3], texts[0][42], "0", "-20", "50", "1");
@@ -554,16 +565,18 @@ package
                 "the tabs the Settings window's (InventoryTabButton), the selected one drawn in its own state ("
                 + window.tabs[2].currentLabel + ", " + window.tabs[0].currentLabel + ")");
             var shown:Array = layer();
-            require(shown.length == 1 && shown[0].made == 32.5 && Math.abs(shown[0].scale - Preview.scaleOf(32.5, 20)) < 1e-3,
-                "the scope at 20 degrees: its 32.5 layer " + Preview.scaleOf(32.5, 20) + " times (" + (shown.length ? shown[0].scale : -1) + ")");
+            require(shown.length == 1 && shown[0].made == Preview.TIERS[2][1] && Math.abs(shown[0].scale - Preview.scaleOf(Preview.TIERS[2][1], 20)) < 1e-3,
+                "the scope at 20 degrees: its narrower layer (" + shown[0].made + ") scaled to it (" + (shown.length ? shown[0].scale : -1) + ")");
             require(Math.abs(preview.drawn[0].scale - Preview.scaleOf(20, Preview.worldAngle(65, 0.25))) < 1e-3,
                 "the scope's world at the 1P69's 16.25 degrees");
             sliders[1].slider.value = 52;
             require(preview.shown == Preview.IRON && window.tabs[0].selected, "the sights' slider moved: the iron sights' view");
             shown = layer();
             // the narrowest tier at or over the angle, scaled to it: 52 is the iron sights' middle tier
-            require(shown.length == 1 && shown[0].made == 52 && Math.abs(shown[0].scale - 1) < 1e-3
-                && Preview.tierOf(0, 52.5) == 0 && Preview.tierOf(0, 20) == 2 && Preview.tierOf(1, 65) == 0,
+            require(shown.length == 1 && shown[0].made == Preview.TIERS[0][2] && shown[0].made >= 52
+                && Math.abs(shown[0].scale - Preview.scaleOf(shown[0].made, 52)) < 1e-3
+                && Preview.tierOf(0, 94.8) == 0 && Preview.tierOf(0, 74) == 1 && Preview.tierOf(0, 20) == 4 && Preview.tierOf(1, 65) == 0
+                && Preview.tierOf(2, 16.25) == 1,
                 "the iron sights at 52 degrees: the layer " + Preview.scaleOf(32.5, 52) + " times (" + (shown.length ? shown[0].scale : -1) + ", " + shown.length + " layers, " + sliders[1].selectedIndex + ")");
             sliders[3].slider.value = 10;
             shown = layer();
@@ -573,7 +586,7 @@ package
             window.refresh();
             shown = layer();
             var world:Number = Preview.worldAngle(65, 0.909);
-            require(shown[0].made == 94.8 && Math.abs(shown[0].scale - Preview.scaleOf(94.8, world)) < 1e-3, "the checkbox: the gun at the world's "
+            require(shown[0].made == Preview.TIERS[0][Preview.tierOf(0, world)] && Math.abs(shown[0].scale - Preview.scaleOf(shown[0].made, world)) < 1e-3, "the checkbox: the gun at the world's "
                 + world + " degrees");
             box.selected = false;
             window.tabs[1].dispatchEvent(new (loader.contentLoaderInfo.applicationDomain.getDefinition("scaleform.clik.events.ButtonEvent") as Class)("buttonClick"));
