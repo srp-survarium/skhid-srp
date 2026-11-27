@@ -358,7 +358,13 @@ replaced by a stub that steps every 3 s; `captures/proof-a6/`, `sheet-centre-x2.
 middle 160 px of each picture): the red dot at size 1 and 0.4 (6 and 4 px across at 1280x720,
 centred within 0.5 px), the cross red then green, the green cross at brightness 0, 6 and 10
 (dim, as today's dot, bright with the bloom's halo); gone when the aim is let go, back when aimed
-again. The ten patterns: `captures/proof-patterns/`.
+again. The ten patterns (`captures/proof-patterns/`, a stub stepping through them every 2.5 s):
+each drawn, its aiming point on the screen's centre (the dot's, the rings' and the crosses' middle,
+the XR308's top dot), upright (the ticks' and the triangle's tips up, the Cobra cross's post down,
+as in the atlas) and not mirrored (the XR308's 6 and 12k right of their dots, 9 left,
+`xr308-x8.png` beside `xr308-atlas.png`). A pattern asked for the first time shows a frame or
+two later (its query). Not seen yet: the real table's choice (the server's A9; the captures ran
+the stub), a second sight's reticle (neither in a game nor in the Unicorn check).
 
 **How the renderer draws an appended material** (PROVEN, instructions read; rows in the re-kit):
 
