@@ -1203,31 +1203,53 @@ fn members_names(key: u32, members: &[ListMember]) -> Vec<String> {
 
 /// `91` as the answer to `3B 00 <ROOM_POOL_BASE + page> <count>`, `place =
 /// that start + i`: `S1;M;<total>;<page>`, then a row an entry of that
-/// page, `<index>;<map_id>;<level>;<weather>;<mode>;<extra>;<bots>` (`bots` 1:
-/// [`PoolEntry::bots`]). An entry's index is the bit a pool names it by
-/// ([`bits_start`]).
-pub fn room_pool(entries: &[PoolEntry], page: u8) -> Result<ServerMessage, WireError> {
+/// page, `<index>;<map_id>;<level>;<weather>;<mode>;<extra>;<bots>;<offered>`
+/// (`bots` 1: [`PoolEntry::bots`]). The entries `offered` (1) first, the maps
+/// a private room's pool may hold, which the create window lists: an entry's
+/// index is the bit a pool names it by ([`bits_start`]). Then the maps only
+/// an open room's card shows (`shown`, `offered` 0: a free-for-all played
+/// with a twist only), their indices after the offered ones, a bit of none:
+/// the movie names and draws every card, room and match by this list, and
+/// a card on a map not in it was empty (Military Warehouses, 2026-11-27).
+/// A movie of before reads the first seven fields, and lists the shown ones
+/// in its create window too.
+pub fn room_pool(
+    offered: &[PoolEntry],
+    shown: &[PoolEntry],
+    page: u8,
+) -> Result<ServerMessage, WireError> {
+    rows_at(
+        ROOM_POOL_BASE + u32::from(page),
+        pool_names(offered, shown, page),
+    )
+}
+
+fn pool_names(offered: &[PoolEntry], shown: &[PoolEntry], page: u8) -> Vec<String> {
     let first = usize::from(page) * POOL_PAGE_ROWS;
-    let mut names = vec![format!("{ROOMS_VERSION};M;{};{page}", entries.len())];
+    let total = offered.len() + shown.len();
+    let mut names = vec![format!("{ROOMS_VERSION};M;{total};{page}")];
     names.extend(
-        entries
+        offered
             .iter()
+            .map(|entry| (entry, true))
+            .chain(shown.iter().map(|entry| (entry, false)))
             .enumerate()
             .skip(first)
             .take(POOL_PAGE_ROWS)
-            .map(|(index, entry)| {
+            .map(|(index, (entry, offered))| {
                 format!(
-                    "{index};{};{};{};{};{};{}",
+                    "{index};{};{};{};{};{};{};{}",
                     entry.map_id,
                     entry.level,
                     entry.weather,
                     entry.mode,
                     u8::from(entry.extra),
-                    u8::from(entry.bots)
+                    u8::from(entry.bots),
+                    u8::from(offered)
                 )
             }),
     );
-    rows_at(ROOM_POOL_BASE + u32::from(page), names)
+    names
 }
 
 /// `91` as the answer to `3B 00 <ROOM_FORM> 1`, `place = ROOM_FORM + i`:
@@ -1682,6 +1704,35 @@ mod tests {
             ..form
         };
         assert!(room_form(&form).is_err());
+    }
+
+    /// The pool's rows: the offered entries by their bits, then the maps only shown (Military
+    /// Warehouses' free-for-all, maps_dict 43, level 16), `offered` 0, on as many pages as both.
+    #[test]
+    fn the_pool_lists_the_offered_entries_then_the_shown_ones() {
+        let entry = |id: u16, level: u8| PoolEntry {
+            map_id: MapId::new(id),
+            level,
+            weather: 1,
+            mode: 8,
+            extra: false,
+            bots: id == 100,
+        };
+        let offered: Vec<PoolEntry> = (0..POOL_PAGE_ROWS as u16)
+            .map(|i| entry(100 + i, 1))
+            .collect();
+        let shown = [entry(43, 16)];
+        let first = pool_names(&offered, &shown, 0);
+        assert_eq!(first.len(), 1 + POOL_PAGE_ROWS);
+        assert_eq!(first[0], format!("S1;M;{};0", POOL_PAGE_ROWS + 1));
+        assert_eq!(first[1], "0;100;1;1;8;0;1;1");
+        assert_eq!(first[POOL_PAGE_ROWS], "29;129;1;1;8;0;0;1");
+        assert_eq!(
+            pool_names(&offered, &shown, 1),
+            [format!("S1;M;{};1", POOL_PAGE_ROWS + 1), "30;43;16;1;8;0;0;0".into()]
+        );
+        assert_eq!(pool_names(&offered, &[], 1), ["S1;M;30;1"]);
+        assert!(room_pool(&offered, &shown, 1).is_ok());
     }
 
     #[test]

@@ -3133,3 +3133,39 @@ fn the_room_list_puts_the_londons_between_the_021_and_069_maps() {
         .collect();
     assert_eq!(order, [61, 166, 181, 279, 276, 290, 270, 200]);
 }
+
+/// The pool the movie is sent lists every map a room shows, page by page: first the private
+/// room's entries, `offered` 1, each row's index its bit; then those only an open room's card
+/// shows (a free-for-all played with a twist only, Military Warehouses), `offered` 0. The movie
+/// names and draws the cards, rooms and matches by it: a card on a map the pool left out was
+/// empty (the owner, 2026-11-27).
+#[test]
+fn the_pool_sent_lists_the_private_entries_then_the_maps_only_shown() {
+    use survarium::v026g::lobby::rooms::POOL_PAGE_ROWS;
+
+    let mut world = World::new();
+    let alice = world.connect("Alice");
+    let ids = |entries: Vec<survarium::v026g::lobby::rooms::PoolEntry>| -> Vec<MapId> {
+        entries.iter().map(|entry| entry.map_id).collect()
+    };
+    let private = ids(world.core.private_entries());
+    let every = ids(world.core.room_entries());
+    let shown: Vec<MapId> = every.iter().copied().filter(|id| !private.contains(id)).collect();
+    let mut listed = Vec::new();
+    for page in 0..=every.len() / POOL_PAGE_ROWS {
+        let rows = rows(&mut world, alice, ROOM_POOL_BASE + page as u32, 255);
+        assert_eq!(rows[0], format!("S1;M;{};{page}", every.len()));
+        for row in &rows[1..] {
+            let fields: Vec<&str> = row.split(';').collect();
+            assert_eq!((fields.len(), fields[0]), (8, listed.len().to_string().as_str()), "{row}");
+            let map_id: MapId = fields[1].parse().unwrap();
+            listed.push((map_id, fields[7] == "1"));
+        }
+    }
+    let offered: Vec<MapId> = listed.iter().filter(|row| row.1).map(|row| row.0).collect();
+    let others: Vec<MapId> = listed.iter().filter(|row| !row.1).map(|row| row.0).collect();
+    assert_eq!(offered, private);
+    assert_eq!(others, shown);
+    assert_eq!(listed.len(), every.len());
+    assert!(listed.iter().take(private.len()).all(|row| row.1), "the offered first");
+}

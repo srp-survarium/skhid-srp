@@ -184,7 +184,10 @@ parts in the game's classes (`TopMenu`'s tab, `StatusPanel`'s Play, `LobbyMenu`'
     `ffa.md`, "Twists"): its config's `srp_twists_only`. An open room's card on it draws a twist
     alone, by the twists' shares (the map drawn first, as any); a private room never has it: the
     create window does not list it (`Core::private_entries`) and its pool leaves it out
-    (`Rooms::create_with_pool`).
+    (`Rooms::create_with_pool`). The pool the movie is sent still lists it, after the private
+    entries and marked `offered` 0, since the movie names and draws every card, room and match
+    by that list: from 2026-11-22 to 2026-11-27 it was left out, and a card on it was empty (no
+    picture, name or mode; the owner, 2026-11-27: "they don't get an icon in room voting").
   - **Free for All and Blackout are each on one card at the most** (the owner's of 2026-11-12:
     "Make it so blackout cannot be on two cards at the same time"; of 2026-11-22: "there can
     only be one ffa (or none)", plain or with any twist). A case of no mode repeats (above): a

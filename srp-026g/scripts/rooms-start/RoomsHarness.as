@@ -143,6 +143,7 @@ package
             "BOT · Carol", false, "Bob", true, false);
          checkSideStable();
          checkRoomView();
+         checkShownOnly();
          checkQueueButton();
          checkPlayOffer();
          checkCreate();
@@ -422,11 +423,13 @@ package
 
       // The window told room `key`'s state: its cards, five members (the asker the first when it
       // is the owner, else the second, its kit or gear unfit by `fit`), the teams and `extra` rows.
-      private function tellRoom(key:int, pin:Boolean, owner:Boolean, phase:int, teams:String, fit:int, extra:Array) : void
+      // `cards`: its `C` rows (none: four on maps 61, 62, 63 and 184).
+      private function tellRoom(key:int, pin:Boolean, owner:Boolean, phase:int, teams:String, fit:int, extra:Array,
+         cards:Array = null) : void
       {
          var size:int = 10;
-         var names:Array = [["S1","R",key,15,pin ? 0 : 15,size,30,phase,754,owner ? 1 : 0,5,5,key,pin ? 1 : 0,63,pin ? 1 : 2,0].join(";"),
-            "C;0;61;2;1","C;1;62;1;0","C;2;63;0;0","C;3;184;0;0"];
+         var names:Array = [["S1","R",key,15,pin ? 0 : 15,size,30,phase,754,owner ? 1 : 0,5,5,key,pin ? 1 : 0,63,pin ? 1 : 2,0].join(";")];
+         names = names.concat(cards != null ? cards : ["C;0;61;2;1","C;1;62;1;0","C;2;63;0;0","C;3;184;0;0"]);
          for(var i:int = 0; i < WHO.length; i++)
          {
             var me:Boolean = owner ? i == 0 : i == 1;
@@ -1233,6 +1236,55 @@ package
                failures.push("side card: " + key + " moves with the map (" + none[key] + " / " + leading[key] + ")");
       }
 
+      // A map only an open room's card shows (a free-for-all played with a twist only: Military
+      // Warehouses, maps_dict 43, level 16; the owner, 2026-11-27: "they don't get an icon in room
+      // voting", "it is just empty"): the pool lists it after the private ones, `offered` 0, and
+      // its card, an FFA: Racket, is drawn with its map's picture, name and weather. Told the pool
+      // without it (what the server sent before), the card has no picture, no name, no mode.
+      private function checkShownOnly() : void
+      {
+         var offered:Array = ["0;61;5;5;3;0;0;1","1;62;13;5;2;0;0;1","2;63;12;3;8;0;0;1"];
+         var cards:Array = ["C;0;61;2;1;3","C;1;62;1;0;2","C;2;43;0;0;9","C;3;63;0;0;8"];
+         var drawn:Function = function(pool:Array):Object
+         {
+            tell(["S1;M;" + pool.length + ";0"].concat(pool));
+            tellRoom(1003, false, false, 3, null, 0, [], cards);
+            var cells:Array = [];
+            voteCards(win, cells);
+            var card:Sprite = null;
+            for each(var cell:Sprite in cells)
+               if(cell.name == "2")
+                  card = cell;
+            // The picture's middle: the map's, not the empty card's colour (RoomsLook.mapRender).
+            var middle:int = -1;
+            if(card != null)
+            {
+               var picture:BitmapData = Bitmap(card.getChildAt(0)).bitmapData;
+               middle = picture.getPixel(picture.width / 2, picture.height / 2);
+            }
+            var texts:Array = [];
+            walk(win,[],texts,0,0,[]);
+            var named:Boolean = false;
+            var moded:Boolean = false;
+            for each(var t:Object in texts)
+            {
+               named = named || String(t.text).indexOf("Military") == 0;
+               moded = moded || t.text == "FFA: RACKET";
+            }
+            return {"cards": cells.length, "pictured": card != null, "middle": middle, "named": named, "moded": moded};
+         };
+         var before:Object = drawn(offered);
+         var now:Object = drawn(offered.concat(["3;43;16;1;8;0;0;0"]));
+         trace("ROOMS a map only shown (Military Warehouses, FFA: Racket): pool without it " + before.cards
+            + " pictured cards, its card named " + before.named + "; with it " + now.cards + " pictured cards, its picture "
+            + now.pictured + " (middle 0x" + uint(now.middle).toString(16) + "), named " + now.named + ", " + (now.moded ? "FFA: RACKET" : "no mode"));
+         if(before.cards != 3 || before.pictured || before.named)
+            failures.push("a map only shown: the pool without it drew its card (" + before.cards + " cards)");
+         if(now.cards != 4 || !now.pictured || now.middle == 0x05080B || !now.named || !now.moded)
+            failures.push("a map only shown: its card not drawn (" + now.cards + " cards, picture " + now.pictured
+               + ", middle 0x" + uint(now.middle).toString(16) + ", named " + now.named + ", mode " + now.moded + ")");
+      }
+
       // Only private rooms can be made: no public sliders, and Create
       // needs exactly four PIN digits without disturbing input focus.
       private function checkCreate() : void
@@ -1332,6 +1384,12 @@ package
             failures.push("create: a form without a PIN typed " + (field != null ? field.text : "no field"));
          createShows("create, no PIN kept",false);
          trace("ROOMS create: last PIN pretyped, caret after it on a press, empty without one");
+         // A map only an open room's card shows (checkShownOnly): no tile, out of the pool's count.
+         tell(["S1;M;3;0", "0;61;1;1;2;0;0;1", "1;117;2;1;4;0;0;1", "2;43;16;1;8;0;0;0"]);
+         createGreyed("create, a map only shown", 0, "2 / 2");
+         if(createText("Military Warehouses") != null)
+            failures.push("create: a map only shown has a tile");
+         trace("ROOMS create: a map only shown has no tile");
       }
 
       // Presses the window's button labelled `label`.
