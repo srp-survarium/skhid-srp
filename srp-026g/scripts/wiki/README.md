@@ -201,7 +201,15 @@ gives an address with its `?v=` hash):
   (FilterItemCatRenderer's `itemIcon`, sprite 1125, frame 300 + the icon of
   that category's filter in the lobby's table
   `flash/lobby_menu/tables/survarium/data/ShopFilters.tsv`, the one the movie
-  is built with).
+  is built with);
+- `tiles/`: the index's tile pictures that the other sets have too small for
+  a tile: `maps.webp` and `maps@2x.webp` (the Maps tile, a `srcset`), level
+  1's day picture from its 1920-wide bitmap, and `quests.webp`, the four
+  factions' emblems from the lobby's `factionIconsBig` atlas at their own
+  66x66 (the faction tab's emblem is a 38x51 bitmap).
+
+The other bitmap tiles' pictures have no larger source in the game: an item's
+171x83 atlas cell, a mode's 61x56 icon, and the skills page's own icon.
 
 The modification and group icons are written white, with the glyph's
 brightness as alpha (their baked drop shadow drops out), for the page to
