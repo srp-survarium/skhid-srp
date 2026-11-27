@@ -943,6 +943,17 @@ A key fires every ready copy of its kind and restarts the cooldown of the ones s
 Copies of a kind add up (Onyx's passive multiplies); at most 4 count.	Копії одного виду додаються (пасив Онікса множиться); діють щонайбільше 4.
 Spring's and Larkspur's actives add to the passive; Onyx's replaces it.	Активація Пружини й Живокосту додається до пасиву; Онікса — замінює його.
 Onyx fired together: one reduction, 1 s longer per extra copy.	Онікси, активовані разом: одне зменшення, на 1 с довше за кожну додаткову копію.
+Power per activation	Сила після активацій
+Activations	Активації
+Power	Сила	artefact
+Next activation	Наступна активація
+Regeneration limit	Межа регенерації
+Missing health restored	Відновлення втраченого здоров'я
+Each activation leaves an artefact 80% of its power: 100 → 80 → 64 → 51%… It never runs out, and the power stays with that copy until you get a new one.	Кожна активація лишає артефакту 80% сили: 100 → 80 → 64 → 51%… Він не вичерпується, а сила лишається з цією копією, доки не здобудете нову.
+Each row: after that many activations, the passive now and the next activation's. Only the copies a press fires wear.	Кожен рядок: після стількох активацій — пасив зараз і наступна активація. Слабшають лише копії, які активувала клавіша.
+It still cures injuries on every activation.	Він і далі лікує травми при кожній активації.
+Its skills work at its power: {skills}.	Його навички діють з його силою: {skills}.
+Regeneration limit adds to each body part's own limit, never past full.	Межа регенерації додається до власної межі кожної частини тіла, але не понад повну.
 
 # The maps' anomalies (scripts/maps-tab/ui.js)
 Anomalies	Аномалії

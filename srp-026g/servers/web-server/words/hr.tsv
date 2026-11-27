@@ -943,6 +943,17 @@ A key fires every ready copy of its kind and restarts the cooldown of the ones s
 Copies of a kind add up (Onyx's passive multiplies); at most 4 count.	Kopije iste vrste se zbrajaju (pasiv Oniksa se množi); računaju se najviše 4.
 Spring's and Larkspur's actives add to the passive; Onyx's replaces it.	Aktivacija Opruge i Kokotića dodaje se pasivu; Oniksova ga zamjenjuje.
 Onyx fired together: one reduction, 1 s longer per extra copy.	Oniksi aktivirani zajedno: jedno smanjenje, 1 s dulje za svaku dodatnu kopiju.
+Power per activation	Snaga po aktivacijama
+Activations	Aktivacije
+Power	Snaga	artefact
+Next activation	Sljedeća aktivacija
+Regeneration limit	Granica regeneracije
+Missing health restored	Vraćeno izgubljeno zdravlje
+Each activation leaves an artefact 80% of its power: 100 → 80 → 64 → 51%… It never runs out, and the power stays with that copy until you get a new one.	Svaka aktivacija ostavlja artefaktu 80% snage: 100 → 80 → 64 → 51%… Nikad se ne istroši, a snaga ostaje uz tu kopiju dok ne dobiješ novu.
+Each row: after that many activations, the passive now and the next activation's. Only the copies a press fires wear.	Svaki redak: nakon toliko aktivacija — pasiv sada i sljedeća aktivacija. Slabe samo kopije koje tipka aktivira.
+It still cures injuries on every activation.	I dalje liječi ozljede pri svakoj aktivaciji.
+Its skills work at its power: {skills}.	Njegove vještine djeluju njegovom snagom: {skills}.
+Regeneration limit adds to each body part's own limit, never past full.	Granica regeneracije dodaje se vlastitoj granici svakog dijela tijela, nikad preko punog.
 
 # The maps' anomalies (scripts/maps-tab/ui.js)
 Anomalies	Anomalije

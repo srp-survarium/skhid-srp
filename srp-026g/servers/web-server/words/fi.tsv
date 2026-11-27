@@ -943,6 +943,17 @@ A key fires every ready copy of its kind and restarts the cooldown of the ones s
 Copies of a kind add up (Onyx's passive multiplies); at most 4 count.	Saman lajin kappaleet lasketaan yhteen (Onyksin passiivi kertautuu); enintään 4 lasketaan.
 Spring's and Larkspur's actives add to the passive; Onyx's replaces it.	Jousen ja Ritarinkannuksen aktiivi lisätään passiiviin; Onyksin korvaa sen.
 Onyx fired together: one reduction, 1 s longer per extra copy.	Yhdessä aktivoidut Onyksit: yksi vähennys, 1 s pidempään jokaista lisäkappaletta kohden.
+Power per activation	Voima aktivointien jälkeen
+Activations	Aktivoinnit
+Power	Voima	artefact
+Next activation	Seuraava aktivointi
+Regeneration limit	Palautumisraja
+Missing health restored	Palautettu puuttuva terveys
+Each activation leaves an artefact 80% of its power: 100 → 80 → 64 → 51%… It never runs out, and the power stays with that copy until you get a new one.	Jokainen aktivointi jättää artefaktille 80% sen voimasta: 100 → 80 → 64 → 51%… Se ei koskaan lopu, ja voima pysyy siinä kappaleessa, kunnes saat uuden.
+Each row: after that many activations, the passive now and the next activation's. Only the copies a press fires wear.	Jokainen rivi: niin monen aktivoinnin jälkeen passiivi nyt ja seuraava aktivointi. Vain näppäimellä aktivoidut kappaleet heikkenevät.
+It still cures injuries on every activation.	Se parantaa yhä vammat jokaisella aktivoinnilla.
+Its skills work at its power: {skills}.	Sen taidot toimivat sen voimalla: {skills}.
+Regeneration limit adds to each body part's own limit, never past full.	Palautumisraja lisätään kunkin ruumiinosan omaan rajaan, kuitenkin enintään täyteen.
 
 # The maps' anomalies (scripts/maps-tab/ui.js)
 Anomalies	Anomaliat

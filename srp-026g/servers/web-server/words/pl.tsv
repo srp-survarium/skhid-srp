@@ -943,6 +943,17 @@ A key fires every ready copy of its kind and restarts the cooldown of the ones s
 Copies of a kind add up (Onyx's passive multiplies); at most 4 count.	Kopie jednego rodzaju sumują się (pasyw Onyksu się mnoży); liczą się najwyżej 4.
 Spring's and Larkspur's actives add to the passive; Onyx's replaces it.	Aktywacja Sprężyny i Żywokostu dodaje się do pasywu; Onyksu — zastępuje go.
 Onyx fired together: one reduction, 1 s longer per extra copy.	Onyksy aktywowane razem: jedno zmniejszenie, o 1 s dłużej za każdą dodatkową kopię.
+Power per activation	Siła po aktywacjach
+Activations	Aktywacje
+Power	Siła	artefact
+Next activation	Następna aktywacja
+Regeneration limit	Limit regeneracji
+Missing health restored	Przywrócone brakujące zdrowie
+Each activation leaves an artefact 80% of its power: 100 → 80 → 64 → 51%… It never runs out, and the power stays with that copy until you get a new one.	Każda aktywacja zostawia artefaktowi 80% siły: 100 → 80 → 64 → 51%… Nigdy się nie wyczerpuje, a siła zostaje przy tej kopii, dopóki nie zdobędziesz nowej.
+Each row: after that many activations, the passive now and the next activation's. Only the copies a press fires wear.	Każdy wiersz: po tylu aktywacjach — pasyw teraz i następna aktywacja. Słabną tylko kopie aktywowane klawiszem.
+It still cures injuries on every activation.	Nadal leczy urazy przy każdej aktywacji.
+Its skills work at its power: {skills}.	Jego umiejętności działają z jego siłą: {skills}.
+Regeneration limit adds to each body part's own limit, never past full.	Limit regeneracji dodaje się do własnego limitu każdej części ciała, nigdy ponad pełny.
 
 # The maps' anomalies (scripts/maps-tab/ui.js)
 Anomalies	Anomalie
