@@ -36,8 +36,15 @@ package
    //   hold from then), each gone after its fade; and beside it the shared short message
    //   (set_parameterized_message) as Free for All calls it: its welcome run to its end, then its
    //   end's verdict, the clip's second message, fully shown its 6 s too (the owner, 2026-11-27: both
-   //   "disappear almost immediately" in the game).
-   // "FREEZE SHOT maps" for check.sh's screenshot; ends with "FREEZE RESULT pass" or "... fail: ...".
+   //   "disappear almost immediately" in the game), the two never over one another;
+   // - Freeze Tag's notices where the game's own are (the battery's in Protective device, a stock
+   //   match's end: 33 large, 20 % down the screen; the owner, 2026-11-27: "just like with
+   //   batteries"): the reveal's popups, the round's result with its seconds, the match's; the same
+   //   top and size as the battery's, on the screen, clear of the timer and score bar, the kill feed
+   //   and the mode notice, under the game's message when both are shown (an Onyx hint), the round's
+   //   result not in the use widget any more.
+   // "FREEZE SHOT maps", then "FREEZE SHOT <notice>" (PLACES) for check.sh's screenshots; ends with
+   // "FREEZE RESULT pass" or "... fail: ...".
    public class FreezeHudHarness extends Sprite
    {
       private var ICE:uint;
@@ -58,6 +65,11 @@ package
       private var timelineTexts:Object = {};
       private var timelineLow:Object = {};
       private var timelineSeen:Object = {};
+      // The notices' shots (phase 5): the one under way, its start, the battery message's text.
+      public static const PLACES:Array = ["battery","reveal","reveal-mode-notice","round-won","victory","onyx-reveal"];
+      private var place:int = 0;
+      private var placeStart:int;
+      private var battery:Rectangle;
 
       public function FreezeHudHarness()
       {
@@ -245,12 +257,12 @@ package
 
       private function popupField() : TextField
       {
-         return hud.revealPopup.clip.mc_text.contextText;
+         return hud.freezeNotice.clip.mc_text.contextText;
       }
 
       private function popupShown() : Boolean
       {
-         return hud.revealPopup.text != null && hud.revealPopup.clip.visible && hud.revealPopup.clip.parent != null;
+         return hud.freezeNotice.text != null && hud.freezeNotice.clip.visible && hud.freezeNotice.clip.parent != null;
       }
 
       // Freeze Tag's mode notice (set_game_type 12) and the reveal's popups for everyone
@@ -405,18 +417,20 @@ package
             timelineNext += 40;
          }
          var t:int = now - timelineStart;
-         var reveal:* = hud.revealPopup.clip;
+         var reveal:* = hud.freezeNotice.clip;
          var shared:* = hud.contextInfo3;
          // Fully shown between the fades: 0.5 s in, the hold, 0.5 s out (a frame's margin each side).
          sample("counting",t,600,3900,reveal,timelineTexts.counting);
          sample("revealed",t,6600,11900,reveal,timelineTexts.revealed);
          sample("welcome",t,600,5900,shared,timelineTexts.welcome);
          sample("verdict",t,8200,13400,shared,timelineTexts.verdict);
-         seen("counting gone",t,4600,6000,hud.revealPopup.text != null || reveal.visible);
-         seen("revealed gone",t,12600,14500,hud.revealPopup.text != null || reveal.visible);
+         seen("counting gone",t,4600,6000,hud.freezeNotice.text != null || reveal.visible);
+         seen("revealed gone",t,12600,14500,hud.freezeNotice.text != null || reveal.visible);
          seen("welcome gone",t,6600,7520,shared.visible);
          seen("verdict gone",t,14100,14500,shared.visible);
          seen("shared off the display list",t,0,14500,shared.parent == null);
+         seen("over one another",t,0,14500,reveal.visible && shared.visible && reveal.alpha > 0.05 && shared.alpha > 0.05 &&
+            reveal.mc_text.contextText.getBounds(stage).intersects(shared.mc_text.contextText.getBounds(stage)));
          if(t < 14500) return;
          for each(var name:String in ["counting","revealed","welcome","verdict"])
          {
@@ -428,8 +442,127 @@ package
             check(!timelineSeen[name],"the timeline: " + name + " after its fade");
          }
          check(!timelineSeen["shared off the display list"],"the timeline: the shared message stays on the display list");
+         check(!timelineSeen["over one another"],"the timeline: the reveal's popup and the shared message never over one another");
+         placeStart = getTimer();
+         phase = 5;
+      }
+
+      private function textOf(clip:*) : Rectangle
+      {
+         return clip.mc_text.contextText.getBounds(stage);
+      }
+
+      // Each notice of PLACES: the hud cleared (0.7 s for the game's message's fade), the notice told,
+      // checked and shot fully shown (0.9 s later), held 1.2 s for the screenshot.
+      private function places() : void
+      {
+         var t:int = getTimer() - placeStart;
+         var name:String = PLACES[place];
+         var notice:* = hud.freezeNotice.clip;
+         var shared:* = hud.contextInfo3;
+         if(placeStep == 0)
+         {
+            hud.hideParameterized();
+            hud.reset();
+            hud.set_game_type(12);
+            hud.force_interface_hidden(false);
+            hud.show_player_list(false);
+            hud.show_game_info(true);
+            hud.freeze_tag_score(2,1,5);
+            hud.set_match_time("05:00");
+            placeStep = 1;
+            return;
+         }
+         if(placeStep == 1)
+         {
+            if(t < 700) return;
+            if(name == "battery")
+               hud.set_parameterized_message("The battery is charged! Deliver it to your base.",33,20,3000);
+            else if(name == "reveal")
+               hud.freeze_tag_reveal(0,0,3,15000);
+            else if(name == "reveal-mode-notice")
+            {
+               hud.mode_notice(true);
+               hud.set_game_type(12);
+               hud.set_match_time("05:00");
+               hud.freeze_tag_reveal(1,15000,0,0);
+            }
+            else if(name == "round-won")
+               hud.freeze_tag_update(0,0,4,3000,4000,0,3000);
+            else if(name == "victory")
+               hud.freeze_tag_update(0,0,1,0,4000,0);
+            else if(name == "onyx-reveal")
+            {
+               hud.set_parameterized_message("Onyx: you take less damage for 3 s.",33,20,3000);
+               hud.freeze_tag_reveal(0,0,3,15000);
+            }
+            killFeed();
+            placeStep = 2;
+            return;
+         }
+         if(placeStep == 2)
+         {
+            if(t < 1600) return;
+            var screen:Rectangle = new Rectangle(0,0,stage.stageWidth,stage.stageHeight);
+            var shown:* = name == "battery" ? shared : notice;
+            var at:Rectangle = textOf(shown);
+            var field:TextField = shown.mc_text.contextText;
+            trace("FREEZE place " + name + " " + stage.stageWidth + "x" + stage.stageHeight + ": " + at + " size " +
+               field.getTextFormat().size + " \"" + field.text.split("\r").join(" / ") + "\"");
+            check(shown.visible && shown.alpha > 0.95 && field.length > 0,name + ": shown");
+            check(screen.containsRect(at),name + ": on the screen");
+            var bar:Rectangle = hud.progress_indicator.getBounds(stage);
+            check(!at.intersects(bar),name + ": clear of the timer and score bar " + bar);
+            var feed:Rectangle = hud.combatLog.getBounds(stage);
+            check(feed.width == 0 || !at.intersects(feed),name + ": clear of the kill feed " + feed);
+            var mode:* = childOf("survarium.modes::ModeNotice");
+            var noticeShown:Boolean = mode != null && mode.visible;
+            if(noticeShown)
+               check(!at.intersects(mode.label.getBounds(stage)),name + ": clear of the mode notice " + mode.label.getBounds(stage));
+            if(name == "battery")
+               battery = at;
+            else
+            {
+               check(field.getTextFormat().size == 33,name + ": the battery's size (33): " + field.getTextFormat().size);
+               if(name != "onyx-reveal" && !noticeShown)
+                  check(Math.abs(at.top - battery.top) <= 1,name + ": the battery's place, its top " + at.top + " (the battery's " + battery.top + ")");
+               if(name == "onyx-reveal")
+                  check(Math.abs(textOf(shared).top - battery.top) <= 1 && at.top >= textOf(shared).bottom,
+                     name + ": the game's message at its place, Freeze Tag's under it");
+            }
+            if(name == "round-won" || name == "victory")
+               check(!(hud.contextInfo.visible && hud.contextInfo.contextText.text == field.text),name + ": not in the use widget too");
+            trace("FREEZE SHOT " + name);
+            placeStep = 3;
+            return;
+         }
+         if(t < 2800) return;
+         place++;
+         placeStart = getTimer();
+         placeStep = 0;
+         if(place < PLACES.length) return;
          trace("FREEZE RESULT " + (failures.length ? "fail: " + failures.join("; ") : "pass"));
          phase = 3;
+      }
+
+      // 0 to clear, 1 to tell, 2 to check and shoot, 3 held.
+      private var placeStep:int = 0;
+
+      // A few rows in the kill feed, as long as a match's (their bounds for the notices' checks).
+      private function killFeed() : void
+      {
+         for each(var row:Array in [["Very_Long_Player_Name","Another_Long_Name"],["Sniper_2026","Freeze_Victim"]])
+         {
+            try
+            {
+               hud.add_log_message({who_name:row[0],victim_name:row[1],action_id:0,object_icon:"",extra_icon:"",
+                  mastery_icon:"",pain_icon:"",penetration_icon:"",ricochet_icon:""});
+            }
+            catch(error:Error)
+            {
+               trace("FREEZE kill feed row refused: " + error);
+            }
+         }
       }
 
       private function maps() : Array
@@ -591,23 +724,35 @@ package
                hud.update_players(players());
                dots([],"a new match: nobody frozen");
                check(empty(drawn(hud.player_list.minimap,LAST)),"a new match: nobody marked");
-               // A round's restart, Artifact Hunt's: its 3 s show the round's line; the fade goes
-               // black; the countdown shows the kits and its time at once; an artefact offer still
-               // waits under the kits.
+               // A round's restart, Artifact Hunt's: its 3 s show the round's result, a notice where
+               // the game's are (its seconds following); the fade goes black and the notice fades;
+               // the countdown shows the kits and its time at once; an artefact offer still waits
+               // under the kits.
+               var english:Object = HarnessText.DATA["english"];
+               var round:Function = function(key:String, seconds:String):String { return String(english[key]).split("%1$s").join(seconds); };
                hud.freeze_tag_update(0,0,5,2200,4000,0,3000);
-               check(hud.contextInfo.visible && hud.contextInfo.contextText.text.length > 0,
-                  "the 3 s after a round show its line (the losing side's)");
+               check(hud.freezeNotice.text == round("st_srp_hud_freeze_round_lose","3"),
+                  "the 3 s after a round show its result (the losing side's): " + hud.freezeNotice.text);
                hud.freeze_tag_update(0,0,4,3000,4000,0,3000);
-               check(hud.contextInfo.visible && hud.contextInfo.contextText.text.length > 0 && !hud.roundFade.visible,
-                  "the 3 s after a round show its line (the winning side's), no fade");
+               check(hud.freezeNotice.text == round("st_srp_hud_freeze_round_win","3") && !hud.roundFade.visible,
+                  "the 3 s after a round show its result (the winning side's), no fade: " + hud.freezeNotice.text);
+               hud.freeze_tag_update(0,0,4,1900,4000,0,3000);
+               check(hud.freezeNotice.text == round("st_srp_hud_freeze_round_win","2"),"its seconds follow: " + hud.freezeNotice.text);
+               check(!hud.contextInfo.visible || hud.contextInfo.contextText.text != hud.freezeNotice.text,"the result not in the use widget");
                hud.freeze_tag_update(0,0,7,500,4000,0,1000);
                check(hud.roundFade.visible,"the fade goes black");
+               check(hud.freezeNotice.text != null,"the result fading from the fade's start, not cut");
                hud.show_profiles_selector(true);
                hud.freeze_tag_update(0,0,8,4200,4000,0,5000);
                check(hud.contextInfo.visible && hud.contextInfo.contextText.text.length > 0,
                   "the countdown's time shown with the kits");
                hud.freeze_tag_update(0,0,0,0,4000,0);
                check(!hud.roundFade.visible,"the round in play: no fade");
+               hud.freeze_tag_update(0,0,2,0,4000,0);
+               check(hud.freezeNotice.text == english.st_srp_hud_freeze_lose,"the match's result a notice: " + hud.freezeNotice.text);
+               hud.freeze_tag_update(0,0,2,0,4000,0);
+               check(hud.freezeNotice.text == english.st_srp_hud_freeze_lose,"held while the match's end lasts");
+               hud.freeze_tag_update(0,0,0,0,4000,0);
                hud.show_artefact_offer("st_artefact_take_teammate");
                check(!hud.contextInfo.visible,"an artefact offer waits under the kits");
                hud.show_artefact_offer("");
@@ -619,6 +764,10 @@ package
             if(phase == 4)
             {
                timeline();
+            }
+            if(phase == 5)
+            {
+               places();
             }
          }
          catch(error:Error)
