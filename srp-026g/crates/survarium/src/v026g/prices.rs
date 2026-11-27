@@ -115,7 +115,7 @@ use super::weapon_modules::Modules;
 /// Silver for one gold: the game's exchange rate (0.21d's web page sold gold
 /// at it, and 0.26g's lobby was told it). Gold is gone [the owner,
 /// 2026-11-08]; at this rate: the balances, paid back once at the release
-/// (`session` `SqliteGameRepository::pay_back_once`), the premium items'
+/// (`session` `persist::PAID_BACK`), the premium items'
 /// prices (`items.tsv`), the premium shop's, the upgrade's and the
 /// modification change's prices, and gold a drop table rolls.
 pub const GOLD_IN_SILVER: u32 = 100;

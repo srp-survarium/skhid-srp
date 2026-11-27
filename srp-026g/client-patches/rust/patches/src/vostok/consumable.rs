@@ -1,4 +1,5 @@
-//! Read-only presentation of the native medkit state machine. No item
+//! Read-only presentation of the native medkit state machine and of an oxygen
+//! tank's Oxygen Rush (patch 180). No item
 //! pointers retained: each HUD update reads the current simulation, and what
 //! a patch remembers between updates (patch 84's red second) is a drug's
 //! identity and the local player's simulation clock, never a game object.
@@ -46,6 +47,9 @@ pub enum Observed {
     /// other caller, 0x33D7C1, is the dead holder's); a previous life's drug
     /// can look so too, which is why the patch asks for the use before it.
     Stopped { drug: DrugId },
+    /// The holder's oxygen tank while its Oxygen Rush runs (patch 180).
+    Boosted,
+    Artefact { id: u8, wear: srp_validate::world::ArtefactWear },
 }
 
 impl Observed {
@@ -68,6 +72,9 @@ pub enum Shown {
     InUse(Course),
     /// A bullet stopped it (patch 84): the slot's icon red.
     Interrupted,
+    /// An oxygen tank whose Oxygen Rush runs: its native countdown in Spring's blue.
+    Boosted,
+    Artefact { id: u8, wear: srp_validate::world::ArtefactWear },
 }
 
 impl Shown {
@@ -77,6 +84,8 @@ impl Shown {
             Self::InUse(Course::Waiting { remaining, duration }) => [1, remaining.0, duration.0],
             Self::InUse(Course::Active { remaining, duration }) => [2, remaining.0, duration.0],
             Self::Interrupted => [3, 0, 0],
+            Self::Boosted => [4, 0, 0],
+            Self::Artefact { id, wear } => [5, u32::from(wear.uses()), u32::from(id)],
         }
     }
 }
@@ -128,6 +137,14 @@ impl<'t> QuickSlotActivity<'t> {
                         }
                     } else { 0 };
                     Observed::parse(DrugId(medkit.address()), active, delay, remaining, duration)
+                }
+                Some(item) if *player.alive() != 0 && super::technical::oxygen_rush_on(player, item) => {
+                    Observed::Boosted
+                }
+                _ if *player.alive() != 0 => {
+                    super::inventory::Inventory::of_player(player, ctx.thread())
+                        .and_then(|inv| inv.slot_wear(index as u32))
+                        .map_or(Observed::Idle, |(id, wear)| Observed::Artefact { id, wear })
                 }
                 _ => Observed::Idle,
             };
@@ -191,6 +208,7 @@ mod tests {
         assert_eq!(shown(true, 0, 0, 5000), [0, 0, 0]);
         assert_eq!(shown(false, 0, 4000, 5000), [0, 0, 0]);
         assert_eq!(Shown::Interrupted.arguments(), [3, 0, 0]);
+        assert_eq!(Shown::Boosted.arguments(), [4, 0, 0]);
     }
     #[test]
     fn set_active_0_with_time_left_is_stopped() {

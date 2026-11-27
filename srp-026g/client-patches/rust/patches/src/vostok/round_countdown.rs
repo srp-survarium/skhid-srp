@@ -62,7 +62,7 @@ pub(super) unsafe fn set(core: raw::CoreWorld, on: bool) {
 /// state, or the countdown's 2 while the core says a round is about to start,
 /// so the native camera switch (0x27B1A0: the warmup camera; patch 31's kits
 /// by +1F1C60h) plays the match start's countdown for a round, and switches
-/// back to the player's camera as the round starts.
+/// back to the player's camera as the round starts: everyone's, in every mode.
 pub fn camera_state(ctx: &mut Context<'_>) {
     // SAFETY: the site's EDI, the live client time rule; its core (+128h,
     // 0x267ACC) and its own state (+148h, the instruction replaced).

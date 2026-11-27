@@ -62,8 +62,8 @@ kills wins, no elimination phases (not 0.31's "The Last Stand"). His rules of th
     kill feed, kills, assists, spotting.
   - **Voice for all** (the owner, 2026-11-13: "in FFA I would enable voice chat for all"; until
     then nobody heard anyone): every player hears every other of the match, by the team modes'
-    rule of near and far (plain in the world under 10 m, the radio from it or dead;
-    voice-chat.md). The game decides it from the options' free-for-all entry (patch 66's
+    rule of near and far (until 2026-11-16 plain in the world under 10 m, the radio from it
+    or dead; voice-chat.md). The game decides it from the options' free-for-all entry (patch 66's
     `channel`, by patch 142's `free_for_all::running`): everyone a mate. The relay sends every
     match whole since 2026-11-15, when opponents near became heard in the team modes too (it
     decided by the mode until then, `registry::VoiceChannel::of`). The Tab menu's voice mute and the
@@ -118,8 +118,9 @@ A match's first spawn and every respawn go through the same respawn tick, so bot
   - every point that passes the game's clear test (no other player within its
     enemy radius: 20 m on every map), and has no point already assigned
     at this tick inside that radius, enters the pool in map order;
-  - choose from the whole safe pool, without favouring greater distance;
-    safe central points are as eligible as safe edge points;
+  - closer when few ("Closer when few", below): the pool, nearest to a living player first (from
+    30 m), is cut to its nearest max(3, ceil(pool x players / 10)); a match of 10 players or more, or one
+    with nobody living, keeps the whole pool in map order, without favouring greater distance;
   - a wrapping u32 integer mix of match milliseconds and player place picks
     the pool index. Mixing before modulo avoids locking regular respawns
     to a subset of points. It needs no persistent random state;
@@ -127,6 +128,40 @@ A match's first spawn and every respawn go through the same respawn tick, so bot
     nearest living player or spawn already assigned at this tick, using the
     same mix. Equal ranks keep map order; smaller maps use all their points;
   - neither offers the player's last two points ("Never the last two", below).
+- **Closer when few** (the owner, 2026-11-15: "I want when there are not many people for spawns to
+  be closer"): with 2-4 players on a map of 50-70 points the whole pool put them far apart, running
+  round an empty map.
+  - What stays: the clear test (20 m), the tick's separation, the last two, the crowded fallback,
+    the turn (no unsynchronized randomness).
+  - Order: the pool's points by the squared distance to the nearest living player (any other: in a
+    free-for-all every one is an enemy), nearest first, equal ones by the point's index; the
+    points 30 m away or more before the nearer ones (the owner, 2026-11-23, of "still 20 m away":
+    "change it to 30m"), these the farthest first, so a 20-30 m point only when too few are 30 m
+    away. The clear test and the maps' radius stay 20 m, and a full match is as before.
+  - How many: the nearest max(3, ceil(pool x players / 10)), at most the pool; players are the
+    places in the match (the world core's active places, `[rule+134h]+18FD8h`: the core the
+    respawn tick asks each place's player of, world state, so every game, late joiner and replay
+    counts alike). 2 players on a pool of 50: the nearest 10; 4: 20; 8: 40; 10 or more: all.
+  - All of them (10 players or more), or nobody living (the match's start, or everyone dead at
+    once): the whole pool in map order, the very point of before.
+  - Tuned offline (mine; a sketch, not in the repo) on the team-2 points of a rev-61 content
+    build: the others alive, each within 15 m of a random spawn; the median distance from a
+    respawn to the nearest living enemy, before -> now (of the 20 m order, before the 30 m one):
+
+    | Map (points) | 2 players | 4 | 8 | 16 |
+    |---|---|---|---|---|
+    | Rudnya (60) | 81 -> 36 m | 49 -> 32 | 35 -> 32 | 28 (same) |
+    | Training Camp (47) | 36 -> 24 | 27 -> 23 | 23 -> 22.5 | 21 (same) |
+    | Vostok (75) | 58 -> 29 | 40 -> 27 | 31.5 -> 29 | 28 (same) |
+    | Experimental Pool (28) | 40 -> 25 | 28 -> 23.5 | 23 -> 22.7 | 15 (same) |
+
+    Divisor 12 (the first try): two players at 23-34 m; 8: 24-39 m, but no change from 8 players
+    on. 10, chosen: two players at 24-36 m (the small dense maps at the 20 m radius's edge), a
+    little closer up to 9, no change from 10 on. The minimum of 3 does not bind on these maps
+    (their pools are larger); it keeps a choice when few points are clear.
+  - Release impact: a simulation change of patch 142, Free for All only (simulation_changes.tsv
+    `next`); no world-format change. Offline only (Rust tests, the Unicorn check); not played. To
+    try in a game: a Free for All of two players, respawns near the other one (just past 30 m).
 - **Never the last two** (the owner, 2026-11-15: "players never repeat their last 2 spawns"): a
   player's respawn point is never one of the two points he last spawned at.
   - When: every spawn of a free-for-all, the first included; the clear pool and the crowded
@@ -690,7 +725,7 @@ rules, spawns, pay and results, every kit's guns changed by the server.
   (Винчестер), Салун (Вінчестер) (uk), Салун (Вінчэстар) (be), Saloon (Winchester) (pl, de, cs,
   hu), Salun (Winchester), Saluuna (Winchester) (the game's own words for the Winchester: its
   item's and its ammunition's).
-  `st_srp_mode_roulette_low`, `_mid`, `_high` FFA: Roulette 0-5, 6-10, 11-15 (Рулетка in ru, uk,
+  `st_srp_mode_roulette_low`, `_mid`, `_high` FFA: Roulette, the band not shown (Рулетка in ru, uk,
   be; `ffa-roulette.md` has every language).
   The lobby's mode numbers 9 Racket, 10 Saloon (the Colt alone), 11 Saloon (Winchester) and 14,
   15, 16 Roulette by its band
@@ -737,11 +772,11 @@ rules, spawns, pay and results, every kit's guns changed by the server.
     every kit and slot that held it (the second slot takes it: assault rifles fit slot 10), with
     the EOTech 552 sight on it and no other modification or upgrade (the owner, 2026-11-14: "also
     for ak-12, people should have eotech collimator set on replaced weapons"). The sight is the
-    shop's `shop_scope_eotech_552`, on the gun by the variant the game data makes for it
-    (`fit_ak_12_eotech_552`, `fit_ak_74n_eotech_552`, `ScopeFits::variant`): the gun's one scope
+    shop's `shop_scope_eotech_552`, on the gun when the game data's modules table fits it to the gun
+    (`Modules::kind`, in `racket::Arms::of`): the gun's one scope
     record in slot 3, packed as an owned scope's (`weapon_scopes.md`, `weapon-kit.md`), its item
     id none of the profile's (an owned scope is in no kit either). Nobody needs to own one.
-    Without that variant in the data the gun goes bare; nothing refuses such data (the owner,
+    Without that fit in the data the gun goes bare; nothing refuses such data (the owner,
     2026-11-14: "since it is just enforced the behvaiour", "not correctness").
   - Its ammo, the simplest way (the owner, 2026-11-14: "make it the simplest way"): in each kit
     that held a replaced gun, every ammo slot whose ammo none of the kit's guns fires now is

@@ -90,6 +90,11 @@ pub struct Arms {
 }
 
 impl Arms {
+    /// The gun's dict id: what every replaced gun becomes.
+    pub fn gun(&self) -> u16 {
+        self.gun
+    }
+
     /// The data's `gun` and its ammo: an ammunition the dictionary pairs with it, which every ammo
     /// slot takes, and its clip; and its [`SIGHT`], if the data fits it to the gun.
     fn of(dictionary: &Dictionary, modules: &Modules, gun: Gun) -> Result<Self, String> {
@@ -119,7 +124,7 @@ impl Arms {
         let sight = dictionary
             .item_named(SIGHT)
             .map(|scope| scope.dict_id)
-            .filter(|&scope| modules.kind(gun, scope) == Some(Kind::Scope));
+            .filter(|&scope| modules.takes(gun, scope, Kind::Scope));
         Ok(Self {
             gun,
             ammo,

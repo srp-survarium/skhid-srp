@@ -4,7 +4,8 @@ The reworked London as a map of its own beside London (v0.32) (the owner, 2026-1
 want london 0.32 in the game and london 0.42 in the game"; "let's finish london", "both versions").
 Update 0.42 (2016-05-11) moved both bases in, cut the outskirts and changed the tower's inside; no
 build of 0.35 to 0.43 is archived, so the donor is 0.44a5 (build 3808, 2016-09-20), the first
-archived build with the rework (`private/renders/london-history`). Content pack `london-v042@2`,
+archived build with the rework (`private/renders/london-history`). Content pack
+`london-v042` (@7 in `release/content.tsv`),
 made by resource-porter's `build-survarium-near-map` from 0.44a5's own projects
 (`ports/survarium-044a5-london-to-026g.json`, `docs/near-builds.md` there).
 

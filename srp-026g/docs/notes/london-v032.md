@@ -1,10 +1,25 @@
 # London (v0.32)
 
 The live London rebuilt from 0.32a4's own projects (the owner, 2026-11-20: "I think we want london 0.32
-in the game and london 0.42 in the game"; `london.md`, "Name and build"). Content pack `london-v032@1`,
+in the game and london 0.42 in the game"; `london.md`, "Name and build"). Content pack
+`london-v032` (@4 in `release/content.tsv`),
 made by resource-porter's `build-survarium-near-map` in the same one pass as London (v0.42)
 (`ports/survarium-032a4-london-to-026g.json`, `docs/near-builds.md` there), and the forward effects as
 0.44a5 and 0.32a4 draw them with client patch 169 (pack `forward-effects@1`).
+
+Version 2 (the owner's test, 2026-11-22: hard terrain edges, swaying walls, glossy vines, black and
+dithered walls, pale grass, the glass on the sand, the rain's empty texture cook) is built with the
+donor's own switch sets (`--keep-switch-sets`) and the donor's programs of the g-buffer, its emissive
+pass and the vertex shaders with their two shadow passes: version 1 gave 31 materials of each London
+the nearest switch set players have programs for, which dropped parallax, roughness and translucency
+maps, hardened blended terrain edges (vertex_blend_technique 2 to 0) and gave static walls wind (0 to
+2). Also by rule now: an environment setting the donor leaves empty is left out (0.44a5's rain
+`sky_clouds_normal_texture` ""), a texture no archive has is cleared with the switch that samples it,
+and a surface whose mesh carries no wind weights draws its windy material without wind.
+A kept set whose programs are not all there takes the nearest set players have: 0.32a4's saksaul
+and anomaly-field ground tiles lose their parallax at shading quality 3 (its programs read constants
+0.26g never sets; an exe patch for them follows), `pol` its tiled blend mask, `stena_wood` its blend
+technique. The kept sets' programs are 0.44a5's, shipped by `london-v042@4`.
 
 ## In place, by one switch
 
@@ -38,6 +53,29 @@ Not carried: patch 14's fixes of the old London's look (`london-tone-1`, `london
 environment, probes and materials replace them, with London's tone marker and box-projected probes
 carried by the manifest as for London (v0.42). The campfires are 0.32a4's own fires with their damage
 zones (one mechanism), not `port-campfires-1`.
+
+## The red team at the owner's picks
+
+The owner, 2026-11-23: "here are multiple red london 0.32 spawns in tdm and chargers which look not towards the
+ceonter of the map/doors, having people to adjust as they spawn, not good"; he typed `where` at 13 places in the
+red team's building (team 1, the office building south-east of the round hall), facing as a spawning player should;
+over the drawing of them against the old ones: "yep, let's use mine". `london-v032-red-spawns-1.json`, made by
+`scripts/london-v032/make_red_spawns.py` from `london-v032-red-picks.tsv` (check-points `picks --team 1` on the ten
+team projects):
+
+- All 13 on their ground (pick 4 0.05 m down, the others where he stood), body clear, 2 m from harmful zones; 12
+  and 13 are on the lower floor (y 5.5). Facing as he faced: rotation `[0, -yaw, 0]`.
+- The ten team projects (day 2-5, rain and evening 2-4) had the same 10 red places under other ids and names by
+  mode: in each, the 10 red points take picks 1-10 (position and rotation only), and picks 11-13 are new points
+  after the last entry (ids 20-22, `red_pick_<n>`), copies of the project's first red point (its radii, priority,
+  6 s of protection). The blue team is unchanged.
+- Its row is after `ffa-london-v032-1` (Free for All's day_8, a copy of day_4, keeps the old team points, which it
+  does not play) and before `artefact-hunt-maps-1`, whose `<weather>_ah` copies of the `_4` projects carry the new
+  points. Blackout plays day_2 and Freeze Tag the `_4` projects themselves.
+- The old facings: the exe takes a point's yaw from its whole rotation (`respawn_point_core::load` 0x2F4580 builds
+  the matrix with `create_rotation` 0x725E0 and takes the angles of its k row, 0xEE370), so a rotation
+  `(pi, a, pi)`, which most of the map editor's points have, faces the opposite way to `(0, a, 0)`, as the site's
+  map tab draws it (`scripts/maps-tab/build.py`, `heading`).
 
 ## Checked
 

@@ -13,7 +13,8 @@
 //! - the input (patch 78's `carry.input`, asked first): the frozen
 //!   countdown, the use key's take and delivery, the Drop key;
 //! - the carrier: his two modifiers (patch 109's getter sites), no sprint;
-//!   his marker for both teams;
+//!   his dot on the minimaps for both teams; the artefact's mark on his
+//!   marker (which only his teammates see);
 //! - the hud: `root.artefact_hunt_update`, the messages, the welcome.
 //!
 //! Every game computes the same: what the simulation's hooks read is the
@@ -25,7 +26,7 @@ use core::ffi::CStr;
 
 use artefact_hunt_rule::{
     Action, After, ArtefactView, BaseDef, Cue, Event, Hud, Line, Message, Params, Place, Position, RawParams,
-    RawShape, Reason, Rule, Shift, Spawner, Spawning, SuddenShown, Team, Time, View, Viewer, MAX_SHAPES, MAX_SPAWNERS,
+    RawShape, Reason, Rule, Spawner, SuddenShown, Team, Time, View, Viewer, MAX_SHAPES, MAX_SPAWNERS,
     PLAYERS, REACH, along,
 };
 
@@ -42,7 +43,7 @@ use crate::vostok::statistics::ScoreEvent;
 use crate::vostok::world::{GameWorld, Player, WorldKey};
 use crate::vostok::{
     ArtefactHuntOnCanSprintExit, ArtefactHuntOnEnemyExit, ArtefactHuntOnMarkExit,
-    ArtefactHuntOnNameExit, Context, Flow, GameCell, GameWorldUi,
+    Context, Flow, GameCell, GameWorldUi,
     Lock, NoExit, OrigTdmCookCreate, OrigTdmCookSize, OrigTdmRuleCompleted, OrigTdmRuleDeserialize, OrigTdmRuleEntered,
     OrigTdmRuleFillHud, OrigTdmRuleLeft, OrigTdmRuleOnEvent, OrigTdmRuleSerialize, OrigTdmRuleSetCore,
     Thread,
@@ -197,7 +198,6 @@ fn read_config(root: &ConfigTable<'_>) -> Result<(Params, Item), &'static str> {
         round_countdown_time: int(c"round_countdown_time")?,
         score: int(c"score")?,
         respawn_time: int(c"respawn_time")?,
-        time_needed_to_respawn: int(c"time_needed_to_respawn")?,
         vi_spawn_time: int(c"vi_spawn_time")?,
         vi_spawn_variation: int(c"vi_spawn_variation")?,
         vi_not_picked_ttl: int(c"vi_not_picked_ttl")?,
@@ -280,7 +280,6 @@ fn read_config(root: &ConfigTable<'_>) -> Result<(Params, Item), &'static str> {
         artefact_hunt_rule::ParamError::RoundCountdownTime => "parameters.round_countdown_time",
         artefact_hunt_rule::ParamError::Score => "parameters.score",
         artefact_hunt_rule::ParamError::RespawnTime => "parameters.respawn_time",
-        artefact_hunt_rule::ParamError::TimeNeededToRespawn => "parameters.time_needed_to_respawn",
         artefact_hunt_rule::ParamError::ViSpawnTime => "parameters.vi_spawn_time",
         artefact_hunt_rule::ParamError::ViNotPickedTtl => "parameters.vi_not_picked_ttl",
         artefact_hunt_rule::ParamError::ViDroppedTtl => "parameters.vi_dropped_ttl",
@@ -384,12 +383,24 @@ pub fn on_event(_: &OrigTdmRuleOnEvent, rule: &mut HuntRule<'_>, kind: u32, data
     });
 }
 
-/// Slot 8: a player entered the match, of his profile's team. In a match the
-/// place's player has no team of the two yet here (2026-11-21's test: nobody
-/// was ever in the match): the tick takes him in once he has one.
+/// The place slots 8 and 9 are given: the low byte of their dword. The game's
+/// roster loop (0x2D2180) keeps the place in its second argument's stack slot
+/// with `mov [esp+1Ch],bl` (0x2D218B) and pushes the whole dword (0x2D2194),
+/// so its upper three bytes are that argument's, a pointer's; every native
+/// rule reads the byte alone (tdm_rule_core 0x3165D3 `mov cl,[esp+8]`,
+/// kd_stats_rule 0x323A00 `movzx`). Taken whole, no leave and no entry ever
+/// reached the rule (live, 2026-11-26, match 0x45331d4d: a carrier left, came
+/// back at his base still carrying the artefact and delivered it).
+fn slot_place(dword: u32) -> Option<Place> {
+    Place::new(dword as u8)
+}
+
+/// Slot 8: a player entered the match, of his profile's team. A new place's
+/// player may have no team of the two yet here (2026-11-21's test): the tick
+/// takes him in once he has one.
 pub fn on_entered(_: &OrigTdmRuleEntered, rule: &mut HuntRule<'_>, place: u32, time: u32) {
     let Some(world) = rule.world() else { return };
-    let Some(place) = u8::try_from(place).ok().and_then(Place::new) else { return };
+    let Some(place) = slot_place(place) else { return };
     let Some(team) = world.body(place.get()).and_then(|body| Team::from_raw(body.team)) else { return };
     with_rule(rule, |hunt| step(&world, hunt, Event::Entered { place, team, now: Time::from_ms(time) }));
 }
@@ -408,13 +419,23 @@ fn take_in(world: &HuntWorld<'_>, hunt: &mut Hunt, now: Time) {
     }
 }
 
-/// Slot 9: a player left (the place still holds his player).
+/// Slot 9: a player left. The place still holds his player, in the world's
+/// active places until the loop's end (0x2D214E): a carrier lets go of the
+/// artefact where he stood, as at a death. Every way out of a match comes
+/// here: the leaver's 0xE0, a closed link, the client timeout and a new
+/// connection for the place each make the match server's 0xEA
+/// (`Game::leave`; client_patch.md, "How a leave reaches the other games").
 pub fn on_left(_: &OrigTdmRuleLeft, rule: &mut HuntRule<'_>, place: u32, time: u32) {
     let Some(world) = rule.world() else { return };
-    let Some(place) = u8::try_from(place).ok().and_then(Place::new) else { return };
+    let Some(place) = slot_place(place) else { return };
     with_rule(rule, |hunt| {
-        let ground = (hunt.state.carrier() == Some(place)).then(|| ground_of(&world, place.get())).flatten();
-        step(&world, hunt, Event::Left { place, now: Time::from_ms(time), ground });
+        let carried = hunt.state.carrier() == Some(place);
+        let ground = carried.then(|| ground_of(&world, place.get())).flatten();
+        let now = Time::from_ms(time);
+        step(&world, hunt, Event::Left { place, now, ground });
+        if carried {
+            decision(world.thread(), Decision::Left, place, CARRIED.get(world.thread()), now);
+        }
     });
 }
 
@@ -528,15 +549,14 @@ pub fn on_completed(_: &OrigTdmRuleCompleted, rule: &mut HuntRule<'_>, time: u32
 
 // ---- the respawn rule ----------------------------------------------------------
 
-/// A death's delay: the wave's time (`Rule::respawn_at`), the native grid
-/// and store after it.
+/// A death's delay: the wave's time (`Rule::respawn_at`, the native delay
+/// and its respawn modifier dropped), the native grid and store after it.
 pub fn on_death_delay(ctx: &mut Context<'_>) -> Flow<NoExit> {
     let Some(mut delay) = DeathDelay::at(ctx) else { return Flow::Continue };
     let Some(world) = delay.world().map(|world| world.key()) else { return Flow::Continue };
     let Some(hunt) = hunt_in(delay.thread(), world) else { return Flow::Continue };
-    let shift = Shift::new(delay.delay() as i32 - delay.respawn_time() as i32);
     let death = Time::from_ms(delay.time());
-    if let Some(at) = hunt.state.respawn_at(&hunt.params, death, shift) {
+    if let Some(at) = hunt.state.respawn_at(&hunt.params, death) {
         delay.set_delay(at.ms().wrapping_sub(death.ms()));
     }
     Flow::Continue
@@ -553,32 +573,23 @@ pub fn on_respawn_tick(ctx: &mut Context<'_>) -> Flow<NoExit> {
 
 fn respawn_tick(ctx: &mut Context<'_>) -> Flow<NoExit> {
     let Some(tick) = RespawnTick::at(ctx) else { return Flow::Continue };
-    let Some(world) = tick.world().map(|world| world.key()) else { return Flow::Continue };
-    let Some(hunt) = hunt_in(ctx.thread(), world) else { return Flow::Continue };
-    // A round about to start: patch 31's kit switch (its state test leaves a
-    // round's countdown to this tick), each a life for supplies, counted.
-    if hunt.state.round_countdown() {
-        let world_now = tick.world();
-        for place in (0..PLAYERS as u8).filter_map(Place::new) {
-            if tick.switch_kit(place.get()) {
-                HUNT.with(ctx.thread(), |hunt| {
-                    if let (Some(hunt), Some(world)) = (hunt.as_mut(), world_now.as_ref()) {
-                        step(world, hunt, Event::KitSwitched { place });
-                    }
-                });
-                if hunt_log(ctx.thread()) {
-                    log::line(&[Piece::Text("artefact_hunt: tick "), Piece::Dec(tick.time()), Piece::Text(" game "),
-                                Piece::Dec(crate::vostok::gun_cook::process_id()), Piece::Text(": place "),
-                                Piece::Dec(u32::from(place.get())), Piece::Text(" switches kit in the round countdown")]);
-                }
+    let Some(world) = tick.world() else { return Flow::Continue };
+    let Some(hunt) = hunt_in(ctx.thread(), world.key()) else { return Flow::Continue };
+    let spawning = hunt.state.spawning(Time::from_ms(tick.time()));
+    // Patch 31's state test leaves a round's countdown to this tick.
+    crate::round_countdown::respawn_tick(&tick, hunt.state.round_countdown(), spawning, 0, |place| {
+        let Some(place) = Place::new(place) else { return };
+        HUNT.with(ctx.thread(), |hunt| {
+            if let Some(hunt) = hunt.as_mut() {
+                step(&world, hunt, Event::KitSwitched { place });
             }
+        });
+        if hunt_log(ctx.thread()) {
+            log::line(&[Piece::Text("artefact_hunt: tick "), Piece::Dec(tick.time()), Piece::Text(" game "),
+                        Piece::Dec(crate::vostok::gun_cook::process_id()), Piece::Text(": place "),
+                        Piece::Dec(u32::from(place.get())), Piece::Text(" switches kit in the round countdown")]);
         }
-    }
-    match hunt.state.spawning(Time::from_ms(tick.time())) {
-        Spawning::Native => {}
-        Spawning::Held => tick.hold_due(),
-        Spawning::Everyone => tick.everyone_now(),
-    }
+    });
     Flow::Continue
 }
 
@@ -658,13 +669,15 @@ fn decide_input(player: &Player<'_>, now: u32, use_pressed: bool, drop_pressed: 
     decided.unwrap_or(Input::Game)
 }
 
-/// One line for a press the hunt decided on (a re-simulation logs it again).
+/// One line for a press the hunt decided on, or a carrier's leave (a re-simulation
+/// logs it again).
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Decision {
     Take,
     Refused,
     Deliver,
     Drop,
+    Left,
 }
 
 impl Decision {
@@ -674,6 +687,7 @@ impl Decision {
             Decision::Refused => "may not take it (not in the match, or fallen)",
             Decision::Deliver => "delivers it",
             Decision::Drop => "drops it",
+            Decision::Left => "leaves the match with it, which lies where he stood",
         }
     }
 }
@@ -757,15 +771,11 @@ pub fn on_can_sprint(ctx: &mut Context<'_>) -> Flow<ArtefactHuntOnCanSprintExit>
     }
 }
 
-/// render_name's spotted test of an enemy: the carrier's marker always.
-pub fn on_name(ctx: &mut Context<'_>) -> Flow<ArtefactHuntOnNameExit> {
-    match native::name_enemy(ctx) {
-        Some(player) if carries(&player) => Flow::Exit(ArtefactHuntOnNameExit::Shown),
-        _ => Flow::Continue,
-    }
-}
-
 /// update_minimap_players' spotted test of an enemy: the carrier's dot always.
+/// The minimaps are the only place an enemy carrier is shown: render_name's
+/// spotted test (the marker over his head, which shows through walls) is left
+/// to the game (the owner, 2026-11-26: "player with art is still seen in ui,
+/// not only on map — which is wh and is not interesting gameplay").
 pub fn on_enemy(ctx: &mut Context<'_>) -> Flow<ArtefactHuntOnEnemyExit> {
     match native::minimap_enemy(ctx) {
         Some(player) if carries(&player) => Flow::Exit(ArtefactHuntOnEnemyExit::Shown),
@@ -850,8 +860,8 @@ fn seconds(ms: u32) -> u32 {
     ms.div_ceil(1000)
 }
 
-/// The update call's 28 values ("HUD calls").
-fn update_values(hud: &Hud, params: &Params, viewer: Viewer, viewed_carries: bool) -> [f64; 28] {
+/// The update call's 30 values ("HUD calls").
+fn update_values(hud: &Hud, params: &Params, viewer: Viewer, viewed_carries: bool) -> [f64; 30] {
     let own = viewer.team.unwrap_or(Team::Zero);
     let own_team = viewer.team.map_or(3.0, |team| team.index() as f64);
     let (artefact, x, z, carrier, carrier_team) = match hud.artefact {
@@ -878,6 +888,7 @@ fn update_values(hud: &Hud, params: &Params, viewer: Viewer, viewed_carries: boo
         SuddenShown::On => 2.0,
     };
     let phase = hud.phase as u8;
+    let (wave, wave_total) = hud.wave.map_or((0, 0), |wave| (wave.left_ms, wave.total_ms));
     [
         own_team,
         f64::from(hud.score[0]),
@@ -900,6 +911,8 @@ fn update_values(hud: &Hud, params: &Params, viewer: Viewer, viewed_carries: boo
         carrier,
         carrier_team,
         f64::from(u8::from(viewed_carries)),
+        f64::from(wave),
+        f64::from(wave_total),
         2.0,
         b0[0], b0[1], b0[2],
         b1[0], b1[1], b1[2],
@@ -907,9 +920,9 @@ fn update_values(hud: &Hud, params: &Params, viewer: Viewer, viewed_carries: boo
 }
 
 /// A checksum of what the movie was told: the ms values as whole seconds.
-fn checksum(values: &[f64; 28]) -> u32 {
+fn checksum(values: &[f64; 30]) -> u32 {
     values.iter().enumerate().fold(0u32, |sum, (i, &value)| {
-        let value = if matches!(i, 5 | 8) { f64::from(seconds(value as u32)) } else { value };
+        let value = if matches!(i, 5 | 8 | 21) { f64::from(seconds(value as u32)) } else { value };
         let bits = value.to_bits();
         (sum.rotate_left(7) ^ (bits as u32)).rotate_left(11) ^ ((bits >> 32) as u32)
     })
@@ -1381,8 +1394,19 @@ pub fn on_mark(ctx: &mut Context<'_>) -> Flow<ArtefactHuntOnMarkExit> {
 mod tests {
     use super::*;
 
+    /// Slots 8 and 9 get the place in a dword whose upper three bytes are
+    /// another argument's (0x2D2180): the low byte is the place.
     #[test]
-    fn the_update_has_28_values_in_the_contracts_order() {
+    fn a_slots_place_is_its_dwords_low_byte() {
+        assert_eq!(slot_place(11), Place::new(11));
+        let junk = |place| u32::from_le_bytes([place, 0xC7, 0x3B, 0x0A]);
+        assert_eq!(slot_place(junk(0)), Place::new(0));
+        assert_eq!(slot_place(junk(19)), Place::new(19));
+        assert_eq!(slot_place(junk(20)), None, "20 places");
+    }
+
+    #[test]
+    fn the_update_has_30_values_in_the_contracts_order() {
         let spawners = [Spawner { position: [1.0, 0.0, 2.0] }];
         let crate_shape = [RawShape { kind: 1, position: [0.0, 0.5, 0.0], axes: [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]], half: [0.5; 3] }];
         let bases = [
@@ -1391,7 +1415,7 @@ mod tests {
         ];
         let raw = RawParams {
             match_time: 900, time_needed_to_continue_match: 90, draw_additional_time: 180, time_before_new_round: 3,
-            round_countdown_time: 5, score: 5, respawn_time: 15, time_needed_to_respawn: 7, vi_spawn_time: 60,
+            round_countdown_time: 5, score: 5, respawn_time: 15, vi_spawn_time: 60,
             vi_spawn_variation: 10, vi_not_picked_ttl: 120, vi_dropped_ttl: 60, drop_lift: 0.13, usable_radius: 0.3,
         };
         let params = Params::parse(&raw, &spawners, &bases).unwrap();
@@ -1403,8 +1427,9 @@ mod tests {
         assert_eq!(values[3], 5.0);
         assert_eq!(values[4], 0.0, "before the start");
         assert_eq!((values[15], values[18], values[19]), (0.0, 255.0, 2.0));
-        assert_eq!(values[21], 2.0);
-        assert_eq!(values[22..28], [0.0, 0.0, -5.0, 1.0, 50.0, 7.0]);
+        assert_eq!(values[21..23], [0.0, 0.0], "no wave before the start");
+        assert_eq!(values[23], 2.0);
+        assert_eq!(values[24..30], [0.0, 0.0, -5.0, 1.0, 50.0, 7.0]);
         let none = Viewer { place: None, team: None };
         assert_eq!(update_values(&hud, &params, none, false)[0], 3.0);
         // Phase ids are 0.46c2's.

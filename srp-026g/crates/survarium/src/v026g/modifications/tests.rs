@@ -928,3 +928,58 @@ fn every_item_of_the_built_game_data_rolls_three_types() {
     assert!(rolling > 150, "{rolling}");
     assert!(short.is_empty(), "fewer than three types: {short:?}");
 }
+
+/// The properties of the lobby's one order of a card's built-in lines
+/// (`BonusOrder.tsv`, `ItemInfoRenderer.inBonusOrder`), each once.
+fn lobby_bonus_order() -> Vec<u32> {
+    let table =
+        include_str!("../../../../../flash/lobby_menu/tables/survarium/data/BonusOrder.tsv");
+    let mut lines = table.lines().filter(|line| !line.starts_with('#'));
+    assert_eq!(lines.next(), Some("list\tprop:int\tname:String"));
+    let props: Vec<u32> = lines
+        .map(|line| line.split('\t').nth(1).unwrap().parse().unwrap())
+        .collect();
+    let mut once = props.clone();
+    once.sort_unstable();
+    once.dedup();
+    assert_eq!(once.len(), props.len(), "BonusOrder.tsv: a property twice");
+    props
+}
+
+/// The modifications of `data` whose card line has no place in the
+/// lobby's order: the card stops on one built in (`inBonusOrder`).
+fn without_a_bonus_place(data: &Modifications) -> Vec<String> {
+    let order = lobby_bonus_order();
+    data.modifications
+        .iter()
+        .filter(|modification| !order.contains(&modification.shown.property))
+        .map(|modification| format!("{} ({})", modification.id, modification.shown.property))
+        .collect()
+}
+
+#[test]
+fn every_modification_line_has_a_place_in_the_lobbys_bonus_order() {
+    let missing = without_a_bonus_place(Modifications::shared());
+    assert!(missing.is_empty(), "no row in BonusOrder.tsv: {missing:?}");
+}
+
+/// [`every_modification_line_has_a_place_in_the_lobbys_bonus_order`] on a
+/// server game data file as `release/build-content` makes it
+/// (`SRP_TEST_GAME_DATA`): srp's own modifications too.
+#[test]
+#[ignore = "needs SRP_TEST_GAME_DATA: a server-game-data.db made by release/build-content"]
+fn every_modification_line_of_the_built_game_data_has_a_place_in_the_bonus_order() {
+    use super::super::game_data::GameData;
+    let path = std::env::var_os("SRP_TEST_GAME_DATA").expect("SRP_TEST_GAME_DATA");
+    let data = GameData::open(std::path::Path::new(&path)).unwrap();
+    let file = |path: &str| data.file(path).unwrap_or_else(|| panic!("no {path}"));
+    let table = Modifications::parse(
+        file(MODIFICATIONS_PATH),
+        file(CRAFT_PATH),
+        file(REROLL_PATH),
+    )
+    .unwrap();
+    assert!(table.modifications.len() > 160, "{}", table.modifications.len());
+    let missing = without_a_bonus_place(&table);
+    assert!(missing.is_empty(), "no row in BonusOrder.tsv: {missing:?}");
+}

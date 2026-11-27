@@ -1,7 +1,7 @@
 ; The values the 0.26g launcher (build 2777) read from the installer's
 ; registry key, worked out from where the launcher itself is.
 ;
-;   nasm -f bin -DCAVE=0x49A000 launcher_values_026g.asm -o launcher_values_026g.bin
+; Assembled at CAVE=0x49A000 by every build (patch_launcher_026g.py, code()).
 ;
 ; The launcher reads five strings of HKLM\Software\Vostok Games\Survarium
 ; through registry_key::get_string (0x14027): `file to execute`, `arguments`
@@ -24,7 +24,7 @@
 ; exe_name, arguments and server are the three zero-filled slots at the end,
 ; ASCII with a zero at the end, filled in by patch_launcher_026g.py.
 ;
-; registry_key::get_string, as its callers use it (launcher-026g.md, 2 and 6):
+; registry_key::get_string, as its callers use it (docs/notes/launcher.md, 2 and 6):
 ;   edi          the buffer, UTF-16
 ;   esi          its size in characters
 ;   [esp+4]      the open key (not used here)
@@ -305,8 +305,13 @@ language_entries:                       ; patch_launcher_026g.py: 8 bytes each, 
         align   8, db 0xCC
         jmp     near restart_text
         align   8, db 0xCC
-                                        ; and the dispatch table's entry of message 0A
+                                        ; then COUNT_HOOKS ("(5/69)", patch 17)
+        jmp     near count_text
+        align   8, db 0xCC
+                                        ; and the dispatch table's entries of messages 0A and 0B
         jmp     near route_message
+        align   8, db 0xCC
+        jmp     near count_message
         align   8, db 0xCC
 
 ; eax = index -> eax = its label (UTF-16). Called in place of
@@ -1629,6 +1634,99 @@ restart_text:
         pop     ebx
         ret
 
+; Patch 17: which file of how many is being downloaded, "(5/69)" after the
+; downloading line's "... left". The updater says it (message 0B: two
+; 16-bit numbers, the file and how many; 0 of 0: none), kept past the relay
+; row's state in .data.
+FILE_COUNT              equ RELAY_STATE + 16    ; word: the file; word: of how many (0: none)
+COUNT_ROOM              equ 16                  ; characters of " (65535/65535)" and its zero
+
+; on_updater_message's jump for message 0B (the dispatch table's entry):
+; the message after its id at [esp+18h]. A file past the last is none.
+; Every register as it was; on to the handlers' common end.
+count_message:
+        pushad
+        mov     eax, [esp + 32 + 0x18]
+        mov     eax, [eax]
+        movzx   ecx, ax                 ; the file
+        dec     ecx
+        shr     eax, 16                 ; of how many
+        cmp     ecx, eax
+        jb      .keep
+        xor     eax, eax
+        xor     ecx, ecx
+        dec     ecx
+.keep:  inc     ecx
+        shl     eax, 16
+        or      eax, ecx
+        DELTA
+        mov     [ebx + FILE_COUNT], eax
+        popad
+        jmp     MESSAGE_DONE
+
+; In place of load_string's call for "%s left" of the downloading line
+; (refresh_status 0x16ADF; cdecl: the id, the buffer, its size in
+; characters): load_string's own, then " (5/69)" after it while the updater
+; counts files. eax is load_string's; ecx, edx changed, as it may.
+count_text:
+        push    dword [esp + 12]
+        push    dword [esp + 12]
+        push    dword [esp + 12]
+        call    LOAD_STRING
+        add     esp, 12
+        push    eax
+        push    ebx
+        push    edi
+        DELTA
+        mov     edi, [ebx + FILE_COUNT]
+        test    edi, 0xFFFF0000
+        jz      .done
+        mov     ecx, [esp + 12 + 8]     ; the buffer
+        mov     edx, [esp + 12 + 12]    ; its size
+        sub     edx, COUNT_ROOM
+        jbe     .done
+.end:   cmp     word [ecx], 0
+        je      .room
+        add     ecx, 2
+        dec     edx
+        jnz     .end
+        jmp     .done                   ; no room after the text
+.room:  mov     dword [ecx], ' ' | ('(' << 16)
+        add     ecx, 4
+        movzx   eax, di
+        call    count_digits
+        mov     word [ecx], '/'
+        add     ecx, 2
+        mov     eax, edi
+        shr     eax, 16
+        call    count_digits
+        mov     dword [ecx], ')'        ; and the zero
+.done:  pop     edi
+        pop     ebx
+        pop     eax
+        ret
+
+; eax = a number -> its decimal digits (UTF-16) at ecx; ecx = past them.
+; eax, edx changed.
+count_digits:
+        push    ebx
+        mov     ebx, 10
+        push    0                       ; under the digits
+.split: xor     edx, edx
+        div     ebx
+        add     edx, '0'
+        push    edx
+        test    eax, eax
+        jnz     .split
+.digit: pop     eax
+        test    eax, eax
+        jz      .out
+        mov     [ecx], ax
+        add     ecx, 2
+        jmp     .digit
+.out:   pop     ebx
+        ret
+
 ; ebx = DELTA -> eax = the relay row's language: 0 English, 1 Russian, 2
 ; Ukrainian, 3 German, 4 Polish (the launcher's texts' LANGID; English for
 ; any other). ecx, edx changed.
@@ -1919,39 +2017,39 @@ restart_pl:     dw __utf16__('Serwer uruchamia się ponownie. Kolejna próba za 
 seconds_en:     dw __utf16__(' s.'), 0
 seconds_ru:     dw __utf16__(' с.'), 0
 
-tip_en: dw __utf16__(`The relay is a second server that forwards your game when your provider blocks ours.\r\nAuto: through the relay only when the direct way is blocked.\r\nOn: always through the relay (a bit more ping).\r\nOff: never.\r\nClick the gear to choose.\r\n\r\nNow: `), 0
-tip_ru: dw __utf16__(`Релей — второй сервер: он передаёт вашу игру, когда провайдер блокирует наш.\r\nАвто: через релей, только если прямой путь заблокирован.\r\nВкл: всегда через релей (пинг чуть выше).\r\nВыкл: никогда.\r\nНажмите на шестерёнку, чтобы выбрать.\r\n\r\nСейчас: `), 0
-tip_uk: dw __utf16__(`Релей — другий сервер: він передає вашу гру, коли провайдер блокує наш.\r\nАвто: через релей, лише коли прямий шлях заблоковано.\r\nУвімк: завжди через релей (пінг трохи вищий).\r\nВимк: ніколи.\r\nНатисніть на шестерню, щоб вибрати.\r\n\r\nЗараз: `), 0
-tip_de: dw __utf16__(`Das Relay ist ein zweiter Server, der dein Spiel weiterleitet, wenn dein Anbieter unseren sperrt.\r\nAuto: über das Relay nur, wenn der direkte Weg gesperrt ist.\r\nAn: immer über das Relay (etwas mehr Ping).\r\nAus: nie.\r\nKlicke auf das Zahnrad, um zu wählen.\r\n\r\nJetzt: `), 0
-tip_pl: dw __utf16__(`Relay to drugi serwer, który przekazuje twoją grę, gdy dostawca blokuje nasz.\r\nAuto: przez relay tylko wtedy, gdy droga bezpośrednia jest zablokowana.\r\nWł.: zawsze przez relay (nieco wyższy ping).\r\nWył.: nigdy.\r\nKliknij koło zębate, aby wybrać.\r\n\r\nTeraz: `), 0
+tip_en: dw __utf16__(`The relay is a second server that forwards your game when your provider blocks ours.\r\nAuto: through the relay only when the direct way is blocked.\r\nOn: always through the relay (higher ping).\r\nOff: never.\r\nClick the gear to choose.\r\n\r\nNow: `), 0
+tip_ru: dw __utf16__(`Релей — второй сервер: он передаёт вашу игру, когда провайдер блокирует наш.\r\nАвто: через релей, только если прямой путь заблокирован.\r\nВкл: всегда через релей (пинг выше).\r\nВыкл: никогда.\r\nНажмите на шестерёнку, чтобы выбрать.\r\n\r\nСейчас: `), 0
+tip_uk: dw __utf16__(`Релей — другий сервер: він передає вашу гру, коли провайдер блокує наш.\r\nАвто: через релей, лише коли прямий шлях заблоковано.\r\nУвімк: завжди через релей (пінг вищий).\r\nВимк: ніколи.\r\nНатисніть на шестерню, щоб вибрати.\r\n\r\nЗараз: `), 0
+tip_de: dw __utf16__(`Das Relay ist ein zweiter Server, der dein Spiel weiterleitet, wenn dein Anbieter unseren sperrt.\r\nAuto: über das Relay nur, wenn der direkte Weg gesperrt ist.\r\nAn: immer über das Relay (höherer Ping).\r\nAus: nie.\r\nKlicke auf das Zahnrad, um zu wählen.\r\n\r\nJetzt: `), 0
+tip_pl: dw __utf16__(`Relay to drugi serwer, który przekazuje twoją grę, gdy dostawca blokuje nasz.\r\nAuto: przez relay tylko wtedy, gdy droga bezpośrednia jest zablokowana.\r\nWł.: zawsze przez relay (wyższy ping).\r\nWył.: nigdy.\r\nKliknij koło zębate, aby wybrać.\r\n\r\nTeraz: `), 0
 
 now_en_1:       dw __utf16__('auto, checking...'), 0
 now_en_2:       dw __utf16__('auto: direct.'), 0
-now_en_3:       dw __utf16__('auto: through the relay.'), 0
+now_en_3:       dw __utf16__('auto: through the relay (higher ping): direct did not answer.'), 0
 now_en_4:       dw __utf16__('auto: the server does not answer.'), 0
 now_en_5:       dw __utf16__('on: through the relay.'), 0
 now_en_6:       dw __utf16__('off: direct.'), 0
 now_ru_1:       dw __utf16__('авто, проверка...'), 0
 now_ru_2:       dw __utf16__('авто: напрямую.'), 0
-now_ru_3:       dw __utf16__('авто: через релей.'), 0
+now_ru_3:       dw __utf16__('авто: через релей (пинг выше): напрямую ответа нет.'), 0
 now_ru_4:       dw __utf16__('авто: сервер не отвечает.'), 0
 now_ru_5:       dw __utf16__('вкл: через релей.'), 0
 now_ru_6:       dw __utf16__('выкл: напрямую.'), 0
 now_uk_1:       dw __utf16__('авто, перевірка...'), 0
 now_uk_2:       dw __utf16__('авто: напряму.'), 0
-now_uk_3:       dw __utf16__('авто: через релей.'), 0
+now_uk_3:       dw __utf16__('авто: через релей (пінг вищий): напряму відповіді немає.'), 0
 now_uk_4:       dw __utf16__('авто: сервер не відповідає.'), 0
 now_uk_5:       dw __utf16__('увімк: через релей.'), 0
 now_uk_6:       dw __utf16__('вимк: напряму.'), 0
 now_de_1:       dw __utf16__('Auto, prüfe...'), 0
 now_de_2:       dw __utf16__('Auto: direkt.'), 0
-now_de_3:       dw __utf16__('Auto: über das Relay.'), 0
+now_de_3:       dw __utf16__('Auto: über das Relay (höherer Ping): direkt keine Antwort.'), 0
 now_de_4:       dw __utf16__('Auto: der Server antwortet nicht.'), 0
 now_de_5:       dw __utf16__('An: über das Relay.'), 0
 now_de_6:       dw __utf16__('Aus: direkt.'), 0
 now_pl_1:       dw __utf16__('auto, sprawdzam...'), 0
 now_pl_2:       dw __utf16__('auto: bezpośrednio.'), 0
-now_pl_3:       dw __utf16__('auto: przez relay.'), 0
+now_pl_3:       dw __utf16__('auto: przez relay (wyższy ping): bezpośrednio brak odpowiedzi.'), 0
 now_pl_4:       dw __utf16__('auto: serwer nie odpowiada.'), 0
 now_pl_5:       dw __utf16__('wł.: przez relay.'), 0
 now_pl_6:       dw __utf16__('wył.: bezpośrednio.'), 0

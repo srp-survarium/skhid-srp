@@ -1,13 +1,14 @@
 //! The rows an account has in `g26_preset_slots`, the slots of its kit
 //! presets other than the active one ([`crate::v026g::presets`]; the active
 //! one is its kits), one a filled slot, a preset with no rows empty; and its
-//! row in `g26_preset_active`, the active preset.
+//! row in `g26_preset_active`, the active preset; and a row in `g26_preset_pockets` a preset kit
+//! whose Artifact Container slot is the pocket.
 
 use rusqlite::{Connection, OptionalExtension, params};
 
 use super::bad_row;
 use crate::persist::PersistError;
-use crate::v026g::account::{KIT_SLOTS, KITS};
+use crate::v026g::account::{KIT_SLOTS, KITS, PerkSlot, SlotPerk};
 use crate::v026g::presets::{FIRST_PRESET, PRESETS, Preset, PresetSlot};
 
 /// The schema step that adds the tables. An account of before has no rows:
@@ -27,6 +28,38 @@ pub(super) const MIGRATION: &str = "
         count      INTEGER NOT NULL,
         PRIMARY KEY (account_id, preset, kit, slot)
     );
+    ";
+
+/// The schema step that kept what each kit made of Artifact Container's slot: a column of the
+/// kits (1 the container, 2 the pocket) and a row a preset kit whose slot was the pocket. The
+/// next step ([`PERK_MIGRATION`]) turns both into the choices of every perk.
+pub(super) const CONTAINER_MIGRATION: &str = "
+    ALTER TABLE g26_kits ADD COLUMN container INTEGER NOT NULL DEFAULT 1;
+    CREATE TABLE g26_preset_pockets (
+        account_id INTEGER NOT NULL REFERENCES g26_accounts(account_id) ON DELETE CASCADE,
+        preset     INTEGER NOT NULL,
+        kit        INTEGER NOT NULL,
+        PRIMARY KEY (account_id, preset, kit)
+    );
+    ";
+
+/// The schema step that keeps what each kit makes of every perk's slot (`SlotPerk`): a column of
+/// the kits, the perks it declines as bits (bit `SlotPerk::index`; 0 every perk taken, every kit
+/// of before but one whose container was the pocket), and a row a preset kit's declined perk.
+pub(super) const PERK_MIGRATION: &str = "
+    ALTER TABLE g26_kits ADD COLUMN declined INTEGER NOT NULL DEFAULT 0;
+    UPDATE g26_kits SET declined = 1 WHERE container = 2;
+    ALTER TABLE g26_kits DROP COLUMN container;
+    CREATE TABLE g26_preset_declined (
+        account_id INTEGER NOT NULL REFERENCES g26_accounts(account_id) ON DELETE CASCADE,
+        preset     INTEGER NOT NULL,
+        kit        INTEGER NOT NULL,
+        perk       INTEGER NOT NULL,
+        PRIMARY KEY (account_id, preset, kit, perk)
+    );
+    INSERT INTO g26_preset_declined (account_id, preset, kit, perk)
+        SELECT account_id, preset, kit, 0 FROM g26_preset_pockets;
+    DROP TABLE g26_preset_pockets;
     ";
 
 /// The account's active preset; none kept: the first.
@@ -78,11 +111,11 @@ pub(super) fn load(
             },
         ))
     })?;
+    let place =
+        |value: i64, below: usize| usize::try_from(value).ok().filter(|&value| value < below);
     let mut presets: [Option<Preset>; PRESETS] = [None; PRESETS];
     for row in rows {
         let (preset, kit, slot, saved) = row?;
-        let place =
-            |value: i64, below: usize| usize::try_from(value).ok().filter(|&value| value < below);
         let (Some(preset), Some(kit), Some(slot)) = (
             place(preset, PRESETS),
             place(kit, KITS),
@@ -94,11 +127,24 @@ pub(super) fn load(
                 &format!("{preset}/{kit}/{slot}"),
             ));
         };
-        presets[preset]
-            .get_or_insert(Preset {
-                kits: [[None; KIT_SLOTS]; KITS],
-            })
-            .kits[kit][slot] = Some(saved);
+        presets[preset].get_or_insert(Preset::EMPTY).kits[kit][slot] = Some(saved);
+    }
+    let mut statement = connection
+        .prepare_cached("SELECT preset, kit, perk FROM g26_preset_declined WHERE account_id = ?1")?;
+    let rows = statement.query_map([account_id], |row| {
+        Ok((row.get::<_, i64>(0)?, row.get::<_, i64>(1)?, row.get::<_, i64>(2)?))
+    })?;
+    for row in rows {
+        let (preset, kit, perk) = row?;
+        let (Some(preset), Some(kit), Some(perk)) = (
+            place(preset, PRESETS),
+            place(kit, KITS),
+            place(perk, SlotPerk::ALL.len()).map(|index| SlotPerk::ALL[index]),
+        ) else {
+            return Err(bad_row(account_id, "preset perk", &format!("{preset}/{kit}/{perk}")));
+        };
+        let saved = presets[preset].get_or_insert(Preset::EMPTY);
+        saved.perks[kit] = saved.perks[kit].with(perk, PerkSlot::Declined);
     }
     Ok(presets)
 }
@@ -113,10 +159,23 @@ pub(super) fn save(
         "DELETE FROM g26_preset_slots WHERE account_id = ?1",
         [account_id],
     )?;
+    connection.execute(
+        "DELETE FROM g26_preset_declined WHERE account_id = ?1",
+        [account_id],
+    )?;
     for (preset_index, preset) in presets.iter().enumerate() {
         let Some(preset) = preset else {
             continue;
         };
+        for (kit_index, perks) in preset.perks.iter().enumerate() {
+            for perk in SlotPerk::ALL.into_iter().filter(|&perk| perks.get(perk) == PerkSlot::Declined) {
+                connection.execute(
+                    "INSERT INTO g26_preset_declined (account_id, preset, kit, perk)
+                     VALUES (?1, ?2, ?3, ?4)",
+                    params![account_id, preset_index as i64, kit_index as i64, perk.index() as i64],
+                )?;
+            }
+        }
         for (kit_index, kit) in preset.kits.iter().enumerate() {
             for (slot, saved) in kit.iter().enumerate() {
                 let Some(saved) = saved else {
@@ -165,9 +224,17 @@ mod tests {
             .connection
             .execute("DELETE FROM g26_preset_active WHERE account_id = 8", [])
             .unwrap();
-        // Alice keeps her starter in preset 1 and plays preset 3, emptied.
+        // Alice keeps her starter in preset 1 and plays preset 3, emptied; her second kit
+        // declines both perks, in preset 1 and in the kits.
+        use crate::v026g::account::{ARTIFACT_CONTAINER, DEEP_POCKETS, KitPerks, PerkSlot, SlotPerk};
+        let both = SlotPerk::ALL
+            .into_iter()
+            .fold(KitPerks::ALL_TAKEN, |perks, perk| perks.with(perk, PerkSlot::Declined));
         let mut account = Account::new("Alice");
+        account.skills = vec![(ARTIFACT_CONTAINER, 1), (DEEP_POCKETS, 1)];
+        account.kits[1].perks = both;
         presets::choose(&mut account, 3, 0).unwrap();
+        account.kits[1].perks = both;
         account.kits[0].slots = [None; crate::v026g::account::KIT_SLOTS];
         repository.save(7, &account).unwrap();
         let loaded = repository.load_all().unwrap();
@@ -188,8 +255,11 @@ mod tests {
         let alice = &loaded.iter().find(|(id, _)| *id == 7).unwrap().1;
         assert_eq!(alice.active_preset, 1);
         assert_eq!(alice.presets, account.presets);
-        // Preset 3 was left with nothing worn: empty.
-        assert!(alice.presets.iter().all(Option::is_none));
+        // Preset 3 was left with nothing worn, its second kit's perks declined: that alone.
+        let left = alice.presets[2].unwrap();
+        assert_eq!(left.slots(), 0);
+        assert_eq!(left.perks[1], both);
+        assert!(alice.presets[1].is_none() && alice.presets[3].is_none());
         drop(repository);
         let _ = std::fs::remove_dir_all(&dir);
     }

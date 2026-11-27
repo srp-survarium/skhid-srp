@@ -13,7 +13,7 @@ nix develop -c bash -c '
     cd client-patches
     python3 -u check_language_026g.py "$2"
     cd launcher
-    python3 -u selftest_launcher_026g.py "$3" --nasm=nasm
+    python3 -u selftest_launcher_026g.py "$3"
     python3 -u check_language_026g.py "$3"
     python3 -u check_torrent_box_026g.py "$3"
     python3 -u check_relay_box_026g.py "$3"

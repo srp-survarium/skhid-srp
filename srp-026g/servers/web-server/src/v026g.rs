@@ -22,7 +22,7 @@ use session::v026g::account::{self, Account, MAX_LEVEL};
 use survarium::v026g::dictionary::Dictionary;
 use survarium::v026g::lobby::FULL_CONDITION;
 
-use super::{AdminView, Form, Lang, Request, Response, Stats, Web, apply, delta, page};
+use super::{Form, Lang, Request, Response, Stats, Web, apply, delta, page};
 
 /// What the page tells the 0.26g lobby. srp joins it to the lobby's inbox
 /// (`lobby_server::v026g::Inbox`); this crate does not know the lobby.
@@ -49,11 +49,17 @@ pub trait MatchCounter: Send + Sync {
 /// with it the rules of what is listed (`session::v026g::matches_now`).
 pub use session::v026g::matches_now::Phase as LivePhase;
 
+/// Who a match is for: a release waits for the normal ones alone with
+/// `release.sh --end-bot-and-private-matches` (`GET /api/stats`).
+pub use session::v026g::match_kind::MatchKind as LiveKind;
+
 /// A match as the launcher's page shows it: no player is named.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct LiveMatch {
     /// The `maps_dict` id: the map and the mode.
     pub map_id: survarium::v026g::maps::MapId,
+    /// Who it is for, as the lobby made it.
+    pub kind: LiveKind,
     pub phase: LivePhase,
     /// Each team's players who have not left.
     pub players: [u8; 2],
@@ -124,6 +130,9 @@ pub struct Game {
     /// The matches the lobby keeps the results of: what a match gives now,
     /// for the skills page's levels ([`crate::skills`]).
     pub results: Arc<session::v026g::rewards::Results>,
+    /// Where the rooms offer each map (the lobby's pools), for the wiki's
+    /// modes ([`crate::modes`]).
+    pub pools: crate::Pools,
 }
 
 /// The longest line of the operator's text: the client's buffers are 64
@@ -167,21 +176,15 @@ impl Web {
                     online: self.store.players_present(),
                     maintenance: self.store.minutes_to_maintenance(),
                     registrations_open: self.store.registrations_open(),
-                    v026g: true,
                     launcher: crate::launcher::offers_launcher(),
                     installs_game: crate::launcher::offers_game_install(),
                 }),
                 "",
             ),
             ("GET", "/exchange") => page(lang, Form::InTheGame26(launcher_code(request)), ""),
-            ("GET", path) if self.is_admin_page(path, request) => page(
-                lang,
-                Form::Admin(Box::new(AdminView {
-                    g26: true,
-                    ..AdminView::default()
-                })),
-                "",
-            ),
+            ("GET", path) if self.is_admin_page(path, request) => {
+                page(lang, Form::Admin(Box::default()), "")
+            }
             ("POST", path) if self.is_admin_page(path, request) => self.admin(request, peer),
             _ => Response {
                 status: "404 Not Found",
@@ -229,9 +232,7 @@ impl Web {
     /// applied; nothing is when one of them is wrong.
     pub(crate) fn admin_account_026g(&self, request: &Request, peer: &str) -> String {
         let lang = request.lang;
-        let Some(game) = &self.game else {
-            return String::new();
-        };
+        let game = &self.game;
         let user = request.field("acc_user");
         let (account_id, account) = match self.find_026g(game, lang, user) {
             Ok(found) => found,
@@ -304,9 +305,7 @@ impl Web {
     /// whole, into the inventory.
     pub(crate) fn admin_item_026g(&self, request: &Request, peer: &str) -> String {
         let lang = request.lang;
-        let Some(game) = &self.game else {
-            return String::new();
-        };
+        let game = &self.game;
         let user = request.field("item_user");
         let (account_id, account) = match self.find_026g(game, lang, user) {
             Ok(found) => found,
@@ -375,9 +374,7 @@ impl Web {
     /// The operator's text for everyone in the lobby: set, or cleared.
     pub(crate) fn admin_text_026g(&self, request: &Request, peer: &str) -> String {
         let lang = request.lang;
-        let Some(game) = &self.game else {
-            return String::new();
-        };
+        let game = &self.game;
         if !request.field("clear_text").is_empty() {
             game.lobby.clear_admin_text();
             log::warn!("Admin from {peer}: cleared the text for all players");

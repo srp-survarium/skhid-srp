@@ -212,6 +212,27 @@ impl HeldShape {
 
 /// The renderer calls queue a copy and retain both resource references.
 pub(super) struct Scene { renderer: raw::SceneRenderer, reference: raw::SceneReference }
+/// What a played particle system's body-shaped (animated domain) emitters take their points from:
+/// none, as the artefacts' clients play their idle (0x25F335..0x25F387: two empty attachments; the
+/// emitters start at the matrix's origin), or a player's, as the effects' presenter plays a
+/// player's effect (play_effect 0x2AC290): his hit model (+498h) and his model (+F290h), the 0.21d
+/// PDB's collision::animated_object and render::skeleton_model_instance. The play holds both, so
+/// while it lasts they are this body's and no other's.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub struct Bones {
+    animated: Option<raw::HitModel>,
+    skeleton: Option<raw::PlayerModel>,
+}
+impl Bones {
+    pub const NONE: Self = Self { animated: None, skeleton: None };
+    /// # Safety
+    /// `player` is live on the hook's thread.
+    pub(super) unsafe fn of(player: raw::Player) -> Self {
+        // SAFETY: the caller's live player; his two fields.
+        unsafe { Self { animated: player.hit_model(), skeleton: player.model() } }
+    }
+}
+
 impl Scene {
     pub(super) unsafe fn of_world(world: raw::GameWorld) -> Option<Self> {
         // SAFETY: live client world from a client callback/draw argument.
@@ -263,19 +284,18 @@ impl Scene {
                                         bones.as_ptr().cast(), count)
         }
     }
-    /// Plays `particle` at `matrix` in the scene, as the artefacts' clients
-    /// play their idle (0x25F335..0x25F387): the particle by value (the play
-    /// takes the reference added here), the matrix twice, two empty
-    /// attachments.
-    pub(super) unsafe fn play_particle(&self, particle: raw::ParticleSystem, matrix: &[f32; 16]) {
-        let none = [0u32; 2];
+    /// Plays `particle` at `matrix` in the scene, its body-shaped (animated
+    /// domain) emitters on `bones`. The particle by value (the play takes the
+    /// reference added here), the matrix twice.
+    pub(super) unsafe fn play_particle(&self, particle: raw::ParticleSystem, matrix: &[f32; 16], bones: Bones) {
+        let Bones { mut animated, mut skeleton } = bones;
         // SAFETY: a particle system the caller keeps; its count atomic; the
         // renderer and scene retained by the live caller; our locals copied.
         unsafe {
             core::sync::atomic::AtomicU32::from_ptr(particle.references())
                 .fetch_add(1, core::sync::atomic::Ordering::AcqRel);
             raw::engine_play_particle_system(Some(self.renderer), Some(self.reference), Some(particle),
-                                             matrix.as_ptr(), matrix.as_ptr(), &none[0], &none[1]);
+                                             matrix.as_ptr(), matrix.as_ptr(), &mut animated, &mut skeleton);
         }
     }
     /// Removes the scene's instance of `particle`, as the artefacts' clients

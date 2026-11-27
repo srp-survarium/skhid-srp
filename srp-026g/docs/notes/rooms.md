@@ -124,7 +124,8 @@ parts in the game's classes (`TopMenu`'s tab, `StatusPanel`'s Play, `LobbyMenu`'
   follows it as they close (`RoomsWindow.resultsClosed`). Live 2026-10-30: one let in from a
   room's queue as that room's match ended (and its results sent) had them closed by the
   window opening (`scripts/results-stay/check.sh`).
-- **Before each match:** once the minimum of players who can play is in, a vote on 3 cards
+- **Before each match:** once the minimum of players who can play is in, a vote on 4 cards (3
+  until the owner's of 2026-11-26: "Change the number of vote options to 4"; `CARDS`)
   (map + weather + mode) for the room's time to start: 15 s and the owner's wait together,
   10 s more after a match (players come back from results first), always whole, a full
   room too. The vote is open until the match starts (the owner's of 2026-10-19: its time
@@ -138,13 +139,32 @@ parts in the game's classes (`TopMenu`'s tab, `StatusPanel`'s Play, `LobbyMenu`'
     stalker maps 3 times as likely in FFA", "the pick should be first map, then weather", after
     the revision 59 restart had played Training Camp twice in about 35 free-for-alls): every
     card, server's and private rooms alike. Its mode alike among the pool's modes no card shows,
-    then its map (`match_making_params.map_id`) alike among that mode's maps no card shows, then
+    then its map (its place, below) alike among that mode's maps no card shows, then
     its weather alike among that map's ids of that mode. A drawn mode and a drawn map leave for
     the next cards: no mode and no map twice on a vote while the pool has others. A map of one
     weather (the STALKER maps, London, the ports) comes as often as a levels 1-8 map of three
     (before 2026-11-15, every id alike: a third as often). A pool with too few (a private room's
-    maker ticked one mode or few maps) draws the shown ones again once no other is left (a mode
-    no card shows first, even on a shown map), never a card fewer (`rooms::Left`).
+    maker ticked one mode or few maps) draws the shown ones again once no other is left (a shown
+    mode on a map no card shows first, below), never a card fewer (`rooms::Left`).
+  - **Every version of a map is one map** (the owner's of 2026-11-26: "Rudnya maps of different
+    versions all count like a single Rudnya", "for example stock Rudnya and the ported Rudnya";
+    players had been given three Rudnyas to choose from; then of every map). A card's map is its
+    place, `survarium::v026g::maps::Place`, read from the game data: the project folder of its
+    config (`match_making_params.map_name`), `level_MM` or a build's name and `level_MM`
+    (`v069d_level_01`, `v021d_level_01`: Rudnya; `v011e_level_03`, `v021d_level_03`: Vostok;
+    `v011e_level_04`, `v021d_level_04`: Chemical Plant; `v021d_level_02`, `_05`, `_06`: School,
+    Fort, Mamayev Kurgan; `v044a_level_09` and the native-named London (v0.32): London), the
+    same rule artefact-hunt-maps@3 places a version's Artifact Hunt by. A map that is no version
+    of a level (the STALKER maps, `v010b_*`) is its own. Its weathers, lighting and every mode
+    copy (Free for All, Blackout, Artifact Hunt, Freeze Tag, Research) share its project folder, so
+    no table names them: a map a patch adds is placed as soon as its data is there. A card's
+    mode is drawn among the modes that still have a map no card shows (of those, the modes no
+    card shows): an ordinary mode comes again before a map does, so one Rudnya while the pool has
+    other maps (until 2026-11-26 a mode no card showed came first, even on a shown map); Free for
+    All or Blackout come again only when nothing else is left.
+    What still tells the versions apart, on purpose: the create window's tiles (a level and a
+    weather: a maker picks which Rudnyas its pool holds), the cards' and the list's names and
+    renders, and the per-account `g26_map_plays` counts (by `map_id`: what was played).
   - **Every card from the whole pool** (the owner's of 2026-11-22: "all columns should draw from
     a general pool", "first choose ffa, then its version"): Free for All is one mode of the
     pool like any other, on any card, as likely as each other mode; a card that drew it then
@@ -152,7 +172,7 @@ parts in the game's classes (`TopMenu`'s tab, `StatusPanel`'s Play, `LobbyMenu`'
     ("ffa should be a third pane always"), and Blackout had that card from 2026-11-02
     (`ffa.md`, "Where it is played").
   - **A free-for-all card's twist** (`ffa.md`, "Twists"): an open room's (the server's) card
-    draws "FFA: Racket", "FFA: Roulette 6-10" (its band, `ffa-roulette.md`), "FFA: Saloon
+    draws "FFA: Racket", "FFA: Roulette" (one of its bands, not shown: `ffa-roulette.md`), "FFA: Saloon
     (Winchester)", "FFA: Saloon" (the Colt alone) or none by the owner's shares (30 / 30 / 5 / 5 /
     30 since 2026-11-22; the two Saloons by their own names since 2026-11-15, "so
     people know what they get and can vote based on this"); a private
@@ -193,7 +213,7 @@ parts in the game's classes (`TopMenu`'s tab, `StatusPanel`'s Play, `LobbyMenu`'
   - No countdown: it waits however many are in. Its owner (its maker, or the member who came
     first after it left) has Start beside Leave; the others read "Waiting for the creator to
     start." Start makes the match at once with whoever can play, 1 v 0 too, on the vote's
-    winner then: the 3 cards are there and voted for as in any room, Start ends the vote.
+    winner then: the 4 cards are there and voted for as in any room, Start ends the vote.
   - **Its owner arranges the teams** (the owner's of 2026-10-26: "the owner should be able to
     arrange both teams (even 1 vs 10), there should be a button to move the player into any
     team"): the room shows its members in two columns, Team 1 and Team 2. Its owner has a

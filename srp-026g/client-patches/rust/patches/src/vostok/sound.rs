@@ -78,6 +78,19 @@ impl SoundUser {
     }
 }
 
+impl super::world::GameWorld<'_> {
+    /// `emitter` played once at `at`, a point sound of the world's scene
+    /// (game_world::play_sound 0x25B940, what a bullet's hit sound comes to):
+    /// heard as far as its spl_preset carries.
+    pub fn play_sound_at(&self, emitter: &Emitter, at: super::geometry::WorldPoint) {
+        let slot = emitter.0.address();
+        // SAFETY: the live game world, on the game's thread (its own sounds
+        // play there); play_sound takes a reference of the emitter for the
+        // call, the proxy it makes its own; the point is three f32.
+        unsafe { raw::engine_world_play_sound(Some(self.this), &slot, at.coordinates().as_ptr()) }
+    }
+}
+
 /// `emitter` played once as a hud sound in the game world's scene (its
 /// +94h), as the game's own hud sounds (damage_sound_effect 0x23F676..
 /// 0x23F6F8: emit_hud_sound, then the proxy's play in mode 0): its voice,
@@ -122,7 +135,7 @@ impl BusScene {
     }
 
     /// Gives the bus a listener. A scene's sounds get voices only once its
-    /// listener is set: its tick calls notify_listener (0x5C280, the only
+    /// listener is set: its tick calls notify_listener2 (0x5C280, the only
     /// path to create_sound_voice) only then (0x57C9C). The game sets its
     /// own scenes' every frame; the bus's never moves, so once is enough.
     pub fn listen(&self, _: &Thread) {

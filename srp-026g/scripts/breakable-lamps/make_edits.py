@@ -17,11 +17,14 @@ EDIT = Path(__file__).resolve().parents[1] / 'content-edit/content_edit.py'
 spec = importlib.util.spec_from_file_location('content_edit', EDIT)
 c = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(c)
+spec = importlib.util.spec_from_file_location('probe_light', Path(__file__).with_name('probe_light.py'))
+probe_light = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(probe_light)
 
 # The prefixes a fixture model has: stock, and the ports' own copies of the models (a port imports a
 # model under its namespace where its materials or settings differ from players'; the London ports'
-# lamps are such copies, the same meshes).
-PORT_PREFIXES = ('', 'ported/v011e/', 'ported/v021d/', 'ported/v032a/', 'ported/v044a/')
+# lamps are such copies, the same meshes, and the 0.69d ports' (v069d_<map>/)).
+PORT_PREFIXES = ('', 'ported/v011e/', 'ported/v021d/', 'ported/v032a/', 'ported/v044a/', 'v069d_rudnya/', 'v069d_vostok/')
 # The London ports' fixtures, beside the stock ones the older ports never had.
 LONDON_PREFIXES = ('ported/v032a/', 'ported/v044a/')
 BASE_REPLACEMENTS = {
@@ -71,6 +74,33 @@ GLASS = TUBE_GLASS | LANTERN_GLASS
 # with glass; on its own it is scenery.
 HOUSINGS = {prefix + 'props/light/lamp_midle_04' for prefix in ('',) + LONDON_PREFIXES} | {glass.removesuffix('_glass_emit') for glass in LANTERN_GLASS}
 PARTS = REPLACEMENTS.keys() | GLASS | HOUSINGS
+# Glass that is no lamp: School's vodka bottles, each a fixture of its own
+# with its one intact visual (make_bottles.py), outside the lamp rule above,
+# which would merge bottles lying side by side into one fixture.
+BOTTLES = {prefix + 'props/kitchen/bottle_vodka' for prefix in PORT_PREFIXES}
+# A broken bottle's shards (scripts/bottle-shards, pack bottle-shards@1): the
+# loose pieces of its row, kind 'shard', placed as the bottle but at each
+# one's centre. School's bottles (stock and the v0.21 port) have them.
+SHARDS = 8
+# The most loose pieces a project's table may have: the client's MAX_PIECES
+# and its registry's MAX_LOOSE (lamps/model.rs, vostok/project.rs), past
+# which it refuses the map at its load.
+MAX_PIECES = 32
+BOTTLE_SHARDS = {prefix + 'props/kitchen/bottle_vodka':
+                 [prefix + f'props/kitchen/srp_bottle_vodka_shard{k}' for k in range(SHARDS)]
+                 for prefix in ('', 'ported/v021d/')}
+# Figures with a loose piece (scripts/skeleton-cap): the sitting skeleton and
+# its cap. A figure's row is its piece's (its bounds, what a shot or a blast
+# must reach); its broken model is the figure without the piece, placed as
+# it; the piece (the row's `loose`) is a model of its own, placed as the
+# figure but at the piece's centre, inside the row's bounds. Not in PARTS:
+# the lamp rule never makes a fixture of them. A table of figures says
+# leftover 'body' (the client marks the figure's collision once broken),
+# one of lamps leaves it out (their glass's stays: never marked).
+FIGURE_FOLDERS = ('character/human/static/remains/', 'ported/v021d/character/human/static/remains/',
+                  'v069d_rudnya/character/human/static/remains/')
+FIGURES = {folder + 'skeleton_sitting1': (folder + 'srp_skeleton_sitting1_bare', folder + 'srp_skeleton_sitting1_cap')
+           for folder in FIGURE_FOLDERS}
 # Fluorescent glass: a model's tubes are its glass, not its housing or frame.
 # The local height of the tubes' axis in the models that hold them (the
 # triangles make_pack.py drops: lamp_midle_0N y -0.099..-0.055, lamp_big_01
@@ -145,8 +175,23 @@ def glass_line(group, bounds):
     return tuple([sum(line[i][k] for line in same) / len(same) for k in range(3)] for i in (0, 1))
 
 
+def named(v):
+    """A render visual as the rules read it: by `visual_name`. A 0.69d port's entries name their
+    model by `lib_name` alone (the game draws it); they are read by it and selected by it."""
+    return v if 'visual_name' in v else dict(v, visual_name=v.get('lib_name'), by_lib_name=True)
+
+
+def name_key(v):
+    return 'lib_name' if v.get('by_lib_name') else 'visual_name'
+
+
+def as_model(v, model):
+    """`v` naming `model` the way its entry names one."""
+    return dict(v, visual_name=model, lib_name=model) if v.get('by_lib_name') else dict(v, visual_name=model)
+
+
 def selector(v):
-    return {key: v[key] for key in ('visual_name', 'position', 'rotation', 'scale')}
+    return {key: v[key] for key in (name_key(v), 'position', 'rotation', 'scale')}
 
 
 def is_red(colour):
@@ -190,13 +235,15 @@ def close(a, b):
     return a == b
 
 
-def author(path, data, bounds, break_material, effect_material):
+def author(path, data, bounds, break_material, effect_material, cubemap=None, days=None):
     """A project's lamp edits. A project a pack made from a lamp-carrying day (London's and the
     0.21 maps' rain and evening) has the day's broken models and table already: its fixtures are
-    authored over them, and the table is replaced only where this rule now binds otherwise."""
+    authored over them, and the table is replaced only where this rule now binds otherwise.
+    `cubemap(probe)` is a probe's irradiance cube map (probe_light.py); `days` gathers each
+    level's day split for its other weathers (main authors a level's day projects first)."""
     root = tree(data)
     carried = root.get('srp_lamps')
-    visuals = root.get('render_visuals', [])
+    visuals = [named(v) for v in root.get('render_visuals', [])]
     components = [(i, v) for i, v in enumerate(visuals) if v.get('visual_name') in PARTS]
     # Overlapping bulb/cover meshes form one fixture (level_06). A shot
     # through its cover must extinguish the bulb inside it as well.
@@ -239,6 +286,25 @@ def author(path, data, bounds, break_material, effect_material):
             near = nearest(light['position'], FLAME_REACH, lanterns)
             if near is not None:
                 flames[near].append(light)
+    # The room probes a lamp's light is baked into, and what each keeps
+    # once the lamp is broken (probe_light.py); a weather's split falls back
+    # on its level's day.
+    days = {} if days is None else days
+    level, weather = Path(path).parts[-3], Path(path).parts[-2].rsplit('_', 1)[0]
+    probes, lamp_light = probe_light.lamp_probes(
+        [o for o in root.get('client_objects', []) if o.get('game_object_type') == 'environment_probe'],
+        [(i, light) for i, own in enumerate(lights) for light in own], cubemap,
+        None if weather == 'day' else days.get(level))
+    if weather == 'day':
+        days.setdefault(level, lamp_light)
+    # The fill lights (ambient lights) inside a lamp's room probe are its
+    # room's baked light too: they go out with it (the nearest lamp's).
+    for light in root.get('client_objects', []):
+        if light.get('game_object_type') != 'ambient_light' or any(light in g for g in glows):
+            continue
+        rooms = [i for i, own in probes.items() if any(probe_light.holds(p, light['position']) for p, _ in own)]
+        if rooms:
+            glows[min(rooms, key=lambda i: math.dist(centers[i], light['position']))].append(light)
     placements, result = [], bytearray(data)
     for i, v in enumerate(visuals):
         legacy = v.get('visual_name') == LEGACY_CONE
@@ -290,15 +356,17 @@ def author(path, data, bounds, break_material, effect_material):
             continue
         match = selector(v)
         replacement = REPLACEMENTS[v['visual_name']]
-        broken_key = json.dumps(dict(match, visual_name=replacement), sort_keys=True)
+        broken = selector(as_model(v, replacement))
+        broken_key = json.dumps(broken, sort_keys=True)
         if broken_key in added:
             continue
         added.add(broken_key)
         if carried is not None and any(all(k in f and c.same(f[k], val) for k, val in
-                                           dict(match, visual_name=replacement).items()) for f in visuals):
+                                           broken.items()) for f in visuals):
             continue
         edit = {'files': path, 'list': 'render_visuals', 'after': match, 'like': match,
-                'values': {'visual_name': replacement, 'lib_name': replacement}}
+                'values': {'lib_name': replacement} if v.get('by_lib_name') else
+                          {'visual_name': replacement, 'lib_name': replacement}}
         assert c.add_entry(result, edit['list'], match, match, edit['values']) is not None
         additions.append(edit)
     final_visuals = tree(result)['render_visuals']
@@ -319,7 +387,7 @@ def author(path, data, bounds, break_material, effect_material):
             vs[f'intact{j}'] = {'index': index(v), 'state': 0}
             if v['visual_name'] in GLASS:
                 continue
-            broken_index = index(dict(v, visual_name=REPLACEMENTS[v['visual_name']]))
+            broken_index = index(as_model(v, REPLACEMENTS[v['visual_name']]))
             if broken_index not in broken_indices:
                 vs[f'broken{j}'] = {'index': broken_index, 'state': 1}
                 broken_indices.add(broken_index)
@@ -339,6 +407,10 @@ def author(path, data, bounds, break_material, effect_material):
                 rows[f'lamp{i:03d}'][table] = {
                     f'{key}{j}': dict(zip(('x', 'y', 'z'), o['position']), name=o['full_name'])
                     for j, o in enumerate(objects)}
+        if probes.get(i):
+            rows[f'lamp{i:03d}']['probes'] = {
+                f'probe{j}': dict(zip(('x', 'y', 'z'), probe['position']), name=probe['full_name'], keeps=keeps)
+                for j, (probe, keeps) in enumerate(probes[i])}
     value = {'version': 3, 'break_material': break_material, 'effect_material': effect_material, 'lamps': rows}
     if carried is not None and close(carried, value):
         return [], [], None
@@ -346,51 +418,87 @@ def author(path, data, bounds, break_material, effect_material):
                                    'replaces': carried is not None}
 
 
+def model_name(v):
+    """A render visual's model: its visual_name, or (the v0.69 ports' maps
+    have none) its lib_name."""
+    return v.get('visual_name', v.get('lib_name', ''))
+
+
 def check_built(path, data):
     """Problems of a built client_project's srp_lamps against the file itself:
     each visual index names its role's model (intact: a breakable lamp inside
-    its row's bounds; broken: that lamp's broken model, placed as it; cone: a
-    light shaft), each light position is exactly one light of the map, each
+    its row's bounds, or a figure; broken: that lamp's broken model, or the
+    figure's bare one, placed as it; cone: a light shaft; loose: the figure's
+    piece or a bottle's shard, of its kind, turned as it, unscaled and inside
+    the row's bounds; at most MAX_PIECES in all), the table's leftover
+    'body' exactly when its fixtures are figures, each light position is exactly one light of the map, each
     ambient light position exactly one ambient light and each particle
-    position exactly one particle object (what the client binds; a later edit
-    list or a map-editor save can move them)."""
+    position exactly one particle object, each probe position exactly one
+    environment probe (what the client binds; a later edit list or a
+    map-editor save can move them)."""
     root = tree(data)
     if 'srp_lamps' not in root:
         return []
-    visuals = root.get('render_visuals', [])
+    visuals = [named(v) for v in root.get('render_visuals', [])]
     placed = {kind: [o['position'] for o in root.get('client_objects', []) if o.get('game_object_type') == kind]
-              for kind in ('light', 'ambient_light', 'particle')}
+              for kind in ('light', 'ambient_light', 'particle', 'environment_probe')}
     problems = []
+    broken_of = REPLACEMENTS | {figure: models[0] for figure, models in FIGURES.items()}
     for name, row in root['srp_lamps']['lamps'].items():
-        def visual(key):
-            index = row['visuals'][key]['index']
+        def visual(key, table='visuals'):
+            index = row[table][key]['index']
             return visuals[index] if 0 <= index < len(visuals) else None
+
+        def inside(v):
+            return all(row['min_' + a] - 1e-3 <= p <= row['max_' + a] + 1e-3 for a, p in zip('xyz', v['position']))
         for key in row['visuals']:
             v, role = visual(key), key.rstrip('0123456789')
-            model = v.get('visual_name', '') if v else None
+            model = model_name(v) if v else None
             if v is None:
                 ok = False
             elif role == 'intact':
-                ok = (model in REPLACEMENTS or model in GLASS) and all(
-                    row['min_' + a] - 1e-3 <= p <= row['max_' + a] + 1e-3 for a, p in zip('xyz', v['position']))
+                ok = model in FIGURES or ((model in REPLACEMENTS or model in GLASS or model in BOTTLES) and inside(v))
             elif role == 'broken':
                 intact = visual('intact' + key[len(role):])
-                ok = intact is not None and intact.get('visual_name') in REPLACEMENTS and \
-                    model == REPLACEMENTS[intact['visual_name']] and \
+                ok = intact is not None and model_name(intact) in broken_of and \
+                    model == broken_of[model_name(intact)] and \
                     all(v[k] == intact[k] for k in ('position', 'rotation', 'scale'))
             else:
                 ok = role == 'cone' and (model == LEGACY_CONE or model.endswith('props/light/cone_light_volume'))
             if not ok:
                 problems.append(f'{path}: {name} {key}: render_visuals[{row["visuals"][key]["index"]}] is {model!r}')
+        pieces_of = {figure: ([models[1]], 'headwear') for figure, models in FIGURES.items()} \
+            | {bottle: (shards, 'shard') for bottle, shards in BOTTLE_SHARDS.items()}
+        figures = [visual(key) for key in row['visuals'] if key.startswith('intact')]
+        figures = [v for v in figures if v is not None and model_name(v) in pieces_of]
+        for key, piece in row.get('loose', {}).items():
+            v = visual(key, 'loose')
+            ok = v is not None and len(figures) == 1 and model_name(v) in pieces_of[model_name(figures[0])][0] \
+                and piece.get('kind', 'headwear') == pieces_of[model_name(figures[0])][1] \
+                and all(v[k] == figures[0][k] for k in ('rotation', 'scale')) and inside(v) \
+                and all(abs(s - 1) < 0.01 for s in v['scale'])     # the client's seat is rigid (2 %)
+            if not ok:
+                model = model_name(v) if v else None
+                problems.append(f'{path}: {name} loose {key}: render_visuals[{row["loose"][key]["index"]}] is {model!r}')
         for end in ('from', 'to'):
             if not all(row['min_' + a] - 1e-3 <= row[f'glass_{end}_{a}'] <= row['max_' + a] + 1e-3 for a in 'xyz'):
                 problems.append(f'{path}: {name}: its glass line leaves its bounds')
         for table, kind, what in (('lights', 'light', 'lights'), ('ambient_lights', 'ambient_light', 'ambient lights'),
-                                  ('particles', 'particle', 'particles')):
+                                  ('particles', 'particle', 'particles'),
+                                  ('probes', 'environment_probe', 'environment probes')):
             for key, light in row.get(table, {}).items():
                 found = sum(p == [light['x'], light['y'], light['z']] for p in placed[kind])
                 if found != 1:
                     problems.append(f'{path}: {name} {key}: {found} {what} of the map at its position')
+    intact = [model_name(visuals[v['index']]) for row in root['srp_lamps']['lamps'].values()
+              for key, v in row['visuals'].items() if key.startswith('intact') and 0 <= v['index'] < len(visuals)]
+    pieces = sum(len(row.get('loose', {})) for row in root['srp_lamps']['lamps'].values())
+    if pieces > MAX_PIECES:
+        problems.append(f'{path}: {pieces} loose pieces, more than the client binds ({MAX_PIECES})')
+    kinds = {'body' if name in FIGURES else 'glass' for name in intact}
+    leftover = root['srp_lamps'].get('leftover', 'glass')
+    if kinds != {leftover}:
+        problems.append(f'{path}: leftover {leftover!r} for fixtures of {sorted(kinds)}')
     return problems
 
 
@@ -404,7 +512,7 @@ def main():
     for p in sorted((args.projects / 'projects').glob('*/*/client_project')):
         if p.parts[-3] != 'lobby_scene' and p.parts[-2].endswith(('_2', '_3', '_4', '_5')):
             projects.append(p)
-    used = {v.get('visual_name') for p in projects
+    used = {named(v).get('visual_name') for p in projects
             for v in tree(p.read_bytes()).get('render_visuals', [])} & PARTS
     bounds = {}
     for name in sorted(used):
@@ -418,17 +526,26 @@ def main():
             for name in ('glass', 'bullet')}
     if any(len(ids) != 1 for ids in live.values()):
         raise ValueError('expected one live glass and one live bullet material in the authoring game data')
+    def cubemap(probe):
+        for tree in (args.stock, args.projects):
+            path = tree / 'textures' / f"{probe['texture']}_diffuse.dds"
+            if path.is_file():
+                return path
+        raise FileNotFoundError(f"{probe['full_name']}: no {probe['texture']}_diffuse.dds in --stock or --projects")
     edits = {'_about': 'Breakable lamps: one bullet breaks the fixture, removes its linked lights and cones '
-             "(a lit alarm lamp's red ambient glow and a kerosene lamp's flame too), "
+             "(a lit alarm lamp's red ambient glow and a kerosene lamp's flame too; the room probe a tube lamp lights "
+             'keeps only its share without the lamp, probe_light.py), '
              'and displays the broken model. Source authored by scripts/breakable-lamps/make_edits.py '
              'from manifest-base projects and Research. Explicit indices refer to the final render_visuals '
              'after these additions. Bulb bounds use stock geometry and placed rotation/scale. '
              'Legacy cones start at the emitter: their full-opacity material exposes offsets '
              'hidden by the 0.26 material. Stock and v0.21 placements stay unchanged.',
              'set_entry': [], 'add_entry': [], 'add_value': []}
-    for p in projects:
+    days = {}
+    # A level's day projects first: its other weathers' probes use the day's split.
+    for p in sorted(projects, key=lambda p: (p.parts[-3], not p.parts[-2].startswith('day_'), p.parts[-2])):
         placements, adds, spec = author(str(p.relative_to(args.projects)), p.read_bytes(), bounds,
-                                        live['glass'][0], live['bullet'][0])
+                                        live['glass'][0], live['bullet'][0], cubemap, days)
         if spec:
             if spec.pop('replaces'):
                 edits.setdefault('remove_key', []).append({'files': spec['files'][0], 'keys': ['srp_lamps']})
@@ -438,7 +555,8 @@ def main():
             print(f'{p.parts[-3]}/{p.parts[-2]}: {len(rows)} lamps, '
                   f'{sum(len(r["lights"]) for r in rows.values())} lights, '
                   f'{sum(len(r.get("ambient_lights", {})) for r in rows.values())} ambient lights, '
-                  f'{sum(len(r.get("particles", {})) for r in rows.values())} flames')
+                  f'{sum(len(r.get("particles", {})) for r in rows.values())} flames, '
+                  f'{sum(len(r.get("probes", {})) for r in rows.values())} probes')
     args.out.write_text(json.dumps(edits, indent=2, ensure_ascii=False) + '\n')
 
 

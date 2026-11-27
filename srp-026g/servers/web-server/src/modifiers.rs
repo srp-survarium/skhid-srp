@@ -17,23 +17,25 @@ use survarium::v026g::modifications::{Modification, Modifications};
 use survarium::v026g::ui_properties::{Change, UiProperties, UiProperty};
 
 use crate::icons::{self, IconSet};
+use crate::built::Script;
 use crate::{Lang, escape};
 
 /// The page's script: the weapons page's chooser and the page's own part,
-/// built by `srp-026g/scripts/wiki/build.py`.
-const SCRIPT: &[u8] = include_bytes!("../wiki/modifiers.js");
+/// built by `srp-026g/scripts/wiki/build.py`. Its words are the page's
+/// `page-words` ([`Script::words`]).
+static SCRIPT: Script = Script::new(include_bytes!("../wiki/modifiers.js"));
 pub(crate) const SCRIPT_PATH: &str = "/wiki/modifiers.js";
 
 /// The page's script, by [`SCRIPT_PATH`].
 pub(crate) fn file(path: &str) -> Option<(&'static str, &'static [u8])> {
-    (path == SCRIPT_PATH).then_some(("text/javascript; charset=utf-8", SCRIPT))
+    (path == SCRIPT_PATH).then_some(("text/javascript; charset=utf-8", SCRIPT.source()))
 }
 
 /// The script's address with its version, so it can be kept for good.
 fn script_url() -> &'static str {
     static URL: OnceLock<String> = OnceLock::new();
     URL.get_or_init(|| {
-        let digest: String = openssl::sha::sha256(SCRIPT)[..6]
+        let digest: String = openssl::sha::sha256(SCRIPT.source())[..6]
             .iter()
             .map(|byte| format!("{byte:02x}"))
             .collect();
@@ -618,7 +620,8 @@ pub(crate) fn body(lang: Lang, item: Option<u16>) -> String {
     format!(
         "<p class=breadcrumb><a href=\"/wiki?lang={code}\">{}</a> / {}</p>\
          <div class=wiki-heading><div><p class=eyebrow>{}</p><h1>{}</h1></div></div>\
-         <p class=wiki-intro>{}</p>{}{}{}{}<script src=\"{}\"></script>",
+         <p class=wiki-intro>{}</p>{}{}{}{}\
+         <script type=application/json id=page-words>{}</script><script src=\"{}\"></script>",
         lang.t("Wiki"),
         lang.t("Modifiers"),
         lang.t("Equipment reference"),
@@ -640,6 +643,7 @@ pub(crate) fn body(lang: Lang, item: Option<u16>) -> String {
             lang.t("These never roll."),
             &|kind| kind.source == Source::BuiltIn,
         ),
+        SCRIPT.words(lang),
         script_url(),
     )
 }

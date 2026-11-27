@@ -9,6 +9,282 @@ release that made it what it is now.
 
 ---
 
+## 26 Nov, 20:38 — TODO: the owner's words (update required)
+
+<!-- Revision 74 (026g-rev74), released 2026-11-26 20:38 UTC. To be worded for players; what it shipped: -->
+
+- TODO: #2607 Calculator: VSSK's built-in bonus beside the ones it rolls
+- TODO: #2613 srp-069d: Skhid (Схід) server for Survarium 0.69d
+- TODO: #2614 tools/check: srp-069d rows (cargo test, check-public) and its AGENTS.md section
+- TODO: #2628 Add Bottled fumo and Neco-Arc as give-only decals
+- TODO: #2637 Add 299 camouflage patterns and rebalance match rewards
+- TODO: #2627 Freeze Tag: clear halos on exit and freeze mid-round joiners
+- TODO: #2643 Camouflage atlas: drop-only items, translated names, real drop-rate edits
+- TODO: #2638 Fix weapon decals appearing on faces that share texture coordinates
+- TODO: #2648 Stats: Kills/min and Experience/min in the In matches panel
+- TODO: #2649 Artifact Hunt: no marker over an enemy carrier's head, the minimaps alone
+- TODO: #2651 Updater and server: drop the one-time restore of resources.db
+- TODO: #2653 Patch 205: a reload left after the magazine is in keeps the new magazine (reload-commit-1)
+- TODO: #2658 Patch 210: the sync log (SKHID_SYNC_LOG), the owner's desync and map diagnostic
+- TODO: #2645 Wiki maps: anomalies, and how each gives its artefacts
+- TODO: #2650 Restore 0.69d0's sight size for every gun: eye plane and first-person projection
+- TODO: #2666 Match server: the desync capture, both sides' worlds at a split with their first differing field
+- TODO: #2662 Second sights: an optic on the gun's side (0.69d0's MPR45), switched with Y, simulated as retail
+- TODO: #2670 Remove an approved batch of dead code (0.21d stack in srp-026g, mode intro, small items)
+- TODO: #2668 Docs that no longer match the code: AGENTS.md, skills, READMEs, notes
+- TODO: #2659 srp-069d: docs and comments that no longer match the code
+- TODO: #2667 Comments that no longer match the code (srp-026g, client)
+- TODO: #2671 Freeze Tag: the last fighter's red mark on the maps after 15 s with a countdown for everyone, and a mode notice
+- TODO: #2652 Camouflage atlas: the owner's selection, 301 items (camo-atlas@5)
+- TODO: #2672 Cleanup answers: retire the standalone downloader and balance-refit, fix stale references
+- TODO: #2673 Freeze Tag: the last fighter's reveal as a short popup, no countdown
+- TODO: #2676 Camouflage atlas: MM-25 stitched at its own scale
+- TODO: #2675 Site: Skhid-get.bat link says it is for blocked downloads
+- TODO: #2680 Patch 211: the world of a tick, so the desync capture gets the split's own tick
+- TODO: #2678 Prompts name the bound key, in the player's language (patch 212)
+- TODO: #2681 AGENTS.md: the full tools/check only for a release
+- TODO: #2683 Rooms: four vote cards; every version of a map one map on the cards
+- TODO: #2685 equipment-069@6: the Snow-20 vest and pants take a camouflage
+- TODO: #2686 Rudnya's sitting skeleton's cap flies off when shot
+- TODO: #2687 exo-camo@1: the Duty and Freedom exoskeleton bodies take a camouflage
+- TODO: #2689 Apply progressive wear to combat artifacts
+- TODO: #2691 stk2-camo@1: the STK2 jackets and trousers take a camouflage
+- TODO: #2693 armour-camo-069d@1: 0.69d's camouflage maps for the seven pieces without them
+- TODO: #2690 Stats: Maps and Modes boards (side win rates by map and mode, mode popularity)
+- TODO: #2697 School's vodka bottles shatter into shards
+- TODO: #2694 Red dot flicker: no hi-Z occlusion for first-person surfaces (patch 213); unfaded collimator reticle (weapon-modules@8)
+- TODO: #2593 Rudnya (v0.69) @8: the sun's colour as the game reads it
+- TODO: #2682 three-maps-021-lighting@15: Rudnya (v0.69)'s shade as 0.69d shows it (0.26g's tone curve is 1 - 2^(-x))
+- TODO: #2699 Oxygen Rush: the boosted countdown in the hud's own blue, not Spring's flat blue
+- TODO: #2700 Mode notices: only in each account's first three matches of the mode
+- TODO: #2704 Number decals: Number 1 to 1000, given by account id
+- TODO: #2701 wiki: index as picture tiles, sections in play order
+- TODO: #2703 Wiki simulators: the weapon's Dispersion roll, on its base spread
+- TODO: #2710 Artefact wear: the power switch shows once the copy is on cooldown
+- TODO: #2707 Second sights: the scope's overlay by the switch's effective aim (the gun no longer vanishes on the way back)
+- TODO: #2709 Freeze Tag notice: shorter, 20 s on screen
+- TODO: #2558 Scopes: the idle optics' glass, dark coated glass you see through (pack weapon-modules@9)
+- TODO: #2711 Snufkin, Bottled fumo and Neco-Arc decals: sold for 10,000,000 silver each
+
+## 23 Nov, 17:56 — TODO: the owner's words (update required)
+
+<!-- Revision 73 (026g-rev73), released 2026-11-23 17:56 UTC. To be worded for players; what it shipped: -->
+
+- TODO: #2549 Wiki skills in every language (a built page filled at request time)
+- TODO: #2550 Maps tab in every language
+- TODO: #2551 Damage calculator in every language
+- TODO: #2548 Wiki simulators: a burst's bullets take the camera's wobble of the step before
+- TODO: #2568 death-sound-021d@2: the corpse-shot sound is the scream alone, no body drop
+- TODO: #2569 Patch 199: the lobby is given the kit it shows whole, in one call (rev72 pocket-item regression)
+- TODO: #2573 Item cards: every built-in line in one order, the tank skills' too
+- TODO: #2575 Wiki maps: Artifact Hunt and Freeze Tag
+- TODO: #2572 Artifact Hunt on the ported maps: the stock level's own points, not the batteries' (artefact-hunt-maps@3)
+- TODO: #2574 Patch 132: the camera before the start never inside the character (0.75 m, as 0.69d)
+- TODO: #2577 Oxygen Rush: the tank's countdown in Spring's blue while the boost runs
+- TODO: #2266 Route check: 64 KiB each way per protocol
+- TODO: #2580 Courier: carry artefacts from a kit left alive (round modes' kit switches)
+- TODO: #2576 VSSK Vychlop and SV-1367 Dusk: damage 1.75 -> 1.1; 12.7x54 PT faster
+- TODO: #2581 Weight at level 15: Packrat −3 % a rank, Athlete +1 kg a rank, carry-limit rolls halved
+- TODO: #2322 Automatic route: the relay only when direct really fails
+- TODO: #2582 Artifact Hunt: a death respawns in the wave the timer shows
+- TODO: #2583 Artifact Hunt: no respawn modifier in the waves
+- TODO: #2584 Updater: the launcher's PLAY closes games this folder left running
+- TODO: #2074 Patch 149: a key per item type uses it (artefacts, medicines, grenades, trap, oxygen tank)
+- TODO: #2586 Weight values keep their types: carry-limit rolls +1/+1/+2/+2/+3 kg
+- TODO: #2587 Patch 202: a line in the patches' log when the game cannot take the mouse
+- TODO: #2590 Options > Controls: related keys together
+- TODO: #2554 Rudnya (v0.69) @6: each fill light's own 0.69d facing, three-maps-021-lighting@13
+- TODO: #2579 Rudnya (v0.69) @7: fill-light boxes and cylinders as 0.69d draws them, blends by their own technique; three-maps-021-lighting@14
+- TODO: #2592 Settings > Controls > Bindings: the keyboard, the mouse and every binding in the Settings' skin
+- TODO: #2596 Controls tab: the lobby's keys on the right for reading; the Bindings window match-only
+- TODO: #2595 Wiki: artefacts page
+- TODO: #2589 Artifact Hunt: the carrier shown on the minimaps alone
+- TODO: #2598 Content: Snufkin and Snufkin sitting decals (not sold)
+
+## 23 Nov, 04:20 — TODO: the owner's words (update required)
+
+<!-- Revision 72 (026g-rev72), released 2026-11-23 04:20 UTC. To be worded for players; what it shipped: -->
+
+- TODO: #2438 Courier: the dead kit's artefacts found in its slots (they never moved)
+- TODO: #2439 Freeze Tag: only the frozen stop in the pause between rounds
+- TODO: #2443 Modes page: fewer lines (rooms, Roulette)
+- TODO: #2440 Artifact Container: a kit's slot made a pocket again by a click
+- TODO: #2468 Patch 101: a foot step in a state with no foot material is dropped (crash in step_manager::on_step)
+- TODO: #2469 Patch 193: material_pair takes an id past its 128 materials as the default (no read past its tables)
+- TODO: #2474 Stats: a weapon's kills per minute
+- TODO: #2472 Updater: a patch download that broke off goes on from its bytes
+- TODO: #2473 Updater: a slow address is left for the fastest one, from the bytes on disk
+- TODO: #2478 Artifact Hunt: the next respawn wave beside the match time
+- TODO: #2479 The score bars start from the match's own score (Freeze Tag, and every mode at a match's start)
+- TODO: #2422 The ported maps' ambient occlusion at native strength (ported-maps-ao-1, london-v042@7, london-v032@4)
+- TODO: #2490 Patch 195: a use's progress bar ends with the use (stuck "Progress" bar after a death)
+- TODO: #2451 Patch 192: a damage zone and its players out of step no longer move memory
+- TODO: #2455 Freeze Tag: the pause's countdown with the kits, and no view drift after a thaw
+- TODO: #2477 Technical skills: Last Gasp becomes Oxygen Rush, after 20 s of tank use and at its run-out (simulation and world-format change)
+- TODO: #2493 Technical skills: a Bear Trap trap takes 1.5 pocket units, three in five (simulation change)
+- TODO: #2495 Crash reporter: an Open folder button that shows the saved report
+- TODO: #2494 Stats: the leaders' names are not cut
+- TODO: #2475 Grenade markers: teammates' smoke and toxic smoke get their own marks (patch 194)
+- TODO: #2480 Technical skills: Tank Container (445), an artifact container with an oxygen tank (simulation change)
+- TODO: #2496 London (v0.32): the red team's spawns at the owner's picks, facing the way out
+- TODO: #2476 Deep Pockets and Supply Pocket: a kit's pocket made the second weapon slot again by a click
+- TODO: #2491 Training Camp: the team project as day_tdm, a name the client loads (map 212 crash)
+- TODO: #2442 Patch 191: a kill made in a re-simulation keeps its kill marker
+- TODO: #2444 Patch 100: flush a stopped voice only after the running processing pass (Wine sound loss)
+- TODO: #1576 Patch 132: the camera before the start stays out of the walls
+- TODO: #2500 Technical skills: a Toxic Smoke grenade takes 1.5 pocket units (simulation change)
+- TODO: #2505 Freeze Tag: the frozen glow covers the whole body
+- TODO: #2507 Freeze Tag's rounds end and start as Artifact Hunt's, by its code
+- TODO: #2509 Rooms: the big-pool draft test sized from the pool's pieces (fails on main)
+- TODO: #2508 Ragdoll death camera: stay in the head, out of walls
+- TODO: #2512 Client patches: generated files are made by the build, not committed
+- TODO: #2513 Ragdoll: the fingers let go of the grip
+- TODO: #2514 tools/test-build: a part whose build failed is FAILED, and copies nothing
+- TODO: #2518 Freeze Tag: a player's saved tag by its state, not team + 2 (srp-validate's clippy)
+- TODO: #2454 Site words: Russian and Belarusian
+- TODO: #2520 Generated files: the exe's inputs in one place, builds without an arena need no toolchain
+- TODO: #2452 Site words: Polish, Czech, Croatian, Serbian
+- TODO: #2453 Site words: German, Finnish, Hungarian
+- TODO: #2521 Crash reporter: keeps the newest ten crashes' files
+- TODO: #2377 Artifact Hunt: the same box on every base (artefact-hunt-maps@2)
+- TODO: #2522 Site words: every language must have every text (the test names what is missing)
+- TODO: #2523 Freeze Tag: the rule's saved bytes at their documented places (the writer shifted every field since #2507)
+- TODO: #2519 Patch 196: a shot into a corpse plays 0.21's death sound there and puts its player in the dark
+- TODO: #2527 Web server: the history tests expect a match's mode_url
+- TODO: #2528 World round trip: the four codec sites of patches 115 and 122 named with their checks
+- TODO: #2529 Patches crate: Clippy clean again, and its own check row
+- TODO: #1554 AGENTS.md: a clear safe/unsafe boundary, and work holistically
+- TODO: #2533 Rudnya (v0.69) @5: smoothness maps drawn as maps, the blends' own numbers, 0.69d's cut of a blend by its second layer
+- TODO: #2096 Free for All: with few players, respawn near someone (30 m away first)
+- TODO: #2536 Patch 83: the taskbar goes under a fullscreen game after Alt+Tab (Windows)
+- TODO: #2531 vostok-layout: compare with the released map as it is since revision 57
+- TODO: #2539 Updater tests: play_skhid.bat without a language, and the patch suite in updater-replays
+- TODO: #2532 build-content's callers: the step API of #2355 and #2382
+- TODO: #2526 Squads: a squad made in a room brings its new mate in
+- TODO: #2524 re-kit: the animation player's tree and mt_draw's tick of a not alive player
+- TODO: #2541 The FFA point checkers join the srp workspace: no lock of their own to go stale
+- TODO: #2516 Ragdoll: a shot into a corpse's head takes its helmet off
+- TODO: #2542 Wiki simulators: a shot's three motions (recoil, camera wobble, gun kick), the view from the side and a custom gun
+- TODO: #2545 stats-page: the stats page's browser check in tools/check
+- TODO: #2546 v021d-weather: the day-source export by rule, the donor from its db, lamps with cube maps, the listed lighting pack
+- TODO: #2547 Wiki weapons and simulators in every language (built pages filled at request time)
+
+## 22 Nov, 13:29 — TODO: the owner's words (update required)
+
+<!-- Revision 71 (026g-rev71), released 2026-11-22 13:29 UTC. To be worded for players; what it shipped: -->
+
+- TODO: #2431 FFA Roulette: its name does not show its level band
+- TODO: #2432 Release: --end-bot-and-private-matches waits for the normal matches only
+- TODO: #2434 Freeze Tag: the last one standing is shown only with two teammates frozen
+- TODO: #2435 Freeze Tag and Artifact Hunt: an entering place always spawns at its entry (the rejoin crash)
+- TODO: #2436 H&K G3SG/1: a 10-round magazine, more recoil, less stopping force
+- TODO: #2437 Freeze Tag: frozen teammates ice blue on the maps and over heads
+
+## 22 Nov, 10:52 — TODO: the owner's words (update required)
+
+<!-- Revision 70 (026g-rev70), released 2026-11-22 10:52 UTC. To be worded for players; what it shipped: -->
+
+- TODO: #2430 Freeze Tag: the HUD gets all six values; 1 v 1 players off each other's map
+
+## 22 Nov, 09:46 — TODO: the owner's words (update required)
+
+<!-- Revision 69 (026g-rev69), released 2026-11-22 09:46 UTC. To be worded for players; what it shipped: -->
+
+- TODO: #2318 Antitoxin: a hit no longer stops it, and it lasts 15 s
+- TODO: #2320 Stats: boards sort by their headings, no Level, item icons in the favourites
+- TODO: #2316 Decals on the STK2 jackets, trousers and exoskeleton bodies
+- TODO: #2308 Site: the game's eleven languages; its names in each, a picker in the header
+- TODO: #2309 Site: its own words in per-language files (English in the code, the rest in words/)
+- TODO: #2312 Per-weapon counts: client patch 165, the world's block, the match result
+- TODO: #2313 Per-weapon stats: the history's tables, the API and a player's Weapons list
+- TODO: #2323 Stats: leaders to 20 or 50, players past fifty, averages from 5 matches, match teams sort, the account's id
+- TODO: #2324 Stats: name history (kept names, on the player's page, found by search)
+- TODO: #2325 Patch 166: a part of a tick moves a body at rest
+- TODO: #2327 A bake used and not saved is not listed
+- TODO: #2329 Patch 167: no white hit marker for a hit through a wall
+- TODO: #2330 Artefact tree: Courier (534), the dead kit's artefacts come along to the next kit
+- TODO: #2331 Tests: no data-repeat tests
+- TODO: #2340 Patch 169: the forward effects draw as 0.44a5's
+- TODO: #2334 build-content: the battery rule's unchecked reads (walker twins, each place's collision_geometries) are present in every map project
+- TODO: #2350 Rudnya (v0.69) @4: the map through 0.69d's own data, and 0.69d's metering (three-maps-021-lighting@10)
+- TODO: #2332 A part of a tick walks, and says a player's speed, as a whole tick does (patch 168)
+- TODO: #2294 Shots in sights and scopes as 0.45a6 shows them: the aim aligned to the idle pose (patch 172), 0.45a6's fire clips (shot-kick-045@1)
+- TODO: #2347 World corpus: retired/, for recordings main's content no longer matches
+- TODO: #2351 Faster builds: the exe in 5 s, the dev shell in 0.2 s, quicker movies; tools/dev and tools/test-build
+- TODO: #2352 Patch 173: armour penetration does not fall with distance
+- TODO: #2355 build-content: steps cached by the bytes they read; --delta-from micro-patches for local tests
+- TODO: #2354 Console and logs without the lines that tell nothing (patch 174)
+- TODO: #2358 Patch 175: every wall costs a bullet something, k = 1 - (A / P)^2
+- TODO: #2356 Captures straight into a map: srp-map-sur, patch 176 (SKHID_CAPTURE), capture.py
+- TODO: #2359 Patch 167: white hit marker through glass, foliage and cloth (armour 0 is not a wall)
+- TODO: #2307 Weapon attachments: scopes, muzzle devices and grips as one system after 0.69d's modules
+- TODO: #2360 Wiki: drop the calculator hash test
+- TODO: #2361 Patch 177: a hit that takes health breaks the breath hold
+- TODO: #2357 Station in Free for All, spawns by the spawn rule
+- TODO: #2293 London is "London (v0.32)"; the lists show the 0.32 and 0.42 Londons after the 0.21 maps
+- TODO: #2346 London (v0.42): 0.44a5's reworked London as a map of its own (maps 290-298), with patch 169's forward effects
+- TODO: #2349 London (v0.32): the live London's maps play 0.32a4's own projects, with the owner's spawns, picks and breakable lamps
+- TODO: #2363 Freeze Tag (mode 12) and Artifact Hunt (mode 13)
+- TODO: #2364 FFA: Saloon (Winchester) back to 5 %
+- TODO: #2365 Rooms: an open room whose match has no place left is full; its newcomers queue
+- TODO: #2362 Lobby: attachment filters with their own icons, Appearance in the weapon menu, attachment stats as bonus lines and in Alt
+- TODO: #2367 Freeze Tag and Artifact Hunt on every team map
+- TODO: #2366 Patch 178: the ported Londons' grass lit through by the sun, as in 0.44a5 and 0.32a4
+- TODO: #2370 build-content --delta-from: the server game data on a large delta too
+- TODO: #2369 Training Camp: Team Deathmatch and Freeze Tag, every team from the Free for All points
+- TODO: #2371 Artifact Hunt's London configs name their build (srp_build): main's server refused its game data
+- TODO: #2372 Research: School's second layout (maps 500-502)
+- TODO: #2373 Patch 179: a shot ends the shooter's protection
+- TODO: #2374 Rooms: a pool of 512 entries (333 maps cut at 256 dropped both Londons and every map after the 0.21 ones)
+- TODO: #2376 Artifact Hunt: the hunt forgotten when its match's scene is left
+- TODO: #2375 Research, School's layout B: cover at the three units
+- TODO: #2378 Patch 182: a streamed texture with no free slot of its size takes a smaller one
+- TODO: #2380 The technical tree: the fourth skills tab (exe patch 180)
+- TODO: #2382 build-content: a lobby code edit rebuilds in seconds with --delta-from
+- TODO: #2379 Distance detail: sun shadows follow High and Maximum
+- TODO: #2383 Forest Protection: its smoke in the carrier's own first-person view too
+- TODO: #2385 London (v0.42) version 2: the donor's own switch sets, the rain's empty texture left out
+- TODO: #2384 Research, School's layout B: the two halls' cover
+- TODO: #2386 Freeze Tag: frozen players' names ice blue in the Tab list
+- TODO: #2390 Military Warehouses: Free for All with a twist only
+- TODO: #2389 Patch 54: a press that fires an artefact restarts its kind's cooling copies' cooldown
+- TODO: #2381 FFA: Roulette, everyone the same random hand of three kits from one level band
+- TODO: #2387 Fire Station: the west roof ramp drawn as planks (stalker-maps-2@5)
+- TODO: #2396 Patch 182: texture_pool's log line no longer overflows its pieces
+- TODO: #2395 Release: new patches also go to Dropbox, its address before the patches server's
+- TODO: #2399 Medical tree: own icons for the drug skills and Additional Medicine
+- TODO: #2398 Brazilian Portuguese: the game's twelfth language, and the site's
+- TODO: #2401 Roulette: one gun a kit, and a pistol hand now and then
+- TODO: #2403 Rooms: every vote card draws from the whole pool, one free-for-all at most
+- TODO: #2402 Site: drop the equipment page's intro texts and "small" from the home page
+- TODO: #2404 Site: Skhid-get.bat under the download button, no .torrent and magnet links
+- TODO: #2391 Launcher patch 17: a download says which file of how many, "(5/69)"
+- TODO: #2407 Freeze Tag: a team frozen whole with nobody on the other side draws
+- TODO: #2409 Release lists: every patch and the game's archive get their Dropbox address
+- TODO: #2388 London (v0.42) version 4: the donor's programs of every pass; sets without programs take the nearest players' set
+- TODO: #2394 tools/test-patch: a test patch of only the changed files, in a minute
+- TODO: #2392 The Room: camp @21, lit by rule from 0.69d's own data (lighting @11)
+- TODO: #2397 Patch 183: the g-buffer's parallax constants as 0.44a5 sets them
+- TODO: #2393 London (v0.32) version 2: the donor's own switch sets, missing textures and windless meshes by rule
+- TODO: #2405 London (v0.42)@5, London (v0.32)@3: London's profile on the rain too
+- TODO: #2400 Lamps: a broken tube lamp's room probe keeps only its share without the lamp
+- TODO: #2411 mode-maps/make.py: stable Freeze Tag and Artifact Hunt ids (ids.tsv)
+- TODO: #2410 Tactical reload for the Vikhr, SR-2M, UMP-45, AEK-919K, PPSh, Vepr and SVU-A (pack tactical-clips-rebased-069@1)
+- TODO: #2412 Lamps: a dimmed room probe is never darker than the rooms beside it
+- TODO: #2414 London (v0.42): the battery mode on London's own spread of batteries
+- TODO: #2416 Lamps: a weather's probe takes the day's lamp light out wherever light is left
+- TODO: #2417 Drop the ammo top-up script: it was never run and will not be
+- TODO: #2419 Skhid-get.bat: the bootstrap of the rev68 updater, built
+- TODO: #2418 Patch 190: the hi-Z occlusion no longer drops probes and ambient lights, nor lights for a frame
+- TODO: #2421 Wiki: Modes page (every mode and the FFA versions on one page)
+- TODO: #2423 Wiki modes: no map lists; the match page's mode links to it
+- TODO: #2408 Freeze Tag: thaw in 4 s, auto-thaw after 2 min, last one fighting on the map
+- TODO: #2424 Wiki modes: Freeze Tag's auto-thaw and last fighter (#2408)
+- TODO: #2425 Release 69 content: London (v0.42)@6, the Room as live, compare's server flag
+- TODO: #2426 Stats: a player's skills, and player links by account id
+- TODO: #2427 Release 69: the exe patches' self-test passes on main
+- TODO: #2428 release.sh: the new patch's row is the one upload-patch published
+
 ## 20 Nov, 16:57 — TODO: the owner's words (update required)
 
 <!-- Revision 68 (026g-rev68), released 2026-11-20 16:57 UTC. To be worded for players; what it shipped: -->

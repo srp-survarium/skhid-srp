@@ -5,7 +5,7 @@ description: Port a map from another Survarium build (0.69d, 0.46c2, 0.27d, 0.21
 
 # Porting a map into 0.26g
 
-Rudnya (v0.69) is the worked example: maps 204/216/217/218, pack `rudnya-069d@3`,
+Rudnya (v0.69) is the worked example: maps 204/216/217/218, pack `rudnya-069d@7`,
 resource-porter `ports/survarium-069d-rudnya-to-026g.json`. The longer notes:
 
 - resource-porter `docs/survarium-069d-to-026.md`: every conversion choice, with numbers;
@@ -36,16 +36,18 @@ resource-porter `ports/survarium-069d-rudnya-to-026g.json`. The longer notes:
 4. **The manifest row:** `pack <id>@<version> <sha256 of pack.json> <description>` in
    `release/content.tsv`. `pack.json` lists paths, not contents: a rebuild with the same
    file list keeps its sha, so a changed pack for a release gets a new version.
-5. **The content:** `release/build-content <revision> --out <dir>` from the skhid worktree
+5. **The content:** `release/build-content <revision> --slow --out <dir>` from the skhid worktree
    with the packs folder named: `release.env` sets `SKHID_PACKS_DIR` itself, so wrap it,
    ```sh
    # release-modes.env
    . <main checkout>/private/release/release.env
    SKHID_PACKS_DIR=/mnt/hdd/Projects/rudnya-069d/packs-modes   # <id>-<version> -> the pack
    ```
-   and run `SKHID_RELEASE_ENV=<that file> release/build-content 39 --out <content dir>`.
+   and run `SKHID_RELEASE_ENV=<that file> release/build-content 39 --slow --out <content dir>`.
    The folder holds `resources.db.patch_<rev>` and `server-game-data.db`: the coordinator or
    the owner swaps it into a local game; never assemble one by hand.
+   A later fix of the pack's files only (its tables and configs as they were): `tools/test-patch
+   <setup> <packs>/<id>-<version>` packs what differs into the setup in a minute.
 6. **Ids** (check stock, every published patch, every pack and parked branches):
    - `maps_dict` id (204; the server reads maps from the game data, not from code);
    - level, `match_making_params.map_id` (14): names, room tiles and play counts key on it;
@@ -98,7 +100,12 @@ resource-porter `ports/survarium-069d-rudnya-to-026g.json`. The longer notes:
   - probes: the donor's own volumes, cubes and SH with their `multiplier` and full
     rotation, the largest also as the map-wide sphere;
   - ambient lights: 0.26g's own ambient lights (an intensity above 1 adds light; the colour
-    is packed with red in the low byte), with the donor's falloff and facing fitted;
+    is packed with red in the low byte), with the donor's falloff fitted and its facing term
+    (cutoff, power) carried exactly in `attenuation_power` for the lighting pack's programs;
+    a box keeps 0.69d's own falloff, side width and `gradient_attenuation` (the light from a
+    door falling off into the room), and a cylinder is drawn as one in the box around it,
+    both carried the same way (lighting @14): drawn as plain boxes, Rudnya's floor and loft
+    lights were uniform bright rectangles and its tower darkeners black squares;
   - exposure, grading and tone curve: the donor's, as an exposure profile of the lighting
     pack (`three-maps-021-lighting`, its `exposure_profiles` row with the numbers the
     build's "tone:" note prints; the scene's `mie_fog_base_height` is the marker) and the
@@ -106,7 +113,19 @@ resource-porter `ports/survarium-069d-rudnya-to-026g.json`. The longer notes:
     manifest and a new version of that pack in the same skhid PR;
   - materials: gloss by the two builds' GGX alpha, Fresnel 0.04, a metalness map as the
     surface's own diffuse and Fresnel maps made texel by texel (never the metalness map as
-    0.26g's Fresnel map: a dark pipe mirrored the sky);
+    0.26g's Fresnel map: a dark pipe mirrored the sky); a constant metalness above 0.1 with no
+    map is a metal surface too, its maps made with that value (Vostok's barbed wire, 0.7);
+    every category's template must draw
+    a gloss map (`use_troughness`) where the donor binds a smoothness map: without one the
+    donor's unused constant was drawn (Rudnya's rusty roofs "greasy" at gloss 0.62; the build
+    now stops on such a template);
+  - vertex blends: the donor's own strength, falloff, second-layer tile and mask scale and
+    rotation (both builds draw the same weight formula for the same technique and tiled-mask
+    switch: the manifest names a template per switch the category's own lacks,
+    `<category>_technique<n>[_tiled_mask]`; on the category's template a linear blend drew
+    the second layer all over: the sheds' rust roofs); a blend 0.69d cuts by its second
+    layer's alpha needs the blended-cut gbuffer programs (0.26g's own read the base's alpha
+    only: the lath under Rudnya's wallpaper drew black);
   - scene objects both builds have (sound emitters, a particle 0.26g ships): the donor's.
 - **Vertex-blend and vertex-colour materials.** Tell a vertex-blend material before an
   alpha-tested one (the blended opaque layer closes the cut-outs: house_6's wall was gone)
@@ -140,6 +159,10 @@ resource-porter `ports/survarium-069d-rudnya-to-026g.json`. The longer notes:
     `<rig>/../poses-sweep.json`: interiors from the probe and light volumes,
     roofs, the fog, the horizon (the backdrop), terrain overlay edges, every mode object,
     spawns; cameras inside geometry or buried are skipped (`geoq` ray-casts the collision).
+  - The port's shots: `srp-026g/scripts/capture/capture.py` (exe patch 176, `capture.md`:
+    straight into the map from a replay with nobody in it, no server or input; at most 64
+    poses a run). The camera-hook rigs refuse an exe with patch 176 ("apply_camera bytes
+    differ"). Vostok (v0.69)'s run of it over the kept poses: `vostok-069d.md`.
   - `sweep.py run --build <name> --content <content dir> [--fresh]`, then
     `<rig>/../report-<name>/index.html`, worst first, with black / dark /
     hole / cast / gap flags on an 8 x 6 tile grid. `sweep.py compare --build <name>` redoes

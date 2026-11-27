@@ -27,6 +27,16 @@ whose 47 points are every team's (`stalker-ffa.md`, "Team Deathmatch and Freeze 
 for All points"). The boundary and the outside stash below are no more in the way: `day_teams` has
 the wall and no stashes.
 
+Both modes play it as `day_tdm` since the next release (`training-camp-project-1.json`, a copy of
+`day_teams` as the list above leaves it). The client cuts a project name (a mode config's
+`match_making_params/map_name`) to 31 characters: `v010b_cs_training_camp/day_teams` is 32, so
+the client looked for `day_team`, found no project config and crashed loading the map
+(`project_cooker_simple::create_game_objects` 0x22C11E, a read of 0x108: map 212's first match,
+2026-11-22, both players). `day_teams` stays as players have it, named by no config.
+`release/build_content.py` refuses a mode config whose project name is over 31 characters. Where the
+client cuts it is not found yet: the cooker's own buffers hold 260 characters, and the full name
+is in memory beside the cut copies.
+
 Everything else stays: the six TDM configs, the projects with both teams'
 spawns and stashes, their `modes.tsv`/`maps.tsv` rows, names, pictures and
 minimaps; the FFA configs are copies on the same projects. Ids 210-215 stay

@@ -22,12 +22,12 @@ check = "check_artefact_hunt_026g.py"
 [[hook]]
 site = "hunt_cook.create"
 handler = "on_cook_create"
-proof = "create through the rule cooks' translate 0x2F42C2"
+proof = "driven: the cook's create and size through translate's calls"
 
 [[hook]]
 site = "hunt_cook.size"
 handler = "on_cook_size"
-proof = "size through the rule cooks' translate 0x2F42CD"
+proof = "driven: the cook's create and size through translate's calls"
 
 # the rule: a copy of tdm_rule_core's vtable, these slots ours
 [[vtable]]
@@ -38,42 +38,42 @@ check = "check_artefact_hunt_026g.py"
 [[hook]]
 site = "hunt_rule.on_event"
 handler = "on_event"
-proof = "event through rules_on_event 0x2D1EA0"
+proof = "driven: slot 7 event 0 through rules_on_event"
 
 [[hook]]
 site = "hunt_rule.entered"
 handler = "on_entered"
-proof = "entered through on_player_entered_match 0x2D2021"
+proof = "driven: slot 8 through the world's loop"
 
 [[hook]]
 site = "hunt_rule.left"
 handler = "on_left"
-proof = "left through on_player_left_match 0x2D2040"
+proof = "driven: slot 9, left through the world's loop 0x2D2130"
 
 [[hook]]
 site = "hunt_rule.set_core"
 handler = "on_set_core"
-proof = "set_core through the core's rules loop"
+proof = "driven: slot 11 through the world's loop"
 
 [[hook]]
 site = "hunt_rule.serialize"
 handler = "on_serialize"
-proof = "serialize through the snapshot's rules loop"
+proof = "driven: slot 15, serialize through the snapshot's rules loop 0x2D2661"
 
 [[hook]]
 site = "hunt_rule.deserialize"
 handler = "on_deserialize"
-proof = "deserialize through the snapshot's rules loop 0x2D2B5D"
+proof = "driven: slot 16, deserialize through the snapshot's rules loop 0x2D2B42"
 
 [[hook]]
 site = "hunt_rule.fill_hud"
 handler = "on_fill_hud"
-proof = "fill through fill_match_hud_state 0x2D36D9"
+proof = "driven: slot 17 through fill_match_hud_state's loop"
 
 [[hook]]
 site = "hunt_rule.completed"
 handler = "on_completed"
-proof = "completed through its callers"
+proof = "driven: slot 18, completed through the world's loop 0x2D2730"
 
 # the tick: a delegate of the world's second list
 [[hook]]
@@ -90,15 +90,12 @@ site = "respawn.tick"
 handler = "on_respawn_tick"
 order = 1
 
-# the carrier: no sprint; his marker and dot for both teams
+# the carrier: no sprint; his dot on the minimaps for both teams (the marker
+# over his head is the game's: an enemy's only while spotted, and the icons
+# movie shows none)
 [[hook]]
 site = "hunt.can_sprint"
 handler = "on_can_sprint"
-
-[[hook]]
-site = "player_names.enemy_spotted"
-handler = "on_name"
-order = 2
 
 [[hook]]
 site = "minimap.enemy_spotted"

@@ -72,7 +72,7 @@ pub fn on_input(ctx: &mut Context<'_>) -> Flow<ArtefactCarryOnInputExit> {
         event(&player, ctx, Event::Gone);
     }
     let artefact = QuickSlot::from_actions(actions).filter(|_| allowed)
-        .and_then(|slot| player.inventory()?.quick_artefact(slot.get()));
+        .and_then(|slot| player.inventory()?.quick_artefact(slot));
     event(&player, ctx, Event::Input { now, actions, artefact });
     if hunt == crate::artefact_hunt::Input::Used {
         consume_use(&player, ctx);
@@ -148,6 +148,8 @@ pub fn on_ground_load(ctx: &mut Context<'_>) -> Flow<NoExit> {
 pub fn on_filter(ctx: &mut Context<'_>) -> Flow<NoExit> {
     if let Some(player) = native::player(ctx, native::PlayerSite::Filter) {
         crate::weapon_pickup::on_filter(&player, ctx.thread());
+        // Patch 196: a corpse shot told, for the death its victim is dead of now.
+        crate::corpse_shot_dark::on_filter(&player, ctx.thread());
         if player.carry_key().is_some() {
             player.carry_filter(machine(&player, ctx).filtered());
         }
@@ -227,6 +229,8 @@ pub fn on_input_end(ctx: &mut Context<'_>) -> Flow<NoExit> {
         crate::technical_return_to_sender::on_input_end(&mut handler, ctx.thread());
         // Patch 85: Use's press on a dropped gun is sent as its pickup.
         crate::weapon_pickup::on_input_end(&mut handler, ctx.thread());
+        // Patch 196: a shot into a corpse told in an input free of keys and commands.
+        crate::corpse_shot_dark::on_input_end(&mut handler, ctx.thread());
     }
     Flow::Continue
 }

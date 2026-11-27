@@ -350,7 +350,7 @@ fn relocate_covering(
     // size)`, which knows no RGD-5 taking two units, and a lobby whose skills
     // changed may ask for what they opened. A full pocket the request did not
     // set stays full when the gear it leaves makes the pocket larger.
-    account.keep_to_layout_after(&before, &mut slots);
+    account.keep_to_layout_after(kit_index, &before, &mut slots);
     // One pocket an item type, judged on what the whole request leaves: the
     // ammo window empties every pocket first and fills them again, and two
     // pockets changing places name each other's slot.
@@ -2658,9 +2658,7 @@ mod tests {
                 count: 1,
             })
         };
-        let mut preset = Preset {
-            kits: [[None; KIT_SLOTS]; 3],
-        };
+        let mut preset = Preset::EMPTY;
         preset.kits[2][13] = saved(medkit, dict("medkit"));
         preset.kits[2][14] = saved(grenade, dict("rgd-5"));
         account.presets[1] = Some(preset);

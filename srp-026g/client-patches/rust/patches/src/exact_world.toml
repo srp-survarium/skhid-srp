@@ -1,0 +1,16 @@
+# Patch 211: the world of a tick for the desync capture (docs/notes/desync_capture.md).
+# Every world hash() serializes is kept, the last 32 ticks; an upload request (0xF6) of
+# 1 and a tick uploads that tick's world, else the snapshot upload goes on as before.
+# The game says so in its 0xD8 (EXACT_WORLDS, late_join_026g.asm's connect_capability).
+name = "exact_world"
+patch = 211
+
+# game_state_history_item::hash after its serialize (0x3251D7): the bytes its CRC is of
+[[hook]]
+site = "world_hash.serialized"
+handler = "on_hashed"
+
+# on_match_packet_received's case 0xF6, before the snapshot upload's request hook (0x27A505)
+[[hook]]
+site = "upload_request.case"
+handler = "on_request"

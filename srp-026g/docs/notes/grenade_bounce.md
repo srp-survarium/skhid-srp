@@ -81,11 +81,11 @@ one `replace_string`).
 - **Who computes it:** nothing of the simulation changes (sounds only): no
   `simulation_changes.tsv` row; a game with and one without the patch stay in step. srp
   reads none of these files, and the server game data has none of them.
-- **Release:** the resources.db patch, made by `scripts/content-edit/content_edit.py`
-  from `scripts/content-edit/grenade-bounce-1.json` with the nine `.raw_options` from the
-  stock resources.db (`dbgrab resources.db get sounds/single/weapons/f1/grenade_hit_ live/`,
-  then the `.ogg` and `.rms` removed), and `release/build-patch`. Patches 19, 20 and 22
-  already carried `.raw_options` files the same way.
+- **Release:** the resources.db patch: `scripts/content-edit/grenade-bounce-1.json`, a row of
+  `release/content.tsv` that `release/build-content` builds. The nine `.raw_options` came from
+  the stock resources.db (`dbgrab resources.db get sounds/single/weapons/f1/grenade_hit_ live/`,
+  then the `.ogg` and `.rms` removed). Patches 19, 20 and 22 already carried `.raw_options`
+  files the same way.
 - **Other presets that fit** (stock, `volume_k` 0.5): `steps` (the footsteps': 0.34 at 1 m,
   0.12 at 5 m, 0.04 at 10 m, silent from 17 m; its `spl` curve peaks at 120, not 100),
   `low_range` (0.33 at 1 m, 0.08 at 5 m, silent from 12 m) for less reach.

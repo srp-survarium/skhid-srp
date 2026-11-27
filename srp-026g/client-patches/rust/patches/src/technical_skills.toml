@@ -24,11 +24,17 @@ handler = "on_sprint_cost"
 order = 2
 
 
-# Last Gasp: the tank ran out; its end each tick (after the battery, Resonance, Forest glow and
-# Keeper handlers, orders 1-4); its speed after the medical tree's (order 1); its saved word.
+# Oxygen Rush: after 20 s of the tank's use without a break (switching on counts from 0) and at
+# its run-out; its end each tick (after the battery, Resonance, Forest glow,
+# Keeper and weapon stats handlers, orders 1-5); its speed after the medical tree's (order 1); its
+# saved word.
 [[hook]]
-site = "technical.tank_empty"
-handler = "on_tank_empty"
+site = "technical.tank_spent"
+handler = "on_tank_spent"
+
+[[hook]]
+site = "technical.tank_switch"
+handler = "on_tank_switch"
 
 [[hook]]
 site = "battery.carrier_tick"

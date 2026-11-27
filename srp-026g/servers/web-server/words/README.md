@@ -16,8 +16,10 @@ A row is
   whatever order reads best. HTML in a text (`<b>`, `&mdash;`) stays as it is.
 - A context tells apart two meanings of one English text (`lang.tc("button", "Ban")`: the button,
   not the noun).
-- A text a file lacks is shown in English. Ukrainian lacks none: the tests (`words.rs`) refuse a
-  text of the code that `uk.tsv` has not, and in every file a row the code no longer has, an empty
-  translation, or one with other `{places}` than its English.
+- Every language has every text the code asks for. The test (`words.rs`,
+  `every_language_has_every_text`) names, file by file, each text a file lacks, as the row to add with
+  its translation left to write, and each row the code no longer has, an empty translation or one with
+  other `{places}` than its English. A text meant to stay English in a language has its row, with the
+  English as its translation.
 
 To translate a language: copy the rows of `uk.tsv`, keep the first column, write the second.

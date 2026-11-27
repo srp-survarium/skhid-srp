@@ -5,10 +5,9 @@
   const select = document.getElementById('item-choice');
   if (!select) return;
   const lang = document.documentElement.lang;
-  const tr = (en, uk) => lang === 'uk' ? uk : en;
   const items = [...document.querySelectorAll('#item-options [data-key]')];
-  const picker = WikiWeaponPicker(select, items, tr, new Intl.Collator(lang),
-    {search: tr('Search items', 'Пошук предметів'), none: tr('No items match.', 'Предметів не знайдено.')});
+  const picker = WikiWeaponPicker(select, items, new Intl.Collator(lang),
+    {search: T('Search items'), none: T('No items match.')});
   picker.paint();
   select.addEventListener('change', () => {
     const item = items.find(element => element.id === select.value);

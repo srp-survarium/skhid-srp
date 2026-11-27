@@ -39,11 +39,13 @@ data: `scripts/content-edit/weapon-stats.tsv` (`rarity`, the bonus columns), `it
 - **Gold name** (owner 2026-10-22): a golden weapon's name is gold (`Colors.GOLD`) in the shop,
   the inventory and the item card, whatever its rank. A shop entry keeps rank 0 although it shows
   the silver bonus: the shop's buy options are off for an item with a rank.
-- **Weapons owned before:** at the first start of the srp with this rule each golden weapon gets
+- **Weapons owned before:** at the first start of the srp with this rule each golden weapon got
   the silver bonus as its first modification, once (`g26_meta` `golden_silver_given`, written
-  only after the changed accounts are; an account not written stops srp, and the next start
-  gives it to the golden weapons still without it). One that already had three of its own keeps
-  them (logged; none can have: the lobby showed rank 3).
+  only after the changed accounts were; an account not written stopped srp, and the next start
+  gave it to the golden weapons still without it). One that already had three of its own kept
+  them (logged; none could have: the lobby showed rank 3). That one-time grant ran live in
+  2026-10 and its code is gone since 2026-11-08 (`give_golden_silver`, with the other grants that
+  ran); the mark stays in the database.
 - **New ones** (shop, bundles, the admin) come with it.
 - **Data:** the 22 rows of `weapon-stats.tsv` have no bonus cell and `rarity` 0 (stock: 3; the
   lobby's rank is `min(3, base + modifications)`: 3 forbade every craft and a default is never

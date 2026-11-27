@@ -13,3 +13,4 @@ handler = "on_spawn_kits"
 [[hook]]
 site = "courier.spawned"
 handler = "on_spawned"
+order = 0

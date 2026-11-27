@@ -23,7 +23,9 @@ approved the name, level 0 in the low band and every recommendation below (2026-
   apply (more pockets, more ammo bags, Deep Pockets' one weapon).
 - **Share:** 30 % of the free-for-all cards (the owner, 2026-11-22): plain 30, Racket 30, Roulette
   30, Saloon (Winchester) 5, Saloon 5.
-- **Name on the card:** "FFA: Roulette 11-15" (the band in the name, as Saloon's Winchester).
+- **Name on the card:** "FFA: Roulette", the same for every band (the owner, 2026-11-22, the day it
+  went live with the band in the name: "roulette shouldn't show its level", "it should just be
+  roulette").
 - Server and content only (the lobby movie, the names in the 11 languages, the mode icons): no exe
   patch.
 
@@ -36,8 +38,8 @@ after it says what is at stake. The working name stays the alternative: **Deal**
 uk **Роздача** (everyone is dealt the same hand; in English "a deal" also reads as a bargain, and
 «раздача» also as a giveaway).
 
-The card's names, `st_srp_mode_roulette_low` / `_mid` / `_high` (`<band>` is `1-5`, `6-10`,
-`11-15`, plain ASCII hyphen as the lobby's fonts have):
+The card's names, `st_srp_mode_roulette_low` / `_mid` / `_high`: one text for the three keys in
+each language since 2026-11-22 (the table's `<band>` is no longer in the game's texts):
 
 | language | text |
 | --- | --- |
@@ -228,7 +230,7 @@ the 30 (each allowed band a third or a half of it), so no share is a fraction.
 
 ## Lobby and HUD
 
-- **The card:** "FFA: Roulette 6-10", its mode tag and colour (one colour for the three bands, as
+- **The card:** "FFA: Roulette", its mode tag and colour (one colour for the three bands, as
   the two Saloons share one). Lobby mode numbers **14, 15, 16** (low, mid, high):
   `twist::LobbyMode::Roulette(Band)`. 7 is Scarcity's, 9-11 the twists', 12 Freeze Tag, 13 Artifact
   Hunt; 14-16 are used nowhere (main, the branches and worktrees checked 2026-11-22). The room's

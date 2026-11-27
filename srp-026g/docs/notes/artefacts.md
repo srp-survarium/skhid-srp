@@ -42,6 +42,26 @@ Client patch 54 (README section 54, client_patch.md section 3.51) and the table
 - Different kinds have their own keys and cooldowns: Onyx, Spring and Lifebone fire on their own.
 - Every game of the match computes this the same way (the press is an input).
 
+## Wear from activation
+
+Each combat artefact starts at full power. A successful activation spends one use of that copy.
+Each activation retains 80% of the previous one's strength. Uses five through ten deliver
+40.96%, 32.77%, 26.21%, 20.97%, 16.78% and 13.42% of full power. The passive drops to the
+next tier immediately, including while the active runs. The copy stays usable whenever its
+normal cooldown ends. An anomaly spawning a new copy restores full power. Passing a copy to
+another kit or player preserves its wear.
+
+Spring scales its bonuses, Onyx the damage and piercing it would prevent, and Larkspur the
+missing health it would restore. Larkspur II's energy is its power's share of the whole bar, capped at full. Larkspur still clears injuries on each successful activation.
+Resonance and Cascade use the source copy's power. Each worn activation plays a particle effect
+with its emission scaled to the nearest 8-bit intensity in both views, including its light emitter.
+
+The quick slot shows passive and next-use power rounded to the nearest percent, and shows
+`<1%` below one percent. While the copy is active it keeps the power it fires with; the change (`100% → 80%`) shows briefly once its cooldown starts (the owner, 2026-11-26). No
+hint text (the owner removed it, 2026-11-26). The count lives at +286h and permits further activations even at the native counter's
+maximum. Counts below 32 use bits 3..7 of the saved state byte. Larger counts use FF followed by
+the little-endian 16-bit count and the native state. Legacy snapshots decode at full strength. The simulation-change entry gates replay playback.
+
 ## Spring
 
 - Passive: movement speed +5 % (was +2 %), aim time -5 %.
@@ -97,9 +117,8 @@ active")
 - "Activation time" read as the active's duration: 0.26g has no delay before an Onyx works (the
   press sets it active on the same tick). Owner to confirm.
 - The +1 s is patch 54's (`ONYX_EXTRA_MS`), not a config key; the 3 s is `active/duration`.
-- The pop-up at activation (its activation hint, the local player only) says 75 % and the real time:
-  "... by 75% for 4 s." for two Onyx. It shows once a press (not once for each Onyx fired) and stays
-  on screen for that time. The text's `%s` is the pop-up's time on screen in seconds, which patch
+- The local activation hint gives the actual duration, such as 4 s for two ready Onyx. It appears
+  once per press and stays on screen for that duration. Each quick slot shows its copy’s remaining power. The text's `%s` is the pop-up's time on screen in seconds, which patch
   54 makes the active's time left; the hud writes it in. (%s, not `{s}`: the game's localizer (0x1FEF90, every text set_parameterized_message shows) makes `{NAME}` the key of the action NAME (`{USE}`) and any other name nothing, and drops a `}` after a character; the
   owner's first test showed "for  s.".)
 

@@ -2,6 +2,7 @@
 //! the rule plays with. Never serialized: every game reads the same config.
 
 use crate::geometry::Position;
+use crate::restart::Timing;
 use crate::roster::Team;
 use crate::shape::{Shape, ShapeKind, View};
 use crate::time::Ms;
@@ -21,7 +22,6 @@ pub struct RawParams {
     pub round_countdown_time: u32,
     pub score: u32,
     pub respawn_time: u32,
-    pub time_needed_to_respawn: u32,
     pub vi_spawn_time: u32,
     pub vi_spawn_variation: u32,
     pub vi_not_picked_ttl: u32,
@@ -33,13 +33,6 @@ pub struct RawParams {
     /// item's `usable_shape`: 0.3).
     pub usable_radius: f32,
 }
-
-/// 0.46c2's transition to a new round: the screen fades for a constant
-/// second (0x740000), in no config.
-pub const FADE: Ms = match Ms::new(1000) {
-    Some(ms) => ms,
-    None => Ms::ZERO,
-};
 
 /// A place the artefact appears at: `mode.artefact_hunt.spawners[]`.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -80,7 +73,6 @@ pub enum ParamError {
     RoundCountdownTime,
     Score,
     RespawnTime,
-    TimeNeededToRespawn,
     ViSpawnTime,
     ViNotPickedTtl,
     ViDroppedTtl,
@@ -102,13 +94,12 @@ pub struct Params {
     /// of the regular time: `match_time` less `time_needed_to_continue_match`.
     pub(crate) rounds_until: Ms,
     pub(crate) sudden_death: Ms,
-    pub(crate) before_new_round: Ms,
-    pub(crate) round_countdown: Ms,
+    /// The rounds' restart: `time_before_new_round`, `round_countdown_time`.
+    pub(crate) restart: Timing,
     /// 1..=255.
     pub(crate) goal: u8,
     /// Not 0.
     pub(crate) respawn_wave: Ms,
-    pub(crate) respawn_least: Ms,
     /// The artefact's wait is `wait_least` plus a draw below `wait_range`.
     pub(crate) wait_least: Ms,
     pub(crate) wait_range: u32,
@@ -198,11 +189,6 @@ impl Params {
         if respawn_wave == Ms::ZERO {
             return Err(ParamError::RespawnTime);
         }
-        let respawn_least = seconds(
-            raw.time_needed_to_respawn,
-            HOUR,
-            ParamError::TimeNeededToRespawn,
-        )?;
         // 0.46c2 (0x73FCDA): v = min(spawn time, variation); the wait is
         // uniform in [spawn time - v, spawn time + v).
         let spawn = seconds(raw.vi_spawn_time, DAY / 2, ParamError::ViSpawnTime)?;
@@ -249,11 +235,9 @@ impl Params {
             match_time,
             rounds_until: match_time.minus(needed),
             sudden_death,
-            before_new_round,
-            round_countdown,
+            restart: Timing::new(before_new_round, round_countdown),
             goal,
             respawn_wave,
-            respawn_least,
             wait_least: spawn.minus(variation),
             wait_range: 2 * variation.get(),
             not_picked_ttl,
@@ -333,7 +317,7 @@ impl Params {
         let life = wait
             .max(self.not_picked_ttl.get())
             .max(self.dropped_ttl.get());
-        let restart = self.before_new_round.get() + FADE.get() + self.round_countdown.get();
+        let restart = self.restart.whole().get();
         self.match_time.get() + self.sudden_death.get() + 2 * restart + life + 60_000
     }
 }

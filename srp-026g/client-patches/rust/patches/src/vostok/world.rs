@@ -90,6 +90,13 @@ impl<'t> GameWorld<'t> {
         Some(NetworkClient { this, thread: self.thread })
     }
 
+    /// The physics world its players are in (the ragdolls' level, patch 76):
+    /// the first place's player's; none without one.
+    pub fn physics_world(&self) -> Option<PhysicsWorld<'t>> {
+        let client = self.network_client()?;
+        (0..client.places()).find_map(|place| client.player(place)?.physics_world())
+    }
+
     /// The world of the player at `minimap.enemy_spotted` (update_minimap_players' spotted test).
     pub fn at_minimap_enemy(ctx: &'t Context<'_>) -> Option<GameWorld<'t>> {
         // SAFETY: the context is this site's: a place's player in the world and alive, which
@@ -149,6 +156,11 @@ impl Places {
     /// Each place of the match in turn: whether it is in.
     pub fn each(self) -> [bool; Places::COUNT] {
         core::array::from_fn(|place| self.0 >> place & 1 != 0)
+    }
+
+    /// How many places are in.
+    pub fn count(self) -> usize {
+        self.0.count_ones() as usize
     }
 }
 

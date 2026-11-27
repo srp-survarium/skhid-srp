@@ -55,7 +55,7 @@ LIGHT = 0.5
 # was unfrozen", "so others could deem the freeze state by look"): the particle instances the
 # engine plays take no colour or emission scale once playing (scene_renderer has play, stop,
 # remove and update of the transform only), so the glow comes at four strengths, one a quarter of
-# the 3 s thaw, the patch swapping them: each a system and its materials, the ice emissive, the
+# the thaw, the patch swapping them: each a system and its materials, the ice emissive, the
 # rate and the light all times the strength. The suffix of each one's paths, and its strength.
 STRENGTHS = (('', 1.0), ('_70', 0.7), ('_40', 0.4), ('_15', 0.15))
 

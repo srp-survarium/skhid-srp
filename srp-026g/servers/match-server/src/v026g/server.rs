@@ -1,7 +1,7 @@
 //! The 0.26g match server's socket: one UDP port for every match. A
 //! datagram goes to the match of the client that sent it; a new client is
 //! placed by the session in its 0xD8, through the registry the lobby made
-//! the match in. (0.21d: `crate::server`.)
+//! the match in. (0.21d: `srp-021d/servers/match-server/src/server.rs`.)
 
 use std::collections::{HashMap, HashSet};
 use std::io;
@@ -445,7 +445,10 @@ impl Server {
             game.sync_roster(formed, now);
         }
         game.attach(index, addr, session_id, revision, transport, now);
-        if matches!(debug, 0x82 | 0x83) { game.enable_world_receipts(index); }
+        if survarium::v026g::match_msgs::late_join::has_world_receipts(debug) { game.enable_world_receipts(index); }
+        // It answers an upload request for a tick (patch 211): the desync
+        // capture asks it for the split's own tick.
+        if survarium::v026g::match_msgs::late_join::has_exact_worlds(debug) { game.enable_exact_worlds(index); }
         self.routes.insert(addr, (seat.match_id, index));
         // The voice relay takes the place's talk only from this IP's
         // network and by this route.
@@ -577,8 +580,8 @@ impl Server {
                     played_ms: None,
                     trusted_snapshot_ms: None,
                     trusted_by: 0,
-                    vs_bots: formed.vs_bots,
-                    private: formed.private,
+                    vs_bots: formed.kind.vs_bots(),
+                    private: formed.kind.private(),
                     players: formed
                         .places
                         .iter()

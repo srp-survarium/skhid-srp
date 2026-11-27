@@ -31,17 +31,29 @@ the mode. This note is the specification: the rules below are 0.46c2's; where 0.
 - **Delivery:** the use key on one's own team's base container while carrying. No put time. The
   team scores 1.
 - **Rounds** (the owner, 2026-11-21: with one base a team, the mode is played in rounds, as
-  0.46c2). A delivery ends the round:
-  1. 3 s (`time_before_new_round`): play goes on, nobody respawns; the hud counts "Round restarts in".
-  2. If a team has 5, the match ends here.
-  3. 1 s: the screen fades; every player, alive or dead, is set to respawn.
-  4. 5 s (`round_countdown_time`): everyone stands at his team's spawns, frozen.
-  5. The next round: the 50 to 70 s wait again.
-  The scores and the match time carry over.
+  0.46c2). A delivery ends the round; the scores and the match time carry over.
+- **A round's end and the next round,** the same in Artifact Hunt and Freeze Tag by one code
+  (`artefact_hunt_rule::Restart`, the exe's `round_countdown::respawn_tick`; the owner,
+  2026-11-23: "I expect the round to end exactly in the same manner in both"):
+  1. 3 s (`time_before_new_round`): play goes on, nobody respawns; the hud counts them down.
+  2. If that was the match point, the match ends here (the rule's end, which the match server
+     takes as it is).
+  3. 1 s: the screen fades; at its end every player, alive or dead, respawns at his team's spawns
+     (a round start: a life of everyone).
+  4. 5 s (`round_countdown_time`): everyone stands at his team's spawns, his input held: the match
+     start's countdown (the warmup camera, patch 31's kits; a kit switch is a life).
+  5. The next round.
+  A player who enters in any of them spawns at his entry (freeze-tag.md, "No place out of the
+  world"); before the fade's end, it respawns him with everyone.
 - **No new round** with less than 90 s of match time left (`time_needed_to_continue_match`): the
   match ends (scores differ) or goes to sudden death (equal).
-- **Respawn in a round:** in waves every 15 s (`respawn_time`) counted from the match start, never
-  sooner than 7 s after the death (`time_needed_to_respawn`); the player's respawn modifier applies.
+- **Respawn in a round:** in waves every 15 s (`respawn_time`) counted from the match start: a
+  death comes back at the wave the hud shows when he dies, however near it is (the owner,
+  2026-11-23: dead 4 s before a wave he waited for the next one; 0.46c2 waits at least 7 s,
+  `time_needed_to_respawn`, below). The respawn modifier (the radio) has no effect: everyone
+  respawns in the same waves (the owner, 2026-11-23: "No effect in wave modes"). The hud counts to
+  the next wave beside the match time, for everyone, the same time as the game's "Respawn in" line
+  (srp's addition: "HUD calls", "The respawn wave").
 - **Match time** 900 s (`match_time`). When it runs out: the higher score wins at once; equal scores:
   sudden death.
 - **Sudden death,** 180 s (`draw_additional_time`): no respawns; a team with nobody left gives the
@@ -71,38 +83,72 @@ Each one a decision; the owner's are marked, the rest are the port's and open to
   maps keep 0.26g's anomalies.
 - **`wait_time`** (0.46c2: minutes until an unfilled match is abandoned) is 0.26g's own waiting.
 - **The 30 s end music** of 0.46c2: not ported (0.26g's matches have none).
+- **No 7 s least time dead** (the owner, 2026-11-23: "if i die ~4 seconds before it runs out, i
+  respawn full timer +4 seconds"). 0.46c2's `max(death + 7 s, wave(death + 7 s) + m)` (0x785130)
+  sends a death in the 7 s before a wave to the next one, while the wave timer counts to the one he
+  misses. Here a death joins the wave the timer shows at his death's step; the only least time is
+  the game's own: after that step ("Respawns"). `time_needed_to_respawn` stays in the config,
+  unread.
+- **No respawn modifier in the waves** (the owner, 2026-11-23: "No effect in wave modes"). 0.46c2
+  moves a player's wave by his modifier (`m` above, its parameter 59); here the radio's -20 %
+  (0.26g's parameter 60) does nothing in this mode, so every dead player comes back in the wave the
+  timer shows. Modes without waves keep it (the native respawn rule's own delay).
+- **The other team sees the carrier on the minimaps alone** (the owner, 2026-11-23: "it should only
+  be map and maybe minimap"; 2026-11-26: "player with art is still seen in ui, not only on map —
+  which is wh and is not interesting gameplay"). 0.46c2 shows his marker to both teams and marks
+  him in the player list. Here his dot on the corner minimap and the Tab list's map (in the
+  artefact's light) is all; no marker over his head (it showed through walls), no name under the
+  hud's artefact row, no mark in the Tab list. His teammates see his marker as any teammate's, the
+  artefact's mark on it. His glow stays: it is drawn in the world (below, "The carrier").
 
 ## Data (the content pack's contract with the rule)
 
 - **Maps:** the nine stock levels in their weathers, as 0.46c2 has them (`level_0N/<w>_7` or
   `<w>_ah`; its `_v1`.. variants are other layouts of the same maps and are left out).
   Every other team map (the owner, 2026-11-21: "let's add artifact hunt to all other non FFA-only
-  maps too"), which 0.46c2 never had, takes its own battery mode's: the artefact's spawn points
-  are its battery spawners' items, lifted by `drop_lift`; a team's base its battery container,
-  its use shapes the container's collision geometries and its props the container's models and
-  collision as the battery project has them, on a copy of the map's Team Deathmatch project
-  (its spawns; each base checked on its own team's side). Pack `artefact-hunt-maps` (the configs)
-  and `artefact-hunt-maps-1.json` (projects, maps_dict 327-350), both made by
-  `scripts/mode-maps/make.py`. Rudnya v0.69 too: 0.46c2's Rudnya points are for 0.26's geometry,
-  its bases where the battery containers stand anyway. London likewise since it plays 0.32a4's
-  projects (`london-v032-1`): maps 324-326 keep their ids and play configs of v0.32's own battery
-  mode on copies of its Team Deathmatch projects (`artefact_hunt/v032a_level_09_<weather>_ah`);
-  artefact-hunt-1's London configs and `level_09/<weather>_ah` projects are no row's.
+  maps too") is a version of one of these levels, made in another build (its project
+  `vNNNx_level_MM`: the donor's own level number, the same place in every build), and takes that
+  level's Artifact Hunt (the owner, 2026-11-23, of the battery spawners and containers they took
+  before: "not where batteries are", "there should be spawns for them in original data somewhere").
+  No build has Artifact Hunt on these maps themselves: 0.27d, 0.28, 0.31a2, 0.32a4 and 0.21d have no
+  mode, 0.45a6 only a test config; 0.46c2 and 0.69d have it on levels 01-09 alone, with the same
+  points (0.69d's `level_0N/day_ah` = 0.46c2's but four spawn points of level 03 and one of 06;
+  0.69d's `_v1`.. layouts differ more), and 0.69d's Rudnya is the one Rudnya v0.69 is ported from.
+  So each map takes artefact-hunt-1's points of its level (0.46c2's, `moves.tsv` applied): the
+  artefact's spawn points and the two bases, in the map's frame (`frame_offset`: the offset most of
+  the stock map's models stand at in the ported one; every map shares 40 to 96 % of its stock
+  level's models in place, Mamayev Kurgan v0.21 lying 7.277 m lower), each checked on the map's
+  floors with make_pack's fit report (`floors.py`, the map's `mapdata-dump`): a box's foot on the
+  floor under it; a box or a spawn point that does not fit at the nearest place it does (said in
+  the pack's notes: three boxes and four spawn points, 0.49 to 1.00 m). A base is
+  the stock maps' box (`item/storage_device/box_atlant8c`, its render visual and collision as
+  artefact-hunt-1's projects have them; the owner, 2026-11-23: "you should use exactly the same prop
+  for storing artifact"), its use shape the box itself (make_pack's `BOX_HALF` x `BOX_HEIGHT`), on
+  a copy of the map's Team Deathmatch project (its spawns, but one a box stands on: Rudnya v0.69's
+  `team2/respawn/4/respawn_point(124)`; each base checked on its own team's side). A map no stock
+  level's Artifact Hunt fits would get none (there is none). Concrete stands under the boxes are
+  parked for later (the owner, 2026-11-23: "with slabs we will work later"; the research is in PR
+  #2377's history). Pack `artefact-hunt-maps` (the configs) and `artefact-hunt-maps-1.json`
+  (projects, maps_dict 327-350), both made by `scripts/mode-maps/make.py` (each map's id kept in
+  its `ids.tsv`: a new map's is the next free one). London plays 0.32a4's projects
+  (`london-v032-1`): maps 324-326 keep their ids and play configs of level 09's points on copies of
+  v0.32's Team Deathmatch projects (`artefact_hunt/v032a_level_09_<weather>_ah`); artefact-hunt-1's
+  London configs and `level_09/<weather>_ah` projects are no row's.
 
-  | level | map | weathers | Freeze Tag | Artifact Hunt |
-  |---|---|---|---|---|
-  | 1-8 | the stock maps (8: day, evening, prerain) | 3 | 114 (Rudnya day), 400-422 | 300-323 (0.46c2) |
-  | 9 | London (v0.32) | 3 | 423-425 | 324-326 |
-  | 10 | Vostok Radar Station v0.21 | 3 | 426-428 | 327-329 |
-  | 11 | Mamayev Kurgan v0.21 | 3 | 429-431 | 330-332 |
-  | 12 | Chemical Plant v0.11 | day | 432 | 333 |
-  | 13 | Vostok Radar Station v0.11 | day | 433 | 334 |
-  | 14 | Rudnya v0.69 | day | 434 | 335 |
-  | 25 | School v0.21 | 3 | 435-437 | 336-338 |
-  | 26 | Tarakanovsky Fort v0.21 | 3 | 438-440 | 339-341 |
-  | 29 | Rudnya v0.21 | 3 | 441-443 | 342-344 |
-  | 31 | Chemical Plant v0.21 | 3 | 444-446 | 345-347 |
-  | 32 | London v0.42 | 3 | 447-449 | 348-350 |
+  | level | map | weathers | Freeze Tag | Artifact Hunt | its points |
+  |---|---|---|---|---|---|
+  | 1-8 | the stock maps (8: day, evening, prerain) | 3 | 114 (Rudnya day), 400-422 | 300-323 | 0.46c2's |
+  | 9 | London (v0.32) | 3 | 423-425 | 324-326 | level 09's |
+  | 10 | Vostok Radar Station v0.21 | 3 | 426-428 | 327-329 | level 03's |
+  | 11 | Mamayev Kurgan v0.21 | 3 | 429-431 | 330-332 | level 06's, 7.277 m lower |
+  | 12 | Chemical Plant v0.11 | day | 432 | 333 | level 04's |
+  | 13 | Vostok Radar Station v0.11 | day | 433 | 334 | level 03's |
+  | 14 | Rudnya v0.69 | day | 434 | 335 | level 01's |
+  | 25 | School v0.21 | 3 | 435-437 | 336-338 | level 02's |
+  | 26 | Tarakanovsky Fort v0.21 | 3 | 438-440 | 339-341 | level 05's |
+  | 29 | Rudnya v0.21 | 3 | 441-443 | 342-344 | level 01's |
+  | 31 | Chemical Plant v0.21 | 3 | 444-446 | 345-347 | level 04's |
+  | 32 | London v0.42 | 3 | 447-449 | 348-350 | level 09's |
 - **A mode config a map** (`mode.mode` 13, `mode.rules [93, 91, 481, 94]`; "The exe" says why) with
   0.46c2's `mode.parameters` under their own names, and the map's mode data in world space. What
   reads each key:
@@ -110,8 +156,7 @@ Each one a decision; the owner's are marked, the rest are the port's and open to
     types a stock config has them in;
   - the native respawn rule and the new rule: `respawn_time`, an int (seconds);
   - the new rule, whole seconds as ints: `match_time`, `time_needed_to_continue_match`,
-    `draw_additional_time`, `time_before_new_round`, `round_countdown_time`,
-    `time_needed_to_respawn`, `vi_spawn_time`, `vi_spawn_variation`, `vi_not_picked_ttl`,
+    `draw_additional_time`, `time_before_new_round`, `round_countdown_time`, `vi_spawn_time`, `vi_spawn_variation`, `vi_not_picked_ttl`,
     `vi_dropped_ttl`; `score` an int, 1 to 255 (`Params::parse` names the key it refuses);
   - `mode.artefact_hunt.spawners[] {position, rotation}`: where the artefact appears (0.46c2's
     `victory_item_spawners[].spawned_item`); 1 to 64 a map;
@@ -208,7 +253,7 @@ says what of this design is built, and what turned out otherwise).
   | slot | function | ret | ours |
   |---|---|---|---|
   | 7 | `on_event(type, data, time)` | 0Ch | 0: `Start`; 1 `{killer, victim}`: `Died` |
-  | 8 / 9 | `entered` / `left(place, time)` | 8 | `Entered` / `Left` |
+  | 8 / 9 | `entered` / `left(place, time)` | 8 | `Entered` / `Left`; the place is the dword's low byte (below) |
   | 11 | `set_game_world_core(core)` | 4 | keeps the core, puts the tick delegate in list 1 |
   | 15 | `serialize(writer)` | 4 | `Rule::fields`, a named write a field |
   | 16 | `deserialize(reader, dword)` | 8 | `Rule::read`, then publish |
@@ -255,9 +300,9 @@ says what of this design is built, and what turned out otherwise).
   states 1 and 2 only, and `rule_completed` (0x318360, true in state 3 after `match_time`) is read by
   nothing in the client (modes_maps.md 11, correction). So the rule goes on by itself: sudden death
   and rounds past 900 s need no native change.
-- **A round** is `Round::Hunt` (0.46c2's states 2 to 5); a delivery ends it: `Round::Brought` 3 s
-  (state 6), `Round::Fade` 1 s (state 7), `Round::Countdown` 5 s (state 8), then a new hunt with the
-  50 to 70 s wait. Each state's time counts from the step that entered it, as 0.46c2's state
+- **A round** is `Round::Hunt` (0.46c2's states 2 to 5); a delivery ends it: `Round::Restart`, the
+  shared `Restart` (Freeze Tag's too): `Decided` 3 s (state 6), `Fade` 1 s (state 7), `Countdown`
+  5 s (state 8), then a new hunt with the 50 to 70 s wait. Each state's time counts from the step that entered it, as 0.46c2's state
   machine (its `initialize` keeps the start, 0x7B0BA0; one transition a step).
 - **What follows a delivery** (`After`): decided once, at the delivery (the specification's one
   departure: 0.46c2 tests the time again 3 s later, 0x785CF0): a team at `score`, or the scores
@@ -293,15 +338,21 @@ The native respawn rule (91) keeps its points and its spawn; four things are ask
   0x316B6B..0x316B9D) and stored at rule+138h + 4 x victim (0x316BA3). The patch: a lohook
   `respawn.death_delay` at 0x316B6B (`8B 8F 34 01 00 00`, `mov ecx,[edi+134h]`, 6 bytes, the
   return address of the floor call; EAX = D, EDI the rule, EBX the victim's player, `[ESP+20h]` the
-  time). In this mode, with `Rule::respawn_at(params, time, Shift::new(D - [edi+114h]))` =
-  `Some(at)`, it sets `EAX = at - time`; the native grid and store follow. `D - respawn_time` is
-  the modifier's part of a wave as 0.46c2 rounds it (0x78562C), so with `respawn_time` 15 the time
-  is 0.46c2's: the first multiple of 15 s from the match's start at or after death + 7 s, moved by
-  the modifier, never under the 7 s. `None` (before the start, after the end) leaves the native
-  delay.
+  time). In this mode, with `Rule::respawn_at(params, time)` = `Some(at)`, it sets `EAX = at -
+  time` in place of D (the modifier dropped); the native grid and store follow. The time: the first
+  multiple of 15 s from the match's start after the death's step (the wave the hud shows at that
+  step). `None` (before the start, after the end) leaves the native delay.
   - The tick spawns a place whose time **equals** the step's time (0x3168BA `cmp [edx],ecx / jnz`):
     a time must be a grid time, which is why the native rounding is kept and the rule's time is
     never stored directly.
+  - **The game's own least time dead** (PROVEN, "The order inside one step"): the death's time is
+    its event's, the step before's, and the death's step ran the respawn rule's tick before the
+    death, so a time at or before that step would never come (the player dead to the end). The
+    least is the event's time + 51 ms (steps at most 50 ms apart), which the grid takes to the step
+    after the death's. Nothing else needs a dead player to wait: the death camera (patch 46), the
+    corpse's dark screen (patch 196), the ragdoll and the kit picked on the death screen all end or
+    apply at the respawn, whenever it comes. 0.46c2's 7 s (`time_needed_to_respawn`) is its rule's
+    choice, not dropped by need ("Differences from 0.46c2").
   - `mode.parameters.respawn_time` is read by both rules and must be an int (the respawn rule's
     constructor: `mov ecx,[eax] / imul ecx,3E8h`, 0x316783).
 - **The round's restart: held, then everyone** (0.46c2: respawns off in states 6 and 7, rule+0x220,
@@ -318,13 +369,17 @@ The native respawn rule (91) keeps its points and its spawn; four things are ask
   at the tick's 0x316826 (`53 56 8B D9 57`, 5 bytes, after patch 31's `jmp kit_change` at 0x316820
   and its prologue; ECX the rule, `[EBP+0Ch]` the step's time) asks `Rule::spawning(time)`:
   - `Held` (the 3 s and the fade): every place whose time is the step's gets -1; a death in them is
-    given its wave by the delay above and is held the same when it falls due;
+    given its wave by the delay above and is held the same when it falls due. Not an entering
+    place (its current player out of the world: a late arrival, a player who came back): it spawns
+    at its entry, as the stock game's, since a world loaded while it was out would put it half
+    into the world and its next removal crash (freeze-tag.md, "No place out of the world");
   - `Everyone` (the step that ends the fade): every place 0..19 with a current player gets the
     step's time, so this very tick takes out and spawns them all, alive or dead, at their team's
     points; one without a free point the next step (the native +50 ms), inside the countdown;
   - `Native` otherwise.
   The site is `respawn.tick` (`survarium::respawn_tick_frame`), one row shared with Freeze Tag:
-  its handler is order 0, this one order 1, both before the native compare of the places' times.
+  its handler is order 0, this one order 1, both before the native compare of the places' times,
+  and both the one path `round_countdown::respawn_tick` (the kit switches, then `Spawning`).
 - **What a round start resets** is what a respawn after a death resets, for everyone, and nothing
   else (PROVEN, `base_player::initialize` 0x2DAC00, the spawn's): alive, no pending death, the
   input zero (+32Ch, +330h, 0x2DAC8D..0x2DAC99), the damage model (`damage_model::reset` 0x2E5290:
@@ -516,24 +571,51 @@ late join need nothing, and a world gains no byte.
   player's tick (`battery.carrier_tick` 0x2DAAD3, a chain): a living carrier who plays none gets
   one; `medical.effect_clock` ends it when he carries no more. First and third person are the
   effect's own (a composite with a `view` 0 twin, the pack's).
-- **His marker for both teams** (PROVEN sites, patch 135's):
-  - head marker: `player::render_name` shows an enemy only while spotted (0x1F2B50, site
-    `player_names.enemy_spotted`, exit `shown`): the carrier is shown always. The icon's
-    `modifier_visible` (record +388h, from `[inventory+178h] != 0` at 0x1F2D8B) is the native
-    carrier mark: a lohook at 0x1F2D8B (`83 BA 78 01 00 00 00`, 7 bytes) sets it for the carrier.
-    The icons movie hides enemy ids unless told: one new call, `root.srp_show_carriers(true)`, at
-    `player_icons.enemy_ids` 0x235709 (a `flash/player_icons` change);
+- **His dot on the minimaps for both teams, nothing else for the other team** (PROVEN sites,
+  patch 135's; the owner, 2026-11-23 and 2026-11-26, "Differences from 0.46c2"):
   - minimap: `update_minimap_players` 0x239420 lists an enemy only while spotted (0x239505, site
     `minimap.enemy_spotted`): the carrier always; its `is_carrying_item` (0x239521) is left alone,
-    the hud movie marks the dot of the update call's carrier place;
-  - the player list: 0.26g's `root.list_update_player` has no carry member; the hud movie marks the
-    row of the update call's carrier place.
+    the hud movie marks the dot of the update call's carrier place (on both minimaps, the corner's
+    and the Tab list's);
+  - head marker: the game's own. `player::render_name` places an enemy's only while spotted
+    (0x1F2B50, site `player_names.enemy_spotted`; patch 171 hooked it until 2026-11-26 to show the
+    carrier always, the marker the owner called a wallhack), and the icons movie never shows an
+    enemy's player icon but in a replay (`HUDIconLayer.canShow`). A teammate carrier's marker shows
+    as ever, with the carrier mark: the icon's `modifier_visible` (record +388h, from
+    `[inventory+178h] != 0` at 0x1F2D8B) is the native carrier mark, a lohook at 0x1F2D8B
+    (`83 BA 78 01 00 00 00`, 7 bytes) sets it for the carrier; `root.srp_show_carriers(true)` at
+    `player_icons.enemy_ids` 0x235709 makes the mark the artefact's orb, not the battery's box (a
+    `flash/player_icons` change);
+  - nowhere else in the hud: no name under the artefact's row, no mark in the Tab list (the owner,
+    2026-11-23: "it should only be map and maybe minimap").
+  - The glow (above, and "Built after") is no overlay: a particle system of the level's scene
+    (`play_particle_system`), as Forest Protection's on any player. PROVEN: the scene's particles
+    are culled by the hi-Z occlusion query (renderer-026g.md 5.7); LIKELY, not read: the forward
+    particle stages (18, 20) draw against the scene's depth. So it stays, depth-tested as it is: a
+    wall hides it as it hides him.
 - **His death and leaving** are the rule's own slots. PROVEN: event 1 is sent from `hit_impl` at
   0x2D9ED3..0x2D9EF7 when the hit set `pending_death`, the victim still alive and in the world (his
   `on_player_death` runs at his next tick), so his feet are there for the drop; it is the only
   sender of type 1, and the respawn rule schedules only on it. `on_player_left_match` 0x2D2040 calls
-  slot 9 while the place still holds its player. `Left` is given the ground only for the rule's
-  carrier. A living player taken out by a round start is no death (`remove_alive` counts nothing)
+  slot 9 while the place still holds its player and is still in the world's active places (its bit
+  goes at 0x2D214E, after the loop). `Left` is given the ground only for the rule's carrier: the
+  ground under his feet, else his feet, as a death's drop; he lets go of it there, out of his side.
+  PROVEN, the exe: slots 8 and 9 are given the place as a dword whose upper three bytes are not the
+  place's. `process_events` 0x2D2180 counts the places in its second argument's stack slot with
+  `mov [esp+1Ch],bl` (0x2D218B, the low byte alone) and pushes that whole dword as the place
+  (0x2D2194), so its upper bytes are the roster records' pointer's; on_player_entered_match and
+  on_player_left_match push it on whole (0x2D201C, 0x2D213C), and every native rule reads the byte
+  (tdm 0x3165D3 `mov cl,[esp+8]`, kd stats 0x323A00 `movzx`). Patch 171 reads its low byte
+  (`slot_place`): through revision 74 it refused the dword whole, so no leave and no slot-8 entry
+  ever reached the rule (below, "After the live report"). Every way out of a match reaches slot 9:
+  the leaver's 0xE0, a closed link, the client timeout (10 s of silence) and a new connection for
+  the place each make the match server's 0xEA (`Game::leave`, client_patch.md "How a leave reaches
+  the other games"; the match server's tests `a_player_who_leaves_is_seen_to_go_...`,
+  `a_client_that_falls_silent_times_out`, `a_player_back_in_the_match_enters_for_the_others_first`
+  and `a_new_connection_for_a_live_place_is_its_leave_then_its_entry`). The respawn rule's own leave
+  handler (0x316BE0, the rules vector's second, before ours) takes the player out of the world
+  first; his feet stay where they were (LIKELY, not read: `remove` with 1 leaves the transform; in
+  the two-window test). A living player taken out by a round start is no death (`remove_alive` counts nothing)
   and carries nothing then (the delivery ended the carry). LIKELY, not read: that every lethal
   source goes through `hit_impl` (a suicide does).
 
@@ -575,7 +657,6 @@ does otherwise, each open to the owner's word:
   0.46c2's `bring_victory_artefact_singly` (weight 0) is not counted.
 - **The score events** are 0.26g's numbers 20 (put) and 6 (bring, hundredths), with this mode's
   weights 10 and 50 from srp's static info as Research's; 0.46c2's are 16 and 35.
-- **The respawn modifier** is 0.26g's parameter 60 as its respawn rule rounds it (0.46c2: 59).
 - **The health regeneration modifier** follows 0.26g's rule for its index 2 (x 1.05 a body part).
   0.46c2 "adds 0.05" to its parameter 1; whether that is the same relative rule was not read.
 - **The slow is a flat 20 %:** 0.26g has no `victory_item_speed_modifier` to lessen it.
@@ -621,8 +702,9 @@ The code is `client_patch.md` "Artifact Hunt (patch 171)"; checked by `check_art
 
 - **Built:** the cook and its registration, the rule and its slots 7, 8, 9, 11, 15, 16, 17, 18, the tick,
   the respawn rule's two sites, the input (freeze, take, delivery, Drop), the carrier's two modifiers,
-  no sprint, his head marker and minimap dot for both teams, `root.srp_show_carriers` at every match
-  start (true in a hunt, false otherwise), the hud's update call, the messages, the prompt, the
+  no sprint, his minimap dot for both teams (his head marker for both until 2026-11-26: the other
+  team's now the game's own), `root.srp_show_carriers` at every match start (true in a hunt, false
+  otherwise: the carrier mark the artefact's), the hud's update call, the messages, the prompt, the
   welcome, the world check's parameters.
 - **After the first local test (2026-11-21, map 309, two windows):**
   - nobody was ever in the match (the rule's `m_sides` 0 in every world): slot 8 comes before the
@@ -656,7 +738,7 @@ The code is `client_patch.md` "Artifact Hunt (patch 171)"; checked by `check_art
     should run there"): for the Fade and the Countdown the rule makes the core's time state 4
     (`HuntWorld::set_round_countdown`, in its tick and its deserialize, after the time rule's);
     the state, its setter and the camera test are `vostok::round_countdown` and the patch module
-    `round_countdown`, shared with Freeze Tag's pause and restart since the merge (`freeze-tag.md`
+    `round_countdown`, shared with Freeze Tag's rounds (the same restart since 2026-11-23) (`freeze-tag.md`
     "With Artifact Hunt"); `time_rule.camera_state` (0x267AE6) gives the client time rule's camera test the countdown's 2
     while it is 4, so the native 0x27B1A0 switches to the warmup camera and back, and patch 31's
     kits show by +1F1C60h as before the start. The time rule's own state, start and end are
@@ -690,6 +772,25 @@ The code is `client_patch.md` "Artifact Hunt (patch 171)"; checked by `check_art
   - The mark: `player_icons.carrier_mark` at 0x1F2D8B (the record's `cmp [edx+178h],0`, 7 bytes):
     for the hunt's carrier of either team EAX = place x 3 and CL = 1, out at the record's compare
     0x1F2D98; for anyone else the game's own test.
+- **After the live report (2026-11-26, revision 74):** the owner: "when someone leaves and rejoins
+  in arthunt, they spawn with art on their base", "without having to carry it all the way through";
+  then "fix it, art should also drop when leaving the game". Live match 0x45331d4d (map 336), its
+  uploads' rule state: place 0 took the artefact at about 383.9 s and left at 397.6 s; the other
+  games' worlds then had the time rule's player mask and kd stats' `online` without him, and the
+  rule still his carry and his side; he came back at 412.85 s (the entry spawn at his team's
+  points, his base) and delivered at about 427.4 s, the third of team 0's five. Places 1 and 3 left
+  too and stayed on their sides. The cause: slots 8 and 9's place dword (above, "His death and
+  leaving"), taken whole, so `on_left` returned at once (`on_entered` too, which the tick's take-in
+  hid: the first test's "slot 8 comes before the team" was partly this). So, through revision 74, a
+  carrier who left kept the artefact out of the world until he came back, and came back carrying
+  it; a leaver stayed in the hud's counts, in sudden death's standing and in the way's shares.
+  Now it reads the low byte: the carrier's leave drops it where he stood (lying for
+  `vi_dropped_ttl`, the drop cue and line for both teams, anyone may take it), he comes back with
+  nothing, a leaver is out of his side, and a player whose team is known at slot 8 is in from it.
+  `check_artefact_hunt_026g.py` case 19b drives `process_events` 0x2D2180 with a carrier's leave
+  (the place dword the game's, the events pointer's upper bytes; it fails with the old handler:
+  the carrier kept, then a delivery at his base); the rule's test
+  `a_carrier_who_leaves_and_comes_back_comes_back_without_it`.
 - **Otherwise than above:**
   - the rule object's layout: tdm's slot 12 (0x267820, it writes +118h) is kept, so the blackboard is
     at +118h, the tick delegate at +120h, the core at +138h, the game at +13Ch (0x140 bytes);
@@ -821,10 +922,10 @@ re-simulation undoes: Research has the same exposure.
   1 to 3 taken, 4 by Freeze Tag's worktree: 5), and `hud.initialize_match` 0x234880 to forget what
   was shown. The viewed place is the hud state's first byte (ui+24h, the watched player in a
   replay; 0FFh none), his team the profile's.
-- **`root.artefact_hunt_update(...)`:** 28 values, every one a GFx Number (type 5, as Research's
+- **`root.artefact_hunt_update(...)`:** 30 values, every one a GFx Number (type 5, as Research's
   sender; `vostok::ui::Movie` needs an `invoke_numbers`), from `Rule::hud` and the viewer. Sent
-  when a checksum over them changes (the four ms values taken as whole seconds, rounded up) and
-  every 60 frames; the movie runs its own timers between.
+  when a checksum over them changes (the ms left of #5, #8 and #21 taken as whole seconds, rounded
+  up) and every 60 frames; the movie runs its own timers between.
 
   | # | value | domain |
   |---|---|---|
@@ -844,17 +945,54 @@ re-simulation undoes: Research has the same exposure.
   | 18 | carrier's place | 0..19; 255 none |
   | 19 | carrier's team | 0, 1; 2 none |
   | 20 | the viewed player carries | 0, 1 |
-  | 21 | bases | 2 |
-  | 22..27 | a base: team, x, -z | team 0's first |
+  | 21 | ms to the next respawn wave | 1..#22 in a hunt out of sudden death; else 0 |
+  | 22 | a wave's whole length, ms | `respawn_time` (15000) with #21; else 0 |
+  | 23 | bases | 2 |
+  | 24..29 | a base: team, x, -z | team 0's first |
 
   The movie draws from it: the scores (its own branch for game type 13; `set_game_type(13)` is
   native), the minimap's artefact while lying and the bases (its own highlighted with #20), as
-  Research's units are placed (x, -z), the carrier's row and dot, "carrying" for #20, the last
+  Research's units are placed (x, -z), the carrier's dot on the minimaps (#18; #19 colours the
+  row's orb, with no name under it), "carrying" for #20, the last
   players in sudden death, "Round restarts in" with #5 in phase 6 when #7 is 2 (0.46c2's
   `show_round_restart`, `set_round_restart_time`), a full-screen fade over phase 7's #6 (0.46c2's
   `show_fade_animation(1.0, true)`), the countdown's "Awaiting match start: 00:05" with #5 in
   phase 8 (0.46c2's pregame text: `st_final_countdown`, the exe's own key, in the movie's pregame
   box), and what #10 announces.
+- **The respawn wave** (#21, #22; the owner, 2026-11-22: "for art hunt since respawns there are
+  timer based, this timer should also be visible", "exactly like in dirty bomb", "a smaller timer
+  after the main one"). `Rule::hud`'s `wave`: in a round's hunt out of sudden death, the time from
+  now to the first multiple of `respawn_time` from the match's start after now (the arithmetic of
+  `Rule::respawn_at`, one function: a wave of this very step has come, the respawn rule's tick
+  being before the hud's); `None` before the start, in the 3 s, the fade and the countdown (respawns
+  held), in sudden death and once over. The game spawns a wave at the simulation step at or after
+  it (the 50 ms grid): the hud is at most a step early. Display only. The movie counts down between updates and goes on to the next wave at 0 (the waves
+  repeat until an update says none): no timer of its own.
+  - **What is shown** (decided by the owner, 2026-11-22: "exactly like in dirty bomb", "There it is
+    a smaller timer after the main one", "yes, let's go 1", out of ten looks drawn): a smaller
+    number of seconds right after the match time, on its baseline, in the row's font, white with
+    its dark edge (`ArtefactHuntWave`, owned by the row); the bars move apart by its widest ("00")
+    so that the time and it stay centred between them, and close again while no wave comes.
+  - **Everyone's wave, one timer.** Both teams share one wave clock (from the match's start), so
+    one number serves both. A dead player's own line under the row (`root.set_respawn_time`, the
+    respawn rule's time of his place) counts to the same moment: a death's time is the wave shown
+    at its step, with no modifier (`Rule::respawn_at`). Before that (the owner's screenshot of
+    2026-11-23) the wave showed 3 and his line 00:18, from 0.46c2's 7 s least.
+  - **No number that will not happen:** hidden before the start, in a round's restart, in sudden
+    death (its "Sudden death" line says why) and at the end.
+  - **Spectators and replays** see the same number (it is nobody's), beside the same match time;
+    the respawn line is the watched player's, as ever.
+  - **Dirty Bomb** (Splash Damage, 2015), the reference. Its Stopwatch mode spawns both teams in
+    waves at the same moments (25 s then), and the wave countdown is a small timer at the match
+    timer in the top-left corner, for everyone ("look at the top left corner, there is a timer";
+    "if you look to the left of the game timer, you can see when you and your enemies will be
+    spawning": forums.splashdamage.com/t/spawn-timer/222338); in its Objective mode the teams'
+    waves are offset (hard to read for the enemy's, the same thread). The players' wish before it
+    was a "small hud element" for the next wave (forums.splashdamage.com/t/thoughts-on-dirty-bombs-
+    spawn-system/142749). The owner's description, "a smaller timer after the main one", places it
+    after the match time here; one forum post puts it to the left. Not confirmed from a source:
+    what a dead player sees there (recalled: a large "respawning in N" line, as 0.26g's own line).
+  - Research and the other modes have no waves (the native respawn rule's per-death time).
 - **Native calls that go on by themselves:** `root.set_game_progress` (0x2364C0, from hud+90h, +92h:
   slot 17 writes the scores there, u16), `root.set_match_time` (from hud+4, above),
   `root.set_respawn_time` (0x236C30 from the respawn rule's own time, 0x316C20: a wave shows by

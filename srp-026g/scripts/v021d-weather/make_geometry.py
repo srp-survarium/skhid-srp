@@ -101,7 +101,10 @@ def make(donor, imported, packs):
                         bounds[name] = [b['bounding_box'][k] for k in ('min', 'max')]
                 mini = config({'render_visuals': visuals, 'client_objects': root['client_objects']})
                 existing = root['srp_lamps']
-                moves, additions, spec = lamps.author(path, mini, bounds, existing['break_material'], existing['effect_material'])
+                # The probes' cube maps are the pack's; these lamps are the weather's own (no day split).
+                cubemap = lambda probe, files=pack / 'files': files / 'textures' / f"{probe['texture']}_diffuse.dds"
+                moves, additions, spec = lamps.author(path, mini, bounds, existing['break_material'],
+                                                      existing['effect_material'], cubemap, {})
                 assert not moves and len(additions) == 2 and len(spec['value']['lamps']) == 2
                 for add in additions:
                     lamps.c.add_entry(mini, add['list'], add['after'], add['like'], add['values'])

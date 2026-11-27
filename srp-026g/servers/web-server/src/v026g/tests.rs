@@ -187,12 +187,11 @@ fn world_with(accounts: GameAccounts) -> World {
         token_failures: Mutex::new((0, None)),
         connections: AtomicU32::new(0),
         downloads: AtomicU32::new(0),
-        resource_downloads: AtomicU32::new(0),
         replay_downloads: AtomicU32::new(0),
         replay_failures: Mutex::new(std::collections::HashMap::new()),
         replay_asks: Mutex::new(std::collections::HashMap::new()),
         plans: Default::default(),
-        game: Some(Game {
+        game: Game {
             accounts: accounts.clone(),
             lobby: told.clone(),
             matches: told.clone(),
@@ -200,7 +199,8 @@ fn world_with(accounts: GameAccounts) -> World {
             min_patch_revision: 0,
             replays: None,
             results: Arc::new(session::v026g::rewards::Results::new()),
-        }),
+            pools: crate::Pools::every_playable(),
+        },
     };
     World {
         web,
@@ -572,7 +572,7 @@ fn public_stats_count_players_rooms_and_hosted_matches() {
     let stats = || world.web.route(&get("/api/stats"), "t");
     assert_eq!(
         stats().body,
-        r#"{"online":0,"registered":0,"matches":0,"rooms":0,"in_rooms":0,"queued":0,"last_match_ends_in":0}"#
+        r#"{"online":0,"registered":0,"matches":0,"rooms":0,"in_rooms":0,"queued":0,"last_match_ends_in":0,"normal_matches":0,"last_normal_match_ends_in":0}"#
     );
     let account = world.player("player-a", "test-password");
     let session = world.web.store.create_session(account);
@@ -582,7 +582,7 @@ fn public_stats_count_players_rooms_and_hosted_matches() {
     // Multiple connections for one account count once.
     assert_eq!(
         stats().body,
-        r#"{"online":1,"registered":1,"matches":0,"rooms":0,"in_rooms":0,"queued":0,"last_match_ends_in":0}"#
+        r#"{"online":1,"registered":1,"matches":0,"rooms":0,"in_rooms":0,"queued":0,"last_match_ends_in":0,"normal_matches":0,"last_normal_match_ends_in":0}"#
     );
     // The rooms as the lobby last counted them.
     world.web.store.set_room_counts(session::RoomCounts {
@@ -599,14 +599,14 @@ fn public_stats_count_players_rooms_and_hosted_matches() {
     assert_eq!(response.content_type.as_str(), "application/json");
     assert_eq!(
         response.body,
-        r#"{"online":1,"registered":1,"matches":2,"rooms":2,"in_rooms":3,"queued":1,"last_match_ends_in":0}"#
+        r#"{"online":1,"registered":1,"matches":2,"rooms":2,"in_rooms":3,"queued":1,"last_match_ends_in":0,"normal_matches":0,"last_normal_match_ends_in":0}"#
     );
     assert_eq!(world.web.store.match_count(), 0); // Use the host, not formed rosters.
     drop(hold);
     drop(second_hold);
     assert_eq!(
         stats().body,
-        r#"{"online":0,"registered":1,"matches":2,"rooms":2,"in_rooms":3,"queued":1,"last_match_ends_in":0}"#
+        r#"{"online":0,"registered":1,"matches":2,"rooms":2,"in_rooms":3,"queued":1,"last_match_ends_in":0,"normal_matches":0,"last_normal_match_ends_in":0}"#
     );
     assert_eq!(
         world.web.route(&post("/api/stats", &[]), "t").status,
@@ -621,6 +621,7 @@ fn public_stats_say_when_the_last_match_ends_at_the_latest() {
     let stats = || world.web.route(&get("/api/stats"), "t").body;
     let live = |phase, time_left: Option<Duration>| crate::LiveMatch {
         map_id: survarium::v026g::maps::MapId::new(117),
+        kind: crate::LiveKind::Normal,
         phase,
         players: [4, 3],
         played: None,
@@ -643,7 +644,7 @@ fn public_stats_say_when_the_last_match_ends_at_the_latest() {
     ];
     assert_eq!(
         stats(),
-        r#"{"online":0,"registered":0,"matches":3,"rooms":0,"in_rooms":0,"queued":0,"last_match_ends_in":300}"#
+        r#"{"online":0,"registered":0,"matches":3,"rooms":0,"in_rooms":0,"queued":0,"last_match_ends_in":300,"normal_matches":3,"last_normal_match_ends_in":300}"#
     );
     // One that has its result is about to go; one still loading has its
     // whole wait, countdown and match time ahead (5 + 20 + 900 s).
@@ -651,25 +652,66 @@ fn public_stats_say_when_the_last_match_ends_at_the_latest() {
         live(crate::LivePhase::Over, Some(Duration::ZERO)),
         live(crate::LivePhase::Playing, Some(Duration::from_secs(60))),
     ];
-    assert!(stats().ends_with(r#""last_match_ends_in":60}"#));
+    assert!(stats().contains(r#""last_match_ends_in":60,"#));
     world
         .told
         .live
         .locked()
         .push(live(crate::LivePhase::Gathering, None));
-    assert!(stats().ends_with(r#""last_match_ends_in":925}"#));
+    assert!(stats().contains(r#""last_match_ends_in":925,"#));
     // A map the client does not have: the time every playable mode has.
     *world.told.live.locked() = vec![crate::LiveMatch {
         map_id: survarium::v026g::maps::MapId::new(0),
         ..live(crate::LivePhase::Gathering, None)
     }];
-    assert!(stats().ends_with(r#""last_match_ends_in":925}"#));
+    assert!(stats().contains(r#""last_match_ends_in":925,"#));
     // Only an ended one: nothing to wait for.
     *world.told.live.locked() = vec![live(crate::LivePhase::Over, None)];
     assert_eq!(
         stats(),
-        r#"{"online":0,"registered":0,"matches":3,"rooms":0,"in_rooms":0,"queued":0,"last_match_ends_in":0}"#
+        r#"{"online":0,"registered":0,"matches":3,"rooms":0,"in_rooms":0,"queued":0,"last_match_ends_in":0,"normal_matches":1,"last_normal_match_ends_in":0}"#
     );
+}
+
+/// A release that ends the matches against bots and of private rooms
+/// waits for the normal ones alone: they are counted and timed apart.
+#[test]
+fn public_stats_say_the_normal_matches_apart() {
+    use crate::{LiveKind, LivePhase};
+    use std::time::Duration;
+    let world = world();
+    let stats = || world.web.route(&get("/api/stats"), "t").body;
+    let live = |kind, phase, left| crate::LiveMatch {
+        map_id: survarium::v026g::maps::MapId::new(117),
+        kind,
+        phase,
+        players: [4, 3],
+        played: None,
+        time_left: Some(Duration::from_secs(left)),
+        standing: None,
+    };
+    world
+        .told
+        .matches
+        .store(5, std::sync::atomic::Ordering::Relaxed);
+    *world.told.live.locked() = vec![
+        live(LiveKind::VsBots, LivePhase::Playing, 840),
+        live(LiveKind::Normal, LivePhase::Playing, 300),
+        live(LiveKind::PrivateRoom, LivePhase::Countdown, 900),
+        live(LiveKind::Normal, LivePhase::Over, 0),
+        live(LiveKind::Normal, LivePhase::Playing, 120),
+    ];
+    assert!(stats().ends_with(
+        r#""last_match_ends_in":900,"normal_matches":3,"last_normal_match_ends_in":300}"#
+    ));
+    // Only matches against bots and of private rooms: none to wait for.
+    *world.told.live.locked() = vec![
+        live(LiveKind::VsBots, LivePhase::Playing, 840),
+        live(LiveKind::PrivateRoom, LivePhase::Playing, 600),
+    ];
+    assert!(stats().ends_with(
+        r#""last_match_ends_in":840,"normal_matches":0,"last_normal_match_ends_in":0}"#
+    ));
 }
 
 #[test]
@@ -701,7 +743,7 @@ fn public_stats_http_has_json_headers_and_ignores_language() {
     assert!(headers.contains(&format!("\r\nContent-Length: {}\r\n", body.len())));
     assert_eq!(
         body,
-        r#"{"online":0,"registered":0,"matches":0,"rooms":0,"in_rooms":0,"queued":0,"last_match_ends_in":0}"#
+        r#"{"online":0,"registered":0,"matches":0,"rooms":0,"in_rooms":0,"queued":0,"last_match_ends_in":0,"normal_matches":0,"last_normal_match_ends_in":0}"#
     );
 }
 
@@ -718,6 +760,7 @@ fn the_launchers_page_and_its_fresh_numbers_come_with_the_launchers_policy() {
     // A Team Deathmatch on Rudnya in play.
     *world.told.live.locked() = vec![crate::LiveMatch {
         map_id: survarium::v026g::maps::MapId::new(117),
+        kind: crate::LiveKind::Normal,
         phase: crate::LivePhase::Playing,
         players: [4, 3],
         played: Some(Duration::from_secs(130)),
@@ -735,7 +778,6 @@ fn the_launchers_page_and_its_fresh_numbers_come_with_the_launchers_policy() {
         "/launcher/places/uk",
         "/launcher/places/en",
         "/",
-        "/launcher/fresh/uk",
     ];
     let server = std::thread::spawn(move || {
         for _ in targets {
@@ -800,14 +842,6 @@ fn the_launchers_page_and_its_fresh_numbers_come_with_the_launchers_policy() {
     for part in &parts {
         assert!(page.1.contains(part));
     }
-    // A page opened before the matches' tab asks where it always did, and
-    // is given its three places in its order.
-    let before = &answers[4];
-    assert!(before.0.contains(&launchers));
-    assert_eq!(
-        before.1.split("<hr>").collect::<Vec<_>>(),
-        [parts[1], parts[5], parts[7]]
-    );
     // Every other page keeps the site's policy: no script at all.
     assert!(home.0.contains(&format!(
         "\r\nContent-Security-Policy: {}\r\n",
@@ -870,7 +904,7 @@ fn the_patches_are_listed_for_the_updater_as_json() {
     let mut world = world();
     world.web.token = None;
     world.web.admin_path = None;
-    world.web.game.as_mut().unwrap().downloads = Arc::new(crate::Downloads::new(
+    world.web.game.downloads = Arc::new(crate::Downloads::new(
         vec![
             offered(
                 14,
@@ -921,7 +955,7 @@ fn the_games_archive_is_offered_apart_from_the_patches() {
             "https://archive.org/download/x/survarium_full_026g0.7z".into(),
         ],
     };
-    world.web.game.as_mut().unwrap().downloads = Arc::new(crate::Downloads::new(
+    world.web.game.downloads = Arc::new(crate::Downloads::new(
         vec![offered(14, 'a', &["http://203.0.113.5/p14"])],
         Some(archive),
         None,
@@ -1130,6 +1164,7 @@ fn wiki_routes_use_the_sites_navigation_and_language() {
         "/wiki/weapons",
         "/wiki/modifiers",
         "/wiki/equipment",
+        "/wiki/artefacts",
         "/wiki/calculator",
         "/wiki/maps",
         "/wiki/skills",
@@ -1151,21 +1186,63 @@ fn wiki_routes_use_the_sites_navigation_and_language() {
             )));
         }
     }
-    // The index leads to every section.
-    let index = world.web.route(&get("/wiki"), "t").body;
-    for section in [
-        "/wiki/weapons",
-        "/wiki/modifiers",
-        "/wiki/equipment",
-        "/wiki/calculator",
-        "/wiki/maps",
-        "/wiki/skills",
-        "/wiki/quests",
-    ] {
-        assert!(
-            index.contains(&format!("<a class=wiki-link href=\"{section}?lang=en\">")),
-            "{section}"
+    // The index leads to every section, in its order, each tile with its
+    // picture: files the site serves, or a drawing.
+    for lang in Lang::ALL {
+        let mut request = get("/wiki");
+        request.lang = lang;
+        let index = world.web.route(&request, "t").body;
+        let tiles: Vec<&str> = index.split("<a class=wiki-link href=\"").skip(1).collect();
+        let order: Vec<&str> = tiles
+            .iter()
+            .map(|tile| tile.split_once('?').unwrap().0)
+            .collect();
+        assert_eq!(
+            order,
+            [
+                "/wiki/skills",
+                "/wiki/weapons",
+                "/wiki/equipment",
+                "/wiki/modifiers",
+                "/wiki/modes",
+                "/wiki/maps",
+                "/wiki/artefacts",
+                "/wiki/quests",
+                "/wiki/calculator",
+                "/wiki/simulators",
+            ],
+            "{lang:?}"
         );
+        for (path, tile) in order.iter().zip(&tiles) {
+            assert!(tile.starts_with(&format!("{path}?lang={}\">", lang.code())));
+            let picture = tile
+                .split_once("<div class=wiki-pic>")
+                .and_then(|(_, rest)| rest.split_once("<h2>"))
+                .unwrap_or_else(|| panic!("{path}: no picture box"))
+                .0;
+            let files: Vec<&str> = picture
+                .match_indices("?v=")
+                .map(|(at, _)| {
+                    let start = picture[..at].rfind(['"', '\'']).unwrap() + 1;
+                    &picture[start..at]
+                })
+                .collect();
+            let drawn = picture.starts_with("<svg") && picture.ends_with("</svg>");
+            assert!(drawn || !files.is_empty(), "{path}: no picture");
+            if path == &"/wiki/modifiers" {
+                assert_eq!(files.len(), 6, "{path}: a glyph left out");
+            }
+            for file in files {
+                let (kind, bytes) = crate::static_file(file).expect(file);
+                assert!(
+                    kind.starts_with("image/") && !bytes.is_empty(),
+                    "{path}: {file}"
+                );
+            }
+            if picture.starts_with("<img") {
+                assert!(picture.contains(" loading=lazy"), "{path}");
+            }
+        }
     }
     assert_eq!(
         world.web.route(&get("/wiki/unknown"), "t").status,
@@ -1274,7 +1351,7 @@ fn serve_wiki_preview() {
         crate::unix_now(),
         crowd,
     ));
-    world.web.game.as_mut().unwrap().replays =
+    world.web.game.replays =
         Some(Arc::new(crate::history::tests::preview_replays(&dir)));
     // SRP_PREVIEW_PORT: another port, for two previews side by side.
     let port = std::env::var("SRP_PREVIEW_PORT").unwrap_or_else(|_| "24583".to_owned());

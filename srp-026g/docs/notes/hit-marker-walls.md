@@ -69,8 +69,13 @@ leaves)", "red ones are still shown when killed"; then "Through a wall, kill sho
     that bullet's hit;
   - the marks are not rolled back with the world: a re-simulation can leave a clear hit pending
     where it no longer is, and a walled hit re-simulated after it then shows the marker.
+- **The kill marker** (PROVEN, not touched by this patch): the world's kill event drives it
+  (`process_kill_cross_events` 0x1FB6C0, `on_kill_cross_event` 0x233770), not the collector.
+  The original loses it for a kill first simulated in a re-simulation, which this patch made
+  silent through a wall; patch 191 keeps it (`kill-marker.md`).
 - **Checks:** `../../client-patches/check_hit_marker_walls_026g.py` (Unicorn: the three sites in
-  both exes, the marker the hud gets in each case above, the registers the original's, the kill
+  both exes, the marker the hud gets in each case above, a lethal round through a wall and its
+  kill event walked to the kill marker's invoke in both, the registers the original's, the kill
   marker's and the draw's bytes but the hook's the original's), Rust tests, the hud movie's Ruffle
   harness (`../../scripts/hud-options/check.sh`, its HudHarness: a kill after a hit's white bars
   with All draws what Kill marker only draws). Not yet played.

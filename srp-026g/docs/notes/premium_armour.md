@@ -51,7 +51,8 @@ holds one, the Keeper of the Sun's too (`modifications.tsv`). The +5 % below is 
   descriptor's rarity is 0 now).
 - **Shop and bundles** show the two bonuses on a piece not owned (`ItemFactory.startingModifiers`;
   a test holds the icons and props to the data). Owned ones show the server's.
-- **Owned before:** at the first start of the srp with this rule each premium piece gets the bonuses
+- **Owned before** (a one-time grant that ran; its code went on 2026-11-08): at the first start
+  of the srp with this rule each premium piece gets the bonuses
   it lacks (none of that modification type held) as its first modifications, once (`g26_meta`
   `premium_armour_given`, written only after the changed accounts are; an account not written stops
   srp, and the next start gives them again to the pieces still without them). Each account changed is

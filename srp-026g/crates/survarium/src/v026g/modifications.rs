@@ -80,7 +80,7 @@ use super::game_data::{GameData, GameDataError};
 use super::item_params::item_params;
 use super::prices::GOLD_IN_SILVER;
 use super::scopes::SCOPE_SLOT;
-use super::weapon_kit::{GRIP_SLOT, MUZZLE_SLOT};
+use super::weapon_kit::{GRIP_SLOT, MUZZLE_SLOT, SECOND_SIGHT_SLOT};
 use super::weapon_modules::{Kind, Modules};
 
 /// The paths of the three files in the archive.
@@ -498,10 +498,11 @@ pub fn upgrade_slots(host_dict_id: u16, upgrade_dict_id: u16) -> &'static [u8] {
 }
 
 /// The upgrade slots `upgrade_dict_id` may go into on `host_dict_id`: a
-/// scope, a muzzle device or a grip the weapon takes by the modules table
-/// ([`Modules::kind`]) into the kit's slot of its kind
+/// scope, a muzzle device, a grip or a second sight the weapon takes by the
+/// modules table ([`Modules::kinds`]) into the kit's slot of each kind it is
 /// ([`super::weapon_modules::slot_of`]: [`SCOPE_SLOT`], [`MUZZLE_SLOT`],
-/// [`GRIP_SLOT`]); a camouflage (category 25, the kinds
+/// [`GRIP_SLOT`], [`SECOND_SIGHT_SLOT`]; an optic may be both a scope and a
+/// second sight); a camouflage (category 25, the kinds
 /// `*_camo`) into [`CAMO_SLOT`] of an item with `camo_available`
 /// ([`WEAPON_CAMO_SLOT`] of a weapon, [`camo_slot`]), a decal (category 26,
 /// `*_decl`) into the [`DECAL_SLOTS`] of one with `decal_available`. Empty:
@@ -516,12 +517,15 @@ pub fn upgrade_slots_with(
     host_dict_id: u16,
     upgrade_dict_id: u16,
 ) -> &'static [u8] {
-    if let Some(kind) = modules.kind(host_dict_id, upgrade_dict_id) {
-        return std::slice::from_ref(match kind {
-            Kind::Scope => &SCOPE_SLOT,
-            Kind::Muzzle => &MUZZLE_SLOT,
-            Kind::Grip => &GRIP_SLOT,
-        });
+    match modules.kinds(host_dict_id, upgrade_dict_id)[..] {
+        [] => {}
+        [Kind::Scope] => return &[SCOPE_SLOT],
+        [Kind::Muzzle] => return &[MUZZLE_SLOT],
+        [Kind::Grip] => return &[GRIP_SLOT],
+        [Kind::SecondSight] => return &[SECOND_SIGHT_SLOT],
+        [Kind::Scope, Kind::SecondSight] => return &[SCOPE_SLOT, SECOND_SIGHT_SLOT],
+        // one module as a muzzle device and a scope: no table has one
+        _ => return &[],
     }
     let (Some(host), Some(upgrade)) = (item_mods(host_dict_id), item_params(upgrade_dict_id))
     else {

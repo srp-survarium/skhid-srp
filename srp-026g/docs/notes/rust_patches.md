@@ -117,7 +117,7 @@ appears anywhere:
 
 - the game's: link_026g.py builds the crate with the dev-shell nightly rustc
   alone (no cargo, offline), `opt-level=s`, `panic=abort`, fat LTO, no
-  allocator; its bytes are `arena_026g.lock.json`'s.
+  allocator; a release records the arena's SHA-256.
 - the host's: `cargo test` and `cargo clippy --all-targets` in `rust/`, the
   logic and the views, built for i686 too (`rust/.cargo/config.toml` sets the
   target; the dev shell has the 32-bit std and linker). State a patch keeps
@@ -153,8 +153,8 @@ NH3API's HiHook/LoHook applied at build time:
 
 **`Context` (`lohook`)**: the registers (`reg`/`set_reg`, `set_reg8` for
 `al`/`bl`/..), the flags (`set_flag` for a following `jcc`), xmm0..7
-(`xmm_f32`/`set_xmm_f32`, f64), the x87 top (`set_st0`), the stack and typed
-frame locals. **`Flow`**: `Continue` (apply the context's writes, then replay
+(`xmm_f32`/`set_xmm_f32`, f64), the stack and typed frame locals (no x87
+accessor yet). **`Flow`**: `Continue` (apply the context's writes, then replay
 the overwritten bytes), `Skip`, or `Exit(E)` -- a generated enum of the
 hook's named exits, so a continuation is never return-address arithmetic in
 Rust. An exit is a jump inside the host function or a `host_return { pop,
@@ -347,17 +347,18 @@ bit when the key went down.
 3. **The declaration** (names only): `rust/patches/src/suicide_key.toml` with
    `[[hook]] site = "input_builder.spot_query"`, `handler = "on_spot"`;
    `pub mod suicide_key` in `lib.rs`.
-4. **Build**: `python engine_026g.py --write` (if the TSVs changed),
-   `python hooks_026g.py --write`, `python link_026g.py --write` (the lock).
+4. **Build**: any build of the exe (it writes the generated files first;
+   `python link_026g.py --generate` writes only them, for cargo in `rust/`).
 5. **Check** (section 5).
 
 ## 5. The build and the checks
 
-- **Generators**: engine_026g.py (`--write`/`--check`) writes the `raw`
-  layer (`raw_026g.rs`); hooks_026g.py (`--write`/`--check`) writes the entries and shims
-  from the TOML and lists the installs (with their owning patch) for
-  patch_026g.py. link_026g.py links the arena and writes the lock; it builds
-  the crate and runs the layer check first.
+- **Generators** (run by every link, patch_026g.py's generate_sources; their
+  files are not committed): engine_026g.py writes the `raw` layer
+  (`raw_026g.rs`); hooks_026g.py writes the entries and shims from the TOML
+  and lists the installs (with their owning patch) for patch_026g.py.
+  link_026g.py links the arena; it builds the crate and runs the layer check
+  first.
 - **Overlap audit**: hooks_026g.py rejects two Rust hooks whose replaced
   spans overlap (each hook names its patch); the whole build's audit, across
   the asm and C installs too, is patch_026g.py's apply(): two writes over the
@@ -423,8 +424,9 @@ installs. Void originals have a void Rust result. A lohook covering exactly one
 the displacement. Other relative-control-flow spans are still refused.
 
 The engine generator supports scalar float arguments in XMM registers; voice
-uses this for `cc_value<float>`'s minimum. `Context::reg(Esp)` is the original
-game stack pointer, accounting for the entry's dispatch slot and saved flags.
+uses this for `cc_value<float>`'s minimum. The original game stack pointer is
+`site_esp()` (raw's `Machine`): `Context::reg(Esp)` plus the entry's dispatch
+slot and saved flags.
 
 Voice policy is safe Rust in `voice.rs`; the Vostok boundary owns console storage,
 live game snapshots, Scaleform values and the checked `voice-abi::Api` token.

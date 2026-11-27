@@ -1,11 +1,13 @@
 #!/usr/bin/env bash
-# tools/test-build <revision> <folder> [--shared] [exe] [server] [content]
+# tools/test-build <revision> <folder> [--shared] [--slow] [exe] [server] [content]
 #
 # What a local test of this checkout runs, built into <folder> (made when missing):
 #   exe      <folder>/survarium_skhid.exe      patch_026g.py --revision=<revision> on the original exe
 #   server   <folder>/srp                      the debug server (`cargo build -p srp --bin srp`)
-#   content  <folder>/content/                 release/build-content <revision>: the quick build's
-#                                              resources.db.patch_<revision> and server-game-data.db
+#   content  <folder>/content/                 release/build-content <revision> --slow: the quick
+#                                              build's resources.db.patch_<revision> and
+#                                              server-game-data.db (~20 min: only with --slow; a
+#                                              test of a few changed files is tools/test-patch's)
 # The parts named (all three when none is) are built at the same time, each with its log in
 # <folder>/<part>.log, and each is the build a worker would run by hand: the exe's Rust is taken
 # from the arena's cache when no Rust source changed (link_026g.py), the server builds
@@ -26,21 +28,24 @@
 set -euo pipefail
 root=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 die() { echo "test-build: $*" >&2; exit 2; }
-(($# >= 2)) || { sed -n '2,25s/^# \{0,1\}//p' "${BASH_SOURCE[0]}" >&2; exit 2; }
+(($# >= 2)) || { sed -n '2,27s/^# \{0,1\}//p' "${BASH_SOURCE[0]}" >&2; exit 2; }
 revision=$1
 [[ $revision =~ ^[1-9][0-9]{0,2}$ ]] && ((revision <= 255)) || die "$revision: a revision is a number from 1 to 255"
 mkdir -p "$2"
 out=$(cd "$2" && pwd)
 shift 2
-shared=0 parts=()
+shared=0 slow=() parts=()
 for word in "$@"; do
     case $word in
     --shared) shared=1 ;;
+    --slow) slow=(--slow) ;;
     exe | server | content) parts+=("$word") ;;
     *) die "$word: a part is exe, server or content" ;;
     esac
 done
 ((${#parts[@]})) || parts=(exe server content)
+[[ ! " ${parts[*]} " =~ " content " || -n ${slow[*]} ]] ||
+    die "content: for a test of a few changed files: tools/test-patch <setup> <inputs> (a minute); to build the whole content anyway (~20 min): add --slow (or name exe and server alone)"
 main=$(dirname "$(git -C "$root" rev-parse --path-format=absolute --git-common-dir)")
 original=${SKHID_ORIGINAL_EXE:-$main/private/function-map/inputs/026g/survarium.exe}
 
@@ -56,7 +61,7 @@ if ((shared)); then
     [[ -z $(git -C "$tree" status --porcelain) ]] || die "$tree has changes of its own: it is only ever checked out"
     git -C "$tree" checkout --quiet --detach "$commit"
     echo "test-build: $(git -C "$tree" log -1 --format='%h %s') in $tree"
-    exec "$tree/tools/test-build" "$revision" "$out" "${parts[@]}"     # the lock stays held to its end
+    exec "$tree/tools/test-build" "$revision" "$out" "${slow[@]}" "${parts[@]}"     # the lock stays held to its end
 fi
 
 build_exe() {
@@ -80,7 +85,7 @@ build_content() {
         [[ ! -e $old || -f $old/QUICK-BUILD ]] || { echo "$old: not a quick build's folder; not replaced"; return 1; }
     done
     rm -rf "$out/content.new"
-    "$root/tools/dev" release/build-content "$revision" --out "$out/content.new"
+    "$root/tools/dev" release/build-content "$revision" --slow --out "$out/content.new"
     rm -rf "$out/content"
     mv "$out/content.new" "$out/content"
 }
@@ -89,7 +94,13 @@ declare -A pid
 started=$EPOCHREALTIME
 for part in "${parts[@]}"; do
     (
-        if "build_$part" >"$out/$part.log" 2>&1; then word=built; else word=FAILED; fi
+        # not as an `if`'s condition: there bash drops `set -e` for the whole part, and a part
+        # whose build failed went on to copy the last build's result and was called built
+        set +e
+        (set -e; "build_$part") >"$out/$part.log" 2>&1
+        status=$?
+        set -e
+        if ((status == 0)); then word=built; else word=FAILED; fi
         awk -v a="$started" -v b="$EPOCHREALTIME" -v p="$part" -v w="$word" -v where="$out/$part.log" \
             'BEGIN { printf "%s: %s in %.1f s (%s)\n", p, w, b - a, where }'
         [[ $word == built ]]

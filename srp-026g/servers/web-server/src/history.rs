@@ -5,7 +5,9 @@
 //! history srp keeps ([`session::v026g::persist::history`]). A request is parsed once into an
 //! [`Endpoint`]; every answer is one indexed query of at most
 //! [`MatchHistory::MAX_ROWS`] rows (a clan card's members: up to
-//! `clans::MAX_MEMBERS`; `player/days`: up to `MAX_DAYS` days).
+//! `clans::MAX_MEMBERS`; `player/days`: up to `MAX_DAYS` days), but the Maps
+//! and Modes boards (`plays`): the period's matches added up by map and mode,
+//! kept by the history until a match is written ([`MatchHistory::plays`]).
 
 use serde_json::{Value, json};
 use std::time::Instant;
@@ -22,7 +24,7 @@ use survarium::v026g::dictionary::Dictionary;
 use survarium::v026g::maps;
 
 use crate::icons::{self, IconSet};
-use crate::{ContentType, Game, Lang, Response, decode, launcher, modifiers, wiki, words};
+use crate::{ContentType, Game, Lang, Response, decode, launcher, modifiers, skills, wiki, words};
 
 /// Where the API is.
 pub(crate) const PREFIX: &str = "/api/history/";
@@ -86,6 +88,8 @@ fn page_text(lang: Lang) -> Value {
         ("kills", lang.t("Kills")),
         ("deaths", lang.t("Deaths")),
         ("kd", lang.t("K/D")),
+        ("killsPerMinute", lang.t("Kills/min")),
+        ("experiencePerMinute", lang.t("Experience/min")),
         ("assists", lang.t("Assists")),
         ("score", lang.tc("stats", "Score")),
         ("scoreAvg", lang.t("Avg score")),
@@ -124,6 +128,7 @@ fn page_text(lang: Lang) -> Value {
         ("shots", lang.t("Shots fired")),
         ("accuracy", lang.t("Accuracy")),
         ("weapons", lang.t("Weapons")),
+        ("skills", lang.t("Skills")),
         ("weapon", lang.t("Weapon")),
         ("armour", lang.t("Armour")),
         ("kit", lang.t("Kit")),
@@ -142,6 +147,22 @@ fn page_text(lang: Lang) -> Value {
         ("noHistory", lang.t("This server keeps no match history.")),
         ("failed", lang.t("Could not load the stats. Reload the page.")),
         ("nobody", lang.t("Nobody yet.")),
+        // The Maps and Modes boards.
+        ("maps", lang.t("Maps")),
+        ("modes", lang.t("Modes")),
+        ("last7", lang.t("Last 7 days")),
+        ("last24", lang.t("Last 24 hours")),
+        ("avgLength", lang.t("Avg length")),
+        ("sides", lang.t("Sides")),
+        ("noResult", lang.t("No result")),
+        ("weathers", lang.t("Weathers")),
+        ("variants", lang.t("Variants")),
+        ("share", lang.t("Share")),
+        ("trend", lang.t("Trend")),
+        ("perHour", lang.t("by hour")),
+        ("perDay", lang.t("by day")),
+        ("perWeek", lang.t("by week")),
+        ("mostPlayed", lang.t("Most played maps and modes")),
     ];
     let mut text: serde_json::Map<String, Value> = words
         .into_iter()
@@ -163,17 +184,25 @@ pub(crate) fn file(path: &str) -> Option<(&'static str, &'static [u8])> {
 }
 
 /// The page's frame under `header`, in the wiki's look. Its script fills it,
-/// as the address says: a player (`?player=<name>`), a match
+/// as the address says: a player (`?id=<account>`, or `?player=<name>`), a match
 /// (`?match=<number>`), a clan (`?clan=<tag>`), else the leaderboards.
-pub(crate) fn page(lang: Lang, header: &str) -> Response {
+/// A player's page (the request's `query` asks for one) carries the wiki's
+/// skill trees ([`skills::trees`]) for its Skills tab.
+pub(crate) fn page(lang: Lang, header: &str, query: &str) -> Response {
     let stats = lang.t("Stats");
+    let query = Query::of(query);
+    let trees = if query.text("id").or(query.text("player")).is_some() {
+        format!("<template id=stats-skills>{}</template>", skills::trees(lang))
+    } else {
+        String::new()
+    };
     let body = format!(
         "<style>{STYLE}</style>\
          <p class=breadcrumb><a href=\"{PATH}?lang={code}\">{stats}</a><span id=stats-crumb></span></p>\
          <div class=wiki-heading><div><p class=eyebrow id=stats-eyebrow>{eyebrow}</p>\
          <h1 id=stats-title>{stats}</h1></div></div>\
          <div id=stats data-locale={locale}><noscript><p class=wiki-intro>{noscript}</p></noscript></div>\
-         <script type=application/json id=stats-text>{text}</script>\
+         <script type=application/json id=stats-text>{text}</script>{trees}\
          <script src=\"{}\"></script>",
         script_url(),
         // The words' language, for the numbers and dates beside them.
@@ -290,6 +319,11 @@ enum Endpoint {
         limit: usize,
     },
     Clan(ClanName),
+    /// The Maps board: the counted matches of the span by map and mode.
+    Maps(plays::Span),
+    /// The Modes board: by mode, with each mode's trend, and the most
+    /// played map + mode pairs.
+    Modes(plays::Span),
 }
 
 /// Why a request is not answered.
@@ -386,6 +420,12 @@ impl Query {
         }
     }
 
+    /// The Maps and Modes boards' `period`: `day`, `week`, `month` or
+    /// `all` (the default).
+    fn span(&self) -> Result<plays::Span, Refusal> {
+        plays::Span::parse(self.text("period")).ok_or(Refusal::BadRequest)
+    }
+
     fn page(&self) -> Result<Page, Refusal> {
         Ok(Page {
             before: self.number("before")?,
@@ -412,9 +452,10 @@ fn totals_key_name(key: TotalsKey) -> &'static str {
 }
 
 /// What a player's weapons sort by, as `by` names it.
-const WEAPON_RANKINGS: [(&str, WeaponRanking); 8] = [
+const WEAPON_RANKINGS: [(&str, WeaponRanking); 9] = [
     ("kills", WeaponRanking::Kills),
     ("kd", WeaponRanking::Kd),
+    ("kills_per_minute", WeaponRanking::KillsPerMinute),
     ("headshot_rate", WeaponRanking::HeadshotRate),
     ("accuracy", WeaponRanking::Accuracy),
     ("kill_distance", WeaponRanking::KillDistance),
@@ -535,6 +576,8 @@ impl Endpoint {
                 }
                 _ => return Err(Refusal::BadRequest),
             },
+            "maps" => Self::Maps(query.span()?),
+            "modes" => Self::Modes(query.span()?),
             _ => return Err(Refusal::NotFound),
         })
     }
@@ -552,7 +595,8 @@ pub(crate) fn response(
     let answer = Endpoint::parse(path, query).and_then(|endpoint| {
         let history = game.accounts.history().ok_or(Refusal::NoHistory)?;
         let banned = |account_id: u32| store.account_ban(account_id).is_some();
-        answer(&endpoint, history, game.replays.as_deref(), &banned, lang, now)
+        let rooms = game.pools.room_order();
+        answer(&endpoint, history, game.replays.as_deref(), &banned, rooms, lang, now)
     });
     match answer {
         Ok(body) => Response {
@@ -569,6 +613,8 @@ fn answer(
     history: &MatchHistory,
     replays: Option<&Replays>,
     banned: &dyn Fn(u32) -> bool,
+    // The rooms' create window's maps in its order: the Maps board's.
+    rooms: &[maps::MapId],
     lang: Lang,
     now: u64,
 ) -> Result<Value, Refusal> {
@@ -590,6 +636,7 @@ fn answer(
                 "level": card.level,
                 "experience": card.experience,
                 "rating": card.rating,
+                "skills": card.skills,
                 "totals": totals(&card.totals),
             })
         }
@@ -826,6 +873,17 @@ fn answer(
                 "members": members,
             })
         }
+        // Kept by the history until a match is written (`MatchHistory::plays`).
+        Endpoint::Maps(span) => plays::maps(
+            &*history.plays(span.window(now))?,
+            *span,
+            lang,
+            &plays::Atlas::shared(),
+            rooms,
+        ),
+        Endpoint::Modes(span) => {
+            plays::modes(&*history.plays(span.window(now))?, *span, now, lang, &plays::Atlas::shared())
+        }
     })
 }
 
@@ -859,6 +917,12 @@ fn named(player: &Named) -> Value {
 
 fn kd(kills: u64, deaths: u64) -> f64 {
     round(kills as f64 / deaths.max(1) as f64, 2)
+}
+
+/// `count` a minute of `ms`, to `places` decimals; `None` without a
+/// millisecond (the weapons' `kills_per_minute`, the totals' rates).
+fn per_minute(count: u64, ms: u64, places: i32) -> Option<f64> {
+    (ms > 0).then(|| round(count as f64 * 60_000.0 / ms as f64, places))
 }
 
 /// Hits by shots, three decimals; 0 with no shot.
@@ -912,7 +976,8 @@ fn item_ref(dict_id: u16, lang: Lang) -> Value {
 /// A weapon of a player's counted public matches, as the games counted it
 /// (exe patch 165): the item, the matches it was counted in, and what was
 /// done with it. `deaths` are the player's with it in the hands (`kd` is by
-/// them); `damage` is in enemies' whole pain pools; `kill_distance_m` is the
+/// them); `kills_per_minute` is by the time in the hands (`null` never
+/// held); `damage` is in enemies' whole pain pools; `kill_distance_m` is the
 /// kills' average (`null` without a kill).
 fn weapon(totals: &WeaponTotals, lang: Lang) -> Value {
     let counts = &totals.counts;
@@ -925,6 +990,7 @@ fn weapon(totals: &WeaponTotals, lang: Lang) -> Value {
             "kills": counts.kills,
             "deaths": counts.deaths,
             "kd": kd(counts.kills, counts.deaths),
+            "kills_per_minute": per_minute(counts.kills, counts.held_ms, 2),
             "headshots": counts.headshots,
             "wall_kills": counts.wall_kills,
             "ricochet_kills": counts.ricochet_kills,
@@ -968,6 +1034,11 @@ fn kits(kits: &[KitLine], lang: Lang) -> Vec<Value> {
         .collect()
 }
 
+/// Matches added up. `kills_per_minute` is by the players' own time in
+/// them (`played_s`: each line's stays, not the matches' length);
+/// `experience` is what the matches paid for the play (no daily bonus), of
+/// those whose lines have it, and `experience_per_minute` is by those
+/// matches' time alone. Both rates are `null` without a minute to divide by.
 fn totals(totals: &Totals) -> Value {
     let per_match = |value: u64, places| {
         if totals.matches == 0 {
@@ -987,6 +1058,9 @@ fn totals(totals: &Totals) -> Value {
         "win_rate": per_match(totals.wins, 3),
         "score_avg": per_match(totals.score, 1),
         "played_s": totals.played_ms / 1000,
+        "kills_per_minute": per_minute(totals.kills, totals.played_ms, 2),
+        "experience": totals.earned.experience,
+        "experience_per_minute": per_minute(totals.earned.experience, totals.earned.played_ms, 1),
     });
     extend(&mut value, counters(&totals.counters));
     value
@@ -1006,7 +1080,8 @@ fn winner(winner: Winner) -> Value {
 /// What a match was played on, in `lang`: the map's name, its key in the
 /// wiki's Maps page (its project's folder) and its picture as the rooms draw
 /// it (all `null` for a map the game data no longer has; the picture also
-/// for one the lobby has none of), the mode's name as the rooms name it, and
+/// for one the lobby has none of), the mode's name as the rooms name it, its
+/// section on the wiki's Modes page, and
 /// its rules' number (the Maps page's mode).
 fn played(info: &MatchInfo, lang: Lang) -> Value {
     let map = maps::map_mode(info.map_id);
@@ -1016,6 +1091,7 @@ fn played(info: &MatchInfo, lang: Lang) -> Value {
         "map_icon": map
             .and_then(|map| icons::url(IconSet::Map, &format!("{}_{}", map.level, map.weather))),
         "mode": launcher::lobby_mode_name(lang, info.mode),
+        "mode_url": crate::modes::url(lang, info.mode),
         "rules": info.mode.mode().rules().number(),
     })
 }
@@ -1055,6 +1131,7 @@ fn line_fields(line: &PlayerLine) -> Value {
         "deaths": line.deaths,
         "kd": kd(line.kills, line.deaths),
         "played_s": line.played_ms / 1000,
+        "experience": line.experience,
     });
     extend(&mut value, counters(&line.counters));
     value
@@ -1070,6 +1147,8 @@ fn clan_line(clan: &ClanLine) -> Value {
         "totals": totals(&clan.totals),
     })
 }
+
+mod plays;
 
 #[cfg(test)]
 pub(crate) mod tests;

@@ -15,13 +15,17 @@
 //!   may still be changing their equipment (the owner's of 2026-10-17). The
 //!   vote stays open until the match starts, and its winner then is the
 //!   match's map (the owner's of 2026-10-19: no time between the vote and
-//!   the start in which the map is fixed). The vote is always there: three
-//!   cards drawn from the pool when the room is made, and the next three as
-//!   soon as a match starts (its players vote during it); a member may
-//!   change its vote. Each card is a map with its weather and mode
-//!   (a `maps_dict` id), drawn mode first, then map, then weather, from
-//!   pools without putting back: no mode and no map on two cards while the
-//!   pool has others (the owner's of 2026-11-15, [`Left`]); the card with
+//!   the start in which the map is fixed). The vote is always there: four
+//!   cards ([`CARDS`]; three until the owner's of 2026-11-26: "Change the
+//!   number of vote options to 4") drawn from the pool when the room is
+//!   made, and the next four as soon as a match starts (its players vote
+//!   during it); a member may change its vote. Each card is a map with its
+//!   weather and mode (a `maps_dict` id), drawn mode first, then map, then
+//!   weather, from pools without putting back: no mode and no map on two
+//!   cards while the pool has others (the owner's of 2026-11-15, [`Left`]),
+//!   every version of a map one map (the owner's of 2026-11-26: "Rudnya
+//!   maps of different versions all count like a single Rudnya",
+//!   [`maps::Place`]); the card with
 //!   the most votes is played, a tie and no vote at all are drawn at
 //!   random. Free for All is one mode of the pool like any other, on any
 //!   card, its twist drawn after it (the owner's of 2026-11-22: "all
@@ -82,8 +86,8 @@ pub const PIN_LIFE: Duration = Duration::from_secs(60);
 /// A private room's team size: the most a match has, 10 v 10 (the owner's
 /// of 2026-10-26: no size to choose).
 pub const PRIVATE_SIZE: u8 = (crate::MAX_PLAYERS_PER_MATCH / 2) as u8;
-/// The cards of a vote.
-pub const CARDS: usize = 3;
+/// The cards of a vote (the wire's).
+pub const CARDS: usize = survarium::v026g::lobby::rooms::CARDS;
 /// The modes a vote shows on one of its cards at the most, while the room's
 /// pool has maps of other modes to show in their place (the owner's of
 /// 2026-11-12: "Make it so blackout cannot be on two cards at the same
@@ -1367,12 +1371,23 @@ impl Rooms {
 
     /// The vote's maps from the pool, each drawn from pools without putting
     /// back, its mode, then its map, then its weather ([`Left::take`]): no
-    /// mode and no map on two cards while the pool has others, all
-    /// different while it has as many ids; every card of the whole pool,
-    /// Free for All one mode of it (the owner's of 2026-11-22: "all columns
-    /// should draw from a general pool"). Fewer only when it has fewer ids.
+    /// mode and no map (every version of a map one, [`maps::Place`]) on two
+    /// cards while the pool has others, all different while it has as many
+    /// ids; every card of the whole pool, Free for All one mode of it (the
+    /// owner's of 2026-11-22: "all columns should draw from a general
+    /// pool"). Fewer only when it has fewer ids.
     fn draw(pool: &[MapId], below: &mut impl FnMut(usize) -> usize) -> Vec<MapId> {
-        let mut left = Left::of(pool.iter().copied());
+        Self::draw_of(pool, maps::map_mode, below)
+    }
+
+    /// [`Self::draw`], each id's map as `map_of` has it (the game data's,
+    /// [`maps::map_mode`]; a test's table).
+    fn draw_of<'a>(
+        pool: &[MapId],
+        map_of: impl Fn(MapId) -> Option<&'a maps::MapMode>,
+        below: &mut impl FnMut(usize) -> usize,
+    ) -> Vec<MapId> {
+        let mut left = Left::of(pool.iter().copied(), map_of);
         let mut cards = Vec::new();
         while cards.len() < CARDS {
             let Some(id) = left.take(below) else {
@@ -1411,7 +1426,7 @@ impl Rooms {
                 .count()
                 >= room.needs();
             // The vote is always there: a match that started took its cards,
-            // and the next three are drawn at once, for the match after it.
+            // and the next four are drawn at once, for the match after it.
             if room.cards.is_empty() {
                 room.cards = Self::deal(&room.pool, room.spec.door, below);
                 room.votes.clear();
@@ -1769,17 +1784,6 @@ fn fill(mut parties: Vec<(Vec<u32>, Strength)>, size: usize) -> [Vec<u32>; 2] {
     [a, b]
 }
 
-/// The map (`maps::MapMode::level`) a card is played on, whatever its
-/// weather and mode.
-fn location(id: MapId) -> Option<u8> {
-    maps::map_mode(id).map(|map| map.level)
-}
-
-/// The mode a card is played in, whatever its map and weather.
-fn mode_of(id: MapId) -> Option<maps::GameMode> {
-    maps::map_mode(id).map(|map| map.mode)
-}
-
 /// What a vote's draw has still to give, and what its cards show. Each
 /// card is drawn from pools without putting back, its mode, then its map,
 /// then its weather (the owner's of 2026-11-15: "the mode/map picks should
@@ -1788,22 +1792,44 @@ fn mode_of(id: MapId) -> Option<maps::GameMode> {
 /// "make 3 new stalker maps 3 times as likely in FFA", "the pick should be
 /// first map, then weather"): every mode alike, then every map of it, so a
 /// map of one weather (the STALKER maps', London's, a port's) comes as
-/// often as one of three.
+/// often as one of three. A map is its place ([`maps::Place`]): every
+/// version of it one (the owner's of 2026-11-26: "Rudnya maps of different
+/// versions all count like a single Rudnya"; three Rudnyas on the cards
+/// annoyed the players).
 struct Left {
     /// The pool's ids not drawn, once each, by id.
-    ids: Vec<MapId>,
+    ids: Vec<Pick>,
     /// The modes the cards show.
     modes: Vec<Option<maps::GameMode>>,
-    /// The maps ([`location`]) the cards show.
-    maps: Vec<Option<u8>>,
+    /// The maps the cards show.
+    maps: Vec<Option<maps::Place>>,
+}
+
+/// An id of a pool, its mode and its map read once.
+#[derive(Clone, Copy)]
+struct Pick {
+    id: MapId,
+    mode: Option<maps::GameMode>,
+    place: Option<maps::Place>,
 }
 
 impl Left {
-    /// `ids`, nothing shown.
-    fn of(ids: impl IntoIterator<Item = MapId>) -> Self {
+    /// `ids`, each map as `map_of` has it, nothing shown.
+    fn of<'a>(ids: impl IntoIterator<Item = MapId>, map_of: impl Fn(MapId) -> Option<&'a maps::MapMode>) -> Self {
         let mut ids: Vec<MapId> = ids.into_iter().collect();
         ids.sort_unstable();
         ids.dedup();
+        let ids = ids
+            .into_iter()
+            .map(|id| {
+                let map = map_of(id);
+                Pick {
+                    id,
+                    mode: map.map(|map| map.mode),
+                    place: map.map(maps::MapMode::place),
+                }
+            })
+            .collect();
         Self {
             ids,
             modes: Vec::new(),
@@ -1812,39 +1838,37 @@ impl Left {
     }
 
     /// One id at random, None when none is left. Its mode alike among the
-    /// modes of the ids left no card shows (of those, the ones with a map no
-    /// card shows while there are such), or, none left, among the modes
-    /// shown, [`ONE_CARD_AT_MOST`]'s last; then its map alike among that
-    /// mode's maps no card shows, or, none, among those shown; then its id
-    /// alike among that map's of that mode (its weathers). Its mode and map
-    /// are shown from then on.
+    /// modes of the ids left with a map no card shows, of those the modes no
+    /// card shows; none such, [`ONE_CARD_AT_MOST`]'s last; then its map alike
+    /// among that mode's maps no card shows, or, none, among those shown; then
+    /// its id alike among that map's of that mode (its weathers). Its mode
+    /// and map are shown from then on. A map comes again before a mode does
+    /// only when no mode has a map no card shows (the owner's of 2026-11-26:
+    /// one Rudnya while the pool has other maps), and Free for All or
+    /// Blackout again only when nothing else is left.
     fn take(&mut self, below: &mut impl FnMut(usize) -> usize) -> Option<MapId> {
-        let new_map = |id: MapId| !self.maps.contains(&location(id));
+        let new_map = |pick: &Pick| !self.maps.contains(&pick.place);
         let rank = |mode: Option<maps::GameMode>| {
+            let shown = self.modes.contains(&mode);
             let once = mode.is_some_and(|mode| ONE_CARD_AT_MOST.contains(&mode));
-            let again = match (self.modes.contains(&mode), once) {
-                (false, _) => 0,
-                (true, false) => 1,
-                (true, true) => 2,
-            };
-            let no_new_map = !self.ids.iter().any(|&id| mode_of(id) == mode && new_map(id));
-            (again, no_new_map)
+            let no_new_map = !self.ids.iter().any(|pick| pick.mode == mode && new_map(pick));
+            (shown && once, no_new_map, shown)
         };
-        let modes = distinct(self.ids.iter().map(|&id| mode_of(id)));
+        let modes = distinct(self.ids.iter().map(|pick| pick.mode));
         let best = modes.iter().map(|&mode| rank(mode)).min()?;
         let modes: Vec<_> = modes.into_iter().filter(|&mode| rank(mode) == best).collect();
         let mode = alike(&modes, below);
-        let of_mode: Vec<MapId> = self.ids.iter().copied().filter(|&id| mode_of(id) == mode).collect();
-        let on_new: Vec<MapId> = of_mode.iter().copied().filter(|&id| new_map(id)).collect();
+        let of_mode: Vec<Pick> = self.ids.iter().copied().filter(|pick| pick.mode == mode).collect();
+        let on_new: Vec<Pick> = of_mode.iter().copied().filter(|pick| new_map(pick)).collect();
         let maps = distinct(
             (if on_new.is_empty() { &of_mode } else { &on_new })
                 .iter()
-                .map(|&id| location(id)),
+                .map(|pick| pick.place),
         );
         let map = alike(&maps, below);
-        let weathers: Vec<MapId> = of_mode.into_iter().filter(|&id| location(id) == map).collect();
+        let weathers: Vec<MapId> = of_mode.into_iter().filter(|pick| pick.place == map).map(|pick| pick.id).collect();
         let id = alike(&weathers, below);
-        self.ids.retain(|&other| other != id);
+        self.ids.retain(|other| other.id != id);
         self.modes.push(mode);
         self.maps.push(map);
         Some(id)
@@ -1870,6 +1894,16 @@ fn distinct<T: PartialEq>(items: impl IntoIterator<Item = T>) -> Vec<T> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The map a card is played on, whatever its weather, mode and version.
+    fn location(id: MapId) -> Option<maps::Place> {
+        maps::map_mode(id).map(maps::MapMode::place)
+    }
+
+    /// The mode a card is played in, whatever its map and weather.
+    fn mode_of(id: MapId) -> Option<maps::GameMode> {
+        maps::map_mode(id).map(|map| map.mode)
+    }
 
     /// A map id's card with no twist.
     fn plain_map(id: MapId) -> Played {
@@ -1931,13 +1965,13 @@ mod tests {
                 until: now + rules().vote + wait
             }
         );
-        assert_eq!(room.cards.len(), 3);
+        assert_eq!(room.cards.len(), CARDS);
         let cards = room.cards.clone();
         assert!(rooms.vote(1, 0));
         // A vote may change.
         assert!(rooms.vote(1, 2));
         assert!(rooms.vote(2, 2));
-        assert!(!rooms.vote(2, 3));
+        assert!(!rooms.vote(2, CARDS as u8));
         // Past its 15 s the vote is still open (the owner's of 2026-10-19):
         // both change to card 0.
         let voted = now + rules().vote;
@@ -2536,13 +2570,15 @@ mod tests {
         );
     }
 
-    /// A pool of every playable map (167 in the live data with the
-    /// free-for-alls) and more: each entry sent by its bit, each named back.
+    /// A pool as big as a room's (every piece but the last full, a few short of the
+    /// `DRAFT_CHUNKS` x `DRAFT_CHUNK` entries; the live data had 333 maps on 2026-11-22):
+    /// each entry sent by its bit, each named back.
     #[test]
     fn a_draft_of_a_big_pool_names_every_entry() {
         let now = Instant::now();
         let mut rooms = Rooms::default();
-        let entries: Vec<MapId> = (1..=250).map(MapId::new).collect();
+        let size = u16::try_from(DRAFT_CHUNKS * DRAFT_CHUNK - 6).unwrap();
+        let entries: Vec<MapId> = (1..=size).map(MapId::new).collect();
         let pieces = entries.len().div_ceil(DRAFT_CHUNK);
         assert_eq!(pieces, DRAFT_CHUNKS);
         for piece in 0..pieces {
@@ -2559,21 +2595,21 @@ mod tests {
             .map(|(_, &id)| id)
             .collect();
         assert_eq!(rooms.get(key).unwrap().pool, want);
-        assert!(want.contains(&MapId::new(250)) && !want.contains(&MapId::new(1)) && want.len() > 167);
+        assert!(want.contains(&MapId::new(size)) && !want.contains(&MapId::new(1)) && want.len() > 333);
     }
 
-    /// Three battery maps of three different places, by id, their Blackout
-    /// twins, and a free-for-all on each of the places.
-    fn three_places() -> ([MapId; 3], [MapId; 3], [MapId; 3]) {
+    /// A battery map on each of [`CARDS`] different places, by id, their
+    /// Blackout twins, and a free-for-all on each of the places.
+    fn card_places() -> ([MapId; CARDS], [MapId; CARDS], [MapId; CARDS]) {
         let mut places = Vec::new();
         let mut plain = Vec::new();
         for map in maps::playable_in(maps::GameMode::Batteries) {
-            if !places.contains(&map.level) && plain.len() < 3 {
-                places.push(map.level);
+            if !places.contains(&map.place()) && plain.len() < CARDS {
+                places.push(map.place());
                 plain.push(map.id);
             }
         }
-        let plain: [MapId; 3] = plain.try_into().expect("three battery places");
+        let plain: [MapId; CARDS] = plain.try_into().expect("a battery map on as many places as cards");
         let twin = |id| {
             let map = maps::map_mode(id).unwrap();
             maps::find(map.level, map.weather, maps::GameMode::Blackout).unwrap().id
@@ -2581,7 +2617,7 @@ mod tests {
         let free_for_all = |id| {
             let place = location(id);
             maps::playable_in(maps::GameMode::FreeForAll)
-                .find(|map| Some(map.level) == place)
+                .find(|map| Some(map.place()) == place)
                 .expect("a free-for-all of the place")
                 .id
         };
@@ -2593,13 +2629,20 @@ mod tests {
     /// whole pool, a free-for-all on any of them; Free for All and Blackout
     /// (the owner's of 2026-11-12: "Make it so blackout cannot be on two
     /// cards at the same time") each on one card at the most while the
-    /// pool has another mode, three maps on three cards.
+    /// pool has another mode, four maps on four cards. A pool of four modes
+    /// (Team Deathmatch the fourth), so that no card is the one a mode must
+    /// come again on.
     #[test]
     fn any_card_may_be_the_one_free_for_all() {
-        let (plain, blackout, free_for_all) = three_places();
-        let three_maps = |cards: &[MapId]| distinct(cards.iter().map(|&id| location(id))).len() == CARDS;
-        let count = |cards: &[MapId], of: &[MapId; 3]| cards.iter().filter(|id| of.contains(id)).count();
-        let pool: Vec<MapId> = plain.iter().chain(&blackout).chain(&free_for_all).copied().collect();
+        let (plain, blackout, free_for_all) = card_places();
+        let deathmatch = plain.map(|id| {
+            let map = maps::map_mode(id).unwrap();
+            maps::find(map.level, map.weather, maps::GameMode::TeamDeathmatch).unwrap().id
+        });
+        let all_maps = |cards: &[MapId]| distinct(cards.iter().map(|&id| location(id))).len() == CARDS;
+        let count = |cards: &[MapId], of: &[MapId; CARDS]| cards.iter().filter(|id| of.contains(id)).count();
+        let pool: Vec<MapId> =
+            plain.iter().chain(&blackout).chain(&free_for_all).chain(&deathmatch).copied().collect();
         let two_modes: Vec<MapId> = plain.iter().chain(&free_for_all).copied().collect();
         let mut on_card = [[0; CARDS]; 2];
         let mut rng = Rng::new(20_261_122);
@@ -2607,7 +2650,7 @@ mod tests {
         for _ in 0..300 {
             let cards = Rooms::draw(&pool, &mut below);
             assert_eq!(cards.len(), CARDS);
-            assert!(three_maps(&cards), "{cards:?}");
+            assert!(all_maps(&cards), "{cards:?}");
             assert_eq!(count(&cards, &free_for_all), 1, "{cards:?}");
             assert_eq!(count(&cards, &blackout), 1, "{cards:?}");
             for (card, id) in cards.iter().enumerate() {
@@ -2616,21 +2659,22 @@ mod tests {
             }
             // A mode must come again: the other one, not Free for All.
             let cards = Rooms::draw(&two_modes, &mut below);
-            assert!(three_maps(&cards), "{cards:?}");
+            assert!(all_maps(&cards), "{cards:?}");
             assert_eq!(count(&cards, &free_for_all), 1, "{cards:?}");
         }
         assert!(on_card.iter().flatten().all(|&times| times > 0), "{on_card:?}");
     }
 
     /// A pool without a free-for-all (a private room's maker left them out)
-    /// draws its three cards of it; so does one of free-for-alls alone.
+    /// draws its four cards of it; so does one of free-for-alls alone.
     /// The first choice each time: the first mode not shown, its first map
     /// not shown, its lowest id.
     #[test]
-    fn a_pool_without_a_free_for_all_or_of_them_alone_draws_three_of_it() {
-        // Two modes: 61's, then 117's, then 61's again on another map.
-        assert_eq!(Rooms::draw(&POOL, &mut first), [61, 117, 63].map(MapId::new).to_vec());
-        let (plain, _, free_for_all) = three_places();
+    fn a_pool_without_a_free_for_all_or_of_them_alone_draws_four_of_it() {
+        // Two modes on one map (Rudnya): 61's, then 117's, then 61's again
+        // in the other weathers.
+        assert_eq!(Rooms::draw(&POOL, &mut first), [61, 117, 63, 65].map(MapId::new).to_vec());
+        let (plain, _, free_for_all) = card_places();
         assert_eq!(Rooms::draw(&plain, &mut first), plain.to_vec());
         let mut alone = free_for_all.to_vec();
         alone.sort_unstable();
@@ -2651,7 +2695,7 @@ mod tests {
         let of = |mode, alone: u8| {
             let mut ids: Vec<MapId> = Vec::new();
             for map in maps::playable_in(mode) {
-                let kept = ids.iter().any(|&id| location(id) == Some(map.level));
+                let kept = ids.iter().any(|&id| location(id) == Some(map.place()));
                 if map.level % 2 != alone || !kept {
                     ids.push(map.id);
                 }
@@ -2663,7 +2707,7 @@ mod tests {
         const DRAWS: usize = 9000;
         let mut rng = Rng::new(20_261_115);
         let mut below = |bound: usize| rng.below(bound as u32) as usize;
-        // A pool of one mode: its three cards each of its maps alike.
+        // A pool of one mode: its four cards each of its maps alike.
         for ids in [&batteries, &free_for_alls] {
             let mut drawn: HashMap<MapId, usize> = HashMap::new();
             for _ in 0..DRAWS {
@@ -2671,7 +2715,7 @@ mod tests {
                     *drawn.entry(id).or_default() += 1;
                 }
             }
-            let mut by_map: BTreeMap<Option<u8>, Vec<usize>> = BTreeMap::new();
+            let mut by_map: BTreeMap<Option<maps::Place>, Vec<usize>> = BTreeMap::new();
             for &id in ids {
                 by_map
                     .entry(location(id))
@@ -2688,12 +2732,12 @@ mod tests {
                 }
             }
         }
-        // Every playable map of the test data, as an open room's pool: three
-        // modes on three maps, the first card's mode alike among all of
+        // Every playable map of the test data, as an open room's pool: four
+        // modes on four maps, the first card's mode alike among all of
         // them, Free for All one of them.
         let pool: Vec<MapId> = maps::playable().map(|map| map.id).collect();
         let modes = distinct(pool.iter().map(|&id| mode_of(id)));
-        assert!(modes.contains(&Some(maps::GameMode::FreeForAll)) && modes.len() > 3, "{modes:?}");
+        assert!(modes.contains(&Some(maps::GameMode::FreeForAll)) && modes.len() > CARDS, "{modes:?}");
         let mut by_mode: HashMap<Option<maps::GameMode>, usize> = HashMap::new();
         for _ in 0..DRAWS {
             let cards = Rooms::draw(&pool, &mut below);
@@ -2708,13 +2752,91 @@ mod tests {
         }
     }
 
+    /// The owner's of 2026-11-26 ("Rudnya maps of different versions all
+    /// count like a single Rudnya"; players got three Rudnyas to choose
+    /// from): the stock, 0.69 and 0.21 Rudnyas (levels 1, 14 and 29, as the
+    /// live data has them) are one map on the cards, and so are the
+    /// versions of Vostok Radar Station (3, 13, 10) and Chemical Plant (4,
+    /// 12, 31): never two of one on the cards while the pool has other maps,
+    /// in a pool of exactly four maps too, each version still drawn.
+    #[test]
+    fn every_version_of_a_map_is_one_map_on_the_cards() {
+        use maps::fixtures::{AddedMap, table_of, with_maps};
+        let tdm = maps::RuleMode::TeamDeathmatch.number();
+        let batteries = maps::RuleMode::Batteries.number();
+        let added = |id: u16, level: u8, weather: u8, project: &'static str, mode: u8| AddedMap {
+            id: MapId::new(id),
+            config: Box::leak(format!("{}.options", project.replace('/', "_")).into_boxed_str()),
+            level,
+            weather,
+            project,
+            mode,
+            respawn_points: 20,
+            containers: if mode == batteries { vec![(0, 0), (1, 1)] } else { Vec::new() },
+            srp_build: None,
+        };
+        let ported = [
+            added(400, 14, maps::weather::DAY, "v069d_level_01/day_4", tdm),
+            added(401, 14, maps::weather::DAY, "v069d_level_01/day_2", batteries),
+            added(402, 29, maps::weather::DAY, "v021d_level_01/day_2", batteries),
+            added(403, 29, maps::weather::DAY, "v021d_level_01/day_4", tdm),
+            added(404, 29, maps::weather::RAIN, "v021d_level_01/rain_4", tdm),
+            added(405, 13, maps::weather::DAY, "v011e_level_03/day_4", tdm),
+            added(406, 10, maps::weather::DAY, "v021d_level_03/day_4", tdm),
+            added(407, 12, maps::weather::DAY, "v011e_level_04/day_2", batteries),
+            added(408, 31, maps::weather::DAY, "v021d_level_04/day_4", tdm),
+        ];
+        let table = table_of(&with_maps(&ported)).unwrap();
+        let map_of = |id: MapId| table.iter().find(|map| map.id == id);
+        let place = |id: MapId| map_of(id).map(maps::MapMode::place);
+        let (rudnya, vostok, chemical, school) =
+            (maps::Place::Level(1), maps::Place::Level(3), maps::Place::Level(4), maps::Place::Level(2));
+        for map in &ported {
+            let row = map_of(map.id).expect("the port's row");
+            assert!(row.is_playable() && row.level == map.level, "{}", map.project);
+            assert!([rudnya, vostok, chemical].contains(&row.place()), "{}", map.project);
+        }
+        let of = |places: &[maps::Place]| -> Vec<MapId> {
+            table
+                .iter()
+                .filter(|map| map.is_playable() && places.contains(&map.place()))
+                .map(|map| map.id)
+                .collect()
+        };
+        // Four maps, Rudnya's ids the most of them; then the whole pool.
+        let four = of(&[rudnya, vostok, chemical, school]);
+        let whole: Vec<MapId> = table.iter().filter(|map| map.is_playable()).map(|map| map.id).collect();
+        let ids_of = |at: maps::Place| four.iter().filter(|&&id| place(id) == Some(at)).count();
+        assert!([vostok, chemical, school].iter().all(|&other| ids_of(rudnya) > ids_of(other)), "{four:?}");
+        let mut rng = Rng::new(20_261_126);
+        let mut below = |bound: usize| rng.below(bound as u32) as usize;
+        let mut drawn: HashSet<MapId> = HashSet::new();
+        for (pool, of_four) in [(&four, true), (&whole, false)] {
+            for _ in 0..3000 {
+                let cards = Rooms::draw_of(pool, map_of, &mut below);
+                assert_eq!(cards.len(), CARDS);
+                let places = distinct(cards.iter().map(|&id| place(id)));
+                assert_eq!(places.len(), CARDS, "{cards:?}: {places:?}");
+                if of_four {
+                    for each in [rudnya, vostok, chemical, school] {
+                        assert!(places.contains(&Some(each)), "{cards:?}: {places:?}");
+                    }
+                }
+                drawn.extend(cards);
+            }
+        }
+        for map in &ported {
+            assert!(drawn.contains(&map.id), "{} never drawn", map.project);
+        }
+    }
+
     /// A room's vote won by its free-for-all card starts its match on that
     /// free-for-all.
     #[test]
     fn the_free_for_all_card_won_starts_the_free_for_all_match() {
         let now = Instant::now();
         let mut rooms = Rooms::default();
-        let (plain, _, free_for_all) = three_places();
+        let (plain, _, free_for_all) = card_places();
         let pool: Vec<MapId> = plain.iter().chain(&free_for_all).copied().collect();
         let key = rooms
             .create(1, 0, spec(6, None), &pool, &pool, &[], 50, now, &mut first)
@@ -2820,7 +2942,7 @@ mod tests {
         rooms.tick(now, &mut first, |_| true);
         let cards = rooms.get(key).unwrap().cards.clone();
         let mut last = |bound: usize| bound - 1;
-        assert_eq!(rooms.get(key).unwrap().winner(&mut last), Some(cards[2]));
+        assert_eq!(rooms.get(key).unwrap().winner(&mut last), Some(cards[CARDS - 1]));
         rooms.vote(1, 0);
         rooms.vote(2, 1);
         assert_eq!(rooms.get(key).unwrap().winner(&mut last), Some(cards[1]));

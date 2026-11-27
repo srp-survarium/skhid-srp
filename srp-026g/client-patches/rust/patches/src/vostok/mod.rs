@@ -24,6 +24,8 @@
 //! It grows with what the patches need, and no further.
 
 pub mod attachments;
+pub mod reload;
+pub mod weapon_view;
 pub mod back_buffer;
 pub mod baker;
 pub mod aim;
@@ -32,7 +34,10 @@ pub mod bullet;
 pub mod explosion;
 pub mod files;
 pub mod footstep;
+pub mod zone_guard;
+pub mod material;
 pub mod freeze;
+pub mod desync;
 pub mod camera;
 pub mod carry_runtime;
 pub mod carry_ground;
@@ -51,20 +56,26 @@ pub mod crc32;
 mod context;
 pub mod draw;
 pub mod headwear;
+pub mod grenade_icons;
 pub mod hit_marker;
+pub mod world_event;
 mod hook;
 mod hud_input;
 mod input;
 pub mod inventory;
 mod keyboard;
 pub mod keyboard_layout;
+pub mod key_text;
 pub mod language;
 pub mod lobby;
 pub mod lobby_camera;
 pub mod lobby_menu;
+mod lobby_call;
+pub use lobby_call::{LobbyCall, LobbyInventory, LobbyItem, NotGiven};
 pub mod login;
 pub mod openssl;
 pub mod mouse;
+pub mod mouse_device;
 pub mod game_log;
 pub mod log;
 pub mod run_log;
@@ -80,12 +91,17 @@ pub mod resources;
 pub mod skin_cook;
 pub mod renderer;
 pub mod render_stage;
+pub mod probe_tiers;
 pub mod effect_compile;
 pub mod gun_cook;
 pub mod pickup;
+pub mod profile_kit;
+pub mod use_prompt;
 pub mod use_scan;
 pub mod streaming;
 pub mod texture_pool;
+pub mod occlusion;
+pub mod motion_vectors;
 pub mod ray_test;
 mod rt;
 pub mod sound;
@@ -123,7 +139,7 @@ mod generated {
     #[allow(unused_imports)]
     use crate::raw;
     #[allow(unused_imports)]
-    use super::{RenderVisual, ObjectLight, ObjectAmbientLight, ObjectParticleVisual, GameScene};
+    use super::{RenderVisual, ObjectLight, ObjectAmbientLight, ObjectParticleVisual, ObjectEnvironmentProbe, GameScene};
     #[allow(unused_imports)]
     use super::resources::{QueryResults, QueryTag};
     #[allow(unused_imports)]
@@ -135,6 +151,8 @@ mod generated {
     #[allow(unused_imports)]
     use super::artefact_hunt::{HudState, HuntCook, HuntRule, RuleCore, RuleEvent, RuleQuery, RuleReader, RuleWriter, TickRule};
     use super::attachments::FingerCorrector;
+    #[allow(unused_imports)]
+    use super::reload::{AnimationEvent, ReloadEventState};
     #[allow(unused_imports)]
     use core::ffi::c_void;
     include!("../../../../hooks_026g.rs");
@@ -158,6 +176,7 @@ pub use match_rules::MatchClock;
 
 pub mod consumable;
 pub mod drawable_image;
+pub mod scaleform_filter;
 pub use consumable::QuickSlotActivity;
 
 pub mod config;
@@ -167,7 +186,7 @@ pub mod geometry;
 pub mod presentation;
 
 pub mod project;
-pub use project::{RenderVisual, ObjectLight, ObjectAmbientLight, ObjectParticleVisual, GameScene};
+pub use project::{RenderVisual, ObjectLight, ObjectAmbientLight, ObjectParticleVisual, ObjectEnvironmentProbe, GameScene};
 
 pub mod history;
 pub mod drug;
@@ -177,6 +196,8 @@ mod artefact;
 pub use artefact::{ArtefactPickup, Slots};
 pub mod statistics;
 pub mod weapon_stats;
+pub mod second_sight;
+pub mod sight_view;
 pub use statistics::{Band, Batteries, Battery, BatteryCarry, Cell, Delivery, Held, Life, Progress, Saving, ScoreEvent, Team, BATTERIES};
 
 pub mod medical;
@@ -196,6 +217,7 @@ pub mod effect_presenter;
 
 pub mod match_message;
 pub mod packet_recovery;
+pub mod exact_world;
 pub mod match_close;
 pub mod seeding;
 

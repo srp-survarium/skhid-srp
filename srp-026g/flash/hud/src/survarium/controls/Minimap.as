@@ -9,7 +9,9 @@ package survarium.controls
    import flash.utils.Dictionary;
    import scaleform.clik.layout.LayoutData;
    import survarium.modes.ArtefactHuntState;
-   
+   import survarium.modes.FrozenPlaces;
+   import survarium.modes.RevealedPlaces;
+
    // Whether a minimap shows is its owner's (the HUD: the setting's position, and the map): a
    // Minimap never sets its own visible. It says whether it has a map (hasMap) and dispatches
    // MAP_LOADED when setProps loads one.
@@ -129,6 +131,14 @@ package survarium.controls
       // Artifact Hunt: the carrier's place (an icon's player_id), -1 none; his icon is marked
       // (MinimapObjectPlayer.carrying).
       protected var _carrier:int = -1;
+
+      // Freeze Tag (HUD.freeze_tag_rows): the places frozen; a frozen teammate's icon is ice blue
+      // (MinimapObjectPlayer.frozen), an enemy's as it is.
+      protected var _frozen:FrozenPlaces = FrozenPlaces.NONE;
+
+      // Freeze Tag (HUD.freeze_tag_revealed): the places revealed, a team's last one fighting; an
+      // enemy's icon of one is marked red (MinimapObjectPlayer.revealed). The HUD tells the Tab map, and the corner minimap by HUD.REVEALED_ON_MINIMAP.
+      protected var _revealed:RevealedPlaces = RevealedPlaces.NONE;
 
       // The players' names by place (setPlayerNames: the Tab list's rows, id the place, which is an
       // icon's player_id) and whether they show over the icons (namesShown: the Tab map while Alt is
@@ -464,7 +474,33 @@ package survarium.controls
          this.clear_objects(this._objects_static);
          this.update_objects();
       }
+
+      public function set frozen(places:FrozenPlaces) : void
+      {
+         if(places == this._frozen)
+         {
+            return;
+         }
+         _frozen = places;
+         if(this._data && !this._held)
+         {
+            this.setData(this._data);
+         }
+      }
       
+      public function set revealed(places:RevealedPlaces) : void
+      {
+         if(places == this._revealed)
+         {
+            return;
+         }
+         _revealed = places;
+         if(this._data && !this._held)
+         {
+            this.setData(this._data);
+         }
+      }
+
       public function clear_minimap() : void
       {
          var _inst:MinimapObject = null;
@@ -472,6 +508,8 @@ package survarium.controls
          {
             _held = new HeldUpdates();
          }
+         // no players to draw again (frozen, setArtefactHunt) until the next update
+         this._data = null;
          this._objects = new Dictionary(true);
          this._objects_static = new Dictionary(true);
          this._modeObjects = [];
@@ -517,6 +555,8 @@ package survarium.controls
                this.updateObjectPos(_obj.player_id,_obj.player_pos_x,_obj.player_pos_y,0,this._objects);
             }
             MinimapObjectPlayer(this._objects[_obj.player_id]).carrying = _obj.player_id == this._carrier;
+            MinimapObjectPlayer(this._objects[_obj.player_id]).frozen = this.frozenTeammate(_obj);
+            MinimapObjectPlayer(this._objects[_obj.player_id]).revealed = this.revealedEnemy(_obj);
             i++;
          }
          this.clear_objects(this._objects);
@@ -525,6 +565,18 @@ package survarium.controls
             this.showNames();
          }
          this.update_objects();
+      }
+
+      // An enemy of the local player who is revealed (the exe lists him whatever his spotted time).
+      private function revealedEnemy(player:Object) : Boolean
+      {
+         return player.team != this._my_team && this._revealed.has(player.player_id);
+      }
+
+      // A teammate of the local player (not himself) who is frozen.
+      private function frozenTeammate(player:Object) : Boolean
+      {
+         return player.team == this._my_team && !Boolean(player.is_local_player) && this._frozen.has(player.player_id);
       }
 
       // The icon of a player of update_players, against the local team now.

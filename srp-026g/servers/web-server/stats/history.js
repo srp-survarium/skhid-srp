@@ -1,8 +1,10 @@
 // The stats page (servers/web-server/src/history.rs): public matches from the
 // match history's JSON (/api/history/..., docs/notes/match_history.md), asked
-// for as the page is viewed. The address says what it shows: ?player=<name>
-// (its matches, or with ?tab=weapons its weapons), ?match=<number>,
-// ?clan=<tag>, else the leaderboards (?board=, ?by=).
+// for as the page is viewed. The address says what it shows: ?id=<account>
+// (a player: its matches, or with ?tab=weapons its weapons, ?tab=skills its
+// skills; every link to a player is by the id, as a name can change;
+// ?player=<name>, the search's, finds one and becomes its id's address),
+// ?match=<number>, ?clan=<tag>, else the leaderboards (?board=, ?by=).
 // Each view is drawn once empty, in its final shape, then with its data, so
 // nothing moves while it loads; long lists grow by "Older matches".
 (() => {
@@ -22,7 +24,12 @@
     clans: ['matches', 'wins', 'kills'],
     best: ['day', 'hour'],
     latest: [],
+    // Their periods (`&period=`, PERIODS), all time first.
+    maps: ['all', 'month', 'week', 'day'],
+    modes: ['all', 'month', 'week', 'day'],
   };
+  // The boards whose keys are periods of the matches, said by `&period=` (all time: none).
+  const BY_PERIOD = ['maps', 'modes'];
   // What a list by a key leaves out, said beside the boards.
   const KEY_NOTE = {accuracy: 'accuracyNote', score_avg: 'averageNote', win_rate: 'averageNote', kd: 'averageNote',
     headshot_rate: 'averageNote'};
@@ -69,7 +76,7 @@
   const say = (template, value) => template.replace('{}', value);
   function playerLink(player) {
     return el('span', {}, player.clan ? [link({clan: player.clan.tag}, `[${player.clan.tag}]`), ' '] : [],
-      link({player: player.name}, player.name));
+      link({id: player.id}, player.name));
   }
 
   // A heading's look: the page's title, the line over it, the breadcrumb's last part.
@@ -234,10 +241,11 @@
   // hands. WEAPONS empty rows while loading, and without an `id` yet; a
   // list sorted anew stays until the new one is here.
   const WEAPONS = 5;
-  const WEAPON_KEYS = ['kills', 'kd', 'headshot_rate', 'accuracy', 'kill_distance', 'wall_kills', 'ricochet_kills', 'held'];
+  const WEAPON_KEYS = ['kills', 'kd', 'kills_per_minute', 'headshot_rate', 'accuracy', 'kill_distance', 'wall_kills', 'ricochet_kills', 'held'];
   function weaponList(id) {
     const columns = [[TEXT.weapon, item => itemCell(item, wikiWeapon(item)), 'l', '', () => itemCell(null)],
-      [TEXT.kills, item => n(item.kills), '', 'kills'], [TEXT.kd, item => kd(item.kd), '', 'kd'], [TEXT.headshotRate, headshotRate, '', 'headshot_rate'],
+      [TEXT.kills, item => n(item.kills), '', 'kills'], [TEXT.kd, item => kd(item.kd), '', 'kd'],
+      [TEXT.killsPerMinute, item => kd(item.kills_per_minute), '', 'kills_per_minute'], [TEXT.headshotRate, headshotRate, '', 'headshot_rate'],
       [TEXT.accuracy, aim, '', 'accuracy'],
       [TEXT.avgDistance, item => item.kill_distance_m === null ? '—' : metres.format(item.kill_distance_m), '', 'kill_distance'],
       [TEXT.wallKills, item => n(item.wall_kills), '', 'wall_kills'], [TEXT.ricochetKills, item => n(item.ricochet_kills), '', 'ricochet_kills'],
@@ -270,21 +278,27 @@
   const matchLink = row => link({match: row.id}, `${row.id}`);
   // A map's name, leading to it in the wiki's Maps page in the match's mode;
   // plain for a map the game data no longer has.
-  const mapAddress = row => `/wiki/maps?${new URLSearchParams({lang})}#${row.map_key}/${row.rules}`;
+  // (A mode srp no longer knows has no rules: the map in its first mode.)
+  const mapAddress = row => `/wiki/maps?${new URLSearchParams({lang})}#${row.map_key}${row.rules === null || row.rules === undefined ? '' : `/${row.rules}`}`;
   const mapLink = row => row.map_key ? el('a', {href: mapAddress(row)}, row.map) : name(row.map);
+  // A mode's name, linked to its section on the wiki's Modes page.
+  const modeLink = row => row.mode_url ? el('a', {href: row.mode_url}, name(row.mode)) : name(row.mode);
   // A map's picture as the rooms draw it, beside its name and mode; an
   // empty frame of its size while loading, and for a map without one.
   // The picture leads where the name does.
-  const mapPicture = row => {
-    if (!row || !row.map_icon) return el('span', {className: 'stats-map'});
-    const picture = el('img', {className: 'stats-map', src: row.map_icon, alt: '', width: 64, height: 36, loading: 'lazy'});
+  // `big`: the Maps board's, a map's own heading. Either is a box of the
+  // picture's 16:9 that it covers, never stretched.
+  const mapPicture = (row, big = false) => {
+    const kind = `stats-map${big ? ' stats-map-big' : ''}`;
+    if (!row || !row.map_icon) return el('span', {className: kind});
+    const picture = el('img', {className: kind, src: row.map_icon, alt: '', width: big ? 112 : 64, height: big ? 63 : 36, loading: 'lazy'});
     return row.map_key ? el('a', {className: 'stats-map-link', href: mapAddress(row), ariaLabel: row.map, tabIndex: -1}, picture) : picture;
   };
   const mapCell = row => el('span', {className: 'stats-map-cell'}, mapPicture(row),
     el('span', {}, row ? [mapLink(row), el('small', {className: 'stats-under'}, name(row.mode))] : twoLines()));
   // Where a click on a match's row goes, and on a player's.
   const openMatch = row => ({match: row.id});
-  const openPlayer = row => ({player: row.player.name});
+  const openPlayer = row => ({id: row.player.id});
   // The two teams' points; a free-for-all has none.
   const points = row => row.winner === 'free_for_all' ? '—' : row.team_points.map(n).join(' : ');
   // Two lines a match: the time under the day, the mode under the map.
@@ -305,7 +319,12 @@
   const blank = labels => labels.map(label => [label, null]);
   function combat(totals) {
     const v = key => totals ? n(totals[key]) : null;
+    // A minute is the player's own time in its matches (played_s), as the
+    // weapons' Kills/min is a weapon's time in the hands; experience's is
+    // that of the matches that kept their experience. '—' without one.
     return [[TEXT.kills, v('kills')], [TEXT.deaths, v('deaths')], [TEXT.kd, totals ? kd(totals.kd) : null],
+      [TEXT.killsPerMinute, totals ? kd(totals.kills_per_minute) : null],
+      [TEXT.experiencePerMinute, totals ? n(totals.experience_per_minute) : null],
       [TEXT.accuracy, totals ? aim(totals) : null], [TEXT.assists, v('assists')],
       [TEXT.headshotRate, totals ? headshotRate(totals) : null], [TEXT.grenadeKills, v('grenade_kills')], [TEXT.meleeKills, v('melee_kills')],
       [TEXT.batteries, v('batteries')], [TEXT.captures, v('captures')], [TEXT.artefacts, v('artefacts')]];
@@ -334,8 +353,9 @@
     }
     return box;
   }
-  async function playerView(name) {
-    heading(name, TEXT.player, TEXT.player);
+  // A player, by its account's id or by a name (`key`: {id} or {name}).
+  async function playerView(key) {
+    heading(key.name ?? TEXT.player, TEXT.player, TEXT.player);
     const head = (card, days) => panels(
       [TEXT.overall, [[TEXT.id, card ? String(card.player.id) : null], [TEXT.formerNames, card ? formerNames(card.names) : null], [TEXT.level, card ? n(card.level) : null], [TEXT.experience, card ? n(card.experience) : null],
         [TEXT.rating, card ? n(card.rating) : null],
@@ -346,37 +366,68 @@
       [TEXT.score, row => n(row.score)], [TEXT.kills, row => n(row.kills)], [TEXT.deaths, row => n(row.deaths)],
       [TEXT.kd, row => kd(row.kd)], [TEXT.accuracy, aim], [TEXT.assists, row => n(row.assists)], [TEXT.headshotRate, headshotRate],
       [TEXT.rating, row => n(row.rating)]];
-    // Its matches or its weapons, as ?tab= says; empty until the player's
-    // id is known.
-    let tab = asked('tab') === 'weapons' ? 'weapons' : 'matches', id = null;
+    // Its matches, its weapons or its skills, as ?tab= says; empty until
+    // the player's card is here.
+    const trees = document.getElementById('stats-skills');
+    const TABS = [['matches', TEXT.matches], ['weapons', TEXT.weapons], ...(trees ? [['skills', TEXT.skills]] : [])];
+    let tab = TABS.some(([value]) => value === asked('tab')) ? asked('tab') : 'matches', id = null, card = null;
     const tabs = el('div', {className: 'slot-filter stats-tabs', role: 'group'});
     const body = el('div');
+    // The skills: the wiki's trees (the page's template, src/skills.rs)
+    // under the wiki's own script, which draws the build the trees carry
+    // (the card's) and takes no change to it. The script looks for the
+    // trees once, as it starts: they stay in the page, hidden under
+    // another tab, and it starts when the card is here.
+    const skills = el('div', {className: 'stats-skills', hidden: true});
+    let script = null;
+    function drawSkills() {
+      if (!skills.firstChild) {
+        const made = trees.content.cloneNode(true);
+        script = made.querySelector('script');
+        script.remove();
+        skills.append(made);
+      }
+      if (card && script) {
+        skills.querySelector('.skill-trees').dataset.build = card.skills.map(([skill, points]) => `${skill}.${points}`).join(',');
+        skills.append(script);
+        script = null;
+      }
+    }
     function show() {
       for (const button of tabs.children) button.setAttribute('aria-pressed', String(button.dataset.tab === tab));
       const url = new URL(location.href);
-      if (tab === 'weapons') url.searchParams.set('tab', tab);
-      else for (const gone of ['tab', 'by', 'order']) url.searchParams.delete(gone);
+      if (tab === 'matches') url.searchParams.delete('tab');
+      else url.searchParams.set('tab', tab);
+      if (tab !== 'weapons') for (const gone of ['by', 'order']) url.searchParams.delete(gone);
       history.replaceState(null, '', url);
       keepLanguage();
+      body.hidden = tab === 'skills';
+      skills.hidden = !body.hidden;
+      if (tab === 'skills') return drawSkills();
       body.replaceChildren(tab === 'weapons' ? weaponList(id) : id === null ? table(columns, null)
         : paged(columns, before => api('player/matches', {id, limit: PAGE, ...(before ? {before} : {})}), TEXT.noMatches, openMatch));
     }
-    for (const [value, label] of [['matches', TEXT.matches], ['weapons', TEXT.weapons]]) {
+    for (const [value, label] of TABS) {
       const button = el('button', {type: 'button'}, label);
       button.dataset.tab = value;
       button.addEventListener('click', () => { tab = value; show(); });
       tabs.append(button);
     }
-    root.replaceChildren(head(null, null), ...favourites(null), tabs, body);
+    root.replaceChildren(head(null, null), ...favourites(null), tabs, body, skills);
     show();
     // A player without a public match is not found, as an unknown name.
-    const card = await api('player', {name});
-    if (!card) return root.replaceChildren(notice(say(TEXT.noPlayer, name)), finder());
+    card = await api('player', key);
+    if (!card) return root.replaceChildren(notice(say(TEXT.noPlayer, key.name ?? key.id)), finder());
     heading(card.player.name, TEXT.player, TEXT.player);
+    // The address is the id's from here: the name can change.
+    const url = new URL(location.href);
+    url.searchParams.delete('player');
+    url.searchParams.set('id', card.player.id);
+    history.replaceState(null, '', url);
     const [days, equipment] = await Promise.all([api('player/days', {id: card.player.id, days: 30}).catch(() => null),
       api('player/equipment', {id: card.player.id, limit: FAVOURITES}).catch(() => null)]);
     id = card.player.id;
-    root.replaceChildren(head(card, days ? days.days : []), ...favourites(equipment || {weapons: [], armour: []}), tabs, body);
+    root.replaceChildren(head(card, days ? days.days : []), ...favourites(equipment || {weapons: [], armour: []}), tabs, body, skills);
     show();
   }
 
@@ -457,7 +508,7 @@
         });
       return [panels([TEXT.match, [[TEXT.ended, m ? when(m.ended_at) : null], [TEXT.duration, m ? duration(m.duration_s) : null],
         [TEXT.map, el('span', {className: 'stats-map-cell'}, m ? mapLink(m) : BLANK, mapPicture(m))],
-        [TEXT.mode, m ? name(m.mode) : null]]],
+        [TEXT.mode, m ? modeLink(m) : null]]],
       [TEXT.result, [[TEXT.result, winner], [TEXT.points, m ? (free ? '—' : sidePoints(m)) : null],
         [TEXT.level, m ? n(m.level) : null], [TEXT.players, m ? n(m.players) : null],
         // Always there, so that nothing moves when the answer comes; a match without one has none.
@@ -479,7 +530,7 @@
     const matchColumns = [...MATCH_COLUMNS, [TEXT.points, points], [TEXT.players, row => n(row.players)]];
     const head = data => panels(
       [TEXT.clan, [[TEXT.level, data ? n(data.clan.level) : null], [TEXT.members, data ? n(data.clan.members) : null],
-        [TEXT.commander, data ? (data.clan.leader ? link({player: data.clan.leader.name}, data.clan.leader.name) : '—') : null],
+        [TEXT.commander, data ? (data.clan.leader ? link({id: data.clan.leader.id}, data.clan.leader.name) : '—') : null],
         ...record(data && data.totals)]],
       [TEXT.inMatches, combat(data && data.totals)]);
     root.replaceChildren(head(null), el('h2', {className: 'stats-heading'}, TEXT.members), table(memberColumns, null, 8));
@@ -518,13 +569,15 @@
     const sizes = el('div', {className: 'slot-filter stats-sizes', role: 'group', ariaLabel: TEXT.today});
     const lists = el('div', {className: 'stats-leaders'});
     const box = el('div', {}, el('div', {className: 'stats-heading-row'}, el('h2', {className: 'stats-heading'}, TEXT.today), sizes), lists);
+    // A name too long for its list is cut short: whole in its title.
+    const named = player => { const name = playerLink(player); name.title = name.textContent; return name; };
     const draw = data => {
       const of = key => data && (data.leaders[key] || []).map((row, rank) => ({...row, rank}));
       const longest = Math.max(LEADER_SIZES[0], ...LEADERS.map(([key]) => (of(key) || []).length));
       lists.replaceChildren(...LEADERS.map(([key, label]) => {
         const rows = of(key);
-        const list = table([[TEXT.rank, row => n(row.rank + 1)], [TEXT.player, row => playerLink(row.player), 'l'],
-          [TEXT[label], row => value(key, row.value)]], rows, longest, '', openPlayer);
+        const list = table([[TEXT.rank, row => n(row.rank + 1)], [TEXT.player, row => named(row.player), 'l'],
+          [el('span', {className: 'stats-over'}, TEXT[label]), row => value(key, row.value)]], rows, longest, '', openPlayer);
         if (rows) list.blank(longest - rows.length);
         return list;
       }));
@@ -561,10 +614,156 @@
     return [el('h2', {className: 'stats-heading'}, TEXT.allTime), box];
   }
 
+  // The Maps and Modes boards (maps, modes): the counted public matches of a period (`&period=`,
+  // all time first), every version and weather of a map one map.
+  const PERIODS = {all: 'allTime', month: 'last30', week: 'last7', day: 'last24'};
+  const STEP_NOTE = {hour: 'perHour', day: 'perDay', week: 'perWeek'};
+  // A bar of shares, each part ([share 0..1, className, title]) as wide as its share; the rest is
+  // the track's. Its numbers are beside it, the parts' own on a hover.
+  function bar(parts) {
+    return el('span', {className: 'stats-bar'}, parts.filter(([share]) => share > 0).map(([share, kind, title]) => {
+      const part = el('span', {className: `stats-bar-part ${kind}`, title});
+      part.style.width = `${Math.min(share, 1) * 100}%`;
+      return part;
+    }));
+  }
+  // How the team matches of a map and mode ended: a bar (team 1's wins from the left, team 2's
+  // from the right, the draws and those of no known end between) over each side's share and
+  // count, in the teams' colours. A free-for-all has no sides.
+  function sides(row) {
+    const s = row.sides;
+    if (!s) return '—';
+    const teams = s.wins[0] + s.wins[1] + s.draws + s.unknown;
+    const said = (label, share, count) => `${label} ${rate(share)} (${n(count)})`;
+    const items = [[`${TEXT.team} 1`, s.win_rates[0], s.wins[0], 'stats-team0'], [TEXT.draw, s.draw_rate, s.draws, 'stats-draw'],
+      ...(s.unknown ? [[TEXT.noResult, s.unknown / teams, s.unknown, 'stats-unknown']] : []),
+      [`${TEXT.team} 2`, s.win_rates[1], s.wins[1], 'stats-team1']];
+    return el('span', {className: 'stats-sides'},
+      bar(items.map(([label, share, count, kind]) => [share, kind, said(label, share, count)])),
+      el('span', {className: 'stats-legend'}, items.map(([label, share, count, kind]) =>
+        el('span', {className: `stats-legend-item ${kind}`}, el('b', {}, `${label} ${rate(share)}`), ` (${n(count)})`))));
+  }
+  // A share of all the period's matches: its number over its bar.
+  const shareCell = row => el('span', {className: 'stats-share'}, rate(row.share), bar([[row.share, 'stats-fill', rate(row.share)]]));
+  const blankSides = () => el('span', {className: 'stats-sides'}, el('span', {className: 'stats-bar'}), el('span', {className: 'stats-legend'}, BLANK));
+  // A step of a trend as its hover says it: the hour's day and time, or the day (a week's Monday).
+  const stepName = (step, seconds) => step === 'hour' ? when(seconds) : day.format(new Date(seconds * 1000));
+  // A mode's matches in each step of the period, oldest first: columns as tall as their share of
+  // the mode's busiest step, each saying its own on a hover.
+  function trend(row, data) {
+    const most = Math.max(1, ...row.trend);
+    return el('span', {className: 'stats-trend', role: 'img',
+      ariaLabel: `${TEXT.trend}: ${row.trend.map(n).join(', ')}`}, row.trend.map((count, i) => {
+      const column = el('span', {className: `stats-trend-bar${count ? '' : ' zero'}`, title: `${stepName(data.step, data.steps[i])}: ${n(count)}`});
+      if (count) column.style.height = `${Math.max(8, 100 * count / most)}%`;
+      return column;
+    }));
+  }
+  // A map as the Maps page shows it: in its most played mode.
+  const placeRow = place => place && {...place, rules: place.modes.length ? place.modes[0].rules : 0, mode: null};
+  // The Maps board: one table, its columns fixed (what opens moves none). A map's row: its picture
+  // and name, its team matches (the free-for-alls left out: no side wins one), their average length
+  // and how its sides fared; the maps in the order of the rooms' create window (every ported
+  // version its own map). Under it, closed until its "Modes (n)" opens them, each mode played on
+  // it in the window's order with its own (a free-for-all's: no bar); under a mode, closed until
+  // its "Weathers (n)" opens them, its weathers (each its map id).
+  const MAP_COLUMNS = () => [[TEXT.map, 'l stats-mode-cell stats-col-map'], [TEXT.matches, 'stats-col-n'], [TEXT.avgLength, 'stats-col-n'],
+    [TEXT.sides, 'l stats-sides-cell stats-col-sides']];
+  // A button that opens and closes `rows` (each closing what it opened under it).
+  function opener(label, rows) {
+    const button = el('button', {type: 'button', className: 'stats-opener', ariaExpanded: 'false'}, label);
+    button.addEventListener('click', event => {
+      // Not the row's own click (a mode's row leads to its wiki section).
+      event.stopPropagation();
+      const open = button.getAttribute('aria-expanded') !== 'true';
+      button.setAttribute('aria-expanded', String(open));
+      for (const row of rows) {
+        row.hidden = !open;
+        if (!open) for (const inner of row.closes || []) inner();
+      }
+    });
+    button.close = () => { if (button.getAttribute('aria-expanded') === 'true') button.click(); };
+    return button;
+  }
+  function mapsTable(data) {
+    const head = el('thead', {}, el('tr', {}, MAP_COLUMNS().map(([label, kind]) => el('th', {className: kind, scope: 'col'}, label))));
+    const body = el('tbody');
+    const line = (kind, cells) => el('tr', {className: kind}, cells.map((cell, i) => el('td', {className: MAP_COLUMNS()[i][1]}, cell)));
+    if (!data) {
+      for (let i = 0; i < 5; i++) body.append(line('stats-map-row', [el('span', {className: 'stats-map-cell'}, mapPicture(null, true), twoLines()), BLANK, BLANK, blankSides()]));
+    } else {
+      for (const place of data.maps) {
+        const row = placeRow(place);
+        // A mode's (or a free-for-all version's) row, closed, with its weathers under it behind its button.
+        const withWeathers = (mode, kind) => {
+          const weathers = mode.weathers.map(weather => line('stats-weather', [
+            el('span', {className: 'stats-map-cell'}, mapPicture({...weather, map: place.map, rules: mode.rules}), weather.weather ?? '—'),
+            n(weather.matches), duration(weather.duration_s), sides(weather)]));
+          const button = opener(`${TEXT.weathers} (${n(mode.weathers.length)})`, weathers);
+          const row = line(kind, [[modeLink(mode), el('span', {className: 'stats-under'}, button)],
+            n(mode.matches), duration(mode.duration_s), sides(mode)]);
+          row.closes = [() => button.close()];
+          for (const each of [row, ...weathers]) each.hidden = true;
+          return [row, weathers];
+        };
+        // Every free-for-all is one mode: its versions under it (each with its weathers), not its weathers.
+        const modeRows = place.modes.map(mode => {
+          if (!mode.versions) return withWeathers(mode, 'stats-mode-row');
+          const versions = mode.versions.map(version => withWeathers(version, 'stats-version-row'));
+          const button = opener(`${TEXT.variants} (${n(mode.versions.length)})`, versions.map(([row]) => row));
+          const modeRow = line('stats-mode-row', [[modeLink(mode), el('span', {className: 'stats-under'}, button)],
+            n(mode.matches), duration(mode.duration_s), sides(mode)]);
+          modeRow.closes = [() => button.close()];
+          modeRow.hidden = true;
+          return [modeRow, versions];
+        });
+        const button = opener(`${TEXT.modes} (${n(place.modes.length)})`, modeRows.map(([modeRow]) => modeRow));
+        body.append(line('stats-map-row', [el('span', {className: 'stats-map-cell'}, mapPicture(row, true),
+          el('span', {}, el('b', {className: 'stats-place-name'}, mapLink(row)), el('span', {className: 'stats-under'}, button))),
+          n(place.matches), place.matches ? duration(place.duration_s) : '—', sides(place)]), ...modeRows.flat(Infinity));
+      }
+    }
+    return el('div', {className: 'table-scroll'}, el('table', {className: 'stats-table stats-maps-table'}, head, body));
+  }
+  function mapsBoard(data) {
+    if (data && !data.maps.length) return [notice(TEXT.noMatches)];
+    return [mapsTable(data)];
+  }
+  // The Modes board: each mode's matches, its share of them all and its trend, the most played
+  // first (the popularity's rank), the trend's steps said under it; then the most played map +
+  // mode pairs, each leading to its map in the Maps page.
+  const PAIRS = 10;
+  function modesBoard(data) {
+    if (data && !data.modes.length) return [notice(TEXT.noMatches)];
+    const ranked = list => list && list.map((row, rank) => ({...row, rank}));
+    // The modes in the create window's order; # is a mode's popularity (1: the most played).
+    const modeColumns = [[TEXT.rank, row => n(row.rank)], [TEXT.mode, modeLink, 'l stats-mode-cell'], [TEXT.matches, row => n(row.matches)],
+      [TEXT.share, shareCell, 'stats-share-cell'], [TEXT.trend, row => trend(row, data), 'stats-trend-cell']];
+    const pairColumns = [[TEXT.rank, row => n(row.rank + 1)], [TEXT.map, mapCell, 'l stats-mode-cell', '', () => mapCell(null)],
+      [TEXT.matches, row => n(row.matches)], [TEXT.share, shareCell, 'stats-share-cell']];
+    const steps = data && data.steps;
+    const note = el('p', {className: 'stats-note stats-trend-note'}, data
+      ? `${TEXT.trend}: ${TEXT[STEP_NOTE[data.step]]}, ${stepName(data.step, steps[0])} – ${stepName(data.step, steps[steps.length - 1])}` : BLANK);
+    const modes = table(modeColumns, data && data.modes, 8, '', row => row.mode_url || null);
+    // Every free-for-all is one mode: its versions under it (the Racket, the Saloon, the Roulette),
+    // each with its own numbers, closed until its button opens them.
+    if (data) data.modes.forEach((mode, i) => {
+      if (!mode.versions) return;
+      const versionColumns = modeColumns.map(([label, cell, kind], at) => [label, at === 0 ? () => '' : cell, kind]);
+      const rows = mode.versions.map(version => el('tr', {className: 'stats-version-row', hidden: true},
+        versionColumns.map(([, cell, kind]) => el('td', {className: kind || ''}, cell(version)))));
+      const line = modes.querySelectorAll('tbody tr')[i];
+      line.querySelector('.stats-mode-cell').append(el('span', {className: 'stats-under'}, opener(`${TEXT.variants} (${n(mode.versions.length)})`, rows)));
+      line.after(...rows);
+    });
+    const pairs = table(pairColumns, ranked(data && data.pairs), PAIRS, '', row => row.map_key ? mapAddress(row) : null);
+    return [modes, note, el('h2', {className: 'stats-heading'}, TEXT.mostPlayed), pairs];
+  }
+
   function boardsView() {
     heading(TEXT.stats, document.getElementById('stats-eyebrow').textContent, '');
     let board = BOARDS[asked('board')] ? asked('board') : 'players';
-    let key = BOARDS[board].includes(asked('by')) ? asked('by') : BOARDS[board][0];
+    let key = BOARDS[board].includes(asked(BY_PERIOD.includes(board) ? 'period' : 'by')) ? asked(BY_PERIOD.includes(board) ? 'period' : 'by') : BOARDS[board][0];
     // Smallest first: a second click on the sorted heading, and back.
     let up = asked('order') === 'asc' && (board === 'players' || board === 'clans');
     // How many pages of the players are open ("More players"): a sort
@@ -597,22 +796,40 @@
     async function draw() {
       const drawing = ++shown;
       for (const button of tabs.querySelectorAll('button')) button.setAttribute('aria-pressed', String(button.dataset.board === board));
-      // The best scores' periods are buttons of a row of their own; a list
-      // of players or clans sorts by its columns' headings.
+      // The best scores' periods, and the maps' and modes', are buttons of a
+      // row of their own; a list of players or clans sorts by its columns' headings.
+      const periodic = BY_PERIOD.includes(board);
       note.textContent = KEY_NOTE[key] ? TEXT[KEY_NOTE[key]] : '';
-      keys.hidden = board !== 'best';
-      keys.replaceChildren(...(board === 'best' ? BOARDS.best : []).map(value => {
-        const button = el('button', {type: 'button'}, TEXT[value]);
+      keys.hidden = board !== 'best' && !periodic;
+      keys.replaceChildren(...(board === 'best' || periodic ? BOARDS[board] : []).map(value => {
+        const button = el('button', {type: 'button'}, TEXT[periodic ? PERIODS[value] : value]);
         button.setAttribute('aria-pressed', String(value === key));
         button.addEventListener('click', () => { key = value; draw(); });
         return button;
       }));
       const url = new URL(location.href);
       url.searchParams.set('board', board);
-      if (key) url.searchParams.set('by', key); else url.searchParams.delete('by');
+      if (key && !periodic) url.searchParams.set('by', key); else url.searchParams.delete('by');
+      if (periodic && key !== BOARDS[board][0]) url.searchParams.set('period', key); else url.searchParams.delete('period');
       if (up) url.searchParams.set('order', 'asc'); else url.searchParams.delete('order');
       history.replaceState(null, '', url);
       keepLanguage();
+      if (periodic) {
+        const view = board === 'maps' ? mapsBoard : modesBoard;
+        // A period asked anew: the board as it was until the new one is here.
+        if (!body.firstChild || body.dataset.board !== board) body.replaceChildren(el('div', {className: 'stats-plays'}, ...view(null)));
+        body.dataset.board = board;
+        let data;
+        try {
+          data = await api(board, {period: key});
+        } catch (error) {
+          if (drawing === shown) body.replaceChildren(notice(String(error)));
+          return;
+        }
+        if (drawing === shown) body.replaceChildren(el('div', {className: `stats-plays stats-${board}`}, ...view(data || {maps: [], modes: [], pairs: []})));
+        return;
+      }
+      body.dataset.board = board;
       if (board === 'latest') return body.replaceChildren(paged(latestColumns, before => api('matches', {limit: PAGE, ...(before ? {before} : {})}), TEXT.noMatches, openMatch));
       const [path, params, columns, list, size] = {
         players: ['top', {by: key, limit: TOP, ...(up ? {order: 'asc'} : {})}, playerColumns, data => data.players, TOP],
@@ -685,7 +902,8 @@
     }
   }
   keepLanguage();
-  const view = asked('player') ? playerView(asked('player'))
+  const view = asked('id') ? playerView({id: asked('id')})
+    : asked('player') ? playerView({name: asked('player')})
     : asked('match') ? matchView(asked('match'))
     : asked('clan') ? clanView(asked('clan'))
     : boardsView();

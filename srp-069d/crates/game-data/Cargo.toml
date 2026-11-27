@@ -1,0 +1,10 @@
+[package]
+name = "game-data"
+version.workspace = true
+edition.workspace = true
+description = "0.69d game tables and the lobby rules that read them (dictionary, shop, craft, modules, pockets, levels, maps, bots)"
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true

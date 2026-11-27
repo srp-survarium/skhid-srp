@@ -22,7 +22,7 @@ use survarium::v026g::loadouts::POCKET_SLOTS;
 use survarium::v026g::lobby::requests::{INVENTORY_SLOT, Relocation};
 use survarium::v026g::lobby::rooms::PRESET_COUNT;
 
-use super::account::{Account, KIT_SLOTS, KITS};
+use super::account::{Account, KIT_SLOTS, KITS, KitPerks};
 use super::matchmaking;
 use super::rules::{self, ActionError};
 
@@ -42,16 +42,30 @@ pub struct PresetSlot {
     pub count: u32,
 }
 
-/// The three kits' slots, in the order of the account's kits.
+/// The three kits' slots, in the order of the account's kits, and what each made of its perks'
+/// slots: a preset is its kits, the choices too (the owner's pick of 2026-11-22), so a pocket or
+/// a second weapon a preset filled is there again when it is put on.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Preset {
     pub kits: [[Option<PresetSlot>; KIT_SLOTS]; KITS],
+    pub perks: [KitPerks; KITS],
 }
 
 impl Preset {
+    /// Nothing in it: every slot empty, every kit's choice the default.
+    pub const EMPTY: Preset = Preset {
+        kits: [[None; KIT_SLOTS]; KITS],
+        perks: [KitPerks::ALL_TAKEN; KITS],
+    };
+
     /// How many slots it fills.
     pub fn slots(&self) -> usize {
         self.kits.iter().flatten().flatten().count()
+    }
+
+    /// Whether it holds anything: a slot, or a kit's perk declined.
+    pub fn is_empty(&self) -> bool {
+        *self == Preset::EMPTY
     }
 }
 
@@ -86,10 +100,14 @@ fn index(number: u8) -> Result<usize, PresetError> {
 
 /// The three kits as they are now; none when they hold nothing.
 pub fn snapshot(account: &Account) -> Option<Preset> {
-    let mut preset = Preset {
-        kits: [[None; KIT_SLOTS]; KITS],
-    };
-    for (kit, saved) in account.kits.iter().zip(preset.kits.iter_mut()) {
+    let mut preset = Preset::EMPTY;
+    for ((kit, saved), perks) in account
+        .kits
+        .iter()
+        .zip(preset.kits.iter_mut())
+        .zip(preset.perks.iter_mut())
+    {
+        *perks = kit.perks;
         for (held, slot) in kit.slots.iter().zip(saved.iter_mut()) {
             *slot = held.and_then(|held| {
                 account.item(held.item_id).map(|item| PresetSlot {
@@ -100,7 +118,7 @@ pub fn snapshot(account: &Account) -> Option<Preset> {
             });
         }
     }
-    (preset.slots() > 0).then_some(preset)
+    (!preset.is_empty()).then_some(preset)
 }
 
 /// Preset `number` as it is now: the active one is the kits; none: empty.
@@ -200,7 +218,15 @@ fn put_on(account: &mut Account, preset: &Preset, now: u64) -> Result<Applied, P
                 count_in_inventory: saved.count.max(1),
             });
         }
+        // The kit's perk slots first: they decide which pockets and weapon slots there are.
+        let perks = preset.perks[kit_index];
+        let new_perks = changed.kits[kit_index].perks != perks;
+        changed.kits[kit_index].perks = perks;
         rules::fill_kit(&mut changed, kit_index, &moves).map_err(PresetError::Rule)?;
+        if new_perks {
+            let kit = &mut changed.kits[kit_index];
+            kit.revision = kit.revision.wrapping_add(1);
+        }
         let filled = changed.kits[kit_index].slots.iter().flatten().count();
         let wanted = saved.iter().flatten().count();
         empty += wanted.saturating_sub(filled) as u32;
@@ -250,9 +276,7 @@ pub fn choose(account: &mut Account, number: u8, now: u64) -> Result<Applied, Pr
     }
     let left = usize::from(account.active_preset - 1);
     let mut changed = account.clone();
-    let chosen = account.presets[index].unwrap_or(Preset {
-        kits: [[None; KIT_SLOTS]; KITS],
-    });
+    let chosen = account.presets[index].unwrap_or(Preset::EMPTY);
     let applied = put_on(&mut changed, &chosen, now)?;
     changed.presets[left] = snapshot(account);
     changed.presets[index] = None;

@@ -55,6 +55,25 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px }
 .stage svg { width: 100%; height: 100%; display: block; user-select: none }
 .note { font-size: .8rem; color: var(--ink-3); margin: 0 }
 .mk { cursor: default }
+/* Anomalies: pointing at one (or an artefact of it) dims the others and shows its card. */
+.anom, .art { cursor: pointer }
+.anom:focus { outline: none }
+.anom:focus-visible > * { stroke-width: 3px }
+svg.focus .anom:not(.on), svg.focus .art:not(.on) { opacity: .25 }
+.card { position: absolute; z-index: 2; max-width: min(300px, calc(100% - 8px)); background: var(--panel); color: var(--ink);
+  border: 1px solid var(--ink-3); border-radius: 2px; padding: 8px 10px; font-size: .82rem; line-height: 1.35;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, .35); pointer-events: none }
+.card[hidden] { display: none }
+.board { position: relative }
+/* A phone's map is small: the card goes under it, not over it. */
+@media (max-width: 560px) { .card { position: static; max-width: none; margin-top: 8px; box-shadow: none } }
+.card-h { display: flex; align-items: center; gap: 6px; font: 700 1rem var(--font-display); margin-bottom: 4px }
+.card-h img { width: 22px; height: 22px; object-fit: contain }
+.card dl { display: grid; grid-template-columns: auto 1fr; gap: 1px 12px; margin: 0 }
+.card dl + dl { margin-top: 6px; padding-top: 6px; border-top: 1px solid var(--rule) }
+.card dt { color: var(--ink-3) }
+.card dd { margin: 0; font-family: var(--font-data) }
+.card p { margin: 6px 0 0; color: var(--ink-2) }
 </style>
 <!--SITE-HEADER-->
 <div class="wrap">
@@ -62,9 +81,14 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px }
   <div class="bar" id="maps" role="group"></div>
   <div class="bar"><span id="modes" class="bar" role="group"></span><span class="sep"></span><span id="views" class="bar" role="group"></span></div>
   <div class="bar" id="layers" role="group"></div>
-  <div class="stage" id="stage">
-    <svg id="map" xmlns="http://www.w3.org/2000/svg" role="img"></svg>
+  <div class="board">
+    <div class="stage" id="stage">
+      <svg id="map" xmlns="http://www.w3.org/2000/svg" role="img"></svg>
+    </div>
+    <div class="card" id="card" hidden></div>
   </div>
   <p class="note" id="note"></p>
+  <p class="note" id="anote"></p>
 </div>
-<script src="/maps/maps.js?v=2361ecbe18ce"></script>
+<script type="application/json" id="page-words">⟦words⟧</script>
+<script src="/maps/maps.js?v=afe0fff358eb"></script>

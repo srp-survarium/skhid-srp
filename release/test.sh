@@ -128,11 +128,12 @@ export SRP_WORLD_CHECK_BIN=$T/bin/srp-world-check
 # arguments (the commit's checkout, the original exe) a line of
 # $TEST_DIR/selftest.args; $TEST_DIR/selftest-fails: a check fails;
 # $TEST_DIR/selftest-hangs: it runs on (a sleep of its own; both PIDs in
-# $TEST_DIR/selftest.pids).
+# $TEST_DIR/selftest.pids). It links the stand-in build-zip's arena.
 cat >"$T/bin/selftest" <<'EOF'
 #!/usr/bin/env bash
 printf '%s\n' "$*" >>"$TEST_DIR/selftest.args"
 echo "  ok    the PE parses"
+echo "arena sha256 $(printf arena | sha256sum | cut -c1-64)"
 if [[ -e $TEST_DIR/selftest-hangs ]]; then
     sleep 300 &
     printf '%s %s\n' "$$" "$!" >"$TEST_DIR/selftest.pids"
@@ -396,8 +397,11 @@ M=http://127.0.0.1:$(cat "$T/mirror.port")
 # saying whether a release folder was staged then), /api/stats saying a
 # match runs for the first $T/state/busy asks, or (with $T/state/matches)
 # the next line of that file for each ask (its last line once it is the only
-# one), with "last_match_ends_in" of $T/state/ends-in when there is one (an
-# srp from before it without), the launcher's matches with the "Time left"
+# one; "<all> <normal>": that many of them normal), with "last_match_ends_in"
+# of $T/state/ends-in when there is one (an srp from before it without),
+# with "normal_matches" (all of them unless the line says) and
+# "last_normal_match_ends_in" of $T/state/normal-ends-in when there is one
+# (an srp from before them without), the launcher's matches with the "Time left"
 # of each line of $T/state/page-left (minutes, or - for none yet),
 # /api/client-files of the ZIP in place when asked.
 python3 - "$T/site" "$T/site.port" "$T/state" "$T/live/download/Survarium-0.26g-srp-files.zip" >/dev/null 2>&1 <<'EOF' &
@@ -413,10 +417,13 @@ def read(name, default=None):
 class Handler(http.server.SimpleHTTPRequestHandler):
     server_version, sys_version = "Caddy", ""
     def log_message(self, *args): pass
-    def stats(self, online, matches):
+    def stats(self, online, matches, normal=None):
         body = '{"online":%d,"registered":3,"matches":%d,"queued":0' % (online, matches)
         if read("ends-in") is not None:
             body += ',"last_match_ends_in":%d' % int(read("ends-in"))
+        if read("normal-ends-in") is not None:
+            body += ',"normal_matches":%d,"last_normal_match_ends_in":%d' % (
+                matches if normal is None else normal, int(read("normal-ends-in")))
         return self.answer(200, body + "}")
     def answer(self, status, body):
         data = body.encode()
@@ -440,15 +447,15 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             lines = read("matches").split("\n")
             if len(lines) > 1:
                 open(os.path.join(state, "matches"), "w").write("\n".join(lines[1:]) + "\n")
-            n = int(lines[0])
-            return self.stats(3, n)
+            counts = [int(each) for each in lines[0].split()]
+            return self.stats(3, counts[0], counts[1] if len(counts) > 1 else None)
         if self.path == "/api/stats" and read("busy"):
             busy = int(read("busy"))
             open(os.path.join(state, "busy"), "w").write(str(busy - 1))
             if busy > 0:
                 return self.stats(3, 1)
             return self.stats(0, 0)
-        if self.path == "/api/stats" and read("ends-in") is not None:
+        if self.path == "/api/stats" and (read("ends-in") is not None or read("normal-ends-in") is not None):
             return self.stats(0, 0)
         if self.path == "/api/client-files":
             try:
@@ -580,11 +587,9 @@ ln -s "$real_dirname" "$T/nix-only/dirname"
 dev_shell() { # <script and arguments, quoted for bash>
     env PATH="$T/nix-only" "$BASH" -c ". $(printf '%q' "$here/lib.sh") && client_patches_python $(printf '%q' "$root") $1" 2>&1
 }
-out=$(dev_shell "link_026g.py --check" || true)
-check "build-zip's client-patches step: python3 in the dev shell with only nix on PATH, the arena linked there is the lock's" \
-    has "$out" "arena_026g.lock.json: current"
 out=$(dev_shell "make_client_026g.py" || true)
-check "... make_client_026g.py starts there (its usage)" has "$out" "--pack-zip"
+check "build-zip's client-patches step: python3 in the dev shell with only nix on PATH, make_client_026g.py starts there (its usage)" \
+    has "$out" "--pack-zip"
 if [[ -f ${SRP_026G_EXE:-} ]]; then
     out=$(dev_shell "patch_026g.py $(printf '%q' "$SRP_026G_EXE") $(printf '%q' "$T/dev-shell.exe")" || true)
     check "... patch_026g.py builds the exe there, its arena linked from source" has "$out" "Research (mode 5"
@@ -956,9 +961,6 @@ check "list_numbers: the list's patches, as --required-patches= takes them" test
     "$(lib_eval "use_patches live && read_patch_list && list_numbers")" = "3,12"
 cp "$T/work/r11.zip" "$T/live/download/Survarium-0.26g-srp-files.zip"
 echo "old data" >"$T/live/download/server-game-data.db"
-# The original menus' blobs the updater's restore to stock fetches.
-mkdir -p "$T/live/download/resources"
-for blob in 0ff118a8 ab6f22d8 805ea5f8; do echo "$blob" >"$T/live/download/resources/${blob}0000"; done
 printf 'SRP_ADMIN_TOKEN=very-secret\nSRP_MIN_PATCH_REVISION=11\nOTHER=1' >"$T/live/.env"
 zip12=$T/work/r12.zip
 printf '{"patch_3": {"url": "%s/resources.db.patch_3", "sha256": "%s"}}' "$P" "$sha3" >"$T/site/patches"
@@ -982,10 +984,6 @@ expect_refused "deploy refuses revision 12 without patch_12 (the menus)" "does n
     "$here/deploy" --zip "$zip12" --server-data "$T/work/sgd-no12.db" --revision 12
 expect_refused "deploy refuses data that is not the list's" "does not offer exactly the patches of" \
     "$here/deploy" --zip "$T/work/r11.zip" --server-data "$T/work/sgd-no12.db" --revision 11
-mv "$T/live/download/resources/ab6f22d80000" "$T/ab6f.kept"
-expect_refused "deploy refuses when an original blob is gone from download/resources" "lacks the original blobs .*lobby_menu ab6f22d8" \
-    "$here/deploy" --zip "$zip12" --server-data "$T/work/sgd.db" --revision 12
-mv "$T/ab6f.kept" "$T/live/download/resources/ab6f22d80000"
 # Patch 49: the ZIP's exe requires exactly the patches the data offers.
 cp "$zip12" "$T/work/req.zip"
 python3 "$T/requiring.py" "$T/work/req.zip" 12
@@ -1095,12 +1093,12 @@ git_t clone -q "$T/origin.git" "$T/repo" 2>/dev/null
 git -C "$T/repo" config user.name "the owner"
 git -C "$T/repo" config user.email owner@example.org
 src=$T/repo/srp-026g
-mkdir -p "$src/client-patches" "$src/certs" "$src/crates/a/src" "$src/resources/binary-config-examples" \
+mkdir -p "$src/client-patches" "$src/crates/a/src" "$src/resources/binary-config-examples" \
     "$src/resources/game-026g" "$src/scripts" "$src/servers/srp/src" "$src/docs" "$src/crates/session/src/v026g"
 # The changes of what a match computes (the replays' list), none to come.
 sim=$src/crates/session/src/v026g/simulation_changes.tsv
 printf '# revision\twhat changed\n11\tthe TDM end\n' >"$sim"
-for f in Cargo.toml Cargo.lock Dockerfile .dockerignore docker-compose.yml certs/login.crt crates/a/src/lib.rs \
+for f in Cargo.toml Cargo.lock Dockerfile .dockerignore docker-compose.yml crates/a/src/lib.rs \
     resources/binary-config-examples/a.cfg resources/game-026g/README scripts/run.sh servers/srp/src/main.rs docs/notes.md; do
     echo "$f 1" >"$src/$f"
 done
@@ -1118,7 +1116,6 @@ COPY resources/game-026g resources/game-026g
 COPY resources/not-in-main resources/not-in-main
 FROM debian:bookworm-slim
 COPY --from=build /srp /usr/local/bin/srp
-COPY certs ./certs
 DOCKERFILE
 commit() { # <message>: a commit on main, after the records merged there
     git_t -C "$T/repo" pull -q --ff-only origin main 2>/dev/null || true
@@ -1150,7 +1147,7 @@ for pair in torrent-signing:signing torrent-signing-test:signing-test; do
     echo >>"$T/repo/release/${pair#*:}.pub"
 done
 commit "revision 11, as released"
-git -C "$T/repo" archive HEAD:srp-026g Cargo.toml Cargo.lock Dockerfile .dockerignore docker-compose.yml certs crates \
+git -C "$T/repo" archive HEAD:srp-026g Cargo.toml Cargo.lock Dockerfile .dockerignore docker-compose.yml crates \
     resources/binary-config-examples resources/game-026g scripts servers | tar -x -C "$T/live"
 cat >"$T/build-zip" <<'STANDIN'
 #!/usr/bin/env bash
@@ -1158,7 +1155,7 @@ cat >"$T/build-zip" <<'STANDIN'
 # [--test]: the ZIP of r<n>.zip, its exe made to require the list's patches
 # (in r<n>.zip itself: that revision's ZIP is that one from then on; with
 # $TEST_DIR/build-zip-stale-required, all but the last), and the exe's two
-# sha256 (exe.sha256); its arguments are the last line of
+# sha256 and their arena's (exe.sha256); its arguments are the last line of
 # $TEST_DIR/build-zip.args.
 printf '%s\n' "$*" >>"$TEST_DIR/build-zip.args"
 while (($#)); do
@@ -1184,8 +1181,8 @@ cp "$TEST_DIR/work/r$revision.zip" "$work/Survarium-0.26g-srp-files.zip"
 if [[ -e $TEST_DIR/build-zip-other ]]; then
     python3 -c 'import sys, zipfile; zipfile.ZipFile(sys.argv[1], "a").writestr("other.txt", "other")' "$work/Survarium-0.26g-srp-files.zip"
 fi
-printf '%s with-server\n%s without-server\n' "$(printf 'with %s' "$revision" | sha256sum | cut -c1-64)" \
-    "$(printf 'without %s' "$revision" | sha256sum | cut -c1-64)" >"$work/exe.sha256"
+printf '%s with-server\n%s without-server\n%s arena\n' "$(printf 'with %s' "$revision" | sha256sum | cut -c1-64)" \
+    "$(printf 'without %s' "$revision" | sha256sum | cut -c1-64)" "$(printf arena | sha256sum | cut -c1-64)" >"$work/exe.sha256"
 echo "  CHANGED  game/binaries/x86/survarium_skhid.exe"
 echo "updater_skhid.exe: unchanged (the same file as live)"
 STANDIN
@@ -1466,6 +1463,7 @@ check "release: ... and freed it" test ! -e "$T/lock"
 zip_sha=$(sha256sum <"$T/work/r12.zip" | cut -d' ' -f1)
 data_sha=$(sha256sum <"$T/live/download/server-game-data.db" | cut -d' ' -f1)
 exe_with=$(printf 'with 12' | sha256sum | cut -c1-64) exe_without=$(printf 'without 12' | sha256sum | cut -c1-64)
+exe_arena=$(printf arena | sha256sum | cut -c1-64)
 check "release: the record: an annotated tag 026g-rev12 on origin" test "$(git -C "$T/origin.git" cat-file -t 026g-rev12 2>/dev/null)" = tag
 check "release: ... on the commit that was built" test "$(git -C "$T/origin.git" rev-parse '026g-rev12^{commit}' 2>/dev/null)" = "$released"
 tag_text=$(git -C "$T/origin.git" cat-file tag 026g-rev12 2>/dev/null || true)
@@ -1489,7 +1487,7 @@ check "release: ... the revision table's row, after 11's" bash -c "on_main() { g
 check "release: ... the row: the UTC time, the tag, the commit, what shipped" has "$row" \
     "^| Revision 12 | Released 20[0-9-]* [0-9:]* UTC (tag \`026g-rev12\`, \`main\` ${released:0:7}). Shipped: #7 A feature \\\\| with a bar. "
 check "release: ... the row: the exe with and without the server, the ZIP, the server data" has "$row" \
-    "Without a server sha256 \`$exe_without\`, with \`--server=127.0.0.1:1234\` \`$exe_with\`. The ZIP: [0-9]* bytes, sha256 \`$zip_sha\`; the server data: sha256 \`$data_sha\`. No content patch of its own |$"
+    "Without a server sha256 \`$exe_without\`, with \`--server=127.0.0.1:1234\` \`$exe_with\`, the arena (\`.srpx\`) \`$exe_arena\`. The ZIP: [0-9]* bytes, sha256 \`$zip_sha\`; the server data: sha256 \`$data_sha\`. No content patch of its own |$"
 changelog=$(on_main CHANGELOG-SKHID-026G.md)
 check "release: ... the changelog's entry to word, first under the rule" bash -c \
     "sed -n '/^---\$/,\$p' <<<\"\$1\" | grep -m1 '^## ' | grep -qE '^## [0-9]+ [A-Z][a-z]{2}, [0-9]{2}:[0-9]{2} — TODO: the owner.s words \\(update required\\)\$' && grep -qx -- '- TODO: #7 A feature | with a bar' <<<\"\$1\" && grep -q '^## 15 Oct, 20:02 — an older entry' <<<\"\$1\"" _ "$changelog"
@@ -1669,10 +1667,8 @@ expect_refused "release: a quick build's patch (build-content without --full, QU
 expect_refused "upload-patch: a quick build's patch too: rebuild with --full" \
     "is a quick build.*build it again with release/build-content 14 --full" "$here/upload-patch" "$T/r14q/resources.db.patch_14"
 # A stop before the go (the ZIP's build fails) after the patch was
-# published: its row goes from the list (no server offered it), and the
-# file this run uploaded goes too (the revision can be made again); a file
-# published before the run stays, and a run with the same --resources
-# takes it as it is.
+# published: its row goes from the list (no server offered it); the file
+# stays, unlisted, and a run with the same --resources takes it as it is.
 list_before=$(cat "$T/patches.tsv")
 touch "$T/build-zip-fails"
 run yes --resources "$T/r14/resources.db.patch_14" --minutes 2 --label pub || true
@@ -1680,23 +1676,32 @@ check "release --resources: a stop before the go, the patch published" bash -c \
     "grep -q '2. publishing resources.db.patch_14' <<<\"\$1\" && grep -q 'STOPPED before the swap' <<<\"\$1\"" _ "$out"
 check "release --resources: ... its row out of the list again" test "$(cat "$T/patches.tsv")" = "$list_before"
 check "release --resources: ... says so" has "$out" "resources.db.patch_14: its row is out of .* again (stopped before the go, never offered)"
-check "release --resources: ... the file it uploaded is gone again" test ! -e "$T/patches/resources.db.patch_14"
-check "release --resources: ... says so too" has "$out" "resources.db.patch_14: the file this run uploaded is off .* again"
+check "release --resources: ... the file it uploaded stays" cmp -s "$T/r14/resources.db.patch_14" "$T/patches/resources.db.patch_14"
+check "release --resources: ... says so too" has "$out" "resources.db.patch_14: the file stays on .*, unlisted (never offered)"
 check "release --resources: ... nothing planned" test -z "$(admin_log)"
-cp "$T/r14/resources.db.patch_14" "$T/patches/resources.db.patch_14"
 run yes --resources "$T/r14/resources.db.patch_14" --minutes 2 --label pub2 || true
-rm "$T/build-zip-fails"
-check "release --resources: a stop before the go, the patch published before the run: its row out of the list" \
+check "release --resources: a run with the same bytes takes the kept file as it is" has "$out" "on .* already, these same bytes, not in .*: taken as it is"
+check "release --resources: ... its row out of the list again at its stop" \
     test "$(cat "$T/patches.tsv")" = "$list_before"
 check "release --resources: ... the file kept" cmp -s "$T/r14/resources.db.patch_14" "$T/patches/resources.db.patch_14"
-check "release --resources: ... says so" has "$out" "resources.db.patch_14: the file stays on .* (there before this run)"
+printf 'other bytes' >"$T/patches/resources.db.patch_14"
+run yes --resources "$T/r14/resources.db.patch_14" --minutes 2 --label pub3 || true
+rm "$T/build-zip-fails"
+check "release --resources: a kept file of other bytes, never listed or offered, is replaced" bash -c \
+    "grep -q 'never listed or offered (a stopped run.s): replaced at the publish' <<<\"\$1\"" _ "$out"
+check "release --resources: ... by these bytes" cmp -s "$T/r14/resources.db.patch_14" "$T/patches/resources.db.patch_14"
 run quiet --dry-run --resources "$T/r14/resources.db.patch_14" --minutes 2 || true
 check "release --resources: the same --resources again: taken as it is" has "$out" \
     "--resources: on .* already, these same bytes, not in .*: taken as it is"
 check "release --resources: ... no problem about it" bash -c "! grep -q 'problem.*resources.db.patch_14\|MISSING.*patch_14' <<<\"\$1\"" _ "$out"
 cp "$T/r14/resources.db.patch_14" "$T/r16/other" && printf x >>"$T/r16/other" && cp "$T/r16/other" "$T/patches/resources.db.patch_14"
+# Listed, its bytes are published for good: never replaced.
+list_saved=$(cat "$T/patches.tsv")
+printf 'resources.db.patch_14\t%s\t%s\t%s/resources.db.patch_14\n' \
+    "$(sha256sum <"$T/r16/other" | cut -d' ' -f1)" "$(stat -c %s "$T/r16/other")" "$P" >>"$T/patches.tsv"
 expect_refused "release: a patch published with other bytes" "already published with OTHER bytes" \
     "$here/release.sh" --resources "$T/r14/resources.db.patch_14"
+printf '%s\n' "$list_saved" >"$T/patches.tsv"
 rm "$T/patches/resources.db.patch_14" "$T/r16/other"
 expect_refused "release: --yes needs --i-know" "goes with --i-know" "$here/release.sh" --yes
 touch "$T/ssh-fails-live"
@@ -2400,6 +2405,30 @@ check "release: ... the page lists fewer than run: 16 min" bash -c "grep -q 'in 
 rm -f "$T/state/matches" "$T/state/page-left"
 check "release --dry-run: none of these planned anything" test ! -s "$T/state/admin.log"
 
+# --end-bot-and-private-matches: the normal matches alone are waited for.
+# An srp that does not tell them apart is a preflight problem, never a
+# silent wait for all of them or for none.
+expect_refused "release: --end-bot-and-private-matches and --now refused together" "one or the other" \
+    "$here/release.sh" --now --end-bot-and-private-matches
+echo 840 >"$T/state/ends-in"
+run quiet --dry-run --end-bot-and-private-matches && fail "release.sh --end-bot-and-private-matches --dry-run, an older srp: ended 0"
+check "release --end-bot-and-private-matches: an srp without the normal matches' fields is a preflight problem" has "$out" \
+    "MISSING  --end-bot-and-private-matches: .*/api/stats does not tell the normal matches apart (no normal_matches and last_normal_match_ends_in: its srp is from before them)"
+check "release --end-bot-and-private-matches: ... a real run would stop before the lock" has "$out" "a real run would stop before the lock"
+# 3 matches, the last ending in 14 min; the 1 normal one in 5: the
+# maintenance in 6 min, the swap once "normal_matches":0, the others ended.
+echo 300 >"$T/state/normal-ends-in"
+printf '3 1\n' >"$T/state/matches"
+run quiet --dry-run --end-bot-and-private-matches || fail "release.sh --end-bot-and-private-matches --dry-run: $out"
+check "release --end-bot-and-private-matches --dry-run: the preflight counts the normal matches" has "$out" \
+    "/api/stats: 1 of them normal (the last ends in 5:00 at the latest), 2 against bots or of private rooms"
+check "release --end-bot-and-private-matches --dry-run: the maintenance from the last normal match: 6 min" bash -c \
+    "grep -q 'in 6 min (now: /api/stats: the last normal match ends in 5:00 at the latest (last_normal_match_ends_in 300), then 30 s' <<<\"\$1\"" _ "$(plan_line)"
+check "release --end-bot-and-private-matches --dry-run: the swap once \"normal_matches\":0, the others ended at the stop" in_order "$out" \
+    '^\[dry run\] 5. at the planned time: .*"normal_matches":0 on ' \
+    'the stop ends without results (--end-bot-and-private-matches)' 'compose stop srp26'
+rm -f "$T/state/ends-in" "$T/state/normal-ends-in" "$T/state/matches"
+
 # A stop before the go (build-zip fails): nothing planned.
 echo 300 >"$T/state/ends-in"
 : >"$T/state/admin-seen.log"
@@ -2692,6 +2721,25 @@ check "release --test: ... no tag, no branch" no_record 19
 check "release --test: ... main as it was, gh never asked" test "$(git -C "$T/origin.git" rev-parse main)|$(cat "$T/gh.log")" = "$main_before|"
 check "release --test: nothing put on the public DHT" test ! -s "$T/publish-dht.args"
 
+# --end-bot-and-private-matches (on the test environment: revision 20): the
+# maintenance from the last normal match, the swap once no normal match
+# runs, the two others ended at the stop and said by kind.
+: >"$T/state/admin.log"
+echo 0 >"$T/state/normal-ends-in"
+printf '3 1\n3 1\n3 1\n3 1\n2 0\n' >"$T/state/matches"
+run yes --test --end-bot-and-private-matches --label nb || fail "release.sh --test --end-bot-and-private-matches: $out"
+rm -f "$T/state/normal-ends-in" "$T/state/matches"
+check "release --end-bot-and-private-matches: plans the maintenance from the normal match" bash -c \
+    "test \"\$1\" = 'plan 1' && grep -q 'planning the maintenance in 1 min (/api/stats: no normal match runs (last_normal_match_ends_in 0)' <<<\"\$2\"" _ "$(admin_log)" "$out"
+check "release --end-bot-and-private-matches: ... waits while a normal match runs" has "$out" "1 normal match(es) "
+check "release --end-bot-and-private-matches: ... swaps with the others running" cmp -s "$T/work/r20.zip" "$T/live/download/Survarium-0.26g-srp-files.zip"
+check "release --end-bot-and-private-matches: ... says, right before the stop, the matches it ends by kind" in_order "$out" \
+    '5. no normal match is running; 2 match(es) against bots or of private rooms' '5. the swap' \
+    '--end-bot-and-private-matches: 2 match(es) running (2 against bots or of private rooms, 0 normal): the stop ends them now, WITHOUT RESULTS' \
+    'the server is up on the new data'
+check "release --end-bot-and-private-matches: ... kept in the folder's release.log" grep -q -- \
+    "--end-bot-and-private-matches: the stop ended 2 match(es) without results (2 against bots or of private rooms, 0 normal)" "$(folder 20 nb)/release.log"
+
 # No secret in any output or command line.
 check "release: the admin token is in no output" bash -c "! grep -qF -- '$token' $T/outputs"
 check "release: the admin path is in no output" bash -c "! grep -qF -- '$admin_path' $T/outputs"
@@ -2805,13 +2853,16 @@ manifest() { # the rows, `kind name source` a line ('|' for a tab), into $T/cont
 }
 manifest "base|resources.db.patch_40|$sha40" "movie|m|-" "edit|e1.json|-"
 bc_env=$(changed_env "s|^SKHID_PATCH_LIST=.*|SKHID_PATCH_LIST=$T/content-list.tsv|")
-# $bc: the release's build (--full); $bcq: the plain command, a quick build.
-cat >"$T/bcq" <<EOF
+# $bc: the release's build (--full); $bcq: a quick build (--slow); $bc0: the plain command.
+cat >"$T/bc0" <<EOF
 #!/usr/bin/env bash
 SKHID_RELEASE_ENV=$bc_env SKHID_TEST_BUILD_MOVIE=$T/build-movie SKHID_TEST_BUILD_SITE=$T/build-site TEST_DIR=$T exec "$here/build-content" "\$@" --tree "$C" --manifest "$T/content.tsv"
 EOF
-printf '#!/usr/bin/env bash\nexec %q "$@" --full\n' "$T/bcq" >"$T/bc"
-chmod +x "$T/bc" "$T/bcq"
+printf '#!/usr/bin/env bash\nexec %q "$@" --slow\n' "$T/bc0" >"$T/bcq"
+printf '#!/usr/bin/env bash\nexec %q "$@" --full\n' "$T/bc0" >"$T/bc"
+chmod +x "$T/bc" "$T/bcq" "$T/bc0"
+expect_refused "build-content: a local build without --slow points to tools/test-patch" \
+    "tools/test-patch <setup> <inputs> (a minute); to build the whole content anyway" "$T/bc0" 41 --out "$T/work/c41-plain"
 bcq=$T/bcq
 bc=$T/bc
 site_runs=$(grep -c . "$T/build-site.args" || true)

@@ -31,9 +31,6 @@ The replaced bytes are derived (a call/jump to the callee) or read from the
 original exe (a span); patch_026g.py's apply() checks every write against the
 exe, so a site that drifted fails the build. Nothing is looked up at run time.
 
-    python hooks_026g.py --write     writes hook_entries_026g.asm and hooks_026g.rs
-    python hooks_026g.py --check     says whether they are current (the self-test runs the same)
-
 A `lohook` row with `only = { <held> = "<CONST>" }` calls its handler only
 while the site's register `<held>` (a `name=REGISTER:u32` of the site's
 `holds`) is one of the values of the patch module's `CONST` (a `[u32; N]`,
@@ -52,15 +49,13 @@ from the generated `<patch>_on_demand()`: the site, its bytes, the entry),
 so a game that never asks runs the original code byte for byte.
 
 A span hook (lohook, splice, code) needs the original exe for its bytes: the
-caller's reader, else the file `--exe` or SRP_026G_EXE names (sha256
+caller's reader, else the file SRP_026G_EXE names (sha256
 checked); patch_026g.py passes the exe it builds from.
 """
-import argparse
 import os
 import re
 import struct
 import subprocess
-import sys
 import tomllib
 from pathlib import Path
 
@@ -125,7 +120,8 @@ TYPES["f32"] = {
 }
 # Native presentation interfaces. Their raw kinds come from fields_026g.tsv;
 # the public views borrow the generated hook's thread.
-for _view in ("RenderVisual", "GameScene", "ObjectLight", "ObjectAmbientLight", "ObjectParticleVisual"):
+for _view in ("RenderVisual", "GameScene", "ObjectLight", "ObjectAmbientLight", "ObjectParticleVisual",
+              "ObjectEnvironmentProbe"):
     TYPES[_view] = {
         "raw": f"Option<{_view}>", "fallible": True,
         "build": f"{_view}::from_raw(&thread, {{a}})",
@@ -198,6 +194,18 @@ TYPES["FingerCorrector"] = {
     "build": "FingerCorrector::from_raw(&thread, {a})",
     "orig_type": "&mut FingerCorrector", "orig_raw": "Some({n}.raw())",
     "pass": "&mut {n}", "null": "{a}",
+}
+# Patch 205's reload commit (vostok::reload): the state a reload_commit event is
+# delivered to (its subscription's object: only a magazine reload's) and the event.
+TYPES["ReloadEventState"] = {
+    "raw": "Option<AnimationEndAwareState>",
+    "binding": "let {n} = unsafe {{ ReloadEventState::from_raw(&thread, {a}) }};",
+    "orig_type": "&ReloadEventState", "orig_raw": "-", "pass": "&{n}", "null": "{a}",
+}
+TYPES["AnimationEvent"] = {
+    "raw": "Option<AnimationCallbackParams>",
+    "binding": "let {n} = unsafe {{ AnimationEvent::from_raw(&thread, {a}) }};",
+    "orig_type": "&AnimationEvent", "orig_raw": "-", "pass": "&{n}", "null": "{a}",
 }
 TYPES["PredicateBuffer"] = {
     "raw": "Option<PredicateBuffer>",
@@ -438,8 +446,8 @@ def original_reader(data):
 
 
 def default_exe():
-    """A reader of the original exe the environment names (SRP_026G_EXE, or
-    `--exe`), its sha256 checked; None without one."""
+    """A reader of the original exe SRP_026G_EXE names, its sha256 checked;
+    None without one."""
     if not _DEFAULT_EXE:
         path = os.environ.get("SRP_026G_EXE")
         reader = None
@@ -463,7 +471,7 @@ def span_bytes(patch_name, site, exe):
     exe = exe or default_exe()
     if exe is None:
         raise Bad(f"{patch_name}: site {site['site']} ({site['kind']}) needs the original exe to read its "
-                  f"{site['span']} bytes")
+                  f"{site['span']} bytes (SRP_026G_EXE names it)")
     return bytes(exe(site["va"], site["span"]))
 
 
@@ -728,7 +736,7 @@ def runtime_vtables(tomls=None, hs=None, fields=None):
 def vtable_words(table, exe=None):
     exe = exe or default_exe()
     if exe is None:
-        raise Bad(f"{table['symbol']}: runtime vtable needs the original exe")
+        raise Bad(f"{table['symbol']}: runtime vtable needs the original exe (SRP_026G_EXE names it)")
     size = (table["count"] + 1) * 4
     data = bytes(exe(table["source"] - 4, size))
     if len(data) != size:
@@ -1063,11 +1071,6 @@ def install_sites(tomls=None, sites=None):
             and row.get("install") != "on_demand"]
 
 
-def stale():
-    return [path.name for path, content in outputs().items()
-            if not path.exists() or path.read_bytes() != content]
-
-
 def strip_rust(text):
     """Rust source without its comments and string insides (so the layer
     check does not trip over them)."""
@@ -1106,29 +1109,5 @@ def check_layers():
                 raise Bad(f"{where}: a patch module uses `vostok` alone, never `raw`")
 
 
-def main():
-    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("--write", action="store_true")
-    parser.add_argument("--check", action="store_true")
-    parser.add_argument("--exe", help="the original survarium.exe (a span hook's bytes)")
-    args = parser.parse_args()
-    if args.exe:
-        os.environ["SRP_026G_EXE"] = args.exe
-    if args.write == args.check:
-        parser.error("--write or --check")
-    try:
-        files = outputs()
-    except Bad as error:
-        sys.exit(f"hooks_026g: {error}")
-    if args.write:
-        for path, content in files.items():
-            path.write_bytes(content)
-        print(f"{RS.name} and {ASM.name}: {len(hooks())} hook(s)")
-        return
-    bad = [path.name for path, content in files.items() if not path.exists() or path.read_bytes() != content]
-    print("hooks_026g: " + ("current" if not bad else "NOT what the TOML gives: " + ", ".join(bad)))
-    raise SystemExit(1 if bad else 0)
-
-
 if __name__ == "__main__":
-    main()
+    raise SystemExit(f"{__file__}: its files are written by every build (python link_026g.py --generate)")

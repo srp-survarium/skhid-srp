@@ -52,8 +52,6 @@ Wiki	Вікі
 Equipment	Спорядження
 Equipment reference	Довідник спорядження
 pieces	предметів
-Every armour piece: protection by body part, weight, what it has built in and what it can roll.	Усе спорядження: захист за частинами тіла, вага, вбудовані властивості й модифікатори.
-Armour (bullets, melee, explosions) and isolation (fire, radiation, electricity, toxins) are the share of damage stopped (×100); worn pieces add up. Over {0} kg a kit slows you, up to −20% speed and +150% sprint stamina at the limit, where you can't sprint.	Броня (кулі, холодна зброя, вибухи) та ізоляція (вогонь, радіація, електрика, токсини) — частка зупиненої шкоди (×100); вдягнені предмети додаються. Понад {0} кг комплект сповільнює: до −20% швидкості й +150% витрат енергії на біг на межі, де бігти не можна.
 Nothing matches.	Нічого не знайдено.
 Stats	Статистика
 Public matches	Публічні матчі
@@ -97,8 +95,6 @@ Not found.	Не знайдено.
 Too many wrong tokens; wait a minute.	Забагато хибних токенів; зачекайте хвилину.
 Wrong token.	Неправильний токен.
 No such user.	Такого користувача немає.
-Silver and gold are whole numbers, + or -, or empty.	Срібло і золото — цілі числа, + або -, або порожньо.
-{user}: now {silver_now} silver and {gold_now} gold.	{user}: тепер {silver_now} срібла і {gold_now} золота.
 New accounts are taken again.	Нові акаунти знову приймаються.
 New accounts are refused; existing players sign in as before.	Нові акаунти не приймаються; гравці з акаунтом входять як раніше.
 Maintenance cancelled.	Технічні роботи скасовано.
@@ -133,17 +129,15 @@ Start <code>Skhid.bat</code> again. Still failing? Run <code>Skhid-without-updat
 “No connection: …”	«Немає з'єднання: …»
 Run <code>Skhid-network-setup.cmd</code>.	Запустіть <code>Skhid-network-setup.cmd</code>.
 “Blocked on this network: …”	«Заблоковано в цій мережі: …»
-Your provider blocks skhid.link: the launcher sets <b>Relay</b> (bottom left) to auto. Press Retry.	Ваш провайдер блокує skhid.link: лаунчер ставить <b>Релей</b> (ліворуч унизу) на авто. Натисніть «Повторити».
+Your provider blocks our server. The launcher has already switched to our relay, a way around the block (<b>Relay: auto</b>, bottom left). Just press <b>Retry</b>.	Ваш провайдер блокує наш сервер. Лаунчер уже сам перемкнувся на наш релей, що обходить блокування (<b>Релей: авто</b>, ліворуч унизу). Просто натисніть <b>«Повторити»</b>.
 Nothing works.	Нічого не працює.
 Run <code>Skhid-collect-logs.cmd</code> and send the zip it makes to us on Discord: <a href="https://discord.gg/QUmJg3gBhg">discord.gg/QUmJg3gBhg</a>.	Запустіть <code>Skhid-collect-logs.cmd</code> і надішліть zip, який він зробить, нам у Discord: <a href="https://discord.gg/QUmJg3gBhg">discord.gg/QUmJg3gBhg</a>.
 Q:	П:
 A:	В:
 If something goes wrong	Якщо щось не так
 Download the files	Завантажити файли
-Download the game	Завантажити гру
 The download link is coming soon.	Посилання на завантаження скоро з'явиться.
-Or the whole game by BitTorrent:	Або всю гру через BitTorrent:
-Without this site, by BitTorrent:	Без цього сайту, через BitTorrent:
+Chrome or your antivirus refuses the download? Try this script: {script}. It downloads the whole game into a Survarium folder beside it.	Chrome або антивірус не дає завантажити? Спробуйте цей скрипт: {script}. Він сам завантажить усю гру в теку Survarium поруч із собою.
 Get the game	Отримати гру
 The link is coming soon.	Посилання скоро з'явиться.
 Get the original Survarium 0.26g (build 2777) and unpack it.	Отримайте оригінальну Survarium 0.26g (збірка 2777) і розпакуйте її.
@@ -158,11 +152,7 @@ Run <code>Skhid.bat</code> and press <b>PLAY</b>.	Запустіть <code>Skhid
 Windows warns about an unknown publisher? Let it run.<br>Linux: <code>bash Skhid.sh launcher</code>, see <code>LINUX.txt</code>.	Windows попереджає про невідомого видавця? Дозвольте запуск.<br>Linux: <code>bash Skhid.sh launcher</code>, див. <code>LINUX.txt</code>.
 Windows warns about an unknown publisher? Let it run.<br>Linux: <code>bash Skhid.sh</code>, see <code>LINUX.txt</code>.	Windows попереджає про невідомого видавця? Дозвольте запуск.<br>Linux: <code>bash Skhid.sh</code>, див. <code>LINUX.txt</code>.
 Run <code>play_skhid.bat</code> in <code>game\\binaries\\x86</code>.	Запустіть <code>play_skhid.bat</code> у теці <code>game\\binaries\\x86</code>.
-Start it with this command line:	Запустіть гру з такою командою:
-english	ukrainian
-server address	адреса сервера
-language: english, russian, ukrainian	мова: english, russian, ukrainian
-Skhid (Ukrainian for “east”) is a small community server that lets the Survarium {version} client sign in, trade, form squads and play matches again.	Схід — невеликий ком'юніті сервер, на якому клієнт Survarium {version} знову може входити, торгувати, збирати загони й грати матчі.
+Skhid (Ukrainian for “east”) is a community server that lets the Survarium {version} client sign in, trade, form squads and play matches again.	Схід — ком'юніті сервер, на якому клієнт Survarium {version} знову може входити, торгувати, збирати загони й грати матчі.
 Project Discord: <a href="https://discord.gg/pxywZfaxRQ">discord.gg/pxywZfaxRQ</a>	Discord проєкту: <a href="https://discord.gg/pxywZfaxRQ">discord.gg/pxywZfaxRQ</a>
 Early test server.	Тестовий сервер.
 It has bugs and may not work fully. Your progress, items and accounts can be lost or reset at any time, and the server may be stopped at any time. By playing you accept this.	Можливі помилки та збої. Ваш прогрес, предмети й акаунти можуть зникнути або бути скинуті будь-коли, а сервер можуть зупинити будь-коли. Граючи, ви з цим погоджуєтесь.
@@ -170,7 +160,6 @@ How to play	Як зіграти
 Download our files and unpack them into an empty folder (e.g. D:\\Survarium). <b>You do this only once.</b>	Завантажте наші файли й розпакуйте їх у порожню теку (напр. D:\\Survarium). <b>Це робиться лише один раз.</b>
 Download our files and unpack them into the game's folder, the one with the <code>game</code> folder, replacing files. <b>You do this only once.</b>	Завантажте наші файли й розпакуйте їх у теку гри, ту, де лежить тека <code>game</code>, із заміною файлів. <b>Це робиться лише один раз.</b>
 Download our files and unpack them over the game's <code>game</code> folder.	Завантажте наші файли й розпакуйте їх поверх теки <code>game</code> гри.
-Download the patched game and unpack it.	Завантажте пропатчену гру та розпакуйте її.
 Sign in with any name and password: a new name registers itself. Remember the password.	Увійдіть з будь-яким іменем і паролем: нове ім'я реєструється саме. Запам'ятайте пароль.
 New accounts are taken.	Нові акаунти приймаються.
 Stop new registrations	Зупинити нові реєстрації
@@ -180,7 +169,6 @@ Shown once the token is right.	Показуються після правиль�
 Password	Пароль
 User name	Ім'я користувача
 Silver, + or -	Срібло, + або -
-Gold, + or -	Золото, + або -
 Change	Змінити
 Admin	Адміністратор
 Token	Токен
@@ -410,6 +398,8 @@ Win rate	Частка перемог
 Kills	Вбивства
 Deaths	Смерті
 K/D	В/С
+Kills/min	Вбивств/хв
+Experience/min	Досвід/хв
 Assists	Допомоги
 Score	Очки	stats
 Avg score	Сер. очки
@@ -467,3 +457,547 @@ No public match {}.	Публічного матчу {} немає.
 This server keeps no match history.	Цей сервер не зберігає історію матчів.
 Could not load the stats. Reload the page.	Не вдалося завантажити статистику. Оновіть сторінку.
 Nobody yet.	Поки нікого.
+
+# The wiki's modes (src/modes.rs).
+Modes	Режими
+Every mode: its rules, numbers and maps.	Усі режими: правила, числа й мапи.
+Versions	Версії
+Public rooms only	Лише публічні кімнати
+Private rooms only	Лише приватні кімнати
+Not offered now	Зараз не пропонується
+Respawn after {0} s.	Відродження через {0} с.
+Batteries lie on the map.	Батареї лежать на мапі.
+Carry them to your team's container.	Несіть їх до контейнера своєї команди.
+First to {0} batteries wins.	Перемагає перша команда з {0} батареями.
+Time limit {0}: more batteries wins.	Ліміт часу {0}: перемагає команда з більшою кількістю батарей.
+Batteries come out of {0} active chargers.	Батареї з'являються з {0} активних зарядників.
+A new battery every {0} s, give or take {1} s.	Нова батарея кожні {0} с, плюс-мінус {1} с.
+Protective device rules: batteries, no chargers.	Правила захисного пристрою: батареї, без зарядників.
+No interface: no ammo, health, crosshair or minimap.	Без інтерфейсу: ні набоїв, ні здоров'я, ні прицілу, ні мінімапи.
+Teammates' markers stay; enemies have none.	Мітки союзників лишаються; у ворогів їх немає.
+Hold Tab for ammo, body state, the clock and the team list.	Утримуйте Tab: набої, стан тіла, час і список команди.
+Each team has {0} tickets.	У кожної команди {0} квитків.
+A death costs one ticket; a teamkill costs none.	Смерть коштує один квиток; вбивство союзника — жодного.
+Out of tickets, a team stops respawning and loses when its last player dies.	Без квитків команда більше не відроджується і програє, коли гине її останній гравець.
+Time limit {0}: more tickets wins.	Ліміт часу {0}: перемагає команда з більшою кількістю квитків.
+Capture research units: be inside with no enemy there.	Захоплюйте дослідницькі установки: будьте всередині, коли там немає ворогів.
+Owned units earn points; more units, faster.	Захоплені установки приносять очки; що більше установок, то швидше.
+First to {0} points wins.	Перемагає перша команда з {0} очками.
+Time limit {0}: more points wins.	Ліміт часу {0}: перемагає команда з більшою кількістю очок.
+Every player for himself.	Кожен сам за себе.
+First to {0} kills wins.	Перемагає перший, хто набере {0} вбивств.
+Time limit {0}: most kills wins.	Ліміт часу {0}: перемагає той, хто має найбільше вбивств.
+Public rooms: each FFA card draws a version.	Публічні кімнати: кожна картка FFA отримує свою версію.
+Private rooms: plain FFA only.	Приватні кімнати: лише звичайний FFA.
+A lethal hit freezes you in place.	Смертельне влучання заморожує на місці.
+A teammate within {0} m thaws you in {1} s.	Союзник у межах {0} м розморожує за {1} с.
+A thaw counts as a kill.	Розморожування зараховується як вбивство.
+A frozen player thaws by himself after {0}.	Заморожений гравець розморожується сам через {0}.
+A team's last fighter shows on the enemies' map.	Останнього бійця команди видно на карті суперників.
+Freeze the whole enemy team to win the round.	Заморозьте всю команду суперника, щоб виграти раунд.
+{0} s after a round ends, then everyone respawns and waits {1} s at the spawns.	{0} с після кінця раунду, потім усі відроджуються і чекають {1} с на точках появи.
+First to {0} rounds wins.	Перемагає перша команда, що виграє {0} раундів.
+Time limit {0}: an unfinished series is a draw.	Ліміт часу {0}: незавершена серія — нічия.
+One artefact at a time, {0}–{1} s into a round.	Один артефакт за раз, через {0}–{1} с після початку раунду.
+Bring it to your own base: 1 point, and the round ends.	Принесіть його на свою базу: 1 очко, і раунд завершується.
+The carrier is slower and seen by everyone.	Носій повільніший і видимий усім.
+Respawn in waves every {0} s.	Відродження хвилями кожні {0} с.
+Time limit {0}: the higher score wins; a tie plays {1} of sudden death without respawns.	Ліміт часу {0}: перемагає більший рахунок; за нічиєї — {1} раптової смерті без відродження.
+Everyone fights with an assault rifle: sniper rifles, silenced guns and guns without automatic fire are swapped for an {0} (rooms up to level {1}) or an {2} (higher rooms).	Усі б'ються штурмовими гвинтівками: снайперські гвинтівки, зброя з глушником і зброя без автоматичного вогню замінюються на {0} (кімнати до рівня {1}) або {2} (вищі кімнати).
+Each comes with an {0}.	Кожна — з {0}.
+a revolver	револьвер
+a lever-action rifle	гвинтівка з важільним затвором
+Every kit: {0} only.	Кожен набір: лише {0}.
+Every kit: {0} and {1}.	Кожен набір: {0} і {1}.
+Everyone plays the same {0} random kits.	Усі грають тими самими {0} випадковими наборами.
+Level bands: {0}.	Діапазони рівнів: {0}.
+A room draws bands up to its level.	Кімната отримує діапазони до свого рівня.
+Each kit a gun of another class, with random bonuses and attachments.	У кожному наборі зброя іншого класу з випадковими бонусами й модулями.
+{0} % of deals: pistols only.	{0} % роздач: лише пістолети.
+Plain FFA: {0} % of FFA cards.	Звичайний FFA: {0} % карток FFA.
+{0} % of FFA cards.	{0} % карток FFA.
+FFA: Roulette	FFA: Рулетка
+
+# The wiki's weapons and simulators (pages built at a release: scripts/site-texts)
+Search weapons	Пошук зброї
+No weapons match.	Зброю не знайдено.
+lvl {n}	рів. {n}
+Search…	Пошук…
+Search items	Пошук предметів
+No items match.	Предметів не знайдено.
+s	с	unit
+Search rounds	Пошук набоїв
+No rounds match.	Набоїв не знайдено.
+shots	постріли
+up	вгору
+side	убік
+spread	розкид
+Play	Відтворити
+Pause	Пауза
+Recoil and spread	Відбій і розкид
+Weapon {side}	Зброя {side}
+Choose a weapon…	Виберіть зброю…
+Round	Набій
+Clear	Очистити	list
+Choose a weapon; a second one to compare.	Виберіть зброю; другу — для порівняння.
+Aim	Приціл
+From the hip	Від стегна
+Aiming in	Прицілювання
+Fully aimed	Повне прицілювання
+Stance	Положення
+Standing	Стоячи
+Walking	Ходьба
+Crouching	Присівши
+Crouch-walking	Ходьба присівши
+Sprinting	Біг
+Jumping	Стрибок
+Broken arms	Зламані руки
+Spread from the hip {v} per rank, sprinting and jumping included. Not while aiming.	Розкид від стегна {v} за ранг, зокрема в бігу й у стрибку. Не під час прицілювання.
+No effect fully aimed.	Не діє при повному прицілюванні.
+Spread while walking {v} per rank, from the hip or aiming in. Not crouch-walking.	Розкид під час ходьби {v} за ранг, від стегна й під час прицілювання. Не в ходьбі присівши.
+Spread from broken arms {v} per rank.	Розкид від зламаних рук {v} за ранг.
+This weapon's kick ranges, up and sideways. Not the camera shake.	Межі поштовху цієї зброї, угору й убік. Не тремтіння камери.
+This weapon's base spread, in every shot: all of the spread fully aimed, little of it from the hip. Not the stance's spread or a shot's.	Базовий розкид цієї зброї, у кожному пострілі: увесь розкид при повному прицілюванні, мала його частина від стегна. Не розкид від положення чи від пострілу.
+The stance's spread and each shot's. No effect sprinting, jumping or fully aimed.	Розкид від положення й від кожного пострілу. Не діє в бігу, у стрибку й при повному прицілюванні.
+Each shot's kick with any weapon: up, sideways and the camera shake.	Поштовх кожного пострілу з будь-якої зброї: угору, убік і тремтіння камери.
+Base	Базовий
+A shot	За постріл
+At most	Найбільший
+Vertical kick	Вертикальний відбій
+game units	одиниці гри
+Horizontal kick	Бічний відбій
+Trigger	Спуск
+Hold	Утримувати
+Click, {n} a second	Клацати, {n} на секунду
+Sample seed	Зерно вибірки
+Spread	Розкид
+degrees	градуси
+Last shot	Останній постріл
+Reset	Скинути
+Timeline	Шкала часу
+Crosshair	Приціл
+degrees of view	градуси огляду
+Target	Ціль
+None	Немає
+Enemy at {m} m	Ворог на {m} м
+Recoil parameters are unavailable for this selection.	Параметри відбою для вибраної зброї недоступні.
+Rounds	Набої
+Sniper rifle	Снайперська гвинтівка
+Submachine gun	Пістолет-кулемет
+Pistol	Пістолет
+Shotgun	Рушниця
+Assault rifle	Штурмова гвинтівка
+Machine gun	Кулемет
+Skhid revision {revision}	Схід, ревізія {revision}
+Stat	Характеристика
+Better	Краще
+Worse	Гірше
+weapons	од. зброї	count
+Compare weapons or expand a row for damage, handling, accuracy, recoil and aim sway.	Порівнюйте зброю або розгортайте рядки, щоб побачити ушкодження, поводження, точність, відбій і хитання прицілу.
+Values with the chosen round, the weapon’s standard one first. Upgrades and character bonuses are not included. The game’s card shows the highest damage and the highest penetration among all the weapon’s rounds.	Характеристики з вибраним набоєм, спершу зі стандартним для зброї. Модифікації та бонуси персонажа не враховано. Картка в грі показує найбільші ушкодження й найбільшу бронебійність серед усіх набоїв зброї.
+Find a weapon	Знайти зброю
+Weapon class	Клас зброї
+All classes	Усі класи
+Damage: high to low	Ушкодження: за спаданням
+Fire rate: high to low	Темп стрільби: за спаданням
+Compare weapons	Порівняння зброї
+Only differences	Лише відмінності
+Color better / worse values	Позначати кращі / гірші значення
+Recoil and spread →	Відбій і розкид →
+Choose two weapons to compare. Equal values and neutral traits keep their normal color.	Виберіть дві одиниці зброї для порівняння. Однакові значення та нейтральні властивості зберігають звичайний колір.
+No differences in the displayed stats.	Відмінностей у показаних характеристиках немає.
+m	м	unit
+kg	кг	unit
+Single shot	Одиночний
+Damage & range	Ушкодження та дальність
+Damage	Ушкодження
+Armor penetration	Бронебійність
+Full damage up to	Повні ушкодження до
+Minimum damage from	Мінімальні ушкодження від
+Minimum damage retained	Залишок ушкоджень
+Stopping power	Зупиняюча дія
+Stamina damage	Ушкодження витривалості
+Firing & handling	Стрільба та поводження зі зброєю
+rpm	постр./хв	unit
+Fire rate	Темп стрільби
+Magazine capacity	Місткість магазину
+Reload time	Час перезаряджання
+Aim time	Час прицілювання
+Draw time	Час діставання
+Holster time	Час прибирання
+Movement speed modifier	Модифікатор швидкості руху
+Base aim zoom	Базове збільшення прицілу
+Fire modes	Режими вогню
+Accuracy & spread	Точність і розкид
+Spread values use the game's own units. Growth and recovery parameters are shown without a better/worse rating.	Значення розкиду наведено в одиницях гри. Параметри зростання й відновлення показано без оцінки «краще/гірше».
+Base dispersion	Базовий розкид
+Hip-fire spread multiplier	Множник розкиду від стегна
+Spread added per shot	Розкид від пострілу
+Spread limit	Межа розкиду
+Spread growth parameter	Параметр зростання розкиду
+Spread recovery parameter	Параметр відновлення точності
+Recoil	Відбій
+Base kick in game units, not degrees. Horizontal kick is right minus left; variability is its standard deviation. These do not describe an entire burst.	Базовий поштовх в одиницях гри, не в градусах. Бічний поштовх — правий мінус лівий; мінливість — його стандартне відхилення. Це не описує всю чергу.
+Base vertical kick range	Діапазон базового відбою вгору
+Horizontal kick range	Діапазон бічного відбою
+Horizontal kick variability	Мінливість бічного відбою
+Horizontal bias (− left / + right)	Бічне зміщення (− ліворуч / + праворуч)
+Recoil accumulation exponent	Показник накопичення відбою
+Recovery response (P)	Реакція відновлення (P)
+Recovery accumulation (I)	Накопичення відновлення (I)
+Recovery damping (D)	Згасання відновлення (D)
+Aim sway	Хитання прицілу
+Horizontal sway	Горизонтальне хитання
+Vertical sway	Вертикальне хитання
+Aim sway period	Період хитання прицілу
+Magazine	Магазин
+Set as weapon A	Вибрати як зброю A
+Set as weapon B	Вибрати як зброю B
+Automatic	Автоматичний
+{m}-round burst	Черга по {m}
+pellets	шротин
+No weapons match. Try another name or class.	Зброю не знайдено. Спробуйте іншу назву або клас.
+
+# The wiki's simulators: the shot's motions and the custom gun (pages built at a release: scripts/site-texts)
+Left	Ліворуч	direction
+Right	Праворуч	direction
+Back	Назад	direction
+where it aims as the shot moves it	куди цілиться під дією пострілу
+from the side, the bullet from the eye along the view	збоку, куля від ока вздовж погляду
+custom	власна
+Up	Вгору
+Side	Убік
+Rate	Темп
+Power	Степінь
+Camera wobble	Хитання камери
+Gun kick	Поштовх зброї
+Custom gun	Власна зброя
+Speed	Швидкість
+bullet	куля
+sight	приціл
+hit	влучання
+
+# The wiki's skills (a page built at a release: scripts/site-texts)
+Points	Очки	skills
+matches	матчів	skills
+h	год	unit
+Tap a skill, then + or −.	Торкніться навички, потім + або −.
+Click a skill to add a rank, right-click to take one back.	Клік додає ранг, правий клік забирає.
+{n} point	{n} очко	one
+{n} points	{n} очки	few
+{n} points	{n} очок	many
+Maximum:	Максимум:
+or	або	skill
+
+# The Maps tab (a page built at a release: scripts/site-texts)
+Player spawns	Відродження
+Battery spawns	Батареї
+Chargers	Зарядки
+Containers	Контейнери
+Research units	Установки
+Ammo stashes	Поповнення амуніції
+Survarium maps	Мапи Survarium
+chargers	зарядки
+Minimap	Мінімапа
+From above	Згори
+{n} active	{n} активні
+{n} batteries to win.	{n} батарей для перемоги.
+team {n}	команда {n}
+any team	будь-яка команда
+Ammo stash	Поповнення амуніції
+Container	Контейнер
+Battery spawn	Поява батареї
+Charger	Зарядка
+Research unit	Установка
+Spawn	Відродження
+Glow of the Forest	Сяйво Лісу
+Bases	Бази
+Base	База	hunt
+
+# The damage calculator (a page built at a release: scripts/site-texts)
+Feet	Стопи	parts
+m/s	м/с	unit
+HP/s	ОЗ/с	unit
+active	активний
+passive	пасивний
+Damage ×{damage}, penetration ×{pierce}, before armour: lower penetration makes the armour stop more.	Пошкодження ×{damage}, бронебійність ×{pierce}, до броні: з меншою бронебійністю броня зупиняє більше.
+{drug}: {pool} takes ×{k} for {s} s after use ({delay} s to kick in).	{drug}: {pool} отримує ×{k} протягом {s} с після вживання (діє через {delay} с).
+Inside an anomaly: damage ×{k}, before armour.	В аномалії: пошкодження ×{k}, до броні.
+This weapon takes no damage bonuses.	Ця зброя не має бонусів пошкодження.
+Comes with the weapon; cannot be changed.	Іде зі зброєю; змінити не можна.
+An item holds at most 3 modifications. Bonuses on one stat add up before they apply.	Предмет має щонайбільше 3 модифікації. Бонуси на одну характеристику додаються.
+This item takes no armour bonuses.	Цей предмет не має бонусів броні.
+Nothing worn covers the {part}.	Ніщо вдягнене не захищає: {part}.
+Drugs	Препарати
+Assault rifles	Штурмові гвинтівки
+Submachine guns	Пістолети-кулемети
+Shotguns	Дробовики
+Bolt-action & sniper rifles	Гвинтівки та снайперські гвинтівки
+Pistols & revolvers	Пістолети й револьвери
+Helmet	Шолом
+Mask	Маска
+Jacket	Куртка
+Gloves	Рукавиці
+Trousers	Штани
+Boots	Черевики
+Backpack	Рюкзак
+Chest & neck	Груди й шия
+Right arm	Права рука
+Left arm	Ліва рука
+Right hand	Права кисть
+Left hand	Ліва кисть
+Right leg	Права нога
+Left leg	Ліва нога
+Right foot	Права стопа
+Left foot	Ліва стопа
+Body	Тіло
+Pain	Біль
+Infection	Інфекція
+death	смерть
+bleeding	кровотеча
+concussion	контузія
+hand injury	травма руки
+leg injury	травма ноги
+infection	інфекція
+blindness	сліпота
+Search	Пошук
+— none —	— нічого —
+nothing worn	нічого не вдягнено
+back	ззаду
+front	спереду
+after shot	постріл
+of	з
+dead	мертвий
+Glass	Скло
+Car	Автомобіль
+Plywood	Фанера
+Tinplate	Бляха
+Brick, steel	Цегла, сталь
+Concrete	Бетон
+Stone	Камінь
+<none>	<немає>
+armour	броня
+{n} left	лишилось {n}
+damage	пошкодження
+penetration	бронебійність
+full damage to	повне до
+minimum from	мінімум від
+minimum	мінімум
+muzzle	швидкість кулі
+rate	темп
+magazine	магазин
+Gets through: k {k}, D {D} · P {P}.	Пробиває: k {k}, D {D} · P {P}.
+Does not get through: penetration {P}, armour {A}.	Не пробиває: бронебійність {P}, броня {A}.
+here	тут
+not here	не тут
+taken by {item}	зайнято: {item}
+Covers the {part}.	Захищає: {part}.
+Does not cover the {part}.	Не захищає: {part}.
+Click to aim at the {part}.	Клікніть, щоб цілити: {part}.
+aim at the {part}	цілити: {part}
+Full damage at this range.	На цій дистанції пошкодження повне.
+Fully fallen off: minimum damage.	Повністю спало: мінімальне пошкодження.
+Falling off: {share} of the way from minimum to full.	Спадає: {share} шляху від мінімуму до повного.
+Orange band: damage falls from {from} m to {to} m.	Помаранчева смуга: пошкодження спадає від {from} м до {to} м.
+per shot (all pellets)	за постріл (усі дробини)
+per hit	за влучання
+{pool} damage {per}	{pool}: пошкодження {per}
+of {n} {pool} left	із {n}, що лишились ({pool})
+of {n} {pool}	із {n} ({pool})
+Hits to kill	Влучань до смерті
+dies when {pool} reaches 0	гине, коли {pool} доходить до 0
+this shot cannot kill	цей постріл не вбиває
+Time to kill	Час до смерті
+every shot lands, no reload	усі влучають, без перезарядки
+Leaves the barrel	Виліт зі ствола
+Weapon damage × ammo <code>k_damage</code>, weapon pierce × ammo <code>k_arp</code>.	Пошкодження зброї × <code>k_damage</code> набою, бронебійність зброї × <code>k_arp</code> набою.
+Each of the {n} pellets carries this.	Так у кожної з {n} дробин.
+Flies {m} m	Летить {m} м
+Speed {v0} → {v} m/s. Damage slides from full ({full}) to minimum ({min}) by speed between {from} and {to} m: here {share}. Penetration stays.	Швидкість {v0} → {v} м/с. Пошкодження спадає від повного ({full}) до мінімального ({min}) за швидкістю між {from} і {to} м: тут {share}. Бронебійність не спадає.
+Through {wall}	Крізь: {wall}
+stopped	зупинено
+Penetration {P}, armour {A}. Damage, penetration and speed × k; then damage no higher than at {v} m/s.	Бронебійність {P}, броня {A}. Пошкодження, бронебійність і швидкість × k; далі пошкодження не вище, ніж на {v} м/с.
+Penetration {P} is not above armour {A}: the bullet stops.	Бронебійність {P} не вища за броню {A}: куля зупиняється.
+No armour here, the full amount goes in.	Броні тут немає: проходить усе.
+Armour {A} is not above penetration {P}: nothing is stopped.	Броня {A} не вища за бронебійність {P}: нічого не зупинено.
+Armour exceeds penetration by a full 100: the bullet does nothing.	Броня вища за бронебійність на повні 100: куля нічого не робить.
+Armour {A} − penetration {P} = {gap}% of the damage is stopped.	Броня {A} − бронебійність {P} = зупинено {gap}% пошкодження.
+Hits {part}	Влучає: {part}
+Every hit anywhere also drains the shared pain pool. Pain at 0 kills.	Кожне влучання також знімає спільний біль. Біль на 0 вбиває.
+Body at 0 kills.	Тіло на 0 вбиває.
+Head holds only 40: at 0 it kills, below 20 it concusses.	Голова має лише 40: на 0 вбиває, нижче 20 — контузія.
+Limbs do not kill by themselves: an empty limb injures, the pain it carries can kill.	Кінцівки самі не вбивають: порожня кінцівка травмується, а біль від неї може вбити.
+Second chance	Другий шанс
+The skill leaves the target alive once.	Навичка один раз лишає ціль живою.
+× {n} pellets	× {n} дробин
+Each pellet is its own bullet: when several land, their damage adds up.	Кожна дробина — окрема куля: коли влучає кілька, пошкодження додається.
+kills	вбиває
+breaks	ламає
+below	нижче
+empty	на нулі
+movement	рух
+shot	постріл
+Damage over distance	Пошкодження за дистанцією
+after armour	після броні
+Body part	Частина тіла
+Stopped	Зупинено
+Limb	Кінцівка
+Also	Також
+injury	травма
+best ammo	найкращий набій
+default ammo	стандартний набій
+Ammo	Набій
+Pen. here	Бронеб. тут
+Damage / hit	Пошк. / влуч.
+RPM	Темп
+Bullet	Куля
+D, P = weapon × ammo, D falling with distance	D, P = зброя × набій, D спадає з дистанцією
+{n} pellets	{n} дробин
+Wall	Стіна
+P ≤ A: the bullet stays in the wall · else D, P × (1 − (A / P)²)	P ≤ A: куля застрягає в стіні · інакше D, P × (1 − (A / P)²)
+stays in the wall	застрягає в стіні
+each	кожен
+rank	ранг
+inside an anomaly	в аномалії
+D × (1 − (armour − P) / 100)	D × (1 − (броня − P) / 100)
+{part}, armour {A} − P {P}	{part}, броня {A} − P {P}
+Pools	Пули
+chest, back → body · head, face → head · leg, foot → leg · arm, hand → hand	груди, спина → тіло · голова, обличчя → голова · нога, стопа → нога · рука, кисть → кисть
+× 1 chest, head, arms · 0.9 legs · 0.8 hands, feet	× 1 груди, голова, руки · 0.9 ноги · 0.8 кисті, стопи
+Death	Смерть
+body, head or pain at 0	тіло, голова або біль на 0
+{n} hits	влучань: {n}
+at 0	на 0
+does not kill	не вбиває
+wall armour	броня стіни
+One bullet through several parts: each pool loses only its biggest hit, not the sum (hands 40 + 40, chest 35 → pain −40, not −115).	Одна куля крізь кілька частин: кожен пул втрачає лише найбільше влучання, а не суму (кисті 40 + 40, груди 35 → біль −40, а не −115).
+full	повністю
+fixed	лікує
+{s} s without hits	{s} с без влучань
+By itself	Само собою
+ends after {s} s without hits	минає за {s} с без влучань
+carried	у слоті
+activated	активований
+at once, every {s} s	одразу, раз на {s} с
+{delay} s after use, for {s} s	через {delay} с, {s} с
+stops at {n}	до {n}
+From empty to full	Від нуля до повного
+Leg or hand	Нога чи кисть
+No Larkspur	Без Живокосту
+Starts	Починає
+Legs, hands	Ноги, кисті
+Broken leg, hand	Зламана нога, кисть
+Top-down view of	Вигляд згори:
+<b>{m} m</b> ({across} across, {sign}{height} height). Click again to start over.	<b>{m} м</b> ({across} по горизонталі, {sign}{height} по висоті). Клікніть ще раз, щоб почати знову.
+Now click the target.	Тепер клікніть ціль.
+Click the shooter, then the target.	Клікніть стрільця, потім ціль.
+Orange ring: full damage to {from} m; dashed: minimum from {to} m.	Помаранчеве коло: повне пошкодження до {from} м; пунктирне: мінімум від {to} м.
+health shown ×100 (body 100, head 40)	здоров'я ×100 (тіло 100, голова 40)
+Shooter	Стрілець
+fires	стріляє
+Distance to target	Дистанція до цілі
+Wall in front of the target	Стіна перед ціллю
+Weapon bonuses	Бонуси зброї
+— — HIT — →	— — ВЛУЧАННЯ — →
+takes the hit	отримує влучання
+Current pain	Поточний біль
+Pain the target already carries from earlier hits. It drains back to none at 10 a second once 8 s pass without a hit.	Біль, який ціль уже має від попередніх влучань. Спадає до нуля по 10 за секунду, коли 8 с немає влучань.
+Armour bonuses	Бонуси броні
+Artefacts, drugs & skills	Артефакти, препарати й навички
+Measure on a map	Виміряти на мапі
+Clear points	Очистити точки
+bullet before armour	куля до броні
+after this armour	після цієї броні
+Every body part, this shot	Кожна частина тіла, цей постріл
+Every weapon against this target	Уся зброя проти цієї цілі
+Same distance, wall, body part, armour and target effects. Each gun uses its best ammo for this target unless you pick "default ammo". Click a row to load that gun.	Та сама дистанція, стіна, частина тіла, броня й ефекти цілі. Кожна зброя бере свій найкращий набій для цієї цілі, якщо не вибрано «стандартний набій». Клікніть рядок, щоб узяти цю зброю.
+Formula	Формула
+Healing	Лікування
+Previous shot	Попередній постріл
+Next shot	Наступний постріл
+Damage calculator	Калькулятор шкоди Survarium	title
+# The wiki's artefacts (src/artefacts.rs)
+Every artefact: what it gives carried and fired, how copies stack, where it is found.	Кожен артефакт: що дає при собі й після активації, як складаються копії, де його знайти.
+Artefact	Артефакт
+Passive	Пасивний
+Active	Активний
+Active time	Час дії
+Cooldown	Перезарядка
+Skill	Навичка
+Rules	Правила
+Movement speed	Швидкість руху
+Stamina regeneration	Відновлення енергії
+Stamina use	Витрата енергії
+Slowdown from hits	Сповільнення від влучань
+Against	Проти
+Body parts	Частини тіла
+Penetration	Пробиття
+Health	Здоров'я
+Cures injuries	Лікує травми
+Regeneration	Регенерація
+Regeneration delay	Затримка регенерації
+Regenerates up to	Відновлюється до
+HP	ОЗ	unit
+Carried in a container: passive. A death leaves them in that kit.	У контейнері: пасив. Після смерті вони лишаються в тому комплекті.
+A key fires every ready copy of its kind and restarts the cooldown of the ones still cooling.	Клавіша активує всі готові копії свого виду й заново запускає перезарядку тих, що ще перезаряджаються.
+Copies of a kind add up (Onyx's passive multiplies); at most 4 count.	Копії одного виду додаються (пасив Онікса множиться); діють щонайбільше 4.
+Spring's and Larkspur's actives add to the passive; Onyx's replaces it.	Активація Пружини й Живокосту додається до пасиву; Онікса — замінює його.
+Onyx fired together: one reduction, 1 s longer per extra copy.	Онікси, активовані разом: одне зменшення, на 1 с довше за кожну додаткову копію.
+
+# The maps' anomalies (scripts/maps-tab/ui.js)
+Anomalies	Аномалії
+Anomaly	Аномалія
+Artefacts come from the anomalies. Each anomaly puts one of its artefacts into one of its free containers, one per time window, until its maximum lies uncollected; a pickup starts the window again. It gives only those of its artefacts that no player is carrying. Point at an anomaly or an artefact (or tap it) for its numbers.	Артефакти дають аномалії. Кожна аномалія кладе один зі своїх артефактів в один зі своїх вільних контейнерів, по одному за проміжок часу, доки її максимум не лежатиме незібраним; підбір артефакта починає проміжок знову. Вона дає лише ті свої артефакти, яких не несе жоден гравець. Наведіть на аномалію чи артефакт (або торкніться), щоб побачити її числа.
+{s} s	{s} с
+{a}–{b} s	{a}–{b} с
+Holds	Містить
+First one	Перший
+Then every	Далі кожні
+Chance	Шанс
+Max uncollected	Максимум незібраних
+Search	Пошук	artefact
+Zones switch every	Зони змінюються кожні
+After a pickup the next one comes {next} later; that container stays empty for {cooldown}.	Після підбору наступний з'явиться через {next}; той контейнер лишається порожнім {cooldown}.
+Its own zone does no damage.	Її власна зона не завдає шкоди.
+Searching a container takes {search}; after a pickup it stays empty for {cooldown}.	Обшук контейнера триває {search}; після підбору він лишається порожнім {cooldown}.
+After a pickup the next one comes {next} later.	Після підбору наступний з'явиться через {next}.
+whole body	усе тіло
+{n} % a hit, at most every {t}	{n} % за удар, не частіше ніж раз на {t}
+deadly	смертельно
+{n} % a second	{n} % за секунду
+Damage is a share of each body part's health, before armour.	Шкода — частка здоров'я кожної частини тіла, до броні.
+It gives no artefacts.	Вона не дає артефактів.
+
+# The stats' Maps and Modes boards.
+Last 7 days	Останні 7 днів
+Last 24 hours	Останні 24 години
+Avg length	Сер. тривалість
+Sides	Сторони
+No result	Без результату
+Share	Частка
+Trend	Динаміка
+by hour	по годинах
+by day	по днях
+by week	по тижнях
+Most played maps and modes	Найпопулярніші мапи й режими
+
+# The modes and weathers as the game names them (client-patches/localization: the stats' Maps and Modes boards, the match lists).
+Protective device	Захисний пристрій
+Protective device: chargers	Захисний пристрій: зарядники
+Team Deathmatch	Командний бій
+Research	Дослідження
+Protective device: blackout	Захисний пристрій: блекаут
+Free for all	Усі проти всіх
+Freeze Tag	Заморожування
+Artifact Hunt	Полювання на артефакт
+FFA: Racket	FFA: Двіж
+FFA: Saloon	FFA: Салун
+FFA: Saloon (Winchester)	FFA: Салун (Вінчестер)
+Mode {0}	Режим {0}
+day	день	weather
+rain	дощ	weather
+evening	вечір	weather
+night	ніч	weather
+before rain	перед дощем	weather
+Weathers	Погода
+Variants	Варіанти

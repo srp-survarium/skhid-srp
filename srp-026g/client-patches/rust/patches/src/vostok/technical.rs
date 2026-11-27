@@ -1,6 +1,6 @@
 //! The technical tree's native sites (patch 180, technical-skills.md): a kit's packed skills
 //! (modifier 47, parsed by the `technical-skills` crate) and what each site reads of the game.
-use technical_skills::{Clock, Gasp, Skills};
+use technical_skills::{Clock, OxygenRush, RushCause, Skills, TankEvent, TankUse};
 
 use super::config::{ConfigError, ConfigValue};
 use super::context::{Context, Reg};
@@ -119,6 +119,21 @@ unsafe fn tank_of(player: raw::Player) -> Option<raw::OxygenTank> {
     }
 }
 
+/// Whether `item` is an oxygen tank whose Oxygen Rush runs for `player` now (the HUD's quick
+/// slot: the tank's countdown in Spring's blue).
+///
+/// # Safety
+/// `item` is a live inventory item of `player`, alive for the hook.
+pub(super) unsafe fn oxygen_rush_on(player: raw::Player, item: raw::Item) -> bool {
+    // SAFETY: the vtable says it is a tank; the word is our own padding, the clock the player's.
+    unsafe {
+        read(item.vtable()) == raw::image::OXYGEN_TANK_VTABLE
+            && OxygenRush::parse(read(item.oxygen_tank().oxygen_rush_until()))
+                .at(Clock(read(player.stamina().clock())))
+                != OxygenRush::Off
+    }
+}
+
 /// Whether `player`'s oxygen tank is switched on now (its saved m_active).
 ///
 /// # Safety
@@ -196,53 +211,85 @@ pub fn sprint_cost(ctx: &mut Context<'_>) {
 }
 
 
-/// Last Gasp (442) at the tank's tick after the air is spent (`technical.tank_empty`): a tank
-/// that ran out this tick (ECX 0) starts its boost and fills its holder's stamina.
-pub fn tank_empty(ctx: &Context<'_>) {
-    use raw::site::technical_tank_empty as site;
-    if ctx.reg(Reg::Ecx) != 0 {
-        return;
+/// A tank's use toward Oxygen Rush after `event` ([`TankUse::after`]), kept on the tank; why the
+/// boost starts, if it does.
+///
+/// # Safety
+/// `tank` is a live tank of a hook; the word is our own padding.
+unsafe fn count_use(tank: raw::OxygenTank, event: TankEvent) -> Option<RushCause> {
+    unsafe {
+        let used = TankUse::parse(read(tank.oxygen_rush_use())).unwrap_or_default();
+        let (next, cause) = used.after(event);
+        *tank.oxygen_rush_use() = next.raw();
+        cause
     }
+}
+
+/// Oxygen Rush (442) at the tank's tick after the air is spent (`technical.tank_spent`): the
+/// tank's use counts the tick's air, every tank's alike; a tick that ends 20 s of use without a
+/// break or runs the tank out ([`RushCause`]) starts its holder's boost, or gives a running one its
+/// 20 s from now, and fills its stamina.
+pub fn tank_spent(ctx: &Context<'_>) {
+    use raw::site::technical_tank_spent as site;
     // SAFETY: the tick's live tank and its living holder (the dead path jumps past the site);
     // the holder's stamina is embedded in it.
     unsafe {
         let Some(tank) = site::tank(ctx) else { return };
+        let spent = TankEvent::Spent { spent: site::spent(ctx), left: site::left(ctx) };
+        if count_use(tank, spent).is_none() {
+            return;
+        }
         let Some(player) = holder(tank) else { return };
-        if !skills(player).last_gasp() {
+        if !skills(player).oxygen_rush() {
             return;
         }
         let stamina = player.stamina();
         *stamina.current() = read(stamina.maximum());
         let now = Clock(read(stamina.clock()));
-        *tank.gasp_until() = Gasp::start(now).raw();
+        *tank.oxygen_rush_until() = OxygenRush::start(now).raw();
         *player.refresh_selection() = 1;
     }
 }
 
-/// Last Gasp's end, each simulation tick of each player (`battery.carrier_tick`): a boost whose
+/// A tank switched on (`technical.tank_switch`, set_active's store of AL): its use counts from 0.
+/// Off, its tick does not run, so nothing counts.
+pub fn tank_switch(ctx: &Context<'_>) {
+    use raw::site::technical_tank_switch as site;
+    // SAFETY: set_active's AL, the new state, and its live tank.
+    unsafe {
+        if site::active(ctx) & 0xFF == 0 {
+            return;
+        }
+        if let Some(tank) = site::tank(ctx) {
+            count_use(tank, TankEvent::On);
+        }
+    }
+}
+
+/// Oxygen Rush's end, each simulation tick of each player (`battery.carrier_tick`): a boost whose
 /// end the player's stamina clock reached is over, and the movement selected again.
-pub fn gasp_tick(ctx: &Context<'_>) {
+pub fn oxygen_rush_tick(ctx: &Context<'_>) {
     use raw::site::battery_carrier_tick as site;
     // SAFETY: base_player::tick's live player, its inventory's tank and its embedded stamina.
     unsafe {
         let Some(player) = site::player(ctx) else { return };
         let Some(tank) = tank_of(player) else { return };
-        let gasp = Gasp::parse(read(tank.gasp_until()));
-        let next = gasp.at(Clock(read(player.stamina().clock())));
-        if next != gasp {
-            *tank.gasp_until() = next.raw();
+        let rush = OxygenRush::parse(read(tank.oxygen_rush_until()));
+        let next = rush.at(Clock(read(player.stamina().clock())));
+        if next != rush {
+            *tank.oxygen_rush_until() = next.raw();
             *player.refresh_selection() = 1;
         }
     }
 }
 
-/// Last Gasp's speed at the movement speed's end (`medical.movement`, after the medical tree).
-pub fn gasp_movement(ctx: &mut Context<'_>) {
+/// Oxygen Rush's speed at the movement speed's end (`medical.movement`, after the medical tree).
+pub fn oxygen_rush_movement(ctx: &mut Context<'_>) {
     use raw::site::medical_movement as site;
     // SAFETY: the movement epilogue's live player and its inventory's tank.
     let factor = unsafe {
         let Some(player) = site::player(ctx) else { return };
-        tank_of(player).map_or(1.0, |tank| Gasp::parse(read(tank.gasp_until())).speed())
+        tank_of(player).map_or(1.0, |tank| OxygenRush::parse(read(tank.oxygen_rush_until())).speed())
     };
     if factor != 1.0 {
         let speed = ctx.xmm_f32(0);
@@ -250,12 +297,16 @@ pub fn gasp_movement(ctx: &mut Context<'_>) {
     }
 }
 
-/// The tank's saved boost: none when made (the allocator leaves its tail as it was) and after a
-/// refill (a respawn's), so a boost never outlives its life.
+/// The tank's saved boost and use: none when made (the allocator leaves its tail as it was) and
+/// after a refill (a respawn's or an ammo crate's), so a boost never outlives its life and a fill
+/// counts its use from 0.
 pub fn tank_reset(tank: Option<raw::OxygenTank>) {
-    // SAFETY: the ctor's or the refill's live tank; the word is our own padding.
+    // SAFETY: the ctor's or the refill's live tank; the words are our own padding.
     if let Some(tank) = tank {
-        unsafe { *tank.gasp_until() = Gasp::Off.raw() };
+        unsafe {
+            *tank.oxygen_rush_until() = OxygenRush::Off.raw();
+            count_use(tank, TankEvent::Refill);
+        }
     }
 }
 
@@ -277,25 +328,29 @@ pub fn tank_refill(ctx: &Context<'_>, second: bool) {
     tank_reset(tank);
 }
 
-/// The tank's saved state after m_amount_ms (`technical.tank_save`): the boost's word.
+/// The tank's saved state after m_amount_ms (`technical.tank_save`): the boost's word, then the
+/// use's u16.
 pub fn tank_save(ctx: &Context<'_>) {
     use raw::site::technical_tank_save as site;
     // SAFETY: serialize's live tank and writer.
     unsafe {
         let (Some(tank), Some(writer)) = (site::tank(ctx), site::writer(ctx)) else { return };
-        super::carry_runtime::write_bytes(writer, &read(tank.gasp_until()).to_le_bytes());
+        super::carry_runtime::write_bytes(writer, &read(tank.oxygen_rush_until()).to_le_bytes());
+        super::carry_runtime::write_bytes(writer, &read(tank.oxygen_rush_use()).to_le_bytes());
     }
 }
 
-/// The tank's saved state after m_amount_ms (`technical.tank_load`): the boost's word, checked
-/// against the stream's end; a stream without it leaves no boost.
+/// The tank's saved state after m_amount_ms (`technical.tank_load`): the boost's word and the use,
+/// checked against the stream's end; a stream without them leaves no boost and no use.
 pub fn tank_load(ctx: &Context<'_>) {
     use raw::site::technical_tank_load as site;
     // SAFETY: deserialize's live tank and reader.
     unsafe {
         let (Some(tank), Some(reader)) = (site::tank(ctx), site::reader(ctx)) else { return };
-        let word = super::carry_runtime::read_bytes::<4>(reader).map_or(0, u32::from_le_bytes);
-        *tank.gasp_until() = Gasp::parse(word).raw();
+        let saved = super::carry_runtime::read_bytes::<6>(reader).unwrap_or_default();
+        let [a, b, c, d, e, f] = saved;
+        *tank.oxygen_rush_until() = OxygenRush::parse(u32::from_le_bytes([a, b, c, d])).raw();
+        *tank.oxygen_rush_use() = TankUse::parse(u16::from_le_bytes([e, f])).unwrap_or_default().raw();
     }
 }
 

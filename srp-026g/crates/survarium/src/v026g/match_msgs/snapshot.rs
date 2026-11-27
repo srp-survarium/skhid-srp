@@ -894,7 +894,8 @@ impl Tdm {
     }
 }
 
-/// A research unit as Research's rule writes it (exe patch 53, `rr_write`):
+/// A research unit as Research's rule writes it (exe patch 53,
+/// `research_rule::write`):
 /// 96 bytes.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct ResearchUnit {
@@ -946,7 +947,7 @@ impl ResearchUnit {
             inside,
             marks,
         };
-        // What `rr_read` refuses.
+        // What `research_rule::read` refuses.
         let sound = progress <= Research::FULL
             && taking <= rules::DRAW
             && owner <= rules::DRAW
@@ -1500,9 +1501,14 @@ impl Rules {
             Some((at, rule)) => (Some(at), Some(rule)),
             None => (None, None),
         };
-        let freeze_tag = (game_mode == RuleMode::FreezeTag)
-            .then(|| middle.len().checked_sub(FreezeTag::LEN)).flatten()
-            .and_then(|at| FreezeTag::read(&middle[at..]));
+        // Version 3's rule or version 4's (FreezeTag::read_back).
+        let (freeze_tag_at, freeze_tag) = match (game_mode == RuleMode::FreezeTag)
+            .then(|| FreezeTag::read_back(middle))
+            .flatten()
+        {
+            Some((at, rule)) => (Some(at), Some(rule)),
+            None => (None, None),
+        };
         let free_for_all = (game_mode == RuleMode::FreeForAll)
             .then(|| middle.len().checked_sub(SpawnHistory::LEN))
             .flatten()
@@ -1521,7 +1527,7 @@ impl Rules {
             // Where a mode rule of a size known from the end starts.
             let fixed_at = match game_mode {
                 RuleMode::TeamDeathmatch => Some(middle.len().checked_sub(Tdm::LEN)),
-                RuleMode::FreezeTag => Some(middle.len().checked_sub(FreezeTag::LEN)),
+                RuleMode::FreezeTag => Some(freeze_tag_at),
                 RuleMode::Research => Some(research_at),
                 // No mode rule: the respawn rule ends where the spawn
                 // history begins.
@@ -1644,8 +1650,11 @@ impl Decoded<'_> {
         // A free-for-all has no teams' standing: its players rank by the kd
         // rule's kills.
         if game_mode == RuleMode::FreezeTag {
+            // The leader by round wins, as the game's statistics have it: a match won at the
+            // wins, and one the time limit ends (`FreezeTag::leader`), even a draw.
             let rule = self.rules.as_ref()?.freeze_tag.as_ref()?;
-            return Some(Standing { points: rule.points(), winner: rule.winner().map_or(2, |team| team.index() as u8) });
+            let winner = rule.leader().map_or(rules::DRAW, |team| team.index() as u8);
+            return Some(Standing { points: rule.points(), winner });
         }
         if game_mode == RuleMode::FreeForAll {
             return None;
@@ -1679,7 +1688,7 @@ impl Decoded<'_> {
                 });
             }
             // Without the rule: the tail's leader, which patch 53's publish()
-            // writes from rr_leader every tick (the millionths at the goal),
+            // writes from research_rule::leader every tick (the millionths at the goal),
             // when it is one (3 until a rule's first event); else the points.
             let tail = tail?;
             let winner = if tail.winner_team <= rules::DRAW {
@@ -2442,7 +2451,7 @@ mod tests {
 
     #[test]
     fn a_research_match_without_its_rule_takes_the_tails_leader() {
-        // Both show 100 at the goal; the tail's leader (rr_leader, by the
+        // Both show 100 at the goal; the tail's leader (research_rule::leader, by the
         // millionths) is team 1.
         let mut statistics = player_bytes();
         statistics.extend(EMPTY_PLAYER);
@@ -2827,11 +2836,16 @@ mod tests {
         use srp_validate::Team;
         use srp_validate::world::freeze::{Body, Condition, Phase, PLAYERS};
         let mut freeze = FreezeTag::EMPTY;
+        let mut now = 100_000;
+        let mut step = |freeze: &mut FreezeTag, bodies: &[Body; PLAYERS], ms: u16| {
+            now += u32::from(ms);
+            freeze.step(artefact_hunt_rule::Time::from_ms(now), bodies, &[[false; PLAYERS]; PLAYERS], ms);
+        };
         let mut bodies = [Body::Absent; PLAYERS];
         bodies[0] = Body::Present { team: Team::First, position: [0.0; 3], condition: Condition::Fighting };
         bodies[1] = Body::Present { team: Team::Second, position: [10.0; 3], condition: Condition::Lethal };
-        freeze.step(&bodies, &[[false; PLAYERS]; PLAYERS], 50);
-        assert!(matches!(freeze.phase(), Phase::Between { .. }));
+        step(&mut freeze, &bodies, 50);
+        assert!(matches!(freeze.phase(), Phase::Restart { .. }));
         let rules = Rules {
             timelimit: Timelimit::read(&TIMELIMIT).unwrap(),
             respawn: Some(Respawn { times: vec![], seed: 7, points: vec![[0, 0]; 22] }),
@@ -2852,15 +2866,25 @@ mod tests {
         });
         bodies[..2].copy_from_slice(&both);
         for _ in 0..2 {
-            freeze.step(&fighting, &[[false; PLAYERS]; PLAYERS], 5000);
-            freeze.step(&fighting, &[[false; PLAYERS]; PLAYERS], 50);
+            // The 3 s, the fade (its end a round start), the countdown.
+            for ms in [3000, 1000, 5000] {
+                step(&mut freeze, &fighting, ms);
+            }
             assert_eq!(freeze.phase(), Phase::Playing);
-            freeze.step(&bodies, &[[false; PLAYERS]; PLAYERS], 50);
+            step(&mut freeze, &bodies, 50);
         }
         assert_eq!((freeze.points(), freeze.round_starts()), ([1, 0], 2));
         let rules = Rules { freeze_tag: Some(freeze), ..rules };
         let decoded = Rules::decode(&rules.to_bytes(), TIME, 2, RuleMode::FreezeTag, 0).unwrap();
         assert_eq!(decoded.freeze_tag.map(|rule| rule.round_starts()), Some(2));
+        // The standing is the leader by round wins: the time limit ending the match at 1:0, not
+        // at five, still gives it to the first team.
+        let mut statistics = player_bytes();
+        statistics.extend(EMPTY_PLAYER);
+        statistics.extend([1, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0]);
+        let whole = body(&statistics, &rules.to_bytes());
+        let decoded = decode(TIME, &whole, 2, RuleMode::FreezeTag, 0).unwrap();
+        assert_eq!(decoded.standing(RuleMode::FreezeTag, &[0, 1]), Some(Standing { points: [1, 0], winner: 0 }));
     }
 
     #[test]

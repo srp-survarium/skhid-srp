@@ -19,7 +19,8 @@ use session::v026g::SkillTakers;
 use session::v026g::account::{MAX_LEVEL, level_start};
 use session::v026g::rewards::PerMatch;
 
-use crate::{Lang, Written};
+use crate::Lang;
+use crate::built::{Built, Script};
 
 /// The page's address.
 pub(crate) const PATH: &str = "/wiki/skills";
@@ -37,6 +38,14 @@ macro_rules! files {
 /// The files the page loads: address, content type, bytes.
 const FILES: &[(&str, &str, &[u8])] = include!("../skills/files.rs");
 
+/// The built body, in every language's places (`crate::built`): its script reads no words.
+static SCRIPT: Script = Script::new(b"");
+static BUILT: Built = Built::new(
+    include_str!("../skills/skills.html"),
+    include_str!("../skills/skills.texts.json"),
+    &SCRIPT,
+);
+
 /// The page's file at `path` (the target before any `?`): its content type
 /// and bytes.
 pub(crate) fn file(path: &str) -> Option<(&'static str, &'static [u8])> {
@@ -50,7 +59,6 @@ pub(crate) fn file(path: &str) -> Option<(&'static str, &'static [u8])> {
 /// before it.
 const PLANNER: &str = "<div class=\"skill-plan\"";
 /// Where the built body's trees start.
-#[cfg(test)]
 const TREES: &str = "<div class=\"skill-trees\"";
 
 /// Where a skill of the built body starts, its id next; its disc follows.
@@ -70,10 +78,7 @@ pub(crate) struct Now {
 /// The page's body in `lang`, for the wiki's page, with what it shows of
 /// the server `now`.
 pub(crate) fn body(lang: Lang, now: &Now) -> String {
-    let built = match lang.written() {
-        Written::En => include_str!("../skills/skills.en.html"),
-        Written::Uk => include_str!("../skills/skills.uk.html"),
-    };
+    let built = BUILT.page(lang);
     let at = built
         .find(PLANNER)
         .expect("the built skills page has its planner");
@@ -83,6 +88,14 @@ pub(crate) fn body(lang: Lang, now: &Now) -> String {
         levels(lang, now.per_match),
         with_takers(lang, &built[at..], &now.takers)
     )
+}
+
+/// The trees alone in `lang`, with their tooltip's box and their script, for a page that shows
+/// one player's skills (the stats page, [`crate::history`]): the script draws the build that
+/// page gives the trees and takes no change to it.
+pub(crate) fn trees(lang: Lang) -> String {
+    let built = BUILT.page(lang);
+    built[built.find(TREES).expect("the built skills page has its trees")..].to_owned()
 }
 
 /// `trees` with, on each skill's disc, how many players took it.
@@ -109,12 +122,13 @@ fn with_takers(lang: Lang, trees: &str, takers: &SkillTakers) -> String {
     out
 }
 
-/// `n` with its thousands apart, as `lang` writes them.
+/// `n` with its thousands apart, as `lang` writes them (as the planner's `toLocaleString`).
 fn thousands(lang: Lang, n: u32) -> String {
     let digits = n.to_string();
-    let gap = match lang.written() {
-        Written::En => ",",
-        Written::Uk => "\u{a0}",
+    let gap = match lang {
+        Lang::En => ",",
+        Lang::De | Lang::Sr | Lang::Hr | Lang::Pt => ".",
+        Lang::Uk | Lang::Ru | Lang::Pl | Lang::Cs | Lang::Hu | Lang::Fi | Lang::Be => "\u{a0}",
     };
     let mut out = String::new();
     for (i, digit) in digits.chars().enumerate() {
@@ -132,10 +146,7 @@ fn hours(lang: Lang, experience: u32, per_match: PerMatch) -> String {
     let tenths = (u64::from(experience) * u64::from(per_match.seconds.get()) * 10)
         .div_ceil(u64::from(per_match.experience.get()) * 3600);
     if tenths < 100 {
-        let point = match lang.written() {
-            Written::En => '.',
-            Written::Uk => ',',
-        };
+        let point = if lang == Lang::En { '.' } else { ',' };
         format!("{}{point}{}", tenths / 10, tenths % 10)
     } else {
         thousands(lang, u32::try_from(tenths.div_ceil(10)).unwrap_or(u32::MAX))

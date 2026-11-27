@@ -1,0 +1,709 @@
+{
+ "_about": "Each gun's parameters/aim_offset is its iron sights' 0.69d0 eye: the whole body's eye along its line to the gun's eye plane (body_aim), from scripts/weapon-modules/iron_sights.tsv (made by iron_sights.py); a gun with an optic of its own keeps its own (_left_out).",
+ "set": [
+  {
+   "file": "gameplay/items/weapons/wpn_a545.options",
+   "path": "parameters/aim_offset",
+   "from": 0.15,
+   "to": 0.137
+  },
+  {
+   "file": "gameplay/items/weapons/wpn_a9_91.options",
+   "path": "parameters/aim_offset",
+   "from": 0.02,
+   "to": -0.0005
+  },
+  {
+   "file": "gameplay/items/weapons/wpn_aps.options",
+   "path": "parameters/aim_offset",
+   "from": -0.1,
+   "to": -0.4788
+  },
+  {
+   "file": "gameplay/items/weapons/wpn_benelli_m4.options",
+   "path": "parameters/aim_offset",
+   "from": -0.03,
+   "to": -0.0839
+  },
+  {
+   "file": "gameplay/items/weapons/wpn_fn_fnc.options",
+   "path": "parameters/aim_offset",
+   "from": 0.072,
+   "to": -0.0429
+  },
+  {
+   "file": "gameplay/items/weapons/wpn_fn_minimi.options",
+   "path": "parameters/aim_offset",
+   "from": 0.0,
+   "to": -0.0648
+  },
+  {
+   "file": "gameplay/items/weapons/wpn_fort_17.options",
+   "path": "parameters/aim_offset",
+   "from": -0.1,
+   "to": -0.4903
+  },
+  {
+   "file": "gameplay/items/weapons/wpn_ks_23m.options",
+   "path": "parameters/aim_offset",
+   "from": 0.03,
+   "to": 0.0
+  },
+  {
+   "file": "gameplay/items/weapons/wpn_m4a1.options",
+   "path": "parameters/aim_offset",
+   "from": 0,
+   "to": -0.1279,
+   "as_float": true
+  },
+  {
+   "file": "gameplay/items/weapons/wpn_mauser_m712.options",
+   "path": "parameters/aim_offset",
+   "from": 0.0,
+   "to": 0.0
+  },
+  {
+   "file": "gameplay/items/weapons/wpn_mosin_nagant.options",
+   "path": "parameters/aim_offset",
+   "from": -0.02,
+   "to": -0.1408
+  },
+  {
+   "file": "gameplay/items/weapons/wpn_mp_153.options",
+   "path": "parameters/aim_offset",
+   "from": 0.1,
+   "to": 0.0112
+  },
+  {
+   "file": "gameplay/items/weapons/wpn_neostead.options",
+   "path": "parameters/aim_offset",
+   "from": 0.03,
+   "to": -0.0658
+  },
+  {
+   "file": "gameplay/items/weapons/wpn_neostead_2.options",
+   "path": "parameters/aim_offset",
+   "from": 0.03,
+   "to": -0.0658
+  },
+  {
+   "file": "gameplay/items/weapons/wpn_pkp_pecheneg.options",
+   "path": "parameters/aim_offset",
+   "from": 0.12,
+   "to": -0.0364
+  },
+  {
+   "file": "gameplay/items/weapons/wpn_pm.options",
+   "path": "parameters/aim_offset",
+   "from": -0.05,
+   "to": -0.4789
+  },
+  {
+   "file": "gameplay/items/weapons/wpn_ppsh.options",
+   "path": "parameters/aim_offset",
+   "from": 0.01,
+   "to": -0.2138
+  },
+  {
+   "file": "gameplay/items/weapons/wpn_ppsh_drum.options",
+   "path": "parameters/aim_offset",
+   "from": 0.01,
+   "to": 0.0
+  },
+  {
+   "file": "gameplay/items/weapons/wpn_rem_870.options",
+   "path": "parameters/aim_offset",
+   "from": 0.03,
+   "to": 0.0356
+  },
+  {
+   "file": "gameplay/items/weapons/wpn_rpd.options",
+   "path": "parameters/aim_offset",
+   "from": 0.1,
+   "to": -0.1044
+  },
+  {
+   "file": "gameplay/items/weapons/wpn_scar_h.options",
+   "path": "parameters/aim_offset",
+   "from": 0,
+   "to": -0.0609,
+   "as_float": true
+  },
+  {
+   "file": "gameplay/items/weapons/wpn_sks.options",
+   "path": "parameters/aim_offset",
+   "from": -0.02,
+   "to": -0.1667
+  },
+  {
+   "file": "gameplay/items/weapons/wpn_sks_premium.options",
+   "path": "parameters/aim_offset",
+   "from": -0.02,
+   "to": -0.1667
+  },
+  {
+   "file": "gameplay/items/weapons/wpn_sks_premium_2.options",
+   "path": "parameters/aim_offset",
+   "from": -0.02,
+   "to": -0.1667
+  },
+  {
+   "file": "gameplay/items/weapons/wpn_spas_12.options",
+   "path": "parameters/aim_offset",
+   "from": 0.05,
+   "to": -0.0088
+  },
+  {
+   "file": "gameplay/items/weapons/wpn_sr2m.options",
+   "path": "parameters/aim_offset",
+   "from": 0.1,
+   "to": -0.0001
+  },
+  {
+   "file": "gameplay/items/weapons/wpn_sr3m.options",
+   "path": "parameters/aim_offset",
+   "from": 0.028,
+   "to": -0.0002
+  },
+  {
+   "file": "gameplay/items/weapons/wpn_sr3m_premium.options",
+   "path": "parameters/aim_offset",
+   "from": 0.028,
+   "to": -0.0002
+  },
+  {
+   "file": "gameplay/items/weapons/wpn_toz_122.options",
+   "path": "parameters/aim_offset",
+   "from": -0.02,
+   "to": -0.1147
+  },
+  {
+   "file": "gameplay/items/weapons/wpn_tt_33.options",
+   "path": "parameters/aim_offset",
+   "from": -0.05,
+   "to": -0.4318
+  },
+  {
+   "file": "gameplay/items/weapons/wpn_val.options",
+   "path": "parameters/aim_offset",
+   "from": 0.028,
+   "to": 0.0658
+  },
+  {
+   "file": "gameplay/items/weapons/wpn_vepr.options",
+   "path": "parameters/aim_offset",
+   "from": 0.12,
+   "to": 0.0144
+  },
+  {
+   "file": "gameplay/items/weapons/wpn_vepr_12.options",
+   "path": "parameters/aim_offset",
+   "from": -0.05,
+   "to": -0.0912
+  },
+  {
+   "file": "gameplay/items/weapons/wpn_vepr_12_premium.options",
+   "path": "parameters/aim_offset",
+   "from": -0.05,
+   "to": -0.0912
+  },
+  {
+   "file": "gameplay/items/weapons/wpn_vepr_premium.options",
+   "path": "parameters/aim_offset",
+   "from": 0.12,
+   "to": 0.0144
+  }
+ ],
+ "add_value": [
+  {
+   "files": [
+    "gameplay/items/weapons/wpn_aek_919k.options"
+   ],
+   "table": "parameters",
+   "key": "aim_offset",
+   "value": -0.1194
+  },
+  {
+   "files": [
+    "gameplay/items/weapons/wpn_ak_12.options"
+   ],
+   "table": "parameters",
+   "key": "aim_offset",
+   "value": -0.0506
+  },
+  {
+   "files": [
+    "gameplay/items/weapons/wpn_ak_12_premium.options"
+   ],
+   "table": "parameters",
+   "key": "aim_offset",
+   "value": -0.0506
+  },
+  {
+   "files": [
+    "gameplay/items/weapons/wpn_ak_74m.options"
+   ],
+   "table": "parameters",
+   "key": "aim_offset",
+   "value": -0.025
+  },
+  {
+   "files": [
+    "gameplay/items/weapons/wpn_ak_74n.options"
+   ],
+   "table": "parameters",
+   "key": "aim_offset",
+   "value": -0.025
+  },
+  {
+   "files": [
+    "gameplay/items/weapons/wpn_ak_74n_premium.options"
+   ],
+   "table": "parameters",
+   "key": "aim_offset",
+   "value": -0.025
+  },
+  {
+   "files": [
+    "gameplay/items/weapons/wpn_ak_74u.options"
+   ],
+   "table": "parameters",
+   "key": "aim_offset",
+   "value": -0.0833
+  },
+  {
+   "files": [
+    "gameplay/items/weapons/wpn_ak_74u_premium.options"
+   ],
+   "table": "parameters",
+   "key": "aim_offset",
+   "value": -0.0833
+  },
+  {
+   "files": [
+    "gameplay/items/weapons/wpn_akmn.options"
+   ],
+   "table": "parameters",
+   "key": "aim_offset",
+   "value": -0.0561
+  },
+  {
+   "files": [
+    "gameplay/items/weapons/wpn_akmn_premium.options"
+   ],
+   "table": "parameters",
+   "key": "aim_offset",
+   "value": -0.0561
+  },
+  {
+   "files": [
+    "gameplay/items/weapons/wpn_akmn_premium_2.options"
+   ],
+   "table": "parameters",
+   "key": "aim_offset",
+   "value": -0.0561
+  },
+  {
+   "files": [
+    "gameplay/items/weapons/wpn_akmsu.options"
+   ],
+   "table": "parameters",
+   "key": "aim_offset",
+   "value": 0.0
+  },
+  {
+   "files": [
+    "gameplay/items/weapons/wpn_ash_12.options"
+   ],
+   "table": "parameters",
+   "key": "aim_offset",
+   "value": -0.0561
+  },
+  {
+   "files": [
+    "gameplay/items/weapons/wpn_beretta93r.options"
+   ],
+   "table": "parameters",
+   "key": "aim_offset",
+   "value": 0.0
+  },
+  {
+   "files": [
+    "gameplay/items/weapons/wpn_colt_m1911.options"
+   ],
+   "table": "parameters",
+   "key": "aim_offset",
+   "value": 0.0003
+  },
+  {
+   "files": [
+    "gameplay/items/weapons/wpn_cz_75.options"
+   ],
+   "table": "parameters",
+   "key": "aim_offset",
+   "value": 0.0
+  },
+  {
+   "files": [
+    "gameplay/items/weapons/wpn_famas.options"
+   ],
+   "table": "parameters",
+   "key": "aim_offset",
+   "value": 0.0
+  },
+  {
+   "files": [
+    "gameplay/items/weapons/wpn_fort_401.options"
+   ],
+   "table": "parameters",
+   "key": "aim_offset",
+   "value": -0.0373
+  },
+  {
+   "files": [
+    "gameplay/items/weapons/wpn_g3sg1.options"
+   ],
+   "table": "parameters",
+   "key": "aim_offset",
+   "value": 0.0
+  },
+  {
+   "files": [
+    "gameplay/items/weapons/wpn_glock_17.options"
+   ],
+   "table": "parameters",
+   "key": "aim_offset",
+   "value": -0.0
+  },
+  {
+   "files": [
+    "gameplay/items/weapons/wpn_izh_27_lancaster.options"
+   ],
+   "table": "parameters",
+   "key": "aim_offset",
+   "value": -0.1069
+  },
+  {
+   "files": [
+    "gameplay/items/weapons/wpn_izh_27_lancaster_premium.options"
+   ],
+   "table": "parameters",
+   "key": "aim_offset",
+   "value": -0.1069
+  },
+  {
+   "files": [
+    "gameplay/items/weapons/wpn_izh_27_lancaster_premium_2.options"
+   ],
+   "table": "parameters",
+   "key": "aim_offset",
+   "value": -0.1069
+  },
+  {
+   "files": [
+    "gameplay/items/weapons/wpn_jackhammer.options"
+   ],
+   "table": "parameters",
+   "key": "aim_offset",
+   "value": -0.0047
+  },
+  {
+   "files": [
+    "gameplay/items/weapons/wpn_kedr.options"
+   ],
+   "table": "parameters",
+   "key": "aim_offset",
+   "value": -0.0776
+  },
+  {
+   "files": [
+    "gameplay/items/weapons/wpn_kiparis.options"
+   ],
+   "table": "parameters",
+   "key": "aim_offset",
+   "value": -0.0698
+  },
+  {
+   "files": [
+    "gameplay/items/weapons/wpn_kiparis_premium.options"
+   ],
+   "table": "parameters",
+   "key": "aim_offset",
+   "value": -0.0698
+  },
+  {
+   "files": [
+    "gameplay/items/weapons/wpn_l85a2.options"
+   ],
+   "table": "parameters",
+   "key": "aim_offset",
+   "value": -0.0047
+  },
+  {
+   "files": [
+    "gameplay/items/weapons/wpn_magnum.options"
+   ],
+   "table": "parameters",
+   "key": "aim_offset",
+   "value": -0.4292
+  },
+  {
+   "files": [
+    "gameplay/items/weapons/wpn_mp443.options"
+   ],
+   "table": "parameters",
+   "key": "aim_offset",
+   "value": 0.0
+  },
+  {
+   "files": [
+    "gameplay/items/weapons/wpn_mp5a1.options"
+   ],
+   "table": "parameters",
+   "key": "aim_offset",
+   "value": 0.0669
+  },
+  {
+   "files": [
+    "gameplay/items/weapons/wpn_mp7.options"
+   ],
+   "table": "parameters",
+   "key": "aim_offset",
+   "value": -0.092
+  },
+  {
+   "files": [
+    "gameplay/items/weapons/wpn_mp7_silencer.options"
+   ],
+   "table": "parameters",
+   "key": "aim_offset",
+   "value": -0.092
+  },
+  {
+   "files": [
+    "gameplay/items/weapons/wpn_mp7_silencer_special.options"
+   ],
+   "table": "parameters",
+   "key": "aim_offset",
+   "value": -0.092
+  },
+  {
+   "files": [
+    "gameplay/items/weapons/wpn_ots14.options"
+   ],
+   "table": "parameters",
+   "key": "aim_offset",
+   "value": -0.1336
+  },
+  {
+   "files": [
+    "gameplay/items/weapons/wpn_pp2000.options"
+   ],
+   "table": "parameters",
+   "key": "aim_offset",
+   "value": -0.0143
+  },
+  {
+   "files": [
+    "gameplay/items/weapons/wpn_rpk.options"
+   ],
+   "table": "parameters",
+   "key": "aim_offset",
+   "value": -0.025
+  },
+  {
+   "files": [
+    "gameplay/items/weapons/wpn_saiga_12.options"
+   ],
+   "table": "parameters",
+   "key": "aim_offset",
+   "value": -0.0313
+  },
+  {
+   "files": [
+    "gameplay/items/weapons/wpn_saiga_12_premium.options"
+   ],
+   "table": "parameters",
+   "key": "aim_offset",
+   "value": -0.0313
+  },
+  {
+   "files": [
+    "gameplay/items/weapons/wpn_soc_vepr.options"
+   ],
+   "table": "parameters",
+   "key": "aim_offset",
+   "value": -0.0846
+  },
+  {
+   "files": [
+    "gameplay/items/weapons/wpn_socom16.options"
+   ],
+   "table": "parameters",
+   "key": "aim_offset",
+   "value": -0.0643
+  },
+  {
+   "files": [
+    "gameplay/items/weapons/wpn_svu_a.options"
+   ],
+   "table": "parameters",
+   "key": "aim_offset",
+   "value": 0.0
+  },
+  {
+   "files": [
+    "gameplay/items/weapons/wpn_toz_34.options"
+   ],
+   "table": "parameters",
+   "key": "aim_offset",
+   "value": -0.1108
+  },
+  {
+   "files": [
+    "gameplay/items/weapons/wpn_toz_66.options"
+   ],
+   "table": "parameters",
+   "key": "aim_offset",
+   "value": -0.0942
+  },
+  {
+   "files": [
+    "gameplay/items/weapons/wpn_ump45.options"
+   ],
+   "table": "parameters",
+   "key": "aim_offset",
+   "value": -0.0684
+  },
+  {
+   "files": [
+    "gameplay/items/weapons/wpn_uzi.options"
+   ],
+   "table": "parameters",
+   "key": "aim_offset",
+   "value": -0.2299
+  },
+  {
+   "files": [
+    "gameplay/items/weapons/wpn_uzi_premium.options"
+   ],
+   "table": "parameters",
+   "key": "aim_offset",
+   "value": -0.2299
+  },
+  {
+   "files": [
+    "gameplay/items/weapons/wpn_uzi_premium_2.options"
+   ],
+   "table": "parameters",
+   "key": "aim_offset",
+   "value": -0.2299
+  },
+  {
+   "files": [
+    "gameplay/items/weapons/wpn_valmet.options"
+   ],
+   "table": "parameters",
+   "key": "aim_offset",
+   "value": -0.0903
+  },
+  {
+   "files": [
+    "gameplay/items/weapons/wpn_vhs_2.options"
+   ],
+   "table": "parameters",
+   "key": "aim_offset",
+   "value": -0.1359
+  },
+  {
+   "files": [
+    "gameplay/items/weapons/wpn_vityaz.options"
+   ],
+   "table": "parameters",
+   "key": "aim_offset",
+   "value": -0.0364
+  },
+  {
+   "files": [
+    "gameplay/items/weapons/wpn_vityaz_premium.options"
+   ],
+   "table": "parameters",
+   "key": "aim_offset",
+   "value": -0.0364
+  },
+  {
+   "files": [
+    "gameplay/items/weapons/wpn_vz58.options"
+   ],
+   "table": "parameters",
+   "key": "aim_offset",
+   "value": -0.0339
+  },
+  {
+   "files": [
+    "gameplay/items/weapons/wpn_winchester_1894.options"
+   ],
+   "table": "parameters",
+   "key": "aim_offset",
+   "value": -0.15
+  }
+ ],
+ "_left_out": [
+  {
+   "file": "gameplay/items/weapons/wpn_fn_p90.options",
+   "why": "its own optic, addons/rifle_scope_dict_id 2207"
+  },
+  {
+   "file": "gameplay/items/weapons/wpn_hk416.options",
+   "why": "its own optic, addons/rifle_scope_dict_id 2206"
+  },
+  {
+   "file": "gameplay/items/weapons/wpn_kriss_vector.options",
+   "why": "its own optic, addons/rifle_scope_dict_id 2207"
+  },
+  {
+   "file": "gameplay/items/weapons/wpn_msbs_carbine.options",
+   "why": "its own optic, addons/rifle_scope_dict_id 2206"
+  },
+  {
+   "file": "gameplay/items/weapons/wpn_rem_700.options",
+   "why": "its own optic, addons/rifle_scope_dict_id 69"
+  },
+  {
+   "file": "gameplay/items/weapons/wpn_rem_700_premium.options",
+   "why": "its own optic, addons/rifle_scope_dict_id 69"
+  },
+  {
+   "file": "gameplay/items/weapons/wpn_sv_98.options",
+   "why": "its own optic, addons/rifle_scope_dict_id 362"
+  },
+  {
+   "file": "gameplay/items/weapons/wpn_svd.options",
+   "why": "its own optic, addons/rifle_scope_dict_id 304"
+  },
+  {
+   "file": "gameplay/items/weapons/wpn_vsk_94.options",
+   "why": "its own optic, addons/rifle_scope_dict_id 304"
+  },
+  {
+   "file": "gameplay/items/weapons/wpn_vsk_94_premium.options",
+   "why": "its own optic, addons/rifle_scope_dict_id 304"
+  },
+  {
+   "file": "gameplay/items/weapons/wpn_vss.options",
+   "why": "its own optic, addons/rifle_scope_dict_id 304"
+  },
+  {
+   "file": "gameplay/items/weapons/wpn_vss_premium.options",
+   "why": "its own optic, addons/rifle_scope_dict_id 304"
+  },
+  {
+   "file": "gameplay/items/weapons/wpn_vssk.options",
+   "why": "its own optic, addons/rifle_scope_dict_id 362"
+  },
+  {
+   "file": "gameplay/items/weapons/wpn_vssk_camo.options",
+   "why": "its own optic, addons/rifle_scope_dict_id 362"
+  }
+ ]
+}
