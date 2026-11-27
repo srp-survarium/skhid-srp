@@ -10,9 +10,12 @@ A twist of the free-for-all cards (`ffa.md`, "Twists"), beside Racket, Saloon an
 
 ## In short
 
-- The card draws a **level band** among those the room allows, as Roulette's (`ffa-roulette.md`,
-  "The band": 0-5, 6-10, 11-15 by `match_making_level`, each band whose top is at most the room's
-  max level, each as likely), then **one pair**: two kits of that band.
+- The card draws a **level band** among those the room allows, Roulette's 0-5 and 6-10 alone
+  (`ffa-roulette.md`, "The band": by `match_making_level`, each band whose top is at most the room's
+  max level, each as likely; `pistols::Band`), then **one pair**: two kits of that band, the
+  pistols, the armour and the pockets all of it. A level-15 room plays 0-5 or 6-10, half each,
+  never 11-15 (the owner, 2026-11-27: "as always 11-15 rooms just get 0-5 or 6-10 equips"); a
+  level-10 room the same; a level-5 room 0-5.
 - **Everyone plays that same pair.** Kit 1 and kit 2 are the pair's; kit 3 is not loaded
   (`KIT_NOT_LOADED`, empty): the game makes no player object for it, so nobody spawns with it and a
   pick of it changes nothing (`match.md` §23), as an account's unplayable kit today. That is the
@@ -39,29 +42,35 @@ A twist of the free-for-all cards (`ffa.md`, "Twists"), beside Racket, Saloon an
 ## The pistols by band
 
 A pistol is a gun of the pistols' dictionary category (17) held in one hand (no `double_handed`),
-no golden or premium copy of another (`like`), with an ammunition the shop offers. The 11-15 band
-has none of its own (no pistol is above level 10), so it deals the 6-10 band's, as a Roulette pistol
-hand does; its armour is the 11-15 band's.
+no golden or premium copy of another (`like`), with an ammunition the shop offers. No pistol is
+above level 10: Pistols has no 11-15 band (Roulette's pistol hands of 11-15 deal the 6-10 pistols
+with 11-15 armour; Pistols never does).
 
 | band | pistols (live data, revision 74) |
 | --- | --- |
 | 0-5 | TT-33 (0), PM (2), Colt M1911 (3) |
 | 6-10 | Fort 17, APS, CZ 75, MP-443 Grach, Beretta 93R, Mauser M.712 (6), Glock 17 (7), Colt Python (10) |
-| 11-15 | the 6-10 band's eight |
 
 ## The Kashtan
 
 The AEK-919K "Kashtan" (`aek_919k`) is a submachine gun in Skhid's data: its dictionary category is
-15 (submachine guns), it is `double_handed`, the shop's filters (by category,
-`ShopFilters.tsv`), the wiki's weapons table (`docs/data/weapons.tsv`) and Roulette's main-gun
-classes all have it as one. The one thing that calls it a pistol is its config's
-`parameters.type`, `wpn_pstl` (the PPSh-41 and the MP7 are `wpn_aslt` the same way): the game's
-exe has no such string, and srp reads it only for the damage calculator's grouping ("Pistols &
-revolvers") and the match server's bots' reflex (`bots::reflex::Kind::of_item`, after the sniper and
-shotgun categories). It is left as it is: what the game does with `type` is not known, and the
-grouping by category is right everywhere a player meets it. Pistols' pool is by category and hands,
-so the Kashtan is never in it; the test `each_band_deals_its_own_pistols_never_the_kashtan` holds it,
-and the one-hand rule keeps out any two-handed gun a later data change might file under pistols.
+15 (submachine guns), it is `double_handed`, the shop's filters (by category, `ShopFilters.tsv`),
+the wiki's weapons table (`docs/data/weapons.tsv`) and Roulette's main-gun classes all have it as
+one. Its config's `parameters.type` was a pistol's, `wpn_pstl`: the site's damage calculator and the
+wiki's simulators group the guns by it, so the site showed it under "Pistols & revolvers" (the owner,
+2026-11-27: "for some reason on website it is a pistol"). Content edit `kashtan-type-1.json` makes it
+`wpn_smg`, as every other gun of category 15 is but the PPSh-41 and the MP7s (`wpn_aslt`). A site
+build with it (`release/build-site --with` a patch of the edited config) changes the calculator's
+data in that one value: the Kashtan under "Submachine guns". The wiki's weapons table groups by
+category and does not change.
+
+- Who reads `type`: the site (above); srp's match server, `bots::reflex::Kind::of_item` for a
+  place's weapon 1 (`game::driven::weapon_of`): a player holding the Kashtan is an SMG to the bots
+  now, not a pistol (acceptable: it is the gun it is); nothing else of srp. The 0.26g exe has no
+  `wpn_*` string, so what the game itself does with `type` is not known (it could hash it): the
+  change is in the `next` row of `simulation_changes.tsv`, to be safe.
+- Pistols' pool is by category and hands, so the Kashtan was never in it either way; the test
+  `each_band_deals_its_own_pistols_never_the_kashtan` holds that, `test_kashtan_type.py` the edit.
 
 ## Determinism, late joiners, replays, the world format
 
@@ -88,10 +97,10 @@ shares changed, and a match of it arms the kits otherwise).
 - **The stats:** one more version of Free for all on both boards (its own lobby number in the
   history); its name in every language is the game's (`plays.rs` test).
 
-## Open questions for the owner
+## The owner's answers (2026-11-27)
 
-1. "2 slots instead of 3" read as two kits (the warm-up picker's slots), a pistol each; the other
-   reading, three kits with a pistol in both weapon slots, is not what this does.
-2. The 11-15 band deals the 6-10 pistols with 11-15 armour (Roulette's rule); the alternative is to
-   leave 11-15 out of Pistols' draw.
-3. The two pistols are always different (every band has three or more).
+1. Two kits, a pistol each, kit 3 empty: right.
+2. No 11-15 band: "as always 11-15 rooms just get 0-5 or 6-10 equips", the whole pair of the drawn
+   band.
+3. The two pistols always different: keep.
+4. The Kashtan's `type`: fix it ("for some reason on website it is a pistol"): `kashtan-type-1.json`.

@@ -8,7 +8,7 @@
 use super::cowboy::Variation;
 use super::maps::{GameMode, MapMode, MatchMap};
 use super::match_msgs::static_info::MatchProfile;
-use super::pistols::Pair;
+use super::pistols::{self, Pair};
 use super::racket::Gun;
 use super::roulette::{Band, Hand};
 
@@ -30,7 +30,8 @@ pub enum Pick {
 /// pick, the same day); plain 50 and Racket 40 without Roulette; the Winchester 15 from 2026-11-15
 /// ("winchester should become 5% again on FFA"), Saloon 10 at first ("cowboy version should be rare
 /// with only 10% chance"). Racket's gun is its room's (`racket`, `Gun::of_room`), Roulette's and
-/// Pistols' band one its room allows (`roulette::Band::draw`).
+/// Pistols' band one its room allows (`roulette::Band::draw`; Pistols' 0-5 or 6-10 alone,
+/// `pistols::Band::draw`).
 pub const SHARES: [(Pick, u32); 6] = [
     (Pick::Plain, 25),
     (Pick::Racket, 30),
@@ -53,7 +54,8 @@ pub fn draw(map: MatchMap, max_level: u8, below: &mut impl FnMut(usize) -> usize
     let banded = Band::allowed(max_level).next().is_some();
     let drawn = SHARES.iter().filter(|&&(pick, _)| match pick {
         Pick::Plain => !map.map().twists_only,
-        Pick::Roulette | Pick::Pistols => banded,
+        Pick::Roulette => banded,
+        Pick::Pistols => pistols::Band::allowed(max_level).next().is_some(),
         Pick::Racket | Pick::Cowboy(_) => true,
     });
     let total: u32 = drawn.clone().map(|(_, share)| share).sum();
@@ -74,7 +76,7 @@ pub fn draw(map: MatchMap, max_level: u8, below: &mut impl FnMut(usize) -> usize
             Band::draw(max_level, below).map(|band| Armed::Roulette(Hand::deal(band, below)))
         }
         Pick::Pistols => {
-            Band::draw(max_level, below).map(|band| Armed::Pistols(Pair::deal(band, below)))
+            pistols::Band::draw(max_level, below).map(|band| Armed::Pistols(Pair::deal(band, below)))
         }
     };
     armed
@@ -452,11 +454,11 @@ mod tests {
         ] {
             assert!((got - want).abs() < 1.5, "{what}: {got:.2} % of {CARDS} cards, its share {want} %");
         }
-        // Pistols' bands each a third of its cards in a level-15 room.
-        assert_eq!(bands.keys().copied().collect::<Vec<u8>>(), [5, 10, 15]);
+        // Pistols' bands in a level-15 room: 0-5 or 6-10, half each, never 11-15.
+        assert_eq!(bands.keys().copied().collect::<Vec<u8>>(), [5, 10]);
         let pistols = *seen.get(&18).unwrap() as f64;
         for (&top, &cards) in &bands {
-            assert!((cards as f64 / pistols - 1.0 / 3.0).abs() < 0.05, "band to {top}: {cards} of {pistols}");
+            assert!((cards as f64 / pistols - 0.5).abs() < 0.06, "band to {top}: {cards} of {pistols}");
         }
     }
 }

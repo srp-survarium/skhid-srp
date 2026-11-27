@@ -679,7 +679,7 @@ rules, spawns, pay and results, every kit's guns changed by the server.
   - **Roulette** 25 % (`ffa-roulette.md`; 30 from 2026-11-22): a level band the room allows and one
     hand of three kits of it, every player's;
   - **Pistols** 10 % since 2026-11-27 (`ffa-pistols.md`; the owner: "it should be 10% of FFA
-    cards"): Roulette's band and its draw, two kits of it, a pistol each, every player's, the third
+    cards"): a band of 0-5 or 6-10 (an 11-15 room plays one of them), two kits of it, a pistol each, every player's, the third
     kit not loaded;
   - **Cowboy**, "Saloon" in the lobby, 10 % since 2026-11-22 (20 % from 2026-11-15, the owner: "let's make saloon 20% with
     two variations (no need to name them)"; 10 % before, 2026-11-14: "cowboy version should be

@@ -462,7 +462,8 @@ fn version_rules(lang: Lang, mode: LobbyMode) -> Vec<String> {
                 &[("0", &pistols::KITS)],
             )];
             // Each band's pistols, as the data has them.
-            lines.extend(Band::ALL.iter().map(|&band| {
+            // 0-5 and 6-10 alone: an 11-15 room plays one of them (the owner, 2026-11-27).
+            lines.extend(pistols::Band::ALL.iter().map(|&band| {
                 let (low, top) = band.levels();
                 let names: Vec<String> = pistols::pistols(band)
                     .into_iter()
@@ -473,7 +474,7 @@ fn version_rules(lang: Lang, mode: LobbyMode) -> Vec<String> {
                     &[("0", &format!("{low}–{top}")), ("1", &names.join(", "))],
                 )
             }));
-            lines.push(lang.t("A room draws bands up to its level."));
+            lines.push(lang.t("A room draws bands up to its level; a room above level 10 plays 0–5 or 6–10."));
             lines.push(lang.t("Two different pistols of the band, with random armour, bonuses and attachments."));
             lines
         }

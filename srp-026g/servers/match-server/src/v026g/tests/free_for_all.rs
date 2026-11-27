@@ -483,8 +483,7 @@ fn a_cowboy_match_gives_everyone_a_colt_python() {
 fn a_pistols_match_gives_everyone_the_same_two_pistol_kits() {
     use survarium::v026g::loadouts::bot_gear::category;
     use survarium::v026g::match_msgs::static_info::{KIT_NOT_LOADED, KIT_USABLE};
-    use survarium::v026g::pistols::Pair;
-    use survarium::v026g::roulette::Band;
+    use survarium::v026g::pistols::{Band, Pair};
     use survarium::v026g::twist::{Armed, Played, Twist};
     use survarium::v026g::match_msgs::static_info::MatchKit;
     // Every place with three kits, as an account has.
