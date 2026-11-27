@@ -4283,6 +4283,24 @@ st_srp_replay_still_preparing	A szerver még készíti a felvételt. Egy perc m�
 st_srp_replay_title	Visszajátszás
 st_srp_replay_waiting	Várakozás: %1$s mp.
 st_srp_reroll_description	Egy tárgy bármelyik bónuszát akárhányszor lecserélheted. Ezután három véletlenszerű bónusz közül választhatsz.
+st_srp_reticle_brightness	Fényerő
+st_srp_reticle_colour	Szín
+st_srp_reticle_colour_blue	Kék
+st_srp_reticle_colour_green	Zöld
+st_srp_reticle_colour_red	Piros
+st_srp_reticle_pattern	Típus
+st_srp_reticle_pattern_cobra_cross	Kobra kereszt
+st_srp_reticle_pattern_cobra_tick	Ék
+st_srp_reticle_pattern_cobra_tick_dot	Ék ponttal
+st_srp_reticle_pattern_dot	Pont
+st_srp_reticle_pattern_dppro_triangle	Háromszög
+st_srp_reticle_pattern_eotech_ring	Gyűrű
+st_srp_reticle_pattern_eotech_xr308	XR308 gyűrű
+st_srp_reticle_pattern_ncstar_bullseye	Céltábla
+st_srp_reticle_pattern_ncstar_cross	Kereszt
+st_srp_reticle_pattern_ncstar_starburst	Csillag
+st_srp_reticle_size	Méret
+st_srp_reticle_title	Célkép módosítása:
 st_srp_rooms_all	Összes
 st_srp_rooms_all_rooms	Összes szoba
 st_srp_rooms_any	Bármelyik

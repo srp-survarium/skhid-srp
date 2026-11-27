@@ -260,6 +260,13 @@ class LocalizationTests(unittest.TestCase):
         issues = audit_flash(self.root / 'flash', {'st_srp_rooms_room'})['issues']
         self.assertTrue(any('the replay_player movie is not given' in issue for issue in issues))
 
+    def test_flash_check_takes_a_key_family(self):
+        # a key ending in _ is a family the movie completes with a name the game gives
+        self.flash_fixture('lobby_menu', 'key = "st_srp_reticle_pattern_" + name;')
+        self.assertEqual(audit_flash(self.root / 'flash', {'st_srp_reticle_pattern_dot'})['issues'], [])
+        issues = audit_flash(self.root / 'flash', {'st_srp_reticle_pattern'})['issues']
+        self.assertTrue(any('no key of this family' in issue for issue in issues))
+
     def test_srp_texts_take_no_braces(self):
         # The game's localizer makes an action's {NAME} its key (exe patch 212) and drops any other
         # {...} from every text: a text names a key of KEY_ACTIONS in capitals, nothing else in braces.

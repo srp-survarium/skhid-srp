@@ -4283,6 +4283,24 @@ st_srp_replay_still_preparing	Snimak se još priprema. Server nastavlja izradu; 
 st_srp_replay_title	Gledaj snimak
 st_srp_replay_waiting	Čekanje: %1$s s.
 st_srp_reroll_description	Možeš promeniti bilo koji modifikator predmeta neograničen broj puta. Zatim biraš jedan od tri nasumična modifikatora.
+st_srp_reticle_brightness	Svetlina
+st_srp_reticle_colour	Boja
+st_srp_reticle_colour_blue	Plava
+st_srp_reticle_colour_green	Zelena
+st_srp_reticle_colour_red	Crvena
+st_srp_reticle_pattern	Vrsta
+st_srp_reticle_pattern_cobra_cross	Kobra krst
+st_srp_reticle_pattern_cobra_tick	Ševron
+st_srp_reticle_pattern_cobra_tick_dot	Ševron sa tačkom
+st_srp_reticle_pattern_dot	Tačka
+st_srp_reticle_pattern_dppro_triangle	Trougao
+st_srp_reticle_pattern_eotech_ring	Prsten
+st_srp_reticle_pattern_eotech_xr308	Prsten XR308
+st_srp_reticle_pattern_ncstar_bullseye	Meta
+st_srp_reticle_pattern_ncstar_cross	Krst
+st_srp_reticle_pattern_ncstar_starburst	Zvezda
+st_srp_reticle_size	Veličina
+st_srp_reticle_title	Promena končanice:
 st_srp_rooms_all	Sve
 st_srp_rooms_all_rooms	Sve sobe
 st_srp_rooms_any	Bilo koji

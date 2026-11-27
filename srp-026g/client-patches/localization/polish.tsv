@@ -4283,6 +4283,24 @@ st_srp_replay_still_preparing	Still being prepared. It keeps being made on the s
 st_srp_replay_title	Watch replay
 st_srp_replay_waiting	Waiting: %1$s s.
 st_srp_reroll_description	Możesz zmienić dowolny modyfikator przedmiotu, dowolną liczbę razy. Następnie wybierasz jeden z trzech losowych modyfikatorów.
+st_srp_reticle_brightness	Jasność
+st_srp_reticle_colour	Kolor
+st_srp_reticle_colour_blue	Niebieski
+st_srp_reticle_colour_green	Zielony
+st_srp_reticle_colour_red	Czerwony
+st_srp_reticle_pattern	Typ
+st_srp_reticle_pattern_cobra_cross	Krzyż Cobry
+st_srp_reticle_pattern_cobra_tick	Szewron
+st_srp_reticle_pattern_cobra_tick_dot	Szewron z kropką
+st_srp_reticle_pattern_dot	Kropka
+st_srp_reticle_pattern_dppro_triangle	Trójkąt
+st_srp_reticle_pattern_eotech_ring	Pierścień
+st_srp_reticle_pattern_eotech_xr308	Pierścień XR308
+st_srp_reticle_pattern_ncstar_bullseye	Tarcza
+st_srp_reticle_pattern_ncstar_cross	Krzyż
+st_srp_reticle_pattern_ncstar_starburst	Gwiazda
+st_srp_reticle_size	Rozmiar
+st_srp_reticle_title	Zmień celownik
 st_srp_rooms_all	Wszystkie
 st_srp_rooms_all_rooms	Wszystkie pokoje
 st_srp_rooms_any	Dowolny

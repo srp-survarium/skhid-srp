@@ -89,6 +89,10 @@ package survarium.upgrade
 
       public var sideButtons:Array = [];
 
+      // the reticle of the collimator in the scope's slot (its srp_reticle: ReticleChoice), under the
+      // slot's label, shown while the slot holds a scope with the choice
+      public var reticlePanel:ReticlePanel;
+
       protected var _slotAgreements:Object = {
          3:[ItemCategory.CAMOUFLAGES],
          0:[ItemCategory.DECALS],
@@ -186,6 +190,9 @@ package survarium.upgrade
       protected static const SIDE_BUTTON_HEIGHT:Number = 22;
 
       protected static const SIDE_BUTTON_GAP:Number = 4;
+
+      // the reticle's panel: RETICLE_GAP below the scope's label, ReticlePanel.HEIGHT high
+      protected static const RETICLE_GAP:Number = 4;
 
       // the lowest a weapon's attachment slot (its label) or the side toggle reaches: 6 px above the
       // Confirm button (its top at 527 in the window)
@@ -751,6 +758,7 @@ package survarium.upgrade
             this.camoSlot.visible = this._data.camoAvailable > 0;
             this.muzzleSlot.visible = this.gripSlot.visible = this.secondSightSlot.visible = false;
             this.showSideButtons();
+            this.showReticle();
             if(resetSlots)
             {
                this._chosenSlot = null;
@@ -856,6 +864,7 @@ package survarium.upgrade
             this.decalSlot2.data = this.decalSlot1.data = this.decalSlot.data = this.camoSlot.data = null;
             this.muzzleSlot.data = this.gripSlot.data = this.secondSightSlot.data = null;
             this.showSideButtons();
+            this.showReticle();
          }
       }
 
@@ -906,6 +915,7 @@ package survarium.upgrade
             }
          }
          this.showSideButtons();
+         this.showReticle();
       }
 
       // A weapon's attachment slots in their order on the page: the scope, the second sight under it
@@ -919,7 +929,8 @@ package survarium.upgrade
       // its decal at the top, where armour's second decal is, and its camouflage at the bottom, under
       // the line, where armour's camouflage is; on the attachments page the slots the weapon has (its
       // scope, second sight, muzzle device, grip) one under the other from armour's top decal place,
-      // as far apart as armour's first two decals, the second sight's side toggle under its label;
+      // as far apart as armour's first two decals, the second sight's side toggle under its label, the
+      // scope's reticle (shown: showReticle) under the scope's;
       // closer and smaller when they would reach below ATTACHMENTS_BOTTOM (a weapon with all four).
       protected function placeWeaponSlots() : void
       {
@@ -931,6 +942,7 @@ package survarium.upgrade
          var foot:Number = LABEL_BOTTOM - SQUARE_TOP;
          var middle:Number = SQUARE_LEFT + SQUARE_SIZE / 2;
          var extra:Number = 0;
+         var reticle:Number = 0;
          var gap:Number = 0;
          var scale:Number = 1;
          var count:int = 0;
@@ -956,13 +968,14 @@ package survarium.upgrade
          // a slot from its square's top to its label's bottom is `foot` high; the toggle adds `extra`
          count = this._attachmentSlots.length;
          extra = this._attachmentSlots.indexOf(this.secondSightSlot) != -1 ? SIDE_BUTTON_GAP + SIDE_BUTTON_HEIGHT : 0;
+         reticle = this.reticlePanel.choice != null && this._attachmentSlots.indexOf(this.camoSlot) != -1 ? RETICLE_GAP + ReticlePanel.HEIGHT : 0;
          gap = step - foot;
          // too many for armour's spacing: the least gap, and the slots smaller if even that is too much,
          // on the same middle line, the top square where it was
-         if(top[1] + SQUARE_TOP + count * foot + (count - 1) * gap + extra > ATTACHMENTS_BOTTOM)
+         if(top[1] + SQUARE_TOP + count * foot + (count - 1) * gap + extra + reticle > ATTACHMENTS_BOTTOM)
          {
             gap = ATTACHMENTS_MIN_GAP;
-            scale = Math.min(1,(ATTACHMENTS_BOTTOM - top[1] - SQUARE_TOP - extra - (count - 1) * gap) / (count * foot));
+            scale = Math.min(1,(ATTACHMENTS_BOTTOM - top[1] - SQUARE_TOP - extra - reticle - (count - 1) * gap) / (count * foot));
          }
          y = top[1] + SQUARE_TOP;
          i = 0;
@@ -970,10 +983,11 @@ package survarium.upgrade
          {
             slot = this._attachmentSlots[i];
             this.placeSlot(slot,[top[0] + middle - middle * scale,y - SQUARE_TOP * scale,top[2] * scale,top[3] * scale]);
-            y += foot * scale + gap + (slot == this.secondSightSlot ? extra : 0);
+            y += foot * scale + gap + (slot == this.secondSightSlot ? extra : 0) + (slot == this.camoSlot ? reticle : 0);
             i++;
          }
          this.placeSideButtons();
+         this.placeReticle();
       }
 
       // A filled slot's square in the window, where the slot is placed (SQUARE_*).
@@ -1040,6 +1054,57 @@ package survarium.upgrade
          ExternalInterface.call("srp_set_upgrade_value",this._data.itemId,uint(this.secondSightSlot.data.itemId),SightPlace.value(this._side));
       }
 
+      // The reticle's panel under the scope's label, on the slots' middle line.
+      protected function placeReticle() : void
+      {
+         var square:Rectangle = this.squareOf(this.camoSlot);
+         this.reticlePanel.x = Math.round(square.left + square.width / 2 - ReticlePanel.WIDTH / 2);
+         this.reticlePanel.y = Math.round(this.camoSlot.y + LABEL_BOTTOM * this.camoSlot.actualScaleY + RETICLE_GAP);
+      }
+
+      // The reticle of the scope the scope's slot holds, on a weapon's Attachments page; null for none
+      // (an empty slot, a stock scope, a scope without the choice).
+      protected function heldReticle() : ReticleChoice
+      {
+         var item:ItemData = null;
+         if(!this._data || hostDictId < 0 || this._page != PAGE_ATTACHMENTS || !this.camoSlot.visible || !this.camoSlot.data)
+         {
+            return null;
+         }
+         item = inventoryItem(uint(this.camoSlot.data.itemId)) as ItemData;
+         return Boolean(item) ? item.reticle : null;
+      }
+
+      // The panel shows the scope slot's reticle, as the inventory has it now (the account's); the
+      // slots are laid out again when it comes or goes (placeWeaponSlots leaves it room).
+      protected function showReticle() : void
+      {
+         var choice:ReticleChoice = this.heldReticle();
+         var placed:Boolean = this.reticlePanel.choice != null;
+         this.reticlePanel.show(choice);
+         if(placed != (choice != null) && hostDictId >= 0 && Boolean(this._slotPlaces))
+         {
+            this.placeWeaponSlots();
+         }
+      }
+
+      // A stepper's press: the whole choice one step on sent to the game (srp_set_reticle: the exe's
+      // 46 05 with the scope item's reticle, which the server checks against the scope's lists). The
+      // panel keeps the choice it shows until the account's inventory brings the server's
+      // (showReticle).
+      private function onReticleStep(event:Event) : void
+      {
+         var choice:ReticleChoice = this.reticlePanel.stepped;
+         var scope:uint = 0;
+         if(!choice || !this._data || !this.camoSlot.data || this.decalControl.visible)
+         {
+            return;
+         }
+         scope = uint(this.camoSlot.data.itemId);
+         trace("srp_set_reticle",scope,choice.value(ReticleChoice.PATTERN),choice.value(ReticleChoice.SIZE),choice.value(ReticleChoice.COLOUR),choice.value(ReticleChoice.BRIGHTNESS));
+         ExternalInterface.call("srp_set_reticle",scope,choice.value(ReticleChoice.PATTERN),choice.value(ReticleChoice.SIZE),choice.value(ReticleChoice.COLOUR),choice.value(ReticleChoice.BRIGHTNESS));
+      }
+
       protected function placeSlot(slot:UpgradeSlot, place:Array) : void
       {
          slot.x = place[0];
@@ -1075,6 +1140,7 @@ package survarium.upgrade
             slot.visible = attachments && this._attachmentSlots.indexOf(slot) != -1;
          }
          this.showSideButtons();
+         this.showReticle();
          this.decalSlot.visible = !attachments && this.weaponDecals() > 0;
          this.decalSlot1.visible = !attachments && this.weaponDecals() > 1;
          this.decalSlot2.visible = !attachments && this._data.camoAvailable > 0;
@@ -1319,6 +1385,11 @@ package survarium.upgrade
          this.gripSlot = this.addAttachmentSlot(CosmeticSlot.GRIP);
          this.secondSightSlot = this.addAttachmentSlot(CosmeticSlot.SECOND_SIGHT);
          this.addSideButtons();
+         this.reticlePanel = new ReticlePanel();
+         this.reticlePanel.name = "reticlePanel";
+         this.reticlePanel.visible = false;
+         this.reticlePanel.addEventListener(ReticlePanel.STEP,this.onReticleStep);
+         this.container.addChild(this.reticlePanel);
          LocalizationData.addTextField(this.container.textField,"btn_upgrade_label");
          this.infoContainer.visible = false;
          this.btnCancel.enabled = true;
@@ -1589,6 +1660,7 @@ package survarium.upgrade
          this.gripSlot.label = LocalizationData.getName("st_srp_grip_slot");
          this.secondSightSlot.label = LocalizationData.getName("st_srp_second_sight");
          this.sideTexts();
+         this.reticlePanel.show(this.reticlePanel.choice);
          this.infoContainer.infoDescr.text = LocalizationData.getName("modification_screen_hint") + "\n" + LocalizationData.getName("modification_screen_edit_decal_hint");
          this.infoContainer.background.height = this.infoContainer.infoDescr.textHeight + 24;
       }
@@ -1646,6 +1718,11 @@ package survarium.upgrade
          {
             trace("drop_upgrade_item::updated",this._data.itemId,lastData.itemId);
             ExternalInterface.call("drop_upgrade_item",this._data.itemId,uint(lastData.itemId));
+         }
+         // a scope taken out or put in: its reticle
+         if(slot == this.camoSlot)
+         {
+            this.showReticle();
          }
       }
 
@@ -1713,6 +1790,7 @@ package survarium.upgrade
          }
          slot.setData(item);
          this.showSideButtons();
+         this.showReticle();
          trace("relocate_upgrade_item",this._data.itemId,uint(slot.data.itemId),uint(slot.index));
          ExternalInterface.call("relocate_upgrade_item",this._data.itemId,uint(slot.data.itemId),uint(slot.index));
       }

@@ -4283,6 +4283,24 @@ st_srp_replay_still_preparing	Palvelin valmistelee tallennetta yhä. Avaa Katso 
 st_srp_replay_title	Katso tallenne
 st_srp_replay_waiting	Odotettu: %1$s s.
 st_srp_reroll_description	Voit vaihtaa esineen minkä tahansa lisäominaisuuden niin monta kertaa kuin haluat. Valitset sitten yhden kolmesta satunnaisesta lisäominaisuudesta.
+st_srp_reticle_brightness	Kirkkaus
+st_srp_reticle_colour	Väri
+st_srp_reticle_colour_blue	Sininen
+st_srp_reticle_colour_green	Vihreä
+st_srp_reticle_colour_red	Punainen
+st_srp_reticle_pattern	Tyyppi
+st_srp_reticle_pattern_cobra_cross	Kobra-risti
+st_srp_reticle_pattern_cobra_tick	Kulma
+st_srp_reticle_pattern_cobra_tick_dot	Kulma ja piste
+st_srp_reticle_pattern_dot	Piste
+st_srp_reticle_pattern_dppro_triangle	Kolmio
+st_srp_reticle_pattern_eotech_ring	Rengas
+st_srp_reticle_pattern_eotech_xr308	XR308-rengas
+st_srp_reticle_pattern_ncstar_bullseye	Maalitaulu
+st_srp_reticle_pattern_ncstar_cross	Risti
+st_srp_reticle_pattern_ncstar_starburst	Tähti
+st_srp_reticle_size	Koko
+st_srp_reticle_title	Tähtäinkuvion vaihto:
 st_srp_rooms_all	Kaikki
 st_srp_rooms_all_rooms	Kaikki huoneet
 st_srp_rooms_any	Ei rajaa

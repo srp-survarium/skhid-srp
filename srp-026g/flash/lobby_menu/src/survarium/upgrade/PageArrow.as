@@ -8,6 +8,7 @@ package survarium.upgrade
    // The page arrow of a weapon's upgrade window: the window's Confirm button (its up, hover, pressed and
    // disabled art, button_*_bitmap) at arrow size, with an arrow on it. The art keeps its ends (5 px
    // of 119, at the height's scale) and stretches between them; the arrow is drawn, not stretched.
+   // The reticle's steppers (ReticlePanel) use it at their rows' size (resizeArrow).
    public class PageArrow extends ButtonClick
    {
 
@@ -50,6 +51,10 @@ package survarium.upgrade
 
       protected var _right:Boolean = false;
 
+      protected var _w:Number = WIDTH;
+
+      protected var _h:Number = HEIGHT;
+
       protected var _shown:String;
 
       // Built after CLIK's constructor (its preInitialize runs before the display object's own), then
@@ -84,6 +89,17 @@ package survarium.upgrade
       protected static function arrowColour(face:String) : uint
       {
          return face == "over" ? ARROW_OVER : (face == "down" ? ARROW_DOWN : (face == "disabled" ? ARROW_DISABLED : ARROW_UP));
+      }
+
+      // Another size than the title's (WIDTH x HEIGHT), its art and arrow drawn again.
+      public function resizeArrow(w:Number, h:Number) : void
+      {
+         this._w = w;
+         this._h = h;
+         _originalWidth = _width = w;
+         _originalHeight = _height = h;
+         this._shown = null;
+         this.show(_state);
       }
 
       // pointing right (the next page) or left
@@ -122,29 +138,29 @@ package survarium.upgrade
 
       protected function drawFace(art:BitmapData) : void
       {
-         var scale:Number = HEIGHT / art.height;
+         var scale:Number = this._h / art.height;
          var cap:Number = CAP * scale;
-         var stretch:Number = (WIDTH - 2 * cap) / (art.width - 2 * CAP);
+         var stretch:Number = (this._w - 2 * cap) / (art.width - 2 * CAP);
          this._face.graphics.clear();
          this._face.graphics.beginFill(0,HIT_ALPHA);
-         this._face.graphics.drawRect(0,0,WIDTH,HEIGHT);
+         this._face.graphics.drawRect(0,0,this._w,this._h);
          this._face.graphics.endFill();
          this._face.graphics.beginBitmapFill(art,new Matrix(scale,0,0,scale,0,0),false,true);
-         this._face.graphics.drawRect(0,0,cap,HEIGHT);
+         this._face.graphics.drawRect(0,0,cap,this._h);
          this._face.graphics.endFill();
          this._face.graphics.beginBitmapFill(art,new Matrix(stretch,0,0,scale,cap - CAP * stretch,0),false,true);
-         this._face.graphics.drawRect(cap,0,WIDTH - 2 * cap,HEIGHT);
+         this._face.graphics.drawRect(cap,0,this._w - 2 * cap,this._h);
          this._face.graphics.endFill();
-         this._face.graphics.beginBitmapFill(art,new Matrix(scale,0,0,scale,WIDTH - cap - (art.width - CAP) * scale,0),false,true);
-         this._face.graphics.drawRect(WIDTH - cap,0,cap,HEIGHT);
+         this._face.graphics.beginBitmapFill(art,new Matrix(scale,0,0,scale,this._w - cap - (art.width - CAP) * scale,0),false,true);
+         this._face.graphics.drawRect(this._w - cap,0,cap,this._h);
          this._face.graphics.endFill();
       }
 
       // fills only (a line style would draw from the pen)
       protected function drawGlyph(colour:uint) : void
       {
-         var middleX:Number = WIDTH / 2;
-         var middleY:Number = HEIGHT * ARROW_MIDDLE;
+         var middleX:Number = this._w / 2;
+         var middleY:Number = this._h * ARROW_MIDDLE;
          this._glyph.graphics.clear();
          this.triangle(middleX + SHADOW_OFFSET,middleY + SHADOW_OFFSET,0,SHADOW_ALPHA);
          this.triangle(middleX,middleY,colour,1);

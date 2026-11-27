@@ -36,6 +36,7 @@ package survarium.controls
    import survarium.data.ItemData;
    import survarium.data.LocalizationData;
    import survarium.data.PropertiesDescriptor;
+   import survarium.upgrade.ReticleChoice;
    import survarium.interfaces.IAmmoShare;
    import survarium.interfaces.IInventoryItemFactory;
    import survarium.interfaces.IInventoryItemRenderer;
@@ -1236,6 +1237,10 @@ package survarium.controls
             itemData.upgrades = [{id:9003}];
          }
          item.upgrades = itemData.upgrades;
+         if(itemData.srp_reticle != undefined)
+         {
+            item.reticle = ReticleChoice.parse(itemData.srp_reticle);
+         }
          if((item.upgrades))
          {
             l = (item.upgrades.length);
@@ -1406,6 +1411,8 @@ package survarium.controls
                item.equipped = itemData.equipped;
             }
             item.upgrades = itemData.upgrades;
+            // the exe gives a collimator scope its reticle (srp_reticle) with every inventory
+            item.reticle = ReticleChoice.parse(itemData.srp_reticle);
             this._inventoryItems[i] = item;
             trace("ItemCreated::",item.itemId);
             if((this._cardItem))

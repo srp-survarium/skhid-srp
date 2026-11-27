@@ -4283,6 +4283,24 @@ st_srp_replay_still_preparing	Ainda em preparação. O servidor continua gerando
 st_srp_replay_title	Assistir replay
 st_srp_replay_waiting	Aguardando: %1$s s.
 st_srp_reroll_description	Você pode mudar qualquer modificador de um item, quantas vezes quiser. Depois, escolha um entre três modificadores aleatórios.
+st_srp_reticle_brightness	Brilho
+st_srp_reticle_colour	Cor
+st_srp_reticle_colour_blue	Azul
+st_srp_reticle_colour_green	Verde
+st_srp_reticle_colour_red	Vermelho
+st_srp_reticle_pattern	Tipo
+st_srp_reticle_pattern_cobra_cross	Cruz Cobra
+st_srp_reticle_pattern_cobra_tick	Chevron
+st_srp_reticle_pattern_cobra_tick_dot	Chevron com ponto
+st_srp_reticle_pattern_dot	Ponto
+st_srp_reticle_pattern_dppro_triangle	Triângulo
+st_srp_reticle_pattern_eotech_ring	Anel
+st_srp_reticle_pattern_eotech_xr308	Anel XR308
+st_srp_reticle_pattern_ncstar_bullseye	Alvo
+st_srp_reticle_pattern_ncstar_cross	Cruz
+st_srp_reticle_pattern_ncstar_starburst	Estrela
+st_srp_reticle_size	Tamanho
+st_srp_reticle_title	Mudar retículo:
 st_srp_rooms_all	Todos
 st_srp_rooms_all_rooms	Todas as salas
 st_srp_rooms_any	Qualquer
