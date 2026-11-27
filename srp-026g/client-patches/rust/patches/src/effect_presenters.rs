@@ -10,12 +10,21 @@
 //! released as an entry's references (a sound presenter's seed freed: the
 //! 2026-11-06 crash). The sound presenter's update reads a null entry.
 //! The native code runs unchanged when the entry is there.
+//!
+//! A particle presenter's deserialize links each saved entry to the last
+//! effect of its resource its player plays (resolve_link 0x2DDA80): two
+//! effects of one resource (two copies of an artefact kind glowing at once)
+//! come back with both entries on one. Its stop empties both and
+//! erases one, the second effect's stop finds none (ignored above), and
+//! the emptied entry is saved with no link. The next read of it reads its
+//! effect's +30h at 0 (0x2AC94D, the 2026-11-27 crashes): an entry of no
+//! effect is not read back.
 #![forbid(unsafe_code)]
 
-use crate::vostok::effect_presenter::{self, Search};
-use crate::vostok::log::{self, Piece::Text};
-use crate::vostok::{Context, EffectPresentersOnParticleStopExit, EffectPresentersOnSoundStopExit,
-                    EffectPresentersOnSoundUpdateExit, Flow};
+use crate::vostok::effect_presenter::{self, ReadEntry, Search};
+use crate::vostok::log::{self, Piece::{Hex, Text}};
+use crate::vostok::{Context, EffectPresentersOnParticleReadEntryExit, EffectPresentersOnParticleStopExit,
+                    EffectPresentersOnSoundStopExit, EffectPresentersOnSoundUpdateExit, Flow};
 
 fn ignored(ctx: &Context<'_>, event: &str) {
     log::refusal(ctx.thread(), &[Text("effect_presenters: "), Text(event),
@@ -48,6 +57,17 @@ pub fn on_particle_stop(ctx: &mut Context<'_>) -> Flow<EffectPresentersOnParticl
         Search::Missing => {
             ignored(ctx, "a particle effect's stop");
             Flow::Exit(EffectPresentersOnParticleStopExit::Ignore)
+        }
+    }
+}
+
+pub fn on_particle_read_entry(ctx: &mut Context<'_>) -> Flow<EffectPresentersOnParticleReadEntryExit> {
+    match effect_presenter::drop_entry_of_no_effect(ctx) {
+        ReadEntry::Plays | ReadEntry::Short => Flow::Continue,
+        ReadEntry::Dropped { resource } => {
+            log::refusal(ctx.thread(), &[Text("effect_presenters: a saved particle entry of no effect its player plays (resource "),
+                                         Hex(resource), Text("), not read back")]);
+            Flow::Exit(EffectPresentersOnParticleReadEntryExit::Dropped)
         }
     }
 }
