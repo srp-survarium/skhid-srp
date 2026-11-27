@@ -46,6 +46,7 @@ use super::social::{
     SquadMember, friendship, sender,
 };
 use super::tutorial_model::Tutorial;
+use super::super::reticles::Numbers;
 use super::{FORBIDDEN_SERVER_IDS, ServerId, ServerMessage, limits};
 
 /// What the client would do with a message instead of reading it well.
@@ -340,7 +341,22 @@ pub enum Decoded {
     },
     AdminText(String, String),
     AdminTextClear,
+    /// `A9`: srp's scope reticles ([`super::reticles`]).
+    ScopeReticles {
+        lists: Vec<DecodedReticleLists>,
+        items: Vec<(u32, u16, Numbers)>,
+    },
     SignedOut,
+}
+
+/// One scope type's lists of `A9`, as read.
+#[derive(Clone, Debug, PartialEq)]
+pub struct DecodedReticleLists {
+    pub dict_id: u16,
+    /// `(name, model)`.
+    pub patterns: Vec<(String, String)>,
+    pub sizes: Vec<f32>,
+    pub colours: Vec<(String, [f32; 3])>,
 }
 
 struct Reader<'a> {
@@ -2022,10 +2038,97 @@ impl Client {
             }
             // There is no premium account: a premium offer is no message
             // of srp's.
-            ServerId::PremiumStore | ServerId::PremiumDiscount => {
+            ServerId::PremiumStore => {
                 return Err(r.bad("a premium offer, which srp never sends"));
             }
+            ServerId::ScopeReticles => scope_reticles(r, self.dictionary)?,
             ServerId::SignedOut => Decoded::SignedOut,
         })
     }
+}
+
+/// `A9` as the patch reads it (`reticle/table.rs`): every count within the client's table, every
+/// name and model one the data could give, each scope a scope item of the dictionary listed once,
+/// every item's scope listed and its numbers within that scope's lists.
+fn scope_reticles(r: &mut Reader<'_>, dictionary: &Dictionary) -> Result<Decoded, ModelError> {
+    use super::super::reticles::{
+        Brightness, MAX_COLOURS, MAX_PATTERNS, MAX_SCOPES, MAX_SIZES, MODEL_LIMIT, Model, NAME_LIMIT,
+        Name,
+    };
+    use super::super::scopes::SCOPE_CATEGORY;
+    let name = |r: &mut Reader<'_>| -> Result<String, ModelError> {
+        let text = r.str("reticle name", NAME_LIMIT)?;
+        Name::parse(&text).map_err(|_| r.bad("a reticle name that is not [a-z0-9_]"))?;
+        Ok(text)
+    };
+    let count = |r: &mut Reader<'_>, what: &'static str, most: usize| -> Result<usize, ModelError> {
+        let n = usize::from(r.u8()?);
+        r.count(what, n, most)?;
+        if n == 0 {
+            return Err(r.bad("an empty reticle list"));
+        }
+        Ok(n)
+    };
+    let scopes = usize::from(r.u8()?);
+    r.count("reticle scopes", scopes, MAX_SCOPES)?;
+    let mut lists: Vec<DecodedReticleLists> = Vec::with_capacity(scopes);
+    for _ in 0..scopes {
+        let dict_id = r.u16()?;
+        if dictionary.item(dict_id).map(|item| item.category) != Some(SCOPE_CATEGORY) {
+            return Err(r.bad("reticle lists of an item that is no scope"));
+        }
+        if lists.iter().any(|list| list.dict_id == dict_id) {
+            return Err(r.bad("a scope's reticle lists twice"));
+        }
+        let mut patterns = Vec::new();
+        for _ in 0..count(r, "reticle patterns", MAX_PATTERNS)? {
+            let pattern = name(r)?;
+            let model = r.str("reticle model", MODEL_LIMIT)?;
+            Model::parse(&model).map_err(|_| r.bad("a reticle model that is no path"))?;
+            patterns.push((pattern, model));
+        }
+        let mut sizes = Vec::new();
+        for _ in 0..count(r, "reticle sizes", MAX_SIZES)? {
+            sizes.push(r.f32()?);
+        }
+        let mut colours = Vec::new();
+        for _ in 0..count(r, "reticle colours", MAX_COLOURS)? {
+            let colour = name(r)?;
+            colours.push((colour, [r.f32()?, r.f32()?, r.f32()?]));
+        }
+        lists.push(DecodedReticleLists {
+            dict_id,
+            patterns,
+            sizes,
+            colours,
+        });
+    }
+    let n = usize::from(r.u16()?);
+    r.count("reticle items", n, super::reticles::MAX_ITEMS)?;
+    let mut items = Vec::with_capacity(n);
+    for _ in 0..n {
+        let (item_id, dict_id) = (r.u32()?, r.u16()?);
+        let numbers = Numbers {
+            pattern: r.u8()?,
+            size: r.u8()?,
+            colour: r.u8()?,
+            brightness: r.u8()?,
+        };
+        let list = lists
+            .iter()
+            .find(|list| list.dict_id == dict_id)
+            .ok_or_else(|| r.bad("a scope item whose lists the message lacks"))?;
+        let within = usize::from(numbers.pattern) < list.patterns.len()
+            && usize::from(numbers.size) < list.sizes.len()
+            && usize::from(numbers.colour) < list.colours.len()
+            && Brightness::new(numbers.brightness).is_some();
+        if !within {
+            return Err(r.bad("a reticle outside its scope's lists"));
+        }
+        if items.iter().any(|&(id, _, _)| id == item_id) {
+            return Err(r.bad("a scope item's reticle twice"));
+        }
+        items.push((item_id, dict_id, numbers));
+    }
+    Ok(Decoded::ScopeReticles { lists, items })
 }

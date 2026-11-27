@@ -673,7 +673,10 @@ impl MatchReport {
             let mut push = wire::after_change(account)?;
             // The inventory carries what autobuy spent.
             if let Some(spent) = self.spent_inventory(account_id, account) {
-                push[0] = spent?;
+                let spent = spent?;
+                if let Some(inventory) = push.iter_mut().find(|message| message.id() == spent.id()) {
+                    *inventory = spent;
+                }
             }
             push.push(wire::level_and_skills(account)?);
             push.push(wire::reputations(account)?);

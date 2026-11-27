@@ -55,6 +55,7 @@ pub mod presets;
 pub mod pvb;
 pub mod quests;
 pub mod replays;
+pub mod reticles;
 pub mod rewards;
 pub mod room_settings;
 pub mod rooms;

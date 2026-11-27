@@ -169,6 +169,8 @@ pub fn check(data: &GameData) -> Result<(), GameDataError> {
     artefacts::derive(data, &dictionary)?;
     // The modules table parses, and what it fits as a scope is a scope item.
     scopes::check(data, &dictionary)?;
+    // The scopes' reticle lists (`data.srp_reticle`) read.
+    super::reticles::Reticles::of_data(data, &dictionary)?;
     maps::derive(data, &dictionary)?;
     for language in localization::Language::ALL {
         localization::of(data, language)?;

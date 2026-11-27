@@ -1789,8 +1789,9 @@ fn the_client_takes_every_players_pushes() {
                 .lobby_push(account_id, &account, NOW, Some(index as u32 + 1))
                 .unwrap()
                 .unwrap();
-            // The inventory first, the screen last.
-            assert_eq!(push[0].id(), lobby::ServerId::Inventory);
+            // srp's scope reticles and the inventory first, the screen last.
+            assert_eq!(push[0].id(), lobby::ServerId::ScopeReticles);
+            assert_eq!(push[1].id(), lobby::ServerId::Inventory);
             assert_eq!(push.last().unwrap().id(), lobby::ServerId::MatchStats);
             let read = client
                 .receive_all(&push)
@@ -2267,14 +2268,14 @@ fn the_supplies_used_are_taken_and_autobuy_puts_them_right() {
         .unwrap();
     let mut client = Client::signed_in();
     let read = client.receive_all(&push).unwrap();
-    let Decoded::Inventory { spent, .. } = &read[0] else {
-        panic!("the inventory goes first");
+    let Decoded::Inventory { spent, .. } = &read[1] else {
+        panic!("the inventory goes first, after the scope reticles");
     };
     assert_eq!(*spent, reward.spent);
     // For a client that signed in after the match: the inventory again,
     // before the screen.
     let again = report.spent_inventory(10, &alice).unwrap().unwrap();
-    assert_eq!(again, push[0]);
+    assert_eq!(again, push[1]);
 }
 
 #[test]

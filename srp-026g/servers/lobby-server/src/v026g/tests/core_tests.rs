@@ -383,7 +383,7 @@ fn a_sign_in_is_answered_with_the_whole_account_in_the_clients_order() {
     assert_eq!(
         ordered,
         [
-            0x8F, 0x90, 0x8B, 0x96, 0x8E, 0x8D, 0x94, 0x8A, 0x8E, 0x95, 0x89, 0x87, 0x8C, 0x92,
+            0x8F, 0x90, 0x8B, 0x96, 0x8E, 0x8D, 0x94, 0x8A, 0x8E, 0x95, 0xA9, 0x89, 0x87, 0x8C, 0x92,
             0x9C, 0x9D, 0x9B, 0x85, 0x91, 0xA3, 0xA3, 0x99
         ]
     );
@@ -538,7 +538,7 @@ fn buying_selling_and_moving_go_round_with_their_pushes() {
         alice,
         request::buy(record.dict_id, 1, record.faction_id, INVENTORY_SLOT, 1),
     );
-    assert_eq!(world.client(alice).ids, [0x83, 0x89, 0x87, 0x8B]);
+    assert_eq!(world.client(alice).ids, [0x83, 0xA9, 0x89, 0x87, 0x8B]);
     let decoded = world.take(alice);
     let Decoded::Permitted(Permitted::Bought(bought)) = &decoded[0] else {
         panic!("{:?}", decoded[0]);
@@ -546,7 +546,7 @@ fn buying_selling_and_moving_go_round_with_their_pushes() {
     assert_eq!((bought.len(), bought[0].dict_id), (1, record.dict_id));
     let item_id = bought[0].item_id;
     assert!(matches!(
-        decoded[3],
+        decoded[4],
         Decoded::Money { generic, .. } if generic == 5_000_000 - record.cost
     ));
     assert_eq!(world.client(alice).model.inventory().len(), before + 1);
@@ -554,17 +554,17 @@ fn buying_selling_and_moving_go_round_with_their_pushes() {
 
     // Move the pistol off the kit: no `83`, the pushes are the answer.
     world.ask(alice, request::move_item(1, 1, 18, 7, INVENTORY_SLOT, 1));
-    assert_eq!(world.client(alice).ids, [0x89, 0x87, 0x8B]);
+    assert_eq!(world.client(alice).ids, [0xA9, 0x89, 0x87, 0x8B]);
     let decoded = world.take(alice);
-    let Decoded::Account(own) = &decoded[1] else {
-        panic!("{:?}", decoded[1]);
+    let Decoded::Account(own) = &decoded[2] else {
+        panic!("{:?}", decoded[2]);
     };
     assert_eq!(own.body.kits[0].slots[7], None);
     assert_eq!(world.account(alice).kits[0].slots[7], None);
 
     // Sell what was bought: `83 47 01` and the pushes.
     world.ask(alice, request::sell(item_id, 1));
-    assert_eq!(world.client(alice).ids, [0x83, 0x89, 0x87, 0x8B]);
+    assert_eq!(world.client(alice).ids, [0x83, 0xA9, 0x89, 0x87, 0x8B]);
     let decoded = world.take(alice);
     assert!(matches!(
         decoded[0],
@@ -614,14 +614,14 @@ fn skills_are_answered_with_the_skills_and_the_kits_that_carry_them() {
 
     world.ask(alice, request::skills(&[(101, 1)]));
     // No `83 48`: the client has no handler for it.
-    assert_eq!(world.client(alice).ids, [0x8C, 0x89, 0x87, 0x8B]);
+    assert_eq!(world.client(alice).ids, [0x8C, 0xA9, 0x89, 0x87, 0x8B]);
     let decoded = world.take(alice);
     assert!(matches!(
         &decoded[0],
         Decoded::Skills { skills, .. } if *skills == [(101, 1)]
     ));
-    let Decoded::Account(own) = &decoded[2] else {
-        panic!("{:?}", decoded[2]);
+    let Decoded::Account(own) = &decoded[3] else {
+        panic!("{:?}", decoded[3]);
     };
     assert!(own.body.kits[0].modifiers.iter().any(|value| *value != 0.0));
 
@@ -629,14 +629,14 @@ fn skills_are_answered_with_the_skills_and_the_kits_that_carry_them() {
     // spent is, with the kits that no longer carry it.
     let silver = world.account(alice).generic_money;
     world.ask(alice, request::skills(&[]));
-    assert_eq!(world.client(alice).ids, [0x8C, 0x89, 0x87, 0x8B]);
+    assert_eq!(world.client(alice).ids, [0x8C, 0xA9, 0x89, 0x87, 0x8B]);
     let decoded = world.take(alice);
     assert!(matches!(
         &decoded[0],
         Decoded::Skills { skills, .. } if skills.is_empty()
     ));
-    let Decoded::Account(own) = &decoded[2] else {
-        panic!("{:?}", decoded[2]);
+    let Decoded::Account(own) = &decoded[3] else {
+        panic!("{:?}", decoded[3]);
     };
     assert!(own.body.kits[0].modifiers.iter().all(|value| *value == 0.0));
     assert_eq!(world.account(alice).generic_money, silver);
@@ -696,7 +696,7 @@ fn a_refusal_carries_the_games_own_text() {
     // A move of an item that is not in the slot: refused, and the client's
     // window is put right with the inventory and the account.
     world.ask(alice, request::move_item(1, 1, 18, 3, INVENTORY_SLOT, 1));
-    assert_eq!(world.client(alice).ids, [0x84, 0x89, 0x87, 0x8B]);
+    assert_eq!(world.client(alice).ids, [0x84, 0xA9, 0x89, 0x87, 0x8B]);
     assert_eq!(
         denial(&world.take(alice), 0x46).as_deref(),
         Some("st_cannot_relocate_item")
@@ -2131,7 +2131,7 @@ fn other_servers_reach_a_client_through_the_inbox() {
     world.settle();
     assert_eq!(
         world.client(alice).ids,
-        [0x89, 0x87, 0x8B, 0x8C, 0x8E, 0x92]
+        [0xA9, 0x89, 0x87, 0x8B, 0x8C, 0x8E, 0x92]
     );
     assert!(world.take(alice).iter().any(|message| matches!(
         message,
