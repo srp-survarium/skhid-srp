@@ -2611,6 +2611,43 @@ fn a_match_against_bots_played_to_its_end_pays_its_share() {
     assert!((alice.reward.drop_chance - reference.reward.drop_chance * 0.25).abs() < 1e-6);
 }
 
+/// The flat silver for staying to the end in a match against bots: its
+/// share (`SRP_PVB_PAY`), 7,500 of the 30,000 at a quarter, in the main
+/// kit's activity cell beside the rows' silver; none in one forfeited
+/// (left, stood still, or left before the end).
+#[test]
+fn a_match_against_bots_pays_its_share_of_the_finishers_silver() {
+    let settle = |end: MatchEnd, present: bool, finish_silver: u32| {
+        let (store, _) = against_bots_account();
+        let quarter = Terms {
+            pvb_pay: 0.25,
+            finish_silver,
+            ..terms()
+        };
+        let report = Results::new()
+            .settle(&against_bots(end, present), &store, &quarter, &mut Rng::new(1))
+            .unwrap();
+        let alice = &report.players[0];
+        (alice.reward.clone(), columns(&alice.full, 2))
+    };
+    let (plain, plain_cell) = settle(MatchEnd::TimeLimit, true, 0);
+    let (paid, paid_cell) = settle(MatchEnd::TimeLimit, true, pay::FINISH_SILVER);
+    assert!(!paid.forfeited && plain.money > 0);
+    assert_eq!(paid.money, plain.money + 7_500);
+    assert_eq!(paid_cell.1, plain_cell.1 + 7_500);
+    assert_eq!(paid.experience, plain.experience);
+    for (end, present) in [
+        (MatchEnd::Deserted, false),
+        (MatchEnd::Deserted, true),
+        (MatchEnd::TimeLimit, false),
+        (MatchEnd::ModeRule, false),
+    ] {
+        let (reward, cell) = settle(end, present, pay::FINISH_SILVER);
+        assert!(reward.forfeited, "{end:?}, present {present}");
+        assert_eq!((reward.money, cell.1), (0, 0), "{end:?}, present {present}");
+    }
+}
+
 /// The rule is for matches against bots only: a match of players that
 /// everyone left pays those who left what their counters made, as
 /// before, and one that ended by its time pays as before.

@@ -48,8 +48,10 @@
 //!     RESEARCH_WEIGHTS`).
 //! - **30,000 silver for staying to the end** ([`pay::FINISH_SILVER`], the
 //!   owner's of 2026-11-13): flat, to every player who finished a paid
-//!   match, in its main kit's activity cell; no rate, level, share or
-//!   factor touches it, and the floor and the items' bonus do not count it.
+//!   match, in its main kit's activity cell; no rate, level or factor
+//!   touches it, a match against the server's bots pays its share of it
+//!   ([`Terms::pvb_pay`]: 7,500 at a quarter) and a forfeited one none, and
+//!   the floor and the items' bonus do not count it.
 //! - **The rates** (the owner's choices): the three rows' silver times the
 //!   percent of the match's level ([`pay::MONEY_RATES`]: 225 to level 5,
 //!   rising to 330 from level 12; or `SRP_MONEY_RATE` at every level);
@@ -80,8 +82,9 @@
 //! - **A match against the server's bots** ("Player vs Bots",
 //!   [`MatchResult::vs_bots`]; the owner's of 2026-10-16): its rows pay
 //!   [`Terms::pvb_pay`] (`SRP_PVB_PAY`, default a quarter) of their silver
-//!   and experience, and so does the items' bonus counted from them, and
-//!   the drop's chance, each of its parts; reputation and the pay of a
+//!   and experience, and so does the items' bonus counted from them, the
+//!   flat silver for staying to the end, and the drop's chance, each of its
+//!   parts; reputation and the pay of a
 //!   level reached are as in any match, but at most at match level 7
 //!   ([`super::pvb::MAX_REWARD_LEVEL`] for the pay,
 //!   [`super::pvb::MAX_DROP_LEVEL`] for the drop). It
@@ -2542,11 +2545,12 @@ impl<'a> Shared<'a> {
                 0
             };
         // The flat silver for staying to the end (`pay::FINISH_SILVER`):
-        // in the same cell, but no item's bonus counts it. A forfeited
-        // match against bots pays nothing ([`Reward::forfeited`]), this
-        // neither.
+        // in the same cell, but no item's bonus counts it. A match against
+        // the server's bots pays its share of it (`SRP_PVB_PAY`, as its
+        // rows' silver); a forfeited one pays nothing ([`Reward::forfeited`]),
+        // this neither.
         let finish_silver = if standing == Standing::Finished && !bot && !forfeited {
-            self.terms.finish_silver
+            (f64::from(self.terms.finish_silver) * pvb_pay).round() as u32
         } else {
             0
         };
