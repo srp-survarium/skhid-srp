@@ -494,6 +494,35 @@ impl ClientBody {
         None
     }
 
+    /// [`Self::at_rest`] with the same answer, ended early when the body is held still off the ground: once it has been off the
+    /// ground for [`REST_WEDGED_STEPS`] steps running, each moving under [`verdict::STILL_M`], it is None at once (a body held so
+    /// stays held: it never rests on the ground in the rest of [`REST_STEPS_MAX`]). Battery 6's lip on level_06 day 2,
+    /// (16.85-17.55, 30.44-30.65, 103.55-103.65): the exe's body put there comes down 0.10-0.40 m and is held still from step
+    /// 3-13 with its ground flag off to step 80 (rig_real_v3, 11 points), and the port's ends at the same feet to the millimetre,
+    /// yet [`Self::at_rest`] plays all 40 steps on a dense rim (up to 714 triangles offered a step). Over the rests of two bench
+    /// cells (12,333), none that came to rest had more than 1 such step before it. For the lip guard's rests
+    /// (`client_rest_at`); [`Self::at_rest`] stays as it is for the grid's own.
+    pub fn at_rest_or_wedged(world: &impl Walker, feet: Vec3, yaw: f32) -> Option<Self> {
+        let mut c = Self::placed(feet, yaw).controller;
+        let (mut still, mut held) = (0, 0);
+        for _ in 0..REST_STEPS_MAX {
+            let before = c.feet();
+            let input = TickInput { walk: Vec3::ZERO, air_control: Vec3::ZERO, crouch: CrouchInput::Tested { key: false, legs_broken: false }, sprinting: false };
+            world.step(&mut c, input);
+            let small = (c.feet() - before).length() < verdict::STILL_M;
+            let ground = c.on_ground(&SETTINGS);
+            still = if ground && small { still + 1 } else { 0 };
+            held = if !ground && small { held + 1 } else { 0 };
+            if still >= verdict::STILL_STEPS {
+                return Some(Self::of(c, yaw));
+            }
+            if held >= REST_WEDGED_STEPS {
+                return None;
+            }
+        }
+        None
+    }
+
     /// The feet.
     pub fn feet(&self) -> Vec3 {
         self.controller.feet()
@@ -639,6 +668,9 @@ impl ClientBody {
 pub const PUT_OVER_M: f32 = 0.005;
 /// The steps [`ClientBody::at_rest`] gives a body to come to rest (2 s).
 pub const REST_STEPS_MAX: u32 = 40;
+/// The steps running a body held still off the ground takes to end [`ClientBody::at_rest_or_wedged`] with no rest: the longest such
+/// run before a rest on the ground was 1 step over two bench cells' 12,333 rests (batt-m6-s2, batt-m1-s3), so 3 keeps a margin of 2.
+pub const REST_WEDGED_STEPS: u32 = 3;
 
 /// The gait of a run-in to a press.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -857,6 +889,52 @@ mod tests {
             assert!((moved - want).abs() < 2e-3, "step {k}: {moved} against {want}");
             assert!(t.on_ground && !t.airborne);
         }
+    }
+
+    /// [`Walker`] over [`Client`] counting its steps.
+    struct Counted<'w> {
+        client: Client<'w>,
+        steps: std::cell::Cell<u32>,
+    }
+
+    impl Walker for Counted<'_> {
+        fn step(&self, c: &mut Controller, input: TickInput) -> StepNotes {
+            self.steps.set(self.steps.get() + 1);
+            self.client.step(c, input)
+        }
+
+        fn fly(&self, c: &mut Controller, flying: &mut Flying, heading: (f32, f32), air: (f32, f32)) -> FlightStep {
+            self.client.fly(c, flying, heading, air)
+        }
+    }
+
+    /// A groove of two faces 70 degrees steep (ground under no body: the normal's y 0.34), its bottom along z at y 0.
+    fn groove() -> Collision {
+        let t = |a, b, c| Triangle { v: [a, b, c], walker: WalkerBehaviour::BySlope };
+        let (h, w) = (3.0 * 70f32.to_radians().tan(), 3.0);
+        let (l0, l1, b0, b1) = (Vec3::new(-w, h, -10.0), Vec3::new(-w, h, 10.0), Vec3::new(0.0, 0.0, -10.0), Vec3::new(0.0, 0.0, 10.0));
+        let (r0, r1) = (Vec3::new(w, h, -10.0), Vec3::new(w, h, 10.0));
+        Collision::build(&[t(l0, b0, b1), t(l0, b1, l1), t(b0, r0, r1), t(b0, r1, b1)])
+    }
+
+    /// [`ClientBody::at_rest_or_wedged`] answers as [`ClientBody::at_rest`]: on a flat floor the same rest in the same steps; in a
+    /// steep groove the body is held off the ground and still (None from both), and the wedged rest ends after
+    /// [`REST_WEDGED_STEPS`] such steps where [`ClientBody::at_rest`] plays all [`REST_STEPS_MAX`].
+    #[test]
+    fn a_body_held_still_off_the_ground_ends_its_rest_early_with_the_same_answer() {
+        let floor = floor();
+        let walker = |w| Counted { client: Client { world: w }, steps: std::cell::Cell::new(0) };
+        let (a, b) = (walker(&floor), walker(&floor));
+        let full = ClientBody::at_rest(&a, Vec3::new(1.0, 0.0, 2.0), 0.0).map(|r| r.feet());
+        let quick = ClientBody::at_rest_or_wedged(&b, Vec3::new(1.0, 0.0, 2.0), 0.0).map(|r| r.feet());
+        assert!(full.is_some() && full == quick && a.steps.get() == b.steps.get(), "{full:?} {quick:?} {} {}", a.steps.get(), b.steps.get());
+        let groove = groove();
+        let (a, b) = (walker(&groove), walker(&groove));
+        let feet = Vec3::new(0.0, 2.0, 0.0);
+        assert!(ClientBody::at_rest(&a, feet, 0.0).is_none(), "held in the groove, never on the ground");
+        assert!(ClientBody::at_rest_or_wedged(&b, feet, 0.0).is_none());
+        assert_eq!(a.steps.get(), REST_STEPS_MAX);
+        assert!(b.steps.get() < 20, "ended once held: {} steps", b.steps.get());
     }
 
     /// A body saved and made again from its block stands where it stood, with the same flags.

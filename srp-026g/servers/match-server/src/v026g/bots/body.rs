@@ -306,8 +306,8 @@ pub(crate) fn kept_off_ground(grid: &WalkGrid, to: Vec3, top: f32) -> KeptOff {
 const REST_PUT_OVER_M: f32 = 0.05;
 
 /// [lip client rest] Where the client's own body comes to rest put at `at`'s place at the height `top` + [`REST_PUT_OVER_M`]
-/// (`ClientBody::at_rest` on the grid's walker: its capsule, the client's ground rule); none when it does not come to rest (it falls
-/// on) or the grid keeps no client walker. Where the walker-ground ray down the body's axis finds no ground, this says whether the
+/// (`ClientBody::at_rest_or_wedged` on the grid's walker: its capsule, the client's ground rule); none when it does not come to rest (it falls
+/// on, or is held still off the ground) or the grid keeps no client walker. Where the walker-ground ray down the body's axis finds no ground, this says whether the
 /// body stands there all the same: on a rim past which the axis looks into the gap, on a face too steep for the ray's normal test
 /// with ground about it, or on ground over the ray's start (exe-checked, 13 points, 2026-11-26).
 ///
@@ -329,7 +329,7 @@ pub(crate) fn client_rest_at(grid: &WalkGrid, at: Vec3, top: f32) -> Option<Vec3
     let back = |k: i32| k as f32 * REST_SNAP_M;
     let feet = Vec3::new(back(key.1), back(key.3) + REST_PUT_OVER_M - client_body::PUT_OVER_M, back(key.2));
     let started = std::time::Instant::now();
-    let rest = client_body::ClientBody::at_rest(&super::client_walker::GridWalker(grid), feet, 0.0).map(|b| b.feet());
+    let rest = client_body::ClientBody::at_rest_or_wedged(&super::client_walker::GridWalker(grid), feet, 0.0).map(|b| b.feet());
     margin_walk_offs::rest_made(started.elapsed());
     REST_CACHE.with_borrow_mut(|c| {
         if c.len() >= REST_CACHE_MAX {
