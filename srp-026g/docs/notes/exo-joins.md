@@ -59,7 +59,10 @@ meets:
   (replace_file, checked against the released bytes); Freedom's, which pack exo-camo added (a later
   pack may not replace an earlier one's file: vostok-port refuses it), as a model of its own,
   `ported/freedom_026/freedom_exo_legs_s2`, which edit list `exo-joins-1.json` points the Freedom
-  body's four sleeve tables at (its baked camouflage and decals are named after the new file). Both: the closed bottom (below 0.245 m) moved 0.105 m down (to 0.105-0.14 m, under
+  body's four sleeve tables at, after the packs: exo-camo@2's `camo_available` on that additional
+  model stays, and patch 217 bakes the legs with the body's camouflage under the new file's name,
+  `<camo>freedom_exo_legs_s2` (Duty's keeps `duty_03_legs_s1`). The material and UVs are the same,
+  so the legs' `_aoac` masks still apply. Both: the closed bottom (below 0.245 m) moved 0.105 m down (to 0.105-0.14 m, under
   the lowest boot's top, 0.151 m), the trousers from there up to 0.42 m stretched to meet it (1.6
   times), and below 0.24 m narrowed over 5 cm towards the native tucked trousers (`_s3`) plus 4 mm,
   along each shin's axis (the bind pose's Leg to Foot): they go into tall shafts as stock trousers
