@@ -1,7 +1,7 @@
 {
  "capture": {
-  "size": "1920x1080",
-  "settle_ms": 6000,
+  "size": "2560x1440",
+  "settle_ms": 8000,
   "user_cfg": {
    "r_texture_quality": "2",
    "r_shadow_quality": "3",
@@ -12,7 +12,8 @@
    "r_ambient_occlusion_quality": "3",
    "r_ssdo": "on",
    "r_particles_quality": "2",
-   "r_geometry_quality": "1",
+   "r_geometry_quality": "2",
+   "r_distance_detail": "2",
    "r_motion_blur_quality": "0",
    "r_max_anisotropic": "16",
    "r_antialiasing_method": "2"
@@ -20,41 +21,41 @@
  },
  "poses": [
   {
-   "name": "yard",
+   "name": "lane",
    "fov": 100,
    "position": [
-    34.6352,
-    14.87,
-    0.7494
+    -29.092,
+    7.259,
+    32.24
    ],
    "forward": [
-    0.8983,
-    -0.4341,
-    0.0677
+    0.99996,
+    -0.00923,
+    0.0
    ],
    "target": [
-    61.747,
-    0.87,
-    2.7937
+    0.908,
+    5.982,
+    32.24
    ]
   },
   {
-   "name": "yard-scope",
+   "name": "lane-scope",
    "fov": 20,
    "position": [
-    34.6352,
-    14.87,
-    0.7494
+    -29.092,
+    7.259,
+    32.24
    ],
    "forward": [
-    0.8983,
-    -0.4341,
-    0.0677
+    0.99996,
+    -0.00923,
+    0.0
    ],
    "target": [
-    61.747,
-    0.87,
-    2.7937
+    0.908,
+    5.982,
+    32.24
    ]
   }
  ]

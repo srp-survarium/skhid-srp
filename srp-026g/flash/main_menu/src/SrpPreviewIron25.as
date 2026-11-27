@@ -7,7 +7,7 @@ package
    public dynamic class SrpPreviewIron25 extends BitmapData
    {
 
-      public function SrpPreviewIron25(w:int = 450, h:int = 253)
+      public function SrpPreviewIron25(w:int = 840, h:int = 473)
       {
          super(w,h);
       }

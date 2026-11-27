@@ -8,8 +8,8 @@ package
     import flash.geom.Matrix;
 
     // The Weapon view window's preview (exe patch 218, docs/notes/weapon-view-settings.md): the AK-12 aimed
-    // over its iron sights, an EOTech 552 or a 1P69 Hyperon, over Vostok Radar Station with a soldier
-    // standing 30 m ahead in a yard, as the window's values would draw it. Offline renders
+    // over its iron sights, an EOTech 552 or a 1P69 Hyperon, in Vostok Radar Station where a player stands,
+    // a soldier 30 m ahead down a lane, as the window's values would draw it. Offline renders
     // (scripts/weapon-view-preview): the held gun's layers at 0.69d0's 32.5 degrees (and the iron and red
     // dot views at -20, 0, +25 and +50 cm of sight distance), the world a capture of the map at 100 degrees
     // vertical (the widest world drawn: the iron sights' at uro_fov 100 is 94.8; a closer one at 20 for the

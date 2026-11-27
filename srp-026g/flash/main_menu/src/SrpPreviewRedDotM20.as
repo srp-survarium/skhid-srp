@@ -7,7 +7,7 @@ package
    public dynamic class SrpPreviewRedDotM20 extends BitmapData
    {
 
-      public function SrpPreviewRedDotM20(w:int = 450, h:int = 253)
+      public function SrpPreviewRedDotM20(w:int = 840, h:int = 473)
       {
          super(w,h);
       }

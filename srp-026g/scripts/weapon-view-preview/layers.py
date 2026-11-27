@@ -2,7 +2,7 @@
 
 python layers.py <scripts/sight-alignment> <weapon-modules pack files> <preview_eyes JSON> <out folder>
 
-The AK-12 (363) aimed at 0.69d0's 32.5 degrees, 450x253 with alpha, as patch 161 draws it:
+The AK-12 (363) aimed at 0.69d0's 32.5 degrees, 840x473 with alpha (the 560x315 pane at 1.5 times, sharp also at the narrowest angles), as patch 161 draws it:
 - over its iron sights: the gun's `aim` locator with its aim_offset (iron-sights-1.json's -0.0506;
   revision 73's 0, weapon-view-069.json's aim_offset_026g: patch 218 moves it no nearer than that),
   at -20, 0, +25 and +50 cm of sight distance (SrpPreviewIron*);
@@ -25,7 +25,7 @@ pack = Path(sys.argv[2])
 dump = json.loads(Path(sys.argv[3]).read_text())
 out = Path(sys.argv[4])
 out.mkdir(exist_ok=True)
-W, H = 450, 253
+W, H = 840, 473
 FOV = 32.5
 AIM_OFFSET, AIM_OFFSET_026G = -0.0506, 0.0
 DISTANCES = {-20: "M20", 0: "0", 25: "25", 50: "50"}

@@ -137,16 +137,22 @@ slider the scope, the sights' and the distance's the iron sights (or the red dot
 the hip slider and the checkbox only draw it again. The World FOV slider's value, pending or not,
 draws the world.
 
-- **The pictures** are offline renders and one capture, 11 bitmaps of the movie, about 370 KB
+- **The pictures** are offline renders and captures, 11 bitmaps of the movie, about 1.2 MB
   (`flash/main_menu/bitmaps/SrpPreview*`, made by `scripts/weapon-view-preview`):
-  - the gun's layers (PNG with alpha, 450x253) at 0.69d0's 32.5 degrees, drawn as patch 161 draws
+  - the gun's layers (PNG with alpha, 840x473: the pane at 1.5 times, sharp at the narrowest angles
+    too) at 0.69d0's 32.5 degrees, drawn as patch 161 draws
     it: the iron sights at the gun's `aim` locator and aim_offset, the EOTech's eye from this crate's
     resolve, the 1P69's aimed model alone at its own eye; the iron sights and the EOTech at -20, 0,
     +25 and +50 cm of sight distance (the exe's clamps: the AK-12's iron eye no nearer than revision
     73's, the EOTech's no nearer than 6 cm);
-  - the world: two headless captures of Vostok (map 123, `scripts/capture`) from a roof, looking at a
-    yard 30 m away, at 100 degrees vertical (the widest world drawn: the iron sights' at uro_fov 100
-    is 94.8) and at 20 for the scope, with a stock soldier (a scavenger's outfit, the lobby's idle
+  - the world: two headless captures of Vostok (map 123, `scripts/capture`) at 2560x1440 and the
+    game's highest settings (textures, geometry and draw distance Maximum, shadows 3, ambient
+    occlusion 3, anisotropy 16, anti-aliasing), from where a player stands (the owner: "location can
+    be chosen in playable game area"): a lane between two walls, the eye 1.6 m over a floor the walk
+    grid reaches from a spawn (`crates/mapdata`), out of every damage zone, a place reached from a
+    spawn 30 m ahead, seen whole from the eye. At 100 degrees vertical (the widest world drawn: the
+    iron sights' at uro_fov 100 is 94.8; stored 1440x810) and at 20 for the scope (800x450), JPEG at
+    quality 92, with a stock soldier (a scavenger's outfit, the lobby's idle
     pose) rendered offline into both standing at that point: so the iron sights and the red dot sit
     on him, and the scope shows him at its zoom.
 - **The angles are exact.** A layer made at 32.5 degrees drawn at angle `a` is the layer scaled about
