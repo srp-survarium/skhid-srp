@@ -79,8 +79,6 @@ pub enum ActionError {
     NotEnoughMoney,
     /// The skills asked for break the tree's rules.
     Skills(SkillError),
-    /// The skills asked for take points back (only a reset does that).
-    SkillsLowered,
     /// A reset of a branch that is none, or with a payment that is none.
     BadReset,
     /// Not one of the lobby's factions.
@@ -116,7 +114,7 @@ impl ActionError {
             Self::Skills(SkillError::OverLevel { .. } | SkillError::TooManyPoints { .. }) => {
                 "st_wrong_skill_points_count"
             }
-            Self::Skills(_) | Self::SkillsLowered => "st_player_skills_check_failed",
+            Self::Skills(_) => "st_player_skills_check_failed",
             Self::BadReset => "st_cannot_reroll_skills",
             Self::NoWeapon => "st_profile_check_failed_weapon",
             Self::NoAmmo => "st_profile_check_failed_weapon_ammo",
@@ -590,24 +588,15 @@ pub fn sell(account: &mut Account, item_id: u32, steps: u32) -> Result<Sold, Act
 }
 
 /// `48 00`: the account's whole set of skills. The set must keep the
-/// tree's rules ([`SkillsTree::validate`]) and take no point back: the
-/// skills window only adds, a reset is `48 01`.
+/// tree's rules ([`SkillsTree::validate`]); it may take points back as
+/// well as spend them: taking back is allowed and free, as a reset is (the
+/// owner, 2026-11-27: a right click in the skills window takes a point back,
+/// confirmed or not). A set that leaves points in a row its branch no
+/// longer reaches is [`SkillError::Locked`], and nothing changes.
 pub fn set_skills(account: &mut Account, skills: &[(u16, u8)]) -> Result<(), ActionError> {
     let tree = SkillsTree::shared();
     tree.validate(account.level(), skills)
         .map_err(ActionError::Skills)?;
-    let points_in = |set: &[(u16, u8)], id: u16| {
-        set.iter()
-            .find(|&&(skill, _)| skill == id)
-            .map_or(0, |&(_, points)| points)
-    };
-    if account
-        .skills
-        .iter()
-        .any(|&(id, points)| points_in(skills, id) < points)
-    {
-        return Err(ActionError::SkillsLowered);
-    }
     let mut kept: Vec<(u16, u8)> = skills
         .iter()
         .copied()
@@ -959,7 +948,6 @@ mod tests {
             ActionError::NotEnoughMoney,
             ActionError::Skills(SkillError::Unknown(1)),
             ActionError::Skills(SkillError::OverLevel { spent: 2, level: 1 }),
-            ActionError::SkillsLowered,
             ActionError::BadReset,
             ActionError::BadFaction,
             ActionError::NoWeapon,
@@ -2552,15 +2540,6 @@ mod tests {
         // The same set again changes nothing.
         set_skills(&mut account, &[(101, 2), (102, 3)]).unwrap();
         assert_eq!(account.kits[0].revision, revisions[0] + 1);
-        // A point taken back, or a skill left out, is no reset.
-        assert_eq!(
-            set_skills(&mut account, &[(101, 1), (102, 3)]),
-            Err(ActionError::SkillsLowered)
-        );
-        assert_eq!(
-            set_skills(&mut account, &[(101, 2)]),
-            Err(ActionError::SkillsLowered)
-        );
         // The tree's own rules.
         assert!(matches!(
             set_skills(&mut account, &[(101, 2), (102, 3), (999, 1)]),
@@ -2571,6 +2550,116 @@ mod tests {
             Err(ActionError::Skills(SkillError::TooManyPoints { .. }))
         ));
         assert_eq!(account.skills, [(101, 2), (102, 3)]);
+    }
+
+    /// The first branch's skills below `skill`'s row, filled in the
+    /// window's order until they reach its `branch_points`, and `skill`
+    /// with one point: the smallest set that opens it.
+    fn opening(skill: u16) -> Vec<(u16, u8)> {
+        let tree = SkillsTree::shared();
+        let needs = tree.skill(skill).unwrap().branch_points;
+        let mut below: Vec<_> = tree
+            .skills
+            .iter()
+            .filter(|other| other.branch() == 1 && other.branch_points < needs)
+            .collect();
+        below.sort_by_key(|other| (other.row, other.id));
+        let mut set = Vec::new();
+        let mut spent = 0;
+        for other in below {
+            if spent >= needs {
+                break;
+            }
+            let points = other.levels_amount.min(u8::try_from(needs - spent).unwrap());
+            set.push((other.id, points));
+            spent += u32::from(points);
+        }
+        assert_eq!(spent, needs);
+        set.push((skill, 1));
+        set
+    }
+
+    /// A point taken back, confirmed before or not, is free and frees the
+    /// point (the owner, 2026-11-27); a skill left out has none.
+    #[test]
+    fn a_point_taken_back_is_free_and_spent_again() {
+        let mut account = account();
+        account.add_experience(100_000);
+        let level = account.level();
+        set_skills(&mut account, &[(101, 2), (102, 3)]).unwrap();
+        let revision = account.kits[0].revision;
+        set_skills(&mut account, &[(101, 1), (102, 3)]).unwrap();
+        assert_eq!(account.skills, [(101, 1), (102, 3)]);
+        assert_eq!(account.free_skill_points(), u32::from(level) - 4);
+        assert_eq!(account.generic_money, 0);
+        // The kits carry the new modifiers.
+        assert_eq!(account.kits[0].revision, revision + 1);
+        set_skills(&mut account, &[(102, 3)]).unwrap();
+        assert_eq!(account.skills, [(102, 3)]);
+        assert_eq!(account.free_skill_points(), u32::from(level) - 3);
+        // One taken back and another spent in one set.
+        set_skills(&mut account, &[(101, 1), (102, 2)]).unwrap();
+        assert_eq!(account.skills, [(101, 1), (102, 2)]);
+    }
+
+    /// A point taken back that leaves a row it opened with points is the
+    /// tree's refusal, and the skills stay as they were.
+    #[test]
+    fn a_point_taken_back_from_under_a_row_is_refused() {
+        let mut account = account();
+        account.add_experience(10_000_000);
+        let set = opening(113);
+        assert!(u32::from(account.level()) >= set.iter().map(|&(_, n)| u32::from(n)).sum());
+        set_skills(&mut account, &set).unwrap();
+        let before = account.clone();
+        // One point fewer under Deep Pockets' row.
+        let mut lowered = set.clone();
+        lowered[0].1 -= 1;
+        assert!(matches!(
+            set_skills(&mut account, &lowered),
+            Err(ActionError::Skills(SkillError::Locked { skill: 113, .. }))
+        ));
+        assert_eq!(account, before);
+        // Deep Pockets itself first, then the point under it.
+        let without: Vec<_> = lowered.iter().copied().filter(|&(id, _)| id != 113).collect();
+        set_skills(&mut account, &set[..set.len() - 1]).unwrap();
+        set_skills(&mut account, &without).unwrap();
+        assert!(account.skills.iter().all(|&(id, _)| id != 113));
+    }
+
+    /// Taking back Deep Pockets' or Terminator's point with `48 00` makes
+    /// every kit follow, as a reset does ([`Account::change_skills`]).
+    #[test]
+    fn a_point_taken_back_makes_the_kits_follow() {
+        let mut account = account();
+        account.add_experience(10_000_000);
+        let medkit = account.add_item(dict("medkit"), 5);
+        let grenade = account.add_item(dict("rgd-5"), 4);
+        let ak = account.add_item(dict("ak_74u"), FULL_CONDITION);
+        let mosin = account.add_item(dict("mosin_nagant"), FULL_CONDITION);
+        let inventory = account.inventory.clone();
+        let put = |account: &mut Account, slot: usize, item_id: u32| {
+            account.kits[0].slots[slot] = Some(KitSlot { item_id, count: 1 });
+        };
+
+        // Deep Pockets (113): its second pocket goes with its point.
+        let deep = opening(113);
+        set_skills(&mut account, &deep).unwrap();
+        put(&mut account, 13, medkit);
+        put(&mut account, 14, grenade);
+        set_skills(&mut account, &deep[..deep.len() - 1]).unwrap();
+        assert_eq!(account.kits[0].slots[13].unwrap().item_id, medkit);
+        assert_eq!(account.kits[0].slots[14], None);
+
+        // Terminator (111): the second rifle goes with its point.
+        let terminator = opening(111);
+        set_skills(&mut account, &terminator).unwrap();
+        put(&mut account, 7, ak);
+        put(&mut account, 10, mosin);
+        set_skills(&mut account, &terminator[..terminator.len() - 1]).unwrap();
+        assert_eq!(account.kits[0].slots[7].unwrap().item_id, ak);
+        assert_eq!(account.kits[0].slots[10], None);
+        assert_eq!(account.inventory, inventory);
     }
 
     #[test]
