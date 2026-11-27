@@ -286,7 +286,53 @@ a lobby project must give, the lobby window and the upgrade view are the lobby s
   0.26's), the shadow proxies (`shadow_proxy_geom`: 0.26 has none), the fridge's sound, 0.69d
   metalness and detail maps, exposure, white balance and tone curve.
 
-## Room weather: camp_069_rain and camp_069_night (pack lobby-camp-069@19)
+## Room weather: the rain, the evening and the night (pack lobby-camp-069@22)
+
+The owner, 2026-11-27: the weather again ("night and rain"), "i would add evening too"; for the
+night "we shouldn't change pose in night, instead we should add moonlight and moon somewhere there
+so it shines on the player"; on the old sheet "we were also fixing 0.69 lighting, i see this old
+comparison having old problems"; on the old rain "lamp didn't change the color". So @22 is not @19
+with a project more: its day is today's rule-lit room and the three variants are made anew on it.
+
+- **The day** (`lobby_scene/camp_069`): resource-porter's donor-lit conversion (as camp @21, which
+  release 69 took back out), rebuilt with what the converter line fixed since (the Rudnya (v0.69)
+  rounds) and its two build stops fixed (a light's influence factors written as integers; a local
+  probe the tier programs cannot draw, `room_probe`, left unmarked: it is drawn 0.26g's way, the
+  other four local probes by exe patch 203's tiers). Its tone key is the lighting pack's (marker
+  33100, corrected in three-maps-021-lighting@17). Which day ships (the live @18, @21, this one) is
+  the owner's pick: `private/renders/room-weather/2026-11-27_base-rooms_sheet.png`.
+- **The variants** are the manifest's `variants`, each a project made from the day's: the same
+  room, camera walls, weapon spot, characters and camera (nothing turns: `srp_lobby.facing` and
+  the turned room are gone). The day's exposure is fixed (EV 9.5), so a variant is as dark as its
+  light makes it; a variant's grading is drawn over the day's tone table. What a variant changes
+  of the day's light: its probes' multipliers, and its 22 adding ambient lights by `scale` (the
+  sky's fill at the back window alone adds 321: unscaled, a night's window stood white).
+- **Rain** (`camp_069_rain`): no sun, level 02 rain's overcast sky and haze, 0.26g's rain and
+  `fx/environment/rain` streams past the windows, 0.69d's `rain_pour` outside both windows and
+  level 04's sill drips; the light in at the windows (a cool light outside each above the
+  ceiling's height, no shadow); probes and fills x0.3; the chandelier lit, warm (1, 0.72, 0.42).
+- **Evening** (`camp_069_evening`): the sun low through the nearer left window toward the
+  character (azimuth 327; elevation 15), its colour and intensity 0.69d's own sun through its
+  atmosphere at that height (`lighting::sun_radiance`, the lobby's air density 2: the day's 37.04
+  at 50 degrees becomes 28.3, (1, 0.74, 0.44) at 15); level 02 evening's sky and haze; probes and
+  fills at about half; the back window's key a cool dusk sky; the chandelier weak.
+- **Night** (`camp_069_night`): the chandelier the room's warm light, its reach kept within the
+  walls (it casts no shadow: at 3.5 m it lit the trees outside); probes x0.18 and fills x0.12;
+  the environment's sun drawn as 0.26g's full moon (`sky/moon_full`), stars, two lit windows in
+  the blocks, 0.26g's wolves far off. The moonlight on the characters is the back window's
+  shadowed key, cool: that window is the only one whose light reaches their front (the stock
+  camera stands with its back to it), so the moon stands behind the camera, over the block the
+  window faces. A moon in the stock frame (the nearer left window) lights their side and back:
+  the second night on the sheet.
+- **Candidates** (the owner picks; the pack holds one of each until he has): two rains (the lamp
+  on and warm; the lamp off, windows alone), three evenings (the sun 8, 15 and 24 degrees up),
+  two nights (the moonlight on the front; the moon in the frame). Sheets:
+  `private/renders/room-weather/2026-11-27_{rain,evening,night}-candidates_sheet.png`.
+- **Ships with** exe patch 81 of #1060 (it asks these projects: a missing one crashes the cook)
+  and with three-maps-021-lighting@17 (the Room's tone key).
+
+### The first round (camp @19 over @18, 2026-11-02..05; superseded)
+
 
 The owner (2026-11-02): "room should actually be secretely 3 rooms, sometimes it should be rainy
 outside and we can use rain from other maps and clouds"; the third a night ("the game doesn't have
