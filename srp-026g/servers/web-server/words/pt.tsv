@@ -1001,3 +1001,5 @@ night	noite	weather
 before rain	antes da chuva	weather
 Weathers	Climas
 Variants	Variantes
+History since {0}.	Histórico desde {0}.
+History since {0}, plus {1} earlier matches made again from their recordings, from {2} on; the matches of before {0} are not all there.	Histórico desde {0}, mais {1} partidas anteriores refeitas a partir das suas gravações, desde {2}; as partidas antes de {0} não estão todas.

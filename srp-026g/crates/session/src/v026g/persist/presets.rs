@@ -415,16 +415,18 @@ mod tests {
             let mut repository = SqliteGameRepository::open(&path).unwrap();
             repository.save(7, &account).unwrap();
             repository.save(8, &bob).unwrap();
-            // The file as step 25 left it: one name a kit, kept with the kits.
+            // The file as step 25 left it: one name a kit, kept with the kits. Then step 26
+            // itself, run on it as the upgrade runs it (the steps after it are already there,
+            // so the file's version is not wound back: they would run again).
             repository
                 .connection
                 .execute_batch(
                     "DROP TABLE g26_preset_names;
                      UPDATE g26_kits SET name = 'Starter' WHERE account_id = 7 AND seq = 0;
-                     UPDATE g26_kits SET name = 'Rifle' WHERE account_id = 7 AND seq = 2;
-                     UPDATE g26_meta SET value = 25 WHERE key = 'schema';",
+                     UPDATE g26_kits SET name = 'Rifle' WHERE account_id = 7 AND seq = 2;",
                 )
                 .unwrap();
+            repository.connection.execute_batch(super::NAMES_MIGRATION).unwrap();
         }
         let mut repository = SqliteGameRepository::open(&path).unwrap();
         let alice = loaded(&mut repository, 7);
