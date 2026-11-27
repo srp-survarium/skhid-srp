@@ -47,14 +47,17 @@ launcher's combined log format. The native executable-report and mouse
 hooks passed. The game and host world validators agreed on all 6,739
 sampled worlds and their mutations. The broader world-corpus check
 reproduced the earlier 20,357 passes, 25,435 refusals and 3,700 unchecked.
-The server integration suite reproduced the earlier 17 vs 25 bot-map count.
+Of the 95 selected repository checks, 88 passed. Alongside the corpus,
+the existing failure cases were the bot map count (17 vs 25), lobby bonus
+rolls, Vostok anomalies, the second-sight view, the stock breath-hit
+fixture and the weather pack’s `srp_lamps` comparison.
 
 A separate loopback run used the local revision 75 executable and the
 quick-build content patch and reference database produced by the checks.
 The game reached the sign-in screen under Wine. A full match and native
-Windows testing remain unverified. For the local launcher's log, use
-`release/moderate resources --log-file runtime/server.log` from its setup
-directory. Local builds only.
+Windows testing remain unverified. From the checkout, read the local
+launcher's log with `release/moderate resources --log-file <setup>/runtime/server.log`.
+Local builds only.
 
 ## 2026-11-27 — match input summaries integrated on current main
 
