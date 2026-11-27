@@ -1,10 +1,10 @@
-# Patch <patch> (the number is claimed when the PR is nearly done; 0 until then): a collimator's
+# Patch 220: a collimator's
 # reticle chosen per scope item (reticle/; docs/notes/reticle-choice.md, "The build's contract").
 # The table (reticle/table.rs): srp's A9 taken at the lobby's dispatcher before its jump table,
 # srp_set_reticle at the lobby movie's every call, each scope item's srp_reticle as the lobby
 # gives the movie its inventory.
 name = "reticle"
-patch = 0
+patch = 220
 
 [[hook]]
 site = "lobby_client.dispatch"

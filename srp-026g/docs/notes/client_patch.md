@@ -5147,7 +5147,7 @@ before the new site.
 
 **Not run:** a game.
 
-### 3.116 A scope's reticle chosen in the lobby: the table (written 2026-11-27, patch `<patch>`, the number claimed when the PR is nearly done; the design: `reticle-choice.md`) — PROVEN in the code and under Unicorn; not run in a game
+### 3.116 A scope's reticle chosen in the lobby: the table (written 2026-11-27, patch 220) — PROVEN in the code and under Unicorn; not run in a game
 
 The Rust module `reticle` (`rust/patches/src/reticle/`, `reticle.toml`). This section covers its
 table (`table.rs`). The drawing (`draw.rs`) reads the table through `drawn_for_dict`.

@@ -201,9 +201,8 @@ preview and the match in the same process.
 
 ## The build's contract [srp]
 
-The parts are built separately and meet only here. Names in angle brackets are settled during the
-build: `<patch>` is the next free patch number and `<pack>` the next free `weapon-modules`
-version, both claimed only when the PR is nearly done.
+The parts are built separately and meet only here. The patch is 220 and the pack `weapon-modules@12`
+(@10 and @11 are claimed by the open #2314 and #2717); both were claimed when the PR was nearly done.
 
 ### The data: `data/srp_reticle` in a scope item's config
 
@@ -222,7 +221,7 @@ data/srp_reticle {
 
 - `name` is ASCII `[a-z0-9_]`, at most 23 bytes. The window's text for a pattern is
   `st_srp_reticle_pattern_<name>` and for a colour `st_srp_reticle_colour_<name>`.
-- `model` is a static model of pack `<pack>`. It is a quad lit by its own emission, centred at its
+- `model` is a static model of pack `weapon-modules@12`. It is a quad lit by its own emission, centred at its
   local origin, with its sight line along the model's +z as the aimed model's. Its size at scale 1.0
   is 0.69d0's. Its one material is `weapons/reticles_069/reticle`, whose `constant_emissive` and
   `constant_emissive_multiplier` are model parameters.
@@ -281,7 +280,7 @@ u16 n items (0..128) × { u32 item id, u16 dict id, u8 pattern, u8 size, u8 colo
 - Selling the scope (any change that takes the item out of the inventory) drops its choice
   (`Account::sync_kits` → `ScopeReticles::keep_owned`), and the next save deletes its row.
 
-### The exe (patch `<patch>`, Rust module `reticle`)
+### The exe (patch 220, Rust module `reticle`)
 
 - **The table** (`reticle/table.rs`, built on `feat/reticle-server`). `A9` is taken at
   `lobby_client.dispatch`: on_message_received 0x274A39, past the messaging ids and before the
@@ -327,7 +326,7 @@ srp_reticle = {
   - The same applies to a second sight's aimed model with its own optic.
   - Models are queried when first needed and kept for the process.
 
-### The content (pack `<pack>`)
+### The content (pack `weapon-modules@12`)
 
 - 0.69d0's 13 reticle meshes as ten pattern models (the dot's four sizes are one model, the
   size list its scales), each as 0.69d0's (its origin the aiming point, its size 0.69d0's), under

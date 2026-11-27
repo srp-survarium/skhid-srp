@@ -1,4 +1,4 @@
-//! Patch `<patch>`: a collimator's reticle chosen per scope item (`docs/notes/reticle-choice.md`,
+//! Patch 220: a collimator's reticle chosen per scope item (`docs/notes/reticle-choice.md`,
 //! "The build's contract"). [`table`] keeps the server's `A9` for the process and serves the
 //! lobby's window (`srp_set_reticle`, each scope item's `srp_reticle`); [`draw`] draws it in the
 //! holder's first-person aimed view from [`table::drawn_for_dict`].
