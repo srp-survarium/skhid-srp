@@ -187,6 +187,9 @@ package
             Loc.setData(say);
             if(Text.modeName(18) != say.st_srp_mode_pistols)
                failures.push(language + ": mode 18 named " + Text.modeName(18));
+            // The pool the cards name (checkFit's), then a room voting on them.
+            tell(["S1;M;7;0","0;61;5;5;2;0","1;62;13;5;3;1","2;63;12;3;6;0","3;117;1;1;4;0","4;184;8;1;5;0",
+               "5;12;7;1;8;0","6;300;1;1;13;0"]);
             tellRoom(1003, false, false, 3, null, 0, []);
             var texts:Array = [];
             walk(win,[],texts,0,0,[]);
