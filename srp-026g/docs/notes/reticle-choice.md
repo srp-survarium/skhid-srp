@@ -199,6 +199,109 @@ preview and the match in the same process.
 - Movie: the steppers and a Ruffle check.
 - Localization, an edit list, `tools/test-patch`, and an in-game check of every pattern's centre.
 
+## The build's contract [srp]
+
+The parts are built separately and meet only here. Names in angle brackets are settled during the
+build: `<patch>` is the next free patch number and `<pack>` the next free `weapon-modules`
+version, both claimed only when the PR is nearly done.
+
+### The data: `data/srp_reticle` in a scope item's config
+
+An edit list, `scope-reticles-1.json`, made by `scripts/scope-reticles/edit.py` from
+`scripts/scope-reticles/reticles.tsv`, adds one table to each listed scope item's config. Every
+scope item without the table has no choice: the server refuses a choice for it, and the exe draws
+its aimed model as it is.
+
+```text
+data/srp_reticle {
+    patterns: [ { name: "dot", model: "weapons/reticles_069/dot" }, ... ]   1..16, index 0 the default
+    sizes:    [ 1.0, 0.75, 0.5, 0.35 ]                                       1..8 scale factors, index 0 the default
+    colours:  [ { name: "red", rgb: [1.0, 0.0, 0.0] }, ... ]                1..8, index 0 the default
+}
+```
+
+- `name` is ASCII `[a-z0-9_]`, at most 23 bytes. The window's text for a pattern is
+  `st_srp_reticle_pattern_<name>` and for a colour `st_srp_reticle_colour_<name>`.
+- `model` is a static model of pack `<pack>`. It is a quad lit by its own emission, centred at its
+  local origin, with its sight line along the model's +z as the aimed model's. Its size at scale 1.0
+  is 0.69d0's. Its one material is `weapons/reticles_069/reticle`, whose `constant_emissive` and
+  `constant_emissive_multiplier` are model parameters.
+- `sizes` are factors on the model's own size, the same for every pattern. The default list is
+  0.69d0's four dot sizes as ratios to `ncstar_4_dot_04`.
+- Brightness is not in the data: it is 0..10 everywhere, default 6 (0.69d0's), and the exe maps it
+  to the emissive multiplier.
+- Index 0 of each list must look like today's reticle: the dot, or the EOTech ring, in the optic's
+  first colour.
+
+### The server
+
+- `g26_scope_reticles(account INTEGER, item INTEGER, pattern INTEGER, size INTEGER, colour INTEGER,
+  brightness INTEGER, PRIMARY KEY (account, item))`, one row for each scope item the player has set.
+- `Reticle { pattern: Index, size: Index, colour: Index, brightness: Brightness }`. Each `Index` is
+  bounded by the scope's list (`survarium::v026g` reads `data/srp_reticle` from the game data into
+  `ReticleLists`), and `Brightness` is 0..=10. A missing row is `Reticle::DEFAULT` (0, 0, 0, 6).
+- **The request.** `46 05 <kit> <host> <upgrade> <u64 value>` with host == upgrade == a scope item of
+  the account that has lists, and the value
+  `pattern | size << 8 | colour << 16 | brightness << 24 | 0x52 << 56` (0x52 'R' marks it).
+  - The server parses the request into the existing second-sight side or a `SetReticle`. A value
+    outside the lists is refused.
+  - Either way the server answers with the account, then the reticles message.
+- **The answer.** An srp lobby message after every account the server sends (sign-in, every
+  answer). It is `<id>` followed by `u16 count`, then `count` entries, one for each scope item the
+  account owns that has lists:
+
+```text
+u32 item id, u16 dict id, u8 pattern, u8 size, u8 colour, u8 brightness,
+u8 n patterns × { u8 name length, name, u8 model length, model },
+u8 n sizes × f32,
+u8 n colours × { u8 name length, name, f32 r, f32 g, f32 b }
+```
+
+- A choice that the current lists no longer cover is reset to the default at load time.
+- Selling the scope deletes its row.
+
+### The exe (patch `<patch>`, Rust module `reticle`)
+
+- **The table.** The patch keeps the last reticles message, parsed once into a typed table (by item
+  id and by dict id), in the arena. It lives for the process, so the lobby and the match read the
+  same table.
+- **The window's side.**
+  - `srp_set_reticle(item, pattern, size, colour, brightness)` (an ExternalInterface call from the
+    lobby movie) sends the `46 05` above through `engine_send_apply_decal`, after checking it
+    against the table.
+  - `setup_inventory_data` gives each scope item's AS3 object a member `srp_reticle` when the table
+    has the item: `{pattern, size, colour, brightness, patterns: [name], sizes: n, colours: [name]}`.
+- **The drawing.**
+  - The reticle is drawn on the local player's weapon in first person. While the fitted optic's
+    aimed model is in the scene, and the table has that optic's dict id (`data/srp_scope`), the
+    reticle model is also in the scene.
+  - Its transform is the optic's `aim` place in the aimed model's frame (the modules table's, as
+    the dot is placed today), times `scale(size)`, times `[weapon+660h]`.
+  - Its material parameters are `constant_emissive = rgb` and `constant_emissive_multiplier`,
+    taken from the brightness.
+  - The same applies to a second sight's aimed model with its own optic.
+  - Models are queried when first needed and kept for the process.
+
+### The content (pack `<pack>`)
+
+- 0.69d0's 13 reticle meshes, recentred and scaled by the porter, under `weapons/reticles_069/`.
+  Each name is 0.69d0's without the optic and size prefix: `dot`, `eotech_ring`, `eotech_xr308`,
+  `ncstar_cross`, `ncstar_bullseye`, `ncstar_starburst`, `cobra_cross`, `cobra_tick`,
+  `cobra_tick_dot`, `dppro_triangle`.
+- The atlas and the noise texture.
+- The one material.
+- The ten collimators' aimed models without the baked dot.
+
+### The movie (`srp-026g/flash/lobby_menu`)
+
+- The Attachments page has four steppers (◀ value ▶) under the scope slot: Pattern, Size, Colour
+  and Brightness. They appear when the item in the scope slot has a `srp_reticle` member.
+- A stepper wraps around its list. Brightness goes from 0 to 10 and does not wrap.
+- A step calls `srp_set_reticle` with all four values and waits for the account to redraw.
+- The texts are `st_srp_reticle_title` ("Reticle"), `_pattern`, `_size`, `_colour`, `_brightness`,
+  and one key for each pattern and colour name, in the 12 languages of
+  `client-patches/localization/`.
+
 ## More optics and patterns later
 
 Each of these is a content change once the first build is in place. Rough sizes:
