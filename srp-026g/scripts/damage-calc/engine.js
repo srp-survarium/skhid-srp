@@ -1,11 +1,15 @@
-// The 0.26g client's damage path, as tools/re-kit/v026g/damage/formula.txt
-// recovers it. Health is in the game's units (body 1.0); the page shows x100.
+// The 0.26g client's damage path, as its hit code computes it (re-kit names:
+// bullet::bullet 0x32BA60, bullet::compute_damage_speed 0x32C520,
+// bullet::try_pierce 0x32D960, body_part_parameters::hit_by_type 0x329FF0;
+// docs/notes/pierce_line.md and armour-params.md). Health is in the game's
+// units (body 1.0); the page shows x100.
 // Pure functions only, so tools can run them under node as well.
 
 const clamp = (x, lo, hi) => Math.min(hi, Math.max(lo, x));
 
 // A modifier sum S applied to a base B: B*max(0,1+S), or B+S for the indices
-// the client adds (formula.txt section 4).
+// the client adds (player_params_modifiers_container::apply_modifier
+// 0x2D5AE0, its additive list 0x927E08).
 function applyModifier(base, sum, additive) {
   return additive ? base + sum : base * Math.max(0, 1 + sum);
 }
@@ -22,12 +26,13 @@ function speedAt(v0, drag, r) {
 
 // What leaves the barrel and what is left of it `distance` metres out.
 // `w` holds the weapon's effective numbers (after its bonuses), `a` the ammo.
-function bulletAt(w, a, distance) {
+// `wall`: the armour of a wall just in front of the target, or null.
+function bulletAt(w, a, distance, wall = null) {
   const W = w.bullet_damage, Q = w.bullet_pierce, m = w.min_damage_amount;
   const Dmax = W * a.k_damage;
   const Dmin = W * m * a.k_min_damage_amount * a.k_damage;
+  // Penetration does not fall with distance (exe patch 173).
   const Pmax = Q * a.k_arp;
-  const Pmin = Q * m * a.k_min_damage_amount * a.k_arp;
   const v0 = a.muzzle_speed, drag = a.air_resistance;
   const tc = 1 / (1.1 * drag);
   const reach = v0 * (tc - drag * tc * tc / 2);
@@ -36,10 +41,21 @@ function bulletAt(w, a, distance) {
   const vFull = speedAt(v0, drag, r0), vLow = speedAt(v0, drag, r1);
   const v = speedAt(v0, drag, distance);
   const u = vFull === vLow ? (distance <= r0 ? 1 : 0) : clamp((v - vLow) / (vFull - vLow), 0, 1);
+  let D = Dmin + (Dmax - Dmin) * u, P = Pmax;
+  // A wall (try_pierce 0x32D960, exe patch 175): k = 1 − (A / P)², 1 when A = 0;
+  // k ≤ 0 (P ≤ A) stops the bullet. Damage, penetration and speed × k;
+  // at the target the slower bullet's damage falls off again, never back up
+  // (update_bullet_position 0x32EE90: D = min(D, its value at that speed)).
+  let through = null;
+  if (wall != null) {
+    const k = wall > 0 ? 1 - (wall / P) ** 2 : 1, vk = k * v;
+    const uk = vFull === vLow ? (k < 1 ? 0 : u) : clamp((vk - vLow) / (vFull - vLow), 0, 1);
+    through = { A: wall, k, v: vk, u: uk, D, P };
+    D = k > 0 ? Math.min(k * D, Dmin + (Dmax - Dmin) * uk) : 0;
+    P = k > 0 ? k * P : 0;
+  }
   return {
-    Dmax, Dmin, Pmax, Pmin, r0, r1, reach, v0, v, u,
-    D: Dmin + (Dmax - Dmin) * u,
-    P: Pmin + (Pmax - Pmin) * u,
+    Dmax, Dmin, Pmax, r0, r1, reach, v0, v, u, D, P, wall: through,
     pellets: Math.max(1, Math.round(a.buck_shot || 1)),
     maxDistance: a.distance || Infinity,
   };

@@ -1,0 +1,10 @@
+# The round countdown of the modes with rounds (Artifact Hunt, patch 171;
+# Freeze Tag, patch 160; vostok/round_countdown.rs): the client's camera test
+# sees the match start's countdown while the core says a round is about to
+# start (the warmup camera, patch 31's kits).
+name = "round_countdown"
+patch = 171
+
+[[hook]]
+site = "time_rule.camera_state"
+handler = "on_camera_state"

@@ -10,10 +10,11 @@ use survarium::v026g::match_msgs::client_model::Skip;
 use survarium::v026g::match_msgs::players::{self, PlayerState};
 use survarium::v026g::match_msgs::rules::state;
 use survarium::v026g::match_msgs::snapshot::{Sections, event};
+use survarium::v026g::match_msgs::upload;
 use survarium::v026g::match_msgs::{PlayerInput, ServerMessage, WireTime, id};
 use udp_transport::wire::{self, low_level};
 use udp_transport::{Direction, Table};
-use world_frame::{Frame, PLAYER_STATE_CAP, Places, Section};
+use world_frame::{Frame, MAX_BODY, PLAYER_STATE_CAP, Places};
 
 use super::client::{Client, HORIZON_MS, INITIAL_MS};
 use super::{Bench, MAP_BATTERIES, MAP_TDM, session_of};
@@ -75,7 +76,7 @@ fn a_solo_match_runs_from_the_connect_to_the_time_limit() {
         let options = client.model.options.as_ref().unwrap();
         assert_eq!(options.players.len(), 1);
         assert_eq!(options.players[0].name, "player0");
-        assert_eq!(options.map_id, MAP_BATTERIES);
+        assert_eq!(options.map.map().id, MAP_BATTERIES);
         assert_eq!(options.match_id, static_id(bench.match_id));
         assert_eq!(options.match_level, 3);
     }
@@ -122,7 +123,7 @@ fn a_solo_match_runs_from_the_connect_to_the_time_limit() {
     assert_eq!(result.match_id, bench.match_id);
     assert_eq!(result.end, MatchEnd::TimeLimit);
     assert_eq!(result.map_id, MAP_BATTERIES);
-    assert_eq!(result.game_mode, 2);
+    assert_eq!(result.mode, survarium::v026g::maps::GameMode::Batteries);
     assert_eq!(result.winner, Some(DRAW));
     assert_eq!(result.team_points, [0, 0]);
     // Its own word: there was nobody else.
@@ -374,6 +375,46 @@ fn an_input_with_a_rotation_no_client_makes_goes_to_nobody() {
     bench.assert_no_faults();
 }
 
+/// The client checks the relayed input too. A sender must never be able
+/// to relay bytes that make all the recipients take their refusal path.
+#[test]
+fn an_input_refused_by_the_client_validator_never_reaches_other_players() {
+    let mut bench = Bench::new(3, MAP_BATTERIES, Settings::default());
+    bench.join_all();
+    settle(&mut bench);
+    let good = bench.clients[0].input(50, 0x21);
+    bench.run(100);
+    let bad = PlayerInput {
+        time: WireTime::tick(bench.clients[0].clock() + 50),
+        // a turn of a half's infinity, which no mouse makes
+        rotation: [0x00, 0x7C, 0, 0],
+        actions: 0x20,
+    };
+    assert!(srp_validate::messages::input(bad.rotation).is_err());
+    bench.clients[0].send_input(bad);
+    bench.clients[0].send_input(bad);
+    bench.run(100);
+    assert_eq!(discards(&bench.clients[0]), [bad.time]);
+    assert_eq!(bench.game().inputs_refused(0), 1);
+    for other in [1, 2] {
+        assert_eq!(bench.clients[other].relays_of(0), [good]);
+        assert!(discards(&bench.clients[other]).is_empty());
+    }
+    // Native bit 31, the shipped carry/pickup marker in bit 29 and the
+    // second sight's switch in bit 30 (client patch 206) stay accepted. All
+    // players continue after the bad input is discarded.
+    for actions in [1 << 31, 1 << 29, 1 << 30, 0x20] {
+        let input = bench.clients[0].input(50, actions);
+        bench.run(100);
+        for other in [1, 2] {
+            assert_eq!(bench.clients[other].relays_of(0).last(), Some(&input));
+        }
+    }
+    assert_eq!(bench.stages(), "LLL");
+    assert!(bench.clients.iter().all(|client| !client.closed));
+    bench.assert_no_faults();
+}
+
 #[test]
 fn a_late_input_is_dropped_when_the_setting_says_so() {
     let settings = Settings {
@@ -467,6 +508,9 @@ fn kit_choices_before_play_are_counted_for_the_result() {
     bench.clients[1].profile_input(2);
     bench.run(300);
     bench.clients[1].profile_input(0);
+    bench.run(300);
+    // Client patch 180's Dead Man's Switch is a profile input too, but no kit choice.
+    bench.clients[1].profile_input(technical_skills::dead_mans_switch::INPUT);
     bench.run(300);
     bench.run_long(20_000);
     assert_eq!(bench.game().rule_state(), state::IN_PROCESS);
@@ -763,6 +807,31 @@ fn a_client_out_of_step_is_resynced_as_the_next_generation() {
     bench.assert_no_faults();
 }
 
+/// Live, 2026-11-04: a game out of step for more than a second was back in
+/// step by the time its disagreement was judged (its world taken just
+/// ahead of the resync was the majority's byte for byte), and was resynced
+/// all the same. Its newer reports that agree with most games skip the
+/// resync, as 0.69 skips a resync whose hash matches.
+#[test]
+fn a_game_back_in_step_before_its_disagreement_is_judged_is_not_resynced() {
+    let mut bench = Bench::new(3, MAP_BATTERIES, Settings::default());
+    bench.join_all();
+    settle(&mut bench);
+    bench.run(3_000);
+    let from = bench.clients[2].clock();
+    bench.clients[2].sim.salt_from = Some((from, 7));
+    // Its ticks wrong for 1.7 s (past `divergence_confirm_ms`; a game
+    // reports the tick 500 ms back), then right again, all before its
+    // first wrong tick is settled (2.5 s).
+    bench.run(2_200);
+    bench.clients[2].sim.salt_from = None;
+    bench.run_long(25_000);
+    assert_eq!(bench.game().resyncs(2), 0);
+    assert_eq!(bench.clients[2].model.syncs, 1);
+    settle(&mut bench);
+    bench.assert_no_faults();
+}
+
 /// A game wrong from its first reports after the world it was resynced
 /// with is resynced again at once, not after the 15 s between resyncs; a
 /// third such world in a row waits them out (no world helps that game).
@@ -996,6 +1065,108 @@ fn a_first_world_gets_through_a_line_that_carries_a_little_at_a_time() {
 }
 
 #[test]
+fn a_first_world_that_takes_three_seconds_is_waited_for_with_load_receipts_as_without() {
+    use crate::v026g::scripted::WorldReceiptMode;
+    // A line thinner still: one full datagram in 40 ms. The first world
+    // takes some 3 s to get through, within its 4 s on the way
+    // (`Timing::entry_state`). A game that sends load receipts (0x82) is
+    // not given up on before that, which would start it again every 2 s
+    // and never let it in.
+    for mode in [WorldReceiptMode::Legacy, WorldReceiptMode::Accept] {
+        let settings = Settings {
+            compress_state: false,
+            ..Settings::default()
+        };
+        let mut bench = Bench::growing(2, MAP_BATTERIES, settings);
+        for client in &mut bench.clients {
+            client.sim.ballast = 13_000;
+        }
+        bench.join(0);
+        settle(&mut bench);
+
+        bench.clients[1].world_receipts = mode;
+        bench.clients[1].slow_acks = true;
+        bench.clients[1].connect();
+        assert!(bench.until(1_000, |bench| bench.clients[1].model.options.is_some()));
+        let line = thin_line(&mut bench, 1);
+        bench.clients[1].ready();
+        let started = bench.ms;
+        while bench.stages() != "LL" && bench.ms < started + 8_000 {
+            for _ in 0..7 {
+                bench.step(5);
+            }
+            thin_step(&mut bench, &line);
+        }
+        let took = bench.ms - started;
+        assert_eq!(bench.stages(), "LL", "{mode:?}: after {took} ms");
+        assert!(took > 2_500, "{mode:?}: in after {took} ms, the line is not thin enough");
+        assert_eq!(bench.game().generation(1), Some(0), "{mode:?}");
+        assert_eq!(bench.clients[1].snapshots().len(), 1, "{mode:?}");
+        assert!(bench.until(50, |bench| bench.clients[1].entered() == [1]));
+        bench.assert_no_faults();
+    }
+}
+
+#[test]
+fn a_resync_on_a_long_line_settles_with_load_receipts_as_without() {
+    use crate::v026g::scripted::WorldReceiptMode;
+    // One player of several on a line of 800 to 850 ms one way, resynced:
+    // its 14 KB worlds wait behind the replay and the transport's window,
+    // and are acked more than 2 s after they were queued. A game that
+    // sends load receipts is waited for as long as one that does not: its
+    // receipt is due after the acks, not 2 s after the world was queued.
+    for (players, one_way) in [(6usize, 800u64), (8, 850)] {
+        let mut settled = Vec::new();
+        for mode in [WorldReceiptMode::Legacy, WorldReceiptMode::Accept] {
+            let settings = Settings {
+                compress_state: false,
+                ..Settings::default()
+            };
+            let mut bench = Bench::growing(players, MAP_BATTERIES, settings);
+            for client in &mut bench.clients {
+                client.sim.ballast = 13_000;
+            }
+            let far = players - 1;
+            bench.clients[far].world_receipts = mode;
+            bench.clients[far].slow_acks = true;
+            bench.join_all();
+            settle(&mut bench);
+            bench.run(3_000);
+            bench.one_way = vec![0; players];
+            bench.one_way[far] = one_way;
+            bench.run(2_000);
+            // Its game goes out of step: it is resynced.
+            let from = bench.clients[far].clock();
+            bench.clients[far].sim.salt_from = Some((from, 7));
+            let start = bench.ms;
+            let mut resynced = false;
+            let mut live_ms = 0u64;
+            while bench.ms < start + 40_000 {
+                let (resyncing, _) = bench.game().resync_state(far);
+                resynced |= resyncing;
+                if resynced && !resyncing && bench.stages().ends_with('L') {
+                    live_ms += 5;
+                }
+                if bench.ms.is_multiple_of(50) {
+                    for client in &mut bench.clients[..far] {
+                        client.input(20, 0x21);
+                    }
+                }
+                bench.step(5);
+            }
+            let what = format!("{players} players, {one_way} ms, {mode:?}");
+            assert!(resynced, "{what}");
+            assert_eq!(bench.stages(), "L".repeat(players), "{what}");
+            assert!(live_ms > 25_000, "{what}: in step {live_ms} ms of 40 s");
+            assert_eq!(bench.game().resyncs(far), 1, "{what}");
+            bench.assert_no_faults();
+            settled.push(bench.game().generation(far));
+        }
+        assert_eq!(settled[0], settled[1], "{players} players, {one_way} ms");
+    }
+}
+
+#[test]
 fn a_game_waiting_for_its_first_world_gets_the_others_inputs_many_in_a_datagram() {
     let mut bench = Bench::new(4, MAP_BATTERIES, Settings::default());
     for place in 0..3 {
@@ -1109,6 +1280,52 @@ fn a_world_goes_out_only_once_its_time_was_answered() {
     bench.run(3_000);
     assert_eq!(bench.clients[0].model.syncs, 1);
     bench.assert_no_faults();
+}
+
+#[test]
+fn an_initial_world_with_a_player_in_it_is_not_used() {
+    // A world of a match in play, with its player 0 in it.
+    let mut played = Bench::new(2, MAP_BATTERIES, Settings::default());
+    for client in &mut played.clients {
+        client.sim.player_states[0] = Some(PlayerState {
+            current_index: 0,
+            target_index: 0,
+            pickup: weapon_pickup::Record::EMPTY,
+            items: vec![1_000_000],
+            alive: true,
+            has_to_die: false,
+            look_pitch: 0.0,
+            rotation_y: 0.0,
+            actions_mask: 0,
+            effects: 0,
+        });
+    }
+    played.join_all();
+    settle(&mut played);
+    let time = played.clock() / 50 * 50 - 500;
+    let sim = played.clients[0].sim.clone();
+    assert_ne!(sim.world(time)[..4], [0; 4]);
+    // Uploaded as an initial world, every other game would load its
+    // player's block, animation stream and all, with nobody vouching.
+    let start = |settings: Settings| {
+        let mut bench = Bench::new(2, MAP_BATTERIES, settings);
+        bench.clients[0].sim = sim.clone();
+        bench.clients[0].initial_ms = time;
+        bench.clients[0].connect();
+        assert!(bench.until(1_000, |bench| bench.clients[0].model.options.is_some()));
+        bench.clients[0].ready();
+        bench.run(1_000);
+        bench
+    };
+    let bench = start(Settings::default());
+    assert_eq!(bench.stages(), "w-");
+    assert!(!bench.game().has_clock());
+    // That is the only thing wrong with it.
+    let unchecked = start(Settings {
+        check_initial_world: false,
+        ..Settings::default()
+    });
+    assert!(unchecked.game().has_clock());
 }
 
 #[test]
@@ -1240,6 +1457,44 @@ fn a_player_back_in_the_match_enters_for_the_others_first() {
     assert_eq!(bench.clients[0].model.syncs, 1);
     assert_eq!(bench.clients[1].model.syncs, 1);
     settle(&mut bench);
+    bench.assert_no_faults();
+}
+
+/// A game started anew that connects to its place before the server saw the
+/// old one go (no 0xE0, no closed link, inside the client timeout): the old
+/// link is replaced, and the others are sent its leave, then its entry again
+/// at a later tick. Every game's rules see the leave first (an Artifact Hunt
+/// carrier lets go of the artefact there, patch 171's slot 9), as for the
+/// 0xE0, the closed link and the timeout (the tests before).
+#[test]
+fn a_new_connection_for_a_live_place_is_its_leave_then_its_entry() {
+    let mut bench = Bench::new(2, MAP_BATTERIES, Settings::default());
+    bench.join_all();
+    settle(&mut bench);
+    assert_eq!(bench.stages(), "LL");
+
+    bench.restart(1);
+    bench.clients[1].connect();
+    assert!(bench.until(1_000, |bench| bench.clients[1].model.options.is_some()));
+    bench.clients[1].ready();
+    let roster = |client: &Client| {
+        let mut changes = client.got(|message| match message {
+            ServerMessage::PlayerEntered { tick, player: 1 } => Some((true, *tick)),
+            ServerMessage::PlayerLeft { tick, player: 1 } => Some((false, *tick)),
+            _ => None,
+        });
+        changes.dedup();
+        changes
+    };
+    assert!(bench.until(2_000, |bench| roster(&bench.clients[0]).len() == 3));
+    let changes = roster(&bench.clients[0]);
+    let [(true, entered), (false, left), (true, again)] = changes[..] else {
+        panic!("{changes:?}");
+    };
+    // Ticks are a byte of the 50 ms grid: in order, a step apart at least.
+    assert!(left.wrapping_sub(entered) > 0 && again.wrapping_sub(left) > 0 && again.wrapping_sub(left) < 128,
+        "{changes:?}");
+    assert!(bench.until(10_000, |bench| bench.stages() == "LL"));
     bench.assert_no_faults();
 }
 
@@ -1758,7 +2013,7 @@ fn a_team_with_every_battery_home_ends_the_match_three_seconds_later() {
     // Team 0 brings the tenth battery home; player 0 has 5 kills.
     let at = bench.clock() / 50 * 50 + 100;
     for client in &mut bench.clients {
-        client.sim.points_from = Some((at, [10, 3]));
+        client.sim.points_from = Some((at, [10, 0]));
         client.sim.kills_from = Some((at, 5));
     }
     // The next world asked for shows it, both clients vouch for it, and
@@ -1769,7 +2024,7 @@ fn a_team_with_every_battery_home_ends_the_match_three_seconds_later() {
     let result = bench.results.try_recv().expect("a result");
     assert_eq!(result.end, MatchEnd::ModeRule);
     assert_eq!(result.winner, Some(0));
-    assert_eq!(result.team_points, [10, 3]);
+    assert_eq!(result.team_points, [10, 0]);
     assert_eq!(result.trusted_by, 2);
     let ended_after = result.duration_ms - at;
     assert!((3_000..9_500).contains(&ended_after), "{ended_after}");
@@ -1802,7 +2057,7 @@ fn a_players_battery_events_are_paid_at_most_the_maps_battery_count_per_kind() {
         (at, 1, event::PUT_VICTORY_ITEM_IN_CONTAINER, 4),
     ];
     for client in &mut bench.clients {
-        client.sim.points_from = Some((at, [10, 3]));
+        client.sim.points_from = Some((at, [10, 0]));
         client.sim.events_from.clone_from(&events);
     }
     assert!(bench.until(12_000, |bench| {
@@ -1852,7 +2107,10 @@ fn a_match_nobody_comes_to_is_given_up() {
     bench.run_long(3_000);
     let result = bench.results.try_recv().expect("a result");
     assert_eq!(result.end, MatchEnd::NoShow);
-    assert_eq!(result.game_mode, 4);
+    assert_eq!(
+        result.mode,
+        survarium::v026g::maps::GameMode::TeamDeathmatch
+    );
     assert_eq!(result.winner, None);
     assert_eq!(result.trusted_by, 0);
     assert_eq!(result.players.len(), 2);
@@ -1950,7 +2208,10 @@ fn a_team_deathmatch_ends_when_a_team_has_no_tickets_and_nobody_alive() {
     }));
     let result = bench.results.try_recv().expect("a result");
     assert_eq!(result.end, MatchEnd::ModeRule);
-    assert_eq!(result.game_mode, 4);
+    assert_eq!(
+        result.mode,
+        survarium::v026g::maps::GameMode::TeamDeathmatch
+    );
     assert_eq!(result.winner, Some(0));
     assert_eq!(result.team_points, [37, 0]);
     bench.assert_no_faults();
@@ -2059,8 +2320,6 @@ fn unloadable_worlds(world: &[u8]) -> Vec<Vec<u8>> {
     let real = Sections::walk(world).expect("a world that walks");
     let block = players::block_bytes(&[0xAB; 33], None);
     let big_state = players::block_bytes(&[0xAB; PLAYER_STATE_CAP + 1], None);
-    let over = Section::ALL.map(|section| vec![0; section.cap() + 1]);
-    let [bullets, statistics, objects, physics, rules, effects] = &over;
     let worlds = [
         // A place past the roster of two.
         Sections {
@@ -2079,12 +2338,6 @@ fn unloadable_worlds(world: &[u8]) -> Vec<Vec<u8>> {
             players: &big_state,
             ..real
         },
-        Sections { bullets, ..real },
-        Sections { statistics, ..real },
-        Sections { objects, ..real },
-        Sections { physics, ..real },
-        Sections { rules, ..real },
-        Sections { effects, ..real },
     ];
     let mut bodies = vec![vec![0xEE; 777]];
     bodies.extend(worlds.iter().map(|world| world.to_body().unwrap()));
@@ -2102,16 +2355,28 @@ fn a_world_no_game_could_load_goes_to_nobody() {
     bench.clients[0].connect();
     assert!(bench.until(1_000, |bench| bench.clients[0].model.options.is_some()));
     let world = bench.clients[0].sim.world(INITIAL_MS);
-    // At its caps a world goes, as a real one does.
+    // A world of the game's whole buffer goes, its bullets past the
+    // original's inline 0x2400 bytes (patch 98 grows them).
     let real = Sections::walk(&world).unwrap();
-    let full = vec![0; Section::Bullets.cap()];
+    let full = vec![0; MAX_BODY - real.to_body().unwrap().len() + real.bullets.len()];
     let at_cap = Sections {
         bullets: &full,
         ..real
     }
     .to_body()
     .unwrap();
+    assert_eq!(at_cap.len(), MAX_BODY);
     assert!(Frame::parse(&at_cap, Places::of(2)).is_ok());
+    // One byte more no game could hash, and no game can upload.
+    let over = vec![0; full.len() + 1];
+    let over = Sections {
+        bullets: &over,
+        ..real
+    }
+    .to_body()
+    .unwrap();
+    assert!(Frame::parse(&over, Places::of(2)).is_err());
+    assert_eq!(upload::split(INITIAL_MS, &over), None);
     let bodies = unloadable_worlds(&world);
     for (count, body) in bodies.iter().enumerate() {
         assert!(Frame::parse(body, Places::of(2)).is_err(), "world {count}");
@@ -2130,6 +2395,39 @@ fn a_world_no_game_could_load_goes_to_nobody() {
     assert!(bench.until(5_000, |bench| bench.stages() == "LL"));
     assert_eq!(bench.game().uploads_refused(1), 0);
     bench.assert_no_faults();
+}
+
+#[test]
+fn a_framed_world_with_unsafe_effects_is_refused_and_a_valid_retry_starts_the_match() {
+    let mut bench = Bench::new(2, MAP_BATTERIES, Settings::default());
+    bench.clients[0].connect();
+    assert!(bench.until(1_000, |bench| bench.clients[0].model.options.is_some()));
+    let bad = with_unsafe_effects(&bench.clients[0].sim.world(INITIAL_MS + 50));
+    assert!(Frame::parse(&bad, Places::of(20)).is_ok());
+    bench.clients[0].upload(INITIAL_MS + 50, &bad);
+    bench.run(100);
+    assert_eq!(bench.game().uploads_refused(0), 1);
+    assert!(!bench.game().has_clock());
+    // A fresh upload transaction, still a valid initial world.
+    bench.clients[0].ready();
+    assert!(bench.until(5_000, |bench| bench.stages().starts_with('L')));
+    bench.join(1);
+    assert_eq!(bench.game().uploads_refused(1), 0);
+    bench.assert_no_faults();
+}
+
+/// `world` with an effects section no game loads, which the games' own
+/// check refuses too (`world::effects`).
+fn with_unsafe_effects(world: &[u8]) -> Vec<u8> {
+    let real = Sections::walk(world).unwrap();
+    let mut effects = real.effects.to_vec();
+    effects[8..12].copy_from_slice(&u32::MAX.to_le_bytes());
+    Sections {
+        effects: &effects,
+        ..real
+    }
+    .to_body()
+    .unwrap()
 }
 
 #[test]
@@ -2373,14 +2671,14 @@ fn what_each_player_has_left_comes_with_the_result() {
     bench.run_long(130_000);
     let at = bench.clock() / 50 * 50 + 100;
     for client in &mut bench.clients {
-        client.sim.points_from = Some((at, [10, 3]));
+        client.sim.points_from = Some((at, [10, 0]));
     }
     assert!(bench.until(12_000, |bench| {
         bench.clients.iter().all(|client| client.closed)
     }));
     let result = bench.results.try_recv().expect("a result");
     assert_eq!(result.end, MatchEnd::ModeRule);
-    assert_eq!(result.team_points, [10, 3]);
+    assert_eq!(result.team_points, [10, 0]);
     let supplies = result.players[0]
         .supplies
         .as_ref()
@@ -2452,99 +2750,68 @@ fn the_inputs_since_a_snapshot_go_between_the_time_and_the_world() {
 
 #[test]
 fn a_resynced_client_gets_the_others_inputs_ahead_of_its_world_and_never_its_own() {
-    for world_only in [false, true] {
-        let settings = Settings {
-            resync_world_only: world_only,
-            ..Settings::default()
-        };
-        let mut bench = Bench::new(3, MAP_BATTERIES, settings);
-        bench.join_all();
-        settle(&mut bench);
-        bench.run(3_000);
-        let from = bench.clients[2].clock();
-        bench.clients[2].sim.salt_from = Some((from, 7));
-        // Everybody keeps sending inputs while the third is found out and
-        // restored.
-        let taken_before = bench.clients[2].taken.len();
-        let mut resynced = false;
-        for _ in 0..400 {
-            for client in &mut bench.clients {
-                client.input(20, 0x21);
-            }
-            bench.run(50);
-            if bench.game().resyncs(2) == 1 && bench.stages() == "LLL" {
-                resynced = true;
-                break;
-            }
-        }
-        assert!(resynced, "{}", bench.stages());
-        let client = &bench.clients[2];
-        // Never one of its own inputs back.
-        assert!(client.relays_of(2).is_empty());
-        let since = &client.taken[taken_before..];
-        let world = since
-            .iter()
-            .position(|message| matches!(message, ServerMessage::Snapshot { generation: 1, .. }))
-            .expect("the world of the next generation");
-        let (world_time, set_times) = match &since[world] {
-            ServerMessage::Snapshot { time, .. } => (
-                *time,
-                since
-                    .iter()
-                    .filter(|message| {
-                        matches!(message, ServerMessage::SetTime { generation: 1, .. })
-                    })
-                    .count(),
-            ),
-            _ => unreachable!(),
-        };
-        // The time goes with it, unless the setting says the world alone.
-        assert_eq!(set_times == 0, world_only, "{set_times}");
-        // The others' inputs after the world's time were with the client
-        // before the world was.
-        let ahead = since[..world]
-            .iter()
-            .filter(|message| match message {
-                ServerMessage::InputRelay { input, .. } => input
-                    .time
-                    .resolve(bench.clock())
-                    .is_some_and(|at| at > world_time),
-                _ => false,
-            })
-            .count();
-        assert!(ahead > 0);
-        assert_eq!(client.model.generation.0, 1);
-        bench.assert_no_faults();
-    }
-}
-
-#[test]
-fn a_client_that_restores_do_not_help_is_put_out_when_the_setting_says_so() {
-    let settings = Settings {
-        restore_limit: 2,
-        ..Settings::default()
-    };
-    let mut bench = Bench::new(3, MAP_BATTERIES, settings);
+    let mut bench = Bench::new(3, MAP_BATTERIES, Settings::default());
     bench.join_all();
     settle(&mut bench);
     bench.run(3_000);
-    // The third client's world goes its own way again after every load.
-    let gone = (0..3_000).any(|_| {
-        if bench.clients[2].sim.salt_from.is_none() && bench.clients[2].model.is_synced() {
-            let from = bench.clients[2].clock();
-            bench.clients[2].sim.salt_from = Some((from, 9));
+    let from = bench.clients[2].clock();
+    bench.clients[2].sim.salt_from = Some((from, 7));
+    // Everybody keeps sending inputs while the third is found out and
+    // restored.
+    let taken_before = bench.clients[2].taken.len();
+    let mut resynced = false;
+    for _ in 0..400 {
+        for client in &mut bench.clients {
+            client.input(20, 0x21);
         }
-        bench.step(25);
-        bench.stages().ends_with('g') || bench.stages().ends_with('-')
-    });
-    assert!(gone, "{}", bench.stages());
-    // Two restores, then out; the others saw it leave and play on.
-    assert_eq!(bench.game().resyncs(0) + bench.game().resyncs(1), 0);
-    assert!(bench.clients[2].disconnected);
-    assert!(bench.until(1_000, |bench| bench.clients[0].left() == [2]));
-    assert!(bench.stages().starts_with("LL"));
+        bench.run(50);
+        if bench.game().resyncs(2) == 1 && bench.stages() == "LLL" {
+            resynced = true;
+            break;
+        }
+    }
+    assert!(resynced, "{}", bench.stages());
+    let client = &bench.clients[2];
+    // Never one of its own inputs back.
+    assert!(client.relays_of(2).is_empty());
+    let since = &client.taken[taken_before..];
+    let world = since
+        .iter()
+        .position(|message| matches!(message, ServerMessage::Snapshot { generation: 1, .. }))
+        .expect("the world of the next generation");
+    let (world_time, set_times) = match &since[world] {
+        ServerMessage::Snapshot { time, .. } => (
+            *time,
+            since
+                .iter()
+                .filter(|message| {
+                    matches!(message, ServerMessage::SetTime { generation: 1, .. })
+                })
+                .count(),
+        ),
+        _ => unreachable!(),
+    };
+    // The time goes with it.
+    assert!(set_times > 0);
+    // The others' inputs after the world's time were with the client
+    // before the world was.
+    let ahead = since[..world]
+        .iter()
+        .filter(|message| match message {
+            ServerMessage::InputRelay { input, .. } => input
+                .time
+                .resolve(bench.clock())
+                .is_some_and(|at| at > world_time),
+            _ => false,
+        })
+        .count();
+    assert!(ahead > 0);
+    assert_eq!(client.model.generation.0, 1);
+    bench.assert_no_faults();
+}
 
-    // With no limit (the default) it is restored again and again.
+#[test]
+fn a_client_that_restores_do_not_help_is_restored_again_and_again() {
     let mut bench = Bench::new(3, MAP_BATTERIES, Settings::default());
     bench.join_all();
     settle(&mut bench);
@@ -2794,7 +3061,7 @@ fn a_player_out_of_step_is_asked_for_its_world_ahead_of_its_resync() {
             .iter()
             .rev()
             .take(20)
-            .any(|message| matches!(message, ServerMessage::UploadRequest)),
+            .any(|message| matches!(message, ServerMessage::UploadRequest(_))),
         "{:?}",
         &client.taken[set_time.saturating_sub(5)..=set_time]
     );
@@ -3046,6 +3313,32 @@ fn a_world_whose_parts_go_unacked_is_taken_as_loaded_on_the_games_right_hash() {
 }
 
 #[test]
+fn a_world_whose_parts_go_unacked_is_taken_as_loaded_on_the_games_load_receipt() {
+    use crate::v026g::scripted::WorldReceiptMode;
+    // Two players and no hash reports from the one who enters: no hash
+    // can prove its load (as in a match of a few, or against bots). Its
+    // acks name nothing of its world, but its game loads it and says so.
+    let mut bench = Bench::growing(2, MAP_BATTERIES, Settings::default());
+    bench.join(0);
+    settle(&mut bench);
+    bench.clients[1].world_receipts = WorldReceiptMode::Accept;
+    bench.clients[1].no_hashes = true;
+    bench.clients[1].connect();
+    assert!(bench.until(1_000, |bench| bench.clients[1].model.options.is_some()));
+    bench.clients[1].ready();
+    assert!(bench.until(3_000, |bench| bench.stages() == "Lt"), "{}", bench.stages());
+    bench.clients[1].mute_acks = true;
+    assert!(bench.until(1_000, |bench| bench.stages() == "LL"), "{}", bench.stages());
+    bench.clients[1].mute_acks = false;
+    assert_eq!(bench.game().generation(1), Some(0));
+    assert_eq!(bench.clients[1].snapshots().len(), 1);
+    assert!(bench.until(50, |bench| bench.clients[1].entered() == [1]));
+    bench.run(3_000);
+    assert_eq!(bench.clients[1].snapshots().len(), 1);
+    bench.assert_no_faults();
+}
+
+#[test]
 fn a_tie_does_not_clear_a_disagreement_that_stands() {
     let mut bench = Bench::new(3, MAP_BATTERIES, Settings::default());
     bench.join_all();
@@ -3265,6 +3558,7 @@ fn the_registry_says_how_a_match_stands_while_it_runs() {
         LiveMatch {
             match_id: bench.match_id,
             map_id: MAP_TDM,
+            kind: session::v026g::match_kind::MatchKind::Normal,
             phase: LivePhase::Gathering,
             players: [2, 1],
             present: 0b111,
@@ -3393,6 +3687,40 @@ fn the_registry_says_a_match_with_its_result_is_over() {
 }
 
 #[test]
+fn a_trusted_worlds_weapon_counts_are_the_results() {
+    use survarium::v026g::dictionary::Dictionary;
+    use survarium::v026g::match_msgs::snapshot::WeaponCounts;
+    let rifle = Dictionary::shared().items[0].dict_id;
+    let mut bench = Bench::new(2, MAP_BATTERIES, Settings::default());
+    bench.join_all();
+    settle(&mut bench);
+    bench.run_long(130_000);
+    let at = bench.clock() / 50 * 50 + 100;
+    let killer = WeaponCounts {
+        dict_id: rifle,
+        kills: 2,
+        wall_kills: 1,
+        kill_distance_dm: 700,
+        longest_kill_dm: 450,
+        held_ms: 60_000,
+        ..WeaponCounts::default()
+    };
+    let victim = WeaponCounts { deaths: 2, ..WeaponCounts::default() };
+    for client in &mut bench.clients {
+        client.sim.points_from = Some((at, [10, 0]));
+        client.sim.kills_from = Some((at, 2));
+        client.sim.weapons_from = Some((at, vec![vec![killer], vec![victim]]));
+    }
+    assert!(bench.until(12_000, |bench| {
+        bench.clients.iter().all(|client| client.closed)
+    }));
+    let result = bench.results.try_recv().expect("a result");
+    assert_eq!(result.players[0].weapons, [killer]);
+    assert_eq!(result.players[1].weapons, [victim]);
+    bench.assert_no_faults();
+}
+
+#[test]
 fn repeated_kill_payment_limit_preserves_the_match_result_statistics() {
     let mut bench = Bench::new(2, MAP_BATTERIES, Settings::default());
     bench.join_all();
@@ -3400,7 +3728,7 @@ fn repeated_kill_payment_limit_preserves_the_match_result_statistics() {
     bench.run_long(130_000);
     let at = bench.clock() / 50 * 50 + 100;
     for client in &mut bench.clients {
-        client.sim.points_from = Some((at, [10, 3]));
+        client.sim.points_from = Some((at, [10, 0]));
         client.sim.kills_from = Some((at, 23));
     }
     assert!(bench.until(12_000, |bench| {
@@ -3415,5 +3743,30 @@ fn repeated_kill_payment_limit_preserves_the_match_result_statistics() {
         10
     );
     assert_eq!(player.score, 230);
+    bench.assert_no_faults();
+}
+
+/// Client patch 180: a throw-back (Return to Sender) from a player none of
+/// whose kits has the skill is relayed to nobody, as the client never sends
+/// one (`technical_skills::throw_back::sane`).
+#[test]
+fn a_throw_back_without_the_skill_goes_to_nobody() {
+    let mut bench = Bench::new(3, MAP_BATTERIES, Settings::default());
+    bench.join_all();
+    settle(&mut bench);
+    let good = bench.clients[0].input(50, 0x21);
+    bench.run(100);
+    let forged = PlayerInput {
+        time: WireTime::tick(bench.clients[0].clock() + 50),
+        rotation: [0; 4],
+        actions: technical_skills::throw_back::encode(0x21),
+    };
+    bench.clients[0].send_input(forged);
+    bench.run(100);
+    assert_eq!(discards(&bench.clients[0]), [forged.time]);
+    assert_eq!(bench.game().inputs_refused(0), 1);
+    for other in [1, 2] {
+        assert_eq!(bench.clients[other].relays_of(0), [good]);
+    }
     bench.assert_no_faults();
 }

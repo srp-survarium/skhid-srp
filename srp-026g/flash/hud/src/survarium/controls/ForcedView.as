@@ -3,7 +3,8 @@ package survarium.controls
    // What a forced interface shows (Blackout, exe patch 65; docs/notes/blackout.md): the parts it keeps
    // now, by its states (forced, Tab held, the chat typed in), in a KeptLayer over the hidden root. The
    // hud gives it the parts: always while forced (whenForced), while Tab is held (onTab), while the chat
-   // is typed in (whileTyping); and the chat's history to hold on while Tab is held and the chat is not
+   // is typed in or a mode notice is visible (whileTyping); and the chat's history to hold on while
+   // Tab is held or the notice is visible and the chat is not
    // typed in (history(true), and history(false) when no more).
    public class ForcedView
    {
@@ -24,6 +25,14 @@ package survarium.controls
       private var _typing:Boolean;
 
       private var _historyShown:Boolean;
+
+      private var _notice:Boolean;
+
+      public function set notice(value:Boolean) : void
+      {
+         this._notice = value;
+         this.refresh();
+      }
 
       // What is kept now: given back as it was when no more kept.
       private var _kept:Array = [];
@@ -74,7 +83,7 @@ package survarium.controls
          {
             parts = parts.concat(this._onTab());
          }
-         if(this._typing)
+         if(this._typing || this._notice)
          {
             parts = parts.concat(this._whileTyping());
          }
@@ -96,7 +105,7 @@ package survarium.controls
          }),false);
          this._layer.keep(now,true);
          this._kept = now;
-         var history:Boolean = this._forced && this._tab && !this._typing;
+         var history:Boolean = this._forced && (this._tab || this._notice) && !this._typing;
          if(history != this._historyShown)
          {
             this._historyShown = history;

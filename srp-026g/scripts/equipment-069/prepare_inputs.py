@@ -1,12 +1,14 @@
 #!/usr/bin/env python3
-"""Gather the pack's pinned inputs (inputs.sha256): resource-porter's models, the 0.69d icons and
-the released game's files the items start from.
+"""Gather the pack's pinned inputs (inputs.sha256): resource-porter's models, the 0.69d icons,
+the released game's files the items start from and the equipment-046 pieces copied whole.
 
 --bundle is resource-porter's `vostok-port build-armour-069d` output (its overlay of models,
 materials and textures, port-manifest.json, fit-report.json; README.md says how it is built).
 --source069 holds the 0.69d files extracted at their archive paths (the icons are read from it).
 --stock is the untouched 0.26g resources.db and --patches holds the published patches of
-base-patches.tsv. No server data or release working folder is used.
+base-patches.tsv. --equipment046 is equipment-046's built pack (its folder, as its make_pack.py
+writes it): the configs of the pieces copied whole and the surfaces they draw. No server data or
+release working folder is used.
 
 --pin computes the inputs from items.tsv and the bundle and writes inputs.sha256; without it
 the extracted bytes are checked against it.
@@ -17,8 +19,8 @@ from pathlib import Path
 import shutil
 import subprocess
 
-from common import (BUNDLE_RECORDS, DICTIONARY, DONOR_ICONS, HERE, LOCALIZATIONS, MODIFICATIONS, MOVIE, bcw, sha,
-                    sound_file, specs)
+from common import (BUNDLE_RECORDS, DICTIONARY, DONOR_ICONS, E046_MANIFEST, HERE, LOCALIZATIONS, MODIFICATIONS, MOVIE,
+                    bcw, e046_entries, model_parts, sha, sound_file, specs, template)
 
 
 def base_layers(stock, patches):
@@ -70,17 +72,28 @@ def pin(args, layers, work):
     base |= armour
     extract(args.game_data_bin, layers, sorted(armour), work / 'armour')
     by_id = {row['dict_id']: row for row in native}
+    e046 = e046_entries(json.loads((args.equipment046 / E046_MANIFEST).read_bytes()))
+    copied = {E046_MANIFEST}
     for row in rows:
-        template = bcw.loads((work / 'armour' / by_id[int(row['template_id'])]['cfg_name']).read_bytes())
-        base |= {sound_file(*sound) for sound in template.get('sounds', [])}
+        start = template(row)
+        if start.copy:
+            path = 'files/' + e046[start.ident]['cfg_name']
+            config = bcw.loads((args.equipment046 / path).read_bytes())
+            copied.add(path)
+            # The surfaces it draws: the copy's are checked to be the same meshes.
+            copied |= {f"files/models/{part['base_model']}.skinned_model/render/{part['part_name']}/converted_model"
+                       for part in model_parts(config)}
+        else:
+            config = bcw.loads((work / 'armour' / by_id[start.ident]['cfg_name']).read_bytes())
+        base |= {sound_file(*sound) for sound in config.get('sounds', [])}
     donor = {DONOR_ICONS.format(row=row['icon_069'].split(',')[0], col=row['icon_069'].split(',')[1]) for row in rows}
     bundle = set(bundle_files(args.bundle)) | {f'.records/{name}' for name in BUNDLE_RECORDS}
-    return {'base': base, 'donor069': donor, 'bundle': bundle}
+    return {'base': base, 'donor069': donor, 'bundle': bundle, 'equipment046': copied}
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    for name in ('bundle', 'source069', 'stock', 'patches', 'game-data-bin', 'out'):
+    for name in ('bundle', 'source069', 'stock', 'patches', 'game-data-bin', 'equipment046', 'out'):
         parser.add_argument('--' + name, type=Path, required=True)
     parser.add_argument('--pin', action='store_true', help='compute the inputs and pin them')
     args = parser.parse_args()
@@ -97,10 +110,11 @@ def main():
             group, path = line.split('  ', 1)[1].split('/', 1)
             groups.setdefault(group, set()).add(path)
     extract(args.game_data_bin, layers, groups['base'], args.out / 'base')
-    for path in groups['donor069']:
-        target = args.out / 'donor069' / path
-        target.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copyfile(args.source069 / path, target)
+    for group, root in (('donor069', args.source069), ('equipment046', args.equipment046)):
+        for path in groups[group]:
+            target = args.out / group / path
+            target.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(root / path, target)
     files = bundle_files(args.bundle)
     for path in groups['bundle']:
         target = args.out / 'bundle' / path

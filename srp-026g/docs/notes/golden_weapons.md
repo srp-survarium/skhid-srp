@@ -1,8 +1,8 @@
 # Golden weapons
 
 The owner's rules of 2026-10-21. Code: `survarium::v026g::golden`,
-`session::v026g::items_rules` (`craft`, `give_golden_silver`), `Account::add_item`; the
-data: `scripts/content-edit/golden-weapons-1.json`; the lobby: `ItemDictId` (the lists), `ItemFactory`,
+`session::v026g::items_rules` (`craft`), `Account::add_item`; the
+data: `scripts/content-edit/weapon-stats.tsv` (`rarity`, the bonus columns), `items.tsv` (`like`, `start`); the lobby: `ItemDictId` (the lists), `ItemFactory`,
 `InventoryList` (gold background, craft donors), `MessageCraftItem`, `LobbyMenu.fill_crafted_item`.
 
 - **The rule:** "remove extra bonuses from all golden weapons and make them upgradable just
@@ -12,7 +12,8 @@ data: `scripts/content-edit/golden-weapons-1.json`; the lobby: `ItemDictId` (the
   Vityaz, VSS, SR-3M, Lancaster ×2, AK-74N, AK-74U, AK-12, AKMN ×2, SKS ×2, Vepr, Vepr-12,
   Saiga-12, VSK-94, Remington 700) and the Neostead, whose first built-in bonus was +10 %
   silver (modification 1230); and the MP7 special (owner: it joins them; its one bonus, 2004,
-  goes). Not the VSSK camo (not premium); the premium armour has the same treatment since
+  goes). Not the VSSK camo (not premium; its stock base rarity 3 is 0 too since
+  rev54, [vssk-built-ins.md](vssk-built-ins.md)); the premium armour has the same treatment since
   2026-10-22 ([premium_armour.md](premium_armour.md)).
 - **Plain weapon of each:** the same weapon for silver (`*_premium*` → its stem); the
   Neostead's is `neostead_2`, the MP7 special's the silenced MP7.
@@ -38,16 +39,18 @@ data: `scripts/content-edit/golden-weapons-1.json`; the lobby: `ItemDictId` (the
 - **Gold name** (owner 2026-10-22): a golden weapon's name is gold (`Colors.GOLD`) in the shop,
   the inventory and the item card, whatever its rank. A shop entry keeps rank 0 although it shows
   the silver bonus: the shop's buy options are off for an item with a rank.
-- **Weapons owned before:** at the first start of the srp with this rule each golden weapon gets
+- **Weapons owned before:** at the first start of the srp with this rule each golden weapon got
   the silver bonus as its first modification, once (`g26_meta` `golden_silver_given`, written
-  only after the changed accounts are; an account not written stops srp, and the next start
-  gives it to the golden weapons still without it). One that already had three of its own keeps
-  them (logged; none can have: the lobby showed rank 3).
+  only after the changed accounts were; an account not written stopped srp, and the next start
+  gave it to the golden weapons still without it). One that already had three of its own kept
+  them (logged; none could have: the lobby showed rank 3). That one-time grant ran live in
+  2026-10 and its code is gone since 2026-11-08 (`give_golden_silver`, with the other grants that
+  ran); the mark stays in the database.
 - **New ones** (shop, bundles, the admin) come with it.
-- **Data:** the patch takes every default modification off the 22 configs and sets
-  `base_rarity_level` 3 -> 0 (the lobby's rank is `min(3, base + modifications)`: 3 forbade
-  every craft and a default is never offered for a reroll). srp refuses to start on data
-  without it (`golden::check`), and so does `release/build-server-db` (`srp-check-game-data`).
+- **Data:** the 22 rows of `weapon-stats.tsv` have no bonus cell and `rarity` 0 (stock: 3; the
+  lobby's rank is `min(3, base + modifications)`: 3 forbade every craft and a default is never
+  offered for a reroll). srp refuses to start on data without it (`golden::check`), and so does
+  `release/build-server-db` (`srp-check-game-data`).
 - **Lobby:** the craft result showed the donor's entry (the exe names it); it shows the item
   upgraded.
 - **Shop and bundles show the silver bonus** (owner: "gold sold weapons in shop no longer show that
@@ -60,7 +63,7 @@ data: `scripts/content-edit/golden-weapons-1.json`; the lobby: `ItemDictId` (the
   would add to an old default).
 - **Tech debt** ([tech-debt.md](tech-debt.md)): the silver bonus is a granted modification, not a config
   default, so that it can be rerolled and takes a place. That needs special cases: srp grants it on
-  creation (`golden::starting_modifications`, `give_golden_silver` for owned ones), the lobby fakes it on
+  creation (`golden::starting_modifications`; owned ones got it once in 2026-10), the lobby fakes it on
   shop entries and bundle contents (`ItemFactory.startingModifiers`, `GangShop.setupShopItems`,
   `InventoryList.setupBundleData`), and `golden::check` guards the data. A config default would need none
   of these, but could not be rerolled and would add a 4th bonus.

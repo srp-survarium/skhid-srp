@@ -2,7 +2,7 @@
 
 The owner's rule and what it changes. Data: `gameplay/game_modes/<config>.options`
 `mode/parameters/respawn_time`; the change ships as a resources.db patch
-(`scripts/content-edit/battery-respawn-1.json`, one `set` a config).
+(`scripts/content-edit/modes.tsv`, the `respawn_s` column).
 
 - **Decision (the owner, 2026-10-21):** "in batteries mode respawns should take 10 seconds".
 - **Modes:** "Protective device" (mode 2, rule 88) and "Protective device: chargers" (mode 3,
@@ -16,7 +16,8 @@ The owner's rule and what it changes. Data: `gameplay/game_modes/<config>.option
   names the config (`maps_dict`, modes_maps.md §3); the respawn rule's constructor
   (`player_respawn_rule_base`, 0x316700) reads `respawn_time` as an int and keeps it in ms
   (`imul ecx,ecx,3E8h`, rule+0x114). Nothing on the wire carries it (static_info.md: 0.21d's
-  respawn byte is gone); srp reads it into `maps::MapMode::respawn_time` and uses it nowhere.
+  respawn byte is gone); srp reads it into `maps::MapMode::respawn_time`; of these
+  modes, only the site's modes page shows it (`servers/web-server/src/modes.rs`).
 - **Modifiers:** at a death (0x316AA0) the delay is `respawn_time × max(0, 1 + modifier 60)`
   (the getter 0x2D5AE0 sums the kit's and the player's lists), then rounded up to the 50 ms grid.
   10 s is the base: with the radio (`respawn_booster`, -20 %; one pocket a type,

@@ -26,7 +26,9 @@ README patch 31, `client_patch.md` section 3.29; the server: `TimelimitRule::bef
   is applied before the start transition or not at all.
 - **HUD:** the kit selector shows at spawn before the start and stays open after a pick, the
   cursor where it was (another pick switches again); it hides at the start. It is shown for a
-  live player exactly while the camera is the pre-start one.
+  live player exactly while the camera is the pre-start one. A new match starts with it and the
+  cursor hidden, whatever the last match left (patch 113), so its tab is the kit the match gave;
+  while the main menu (Esc) is shown the hud's cursor is off the screen, back when it closes.
 - **Camera while the selector is open (before the start), as the lobby's character view**
   (the owner, 2026-10-18):
   - plain mouse moves move the cursor only; a left click (press and release with no more
@@ -38,6 +40,13 @@ README patch 31, `client_patch.md` section 3.29; the server: `TimelimitRule::bef
   - the wheel moves the camera nearer (forward) or further, 0.12 a notch as the lobby's;
   - the camera keeps the lobby camera's limits: distance 1.5 to 4.6, pitch within 60 degrees
     up or down (so it starts at 1.5, the stock warmup's 1.0 being nearer than the lobby's);
+  - the camera stays on the player's side of the level (patch 132, the owner, 2026-11-09:
+    "quite often it is inside textures", "camera | thin wall | character"): the eye 0.2 m in
+    front of the first wall between the pivot and it, the distance the wheel set kept; it
+    is never shown behind that wall (2026-11-23: only eased in, "camera can briefly clip
+    outside still"), goes in smoothly from before the turn reaches a wall (a second ray 0.3 s
+    ahead of the turn: "start smoothing a bit earlier") and back out smoothly ("I wish the
+    transition was more smooth");
   - on the death screen: patch 46's free look (`death-camera.md`), the wheel nothing;
   - a button pressed while the cursor is shown (a drag, a pick on the death screen) and still
     held when the cursor goes (the start, the respawn) does nothing, held or let go: no

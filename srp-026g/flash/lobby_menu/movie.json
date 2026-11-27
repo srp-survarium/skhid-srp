@@ -2,5 +2,8 @@
   "schema": 2,
   "movie": "flash_movies/lobby_menu.swf",
   "archive": "resources.db.patch_24",
-  "movie_sha256": "3ca94f2aa3d56da554e25c3ce24e3c5e6620368942fab728a90a2528c8b18a60"
+  "movie_sha256": "3ca94f2aa3d56da554e25c3ce24e3c5e6620368942fab728a90a2528c8b18a60",
+  "data": {
+    "survarium/data/ModificationValues": "srp-026g/scripts/content-edit/modifications.tsv"
+  }
 }

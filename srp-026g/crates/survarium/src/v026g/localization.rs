@@ -18,15 +18,39 @@ use encoding_rs::WINDOWS_1251;
 
 use super::game_data::{GameData, GameDataError};
 
-/// A language of the game's that the server data has.
+/// A language of the game's, in the order of its language list
+/// ([`resources_db::server::LOCALIZATIONS`]).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Language {
     English,
     Ukrainian,
+    Russian,
+    German,
+    Polish,
+    Serbian,
+    Czech,
+    Hungarian,
+    Finnish,
+    Belarusian,
+    Croatian,
+    Portuguese,
 }
 
 impl Language {
-    pub const ALL: [Language; 2] = [Language::English, Language::Ukrainian];
+    pub const ALL: [Language; 12] = [
+        Language::English,
+        Language::Ukrainian,
+        Language::Russian,
+        Language::German,
+        Language::Polish,
+        Language::Serbian,
+        Language::Czech,
+        Language::Hungarian,
+        Language::Finnish,
+        Language::Belarusian,
+        Language::Croatian,
+        Language::Portuguese,
+    ];
 
     /// Its file in the game's archive.
     pub fn path(self) -> &'static str {
@@ -90,7 +114,8 @@ pub fn of(data: &GameData, language: Language) -> Result<Option<Localization>, G
 /// The texts of `language` of this process's game data
 /// ([`super::game_data::shared`]); empty if it has none.
 pub fn shared(language: Language) -> &'static Localization {
-    static SHARED: [OnceLock<Localization>; 2] = [OnceLock::new(), OnceLock::new()];
+    static SHARED: [OnceLock<Localization>; Language::ALL.len()] =
+        [const { OnceLock::new() }; Language::ALL.len()];
     SHARED[language as usize].get_or_init(|| {
         of(super::game_data::shared(), language)
             .expect("the localizations read")
@@ -126,9 +151,27 @@ mod tests {
             Some("Protective device")
         );
         assert_eq!(text(Language::English, "no such key"), None);
-        // Every playable map's and mode's key is in both.
-        for map in super::super::maps::playable() {
-            for language in Language::ALL {
+        // Each language has its own file, in the game's order; one the data
+        // lacks (the tests' has English and Ukrainian) reads as English.
+        for (index, language) in Language::ALL.into_iter().enumerate() {
+            assert_eq!(language as usize, index);
+            assert!(language.path().starts_with("localization/"), "{language:?}");
+        }
+        assert_eq!(Language::Russian.path(), "localization/russian/localization");
+        assert_eq!(Language::Croatian.path(), "localization/croatian/localization");
+        assert_eq!(text(Language::Finnish, "st_level_01_name"), Some("Rudnya"));
+        // Every playable map's and mode's key is in both of the test data's
+        // languages; Blackout's, the free-for-all's and Artifact Hunt's mode
+        // names are srp's own (`client-patches/localization`), which the test
+        // data's stock localizations lack.
+        use super::super::maps::GameMode;
+        for map in super::super::maps::playable().filter(|map| {
+            !matches!(
+                map.mode,
+                GameMode::Blackout | GameMode::FreeForAll | GameMode::ArtefactHunt
+            )
+        }) {
+            for language in [Language::English, Language::Ukrainian] {
                 assert!(
                     shared(language).get(map.map_name_key).is_some(),
                     "{}",

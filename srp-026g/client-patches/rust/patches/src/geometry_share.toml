@@ -1,0 +1,20 @@
+# Patch 164: a pooled vertex or index buffer with the same bytes as a live one
+# takes that one's range of the pool (geometry_share.rs; client_patch.md
+# section 3.88). Only the decisions: the sites and the handlers.
+name = "geometry_share"
+patch = 164
+
+# hw_buffer_pool::allocate's start: a range with these bytes is given again
+[[hook]]
+site = "geometry_share.allocate"
+handler = "on_allocate"
+
+# the buffer has a range of its own: kept to be given again
+[[hook]]
+site = "geometry_share.pooled"
+handler = "on_pooled"
+
+# hw_buffer_pool::deallocate's start: the range stays while another buffer has it
+[[hook]]
+site = "geometry_share.deallocate"
+handler = "on_deallocate"

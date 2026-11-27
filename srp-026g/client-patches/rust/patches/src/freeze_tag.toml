@@ -1,0 +1,90 @@
+# Patch 160: Freeze Tag, mode 12 (docs/notes/freeze-tag.md). The sites are
+# sites_026g.tsv's; the rule is srp_validate::world::freeze.
+name = "freeze_tag"
+patch = 160
+
+# each frame after the simulation's move: the frozen glow drawn (by this game
+# alone, never in the simulation) and the frozen camera kept
+[[hook]]
+site = "game_world.after_move"
+handler = "on_frame"
+order = 6
+
+# a spawn's end: an arrival in a round in play spawns frozen (after the courier's 0)
+[[hook]]
+site = "courier.spawned"
+handler = "on_spawned"
+order = 1
+
+# the match over, before its unload: the glow out of the scene (after voice's 0)
+[[hook]]
+site = "game_world.finish"
+handler = "on_finish"
+order = 1
+
+# the match's scene left: the glow out of it (after Artifact Hunt's 3)
+[[hook]]
+site = "game_world.deactivate"
+handler = "on_deactivate"
+order = 4
+
+[[hook]]
+site = "static_info.options_read"
+handler = "on_static_info"
+order = 6
+
+[[hook]]
+site = "replay.options_read"
+handler = "on_replay_options"
+order = 6
+
+# the rule's step and the places' schedule, before Artifact Hunt's (order 1);
+# each acts in its own mode only
+[[hook]]
+site = "respawn.tick"
+handler = "on_tick"
+order = 0
+
+[[hook]]
+site = "freeze.player_tick"
+handler = "on_player_tick"
+
+# a held body's input is not applied, before patch 78's carry (order 1) sees it
+[[hook]]
+site = "carry.input"
+handler = "on_input"
+order = 0
+
+[[hook]]
+site = "respawn.save"
+handler = "on_save"
+order = 1
+
+[[hook]]
+site = "respawn.load"
+handler = "on_load"
+order = 1
+
+[[hook]]
+site = "player_icons.update_start"
+handler = "on_hud"
+order = 4
+
+# a team's last one fighting: his dot on the other team's minimap and Tab map
+# (after patch 135's 1 and Artifact Hunt's 2; each acts in its own mode)
+[[hook]]
+site = "minimap.enemy_spotted"
+handler = "on_enemy"
+order = 3
+
+# the glow's particle query's answer
+[[hook]]
+site = "resources.query_done"
+handler = "on_loaded"
+
+# Every match's start, whatever its mode: the hud state's team points 0:0 (a mode's rule fills
+# them from its first frame; nothing else clears them at a new match).
+[[hook]]
+site = "hud.initialize_match"
+handler = "on_initialize_match"
+order = 3

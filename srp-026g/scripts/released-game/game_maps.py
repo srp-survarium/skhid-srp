@@ -1,10 +1,13 @@
 """The maps of the released game, as the site's builds read them from the
 files released.py extracts (`raw`, '/' as '__'): which maps can be played and
 their modes, and each project's HUD minimap. Shared by the Maps tab
-(srp-026g/scripts/maps-tab/build.py) and the top-down renders
-(srp-026g/scripts/damage-calc/assets/maps/tools/build_maps.py).
+(srp-026g/scripts/maps-tab/build.py), the calculator's data
+(srp-026g/scripts/damage-calc/gen_calc_data.py) and the skills page
+(srp-026g/scripts/skills-tab/build.py). The calculator's maps are made by
+srp-026g/scripts/damage-calc/assets/maps/tools/ (build_all.py, then
+make_json.py; --only adds maps to an existing maps.json).
 
-    maps = playable(raw)                      # {folder: {"map_name", "modes": {mode: {...}}}}
+    maps = playable(raw)                      # {folder: {"map_name", "build", "modes": {(mode, layout): {...}}}}
     minimaps = hud_minimaps(ffdec, raw, work)  # {project_name: (frame, bitmap png)}
 """
 import os
@@ -17,14 +20,27 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "gen-data-026g"))
 import bincfg  # noqa: E402
 from released import die  # noqa: E402
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "site-texts"))
+from texts import DICTIONARIES  # noqa: E402
 
 # The modes a match can be (2 batteries, 3 batteries with chargers, 4 team
-# deathmatch, 5 Research), as the server plays them
-# (crates/survarium/src/v026g/maps.rs).
-MODES = (2, 3, 4, 5)
+# deathmatch, 5 Research, 8 free for all, 12 Freeze Tag, 13 Artifact Hunt),
+# as the server plays them (crates/survarium/src/v026g/maps.rs, `RuleMode`).
+FREE_FOR_ALL = 8
+MODES = (2, 3, 4, 5, FREE_FOR_ALL, 12, 13)
+# How each language's pickup hint names an artefact ("Onyx artifact. ...", "Артефакт Онікс. ..."):
+# the game ships no names for the artefacts' configs.
+ARTEFACT_HINT = {"en": r"(.+?) artifact\.", "uk": r"Артефакт (.+?)\.", "ru": r"Артефакт (.+?)\.",
+                 "be": r"Артэфакт (.+?)\.", "de": r"(?:Das )?Artefakt (?:der )?(.+?)\.", "pl": r"Artefakt (.+?)\.",
+                 "sr": r"Artefakt (.+?)\.", "cs": r"Artefakt (.+?)\.", "hr": r"Artefakt (.+?)\.",
+                 "hu": r"(.+?) artefaktum\.", "fi": r"(.+?)-artefakti\.", "pt": r"Artefato (.+?)\."}
 # What a build must extract for these.
 WANTED = ["client_project", "gameplay/game_modes/", "gameplay/db_static_dictionaries",
-          "localization/english/localization", "localization/ukrainian/localization", "flash_movies/hud.swf"]
+          *DICTIONARIES, "flash_movies/hud.swf"]
+# The builds a map's scene comes from, in the order lists show them (crates/survarium/src/v026g/maps.rs,
+# `Build`): its configs' `mode.srp_build` where they have one (v032, v042: the two Londons, whatever
+# their projects are called), else a ported project's prefix; a project with neither is 0.26g's.
+BUILDS = ("v026g", "v011e", "v021d", "v032", "v042", "v069d", "v010b")
 
 
 def load(raw, path):
@@ -38,15 +54,20 @@ def project_file(raw, project_path):
 
 def playable(raw):
     """The playable maps by project folder: a `maps_dict` id whose
-    `gameplay/game_modes/` config is of mode 2 to 5 and whose project
-    (`match_making_params.map_name`) exists. Of each map: the name key
-    (`map_name`) and per mode the ids, their projects and configs, the mode's
-    name key, parameters and rules."""
+    `gameplay/game_modes/` config is of one of MODES, is none of srp's
+    variants (`mode.srp_variant`: Blackout's configs are mode 2, under
+    their own ids) and whose project (`match_making_params.map_name`)
+    exists. Of each map: the name key
+    (`map_name`) and per mode and layout the ids, their projects and configs
+    (each with its `artefact_hunt`, Artifact Hunt's spawns and bases),
+    the mode's name key, parameters and rules. A layout is a mode's configs
+    of the same Research units (`parameters.capture_zones`): 0 the first the
+    dictionary gives, which every mode without units has alone."""
     dictionary = load(raw, "gameplay/db_static_dictionaries")
     maps = defaultdict(lambda: {"modes": defaultdict(lambda: {"ids": [], "projects": [], "configs": []})})
     for entry in dictionary["maps_dict"]:
         config = load(raw, "gameplay/game_modes/" + entry["cfg_mode_name"])
-        if not config or config["mode"].get("mode") not in MODES:
+        if not config or config["mode"].get("mode") not in MODES or config["mode"].get("srp_variant"):
             continue
         mode = config["mode"]
         project_path = mode["match_making_params"]["map_name"]
@@ -55,18 +76,34 @@ def playable(raw):
         folder = project_path.split("/")[0]
         m = maps[folder]
         m["map_name"] = mode["ui"]["map_name"]
-        entry_mode = m["modes"][mode["mode"]]
+        m["build"] = build_of(mode, folder)
+        units = [zone.get("position") for zone in (mode.get("parameters") or {}).get("capture_zones") or []]
+        layouts = m.setdefault("layouts", {}).setdefault(mode["mode"], [])
+        if units not in layouts:
+            layouts.append(units)
+        entry_mode = m["modes"][mode["mode"], layouts.index(units)]
         entry_mode["ids"].append(entry["id"])
         entry_mode["projects"].append(project_path)
         entry_mode["configs"].append({"id": entry["id"], "config": entry["cfg_mode_name"], "name": mode.get("name"),
                                       "weather": mode["match_making_params"].get("map_weather_id"),
-                                      "project": project_path})
+                                      "project": project_path, "artefact_hunt": mode.get("artefact_hunt")})
         entry_mode["mode_name"] = mode["ui"]["mode_name"]
         entry_mode["parameters"] = mode.get("parameters") or {}
         entry_mode["rules"] = set(mode.get("rules") or [])
     if not maps:
         die("no playable map in the data")
     return maps
+
+
+def build_of(mode, folder):
+    """A config's build, one of BUILDS (maps.rs `Build::of`)."""
+    tag = mode.get("srp_build")
+    prefix = folder.split("_")[0]
+    if not tag and not re.match(r"v\d", prefix):
+        return "v026g"
+    if (tag or prefix) not in BUILDS[1:]:
+        die(f"{folder}: {'srp_build' if tag else 'without an srp_build, the prefix'} {tag or prefix} is none of srp's builds")
+    return tag or prefix
 
 
 def _number(text):

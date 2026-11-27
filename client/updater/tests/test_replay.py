@@ -34,6 +34,8 @@ import tempfile
 import time
 import unittest
 
+import run_logs
+
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 from test_updater import FAKE_EXE, UPDATER, X86, Site  # noqa: E402
@@ -143,7 +145,7 @@ class QuietSource(unittest.TestCase):
         # One start of the game, after the check `ready` makes; its refusal
         # returns before it.
         self.assertEqual(body.count("win::start("), 1)
-        check = body.index("crate::patches::ready(&layout).is_err()")
+        check = body.index("crate::patches::ready(layout).is_err()")
         self.assertLess(check, body.index("win::start("))
         self.assertIn("return tell(quiet, language, &Problem::NotReady);", body[check:body.index("win::start(")])
 
@@ -192,9 +194,7 @@ class ReplayTest(unittest.TestCase):
             with open(game, "rb") as file, open(FAKE_EXE, "rb") as fake:
                 if file.read() != fake.read():
                     raise AssertionError("refused: the game exe of the test folder is not the stand-in")
-        log = os.path.join(self.x86, "updater_skhid.log")
-        if os.path.exists(log):
-            os.remove(log)
+        run_logs.remove(os.path.join(self.game, "logs"))
         process = subprocess.Popen([os.path.join(self.x86, "updater_skhid.exe"), *arguments], cwd=self.x86)
         try:
             until = time.time() + seconds
@@ -230,8 +230,7 @@ class ReplayTest(unittest.TestCase):
         return sorted(os.listdir(folder)) if os.path.isdir(folder) else []
 
     def log(self):
-        with open(os.path.join(self.x86, "updater_skhid.log"), "rb") as file:
-            return file.read().decode("utf-8", "replace")
+        return run_logs.read(os.path.join(self.game, "logs")).decode("utf-8", "replace")
 
     def assertSaid(self, line, problem, *values):
         self.assertIsNotNone(line, f"no problem logged for {problem}")
@@ -244,8 +243,8 @@ class ReplayTest(unittest.TestCase):
         command, folder = started
         game = os.path.join(self.x86, "survarium_skhid.exe")
         # No -localization: the game keeps its own language (game patch 79).
-        self.assertEqual(command, f'"{game}" -mt_allocator=768 '
-                                  f'-minimum_resources_memory_size=768 -match_replay="{replay_path}"')
+        self.assertEqual(command, f'"{game}" '
+                                  f'-match_replay="{replay_path}"')
         self.assertEqual(os.path.normcase(folder.rstrip("\\")), os.path.normcase(self.x86))
 
     def assertNothingDone(self, requests=0):

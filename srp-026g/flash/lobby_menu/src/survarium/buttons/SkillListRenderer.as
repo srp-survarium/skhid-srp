@@ -5,6 +5,8 @@ package survarium.buttons
    import flash.events.Event;
    import flash.events.MouseEvent;
    import flash.text.TextField;
+   import flash.geom.Rectangle;
+   import survarium.char.SkillIcon069;
    import scaleform.clik.constants.InvalidationType;
    import scaleform.clik.controls.ListItemRenderer;
    import scaleform.gfx.MouseEventEx;
@@ -36,6 +38,7 @@ package survarium.buttons
       public var lockSpriteRed:MovieClip;
       
       protected var _perksIconsContainer:MovieClip;
+      private var _skillIcon:SkillIcon069;
       
       protected var _complete:Boolean = false;
       
@@ -153,6 +156,13 @@ package survarium.buttons
          this._perksIconsContainer.gotoAndStop(1);
          this._perksIconsContainer.icons.gotoAndStop(1);
          this.iconContainer.addChildAt(this._perksIconsContainer,this.iconContainer.numChildren - 1);
+         _skillIcon = new SkillIcon069();
+         _skillIcon.name = "skillIcon069";
+         var bounds:Rectangle = _perksIconsContainer.getBounds(iconContainer);
+         _skillIcon.x = bounds.x + bounds.width / 2;
+         _skillIcon.y = bounds.y + bounds.height / 2;
+         _skillIcon.scaleX = _skillIcon.scaleY = Math.min(bounds.width,bounds.height) / 34;
+         this.iconContainer.addChildAt(_skillIcon,this.iconContainer.numChildren - 1);
       }
       
       private function onSliderUpdate(event:MouseEventEx) : void
@@ -166,16 +176,26 @@ package survarium.buttons
                   this.skillProgressIndicator.value += 1;
                   _data.newValue = this.skillProgressIndicator.value;
                }
+               dispatchEvent(new Event(Events.SKILL_UPDATE,true));
+               this.updateDescription();
             }
-            else if(this.skillProgressIndicator.value > _data.value)
+            else if(_data.newValue > 0)
             {
-               this.skillProgressIndicator.value -= 1;
-               _data.newValue = this.skillProgressIndicator.value;
-               this.hoverSprite.visible = true;
+               // A right click takes a point back, confirmed or not (the owner, 2026-11-27): the
+               // window decides (CharWindow.onSkillTakeBack) and calls takeBack when it may.
+               dispatchEvent(new Event(Events.SKILL_TAKE_BACK,true));
             }
-            dispatchEvent(new Event(Events.SKILL_UPDATE,true));
-            this.updateDescription();
          }
+      }
+
+      // One point fewer, pending until Confirm as a point taken is (Cancel gives it back).
+      public function takeBack() : void
+      {
+         this.skillProgressIndicator.value -= 1;
+         _data.newValue = this.skillProgressIndicator.value;
+         this.hoverSprite.visible = true;
+         dispatchEvent(new Event(Events.SKILL_UPDATE,true));
+         this.updateDescription();
       }
       
       override protected function draw() : void
@@ -196,13 +216,10 @@ package survarium.buttons
          visible = _data != null;
          if(_data)
          {
+            // No row is left with points it no longer reaches: the window refuses a point taken back
+            // that would (CharWindow.onSkillTakeBack), where the stock window took that row's points
+            // away here unasked (the owner, 2026-11-27: refuse, never cascade).
             currentValue = (_data.newValue);
-            if(!enabled && currentValue)
-            {
-               currentValue = 0;
-               _data.newValue = 0;
-               dispatchEvent(new Event(Events.SKILL_UPDATE,true));
-            }
             this.textFieldLabel.text = _data.name;
             this.textFieldLevel.text = LEVELS[_data.level - 1];
             this.skillProgressIndicator.minimum = 0;
@@ -213,7 +230,6 @@ package survarium.buttons
             {
                this.hoverSprite.visible = false;
             }
-            _data.resize = Boolean(maxValue > 1);
             trace("slr_update_data",_data.name,_data.enabled,currentValue,maxValue,this._complete);
             this.skillProgressIndicator.maximum = maxValue;
             this.skillProgressIndicator.value = currentValue;
@@ -221,8 +237,13 @@ package survarium.buttons
             this.skillProgressIndicator.invalidateData();
             this.skillProgressIndicator.validateNow();
             this.background.sprite.gotoAndStop(_data.branch + 1);
-            this._perksIconsContainer.gotoAndStop(_data.branch + 1);
-            this._perksIconsContainer.icons.gotoAndStop(_data.icon + 1);
+            _skillIcon.visible = _skillIcon.show(_data.id);
+            _perksIconsContainer.visible = !_skillIcon.visible;
+            if(!_skillIcon.visible)
+            {
+               this._perksIconsContainer.gotoAndStop(_data.branch + 1);
+               this._perksIconsContainer.icons.gotoAndStop(_data.icon + 1);
+            }
             if(enabled)
             {
                this._perksIconsContainer.alpha = currentValue > 0 ? 1 : 0.4;
@@ -233,6 +254,7 @@ package survarium.buttons
                this._perksIconsContainer.alpha = 0.6;
                this.skillProgressIndicator.alpha = this._perksIconsContainer.alpha;
             }
+            _skillIcon.alpha = _perksIconsContainer.alpha;
          }
       }
    }

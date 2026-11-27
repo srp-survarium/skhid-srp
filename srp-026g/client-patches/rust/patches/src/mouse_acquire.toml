@@ -1,0 +1,20 @@
+# Patch 202: a line in the patches' log when the game cannot take the mouse,
+# and when it has it again (mouse_acquire.rs; client_patch.md 3.106). The
+# sites are mouse::execute's (sites_026g.tsv); nothing changes what it does.
+name = "mouse_acquire"
+patch = 202
+
+# a poll that read the mouse
+[[hook]]
+site = "mouse.read"
+handler = "on_read"
+
+# a poll whose read failed with a code the game answers with no Acquire
+[[hook]]
+site = "mouse.read_failed"
+handler = "on_read_failed"
+
+# a poll whose re-Acquire failed (or that logged "mouse device is lost")
+[[hook]]
+site = "mouse.acquire_join"
+handler = "on_acquire_join"

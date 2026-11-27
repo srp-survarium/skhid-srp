@@ -15,12 +15,14 @@ use super::super::lzma2;
 use super::snapshot::Sections;
 use super::static_info::{self, MatchOptions, StaticInfoError};
 use super::{
-    BatchInput, Generation, Length, MAX_PLAYERS, PlayerInput, ServerMessage, TICK_MS, TimeReply,
+    BatchInput, Generation, Length, MAX_PLAYERS, PlayerInput, ServerMessage, TICK_MS, TimeReply, UploadWanted,
     WireTime, id, mask_bytes, player_inputs_len, server_length,
 };
 
-/// A compressed snapshot is decoded into a buffer of this size.
-pub const COMPRESSED_SNAPSHOT_BUFFER: usize = 0x8000;
+/// A compressed snapshot is decoded into a buffer of this size: 0xF000
+/// bytes of the 0xE8 handler's stack (patch 98; 0x8000 in the original
+/// exe), the world buffer `world_frame::MAX_BODY` is.
+pub const COMPRESSED_SNAPSHOT_BUFFER: usize = 0xF000;
 
 /// What a real client would choke on.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -44,7 +46,7 @@ pub enum ModelError {
     SnapshotWithoutTime,
     /// A 0xE8 whose state is not a time, a mask, player blocks and six
     /// sections; or a compressed one that is no LZMA2 stream or decodes to
-    /// more than 0x8000 bytes.
+    /// more than [`COMPRESSED_SNAPSHOT_BUFFER`] bytes.
     SnapshotState,
     /// A message with a tick, before any 0xE5 set the clock it is read
     /// against.
@@ -252,13 +254,9 @@ pub fn decode_server(id: u8, payload: &[u8], roster: u8) -> Result<ServerMessage
             to_tick: payload[1],
         },
         id::DISCARD_PROFILE_INPUT => ServerMessage::DiscardProfileInput { tick: payload[0] },
-        // 0xF6: the length getter refuses an empty one.
-        _ => {
-            if payload.is_empty() {
-                return Err(wrong_length);
-            }
-            ServerMessage::UploadRequest
-        }
+        // 0xF6: the length getter refuses an empty one; srp sends one byte
+        // or 1 and a tick.
+        _ => ServerMessage::UploadRequest(UploadWanted::parse(payload).ok_or(wrong_length)?),
     })
 }
 
@@ -529,7 +527,7 @@ impl ClientModel {
                 self.syncs += 1;
                 time = Some(*snapshot_time);
             }
-            ServerMessage::UploadRequest => {
+            ServerMessage::UploadRequest(_) => {
                 if !self.patched {
                     return Ok(Taken::Skipped(Skip::NotPatched));
                 }
@@ -618,6 +616,8 @@ mod tests {
                 ..MatchItem::default()
             }],
             squad: 0,
+            face: crate::v026g::faces::Face::DEFAULT,
+            notice: crate::v026g::match_msgs::static_info::Notice::Skipped,
         }
     }
 
@@ -626,11 +626,10 @@ mod tests {
             players: (0..players)
                 .map(|index| player(&format!("p{index}"), (index % 2) as u8))
                 .collect(),
-            map_id: 61,
+            map: crate::v026g::maps::MatchMap::of(crate::v026g::maps::MapId::new(61)).unwrap(),
             match_id: 7,
             match_level: 0,
             score_weights: SCORE_WEIGHTS,
-            blackout: false,
         };
         StaticInfo::new(&options, dictionary()).unwrap()
     }
@@ -743,7 +742,8 @@ mod tests {
                 to_tick: 4,
             },
             ServerMessage::DiscardProfileInput { tick: 3 },
-            ServerMessage::UploadRequest,
+            ServerMessage::UploadRequest(UploadWanted::Horizon),
+            ServerMessage::UploadRequest(UploadWanted::Tick(9)),
         ];
         let mut ids = Vec::new();
         for message in messages {
@@ -753,6 +753,7 @@ mod tests {
         }
         // Every server id was covered.
         ids.sort_unstable();
+        ids.dedup();
         assert_eq!(ids, (0xE3..=0xF6).collect::<Vec<u8>>());
     }
 
@@ -833,7 +834,7 @@ mod tests {
         let sent = ServerMessage::packed_snapshot(3, 500, &world);
         assert_eq!(sent.payload()[1], 1);
         assert_eq!(decode_server(0xE8, &sent.payload(), 2), Ok(sent));
-        // Over the client's 0x8000-byte buffer.
+        // Over the client's buffer.
         let mut payload = vec![3, 1];
         payload.extend(lzma2::stored(&vec![0; COMPRESSED_SNAPSHOT_BUFFER + 1]));
         assert_eq!(
@@ -902,7 +903,7 @@ mod tests {
         assert_eq!(client.syncs, 1);
         // A stock client skips the upload request.
         assert_eq!(
-            skipped(&mut client, &ServerMessage::UploadRequest),
+            skipped(&mut client, &ServerMessage::UploadRequest(UploadWanted::Horizon)),
             Skip::NotPatched
         );
     }
@@ -998,7 +999,7 @@ mod tests {
         applied(&mut client, &ServerMessage::ClockOffset(-30));
         assert_eq!(client.clock, Some(370));
         // The patched client takes the upload request.
-        applied(&mut client, &ServerMessage::UploadRequest);
+        applied(&mut client, &ServerMessage::UploadRequest(UploadWanted::Horizon));
     }
 
     #[test]

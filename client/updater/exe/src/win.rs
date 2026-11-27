@@ -8,17 +8,18 @@ use core::ptr::{null, null_mut};
 use updater_logic::checked::Identity;
 use updater_logic::sha256::Sha256;
 use windows_sys::Win32::Foundation::{
-    CloseHandle, ERROR_ALREADY_EXISTS, ERROR_FILE_NOT_FOUND, ERROR_PATH_NOT_FOUND, FILETIME,
+    CloseHandle, ERROR_ALREADY_EXISTS, ERROR_FILE_EXISTS, ERROR_FILE_NOT_FOUND,
+    ERROR_PATH_NOT_FOUND, FILETIME,
     GENERIC_READ, GENERIC_WRITE, GetLastError, HANDLE, INVALID_HANDLE_VALUE, SYSTEMTIME,
 };
 use windows_sys::Win32::Security::SECURITY_ATTRIBUTES;
 use windows_sys::Win32::Storage::FileSystem::{
-    BY_HANDLE_FILE_INFORMATION, CREATE_ALWAYS, CreateDirectoryW, CreateFileW, DeleteFileW,
+    BY_HANDLE_FILE_INFORMATION, CREATE_ALWAYS, CREATE_NEW, CreateDirectoryW, CreateFileW, DeleteFileW,
     FILE_ATTRIBUTE_DIRECTORY, FILE_ATTRIBUTE_NORMAL, FILE_SHARE_DELETE, FILE_SHARE_READ,
     FILE_SHARE_WRITE, FindClose, FindFirstFileW, FindNextFileW, FlushFileBuffers,
     GetDiskFreeSpaceExW, GetFileAttributesW, GetFileInformationByHandle, GetFileSizeEx,
     INVALID_FILE_ATTRIBUTES, MOVEFILE_REPLACE_EXISTING, MoveFileExW, OPEN_ALWAYS, OPEN_EXISTING,
-    ReadFile, SetFilePointerEx, WIN32_FIND_DATAW, WriteFile,
+    ReadFile, SetEndOfFile, SetFilePointerEx, WIN32_FIND_DATAW, WriteFile,
 };
 use windows_sys::Win32::System::Diagnostics::Debug::{
     FORMAT_MESSAGE_FROM_SYSTEM, FORMAT_MESSAGE_IGNORE_INSERTS, FormatMessageW,
@@ -289,20 +290,24 @@ pub fn write_file(path: &str, data: &[u8]) -> Result<(), Code> {
     Ok(())
 }
 
-/// Adds to the end of a file, making it if it is not there. A file longer
-/// than `limit` is started anew first.
-pub fn append_file(path: &str, data: &[u8], limit: u64) -> Result<(), Code> {
+/// Adds to the end of a file, making it if it is not there.
+pub fn append_file(path: &str, data: &[u8]) -> Result<(), Code> {
     let file = open(path, GENERIC_WRITE, FILE_SHARE_READ, OPEN_ALWAYS)?;
-    let mut size = 0_i64;
-    if unsafe { GetFileSizeEx(file.0, &mut size) } != 0 && size as u64 > limit {
-        drop(file);
-        return write_file(path, data);
-    }
     // 2 = FILE_END.
     if unsafe { SetFilePointerEx(file.0, 0, null_mut(), 2) } == 0 {
         return Err(last_error());
     }
     write_all(&file, data)
+}
+
+/// Makes an empty file of a name nothing has yet: `Ok(false)` when the
+/// name is taken.
+pub fn create_new(path: &str) -> Result<bool, Code> {
+    match open(path, GENERIC_WRITE, FILE_SHARE_READ, CREATE_NEW) {
+        Ok(_) => Ok(true),
+        Err(code) if code == ERROR_FILE_EXISTS || code == ERROR_ALREADY_EXISTS => Ok(false),
+        Err(code) => Err(code),
+    }
 }
 
 pub fn exists(path: &str) -> bool {
@@ -406,6 +411,20 @@ pub fn ticks() -> u64 {
     unsafe { GetTickCount64() }
 }
 
+/// The local date and time now, to the second.
+pub fn local_stamp() -> updater_logic::run_log::Stamp {
+    let mut time: SYSTEMTIME = unsafe { core::mem::zeroed() };
+    unsafe { GetLocalTime(&mut time) };
+    updater_logic::run_log::Stamp {
+        year: time.wYear,
+        month: time.wMonth as u8,
+        day: time.wDay as u8,
+        hour: time.wHour as u8,
+        minute: time.wMinute as u8,
+        second: time.wSecond as u8,
+    }
+}
+
 /// The local date and time, `2026-10-13 02:19:27`.
 pub fn timestamp() -> String {
     let mut time: SYSTEMTIME = unsafe { core::mem::zeroed() };
@@ -507,8 +526,8 @@ impl DownloadFile {
     }
 }
 
-/// An open file of the restore of resources.db and of the patch step, read
-/// and written at 64-bit offsets.
+/// An open file of the patch step and the revision gate, read and written at
+/// 64-bit offsets.
 pub struct File(Handle);
 
 impl File {
@@ -531,16 +550,32 @@ impl File {
         open_read(path).map(Self)
     }
 
-    /// For reading; others may read it too, but no one may change it while
-    /// it is open.
-    pub fn locked(path: &str) -> Result<Self, Code> {
-        open(path, GENERIC_READ, FILE_SHARE_READ, OPEN_EXISTING).map(Self)
-    }
-
     /// A new file (over one of the same name), to write and read back, by
     /// this program alone.
     pub fn create(path: &str) -> Result<Self, Code> {
         open(path, GENERIC_READ | GENERIC_WRITE, 0, CREATE_ALWAYS).map(Self)
+    }
+
+    /// A download of `from` bytes kept, to go on from: a new file when
+    /// `from` is 0, else the one there, by this program alone, at byte
+    /// `from` (`http::get_file_into`).
+    pub fn download(path: &str, from: u64) -> Result<Self, Code> {
+        if from == 0 {
+            return Self::create(path);
+        }
+        let file = Self::exclusive(path)?;
+        file.seek(from)?;
+        Ok(file)
+    }
+
+    /// Ends the file at byte `at` (and moves there): what was after it is
+    /// gone.
+    pub fn cut(&self, at: u64) -> Result<(), Code> {
+        self.seek(at)?;
+        if unsafe { SetEndOfFile(self.0.0) } == 0 {
+            return Err(last_error());
+        }
+        Ok(())
     }
 
     pub fn size(&self) -> Result<u64, Code> {
@@ -595,6 +630,33 @@ pub fn lock(folder: &str, name: &str) -> Result<InstallLock, Code> {
     .map(InstallLock)
 }
 
+/// The files in `folder` that match `pattern`, each with its size and the
+/// time it was last written.
+pub fn list_run_files(folder: &str, pattern: &str) -> Vec<updater_logic::run_log::RunFile> {
+    let mut out = Vec::new();
+    let mut found: WIN32_FIND_DATAW = unsafe { core::mem::zeroed() };
+    let query = alloc::format!("{folder}\\{pattern}");
+    let handle = unsafe { FindFirstFileW(wide(&query).as_ptr(), &mut found) };
+    if handle == INVALID_HANDLE_VALUE {
+        return out;
+    }
+    loop {
+        if found.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY == 0 {
+            let size = u64::from(found.nFileSizeHigh) << 32 | u64::from(found.nFileSizeLow);
+            let written = u64::from(found.ftLastWriteTime.dwHighDateTime) << 32
+                | u64::from(found.ftLastWriteTime.dwLowDateTime);
+            out.push(updater_logic::run_log::RunFile { name: from_wide(&found.cFileName), size, written });
+        }
+        if unsafe { FindNextFileW(handle, &mut found) } == 0 {
+            break;
+        }
+    }
+    unsafe {
+        FindClose(handle);
+    }
+    out
+}
+
 /// The files in `folder` that match `pattern`, each with the time it was
 /// last written (100 ns since 1601).
 pub fn list_with_times(folder: &str, pattern: &str) -> Vec<(String, u64)> {
@@ -621,10 +683,9 @@ pub fn list_with_times(folder: &str, pattern: &str) -> Vec<(String, u64)> {
     out
 }
 
-/// The game's language, which its Settings and the launcher's menu keep
-/// (`localization` of `<Documents>\survarium\user.cfg`, the folder the game
-/// takes: CSIDL_PERSONAL), as a number of `replay::LANGUAGES`; read only.
-pub fn game_language() -> Option<u32> {
+/// The player's Documents folder, the one the game keeps its settings and
+/// baked textures in (CSIDL_PERSONAL).
+pub fn documents() -> Option<String> {
     use windows_sys::Win32::UI::Shell::SHGetFolderPathW;
     const CSIDL_PERSONAL: i32 = 5;
     let mut folder = [0_u16; 260];
@@ -633,8 +694,19 @@ pub fn game_language() -> Option<u32> {
         return None;
     }
     let end = folder.iter().position(|&unit| unit == 0)?;
-    let path = alloc::format!("{}\\survarium\\user.cfg", from_wide(&folder[..end]));
-    updater_logic::replay::language_of_user_cfg(&read_file(&path, 1 << 16).ok()?)
+    Some(from_wide(&folder[..end]))
+}
+
+/// The game's `<documents>\survarium\user.cfg`, as the launcher reads it
+/// (64 KiB at most); read only.
+fn user_cfg(documents: &str) -> Option<Vec<u8>> {
+    read_file(&alloc::format!("{documents}\\survarium\\user.cfg"), 1 << 16).ok()
+}
+
+/// The game's language, which its Settings and the launcher's menu keep
+/// (`localization` of user.cfg), as a number of `replay::LANGUAGES`.
+pub fn game_language(documents: &str) -> Option<u32> {
+    updater_logic::replay::language_of_user_cfg(&user_cfg(documents)?)
 }
 
 /// Whether the game, which reads its command line as ANSI text
@@ -869,4 +941,14 @@ pub fn run_wait(
         return Err(last_error());
     }
     Ok(code)
+}
+
+/// The launcher's "Allow torrent" in user.cfg (`updater_logic::user_cfg`).
+/// Off until the launcher's one-time reset of the original game's default
+/// `on` (launcher patch 15), so a line the player never chose is never taken.
+pub fn launcher_torrent_allowed() -> bool {
+    documents().is_some_and(|documents| {
+        let reset = alloc::format!("{documents}\\survarium\\{}", updater_logic::user_cfg::RESET_FILE);
+        exists(&reset) && user_cfg(&documents).is_some_and(|text| updater_logic::user_cfg::torrent_allowed(&text))
+    })
 }

@@ -14,6 +14,7 @@ use super::world::{BodyId, floats, read};
 use crate::raw;
 use super::geometry::{WorldPoint, RayDirection};
 use super::project::PhysicsId;
+use ::ragdoll::shot::Blow;
 
 /// The material a living player's hit model is to bullets: every hit body's
 /// +38h is 10, `actor` (bt_animated_rigid_body's ctor 0x70E70); the pair
@@ -27,6 +28,7 @@ const MATERIALS: u32 = 128;
 pub struct MaterialId(u32);
 impl MaterialId {
     pub fn parse(value: u32) -> Option<Self> { (value < MATERIALS).then_some(Self(value)) }
+    pub fn value(self) -> u32 { self.0 }
 }
 
 /// A bullet's ray just traced, its result not yet read.
@@ -87,6 +89,20 @@ impl<'t> BulletRay<'t> {
     pub fn ammo_mass(&self) -> f32 {
         // SAFETY: the bullet's ammo data, alive for the hook.
         unsafe { self.bullet.ammo().map_or(f32::NAN, |ammo| read(ammo.mass())) }
+    }
+
+    /// What a melee bullet struck with, none for a round's (ranged): its
+    /// ammo a weapon's melee/data (damage type blunt), a battery strike's by
+    /// the kill feed's rule (patch 143), else the gun stock's.
+    pub fn melee(&self) -> Option<Blow> {
+        // SAFETY: as ammo_mass.
+        let kind = unsafe { self.bullet.ammo().map(|ammo| read(ammo.damage_type())) };
+        if kind.and_then(super::drug::HitType::parse) != Some(super::drug::HitType::Blunt) {
+            return None;
+        }
+        // SAFETY: the bullet, alive for the hook; a melee bullet's gun, which
+        // the game reads each step of it (its melee damage), alive too.
+        Some(if unsafe { super::battery::struck_by_battery(self.bullet) } { Blow::BatteryStrike } else { Blow::GunStock })
     }
 
     /// The ammo config's `muzzle_speed`, m/s (NaN without ammo data): with
@@ -156,7 +172,7 @@ impl<'t> BulletRay<'t> {
             let (Some(materials), Some(material)) = (manager.materials(), bullet.material()) else {
                 return;
             };
-            if read(manager.renderer()) == 0 {
+            if manager.engine().is_none() {
                 return;
             }
             let first = u32::from(read(material.id()));
@@ -268,7 +284,7 @@ impl<'t> SurfaceBreakEffects<'t> {
         // SAFETY: the manager and its material table own these resources
         // until the worker joins (the caller's word for the manager).
         unsafe {
-            if read(manager.renderer()) == 0 { return None; }
+            manager.engine()?;
             let pair = raw::engine_material_pair(Some(manager.materials()?), source.0, target.0)?;
             let particle = pair.particles().filter(|first| Some(*first) != pair.particles_end())
                 .map(|slot| ParticleEffect { slot, orientation: ParticleOrientation::parse(read(pair.parameter())) });

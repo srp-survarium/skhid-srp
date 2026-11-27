@@ -28,6 +28,14 @@ package survarium.rooms
         // of a row's small buttons (move, kick).
         private static const TEAM_HEAD:int = 20;
         private static const CHIP_W:int = 22;
+        // The vote cards' gap, and the smallest sizes a card's map name and
+        // mode tag shrink to before a name too long is cut (a narrower card
+        // since the fourth: "Stacja Radarowa "Vostok" (v0.21)").
+        private static const CARD_GAP:int = 14;
+        private static const CARD_NAME_SMALLEST:int = 14;
+        private static const CARD_MODE_SMALLEST:int = 10;
+        // The chosen card's "NEXT MAP" label's line, under the mode tag (10 to 34).
+        private static const NEXT_MAP_Y:int = 40;
 
         private var win:RoomsWindow;
         private var look:RoomsLook;
@@ -60,7 +68,8 @@ package survarium.rooms
             // of 2026-10-26).
             var info:String = win.say("st_srp_rooms_level") + " " + String(room.level)
                 + (room.pin ? "" : "  ·  " + win.say("st_srp_rooms_max") + " " + win.levelText(room.max) + "  ·  " + room.size + " v " + room.size)
-                + "  ·  " + win.say("st_srp_rooms_pool") + " " + room.pool + "  ·  " + win.say("st_srp_rooms_code_label") + " " + room.key + (room.pin ? "  ·  PIN" : "");
+                + "  ·  " + win.say("st_srp_rooms_pool") + " " + room.pool + "  ·  " + win.say("st_srp_rooms_code_label") + " " + room.key
+                + (room.bots ? "  ·  BOT" : room.pin ? "  ·  PIN" : "");
             look.text(look._content, info, 16, 50, look._w - 32, 15, RoomsLook.GREY);
             // The banner: the phase and its time.
             var band:Shape = new Shape();
@@ -78,7 +87,9 @@ package survarium.rooms
             var y:Number = 140;
             look.text(look._content, win.say("st_srp_rooms_vote").toUpperCase(), 16, y, 400, 16, RoomsLook.LIGHT);
             y += 28;
-            var cw:int = int((look._w - 32 - 2 * 14) / 3);
+            // The cards side by side across the window, as many as the vote
+            // has (RoomsWire.CARDS: four since the owner's of 2026-11-26).
+            var cw:int = int((look._w - 32 - (RoomsWire.CARDS - 1) * CARD_GAP) / RoomsWire.CARDS);
             // A private room's teams take a line more under the cards.
             var ch:int = Math.min(190, int((look._h - y) * 0.48)) - (room.pin && room.teams != null ? TEAM_HEAD : 0);
             for (var i:int = 0; i < room.cards.length; i++)
@@ -86,7 +97,7 @@ package survarium.rooms
                 var card:Object = room.cards[i];
                 var e:Object = win.entry(card.map);
                 var cell:Sprite = new Sprite();
-                cell.x = 16 + i * (cw + 14);
+                cell.x = 16 + i * (cw + CARD_GAP);
                 cell.y = y;
                 if (e != null)
                     cell.addChild(look.mapRender(e.level, e.weather, cw, ch));
@@ -111,22 +122,32 @@ package survarium.rooms
                 // The vote is shut during the wait: its map marked, the rest dim.
                 if (room.phase == RoomPhase.COUNTDOWN && !chosen)
                     cell.alpha = 0.45;
+                // The chosen card's label on its own line under the mode tag
+                // (beside it, a card a quarter of the window wide had no room
+                // for either).
                 if (chosen)
-                    look.text(cell, win.say("st_srp_rooms_next_map").toUpperCase(), cw - 120, 13, 108, 13, 0xFFFFFF, "right");
+                    RoomsLook.fitSize(look.text(cell, win.say("st_srp_rooms_next_map").toUpperCase(), 12, NEXT_MAP_Y,
+                        cw - 24, 13, 0xFFFFFF), CARD_MODE_SMALLEST);
                 var votes:TextField = look.text(cell, String(card.votes), cw - 70, ch - 52, 58, 24, RoomsLook.GOLD, "right");
                 if (e != null)
                 {
                     // The mode's tag as wide as its name (at most the card's
-                    // width less its margins); the map's name up to the votes.
-                    var mode:TextField = look.text(cell, win.modeName(e.mode).toUpperCase(), 16, 13, cw - 44, 13, 0xFFFFFF);
+                    // width less its margins); the map's name up to the votes;
+                    // each a smaller size where the card is too narrow for it,
+                    // in the middle of its line.
+                    var cardMode:int = card.mode != 0 ? card.mode : e.mode;
+                    var mode:TextField = look.text(cell, win.modeName(cardMode).toUpperCase(), 16, 13, cw - 44, 13, 0xFFFFFF);
+                    mode.y += RoomsLook.fitSize(mode, CARD_MODE_SMALLEST) / 2;
                     var tag:Shape = new Shape();
-                    tag.graphics.lineStyle(1, RoomsLook.modeColour(e.mode));
+                    tag.graphics.lineStyle(1, RoomsLook.modeColour(cardMode));
                     tag.graphics.beginFill(0x000000, 0.7);
                     tag.graphics.drawRect(10, 10, Math.min(cw - 20, mode.textWidth + 16), 24);
                     tag.graphics.endFill();
                     cell.addChildAt(tag, cell.getChildIndex(mode));
-                    look.text(cell, win.levelName(e.level), 12, ch - 54, cw - 12 - votes.textWidth - 22, 21, 0xFFFFFF);
-                    look.text(cell, win.weatherName(e.weather).toUpperCase(), 12, ch - 30, cw - 80, 13, 0xCDD8E0);
+                    var mapName:TextField = look.text(cell, win.levelName(e.level), 12, ch - 54, cw - 12 - votes.textWidth - 22, 21, 0xFFFFFF);
+                    mapName.y += RoomsLook.fitSize(mapName, CARD_NAME_SMALLEST) / 2;
+                    RoomsLook.fitSize(look.text(cell, win.weatherName(e.weather).toUpperCase(), 12, ch - 30, cw - 80, 13, 0xCDD8E0),
+                        CARD_MODE_SMALLEST);
                 }
                 cell.buttonMode = true;
                 cell.mouseChildren = false;
@@ -135,7 +156,7 @@ package survarium.rooms
                 look.route(cell, function(control:DisplayObject, e:MouseEvent):void
                 {
                     RoomsLook.clickSound();
-                    win.ask(RoomsWire.VOTE + Math.max(0, Math.min(RoomsWire.LAST_CARD, int(control.name))), 1);
+                    win.ask(RoomsWire.VOTE + Math.max(0, Math.min(RoomsWire.CARDS - 1, int(control.name))), 1);
                 });
                 look._content.addChild(cell);
             }
@@ -292,7 +313,10 @@ package survarium.rooms
             var iconW:Number = member.squad > 0 ? RoomsLook.SQUAD_ICON_W + 8 : 0;
             var nameField:TextField = look.text(inner, "", nameX, my + mid,
                 colW - 46 - 34 * Math.max(1, buttons) - (nameX - mx - 34) - iconW, 16, RoomsLook.memberColour(member));
-            RoomsLook.fitName(nameField, member.name, member.owner ? "  (" + win.say("st_srp_rooms_owner_tag") + ")" : "");
+            // The creator is named only in a private room: a public room (made from Play) has no owner
+            // (the owner, 2026-11-15: "we should also remove from public lobbies ... the (owner) tag",
+            // "since there are no room owners right now").
+            RoomsLook.fitName(nameField, member.name, member.owner && room.pin ? "  (" + win.say("st_srp_rooms_owner_tag") + ")" : "");
             look.squadIcon(inner, nameField, member.squad, member.squad == RoomsLook.ourSquad(room.members), 16);
             var bx:Number = mx + colW - 44;
             // A private room's teams: small buttons inside the row (its rows
@@ -422,7 +446,8 @@ package survarium.rooms
                 _bannerLabel.text = win.say("st_srp_rooms_playing").toUpperCase();
                 // The map its match is played on (the server's `L` row) and its mode.
                 var played:Object = win.entry(win._room.last);
-                RoomsLook.fitName(_bannerMap, played != null ? win.levelName(played.level) + " · " + win.modeName(played.mode) : "", "");
+                var playedMode:int = win._room.lastMode != 0 ? win._room.lastMode : (played != null ? played.mode : 0);
+                RoomsLook.fitName(_bannerMap, played != null ? win.levelName(played.level) + " · " + win.modeName(playedMode) : "", "");
                 _banner.text = RoomsText.clock(win._room.secs + passed);
                 // Waiting to go into it: the seconds left, counted here; or
                 // why it cannot go in now; or its own kit or gear.
@@ -490,7 +515,7 @@ package survarium.rooms
         private function onVote(e:Event):void
         {
             RoomsLook.clickSound();
-            win.ask(RoomsWire.VOTE + Math.max(0, Math.min(RoomsWire.LAST_CARD, int(e.currentTarget.name))), 1);
+            win.ask(RoomsWire.VOTE + Math.max(0, Math.min(RoomsWire.CARDS - 1, int(e.currentTarget.name))), 1);
         }
 
         private function onKick(e:Event):void

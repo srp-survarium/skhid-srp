@@ -15,6 +15,8 @@
 //!   account is 1).
 //! - **A squad's member** counts [`SQUAD_FACTOR`] times its K/D
 //!   ([`in_squad`]).
+//! - **Strong** ([`STRONG`]): who counts that much or more is dealt evenly
+//!   between the sides, at the start and on late joins.
 //! - **The server's bots** count [`BOT_STRENGTH`].
 
 use crate::Strength;
@@ -34,6 +36,16 @@ pub const PRIOR_DEATHS: u32 = 10;
 /// What a squad's member counts for, times its K/D: 13 / 10 (the owner's
 /// 1.3).
 pub const SQUAD_FACTOR: (i64, i64) = (13, 10);
+
+/// A strong player: one who counts for twice an average player or more
+/// (a squad's member with its [`SQUAD_FACTOR`]). The strong are dealt
+/// evenly between the sides (the owner's of 2026-11-09: "strong people
+/// being split always evenly"; `rooms::sides`), and a strong late joiner
+/// goes to the side with fewer of them, up to two players ahead
+/// (`matchmaking_policy::place_open_joiner`). At 2, each player the owner
+/// named strong on 2026-11-05 is strong at a level it plays (K/Ds of 2.0
+/// to 5.0).
+pub const STRONG: Strength = Strength::from_milli(2 * Strength::UNIT);
 
 /// A member of a squad that plays together: its K/D times
 /// [`SQUAD_FACTOR`].

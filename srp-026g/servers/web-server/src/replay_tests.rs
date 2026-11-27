@@ -17,7 +17,8 @@ const REPLAY: &[u8] = b"REPLAY BYTES";
 /// In every private file planted; never in an answer.
 const SECRET: &str = "SECRET";
 
-struct Quiet;
+/// A lobby and match server that say nothing: for the page's own tests.
+pub(crate) struct Quiet;
 
 impl LobbyLink for Quiet {
     fn account_changed(&self, _: u32) {}
@@ -59,13 +60,11 @@ fn planted(name: &str) -> Planted {
     let settings = ReplaySettings {
         replay_dir: root.join("replays"),
         record_dir: root.join("recordings"),
-        modes_dir: root.join("modes"),
         max_recording_bytes: 1 << 20,
         max_replay_bytes: 1 << 20,
     }
     .checked()
     .unwrap();
-    std::fs::create_dir_all(&settings.modes_dir).unwrap();
     let replays = Arc::new(Replays::new(Some(settings.clone()), 6));
     std::fs::write(replays.sur_path(MATCH).unwrap(), REPLAY).unwrap();
     let sidecar = Sidecar {
@@ -86,7 +85,6 @@ fn planted(name: &str) -> Planted {
     );
     secret(settings.replay_dir.join("srp.db"));
     secret(settings.replay_dir.join("00000002.json"));
-    secret(settings.modes_dir.join("level_01_day_2.options"));
     secret(root.join(".env"));
     secret(root.join("srp.db"));
     Planted { root, replays }
@@ -102,18 +100,28 @@ fn web(replays: Option<Arc<Replays>>) -> Web {
         token_failures: Mutex::new((0, None)),
         connections: AtomicU32::new(0),
         downloads: AtomicU32::new(0),
-        resource_downloads: AtomicU32::new(0),
         replay_downloads: AtomicU32::new(0),
         replay_failures: Mutex::new(HashMap::new()),
+        replay_asks: Mutex::new(HashMap::new()),
         plans: Default::default(),
-        game: Some(Game {
-            accounts: Arc::new(GameAccounts::new()),
-            lobby: Arc::new(Quiet),
-            matches: Arc::new(Quiet),
-            downloads: Arc::new(crate::Downloads::new(Vec::new(), None, None)),
-            min_patch_revision: 0,
+        game: Game {
             replays,
-        }),
+            ..quiet_game()
+        },
+    }
+}
+
+/// A game whose lobby and match server say nothing, with no replays.
+pub(crate) fn quiet_game() -> Game {
+    Game {
+        accounts: Arc::new(GameAccounts::new()),
+        lobby: Arc::new(Quiet),
+        matches: Arc::new(Quiet),
+        downloads: Arc::new(crate::Downloads::new(Vec::new(), None, None)),
+        min_patch_revision: 0,
+        replays: None,
+        results: Arc::new(session::v026g::rewards::Results::new()),
+        pools: crate::Pools::every_playable(),
     }
 }
 
@@ -499,7 +507,7 @@ fn no_logged_value_of_a_request_can_start_a_line() {
 }
 
 #[test]
-fn replays_off_and_the_0_21d_page_serve_none() {
+fn replays_off_serve_none() {
     let planted = planted("off");
     let token = token(&planted.replays, 1);
     let off = web(None);
@@ -507,18 +515,13 @@ fn replays_off_and_the_0_21d_page_serve_none() {
         get(&off, "GET", &format!("/replays/{token}")),
         REPLAY_NOT_FOUND
     );
-    let mut old = web(Some(planted.replays.clone()));
-    old.game = None;
-    let answer = get(&old, "GET", &format!("/replays/{token}"));
-    assert!(answer.starts_with(b"HTTP/1.0 404 Not Found\r\n"));
-    assert!(!holds(&answer, REPLAY));
 }
 
 /// Every other route of the page, with the same hostile list after it:
 /// none reads a file a request names, so none answers with a private file
-/// (or the replay). `/download` and `/resources/` serve only the
-/// configured archive and the 64-hex blobs beside it (their own tests);
-/// with no archive here they are "not found" pages.
+/// (or the replay). `/download` serves only the configured archive (its own
+/// test); with no archive here it is a "not found" page, and `/resources/`
+/// (the blobs of the updaters' restore of resources.db, gone) is one too.
 #[test]
 fn no_other_route_reaches_a_private_file() {
     let planted = planted("routes");
@@ -534,7 +537,6 @@ fn no_other_route_reaches_a_private_file() {
         "/api/client-files".to_owned(),
         "/launcher".to_owned(),
         "/launcher/places/en".to_owned(),
-        "/launcher/fresh/uk".to_owned(),
         "/exchange".to_owned(),
         "/hidden".to_owned(),
     ];
@@ -571,5 +573,11 @@ fn no_other_route_reaches_a_private_file() {
                 );
             }
         }
+    }
+    // The blobs of the updaters' restore of resources.db are no longer
+    // served: they are the page's "not found".
+    for method in ["GET", "HEAD"] {
+        let answer = get(&web, method, &format!("/resources/{blob}"));
+        assert!(answer.starts_with(b"HTTP/1.0 404 Not Found\r\n"), "{method}");
     }
 }

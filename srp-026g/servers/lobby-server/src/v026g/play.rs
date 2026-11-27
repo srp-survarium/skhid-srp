@@ -26,20 +26,26 @@
 use std::net::{IpAddr, Ipv4Addr, SocketAddr, ToSocketAddrs};
 use std::time::{Duration, Instant};
 
+use udp_transport::relay::Peer;
+
 use session::matchmaking_policy::{self as policy, LateRule, Worth};
 use session::v026g::bot_kits::{self, BotKit, BotKits};
 use session::v026g::level_stats;
+use session::v026g::match_kind::MatchKind;
 use session::v026g::{Account, matchmaking, quests, rules, wire};
 use session::{Level, LockExt, MAX_PLAYERS_PER_MATCH, QueuePool, QueueState, Strength};
-use survarium::v026g::loadouts::BotRole;
+use survarium::v026g::faces::{Face, Faces};
+use survarium::v026g::loadouts::{self, BotRole};
 use survarium::v026g::lobby::requests::id;
 use survarium::v026g::lobby::{self, ClientState, limits};
 use survarium::v026g::maps;
+use survarium::v026g::twist::Played;
 use survarium::v026g::match_msgs::static_info::{
     KIT_NOT_LOADED, MatchItem, MatchKit, MatchProfile, Upgrade,
 };
 
 use super::core::{Core, Who};
+use super::rooms::{RoomKind, RoomLaunch};
 
 /// A match seated (a room's, a clan match, one against bots) is made at the
 /// match server by the first of its players the lobby looks at; one not
@@ -165,8 +171,9 @@ fn bots_gear_level(levels: &[u8]) -> u8 {
 /// first kit's ammo is spent. Its kits carry 10 kg more
 /// (`loadouts::bot_gear::bot_modifiers`). The match server reads the role
 /// back from the profile (`loadouts::bot_role_of`), and each kit's weapon
-/// and rounds.
-pub fn server_bot(n: usize, team: u8, kit: &BotKit) -> MatchPlayer {
+/// and rounds. Its face is `face` (`face-choice.md`: a bot's, fixed for
+/// its match, `Faces::bot_face`).
+pub fn server_bot(n: usize, team: u8, kit: &BotKit, face: Face) -> MatchPlayer {
     let mut profile = MatchProfile::from_loadouts(
         &server_bot_name(n),
         team,
@@ -176,6 +183,7 @@ pub fn server_bot(n: usize, team: u8, kit: &BotKit) -> MatchPlayer {
         1,
     );
     profile.clan_tag = "BOT".to_owned();
+    profile.face = face;
     MatchPlayer {
         session_id: 0,
         account_id: 0,
@@ -244,25 +252,20 @@ fn server_bot_teams(teams: &[u8], counts: [f64; 2], count: usize) -> Vec<u8> {
 #[derive(Clone, Debug, PartialEq)]
 pub struct MatchSetup {
     pub pool: QueuePool,
-    /// A playable `maps_dict` id: the map and the mode.
-    pub map_id: u8,
+    /// The map, the mode and a free-for-all's twist.
+    pub played: Played,
     /// The row of `match_levels_dict` the match's rewards are multiplied
     /// by: the mean of its players' levels
     /// (`session::v026g::matchmaking::match_level`).
     pub match_level: u16,
     pub players: Vec<MatchPlayer>,
-    /// One player against the server's own bots (`pvb`): the match
-    /// server's `MatchSetup::vs_bots`.
-    pub vs_bots: bool,
-    /// A match of a room with a PIN: it pays nothing (the match server's
-    /// `MatchSetup::private`; the owner's of 2026-10-20).
-    pub private: bool,
+    /// Against the server's bots (`pvb`, a room's with bots), a room's with
+    /// a PIN (it pays nothing: the owner's of 2026-10-20), or a normal one:
+    /// the match server's `MatchSetup::kind`.
+    pub kind: MatchKind,
     /// A room's match: the room's minimum of players (the match server's
     /// `MatchSetup::room_minimum`).
     pub room_minimum: Option<u8>,
-    /// A Blackout match (a room's card of mode 6, its `map_id` the map it
-    /// plays): the match server's `MatchSetup::blackout`.
-    pub blackout: bool,
 }
 
 /// Where the players of a made match connect.
@@ -282,8 +285,10 @@ pub(super) struct Running {
     pub pool: QueuePool,
     pub fixed_teams: bool,
     pub ticket: MatchTicket,
-    pub map_id: u8,
-    /// Its roster's sessions and teams, by place.
+    /// What it plays: its map, mode and twist.
+    pub map: Played,
+    /// Its roster's sessions and teams, by place. The teams are the
+    /// lobby's seating; what a place plays on is its [`Running::side`].
     pub seats: Vec<(u32, u8)>,
     /// By place: what its player counted for when it was seated, beside
     /// being there ([`strength_in`]).
@@ -292,18 +297,48 @@ pub(super) struct Running {
     pub names: Vec<String>,
     /// When the log last had what the sides count for.
     pub predicted_at: Option<Instant>,
-    /// One player against the server's own bots (`pvb`).
-    pub vs_bots: bool,
+    /// The server's bots play in it (against bots, or a room's with bots):
+    /// one of `pvb::Config::max_matches`.
+    pub server_bots: bool,
+}
+
+/// The side a place of a match plays on, as the match itself has it (the
+/// match server's `registry::own_side`): two places play together when
+/// their sides are equal.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum Side {
+    /// A match of two teams: the team the lobby seated the place on.
+    Team(u8),
+    /// A free-for-all (`docs/notes/ffa.md`): the place alone. The team the
+    /// lobby seated it on is only its seating.
+    Alone(usize),
+}
+
+impl Running {
+    /// The side its roster place `place` plays on; none for a place it has
+    /// not.
+    pub(super) fn side(&self, place: usize) -> Option<Side> {
+        let &(_, team) = self.seats.get(place)?;
+        Some(match self.map.mode() {
+            maps::GameMode::FreeForAll => Side::Alone(place),
+            _ => Side::Team(team),
+        })
+    }
 }
 
 /// One player as the log's "sides" and "late join" lines have it: what it
 /// counts for and the parts of that, at the match's equipment level
-/// `at`. `scripts/balance-refit` reads these.
-fn counted_player(account: &Account, counts: f64, gear: u8, at: u8) -> String {
+/// `at`, and `, strong` at the end for a strong one (`level_stats::STRONG`).
+fn counted_player(account: &Account, counts: f64, strength: Strength, gear: u8, at: u8) -> String {
     let there = account.level_stats.at(at);
+    let strong = if strength >= level_stats::STRONG {
+        ", strong"
+    } else {
+        ""
+    };
     format!(
         "{} {counts:.2} (gear {gear}, level {}, rating {:+.2} of {} matches, at {at}: kd {:.2} \
-         of {}/{})",
+         of {}/{}{strong})",
         account.name,
         account.level(),
         f64::from(account.balance.rating) / f64::from(session::v026g::balance::UNIT),
@@ -326,6 +361,10 @@ pub(super) fn strength_in(account: &Account, gear: u8, squad: bool) -> Strength 
     }
 }
 
+/// The instance id of Trophy Trap's slot's trap stack: the match's own, no account's (an
+/// account's items are numbered from 1).
+const TROPHY_INSTANCE: u32 = 0;
+
 /// The account as a match shows it: every kit with what it wears, the
 /// items once, and the modifiers its skills give
 /// (`survarium::v026g::skills`), on `team` and in `squad`.
@@ -345,57 +384,89 @@ pub(super) fn strength_in(account: &Account, gear: u8, squad: bool) -> Strength 
 /// has a dead player with an empty kit as its next (three matches lost
 /// that day). Until then every kit of an account went as usable, the
 /// empty ones too.
+///
+/// A kit's pockets go packed ([`MatchKit::new`]): an empty pocket before a
+/// held one put the game's artefact slots over the held one, and the next
+/// read of that player's state ended the game (match 0x55809714).
 pub fn match_profile(account: &Account, team: u8, squad: u8, now: u64) -> MatchProfile {
-    let body = wire::account_body(account, now);
+    let body = wire::account_body(account);
+    let dicts: Vec<u16> = body.items.iter().map(|item| item.dict_id).collect();
+    let mut items: Vec<MatchItem> = body
+        .items
+        .into_iter()
+        .map(|item| MatchItem {
+            instance_id: item.item_id,
+            dict_id: item.dict_id,
+            condition_or_stack: item.condition_or_stack,
+            // No repair (the owner, 2026-11-08).
+            repair_time: 0,
+            reroll_time: item.reroll_time,
+            modifications: item
+                .modifications
+                .iter()
+                .map(|modification| (modification.id, modification.state))
+                .collect(),
+            upgrades: item
+                .upgrades
+                .iter()
+                .map(|upgrade| Upgrade {
+                    id: upgrade.id,
+                    unknown_4: upgrade.a,
+                    unknown_8: upgrade.value,
+                    param: upgrade.param,
+                })
+                .collect(),
+        })
+        .collect();
+    // Trophy Trap's empty slot: one trap stack of the match's own, with a stock of 0
+    // (loadouts::trophy_pocket), made once for every kit that gets the slot.
+    let mut trophy_item: Option<u16> = None;
+    let kits = body
+        .kits
+        .into_iter()
+        .map(|kit| {
+            let state = if rules::check_play(account, kit.id, now).is_ok() {
+                kit.state
+            } else {
+                KIT_NOT_LOADED
+            };
+            let mut slots = kit
+                .slots
+                .map(|slot| slot.map(|slot| (slot.item_index, slot.count)));
+            let open = account.open_pockets(kit.id, &kit.modifiers);
+            let pocket = loadouts::trophy_pocket(&slots, &kit.modifiers, open, |index| {
+                dicts.get(usize::from(index)).copied()
+            });
+            if let (Some(pocket), Some(trap)) = (pocket, loadouts::trap_set_dict()) {
+                let index = *trophy_item.get_or_insert_with(|| {
+                    items.push(MatchItem {
+                        instance_id: TROPHY_INSTANCE,
+                        dict_id: trap,
+                        condition_or_stack: 0,
+                        repair_time: 0,
+                        reroll_time: 0,
+                        modifications: Vec::new(),
+                        upgrades: Vec::new(),
+                    });
+                    (items.len() - 1) as u16
+                });
+                slots[pocket] = Some((index, 1));
+            }
+            // An empty pocket before a held one is the lobby's to show,
+            // never the match's: its pockets go packed.
+            MatchKit::new(state, kit.id, kit.name, slots, kit.modifiers)
+        })
+        .collect();
     MatchProfile {
         team,
         name: body.name,
         clan_tag: body.clan_tag,
         protection: body.protection,
-        kits: body
-            .kits
-            .into_iter()
-            .map(|kit| MatchKit {
-                state: if rules::check_play(account, kit.id, now).is_ok() {
-                    kit.state
-                } else {
-                    KIT_NOT_LOADED
-                },
-                id: kit.id,
-                name: kit.name,
-                slots: kit
-                    .slots
-                    .map(|slot| slot.map(|slot| (slot.item_index, slot.count))),
-                modifiers: kit.modifiers,
-            })
-            .collect(),
-        items: body
-            .items
-            .into_iter()
-            .map(|item| MatchItem {
-                instance_id: item.item_id,
-                dict_id: item.dict_id,
-                condition_or_stack: item.condition_or_stack,
-                repair_time: item.repair_time,
-                reroll_time: item.reroll_time,
-                modifications: item
-                    .modifications
-                    .iter()
-                    .map(|modification| (modification.id, modification.state))
-                    .collect(),
-                upgrades: item
-                    .upgrades
-                    .iter()
-                    .map(|upgrade| Upgrade {
-                        id: upgrade.id,
-                        unknown_4: upgrade.a,
-                        unknown_8: upgrade.value,
-                        param: upgrade.param,
-                    })
-                    .collect(),
-            })
-            .collect(),
+        kits,
+        items,
         squad,
+        face: account.face,
+        notice: survarium::v026g::match_msgs::static_info::Notice::Skipped,
     }
 }
 
@@ -453,8 +524,7 @@ impl Core<'_> {
                 continue;
             }
             let side = &mut sides[usize::from(team.min(1))];
-            side.players += 1;
-            side.strength += running.strengths.get(place).copied().unwrap_or_default();
+            *side = side.with(running.strengths.get(place).copied().unwrap_or_default());
         }
         sides
     }
@@ -472,7 +542,7 @@ impl Core<'_> {
     /// What each side's lead counts for in a running match
     /// (`Weights::lead`).
     fn lead_now(&self, running: &Running, live: Option<&LiveView>) -> [Strength; 2] {
-        let mode = maps::map_mode(running.map_id).map_or(0, |map| map.mode);
+        let mode = running.map.mode().rules();
         live.and_then(|live| live.points)
             .map_or([Strength::ZERO; 2], |points| {
                 self.settings.balance.lead(mode, points)
@@ -518,15 +588,15 @@ impl Core<'_> {
     /// A place is kept only while its player is a member of the match's
     /// room: one the room let go (its game gone past the ~90 s, or Leave)
     /// frees it.
-    fn kept_places(&self, match_id: u32, running: &Running, live: Option<&LiveView>) -> [usize; 2] {
+    fn kept_places(&self, match_id: u32, running: &Running, live: Option<&LiveView>) -> [Worth; 2] {
         let Some(live) = live else {
             // Not said: the whole roster counts as in it.
-            return [0; 2];
+            return [Worth::default(); 2];
         };
         let room = self.rooms.all().find(|room| {
             matches!(room.stage, session::v026g::rooms::Stage::InMatch { match_id: id, .. } if id == match_id)
         });
-        let mut kept = [0; 2];
+        let mut kept = [Worth::default(); 2];
         for (place, account_id) in self.store.matchmaking().held_places(match_id) {
             let away = place >= 32 || live.present >> place & 1 == 0;
             let member = room.is_some_and(|room| room.members.contains(&account_id));
@@ -534,7 +604,8 @@ impl Core<'_> {
                 && away
                 && member
             {
-                kept[usize::from(team.min(1))] += 1;
+                let side = &mut kept[usize::from(team.min(1))];
+                *side = side.with(running.strengths.get(place).copied().unwrap_or_default());
             }
         }
         kept
@@ -613,7 +684,7 @@ impl Core<'_> {
     /// Players the match server took into a running match (`joined`: each
     /// with its team and what it counted for): the lobby's roster of the
     /// match grows by them, the map is one more each has played, and the
-    /// log has the "late join" line (`scripts/balance-refit` reads it) with
+    /// log has the "late join" line with
     /// the sides as `placement` has them.
     pub(super) fn seated_late(
         &mut self,
@@ -638,7 +709,8 @@ impl Core<'_> {
             return;
         };
         let ticket = running.ticket.match_id;
-        let map = maps::map_mode(running.map_id).map_or(0, |map| map.level);
+        let map = running.map.map().level;
+        let mode = running.map.mode();
         // The joiners are in: the match's equipment level is the highest
         // of its players' (`level_stats`).
         let mut match_gear = self.results.match_gear(ticket).unwrap_or(0);
@@ -661,6 +733,7 @@ impl Core<'_> {
                     counted_player(
                         &account,
                         weights.player + strength.as_kd(),
+                        strength,
                         matchmaking::level(&account, unix).min,
                         match_gear
                     )
@@ -671,6 +744,7 @@ impl Core<'_> {
                     .count();
                 if places <= 1 {
                     matchmaking::count_map_play(&mut account, map);
+                    account.mode_introductions.count(mode);
                     self.accounts.mark_dirty(player.account_id);
                 }
             }
@@ -789,7 +863,7 @@ impl Core<'_> {
     /// signed in again) goes back to it, as in 0.21d: by Play, and by its
     /// room's Join match or turn (`rooms::room_late_join`). False: it has
     /// no place in a match.
-    pub(super) fn back_to_seat(&mut self, addr: SocketAddr, now: Instant) -> bool {
+    pub(super) fn back_to_seat(&mut self, addr: Peer, now: Instant) -> bool {
         let Some(player) = self.player(addr) else {
             return false;
         };
@@ -848,7 +922,7 @@ impl Core<'_> {
     ///   sent);
     /// - once its match is seated, "match found" and where the match server
     ///   is (0x82), once.
-    pub(super) fn queue_status(&mut self, addr: SocketAddr, now: Instant) {
+    pub(super) fn queue_status(&mut self, addr: Peer, now: Instant) {
         let Some(player) = self.player(addr) else {
             return;
         };
@@ -975,11 +1049,12 @@ impl Core<'_> {
     /// The match server's host for the client at `addr`: one on this
     /// machine or its network is told the address it reached srp at, when
     /// the match server is on this machine too.
-    fn match_host_for(&self, addr: SocketAddr, ticket: &MatchTicket) -> String {
-        let reached = self
-            .player(addr)
-            .and_then(|player| player.reached)
-            .map(|reached| reached.to_canonical());
+    pub(super) fn match_host_for(&self, addr: Peer, ticket: &MatchTicket) -> String {
+        let reached = match self.player(addr).map(|player| &player.arrival) {
+            Some(super::core::Arrival::Relayed(ip)) => return ip.to_string(),
+            Some(super::core::Arrival::Direct(reached)) => reached.map(|ip| ip.to_canonical()),
+            None => None,
+        };
         match reached {
             Some(IpAddr::V4(reached))
                 if self.settings.local_peers
@@ -1007,10 +1082,10 @@ impl Core<'_> {
             return false;
         };
         let pvb = self.pvb_launching.get(&match_id).copied();
-        // A room's match: the map its vote chose, the room's minimum and
-        // whether it has a PIN (`rooms`).
+        // A room's match: the map its vote chose, the room's minimum,
+        // whether it has a PIN and its bots (`rooms`).
         let room = self.room_launching.get(&match_id).copied();
-        let room_map = room.map(|(map_id, ..)| map_id);
+        let room_played = room.map(|room| room.played);
         let unix = quests::now();
         // Its players' levels, and their equipment levels (the bots').
         let mut levels = Vec::with_capacity(formed.seats.len());
@@ -1049,7 +1124,7 @@ impl Core<'_> {
                 let side = &mut sides[usize::from(seat.team.min(1))];
                 side.0 += counts;
                 side.1
-                    .push(counted_player(&account, counts, level, match_gear));
+                    .push(counted_player(&account, counts, strength, level, match_gear));
                 Some(MatchPlayer {
                     session_id: seat.player.session_id,
                     account_id: seat.player.account_id,
@@ -1060,12 +1135,32 @@ impl Core<'_> {
             })
             .collect();
         // The match server's own bots, after the players: against bots,
-        // 2N - 1 of them; none in any other match.
+        // 2N - 1 of them; a room's with bots, as many on each team as it
+        // says; none in any other match.
         let seat_teams: Vec<u8> = formed.seats.iter().map(|seat| seat.team).collect();
-        let bots = pvb.map_or(0, |choice| {
-            (2 * usize::from(choice.size)).saturating_sub(formed.seats.len())
-        });
-        let bot_teams = server_bot_teams(&seat_teams, [sides[0].0, sides[1].0], bots);
+        let bot_teams: Vec<u8> = match (pvb, room) {
+            (Some(choice), _) => {
+                let bots = (2 * usize::from(choice.size)).saturating_sub(formed.seats.len());
+                server_bot_teams(&seat_teams, [sides[0].0, sides[1].0], bots)
+            }
+            (
+                None,
+                Some(RoomLaunch {
+                    kind: RoomKind::WithBots { bots: [first, second] },
+                    ..
+                }),
+            ) => std::iter::repeat_n(0, first)
+                .chain(std::iter::repeat_n(1, second))
+                .take(session::MAX_PLAYERS_PER_MATCH.saturating_sub(seat_teams.len()))
+                .collect(),
+            (None, _) => Vec::new(),
+        };
+        // Against bots, a room's with bots too: paid as against bots.
+        let kind = match (pvb, room.map(|room| room.kind)) {
+            (Some(_), _) | (None, Some(RoomKind::WithBots { .. })) => MatchKind::VsBots,
+            (None, Some(RoomKind::Private)) => MatchKind::PrivateRoom,
+            (None, Some(RoomKind::Open) | None) => MatchKind::Normal,
+        };
         let bot_roles = server_bot_roles(&bot_teams);
         // Their kits: of the players' equipment level, the top players'.
         let bot_level = bots_gear_level(&gear_levels);
@@ -1079,47 +1174,82 @@ impl Core<'_> {
                 .map(|(k, &role)| table.bot_kit(bot_level, role, k))
                 .collect()
         };
+        // Their faces: fixed for the match, by the second it is made.
+        let faces = Faces::shared();
         let players = players.map(|mut players| {
-            players.extend(
-                bot_teams
-                    .iter()
-                    .zip(&bot_kits)
-                    .enumerate()
-                    .map(|(n, (&team, kit))| server_bot(n + 1, team, kit)),
-            );
+            players.extend(bot_teams.iter().zip(&bot_kits).enumerate().map(|(n, (&team, kit))| {
+                server_bot(n + 1, team, kit, faces.bot_face(unix, n + 1))
+            }));
             players
         });
-        // A room's Blackout card names the map it plays by a lobby id.
-        let blackout = room_map.and_then(maps::blackout_played);
-        let map_id = match (pvb, room_map) {
-            (Some(choice), _) => choice.map_id,
-            (None, Some(map_id)) => blackout.unwrap_or(map_id),
-            (None, None) => match self.settings.maps.len() {
-                0 => maps::playable().next().map_or(0, |map| map.id),
-                count => self.settings.maps[self.rng.below(count as u32) as usize],
-            },
+        let plain = |map_id: maps::MapId| (map_id, maps::MatchMap::of(map_id).map(Played::plain));
+        let (chosen, played) = match (pvb, room_played) {
+            (Some(choice), _) => plain(choice.map_id),
+            (None, Some(played)) => (played.map().id, Some(played)),
+            // Neither a room's nor against bots: a map of the pool drawn at
+            // random, never Blackout (a room's mode only, by its card) nor a
+            // free-for-all (this match is of two teams, up to 20 players).
+            (None, None) => {
+                let drawn = |map: &&maps::MapMode| {
+                    !matches!(
+                        map.mode,
+                        maps::GameMode::Blackout | maps::GameMode::FreeForAll
+                    )
+                };
+                let pool: Vec<maps::MapId> = self
+                    .settings
+                    .maps
+                    .iter()
+                    .filter_map(|&id| maps::map_mode(id))
+                    .filter(drawn)
+                    .map(|map| map.id)
+                    .collect();
+                plain(match pool.len() {
+                    0 => maps::playable().find(drawn).map_or(maps::MapId::new(0), |map| map.id),
+                    count => pool[self.rng.below(count as u32) as usize],
+                })
+            }
         };
+        // Each player's mode notice (`docs/notes/mode_introductions.md`):
+        // shown in its account's first three matches of the mode, counted
+        // once the match is made.
+        let players = players.map(|mut players| {
+            if let Some(played) = played {
+                for player in players.iter_mut().filter(|player| !player.driven) {
+                    if let Some(account) = self.accounts.get(player.account_id) {
+                        player.profile.notice =
+                            account.locked().mode_introductions.notice(played.mode());
+                    }
+                }
+            }
+            players
+        });
         let match_level = matchmaking::match_level(&levels);
         let compatible = self
             .pool_for_sessions(formed.seats.iter().map(|seat| seat.player.session_id))
             == Some(formed.pool);
-        let made = match players.filter(|_| compatible) {
-            Some(players) => self.host.create(MatchSetup {
-                pool: formed.pool,
-                map_id,
-                match_level,
-                players,
-                vs_bots: pvb.is_some(),
-                private: room.is_some_and(|(.., private)| private),
-                room_minimum: room.map(|(_, minimum, _)| minimum),
-                blackout: blackout.is_some(),
-            }),
-            None => Err("a seated player is unavailable or uses an incompatible client".to_owned()),
+        let made = match (players.filter(|_| compatible), played) {
+            (Some(players), Some(played)) => self
+                .host
+                .create(MatchSetup {
+                    pool: formed.pool,
+                    played,
+                    match_level,
+                    players,
+                    kind,
+                    room_minimum: room.map(|room| room.minimum),
+                })
+                .map(|ticket| (ticket, played)),
+            (None, _) => {
+                Err("a seated player is unavailable or uses an incompatible client".to_owned())
+            }
+            (_, None) => Err(format!("map {chosen} cannot be played")),
         };
         match made {
-            Ok(ticket) => {
+            Ok((ticket, played)) => {
                 self.results.raise_match_gear(ticket.match_id, match_gear);
-                let map = maps::map_mode(map_id).map_or(0, |map| map.level);
+                let map_id = played.map().id;
+                let map = played.map().level;
                 log::info!(
                     "Match {:#x} made for {} players (levels {levels:?}: match level \
                      {match_level}) on map {map_id} (level_{map:02}), at {}:{}",
@@ -1138,7 +1268,7 @@ impl Core<'_> {
                     sides[1].1.join(", ")
                 );
                 if let Some(choice) = pvb {
-                    let mode = maps::map_mode(map_id).map_or(0, |map| map.mode);
+                    let mode = played.mode().lobby_number();
                     log::info!(
                         "Match {:#x} vs bots: {} with {} of the server's bots against {}, {} v {} \
                          on map {map_id} (level_{map:02}, mode {mode}); {} bot matches of {} at \
@@ -1175,9 +1305,19 @@ impl Core<'_> {
                             .map_or_else(|| "none".to_owned(), bot_kits::describe_weapon)
                     );
                 }
+                // A match of its mode more for each of them, whatever its
+                // kind, in a mode with a notice: its notice was theirs to see.
+                for seat in formed.seats.iter().filter(|_| played.mode().notice().is_some()) {
+                    let account_id = seat.player.account_id;
+                    if let Some(account) = self.accounts.get(account_id) {
+                        account.locked().mode_introductions.count(played.mode());
+                        self.accounts.mark_dirty(account_id);
+                    }
+                }
                 // The map is one more that each of them has played; a
-                // match against bots counts towards no map rotation.
-                for seat in formed.seats.iter().filter(|_| pvb.is_none()) {
+                // match against bots (a room's with bots too) counts towards
+                // no map rotation.
+                for seat in formed.seats.iter().filter(|_| !kind.vs_bots()) {
                     let account_id = seat.player.account_id;
                     if let Some(account) = self.accounts.get(account_id) {
                         matchmaking::count_map_play(&mut account.locked(), map);
@@ -1190,7 +1330,7 @@ impl Core<'_> {
                         pool: formed.pool,
                         fixed_teams: formed.fixed_teams,
                         ticket,
-                        map_id,
+                        map: played,
                         seats: formed
                             .seats
                             .iter()
@@ -1207,7 +1347,7 @@ impl Core<'_> {
                             .chain((1..=bot_teams.len()).map(server_bot_name))
                             .collect(),
                         predicted_at: None,
-                        vs_bots: pvb.is_some(),
+                        server_bots: !bot_teams.is_empty(),
                     },
                 );
                 true
@@ -1262,15 +1402,19 @@ impl Core<'_> {
         }
     }
 
+    /// The lobby's id (its players' `in_match`) of the running match the
+    /// clients were told as `ticket_match_id` (the match server's).
+    pub(super) fn running_id(&self, ticket_match_id: u32) -> Option<u32> {
+        self.matches
+            .iter()
+            .find(|(_, running)| running.ticket.match_id == ticket_match_id)
+            .map(|(id, _)| *id)
+    }
+
     /// [`super::Inbox::match_finished`], by the id the clients were told.
     pub(super) fn match_finished(&mut self, finished: super::MatchFinished, _now: Instant) {
         let ticket_match_id = finished.match_id;
-        let id = self
-            .matches
-            .iter()
-            .find(|(_, running)| running.ticket.match_id == ticket_match_id)
-            .map(|(id, _)| *id);
-        match id {
+        match self.running_id(ticket_match_id) {
             Some(id) if finished.not_made => self.finish_not_made(id),
             Some(id) => self.finish(id),
             None => log::debug!("Match {ticket_match_id:#x} is over; the lobby had freed it"),
@@ -1295,6 +1439,9 @@ impl Core<'_> {
         let Some(running) = self.matches.remove(&match_id) else {
             return;
         };
+        // Its leaves first: `end_match` drops the ones no tick has read yet,
+        // and a leave that ended the match would put its member back.
+        self.room_left_matches();
         self.store.matchmaking().end_match(match_id);
         // A room's match: its players are back in the room.
         if made {
@@ -1305,7 +1452,7 @@ impl Core<'_> {
         log::info!(
             "Match {:#x} (map {}) is over: {} seats freed",
             running.ticket.match_id,
-            running.map_id,
+            running.map.map().id,
             running.seats.len()
         );
         for (session_id, _) in &running.seats {
@@ -1346,7 +1493,7 @@ impl Core<'_> {
     /// when the match is over by then, and in the lobby when it ends later.
     /// What the match changed of the account, such a client has from its
     /// sign-in or gets with the account's next push.
-    pub(super) fn show_results(&mut self, addr: SocketAddr, after_sign_in: bool) {
+    pub(super) fn show_results(&mut self, addr: Peer, after_sign_in: bool) {
         let Some(who) = self.who(addr) else {
             return;
         };
@@ -1367,8 +1514,8 @@ impl Core<'_> {
             return;
         }
         let push = if after_sign_in {
-            // The inventory once more if autobuy or auto-repair spent
-            // anything: the screen lists it from there.
+            // The inventory once more if autobuy spent anything: the
+            // screen lists it from there.
             let account = who.account.locked();
             unseen.report.screen_for(who.account_id).map(|screen| {
                 let mut push = Vec::new();
@@ -1399,10 +1546,7 @@ impl Core<'_> {
                     unseen.report.match_id
                 );
                 self.send_all(addr, push);
-                let balance = {
-                    let account = who.account.locked();
-                    (account.generic_money, account.premium_money)
-                };
+                let balance = who.account.locked().generic_money;
                 if let Some(player) = self.player_mut(addr) {
                     player.money_sent = balance;
                 }
@@ -1415,25 +1559,35 @@ impl Core<'_> {
             None => {}
         }
         self.notify(&who, &unseen.notices);
-        // The daily bonus as the match left it, and a premium offer
-        // (`shop`).
-        self.after_results(&who, &unseen.report);
+        // The daily bonus as the match left it (`shop`).
+        self.after_results(&who);
     }
 
-    /// The team of a player in the match it was sent to.
-    pub(super) fn team_in_match(&self, match_id: u32, session_id: u32) -> Option<u8> {
-        self.matches
-            .get(&match_id)?
+    /// The side a player plays on in the match it was sent to: who has the
+    /// same one plays with it (a team channel's line is theirs, `social`);
+    /// in a free-for-all, nobody.
+    pub(super) fn side_played(&self, match_id: u32, session_id: u32) -> Option<Side> {
+        let running = self.matches.get(&match_id)?;
+        let place = running
             .seats
             .iter()
-            .find(|(session, _)| *session == session_id)
-            .map(|(_, team)| *team)
+            .position(|(session, _)| *session == session_id)?;
+        running.side(place)
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A map of two teams, for options whose places are on teams 0 and 1:
+    /// the first battery map.
+    fn two_team_map() -> maps::MatchMap {
+        let map = maps::playable_in(maps::GameMode::Batteries)
+            .next()
+            .expect("the game has battery maps");
+        maps::MatchMap::of(map.id).expect("playable")
+    }
 
     #[test]
     fn the_client_is_given_an_ipv4_address() {
@@ -1464,7 +1618,9 @@ mod tests {
         let bots: Vec<MatchPlayer> = BotRole::ALL
             .iter()
             .enumerate()
-            .map(|(n, &role)| server_bot(n + 1, (n % 2) as u8, &table.bot_kit(15, role, n)))
+            .map(|(n, &role)| {
+                server_bot(n + 1, (n % 2) as u8, &table.bot_kit(15, role, n), Face::DEFAULT)
+            })
             .collect();
         for (bot, role) in bots.iter().zip(BotRole::ALL) {
             let profile = &bot.profile;
@@ -1524,11 +1680,10 @@ mod tests {
         // reads back from what it read.
         let options = MatchOptions {
             players: bots.iter().map(|bot| bot.profile.clone()).collect(),
-            map_id: maps::playable().next().unwrap().id,
+            map: two_team_map(),
             match_id: 0x1234,
             match_level: 1,
             score_weights: SCORE_WEIGHTS,
-            blackout: false,
         };
         let info = StaticInfo::new(&options, dictionary).expect("a client can hold it");
         let (index, read) = parse_payload(&info.payload(1).unwrap(), dictionary).unwrap();
@@ -1541,12 +1696,12 @@ mod tests {
     }
 
     /// A scope on a weapon reaches the match as its record: the owned scope
-    /// item's id and the variant made for the weapon (whose modification
-    /// the client applies, `survarium::v026g::scopes`), in slot 3, the
-    /// weapon kit's mark in its value; the client's reader of the static
-    /// info takes it as it is.
+    /// item's id and its own dict id (whose modification the client
+    /// applies, `survarium::v026g::scopes`), in slot 3, the weapon kit's
+    /// mark in its value; the client's reader of the static info takes it
+    /// as it is.
     #[test]
-    fn a_scope_on_a_weapon_reaches_the_match_as_its_variant() {
+    fn a_scope_on_a_weapon_reaches_the_match_as_its_record() {
         use session::v026g::account::Upgrade as Record;
         use survarium::v026g::dictionary::Dictionary;
         use survarium::v026g::lobby::FULL_CONDITION;
@@ -1563,14 +1718,13 @@ mod tests {
             .find_map(|slot| account.kits[0].slots[slot])
             .expect("a new account's weapon")
             .item_id;
-        // 0.26g's Leupold stands for a shop scope and its 1P69 (362) for
-        // the variant made for the weapon (the test data has none; the wire
-        // sends no record whose dict id the data lacks, and the record is
-        // otherwise carried as it is).
+        // 0.26g's Leupold (69) stands for a shop scope (the test data's
+        // modules table fits none; the wire sends no record whose dict id
+        // the data lacks, and the record is otherwise carried as it is).
         let scope = account.add_item(69, FULL_CONDITION);
         let record = Record {
             id: scope,
-            a: 362,
+            a: 69,
             value: 0,
             param: 3,
         };
@@ -1588,7 +1742,7 @@ mod tests {
             item.upgrades,
             [Upgrade {
                 id: scope,
-                unknown_4: 362,
+                unknown_4: 69,
                 unknown_8: u64::from(survarium::v026g::weapon_kit::KIT_MAGIC) << 56 | 3 << 48,
                 param: 3,
             }]
@@ -1597,11 +1751,10 @@ mod tests {
         assert!(profile.items.iter().all(|item| item.instance_id != scope));
         let options = MatchOptions {
             players: vec![profile.clone()],
-            map_id: maps::playable().next().unwrap().id,
+            map: two_team_map(),
             match_id: 0x1234,
             match_level: 1,
             score_weights: SCORE_WEIGHTS,
-            blackout: false,
         };
         let info = StaticInfo::new(&options, dictionary).expect("a client can hold it");
         let (_, read) = parse_payload(&info.payload(0).unwrap(), dictionary).unwrap();
@@ -1702,11 +1855,10 @@ mod tests {
         assert_eq!(weapon_kit::unpack(&as_lobby).map(|logical| logical.len()), Ok(4));
         let options = MatchOptions {
             players: vec![profile.clone()],
-            map_id: maps::playable().next().unwrap().id,
+            map: two_team_map(),
             match_id: 0x1234,
             match_level: 1,
             score_weights: SCORE_WEIGHTS,
-            blackout: false,
         };
         let info = StaticInfo::new(&options, dictionary).expect("a client can hold it");
         let (_, read) = parse_payload(&info.payload(0).unwrap(), dictionary).unwrap();

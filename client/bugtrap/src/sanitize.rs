@@ -257,6 +257,10 @@ pub fn from_record(text: &[u8]) -> &[u8] {
 }
 
 fn record_start(line: &[u8]) -> bool {
+    // Client patches (srp_patches.log, vostok/log.rs): a line is a record.
+    if line.starts_with(b"srp: ") {
+        return true;
+    }
     // Updater: YYYY-MM-DD HH:MM:SS + space.
     if line.len() >= 20
         && line[4] == b'-'

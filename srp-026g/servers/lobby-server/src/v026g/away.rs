@@ -33,7 +33,7 @@
 //! [`Settings::match_link_timeout`]: super::Settings::match_link_timeout
 //! [`Settings::session_grace`]: super::Settings::session_grace
 
-use std::net::SocketAddr;
+use udp_transport::relay::Peer;
 use std::time::Instant;
 
 use super::core::{Core, Stage};
@@ -50,7 +50,7 @@ pub(super) struct Away {
 
 impl Core<'_> {
     /// Nothing came from the client of `addr` for its timeout: step 1.
-    pub(super) fn link_went_silent(&mut self, addr: SocketAddr, now: Instant) {
+    pub(super) fn link_went_silent(&mut self, addr: Peer, now: Instant) {
         let player = match self.links.get(&addr).map(|link| &link.stage) {
             Some(Stage::Player(player)) => {
                 Some((player.session_id, player.account_id, player.in_match))

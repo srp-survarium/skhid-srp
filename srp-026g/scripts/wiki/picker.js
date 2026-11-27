@@ -2,9 +2,11 @@
 // punctuation-insensitive search and arrow/Enter/Escape keyboard controls.
 // The hidden select owns the selection, including URL and catalogue updates.
 // `weapons` are the elements offered (the weapons page's rows, or the
-// modifiers page's item entries, which carry their name in data-title).
-function WikiWeaponPicker(select, weapons, tr, collator, words = {
-  search: tr('Search weapons', 'Пошук зброї'), none: tr('No weapons match.', 'Зброю не знайдено.')}) {
+// modifiers page's item entries and the weapons page's rounds, which carry
+// their name in data-title); `offer(ids)` narrows them to those ids. Its
+// words are the page's (site-texts/words.js).
+function WikiWeaponPicker(select, weapons, collator, words = {
+  search: T('Search weapons'), none: T('No weapons match.')}) {
   const host = document.getElementById(`${select.id}-picker`);
   const make = (tag, attrs = {}, ...children) => {
     const element = document.createElement(tag);
@@ -18,18 +20,19 @@ function WikiWeaponPicker(select, weapons, tr, collator, words = {
     const source = weapon?.querySelector('img');
     return source ? make('img', {src: source.src, alt: '', width: 54, height: 26, loading: 'lazy'}) : make('span', {class: 'noimg'});
   };
+  const level = weapon => make('small', {}, Tf('lvl {n}', {n: weapon.dataset.level}));
   const button = make('button', {type: 'button', class: 'wpick-btn', id: `${select.id}-btn`,
     'aria-haspopup': 'listbox', 'aria-expanded': 'false', 'aria-controls': `${select.id}-list`,
     'aria-labelledby': `${select.id}-label ${select.id}-value`});
   const list = make('div', {class: 'wpick-list', role: 'listbox', id: `${select.id}-list`, 'aria-labelledby': `${select.id}-label`});
   const search = make('input', {type: 'search', class: 'wpick-search', role: 'combobox', autocomplete: 'off',
     'aria-controls': list.id, 'aria-expanded': 'false', 'aria-autocomplete': 'list',
-    'aria-label': words.search, placeholder: tr('Search…', 'Пошук…')});
+    'aria-label': words.search, placeholder: T('Search…')});
   const empty = make('p', {class: 'wpick-empty', role: 'status'}, words.none);
   const popup = make('div', {class: 'wpick-pop', hidden: ''}, search, list, empty);
   host.append(button, popup);
   const options = [], groups = new Map();
-  let active = null;
+  let active = null, offered = new Set(weapons.map(weapon => weapon.id));
   function activate(option, scroll = true) {
     active?.element.classList.remove('active');
     active = option || null;
@@ -49,8 +52,7 @@ function WikiWeaponPicker(select, weapons, tr, collator, words = {
     list.append(group);
     for (const weapon of items.sort((a, b) => Number(a.dataset.level) - Number(b.dataset.level) || collator.compare(title(a), title(b)))) {
       const element = make('div', {class: 'wpick-opt', role: 'option', id: `${select.id}-${weapon.id}`, 'aria-selected': 'false'},
-        icon(weapon), make('span', {class: 'n'}, title(weapon)),
-        make('small', {}, tr(`lvl ${weapon.dataset.level}`, `рів. ${weapon.dataset.level}`)));
+        icon(weapon), make('span', {class: 'n'}, title(weapon)), level(weapon));
       const option = {element, group, weapon, text: [title(weapon), weapon.dataset.searchName].map(bare).join(' ')};
       element.addEventListener('mousemove', () => { if (active !== option) activate(option, false); });
       element.addEventListener('mousedown', event => event.preventDefault());
@@ -61,7 +63,7 @@ function WikiWeaponPicker(select, weapons, tr, collator, words = {
   const visible = () => options.filter(option => !option.element.hidden);
   function filter() {
     const query = bare(search.value);
-    for (const option of options) option.element.hidden = !option.text.includes(query);
+    for (const option of options) option.element.hidden = !offered.has(option.weapon.id) || !option.text.includes(query);
     for (const group of list.children) group.hidden = !options.some(option => option.group === group && !option.element.hidden);
     const matches = visible();
     empty.hidden = matches.length !== 0;
@@ -102,10 +104,12 @@ function WikiWeaponPicker(select, weapons, tr, collator, words = {
   document.addEventListener('mousedown', event => { if (!host.contains(event.target)) close(); });
   host.addEventListener('focusout', event => { if (!host.contains(event.relatedTarget)) close(); });
   return {
+    offer(ids) { offered = new Set(ids); },
     paint() {
       const selected = weapons.find(weapon => weapon.id === select.value);
       button.replaceChildren(...(selected ? [icon(selected)] : []),
-        make('span', {class: 'n', id: `${select.id}-value`}, selected ? title(selected) : select.options[0].textContent));
+        make('span', {class: 'n', id: `${select.id}-value`}, selected ? title(selected) : select.options[0].textContent),
+        ...(selected ? [level(selected)] : []));
       for (const option of options) option.element.setAttribute('aria-selected', String(option.weapon.id === select.value));
     }
   };

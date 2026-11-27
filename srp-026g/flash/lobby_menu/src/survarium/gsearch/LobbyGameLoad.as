@@ -66,11 +66,39 @@ package survarium.gsearch
          this.sortLevelName();
       }
       
+      // The lobby mode the room's match plays (RoomsWindow, its `L` row while the room is in its
+      // match; 0 none): a free-for-all's twist shows its own icon (SrvGameModeIcons.forTwist).
+      private static var _twist:int = 0;
+
+      private static var _last:LobbyGameLoad;
+
+      private var _icon:uint = 0;
+
+      public static function set twist(value:int) : void
+      {
+         if(value == _twist)
+         {
+            return;
+         }
+         _twist = value;
+         if(_last != null)
+         {
+            _last.showIcon();
+         }
+      }
+
       public function setMode(value:String, icon:uint = 0) : void
       {
+         _last = this;
+         this._icon = icon;
          this.levelLabel.textMode.autoSize = TextFieldAutoSize.LEFT;
          this.levelLabel.textMode.text = value;
-         this.levelLabel.modeIcon.gotoAndStop(icon + 1);
+         this.showIcon();
+      }
+
+      private function showIcon() : void
+      {
+         this.levelLabel.modeIcon.gotoAndStop(SrvGameModeIcons.forTwist(this._icon,_twist) + 1);
          this.sortLevelName();
       }
       

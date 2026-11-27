@@ -25,7 +25,6 @@ package survarium.data
       
       public var cost:uint;
       
-      public var premiumCost:uint;
       
       public var price:uint;
       
@@ -43,8 +42,6 @@ package survarium.data
       
       public var clipsInBag:Number = 0;
       
-      public var repairCostRatio:Number = 0;
-      
       public var sellerLevel:uint;
       
       public var slotId:uint;
@@ -61,11 +58,6 @@ package survarium.data
       
       public var rank:uint;
       
-      public var repairTime:uint;
-      
-      public var repairTimeDelta:uint;
-      
-      public var timeDelta:uint;
       
       public var camoAvailable:uint;
       
@@ -75,13 +67,11 @@ package survarium.data
       
       public var modifierUpgraded:uint;
       
-      public var rerollTime:uint;
       
       public var dragEnabled:Boolean = false;
       
       public var isWeapon:Boolean = false;
       
-      public var usable:Boolean = false;
       
       public var showed:Boolean = false;
       
@@ -101,9 +91,7 @@ package survarium.data
       
       public var equipped:Boolean = false;
       
-      public var isPremium:Boolean = false;
       
-      public var broken:Boolean = false;
       
       public var fromBundle:Boolean = false;
       
@@ -205,7 +193,6 @@ package survarium.data
          itemData.quickSlotItemSize = origin.quickSlotItemSize;
          itemData.requiredBags = origin.requiredBags;
          itemData.clipsInBag = origin.clipsInBag;
-         itemData.repairCostRatio = origin.repairCostRatio;
          itemData.modifierUpgraded = origin.modifierUpgraded;
          itemData.sellerLevel = origin.sellerLevel;
          itemData.slotId = origin.slotId;
@@ -215,13 +202,10 @@ package survarium.data
          itemData.type = origin.type;
          itemData.weight = origin.weight;
          itemData.rank = origin.rank;
-         itemData.repairTime = origin.repairTime;
-         itemData.repairTimeDelta = origin.repairTimeDelta;
          itemData.camoAvailable = origin.camoAvailable;
          itemData.decalAvailable = origin.decalAvailable;
          itemData.upgradesAvailable = origin.upgradesAvailable;
          itemData.isWeapon = origin.isWeapon;
-         itemData.usable = origin.usable;
          itemData.showed = origin.showed;
          itemData.isNew = origin.isNew;
          itemData.enabled = origin.enabled;
@@ -231,7 +215,6 @@ package survarium.data
          itemData.buyValue = origin.buyValue;
          itemData.canBuy = origin.canBuy;
          itemData.equipped = origin.equipped;
-         itemData.isPremium = origin.isPremium;
          itemData.name = origin.name;
          itemData.itemDescription = origin.itemDescription;
          itemData.modifiersDescription = origin.modifiersDescription;
@@ -242,7 +225,6 @@ package survarium.data
          itemData.modifiersDefault = origin.modifiersDefault;
          itemData.properties = origin.properties;
          itemData.sellers = origin.sellers;
-         itemData.broken = origin.broken;
          itemData.equipped = origin.equipped;
          itemData.fromBundle = origin.fromBundle;
          itemData.additionalSlots = origin.additionalSlots;

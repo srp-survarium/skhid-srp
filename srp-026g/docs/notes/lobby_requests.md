@@ -86,17 +86,17 @@ The "0.21d" column gives the 0.21d message and the PDB symbol of its sender. Sta
 | `47 01` | u32 item_id, u32 amount | 0x272F70 | `sell_ok_clicked` 0x288C80 | match == -1 | `24 01`, `sell_item` 0x19EB16 | = | PROVEN |
 | `47 02` | u32 offer_id (arg0), u32 x, f32 0.0 (always: `fldz` @0x271048) | 0x271040 | `buy_shop_item` / `accept_premium` 0x2A5F80 sends x = 0; `accept_premium_victory_screen` 0x2A5FB0 sends x = arg1 | match == -1 | `24 02`, `buy_shop_item` 0x19E054 (u32 only) | chg (+u32, +f32) | PROVEN layout, x meaning GUESS |
 | `47 03` | u32 item_id, u8 kind, then u32 kit_item_id **only if kind == 2** | 0x270D00 | `repair_item` 0x29FDF0. kind (PROVEN in the UI, `MessageRepair.onMessageAccept`): 0 silver ("regular fix": `(1 - condition/100) * repair_cost_ratio * cost` plus the defects' `fix_cost_general`; it takes the defects' `fix_time_general`), 1 gold ("quick fix": the defects' `fix_cost_gold`), 2 a repair kit (voucher type 2, one per defect). The gold and kit boxes are enabled only for an item with defects. | match == -1 | none | NEW | PROVEN |
-| `47 04` | u32 amount (not sent when 0): the gold to sell; srp's exchange window (`client-patches/exchange`) sends `0x40000000` + the gold to **buy** with silver (`requests::BUY_PREMIUM`) | 0x274390 | `exchange_premium_money` 0x2A5FE0 (sends the u32 it is given) | none | none | NEW | PROVEN layout, LIKELY gold->silver |
+| `47 04` | u32 amount (not sent when 0): the gold to sell; srp's exchange window sent `0x40000000` + the gold to **buy** with silver (`requests::BUY_PREMIUM`); window and request went with gold on 2026-11-08 (`client-patches/README.md`, "Silver only"), and srp now answers `47 04` as a request it does not know | 0x274390 | `exchange_premium_money` 0x2A5FE0 (sends the u32 it is given) | none | none | NEW | PROVEN layout, LIKELY gold->silver |
 | `47 05` | u32 a0, f32 a1, u32 a2, u32 a3, u32 a4, u8 faction (+0x1EA998) | 0x276AE0 | `accept_premium_with_bonuses` 0x28AA90 | none | none | NEW | PROVEN layout |
 | `47 06` | u32 a0, f32 a1 | 0x276BF0 | `accept_premium_with_discount` 0x28B0B0 | none | none | NEW | PROVEN layout |
-| `48 00` | u8 n, n x {u16 skill_id, u8 points} (taken from 4-byte {u16, u8, pad} elements) | 0x271100 | `apply_skills` 0x2A5580 | match == -1 | `25 00`, `set_player_skills` 0x19E0CE | chg: **no profile_id, u16 skill ids, no perk list** | PROVEN |
+| `48 00` | u8 n, n x {u16 skill_id, u8 points} (taken from 4-byte {u16, u8, pad} elements). The whole set, as absolute ranks: the movie gives `{id, value}` for each skill with points and 0x2A5580 copies them as they are (no comparison with the ranks held). On Skhid a set may take points back as well as spend them, free (the owner, 2026-11-27: the skills window's right click; srp `rules::set_skills`, held to `SkillsTree::validate`) | 0x271100 | `apply_skills` 0x2A5580 | match == -1 | `25 00`, `set_player_skills` 0x19E0CE | chg: **no profile_id, u16 skill ids, no perk list** | PROVEN |
 | `48 01` | raw u8 branch, raw u8 payment | 0x271270 | `reroll_ok_clicked` 0x2A5740. When branch == 0 the client first switches off `allow_use_two_double_handed_weapons` and `enable_second_weapon`. **Meaning (PROVEN in the UI, `MessageAskReroll.onMessageAccept` and `CharWindow.rerollChanges`, `lobby_menu.swf`):** branch = the skills window's active tab (0 = skills 101.., 1 = 201..), payment = 0 silver / 1 gold (the dialog's two boxes, priced by the two reroll costs of 0x8D). So a reset frees **one branch**. | match == -1 | `25 01`, `reroll_player_skills` 0x19E272 (u32 profile) | chg | PROVEN |
 | `49 00` | u32 profile id, string new_name | 0x26FD00 | `profile_rename` 0x2A6060 | none | none | NEW | PROVEN layout |
 | `49 01` | raw u8 on (Flash arg0) | 0x273000 | `autobuy_changed` 0x288CD0 | none | `29 03`, `set_autobuy_for_profile` 0x19EB9F (u32 profile, u8) | chg: **no profile id** (account-wide) | PROVEN | **Corrected 2026-10-12, see premium.md §3: the byte is 0..3, bit 0 autobuy, bit 1 auto-repair.** |
 | `49 02` | u32 profile_id (profiles[idx].+0x1E6A98) | 0x26FC90 | `profile_changed` 0x2A6010, tutorial 0x2A45D0 | none | `29 04`, `set_active_profile` 0x19D467 | = (new id) | PROVEN |
 | `49 03` | string nickname | 0x2730E0 | `request_nickname_validation` 0x2A5D30 | none | none | NEW | PROVEN |
 | `49 04` | string nickname (63 max), u32 a1 | 0x274310 | `change_player_nickname` 0x2A5F00 | none | none | NEW | PROVEN layout. a1 LIKELY the rename-ticket item id (see ack ev 4) |
-| `49 05` | string nickname (63 max), u8 a1, u8 a2 | 0x274470 | `comment_about_user` 0x28CBE0 | none | none | NEW | PROVEN layout, meaning GUESS (player report/praise) |
+| `49 05` | string nickname (63 max), u8 kind, u8 reason | 0x274470 | `comment_about_user` 0x28CBE0 | none | none | NEW | PROVEN layout; Flash `CommentKind`, `ClaimReason`, `Compliment` establish report/praise and reasons; [storage](player-comments.md) |
 | `49 24` | u8 `00` | 0x274510 | `video_tutorial_hide_clicked` 0x28CDF0 | none | none | NEW | PROVEN |
 | `4A 01` | (nothing): destroy | 0x274580 | `disband_squad` 0x2A5CE0, tutorial 0x2A4D40 | order == -1 | `2A 01`, `destroy_squad` 0x19ECA1 | = | PROVEN |
 | `4A 02` | string name: add | 0x2745D0 | the messaging "membership accepted" path 0x26B940 @0x26BD8C | G55C8 and order == -1 | `2A 02`, `add_squad_member` 0x19ED0A | = | PROVEN |
@@ -235,6 +235,7 @@ Dispatch:
 | 02 active profile | u32 profile_id | -> +0x1EA964; finds its index -> +0x1EA976; UI 0x222330. **NEW: 0.21d had no answer** (spec R8). This ack does not call `profile_changed`, so it does not loop. [I] |
 | 03 nickname check | string name, bool ok; if !ok: u8 reason 0..5 = `st_short_clan_string`, `st_few_alpha_clan_string`, `st_already_exist_clan_string`, `st_space_symbol_clan_string`, `st_wrong_symbol_clan_string`, `st_string_pattern_error` | 0x228EF0 |
 | 04 rename done | u32 ticket_item_id (0 = none) | The ticket's count -= 1, erased at 0. |
+| 05 comment stored | none read | No client state change; SRP acknowledges only after storing the comment. |
 | 06 | none read | +0x1EC99D = 1 (clan name reserved) |
 | 08 / 09 clan name / abbreviation check | string, bool ok; if !ok: u8 reason 0..4 (same strings without the pattern error) | Kept only when the string equals the last request (+0x1E5660 / +0x1E56A0). |
 | 0B | string name | system message `st_clan_invite_1 %s st_clan_invite_2` |
@@ -336,7 +337,7 @@ Layout: `u8 op`, `u8` (skipped, unused), then `string text`. The string goes int
 ## 8. Open questions
 1. What `0x32 00 bb` asks for, and what the second byte of `0x80` means (0x26FA00 not traced). The candidate reply is 0x87.
 2. ~~The meaning of `30` and of `49 20` / `49 21`.~~ Settled (`social.md` section 8): +0x1E56BD is "I command the team", +0x1E56BE the player's own ready state; on `83 30` the client sends the opposite of it.
-3. Field meanings for `46 01` (a0, a1, a2), `46 03`, `46 05` (a), `46 09`, `47 02` (x), `47 05` (a0..a4), `47 06`, `48 01`, `49 05`, `49 0C`.
+3. Field meanings for `46 01` (a0, a1, a2), `46 03`, `46 05` (a), `46 09`, `47 02` (x), `47 05` (a0..a4), `47 06`, `48 01`, `49 0C`. `49 05` settled from Flash: see [player-comments.md](player-comments.md).
 4. ~~`49 16`: the wire form of the daily message.~~ Settled: `u16 count` + UTF-16LE units (0x26E210).
 5. `43` -> `99` and `37` -> `8C` replies are inferred from triggers only.
 6. Whether the server is expected to answer `46 00` (moves) with anything besides pushes. 0x275520 has no ev 0 handler, as in 0.21d.

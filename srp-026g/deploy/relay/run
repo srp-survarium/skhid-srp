@@ -1,0 +1,4 @@
+#!/bin/sh
+set -eu
+here=$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd)
+exec "$here/lib/ld-linux-x86-64.so.2" --library-path "$here/lib" "$here/srp-relay" "$@"

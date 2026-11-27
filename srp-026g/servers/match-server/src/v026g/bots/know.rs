@@ -13,7 +13,7 @@
 
 use mapdata::Vec3;
 
-use super::view::{BatteryState, MatchView, Place};
+use super::view::{BatteryState, MatchView, Place, Team};
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum CheatKind {
@@ -462,8 +462,12 @@ impl TeamKnowledge {
     /// A view without the masks (a tool or test that gives none) reckons
     /// the HUD from the states: our carrier's drop is ours, and a battery
     /// that moved more than 1 m between two worlds left the HUD.
-    pub fn hud_update(&mut self, team: u8, before: &MatchView, after: &MatchView, time: u32) {
-        let team_of = |carrier: Option<Place>| carrier.and_then(|p| after.place(p)).map(|p| p.team);
+    pub fn hud_update(&mut self, team: Team, before: &MatchView, after: &MatchView, time: u32) {
+        let ours = |carrier: Option<Place>| {
+            carrier
+                .and_then(|p| after.place(p))
+                .is_some_and(|p| p.team == team)
+        };
         for (battery, now) in after.batteries.iter().enumerate() {
             let was = before.batteries.get(battery).copied();
             let known = self.battery(battery).copied();
@@ -471,14 +475,12 @@ impl TeamKnowledge {
                 BatteryState::Free(at) => {
                     let hud = match (after.marks.get(battery), was) {
                         // The client's own HUD.
-                        (Some(&mask), _) => mask & (1 << (team & 1)) != 0,
+                        (Some(&mask), _) => mask & (1 << team.index()) != 0,
                         // Lying still: as it was.
                         (None, Some(BatteryState::Free(then))) if then.distance_xz(at) <= 1.0 => {
                             known.is_some_and(|k| k.hud)
                         }
-                        (None, Some(BatteryState::Carried(carrier))) => {
-                            team_of(carrier) == Some(team)
-                        }
+                        (None, Some(BatteryState::Carried(carrier))) => ours(carrier),
                         // New, moved unseen, or out of a container.
                         _ => false,
                     };
@@ -489,7 +491,7 @@ impl TeamKnowledge {
                     }
                 }
                 BatteryState::Carried(carrier) => {
-                    if known.is_some_and(|k| k.hud) || team_of(carrier) == Some(team) {
+                    if known.is_some_and(|k| k.hud) || ours(carrier) {
                         self.set_battery(battery, None);
                     }
                 }
@@ -569,7 +571,7 @@ impl TeamKnowledge {
     /// The look spots still worth a look for team `team`: not the ones
     /// whose battery the team knows of now (seen lying, on its HUD, home,
     /// or carried by a teammate).
-    pub fn settle_looks(&mut self, team: u8, view: &MatchView) {
+    pub fn settle_looks(&mut self, team: Team, view: &MatchView) {
         if self.looks.is_empty() {
             return;
         }
@@ -632,10 +634,10 @@ mod tests {
     }
 
     fn battery_view(batteries: Vec<BatteryState>) -> MatchView {
-        use crate::v026g::bots::view::{Mode, PlaceView};
-        let place = |place: Place, team: u8| PlaceView {
+        use crate::v026g::bots::view::{Mode, PlaceView, Side};
+        let place = |place: Place, team: Team| PlaceView {
             place,
-            team,
+            team: Side::Team(team),
             bot: true,
             present: true,
             alive: true,
@@ -658,7 +660,7 @@ mod tests {
             time_left_s: 600.0,
             total_s: 900.0,
             points: [0, 0],
-            places: vec![place(0, 0), place(1, 1)],
+            places: vec![place(0, Team::Zero), place(1, Team::One)],
             batteries,
             marks: vec![],
             containers: vec![],
@@ -681,8 +683,8 @@ mod tests {
         let mut theirs = TeamKnowledge::default();
         let step = |ours: &mut TeamKnowledge, theirs: &mut TeamKnowledge, from, to| {
             let (before, after) = (battery_view(from), battery_view(to));
-            ours.hud_update(0, &before, &after, 1);
-            theirs.hud_update(1, &before, &after, 1);
+            ours.hud_update(Team::Zero, &before, &after, 1);
+            theirs.hud_update(Team::One, &before, &after, 1);
         };
         // It appears: nobody's HUD.
         step(&mut ours, &mut theirs, vec![], vec![BatteryState::Free(a)]);
@@ -768,8 +770,8 @@ mod tests {
         };
         let mut teams = [TeamKnowledge::default(), TeamKnowledge::default()];
         let mut step = |from: &MatchView, to: &MatchView, time| {
-            for (team, knowledge) in teams.iter_mut().enumerate() {
-                knowledge.hud_update(team as u8, from, to, time);
+            for (team, knowledge) in Team::BOTH.into_iter().zip(teams.iter_mut()) {
+                knowledge.hud_update(team, from, to, time);
             }
             teams.clone().map(|k| k.battery(0).copied())
         };

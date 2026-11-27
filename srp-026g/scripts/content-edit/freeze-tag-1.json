@@ -1,0 +1,49 @@
+{
+  "_about": "Freeze Tag on Rudnya day, mode 12. Reuses unused maps_dict 114 (level.options never shipped). Native TDM project and spawn points; no ticket rule. State follows respawn in the world. ui.icon 4: the loading screen shows Freeze Tag's own frame of the lobby movie (SrvGameModeIcons 5), not Team Deathmatch's skull.",
+  "copy": [
+    {
+      "files": "gameplay/game_modes/level_01_day_4.options",
+      "from": "gameplay/game_modes/",
+      "to": "gameplay/game_modes/freeze/"
+    }
+  ],
+  "set": [
+    {
+      "file": "gameplay/game_modes/freeze/level_01_day_4.options",
+      "path": "mode/mode",
+      "from": 4,
+      "to": 12
+    },
+    {
+      "file": "gameplay/game_modes/freeze/level_01_day_4.options",
+      "path": "mode/ui/icon",
+      "from": 2,
+      "to": 4
+    }
+  ],
+  "remove_item": [
+    {
+      "file": "gameplay/game_modes/freeze/level_01_day_4.options",
+      "path": "mode/rules",
+      "value": 90,
+      "expected_count": 1
+    }
+  ],
+  "replace_string": [
+    {
+      "files": "gameplay/db_static_dictionaries",
+      "from": "level.options",
+      "to": "freeze/level_01_day_4.options"
+    },
+    {
+      "files": "gameplay/game_modes/freeze/level_01_day_4.options",
+      "from": "st_mode_04_name",
+      "to": "st_mode_12_name"
+    },
+    {
+      "files": "gameplay/game_modes/freeze/level_01_day_4.options",
+      "from": "st_mode_04_description",
+      "to": "st_mode_12_description"
+    }
+  ]
+}

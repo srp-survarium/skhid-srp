@@ -49,7 +49,19 @@ try {
   const visible = "[...document.querySelectorAll('.weapon')].filter(e => !e.hidden)";
   await send('browsingContext.setViewport', {context, viewport: {width: 1440, height: 1000}, devicePixelRatio: 1});
   await navigate('/wiki');
-  assert.equal(await evaluate("document.querySelector('.wiki-link').pathname"), '/wiki/weapons');
+  assert.deepEqual(JSON.parse(await evaluate("JSON.stringify([...document.querySelectorAll('.wiki-link')].map(a => a.pathname))")), [
+    '/wiki/skills', '/wiki/weapons', '/wiki/equipment', '/wiki/modifiers', '/wiki/modes',
+    '/wiki/maps', '/wiki/artefacts', '/wiki/quests', '/wiki/calculator', '/wiki/simulators']);
+  // Every tile has its picture, drawn under the real CSP (lazy ones once scrolled to), in one box size.
+  assert.deepEqual(JSON.parse(await evaluate(`(async () => {
+    window.scrollTo(0, document.body.scrollHeight);
+    await Promise.all([...document.images].map(i => i.decode().catch(() => {})));
+    window.scrollTo(0, 0);
+    return JSON.stringify([...document.querySelectorAll('.wiki-pic')].flatMap(box => {
+      const img = box.querySelector('img'), drawn = box.querySelector('svg,.glyph');
+      return (img ? img.naturalWidth > 0 : drawn?.getBoundingClientRect().width > 0) ? [] : [box.textContent];
+    }).concat(new Set([...document.querySelectorAll('.wiki-pic')].map(box => box.offsetHeight)).size === 1 ? [] : ['box sizes differ']));
+  })()`)), []);
   await screenshot('wiki');
   await navigate('/wiki/weapons');
   await evaluate("window.pageErrors=[];addEventListener('error',event=>pageErrors.push(event.message))");
@@ -71,7 +83,7 @@ try {
   assert.equal(await evaluate("document.activeElement.id"), 'compare-a-btn');
   assert.equal(await evaluate("document.querySelector('#compare-a-btn img').naturalWidth > 0"), true);
   await evaluate("document.querySelector('#compare-b-btn').click();document.activeElement.value='PM';document.activeElement.dispatchEvent(new Event('input'));document.querySelector('#compare-b-wpn_pm').click()");
-  assert.equal(await evaluate("document.querySelector('#recoil-sim').hidden"), false, 'chooser updates both stats and recoil');
+  assert.ok((await evaluate("document.querySelector('#compare-simulate').search")).includes('a=wpn_ak_74m&b=wpn_pm'), 'the chooser updates the stats and the simulators link');
   assert.equal(await evaluate("new URLSearchParams(location.search).get('b')"), 'wpn_pm');
   await evaluate("document.querySelector('#compare-b-btn').click();document.activeElement.value='no such weapon';document.activeElement.dispatchEvent(new Event('input'));document.activeElement.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',bubbles:true}))");
   assert.equal(await evaluate("document.querySelector('#compare-b-picker .wpick-empty').hidden"), false);
@@ -108,6 +120,29 @@ try {
   const response = await fetch(base + '/wiki/weapons');
   assert.ok(response.headers.get('content-security-policy').includes("script-src 'self'"));
   assert.equal((await fetch(base + '/wiki/unknown')).status, 404);
+  // Rounds: a card's round sets its rows, the list stays on the standard round,
+  // a comparison slot's round is in the address.
+  await navigate('/wiki/weapons#wpn_vityaz');
+  const vityaz = stat => evaluate(`document.querySelector('#wpn_vityaz .weapon-details [data-stat=${stat}] dd').textContent`);
+  assert.equal(await vityaz('bullet_damage'), '40');
+  assert.equal(await evaluate("document.querySelector('#wpn_vityaz-round-btn img').naturalWidth > 0"), true, 'the round chooser shows its icon');
+  await evaluate("document.querySelector('#wpn_vityaz-round-btn').click()");
+  assert.equal(await evaluate("[...document.querySelectorAll('#wpn_vityaz-round-list [role=option]')].filter(e => !e.hidden).length"), 3, 'only the weapon\'s rounds');
+  await evaluate("document.querySelector('#wpn_vityaz-round-ammo_9x19p_7n31').click()");
+  assert.equal(await evaluate("document.querySelector('#wpn_vityaz-round-value').textContent"), '9x19 7N31');
+  assert.deepEqual([await vityaz('bullet_damage'), await vityaz('bullet_pierce')], ['52', '26'], 'the round scales the card');
+  assert.equal(await evaluate("document.querySelector('#wpn_vityaz .quick-stats dd').textContent"), '40');
+  await screenshot('weapon-round');
+  assert.match(await evaluate("document.querySelector('#wpn_benelli_m4 [data-stat=bullet_damage] dd').textContent"), / × 10 pellets$/);
+  await navigate('/wiki/weapons?a=wpn_vityaz&ra=ammo_9x19p_7n31&b=wpn_vityaz');
+  assert.equal(await evaluate("document.querySelector('#compare-a-round').value"), 'ammo_9x19p_7n31', 'URL picks the round');
+  assert.equal(await evaluate("[...document.querySelectorAll('.weapon-comparison [data-stat=bullet_damage] td')].map(td => td.firstChild.textContent).join()"), '52,40');
+  assert.equal(await evaluate("document.querySelector('.weapon-comparison [data-stat=bullet_damage] td').className"), 'better');
+  await screenshot('comparison-round');
+  await evaluate("{const s=document.querySelector('#compare-b-round');s.value='ammo_9x19p_7n31';s.dispatchEvent(new Event('change'))}");
+  assert.equal(await evaluate("new URLSearchParams(location.search).get('rb')"), 'ammo_9x19p_7n31');
+  await evaluate("{const s=document.querySelector('#compare-a-round');s.selectedIndex=0;s.dispatchEvent(new Event('change'))}");
+  assert.equal(await evaluate("new URLSearchParams(location.search).has('ra')"), false, 'the standard round stays out of the address');
   await navigate('/wiki/weapons?a=wpn_ak_74m&b=wpn_pm');
   assert.equal(await evaluate("document.querySelector('#compare-a-value').textContent"), 'AK-74M', 'URL paints chooser');
   assert.ok(await evaluate("document.querySelectorAll('.weapon-comparison tr[data-stat]').length") >= 30, 'expanded stat coverage');
@@ -116,13 +151,102 @@ try {
     await evaluate("getComputedStyle(document.querySelector('.weapon-comparison [data-stat=min_damage_amount] td')).color"), 'better values visibly change color');
   assert.equal(await evaluate("document.querySelector('.weapon-comparison [data-stat=min_damage_amount] td').className"), '', 'equal values neutral');
   assert.equal(await evaluate("document.querySelector('.weapon-comparison [data-stat=\"breath_vibration.base_period\"] td').className"), '', 'sway period neutral');
-  assert.equal(await evaluate("document.querySelector('#recoil-sim').hidden"), false);
-  assert.equal(await evaluate("document.querySelectorAll('#recoil-sim .sim-vertical path').length"), 4, 'two complete and two elapsed curves');
+  assert.equal(await evaluate("document.querySelectorAll('.sim-vertical,#recoil-template').length"), 0, 'the simulation is on its own page');
   await screenshot('comparison-stats');
   await evaluate("document.querySelector('#compare-colors').click()");
   assert.equal(await evaluate("document.querySelectorAll('.weapon-comparison .better,.weapon-comparison .worse').length"), 0);
   await evaluate("document.querySelector('#compare-colors').click();document.querySelector('#only-differences').click()");
   assert.equal(await evaluate("!!document.querySelector('.weapon-comparison [data-stat=min_damage_amount]')"), false);
+  await evaluate("document.querySelector('#compare-b').value='wpn_ak_74m';document.querySelector('#compare-b').dispatchEvent(new Event('change'))");
+  assert.equal(await evaluate("document.querySelector('#compare-same').hidden"), false, 'same weapon has no differences');
+  assert.equal(await evaluate("document.querySelectorAll('.weapon-comparison .better,.weapon-comparison .worse').length"), 0);
+  await navigate('/wiki/weapons?lang=uk&a=wpn_ak_74m&b=wpn_pm');
+  await send('browsingContext.setViewport', {context, viewport: {width:390,height:844}, devicePixelRatio:1});
+  assert.equal(await evaluate('document.documentElement.scrollWidth <= innerWidth'), true, 'comparison fits mobile');
+  await evaluate("document.querySelector('#comparison').scrollIntoView();document.querySelector('#compare-b-btn').click()");
+  assert.equal(await evaluate("(()=>{const r=document.querySelector('#compare-b-picker .wpick-pop').getBoundingClientRect();return r.left>=0&&r.right<=innerWidth})()"), true, 'right chooser stays on screen');
+  await screenshot('weapon-chooser-mobile-uk');
+  await evaluate("document.activeElement.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}))");
+  await evaluate("document.querySelector('#clear-comparison').click()");
+  assert.equal(await evaluate("document.querySelector('#compare-table').childElementCount"), 0);
+  assert.equal(await evaluate("document.querySelectorAll('.wpick-btn img').length"), 0, 'clear repaints both choosers');
+  // A card links to the simulators with its weapon and round.
+  await send('browsingContext.setViewport', {context, viewport: {width: 1440, height: 1000}, devicePixelRatio: 1});
+  await navigate('/wiki/weapons#wpn_vityaz');
+  await evaluate("document.querySelector('#wpn_vityaz-round-btn').click();document.querySelector('#wpn_vityaz-round-ammo_9x19p_7n31').click()");
+  assert.equal(await evaluate("new URL(document.querySelector('#wpn_vityaz .weapon-simulate a').href).search"), '?lang=en&a=wpn_vityaz&ra=ammo_9x19p_7n31');
+  // The list's quick stats are the same columns in every row, whatever a language makes of
+  // them: Russian (the longest headers) and German (the longest damage, "× 10 Schrotkugeln").
+  // Each column's left edge one; nothing past its column; a header one line (cut with an
+  // ellipsis, its title whole, where its column is narrower); a row's values on one line.
+  for (const width of [1440, 1280, 960, 640, 390]) {
+    await send('browsingContext.setViewport', {context, viewport: {width, height: 900}, devicePixelRatio: 1});
+    for (const lang of ['ru', 'de']) {
+      await navigate(`/wiki/weapons?lang=${lang}`);
+      const columns = JSON.parse(await evaluate(`JSON.stringify((() => {
+        const lefts = [], over = [], tall = [], uncut = [], tops = [];
+        for (const dl of document.querySelectorAll('#weapon-list .quick-stats')) {
+          const valueTops = new Set();
+          [...dl.children].forEach((cell, k) => {
+            const box = cell.getBoundingClientRect(), dt = cell.querySelector('dt'), dd = cell.querySelector('dd');
+            (lefts[k] ??= new Set()).add(Math.round(box.left));
+            if (dd.getBoundingClientRect().right > box.right + 1) over.push(dd.textContent);
+            const line = parseFloat(getComputedStyle(dt).lineHeight) || dt.getBoundingClientRect().height;
+            if (dt.getBoundingClientRect().height > line * 1.5) tall.push(dt.textContent);
+            const style = getComputedStyle(dt);
+            if (dt.scrollWidth > dt.clientWidth && (style.textOverflow !== 'ellipsis' || dt.title !== dt.textContent)) uncut.push(dt.textContent);
+            valueTops.add(Math.round(dd.getBoundingClientRect().top));
+          });
+          tops.push(valueTops.size);
+        }
+        return {lefts: lefts.map(set => set.size), over, tall, uncut, tops: Math.max(...tops)};
+      })())`));
+      const at = `${lang} at ${width} px`;
+      assert.deepEqual(columns.lefts, [1, 1, 1, 1], `${at}: one left edge a column`);
+      assert.deepEqual(columns.over, [], `${at}: nothing past its column`);
+      assert.deepEqual(columns.tall, [], `${at}: every header one line`);
+      assert.deepEqual(columns.uncut, [], `${at}: a cut header ends in an ellipsis, its title whole`);
+      assert.equal(columns.tops, 1, `${at}: a row's values on one line`);
+    }
+  }
+  await send('browsingContext.setViewport', {context, viewport: {width: 1440, height: 1000}, devicePixelRatio: 1});
+  // In Russian too (the words the server fills in): the list's search, class and sort, the
+  // chooser's words, and the simulators' play.
+  await navigate('/wiki/weapons?lang=ru');
+  await evaluate("window.pageErrors=[];addEventListener('error',event=>pageErrors.push(event.message))");
+  assert.equal(await evaluate("document.querySelector('h1').textContent"), 'Оружие');
+  await evaluate("document.querySelector('#weapon-search').value='АК74М';document.querySelector('#weapon-search').dispatchEvent(new Event('input'))");
+  assert.equal(await evaluate(`${visible}.length`), 1, 'search by the Russian name');
+  const russianClass = await evaluate("document.querySelector('#weapon-class').options[1].value");
+  await evaluate(`document.querySelector('#weapon-search').value='';document.querySelector('#weapon-class').value=${JSON.stringify(russianClass)};document.querySelector('#weapon-class').dispatchEvent(new Event('change'))`);
+  assert.ok(await evaluate(`${visible}.length`) >= 1);
+  assert.equal(await evaluate(`${visible}.every(e=>e.dataset.class===${JSON.stringify(russianClass)})`), true, 'class filter, Russian');
+  assert.ok(/[А-Яа-я]/.test(russianClass), `a Russian class: ${russianClass}`);
+  await evaluate("document.querySelector('#compare-a-btn').click()");
+  assert.equal(await evaluate("document.querySelector('#compare-a-list').closest('.wpick-pop').querySelector('.wpick-search').placeholder"), 'Поиск…');
+  await navigate('/wiki/simulators?lang=ru&a=wpn_ak_74m');
+  await evaluate("window.pageErrors=[];addEventListener('error',event=>pageErrors.push(event.message))");
+  const playLabel = await evaluate("document.querySelector('#recoil-sim .sim-play').textContent");
+  await evaluate("document.querySelector('#recoil-sim .sim-play').click()");
+  await evaluate('new Promise(r=>setTimeout(r,300))');
+  assert.notEqual(await evaluate("document.querySelector('#recoil-sim .sim-play').textContent"), playLabel, 'play turns to pause, Russian');
+  assert.ok(Number(await evaluate("document.querySelector('#recoil-sim .sim-time').value")) > 0, 'play advances, Russian');
+  assert.ok(/[А-Яа-я]/.test(await evaluate("document.querySelector('#recoil-sim .sim-legend').textContent")), 'the legend in Russian');
+  assert.equal(await evaluate("JSON.stringify(window.pageErrors)"), '[]', 'no script errors, Russian');
+  // The simulators: one or two weapons' recoil and spread.
+  const sim = selector => `document.querySelector('#recoil-sim ${selector}')`;
+  const choose = (selector, value) => evaluate(`{const s=${sim(selector)};s.value='${value}';s.dispatchEvent(new Event('change'))}`);
+  // A side's setup row (`key`): a button by its value, its strongest, none.
+  const row = (side, key) => `.sim-setup[data-side="${side}"] .gmrow[data-key="${key}"]`;
+  const setRow = (side, key, value) => evaluate(`document.querySelector('${row(side, key)} .gstep[data-v="${value}"]').click()`);
+  const strongest = (side, key) => evaluate(`{const b=[...document.querySelectorAll('${row(side, key)} .gstep')].at(-1);if(b.getAttribute('aria-pressed')!=='true')b.click()}`);
+  const clearRow = (side, key) => evaluate(`document.querySelector('${row(side, key)} .gstep[aria-pressed=true]')?.click()`);
+  const rowKeys = async side => JSON.parse(await evaluate(`JSON.stringify([...document.querySelectorAll('.sim-setup[data-side="${side}"] .gmrow')].map(r=>r.dataset.key))`));
+  await navigate('/wiki/simulators?a=wpn_ak_74m&b=wpn_pm');
+  await evaluate("window.pageErrors=[];addEventListener('error',event=>pageErrors.push(event.message))");
+  assert.equal(await evaluate("document.querySelector('#recoil-sim').hidden"), false);
+  assert.equal(await evaluate("document.querySelector('#compare-a-value').textContent"), 'AK-74M', 'URL paints chooser');
+  assert.equal(await evaluate("document.querySelectorAll('#recoil-sim .sim-vertical path').length"), 4, 'two complete and two elapsed curves');
   assert.equal(await evaluate("document.querySelectorAll('.sim-step').length"), 0, 'no step-by-step mode');
   await evaluate("{const t=document.querySelector('#recoil-sim .sim-time');t.value='0.05';t.dispatchEvent(new Event('input'))}");
   assert.equal(await evaluate("Number(document.querySelector('#recoil-sim .sim-time').value)"), .05);
@@ -152,8 +276,8 @@ try {
   await evaluate('new Promise(r=>setTimeout(r,150))');
   assert.equal(await evaluate("document.querySelector('#recoil-sim .sim-time').value"), played, 'pause holds the position');
   assert.equal(await evaluate("document.querySelector('#recoil-sim .sim-sight .sim-cross circle').getAttribute('cy')"), crossAt);
-  await screenshot('comparison-crosshair');
-  // Next shot and Play stop at the last shot: the settling is the plots' only.
+  await screenshot('simulators-crosshair');
+  // Last shot and Play stop at the last shot: the settling is the plots' only.
   assert.equal(await evaluate("document.querySelectorAll('#sim-shots,.sim-shots').length"), 0, 'the burst is the smaller magazine, not a setting');
   await evaluate("document.querySelector('#recoil-sim .sim-last').click()");
   assert.equal(await evaluate("document.querySelector('#recoil-sim .sim-last').disabled"), true, 'at the last shot');
@@ -168,77 +292,211 @@ try {
   await evaluate("document.querySelector('#recoil-sim .sim-seed').value='42';document.querySelector('#recoil-sim .sim-seed').dispatchEvent(new Event('change'))");
   assert.equal(await evaluate("document.querySelector('#recoil-sim .sim-time').value"), '1.5', 'seed change preserves timeline');
   assert.notEqual(await evaluate("document.querySelector('#recoil-sim .sim-vertical path').getAttribute('d')"), beforeSeed, 'seed change redraws recoil');
-  await screenshot('comparison-recoil');
+  await screenshot('simulators-recoil');
   await evaluate("document.querySelector('#recoil-sim .sim-reset').click()");
   assert.equal(await evaluate("document.querySelector('#recoil-sim .sim-time').value"), '0');
-  await evaluate("document.querySelector('#compare-b').value='wpn_ak_74m';document.querySelector('#compare-b').dispatchEvent(new Event('change'))");
-  assert.equal(await evaluate("document.querySelector('#compare-same').hidden"), false, 'same weapon has no differences');
-  assert.equal(await evaluate("document.querySelectorAll('.weapon-comparison .better,.weapon-comparison .worse').length"), 0);
-  await navigate('/wiki/weapons?lang=uk&a=wpn_ak_74m&b=wpn_pm');
-  await send('browsingContext.setViewport', {context, viewport: {width:390,height:844}, devicePixelRatio:1});
-  assert.equal(await evaluate('document.documentElement.scrollWidth <= innerWidth'), true, 'comparison fits mobile');
-  await evaluate("document.querySelector('#comparison').scrollIntoView();document.querySelector('#compare-b-btn').click()");
-  assert.equal(await evaluate("(()=>{const r=document.querySelector('#compare-b-picker .wpick-pop').getBoundingClientRect();return r.left>=0&&r.right<=innerWidth})()"), true, 'right chooser stays on screen');
-  await screenshot('weapon-chooser-mobile-uk');
-  await evaluate("document.activeElement.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}))");
-  await evaluate("document.querySelector('#recoil-sim').scrollIntoView()");
-  await screenshot('comparison-recoil-mobile');
+  // One weapon is enough; clearing hides the simulation.
   await evaluate("document.querySelector('#clear-comparison').click()");
   assert.equal(await evaluate("document.querySelector('#recoil-sim').hidden"), true);
-  assert.equal(await evaluate("document.querySelector('#compare-table').childElementCount"), 0);
-  assert.equal(await evaluate("document.querySelectorAll('.wpick-btn img').length"), 0, 'clear repaints both choosers');
-  // One weapon is enough for the recoil simulation.
+  assert.equal(await evaluate("document.querySelector('#compare-empty').hidden"), false);
   await evaluate("document.querySelector('#compare-b').value='wpn_ak_74m';document.querySelector('#compare-b').dispatchEvent(new Event('change'))");
   assert.equal(await evaluate("document.querySelector('#recoil-sim').hidden"), false, 'a single weapon gets its simulation');
   assert.equal(await evaluate("document.querySelectorAll('#recoil-sim .sim-sight .sim-cross').length"), 1);
   assert.equal(await evaluate("document.querySelector('#recoil-sim .sim-sight .sim-cross').classList.contains('series-1')"), true, 'B keeps its colour');
   assert.ok((await evaluate("document.querySelector('#recoil-sim .sim-legend').textContent")).includes('/30'), 'its own magazine');
-  // A weapon's card has its own simulation, without A or B.
-  await evaluate("document.querySelector('#clear-comparison').click();const card=document.querySelector('#wpn_ak_74m');card.open=true;card.scrollIntoView()");
-  await evaluate('new Promise(r=>setTimeout(r,100))');
-  assert.equal(await evaluate("document.querySelectorAll('#wpn_ak_74m .weapon-recoil .sim-sight .sim-cross').length"), 1, 'the card simulates its weapon');
-  assert.ok((await evaluate("document.querySelector('#wpn_ak_74m .sim-legend').textContent")).includes('/30'));
-  await evaluate("document.querySelector('#wpn_ak_74m .sim-play').click()");
-  await evaluate('new Promise(r=>setTimeout(r,300))');
-  assert.ok(Number(await evaluate("document.querySelector('#wpn_ak_74m .sim-time').value")) > 0, 'the card plays');
-  assert.equal(await evaluate("document.querySelector('#recoil-sim').hidden"), true, 'the comparison is left alone');
-  await screenshot('card-recoil');
   // Last shot shows the whole pattern; a target is drawn to scale, unmagnified.
-  await evaluate("document.querySelector('#wpn_ak_74m .sim-last').click()");
-  assert.ok((await evaluate("document.querySelector('#wpn_ak_74m .sim-legend').textContent")).includes('30/30'), 'last shot');
-  assert.equal(await evaluate("document.querySelector('#wpn_ak_74m .sim-last').disabled"), true);
-  const trail = await evaluate("document.querySelector('#wpn_ak_74m .sim-trail').getAttribute('d')");
-  await evaluate("{const s=document.querySelector('#wpn_ak_74m .sim-target');s.value='10';s.dispatchEvent(new Event('change'))}");
-  assert.equal(await evaluate("document.querySelectorAll('#wpn_ak_74m .sim-target-body').length"), 1, 'a target at 10 m');
-  assert.equal(await evaluate("document.querySelector('#wpn_ak_74m .sim-trail').getAttribute('d')"), trail, 'a target leaves the pattern as it is');
-  const near = await evaluate("document.querySelector('#wpn_ak_74m .sim-target-body').getAttribute('transform')");
-  await evaluate("{const s=document.querySelector('#wpn_ak_74m .sim-target');s.value='25';s.dispatchEvent(new Event('change'))}");
-  assert.notEqual(await evaluate("document.querySelector('#wpn_ak_74m .sim-target-body').getAttribute('transform')"), near, 'the distance sizes the target');
-  assert.equal(await evaluate("document.querySelector('#wpn_ak_74m .sim-trail').getAttribute('d')"), trail);
-  await evaluate("document.querySelector('#wpn_ak_74m .sim-sight').scrollIntoView()");
-  await screenshot('card-target');
-  // From the hip: the spread circle, a hit per shot fired, the shake.
-  await evaluate("{const s=document.querySelector('#wpn_ak_74m .sim-stance');s.value='hip';s.dispatchEvent(new Event('change'))}");
-  await evaluate("document.querySelector('#wpn_ak_74m .sim-last').click()");
-  assert.equal(await evaluate("document.querySelectorAll('#wpn_ak_74m .sim-hit').length"), 30, 'a hit per shot');
-  assert.equal(await evaluate("document.querySelectorAll('#wpn_ak_74m .sim-spread').length"), 1, 'the spread circle');
-  assert.ok((await evaluate("document.querySelector('#wpn_ak_74m .sim-legend').textContent")).includes('°'), 'the spread in the legend');
-  await screenshot('card-hip');
+  await navigate('/wiki/simulators?a=wpn_ak_74m');
+  await evaluate("document.querySelector('#recoil-sim .sim-last').click()");
+  assert.ok((await evaluate("document.querySelector('#recoil-sim .sim-legend').textContent")).includes('30/30'), 'last shot');
+  const trail = await evaluate("document.querySelector('#recoil-sim .sim-trail').getAttribute('d')");
+  await choose('.sim-target', '10');
+  assert.equal(await evaluate("document.querySelectorAll('#recoil-sim .sim-target-body').length"), 1, 'a target at 10 m');
+  assert.equal(await evaluate("document.querySelector('#recoil-sim .sim-trail').getAttribute('d')"), trail, 'a target leaves the pattern as it is');
+  const near = await evaluate("document.querySelector('#recoil-sim .sim-target-body').getAttribute('transform')");
+  await choose('.sim-target', '25');
+  assert.notEqual(await evaluate("document.querySelector('#recoil-sim .sim-target-body').getAttribute('transform')"), near, 'the distance sizes the target');
+  assert.equal(await evaluate("document.querySelector('#recoil-sim .sim-trail').getAttribute('d')"), trail);
+  // The shot's own motions: each weapon's view from the side with its
+  // bullets; a custom gun's camera wobble moves the view between shots and
+  // its gun kick the sight while aimed, each shown by its layer.
+  assert.equal(await evaluate("document.querySelectorAll('#recoil-sim .sim-view svg.sim-side').length"), 1, 'the view from the side');
+  assert.equal(await evaluate("document.querySelectorAll('#recoil-sim .sim-side .sim-landed,#recoil-sim .sim-side .sim-bullet').length"), 30, 'each bullet, on the wall or on its way');
+  assert.equal(await evaluate("document.querySelectorAll('#recoil-sim .sim-speed option').length"), 3, 'slow motion');
+  const custom = (side, group, key, value) => evaluate(`{const i=document.querySelector('.sim-setup[data-side="${side}"] .sim-custom input[data-group="${group}"][data-key="${key}"]');i.value='${value}';i.dispatchEvent(new Event('change'))}`);
+  const layer = (key, on) => evaluate(`{const i=${sim(`.sim-layer-${key}`)};i.checked=${on};i.dispatchEvent(new Event('change'))}`);
+  const seekTo = time => evaluate(`{const t=${sim('.sim-time')};t.value='${time}';t.dispatchEvent(new Event('input'))}`);
+  const crossY = () => evaluate(`${sim('.sim-view .sim-cross circle')}.getAttribute('cy')`);
+  const setupName = () => evaluate("document.querySelector('.sim-setup[data-side=\"0\"] .sim-setup-name').textContent");
+  assert.equal(await evaluate(`document.querySelector('${row(0, 'aim')} .gstep[aria-pressed=true]').dataset.v`), 'aimed', 'fully aimed first');
+  await seekTo(.07);
+  const unmoved = await crossY();
+  assert.equal(await evaluate("document.querySelectorAll('#recoil-sim .sim-gunsight').length"), await evaluate("document.querySelector('#wpn_ak_74m').dataset.recoil.includes('\"gun\"') ? 1 : 0"), 'the sight only with a gun kick');
+  await custom(0, 'camera', 'up', 3);
+  assert.ok((await setupName()).endsWith('custom'), 'a changed value makes the gun custom');
+  assert.ok((await evaluate(`${sim('.sim-legend')}.textContent`)).includes('custom'));
+  assert.notEqual(await crossY(), unmoved, 'the camera wobble turns the view between shots');
+  await layer('camera', false);
+  assert.equal(await crossY(), unmoved, 'without its layer the view is the kick alone');
+  await layer('camera', true);
+  await custom(0, 'gun', 'up', 2);
+  assert.equal(await evaluate("document.querySelectorAll('#recoil-sim .sim-gunsight').length"), 1, 'the gun kick moves the sight while aimed');
+  assert.notEqual(await evaluate(`${sim('.sim-gunsight circle')}.getAttribute('cy')`), await crossY(), 'off the view');
+  await layer('gun', false);
+  assert.equal(await evaluate("document.querySelectorAll('#recoil-sim .sim-gunsight').length"), 0);
+  await layer('gun', true);
+  await screenshot('simulators-custom');
+  await setRow(0, 'aim', 'hip');
+  assert.equal(await evaluate("document.querySelectorAll('#recoil-sim .sim-gunsight').length"), 0, 'from the hip the sights are not looked through');
+  await evaluate("document.querySelector('.sim-setup[data-side=\"0\"] .sim-custom button').click()");
+  assert.equal(await setupName(), 'A · AK-74M', 'the weapon again');
+  assert.equal(await evaluate("document.querySelector('.sim-setup[data-side=\"0\"] .sim-custom input[data-key=\"rpm\"]').value"), '650', 'its fields are the values of the weapon');
+  await layer('recoil', false);
+  assert.equal(await crossY(), await evaluate(`${sim('.sim-origin')}.getAttribute('cy')`), 'without the recoil the view stays');
+  await layer('recoil', true);
+  await custom(0, 'recoil', 'rpm', 300);
+  await evaluate(`${sim('.sim-last')}.click()`);
+  assert.ok(Number(await evaluate(`${sim('.sim-time')}.value`)) > 5, 'a custom fire rate: 30 shots take longer');
+  await evaluate("document.querySelector('.sim-setup[data-side=\"0\"] .sim-custom button').click()");
+  // The spread's parts, from the hip (set above); the stance, skills, gloves
+  // and arms change them; fully aimed, none of them does.
+  const parts = () => evaluate("[...document.querySelectorAll('#recoil-sim .sim-parts tbody td')].map(td=>td.textContent).join(' ')");
+  assert.equal(await parts(), '0.2° 5° 2° 25.2°', 'standing from the hip: base, stance, a shot, at most');
+  await evaluate("document.querySelector('#recoil-sim .sim-last').click()");
+  assert.equal(await evaluate("document.querySelectorAll('#recoil-sim .sim-hit').length"), 30, 'a hit per shot');
+  assert.equal(await evaluate("document.querySelectorAll('#recoil-sim .sim-spread').length"), 1, 'the spread circle');
+  assert.ok((await evaluate("document.querySelector('#recoil-sim .sim-legend').textContent")).includes('°'), 'the spread in the legend');
+  await evaluate("document.querySelector('#recoil-sim .sim-sight').scrollIntoView()");
+  await screenshot('simulators-hip');
+  await setRow(0, 'stance', 'walk');
+  assert.equal(await parts(), '0.2° 10° 2° 30.2°', 'walking');
+  // Every skill and modification at its strongest: the gloves' and the body
+  // armour's dispersion add up (−10% each), as the pieces' sum does, and the
+  // weapon's Dispersion takes 10% off the base (0.2° -> 0.18°).
+  for (const key of await rowKeys(0)) if (/^(skill|mod)-/.test(key)) await strongest(0, key);
+  await setRow(0, 'arms', '2');
+  const hipAll = await parts();
+  assert.equal(hipAll, `0.18° ${+((10 * .76 + 10 * .4) * .8).toFixed(2)}° 1.6° ${+(0.18 + (10 * .76 + 10 * .4) * .8 + 20).toFixed(2)}°`, 'walking from the hip with all of them');
+  await setRow(0, 'aim', 'aiming');
+  assert.equal(await parts(), `0.18° ${+((10 * .88 + 10 * .4) * .8).toFixed(2)}° 1.6° ${+(0.18 + (10 * .88 + 10 * .4) * .8 + 20).toFixed(2)}°`, 'aiming in: the aimed values, no Accuracy');
+  await setRow(0, 'aim', 'aimed');
+  for (const stance of ['idle', 'walk', 'crouch', 'crouch_walk', 'run', 'jump']) {
+    await setRow(0, 'stance', stance);
+    assert.equal(await parts(), '0.18° 0° 0° 0.18°', `fully aimed, ${stance}: the base only, whatever else`);
+  }
+  await evaluate("document.querySelector('#recoil-sim .sim-last').click()");
+  await screenshot('simulators-aimed');
+  // Each side its own setup, the same weapon on both: the recoil pieces and
+  // the weapon's modification lower B's climb, and A's aim leaves B's spread.
+  {
+    await navigate('/wiki/simulators?a=wpn_ak_74m&b=wpn_ak_74m');
+    const ups = async () => {
+      await evaluate("document.querySelector('#recoil-sim .sim-last').click()");
+      return [...(await evaluate("document.querySelector('#recoil-sim .sim-legend').textContent")).matchAll(/up (-?[\d.]+)/g)].map(m => Number(m[1]));
+    };
+    const [a0, b0] = await ups();
+    assert.equal(a0, b0, 'the same weapon and setup, the same climb');
+    assert.match(await evaluate("[...document.querySelectorAll('.sim-setup[data-side=\"1\"] .gmrow[data-key=\"mod-9-weapon\"] .gstep')].map(b=>b.textContent).join()"), /^−2%,.*,−10%$/, 'the five strengths, no defect');
+    await strongest(1, 'mod-9-weapon');
+    const [a1, weapon] = await ups();
+    assert.ok(a1 === a0 && weapon < b0, `the weapon's modification lowers B's climb only (${weapon} < ${b0})`);
+    await clearRow(1, 'mod-9-weapon');
+    const pieces = (await rowKeys(1)).filter(key => key.startsWith('mod-27-'));
+    assert.ok(pieces.includes('mod-27-gloves') && pieces.length > 1, `recoil on more than one piece (${pieces})`);
+    await strongest(1, 'mod-27-gloves');
+    const [, gloves] = await ups();
+    for (const key of pieces) await strongest(1, key);
+    const [, both] = await ups();
+    assert.ok(both < gloves && gloves < b0, `the pieces add up (${both} < ${gloves} < ${b0})`);
+    assert.equal(await parts(), '0.2° 0° 0° 0.2° 0.2° 0° 0° 0.2°', 'recoil leaves the spread');
+    await setRow(0, 'aim', 'hip');
+    assert.equal(await parts(), '0.2° 5° 2° 25.2° 0.2° 0° 0° 0.2°', 'A\'s aim is A\'s');
+    // The weapon's Dispersion (2020..2024, dispersion/base_dispersion x
+    // max(0, 1 + sum)): its own row, five strengths, the base spread alone.
+    const dispersion = 'mod-3-weapon';
+    assert.equal(await evaluate(`document.querySelector('${row(1, dispersion)} .glabel').firstChild.textContent`), 'Dispersion, weapons:', 'the game\'s name, the weapon\'s row');
+    assert.ok((await evaluate(`document.querySelector('${row(1, dispersion)} .glabel').textContent`)).includes('all of the spread fully aimed'), 'its card says what it scales');
+    assert.equal(await evaluate(`[...document.querySelectorAll('${row(1, dispersion)} .gstep')].map(b=>b.textContent).join()`), '−2%,−4%,−6%,−8%,−10%', 'the five strengths');
+    await strongest(1, dispersion);
+    assert.equal(await parts(), '0.2° 5° 2° 25.2° 0.18° 0° 0° 0.18°', 'fully aimed, B\'s whole spread −10%; A\'s as it was');
+    await setRow(1, 'aim', 'hip');
+    assert.equal(await parts(), '0.2° 5° 2° 25.2° 0.18° 5° 2° 25.18°', 'from the hip, the base alone: the stance\'s and a shot\'s parts as they were');
+    await setRow(1, dispersion, '2022');
+    assert.equal(await parts(), '0.2° 5° 2° 25.2° 0.19° 5° 2° 25.19°', '−6%: 0.188°');
+    const [, climbWith] = await ups();
+    await clearRow(1, dispersion);
+    const [, climb] = await ups();
+    assert.equal(climbWith, climb, 'the base spread leaves the kick');
+    await setRow(1, 'aim', 'aimed');
+    assert.equal(await parts(), '0.2° 5° 2° 25.2° 0.2° 0° 0° 0.2°', 'none chosen, the weapon\'s own');
+    await screenshot('simulators-same-weapon');
+  }
+  // A row's card (what it does): on hover, keyboard focus or a tap.
+  {
+    const label = "document.querySelector('.sim-setup[data-side=\"0\"] .gmrow[data-key=\"skill-106\"] .glabel')";
+    const shown = () => evaluate(`getComputedStyle(${label}.querySelector('.gamemods')).display !== 'none'`);
+    assert.equal(await shown(), false, 'closed at first');
+    await evaluate(`${label}.scrollIntoView({block:'center'})`);
+    const at = JSON.parse(await evaluate(`(()=>{const r=${label}.getBoundingClientRect();return JSON.stringify([Math.round(r.x+8),Math.round(r.y+r.height/2)])})()`));
+    const height = await evaluate("document.documentElement.scrollHeight");
+    await send('input.performActions', {context, actions: [{type: 'pointer', id: 'mouse', actions: [{type: 'pointerMove', x: at[0], y: at[1]}]}]});
+    // Headless Firefox has no hovering pointer unless its prefs give one.
+    const hover = await evaluate("matchMedia('(hover:hover)').matches");
+    if (hover) assert.equal(await shown(), true, 'hover opens it');
+    assert.equal(await evaluate("document.documentElement.scrollHeight"), height, 'it shifts nothing');
+    await send('input.performActions', {context, actions: [{type: 'pointer', id: 'mouse', actions: [{type: 'pointerMove', x: 5, y: 5}]}]});
+    assert.equal(await shown(), false, 'leaving closes it');
+    await evaluate("[...document.querySelectorAll('.sim-setup[data-side=\"0\"] .gmrow[data-key=\"arms\"] .gstep')].at(-1).focus()");
+    await send('input.performActions', {context, actions: [{type: 'key', id: 'keyboard', actions: [{type: 'keyDown', value: ''}, {type: 'keyUp', value: ''}]}]});
+    assert.equal(await evaluate(`document.activeElement === ${label}`), true, 'the label takes the keyboard');
+    assert.equal(await shown(), true, 'keyboard focus opens it');
+    assert.ok((await evaluate(`${label}.textContent`)).includes('−4%'), 'the per-rank value from the data');
+    await evaluate("document.activeElement.blur()");
+  }
+  await navigate('/wiki/simulators?lang=uk&a=wpn_ak_74m&b=wpn_pm');
+  await send('browsingContext.setViewport', {context, viewport: {width:360,height:800}, devicePixelRatio:1});
+  assert.equal(await evaluate('document.documentElement.lang'), 'uk');
+  assert.equal(await evaluate('document.documentElement.scrollWidth <= innerWidth'), true, 'the simulators fit 360 px');
+  assert.ok((await evaluate("document.querySelector('.sim-setup .gmrow[data-key=\"stance\"] .glabel').textContent")).startsWith('Положення'));
+  await evaluate("document.querySelector('.sim-setup').scrollIntoView()");
+  await screenshot('simulators-mobile-uk');
+  // At 360 px a tap opens a card inside the screen; a tap elsewhere closes it.
+  const cards = await evaluate("document.querySelectorAll('.sim-setup[data-side=\"0\"] .glabel.fxhint').length");
+  assert.ok(cards >= 5, `a card per skill and modification (${cards})`);
+  for (let i = 0; i < cards; i++) {
+    const label = `document.querySelectorAll('.sim-setup[data-side="0"] .glabel.fxhint')[${i}]`;
+    await evaluate(`${label}.scrollIntoView({block:'center'})`);
+    const at = JSON.parse(await evaluate(`(()=>{const r=${label}.getBoundingClientRect();return JSON.stringify([Math.round(r.x+8),Math.round(r.y+r.height/2)])})()`));
+    await send('input.performActions', {context, actions: [{type: 'pointer', id: 'touch', parameters: {pointerType: 'touch'}, actions: [
+      {type: 'pointerMove', x: at[0], y: at[1]}, {type: 'pointerDown', button: 0}, {type: 'pointerUp', button: 0}]}]});
+    assert.equal(await evaluate(`getComputedStyle(${label}.querySelector('.gamemods')).display`), 'grid', `tap ${i} opens it`);
+    assert.equal(await evaluate(`(()=>{const r=${label}.querySelector('.gamemods').getBoundingClientRect();return r.left>=0&&r.right<=innerWidth})()`), true, `card ${i} fits 360 px`);
+    assert.equal(await evaluate('document.documentElement.scrollWidth <= innerWidth'), true, 'no sideways scroll');
+    if (i === 0) await screenshot('simulators-mobile-uk-help');
+    await evaluate("document.querySelector('#recoil-sim .sim-parts caption').scrollIntoView({block:'center'})");
+    const away = JSON.parse(await evaluate("(()=>{const r=document.querySelector('#recoil-sim .sim-parts caption').getBoundingClientRect();return JSON.stringify([Math.round(r.x+r.width/2),Math.round(r.y+r.height/2)])})()"));
+    await send('input.performActions', {context, actions: [{type: 'pointer', id: 'touch', parameters: {pointerType: 'touch'}, actions: [
+      {type: 'pointerMove', x: away[0], y: away[1]}, {type: 'pointerDown', button: 0}, {type: 'pointerUp', button: 0}]}]});
+    assert.equal(await evaluate(`getComputedStyle(${label}.querySelector('.gamemods')).display`), 'none', `a tap elsewhere closes ${i}`);
+  }
+  await evaluate("document.querySelector('#recoil-sim .sim-sight').scrollIntoView()");
+  await screenshot('simulators-mobile-uk-sight');
+  await send('browsingContext.setViewport', {context, viewport: {width: 1440, height: 1000}, devicePixelRatio: 1});
   // A rifle with no side kick: its crosshair stays in view, unmagnified.
-  await evaluate("const m=document.querySelector('#wpn_mosin_nagant');m.open=true;m.scrollIntoView()");
-  await evaluate('new Promise(r=>setTimeout(r,100))');
-  await evaluate("const t=document.querySelector('#wpn_mosin_nagant .sim-time');t.value=t.max;t.dispatchEvent(new Event('input'))");
-  assert.equal(await evaluate("!!document.querySelector('#wpn_mosin_nagant .sim-note')"), false, 'no side magnification');
-  const cx = Number(await evaluate("document.querySelector('#wpn_mosin_nagant .sim-cross circle').getAttribute('cx')"));
+  await navigate('/wiki/simulators?a=wpn_mosin_nagant');
+  await evaluate("window.pageErrors=[];addEventListener('error',event=>pageErrors.push(event.message))");
+  await evaluate("const t=document.querySelector('#recoil-sim .sim-time');t.value=t.max;t.dispatchEvent(new Event('input'))");
+  assert.equal(await evaluate("!!document.querySelector('#recoil-sim .sim-note')"), false, 'no side magnification');
+  const cx = Number(await evaluate("document.querySelector('#recoil-sim .sim-cross circle').getAttribute('cx')"));
   assert.ok(cx >= 0 && cx <= 300, `crosshair in view (${cx})`);
-  assert.equal(await evaluate("JSON.stringify(window.pageErrors ?? [])"), '[]', 'no script errors (since the last weapons page load)');
-  // Play from a fresh card, several times: its first frame may come before the press.
+  assert.equal(await evaluate("JSON.stringify(window.pageErrors ?? [])"), '[]', 'no script errors');
+  assert.ok((await fetch(base + '/wiki/simulators')).headers.get('content-security-policy').includes("script-src 'self'"));
+  // Play from a fresh page, several times: its first frame may come before the press.
   for (let i = 0; i < 5; i++) {
-    await navigate('/wiki/weapons?lang=en');
-    await evaluate("window.pageErrors=[];addEventListener('error',event=>pageErrors.push(event.message));const c=document.querySelector('#wpn_pkp_pecheneg');c.open=true");
-    await evaluate("new Promise(r=>setTimeout(r,50)).then(()=>document.querySelector('#wpn_pkp_pecheneg .sim-play').click())");
+    await navigate('/wiki/simulators?lang=en&a=wpn_pkp_pecheneg');
+    await evaluate("window.pageErrors=[];addEventListener('error',event=>pageErrors.push(event.message))");
+    await evaluate("new Promise(r=>setTimeout(r,50)).then(()=>document.querySelector('#recoil-sim .sim-play').click())");
     await evaluate('new Promise(r=>setTimeout(r,300))');
-    assert.ok(Number(await evaluate("document.querySelector('#wpn_pkp_pecheneg .sim-time').value")) > 0, `card play ${i}`);
+    assert.ok(Number(await evaluate("document.querySelector('#recoil-sim .sim-time').value")) > 0, `play ${i}`);
     assert.equal(await evaluate("JSON.stringify(pageErrors)"), '[]');
   }
   // The equipment: a link straight to the helmets, one-click slots, search,
@@ -272,7 +530,81 @@ try {
   await send('browsingContext.setViewport', {context, viewport: {width:390,height:844}, devicePixelRatio:1});
   assert.equal(await evaluate('document.documentElement.scrollWidth <= innerWidth'), true, 'equipment fits mobile');
   await screenshot('equipment-mobile-uk');
-  console.log(`PASS: ${total} weapons; image choosers/search/keyboard/mobile, catalogue, full stat comparison, equality/neutral colors, same weapon, recoil step/scrub/reset, EN/UK and CSP.`);
+  // The skills in every language's longest words (Russian, German, Finnish): each tier's
+  // label and each name inside its track, one disc line a tier row, the planner counting a click.
+  for (const width of [1280, 640]) {
+    await send('browsingContext.setViewport', {context, viewport: {width, height: 900}, devicePixelRatio: 1});
+    for (const lang of ['en', 'ru', 'de', 'fi']) {
+      await navigate(`/wiki/skills?lang=${lang}`);
+      await evaluate("window.pageErrors=[];addEventListener('error',event=>pageErrors.push(event.message))");
+      const faults = JSON.parse(await evaluate(`JSON.stringify((() => {
+        const bad = [];
+        for (const grid of document.querySelectorAll('.skill-grid')) {
+          const left = grid.getBoundingClientRect().left, rows = new Map();
+          for (const t of grid.querySelectorAll('.skill-tier'))
+            if (t.getBoundingClientRect().left < left - 1 || t.scrollWidth > t.clientWidth + 1) bad.push('tier ' + t.textContent);
+          for (const s of grid.querySelectorAll('.skill')) {
+            const row = s.style.gridArea.split('/')[0].trim(), top = Math.round(s.querySelector('.skill-disc').getBoundingClientRect().top);
+            (rows.get(row) ?? rows.set(row, new Set()).get(row)).add(top);
+            const n = s.querySelector('.skill-name'), b = n.getBoundingClientRect(), box = s.getBoundingClientRect();
+            if (n.scrollWidth > n.clientWidth + 1 || b.left < box.left - 1 || b.right > box.right + 1) bad.push('name ' + n.textContent);
+          }
+          for (const [row, tops] of rows) if (tops.size > 1) bad.push('row ' + row);
+        }
+        return bad;
+      })())`));
+      assert.deepEqual(faults, [], `skills, ${lang} at ${width} px`);
+      const points = await evaluate("document.querySelector('[data-plan=points]').textContent");
+      await evaluate("document.querySelector('.skill:not(.locked)').click()");
+      assert.notEqual(await evaluate("document.querySelector('[data-plan=points]').textContent"), points, `skills, ${lang}: the planner counts`);
+      assert.equal(await evaluate("JSON.stringify(pageErrors)"), '[]', `skills, ${lang}: no script errors`);
+    }
+  }
+  // The Maps tab in English and Russian: its words the server's (title, layers, views), a map,
+  // a mode, a view and a layer picked, nothing spilling, no script errors.
+  for (const width of [1280, 640]) {
+    await send('browsingContext.setViewport', {context, viewport: {width, height: 900}, devicePixelRatio: 1});
+    for (const [lang, title] of [['en', 'Maps'], ['ru', 'Карты']]) {
+      await navigate(`/wiki/maps?lang=${lang}`);
+      await evaluate("window.pageErrors=[];addEventListener('error',event=>pageErrors.push(event.message))");
+      assert.equal(await evaluate("document.querySelector('#title').textContent"), title, `maps, ${lang}: its title`);
+      const marks = () => evaluate("document.querySelectorAll('#map .mk').length");
+      await evaluate("[...document.querySelectorAll('#maps .chip')].at(-1).click()");
+      await evaluate("[...document.querySelectorAll('#modes .chip')].at(-1).click()");
+      await evaluate("[...document.querySelectorAll('#views .chip')].at(-1).click()");
+      const shown = await marks();
+      assert.ok(shown > 0, `maps, ${lang}: the markers drawn`);
+      await evaluate("document.querySelector('#layers .layer').click()");
+      assert.notEqual(await marks(), shown, `maps, ${lang}: a layer toggles`);
+      await evaluate("document.querySelector('#layers .layer').click()");
+      assert.equal(await evaluate("document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1"), true, `maps, ${lang} at ${width}: no sideways scroll`);
+      assert.equal(await evaluate("JSON.stringify(pageErrors)"), '[]', `maps, ${lang}: no script errors`);
+    }
+  }
+  // The calculator in English and Russian (and German, its longest texts): its words the
+  // server's, a weapon and a distance picked change the result, nothing spilling out of its box.
+  for (const width of [1280, 640]) {
+    await send('browsingContext.setViewport', {context, viewport: {width, height: 900}, devicePixelRatio: 1});
+    for (const [lang, heading] of [['en', 'Result'], ['ru', 'Результат'], ['de', null]]) {
+      await navigate(`/wiki/calculator?lang=${lang}`);
+      await evaluate("window.pageErrors=[];addEventListener('error',event=>pageErrors.push(event.message))");
+      if (heading) assert.equal(await evaluate("document.querySelector('#h-result').textContent"), heading, `calculator, ${lang}: its words`);
+      const result = () => evaluate("[...document.querySelectorAll('.big.num')].map(e => e.textContent).join(' | ')");
+      const first = await result();
+      // Another weapon and distance than the page opened with: it keeps the last
+      // language's pick, so a fixed one would change nothing from the second on.
+      await evaluate("{const s=document.querySelector('#weapon');s.value=s.value==='wpn_svd'?'wpn_pm':'wpn_svd';s.dispatchEvent(new Event('change'))}");
+      await evaluate("{const d=document.querySelector('#dist');d.value=d.value==='120'?'30':'120';d.dispatchEvent(new Event('input'))}");
+      assert.notEqual(await result(), first, `calculator, ${lang}: a weapon and a distance change the result`);
+      const spilled = JSON.parse(await evaluate(`JSON.stringify([...document.querySelectorAll('body *')].filter(e => e.offsetParent && !e.closest('.site, svg')
+        && [...e.childNodes].some(n => n.nodeType === 3 && n.textContent.trim()) && getComputedStyle(e).overflow === 'visible'
+        && getComputedStyle(e).display !== 'inline' && e.scrollWidth > e.clientWidth + 1).map(e => e.textContent.trim().slice(0, 40)))`));
+      assert.deepEqual(spilled, [], `calculator, ${lang} at ${width} px: nothing spills out of its box`);
+      assert.equal(await evaluate("document.documentElement.innerHTML.includes('⟦')"), false, `calculator, ${lang}: no place left`);
+      assert.equal(await evaluate("JSON.stringify(pageErrors)"), '[]', `calculator, ${lang}: no script errors`);
+    }
+  }
+  console.log(`PASS: ${total} weapons; image choosers/search/keyboard/mobile, catalogue, full stat comparison, equality/neutral colors, same weapon, simulators: recoil step/scrub/reset, spread by aim, stance, skills, gloves and arms, recoil modifications, help lines (hover, keyboard, tap), EN/UK/RU, the list's columns in RU/DE, the skills' trees in EN/RU/DE/FI, the Maps tab in EN/RU, the calculator in EN/RU/DE, 360 px and CSP.`);
   await send('session.end');
 } finally {
   await send('session.end').catch(() => {});

@@ -8,7 +8,10 @@ package survarium.controls
    import flash.geom.Rectangle;
    import flash.utils.Dictionary;
    import scaleform.clik.layout.LayoutData;
-   
+   import survarium.modes.ArtefactHuntState;
+   import survarium.modes.FrozenPlaces;
+   import survarium.modes.RevealedPlaces;
+
    // Whether a minimap shows is its owner's (the HUD: the setting's position, and the map): a
    // Minimap never sets its own visible. It says whether it has a map (hasMap) and dispatches
    // MAP_LOADED when setProps loads one.
@@ -62,7 +65,8 @@ package survarium.controls
          "player_local":PlayerLocal,
          "battery_spawn":SpawnIcon,
          "resupply":ResupplyIcon,
-         "research_point":ResearchMinimapPoint
+         "research_point":ResearchMinimapPoint,
+         "artefact_hunt_artefact":ArtefactMinimapPoint
       };
       
       protected var _levels:Object = {
@@ -78,8 +82,17 @@ package survarium.controls
          "level_07":new Map_07(),
          "level_08":new Map_08(),
          "level_09":new Map_09(),
+         "v032a_level_09":new Map_09(),
+         "v044a_level_09":new minimap_v044a_level_09(),
          "v011e_level_04":new minimap_zv11e(),
-         "v011e_level_03":new minimap_bv11()
+         "v011e_level_03":new minimap_bv11(),
+         "cs_mp_bath":new minimap_cs_mp_bath(),
+         "cs_mp_military_1":new minimap_cs_mp_military_1(),
+         "cs_training_camp":new minimap_cs_training_camp(),
+         "cs_mp_rembasa":new minimap_cs_mp_rembasa(),
+         "soc_ug_station":new minimap_soc_ug_station(),
+         "soc_ug_depository":new minimap_soc_ug_depository(),
+         "cs_mp_firestation":new minimap_cs_mp_firestation()
       };
       
       protected var _objects:Dictionary = new Dictionary(true);
@@ -102,13 +115,30 @@ package survarium.controls
       
       protected var _mapVisibleRectangle:Rectangle = null;
       
-      // Research (mode 5): the units, kept among the exe's objects
-      // (setResearchUnits); the exe's last objects to add them to.
-      protected var _researchUnits:Array = [];
+      // A mode's own objects, kept among the exe's (setResearchUnits: Research's units;
+      // setArtefactHunt: Artifact Hunt's bases and artefact); the exe's last objects to add them to.
+      protected var _modeObjects:Array = [];
       
       protected var _exeObjects:Object = [];
       
       public static const RESEARCH_ID:int = 0x7000;
+
+      // Artifact Hunt's: a base HUNT_BASE_ID + its team, the artefact HUNT_ARTEFACT_ID.
+      public static const HUNT_BASE_ID:int = 0x7100;
+
+      public static const HUNT_ARTEFACT_ID:int = 0x7110;
+
+      // Artifact Hunt: the carrier's place (an icon's player_id), -1 none; his icon is marked
+      // (MinimapObjectPlayer.carrying).
+      protected var _carrier:int = -1;
+
+      // Freeze Tag (HUD.freeze_tag_rows): the places frozen; a frozen teammate's icon is ice blue
+      // (MinimapObjectPlayer.frozen), an enemy's as it is.
+      protected var _frozen:FrozenPlaces = FrozenPlaces.NONE;
+
+      // Freeze Tag (HUD.freeze_tag_revealed): the places revealed, a team's last one fighting; an
+      // enemy's icon of one is marked red (MinimapObjectPlayer.revealed). The HUD tells the Tab map, and the corner minimap by HUD.REVEALED_ON_MINIMAP.
+      protected var _revealed:RevealedPlaces = RevealedPlaces.NONE;
 
       // The players' names by place (setPlayerNames: the Tab list's rows, id the place, which is an
       // icon's player_id) and whether they show over the icons (namesShown: the Tab map while Alt is
@@ -116,6 +146,11 @@ package survarium.controls
       protected var _names:Object = {};
 
       protected var _namesShown:Boolean = false;
+
+      // A map not shown (the Tab map while its list is closed) is held: it draws no update, it keeps
+      // the last players' (setPlayersData) and the local player's (updatePlayerPos) and draws them
+      // when it shows again. Null while the map follows every update.
+      private var _held:HeldUpdates = null;
       
       public function Minimap()
       {
@@ -159,6 +194,45 @@ package survarium.controls
             "posX":14.23,
             "posY":-42.196
          };
+         // The STALKER maps (srp-026g/scripts/stalker-maps/ui_images.py; the frame of
+         // resource-porter's render_minimap.py, docs/notes/stalker-maps.md).
+         this._minimapProps.cs_mp_bath = {
+            "size":73.143,
+            "posX":-7.02,
+            "posY":15.03
+         };
+         this._minimapProps.cs_mp_military_1 = {
+            "size":141.527,
+            "posX":-5.845,
+            "posY":12.13
+         };
+         // Framed on the crater wall + 15 m (render_minimap.py --frame-outline training-arena.tsv).
+         this._minimapProps.cs_training_camp = {
+            "size":79.709,
+            "posX":18.685,
+            "posY":6.53
+         };
+         this._minimapProps.cs_mp_rembasa = {
+            "size":89.164,
+            "posX":2.285,
+            "posY":-7.7
+         };
+         this._minimapProps.soc_ug_station = {
+            "size":139.055,
+            "posX":170.25,
+            "posY":-53.8
+         };
+         this._minimapProps.soc_ug_depository = {
+            "size":73.143,
+            "posX":30.285,
+            "posY":6.97
+         };
+         // stalker-maps-2's Fire Station (the frame of render_minimap.py on what a walker reaches, the added ways up too).
+         this._minimapProps.cs_mp_firestation = {
+            "size":73.143,
+            "posX":-8.48,
+            "posY":14.84
+         };
          this._minimapProps.level_05 = {
             "size":90,
             "posX":-1.096,
@@ -184,6 +258,11 @@ package survarium.controls
             "posX":0,
             "posY":-5
          };
+         // London (v0.32), pack london-v032: London's minimap and frame (0.32a4's map_09.png is the same picture).
+         this._minimapProps.v032a_level_09 = this._minimapProps.level_09;
+         // London (v0.42), pack london-v042: 0.44a5's own minimap of the reworked map in London's frame (0.44a5's
+         // hud has the same frame for level_09).
+         this._minimapProps.v044a_level_09 = this._minimapProps.level_09;
          this._minimapProps.level_03_rain = this._minimapProps.level_03;
          this._minimapProps.level_03_evn = this._minimapProps.level_03;
       }
@@ -200,7 +279,43 @@ package survarium.controls
       
       public function setPlayersData(value:Object) : void
       {
+         if(this._held)
+         {
+            this._held.players = value;
+            return;
+         }
          this.setData(value);
+      }
+
+      public function get held() : Boolean
+      {
+         return this._held != null;
+      }
+
+      // Held, updates wait (the last of each kind); released, the last ones are drawn at once, the
+      // local player's first (the players' icons are told apart against its team), as if it had
+      // followed them.
+      public function set held(value:Boolean) : void
+      {
+         if(value == this.held)
+         {
+            return;
+         }
+         if(value)
+         {
+            _held = new HeldUpdates();
+            return;
+         }
+         var updates:HeldUpdates = this._held;
+         _held = null;
+         if(updates.local)
+         {
+            this.updatePlayerPos(updates.local[0],updates.local[1],updates.local[2],updates.local[3]);
+         }
+         if(updates.players)
+         {
+            this.setData(updates.players);
+         }
       }
 
       // The Tab list's rows ({id, name}, root.list_set_players): a name for each place listed.
@@ -266,10 +381,10 @@ package survarium.controls
       {
          var i:int = 0;
          var point:ResearchMinimapPoint;
-         this._researchUnits = [];
+         this._modeObjects = [];
          while(i < units.length)
          {
-            this._researchUnits.push({
+            this._modeObjects.push({
                "id":RESEARCH_ID + units[i].cp_id,
                "type":"research_point",
                "pos_x":units[i].pos_x,
@@ -290,6 +405,46 @@ package survarium.controls
          }
       }
       
+      // Artifact Hunt (mode 13, HUD.artefact_hunt_update): the bases (the game's own team's
+      // highlighted while its viewed player carries, 0.46c2's base_highlighted), the artefact while it
+      // lies, the carrier's icon marked; null takes them away.
+      public function setArtefactHunt(state:ArtefactHuntState) : void
+      {
+         var carrier:int = state == null ? -1 : state.carrier;
+         this._modeObjects = [];
+         if(state != null)
+         {
+            for each(var base:Object in state.bases)
+            {
+               this._modeObjects.push({
+                  "id":HUNT_BASE_ID + base.team,
+                  "type":!state.isOwn(base.team) ? "base_enemy" : (state.viewerCarries ? "base_highlighted" : "base"),
+                  "pos_x":base.x,
+                  "pos_y":base.y
+               });
+            }
+            if(state.artefact == ArtefactHuntState.LYING)
+            {
+               this._modeObjects.push({
+                  "id":HUNT_ARTEFACT_ID,
+                  "type":"artefact_hunt_artefact",
+                  "pos_x":state.x,
+                  "pos_y":state.y
+               });
+            }
+         }
+         this.setObjectData(this._exeObjects);
+         CarryRing.mark(this.minimap.player,state != null && state.viewerCarries);
+         if(carrier != this._carrier)
+         {
+            this._carrier = carrier;
+            if(this._data && !this._held)
+            {
+               this.setData(this._data);
+            }
+         }
+      }
+
       public function setObjectData(exeObjects:Object) : void
       {
          var _obj:Object = null;
@@ -301,7 +456,7 @@ package survarium.controls
             value.push(exeObjects[i]);
             i++;
          }
-         value = value.concat(this._researchUnits);
+         value = value.concat(this._modeObjects);
          i = 0;
          while(i < value.length)
          {
@@ -319,28 +474,59 @@ package survarium.controls
          this.clear_objects(this._objects_static);
          this.update_objects();
       }
+
+      public function set frozen(places:FrozenPlaces) : void
+      {
+         if(places == this._frozen)
+         {
+            return;
+         }
+         _frozen = places;
+         if(this._data && !this._held)
+         {
+            this.setData(this._data);
+         }
+      }
       
+      public function set revealed(places:RevealedPlaces) : void
+      {
+         if(places == this._revealed)
+         {
+            return;
+         }
+         _revealed = places;
+         if(this._data && !this._held)
+         {
+            this.setData(this._data);
+         }
+      }
+
       public function clear_minimap() : void
       {
          var _inst:MinimapObject = null;
+         if(this._held)
+         {
+            _held = new HeldUpdates();
+         }
+         // no players to draw again (frozen, setArtefactHunt) until the next update
+         this._data = null;
          this._objects = new Dictionary(true);
          this._objects_static = new Dictionary(true);
-         this._researchUnits = [];
+         this._modeObjects = [];
          this._exeObjects = [];
+         this._carrier = -1;
          var i:int = 0;
          while(i < this._renderers.length)
          {
             _inst = this._renderers[i];
-            if(_inst is MinimapObjectBasix)
+            if(_inst.parent != null)
             {
-               this.minimap.removeChild(_inst);
-            }
-            else
-            {
-               this.minimap._players.removeChild(_inst);
+               _inst.parent.removeChild(_inst);
             }
             i++;
          }
+         // a second clear (the next match's) no longer finds the last match's icons
+         this._renderers = new Vector.<MinimapObject>();
       }
       
       // A player's icon follows the data of every update: the local team
@@ -368,11 +554,29 @@ package survarium.controls
                trace("update::",_obj.player_id);
                this.updateObjectPos(_obj.player_id,_obj.player_pos_x,_obj.player_pos_y,0,this._objects);
             }
+            MinimapObjectPlayer(this._objects[_obj.player_id]).carrying = _obj.player_id == this._carrier;
+            MinimapObjectPlayer(this._objects[_obj.player_id]).frozen = this.frozenTeammate(_obj);
+            MinimapObjectPlayer(this._objects[_obj.player_id]).revealed = this.revealedEnemy(_obj);
             i++;
          }
          this.clear_objects(this._objects);
-         this.showNames();
+         if(this._namesShown)
+         {
+            this.showNames();
+         }
          this.update_objects();
+      }
+
+      // An enemy of the local player who is revealed (the exe lists him whatever his spotted time).
+      private function revealedEnemy(player:Object) : Boolean
+      {
+         return player.team != this._my_team && this._revealed.has(player.player_id);
+      }
+
+      // A teammate of the local player (not himself) who is frozen.
+      private function frozenTeammate(player:Object) : Boolean
+      {
+         return player.team == this._my_team && !Boolean(player.is_local_player) && this._frozen.has(player.player_id);
       }
 
       // The icon of a player of update_players, against the local team now.
@@ -583,6 +787,11 @@ package survarium.controls
       
       public function updatePlayerPos(posX:Number, posY:Number, rot:Number, team:uint = 23) : void
       {
+         if(this._held)
+         {
+            this._held.local = [posX,posY,rot,team];
+            return;
+         }
          this._my_team = team;
          if(this._centerPlayer)
          {
@@ -761,3 +970,11 @@ package survarium.controls
    }
 }
 
+// What a held Minimap keeps: the last players' update (setPlayersData) and the local player's
+// (updatePlayerPos: x, y, rotation, team), each null until one comes.
+class HeldUpdates
+{
+   public var players:Object = null;
+
+   public var local:Array = null;
+}

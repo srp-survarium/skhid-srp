@@ -1,9 +1,10 @@
 //! The admin's account moderation on the 0.26g page
 //! (`docs/notes/account-moderation.md`). The owner, 2026-10-20: "we need the
-//! ability to take away items in the admin panel", and the silver (gold for
-//! one of them) that players farmed taken out again.
+//! ability to take away items in the admin panel", and the silver that
+//! players farmed taken out again (the one currency: gold is gone, the
+//! owner's of 2026-11-08).
 //!
-//! - The Money tab: an account's silver and/or gold changed by a signed
+//! - The Money tab: an account's silver changed by a signed
 //!   amount, never below 0; a take of more than it has takes what it has,
 //!   and the page says how much that was.
 //! - The Take items tab: the account's items listed (name, dictionary id,
@@ -126,7 +127,6 @@ struct Card {
 pub(crate) struct MoneyView {
     user: String,
     silver: String,
-    gold: String,
     reason: String,
     shown: Option<MoneyShown>,
 }
@@ -199,29 +199,15 @@ fn signed(value: i64) -> String {
 }
 
 /// What the page says of a write ([`ResetWrite`]), after `done`.
-fn written_note(lang: Lang, written: &ResetWrite) -> String {
+pub(crate) fn written_note(lang: Lang, written: &ResetWrite) -> String {
     match written {
         ResetWrite::Written => String::new(),
-        ResetWrite::Pending => lang.tr(
-            " The database was busy: srp's saver writes it within seconds (the history below \
-             is shown next time).",
-            " База була зайнята: srp запише це за кілька секунд (історію нижче буде показано \
-             наступного разу).",
-        ),
-        ResetWrite::Failed(error) => lang.tr(
-            &format!(
-                " Error: the change stands in memory only: the database refused it ({error}). \
-                 srp retries the write; check its log."
-            ),
-            &format!(
-                " Помилка: зміна лише в пам'яті: база її не прийняла ({error}). srp повторить \
-                 запис; перевірте його журнал."
-            ),
-        ),
+        ResetWrite::Pending => lang.t(" The database was busy: srp's saver writes it within seconds (the history below is shown next time)."),
+        ResetWrite::Failed(error) => lang.tf(" Error: the change stands in memory only: the database refused it ({error}). srp retries the write; check its log.", &[("error", &error)]),
     }
 }
 
-fn log_write(peer: &str, what: &str, written: &ResetWrite) {
+pub(crate) fn log_write(peer: &str, what: &str, written: &ResetWrite) {
     match written {
         ResetWrite::Written => {}
         ResetWrite::Pending => {
@@ -246,10 +232,7 @@ impl Web {
     ) -> Result<(u32, Arc<Mutex<Account>>), String> {
         let text = text.trim();
         let no_such = || {
-            lang.tr(
-                "No 0.26g account has that id.",
-                "Жоден акаунт 0.26g не має такого id.",
-            )
+            lang.t("No 0.26g account has that id.")
         };
         if let Some(id) = text.strip_prefix('#') {
             let id = id.trim().parse::<u32>().map_err(|_| no_such())?;
@@ -268,10 +251,7 @@ impl Web {
                 .count()
                 > 1
         {
-            return Err(lang.tr(
-                "More than one account has that character name: type its user name or #id.",
-                "Це ім'я персонажа мають кілька акаунтів: введіть ім'я для входу або #id.",
-            ));
+            return Err(lang.t("More than one account has that character name: type its user name or #id."));
         }
         self.find_026g(game, lang, text)
     }
@@ -307,13 +287,10 @@ impl Web {
         let mut view = MoneyView {
             user: request.field("user").to_owned(),
             silver: request.field("silver").to_owned(),
-            gold: request.field("gold").to_owned(),
             reason: request.field("money_reason").to_owned(),
             shown: None,
         };
-        let Some(game) = &self.game else {
-            return (String::new(), view);
-        };
+        let game = &self.game;
         // The token alone (the page's first press): nothing asked yet.
         if view.user.is_empty() {
             return (String::new(), view);
@@ -322,12 +299,9 @@ impl Web {
             Ok(found) => found,
             Err(message) => return (message, view),
         };
-        let (Some(silver), Some(gold)) = (delta(&view.silver), delta(&view.gold)) else {
+        let Some(silver) = delta(&view.silver) else {
             return (
-                lang.tr(
-                    "Silver and gold are whole numbers, + or -, or empty.",
-                    "Срібло і золото — цілі числа, + або -, або порожньо.",
-                ),
+                lang.t("Silver is a whole number, + or -, or empty."),
                 view,
             );
         };
@@ -341,7 +315,7 @@ impl Web {
         };
         let (change, applied) = {
             let mut account = account.locked();
-            let change = MoneyChange::plan(account_id, &account, silver, gold);
+            let change = MoneyChange::plan(account_id, &account, silver);
             let apply = confirm
                 && reason.is_some()
                 && !change.is_nothing()
@@ -372,64 +346,22 @@ impl Web {
             let note = written_note(lang, &done);
             written = Some(done);
             view.silver.clear();
-            view.gold.clear();
             view.reason.clear();
-            lang.tr(
-                &format!(
-                    "{}: silver {} → {} ({}), gold {} → {} ({}).",
-                    card.name,
-                    grouped(change.silver.0.into()),
-                    grouped(change.silver.1.into()),
-                    signed(change.silver_change()),
-                    grouped(change.gold.0.into()),
-                    grouped(change.gold.1.into()),
-                    signed(change.gold_change()),
-                ),
-                &format!(
-                    "{}: срібло {} → {} ({}), золото {} → {} ({}).",
-                    card.name,
-                    grouped(change.silver.0.into()),
-                    grouped(change.silver.1.into()),
-                    signed(change.silver_change()),
-                    grouped(change.gold.0.into()),
-                    grouped(change.gold.1.into()),
-                    signed(change.gold_change()),
-                ),
-            ) + &note
-        } else if silver == 0 && gold == 0 {
-            lang.tr(
-                "Type the silver and/or gold to add (+) or take (-). The balance is below.",
-                "Введіть срібло та/або золото, щоб додати (+) чи забрати (-). Баланс нижче.",
-            )
+            lang.tf("{0}: silver {1} → {2} ({3}).", &[("0", &card.name), ("1", &grouped(change.silver.0.into())), ("2", &grouped(change.silver.1.into())), ("3", &signed(change.silver_change()))]) + &note
+        } else if silver == 0 {
+            lang.t("Type the silver to add (+) or take (-). The balance is below.")
         } else if change.is_nothing() {
-            lang.tr(
-                "Nothing would change: the account has none of it left to take.",
-                "Нічого не зміниться: в акаунта цього вже немає.",
-            )
+            lang.t("Nothing would change: the account has none of it left to take.")
         } else if confirm && reason.is_none() {
-            lang.tr(
-                "A reason is required: nothing was changed.",
-                "Потрібна причина: нічого не змінено.",
-            )
+            lang.t("A reason is required: nothing was changed.")
         } else if confirm && issued.is_none() {
             used_or_old(lang)
         } else if confirm {
-            lang.tr(
-                "The account changed since the preview, or the fields did: nothing was changed. \
-                 Check the new preview below and apply again.",
-                "Акаунт або поля змінилися після перегляду: нічого не змінено. Перевірте новий \
-                 перегляд нижче і застосуйте знову.",
-            )
+            lang.t("The account changed since the preview, or the fields did: nothing was changed. Check the new preview below and apply again.")
         } else if reason.is_none() {
-            lang.tr(
-                "Check the change below; type a reason to apply it.",
-                "Перевірте зміну нижче; введіть причину, щоб застосувати її.",
-            )
+            lang.t("Check the change below; type a reason to apply it.")
         } else {
-            lang.tr(
-                "Check the change below, then press Apply. Nothing is changed until then.",
-                "Перевірте зміну нижче, потім натисніть «Застосувати». Доти нічого не змінено.",
-            )
+            lang.t("Check the change below, then press Apply. Nothing is changed until then.")
         };
         let plan = (!applied && !change.is_nothing() && reason.is_some())
             .then(|| self.plans.issue(change.key()))
@@ -453,14 +385,9 @@ impl Web {
             reason: request.field("items_reason").to_owned(),
             ..ItemsView::default()
         };
-        let Some(game) = &self.game else {
-            return (String::new(), view);
-        };
+        let game = &self.game;
         if view.user.is_empty() {
-            let message = lang.tr(
-                "Type the account: its user name, its character name, or #id.",
-                "Введіть акаунт: ім'я для входу, ім'я персонажа або #id.",
-            );
+            let message = lang.t("Type the account: its user name, its character name, or #id.");
             return (message, view);
         }
         let (account_id, account) = match self.moderated(game, lang, &view.user) {
@@ -468,16 +395,13 @@ impl Web {
             Err(message) => return (message, view),
         };
         let bad_item = |text: &str| {
-            lang.tr(
-                &format!("{text:?} is not an item id: nothing was changed."),
-                &format!("{text:?} — не id предмета: нічого не змінено."),
+            lang.tf(
+                "{text} is not an item id: nothing was changed.",
+                &[("text", &format!("{text:?}"))],
             )
         };
         let bad_units = || {
-            lang.tr(
-                "Units are a whole number above 0, or empty for all of it.",
-                "Одиниці — ціле число більше 0, або порожньо — усе.",
-            )
+            lang.t("Units are a whole number above 0, or empty for all of it.")
         };
         let mut picks = Vec::new();
         for text in request.fields("take") {
@@ -528,12 +452,7 @@ impl Web {
         view.card = Some(card.clone());
         let mut written = None;
         let message = match planned {
-            None => lang.tr(
-                "Tick the items to take (and the units of a stack, or all of it), type a \
-                 reason, then press Preview.",
-                "Позначте предмети (і кількість одиниць купи, або всю), введіть причину, потім \
-                 натисніть «Переглянути».",
-            ),
+            None => lang.t("Tick the items to take (and the units of a stack, or all of it), type a reason, then press Preview."),
             Some(Err(refused)) => refused_text(lang, refused),
             Some(Ok(plan)) => {
                 let message = if applied {
@@ -561,36 +480,17 @@ impl Web {
                     let note = written_note(lang, &done);
                     written = Some(done);
                     view.reason.clear();
-                    lang.tr(
-                        &format!("{}: {} item(s) taken.", card.name, plan.len()),
-                        &format!("{}: забрано предметів: {}.", card.name, plan.len()),
-                    ) + &note
+                    lang.tf("{0}: {1} item(s) taken.", &[("0", &card.name), ("1", &plan.len())]) + &note
                 } else if confirm && reason.is_none() {
-                    lang.tr(
-                        "A reason is required: nothing was changed.",
-                        "Потрібна причина: нічого не змінено.",
-                    )
+                    lang.t("A reason is required: nothing was changed.")
                 } else if confirm && issued.is_none() {
                     used_or_old(lang)
                 } else if confirm {
-                    lang.tr(
-                        "The items or the choice changed since the preview: nothing was \
-                         changed. Check the new preview below and apply again.",
-                        "Предмети або вибір змінилися після перегляду: нічого не змінено. \
-                         Перевірте новий перегляд нижче і застосуйте знову.",
-                    )
+                    lang.t("The items or the choice changed since the preview: nothing was changed. Check the new preview below and apply again.")
                 } else if reason.is_none() {
-                    lang.tr(
-                        "Check what would be taken below; type a reason to apply it.",
-                        "Перевірте нижче, що буде забрано; введіть причину, щоб застосувати.",
-                    )
+                    lang.t("Check what would be taken below; type a reason to apply it.")
                 } else {
-                    lang.tr(
-                        "Check what would be taken below, then press Apply. Nothing is changed \
-                         until then.",
-                        "Перевірте нижче, що буде забрано, потім натисніть «Застосувати». Доти \
-                         нічого не змінено.",
-                    )
+                    lang.t("Check what would be taken below, then press Apply. Nothing is changed until then.")
                 };
                 let token = (!applied && reason.is_some())
                     .then(|| self.plans.issue(take_key(account_id, &plan)))
@@ -627,9 +527,7 @@ impl Web {
     /// is in the audit trail.
     pub(crate) fn admin_chat_mute(&self, request: &Request, peer: &str) -> String {
         let lang = request.lang;
-        let Some(game) = &self.game else {
-            return String::new();
-        };
+        let game = &self.game;
         let user = request.field("mute_user");
         // The token alone (the page's first press): nothing asked yet.
         if user.trim().is_empty() {
@@ -645,10 +543,7 @@ impl Web {
             Ok(ask) => ask,
             Err(MuteRefused::Hours) => return BadHours::text(lang),
             Err(MuteRefused::NoReason) => {
-                return lang.tr(
-                    "A reason is required: the player is told it.",
-                    "Потрібна причина: гравцю її покажуть.",
-                );
+                return lang.t("A reason is required: the player is told it.");
             }
         };
         let (account_id, account) = match self.find_026g(game, lang, user) {
@@ -660,10 +555,7 @@ impl Web {
         let before = self.store.chat_ban(account_id);
         let (message, after, reason) = match ask {
             MuteAsk::Mute(ban) => {
-                let message = lang.tr(
-                    &format!("{name}'s chat muted {}.", ban_end(lang, &ban)),
-                    &format!("Чат {name} вимкнено {}.", ban_end(lang, &ban)),
-                );
+                let message = lang.tf("{name}'s chat muted {0}.", &[("name", &name), ("0", &ban_end(lang, &ban))]);
                 let after = Some(ban.clone());
                 let reason = ban.reason.clone();
                 self.store.mute_chat(account_id, ban);
@@ -671,15 +563,9 @@ impl Web {
             }
             MuteAsk::Unmute => {
                 if !self.store.unmute_chat(account_id) {
-                    return lang.tr(
-                        &format!("{name}'s chat was not muted."),
-                        &format!("Чат {name} не був вимкнений."),
-                    );
+                    return lang.tf("{name}'s chat was not muted.", &[("name", &name)]);
                 }
-                let message = lang.tr(
-                    &format!("{name}'s chat unmuted."),
-                    &format!("Чат {name} увімкнено."),
-                );
+                let message = lang.tf("{name}'s chat unmuted.", &[("name", &name)]);
                 (message, None, String::new())
             }
         };
@@ -754,65 +640,27 @@ pub(crate) fn mute_panel(lang: Lang) -> String {
          <label for=mr>{}</label><input id=mr name=mute_reason maxlength=100>\
          <small>{}</small><br>\
          <button>{}</button> <button name=unmute value=1 class=quiet>{}</button></div>",
-        lang.tr(
-            "Account: user name or character name",
-            "Акаунт: ім'я для входу або ім'я персонажа"
-        ),
-        lang.tr("Hours (empty: for good)", "Години (порожньо — назавжди)"),
-        lang.tr(
-            "Reason (the player is told it)",
-            "Причина (її покажуть гравцю)"
-        ),
-        lang.tr(
-            "Nobody gets its chat lines, on any channel; it gets \"muted for &lt;reason&gt;\" (or \
-             \"muted until &lt;time&gt; UTC: &lt;reason&gt;\") back instead. Unmute needs the account only.",
-            "Його рядки чату не отримує ніхто, на жодному каналі; натомість він отримує \
-             \"muted for &lt;причина&gt;\" (або \"muted until &lt;час&gt; UTC: &lt;причина&gt;\"). Для зняття \
-             потрібен лише акаунт."
-        ),
-        lang.tr("Mute", "Вимкнути чат"),
-        lang.tr("Unmute", "Увімкнути чат"),
+        lang.t("Account: user name or character name"),
+        lang.t("Hours (empty: for good)"),
+        lang.t("Reason (the player is told it)"),
+        lang.t("Nobody gets its chat lines, on any channel; it gets \"muted for &lt;reason&gt;\" (or \"muted until &lt;time&gt; UTC: &lt;reason&gt;\") back instead. Unmute needs the account only."),
+        lang.t("Mute"),
+        lang.t("Unmute"),
     )
 }
 
 /// A confirm whose token is not good (used already, or too old).
 fn used_or_old(lang: Lang) -> String {
-    lang.tr(
-        "This preview was used already or is older than 10 minutes: nothing was changed. \
-         Check the new preview below and apply again.",
-        "Цей перегляд уже використано або він старший за 10 хвилин: нічого не змінено. \
-         Перевірте новий перегляд нижче і застосуйте знову.",
-    )
+    lang.t("This preview was used already or is older than 10 minutes: nothing was changed. Check the new preview below and apply again.")
 }
 
 fn refused_text(lang: Lang, refused: TakeRefused) -> String {
     match refused {
-        TakeRefused::Nothing => lang.tr("No item was ticked.", "Жоден предмет не позначено."),
-        TakeRefused::TooMany => lang.tr(
-            &format!("At most {} items at once.", moderation::MAX_TAKEN_ITEMS),
-            &format!(
-                "Щонайбільше {} предметів за раз.",
-                moderation::MAX_TAKEN_ITEMS
-            ),
-        ),
-        TakeRefused::NoSuchItem(item_id) => lang.tr(
-            &format!(
-                "The account has no item {item_id} now (sold or taken meanwhile): nothing was \
-                 changed. Check the list again."
-            ),
-            &format!(
-                "В акаунта зараз немає предмета {item_id} (продано чи забрано): нічого не \
-                 змінено. Перевірте список знову."
-            ),
-        ),
-        TakeRefused::Twice(item_id) => lang.tr(
-            &format!("Item {item_id} is named twice."),
-            &format!("Предмет {item_id} вказано двічі."),
-        ),
-        TakeRefused::NoUnits(item_id) => lang.tr(
-            &format!("0 units of item {item_id}: leave it empty for all of it."),
-            &format!("0 одиниць предмета {item_id}: залиште порожнім, щоб забрати все."),
-        ),
+        TakeRefused::Nothing => lang.t("No item was ticked."),
+        TakeRefused::TooMany => lang.tf("At most {0} items at once.", &[("0", &moderation::MAX_TAKEN_ITEMS)]),
+        TakeRefused::NoSuchItem(item_id) => lang.tf("The account has no item {item_id} now (sold or taken meanwhile): nothing was changed. Check the list again.", &[("item_id", &item_id)]),
+        TakeRefused::Twice(item_id) => lang.tf("Item {item_id} is named twice.", &[("item_id", &item_id)]),
+        TakeRefused::NoUnits(item_id) => lang.tf("0 units of item {item_id}: leave it empty for all of it.", &[("item_id", &item_id)]),
     }
 }
 
@@ -877,49 +725,37 @@ fn rows_of(account: &Account, kept: impl Fn(u32) -> (bool, String)) -> Vec<Row> 
 
 fn card_table(lang: Lang, card: &Card) -> String {
     let online = if card.online {
-        lang.tr(
-            "yes: its game is sent the change at once",
-            "так: гра отримає зміну одразу",
-        )
+        lang.t("yes: its game is sent the change at once")
     } else {
-        lang.tr(
-            "no: it sees the change at its next sign-in",
-            "ні: побачить зміну при наступному вході",
-        )
+        lang.t("no: it sees the change at its next sign-in")
     };
     format!(
         "<tr><th>{}</th><td>{}</td></tr>\
          <tr><th>{}</th><td>{}</td></tr>\
          <tr><th>{}</th><td>{} ({:#x})</td></tr>\
          <tr><th>{}</th><td>{}</td></tr>",
-        lang.tr("User name", "Ім'я для входу"),
+        lang.tc("sign-in", "User name"),
         escape(&card.login),
-        lang.tr("Character", "Персонаж"),
+        lang.t("Character"),
         escape(&card.name),
-        lang.tr("Account id", "Id акаунта"),
+        lang.t("Account id"),
         card.id,
         card.id,
-        lang.tr("In the game now", "Зараз у грі"),
+        lang.t("In the game now"),
         escape(&online),
     )
 }
 
 fn history_table(lang: Lang, history: &Result<Vec<AdminAction>, String>) -> String {
-    let title = lang.tr(
-        "Earlier moderation of this account",
-        "Попередня модерація цього акаунта",
-    );
+    let title = lang.t("Earlier moderation of this account");
     match history {
         Err(error) => format!(
             "<p><small>{title}: {}</small></p>",
-            escape(&lang.tr(
-                &format!("not shown ({error})"),
-                &format!("не показано ({error})"),
-            ))
+            escape(&lang.tf("not shown ({error})", &[("error", &error)]))
         ),
         Ok(rows) if rows.is_empty() => format!(
             "<p><small>{title}: {}</small></p>",
-            lang.tr("none", "немає")
+            lang.t("none")
         ),
         Ok(rows) => {
             let lines: String = rows
@@ -938,9 +774,9 @@ fn history_table(lang: Lang, history: &Result<Vec<AdminAction>, String>) -> Stri
             format!(
                 "<h3>{title}</h3><div class=scroll><table><tr><th>UTC</th><th>{}</th><th>{}</th>\
                  <th>{}</th></tr>{lines}</table></div>",
-                lang.tr("What", "Що"),
-                lang.tr("Change", "Зміна"),
-                lang.tr("Reason", "Причина"),
+                lang.t("What"),
+                lang.tc("what", "Change"),
+                lang.t("Reason"),
             )
         }
     }
@@ -961,47 +797,34 @@ pub(crate) fn money_panel(lang: Lang, view: &AdminView) -> String {
                     signed(made)
                 );
                 if made != asked {
-                    text += &lang.tr(
-                        &format!("; {} asked, never below 0", signed(asked)),
-                        &format!("; просили {}, не нижче 0", signed(asked)),
-                    );
+                    text += &lang.tf("; {0} asked, never below 0", &[("0", &signed(asked))]);
                 }
                 text
             };
             let button = if shown.confirmable {
                 format!(
                     "<button name=confirm value=1>{}</button>",
-                    escape(&lang.tr(
-                        &format!("Apply to {}", shown.card.name),
-                        &format!("Застосувати до {}", shown.card.name),
-                    ))
+                    escape(&lang.tf("Apply to {0}", &[("0", &shown.card.name)]))
                 )
             } else {
                 String::new()
             };
             format!(
                 "<h3>{}</h3><table>{}\
-                 <tr><th>{}</th><td>{}</td></tr><tr><th>{}</th><td>{}</td></tr></table>\
+                 <tr><th>{}</th><td>{}</td></tr></table>\
                  {}{button}{}",
                 if shown.applied {
-                    lang.tr("Done", "Зроблено")
+                    lang.t("Done")
                 } else {
-                    lang.tr("Preview", "Перегляд")
+                    lang.t("Preview")
                 },
                 card_table(lang, &shown.card),
-                lang.tr("Silver", "Срібло"),
+                lang.t("Silver"),
                 escape(&line(
                     change.silver.0,
                     change.silver.1,
                     change.silver_change(),
-                    change.asked.0
-                )),
-                lang.tr("Gold", "Золото"),
-                escape(&line(
-                    change.gold.0,
-                    change.gold.1,
-                    change.gold_change(),
-                    change.asked.1
+                    change.asked
                 )),
                 shown
                     .plan
@@ -1017,30 +840,16 @@ pub(crate) fn money_panel(lang: Lang, view: &AdminView) -> String {
         "<div class=\"panel p-money\">\
          <label for=u>{}</label><input id=u name=user maxlength=99 value=\"{}\">\
          <label for=s>{}</label><input id=s name=silver placeholder=-100000 value=\"{}\">\
-         <label for=g>{}</label><input id=g name=gold placeholder=+500 value=\"{}\">\
          <label for=mr>{}</label><input id=mr name=money_reason maxlength=200 value=\"{}\">\
          <small>{}</small><br><button>{}</button>{shown}</div>",
-        lang.tr(
-            "Account: user name, character name or #id",
-            "Акаунт: ім'я для входу, ім'я персонажа або #id"
-        ),
+        lang.t("Account: user name, character name or #id"),
         escape(&money.user),
-        lang.tr("Silver, + or -", "Срібло, + або -"),
+        lang.t("Silver, + or -"),
         escape(&money.silver),
-        lang.tr("Gold, + or -", "Золото, + або -"),
-        escape(&money.gold),
-        lang.tr(
-            "Reason (required; only admins see it)",
-            "Причина (обов'язково; бачать лише адміни)"
-        ),
+        lang.t("Reason (required; only admins see it)"),
         escape(&money.reason),
-        lang.tr(
-            "Preview shows the balance before and after; nothing changes until Apply. A \
-             balance never goes below 0. An open game shows the change at once.",
-            "Перегляд показує баланс до і після; нічого не змінюється до «Застосувати». \
-             Баланс не буває нижче 0. Відкрита гра одразу покаже зміну."
-        ),
-        lang.tr("Preview", "Переглянути"),
+        lang.t("Preview shows the balance before and after; nothing changes until Apply. A balance never goes below 0. An open game shows the change at once."),
+        lang.tc("button", "Preview"),
     )
 }
 
@@ -1066,32 +875,16 @@ pub(crate) fn items_panel(lang: Lang, view: &AdminView) -> String {
                                 })
                                 .unwrap_or_default();
                             let what = if !taking.is_stack {
-                                lang.tr("the item", "предмет")
+                                lang.t("the item")
                             } else if taking.whole() {
-                                lang.tr(
-                                    &format!("all {} units", grouped(taking.had.into())),
-                                    &format!("усі {} од.", grouped(taking.had.into())),
-                                )
+                                lang.tf("all {0} units", &[("0", &grouped(taking.had.into()))])
                             } else {
-                                lang.tr(
-                                    &format!(
-                                        "{} of {} units ({} left)",
-                                        grouped(taking.taken.into()),
-                                        grouped(taking.had.into()),
-                                        grouped((taking.had - taking.taken).into())
-                                    ),
-                                    &format!(
-                                        "{} з {} од. (залишиться {})",
-                                        grouped(taking.taken.into()),
-                                        grouped(taking.had.into()),
-                                        grouped((taking.had - taking.taken).into())
-                                    ),
-                                )
+                                lang.tf("{0} of {1} units ({2} left)", &[("0", &grouped(taking.taken.into())), ("1", &grouped(taking.had.into())), ("2", &grouped((taking.had - taking.taken).into()))])
                             };
                             let kits = if taking.worn_in.is_empty() || !taking.whole() {
                                 String::new()
                             } else {
-                                lang.tr("taken off its kits", "знято з комплектів")
+                                lang.t("taken off its kits")
                             };
                             format!(
                                 "<tr><td>{}</td><td>{}</td><td>{}</td><td>{}</td></tr>",
@@ -1105,10 +898,7 @@ pub(crate) fn items_panel(lang: Lang, view: &AdminView) -> String {
                     let button = if items.confirmable {
                         format!(
                             "<button name=confirm value=1>{}</button>",
-                            escape(&lang.tr(
-                                &format!("Apply: take them from {}", card.name),
-                                &format!("Застосувати: забрати в {}", card.name),
-                            ))
+                            escape(&lang.tf("Apply: take them from {0}", &[("0", &card.name)]))
                         )
                     } else {
                         String::new()
@@ -1121,14 +911,14 @@ pub(crate) fn items_panel(lang: Lang, view: &AdminView) -> String {
                         "<h3>{}</h3><div class=scroll><table><tr><th>{}</th><th>{}</th>\
                          <th>{}</th><th>{}</th></tr>{lines}</table></div>{token}{button}",
                         if items.applied {
-                            lang.tr("Taken", "Забрано")
+                            lang.t("Taken")
                         } else {
-                            lang.tr("Would be taken", "Буде забрано")
+                            lang.t("Would be taken")
                         },
-                        lang.tr("Item", "Предмет"),
-                        lang.tr("Item id", "Id предмета"),
-                        lang.tr("Taken", "Забрано"),
-                        lang.tr("Kits", "Комплекти"),
+                        lang.t("Item"),
+                        lang.t("Item id"),
+                        lang.t("Taken"),
+                        lang.t("Kits"),
                     )
                 }
                 None => String::new(),
@@ -1142,20 +932,17 @@ pub(crate) fn items_panel(lang: Lang, view: &AdminView) -> String {
                             format!(
                                 "{} <input name=u{} value=\"{}\" inputmode=numeric placeholder={} \
                              class=units>",
-                                escape(&lang.tr(
-                                    &format!("{} units", grouped(row.amount.into())),
-                                    &format!("{} од.", grouped(row.amount.into())),
-                                )),
+                                escape(&lang.tf("{0} units", &[("0", &grouped(row.amount.into()))])),
                                 row.item_id,
                                 escape(&row.units),
-                                escape(&lang.tr("all", "усі")),
+                                escape(&lang.t("all")),
                             )
                         } else {
                             format!("{} %", row.amount)
                         };
                         let mut extras = row.modifications.clone();
                         extras.extend(row.upgrades.iter().map(|id| {
-                            lang.tr(&format!("cosmetic {id}"), &format!("косметика {id}"))
+                            lang.tf("cosmetic {id}", &[("id", &id)])
                         }));
                         format!(
                             "<tr><td><input type=checkbox name=take value={}{} aria-label=\"{}\">\
@@ -1182,21 +969,16 @@ pub(crate) fn items_panel(lang: Lang, view: &AdminView) -> String {
                  <h3>{}</h3><p><small>{}</small></p><div class=scroll><table class=items>\
                  <tr><th></th><th>{}</th><th>{}</th><th>{}</th><th>{}</th><th>{}</th>\
                  <th>{}</th></tr>{rows}</table></div>{history}",
-                lang.tr("Account", "Акаунт"),
+                lang.t("Account"),
                 card_table(lang, card),
-                lang.tr("Items", "Предмети"),
-                lang.tr(
-                    "Tick what to take. A stack takes the units typed, or all of it when \
-                     empty. Kit * is the one it plays.",
-                    "Позначте, що забрати. З купи береться введена кількість, або вся, якщо \
-                     порожньо. Комплект * — той, яким грає."
-                ),
-                lang.tr("Name", "Назва"),
-                lang.tr("Dict id", "Id словника"),
-                lang.tr("Item id", "Id предмета"),
-                lang.tr("Units / condition", "Одиниці / стан"),
-                lang.tr("Worn", "Вдягнено"),
-                lang.tr("Modifications", "Модифікації"),
+                lang.t("Items"),
+                lang.t("Tick what to take. A stack takes the units typed, or all of it when empty. Kit * is the one it plays."),
+                lang.t("Name"),
+                lang.t("Dict id"),
+                lang.t("Item id"),
+                lang.t("Units / condition"),
+                lang.t("Worn"),
+                lang.t("Modifications"),
             )
         }
         _ => String::new(),
@@ -1206,25 +988,12 @@ pub(crate) fn items_panel(lang: Lang, view: &AdminView) -> String {
          <label for=iu2>{}</label><input id=iu2 name=items_user maxlength=99 value=\"{}\">\
          <label for=ir>{}</label><input id=ir name=items_reason maxlength=200 value=\"{}\">\
          <small>{}</small><br><button>{}</button>{body}</div>",
-        lang.tr(
-            "Account: user name, character name or #id",
-            "Акаунт: ім'я для входу, ім'я персонажа або #id"
-        ),
+        lang.t("Account: user name, character name or #id"),
         escape(&items.user),
-        lang.tr(
-            "Reason (required; only admins see it)",
-            "Причина (обов'язково; бачать лише адміни)"
-        ),
+        lang.t("Reason (required; only admins see it)"),
         escape(&items.reason),
-        lang.tr(
-            "First the list, then a preview of what is taken; nothing changes until Apply. \
-             A worn item is taken off every kit, as when it is sold. An open game shows the \
-             change at once.",
-            "Спершу список, потім перегляд того, що буде забрано; нічого не змінюється до \
-             «Застосувати». Вдягнений предмет знімається з усіх комплектів, як при продажу. \
-             Відкрита гра одразу покаже зміну."
-        ),
-        lang.tr("List / preview", "Список / перегляд"),
+        lang.t("First the list, then a preview of what is taken; nothing changes until Apply. A worn item is taken off every kit, as when it is sold. An open game shows the change at once."),
+        lang.t("List / preview"),
     )
 }
 

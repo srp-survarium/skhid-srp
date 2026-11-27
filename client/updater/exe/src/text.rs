@@ -1,7 +1,8 @@
 //! Every sentence the updater shows a player. Each says what went wrong
 //! and, where there is one, what to do about it. English only (but the
-//! box of a file blocked or held, `updater_logic::file_error`, and the box
-//! of a server not reached, `updater_logic::network`); the
+//! boxes of `updater_logic::problem`: game files an antivirus removed, a
+//! download that failed, no connection, a server this network blocks; and
+//! the box of a file held, `updater_logic::file_error`); the
 //! launcher's own states and its progress bar are in the launcher's
 //! language. A message goes to the launcher as at most 255 ASCII characters,
 //! so the sentences are short and name files by their last parts.
@@ -9,18 +10,12 @@
 use alloc::format;
 use alloc::string::String;
 
-use updater_logic::download;
-use updater_logic::network::{self, Failure};
+use updater_logic::network;
+use updater_logic::problem::{Fault, Miss};
 use updater_logic::url::Url;
 use windows_sys::Win32::Foundation::{
     ERROR_ACCESS_DENIED, ERROR_DISK_FULL, ERROR_HANDLE_DISK_FULL, ERROR_LOCK_VIOLATION,
     ERROR_SHARING_VIOLATION, ERROR_WRITE_PROTECT,
-};
-use windows_sys::Win32::Networking::WinHttp::{
-    ERROR_WINHTTP_SECURE_CERT_CN_INVALID, ERROR_WINHTTP_SECURE_CERT_DATE_INVALID,
-    ERROR_WINHTTP_SECURE_CERT_REV_FAILED, ERROR_WINHTTP_SECURE_CERT_REVOKED,
-    ERROR_WINHTTP_SECURE_CHANNEL_ERROR, ERROR_WINHTTP_SECURE_FAILURE,
-    ERROR_WINHTTP_SECURE_INVALID_CA, ERROR_WINHTTP_SECURE_INVALID_CERT,
 };
 
 use crate::http::HttpError;
@@ -28,7 +23,7 @@ use crate::install::InstallError;
 use crate::win::{self, Code};
 
 /// The title of the updater's own message boxes.
-pub const TITLE: &str = "Skhid updater";
+pub const TITLE: &str = "Skhid";
 
 /// The last two parts of a path: enough to know the file, short enough for
 /// the launcher's line.
@@ -50,7 +45,9 @@ fn megabytes(bytes: u64) -> u64 {
 pub fn usage() -> String {
     "The Skhid updater is started by launcher_skhid.exe. To update by hand, every patch file \
      hashed again, start it as: updater_skhid.exe check (to see whether the game's files are \
-     updated: updater_skhid.exe ready)"
+     updated: updater_skhid.exe ready). To watch a local replay: \
+     updater_skhid.exe open-replay \"C:\\path\\match.sur\". \
+     To register Skhid Replay in Windows: updater_skhid.exe register-replays"
         .into()
 }
 
@@ -160,31 +157,26 @@ pub fn repairing(name: &str) -> String {
 }
 
 /// After the first sentence of a server that could not be reached
-/// (`updater_logic::network`): the short form of the box's advice, for the
-/// launcher's line and the log.
-const BLOCKED: &str = "Your provider (common in Russia) or a firewall may block it: see VPN.txt.";
+/// (`updater_logic::network`), for the launcher's line and the log: the box
+/// (`updater_logic::problem`, `updater_logic::diagnosis`) tells which.
+const UNREACHED: &str = "It may be restarting or offline, or a firewall or this network may block it.";
 
 pub fn http(server: &Url, path: &str, error: &HttpError) -> String {
     let host = &server.host;
-    if let HttpError::Network(_, code) = error
-        && let Some(failure) = Failure::of(*code)
-    {
-        return format!("{} {BLOCKED}", network::english(failure, host));
+    if let Miss::Unreached(failure) = error.miss() {
+        return format!("{} {UNREACHED}", network::english(failure, host));
     }
     match error {
-        HttpError::Network(step, code) => match *code {
-            ERROR_WINHTTP_SECURE_FAILURE
-            | ERROR_WINHTTP_SECURE_CHANNEL_ERROR
-            | ERROR_WINHTTP_SECURE_CERT_DATE_INVALID
-            | ERROR_WINHTTP_SECURE_CERT_CN_INVALID
-            | ERROR_WINHTTP_SECURE_INVALID_CA
-            | ERROR_WINHTTP_SECURE_INVALID_CERT
-            | ERROR_WINHTTP_SECURE_CERT_REVOKED
-            | ERROR_WINHTTP_SECURE_CERT_REV_FAILED => format!(
+        HttpError::Network(step, code) => match error.miss() {
+            Miss::Answered(Fault::Insecure) => format!(
                 "No secure connection to {host} (error {code}). Check this PC's date and time, \
                  and that no program intercepts HTTPS."
             ),
-            code => format!("Network error {code} ({step}) while asking {host}. Try again later."),
+            Miss::Answered(Fault::CutShort) => format!(
+                "The download from {host} broke off (error {code}: {}). Try again.",
+                win::error_text(*code)
+            ),
+            _ => format!("Network error {code} ({step}) while asking {host}. Try again later."),
         },
         HttpError::Status(status) => {
             format!("{host} answered {path} with error {status}. Try again later.")
@@ -207,21 +199,19 @@ pub fn http(server: &Url, path: &str, error: &HttpError) -> String {
         HttpError::BadRedirect(location) => {
             format!("{host} redirected {path} to an address the updater does not take: {location}")
         }
-        HttpError::Slow(speed) => format!(
-            "The download from {host} was too slow ({} KB/s over {} minutes). Try again later.",
-            speed / 1024,
-            download::SLOW_WINDOW_MS / 60_000
-        ),
         HttpError::BadRange => {
             format!("{host} answered {path} with another part of the file than was asked for.")
         }
+        HttpError::PastEnd(size) => format!(
+            "{host} has no byte of the file past those downloaded before{}: they are deleted. Try again.",
+            size.map_or_else(String::new, |size| format!(" (it says the file is {size} bytes)"))
+        ),
     }
 }
 
 /// Why one address of a file did not give it, in a few words, for the log
 /// and the list of every address's failure: which timeout, the host not
-/// found or not reached, the status, a web page and its title, too slow,
-/// cut short.
+/// found or not reached, the status, a web page and its title, cut short.
 pub fn reason(error: &HttpError) -> String {
     match error {
         HttpError::Network(step, code) => match (*step, *code) {
@@ -253,13 +243,9 @@ pub fn reason(error: &HttpError) -> String {
         HttpError::BadRedirect(location) => {
             format!("redirect to an address the updater does not take: {location}")
         }
-        HttpError::Slow(speed) => format!(
-            "too slow: {} KB/s over {} minutes (under {} KB/s)",
-            speed / 1024,
-            download::SLOW_WINDOW_MS / 60_000,
-            download::MIN_SPEED / 1024
-        ),
         HttpError::BadRange => "answered another part of the file than was asked for".into(),
+        HttpError::PastEnd(Some(size)) => format!("no byte past those kept (HTTP 416, the file is {size} bytes)"),
+        HttpError::PastEnd(None) => "no byte past those kept (HTTP 416)".into(),
     }
 }
 
@@ -275,8 +261,8 @@ pub fn game_download_failed(failures: &str) -> String {
 /// Where to send the log, worded as the crash reporter's
 /// (`client/bugtrap/src/crash_text.rs`): said after every failure the
 /// player ends on ([`reported`]).
-pub const SEND_LOG: &str = "Send game\\binaries\\x86\\updater_skhid.log to #bugreports in \
-                            Discord (tag: install): discord.gg/Pxa4prXfwu";
+pub const SEND_LOG: &str = "Send the newest game\\logs\\updater_skhid.<date>.log to #bugreports in \
+                            Discord (tag: install): discord.gg/QUmJg3gBhg";
 
 /// The longest line the launcher shows (`updater_logic::pipe`).
 const LINE: usize = 255;
@@ -344,6 +330,11 @@ pub fn install(error: &InstallError) -> String {
              disk is failing. Nothing was installed.",
             short(path)
         ),
+        InstallError::Removed { path, code } => format!(
+            "{} was gone right after it was written ({}, error {code}): an antivirus took it.",
+            short(path),
+            win::error_text(*code)
+        ),
         InstallError::Replace { path, code } => format!(
             "Cannot replace {}: {} (error {code}). Nothing was changed.{}",
             short(path),
@@ -389,8 +380,8 @@ pub fn patches_held(name: &str) -> String {
 pub fn patches_failed() -> String {
     format!(
         "Skhid could not finish updating the game's patches (game\\resources.db.patch_*); \
-         the reason is in game\\binaries\\x86\\updater_skhid.log. Start the launcher again, \
-         or send that file to the server's operator.{PLAY_OFF}"
+         the reason is in the newest game\\logs\\updater_skhid.<date>.log. Start the \
+         launcher again, or send that file to the server's operator.{PLAY_OFF}"
     )
 }
 
@@ -422,7 +413,7 @@ pub fn patches_download(name: &str, reason: &str) -> String {
 pub fn patches_no_address(name: &str, count: usize, first: &str) -> String {
     format!(
         "game\\{name} could not be downloaded from any of its {count} addresses (each is in \
-         updater_skhid.log). The first: {first}{PLAY_OFF}"
+         updater_skhid.<date>.log). The first: {first}{PLAY_OFF}"
     )
 }
 
@@ -444,7 +435,7 @@ pub fn patches_offline(reason: &str) -> String {
 pub fn patches_not_ready() -> String {
     "Skhid has not finished updating the game's files (game\\resources.db.patch_*), so the \
      game is not started. Start Skhid.bat (the launcher): it finishes the update, or says \
-     what is in the way. Details: game\\binaries\\x86\\updater_skhid.log."
+     what is in the way. Details: the newest game\\logs\\updater_skhid.<date>.log."
         .into()
 }
 
@@ -456,6 +447,26 @@ pub fn behind(have: u8, need: u8) -> String {
         "The server lets in game revision {need} and up; this game is revision {have}, and \
          the update to it is not offered yet (the server is being updated). Click OK: the \
          launcher keeps looking and starts anew with the update.{PLAY_OFF}"
+    )
+}
+
+/// The site was not asked or not reached (`reason`), and the newest release
+/// the DHT named, signed by the release, is `need`; the game exe says
+/// `have`, and the update to it could not be had from peers.
+pub fn behind_signed(have: u8, need: u8, reason: &str) -> String {
+    format!(
+        "Game revision {need} is out; this game is revision {have}, and the update to it \
+         could not be downloaded: no peer gave it, and {reason} Click OK: the launcher keeps \
+         looking and starts anew with the update.{PLAY_OFF}"
+    )
+}
+
+/// The site had not answered when the DHT named revision `revision`, signed
+/// by the release: the update was checked without it.
+pub fn signed_first(server: &Url, revision: u64) -> String {
+    format!(
+        "{} was not waited for: the DHT named revision {revision}, signed by the release, first.",
+        server.host
     )
 }
 

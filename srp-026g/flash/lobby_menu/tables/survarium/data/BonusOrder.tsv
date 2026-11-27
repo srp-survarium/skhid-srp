@@ -1,0 +1,60 @@
+# The one order of an item card's built-in lines, by the property each line shows (gameplay/
+# static_game_parameters ui_properties): the item's own (its default modifications, a weapon's
+# movement) and what the skills add to it (an oxygen tank's, MatchEffects.tankBonuses) alike.
+# What the piece carries (ammo bags first), then the body, the gun, the rest: the built-in columns of
+# scripts/content-edit/content_edit.py are in this order too, so an item's default list and the
+# wiki's "Comes with" read the same (docs/notes/built-in-bonuses.md, "Their order"). The lobby build
+# makes it the class survarium.data.BonusOrder (tools/actionscript/README.md, "Tables");
+# ItemInfoRenderer puts the built-in lines in it and stops on a line whose property has no row, never
+# drawing it last. Every property a modification shows has a row (srp's modifications::tests).
+list	prop:int	name:String
+lines	20	Ammo bags
+lines	10	Item slots
+lines	117	Pocket capacity
+lines	9	Artifact container
+lines	106	Weight limit
+lines	105	Movement speed
+lines	116	Energy costs
+lines	104	Stamina regeneration
+lines	103	Regeneration
+lines	101	Dispersion off the hip
+lines	102	Aiming speed
+lines	114	Reload speed
+lines	115	Weapon recoil
+lines	108	Collection time
+lines	127	Experience
+lines	128	Reputation: Scavengers
+lines	129	Reputation: Black Market
+lines	125	Sight sway
+lines	124	Respawn time
+lines	173	Artifact recharge
+lines	171	Regeneration delay
+lines	172	Regeneration limit
+lines	175	Melee knockback
+lines	126	Silver
+lines	130	Reputation: Renaissance Army
+lines	131	Reputation: Fringe Settlers
+lines	15	Weight
+lines	6	Armor
+lines	8	Isolation
+lines	11	Oxygen capacity
+lines	1	Damage
+lines	3	Armor penetration
+lines	4	Rate of fire
+lines	2	Dispersion
+lines	24	Distance
+lines	118	Weapon reload speed
+lines	119	Chambering time
+lines	123	Reliability
+lines	109	Anomaly damage
+lines	12	Healing
+lines	13	Disinfection
+lines	17	Pain threshold
+lines	107	Pain threshold
+lines	18	Duration
+lines	19	Activation
+lines	23	Explosion radius
+lines	113	Explosion radius
+lines	112	Device damage
+lines	110	Use speed
+lines	111	Success probability

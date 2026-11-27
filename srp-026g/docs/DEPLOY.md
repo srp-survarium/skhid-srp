@@ -7,7 +7,7 @@
 
 | File | What it does |
 |---|---|
-| `Dockerfile` | Builds `srp` (the 0.26g login server, lobby, match server and web page in one process) in a Rust image and copies the binary and `certs/` into a small Debian image. Runs as a user without rights. The cargo caches are build cache mounts, so a rebuild compiles only what changed (about 1.5 minutes on one CPU; the first build about 6) |
+| `Dockerfile` | Builds `srp` (the 0.26g login server, lobby, match server and web page in one process) in a Rust image and copies the binary into a small Debian image. Runs as a user without rights. The cargo caches are build cache mounts, so a rebuild compiles only what changed (about 1.5 minutes on one CPU; the first build about 6) |
 | `docker-compose.yml` | Compose project `srp26`: the service `srp26` and, with the profile `tls`, `caddy26` (HTTPS for the web page). Ports, the data volume, the settings passed to srp, the container's limits |
 | `.dockerignore` | Keeps build output, data, logs, docs and the client patches out of the build |
 | `deploy/env-026g.example` | The settings to put into `.env` beside the compose file |
@@ -28,19 +28,27 @@
 The client is told the ports srp binds, so each game port must be the same
 number inside and outside the container. Change `SRP26_LOGIN_PORT`,
 `SRP26_LOBBY_PORT` and `SRP26_MATCH_PORT`; never map one number to another.
+Voice chat is always on the match port + 1 (the games send there; srp binds
+it): `SRP26_VOICE_PORT` must be `SRP26_MATCH_PORT` + 1. `release/release.sh`'s
+preflight stops when it is not.
 
 | | Default of the compose file | On a host of its own |
 |---|---|---|
 | Login (TCP, TLS) | 2234 | 1234 |
 | Lobby (UDP) | 2235 | 1235 |
 | Match server (UDP) | 2236 | 1236 |
+| Voice chat (UDP, the match port + 1; `SRP_VOICE=off` for none) | 2237 | 1237 |
 | Web page | `127.0.0.1:8098` | the same, or public through `caddy26` on 443 |
 
-The defaults are a block of their own so that the stack can run beside a
-0.21d server on one host without sharing a name, a volume or a port with it
-(that server has 1234 tcp+udp, 1235 tcp, 1236 udp, 80 and 443). Beside it,
-do not start `caddy26`: port 443 is the other server's. On a host of its own
-use the game's own 1234, 1235, 1236.
+The defaults are a block of their own so that the stack can run beside
+another server on one host without sharing a name, a volume or a port with
+it (it was made to run beside the 0.21d server, hosted until 2026-10-12).
+Beside a server that has port 443, do not start `caddy26`. On a host of its
+own use the game's own 1234, 1235, 1236 and 1237 for voice.
+
+Open every game port in the host's firewall: the login port for TCP, the
+lobby, match and voice ports for UDP. A voice port that is not open leaves
+voice silent and nothing else: the games keep playing.
 
 ## First start
 
@@ -49,12 +57,10 @@ use the game's own 1234, 1235, 1236.
    fill it in. `SRP_PUBLIC_HOST` is required. Keep `.env` out of any
    repository: it holds the admin page's token and path.
 3. Put the players' download (the zip made as `client-patches/README.md`
-   says) into `./download`, or set `SRP_DOWNLOAD_URL`. A server whose
-   players had a ZIP with resource regions (before the patches) keeps
-   `./download/resources/` as it is: the originals there are what the
-   updater fetches (`/resources/<sha256>`) to put a player's `resources.db`
-   back to stock once, when it kept no copy of its own. A new server needs
-   no such folder.
+   says) into `./download`, or set `SRP_DOWNLOAD_URL`. A folder
+   `./download/resources/` (the blobs earlier updaters fetched to restore
+   `resources.db`) is no longer served: it may be deleted once a server
+   without that route is live.
 4. Put the server's game data (`server-game-data.db`, made by
    `srp-game-data build` of `resources.db` and the patches the players
    mount: "The game's files" below) into `./download` too, and each patch
@@ -81,7 +87,7 @@ Players start the game with `-server=<SRP_PUBLIC_HOST>:<login port>`
 | Setting | What |
 |---|---|
 | `SRP_PUBLIC_HOST` | The address players reach the host at. Required |
-| `SRP26_LOGIN_PORT`, `SRP26_LOBBY_PORT`, `SRP26_MATCH_PORT` | The game ports (above) |
+| `SRP26_LOGIN_PORT`, `SRP26_LOBBY_PORT`, `SRP26_MATCH_PORT`, `SRP26_VOICE_PORT` | The game ports (above; the voice port is the match port + 1) |
 | `SRP26_WEB_PORT` | The web page's port on the host's 127.0.0.1 (default 8098) |
 | `SRP26_HTTPS_PORT` | caddy's port (default 443) |
 | `SRP26_DOWNLOAD_DIR` | The folder with the download (default `./download`) |
@@ -173,7 +179,9 @@ the new one, and recreate the container.
   goes out in this order: the patch file at its URL, then, with srp26
   stopped, the new `server-game-data.db` and the players' ZIP of that
   revision over the old ones in `download/` and `SRP_MIN_PATCH_REVISION` in
-  `.env` set to the release's revision, then a new container. The ZIP
+  `.env` set to the release's revision (with `SRP_RELEASED_EXE_SHA256`, the
+  sha256 of that ZIP's game exe, which the match server then asks no game
+  for: `SRP-026G.md`), then a new container. The ZIP
   goes in with them, never after the start: the site serves whatever ZIP is
   in `download/` at once, and the old ZIP beside the new `/patches` and
   revision lets a launcher enable PLAY for a game the login server refuses
@@ -202,12 +210,27 @@ the new one, and recreate the container.
   0.26g tables), `backups/` (a copy of the database at every start),
   `snapshots/` (worlds the match server accepted, kept to compare) and
   `logs/`.
-- `logs/srp-YYYY-MM-DD.log`: every line srp prints, one file per UTC day,
-  added to across restarts, deleted after `SRP_LOG_KEEP_DAYS` (14). A line
-  has the time of day only; the date is the file's name. About 0.3 MB for a
-  day of 14 matches at `RUST_LOG=info`.
-- `docker compose logs srp26` is the running container's output only; an
-  update makes the container anew.
+- `logs/<server>.log` (login, lobby, match, web, srp): each server's lines,
+  dated (`2026-11-05T10:00:00.000Z [INFO] ...`), added to across restarts
+  and container recreates. A file is rotated to `<server>.log.1` (`.1`
+  becomes `.2`, ...) at its server's size, and a number of files is kept,
+  each server about two days at the heaviest logging seen (2026-11-01/02:
+  116-127 MB a day, about 95 % of it the match server's), the lobby about
+  12 days (the balance refit's input): match 32 x 8 MB, lobby 16 x 4 MB,
+  srp 4 x 4 MB, login 4 x 2 MB, web 2 x 2 MB, 348 MB in all (`SERVERS` in `servers/srp/src/logger.rs`). A crash's logs: crash.txt's
+  first line is the crash in UTC, as these lines are, and its `Match:` line
+  names the match as `match.log` does (`Match 0x...`). Lines reach the file through an 8 KiB
+  buffer: at once for a warning or an error, else with the first line a
+  second after the last write, and at a stop (SIGTERM). A process killed
+  outright loses the buffered info lines of the file (up to 8 KiB a
+  server); `docker logs` has them until the container goes. The day files
+  of before (`logs/srp-YYYY-MM-DD.log`) are no longer written or deleted:
+  remove them by hand when done with them.
+- The container's own output is capped by Docker (`json-file`, 5 files of
+  20 MB, in the compose file) and goes with the container.
+- `docker compose logs srp26` is the running container's output only (all
+  the servers in one stream, the time of day only); an update makes the
+  container anew.
 - The logs and the database are in one volume: a full disk stops both.
   Nothing copies them off the host. Do that yourself.
 - Passwords and their digests are in no log line.
@@ -242,7 +265,7 @@ login or an admin token, with `Content-Type: application/json` and
 `Cache-Control: no-store`. For example (illustrative counts):
 
 ```json
-{"online":12,"registered":45,"matches":3,"rooms":2,"in_rooms":9,"queued":1,"last_match_ends_in":512}
+{"online":12,"registered":45,"matches":3,"rooms":2,"in_rooms":9,"queued":1,"last_match_ends_in":512,"normal_matches":2,"last_normal_match_ends_in":340}
 ```
 
 - `online`: distinct accounts with an active lobby/chat connection or a
@@ -259,8 +282,17 @@ login or an admin token, with `Content-Type: application/json` and
   countdown, counts its map's whole wait, countdown and match time (925 s);
   0 when none runs. A match can end sooner. `release/release.sh` plans the
   maintenance 30 seconds after it (rounded up to whole minutes).
+- `normal_matches`: of `matches`, the normal ones: neither against the
+  server's bots (Player vs Bots, a PIN room made with bots) nor of a
+  private room (a PIN) (`session::v026g::match_kind::MatchKind`, set where
+  the lobby makes the match).
+- `last_normal_match_ends_in`: `last_match_ends_in` over the normal matches
+  alone. `release/release.sh --end-bot-and-private-matches` plans the
+  maintenance from it and waits for `normal_matches` 0; the other matches
+  end at its swap.
 
-All seven fields are nonnegative integers. Counts are read from live state;
+All nine fields are nonnegative integers; new ones are only added, at the
+end. Counts are read from live state;
 separate locks mean they are not a single atomic snapshot. Reading the endpoint
 never forms a match. No names, identifiers, addresses or credentials are
 returned. It is independent of the page language. Poll about once a minute.

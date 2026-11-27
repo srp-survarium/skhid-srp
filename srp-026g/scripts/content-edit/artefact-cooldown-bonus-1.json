@@ -1,0 +1,43 @@
+{
+  "_about": "The Artifact-master's artefact cooldown bonus (the owner, 2026-11-05): modification 1310, -20 % on parameters/artefact_cooldown_modifier (player modifier 38: the active's end 0x313530 starts the cooldown at cooldown_sec x max(0, 1 + S)), shown as card property 173 the way 1134 shows the search time on 108. Type 41, a type of its own (never rolled: drop weight 0). The booster's config gets the key at 0, as every booster carries its bonuses' keys: the item cook skips a modifier whose key the config lacks. boosters.tsv makes 1310 the booster's built-in, modifications.tsv holds its row. docs/notes/artefacts.md.",
+  "add_entry": [
+    {
+      "files": "gameplay/static_game_parameters.options",
+      "list": "ui_properties",
+      "after": {"prop_id": 108},
+      "like": {"prop_id": 108},
+      "values": {"prop_id": 173, "prop_name": "st_inv_artefact_recharge"}
+    }
+  ],
+  "add_value": [
+    {
+      "files": ["gameplay/items/boosters/artefact_booster.options"],
+      "table": "parameters",
+      "key": "artefact_cooldown_modifier",
+      "value": 0
+    }
+  ],
+  "append_entry": [
+    {
+      "file": "gameplay/items/modifications/modifications.options",
+      "list": "modifications",
+      "expected_count": 158,
+      "unique_key": "id",
+      "value": {
+        "drop_weight": 0,
+        "lobby_info": {"artefact_cooldown_modifier": -0.2},
+        "ui_desc": {
+          "name": "st_inv_artefact_recharge",
+          "icon": 13,
+          "props_list": [{"prop_value": "-0.20", "prop_id": 173}]
+        },
+        "type_mask": "000000000000000000000000000000000000000001",
+        "type_requirements_mask": "000000000000000000000000000000000000000001",
+        "id": 1310,
+        "modifiers": [
+          {"path": ["parameters", "artefact_cooldown_modifier"], "value": -0.2, "type": 1}
+        ]
+      }
+    }
+  ]
+}

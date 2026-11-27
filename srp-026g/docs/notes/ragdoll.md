@@ -186,9 +186,9 @@ The rules for a ragdoll follow from this:
 - **Read-only queries of that world are allowed**, on the logic thread outside `move`:
   ray / convex sweeps against the static groups. They change no state (Bullet's ray stacks
   are scratch).
-- **The battery and loot stay where the simulation puts them.** A ragdoll that slides far
-  would part the body from its battery, so the root's travel is capped (GUESS: 1 m from the
-  death position, to tune).
+- **The battery and loot stay where the simulation puts them.** The body is not held near
+  them: a thrown body lies apart from the battery it dropped, as a thrown hat lies apart from
+  its body (the drops are picked up where they are, section 11; the gun's copy where it lies).
 - **Rollback and resync:** every frame, after `move`, the ragdoll checks the player's state
   in the world as it now stands (section 5). A rollback or a loaded world that makes the
   player alive drops the ragdoll at once. A death re-simulated as the same death (same key)
@@ -257,8 +257,6 @@ The rules for a ragdoll follow from this:
   oldest-first), and a ragdoll over budget waits a frame: no frame hitch for a corpse.
 - **Risks:**
   - The bone array's space (model or world) and layout are not read yet.
-  - The model's culling box follows the player's transform, so the travel cap keeps the
-    body inside it.
   - `object_query`'s callback and result layout (closest_ray_result) need reading.
   - The local player's own body: patch 46's camera at +44Ch would ride a tumbling head.
     So the local player keeps the clip at first (an owner question).
@@ -351,7 +349,8 @@ Every finding is in the re-kit (`tools/re-kit/v026g`, the rows of this change).
    length, group, mask, delegate, unflipped; `ret 20h`). The result: +0 the point, +0Ch the
    fraction, +10h the normal (toward the ray's start when the last argument is 0), +1Ch the
    object (0: no hit; then the rest is not written). **The level alone: group 24h, mask 2**
-   (the foot IK's filter: walkers' geometry, no players, hit models, grenades or items).
+   (the foot IK's filter: walkers' geometry, no players, hit models, grenades or items;
+   section 17 adds the collision bullets hit, group 10h, mask 8).
    `object_query` 0x76920 is a convex sweep but **not usable**: its callback keeps every
    hit (no closest), its vector grows through an allocator, and a hit on a bare convex
    object dereferences a null shape info (0x77403). A sweep would call
@@ -374,7 +373,11 @@ Every finding is in the re-kit (`tools/re-kit/v026g`, the rows of this change).
    grows the instance's box by every bone's place), so a moving ragdoll needs no box.
    mt_draw's own cull is the problem: a player not seen the last frame (+0F4E2h) and
    holding an item skips the bones (0x24757C..0x24758C). The ragdoll's cull hook draws a
-   corpse of ours every frame (section 8).
+   corpse of ours every frame while its drawn bones can change: dying (its clip captured),
+   moving, and settled until one draw gave its settled pose. After that a settled corpse is
+   culled as the game culls: its bones never change, so the renderer's box (grown from the
+   bones it has) is right, and an unseen corpse keeps the bones a draw would give it
+   (section 8; the crate's `Slot::moves`).
 6. **The last hit (PROVEN): not kept.** The player keeps no hit point, direction or bone;
    the kill event has no position. Only hit_impl has them, at 0x2D9EFC: `[ebp+0Ch]` the
    hit_info (+0 the part's name, +24h the world hit point, +44h the killer's place),
@@ -427,6 +430,9 @@ the Bodycam study's recipe (the owner, 2026-10-25), proposals to tune in the gam
   level, at most 1.2 m/s; each part's speed change at most 6 m/s, its spin's 15 rad/s. The
   killing hit's part names the cause (the head: a headshot). With no bullet known (a fall, a
   blast): the motion the player had, no push.
+  A heavy hit (100 N s or more, more than any bullet's push: a gun-stock push of a carrier of the
+  Anomalous Force Protein, `force-protein-knockback.md`) throws the whole body: its share is not
+  capped, and goes up at half its level speed.
 - **A frame:** the frame's time (capped at 1/30 s) is stepped in fixed substeps of 1/360 s,
   the rest carried to the next frame (464c: the answer does not depend on the frame rate),
   one iteration each: integrate (g 9.81, damping 0.05/s linear, 0.3/s angular), joints,
@@ -438,25 +444,48 @@ the Bodycam study's recipe (the owner, 2026-10-25), proposals to tune in the gam
   frame (over 0.08 m/s; an end at rest keeps its plane), along its motion with the ground
   below it added (v dt plus the radius and 5 cm). An end that finds nothing while the other
   end lies on a plane, at that plane's height or above, takes that plane (a capsule across a
-  battery's or a ledge's edge stays on it); below it, it hangs past a step and is free. The
-  game's budget is 160 rays a frame for all ragdolls; an end not asked keeps its plane.
+  battery's or a ledge's edge stays on it); below it, it hangs past a step and is free.
+  Each end also has a plane beside it (2026-11-09; the owner: "people shouldn't see others
+  heads clipping into walls"): the game's query is a thin ray from the end's centre, so a
+  ray down never met a wall beside the end, and a head slid or thrown into a wall sank in
+  (a body thrown at a wall, `a_body_thrown_into_a_wall_stays_out_of_it` with the game's ray:
+  15 cm into it before, under 4 cm now). A moving end (across more than 1 mm a frame) asks
+  a second ray along its motion across, that long plus two radii and 5 cm; a surface
+  facing the end is its side plane, kept while the end is within its radius and 5 cm of
+  it (a wall let go as the end rocked off it and found again kept the body from settling).
+  The game's budget is 320 rays a frame for all ragdolls (160 before the side rays); an end
+  not asked keeps its planes.
 - **Settled:** no capsule end moved 1.5 cm in 0.4 s, or every body slower than 0.05 m/s
   (the solver's creep between a limb, the ground and a leg); or every capsule end slower
   than 0.35 m/s for a second (a limb that still drifts, two constraints fighting with one
   iteration a substep); at the latest after 5 s. Near
   rest on the ground (every end below 1 m/s) the bodies are slowed at 8/s. A step that goes
-  non-finite falls back to the last finite poses and settles. The pelvis stays within
-  2.5 m (horizontally) of where the player died.
+  non-finite falls back to the last finite poses and settles. Nothing holds a body near
+  where the player died (the 2.5 m cap went, 2026-11-05: the owner saw a thrown body stop at
+  it as at a wall); the ground's friction stops it.
 - **Drawn:** a body's bone is the body times its offset at the death; every other bone keeps
   its place on its parent from the death (fingers, rolls, clavicles, toes); the root stays.
   The gun drops: a capsule (0.35 m half length, 0.04 radius, 3.5 kg) along the "Weapon"
   bone's axis nearest the body's forward, with the hand's motion; the "Weapon" bone
   follows it, so the game draws the held item where the gun lies. Its own bounds are not
   read yet (a rifle's size for every item).
-- **The camera:** the eye ("Item") kept relative to the head at the death; followed by
-  critically damped springs (12 rad/s on its place, 9 on its forward), its up level (no
-  roll), its pitch within 55 degrees, 22 cm above the ground the head lies on at least.
-  Patch 46's drag still turns it.
+- **The camera:** the eye ("Item") kept relative to the head at the death. Its place is
+  the eye's, never trailing it: the game draws the local player's body without its head
+  (set_head_visibility, dead too), and the first build's spring on the place (12 rad/s)
+  trailed a falling head by about 0.5 m (2v/omega at 3 m/s) and its 22 cm lift above
+  the ground took it out of a head lying on the ground, so the body was seen headless
+  (the owner, 2026-11-09: "quite often it is clearly visible that the head is removed").
+  One ray of the level from the skull (the head capsule's far end) to the eye each frame
+  (none once the body has settled: the last one holds): a surface between them pulls
+  the camera back toward the skull, 8 cm short of the surface, and it is kept 8 cm off
+  that surface and the ground the head lies on, but never further from them than the
+  skull is, so it stays inside the hidden head (the owner, same day: "camera gets stuck
+  in textures": nothing kept it out of walls). And the camera itself never crosses a
+  surface: each frame it moves from where it was to that place by a ray (one more to slide
+  along a surface it stops 8 cm off), so a head that still sinks into a wall for a while
+  leaves the camera before the wall until it comes out. Its forward follows by a critically damped
+  spring (9 rad/s), its up level (no roll), its pitch within 55 degrees. Patch 46's drag
+  still turns it.
 - **The pool:** 20 slots. A new death with none free takes the oldest settled corpse's
   slot (that corpse is drawn as the game draws it again); with none settled, the death
   keeps the game's clip (`Canned`).
@@ -473,7 +502,7 @@ generated entry saves the machine, calls the handler and replays the span, or sk
 | site | VA, span | handler | registers (vostok) | flow |
 |---|---|---|---|---|
 | `game_world.after_move` | 0x1F7C3C, 5 | `on_step` | EBX the game world | replay (the compare) |
-| `player_draw.cull` | 0x24757C, 7 | `on_cull` | EBX the player | a corpse of ours: ZF set, skip (the `je` draws); else replay |
+| `player_draw.cull` | 0x24757C, 7 | `on_cull` | EBX the player | a corpse of ours whose bones can change (dying, moving, settled not drawn yet): ZF set, skip (the `je` draws); else replay |
 | `player_draw.bones` | 0x247716, 6 | `on_bones` | EBX the player, EBP mt_draw's frame | replay |
 | `camera.eye` | 0x1F3643, 6 | `on_eye` | EBX the player, EAX the eye given | EAX our eye for our corpse, replay |
 | `bullet.ray_traced` | 0x32D627, 10 | `on_ray` | EDI the bullet, EAX its result, ESP its frame | replay (the two moves) |
@@ -487,9 +516,9 @@ vostok's), `vostok::bullet` (a bullet's ray, its round, the body-hit effects), `
 `fields_026g.tsv` (an `::image` row for bt_animated_rigid_body's vtable; the frame locals by
 EBP and ESP as `mt_draw_frame` and `check_collision_frame`), every function one of
 `engine_026g.tsv` (ray_test, the object release, the material pair, play_particle as thunks;
-play_sound stdcall, match_options and get_active_player thiscall, called directly: the
-network client's vtable 0x9FFB14 is the only one that names them, so the step calls them as
-the vtable would; QueryPerformanceCounter/-Frequency and GetCurrentThreadId as imports).
+play_sound stdcall, match_options and get_active_player through generated virtual thunks: the
+live and replay clients dispatch through their own vtables (section 16);
+QueryPerformanceCounter/-Frequency and GetCurrentThreadId as imports).
 Which register a site holds is said once, in vostok's view of that site (the `what` of its
 row says the same).
 
@@ -569,9 +598,10 @@ takes no lock.
   body half over a ledge stays on it, one fully past it falls off.
 - **Settled:** within about 2 s of hitting the ground the body stops moving and stays as
   it lies; it is drawn even just off screen, so turning toward it shows it where it lies.
-- **Your own death:** the camera rides your own body's head as it falls, smoothly, never
-  rolling, never looking straight up or down, never below the ground; dragging still
-  turns the view (patch 46).
+- **Your own death:** the camera rides your own body's head as it falls, in the head,
+  never behind it (you never see your own body without its head); it turns smoothly,
+  never rolling, never looking straight up or down; never below the ground or inside a
+  wall; dragging still turns the view (patch 46).
 - **A respawn, or a rollback that takes the death back:** the ragdoll is gone at once.
 - **What may look off (tell me):** a body that shakes on the ground (464c's fixes, section
   12), a knock-back too strong or too weak (`tuning::DEATH_KNOCK`, `BODY_SHARE`), legs that
@@ -662,9 +692,9 @@ waits for them; the hook is thread safe (below).
   IK's) did not hit batteries: a battery's dynamic body is put into the world by
   `victory_item_core` 0x301CB0 (its vtable+0ACh) with group 0A18h, mask 418h, and Bullet's
   filter (needsCollision 0x75BD0: the object's group has a bit of the ray's mask and its mask
-  a bit of the ray's group) fails both ways. The rays now use group 424h, mask 202h: the
-  level as before, and the batteries (bits 400h and 200h; no other object put in with an
-  immediate group has them: character controllers 824h/3, hit models 40h/11h, grenades
+  a bit of the ray's group) fails both ways. The rays now use group 424h, mask 202h (434h and
+  20Ah since section 17): the level as before, and the batteries (bits 400h and 200h; no
+  other object put in with an immediate group has them: character controllers 824h/3, hit models 40h/11h, grenades
   818h/8, the lobby's 800h/800h and 20h/20h). The rays only read: a body lies on a battery
   or against it, and the battery is never moved or woken. A dropped battery (a dying
   carrier's, at the simulation's "Weapon" bone, 0x300E50) is a dynamic body that the
@@ -799,7 +829,7 @@ is, a killing shot 3 times on the part plus 0.6 of that on the whole body:
 | 5.45x39, 5.56x45 | 0.02 | 800 | 12.8 | 38 |
 | 7.62x39 | 0.02 | 700 | 11.2 | 34 |
 | 7.62x51, 7.62x54 | 0.1 | 800-850 | 64-68 | 190-200 (the part's cap: 6 m/s) |
-| 12.7x55 (ASh-12), 12.7x54 | 0.1-0.2 | 320-350 | 28-51 | 84-154 |
+| 12.7x55 (ASh-12), 12.7x54 | 0.1-0.2 | 320-370 | 28-59 | 84-178 |
 | 12 mm slug | 0.1 | 450 | 36 | 108 |
 | 12 mm buckshot | 0.01 x 10 pellets | 250 | 2 each | 6 each |
 
@@ -1077,6 +1107,38 @@ server now support a visual pass: bots cycle through all nine headwear
 items in both kits. Native lighting, shape and release motion still need
 the owner’s visual assessment before release.
 
+**Shot off a corpse (2026-11-23).** The owner: "make helmets fly off when
+shooting ragdoll too". A corpse that died with its helmet on (a body shot,
+a blast) loses it to a later shot:
+
+- Which shots (my reading): a bullet whose segment meets the corpse's head
+  capsule (section 11's trace, neck to past the Head bone, which the helmet
+  sits on); a worn helmet has no body of its own, so the head stands for
+  head and helmet. A hit on any other part leaves it on.
+- Which helmets: the same set as the headshot's, the meshes the edit list
+  binds to the extra bone; the rest (the beanie, hoods, Pilgrim) stay on.
+- Once a death: the headwear is worn or off (`ragdoll::Headwear`); only a
+  worn one comes off, and one off is not hit again.
+- The fly-off is the headshot's own (`Ragdoll::knock_off`: the same body,
+  place, release speeds and tumble), from the head's pose and motion after
+  the shot's push, its sideways part along the shot (level) and its tumble
+  about up x the shot. It lies until the corpse goes, as the headshot's.
+- Any bullet counts: an enemy's, a teammate's, a bot's; bots' corpses too.
+  A rollback that undoes the death puts it back with the living player; a
+  re-simulated shot is taken once (the shot log); a shot a rollback takes
+  back leaves it off, as its push stays.
+- Your own corpse: the death camera follows the head body, not the helmet,
+  and the helmet is in no world the camera's ray reads: it neither blocks
+  nor moves the camera (the head's jolt is any head shot's).
+- Each game decides from its own bullets against its own corpse: no
+  message, nothing a match computes. Corpses lie a few cm apart between
+  games, so a graze at the head's edge can take the helmet off in one game
+  and leave it on in another (accepted for a cosmetic). Late joiners,
+  spectators and replays draw their own corpses the same way; a late joiner
+  who did not see the kill sees a headshot's helmet still on until a shot.
+- A corrected non-headshot death event puts back only a helmet the killing
+  headshot took off, not one a corpse shot did.
+
 ## 16. The headshot launch (2026-10-30)
 
 A headshot corpse still creeping after about 3.6 s was flung 2-6 m up and
@@ -1090,6 +1152,122 @@ are unchanged. Offline, 26 of 80 headshot scenes launched before and none
 after. Tests: `exp_neg` against the real exponential over 0..80, never
 growing; a headshot body on flat ground keeps every part below 0.6 m after
 1.5 s (it was 0.83 m and rising at 3.77 s).
+
+## 17. Guns in Rudnya's ground (2026-11-01)
+
+The owner: "on Rudnya, weapons quite often fall under the textures"; the dropped gun lies
+partly or wholly under the ground, hard to see.
+
+**Why (PROVEN, on the data).** The rays met the walker collision alone (cgroup 2 / cmask 4,
+the foot IK's filter). On other maps that mesh is about the drawn ground (level 04's terrain: a
+median 0 cm, 4 cm at the 90th percentile). Rudnya's (native level_01's `terrain.model` and the v0.69 port's
+`terrain_game_*`, the same geometry) is coarse and lies under the drawn ground: over the
+play area the drawn ground (its base surfaces and the blend overlays `*_vc`, the dirt,
+earth and grass drawn over 57 % of it) is a median 4.1 cm above it, 9.7 cm at the 90th
+percentile, 17 cm at the 99th; more than the gun's radius (4 cm) on 51 % of the ground. The
+gun's axis rested 4 cm over the walker mesh: at the drawn ground or under it, the gun half
+or wholly hidden; the bodies' thinner parts (forearms, r 5 cm) partly. The level's other
+collision, the one bullets hit (cgroup 8 / cmask 16), follows the drawn ground: within
+2.2 cm at the 90th percentile, 3.4 cm at the 99th.
+
+**The fix.** The rays meet that collision too: group 434h, mask 20Ah (added group 10h, mask
+8, as the lobby's camera ray 0x2844D0). The nearer surface is met, so nothing lies lower
+than before. Nothing else in the world has those bits both ways: grenades (818h/8) have
+group 8 but none of 434h in their mask; players 824h/3, hit models 40h/11h, the lobby's,
+the client objects' geometries (80h/100h, 1/20h) neither. Visual only: no data, no
+simulation change.
+
+**The mud field.** East of the play area (x 95 to 144, z -24 to 31, about 950 m2) the
+dirt overlay is drawn 30 to 48 cm above both collisions, in 0.26g's native Rudnya, in
+0.69d's own `terrain_game_07` and so in the port (0.69d had no collision at that surface
+either; 0.26g's `hq_collision`, in no project, follows it). A body or gun there would sink out of
+sight, and players' feet sink there as they always did; it lies outside the play area
+(the site's `play_area_px` for level_01: x -86 to 86), so nothing was changed for it.
+
+**Checked.** `cargo test -p ragdoll`: on 6 x 6 m of Rudnya's ground by the decent house
+(`ragdoll/rudnya_floor.rs`, the three meshes' triangles), five deaths: on the walker mesh
+alone the gun's axis settles 5.8 to 6.3 cm under the drawn ground (deeper than its radius),
+the bodies' 2 to 4 cm; with the collision bullets hit, 3 cm above it, the bodies' 4 cm.
+The patches' test: the filter meets the walker collision, the hittable one, a collision of
+both and the batteries, and none of the others above. `check_ragdoll_026g.py`: a walker
+floor at 0 and the hittable one 4 cm over it, a grenade's and a player's slab where the
+body falls; the filter is 434h/20Ah and the body lands on the hittable floor, through both
+slabs.
+
+## 18. The dropped gun outlives its body (2026-11-02, patch 85's drop is its copy)
+
+Patch 85 draws a drop's copy at the ragdoll's gun from the death until the
+drop ends (weapon_pickup.md, "The drop's gun is its copy"). `Corpses::gun`
+gives a place's gun's `Weapon` bone pose: its ragdoll's, or, once the body
+goes (its player's respawn, or its slot given to another death), `corpse::Lone`:
+the same gun body stepped alone by the ragdoll's own rules (`LoneGun::step`:
+`query_body`, the contacts, friction, the near-rest slowing, the rest rules for
+one body) until it rests, kept until the place's next death, a frame without
+the place, or another world (the patch resets the corpses when the match's
+core changes: a death's key is a time of its match, so a later match's death
+at the same time must not find it). The patch hands the poses to
+`weapon_pickup::draw_drops` after each step. Visual only.
+
+## 19. The STALKER maps' bushes: the level ray without group bit 20h (2026-11-14)
+
+The ported STALKER maps give their bushes collision that a step's ray alone is
+meant to meet (cgroup 8 / cmask 20h, `stalker-maps.md`, "Bushes rustle"): the
+leaves a walker goes through, up to 1.2 m over the ground. The level ray's
+group 434h had bit 20h, so a body and its gun came to rest on those leaves.
+
+**The change.** `LEVEL_GROUP` is 414h (`0x04 | 0x10 | 0x400`), mask 20Ah as
+before. Bit 20h came with the foot IK's group 24h (section 11), of which the
+walker collision (cmask 4) needs bit 4 alone.
+
+**Nothing else stops being met (PROVEN, on the data).** An object leaves the
+ray when its group has a bit of 20Ah and its mask has 20h and none of 414h.
+Every pair of group and mask in the live data (the stock db and every patch to
+58: 156 projects, 1,098 gameplay configs) and the built bushes:
+
+| what | group / mask | 434h/20Ah | 414h/20Ah |
+| --- | --- | --- | --- |
+| a project's collision objects | 2/4, 8/16, 10/20 | met | met |
+| the bushes (6 objects) | 8/32 | met | not met |
+| a trap's hittable object (`blackmarket_trap.options`) | 808h/10h | met | met |
+| a trap's sensor geometry | 201h/420h | met | met (bit 400h) |
+| client objects' and usable objects' geometries | 1/20h, 80h/100h, 880h/100h | not met | not met |
+
+and the bodies put in by code, as before: batteries 0A18h/418h met; players
+824h/3, hit models 40h/11h, grenades 818h/8, the lobby's 800h/800h and 20h/20h
+not met.
+
+**Checked.** The patches' test lists 8/20h among what the filter does not
+meet. `check_ragdoll_026g.py`: the ray's filter is 414h/20Ah, and a bush's slab
+(8/20h, 0.4 m up where the body falls) is passed as the grenade's and the
+player's are: the body lands on the hittable floor. `check_weapon_pickup_026g.py`'s
+stand-in for the level takes the new group. Visual only: no data, no simulation
+change.
+
+## 20. The fingers let go (2026-11-23)
+
+The owner, 2026-11-23: a ragdoll's fingers "are always as if they were holding a weapon". The
+bodies end at the forearms (section 7: the hands go with them), and every other bone kept its
+pose on its parent from the frame of the death (`Link::Parent`): the thirty finger joints kept
+the grip of the gun that had just dropped.
+
+A finger joint is now its own link (`Link::Finger`): on its parent as held at the death, its
+turn going to a loose hand's (`skeleton.rs` `LOOSE_FINGERS`, the splines' Euler angles of each
+joint on its parent; both hands' finger bones are laid out alike, a curl is +Z, so one table
+serves both: the knuckles' spread and the thumb are the artefact carry's open palm, the curls a
+resting hand's, 0.45 to 0.8 rad, more toward the little finger). The way is a quaternion nlerp
+eased over `FINGERS_LOOSE_TIME` (0.35 s, under the 0.4 s a body takes to settle, so a settled
+hand is loose) from the ragdoll's age alone. The fingers are no bodies: they have no speed, meet
+nothing and cannot swing (the owner: "make sure fingers don't start to behave wildly too"); the
+joints' places on their parents are the death's, only the turn changes. `Ragdoll::draw` is the
+one way a ragdoll's skeleton is drawn (the camera's head too), so every draw has the same hand.
+The view alone, as all of the ragdoll.
+
+Checked: `cargo test -p ragdoll` (`the_fingers_let_go_once_and_never_swing`: in a shot body's
+fall every joint is each frame nearer the loose turn or where it was, and there from 0.35 s
+on; the thirty joints and no other bone have a loose turn). Looked at offline on the stock
+hands (the artefact carry's `render_mesh.py` skinning, the stock battery idle clip's grip beside
+the loose hand, both hands, four sides): an open hand lightly curled, neither hand twisted. Not
+run in a game.
 
 ## Addresses (re-kit rows added in this change)
 
@@ -1120,3 +1298,62 @@ Already in the kit and used above: 0x338330 dead state activate, 0x3383E0 / 0x33
 0x3384E0 its serialize / deserialize / end, 0x2474A0 mt_draw, 0x1F77E0 game_world::tick,
 0x22490 update_skeleton, 0x75E20 ray_test, 0x76920 object_query, 0x70F40, 0x71080,
 0x714F0, 0x71600 (the hit model's makers), 0x324410 physics history item.
+
+## 16. Revision 42 replay crash: live-client methods on a replay client (2026-11-02)
+
+The examined executable is
+revision 42, SHA-256 `f605fedc2d6d63d77d9bb15cdc3c57f1e98720b65171c2f5a7bd4604588530f6`.
+Both reports fail inside `game_world_core::active_player_ptr` through the ragdoll step's
+`NetworkClient::player`, not a weapon-pickup call. The ZIP's log creates a replay network
+client at 17:12:16.290, finishes loading the collision world at 17:12:24.664, and faults at
+17:12:27.431, shortly after the first atmosphere update. It does not show replay teardown.
+
+Evidence:
+
+- `SRP-crash-20261102-171227-627-p21616-t19776-0.zip` in Downloads: read fault at
+  preferred VA `0x2D0AF9`, `movzx ecx, byte [eax+0Ch]`, ESI `0x1F8`, EAX
+  `0xD0F045C7`. The dump's client at `0x7378AAE8` has vtable `0x9FF344`, the
+  replay client's (installed by constructor `0x218A40`). The crashing instruction
+  bytes match the exact revision-42 executable.
+- The second report (16:11:12, no dump supplied): write fault at `0x2D0B12`,
+  `lock xadd [eax], edx`, ESI `0x1FA`, EBP/place 5, ECX `0xC4`, EAX
+  `0xE8105159`. Same executable hash and reported stack.
+- Actual call chain: ragdoll `hook_ragdoll_on_step` -> call `0xA4794E8` ->
+  player wrapper `0xA45EDBF` -> direct call `0xA45EDD5` to live-client
+  `0x27A9C0` -> `0x2D0AB0`. The native method reads `[client+1F1C40h]`
+  and adds `1F8h`. For a replay, the world pointer belongs at `+578BCh`.
+- First fault: the wrong world pointer was zero (ESI after addition is `0x1F8`).
+  The supposed player-array pointer is read from `0x18650`, inside the executable;
+  its bytes are exactly `0xD0F045C7`, explaining the faulting read `0xD0F045D3`.
+- Second fault: the wrong world pointer was 2 (ESI `0x1FA`). The executable's dword
+  at `0x18652` is `0x0002D0F0`; adding place 5 times `0x30` yields `0x2D1E0`.
+  Its byte at `+0Ch` is `0xC4`, so the supposed player pointer comes from
+  `0x2D1E0 + 4*0xC4 = 0x2D4F0`: `0xE8105089`. Adding the player's reference-count
+  offset `0xD0` produces exactly the reported write address `0xE8105159`.
+  This establishes the same bad-layout mechanism without the second dump.
+
+The preceding options lookup is wrong too: `0xA47944B` directly calls live-client
+`match_options` at `0x219990` (`[client+1F1C48h]+0Ch`). The replay's vtable slot
+`+34h` instead names `0x2189E0` (`client+1Ch`, inline options). The step's observed
+places count is therefore not reliable either. Fixing only the player lookup leaves
+this earlier invalid access.
+
+Correction: the engine-library rows now use its existing `virtual` calling mode for both
+`match_options` (vtable `+34h`) and `get_active_player` (`+50h`). The live table
+`0x9FFB14` selects `0x219990` / `0x27A9C0`; the replay table `0x9FF344` selects
+`0x2189E0` / `0x26D6A0`. The generated cdecl thunks preserve the native thiscall ABI
+and the returned player's reference ownership; all Rust declarations are regenerated
+with the new calling convention.
+Do not merely null-check the live-layout world field: it is unrelated memory for a replay,
+and the second report demonstrates it can contain a nonzero value. The engine gate
+checks both vtable slots and their native ABI. The ragdoll gate runs the built hook with
+replay layouts, sparse places 0/5, unrelated live-layout fields 0/2 or unmapped, death,
+restored-alive seek state, exit/re-entry, and reference balance. In-game replay
+start/seek/exit has not been run.
+
+Validation performed: a focused Unicorn experiment ran the exact released native methods
+against synthetic live/replay layouts. Both live methods faulted when given the replay
+layout; each appropriate implementation returned the correct options/player, with the
+player reference count incremented once. This checks the diagnosis and proposed dispatch,
+not a shipped fix. The dump omits the replay's actual world/options fields, so no claim is
+made about their contents or a successful full replay run.

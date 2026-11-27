@@ -5,7 +5,7 @@
 //   stack:    only in a local of this thread's stack;
 //   heap:     referenced from nowhere.
 // A player's build asks for the first two (Windows' dbghelp writes them;
-// Wine's does not), a full-memory build holds all three.
+// Wine's does not), a full-memory dump (SKHID_CRASH_DUMP=full) all three.
 // Builds with cl, or with MinGW as below (README.md, Verify).
 #include <windows.h>
 #include <stdio.h>

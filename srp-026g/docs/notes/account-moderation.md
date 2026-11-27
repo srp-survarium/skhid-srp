@@ -7,6 +7,48 @@ The rules the code and the tests follow. Code: `session::v026g::moderation`
 content change, `REVISION` unchanged, no `simulation_changes` row. Needs a
 server release before use.
 
+## Live nickname changes (2026-11-12)
+
+The **Rename** tab takes an exact decimal account ID (optionally prefixed with
+`#`), the new nickname and an admin-only reason. It applies immediately without
+charging, ending sessions or restarting the server. Account IDs, logins,
+passwords, friends and progress stay unchanged. It also works for an account
+that has not entered the 0.26g lobby yet.
+
+The same action is available through the existing authenticated script transport:
+
+```sh
+release/moderate rename 777 Mamoru_777 --reason "duplicate nickname"
+release/moderate rename 777 Mamoru_777 --reason "duplicate nickname" --dry-run
+```
+
+This command never resolves a nickname to an account and never edits SQLite.
+Use `release/moderate who Mamoru` to inspect IDs first. `--dry-run` makes no
+network request and displays no credentials. A rejected rename exits 1; a rename
+applied in memory whose write failed or is pending exits 2 and reports that state.
+An older server without this action is refused, not reported as success.
+
+`SessionStore::admin_rename_026g` shares the paid-rename/registration namespace
+lock and the same `Nickname` parsing and Cyrillic/Latin lookalike rules. It
+also serializes first lobby entry through `SessionStore::sign_up_026g`, so
+creating the game account cannot restore a name read before an admin rename. It
+updates the shared account and its game copies, then attempts an immediate shared
+account write. The panel writes the 0.26g copy with a `nickname` audit row (old
+name, new name, reason and admin address). These are separate writes: each result
+is reported, and the savers retry a busy/refused write. Startup reconciles the
+game name from the shared account. `AccountChanged` updates the connected
+player's cached name and base-info packet, refreshes friends (including friends
+of offline accounts), and marks the squad display for refresh.
+
+This capability needs a server deployment once. The existing collision cleanup
+required before schema 8 still uses the stopped-server repair tool described in
+`social.md`; subsequent admin renames run live. Automated tests cover auth,
+exact-ID targeting, collisions, unchanged balances/credentials, persistence
+failure/retry, live squad lookup, offline friend refresh and script outcomes.
+No live deployment or in-game validation is implied by these tests.
+
+## Money and items
+
 - **Why (the owner, 2026-10-20):** "we need the ability to take away items
   in the admin panel"; for farmed money, "we need to calculate how much
   money pain and Fasojib farmed and take this silver out", and "the same
@@ -21,10 +63,10 @@ server release before use.
   that has not signed in to 0.26g yet, says so and loads no account. The
   page shows user name, character name, account id
   (decimal and hex, as the logs write it) and whether its game is open.
-- **Money:** a signed amount of silver (`generic_money`) and/or gold
-  (`premium_money`). A balance never goes below 0 (nor past `u32::MAX`): a
+- **Money:** a signed amount of silver (`generic_money`, the one currency since gold was
+  removed on 2026-11-08). The balance never goes below 0 (nor past `u32::MAX`): a
   take of more than the account has takes what it has. The preview shows
-  each balance before → after, the change really made, and the amount asked
+  the balance before → after, the change really made, and the amount asked
   when that differs. A change that changes nothing (nothing left to take)
   is not offered.
 - **Take items:** the account's items listed: name, dictionary id, item id,
@@ -50,7 +92,7 @@ server release before use.
   good (issued, not used, not older than 10 minutes), its plan is the same,
   and a reason is given. So a reload of the confirm (even once the account
   is back as it was), an old preview, a change by the game between preview
-  and confirm (gold spent, ammo used, an item sold), or fields changed
+  and confirm (silver spent, ammo used, an item sold), or fields changed
   after the preview change nothing: the page says so and shows the new
   preview. The preview's button comes first in the
   form, so Enter never applies. The page is POST only, as every admin
@@ -73,8 +115,7 @@ server release before use.
      (`Inbox::account_changed`, as after a purchase: inventory, account and
      kits, money, level and skills, reputations, quests, services), and its
      squad's view of it is compared again. An offline account sees it at
-     its next sign-in. A match it plays now pays it as usual at the end; an
-     item taken meanwhile is skipped by the match's wear.
+     its next sign-in. A match it plays now pays it as usual at the end.
   No other account is read for writing or changed.
 - **Reason:** required (trimmed, at most 200 characters, control characters
   made spaces). Admin-only: the log, the audit trail and the admin page. It
@@ -85,6 +126,6 @@ server release before use.
   the account's latest 8 with every preview. A store kept in memory
   (`SRP_DB=off`) keeps the log only.
 - **Log:** `Admin from <address>: money of <name> ("<login>", account 0x…):
-  silver -480000 (asked -500000), gold +0; before …, after …; reason "…"`
+  silver -480000 (asked -500000); before …, after …; reason "…"`
   and `… items of <name> (…) taken: …`, at info; a write left to the saver
   is a warning, a refused one an error.

@@ -6,13 +6,16 @@
 //! asked (the game's, for the game thread's hooks) with the results. The
 //! callback is a generated entry ([`CallbackEntry`], the `callback` site
 //! `resources.query_done`); its handler gets [`QueryResults`] and the tag,
-//! and takes what it asked for with [`QueryResults::arrived`].
+//! and takes what it asked for with [`QueryResults::arrived`]. The music
+//! (patch 88) asks its bus and tracks, Forest Protection's glow (patch 111)
+//! its game effect.
 
 use core::ffi::CStr;
 use core::num::NonZeroU32;
 use core::ptr::null;
 use core::sync::atomic::{AtomicU32, Ordering};
 
+use super::effect::KeptEffect;
 use super::hook::{CallbackEntry, Thread};
 use super::sound::{BusScene, Emitter};
 use super::OrigStoreFirstResource;
@@ -21,6 +24,21 @@ use crate::raw;
 /// The resource classes these queries ask (resources::class_id_enum).
 const SOUND_SCENE_CLASS: u32 = 38;
 const SINGLE_SOUND_CLASS: u32 = 256;
+/// A game effect resource (game_effect_resource_cook, its constructor
+/// 0x2EC6EB): a request's path is the effect's name, its config
+/// gameplay/effects/effect_<name>.options (translate_query 0x2EC86C).
+const GAME_EFFECT_CLASS: u32 = 109;
+/// A model (the artefact cooks' first request, 0x25E91A) and a particle
+/// system (their second, 0x3D at 0x25E862).
+const MODEL_CLASS: u32 = 15;
+const PARTICLE_CLASS: u32 = 61;
+/// A sound collection (sound_collection_cook: its class 102h, 0x5F4A3): a
+/// sound emitter that plays one of its items.
+pub const SOUND_COLLECTION_CLASS: u32 = 258;
+/// A composite sound (sounds/composite/*.composite_sound): a sound emitter
+/// that plays all its items at once (class 101h, as gameplay/bodyparts'
+/// torso sounds name theirs: {257, "animations/death_animation"}).
+const COMPOSITE_SOUND_CLASS: u32 = 257;
 /// query_resources' last argument: a normal asynchronous query.
 const ASYNCHRONOUS: u32 = 1;
 /// A sound scene's creation params: the music bus holds one voice at a time,
@@ -29,46 +47,143 @@ const BUS_PROXIES: u32 = 8;
 const BUS_PROPAGATORS: u32 = 16;
 const BUS_RECEIVERS: u32 = 2;
 
-/// A track query's number, never 0 (0 is the bus's tag).
+/// The words of the tags that are not a track's.
+const BUS_WORD: u32 = 0;
+const EFFECT_WORD: u32 = 1;
+const PARTICLES_WORD: u32 = 2;
+const ASSETS_WORD: u32 = 3;
+
+/// A track query's number, never a word of another tag (0 and 1).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Serial(NonZeroU32);
 
 impl Serial {
-    pub const FIRST: Serial = Serial(NonZeroU32::MIN);
+    pub const FIRST: Serial = match NonZeroU32::new(ASSETS_WORD + 1) {
+        Some(n) => Serial(n),
+        None => panic!("the first serial is not 0"),
+    };
 
-    /// The one after, wrapping past 0.
+    /// The one after, wrapping past the largest to the first.
     pub fn next(self) -> Serial {
-        Serial(self.0.checked_add(1).unwrap_or(NonZeroU32::MIN))
+        self.0.checked_add(1).map_or(Serial::FIRST, Serial)
     }
 }
 
 /// What a query was asked for: the word bound to its callback, read back
-/// when the callback comes (0 the music bus, else a track's serial).
+/// when the callback comes (0 the music bus, 1 a game effect, else a
+/// track's serial).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum QueryTag {
     Bus,
+    Effect,
+    /// Particle systems (Freeze Tag's frozen glow, patch 160).
+    Particles,
+    /// A model and its particles (patch 171's artefact).
+    Assets,
     Track(Serial),
 }
 
 impl QueryTag {
     /// The callback's bound word, as the game hands it back.
     pub(super) fn from_raw(word: u32) -> QueryTag {
-        NonZeroU32::new(word).map_or(QueryTag::Bus, |n| QueryTag::Track(Serial(n)))
+        match word {
+            BUS_WORD => QueryTag::Bus,
+            EFFECT_WORD => QueryTag::Effect,
+            PARTICLES_WORD => QueryTag::Particles,
+            ASSETS_WORD => QueryTag::Assets,
+            n => NonZeroU32::new(n).map_or(QueryTag::Bus, |n| QueryTag::Track(Serial(n))),
+        }
     }
 
     fn word(self) -> u32 {
         match self {
-            QueryTag::Bus => 0,
+            QueryTag::Bus => BUS_WORD,
+            QueryTag::Effect => EFFECT_WORD,
+            QueryTag::Particles => PARTICLES_WORD,
+            QueryTag::Assets => ASSETS_WORD,
             QueryTag::Track(serial) => serial.0.get(),
         }
     }
 }
 
-/// What came back: the bus's scene or a track's single sound, each with a
-/// reference of its own (None for a query that failed: a missing file).
+/// What came back: the bus's scene, a track's single sound or game effect
+/// resources, each with a reference of its own (None for a query that
+/// failed: a missing file).
 pub enum Arrived {
     Bus(Option<BusScene>),
     Track(Serial, Option<Emitter>),
+    /// Kept for the process (a game effect is played until the game exits).
+    Effects(ArrivedEffects),
+    /// Particle systems, each kept for the process.
+    Particles(ArrivedParticles),
+    /// A model and its particles, each kept for the process.
+    Assets(ArrivedAssets),
+}
+
+/// The most particle systems one particles query asks for.
+pub const PARTICLES_MOST: usize = 20;
+
+/// The most particle systems one assets query asks for.
+pub const PARTICLES: usize = 5;
+
+/// A model of a query of ours, one reference kept for the process.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct KeptModel(pub(super) raw::SceneModel);
+// SAFETY: its count is atomic; kept for the process, used on the game's thread.
+unsafe impl Send for KeptModel {}
+
+/// A particle system of a query of ours, one reference kept for the process.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct KeptParticle(pub(super) raw::ParticleSystem);
+// SAFETY: as KeptModel.
+unsafe impl Send for KeptParticle {}
+
+/// The particle systems a query asked for, in its order (None: that one failed, or past the
+/// query's requests).
+#[derive(Clone, Copy)]
+pub struct ArrivedParticles {
+    kept: [Option<KeptParticle>; PARTICLES_MOST],
+}
+
+impl ArrivedParticles {
+    /// The first `N`, when every one of them came (a query of `N`).
+    pub fn all<const N: usize>(&self) -> Option<[KeptParticle; N]> {
+        let mut out = [None; N];
+        for (slot, kept) in out.iter_mut().zip(self.kept) {
+            *slot = kept;
+        }
+        out.iter().all(Option::is_some).then(|| out.map(|kept| kept.expect("every one checked")))
+    }
+}
+
+/// What an assets query brought (None: that one failed).
+#[derive(Clone, Copy)]
+pub struct ArrivedAssets {
+    pub model: Option<KeptModel>,
+    pub particles: [Option<KeptParticle>; PARTICLES],
+}
+
+/// The most game effects one query asks for.
+pub const EFFECTS_MOST: usize = 13 + 3 * 23;
+
+/// The game effect resources a query asked for, in its order, each kept for
+/// the process (None: that one failed, or past the query's requests).
+#[derive(Clone, Copy)]
+pub struct ArrivedEffects {
+    kept: [Option<KeptEffect>; EFFECTS_MOST],
+}
+
+impl ArrivedEffects {
+    pub fn get(&self, index: usize) -> Option<KeptEffect> { self.kept.get(index).copied().flatten() }
+
+    /// The first `N`, when every one of them came (a query of `N`).
+    pub fn all<const N: usize>(&self) -> Option<[KeptEffect; N]> {
+        let mut out = [None; N];
+        for (slot, kept) in out.iter_mut().zip(self.kept) {
+            *slot = kept;
+        }
+        out.iter().all(Option::is_some).then(|| out.map(|kept| kept.expect("every one checked")))
+    }
 }
 
 /// The results a query's callback is called with, for its call only.
@@ -91,7 +206,8 @@ impl<'t> QueryResults<'t> {
     }
 
     /// Takes what the query `tag` names asked for: a reference of ours to
-    /// its first result (the queries made here ask one resource).
+    /// its first result (a bus's or a track's query asks one resource), or
+    /// to each of its results (a game effects' query).
     pub fn arrived(&self, tag: QueryTag) -> Arrived {
         // SAFETY: the results are alive for the callback (from_raw); a
         // query of ours has one request, and the tag says which class it
@@ -111,6 +227,54 @@ impl<'t> QueryResults<'t> {
                     // SAFETY: the reference just taken is the Emitter's.
                     Emitter::owning(emitter)
                 })),
+                // SAFETY: a model for the first request, a particle system
+                // for each after it (the classes asked), alive for the
+                // callback; one reference of ours each, kept for the process.
+                QueryTag::Assets => {
+                    let mut arrived = ArrivedAssets { model: None, particles: [None; PARTICLES] };
+                    if let Some(results) = first {
+                        let count = *results.count() as usize;
+                        arrived.model = results.results().at(0).model().map(|model| {
+                            AtomicU32::from_ptr(model.references()).fetch_add(1, Ordering::AcqRel);
+                            KeptModel(model)
+                        });
+                        for (index, slot) in arrived.particles.iter_mut().enumerate().take(count.saturating_sub(1)) {
+                            *slot = results.results().at(index + 1).particle().map(|particle| {
+                                AtomicU32::from_ptr(particle.references()).fetch_add(1, Ordering::AcqRel);
+                                KeptParticle(particle)
+                            });
+                        }
+                    }
+                    Arrived::Assets(arrived)
+                }
+                // SAFETY: a game effect resource for each class 109 request,
+                // alive for the callback (KeptEffect::keep takes its own);
+                // the results are 2E0h apart, as many as the requests.
+                QueryTag::Effect => {
+                    let mut kept = [None; EFFECTS_MOST];
+                    if let Some(results) = first {
+                        let count = (*results.count() as usize).min(EFFECTS_MOST);
+                        for (index, slot) in kept.iter_mut().enumerate().take(count) {
+                            *slot = results.results().at(index).effect().map(|effect| KeptEffect::keep(effect));
+                        }
+                    }
+                    Arrived::Effects(ArrivedEffects { kept })
+                }
+                // SAFETY: a particle system for each class 61 request, alive for the callback; one
+                // reference of ours each, kept for the process (as the artefacts' cooks keep theirs).
+                QueryTag::Particles => {
+                    let mut kept = [None; PARTICLES_MOST];
+                    if let Some(results) = first {
+                        let count = (*results.count() as usize).min(PARTICLES_MOST);
+                        for (index, slot) in kept.iter_mut().enumerate().take(count) {
+                            *slot = results.results().at(index).particle().map(|particle| {
+                                AtomicU32::from_ptr(particle.references()).fetch_add(1, Ordering::AcqRel);
+                                KeptParticle(particle)
+                            });
+                        }
+                    }
+                    Arrived::Particles(ArrivedParticles { kept })
+                }
             }
         }
     }
@@ -146,6 +310,89 @@ pub fn query_track(_: &Thread, path: &CStr, serial: Serial, callback: QueryCallb
     query(path, SINGLE_SOUND_CLASS, None, QueryTag::Track(serial), callback);
 }
 
+/// Asks for a sound collection (class 258) at `path`
+/// (`vo/english/artifact_hunt/art_spawned`: sounds/collections/vo/..): it
+/// arrives as a track does, its emitter the collection.
+pub fn query_collection(_: &Thread, path: &CStr, serial: Serial, callback: QueryCallback) {
+    query(path, SOUND_COLLECTION_CLASS, None, QueryTag::Track(serial), callback);
+}
+
+/// Asks for a composite sound (class 257) at `path`
+/// (`animations/death_animation`: sounds/composite/animations/..): it
+/// arrives as a track does, its emitter the composite.
+pub fn query_composite(_: &Thread, path: &CStr, serial: Serial, callback: QueryCallback) {
+    query(path, COMPOSITE_SOUND_CLASS, None, QueryTag::Track(serial), callback);
+}
+
+/// Asks for a model and its particle systems in one query (class 15, then 61
+/// each, as the artefact cooks ask theirs: 0x25E91A); they arrive together.
+pub fn query_assets(_: &Thread, model: &CStr, particles: &[&CStr], callback: QueryCallback) {
+    let particles = &particles[..particles.len().min(PARTICLES)];
+    let mut requests = [const { raw::ResourceRequestStorage::zeroed() }; 1 + PARTICLES];
+    let mut function = raw::QueryFunctionStorage::zeroed();
+    // SAFETY: contiguous requests {path, class} and no user data, as
+    // query_effects asks, copied by query_resources before it returns.
+    unsafe {
+        for (index, request) in requests.iter_mut().enumerate().take(1 + particles.len()) {
+            let r = request.handle();
+            let (path, class) = if index == 0 { (model, MODEL_CLASS) } else { (particles[index - 1], PARTICLE_CLASS) };
+            r.set_path(path.as_ptr().cast_mut().cast());
+            *r.class() = class;
+        }
+        let f = function.handle();
+        raw::engine_bind_query_callback(Some(f), callback.entry(), QueryTag::Assets.word());
+        let allocator = raw::image::game_allocator().allocator();
+        raw::engine_query_one(Some(requests[0].handle()), (1 + particles.len()) as u32, Some(f), allocator, None, null(),
+                              ASYNCHRONOUS);
+    }
+}
+
+/// Asks for the game effects `names` in one query (class 109 each:
+/// gameplay/effects/effect_<name>); they arrive together, in this order.
+pub fn query_effects<const N: usize>(_: &Thread, names: &[&CStr; N], callback: QueryCallback) {
+    const { assert!(N >= 1 && N <= EFFECTS_MOST) };
+    let mut requests = [const { raw::ResourceRequestStorage::zeroed() }; N];
+    let mut function = raw::QueryFunctionStorage::zeroed();
+    // SAFETY: N contiguous requests {path, class} (8 bytes each, as the
+    // native cooks' arrays: the artefact's three, 0x25E91A) and no user data
+    // (the artefact cook passes none either), a boost function bound to the
+    // generated callback and the effects' tag, and the game's allocator, all
+    // copied by query_resources before it returns; no parent query.
+    unsafe {
+        for (request, name) in requests.iter_mut().zip(names) {
+            let r = request.handle();
+            r.set_path(name.as_ptr().cast_mut().cast());
+            *r.class() = GAME_EFFECT_CLASS;
+        }
+        let f = function.handle();
+        raw::engine_bind_query_callback(Some(f), callback.entry(), QueryTag::Effect.word());
+        let allocator = raw::image::game_allocator().allocator();
+        raw::engine_query_one(Some(requests[0].handle()), N as u32, Some(f), allocator, None, null(), ASYNCHRONOUS);
+    }
+}
+
+/// Asks for the particle systems `paths` in one query (class 61 each, as the artefact cooks ask
+/// theirs: each request its own system, which a scene plays once); they arrive together, in this
+/// order.
+pub fn query_particles<const N: usize>(_: &Thread, paths: &[&CStr; N], callback: QueryCallback) {
+    const { assert!(N >= 1 && N <= PARTICLES_MOST) };
+    let mut requests = [const { raw::ResourceRequestStorage::zeroed() }; N];
+    let mut function = raw::QueryFunctionStorage::zeroed();
+    // SAFETY: N contiguous requests {path, class} and no user data, as query_effects asks, copied
+    // by query_resources before it returns.
+    unsafe {
+        for (request, path) in requests.iter_mut().zip(paths) {
+            let r = request.handle();
+            r.set_path(path.as_ptr().cast_mut().cast());
+            *r.class() = PARTICLE_CLASS;
+        }
+        let f = function.handle();
+        raw::engine_bind_query_callback(Some(f), callback.entry(), QueryTag::Particles.word());
+        let allocator = raw::image::game_allocator().allocator();
+        raw::engine_query_one(Some(requests[0].handle()), N as u32, Some(f), allocator, None, null(), ASYNCHRONOUS);
+    }
+}
+
 fn query(path: &CStr, class: u32, params: Option<raw::SceneParamsVariant>, tag: QueryTag, callback: QueryCallback) {
     let mut request = raw::ResourceRequestStorage::zeroed();
     let mut function = raw::QueryFunctionStorage::zeroed();
@@ -174,13 +421,18 @@ mod tests {
     #[test]
     fn tags_read_back_as_bound() {
         assert_eq!(QueryTag::from_raw(QueryTag::Bus.word()), QueryTag::Bus);
+        assert_eq!(QueryTag::from_raw(QueryTag::Particles.word()), QueryTag::Particles);
+        assert_eq!(QueryTag::from_raw(QueryTag::Assets.word()), QueryTag::Assets);
         let serial = Serial::FIRST.next().next();
         assert_eq!(QueryTag::from_raw(QueryTag::Track(serial).word()), QueryTag::Track(serial));
     }
 
     #[test]
-    fn serials_skip_zero() {
+    fn serials_skip_the_other_words() {
         let last = Serial(NonZeroU32::MAX);
         assert_eq!(last.next(), Serial::FIRST);
+        assert_eq!(QueryTag::from_raw(QueryTag::Track(Serial::FIRST).word()), QueryTag::Track(Serial::FIRST));
+        assert_eq!(QueryTag::from_raw(QueryTag::Effect.word()), QueryTag::Effect);
+        assert_eq!(QueryTag::from_raw(QueryTag::Bus.word()), QueryTag::Bus);
     }
 }

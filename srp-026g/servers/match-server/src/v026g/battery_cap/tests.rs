@@ -1,6 +1,6 @@
 use std::path::Path;
 
-use survarium::v026g::maps::mode;
+use survarium::v026g::maps::RuleMode;
 use survarium::v026g::match_msgs::MAX_PLAYERS;
 use survarium::v026g::match_msgs::snapshot::{self, KITS, PlayerStatistics};
 use survarium::v026g::match_msgs::static_info::SCORE_WEIGHTS;
@@ -251,7 +251,7 @@ fn battery_cap_of_saved_worlds() {
         .expect("a world");
     let body = std::fs::read(path).expect("a world");
     let mut statistics = (1..=MAX_PLAYERS)
-        .filter_map(|places| snapshot::decode(time, &body, places, mode::BATTERIES, BATTERIES))
+        .filter_map(|places| snapshot::decode(time, &body, places, RuleMode::Batteries, BATTERIES))
         .filter_map(|decoded| decoded.statistics)
         .find(|statistics| statistics.victory_items.len() == BATTERIES)
         .expect("statistics");

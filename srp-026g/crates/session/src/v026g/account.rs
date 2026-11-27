@@ -1,30 +1,32 @@
 //! A 0.26g account as the lobby serves it (`docs/notes/lobby.md`
 //! §2.5..§2.14): one account with up to three kits that share its level,
-//! experience, skills and autobuy, one inventory they all equip from,
+//! experience and skills, one inventory they all equip from,
 //! money, reputations and the faction whose quests it takes.
 //!
 //! Against 0.21d (`survarium::v021d::account`): a kit ("profile" to the
-//! client) holds only its slots; level, experience, skills and autobuy
+//! client) holds only its slots; level, experience and skills
 //! moved to the account. A slot names an item of the inventory by its
 //! instance id and how many of it the kit takes; the item itself (its
 //! condition or count, modifications, upgrades) is kept once.
 
 use survarium::v021d;
 use survarium::v026g::dictionary::Dictionary;
+use survarium::v026g::faces::Face;
 use survarium::v026g::golden;
 use survarium::v026g::item_params;
-use survarium::v026g::loadouts::{self, Loadout, POCKET_SLOTS};
-use survarium::v026g::lobby::{FULL_CONDITION, KIT_PREMIUM, KIT_READY, limits};
+use survarium::v026g::loadouts::{self, AMMO_SLOTS, KitLayout, Loadout, POCKET_SLOTS};
+pub use survarium::v026g::loadouts::{
+    ARTIFACT_CONTAINER, DEEP_POCKETS, KitPerks, KitPockets, PerkSlot, PocketRole, SUPPLY_POCKET,
+    SlotPerk,
+};
+use survarium::v026g::lobby::{FULL_CONDITION, limits};
 use survarium::v026g::quests::FACTIONS;
+use survarium::v026g::skills::{self, SkillsTree};
 
 /// The kits an account has: the client's array holds three.
 pub const KITS: usize = limits::KITS;
 /// Slots of a kit.
 pub const KIT_SLOTS: usize = limits::KIT_SLOTS;
-/// A new 0.26g account's silver and gold (the owner's choice, 2026-10-12:
-/// 2,000 silver and no gold; no source of the time gives the numbers).
-pub const STARTING_MONEY: u32 = 2_000;
-pub const STARTING_PREMIUM_MONEY: u32 = 0;
 /// The highest level (PROVEN: the game's knowledge base, "the highest
 /// possible level of a character is the hundredth", and the wiki's reward
 /// table of February 2015, which ends at 100).
@@ -50,11 +52,10 @@ pub struct Upgrade {
 pub struct Reroll {
     /// The modification changed last (the window marks it); 0: none yet.
     /// Not a lock: any of the item's own may be changed (the owner's rule
-    /// of 2026-10-22, `docs/notes/reroll-keep-old.md`).
+    /// of 2026-10-22, `docs/notes/reroll-keep-old.md`). How many changes
+    /// were made is not kept: the price does not grow with them (the
+    /// owner's rule of 2026-10-25).
     pub modification: u32,
-    /// The changes paid for so far. A record only: the price does not
-    /// grow with it (the owner's rule of 2026-10-25).
-    pub count: u32,
     /// A paid change that waits for its choice: the modification it
     /// replaces and the three offered.
     pub offer: Option<(u32, [u32; 3])>,
@@ -69,11 +70,6 @@ pub struct Item {
     /// A stack's count in units (rounds of ammo), or an item's condition
     /// × 10 000 ([`FULL_CONDITION`] is 100).
     pub condition_or_stack: u32,
-    /// The Unix second its repair ends at, and the one from which a
-    /// modification may be changed for silver again; 0: none. (The wire
-    /// carries the seconds left, `wire::item_descr_at`.)
-    pub repair_time: u32,
-    pub reroll_time: u32,
     /// `(id, state)`: a modification (false) or a defect (true), each of
     /// `survarium::v026g::modifications`; at most 8.
     pub modifications: Vec<(u32, bool)>,
@@ -92,6 +88,23 @@ pub struct KitSlot {
     pub count: u32,
 }
 
+/// Why a kit's perk slot was not changed ([`Account::set_perk_slot`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum PerkError {
+    /// No kit at that place.
+    NoSuchKit,
+    /// The account lacks the perk: no slot to choose.
+    NoSkill,
+}
+
+impl std::fmt::Display for PerkError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{self:?}")
+    }
+}
+
+impl std::error::Error for PerkError {}
+
 /// One kit: the client's "profile".
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Kit {
@@ -103,6 +116,8 @@ pub struct Kit {
     /// rebuilds the character it shows.
     pub revision: u32,
     pub slots: [Option<KitSlot>; KIT_SLOTS],
+    /// What the kit makes of each perk's slot ([`Account::set_perk_slot`]).
+    pub perks: KitPerks,
 }
 
 impl Kit {
@@ -112,6 +127,7 @@ impl Kit {
             name: String::new(),
             revision: 1,
             slots: [None; KIT_SLOTS],
+            perks: KitPerks::default(),
         }
     }
 
@@ -142,10 +158,9 @@ pub struct Account {
     pub name: String,
     /// The clan abbreviation; empty without a clan.
     pub clan_tag: String,
+    /// Silver, the one currency (gold was removed 2026-11-08: the balances
+    /// were paid back in silver once, `persist::PAID_BACK`).
     pub generic_money: u32,
-    pub premium_money: u32,
-    /// When the premium account runs out, Unix seconds; 0 without.
-    pub premium_until: u64,
     /// All the experience earned; the level follows from it ([`level_at`]).
     pub exp_total: u32,
     /// `(skill id, points)`, only skills with points.
@@ -168,7 +183,6 @@ pub struct Account {
     pub kits: Vec<Kit>,
     /// The id of the kit it plays.
     pub active_kit: u32,
-    pub autobuy: bool,
     /// Everything it owns, the equipped items included.
     pub inventory: Vec<Item>,
     /// The id the next new item instance gets.
@@ -177,10 +191,6 @@ pub struct Account {
     /// `(quest id, until)`: quests resting after being done, Unix seconds.
     pub quest_cooldowns: Vec<(u32, u64)>,
     pub next_quest_instance: u32,
-    /// The last tutorial step the client reported (`4B 01`), and whether
-    /// the tutorial is over (done or skipped, `4B 02`).
-    pub tutorial_step: u8,
-    pub tutorial_done: bool,
     /// The auto-repair box, the tutorial's steps and the daily bonus
     /// ([`super::extras`]).
     pub extras: super::extras::Extras,
@@ -191,6 +201,9 @@ pub struct Account {
     /// The settings of the last room it made by hand, its create window's
     /// start ([`super::room_settings`]); none before its first.
     pub room_settings: Option<super::room_settings::RoomSettings>,
+    /// Its matches of each mode the hud introduces with a notice, up to
+    /// three: its first three of a mode show it ([`super::mode_intro`]).
+    pub mode_introductions: super::mode_intro::Introductions,
     /// The matches whose results screen it used a drop card on, sorted,
     /// of those whose reports are kept: one card a match
     /// ([`super::rewards::Results::use_drop_card`]). Kept with the account,
@@ -201,6 +214,9 @@ pub struct Account {
     pub presets: [Option<super::presets::Preset>; super::presets::PRESETS],
     /// The preset the kits are, 1 to 5.
     pub active_preset: u8,
+    /// The face it is drawn with, one an account (`face-choice.md`): 0 until
+    /// it chooses one in the lobby.
+    pub face: Face,
 }
 
 /// The pockets of a kit's `slots` ([`POCKET_SLOTS`]) holding an item type
@@ -229,6 +245,35 @@ pub fn doubled_pockets(
     doubled
 }
 
+/// Whether `skills` (`(id, points)`) have one of `perk`'s skills.
+fn perk_owned(skills: &[(u16, u8)], perk: SlotPerk) -> bool {
+    skills
+        .iter()
+        .any(|&(id, points)| points > 0 && perk.skills().contains(&id))
+}
+
+/// What a layout keeps ([`KitLayout::kept`], [`KitLayout::followed`]) put
+/// into a kit's or a preset's `slots`: `held` is each slot's dict id and
+/// units (`None` for an empty one, or one whose item is not known, which
+/// stays as it is), `kept` what the layout keeps of them, `units` a slot's
+/// units.
+fn keep_into<S>(
+    slots: &mut [Option<S>; KIT_SLOTS],
+    held: &[Option<(u16, u32)>; KIT_SLOTS],
+    kept: [Option<(u16, u32)>; KIT_SLOTS],
+    units: fn(&mut S) -> &mut u32,
+) {
+    for ((slot, held), kept) in slots.iter_mut().zip(held).zip(kept) {
+        if held.is_none() {
+            continue;
+        }
+        match (slot.as_mut(), kept) {
+            (Some(slot), Some((_, kept))) => *units(slot) = kept,
+            _ => *slot = None,
+        }
+    }
+}
+
 /// The level reached with `total` experience, where it starts and where
 /// the next one does. 0.21d's table (the wiki's: 500 for the first level,
 /// 250 more for each next), counted from level 0 as the wiki did: a 0.26g
@@ -245,17 +290,26 @@ pub fn level_at(total: u32) -> (u8, u32, u32) {
     (level, start, next)
 }
 
+/// The experience where `level` starts ([`level_at`]'s table).
+pub fn level_start(level: u8) -> u32 {
+    (0..level.min(MAX_LEVEL)).fold(0, |start, below| {
+        start.saturating_add(v021d::results::experience_for_level(below + 2))
+    })
+}
+
 /// A name cut to what the client's 64-byte buffers take.
 pub fn cap_name(name: &str) -> String {
     survarium::v026g::lobby::cut(name, limits::NAME).to_owned()
 }
 
 impl Account {
-    /// A new account: three kits, the first wearing the game's starter
-    /// loadout ([`loadouts::starter`]: the TT-33 and a clip for it), and
-    /// the rest of what every new player owned in the inventory
-    /// ([`loadouts::starter_stash`]: the Mosin carbine, a clip for it and
-    /// the PPSh-41).
+    /// The stock account, the tests' (and [`super::GameAccounts::get_or_create`]'s):
+    /// three kits, the first wearing the game's free pistol
+    /// ([`loadouts::starter`]: the TT-33 and a clip for it), the Mosin
+    /// carbine, a clip for it and the PPSh-41 owned
+    /// ([`loadouts::starter_stash`]), no money. A player's account is made
+    /// from nothing and what the game data's table gives
+    /// ([`super::GameAccounts::sign_up`], `tutorial::NewAccount`).
     pub fn new(name: &str) -> Self {
         let mut account = Self::with_loadout(name, loadouts::starter());
         let dictionary = Dictionary::shared();
@@ -272,9 +326,7 @@ impl Account {
         let mut account = Self {
             name: cap_name(name),
             clan_tag: String::new(),
-            generic_money: STARTING_MONEY,
-            premium_money: STARTING_PREMIUM_MONEY,
-            premium_until: 0,
+            generic_money: 0,
             exp_total: 0,
             skills: Vec::new(),
             reputations: FACTIONS.iter().map(|&faction| (faction, 0)).collect(),
@@ -285,25 +337,19 @@ impl Account {
             level_stats: Default::default(),
             kits: (1..=KITS as u32).map(Kit::empty).collect(),
             active_kit: 1,
-            // On for a new account (the owner's of 2026-10-23); the player
-            // may turn it off.
-            autobuy: true,
             inventory: Vec::new(),
             next_item_id: 1,
             quests: Vec::new(),
             quest_cooldowns: Vec::new(),
             next_quest_instance: 1,
-            tutorial_step: 0,
-            tutorial_done: true,
-            extras: super::extras::Extras {
-                tutorial_flags: super::tutorial::ALL_DONE,
-                ..Default::default()
-            },
+            extras: Default::default(),
             map_plays: Vec::new(),
             room_settings: None,
+            mode_introductions: Default::default(),
             drop_cards: Vec::new(),
-            presets: [None; super::presets::PRESETS],
+            presets: [const { None }; super::presets::PRESETS],
             active_preset: super::presets::FIRST_PRESET,
+            face: Face::DEFAULT,
         };
         for worn in &loadout.items {
             let Some(entry) = dictionary.item(worn.dict_id) else {
@@ -321,6 +367,9 @@ impl Account {
             let item_id = account.add_item(worn.dict_id, value);
             account.kits[0].slots[slot] = Some(KitSlot { item_id, count });
         }
+        let mut slots = account.kits[0].slots;
+        account.keep_to_layout(0, &mut slots);
+        account.kits[0].slots = slots;
         account
     }
 
@@ -333,8 +382,10 @@ impl Account {
             .find(|item| item.dict_id == dict_id)
         {
             Some(owned) => {
-                owned.condition_or_stack = owned.condition_or_stack.saturating_add(units);
-                owned.item_id
+                let (item_id, before) = (owned.item_id, owned.condition_or_stack);
+                owned.condition_or_stack = before.saturating_add(units);
+                self.stack_grew(item_id, before);
+                item_id
             }
             None => self.add_item(dict_id, units),
         }
@@ -352,8 +403,6 @@ impl Account {
             item_id,
             dict_id,
             condition_or_stack,
-            repair_time: 0,
-            reroll_time: 0,
             modifications: golden::starting_modifications(dict_id),
             upgrades: Vec::new(),
             reroll: Reroll::default(),
@@ -390,24 +439,12 @@ impl Account {
         self.kit(self.active_kit).or_else(|| self.kits.first())
     }
 
-    /// Whether its premium account holds at `now` (Unix seconds).
-    pub fn is_premium(&self, now: u64) -> bool {
-        self.premium_until > now
-    }
-
-    /// The whole hours of premium left, at least 1 while it holds.
-    pub fn premium_hours(&self, now: u64) -> Option<u32> {
-        self.is_premium(now).then(|| {
-            let hours = (self.premium_until - now).div_ceil(3600);
-            hours.min(u64::from(u32::MAX)) as u32
-        })
-    }
-
     /// Whether the kit at `index` may be used at `now`: every kit of the
-    /// account, premium or not. The original game kept a kit for a premium
-    /// account (the client's state 2, `st_premium_profile_hint`, PROVEN;
-    /// that it was the third, LIKELY); srp gives all three to everyone (the
-    /// owner's choice, 2026-10-17), so no kit is sent as [`KIT_PREMIUM`].
+    /// account. The original game kept a kit for a premium account (the
+    /// client's state 2, `KIT_PREMIUM`, PROVEN; that it was the third,
+    /// LIKELY); srp gives all three to everyone (the owner's choice,
+    /// 2026-10-17) and has no premium account (2026-11-09), so every kit is
+    /// sent as `KIT_READY`.
     pub fn kit_usable(&self, index: usize, _now: u64) -> bool {
         index < self.kits.len()
     }
@@ -425,15 +462,6 @@ impl Account {
                 true
             }
             _ => false,
-        }
-    }
-
-    /// The state byte the client gets for the kit at `index`.
-    pub fn kit_state(&self, index: usize, now: u64) -> u8 {
-        if self.kit_usable(index, now) {
-            KIT_READY
-        } else {
-            KIT_PREMIUM
         }
     }
 
@@ -522,6 +550,20 @@ impl Account {
         off
     }
 
+    /// The account drawn with `face` from now on (`face-choice.md`): every
+    /// kit's revision bumped, so the lobby draws its characters again.
+    /// Whether it was another face.
+    pub fn choose_face(&mut self, face: Face) -> bool {
+        if self.face == face {
+            return false;
+        }
+        self.face = face;
+        for kit in &mut self.kits {
+            kit.revision = kit.revision.wrapping_add(1);
+        }
+        true
+    }
+
     /// Takes off, to the inventory, every item [`Self::covered_items`]
     /// names, in every kit: a kit saved before the rule (a mask under a
     /// helmet that has one built in). How many it took off.
@@ -606,41 +648,42 @@ impl Account {
     }
 
     /// Bring the kits up to the inventory after it changed: a slot whose
-    /// item is gone is emptied, and a stack's slot takes at most what is
-    /// owned (a stack down to nothing empties its slot). A kit whose slots
-    /// changed gets a new revision. Returns whether anything changed.
+    /// item is gone is emptied, a stack's slot takes at most what is owned
+    /// (a stack down to nothing empties its slot), and each kit is held to
+    /// its layout ([`Self::keep_to_layout`]). A kit whose slots changed gets
+    /// a new revision. Returns whether anything changed.
     pub fn sync_kits(&mut self) -> bool {
         let dictionary = Dictionary::shared();
         // An upgrade whose cosmetic is gone (sold) is no upgrade, and the
         // kits wearing the item it was on show another one.
         let stripped = super::items_rules::drop_gone_upgrades(&mut self.inventory);
-        let inventory = &self.inventory;
         let mut any = false;
-        for kit in &mut self.kits {
-            let mut changed = kit
+        for index in 0..self.kits.len() {
+            let mut slots = self.kits[index].slots;
+            for slot in &mut slots {
+                let Some(held) = slot.as_mut() else {
+                    continue;
+                };
+                let Some(owned) = self.item(held.item_id) else {
+                    *slot = None;
+                    continue;
+                };
+                if dictionary.is_stack(owned.dict_id) {
+                    held.count = held.count.min(owned.condition_or_stack);
+                    if held.count == 0 {
+                        *slot = None;
+                    }
+                }
+            }
+            self.keep_to_layout(index, &mut slots);
+            let kit = &mut self.kits[index];
+            let upgraded = kit
                 .slots
                 .iter()
                 .flatten()
                 .any(|slot| stripped.contains(&slot.item_id));
-            for slot in &mut kit.slots {
-                let Some(held) = slot.as_mut() else {
-                    continue;
-                };
-                let Some(owned) = inventory.iter().find(|item| item.item_id == held.item_id) else {
-                    *slot = None;
-                    changed = true;
-                    continue;
-                };
-                if dictionary.is_stack(owned.dict_id) && held.count > owned.condition_or_stack {
-                    if owned.condition_or_stack == 0 {
-                        *slot = None;
-                    } else {
-                        held.count = owned.condition_or_stack;
-                    }
-                    changed = true;
-                }
-            }
-            if changed {
+            if upgraded || slots != kit.slots {
+                kit.slots = slots;
                 kit.revision = kit.revision.wrapping_add(1);
                 any = true;
             }
@@ -648,11 +691,354 @@ impl Account {
         any
     }
 
-    /// Every kit gives other modifiers (the skills changed): new revisions.
-    pub fn bump_kits(&mut self) {
-        for kit in &mut self.kits {
+    /// The saved skills after a change of `tree` ([`SkillsTree::settle`]):
+    /// ranks past a skill's levels, a skill the tree dropped, the second of
+    /// an exclusive pair and rows no longer reached are taken back, so their
+    /// points are the account's to spend again. `true` if anything changed.
+    pub fn settle_skills(&mut self, tree: &SkillsTree) -> bool {
+        let settled = tree.settle(self.level(), &self.skills);
+        if settled == self.skills {
+            return false;
+        }
+        self.change_skills(settled, tree);
+        true
+    }
+
+    /// The account's skills become `skills` (of `tree`). The kits carry the
+    /// skills' modifiers, so each gets a new revision, and every kit and
+    /// preset is held to its layout with them ([`KitLayout::followed`]): the
+    /// pocket Deep Pockets or Supply Pocket opened, Additional Medicine's
+    /// extra medicine, a second weapon beside Deep Pockets or Supply Pocket,
+    /// a second double-handed one without Terminator. A slot names units of
+    /// the inventory's stack, so nothing leaves the inventory. A full pocket
+    /// stays full: a skill that makes it larger fills it, as far as the
+    /// units owned go.
+    pub fn change_skills(&mut self, skills: Vec<(u16, u8)>, tree: &SkillsTree) {
+        let skills_before = std::mem::replace(&mut self.skills, skills);
+        let kits_before: Vec<KitPerks> = self.kits.iter().map(|kit| kit.perks).collect();
+        let presets_before = self.presets.each_ref().map(|preset| preset.as_ref().map(|preset| preset.perks));
+        self.forget_perk_slots();
+        let modifiers_of = |skills: &[(u16, u8)], perks: KitPerks| tree.modifiers(&perks.skills_taken(skills));
+        for (index, &perks_before) in kits_before.iter().enumerate() {
+            let found = self.kits[index].slots;
+            let before = modifiers_of(&skills_before, perks_before);
+            let modifiers = modifiers_of(&self.skills, self.kits[index].perks);
+            let worn = || found.iter().flatten().map(|held| held.item_id);
+            let mut slots = found;
+            self.pockets_of(worn(), &skills_before, perks_before, tree)
+                .moved(
+                    &self.pockets_of(worn(), &self.skills, self.kits[index].perks, tree),
+                    &mut slots,
+                );
+            self.follow_layout(&found, &before, &mut slots, &modifiers);
+            let kit = &mut self.kits[index];
+            kit.slots = slots;
             kit.revision = kit.revision.wrapping_add(1);
         }
+        let mut presets = self.presets.clone();
+        for (preset, before) in presets.iter_mut().zip(presets_before) {
+            let (Some(preset), Some(perks_before)) = (preset, before) else {
+                continue;
+            };
+            for ((kit, perks), perks_before) in preset.kits.iter_mut().zip(preset.perks).zip(perks_before) {
+                let before = modifiers_of(&skills_before, perks_before);
+                let modifiers = modifiers_of(&self.skills, perks);
+                let found = *kit;
+                let worn = || found.iter().flatten().map(|saved| saved.item_id);
+                self.pockets_of(worn(), &skills_before, perks_before, tree)
+                    .moved(&self.pockets_of(worn(), &self.skills, perks, tree), kit);
+                let held = kit.map(|slot| slot.map(|saved| (saved.dict_id, saved.count)));
+                let layout = self.layout_of(worn(), &modifiers);
+                // A preset is put on with at most the units owned (`fill_kit`).
+                let kept = layout.followed(&self.layout_of(worn(), &before), &held);
+                keep_into(kit, &held, kept, |saved| &mut saved.count);
+            }
+        }
+        self.presets = presets;
+    }
+
+    /// Whether the account has `perk` (one of its skills), whose slot each kit may decline.
+    pub fn has_perk(&self, perk: SlotPerk) -> bool {
+        perk_owned(&self.skills, perk)
+    }
+
+    /// The quick slots by role ([`KitPockets`]) of a kit wearing `item_ids` of these `perks`,
+    /// with `skills`.
+    fn pockets_of(
+        &self,
+        item_ids: impl IntoIterator<Item = u32>,
+        skills: &[(u16, u8)],
+        perks: KitPerks,
+        tree: &SkillsTree,
+    ) -> KitPockets {
+        let without = SlotPerk::ALL
+            .into_iter()
+            .fold(perks, |perks, perk| perks.with(perk, PerkSlot::Declined));
+        let base = self.layout_of(item_ids, &tree.modifiers(&without.skills_taken(skills)));
+        let chosen = |perk: SlotPerk| perk_owned(skills, perk).then(|| perks.get(perk));
+        KitPockets::new(
+            base.pockets(),
+            chosen(SlotPerk::WeaponPocket),
+            chosen(SlotPerk::ArtifactContainer),
+        )
+    }
+
+    /// The kit at `kit_index`'s quick slots by role, as the lobby and a match have them.
+    pub fn kit_pockets(&self, kit_index: usize, tree: &SkillsTree) -> Option<KitPockets> {
+        let kit = self.kits.get(kit_index)?;
+        let worn = kit.slots.iter().flatten().map(|held| held.item_id);
+        Some(self.pockets_of(worn, &self.skills, kit.perks, tree))
+    }
+
+    /// Every perk the account lacks is taken again in every kit and preset (so the skill learned
+    /// again starts as at first). Whether anything changed.
+    fn forget_perk_slots(&mut self) -> bool {
+        let lacking: Vec<SlotPerk> = SlotPerk::ALL.into_iter().filter(|&perk| !self.has_perk(perk)).collect();
+        let mut changed = false;
+        let kits = self
+            .kits
+            .iter_mut()
+            .map(|kit| &mut kit.perks)
+            .chain(self.presets.iter_mut().flatten().flat_map(|preset| &mut preset.perks));
+        for perks in kits {
+            let taken = lacking.iter().fold(*perks, |perks, &perk| perks.with(perk, PerkSlot::Taken));
+            changed |= taken != *perks;
+            *perks = taken;
+        }
+        changed
+    }
+
+    /// The skills' modifiers the kit at `kit_index` carries (the lobby's and the match's kit
+    /// block): every skill's, but those of the perks it declines ([`KitPerks`]) and Tank
+    /// Container's in a kit that wears no oxygen tank ([`loadouts::kit_skills`]). The block goes
+    /// with the account after every change of a kit, so a tank put on or taken off in the lobby
+    /// brings or takes its container at once.
+    pub fn kit_modifiers(&self, kit_index: usize) -> [f32; skills::MODIFIERS] {
+        SkillsTree::shared().modifiers(&self.kit_skills(kit_index))
+    }
+
+    /// The skills of [`Self::kit_modifiers`].
+    fn kit_skills(&self, kit_index: usize) -> Vec<(u16, u8)> {
+        let Some(kit) = self.kits.get(kit_index) else {
+            return loadouts::kit_skills(&self.skills, KitPerks::ALL_TAKEN, false);
+        };
+        let worn = kit.slots.iter().flatten().map(|held| held.item_id);
+        loadouts::kit_skills(&self.skills, kit.perks, self.wears_oxygen_tank(worn))
+    }
+
+    /// The kit at `kit_index` takes or declines `perk`'s slot (the lobby's click, `presets.md`):
+    /// Artifact Container's container or the pocket it was; Deep Pockets' or Supply Pocket's
+    /// pocket or the second weapon slot. What the slot that goes held (the pocket's item, the
+    /// second weapon) comes off the kit and stays owned ([`KitLayout::kept`]). Whether the kit
+    /// changed (a new revision). `tree` is the skills tree (`SkillsTree::shared`).
+    pub fn set_perk_slot(
+        &mut self,
+        kit_index: usize,
+        perk: SlotPerk,
+        slot: PerkSlot,
+        tree: &SkillsTree,
+    ) -> Result<bool, PerkError> {
+        if kit_index >= self.kits.len() {
+            return Err(PerkError::NoSuchKit);
+        }
+        if !self.has_perk(perk) {
+            return Err(PerkError::NoSkill);
+        }
+        let perks_before = self.kits[kit_index].perks;
+        let perks = perks_before.with(perk, slot);
+        if perks == perks_before {
+            return Ok(false);
+        }
+        self.kits[kit_index].perks = perks;
+        let modifiers = tree.modifiers(&perks.skills_taken(&self.skills));
+        let found = self.kits[kit_index].slots;
+        let worn = || found.iter().flatten().map(|held| held.item_id);
+        let mut slots = found;
+        // Only the switched perk's slot comes or goes: the others keep their roles and items.
+        self.pockets_of(worn(), &self.skills, perks_before, tree)
+            .moved(
+                &self.pockets_of(worn(), &self.skills, perks, tree),
+                &mut slots,
+            );
+        self.follow_layout(&found, &modifiers, &mut slots, &modifiers);
+        let kit = &mut self.kits[kit_index];
+        kit.slots = slots;
+        kit.revision = kit.revision.wrapping_add(1);
+        Ok(true)
+    }
+
+    /// The slots of the kit at `kit_index`, `slots`, held to its layout: what its worn items and
+    /// the skills it carries open ([`KitLayout::kept`], [`Self::kit_modifiers`]). Every change
+    /// of a kit ends in it ([`Self::sync_kits`], `rules::relocate`), so a request can not put
+    /// back what the layout took off, nor fill more than it opens.
+    pub fn keep_to_layout(&self, kit_index: usize, slots: &mut [Option<KitSlot>; KIT_SLOTS]) {
+        let found = *slots;
+        self.keep_to_layout_after(kit_index, &found, slots);
+    }
+
+    /// [`Self::keep_to_layout`] at the end of a request that found the kit
+    /// as `before`: a full pocket stays full. A pocket the request left as
+    /// it was, holding all the kit's gear let it hold, holds all the gear
+    /// the request leaves does (a vest with larger pockets put on), as far
+    /// as the units owned go. A pocket the request itself set keeps what it
+    /// asked for.
+    pub fn keep_to_layout_after(
+        &self,
+        kit_index: usize,
+        before: &[Option<KitSlot>; KIT_SLOTS],
+        slots: &mut [Option<KitSlot>; KIT_SLOTS],
+    ) {
+        let modifiers = self.kit_modifiers(kit_index);
+        self.follow_layout(before, &modifiers, slots, &modifiers);
+    }
+
+    /// `slots` held to the layout of their own gear with `modifiers`, the
+    /// kit having been `before` with the skills' modifiers `modifiers_before`
+    /// ([`KitLayout::followed`] for the slots that are as they were,
+    /// [`KitLayout::kept`] for the others), a pocket's or an ammunition
+    /// slot's units never over those owned.
+    fn follow_layout(
+        &self,
+        before: &[Option<KitSlot>; KIT_SLOTS],
+        modifiers_before: &[f32; skills::MODIFIERS],
+        slots: &mut [Option<KitSlot>; KIT_SLOTS],
+        modifiers: &[f32; skills::MODIFIERS],
+    ) {
+        let worn = |slots: &[Option<KitSlot>; KIT_SLOTS]| {
+            slots
+                .iter()
+                .flatten()
+                .map(|held| held.item_id)
+                .collect::<Vec<_>>()
+        };
+        let held = slots.map(|slot| {
+            let held = slot?;
+            Some((self.item(held.item_id)?.dict_id, held.count))
+        });
+        let layout = self.layout_of(worn(slots), modifiers);
+        let kept = layout.kept(&held);
+        let followed = layout.followed(&self.layout_of(worn(before), modifiers_before), &held);
+        // The ammunition shares the kit's bags: it follows as one, when the
+        // request set none of it.
+        let ammo = |slot: usize| AMMO_SLOTS.contains(&(slot as u8));
+        let same = |slot: usize| before[slot] == slots[slot];
+        let ammo_same = AMMO_SLOTS.iter().all(|&slot| same(usize::from(slot)))
+            && !self.shared_stack_over(slots, &followed);
+        let kept = std::array::from_fn(|slot| {
+            if (ammo(slot) && ammo_same) || (!ammo(slot) && same(slot)) {
+                followed[slot]
+            } else {
+                kept[slot]
+            }
+        });
+        keep_into(slots, &held, kept, |held| &mut held.count);
+        for stack in POCKET_SLOTS.into_iter().chain(AMMO_SLOTS).map(usize::from) {
+            let Some(held) = slots[stack].as_mut() else {
+                continue;
+            };
+            if let Some(owned) = self.item(held.item_id) {
+                held.count = held.count.min(owned.condition_or_stack);
+            }
+        }
+    }
+
+    /// Whether `counts` gives the ammunition slots that name one stack more
+    /// rounds together than the stack holds. Each slot alone is held to the
+    /// stack; two of one stack are not raised past it (nothing is bought, and
+    /// a match hands out each slot's count).
+    fn shared_stack_over(
+        &self,
+        slots: &[Option<KitSlot>; KIT_SLOTS],
+        counts: &[Option<(u16, u32)>; KIT_SLOTS],
+    ) -> bool {
+        let ammo = || AMMO_SLOTS.into_iter().map(usize::from);
+        ammo().any(|slot| {
+            let Some(held) = slots[slot] else {
+                return false;
+            };
+            let sharing = || {
+                ammo()
+                    .filter(|&each| slots[each].is_some_and(|other| other.item_id == held.item_id))
+            };
+            let rounds: u64 = sharing()
+                .filter_map(|each| counts[each])
+                .map(|(_, rounds)| u64::from(rounds))
+                .sum();
+            sharing().count() > 1
+                && self
+                    .item(held.item_id)
+                    .is_some_and(|owned| rounds > u64::from(owned.condition_or_stack))
+        })
+    }
+
+    /// The stack `item_id` grew from `before` units (bought, won): a pocket
+    /// that carried all of them carries the new ones too, as far as its
+    /// kit's layout lets it. A kit that changed gets a new revision.
+    pub fn stack_grew(&mut self, item_id: u32, before: u32) {
+        let Some(owned) = self.item(item_id).map(|item| item.condition_or_stack) else {
+            return;
+        };
+        for index in 0..self.kits.len() {
+            let mut slots = self.kits[index].slots;
+            for pocket in POCKET_SLOTS.map(usize::from) {
+                if let Some(held) = slots[pocket].as_mut()
+                    && held.item_id == item_id
+                    && held.count == before
+                {
+                    held.count = owned;
+                }
+            }
+            self.keep_to_layout(index, &mut slots);
+            let kit = &mut self.kits[index];
+            if kit.slots != slots {
+                kit.slots = slots;
+                kit.revision = kit.revision.wrapping_add(1);
+            }
+        }
+    }
+
+    /// The pockets the kit `kit_id` opens with the skills' `modifiers` (none
+    /// for a kit the account lacks).
+    pub fn open_pockets(&self, kit_id: u32, modifiers: &[f32; skills::MODIFIERS]) -> u32 {
+        self.kits.iter().find(|kit| kit.id == kit_id).map_or(0, |kit| {
+            self.layout_of(kit.slots.iter().flatten().map(|held| held.item_id), modifiers).pockets()
+        })
+    }
+
+    /// The layout of a kit wearing the owned items of `item_ids`, with the
+    /// skills' `modifiers`.
+    fn layout_of(
+        &self,
+        item_ids: impl IntoIterator<Item = u32>,
+        modifiers: &[f32; skills::MODIFIERS],
+    ) -> KitLayout {
+        let item_ids: Vec<u32> = item_ids.into_iter().collect();
+        let oxygen_tank = self.wears_oxygen_tank(item_ids.iter().copied());
+        KitLayout::new(&self.worn_modifications(item_ids), modifiers, oxygen_tank)
+    }
+
+    /// Whether one of the owned items of `item_ids` is an oxygen tank: what Tank Pocket, Tank
+    /// Depth and Tank Container need worn.
+    fn wears_oxygen_tank(&self, item_ids: impl IntoIterator<Item = u32>) -> bool {
+        item_ids
+            .into_iter()
+            .filter_map(|item_id| self.item(item_id))
+            .any(|item| loadouts::is_oxygen_tank(item.dict_id))
+    }
+
+    /// The modifications of the owned items of `item_ids`: their defaults
+    /// and their own, defects too (an item's pockets count them all).
+    fn worn_modifications(&self, item_ids: impl IntoIterator<Item = u32>) -> Vec<(u32, bool)> {
+        item_ids
+            .into_iter()
+            .filter_map(|item_id| self.item(item_id))
+            .flat_map(|item| {
+                let own = item.modifications.iter().copied();
+                loadouts::default_modifications(item.dict_id)
+                    .into_iter()
+                    .chain(own)
+            })
+            .collect()
     }
 
     /// Make a loaded account consistent, so that what the lobby sends from
@@ -660,9 +1046,10 @@ impl Account {
     /// most three kits with distinct non-zero ids, an active kit that
     /// exists, no duplicate item id, item lists within the client's
     /// limits, no slot holding an item that is gone or does not fit, none
-    /// worn in a slot another worn item covers ([`Self::uncover_kits`]), and
-    /// no item type in two pockets ([`Self::merge_pockets`]). `true` if
-    /// anything changed.
+    /// worn in a slot another worn item covers ([`Self::uncover_kits`]),
+    /// no item type in two pockets ([`Self::merge_pockets`]), and skills
+    /// the tree still allows ([`Self::settle_skills`], before the kits, which
+    /// the skills shape). `true` if anything changed.
     ///
     /// It never deletes an item for a definition the game's data lacks:
     /// that is data made without a patch, and the load refuses it before
@@ -670,6 +1057,8 @@ impl Account {
     pub fn repair(&mut self) -> bool {
         let dictionary = Dictionary::shared();
         let before = self.clone();
+        self.settle_skills(SkillsTree::shared());
+        self.forget_perk_slots();
 
         let mut seen = Vec::new();
         self.inventory.retain(|item| {
@@ -682,7 +1071,7 @@ impl Account {
             super::items_rules::make_safe(item);
             item.modifications.truncate(limits::MODIFICATIONS);
             // A weapon's six logical slots go to the client packed into
-            // three records (wire::item_descr_at); any other item's three.
+            // three records (wire::item_descr); any other item's three.
             item.upgrades
                 .truncate(super::items_rules::upgrade_capacity(item.dict_id));
         }
@@ -742,6 +1131,29 @@ impl Account {
 }
 
 #[cfg(test)]
+impl Account {
+    /// Kit `kit` (an index) wearing a backpack and a vest whose
+    /// modifications open all six pockets, of five units ([`KitLayout`]):
+    /// the tests' room for whatever they put in the pockets.
+    pub fn wear_roomy_gear(&mut self, kit: usize) {
+        let dictionary = Dictionary::shared();
+        // `ren_back_1` +2 pockets +2 units, `ren_torso_5` +1 and +1; 1031
+        // +2 pockets, 1030 +1, 1171 +2 units.
+        for (slot, name, modifications) in [
+            (3, "ren_back_1", &[(1031, false), (1171, false)][..]),
+            (2, "ren_torso_5", &[(1030, false)][..]),
+        ] {
+            let item_id = self.add_item(
+                dictionary.item_named(name).unwrap().dict_id,
+                FULL_CONDITION,
+            );
+            self.item_mut(item_id).unwrap().modifications = modifications.to_vec();
+            self.kits[kit].slots[slot] = Some(KitSlot { item_id, count: 1 });
+        }
+    }
+}
+
+#[cfg(test)]
 mod tests {
     use super::*;
 
@@ -796,11 +1208,8 @@ mod tests {
         assert!(dictionary.compatible(ppsh, ammo));
         assert!(account.kits[1].slots.iter().all(Option::is_none));
         assert_eq!(account.next_item_id, 6);
-        assert_eq!(
-            (account.generic_money, account.premium_money),
-            (STARTING_MONEY, STARTING_PREMIUM_MONEY)
-        );
-        assert_eq!((account.generic_money, account.premium_money), (2_000, 0));
+        // No money: what a player starts with is the grant's (`tutorial`).
+        assert_eq!(account.generic_money, 0);
         assert_eq!((account.rating, account.rating_before), (100, 100));
         assert_eq!(account.reputations, [(1, 0), (2, 0), (3, 0), (4, 0)]);
         // No faction chosen: the client asks.
@@ -834,6 +1243,11 @@ mod tests {
         // next, a hundred times.
         assert_eq!(level_at(1_287_499).0, 99);
         assert_eq!(level_at(1_287_500).0, 100);
+        for level in [0, 1, 2, 15, 16, 99, 100] {
+            assert_eq!(level_at(level_start(level)).1, level_start(level));
+            assert_eq!(level_at(level_start(level)).0, level);
+        }
+        assert_eq!((level_start(15), level_start(16)), (33_750, 38_000));
         let mut account = Account::new("Alice");
         assert_eq!(account.add_experience(1300), [1, 2]);
         assert_eq!(account.level_progress(), (2, 1250, 2250));
@@ -843,19 +1257,12 @@ mod tests {
     }
 
     #[test]
-    fn the_third_kit_needs_no_premium() {
+    fn every_kit_is_usable() {
         let mut account = Account::new("Alice");
-        assert_eq!(account.premium_hours(100), None);
-        assert_eq!(account.kit_state(0, 100), KIT_READY);
-        assert_eq!(account.kit_state(1, 100), KIT_READY);
-        assert_eq!(account.kit_state(2, 100), KIT_READY);
-        account.premium_until = 100 + 2 * 3600 + 1;
-        assert_eq!(account.kit_state(2, 100), KIT_READY);
-        assert_eq!(account.premium_hours(100), Some(3));
-        assert!(!account.is_premium(account.premium_until));
-        // Playing the third kit when the premium runs out: it stays.
+        assert!((0..3).all(|index| account.kit_usable(index, 100)));
+        // Playing the third kit: it stays.
         account.active_kit = 3;
-        assert!(!account.settle_active_kit(account.premium_until));
+        assert!(!account.settle_active_kit(100));
         assert_eq!(account.active_kit, 3);
         // An active kit that is none of the account's: the first kit.
         account.active_kit = 9;
@@ -875,6 +1282,20 @@ mod tests {
         // What the wire's u16 holds.
         account.add_reputation(3, u32::MAX);
         assert_eq!(account.reputation(3), 65535);
+    }
+
+    #[test]
+    fn a_face_chosen_redraws_every_kit() {
+        let mut account = Account::new("Alice");
+        let face = survarium::v026g::faces::Faces::shared().face(1).unwrap();
+        let revisions: Vec<u32> = account.kits.iter().map(|kit| kit.revision).collect();
+        assert!(account.choose_face(face));
+        assert_eq!(account.face, face);
+        let bumped: Vec<u32> = revisions.iter().map(|revision| revision + 1).collect();
+        assert_eq!(account.kits.iter().map(|kit| kit.revision).collect::<Vec<_>>(), bumped);
+        // The same face again: nothing to draw.
+        assert!(!account.choose_face(face));
+        assert_eq!(account.kits.iter().map(|kit| kit.revision).collect::<Vec<_>>(), bumped);
     }
 
     #[test]
@@ -907,8 +1328,6 @@ mod tests {
             item_id: 9,
             dict_id: 9999,
             condition_or_stack: 1,
-            repair_time: 0,
-            reroll_time: 0,
             modifications: Vec::new(),
             upgrades: Vec::new(),
             reroll: Reroll::default(),
@@ -986,9 +1405,11 @@ mod tests {
     fn a_type_in_two_pockets_is_merged_into_the_first() {
         let dictionary = Dictionary::shared();
         let speed = dictionary.item_named("speed_booster").unwrap().dict_id;
-        let grenade = dictionary.item_named("rgd-5").unwrap().dict_id;
+        let grenade = dictionary.item_named("rdg-m").unwrap().dict_id;
         let medkit = dictionary.item_named("medkit").unwrap().dict_id;
         let mut account = Account::new("Alice");
+        account.wear_roomy_gear(0);
+        account.wear_roomy_gear(1);
         let booster = account.add_item(speed, 3);
         let grenades = account.add_item(grenade, 3);
         let medkits = account.add_item(medkit, 5);
@@ -1034,7 +1455,7 @@ mod tests {
         assert_eq!(account.inventory, before.inventory);
         assert_eq!(units(&account), units(&before));
         assert_eq!(account.generic_money, before.generic_money);
-        // Valid now: nothing more to merge, and the repair keeps it.
+        // All six pockets are supported after duplicate types are merged.
         assert_eq!(account.merge_pockets(), 0);
         assert!(!account.repair());
     }
@@ -1043,12 +1464,13 @@ mod tests {
     /// type; the first pocket keeps its own stack, at most what it owns.
     #[test]
     fn two_stacks_of_one_type_are_one_type() {
-        let grenade = Dictionary::shared().item_named("rgd-5").unwrap().dict_id;
+        let grenade = Dictionary::shared().item_named("rdg-m").unwrap().dict_id;
         let mut account = Account::new("Alice");
+        account.wear_roomy_gear(2);
         let few = account.add_item(grenade, 1);
         let many = account.add_item(grenade, 4);
         in_pocket(&mut account, 2, 16, few, 1);
-        in_pocket(&mut account, 2, 13, many, 3);
+        in_pocket(&mut account, 2, 13, many, 2);
         let inventory = account.inventory.clone();
         assert_eq!(account.doubled_pockets(&account.kits[2]), [16]);
         assert!(account.repair());
@@ -1056,7 +1478,7 @@ mod tests {
             account.kits[2].slots[13],
             Some(KitSlot {
                 item_id: many,
-                count: 3
+                count: 2
             })
         );
         assert_eq!(account.kits[2].slots[16], None);
@@ -1064,7 +1486,7 @@ mod tests {
 
         // The other way round: the kept stack owns less than the most held.
         in_pocket(&mut account, 2, 13, few, 1);
-        in_pocket(&mut account, 2, 16, many, 3);
+        in_pocket(&mut account, 2, 16, many, 2);
         assert!(account.repair());
         assert_eq!(
             account.kits[2].slots[13],
@@ -1078,6 +1500,34 @@ mod tests {
         units(&account);
     }
 
+    /// An RGD-5 takes two units of a pocket, so a pocket holds two of them
+    /// at most (a pocket of 4 or 5 units; one in a smaller one): a kit saved
+    /// with more keeps two, the rest stays in the storage.
+    #[test]
+    fn a_pocket_holds_two_rgd_5s_at_most() {
+        let dictionary = Dictionary::shared();
+        let grenade = dictionary.item_named("rgd-5").unwrap().dict_id;
+        let smoke = dictionary.item_named("rdg-m").unwrap().dict_id;
+        let mut account = Account::new("Alice");
+        // Pockets of 4 units.
+        for (slot, name) in [(3, "ren_back_1"), (2, "ren_torso_5")] {
+            let dict_id = dictionary.item_named(name).unwrap().dict_id;
+            let item_id = account.add_item(dict_id, FULL_CONDITION);
+            in_pocket(&mut account, 0, slot, item_id, 1);
+        }
+        let grenades = account.add_item(grenade, 30);
+        let smokes = account.add_item(smoke, 30);
+        in_pocket(&mut account, 0, 13, grenades, 5);
+        in_pocket(&mut account, 0, 14, smokes, 5);
+        let inventory = account.inventory.clone();
+        assert!(account.repair());
+        let count = |slot: usize| account.kits[0].slots[slot].unwrap().count;
+        // The smoke grenades: the pocket's four units.
+        assert_eq!((count(13), count(14)), (2, 4));
+        assert_eq!(account.inventory, inventory);
+        assert!(!account.repair());
+    }
+
     /// Ammo is no pocket item: one ammo in several ammo slots is the ammo
     /// window's own way.
     #[test]
@@ -1089,5 +1539,323 @@ mod tests {
         assert!(account.doubled_pockets(&account.kits[0]).is_empty());
         assert_eq!(account.merge_pockets(), 0);
         assert!(!account.repair());
+    }
+
+    /// The medical branch of the changed tree (medical-skills.md).
+    fn medical_tree() -> SkillsTree {
+        use survarium::v026g::skills::Skill;
+        type Row = (u16, u8, u32, u8, u8, &'static [u16]);
+        #[rustfmt::skip]
+        let rows: [Row; 14] = [
+            (301, 3, 3, 1, 2, &[]), (302, 2, 0, 3, 1, &[]), (303, 2, 7, 1, 3, &[]),
+            (311, 4, 3, 2, 2, &[]), (312, 3, 3, 3, 2, &[]), (314, 3, 3, 4, 2, &[]),
+            (321, 3, 7, 2, 3, &[]), (322, 1, 17, 3, 5, &[331]), (323, 4, 12, 1, 4, &[]),
+            (324, 3, 7, 4, 3, &[]), (331, 1, 17, 2, 5, &[322]), (332, 5, 12, 2, 4, &[]),
+            (333, 3, 12, 4, 4, &[]), (342, 1, 0, 2, 1, &[]),
+        ];
+        let skills = rows
+            .iter()
+            .map(
+                |&(id, levels_amount, branch_points, column, row, antiskills)| Skill {
+                    id,
+                    levels_amount,
+                    branch_points,
+                    antiskills: antiskills.to_vec(),
+                    column,
+                    row,
+                    levels: vec![Vec::new(); levels_amount.into()],
+                    unknown_modifiers: Vec::new(),
+                    name: String::new(),
+                    description: String::new(),
+                },
+            )
+            .collect();
+        SkillsTree { skills }
+    }
+
+    /// Saved medical skills of the old trees (five-rank Fast Bandaging,
+    /// Metabolism and Brothers in Arms, Medic, Take Cover, both tier-5
+    /// unlocks): the points taken back
+    /// are the account's to spend again, and its kits are sent again.
+    #[test]
+    fn a_changed_tree_refunds_saved_skills() {
+        let tree = medical_tree();
+        let mut account = Account::new("Alice");
+        account.add_experience(50_000_000);
+        let level = u32::from(account.level());
+        assert!(level >= 40, "{level}");
+        let spent = |account: &Account| {
+            account
+                .skills
+                .iter()
+                .map(|&(_, n)| u32::from(n))
+                .sum::<u32>()
+        };
+        account.skills = vec![
+            (301, 5),
+            (302, 5),
+            (311, 5),
+            (312, 5),
+            (313, 2),
+            (321, 5),
+            (322, 1),
+            (331, 1),
+            (332, 5),
+            (341, 1),
+            (342, 5),
+        ];
+        let revisions: Vec<u32> = account.kits.iter().map(|kit| kit.revision).collect();
+        assert_eq!(spent(&account), 40);
+        assert!(account.settle_skills(&tree));
+        assert_eq!(
+            account.skills,
+            [
+                (301, 3),
+                (302, 2),
+                (311, 4),
+                (312, 3),
+                (321, 3),
+                (331, 1),
+                (332, 5),
+                (342, 1)
+            ]
+        );
+        assert_eq!(spent(&account), 22);
+        assert_eq!(tree.validate(account.level(), &account.skills), Ok(()));
+        assert!(
+            account
+                .kits
+                .iter()
+                .zip(&revisions)
+                .all(|(kit, &before)| kit.revision != before)
+        );
+        // Settled once, the set stays as it is.
+        assert!(!account.settle_skills(&tree));
+    }
+
+    /// The skills tree with Artifact Container as the game data has it (the test archive is
+    /// older): one rank, modifiers 14 +1 and 15 -1.
+    fn tree_with_container() -> SkillsTree {
+        let mut tree = SkillsTree::shared().clone();
+        let mut container = tree.skill(113).unwrap().clone();
+        container.id = ARTIFACT_CONTAINER;
+        container.levels = vec![vec![(14, 1.0), (skills::slot_modifier::POCKET_SLOTS, -1.0)]];
+        tree.skills.push(container);
+        tree.skills.sort_by_key(|skill| skill.id);
+        tree
+    }
+
+    const CONTAINER: SlotPerk = SlotPerk::ArtifactContainer;
+
+    fn declined(perk: SlotPerk) -> KitPerks {
+        KitPerks::default().with(perk, PerkSlot::Declined)
+    }
+
+    /// A kit's Artifact Container slot: the pocket again and back (the owner, 2026-11-22). A
+    /// kit with the stock pocket has none with the container, one with the pocket; what the
+    /// pocket held comes off when it is the container again, and stays owned.
+    #[test]
+    fn a_kit_makes_the_container_a_pocket_and_back() {
+        let tree = tree_with_container();
+        let medkit = Dictionary::shared().item_named("medkit").unwrap().dict_id;
+        let mut account = Account::new("Alice");
+        let held = account.add_item(medkit, 2);
+        assert_eq!(
+            account.set_perk_slot(1, CONTAINER, PerkSlot::Declined, &tree),
+            Err(PerkError::NoSkill)
+        );
+        account.change_skills(vec![(ARTIFACT_CONTAINER, 1)], &tree);
+        let layout = |account: &Account, kit: usize| {
+            let perks = account.kits[kit].perks;
+            account
+                .layout_of([], &tree.modifiers(&perks.skills_taken(&account.skills)))
+                .pockets()
+        };
+        assert_eq!(account.kits[1].perks, KitPerks::default());
+        assert_eq!(layout(&account, 1), 0);
+
+        let revision = account.kits[1].revision;
+        assert_eq!(account.set_perk_slot(1, CONTAINER, PerkSlot::Declined, &tree), Ok(true));
+        assert_eq!(account.set_perk_slot(1, CONTAINER, PerkSlot::Declined, &tree), Ok(false));
+        assert_eq!(account.kits[1].revision, revision.wrapping_add(1));
+        assert_eq!(layout(&account, 1), 1);
+        // The other kits keep the container.
+        assert_eq!(layout(&account, 2), 0);
+
+        in_pocket(&mut account, 1, 13, held, 2);
+        let inventory = account.inventory.clone();
+        assert_eq!(account.set_perk_slot(1, CONTAINER, PerkSlot::Taken, &tree), Ok(true));
+        assert_eq!(account.kits[1].slots[13], None);
+        assert_eq!(account.inventory, inventory);
+        assert_eq!(
+            account.set_perk_slot(3, CONTAINER, PerkSlot::Declined, &tree),
+            Err(PerkError::NoSuchKit)
+        );
+    }
+
+    /// Deep Pockets' slot (the owner, 2026-11-22): taken, a pocket more and no second weapon;
+    /// declined, the second weapon slot again and the pocket gone. What the slot that goes held
+    /// comes off the kit and stays owned. Supply Pocket is the same perk.
+    #[test]
+    fn a_kit_makes_the_extra_pocket_a_weapon_slot_and_back() {
+        use survarium::v026g::skills::slot_modifier::{DISABLE_SECOND_WEAPON, POCKET_SLOTS};
+        let tree = SkillsTree::shared();
+        let dictionary = Dictionary::shared();
+        let mut account = Account::new("Alice");
+        let medkit = account.add_item(dictionary.item_named("medkit").unwrap().dict_id, 2);
+        let ppsh = account.add_item(dictionary.item_named("ppsh").unwrap().dict_id, FULL_CONDITION);
+        account.change_skills(vec![(DEEP_POCKETS, 1)], tree);
+        let modifiers = |account: &Account| tree.modifiers(&account.kits[0].perks.skills_taken(&account.skills));
+        assert_eq!(modifiers(&account)[POCKET_SLOTS], 1.0);
+        assert_eq!(modifiers(&account)[DISABLE_SECOND_WEAPON], 1.0);
+        in_pocket(&mut account, 0, 14, medkit, 2);
+        let inventory = account.inventory.clone();
+
+        // Declined: the second weapon slot; the second pocket's medkit off.
+        assert_eq!(account.set_perk_slot(0, SlotPerk::WeaponPocket, PerkSlot::Declined, tree), Ok(true));
+        assert_eq!(modifiers(&account), tree.modifiers(&[]));
+        assert_eq!(account.kits[0].slots[14], None);
+        account.kits[0].slots[10] = Some(KitSlot { item_id: ppsh, count: 1 });
+        let mut slots = account.kits[0].slots;
+        account.keep_to_layout(0, &mut slots);
+        assert!(slots[10].is_some(), "a kit that declines the perk carries a second weapon");
+
+        // Taken again: the second weapon off.
+        account.kits[0].slots = slots;
+        assert_eq!(account.set_perk_slot(0, SlotPerk::WeaponPocket, PerkSlot::Taken, tree), Ok(true));
+        assert_eq!(account.kits[0].slots[10], None);
+        assert_eq!(account.inventory, inventory);
+        // The other perk's slot is no one's choice without its skill.
+        assert_eq!(
+            account.set_perk_slot(0, CONTAINER, PerkSlot::Declined, tree),
+            Err(PerkError::NoSkill)
+        );
+    }
+
+    /// Both perks on a kit (the owner, 2026-11-22: "[free pockets - 1] [additional pocket] [free
+    /// pocket for switching with artis]"): each perk switches its own slot only. The weapon perk's
+    /// pocket is never the container; declined, it is blocked in its place in the lobby and the
+    /// game has a pocket fewer, Artifact Container's slot last with its item. The match gets the
+    /// same order: the kit's modifiers open as many pockets, the container after them.
+    #[test]
+    fn each_perk_switches_its_own_slot() {
+        use PerkSlot::{Declined, Taken};
+        use survarium::v026g::skills::slot_modifier::ARTEFACT_SLOTS;
+        let tree = tree_with_container();
+        let dictionary = Dictionary::shared();
+        let mut account = Account::new("Alice");
+        let medkit = account.add_item(dictionary.item_named("medkit").unwrap().dict_id, 2);
+        let bandage = account.add_item(dictionary.item_named("bandages").unwrap().dict_id, 2);
+        account.change_skills(vec![(ARTIFACT_CONTAINER, 1), (DEEP_POCKETS, 1)], &tree);
+        let pockets = |account: &Account| account.kit_pockets(0, &tree).unwrap();
+        let roles = |account: &Account| {
+            pockets(account)
+                .places()
+                .map(|place| place.map(|(role, _)| role))
+        };
+        let pocket =
+            |account: &Account, slot: usize| account.kits[0].slots[slot].map(|held| held.item_id);
+        // The match's count: the kit's modifiers, as the match block sends them; the container
+        // the game's slot after the pockets.
+        let matched = |account: &Account| {
+            let modifiers = tree.modifiers(&account.kits[0].perks.skills_taken(&account.skills));
+            let pockets = pockets(account);
+            assert_eq!(account.layout_of([], &modifiers).pockets(), pockets.pockets());
+            let container = pockets
+                .slots()
+                .iter()
+                .position(|role| *role == Some(PocketRole::Switched(Taken)));
+            let containers = modifiers[ARTEFACT_SLOTS];
+            assert_eq!(
+                container.map(|at| at as u32),
+                (containers > 0.0).then(|| pockets.pockets())
+            );
+        };
+        use PocketRole::{Added, Switched};
+        assert_eq!(roles(&account)[..2], [Some(Added(Taken)), Some(Switched(Taken))]);
+        matched(&account);
+
+        // The container a pocket: the last one, the added pocket before it.
+        account.set_perk_slot(0, CONTAINER, Declined, &tree).unwrap();
+        assert_eq!(roles(&account)[..2], [Some(Added(Taken)), Some(Switched(Declined))]);
+        matched(&account);
+        in_pocket(&mut account, 0, 13, medkit, 2);
+        in_pocket(&mut account, 0, 14, bandage, 2);
+        let inventory = account.inventory.clone();
+
+        // The weapon perk declined: its pocket blocked where it is, its medkit off; the game has
+        // the container's pocket alone, with its bandage, in its first slot.
+        account.set_perk_slot(0, SlotPerk::WeaponPocket, Declined, &tree).unwrap();
+        assert_eq!(roles(&account)[..2], [Some(Added(Declined)), Some(Switched(Declined))]);
+        assert_eq!(pockets(&account).slots()[..2], [Some(Switched(Declined)), None]);
+        assert_eq!((pocket(&account, 13), pocket(&account, 14)), (Some(bandage), None));
+        matched(&account);
+
+        // Taken again: the added pocket open, empty.
+        account.set_perk_slot(0, SlotPerk::WeaponPocket, Taken, &tree).unwrap();
+        assert_eq!((pocket(&account, 13), pocket(&account, 14)), (None, Some(bandage)));
+        in_pocket(&mut account, 0, 13, medkit, 2);
+
+        // The container again: its pocket's bandage off, the added pocket's medkit kept.
+        account.set_perk_slot(0, CONTAINER, Taken, &tree).unwrap();
+        assert_eq!((pocket(&account, 13), pocket(&account, 14)), (Some(medkit), None));
+        matched(&account);
+        // The weapon perk declined with the container: blocked before it; the game's container
+        // its first quick slot, after no pocket.
+        account.set_perk_slot(0, SlotPerk::WeaponPocket, Declined, &tree).unwrap();
+        assert_eq!(roles(&account)[..2], [Some(Added(Declined)), Some(Switched(Taken))]);
+        assert_eq!(pocket(&account, 13), None);
+        matched(&account);
+        assert_eq!(account.inventory, inventory);
+    }
+
+    /// Tank Container (445): the block of a kit that wears an oxygen tank carries it, the others
+    /// not; Artifact Container's pocket choice is the kit's as before.
+    #[test]
+    fn tank_container_goes_with_the_tank() {
+        use survarium::v026g::loadouts::{TANK_CONTAINER, is_oxygen_tank};
+        let tank = Dictionary::shared()
+            .items
+            .iter()
+            .find(|item| is_oxygen_tank(item.dict_id))
+            .unwrap()
+            .dict_id;
+        let mut account = Account::new("Alice");
+        account.skills = vec![(ARTIFACT_CONTAINER, 1), (TANK_CONTAINER, 1)];
+        let worn = account.add_item(tank, FULL_CONDITION);
+        account.kits[0].slots[3] = Some(KitSlot { item_id: worn, count: 1 });
+        assert_eq!(account.kit_skills(0), [(ARTIFACT_CONTAINER, 1), (TANK_CONTAINER, 1)]);
+        assert_eq!(account.kit_skills(1), [(ARTIFACT_CONTAINER, 1)]);
+        account.kits[0].perks = KitPerks::ALL_TAKEN.with(SlotPerk::ArtifactContainer, PerkSlot::Declined);
+        assert_eq!(account.kit_skills(0), [(TANK_CONTAINER, 1)]);
+        // Taken off: the container goes with it; nothing of the kit's slots moves.
+        account.kits[0].slots[3] = None;
+        assert_eq!(account.kit_skills(0), []);
+    }
+
+    /// The skill refunded: every kit and preset kit has the container again, so the skill
+    /// learned again starts as at first; the pocket's item stays where the stock pocket is.
+    #[test]
+    fn the_skill_taken_back_forgets_the_pockets() {
+        use crate::v026g::presets::Preset;
+        let tree = tree_with_container();
+        let mut account = Account::new("Alice");
+        account.change_skills(vec![(ARTIFACT_CONTAINER, 1), (DEEP_POCKETS, 1)], &tree);
+        account.set_perk_slot(0, CONTAINER, PerkSlot::Declined, &tree).unwrap();
+        account.set_perk_slot(0, SlotPerk::WeaponPocket, PerkSlot::Declined, &tree).unwrap();
+        let mut preset = Preset::EMPTY;
+        preset.perks[2] = declined(CONTAINER);
+        account.presets[1] = Some(preset);
+
+        // Artifact Container refunded: its choice forgotten, Deep Pockets' kept.
+        account.change_skills(vec![(DEEP_POCKETS, 1)], &tree);
+        assert_eq!(account.kits[0].perks, declined(SlotPerk::WeaponPocket));
+        assert!(account.kits[1..].iter().all(|kit| kit.perks == KitPerks::default()));
+        assert_eq!(account.presets[1].as_ref().map(Preset::is_empty), Some(true));
+
+        // A saved account with a choice and no skill (an admin's refund) is repaired so too.
+        account.kits[2].perks = declined(CONTAINER);
+        assert!(account.repair());
+        assert_eq!(account.kits[2].perks, KitPerks::default());
     }
 }

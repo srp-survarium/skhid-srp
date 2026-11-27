@@ -11,6 +11,7 @@
 
 pub mod carry;
 pub mod ground;
+pub mod keeper;
 
 /// Artefact identity in the anomaly registry, distinct from an active-item ID.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

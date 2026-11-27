@@ -2182,12 +2182,12 @@ mod tests {
     use super::*;
     use crate::v026g::bots::guns;
     use crate::v026g::bots::know::{DangerSpot, Percept};
-    use crate::v026g::bots::view::{Mode, Sound};
+    use crate::v026g::bots::view::{Mode, Side, Sound};
 
     fn body(place: Place, team: u8, feet: Vec3, yaw: f32) -> PlaceView {
         PlaceView {
             place,
-            team,
+            team: Side::team(team),
             bot: true,
             present: true,
             alive: true,
@@ -3149,7 +3149,7 @@ mod tests {
     }
 
     #[test]
-    fn a_grenade_goes_only_at_a_sensed_place_and_two_a_life() {
+    fn a_grenade_goes_only_at_a_sensed_place_and_the_kits_a_life() {
         let mut me = body(0, 0, Vec3::ZERO, 0.0);
         let camper_at = Vec3::new(0.0, 0.0, 18.0);
         let mut camper = body(1, 1, camper_at, 0.0);
@@ -3221,10 +3221,11 @@ mod tests {
             }
             now += 50;
         }
-        // Two throws (the kit's two), each with the key held 0.5-0.8 s.
-        assert_eq!(throws.len(), 2, "{throws:?}");
-        assert!((20..=34).contains(&held_ticks), "{held_ticks}");
-        // A new life: two again.
+        // One throw (the kit's one: an RGD-5 takes two units of its pocket
+        // of two), the key held 0.5-0.8 s.
+        assert_eq!(throws.len(), 1, "{throws:?}");
+        assert!((10..=17).contains(&held_ticks), "{held_ticks}");
+        // A new life: one again.
         me.spawned = 50_000;
         reflex.think_with(
             &me,

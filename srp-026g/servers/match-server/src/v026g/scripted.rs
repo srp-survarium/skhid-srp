@@ -11,7 +11,9 @@
 use std::collections::{BTreeMap, VecDeque};
 
 use survarium::v026g::dictionary::Dictionary;
-use survarium::v026g::maps::{self, mode};
+use srp_validate::world::{Held, Item};
+use survarium::v026g::match_msgs::static_info::MatchProfile;
+use survarium::v026g::maps::{self, RuleMode};
 use survarium::v026g::match_msgs::client_model::{ClientModel, Skip, Taken};
 use survarium::v026g::match_msgs::late_join::{CONNECT_CAPABILITY, Prepare, Prepared, Status};
 use survarium::v026g::match_msgs::motion;
@@ -22,17 +24,20 @@ use survarium::v026g::match_msgs::rules::{
 use survarium::v026g::match_msgs::snapshot::{
     self, Battery, Container, Gather, KillsDeaths, PlayerStatistics, Research, ResearchUnit,
     Respawn, Rules, Sections, Statistics, StatisticsTail, Tdm, Timed, Timelimit, VictoryItemStatus,
+    WeaponCounts,
 };
 use survarium::v026g::match_msgs::{
-    PlayerInput, ServerMessage, TICK_MS, WireTime, id, tick_byte, upload,
+    PlayerInput, ServerMessage, TICK_MS, UploadWanted, WireTime, id, tick_byte, upload,
 };
 use udp_transport::seq::{Recorded, Window};
 use udp_transport::wire::{self, low_level};
 use udp_transport::{Class, Direction, Table, ack};
-use world_frame::Section;
 
 /// The client's event horizon: `max_ping_time_in_ms` + 250.
 pub const HORIZON_MS: u32 = 500;
+/// How far back patch 211's ring of hashed worlds reaches: 32 ticks
+/// (`client-patches/rust/patches/src/exact_world.rs`, `SLOTS`).
+pub const EXACT_RING_MS: u32 = 32 * TICK_MS;
 /// The initial world's time in the tests.
 pub const INITIAL_MS: u32 = 50;
 
@@ -42,7 +47,7 @@ pub const INITIAL_MS: u32 = 50;
 pub struct Sim {
     pub players: usize,
     pub snapshot_players: usize,
-    pub map_id: u8,
+    pub map_id: maps::MapId,
     /// The timelimit rule as the last snapshot gave it, or as the match
     /// was made ready.
     base: TimelimitRule,
@@ -58,19 +63,31 @@ pub struct Sim {
     pub team_respawn_from: Option<(u32, [bool; 2])>,
     /// From a tick on: kills of player 0 and deaths of player 1.
     pub kills_from: Option<(u32, u16)>,
+    /// From a tick on: arbitrary per-place KD records, including their
+    /// matching kill/death statistics (terminal-standings regression).
+    pub kd_from: Option<(u32, Vec<KillsDeaths>)>,
     /// Each from its tick on: a place's count of an event, in kit 0.
     pub events_from: Vec<(u32, usize, usize, u16)>,
+    /// From a tick on the game counts per weapon too (exe patch 165):
+    /// each place's weapons, after the statistics' tail.
+    pub weapons_from: Option<(u32, Vec<Vec<WeaponCounts>>)>,
     /// From a tick on the world differs from the others' by this byte.
     pub salt_from: Option<(u32, u8)>,
-    /// Extra bytes in every world (a bigger upload): in the bullets, and
-    /// what is over their buffer in the physics, each under its cap
-    /// (`world_frame::Section::cap`), as a real game's world would be.
+    /// Extra bytes in every world (a bigger upload): valid bullet records,
+    /// as pellets in flight make them (the sections grow, patch 98; the body
+    /// stays under `world_frame::MAX_BODY`).
     pub ballast: usize,
-    /// From a tick on the world's game objects have this many bytes: the
-    /// grenades and traps of a place this game installed, or started with.
-    /// A loaded world does not take them away, as it does the salt: they
-    /// are this game's objects.
-    pub late_objects_from: Option<(u32, usize)>,
+    profile_items: Vec<usize>,
+    /// By place, the grenades and traps of each place this game has bound
+    /// (its options' places; a late joiner's from its install on): a
+    /// world's game objects begin with them, the newest place first.
+    held: Vec<Vec<Held>>,
+    /// By place, its kits' items as its game cooked them: a player's state
+    /// saves its current kit's.
+    kits: Vec<[Vec<Item<'static>>; 3]>,
+    /// From a tick on the world's game objects have this many zero bytes
+    /// more in front: objects no game of the match has.
+    pub stray_objects_from: Option<(u32, usize)>,
     /// By place: the head of its player's state, for a place whose player
     /// block is in every world (alive, and what it has in store of each
     /// item of its profile).
@@ -89,7 +106,7 @@ pub struct Sim {
 }
 
 impl Sim {
-    pub fn new(players: usize, map_id: u8) -> Self {
+    pub fn new(players: usize, map_id: maps::MapId) -> Self {
         let map = maps::map_mode(map_id).expect("a map of the tests");
         let mut base = TimelimitRule::new(TimelimitParams::of(map, players as u8));
         base.on_match_ready(INITIAL_MS);
@@ -104,10 +121,15 @@ impl Sim {
             tdm_from: None,
             team_respawn_from: None,
             kills_from: None,
+            weapons_from: None,
+            kd_from: None,
             events_from: Vec::new(),
             salt_from: None,
             ballast: 0,
-            late_objects_from: None,
+            profile_items: Vec::new(),
+            held: Vec::new(),
+            kits: Vec::new(),
+            stray_objects_from: None,
             player_states: vec![None; players],
             player_tails: vec![None; players],
             first_world: true,
@@ -115,17 +137,22 @@ impl Sim {
         }
     }
 
+    /// The places this game has bound: its options' places.
+    pub fn bound(&self) -> usize {
+        self.held.len()
+    }
+
     /// A team's tickets at the start (`tickets_count`).
     fn tickets_count(&self) -> u16 {
         maps::map_mode(self.map_id).map_or(0, |map| map.tickets_count as u16)
     }
 
-    fn game_mode(&self) -> u8 {
-        maps::map_mode(self.map_id).map_or(mode::BATTERIES, |map| map.mode)
+    fn game_mode(&self) -> RuleMode {
+        maps::map_mode(self.map_id).map_or(RuleMode::Batteries, |map| map.mode.rules())
     }
 
     fn batteries(&self) -> usize {
-        if mode::WITH_BATTERIES.contains(&self.game_mode()) {
+        if self.game_mode().has_batteries() {
             maps::map_mode(self.map_id).map_or(0, |map| map.victory_items_count as usize)
         } else {
             0
@@ -159,7 +186,9 @@ impl Sim {
     /// No simulation at all, for a client that has none ([`Client::idle`]):
     /// never asked for a world.
     fn none() -> Self {
-        let map = maps::playable().next().expect("the game has maps");
+        let map = maps::playable_in(maps::GameMode::Batteries)
+            .next()
+            .expect("the game has battery maps");
         Self::new(1, map.id)
     }
 
@@ -187,10 +216,17 @@ impl Sim {
                 kills_deaths[0].deaths = kills;
             }
         }
+        if let Some((_, records)) = self.kd_from.as_ref().filter(|(from, _)| since(*from)) {
+            for ((kd, player), record) in kills_deaths.iter_mut().zip(&mut players).zip(records) {
+                *kd = *record;
+                player.events[snapshot::event::KILL][0] = record.kills;
+                player.events[snapshot::event::DEATH][0] = record.deaths;
+            }
+        }
         for &(_, place, event, count) in self.events_from.iter().filter(|set| since(set.0)) {
             players[place].events[event][0] = count;
         }
-        let tdm = (self.game_mode() == mode::TEAM_DEATHMATCH).then(|| {
+        let tdm = (self.game_mode() == RuleMode::TeamDeathmatch).then(|| {
             self.tdm_from.filter(|(from, _)| since(*from)).map_or(
                 Tdm {
                     tickets: [100, 100],
@@ -224,11 +260,16 @@ impl Sim {
                 winner_team: 2,
                 active_players_mask: rule.mask,
             },
+            weapons: self
+                .weapons_from
+                .as_ref()
+                .filter(|(from, _)| since(*from))
+                .map(|(_, weapons)| weapons.clone()),
         }
         .encode();
         // Modes 2 and 3: each team's points are batteries in its container
         // (team 0's is container 0 here); the others lie about.
-        let gather = mode::WITH_BATTERIES.contains(&self.game_mode()).then(|| {
+        let gather = self.game_mode().has_batteries().then(|| {
             let batteries = self.batteries();
             let home = [usize::from(points[0]), usize::from(points[1])];
             let mut containers = vec![Container::default(); 2];
@@ -253,7 +294,7 @@ impl Sim {
                 team_points: [points[0] as u8, points[1] as u8],
                 batteries: state,
                 containers,
-                timed: (self.game_mode() == mode::TIMED_BATTERIES).then(|| Timed {
+                timed: (self.game_mode() == RuleMode::TimedBatteries).then(|| Timed {
                     available: batteries as u32,
                     started: rule.state == state::IN_PROCESS,
                     ..Timed::default()
@@ -262,7 +303,7 @@ impl Sim {
         });
         // Mode 5: the points are Research's shown ones, whole; three units
         // of nobody's; its end 3 s after the points that reach the goal.
-        let research = (self.game_mode() == mode::RESEARCH).then(|| {
+        let research = (self.game_mode() == RuleMode::Research).then(|| {
             let goal = maps::map_mode(self.map_id).map_or(0, |map| map.resources_count);
             let end = self
                 .points_from
@@ -278,6 +319,24 @@ impl Sim {
                 units: vec![ResearchUnit::default(); 3],
             }
         });
+        // Mode 13: Artifact Hunt's rule from the match's start, nothing
+        // played (its scores 0, as `points` must be then).
+        let hunt = maps::map_mode(self.map_id)
+            .and_then(|map| map.artefact_hunt)
+            .map(|params| {
+                let idle = artefact_hunt_rule::Rule::new(1);
+                match rule.match_started_at() {
+                    Some(start) => {
+                        let now = artefact_hunt_rule::Time::from_ms(start);
+                        idle.step(params, artefact_hunt_rule::Event::Start { now }).0
+                    }
+                    None => idle,
+                }
+            });
+        // A free-for-all (mode 8) has no rule of its own: none of `gather`,
+        // `tdm` and `research` is written; exe patch 142's spawn history
+        // (nobody spawned) follows the respawn rule, then the kd stats
+        // (`kills_from`).
         let rules = Rules {
             timelimit: Timelimit {
                 start: rule.start,
@@ -297,6 +356,10 @@ impl Sim {
             gather,
             tdm,
             research,
+            freeze_tag: None,
+            free_for_all: (self.game_mode() == RuleMode::FreeForAll)
+                .then_some(srp_validate::world::SpawnHistory::EMPTY),
+            artefact_hunt: hunt.as_ref().map(snapshot::ArtefactHunt::of),
             kills_deaths,
             team_respawn: self
                 .team_respawn_from
@@ -304,41 +367,99 @@ impl Sim {
                 .map_or([true, true], |(_, teams)| teams),
         }
         .to_bytes();
-        // One byte of the bullets' left for the salt.
-        let in_bullets = self.ballast.min(Section::Bullets.cap() - 1);
-        let mut bullets = vec![0xB0; in_bullets];
-        let physics = vec![0xB0; self.ballast - in_bullets];
-        assert!(
-            physics.len() <= Section::Physics.cap(),
-            "more ballast than a world holds"
-        );
-        if let Some((_, salt)) = self.salt_from.filter(|(from, _)| since(*from)) {
-            bullets.push(salt);
+        // Keep the large-world transport tests large with valid current
+        // records: fixed-size bullets, not bytes in the empty physics
+        // section. The salt changes a free header field. Place 0 shoots
+        // them once it has entered (an initial world has none).
+        let bullet_count = if rule.mask & 1 != 0 {
+            self.ballast.div_ceil(69)
+        } else {
+            0
+        };
+        let mut bullets = vec![0; 16];
+        bullets[12..16].copy_from_slice(&(bullet_count as u32).to_le_bytes());
+        for number in 0..bullet_count {
+            let mut record = [0u8; 69];
+            record[..4].copy_from_slice(&(number as u32).to_le_bytes());
+            record[65] = 7; // place 0, weapon slot 7, finite zero floats
+            bullets.extend(record);
         }
-        let objects = vec![
-            0;
-            self.late_objects_from
-                .filter(|(from, _)| since(*from))
-                .map_or(0, |(_, bytes)| bytes)
-        ];
-        // The player blocks: a state, and an animation state after it.
+        if let Some((_, salt)) = self.salt_from.filter(|(from, _)| since(*from)) {
+            bullets[0] = salt;
+        }
+        let stray = self
+            .stray_objects_from
+            .filter(|(from, _)| since(*from))
+            .map_or(0, |(_, bytes)| bytes);
+        let mut objects = vec![0; stray];
+        let map = maps::map_mode(self.map_id).map_or(&maps::NO_WORLD_OBJECTS, |map| map.world_objects);
+        objects.extend(maps::untouched_objects(
+            self.held.iter().rev().flatten().copied(),
+            map,
+        ));
+        let mut states = self.player_states.clone();
+        if bullet_count != 0 && states.first().is_some_and(Option::is_none) {
+            states[0] = Some(PlayerState {
+                current_index: 0,
+                target_index: 0,
+                pickup: weapon_pickup::Record::EMPTY,
+                items: vec![0; self.profile_items.first().copied().unwrap_or(0)],
+                alive: false,
+                has_to_die: false,
+                look_pitch: 0.0,
+                rotation_y: 0.0,
+                actions_mask: 0,
+                effects: 0,
+            });
+        }
+        let header = valid_empty_inventory();
+        let mut effects = vec![0; 12];
+        effects.extend([0, 0, 0x80, 0x3f, 0, 0, 0, 0]);
+        // The player blocks: a state, and an animation state after it, of
+        // each place that has entered (a game's world has no other: its
+        // initial one none).
         let mut mask = 0u32;
         let mut blocks = Vec::new();
-        for (place, head) in self.player_states.iter().enumerate() {
-            if let Some(head) = head {
+        for (place, head) in states.iter().enumerate() {
+            let entered = rule.mask & 1u32.checked_shl(place as u32).unwrap_or(0) != 0;
+            if let Some(head) = head.as_ref().filter(|_| entered) {
                 mask |= 1 << place;
-                let animation = players::animation_bytes(&[true; 9], &[time, time + 7], &[0.5]);
-                let state = match self.player_tails.get(place).and_then(Option::as_ref) {
-                    Some(tail) => motion::state_bytes(
-                        head,
-                        &[0xA5; 16],
-                        &motion::Tail {
-                            time_ms: time,
-                            ..tail.clone()
-                        },
-                    ),
-                    None => players::state_bytes(head, &[0xA5; 16]),
-                };
+                let mut inventory = header.clone();
+                if let Some(items) = self
+                    .kits
+                    .get(place)
+                    .and_then(|kits| kits.get(usize::from(head.current_index)))
+                {
+                    inventory.extend(players::untouched_items(place as u8, head.current_index, items));
+                }
+                // The smallest tree a client decodes (`world_frame::
+                // animation_validate`): no node, so its 11 header bits, at
+                // least one time (the duration the native always pops), and
+                // the first matrix's 12 floats.
+                let animation =
+                    players::animation_bytes(&[false; 11], &[time, time + 7], &[0.5; 12]);
+                // A state is whole: with no tail of its own, a player who
+                // stands where it entered.
+                let tail = self.player_tails.get(place).and_then(Option::as_ref).cloned().unwrap_or(
+                    motion::Tail {
+                        time_ms: time,
+                        speed: 0.0,
+                        health: 1.0,
+                        inserted_time_ms: 0,
+                        physics_position: head.alive.then_some([0.0; 3]),
+                        crouching: false,
+                        sprinting: false,
+                        recent_hits: Vec::new(),
+                    },
+                );
+                let state = motion::state_bytes(
+                    head,
+                    &inventory,
+                    &motion::Tail {
+                        time_ms: time,
+                        ..tail
+                    },
+                );
                 blocks.extend(players::block_bytes(&state, Some(&animation)));
             }
         }
@@ -348,9 +469,9 @@ impl Sim {
             bullets: &bullets,
             statistics: &statistics,
             objects: &objects,
-            physics: &physics,
+            physics: &[],
             rules: &rules,
-            effects: &[],
+            effects: &effects,
         }
         .to_body()
         .expect("a small world")
@@ -377,7 +498,7 @@ impl Sim {
             .and_then(|decoded| decoded.rules.as_ref())
             .is_some_and(|rules| rules.timelimit.state == state::IN_PROCESS);
         self.stale_tickets_from =
-            (first && in_play && self.game_mode() == mode::TEAM_DEATHMATCH).then_some(time);
+            (first && in_play && self.game_mode() == RuleMode::TeamDeathmatch).then_some(time);
         if let Some(read) = decoded.and_then(|decoded| decoded.rules) {
             self.base.state = read.timelimit.state;
             self.base.start = read.timelimit.start;
@@ -385,6 +506,25 @@ impl Sim {
             self.base_time = time;
         }
     }
+}
+
+/// A profile's kits as its game cooks them (an item of no object: none).
+fn kits_of(profile: &MatchProfile) -> [Vec<Item<'static>>; 3] {
+    let kit = |kit| profile.inventory(kit, Dictionary::shared()).unwrap_or_default();
+    [kit(0), kit(1), kit(2)]
+}
+
+/// Native state through its empty inventory header, before the motion tail.
+fn valid_empty_inventory() -> Vec<u8> {
+    let mut bytes = vec![0; 4]; // no hit effects
+    bytes.extend([0xff, 0xff]); // no active objects
+    bytes.extend([0; 29]); // stamina
+    bytes.extend([0; 5]); // weight and inventory bool
+    // No carried item, no artefacts, the active slot 0, no grenade selected
+    // (23, as the inventory's constructor 0x2FC53D: a grenade slot must hold
+    // a grenade set).
+    bytes.extend([0xff, 0, 0, 23]);
+    bytes
 }
 
 /// Says of a datagram from the server whether it is lost on the way.
@@ -402,7 +542,32 @@ struct Assembly {
     parts: BTreeMap<u8, Vec<u8>>,
 }
 
+/// Test-client behavior at the new application receipt boundary.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
+pub enum WorldReceiptMode {
+    #[default]
+    Legacy,
+    Accept,
+    RejectNext,
+    RejectAll,
+    /// Refuses the next two handshake messages (0xE4).
+    RejectOptionsTwice,
+    /// Cannot read the next world (its reader outside its buffer): refuses
+    /// it without its generation (`Outcome::Unreadable`).
+    UnreadableNext,
+    RejectOptionsNext,
+    RejectPortsNext,
+}
+
 pub struct Client {
+    pub world_receipts: WorldReceiptMode,
+    pub worlds_rejected: usize,
+    /// Refusals that name no generation so far (handshake messages, worlds
+    /// it could not read): the number such a refusal carries.
+    pub numbered_refusals: u8,
+    /// Each receipt goes twice, as a copy the transport resent when its ack
+    /// was lost (0xE0 is plain: the server gets both).
+    pub receipt_copies: bool,
     pub session: u32,
     pub model: ClientModel,
     pub sim: Sim,
@@ -428,6 +593,7 @@ pub struct Client {
     pub skipped: Vec<(u8, Skip)>,
     /// What a correct server never causes.
     pub faults: Vec<String>,
+    pub executable_replies: Vec<srp_validate::executable::Reply>,
     /// Leaves the game drops (tick, player): sent before it played the
     /// player's entry (`leave_match` 0x2D18A0 reads the entered mask of the
     /// newest tick it played at or before the leave's, 0x2D1B4B..0x2D1B9D).
@@ -441,10 +607,6 @@ pub struct Client {
     pub prepares: Vec<Prepare>,
     /// Every prepare received, resends too.
     pub prepares_received: u32,
-    /// The bytes a place this game installs adds to its world's game
-    /// objects, from the tick of the install on (a newcomer whose kits
-    /// have grenades or traps).
-    pub late_objects: usize,
     /// The server disconnected it (FA or FD).
     pub disconnected: bool,
     last_words: Option<Vec<u8>>,
@@ -476,6 +638,15 @@ pub struct Client {
     pub uploads_hashed_tick: bool,
     /// Does not answer 0xF6 (as if its pool guard skipped every request).
     pub no_uploads: bool,
+    /// Patch 211: its 0xD8 says it answers 0xF6 for a tick, which it does
+    /// with its world of that tick while the tick is among the last
+    /// [`EXACT_RING_MS`] of the worlds it simulated (hashed), else with its
+    /// horizon's.
+    pub exact_worlds: bool,
+    /// Its uploads (not the worlds it hashes) have this many stray bytes
+    /// in front of their game objects ([`Sim::stray_objects_from`]): a
+    /// forged or broken game whose worlds the check refuses.
+    pub forged_uploads: Option<usize>,
     /// Its datagrams ack nothing (as a game's acks that name only its
     /// newest few seqs miss most of a burst).
     pub mute_acks: bool,
@@ -504,7 +675,7 @@ pub struct Client {
 }
 
 impl Client {
-    pub fn new(session: u32, patched: bool, players: usize, map_id: u8) -> Self {
+    pub fn new(session: u32, patched: bool, players: usize, map_id: maps::MapId) -> Self {
         Self {
             session,
             model: ClientModel::new(patched),
@@ -521,11 +692,15 @@ impl Client {
             ack_due: false,
             now_ms: 0,
             taken: Vec::new(),
+            world_receipts: WorldReceiptMode::Legacy,
+            worlds_rejected: 0,
+            numbered_refusals: 0,
+            receipt_copies: false,
             skipped: Vec::new(),
             faults: Vec::new(),
+            executable_replies: Vec::new(),
             dropped_leaves: Vec::new(),
             auto_prepare: true,
-            late_objects: 0,
             prepares: Vec::new(),
             prepares_received: 0,
             disconnected: false,
@@ -541,6 +716,8 @@ impl Client {
             simulates: true,
             uploads_hashed_tick: false,
             no_uploads: false,
+            exact_worlds: false,
+            forged_uploads: None,
             mute_acks: false,
             mute_time_replies: false,
             slow_acks: false,
@@ -577,7 +754,7 @@ impl Client {
         client
     }
 
-    pub fn growing(session: u32, players: usize, map_id: u8) -> Self {
+    pub fn growing(session: u32, players: usize, map_id: maps::MapId) -> Self {
         let mut client = Self::new(session, true, players, map_id);
         client.model.growing_roster = true;
         client.sim.snapshot_players = 20;
@@ -591,14 +768,14 @@ impl Client {
             let place = usize::from(prepare.proposal.place);
             if place == options.players.len() {
                 options.players.push(prepare.profile.clone());
+                self.sim.profile_items.push(prepare.profile.items.len());
+                self.sim.held.push(prepare.profile.held().collect());
+                self.sim.kits.push(kits_of(&prepare.profile));
                 self.sim.players = options.players.len();
                 self.sim.player_states.resize(self.sim.players, None);
                 self.sim.player_tails.resize(self.sim.players, None);
             } else {
                 assert_eq!(options.players.get(place), Some(&prepare.profile));
-            }
-            if self.late_objects > 0 && self.sim.late_objects_from.is_none() {
-                self.sim.late_objects_from = Some((self.clock(), self.late_objects));
             }
         }
         let bytes = Prepared {
@@ -616,6 +793,17 @@ impl Client {
 
     /// The time of its event-horizon world, if it has one it may upload or
     /// hash: none loaded from a snapshot, none younger than the horizon.
+    /// The time of the tick `tick` (its byte) among the worlds it simulated
+    /// in the last [`EXACT_RING_MS`] since its last resync: what patch 211
+    /// holds of the worlds it hashed.
+    fn held_tick(&self, tick: u8) -> Option<u32> {
+        let resync = self.model.last_resync?;
+        let newest = self.clock() / TICK_MS * TICK_MS;
+        (0..EXACT_RING_MS / TICK_MS)
+            .filter_map(|back| newest.checked_sub(back * TICK_MS))
+            .find(|time| *time > resync && WireTime::tick(*time).tick == tick)
+    }
+
     pub fn horizon(&self) -> Option<u32> {
         let resync = self.model.last_resync?;
         let time = self.clock().checked_sub(HORIZON_MS)? / TICK_MS * TICK_MS;
@@ -633,13 +821,28 @@ impl Client {
         self.queue.push_back((body, reliable));
     }
 
+    /// A load receipt (0xE0), reliable; twice with `receipt_copies`.
+    fn send_receipt(&mut self, receipt: &[u8]) {
+        for _ in 0..if self.receipt_copies { 2 } else { 1 } {
+            self.send(id::LEAVE, receipt, true);
+        }
+    }
+
     /// 0xD8: the first message.
     pub fn connect(&mut self) {
         let mut payload = self.session.to_le_bytes().to_vec();
-        payload.push(if self.model.growing_roster {
+        let dialect = if self.world_receipts != WorldReceiptMode::Legacy {
+            srp_validate::recovery::CONNECT_CAPABILITY
+        } else if self.model.growing_roster {
             CONNECT_CAPABILITY
         } else {
             0
+        };
+        // Patch 211's bit goes with the dialect's byte only, as the exe's.
+        payload.push(if self.exact_worlds && dialect != 0 {
+            dialect | srp_validate::messages::EXACT_WORLDS
+        } else {
+            dialect
         });
         self.send(id::CONNECT, &payload, true);
     }
@@ -914,6 +1117,56 @@ impl Client {
     }
 
     fn deliver(&mut self, id: u8, payload: &[u8]) {
+        if id == id::STATIC_INFO && payload.starts_with(&srp_validate::executable::REPLY_MAGIC) {
+            if let Some(reply) = srp_validate::executable::Reply::parse(payload) { self.executable_replies.push(reply); }
+            else { self.faults.push("invalid executable reply".into()); }
+            return;
+        }
+        if (id == id::STATIC_INFO
+            && matches!(self.world_receipts, WorldReceiptMode::RejectOptionsNext | WorldReceiptMode::RejectOptionsTwice))
+            || (id == id::PORTS && self.world_receipts == WorldReceiptMode::RejectPortsNext)
+        {
+            self.world_receipts = match self.world_receipts {
+                WorldReceiptMode::RejectOptionsTwice => WorldReceiptMode::RejectOptionsNext,
+                _ => WorldReceiptMode::Accept,
+            };
+            // Numbered on the connection, as the game does
+            // (`packet_recovery.rs`): the server tells a copy by it.
+            self.numbered_refusals = self.numbered_refusals.wrapping_add(1);
+            let receipt = srp_validate::recovery::Receipt {
+                match_id: 0, generation: self.numbered_refusals,
+                outcome: srp_validate::recovery::Outcome::OptionsRejected,
+            };
+            self.send_receipt(&receipt.encode());
+            return;
+        }
+        if id == id::SNAPSHOT && self.world_receipts == WorldReceiptMode::UnreadableNext {
+            self.world_receipts = WorldReceiptMode::Accept;
+            self.worlds_rejected += 1;
+            self.numbered_refusals = self.numbered_refusals.wrapping_add(1);
+            let receipt = srp_validate::recovery::Receipt {
+                match_id: self.model.options.as_ref().unwrap().match_id,
+                generation: self.numbered_refusals, outcome: srp_validate::recovery::Outcome::Unreadable,
+            };
+            self.send_receipt(&receipt.encode());
+            return;
+        }
+        if id == id::SNAPSHOT && !payload.is_empty()
+            && self.model.generation.takes_snapshot(payload[0])
+            && matches!(self.world_receipts, WorldReceiptMode::RejectNext | WorldReceiptMode::RejectAll)
+        {
+            let mode = self.world_receipts;
+            if mode != WorldReceiptMode::RejectAll { self.world_receipts = WorldReceiptMode::Accept; }
+            self.worlds_rejected += 1;
+            // Native E8 stores its generation before validation/deserialization.
+            self.model.generation = survarium::v026g::match_msgs::Generation(payload[0]);
+            let receipt = srp_validate::recovery::Receipt {
+                match_id: self.model.options.as_ref().unwrap().match_id,
+                generation: payload[0], outcome: srp_validate::recovery::Outcome::Rejected,
+            };
+            self.send_receipt(&receipt.encode());
+            return;
+        }
         if self.model.growing_roster && id == id::STATIC_INFO && payload.first() == Some(&0xff) {
             match Prepare::decode(payload, Dictionary::shared()) {
                 Ok(prepare) => {
@@ -951,6 +1204,19 @@ impl Client {
                 return;
             }
         };
+        if let Some(options) = &self.model.options {
+            self.sim.profile_items = options
+                .players
+                .iter()
+                .map(|profile| profile.items.len())
+                .collect();
+            self.sim.held = options
+                .players
+                .iter()
+                .map(|profile| profile.held().collect())
+                .collect();
+            self.sim.kits = options.players.iter().map(kits_of).collect();
+        }
         match &taken.message {
             ServerMessage::Ports { min, max } => {
                 // One probe for each port of the range.
@@ -972,7 +1238,14 @@ impl Client {
                     self.send(id::TIME_REPLY, &payload, false);
                 }
             }
-            ServerMessage::Snapshot { time, body, .. } => {
+            ServerMessage::Snapshot { generation, time, body, .. } => {
+                if self.world_receipts != WorldReceiptMode::Legacy {
+                    let receipt = srp_validate::recovery::Receipt {
+                        match_id: self.model.options.as_ref().unwrap().match_id,
+                        generation: *generation, outcome: srp_validate::recovery::Outcome::Loaded,
+                    };
+                    self.send_receipt(&receipt.encode());
+                }
                 if self.simulates {
                     self.sim.load(*time, body);
                 }
@@ -1013,16 +1286,29 @@ impl Client {
                     self.sim.events.push(event);
                 }
             }
-            ServerMessage::UploadRequest => {
+            ServerMessage::UploadRequest(wanted) => {
                 self.upload_requests += 1;
                 // Silently not answered without an event-horizon world.
                 if let Some(horizon) = self.horizon().filter(|_| !self.no_uploads) {
-                    let time = if self.uploads_hashed_tick {
+                    let held = match wanted {
+                        UploadWanted::Tick(tick) if self.exact_worlds => self.held_tick(*tick),
+                        _ => None,
+                    };
+                    let time = if let Some(time) = held {
+                        time
+                    } else if self.uploads_hashed_tick {
                         self.last_hashed
                     } else {
                         horizon
                     };
-                    let body = self.sim.world(time);
+                    let body = match self.forged_uploads {
+                        None => self.sim.world(time),
+                        Some(bytes) => {
+                            let mut forged = self.sim.clone();
+                            forged.stray_objects_from = Some((0, bytes));
+                            forged.world(time)
+                        }
+                    };
                     self.upload(time, &body);
                 }
             }

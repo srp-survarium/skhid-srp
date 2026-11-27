@@ -1,0 +1,185 @@
+# Skhid (srp) server for Survarium 0.69d: example config (TOML). `srp setup` writes srp.toml from this file with the
+# game folder and the network addresses filled in (docs/guide-server.md). Change what you need, then restart srp.
+#
+#   srp --config srp.toml setup      check this computer, write srp.toml, the database and the login key
+#   srp --config srp.toml            start everything: the world host (if it is not running yet) + login + lobby + matches
+#   srp --config srp.toml check      check the config, print the effective settings and the players' launch line, exit
+#   srp --config srp.toml selftest   check that the world host runs the game's world code (about a minute)
+#   srp --config srp.toml world-host run only the world host daemon (foreground)
+#   (scripts/srp-host.sh setup|run|start|stop|status|log|check|selftest wraps these)
+#
+# Without --config srp reads the file named by the SRP_CONFIG environment variable, else ./srp.toml, else uses the
+# defaults. Every value below IS the default: a key you leave out (or a missing file) means exactly this value.
+# Relative paths are relative to this file's folder. Times are UTC dates (2026-12-24T12:00:00Z, or just 2026-12-24)
+# or unix seconds.
+#
+# Lines starting with "#:" are examples: remove the "#: " to use them. There are no on/off feature switches: every
+# feature is always on.
+
+[network]
+# The defaults below (127.0.0.1) mean "this computer only". `srp setup --address <IP>` sets login, lobby and match to
+# 0.0.0.0 (all network connections) and lobby_public / match_public to <IP>, the address players use.
+# TCP address of the login server. Players start the game with -server=<this host>:<port>.
+login = "127.0.0.1:65000"
+# UDP address the lobby binds.
+lobby = "127.0.0.1:1235"
+# IPv4 address:port the login server sends the clients for the lobby. "" = the lobby address (which must then not be
+# 0.0.0.0). Set it when you bind 0.0.0.0 or sit behind NAT: the address players reach.
+lobby_public = ""
+# UDP address of the match server.
+match = "127.0.0.1:1236"
+# Host name or IPv4 address the clients are told for matches (at most 63 bytes). "" = the IP of `match`.
+match_public = ""
+# TCP address of the update check of the Steam build's launcher (always on). Steam's Play button starts that launcher;
+# its Play button turns on only when this answers "latest version". Players point the launcher here with
+# scripts/steam-play/steam-play-setup.cmd (docs/notes/steam.md). "" = the IP of `login`, port 65001. Any port works.
+update = ""
+
+[files]
+# The account database (SQLite; created on the first start).
+database = "srp-069d.sqlite"
+# PEM file of the login server's RSA-1024 private key (PKCS#1 or PKCS#8). SECRET: it decrypts players' passwords.
+# Back it up. The game needs no setup for it: the server sends the public key at every sign-in, so a new key needs
+# nothing from players.
+login_key = "login_key.pem"
+# Folder of the game tables (items_069d.tsv, game_tables_069d.json, ...: 32 files, about 2 MB). `srp setup` builds them
+# from your game install (re-run it after a game or srp update); srp refuses to start without them. The world host's
+# project list comes from the same tables.
+data_dir = "data"
+# Generated files: the world host's daemon.cfg and its socket.
+run_dir = "run"
+# Logs: srp.log (written by scripts/srp-host.sh), world-host.log (the daemon's output), world-host/ (the daemon's
+# front.log and one folder per project and match).
+log_dir = "logs"
+
+[accounts]
+# An unknown account name is registered by its first sign-in (the password the client sends becomes the account's
+# password). false = only existing accounts can sign in.
+auto_register = true
+# The one client version string accepted (the sign-in carries it, e.g. "0.69d0"). "" = any.
+client_version = ""
+# Money every NEW account starts with, in place of the real 0.69d start (no money). Leave it out for the real start.
+#: start_money = { silver = 1000000, gold = 10000, parts = 1000 }
+
+[world_host]
+# The world host daemon runs the game's own world code (from your survarium.exe) for every online match: the start
+# world, the end, the winner, the statistics, the AI players. It is required for online matches.
+# The daemon's unix socket. srp uses a daemon that already answers here; otherwise it starts one itself when `exe` is
+# set (and stops it when srp exits).
+socket = "run/world-host.sock"
+# survarium.exe of your 0.69d game install (binaries/x64/survarium.exe); `srp setup` writes this line. Default "" = srp
+# does not start a daemon itself (it then needs one already running on `socket`).
+#: exe = "/mnt/c/Games/Survarium/binaries/x64/survarium.exe"
+# The exe's Windows path as the exe should see it. "" = derived from `exe` under /mnt/<drive>/ (WSL: /mnt/c/x -> C:\x).
+exe_win = ""
+# The world host binary. "" = `world-host` next to the srp binary.
+bin = ""
+# Folder of the pre-warm lists (<project>.tsv: resources a zygote loads ahead, so each match starts faster and shares
+# them). The world host writes a project's list after its first match. "" = `prewarm` in the data_dir folder.
+prewarm_dir = ""
+# Matches at once per map ("level project").
+max_matches = 4
+# Maps loaded at once ("zygotes", about 0.35-0.56 GB of memory each) at most; starting one more retires the least recently used
+# (never a prestart one). 0 = no cap.
+max_zygotes = 8
+# A loaded map without matches for this many seconds exits (it is loaded again when needed).
+idle_secs = 600
+# Maps loaded at start (a map that is not loaded needs about 8 s before its first match).
+prestart = ["pve_01_v1_maze2"]
+
+[matches]
+# Players a queue group needs to start an online match.
+min_players = 2
+# Seconds a queue search waits before AI players fill its match. 0 = never.
+bot_wait_secs = 30
+# Seconds to wait for the players' win / loss reports after a match ended before paying.
+report_grace_secs = 20
+# Silver a match costs by the player's equipment level 0..5 (the official patch 0.55 repair prices). [] = the game
+# data's own table (0 at every level).
+equipment_use_costs = [0, 0, 1000, 2000, 5000, 8000]
+# Factor of a match's event silver by reward level 0..5 (the game data has 1, 1, 2, 3, 3.5, 4). [] = the data's.
+match_silver_factors = [1.0, 1.0, 3.5, 7.0, 10.0, 14.0]
+
+[social]
+# Most complaints / compliments one player may file per day. 0 = no daily maximum.
+claims_per_day = 0
+compliments_per_day = 0
+
+[league]
+# Season-end league tokens per league 1..10. [] = 25 x league^2.
+tokens = []
+# Ranked seasons. None listed = a season every calendar month (from the 1st, UTC). Listed seasons replace that.
+#: [[league.seasons]]
+#: number = 1
+#: start = 2027-01-01T00:00:00Z
+#: end = 2027-02-01T00:00:00Z
+#: [[league.seasons]]
+#: number = 2
+#: start = 2027-02-01T00:00:00Z
+#: end = 2027-03-01T00:00:00Z
+
+[store]
+# The store's actions tab, its gold cards and the premium window are built in (one "special offer" tab with the 7-day
+# premium card and the Winner's Contract; premium for 3 days / a week / a month / 3 months). An entry list here replaces
+# the built-in one. Texts are the client's st_* keys (shown in the player's language).
+#: [[store.tabs]]
+#: id = 1
+#: name = "st_special_offer"
+#: gold = true
+#: [[store.offers]]
+#: id = 1
+#: tab = 1
+#: label = "st_premium_access_7d_voucher_league_desc"
+#: description = "st_gold_advert_1_hint"
+#: gold = 300
+#: images = ["673_s_1563455165.png", "673_m_1563455165.png", "673_l_1563455165.png"]
+#: grant = "premium"          # "items" (the `items` list), "premium" (premium_hours), "winners_contract"
+#: premium_hours = 168
+#: # items = [[1132, 1]]      # (item id, amount) shown in the card; granted for grant = "items"
+#: # ttl_secs = 86400         # the card's countdown
+#: [[store.premium]]
+#: id = 1
+#: bundle = 1                 # a shop_bundles id of the game data (the label); an item id crashes the client
+#: gold = 150
+#: hours = 72
+
+# The server list of the game's server window. None listed = one entry "Skhid" on the match host. host "" = the match
+# host; x / y = the marker on the window's map. At most 8.
+#: [[game_servers]]
+#: host = ""
+#: label = "Skhid"
+#: x = 238
+#: y = 47
+
+# The daily login calendar (a 7-day cycle; star = the window's star, day 7). None listed = the built-in table: Tornado
+# Energy Drink, 2 Rations, 2 Radios, Stash map, Reputation booster, Experience booster, 3 Silver boosters (star).
+#: [[login_calendar]]
+#: item = 340
+#: amount = 1
+#: [[login_calendar]]
+#: item = 857
+#: amount = 3
+#: star = true
+
+# EVENTS. The game files carry no dates: no entry = no event. Copy the entry below, date it, restart srp; the log says
+# at start which event runs until when (or "no event scheduled").
+# * event: "new_year" (the only event whose currencies, drops and exchange rows the 0.69d data has: snowflakes, spruce
+#   trees and stars from PvP matches, exchanged for the New Year 2022 rewards in the event window).
+# * start .. end: matches pay the event currencies (end not included). exchange_end (>= end, default = end): the event
+#   window and the exchange stay open until then.
+# * header / text: the window's header and title, client text keys (st_...). "" = st_merry_christmas /
+#   st_global_event_currency2_descr.
+# Entries must not overlap. The first PvP win of each event gives one New Year 2022 winter hat.
+#: [[events]]
+#: event = "new_year"
+#: start = 2026-12-24T12:00:00Z
+#: end = 2027-01-10T12:00:00Z
+#: exchange_end = 2027-01-17T12:00:00Z
+#: header = "st_merry_christmas"
+#: text = "st_global_event_currency2_descr"
+
+# FACTION BATTLES (the faction battle window). No entry = no battle. factions: two of 1..4. Entries must not overlap.
+#: [[faction_battles]]
+#: start = 2027-02-01T12:00:00Z
+#: end = 2027-02-08T12:00:00Z
+#: factions = [1, 2]

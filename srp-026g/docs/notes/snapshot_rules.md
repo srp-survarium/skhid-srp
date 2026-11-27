@@ -79,6 +79,7 @@ u8  team_2_respawn
 | level_07 | 31 (16/15) | 31 |
 | level_08 | 26 (13/13) | 26 |
 - The deserializer of the base reads the mask, then one u32 per set bit, and sets the others to 0xFFFFFFFF (0x316D50). PROVEN.
+- **A free-for-all's (mode 8, srp's exe patch 142, since 2026-11-15) has 40 bytes more after its points:** the spawn history, for each of the 20 places its latest team-2 point index and the one before (0xFF none; never a second without a first), written at the end of 0x316F10 and read at the end of its deserialize 0x316FC0 (ffa.md "Never the last two"). Mode 8 has no mode rule, so in its section the respawn rule's points end 40 bytes before the kd stats (srp-validate `ModeRule::FreeForAll`, `snapshot::Rules::free_for_all`). Other modes: as above.
 - 0.21d: `snapshot.rs` never decoded the respawn rule (it sat between the gather head and the timelimit).
 
 ### 2.4 gather_victory_items_rule_core (class 0x58, mode 2) — variable, PROVEN (0x313CA0)
@@ -196,6 +197,7 @@ Not 0.26g's: srp's own rule for Research (`research_mode.md`), loaded by the con
 N x player_shared_statistics            N = match options +0x577B5 (statistics+0x31E0)   §3.1
 V x victory item status                 only when a gather rule exists (modes 2, 3)       §3.2
 11-byte tail                                                                              §3.3
+the per-weapon counts                   exe patch 165; none from a game that keeps none    §3.5
 ```
 
 **Changed against 0.21d** (`snapshot.rs::decode_statistics`): every part. 0.21d had 24 u16 counters per player, two `{u8 count, 5 bytes}` lists, 5 + 2 + 4 + 7 bytes, then 7 curing bytes per player, per-battery records and 2 bytes of team points. 0.26g has 28 events **per kit**, bit-masked and mostly one byte wide, no faction-kill counts, no curing records, and a longer tail that includes the winner.
@@ -228,7 +230,7 @@ u16  longest_killstreak
 - Which event number is which: 0.21d's `match_stats_events_dict_enum` had 24; 6, 17, 18 are still two-byte (the hundredths events), and 22, 23 (bullet fire / hit in 0.21d) are two-byte as before, which fits the old numbering being kept. 24..27 are new (26 is two-byte). **Settled (2026-10-12, results.md §9 and below):** 0, 3, 4, 8, 9, 10, 13, 15 are PROVEN the 0.21d events (the kill handler 0x2F4EB0 counts them by those numbers), 11 and 12 too (`finish_match` 0x2F4CF0); **25 is a grenade kill, 27 the end-of-match event of a player whose protection value is 0**.
 - **Events 24 and 26** (PROVEN, the victory item event function 0x334AC0, on "put into a container" by player P; the names are srp's, the game has none). Per battery the statistics keep `owner_team` (+0xF8; 3 = never delivered), `first_finder` (+0xFC) and the last player who took it out of a container (+0xFD, set at 0x334B4D):
   - **24, "solo delivery"** (0x334C46): +1 when 0x334D00 is true: the battery was fresh and P its first finder, or its owner was the enemy team; and no other player of P's team has a carried distance > 0 on it. The quest type 6 `bring_x_items` ("Find and bring batteries") counts it, not event 20: `game_quest_progress_calculator::refresh_quest_ui_data` 0x2A2FD0, case 0x2A30A3 (PROVEN). In 0.21d that quest counted event 20.
-  - **26, "stolen and brought home"** (0x334C7F): +1 when `owner_team` is the enemy team and the last one to take it out is P. That last one is the one byte of the record no world carries (§3.2): a game that started after the taking out does not count it (match.md §28). Two bytes on the wire, but counted by ones and weighed × 1.0 (only 6, 17 and 18 are × 0.01: 0x26DBA2, 0x26DC86). The quest type 7 `steal_box` ("Steal a battery from the enemy base and bring it to your base") counts it: `refresh_quest_ui_data` 0x2A2FD0, case 0x2A30F6 (PROVEN; the whole table of what each quest type counts is in `crates/survarium/src/v026g/quests.rs`).
+  - **26, "stolen and brought home"** (0x334C7F): +1 when `owner_team` is the enemy team and the last one to take it out is P. The native codec omits that last taker (§3.2): a game that started after the taking out does not count it (match.md §28). The pending battery snapshot fix carries it in patch 92's extension (battery_taker.md). Two bytes on the wire, but counted by ones and weighed × 1.0 (only 6, 17 and 18 are × 0.01: 0x26DBA2, 0x26DC86). The quest type 7 `steal_box` ("Steal a battery from the enemy base and bring it to your base") counts it: `refresh_quest_ui_data` 0x2A2FD0, case 0x2A30F6 (PROVEN; the whole table of what each quest type counts is in `crates/survarium/src/v026g/quests.rs`).
   - In the same code: 19 = first pick-up of a battery (0x334B2C); 20 = put into a container (0x334B5E); at a delivery 6 (never owned), 17 (the owner was the enemy) or 18 (own team) is shared out by carried distance (0x335110). Elsewhere: 22 = bullets fired, added by value (0x2F5519); 23 = a bullet hit on an enemy (0x2F54A3); 5 = artefact (0x2F5606); 7 at 0x2F57F5; 21 at 0x2F598C. A player's score adds the three presets of an event (0x26DC9D). So 0..13, 15 and 17..23 are PROVEN by where they are counted; 14 and 16 have no counting site left (LIKELY dead).
 - Everything is self-describing, so a player record can be walked forward without knowing its length.
 
@@ -245,13 +247,16 @@ f32  item_status.nearest_positions[ team_2 ]
 u8   item_status.owner_team
 u8   item_status.first_finder
 u8 x 2 progress[team_1], [team_2]      exe patch 92 (its own state, not the record's): 0 untouched in the life, else 10 m steps + 1
-u8   held count                        exe patch 92: the carriers holding steps toward their own team's container
+u8   held count                        exe patch 92: low 7 bits count carriers (0..60); bit 7 marks the last-taker extension
+if bit 7: u8 last_taker                pending fix: 0..19 roster place, FF nobody; absent in legacy snapshots
 per held: u8 cell, u8 steps            cell = place x 3 + kit, < 60, rising; steps >= 1; paid at the delivery
 ```
 
+The pending fix uses the existing battery.save/load hooks to save native +FD with each life, without a second live copy. Legacy counts have no high bit and remain byte-for-byte round-trippable by the server. The new client loads them with no taker rather than keeping its own stale byte; old recordings are excluded by the simulation-change revision gate. See [battery_taker.md](battery_taker.md) for the regression and limits.
+
 Mode 4 has no such records. The class is `victory_item_event_manager` (its strings, 0xA19D68; the object is `shared_statistics`+0x2760, the ten records from its +0x20, 0x100 bytes each). The reader is 0x334FB0.
 
-- **Not saved: who took the battery out of a container last** (PROVEN, 2026-10-14). The record's byte +0xFD is the roster place of the player whose "taken out of a container" event came last (event type 1, written at 0x334B4D), and event 26 is counted only when it is the player who puts the battery in (0x334C74). The writer ends with `first_finder` (+0xFC, 0x334F5A) and the reader with the same byte (0x3350CA): a load leaves +0xFD as that game had it. Nothing else of the record is left out (+0xF0 bytes of distances, the two positions, `owner_team` as a dword at +0xF8, `first_finder`; +0xFE and +0xFF are never used by the game; exe patch 92 saves its own state of the battery after `first_finder`), and of a player's record only the word at +0x1F4, which nothing reads.
+- **Omitted by the native codec; saved by the pending fix: who took the battery out of a container last** (PROVEN, 2026-10-14). The record's byte +0xFD is the roster place of the player whose "taken out of a container" event came last (event type 1, written at 0x334B4D), and event 26 is counted only when it is the player who puts the battery in (0x334C74). The writer ends with `first_finder` (+0xFC, 0x334F5A) and the reader with the same byte (0x3350CA): a load leaves +0xFD as that game had it. Nothing else of the record is left out (+0xF0 bytes of distances, the two positions, `owner_team` as a dword at +0xF8, `first_finder`; +0xFE and +0xFF are never used by the game; exe patch 92 saves its own state of the battery after `first_finder`), and of a player's record only the word at +0x1F4, which nothing reads.
 - **`first_finder` and +0xFD are set to 0xFF by the record's constructor and by nothing else** (PROVEN, 2026-10-14). The constructor is 0x3347F0, given to the array constructor at 0x2F4B7C in `shared_statistics`'s constructor 0x2F4B40. The reset between matches (0x2F4C20, called by the handler's 0x26D880 when a match's connection ends, 0x27B4C9) calls 0x3348A0, which zeroes the distances and sets `owner_team` to 3 and writes neither byte. The handler is a member of the network client, not of a match (+0x1EE8D8; the client's constructor 0x2199A0 makes it at 0x219AB0, and `game::create_network_client` 0x1EBFC0 makes the client). So a game that goes from one battery match to the next with the same network client keeps both bytes of the last one; seen (match.md §28). When the lobby makes a new client was not traced (`lobby_menu::on_render_scenes_ready` does it only with a byte at +0x5869 of the object it has at +0x9C set, 0x221C1D). `first_finder` is saved, so every game of a match takes the bytes of the game that gave the first world.
 
 ### 3.3 The tail — 11 bytes, PROVEN (0x2F5B08..0x2F5BCB; reader 0x2F5C22..0x2F5C84)
@@ -267,14 +272,44 @@ Mode 4 has no such records. The class is `victory_item_event_manager` (its strin
 
 - The rules write these fields on every event, so the tail of the last snapshot before the end is the result. **Compute the winner from the team points with the rules of modes_maps.md §11**; the byte is 3 before the first event.
 - When the points are valid (PROVEN 2026-10-12): modes 2 and 3 from the start (0 from the constructor, then written only by the container event, in step with the rule's own pair); mode 4 from the start of play (the tdm rule writes tickets and winner on its "match started" event, 0x3160D8 → 0x3161F0), 0 during waiting and countdown.
-- The tail is the last 11 bytes of the blob whatever N and V are, so the results code can read team points and winner without parsing §3.1 at all.
+- The tail was the last 11 bytes of the blob whatever N and V are. Since exe patch 165 the per-weapon counts follow it (§3.5), of a length of their own: the tail is found by walking the records from the front (`Statistics::decode`), no longer from the end (`StatisticsTail::of` is gone).
 
 ### 3.4 Decoding and checks
 
 1. Chain five u16 prefixes from the end of the body; the statistics blob is the one before them.
 2. Empty statistics blob: the client had no statistics object; take the rules blob only (as 0.21d).
-3. Otherwise walk N player records (§3.1), then V battery records (V = 10 in modes 2/3, 0 in mode 4), then 11 bytes: the walk must end exactly at the blob's end. That is the same exact-fit test `snapshot.rs` uses to pick the right chain.
+3. Otherwise walk N player records (§3.1), then V battery records (V = 10 in modes 2/3, 0 in mode 4), then 11 bytes, then the per-weapon counts when any byte is left (§3.5: their own length must be the bytes left): the walk must end exactly at the blob's end. That is the same exact-fit test `snapshot.rs` uses to pick the right chain.
 4. Cross-check: modes 2/3 `m_team_points` equal the rule's two u8; mode 4 they equal `m_team_tickets`; `m_winner_team` follows from them.
+
+### 3.5 The per-weapon counts — exe patch 165 (`weapon_stats`), added 2026-11-20
+
+What each place did with each weapon, kept by the patch beside the statistics and written after the tail by its hook at serialize's epilogue (0x2F5BD0; `kill_weapon.md` section 4, `client_patch.md` "Per-weapon counts"). The one definition of the layout and its domains is `crates/srp-validate/src/world/weapons.rs` (`Weapons`, `PlaceWeapons`, `WeaponCounts`), which the game, the match server's check and the results' decoder all read it with.
+
+```
+u8   version                            1
+u16  length                             the bytes after it: to the blob's end
+N x (roster place):                     N = 20 from a patched game (STATISTICS_COUNT)
+    u8   n                              at most 16
+    n x (30 bytes, rising dict_id):
+        u16  dict_id                    the items dictionary's id; 0 (first): no weapon known
+        u16  kills                      enemy kills with it                       event 0
+        u16  headshots                  of them, by a headshot                    event 15
+        u16  wall_kills                 of them, the bullet had pierced something
+        u16  ricochet_kills             of them, the bullet had bounced
+        u16  deaths                     the place's deaths with it in the hands   event 2
+        u16  shots                      bullets fired, a pellet each              event 22
+        u16  hits                       bullet hits on an enemy                   event 23
+        u32  damage                     pain taken off enemies, 1/10000 of a pain pool
+        u32  kill_distance              killer to victim, decimetres, summed over the kills
+        u16  longest_kill               decimetres
+        u32  held_ms                    the time in the place's hands while alive, ticks of 50 ms
+```
+
+- **A world has the block or ends with the tail.** A game writes it while its statistics are counted: from their constructor or their reset between matches on, and from a world that had it. A game that loaded a world without it writes none until its statistics are reset, so a match's games agree; the worlds of older recordings have none.
+- **The sums are the record's** (refused otherwise, `Weapons::agree`): over a place's entries, kills, headshots and deaths are the place's events 0, 15 and 2 over the three kits modulo 256 (the record carries those as a byte a kit, §3.1), shots and hits its events 22 and 23 modulo 65536. Each is counted at the statistics' own call under their own tests, in every game alike. A count with no weapon known is under dict id 0: a hit with no bullet (a grenade, a trap), a death, a shot or a tick with nothing of the inventory in the hands (a battery), and a place's weapons past its fifteenth.
+- **The other domains:** the version is 1 and the length the bytes left; n is at most 16, the dict ids rise (none twice), and 16 entries begin with dict id 0; headshots, wall_kills and ricochet_kills are each at most kills; longest_kill is at most kill_distance, and that at most kills x longest_kill; held_ms is whole ticks of 50. On the server (which has the dictionary; `Context::dict_ids`) a dict id is an item's.
+- **No native total:** wall_kills and ricochet_kills (bounded by kills), damage (the game's own record is an f32 a victim and inflictor, per kit, not this sum; a hit's pain is rounded to 1/10000), the distances (a kill with no killer position adds none), held_ms. A kill's weapon is the damage source's (a grenade's or a trap's dict id too); a hit's is the bullet's, so a grenade's hits and damage are under dict id 0.
+- The counts wrap as the game's own u16 do (65536 of one weapon in a match); damage and kill_distance stop at their u32's top.
 
 ## 4. What `snapshot.rs` must change
 
@@ -296,7 +331,10 @@ Mode 4 has no such records. The class is `victory_item_event_manager` (its strin
 - Settled 2026-10-12: the rule order (§2.1), P (§2.3), the battery and container states (§2.4), the tail's writers and first values (§3.3), events 24 and 26 (§3.1), the player block's envelope and head (§7).
 - A carried battery's own state (inside its carrier's player block), and victory item event types 2 and 3.
 - Whether the position is where §2.4 puts it in `m_transform`.
-- The bullet manager, game objects, physics and effects blobs (not needed for results).
+- The game objects and physics blobs (not needed for results). The bullet
+  manager's and the effects' fields are named since 2026-11-07, from the names
+  their writers pass as text (`crates/srp-validate/src/world/bullets.rs`,
+  `effects.rs`).
 - Of a player's state: the effects after the head, a weapon after its magazine, the damage model's records (§7).
 
 ## 6. Code (added 2026-10-12)
@@ -304,7 +342,7 @@ Mode 4 has no such records. The class is `victory_item_event_manager` (its strin
 `crates/survarium/src/v026g/match_msgs/snapshot.rs` reads and writes all of
 this: `Sections` (the split; it chains **six** prefixes from the end, the
 bullet manager's too, which leaves fewer false splits than five),
-`Statistics` (§3, exact fit), `StatisticsTail::of` (§3.3 alone), `Rules`
+`Statistics` (§3, exact fit; its `weapons` are §3.5's), `Rules`
 (§2: the timelimit first, kd stats and the two flags from the end, the tdm
 rule as the 12 bytes before the kd stats; since 2026-10-12 also `Respawn`,
 `Gather` with its `Battery` and `Container` states and mode 3's `Timed`),
@@ -363,6 +401,148 @@ pad to a byte
 
 `width(n) = max(1, bit_length(n))` (0x3A961E, 0x396120). The reader moves the outer stream on by exactly these bytes right after the two tables (0x3A9988..0x3A999A), before it reads the tree, so the length needs no tree decoding. The same routines are in 0.21d (by PDB name): this walk lands on the sections of all 1222 snapshots of `srp-021d/logs/snapshots`.
 
+#### 7.2.1 The full decode and its unbounded reads (`anim_state_deserialize` 0x3A99C0)
+
+The length above (`decode_data` 0x3A9900) is all the server needs to split a
+body: it reads `T`, skips the tree, and decodes only the two tables to advance
+the cursor. The CLIENT does more. `anim_state_deserialize` 0x3A99C0 (reached
+from a player block, 0x33FE31 -> 0x395CA0 -> 0x397250 -> 0x3A99C0) calls
+`decode_data` for the tables and the byte length, then re-reads the T-bit TREE
+part structurally -- the part the length walk skips -- and that is where the
+unbounded reads are. The tree decode IGNORES `T`: it reads until its own
+structure ends, so a stream whose structural tree is not exactly `T` bits long
+desyncs the client's cursor from the framing.
+
+Tree part, from the bit right after the 16-bit `T` field, in read order:
+
+```
+(no bits)          duration   pop 1 time, always, before the nodes (0x3A9A64)
+read(6)            nodes      node count 0..63
+read(1) + 1        matrices   1 or 2
+popcount(read(4))  channels   0..4   (0x317D40 is popcount; 0x3A8A00 builds a
+                                      channels-entry array from the 4-bit mask)
+per node (anim_read_node_base_tracks 0x3A8C10):
+    read(1), read(1), read(1), read(1)          + pop 2 floats
+    anim_read_node_time_track 0x3A8AF0:
+        read(6) = t
+        if t != 0:  read(1), read(8), read(4)   + pop 1 time, 1 float
+    anim_read_node_flag_track 0x3A8BA0:
+        read(1), read(1)                        + (if set) pop 1 time
+anim_init_node_matrices 0x3A8D60:               pop 12 floats, no bits
+per node (anim_read_node_record 0x3A8F40):
+    read(4), read(1)
+    M = read(1)+1;  M x (read(10), read(1))
+    read(1)
+    channel pick x2 (0 / 1 / 2 bits, see pick below)
+    read(1), read(5), read(2), read(1), read(3), read(3),
+    read(2), read(1), read(1), read(2) = exprs   per-node expression count 0..3
+per node (anim_build_node 0x3A9250): exprs expression trees, each
+    anim_read_expression 0x3A90C0 (RECURSIVE):
+        read(2) = op
+        channel pick (0 / 1 / 2 bits)
+        op 0: pop 2 floats, 1 time   leaf (the time at 0x3A9116)
+        op 1: pop 1 float            leaf
+        op 2: pop 1 time, 2 child expressions
+        op 3: pop 1 time, 2 child expressions
+pad to a byte
+```
+
+Channel pick (`anim_pick_channel_value` 0x3A8EF0, also inline in 0x3A8F40 and
+0x3A90C0): channels==1 reads 0 bits (channels[0]); ==2 reads read(1); >=3
+reads read(2). The pops come off the time vector (+0x8) and the float vector
+(+0x1014), both filled by `decode_data` before the tree is read.
+
+Five values are read as a count or index with NO bound against what they
+index; the server must refuse a stream that breaks any of them, or a native
+client over-reads or crashes. (Counts read in a fixed bit width -- nodes<=63,
+matrices and M in {1,2}, channels<=4, exprs<=3, the table counts N<=1023 and
+U<=1023 -- are self-bounded and are not in this list.)
+
+```
+1  times index (0x3A96F2):  read(width(U)) per time indexes the U-entry stack
+   dict. width(U) can hold index >= U -> OOB read. Bound: every index < U.
+2  floats index (0x3A9895): the same for the floats dict. Bound: every index
+   < U (U itself is what a revision-50 game wrote for a NaN, below; exe patch
+   118 leaves no NaN to write).
+3  channel pick (0x3A8EF0 etc.): channels==3 lets read(2) give 3 -> channels[3],
+   one past the channels-entry array. Bound: channel index < channels.
+4  expression recursion (0x3A90C0): ops 2 and 3 recurse twice with no depth
+   cap, and the arena-null check is AFTER the recursive calls, so an exhausted
+   arena does not stop it. A stream of all-internal ops recurses until the
+   thread stack overflows or the (unbounded) bit reader walks off the buffer
+   -> crash. Bound: a maximum total expression-node count / depth, and the
+   tree must end within T bits.
+5  table under-run: a tree that pops more than N_times times or N_floats floats
+   reads before the vector start -> OOB read. Bound: times popped <= N_times,
+   floats popped <= N_floats.
+6  a floats-table value that is infinity or NaN: the native decoder feeds the
+   floats to bone transforms a ragdoll/bounding box then read (state corruption,
+   not an index). Bound: every float that reaches a bone is finite (the
+   `finite` bit test, exponent not all ones): each plain one, and each entry
+   of an indexed table (a revision-50 game left NaN entries no index named,
+   below; with exe patch 118 every entry is a value's, and a number).
+```
+
+`animation_len` (crate `world-frame`) covers the length only. `animation_validate`
+beside it seals 1-6: it decodes the tree as above (the base tracks in two
+passes over the nodes, not one), requires it to end exactly at `T`, the pops
+to stay within the table counts (the duration time and each op-0 time counted:
+until 2026-11-10 it missed both, F4 of the packet-fuzz campaign, and accepted
+streams the client read below its times buffer), and every floats-table value to be finite,
+and `Frame::parse` refuses the block otherwise (`Refusal::Animation`). Proven on the kept worlds: all 177,672
+animated blocks of the 20,668 worlds in `private/live-worlds-*` pass, none near
+the expression-node cap (which is above the 32768 a `T` <= 65535 tree can
+hold, so a valid stream is never refused for it).
+
+**A revision-50 game wrote a floats index of U (2026-11-07; refused again
+since the release after exe patch 118's, below).** 174 uploads of
+`rec026g_20261106-211841_03439962` (place 12's block, in place 0's uploads from
+540 200 to 725 450 ms) were refused for a floats index equal to U (U = 25, three
+indices 25). The game wrote them. The encoder, `save_floats` 0x397040 (0.21d
+0x24DF70, the same code), copies the floats to the stack, sorts them, keeps the
+unique ones (`stlp_std::unique<float *>` 0x397810) and writes each value's
+position as `stlp_std::find<float *,float>` 0x397880 gives it. Both compare with
+`ucomiss`, under which a NaN equals nothing: unique keeps every NaN, and find
+never matches one and returns the end, so each NaN float is written as index U.
+That stream's table holds three NaNs (entries 0, 23, 24, which no index names)
+and three indices 25. The reader takes `table[U]` with no bound. Its table is an
+`_alloca_probe_16` block (0x3A97D1), so `table[U]` is the dword right after it:
+16-byte alignment padding, or the EDI that `decode_floats_impl` pushed in its own
+prologue. Either way it is in the reader's own frame: a defined read, whose value
+replaces the writer's NaN. An index above U is not something the game writes, and
+it reads further up the stack. Times are u32 values and are always found
+(`save_times_in_ms` 0x396D40), so a times index is below U. A floats index is
+below U too once no game saves a NaN (exe patch 118).
+
+The NaNs come from a player whose state the game itself made NaN: place 12's
+state in the same worlds also has NaN in `m_linear_horizontal_speed`
+(+334h, read at 0x2DB844), in the character controller's `m_last_pos` (+50h,
+0x7FB31..0x7FB65), and in two bullets he fired, their segment origin (+28h).
+Correction (2026-11-07): the NaN is not a 0 ms step, which never reaches the
+speed (`tick_events` skips a 0 ms tick, 0x2D22DE). It starts in the character
+controller's position (+0B0h): the body went NaN in one step around 539 850 ms,
+just after the player (a server bot) stood up from a crouch and walked, and the
+speed (a positive NaN, 0x7FC00000, so not an x87 0/0) and the rest follow from
+it. The exact instruction is not pinned (`get_corrected_walk_vector`'s unguarded
+normalisation, 0x7B97C..0x7B983, is not it: its NaN takes the `comiss`'s unordered
+branch, 0x7B9DD). Board ticket T117; patch 118 puts a non-finite position back to
+m_last_pos at the step's end (`client_patch.md` 3.71). The game only
+computes with these three values and compares them. A NaN speed goes through
+comparisons, the curve 0x25F30 and the animation selector, none of which uses it
+as a count or index, and the player's next step writes it again. `m_last_pos`
+feeds updateAction's moved test (0x7B773..0x7B7A7), where a NaN counts as moved,
+and player_step writes it anew (0x7BE84). The body's position comes from the
+player's transform (0x2DB934). A NaN bullet origin is outside the level for
+update_bullet_position's bounds test (`comiss`/`jb`, 0x32EECB..0x32EF0C), so the
+bullet is removed at its first step. In the recording each one is in one world
+only. Its ray tests are Bullet's ray-AABB tests, and those are false for NaN
+(read from the library's source, not traced in the exe). `srp-validate` read
+these fields as any f32 (`MaybeNan`) and a floats index of U while revision-50
+games played. Exe patch 118 (`client_patch.md` 3.71) keeps the controller's
+position finite, so with it a game writes none of these: they are `Finite` again,
+a floats index is below U and every floats-table entry a number, and the NaN
+uploads of 03439962 are refused (174 of the live corpus's, the only ones).
+
 ### 7.3 The state's head — `game_world_core_client::serialize` 0x3218E0, `base_player::serialize` 0x2DAF60 (reader 0x2DB490)
 
 M = the profile's item count (the static info's item list).
@@ -383,7 +563,7 @@ M = the profile's item count (the static info's item list).
 
 ### 7.4 After the effects (walkable only with E = 0 and no battery carried)
 
-`u32` hit effects H, each `bool is_exists` and then 8 or 17 bytes (0x3402C0); `u8` current and target active object; 29 bytes of stamina (0x329310); then the **inventory** (0x2FE360): `f32 m_carried_weight`, `bool`, `u8 m_carried_item id or 0xFF` (then that battery's own state, not traced), `u8 m_artefact_slots_count` A (if A ≠ 0: `u8 slots_begin`, A × u8), `u8 m_active_slot`, `u8 m_grenade_slot`, then **the items by ascending slot 0..22** (0x2FE50A..0x2FE53B). After the inventory: jump type, speed, the damage model with each body part's `m_health` (0x32AE00, sizes not traced), the character controller if alive, spotting, recent hits, `bool m_respawn_disabled`, the last native field. Client patch 78 (`artefact_carry`, `carry.save` at the serialize epilogue 0x2DB47E, read back at 0x2DBAB5) then appends the carry's 32-byte snapshot, version byte 2 first (`artefact_carry::carry::Carry::snapshot`), so a state's last 32 bytes are the carry's and `m_respawn_disabled` is the byte before them; `Motion::read` (§7.5) drops them first and refuses a state without a valid one.
+`u32` hit effects H, each `bool is_exists` and then 8 or 17 bytes (0x3402C0); `u8` current and target active object; 29 bytes of stamina (0x329310); then the **inventory** (0x2FE360): `f32 m_carried_weight`, `bool`, `u8 m_carried_item id or 0xFF` (then that battery's own state, not traced), `u8 m_artefact_slots_count` A (if A ≠ 0: `u8 slots_begin`, A × u8), `u8 m_active_slot`, `u8 m_grenade_slot`, then **the items by ascending slot 0..22** (0x2FE50A..0x2FE53B). After the inventory: jump type, speed, the damage model with each body part's `m_health` (0x32AE00, sizes not traced), the character controller if alive, spotting, recent hits, `bool m_respawn_disabled`, the last native field. Client patch 78 (`artefact_carry`, `carry.save` at the serialize epilogue 0x2DB47E, read back at 0x2DBAB5) then appends the carry's 32-byte snapshot, version byte 2 first (`artefact_carry::carry::Carry::snapshot`), so a state's last 32 bytes are the carry's and `m_respawn_disabled` is the byte before them; `Motion::read` (§7.5) drops them first and refuses a state without a valid one. Client patch 206 (second sights, 2026-11-26) may follow them with its 11-byte record (`second_sight::Record`, its version byte last; `second-sights.md`, "The simulation (0.26g)"), which srp-validate reads after the carry and `Motion::read` drops before it.
 
 An item — `inventory_item::serialize` 0x2FFDF0:
 

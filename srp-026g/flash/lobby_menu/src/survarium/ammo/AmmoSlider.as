@@ -4,6 +4,7 @@ package survarium.ammo
    import flash.display.Sprite;
    import flash.events.MouseEvent;
    import flash.external.ExternalInterface;
+   import flash.geom.ColorTransform;
    import flash.geom.Point;
    import flash.utils.getDefinitionByName;
    import scaleform.clik.constants.InputValue;
@@ -58,6 +59,25 @@ package survarium.ammo
       protected var _scaleRenderers:Boolean = false;
       
       private var _hoverCells:Boolean = false;
+
+      // The cells the pocket opens.
+      public var openCells:int = 0;
+
+      // The last open cells no item can take (a pocket of RGD-5s: the units its pairs use up),
+      // shown in blockedTint.
+      public var blockedCells:int = 0;
+
+      public var blockedTint:ColorTransform = null;
+
+      // A cell shown in its own colour whatever its state (a pocket's unit a skill added), or -1.
+      public var bonusCell:int = -1;
+
+      public var bonusTint:ColorTransform = null;
+
+      // The same while the cell is not filled.
+      public var bonusEmptyTint:ColorTransform = null;
+
+      private static const NO_TINT:ColorTransform = new ColorTransform();
       
       public function AmmoSlider()
       {
@@ -361,16 +381,38 @@ package survarium.ammo
          var i:uint = 0;
          var cell:MovieClip;
          var cellValue:uint;
+         var preview:Boolean;
+         var blocked:Boolean;
          while(i < this._cells.length)
          {
             cell = this._cells[i];
             cellValue = i * snapInterval;
+            // A cell the pointer would add or take away shows the slider's own preview.
+            preview = cellValue >= this._selectValue && cellValue < value && this._selectValue < value || cellValue >= value && cellValue < this._selectValue && this._selectValue >= value;
+            blocked = i < this.openCells && i >= this.openCells - this.blockedCells;
+            if(preview)
+            {
+               cell.transform.colorTransform = NO_TINT;
+            }
+            else if(i == this.bonusCell && this.bonusTint != null)
+            {
+               cell.transform.colorTransform = cellValue < value ? this.bonusTint : this.bonusEmptyTint;
+            }
+            else if(blocked && this.blockedTint != null)
+            {
+               cell.transform.colorTransform = this.blockedTint;
+            }
+            else
+            {
+               cell.transform.colorTransform = NO_TINT;
+            }
             if(cellValue >= this._selectValue && cellValue < value && this._selectValue < value || cellValue >= value && cellValue < this._selectValue && this._selectValue >= value)
             {
                cell.gotoAndStop(3);
             }
-            else if(cellValue < value)
+            else if(cellValue < value || blocked)
             {
+               // a blocked cell is drawn filled: its red shows only on a filled cell's face
                cell.gotoAndStop(4);
             }
             else if(cellValue < this.total)

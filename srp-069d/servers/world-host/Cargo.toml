@@ -1,0 +1,22 @@
+[package]
+name = "world-host"
+version.workspace = true
+edition.workspace = true
+description = "World host: load the 0.69d survarium.exe (x86-64 PE) into a Linux process and run its own world code (no Windows, no Wine)"
+
+[lib]
+name = "world_host"
+path = "src/lib.rs"
+
+[[bin]]
+name = "world-host"
+path = "src/main.rs"
+
+[target.'cfg(all(target_os = "linux", target_arch = "x86_64"))'.dependencies]
+libc = "0.2"
+rsa = { workspace = true }
+# the match options blob (the DD / 83 5B body) for the step-3 match, built by the server's own writer
+game-data = { workspace = true }
+local-match = { workspace = true }
+# the relay <-> world host frames
+world-host-proto = { workspace = true }

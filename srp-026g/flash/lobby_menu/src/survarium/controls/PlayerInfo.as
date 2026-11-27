@@ -9,9 +9,10 @@ package survarium.controls
    import flash.utils.Timer;
    import scaleform.clik.layout.LayoutData;
    import scaleform.clik.motion.Tween;
+   import survarium.constants.ItemCategory;
+   import survarium.constants.QuickSlotSize;
    import survarium.constants.ClanState;
    import survarium.constants.Faction;
-   import survarium.constants.PremiumState;
    
    public class PlayerInfo extends MovieClip
    {
@@ -32,7 +33,97 @@ package survarium.controls
       
       public static var ammoBags:int = 0;
       
+      public static const MAX_POCKET_UNITS:int = 5;
+
       public static var pocketSize:int = 0;
+
+      private static var additionalMedicine:Boolean = false;
+
+      // Toxic Smoke (441): a grenade of one unit takes one and a half of a pocket's units; Bear Trap
+      // (444): a trap does (the server's KitLayout, PocketShare).
+      private static var heavyGrenades:Boolean = false;
+
+      private static var heavyTraps:Boolean = false;
+
+      // Supply Pocket (331) taken: the skill that closes the second weapon slot, where Deep
+      // Pockets does not.
+      public static var supplyPocket:Boolean = false;
+
+      // Tank Container (445) taken: a kit that wears an oxygen tank has one more artefact
+      // container (srp's kit block; the tank's card lists it).
+      public static var tankContainer:Boolean = false;
+
+      // Only committed skill values affect equipment, never unspent previews.
+      public static function committedSkills(value:Array) : void
+      {
+         additionalMedicine = false;
+         supplyPocket = false;
+         tankContainer = false;
+         heavyGrenades = false;
+         heavyTraps = false;
+         for each(var skill:Object in value)
+         {
+            if(skill == null || skill.value <= 0)
+            {
+               continue;
+            }
+            if(skill.id == 331)
+            {
+               supplyPocket = true;
+            }
+            if(skill.id == 322)
+            {
+               additionalMedicine = true;
+            }
+            if(skill.id == 441)
+            {
+               heavyGrenades = true;
+            }
+            if(skill.id == 444)
+            {
+               heavyTraps = true;
+            }
+            if(skill.id == 445)
+            {
+               tankContainer = true;
+            }
+         }
+      }
+
+      public static function pocketUnits(category:uint, size:Number, base:int = -1) : int
+      {
+         // Boosters share category 10 with drugs, but fill a whole pocket.
+         if(size == QuickSlotSize.WHOLE)
+            return 1;
+         var total:int = pocketTotal(category,base);
+         // An item of more than one unit: as many as its units go into the pocket's, at least one
+         // (the server's PocketShare: a pair half the pocket, one and a half two in three). In
+         // halves, whole numbers: 2 x total / (2 x units).
+         var halves:int = int(itemUnits(category,size) * 2);
+         return Math.min(total,Math.max(1,int(2 * total / halves)));
+      }
+
+      // A pocket's units, whatever its items take.
+      public static function pocketTotal(category:uint, base:int = -1) : int
+      {
+         var units:int = base < 0 ? pocketSize : base;
+         return Math.max(0,Math.min(MAX_POCKET_UNITS,units + (medicineBonus(category) ? 1 : 0)));
+      }
+
+      // Whether a pocket of `category` has Additional Medicine's extra unit.
+      public static function medicineBonus(category:uint) : Boolean
+      {
+         return additionalMedicine && category == ItemCategory.MEDKITS;
+      }
+
+      // The pocket units one item takes: 2 for the RGD-5 (its own, with or without Toxic Smoke),
+      // 1.5 for another grenade with Toxic Smoke and a trap with Bear Trap; else 1.
+      public static function itemUnits(category:uint, size:Number) : Number
+      {
+         if(size == QuickSlotSize.PAIR) return 2;
+         if((heavyGrenades && category == ItemCategory.GRENADES) || (heavyTraps && category == ItemCategory.BOOBY_TRAPS)) return 1.5;
+         return 1;
+      }
       
       public static var currentLevel:int = 0;
       
@@ -40,15 +131,7 @@ package survarium.controls
       
       public static var clanState:uint = ClanState.RESERVE;
       
-      public static var premiumMoney:uint = 0;
-      
       public static var genericMoney:uint = 0;
-      
-      public static var premiumState:uint = PremiumState.NONE;
-      
-      public static var premiumExchangeRate:uint = 0;
-      
-      public static var premiumLeft:String;
       
       public static var questRewardsMultiplierReputation:Number = 1;
       
@@ -74,15 +157,9 @@ package survarium.controls
       
       protected var _coins:int;
       
-      protected var _coinsP:int;
-      
       protected var _coinsNew:int = 0;
       
-      protected var _coinsPNew:int = 0;
-      
       protected var outTimer:Timer = new Timer(2000,1);
-      
-      protected var outTimerP:Timer = new Timer(2000,1);
       
       public var layoutData:LayoutData;
       
@@ -90,6 +167,8 @@ package survarium.controls
       
       public var playerCoins:TextField;
       
+      // playerCoinsP, playerCoinsPNew, _goldIcon: the gold balance's pieces of the symbol, which no
+      // code feeds: there is no gold (the owner, 2026-11-08).
       public var playerCoinsP:TextField;
       
       public var playerCoinsNew:TextField;
@@ -104,7 +183,6 @@ package survarium.controls
       {
          super();
          this.outTimer.addEventListener(TimerEvent.TIMER_COMPLETE,this.onTimerComplete);
-         this.outTimerP.addEventListener(TimerEvent.TIMER_COMPLETE,this.onTimerComplete);
       }
       
       public static function set commander(value:Boolean) : void
@@ -207,29 +285,6 @@ package survarium.controls
          }
       }
       
-      public function set premium_money_new(value:int) : void
-      {
-         _coinsPNew = 5000;
-         this.outTimerP.reset();
-         this.outTimerP.start();
-         this.playerCoinsPNew.alpha = 0;
-         this.playerCoinsPNew.x = 124;
-         this.playerCoinsPNew.y = 48;
-         this.playerCoinsPNew.textColor = value < 0 ? 13369344 : 6749952;
-         new Tween(500,this.playerCoinsPNew,{
-            x:124 + 15,
-            alpha:1
-         },{ease:Strong.easeOut});
-         if(value < 0)
-         {
-            this.playerCoinsPNew.text = value.toString();
-         }
-         else
-         {
-            this.playerCoinsPNew.text = "+" + value.toString();
-         }
-      }
-      
       public function set generic_money_new(value:int) : void
       {
          _coinsNew = 5000;
@@ -253,17 +308,6 @@ package survarium.controls
          }
       }
       
-      public function set premium_money(value:int) : void
-      {
-         _coinsP = value;
-         this.playerCoinsP.text = value.toString();
-      }
-      
-      public function get premium_money() : int
-      {
-         return this._coinsP;
-      }
-      
       public function set generic_money(value:int) : void
       {
          _coins = value;
@@ -278,16 +322,7 @@ package survarium.controls
       public function setData(newData:Object) : void
       {
          nickname = newData.nickname;
-         premiumMoney = newData.premium_money;
          genericMoney = newData.generic_money;
-         if(newData.premium_money_new != undefined && this.playerCoinsP.text != "")
-         {
-            premium_money_new = newData.premium_money_new;
-         }
-         else if(this.playerCoinsP.text != "" && newData.premium_money - this._coinsP != 0)
-         {
-            premium_money_new = newData.premium_money - this._coinsP;
-         }
          if(newData.generic_money_new != undefined && this.playerCoins.text != "")
          {
             generic_money_new = newData.generic_money_new;
@@ -296,29 +331,17 @@ package survarium.controls
          {
             generic_money_new = newData.generic_money - this._coins;
          }
-         premium_money = newData.premium_money;
          generic_money = newData.generic_money;
          dispatchEvent(new Event(Event.CHANGE));
       }
       
       protected function onTimerComplete(event:Event) : void
       {
-         if(event.target == this.outTimer)
-         {
-            this.playerCoinsNew.alpha = 1;
-            new Tween(500,this.playerCoinsNew,{
-               x:124 + 30,
-               alpha:0
-            },{ease:Strong.easeOut});
-         }
-         else
-         {
-            this.playerCoinsPNew.alpha = 1;
-            new Tween(500,this.playerCoinsPNew,{
-               x:124 + 30,
-               alpha:0
-            },{ease:Strong.easeOut});
-         }
+         this.playerCoinsNew.alpha = 1;
+         new Tween(500,this.playerCoinsNew,{
+            x:124 + 30,
+            alpha:0
+         },{ease:Strong.easeOut});
       }
    }
 }

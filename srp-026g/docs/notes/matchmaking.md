@@ -22,8 +22,9 @@ schema step 5).
 > JOIN), the server's PvP bots and their giving way, and `JOIN_CUTOFF` (a room's match takes a
 > member who comes from its countdown until 30 s are left, `LOAD_MARGIN`, on the side with fewer
 > players in the match, then the side it played on in that match before, then the one that
-> counts for less: `matchmaking_policy::place_joiner`). Those sections are kept for the record. §1, §4, §8 (the
-> sides now made by `rooms::sides` with the same count) and §9.8 still hold.
+> counts for less: `matchmaking_policy::place_joiner`). Those sections are kept for the record.
+> §1, §4 and §9.8 still hold; §8's count of a player was replaced on 2026-11-01 by the K/D one
+> (`kd-balance.md`, the sides made by `rooms::sides`).
 
 Sources of the time: `progression_sources.md` §9.
 
@@ -416,7 +417,6 @@ thrown (§3.14).
   **The sides are made as the standard queue makes them** (§8.2,
   `seat_balanced`): by what each player counts for.
 - Players left over wait a new window, or join the match just made.
-- The home page ("How matches start") tells these rules, and the running-match rules of §9.2, when every game that can press Play is of this queue: `SRP_MIN_PATCH_REVISION` is 5 or more (`web-server`'s `only_growing_games`). Otherwise it still tells the standard queue's (§3), whose games are then the other queue.
 
 ### 9.2 A match being played: who joins, and where
 
@@ -526,9 +526,8 @@ with fewer than four it moves no rating (§8.3).
   are in (since 2026-10-14). The parts are there so that the numbers can
   be fitted again from these lines and the results; the line changes
   nothing.
-- `scripts/balance-refit/refit.py` reads these lines and the "settled"
-  one: the weights of §8 fitted on who was in each match, minute by
-  minute. It does not fit the numbers of the lead.
+- `scripts/balance-refit`, which fitted §8's weights from these lines, was retired: K/D
+  balancing (`kd-balance.md`) superseded it.
 - `<name>: JOIN match 0x… (key k): ok|full|gone|busy (…); sides …` and
   `<name>: Play with a place held in match 0x… …`: the JOIN button (§9.7).
   A JOIN that puts a player in writes the "late join" line too.
@@ -559,7 +558,7 @@ at a time. A player who waits in the queue does not see JOIN on.
 ### 9.8 A match against the server's bots ("Player vs Bots", 2026-10-16)
 
 The owner's decisions of 2026-10-16 (and of 2026-10-26: every equipment
-level). A player of any equipment level (at most `SRP_PVB_MAX_GEAR`, 15;
+level). A player of any equipment level (at most `pvb/max_gear` of `rooms.tsv`, 15;
 5 until 2026-10-26), alone (no squad), not searching, not in a
 match, chooses a size (6, 8 or 10 a side) and a map in the changed lobby
 movie (`lobby.md` §2.16.2); its Play then makes the match at once:

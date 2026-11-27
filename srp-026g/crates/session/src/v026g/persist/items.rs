@@ -13,6 +13,8 @@ use super::{PersistError, bad_row};
 pub const MIGRATION: &str = "
     -- `modification:count`, then `:replaced:first:second:third` while a
     -- paid change waits for its choice; empty for an item never changed.
+    -- (The count is written 0 and not read since 2026-11-08: the price
+    -- never grew with it.)
     ALTER TABLE g26_items ADD COLUMN reroll TEXT NOT NULL DEFAULT '';
 ";
 
@@ -22,7 +24,8 @@ pub fn reroll_text(item: &Item) -> String {
     if *reroll == Reroll::default() {
         return String::new();
     }
-    let mut text = format!("{}:{}", reroll.modification, reroll.count);
+    // The count of the column's format: 0, not kept any more.
+    let mut text = format!("{}:0", reroll.modification);
     if let Some((replaced, choices)) = reroll.offer {
         text.push_str(&format!(
             ":{replaced}:{}:{}:{}",
@@ -43,14 +46,12 @@ pub fn parse_reroll(account_id: u32, text: &str) -> Result<Reroll, PersistError>
         .map(|field| field.parse().map_err(|_| bad()))
         .collect::<Result<_, _>>()?;
     match fields[..] {
-        [modification, count] => Ok(Reroll {
+        [modification, _count] => Ok(Reroll {
             modification,
-            count,
             offer: None,
         }),
-        [modification, count, replaced, first, second, third] => Ok(Reroll {
+        [modification, _count, replaced, first, second, third] => Ok(Reroll {
             modification,
-            count,
             offer: Some((replaced, [first, second, third])),
         }),
         _ => Err(bad()),
@@ -84,17 +85,17 @@ mod tests {
         assert_eq!(parse_reroll(1, "").unwrap(), Reroll::default());
         account.inventory[0].reroll = Reroll {
             modification: 2000,
-            count: 3,
             offer: None,
         };
-        assert_eq!(reroll_text(&account.inventory[0]), "2000:3");
+        assert_eq!(reroll_text(&account.inventory[0]), "2000:0");
+        // A count written before is read and dropped.
         assert_eq!(
             parse_reroll(1, "2000:3").unwrap(),
             account.inventory[0].reroll
         );
         account.inventory[0].reroll.offer = Some((2000, [2010, 2020, 2031]));
         let text = reroll_text(&account.inventory[0]);
-        assert_eq!(text, "2000:3:2000:2010:2020:2031");
+        assert_eq!(text, "2000:0:2000:2010:2020:2031");
         assert_eq!(parse_reroll(1, &text).unwrap(), account.inventory[0].reroll);
         for damaged in ["x", "1", "1:2:3", "1:2:3:4:5:6:7", "1:-2"] {
             assert!(parse_reroll(1, damaged).is_err(), "{damaged}");
@@ -159,10 +160,8 @@ mod tests {
         // And the new column is kept.
         account.inventory[0].reroll = Reroll {
             modification: 2000,
-            count: 2,
             offer: Some((2000, [2010, 2020, 2030])),
         };
-        account.inventory[0].reroll_time = 1_800_000_000;
         repository.save(5, account).unwrap();
         drop(repository);
         let mut repository = SqliteGameRepository::open(&path).unwrap();

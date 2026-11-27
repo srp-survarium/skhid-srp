@@ -22,6 +22,10 @@ pub const NECK_DECAY: f32 = 0.3; // 464c 0.25
 /// The arms' (shoulders, elbows).
 pub const ARM_STIFFNESS: f32 = 40.0;
 pub const ARM_DECAY: f32 = 0.2;
+/// The fingers let go of what the hand held (the gun's grip at the death)
+/// over this long, s; no longer than a body takes to settle, so a settled
+/// hand is loose.
+pub const FINGERS_LOOSE_TIME: f32 = 0.35;
 /// A hit limb's side decays this much faster (its decay times this).
 pub const HIT_SIDE_DECAY: f32 = 0.55;
 /// A hit this strong (N s) takes `HIT_WEAKENING` of every muscle's
@@ -50,8 +54,13 @@ pub const DEATH_VELOCITY_SHARE: f32 = 0.7;
 pub const DEATH_VELOCITY_MAX: f32 = 7.0;
 /// The hits just before the killing one push with this share of theirs.
 pub const EARLIER_HIT: f32 = 0.5;
-/// A killing hit this strong (N s) or more is a heavy one (a sniper's).
-pub const HEAVY_HIT: f32 = 40.0;
+/// A hit this strong (N s) or more is a heavy one, more than any bullet's
+/// push (`shot::impulse` makes at most 0.04 kg x 3000 m/s x 0.8, 96 N s): a
+/// Force Protein's gun-stock push (16 x 8); a battery strike is one
+/// whatever its push (`shot::Hit::heavy`). It throws the whole body: its
+/// share is not capped, and goes up at `HEAVY_LIFT` of its level speed.
+pub const HEAVY_HIT: f32 = 100.0;
+pub const HEAVY_LIFT: f32 = 0.5;
 /// The equipment a part carries, kg, at most.
 pub const MAX_LOAD: f32 = 40.0;
 

@@ -13,7 +13,7 @@
 //! (`patches::ready`, the check of play_skhid.bat), and starts the game as
 //! the launcher's PLAY does, with `-match_replay=<the file>`. A problem is a
 //! message box in the launcher's
-//! language and a line in `updater_skhid.log`; the log names the token by
+//! language and a line in the run's log; the log names the token by
 //! its first 6 hex digits only.
 
 use alloc::format;
@@ -61,14 +61,14 @@ pub fn run(arguments: &[String], quiet: bool) -> u32 {
             return FAILED;
         }
     };
-    crate::log::start(format!("{}\\{}", layout.exe_dir, crate::LOG_FILE));
+    crate::log::start(&layout);
     log!(
         "---- updater {} replay started in {}{}",
         env!("CARGO_PKG_VERSION"),
         layout.exe_dir,
         if quiet { " (quiet)" } else { "" }
     );
-    let language = win::game_language();
+    let language = win::documents().as_deref().and_then(win::game_language);
     let request = match replay::parse(arguments) {
         Ok(request) => request,
         Err(error) => {
@@ -111,18 +111,52 @@ pub fn run(arguments: &[String], quiet: bool) -> u32 {
     }
     prune(&folder, &request.file_name());
 
+    launch(&layout, &target, quiet, language)
+}
+
+/// Explorer supplies an absolute local file. No download, pruning or network
+/// request: this file belongs to the user, not the managed replay cache.
+pub fn run_local(arguments: &[String], quiet: bool) -> u32 {
+    let layout = match Layout::find() {
+        Ok(layout) => layout,
+        Err(path) => {
+            notify(quiet, &crate::text::wrong_folder(&path));
+            return FAILED;
+        }
+    };
+    crate::log::start(&layout);
+    log!("---- updater local replay started{}", if quiet { " (quiet)" } else { "" });
+    let language = win::documents().as_deref().and_then(win::game_language);
+    let Some(file) = updater_logic::local_replay::LocalReplay::parse(arguments) else {
+        return tell(quiet, language, &Problem::BadFile);
+    };
+    if let Err(code) = win::file_size(file.path()) {
+        return tell(quiet, language, &Problem::Open {
+            path: file.path().into(), detail: win::error_text(code),
+        });
+    }
+    launch(&layout, file.path(), quiet, language)
+}
+
+/// Both entry points use the same installed-file gate, path conversion,
+/// localization, console arguments and working directory.
+fn launch(layout: &Layout, target: &str, quiet: bool, language: Option<u32>) -> u32 {
+    let game = format!("{}\\{}", layout.exe_dir, replay::GAME_EXE);
+    if !win::exists(&game) {
+        return tell(quiet, language, &Problem::NoGame);
+    }
     // The check play_skhid.bat and play_skhid.sh make (`updater_skhid.exe
     // ready`, read only): while the patches of resources.db are not checked
     // in place (the last patch step did not end `ready`, or a patch file is
     // missing, damaged or extra), the game is not started; it would stop at
     // start or play the replay with other files. Made last, so it says how things are
     // when the game would start; the replay stays, checked, for the next ask.
-    if crate::patches::ready(&layout).is_err() {
+    if crate::patches::ready(layout).is_err() {
         log!("replay: the game's files are not in place (as `ready` finds): the game is not started");
         return tell(quiet, language, &Problem::NotReady);
     }
 
-    let Some(path) = win::game_path(&target, replay::MAX_GAME_PATH) else {
+    let Some(path) = win::game_path(target, replay::MAX_GAME_PATH) else {
         log!("replay: {target} cannot be given to the game (ANSI command line)");
         return tell(quiet, language, &Problem::Path);
     };
@@ -218,17 +252,17 @@ fn download(server: &Url, request: &Request, part: &str) -> Result<(), Problem> 
         // More than the link says: not this replay.
         Err(HttpError::TooLarge) => return Err(Problem::Damaged),
         // get_stream follows no redirect, reads no type and asks for no
-        // part: Html, Redirects, BadRedirect and BadRange are the files of
+        // part: Html, Redirects, BadRedirect, BadRange and PastEnd are the files of
         // a list's (get_file) and never come here.
         Err(
             error @ (HttpError::Network(..)
             | HttpError::Cut { .. }
             | HttpError::Stopped
-            | HttpError::Slow(_)
             | HttpError::Html(..)
             | HttpError::Redirects
             | HttpError::BadRedirect(_)
-            | HttpError::BadRange),
+            | HttpError::BadRange
+            | HttpError::PastEnd(_)),
         ) => {
             log!("replay: {error:?}");
             return Err(Problem::Network(host));

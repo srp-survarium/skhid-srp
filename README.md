@@ -1,6 +1,6 @@
-# Survarium Restoration Project: servers for three game versions
+# Survarium Restoration Project: servers for four game versions
 
-Server side of the old online shooter Survarium, written in Rust, for three
+Server side of the old online shooter Survarium, written in Rust, for four
 builds of the original game client. Each build speaks its own network
 protocol, so each has a server of its own.
 
@@ -10,18 +10,19 @@ is where this code began. Not affiliated with or endorsed by Vostok Games;
 Survarium is a trademark of its owners. The game itself is not in this
 repository.
 
-## The three versions
+## The four versions
 
 | Folder | Game build | What it is | State |
 |---|---|---|---|
 | [`srp-0100b/`](srp-0100b/) | 0.100b (early 2013) | Server-authoritative matches: the server runs combat, spawns, batteries and traps | Works locally; not hosted |
 | [`srp-021d/`](srp-021d/) | 0.21d, build 2010 (April 2014) | Lockstep matches: clients simulate, the server relays inputs and compares world hashes | Hosted on skhid.link from 2026-10-10 to 2026-10-12; not hosted now |
 | [`srp-026g/`](srp-026g/) | 0.26g, build 2777 (January 2015) | Still lockstep, but a new protocol at every layer (the lobby runs over UDP); items, clans, premium shop | Live on [skhid.link](https://skhid.link) (also 026g.skhid.link) since 2026-10-12; a test server on [test.skhid.link](https://test.skhid.link) |
+| [`srp-069d/`](srp-069d/) | 0.69d, the last Steam build (February 2022) | Skhid (Схід) 0.69d server: see [`srp-069d/README.md`](srp-069d/README.md) | Not hosted yet; anyone can run one |
 
 Each folder is a complete Rust workspace that builds and tests by itself.
-`srp-026g` began as a copy of `srp-021d` and still holds the 0.21d code beside
-its own (its shared crates and tests use it); the 0.21d server that was hosted
-was built from `srp-021d`.
+`srp-026g` began as a copy of `srp-021d`; its shared crates keep the 0.21d
+account and rules its own code builds on, and the 0.21d servers are in
+`srp-021d` only (that was what was hosted, until 2026-10-12).
 
 ## What is in each folder
 
@@ -32,7 +33,7 @@ was built from `srp-021d`.
 | `docs/` | That version's pages: the server, how matches stay in step, facts about the game client, open issues, and `docs/notes/` (the protocol research, message by message) |
 | `client-patches/` | What a player's copy of the original game needs to play on this server: the patch tools for `survarium.exe`, the login certificate, and a description of every patch |
 | `Dockerfile`, `docker-compose.yml`, `deploy/` | Hosting in Docker (0.21d and 0.26g); described in `docs/DEPLOY.md` |
-| `certs/` | The login server's certificate and key (the game's own name, issued again; the game pins the certificate, so the key is no secret) |
+| `certs/` | 0.21d and 0.100b: the login server's certificate and key (the game's own name, issued again; the game pins the certificate, so the key is no secret) |
 | `resources/binary-config-examples/` | Game data the code embeds |
 
 At the root:
@@ -53,6 +54,8 @@ At the root:
 - To **host one**: `srp-021d/docs/DEPLOY.md` or `srp-026g/docs/DEPLOY.md`.
 - To **release a change of the 0.26g server** to its players: `release/` and
   `.claude/skills/skhid-release/SKILL.md`.
+- To **moderate the live 0.26g server** (new accounts, sign-ins with addresses, shared
+  addresses, bans, chat mutes, closing sign-ups, password resets, items and money): `release/moderate --help`.
 - To **make a game copy that connects to it**: the version folder's
   `client-patches/README.md`.
 - To **understand a protocol**: `docs/notes/README.md` in the version folder.

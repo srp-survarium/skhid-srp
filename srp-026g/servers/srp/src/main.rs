@@ -7,9 +7,8 @@
 //! (`web_server::run_026g`): its admin acts on the 0.26g accounts and
 //! tells the lobby.
 //!
-//! The retained 0.21d servers (login, presence, lobby,
-//! match) are kept and tested but no longer started here: the two lobbies
-//! share the store's queue and squads, and the two login servers one port.
+//! The 0.21d servers (login, presence, lobby, match) are in `srp-021d/`,
+//! a workspace of their own.
 //!
 //! Each server runs on its own supervised thread: a panic or error in one is
 //! logged and the server is restarted, so no single server can take down the
@@ -90,6 +89,7 @@ fn main() {
             std::process::exit(1);
         }
     };
+    store.restore_026g_names(&accounts);
     accounts.spawn_saver();
     let on_exit = (store.clone(), accounts.clone());
     let stop = ctrlc::set_handler(move || {
@@ -97,6 +97,7 @@ fn main() {
         on_exit.0.flush();
         on_exit.1.flush();
         log::info!("srp: stopped");
+        log::logger().flush();
         std::process::exit(0);
     });
     if let Err(error) = stop {
@@ -110,14 +111,15 @@ fn main() {
         Err(error) => {
             log::error!(
                 "srp: cannot start the 0.26g servers: {error} (is another srp running, or a \
-                 port of SRP_LOGIN_PORT / SRP_LOBBY_PORT / SRP_MATCH_PORT taken?)"
+                 port of SRP_LOGIN_PORT / SRP_LOBBY_PORT / SRP_MATCH_PORT or the voice port, the \
+                 match port + 1, taken?)"
             );
             std::process::exit(1);
         }
     };
 
     // The web page over the 0.26g accounts; it tells the lobby what it
-    // changes. (`web_server::run` is the 0.21d page: kept, not started.)
+    // changes.
     let game = stack.web_game();
     let servers: [(&str, Run); 1] = [(
         "web",

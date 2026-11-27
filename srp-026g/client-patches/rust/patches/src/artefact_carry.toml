@@ -8,6 +8,7 @@ handler = "on_weapon_hide"
 [[hook]]
 site = "carry.input"
 handler = "on_input"
+order = 1
 
 [[hook]]
 site = "carry.filter"
@@ -21,16 +22,28 @@ handler = "on_tick"
 site = "carry.construct"
 handler = "on_construct"
 
+# The state's end: the carry snapshot first, then patch 206's second sights
+# (second_sights.toml, order 1).
 [[hook]]
 site = "carry.save"
 handler = "on_save"
+order = 0
 
 [[hook]]
 site = "carry.load"
 handler = "on_load"
+order = 0
 
-# Shared sites compose explicitly in blackout::on_input_end and ragdoll's
-# on_bones/on_cull; there is one installed detour at each address.
+# Shared sites compose explicitly in ragdoll's on_bones/on_cull; there is one
+# installed detour at each address. The input builder's end: patch 149's item
+# keys put their quick-use bits in first (item_hotkeys.toml, order 0), then
+# this patch's chord (patch 65 no longer filters the input, 2026-11-11); its
+# handler goes on to patch 85's pickup.
+
+[[hook]]
+site = "input_builder.end"
+handler = "on_input_end"
+order = 1
 
 [[hook]]
 site = "carry.weapon"
@@ -75,10 +88,12 @@ handler = "on_death"
 [[hook]]
 site = "carry.ground_save"
 handler = "on_ground_save"
+order = 1
 
 [[hook]]
 site = "carry.ground_load"
 handler = "on_ground_load"
+order = 1
 
 [[hook]]
 site = "carry.client_death"

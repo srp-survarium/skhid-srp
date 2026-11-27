@@ -2,7 +2,7 @@
 result, without running it and without writing into the game folder.
 
     cd srp-026g/client-patches/launcher
-    python selftest_launcher_026g.py <game>/binaries/x86/survarium_launcher.exe [--nasm=<nasm>]
+    python selftest_launcher_026g.py <game>/binaries/x86/survarium_launcher.exe
 
 Checks:
  1. every byte that differs from the original is in a place the README
@@ -12,23 +12,21 @@ Checks:
     last section;
  3. the jump in registry_key::get_string lands on the new code, and the new
     code comes back to the byte after the replaced instructions; the same
-    for the Enter key's jump in the message loop; each language site calls
-    or jumps to its entry, and each entry jumps into the new code;
+    for the Enter key's jump in the message loop; each language site and
+    each site of the Allow torrent box (patch 15) and of the Relay row
+    (16) calls or jumps to its entry, and each entry jumps into the new
+    code; message 0A's dispatch entry is the relay row's, still relocated;
  4. the two addresses the launcher opens are the site's, where their
     operands point, and the operands are still relocated;
  5. no relocation touches a changed instruction (but the five disabled ones);
  6. no address of the game's old sites is left in the file;
- 7. with --nasm (or NASM in the environment): launcher_values_026g.asm
-    assembles to the checked-in .bin byte for byte;
- 8. all original native artwork and localized text resources are unchanged.
+ 7. all original native artwork and localized text resources are unchanged.
 """
 
 import hashlib
 import os
 import struct
-import subprocess
 import sys
-import tempfile
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
@@ -48,7 +46,7 @@ def ranges_of_the_patch(original, patched, section_size):
     allowed.append((image.offset(L.NO_VERSION[0], 1), len(bytes.fromhex(L.NO_VERSION[2])), "no version"))
     allowed.append((image.offset(L.GET_STRING[0], 1), len(L.GET_STRING[1]), "get_string hook"))
     allowed.append((image.offset(L.ENTER_KEY[0], 1), len(L.ENTER_KEY[1]), "Enter key hook"))
-    for va, expected, _, what in L.LANGUAGE_HOOKS:
+    for va, expected, _, what in L.ENTRY_HOOKS:
         allowed.append((image.offset(va, 1), len(bytes.fromhex(expected)), what))
     for va, old, new, what in L.STRINGS:
         allowed.append((image.offset(va, 1), len(L.utf16(old)), what))
@@ -60,8 +58,11 @@ def ranges_of_the_patch(original, patched, section_size):
     for operand, old_va, old, suffix, what in L.URLS:
         allowed.append((image.offset(operand, 1), 4, what + " operand"))
         allowed.append((image.offset(old_va, 1), len(L.utf16(old)), what + " old text"))
-    for va, left, top, new_left, what in L.RECTS:
+    for va, left, top, new_left, new_top, what in L.RECTS:
+        allowed.append((image.offset(va, 1), 8, what))
+    for va, _, what in L.MESSAGE_TABLES:
         allowed.append((image.offset(va, 1), 4, what))
+    allowed.append((headers.table + 40 * L.DATA_SECTION[0] + 8, 4, ".data's VirtualSize"))
     # Headers: section count, size of code, size of image, checksum, the
     # security directory, the sixth section table entry.
     allowed += [(headers.count_at, 2, "section count"), (headers.size_of_code_at, 4, "size of code"),
@@ -73,13 +74,11 @@ def ranges_of_the_patch(original, patched, section_size):
 
 def main():
     args = [a for a in sys.argv[1:] if not a.startswith("--")]
-    nasm = next((a[7:] for a in sys.argv[1:] if a.startswith("--nasm=")), os.environ.get("NASM"))
     if len(args) != 1:
         sys.exit(__doc__)
     with open(args[0], "rb") as file:
         original = file.read()
-    with open(L.default_bin(), "rb") as file:
-        code = file.read()
+    code = L.code()
     patched, description = L.build(original, code, site=SITE)
     patched = bytes(patched)
     print(description)
@@ -116,7 +115,8 @@ def main():
     check(2, len(sections) == 6 and name == L.SECTION_NAME and rva == L.SECTION_RVA and raw == old_end
           and rsize % headers.file_alignment == 0 and vsize <= rsize
           and characteristics == L.SECTION_CHARACTERISTICS and security == (0, 0)
-          and struct.unpack_from("<I", patched, headers.size_of_image_at)[0] == L.SECTION_RVA + 0x1000
+          and struct.unpack_from("<I", patched, headers.size_of_image_at)[0]
+          == L.SECTION_RVA + (vsize + 0xFFF) // 0x1000 * 0x1000
           and struct.unpack_from("<I", patched, headers.checksum_at)[0] == P.pe_checksum(patched, headers.checksum_at),
           f"six sections, .skhid of {vsize} bytes at {L.SECTION_VA:#x} (file {raw:#x}), checksum right, no signature")
 
@@ -142,17 +142,29 @@ def main():
           f"the message loop jumps to {target:#x}, the new code comes back to {back:#x} "
           f"and, after Enter, to {done:#x}")
     landed = []
-    for number, (va, expected, kind, what) in enumerate(L.LANGUAGE_HOOKS):
+    entries_end = L.ENTRIES_AT + 8 * len(L.ENTRY_HOOKS)
+    for number, (va, expected, kind, what) in enumerate(L.ENTRY_HOOKS):
         at = image.offset(va, len(bytes.fromhex(expected)))
         site = patched[at:at + len(bytes.fromhex(expected))]
-        entry = L.LANGUAGE_ENTRIES_AT + 8 * number
+        entry = L.ENTRIES_AT + 8 * number
         jump_to = L.SECTION_VA + entry + 5 + struct.unpack_from("<i", section, entry + 1)[0]
         landed.append(site[0] == (0xE8 if kind == "call" else 0xE9)
                       and va + 5 + struct.unpack_from("<i", site, 1)[0] == L.SECTION_VA + entry
                       and set(site[5:]) <= {0x90} and section[entry] == 0xE9
-                      and L.SECTION_VA + L.LANGUAGE_ENTRIES_AT + 48 <= jump_to < L.SECTION_VA + len(section))
-    check("3c", all(landed), f"{sum(landed)} of {len(L.LANGUAGE_HOOKS)} language sites reach their code "
-          "through their entries")
+                      and L.SECTION_VA + entries_end <= jump_to < L.SECTION_VA + len(section))
+    check("3c", all(landed), f"{sum(landed)} of {len(L.ENTRY_HOOKS)} language, Allow torrent, Relay and file count "
+          "sites reach their code through their entries")
+    data_size = struct.unpack_from("<I", patched, headers.table + 40 * L.DATA_SECTION[0] + 8)[0]
+    tables_end = entries_end + 8 * len(L.MESSAGE_TABLES)
+    for number, (va, _, what) in enumerate(L.MESSAGE_TABLES, L.ROUTE_ENTRY):
+        entry = L.ENTRIES_AT + 8 * number
+        table = struct.unpack_from("<I", patched, image.offset(va, 4))[0]
+        goes_to = L.SECTION_VA + entry + 5 + struct.unpack_from("<i", section, entry + 1)[0]
+        check("3d", table == L.SECTION_VA + entry and va in L.relocated(patched)
+              and section[entry] == 0xE9 and L.SECTION_VA + tables_end <= goes_to < L.SECTION_VA + len(section)
+              and data_size == L.DATA_SECTION[3],
+              f"{what}: its dispatch entry is {table:#x} (relocated), its code at {goes_to:#x}; "
+              f".data's VirtualSize {data_size:#x}")
     slots = {}
     for slot, (start, size) in L.SLOTS.items():
         slots[slot] = section[start:start + size].split(b"\0")[0].decode("ascii")
@@ -174,7 +186,7 @@ def main():
     # 5. Relocations and changed code.
     code_ranges = [(va, len(bytes.fromhex(new))) for va, _, new, _ in L.PATCHES] + [(L.GET_STRING[0], 7),
                                                                                       (L.ENTER_KEY[0], 7)]
-    code_ranges += [(va, len(bytes.fromhex(expected))) for va, expected, _, _ in L.LANGUAGE_HOOKS]
+    code_ranges += [(va, len(bytes.fromhex(expected))) for va, expected, _, _ in L.ENTRY_HOOKS]
     overlapping = [hex(at) for at in relocations for va, length in code_ranges if va <= at + 3 and at < va + length]
     no_version = L.NO_VERSION[0]
     still = [hex(at) for at in relocations if no_version <= at + 3 and at < no_version + 12]
@@ -192,25 +204,13 @@ def main():
                 left.append(word)
     check(6, not left, "no address of the game's old sites in the file" + (f"; LEFT: {sorted(set(left))}" if left else ""))
 
-    # 7. The source gives the .bin.
-    if nasm:
-        with tempfile.TemporaryDirectory() as folder:
-            out = os.path.join(folder, "values.bin")
-            subprocess.run([nasm, "-f", "bin", f"-DCAVE={L.SECTION_VA:#x}",
-                            os.path.join(HERE, "launcher_values_026g.asm"), "-o", out], check=True)
-            with open(out, "rb") as file:
-                assembled = file.read()
-        check(7, assembled == code, f"launcher_values_026g.asm assembles to the checked-in .bin ({len(code)} bytes)")
-    else:
-        print("skip 7. no --nasm: the .bin was not assembled again")
-
     # The page skin is separate from the native window's bitmaps and text.
     # Compare the whole resource section, including every language and all
     # normal/hover/pressed/disabled button and progress-bar images.
     resource = next(section for section in old_headers.sections(original)
                     if section[0].rstrip(b"\0") == b".rsrc")
     resource_at, resource_size = resource[3], resource[4]
-    check(8, original[resource_at:resource_at + resource_size]
+    check(7, original[resource_at:resource_at + resource_size]
           == patched[resource_at:resource_at + resource_size],
           f"all {resource_size} bytes of the native window's artwork and text resources are unchanged")
 
