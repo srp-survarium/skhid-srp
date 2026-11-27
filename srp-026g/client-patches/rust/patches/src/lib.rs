@@ -203,6 +203,8 @@ pub mod v021d_render;
 pub mod composition_v044a;
 pub mod probe_tiers;
 pub mod faces;
+// patch 217: an additional model with camo_available takes its item's camouflage (the exoskeletons' legs)
+pub mod additional_camo;
 pub mod geometry_share;
 // patch 161: a weapon's scope, eye, left hand and shells where its fitted modules put them
 pub mod attachments;

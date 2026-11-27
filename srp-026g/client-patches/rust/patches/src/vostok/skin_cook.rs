@@ -8,7 +8,9 @@
 //! the join `made` (0x2056F0), the native head's end. At
 //! `skin_cook.item_data` (0x204B36) a worn item's entry is still to be read
 //! from its config: its handler may choose another key than `data` for a
-//! helmet or a mask.
+//! helmet or a mask. At `skin_cook.item_done` (0x20563D, patch 217) a kit
+//! slot is done: its item's record and its additional models' are made, and
+//! an additional model may take the item's camouflage ([`ItemDone`]).
 //!
 //! The cook runs for the lobby's characters and a match's players alike, the
 //! profile its query's (a lobby profile or a match place: the player's name
@@ -268,6 +270,137 @@ impl<'c, 'm> ItemCook<'c, 'm> {
     }
 }
 
+/// A kit slot done, at `skin_cook.item_done` (0x20563D), whose item made a
+/// record: its own (`item`, the bake name complete) and its additional
+/// models' after it, to the count.
+///
+/// The native gives an additional model's record no camouflage, no decals,
+/// no bake flag and no bake name (0x205520..0x205607): bake_decals (0x129830)
+/// bakes only records whose flag is set, so only the item's first surface is
+/// ever painted.
+pub struct ItemDone<'t> {
+    frame: raw::SkinCookFrame,
+    data: raw::SkeletonCombinedCookData,
+    /// The item's record, below `count`.
+    item: usize,
+    /// The records in use, at most the 20.
+    count: usize,
+    thread: &'t Thread,
+}
+
+impl<'t> ItemDone<'t> {
+    /// The slot's item; none when the slot made no record (no item, or an
+    /// item without a model: the count is still the loop's record).
+    pub fn at(ctx: &'t Context<'_>) -> Option<ItemDone<'t>> {
+        use raw::site::skin_cook_item_done as site;
+        // SAFETY: the context is this site's: on_configs_loaded's frame (by
+        // ESP) while it runs, EBX the record its slot's loop began at
+        // (0x204A3A), a record of the frame's cook data.
+        let (frame, record) = unsafe { (site::frame(ctx)?, site::record(ctx)?) };
+        // SAFETY: the frame's slot, written at 0x2045B4 (0 when the
+        // allocation failed, which this refuses); its records and count the
+        // cook's own.
+        let (data, count) = unsafe {
+            let data = frame.cook_data()?;
+            (data, usize::from(read(data.part_count())))
+        };
+        // SAFETY: the cook data's records: only their address is compared.
+        let item = record.index_from(unsafe { data.parts() })?;
+        (item < count && count <= PARTS).then_some(ItemDone { frame, data, item, count, thread: ctx.thread() })
+    }
+
+    /// The records its additional models made, after its own.
+    pub fn additional(&self) -> usize {
+        self.count - self.item - 1
+    }
+
+    /// The item's entry, the records' models were read from (`data`, or the
+    /// key `skin_cook.item_data` chose).
+    pub fn entry(&self) -> Option<ConfigTable<'t>> {
+        let _ = self.thread;
+        // SAFETY: the frame's copy of the entry's node (0x204B45..0x204B7F),
+        // its children the item config's, which the cook holds (0x204B02),
+        // relocated and immutable while it runs.
+        unsafe { ConfigValue::read(self.frame.entry()) }.ok()?.table().ok()
+    }
+
+    /// Whether the item's record bakes a camouflage of the item's: its bake
+    /// flag set and its camouflage's layer named (data/camouflage, 0x204BEC;
+    /// a flag with no name bakes the surface's own `_camo` maps, which an
+    /// additional model does not take).
+    pub fn has_camouflage(&self) -> bool {
+        // SAFETY: the item's record, below the count; its flag and its
+        // camouflage's name its own.
+        unsafe {
+            let item = self.data.parts().at(self.item);
+            read(item.bake()) != 0 && !text_of(item.parameters().camouflage().diffuse()).is_empty()
+        }
+    }
+
+    /// The `index`th of its additional models' records takes the item's
+    /// camouflage: the layer's four names and the two matrices after the
+    /// decals' (the names the native fill gave the item's, 0x204BEC..
+    /// 0x204D54), the bake flag, and the bake's name: the camouflage's file
+    /// name and the model's, as the item's (without its decals: the record
+    /// has none). Nothing is written when the name has no room.
+    pub fn paint(&mut self, index: usize) -> Result<(), Unpainted> {
+        if index >= self.additional() {
+            return Err(Unpainted::NoRecord);
+        }
+        // SAFETY: two records of the cook data below its count, the item's
+        // and one after it (never the same); every buffer_string its own
+        // record's, over its own room, which is all that is written.
+        unsafe {
+            let parts = self.data.parts();
+            let (item, part) = (parts.at(self.item), parts.at(self.item + 1 + index));
+            let (from, to) = (item.parameters(), part.parameters());
+            let (source, target) = (from.camouflage(), to.camouflage());
+            let name = to.name();
+            assign(name, file_name(text_of(source.diffuse())));
+            if append(name, file_name(text_of(part.base_model()))).is_err() {
+                assign(name, b"");
+                return Err(Unpainted::NameFull);
+            }
+            for (from, to) in [(source.diffuse(), target.diffuse()), (source.normal(), target.normal()),
+                               (source.fresnel(), target.fresnel()), (source.smoothness(), target.smoothness())]
+            {
+                assign(to, text_of(from));
+            }
+            core::ptr::copy_nonoverlapping(source.matrix(), target.matrix(), 16);
+            core::ptr::copy_nonoverlapping(from.camouflage_matrix(), to.camouflage_matrix(), 16);
+            *part.bake() = 1;
+        }
+        Ok(())
+    }
+}
+
+/// Why an additional model's record was not given its item's camouflage.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Unpainted {
+    /// The item's additional models made no record of that index.
+    NoRecord,
+    /// The bake's name has no room for the two file names.
+    NameFull,
+}
+
+/// A path's file name: what follows its last `/`, all of it without one, as
+/// the cook's 0x204500 takes a model's and a camouflage's for a bake's name.
+pub fn file_name(path: &[u8]) -> &[u8] {
+    path.rsplit(|&byte| byte == b'/').next().unwrap_or(path)
+}
+
+/// `string`'s text, its begin to its end.
+///
+/// # Safety
+/// `string` is a live buffer_string; the text is read while no one writes it.
+unsafe fn text_of<'s>(string: raw::BufferString) -> &'s [u8] {
+    // SAFETY: the caller's.
+    unsafe {
+        let (begin, end) = (string.begin(), string.end());
+        core::slice::from_raw_parts(begin, (end as usize).saturating_sub(begin as usize))
+    }
+}
+
 /// The frame's copy of gameplay/bodyparts/default's `body_parts` node.
 fn body_parts<'t>(frame: raw::SkinCookFrame) -> Option<ConfigTable<'t>> {
     // SAFETY: the frame's copy of the node (0x2046E2..0x20472C, before the
@@ -287,7 +420,8 @@ fn name_skin(frame: raw::SkinCookFrame, text: &[u8]) -> Result<(), NameFull> {
 
 /// `text` into `string`, as buffer_string::assign_config_text (0x129BB0): from its
 /// start, while its room lasts, then its zero (always inside the room: the
-/// native's of a full one is at its capacity, past it).
+/// native's of a full one is at its capacity, past it; a string with no room
+/// at all is left as it is).
 ///
 /// # Safety
 /// `string` is a live buffer_string over its own room.
@@ -296,6 +430,9 @@ unsafe fn assign(string: raw::BufferString, text: &[u8]) {
     unsafe {
         let (begin, capacity) = (string.begin(), string.capacity_end());
         let room = (capacity as usize).saturating_sub(begin as usize);
+        if room == 0 {
+            return;
+        }
         let len = text.len().min(room.saturating_sub(1));
         core::ptr::copy_nonoverlapping(text.as_ptr(), begin, len);
         *begin.add(len) = 0;
@@ -309,10 +446,7 @@ unsafe fn assign(string: raw::BufferString, text: &[u8]) {
 /// `string` is a live buffer_string over its own room.
 unsafe fn contains(string: raw::BufferString, text: &[u8]) -> bool {
     // SAFETY: the caller's: its text from its begin to its end.
-    let have = unsafe {
-        let (begin, end) = (string.begin(), string.end());
-        core::slice::from_raw_parts(begin, (end as usize).saturating_sub(begin as usize))
-    };
+    let have = unsafe { text_of(string) };
     text.is_empty() || have.windows(text.len()).any(|window| window == text)
 }
 
@@ -345,5 +479,14 @@ mod tests {
         assert_eq!(Cover::of_tags([2, 5, 7].into_iter()), Cover::Helmet);
         assert_eq!(Cover::of_tags([1, 2, 3, 4, 7].into_iter()), Cover::Bare);
         assert_eq!(Cover::of_tags(core::iter::empty()), Cover::Bare);
+    }
+
+    #[test]
+    fn a_file_name_is_after_the_last_slash() {
+        assert_eq!(file_name(b"ported/duty_026/duty_03_legs_s1"), b"duty_03_legs_s1");
+        assert_eq!(file_name(b"camo_atlas/camo_atlas_m81_woodland"), b"camo_atlas_m81_woodland");
+        assert_eq!(file_name(b"no_folder"), b"no_folder");
+        assert_eq!(file_name(b"folder/"), b"");
+        assert_eq!(file_name(b""), b"");
     }
 }

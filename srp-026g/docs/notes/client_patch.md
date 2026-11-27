@@ -5028,3 +5028,77 @@ tester's reports of 2026-11-23). The whole of it: `probe-tiers-069d.md`.
 - **Checked:** `cargo test -p patches probe_tiers` (the rounds, the transitions, the gate). Captures
   (patch 176) of the reports page's views and the kept poses before and after, and of unmarked maps
   with and without the patch and the content (probe-tiers-069d.md). No Unicorn check.
+
+### 3.114 An additional model takes its item's camouflage (written 2026-11-27, README patch 217) — PROVEN in the code and under Unicorn; not run in a game
+
+**The report** (the owner, 2026-11-27, revision 74): "applying camo to exoskeleton doesn't paint
+legs". exo-camo@1 (#2687) gave both exoskeleton bodies (1805, 1807) `camo_available` and `_aoac`
+masks for their torso and legs maps. The torso was baked; the legs never were. The owner's
+`streamed_textures` held about fifteen `<camo>4_7783…duty_03_torso_s1{d,f,n,s}.dds` bakes
+from 11-27 04:47..04:49, one for each camouflage tried, and no `duty_03_legs_s1` bake. The log
+asks for no legs `_aoac` and logs no failure: the bake was never asked for.
+
+**Why** (PROVEN, the bodies read and run with Unicorn):
+
+- profile_skin_visual_cook::on_configs_loaded (0x204560) begins each kit slot at record n, the count
+  (0x204A20..0x204A58: EBX and [esp+18h]). For the slot's item it fills record n's
+  camouflage_decal_cook_parameters (+34Ch):
+  - its bake flag +C04h: `parameters/camo_available` (0x204BC4), 1 with decals (0x204F23);
+  - with `data/camouflage`, the camouflage layer's names (0x204BEC..0x204D54: the name, `_nmap`, no
+    fresnel, `_smap`, at P+520h, +5ACh, +638h, +6C4h);
+  - the camouflage's file name in the bake's name (P+7A4h, 0x204DD2..0x204DF8), then the decals'
+    part (0x204E54..).
+- It counts the record (0x2054C3). Each `additional_models` entry is then a record of its own
+  (0x205520..0x205607): its tag, base_model and part_name (or the `_hud` pair) and material. The
+  entry gets nothing more: no camouflage, no flag, no name. An entry with neither model is skipped
+  (0x205596).
+- Then the item's bake name gets its model's file name (0x205622..0x205638: 0x204500 gives the text
+  after the path's last `/`) and the slot ends at 0x20563D.
+- bake_decals (0x129830) asks a class-6Ch bake for each record whose +C04h is set (0x1298EB), with
+  the surface the record's index (P+794h, 0x129935). An additional model is never baked, so a
+  camouflage paints an item's first surface (`part_name`) alone. The exoskeleton bodies' legs are
+  such a model (Duty's `additional_models[3]`, Freedom's `[2]`).
+- camouflage_decal_cook_parameters (0x119760, 8B8h bytes): two decal layers of 270h at +0, the
+  camouflage's four names (8Ch buffer_strings, 80h of room) at +520h..+6C4h, an identity float4x4 at
+  +750h, the bake's name at +7A4h over 104h bytes.
+
+**The patch** (the Rust patch `additional_camo`, one lohook, `sites_026g.tsv`):
+
+- `skin_cook.item_done` (0x20563D, `mov eax,[esp+6Ch] / mov [esp+70h],eax`, 8 bytes).
+  - No relocation falls in it (the .reloc table).
+  - Three jumps land on its first byte and none inside it: 0x204A9F (an empty slot), 0x2051C5, and
+    0x20540A (an item without a model).
+  - EBX is record n. The slot made a record when the count is past n.
+- When record n bakes a named camouflage (+C04h set, P+520h not empty), the handler reads the frame's
+  entry ([esp+20h]). It classifies each of its `additional_models` entries as the native does: a
+  model (the `_hud` pair or `base_model`) or skipped. Each model that has `camo_available: true`
+  gets the item's camouflage on its record (n + 1 + its index among the models):
+  - the four names and both matrices (P+4E0h, P+750h);
+  - +C04h set;
+  - a bake name of the camouflage's file name and its model's (`camo_atlas_m81_woodlandduty_03_legs_s1`);
+  - no decals: they are placed on the item's own surface.
+- An entry that is no table, or entries that make another count of records than the cook's: nothing
+  is painted, and a line is logged (the 1st, 10th, 100th, ...). An entry without the key is as
+  before, and no stock entry has it.
+- bake_decals then bakes the record's surface as it bakes the item's: the surface's own
+  `<diffuse>_aoac` decides what is painted, and none leaves it as it is (0x12E8E9).
+- The two exoskeletons' legs have file names no other model has (`duty_03_legs_s1`,
+  `freedom_exo_legs_s1`, exo-camo@1). So their bakes are theirs, as the item's are.
+- Content: exo-camo@2 sets `camo_available` on the legs' entry in the four data tables of both bodies.
+
+Cosmetic: the look only, the lobby's and a match's. No row in
+`../../crates/session/src/v026g/simulation_changes.tsv`, and nothing in what a game writes.
+
+**Checked:** `check_additional_camo_026g.py` (`tools/check additional-camo`) runs the game's own code
+from the item's additional_models read (0x2054C9) through the site to the loop's test (0x205645), on a
+cook data made by the game's constructor (0x127C30), then bake_decals' record loop
+(0x1298CC..0x1299B8) on it.
+- The Duty and Freedom bodies' legs bake with the item's camouflage and their own names. So does a
+  HUD model after a skipped entry. The original bakes the item's surface alone.
+- These leave the cook data byte for byte the original's: no key, `camo_available: false`, an item
+  that bakes no named camouflage (no flag, decals only), a slot with no record, and entries that do
+  not tell which record is whose (logged).
+- The registers and the stack after the site are the original's.
+- A build without the hook fails the Duty, Freedom and HUD cases.
+
+**Not run:** a game. The bake's look on the legs was only rendered offline for #2687.
