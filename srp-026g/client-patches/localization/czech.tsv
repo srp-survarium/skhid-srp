@@ -4215,6 +4215,17 @@ st_srp_mode_roulette_high	FFA: Ruleta
 st_srp_mode_roulette_low	FFA: Ruleta
 st_srp_mode_roulette_mid	FFA: Ruleta
 st_srp_mode_team_deathmatch	Týmový deathmatch
+st_srp_modification_dovetail	Boční montáž
+st_srp_modification_empty	Prázdné
+st_srp_modification_handguard_rail	Lišta předpažbí
+st_srp_modification_rail_adapter	Adaptér lišty
+st_srp_modification_receiver_rail	Lišta pouzdra
+st_srp_modification_stock	Standardní
+st_srp_modification_tactical_forend	Taktické předpažbí
+st_srp_mount_barrel	Hlaveň
+st_srp_mount_gas_tube	Plynová trubice
+st_srp_mount_handguard	Předpažbí
+st_srp_mount_receiver	Pouzdro
 st_srp_mouse_lock_option	Zamknout svislou citlivost
 st_srp_mouse_vertical_option	Svislá citlivost
 st_srp_muzzle_slot	Úsťové zařízení

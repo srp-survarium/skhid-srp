@@ -89,6 +89,14 @@ package survarium.upgrade
 
       public var sideButtons:Array = [];
 
+      // the scope's ways onto the weapon (ScopeMount, ScopeMounts) under the scope's label, a button a
+      // way, shown while the scope's slot holds an optic of more than one way
+      public var mountButtons:Array = [];
+
+      // the modification markers over the gun (0.69d0's workshop), under the window's panel: a gun with a
+      // ModuleTree's, on its attachments page
+      public var modification:ModificationView;
+
       protected var _slotAgreements:Object = {
          3:[ItemCategory.CAMOUFLAGES],
          0:[ItemCategory.DECALS],
@@ -178,6 +186,10 @@ package survarium.upgrade
       // the side the second sight's slot shows its optic on (SightPlace): the kit's (kit_side), a
       // toggle's press at once, the left for an optic put in the empty slot (the server's default)
       protected var _side:int = SightPlace.LEFT;
+
+      // the way the scope's slot shows its optic on (ScopeMount): the kit's (kit_mount), a button's
+      // press at once, the first for another optic put in the slot (the server's)
+      protected var _mount:int = 0;
 
       // the toggle under the second sight's label: SIDE_TOGGLE_WIDTH wide on the slots' middle line, its
       // two buttons SIDE_BUTTON_HEIGHT high, SIDE_BUTTON_GAP apart and below the label
@@ -438,11 +450,12 @@ package survarium.upgrade
       // A weapon's upgrades by its logical slots (decals 0 and 1, camouflage 2, scope 3, muzzle 4,
       // grip 5, second sight 6): the records as they come (the decals), the weapon kit's record (exe
       // patch 68 gives its object kit_own, the kit's own slot, and kit_camo, kit_muzzle, kit_grip,
-      // kit_second, the dict ids it names, 0 none, and kit_side, the second sight's side; it reads and
+      // kit_second, the dict ids it names, 0 none, kit_side, the second sight's side, and kit_mount, the
+      // scope's way; it reads and
       // checks the record) as its own item in its own slot, and each dict id it names as the
       // inventory's item of that id, the lowest not already one of the weapon's (a second sight may be
       // the scope's own optic: two items of one dict id). The second sight's entry has its side too
-      // ("side", SightPlace's). docs/notes/weapon-kit.md.
+      // ("side", SightPlace's), the scope's its way ("mount", ScopeMount's). docs/notes/weapon-kit.md.
       public static function kitUpgrades(upgrades:Array) : Array
       {
          var out:Array = [];
@@ -488,7 +501,8 @@ package survarium.upgrade
          return out;
       }
 
-      // One of kitUpgrades' entries: an item in a slot; the second sight's with its side.
+      // One of kitUpgrades' entries: an item in a slot; the second sight's with its side, the scope's
+      // with its way (kit_mount: a scope is always the kit's own).
       protected static function kitEntry(itemId:uint, slot:int, kit:Object) : Object
       {
          var entry:Object = {
@@ -498,6 +512,10 @@ package survarium.upgrade
          if(slot == CosmeticSlot.SECOND_SIGHT)
          {
             entry.side = SightPlace.sideOf(uint(kit.kit_side));
+         }
+         if(slot == CosmeticSlot.CAMOUFLAGE)
+         {
+            entry.mount = ScopeMount.wayOf(uint(kit.kit_mount));
          }
          return entry;
       }
@@ -751,6 +769,7 @@ package survarium.upgrade
             this.camoSlot.visible = this._data.camoAvailable > 0;
             this.muzzleSlot.visible = this.gripSlot.visible = this.secondSightSlot.visible = false;
             this.showSideButtons();
+            this.showMountButtons();
             if(resetSlots)
             {
                this._chosenSlot = null;
@@ -837,6 +856,10 @@ package survarium.upgrade
                         {
                            this._side = int(upgrades[i].side);
                         }
+                        if(slot == this.camoSlot)
+                        {
+                           this._mount = int(upgrades[i].mount);
+                        }
                         break;
                      }
                      j = ++j;
@@ -856,6 +879,8 @@ package survarium.upgrade
             this.decalSlot2.data = this.decalSlot1.data = this.decalSlot.data = this.camoSlot.data = null;
             this.muzzleSlot.data = this.gripSlot.data = this.secondSightSlot.data = null;
             this.showSideButtons();
+            this.showMountButtons();
+            this.modification.showFor(0,-1);
          }
       }
 
@@ -894,6 +919,10 @@ package survarium.upgrade
                   {
                      this._side = int(upgrade.side);
                   }
+                  if(slot == this.camoSlot)
+                  {
+                     this._mount = int(upgrade.mount);
+                  }
                }
             }
             if(held == 0)
@@ -906,6 +935,8 @@ package survarium.upgrade
             }
          }
          this.showSideButtons();
+         this.showMountButtons();
+         this.modification.kitChanged();
       }
 
       // A weapon's attachment slots in their order on the page: the scope, the second sight under it
@@ -919,8 +950,9 @@ package survarium.upgrade
       // its decal at the top, where armour's second decal is, and its camouflage at the bottom, under
       // the line, where armour's camouflage is; on the attachments page the slots the weapon has (its
       // scope, second sight, muzzle device, grip) one under the other from armour's top decal place,
-      // as far apart as armour's first two decals, the second sight's side toggle under its label;
-      // closer and smaller when they would reach below ATTACHMENTS_BOTTOM (a weapon with all four).
+      // as far apart as armour's first two decals, the second sight's side toggle under its label, the
+      // scope's ways under its own (a weapon one of whose optics has several); closer and smaller when
+      // they would reach below ATTACHMENTS_BOTTOM (a weapon with all four).
       protected function placeWeaponSlots() : void
       {
          var i:uint = 0;
@@ -953,9 +985,12 @@ package survarium.upgrade
          {
             return;
          }
-         // a slot from its square's top to its label's bottom is `foot` high; the toggle adds `extra`
+         // a slot from its square's top to its label's bottom is `foot` high; the toggles add `extra`
          count = this._attachmentSlots.length;
-         extra = this._attachmentSlots.indexOf(this.secondSightSlot) != -1 ? SIDE_BUTTON_GAP + SIDE_BUTTON_HEIGHT : 0;
+         for each(slot in this._attachmentSlots)
+         {
+            extra += this.toggleRoom(slot);
+         }
          gap = step - foot;
          // too many for armour's spacing: the least gap, and the slots smaller if even that is too much,
          // on the same middle line, the top square where it was
@@ -970,10 +1005,19 @@ package survarium.upgrade
          {
             slot = this._attachmentSlots[i];
             this.placeSlot(slot,[top[0] + middle - middle * scale,y - SQUARE_TOP * scale,top[2] * scale,top[3] * scale]);
-            y += foot * scale + gap + (slot == this.secondSightSlot ? extra : 0);
+            y += foot * scale + gap + this.toggleRoom(slot);
             i++;
          }
          this.placeSideButtons();
+         this.placeToggle(this.mountButtons,this.camoSlot);
+      }
+
+      // The room a slot's toggle takes under its label: the second sight's sides, the scope's ways on a
+      // weapon one of whose optics has several.
+      protected function toggleRoom(slot:UpgradeSlot) : Number
+      {
+         var toggled:Boolean = slot == this.secondSightSlot || slot == this.camoSlot && ScopeMount.takesWays(hostDictId);
+         return toggled ? SIDE_BUTTON_GAP + SIDE_BUTTON_HEIGHT : 0;
       }
 
       // A filled slot's square in the window, where the slot is placed (SQUARE_*).
@@ -986,17 +1030,25 @@ package survarium.upgrade
       // middle line.
       protected function placeSideButtons() : void
       {
-         var square:Rectangle = this.squareOf(this.secondSightSlot);
+         this.placeToggle(this.sideButtons,this.secondSightSlot);
+      }
+
+      // A toggle's buttons under a slot's label, side by side, SIDE_TOGGLE_WIDTH on the slot's middle
+      // line: the first `count` of them (all when 0).
+      protected function placeToggle(buttons:Array, slot:UpgradeSlot, count:int = 0) : void
+      {
+         var square:Rectangle = this.squareOf(slot);
          var left:Number = square.left + square.width / 2 - SIDE_TOGGLE_WIDTH / 2;
-         var width:Number = (SIDE_TOGGLE_WIDTH - (this.sideButtons.length - 1) * SIDE_BUTTON_GAP) / this.sideButtons.length;
+         var shown:int = count > 0 ? count : int(buttons.length);
+         var width:Number = (SIDE_TOGGLE_WIDTH - (shown - 1) * SIDE_BUTTON_GAP) / shown;
          var button:SideButton = null;
          var i:int = 0;
-         while(i < this.sideButtons.length)
+         while(i < shown && i < buttons.length)
          {
-            button = this.sideButtons[i];
+            button = buttons[i];
             button.resize(Math.floor(width));
             button.x = Math.round(left + i * (width + SIDE_BUTTON_GAP));
-            button.y = Math.round(this.secondSightSlot.y + LABEL_BOTTOM * this.secondSightSlot.actualScaleY + SIDE_BUTTON_GAP);
+            button.y = Math.round(slot.y + LABEL_BOTTOM * slot.actualScaleY + SIDE_BUTTON_GAP);
             i++;
          }
       }
@@ -1021,6 +1073,123 @@ package survarium.upgrade
       {
          var item:Object = Boolean(this.secondSightSlot.data) ? inventoryItem(uint(this.secondSightSlot.data.itemId)) : null;
          return Boolean(item) ? secondSightSides(hostDictId,int(item.dictId)) : 0;
+      }
+
+      // The scope's ways shown with its slot holding an optic of more than one way onto the weapon: a
+      // button a way (ScopeMounts' names), its way chosen.
+      protected function showMountButtons() : void
+      {
+         var button:SideButton = null;
+         var item:Object = Boolean(this.camoSlot) && this.camoSlot.visible && Boolean(this.camoSlot.data) && hostDictId >= 0 ? inventoryItem(uint(this.camoSlot.data.itemId)) : null;
+         var ways:Array = Boolean(item) ? ScopeMount.ways(hostDictId,int(item.dictId)) : null;
+         var count:int = Boolean(ways) ? int(Math.min(ways.length,this.mountButtons.length)) : 0;
+         for each(button in this.mountButtons)
+         {
+            button.visible = button.side < count;
+            button.chosen = button.visible && button.side == this._mount;
+            button.enabled = button.visible;
+            if(button.visible)
+            {
+               button.text = LocalizationData.getName(ways[button.side]);
+            }
+         }
+         if(count > 0)
+         {
+            this.placeToggle(this.mountButtons,this.camoSlot,count);
+         }
+      }
+
+      // A way button's press: the scope on that way, shown at once and sent to the game
+      // (srp_set_upgrade_value: the exe's 46 05 with the way's value, which the server checks against
+      // the ways the gun has for it); the account's update shows what the server holds
+      // (keepHeldAttachments).
+      private function onMountButton(event:ButtonEvent) : void
+      {
+         var button:SideButton = event.currentTarget as SideButton;
+         if(!button || !button.enabled)
+         {
+            return;
+         }
+         this.chooseMount(button.side);
+      }
+
+      // The scope on its `way`th way (a way button, a scope marker's list), as onMountButton says.
+      public function chooseMount(way:int) : void
+      {
+         if(way == this._mount || !this._data || !this.camoSlot.data || this.decalControl.visible)
+         {
+            return;
+         }
+         this._mount = way;
+         this.showMountButtons();
+         this.modification.refresh();
+         trace("srp_set_upgrade_value",this._data.itemId,uint(this.camoSlot.data.itemId),ScopeMount.value(this._mount));
+         ExternalInterface.call("srp_set_upgrade_value",this._data.itemId,uint(this.camoSlot.data.itemId),ScopeMount.value(this._mount));
+      }
+
+      // root.srp_slot_points: where the slots of the gun at the bench are on the screen (the exe's, as
+      // it moves), for the markers.
+      public function slotPoints(numbers:Array) : void
+      {
+         this.modification.setPoints(numbers);
+      }
+
+      // What the weapon's slots hold of the markers' kinds (its scope, its way, muzzle device and grip),
+      // as the inventory's items.
+      public function modificationFitted() : Fitted
+      {
+         var held:Function = function(slot:UpgradeSlot):Object
+         {
+            return Boolean(slot.data) ? inventoryItem(uint(slot.data.itemId)) : null;
+         };
+         return new Fitted(held(this.camoSlot),this._mount,held(this.muzzleSlot),held(this.gripSlot));
+      }
+
+      // An owned item's icon, as its slot shows it.
+      public function modificationIcon(itemId:uint) : DisplayObject
+      {
+         var item:Object = this.create_item(itemId);
+         return Boolean(item) ? item.icon as DisplayObject : null;
+      }
+
+      // The inventory's items that go in the weapon's kit slot `slot` (slotTakes) and that `accept`
+      // takes, each loose or on this weapon, in the inventory's order.
+      public function ownedFitting(slot:int, accept:Function) : Array
+      {
+         var out:Array = [];
+         var host:uint = Boolean(this._data) ? uint(this._data.itemId) : 0;
+         if(!this._inventory || hostDictId < 0)
+         {
+            return out;
+         }
+         this._inventory.forEachItem(function(item:Object):Boolean
+         {
+            if(Boolean(item) && slotTakes(hostDictId,slot,int(item.dictId)) && (item.slotTarget == 0 || item.slotTarget == host) && accept(item))
+            {
+               out.push(item);
+            }
+            return false;
+         });
+         return out;
+      }
+
+      // An owned item into the weapon's kit slot (CosmeticSlot.CAMOUFLAGE the scope, MUZZLE, GRIP), as a
+      // drop puts it.
+      public function fitModule(slot:int, itemId:uint) : void
+      {
+         this.put(this.kitSlot(slot),itemId);
+      }
+
+      // What the weapon's kit slot holds comes off, as its drop button takes it.
+      public function takeOff(slot:int) : void
+      {
+         this.kitSlot(slot).dropSlot();
+         this.showMountButtons();
+      }
+
+      protected function kitSlot(slot:int) : UpgradeSlot
+      {
+         return slot == CosmeticSlot.MUZZLE ? this.muzzleSlot : (slot == CosmeticSlot.GRIP ? this.gripSlot : this.camoSlot);
       }
 
       // A side button's press: the second sight on that side, shown at once and sent to the game
@@ -1075,7 +1244,9 @@ package survarium.upgrade
             slot.visible = attachments && this._attachmentSlots.indexOf(slot) != -1;
          }
          this.showSideButtons();
+         this.showMountButtons();
          this.decalSlot.visible = !attachments && this.weaponDecals() > 0;
+         this.modification.showFor(attachments ? this._data.itemId : 0,hostDictId);
          this.decalSlot1.visible = !attachments && this.weaponDecals() > 1;
          this.decalSlot2.visible = !attachments && this._data.camoAvailable > 0;
          if(Boolean(this._separator))
@@ -1258,6 +1429,7 @@ package survarium.upgrade
       {
          trace("closeUpgadePopup",this.decalControl.visible,visible);
          hostDictId = -1;
+         this.modification.showFor(0,-1);
          this._chosenSlot = null;
          if(this.decalControl.visible)
          {
@@ -1319,6 +1491,9 @@ package survarium.upgrade
          this.gripSlot = this.addAttachmentSlot(CosmeticSlot.GRIP);
          this.secondSightSlot = this.addAttachmentSlot(CosmeticSlot.SECOND_SIGHT);
          this.addSideButtons();
+         this.addMountButtons();
+         this.modification = new ModificationView(this);
+         addChildAt(this.modification,0);
          LocalizationData.addTextField(this.container.textField,"btn_upgrade_label");
          this.infoContainer.visible = false;
          this.btnCancel.enabled = true;
@@ -1460,6 +1635,24 @@ package survarium.upgrade
             button.addEventListener(ButtonEvent.CLICK,this.onSideButton);
             this.container.addChild(button);
             this.sideButtons.push(button);
+         }
+      }
+
+      // The scope's ways: a SideButton a way (ScopeMount.WAYS), hidden until its slot holds an optic of
+      // more than one way; each one's text is its way's name on the weapon (showMountButtons).
+      protected function addMountButtons() : void
+      {
+         var way:int = 0;
+         var button:SideButton = null;
+         while(way < ScopeMount.WAYS)
+         {
+            button = new SideButton(way,Math.floor((SIDE_TOGGLE_WIDTH - SIDE_BUTTON_GAP) / 2),SIDE_BUTTON_HEIGHT);
+            button.name = "mountButton" + way;
+            button.visible = false;
+            button.addEventListener(ButtonEvent.CLICK,this.onMountButton);
+            this.container.addChild(button);
+            this.mountButtons.push(button);
+            way++;
          }
       }
 
@@ -1711,8 +1904,15 @@ package survarium.upgrade
          {
             this._side = SightPlace.LEFT;
          }
+         // another optic in the scope's slot takes its first way (the server's); the same keeps its own
+         if(slot == this.camoSlot && (!slot.data || uint(slot.data.itemId) != uint(itemId)))
+         {
+            this._mount = 0;
+         }
          slot.setData(item);
          this.showSideButtons();
+         this.showMountButtons();
+         this.modification.refresh();
          trace("relocate_upgrade_item",this._data.itemId,uint(slot.data.itemId),uint(slot.index));
          ExternalInterface.call("relocate_upgrade_item",this._data.itemId,uint(slot.data.itemId),uint(slot.index));
       }

@@ -45,7 +45,7 @@
 use core::ffi::CStr;
 use core::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 
-use weapon_modules::{Affine, BoneIndex, DictId, FINGERS, Malformed, Placement, Side, Table, Wanted};
+use weapon_modules::{Affine, BoneIndex, DictId, FINGERS, Malformed, Mount, Placement, Side, Table, Wanted};
 
 use super::config::{ConfigTable, ConfigValue};
 use super::context::{Context, Reg};
@@ -464,11 +464,21 @@ fn side(data: &ConfigTable<'_>) -> Option<Side> {
     }
 }
 
+/// A scope's way onto its gun by `data/srp_scope_mount` (the scope item's
+/// modification, from its record's value: the weapon kit's); the first
+/// without the key (a scope of before), None for a value that is no way.
+fn mount(data: &ConfigTable<'_>) -> Option<Mount> {
+    match data.get(c"srp_scope_mount").ok()? {
+        None => Some(Mount::default()),
+        Some(value) => Mount::new(u8::try_from(value.integer().ok()?).ok()?),
+    }
+}
+
 /// What a weapon config names under `data`: `srp_gun`, the gun's dict id,
-/// and `srp_scope`, `srp_muzzle`, `srp_grip`, each a fitted module's dict
-/// id or 0, and `srp_second_sight` with `srp_second_side` (the second sight
-/// item's modification, from the weapon kit's slot 6). None for a config
-/// without `srp_gun`.
+/// and `srp_scope` with `srp_scope_mount`, `srp_muzzle`, `srp_grip`, each a
+/// fitted module's dict id or 0, and `srp_second_sight` with
+/// `srp_second_side` (the second sight item's modification, from the weapon
+/// kit's slot 6). None for a config without `srp_gun`.
 ///
 /// # Safety
 /// `root` is a live weapon config's root.
@@ -477,7 +487,7 @@ unsafe fn named(root: raw::EngineCfg) -> Option<Named> {
     let data = unsafe { ConfigValue::read(root) }.ok()?.table().ok()?.get(c"data").ok()??.table().ok()?;
     let second_sight = dict(&data, c"srp_second_sight").zip(side(&data));
     let wanted = Wanted {
-        scope: dict(&data, c"srp_scope"),
+        scope: dict(&data, c"srp_scope").zip(mount(&data)),
         muzzle: dict(&data, c"srp_muzzle"),
         grip: dict(&data, c"srp_grip"),
         second_sight,
@@ -518,7 +528,7 @@ unsafe fn named_scope(root: raw::EngineCfg, cook: raw::WeaponCook) -> Option<raw
     // SAFETY: the caller's; the dictionary is the game's, made before any
     // weapon is cooked, its entries `entry_count` of 3A0h bytes.
     unsafe {
-        let scope = named(root)?.wanted.scope?.get();
+        let scope = named(root)?.wanted.scope?.0.get();
         let dictionary = cook.game()?.dictionary()?;
         let (first, count) = (dictionary.entries()?, read(dictionary.entry_count()) as usize);
         (0..count).map(|index| first.at(index)).find(|entry| read(entry.dict_id()) == scope)
@@ -719,11 +729,32 @@ impl Asked<'_> {
 ///
 /// # Safety
 /// `weapon` is a live client weapon.
-unsafe fn shown(weapon: raw::Weapon) -> Option<(u8, u8)> {
+pub(super) unsafe fn shown(weapon: raw::Weapon) -> Option<(u8, u8)> {
     // SAFETY: the caller's; its model holder and instance are its own.
     unsafe {
         let instance = weapon.model()?.render_instance().instance()?;
         (read(instance.in_scene()) != 0).then(|| (read(instance.foreground()), read(instance.movable())))
+    }
+}
+
+/// The bones of a weapon's model (its skeleton render model's inverse
+/// binds, one a bone): a locator record's bone must be below it, the game
+/// indexes the bones by it unchecked. None for a model that is no skeleton
+/// model's instance.
+///
+/// # Safety
+/// `weapon` is a live client weapon.
+pub(super) unsafe fn model_bones(weapon: raw::Weapon) -> Option<usize> {
+    // SAFETY: the caller's; the weapon's model holder and render instance
+    // are its own, set by load_weapon (0x243A9A); a skeleton instance by its
+    // vtable, its original model immutable.
+    unsafe {
+        let skeleton = weapon.model()?.render_instance().instance()?.skeleton();
+        if read(skeleton.vtable()) != raw::image::SKELETON_INSTANCE_VTABLE {
+            return None;
+        }
+        let original = skeleton.original()?;
+        original.inverse_binds_end()?.index_from(original.inverse_binds()?)
     }
 }
 
@@ -920,17 +951,8 @@ impl<'t> Records<'t> {
     /// game indexes the bones by it unchecked. None for a model that is no
     /// skeleton model's instance.
     pub fn bones(&self) -> Option<usize> {
-        // SAFETY: the weapon's model holder and render instance are its
-        // own, set by load_weapon (0x243A9A); a skeleton instance by its
-        // vtable, its original model immutable.
-        unsafe {
-            let skeleton = self.weapon.model()?.render_instance().instance()?.skeleton();
-            if read(skeleton.vtable()) != raw::image::SKELETON_INSTANCE_VTABLE {
-                return None;
-            }
-            let original = skeleton.original()?;
-            original.inverse_binds_end()?.index_from(original.inverse_binds()?)
-        }
+        // SAFETY: the site's live weapon.
+        unsafe { model_bones(self.weapon) }
     }
 
     /// # Safety

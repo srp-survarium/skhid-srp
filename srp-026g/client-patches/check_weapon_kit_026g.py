@@ -36,7 +36,7 @@ are, the arena with them.
   `param`) to 0x2882E9 (its PushBack), on a made-up stack and GFx object
   whose interface is the AS3 one (its vtable 0x8FC288; SetMember 0x7C6A20 a
   stub): a kit record's object gets kit_own, kit_camo, kit_muzzle, kit_grip,
-  kit_second and kit_side (uint, the object's display flag as the bridge's own); any other
+  kit_second, kit_side and kit_mount (uint, the object's display flag as the bridge's own); any other
   record's nothing, nor an object of another interface; ecx, eax and the
   stack as the original's.
 - patch 48's apply (upgrade_preview_026g.asm, its kit_apply dword the build
@@ -587,14 +587,14 @@ def main():
                                                          UC_X86_REG_EBP, UC_X86_REG_EDX))
                 display = 1 if (kind & 0x8F) == 0x0A else 0
                 members = (("kit_own", 3), ("kit_camo", 601), ("kit_muzzle", 2201), ("kit_grip", 2301),
-                           ("kit_second", 0), ("kit_side", 0))
+                           ("kit_second", 0), ("kit_side", 0), ("kit_mount", 0))
                 want = [(GFX, 0x6D6D6D6D, name, 4, value, display) for name, value in members] \
                     if index == 2 and as3 else []
                 report(same and not a[4] and b[4] == want,
                        f"record {index} ({'the kit' if index == 2 else 'a decal'}), the object "
                        f"{'a display object' if display else 'plain'}, "
                        f"{'the AS3 interface' if as3 else 'another interface'}: "
-                       + ("kit_own, kit_camo, kit_muzzle, kit_grip, kit_second, kit_side set" if want else "nothing set")
+                       + ("kit_own, kit_camo, kit_muzzle, kit_grip, kit_second, kit_side, kit_mount set" if want else "nothing set")
                        + ", registers and stack the original's")
 
     print("patch 48's apply (its kit_apply slot the build's weapon_kit_preview_apply)")

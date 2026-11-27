@@ -4215,6 +4215,17 @@ st_srp_mode_roulette_high	FFA: Рулетка
 st_srp_mode_roulette_low	FFA: Рулетка
 st_srp_mode_roulette_mid	FFA: Рулетка
 st_srp_mode_team_deathmatch	Командний бій
+st_srp_modification_dovetail	Бічне кріплення
+st_srp_modification_empty	Порожньо
+st_srp_modification_handguard_rail	Планка цівки
+st_srp_modification_rail_adapter	Адаптер планки
+st_srp_modification_receiver_rail	Планка коробки
+st_srp_modification_stock	Стандартний
+st_srp_modification_tactical_forend	Тактична цівка
+st_srp_mount_barrel	Ствол
+st_srp_mount_gas_tube	Газовідвід
+st_srp_mount_handguard	Цівка
+st_srp_mount_receiver	Коробка
 st_srp_mouse_lock_option	Зафіксувати вертикальну чутливість
 st_srp_mouse_vertical_option	Вертикальна чутливість
 st_srp_muzzle_slot	Дульний пристрій

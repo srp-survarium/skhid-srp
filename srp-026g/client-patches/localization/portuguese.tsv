@@ -4215,6 +4215,17 @@ st_srp_mode_roulette_high	FFA: Roleta
 st_srp_mode_roulette_low	FFA: Roleta
 st_srp_mode_roulette_mid	FFA: Roleta
 st_srp_mode_team_deathmatch	Mata-Mata em Equipe
+st_srp_modification_dovetail	Suporte lateral
+st_srp_modification_empty	Vazio
+st_srp_modification_handguard_rail	Trilho do guarda-mão
+st_srp_modification_rail_adapter	Adaptador de trilho
+st_srp_modification_receiver_rail	Trilho do receptor
+st_srp_modification_stock	Padrão
+st_srp_modification_tactical_forend	Guarda-mão tático
+st_srp_mount_barrel	Cano
+st_srp_mount_gas_tube	Tubo de gás
+st_srp_mount_handguard	Guarda-mão
+st_srp_mount_receiver	Receptor
 st_srp_mouse_lock_option	Travar sensibilidade vertical
 st_srp_mouse_vertical_option	Sensibilidade vertical
 st_srp_muzzle_slot	Disp. de boca

@@ -6955,9 +6955,13 @@ decal's place, through the game's own sender (send_apply_decal), then gives the 
 weapon the kit with the new side (the sender's own write would put the value over the kit record).
 The server checks the side and sends the account back, so the window shows the side it holds.
 
-Nothing is sent for a value other than 0 or 1 (one line in the patches' log, once a run), for an
-item the inventory lacks, or for a host whose kit does not hold that second sight. Nothing a match
-computes. Checked with `check_upgrade_value_026g.py` (Unicorn; `tools/check upgrade-value`); not run
+The same call puts a weapon's scope on another of its ways onto the gun (the Attachments window's
+buttons under the scope, `../docs/notes/scope-mounts.md`): the upgrade is the host's scope, the value
+its way (0 the first, up to 3), sent and written the same way.
+
+Nothing is sent for a value that is not the slot's (a second sight's 0 or 1, a scope's 0 to 3; one
+line in the patches' log, once a run), for an item the inventory lacks, or for a host whose kit holds
+that upgrade neither as its scope nor as its second sight. Nothing a match computes. Checked with `check_upgrade_value_026g.py` (Unicorn; `tools/check upgrade-value`); not run
 in a game. The addresses and why send_apply_decal and not the decal editor's accept:
 `../docs/notes/client_patch.md` 3.111.
 

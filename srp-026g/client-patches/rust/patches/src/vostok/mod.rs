@@ -24,6 +24,7 @@
 //! It grows with what the patches need, and no further.
 
 pub mod attachments;
+pub mod bench_gun;
 pub mod reload;
 pub mod weapon_view;
 pub mod back_buffer;

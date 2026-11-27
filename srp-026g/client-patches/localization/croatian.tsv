@@ -4215,6 +4215,17 @@ st_srp_mode_roulette_high	Svatko za sebe: Rulet
 st_srp_mode_roulette_low	Svatko za sebe: Rulet
 st_srp_mode_roulette_mid	Svatko za sebe: Rulet
 st_srp_mode_team_deathmatch	Ekipna borba
+st_srp_modification_dovetail	Bočni nosač
+st_srp_modification_empty	Prazno
+st_srp_modification_handguard_rail	Šina obloge
+st_srp_modification_rail_adapter	Adapter šine
+st_srp_modification_receiver_rail	Šina sanduka
+st_srp_modification_stock	Standardni
+st_srp_modification_tactical_forend	Taktička obloga
+st_srp_mount_barrel	Cijev
+st_srp_mount_gas_tube	Plinska cijev
+st_srp_mount_handguard	Obloga
+st_srp_mount_receiver	Sanduk
 st_srp_mouse_lock_option	Zaključaj okomitu osjetljivost
 st_srp_mouse_vertical_option	Okomita osjetljivost
 st_srp_muzzle_slot	Nastavak cijevi

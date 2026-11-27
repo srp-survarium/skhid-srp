@@ -4843,6 +4843,11 @@ The full account, 0.69d0's and the content's seats: `reload-commit.md`.
   byte of the state (+2D8h, +2E0h; its expressions 0x2003904A0, 0x200390B60), serialized.
 ### 3.111 A second sight's side from the lobby movie: `46 05` (written 2026-11-26, README patch 207) — PROVEN in the code and under Unicorn; not run in a game
 
+Since scope-mounts.md the same call sets a weapon's scope's way onto its gun too
+(UpgradeWindow.onMountButton, ScopeMount: 0 the first): patch 207 finds the upgrade among the host's
+kit as its scope (its item, asked first) or its second sight, and the value must be that slot's (a
+way 0..3, a side 0 or 1), else nothing is sent; the rest below is as for a side.
+
 The Attachments window's Left/Right toggle of a weapon's second sight (UpgradeWindow.onSideButton,
 SightPlace) calls `ExternalInterface.call("srp_set_upgrade_value", host, upgrade, value)` (three
 AS3 uints; the value 0 left, 1 right). The exe makes it the lobby request the decal editor's accept

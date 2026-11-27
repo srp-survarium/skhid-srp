@@ -2738,6 +2738,14 @@ package
          this.statusPanel.setProfileCost(value,money);
       }
       
+      // The exe (patch 161, attachments/markers.rs): where the slots of the gun at the bench are on the
+      // screen, in the render window's pixels: the gun's dict id, then a slot's weapon_modules::SlotId
+      // byte, its x and its y a slot. The Attachments window's modification markers keep the last.
+      public function srp_slot_points(... numbers) : void
+      {
+         this.modifierWindow.slotPoints(numbers);
+      }
+
       public function set_player_region(posX:uint, posY:uint, pos2X:uint, pos2Y:uint) : void
       {
          posX /= scaleFactor;

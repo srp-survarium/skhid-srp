@@ -1,0 +1,7 @@
+# The carriers of the modification markers' guns: the slot each goes in, its 0.69d0 module, its
+# name's text key, the slots it brings (their bytes).
+# Written by srp-026g/scripts/weapon-modules/modification_slots.py from the listed weapon-modules
+# pack's record: do not edit.
+list	weapon:int	slot:int	module:String	name:String	brings:String
+carriers	3	28	ak_midwest_extended_tactical_forend	st_srp_modification_tactical_forend	68,62
+carriers	3	86	custom_dovetail_01_picatinnyrail	st_srp_modification_rail_adapter	71

@@ -60,7 +60,7 @@ use core::num::NonZeroU16;
 
 pub use math::Affine;
 pub use pose::{Eye, EyeAnchor, FINGERS, Hand, Placement, locator_frame};
-pub use resolve::{Bare, Loadout, Optic, Part, Refusal, SecondSight, Shape, Side, Wanted, iron_sights, resolve};
+pub use resolve::{Bare, Loadout, Mount, Mounts, Optic, Part, Refusal, SecondSight, Shape, Side, Wanted, iron_sights, mounts, resolve, slot_places};
 pub use slot::SlotId;
 pub use table::{Attach, Gun, GunFault, HAND_LOCATORS, MAGIC, MAX_CHAIN, MAX_STOCK, Malformed, Module, ModuleFault, OLDEST, Table, VERSION};
 

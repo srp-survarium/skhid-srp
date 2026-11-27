@@ -25,14 +25,18 @@
 //! bits 16..31  the muzzle's        bits 12..23  the muzzle's
 //! bits 32..47  the grip's          bits 24..35  the grip's
 //!                                  bits 36..47  the second sight's
-//! bits 48..55  the kit's own logical slot (2 to 5)
+//! bits 48..51  the kit's own logical slot (2 to 5)
 //!                                  bits 48..51  the kit's own slot (2 to 6)
+//! bits 52..53  the scope's way     bits 52..53  the scope's way
 //!                                  bit  55      the second sight's side
 //! bits 56..63  the magic
 //! ```
 //!
 //! A second sight's record holds its [`Side`] as its value (0 left, 1
 //! right), as a decal's holds its place; the wide kit carries it in bit 55.
+//! A scope's holds its [`Mount`] (which of its ways onto the gun it takes,
+//! 0 the one it took before a player could choose); the kit, whose own a
+//! held scope always is, carries it in bits 52..53, 0 for any other own.
 //!
 //! A dict id the wide layout names is below 4096 ([`WIDE_DICT_LIMIT`]); a
 //! kit with a second sight and a larger one is refused (it is never sent).
@@ -82,6 +86,33 @@ pub const KIT_MAGIC_WIDE: u8 = 0xA8;
 pub const WIDE_DICT_LIMIT: u16 = 1 << 12;
 /// The wide layout's bit of the second sight's side.
 const SIDE_BIT: u32 = 55;
+/// Both layouts' first bit of the scope's way (two bits).
+const MOUNT_BIT: u32 = 52;
+
+/// Which of its ways onto the gun a scope takes (`weapon_modules::Mount`):
+/// 0 the gun's rules' first, up to [`Mount::WAYS`].
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+pub struct Mount(u8);
+
+impl Mount {
+    /// The ways a kit can name (two bits).
+    pub const WAYS: u8 = 4;
+
+    /// The way a scope's record value names; None for another value.
+    pub fn of_value(value: u64) -> Option<Mount> {
+        u8::try_from(value).ok().filter(|way| *way < Mount::WAYS).map(Mount)
+    }
+
+    /// The record value.
+    pub fn value(self) -> u64 {
+        u64::from(self.0)
+    }
+
+    /// Its index among the scope's ways.
+    pub fn index(self) -> u8 {
+        self.0
+    }
+}
 
 /// The side of the gun a second sight is on: the angled rail it takes
 /// (0.69d's `angled_picatinnyrail_l`, `_r`).
@@ -269,6 +300,9 @@ pub enum Malformed {
     WideDict(u16),
     /// A second sight's record value that is no [`Side`].
     NoSide(u64),
+    /// A scope's record value that is no [`Mount`], or a kit naming a way
+    /// with no scope its own.
+    NoMount(u64),
     /// A kit's value names a dict id for its own slot.
     NamesItsOwn(KitSlot),
     /// More than [`RECORDS`] records.
@@ -293,6 +327,8 @@ pub struct Kit {
     named: [Option<DictId>; 4],
     /// The second sight's side; Left (and not encoded) without one.
     side: Side,
+    /// The scope's way; the first (and not encoded) when the own is no scope.
+    mount: Mount,
 }
 
 impl Kit {
@@ -302,7 +338,13 @@ impl Kit {
             own,
             named: [None; 4],
             side: Side::Left,
+            mount: Mount::default(),
         }
+    }
+
+    /// The scope's way (the first when the own is no scope).
+    pub fn mount(&self) -> Mount {
+        self.mount
     }
 
     /// The second sight's side (Left when it holds none).
@@ -311,9 +353,13 @@ impl Kit {
     }
 
     /// The record value of what it holds in `slot`: the second sight's side,
-    /// 0 for the others.
+    /// the scope's way, 0 for the others.
     pub fn value_of(&self, slot: KitSlot) -> u64 {
-        if slot == KitSlot::SecondSight { self.side.value() } else { 0 }
+        match slot {
+            KitSlot::SecondSight => self.side.value(),
+            KitSlot::Scope => self.mount.value(),
+            KitSlot::Camo | KitSlot::Muzzle | KitSlot::Grip => 0,
+        }
     }
 
     /// Its layout: the wide one when it holds a second sight.
@@ -358,6 +404,9 @@ impl Kit {
     pub fn value(&self) -> u64 {
         let layout = self.layout();
         let mut value = u64::from(layout.magic()) << 56 | u64::from(self.own.slot().byte()) << 48;
+        if self.own == KitSlot::Scope {
+            value |= self.mount.value() << MOUNT_BIT;
+        }
         if layout == Layout::Wide {
             value |= self.side.value() << SIDE_BIT;
         }
@@ -377,16 +426,21 @@ impl Kit {
             return Ok(None);
         }
         let byte = (record.value >> 48) as u8;
-        let (own_byte, side) = match layout {
-            Layout::Narrow => (byte, Side::Left),
-            Layout::Wide if byte & 0x70 == 0 => (byte & 0x0F, if byte & 0x80 == 0 { Side::Left } else { Side::Right }),
-            Layout::Wide => return Err(Malformed::OwnSlot(byte)),
+        // bits 52..53 the scope's way; the wide layout's bit 55 its side; bit 54 none
+        let side = match layout {
+            Layout::Narrow if byte & 0xC0 == 0 => Side::Left,
+            Layout::Wide if byte & 0x40 == 0 => if byte & 0x80 == 0 { Side::Left } else { Side::Right },
+            Layout::Narrow | Layout::Wide => return Err(Malformed::OwnSlot(byte)),
         };
-        let own = Slot::from_byte(own_byte)
+        let own = Slot::from_byte(byte & 0x0F)
             .and_then(KitSlot::of)
             .filter(|own| layout.holds(*own))
             .ok_or(Malformed::OwnSlot(byte))?;
-        let mut kit = Kit { side, ..Kit::new(own) };
+        let mount = Mount((byte >> 4) & 0x03);
+        if own != KitSlot::Scope && mount != Mount::default() {
+            return Err(Malformed::NoMount(mount.value()));
+        }
+        let mut kit = Kit { side, mount, ..Kit::new(own) };
         for slot in KitSlot::NAMED {
             let Some((shift, bits)) = layout.field(slot) else { continue };
             let id = (record.value >> shift) & (u64::MAX >> (64u32.saturating_sub(bits)));
@@ -540,7 +594,11 @@ impl Logical {
                 .get(Slot::SecondSight)
                 .and_then(|held| Side::of_value(held.value()))
                 .unwrap_or_default();
-            let mut kit = Kit { side, ..Kit::new(own) };
+            let mount = self
+                .get(Slot::Scope)
+                .and_then(|held| Mount::of_value(held.value()))
+                .unwrap_or_default();
+            let mut kit = Kit { side, mount, ..Kit::new(own) };
             for slot in KitSlot::NAMED {
                 let named = self
                     .get(slot.slot())
@@ -600,6 +658,9 @@ impl Logical {
                     if slot == Slot::SecondSight && Side::of_value(record.value).is_none() {
                         return Err(Malformed::NoSide(record.value));
                     }
+                    if slot == Slot::Scope && Mount::of_value(record.value).is_none() {
+                        return Err(Malformed::NoMount(record.value));
+                    }
                     put(&mut logical, slot, item(record.value))?;
                 }
                 Some(kit) => {
@@ -657,7 +718,8 @@ fn second_sight_record(dict: DictId, side: Side) -> Record {
 /// The records the item config cook applies for an item's `records`: None
 /// when they hold no kit (the cook takes the item's own, as the stock does);
 /// else the records with the kit's own record valued 0 (as the thing's own
-/// record was before the kit) and, after them, one `{0, dict id, 0, slot}`
+/// record was before the kit; a scope's its way, which its modification puts
+/// on the weapon as `data/srp_scope_mount`) and, after them, one `{0, dict id, 0, slot}`
 /// for each dict id the kit names that `known` (the items dictionary) has: a
 /// dict id the game data lacks would be read from a null entry (0x2F18E3).
 /// A second sight, the kit's own or named, is the cook's record of
@@ -688,7 +750,7 @@ pub fn expand(
         if !own {
             out.push(*record);
         } else if kit.own() != KitSlot::SecondSight {
-            out.push(Record { value: 0, ..*record });
+            out.push(Record { value: kit.value_of(kit.own()), ..*record });
         } else if let (true, Some(dict)) = (second, u16::try_from(record.dict).ok().and_then(DictId::new))
             && known(dict.get())
         {
