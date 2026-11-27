@@ -21,6 +21,10 @@ order = 1
 site = "bullet.ray_traced"
 handler = "on_ray"
 order = 1
+# the bells' ring's query: its sound kept
+[[hook]]
+site = "resources.query_done"
+handler = "on_loaded"
 [[hook]]
 site = "bullet_history.saved"
 handler = "on_save"

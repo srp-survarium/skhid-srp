@@ -1,11 +1,15 @@
 #!/usr/bin/env python3
-"""Build skeleton-cap@1 from the sitting skeleton's meshes, for release/content.tsv.
+"""Build skeleton-cap@2 from the sitting skeleton's meshes, for release/content.tsv.
 
 --stock contains the models' files at their archive paths (srp-game-data get
 with the stock db and every listed patch; every path of stock.json): stock's
-remains/skeleton_sitting1 and the v0.21 and v0.69 ports' copies (the same
-meshes, their own materials). --out is a new resource-porter pack directory. Never builds a
-release patch.
+remains/skeleton_sitting1 and the v0.11, v0.21, v0.32, v0.42 and v0.69
+ports' copies (the same cap, their own materials). --out is a new
+resource-porter pack directory. Never builds a release patch.
+
+Version 2 (the owner, 2026-11-27: the cap on every map) adds the v0.11, v0.32
+and v0.42 copies (Vostok and Chemical Plant v0.11, both Londons); version
+1's models are the same bytes.
 
 The skeleton's cap (Rudnya's, the owner 2026-11-26: "shooting this helmet
 should make it fly off") is the part of its cloth surface (rag) textured
@@ -53,6 +57,12 @@ SOURCES = {
         'models/ported/v021d/character/human/static/remains/srp_skeleton_sitting1_{}.model/',
     'models/v069d_rudnya/character/human/static/remains/skeleton_sitting1.model/':
         'models/v069d_rudnya/character/human/static/remains/srp_skeleton_sitting1_{}.model/',
+    'models/ported/v011e/character/human/remains/skeleton_sitting1.model/':
+        'models/ported/v011e/character/human/remains/srp_skeleton_sitting1_{}.model/',
+    'models/ported/v032a/character/human/static/remains/skeleton_sitting1.model/':
+        'models/ported/v032a/character/human/static/remains/srp_skeleton_sitting1_{}.model/',
+    'models/ported/v044a/character/human/static/remains/skeleton_sitting1.model/':
+        'models/ported/v044a/character/human/static/remains/srp_skeleton_sitting1_{}.model/',
 }
 CLOTH = ('rag_s', 'lod1_rag_s', 'lod2_rag_s')
 COLLISION = ('collision_enabled', 'walker_collision_enabled', 'collision_use_raytrace_for_walker')
@@ -190,11 +200,12 @@ def main():
         parser.error('--out already exists')
     hashes = json.loads(Path(__file__).with_name('stock.json').read_text())
     files = build(args.stock, hashes)
-    pack = {'format_version': 1, 'id': 'skeleton-cap', 'version': '1', 'target_build': '0.26g',
+    pack = {'format_version': 1, 'id': 'skeleton-cap', 'version': '2', 'target_build': '0.26g',
             'description': "The sitting skeleton's cap as a model of its own, and the skeleton without it",
             'operations': [{'op': 'add_file', 'path': path} for path in sorted(files)],
-            'notes': ['Generated from stock 0.26g and the v0.21 port by scripts/skeleton-cap/make_pack.py; '
-                      "Rudnya's placement and the lamp table are skeleton-cap-1.json."]}
+            'notes': ['Generated from stock 0.26g and the v0.11, v0.21, v0.32, v0.42 and v0.69 ports by '
+                      "scripts/skeleton-cap/make_pack.py; Rudnya's placement and lamp table are skeleton-cap-1.json, "
+                      "the other maps' rows skeleton-cap-2.json."]}
     for path, data in files.items():
         dest = args.out / 'files' / path
         dest.parent.mkdir(parents=True, exist_ok=True)
