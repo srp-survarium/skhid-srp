@@ -152,13 +152,17 @@ def without_bitmaps(movie, names):
 def code_into(current, built, tree=None):
     """The setup's movie `current` with the code of `built`: its graphics (the packs' icons) kept,
     and the bitmaps of `tree` (the movie tree built) put in: added where it lacks them, in place of
-    its own where they differ (a tree's bitmaps/ are its source: an earlier test's stay otherwise)."""
+    its own where it has them (a tree's bitmaps/ are its source: an earlier test's stay otherwise),
+    and those an earlier test added that the tree no longer binds left out."""
     import flash_tree
     import swf
     code_tags = [t for t in swf.split(built)[1] if t[0] in (swf.DO_ABC, swf.DO_ABC_OLD)]
     bound = lambda movie: {name for _, name in swf.symbol_classes(swf.split(movie)[1])}
     if tree:
-        current = without_bitmaps(current, {b.name for b in flash_tree.bitmaps(tree)})
+        # the tree's bitmaps in place of the setup's, and the setup's that a tree built before added but
+        # this one no longer binds (bound there, not in this build) gone
+        gone = bound(current) - bound(built)
+        current = without_bitmaps(current, {b.name for b in flash_tree.bitmaps(tree)} | gone)
     new = bound(built) - bound(current)
     added = [b for b in flash_tree.bitmaps(tree) if b.name in new] if tree else []
     if new - {b.name for b in added}:
