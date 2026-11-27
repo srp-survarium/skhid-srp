@@ -949,12 +949,10 @@ Power	Erő	artefact
 Next activation	Következő aktiválás
 Regeneration limit	Regenerációs határ
 Missing health restored	Visszaadott hiányzó életerő
-Each activation leaves an artefact 80% of the power it had: 100%, 80%, 64%, 51.2% and so on. Its passive drops at once; the activation itself still works at the power from before it.	Minden aktiválás után az artefaktum megtartja ereje 80%-át: 100%, 80%, 64%, 51.2% és így tovább. A passzívja azonnal csökken; maga az aktiválás még az előtte lévő erővel hat.
-Only a copy a press fires loses power, each copy its own share. One cooling down, already active or past the 4 that count loses nothing.	Csak az a példány veszít erőt, amelyet egy gombnyomás aktivál, mindegyik a saját részét. A töltődő, már aktív vagy a 4 számító fölötti példány nem veszít semmit.
-It never runs out: the copy stays usable all match. Active time, cooldown and weight stay the same, and Larkspur cures injuries on every activation.	Sosem merül ki: a példány az egész meccsen használható marad. A hatásidő, az újratöltés és a súly nem változik, és a Szarkaláb minden aktiváláskor gyógyítja a sérüléseket.
-The power stays with the copy: through deaths, kit changes ({courier} too) and in another player's hands. A new copy starts at 100%: one from an anomaly, and the one {keeper} gives.	Az erő a példánynál marad: halálok és felszerelésváltás után ({courier} is), és egy másik játékos kezében is. Új példány 100%-ról indul: az anomáliából érkező és az, amelyet {keeper} ad.
-The skills that work through a copy wear with it: {skills}.	Az egy példányon keresztül ható képességek vele együtt gyengülnek: {skills}.
-A row: after that many activations, the passive now and what the next activation gives.	Egy sor: ennyi aktiválás után a passzív most, és amit a következő aktiválás ad.
+Each activation leaves an artefact 80% of its power: 100 → 80 → 64 → 51%… It never runs out, and the power stays with that copy until you get a new one.	Minden aktiválás után az artefaktum megtartja ereje 80%-át: 100 → 80 → 64 → 51%… Sosem merül ki, és az erő annál a példánynál marad, amíg újat nem szerzel.
+Each row: after that many activations, the passive now and the next activation's. Only the copies a press fires wear.	Minden sor: ennyi aktiválás után a passzív most és a következő aktiválás. Csak a gombnyomással aktivált példányok gyengülnek.
+It still cures injuries on every activation.	Továbbra is minden aktiváláskor gyógyítja a sérüléseket.
+Its skills work at its power: {skills}.	A képességei az erejével hatnak: {skills}.
 Regeneration limit adds to each body part's own limit, never past full.	A regenerációs határ hozzáadódik minden testrész saját határához, de sosem több a teljesnél.
 
 # The maps' anomalies (scripts/maps-tab/ui.js)

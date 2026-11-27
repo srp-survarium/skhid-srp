@@ -949,12 +949,10 @@ Power	Força	artefact
 Next activation	Próxima ativação
 Regeneration limit	Limite de regeneração
 Missing health restored	Vida perdida restaurada
-Each activation leaves an artefact 80% of the power it had: 100%, 80%, 64%, 51.2% and so on. Its passive drops at once; the activation itself still works at the power from before it.	Cada ativação deixa ao artefato 80% da força que tinha: 100%, 80%, 64%, 51.2% e assim por diante. O passivo cai na hora; a própria ativação ainda age com a força de antes dela.
-Only a copy a press fires loses power, each copy its own share. One cooling down, already active or past the 4 that count loses nothing.	Só perde força a cópia que um toque de tecla ativa, cada cópia a sua parte. Uma em recarga, já ativa ou além das 4 que contam não perde nada.
-It never runs out: the copy stays usable all match. Active time, cooldown and weight stay the same, and Larkspur cures injuries on every activation.	Nunca se esgota: a cópia continua utilizável a partida inteira. Duração, recarga e peso não mudam, e a Espora cura ferimentos a cada ativação.
-The power stays with the copy: through deaths, kit changes ({courier} too) and in another player's hands. A new copy starts at 100%: one from an anomaly, and the one {keeper} gives.	A força fica com a cópia: após mortes, trocas de kit ({courier} também) e nas mãos de outro jogador. Uma cópia nova começa em 100%: a de uma anomalia e a que {keeper} dá.
-The skills that work through a copy wear with it: {skills}.	As habilidades que agem por meio de uma cópia enfraquecem com ela: {skills}.
-A row: after that many activations, the passive now and what the next activation gives.	Uma linha: após tantas ativações, o passivo agora e o que a próxima ativação dá.
+Each activation leaves an artefact 80% of its power: 100 → 80 → 64 → 51%… It never runs out, and the power stays with that copy until you get a new one.	Cada ativação deixa ao artefato 80% da sua força: 100 → 80 → 64 → 51%… Nunca se esgota, e a força fica com essa cópia até você conseguir uma nova.
+Each row: after that many activations, the passive now and the next activation's. Only the copies a press fires wear.	Cada linha: após tantas ativações, o passivo agora e a próxima ativação. Só enfraquecem as cópias que uma tecla ativa.
+It still cures injuries on every activation.	Continua curando ferimentos a cada ativação.
+Its skills work at its power: {skills}.	As suas habilidades agem com a sua força: {skills}.
 Regeneration limit adds to each body part's own limit, never past full.	O limite de regeneração soma-se ao limite próprio de cada parte do corpo, nunca acima do total.
 
 # The maps' anomalies (scripts/maps-tab/ui.js)

@@ -397,10 +397,10 @@ fn picture(artefact: &ArtefactConfig) -> String {
     })
 }
 
-/// The skills of the artefact tree that work through a copy, at its power: Spring II, Onyx II,
-/// Larkspur II (the patch's reload nodes, landing and energy), Resonance and Cascade (the
-/// source copy's).
-const WORN_SKILLS: [u16; 5] = [531, 532, 533, 541, 542];
+/// Resonance and Cascade: what they share of a copy works at its power, as its own skill
+/// (Spring II, Onyx II, Larkspur II: the patch's reload nodes, landing and energy).
+const RESONANCE: u16 = 541;
+const CASCADE: u16 = 542;
 
 /// A skill's name in `lang`, none without the skill.
 fn skill_name(lang: Lang, id: u16) -> Option<String> {
@@ -431,33 +431,12 @@ fn wear_section(lang: Lang) -> String {
         escape(&lang.t("Activations")),
         escape(&lang.tc("artefact", "Power")),
     );
+    let text = lang.t(
+        "Each activation leaves an artefact 80% of its power: 100 → 80 → 64 → 51%… It never runs out, and the power stays with that copy until you get a new one.",
+    );
 
-    let skills: Vec<String> = WORN_SKILLS
-        .iter()
-        .filter_map(|&id| skill_name(lang, id))
-        .collect();
-    let mut text = vec![
-        lang.t("Each activation leaves an artefact 80% of the power it had: 100%, 80%, 64%, 51.2% and so on. Its passive drops at once; the activation itself still works at the power from before it."),
-        lang.t("Only a copy a press fires loses power, each copy its own share. One cooling down, already active or past the 4 that count loses nothing."),
-        lang.t("It never runs out: the copy stays usable all match. Active time, cooldown and weight stay the same, and Larkspur cures injuries on every activation."),
-    ];
-    if let (Some(courier), Some(keeper)) = (skill_name(lang, 534), skill_name(lang, 521)) {
-        text.push(lang.tf(
-            "The power stays with the copy: through deaths, kit changes ({courier} too) and in another player's hands. A new copy starts at 100%: one from an anomaly, and the one {keeper} gives.",
-            &[("courier", &courier), ("keeper", &keeper)],
-        ));
-    }
-    if !skills.is_empty() {
-        text.push(lang.tf(
-            "The skills that work through a copy wear with it: {skills}.",
-            &[("skills", &skills.join(", "))],
-        ));
-    }
-    let text: String = text
-        .iter()
-        .map(|line| format!("<p>{}</p>", escape(line)))
-        .collect();
-
+    // Each kind's table, closed until its name opens it, as the stats' Maps board opens a map's
+    // modes (`stats-opener`, the site's style); the finer points in notes under it.
     let mut kinds = String::new();
     for artefact in artefacts::all() {
         let rows: Vec<(u16, Vec<Line>, Vec<Line>)> = (0..=ACTIVATIONS)
@@ -487,26 +466,39 @@ fn wear_section(lang: Lang) -> String {
             }
             body.push_str("</tr>");
         }
+        let mut notes = vec![lang.t(
+            "Each row: after that many activations, the passive now and the next activation's. Only the copies a press fires wear.",
+        )];
         let limit = lang.t("Regeneration limit");
-        let limit_note =
-            if carried.iter().any(|(label, _)| label.starts_with(&limit)) {
-                format!(
-                    "<p class=wiki-note>{}</p>",
-                    escape(&lang.t(
-                        "Regeneration limit adds to each body part's own limit, never past full."
-                    ))
-                )
-            } else {
-                String::new()
-            };
+        if carried.iter().any(|(label, _)| label.starts_with(&limit)) {
+            notes.push(
+                lang.t("Regeneration limit adds to each body part's own limit, never past full."),
+            );
+        }
+        if matches!(&artefact.effects, Effects::Lifebone { cures, .. } if !cures.is_empty()) {
+            notes.push(lang.t("It still cures injuries on every activation."));
+        }
+        let skills: Vec<String> = [own_skill(artefact.kind), RESONANCE, CASCADE]
+            .into_iter()
+            .filter_map(|id| skill_name(lang, id))
+            .collect();
+        if !skills.is_empty() {
+            notes.push(lang.tf(
+                "Its skills work at its power: {skills}.",
+                &[("skills", &skills.join(", "))],
+            ));
+        }
+        let notes: String = notes
+            .iter()
+            .map(|note| format!("<p class=wiki-note>{}</p>", escape(note)))
+            .collect();
         let _ = write!(
             kinds,
-            "<details class=wear-kind id=\"wear-{}\"><summary>{}<span>{}</span></summary>\
+            "<details class=wear-kind id=\"wear-{}\"><summary class=stats-opener>{}</summary>\
              <div class=table-scroll><table class=\"artefact-table wear-table\"><thead>\
              <tr><th rowspan=2>{}</th><th rowspan=2>{}</th><th colspan={}>{}</th><th colspan={}>{}</th></tr>\
-             <tr>{}{}</tr></thead><tbody>{body}</tbody></table></div>{limit_note}</details>",
+             <tr>{}{}</tr></thead><tbody>{body}</tbody></table></div>{notes}</details>",
             anchor(artefact.kind),
-            picture(artefact),
             escape(&name(lang, artefact)),
             escape(&lang.t("Activations")),
             escape(&lang.tc("artefact", "Power")),
@@ -520,10 +512,10 @@ fn wear_section(lang: Lang) -> String {
     }
 
     format!(
-        "<section class=\"modifiers artefact-wear\" id=wear><h2>{}</h2><div class=wear-text>{text}</div>\
-         {steps}<p class=wiki-note>{}</p>{kinds}</section>",
+        "<section class=\"modifiers artefact-wear\" id=wear><h2>{}</h2><p class=wear-text>{}</p>\
+         {steps}<div class=wear-kinds>{kinds}</div></section>",
         escape(&lang.t("Power per activation")),
-        escape(&lang.t("A row: after that many activations, the passive now and what the next activation gives.")),
+        escape(&text),
     )
 }
 

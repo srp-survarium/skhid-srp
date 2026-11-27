@@ -949,12 +949,10 @@ Power	Snaga	artefact
 Next activation	Sledeća aktivacija
 Regeneration limit	Granica regeneracije
 Missing health restored	Vraćeno izgubljeno zdravlje
-Each activation leaves an artefact 80% of the power it had: 100%, 80%, 64%, 51.2% and so on. Its passive drops at once; the activation itself still works at the power from before it.	Svaka aktivacija ostavlja artefaktu 80% snage koju je imao: 100%, 80%, 64%, 51.2% i tako dalje. Pasiv slabi odmah; sama aktivacija još deluje snagom od pre nje.
-Only a copy a press fires loses power, each copy its own share. One cooling down, already active or past the 4 that count loses nothing.	Snagu gubi samo kopija koju taster aktivira, svaka kopija svoj deo. Ona koja se hladi, već aktivna ili preko 4 koje se računaju ne gubi ništa.
-It never runs out: the copy stays usable all match. Active time, cooldown and weight stay the same, and Larkspur cures injuries on every activation.	Nikad se ne istroši: kopija ostaje upotrebljiva ceo meč. Trajanje, hlađenje i težina ostaju isti, a Živokost leči povrede pri svakoj aktivaciji.
-The power stays with the copy: through deaths, kit changes ({courier} too) and in another player's hands. A new copy starts at 100%: one from an anomaly, and the one {keeper} gives.	Snaga ostaje uz kopiju: posle smrti, promene kompleta ({courier} takođe) i u rukama drugog igrača. Nova kopija počinje od 100%: ona iz anomalije i ona koju daje {keeper}.
-The skills that work through a copy wear with it: {skills}.	Veštine koje deluju preko kopije slabe zajedno s njom: {skills}.
-A row: after that many activations, the passive now and what the next activation gives.	Red: posle toliko aktivacija — pasiv sada i ono što daje sledeća aktivacija.
+Each activation leaves an artefact 80% of its power: 100 → 80 → 64 → 51%… It never runs out, and the power stays with that copy until you get a new one.	Svaka aktivacija ostavlja artefaktu 80% snage: 100 → 80 → 64 → 51%… Nikad se ne istroši, a snaga ostaje uz tu kopiju dok ne dobiješ novu.
+Each row: after that many activations, the passive now and the next activation's. Only the copies a press fires wear.	Svaki red: posle toliko aktivacija — pasiv sada i sledeća aktivacija. Slabe samo kopije koje taster aktivira.
+It still cures injuries on every activation.	I dalje leči povrede pri svakoj aktivaciji.
+Its skills work at its power: {skills}.	Njegove veštine deluju njegovom snagom: {skills}.
 Regeneration limit adds to each body part's own limit, never past full.	Granica regeneracije dodaje se sopstvenoj granici svakog dela tela, nikad preko punog.
 
 # The maps' anomalies (scripts/maps-tab/ui.js)

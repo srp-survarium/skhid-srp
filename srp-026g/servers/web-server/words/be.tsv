@@ -949,12 +949,10 @@ Power	Сіла	artefact
 Next activation	Наступная актывацыя
 Regeneration limit	Мяжа рэгенерацыі
 Missing health restored	Аднаўленне страчанага здароўя
-Each activation leaves an artefact 80% of the power it had: 100%, 80%, 64%, 51.2% and so on. Its passive drops at once; the activation itself still works at the power from before it.	Кожная актывацыя пакідае артэфакту 80% сілы, якую ён меў: 100%, 80%, 64%, 51.2% і гэтак далей. Пасіў слабее адразу; сама актывацыя яшчэ дзейнічае з сілай, якая была да яе.
-Only a copy a press fires loses power, each copy its own share. One cooling down, already active or past the 4 that count loses nothing.	Сілу губляе толькі копія, якую актывавала клавіша, кожная копія — сваю долю. Тая, што перазараджаецца, ужо актыўная або звыш 4, што дзейнічаюць, нічога не губляе.
-It never runs out: the copy stays usable all match. Active time, cooldown and weight stay the same, and Larkspur cures injuries on every activation.	Ён не вычэрпваецца: копія застаецца прыдатнай увесь матч. Час дзеяння, перазарадка і вага не мяняюцца, а Жывакост лечыць траўмы пры кожнай актывацыі.
-The power stays with the copy: through deaths, kit changes ({courier} too) and in another player's hands. A new copy starts at 100%: one from an anomaly, and the one {keeper} gives.	Сіла застаецца з копіяй: пасля смерцяў, змены камплекта ({courier} таксама) і ў руках іншага гульца. Новая копія пачынае са 100%: з анамаліі і тая, што дае {keeper}.
-The skills that work through a copy wear with it: {skills}.	Навыкі, што дзейнічаюць праз копію, слабеюць разам з ёй: {skills}.
-A row: after that many activations, the passive now and what the next activation gives.	Радок: пасля столькіх актывацый — пасіў цяпер і што дасць наступная актывацыя.
+Each activation leaves an artefact 80% of its power: 100 → 80 → 64 → 51%… It never runs out, and the power stays with that copy until you get a new one.	Кожная актывацыя пакідае артэфакту 80% сілы: 100 → 80 → 64 → 51%… Ён не вычэрпваецца, а сіла застаецца з гэтай копіяй, пакуль вы не атрымаеце новую.
+Each row: after that many activations, the passive now and the next activation's. Only the copies a press fires wear.	Кожны радок: пасля столькіх актывацый — пасіў цяпер і наступная актывацыя. Слабеюць толькі копіі, якія актывавала клавіша.
+It still cures injuries on every activation.	Ён па-ранейшаму лечыць траўмы пры кожнай актывацыі.
+Its skills work at its power: {skills}.	Яго навыкі дзейнічаюць з яго сілай: {skills}.
 Regeneration limit adds to each body part's own limit, never past full.	Мяжа рэгенерацыі дадаецца да ўласнай мяжы кожнай часткі цела, але не вышэй за поўную.
 
 # The maps' anomalies (scripts/maps-tab/ui.js)

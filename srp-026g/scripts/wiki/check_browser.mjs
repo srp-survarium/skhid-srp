@@ -605,17 +605,21 @@ try {
     }
   }
   // The artefacts' power per activation in English and Ukrainian: the power row, each kind's
-  // table folded until its summary opens it, a row an activation 0..10, the page no wider than
-  // a phone with every table open.
+  // table closed under the site's opener (the stats' Maps board's "▾", "▴" once open) until it
+  // opens it, a row an activation 0..10, the page no wider than a phone with every table open.
   for (const width of [1280, 390]) {
     await send('browsingContext.setViewport', {context, viewport: {width, height: 900}, devicePixelRatio: 1});
     for (const [lang, heading] of [['en', 'Power per activation'], ['uk', 'Сила після активацій']]) {
       await navigate(`/wiki/artefacts?lang=${lang}`);
       assert.equal(await evaluate("document.querySelector('#wear h2').textContent"), heading, `artefacts, ${lang}: the power section`);
       assert.equal(await evaluate("[...document.querySelectorAll('.wear-steps b')].slice(1, 5).map(b => b.textContent).join()"), '100%,80%,64%,51.2%');
-      assert.equal(await evaluate("document.querySelectorAll('.wear-kind').length"), 3, `artefacts, ${lang}: a table a kind`);
-      assert.equal(await evaluate("document.querySelectorAll('.wear-kind[open]').length"), 0, `artefacts, ${lang}: folded`);
-      await evaluate("document.querySelectorAll('.wear-kind summary').forEach(s => s.click())");
+      const marks = () => evaluate("[...document.querySelectorAll('.wear-kind > summary.stats-opener')].map(s => getComputedStyle(s, '::after').content).join()");
+      assert.equal(await evaluate("document.querySelectorAll('.wear-kind > summary.stats-opener').length"), 3, `artefacts, ${lang}: a table a kind, each under an opener`);
+      assert.equal(await evaluate("document.querySelectorAll('.wear-kind[open]').length"), 0, `artefacts, ${lang}: closed`);
+      assert.equal(await marks(), '" ▾"," ▾"," ▾"', `artefacts, ${lang}: the openers' ▾`);
+      assert.equal(await evaluate("[...document.querySelectorAll('.wear-kind table')].every(t => !t.checkVisibility())"), true, `artefacts, ${lang}: the tables hidden`);
+      await evaluate("document.querySelectorAll('.wear-kind > summary').forEach(s => s.click())");
+      assert.equal(await marks(), '" ▴"," ▴"," ▴"', `artefacts, ${lang}: the openers' ▴ once open`);
       assert.equal(await evaluate("[...document.querySelectorAll('.wear-kind[open] tbody')].every(b => b.rows.length === 11)"), true, `artefacts, ${lang}: 0..10 activations`);
       assert.equal(await evaluate("document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1"), true, `artefacts, ${lang} at ${width}: no sideways scroll`);
       assert.equal(await evaluate("document.documentElement.innerHTML.includes('⟦')"), false, `artefacts, ${lang}: no place left`);

@@ -949,12 +949,10 @@ Power	Stärke	artefact
 Next activation	Nächste Aktivierung
 Regeneration limit	Regenerationsgrenze
 Missing health restored	Wiederhergestellte fehlende Gesundheit
-Each activation leaves an artefact 80% of the power it had: 100%, 80%, 64%, 51.2% and so on. Its passive drops at once; the activation itself still works at the power from before it.	Jede Aktivierung lässt einem Artefakt 80% der Stärke, die es hatte: 100%, 80%, 64%, 51.2% und so weiter. Sein Passiv sinkt sofort; die Aktivierung selbst wirkt noch mit der Stärke von davor.
-Only a copy a press fires loses power, each copy its own share. One cooling down, already active or past the 4 that count loses nothing.	Nur eine Kopie, die ein Tastendruck aktiviert, verliert Stärke, jede Kopie ihren eigenen Anteil. Eine abklingende, bereits aktive oder über die 4 zählenden hinaus verliert nichts.
-It never runs out: the copy stays usable all match. Active time, cooldown and weight stay the same, and Larkspur cures injuries on every activation.	Es verbraucht sich nie ganz: Die Kopie bleibt das ganze Match nutzbar. Wirkdauer, Abklingzeit und Gewicht bleiben gleich, und Lebknochen heilt Verletzungen bei jeder Aktivierung.
-The power stays with the copy: through deaths, kit changes ({courier} too) and in another player's hands. A new copy starts at 100%: one from an anomaly, and the one {keeper} gives.	Die Stärke bleibt bei der Kopie: über Tode, Kitwechsel (auch {courier}) und in der Hand eines anderen Spielers. Eine neue Kopie beginnt bei 100%: eine aus einer Anomalie und die, die {keeper} gibt.
-The skills that work through a copy wear with it: {skills}.	Die Fertigkeiten, die über eine Kopie wirken, schwächen sich mit ihr ab: {skills}.
-A row: after that many activations, the passive now and what the next activation gives.	Eine Zeile: nach so vielen Aktivierungen das Passiv jetzt und was die nächste Aktivierung gibt.
+Each activation leaves an artefact 80% of its power: 100 → 80 → 64 → 51%… It never runs out, and the power stays with that copy until you get a new one.	Jede Aktivierung lässt einem Artefakt 80% seiner Stärke: 100 → 80 → 64 → 51%… Es verbraucht sich nie, und die Stärke bleibt bei dieser Kopie, bis du eine neue bekommst.
+Each row: after that many activations, the passive now and the next activation's. Only the copies a press fires wear.	Jede Zeile: nach so vielen Aktivierungen das Passiv jetzt und die nächste Aktivierung. Nur Kopien, die ein Tastendruck aktiviert, werden schwächer.
+It still cures injuries on every activation.	Er heilt weiterhin bei jeder Aktivierung Verletzungen.
+Its skills work at its power: {skills}.	Seine Fertigkeiten wirken mit seiner Stärke: {skills}.
 Regeneration limit adds to each body part's own limit, never past full.	Die Regenerationsgrenze kommt zur eigenen Grenze jedes Körperteils hinzu, nie über voll hinaus.
 
 # The maps' anomalies (scripts/maps-tab/ui.js)
