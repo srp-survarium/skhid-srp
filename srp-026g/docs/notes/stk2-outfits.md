@@ -413,7 +413,7 @@ put on armor and pants, not balaclavas".
     put at the very waistline, under a jacket's hem, shows mirrored above it;
   - no camouflage until stk2-camo@1 (below): its bake needs the `_aoac` mask beside the diffuse map.
 
-## Camouflage (stk2-camo@1, 2026-11-26)
+## Camouflage (stk2-camo@1, 2026-11-26; @2, 2026-11-27)
 
 The owner, after the exoskeletons took one (exo-camo, `exo-suits.md`): "let's also add camo to other
 STK2" armour. The seven jackets and trousers (1822, 1864, 1865, 1868, 1870, 1873, 1874) take a
@@ -427,13 +427,29 @@ desert).
   set's `torso_diffuse` and `legs_diffuse` (the jacket's and the trousers' own surfaces, every
   length; the Novice's two jackets share one map), made as exo-camo's: the UV islands under the
   points `SETS` names and in them the cloth texels, not the straps and the much darker or brighter
-  details (seams, stripes, zips), not the boxes left bare (the loner's shoulder badges and an
-  emblem on his shirt, the Novice's chest logo); B and R keep the cloth's shading.
+  details (seams, stripes, zips, the belt); B and R keep the cloth's shading. A garment of one
+  cloth is painted whole, at any shade (the loner's hood, scarf, sleeves and knitted sweater, the
+  Novice's collar), the loner's shirt also where his vest's UV islands hold it (shoulders, sides,
+  hem: its light cloth there), and his shoulder badges are left bare by their own dark patches.
 - Painted: the bandit's leather jacket and sleeves (the hammer and sickle on the back is embossed
-  and shows through as relief) and his track pants; the loner's hooded shirt (sleeves, body, hood)
-  and camo trousers; the Novice's jacket and sleeves and his jeans.
-- Bare: the loner's vest, bags, holster and nuts bag, the bandit's T-shirt, shoulder straps and
-  forearms (other surfaces); the gloves, boots, the Novice's hood and backpack (other items, as
-  stock ones).
+  and shows through as relief) and his track pants; the loner's hooded shirt (sleeves, shoulders,
+  sides, hem, hood, scarf), his knitted sweater and camo trousers; the Novice's jacket, its sleeves,
+  back print and collar, and his jeans.
+- Bare: the loner's vest, its straps and buckles, his shoulder badges, bags, holster and nuts bag;
+  the bandit's T-shirt (on the jacket's own surface: a garment of its own), his shoulder straps and
+  forearms (other surfaces); the Novice's turtleneck under the collar and his belt; the gloves,
+  boots, the Novice's hood and backpack (other items, as stock ones).
+- @2 (the owner, 2026-11-27: the Novice's jacket "leaves a square at the back"; on the loner's,
+  "places where it doesn't apply at all, even though this is the same textile", "scarf is done not
+  fully"): @1 left three boxes bare that were not what they were taken for. The Novice's "chest
+  logo" was the faded stencil on his back, and the box cut across it; the loner's "emblem on his
+  shirt" was the front of his scarf (the scarf's inside at the throat is an island of its own,
+  which no point picked); and the badge boxes took the whole shoulder caps. @1 also painted no
+  cloth inside other islands (the loner's shirt in his vest's) and the darkness test, comparing
+  with the cloth within 24 texels, dropped the shaded folds of the hood, scarf and sleeves; the
+  Novice's collar is two islands no point picked. The two jackets' cloth is now compared within 8
+  texels (broad shading kept, thin details bare). The bandit's and the trousers' masks are @1's,
+  byte for byte. Checked on offline renders with the game's bake (front, back, three-quarter
+  close-ups of the neck and collar), the owner's picks (2026-11-27).
 - The models' file names are their own already (Decals, above): no bake is shared between sets.
 - Not yet seen in a game.
