@@ -275,6 +275,7 @@ fn world(name: &str) -> World {
         downloads: Arc::new(crate::Downloads::new(Vec::new(), None, None)),
         min_patch_revision: 0,
         replays: None,
+        bots: None,
         results: Arc::new(session::v026g::rewards::Results::new()),
         pools: crate::Pools::every_playable(),
     };

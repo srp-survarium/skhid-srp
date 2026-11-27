@@ -993,6 +993,8 @@ fn a_mod_and_a_defect_on_one_key_add_before_they_multiply() {
         data.modified(&[(2044, false)], "parameters/rounds_per_minute", 600.0),
         600.0
     );
+}
+
 /// The properties of the lobby's one order of a card's built-in lines
 /// (`BonusOrder.tsv`, `ItemInfoRenderer.inBonusOrder`), each once.
 fn lobby_bonus_order() -> Vec<u32> {

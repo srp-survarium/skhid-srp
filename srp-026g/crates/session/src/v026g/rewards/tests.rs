@@ -2077,6 +2077,9 @@ fn a_freeze_tag_round_restart_is_a_life_more_for_the_supplies_used() {
             magazine: None,
             slot: None,
         }],
+        hands_slot: None,
+        carried_weight: None,
+        carrying: None,
     });
     let used = |round_starts: u16| {
         let store = accounts(&players);
@@ -2175,6 +2178,9 @@ fn an_artefact_hunt_round_start_is_a_life_more_for_the_supplies_used() {
             magazine: None,
             slot: None,
         }],
+        hands_slot: None,
+        carried_weight: None,
+        carrying: None,
     });
     let used = |team_points: [u16; 2], round_starts: u16| {
         let store = accounts(&players);

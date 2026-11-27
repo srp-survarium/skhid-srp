@@ -53,6 +53,8 @@ impl Map {
             mapdata::CELL,
             Body::default(),
             &map.grid_seeds(),
+            // No pockets of spawns: the walk grid as it was before the bots branch's pockets (step 6).
+            &[],
         );
         Ok(Self {
             rays: RayTree::build(&walker),

@@ -728,6 +728,8 @@ pub(crate) mod live_kit {
                 kits,
                 items,
                 squad: 0,
+                face: Default::default(),
+                notice: Default::default(),
             },
             state,
         }

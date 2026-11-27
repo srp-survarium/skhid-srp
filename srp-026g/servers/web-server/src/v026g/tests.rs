@@ -2273,7 +2273,7 @@ fn the_bots_tab_previews_a_save_sets_it_on_apply_and_resets_after_a_confirm() {
     let off = world.admin(&[("tab", "bots")]);
     assert!(off.contains("The bots' tuning is not on this server."), "{off}");
     let desk = Arc::new(Desk::new());
-    world.web.game.as_mut().unwrap().bots = Some(desk.clone());
+    world.web.game.bots = Some(desk.clone());
     // Before the token: the tab, and nothing of the desk.
     let page = world.web.route(&get("/hidden"), "t").body;
     assert!(page.contains("id=tab-bots") && page.contains("Shown once the token is right."));

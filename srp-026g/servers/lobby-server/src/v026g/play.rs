@@ -34,7 +34,7 @@ use session::v026g::match_kind::MatchKind;
 use session::v026g::{Account, matchmaking, quests, rules, wire};
 use session::{Level, LockExt, MAX_PLAYERS_PER_MATCH, QueuePool, QueueState, Strength};
 use survarium::v026g::faces::{Face, Faces};
-use survarium::v026g::loadouts::{BotEquipment, BotRole, BotTier};
+use survarium::v026g::loadouts::{self, BotEquipment, BotRole, BotTier};
 use survarium::v026g::lobby::requests::id;
 use survarium::v026g::lobby::{self, ClientState, limits};
 use survarium::v026g::maps;

@@ -2099,7 +2099,7 @@ fn admin_extras_026g(
     tab: &dyn Fn(&str, String) -> String,
 ) -> (String, String) {
     let tabs = format!(
-        "{}{}{}{}{}{}",
+        "{}{}{}{}{}{}{}",
         tab("account", lang.t("Account")),
         tab("item", lang.t("Give item")),
         tab("items", lang.t("Take items")),

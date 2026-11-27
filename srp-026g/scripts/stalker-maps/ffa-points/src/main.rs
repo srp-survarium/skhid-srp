@@ -471,8 +471,8 @@ impl Descent {
             metres += (to - from).length();
             match kind {
                 LinkKind::Walk => {}
-                LinkKind::Drop => (drops, highest) = (drops + 1, highest.max(from.y - to.y)),
-                LinkKind::Jump => jumps += 1,
+                LinkKind::Drop | LinkKind::GapDrop => (drops, highest) = (drops + 1, highest.max(from.y - to.y)),
+                LinkKind::Jump | LinkKind::GapJump => jumps += 1,
             }
             let on = match arena::raised_at(to.x, to.y, to.z) {
                 Some(raised) => raised.to_string(),

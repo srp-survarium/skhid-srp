@@ -259,7 +259,7 @@ impl Config {
     /// left out with the file it lacks.
     pub fn with_built(self, built: BuiltMaps) -> Self {
         let map_files = MapFiles::Checked(built);
-        let bot_maps: Vec<u8> = self.bot_maps.iter().copied().filter(|&id| maps::map_mode(id).is_some_and(|map| map_files.ready(map).is_ok())).collect();
+        let bot_maps: Vec<MapId> = self.bot_maps.iter().copied().filter(|&id| maps::map_mode(id).is_some_and(|map| map_files.ready(map).is_ok())).collect();
         if self.enabled {
             let mut offered = Vec::new();
             for map in offered_maps().filter(|map| map.is_playable()) {
@@ -552,9 +552,9 @@ impl Core<'_> {
 
     /// [A197] `map_id` if its bots' built files are there, else the first offered map whose files are (the default map
     /// first); else why `map_id` has none.
-    fn pvb_map_with_files(&self, map_id: u8) -> Result<u8, String> {
+    fn pvb_map_with_files(&self, map_id: MapId) -> Result<MapId, String> {
         let files = &self.settings.pvb.map_files;
-        let ready = |id: u8| maps::map_mode(id).is_some_and(|map| map.is_playable() && files.ready(map).is_ok());
+        let ready = |id: MapId| maps::map_mode(id).is_some_and(|map| map.is_playable() && files.ready(map).is_ok());
         if ready(map_id) {
             return Ok(map_id);
         }

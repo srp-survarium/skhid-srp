@@ -159,7 +159,7 @@ impl Web {
     /// message says what changed, or why nothing did.
     pub(crate) fn admin_bots(&self, request: &Request, peer: &str) -> (String, BotsView) {
         let lang = request.lang;
-        let Some(desk) = self.game.as_ref().and_then(|game| game.bots.clone()) else {
+        let Some(desk) = self.game.bots.clone() else {
             let message = lang.tr(
                 "The bots' tuning is not on this server.",
                 "Налаштування ботів на цьому сервері немає.",
