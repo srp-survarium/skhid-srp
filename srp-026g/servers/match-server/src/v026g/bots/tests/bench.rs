@@ -2538,6 +2538,7 @@ pub(crate) fn real_bot_cost() {
                 let looks = bots.trap_look_outcomes();
                 eprintln!("  trap looks, team 0: {}", looks[0].line());
                 eprintln!("  trap looks, team 1: {}", looks[1].line());
+                eprintln!("  trap look halts: {}", crate::v026g::bots::traps::placing::halts_line());
                 eprintln!("  {}", bots.react_counts().line());
             }
             // [#2081 v6 measure] Each life that ended while placing: the look's record and its killer (the stand-in game's
