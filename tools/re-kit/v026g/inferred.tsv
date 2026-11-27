@@ -3726,3 +3726,7 @@ va	status	ref_021d	name
 0x00529110	inferred-medium		Scaleform::Render::FilterPrimitive::GetCacheResults
 0x005298c0	inferred-medium		Scaleform::Render::FilterPrimitive::SetCacheResults
 0x002ac6c0	inferred-high		survarium::particle_game_effect_presenter::effect_data::operator=
+0x00157fe0	inferred-medium		vostok::render::appended_material::appended_material [descriptive]
+0x001592e0	inferred-medium		vostok::render::appended_material::set_parameter [descriptive]
+0x00159350	inferred-medium		vostok::render::appended_material::apply_parameters [descriptive]
+0x00159ad0	inferred-medium		vostok::render::appended_material::apply_parameter [descriptive]

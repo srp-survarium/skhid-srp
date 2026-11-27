@@ -3,16 +3,19 @@
 //! while the optic's aimed model is, drawn in the colour and brightness the
 //! player chose.
 //!
-//! - A pattern is a static model of pack `weapon-modules` (`weapons/reticles_069/<name>`) and
-//!   its one material, asked for together ([`ask`], on the game's thread) and kept for the
-//!   process ([`Pattern`]).
+//! - A pattern is a static model of pack `weapon-modules` (`weapons/reticles_069/<name>`), asked
+//!   for ([`ask`], on the game's thread) and kept for the process with its surface's material
+//!   effects ([`Pattern`]).
 //! - The renderer recolours a model only through a material appended to it
 //!   (`scene_renderer::append_model_material` 0x24FE0): the forward stage
 //!   draws each surface with its own material and then with every appended
 //!   one (`stage_forward` 0x1AB4BB), the appended one's model parameters
 //!   (`set_model_material_parameter_impl` 0x24E60) set over its own constants
-//!   first (0x1AB545, 0x159350). So the pattern's material is appended to its
-//!   own model once ([`Shown::append`]), and the appended copy's emission is
+//!   first (0x1AB545, 0x159350). An appended material is a material effects
+//!   instance (the entry's +90Ch, which the stage asks for the surface's
+//!   vertex type, `get_material_effects` 0x16B070), the object a surface's
+//!   material is (render_surface +1Ch). So the pattern's own surface's is
+//!   appended to its model once ([`ReticleScene::append`]), and the appended copy's emission is
 //!   the shader constant `solid_color_specular` (forward_default's
 //!   `constant_emissive` times its multiplier, which its compile sends as one
 //!   float4: 0x1D9578..0x1D9652). The material's own multiplier is 0: the
@@ -35,7 +38,7 @@ use weapon_modules::Affine;
 use super::attachments::{self, WeaponId};
 use super::carry_runtime::Scene;
 use super::context::Context;
-use super::resources::{self, KeptMaterial, KeptModel, QueryCallback};
+use super::resources::{self, KeptModel, QueryCallback};
 use super::world::{floats, read};
 use super::Thread;
 use crate::raw;
@@ -71,24 +74,54 @@ pub struct Emitter(raw::RenderMaterialParameter);
 // through by us after its registration.
 unsafe impl Send for Emitter {}
 
-/// A pattern's model and its material, each one reference of ours, kept for
-/// the process.
+/// A pattern's model, one reference of ours kept for the process, and its
+/// one surface's material effects (the model holds them).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Pattern {
     model: KeptModel,
-    material: KeptMaterial,
+    effects: Effects,
 }
 
-/// What a query of [`ask`] brought: the pattern, or None when its model or
-/// material did not load.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct Effects(raw::MaterialEffectsInstance);
+
+// SAFETY: held alive by its model, which is kept for the process; only its
+// address is handed to the renderer.
+unsafe impl Send for Effects {}
+
+/// The most surfaces a pattern's model is asked for (it has one).
+const SURFACES: usize = 8;
+
+/// What a query of [`ask`] brought: the pattern, or None when its model did
+/// not load or has no surface with material effects.
 pub fn arrived(assets: &resources::ArrivedAssets) -> Option<Pattern> {
-    Some(Pattern { model: assets.model?, material: assets.material? })
+    let model = assets.model?;
+    let mut rooms = [const { raw::SurfaceSlotStorage::zeroed() }; SURFACES];
+    let mut vector = raw::SurfaceVectorStorage::zeroed();
+    // SAFETY: the model is ours, alive, its render instance a static
+    // model's; the vector is a buffer_vector over our rooms (begin, end,
+    // capacity), which get_all_surfaces pushes the instance's surfaces into
+    // as set_transform's own (0x158CD5..0x158CEA); a pushed slot is a live
+    // surface instance of the model, its render surface and its material
+    // effects the model's.
+    unsafe {
+        let instance = model.0.render_instance().instance()?;
+        let first = raw::SurfaceSlotStorage::first(&mut rooms)?;
+        let v = vector.handle();
+        v.set_begin(Some(first));
+        v.set_end(Some(first));
+        v.set_capacity(Some(first.at(SURFACES)));
+        raw::engine_model_surfaces(Some(instance), Some(v));
+        let pushed = v.end()?.index_from(first)?.min(SURFACES);
+        let effects = (0..pushed).find_map(|n| first.at(n).instance()?.surface()?.material_effects())?;
+        Some(Pattern { model, effects: Effects(effects) })
+    }
 }
 
-/// Asks for a pattern: its model and its material, which arrive at
-/// `callback` as [`resources::Arrived::Assets`] ([`arrived`]).
-pub fn ask(thread: &Thread, model: &CStr, material: &CStr, callback: QueryCallback) {
-    resources::query_model_material(thread, model, material, callback);
+/// Asks for a pattern's model, which arrives at `callback` as
+/// [`resources::Arrived::Assets`] ([`arrived`]).
+pub fn ask(thread: &Thread, model: &CStr, callback: QueryCallback) {
+    resources::query_assets(thread, model, &[], callback);
 }
 
 /// The emission constant of the appended material: the colour times the
@@ -247,7 +280,7 @@ impl ReticleScene<'_> {
         // material are held by us, the material's word read (and a reference
         // taken) before the call returns (0x25034).
         unsafe {
-            let mut material = Some(pattern.material.0);
+            let mut material = Some(pattern.effects.0);
             raw::engine_append_model_material(Some(self.scene.renderer()), Some(pattern.model.0.render_instance()), &mut material, APPENDED);
         }
     }
@@ -257,7 +290,7 @@ impl ReticleScene<'_> {
         // SAFETY: as append; the value is copied into the command before the
         // call returns (0x24F4A); the parameter's room is ours for the process.
         unsafe {
-            let mut material = Some(pattern.material.0);
+            let mut material = Some(pattern.effects.0);
             let value = emission.0;
             raw::engine_set_model_material_parameter(
                 Some(self.scene.renderer()),

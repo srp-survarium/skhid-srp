@@ -32,9 +32,6 @@ const GAME_EFFECT_CLASS: u32 = 109;
 /// system (their second, 0x3D at 0x25E862).
 const MODEL_CLASS: u32 = 15;
 const PARTICLE_CLASS: u32 = 61;
-/// A material (render_model_cook asks each surface's so, 0x123B80): what
-/// the scene renderer's append_model_material takes.
-const MATERIAL_CLASS: u32 = 30;
 /// A sound collection (sound_collection_cook: its class 102h, 0x5F4A3): a
 /// sound emitter that plays one of its items.
 pub const SOUND_COLLECTION_CLASS: u32 = 258;
@@ -55,14 +52,13 @@ const BUS_WORD: u32 = 0;
 const EFFECT_WORD: u32 = 1;
 const PARTICLES_WORD: u32 = 2;
 const ASSETS_WORD: u32 = 3;
-const MODEL_MATERIAL_WORD: u32 = 4;
 
 /// A track query's number, never a word of another tag (0 and 1).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Serial(NonZeroU32);
 
 impl Serial {
-    pub const FIRST: Serial = match NonZeroU32::new(MODEL_MATERIAL_WORD + 1) {
+    pub const FIRST: Serial = match NonZeroU32::new(ASSETS_WORD + 1) {
         Some(n) => Serial(n),
         None => panic!("the first serial is not 0"),
     };
@@ -74,8 +70,7 @@ impl Serial {
 }
 
 /// What a query was asked for: the word bound to its callback, read back
-/// when the callback comes (0 the music bus, 1 a game effect, 2 particle
-/// systems, 3 a model and its particles, 4 a model and a material, else a
+/// when the callback comes (0 the music bus, 1 a game effect, else a
 /// track's serial).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum QueryTag {
@@ -85,9 +80,6 @@ pub enum QueryTag {
     Particles,
     /// A model and its particles (patch 171's artefact).
     Assets,
-    /// A model and a material (the reticle's pattern and the material its
-    /// emission is set on), arriving as [`Arrived::Assets`].
-    ModelMaterial,
     Track(Serial),
 }
 
@@ -99,7 +91,6 @@ impl QueryTag {
             EFFECT_WORD => QueryTag::Effect,
             PARTICLES_WORD => QueryTag::Particles,
             ASSETS_WORD => QueryTag::Assets,
-            MODEL_MATERIAL_WORD => QueryTag::ModelMaterial,
             n => NonZeroU32::new(n).map_or(QueryTag::Bus, |n| QueryTag::Track(Serial(n))),
         }
     }
@@ -110,7 +101,6 @@ impl QueryTag {
             QueryTag::Effect => EFFECT_WORD,
             QueryTag::Particles => PARTICLES_WORD,
             QueryTag::Assets => ASSETS_WORD,
-            QueryTag::ModelMaterial => MODEL_MATERIAL_WORD,
             QueryTag::Track(serial) => serial.0.get(),
         }
     }
@@ -126,8 +116,7 @@ pub enum Arrived {
     Effects(ArrivedEffects),
     /// Particle systems, each kept for the process.
     Particles(ArrivedParticles),
-    /// A model and its particles, or a model and a material, each kept for
-    /// the process.
+    /// A model and its particles, each kept for the process.
     Assets(ArrivedAssets),
 }
 
@@ -142,12 +131,6 @@ pub const PARTICLES: usize = 5;
 pub struct KeptModel(pub(super) raw::SceneModel);
 // SAFETY: its count is atomic; kept for the process, used on the game's thread.
 unsafe impl Send for KeptModel {}
-
-/// A material of a query of ours, one reference kept for the process.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct KeptMaterial(pub(super) raw::RenderMaterial);
-// SAFETY: as KeptModel.
-unsafe impl Send for KeptMaterial {}
 
 /// A particle system of a query of ours, one reference kept for the process.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -173,14 +156,11 @@ impl ArrivedParticles {
     }
 }
 
-/// What an assets query brought (None: that one failed): a model with its
-/// particles ([`query_assets`]: no material), or with a material
-/// ([`query_model_material`]: no particles).
+/// What an assets query brought (None: that one failed).
 #[derive(Clone, Copy)]
 pub struct ArrivedAssets {
     pub model: Option<KeptModel>,
     pub particles: [Option<KeptParticle>; PARTICLES],
-    pub material: Option<KeptMaterial>,
 }
 
 /// The most game effects one query asks for.
@@ -251,7 +231,7 @@ impl<'t> QueryResults<'t> {
                 // for each after it (the classes asked), alive for the
                 // callback; one reference of ours each, kept for the process.
                 QueryTag::Assets => {
-                    let mut arrived = ArrivedAssets { model: None, particles: [None; PARTICLES], material: None };
+                    let mut arrived = ArrivedAssets { model: None, particles: [None; PARTICLES] };
                     if let Some(results) = first {
                         let count = *results.count() as usize;
                         arrived.model = results.results().at(0).model().map(|model| {
@@ -264,24 +244,6 @@ impl<'t> QueryResults<'t> {
                                 KeptParticle(particle)
                             });
                         }
-                    }
-                    Arrived::Assets(arrived)
-                }
-                // SAFETY: a model for the first request and a material for
-                // the second (the classes asked), alive for the callback; one
-                // reference of ours each (their counts at +D0h, atomic), kept
-                // for the process.
-                QueryTag::ModelMaterial => {
-                    let mut arrived = ArrivedAssets { model: None, particles: [None; PARTICLES], material: None };
-                    if let Some(results) = self.results.filter(|results| *results.count() == 2) {
-                        arrived.model = results.results().at(0).model().map(|model| {
-                            AtomicU32::from_ptr(model.references()).fetch_add(1, Ordering::AcqRel);
-                            KeptModel(model)
-                        });
-                        arrived.material = results.results().at(1).material().map(|material| {
-                            AtomicU32::from_ptr(material.references()).fetch_add(1, Ordering::AcqRel);
-                            KeptMaterial(material)
-                        });
                     }
                     Arrived::Assets(arrived)
                 }
@@ -385,27 +347,6 @@ pub fn query_assets(_: &Thread, model: &CStr, particles: &[&CStr], callback: Que
     }
 }
 
-/// Asks for a model (class 15) and a material (class 30, its path as a
-/// model's settings name it) in one query; they arrive together as
-/// [`Arrived::Assets`], with no particles.
-pub fn query_model_material(_: &Thread, model: &CStr, material: &CStr, callback: QueryCallback) {
-    let mut requests = [const { raw::ResourceRequestStorage::zeroed() }; 2];
-    let mut function = raw::QueryFunctionStorage::zeroed();
-    // SAFETY: two contiguous requests {path, class} and no user data, as
-    // query_assets asks, copied by query_resources before it returns.
-    unsafe {
-        for (request, (path, class)) in requests.iter_mut().zip([(model, MODEL_CLASS), (material, MATERIAL_CLASS)]) {
-            let r = request.handle();
-            r.set_path(path.as_ptr().cast_mut().cast());
-            *r.class() = class;
-        }
-        let f = function.handle();
-        raw::engine_bind_query_callback(Some(f), callback.entry(), QueryTag::ModelMaterial.word());
-        let allocator = raw::image::game_allocator().allocator();
-        raw::engine_query_one(Some(requests[0].handle()), 2, Some(f), allocator, None, null(), ASYNCHRONOUS);
-    }
-}
-
 /// Asks for the game effects `names` in one query (class 109 each:
 /// gameplay/effects/effect_<name>); they arrive together, in this order.
 pub fn query_effects<const N: usize>(_: &Thread, names: &[&CStr; N], callback: QueryCallback) {
@@ -482,7 +423,6 @@ mod tests {
         assert_eq!(QueryTag::from_raw(QueryTag::Bus.word()), QueryTag::Bus);
         assert_eq!(QueryTag::from_raw(QueryTag::Particles.word()), QueryTag::Particles);
         assert_eq!(QueryTag::from_raw(QueryTag::Assets.word()), QueryTag::Assets);
-        assert_eq!(QueryTag::from_raw(QueryTag::ModelMaterial.word()), QueryTag::ModelMaterial);
         let serial = Serial::FIRST.next().next();
         assert_eq!(QueryTag::from_raw(QueryTag::Track(serial).word()), QueryTag::Track(serial));
     }

@@ -2016,11 +2016,17 @@ vostok::render::blend_record	size	0x20	size	one record a render target, eight of
 vostok::render::probe_loop_frame	scene_view	0x44	ptr<vostok::render::scene_view>	[esp+44h]: the frame's scene view (renderer context +4170h, 0x1809C1), its sorted probes at +16CF4h
 vostok::render::scene_view	sorted_probes	0x16CF4	ptr<vostok::render::probe_slot>	the frame's visible probes, sorted largest radius first (stage_visibility::execute_stage 0x1B6B54), their end at +16CF8h: render_environment_probes draws them in this order (0x180B54)
 vostok::render::scene_view	mie_fog_base_height	0x280	f32	the environment's mie_fog_base_height (environment +168h, load_environment_properties_impl 0x34ED38; the frame's atmosphere_parameters3.w, 0x14A00E): the content's scene markers ride in it (0.21 ports -32022..-32291, London 329xx, a 0.69d map's exposure profile 33000 + its 0.69d level, 33100 the 0.69d lobby room; three-maps-021-lighting)
-vostok::query_result	material	0x0	ptr<vostok::render::render_material>	the result's resource for a class 30 request, a material (render_model_cook asks each surface's so, 0x123B80; the scene renderer's append_model_material 0x24FE0 takes one, the player's appended sphere material +F294h at 0x1F23AC)
-vostok::render::render_material	references	0xD0	u32	its reference count (append_model_material takes one, lock xadd at 0x2503C; released by 0xE0210)
 vostok::render::render_material_parameter	id	0x0	u32	the shader constant's id, written by the render thread when the parameter is registered (world::register_material_parameter 0x1185E9; 0x3C8BC0 looks the name up)
 vostok::render::render_material_parameter	name	0x4	ptr<u8>	the shader constant's name, a C string kept for the process (the player's sphere_color, 0x1F1CC7)
 vostok::render::render_material_parameter	kind	0x8	u32	the value's type: 1 float4, 2 float3, 4 float (the player's handles, 0x1F1C4C..0x1F1D44)
 vostok::render::render_material_parameter	size	0xC	size	{id, name, kind}: the player keeps three in the allocator's memory for its life (+F484h..+F494h); register_material_parameter's command and set_model_material_parameter's keep its address
 survarium::lobby_dispatch_frame	reader	0xC	ptr<vostok::buffer_reader>	lobby_client::on_message_received's second argument ([ebp+0Ch], by its frame pointer): the message's reader, its cursor at the body (the 0x82 case reads its first field there, 0x274A46)
 survarium::setup_inventory_frame	object	-0x6C	obj<scaleform::gfx_value>	[ebp-6Ch]: the inventory item's AS3 object (CreateObject 0x28864C), filled by 0x287E30, put into the items' array at 0x288693 and released at 0x2886B0
+vostok::render::render_surface	material_effects	0x1C	ptr<vostok::render::material_effects_instance>	its material's effects, compiled for its vertex type (stage_forward::render_forward_models 0x1AB444 reads it, get_material_effects 0x16B070 by the surface's +48h)
+vostok::render::material_effects_instance	references	0xD0	u32	its reference count (append_model_material takes one, lock xadd at 0x2503C; the appended entry +90Ch keeps it, 0x158002)
+vostok::render::surface_slot	instance	0x0	ptr<vostok::render::render_surface_instance>	one surface of a model instance, what get_all_surfaces 0x159700 pushes (set_transform 0x158D00 walks them)
+vostok::render::surface_slot	size	0x4	size	a pointer
+vostok::render::surface_vector	begin	0x0	ptr<vostok::render::surface_slot>	a buffer_vector of surface instances over a caller's room, as set_transform's alloca (0x158CD5..0x158CE2): the first
+vostok::render::surface_vector	end	0x4	ptr<vostok::render::surface_slot>	past the last pushed
+vostok::render::surface_vector	capacity	0x8	ptr<vostok::render::surface_slot>	past the room
+vostok::render::surface_vector	size	0xC	size	{begin, end, capacity}

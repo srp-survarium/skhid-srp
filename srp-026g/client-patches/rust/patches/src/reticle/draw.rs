@@ -30,8 +30,6 @@ use crate::vostok::{Context, Flow, Lock, NoExit, Thread};
 
 /// The patterns kept at once: every pattern of every scope's list (0.69d0 has ten).
 const MOST: usize = 16;
-/// The pattern models' one material (pack `weapon-modules`), as their settings name it.
-const MATERIAL: &CStr = c"weapons/reticles_069/reticle";
 /// The emission's multiplier for each brightness: 6, 0.69d0's default, is the players' collimator
 /// emitter's (20); each step is a factor of the square root of two, so 0 is an eighth of it and
 /// 10 four times.
@@ -224,13 +222,16 @@ fn wanted(gun: &DrawnGun<'_>) -> Option<Want> {
     })
 }
 
-/// The optic's `aim` place in its model's frame: the modules table's, the same in every slot it
-/// takes (the porter refuses a collimator with two).
+/// The optic's `aim` place in its model's frame: the modules table's locator, the same in every
+/// slot it takes (the porter refuses a collimator with two). Its origin is where 0.69d0 draws the
+/// reticle (the optic's `reticle` slot) and where the players' dot was baked; its axes are the
+/// eye's, which the camera takes (a locator's frame on its slot is the locator after a half turn
+/// about y, `Placement::child`): the pattern stands upright and unmirrored before the eye.
 fn aim_place(thread: &Thread, gun: DictId, dict: DictId, kind: Kind) -> Option<Affine> {
     let module = attachments::modules(thread)?.gun(gun)?.fit(dict, kind)?;
     let eye = module.attaches().find_map(|attach| attach.eye())?;
-    let (AttachEye::Own(aim) | AttachEye::InGunPlane(aim)) = eye;
-    Some(aim)
+    let (AttachEye::Own(locator) | AttachEye::InGunPlane(locator)) = eye;
+    Some(Affine { t: locator.t, ..locator.then(&Affine::HALF_TURN) })
 }
 
 fn run(scene: &ReticleScene<'_>, emitter: &mut Option<Emitter>, steps: Steps<Pattern>) {
@@ -305,7 +306,7 @@ pub fn weapon_hidden(thread: &Thread, weapon: WeaponId, scene: &ReticleScene<'_>
 pub fn on_tick(ctx: &mut Context<'_>) -> Flow<NoExit> {
     let thread = ctx.thread();
     if let Some(model) = RETICLES.with(thread, |reticles| reticles.patterns.next_ask()) {
-        reticle::ask(thread, model, MATERIAL, crate::vostok::reticle_on_loaded_entry());
+        reticle::ask(thread, model, crate::vostok::reticle_on_loaded_entry());
     }
     Flow::Continue
 }

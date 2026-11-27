@@ -170,14 +170,14 @@ va	name	location	role	basis
 0x00024d30	vostok::render::scene_renderer::register_material_parameter	stack+8	material parameter host pointer captured in callback	inferred
 0x00024e60	vostok::render::scene_renderer::set_model_material_parameter_impl	stack+4	scene_renderer receiver	inferred
 0x00024e60	vostok::render::scene_renderer::set_model_material_parameter_impl	stack+8	render-model resource reference	inferred
-0x00024e60	vostok::render::scene_renderer::set_model_material_parameter_impl	stack+12	material resource reference	inferred
+0x00024e60	vostok::render::scene_renderer::set_model_material_parameter_impl	stack+12	material effects instance reference (the appended entry's +90Ch it matches, 0x159572)	observed
 0x00024e60	vostok::render::scene_renderer::set_model_material_parameter_impl	stack+16	material selector/index captured by binder in EDX	inferred
 0x00024e60	vostok::render::scene_renderer::set_model_material_parameter_impl	stack+20	material parameter host pointer captured by binder in ECX	inferred
 0x00024e60	vostok::render::scene_renderer::set_model_material_parameter_impl	stack+24	parameter data source bytes	inferred
 0x00024e60	vostok::render::scene_renderer::set_model_material_parameter_impl	stack+28	parameter byte count	inferred
 0x00024fe0	vostok::render::scene_renderer::append_model_material	stack+4	scene_renderer receiver	inferred
 0x00024fe0	vostok::render::scene_renderer::append_model_material	stack+8	render-model resource reference	inferred
-0x00024fe0	vostok::render::scene_renderer::append_model_material	stack+12	material resource reference	inferred
+0x00024fe0	vostok::render::scene_renderer::append_model_material	stack+12	material effects instance reference (kept at the appended entry's +90Ch, 0x158002; a surface's render_surface +1Ch)	observed
 0x00024fe0	vostok::render::scene_renderer::append_model_material	stack+16	material selector/index	inferred
 0x00025140	vostok::render::scene_renderer::remove_model_material	stack+4	scene_renderer receiver	inferred
 0x00025140	vostok::render::scene_renderer::remove_model_material	stack+8	render-model resource reference	inferred
