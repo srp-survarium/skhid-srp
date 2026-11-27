@@ -441,21 +441,38 @@ impl Movie<'_> {
     }
 }
 
+/// Up to this many Numbers in one Invoke of a list ([`Movie::invoke_number_list`]).
+pub const MAX_NUMBERS: usize = 128;
+
 impl Movie<'_> {
     /// GFx Numbers (type 5, an f64 each), every one (the room is sized by
     /// their count); whether the movie took them.
     pub fn invoke_numbers<const N: usize>(&self, method: &CStr, values: &[f64; N]) -> bool {
         let mut arguments = [const { raw::GfxValueStorage::zeroed() }; N];
-        for (room, &value) in arguments.iter_mut().zip(values) {
-            let gfx = room.handle();
-            let bits = value.to_bits();
-            // SAFETY: our own value: its type and the f64's two words.
-            unsafe {
-                *gfx.kind() = GFX_NUMBER;
-                *gfx.value() = bits as u32;
-                *gfx.value_high() = (bits >> 32) as u32;
-            }
-        }
+        number_values(&mut arguments, values);
         self.invoke(method, &mut arguments)
+    }
+
+    /// GFx Numbers of a list of any length up to [`MAX_NUMBERS`] (the rest
+    /// left out); whether the movie took them.
+    pub fn invoke_number_list(&self, method: &CStr, values: &[f64]) -> bool {
+        let mut arguments = [const { raw::GfxValueStorage::zeroed() }; MAX_NUMBERS];
+        let count = values.len().min(MAX_NUMBERS);
+        number_values(&mut arguments[..count], &values[..count]);
+        self.invoke(method, &mut arguments[..count])
+    }
+}
+
+/// Each room the Number of its value.
+fn number_values(rooms: &mut [raw::GfxValueStorage], values: &[f64]) {
+    for (room, &value) in rooms.iter_mut().zip(values) {
+        let gfx = room.handle();
+        let bits = value.to_bits();
+        // SAFETY: our own value: its type and the f64's two words.
+        unsafe {
+            *gfx.kind() = GFX_NUMBER;
+            *gfx.value() = bits as u32;
+            *gfx.value_high() = (bits >> 32) as u32;
+        }
     }
 }

@@ -729,11 +729,32 @@ impl Asked<'_> {
 ///
 /// # Safety
 /// `weapon` is a live client weapon.
-unsafe fn shown(weapon: raw::Weapon) -> Option<(u8, u8)> {
+pub(super) unsafe fn shown(weapon: raw::Weapon) -> Option<(u8, u8)> {
     // SAFETY: the caller's; its model holder and instance are its own.
     unsafe {
         let instance = weapon.model()?.render_instance().instance()?;
         (read(instance.in_scene()) != 0).then(|| (read(instance.foreground()), read(instance.movable())))
+    }
+}
+
+/// The bones of a weapon's model (its skeleton render model's inverse
+/// binds, one a bone): a locator record's bone must be below it, the game
+/// indexes the bones by it unchecked. None for a model that is no skeleton
+/// model's instance.
+///
+/// # Safety
+/// `weapon` is a live client weapon.
+pub(super) unsafe fn model_bones(weapon: raw::Weapon) -> Option<usize> {
+    // SAFETY: the caller's; the weapon's model holder and render instance
+    // are its own, set by load_weapon (0x243A9A); a skeleton instance by its
+    // vtable, its original model immutable.
+    unsafe {
+        let skeleton = weapon.model()?.render_instance().instance()?.skeleton();
+        if read(skeleton.vtable()) != raw::image::SKELETON_INSTANCE_VTABLE {
+            return None;
+        }
+        let original = skeleton.original()?;
+        original.inverse_binds_end()?.index_from(original.inverse_binds()?)
     }
 }
 
@@ -930,17 +951,8 @@ impl<'t> Records<'t> {
     /// game indexes the bones by it unchecked. None for a model that is no
     /// skeleton model's instance.
     pub fn bones(&self) -> Option<usize> {
-        // SAFETY: the weapon's model holder and render instance are its
-        // own, set by load_weapon (0x243A9A); a skeleton instance by its
-        // vtable, its original model immutable.
-        unsafe {
-            let skeleton = self.weapon.model()?.render_instance().instance()?.skeleton();
-            if read(skeleton.vtable()) != raw::image::SKELETON_INSTANCE_VTABLE {
-                return None;
-            }
-            let original = skeleton.original()?;
-            original.inverse_binds_end()?.index_from(original.inverse_binds()?)
-        }
+        // SAFETY: the site's live weapon.
+        unsafe { model_bones(self.weapon) }
     }
 
     /// # Safety

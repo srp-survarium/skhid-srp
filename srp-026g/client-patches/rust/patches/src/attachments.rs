@@ -20,7 +20,9 @@
 //!   left hand's fingers, all data the game filled once from the weapon's
 //!   model and written again here;
 //! - `on_draw`, `on_culled`, `on_hidden` (weapon::draw, a culled player's
-//!   weapon, on_hide): the parts in the scene with the weapon's model;
+//!   weapon, on_hide): the parts in the scene with the weapon's model; and
+//!   for the gun the lobby shows above the bench, the lobby movie told
+//!   where its slots are on the screen ([`markers`]);
 //! - `on_hands` (weapon::activate, after it filled the hand IK's records):
 //!   the left hand's place;
 //! - `on_fingers_view` (the game refills the fingers when the user's view
@@ -37,6 +39,7 @@
 
 #![forbid(unsafe_code)]
 
+pub(crate) mod markers;
 pub(crate) mod sights;
 pub(crate) mod view;
 pub use sights::{on_scope_view, on_sight_eye, on_sight_zoom};
@@ -179,6 +182,7 @@ pub fn on_loaded(ctx: &mut Context<'_>) -> Flow<NoExit> {
 /// weapon::draw after the weapon model's update (0x245017).
 pub fn on_draw(ctx: &mut Context<'_>) -> Flow<NoExit> {
     attachments::draw(ctx, || sights::shown(ctx));
+    markers::on_draw(ctx);
     Flow::Continue
 }
 
