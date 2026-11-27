@@ -2106,6 +2106,8 @@ impl WalkGrid {
             }
         }
         clock.lap("walk check's cut (reach)");
+        // [later bridges] The links as the walk check left them, for the bridges after the passes that cut.
+        let side_links = body.client_controller.then(|| controlled::SideLinks::of(&wide));
         // [bot traps, ledge line-up] The low risers no walk gets up: a riser where a press lands, else marked. After the walk
         // check (its cut and its marks, which it sets whole) and the risers' flight (with the rim jumps' presses).
         if let Some(world) = world.filter(|_| body.walk_gait && body.rim_jumps && gaps) {
@@ -2161,6 +2163,12 @@ impl WalkGrid {
             (stats.drops_unfollowed, stats.drops_unfollowed_kept) = grid.cut_keeping_reach(&mut wide, failing, seeds, spawns, true, false);
         }
         clock.lap("drop check's cut (reach)");
+        // [later bridges] A crack the bridge pass skipped for the link it had across it, which a pass since cut, is bridged now
+        // where the body walks over it.
+        if let Some(before) = side_links {
+            (stats.controlled.bridges_later_tried, stats.controlled.bridges_later) = grid.later_bridges(&mut wide, triangles, shapes, &before);
+        }
+        clock.lap("later bridges");
         // [body physics S5b] R1: each stored press's P on the take-off's side, before the reach flood (it drops and re-presses links).
         if let Some(world) = world.filter(|_| gaps && !wide.off.is_empty()) {
             stats.r1 = grid.take_off_side_presses(&mut wide, world, &s);

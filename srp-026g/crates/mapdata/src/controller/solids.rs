@@ -279,18 +279,87 @@ fn local_box(transform: &Transform, world: &Box3) -> Box3 {
     ([0, 1, 2].map(|i| c[i] - e[i]), [0, 1, 2].map(|i| c[i] + e[i]))
 }
 
-/// Whether a mesh's triangle (`v`, in the mesh's frame) under `transform` is wholly outside the box `near` of the
-/// world; `near_local` is a box of the mesh's frame that holds `near`.
-fn out_of_reach(transform: &Transform, triangle: &MeshTriangle, near: &Box3, near_local: &Box3) -> bool {
+/// A mesh's triangle (`v`, in the mesh's frame) under `transform`, placed in the world, unless it is wholly outside the
+/// box `near` of the world (none); `near_local` is a box of the mesh's frame that holds `near`.
+fn in_reach(transform: &Transform, triangle: &MeshTriangle, near: &Box3, near_local: &Box3) -> Option<[V3; 3]> {
     let v = &triangle.v;
     if (0..3).any(|i| {
         v[0][i].min(v[1][i]).min(v[2][i]) > near_local.1[i] || v[0][i].max(v[1][i]).max(v[2][i]) < near_local.0[i]
     }) {
-        return true;
+        return None;
     }
     let b = &transform.basis;
     let placed = v.map(|p| [0, 1, 2].map(|r| (b[r][0] * p[0] + b[r][1] * p[1]) + b[r][2] * p[2] + transform.origin[r]));
-    clear_of(&placed, near)
+    (!clear_of(&placed, near)).then_some(placed)
+}
+
+/// [lip tris] The way a round shape sweeps (a capsule or a sphere), in Bullet's frame: the ends of its core segment at the
+/// start and at the end of the way, and its radius (the core's distance to its surface). Its swept volume is the hull of
+/// the four points grown by the radius (a capsule moved along a line is the hull of its start and its end).
+#[derive(Clone, Copy, Debug)]
+struct SweptRound {
+    points: [[f64; 3]; 4],
+    radius: f64,
+}
+
+impl SweptRound {
+    /// The sweep of `shape` by `by` (the map frame); none for a cylinder (its core is no segment).
+    fn of(shape: Shape, by: Vec3) -> Option<Self> {
+        let (low, high, radius) = match shape {
+            Shape::CapsuleAt { centre, radius, half_height } => {
+                let up = Vec3::new(0.0, half_height, 0.0);
+                (centre - up, centre + up, radius)
+            }
+            Shape::Capsule(c) => (c.low, c.high, c.radius),
+            Shape::Sphere { centre, radius } => (centre, centre, radius),
+            Shape::Cylinder { .. } => return None,
+        };
+        let point = |p: Vec3| flip(p.to_array()).map(f64::from);
+        Some(Self { points: [point(low), point(high), point(low + by), point(high + by)], radius: f64::from(radius) })
+    }
+
+    /// Whether the swept volume is over [`CLEAR_M`] from the triangle `v` (placed, Bullet's frame) by one of its axes: the
+    /// triangle's normal, an edge crossed with it (in its plane, across the edge), with the core's axis or with the way, or
+    /// the core's axis crossed with the way (any axis bounds the distance from below). On an axis the volume reaches from
+    /// its points' least projection less the radius to their greatest plus the radius; a gap between that and the
+    /// triangle's own projection is a lower bound of the distance between the two. A cast whose shape stays over
+    /// [`CLEAR_M`] from the triangle at every point of its way is a miss (as a triangle outside the grown box, [`CLEAR_M`]).
+    fn clear_of(&self, v: &[V3; 3]) -> bool {
+        let v = v.map(|p| p.map(f64::from));
+        let sub = |a: &[f64; 3], b: &[f64; 3]| [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
+        let cross = |a: &[f64; 3], b: &[f64; 3]| [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
+        let dot = |a: &[f64; 3], b: &[f64; 3]| a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+        let edges = [sub(&v[1], &v[0]), sub(&v[2], &v[1]), sub(&v[0], &v[2])];
+        let normal = cross(&edges[0], &edges[1]);
+        let gap = f64::from(CLEAR_M);
+        let separates = |axis: [f64; 3]| {
+            let length = dot(&axis, &axis).sqrt();
+            // A degenerate axis (a triangle of no area, an edge of no length) separates nothing.
+            if length <= 1e-9 {
+                return false;
+            }
+            let axis = axis.map(|a| a / length);
+            let (mut t_lo, mut t_hi) = (f64::INFINITY, f64::NEG_INFINITY);
+            for p in &v {
+                let d = dot(p, &axis);
+                (t_lo, t_hi) = (t_lo.min(d), t_hi.max(d));
+            }
+            let (mut s_lo, mut s_hi) = (f64::INFINITY, f64::NEG_INFINITY);
+            for p in &self.points {
+                let d = dot(p, &axis);
+                (s_lo, s_hi) = (s_lo.min(d), s_hi.max(d));
+            }
+            s_lo - self.radius > t_hi + gap || s_hi + self.radius < t_lo - gap
+        };
+        // Then the swept volume's own directions: its core's axis (up) and its way, each crossed with an edge, and the two
+        // crossed (the plane the core sweeps).
+        let up = [0.0, 1.0, 0.0];
+        let way = sub(&self.points[2], &self.points[0]);
+        separates(normal)
+            || edges.iter().any(|e| separates(cross(e, &normal)))
+            || edges.iter().any(|e| separates(cross(&up, e)) || separates(cross(&way, e)))
+            || separates(cross(&up, &way))
+    }
 }
 
 /// A triangle of a mesh placed in the map frame, as a face (its normal zero for a degenerate one).
@@ -713,6 +782,8 @@ impl Solids {
         let (lo, hi) = (lo0.min(lo1) - pad, hi0.max(hi1) + pad);
         let swept: Box3 = ([lo.x, lo.y, -hi.z], [hi.x, hi.y, -lo.z]);
         let near = grown(&swept, CLEAR_M);
+        // [lip tris] The swept volume itself, for the triangles inside the grown box.
+        let round = SweptRound::of(shape, by);
         // [L36] Each compound's query volume, made once per sweep ([`cast_volume`]).
         let mut volumes: Vec<(u32, Box3)> = Vec::new();
         self.tree.each_in(&swept, |i| {
@@ -766,7 +837,11 @@ impl Solids {
                     let near_local = grown(&query, CLEAR_M);
                     mesh.tree.each_in(&query, |k| {
                         let triangle = &mesh.triangles[k];
-                        if out_of_reach(&leaf.transform, triangle, &near, &near_local) {
+                        let Some(corners) = in_reach(&leaf.transform, triangle, &near, &near_local) else {
+                            return;
+                        };
+                        // [lip tris] Over CLEAR_M from the swept volume: the cast is a miss (as outside the grown box).
+                        if round.is_some_and(|round| round.clear_of(&corners)) {
                             return;
                         }
                         // A mesh's margin is 0 (the game's `btBvhTriangleMeshShape`), the callback's fraction 1.
@@ -1065,6 +1140,54 @@ mod tests {
             assert!(MeshTriangle::new([[bad, 0.0, 0.0], far[1], far[2]], WalkerBehaviour::Walk).is_none());
             assert!(MeshTriangle::new([far[0], far[1], [5.0, 1.0, bad]], WalkerBehaviour::Walk).is_none());
         }
+    }
+
+    /// [lip tris] Every triangle the swept round's test calls clear is a miss of the exe's cast, over sweeps whose triangles
+    /// lie about them (many hit); and the test tells a floor 0.03 m under a capsule's way (clear) from one 0.01 m under it.
+    #[test]
+    fn a_triangle_clear_of_a_swept_round_is_a_miss() {
+        let mut dice = Dice(23);
+        let (mut clear, mut hits) = (0, 0);
+        for round in 0..20_000 {
+            let centre = Vec3::from_array(dice.point(2.0));
+            let by = Vec3::from_array(dice.point(if round % 3 == 0 { 2.5 } else { 0.4 }));
+            let shape = match round % 3 {
+                0 => Shape::Sphere { centre, radius: 0.3 },
+                _ => Shape::CapsuleAt { centre, radius: 0.38, half_height: 0.52 },
+            };
+            let about = flip((centre + by * dice.roll()).to_array());
+            let size = if round % 5 == 0 { 4.0 } else { 0.9 };
+            let near = dice.point(1.4);
+            let v = [0, 1, 2].map(|_| {
+                let p = dice.point(size);
+                [about[0] + near[0] + p[0], about[1] + near[1] + p[1], about[2] + near[2] + p[2]]
+            });
+            let swept = SweptRound::of(shape, by).expect("a round shape");
+            let mut cast = exe_cast_of(shape, by);
+            cast.from = flip(cast.from);
+            cast.by = flip(cast.by);
+            let end = exe_cast::cast_triangle(&cast, &exe_gjk::Triangle(v), 0.0, &IDENTITY, 0.0, 1.0);
+            if let CastEnd::Hit { .. } = end {
+                hits += 1;
+            }
+            if swept.clear_of(&v) {
+                clear += 1;
+                assert!(matches!(end, CastEnd::Miss), "{shape:?} by {by:?} {v:?}: {end:?}");
+            }
+        }
+        assert!(clear > 10_000 && hits > 2_000, "{clear} clear, {hits} hits");
+
+        // A capsule walking 1 m along x over a floor at y 0 (Bullet's frame is the map's with z negated).
+        let walk = |gap: f32| {
+            let shape = Shape::CapsuleAt { centre: Vec3::new(0.0, 0.38 + 0.52 + gap, 0.0), radius: 0.38, half_height: 0.52 };
+            SweptRound::of(shape, Vec3::new(1.0, 0.0, 0.0)).expect("a capsule")
+        };
+        let floor = [[-2.0, 0.0, -2.0], [3.0, 0.0, -2.0], [0.0, 0.0, 3.0]];
+        assert!(walk(0.03).clear_of(&floor));
+        assert!(!walk(0.01).clear_of(&floor));
+        // Beside the way, past its end on x: clear by the triangle's edge.
+        assert!(walk(0.0).clear_of(&[[1.5, -1.0, -1.0], [1.5, 1.0, 1.0], [3.0, 0.0, 0.0]]));
+        assert!(SweptRound::of(Shape::Cylinder { centre: Vec3::ZERO, half: 0.5, radius: 0.3, margin: 0.04 }, Vec3::ZERO).is_none());
     }
 
     /// A sweep over a turned and moved mesh reports the hits that casting every one of its triangles gives, to the
