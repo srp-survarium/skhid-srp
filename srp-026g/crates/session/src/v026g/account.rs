@@ -347,7 +347,7 @@ impl Account {
             room_settings: None,
             mode_introductions: Default::default(),
             drop_cards: Vec::new(),
-            presets: [None; super::presets::PRESETS],
+            presets: [const { None }; super::presets::PRESETS],
             active_preset: super::presets::FIRST_PRESET,
             face: Face::DEFAULT,
         };
@@ -716,7 +716,7 @@ impl Account {
     pub fn change_skills(&mut self, skills: Vec<(u16, u8)>, tree: &SkillsTree) {
         let skills_before = std::mem::replace(&mut self.skills, skills);
         let kits_before: Vec<KitPerks> = self.kits.iter().map(|kit| kit.perks).collect();
-        let presets_before = self.presets.map(|preset| preset.map(|preset| preset.perks));
+        let presets_before = self.presets.each_ref().map(|preset| preset.as_ref().map(|preset| preset.perks));
         self.forget_perk_slots();
         let modifiers_of = |skills: &[(u16, u8)], perks: KitPerks| tree.modifiers(&perks.skills_taken(skills));
         for (index, &perks_before) in kits_before.iter().enumerate() {
@@ -735,7 +735,7 @@ impl Account {
             kit.slots = slots;
             kit.revision = kit.revision.wrapping_add(1);
         }
-        let mut presets = self.presets;
+        let mut presets = self.presets.clone();
         for (preset, before) in presets.iter_mut().zip(presets_before) {
             let (Some(preset), Some(perks_before)) = (preset, before) else {
                 continue;
@@ -1851,7 +1851,7 @@ mod tests {
         account.change_skills(vec![(DEEP_POCKETS, 1)], &tree);
         assert_eq!(account.kits[0].perks, declined(SlotPerk::WeaponPocket));
         assert!(account.kits[1..].iter().all(|kit| kit.perks == KitPerks::default()));
-        assert_eq!(account.presets[1].map(|preset| preset.is_empty()), Some(true));
+        assert_eq!(account.presets[1].as_ref().map(Preset::is_empty), Some(true));
 
         // A saved account with a choice and no skill (an admin's refund) is repaired so too.
         account.kits[2].perks = declined(CONTAINER);
