@@ -40,6 +40,11 @@ if out=$(python3 -I "$here/test_memory_budget.py" 2>&1); then echo "ok   the mem
     echo "FAIL the memory budget (test_memory_budget.py): $out"
     exit 1
 fi
+# build-content's compaction of binary configs (config_compact.py): the same tree, no unreached bytes.
+if out=$(python3 -I "$here/test_config_compact.py" 2>&1); then echo "ok   the configs' compaction (test_config_compact.py)"; else
+    echo "FAIL the configs' compaction (test_config_compact.py): $out"
+    exit 1
+fi
 
 bin=${SRP_GAME_DATA_BIN:-$root/srp-026g/target/release/srp-game-data}
 if [[ ! -x $bin ]]; then
