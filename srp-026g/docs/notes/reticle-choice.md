@@ -5,8 +5,18 @@ owner (2026-11-27): "implement dot modification for scopes like 0.69 had it"; "d
 sizes, patterns"; "you set it on a scope, which then applies to every weapon which has this scope".
 Tags: PROVEN (read in the data or code named), LIKELY, OPEN, [srp] our choice.
 
-Status: research and a proposed design. Nothing is built. The open questions at the end need the
-owner's answer first.
+Status: research and a design. Nothing is built.
+
+The owner's answers (2026-11-27):
+
+- free for every owned collimator;
+- brightness 0 to 10 is included;
+- the choice is made in the lobby only, with no keys in a match;
+- the optics and the patterns: "as many as possible, but we can start with" the ten collimators,
+  each with its own 0.69d0 lists.
+
+So the lists are data, kept in each scope's content (`data/srp_reticle`). The exe and the server
+handle any scope that has them, and nothing names the ten ids.
 
 An earlier branch, `feat/scope-reticles` (983949c51, 2026-11-15, not merged), kept the choice per
 weapon in the scope variant's kit bits. The variants are retired since then, and the owner now wants
@@ -189,7 +199,31 @@ preview and the match in the same process.
 - Movie: the steppers and a Ruffle check.
 - Localization, an edit list, `tools/test-patch`, and an in-game check of every pattern's centre.
 
-## Questions for the owner
+## More optics and patterns later
+
+Each of these is a content change once the first build is in place. Rough sizes:
+
+- **Every pattern and colour (blue too) on every collimator.** Only the `data/srp_reticle` lists in
+  the edit list change. This works because each reticle model is drawn at the optic's own reticle
+  place, and the size scale is an angle that does not depend on the optic. Size: S (an hour, plus a
+  look in the game).
+- **The PK-01VI** (2115) is one of the ten already.
+- **The second sights' dots** (DeltaPoint 2112, RSA-S 2116 on the MPR45). They take their own
+  item's choice. The exe also has to draw the reticle at the second sight's place, where patch 161
+  draws its aimed model. Size: S to M (exe and Unicorn).
+- **The magnified scopes' own reticles in other colours** (PSO-1 old and new, ACOG TA31 and TA01,
+  Elcan, aperture, Leupold 3-7 and Mk4, 1P69). Their grid is a surface of their aimed model
+  (`scope_aimgrid_s`, `scope_reddot_s`). Each scope would need:
+  - its grid taken out into a reticle model, ported per scope;
+  - a list in its config;
+  - a check that the grid's centre and scale stay as they are.
+
+  Size: M a scope, about half a day each.
+- **The guns' own default optics** (the HK416's and MSBS's EOTech, the Kriss's and P90's Walther,
+  and the other patch-19-era aimed models with a baked dot). Each needs the dot taken out of its
+  aimed model and a reticle place. Size: M each.
+
+## Questions for the owner (answered above)
 
 1. **Which optics:** only the ten collimators, as in 0.69d0? Or should the magnified scopes (PSO-1,
    ACOG, Leupold, Elcan, aperture and the others) also get a reticle colour? 0.69d0 had no choice
