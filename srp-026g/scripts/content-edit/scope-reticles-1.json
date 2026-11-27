@@ -1,0 +1,499 @@
+{
+ "_about": "The ten collimator scope items' reticle lists, data/srp_reticle {patterns, sizes, colours} (docs/notes/reticle-choice.md), from scripts/scope-reticles/reticles.tsv (made by edit.py): 0.69d0's possible_reticles and reticle_colors of each optic, its dot's four sizes the size list.",
+ "add_value": [
+  {
+   "files": [
+    "gameplay/items/scopes/shop_scope_cobra_ekp_8.options"
+   ],
+   "table": "data",
+   "key": "srp_reticle",
+   "indexed": true,
+   "value": {
+    "patterns": [
+     {
+      "name": "dot",
+      "model": "weapons/reticles_069/dot"
+     },
+     {
+      "name": "cobra_cross",
+      "model": "weapons/reticles_069/cobra_cross"
+     },
+     {
+      "name": "cobra_tick",
+      "model": "weapons/reticles_069/cobra_tick"
+     },
+     {
+      "name": "cobra_tick_dot",
+      "model": "weapons/reticles_069/cobra_tick_dot"
+     }
+    ],
+    "sizes": [
+     1.0,
+     0.8,
+     0.6,
+     0.4
+    ],
+    "colours": [
+     {
+      "name": "red",
+      "rgb": {
+       "float3": [
+        1.0,
+        0.0,
+        0.0
+       ]
+      }
+     },
+     {
+      "name": "green",
+      "rgb": {
+       "float3": [
+        0.0,
+        1.0,
+        0.0
+       ]
+      }
+     }
+    ]
+   }
+  },
+  {
+   "files": [
+    "gameplay/items/scopes/shop_scope_eotech_552.options"
+   ],
+   "table": "data",
+   "key": "srp_reticle",
+   "indexed": true,
+   "value": {
+    "patterns": [
+     {
+      "name": "eotech_ring",
+      "model": "weapons/reticles_069/eotech_ring"
+     },
+     {
+      "name": "eotech_xr308",
+      "model": "weapons/reticles_069/eotech_xr308"
+     },
+     {
+      "name": "dot",
+      "model": "weapons/reticles_069/dot"
+     }
+    ],
+    "sizes": [
+     1.0,
+     0.8,
+     0.6,
+     0.4
+    ],
+    "colours": [
+     {
+      "name": "red",
+      "rgb": {
+       "float3": [
+        1.0,
+        0.0,
+        0.0
+       ]
+      }
+     },
+     {
+      "name": "green",
+      "rgb": {
+       "float3": [
+        0.0,
+        1.0,
+        0.0
+       ]
+      }
+     }
+    ]
+   }
+  },
+  {
+   "files": [
+    "gameplay/items/scopes/shop_scope_aimpoint_compm4.options"
+   ],
+   "table": "data",
+   "key": "srp_reticle",
+   "indexed": true,
+   "value": {
+    "patterns": [
+     {
+      "name": "dot",
+      "model": "weapons/reticles_069/dot"
+     }
+    ],
+    "sizes": [
+     1.0,
+     0.8,
+     0.6,
+     0.4
+    ],
+    "colours": [
+     {
+      "name": "red",
+      "rgb": {
+       "float3": [
+        1.0,
+        0.0,
+        0.0
+       ]
+      }
+     },
+     {
+      "name": "green",
+      "rgb": {
+       "float3": [
+        0.0,
+        1.0,
+        0.0
+       ]
+      }
+     }
+    ]
+   }
+  },
+  {
+   "files": [
+    "gameplay/items/scopes/shop_scope_docter.options"
+   ],
+   "table": "data",
+   "key": "srp_reticle",
+   "indexed": true,
+   "value": {
+    "patterns": [
+     {
+      "name": "dot",
+      "model": "weapons/reticles_069/dot"
+     }
+    ],
+    "sizes": [
+     1.0,
+     0.8,
+     0.6,
+     0.4
+    ],
+    "colours": [
+     {
+      "name": "green",
+      "rgb": {
+       "float3": [
+        0.0,
+        1.0,
+        0.0
+       ]
+      }
+     },
+     {
+      "name": "red",
+      "rgb": {
+       "float3": [
+        1.0,
+        0.0,
+        0.0
+       ]
+      }
+     }
+    ]
+   }
+  },
+  {
+   "files": [
+    "gameplay/items/scopes/shop_scope_leupold_deltapoint.options"
+   ],
+   "table": "data",
+   "key": "srp_reticle",
+   "indexed": true,
+   "value": {
+    "patterns": [
+     {
+      "name": "dot",
+      "model": "weapons/reticles_069/dot"
+     },
+     {
+      "name": "dppro_triangle",
+      "model": "weapons/reticles_069/dppro_triangle"
+     }
+    ],
+    "sizes": [
+     1.0,
+     0.8,
+     0.6,
+     0.4
+    ],
+    "colours": [
+     {
+      "name": "green",
+      "rgb": {
+       "float3": [
+        0.0,
+        1.0,
+        0.0
+       ]
+      }
+     },
+     {
+      "name": "red",
+      "rgb": {
+       "float3": [
+        1.0,
+        0.0,
+        0.0
+       ]
+      }
+     }
+    ]
+   }
+  },
+  {
+   "files": [
+    "gameplay/items/scopes/shop_scope_ncstar_4.options"
+   ],
+   "table": "data",
+   "key": "srp_reticle",
+   "indexed": true,
+   "value": {
+    "patterns": [
+     {
+      "name": "dot",
+      "model": "weapons/reticles_069/dot"
+     },
+     {
+      "name": "ncstar_cross",
+      "model": "weapons/reticles_069/ncstar_cross"
+     },
+     {
+      "name": "ncstar_bullseye",
+      "model": "weapons/reticles_069/ncstar_bullseye"
+     },
+     {
+      "name": "ncstar_starburst",
+      "model": "weapons/reticles_069/ncstar_starburst"
+     }
+    ],
+    "sizes": [
+     1.0,
+     0.8,
+     0.6,
+     0.4
+    ],
+    "colours": [
+     {
+      "name": "red",
+      "rgb": {
+       "float3": [
+        1.0,
+        0.0,
+        0.0
+       ]
+      }
+     },
+     {
+      "name": "green",
+      "rgb": {
+       "float3": [
+        0.0,
+        1.0,
+        0.0
+       ]
+      }
+     },
+     {
+      "name": "blue",
+      "rgb": {
+       "float3": [
+        0.0,
+        0.0,
+        1.0
+       ]
+      }
+     }
+    ]
+   }
+  },
+  {
+   "files": [
+    "gameplay/items/scopes/shop_scope_eotech_xps2.options"
+   ],
+   "table": "data",
+   "key": "srp_reticle",
+   "indexed": true,
+   "value": {
+    "patterns": [
+     {
+      "name": "eotech_ring",
+      "model": "weapons/reticles_069/eotech_ring"
+     },
+     {
+      "name": "eotech_xr308",
+      "model": "weapons/reticles_069/eotech_xr308"
+     },
+     {
+      "name": "dot",
+      "model": "weapons/reticles_069/dot"
+     }
+    ],
+    "sizes": [
+     1.0,
+     0.8,
+     0.6,
+     0.4
+    ],
+    "colours": [
+     {
+      "name": "red",
+      "rgb": {
+       "float3": [
+        1.0,
+        0.0,
+        0.0
+       ]
+      }
+     },
+     {
+      "name": "green",
+      "rgb": {
+       "float3": [
+        0.0,
+        1.0,
+        0.0
+       ]
+      }
+     }
+    ]
+   }
+  },
+  {
+   "files": [
+    "gameplay/items/scopes/shop_scope_belomo_pk01.options"
+   ],
+   "table": "data",
+   "key": "srp_reticle",
+   "indexed": true,
+   "value": {
+    "patterns": [
+     {
+      "name": "dot",
+      "model": "weapons/reticles_069/dot"
+     }
+    ],
+    "sizes": [
+     1.0,
+     0.8,
+     0.6,
+     0.4
+    ],
+    "colours": [
+     {
+      "name": "red",
+      "rgb": {
+       "float3": [
+        1.0,
+        0.0,
+        0.0
+       ]
+      }
+     },
+     {
+      "name": "green",
+      "rgb": {
+       "float3": [
+        0.0,
+        1.0,
+        0.0
+       ]
+      }
+     }
+    ]
+   }
+  },
+  {
+   "files": [
+    "gameplay/items/scopes/shop_scope_hensoldt_rsas.options"
+   ],
+   "table": "data",
+   "key": "srp_reticle",
+   "indexed": true,
+   "value": {
+    "patterns": [
+     {
+      "name": "dot",
+      "model": "weapons/reticles_069/dot"
+     }
+    ],
+    "sizes": [
+     1.0,
+     0.8,
+     0.6,
+     0.4
+    ],
+    "colours": [
+     {
+      "name": "green",
+      "rgb": {
+       "float3": [
+        0.0,
+        1.0,
+        0.0
+       ]
+      }
+     },
+     {
+      "name": "red",
+      "rgb": {
+       "float3": [
+        1.0,
+        0.0,
+        0.0
+       ]
+      }
+     }
+    ]
+   }
+  },
+  {
+   "files": [
+    "gameplay/items/scopes/shop_scope_walther_comp2.options"
+   ],
+   "table": "data",
+   "key": "srp_reticle",
+   "indexed": true,
+   "value": {
+    "patterns": [
+     {
+      "name": "dot",
+      "model": "weapons/reticles_069/dot"
+     }
+    ],
+    "sizes": [
+     1.0,
+     0.8,
+     0.6,
+     0.4
+    ],
+    "colours": [
+     {
+      "name": "green",
+      "rgb": {
+       "float3": [
+        0.0,
+        1.0,
+        0.0
+       ]
+      }
+     },
+     {
+      "name": "red",
+      "rgb": {
+       "float3": [
+        1.0,
+        0.0,
+        0.0
+       ]
+      }
+     }
+    ]
+   }
+  }
+ ]
+}

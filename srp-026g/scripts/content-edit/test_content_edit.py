@@ -205,6 +205,22 @@ class MapEditorEdits(unittest.TestCase):
             with self.assertRaises(ValueError):
                 ce.add_value(fixture(), '', 'v', bad)
 
+    def test_add_value_indexed_takes_lists_as_indexed_tables(self):
+        """A scope's data/srp_reticle (scope-reticles-1): with "indexed", a list is an indexed table (of
+        named tables, of floats) and {"float3": [...]} a vector."""
+        data = fixture()
+        reticle = {'patterns': [{'name': 'dot', 'model': 'weapons/reticles_069/dot'}], 'sizes': [1.0, 0.8, 0.6, 0.4],
+                 'colours': [{'name': 'red', 'rgb': {'float3': [1, 0, 0]}}]}
+        ce.add_value(data, '', 'srp_reticle', ce.indexed_value(reticle))
+        rows = {p: (t, v) for p, t, v in ce.walk(data)}
+        self.assertEqual(rows['/srp_reticle/sizes'][0], ce.T_INDEXED)
+        self.assertEqual(ce.rec(data, ce.find(data, 'srp_reticle/sizes'))[4], 4)
+        self.assertTrue(ce.same(value(data, 'srp_reticle/sizes[1]'), 0.8))
+        self.assertEqual(value(data, 'srp_reticle/patterns[0]/model'), 'weapons/reticles_069/dot')
+        self.assertEqual(rows['/srp_reticle/colours[0]/rgb'], (7, struct.pack('<3f', 1.0, 0.0, 0.0)))
+        with self.assertRaises(ValueError):
+            ce.indexed_value({'float3': [1, 0]})
+
     def test_modifier_retarget_by_its_path(self):
         """A modification's modifiers differ only in their `path`: `where` takes a path in the entry."""
         def modifier(key):
