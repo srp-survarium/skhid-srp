@@ -37,8 +37,8 @@ Ask, in this order:
    stash`). **A release always builds with `--full`**: only it checks that
    players' files with the new patch over them are exactly what the manifest
    makes, and only it makes the item tables the release's record commits.
-   Without `--full` it is a quick build for local tests: the same patch and
-   server data, those two left out, `QUICK-BUILD` in its folder, and
+   With `--slow` instead of `--full` it is a quick build for local tests: the
+   same patch and server data, those two left out, `QUICK-BUILD` in its folder, and
    `release.sh --resources` and `upload-patch` refuse it. It builds every movie of `srp-026g/flash` from source (the lobby
    by `build_lobby_026g.py`; seconds each; `private/actionscript/tools.json`),
    composes the packs (`vostok-port`, `$SKHID_PACKS_DIR`), applies the edit
@@ -358,11 +358,8 @@ The order, as it runs:
    admin page answers the jump host (not with `--no-maintenance` or `--now`); no
    maintenance planned already; no
    release folder left unfinished; `download/` on the file system of the
-   target's folder; `download/resources/` keeps the original menus' blobs
-   (main_menu `0ff118a8…`, lobby_menu `ab6f22d8…`, login_menu `805ea5f8…`:
-   the updater's one-time restore to the stock resources.db fetches them);
-   srp26's container and its image ID, which must be what `srp-026g:latest`
-   names (else a restart would run an image no release made); the list's
+   target's folder; srp26's container and its image ID, which must be what
+   `srp-026g:latest` names (else a restart would run an image no release made); the list's
    rows on the patches server, and every URL of every row giving the file
    (as the updater fetches it, not a web page, the size and sha256; whole
    the first time, then from the cache above); patch_12 offered from
@@ -533,7 +530,7 @@ The order, as it runs:
    folder and, from live, to the jump host (`$SKHID_BACKUP_DIR`, default
    `/srv/skhid-backups/srp-db`: folder 700, files 600, a line in
    `SHA256SUMS` there), its sha256 compared on both ends.
-   Live only, after the record (step 8; never `--test`),
+   Live only, after the record (step 7; it is `release.sh`'s step 8; never `--test`),
    `release/publish-dht <the torrent>` puts the
    torrent's signed item on the public DHT (BEP 46: the newest release, for
    updaters that cannot reach the site; `skhid.dht`, signed by
@@ -771,7 +768,7 @@ shows the command, unless release.sh, already given the go-ahead, runs it):
 | `release/build-content <rev> --full [--out <folder>] [--tree] [--site] [--manifest] [--no-cache]` (local tests: `--slow` instead of `--full`, or `--slow --delta-from <earlier folder>`; a test of a few changed files is `tools/test-patch`'s, a minute) | the next content patch of `release/content.tsv`: what differs from players' files (the stock db, the listed patches), each file with why; `server-game-data.db` with it; then, from the same patches, the item tables (srp-item-tables; only changes, each said) and, with `--site`, the site's pages (build-site) | a local folder (with `item-tables/`), the patch cache, the steps' cache (`~/.cache/skhid-release/build-content`: a step whose inputs are the same bytes (an edit list: its own bytes, its tool's and the files it reads; the type check: each file's bytes; the server data: its archives; the header lists each key) is taken from it, the same files; delete it any time; `--no-cache` runs every step; with `--slow` instead of `--full`, a quick build for local tests: no check of players' files with the patch, no item tables, `QUICK-BUILD` in the folder, which `release.sh`/`upload-patch` refuse: a release always passes `--full`; `--delta-from <folder>`, a local test's micro-patch mounted over that earlier build's: only the files the game would see otherwise, the server data only when a file the server reads is in it: the quick way to test a small edit; the packs draw into the movies' graphics and the code goes in after, so a lobby code edit composes no pack again); with `--site`, `--tree`'s site pages |
 | `release/build-patch <folder> <rev> [--out <file>]` | packs a folder into `resources.db.patch_<rev>` (read back and compared) | a local file | (build-content's step; never by hand)
 | `release/upload-patch [--test] [--dry-run] <file>` | publishes one patch: `.tmp`, sha256 there, `chmod 644`, `mv -n`, GET must be 200 with the sha256, then its row in the list; never replaces one | the patches server, the list |
-| `release/add-mirror [--test] <name> <url>` | another URL of a listed patch: downloaded as the updater does, not a web page, the row's size and sha256, then appended to the row | the list (and the URL cache) |
+| `release/add-mirror [--test] [--first \| --at <n>] [--dry-run] <file> <url>`, `--remove <file> <url>` | another URL of a listed patch or the game's archive, at once: downloaded as the updater does, not a web page, the row's size and sha256, then a row of srp's `mirrors.tsv` (above); a bootstrap file's URL goes into its row of `release/bootstrap.tsv` instead, and the script is made again | the target's `mirrors.tsv` (a bootstrap file: the checkout), the URL cache |
 | `release/build-server-db [--test] [--out <file>]` | `server-game-data.db` from the stock db and the list's patches (local cache checked by size and SHA-256; missing or invalid files downloaded; every primary URL and mirror checked whole once, then by its first bytes), `srp-game-data build --patch "<file>=<urls>"` | a local file, the patch cache |
 | `release/build-site --tree <checkout> [--with <patch>]` | the Maps tab, the calculator and the skills from the stock db and the list's patches (cached, each sha256 checked), FFDec 26.0.0, dbgrab; each `built-from.tsv` must name exactly those; release.sh runs it in its preflight, by hand it is a local preview (`--tree .`) | the checkout's `servers/web-server/{maps,damage,skills,wiki}/`, the cache |
 | `release/build-zip [--test] [--ref <commit>] [--revision <n>] [--patches <list>] [--work <dir>]` | the players' ZIP from a fresh worktree of origin/main (never this checkout, never `git stash`): `--server`, `--site`, `--revision` (default: the site's exe's + 1; above it), `--required-patches` (every patch of the offered-patch list, or `--patches`'; release.sh passes its list with the new patch: the exe stops at its start without one, patch 49), no resources.db regions; the exe without a server too, both sha256 in `<work>/exe.sha256`; entries against the site's ZIP | a worktree, the ZIP |
@@ -817,8 +814,9 @@ nixpkgs#shellcheck -c release/test.sh`); it sends nothing anywhere.
   so it can only advertise the patches it runs on; it refuses to start when
   `SRP_MIN_PATCH_REVISION` is below its highest patch, or when srp.db or
   its code name what the data lacks. Every map, its modes, respawn points,
-  battery containers and names come from that file (format 3: the gameplay
-  files, each project's `server_objects`, the en/ua texts); srp and the file
+  battery containers and names come from that file (format 4: the gameplay
+  files, each project's `server_objects` and the client objects a world saves,
+  the texts of the game's twelve languages); srp and the file
   go out together (a format the image does not read stops its start, and
   the rollback puts back both).
 - Login, lobby, match and web are one process (container `srp26-srp26-1`):

@@ -9,7 +9,6 @@ crc32fast = { workspace = true }
 encoding_rs = { workspace = true }
 num-derive = { workspace = true }
 num-traits = { workspace = true }
-serde = { workspace = true }
 serde_json = { workspace = true }
 
 [lints]

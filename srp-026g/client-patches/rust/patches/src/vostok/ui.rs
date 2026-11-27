@@ -77,6 +77,16 @@ pub struct GameWorldUi<'t> {
 }
 
 impl<'t> GameWorldUi<'t> {
+    /// The hud a site of `vostok` holds, alive on the hook's thread for `'t`.
+    pub(super) fn of(this: raw::GameWorldUi, _: &'t Thread) -> GameWorldUi<'t> {
+        GameWorldUi { this, thread: PhantomData }
+    }
+
+    /// Its handle, for `vostok`'s own reads.
+    pub(super) fn raw(&self) -> raw::GameWorldUi {
+        self.this
+    }
+
     /// The hud's game world (+18h).
     pub fn game_world(&self, thread: &'t Thread) -> Option<super::world::GameWorld<'t>> {
         // SAFETY: the live ui's world, alive while the hud is.

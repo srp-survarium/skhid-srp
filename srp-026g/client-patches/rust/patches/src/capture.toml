@@ -23,9 +23,3 @@ handler = "on_camera"
 site = "render.flash_ui"
 handler = "on_scene"
 order = 2
-
-# renderer::render where it stores its scene clock for the frame: held at the
-# script's `clock`, if it has one
-[[hook]]
-site = "render.scene_clock"
-handler = "on_scene_clock"

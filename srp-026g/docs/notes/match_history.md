@@ -32,6 +32,15 @@ What survarium.pro showed of players, matches and clans, kept by srp itself and 
   its heading, the tooltip's "Current value" of the ranks taken. Nothing in it can be changed.
   Anyone sees anyone's. The build is the saved one (`g26_skills`), so a change shows after the
   server's next save of the account.
+- A player's (and a clan's) "In matches" panel has Kills/min and Experience/min after K/D (the
+  owner, 2026-11-26: "important stuff: kills/minute and experience/minute"). A minute there is
+  the player's own time in its counted public matches (`played_ms`, the sum of its stays in each:
+  from coming in to leaving or the end), not the matches' length and not the time between them;
+  a clan's is its members' time added up. Kills/min is the totals' kills by it (two decimals,
+  as the Weapons list's, whose minute is a weapon's time in the hands). Experience/min is the
+  experience those matches paid for the play (`experience` below: no daily bonus) by the time of
+  the matches that kept it alone. Each is `—` without a minute to divide by (an Experience/min
+  of a player all of whose matches came before migration 25).
 - A match's teams (a free-for-all's one list) come by place and sort in the page by a click on
   a heading, each team alone; they have no Level and no Captures (the owner, 2026-11-20).
 - The tables keep to few numbers (the owner, 2026-11-20): the average score, never the total;
@@ -48,6 +57,47 @@ What survarium.pro showed of players, matches and clans, kept by srp itself and 
   piece, its card in the wiki. A map's name leads to the map in the wiki's Maps page. A match's
   two teams are in the Maps page's colours. A match with a replay has one Download: pressed, the
   replay is prepared if it has to be, and its file then downloads by itself.
+- The Maps and Modes boards (`?board=maps`, `?board=modes`; the owner, 2026-11-26: "add in stats
+  maps and modes: which winrate on each map side, how often which modes are played and which are
+  most popular"), over a period of their own (`&period=day|week|month`, else all time: the last 24
+  hours, 7 days, 30 days). They count the counted public matches, as the totals do.
+  - Maps: one table, its columns fixed (what opens moves none), a row a map, the maps in the order
+    of the rooms' create window (the owner, 2026-11-26: "sorted in the same order they are sorted
+    in room creation"; `maps::in_room_order` over the lobby's pool and experimental maps, the one
+    rule the lobby's room list uses), the maps it does not list after it by build and level, a
+    map gone from the game data last. A map is its level (`match_making_params.map_id`, as the
+    create window has it): every ported version its own map, "Rudnya (v0.69)" apart from Rudnya
+    (the owner: "those are separate maps with separate balancing"; the rooms' vote still takes a
+    map's versions as one, `maps::Place`). A map's row is its team matches, the free-for-alls
+    left out (the owner: "a map just shows general team 1 vs team 2"): their count, average
+    length and sides, a soft bar (the owner: "blue and red lines are a bit too strong": the
+    teams' colours at 60%, the draws a neutral grey, 6 px) of team 1's wins from the left and
+    team 2's from the right, the draws (and any match of no known end) between, over each one's
+    share and count in full colour. The game names the sides Team 1 and Team 2 on every map (no
+    factions). For more, its *Modes (n)* opens each mode played on it (a free-for-all's too, with
+    no bar) in the create window's order, with its own, and a mode's *Weathers (n)* its weathers
+    (each map id: day, evening, rain); everything closed at first, the maps close together.
+  - Modes and weathers are named by the site's own words (`launcher::lobby_mode_name`, the
+    weathers' `weather` context): the game's texts the rooms name them by
+    (`client-patches/localization`, `st_srp_mode_*`, `st_srp_weather_*`), held equal to them in
+    every language by a test, so a name never hangs on the game data having it (the owner,
+    2026-11-26: the preview said "mode 2"). A mode srp no longer knows is "Mode N".
+  - The stats count every free-for-all (plain, the Racket, the Saloon, the Roulette's bands) as one
+    Free for all (the owner, 2026-11-26), its variants under it behind its *Variants (n)* (the
+    Roulette's bands one): on the Modes board each with its matches, share and trend; under a map
+    each with its weathers. The map + mode pairs take them as one. The match lists still name a
+    match by its own mode. Modes come in the
+    create window's order (`RoomsCreate.as`'s `MODE_ORDER`, which a test reads: the protective
+    device's three kinds together, Blackout with them; then Team Deathmatch, Research, Freeze Tag,
+    the free-for-all, Artifact Hunt; its variants plain first, then by their lobby numbers).
+  - Modes: each mode as the lobby calls it with its matches, its share of all of them, its popularity's rank (`#`) and its trend, in that
+    order; the trend is
+    the period's hours (a day), days (7 or 30) or weeks (all time: the last 26, from Mondays, UTC),
+    a column each as tall as its share of the mode's busiest. Then the ten most played map + mode
+    pairs (a map's weathers one pair, its ported versions apart), each leading to the map in the
+    Maps page.
+  - A map's picture is never stretched (the owner, 2026-11-26): it covers a box of its own shape
+    (16:9) at every width; the check holds it, on a phone too.
 - `scripts/stats/check_history.mjs` exercises it in an isolated Firefox over the site's own
   endpoints: the preview (`cargo test -p web-server serve_wiki_preview -- --ignored --nocapture`,
   port 24583) keeps a made-up history (`history::tests::preview`); the script serves it again on
@@ -68,7 +118,11 @@ What survarium.pro showed of players, matches and clans, kept by srp itself and 
 - Banned accounts are left out of the top lists and the best scores.
 - Every request is cheap (one vCPU runs the game too): indexed lookups, results of at most 50 rows
   (`player/days`: up to 90 days; a clan card's members: up to 105), totals kept up to date when a
-  match is recorded, never added up per request. Four requests read at once, the rest wait.
+  match is recorded, never added up per request. Four requests read at once, the rest wait. The
+  Maps and Modes boards are added up from the matches' rows (two `GROUP BY`s of a few hundred
+  rows at most; the period's matches by `g26_matches_by_end`, all time's every match), and kept
+  by `MatchHistory::plays` until a match is written: an ask while none was is the newest
+  match's id and the kept answer (no scan of the matches on every view).
 
 ## What is kept
 
@@ -91,8 +145,19 @@ What survarium.pro showed of players, matches and clans, kept by srp itself and 
 - `g26_match_players`: one row a player who was in the match (finished or left): team, place in
   its team by score (from 1; of a free-for-all, where each is its own team, among everyone by
   kills), its roster place (`seat`), rating after the match, clan at the time,
-  score, kills, deaths, the counters below, how long it was in the match, and what the match
-  was for it (`outcome`).
+  score, kills, deaths, the counters below, how long it was in the match (`played_ms`: the
+  match server's `time_in_match_ms`, its stays added up, in match time), what the match
+  was for it (`outcome`), and the `experience` the match paid it (migration 25).
+- A line's `experience` is the rewards' `Reward::played_experience`: the screen's three rows and
+  the items' bonus, without the daily bonus's second pay of the rows (`rewards.rs`; a per-minute
+  rate measures the play, not the day's first three victories), and not the quests' or the
+  levels' pay. A line written before migration 25 has none (NULL): it cannot be worked out
+  again, as the items' bonus of the kits then, the experience rate then (`SRP_EXPERIENCE_RATE`
+  and its changes) and whether the match was one of the day's first three victories are not kept.
+  The totals keep `experience` and `experience_played_ms` (the time of the lines that have
+  it) beside `played_ms`, so the rate leaves those lines out rather than diluting them. The
+  card's `experience` is the account's whole (`exp_total`: its start, every match of every kind,
+  an administrator's changes), not this.
 - A line's `outcome` is said once, when the match is settled (`rewards`), as its rating took it:
   `won` for one who stayed to the end on the winning team (in a free-for-all: with the most
   kills), `lost` for everyone else of a match that had a winner (one who left lost whatever its
@@ -168,10 +233,14 @@ Common objects:
 - Totals: `{"matches":120,"wins":64,"losses":52,"kills":900,"deaths":700,"assists":210,
   "score":30500,"headshots":180,"grenade_kills":12,"melee_kills":3,"batteries":40,"captures":5.5,
   "artefacts":25,"shots":52000,"hits":15600,"accuracy":0.3,"kd":1.29,"win_rate":0.533,
-  "score_avg":254.2,"played_s":93600}`. `kd` = kills / deaths (deaths 0 counts as 1), two decimals; `win_rate`
+  "score_avg":254.2,"played_s":93600,"kills_per_minute":0.58,"experience":180000,
+  "experience_per_minute":115.4}`. `kd` = kills / deaths (deaths 0 counts as 1), two decimals; `win_rate`
   0..1, three decimals; `score_avg` one decimal; `accuracy` = hits / shots (0 with no shot), 0..1,
   three decimals. `matches` - `wins` - `losses` were draws or had no known winner. `played_s`:
-  seconds in those matches.
+  seconds in those matches, the players' own (each line's stays). `kills_per_minute`: kills by
+  them, two decimals. `experience`: what those matches paid for the play (a line's
+  `experience`), of the lines that have it; `experience_per_minute`: that by those lines' time
+  alone, one decimal. Both rates are `null` without a millisecond to divide by.
 - A match: `{"id":5531,"replay_id":"rec026g_20261103-115320_5e1a09c3","ended_at":1793500000,"duration_s":845,"map_id":3,"map":"Vostok",
   "map_key":"level_03","mode":"Protective device","rules":2,"level":12,"winner":0,"team_points":[5,3],"players":12,
   "eligibility":"counted"}`. `winner` is 0 or 1, `"draw"`, `"free_for_all"` (no team wins one:
@@ -185,7 +254,7 @@ Common objects:
   "score":310,"kills":14,"deaths":6,"kd":2.33,"assists":4,"headshots":3,"grenade_kills":1,
   "melee_kills":0,"batteries":2,"captures":0,"artefacts":1,"shots":420,"hits":130,
   "accuracy":0.31,"kits":[...]`. `outcome` is `"won"`, `"lost"` or `"neither"`; a line has its
-  `played_s` too.
+  `played_s` and `experience` too (`null` before migration 25).
 - A kit of a line (`kits`, the kits the player used, by place): `{"kit":0,"kills":12,
   "headshots":3,"shots":380,"hits":120,"accuracy":0.316,"weapons":[{"slot":7,"id":155,
   "key":"ak_74m","name":"AK-74M"},{"slot":10,"id":60,"name":"TT-33"}],"armour":[{"slot":0,"id":301,
@@ -398,6 +467,46 @@ Registered clans by their totals. `by`: `matches`, `wins`, `kills` (default `mat
            "score":98000,"headshots":610,"grenade_kills":40,"melee_kills":9,"batteries":150,
            "captures":12.25,"artefacts":90,"shots":180000,"hits":52000,"accuracy":0.289,
            "kd":1.24,"win_rate":0.575,"score_avg":245}}]}
+```
+
+### `GET /api/history/maps?period=<day|week|month|all>`
+
+The counted public matches of the period (default `all`; `day`: the 24 hours to the current
+one's end, `week`/`month`: the 7 or 30 UTC days to today's) by map (its level: every ported
+version its own), in the rooms' create window's order. A map's `matches`, `duration_s` and `sides`
+are its team matches' (no free-for-all: `sides` `null` without one); `modes`: each mode played
+on it, every free-for-all one, in the window's mode order, each with its own and its weathers
+(map ids), day, evening, rain; the free-for-all's `versions`: its variants, each with its own and
+its weathers. `duration_s`: the matches' average length. `sides`: how the team matches ended, `wins`
+team 1's and team 2's, as `team_points` (`win_rates`, `draw_rate`: shares of them, three
+decimals; `unknown`: a match no trusted snapshot told the end of); `null` for a free-for-all.
+`map_key` of a mode: its first weather's. `weather`: the rooms' word, `null` without one. A mode
+srp no longer knows: `"Mode N"`, its `mode_url` and `rules` `null`.
+
+```json
+{"period":"all","matches":120,
+ "maps":[{"map":"Rudnya","map_key":"level_01","map_icon":"/wiki/icons/maps/1_1.webp?v=…","matches":36,"duration_s":845,
+          "sides":{"wins":[17,15],"draws":4,"unknown":0,"win_rates":[0.472,0.417],"draw_rate":0.111},
+          "modes":[{"mode":"Protective device","mode_url":"/wiki/modes?lang=en#protective-device","rules":2,"map_key":"level_01",
+                    "matches":30,"duration_s":860,
+                    "sides":{"wins":[14,12],"draws":4,"unknown":0,"win_rates":[0.467,0.4],"draw_rate":0.133},
+                    "weathers":[{"map_id":3,"weather":"day","map_key":"level_01","map_icon":"…",
+                                 "matches":20,"duration_s":850,"sides":{…}}]}]}]}
+```
+
+### `GET /api/history/modes?period=<day|week|month|all>`
+
+The counted public matches of the period by mode (every free-for-all one, its variants in its
+`versions`, each with its matches, share, average length and trend), in the create
+window's order, each with its popularity's `rank` (1: the most played; ties: that order), its
+`share` of them all (three decimals), average length and `trend`: its matches in
+each step of `steps` (each step's start, Unix seconds; `step`: `hour` for a day, `day` for 7 or
+30 days, `week` for all time, the last 26). `pairs`: the ten most played map + mode pairs.
+
+```json
+{"period":"week","matches":60,"step":"day","steps":[1793059200,…],
+ "modes":[{"mode":"Team Deathmatch","mode_url":"…","rules":4,"rank":1,"matches":24,"share":0.4,"duration_s":840,"trend":[2,5,3,4,3,4,3]}],
+ "pairs":[{"map":"Rudnya","map_key":"level_01","map_icon":"…","mode":"Team Deathmatch","mode_url":"…","rules":4,"matches":9,"share":0.15}]}
 ```
 
 ### `GET /api/history/clan?id=<clan>` or `?tag=<tag>`

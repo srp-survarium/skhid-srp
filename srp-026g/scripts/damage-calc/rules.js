@@ -65,10 +65,9 @@ const RULES = (() => {
   // Modifications (item_config_cook 0x2f1750): values on one path are summed,
   // then applied once: "mul" as v*max(0,1+sum), "add" as v+sum.
   const MODS = DATA.mods || {};
-  // Defects are left out: the page only adds bonuses. An item with presets
-  // (premium weapons) has those and nothing else.
-  const idsOf = (item, pick = {}) => item.mod_types.default.length ? [...item.mod_types.default]
-    : Object.values(pick.mod || {}).filter(Boolean);
+  // Defects are left out: the page only adds bonuses. An item's built-in
+  // bonuses always count, with the ones picked of the types they leave free.
+  const idsOf = (item, pick = {}) => [...item.mod_types.default, ...Object.values(pick.mod || {}).filter(Boolean)];
   function sums(ids) {
     const out = {};
     for (const id of ids) for (const e of MODS[id].effects) {
@@ -91,16 +90,22 @@ const RULES = (() => {
     const src = DATA.mod_icons && DATA.mod_icons[m.icon];
     return src ? el("img", { class: "gico", src, alt: "" }) : el("span", { class: "gico" });
   };
-  function modControls(host, item, pick, onChange) {
+  // The built-in bonuses (`fixedNote` under them), then a row a type that
+  // rolls. False when the item has neither.
+  function modControls(host, item, pick, onChange, fixedNote) {
     const kinds = item.mod_types;
-    if (!kinds.mod.length && !kinds.default.length) return false;
-    const panel = el("div", { class: "gamemods" });
-    for (const id of kinds.default) {
-      const m = MODS[id], prop = m.props[0] || {};
-      panel.append(el("div", { class: "gmrow fixed" }, icon(m), el("span", { class: "glabel", text: `${label(prop)}:` }),
-        el("span", { class: good(prop, prop.value) ? "gv good" : "gv bad", text: propText(prop, prop.value) })));
+    if (kinds.default.length) {
+      const fixed = el("div", { class: "gamemods" });
+      for (const id of kinds.default) {
+        const m = MODS[id], prop = m.props[0] || {};
+        fixed.append(el("div", { class: "gmrow fixed" }, icon(m), el("span", { class: "glabel", text: `${label(prop)}:` }),
+          el("span", { class: good(prop, prop.value) ? "gv good" : "gv bad", text: propText(prop, prop.value) })));
+      }
+      host.append(fixed);
+      if (fixedNote) host.append(el("span", { class: "note", text: fixedNote }));
     }
-    if (kinds.default.length) { host.append(panel); return true; }
+    if (!kinds.mod.length) return kinds.default.length > 0;
+    const panel = el("div", { class: "gamemods" });
     for (const t of kinds.mod) {
       const options = Object.keys(MODS).filter(id => MODS[id].kind === "mod" && MODS[id].type === t)
         .sort((a, b) => MODS[a].effects[0].value - MODS[b].effects[0].value);
@@ -241,9 +246,9 @@ const RULES = (() => {
       state.wmods = state.wmods || {};
       const w = DATA.weapons[state.weapon];
       state.wmods[state.weapon] = state.wmods[state.weapon] || {};
-      if (!modControls(wbox, w, state.wmods[state.weapon], update)) wbox.append(el("span", { class: "note", text: T("This weapon takes no damage bonuses.") }));
-      else if (w.mod_types.default.length) wbox.append(el("span", { class: "note", text: T("Come with the weapon; cannot be changed.") }));
-      else wbox.append(el("span", { class: "note", text: T("An item holds at most 3 modifications. Bonuses on one stat add up before they apply.") }));
+      if (!modControls(wbox, w, state.wmods[state.weapon], update, T("Comes with the weapon; cannot be changed.")))
+        wbox.append(el("span", { class: "note", text: T("This weapon takes no damage bonuses.") }));
+      else if (w.mod_types.mod.length) wbox.append(el("span", { class: "note", text: T("An item holds at most 3 modifications. Bonuses on one stat add up before they apply.") }));
       // The items on the part being hit: their bonuses are the ones that count.
       const abox = document.getElementById("amods"); abox.innerHTML = "";
       state.amods = state.amods || {};

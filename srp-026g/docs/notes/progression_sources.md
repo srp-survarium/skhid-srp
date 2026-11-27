@@ -406,7 +406,8 @@ theirs); the 9x19 7N21 is on no list
 and stays with seller 0; "7.62x39 RPD" is taken to be `ammo_7.62x39_m` (LIKELY: the one
 7.62x39 with a clip of 100) and "12.7x54" both `ammo_12.7x54_pt` and `ammo_12.7x54_vps`.
 For 8, the first kit still wears only the TT-33 and its clip; the Mosin, its clip and the
-PPSh-41 are in the inventory. The table is `prices.rs` `EXCEPTIONS`. The clan price and
+PPSh-41 are in the inventory. The table was `prices.rs` `EXCEPTIONS` (since 2026-11-02
+`scripts/content-edit/shop.tsv`). The clan price and
 size became 50,000 silver and 30 members by the owner's choice (not from a source).
 
 ## Not applied: only later-version evidence

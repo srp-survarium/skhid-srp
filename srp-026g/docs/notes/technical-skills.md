@@ -231,7 +231,8 @@ booster's modifications; 29 the hand-kill marker.
   2, after Adrenalin); movement is cached, so the start and the end set the player's
   refresh_selection (+33Eh); the end is checked each tick at `battery.carrier_tick` (order 6).
 - The HUD (the owner, 2026-11-23): while the local player's boost runs, the tank's quick-slot
-  countdown is Spring's activation blue, 0x0066FF ("since both are for speed"): patch 77's
+  countdown is blue ("since both are for speed"; a light blue, 0x9CD8EE, in a glow of the hud's
+  blue since 2026-11-26, Spring's 0x0066FF before): patch 77's
   quick-slot activity sends phase 4 for the tank (client_patch.md, "Medical consumable
   activity"). View only: nothing saved, no match computes otherwise.
 - The world format: every tank of every world saves the boost's u32 and the use's u16 after

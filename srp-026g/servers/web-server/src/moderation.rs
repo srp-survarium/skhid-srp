@@ -290,9 +290,7 @@ impl Web {
             reason: request.field("money_reason").to_owned(),
             shown: None,
         };
-        let Some(game) = &self.game else {
-            return (String::new(), view);
-        };
+        let game = &self.game;
         // The token alone (the page's first press): nothing asked yet.
         if view.user.is_empty() {
             return (String::new(), view);
@@ -387,9 +385,7 @@ impl Web {
             reason: request.field("items_reason").to_owned(),
             ..ItemsView::default()
         };
-        let Some(game) = &self.game else {
-            return (String::new(), view);
-        };
+        let game = &self.game;
         if view.user.is_empty() {
             let message = lang.t("Type the account: its user name, its character name, or #id.");
             return (message, view);
@@ -531,9 +527,7 @@ impl Web {
     /// is in the audit trail.
     pub(crate) fn admin_chat_mute(&self, request: &Request, peer: &str) -> String {
         let lang = request.lang;
-        let Some(game) = &self.game else {
-            return String::new();
-        };
+        let game = &self.game;
         let user = request.field("mute_user");
         // The token alone (the page's first press): nothing asked yet.
         if user.trim().is_empty() {

@@ -2,6 +2,7 @@ package survarium.controls
 {
    import flash.display.MovieClip;
    import flash.display.Sprite;
+   import flash.filters.GlowFilter;
    import flash.text.TextField;
    import flash.geom.ColorTransform;
    import flash.utils.Timer;
@@ -14,6 +15,8 @@ package survarium.controls
    import survarium.constants.Colors;
    import survarium.core.Icon;
    
+   import survarium.data.LocalizationData;
+
    public class QuickItemRenderer extends DragSlot implements IListItemRenderer
    {
       
@@ -63,8 +66,14 @@ package survarium.controls
       
       protected var _bitmapColored:Boolean = true;
       
-      // The countdown's own colour (the movie's), and Spring's blue while a tank's Oxygen Rush runs.
+      // The countdown's own colour and filters (the movie's: white, a black shadow), and a tank's
+      // while its Oxygen Rush runs: Colors.SPEED_BOOST over the same shadow, in a glow of the hud's
+      // blue (Colors.SPEED_BOOST_GLOW).
       private var _timerColor:uint;
+
+      private var _timerFilters:Array;
+
+      private var _boostedFilters:Array;
       
       public function QuickItemRenderer()
       {
@@ -283,7 +292,11 @@ package survarium.controls
                   _lastCount = _data.count;
                   _lastId = _data.icon_id;
                }
-               if(_data.count > 1 && _data.enabled)
+               if(_data.wearPower != undefined && _data.is_artefact)
+               {
+                  this.count.text = _data.previousPower ? _data.previousPower + " → " + _data.wearPower : _data.wearPower;
+               }
+               else if(_data.count > 1 && _data.enabled)
                {
                   this.count.text = "x" + _data.count;
                }
@@ -300,7 +313,9 @@ package survarium.controls
                if(sec != 0)
                {
                   this.count_timer.text = Util.getZeroString(sec);
-                  this.count_timer.textColor = _data.activityPhase == QuickSlots.ACTIVITY_BOOSTED ? Colors.SPEED_BOOST : this._timerColor;
+                  var boosted:Boolean = _data.activityPhase == QuickSlots.ACTIVITY_BOOSTED;
+                  this.count_timer.textColor = boosted ? Colors.SPEED_BOOST : this._timerColor;
+                  this.count_timer.filters = boosted ? this._boostedFilters : this._timerFilters;
                   this.timerBack.visible = true;
                   trace("contentContainer::check_glow",contentContainer,contentContainer.currentFrame,this._lastTimer,sec,this._lastId,_data.icon_id);
                   if(_data.is_artefact && contentContainer && (contentContainer.currentFrame < 11 || contentContainer.currentFrame == 20))
@@ -445,6 +460,8 @@ package survarium.controls
          this.keyBind.defaultTextFormat = this.keyBind.getTextFormat();
          this.count_timer.defaultTextFormat = this.count_timer.getTextFormat();
          this._timerColor = uint(this.count_timer.defaultTextFormat.color);
+         this._timerFilters = this.count_timer.filters;
+         this._boostedFilters = this._timerFilters.concat([new GlowFilter(Colors.SPEED_BOOST_GLOW,0.6,6,6,1.5,2)]);
       }
       
       override protected function setState(state:String) : void

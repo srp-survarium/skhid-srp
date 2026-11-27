@@ -1,7 +1,7 @@
 # Rudnya (v0.69)
 
 0.69d's Rudnya (its `level_01`, day) as a map of its own beside 0.26g's Rudnya, in content
-pack `rudnya-069d@4`. The owner's asks: port it "with the same sharp look" (2026-10-29);
+pack `rudnya-069d` (now @7). The owner's asks: port it "with the same sharp look" (2026-10-29);
 "add batteries there", "and artefact spawners", "and research points and battery chargers",
 "we know positions from 0.26 version", "might need to be changed a bit" (2026-10-30); after he
 played it (2026-11-20): "our converter is pretty bad and I think we were patching the map screen by
@@ -82,6 +82,11 @@ comparison: "the way rudnya is is fine"; not in work):
   68 blends draw their own numbers (the sheds' rusty roof sheets drew rust all over; their
   rust patches now follow 0.69d's, the rust itself still more saturated than 0.69d's); the 4
   alpha-tested ones of technique 1 without a mask stay on their category's template.
+- Pack @8: the sun's colour as 0.26g's environment loader reads it. The loader raises `sun_color`
+  to 2.2 (0x34e447, through 0x1bfcb0), so the scene stores 0.69d's sun colour to 1/2.2
+  ((1, 0.882, 0.753), intensity 4.88; resource-porter #95). Written linear until @7, the sun
+  drew at (1, 0.544, 0.253) of its intensity: 0.78 of its light and red, the planks, tiles and
+  wallpaper in sun brown where 0.69d shows them grey. Shade is unchanged.
 - Pack @10 (the owner's seams between ground types, 2026-11-26): the terrain overlays
   (`terrain_tiled/{grass,dirt,sand_grass,earth}_vc`, `tiled/trash/trash_vc` and
   `trash_dirt_moss_alpha_vc` over the 12 `terrain_game` tiles, the bus stop, the culture centre

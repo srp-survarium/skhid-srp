@@ -1827,18 +1827,21 @@ def test_item_hotkeys(original, image, before):
                0x1B: lambda r: (names("screenshot_no_ui_action"),) + r[1:4] + (0x9FDB60,),
                0x37: lambda r: (names("ptt_nearby_action"), 0x37, 8) + r[3:]}
     expected = [changed.get(r[1], lambda r: r)(r) for r in table]
-    added = P.CONTROLS_ADDED[5:]
+    # patch 149's sixteen; patch 206's scope_next after them, default kY (0x9FDCC8)
+    added = [row for row in P.CONTROLS_ADDED[5:] if row[0] != 0x5A]
+    scope = moved[game + len(added):]
     cstr = lambda va: image.read(va, 40).split(b"\0")[0]
     check(moved[:game] == expected and sum(a != b for a, b in zip(table, expected)) == len(changed)
           and [stock.read(va, len(key)) for va, key in ((0x9FDCA8, b"kH\0"), (0x9FDC1C, b"kF9\0"),
                                                          (0x9FDF1C, b"kF11\0"), (0x9FDB60, b"kF12\0"))]
           == [b"kH\0", b"kF9\0", b"kF11\0", b"kF12\0"]
-          and [(r[1], r[2], r[3], r[4]) for r in moved[game:]] == [(action, 5, 0, 0) for action, _ in added]
-          and all(cstr(r[0]) == key[3:-7].encode() for r, (_, key) in zip(moved[game:], added)),
+          and [(r[1], r[2], r[3], r[4]) for r in moved[game:game + len(added)]] == [(action, 5, 0, 0) for action, _ in added]
+          and all(cstr(r[0]) == key[3:-7].encode() for r, (_, key) in zip(moved[game:], added))
+          and [(cstr(r[0]), r[1], r[2], r[3], stock.read(r[4], 3)) for r in scope] == [(b"scope_next", 0x5A, 5, 0, b"kY\0")],
           "the game's 60 rows (artefact's default key kH; hide_interface kF9, screenshot kF11, screenshot_no_ui "
           "kF12; ptt_nearby kind 8), then use_onyx .. use_next_medkit, 4Ah..59h, kinds 5, "
-          "no toggle, no default key; each a row of `controls` (CONTROLS_ADDED)")
-    check(all(0x4A <= action < P.ITEM_HOTKEYS_BINDINGS for action, _ in added),
+          "no toggle, no default key, and scope_next (5Ah, kinds 5, kY); each a row of `controls` (CONTROLS_ADDED)")
+    check(all(0x4A <= action < P.ITEM_HOTKEYS_BINDINGS for action, _ in P.CONTROLS_ADDED[5:]),
           f"their ids past the game's (48h the options' none, 49h the binder's) and below the binder's "
           f"{P.ITEM_HOTKEYS_BINDINGS:#x} bindings")
     for va, old, new in P.item_hotkeys_table_writes(linked) + P.item_hotkeys_binder_writes():

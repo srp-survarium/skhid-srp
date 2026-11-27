@@ -40,11 +40,25 @@ main.wiki { max-width: 1160px; gap: 0; margin-top: 28px }
 .weapon-details dd { margin:0; text-align:right; font:.85rem var(--data) }
 .weapon-details dd small { font:.75rem var(--body) }
 .wiki-stamp { margin:28px 0; font:.75rem var(--data); color:var(--ink-3) }
-.wiki-sections { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); grid-auto-rows:1fr; gap:16px; margin:24px 0 }
-.wiki-link { display:block; text-decoration:none; border:1px solid var(--rule); background:var(--panel); padding:24px }
-.wiki-link:hover { border-color:var(--accent) }
-.wiki-link h2 { color:var(--accent); font-size:1.5rem }
-.wiki-link p { color:var(--ink-2); margin-bottom:0 }
+/* The index (src/wiki.rs): a tile a section, its picture in a box of one size with its name on a
+   strip along the bottom, its line under them. */
+.wiki-sections { display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); grid-auto-rows:1fr; gap:16px; margin:24px 0 }
+.wiki-link { display:flex; flex-direction:column; min-width:0; text-decoration:none; border:1px solid var(--rule); background:var(--panel) }
+.wiki-link:hover,.wiki-link:focus-visible { border-color:var(--accent) }
+.wiki-link:focus-visible { outline:2px solid var(--accent); outline-offset:2px }
+.wiki-pic { display:flex; flex-direction:column; height:180px; background:var(--bg); border-bottom:1px solid var(--rule) }
+.wiki-pic>img,.wiki-pic>svg,.wiki-glyphs { flex:1; min-height:0; width:100%; padding:10px 12px 8px; object-fit:contain }
+.wiki-pic>img { width:min(100%,220px); align-self:center }
+.wiki-pic h2 { display:flex; align-items:center; justify-content:center; min-height:2.6em; padding:4px 8px; text-align:center; font-size:1.05rem; line-height:1.1; color:var(--accent); background:var(--panel); border-top:1px solid var(--rule); overflow-wrap:anywhere; hyphens:auto }
+.wiki-link:hover .wiki-pic h2 { color:var(--accent-ink); background:var(--accent); border-top-color:var(--accent) }
+.wiki-link p { margin:0; padding:10px 12px 12px; font-size:.85rem; line-height:1.45; color:var(--ink-2) }
+.wiki-glyphs { display:grid; grid-template-columns:repeat(3,40px); place-content:center; gap:12px 20px }
+.wiki-glyphs .glyph { width:40px; height:40px; color:var(--accent) }
+.wiki-pic .doll rect { fill:var(--accent) }
+.wiki-pic .doll .outline { fill:var(--ink-3) }
+@media(max-width:1000px) {
+ .wiki-sections { grid-template-columns:repeat(2,minmax(0,1fr)) }
+}
 [hidden] { display:none !important }
 .stat-note { font-size:.78rem; color:var(--ink-3); line-height:1.5; margin:0 0 12px }
 .comparison { border-top:2px solid var(--ink); margin:12px 0 28px; padding-top:18px; scroll-margin-top:20px }
@@ -250,7 +264,13 @@ main.wiki { max-width: 1160px; gap: 0; margin-top: 28px }
 @media(max-width:560px) {
  .wiki-heading h1 { font-size:2.1rem }
  .wpick-btn small { display:none }
- .wiki-sections { grid-template-columns:1fr }
+ .wiki-sections { grid-template-columns:repeat(2,minmax(0,1fr)); grid-auto-rows:auto; gap:12px }
+ .wiki-pic { height:136px }
+ .wiki-pic>img,.wiki-pic>svg,.wiki-glyphs { padding:10px 10px 8px }
+ .wiki-pic h2 { font-size:.95rem }
+ .wiki-glyphs { grid-template-columns:repeat(3,30px); gap:6px 12px }
+ .wiki-glyphs .glyph { width:30px; height:30px }
+ .wiki-link p { padding:8px 10px 10px; font-size:.8rem }
  .catalogue-tools { grid-template-columns:1fr 1fr; gap:12px }
  .catalogue-tools label:first-child { grid-column:1 / -1 }
  .weapon summary { padding:12px; grid-template-columns:84px 1fr 62px }
@@ -397,3 +417,22 @@ main.wiki { max-width: 1160px; gap: 0; margin-top: 28px }
 .levels-graph .lv circle { fill:var(--accent); stroke:var(--panel); stroke-width:2 }
 .levels-graph .lv text { fill:var(--ink); font:700 12px var(--data); paint-order:stroke; stroke:var(--panel); stroke-width:4px }
 .levels-graph .lv:hover :is(line,circle,text) { visibility:visible }
+/* Artefacts (src/artefacts.rs): a row an artefact, its effects a list a cell. */
+.artefact-table { border-collapse:collapse; width:100%; font:.85rem var(--body) }
+.artefact-table th,.artefact-table td { padding:8px 10px; border-bottom:1px solid var(--rule); text-align:left; vertical-align:top }
+.artefact-table thead th { font:700 .7rem var(--display); text-transform:uppercase; letter-spacing:.04em; color:var(--ink-3); white-space:nowrap }
+.artefact-table tbody th { font:700 1rem var(--display); white-space:nowrap }
+.artefact-table tbody th img { display:block; width:86px; height:42px; object-fit:contain; margin-bottom:4px }
+.artefact-table ul { list-style:none; margin:0; padding:0 }
+.artefact-table li { margin:0 0 3px; color:var(--ink-2) }
+.artefact-table li b { font:.85rem var(--data); color:var(--ink); white-space:nowrap }
+.artefact-table .num { font:.85rem var(--data); white-space:nowrap }
+.artefact-table td a { color:var(--accent) }
+.artefact-skill { min-width:200px }
+.artefact-skill p { margin:4px 0 0; color:var(--ink-2); font-size:.8rem }
+.artefact-skill a,.artefact-skills a { display:inline-flex; align-items:center; gap:6px; color:var(--ink); text-decoration:none; font:700 .85rem var(--display) }
+.artefact-skill img,.artefact-skills img { width:28px; height:28px; flex:none }
+.artefact-skills { display:flex; flex-wrap:wrap; gap:8px; list-style:none; margin:12px 0 0; padding:0 }
+.artefact-skills li { margin:0 }
+.artefact-skills a { padding:4px 10px 4px 4px; border:1px solid var(--rule); background:var(--panel); color:var(--ink-2) }
+.artefact-skill a:hover,.artefact-skills a:hover { color:var(--accent) }

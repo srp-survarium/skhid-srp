@@ -526,8 +526,8 @@ impl DownloadFile {
     }
 }
 
-/// An open file of the restore of resources.db and of the patch step, read
-/// and written at 64-bit offsets.
+/// An open file of the patch step and the revision gate, read and written at
+/// 64-bit offsets.
 pub struct File(Handle);
 
 impl File {
@@ -548,12 +548,6 @@ impl File {
     /// For reading, whoever else has it open (the game too).
     pub fn shared(path: &str) -> Result<Self, Code> {
         open_read(path).map(Self)
-    }
-
-    /// For reading; others may read it too, but no one may change it while
-    /// it is open.
-    pub fn locked(path: &str) -> Result<Self, Code> {
-        open(path, GENERIC_READ, FILE_SHARE_READ, OPEN_EXISTING).map(Self)
     }
 
     /// A new file (over one of the same name), to write and read back, by

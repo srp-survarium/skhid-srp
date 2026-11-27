@@ -1,0 +1,10 @@
+/target
+*.sqlite
+.claude/
+__pycache__/
+/srp.toml
+/login_key.pem
+/logs/
+/run/
+# the game tables: built from a game install by `srp setup` / `srp extract --out data`, never committed
+/data/

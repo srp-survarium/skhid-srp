@@ -1,0 +1,9 @@
+[package]
+name = "data-extract"
+version.workspace = true
+edition.workspace = true
+description = "Builds the server's 0.69d game tables (data/*.json|tsv) from the operator's own game install"
+
+[dependencies]
+client-files.workspace = true
+thiserror.workspace = true

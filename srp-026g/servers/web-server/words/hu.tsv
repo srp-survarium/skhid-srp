@@ -95,8 +95,6 @@ Not found.	Nem található.
 Too many wrong tokens; wait a minute.	Túl sok hibás token; várj egy percet.
 Wrong token.	Hibás token.
 No such user.	Nincs ilyen felhasználó.
-Silver and gold are whole numbers, + or -, or empty.	Az ezüst és az arany egész szám, + vagy -, vagy üres.
-{user}: now {silver_now} silver and {gold_now} gold.	{user}: most {silver_now} ezüst és {gold_now} arany.
 New accounts are taken again.	Új fiókokat ismét elfogadunk.
 New accounts are refused; existing players sign in as before.	Új fiókokat nem fogadunk el; a meglévő játékosok ugyanúgy bejelentkeznek.
 Maintenance cancelled.	Karbantartás lemondva.
@@ -138,9 +136,8 @@ Q:	K:
 A:	V:
 If something goes wrong	Ha valami nem működik
 Download the files	Fájlok letöltése
-Download the game	A játék letöltése
 The download link is coming soon.	A letöltési link hamarosan érkezik.
-Can't download? Run {script}: it downloads the whole game into a Survarium folder beside it.	Nem sikerül a letöltés? Futtasd ezt: {script} – letölti az egész játékot egy mellette lévő Survarium mappába.
+Chrome or your antivirus refuses the download? Try this script: {script}. It downloads the whole game into a Survarium folder beside it.	A Chrome vagy a víruskereső nem engedi a letöltést? Próbáld ki ezt a szkriptet: {script} – letölti az egész játékot egy mellette lévő Survarium mappába.
 Get the game	A játék beszerzése
 The link is coming soon.	A link hamarosan érkezik.
 Get the original Survarium 0.26g (build 2777) and unpack it.	Szerezd be az eredeti Survarium 0.26g-t (2777-es build), és csomagold ki.
@@ -155,10 +152,6 @@ Run <code>Skhid.bat</code> and press <b>PLAY</b>.	Indítsd el a <code>Skhid.bat<
 Windows warns about an unknown publisher? Let it run.<br>Linux: <code>bash Skhid.sh launcher</code>, see <code>LINUX.txt</code>.	A Windows ismeretlen kiadóra figyelmeztet? Engedd futni.<br>Linux: <code>bash Skhid.sh launcher</code>, lásd <code>LINUX.txt</code>.
 Windows warns about an unknown publisher? Let it run.<br>Linux: <code>bash Skhid.sh</code>, see <code>LINUX.txt</code>.	A Windows ismeretlen kiadóra figyelmeztet? Engedd futni.<br>Linux: <code>bash Skhid.sh</code>, lásd <code>LINUX.txt</code>.
 Run <code>play_skhid.bat</code> in <code>game\\binaries\\x86</code>.	Futtasd a <code>play_skhid.bat</code> fájlt a <code>game\\binaries\\x86</code> mappában.
-Start it with this command line:	Indítsd ezzel a parancssorral:
-english	hungarian
-server address	szervercím
-language: english, russian, ukrainian	nyelv: english, hungarian, russian, ukrainian
 Skhid (Ukrainian for “east”) is a community server that lets the Survarium {version} client sign in, trade, form squads and play matches again.	A Skhid (ukránul „kelet”) egy közösségi szerver, amelyen a Survarium {version} kliens újra be tud jelentkezni, kereskedni, osztagot alakítani és meccseket játszani.
 Project Discord: <a href="https://discord.gg/pxywZfaxRQ">discord.gg/pxywZfaxRQ</a>	A projekt Discordja: <a href="https://discord.gg/pxywZfaxRQ">discord.gg/pxywZfaxRQ</a>
 Early test server.	Korai tesztszerver.
@@ -167,7 +160,6 @@ How to play	Hogyan játssz
 Download our files and unpack them into an empty folder (e.g. D:\\Survarium). <b>You do this only once.</b>	Töltsd le a fájljainkat, és csomagold ki őket egy üres mappába (pl. D:\\Survarium). <b>Ezt csak egyszer kell megtenni.</b>
 Download our files and unpack them into the game's folder, the one with the <code>game</code> folder, replacing files. <b>You do this only once.</b>	Töltsd le a fájljainkat, és csomagold ki őket a játék mappájába, abba, amelyikben a <code>game</code> mappa van, a fájlokat felülírva. <b>Ezt csak egyszer kell megtenni.</b>
 Download our files and unpack them over the game's <code>game</code> folder.	Töltsd le a fájljainkat, és csomagold ki őket a játék <code>game</code> mappájára.
-Download the patched game and unpack it.	Töltsd le a patchelt játékot, és csomagold ki.
 Sign in with any name and password: a new name registers itself. Remember the password.	Jelentkezz be bármilyen névvel és jelszóval: egy új név magától regisztrálódik. Jegyezd meg a jelszót.
 New accounts are taken.	Új fiókokat elfogadunk.
 Stop new registrations	Új regisztrációk leállítása
@@ -177,7 +169,6 @@ Shown once the token is right.	A helyes token után látható.
 Password	Jelszó
 User name	Felhasználónév
 Silver, + or -	Ezüst, + vagy -
-Gold, + or -	Arany, + vagy -
 Change	Módosítás
 Admin	Admin
 Token	Token
@@ -408,6 +399,7 @@ Kills	Ölések
 Deaths	Halálok
 K/D	K/D
 Kills/min	Ölés/perc
+Experience/min	Tapasztalat/perc
 Assists	Segítések
 Score	Pontszám	stats
 Avg score	Átl. pontszám
@@ -511,10 +503,10 @@ Bring it to your own base: 1 point, and the round ends.	Vidd a saját bázisodra
 The carrier is slower and seen by everyone.	A hordozó lassabb, és mindenki látja.
 Respawn in waves every {0} s.	Újraéledés hullámokban, {0} mp-enként.
 Time limit {0}: the higher score wins; a tie plays {1} of sudden death without respawns.	Időkorlát {0}: a magasabb pontszám nyer; döntetlennél {1} hirtelen halál újraéledés nélkül.
-Sniper rifles, silenced guns and guns without automatic fire are replaced.	A mesterlövészpuskák, a hangtompítós és a sorozatlövés nélküli fegyverek lecserélődnek.
-Rooms up to level {0}: {1}.	{0}. szintig a szobákban: {1}.
-Other rooms: {0}.	Többi szoba: {0}.
-Sight: {0}.	Irányzék: {0}.
+Everyone fights with an assault rifle: sniper rifles, silenced guns and guns without automatic fire are swapped for an {0} (rooms up to level {1}) or an {2} (higher rooms).	Mindenki gépkarabéllyal harcol: a mesterlövészpuskák, a hangtompítós fegyverek és az automata tüzelés nélküli fegyverek helyére {0} (a {1}. szintig terjedő szobákban) vagy {2} (magasabb szobákban) kerül.
+Each comes with an {0}.	Mindegyiken {0} van.
+a revolver	egy revolver
+a lever-action rifle	egy karos zárú puska
 Every kit: {0} only.	Minden felszerelés: csak {0}.
 Every kit: {0} and {1}.	Minden felszerelés: {0} és {1}.
 Everyone plays the same {0} random kits.	Mindenki ugyanazzal a {0} véletlen felszereléssel játszik.
@@ -565,6 +557,7 @@ No effect fully aimed.	Teljes célzásnál nincs hatása.
 Spread while walking {v} per rank, from the hip or aiming in. Not crouch-walking.	Szórás járás közben fokozatonként {v}, csípőből és célzás közben. Guggolva járásnál nem.
 Spread from broken arms {v} per rank.	Szórás törött karokkal fokozatonként {v}.
 This weapon's kick ranges, up and sideways. Not the camera shake.	A fegyver visszarúgásának tartományai, felfelé és oldalra. Nem a kamera rázkódása.
+This weapon's base spread, in every shot: all of the spread fully aimed, little of it from the hip. Not the stance's spread or a shot's.	A fegyver alapszórása, minden lövésben: teljes célzásnál a teljes szórás, csípőből annak kis része. Nem a testhelyzet vagy a lövés szórása.
 The stance's spread and each shot's. No effect sprinting, jumping or fully aimed.	A testhelyzet és minden lövés szórása. Sprintnél, ugrásnál és teljes célzásnál nincs hatása.
 Each shot's kick with any weapon: up, sideways and the camera shake.	Minden lövés visszarúgása bármely fegyverrel: felfelé, oldalra és a kamera rázkódása.
 Base	Alap
@@ -731,7 +724,7 @@ Damage ×{damage}, penetration ×{pierce}, before armour: lower penetration make
 {drug}: {pool} takes ×{k} for {s} s after use ({delay} s to kick in).	{drug}: {pool} ×{k} sebzést kap a használat után {s} mp-ig ({delay} mp múlva hat).
 Inside an anomaly: damage ×{k}, before armour.	Anomálián belül: sebzés ×{k}, a páncél előtt.
 This weapon takes no damage bonuses.	Ez a fegyver nem kaphat sebzésbónuszt.
-Come with the weapon; cannot be changed.	A fegyverrel járnak; nem módosíthatók.
+Comes with the weapon; cannot be changed.	A fegyverrel jár; nem módosítható.
 An item holds at most 3 modifications. Bonuses on one stat add up before they apply.	Egy tárgyon legfeljebb 3 módosítás lehet. Az egy jellemzőre szóló bónuszok előbb összeadódnak.
 This item takes no armour bonuses.	Ez a tárgy nem kaphat páncélbónuszt.
 Nothing worn covers the {part}.	Semmilyen viselt tárgy nem védi: {part}.
@@ -923,3 +916,88 @@ Healing	Gyógyulás
 Previous shot	Előző lövés
 Next shot	Következő lövés
 Damage calculator	Survarium sebzéskalkulátor	title
+# The wiki's artefacts (src/artefacts.rs)
+Every artefact: what it gives carried and fired, how copies stack, where it is found.	Minden artefaktum: mit ad hordva és aktiválva, hogyan adódnak össze a példányok, hol található.
+Artefact	Artefaktum
+Passive	Passzív
+Active	Aktív
+Active time	Hatásidő
+Cooldown	Újratöltés
+Skill	Képesség
+Rules	Szabályok
+Movement speed	Mozgási sebesség
+Stamina regeneration	Energia-visszatöltődés
+Stamina use	Energiafogyasztás
+Slowdown from hits	Lassulás találatoktól
+Against	Ellen
+Body parts	Testrészek
+Penetration	Átütés
+Health	Életerő
+Cures injuries	Sérüléseket gyógyít
+Regeneration	Regeneráció
+Regeneration delay	Regeneráció késleltetése
+Regenerates up to	Regenerálódik eddig
+HP	ÉP	unit
+Carried in a container: passive. A death leaves them in that kit.	Tárolóban: passzív. Halál után abban a felszerelésben maradnak.
+A key fires every ready copy of its kind and restarts the cooldown of the ones still cooling.	Egy gomb a fajtája minden kész példányát aktiválja, és újraindítja a még töltődők újratöltését.
+Copies of a kind add up (Onyx's passive multiplies); at most 4 count.	Egy fajta példányai összeadódnak (az Ónix passzívja szorzódik); legfeljebb 4 számít.
+Spring's and Larkspur's actives add to the passive; Onyx's replaces it.	A Rugó és a Szarkaláb aktívja hozzáadódik a passzívhoz; az Ónixé felváltja azt.
+Onyx fired together: one reduction, 1 s longer per extra copy.	Együtt aktivált Ónixok: egy csökkentés, minden további példányért 1 mp-cel tovább.
+
+# The maps' anomalies (scripts/maps-tab/ui.js)
+Anomalies	Anomáliák
+Anomaly	Anomália
+Artefacts come from the anomalies. Each anomaly puts one of its artefacts into one of its free containers, one per time window, until its maximum lies uncollected; a pickup starts the window again. It gives only those of its artefacts that no player is carrying. Point at an anomaly or an artefact (or tap it) for its numbers.	Az artefaktumokat az anomáliák adják. Minden anomália egy saját artefaktumát teszi egy saját szabad tárolójába, időablakonként egyet, amíg a maximuma begyűjtetlenül ott nem fekszik; egy felvétel újraindítja az ablakot. Csak azokat a saját artefaktumait adja, amelyeket egy játékos sem visel. Mutass egy anomáliára vagy artefaktumra (vagy koppints rá) a számaiért.
+{s} s	{s} mp
+{a}–{b} s	{a}–{b} mp
+Holds	Tartalmaz
+First one	Első
+Then every	Ezután
+Chance	Esély
+Max uncollected	Legfeljebb begyűjtetlen
+Search	Keresés	artefact
+Zones switch every	Zónaváltás
+After a pickup the next one comes {next} later; that container stays empty for {cooldown}.	Felvétel után a következő {next} múlva jön; az a tároló {cooldown} üres marad.
+Its own zone does no damage.	A saját zónája nem sebez.
+Searching a container takes {search}; after a pickup it stays empty for {cooldown}.	Egy tároló átkutatása {search}; felvétel után {cooldown} üres marad.
+After a pickup the next one comes {next} later.	Felvétel után a következő {next} múlva jön.
+whole body	egész test
+{n} % a hit, at most every {t}	{n} % találatonként, legfeljebb {t}-enként
+deadly	halálos
+{n} % a second	{n} % másodpercenként
+Damage is a share of each body part's health, before armour.	A sebzés minden testrész életerejének része, a páncél előtt.
+It gives no artefacts.	Nem ad artefaktumot.
+
+# The stats' Maps and Modes boards.
+Last 7 days	Utolsó 7 nap
+Last 24 hours	Utolsó 24 óra
+Avg length	Átl. hossz
+Sides	Oldalak
+No result	Nincs eredmény
+Share	Arány
+Trend	Alakulás
+by hour	óránként
+by day	naponta
+by week	hetente
+Most played maps and modes	Legnépszerűbb pályák és játékmódok
+
+# The modes and weathers as the game names them (client-patches/localization: the stats' Maps and Modes boards, the match lists).
+Protective device	Védelmi berendezés
+Protective device: chargers	Védelmi berendezés: töltők
+Team Deathmatch	Csapatos deathmatch
+Research	Kutatás
+Protective device: blackout	Védelmi berendezés: áramszünet
+Free for all	Mindenki mindenki ellen
+Freeze Tag	Fagyasztó fogó
+Artifact Hunt	Artefaktumvadászat
+FFA: Racket	FFA: Zsivaj
+FFA: Saloon	FFA: Saloon
+FFA: Saloon (Winchester)	FFA: Saloon (Winchester)
+Mode {0}	Mód: {0}
+day	nappal	weather
+rain	eső	weather
+evening	este	weather
+night	éjszaka	weather
+before rain	eső előtt	weather
+Weathers	Időjárás
+Variants	Változatok

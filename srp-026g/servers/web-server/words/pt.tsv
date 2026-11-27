@@ -95,8 +95,6 @@ Not found.	Não encontrado.
 Too many wrong tokens; wait a minute.	Tokens errados demais; aguarde um minuto.
 Wrong token.	Token errado.
 No such user.	Usuário não encontrado.
-Silver and gold are whole numbers, + or -, or empty.	Prata e ouro são números inteiros, + ou -, ou vazio.
-{user}: now {silver_now} silver and {gold_now} gold.	{user}: agora {silver_now} de prata e {gold_now} de ouro.
 New accounts are taken again.	Novas contas voltaram a ser aceitas.
 New accounts are refused; existing players sign in as before.	Novas contas são recusadas; jogadores existentes entram normalmente.
 Maintenance cancelled.	Manutenção cancelada.
@@ -138,9 +136,8 @@ Q:	P:
 A:	R:
 If something goes wrong	Se algo der errado
 Download the files	Baixar os arquivos
-Download the game	Baixar o jogo
 The download link is coming soon.	O link de download chega em breve.
-Can't download? Run {script}: it downloads the whole game into a Survarium folder beside it.	Não consegue baixar? Execute {script}: ele baixa o jogo inteiro para uma pasta Survarium ao lado dele.
+Chrome or your antivirus refuses the download? Try this script: {script}. It downloads the whole game into a Survarium folder beside it.	O Chrome ou o antivírus bloqueia o download? Experimente este script: {script}. Ele baixa o jogo inteiro para uma pasta Survarium ao lado dele.
 Get the game	Obtenha o jogo
 The link is coming soon.	O link chega em breve.
 Get the original Survarium 0.26g (build 2777) and unpack it.	Obtenha o Survarium 0.26g original (build 2777) e extraia.
@@ -155,10 +152,6 @@ Run <code>Skhid.bat</code> and press <b>PLAY</b>.	Execute o <code>Skhid.bat</cod
 Windows warns about an unknown publisher? Let it run.<br>Linux: <code>bash Skhid.sh launcher</code>, see <code>LINUX.txt</code>.	O Windows avisa sobre um editor desconhecido? Deixe executar.<br>Linux: <code>bash Skhid.sh launcher</code>, veja <code>LINUX.txt</code>.
 Windows warns about an unknown publisher? Let it run.<br>Linux: <code>bash Skhid.sh</code>, see <code>LINUX.txt</code>.	O Windows avisa sobre um editor desconhecido? Deixe executar.<br>Linux: <code>bash Skhid.sh</code>, veja <code>LINUX.txt</code>.
 Run <code>play_skhid.bat</code> in <code>game\\binaries\\x86</code>.	Execute o <code>play_skhid.bat</code> em <code>game\\binaries\\x86</code>.
-Start it with this command line:	Inicie o jogo com esta linha de comando:
-english	english
-server address	endereço do servidor
-language: english, russian, ukrainian	idioma: english, russian, ukrainian
 Skhid (Ukrainian for “east”) is a community server that lets the Survarium {version} client sign in, trade, form squads and play matches again.	Skhid (“leste” em ucraniano) é um servidor comunitário que permite ao cliente Survarium {version} entrar, negociar, formar esquadrões e jogar partidas de novo.
 Project Discord: <a href="https://discord.gg/pxywZfaxRQ">discord.gg/pxywZfaxRQ</a>	Discord do projeto: <a href="https://discord.gg/pxywZfaxRQ">discord.gg/pxywZfaxRQ</a>
 Early test server.	Servidor em teste inicial.
@@ -167,7 +160,6 @@ How to play	Como jogar
 Download our files and unpack them into an empty folder (e.g. D:\\Survarium). <b>You do this only once.</b>	Baixe nossos arquivos e extraia-os em uma pasta vazia (ex.: D:\\Survarium). <b>Isso é feito só uma vez.</b>
 Download our files and unpack them into the game's folder, the one with the <code>game</code> folder, replacing files. <b>You do this only once.</b>	Baixe nossos arquivos e extraia-os na pasta do jogo, a que tem a pasta <code>game</code>, substituindo os arquivos. <b>Isso é feito só uma vez.</b>
 Download our files and unpack them over the game's <code>game</code> folder.	Baixe nossos arquivos e extraia-os por cima da pasta <code>game</code> do jogo.
-Download the patched game and unpack it.	Baixe o jogo já com o patch e extraia.
 Sign in with any name and password: a new name registers itself. Remember the password.	Entre com qualquer nome e senha: um nome novo se cadastra sozinho. Guarde a senha.
 New accounts are taken.	Novas contas são aceitas.
 Stop new registrations	Suspender novos cadastros
@@ -177,7 +169,6 @@ Shown once the token is right.	Aparece quando o token estiver certo.
 Password	Senha
 User name	Nome de usuário
 Silver, + or -	Prata, + ou -
-Gold, + or -	Ouro, + ou -
 Change	Alterar
 Admin	Admin
 Token	Token
@@ -408,6 +399,7 @@ Kills	Eliminações
 Deaths	Mortes
 K/D	K/D
 Kills/min	Eliminações/min
+Experience/min	Experiência/min
 Assists	Assistências
 Score	Pontuação	stats
 Avg score	Pontuação média
@@ -511,10 +503,10 @@ Bring it to your own base: 1 point, and the round ends.	Leve-o à sua base: 1 po
 The carrier is slower and seen by everyone.	O portador fica mais lento e visível para todos.
 Respawn in waves every {0} s.	Renascimento em ondas a cada {0} s.
 Time limit {0}: the higher score wins; a tie plays {1} of sudden death without respawns.	Limite de tempo {0}: vence o placar maior; no empate, {1} de morte súbita sem renascimento.
-Sniper rifles, silenced guns and guns without automatic fire are replaced.	Fuzis de precisão, armas com silenciador e armas sem tiro automático são substituídos.
-Rooms up to level {0}: {1}.	Salas até o nível {0}: {1}.
-Other rooms: {0}.	Outras salas: {0}.
-Sight: {0}.	Mira: {0}.
+Everyone fights with an assault rifle: sniper rifles, silenced guns and guns without automatic fire are swapped for an {0} (rooms up to level {1}) or an {2} (higher rooms).	Todos lutam com fuzis de assalto: fuzis de precisão, armas com silenciador e armas sem tiro automático são trocados por um {0} (salas até o nível {1}) ou um {2} (salas mais altas).
+Each comes with an {0}.	Cada um vem com {0}.
+a revolver	um revólver
+a lever-action rifle	um rifle de alavanca
 Every kit: {0} only.	Todo kit: só {0}.
 Every kit: {0} and {1}.	Todo kit: {0} e {1}.
 Everyone plays the same {0} random kits.	Todos jogam com os mesmos {0} kits aleatórios.
@@ -565,6 +557,7 @@ No effect fully aimed.	Sem efeito com a mira completa.
 Spread while walking {v} per rank, from the hip or aiming in. Not crouch-walking.	Dispersão ao andar {v} por rank, da cintura ou mirando. Não andando agachado.
 Spread from broken arms {v} per rank.	Dispersão com braços quebrados {v} por rank.
 This weapon's kick ranges, up and sideways. Not the camera shake.	Faixas de recuo desta arma, para cima e para os lados. Não inclui o tremor da câmera.
+This weapon's base spread, in every shot: all of the spread fully aimed, little of it from the hip. Not the stance's spread or a shot's.	A dispersão base desta arma, em todo tiro: toda a dispersão com a mira completa, pouco dela da cintura. Não a dispersão da postura nem a de um tiro.
 The stance's spread and each shot's. No effect sprinting, jumping or fully aimed.	Dispersão da postura e de cada tiro. Sem efeito correndo, pulando ou com a mira completa.
 Each shot's kick with any weapon: up, sideways and the camera shake.	Recuo de cada tiro com qualquer arma: para cima, para os lados e o tremor da câmera.
 Base	Base
@@ -731,7 +724,7 @@ Damage ×{damage}, penetration ×{pierce}, before armour: lower penetration make
 {drug}: {pool} takes ×{k} for {s} s after use ({delay} s to kick in).	{drug}: {pool} recebe ×{k} por {s} s após o uso (faz efeito em {delay} s).
 Inside an anomaly: damage ×{k}, before armour.	Dentro de uma anomalia: dano ×{k}, antes da armadura.
 This weapon takes no damage bonuses.	Esta arma não recebe bônus de dano.
-Come with the weapon; cannot be changed.	Vêm com a arma; não podem ser alterados.
+Comes with the weapon; cannot be changed.	Vem com a arma; não pode ser alterado.
 An item holds at most 3 modifications. Bonuses on one stat add up before they apply.	Um item tem no máximo 3 modificações. Bônus no mesmo atributo se somam antes de valer.
 This item takes no armour bonuses.	Este item não recebe bônus de armadura.
 Nothing worn covers the {part}.	Nada vestido protege: {part}.
@@ -923,3 +916,88 @@ Healing	Cura
 Previous shot	Tiro anterior
 Next shot	Próximo tiro
 Damage calculator	Calculadora de dano do Survarium	title
+# The wiki's artefacts (src/artefacts.rs)
+Every artefact: what it gives carried and fired, how copies stack, where it is found.	Cada artefato: o que dá carregado e ativado, como as cópias se acumulam, onde é encontrado.
+Artefact	Artefato
+Passive	Passivo
+Active	Ativo
+Active time	Duração
+Cooldown	Recarga
+Skill	Habilidade
+Rules	Regras
+Movement speed	Velocidade de movimento
+Stamina regeneration	Regeneração de energia
+Stamina use	Consumo de energia
+Slowdown from hits	Lentidão por acertos
+Against	Contra
+Body parts	Partes do corpo
+Penetration	Penetração
+Health	Vida
+Cures injuries	Cura ferimentos
+Regeneration	Regeneração
+Regeneration delay	Atraso da regeneração
+Regenerates up to	Regenera até
+HP	HP	unit
+Carried in a container: passive. A death leaves them in that kit.	Num contêiner: passivo. Após a morte ficam nesse kit.
+A key fires every ready copy of its kind and restarts the cooldown of the ones still cooling.	Uma tecla ativa todas as cópias prontas do seu tipo e reinicia a recarga das que ainda estão recarregando.
+Copies of a kind add up (Onyx's passive multiplies); at most 4 count.	Cópias de um tipo se somam (o passivo do Ônix se multiplica); contam no máximo 4.
+Spring's and Larkspur's actives add to the passive; Onyx's replaces it.	O ativo da Fonte e da Espora soma-se ao passivo; o do Ônix o substitui.
+Onyx fired together: one reduction, 1 s longer per extra copy.	Ônix ativados juntos: uma redução, 1 s a mais por cópia extra.
+
+# The maps' anomalies (scripts/maps-tab/ui.js)
+Anomalies	Anomalias
+Anomaly	Anomalia
+Artefacts come from the anomalies. Each anomaly puts one of its artefacts into one of its free containers, one per time window, until its maximum lies uncollected; a pickup starts the window again. It gives only those of its artefacts that no player is carrying. Point at an anomaly or an artefact (or tap it) for its numbers.	Os artefatos vêm das anomalias. Cada anomalia coloca um dos seus artefatos em um dos seus recipientes livres, um por janela de tempo, até que o seu máximo esteja à espera de coleta; uma coleta reinicia a janela. Ela só dá os seus artefatos que nenhum jogador está carregando. Aponte para uma anomalia ou um artefato (ou toque nele) para ver os números dela.
+{s} s	{s} s
+{a}–{b} s	{a}–{b} s
+Holds	Contém
+First one	Primeiro
+Then every	Depois a cada
+Chance	Chance
+Max uncollected	Máx. não coletados
+Search	Busca	artefact
+Zones switch every	Zonas alternam a cada
+After a pickup the next one comes {next} later; that container stays empty for {cooldown}.	Após uma coleta, o próximo vem {next} depois; esse recipiente fica vazio por {cooldown}.
+Its own zone does no damage.	A própria zona dela não causa dano.
+Searching a container takes {search}; after a pickup it stays empty for {cooldown}.	Revistar um recipiente leva {search}; após uma coleta ele fica vazio por {cooldown}.
+After a pickup the next one comes {next} later.	Após uma coleta, o próximo vem {next} depois.
+whole body	corpo inteiro
+{n} % a hit, at most every {t}	{n} % por acerto, no máximo a cada {t}
+deadly	mortal
+{n} % a second	{n} % por segundo
+Damage is a share of each body part's health, before armour.	O dano é uma parte da vida de cada parte do corpo, antes da armadura.
+It gives no artefacts.	Ela não dá artefatos.
+
+# The stats' Maps and Modes boards.
+Last 7 days	Últimos 7 dias
+Last 24 hours	Últimas 24 horas
+Avg length	Duração média
+Sides	Lados
+No result	Sem resultado
+Share	Parcela
+Trend	Tendência
+by hour	por hora
+by day	por dia
+by week	por semana
+Most played maps and modes	Mapas e modos mais jogados
+
+# The modes and weathers as the game names them (client-patches/localization: the stats' Maps and Modes boards, the match lists).
+Protective device	Pegue a Bateria
+Protective device: chargers	Pegue a Bateria: carregadores
+Team Deathmatch	Mata-Mata em Equipe
+Research	Captura de Ponto
+Protective device: blackout	Pegue a Bateria: blecaute
+Free for all	Todos contra Todos
+Freeze Tag	Pique-Congela
+Artifact Hunt	Caça ao Artefato
+FFA: Racket	FFA: Bagunça
+FFA: Saloon	FFA: Saloon
+FFA: Saloon (Winchester)	FFA: Saloon (Winchester)
+Mode {0}	Modo {0}
+day	dia	weather
+rain	chuva	weather
+evening	entardecer	weather
+night	noite	weather
+before rain	antes da chuva	weather
+Weathers	Climas
+Variants	Variantes

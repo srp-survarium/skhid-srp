@@ -11,7 +11,8 @@
   2400, 2640, 2904, ... 3514 the 5th, 5659 the 10th silver; 12, 13, 15, ... 18,
   28 gold.
 - **Unchanged:** the price table by item level (level 10: 2400 silver or 12
-  gold), silver or gold, no wait (`reroll_time` 0), paid when the three are
+  gold; since gold went, 2026-11-08, silver only: `reroll_price_premium` x 100, 1200 at level 10,
+  silver-only.md), no wait (`reroll_time` 0), paid when the three are
   offered, the balance check before it, Cancel keeps the old one and gives
   nothing back.
 - **Shown = taken:** the window's two prices (`83 46 06`, `83 46 08`) are the

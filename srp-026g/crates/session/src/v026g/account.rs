@@ -159,7 +159,7 @@ pub struct Account {
     /// The clan abbreviation; empty without a clan.
     pub clan_tag: String,
     /// Silver, the one currency (gold was removed 2026-11-08: the balances
-    /// were paid back in silver once, `persist::SqliteGameRepository::pay_back_once`).
+    /// were paid back in silver once, `persist::PAID_BACK`).
     pub generic_money: u32,
     /// All the experience earned; the level follows from it ([`level_at`]).
     pub exp_total: u32,
@@ -201,8 +201,9 @@ pub struct Account {
     /// The settings of the last room it made by hand, its create window's
     /// start ([`super::room_settings`]); none before its first.
     pub room_settings: Option<super::room_settings::RoomSettings>,
-    /// Account-wide, persistent allowances for the first three introductions to each mode.
-    pub mode_introductions: super::mode_intro::Allowances,
+    /// Its matches of each mode the hud introduces with a notice, up to
+    /// three: its first three of a mode show it ([`super::mode_intro`]).
+    pub mode_introductions: super::mode_intro::Introductions,
     /// The matches whose results screen it used a drop card on, sorted,
     /// of those whose reports are kept: one card a match
     /// ([`super::rewards::Results::use_drop_card`]). Kept with the account,
@@ -1564,6 +1565,8 @@ mod tests {
                     row,
                     levels: vec![Vec::new(); levels_amount.into()],
                     unknown_modifiers: Vec::new(),
+                    name: String::new(),
+                    description: String::new(),
                 },
             )
             .collect();

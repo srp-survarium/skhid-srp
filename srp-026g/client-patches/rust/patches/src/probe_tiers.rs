@@ -34,7 +34,6 @@
 use core::ffi::CStr;
 
 use crate::vostok::effect_compile::CompilerId;
-use crate::vostok::log::{self, Piece::Text};
 use crate::vostok::probe_tiers::{self, Blend, CompileSite, LoopSite, ProbeEffect, Side, Targets};
 use crate::vostok::{self, Context, Flow, Lock, NoExit};
 
@@ -278,9 +277,6 @@ impl Draw {
 
 static DRAW: Lock<Draw> = Lock::new(Draw::Native);
 
-/// Whether the log has said a scene drew its probes in tiers (once a game).
-static SAID: Lock<bool> = Lock::new(false);
-
 /// env_probes.next: the loop at a probe.
 pub fn on_probe(ctx: &mut Context<'_>) -> Flow<NoExit> {
     let probe = probe_tiers::probe_at_next(ctx);
@@ -291,9 +287,6 @@ pub fn on_probe(ctx: &mut Context<'_>) -> Flow<NoExit> {
         action
     });
     if action == Action::StartWeights {
-        if !SAID.with(ctx.thread(), |said| core::mem::replace(said, true)) {
-            log::line(&[Text("probe_tiers: a scene with 0.69d local probes, drawn in tiers")]);
-        }
         probe_tiers::clear_ambient_surfaces(ctx, LoopSite::Next);
         probe_tiers::bind_targets(probe_tiers::ambient_lights_target(ctx, LoopSite::Next));
     }

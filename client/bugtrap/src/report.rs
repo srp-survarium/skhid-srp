@@ -35,7 +35,7 @@ const STACK_BYTES: usize = 256 * 1024;
 /// The game log's tail: at most this many lines of its last bytes.
 const LOG_LINES: usize = 20;
 const LOG_BYTES: usize = 8 * 1024;
-/// srp_patches.log's tail (its lines are at most 200 bytes, vostok/log.rs).
+/// The patch log's tail (`srp_patches.<stamp>.log`; lines at most 512 bytes, vostok/log.rs).
 const PATCH_LINES: usize = 100;
 const PATCH_BYTES: usize = 24 * 1024;
 /// The largest tail read.

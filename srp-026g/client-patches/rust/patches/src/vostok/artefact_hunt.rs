@@ -798,14 +798,6 @@ impl HuntWorld<'_> {
     }
 }
 
-/// render_name's player at its spotted test of an enemy
-/// (`player_names.enemy_spotted`, ESI).
-pub fn name_enemy<'t>(ctx: &'t Context<'_>) -> Option<Player<'t>> {
-    // SAFETY: render_name's live player.
-    let this = unsafe { raw::site::player_names_enemy_spotted::player(ctx) }?;
-    Some(Player { this, thread: ctx.thread() })
-}
-
 /// update_minimap_players' player at its spotted test of an enemy
 /// (`minimap.enemy_spotted`, EAX).
 pub fn minimap_enemy<'t>(ctx: &'t Context<'_>) -> Option<Player<'t>> {

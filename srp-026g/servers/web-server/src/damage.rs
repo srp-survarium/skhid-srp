@@ -20,9 +20,6 @@ pub(crate) const PATH: &str = "/wiki/calculator";
 pub(crate) const POLICY: &str = "default-src 'none'; style-src 'unsafe-inline'; \
     script-src 'self'; img-src 'self' data:; font-src 'self'; form-action 'self'";
 
-/// Where the fonts are, which every page of the site uses (both servers).
-pub(crate) const FONTS: &str = "/damage/fonts/";
-
 /// The page's `@font-face` rules (the fonts' addresses with their hashes),
 /// for the site's other pages.
 pub(crate) fn font_faces() -> &'static str {
@@ -43,6 +40,67 @@ static PAGE: Built = Built::new(
     include_str!("../damage/damage.texts.json"),
     &SCRIPT,
 );
+
+/// The page's figure, the game's HUD doll (its script's `DATA.hud_doll`: the
+/// body parts' bitmaps and where each sits), as an SVG for a picture of the
+/// calculator on another page (the wiki's index): each part a hit's tint of
+/// the accent, the head deepest, inside the doll's outline; classes `doll`
+/// (and `outline`) for the page's style to colour. `None` if the build has no
+/// doll.
+pub(crate) fn doll() -> Option<&'static str> {
+    static DOLL: std::sync::OnceLock<Option<String>> = std::sync::OnceLock::new();
+    DOLL.get_or_init(|| {
+        const KEY: &str = "\"hud_doll\":";
+        let source = std::str::from_utf8(SCRIPT.source()).ok()?;
+        let at = source.find(KEY)? + KEY.len();
+        let doll: serde_json::Value = serde_json::Deserializer::from_str(&source[at..])
+            .into_iter()
+            .next()?
+            .ok()?;
+        let mut defs = String::new();
+        for (name, uri) in doll["art"].as_object()? {
+            let part = doll["parts"]
+                .as_array()?
+                .iter()
+                .find(|part| part["art"] == name.as_str())?;
+            defs += &format!(
+                "<image id=doll-art-{name} width={} height={} href=\"{}\"/>",
+                part["w"],
+                part["h"],
+                crate::escape(uri.as_str()?)
+            );
+        }
+        let mut parts = String::new();
+        for part in doll["parts"].as_array()? {
+            let (name, art) = (part["name"].as_str()?, part["art"].as_str()?);
+            let matrix: Vec<String> = part["matrix"]
+                .as_array()?
+                .iter()
+                .map(|value| value.as_f64().map(|value| value.to_string()))
+                .collect::<Option<_>>()?;
+            defs += &format!(
+                "<mask id=doll-{name} style=\"mask-type:alpha\" maskUnits=userSpaceOnUse \
+                 x=0 y=-30 width=140 height=130><use href=\"#doll-art-{art}\" \
+                 transform=\"matrix({})\"/></mask>",
+                matrix.join(" ")
+            );
+            let tint = match art {
+                "outline" => " class=\"outline\"".to_owned(),
+                "head" => String::new(),
+                "body" => " fill-opacity=\".7\"".to_owned(),
+                "arm" => " fill-opacity=\".45\"".to_owned(),
+                _ => " fill-opacity=\".3\"".to_owned(),
+            };
+            parts += &format!(
+                "<rect mask=\"url(#doll-{name})\" x=\"0\" y=\"-30\" width=\"140\" height=\"130\"{tint}/>"
+            );
+        }
+        Some(format!(
+            "<svg class=doll viewBox=\"58 -28 73 114\" aria-hidden=true><defs>{defs}</defs>{parts}</svg>"
+        ))
+    })
+    .as_deref()
+}
 
 /// The files the page loads: address, content type, bytes. Every file of
 /// `../damage/` but the page and its record (`../build.rs` lists them). The

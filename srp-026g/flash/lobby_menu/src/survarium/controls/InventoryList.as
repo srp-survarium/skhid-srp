@@ -160,7 +160,7 @@ package survarium.controls
       
       // The lists' one order (the owner, 2026-11-02: "it should always be per level"; there is no sort
       // to choose): what can be bought first, then by level, the price last.
-      private static const LIST_ORDER:Array = ["buyValue","itemLevel","superCategory","category","dictId","rank","value","broken","price","factionId"];
+      private static const LIST_ORDER:Array = ["buyValue","itemLevel","superCategory","category","dictId","rank","value","price","factionId"];
 
       // The search box (docs/notes/item-search.md), always there under the grid: the grid is
       // SEARCH_ROW shorter (the fade at its foot moves up with it), and the box sits in that row,
@@ -1667,15 +1667,15 @@ package survarium.controls
          return this._inventoryItemsDict[itemId];
       }
       
-      // The first item of the inventory of a dictionary id, or null (the weapon kit names its
-      // attachments by dictionary id: UpgradeWindow.kitUpgrades).
-      public function getInventoryItemOf(dictId:int) : ItemData
+      // The first item of the inventory of a dictionary id whose item id is not in `except`, or null
+      // (the weapon kit names its attachments by dictionary id: UpgradeWindow.kitUpgrades).
+      public function getInventoryItemOf(dictId:int, except:Array = null) : ItemData
       {
          var item:ItemData = null;
          var found:ItemData = null;
          for each(item in this._inventoryItemsDict)
          {
-            if(Boolean(item) && int(item.dictId) == dictId && (found == null || item.itemId < found.itemId))
+            if(Boolean(item) && int(item.dictId) == dictId && !(Boolean(except) && except.indexOf(uint(item.itemId)) != -1) && (found == null || item.itemId < found.itemId))
             {
                found = item;
             }
@@ -3805,7 +3805,7 @@ package survarium.controls
                filteredItems.push(itemData);
             }
          }
-         filteredItems.sortOn(["buyValue","superCategory","category","dictId","rank","value","broken","factionId"],Array.NUMERIC);
+         filteredItems.sortOn(["buyValue","superCategory","category","dictId","rank","value","factionId"],Array.NUMERIC);
          trace("fillItems::",filteredItems.length);
          itemsTileList.dataProvider = new DataProvider(filteredItems);
          itemsTileList.validateNow();

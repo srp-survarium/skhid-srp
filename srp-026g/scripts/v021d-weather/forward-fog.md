@@ -15,7 +15,7 @@ original fog block into each exact matching native forward block. Native
 lighting, reflection, transparency and bindings stay intact. The observed three
 programs are mandatory; matching code also covers seven additional direct-light
 permutations. Version 2 enumerates the complete published archive stack, including
-the base-pass compatibility alias from patch14 that the live draw actually uses.
+the base-pass compatibility alias from patch 14 that the live draw actually uses.
 Its eleven resource paths contain ten distinct guarded programs. Different blocks and transparency continuations remain native
 until reviewed. This is not a claim that every forward variant executes original
 shader code.
@@ -40,9 +40,9 @@ bindings/chunks and the final composed bytes when `--patch` is supplied. The
 read-only `shader-digests` example independently indexes every published layer;
 the checker requires every effective alias of the ten pinned native programs.
 
-Version1 passed these checks and all ten programs disassemble. Its five-view
+Version 1 passed these checks and all ten programs disassemble. Its five-view
 pilot improved glass brightness but retained a native base pass through the
-published alias; runtime shader digests proved the omission. Version2 alias
+published alias; runtime shader digests proved the omission. Version 2 alias
 closure passes the independent index check. Its composed native comparison is
 **pending**. The first pilot reuses the
 five kept School rain glass/control cameras; no original image is overwritten.

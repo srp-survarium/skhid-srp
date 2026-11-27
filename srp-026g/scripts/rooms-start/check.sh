@@ -14,7 +14,9 @@
 # label cut by its field and no two on one line meeting (a "ROOMS OVERLAP" line each); and the top
 # bar's Play as the rooms' Leave (LEAVE ROOM, LEAVE QUEUE) and IN SQUAD, whole. A second run
 # checks the player menu (friend, Mute chat and its choices, message, squad) and the server-pushed
-# friend and ignore lists, on a copy adapted by medical-cards/ruffle_movie.py.
+# friend and ignore lists, on a copy adapted by medical-cards/ruffle_movie.py. Before them, the vote's four
+# cards at the game's 1920x1080 and 1280x720, the window laid out as the game lays it out: each
+# whole in the window, apart, over the players' panel, its texts whole, in every language.
 # Exits 0 when it says pass; prints its lines. A work dir given is kept (the harness, Ruffle's log).
 # Java and Flex from private/actionscript/tools.json (tools/actionscript/README.md), or SRP_AS_TOOLS.
 set -euo pipefail
@@ -26,7 +28,22 @@ harness_work "${2:-}"
 # The texts the exe gives the movie (set_localization_data), from the dictionaries.
 "${PYTHON:-python3}" "$here/../localization-check/harness_text.py" "$work"
 harness_compile "$here/RoomsHarness.as" 1280,720 -source-path+="$work"
-harness_display 1280x720
+# Big enough for the 1920x1080 run of the cards (Ruffle's window has its menu bar too).
+harness_display 1920x1300
+
+# The vote's four cards at the game's resolutions first (RoomsHarness.checkCardsAt): the window
+# laid out and scaled as in the game, every card whole, apart and over the players in every language.
+cp "$lobby" "$work/lobby_menu.swf"
+for size in 1920x1080 1280x720; do
+log=RoomsHarness-cards-$size.log
+harness_run "$log" -p low --width "${size%x*}" --height "${size#*x}" -Pmovie=lobby_menu.swf -Pcards=1 RoomsHarness.swf
+wait_for "$log" 'ROOMS RESULT' || true
+kill "$ruffle_pid" 2>/dev/null || true
+wait "$ruffle_pid" 2>/dev/null || true
+ruffle_pid=
+harness_report 'ROOMS .*' "$log"
+grep -q 'ROOMS RESULT pass' "$work/$log"
+done
 
 for players in 0 1; do
 if [[ $players == 0 ]]; then

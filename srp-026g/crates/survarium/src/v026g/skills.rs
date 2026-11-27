@@ -126,6 +126,9 @@ pub struct Skill {
     pub levels: Vec<Vec<(usize, f32)>>,
     /// The modifier keys of the skill that are not among the 68.
     pub unknown_modifiers: Vec<String>,
+    /// `ui.name` and `ui.description`: localization keys.
+    pub name: String,
+    pub description: String,
 }
 
 impl Skill {
@@ -211,7 +214,8 @@ fn parse_skill(skill: &ConfigValue) -> Result<Skill, ConfigError> {
             .collect::<Result<_, _>>()?,
         None => Vec::new(),
     };
-    let position = skill.req("ui")?.req("position")?.children();
+    let ui = skill.req("ui")?;
+    let position = ui.req("position")?.children();
     let cell = |index: usize| {
         position
             .get(index)
@@ -250,6 +254,8 @@ fn parse_skill(skill: &ConfigValue) -> Result<Skill, ConfigError> {
         row: cell(1)?,
         levels,
         unknown_modifiers,
+        name: ui.str_at("name")?.to_owned(),
+        description: ui.str_at("description")?.to_owned(),
     })
 }
 
@@ -806,6 +812,8 @@ mod tests {
                     row,
                     levels: vec![Vec::new(); levels_amount.into()],
                     unknown_modifiers: Vec::new(),
+                    name: String::new(),
+                    description: String::new(),
                 },
             )
             .collect();

@@ -118,9 +118,6 @@ pub struct Script {
     folder: [u8; FOLDER],
     folder_len: usize,
     wait_ms: u32,
-    /// `clock <seconds>`: the renderer's scene clock held there for the run
-    /// (wind, clouds and the film grain the same in every run).
-    clock: Option<f32>,
     poses: [Pose; MOST],
     count: usize,
 }
@@ -134,7 +131,7 @@ pub struct Refused {
 }
 
 impl Script {
-    const EMPTY: Script = Script { folder: [0; FOLDER], folder_len: 0, wait_ms: 0, clock: None, poses: [Pose::NONE; MOST], count: 0 };
+    const EMPTY: Script = Script { folder: [0; FOLDER], folder_len: 0, wait_ms: 0, poses: [Pose::NONE; MOST], count: 0 };
 
     fn poses(&self) -> &[Pose] {
         &self.poses[..self.count]
@@ -174,13 +171,6 @@ impl Script {
                         return Err(at("wait <ms>"));
                     }
                 }
-                Some(b"clock") => {
-                    let seconds = words.next().and_then(number).filter(|s| *s >= 0.0).ok_or(at("clock <seconds>"))?;
-                    if words.next().is_some() {
-                        return Err(at("clock <seconds>"));
-                    }
-                    script.clock = Some(seconds);
-                }
                 Some(b"pose") => {
                     if script.count == MOST {
                         return Err(at("more than 64 poses"));
@@ -194,7 +184,7 @@ impl Script {
                     script.poses[script.count] = pose;
                     script.count += 1;
                 }
-                Some(_) => return Err(at("a line is folder, wait, clock or pose")),
+                Some(_) => return Err(at("a line is folder, wait or pose")),
             }
         }
         if script.folder_len == 0 {
@@ -432,17 +422,6 @@ pub fn on_camera(ctx: &mut Context<'_>) -> Flow<NoExit> {
     Flow::Continue
 }
 
-/// `render.scene_clock`: the frame's scene clock, held where the script says.
-pub fn on_scene_clock(ctx: &mut Context<'_>) -> Flow<NoExit> {
-    if STARTED.load(Ordering::Acquire) != ON {
-        return Flow::Continue;
-    }
-    if let Some(seconds) = RUN.with(ctx.thread(), |run| run.script.clock) {
-        renderer::hold_scene_clock(ctx, seconds);
-    }
-    Flow::Continue
-}
-
 /// `render.flash_ui`: the scene of the frame, before its interface.
 pub fn on_scene(ctx: &mut Context<'_>) -> Flow<NoExit> {
     let ctx = &*ctx;
@@ -508,15 +487,6 @@ mod tests {
         assert_eq!((script.poses[1].eye, script.poses[1].near), ([1.5, -2.25, 3.0], 0.1));
         let path = script.path(&script.poses[1]);
         assert!(path.starts_with(b"Z:\\tmp\\out dir\\s.2.png\0"));
-    }
-
-    #[test]
-    fn a_script_may_hold_the_scene_clock() {
-        let text = b"folder Z:\\shots\nclock 100\npose a 0 1 2 0 0 1 70 0.1 1500 4000\n";
-        assert_eq!(Script::parse(text).map(|s| s.clock), Ok(Some(100.0)));
-        let text = b"folder Z:\\shots\npose a 0 1 2 0 0 1 70 0.1 1500 4000\n";
-        assert_eq!(Script::parse(text).map(|s| s.clock), Ok(None));
-        assert!(Script::parse(b"folder x\nclock -1\npose a 0 1 2 0 0 1 70 0.1 1500 4000\n").is_err());
     }
 
     #[test]

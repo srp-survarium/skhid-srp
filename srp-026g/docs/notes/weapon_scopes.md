@@ -243,7 +243,7 @@ pack `rifle-scopes`, edit list `rifle-scopes-1`):
   optic's own is 0.69d0's made again on a loc2 template, given 0.69d0's textures slot for slot
   (albedo, normal, smoothness as roughness, metalness as fresnel; retexture.py).
 - **Shop**: items 2113..2119 by seller 0 at no rank at their base_cost (as every scope item with a
-  pair, `prices::sellers_of_in`); icons 0.69d0's own (framed by render_icon.py, @5) in column 4 of the
+  pair, `prices::sellers_of_with`); icons 0.69d0's own (framed by render_icon.py, @5) in column 4 of the
   consumables atlas (rows 13 to 19); names and short descriptions in the six languages of the pack
   (texts.tsv) and in all ten of `client-patches/localization/*.tsv`, which `localization-1.json`
   compiles last. The CompM4's name says x2 there.

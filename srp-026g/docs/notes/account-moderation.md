@@ -63,10 +63,10 @@ No live deployment or in-game validation is implied by these tests.
   that has not signed in to 0.26g yet, says so and loads no account. The
   page shows user name, character name, account id
   (decimal and hex, as the logs write it) and whether its game is open.
-- **Money:** a signed amount of silver (`generic_money`) and/or gold
-  (`premium_money`). A balance never goes below 0 (nor past `u32::MAX`): a
+- **Money:** a signed amount of silver (`generic_money`, the one currency since gold was
+  removed on 2026-11-08). The balance never goes below 0 (nor past `u32::MAX`): a
   take of more than the account has takes what it has. The preview shows
-  each balance before → after, the change really made, and the amount asked
+  the balance before → after, the change really made, and the amount asked
   when that differs. A change that changes nothing (nothing left to take)
   is not offered.
 - **Take items:** the account's items listed: name, dictionary id, item id,
@@ -92,7 +92,7 @@ No live deployment or in-game validation is implied by these tests.
   good (issued, not used, not older than 10 minutes), its plan is the same,
   and a reason is given. So a reload of the confirm (even once the account
   is back as it was), an old preview, a change by the game between preview
-  and confirm (gold spent, ammo used, an item sold), or fields changed
+  and confirm (silver spent, ammo used, an item sold), or fields changed
   after the preview change nothing: the page says so and shows the new
   preview. The preview's button comes first in the
   form, so Enter never applies. The page is POST only, as every admin
@@ -115,8 +115,7 @@ No live deployment or in-game validation is implied by these tests.
      (`Inbox::account_changed`, as after a purchase: inventory, account and
      kits, money, level and skills, reputations, quests, services), and its
      squad's view of it is compared again. An offline account sees it at
-     its next sign-in. A match it plays now pays it as usual at the end; an
-     item taken meanwhile is skipped by the match's wear.
+     its next sign-in. A match it plays now pays it as usual at the end.
   No other account is read for writing or changed.
 - **Reason:** required (trimmed, at most 200 characters, control characters
   made spaces). Admin-only: the log, the audit trail and the admin page. It
@@ -127,6 +126,6 @@ No live deployment or in-game validation is implied by these tests.
   the account's latest 8 with every preview. A store kept in memory
   (`SRP_DB=off`) keeps the log only.
 - **Log:** `Admin from <address>: money of <name> ("<login>", account 0x…):
-  silver -480000 (asked -500000), gold +0; before …, after …; reason "…"`
+  silver -480000 (asked -500000); before …, after …; reason "…"`
   and `… items of <name> (…) taken: …`, at info; a write left to the saver
   is a warning, a refused one an error.

@@ -9,8 +9,8 @@ import math
 from pathlib import Path
 import struct
 
-from common import (DICTIONARY, E046_MANIFEST, MODIFICATIONS, MOVIE, SCRIPTS, _load, bcw, e046_entries,
-                    equipment046, model_parts, sound_file, specs, template, text_keys)
+from common import (DICTIONARY, E046_MANIFEST, MODIFICATIONS, MOVIE, SCRIPTS, _load, bcw, data_sections,
+                    e046_entries, equipment046, model_parts, sound_file, specs, template, text_keys)
 
 
 def equipment046_check():
@@ -127,6 +127,30 @@ def check_copy(spec, item, source, row, e046_row, fits, pack, inputs):
         assert math.isclose(params[name], value, abs_tol=1e-5), (ident, name)
 
 
+def camouflage_masks(pack, base, item):
+    """A piece that takes a camouflage (camo_available, as every stock vest and pair of trousers):
+    the surface each data section wears (its part_name; not its additional models, a ghillie as
+    the stock sniper's) has its diffuse's `_aoac` mask, as every stock one has. The game bakes a
+    camouflage into a surface only when `<diffuse>_aoac` loads beside its diffuse; without it the
+    camouflage goes on and shows nothing (equipment-069@5's Snow-20)."""
+    def read(path):
+        source = pack / 'files' / path
+        return (source if source.exists() else base / path).read_bytes()
+
+    if not item['parameters'].get('camo_available'):
+        return 0
+    masked = 0
+    for part in data_sections(item):
+        settings = bcw.loads(read(f"models/{part['base_model']}.skinned_model/settings"))
+        name = settings['material_settings'][part['part_name']]['material_name']
+        effect = bcw.loads(read(f'material_instances/{name}.material'))['material']['g_stage']['effect']
+        diffuse = effect['texture_diffuse']['value']
+        path = f'textures/{diffuse}_aoac.dds'
+        assert (pack / 'files' / path).exists() or (base / path).exists(), (part['base_model'], f'no {path}')
+        masked += 1
+    return masked
+
+
 def check(pack, inputs):
     base = inputs / 'base'
     rows = specs()
@@ -163,7 +187,7 @@ def check(pack, inputs):
         return bcw.loads((source if source.exists() else base / path).read_bytes())
 
     spec_of = {int(r['id']): r for r in rows}
-    occupied = set()
+    occupied, camouflaged = set(), 0
     for row in entries:
         ident = row['dict_id']
         spec = spec_of[ident]
@@ -176,6 +200,7 @@ def check(pack, inputs):
             check_native(spec, item, config(start.ident), row, by_id, fits)
         for part in model_parts(item):
             assert part['part_name'] in surfaces[part['base_model']], (ident, part)
+        camouflaged += camouflage_masks(pack, base, item)
         icon = tuple(item['ui_desc']['icon'])
         assert icon not in occupied and icon not in taken, (ident, 'duplicate icon')
         assert not (icon[1] <= base_atlas[0] // 171 and any(e029.cell(base_atlas, *icon)[3::4])), (ident, 'icon cell taken')
@@ -206,7 +231,7 @@ def check(pack, inputs):
         else:
             assert fit['kind'] in ('same_as', 'mask'), piece['item']
     print(f'{len(entries)} equipment configs, icons, six localizations (the catalog\'s), {len(surfaces)} models and '
-          f'{materials} materials\' shaders, {len(fits)} fit records checked')
+          f'{materials} materials\' shaders, {len(fits)} fit records, {camouflaged} camouflage masks checked')
 
 
 if __name__ == '__main__':
