@@ -77,6 +77,15 @@ team projects):
   `(pi, a, pi)`, which most of the map editor's points have, faces the opposite way to `(0, a, 0)`, as the site's
   map tab draws it (`scripts/maps-tab/build.py`, `heading`).
 
+## Free for All at the owner's picks more
+
+The owner, 2026-11-27: 26 `where` places more on Free for All's `v032a_level_09/day_8` (map 163, its only
+weather). `ffa-london-v032-picks-1.json` (`scripts/ffa-mode/make_picks_edits.py london-v032`, from
+`london-v032-picks.tsv`, check-points `picks --add --shift 1.5`): 26 new solo points 70-95 after the 50
+`ffa-london-v032-1` gives the project, those 50 as they are; 50 -> 76. Each on its ground, body clear, 2 m from
+harmful zones, pick 24 0.75 m off his place onto the floor the walk grid reaches; `ffa.md` has the rest. Its row
+is after `london-v032-red-spawns-1`, and so after `ffa-london-v032-1`, which makes the project.
+
 ## Checked
 
 - The pack is built against what players have with London (v0.42) (the manifest `requires`
