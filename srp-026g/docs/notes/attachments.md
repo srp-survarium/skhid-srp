@@ -355,7 +355,7 @@ models of their own: asked for by the weapon cook's own query, and put in the sc
 | `attachments.asked` 0x24AC30 | the weapon made, its requests pushed, none read yet | the weapon's model request names the bare body; each part's model is asked for after the game's own; the weapon is remembered with where its parts' results will be |
 | `attachments.ready` 0x24ACF0 | the cook's callback, its entry | each part's model taken from the results (a reference of ours) and kept with its placement |
 | `attachments.loaded` 0x24B0E1 | after `load_weapon` | the barrel's record +6E0h (the fire point), the scope's +744h (the optic's frame), the aim's +7A8h (the eye); the left hand's finger sets (idle and lobby) |
-| `attachments.draw` 0x245017 | `weapon::draw`, after the weapon's model and the aimed scope | each part added or updated at the frame `calculate_locator` gives its record, drawn as the weapon's model is; taken out while that model is out |
+| `attachments.draw` 0x245017 | `weapon::draw`, after the weapon's model and the aimed scope | each part added or updated at the frame `calculate_locator` gives its record, drawn as the weapon's model is; taken out while that model is out; for the gun the lobby shows at the bench, the lobby movie told where its slots are on the screen (`modification-069.md`) |
 | `attachments.culled` 0x245353, `attachments.hidden` 0x244017 | a culled player's weapon; `on_hide` | the parts out of the scene |
 | `attachments.hands` 0x244649 | `weapon::activate`, after `set_weapon_locators` | the left hand's records, idle and lobby, first and third view (0, 4, 3, 7 of +1A20h) |
 | `attachments.fingers_view` 0x298664 | the game's refill of the fingers at a change of view (the call wrapped) | the finger sets again |
