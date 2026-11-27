@@ -307,6 +307,7 @@ impl Route {
             walk_offs,
             lane_walks,
             unverified,
+            leg_paths,
         } = self;
         // [pull unknown] The unverified legs end at the same waypoints, now after the corners put in before them (a corner put in
         // on such a leg splits it: the leg is still tested by its own floors before the body walks to its end).
@@ -333,6 +334,7 @@ impl Route {
             walk_offs,
             lane_walks,
             unverified,
+            leg_paths,
         }
     }
 }

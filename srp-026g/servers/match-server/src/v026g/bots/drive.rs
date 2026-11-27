@@ -2295,8 +2295,40 @@ fn drive_tick_inner(
             // meanwhile). One failing under the body ends the route; the body plans again from where it is, and stands meanwhile
             // (no step on toward the leg's lip).
             let leg_check = bot.route.as_mut().map(|(route, _)| route.verify_ahead(&mut |a, b| tactics.world.grid.pull_walk_verdict(a, b)));
-            match leg_check {
-                Some(path::LegCheck::FailsAhead { from, to, start }) => {
+            // [pull unknown] A failing leg laid again in place from the search's own floors of it (`Route::relaid_leg`): the route
+            // goes on, no search. Only when it cannot be (no floors kept, no way between them) the handling below.
+            let relaid = match leg_check {
+                Some(path::LegCheck::FailsAhead { leg, from, to, .. }) | Some(path::LegCheck::FailsUnderBody { leg, from, to }) => {
+                    let under_body = matches!(leg_check, Some(path::LegCheck::FailsUnderBody { .. }));
+                    let grid = &tactics.world.grid;
+                    let laid = bot.route.as_ref().and_then(|(route, _)| route.relaid_leg(leg, grid, me.feet, &|a, b| grid.pull_walk_verdict(a, b)));
+                    match laid {
+                        Some(new) => {
+                            path::unverified::relaid(under_body);
+                            let line = format!(
+                                "nav: route leg {} -> {} unwalked by the client's walk ({}): laid again from its floors in place ({} points), walked on from {}",
+                                super::nav_log::at(from),
+                                super::nav_log::at(to),
+                                if under_body { "the body on it" } else { "ahead" },
+                                new.points().len(),
+                                super::nav_log::at(me.feet)
+                            );
+                            bot.nav_log.push(super::nav_log::Kind::Route, time, line);
+                            if let Some((route, _)) = bot.route.as_mut() {
+                                *route = new;
+                            }
+                            true
+                        }
+                        None => {
+                            path::unverified::relay_none();
+                            false
+                        }
+                    }
+                }
+                _ => false,
+            };
+            match leg_check.filter(|_| !relaid) {
+                Some(path::LegCheck::FailsAhead { from, to, start, .. }) => {
                     if let Some((route, _)) = bot.route.as_mut() {
                         route.cut_before(start);
                     }
@@ -2309,7 +2341,7 @@ fn drive_tick_inner(
                     );
                     bot.nav_log.push(super::nav_log::Kind::Route, time, line);
                 }
-                Some(path::LegCheck::FailsUnderBody { from, to }) => {
+                Some(path::LegCheck::FailsUnderBody { from, to, .. }) => {
                     let line = format!(
                         "nav: route leg {} -> {} unwalked by the client's walk (the body on it): planned again from {}",
                         super::nav_log::at(from),

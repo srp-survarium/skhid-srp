@@ -416,6 +416,9 @@ pub struct Route {
     /// [pull unknown] Its legs kept straight with no walk test yet ([`UnverifiedLeg`]), in order; the planner sets them and
     /// [`Route::verify_ahead`] tests them.
     unverified: Vec<UnverifiedLeg>,
+    /// [pull unknown] The search's floors of each unverified leg, start to end, with the kind of the link into each
+    /// ([`UnverifiedLeg::floors`] is its range): what a failing leg is laid again from ([`Route::relaid_leg`]).
+    leg_paths: Vec<(NodeId, LinkKind)>,
 }
 
 /// What the planner knows of the drops of a route within a stretch, as to a sprint ([`Route::drop_record`]).
@@ -1625,6 +1628,8 @@ pub struct UnverifiedLeg {
     pub b: NodeId,
     /// The waypoint the leg ends at: the leg is the route's segment `to - 1`.
     pub to: usize,
+    /// Its floors in the route's [`Route::leg_paths`]: (first, count); (0, 0) for none kept.
+    pub floors: (u32, u32),
 }
 
 /// [pull unknown] What [`Route::verify_ahead`] found.
@@ -1634,13 +1639,18 @@ pub enum LegCheck {
     Clear,
     /// A leg ahead of the body the client's walk tick does not walk, from waypoint `start` (its foot, `from`) to `to`: the
     /// route is cut back to `start` ([`Route::cut_before`]) and the body walks on while a plan from it is made.
-    FailsAhead { from: Vec3, to: Vec3, start: usize },
+    FailsAhead { from: Vec3, to: Vec3, start: usize, leg: UnverifiedLeg },
     /// The leg under the body fails (its verdict came late): the route ends and is planned again from where the body is.
-    FailsUnderBody { from: Vec3, to: Vec3 },
+    FailsUnderBody { from: Vec3, to: Vec3, leg: UnverifiedLeg },
 }
 
 /// [pull unknown] How far ahead [`Route::verify_ahead`] tests the unverified legs: the one the body is on and the next.
 pub const VERIFY_LEGS_AHEAD: usize = 2;
+
+/// [pull unknown] A failing leg is laid again from the body's nearest floor of it, not its start, when the body is farther than
+/// this along it, m ([`Route::relaid_leg`]): the 'under the body' failures of the v91 bench had the feet 0.10 m along (p50),
+/// 0.41 m (p90).
+pub const RELAY_FROM_BODY_M: f32 = 0.5;
 
 /// [pull unknown] The unverified legs' outcomes since the last call ([`take_unverified`]): kept (by a pull), walked (tested,
 /// the client walks it), failed ahead (tested before the body was on it), failed on it (late), and passed untested (the body
@@ -1653,6 +1663,21 @@ pub mod unverified {
     static FAILED_ON_LEG: AtomicU64 = AtomicU64::new(0);
     static PASSED: AtomicU64 = AtomicU64::new(0);
     static KEPT: AtomicU64 = AtomicU64::new(0);
+    static RELAID_AHEAD: AtomicU64 = AtomicU64::new(0);
+    static RELAID_UNDER: AtomicU64 = AtomicU64::new(0);
+    static RELAY_NONE: AtomicU64 = AtomicU64::new(0);
+
+    /// A failing leg laid again in place ([`super::Route::relaid_leg`]): ahead of the body or under it; or none could be.
+    pub fn relaid(under_body: bool) {
+        if under_body { &RELAID_UNDER } else { &RELAID_AHEAD }.fetch_add(1, Relaxed);
+    }
+    pub fn relay_none() {
+        RELAY_NONE.fetch_add(1, Relaxed);
+    }
+    /// The relays' counts, set back to 0: laid again ahead, laid again under the body, none (the old handling).
+    pub fn take_relays() -> [u64; 3] {
+        [&RELAID_AHEAD, &RELAID_UNDER, &RELAY_NONE].map(|c| c.swap(0, Relaxed))
+    }
 
     pub(super) fn kept() {
         KEPT.fetch_add(1, Relaxed);
@@ -1793,6 +1818,7 @@ fn pull_straight(
         to_drop[k] = edge(nodes[k]) && (leaves_edge || (into[k + 1] == LinkKind::Walk && to_drop[k + 1]));
     }
     let mut unverified_legs: Vec<UnverifiedLeg> = Vec::new();
+    let mut leg_paths: Vec<(NodeId, LinkKind)> = Vec::new();
     let mut points = vec![Waypoint {
         at: grid.position(nodes[0]),
         node: nodes[0],
@@ -1998,12 +2024,16 @@ fn pull_straight(
         if unknown {
             PULL_WALK_UNKNOWN.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
             unverified::kept();
-            unverified_legs.push(UnverifiedLeg { a: nodes[from], b: nodes[i], to: points.len() - 1 });
+            let first = leg_paths.len() as u32;
+            // The first floor's link in is the leg's start: a Walk, as a path's start is.
+            leg_paths.extend(nodes[from..=i].iter().zip(&into[from..=i]).enumerate().map(|(k, (&n, &kind))| (n, if k == 0 { LinkKind::Walk } else { kind })));
+            unverified_legs.push(UnverifiedLeg { a: nodes[from], b: nodes[i], to: points.len() - 1, floors: (first, (i + 1 - from) as u32) });
         }
         leg(from, i, &mut floors, 0.0);
     }
     let mut route = Route::with_floors(points, floors);
     route.unverified = unverified_legs;
+    route.leg_paths = leg_paths;
     route.sprint_drops = sprint_drops;
     route.ledge_leads = ledge_leads;
     route.walk_offs = walk_offs;
@@ -2378,6 +2408,7 @@ impl Route {
             planned: false,
             walk_offs: Vec::new(),
             unverified: Vec::new(),
+            leg_paths: Vec::new(),
         }
     }
 
@@ -2740,6 +2771,55 @@ impl Route {
         &self.unverified
     }
 
+    /// [pull unknown] This route with its failing unverified leg `leg` laid again from the search's own floors between its ends
+    /// ([`Self::leg_paths`]), pulled by `verdict` with the leg's own straight line failing, in place of the leg: the points
+    /// before the leg's start and after its end are kept, the unverified legs before it as they are, those after it moved by
+    /// the points put in, and the relaid stretch's own unverified legs added. From the leg's floor nearest `feet` when the body
+    /// is more than [`RELAY_FROM_BODY_M`] along the leg. None when the leg kept no floors or the relaid stretch is no way (fewer
+    /// than two points).
+    pub fn relaid_leg(&self, leg: UnverifiedLeg, grid: &WalkGrid, feet: Vec3, verdict: &dyn Fn(NodeId, NodeId) -> PullWalk) -> Option<Self> {
+        let (first, count) = (leg.floors.0 as usize, leg.floors.1 as usize);
+        if count < 2 || first + count > self.leg_paths.len() || leg.to >= self.points.len() {
+            return None;
+        }
+        let floors = &self.leg_paths[first..first + count];
+        // The leg's start: the last waypoint before its end on its first floor (a wall-clear corner may split the leg).
+        let start = (0..leg.to).rev().find(|&k| self.points[k].node == leg.a).unwrap_or(leg.to - 1);
+        let (pa, pb) = (self.points[start].at, self.points[leg.to].at);
+        let way = Vec3::new(pb.x - pa.x, 0.0, pb.z - pa.z);
+        let length = way.length();
+        let along = if length > 1e-4 { ((feet.x - pa.x) * way.x + (feet.z - pa.z) * way.z) / length } else { 0.0 };
+        // Past RELAY_FROM_BODY_M along it: from the leg's floor nearest the feet.
+        let from = if along > RELAY_FROM_BODY_M {
+            (0..count - 1).min_by(|&i, &j| grid.position(floors[i].0).distance_xz(feet).total_cmp(&grid.position(floors[j].0).distance_xz(feet))).unwrap_or(0)
+        } else {
+            0
+        };
+        let floors = &floors[from..];
+        let path = mapdata::Path { nodes: floors.iter().map(|f| f.0).collect(), kinds: floors.iter().enumerate().map(|(k, f)| if k == 0 { LinkKind::Walk } else { f.1 }).collect(), cost: 0.0 };
+        let bad = (leg.a, leg.b);
+        let mid = pull_straight(grid, path, |_| true, &|a, b| grid.walk_crouched(a, b), &|a, b| if (a, b) == bad { PullWalk::Fails } else { verdict(a, b) }, &|| {});
+        if mid.points.len() < 2 {
+            return None;
+        }
+        let (s0, s1) = (self.along[start], self.along[leg.to]);
+        let mut route = self.spliced(s0, s1, &mid);
+        // Spliced: the points before `start`, then mid's, then the ones after `leg.to`.
+        let put_in = mid.points.len() as isize - (leg.to + 1 - start) as isize;
+        let offset = self.leg_paths.len() as u32;
+        route.leg_paths = self.leg_paths.iter().chain(&mid.leg_paths).copied().collect();
+        route.unverified = self
+            .unverified
+            .iter()
+            .filter(|other| other.to <= start)
+            .copied()
+            .chain(mid.unverified.iter().map(|m| UnverifiedLeg { to: m.to + start, floors: (m.floors.0 + offset, m.floors.1), ..*m }))
+            .chain(self.unverified.iter().filter(|other| other.to > leg.to).map(|other| UnverifiedLeg { to: (other.to as isize + put_in) as usize, ..*other }))
+            .collect();
+        route.segment = self.segment.min(start);
+        Some(route)
+    }
+
     /// [pull unknown] This route cut back to its waypoint `start` (it ends there): a leg after it failed its walk test
     /// ([`LegCheck::FailsAhead`]). The points, their distances and floors past it go, and the unverified legs past it; the body
     /// is on a leg before it (a failure ahead is past the leg it is on).
@@ -2782,7 +2862,7 @@ impl Route {
                     unverified::failed(on_leg);
                     let from = self.points[leg.to - 1].at;
                     let to = self.points[leg.to].at;
-                    return if on_leg { LegCheck::FailsUnderBody { from, to } } else { LegCheck::FailsAhead { from, to, start: leg.to - 1 } };
+                    return if on_leg { LegCheck::FailsUnderBody { from, to, leg } } else { LegCheck::FailsAhead { from, to, start: leg.to - 1, leg } };
                 }
             }
         }
@@ -3349,11 +3429,11 @@ mod tests {
         let first = route.unverified[0];
         let bad = (first.a, first.b);
         match route.verify_ahead(&mut |a, b| if (a, b) == bad { PullWalk::Fails } else { PullWalk::Walks }) {
-            LegCheck::FailsUnderBody { from, to } => {
+            LegCheck::FailsUnderBody { from, to, .. } => {
                 assert_eq!(first.to, 1, "the body is on the first leg only");
                 assert_eq!((from, to), (route.points[0].at, route.points[1].at));
             }
-            LegCheck::FailsAhead { from, to, start } => {
+            LegCheck::FailsAhead { from, to, start, .. } => {
                 assert!(first.to > 1);
                 assert_eq!(start, first.to - 1);
                 assert_eq!((from, to), (route.points[first.to - 1].at, route.points[first.to].at));
@@ -3382,7 +3462,7 @@ mod tests {
         assert_eq!(route.segment(), 0);
         let bad = (first.a, first.b);
         let check = route.verify_ahead(&mut |a, b| if (a, b) == bad { PullWalk::Fails } else { PullWalk::Walks });
-        assert_eq!(check, LegCheck::FailsUnderBody { from, to });
+        assert_eq!(check, LegCheck::FailsUnderBody { from, to, leg: first });
         // From the body's floor, the failing pair's straight leg known: the new route starts under the body, and no leg of it is
         // the failed one (both its floors are behind or under the body now).
         let body = grid.locate(feet, 0.3).unwrap();
@@ -3408,7 +3488,7 @@ mod tests {
         assert!(n >= 3, "{:?}", route.points);
         let bad = (second.a, second.b);
         let check = route.verify_ahead(&mut |a, b| if (a, b) == bad { PullWalk::Fails } else { PullWalk::Walks });
-        let LegCheck::FailsAhead { from, to, start } = check else { panic!("ahead: {check:?}") };
+        let LegCheck::FailsAhead { from, to, start, .. } = check else { panic!("ahead: {check:?}") };
         assert_eq!(start, 1);
         assert_eq!((from, to), (route.points[1].at, route.points[2].at));
         let length = route.length();
@@ -3418,6 +3498,45 @@ mod tests {
         assert!(route.length() < length);
         assert!(route.unverified.iter().all(|leg| leg.to < 2), "{:?}", route.unverified);
         assert_eq!(route.segment(), 0, "the body is still on its first leg");
+    }
+
+    /// [pull unknown] A failing unverified leg is laid again in place from the search's own floors of it: the relaid stretch
+    /// does not take the failing straight line, starts and ends where the leg did, and the route keeps its points after it
+    /// and the unverified legs after it (moved by the points put in). With no floors kept for the leg, there is no relay.
+    #[test]
+    fn a_failing_leg_is_laid_again_in_place_from_its_own_floors() {
+        let (grid, at) = unverified_world();
+        let route = pull_straight(&grid, grid.path(at(1.0), at(19.0)).unwrap(), |_| true, &|_, _| false, &|_, _| PullWalk::Unknown, &|| {});
+        assert!(route.unverified.len() >= 2, "{:?}", route.unverified);
+        let leg = route.unverified[0];
+        assert!(leg.floors.1 >= 2, "the leg keeps its floors: {leg:?}");
+        let bad = (leg.a, leg.b);
+        let relaid = route.relaid_leg(leg, &grid, route.points[0].at, &|_, _| PullWalk::Walks).expect("laid again");
+        assert!(relaid.points.windows(2).all(|w| (w[0].node, w[1].node) != bad), "{:?}", relaid.points);
+        assert_eq!(relaid.points[0].at, route.points[0].at, "it starts where the leg did");
+        assert_eq!(relaid.points.last().unwrap().at, route.points.last().unwrap().at, "the route still ends at its end");
+        let put_in = relaid.points.len() - route.points.len();
+        assert!(put_in > 0);
+        let after: Vec<usize> = route.unverified[1..].iter().map(|l| l.to + put_in).collect();
+        let now: Vec<usize> = relaid.unverified.iter().map(|l| l.to).collect();
+        assert_eq!(now, after, "the later legs moved by the points put in");
+        assert!(relaid.unverified.iter().all(|l| relaid.points[l.to].node == l.b), "each still ends at its floor");
+        // No floors kept (a route made before the store, or a leg with none): no relay, the old handling.
+        let bare = UnverifiedLeg { floors: (0, 0), ..leg };
+        assert!(route.relaid_leg(bare, &grid, route.points[0].at, &|_, _| PullWalk::Walks).is_none());
+    }
+
+    /// [pull unknown] A body more than RELAY_FROM_BODY_M along its failing leg has it laid again from the leg's floor nearest
+    /// the feet: the relaid stretch starts there, not back at the leg's start.
+    #[test]
+    fn a_leg_failing_under_a_body_part_way_along_is_laid_again_from_the_body() {
+        let (grid, at) = unverified_world();
+        let route = pull_straight(&grid, grid.path(at(1.0), at(19.0)).unwrap(), |_| true, &|_, _| false, &|_, _| PullWalk::Unknown, &|| {});
+        let leg = route.unverified[0];
+        let (from, to) = (route.points[0].at, route.points[leg.to].at);
+        let feet = from + (to - from) * 0.5;
+        let relaid = route.relaid_leg(leg, &grid, feet, &|_, _| PullWalk::Walks).expect("laid again");
+        assert!(relaid.points[0].at.distance_xz(feet) <= 0.3, "from the body's floor: {:?} vs {feet:?}", relaid.points[0].at);
     }
 
     /// A path that goes round a low ceiling (a patch of floors a standing body does not fit under) is pulled straight past it, not

@@ -2831,6 +2831,12 @@ impl Bots {
             "{}unverified pulled legs since the last match end (every match on this server): kept {kept}, walked {walked}, failed ahead {ahead}, failed with the body on them {on_leg}, passed untested {passed}",
             nav_log::PREFIX
         ));
+        // [pull unknown] The failing ones laid again in place from their floors, and those that could not be (cut or ended).
+        let [relaid_ahead, relaid_under, relay_none] = path::unverified::take_relays();
+        lines.push(format!(
+            "{}failing unverified legs laid again in place since the last match end (every match on this server): ahead {relaid_ahead}, under the body {relaid_under}, none (cut or ended) {relay_none}",
+            nav_log::PREFIX
+        ));
         // [keys] The walk keys' and the crouch key's changes by the stage that made them (`key_sources`).
         lines.extend(key_sources::lines().into_iter().map(|line| format!("{}{line}", nav_log::PREFIX)));
         let (steady, unparks) = drive::steady_creeps::take();
