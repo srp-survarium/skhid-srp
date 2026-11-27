@@ -4181,7 +4181,7 @@ st_srp_medical_324_description	When an antitoxin takes effect, stamina restored:
 st_srp_medical_324_name	Second Wind
 st_srp_medical_331_description	Replaces the secondary weapon slot with an additional supply pocket.
 st_srp_medical_331_name	Supply Pocket
-st_srp_medical_332_description	Bonus to maximum health of arms and legs:
+st_srp_medical_332_description	Bonus to maximum health of arms and legs (does not raise the pain threshold):
 st_srp_medical_332_name	Strong Bones
 st_srp_medical_333_description	While an antitoxin is active, bonus to reload speed:
 st_srp_medical_333_name	Concentration

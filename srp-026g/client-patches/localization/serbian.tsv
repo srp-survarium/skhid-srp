@@ -4181,7 +4181,7 @@ st_srp_medical_324_description	Kada protivotrov počne da deluje, vraćena izdr�
 st_srp_medical_324_name	Drugi dah
 st_srp_medical_331_description	Zamenjuje mesto za sekundarno oružje dodatnim džepom za zalihe.
 st_srp_medical_331_name	Džep za zalihe
-st_srp_medical_332_description	Dodatak maksimalnom zdravlju ruku i nogu:
+st_srp_medical_332_description	Dodatak maksimalnom zdravlju ruku i nogu (ne podiže prag bola):
 st_srp_medical_332_name	Jake kosti
 st_srp_medical_333_description	Dok protivotrov deluje, dodatak brzini punjenja:
 st_srp_medical_333_name	Koncentracija
