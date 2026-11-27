@@ -3726,3 +3726,6 @@ va	status	ref_021d	name
 0x00529110	inferred-medium		Scaleform::Render::FilterPrimitive::GetCacheResults
 0x005298c0	inferred-medium		Scaleform::Render::FilterPrimitive::SetCacheResults
 0x002ac6c0	inferred-high		survarium::particle_game_effect_presenter::effect_data::operator=
+0x0075d4b0	inferred-high		Scaleform::GFx::AS3::Instances::fl_display::MovieClip::currentFrameGet
+0x0075d630	inferred-high		Scaleform::GFx::AS3::Instances::fl_display::MovieClip::totalFramesGet
+0x00760120	inferred-high		Scaleform::GFx::AS3::Instances::fl_display::MovieClip::gotoAndPlay
