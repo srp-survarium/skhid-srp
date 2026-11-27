@@ -99,15 +99,14 @@ mod tests {
     }
 
     #[test]
-    fn the_step_comes_last_and_an_account_of_before_has_none() {
-        assert_eq!(MIGRATIONS.last(), Some(&MIGRATION));
+    fn an_account_of_before_the_step_has_none() {
         let path = temp("upgrade");
         {
             let connection = Connection::open(&path).unwrap();
             connection
                 .execute_batch("CREATE TABLE g26_meta (key TEXT PRIMARY KEY, value INTEGER NOT NULL);")
                 .unwrap();
-            let before = MIGRATIONS.len() - 1;
+            let before = MIGRATIONS.iter().position(|step| *step == MIGRATION).unwrap();
             for step in &MIGRATIONS[..before] {
                 connection.execute_batch(step).unwrap();
             }

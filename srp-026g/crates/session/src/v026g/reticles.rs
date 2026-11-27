@@ -104,17 +104,13 @@ pub fn owned(account: &Account, reticles: &Reticles) -> Vec<ScopeReticle> {
     owned
 }
 
-/// `A9`: the account's scope items with lists, their reticles and the lists of their scopes
-/// (`lobby::reticles`), with `reticles` the game data's.
+/// `A9`: the lists of every scope type with lists in `reticles` (the game data's), and the
+/// account's scope items with their reticles (`lobby::reticles`). Every type's lists, not only
+/// the account's: a gun picked up in a match may hold a scope the account lacks, and its aimed
+/// view draws that scope's default.
 pub fn message_with(account: &Account, reticles: &Reticles) -> Result<ServerMessage, WireError> {
     let items = owned(account, reticles);
-    let mut dicts: Vec<u16> = items.iter().map(|item| item.dict_id).collect();
-    dicts.sort_unstable();
-    dicts.dedup();
-    let lists: Vec<_> = dicts
-        .into_iter()
-        .filter_map(|dict| reticles.of(dict).map(|lists| (dict, lists)))
-        .collect();
+    let lists: Vec<_> = reticles.iter().collect();
     lobby::scope_reticles(&lists, &items)
 }
 
@@ -133,6 +129,8 @@ mod tests {
     /// 0.26g's Leupold and PSO-1: scope items of the test data's dictionary.
     const LEUPOLD: u16 = 69;
     const PSO: u16 = 304;
+    /// 0.26g's 1P69, another.
+    const ONE_P69: u16 = 362;
 
     fn numbers(pattern: u8, size: u8, colour: u8, brightness: u8) -> Numbers {
         Numbers {
@@ -187,8 +185,8 @@ mod tests {
     }
 
     #[test]
-    fn the_message_lists_each_owned_scope_once() {
-        let reticles = fixtures::reticles(&[LEUPOLD]);
+    fn the_message_lists_every_scope_type_and_the_owned_items() {
+        let reticles = fixtures::reticles(&[LEUPOLD, ONE_P69]);
         let mut account = Account::new("Sent");
         let first = account.add_item(LEUPOLD, FULL_CONDITION);
         let second = account.add_item(LEUPOLD, FULL_CONDITION);
@@ -203,8 +201,9 @@ mod tests {
         let Decoded::ScopeReticles { lists, items } = client.receive(&message).unwrap() else {
             panic!("not A9");
         };
-        assert_eq!(lists.len(), 1);
-        assert_eq!(lists[0].dict_id, LEUPOLD);
+        // Both types' lists, the one the account lacks too.
+        let dicts: Vec<u16> = lists.iter().map(|list| list.dict_id).collect();
+        assert_eq!(dicts, [LEUPOLD, ONE_P69]);
         assert_eq!(
             items,
             vec![

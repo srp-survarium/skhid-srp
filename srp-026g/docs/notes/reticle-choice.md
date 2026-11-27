@@ -5,7 +5,7 @@ owner (2026-11-27): "implement dot modification for scopes like 0.69 had it"; "d
 sizes, patterns"; "you set it on a scope, which then applies to every weapon which has this scope".
 Tags: PROVEN (read in the data or code named), LIKELY, OPEN, [srp] our choice.
 
-Status: research and a design. Nothing is built.
+Status: research and a design; the server and the exe's table and window side built on `feat/reticle-server` (tested with cargo and Unicorn, `tools/check reticle-table`; not run in a game). The drawing, the content and the movie are built elsewhere.
 
 The owner's answers (2026-11-27):
 
@@ -235,42 +235,86 @@ data/srp_reticle {
 
 ### The server
 
-- `g26_scope_reticles(account INTEGER, item INTEGER, pattern INTEGER, size INTEGER, colour INTEGER,
-  brightness INTEGER, PRIMARY KEY (account, item))`, one row for each scope item the player has set.
-- `Reticle { pattern: Index, size: Index, colour: Index, brightness: Brightness }`. Each `Index` is
-  bounded by the scope's list (`survarium::v026g` reads `data/srp_reticle` from the game data into
-  `ReticleLists`), and `Brightness` is 0..=10. A missing row is `Reticle::DEFAULT` (0, 0, 0, 6).
-- **The request.** `46 05 <kit> <host> <upgrade> <u64 value>` with host == upgrade == a scope item of
-  the account that has lists, and the value
-  `pattern | size << 8 | colour << 16 | brightness << 24 | 0x52 << 56` (0x52 'R' marks it).
-  - The server parses the request into the existing second-sight side or a `SetReticle`. A value
-    outside the lists is refused.
-  - Either way the server answers with the account, then the reticles message.
-- **The answer.** An srp lobby message after every account the server sends (sign-in, every
-  answer). It is `<id>` followed by `u16 count`, then `count` entries, one for each scope item the
-  account owns that has lists:
+Built on `feat/reticle-server` (`survarium::v026g::reticles`, `session::v026g::reticles`,
+`persist/reticles.rs`, `lobby::reticles`).
+
+- `g26_scope_reticles(account_id, item_id, pattern, size, colour, brightness, PRIMARY KEY
+  (account_id, item_id))` (schema step 28), one row for each scope item whose choice is not the
+  default. A save writes the account's choices whole.
+- `survarium::v026g::reticles` reads `data/srp_reticle` of every scope item (category 22) into
+  `Reticles` (by dict id, at most 32 scope items with lists; a malformed table stops srp at start).
+  `ReticleLists::reticle(Numbers) -> Option<Reticle>` is the only way to make a `Reticle` other
+  than `Reticle::DEFAULT` (0, 0, 0, 6). `Brightness` is 0..=10. `rgb` is a float3 or a list of
+  three numbers, each 0..16. A size is above 0 and at most 16. A model is 1 to 95 printable ASCII
+  bytes.
+- **The request.** `46 05 <kit> <host> <upgrade> <u64 value>`. When host == upgrade it is a
+  reticle and nothing else (an item is never its own cosmetic). The item must be one of the
+  account's scope items with lists, and the value
+  `pattern | size << 8 | colour << 16 | brightness << 24 | 0x52 << 56` (0x52 'R' marks it; bytes
+  4 to 6 zero) must be held by the lists (`items_rules::place_upgrade_with` → `Placed::Reticle`).
+  Otherwise the second sight's side or a decal's place, as before.
+  - Taken: the server sends `A9`, the inventory, the account and the money (`wire::after_change`).
+  - Refused: `84 46 st_cannot_upgrade_item`, then the same.
+- **The answer: `A9`.** 0.26g's premium-discount id, which srp never sends. Its transport class is
+  "reliable, unique and ordered", so it keeps its order with the inventory and the account. It is
+  sent **before every inventory** (`89`): at the sign-in and after every change
+  (`wire::after_change`). The inventory's arrival is what makes the movie's items
+  (setup_inventory_data), so the table must be there first.
 
 ```text
-u32 item id, u16 dict id, u8 pattern, u8 size, u8 colour, u8 brightness,
-u8 n patterns × { u8 name length, name, u8 model length, model },
-u8 n sizes × f32,
-u8 n colours × { u8 name length, name, f32 r, f32 g, f32 b }
+u8 n lists × {                                  every scope type with lists, each once
+    u16 dict id,
+    u8 n patterns (1..16) × { u8 len, name, u8 len, model },
+    u8 n sizes (1..8) × f32,
+    u8 n colours (1..8) × { u8 len, name, f32 r, f32 g, f32 b },
+}
+u16 n items (0..128) × { u32 item id, u16 dict id, u8 pattern, u8 size, u8 colour, u8 brightness }
+                                                 the account's scope items with lists, by item id
 ```
 
-- A choice that the current lists no longer cover is reset to the default at load time.
-- Selling the scope deletes its row.
+  The lists are those of every scope type, not only those the account owns. A gun picked up in a
+  match may carry a scope the account lacks, and its aimed view then draws that scope's default.
+  Each item names a listed scope and indexes its lists.
+- At load a choice is held against the item's current lists. A choice they no longer hold, an
+  item with no lists and an item the inventory lacks all read as the default (logged).
+- Selling the scope (any change that takes the item out of the inventory) drops its choice
+  (`Account::sync_kits` → `ScopeReticles::keep_owned`), and the next save deletes its row.
 
 ### The exe (patch `<patch>`, Rust module `reticle`)
 
-- **The table.** The patch keeps the last reticles message, parsed once into a typed table (by item
-  id and by dict id), in the arena. It lives for the process, so the lobby and the match read the
-  same table.
+- **The table** (`reticle/table.rs`, built on `feat/reticle-server`). `A9` is taken at
+  `lobby_client.dispatch`: on_message_received 0x274A39, past the messaging ids and before the
+  jump table, whose A9 case (the premium discount) never sees it. It is parsed once into a typed
+  table of the lists by dict id and the items by item id, held in a `vostok::Lock` for the process.
+  A message that does not parse leaves the table empty (one line in the patches' log). Model paths
+  go into an append-only pool (`vostok::names::NamePool`), so a model's `&'static CStr` never
+  changes.
+- **For the drawing:** `reticle::table::drawn_for_dict(thread: &Thread, dict: u16) ->
+  Option<Drawn>`, with `Drawn { model: &'static CStr, scale: f32, rgb: [f32; 3], brightness:
+  Brightness }` and `Brightness::get() -> u8` (0..=10). It returns the choice of the account's
+  item of that dict id (the lowest item id when it holds several), or that scope's default when it
+  holds none. It returns `None` only for a scope without lists, whose aimed model is drawn as it is.
 - **The window's side.**
-  - `srp_set_reticle(item, pattern, size, colour, brightness)` (an ExternalInterface call from the
-    lobby movie) sends the `46 05` above through `engine_send_apply_decal`, after checking it
-    against the table.
-  - `setup_inventory_data` gives each scope item's AS3 object a member `srp_reticle` when the table
-    has the item: `{pattern, size, colour, brightness, patterns: [name], sizes: n, colours: [name]}`.
+  - `srp_set_reticle(item, pattern, size, colour, brightness)`, five AS3 uints (ints and Numbers
+    are taken too). It is hooked at `lobby.callback` after patch 207's `srp_set_upgrade_value`
+    (chain orders 1 and 2). It sends `46 05 <kit> <item> <item> <value>` through
+    `engine_send_apply_decal` only when the table has the item with lists that hold the choice
+    and the inventory has the item. Otherwise it sends nothing and writes a log line (at most one
+    a second). Either way it returns al 1 without the native dispatch.
+  - `setup_inventory_data`, at `lobby_menu.inventory_item` (0x28867F, the item's AS3 object
+    filled), gives each scope item of the table a member `srp_reticle`:
+
+```text
+srp_reticle = {
+    pattern: uint, size: uint, colour: uint, brightness: uint (0..10),
+    patterns: Array of String (the names, in order),
+    sizes: uint (how many),
+    colours: Array of String (the names, in order),
+}
+```
+
+    An item without it has no choice: no lists, or a table emptied by a bad message. The movie's
+    texts are `st_srp_reticle_pattern_<name>` and `st_srp_reticle_colour_<name>`.
 - **The drawing.**
   - The reticle is drawn on the local player's weapon in first person. While the fitted optic's
     aimed model is in the scene, and the table has that optic's dict id (`data/srp_scope`), the

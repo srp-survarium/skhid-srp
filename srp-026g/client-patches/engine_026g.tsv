@@ -373,3 +373,7 @@ engine_unhook_windows_hook_ex	-	-	unsigned int engine_unhook_windows_hook_ex(voi
 engine_call_next_hook_ex	-	-	unsigned int engine_call_next_hook_ex(void *hook, unsigned int code, unsigned int message, const void *data)	dynamic
 engine_msg_wait_for_multiple_objects_ex	-	-	unsigned int engine_msg_wait_for_multiple_objects_ex(unsigned int count, const void *handles, unsigned int timeout, unsigned int mask, unsigned int flags)	dynamic
 engine_peek_message_w	-	-	unsigned int engine_peek_message_w(void *msg, void *window, unsigned int first, unsigned int last, unsigned int remove)	dynamic
+engine_movie_create_object	0x511700	ECX:movie ESP+4:value ESP+8:class ESP+12:arguments ESP+16:count	void engine_movie_create_object(struct gfx_movie *movie, struct gfx_value *value, const char *class_name, const struct gfx_value *args, unsigned int count)	thiscall	
+engine_movie_create_array	0x511710	ECX:movie ESP+4:value	void engine_movie_create_array(struct gfx_movie *movie, struct gfx_value *value)	thiscall	
+engine_gfx_set_element	0x798340	ECX:interface ESP+4:target ESP+8:index ESP+12:value	unsigned char engine_gfx_set_element(struct gfx_object_interface *interface, struct gfx_object *target, unsigned int index, const struct gfx_value *value)	thiscall	
+engine_gfx_object_release	0x78e610	ECX:interface ESP+4:value ESP+8:target	void engine_gfx_object_release(struct gfx_object_interface *interface, struct gfx_value *value, struct gfx_object *target)	thiscall	

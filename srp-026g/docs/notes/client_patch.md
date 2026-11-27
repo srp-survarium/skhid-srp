@@ -5146,3 +5146,74 @@ their defaults and ranges, the scopes' surround and what to look at are in `weap
 before the new site.
 
 **Not run:** a game.
+
+### 3.116 A scope's reticle chosen in the lobby: the table (written 2026-11-27, patch `<patch>`, the number claimed when the PR is nearly done; the design: `reticle-choice.md`) — PROVEN in the code and under Unicorn; not run in a game
+
+The Rust module `reticle` (`rust/patches/src/reticle/`, `reticle.toml`). This section covers its
+table (`table.rs`). The drawing (`draw.rs`) reads the table through `drawn_for_dict`.
+
+**srp's message: `A9`, taken at the dispatcher** (PROVEN). `lobby_client::on_message_received`
+(0x274A00) sends ids A2..A4 to the messaging dispatcher (`ja 0x274A39` past them). Every other id
+goes through the jump table 0x275138, indexed by id-80h with no range check (0x274A39
+`movzx ecx,dl` / 0x274A3C `add ecx,-80h` / 0x274A3F `jmp [ecx*4+275138h]`). An id the client
+never gets has to have a transport class (`transport.md` §4.1: 81h and A0h are unique-only, 86h
+and A7h jump to 0). It also has to be ordered with the inventory, because the movie's items are
+made when the inventory comes. A9 is the premium discount (inline 0x274FBA → 0x28AB20), which srp
+never sends, and its class is 0x60: reliable, unique and ordered.
+
+The site is `lobby_client.dispatch`, a lohook of 6 bytes at 0x274A39: the movzx and the add,
+branch-free, the ja's target at its first byte, nothing aiming inside. EBX is the lobby client, DL
+the id (EDX the argument's dword), and [ebp+0Ch] the reader {begin, cursor, size} with its cursor
+at the body. Its exit `done` is the messaging path's own epilogue at 0x274A30 (pop edi, esi,
+ebx / mov esp,ebp / pop ebp / ret 8), whose stack equals the site's. The handler takes A9 and
+leaves every other id to the table.
+
+**The table.** The body (`survarium::v026g::lobby::reticles`, `reticle-choice.md`) is parsed once
+into fixed arrays: at most 32 scope types' lists, 128 items, 16 patterns, 8 sizes and 8 colours.
+Names are `[a-z0-9_]` of 1 to 23 bytes, models 1 to 95 printable bytes, sizes in (0, 16],
+channels in [0, 16], and every item's choice must be within its scope's lists. The table sits in a
+`vostok::Lock` and is replaced whole by each message. A body that does not parse leaves it empty
+and writes one line. Model paths are interned into `vostok::names::NamePool` (64 slots of 96
+bytes, append-only): a published slot is never written again, so `Drawn::model` is a `&'static
+CStr`.
+
+**The movie's member: `lobby_menu.inventory_item`** (0x28867F, a lohook of 5 bytes: `mov
+ecx,[ebp-54h]` / `mov eax,[ecx]`). setup_inventory_data (0x288520) makes each inventory item's AS3
+object at [ebp-6Ch] (CreateObject 0x28864C), fills it (0x287E30), puts it into the items' array
+(SetElement through the AS3 interface's +34h at 0x288693) and releases it (0x2886B0). At the site
+EDI is the item record and EBX the lobby menu. For a scope item of the table the handler builds,
+with the lobby movie (menu+690h → +108h → +4):
+
+- an Object and two Arrays (`engine_movie_create_object` 0x511700 and
+  `engine_movie_create_array` 0x511710, tail jumps through the GFx movie's vtable +98h and +9Ch);
+- uints set with SetMember (0x7C6A20) and the names with SetElement (`engine_gfx_set_element`
+  0x798340, slot +34h of the AS3 object interface 0x8FC288, al 1, `ret 0Ch`);
+- the item object's `srp_reticle`.
+
+The three values live in rooms of the handler's frame that never move. Each one is released after
+the set with `engine_gfx_object_release` (0x78E610, slot +8, `ret 8`), as the game releases its
+own.
+
+**The call: `srp_set_reticle(item, pattern, size, colour, brightness)`** at `lobby.callback`
+(3.111's site). It is chained after patch 207 (`order` 1 and 2: each takes its own method and
+leaves the others). The arguments are read as 3.111 reads them. The request is sent through
+send_apply_decal (`LobbyInventory::send_reticle`) as `46 05 <active kit> <item> <item> <value>`,
+and only when the table holds the choice for the item and the inventory has the item. The
+function's own write after the send goes to the item's record of its own id, and a scope item has
+none, so the client's copy is unchanged until the server sends `A9`, the inventory and the
+account. The handler answers al 1 and returns through `done` without the native dispatch.
+
+**Checked:** `check_reticle_table_026g.py` (`tools/check reticle-table`, Unicorn, on
+check_upgrade_value_026g.py's harness):
+
+- the dispatcher from its start: A9 returns by `ret 8` with the kept registers, where the original
+  reaches the jump with ECX 29h, and 8Bh and A8h reach the jump as in the original;
+- the item site to its SetElement call, the GFx functions stubbed and recorded: the members and
+  elements as above for two scope types, nothing for other items or after a malformed message,
+  the registers the original's;
+- the call: the request's bytes and send_apply_decal's arguments; refusals of values past the
+  lists, brightness 11, unknown items, a string or four arguments; patch 207's method still its
+  own.
+
+A build that leaves A9 to the table fails nine cases. The logic and the pool have cargo tests.
+**Not run in a game.**

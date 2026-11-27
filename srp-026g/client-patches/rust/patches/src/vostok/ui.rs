@@ -459,3 +459,131 @@ impl Movie<'_> {
         self.invoke(method, &mut arguments)
     }
 }
+
+/// A GFx value's type of an AS3 Object and of an Array (Scaleform::GFx::Value's VT_Object,
+/// VT_Array), without the managed bit.
+pub(super) const GFX_OBJECT: u32 = 8;
+pub(super) const GFX_ARRAY: u32 = 9;
+
+/// `value`'s object interface when it is the AS3 one (its vtable 0x8FC288): the only interface
+/// whose slots these calls name.
+///
+/// # Safety
+/// `value` is a live GFx value.
+unsafe fn as3_interface(value: raw::GfxValue) -> Option<raw::GfxObjectInterface> {
+    // SAFETY: the caller's live value; the interface's vtable only read.
+    unsafe {
+        let interface = value.interface()?;
+        (*interface.vtable() == raw::image::AS3_OBJECT_INTERFACE).then_some(interface)
+    }
+}
+
+/// `object`'s member `name` is `value` (SetMember of the AS3 object interface, 0x7C6A20); false
+/// when `object` is no AS3 movie's value (nothing set) or the movie refused.
+///
+/// # Safety
+/// `object` and `value` are live GFx values of a movie on the hook's thread.
+pub(super) unsafe fn set_member(object: raw::GfxValue, name: &CStr, value: raw::GfxValue) -> bool {
+    // SAFETY: the caller's live values; the interface is the AS3 one, whose SetMember 0x7C6A20
+    // is that slot; the name a C string.
+    unsafe {
+        let Some(interface) = as3_interface(object) else { return false };
+        let display = u32::from(*object.kind() & 0x8F == 0x0A);
+        raw::engine_gfx_set_member(Some(interface), object.object(), name.as_ptr().cast(), Some(value), display) != 0
+    }
+}
+
+/// `array`'s element `index` is `value` (SetElement of the AS3 object interface, 0x798340; the
+/// array grows to it); false when `array` is no AS3 array.
+///
+/// # Safety
+/// `array` and `value` are live GFx values of a movie on the hook's thread.
+pub(super) unsafe fn set_element(array: raw::GfxValue, index: u32, value: raw::GfxValue) -> bool {
+    // SAFETY: the caller's live values; the interface is the AS3 one, whose SetElement 0x798340
+    // is its slot +34h; an array's own data its +8.
+    unsafe {
+        let Some(interface) = as3_interface(array) else { return false };
+        if *array.kind() & 0x3F != GFX_ARRAY {
+            return false;
+        }
+        raw::engine_gfx_set_element(Some(interface), array.object(), index, Some(value)) != 0
+    }
+}
+
+/// `room` holds the unmanaged string `text` (the movie copies it where it is set).
+///
+/// # Safety
+/// `text` outlives every use of the value.
+pub(super) unsafe fn string_value(room: &mut raw::GfxValueStorage, text: &CStr) -> raw::GfxValue {
+    let value = room.handle();
+    // SAFETY: our own room; the text the caller's.
+    unsafe {
+        *value.kind() = GFX_STRING;
+        value.set_text(text.as_ptr().cast::<u8>().cast_mut());
+    }
+    value
+}
+
+/// `room` holds the uint `number`.
+pub(super) fn uint_value(room: &mut raw::GfxValueStorage, number: u32) -> raw::GfxValue {
+    let value = room.handle();
+    // SAFETY: our own room.
+    unsafe {
+        *value.kind() = GFX_UINT;
+        *value.value() = number;
+    }
+    value
+}
+
+/// The AS3 objects and arrays [`Movie::made`] makes, in rooms of the caller's frame that never
+/// move (the movie's AS3 values are handed back by their address), each released when dropped.
+pub(super) struct Made<'r, 't> {
+    value: raw::GfxValue,
+    _room: PhantomData<&'r mut raw::GfxValueStorage>,
+    _movie: PhantomData<&'t Thread>,
+}
+
+impl Made<'_, '_> {
+    pub(super) fn value(&self) -> raw::GfxValue {
+        self.value
+    }
+}
+
+impl Drop for Made<'_, '_> {
+    fn drop(&mut self) {
+        // SAFETY: our live value of the movie, made by its CreateObject or CreateArray; a managed
+        // one holds a reference the AS3 interface's ObjectRelease (0x78E610, slot +8) drops, as
+        // the game's own values are released (0x2886A0).
+        unsafe {
+            if *self.value.kind() & GFX_MANAGED == 0 {
+                return;
+            }
+            if let Some(interface) = as3_interface(self.value) {
+                raw::engine_gfx_object_release(Some(interface), Some(self.value), self.value.object());
+            }
+        }
+    }
+}
+
+impl<'t> Movie<'t> {
+    /// A new AS3 Object (`kind` [`GFX_OBJECT`], CreateObject 0x511700) or Array ([`GFX_ARRAY`],
+    /// CreateArray 0x511710) of the movie in `room`, released when the result is dropped; none
+    /// when the movie gave no AS3 value of that type.
+    pub(super) fn made<'r>(&self, room: &'r mut raw::GfxValueStorage, kind: u32) -> Option<Made<'r, 't>> {
+        *room = raw::GfxValueStorage::zeroed();
+        let value = room.handle();
+        // SAFETY: a live movie on the hook's thread; the value our zeroed room (undefined), which
+        // the call writes and nothing else holds.
+        unsafe {
+            match kind {
+                GFX_OBJECT => raw::engine_movie_create_object(Some(self.this), Some(value), core::ptr::null(), None, 0),
+                GFX_ARRAY => raw::engine_movie_create_array(Some(self.this), Some(value)),
+                _ => return None,
+            }
+        }
+        let made = Made { value, _room: PhantomData, _movie: PhantomData };
+        // SAFETY: the value the movie just wrote, in our room.
+        let fits = unsafe { *value.kind() & 0x3F == kind && as3_interface(value).is_some() };
+        fits.then_some(made)
+    }
+}

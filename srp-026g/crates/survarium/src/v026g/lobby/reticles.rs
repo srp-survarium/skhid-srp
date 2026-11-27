@@ -19,8 +19,9 @@
 //! u16 n items × { u32 item id, u16 dict id, u8 pattern, u8 size, u8 colour, u8 brightness }
 //! ```
 //!
-//! The lists are those of the scope types the account owns, each once; every item names one of
-//! them and indexes it.
+//! The lists are those of every scope type with lists (a gun picked up in a match may hold a scope
+//! the account lacks: its aimed view draws that scope's default), each once; every item names one
+//! of them and indexes it.
 
 use super::super::reticles::{
     MAX_SCOPES, MODEL_LIMIT, NAME_LIMIT, Reticle, ReticleLists,

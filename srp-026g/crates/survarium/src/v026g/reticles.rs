@@ -374,6 +374,11 @@ impl Reticles {
         Ok(Reticles { lists })
     }
 
+    /// Every scope item's lists, by dict id.
+    pub fn iter(&self) -> impl Iterator<Item = (u16, &ReticleLists)> + '_ {
+        self.lists.iter().map(|(&dict_id, lists)| (dict_id, lists))
+    }
+
     /// The lists of the scope item `dict_id`, if it has any.
     pub fn of(&self, dict_id: u16) -> Option<&ReticleLists> {
         self.lists.get(&dict_id)
